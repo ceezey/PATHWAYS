@@ -20,28 +20,38 @@ export const TopBarBreadcrumb = ({ pathname, label }: { pathname: string; label:
     dashboardNavigation
       .filter((item) => pathname === item.href || pathname.startsWith(`${item.href}/`))
       .sort((left, right) => right.href.length - left.href.length)[0]?.href ?? pathname
-  const tabName = section === 'projects' && projectId ? projectTabNames[tab] : undefined
+  // The indicator library is reached from a project's Target Indicators tab.
+  const library = section === 'indicators' && projectId === 'library'
+  const trail = library
+    ? ['Target Indicators', 'Indicator Library']
+    : section === 'projects' && projectId && projectTabNames[tab] !== undefined
+      ? [projectTabNames[tab]]
+      : []
 
   return (
     <nav aria-label="Breadcrumb" className="min-w-0">
       <ol className="flex min-w-0 items-center gap-1.5 text-sm font-semibold">
         <li className="truncate">
           <Link
-            aria-current={tabName ? undefined : 'page'}
+            aria-current={trail.length ? undefined : 'page'}
             className="text-foreground hover:text-primary hover:underline"
-            href={href}
+            href={library ? '/projects' : href}
           >
-            {label}
+            {library ? 'Projects' : label}
           </Link>
         </li>
-        {tabName ? (
-          <li aria-current="page" className="flex min-w-0 items-center gap-1.5">
+        {trail.map((name, index) => (
+          <li
+            aria-current={index === trail.length - 1 ? 'page' : undefined}
+            className="flex min-w-0 items-center gap-1.5"
+            key={name}
+          >
             <span aria-hidden="true" className="text-muted-foreground">
               /
             </span>
-            <span className="truncate text-muted-foreground">{tabName}</span>
+            <span className="truncate text-muted-foreground">{name}</span>
           </li>
-        ) : null}
+        ))}
       </ol>
     </nav>
   )

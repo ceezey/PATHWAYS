@@ -12,7 +12,7 @@ export const EmptyState = ({
   tone = 'neutral',
 }: {
   title: string
-  description: string
+  description?: string
   icon?: LucideIcon
   className?: string
   action?: ReactNode
@@ -21,7 +21,7 @@ export const EmptyState = ({
   <div
     className={cn(
       'flex min-h-[180px] flex-col items-center justify-center rounded-lg border bg-card px-6 py-8 text-center',
-      tone === 'danger' ? 'border-danger/40 bg-danger-subtle/40' : 'border-border',
+      tone === 'danger' ? 'border-danger/40' : 'border-border',
       className,
     )}
   >
@@ -36,7 +36,9 @@ export const EmptyState = ({
       </div>
     ) : null}
     <p className="text-base font-semibold text-foreground">{title}</p>
-    <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">{description}</p>
+    {description ? (
+      <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">{description}</p>
+    ) : null}
     {action ? <div className="mt-4">{action}</div> : null}
   </div>
 )

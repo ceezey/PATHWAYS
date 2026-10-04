@@ -17,7 +17,6 @@ describe('navigation constants', () => {
       '/analytics',
       '/alerts',
       '/reports',
-      '/alerts/repository',
       '/transparency',
       '/settings/users',
       '/settings/audit',
@@ -31,7 +30,6 @@ describe('navigation constants', () => {
       'Analytics',
       'Alerts',
       'Reports',
-      'Alerts Repository',
       'Public Tracker',
       'User Management',
       'Audit Log',
@@ -65,7 +63,7 @@ describe('navigation constants', () => {
     expect(getDashboardNavigationLabel('/projects/futuremakers-ncr/activities')).toBe('Projects')
     expect(getDashboardNavigationLabel('/collection/import')).toBe('Collection')
     expect(getDashboardNavigationLabel('/settings/users')).toBe('User Management')
-    expect(getDashboardNavigationLabel('/alerts/repository')).toBe('Alerts Repository')
+    expect(getDashboardNavigationLabel('/alerts/repository')).toBe('Alerts')
     expect(getDashboardNavigationLabel('/settings/audit')).toBe('Audit Log')
     expect(getDashboardNavigationLabel('/settings/backups')).toBe('Backup & Recovery')
     expect(getDashboardNavigationLabel('/transparency')).toBe('Public Tracker')

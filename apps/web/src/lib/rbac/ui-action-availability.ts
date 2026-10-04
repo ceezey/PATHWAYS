@@ -14,6 +14,7 @@ export type UiAction =
   | 'assessments.detail.view'
   | 'beneficiaries.edit'
   | 'beneficiaries.merge'
+  | 'beneficiaries.media.upload'
   | 'beneficiaries.create'
   | 'beneficiaries.participation.record'
   | 'beneficiaries.journey.transition'
@@ -37,6 +38,7 @@ const supportedActionPermission: Partial<Record<UiAction, AtomicPermission>> = {
   'assessments.detail.view': 'assessments.detail.read',
   'beneficiaries.create': 'beneficiaries.records.register',
   'beneficiaries.edit': 'beneficiaries.profiles.update',
+  'beneficiaries.media.upload': 'beneficiaries.enrollments.manage',
   'beneficiaries.merge': 'beneficiaries.identities.review',
   'beneficiaries.participation.record': 'participation.record',
   'beneficiaries.journey.transition': 'beneficiaries.enrollments.manage',

@@ -58,11 +58,11 @@ SELECT pg_temp.ok(pg_get_userbyid(p.proowner)='rules_enqueue_owner' AND NOT p.pr
  AND NOT has_function_privilege('service_role',p.oid,'EXECUTE')
  AND NOT has_function_privilege('pathways_rules_worker',p.oid,'EXECUTE'),'owner mode search_path and ACL unchanged')
 FROM pg_proc p WHERE p.oid='pathways_rules_internal.canonical_source_request(text,jsonb)'::regprocedure;
--- md5 values of the 0031 body before `ELSIF k='files'` and from `ELSIF k='binding'`, computed from
--- 0031_f10_f11_rules_runtime/migration.sql (5295 and 4637 bytes).
-SELECT pg_temp.ok(md5(substr(p.prosrc,1,position($x$  ELSIF k='files' THEN$x$ in p.prosrc)-1))='4f92b2e3dc61289a375979b3f343aadd'
- AND md5(substr(p.prosrc,position($x$  ELSIF k='binding' THEN$x$ in p.prosrc)))='e18389dfcea36863eea2c1e09debba5b'
- AND md5(p.prosrc)='26392f4284b21e3b751063c39901628d','definition identical to 0031 outside the files branch')
+-- md5 values of the body before `ELSIF k='files'` and from `ELSIF k='binding'`, computed from
+-- 0056_indicator_type/migration.sql (0056 adds only the indicatorType key and its enum check).
+SELECT pg_temp.ok(md5(substr(p.prosrc,1,position($x$  ELSIF k='files' THEN$x$ in p.prosrc)-1))='3dccc65d8093521005a57853cf04974c'
+ AND md5(substr(p.prosrc,position($x$  ELSIF k='binding' THEN$x$ in p.prosrc)))='7516f96ffe4a04fa32c46e44c6da5d7e'
+ AND md5(p.prosrc)='cc7f2aae3e9dc2e5b7c9e2f04dbcf4df','definition identical to 0031 outside the files branch and the 0056 indicatorType lines')
 FROM pg_proc p WHERE p.oid='pathways_rules_internal.canonical_source_request(text,jsonb)'::regprocedure;
 -- Callers are definers owned by the same owner, so their EXECUTE path is unchanged.
 SELECT pg_temp.ok(bool_and(pg_get_userbyid(p.proowner)='rules_enqueue_owner' AND p.prosecdef

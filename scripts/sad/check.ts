@@ -54,7 +54,13 @@ export const roles = {
   },
   'rule-engine-determinism-checker': {
     pillars: ['Performance Efficiency'],
-    globs: ['packages/shared/src/monitoring/**/*.ts', 'apps/api/src/modules/indicators/**/*.ts'],
+    globs: [
+      'packages/shared/src/monitoring/**/*.ts',
+      'apps/api/src/modules/indicators/**/*.ts',
+      'apps/api/src/modules/rules/**/*.ts',
+      'apps/web/src/features/analytics/rule*.ts',
+      'apps/web/src/features/analytics/rule*.tsx',
+    ],
   },
   'restraint-guardian': {
     pillars: ['Maintainability'],
@@ -68,6 +74,7 @@ export const roles = {
       'packages/**',
       'scripts/sad/**',
       '.github/workflows/ci.yml',
+      '.github/workflows/rules-dispatch.yml',
       'infra/supabase/phase6/*.ps1',
     ],
   },

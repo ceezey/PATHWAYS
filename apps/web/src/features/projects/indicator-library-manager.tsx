@@ -1,6 +1,8 @@
 'use client'
 
-import { LibraryBig, Plus } from 'lucide-react'
+import { ArrowLeft, LibraryBig, Loader2, Plus } from 'lucide-react'
+import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import { type FormEvent, useRef, useState } from 'react'
 
 import { PageHeader } from '@/components/layout/page-header'
@@ -17,6 +19,8 @@ import { Dialog, DialogTrigger } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { useCurrentRole } from '@/hooks/use-current-role'
+import { usePendingCreate } from '@/hooks/use-pending-create'
+import { fingerprintOf } from '@/lib/forms/pending-create'
 import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
 import { indicatorLibraryClient } from '@/lib/services/indicator-library-client'
 import { PathwaysClientError } from '@/lib/services/pathways-client'
@@ -29,6 +33,11 @@ import {
   numericKinds,
 } from '@pathways/shared'
 import { recipeNames } from './indicator-recipes'
+
+// Only recipes the database computes today (see deferred-features.md), matching the add form.
+const offeredRecipes = libraryRecipes.filter(
+  (recipe) => recipe === 'ACTIVITY_COMPLETION_PERCENTAGE',
+)
 import { InlineNotice, OptionSelect } from './option-select'
 
 const field = (form: FormData, name: string) => String(form.get(name) ?? '').trim()
@@ -36,10 +45,12 @@ const headClass =
   'sticky top-0 z-10 h-10 bg-surface-subtle px-4 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground'
 
 function EntryForm({
+  busy,
   message,
   onCreate,
   onDone,
 }: {
+  busy: boolean
   message: string | null
   onCreate: (input: CreateLibraryEntryInput) => Promise<boolean>
   onDone: () => void
@@ -160,12 +171,12 @@ function EntryForm({
         </div>
         {mode === 'DERIVED' ? (
           <div className="md:col-span-2">
-            <label htmlFor="library-recipe">System-owned calculation</label>
+            <label htmlFor="library-recipe">Recipe</label>
             <OptionSelect
               id="library-recipe"
               name="recipe"
-              defaultValue={libraryRecipes[0]}
-              options={libraryRecipes.map((recipe) => ({
+              defaultValue={offeredRecipes[0]}
+              options={offeredRecipes.map((recipe) => ({
                 value: recipe,
                 label: recipeNames[recipe],
               }))}
@@ -179,7 +190,10 @@ function EntryForm({
       </div>
       {validation ? <InlineNotice tone="danger">{validation}</InlineNotice> : null}
       {message ? <InlineNotice>{message}</InlineNotice> : null}
-      <Button type="submit">Save entry</Button>
+      <Button className="gap-2" disabled={busy} type="submit">
+        {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : null}
+        {busy ? 'Saving...' : 'Save entry'}
+      </Button>
     </form>
   )
 }
@@ -206,6 +220,12 @@ function NewEntry(props: Omit<Parameters<typeof EntryForm>[0], 'onDone'>) {
 
 export function IndicatorLibraryManager() {
   const { profile } = useCurrentRole()
+  // Returns to the project that opened the library, otherwise to the indicators overview.
+  const fromProject = useSearchParams().get('project')
+  const backHref =
+    fromProject && /^[0-9a-f-]{36}$/i.test(fromProject)
+      ? `/projects/${fromProject}/indicators`
+      : '/indicators'
   const canCreate = principalHasAtomicPermission(profile, 'indicators.library.create')
   const canArchive = principalHasAtomicPermission(profile, 'indicators.library.archive')
   const read = useAuthorizedRead('indicator-library', null, 'indicators.library.read', () =>
@@ -214,12 +234,24 @@ export function IndicatorLibraryManager() {
   const [message, setMessage] = useState<string | null>(null)
   const [archiving, setArchiving] = useState<LibraryEntry | null>(null)
   const [busy, setBusy] = useState(false)
-  const run = async (action: () => Promise<unknown>, done: string) => {
+  const pendingCreate = usePendingCreate<LibraryEntry>({
+    profile,
+    kind: 'indicator-library-entry',
+    successMessage: 'Library entry saved',
+    findCreated: async (fingerprint) =>
+      (await indicatorLibraryClient.list()).find(
+        (entry) => fingerprintOf(entry.code) === fingerprint,
+      ),
+    onConfirmed: () => void read.refetch(),
+  })
+  const run = async (action: () => Promise<unknown>, done: string, createFingerprint?: string) => {
     if (busy) return false
     setBusy(true)
     setMessage(null)
     try {
-      await action()
+      if (createFingerprint) {
+        if (!(await pendingCreate.submit(createFingerprint, action))) return false
+      } else await action()
       setMessage(done)
       void read.refetch()
       return true
@@ -241,13 +273,26 @@ export function IndicatorLibraryManager() {
         eyebrow="Monitoring"
         title="Indicator library"
         description="Reusable indicator definitions for your organization. Using one copies its definition into a project; it never links back."
+        actions={
+          <Button asChild className="gap-2" variant="outline">
+            <Link href={backHref}>
+              <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+              Back to Indicators
+            </Link>
+          </Button>
+        }
       />
       {canCreate ? (
         <div className="flex justify-end">
           <NewEntry
-            message={message}
+            busy={busy || pendingCreate.pending}
+            message={message ?? pendingCreate.notice}
             onCreate={(input) =>
-              run(() => indicatorLibraryClient.create(input), 'Library entry saved.')
+              run(
+                () => indicatorLibraryClient.create(input),
+                'Library entry saved.',
+                fingerprintOf(input.code),
+              )
             }
           />
         </div>

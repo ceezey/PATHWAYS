@@ -7,6 +7,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common'
+import { projectCodeBase, uniqueProjectCode } from '@pathways/shared'
 import { Prisma } from '@prisma/client'
 import {
   beginRuleSourceOperation,
@@ -422,13 +423,35 @@ export class ProjectsService {
     )
   }
 
+  /** Readable code like CRL-NS-2026; org-wide codes are read only to avoid the unique index. */
+  private async generateProjectCode(
+    tx: Prisma.TransactionClient,
+    organizationId: string,
+    input: CreateProjectDto,
+  ) {
+    const base = projectCodeBase({
+      title: input.title,
+      area: input.implementationArea,
+      startDate: input.startDate,
+    })
+    const taken = await tx.project.findMany({
+      where: { organizationId, code: { startsWith: base, mode: 'insensitive' } },
+      select: { code: true },
+      take: 1000,
+    })
+    return uniqueProjectCode(
+      base,
+      taken.map((row) => row.code),
+    )
+  }
+
   create(identity: ApplicationIdentity, input: CreateProjectDto) {
     return withAuthorizedOperation(this.prisma, identity, 'projects.create', async (tx, actor) => {
       if (actor.roles[0] !== 'PROJECT_MANAGER') {
         throw new ForbiddenException('Project creation is outside your authority.')
       }
       const id = randomUUID()
-      const code = input.code ?? `PRJ-${id.toUpperCase()}`
+      const code = input.code ?? (await this.generateProjectCode(tx, actor.organizationId, input))
       const data = projectData(input, code)
 
       await this.requireProgram(tx, actor.organizationId, data.programId)

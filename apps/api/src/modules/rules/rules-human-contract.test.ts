@@ -5,6 +5,7 @@ import {
   createRuleSchema,
   draftRuleSchema,
   previewOutputSchema,
+  recommendationOutputSchema,
   recommendationPreviewSchema,
   reviewSchema,
   revisionSchema,
@@ -131,5 +132,54 @@ describe('human rule and outcome contract', () => {
         recommendations: [...input.recommendations, ...input.recommendations],
       }).success,
     ).toBe(false)
+  })
+  it('parses aggregate metrics without bindings and the auto-resolved recommendation status', () => {
+    const input = {
+      name: 'Review aggregates',
+      severity: 'LOW',
+      code: 'AGGREGATES',
+      clientOperationId: id,
+      recommendations: [{ id: rec, title: 'Review', text: 'Review the aggregates.' }],
+    }
+    const condition = (metric: string, threshold: string) => ({
+      kind: 'CONDITION',
+      id: 'A',
+      metric,
+      operator: 'GT',
+      threshold,
+    })
+    for (const [metric, threshold] of [
+      ['BUDGET_UTILIZATION_PERCENT', '120'],
+      ['BENEFICIARY_FOLLOW_UP_PERCENT', '30'],
+      ['SURVEY_MEAN_IMPROVEMENT_POINTS', '-5'],
+    ])
+      expect(
+        createRuleSchema.safeParse({ ...input, conditions: condition(metric, threshold) }).success,
+      ).toBe(true)
+    for (const bad of [
+      condition('BENEFICIARY_FOLLOW_UP_PERCENT', '101'),
+      condition('BUDGET_UTILIZATION_PERCENT', '-1'),
+      condition('SURVEY_MEAN_IMPROVEMENT_POINTS', '100.0001'),
+      condition('FOO', '1'),
+      { ...condition('BUDGET_UTILIZATION_PERCENT', '1'), indicatorId: id },
+    ])
+      expect(createRuleSchema.safeParse({ ...input, conditions: bad }).success).toBe(false)
+    const output = {
+      id,
+      projectId: id,
+      alertId: id,
+      ruleId: id,
+      title: 'Review',
+      text: 'Review it.',
+      basis: 'Basis',
+      status: 'AUTO_RESOLVED',
+      revision: '1',
+      proposedAt: '2026-10-01T00:00:00.000Z',
+      reviewedAt: null,
+    }
+    expect(recommendationOutputSchema.safeParse(output).success).toBe(true)
+    expect(recommendationOutputSchema.safeParse({ ...output, status: 'ACCEPTED' }).success).toBe(
+      false,
+    )
   })
 })

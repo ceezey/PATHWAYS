@@ -19,9 +19,11 @@ const api = vi.hoisted(() => ({
 }))
 const alertHook = vi.hoisted(() => ({ result: { data: undefined } as Record<string, unknown> }))
 const download = vi.hoisted(() => vi.fn())
-const finance = vi.hoisted(() => ({
-  budgets: vi.fn(),
-  expenses: vi.fn(),
+const idle = { data: undefined, isError: false, isPending: true, refetch: vi.fn() }
+const insights = vi.hoisted(() => ({
+  budget: {} as Record<string, unknown>,
+  trends: {} as Record<string, unknown>,
+  participation: {} as Record<string, unknown>,
 }))
 const coverageMap = vi.hoisted(() => ({
   instanceCount: 0,
@@ -30,6 +32,7 @@ const coverageMap = vi.hoisted(() => ({
 const currentAccess = vi.hoisted(() => ({
   role: 'Monitoring and Evaluation Officer',
   profile: {
+    userId: 'user-1',
     roles: ['MONITORING_AND_EVALUATION_OFFICER'],
     permissions: ['projects.read', 'activities.read', 'monitoring.read', 'analytics.read'],
     assignedProjectIds: ['project-a', 'project-b'],
@@ -43,10 +46,13 @@ vi.mock('@/lib/services/pathways-client', () => ({
 }))
 vi.mock('@/lib/services/core-feature-client', () => ({
   downloadCoreArtifact: download,
-  coreDataClient: {
-    budgets: (...args: unknown[]) => finance.budgets(...args),
-    expenses: (...args: unknown[]) => finance.expenses(...args),
-  },
+}))
+vi.mock('echarts-for-react', () => ({ default: () => <div>chart</div> }))
+vi.mock('./use-analytics-insights', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./use-analytics-insights')>()),
+  useBudgetSummary: () => insights.budget,
+  useIndicatorTrends: () => insights.trends,
+  useParticipationBreakdown: () => insights.participation,
 }))
 vi.mock('@/hooks/use-current-role', () => ({
   useCurrentRole: () => currentAccess,
@@ -188,7 +194,9 @@ const budgetUtilizationCard = () =>
   screen
     .getAllByText('Budget utilization')
     .map((node) => node.parentElement?.parentElement?.textContent ?? '')
-    .filter((text) => text.includes('PHP') || text.includes('%') || text.includes('Unavailable'))
+    .filter(
+      (text) => text.includes('%') || text.includes('Unavailable') || text.includes('No budget'),
+    )
     .join(' | ')
 
 const monitoring = {
@@ -237,8 +245,11 @@ describe('Analytics dashboard request dependencies', () => {
       age: [],
       disability: [],
     })
-    finance.budgets.mockReset().mockResolvedValue([])
-    finance.expenses.mockReset().mockResolvedValue([])
+    api.getDescriptiveAnalytics.mockReturnValue(new Promise(() => {}))
+    insights.budget = { ...idle }
+    insights.trends = { ...idle }
+    insights.participation = { ...idle }
+    window.localStorage.clear()
   })
 
   afterEach(() => {
@@ -312,32 +323,33 @@ describe('Analytics dashboard request dependencies', () => {
     expect(coverageMap.featureCollections.at(-1)).not.toBe(firstFeatureCollection)
   })
 
-  it('computes budget utilization from planned budgets and approved expenses', async () => {
-    // Monitoring and Evaluation Officer never holds budgets.read in the authorization policy;
-    // Program Manager holds both budgets.read and expenses.read.
+  it('shows budget utilization from the insights read', async () => {
+    // Program Manager holds budgets.read, expenses.read and analytics.descriptive.read.
     currentAccess.role = 'Program Manager'
     currentAccess.profile.roles = ['PROGRAM_MANAGER']
     currentAccess.profile.permissions = [
       ...currentAccess.profile.permissions,
       'budgets.read',
       'expenses.read',
+      'analytics.descriptive.read',
     ]
-    finance.budgets.mockResolvedValue([
-      { id: 'budget-1', plannedBudget: '1000.00' },
-      { id: 'budget-2', plannedBudget: '500.00' },
-    ])
-    finance.expenses.mockResolvedValue([
-      { id: 'expense-1', budgetRecordId: 'budget-1', amount: '450.00', status: 'APPROVED' },
-      { id: 'expense-2', budgetRecordId: 'budget-1', amount: '900.00', status: 'PENDING' },
-    ])
+    insights.budget = {
+      data: {
+        projectId: 'project-a',
+        currencies: [
+          { currency: 'PHP', planned: 1500, approved: 450, pending: 900, utilizationPercent: 30 },
+        ],
+      },
+      isError: false,
+      isPending: false,
+      refetch: vi.fn(),
+    }
 
     render(<AnalyticsDashboard />)
 
-    await waitFor(() => expect(finance.budgets).toHaveBeenCalledWith('project-a'))
-    expect(finance.expenses).toHaveBeenCalledWith('project-a')
     await waitFor(() => expect(screen.getAllByText('30%').length).toBeGreaterThan(0))
-    expect(screen.getByText('PHP 1,500')).toBeTruthy()
-    expect(screen.getByText('PHP 450')).toBeTruthy()
+    expect(screen.getByText(/1,500\.00/)).toBeTruthy()
+    expect(screen.getByText(/450\.00/)).toBeTruthy()
   })
 
   it('hides budget utilization when the budgets or expenses read permission is absent', async () => {
@@ -345,8 +357,6 @@ describe('Analytics dashboard request dependencies', () => {
 
     await screen.findAllByText('KPI achievement')
     await waitFor(() => expect(budgetUtilizationCard()).toContain('Unavailable'))
-    expect(finance.budgets).not.toHaveBeenCalled()
-    expect(finance.expenses).not.toHaveBeenCalled()
   })
 
   it('surfaces a budget utilization server error instead of a false result', async () => {
@@ -356,13 +366,19 @@ describe('Analytics dashboard request dependencies', () => {
       ...currentAccess.profile.permissions,
       'budgets.read',
       'expenses.read',
+      'analytics.descriptive.read',
     ]
-    finance.budgets.mockRejectedValue(new Error('Budget utilization is unavailable.'))
+    insights.budget = {
+      data: undefined,
+      error: Object.assign(new Error('down'), { status: 503 }),
+      isError: true,
+      isPending: false,
+      refetch: vi.fn(),
+    }
 
     render(<AnalyticsDashboard />)
 
     await waitFor(() => expect(screen.getByText('Budget utilization unavailable')).toBeTruthy())
-    expect(screen.getAllByText('Budget utilization is unavailable.').length).toBeGreaterThan(0)
   })
 
   it('renders the Project-scoped empty map without requiring a reporting period', async () => {
@@ -491,11 +507,27 @@ describe('Analytics dashboard request dependencies', () => {
     await waitFor(() => expect(kpiCard()).toContain('None yet'))
   })
 
-  it('shows the suppression wording, never "None yet", for a SUPPRESSED (SMALL_COHORT) participation cell', async () => {
-    api.getMonitoringDashboard.mockResolvedValue({
-      indicators: [],
-      participationRecords: { value: null, state: 'SUPPRESSED', reason: 'SMALL_COHORT' },
-    })
+  it('renders the participation breakdown with suppressed cells for a role that may read it', async () => {
+    currentAccess.profile.permissions = [
+      ...currentAccess.profile.permissions,
+      'analytics.descriptive.read',
+      'journeys.read',
+      'beneficiaries.records.read',
+      'assessments.detail.read',
+    ]
+    insights.participation = {
+      data: {
+        projectId: 'project-a',
+        total: null,
+        totalSuppressed: true,
+        byActivity: [{ activityId: 'a', activityName: 'Training', count: null, suppressed: true }],
+        byMonth: [],
+        byAttendanceStatus: [],
+      },
+      isError: false,
+      isPending: false,
+      refetch: vi.fn(),
+    }
 
     render(<AnalyticsDashboard />)
 
@@ -504,23 +536,16 @@ describe('Analytics dashboard request dependencies', () => {
       target: { value: 'participation' },
     })
 
-    const heading = await screen.findByRole('heading', {
-      name: 'Participation patterns · Bar chart',
-    })
-    const panel = within(heading.closest('section') as HTMLElement)
-    expect(panel.getByText('Suppressed (fewer than 5)')).toBeTruthy()
-    expect(panel.queryByText('None yet')).toBeNull()
+    expect((await screen.findByText(/Total participation/)).textContent).toContain('Suppressed')
   })
 
-  it('shows "Data unavailable", never "None yet", for a withheld-release MISSING participation cell', async () => {
-    api.getMonitoringDashboard.mockResolvedValue({
-      indicators: [],
-      participationRecords: {
-        value: null,
-        state: 'MISSING',
-        reason: 'SENSITIVE_RELEASE_NOT_ENABLED_V1',
-      },
-    })
+  it('shows the restricted wording for participation to an aggregate-only role', async () => {
+    currentAccess.role = 'Program Manager'
+    currentAccess.profile.roles = ['PROGRAM_MANAGER']
+    currentAccess.profile.permissions = [
+      ...currentAccess.profile.permissions,
+      'analytics.descriptive.read',
+    ]
 
     render(<AnalyticsDashboard />)
 
@@ -529,12 +554,16 @@ describe('Analytics dashboard request dependencies', () => {
       target: { value: 'participation' },
     })
 
-    const heading = await screen.findByRole('heading', {
-      name: 'Participation patterns · Bar chart',
-    })
-    const panel = within(heading.closest('section') as HTMLElement)
-    expect(panel.getByText('Data unavailable')).toBeTruthy()
-    expect(panel.queryByText('None yet')).toBeNull()
+    expect(
+      await screen.findByText('Participation patterns are restricted for your role.'),
+    ).toBeTruthy()
+    const pin = screen.getByRole('button', { name: 'Add to Dashboard' }) as HTMLButtonElement
+    expect(pin.disabled).toBe(true)
+    expect(pin.title).toContain('cannot read participation detail')
+    expect(pin.getAttribute('aria-describedby')).toBe('pin-blocked-reason')
+    expect(document.getElementById('pin-blocked-reason')?.textContent).toContain(
+      'cannot read participation detail',
+    )
   })
 
   it('does not issue permission-incompatible Activity or Indicator reads for Grant Manager', async () => {
@@ -554,10 +583,6 @@ describe('Analytics dashboard request dependencies', () => {
     expect(api.getProjectIndicators).not.toHaveBeenCalled()
     expect(api.getMonitoringDashboard).not.toHaveBeenCalled()
   })
-  // The export button is hidden behind ANALYTICS_AGGREGATE_EXPORT_UI_ENABLED (see
-  // apps/web/src/constants/feature-flags.ts and docs/deferred-features.md). This test
-  // forces the flag on so the underlying export behaviour the API still serves stays
-  // covered while the flag is off in the running app.
   it('loads descriptive statistics and exports suppressed aggregates with the analytics permissions (flag on)', async () => {
     vi.resetModules()
     vi.doMock('@/constants/feature-flags', () => ({
@@ -619,7 +644,7 @@ describe('Analytics dashboard request dependencies', () => {
     vi.doUnmock('@/constants/feature-flags')
   })
 
-  it('hides the export button even with the analytics.export permission while the flag is off', async () => {
+  it('shows the export button with the analytics.export permission', async () => {
     currentAccess.profile.permissions = [
       ...currentAccess.profile.permissions,
       'analytics.descriptive.read',
@@ -627,8 +652,7 @@ describe('Analytics dashboard request dependencies', () => {
     ]
     render(<AnalyticsDashboard />)
     await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
-    expect(screen.queryByRole('button', { name: 'Export aggregates (CSV)' })).toBeNull()
-    expect(screen.queryByRole('button', { name: 'Exporting aggregates' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Export aggregates (CSV)' })).toBeTruthy()
   })
 
   it('hides descriptive statistics and export for roles without the analytics permissions', async () => {
@@ -651,22 +675,30 @@ describe('Analytics dashboard request dependencies', () => {
     expect(download).not.toHaveBeenCalled()
   })
 
-  it('keeps Add to Dashboard aria-disabled with a Not available yet hint', async () => {
+  it('pins the current view, project and period with Add to Dashboard', async () => {
     render(<AnalyticsDashboard />)
     await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
 
-    const addToDashboard = screen.getByRole('button', { name: 'Add to Dashboard' })
-    // aria-disabled (not native disabled) so the control stays keyboard/AT reachable.
-    expect(addToDashboard.hasAttribute('disabled')).toBe(false)
-    expect(addToDashboard.getAttribute('aria-disabled')).toBe('true')
-    addToDashboard.focus()
-    expect(document.activeElement).toBe(addToDashboard)
-    const describedBy = addToDashboard.getAttribute('aria-describedby')
-    expect(describedBy).toBeTruthy()
-    expect(document.getElementById(describedBy as string)?.textContent).toBe('Not available yet')
+    await waitFor(() =>
+      expect(
+        (screen.getByRole('button', { name: 'Add to Dashboard' }) as HTMLButtonElement).disabled,
+      ).toBe(false),
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Add to Dashboard' }))
+
+    const stored = JSON.parse(
+      window.localStorage.getItem('pathways.dashboardPins.v1.user-1') ?? '[]',
+    )
+    expect(stored).toHaveLength(1)
+    expect(stored[0]).toMatchObject({
+      view: 'kpi',
+      projectId: 'project-a',
+      periodStart: '2026-09-01',
+      periodEnd: '2026-09-30',
+    })
   })
 
-  it('hides Add to Dashboard and Participation patterns while unfinished controls are hidden', async () => {
+  it('offers Add to Dashboard and Participation patterns regardless of the unfinished-controls flag', async () => {
     vi.resetModules()
     vi.doMock('@/constants/feature-flags', () => ({
       ANALYTICS_AGGREGATE_EXPORT_UI_ENABLED: false,
@@ -677,9 +709,8 @@ describe('Analytics dashboard request dependencies', () => {
     render(<HiddenDashboard />)
     await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
 
-    expect(screen.queryByRole('button', { name: 'Add to Dashboard' })).toBeNull()
-    expect(screen.queryByText('Not available yet')).toBeNull()
-    expect(screen.queryByText('Participation patterns', { selector: 'option' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Add to Dashboard' })).toBeTruthy()
+    expect(screen.getByText('Participation patterns', { selector: 'option' })).toBeTruthy()
   })
 
   it('restricts the survey/timeline views without the descriptive read permission', async () => {
@@ -1151,43 +1182,85 @@ describe('Analytics dashboard request dependencies', () => {
         ]
       })
 
-      it('disables the survey option, keeps timeline enabled and real, and never fetches survey', async () => {
-        api.getTimelineAnalytics.mockResolvedValue({
-          contractVersion: 'analytics.descriptive.timeline.v1',
-          projectId: 'project-a',
-          generatedAt: '2026-09-27T04:00:00.000Z',
-          reportingDate: '2026-09-27',
-          elapsedPercent: available('50'),
-          remainingDays: available('30'),
-          overdueDays: zero,
-          activityCompletionPercent: available('75'),
-          activityOverdueCount: zero,
-          milestoneOnTimePercent: available('100'),
-        })
+      const surveyResult = () => ({
+        contractVersion: 'analytics.descriptive.survey.v1',
+        projectId: 'project-a',
+        generatedAt: '2026-09-27T04:00:00.000Z',
+        overall: surveyGroup(),
+        byActivity: [],
+      })
+
+      it('loads the frozen release and shows the caption for a closed period', async () => {
+        api.getSurveyAnalytics.mockResolvedValue(surveyResult())
         render(<AnalyticsDashboard />)
         await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
         const survey = screen.getByText('Survey improvement', {
           selector: 'option',
         }) as HTMLOptionElement
-        const timeline = screen.getByText('Project / activity timeline adherence', {
-          selector: 'option',
-        }) as HTMLOptionElement
-        expect(survey.disabled).toBe(true)
-        expect(timeline.disabled).toBe(false)
-
-        // A survey view left selected still shows restricted wording, never "None yet" or Retry.
+        expect(survey.disabled).toBe(false)
         fireEvent.change(screen.getByLabelText('Analysis view'), { target: { value: 'survey' } })
-        const restricted = await screen.findByText(
-          'Survey improvement is restricted for your role.',
-        )
-        expect(within(restricted.parentElement as HTMLElement).queryByText('None yet')).toBeNull()
-        expect(screen.queryByRole('button', { name: /retry/i })).toBeNull()
+        fireEvent.change(screen.getByLabelText('Reporting period'), {
+          target: { value: '2026-08-01::2026-08-31' },
+        })
+        expect(await screen.findByTestId('survey-analytics')).toBeTruthy()
+        expect(
+          screen.getByText(
+            'Released once for this closed period; figures do not change on later views.',
+          ),
+        ).toBeTruthy()
+        expect(api.getSurveyAnalytics).toHaveBeenCalledWith({
+          projectId: 'project-a',
+          periodStart: '2026-08-01',
+          periodEnd: '2026-08-31',
+        })
+      })
+
+      it('shows the closed-period message without calling the survey client for an open period', async () => {
+        render(<AnalyticsDashboard />)
+        await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
+        fireEvent.change(screen.getByLabelText('Analysis view'), { target: { value: 'survey' } })
+        expect(
+          await screen.findByText(
+            'Survey results for your role are released after the reporting period closes. Choose a closed period.',
+          ),
+        ).toBeTruthy()
         expect(screen.queryByTestId('survey-analytics')).toBeNull()
         expect(api.getSurveyAnalytics).not.toHaveBeenCalled()
+      })
 
-        fireEvent.change(screen.getByLabelText('Analysis view'), { target: { value: 'timeline' } })
-        expect(await screen.findByTestId('timeline-analytics')).toBeTruthy()
-        expect(api.getSurveyAnalytics).not.toHaveBeenCalled()
+      it('maps a 400 on a closed period to the closed-period message', async () => {
+        api.getSurveyAnalytics.mockRejectedValue(
+          Object.assign(new Error('refused'), { status: 400 }),
+        )
+        render(<AnalyticsDashboard />)
+        await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
+        fireEvent.change(screen.getByLabelText('Analysis view'), { target: { value: 'survey' } })
+        fireEvent.change(screen.getByLabelText('Reporting period'), {
+          target: { value: '2026-08-01::2026-08-31' },
+        })
+        expect(await screen.findByText(/released after the reporting period closes/)).toBeTruthy()
+      })
+    })
+
+    describe('detail roles keep the live survey', () => {
+      it('loads the survey for the open period without the frozen caption', async () => {
+        api.getSurveyAnalytics.mockResolvedValue({
+          contractVersion: 'analytics.descriptive.survey.v1',
+          projectId: 'project-a',
+          generatedAt: '2026-09-27T04:00:00.000Z',
+          overall: surveyGroup(),
+          byActivity: [],
+        })
+        render(<AnalyticsDashboard />)
+        await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
+        fireEvent.change(screen.getByLabelText('Analysis view'), { target: { value: 'survey' } })
+        expect(await screen.findByTestId('survey-analytics')).toBeTruthy()
+        expect(screen.queryByText(/Released once for this closed period/)).toBeNull()
+        expect(api.getSurveyAnalytics).toHaveBeenCalledWith({
+          projectId: 'project-a',
+          periodStart: '2026-09-01',
+          periodEnd: '2026-09-30',
+        })
       })
     })
 

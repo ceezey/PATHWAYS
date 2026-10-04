@@ -137,7 +137,7 @@ describe('form-definition export', () => {
     expect(first).toContain(`"'=HYPERLINK(""https://example.invalid"")"`)
     expect(second).toContain('"[""present"",""absent""]"')
     expect(result).toMatchObject({
-      contentType: 'text/csv; charset=utf-8',
+      contentType: 'text/csv',
       fileName: 'attendance-register-v3.csv',
     })
   })

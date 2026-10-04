@@ -137,7 +137,7 @@ const tx = {
   },
   evidenceMedia: { findFirst: vi.fn(), updateMany: vi.fn() },
   budgetExpenseEntry: { aggregate: vi.fn(), groupBy: vi.fn() },
-  activityUpdate: { findFirst: vi.fn(), update: vi.fn() },
+  activityUpdate: { findFirst: vi.fn(), update: vi.fn(), groupBy: vi.fn() },
   auditLog: { create: vi.fn() },
 }
 const listMetricKeys = [
@@ -154,6 +154,7 @@ describe('P05 activity proof authorization', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     tx.$queryRaw.mockResolvedValue([])
+    tx.activityUpdate.groupBy.mockResolvedValue([])
     state.actor = actor
     state.tx = tx as unknown as Prisma.TransactionClient
     tx.project.findFirst.mockResolvedValue({ id: projectId, startDate: null, endDate: null })
@@ -309,7 +310,9 @@ describe('P05 activity proof authorization', () => {
         },
       ],
     })
-    tx.$queryRaw.mockResolvedValueOnce([{ activityId: activity.id, beneficiariesReached: 12 }])
+    tx.activityUpdate.groupBy.mockResolvedValueOnce([
+      { activityId: activity.id, _sum: { beneficiariesReachedThisSession: 12 } },
+    ])
     tx.projectBudgetRecord.findMany.mockResolvedValueOnce([
       {
         id: 'r1',
@@ -335,7 +338,7 @@ describe('P05 activity proof authorization', () => {
       beneficiariesReached: 12,
       budgetUtilization: 50,
     })
-    expect(tx.$queryRaw).toHaveBeenCalledTimes(1)
+    expect(tx.activityUpdate.groupBy).toHaveBeenCalledTimes(1)
     expect(tx.budgetExpenseEntry.groupBy).toHaveBeenCalledTimes(1)
     expect(tx.projectBudgetRecord.findMany.mock.calls[0][0].where).toMatchObject({
       organizationId,
@@ -348,6 +351,18 @@ describe('P05 activity proof authorization', () => {
     })
   })
 
+  it('returns 0 reached for a granted reader with no approved sessions', async () => {
+    state.actor = {
+      ...actor,
+      roles: ['PROJECT_MANAGER'],
+      permissions: ['activities.read', 'beneficiaries.aggregates.read'],
+    }
+    tx.project.findFirst.mockResolvedValueOnce({ projectActivity_project: [activity] })
+    tx.activityUpdate.groupBy.mockResolvedValueOnce([])
+    const [item] = await service.list(state.actor, projectId)
+    expect(item).toMatchObject({ beneficiariesReached: 0 })
+  })
+
   it('returns null budget and reached metrics without the grants and skips their queries', async () => {
     state.actor = {
       ...actor,
@@ -357,7 +372,7 @@ describe('P05 activity proof authorization', () => {
     tx.project.findFirst.mockResolvedValueOnce({ projectActivity_project: [activity] })
     const [item] = await service.list(state.actor, projectId)
     expect(item).toMatchObject({ budgetUtilization: null, beneficiariesReached: null })
-    expect(tx.$queryRaw).not.toHaveBeenCalled()
+    expect(tx.activityUpdate.groupBy).not.toHaveBeenCalled()
     expect(tx.projectBudgetRecord.findMany).not.toHaveBeenCalled()
     expect(tx.budgetExpenseEntry.groupBy).not.toHaveBeenCalled()
   })

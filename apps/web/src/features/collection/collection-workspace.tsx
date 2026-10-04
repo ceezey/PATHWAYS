@@ -9,6 +9,7 @@ import {
   FileUp,
   GripVertical,
   ListPlus,
+  Loader2,
   Pencil,
   Plus,
   Save,
@@ -26,7 +27,7 @@ import {
 } from 'react'
 import { toast } from 'sonner'
 
-import { createFileSummary } from '@pathways/imports'
+import { createFileSummary, importHeaderLabel } from '@pathways/imports'
 
 import { PageHeader } from '@/components/layout/page-header'
 import {
@@ -37,10 +38,9 @@ import {
   ProgressBar,
   SectionCard,
   StatusBadge,
-  UnavailableHint,
 } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Dialog,
   DialogContent,
@@ -68,7 +68,9 @@ import { TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/compon
 import { UNFINISHED_CONTROLS_UI_ENABLED } from '@/constants/feature-flags'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'
+import { usePendingCreate } from '@/hooks/use-pending-create'
 import { sensitiveDraftGeneration } from '@/lib/auth/sensitive-drafts'
+import { createdSince, fingerprintOf } from '@/lib/forms/pending-create'
 import { getVerifiedRouteAccess, principalHasAtomicPermission } from '@/lib/rbac/route-access'
 import { downloadCoreArtifact } from '@/lib/services/core-feature-client'
 import { pathwaysClient } from '@/lib/services/pathways-client'
@@ -94,8 +96,10 @@ import {
   type BuilderFieldType,
   type BuilderFormField,
   fieldCodeFromText,
+  fieldCodeWhileTyping,
   formTypeLabels,
   fromDigitalForm,
+  neatFormCode,
   toDigitalFormInput,
 } from './digital-form-contract'
 import {
@@ -417,6 +421,12 @@ const OwnedCollectionWorkspace = ({
   const [pendingDeleteField, setPendingDeleteField] = useState<FormField | null>(null)
   const [savedNotice, setSavedNotice] = useState('')
   const [loadError, setLoadError] = useState('')
+  // Success notices show as a toast pop-up instead of an inline banner.
+  useEffect(() => {
+    if (!savedNotice) return
+    toast.success(savedNotice)
+    setSavedNotice('')
+  }, [savedNotice])
   const [reloadKey, setReloadKey] = useState(0)
   const [formsLoaded, setFormsLoaded] = useState(false)
   const [parsedImport, setParsedImport] = useState<ParsedImport | null>(null)
@@ -430,6 +440,23 @@ const OwnedCollectionWorkspace = ({
   const parsing = useRef(0)
   const mutation = useRef<object | null>(null)
   const [operationPending, setOperationPending] = useState(false)
+  const formCreate = usePendingCreate<DigitalFormDefinition>({
+    profile,
+    kind: 'digital-form',
+    projectId: projectId || null,
+    successMessage: 'Draft form created',
+    findCreated: async (fingerprint, startedAt) =>
+      (await pathwaysClient.getDigitalForms(projectId)).find(
+        (form) =>
+          fingerprintOf(form.code) === fingerprint && createdSince(form.updatedAt, startedAt),
+      ),
+    onConfirmed: (created) => {
+      setForms((current) => [...current.filter((form) => form.id !== created.id), created])
+      setSaveDialogOpen(false)
+      setSavedNotice(`Draft form "${created.name}" is saved on the server.`)
+    },
+  })
+  const createPending = formCreate.confirming
   const [processingRun, setProcessingRun] = useState<{
     projectId: string
     batchId: string
@@ -1034,14 +1061,11 @@ const OwnedCollectionWorkspace = ({
       )
       return
     }
+    // Generated once per new draft so a retried create reuses the same code.
+    const code = formCode || neatFormCode(formTitle)
+    if (!formCode) setFormCode(code)
     const input = toDigitalFormInput({
-      code:
-        formCode ||
-        formTitle
-          .toLowerCase()
-          .replace(/[^a-z0-9]+/g, '_')
-          .replace(/^_+|_+$/g, '')
-          .slice(0, 64),
+      code,
       name: formTitle.trim(),
       description: formDescription,
       formType: toApiFormType(formType),
@@ -1062,8 +1086,10 @@ const OwnedCollectionWorkspace = ({
             ...input,
             expectedUpdatedAt: editingBaseUpdatedAt ?? existing.updatedAt,
           })
-        : await pathwaysClient.createDigitalForm(projectId, input)
-      if (!ticket.valid()) return
+        : await formCreate.submit(fingerprintOf(input.code), () =>
+            pathwaysClient.createDigitalForm(projectId, input),
+          )
+      if (!saved || !ticket.valid()) return
       setForms((current) => [...current.filter((form) => form.id !== saved.id), saved])
       setEditingFormId(saved.id)
       setHydratedFormId(saved.id)
@@ -1219,21 +1245,21 @@ const OwnedCollectionWorkspace = ({
         if (!importedFields.length)
           throw new Error('Map at least one field before creating a form.')
         const importedTitle = formTitleFromFileName(parsedImport.fileName)
-        const created = await pathwaysClient.createDigitalForm(
-          projectId,
-          toDigitalFormInput({
-            code: importedTitle
-              .toLowerCase()
-              .replace(/[^a-z0-9]+/g, '_')
-              .replace(/^_+|_+$/g, '')
-              .slice(0, 64),
-            name: importedTitle,
-            description: formDescription,
-            formType: toApiFormType(formType),
-            fields: importedFields,
-          }),
+        const importedInput = toDigitalFormInput({
+          code: importedTitle
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '_')
+            .replace(/^_+|_+$/g, '')
+            .slice(0, 64),
+          name: importedTitle,
+          description: formDescription,
+          formType: toApiFormType(formType),
+          fields: importedFields,
+        })
+        const created = await formCreate.submit(fingerprintOf(importedInput.code), () =>
+          pathwaysClient.createDigitalForm(projectId, importedInput),
         )
-        if (!ticket.valid()) return
+        if (!created || !ticket.valid()) return
         setForms((current) => [...current, created])
         setEditingFormId(created.id)
         setHydratedFormId(created.id)
@@ -1327,7 +1353,7 @@ const OwnedCollectionWorkspace = ({
       }
       const mappings = decisions.map((decision, index) => {
         const column = sourceColumns.find((source) => source.columnIndex === index + 1)
-        if (!column || column.header !== decision.sourceFieldName) {
+        if (!column || column.header !== importHeaderLabel(decision.sourceFieldName)) {
           throw new Error(
             'The server source columns differ from the reviewed file. Review the batch before continuing.',
           )
@@ -1446,18 +1472,6 @@ const OwnedCollectionWorkspace = ({
       </div>
 
       {loadError && view !== 'forms' && view !== 'home' ? loadErrorState : null}
-
-      {savedNotice ? (
-        <div className="flex items-center justify-between rounded-lg border border-success/25 bg-success-subtle px-4 py-3 text-sm text-success">
-          <span className="flex items-center gap-2">
-            <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
-            {savedNotice}
-          </span>
-          <Button size="sm" variant="ghost" onClick={() => setSavedNotice('')}>
-            Dismiss
-          </Button>
-        </div>
-      ) : null}
 
       {view === 'forms' || view === 'home' ? (
         <FormsGeneratorView
@@ -1588,52 +1602,6 @@ const OwnedCollectionWorkspace = ({
             }
             className="space-y-4"
           >
-            <legend className="font-semibold">Form configuration</legend>
-            <div className="grid gap-3 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="form-code">Form code</Label>
-                <Input
-                  id="form-code"
-                  value={formCode}
-                  readOnly={Boolean(editingFormId)}
-                  placeholder="Generated from the title if left blank"
-                  onChange={(event) => changeInput(setFormCode)(event.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="form-description">Description</Label>
-                <Input
-                  id="form-description"
-                  value={formDescription}
-                  onChange={(event) => changeInput(setFormDescription)(event.target.value)}
-                />
-              </div>
-            </div>
-            <div hidden={!UNFINISHED_CONTROLS_UI_ENABLED}>
-              <p id="linked-indicators-label">Linked indicators</p>
-              {indicators
-                .filter((i) => i.projectId === projectId)
-                .map((i) => (
-                  <label className="mr-4 inline-flex gap-2" key={i.id}>
-                    <input
-                      aria-describedby="linked-indicators-hint"
-                      checked={indicatorIds.includes(i.id)}
-                      disabled
-                      onChange={(e) =>
-                        changeInput(setIndicatorIds)(
-                          e.target.checked
-                            ? [...indicatorIds, i.id]
-                            : indicatorIds.filter((id) => id !== i.id),
-                        )
-                      }
-                      title="Not available yet"
-                      type="checkbox"
-                    />
-                    {i.label} <span className="text-muted-foreground">(not available yet)</span>
-                  </label>
-                ))}
-              <UnavailableHint id="linked-indicators-hint" />
-            </div>
             <BuilderView
               addField={addField}
               canManage={canManageForms}
@@ -1852,6 +1820,9 @@ const OwnedCollectionWorkspace = ({
               {fields.length} fields, {mappedCount} mapped, {sadddCount} SADDD fields.
             </p>
           </div>
+          {formCreate.notice ? (
+            <output className="block text-sm text-info">{formCreate.notice}</output>
+          ) : null}
           <DialogFooter>
             <Button
               disabled={operationPending}
@@ -1860,8 +1831,15 @@ const OwnedCollectionWorkspace = ({
             >
               Cancel
             </Button>
-            <Button disabled={operationPending} onClick={() => void saveDraftToApi()}>
-              Save draft
+            <Button
+              className="gap-2"
+              disabled={operationPending || createPending}
+              onClick={() => void saveDraftToApi()}
+            >
+              {operationPending || createPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+              ) : null}
+              {operationPending || createPending ? 'Saving...' : 'Save draft'}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1902,8 +1880,19 @@ const OwnedCollectionWorkspace = ({
               {processingRun ? 'Close' : 'Cancel'}
             </Button>
             {processingRun ? null : (
-              <Button disabled={operationPending} onClick={confirmImportProceed}>
-                {parsedImport?.rows.length === 0 ? 'Create draft' : 'Proceed'}
+              <Button
+                className="gap-2"
+                disabled={operationPending || createPending}
+                onClick={confirmImportProceed}
+              >
+                {operationPending || createPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                ) : null}
+                {operationPending || createPending
+                  ? 'Working...'
+                  : parsedImport?.rows.length === 0
+                    ? 'Create draft'
+                    : 'Proceed'}
               </Button>
             )}
           </DialogFooter>
@@ -2110,6 +2099,7 @@ const BuilderView = ({
   <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_300px]">
     <div className="min-w-0 space-y-4">
       <FormInfoPanel
+        showHeading
         formTitle={formTitle}
         formType={formType}
         journeyStage={journeyStage}
@@ -2262,6 +2252,7 @@ const BuilderView = ({
 )
 
 const FormInfoPanel = ({
+  showHeading = false,
   formTitle,
   formType,
   journeyStage,
@@ -2276,6 +2267,7 @@ const FormInfoPanel = ({
   setLinkedActivityId,
   setProjectId,
 }: {
+  showHeading?: boolean
   formTitle: string
   formType: string
   journeyStage: string
@@ -2291,9 +2283,14 @@ const FormInfoPanel = ({
   setProjectId: (value: string) => void
 }) => (
   <Card>
-    <CardContent className="grid gap-4 pt-5 md:grid-cols-2">
+    {showHeading ? (
+      <CardHeader>
+        <CardTitle>Form configuration</CardTitle>
+      </CardHeader>
+    ) : null}
+    <CardContent className={cn('grid gap-4 md:grid-cols-2', !showHeading && 'pt-5')}>
       <div className="space-y-2">
-        <Label htmlFor="form-title">Form information</Label>
+        <Label htmlFor="form-title">Form title</Label>
         <Input
           id="form-title"
           value={formTitle}
@@ -2438,7 +2435,10 @@ const FieldEditor = ({
       <Input
         id={`${field.id}-code`}
         value={field.code}
-        onChange={(event) => updateField(field.id, { code: fieldCodeFromText(event.target.value) })}
+        onChange={(event) =>
+          updateField(field.id, { code: fieldCodeWhileTyping(event.target.value) })
+        }
+        onBlur={(event) => updateField(field.id, { code: fieldCodeFromText(event.target.value) })}
       />
     </div>
     <div className="space-y-2">

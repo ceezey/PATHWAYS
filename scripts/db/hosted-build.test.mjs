@@ -135,8 +135,8 @@ test('runHostedBuild executes the full plan in order against a fake IO and reach
   const kinds = io.calls.map((c) => c.kind)
   assert.ok(kinds.includes('psqlSql'))
   assert.ok(kinds.includes('resolve'))
-  assert.equal(kinds.filter((k) => k === 'deploy').length, 20)
-  assert.equal(kinds.filter((k) => k === 'psqlFile').length, 11) // 6 preprovision + 5 cleanup
+  assert.equal(kinds.filter((k) => k === 'deploy').length, 26)
+  assert.equal(kinds.filter((k) => k === 'psqlFile').length, 15) // 8 preprovision + 7 cleanup
 })
 
 test('runHostedBuild passes the captured original_prisma_database_create value to the rules cleanup', async () => {

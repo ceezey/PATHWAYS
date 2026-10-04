@@ -52,12 +52,12 @@ Six internal roles are defined in `apps/api/src/modules/auth/rbac-contract.json`
 | PRD-F4 | Beneficiary Journey Tracking | Must-Have | F4 | R6 | 1.1, 1.3 | Implemented; all G-F4 gates met |
 | PRD-F5 | Digital Data Collection and Preparation | Must-Have | F5 | R2 | 1.4, 2.1 | Implemented |
 | PRD-F6 | Metadata-Driven Data Integration | Must-Have | F6 | R2 | 1.1, 1.4, 2.1 | Implemented |
-| PRD-F7 | Project Indicator and Monitoring | Must-Have | F7 | R3, R4 | 1.5 | Implemented; G-F7-1..5 Met; project structure templates stay deferred (see [deferred features](deferred-features.md)) |
-| PRD-F8 | Aggregated Monitoring Dashboard with SADDD Analysis | Must-Have | F8 | R3 | 1.6, 2.2, 2.3 | Implemented; G-F8-7 Met locally at assumed scale (staging re-measure pending) |
-| PRD-F9 | Descriptive Analytics and Project Performance Summaries | Supporting | F9 | R3, R7 | 1.6, 2.2 | Implemented for KPI, participation, survey and timeline views; on-hold items in the deferred register |
-| PRD-F10 | Rule-Based Alerts | Supporting | F10 | R7 | 1.7, 2.4 | Local API and initial runtime slice; integration verification pending |
-| PRD-F11 | Rule-Based Decision Support and Recommendations | Supporting | F11 | R7 | 1.7, 2.4 | Local human review API; integration verification pending |
-| PRD-F12 | Reporting and Data Visualization | Supporting | None | R3 | 1.6 | Local preview and artifact APIs; final verification pending; hosted application deferred |
+| PRD-F7 | Project Indicator and Monitoring | Must-Have | F7 | R3, R4 | 1.5 | Implemented; G-F7-1..5 Met |
+| PRD-F8 | Aggregated Monitoring Dashboard with SADDD Analysis | Must-Have | F8 | R3 | 1.6, 2.2, 2.3 | Implemented; Add to Dashboard live with browser pins; G-F8-7 Met locally at assumed scale (staging re-measure pending) |
+| PRD-F9 | Descriptive Analytics and Project Performance Summaries | Supporting | F9 | R3, R7 | 1.6, 2.2 | Implemented for KPI, participation, survey and timeline views plus participation breakdowns, indicator trends, server budget aggregate and closed-period survey release; aggregate-only participation breakdowns deferred |
+| PRD-F10 | Rule-Based Alerts | Supporting | F10 | R7 | 1.7, 2.4 | Runtime verified on local PostgreSQL; hosted scheduler activation pending |
+| PRD-F11 | Rule-Based Decision Support and Recommendations | Supporting | F11 | R7 | 1.7, 2.4 | Human review and auto-resolve verified on local PostgreSQL |
+| PRD-F12 | Reporting and Data Visualization | Supporting | None | R3 | 1.6 | Local preview and artifact APIs; six report kinds export as CSV, XLS, XLSX and PDF; scope and suppression verified on local PostgreSQL; hosted application deferred |
 | PRD-F13 | Public Project Tracker | Supporting | F12 | R8 | 1.8 | Local publication and approved-public APIs; final verification pending; hosted application deferred |
 
 Do not renumber these IDs. Material renumbering requires a Change Record. Status is taken from `docs/index.md` section 6 and [deferred-features](deferred-features.md).
@@ -102,11 +102,11 @@ Status comes from the repository, not the manuscript labels "In Progress" and "P
 | FR-8 | Centralized encoded and imported records | PRD-F6 | High | P5 / R5 | Implemented |
 | FR-9 | Indicator and monitoring parameter configuration | PRD-F7 | High | P3 / R3, P4 / R4 | Implemented; reusable indicator definitions through the organization library (cr-pathways-indicator-library); project structure templates not built |
 | FR-10 | Aggregated dashboards and SADDD summaries | PRD-F8 | High | P3 / R3 | Implemented |
-| FR-11 | Descriptive analytics and performance summaries | PRD-F9 | Medium | P3 / R3, P7 / R7 | Implemented for four views; breakdowns, trends and server budget aggregate on hold |
-| FR-12 | Rule-based alerts | PRD-F10 | Medium | P7 / R7 | Local API and runtime slice; integration verification pending |
+| FR-11 | Descriptive analytics and performance summaries | PRD-F9 | Medium | P3 / R3, P7 / R7 | Implemented for four views and the breakdowns, trends and server budget aggregate; closed-period survey release (0057, applied on PATHWAYS-devV2) |
+| FR-12 | Rule-based alerts | PRD-F10 | Medium | P7 / R7 | Runtime verified on local PostgreSQL; hosted scheduler activation pending |
 | FR-13 | Budget expense entries and liquidation evidence | PRD-F2 | High | P5 / R5 | Implemented |
-| FR-14 | Predefined recommendation prompts | PRD-F11 | Medium | P7 / R7 | Local human review API; integration verification pending |
-| FR-15 | Monitoring reports and visual outputs | PRD-F12 | High | P3 / R3 | Local preview and artifact APIs; CSV generation gap; final verification pending |
+| FR-14 | Predefined recommendation prompts | PRD-F11 | Medium | P7 / R7 | Human review and auto-resolve verified on local PostgreSQL |
+| FR-15 | Monitoring reports and visual outputs | PRD-F12 | High | P3 / R3 | Local preview and artifact APIs; six report kinds in four formats; verified on local PostgreSQL |
 | FR-16 | Publish approved project information | PRD-F13 | Medium | P8 / R8 | Local publication API; final verification pending |
 | FR-17 | External view of approved summaries | PRD-F13 | Medium | P8 / R8 | Local approved-public API; final verification pending |
 | NFR-1 | RBAC and organization workspace isolation | PRD-F1 | High | Objective 3.6 | Implemented |
@@ -274,7 +274,7 @@ flowchart LR
 - Reusable project structures (activity and monitoring templates): not built; stays a known gap for R4 (Scope and Limitations). Reusable indicator definitions are delivered by PRD-F7.
 - Project target goal: retired (cr-pathways-retire-project-target-goal).
 - Free-text implementing partners: writes are rejected (cr-pathways-project-rbac-ui-and-partners).
-- Request-an-extension and Media proof tab controls: hidden, see the deferred register (cr-pathways-frontend-usability).
+- Request-an-extension control: hidden, see the deferred register (cr-pathways-frontend-usability). Beneficiary Media proof is live without a review step (deferred register).
 **Lock:** Locked. Adding a gate or widening a bound requires an approved `cr-pathways-*`; anything outside these bounds is out of scope by default. System-wide bounds: section 6.1.
 
 #### Gate Criteria
@@ -919,11 +919,13 @@ stateDiagram-v2
 **Bounds (in):**
 - Create, update and list project-scoped indicators with baseline, target, direction and data source.
 - Record measurements against an indicator, with a replayed save returning the original result.
-- Show trusted current value and progress; missing values and invalid denominators show the established unavailable state, never an invented zero.
+- Show trusted current value and progress; the API returns the established unavailable state for missing values and invalid denominators, never an invented zero. The indicators list shows 0 and 0% only when no measurement exists yet; suppressed, withheld and not-applicable values keep their label (cr-pathways-overview-zero-display).
+- Classify each indicator by type (Output, Outcome, Activity, Budget, Timeline, Participation, Survey score) and add indicators through a guided form: generated code, Activity completion % recipe, baseline 0 and the project period (cr-pathways-indicator-form-and-type). Indicators copied from a library entry are classified Output.
 - Audit every indicator create, update and measurement.
 - Keep an organization indicator library of definition templates (create, list, archive under `indicators.library.*`) and create a project indicator from an entry by copying its definition; no live link and no project data in the library (cr-pathways-indicator-library).
 **Bounds (out):**
-- Live links between a library entry and project indicators, editing or deleting a library entry, sharing a library across organizations, and project structure templates: not built (deferred-features)
+- Live links between a library entry and project indicators, editing or deleting a library entry, and sharing a library across organizations: not built
+- Derived recipes other than Activity completion %: the database computes no value for them, so neither the add form nor the library offers them
 - Archiving indicators: the archive route exists but `indicators.archive` is granted to no role (rbac-contract.json)
 - Project-level target goal comparison: retired, historical column preserved (cr-pathways-retire-project-target-goal)
 - Disaggregation requirements on the indicator definition: disaggregation is computed in PRD-F8 from beneficiary fields (Scope and Limitations)
@@ -933,10 +935,10 @@ stateDiagram-v2
 
 | Gate | Condition | Status | QAD |
 |---|---|---|---|
-| G-F7-1 | An authorized user creates and updates an indicator in an assigned project; unauthorized roles and other organizations are refused | Met | QAD-T55, QAD-T106, QAD-A35 |
-| G-F7-2 | An indicator shows the correct trusted metric, target and source | Met | QAD-T07, QAD-T107, QAD-A36 |
+| G-F7-1 | An authorized user creates and updates an indicator in an assigned project; unauthorized roles and other organizations are refused | Met | QAD-T55, QAD-T106, QAD-T112, QAD-T113, QAD-A35 |
+| G-F7-2 | An indicator shows the correct trusted metric, target and source (the source and type in its manage dialog) | Met | QAD-T07, QAD-T107, QAD-A36 |
 | G-F7-3 | A measurement save is idempotent: the same key and input is read-only on retry, conflicting reuse fails | Met | QAD-T56, QAD-T108, QAD-A37, QAD-P05 |
-| G-F7-4 | Indicator progress is independent of the retired project target goal and shows unavailable states instead of zero | Met | QAD-T57, QAD-T109, QAD-A38 |
+| G-F7-4 | Indicator progress is independent of the retired project target goal; the API returns unavailable states instead of zero; the indicators list shows 0 and 0% only for an indicator with no measurement yet and keeps the label of every other unavailable state | Met | QAD-T57, QAD-T109, QAD-T114, QAD-A38 |
 | G-F7-5 | Indicator definitions can be reused across projects through an organization library; a project indicator created from an entry is an independent copy | Met | QAD-IL-01, QAD-IL-02, QAD-T58 |
 
 #### Use Cases
@@ -963,7 +965,7 @@ flowchart LR
 | Permission | `indicators.create`, `indicators.update` |
 | Trigger | The user opens a project workspace to define or change an indicator |
 | Preconditions | The user is authenticated, assigned to the project and holds the permission |
-| Main flow | 1. The user opens the indicator list (route `/projects/:projectId/indicators`). 2. The system lists existing indicators (`indicators.read`). 3. The user defines name, unit, baseline, target, direction and source. 4. The system validates the definition. 5. The user saves. |
+| Main flow | 1. The user opens the indicator list (route `/projects/:projectId/indicators`). 2. The system lists existing indicators (`indicators.read`). 3. The user enters name, type, target, recipe and source; the code, baseline 0, unit, direction and period are set automatically. 4. The system validates the definition. 5. The user saves. 6. Later changes cover only the name and description; type, target and recipe are fixed, so a different definition needs a new indicator. |
 | Alternate / exception | Permission denied: 403, no change. Required field missing or invalid: 400, nothing saved. Library entry missing, archived or from another organization: 404, nothing created. Using a library entry also needs `indicators.library.read`. |
 | Postconditions | The indicator is stored for the project and an audit event is written |
 | Gates | G-F7-1, G-F7-2, G-F7-5 |
@@ -975,8 +977,8 @@ flowchart LR
 | Actor | Monitoring and Evaluation Officer, Project Manager |
 | Permission | `indicators.update` |
 | Trigger | A new actual value is available for an indicator |
-| Preconditions | The indicator is active and in the user's assigned project |
-| Main flow | 1. The user opens the indicator. 2. The user enters the measured value and period. 3. The system saves it (route `/projects/:projectId/indicators/:indicatorId/measurements`). 4. The system recomputes progress against the target. |
+| Preconditions | The indicator is an active manual indicator (from a Manual library entry or created before cr-pathways-indicator-form-and-type) in the user's assigned project |
+| Main flow | 1. The user opens the indicator. 2. The user enters the measured value, its source and an optional note; the period is the indicator's own period. 3. The system saves it (route `/projects/:projectId/indicators/:indicatorId/measurements`). 4. The system recomputes progress against the target. |
 | Alternate / exception | Retry with the same key and input: the original result is returned. Same key with different input: rejected. Permission denied: 403. |
 | Postconditions | A measurement row exists and an audit event is written |
 | Gates | G-F7-3, G-F7-4 |
@@ -995,10 +997,11 @@ Not applicable: indicators have active and archived flags only; no approval life
 - Age is completed years at period end in the business timezone, in the locked bands 0–9, 10–14, 15–17, 18–24, 25+ and Unknown (rfc-pathways-saddd-privacy). A missing birth date is Unknown; an invalid one is excluded and flagged.
 - Small-cell suppression: counts 1 to 4 are suppressed (threshold 5), with complementary suppression so a suppressed value cannot be rebuilt from totals.
 - Aggregate output only; no SADDD drilldown to individual beneficiaries for any role.
+- "Add to Dashboard" pins from Analytics: up to 8 per browser, stored as references in local storage and re-fetched live on the role dashboard, so current permissions always apply (cr-pathways-f8-f9-f12-gate-closure).
 **Bounds (out):**
 - SADDD for an open or undefined project period: omitted, not estimated (analytics.service.ts precondition)
 - Drilldown to beneficiary records for Program Manager and Grant Manager: aggregate-only roles (rfc-pathways-auth-rbac-isolation)
-- Custom dashboard widgets and "Add to Dashboard": hidden pending a storage decision (deferred-features)
+- Server-stored or shared dashboard pins and free-form dashboard widgets: not built; pins are browser-only (cr-pathways-f8-f9-f12-gate-closure)
 - Predictive or machine-learning analysis: not in scope (Scope and Limitations)
 **Lock:** Locked. Adding a gate or widening a bound requires an approved `cr-pathways-*`; anything outside these bounds is out of scope by default. System-wide bounds: section 6.1.
 
@@ -1070,17 +1073,17 @@ Not applicable: the dashboard is a read model with no lifecycle.
 **Why it helps:** Puts performance summaries in front of managers without manual preparation so weak conditions show earlier. (P3, P7; Project Manager, Program Manager, Grant Manager)
 **Bounds (in):**
 - Four views: KPI summary, participation total, survey improvement and timeline status, for exactly one authorized project and an optional complete period.
+- Participation breakdowns by activity, month and attendance status; an indicator trend chart with a dashed target line; a server-side budget aggregate with approved-only utilization per currency (`/analytics/insights/*`, cr-pathways-f8-f9-f12-gate-closure).
+- Analytics CSV export button in the interface, and the Participation view option always listed.
 - Aggregates read from persisted metrics (cr-pathways-f9-trusted-aggregates); an empty readable set shows "None yet" and a restricted or withheld set keeps its unavailable wording.
-- Survey improvement only for roles holding `assessments.detail.read`, only for an exact non-overlapping defined period, and only for groups of 5 or more pairs.
-- Program Manager and Grant Manager see the timeline view but a restricted state for survey improvement.
+- Survey improvement only for an exact non-overlapping defined period and only for groups of 5 or more pairs; roles holding `assessments.detail.read` read it live.
+- Program Manager, Grant Manager and other aggregate-only roles read survey improvement for a closed period only, from a copy frozen on first release (migration 0057); an open period is refused with 400.
 - Aggregate CSV export endpoint, audited per view and export.
 - Rule-based suggestions only; every suggestion is a deterministic rule output that a person reviews.
 **Bounds (out):**
 - Prescriptive analytics beyond rules: the manuscript phrase is not carried forward; decision support stays rule-based (PRD-F11)
-- Participation breakdowns by activity, month and attendance status: on hold (deferred-features)
-- Indicator trend chart and server-side budget aggregate: on hold (deferred-features)
-- Closed-period survey totals for aggregate-only roles: on hold until a frozen release table exists (cr-pathways-f9-trusted-aggregates)
-- Export button in the user interface: hidden, endpoint kept (deferred-features)
+- Participation breakdowns for aggregate-only roles: restricted state until a definer release function exists (deferred-features)
+- Open-period survey results for aggregate-only roles: refused to prevent differencing (cr-pathways-f9-trusted-aggregates section 11)
 - Performance at scale, steps 3 to 5: deferred (cr-pathways-performance-scaling)
 **Lock:** Locked. Adding a gate or widening a bound requires an approved `cr-pathways-*`; anything outside these bounds is out of scope by default. System-wide bounds: section 6.1.
 
@@ -1096,8 +1099,8 @@ Not applicable: the dashboard is a read model with no lifecycle.
 | G-F9-6 | A retrieval fault returns 503, never a 500 or a silently empty payload | Met | QAD-T30 |
 | G-F9-7 | Survey results are released only for an exact non-overlapping period and only to roles with `assessments.detail.read` | Met | QAD-T33 |
 | G-F9-8 | Aggregate-only roles cannot difference open-period survey releases | Met | QAD-A21 |
-| G-F9-9 | Participation breakdowns, indicator trends and a server budget aggregate are available | Not met | QAD-T63 |
-| G-F9-10 | Survey totals for Program Manager and Grant Manager through a closed-period release table | Not met | QAD-T64 |
+| G-F9-9 | Participation breakdowns, indicator trends and a server budget aggregate are available | Met | QAD-T63, QAD-T110, QAD-A39 |
+| G-F9-10 | Survey totals for Program Manager and Grant Manager through a closed-period release table | Met | QAD-T64 |
 
 #### Use Cases
 
@@ -1126,9 +1129,9 @@ flowchart LR
 | Trigger | The user opens Analytics |
 | Preconditions | The user holds the permission and `monitoring.read` for the project; processed data exists |
 | Main flow | 1. The user opens Analytics (route `/analytics`). 2. The user selects one project, an optional period and a view. 3. The system returns the aggregate (route `/analytics/descriptive`). 4. The user reads the summary and any rule-based suggestion. |
-| Alternate / exception | Insufficient data: "None yet". Survey view without `assessments.detail.read`: 403 and a restricted message, no audit row. Retrieval fault: 503. Project Officer: denied. |
+| Alternate / exception | Insufficient data: "None yet". Manager survey (no `assessments.detail.read`): closed period only, otherwise 400 and no audit row; participation breakdowns for aggregate-only roles show a restricted state. Retrieval fault: 503. Project Officer: denied. |
 | Postconditions | One `ANALYTICS_DESCRIPTIVE_VIEWED` audit row is written |
-| Gates | G-F9-1, G-F9-2, G-F9-3, G-F9-4, G-F9-5, G-F9-6, G-F9-7, G-F9-8, G-F9-9 (Not met), G-F9-10 (Not met) |
+| Gates | G-F9-1, G-F9-2, G-F9-3, G-F9-4, G-F9-5, G-F9-6, G-F9-7, G-F9-8, G-F9-9, G-F9-10 |
 
 ##### UC-F9-2 Export aggregate summary
 
@@ -1139,7 +1142,7 @@ flowchart LR
 | Trigger | An API client or staff member requests the aggregate export |
 | Preconditions | The user holds `analytics.export` and `analytics.descriptive.read` for the same project |
 | Main flow | 1. The caller requests the export (route `/analytics/descriptive/export`). 2. The system applies the same role, period and suppression rules as the view. 3. The system returns the aggregate rows. |
-| Alternate / exception | Permission denied or survey restriction: 403 before any query. Retrieval fault: 503. The interface button is hidden. |
+| Alternate / exception | Permission denied: 403 before any query. Open period for a role without `assessments.detail.read`: 400 and no audit row. Retrieval fault: 503. The interface button is visible. |
 | Postconditions | One `ANALYTICS_DESCRIPTIVE_EXPORTED` audit row records contract version, view and row count |
 | Gates | G-F9-4, G-F9-6, G-F9-7 |
 
@@ -1157,10 +1160,12 @@ Not applicable: analytics views are read models with no lifecycle.
 - Human review, outcome, resolve and dismiss actions, with a required note where the action needs one.
 - Automatic resolution when the condition clears, and an unavailable result when a metric cannot be computed.
 - In-application notifications list and read marking.
+- Budget utilization, Beneficiary follow-up and survey improvement metrics as project-level aggregates with small-cell suppression, visible only to users who can read that source (cr-pathways-rules-metric-catalog-and-auto-resolve).
+- Scheduled background evaluation, drain every 5 minutes and sweep hourly, once a person sets the hosted credentials (cr-pathways-rules-hosted-scheduler).
 **Bounds (out):**
 - Free-form rules, raw SQL or code in rules: rules are predefined data only (Scope and Limitations / rfc-pathways-rule-alerts-decision-support)
 - Autonomous action on an alert: a human decision is always required (Scope and Limitations)
-- Budget, Beneficiary and survey metrics: unavailable in the admitted catalog (cr-pathways-f10-f11-runtime-authority)
+- Individual-level Beneficiary metrics and currency conversion: rule metrics are aggregates in one currency only (cr-pathways-rules-metric-catalog-and-auto-resolve)
 - Machine-learning or predictive alerts: out of scope (Scope and Limitations)
 - Email, SMS or named-recipient notifications: only in-application notifications exist (Scope and Limitations)
 **Lock:** Locked. Adding a gate or widening a bound requires an approved `cr-pathways-*`; anything outside these bounds is out of scope by default. System-wide bounds: section 6.1.
@@ -1169,13 +1174,13 @@ Not applicable: analytics views are read models with no lifecycle.
 
 | Gate | Condition | Status | QAD |
 |---|---|---|---|
-| G-F10-1 | A rule that holds for an episode raises exactly one alert carrying versioned evidence | Partly met | QAD-T09 |
+| G-F10-1 | A rule that holds for an episode raises exactly one alert carrying versioned evidence | Met | QAD-T09 |
 | G-F10-2 | An unavailable metric is recorded as not evaluated and never raises a misleading alert | Met | QAD-T24 |
 | G-F10-3 | A rule containing raw SQL or code is rejected | Met | QAD-A08 |
 | G-F10-4 | Alert status follows the lifecycle state machine and terminal alerts accept no further disposition | Met | QAD-T65 |
-| G-F10-5 | Only holders of the alert permissions read, review or record an outcome, scoped to their organization and project | Partly met | QAD-T66 |
-| G-F10-6 | Budget, Beneficiary and survey rule metrics evaluate and raise alerts | Not met | QAD-T67 |
-| G-F10-7 | Background evaluation runs on a schedule in the hosted environment | Not met | QAD-T68 |
+| G-F10-5 | Only holders of the alert permissions read, review or record an outcome, scoped to their organization and project | Met | QAD-T66 |
+| G-F10-6 | Budget, Beneficiary and survey rule metrics evaluate and raise alerts | Met | QAD-T67 |
+| G-F10-7 | Background evaluation runs on a schedule in the hosted environment | Partly met | QAD-T68 |
 
 #### Use Cases
 
@@ -1229,7 +1234,7 @@ flowchart LR
 | Permission | `rules.create`, `rules.update`, `rules.activate` |
 | Trigger | Administrator changes a threshold or rule |
 | Preconditions | Authenticated; rule catalog available |
-| Main flow | 1. Administrator opens rule settings (route `/settings/rules`). 2. Administrator drafts a rule version (route `/rules/:id/drafts`). 3. System validates it with a dry run (route `/rules/dry-run`). 4. Administrator activates it (route `/rules/:id/activate`). |
+| Main flow | 1. Administrator opens the rule board (route `/alerts/repository`; `/settings/rules` redirects there) and creates or edits a rule in its drawer. 2. Administrator drafts a rule version (route `/rules/:id/drafts`). 3. System validates it with a dry run (route `/rules/dry-run`). 4. Administrator activates it (route `/rules/:id/activate`). |
 | Alternate / exception | Invalid threshold or code-like content: rejected; archived rule cannot be activated |
 | Postconditions | New version is active and used by later evaluations; change recorded in the audit log |
 | Gates | G-F10-3, G-F10-4 |
@@ -1266,10 +1271,10 @@ stateDiagram-v2
 - Recommendation list and detail with the linked alert and supporting evidence.
 - Human review and outcome (Accept, Partially accept, Decline, Escalate) with a required note.
 - Status follows the recommendation state machine; the linked alert is updated with the decision.
+- Recommendations on budget, Beneficiary or survey conditions through the admitted aggregate metrics, and Auto-resolved when the linked alert clears before any outcome (cr-pathways-rules-metric-catalog-and-auto-resolve).
 **Bounds (out):**
 - Generated or predictive recommendations: prompts are predefined only (Scope and Limitations)
 - Automatic execution of a recommendation: a human decision is always required (Scope and Limitations)
-- Recommendations on budget, Beneficiary or survey conditions: their metrics are unavailable (cr-pathways-f10-f11-runtime-authority)
 - Named-individual notification of decisions: only in-application notifications exist (Scope and Limitations)
 **Lock:** Locked. Adding a gate or widening a bound requires an approved `cr-pathways-*`; anything outside these bounds is out of scope by default. System-wide bounds: section 6.1.
 
@@ -1277,11 +1282,11 @@ stateDiagram-v2
 
 | Gate | Condition | Status | QAD |
 |---|---|---|---|
-| G-F11-1 | An authorized user reviews a predefined recommendation linked to its alert and evidence | Partly met | QAD-T10 |
+| G-F11-1 | An authorized user reviews a predefined recommendation linked to its alert and evidence | Met | QAD-T10 |
 | G-F11-2 | An outcome requires a note and records actor, time and decision | Met | QAD-T69 |
 | G-F11-3 | A user without the outcome permission sees the recommendation read-only | Met | QAD-T70 |
 | G-F11-4 | A recommendation is retrieved from configuration and never generated at runtime | Met | QAD-A08 |
-| G-F11-5 | A recommendation is marked Auto-resolved when its linked alert clears | Not met | QAD-T71 |
+| G-F11-5 | A recommendation is marked Auto-resolved when its linked alert clears | Met | QAD-T71 |
 
 #### Use Cases
 
@@ -1308,7 +1313,7 @@ flowchart LR
 | Trigger | User opens the recommendations list |
 | Preconditions | Authenticated; a triggered alert has a linked recommendation in the user's scope |
 | Main flow | 1. User opens recommendations (route `/recommendations`). 2. User opens one to see the suggested action, linked alert and evidence (route `/recommendations/[recommendationId]`). 3. User marks it reviewed (route `/recommendations/:id/review`). |
-| Alternate / exception | Permission denied: no controls; no recommendations: empty state |
+| Alternate / exception | Permission denied: no controls; no recommendations: empty state; linked alert cleared before an outcome: Auto-resolved and read-only |
 | Postconditions | Status moves New to Reviewed; review recorded in the audit log |
 | Gates | G-F11-1, G-F11-3, G-F11-4, G-F11-5 |
 
@@ -1329,15 +1334,12 @@ flowchart LR
 
 ```mermaid
 stateDiagram-v2
-  %% Decline and Escalate record an outcome and leave status unchanged
+  %% Every outcome records a decision and leaves the recommendation status unchanged
   [*] --> New
   New --> Reviewed: review
-  New --> Resolved: outcome accepts
-  Reviewed --> Resolved: outcome accepts
-  New --> Dismissed: outcome declines
-  Reviewed --> Dismissed: outcome declines
-  Resolved --> [*]
-  Dismissed --> [*]
+  New --> AutoResolved: linked alert clears, no outcome recorded
+  Reviewed --> AutoResolved: linked alert clears, no outcome recorded
+  AutoResolved --> [*]
 ```
 
 ### PRD-F12 Reporting and Data Visualization
@@ -1345,7 +1347,7 @@ stateDiagram-v2
 **Purpose:** Let authorized users preview, generate and export scoped monitoring reports and view descriptive visual outputs from trusted data. (R3; objective 1.6)
 **Why it helps:** Replaces manual assembly of monitoring outputs with reports and charts built from the same trusted records, so figures match across views. (P3; Monitoring and Evaluation Officer, Project Manager, Program Manager, Grant Manager)
 **Bounds (in):**
-- Project summary, indicator summary, Beneficiary summary, survey results, evaluation and monitoring report types scoped by project and period.
+- Project summary, indicator summary, Beneficiary summary, survey results, evaluation and monitoring report types scoped by project and period; the monitoring report covers at most 366 days and the evaluation report uses the latest signed-off or archived evaluation.
 - Report preview, generation, stored artifact and export as CSV, XLS, XLSX or PDF.
 - Descriptive survey and timeline views with CSV export, governed by the aggregate rules of PRD-F9.
 - Role scope and small-group suppression applied to every output.
@@ -1360,10 +1362,10 @@ stateDiagram-v2
 
 | Gate | Condition | Status | QAD |
 |---|---|---|---|
-| G-F12-1 | Report and visualization output respects role scope and suppression | Partly met | QAD-T13 |
+| G-F12-1 | Report and visualization output respects role scope and suppression | Met (local PostgreSQL replay) | QAD-T13 |
 | G-F12-2 | A failed report or export leaves source data intact | Met | QAD-T26 |
 | G-F12-3 | Export writes an audit event without report content | Met | QAD-T72 |
-| G-F12-4 | Every report type exports as CSV, XLS, XLSX and PDF | Not met | QAD-T73 |
+| G-F12-4 | Every report type exports as CSV, XLS, XLSX and PDF | Met | QAD-T73, QAD-T111 |
 | G-F12-5 | Descriptive views refuse callers without `analytics.descriptive.read` and exports refuse callers without `analytics.export` | Met | QAD-A18 |
 
 #### Use Cases
@@ -1391,8 +1393,8 @@ flowchart LR
 | Permission | `reports.generate` |
 | Trigger | User needs a monitoring report for a scope and period |
 | Preconditions | Authenticated; project data exists in scope |
-| Main flow | 1. User opens reports (route `/reports`). 2. User selects a report type and scope. 3. System previews it (route `/projects/:projectId/reports/preview`). 4. User generates it (route `/projects/:projectId/reports`). |
-| Alternate / exception | Permission denied: generate control hidden; no data: empty preview message |
+| Main flow | 1. User opens reports (route `/reports`). 2. User selects one of the six report types and a scope. 3. System previews it (route `/projects/:projectId/reports/preview`). 4. User generates it (route `/projects/:projectId/reports`). |
+| Alternate / exception | Permission denied: generate control hidden; no data: empty preview message; evaluation report with no signed-off evaluation: 409 and nothing stored |
 | Postconditions | Report artifact stored and listed; generation recorded in the audit log |
 | Gates | G-F12-1, G-F12-2 |
 
@@ -1930,9 +1932,9 @@ Current position is in [state](state.md); manuscript alignment findings are in `
 | Feature | Status |
 |---|---|
 | PRD-F1 to PRD-F8 | Implemented |
-| PRD-F9 | Implemented for four views; breakdowns, trends and server budget aggregate on hold |
-| PRD-F10, PRD-F11 | Local API; integration verification pending |
-| PRD-F12 | Local preview and artifact APIs; final verification pending |
+| PRD-F9 | Implemented for four views and the breakdowns, trends and server budget aggregate; closed-period survey release (0057, applied on PATHWAYS-devV2) |
+| PRD-F10, PRD-F11 | Runtime verified on local PostgreSQL; hosted scheduler activation pending |
+| PRD-F12 | Local preview and artifact APIs; six report kinds in four formats; verified on local PostgreSQL |
 | PRD-F13 | Local publication and approved-public APIs; final verification pending |
 
 Core features come first; supporting features follow their dependencies. Every authorized phase reads the manifest and registered docs, implements only its authorized scope, tests, updates durable docs when an approved contract or verified fact changes, reports and stops.

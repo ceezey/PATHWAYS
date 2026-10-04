@@ -243,6 +243,16 @@ describe('Core client request and strict response boundaries', () => {
       `http://127.0.0.1:4000/api/projects/${projectId}/reports/preview?kind=SURVEY_FORM_RESULTS&formId=${formId}`,
     )
   })
+  it.each([
+    { rows: [['Criterion', 'C1 Relevance', '50']], unavailableReasons: [] },
+    { rows: [], unavailableReasons: ['No signed-off evaluation.'] },
+  ])('parses an evaluation report preview: %j', async (body) => {
+    const evaluation = { ...preview, kind: 'EVALUATION_REPORT', formId: null, ...body }
+    fetcher.mockResolvedValueOnce(json(evaluation))
+    await expect(coreDataClient.reportPreview(projectId, 'EVALUATION_REPORT')).resolves.toEqual(
+      evaluation,
+    )
+  })
   it('rejects a form-bearing response to a non-survey preview', async () => {
     fetcher.mockResolvedValueOnce(json({ ...preview, kind: 'PROJECT_SUMMARY' }))
     await expect(coreDataClient.reportPreview(projectId, 'PROJECT_SUMMARY')).rejects.toThrow(

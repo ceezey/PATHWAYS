@@ -257,6 +257,15 @@ describe('P06 IndicatorsService', () => {
     )
     expect(JSON.stringify(tx.auditLog.create.mock.calls)).not.toContain('Verified source')
   })
+  it('writes the chosen indicator type and defaults to OUTPUT', async () => {
+    await service.create(actor, projectId, { ...input, indicatorType: 'OUTCOME' })
+    expect(tx.$executeRaw.mock.calls[0]).toContain('OUTCOME')
+    await service.create(actor, projectId, input)
+    expect(tx.$executeRaw.mock.calls[1]).toContain('OUTPUT')
+    await expect(
+      service.create(actor, projectId, { ...input, indicatorType: 'NOPE' } as never),
+    ).rejects.toBeInstanceOf(BadRequestException)
+  })
   it('uses the same scoped and audited create path for an authorized Project Manager', async () => {
     const manager: ApplicationIdentity = {
       ...actor,

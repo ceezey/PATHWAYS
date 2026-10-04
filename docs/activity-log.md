@@ -56,3 +56,82 @@
 - Indicator form defaults 2026-10-03: Add project indicator suggests the code from the name, prefills the unit from the numeric domain, defaults direction to Higher is better and derives chart decimal places (count 0, percentage 1, ratio 2) instead of asking; contract and API unchanged.
 - Indicator form tweaks 2026-10-03: the optional Description field is removed and Source description takes its full-width place; chart-axis decimal places sit in an Advanced settings section shown only for non-count domains; unit label shows an "e.g. %, people" hint.
 - Supabase rename 2026-10-03: hosted project klbtoqdalmcsfjqophty renamed from PATHWAYS-role-staging to PATHWAYS-devV2 in the dashboard; docs and script comments updated, connection strings, project ref and guards unchanged; earlier log entries and role-staging file names kept as history.
+- Create duplicate guard 2026-10-03: new `lib/forms/pending-create.ts` and `hooks/use-pending-create.ts` write a per-user sessionStorage marker (kind, scope, startedAt, fingerprint) before a create, ignore a second submit while one is pending, keep the button in the loading state after a reload, poll an existing read every 2s for 60s to confirm the record (toast, then navigate or refresh) and otherwise show "We couldn't confirm the earlier submission. Check the list before submitting again."; markers expire after 3 minutes and never hold raw personal data (beneficiaries use a SHA-256 of name and birth date). Applied to project, activity, beneficiary registration, user authorization, project indicator (manual and from library), indicator library entry, budget allocation (budget module and legacy finance workspace), digital form create and milestone; client only, no API, schema or migration change; server idempotency for all creates stays deferred (deferred-features.md).
+- Journey configuration 2026-10-03: `/projects/:id/journey-stages` renders a new isolated `journey-config` module (summary pills, live journey track with branch children, stage list with drag or arrow-key reorder, stage details with activity mappings, type guide, read-only Preview dialog) in place of the legacy workspace, which is untouched; it uses only the existing journey-stages read and bulk PUT, gated by `journeys.manage`; Branch nodes use the cyan token because the DSD defines no purple; no API, schema or migration change.
+
+## 2026-10-03 Journey stage removal, project card and loading polish
+- Journey config: Remove stage (branches become core), new codes follow the highest J-number, track branches hang from the connector midpoint.
+- API saveStages parks archived stages past live order slots and suffixes their codes, so removed codes and orders can be reused.
+- Project cards pin the timeline to the bottom; project edit form shows the skeleton card while loading and no longer shows the unconfirmed save banner.
+- Remaining spinner loading cards (journey stages, workspace tab) use the AsyncState skeleton.
+- 2026-10-03 Field code underscore: the builder kept stripping a typed trailing underscore on every keystroke; codes now clean fully on blur (fix/field-code-underscore).
+- 2026-10-03 Form code: the builder sent free-typed form codes such as TEST-FORM, which the API rejects; the form code now cleans to lowercase snake case while typing and on save.
+
+## 2026-10-03 Audit Log filter layout
+- Removed the Audit Log eyebrow, page description and filter card description; moved From/To date inside Event filters below the three fields.
+- 2026-10-03 Form builder layout: removed the placeholder Linked indicators checkboxes (indicator links are made on Target indicators); Form code and Description moved into the form information card under a Form configuration header.
+- 2026-10-03 Collection notices: success notices (draft saved, published, generated) now show as a toast pop-up instead of an inline banner.
+
+## 2026-10-04 Local dev against hosted devV2
+- `pnpm dev` now runs the API in watch mode (`dev-watch.mjs`) against devV2 using the runtime role, with owner credentials blanked and output redacted; the legacy PATHWAYS-dev launcher moved to `dev:legacy-db`. How-to in docs/local-dev.md.
+- Beneficiary media proof 2026-10-03: new isolated `beneficiary-media` API module with list, limits, reservations, finalize and content routes under `beneficiaries/projects/:projectId/:beneficiaryId/media`, all behind `@RequireBeneficiaryStepUp`; upload needs `beneficiaries.enrollments.manage`, list and preview need `beneficiaries.records.read`, aggregate-only roles get 403, rows are scoped by organization, project assignment and enrollment, and reservation and finalize write audit rows; files reuse the activity-proof limits, signed upload and verification, stay PENDING and show as Uploaded (no review, tags, capture date or duration); the Media proof tab is live for non-aggregate roles with blob previews. No schema, migration or permission change.
+
+## 2026-10-04 MFA code boxes centered
+- Centered the six OTP boxes on the security check screen.
+- MFA code auto-verifies once all six digits are entered.
+- After an accepted MFA code the card shows "Code accepted. Opening your workspace..." instead of the code form; falls back with an error after 30s if aal2 is not confirmed.
+
+## 2026-10-04 Activity beneficiaries reached always 0
+- Root cause: p08_activity_beneficiaries_reached runs as `prisma` (no BYPASSRLS) and activity_updates forces RLS, so it saw no rows. readReached now uses a grouped Prisma query under runtime RLS; authorized callers get 0 instead of null. Privacy review: PASS WITH NOTES (notes applied); function repair deferred.
+
+## 2026-10-04 Readable project codes; API dev without watch
+- New projects get codes like CRL-NS-2026 (title initials, area province initials, start year), generated by the API from the shared `projectCodeBase`, with -2, -3 suffixes when taken in the organization; the create form previews the code under the title. Existing codes are unchanged.
+- `pnpm dev` runs the API without watch (`dev-local.mjs`); `dev:watch` keeps automatic reloads. Agent work happens in worktrees and is merged only when finished.
+
+## 2026-10-04 Proof history grouping and library navigation
+- Activity proof history shows one card per submitted update (the API returns one proof row per file), so a multi-file submission is one version listing every file; the review dialog lists all files too.
+- Indicator library has Back to Indicators (returns to the opening project via ?project=) and the top bar reads Projects / Target Indicators / Indicator Library.
+
+## 2026-10-04 Turbopack for local web dev
+- `pnpm dev` runs the web with `next dev --turbopack` for faster page compiles; `turbopack.root` is pinned to the monorepo root. Builds and Vercel still use the standard bundler. Data fetching is unaffected.
+
+## 2026-10-04 Indicator form: recipe settings
+- Add project indicator: Recipe (was System-owned calculation) and Link Activity (was Activity binding (optional)) moved into Advanced settings, which opens for derived calculations; "(inclusive)" dropped from Period end. Baseline and Target lock by recipe: completion % fixes 0 and 100, count recipes fix baseline 0, sums and averages stay editable.
+
+## 2026-10-04 Add project indicator makeover
+- The form shows Code, Name, Baseline, Target, Recipe, a recipe card (system background) and Source description. Authority (always derived), direction (higher is better), numeric domain and unit (from the recipe), decimals (2, or 0 for counts) and period (project dates, capped at 365 days) are hidden defaults. Only Activity completion % is offered because the other recipes are not computed yet (deferred). Existing manual indicators keep Save measurement.
+- Indicators list: Latest value and Progress columns replaced by Actual; a progress bar sits under each indicator name; "Manage this indicator" rows replaced by a far-right "…" button that opens the manage panel in a dialog.
+- Fix: the library route now accepts the display-only `?project=` back-link key, which the strict page guard had rejected as Unauthorized.
+
+## 2026-10-04 Indicators list alignment
+- Baseline column removed; Target, Actual and Status centered; rows middle-aligned; Code column narrowed and Indicator widened. Product decision (indicators list only): no progress reads 0% and no measurement reads 0; suppressed values keep their label.
+- 2026-10-04 Import preparation (header limit, value map suggestions, date format, fixed values) put on hold until after the defense; plan and workaround recorded in docs/deferred-features.md.
+- 2026-10-04 Form builder: Form code and Description inputs removed (existing values kept on save); new drafts get a generated code such as test_form_k3f9; Form information label renamed Form title.
+- 2026-10-04 Import steps 1-2: over-long source headers are shortened with an ellipsis instead of rejecting the file (no migration; SQL checks keep 100), web header comparison trims like the server, and the value map editor gains Suggest translations from the loaded rows. Verified on the dummy participant export: 100 rows, 36 columns, sex and disability fully suggested. Steps 3-4 stay on hold.
+
+## 2026-10-04 F8 F9 F12 gate closure
+- New isolated analytics-insights API module: participation breakdowns (suppressed), indicator trends (capped) and an approved-only budget aggregate; web panels, trend chart and budget card replace the browser budget computation. Closes G-F9-9.
+- Migration 0057_f9_survey_period_release (renumbered from 0056): aggregate-only roles read closed-period survey totals from a frozen release; open periods return 400. Developer-approved migration; not applied to hosted. Closes G-F9-10 locally.
+- Report kinds MONITORING_REPORT and EVALUATION_REPORT added, CSV stored as bare text/csv. Closes G-F12-4.
+- Analytics export button and Participation option turned on; Add to Dashboard stores browser pins rendered live on the role dashboard.
+- G-F12-1 evidence: reports-runtime.local.test.ts checks report scope, permissions and suppression on disposable PostgreSQL; wired into the replay current-schema suites.
+- Docs: cr-pathways-f8-f9-f12-gate-closure, F9 trusted aggregates section 11, PRD, QAD (T110, T111, A39, A40), deferred register, SDD, DSD, index.
+- 2026-10-04 Migration 0057 confirmed on PATHWAYS-devV2 (applied with 0056 by the indicator-type session); hosted catalog check matches the migration. G-F9-10 now Met; cr-pathways-f8-f9-f12-gate-closure set to Applied; PRD, index and deferred register updated.
+
+## 2026-10-04 F10 F11 rules completion
+
+- Branch feature/f10-f11-rules-completion under three change records: rules metric catalog and auto-resolve, hosted scheduler, rules board UI.
+- Contracts widened first (AUTO_RESOLVED, three aggregate metrics, pooler usernames) so no API rejects rows the database later emits.
+- Migrations 0058-0060: recommendation AUTO_RESOLVED status, auto-resolve on alert clear, budget utilization, Beneficiary follow-up and survey improvement metrics with suppression and source-read audience; rules catalog preprovision and cleanup pair; F10/F11 PostgreSQL suite wired into Verify-Forward.
+- UI: rules board with drawer builder replaces the Alerts Repository page, sidebar entry removed, Figma review cards on /alerts; old workspace left unused.
+- Scheduler: inert GitHub Actions drain and sweep workflow, prompt-only machine login script, activation runbook in ops; G-F10-7 Partly met until a person sets credentials.
+- Hosted apply held: Preview and Production share devV2, so 0058-0060 wait until production runs the widened contract and 0056 lands without a gap.
+- 0059 header comment omits outcome_confirm_operation; recorded in the metric catalog CR section 5 instead, since the SAD checker blocks any byte change to a committed migration.
+
+## 2026-10-04 Dev CI lint and typecheck repair
+
+- CI validate failed at Lint on dev, so Typecheck, Test and Build never ran.
+- Biome safe fixes for formatting and import order in six test and config files.
+- Removed a useless Fragment in the activity list Export action; the proof dialog progress bar takes tabIndex 0 like the shared ProgressBar.
+- Typecheck then surfaced a mock transaction type error in action-counts.service.test.ts; cast to Prisma.TransactionClient as other tests do.
+- Local lint, typecheck, test (api 105 files passed, 8 skipped for PostgreSQL; web 187) and build pass.

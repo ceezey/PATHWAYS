@@ -11,9 +11,11 @@ import { RolesGuard } from './common/guards/roles.guard'
 import { SupabaseAuthGuard } from './common/guards/supabase-auth.guard'
 import { SentryInterceptor } from './common/interceptors/sentry.interceptor'
 import { ActivitiesModule } from './modules/activities/activities.module'
+import { AnalyticsInsightsModule } from './modules/analytics-insights/analytics-insights.module'
 import { AuditModule } from './modules/audit/audit.module'
 import { AuthModule } from './modules/auth/auth.module'
 import { BeneficiariesModule } from './modules/beneficiaries/beneficiaries.module'
+import { BeneficiaryMediaModule } from './modules/beneficiary-media/beneficiary-media.module'
 import { DashboardsModule } from './modules/dashboards/dashboards.module'
 import { EvaluationsModule } from './modules/evaluations/evaluations.module'
 import { FinanceModule } from './modules/finance/finance.module'
@@ -173,6 +175,7 @@ export function createPathwaysPinoHttpOptions(environment = process.env.NODE_ENV
     ProfileModule,
     ActivitiesModule,
     BeneficiariesModule,
+    BeneficiaryMediaModule,
     UsersModule,
     ParticipantsModule,
     ProgramsModule,
@@ -181,6 +184,7 @@ export function createPathwaysPinoHttpOptions(environment = process.env.NODE_ENV
     ImportsModule,
     IndicatorsModule,
     DashboardsModule,
+    AnalyticsInsightsModule,
     EvaluationsModule,
     FinanceModule,
     ReportsModule,

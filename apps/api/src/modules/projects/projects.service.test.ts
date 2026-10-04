@@ -142,6 +142,7 @@ const tx = {
     updateMany: vi.fn(),
     findFirst: vi.fn(),
     findUniqueOrThrow: vi.fn(),
+    findMany: vi.fn().mockResolvedValue([]),
   },
   userProjectAssignment: {
     findMany: vi.fn(),
@@ -178,6 +179,21 @@ describe('Project creation contract', () => {
     ])
     tx.project.findUniqueOrThrow.mockResolvedValue(project)
     tx.project.findFirst.mockResolvedValue(project)
+  })
+
+  it('generates a readable code when none is sent and skips taken ones', async () => {
+    tx.project.findMany.mockResolvedValueOnce([{ code: 'CRL-NS-2026' }])
+    await service.create(manager, {
+      title: 'Community Resilience and Livelihoods',
+      implementationArea: 'Catarman, Northern Samar',
+      startDate: '2026-02-01',
+      endDate: '2026-12-31',
+      status: 'PLANNED' as const,
+    } as never)
+    expect(tx.project.findMany.mock.calls[0][0].where).toMatchObject({
+      organizationId: manager.organizationId,
+    })
+    expect(tx.project.create.mock.calls[0][0].data.code).toBe('CRL-NS-2026-2')
   })
 
   it('persists and returns the repaired fields, normalized team, and decimal budget', async () => {

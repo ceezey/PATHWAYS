@@ -15,6 +15,8 @@ const mfa = vi.hoisted(() => ({
   listFactors: vi.fn(),
   enroll: vi.fn(),
   getSession: vi.fn(),
+  challenge: vi.fn(),
+  verify: vi.fn(),
 }))
 // The browser client is a singleton in the app; a fresh object per render would restart effects.
 const client = vi.hoisted(() => ({
@@ -23,6 +25,8 @@ const client = vi.hoisted(() => ({
     mfa: {
       listFactors: (...args: unknown[]) => mfa.listFactors(...args),
       enroll: (...args: unknown[]) => mfa.enroll(...args),
+      challenge: (...args: unknown[]) => mfa.challenge(...args),
+      verify: (...args: unknown[]) => mfa.verify(...args),
     },
   },
 }))
@@ -65,6 +69,8 @@ import { MfaForm } from './mfa-form'
 beforeEach(() => {
   mfa.listFactors.mockResolvedValue({ data: { all: [] }, error: null })
   mfa.getSession.mockResolvedValue({ data: { session }, error: null })
+  mfa.challenge.mockResolvedValue({ data: { id: 'synthetic-challenge' }, error: null })
+  mfa.verify.mockResolvedValue({ data: {}, error: { message: 'invalid code' } })
   mfa.enroll.mockResolvedValue({
     data: {
       id: '22222222-2222-4222-8222-222222222222',
@@ -174,20 +180,25 @@ describe('MfaForm code entry', () => {
     expect((boxes[1] as HTMLInputElement).value).toBe('')
   })
 
-  it('fills all boxes when six digits are pasted', async () => {
+  it('fills boxes from a pasted code', async () => {
     render(<MfaForm />)
     fireEvent.click(await screen.findByRole('button', { name: 'Set up authenticator' }))
     await screen.findByAltText('Private authenticator setup QR code')
 
     const boxes = screen.getAllByLabelText(/Digit \d of 6/)
-    const clipboardData = { getData: () => '123456' }
+    const clipboardData = { getData: () => '12345' }
     fireEvent.paste(boxes[0], { clipboardData })
-    boxes.forEach((box, index) => {
-      expect((box as HTMLInputElement).value).toBe(String(index + 1))
-    })
+    expect(boxes.map((box) => (box as HTMLInputElement).value)).toEqual([
+      '1',
+      '2',
+      '3',
+      '4',
+      '5',
+      '',
+    ])
   })
 
-  it('keeps submit disabled until all six digits are entered, and codes are not masked', async () => {
+  it('keeps submit disabled below six digits, codes are not masked, and six digits auto-verify', async () => {
     render(<MfaForm />)
     fireEvent.click(await screen.findByRole('button', { name: 'Set up authenticator' }))
     await screen.findByAltText('Private authenticator setup QR code')
@@ -204,7 +215,9 @@ describe('MfaForm code entry', () => {
     }
 
     fillCode('123456')
-    expect(submit.disabled).toBe(false)
+    await waitFor(() =>
+      expect(boxes.map((box) => (box as HTMLInputElement).value)).toEqual(['', '', '', '', '', '']),
+    )
   })
 
   it('does not shift later digits when a middle box is deleted', async () => {
@@ -212,7 +225,7 @@ describe('MfaForm code entry', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Set up authenticator' }))
     await screen.findByAltText('Private authenticator setup QR code')
 
-    const boxes = fillCode('123456')
+    const boxes = fillCode('12345')
     fireEvent.change(boxes[2], { target: { value: '' } })
 
     expect(boxes.map((box) => (box as HTMLInputElement).value)).toEqual([
@@ -221,7 +234,7 @@ describe('MfaForm code entry', () => {
       '',
       '4',
       '5',
-      '6',
+      '',
     ])
   })
 
@@ -245,12 +258,23 @@ describe('MfaForm code entry', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Set up authenticator' }))
     await screen.findByAltText('Private authenticator setup QR code')
 
+    // The sixth digit auto-submits, and a wrong code resets the controlled `value` prop back to ''.
     const boxes = fillCode('123456')
-    // Submitting a wrong code resets the controlled `value` prop back to ''.
-    fireEvent.click(screen.getByRole('button', { name: 'Verify authenticator code' }))
 
     await waitFor(() =>
       expect(boxes.map((box) => (box as HTMLInputElement).value)).toEqual(['', '', '', '', '', '']),
     )
+  })
+
+  it('shows a loading state instead of the code form once the code is accepted', async () => {
+    mfa.verify.mockResolvedValue({ data: {}, error: null })
+    render(<MfaForm />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Set up authenticator' }))
+    await screen.findByAltText('Private authenticator setup QR code')
+
+    fillCode('123456')
+
+    expect(await screen.findByText('Code accepted. Opening your workspace...')).toBeTruthy()
+    expect(screen.queryAllByLabelText(/Digit \d of 6/)).toHaveLength(0)
   })
 })

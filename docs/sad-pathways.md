@@ -37,9 +37,9 @@ Paths are repository-relative globs normalized to forward slashes. `**` includes
 | migration-integrity-guardian | `apps/api/prisma/migrations/**/*.sql`, `apps/api/prisma/schema.prisma`, `apps/api/prisma/history/**`, `infra/supabase/**/*.sql`, `infra/supabase/phase6/*.ps1`, `scripts/migrations/**`, `.github/workflows/ci.yml` | Reliability: fault tolerance and recoverability | opus |
 | beneficiary-privacy-guardian | `apps/api/src/**/*.controller.ts`, `apps/web/src/api/**/*.ts`, `**/schemas/*.zod.ts`, `apps/web/src/lib/services/**/*.ts`, `packages/shared/src/validation/**/*.ts` | Compatibility: interoperability; Security: data protection | opus |
 | metadata-import-validator | `packages/imports/src/**/*.ts`, `apps/api/src/modules/imports/**/*.ts` | Functional Suitability: correctness and appropriateness | sonnet |
-| rule-engine-determinism-checker | `packages/shared/src/monitoring/**/*.ts`, `apps/api/src/modules/indicators/**/*.ts` | Performance Efficiency: time behaviour and resource utilization | sonnet |
+| rule-engine-determinism-checker | `packages/shared/src/monitoring/**/*.ts`, `apps/api/src/modules/indicators/**/*.ts`, `apps/api/src/modules/rules/**/*.ts`, `apps/web/src/features/analytics/rule*.ts`, `apps/web/src/features/analytics/rule*.tsx` | Performance Efficiency: time behaviour and resource utilization | sonnet |
 | restraint-guardian | `**/package.json`, `pnpm-workspace.yaml`, `**/tsconfig*.json`, `scripts/sad/**` | Maintainability: modularity and reusability | opus |
-| design-qa-agent | `apps/api/src/**`, `apps/web/src/**`, `packages/**`, `scripts/sad/**`, `infra/supabase/phase6/*.ps1`, `.github/workflows/ci.yml` | All eight pillars (section 3.2) | opus |
+| design-qa-agent | `apps/api/src/**`, `apps/web/src/**`, `packages/**`, `scripts/sad/**`, `infra/supabase/phase6/*.ps1`, `.github/workflows/ci.yml`, `.github/workflows/rules-dispatch.yml` | All eight pillars (section 3.2) | opus |
 
 The core design QA role evaluates every modified or added application/package file before engineering sign-off. Review tooling and migration replay also receive QA because their correctness controls other reviews. Trigger routing is a minimum, not permission to omit an implicated specialist.
 

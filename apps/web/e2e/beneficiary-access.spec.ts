@@ -177,7 +177,9 @@ test('Project Manager resumes a direct record link after step-up and picks a sta
   await expect(page.getByRole('tabpanel')).toBeVisible()
   await page.getByRole('tab', { name: 'Journey tracking' }).click()
   // Earlier seeded stages lock later ones, so pick the first unlocked stage.
-  const stage = page.locator('button[aria-controls^="journey-stage-detail-"]:not([disabled])').first()
+  const stage = page
+    .locator('button[aria-controls^="journey-stage-detail-"]:not([disabled])')
+    .first()
   await stage.click()
   await expect(stage).toHaveAttribute('aria-expanded', 'true')
   await expect(page.getByRole('dialog')).toHaveCount(0)

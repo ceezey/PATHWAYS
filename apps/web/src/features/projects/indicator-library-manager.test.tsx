@@ -9,6 +9,7 @@ const state = vi.hoisted(() => ({
   data: undefined as unknown,
   error: null as unknown,
 }))
+vi.mock('next/navigation', () => ({ useSearchParams: () => new URLSearchParams() }))
 vi.mock('@/hooks/use-current-role', () => ({
   useCurrentRole: () => ({
     access: 'ready',

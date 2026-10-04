@@ -22,6 +22,7 @@ import type {
   Activity,
   ActivityCapabilities,
   ActivityOverdueExplanation,
+  ActivityProofFileDeclaration,
   ActivityProofFinalizeResult,
   ActivityProofReservation,
   ActivityProofReservedFile,
@@ -33,7 +34,9 @@ import type {
   AuthorizeExistingUserInput,
   BeneficiaryFilters,
   BeneficiaryJourneyHistory,
-  BeneficiaryMediaProofRecord,
+  BeneficiaryMediaItem,
+  BeneficiaryMediaLimits,
+  BeneficiaryMediaReservedFile,
   BeneficiaryRecord,
   BeneficiaryRegistrationContext,
   BeneficiarySadddAggregate,
@@ -414,10 +417,18 @@ export interface PathwaysClient {
   ): Promise<{ id: string; status: 'ARCHIVED'; archivedAt: string }>
   getDuplicateCandidates(projectId: string): Promise<DuplicateCandidatePair[]>
   resolveDuplicate(projectId: string, input: ResolveDuplicateInput): Promise<void>
-  getBeneficiaryMediaProofForRole(
-    role: PathwaysRole,
+  listBeneficiaryMedia(projectId: string, beneficiaryId: string): Promise<BeneficiaryMediaItem[]>
+  getBeneficiaryMediaLimits(
+    projectId: string,
     beneficiaryId: string,
-  ): Promise<BeneficiaryMediaProofRecord[]>
+  ): Promise<BeneficiaryMediaLimits>
+  reserveBeneficiaryMedia(
+    projectId: string,
+    beneficiaryId: string,
+    input: { files: ActivityProofFileDeclaration[]; note?: string },
+  ): Promise<BeneficiaryMediaReservedFile[]>
+  finalizeBeneficiaryMedia(projectId: string, beneficiaryId: string, mediaId: string): Promise<void>
+  getBeneficiaryMediaBlob(projectId: string, beneficiaryId: string, mediaId: string): Promise<Blob>
   getBeneficiarySadddAggregatesForRole(
     role: PathwaysRole,
     query: SadddQuery,
@@ -574,6 +585,9 @@ export interface PathwaysClient {
     evidenceId: string,
   ): Promise<ActivityProofFinalizeResult>
 }
+
+const beneficiaryMediaPath = (projectId: string, beneficiaryId: string) =>
+  `/beneficiaries/projects/${encodeURIComponent(projectId)}/${encodeURIComponent(beneficiaryId)}/media`
 
 const backendNotConfigured = (operation: string) =>
   new PathwaysClientError(
@@ -1327,11 +1341,62 @@ class BackendReadyPathwaysClient implements PathwaysClient {
     )
   }
 
-  async getBeneficiaryMediaProofForRole(
-    _role: PathwaysRole,
-    _beneficiaryId: string,
-  ): Promise<BeneficiaryMediaProofRecord[]> {
-    throw backendNotConfigured('Beneficiary media proof')
+  async listBeneficiaryMedia(
+    projectId: string,
+    beneficiaryId: string,
+  ): Promise<BeneficiaryMediaItem[]> {
+    const rows = await requestFoundation(beneficiaryMediaPath(projectId, beneficiaryId))
+    if (!Array.isArray(rows))
+      throw new PathwaysClientError('Invalid beneficiary media response.', 'network')
+    return rows as BeneficiaryMediaItem[]
+  }
+
+  async getBeneficiaryMediaLimits(
+    projectId: string,
+    beneficiaryId: string,
+  ): Promise<BeneficiaryMediaLimits> {
+    const limits = await requestFoundation(
+      `${beneficiaryMediaPath(projectId, beneficiaryId)}/limits`,
+    )
+    if (!isFiniteNonNegative(limits?.maxFiles) || !isFiniteNonNegative(limits?.maxFileBytes))
+      throw new PathwaysClientError('Invalid beneficiary media limits response.', 'network')
+    return limits as BeneficiaryMediaLimits
+  }
+
+  async reserveBeneficiaryMedia(
+    projectId: string,
+    beneficiaryId: string,
+    input: { files: ActivityProofFileDeclaration[]; note?: string },
+  ): Promise<BeneficiaryMediaReservedFile[]> {
+    const reserved = await requestFoundation(
+      `${beneficiaryMediaPath(projectId, beneficiaryId)}/reservations`,
+      { method: 'POST', body: JSON.stringify(input) },
+    )
+    if (!Array.isArray(reserved?.files))
+      throw new PathwaysClientError('Invalid beneficiary media reservation response.', 'network')
+    return reserved.files as BeneficiaryMediaReservedFile[]
+  }
+
+  async finalizeBeneficiaryMedia(
+    projectId: string,
+    beneficiaryId: string,
+    mediaId: string,
+  ): Promise<void> {
+    await requestFoundation(
+      `${beneficiaryMediaPath(projectId, beneficiaryId)}/${encodeURIComponent(mediaId)}/finalize`,
+      { method: 'POST' },
+    )
+  }
+
+  async getBeneficiaryMediaBlob(
+    projectId: string,
+    beneficiaryId: string,
+    mediaId: string,
+  ): Promise<Blob> {
+    const response = await requestFoundationResponse(
+      `${beneficiaryMediaPath(projectId, beneficiaryId)}/${encodeURIComponent(mediaId)}/content`,
+    )
+    return response.blob()
   }
 
   async getBeneficiarySadddAggregatesForRole(

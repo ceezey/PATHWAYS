@@ -273,7 +273,9 @@ export class JourneyStageInputDto {
 
   @IsString()
   @Length(2, 40)
-  @Matches(/^[A-Z0-9][A-Z0-9_-]*$/)
+  @Matches(/^[A-Z0-9][A-Z0-9._-]*$/, {
+    message: 'Stage codes use capital letters, digits, dots, dashes or underscores.',
+  })
   @Transform(canonical)
   code!: string
 

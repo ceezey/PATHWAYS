@@ -37,6 +37,7 @@ model Organization {
   indicatorBindings                             ProjectIndicatorBinding[]          @relation("P06BindingOrganization")
   indicatorMeasurements                         ProjectIndicatorMeasurement[]      @relation("P06MeasurementOrganization")
   sensitiveAggregateReleases                    SensitiveAggregateRelease[]        @relation("P06SensitiveReleaseOrganization")
+  surveyPeriodReleases                          SurveyPeriodRelease[]              @relation("SurveyPeriodReleaseOrganization")
   projectBudgetRecord_organization              ProjectBudgetRecord[]              @relation("ProjectBudgetRecord_organization")
   budgetExpenseEntry_organization               BudgetExpenseEntry[]               @relation("BudgetExpenseEntry_organization")
   assessmentResult_organization                 AssessmentResult[]                 @relation("AssessmentResult_organization")
@@ -658,6 +659,7 @@ model Project {
   indicatorBindings                        ProjectIndicatorBinding[]          @relation("P06BindingProject")
   indicatorMeasurements                    ProjectIndicatorMeasurement[]      @relation("P06MeasurementProject")
   sensitiveAggregateReleases               SensitiveAggregateRelease[]        @relation("P06SensitiveReleaseProject")
+  surveyPeriodReleases                     SurveyPeriodRelease[]              @relation("SurveyPeriodReleaseProject")
   projectBudgetRecord_project              ProjectBudgetRecord[]              @relation("ProjectBudgetRecord_project")
   budgetExpenseEntry_project               BudgetExpenseEntry[]               @relation("BudgetExpenseEntry_project")
   assessmentResult_project                 AssessmentResult[]                 @relation("AssessmentResult_project")
@@ -1712,6 +1714,7 @@ enum DecisionStatus {
   REVIEWED
   RESOLVED
   DISMISSED
+  AUTO_RESOLVED
 
   @@map("decision_status")
   @@schema("pathways")
@@ -2424,6 +2427,24 @@ model SensitiveAggregateRelease {
   @@unique([organizationId, projectId], map: "p06_sensitive_release_project_key")
   @@index([organizationId, status, projectId], map: "p06_sensitive_release_status_idx")
   @@map("sensitive_aggregate_releases")
+  @@schema("pathways")
+}
+
+/// cr-pathways-f9-trusted-aggregates (0057). RLS forced, no API-role grants: runtime access only through p10_f9_survey_release.
+model SurveyPeriodRelease {
+  organizationId    String   @map("organization_id") @db.Uuid
+  projectId         String   @map("project_id") @db.Uuid
+  periodStart       DateTime @map("period_start") @db.Date
+  periodEnd         DateTime @map("period_end") @db.Date
+  sourceFingerprint String   @map("source_fingerprint") @db.Char(64)
+  payload           Json
+  releasedAt        DateTime @default(now()) @map("released_at") @db.Timestamptz(3)
+
+  organization Organization @relation("SurveyPeriodReleaseOrganization", fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "survey_period_release_org_fk")
+  project      Project      @relation("SurveyPeriodReleaseProject", fields: [organizationId, projectId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "survey_period_release_project_fk")
+
+  @@id([organizationId, projectId, periodStart, periodEnd], map: "survey_period_releases_pkey")
+  @@map("survey_period_releases")
   @@schema("pathways")
 }
 

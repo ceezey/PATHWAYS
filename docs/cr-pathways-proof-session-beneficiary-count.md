@@ -105,6 +105,14 @@ aggregate (the activity's `beneficiariesReached`) is exposed only under the exis
 `pathways.p08_activity_beneficiaries_reached`; it carries no beneficiary identity and no sex/age
 breakdown, and does not feed SADDD suppression.
 
+Amendment 2026-10-04: `pathways.p08_activity_beneficiaries_reached` always returned 0 on hosted
+devV2. It runs as its owner `prisma`, which lacks BYPASSRLS, and `activity_updates` forces RLS with
+no owner SELECT policy. `ActivitiesService.readReached` now sums approved session counts with a
+grouped Prisma query under the `pathways_runtime` role. RLS `p05_activity_updates_select` applies,
+plus the app-level `beneficiaries.aggregates.read` gate. Authorized callers get 0 for activities with
+no approved sessions. The unused function is recorded in deferred-features.md for repair or
+retirement through a reviewed migration.
+
 ### API
 `ReserveActivityProofDto` gains an optional `beneficiariesReachedThisSession` (int, 0-100000).
 `reserveProof` persists it on create and folds it into the existing retry-conflict comparison, so a

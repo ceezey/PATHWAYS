@@ -68,6 +68,12 @@ function compare(condition: RuleCondition, value: string): EvaluationResult {
   return passed ? 'TRUE' : 'FALSE'
 }
 
+const aggregateSources = {
+  BUDGET_UTILIZATION_PERCENT: 'BUDGET_AGGREGATE',
+  BENEFICIARY_FOLLOW_UP_PERCENT: 'BENEFICIARY_AGGREGATE',
+  SURVEY_MEAN_IMPROVEMENT_POINTS: 'SURVEY_AGGREGATE',
+} as const
+
 /** Trusted providers must retrieve authorized source scope before constructing this input. */
 export function evaluateRule(input: unknown): RuleEvaluation {
   const parsed = evaluationInputSchema.safeParse(input)
@@ -100,9 +106,11 @@ export function evaluateRule(input: unknown): RuleEvaluation {
         ? ['MANUAL_INDICATOR', 'ACTIVITY_COMPLETION_INDICATOR']
         : condition.metric.startsWith('PROJECT_')
           ? ['PROJECT']
-          : condition.metric === 'ACTIVITY_OVERDUE_DAYS'
-            ? ['ACTIVITY']
-            : ['ACTIVITY_POPULATION']
+          : condition.metric in aggregateSources
+            ? [aggregateSources[condition.metric as keyof typeof aggregateSources]]
+            : condition.metric === 'ACTIVITY_OVERDUE_DAYS'
+              ? ['ACTIVITY']
+              : ['ACTIVITY_POPULATION']
       const expectedId = condition.indicatorId ?? condition.activityId ?? rule.projectId
       if (!expectedKinds.includes(source.kind) || source.recordId !== expectedId)
         throw new Error('Observation source does not match the approved metric binding.')
@@ -110,9 +118,11 @@ export function evaluateRule(input: unknown): RuleEvaluation {
         ? 'INDICATOR'
         : condition.metric.startsWith('PROJECT_')
           ? 'PROJECT'
-          : condition.metric === 'ACTIVITY_OVERDUE_DAYS'
-            ? 'ACTIVITY'
-            : 'ACTIVITY_POPULATION'
+          : condition.metric in aggregateSources
+            ? aggregateSources[condition.metric as keyof typeof aggregateSources]
+            : condition.metric === 'ACTIVITY_OVERDUE_DAYS'
+              ? 'ACTIVITY'
+              : 'ACTIVITY_POPULATION'
       const key = `${family}/${source.recordId}`
       const signature = JSON.stringify({
         kind: source.kind,

@@ -13,6 +13,7 @@ import { useSearchParams } from 'next/navigation'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
+import { DialogShell } from '@/components/pathways/dialog-shell'
 import { StatusBadge } from '@/components/pathways/status-badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -34,7 +35,6 @@ import {
 } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
-import { UNFINISHED_CONTROLS_UI_ENABLED } from '@/constants/feature-flags'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { isUiActionAvailable } from '@/lib/rbac/ui-action-availability'
 import { type AssessmentDetail, pathwaysClient } from '@/lib/services/pathways-client'
@@ -51,6 +51,7 @@ import type {
   ProjectSummary,
 } from '@/types/pathways'
 
+import { JourneyTrack } from '@/features/journey-config/journey-track'
 import { mapBeneficiaryJourneyHistory } from './beneficiary-journey-adapter'
 import { BeneficiaryMediaProof } from './beneficiary-media-proof'
 
@@ -103,6 +104,7 @@ export const BeneficiaryDetail = ({
   const [participation, setParticipation] = useState(beneficiary.participation)
   const [notes, setNotes] = useState(beneficiary.notes)
   const enrollmentStatus = beneficiary.enrollmentStatus
+  const [profileOpen, setProfileOpen] = useState(false)
   const [assessmentOpen, setAssessmentOpen] = useState(false)
   const [participationOpen, setParticipationOpen] = useState(false)
   const [savingParticipation, setSavingParticipation] = useState(false)
@@ -144,6 +146,9 @@ export const BeneficiaryDetail = ({
     reason: '',
   })
   const canEditBeneficiary = isUiActionAvailable(role, 'beneficiaries.edit', profile)
+  // Aggregate-only roles never see beneficiary media; the server denies them as well.
+  const canViewMedia = role !== null && !['Program Manager', 'Grant Manager'].includes(role)
+  const canUploadMedia = isUiActionAvailable(role, 'beneficiaries.media.upload', profile)
   const canViewAssessmentDetail = isUiActionAvailable(role, 'assessments.detail.view', profile)
   const canTransitionJourney = isUiActionAvailable(
     role,
@@ -184,14 +189,26 @@ export const BeneficiaryDetail = ({
     () => stages.slice().sort((first, second) => first.order - second.order),
     [stages],
   )
-  const currentStageIndex = currentStage
-    ? orderedStages.findIndex((stage) => stage.id === currentStage.id)
-    : -1
+  const stageState = (stage: JourneyStageConfig) =>
+    !currentStage || stage.order === currentStage.order
+      ? 'current'
+      : stage.order < currentStage.order
+        ? 'done'
+        : 'upcoming'
   const stageDisplayCode = (stage: JourneyStageConfig) => {
     const index = orderedStages.findIndex((candidate) => candidate.id === stage.id)
     return index >= 0 ? `J${index + 1}` : stage.code
   }
 
+  const initials =
+    [beneficiary.firstName, beneficiary.lastName]
+      .map((name) => name?.trim().charAt(0))
+      .filter(Boolean)
+      .join('')
+      .toUpperCase() || beneficiary.displayName.trim().charAt(0).toUpperCase()
+  const headerEnrollment =
+    beneficiary.enrollments.find((enrollment) => enrollment.projectId === projectId) ??
+    beneficiary.enrollments[0]
   const latestEnrollment = beneficiary.enrollments.find((enrollment) =>
     beneficiary.projectIds.includes(enrollment.projectId),
   )
@@ -403,53 +420,80 @@ export const BeneficiaryDetail = ({
 
   return (
     <div className="space-y-6">
-      <section className="flex flex-col gap-4 rounded-lg border border-border bg-card p-5 lg:flex-row lg:items-start lg:justify-between">
-        <div className="space-y-3">
-          <div className="flex flex-wrap gap-2">
-            <StatusBadge tone={enrollmentTone(enrollmentStatus)}>{enrollmentStatus}</StatusBadge>
-            <StatusBadge tone="neutral">Derived current stage</StatusBadge>
-          </div>
-          <div>
-            <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-              {beneficiary.displayName}
-            </h1>
-            <p className="mt-2 text-sm text-muted-foreground">
-              {beneficiary.code} · {beneficiary.sex} · {beneficiary.ageGroup} ·{' '}
-              {beneficiary.disabilityStatus}
-            </p>
+      <section className="flex flex-col gap-4 rounded-lg border border-border bg-card p-4 sm:p-5 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex min-w-0 items-start gap-3">
+          <button
+            aria-label="Open profile summary"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary-subtle font-semibold text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            onClick={() => setProfileOpen(true)}
+            type="button"
+          >
+            {initials}
+          </button>
+          <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2">
+            <div>
+              <h1 className="font-semibold text-foreground">{beneficiary.displayName}</h1>
+              <p className="text-sm text-muted-foreground">{beneficiary.code}</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <StatusBadge tone="neutral">{beneficiary.sex}</StatusBadge>
+              <StatusBadge tone="neutral">
+                {typeof beneficiary.age === 'number'
+                  ? `${beneficiary.age} yrs`
+                  : beneficiary.ageGroup}
+              </StatusBadge>
+              <StatusBadge tone="neutral">{beneficiary.disabilityStatus}</StatusBadge>
+              <StatusBadge tone={enrollmentTone(enrollmentStatus)}>{enrollmentStatus}</StatusBadge>
+            </div>
           </div>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Button asChild size="icon" title="Back to Beneficiaries" variant="outline">
-            <Link aria-label="Back to Beneficiaries" href={directoryHref}>
-              <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-            </Link>
-          </Button>
-          {canTransitionJourney ? (
-            <Button
-              aria-label="Update enrollment status"
-              disabled={enrollmentStatus !== 'Active'}
-              onClick={openJourneyTransition}
-              size="icon"
-              title={
-                enrollmentStatus === 'Active'
-                  ? 'Update enrollment status'
-                  : 'Enrollment status changes require an active enrollment.'
-              }
-              type="button"
-              variant="outline"
+        <div className="flex flex-wrap items-center gap-4 lg:justify-end">
+          <div className="lg:text-right">
+            <Link
+              className="font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              href={`/projects/${encodeURIComponent(projectId)}`}
             >
-              <UserCheck className="h-4 w-4" aria-hidden="true" />
+              {projectTitle(projectId, projects)}
+            </Link>
+            {headerEnrollment ? (
+              <p className="text-sm text-muted-foreground">
+                Enrolled {formatDate(headerEnrollment.enrolledAt)}
+              </p>
+            ) : null}
+          </div>
+          <div className="flex gap-2">
+            <Button asChild size="icon" title="Back to Beneficiaries" variant="outline">
+              <Link aria-label="Back to Beneficiaries" href={directoryHref}>
+                <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+              </Link>
             </Button>
-          ) : null}
+            {canTransitionJourney ? (
+              <Button
+                aria-label="Update enrollment status"
+                disabled={enrollmentStatus !== 'Active'}
+                onClick={openJourneyTransition}
+                size="icon"
+                title={
+                  enrollmentStatus === 'Active'
+                    ? 'Update enrollment status'
+                    : 'Enrollment status changes require an active enrollment.'
+                }
+                type="button"
+                variant="outline"
+              >
+                <UserCheck className="h-4 w-4" aria-hidden="true" />
+              </Button>
+            ) : null}
+          </div>
         </div>
       </section>
 
-      <div className="grid min-w-0 gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
-        <aside className="min-w-0 space-y-4 rounded-lg border border-border bg-card p-5">
-          <div className="flex items-center justify-between gap-3">
-            <h2 className="text-lg font-semibold text-foreground">Profile summary</h2>
-            {canEditBeneficiary ? (
+      <Dialog open={profileOpen} onOpenChange={setProfileOpen}>
+        <DialogShell
+          title="Profile summary"
+          description="Coded profile details for this beneficiary."
+          actions={
+            canEditBeneficiary ? (
               <Button asChild size="icon" title="Edit beneficiary profile" variant="outline">
                 <Link
                   aria-label="Edit beneficiary profile"
@@ -458,287 +502,238 @@ export const BeneficiaryDetail = ({
                   <Pencil className="h-4 w-4" aria-hidden="true" />
                 </Link>
               </Button>
-            ) : null}
-          </div>
-          <div className="grid gap-3 text-sm">
-            <SummaryRow label="Beneficiary code" value={beneficiary.code} />
-            <SummaryRow
-              label="Safe profile name"
-              value={[beneficiary.firstName, beneficiary.middleName, beneficiary.lastName]
-                .filter(Boolean)
-                .join(' ')}
-            />
-            <SummaryRow label="Location" value={beneficiary.location} />
-            <SummaryRow
-              label="Consent"
-              value={beneficiary.consentToStoreData ? 'Confirmed' : 'Pending'}
-            />
-            <SummaryRow
-              label="Guardian consent"
-              value={
-                beneficiary.isMinor
-                  ? beneficiary.guardianConsent
-                    ? 'Confirmed'
-                    : 'Pending'
-                  : 'Not applicable'
-              }
-            />
-          </div>
-          <div className="rounded-lg border border-border bg-surface-subtle p-4">
-            <p className="text-xs uppercase text-muted-foreground">Project enrollment</p>
-            {beneficiary.enrollments.map((enrollment) => (
-              <div key={enrollment.id} className="mt-3 space-y-2">
-                <p className="font-medium text-foreground">
-                  {projectTitle(enrollment.projectId, projects)}
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  <StatusBadge tone={enrollmentTone(enrollmentStatus)}>
-                    {enrollmentStatus}
-                  </StatusBadge>
-                  <StatusBadge tone="neutral">{enrollment.followUpStatus}</StatusBadge>
+            ) : null
+          }
+        >
+          <div className="space-y-4">
+            <div className="grid gap-3 text-sm">
+              <SummaryRow label="Beneficiary code" value={beneficiary.code} />
+              <SummaryRow
+                label="Safe profile name"
+                value={[beneficiary.firstName, beneficiary.middleName, beneficiary.lastName]
+                  .filter(Boolean)
+                  .join(' ')}
+              />
+              <SummaryRow label="Location" value={beneficiary.location} />
+              <SummaryRow
+                label="Consent"
+                value={beneficiary.consentToStoreData ? 'Confirmed' : 'Pending'}
+              />
+              <SummaryRow
+                label="Guardian consent"
+                value={
+                  beneficiary.isMinor
+                    ? beneficiary.guardianConsent
+                      ? 'Confirmed'
+                      : 'Pending'
+                    : 'Not applicable'
+                }
+              />
+            </div>
+            <div className="rounded-lg border border-border bg-surface-subtle p-4">
+              <p className="text-xs uppercase text-muted-foreground">Project enrollment</p>
+              {beneficiary.enrollments.map((enrollment) => (
+                <div key={enrollment.id} className="mt-3 space-y-2">
+                  <p className="font-medium text-foreground">
+                    {projectTitle(enrollment.projectId, projects)}
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <StatusBadge tone={enrollmentTone(enrollmentStatus)}>
+                      {enrollmentStatus}
+                    </StatusBadge>
+                    <StatusBadge tone="neutral">{enrollment.followUpStatus}</StatusBadge>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Enrolled {formatDate(enrollment.enrolledAt)}
+                  </p>
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  Enrolled {formatDate(enrollment.enrolledAt)}
-                </p>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-        </aside>
+        </DialogShell>
+      </Dialog>
 
-        <div className="min-w-0 space-y-6">
-          {beneficiary.sex === 'Prefer not to say' ||
-          beneficiary.disabilityStatus === 'Not specified' ? (
-            <div className="rounded-lg border border-warning/30 bg-warning-subtle p-4 text-sm text-warning">
-              SADDD completeness warning: one or more sex, age, or disability dimensions are not
-              disclosed for this profile.
-            </div>
-          ) : null}
-          <section aria-labelledby="beneficiary-information-title" className="min-w-0 space-y-4">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-primary">
-                Beneficiary record
-              </p>
-              <h2
-                className="mt-1 text-xl font-semibold text-foreground"
-                id="beneficiary-information-title"
-              >
-                Beneficiary Information
-              </h2>
-            </div>
+      <div className="min-w-0 space-y-6">
+        {beneficiary.sex === 'Prefer not to say' ||
+        beneficiary.disabilityStatus === 'Not specified' ? (
+          <div className="rounded-lg border border-warning/30 bg-warning-subtle p-4 text-sm text-warning">
+            SADDD completeness warning: one or more sex, age, or disability dimensions are not
+            disclosed for this profile.
+          </div>
+        ) : null}
+        <section aria-labelledby="beneficiary-information-title" className="min-w-0 space-y-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-primary">
+              Beneficiary record
+            </p>
+            <h2
+              className="mt-1 text-xl font-semibold text-foreground"
+              id="beneficiary-information-title"
+            >
+              Beneficiary Information
+            </h2>
+          </div>
 
-            <Tabs className="min-w-0" defaultValue="journey">
-              <TabsList
-                className="flex w-full overflow-x-auto"
-                aria-label="Beneficiary information"
-              >
-                <TabsTrigger value="journey">Journey tracking</TabsTrigger>
-                {UNFINISHED_CONTROLS_UI_ENABLED ? (
-                  <TabsTrigger value="media">Media proof</TabsTrigger>
-                ) : null}
-                <TabsTrigger value="participation">Participation history</TabsTrigger>
-              </TabsList>
+          <Tabs className="min-w-0" defaultValue="journey">
+            <TabsList className="flex w-full overflow-x-auto" aria-label="Beneficiary information">
+              <TabsTrigger value="journey">Journey tracking</TabsTrigger>
+              {canViewMedia ? <TabsTrigger value="media">Media proof</TabsTrigger> : null}
+              <TabsTrigger value="participation">Participation history</TabsTrigger>
+            </TabsList>
 
-              <TabsContent value="journey">
-                <section className="min-w-0 overflow-hidden rounded-lg border border-border bg-card">
-                  <div className="flex flex-col gap-3 border-b border-border bg-surface-subtle p-4 sm:flex-row sm:items-start sm:justify-between sm:p-5">
-                    <div>
-                      <h3 className="text-lg font-semibold text-foreground">Journey tracker</h3>
-                      <p className="mt-1 text-sm text-muted-foreground">
-                        Select a journey stage to show its details and actions below the tracker.
-                      </p>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2 text-sm">
-                      <StatusBadge tone="success">{progress}% progressed</StatusBadge>
-                      <StatusBadge tone="neutral">
-                        {currentStage ? stageDisplayCode(currentStage) : 'No stage'} ·{' '}
-                        {currentStage?.name ?? 'Unmapped'}
-                      </StatusBadge>
-                    </div>
-                  </div>
-
-                  <div className="overflow-x-auto p-4 sm:p-5">
-                    <ol
-                      className="flex min-w-max items-start"
-                      aria-label="Beneficiary journey stages"
-                    >
-                      {orderedStages.map((stage, index) => {
-                        const reached = currentStageIndex >= 0 && index < currentStageIndex
-                        const active = currentStage?.id === stage.id
-                        const selected = selectedStage?.id === stage.id
-                        const locked = currentStageIndex >= 0 && index > currentStageIndex
-                        const detailId = `journey-stage-detail-${stage.id}`
-
-                        return (
-                          <li className="flex items-start" key={stage.id}>
-                            <button
-                              aria-controls={detailId}
-                              aria-current={active ? 'step' : undefined}
-                              aria-expanded={selected}
-                              aria-label={`${stageDisplayCode(stage)} ${stage.name}: ${active ? 'Current stage' : reached ? 'Reached' : 'Locked'}${selected ? ', details shown' : ''}`}
-                              className="group flex w-36 flex-col items-center rounded-md px-2 py-2 text-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 sm:w-40"
-                              disabled={locked}
-                              onClick={() => setSelectedStage(selected ? null : stage)}
-                              type="button"
-                            >
-                              <span
-                                className={`flex h-11 w-11 items-center justify-center rounded-full border-2 text-xs font-semibold transition-colors ${
-                                  selected
-                                    ? 'border-primary bg-primary text-primary-foreground'
-                                    : active
-                                      ? 'border-primary bg-primary-subtle text-primary'
-                                      : reached
-                                        ? 'border-success bg-success-subtle text-success'
-                                        : 'border-border bg-background text-muted-foreground'
-                                }`}
-                              >
-                                {stageDisplayCode(stage)}
-                              </span>
-                              <span className="mt-2 max-w-32 text-sm font-medium leading-5 text-foreground">
-                                {stage.name}
-                              </span>
-                              <span className="mt-1 text-xs text-muted-foreground">
-                                {active ? 'Current stage' : reached ? 'Reached' : 'Locked'}
-                              </span>
-                            </button>
-                            {index < orderedStages.length - 1 ? (
-                              <span
-                                aria-hidden="true"
-                                className={`mt-7 h-0.5 w-8 shrink-0 sm:w-12 ${
-                                  index < currentStageIndex ? 'bg-success' : 'bg-border'
-                                }`}
-                              />
-                            ) : null}
-                          </li>
-                        )
-                      })}
-                    </ol>
-                  </div>
-
-                  {selectedStage ? (
-                    <div
-                      className="space-y-5 border-t border-border bg-background p-4 sm:p-5"
-                      id={`journey-stage-detail-${selectedStage.id}`}
-                    >
-                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                        <div>
-                          <div className="flex flex-wrap items-center gap-2">
-                            <h4 className="font-semibold text-foreground">
-                              {stageDisplayCode(selectedStage)} · {selectedStage.name}
-                            </h4>
-                            <StatusBadge tone={stageTypeTone(selectedStage.type)}>
-                              {selectedStage.type}
-                            </StatusBadge>
-                          </div>
-                          <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
-                            {selectedStage.description}
-                          </p>
-                        </div>
-                        <div className="flex shrink-0 flex-wrap gap-2 sm:justify-end">
-                          {canRecordParticipation ? (
-                            <Button
-                              aria-label="Record participation"
-                              disabled={selectedStageParticipationActivities.length === 0}
-                              onClick={openParticipationForSelectedStage}
-                              size="icon"
-                              title="Record participation through the published activity-monitoring form"
-                              type="button"
-                            >
-                              <ClipboardCheck className="h-4 w-4" aria-hidden="true" />
-                            </Button>
-                          ) : null}
-                          {canViewAssessmentDetail ? (
-                            <Button
-                              aria-label="View assessment"
-                              disabled={selectedStageAssessments.length === 0}
-                              onClick={openAssessmentForSelectedStage}
-                              size="icon"
-                              title="View assessment"
-                              type="button"
-                              variant="outline"
-                            >
-                              <FileText className="h-4 w-4" aria-hidden="true" />
-                            </Button>
-                          ) : null}
-                          {canCorrectJourney ? (
-                            <Button
-                              aria-label="Add note"
-                              disabled={!correctableNote}
-                              onClick={openNoteForSelectedStage}
-                              size="icon"
-                              title={
-                                correctableNote
-                                  ? 'Add a provenance-tracked note to the most recent journey record'
-                                  : 'A recorded journey event is required before a note can be added.'
-                              }
-                              type="button"
-                              variant="outline"
-                            >
-                              <MessageSquarePlus className="h-4 w-4" aria-hidden="true" />
-                            </Button>
-                          ) : null}
-                        </div>
-                      </div>
-
-                      <div className="grid gap-4 lg:grid-cols-2">
-                        <StageActivityList
-                          activities={selectedStageActivities}
-                          participation={participation}
-                        />
-                        <JourneyNoteList notes={selectedStageNotes} title="Journey notes" />
-                      </div>
-                    </div>
-                  ) : null}
-                </section>
-
-                <section className="mt-4 rounded-lg border border-border bg-card p-5">
-                  <h3 className="text-lg font-semibold text-foreground">Follow-up status</h3>
-                  <div className="mt-3 rounded-lg border border-border bg-surface-subtle p-4">
-                    <p className="font-medium text-foreground">
-                      {latestEnrollment?.followUpStatus ?? 'Not due'}
-                    </p>
-                    <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                      Reviewed with participation history and journey notes; it does not change
-                      shared records from this view.
+            <TabsContent value="journey">
+              <section className="min-w-0 overflow-hidden rounded-lg border border-border bg-card">
+                <div className="flex flex-col gap-3 border-b border-border bg-surface-subtle p-4 sm:flex-row sm:items-start sm:justify-between sm:p-5">
+                  <div>
+                    <h3 className="text-lg font-semibold text-foreground">Journey tracker</h3>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Select a journey stage to show its details and actions below the tracker.
                     </p>
                   </div>
-                </section>
-
-                {unlinkedNotes.length > 0 ? (
-                  <div className="mt-4">
-                    <JourneyNoteList
-                      description="Legacy notes without a verified journey-stage association are preserved here and are not assigned automatically."
-                      notes={unlinkedNotes}
-                      title="Unlinked notes"
-                    />
+                  <div className="flex flex-wrap items-center gap-2 text-sm">
+                    <StatusBadge tone="success">{progress}% progressed</StatusBadge>
+                    <StatusBadge tone="neutral">
+                      {currentStage ? stageDisplayCode(currentStage) : 'No stage'} ·{' '}
+                      {currentStage?.name ?? 'Unmapped'}
+                    </StatusBadge>
                   </div>
-                ) : null}
-              </TabsContent>
+                </div>
 
-              {UNFINISHED_CONTROLS_UI_ENABLED ? (
-                <TabsContent value="media">
-                  <BeneficiaryMediaProof
-                    activities={activities}
-                    beneficiaryId={beneficiary.id}
-                    canManage={canEditBeneficiary}
-                    mediaProof={[]}
-                    projectIds={beneficiary.projectIds}
-                    projects={projects}
-                    unavailableReason="Beneficiary media remains unavailable until a server-backed upload and review lifecycle is approved."
+                <div className="p-4 sm:p-5">
+                  <JourneyTrack
+                    onSelect={(id) =>
+                      setSelectedStage(
+                        selectedStage?.id === id
+                          ? null
+                          : (stages.find((stage) => stage.id === id) ?? null),
+                      )
+                    }
+                    selectedId={selectedStage?.id}
+                    stages={stages}
+                    stageState={stageState}
                   />
-                </TabsContent>
-              ) : null}
+                </div>
 
-              <TabsContent value="participation">
-                <RecordList
-                  activities={activities}
-                  participation={participation}
-                  stages={stages}
-                  title="Participation history"
+                {selectedStage ? (
+                  <div
+                    className="space-y-5 border-t border-border bg-card p-4 sm:p-5"
+                    id={`journey-stage-detail-${selectedStage.id}`}
+                  >
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h4 className="font-semibold text-foreground">
+                            {stageDisplayCode(selectedStage)} · {selectedStage.name}
+                          </h4>
+                          <StatusBadge tone={stageTypeTone(selectedStage.type)}>
+                            {selectedStage.type}
+                          </StatusBadge>
+                        </div>
+                        <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
+                          {selectedStage.description}
+                        </p>
+                      </div>
+                      <div className="flex shrink-0 flex-wrap gap-2 sm:justify-end">
+                        {canRecordParticipation ? (
+                          <Button
+                            aria-label="Record participation"
+                            disabled={selectedStageParticipationActivities.length === 0}
+                            onClick={openParticipationForSelectedStage}
+                            size="icon"
+                            title="Record participation through the published activity-monitoring form"
+                            type="button"
+                          >
+                            <ClipboardCheck className="h-4 w-4" aria-hidden="true" />
+                          </Button>
+                        ) : null}
+                        {canViewAssessmentDetail ? (
+                          <Button
+                            aria-label="View assessment"
+                            disabled={selectedStageAssessments.length === 0}
+                            onClick={openAssessmentForSelectedStage}
+                            size="icon"
+                            title="View assessment"
+                            type="button"
+                            variant="outline"
+                          >
+                            <FileText className="h-4 w-4" aria-hidden="true" />
+                          </Button>
+                        ) : null}
+                        {canCorrectJourney ? (
+                          <Button
+                            aria-label="Add note"
+                            disabled={!correctableNote}
+                            onClick={openNoteForSelectedStage}
+                            size="icon"
+                            title={
+                              correctableNote
+                                ? 'Add a provenance-tracked note to the most recent journey record'
+                                : 'A recorded journey event is required before a note can be added.'
+                            }
+                            type="button"
+                            variant="outline"
+                          >
+                            <MessageSquarePlus className="h-4 w-4" aria-hidden="true" />
+                          </Button>
+                        ) : null}
+                      </div>
+                    </div>
+
+                    <div className="grid gap-4 lg:grid-cols-2">
+                      <StageActivityList
+                        activities={selectedStageActivities}
+                        participation={participation}
+                      />
+                      <JourneyNoteList notes={selectedStageNotes} title="Journey notes" />
+                    </div>
+                  </div>
+                ) : null}
+              </section>
+
+              <section className="mt-4 rounded-lg border border-border bg-card p-5">
+                <h3 className="text-lg font-semibold text-foreground">Follow-up status</h3>
+                <div className="mt-3 rounded-lg border border-border bg-surface-subtle p-4">
+                  <p className="font-medium text-foreground">
+                    {latestEnrollment?.followUpStatus ?? 'Not due'}
+                  </p>
+                  <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                    Reviewed with participation history and journey notes; it does not change shared
+                    records from this view.
+                  </p>
+                </div>
+              </section>
+
+              {unlinkedNotes.length > 0 ? (
+                <div className="mt-4">
+                  <JourneyNoteList
+                    description="Legacy notes without a verified journey-stage association are preserved here and are not assigned automatically."
+                    notes={unlinkedNotes}
+                    title="Unlinked notes"
+                  />
+                </div>
+              ) : null}
+            </TabsContent>
+
+            {canViewMedia ? (
+              <TabsContent value="media">
+                <BeneficiaryMediaProof
+                  beneficiaryId={beneficiary.id}
+                  canManage={canUploadMedia}
+                  projectId={projectId}
                 />
               </TabsContent>
-            </Tabs>
-          </section>
-        </div>
+            ) : null}
+
+            <TabsContent value="participation">
+              <RecordList
+                activities={activities}
+                participation={participation}
+                stages={stages}
+                title="Participation history"
+              />
+            </TabsContent>
+          </Tabs>
+        </section>
       </div>
 
       <Dialog open={assessmentOpen} onOpenChange={setAssessmentOpen}>

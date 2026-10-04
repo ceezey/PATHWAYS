@@ -4,6 +4,7 @@ import { type SupabaseClient, createClient } from '@supabase/supabase-js'
 import { ActivitiesService } from '../src/modules/activities/activities.service'
 import type { ApplicationIdentity } from '../src/modules/auth/developer-access'
 import { BeneficiariesService } from '../src/modules/beneficiaries/beneficiaries.service'
+import { DashboardsService } from '../src/modules/dashboards/dashboards.service'
 import { EvaluationsService } from '../src/modules/evaluations/evaluations.service'
 import { FinanceService } from '../src/modules/finance/finance.service'
 import { ImportsService } from '../src/modules/imports/imports.service'
@@ -142,16 +143,17 @@ async function main() {
   const storage = new StorageService()
   const participants = new ParticipantsService(runtime)
   const beneficiaries = new BeneficiariesService(runtime)
+  const indicators = new IndicatorsService(runtime)
   const services = {
     projects: new ProjectsService(runtime),
     activities: new ActivitiesService(runtime, storage),
-    indicators: new IndicatorsService(runtime),
+    indicators,
     beneficiaries,
     metadata: new MetadataService(runtime, participants),
     participants,
     imports: new ImportsService(runtime, storage, beneficiaries, participants),
     finance: new FinanceService(runtime, storage),
-    reports: new ReportsService(runtime, storage),
+    reports: new ReportsService(runtime, storage, new DashboardsService(runtime, indicators)),
     rules: new RulesHumanService(runtime),
     publication: new PublicService(runtime),
     evaluations: new EvaluationsService(runtime),

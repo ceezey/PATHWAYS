@@ -2,9 +2,9 @@
 
 **ID:** `cr-pathways-f9-trusted-aggregates`
 **Date:** 2026-09-29
-**Status:** Approved (implementation pending; amended 2026-09-29 and 2026-09-30, see sections 9 and 10)
+**Status:** Approved (implementation pending; amended 2026-09-29, 2026-09-30 and 2026-10-04, see sections 9, 10 and 11)
 
-**Reading note:** section 10 supersedes every earlier statement in this record that Program Manager or Grant Manager receive survey aggregates (sections 1, 3, 6 and 9). Those roles receive timeline aggregates only; the survey view is restricted for them until the deferred closed-period release freeze is built. Section 8 disposition happens when the change reaches `dev`.
+**Reading note:** section 10 supersedes every earlier statement in this record that Program Manager or Grant Manager receive survey aggregates (sections 1, 3, 6 and 9). Those roles receive timeline aggregates only; the survey view is restricted for them until the deferred closed-period release freeze is built. Section 11 (2026-10-04) supersedes that deferral: those roles read survey aggregates again, for closed periods only, from a frozen release. Section 8 disposition happens when the change reaches `dev`.
 
 ## 1. Decision and Authority
 
@@ -108,3 +108,15 @@ When this record is approved and verified, update the F9 section of `docs/sdd-pa
 **Deferred.** Manager survey totals with a closed-period release freeze are recorded in `docs/deferred-features.md` as On hold, with the re-enable path (a per-period frozen release table).
 
 **Verification.** `f9-descriptive-aggregates-runtime.sql` asserts `42501` on the survey function for Program Manager and Grant Manager (including exact defined periods) while the timeline function still succeeds for them, and success plus the period rules for a role holding `assessments.detail.read`. API tests assert Program Manager, Grant Manager and System Administrator survey read and export are 403 before any query with no audit row, that Project Manager and Monitoring and Evaluation Officer still get the survey, and that Program and Grant Manager timelines stay real. Web tests cover the restricted wording with no fetch and no Retry, the 400 wording without Retry, Retry on network or 5xx errors, and hiding overlapping periods. QAD-T31, QAD-T33, QAD-T34 and QAD-T35 record the rows.
+
+## 11. Approved amendment 2026-10-04: closed-period release freeze
+
+**Approved by the developer on 2026-10-04.** This supersedes the deferral in section 10 and the 403 restriction for aggregate-only roles on closed periods. The change is recorded in [cr-pathways-f8-f9-f12-gate-closure](cr-pathways-f8-f9-f12-gate-closure.md).
+
+**Decision.** Program Manager, Grant Manager and any other role with `analytics.descriptive.read` but without `assessments.detail.read` read survey improvement for a closed reporting period from a frozen copy. Every later view or export of that period returns the identical copy, so successive releases cannot be differenced. An open period (`period_end` on or after today in Asia/Manila) is refused with 400 and writes no audit row. Roles holding `assessments.detail.read` keep the live path.
+
+**Enforcement.** Migration `0057_f9_survey_period_release` adds table `pathways.survey_period_releases` (owner `prisma`, row-level security forced, no runtime grants), the internal `pathways.p10_f9_survey_compute` (not executable by the runtime role), and `pathways.p10_f9_survey_release`, executable by `pathways_runtime`. `p10_f9_survey_aggregate` is rewritten to delegate to the compute function with identical checks. The release function requires `analytics.descriptive.read` and `monitoring.read`, an exact defined non-overlapping period and a closed period; the first call freezes the result and later calls return it (`ON CONFLICT DO NOTHING`, then re-select). The API `surveyAccess()` picks the live or frozen path and still writes one audit row per view or export.
+
+**Migration number.** The migration is `0057`, renumbered from `0056` because `0056_indicator_type` belongs to another branch. The developer approved this migration on 2026-10-04, overriding the sprint zero-migration rule for this one gate. Applied to PATHWAYS-devV2 on 2026-10-04 together with `0056_indicator_type`.
+
+**Verification.** `f9-survey-period-release-runtime.sql` and `analytics.service.test.ts`; QAD-T64 and QAD-A21.

@@ -40,6 +40,28 @@ describe('bounded typed rules authoring', () => {
     ])
       expect(() => parseRuleTree(value)).toThrow()
   })
+  it('accepts the binding-free aggregate metrics within their domains only', () => {
+    for (const [metric, threshold] of [
+      ['BUDGET_UTILIZATION_PERCENT', '150'],
+      ['BENEFICIARY_FOLLOW_UP_PERCENT', '100'],
+      ['SURVEY_MEAN_IMPROVEMENT_POINTS', '-100'],
+    ])
+      expect(parseRuleTree({ ...condition(), metric, threshold })).toMatchObject({ metric })
+    for (const [metric, threshold] of [
+      ['BUDGET_UTILIZATION_PERCENT', '-1'],
+      ['BENEFICIARY_FOLLOW_UP_PERCENT', '100.0001'],
+      ['SURVEY_MEAN_IMPROVEMENT_POINTS', '100.0001'],
+      ['FOO', '1'],
+    ])
+      expect(() => parseRuleTree({ ...condition(), metric, threshold })).toThrow()
+    expect(() =>
+      parseRuleTree({
+        ...condition(),
+        metric: 'BUDGET_UTILIZATION_PERCENT',
+        indicatorId: '10000000-0000-4000-8000-000000000001',
+      }),
+    ).toThrow()
+  })
   it('accepts exactly four groups and thirty-two distinct leaves while rejecting excess and cycles', () => {
     const leaves = Array.from({ length: 32 }, (_, index) => condition(`c${index}`))
     expect(parseRuleTree({ kind: 'GROUP', mode: 'AND', children: leaves })).toMatchObject({

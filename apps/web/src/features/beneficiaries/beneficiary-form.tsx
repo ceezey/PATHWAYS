@@ -9,7 +9,7 @@ import {
   minimumBeneficiaryAge,
   validateAndNormalizeFormData,
 } from '@pathways/shared'
-import { ArrowLeft, Save } from 'lucide-react'
+import { ArrowLeft, Loader2, Save } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import type { FormEvent } from 'react'
@@ -36,6 +36,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useCurrentRole } from '@/hooks/use-current-role'
+import { usePendingCreate } from '@/hooks/use-pending-create'
 import {
   type SensitiveDraftOwner,
   readSensitiveDraft,
@@ -43,6 +44,7 @@ import {
   useSensitiveDraftOwner,
   writeSensitiveDraft,
 } from '@/lib/auth/sensitive-drafts'
+import { createdSince, hashFingerprint } from '@/lib/forms/pending-create'
 import { pathwaysClient } from '@/lib/services/pathways-client'
 import type {
   BeneficiaryRecord,
@@ -280,6 +282,31 @@ const ScopedBeneficiaryForm = ({
   onProjectChange: (projectId: string) => void
 }) => {
   const router = useRouter()
+  const { profile, role } = useCurrentRole()
+  const pendingCreate = usePendingCreate<BeneficiaryRecord>({
+    profile,
+    kind: 'beneficiary',
+    projectId: selectedProjectId || null,
+    successMessage: 'Beneficiary registered',
+    findCreated: async (fingerprint, startedAt) => {
+      if (!role) return null
+      const records = await pathwaysClient.getBeneficiaryRecordsForRole(role, selectedProjectId)
+      for (const record of records) {
+        if (!createdSince(record.updatedAt, startedAt)) continue
+        const hash = await hashFingerprint(
+          record.firstName,
+          record.lastName,
+          record.birthDate ?? '',
+        )
+        if (hash === fingerprint) return record
+      }
+      return null
+    },
+    onConfirmed: (record) => {
+      removeSensitiveDraft(scope.key)
+      router.push(`/beneficiaries/${record.id}?projectId=${encodeURIComponent(selectedProjectId)}`)
+    },
+  })
   const startingDraft = useMemo(
     () =>
       beneficiary
@@ -461,6 +488,8 @@ const ScopedBeneficiaryForm = ({
   const ageRuleMessage = ageRuleApplies ? ageAssessment.error : null
   const ageRuleField: BeneficiaryFieldKey = ageFromBirthDate ? 'birthDate' : 'age'
   const registrationIsMinor = registrationAge === null ? null : registrationAge < 18
+  // Minor status comes from the calculated age, so guardian consent only applies to minors.
+  const showsGuardianConsent = beneficiary ? draft.isMinor : registrationIsMinor === true
   const validationIssues = useMemo(() => {
     const issues: ValidationIssue[] = []
 
@@ -586,7 +615,7 @@ const ScopedBeneficiaryForm = ({
       consent_recorded: draft.consentToParticipate,
       data_processing_consent_recorded: draft.consentToStoreData,
       is_minor: registrationIsMinor ?? draft.isMinor,
-      guardian_consent_recorded: draft.guardianConsent,
+      guardian_consent_recorded: registrationIsMinor === true && draft.guardianConsent,
       enrollment_date: registrationContext?.businessDate ?? null,
       external_identifier_type: null,
       external_identifier_value: null,
@@ -703,12 +732,17 @@ const ScopedBeneficiaryForm = ({
       if (!result.valid) throw new Error('Check registration form fields.')
       clientRegistrationId.current ??= crypto.randomUUID()
       if (!scope.isCurrent()) return
-      const saved = await pathwaysClient.registerBeneficiary(draft.projectId, {
-        formId: registrationForm.id,
-        clientRegistrationId: clientRegistrationId.current,
-        values: result.values,
-      })
-      if (!scope.isCurrent()) return
+      const registrationId = clientRegistrationId.current
+      const saved = await pendingCreate.submit(
+        await hashFingerprint(draft.firstName, draft.lastName, draft.birthDate),
+        () =>
+          pathwaysClient.registerBeneficiary(draft.projectId, {
+            formId: registrationForm.id,
+            clientRegistrationId: registrationId,
+            values: result.values,
+          }),
+      )
+      if (!saved || !scope.isCurrent()) return
       removeSensitiveDraft(draftStorageKey)
       setConfirmOpen(false)
       clientRegistrationId.current = null
@@ -1094,23 +1128,16 @@ const ScopedBeneficiaryForm = ({
               onChange={(checked) => updateDraft('consentToStoreData', checked)}
               required
             />
-            <ToggleField
-              hidden={!supportsCode('is_minor')}
-              checked={beneficiary ? draft.isMinor : (registrationIsMinor ?? draft.isMinor)}
-              disabled={Boolean(beneficiary) || registrationIsMinor !== null}
-              id="beneficiary-is-minor"
-              label="Beneficiary is a minor"
-              onChange={(checked) => updateDraft('isMinor', checked)}
-            />
+
             <ToggleField
               checked={draft.guardianConsent}
               disabled={Boolean(beneficiary)}
               error={submitted ? fieldErrors.guardianConsent : undefined}
-              hidden={!supportsProfileField('guardianConsent')}
+              hidden={!supportsProfileField('guardianConsent') || !showsGuardianConsent}
               id={fieldIds.guardianConsent}
               label="Guardian consent confirmed"
               onChange={(checked) => updateDraft('guardianConsent', checked)}
-              required={beneficiary ? draft.isMinor : registrationIsMinor === true}
+              required
             />
             {beneficiary ? (
               <p className="text-sm leading-6 text-muted-foreground md:col-span-2">
@@ -1149,10 +1176,23 @@ const ScopedBeneficiaryForm = ({
             </div>
           ) : null}
 
+          {pendingCreate.notice ? (
+            <output className="block rounded-xl border border-info/25 bg-info-subtle p-3 text-sm text-info">
+              {pendingCreate.notice}
+            </output>
+          ) : null}
           <div className="flex justify-end">
-            <Button disabled={saving} type="submit">
-              <Save className="mr-2 h-4 w-4" aria-hidden="true" />
-              {beneficiary ? 'Save changes' : 'Save beneficiary'}
+            <Button disabled={saving || pendingCreate.confirming} type="submit">
+              {pendingCreate.confirming ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+              ) : (
+                <Save className="mr-2 h-4 w-4" aria-hidden="true" />
+              )}
+              {pendingCreate.confirming
+                ? 'Saving...'
+                : beneficiary
+                  ? 'Save changes'
+                  : 'Save beneficiary'}
             </Button>
           </div>
         </form>
@@ -1228,8 +1268,16 @@ const ScopedBeneficiaryForm = ({
             >
               Cancel
             </Button>
-            <Button disabled={saving} onClick={() => void confirmSave()} type="button">
-              {saving ? 'Saving...' : beneficiary ? 'Save changes' : 'Save beneficiary'}
+            <Button
+              disabled={saving || pendingCreate.confirming}
+              onClick={() => void confirmSave()}
+              type="button"
+            >
+              {saving || pendingCreate.confirming
+                ? 'Saving...'
+                : beneficiary
+                  ? 'Save changes'
+                  : 'Save beneficiary'}
             </Button>
           </DialogFooter>
         </DialogContent>

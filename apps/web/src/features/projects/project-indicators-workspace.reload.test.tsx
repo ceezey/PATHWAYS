@@ -87,6 +87,7 @@ import { ProjectIndicatorsWorkspace } from './project-indicators-workspace'
 
 const saveLabels = () => {
   render(<ProjectIndicatorsWorkspace projectId={projectId} />)
+  fireEvent.click(screen.getByRole('button', { name: /^Manage / }))
   const form = screen.getByRole('button', { name: 'Save labels' }).closest('form')
   if (!form) throw new Error('Missing label form')
   fireEvent.submit(form)

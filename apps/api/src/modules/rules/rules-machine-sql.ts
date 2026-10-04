@@ -44,7 +44,7 @@ export function machineDatabaseUrl(
     const url = new URL(value)
     if (
       !['postgresql:', 'postgres:'].includes(url.protocol) ||
-      url.username !== role ||
+      !new RegExp(`^${role}(?:\\.[a-z]{20})?$`).test(url.username) ||
       !url.hostname ||
       url.pathname.length < 2 ||
       url.hash

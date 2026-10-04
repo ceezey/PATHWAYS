@@ -189,7 +189,7 @@ export const recommendationOutputSchema = z
     title: z.string().max(160),
     text: z.string().max(2000),
     basis: z.string().max(4000),
-    status: z.enum(['NEW', 'REVIEWED', 'RESOLVED', 'DISMISSED']),
+    status: z.enum(['NEW', 'REVIEWED', 'RESOLVED', 'DISMISSED', 'AUTO_RESOLVED']),
     revision: revisionSchema,
     proposedAt: instant,
     reviewedAt: instant.nullable(),

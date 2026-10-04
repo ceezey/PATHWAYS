@@ -100,19 +100,19 @@ export const ruleTemplates: RuleTemplateSpec[] = [
     key: 'FINANCIAL_EFFICIENCY_RISK',
     name: 'Financial Efficiency Risk',
     available: false,
-    unavailableReason: 'Requires Budget burn, not yet available',
+    unavailableReason: 'Requires a rule template that is not yet available',
   },
   {
     key: 'BUDGET_UNDER_UTILIZATION',
     name: 'Budget Under-utilization',
     available: false,
-    unavailableReason: 'Requires Budget burn, not yet available',
+    unavailableReason: 'Requires a rule template that is not yet available',
   },
   {
     key: 'IDEAL_VECTOR',
     name: 'Ideal Vector',
     available: false,
-    unavailableReason: 'Requires KPI achievement and Budget burn, not yet available',
+    unavailableReason: 'Requires a rule template that is not yet available',
   },
 ]
 

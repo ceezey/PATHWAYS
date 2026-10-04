@@ -341,6 +341,7 @@ export const BeneficiaryAccessGate = ({
               <OtpInput
                 id="beneficiary-step-up-code"
                 label="Authenticator code"
+                className="justify-center"
                 length={6}
                 autoFocus
                 disabled={status === 'loading'}

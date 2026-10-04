@@ -1,19 +1,18 @@
 'use client'
-import { SourceMutationRecovery } from './source-mutation-recovery'
-
 import { useSourceMutationContext } from '@/hooks/use-source-mutation-context'
 import { isSourceReplay, sourceMutationTickets } from '@/lib/services/source-mutation'
 
 import { zodResolver } from '@hookform/resolvers/zod'
+import { projectCodeBase } from '@pathways/shared'
 import { ArrowLeft, Loader2, Save } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
-import { useForm } from 'react-hook-form'
+import { type UseFormReturn, useForm, useWatch } from 'react-hook-form'
 import { toast } from 'sonner'
 
 import { PageHeader } from '@/components/layout/page-header'
-import { LockedField, SectionCard } from '@/components/pathways'
+import { AsyncState, LockedField, SectionCard } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import {
   Form,
@@ -33,6 +32,7 @@ import {
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { useCurrentRole } from '@/hooks/use-current-role'
+import { usePendingCreate } from '@/hooks/use-pending-create'
 import {
   type SensitiveDraftOwner,
   readSensitiveDraft,
@@ -40,9 +40,10 @@ import {
   useSensitiveDraftOwner,
   writeSensitiveDraft,
 } from '@/lib/auth/sensitive-drafts'
+import { createdSince, fingerprintOf } from '@/lib/forms/pending-create'
 import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
 import { PathwaysClientError, pathwaysClient } from '@/lib/services/pathways-client'
-import type { ProjectDetail, ProjectStatus, UserRecord } from '@/types/pathways'
+import type { ProjectDetail, ProjectStatus, ProjectSummary, UserRecord } from '@/types/pathways'
 
 import {
   type ProjectSetupSchema,
@@ -51,7 +52,7 @@ import {
   toProjectTeamInput,
   toUpdateProjectInput,
 } from './project-form-validation'
-import { ProjectTeamSelectors } from './project-team-selectors'
+import { ProjectTeamSelectors, hiddenTeamFields } from './project-team-selectors'
 
 const projectStatuses: ProjectStatus[] = ['Active', 'Needs Attention', 'Planned', 'Completed']
 const projectDraftFields = [
@@ -127,10 +128,28 @@ const ScopedProjectSetupForm = ({
   const [usersLoadError, setUsersLoadError] = useState<string | null>(null)
   const [usersLoadAttempt, setUsersLoadAttempt] = useState(0)
   const [saveError, setSaveError] = useState<string | null>(null)
+  const [projectLoadFailed, setProjectLoadFailed] = useState(false)
+  const pendingCreate = usePendingCreate<ProjectSummary>({
+    profile,
+    kind: 'project',
+    projectId: projectId ?? null,
+    successMessage: 'Project created',
+    findCreated: async (fingerprint, startedAt) =>
+      (await pathwaysClient.getProjects()).find(
+        (item) =>
+          fingerprintOf(item.title) === fingerprint && createdSince(item.updatedAt, startedAt),
+      ),
+    onConfirmed: async (record) => {
+      removeSensitiveDraft(projectDraftStorageKey)
+      await refreshAccess()
+      router.push(`/projects/${record.id}`)
+    },
+  })
   const form = useForm<ProjectSetupSchema>({
     resolver: zodResolver(projectSetupSchema),
     defaultValues: projectDefaultValues,
   })
+  const savePending = form.formState.isSubmitting || pendingCreate.confirming
 
   useEffect(() => {
     if (projectId) {
@@ -163,6 +182,7 @@ const ScopedProjectSetupForm = ({
         })
         .catch(() => {
           if (!scope.isCurrent()) return
+          setProjectLoadFailed(true)
           form.setError('title', { message: 'The project could not be loaded from the service.' })
         })
       setDraftHydrated(true)
@@ -262,11 +282,14 @@ const ScopedProjectSetupForm = ({
             },
             mutationContext ?? undefined,
           )
-        : await pathwaysClient.createProject({
-            ...toCreateProjectInput(values),
-            ...toProjectTeamInput(values, users),
-            ...budget,
-          })
+        : await pendingCreate.submit(fingerprintOf(values.title), () =>
+            pathwaysClient.createProject({
+              ...toCreateProjectInput(values),
+              ...toProjectTeamInput(values, users),
+              ...budget,
+            }),
+          )
+      if (!project) return
       if (!scope.isCurrent()) return
       if (!projectId) removeSensitiveDraft(projectDraftStorageKey)
       toast.success(existingProject ? 'Project profile updated.' : 'Project profile created.')
@@ -323,22 +346,18 @@ const ScopedProjectSetupForm = ({
         title="Project information"
         description="Required fields are validated before the project is saved."
       >
+        {projectId && !existingProject && !projectLoadFailed ? (
+          <AsyncState
+            description="Fetching the saved project details."
+            status="loading"
+            title="Loading project information"
+          />
+        ) : null}
         <Form {...form}>
-          <form className="space-y-6" onSubmit={form.handleSubmit(onSubmit)}>
-            {projectId ? (
-              <SourceMutationRecovery
-                context={mutationContext}
-                prefix={`/projects/${projectId}`}
-                onRecovered={async () => {
-                  await pathwaysClient.getProject(projectId)
-                  return () => {
-                    removeSensitiveDraft(projectDraftStorageKey)
-                    router.push(`/projects/${projectId}`)
-                    router.refresh()
-                  }
-                }}
-              />
-            ) : null}
+          <form
+            className={projectId && !existingProject && !projectLoadFailed ? 'hidden' : 'space-y-6'}
+            onSubmit={form.handleSubmit(onSubmit)}
+          >
             {saveError ? (
               <p
                 className="rounded-xl border border-danger/30 bg-danger/5 p-3 text-sm text-danger"
@@ -357,6 +376,7 @@ const ScopedProjectSetupForm = ({
                     <FormControl aria-required="true">
                       <Input placeholder="Community Resilience Project" {...field} />
                     </FormControl>
+                    {projectId ? null : <ProjectCodePreview form={form} />}
                     <FormMessage />
                   </FormItem>
                 )}
@@ -512,6 +532,7 @@ const ScopedProjectSetupForm = ({
                 </p>
               </div>
               <ProjectTeamSelectors
+                hiddenFields={hiddenTeamFields(profile?.roles[0])}
                 control={form.control}
                 loadError={usersLoadError}
                 loading={usersLoading}
@@ -519,18 +540,23 @@ const ScopedProjectSetupForm = ({
                 users={users}
               />
             </div>
+            {pendingCreate.notice ? (
+              <output className="block rounded-xl border border-info/25 bg-info-subtle p-3 text-sm text-info">
+                {pendingCreate.notice}
+              </output>
+            ) : null}
             <div className="flex justify-end">
               <Button
                 className="gap-2"
-                disabled={form.formState.isSubmitting || Boolean(projectId && !existingProject)}
+                disabled={savePending || Boolean(projectId && !existingProject)}
                 type="submit"
               >
-                {form.formState.isSubmitting ? (
+                {savePending ? (
                   <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
                 ) : (
                   <Save className="h-4 w-4" aria-hidden="true" />
                 )}
-                {form.formState.isSubmitting
+                {savePending
                   ? projectId
                     ? 'Saving...'
                     : 'Creating...'
@@ -543,5 +569,19 @@ const ScopedProjectSetupForm = ({
         </Form>
       </SectionCard>
     </>
+  )
+}
+
+// Shows the code the API will generate; a numeric suffix is added on save if it is taken.
+const ProjectCodePreview = ({ form }: { form: UseFormReturn<ProjectSetupSchema> }) => {
+  const [title, area, startDate] = useWatch({
+    control: form.control,
+    name: ['title', 'area', 'startDate'],
+  })
+  if (!title?.trim()) return null
+  return (
+    <p className="text-xs text-muted-foreground">
+      Project code: {projectCodeBase({ title, area, startDate })}
+    </p>
   )
 }

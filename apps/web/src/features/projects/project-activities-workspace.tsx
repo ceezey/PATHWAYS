@@ -38,6 +38,7 @@ import { useAuthorizedRead } from '@/providers/authorized-query-provider'
 import type { Activity, ActivityStatus, ActivitySummary, Indicator } from '@/types/pathways'
 
 import { ActivityDetailPanel } from './activity-detail-panel'
+import { ActivityEditorLoadingDialog } from './activity-editor-loading-dialog'
 import type { ExpenseBudgetReference } from './activity-expense-dialog'
 import type { PendingExpense } from './activity-expense-review-dialog'
 import { ActivityFormDialog } from './activity-form-dialog'
@@ -396,6 +397,8 @@ export const ProjectActivitiesWorkspace = ({
         ...pickMetrics(previous?.find((current) => current.id === activity.id)),
       },
     ])
+    // Kept metrics are stale after a review or edit, so reread the list for reach and budget.
+    void activityList.refetch()
     if (selectActivity || selectedActivityId === activity.id) {
       setSelectedActivityId(activity.id)
       if (selectedActivityId === activity.id) detail.replaceData(() => activity)
@@ -448,7 +451,6 @@ export const ProjectActivitiesWorkspace = ({
     return (
       <AsyncState
         description="Loading project activities."
-        icon={Loader2}
         status="loading"
         title="Loading activities"
       />
@@ -664,24 +666,14 @@ export const ProjectActivitiesWorkspace = ({
         pendingExpenses={pendingExpenses}
         requestedProofId={initialProofId}
       />
-      {formOpen && !editorReady ? (
-        <AsyncState
-          status={editorFailed ? 'error' : 'loading'}
-          title="Activity editor"
-          description={
-            editorFailed
-              ? 'Editor information could not be loaded. Try again.'
-              : 'Loading editor information.'
-          }
-          onRetry={
-            editorFailed
-              ? () => {
-                  for (const read of editorReads) if (read.isError) void read.refetch()
-                }
-              : undefined
-          }
-        />
-      ) : null}
+      <ActivityEditorLoadingDialog
+        failed={editorFailed}
+        onOpenChange={setFormOpen}
+        onRetry={() => {
+          for (const read of editorReads) if (read.isError) void read.refetch()
+        }}
+        open={formOpen && !editorReady}
+      />
       <ActivityFormDialog
         onAcknowledged={() => activityList.refetch()}
         activity={editingActivity}

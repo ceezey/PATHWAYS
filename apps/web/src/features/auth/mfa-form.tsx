@@ -61,6 +61,7 @@ export function MfaForm() {
   const handoffAttempted = useRef(false)
   const handoffUser = useRef(session?.user.id)
   const [handoff, setHandoff] = useState<'idle' | 'opening' | 'stalled'>('idle')
+  const [accepted, setAccepted] = useState(false)
   const currentUserId = session?.user.id
   const sessionSubject = currentUserId ?? null
   const allowedAccount = Boolean(currentUserId)
@@ -84,8 +85,21 @@ export function MfaForm() {
       handoffUser.current = session?.user.id
       handoffAttempted.current = false
       setHandoff('idle')
+      setAccepted(false)
     }
   }, [session?.user.id])
+
+  // Falls back to the code form if the API never confirms aal2 after an accepted code.
+  useEffect(() => {
+    if (!accepted) return
+    const timeout = window.setTimeout(() => {
+      setAccepted(false)
+      setError(
+        'Your code was accepted, but the session could not be confirmed. Recheck securely or sign in again.',
+      )
+    }, 30_000)
+    return () => window.clearTimeout(timeout)
+  }, [accepted])
 
   useEffect(() => {
     if (current?.status.aal === 'aal1') {
@@ -312,6 +326,7 @@ export function MfaForm() {
         assertCurrentSession(token, currentOperation),
       )
       setEnrollment(null)
+      setAccepted(true)
       // Supabase emits the changed MFA session. The effect/API re-check decides
       // whether aal2 is verified; this success never unlocks business routes.
       await refreshSession()
@@ -319,6 +334,7 @@ export function MfaForm() {
       setRefresh((value) => value + 1)
     } catch {
       if (operation.current === currentOperation) {
+        setAccepted(false)
         setError(
           'Verification was not accepted. Try the next six-digit code. If your session changed, sign in again.',
         )
@@ -331,8 +347,14 @@ export function MfaForm() {
     }
   }
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: auto-submit fires only when the code changes.
+  useEffect(() => {
+    if (isTotpCode(code)) void verify()
+  }, [code])
+
   const leave = async () => {
     ++operation.current
+    setAccepted(false)
     setEnrollment(null)
     setCode('')
     setCheck(null)
@@ -371,6 +393,14 @@ export function MfaForm() {
           <output>Checking your session...</output>
         ) : !session ? (
           <p>Sign in before setting up MFA.</p>
+        ) : accepted && current?.status.aal !== 'aal2' ? (
+          <output className="flex items-center gap-2" aria-live="polite" aria-busy="true">
+            <LoaderCircle
+              className="h-5 w-5 animate-spin motion-reduce:animate-none"
+              aria-hidden="true"
+            />
+            Code accepted. Opening your workspace...
+          </output>
         ) : !current ? (
           accessError ? (
             <p role="alert">{accessError}</p>
@@ -549,6 +579,7 @@ export function MfaForm() {
                   value={code}
                   onChange={(next) => setCode(next.replace(/\D/g, '').slice(0, 6))}
                   disabled={busy}
+                  className="justify-center"
                 />
                 <Button type="submit" disabled={busy || !isTotpCode(code)}>
                   {busy ? 'Verifying...' : 'Verify authenticator code'}

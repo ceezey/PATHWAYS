@@ -105,16 +105,15 @@ export function applyHumanAction(
 } {
   const status = z.enum(alertStatuses).parse(statusInput)
   const action = humanActionSchema.parse(actionInput)
-  if (action.kind === 'OUTCOME')
+  if (action.kind === 'OUTCOME') {
+    if (terminal.has(status)) throw new Error('Terminal alerts cannot receive an outcome.')
     return {
       status:
-        !terminal.has(status) &&
-        (action.outcome === 'ACCEPT' || action.outcome === 'PARTIALLY_ACCEPT')
-          ? 'ACTIONED'
-          : status,
+        action.outcome === 'ACCEPT' || action.outcome === 'PARTIALLY_ACCEPT' ? 'ACTIONED' : status,
       outcome: action.outcome,
       note: action.note,
     }
+  }
   if (action.kind === 'REVIEW')
     return {
       status: status === 'NEW' ? 'REVIEWED' : status,
@@ -131,4 +130,9 @@ export function applyHumanAction(
 
 export function isOpenAlert(status: AlertStatus) {
   return !terminal.has(status)
+}
+
+/** A recommendation auto-resolves only while it is NEW or REVIEWED and has no recorded decision. */
+export function canAutoResolveRecommendation(status: string, hasDecision: boolean) {
+  return (status === 'NEW' || status === 'REVIEWED') && !hasDecision
 }

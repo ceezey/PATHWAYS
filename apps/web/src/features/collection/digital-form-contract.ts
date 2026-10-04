@@ -65,6 +65,20 @@ export const fieldCodeFromText = (value: string) =>
     .replace(/[^a-z0-9]+/g, '_')
     .replace(/^_+|_+$/g, '')
 
+/** Field code while typing; keeps a trailing underscore so the next word can follow. */
+export const fieldCodeWhileTyping = (value: string) =>
+  value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+/, '')
+
+/** Readable, project-unique form code from the title, such as test_form_k3f9. */
+export const neatFormCode = (title: string, now = Date.now()) => {
+  const slug = fieldCodeFromText(title).slice(0, 40).replace(/_+$/, '')
+  const base = /^[a-z]/.test(slug) ? slug : `form_${slug}`.replace(/_+$/, '')
+  return `${base}_${now.toString(36).slice(-4)}`
+}
+
 const optionalNumber = (value: string) => (value.trim() === '' ? undefined : Number(value))
 const optionalString = (value: string) => (value.trim() === '' ? undefined : value.trim())
 

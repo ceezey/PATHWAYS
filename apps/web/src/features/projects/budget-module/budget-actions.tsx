@@ -1,5 +1,6 @@
 'use client'
 
+import { Loader2 } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
 
@@ -9,7 +10,9 @@ import { Dialog, DialogFooter } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useCurrentRole } from '@/hooks/use-current-role'
+import { usePendingCreate } from '@/hooks/use-pending-create'
 import { useOperationRequestId } from '@/lib/auth/operation-request-id'
+import { createdSince, fingerprintOf } from '@/lib/forms/pending-create'
 import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
 import { coreDataClient } from '@/lib/services/core-feature-client'
 import { useAuthorizedRead } from '@/providers/authorized-query-provider'
@@ -21,19 +24,35 @@ const AllocationDialog = ({
   projectId,
   onDone,
 }: { projectId: string; onDone: () => Promise<void> }) => {
+  const { profile } = useCurrentRole()
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
+  const pendingCreate = usePendingCreate<{ id: string }>({
+    profile,
+    kind: 'budget-allocation',
+    projectId,
+    successMessage: 'Budget allocation recorded.',
+    findCreated: async (fingerprint, startedAt) =>
+      (await coreDataClient.budgets(projectId)).find(
+        (row) =>
+          fingerprintOf(row.category) === fingerprint && createdSince(row.updatedAt, startedAt),
+      ),
+    onConfirmed: () => void onDone(),
+  })
   const [category, setCategory] = useState('')
   const [planned, setPlanned] = useState('')
   const [remarks, setRemarks] = useState('')
   const save = async () => {
     setBusy(true)
     try {
-      await coreDataClient.createBudget(projectId, {
-        category: category.trim(),
-        plannedBudget: planned.trim(),
-        remarks: remarks.trim() || null,
-      })
+      const created = await pendingCreate.submit(fingerprintOf(category), () =>
+        coreDataClient.createBudget(projectId, {
+          category: category.trim(),
+          plannedBudget: planned.trim(),
+          remarks: remarks.trim() || null,
+        }),
+      )
+      if (!created) return
       toast.success('Budget allocation recorded.')
       setOpen(false)
       setCategory('')
@@ -74,12 +93,19 @@ const AllocationDialog = ({
               <Input onChange={(e) => setRemarks(e.target.value)} value={remarks} />
             </Label>
           </div>
+          {pendingCreate.notice ? (
+            <output className="block text-sm text-info">{pendingCreate.notice}</output>
+          ) : null}
           <DialogFooter>
             <Button
-              disabled={busy || !category.trim() || !planned.trim()}
+              className="gap-2"
+              disabled={busy || pendingCreate.pending || !category.trim() || !planned.trim()}
               onClick={() => void save()}
             >
-              Record allocation
+              {busy || pendingCreate.pending ? (
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+              ) : null}
+              {busy || pendingCreate.pending ? 'Recording...' : 'Record allocation'}
             </Button>
           </DialogFooter>
         </DialogShell>

@@ -23,6 +23,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { useCurrentRole } from '@/hooks/use-current-role'
+import { usePendingCreate } from '@/hooks/use-pending-create'
+import { createdSince, fingerprintOf } from '@/lib/forms/pending-create'
 import { PathwaysClientError, pathwaysClient } from '@/lib/services/pathways-client'
 import type { ProjectMilestone } from '@/types/pathways'
 
@@ -60,6 +63,22 @@ const MilestoneDialog = ({
   const [completionDate, setCompletionDate] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const { profile } = useCurrentRole()
+  const pendingCreate = usePendingCreate<ProjectMilestone>({
+    profile,
+    kind: 'milestone',
+    projectId,
+    successMessage: 'Milestone created.',
+    findCreated: async (fingerprint, startedAt) =>
+      (await pathwaysClient.getMilestones(projectId)).find(
+        (row) => fingerprintOf(row.title) === fingerprint && createdSince(row.updatedAt, startedAt),
+      ),
+    onConfirmed: (record) => {
+      onSaved(record)
+      onOpenChange(false)
+    },
+  })
+  const savePending = saving || pendingCreate.pending
 
   useEffect(() => {
     if (!open) return
@@ -92,11 +111,14 @@ const MilestoneDialog = ({
             completionDate: status === 'COMPLETED' ? completionDate : undefined,
             expectedUpdatedAt: milestone.updatedAt,
           })
-        : await pathwaysClient.createMilestone(projectId, {
-            title: title.trim(),
-            description: description.trim() || undefined,
-            targetDate: targetDate || undefined,
-          })
+        : await pendingCreate.submit(fingerprintOf(title), () =>
+            pathwaysClient.createMilestone(projectId, {
+              title: title.trim(),
+              description: description.trim() || undefined,
+              targetDate: targetDate || undefined,
+            }),
+          )
+      if (!saved) return
       toast.success(milestone ? 'Milestone updated.' : 'Milestone created.')
       onSaved(saved)
       onOpenChange(false)
@@ -177,18 +199,21 @@ const MilestoneDialog = ({
             </>
           ) : null}
           {error ? <p className="text-sm font-medium text-destructive">{error}</p> : null}
+          {pendingCreate.notice ? (
+            <output className="block text-sm text-info">{pendingCreate.notice}</output>
+          ) : null}
         </div>
         <DialogFooter>
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button type="button" onClick={save} disabled={saving} className="gap-2">
-            {saving ? (
+          <Button type="button" onClick={save} disabled={savePending} className="gap-2">
+            {savePending ? (
               <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
             ) : (
               <Flag className="h-4 w-4" aria-hidden="true" />
             )}
-            Save milestone
+            {savePending && !milestone ? 'Creating...' : 'Save milestone'}
           </Button>
         </DialogFooter>
       </DialogContent>
