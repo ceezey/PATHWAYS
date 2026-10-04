@@ -267,6 +267,7 @@ flowchart LR
 - Project profile create and update, with structured implementing partners and an opening budget record.
 - Activity create, update, status transition, progress update and proof submission with review.
 - Private proof inspection before approval, and overdue explanations.
+- Activity extension requests: an assigned Project Officer requests a later end date with a reason, the M&E Officer verifies or returns it, and the Project Manager approves or declines it; approval moves the planned end date through the activity update source operation (cr-pathways-activity-extension-request).
 - Milestone create and update.
 - Budget records and expense entries with a private receipt, verification, approval, rejection and final sign-off.
 **Bounds (out):**
@@ -274,7 +275,7 @@ flowchart LR
 - Reusable project structures (activity and monitoring templates): not built; stays a known gap for R4 (Scope and Limitations). Reusable indicator definitions are delivered by PRD-F7.
 - Project target goal: retired (cr-pathways-retire-project-target-goal).
 - Free-text implementing partners: writes are rejected (cr-pathways-project-rbac-ui-and-partners).
-- Request-an-extension control: hidden, see the deferred register (cr-pathways-frontend-usability). Beneficiary Media proof is live without a review step (deferred register).
+- Beneficiary Media proof is live without a review step (deferred register).
 **Lock:** Locked. Adding a gate or widening a bound requires an approved `cr-pathways-*`; anything outside these bounds is out of scope by default. System-wide bounds: section 6.1.
 
 #### Gate Criteria
@@ -300,6 +301,7 @@ flowchart LR
 | G-F2-17 | An expense is verified, then approved by a distinct reviewer; rejection requires a reason | Met | QAD-T47, QAD-T103, QAD-A34 |
 | G-F2-18 | Final sign-off is recorded once per expense by a holder of `expenses.signoff` | Met | QAD-T48, QAD-T85 |
 | G-F2-19 | Overview metrics derive budget utilization and timeline deterministically and deny out-of-scope projects | Met | QAD-P03, QAD-P08 |
+| G-F2-20 | An assigned officer requests an extension, a different M&E Officer verifies it and a Project Manager who is neither approves it, moving only the planned end date; a stale activity returns 409 and an unassigned officer 403 | Met (local; hosted apply pending) | QAD-T115, QAD-T116, QAD-T117, QAD-A40 |
 
 #### Use Cases
 
@@ -1000,9 +1002,10 @@ Not applicable: indicators have active and archived flags only; no approval life
 - "Add to Dashboard" pins from Analytics: up to 8 per browser, stored as references in local storage and re-fetched live on the role dashboard, so current permissions always apply (cr-pathways-f8-f9-f12-gate-closure).
 - Role home layouts from one read-only endpoint (`GET /dashboards/role-overview`, `projects.read`): Project Officer, Monitoring and Evaluation Officer and Project Manager each get a role layout, and Program Manager and Grant Manager share a portfolio view. Sections the caller lacks the permission for are omitted. System Administrator keeps the previous dashboard.
 - Project health (Critical, At risk, On track, Planned) derives only from open rule-based alerts (On track means no open alert above LOW) and is not a success rating; evaluation scores show the stored number with no quality label.
+- Extension request sections (own requests for the Project Officer, a verify queue for the M&E Officer, approval rows for the Project Manager) and an escalated-alerts queue on the Program and Grant Manager portfolio, falling back to open alerts when nothing is escalated (cr-pathways-activity-extension-request, cr-pathways-escalated-alerts).
 - Grant Manager is read-only on the portfolio view. Row actions navigate to Alerts or the project page; no decision buttons. The activity review sheet opens only from the Project Officer, M&E Officer and Project Manager layouts.
 **Bounds (out):**
-- Request extension and an escalated-alerts queue on the role dashboards: deferred to Plan 2 (deferred-features register); the Project Manager "Pending your approval" list shows expenses only because no evaluation approval step exists.
+- Evaluation approval rows on the role dashboards: deferred (deferred-features register); the Project Manager "Pending your approval" list shows expenses and extension requests because no evaluation approval step exists.
 - SADDD for an open or undefined project period: omitted, not estimated (analytics.service.ts precondition)
 - Drilldown to beneficiary records for Program Manager and Grant Manager: aggregate-only roles (rfc-pathways-auth-rbac-isolation)
 - Server-stored or shared dashboard pins and free-form dashboard widgets: not built; pins are browser-only (cr-pathways-f8-f9-f12-gate-closure)
@@ -1020,6 +1023,7 @@ Not applicable: indicators have active and archived flags only; no approval life
 | G-F8-5 | Program Manager and Grant Manager receive aggregates only, with raw beneficiary denial unchanged | Met | QAD-R06 |
 | G-F8-6 | SADDD is omitted for an open project period instead of failing the dashboard | Met | QAD-T61 |
 | G-F8-7 | Dashboard responsiveness is verified at production scale | Met (local, assumed scale, single user; staging re-measure pending) | QAD-T62, QAD-T87 |
+| G-F8-8 | The portfolio lists alerts whose latest outcome is ESCALATE only for projects the viewer may read, without the decision note or actor | Met (local; hosted apply pending) | QAD-T118, QAD-A41 |
 
 #### Use Cases
 
@@ -1164,6 +1168,7 @@ Not applicable: analytics views are read models with no lifecycle.
 - Human review, outcome, resolve and dismiss actions, with a required note where the action needs one.
 - Automatic resolution when the condition clears, and an unavailable result when a metric cannot be computed.
 - In-application notifications list and read marking.
+- A read-only escalated-alerts list (latest outcome ESCALATE); escalation still leaves the alert lifecycle unchanged (cr-pathways-escalated-alerts).
 - Budget utilization, Beneficiary follow-up and survey improvement metrics as project-level aggregates with small-cell suppression, visible only to users who can read that source (cr-pathways-rules-metric-catalog-and-auto-resolve).
 - Scheduled background evaluation, drain every 5 minutes and sweep hourly, once a person sets the hosted credentials (cr-pathways-rules-hosted-scheduler).
 **Bounds (out):**
@@ -1185,6 +1190,7 @@ Not applicable: analytics views are read models with no lifecycle.
 | G-F10-5 | Only holders of the alert permissions read, review or record an outcome, scoped to their organization and project | Met | QAD-T66 |
 | G-F10-6 | Budget, Beneficiary and survey rule metrics evaluate and raise alerts | Met | QAD-T67 |
 | G-F10-7 | Background evaluation runs on a schedule in the hosted environment | Partly met | QAD-T68 |
+| G-F10-8 | Escalated alerts are listed read-only by latest outcome, never changing the lifecycle | Met (local; hosted apply pending) | QAD-T118, QAD-A41 |
 
 #### Use Cases
 
