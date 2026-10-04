@@ -88,4 +88,16 @@ describe('desktop collapse toggle moved into the sidebar', () => {
     expect(screen.getByTestId('sidebar-compact').textContent).toBe('true')
     expect(screen.getByRole('button', { name: 'Expand sidebar' })).toBeTruthy()
   })
+
+  it('remembers the collapsed choice in a cookie and restores it on mount', () => {
+    render(<AppShell>Workspace</AppShell>)
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse sidebar' }))
+    expect(document.cookie).toContain('pathways-sidebar=compact')
+    cleanup()
+
+    render(<AppShell initialCompact>Workspace</AppShell>)
+    expect(screen.getByTestId('sidebar-compact').textContent).toBe('true')
+    fireEvent.click(screen.getByRole('button', { name: 'Expand sidebar' }))
+    expect(document.cookie).toContain('pathways-sidebar=expanded')
+  })
 })
