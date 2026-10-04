@@ -1,8 +1,10 @@
 import { Inject, Injectable, ServiceUnavailableException } from '@nestjs/common'
 import { readApiEnv } from '@pathways/config'
 import {
+  type AlertSeverity,
   ROLE_OVERVIEW_CONTRACT_VERSION,
   type RoleOverview,
+  alertSeverities,
   businessCalendarDate,
   roleOverviewSchema,
 } from '@pathways/shared'
@@ -306,6 +308,67 @@ export class RoleOverviewService {
     }
   }
 
+  /** Alert lifecycle lives behind the rules read routines, which enforce project scope. */
+  private async alerts(actor: ApplicationIdentity) {
+    const counted: Array<{
+      id: string
+      projectId: string
+      title: string
+      severity: AlertSeverity
+      explanation: string
+      evidence: Array<{ metric: string }>
+      predefinedRecommendations: Array<{ title: string }>
+    }> = []
+    let capped = false
+    for (const status of ['NEW', 'REVIEWED'] as const) {
+      let cursor: string | undefined
+      for (let page = 0; ; page += 1) {
+        if (page === 10) {
+          capped = true
+          break
+        }
+        const result = await this.rules.listAlerts(actor, {
+          status,
+          limit: '100',
+          ...(cursor ? { cursor } : {}),
+        })
+        counted.push(...(result.items as unknown as typeof counted))
+        if (!result.nextCursor) break
+        cursor = result.nextCursor
+      }
+    }
+    const rank = (s: AlertSeverity) => alertSeverities.indexOf(s)
+    const bySeverity = { CRITICAL: 0, HIGH: 0, MEDIUM: 0, LOW: 0 }
+    const projects = new Map<string, { open: number; maxSeverity: AlertSeverity }>()
+    for (const a of counted) {
+      bySeverity[a.severity] += 1
+      const p = projects.get(a.projectId)
+      projects.set(a.projectId, {
+        open: (p?.open ?? 0) + 1,
+        maxSeverity: p && rank(p.maxSeverity) <= rank(a.severity) ? p.maxSeverity : a.severity,
+      })
+    }
+    const recent = [...counted]
+      .sort((x, y) => rank(x.severity) - rank(y.severity) || x.id.localeCompare(y.id))
+      .slice(0, 5)
+      .map((a) => ({
+        id: a.id,
+        projectId: a.projectId,
+        title: a.title.slice(0, 300),
+        severity: a.severity,
+        explanation: a.explanation.slice(0, 1000),
+        recommendation: a.predefinedRecommendations[0]?.title.slice(0, 1000) ?? null,
+        budget: a.evidence.some((e) => e.metric === 'BUDGET_UTILIZATION_PERCENT'),
+      }))
+    return {
+      open: counted.length,
+      capped,
+      bySeverity,
+      byProject: [...projects].map(([projectId, v]) => ({ projectId, ...v })).slice(0, 100),
+      recent,
+    }
+  }
+
   async read(identity: ApplicationIdentity): Promise<RoleOverview> {
     const businessDate = this.businessDate()
     const today = new Date(`${businessDate}T00:00:00.000Z`)
@@ -320,6 +383,7 @@ export class RoleOverviewService {
         const submitter = can('activities.proof.submit')
         const own = submitter ? await this.submissions(tx, actor, monthStart) : null
         return {
+          actor,
           projects: await this.projects(tx, actor, can('projects.detail.read')),
           myActivities: can('activities.read') ? await this.myActivities(tx, actor, today) : null,
           flaggedProof: submitter ? await this.flaggedProof(tx, actor) : null,
@@ -340,11 +404,13 @@ export class RoleOverviewService {
         }
       },
     )
+    const { actor, ...sections } = db
+    const canAlerts = hasAtomicPermission(actor.roles[0], actor.permissions, 'alerts.read')
     return roleOverviewSchema.parse({
       contractVersion: ROLE_OVERVIEW_CONTRACT_VERSION,
       businessDate,
-      ...db,
-      alerts: null,
+      ...sections,
+      alerts: canAlerts ? await this.alerts(actor) : null,
     })
   }
 }

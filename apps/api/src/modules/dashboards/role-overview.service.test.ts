@@ -132,4 +132,65 @@ describe('RoleOverviewService', () => {
     )
     expect(queue?.[0].where.submittedById).toEqual({ not: user })
   })
+
+  it('summarizes open alerts by severity and project, budget flagged by metric', async () => {
+    const { rules, service } = setup()
+    const a1 = '40000000-0000-4000-8000-000000000001'
+    const a2 = '40000000-0000-4000-8000-000000000002'
+    rules.listAlerts.mockImplementation(async (_i, q) =>
+      q.status === 'NEW'
+        ? {
+            items: [
+              {
+                id: a1,
+                projectId: project,
+                title: 'Budget depletion',
+                severity: 'CRITICAL',
+                lifecycle: 'NEW',
+                explanation: 'x',
+                evidence: [{ metric: 'BUDGET_UTILIZATION_PERCENT' }],
+                predefinedRecommendations: [{ title: 'Reallocate' }],
+              },
+              {
+                id: a2,
+                projectId: project,
+                title: 'Low KPI',
+                severity: 'HIGH',
+                lifecycle: 'NEW',
+                explanation: 'y',
+                evidence: [{ metric: 'INDICATOR_PROGRESS_PERCENT' }],
+                predefinedRecommendations: [],
+              },
+            ],
+            nextCursor: null,
+          }
+        : { items: [], nextCursor: null },
+    )
+    const result = await service.read(actor('PROJECT_MANAGER'))
+    expect(result.alerts?.open).toBe(2)
+    expect(result.alerts?.bySeverity).toEqual({ CRITICAL: 1, HIGH: 1, MEDIUM: 0, LOW: 0 })
+    expect(result.alerts?.byProject).toEqual([
+      { projectId: project, open: 2, maxSeverity: 'CRITICAL' },
+    ])
+    expect(result.alerts?.recent[0]).toMatchObject({
+      severity: 'CRITICAL',
+      budget: true,
+      recommendation: 'Reallocate',
+    })
+  })
+
+  it('reports capped when alert paging hits the page limit', async () => {
+    const { rules, service } = setup()
+    rules.listAlerts.mockResolvedValue({ items: [], nextCursor: 'more' })
+    const result = await service.read(actor('PROJECT_MANAGER'))
+    expect(result.alerts?.capped).toBe(true)
+  })
+
+  it('returns null alerts without alerts.read', async () => {
+    const { rules, service } = setup()
+    const base = actor('PROJECT_MANAGER')
+    const viewer = { ...base, permissions: base.permissions.filter((p) => p !== 'alerts.read') }
+    expect((await service.read(viewer)).alerts).toBeNull()
+    expect(rules.listAlerts).not.toHaveBeenCalled()
+  })
 })
