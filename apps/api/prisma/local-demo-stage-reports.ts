@@ -87,6 +87,17 @@ export async function stageReports(ctx: DemoContext) {
   let generated = 0
   for (const plan of reportPlans) {
     const projectId = projectOf(ctx, plan.project)
+    const clientRequestId = ctx.stable(
+      `report:${plan.project}:${plan.kind}:${plan.format}:${plan.name}`,
+    )
+    // A released report is done: replaying its key after the source moved on is refused as a conflict.
+    if (
+      await ctx.owner.report.findFirst({
+        where: { organizationId: ctx.organizationId, clientRequestId, generatedAt: { not: null } },
+        select: { id: true },
+      })
+    )
+      continue
     const identity = ctx.staff[plan.by].identity
     let formId: string | undefined
     if (plan.formCode) {
@@ -98,9 +109,7 @@ export async function stageReports(ctx: DemoContext) {
     }
     await step(`report ${plan.name}`, () =>
       ctx.services.reports.generate(identity, projectId, {
-        clientRequestId: ctx.stable(
-          `report:${plan.project}:${plan.kind}:${plan.format}:${plan.name}`,
-        ),
+        clientRequestId,
         kind: plan.kind,
         format: plan.format,
         name: plan.name,

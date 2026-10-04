@@ -62,6 +62,7 @@ export async function stageDefenseParticipation(ctx: DemoContext) {
   const stage = stages.find((entry) => entry.code === 'COACHING')
   if (!stage) throw new Error('Journey stage COACHING is missing for CRL.')
   let noted = 0
+  let present = 0
   for (const [position, index] of notedPeople.entries()) {
     const beneficiary = await ctx.owner.beneficiary.findFirstOrThrow({
       where: { organizationId: ctx.organizationId, code: people[index].code },
@@ -83,7 +84,10 @@ export async function stageDefenseParticipation(ctx: DemoContext) {
       where: { correctsEventId: event.id },
       select: { id: true },
     })
-    if (corrected) continue
+    if (corrected) {
+      present += 1
+      continue
+    }
     await step(`journey note ${people[index].code}`, () =>
       ctx.services.participants.correctEvent(officer, projectId, beneficiary.id, event.id, {
         eventDate: ctx.today,
@@ -95,5 +99,7 @@ export async function stageDefenseParticipation(ctx: DemoContext) {
     )
     noted += 1
   }
-  ctx.log(`  fourth session recorded for ${people.length} members, journey notes added: ${noted}`)
+  ctx.log(
+    `  fourth session recorded for ${people.length} members, journey notes added: ${noted}, already present: ${present}`,
+  )
 }
