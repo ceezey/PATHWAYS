@@ -4,7 +4,7 @@
 
 **Date:** 2026-10-04
 
-**Status:** Approved; code complete pending, hosted activation pending human credentials
+**Status:** Approved; code complete, hosted activation pending human credentials
 
 **Approval:** Developer reply on 2026-10-04 choosing to implement G-F10-7 with the other blocked F10/F11 gates.
 

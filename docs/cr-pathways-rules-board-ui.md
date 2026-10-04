@@ -4,7 +4,7 @@
 
 **Date:** 2026-10-04
 
-**Status:** Approved; implementation pending
+**Status:** Approved; implemented
 
 **Approval:** Developer direction on 2026-10-04 to copy the layout in `docs/ui-ux-pathways-reference/rule-based-alerts-recommendations`, consolidate with the DSD, replace `/alerts/repository` and remove it from the sidebar, and restyle the review queue to Figma frame 1344:342.
 
