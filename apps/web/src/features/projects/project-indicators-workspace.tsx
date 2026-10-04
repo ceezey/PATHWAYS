@@ -154,6 +154,15 @@ const recipeContract: Record<Recipe, { kind: (typeof numericKinds)[number]; unit
   FORM_NUMERIC_AVERAGE: { kind: 'NON_NEGATIVE', unit: 'value' },
 }
 
+// Suggested type per recipe; picking a recipe preselects it and the type stays editable.
+const recipeTypes: Partial<Record<Recipe, (typeof indicatorTypes)[number]>> = {
+  ACTIVITY_COMPLETION_PERCENTAGE: 'ACTIVITY',
+  PARTICIPATION_RECORD_COUNT: 'PARTICIPATION',
+  DISTINCT_ATTENDING_INDIVIDUALS: 'PARTICIPATION',
+  ATTENDANCE_RECORDS_PER_INDIVIDUAL: 'PARTICIPATION',
+  FORM_NUMERIC_SUM: 'OUTPUT',
+  FORM_NUMERIC_AVERAGE: 'OUTPUT',
+}
 // Suggested starting target per recipe; the target stays editable for every recipe.
 const recipeTargets: Partial<Record<Recipe, string>> = { ACTIVITY_COMPLETION_PERCENTAGE: '100' }
 
@@ -190,7 +199,9 @@ function IndicatorForm({
   onDone: () => void
 }) {
   const [name, setName] = useState('')
-  const [indicatorType, setIndicatorType] = useState<string>('OUTPUT')
+  const [indicatorType, setIndicatorType] = useState<string>(
+    recipeTypes[enabledRecipes[0]] ?? 'OUTPUT',
+  )
   const [recipe, setRecipe] = useState<Recipe>(enabledRecipes[0])
   const [formId, setFormId] = useState('')
   const [fieldId, setFieldId] = useState('')
@@ -250,7 +261,11 @@ function IndicatorForm({
             value={indicatorType}
             onValueChange={setIndicatorType}
             options={typeOptions}
+            describedBy="indicator-type-hint"
           />
+          <p className="mt-1 text-xs text-muted-foreground" id="indicator-type-hint">
+            How this indicator is classified in reports; it does not change the calculation.
+          </p>
         </div>
         <div>
           <label htmlFor="target">Target</label>
@@ -273,9 +288,16 @@ function IndicatorForm({
             id="indicator-recipe"
             name="recipe"
             value={recipe}
-            onValueChange={(value) => setRecipe(value as Recipe)}
+            onValueChange={(value) => {
+              setRecipe(value as Recipe)
+              setIndicatorType((current) => recipeTypes[value as Recipe] ?? current)
+            }}
             options={enabledRecipeOptions}
+            describedBy="indicator-recipe-hint"
           />
+          <p className="mt-1 text-xs text-muted-foreground" id="indicator-recipe-hint">
+            How the value is calculated automatically. Choosing a recipe suggests a matching type.
+          </p>
         </div>
         {/* Each recipe's own inputs live in this card. */}
         <div className="grid gap-3 rounded-md border border-border bg-background p-3 md:col-span-2 md:grid-cols-2">

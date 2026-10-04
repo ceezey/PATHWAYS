@@ -153,3 +153,4 @@
 - Alerts: eyebrow and description removed, Manage rules moved right-aligned into the filter row, project default relabeled Select Project.
 - Alert repository: Alerts / Alert Repository breadcrumb, description removed, scope and status use the shared Select.
 - Rule test: conditions numbered and described in words instead of IDs; results use Triggered / Not triggered / Unavailable badges with observed value and unit.
+- Indicator form: Type and Recipe get helper text; choosing a recipe preselects a matching type (Activity completion % -> Activity), still editable.
