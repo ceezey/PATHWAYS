@@ -2,7 +2,7 @@
 
 **ID:** `cr-pathways-activity-extension-request`  
 **Date:** 2026-10-04  
-**Status:** Implemented and verified locally (0061 on `feature/session-sprint-20261004`); hosted apply pending
+**Status:** Applied (2026-10-04; 0061 on PATHWAYS-devV2, 37-row ledger)
 
 ## 1. Trigger
 
