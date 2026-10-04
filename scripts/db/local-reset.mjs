@@ -25,6 +25,7 @@ const preprovision = {
   '0053_expense_submit_race': 'hosted-expense-submit-preprovision.sql',
   // One chain to six rules owner roles covers both 0059 and 0060.
   '0059_rules_recommendation_auto_resolve': 'hosted-rules-catalog-preprovision.sql',
+  '0062_rules_escalated_alert_list': 'hosted-rules-escalation-preprovision.sql',
 }
 // Hosted DBAs revoke the temporary owner-role memberships right after 0031 and 0034 (and the later pairs).
 // Local runs the same reviewed cleanups at the same points, so later migrations (0037's
@@ -44,6 +45,8 @@ const cleanup = {
   '0053_expense_submit_race': ['hosted-expense-submit-cleanup.sql', []],
   // The shared 0059/0060 rules-catalog chain is revoked right after 0060.
   '0060_rules_budget_beneficiary_survey_metrics': ['hosted-rules-catalog-cleanup.sql', []],
+  // 0062's temporary SET membership to rules_human_owner is revoked right after it.
+  '0062_rules_escalated_alert_list': ['hosted-rules-escalation-cleanup.sql', []],
 }
 
 function run(command, args, { input, env, label } = {}) {

@@ -337,7 +337,7 @@ export async function resumePreflight(io, config) {
       config.adminUrl,
       `SELECT count(*) FROM pg_catalog.pg_auth_members m JOIN pg_catalog.pg_roles r ON r.oid=m.roleid
        JOIN pg_catalog.pg_roles p ON p.oid=m.member WHERE p.rolname='prisma'
-       AND r.rolname IN ('rules_store_owner','rules_enqueue_owner','rules_source_proof_owner','finance_operation_owner');`,
+       AND r.rolname IN ('rules_store_owner','rules_enqueue_owner','rules_source_proof_owner','finance_operation_owner','rules_human_owner');`,
     )
     residualOwnerMemberships = residualRows[0] !== '0'
   }
@@ -379,11 +379,11 @@ export async function postconditions(io, config) {
     JSON.stringify(names) !== JSON.stringify(expectedNames)
   ) {
     throw new Error(
-      `Ledger postcondition failed: expected exactly the ${MIGRATIONS_IN_ORDER.length} migrations 0000-0061, all finished and none failed`,
+      `Ledger postcondition failed: expected exactly the ${MIGRATIONS_IN_ORDER.length} migrations 0000-0062, all finished and none failed`,
     )
   }
   console.log(
-    `PASS: ledger has exactly ${MIGRATIONS_IN_ORDER.length} migrations 0000-0061, all finished and none failed`,
+    `PASS: ledger has exactly ${MIGRATIONS_IN_ORDER.length} migrations 0000-0062, all finished and none failed`,
   )
 
   const residualRows = io.psqlQuery(
@@ -617,7 +617,7 @@ export function printDryRunPlan(log = console.log) {
     'env file location, empty-target preflight (pathways schema absent, auth.users present, prisma absent).',
   )
   log(
-    'Checks that will run after the last step: exact 0000-0061 finished ledger, no residual prisma owner',
+    'Checks that will run after the last step: exact 0000-0062 finished ledger, no residual prisma owner',
   )
   log('memberships, repo-derived role/permission/grant counts.')
 }
