@@ -2,7 +2,7 @@
 
 **ID:** `cr-pathways-f8-f9-f12-gate-closure`  
 **Date:** 2026-10-04  
-**Status:** Approved
+**Status:** Applied (2026-10-04; 0057 applied on PATHWAYS-devV2)
 
 ## 1. Trigger
 
@@ -28,7 +28,7 @@ The crisis sprint left G-F9-9, G-F9-10 and G-F12-4 Not met and kept five finishe
 Analytics gains participation breakdowns, indicator trends and a server budget summary. Program Manager and Grant Manager read survey results for closed periods. Reports offer six kinds. Users pin up to 8 charts per browser.
 
 ### Data / Migration
-One migration, `0057_f9_survey_period_release`: one table, three functions. Forward-only. Developer approved this migration on 2026-10-04, overriding the sprint zero-migration rule for this one gate. Not applied to hosted.
+One migration, `0057_f9_survey_period_release`: one table, three functions. Forward-only. Developer approved this migration on 2026-10-04, overriding the sprint zero-migration rule for this one gate. Applied to PATHWAYS-devV2 on 2026-10-04 together with `0056_indicator_type`.
 
 ### Authorization / Privacy
 Participation needs `monitoring.read`, `journeys.read`, `beneficiaries.records.read` and `submissions.write` or `assessments.detail.read` besides `analytics.descriptive.read`, because row policies on the joined tables require them. Trends need `monitoring.read` and `indicators.read`; budget needs `monitoring.read`, `budgets.read` and `expenses.read`. Out of scope projects return 404. Aggregate-only survey access closes the differencing gap by freezing each closed period once; open periods are refused. The runtime role cannot read or write the release table directly. Pins hold references only, never data.
@@ -71,4 +71,4 @@ Developer decisions, 2026-10-04: approve the insights module and approved-only b
 
 ## 9. Disposition
 
-Applied to the repository on `feature/f8-f9-f12-analytics`. Hosted: not applied to hosted. Deferred: F9 participation breakdowns for aggregate-only roles (needs a definer release function and migration). Pending replay evidence: G-F12-1 and G-F8-7 staging re-measure. Mark fully Applied once `0057` is applied to hosted and the replay evidence is recorded.
+Applied to the repository on `feature/f8-f9-f12-analytics`. Hosted: `0057` applied to PATHWAYS-devV2 on 2026-10-04 (ledger 0055, 0056, 0057 all finished); catalog check confirmed forced RLS on `survey_period_releases`, no runtime table grants, runtime EXECUTE on the release and aggregate functions only. Deferred: F9 participation breakdowns for aggregate-only roles (needs a definer release function and migration). G-F12-1 replay evidence is recorded in section 7. The G-F8-7 staging re-measure stays pending under cr-pathways-performance-scaling.

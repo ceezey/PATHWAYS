@@ -54,7 +54,7 @@ Six internal roles are defined in `apps/api/src/modules/auth/rbac-contract.json`
 | PRD-F6 | Metadata-Driven Data Integration | Must-Have | F6 | R2 | 1.1, 1.4, 2.1 | Implemented |
 | PRD-F7 | Project Indicator and Monitoring | Must-Have | F7 | R3, R4 | 1.5 | Implemented; G-F7-1..5 Met |
 | PRD-F8 | Aggregated Monitoring Dashboard with SADDD Analysis | Must-Have | F8 | R3 | 1.6, 2.2, 2.3 | Implemented; Add to Dashboard live with browser pins; G-F8-7 Met locally at assumed scale (staging re-measure pending) |
-| PRD-F9 | Descriptive Analytics and Project Performance Summaries | Supporting | F9 | R3, R7 | 1.6, 2.2 | Implemented for KPI, participation, survey and timeline views plus participation breakdowns, indicator trends, server budget aggregate and closed-period survey release (hosted apply of 0057 pending); aggregate-only participation breakdowns deferred |
+| PRD-F9 | Descriptive Analytics and Project Performance Summaries | Supporting | F9 | R3, R7 | 1.6, 2.2 | Implemented for KPI, participation, survey and timeline views plus participation breakdowns, indicator trends, server budget aggregate and closed-period survey release; aggregate-only participation breakdowns deferred |
 | PRD-F10 | Rule-Based Alerts | Supporting | F10 | R7 | 1.7, 2.4 | Local API and initial runtime slice; integration verification pending |
 | PRD-F11 | Rule-Based Decision Support and Recommendations | Supporting | F11 | R7 | 1.7, 2.4 | Local human review API; integration verification pending |
 | PRD-F12 | Reporting and Data Visualization | Supporting | None | R3 | 1.6 | Local preview and artifact APIs; six report kinds export as CSV, XLS, XLSX and PDF; scope and suppression verified on local PostgreSQL; hosted application deferred |
@@ -102,7 +102,7 @@ Status comes from the repository, not the manuscript labels "In Progress" and "P
 | FR-8 | Centralized encoded and imported records | PRD-F6 | High | P5 / R5 | Implemented |
 | FR-9 | Indicator and monitoring parameter configuration | PRD-F7 | High | P3 / R3, P4 / R4 | Implemented; reusable indicator definitions through the organization library (cr-pathways-indicator-library); project structure templates not built |
 | FR-10 | Aggregated dashboards and SADDD summaries | PRD-F8 | High | P3 / R3 | Implemented |
-| FR-11 | Descriptive analytics and performance summaries | PRD-F9 | Medium | P3 / R3, P7 / R7 | Implemented for four views and the breakdowns, trends and server budget aggregate; closed-period survey release awaits hosted apply of 0057 |
+| FR-11 | Descriptive analytics and performance summaries | PRD-F9 | Medium | P3 / R3, P7 / R7 | Implemented for four views and the breakdowns, trends and server budget aggregate; closed-period survey release (0057, applied on PATHWAYS-devV2) |
 | FR-12 | Rule-based alerts | PRD-F10 | Medium | P7 / R7 | Local API and runtime slice; integration verification pending |
 | FR-13 | Budget expense entries and liquidation evidence | PRD-F2 | High | P5 / R5 | Implemented |
 | FR-14 | Predefined recommendation prompts | PRD-F11 | Medium | P7 / R7 | Local human review API; integration verification pending |
@@ -1100,7 +1100,7 @@ Not applicable: the dashboard is a read model with no lifecycle.
 | G-F9-7 | Survey results are released only for an exact non-overlapping period and only to roles with `assessments.detail.read` | Met | QAD-T33 |
 | G-F9-8 | Aggregate-only roles cannot difference open-period survey releases | Met | QAD-A21 |
 | G-F9-9 | Participation breakdowns, indicator trends and a server budget aggregate are available | Met | QAD-T63, QAD-T110, QAD-A39 |
-| G-F9-10 | Survey totals for Program Manager and Grant Manager through a closed-period release table | Met (local; hosted apply of 0057 pending) | QAD-T64 |
+| G-F9-10 | Survey totals for Program Manager and Grant Manager through a closed-period release table | Met | QAD-T64 |
 
 #### Use Cases
 
@@ -1933,7 +1933,7 @@ Current position is in [state](state.md); manuscript alignment findings are in `
 | Feature | Status |
 |---|---|
 | PRD-F1 to PRD-F8 | Implemented |
-| PRD-F9 | Implemented for four views and the breakdowns, trends and server budget aggregate; closed-period survey release awaits hosted apply of 0057 |
+| PRD-F9 | Implemented for four views and the breakdowns, trends and server budget aggregate; closed-period survey release (0057, applied on PATHWAYS-devV2) |
 | PRD-F10, PRD-F11 | Local API; integration verification pending |
 | PRD-F12 | Local preview and artifact APIs; six report kinds in four formats; verified on local PostgreSQL |
 | PRD-F13 | Local publication and approved-public APIs; final verification pending |
