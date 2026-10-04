@@ -35,7 +35,7 @@ Both Vercel projects connect to `ceezey/PATHWAYS` with `master` as the productio
 
 ### Release verification
 
-Before claiming a release complete, verify Vercel build status, API health, unauthorized protected-request denial, web and login responses, and CORS acceptance and rejection.
+Before claiming a release complete, verify Vercel build status, API health, unauthorized protected-request denial, web and login responses, and CORS acceptance and rejection. A GET or wrong token on `internal/rules/*` must be denied.
 
 ### Open items (verified 2026-09-26)
 
@@ -94,7 +94,22 @@ Other runbooks: [local development](runbook-local-dev.md), [role staging build](
 
 - Check migration state before schema work; keep tested backups before destructive changes ([backup and restore](runbook-backup-restore.md), [migration baseline](runbook-migration-baseline.md)).
 - Review stale accounts and assignments, and failed imports or evaluations.
-- Rules dispatcher scheduling gap: the repo has no scheduler and `RULES_WORKER_ENABLED` is `false`; enabling rules needs an external scheduler and `BUSINESS_TIME_ZONE=Asia/Manila`. Who runs it is not established.
+- Rules scheduler: `.github/workflows/rules-dispatch.yml` drains every 5 minutes and sweeps hourly once a person completes the steps below ([cr-pathways-rules-hosted-scheduler](cr-pathways-rules-hosted-scheduler.md)). Until then it is inert and `RULES_WORKER_ENABLED` stays `false`.
+
+### Rules scheduler activation (human only)
+
+Agents never create or store these credentials.
+
+1. Confirm every API deployment reading the target database runs the widened rules contract, then apply the pending rules migrations with their preprovision and cleanup scripts.
+2. Run `infra/supabase/phase6/hosted-rules-machine-login.sql` with `psql -v target_project_ref=... -v expected_database=postgres`; `password` prompts for the worker and sweeper passwords with hidden input and stores nothing.
+3. Generate two distinct tokens with `openssl rand -hex 32`. Store them as GitHub environment `rules-hosted` secrets `RULES_DRAIN_TOKEN` and `RULES_SWEEP_TOKEN`, and set variable `RULES_DISPATCH_API_BASE_URL` to the API base including `/api`.
+4. In Vercel `pathways-api`, set Sensitive `RULES_DRAIN_TOKEN`, `RULES_SWEEP_TOKEN`, `RULES_WORKER_DATABASE_URL` and `RULES_SWEEPER_DATABASE_URL` (session pooler, port 5432, user `role.<projectref>`, `sslmode=require`), `BUSINESS_TIME_ZONE=Asia/Manila`, with `RULES_WORKER_ENABLED=false`.
+5. Set `RULES_DISPATCH_ENABLED=true`, run the workflow by hand and expect a 403 "Rule processing is unavailable".
+6. After measuring a full drain, set `RULES_RUNTIME_VERIFIED_MS` (30000 or more) and `RULES_PERIODIC_DRAIN_VERIFIED=true` together with `RULES_WORKER_ENABLED=true`; the API refuses to start if enabled without them.
+7. Run the workflow by hand and expect `{"state":"ACKNOWLEDGED"}`, then confirm hourly progress read-only with `SELECT max(committed_at) FROM pathways_rules_internal.acknowledgements` and record it in QAD-T68.
+
+Recovery: set `RULES_WORKER_ENABLED=false` or `RULES_DISPATCH_ENABLED=false`; never revert an applied migration.
+
 - CI validates PRs and pushes to `dev` and `master`, replaying migrations on disposable loopback PostgreSQL 18. CI does not authorize database application or deployment.
 - `pnpm sad:check` routes specialist review per the [SAD](sad-pathways.md); it does not authenticate reviewers.
 

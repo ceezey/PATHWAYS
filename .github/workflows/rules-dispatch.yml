@@ -1,0 +1,43 @@
+name: Rules dispatch
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+    - cron: '7 * * * *'
+  workflow_dispatch:
+    inputs:
+      purpose:
+        description: Machine route to call
+        type: choice
+        options: [drain, sweep]
+        default: drain
+
+permissions:
+  contents: read
+
+jobs:
+  dispatch:
+    # Stays inert until a person finishes the hosted setup in docs/ops-pathways.md.
+    if: vars.RULES_DISPATCH_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    environment: rules-hosted
+    timeout-minutes: 2
+    concurrency:
+      group: rules-dispatch-${{ github.event.schedule == '7 * * * *' && 'sweep' || inputs.purpose || 'drain' }}
+      cancel-in-progress: false
+    steps:
+      - name: Call machine route
+        env:
+          PURPOSE: ${{ github.event.schedule == '7 * * * *' && 'sweep' || inputs.purpose || 'drain' }}
+          BASE_URL: ${{ vars.RULES_DISPATCH_API_BASE_URL }}
+          DRAIN_TOKEN: ${{ secrets.RULES_DRAIN_TOKEN }}
+          SWEEP_TOKEN: ${{ secrets.RULES_SWEEP_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ "$PURPOSE" = sweep ]; then TOKEN="$SWEEP_TOKEN"; else TOKEN="$DRAIN_TOKEN"; fi
+          body=$(curl --silent --show-error --fail-with-body --proto '=https' --max-time 30 \
+            -X POST -H "Authorization: Bearer $TOKEN" "$BASE_URL/internal/rules/$PURPOSE")
+          if [ "$body" != '{"state":"ACKNOWLEDGED"}' ]; then
+            echo "Unexpected $PURPOSE response"; exit 1
+          fi
+          echo "$PURPOSE acknowledged"
