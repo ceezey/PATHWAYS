@@ -1,4 +1,10 @@
-import { type DemoProject, type ProjectKey, demoProjects, planCohort } from './local-demo-data'
+import {
+  type DemoProject,
+  type ProjectKey,
+  addDaysIso,
+  demoProjects,
+  planCohort,
+} from './local-demo-data'
 import type { DemoContext } from './local-demo-seed'
 import { projectOf, step } from './local-demo-util'
 
@@ -8,6 +14,8 @@ type Outcome = {
   people: number[]
   eventType: 'COMPLETION' | 'FOLLOW_UP' | 'DROPOUT'
   description: string
+  /** Days before the run date; defaults to the run date. */
+  daysAgo?: number
 }
 
 const outcomes: Outcome[] = [
@@ -42,6 +50,7 @@ const outcomes: Outcome[] = [
     people: [0, 1, 2, 3, 4, 5, 6, 7],
     eventType: 'COMPLETION',
     description: 'Received the hygiene and learning kit and returned to school.',
+    daysAgo: 50,
   },
 ]
 
@@ -88,7 +97,11 @@ export async function stageEnrollmentOutcomes(ctx: DemoContext) {
           ctx.staff[project.officers[0]].identity,
           projectId,
           beneficiary.id,
-          { eventType: outcome.eventType, eventDate: ctx.today, description: outcome.description },
+          {
+            eventType: outcome.eventType,
+            eventDate: addDaysIso(ctx.today, -(outcome.daysAgo ?? 0)),
+            description: outcome.description,
+          },
         ),
       )
       recorded += 1

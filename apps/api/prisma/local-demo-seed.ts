@@ -8,6 +8,7 @@ import { DashboardsService } from '../src/modules/dashboards/dashboards.service'
 import { EvaluationsService } from '../src/modules/evaluations/evaluations.service'
 import { FinanceService } from '../src/modules/finance/finance.service'
 import { ImportsService } from '../src/modules/imports/imports.service'
+import { IndicatorLibraryService } from '../src/modules/indicators/indicator-library.service'
 import { IndicatorsService } from '../src/modules/indicators/indicators.service'
 import { MetadataService } from '../src/modules/metadata/metadata.service'
 import { ParticipantsService } from '../src/modules/participants/participants.service'
@@ -19,6 +20,7 @@ import { StorageService } from '../src/modules/storage/storage.service'
 import { PrismaService } from '../src/prisma/prisma.service'
 import { reconcileStorageBuckets, stableUuid } from './hosted-realistic-seed'
 import type { ProjectKey } from './local-demo-data'
+import { localDrainRules } from './local-demo-stage-rules'
 import { runDemoStages } from './local-demo-stages'
 import { assertLocalDemoTarget } from './local-demo-target'
 
@@ -58,6 +60,7 @@ export type DemoContext = {
     projects: ProjectsService
     activities: ActivitiesService
     indicators: IndicatorsService
+    library: IndicatorLibraryService
     beneficiaries: BeneficiariesService
     metadata: MetadataService
     participants: ParticipantsService
@@ -73,6 +76,8 @@ export type DemoContext = {
   projectIds: Map<ProjectKey, string>
   stable: (seed: string) => string
   log: (line: string) => void
+  /** Evaluates the rules and commits alerts; a no-op with a log line when no drain is available. */
+  drainRules: () => Promise<void>
 }
 
 const staffEmails: Record<StaffKey, string> = {
@@ -89,7 +94,7 @@ export function manilaToday() {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' }).format(new Date())
 }
 
-function identityFor(
+export function identityFor(
   authUserId: string,
   organizationId: string,
   userId: string,
@@ -148,6 +153,7 @@ async function main() {
     projects: new ProjectsService(runtime),
     activities: new ActivitiesService(runtime, storage),
     indicators,
+    library: new IndicatorLibraryService(runtime, indicators),
     beneficiaries,
     metadata: new MetadataService(runtime, participants),
     participants,
@@ -187,6 +193,7 @@ async function main() {
       }
     }
 
+    const log = (line: string) => console.info(line)
     const context: DemoContext = {
       today: manilaToday(),
       organizationId,
@@ -199,7 +206,8 @@ async function main() {
       projectIds: new Map(),
       // A salt is only for rebuilding after hand-deleting rows during development; normal runs use none.
       stable: (seed) => stableUuid(`${process.env.PATHWAYS_DEMO_SALT ?? ''}${seed}`),
-      log: (line) => console.info(line),
+      log,
+      drainRules: localDrainRules(log),
     }
     failures.push(...(await runDemoStages(context)))
   } finally {

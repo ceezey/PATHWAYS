@@ -55,3 +55,12 @@ plus `project-activity-creation-contract-runtime.sql`. A successful run adds
 `PROJECT_ACTIVITY_CREATION_CONTRACT_RUNTIME=PASS` before the legacy-preservation
 and cleanup markers. It remains disposable/local only and does not authorize a
 managed migration.
+
+## Defense demo wipe (hosted PATHWAYS-devV2)
+
+Clears all domain data before a reseed and keeps users and reference data.
+
+- `hosted-defense-demo-wipe-dry-run.sql` prints row counts per table (KEEP or WIPE), proves `postgres` can truncate every target table through temporary owner-role membership, then rolls back.
+- `hosted-defense-demo-wipe.sql` runs one `TRUNCATE ... RESTART IDENTITY` (no CASCADE) over every `pathways` and `pathways_rules_internal` table except the keep list, resets `sweep_cursor`, revokes the temporary memberships, verifies the wiped tables are empty and commits.
+
+Run order: dry run, then wipe, both in the Supabase SQL editor as `postgres`. Set `RULES_DISPATCH_ENABLED=false` and let the scheduler stop first. Preview and Production share devV2, so the wipe hits both. `audit_logs` is cleared and `storage.objects` is not touched. Kept tables: `pathways` organizations, roles, permissions, role_permissions, system_users, user_step_up_pins, signin_lockouts and `pathways_rules_internal` source_operation_catalog, calendar_configuration, sweep_cursor. `node --test scripts/db/defense-demo-wipe.test.mjs` checks the list against the migrations.

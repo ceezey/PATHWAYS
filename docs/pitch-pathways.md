@@ -21,14 +21,14 @@ Defense: October 6, 2026. Timing: 5 minutes setup, 10 minutes presentation, 20 m
 
 | Block | Minutes | Content |
 |---|---|---|
-| Setup | 5 | Local seeded workspace running, accounts ready |
+| Setup | 5 | devV2 demo workspace reseeded, accounts ready |
 | Presentation | 10 | Narrative spine, scope and limits (`IDEA.md`) |
 | Tool presentation | 20 | Live demo (section 3) |
 | Q&A | 25 | Section 6 |
 
 ## 3. Live Demo Script
 
-**Goal:** generate a project report with KPI and descriptive analysis; budget and expenses are reviewed on the finance screens (steps 2 to 6). The demo runs on the local seeded workspace ([local development](runbook-local-dev.md)). Every step below is Met in `docs/prd-pathways.md`.
+**Goal:** generate a project report with KPI and descriptive analysis; budget and expenses are reviewed on the finance screens (steps 2 to 6). The demo runs on the reseeded PATHWAYS-devV2 workspace through the Vercel preview ([defense demo reseed](runbook-defense-demo.md)); the local workspace is the fallback ([local development](runbook-local-dev.md)). Every step below is Met in `docs/prd-pathways.md`.
 
 | Step | Role | Action | Route | Permission |
 |---|---|---|---|---|
@@ -61,9 +61,9 @@ The panel gave no scored rubric. Criteria are the four Revision Matrix comments 
 
 ## 5. Production Readiness Gate (pre-demo)
 
-Production stays blocked until the release criteria hold: see `docs/qad-pathways.md` section 6.1 and `docs/audit-pathways-manuscript-alignment-20261001.md`. The demo does not need production: it runs on the local seeded workspace ([local development](runbook-local-dev.md)).
+Production stays blocked until the release criteria hold: see `docs/qad-pathways.md` section 6.1 and `docs/audit-pathways-manuscript-alignment-20261001.md`. The demo does not need production: it runs on the reseeded devV2 workspace ([defense demo reseed](runbook-defense-demo.md)).
 
-- [ ] local stack reset and demo workspace loaded
+- [ ] devV2 wiped, reseeded and `--verify` clean ([defense demo reseed](runbook-defense-demo.md))
 - [ ] one account per role signed in with TOTP
 - [ ] demo makes no hosted or production readiness claim
 

@@ -118,12 +118,12 @@ export function sha256(buffer: Buffer) {
   return createHash('sha256').update(buffer).digest('hex')
 }
 
-type RuntimeTx = Parameters<Parameters<DemoContext['runtime']['$transaction']>[0]>[0]
+export type RuntimeTx = Parameters<Parameters<DemoContext['runtime']['$transaction']>[0]>[0]
 
 /** Runs a read on the runtime role with the verified identity of one staff member, the same
  * session settings the API installs, so row level security decides what is visible. */
 export async function asUser<T>(
-  ctx: DemoContext,
+  ctx: Pick<DemoContext, 'runtime' | 'organizationId'>,
   staff: Staff,
   run: (tx: RuntimeTx) => Promise<T>,
 ) {

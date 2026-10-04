@@ -30,22 +30,28 @@ function invocation(purpose: 'DRAIN' | 'SWEEP', budgetMs = 24_000): MachineInvoc
   }
 }
 
-/** Runs the same worker the API's drain endpoint runs, against the dedicated machine roles that
- * scripts/db/local-demo.mjs opens for the length of this seed. It evaluates every active rule
- * against the trusted project metrics and commits alerts with their predefined recommendations. */
-export async function stageEvaluation(ctx: DemoContext) {
-  const workerUrl = process.env.RULES_WORKER_DATABASE_URL
-  const sweeperUrl = process.env.RULES_SWEEPER_DATABASE_URL
-  if (!workerUrl || !sweeperUrl) {
-    ctx.log('  rule evaluation skipped: run through pnpm db:local:demo to open the machine roles')
-    return
+/** Default drain: runs the same worker the API's drain endpoint runs, against the dedicated machine
+ * roles that scripts/db/local-demo.mjs opens for the length of this seed; skips when they are absent. */
+export function localDrainRules(log: (line: string) => void) {
+  let worker: RulesMachineWorker | undefined
+  return async () => {
+    const workerUrl = process.env.RULES_WORKER_DATABASE_URL
+    const sweeperUrl = process.env.RULES_SWEEPER_DATABASE_URL
+    if (!workerUrl || !sweeperUrl) {
+      log('  rule evaluation skipped: run through pnpm db:local:demo to open the machine roles')
+      return
+    }
+    worker ??= new RulesMachineWorker(
+      new RulesMachineSqlClient({ workerDatabaseUrl: workerUrl, sweeperDatabaseUrl: sweeperUrl }),
+    )
+    for (let round = 0; round < 4; round += 1) await worker.drain(invocation('DRAIN'))
   }
-  const sql = new RulesMachineSqlClient({
-    workerDatabaseUrl: workerUrl,
-    sweeperDatabaseUrl: sweeperUrl,
-  })
-  const worker = new RulesMachineWorker(sql)
-  for (let round = 0; round < 4; round += 1) await worker.drain(invocation('DRAIN'))
+}
+
+/** Evaluates every active rule against the trusted project metrics and commits alerts with their
+ * predefined recommendations, through the context drain. */
+export async function stageEvaluation(ctx: DemoContext) {
+  await ctx.drainRules()
   const alerts = await ctx.owner.ruleBasedAlert.count({
     where: { organizationId: ctx.organizationId },
   })

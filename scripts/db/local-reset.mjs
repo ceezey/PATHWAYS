@@ -23,6 +23,8 @@ const preprovision = {
   '0041_activity_media_evidence': 'hosted-activity-media-preprovision.sql',
   '0044_activity_progress_review': 'hosted-activity-review-preprovision.sql',
   '0053_expense_submit_race': 'hosted-expense-submit-preprovision.sql',
+  // 0056 replaces two rules_enqueue_owner functions through its own SET-only chain, as hosted-plan does.
+  '0056_indicator_type': 'hosted-indicator-type-preprovision.sql',
   // One chain to six rules owner roles covers both 0059 and 0060.
   '0059_rules_recommendation_auto_resolve': 'hosted-rules-catalog-preprovision.sql',
 }
@@ -42,6 +44,8 @@ const cleanup = {
   '0044_activity_progress_review': ['hosted-activity-review-cleanup.sql', []],
   // 0053's temporary SET membership to finance_operation_owner is revoked right after it.
   '0053_expense_submit_race': ['hosted-expense-submit-cleanup.sql', []],
+  // 0056's temporary chain is revoked right after it.
+  '0056_indicator_type': ['hosted-indicator-type-cleanup.sql', []],
   // The shared 0059/0060 rules-catalog chain is revoked right after 0060.
   '0060_rules_budget_beneficiary_survey_metrics': ['hosted-rules-catalog-cleanup.sql', []],
 }
