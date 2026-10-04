@@ -20,6 +20,7 @@ import { hasAtomicPermission } from '../auth/authorization-policy'
 import { projectScope } from '../auth/authorized-data.service'
 import { withAuthorizedOperation } from '../auth/authorized-operation'
 import type { ApplicationIdentity } from '../auth/developer-access'
+import { DashboardsService } from '../dashboards/dashboards.service'
 import { createPrivateInspectionReader } from '../storage/private-inspection-reader'
 import { StorageService } from '../storage/storage.service'
 import {
@@ -28,6 +29,13 @@ import {
   createReportArtifact,
   reportMime,
 } from './report-artifact'
+import {
+  evaluationReportTable,
+  extraKindRequires,
+  isExtraReportKind,
+  monitoringReportPeriod,
+  monitoringReportTable,
+} from './report-sources-extra'
 import { type ReportKind, reportInputSchema, reportQuerySchema } from './reports.dto'
 
 const kindPermission = {
@@ -35,6 +43,8 @@ const kindPermission = {
   INDICATOR_SUMMARY: 'reports.indicator.read',
   BENEFICIARY_SUMMARY: 'reports.beneficiary.read',
   SURVEY_FORM_RESULTS: 'reports.project.read',
+  MONITORING_REPORT: 'reports.indicator.read',
+  EVALUATION_REPORT: 'reports.project.read',
 } as const
 const uuid = z.string().uuid()
 const hash = (value: string | Buffer) => createHash('sha256').update(value).digest('hex')
@@ -47,6 +57,7 @@ type Preview = {
   projectId: string
   formId: string | null
   kind: ReportKind
+  evaluationId?: string | null
   columns: string[]
   rows: string[][]
   generatedAt: string
@@ -57,6 +68,7 @@ const sourceFingerprint = (source: Preview) =>
     JSON.stringify({
       projectId: source.projectId,
       formId: source.formId,
+      ...(source.evaluationId ? { evaluationId: source.evaluationId } : {}),
       kind: source.kind,
       columns: source.columns,
       rows: source.rows,
@@ -85,11 +97,14 @@ export class ReportsService {
   constructor(
     @Inject(PrismaService) private readonly prisma: PrismaService,
     @Inject(StorageService) private readonly storage: StorageService,
+    @Inject(DashboardsService) private readonly dashboards: DashboardsService,
   ) {}
   private permissions(actor: ApplicationIdentity, kind: ReportKind) {
     if (
       !hasAtomicPermission(actor.roles[0], actor.permissions, 'reports.read') ||
       !hasAtomicPermission(actor.roles[0], actor.permissions, kindPermission[kind]) ||
+      (isExtraReportKind(kind) &&
+        !hasAtomicPermission(actor.roles[0], actor.permissions, extraKindRequires[kind])) ||
       (kind === 'SURVEY_FORM_RESULTS' &&
         !hasAtomicPermission(actor.roles[0], actor.permissions, 'assessments.read'))
     )
@@ -231,6 +246,24 @@ export class ReportsService {
           result.rows.push([dimension, value.label, cell.value, cell.state, cell.reason])
         }
     }
+    if (kind === 'MONITORING_REPORT') {
+      const period = monitoringReportPeriod(project)
+      if (!period) {
+        result.unavailableReasons = ['Project dates are required for the monitoring report.']
+        return result
+      }
+      const query = { projectId, ...period }
+      const data = await this.dashboards.monitoringInTransaction(tx, actor, query, {
+        ...period,
+        businessTimeZone: readApiEnv(process.env).BUSINESS_TIME_ZONE,
+      })
+      Object.assign(result, monitoringReportTable(data))
+    } else if (kind === 'EVALUATION_REPORT') {
+      const table = await evaluationReportTable(tx, actor, projectId)
+      Object.assign(result, table)
+      if (!table.evaluationId)
+        result.unavailableReasons = ['No signed-off evaluation is available for this project.']
+    }
     if (kind === 'SURVEY_FORM_RESULTS') {
       if (!uuid.safeParse(formId).success) throw new BadRequestException('Survey form required.')
       const [row] = await tx.$queryRaw<
@@ -332,7 +365,19 @@ export class ReportsService {
       this.prisma,
       identity,
       'reports.read',
-      (tx, actor) => this.source(tx, actor, projectId, parsed.data.kind, parsed.data.formId),
+      async (tx, actor) => {
+        const source = await this.source(tx, actor, projectId, parsed.data.kind, parsed.data.formId)
+        // Explicit allowlist keeps internal ids such as evaluationId out of the response.
+        return {
+          projectId: source.projectId,
+          formId: source.formId,
+          kind: source.kind,
+          columns: source.columns,
+          rows: source.rows,
+          generatedAt: source.generatedAt,
+          unavailableReasons: source.unavailableReasons,
+        }
+      },
       { isolationLevel: 'RepeatableRead' },
     )
   }
@@ -376,6 +421,8 @@ export class ReportsService {
                 actor.permissions,
                 'beneficiaries.aggregates.read',
               ))) &&
+          (!isExtraReportKind(kind) ||
+            hasAtomicPermission(actor.roles[0], actor.permissions, extraKindRequires[kind])) &&
           (kind !== 'SURVEY_FORM_RESULTS' ||
             hasAtomicPermission(actor.roles[0], actor.permissions, 'assessments.read')),
       )
@@ -443,6 +490,8 @@ export class ReportsService {
             updatedAt: new Date(reserved.updatedAt),
           }
         }
+        if (body.kind === 'EVALUATION_REPORT' && !source.evaluationId)
+          throw new ConflictException('No signed-off evaluation available for generation.')
         await tx.$queryRaw`SELECT 1::integer AS locked FROM pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(${`${actor.organizationId}:${actor.userId}:${body.clientRequestId}`},0))`
         const [existing] = await tx.$queryRaw<Artifact[]>(
           Prisma.sql`SELECT ${artifactFields} FROM pathways.reports WHERE organization_id=${actor.organizationId}::uuid AND created_by_id=${actor.userId}::uuid AND client_request_id=${body.clientRequestId}::uuid`,
@@ -451,7 +500,7 @@ export class ReportsService {
           throw new ConflictException('Request key used for different report content.')
         const id = existing?.id ?? randomUUID()
         if (!existing)
-          await tx.$executeRaw`INSERT INTO pathways.reports(id,organization_id,project_id,name,type,format,created_by_id,client_request_id,request_hash,source_fingerprint) VALUES(${id}::uuid,${actor.organizationId}::uuid,${projectId}::uuid,${body.name},${body.kind}::pathways.report_type,${body.format}::pathways.report_format,${actor.userId}::uuid,${body.clientRequestId}::uuid,${requestHash},${sourceFingerprint(source)})`
+          await tx.$executeRaw`INSERT INTO pathways.reports(id,organization_id,project_id,name,type,format,created_by_id,client_request_id,request_hash,source_fingerprint,evaluation_id) VALUES(${id}::uuid,${actor.organizationId}::uuid,${projectId}::uuid,${body.name},${body.kind}::pathways.report_type,${body.format}::pathways.report_format,${actor.userId}::uuid,${body.clientRequestId}::uuid,${requestHash},${sourceFingerprint(source)},${source.evaluationId ?? null}::uuid)`
         if (existing && existing.sourceFingerprint !== sourceFingerprint(source))
           throw new ConflictException('Report source changed. Use a new report request.')
         return {

@@ -13,13 +13,13 @@
 export const STEP_UP_PIN_UI_ENABLED = false
 
 /**
- * The analytics aggregate export (CSV) button is hidden (2026-09-29) on developer
- * request. The GET analytics/descriptive/export endpoint, its permission and its
+ * The analytics aggregate export (CSV) button was hidden on 2026-09-29 and is shown again
+ * (2026-10-04). The GET analytics/descriptive/export endpoint, its permission and its
  * download behavior stay in place; only the UI entry point (the button and its
  * "Exporting aggregates" busy state) is gated by this flag. See
  * docs/deferred-features.md.
  */
-export const ANALYTICS_AGGREGATE_EXPORT_UI_ENABLED = false
+export const ANALYTICS_AGGREGATE_EXPORT_UI_ENABLED = true
 
 /**
  * Controls with no backend yet (disabled "Not available yet" buttons, disabled form options,

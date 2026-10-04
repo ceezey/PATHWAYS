@@ -4,7 +4,7 @@
 
 export const BASELINE = '0000_pathways_baseline_through_0026'
 
-// The exact 30-row migration ledger (baseline plus 0027-0055) this script must produce, in order. This is
+// The exact 32-row migration ledger (baseline plus 0027-0057) this script must produce, in order. This is
 // the repository's own migration directory listing (apps/api/prisma/migrations),
 // asserted against the real directory in hosted-plan.test.mjs so this literal
 // list can never silently drift from the repo.
@@ -39,6 +39,8 @@ export const MIGRATIONS_IN_ORDER = Object.freeze([
   '0053_expense_submit_race',
   '0054_p09_role_allows_grants',
   '0055_rbac_v4_grants',
+  '0056_indicator_type',
+  '0057_f9_survey_period_release',
 ])
 
 function range(from, to) {
@@ -115,6 +117,17 @@ export function buildPlan() {
     { type: 'deploy', migrations: range(54, 54) },
     // 0055 needs no preprovision: prisma owns pathways.p09_role_allows.
     { type: 'deploy', migrations: range(55, 55) },
+    // 0056 replaces two functions owned by rules_enqueue_owner, so it needs the same temporary
+    // SET-only chain as 0041, through its own scripts.
+    {
+      type: 'preprovision',
+      name: 'indicator-type',
+      file: 'hosted-indicator-type-preprovision.sql',
+    },
+    { type: 'deploy', migrations: range(56, 56) },
+    { type: 'cleanup', name: 'indicator-type', file: 'hosted-indicator-type-cleanup.sql' },
+    // 0057 needs no preprovision: prisma owns p06_can, p10_f9_survey_aggregate and the source tables.
+    { type: 'deploy', migrations: range(57, 57) },
     { type: 'alter-runtime-role' },
     { type: 'postconditions' },
   ]
@@ -155,7 +168,7 @@ export function assertResumablePrefix(ledgerRows) {
   }
   if (appliedCount !== names.length) {
     throw new Error(
-      'Ledger is not an exact finished prefix of the expected 0000-0055 migrations; --resume refuses it',
+      'Ledger is not an exact finished prefix of the expected 0000-0057 migrations; --resume refuses it',
     )
   }
   return appliedCount
@@ -190,6 +203,8 @@ const PRIOR_BUILD_COMPLETION_POINTS = [
   '0044_activity_progress_review',
   '0052_signin_password_hook',
   '0053_expense_submit_race',
+  '0055_rbac_v4_grants',
+  '0056_indicator_type',
 ]
 
 // The migrations whose completion is ambiguous with a residual temporary owner chain, and the
@@ -198,6 +213,7 @@ export const RESIDUAL_CHAIN_CLEANUPS = Object.freeze({
   '0041_activity_media_evidence': 'activity-media',
   '0044_activity_progress_review': 'activity-review',
   '0053_expense_submit_race': 'expense-submit',
+  '0056_indicator_type': 'indicator-type',
 })
 // Ledger counts at which the caller must read live owner-membership state.
 export const RESIDUAL_CHAIN_MIGRATIONS = Object.freeze([
@@ -206,6 +222,8 @@ export const RESIDUAL_CHAIN_MIGRATIONS = Object.freeze([
   '0044_activity_progress_review',
   '0052_signin_password_hook',
   '0053_expense_submit_race',
+  '0055_rbac_v4_grants',
+  '0056_indicator_type',
 ])
 
 export function planIndexForAppliedCount(appliedCount, { residualOwnerMemberships = false } = {}) {

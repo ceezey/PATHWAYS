@@ -36,17 +36,17 @@ The form exposed every definition field: code, unit label, authority, numeric do
 New indicators are derived Activity completion % indicators with a type label. Manual indicators are still created from Manual library entries.
 
 ### Data / Migration
-Migration `0056_indicator_type`: replaces two functions owned by `rules_enqueue_owner`. There is no table, column or grant change. The DBA prerequisite is the 0041 role chain (`hosted-activity-media-preprovision.sql` and `hosted-activity-media-cleanup.sql`).
+Migration `0056_indicator_type`: replaces two functions owned by `rules_enqueue_owner`. There is no table, column or grant change. The DBA prerequisite is the same role chain as 0041, run through `hosted-indicator-type-preprovision.sql` and `hosted-indicator-type-cleanup.sql`.
 
 ### Tests
 - `apps/api/src/modules/indicators/indicators.service.test.ts`
 - `apps/api/prisma/tests/indicator-type-runtime.sql`
 - `apps/web/src/features/projects/project-indicators-workspace.test.tsx`
 
-QAD-T110 and QAD-T111.
+QAD-T112 and QAD-T113.
 
 ## 5. Documents Updated
 
 - `docs/prd-pathways.md`: PRD-F7 bounds, G-F7-1 evidence and UC-F7-1.
-- `docs/qad-pathways.md`: QAD-T110 and QAD-T111.
+- `docs/qad-pathways.md`: QAD-T112 and QAD-T113.
 - `docs/deferred-features.md`: the other recipes.

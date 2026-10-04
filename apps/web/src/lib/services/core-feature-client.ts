@@ -127,6 +127,8 @@ const reportKind = z.enum([
   'INDICATOR_SUMMARY',
   'BENEFICIARY_SUMMARY',
   'SURVEY_FORM_RESULTS',
+  'MONITORING_REPORT',
+  'EVALUATION_REPORT',
 ])
 const reportFormat = z.enum(['CSV', 'XLSX', 'XLS', 'PDF'])
 export const reportPreviewSchema = z

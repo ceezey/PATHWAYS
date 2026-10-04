@@ -31,13 +31,41 @@ import { Download, FileSpreadsheet, Save } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 
-const kinds = {
+type Kind =
+  | 'PROJECT_SUMMARY'
+  | 'INDICATOR_SUMMARY'
+  | 'BENEFICIARY_SUMMARY'
+  | 'SURVEY_FORM_RESULTS'
+  | 'MONITORING_REPORT'
+  | 'EVALUATION_REPORT'
+type Principal = Parameters<typeof principalHasAtomicPermission>[0]
+type AtomicPermission = Parameters<typeof principalHasAtomicPermission>[1]
+type KindDefinition = { label: string; permission: AtomicPermission; requires?: AtomicPermission }
+export const kinds: Record<Kind, KindDefinition> = {
   PROJECT_SUMMARY: { label: 'Project summary', permission: 'reports.project.read' },
   INDICATOR_SUMMARY: { label: 'Indicator summary', permission: 'reports.indicator.read' },
   BENEFICIARY_SUMMARY: { label: 'Beneficiary summary', permission: 'reports.beneficiary.read' },
   SURVEY_FORM_RESULTS: { label: 'Survey results', permission: 'reports.project.read' },
-} as const
-type Kind = keyof typeof kinds
+  MONITORING_REPORT: {
+    label: 'Monitoring report',
+    permission: 'reports.indicator.read',
+    requires: 'monitoring.read',
+  },
+  EVALUATION_REPORT: {
+    label: 'Evaluation report',
+    permission: 'reports.project.read',
+    requires: 'monitoring.read',
+  },
+}
+
+/** Kinds the principal may open: the kind grant plus any extra grant the API also requires. */
+export const allowedKinds = (profile: Principal) =>
+  (Object.keys(kinds) as Kind[]).filter(
+    (kind) =>
+      principalHasAtomicPermission(profile, kinds[kind].permission) &&
+      (!kinds[kind].requires || principalHasAtomicPermission(profile, kinds[kind].requires)) &&
+      (kind !== 'SURVEY_FORM_RESULTS' || principalHasAtomicPermission(profile, 'assessments.read')),
+  )
 export function LiveReportingWorkspace({
   initialKind,
   previewOnly = false,
@@ -53,11 +81,7 @@ export function LiveReportingWorkspace({
           ? 'SURVEY_FORM_RESULTS'
           : 'PROJECT_SUMMARY',
   )
-  const allowed = (Object.keys(kinds) as Kind[]).filter(
-    (kind) =>
-      principalHasAtomicPermission(profile, kinds[kind].permission) &&
-      (kind !== 'SURVEY_FORM_RESULTS' || principalHasAtomicPermission(profile, 'assessments.read')),
-  )
+  const allowed = allowedKinds(profile)
   const kind = allowed.includes(selectedKind) ? selectedKind : (allowed[0] ?? 'PROJECT_SUMMARY')
   const projects = useAuthorizedRead('report-projects', null, 'reports.read', (signal) =>
     pathwaysClient.getProjects(signal),
@@ -176,7 +200,12 @@ export function LiveReportingWorkspace({
       }
     } catch (error) {
       if (captured.isCurrent()) {
-        const message = error instanceof Error ? error.message : 'Report generation unavailable.'
+        const message =
+          (error as { status?: number } | null)?.status === 409 && kind === 'EVALUATION_REPORT'
+            ? 'No signed-off evaluation exists for this project yet, so the report cannot be generated.'
+            : error instanceof Error
+              ? error.message
+              : 'Report generation unavailable.'
         setStatusMessage(message)
         toast.error(message)
       }

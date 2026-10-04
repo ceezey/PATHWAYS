@@ -10,7 +10,7 @@ export const REPORT_MAX_BYTES = 10 * 1024 * 1024
 /** Input the requester can correct; integrity and renderer failures stay plain errors. */
 export class ReportArtifactInputError extends Error {}
 export const reportMime = {
-  CSV: 'text/csv; charset=utf-8',
+  CSV: 'text/csv',
   XLSX: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   XLS: 'application/vnd.ms-excel',
   PDF: 'application/pdf',

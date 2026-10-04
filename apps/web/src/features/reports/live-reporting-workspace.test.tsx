@@ -2,7 +2,7 @@ import { clearSensitiveDraftStorage } from '@/lib/auth/sensitive-drafts'
 /* @vitest-environment jsdom */
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { LiveReportingWorkspace } from './live-reporting-workspace'
+import { LiveReportingWorkspace, allowedKinds, kinds } from './live-reporting-workspace'
 
 const state = vi.hoisted(() => ({
   user: 'reviewer-1',
@@ -290,5 +290,34 @@ describe('report generation owned retries', () => {
     render(<LiveReportingWorkspace initialKind="project-summary" />)
     expect(screen.queryByRole('button', { name: 'Generate private report' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Download' })).toBeNull()
+  })
+
+  it('lists the monitoring and evaluation report kinds with their labels', () => {
+    expect(kinds.MONITORING_REPORT.label).toBe('Monitoring report')
+    expect(kinds.EVALUATION_REPORT.label).toBe('Evaluation report')
+  })
+})
+
+describe('report kinds requiring monitoring.read', () => {
+  const profile = (permissions: string[]) =>
+    ({
+      userId: 'u',
+      organizationId: 'org',
+      roles: ['MONITORING_AND_EVALUATION_OFFICER'],
+      permissions,
+      assignedProjectIds: [],
+    }) as unknown as Parameters<typeof allowedKinds>[0]
+  const grants = ['reports.read', 'reports.project.read', 'reports.indicator.read']
+
+  it('does not offer monitoring or evaluation reports without monitoring.read', () => {
+    const offered = allowedKinds(profile(grants))
+    expect(offered).not.toContain('MONITORING_REPORT')
+    expect(offered).not.toContain('EVALUATION_REPORT')
+    expect(offered).toContain('PROJECT_SUMMARY')
+  })
+
+  it('offers both kinds with monitoring.read', () => {
+    const offered = allowedKinds(profile([...grants, 'monitoring.read']))
+    expect(offered).toEqual(expect.arrayContaining(['MONITORING_REPORT', 'EVALUATION_REPORT']))
   })
 })

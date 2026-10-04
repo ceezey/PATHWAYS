@@ -27,7 +27,7 @@ import {
 } from 'react'
 import { toast } from 'sonner'
 
-import { createFileSummary } from '@pathways/imports'
+import { createFileSummary, importHeaderLabel } from '@pathways/imports'
 
 import { PageHeader } from '@/components/layout/page-header'
 import {
@@ -1353,7 +1353,7 @@ const OwnedCollectionWorkspace = ({
       }
       const mappings = decisions.map((decision, index) => {
         const column = sourceColumns.find((source) => source.columnIndex === index + 1)
-        if (!column || column.header !== decision.sourceFieldName) {
+        if (!column || column.header !== importHeaderLabel(decision.sourceFieldName)) {
           throw new Error(
             'The server source columns differ from the reviewed file. Review the batch before continuing.',
           )

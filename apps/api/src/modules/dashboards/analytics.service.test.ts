@@ -234,10 +234,14 @@ function harness(
       sqlCalls.push(sql)
       if (sql.includes('p06_saddd')) return [{ data: sadddRaw }]
       if (sql.includes('p06_monitoring')) return [{ data: monitoringRaw }]
-      if (sql.includes('p10_f9_survey_aggregate') || sql.includes('p10_f9_timeline_aggregate')) {
+      if (
+        sql.includes('p10_f9_survey_aggregate') ||
+        sql.includes('p10_f9_survey_release') ||
+        sql.includes('p10_f9_timeline_aggregate')
+      ) {
         if (options.aggregateError)
           throw Object.assign(new Error('aggregate failed'), options.aggregateError)
-        if (sql.includes('p10_f9_survey_aggregate'))
+        if (sql.includes('p10_f9_survey_aggregate') || sql.includes('p10_f9_survey_release'))
           return [
             {
               data:
@@ -255,6 +259,9 @@ function harness(
                     }),
                   ),
                 ),
+              ...(sql.includes('p10_f9_survey_release')
+                ? { releaseState: 'FROZEN', releasedAt: '2026-01-01T00:00:00.000Z' }
+                : {}),
             },
           ]
         return [
@@ -927,30 +934,66 @@ describe('analytics descriptive views: survey and timeline', () => {
       plannedEndDate: plannedEnd ? new Date(plannedEnd) : null,
     })
 
-    it.each(['PROGRAM_MANAGER', 'GRANT_MANAGER', 'SYSTEM_ADMINISTRATOR'] as const)(
-      'abuse: %s (no assessments.detail.read) is refused survey read and export with a 403 before any query',
+    it.each(['PROGRAM_MANAGER', 'GRANT_MANAGER'] as const)(
+      'happy: %s receives the frozen closed-period survey release on read and export, one audit row each',
       async (role) => {
         expect(rolePermissions[role]).not.toContain('assessments.detail.read')
         const { service, tx, sqlCalls } = harness(releasedSaddd, '2026-06-30', {
           assessmentResults: fivePairs(),
         })
         const identity = actor(role)
-        await expect(
-          service.descriptive(identity, { projectId: projectA, ...period, view: 'survey' }),
-        ).rejects.toMatchObject({
-          status: 403,
-          message: 'Survey improvement is restricted for your role.',
-        })
-        await expect(
-          service.export(identity, { projectId: projectA, ...period, view: 'survey' }),
-        ).rejects.toMatchObject({ status: 403 })
-        expect(sqlCalls).toHaveLength(0)
-        expect(tx.$queryRaw).not.toHaveBeenCalled()
-        expect(tx.project.findFirst).not.toHaveBeenCalled()
+        const closed = { periodStart: '2025-01-01', periodEnd: '2025-12-31' }
+        const read = (await service.descriptive(identity, {
+          projectId: projectA,
+          ...closed,
+          view: 'survey',
+        })) as { overall: { pairs: MetricCell } }
+        expect(read.overall.pairs).toMatchObject({ state: 'AVAILABLE', value: '5' })
+        expect(read).not.toHaveProperty('releaseState')
+        await service.export(identity, { projectId: projectA, ...closed, view: 'survey' })
+        expect(sqlCalls.filter((sql) => sql.includes('p10_f9_survey_release'))).toHaveLength(2)
+        expect(sqlCalls.some((sql) => sql.includes('p10_f9_survey_aggregate'))).toBe(false)
         expect(tx.assessmentResult.findMany).not.toHaveBeenCalled()
+        expect(tx.auditLog.create).toHaveBeenCalledTimes(2)
+      },
+    )
+
+    it.each(['PROGRAM_MANAGER', 'GRANT_MANAGER'] as const)(
+      'abuse: %s is refused an open-period survey with a 400 before any survey query and no audit row',
+      async (role) => {
+        const { service, tx, sqlCalls } = harness(releasedSaddd, '2026-06-30', {
+          assessmentResults: fivePairs(),
+        })
+        const identity = actor(role)
+        const open = {
+          periodStart: '2026-01-01',
+          periodEnd: businessCalendarDate(new Date(), 'Asia/Manila'),
+        }
+        await expect(
+          service.descriptive(identity, { projectId: projectA, ...open, view: 'survey' }),
+        ).rejects.toMatchObject({ status: 400 })
+        await expect(
+          service.export(identity, { projectId: projectA, ...open, view: 'survey' }),
+        ).rejects.toMatchObject({ status: 400 })
+        expect(sqlCalls.some((sql) => sql.includes('p10_f9_survey'))).toBe(false)
         expect(tx.auditLog.create).not.toHaveBeenCalled()
       },
     )
+
+    it('sad: a database 22023 on the release function is a 400 for an aggregate-only role', async () => {
+      const { service, tx } = harness(releasedSaddd, '2026-06-30', {
+        aggregateError: { code: 'P2010', meta: { code: '22023' } },
+      })
+      await expect(
+        service.descriptive(actor('GRANT_MANAGER'), {
+          projectId: projectA,
+          periodStart: '2025-03-01',
+          periodEnd: '2025-03-31',
+          view: 'survey',
+        }),
+      ).rejects.toMatchObject({ status: 400 })
+      expect(tx.auditLog.create).not.toHaveBeenCalled()
+    })
 
     it.each(['PROJECT_MANAGER', 'MONITORING_AND_EVALUATION_OFFICER'] as const)(
       'happy: %s (holds assessments.detail.read) still receives real survey aggregates on read and export',

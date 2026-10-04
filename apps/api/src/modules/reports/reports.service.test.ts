@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto'
 import {
+  ConflictException,
   ForbiddenException,
   Logger,
   ServiceUnavailableException,
@@ -9,6 +10,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { PrismaService } from '../../prisma/prisma.service'
 import { hasAtomicPermission } from '../auth/authorization-policy'
 import type { ApplicationIdentity } from '../auth/developer-access'
+import type { DashboardsService } from '../dashboards/dashboards.service'
 import type { StorageService } from '../storage/storage.service'
 import { reportInputSchema, reportQuerySchema } from './reports.dto'
 import { ReportsService } from './reports.service'
@@ -94,9 +96,16 @@ const tx = {
   $executeRaw: vi.fn(),
   auditLog: { create: vi.fn() },
   report: { findMany: vi.fn() },
+  projectEvaluation: { findFirst: vi.fn() },
+  projectEvaluationScore: { findMany: vi.fn() },
 }
 const storage = { uploadPrivateFile: vi.fn(), deleteFile: vi.fn() }
-const service = new ReportsService({} as PrismaService, storage as unknown as StorageService)
+const dashboards = { monitoringInTransaction: vi.fn() }
+const service = new ReportsService(
+  {} as PrismaService,
+  storage as unknown as StorageService,
+  dashboards as unknown as DashboardsService,
+)
 const body = { clientRequestId: id, name: 'Private report', kind: 'PROJECT_SUMMARY', format: 'PDF' }
 const field = {
   code: 'learning',
@@ -128,6 +137,8 @@ describe('report source authority, privacy and artifact recovery', () => {
     state.read.mockResolvedValue(Buffer.from('%PDF-fixture'))
     state.artifact.mockResolvedValue(Buffer.from('%PDF-fixture'))
     tx.project.findFirst.mockResolvedValue(project)
+    tx.projectEvaluation.findFirst.mockResolvedValue(null)
+    tx.projectEvaluationScore.findMany.mockResolvedValue([])
     tx.$queryRaw.mockResolvedValue([])
     tx.$executeRaw.mockResolvedValue(1)
     storage.uploadPrivateFile.mockResolvedValue(undefined)
@@ -347,6 +358,126 @@ describe('report source authority, privacy and artifact recovery', () => {
     await expect(failure).rejects.toThrow('Private report artifact unavailable')
     expect(state.read).toHaveBeenCalled()
     expect(tx.auditLog.create).not.toHaveBeenCalled()
+  })
+  describe('monitoring and evaluation report kinds', () => {
+    const grant = (...extra: string[]) => {
+      state.actor = { ...actor, permissions: [...actor.permissions, ...extra] }
+    }
+    const metric = { state: 'AVAILABLE', value: '7', reason: null }
+    const hidden = { state: 'SUPPRESSED', value: null, reason: 'SMALL_CELL' }
+    const monitoring = {
+      periodStart: '2026-01-01',
+      periodEnd: '2026-06-30',
+      activities: [{ key: 'DONE', label: 'Completed', metric }],
+      milestones: [{ key: 'PENDING', label: 'Pending', metric: hidden }],
+      participationRecords: hidden,
+      indicators: [
+        { code: 'I1', name: 'Reach', current: metric, progress: { ...metric, value: '50' } },
+      ],
+    }
+    const signedOff = {
+      id: '60000000-0000-4000-8000-000000000006',
+      title: 'Midterm',
+      status: 'SIGNED_OFF',
+      periodStart: new Date('2026-01-01'),
+      periodEnd: new Date('2026-06-30'),
+      overallScore: { toString: () => '82.5' },
+    }
+
+    const previewKeys = [
+      'columns',
+      'formId',
+      'generatedAt',
+      'kind',
+      'projectId',
+      'rows',
+      'unavailableReasons',
+    ]
+
+    it('requires monitoring.read on top of the kind grant', async () => {
+      grant('reports.indicator.read')
+      await expect(
+        service.preview(actor, projectId, { kind: 'MONITORING_REPORT' }),
+      ).rejects.toThrow(ForbiddenException)
+    })
+
+    it('builds monitoring rows from the trusted aggregate and keeps suppression', async () => {
+      grant('reports.indicator.read', 'monitoring.read')
+      tx.project.findFirst.mockResolvedValue({
+        ...project,
+        startDate: new Date('2026-01-01'),
+        endDate: new Date('2026-06-30'),
+      })
+      dashboards.monitoringInTransaction.mockResolvedValue(monitoring)
+      const preview = await service.preview(actor, projectId, { kind: 'MONITORING_REPORT' })
+      expect(dashboards.monitoringInTransaction.mock.calls[0][3]).toMatchObject({
+        periodStart: '2026-01-01',
+        periodEnd: '2026-06-30',
+      })
+      expect(preview.rows).toContainEqual([
+        'Participation',
+        'Participation records',
+        'Not available',
+        'SUPPRESSED',
+        'SMALL_CELL',
+      ])
+      expect(preview.rows).toContainEqual(['Indicator progress', 'I1 Reach', '50', 'AVAILABLE', ''])
+    })
+
+    it('reports missing project dates instead of guessing a monitoring period', async () => {
+      grant('reports.indicator.read', 'monitoring.read')
+      const preview = await service.preview(actor, projectId, { kind: 'MONITORING_REPORT' })
+      expect(preview.rows).toEqual([])
+      expect(preview.unavailableReasons).toHaveLength(1)
+      expect(dashboards.monitoringInTransaction).not.toHaveBeenCalled()
+    })
+
+    it('previews no data and refuses generation when no evaluation is signed off', async () => {
+      grant('monitoring.read')
+      const preview = await service.preview(actor, projectId, { kind: 'EVALUATION_REPORT' })
+      expect(preview.rows).toEqual([])
+      expect(preview.unavailableReasons).toHaveLength(1)
+      expect(Object.keys(preview).sort()).toEqual(previewKeys)
+      state.operations = 0
+      await expect(
+        service.generate(actor, projectId, { ...body, kind: 'EVALUATION_REPORT' }),
+      ).rejects.toThrow(ConflictException)
+      expect(tx.$executeRaw).not.toHaveBeenCalled()
+      expect(storage.uploadPrivateFile).not.toHaveBeenCalled()
+    })
+
+    it('lists the latest signed-off evaluation scores and stores its id on the report', async () => {
+      grant('monitoring.read')
+      tx.projectEvaluation.findFirst.mockResolvedValue(signedOff)
+      tx.projectEvaluationScore.findMany.mockResolvedValue([
+        {
+          score: { toString: () => '8' },
+          maximumScore: { toString: () => '10' },
+          weightedScore: { toString: () => '40' },
+          criterionSnapshot: { code: 'C1', name: 'Relevance', weight_percentage: '50' },
+        },
+      ])
+      const preview = await service.preview(actor, projectId, { kind: 'EVALUATION_REPORT' })
+      expect(preview.rows[1]).toEqual(['Criterion', 'C1 Relevance', '50', '8', '10', '40'])
+      expect(Object.keys(preview).sort()).toEqual(previewKeys)
+      const where = tx.projectEvaluation.findFirst.mock.calls[0][0].where
+      expect(where.status).toEqual({ in: ['SIGNED_OFF', 'ARCHIVED'] })
+      await service.generate(actor, projectId, { ...body, kind: 'EVALUATION_REPORT' })
+      const insert = tx.$executeRaw.mock.calls.find((call) =>
+        call[0].join('').includes('INSERT INTO pathways.reports'),
+      )
+      expect(insert?.[11]).toBe(signedOff.id)
+    })
+
+    it('lists the new kinds only for holders of the extra grant', async () => {
+      grant('reports.indicator.read')
+      tx.report.findMany.mockResolvedValue([])
+      await service.list(actor, projectId)
+      expect(tx.report.findMany.mock.lastCall?.[0].where.type.in).not.toContain('MONITORING_REPORT')
+      grant('reports.indicator.read', 'monitoring.read')
+      await service.list(actor, projectId)
+      expect(tx.report.findMany.mock.lastCall?.[0].where.type.in).toContain('MONITORING_REPORT')
+    })
   })
   it('rejects an invalid project UUID before querying artifact casts', async () => {
     await expect(service.export(actor, 'invalid', id)).rejects.toThrow('Report unavailable')

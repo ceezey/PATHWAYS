@@ -17,7 +17,6 @@ import { PageHeader } from '@/components/layout/page-header'
 import { AsyncState, StatusMessage } from '@/components/pathways'
 import { EmptyState } from '@/components/pathways/empty-state'
 import { MetricCard } from '@/components/pathways/metric-card'
-import { UnavailableHint, unavailableControlProps } from '@/components/pathways/unavailable-hint'
 import { Button } from '@/components/ui/button'
 import {
   Select,
@@ -26,16 +25,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import {
-  ANALYTICS_AGGREGATE_EXPORT_UI_ENABLED,
-  UNFINISHED_CONTROLS_UI_ENABLED,
-} from '@/constants/feature-flags'
+import { ANALYTICS_AGGREGATE_EXPORT_UI_ENABLED } from '@/constants/feature-flags'
 import { metricUnavailableLabel, overviewMetricLabel } from '@/features/projects/project-utils'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'
+import { addPin } from '@/lib/dashboard-pins'
 import { can } from '@/lib/rbac/can'
 import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
-import { coreDataClient, downloadCoreArtifact } from '@/lib/services/core-feature-client'
+import { downloadCoreArtifact } from '@/lib/services/core-feature-client'
 import { descriptiveAnalyticsSearch, pathwaysClient } from '@/lib/services/pathways-client'
 import { rulesHumanClient } from '@/lib/services/rules-human-client'
 import { useAuthorizedRead } from '@/providers/authorized-query-provider'
@@ -65,6 +62,17 @@ import {
   deriveAnalyticsReportingPeriods,
   nonOverlappingAnalyticsPeriods,
 } from './analytics-reporting-periods'
+import { BudgetSummaryCard } from './budget-summary-card'
+import { IndicatorTrendChart } from './indicator-trend-chart'
+import { InsightStatus } from './insight-status'
+import { activeIndicators, metricNumber, progressRows } from './kpi-rows'
+import { ParticipationBreakdownPanel } from './participation-breakdown-panel'
+import {
+  canReadInsight,
+  useBudgetSummary,
+  useIndicatorTrends,
+  useParticipationBreakdown,
+} from './use-analytics-insights'
 
 const analysisViews = [
   { value: 'kpi', label: 'KPI / indicator performance' },
@@ -95,15 +103,13 @@ const businessDateInManila = (date = new Date()) => {
   return `${value.year}-${value.month}-${value.day}`
 }
 
-const metricNumber = (cell: { value: string | null }) => {
-  if (cell.value === null) return null
-  const value = Number(cell.value)
-  return Number.isFinite(value) ? value : null
-}
-
 type SurveyErrorKind = 'restricted' | 'period' | 'retry'
 const SURVEY_RESTRICTED_MESSAGE = 'Survey improvement is restricted for your role.'
 const SURVEY_PERIOD_MESSAGE = 'This reporting period cannot be used for survey results.'
+const SURVEY_CLOSED_PERIOD_MESSAGE =
+  'Survey results for your role are released after the reporting period closes. Choose a closed period.'
+const SURVEY_FROZEN_CAPTION =
+  'Released once for this closed period; figures do not change on later views.'
 
 /** 403 = role restriction and 400 = refused period are final; only network/5xx may be retried. */
 const surveyErrorKindFor = (caught: unknown): SurveyErrorKind => {
@@ -152,15 +158,14 @@ export const AnalyticsDashboard = () => {
   // Survey and timeline read person-derived aggregates, so the API requires both permissions
   // (analytics.descriptive.read and monitoring.read). Anything less is restricted, never "None yet".
   const canReadSurveyTimeline = canReadDescriptive && canReadIndicators
-  // Survey improvement additionally requires assessments.detail.read (CR amendment 2026-09-30):
-  // aggregate-only roles (Program Manager, Grant Manager) see an explicit restricted state.
-  const canReadSurvey =
-    canReadSurveyTimeline && principalHasAtomicPermission(profile, 'assessments.detail.read')
+  const canReadSurvey = canReadSurveyTimeline
+  // Roles without assessments.detail.read (Program/Grant Manager) get a frozen release of closed periods only.
+  const surveyFrozenOnly = !principalHasAtomicPermission(profile, 'assessments.detail.read')
   const canExportAnalytics =
     canReadDescriptive && principalHasAtomicPermission(profile, 'analytics.export')
-  const canReadBudgetUtilization =
-    principalHasAtomicPermission(profile, 'budgets.read') &&
-    principalHasAtomicPermission(profile, 'expenses.read')
+  const canReadBudgetUtilization = canReadInsight(profile, 'budget')
+  const canReadTrends = canReadInsight(profile, 'trends')
+  const canReadParticipation = canReadInsight(profile, 'participation')
   const [descriptive, setDescriptive] = useState<DescriptiveAnalytics | null>(null)
   const [descriptiveLoading, setDescriptiveLoading] = useState(false)
   const [descriptiveError, setDescriptiveError] = useState('')
@@ -176,14 +181,6 @@ export const AnalyticsDashboard = () => {
   const [monitoring, setMonitoring] = useState<MonitoringDashboard | null>(null)
   const [saddd, setSaddd] = useState<SadddDashboard | null>(null)
   const [activities, setActivities] = useState<ActivitySummary[]>([])
-  const [budgetTotals, setBudgetTotals] = useState<{
-    planned: number
-    approved: number
-    categories: number
-  } | null>(null)
-  const [budgetLoading, setBudgetLoading] = useState(false)
-  const [budgetError, setBudgetError] = useState('')
-  const [budgetLoadAttempt, setBudgetLoadAttempt] = useState(0)
   const [projectsLoading, setProjectsLoading] = useState(true)
   const [projectDataLoading, setProjectDataLoading] = useState(false)
   const [monitoringLoading, setMonitoringLoading] = useState(false)
@@ -249,6 +246,9 @@ export const AnalyticsDashboard = () => {
   )
   const surveyPeriod =
     surveyPeriods.find((candidate) => candidate.value === period) ?? surveyPeriods[0]
+  const surveyClosedPeriodRequired =
+    surveyFrozenOnly && !(surveyPeriod && surveyPeriod.end < businessDateInManila())
+  const surveyUnavailable = !canReadSurvey || surveyClosedPeriodRequired
   const pickerPeriods = analysisView === 'survey' ? surveyPeriods : reportingPeriods
   const pickerPeriod = analysisView === 'survey' ? surveyPeriod : selectedPeriod
   const sadddUnavailableReason =
@@ -258,6 +258,22 @@ export const AnalyticsDashboard = () => {
         ? openProjectSaddd
         : ''
   const sadddEligible = sadddUnavailableReason === ''
+  const periodRange = selectedPeriod
+    ? { periodStart: selectedPeriod.start, periodEnd: selectedPeriod.end }
+    : {}
+  const insightProject = projectId || null
+  const budgetRead = useBudgetSummary({ projectId: insightProject }, canReadBudgetUtilization)
+  const trendsRead = useIndicatorTrends(
+    { projectId: insightProject, ...periodRange },
+    canReadTrends && analysisView === 'kpi',
+  )
+  const participationRead = useParticipationBreakdown(
+    { projectId: insightProject, ...periodRange },
+    canReadParticipation && analysisView === 'participation',
+  )
+  const budgetCurrencies = budgetRead.data?.currencies ?? []
+  const budgetUtilizationPercent =
+    budgetCurrencies.length === 1 ? budgetCurrencies[0].utilizationPercent : null
 
   useEffect(() => {
     if (!role) {
@@ -341,40 +357,6 @@ export const AnalyticsDashboard = () => {
         : (reportingPeriods[0]?.value ?? ''),
     )
   }, [reportingPeriods])
-
-  useEffect(() => {
-    if (!projectId || !selectedProject || !canReadBudgetUtilization) {
-      setBudgetLoading(false)
-      setBudgetTotals(null)
-      setBudgetError('')
-      return
-    }
-    void budgetLoadAttempt
-    let active = true
-    setBudgetLoading(true)
-    setBudgetError('')
-    Promise.all([coreDataClient.budgets(projectId), coreDataClient.expenses(projectId)])
-      .then(([budgets, expenses]) => {
-        if (!active) return
-        const planned = budgets.reduce((sum, row) => sum + Number(row.plannedBudget), 0)
-        const approved = expenses
-          .filter((row) => row.status === 'APPROVED')
-          .reduce((sum, row) => sum + Number(row.amount), 0)
-        setBudgetTotals({ planned, approved, categories: budgets.length })
-      })
-      .catch((caught: unknown) => {
-        if (active)
-          setBudgetError(
-            caught instanceof Error ? caught.message : 'Budget utilization is unavailable.',
-          )
-      })
-      .finally(() => {
-        if (active) setBudgetLoading(false)
-      })
-    return () => {
-      active = false
-    }
-  }, [budgetLoadAttempt, canReadBudgetUtilization, projectId, selectedProject])
 
   useEffect(() => {
     if (!projectId || !selectedProject) {
@@ -482,7 +464,7 @@ export const AnalyticsDashboard = () => {
 
   // Paired pre/post survey improvement. Requires a complete period, same as the API contract.
   useEffect(() => {
-    if (!projectId || !surveyPeriod || !canReadSurvey || analysisView !== 'survey') {
+    if (!projectId || !surveyPeriod || surveyUnavailable || analysisView !== 'survey') {
       setSurveyLoading(false)
       setSurvey(null)
       setSurveyError('')
@@ -512,7 +494,9 @@ export const AnalyticsDashboard = () => {
           kind === 'restricted'
             ? SURVEY_RESTRICTED_MESSAGE
             : kind === 'period'
-              ? SURVEY_PERIOD_MESSAGE
+              ? surveyFrozenOnly
+                ? SURVEY_CLOSED_PERIOD_MESSAGE
+                : SURVEY_PERIOD_MESSAGE
               : caught instanceof Error
                 ? caught.message
                 : 'Survey analytics could not be loaded.',
@@ -524,7 +508,14 @@ export const AnalyticsDashboard = () => {
     return () => {
       active = false
     }
-  }, [analysisView, canReadSurvey, projectId, surveyPeriod, surveyLoadAttempt])
+  }, [
+    analysisView,
+    surveyUnavailable,
+    surveyFrozenOnly,
+    projectId,
+    surveyPeriod,
+    surveyLoadAttempt,
+  ])
 
   // Timeline adherence uses the business reporting date server-side; no period selection needed.
   useEffect(() => {
@@ -564,6 +555,7 @@ export const AnalyticsDashboard = () => {
       return
     const exportPeriod = view === 'survey' ? surveyPeriod : selectedPeriod
     if (view !== 'timeline' && !exportPeriod) return
+    if (view === 'survey' && surveyUnavailable) return
     const capturedProject = projectId
     setExporting(true)
     try {
@@ -582,6 +574,41 @@ export const AnalyticsDashboard = () => {
     }
   }
 
+  // The pinned card re-reads the same source, so pinning needs the same permission and period.
+  const pinBlockedReason = {
+    kpi: !canReadIndicators
+      ? 'Your role cannot read indicator progress, so this view cannot be pinned.'
+      : !selectedPeriod
+        ? 'Choose a reporting period to pin this view.'
+        : '',
+    participation: canReadParticipation
+      ? ''
+      : 'Your role cannot read participation detail, so this view cannot be pinned.',
+    survey: 'Survey improvement cannot be pinned.',
+    timeline: canReadSurveyTimeline
+      ? ''
+      : 'Your role cannot read timeline adherence, so this view cannot be pinned.',
+  }[analysisView]
+  const addToDashboard = () => {
+    if (!selectedProject || !profile?.userId || analysisView === 'survey' || pinBlockedReason)
+      return
+    const result = addPin(profile.userId, {
+      view: analysisView,
+      projectId: selectedProject.id,
+      ...(analysisView !== 'timeline' && selectedPeriod
+        ? { periodStart: selectedPeriod.start, periodEnd: selectedPeriod.end }
+        : {}),
+    })
+    const message = {
+      added: 'Added to your dashboard.',
+      duplicate: 'Already on your dashboard.',
+      full: 'Your dashboard is full. Unpin a chart first.',
+      unavailable: 'Browser storage is unavailable, so the chart could not be pinned.',
+    }[result]
+    if (result === 'added') toast.success(message)
+    else toast.error(message)
+  }
+
   const handleProjectChange = (nextProjectId: string) => {
     if (nextProjectId === projectId) return
     setProjectId(nextProjectId)
@@ -597,8 +624,6 @@ export const AnalyticsDashboard = () => {
     setSurveyErrorKind('retry')
     setTimeline(null)
     setTimelineError('')
-    setBudgetTotals(null)
-    setBudgetError('')
     setProjectDataLoading(true)
     setMonitoringLoading(false)
     setSadddLoading(false)
@@ -607,10 +632,6 @@ export const AnalyticsDashboard = () => {
     setSadddError('')
   }
 
-  const budgetUtilizationPercent =
-    budgetTotals && budgetTotals.planned > 0
-      ? Math.round((budgetTotals.approved / budgetTotals.planned) * 1000) / 10
-      : null
   const mapSelected = visualizationType === 'map'
   const mapDataLoading = projectDataLoading || monitoringLoading
   const mapDataError = projectDataError || monitoringError
@@ -621,10 +642,7 @@ export const AnalyticsDashboard = () => {
     else if (projectDataError) setProjectDataLoadAttempt((value) => value + 1)
     else setMonitoringLoadAttempt((value) => value + 1)
   }
-  const indicators =
-    monitoring?.indicators.filter(
-      (row) => row.projectId === projectId && row.status === 'ACTIVE',
-    ) ?? []
+  const indicators = monitoring ? activeIndicators(monitoring, projectId) : []
   const analysisMeta = {
     kpi: { title: 'KPI / indicator performance', unit: '%' },
     participation: { title: 'Participation patterns', unit: 'records' },
@@ -634,16 +652,9 @@ export const AnalyticsDashboard = () => {
   const analysisRows = useMemo(() => {
     if (!selectedProject || !monitoring) return []
     if (analysisView === 'kpi')
-      return indicators
-        .filter((row) => indicatorId === 'all' || row.id === indicatorId)
-        .flatMap((row) => {
-          const value = metricNumber(row.progress)
-          return value === null ? [] : [{ id: row.id, label: row.name, value }]
-        })
-    if (analysisView === 'participation') {
-      const value = metricNumber(monitoring.participationRecords)
-      return value === null ? [] : [{ id: selectedProject.id, label: selectedProject.title, value }]
-    }
+      return progressRows(
+        indicators.filter((row) => indicatorId === 'all' || row.id === indicatorId),
+      )
     return []
   }, [analysisView, indicatorId, indicators, monitoring, selectedProject])
   const progressValues = indicators
@@ -655,16 +666,6 @@ export const AnalyticsDashboard = () => {
   // "None yet" only when the role can read the source and the read succeeded empty.
   const periodsReadable = canReadIndicators && !projectDataLoading && !projectDataError
   const monitoringReadable = canReadIndicators && monitoring !== null && !monitoringError
-  // The participation chart title reflects the source cell instead of assuming "None
-  // yet": SUPPRESSED gets the suppression wording and other withheld reasons fall
-  // through to the panel's "Data unavailable" default, matching overviewMetricLabel.
-  const participationEmptyTitle = (() => {
-    if (!monitoring) return undefined
-    const label = metricUnavailableLabel(monitoring.participationRecords)
-    return label === 'None yet' || monitoring.participationRecords.state === 'SUPPRESSED'
-      ? label
-      : undefined
-  })()
   const completedActivities = activities.filter(
     (activity) => activity.status === 'Completed',
   ).length
@@ -739,26 +740,24 @@ export const AnalyticsDashboard = () => {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {analysisViews
-                .filter((view) => UNFINISHED_CONTROLS_UI_ENABLED || view.value !== 'participation')
-                .map((view) => (
-                  <SelectItem
-                    disabled={
-                      (view.value === 'survey' && !canReadSurvey) ||
-                      (view.value === 'timeline' && !canReadSurveyTimeline)
-                    }
-                    key={view.value}
-                    title={
-                      (view.value === 'survey' && !canReadSurvey) ||
-                      (view.value === 'timeline' && !canReadSurveyTimeline)
-                        ? 'Not available for this role'
-                        : undefined
-                    }
-                    value={view.value}
-                  >
-                    {view.label}
-                  </SelectItem>
-                ))}
+              {analysisViews.map((view) => (
+                <SelectItem
+                  disabled={
+                    (view.value === 'survey' && !canReadSurvey) ||
+                    (view.value === 'timeline' && !canReadSurveyTimeline)
+                  }
+                  key={view.value}
+                  title={
+                    (view.value === 'survey' && !canReadSurvey) ||
+                    (view.value === 'timeline' && !canReadSurveyTimeline)
+                      ? 'Not available for this role'
+                      : undefined
+                  }
+                  value={view.value}
+                >
+                  {view.label}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>
@@ -800,19 +799,24 @@ export const AnalyticsDashboard = () => {
             </SelectContent>
           </Select>
         </div>
-        {UNFINISHED_CONTROLS_UI_ENABLED ? (
-          <div className="flex items-end sm:col-span-2 xl:col-span-3 xl:col-start-10 xl:row-start-3">
-            <Button
-              className="shrink-0"
-              type="button"
-              {...unavailableControlProps('analytics-add-to-dashboard-hint')}
-            >
-              <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
-              Add to Dashboard
-            </Button>
-            <UnavailableHint id="analytics-add-to-dashboard-hint" />
-          </div>
-        ) : null}
+        <div className="flex items-end sm:col-span-2 xl:col-span-3 xl:col-start-10 xl:row-start-3">
+          <Button
+            className="shrink-0"
+            aria-describedby={pinBlockedReason ? 'pin-blocked-reason' : undefined}
+            disabled={!selectedProject || !profile?.userId || Boolean(pinBlockedReason)}
+            onClick={addToDashboard}
+            title={pinBlockedReason || undefined}
+            type="button"
+          >
+            <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
+            Add to Dashboard
+          </Button>
+          {pinBlockedReason ? (
+            <p className="ml-3 text-xs text-muted-foreground" id="pin-blocked-reason">
+              {pinBlockedReason}
+            </p>
+          ) : null}
+        </div>
         {ANALYTICS_AGGREGATE_EXPORT_UI_ENABLED && canExportAnalytics ? (
           <div className="flex flex-wrap justify-end gap-2 border-t border-border pt-4 sm:col-span-2 xl:col-span-12 xl:row-start-4">
             <Button
@@ -821,7 +825,7 @@ export const AnalyticsDashboard = () => {
                 !selectedProject ||
                 exporting ||
                 (analysisView !== 'timeline' && !pickerPeriod) ||
-                (analysisView === 'survey' && !canReadSurvey)
+                (analysisView === 'survey' && surveyUnavailable)
               }
               onClick={() => void exportDescriptive()}
               type="button"
@@ -902,6 +906,8 @@ export const AnalyticsDashboard = () => {
               </>
             ) : analysisView === 'survey' && !canReadSurvey ? (
               <UnavailableChart description={SURVEY_RESTRICTED_MESSAGE} />
+            ) : analysisView === 'survey' && surveyClosedPeriodRequired ? (
+              <UnavailableChart description={SURVEY_CLOSED_PERIOD_MESSAGE} />
             ) : analysisView === 'timeline' && !canReadSurveyTimeline ? (
               <UnavailableChart description="Timeline adherence is not available for this role." />
             ) : analysisView === 'survey' ? (
@@ -910,6 +916,7 @@ export const AnalyticsDashboard = () => {
                 data={survey}
                 error={surveyError}
                 errorKind={surveyErrorKind}
+                frozen={surveyFrozenOnly}
                 loading={surveyLoading}
                 noUsablePeriod={reportingPeriods.length > 0 && surveyPeriods.length === 0}
                 onRetry={() => setSurveyLoadAttempt((value) => value + 1)}
@@ -923,6 +930,17 @@ export const AnalyticsDashboard = () => {
                 loading={timelineLoading}
                 onRetry={() => setTimelineLoadAttempt((value) => value + 1)}
               />
+            ) : analysisView === 'participation' ? (
+              canReadParticipation ? (
+                <InsightStatus read={participationRead} label="Participation patterns">
+                  {(data) => <ParticipationBreakdownPanel data={data} />}
+                </InsightStatus>
+              ) : (
+                <UnavailableChart
+                  description="Participation patterns are restricted for your role."
+                  title="Restricted"
+                />
+              )
             ) : !selectedPeriod ? (
               <UnavailableChart
                 description={
@@ -935,13 +953,7 @@ export const AnalyticsDashboard = () => {
             ) : analysisRows.length === 0 ? (
               <UnavailableChart
                 description="No released values are available for this selection."
-                title={
-                  !monitoringReadable
-                    ? undefined
-                    : analysisView === 'participation'
-                      ? participationEmptyTitle
-                      : 'None yet'
-                }
+                title={monitoringReadable ? 'None yet' : undefined}
               />
             ) : visualizationType === 'table' ? (
               <table className="w-full text-left text-sm">
@@ -990,11 +1002,11 @@ export const AnalyticsDashboard = () => {
               description={
                 !canReadBudgetUtilization
                   ? 'Budget and expense permissions are required for this metric.'
-                  : budgetError
-                    ? budgetError
-                    : budgetTotals && budgetTotals.categories === 0
-                      ? 'No budget allocations are recorded for this project.'
-                      : 'Approved expenses against planned budget allocations for this project.'
+                  : budgetRead.isError
+                    ? 'Budget utilization could not be loaded.'
+                    : budgetCurrencies.length > 1
+                      ? 'Several currencies are recorded; see the Budget utilization panel.'
+                      : 'Approved expenses against planned budget allocations; pending is not counted.'
               }
               icon={CircleDollarSign}
               label="Budget utilization"
@@ -1008,13 +1020,15 @@ export const AnalyticsDashboard = () => {
               value={
                 !canReadBudgetUtilization
                   ? 'Unavailable'
-                  : budgetLoading
-                    ? 'Loading...'
-                    : budgetError
-                      ? 'Unavailable'
-                      : budgetUtilizationPercent !== null
-                        ? `${budgetUtilizationPercent}%`
-                        : 'None yet'
+                  : budgetRead.isError
+                    ? 'Unavailable'
+                    : !budgetRead.data
+                      ? 'Loading...'
+                      : budgetCurrencies.length > 1
+                        ? 'Multiple currencies'
+                        : budgetUtilizationPercent !== null
+                          ? `${budgetUtilizationPercent}%`
+                          : 'No budget'
               }
             />
             <MetricCard
@@ -1067,12 +1081,7 @@ export const AnalyticsDashboard = () => {
             </h2>
             <ChartPanel title="Indicator progress">
               {indicators.some((row) => metricNumber(row.progress) !== null) ? (
-                <IndicatorProgressChart
-                  rows={indicators.flatMap((row) => {
-                    const value = metricNumber(row.progress)
-                    return value === null ? [] : [{ id: row.id, label: row.name, value }]
-                  })}
-                />
+                <IndicatorProgressChart rows={progressRows(indicators)} />
               ) : (
                 <UnavailableChart
                   description="No released indicator progress for this project and period."
@@ -1080,6 +1089,22 @@ export const AnalyticsDashboard = () => {
                 />
               )}
             </ChartPanel>
+            {analysisView === 'kpi' ? (
+              <ChartPanel title="Indicator trends">
+                {canReadTrends ? (
+                  <InsightStatus read={trendsRead} label="Indicator trends">
+                    {(data) => (
+                      <IndicatorTrendChart
+                        data={data}
+                        indicatorId={indicatorId === 'all' ? undefined : indicatorId}
+                      />
+                    )}
+                  </InsightStatus>
+                ) : (
+                  <UnavailableChart description="Indicator trends are not available for this role." />
+                )}
+              </ChartPanel>
+            ) : null}
             <ChartPanel title="SADDD Analysis">
               {sadddLoading ? (
                 <AsyncState
@@ -1179,51 +1204,12 @@ export const AnalyticsDashboard = () => {
             </ChartPanel>
             <div className="grid gap-6 xl:grid-cols-2">
               <ChartPanel title="Budget utilization">
-                {!canReadBudgetUtilization ? (
-                  <UnavailableChart description="Budget and expense read permissions are required for this chart." />
-                ) : budgetLoading ? (
-                  <AsyncState
-                    status="loading"
-                    title="Loading budget utilization"
-                    description="Verifying current budget and expense access."
-                    icon={CircleDollarSign}
-                  />
-                ) : budgetError ? (
-                  <AsyncState
-                    status="error"
-                    title="Budget utilization unavailable"
-                    description={budgetError}
-                    icon={AlertTriangle}
-                    onRetry={() => setBudgetLoadAttempt((value) => value + 1)}
-                  />
-                ) : budgetTotals && budgetTotals.categories > 0 ? (
-                  <dl className="grid gap-3 text-sm sm:grid-cols-3">
-                    <div>
-                      <dt className="text-muted-foreground">Planned budget</dt>
-                      <dd className="mt-1 font-medium text-foreground tabular-nums">
-                        PHP {budgetTotals.planned.toLocaleString()}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt className="text-muted-foreground">Approved expenses</dt>
-                      <dd className="mt-1 font-medium text-foreground tabular-nums">
-                        PHP {budgetTotals.approved.toLocaleString()}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt className="text-muted-foreground">Utilization</dt>
-                      <dd className="mt-1 font-medium text-foreground tabular-nums">
-                        {budgetUtilizationPercent !== null
-                          ? `${budgetUtilizationPercent}%`
-                          : 'None yet'}
-                      </dd>
-                    </div>
-                  </dl>
+                {canReadBudgetUtilization ? (
+                  <InsightStatus read={budgetRead} label="Budget utilization">
+                    {(data) => <BudgetSummaryCard data={data} />}
+                  </InsightStatus>
                 ) : (
-                  <UnavailableChart
-                    description="Record a budget allocation before utilization can be shown."
-                    title="None yet"
-                  />
+                  <UnavailableChart description="Budget and expense read permissions are required for this chart." />
                 )}
               </ChartPanel>
               <ChartPanel title="Rule-Based Alerts">
@@ -1314,6 +1300,7 @@ const SurveyAnalyticsPanel = ({
   loading,
   error,
   errorKind,
+  frozen,
   noUsablePeriod,
   onRetry,
   periodsReadable,
@@ -1324,6 +1311,7 @@ const SurveyAnalyticsPanel = ({
   loading: boolean
   error: string
   errorKind: SurveyErrorKind
+  frozen: boolean
   noUsablePeriod: boolean
   onRetry: () => void
   periodsReadable: boolean
@@ -1367,6 +1355,7 @@ const SurveyAnalyticsPanel = ({
   const isMissing = overall.pairs.value === '0'
   return (
     <div className="space-y-4" data-testid="survey-analytics">
+      {frozen ? <p className="text-sm text-muted-foreground">{SURVEY_FROZEN_CAPTION}</p> : null}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard
           description="Enrollments with both a PRE_TEST and a POST_TEST in this period."

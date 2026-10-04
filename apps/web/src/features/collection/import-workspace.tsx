@@ -613,6 +613,20 @@ function OwnedImportWorkspace({ scope }: { scope: SensitiveDraftOwner }) {
     }
   }
 
+  // Distinct non-empty values per source column in the loaded rows, for translation suggestions.
+  const columnValues = useMemo(() => {
+    const values = new Map<string, Set<string>>()
+    for (const row of rows) {
+      for (const [key, value] of Object.entries(row.rawData)) {
+        if (value === null || String(value).trim() === '') continue
+        const seen = values.get(key) ?? new Set<string>()
+        seen.add(String(value).trim())
+        values.set(key, seen)
+      }
+    }
+    return new Map([...values].map(([key, seen]) => [key, [...seen]]))
+  }, [rows])
+
   const validationErrors = useMemo(
     () => rows.reduce((total, row) => total + row.validationErrors.length, 0),
     [rows],
@@ -976,6 +990,8 @@ function OwnedImportWorkspace({ scope }: { scope: SensitiveDraftOwner }) {
                             {targetField ? (
                               <div className="sm:col-span-2">
                                 <ImportValueMapEditor
+                                  allowedValues={targetField.allowedValues}
+                                  sourceValues={columnValues.get(column.key)}
                                   columnLabel={`column ${column.columnIndex}`}
                                   disabled={!mappingEditable}
                                   fieldType={targetField.dataType}
