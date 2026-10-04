@@ -237,6 +237,46 @@ describe('user management: create user via existing Auth authorization', () => {
   })
 })
 
+describe('user management: Program Manager assignment', () => {
+  beforeEach(() => {
+    currentRole = {
+      role: 'System Administrator',
+      profile: projectManagerProfile,
+      assignedProjectIds: [],
+    }
+    getUsers.mockResolvedValue([baseUser])
+    getProjects.mockResolvedValue([
+      { id: 'project-1', title: 'Project One', area: 'Area A', targetGoal: null },
+    ])
+    authorizeExistingUser.mockReset()
+    sessionStorage.clear()
+  })
+
+  afterEach(() => {
+    cleanup()
+    vi.clearAllMocks()
+  })
+
+  it('allows saving a Program Manager without project assignments', async () => {
+    authorizeExistingUser.mockResolvedValue({ ...baseUser, id: 'user-2' })
+    await openCreateDialog()
+
+    fireEvent.change(screen.getByLabelText(/full name/i), { target: { value: 'Grace Hopper' } })
+    fireEvent.change(screen.getByLabelText(/auth user id/i), {
+      target: { value: VALID_AUTH_USER_ID },
+    })
+    fireEvent.change(screen.getByLabelText('Role'), { target: { value: 'Program Manager' } })
+    expect(screen.getByText(/Optional for Program Managers/i)).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: /authorize account/i }))
+
+    await waitFor(() =>
+      expect(authorizeExistingUser).toHaveBeenCalledWith(
+        expect.objectContaining({ role: 'Program Manager', projectIds: [] }),
+      ),
+    )
+  })
+})
+
 describe('user management: no create access', () => {
   beforeEach(() => {
     currentRole = {

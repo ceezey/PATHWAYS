@@ -161,3 +161,7 @@
 ## 2026-10-04 Budget envelope total
 
 - Budget page: total allocated is now the project envelope (PROJECT_PROFILE_TOTAL) when one exists, and the Project-level row shows the envelope minus activity allocations (negative if over-allocated), so utilization matches the overview tile. Without an envelope the sum of activity rows is used. Rules metric and analytics aggregate still sum all rows (deferred-features.md).
+
+## 2026-10-04 Program Manager project assignment
+
+- System Administrator can assign a Program Manager to projects in User Management; zero assignments are allowed because managed programs still apply. Changes in canAssignRole, users service, access matrix and the user management workspace; no migration (RLS p09_assignment_insert already allows it). Recorded in cr-pathways-program-manager-project-assignment; program creation and manager_user_id setting stay deferred.

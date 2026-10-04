@@ -23,6 +23,7 @@ import { AuthDirectoryService } from './auth-directory.service'
 import type { AuthorizeExistingUserDto, UpdateAuthorizedUserDto } from './users.dto'
 
 const assignableRoles: readonly CanonicalRole[] = [
+  'PROGRAM_MANAGER',
   'GRANT_MANAGER',
   'PROJECT_MANAGER',
   'MONITORING_AND_EVALUATION_OFFICER',
@@ -405,6 +406,8 @@ export class UsersService {
     if (!canAssignRole(actor.roles[0] as CanonicalRole, targetRole)) {
       throw new ForbiddenException('Assignment authority is missing.')
     }
+    // A Program Manager may hold no assignments because managed programs still apply.
+    if (!projectIds.length && targetRole === 'PROGRAM_MANAGER') return []
     if (!projectIds.length)
       throw new BadRequestException('At least one project assignment is required.')
     const projects = await tx.project.findMany({

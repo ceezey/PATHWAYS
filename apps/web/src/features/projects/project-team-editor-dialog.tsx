@@ -47,9 +47,7 @@ import {
 } from './project-team-selectors'
 
 // Which project-role field a given assignment field maps to, for the
-// canAssignRole check. Program Manager is deliberately excluded: no actor
-// (including System Administrator) may assign it through this dialog —
-// canAssignRole's own target list never includes PROGRAM_MANAGER.
+// canAssignRole check. Program Manager is not a field in this dialog; it is assigned through User Management.
 const assignTargetRoles: Partial<Record<TeamFieldName, CanonicalRole>> = {
   projectManager: 'PROJECT_MANAGER',
   monitoringOfficer: 'MONITORING_AND_EVALUATION_OFFICER',

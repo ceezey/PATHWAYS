@@ -78,6 +78,11 @@ describe('canonical least-privilege policy ceiling', () => {
       expect(rolePermissions[role].includes('rules.update')).toBe(role === 'SYSTEM_ADMINISTRATOR')
     }
   })
+  it('permits only Admin to assign Program Manager', () => {
+    for (const actor of Object.keys(roleNames) as CanonicalRole[]) {
+      expect(canAssignRole(actor, 'PROGRAM_MANAGER')).toBe(actor === 'SYSTEM_ADMINISTRATOR')
+    }
+  })
   it('enforces the exact account-administration and assignment role matrix', () => {
     for (const actor of Object.keys(roleNames) as CanonicalRole[]) {
       for (const target of Object.keys(roleNames) as CanonicalRole[]) {
@@ -91,6 +96,7 @@ describe('canonical least-privilege policy ceiling', () => {
         expect(canAssignRole(actor, target)).toBe(
           expected &&
             [
+              'PROGRAM_MANAGER',
               'PROJECT_MANAGER',
               'PROJECT_OFFICER',
               'MONITORING_AND_EVALUATION_OFFICER',

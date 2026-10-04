@@ -51,7 +51,17 @@ function buildTx(targetRole: string) {
       }),
       create: fn({ id: targetId }),
       update: fn({}),
-      findUniqueOrThrow: fn(null),
+      findUniqueOrThrow: fn({
+        id: targetId,
+        authUserId: id(7),
+        fullName: 'Synthetic User',
+        email: 'synthetic@example.invalid',
+        accountStatus: 'ACTIVE',
+        createdAt: new Date(),
+        lastLoginAt: null,
+        role: { code: targetRole, name: 'Role' },
+        userProjectAssignment_user: [],
+      }),
       count: fn(1),
     },
     userProjectAssignment: { count: fn(1), createMany: fn({}), updateMany: fn({}) },
@@ -122,6 +132,55 @@ describe('users service role scope (G-F1-5)', () => {
       expect(writeCalls(tx)).toEqual([])
     },
   )
+
+  it('authorize-existing: Admin assigns a Program Manager with projects', async () => {
+    state.roles = ['SYSTEM_ADMINISTRATOR']
+    const tx = buildTx('PROJECT_OFFICER')
+    tx.systemUser.findFirst.mockResolvedValue(null)
+    await authorize('PROGRAM_MANAGER')
+    expect(tx.userProjectAssignment.createMany).toHaveBeenCalledTimes(1)
+  })
+
+  it('update: Admin saves a Program Manager with no projects and nothing is assigned', async () => {
+    state.roles = ['SYSTEM_ADMINISTRATOR']
+    const tx = buildTx('PROGRAM_MANAGER')
+    await service.update(identity, targetId, {
+      role: 'PROGRAM_MANAGER',
+      accountStatus: 'ACTIVE',
+      projectIds: [],
+    })
+    expect(tx.userProjectAssignment.createMany).not.toHaveBeenCalled()
+    expect(tx.systemUser.update).toHaveBeenCalled()
+  })
+
+  it('update: Admin ends the explicit assignments of a Program Manager', async () => {
+    state.roles = ['SYSTEM_ADMINISTRATOR']
+    const tx = buildTx('PROGRAM_MANAGER')
+    tx.systemUser.findFirst.mockResolvedValue({
+      id: targetId,
+      role: { code: 'PROGRAM_MANAGER' },
+      userProjectAssignment_user: [{ id: id(4), projectId }],
+    })
+    await service.update(identity, targetId, {
+      role: 'PROGRAM_MANAGER',
+      accountStatus: 'ACTIVE',
+      projectIds: [],
+    })
+    expect(tx.userProjectAssignment.updateMany).toHaveBeenCalledTimes(1)
+    expect(tx.userProjectAssignment.createMany).not.toHaveBeenCalled()
+  })
+
+  it('update: a Project Manager still needs at least one project', async () => {
+    state.roles = ['SYSTEM_ADMINISTRATOR']
+    buildTx('PROJECT_MANAGER')
+    await expect(
+      service.update(identity, targetId, {
+        role: 'PROJECT_MANAGER',
+        accountStatus: 'ACTIVE',
+        projectIds: [],
+      }),
+    ).rejects.toThrow('At least one project assignment is required.')
+  })
 
   it('update: an actor cannot administer their own account', async () => {
     state.roles = ['SYSTEM_ADMINISTRATOR']
