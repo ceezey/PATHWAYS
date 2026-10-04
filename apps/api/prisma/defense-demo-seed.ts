@@ -88,6 +88,10 @@ async function seed(owner: PrismaClient, testLocal: boolean) {
     { auth: { persistSession: false, autoRefreshToken: false } },
   )
   const runtime = new PrismaService({ datasources: { db: { url: process.env.DATABASE_URL } } })
+  // Rule reads by non-admin roles take several seconds on a slow host, so give the seed the maximum transaction window.
+  const verified = runtime.withVerifiedContext.bind(runtime) as typeof runtime.withVerifiedContext
+  runtime.withVerifiedContext = (context, work, options) =>
+    verified(context, work, { timeoutMs: 30_000, ...options })
   try {
     const staff = await resolveActors(owner)
     const organizationId = staff.admin.identity.organizationId
