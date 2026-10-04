@@ -2,7 +2,7 @@
 import type { HumanRule } from '@/features/analytics/rules-human-contract'
 import { AuthorizedQueryProvider } from '@/providers/authorized-query-provider'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { RuleDrawer } from './rule-drawer'
 
@@ -156,6 +156,49 @@ describe('RuleDrawer', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save Rule' }))
     await screen.findByRole('alert')
     expect(state.createRule).not.toHaveBeenCalled()
+  })
+  it('keeps advanced editor labels bound to its own fields over the drawer', async () => {
+    const nested = {
+      ...activeRule,
+      conditions: {
+        kind: 'GROUP',
+        mode: 'OR',
+        children: [
+          {
+            kind: 'GROUP',
+            mode: 'AND',
+            children: [
+              {
+                kind: 'CONDITION',
+                id: 'c1',
+                metric: 'PROJECT_REMAINING_DAYS',
+                operator: 'LT',
+                threshold: '30',
+              },
+              {
+                kind: 'CONDITION',
+                id: 'c2',
+                metric: 'PROJECT_OVERDUE_DAYS',
+                operator: 'GT',
+                threshold: '0',
+              },
+            ],
+          },
+          {
+            kind: 'CONDITION',
+            id: 'c3',
+            metric: 'PROJECT_TIMELINE_ELAPSED_PERCENT',
+            operator: 'GTE',
+            threshold: '90',
+          },
+        ],
+      },
+    } as unknown as HumanRule
+    renderDrawer({ rule: nested })
+    fireEvent.click(screen.getByRole('button', { name: /advanced editor/i }))
+    const dialog = await screen.findByRole('dialog', { name: /advanced/i })
+    for (const label of [/^Rule name/i, /^Rule code/i, /^Severity/i])
+      expect(dialog.contains(within(dialog).getByLabelText(label))).toBe(true)
   })
   it('requires a note before deactivating an active rule', async () => {
     renderDrawer({ rule: activeRule })

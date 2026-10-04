@@ -285,18 +285,18 @@ function OwnedDrawer({
           <section className="space-y-3">
             <h3 className="font-semibold">Basic Rule Information</h3>
             <div className="space-y-2">
-              <Label htmlFor="rule-name">Rule Name</Label>
+              <Label htmlFor="drawer-rule-name">Rule Name</Label>
               <Input
-                id="rule-name"
+                id="drawer-rule-name"
                 maxLength={160}
                 value={name}
                 onChange={(event) => changeName(event.target.value)}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="rule-code">Rule Code</Label>
+              <Label htmlFor="drawer-rule-code">Rule Code</Label>
               <Input
-                id="rule-code"
+                id="drawer-rule-code"
                 maxLength={80}
                 disabled={Boolean(rule)}
                 value={code}

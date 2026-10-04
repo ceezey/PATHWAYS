@@ -73,12 +73,12 @@ export function RuleOutputFields({ mode, severity, onSeverity, recs, onRecs }: P
             </p>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="rule-severity">
+            <Label htmlFor="drawer-rule-severity">
               {mode === 'alert' ? 'Severity' : 'Triggering alert severity'}
             </Label>
             <select
               className={selectClass}
-              id="rule-severity"
+              id="drawer-rule-severity"
               value={severity}
               onChange={(event) => onSeverity(event.target.value as HumanRule['severity'])}
             >
