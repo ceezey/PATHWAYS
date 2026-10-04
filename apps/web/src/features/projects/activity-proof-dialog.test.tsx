@@ -1272,6 +1272,23 @@ describe('ActivityProofDialog progress suggestion', () => {
     )
   })
 
+  it('lets the officer explicitly complete a target-based activity at 100%', async () => {
+    api.reserveActivityProofUpload.mockRejectedValue(new Error('stop'))
+    show(withTarget({ beneficiariesReached: 100, progress: 99 }))
+    expect(bar()).toBe('99')
+    fireEvent.click(screen.getByLabelText(/This proof completes the activity/))
+    expect(bar()).toBe('100')
+    fireEvent.change(screen.getByLabelText(/Narrative Notes/), { target: { value: 'done' } })
+    selectFiles([makeFile('a.pdf', 'application/pdf')])
+    await screen.findByText('a.pdf')
+    fireEvent.click(screen.getByRole('button', { name: /Submit proof/ }))
+    await waitFor(() =>
+      expect(api.reserveActivityProofUpload).toHaveBeenCalledWith(
+        expect.objectContaining({ progressPercent: 100 }),
+      ),
+    )
+  })
+
   const submitWith = async (value: string) => {
     show(manual())
     fireEvent.change(progressInput(), { target: { value } })

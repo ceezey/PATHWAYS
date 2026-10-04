@@ -2,11 +2,10 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 
 import {
-  PublicProjectDetail,
-  PublicProjectsList,
-} from '@/features/public/public-project-components'
-import { pathwaysClient } from '@/lib/services/pathways-client'
-import { PathwaysClientError } from '@/lib/services/pathways-client'
+  PublicTrackerDetail,
+  PublicTrackerUnavailable,
+} from '@/features/public/public-tracker-view'
+import { readPublicSnapshots } from '@/lib/services/public-projects'
 
 export const metadata: Metadata = { title: 'Public Project Story' }
 export const dynamic = 'force-dynamic'
@@ -17,19 +16,9 @@ export default async function PublicProjectDetailPage({
   params: Promise<{ projectId: string }>
 }) {
   const { projectId } = await params
-
-  try {
-    const project = await pathwaysClient.getPublicProject(projectId)
-
-    return <PublicProjectDetail project={project} />
-  } catch (error) {
-    if (error instanceof PathwaysClientError && error.code === 'not_configured') {
-      return <PublicProjectsList projects={[]} unavailable />
-    }
-    if (error instanceof PathwaysClientError && error.code === 'not_found') {
-      notFound()
-    }
-
-    throw error
-  }
+  const result = await readPublicSnapshots(projectId).catch((error: unknown) =>
+    error instanceof Error && error.message === 'PUBLIC_NOT_FOUND' ? 'not_found' : null,
+  )
+  if (result === 'not_found') notFound()
+  return result?.[0] ? <PublicTrackerDetail project={result[0]} /> : <PublicTrackerUnavailable />
 }

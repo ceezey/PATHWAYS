@@ -1,7 +1,7 @@
 'use client'
 
 import { Wallet } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 import { PageHeader } from '@/components/layout/page-header'
 import { AsyncState } from '@/components/pathways'
@@ -10,7 +10,7 @@ import { useCurrentRole } from '@/hooks/use-current-role'
 import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
 
 import { BudgetActions } from './budget-actions'
-import { BudgetLedger } from './budget-ledger'
+import { BudgetLedger, hashedExpenseId } from './budget-ledger'
 import { BudgetOverview } from './budget-overview'
 import { BudgetTransparency } from './budget-transparency'
 import { useBudgetModule } from './use-budget-module'
@@ -22,6 +22,10 @@ export const BudgetModule = ({ projectId }: { projectId: string }) => {
   const [tab, setTab] = useState('overview')
   const [activityKey, setActivityKey] = useState<string | null>(null)
   const canTransparency = principalHasAtomicPermission(profile, 'budgets.update')
+  // A dashboard approval link opens the ledger on the hashed expense.
+  useEffect(() => {
+    if (hashedExpenseId()) setTab('ledger')
+  }, [])
 
   if (module.isError)
     return (

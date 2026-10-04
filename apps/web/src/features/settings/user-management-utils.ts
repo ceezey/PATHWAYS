@@ -107,7 +107,8 @@ export const getProjectAccessLabels = (
   if (isProjectAssignableRole(role)) {
     const projectTitles = new Map(projects.map((project) => [project.id, project.title]))
     const labels = projectIds.map((projectId) => projectTitles.get(projectId) ?? projectId)
-    return labels.length > 0 ? labels : ['No project assigned']
+    if (labels.length > 0) return labels
+    return role === 'Program Manager' ? ['Managed programs'] : ['No project assigned']
   }
 
   if (role === 'System Administrator') return ['System administration']

@@ -13,6 +13,11 @@ const projectTabNames: Record<string, string> = {
   'journey-stages': 'Journey Stages',
 }
 
+// Second-level pages that get their own crumb, keyed by section and sub-route.
+const subPageNames: Record<string, string> = {
+  'alerts/repository': 'Alert Repository',
+}
+
 /** Links the section name to its root and appends the project tab when inside a project. */
 export const TopBarBreadcrumb = ({ pathname, label }: { pathname: string; label: string }) => {
   const [section = '', projectId, tab = ''] = pathname.split('/').filter(Boolean)
@@ -22,11 +27,14 @@ export const TopBarBreadcrumb = ({ pathname, label }: { pathname: string; label:
       .sort((left, right) => right.href.length - left.href.length)[0]?.href ?? pathname
   // The indicator library is reached from a project's Target Indicators tab.
   const library = section === 'indicators' && projectId === 'library'
+  const subPage = subPageNames[`${section}/${projectId}`]
   const trail = library
     ? ['Target Indicators', 'Indicator Library']
-    : section === 'projects' && projectId && projectTabNames[tab] !== undefined
-      ? [projectTabNames[tab]]
-      : []
+    : subPage
+      ? [subPage]
+      : section === 'projects' && projectId && projectTabNames[tab] !== undefined
+        ? [projectTabNames[tab]]
+        : []
 
   return (
     <nav aria-label="Breadcrumb" className="min-w-0">

@@ -3,6 +3,7 @@
 import {
   AlertTriangle,
   BarChart3,
+  ChevronDown,
   CircleDollarSign,
   ClipboardCheck,
   Download,
@@ -18,6 +19,12 @@ import { AsyncState, StatusMessage } from '@/components/pathways'
 import { EmptyState } from '@/components/pathways/empty-state'
 import { MetricCard } from '@/components/pathways/metric-card'
 import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import {
   Select,
   SelectContent,
@@ -148,6 +155,9 @@ export const countOpenAlerts = async (projectId: string, signal?: AbortSignal) =
   }
   return { count, capped }
 }
+
+const exportFormats = ['CSV', 'XLS', 'XLSX', 'PDF'] as const
+type ExportFormat = (typeof exportFormats)[number]
 
 export const AnalyticsDashboard = () => {
   const { labels } = useDisplayLabels()
@@ -549,7 +559,7 @@ export const AnalyticsDashboard = () => {
     }
   }, [analysisView, canReadSurveyTimeline, projectId, timelineLoadAttempt])
 
-  const exportDescriptive = async () => {
+  const exportDescriptive = async (format: ExportFormat) => {
     const view = analysisView === 'survey' || analysisView === 'timeline' ? analysisView : undefined
     if (!ANALYTICS_AGGREGATE_EXPORT_UI_ENABLED || !canExportAnalytics || !projectId || exporting)
       return
@@ -564,8 +574,8 @@ export const AnalyticsDashboard = () => {
           projectId: capturedProject,
           ...(exportPeriod ? { periodStart: exportPeriod.start, periodEnd: exportPeriod.end } : {}),
           ...(view ? { view } : {}),
-        })}`,
-        `${view ?? 'descriptive'}-analytics-${capturedProject.toLowerCase()}.csv`,
+        })}${format === 'CSV' ? '' : `&format=${format}`}`,
+        `${view ?? 'descriptive'}-analytics-${capturedProject.toLowerCase()}.${format.toLowerCase()}`,
       )
     } catch (caught) {
       toast.error(caught instanceof Error ? caught.message : 'Aggregate export unavailable.')
@@ -574,6 +584,19 @@ export const AnalyticsDashboard = () => {
     }
   }
 
+  // Views and pins the role cannot read are hidden rather than shown as unavailable.
+  const viewPermitted: Record<AnalysisView, boolean> = {
+    kpi: true,
+    participation: canReadParticipation,
+    survey: canReadSurvey,
+    timeline: canReadSurveyTimeline,
+  }
+  const pinPermitted = {
+    kpi: canReadIndicators,
+    participation: canReadParticipation,
+    survey: true,
+    timeline: canReadSurveyTimeline,
+  }[analysisView]
   // The pinned card re-reads the same source, so pinning needs the same permission and period.
   const pinBlockedReason = {
     kpi: !canReadIndicators
@@ -740,24 +763,13 @@ export const AnalyticsDashboard = () => {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {analysisViews.map((view) => (
-                <SelectItem
-                  disabled={
-                    (view.value === 'survey' && !canReadSurvey) ||
-                    (view.value === 'timeline' && !canReadSurveyTimeline)
-                  }
-                  key={view.value}
-                  title={
-                    (view.value === 'survey' && !canReadSurvey) ||
-                    (view.value === 'timeline' && !canReadSurveyTimeline)
-                      ? 'Not available for this role'
-                      : undefined
-                  }
-                  value={view.value}
-                >
-                  {view.label}
-                </SelectItem>
-              ))}
+              {analysisViews
+                .filter((view) => viewPermitted[view.value])
+                .map((view) => (
+                  <SelectItem key={view.value} value={view.value}>
+                    {view.label}
+                  </SelectItem>
+                ))}
             </SelectContent>
           </Select>
         </div>
@@ -799,41 +811,54 @@ export const AnalyticsDashboard = () => {
             </SelectContent>
           </Select>
         </div>
-        <div className="flex items-end sm:col-span-2 xl:col-span-3 xl:col-start-10 xl:row-start-3">
-          <Button
-            className="shrink-0"
-            aria-describedby={pinBlockedReason ? 'pin-blocked-reason' : undefined}
-            disabled={!selectedProject || !profile?.userId || Boolean(pinBlockedReason)}
-            onClick={addToDashboard}
-            title={pinBlockedReason || undefined}
-            type="button"
-          >
-            <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
-            Add to Dashboard
-          </Button>
-          {pinBlockedReason ? (
-            <p className="ml-3 text-xs text-muted-foreground" id="pin-blocked-reason">
-              {pinBlockedReason}
-            </p>
-          ) : null}
-        </div>
-        {ANALYTICS_AGGREGATE_EXPORT_UI_ENABLED && canExportAnalytics ? (
-          <div className="flex flex-wrap justify-end gap-2 border-t border-border pt-4 sm:col-span-2 xl:col-span-12 xl:row-start-4">
+        {pinPermitted ? (
+          <div className="flex items-end sm:col-span-2 xl:col-span-3 xl:col-start-10 xl:row-start-3">
             <Button
               className="shrink-0"
-              disabled={
-                !selectedProject ||
-                exporting ||
-                (analysisView !== 'timeline' && !pickerPeriod) ||
-                (analysisView === 'survey' && surveyUnavailable)
-              }
-              onClick={() => void exportDescriptive()}
+              aria-describedby={pinBlockedReason ? 'pin-blocked-reason' : undefined}
+              disabled={!selectedProject || !profile?.userId || Boolean(pinBlockedReason)}
+              onClick={addToDashboard}
+              title={pinBlockedReason || undefined}
               type="button"
-              variant="outline"
             >
-              <Download className="mr-2 h-4 w-4" aria-hidden="true" />
-              {exporting ? 'Exporting aggregates' : 'Export aggregates (CSV)'}
+              <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
+              Add to Dashboard
             </Button>
+            {pinBlockedReason ? (
+              <p className="ml-3 text-xs text-muted-foreground" id="pin-blocked-reason">
+                {pinBlockedReason}
+              </p>
+            ) : null}
+          </div>
+        ) : null}
+        {ANALYTICS_AGGREGATE_EXPORT_UI_ENABLED && canExportAnalytics ? (
+          <div className="flex items-end sm:col-span-2 xl:col-span-3 xl:col-start-10 xl:row-start-2">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  className="shrink-0"
+                  disabled={
+                    !selectedProject ||
+                    exporting ||
+                    (analysisView !== 'timeline' && !pickerPeriod) ||
+                    (analysisView === 'survey' && surveyUnavailable)
+                  }
+                  type="button"
+                  variant="outline"
+                >
+                  <Download className="mr-2 h-4 w-4" aria-hidden="true" />
+                  {exporting ? 'Exporting aggregates' : 'Export aggregates'}
+                  <ChevronDown className="ml-2 h-4 w-4" aria-hidden="true" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-40">
+                {exportFormats.map((format) => (
+                  <DropdownMenuItem key={format} onSelect={() => void exportDescriptive(format)}>
+                    {format}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         ) : null}
       </section>
@@ -984,112 +1009,124 @@ export const AnalyticsDashboard = () => {
               />
             )}
           </ChartPanel>
-          <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-            <MetricCard
-              description="Average of released indicator progress values in this project and period."
-              icon={Target}
-              label="KPI achievement"
-              tone={averageKpi === null ? 'info' : averageKpi >= 70 ? 'success' : 'warning'}
-              value={
-                averageKpi !== null
-                  ? `${averageKpi}%`
-                  : monitoringReadable
-                    ? 'None yet'
-                    : 'Unavailable'
-              }
-            />
-            <MetricCard
-              description={
-                !canReadBudgetUtilization
-                  ? 'Budget and expense permissions are required for this metric.'
-                  : budgetRead.isError
-                    ? 'Budget utilization could not be loaded.'
-                    : budgetCurrencies.length > 1
-                      ? 'Several currencies are recorded; see the Budget utilization panel.'
-                      : 'Approved expenses against planned budget allocations; pending is not counted.'
-              }
-              icon={CircleDollarSign}
-              label="Budget utilization"
-              tone={
-                budgetUtilizationPercent === null
-                  ? 'info'
-                  : budgetUtilizationPercent > 100
-                    ? 'warning'
-                    : 'success'
-              }
-              value={
-                !canReadBudgetUtilization
-                  ? 'Unavailable'
-                  : budgetRead.isError
-                    ? 'Unavailable'
-                    : !budgetRead.data
-                      ? 'Loading...'
+          <section className="grid gap-4 md:grid-cols-2 xl:auto-cols-fr xl:grid-flow-col">
+            {canReadIndicators ? (
+              <MetricCard
+                description="Average of released indicator progress values in this project and period."
+                icon={Target}
+                label="KPI achievement"
+                tone={averageKpi === null ? 'info' : averageKpi >= 70 ? 'success' : 'warning'}
+                value={
+                  averageKpi !== null
+                    ? `${averageKpi}%`
+                    : monitoringReadable
+                      ? 'None yet'
+                      : 'Unavailable'
+                }
+              />
+            ) : null}
+            {canReadBudgetUtilization ? (
+              <MetricCard
+                description={
+                  !canReadBudgetUtilization
+                    ? 'Budget and expense permissions are required for this metric.'
+                    : budgetRead.isError
+                      ? 'Budget utilization could not be loaded.'
                       : budgetCurrencies.length > 1
-                        ? 'Multiple currencies'
-                        : budgetUtilizationPercent !== null
-                          ? `${budgetUtilizationPercent}%`
-                          : 'No budget'
-              }
-            />
-            <MetricCard
-              description="Enrolled individuals overlapping the period; privacy suppression applies."
-              icon={UsersRound}
-              label="Beneficiary reach"
-              tone="info"
-              value={
-                monitoring?.enrolledIndividuals
-                  ? formatMetricCell(monitoring.enrolledIndividuals)
-                  : 'Unavailable'
-              }
-            />
-            <MetricCard
-              description="Completed activities in the selected project."
-              icon={ClipboardCheck}
-              label="Activity completion"
-              tone="success"
-              value={
-                canReadActivities ? `${completedActivities}/${activities.length}` : 'Unavailable'
-              }
-            />
-            <MetricCard
-              description={
-                !canReadAlerts
-                  ? 'Rule-Based Alerts are unavailable for this role.'
-                  : alertsFailed
-                    ? 'Open alerts could not be loaded. Use Retry in the Rule-Based Alerts panel.'
-                    : 'Open alerts (new, reviewed or actioned) in the selected project.'
-              }
-              icon={AlertTriangle}
-              label="Rule-Based Alerts"
-              tone={openAlertCount ? 'warning' : 'info'}
-              value={
-                !canReadAlerts
-                  ? 'Unavailable'
-                  : alertsLoading
-                    ? 'Loading...'
-                    : alertsFailed
+                        ? 'Several currencies are recorded; see the Budget utilization panel.'
+                        : 'Approved expenses against planned budget allocations; pending is not counted.'
+                }
+                icon={CircleDollarSign}
+                label="Budget utilization"
+                tone={
+                  budgetUtilizationPercent === null
+                    ? 'info'
+                    : budgetUtilizationPercent > 100
+                      ? 'warning'
+                      : 'success'
+                }
+                value={
+                  !canReadBudgetUtilization
+                    ? 'Unavailable'
+                    : budgetRead.isError
                       ? 'Unavailable'
-                      : openAlerts
-                        ? openAlertText
-                        : 'Unavailable'
-              }
-            />
+                      : !budgetRead.data
+                        ? 'Loading...'
+                        : budgetCurrencies.length > 1
+                          ? 'Multiple currencies'
+                          : budgetUtilizationPercent !== null
+                            ? `${budgetUtilizationPercent}%`
+                            : 'No budget'
+                }
+              />
+            ) : null}
+            {canReadIndicators ? (
+              <MetricCard
+                description="Enrolled individuals overlapping the period; privacy suppression applies."
+                icon={UsersRound}
+                label="Beneficiary reach"
+                tone="info"
+                value={
+                  monitoring?.enrolledIndividuals
+                    ? formatMetricCell(monitoring.enrolledIndividuals)
+                    : 'Unavailable'
+                }
+              />
+            ) : null}
+            {canReadActivities ? (
+              <MetricCard
+                description="Completed activities in the selected project."
+                icon={ClipboardCheck}
+                label="Activity completion"
+                tone="success"
+                value={
+                  canReadActivities ? `${completedActivities}/${activities.length}` : 'Unavailable'
+                }
+              />
+            ) : null}
+            {canReadAlerts ? (
+              <MetricCard
+                description={
+                  !canReadAlerts
+                    ? 'Rule-Based Alerts are unavailable for this role.'
+                    : alertsFailed
+                      ? 'Open alerts could not be loaded. Use Retry in the Rule-Based Alerts panel.'
+                      : 'Open alerts (new, reviewed or actioned) in the selected project.'
+                }
+                icon={AlertTriangle}
+                label="Rule-Based Alerts"
+                tone={openAlertCount ? 'warning' : 'info'}
+                value={
+                  !canReadAlerts
+                    ? 'Unavailable'
+                    : alertsLoading
+                      ? 'Loading...'
+                      : alertsFailed
+                        ? 'Unavailable'
+                        : openAlerts
+                          ? openAlertText
+                          : 'Unavailable'
+                }
+              />
+            ) : null}
           </section>
           <section className="space-y-6" aria-labelledby="fixed-monitoring-charts-title">
             <h2 className="text-lg font-semibold" id="fixed-monitoring-charts-title">
               Monitoring charts
             </h2>
-            <ChartPanel title="Indicator progress">
-              {indicators.some((row) => metricNumber(row.progress) !== null) ? (
-                <IndicatorProgressChart rows={progressRows(indicators)} />
-              ) : (
-                <UnavailableChart
-                  description="No released indicator progress for this project and period."
-                  {...(monitoringReadable ? { title: 'None yet' } : {})}
-                />
-              )}
-            </ChartPanel>
-            {analysisView === 'kpi' ? (
+            {canReadIndicators ? (
+              <ChartPanel title="Indicator progress">
+                {indicators.some((row) => metricNumber(row.progress) !== null) ? (
+                  <IndicatorProgressChart rows={progressRows(indicators)} />
+                ) : (
+                  <UnavailableChart
+                    description="No released indicator progress for this project and period."
+                    {...(monitoringReadable ? { title: 'None yet' } : {})}
+                  />
+                )}
+              </ChartPanel>
+            ) : null}
+            {analysisView === 'kpi' && canReadTrends ? (
               <ChartPanel title="Indicator trends">
                 {canReadTrends ? (
                   <InsightStatus read={trendsRead} label="Indicator trends">
@@ -1195,51 +1232,53 @@ export const AnalyticsDashboard = () => {
                 )}
               </ChartPanel>
             ) : null}
-            <ChartPanel title="Activity completion">
-              {canReadActivities ? (
+            {canReadActivities ? (
+              <ChartPanel title="Activity completion">
                 <ActivityCompletionChart activities={activities} />
-              ) : (
-                <UnavailableChart description="Activity details are not available for this role." />
-              )}
-            </ChartPanel>
-            <div className="grid gap-6 xl:grid-cols-2">
-              <ChartPanel title="Budget utilization">
-                {canReadBudgetUtilization ? (
-                  <InsightStatus read={budgetRead} label="Budget utilization">
-                    {(data) => <BudgetSummaryCard data={data} />}
-                  </InsightStatus>
-                ) : (
-                  <UnavailableChart description="Budget and expense read permissions are required for this chart." />
-                )}
               </ChartPanel>
-              <ChartPanel title="Rule-Based Alerts">
-                {!canReadAlerts ? (
-                  <UnavailableChart description="Rule-Based Alerts are unavailable for this role." />
-                ) : alertsLoading ? (
-                  <AsyncState
-                    status="loading"
-                    title="Loading Rule-Based Alerts"
-                    description="Verifying current alert access."
-                    icon={AlertTriangle}
-                  />
-                ) : alertsFailed ? (
-                  <AsyncState
-                    status="error"
-                    title="Rule-Based Alerts unavailable"
-                    description="Open alerts could not be loaded."
-                    icon={AlertTriangle}
-                    onRetry={() => void alertRead.refetch()}
-                  />
-                ) : openAlerts ? (
-                  <p className="text-sm text-foreground">
-                    <span className="text-3xl font-semibold tabular-nums">{openAlertText}</span>{' '}
-                    open alert{openAlerts.count === 1 && !openAlerts.capped ? '' : 's'} in this
-                    project.
-                  </p>
-                ) : (
-                  <UnavailableChart description="Select a project to see its Rule-Based Alerts." />
-                )}
-              </ChartPanel>
+            ) : null}
+            <div className="grid gap-6 xl:auto-cols-fr xl:grid-flow-col">
+              {canReadBudgetUtilization ? (
+                <ChartPanel title="Budget utilization">
+                  {canReadBudgetUtilization ? (
+                    <InsightStatus read={budgetRead} label="Budget utilization">
+                      {(data) => <BudgetSummaryCard data={data} />}
+                    </InsightStatus>
+                  ) : (
+                    <UnavailableChart description="Budget and expense read permissions are required for this chart." />
+                  )}
+                </ChartPanel>
+              ) : null}
+              {canReadAlerts ? (
+                <ChartPanel title="Rule-Based Alerts">
+                  {!canReadAlerts ? (
+                    <UnavailableChart description="Rule-Based Alerts are unavailable for this role." />
+                  ) : alertsLoading ? (
+                    <AsyncState
+                      status="loading"
+                      title="Loading Rule-Based Alerts"
+                      description="Verifying current alert access."
+                      icon={AlertTriangle}
+                    />
+                  ) : alertsFailed ? (
+                    <AsyncState
+                      status="error"
+                      title="Rule-Based Alerts unavailable"
+                      description="Open alerts could not be loaded."
+                      icon={AlertTriangle}
+                      onRetry={() => void alertRead.refetch()}
+                    />
+                  ) : openAlerts ? (
+                    <p className="text-sm text-foreground">
+                      <span className="text-3xl font-semibold tabular-nums">{openAlertText}</span>{' '}
+                      open alert{openAlerts.count === 1 && !openAlerts.capped ? '' : 's'} in this
+                      project.
+                    </p>
+                  ) : (
+                    <UnavailableChart description="Select a project to see its Rule-Based Alerts." />
+                  )}
+                </ChartPanel>
+              ) : null}
             </div>
           </section>
         </>

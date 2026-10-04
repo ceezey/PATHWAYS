@@ -7,10 +7,23 @@ import { AnalyticsController } from './analytics.controller'
 import { AnalyticsService } from './analytics.service'
 import { DashboardsController } from './dashboards.controller'
 import { DashboardsService } from './dashboards.service'
+import { RoleOverviewController } from './role-overview.controller'
+import { RoleOverviewService } from './role-overview.service'
 @Module({
   imports: [IndicatorsModule],
-  controllers: [DashboardsController, AnalyticsController, ActionCountsController],
-  providers: [DashboardsService, AnalyticsService, ActionCountsService, RulesHumanService],
+  controllers: [
+    DashboardsController,
+    AnalyticsController,
+    ActionCountsController,
+    RoleOverviewController,
+  ],
+  providers: [
+    DashboardsService,
+    AnalyticsService,
+    ActionCountsService,
+    RoleOverviewService,
+    RulesHumanService,
+  ],
   exports: [DashboardsService],
 })
 export class DashboardsModule {}

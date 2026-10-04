@@ -80,6 +80,8 @@
 - Centered the six OTP boxes on the security check screen.
 - MFA code auto-verifies once all six digits are entered.
 - After an accepted MFA code the card shows "Code accepted. Opening your workspace..." instead of the code form; falls back with an error after 30s if aal2 is not confirmed.
+- Staff sign-in: removed the "Supabase password and TOTP authentication" hint beside Forgot Password.
+- MFA card narrowed (max-w-md); Recheck securely removed (reloading the page is the retry path); Sign out and clear this page renamed to a back-arrow "Login" button (accessible name "Sign out and return to login"); Verify authenticator code moved beside it, left-aligned. mfa-access e2e uses a page reload in place of recheck (16/16).
 
 ## 2026-10-04 Activity beneficiaries reached always 0
 - Root cause: p08_activity_beneficiaries_reached runs as `prisma` (no BYPASSRLS) and activity_updates forces RLS, so it saw no rows. readReached now uses a grouped Prisma query under runtime RLS; authorized callers get 0 instead of null. Privacy review: PASS WITH NOTES (notes applied); function repair deferred.
@@ -135,3 +137,69 @@
 - Removed a useless Fragment in the activity list Export action; the proof dialog progress bar takes tabIndex 0 like the shared ProgressBar.
 - Typecheck then surfaced a mock transaction type error in action-counts.service.test.ts; cast to Prisma.TransactionClient as other tests do.
 - Local lint, typecheck, test (api 105 files passed, 8 skipped for PostgreSQL; web 187) and build pass.
+- 0058-0060 applied on devV2 after master 6d4ee10f reached production; ledger 35 rows 0000-0060, pinned md5s match. First resume failed safely at 0059 because hosted-build --resume reuses a stale .tmp/hosted-build/migrations stage; clear it before resuming.
+
+## 2026-10-04 Testing-session UI fixes (feature/session-sprint-20261004, not pushed)
+
+- MFA card: Figma loading card for session checks, Verify button renamed and right-aligned, Login keeps the card in place until sign-out completes.
+- Site header: HDO Public Portal eyebrow removed (DSD public context updated).
+- Staff login: moved onto StaffAuthFrame (PATHWAYS mark, bordered 44px inputs); frame card radius set to the DSD 12px for all staff auth pages.
+- Dashboard: task cards centered, Open monitoring beside the project scope select, aggregate option relabeled Select Project.
+- Sidebar: collapsed state persisted in the pathways-sidebar cookie and read by the dashboard layout on first paint.
+- Collection: Data workspace eyebrow removed from collection, import and direct-entry headers.
+- Analytics export: format menu (CSV, XLS, XLSX, PDF) above Add to Dashboard; API export takes an optional format, renders non-CSV through createReportArtifact and audits the chosen format. CSV bytes unchanged.
+- Dashboard: aggregate scope option relabeled All projects.
+- Data Analysis: views, overview cards, chart panels and Add to Dashboard are hidden when the role lacks the permission (previously Unavailable or disabled). PRD/QAD rows that describe restricted wording on this page are now doc drift to reconcile after the defense.
+- Alerts: eyebrow and description removed, Manage rules moved right-aligned into the filter row, project default relabeled Select Project.
+- Alert repository: Alerts / Alert Repository breadcrumb, description removed, scope and status use the shared Select.
+- Rule test: conditions numbered and described in words instead of IDs; results use Triggered / Not triggered / Unavailable badges with observed value and unit.
+- Indicator form: Type and Recipe get helper text; choosing a recipe preselects a matching type (Activity completion % -> Activity), still editable.
+- Activity proof: target-based activities could never complete (read-only bar capped at 99 since 13baeab1); added an explicit 'This proof completes the activity (100%)' checkbox. Activity completion % semantics unchanged (completed activities only).
+- Role dashboards: read-only `GET /dashboards/role-overview` (`projects.read`, sections null without their permission) with a shared contract; layouts for Project Officer, M&E Officer, Project Manager and a portfolio view for Program Manager and Grant Manager (Grant Manager read-only). System Administrator keeps the previous dashboard.
+- Project health labels derive only from open rule-based alerts; evaluation scores show the stored number with no quality label. Request extension, escalated-alerts queue and evaluation approval rows are deferred to Plan 2 (register and PRD updated; DSD patterns added).
+
+## 2026-10-04 Budget envelope total
+
+- Budget page: total allocated is now the project envelope (PROJECT_PROFILE_TOTAL) when one exists, and the Project-level row shows the envelope minus activity allocations (negative if over-allocated), so utilization matches the overview tile. Without an envelope the sum of activity rows is used. Rules metric and analytics aggregate still sum all rows (deferred-features.md).
+
+## 2026-10-04 Program Manager project assignment
+
+- System Administrator can assign a Program Manager to projects in User Management; zero assignments are allowed because managed programs still apply. Changes in canAssignRole, users service, access matrix and the user management workspace; no migration (RLS p09_assignment_insert already allows it). Recorded in cr-pathways-program-manager-project-assignment; program creation and manager_user_id setting stay deferred.
+
+## 2026-10-04 Sign-in page polish
+
+- Auth frame uses the DSD canvas beige (`bg-background`) instead of the blue gradient, on every auth page; DSD auth background note updated.
+- Sign-in title is now "Sign in", the "Project Information Management" subtitle is removed (frame description is optional), and "Forgot password?" is left aligned.
+- Sign-in card narrowed to max-w-md to match the MFA card.
+- MFA page: verified, code-accepted and finding-workspace states now show a compact loading card; the session-check skeletons are replaced by the disabled OTP boxes so the page opens straight on the code entry.
+- MFA pending state: pulsing skeleton bar above the disabled OTP boxes; the footer always shows "Login", disabled while the session and factor check runs (e2e logout-during-discovery test now asserts the disabled state).
+
+## 2026-10-04 F13 public tracker UI
+
+- Public home, list and project pages now render only the eight allowlisted snapshot fields plus publish date; dropped the always-empty progress, beneficiary, budget, assessment, donate and indicator blocks of the legacy detail view (kept on disk, unused by public routes).
+- Staff preview reads the current revision's frozen snapshot through the authorized publication API (react-query via useAuthorizedRead), so reviewers see unpublished revisions; the queue links to it.
+- No API, schema or migration change. Local web typecheck, lint, tests (189 files) and build pass; G-F13-5 hosted verification stays Not met until checked on a hosted preview.
+- Gate review found QAD-T74, QAD-T75 and QAD-A09 cited public.service.test.ts without matching tests; added service tests for distinct-approver approval, self-approval refusal, out-of-stage transitions, withdraw then public not found, and the anonymous route list (no media route), plus a queue test that the submitter cannot approve.
+- PublicService now refuses self-approval with a 409 before the database trigger does. The trigger and the PUBLISHED-only projection are still not exercised by a database-backed test.
+- Rebased onto dev per Cian; on dev the web auth-navigation contract test already fails (AppShell layout now reads the sidebar cookie), unrelated to F13.
+## 2026-10-04 Defense demo verify fixes
+
+- Verifier: activity updates, library entries, indicator bindings and publications force RLS, so the owner read 0; those checks now run as the M&E Officer or Project Manager on the runtime role. Escalation is read from the `decision.recorded` audit trail (F10 decisions never set `decision_recommendations.outcome`).
+- Seed: the Lavezares import faults (under minimum age, guardian consent) only failed at promotion as retryable errors, leaving the batch unfinished; they are now a day-first birth date and a blank required consent, rejected at validation.
+- Clean local wipe, full seed and `--verify`: exit 0, 23 of 23 checks. CRL follow-up and WSH survey improvement alerts fire (issue 2 confirmed, no fix needed).
+- Reported, not fixed (API): registration rule failures during import promotion are retried as transient instead of being flagged at validation or marked for review.
+
+## 2026-10-04 Plan 2: extension requests and escalated alerts (feature/session-sprint-20261004)
+
+- Resumed from the cloud handoff. A clean local baseline replay with 0061 passed (exit 0, ACTIVITY_EXTENSION_REQUESTS_RUNTIME 12 assertions, all four current-schema API suites), so the earlier current-schema suite failure did not reproduce; the TMPDIAG diagnostics were removed and SCHEMA_DRIFT stayed CLEAN with no accept needed.
+- 0062 adds `pathways.f10_escalated_alert_list` owned by `rules_human_owner` behind a new rules-escalation preprovision/cleanup pair; the schema owner lends CREATE inside the migration (0053 pattern). Ledger 37 rows. The runtime suite reuses the rules suite alerts and runs after it on the recovered 0060 clone (11 assertions).
+- API: `activity-extensions` module (request, verify, decide; approval runs ACTIVITY_UPDATE so rules re-evaluate) and `GET /alerts/escalated`. The shared extension contract carries `updatedAt` because verify and decide need it as the expected version.
+- Role overview: `myExtensions`, `extensionQueue`, `alerts.escalated` and `alerts.escalatedOpen`. Web: Request an extension dialog and extension panel replace the disabled placeholder; dashboards show returned notes, an Extension pending badge, the M&E verify queue, EXT rows in Pending your approval, and Escalated alerts on the portfolio.
+- Local environment notes: cdn.sheetjs.com is blocked here, so xlsx 0.18.5 was linked locally only (not committed); pnpm 11 needs `verify_deps_before_run=false` to stop reinstalling before each exec. `apps/web/src/lib/rbac/auth-navigation.contract.test.ts` already fails on the dashboard layout from a0d34a5 (sidebar cookie); not touched here.
+- Hosted apply (Task 8 step 4) is left for the developer: it needs the role-staging env file and credentials, which are not in this session.
+
+## 2026-10-04 Dashboard and project navigation fixes
+- Role overview buttons (View, Resolve, Submit update, Resubmit proof, Review, Approve, list rows) now navigate to their own page instead of opening the in-place dashboard sheet, which kept reloading; activity buttons open the activity list with that activity's details open.
+- Project Manager budget alert rows, Log outcome and the Active budget alerts View go to the alert's project Budget page; Approve opens the Budget ledger with that expense expanded via a `#expense-<id>` hash.
+- Project Overview tab removed; `/projects/:id` redirects to Project Activities, which now carries the Edit and Archive buttons.
+- Target Indicators, Evidence, Monitor & Evaluate, Budget and Journey stages get a Back button that steps back one page in history (falls back to Project Activities on a fresh tab); Evidence's Back to Projects link removed.

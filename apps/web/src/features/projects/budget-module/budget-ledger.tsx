@@ -25,6 +25,12 @@ const statusLabel = {
   REJECTED: { text: 'Rejected', tone: 'danger' },
 } as const
 
+/** Expense id from a `#expense-<id>` link, read on the client only. */
+export const hashedExpenseId = () =>
+  typeof window === 'undefined'
+    ? null
+    : (window.location.hash.match(/^#expense-(.+)$/)?.[1] ?? null)
+
 export const BudgetLedger = ({
   projectId,
   module,
@@ -40,7 +46,7 @@ export const BudgetLedger = ({
   const can = (permission: Parameters<typeof principalHasAtomicPermission>[1]) =>
     principalHasAtomicPermission(profile, permission)
   const me = profile?.userId ?? ''
-  const [open, setOpen] = useState<string | null>(null)
+  const [open, setOpen] = useState<string | null>(hashedExpenseId)
   const [review, setReview] = useState<{ expense: Expense; action: ReviewAction } | null>(null)
 
   const budgetOf = (expense: Expense) => module.budgets.find((b) => b.id === expense.budgetRecordId)

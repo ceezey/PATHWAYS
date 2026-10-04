@@ -326,6 +326,11 @@ export const PublicationQueueWorkspace = ({
                   </Button>
                 )}
               </div>
+              {current && (
+                <Button asChild variant="ghost">
+                  <Link href={`/transparency/${id}/preview`}>Staff preview</Link>
+                </Button>
+              )}
               {current?.state === 'PUBLISHED' && (
                 <Button asChild variant="ghost">
                   <Link href={`/public/projects/${id}`} target="_blank" rel="noreferrer">

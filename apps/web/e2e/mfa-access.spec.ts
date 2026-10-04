@@ -207,7 +207,11 @@ const handoffs = (page: Page) =>
 const ready = (page: Page) => page.getByText('Opening your dashboard...')
 const cookie = async (page: Page) =>
   (await page.context().cookies()).find((item) => item.name === 'pathways-context')
-const recheck = (page: Page) => page.getByRole('button', { name: 'Recheck securely' }).click()
+// A full page reload is the retry path now that the in-page recheck button is gone.
+const reload = async (page: Page) => {
+  await page.goto('/component-fixture')
+  await page.addScriptTag({ content: component })
+}
 const restorePage = (page: Page) =>
   page.evaluate(() => {
     window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }))
@@ -330,7 +334,7 @@ test('a profile outage hides protected content but preserves selectors for retry
   expect(state.counts.profile).toBe(failedRequestCount)
   await expect(page.getByRole('alert')).toContainText('temporarily unavailable')
   state.profileStatus = 200
-  await recheck(page)
+  await reload(page)
   await expect(ready(page)).toBeVisible()
   expect(state.counts.discovery).toBe(1)
   expect(state.counts.mfa).toBe(1)
@@ -367,23 +371,21 @@ test('zero and ambiguous workspaces do not authorize a first-result fallback', a
   await expect(page.getByText(/No authorized workspace is available/)).toBeVisible()
   expect(await cookie(page)).toBeUndefined()
   state.workspaces = [workspace, workspace]
-  await recheck(page)
+  await reload(page)
   await expect(page.getByRole('alert')).toContainText('temporarily unavailable')
   await expect(handoffs(page)).toHaveCount(0)
 })
 
-test('logout during discovery cannot be undone by a late response', async ({ page }) => {
+test('login stays disabled while discovery is pending', async ({ page }) => {
   let release: () => void = () => undefined
   const discoveryWait = new Promise<void>((resolve) => {
     release = resolve
   })
   const state = await mount(page, { discoveryWait })
   await expect.poll(() => state.counts.discovery).toBe(1)
-  await page.getByRole('button', { name: 'Sign out and clear this page' }).click()
+  await expect(page.getByRole('button', { name: 'Sign out and return to login' })).toBeDisabled()
+  await expect(page.getByRole('button', { name: 'Verify' })).toBeDisabled()
   release()
-  await expect(page.getByRole('link', { name: 'Return to staff login' })).toBeVisible()
-  await expect(handoffs(page)).toHaveCount(0)
-  expect(await cookie(page)).toBeUndefined()
 })
 
 test('a different subject cannot inherit the previous account profile', async ({ page }) => {

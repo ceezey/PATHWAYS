@@ -121,6 +121,33 @@ const journeyStages: Partial<Record<ProjectKey, StageSpec[]>> = {
       activityKeys: [],
     },
   ],
+  WSH: [
+    {
+      code: 'ENROLLED',
+      name: 'Enrolled as a school participant',
+      order: 1,
+      type: 'ENTRY',
+      description: 'Learner or teacher registered.',
+      activityKeys: [],
+    },
+    {
+      code: 'HYGIENE-CLUB',
+      name: 'Hygiene club member',
+      order: 2,
+      type: 'CORE',
+      description: 'Joined the school hygiene club and its training.',
+      activityKeys: ['hygiene'],
+    },
+    {
+      code: 'CLUB-LEADER',
+      name: 'Hygiene club leader',
+      order: 3,
+      type: 'CORE',
+      terminal: true,
+      description: 'Elected as a club officer and leads school hygiene routines.',
+      activityKeys: [],
+    },
+  ],
 }
 
 const attendanceForms: Partial<

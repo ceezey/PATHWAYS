@@ -1,6 +1,6 @@
 'use client'
 
-import { LoaderCircle, ShieldCheck } from 'lucide-react'
+import { ArrowLeft, LoaderCircle, ShieldCheck } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
@@ -25,15 +25,8 @@ interface FactorChoice {
 export function MfaForm() {
   const router = useRouter()
   const { session, status, configured, refreshSession, signOut } = useSession()
-  const {
-    access,
-    mfaStatus,
-    accessError,
-    accessRefreshing,
-    refreshAccess,
-    claimWorkspaceHandoff,
-    resetWorkspaceHandoff,
-  } = useCurrentRole()
+  const { access, mfaStatus, accessError, accessRefreshing, refreshAccess, claimWorkspaceHandoff } =
+    useCurrentRole()
   const supabase = getBrowserSupabaseClient()
   const token = session?.access_token ?? null
   const tokenRef = useRef(token)
@@ -62,6 +55,7 @@ export function MfaForm() {
   const handoffUser = useRef(session?.user.id)
   const [handoff, setHandoff] = useState<'idle' | 'opening' | 'stalled'>('idle')
   const [accepted, setAccepted] = useState(false)
+  const [leaving, setLeaving] = useState(false)
   const currentUserId = session?.user.id
   const sessionSubject = currentUserId ?? null
   const allowedAccount = Boolean(currentUserId)
@@ -79,6 +73,15 @@ export function MfaForm() {
   const choices = verifiedFactors.length
     ? verifiedFactors
     : (current?.factors.filter((factor) => factor.factor_type === 'totp') ?? [])
+  const codeFormVisible = Boolean(
+    configured &&
+      status !== 'loading' &&
+      session &&
+      !accepted &&
+      current &&
+      current.status.aal !== 'aal2' &&
+      (privateEnrollment || choices.length > 0),
+  )
 
   useEffect(() => {
     if (handoffUser.current !== session?.user.id) {
@@ -95,7 +98,7 @@ export function MfaForm() {
     const timeout = window.setTimeout(() => {
       setAccepted(false)
       setError(
-        'Your code was accepted, but the session could not be confirmed. Recheck securely or sign in again.',
+        'Your code was accepted, but the session could not be confirmed. Reload this page or sign in again.',
       )
     }, 30_000)
     return () => window.clearTimeout(timeout)
@@ -352,18 +355,21 @@ export function MfaForm() {
     if (isTotpCode(code)) void verify()
   }, [code])
 
+  // Keeps the current card in place during sign-out so no signed-out view flashes before login.
   const leave = async () => {
     ++operation.current
-    setAccepted(false)
-    setEnrollment(null)
-    setCode('')
-    setCheck(null)
-    setFactorId('')
+    setLeaving(true)
     setBusy(true)
     try {
       await signOut()
       router.replace('/staff/login')
     } catch {
+      setLeaving(false)
+      setAccepted(false)
+      setEnrollment(null)
+      setCode('')
+      setCheck(null)
+      setFactorId('')
       setError(
         'Sign-out could not be confirmed. Close this private browser window before continuing.',
       )
@@ -372,8 +378,42 @@ export function MfaForm() {
     }
   }
 
+  const loadingMessage =
+    accepted && current?.status.aal !== 'aal2'
+      ? 'Code accepted. Opening your workspace...'
+      : current?.status.aal === 'aal2' && current.status.applicationAccessEnabled
+        ? access === 'loading'
+          ? 'Finding your authorized workspace...'
+          : access === 'ready' && handoff !== 'stalled'
+            ? 'Opening your dashboard...'
+            : null
+        : null
+  // The OTP boxes show disabled while the session and factor check is still running.
+  const codePending =
+    configured &&
+    !accepted &&
+    !error &&
+    !accessError &&
+    (status === 'loading' || (Boolean(session) && !current))
+
+  if (loadingMessage && !error) {
+    return (
+      <Card className="mx-auto w-full max-w-md" data-private="true">
+        <CardContent className="flex flex-col items-center gap-4 p-8 text-center">
+          <LoaderCircle
+            className="h-8 w-8 animate-spin text-primary motion-reduce:animate-none"
+            aria-hidden="true"
+          />
+          <output className="text-sm font-medium" aria-live="polite" aria-busy="true">
+            {loadingMessage}
+          </output>
+        </CardContent>
+      </Card>
+    )
+  }
+
   return (
-    <Card className="mx-auto w-full max-w-xl" data-private="true">
+    <Card className="mx-auto w-full max-w-md" data-private="true">
       <CardHeader>
         <ShieldCheck className="mb-2 h-9 w-9 text-primary" aria-hidden="true" />
         <CardTitle>Security check</CardTitle>
@@ -389,10 +429,26 @@ export function MfaForm() {
         )}
         {!configured ? (
           <p>The authentication connection is not configured.</p>
-        ) : status === 'loading' ? (
-          <output>Checking your session...</output>
+        ) : codePending ? (
+          <div className="space-y-3" aria-busy="true">
+            <div aria-hidden="true" className="h-4 w-3/4 animate-pulse rounded-md bg-secondary" />
+            <label className="block text-sm" htmlFor="mfa-code">
+              Six-digit authenticator code
+            </label>
+            <OtpInput
+              id="mfa-code"
+              length={6}
+              label="Authenticator code"
+              value=""
+              onChange={() => {}}
+              disabled
+              className="justify-center"
+            />
+          </div>
         ) : !session ? (
-          <p>Sign in before setting up MFA.</p>
+          leaving ? null : (
+            <p>Sign in before setting up MFA.</p>
+          )
         ) : accepted && current?.status.aal !== 'aal2' ? (
           <output className="flex items-center gap-2" aria-live="polite" aria-busy="true">
             <LoaderCircle
@@ -405,11 +461,7 @@ export function MfaForm() {
           accessError ? (
             <p role="alert">{accessError}</p>
           ) : (
-            <output>
-              {error
-                ? 'Verification is blocked.'
-                : 'Checking current session and workspace access...'}
-            </output>
+            <output>Verification is blocked.</output>
           )
         ) : current.status.aal === 'aal2' ? (
           <div className="space-y-4">
@@ -451,7 +503,7 @@ export function MfaForm() {
                 ) : access === 'no_workspace' ? (
                   <output>
                     No authorized workspace is available. Ask an administrator to review your
-                    access, or sign out. You can recheck after access is updated.
+                    access, or sign out. Reload this page after access is updated.
                   </output>
                 ) : accessError ? (
                   <p className="text-sm text-destructive" role="alert">
@@ -459,7 +511,7 @@ export function MfaForm() {
                   </p>
                 ) : (
                   <output>
-                    Workspace access is not available. Recheck securely or ask the development
+                    Workspace access is not available. Reload this page or ask the development
                     administrator for help.
                   </output>
                 )}
@@ -561,8 +613,9 @@ export function MfaForm() {
                 be changed here.
               </p>
             )}
-            {(privateEnrollment || choices.length > 0) && (
+            {codeFormVisible && (
               <form
+                id="mfa-code-form"
                 className="space-y-3"
                 onSubmit={(event) => {
                   event.preventDefault()
@@ -581,37 +634,44 @@ export function MfaForm() {
                   disabled={busy}
                   className="justify-center"
                 />
-                <Button type="submit" disabled={busy || !isTotpCode(code)}>
-                  {busy ? 'Verifying...' : 'Verify authenticator code'}
-                </Button>
               </form>
             )}
           </div>
         )}
-        <div className="flex flex-wrap gap-3 border-t pt-4">
-          {session ? (
-            <Button type="button" variant="outline" disabled={busy} onClick={() => void leave()}>
-              Sign out and clear this page
-            </Button>
-          ) : (
-            <Button asChild variant="outline">
-              <Link href="/staff/login">Return to staff login</Link>
-            </Button>
-          )}
-          {allowedAccount && !privateEnrollment && (
+        <div className="flex flex-wrap items-center gap-3">
+          {session || leaving ? (
             <Button
               type="button"
-              variant="ghost"
-              disabled={busy || accessRefreshing}
-              onClick={() => {
-                handoffAttempted.current = false
-                resetWorkspaceHandoff()
-                setHandoff('idle')
-                setRefresh((value) => value + 1)
-                refreshAccess()
-              }}
+              variant="outline"
+              className="gap-2"
+              aria-label="Sign out and return to login"
+              disabled={busy || leaving || codePending}
+              onClick={() => void leave()}
             >
-              Recheck securely
+              <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+              Login
+            </Button>
+          ) : codePending ? (
+            <Button type="button" variant="outline" className="gap-2" disabled>
+              <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+              Login
+            </Button>
+          ) : (
+            <Button asChild variant="outline" className="gap-2">
+              <Link href="/staff/login">
+                <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+                Login
+              </Link>
+            </Button>
+          )}
+          {(codeFormVisible || codePending) && (
+            <Button
+              type="submit"
+              form="mfa-code-form"
+              className="ml-auto"
+              disabled={codePending || busy || !isTotpCode(code)}
+            >
+              {busy ? 'Verifying...' : 'Verify'}
             </Button>
           )}
         </div>

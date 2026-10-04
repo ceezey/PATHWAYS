@@ -17,6 +17,8 @@ const snapshot = z
   })
   .strict()
 
+export type PublicProjectSnapshot = z.infer<typeof snapshot>
+
 export function mapPublicSnapshot(input: unknown): PublicProjectRecord {
   const row = snapshot.parse(input)
   return {
@@ -60,7 +62,8 @@ export function mapPublicSnapshot(input: unknown): PublicProjectRecord {
   }
 }
 
-export async function readPublicProjects(projectId?: string): Promise<PublicProjectRecord[]> {
+// Reads the allowlisted public snapshots; throws PUBLIC_NOT_FOUND or PUBLIC_UNAVAILABLE.
+export async function readPublicSnapshots(projectId?: string): Promise<PublicProjectSnapshot[]> {
   if (projectId && !z.string().uuid().safeParse(projectId).success)
     throw new Error('PUBLIC_NOT_FOUND')
   const base = approvedApiBaseUrl(webEnv.NEXT_PUBLIC_API_BASE_URL, webEnv.NEXT_PUBLIC_API_BASE_URL)
@@ -78,7 +81,9 @@ export async function readPublicProjects(projectId?: string): Promise<PublicProj
   const text = await response.text()
   if (text.length > 1_000_000) throw new Error('PUBLIC_UNAVAILABLE')
   const value: unknown = JSON.parse(text)
-  return projectId
-    ? [mapPublicSnapshot(value)]
-    : z.array(snapshot).max(100).parse(value).map(mapPublicSnapshot)
+  return projectId ? [snapshot.parse(value)] : z.array(snapshot).max(100).parse(value)
+}
+
+export async function readPublicProjects(projectId?: string): Promise<PublicProjectRecord[]> {
+  return (await readPublicSnapshots(projectId)).map(mapPublicSnapshot)
 }

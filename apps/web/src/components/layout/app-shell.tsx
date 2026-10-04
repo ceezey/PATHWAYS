@@ -7,6 +7,7 @@ import { useState } from 'react'
 import { toast } from 'sonner'
 
 import { Sidebar } from '@/components/layout/sidebar'
+import { sidebarCookie } from '@/components/layout/sidebar-preference'
 import { SkipLink } from '@/components/layout/skip-link'
 import { TopBarBreadcrumb } from '@/components/layout/top-bar-breadcrumb'
 import { Button } from '@/components/ui/button'
@@ -33,9 +34,15 @@ import { getVerifiedRouteAccess } from '@/lib/rbac/route-access'
 import { cn } from '@/lib/utils'
 import { getPathwaysRoleDisplayName } from '@/types/pathways-role'
 
-export const AppShell = ({ children }: { children: React.ReactNode }) => {
+export const AppShell = ({
+  children,
+  initialCompact = false,
+}: {
+  children: React.ReactNode
+  initialCompact?: boolean
+}) => {
   const pathname = usePathname()
-  const [compact, setCompact] = useState(false)
+  const [compact, setCompact] = useState(initialCompact)
   const [mobileOpen, setMobileOpen] = useState(false)
   const { email, signOut } = useSession()
   const { role, profile, assignedProjectIds } = useCurrentRole()
@@ -47,6 +54,13 @@ export const AppShell = ({ children }: { children: React.ReactNode }) => {
   )
   const canOpenAlerts = Boolean(profile && getVerifiedRouteAccess(profile, '/alerts').allowed)
   const initials = accountInitials(profile?.fullName ?? email)
+
+  // Persists the choice so reloads and remounts reopen the sidebar the same way.
+  const toggleCompact = () => {
+    const next = !compact
+    setCompact(next)
+    document.cookie = sidebarCookie(next)
+  }
 
   const handleSignOut = async () => {
     try {
@@ -63,7 +77,7 @@ export const AppShell = ({ children }: { children: React.ReactNode }) => {
     <div className="min-h-dvh bg-background lg:grid lg:grid-cols-[auto_1fr]">
       <SkipLink />
       <div className="hidden lg:sticky lg:top-0 lg:block lg:h-dvh lg:self-start">
-        <Sidebar compact={compact} onToggle={() => setCompact((value) => !value)} />
+        <Sidebar compact={compact} onToggle={toggleCompact} />
       </div>
       <div className="flex min-h-dvh min-w-0 flex-col">
         <header className="sticky top-0 z-30 border-b border-border bg-card">

@@ -1,5 +1,6 @@
 import { type ProtectedPageProps, requireServerPage } from '@/lib/rbac/server-access'
 
+import { BackButton } from '@/components/layout/back-button'
 import { ProjectIndicatorsWorkspace } from '@/features/projects/project-indicators-workspace'
 
 async function ProjectIndicatorsPage({
@@ -9,7 +10,12 @@ async function ProjectIndicatorsPage({
 }) {
   const { projectId } = await params
 
-  return <ProjectIndicatorsWorkspace projectId={projectId} />
+  return (
+    <>
+      <BackButton fallbackHref={`/projects/${projectId}/activities`} />
+      <ProjectIndicatorsWorkspace projectId={projectId} />
+    </>
+  )
 }
 
 export const dynamic = 'force-dynamic'

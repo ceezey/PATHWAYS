@@ -12,7 +12,7 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useEffect, useRef, useState } from 'react'
+import { type ReactNode, useEffect, useRef, useState } from 'react'
 
 import { PageHeader } from '@/components/layout/page-header'
 import {
@@ -53,6 +53,7 @@ import { ActivityProofDialog } from '../projects/activity-proof-dialog'
 import { ActionKpiRow } from './action-kpi-row'
 import { ExecutiveDashboard } from './executive-dashboard'
 import { PinnedCharts } from './pinned-charts'
+import { RoleOverviewDashboard } from './role-overview/role-overview'
 
 export const canLoadDashboardMonitoring = (
   role: PathwaysRole | null,
@@ -105,7 +106,7 @@ const actionWorkflowHref = (action: DashboardAction) => {
   return '/projects'
 }
 
-const dashboardActivityTarget = (href?: string) => {
+export const dashboardActivityTarget = (href?: string) => {
   const match = href?.match(/^\/projects\/([^/]+)\/activities\/([^/?#]+)/)
   if (!match) return null
 
@@ -123,7 +124,7 @@ const dashboardActivityTarget = (href?: string) => {
 
 type DashboardActivityTarget = NonNullable<ReturnType<typeof dashboardActivityTarget>>
 
-const DashboardActivityReviewPanel = ({
+export const DashboardActivityReviewPanel = ({
   role,
   target,
   onActivityChanged,
@@ -185,6 +186,7 @@ const DashboardActivityReviewPanel = ({
         <ActivityDetailPanel
           activity={activity}
           canDecideProof={role === 'Project Manager'}
+          canDecideExtension={role === 'Project Manager'}
           canEdit={false}
           canLogExpense={role === 'Project Officer'}
           canRequestExtension={role === 'Project Officer'}
@@ -252,8 +254,10 @@ const trailingYearPeriod = () => {
 const PERIOD_NOTE = 'Covers the last 12 months.'
 const ConnectedMonitoringSnapshot = ({
   role,
+  action,
 }: {
   role: ReturnType<typeof useCurrentRole>['role']
+  action?: ReactNode
 }) => {
   const [projects, setProjects] = useState<Array<{ id: string; title: string }>>([])
   const [projectId, setProjectId] = useState('')
@@ -338,8 +342,8 @@ const ConnectedMonitoringSnapshot = ({
   if (!role || !can(role, 'monitor_evaluate.view')) return null
   return (
     <SectionCard title="Project monitoring">
-      <div className="mb-4 max-w-xl">
-        <div className="space-y-1.5">
+      <div className="mb-4 flex flex-wrap items-end gap-3">
+        <div className="w-full max-w-xl space-y-1.5">
           <label className="text-sm font-medium" htmlFor="dashboard-project-scope">
             Project scope
           </label>
@@ -348,7 +352,7 @@ const ConnectedMonitoringSnapshot = ({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All authorized projects</SelectItem>
+              <SelectItem value="all">All projects</SelectItem>
               {projects.map((project) => (
                 <SelectItem key={project.id} value={project.id}>
                   {project.title}
@@ -357,6 +361,7 @@ const ConnectedMonitoringSnapshot = ({
             </SelectContent>
           </Select>
         </div>
+        {action ? <div className="ml-auto">{action}</div> : null}
       </div>
       {error ? (
         <EmptyState
@@ -491,7 +496,7 @@ export const RoleDashboard = () => {
     let mounted = true
     setStatus('loading')
 
-    if (!role) return
+    if (role !== 'System Administrator') return
     pathwaysClient
       .getDashboard(role)
       .then((viewModel) => {
@@ -537,6 +542,9 @@ export const RoleDashboard = () => {
     router.push(actionWorkflowHref(action))
   }
 
+  if (role && role !== 'System Administrator')
+    return <RoleOverviewDashboard fullName={profile?.fullName} role={role} />
+
   if (status === 'loading') {
     return (
       <>
@@ -571,23 +579,23 @@ export const RoleDashboard = () => {
 
   return (
     <>
-      <PageHeader
-        actions={
-          !dashboard.executive &&
-          dashboard.primaryAction &&
-          canOpenDashboardMonitoring(role, profile) ? (
-            <ActionButton
-              action={dashboard.primaryAction}
-              onAction={handleAction}
-              variant="default"
-            />
-          ) : undefined
-        }
-        title={`Welcome! ${roleLabel}`}
-      />
+      <PageHeader title={`Welcome! ${roleLabel}`} />
       <ActionKpiRow />
       {canLoadDashboardMonitoring(role, profile) ? (
-        <ConnectedMonitoringSnapshot role={role} />
+        <ConnectedMonitoringSnapshot
+          action={
+            !dashboard.executive &&
+            dashboard.primaryAction &&
+            canOpenDashboardMonitoring(role, profile) ? (
+              <ActionButton
+                action={dashboard.primaryAction}
+                onAction={handleAction}
+                variant="default"
+              />
+            ) : undefined
+          }
+          role={role}
+        />
       ) : null}
       {dashboard.executive ? (
         <ExecutiveDashboard model={dashboard.executive} summaryAction={dashboard.primaryAction} />
