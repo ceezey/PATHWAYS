@@ -32,6 +32,7 @@ import {
 } from './local-demo-seed'
 import { localDrainRules } from './local-demo-stage-rules'
 import { runDemoStages } from './local-demo-stages'
+import { asUser } from './local-demo-util'
 
 /**
  * Defense demo entrypoint: hosted PATHWAYS-devV2 by default, loopback with --test-local, read-only
@@ -44,14 +45,25 @@ async function main() {
   const owner = new PrismaClient({ datasources: { db: { url: process.env.DIRECT_URL } } })
   try {
     if (process.argv.includes('--verify')) {
-      const results = await verifyDefenseDemo(owner)
-      console.table(results)
-      if (results.some((r) => r.ok === false)) process.exitCode = 1
+      await verify(owner)
       return
     }
     await seed(owner, testLocal)
   } finally {
     await owner.$disconnect()
+  }
+}
+
+async function verify(owner: PrismaClient) {
+  const runtime = new PrismaService({ datasources: { db: { url: process.env.DATABASE_URL } } })
+  try {
+    const staff = await resolveActors(owner)
+    const ctx = { runtime, organizationId: staff.admin.identity.organizationId }
+    const results = await verifyDefenseDemo(owner, (key, run) => asUser(ctx, staff[key], run))
+    console.table(results)
+    if (results.some((r) => r.ok === false)) process.exitCode = 1
+  } finally {
+    await runtime.$disconnect()
   }
 }
 

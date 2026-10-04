@@ -2,12 +2,20 @@ import type { PrismaClient } from '@prisma/client'
 
 import { lastMonthIso, monthStartIso } from './defense-demo-stage-backdate'
 import { addDaysIso } from './local-demo-data'
-import { manilaToday } from './local-demo-seed'
+import { type StaffKey, manilaToday } from './local-demo-seed'
+import type { RuntimeTx } from './local-demo-util'
 
 export type Check = { check: string; ok: boolean; detail: string; skipped?: true }
 
+/** Runs a read as one staff member; tables with forced row level security hide rows from the owner. */
+export type Scoped = <T>(as: StaffKey, run: (tx: RuntimeTx) => Promise<T>) => Promise<T>
+
 /** Read-only checks that the defense dataset has everything the walkthrough needs. */
-export async function verifyDefenseDemo(owner: PrismaClient, today = manilaToday()) {
+export async function verifyDefenseDemo(
+  owner: PrismaClient,
+  scoped: Scoped,
+  today = manilaToday(),
+) {
   const checks: Check[] = []
   const add = (check: string, ok: boolean, detail: string) => checks.push({ check, ok, detail })
   const skip = (check: string, detail: string) =>
@@ -71,10 +79,12 @@ export async function verifyDefenseDemo(owner: PrismaClient, today = manilaToday
   })
   add('no open activity falls due in the next two days', soon === 0, `${soon} due soon`)
 
-  const proofs = await owner.activityUpdate.count({ where: { status: 'PENDING' } })
-  const stored = await one(owner.$queryRaw`SELECT count(DISTINCT u.id) AS n
-    FROM pathways.activity_updates u JOIN pathways.evidence_media m ON m.activity_update_id = u.id
-    WHERE u.status = 'PENDING' AND m.storage_ready`)
+  const [proofs, stored] = await scoped('me', async (tx) => [
+    await tx.activityUpdate.count({ where: { status: 'PENDING' } }),
+    await one(tx.$queryRaw`SELECT count(DISTINCT u.id) AS n
+      FROM pathways.activity_updates u JOIN pathways.evidence_media m ON m.activity_update_id = u.id
+      WHERE u.status = 'PENDING' AND m.storage_ready`),
+  ])
   add(
     'a pending proof with stored evidence waits for review',
     stored > 0,
@@ -106,11 +116,13 @@ export async function verifyDefenseDemo(owner: PrismaClient, today = manilaToday
     types.length === 7,
     types.map((row) => row.indicatorType).join(', '),
   )
-  const library = await owner.indicatorLibraryEntry.count({ where: { archivedAt: null } })
+  const library = await scoped('me', (tx) =>
+    tx.indicatorLibraryEntry.count({ where: { archivedAt: null } }),
+  )
   add('the indicator library has entries', library >= 2, `${library} entries`)
-  const derived = await owner.projectIndicatorBinding.count({
-    where: { recipe: 'ACTIVITY_COMPLETION_PERCENTAGE' },
-  })
+  const derived = await scoped('me', (tx) =>
+    tx.projectIndicatorBinding.count({ where: { recipe: 'ACTIVITY_COMPLETION_PERCENTAGE' } }),
+  )
   add(
     'a derived indicator is bound to the activity completion recipe',
     derived > 0,
@@ -158,7 +170,9 @@ export async function verifyDefenseDemo(owner: PrismaClient, today = manilaToday
     where: { status: 'SIGNED_OFF', project: { code: { startsWith: 'EHK' } } },
   })
   add('the EHK evaluation is signed off', signed > 0, `${signed} signed off`)
-  const published = await owner.projectPublication.count({ where: { state: 'PUBLISHED' } })
+  const published = await scoped('projectManager', (tx) =>
+    tx.projectPublication.count({ where: { state: 'PUBLISHED' } }),
+  )
   add('a project is published on the public tracker', published > 0, `${published} published`)
 
   const start = new Date(`${thisMonth}T00:00:00.000Z`)
@@ -213,7 +227,10 @@ export async function verifyDefenseDemo(owner: PrismaClient, today = manilaToday
     )
     const auto = await owner.decisionRecommendation.count({ where: { status: 'AUTO_RESOLVED' } })
     add('an alert was auto-resolved', auto > 0, `${auto} recommendations auto-resolved`)
-    const escalated = await owner.decisionRecommendation.count({ where: { outcome: 'ESCALATE' } })
+    // Rule decisions live in the internal ledger, so read the outcome from the decision audit trail.
+    const escalated = await owner.auditLog.count({
+      where: { action: 'decision.recorded', changes: { path: ['outcome'], equals: 'ESCALATE' } },
+    })
     add('a recommendation was escalated', escalated > 0, `${escalated} escalated`)
   }
   return checks
