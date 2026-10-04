@@ -167,13 +167,26 @@ export async function runDemoStages(ctx: DemoContext) {
   for (const stage of stages) {
     if (only && !foundation.has(stage.name) && !only.includes(stage.name)) continue
     ctx.log(`> ${stage.name}`)
-    try {
-      await stage.run(ctx)
-    } catch (error) {
-      failures.push(`${stage.name}: ${message(error)}`)
-      console.error(`  ${stage.name} failed: ${message(error)}`)
-      if (foundation.has(stage.name)) break
+    for (let attempt = 1; ; attempt += 1) {
+      try {
+        await stage.run(ctx)
+        break
+      } catch (error) {
+        // Stages skip rows that already exist, so a transient 503 (timeout) is retried twice.
+        if (isTransient(error) && attempt < 3) {
+          ctx.log(`  ${stage.name} hit a transient 503, retrying (${attempt}/2)`)
+          continue
+        }
+        failures.push(`${stage.name}: ${message(error)}`)
+        console.error(`  ${stage.name} failed: ${message(error)}`)
+        if (foundation.has(stage.name)) return failures
+        break
+      }
     }
   }
   return failures
+}
+
+function isTransient(error: unknown) {
+  return /"statusCode":503|Service Unavailable/.test(message(error))
 }
