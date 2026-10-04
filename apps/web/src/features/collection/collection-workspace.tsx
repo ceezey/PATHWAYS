@@ -1438,7 +1438,6 @@ const OwnedCollectionWorkspace = ({
     <fieldset disabled={operationPending} className="space-y-6">
       <PageHeader
         editableLabelKey="moduleCollection"
-        eyebrow="Data workspace"
         title={labels.moduleCollection}
         actions={
           canOpenForms ? (

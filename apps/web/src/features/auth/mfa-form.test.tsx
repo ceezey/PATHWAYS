@@ -204,7 +204,7 @@ describe('MfaForm code entry', () => {
     await screen.findByAltText('Private authenticator setup QR code')
 
     const submit = screen.getByRole('button', {
-      name: 'Verify authenticator code',
+      name: 'Verify',
     }) as HTMLButtonElement
     expect(submit.disabled).toBe(true)
 

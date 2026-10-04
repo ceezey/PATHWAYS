@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
+import { AsyncState } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { OtpInput } from '@/components/ui/otp-input'
@@ -55,6 +56,7 @@ export function MfaForm() {
   const handoffUser = useRef(session?.user.id)
   const [handoff, setHandoff] = useState<'idle' | 'opening' | 'stalled'>('idle')
   const [accepted, setAccepted] = useState(false)
+  const [leaving, setLeaving] = useState(false)
   const currentUserId = session?.user.id
   const sessionSubject = currentUserId ?? null
   const allowedAccount = Boolean(currentUserId)
@@ -354,18 +356,21 @@ export function MfaForm() {
     if (isTotpCode(code)) void verify()
   }, [code])
 
+  // Keeps the current card in place during sign-out so no signed-out view flashes before login.
   const leave = async () => {
     ++operation.current
-    setAccepted(false)
-    setEnrollment(null)
-    setCode('')
-    setCheck(null)
-    setFactorId('')
+    setLeaving(true)
     setBusy(true)
     try {
       await signOut()
       router.replace('/staff/login')
     } catch {
+      setLeaving(false)
+      setAccepted(false)
+      setEnrollment(null)
+      setCode('')
+      setCheck(null)
+      setFactorId('')
       setError(
         'Sign-out could not be confirmed. Close this private browser window before continuing.',
       )
@@ -392,9 +397,11 @@ export function MfaForm() {
         {!configured ? (
           <p>The authentication connection is not configured.</p>
         ) : status === 'loading' ? (
-          <output>Checking your session...</output>
+          <AsyncState status="loading" title="Checking your session..." />
         ) : !session ? (
-          <p>Sign in before setting up MFA.</p>
+          leaving ? null : (
+            <p>Sign in before setting up MFA.</p>
+          )
         ) : accepted && current?.status.aal !== 'aal2' ? (
           <output className="flex items-center gap-2" aria-live="polite" aria-busy="true">
             <LoaderCircle
@@ -406,12 +413,10 @@ export function MfaForm() {
         ) : !current ? (
           accessError ? (
             <p role="alert">{accessError}</p>
+          ) : error ? (
+            <output>Verification is blocked.</output>
           ) : (
-            <output>
-              {error
-                ? 'Verification is blocked.'
-                : 'Checking current session and workspace access...'}
-            </output>
+            <AsyncState status="loading" title="Checking current session and workspace access..." />
           )
         ) : current.status.aal === 'aal2' ? (
           <div className="space-y-4">
@@ -589,13 +594,13 @@ export function MfaForm() {
           </div>
         )}
         <div className="flex flex-wrap items-center gap-3">
-          {session ? (
+          {session || leaving ? (
             <Button
               type="button"
               variant="outline"
               className="gap-2"
               aria-label="Sign out and return to login"
-              disabled={busy}
+              disabled={busy || leaving}
               onClick={() => void leave()}
             >
               <ArrowLeft className="h-4 w-4" aria-hidden="true" />
@@ -607,8 +612,13 @@ export function MfaForm() {
             </Button>
           )}
           {codeFormVisible && (
-            <Button type="submit" form="mfa-code-form" disabled={busy || !isTotpCode(code)}>
-              {busy ? 'Verifying...' : 'Verify authenticator code'}
+            <Button
+              type="submit"
+              form="mfa-code-form"
+              className="ml-auto"
+              disabled={busy || !isTotpCode(code)}
+            >
+              {busy ? 'Verifying...' : 'Verify'}
             </Button>
           )}
         </div>

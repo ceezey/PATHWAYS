@@ -101,10 +101,11 @@ export const ActionKpiRow = () => {
   const cards = actionKpiCards(read.data)
   if (!cards.length) return null
   return (
-    <section aria-label="Tasks needing action" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+    // Flex-wrap keeps grid column widths but centers rows with fewer than four cards.
+    <section aria-label="Tasks needing action" className="flex flex-wrap justify-center gap-4">
       {cards.map(({ id, label, value, sub, href, tone, icon: Icon }) => (
         <Link
-          className="rounded-md border border-border bg-card p-5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          className="w-full rounded-md border border-border bg-card p-5 sm:w-[calc(50%-0.5rem)] xl:w-[calc(25%-0.75rem)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           href={href}
           key={id}
         >

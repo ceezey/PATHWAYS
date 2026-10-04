@@ -103,7 +103,6 @@ Project Information Management
 Current public context:
 
 ```text
-HDO Public Portal
 PATHWAYS
 ```
 

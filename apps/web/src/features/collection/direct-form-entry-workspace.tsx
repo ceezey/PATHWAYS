@@ -55,7 +55,7 @@ function verifySurveySubject(
 }
 
 const StateShell = ({
-  eyebrow = 'Data workspace',
+  eyebrow,
   title = 'Direct form entry',
   children,
 }: {
