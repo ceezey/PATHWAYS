@@ -73,6 +73,7 @@ export type DemoContext = {
   projectIds: Map<ProjectKey, string>
   stable: (seed: string) => string
   log: (line: string) => void
+  drainRules?: () => Promise<void>
 }
 
 const staffEmails: Record<StaffKey, string> = {
@@ -89,7 +90,7 @@ export function manilaToday() {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' }).format(new Date())
 }
 
-function identityFor(
+export function identityFor(
   authUserId: string,
   organizationId: string,
   userId: string,

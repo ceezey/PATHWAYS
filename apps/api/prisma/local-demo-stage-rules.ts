@@ -36,16 +36,18 @@ function invocation(purpose: 'DRAIN' | 'SWEEP', budgetMs = 24_000): MachineInvoc
 export async function stageEvaluation(ctx: DemoContext) {
   const workerUrl = process.env.RULES_WORKER_DATABASE_URL
   const sweeperUrl = process.env.RULES_SWEEPER_DATABASE_URL
-  if (!workerUrl || !sweeperUrl) {
+  if (ctx.drainRules) await ctx.drainRules()
+  else if (!workerUrl || !sweeperUrl) {
     ctx.log('  rule evaluation skipped: run through pnpm db:local:demo to open the machine roles')
     return
+  } else {
+    const sql = new RulesMachineSqlClient({
+      workerDatabaseUrl: workerUrl,
+      sweeperDatabaseUrl: sweeperUrl,
+    })
+    const worker = new RulesMachineWorker(sql)
+    for (let round = 0; round < 4; round += 1) await worker.drain(invocation('DRAIN'))
   }
-  const sql = new RulesMachineSqlClient({
-    workerDatabaseUrl: workerUrl,
-    sweeperDatabaseUrl: sweeperUrl,
-  })
-  const worker = new RulesMachineWorker(sql)
-  for (let round = 0; round < 4; round += 1) await worker.drain(invocation('DRAIN'))
   const alerts = await ctx.owner.ruleBasedAlert.count({
     where: { organizationId: ctx.organizationId },
   })
