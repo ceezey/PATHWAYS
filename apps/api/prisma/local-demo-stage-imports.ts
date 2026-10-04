@@ -31,8 +31,8 @@ type HistoricRow = {
   birth: string
   barangay: string
   enrolledOffset: number
-  /** A deliberately invalid row (kept staged with its error). */
-  fault?: 'UNDERAGE' | 'NO_CONSENT'
+  /** A deliberately invalid row that validation rejects and keeps staged with its error. */
+  fault?: 'BAD_DATE' | 'NO_CONSENT'
 }
 
 const csvCell = (value: string) => (/[",\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value)
@@ -56,15 +56,15 @@ function csvBuffer(
         row.middle,
         row.last,
         row.sex,
-        row.birth,
+        row.fault === 'BAD_DATE' ? row.birth.split('-').reverse().join('/') : row.birth,
         'WITHOUT_DISABILITY',
         row.barangay,
         project.municipality,
         project.province,
         'true',
-        'true',
+        row.fault === 'NO_CONSENT' ? '' : 'true',
         String(minor),
-        row.fault === 'NO_CONSENT' ? 'false' : String(minor),
+        String(minor),
         enrolled,
       ]
         .map(csvCell)
@@ -258,17 +258,17 @@ const lavezaresBatch: HistoricRow[] = [
     barangay: 'Poblacion',
     enrolledOffset: -38,
   },
-  // Faults kept for review: a child under the minimum age and a missing guardian consent.
+  // Faults kept for review: a birth date written day first and a blank data processing consent.
   {
     code: 'LAV-2026-007',
     first: 'Ryan',
     middle: 'Gabon',
     last: 'Sabalza',
     sex: 'MALE',
-    birth: '2023-06-14',
+    birth: '2008-06-14',
     barangay: 'San Isidro',
     enrolledOffset: -37,
-    fault: 'UNDERAGE',
+    fault: 'BAD_DATE',
   },
   {
     code: 'LAV-2026-008',
