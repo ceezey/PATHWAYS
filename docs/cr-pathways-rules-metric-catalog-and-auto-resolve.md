@@ -4,7 +4,7 @@
 
 **Date:** 2026-10-04
 
-**Status:** Approved; implemented and verified on local PostgreSQL; hosted apply pending
+**Status:** Applied on PATHWAYS-devV2 2026-10-04 (0058-0060, after production ran the widened contract)
 
 **Approval:** Developer reply on 2026-10-04 choosing to implement G-F10-6, G-F10-7 and G-F11-5 ("Implement all three") for the defense sprint, overriding the CRISIS_PLAN zero-migration rule for this feature only.
 
