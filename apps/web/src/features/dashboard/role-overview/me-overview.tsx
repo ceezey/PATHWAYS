@@ -85,12 +85,14 @@ export const MeOverview = ({
             value={String(queue.count)}
           />
         ) : null}
-        <AccentKpi
-          label="Evaluation snapshots"
-          sub="Latest stored evaluation"
-          tone="info"
-          value={String(evaluations.filter((e) => e.score !== null).length)}
-        />
+        {evaluations.length ? (
+          <AccentKpi
+            label="Evaluation snapshots"
+            sub="Latest stored evaluation"
+            tone="info"
+            value={String(evaluations.filter((e) => e.score !== null).length)}
+          />
+        ) : null}
         {data.datasetsImportedThisMonth !== null ? (
           <AccentKpi
             label="Datasets imported"
@@ -163,31 +165,33 @@ export const MeOverview = ({
           </ListCard>
         ) : null}
       </div>
-      <section className="rounded-xl border border-border bg-card">
-        <div className="flex min-h-12 items-center border-b border-border px-4">
-          <h3 className="text-sm font-semibold text-foreground">
-            Evaluation snapshot — current state
-          </h3>
-        </div>
-        <div className="grid gap-3 p-4 md:grid-cols-3">
-          {evaluations.map((row) => (
-            <Link
-              className="rounded-lg border border-border bg-surface-subtle p-3 hover:border-primary"
-              href={`/projects/${row.projectId}/monitor-evaluate`}
-              key={row.projectId}
-            >
-              <p className="truncate text-xs text-muted-foreground">{row.title}</p>
-              <p className="text-2xl font-semibold tabular-nums text-foreground">
-                {row.score ?? '—'}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                {row.score ? 'Stored evaluation score' : 'No evaluation yet'}
-              </p>
-              <p className="mt-1 text-xs font-medium text-primary">Open Monitor & Evaluate</p>
-            </Link>
-          ))}
-        </div>
-      </section>
+      {evaluations.length ? (
+        <section className="rounded-xl border border-border bg-card">
+          <div className="flex min-h-12 items-center border-b border-border px-4">
+            <h3 className="text-sm font-semibold text-foreground">
+              Evaluation snapshot — current state
+            </h3>
+          </div>
+          <div className="grid gap-3 p-4 md:grid-cols-3">
+            {evaluations.map((row) => (
+              <Link
+                className="rounded-lg border border-border bg-surface-subtle p-3 hover:border-primary"
+                href={`/projects/${row.projectId}/monitor-evaluate`}
+                key={row.projectId}
+              >
+                <p className="truncate text-xs text-muted-foreground">{row.title}</p>
+                <p className="text-2xl font-semibold tabular-nums text-foreground">
+                  {row.score ?? '—'}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {row.score ? 'Stored evaluation score' : 'No evaluation yet'}
+                </p>
+                <p className="mt-1 text-xs font-medium text-primary">Open Monitor & Evaluate</p>
+              </Link>
+            ))}
+          </div>
+        </section>
+      ) : null}
     </div>
   )
 }

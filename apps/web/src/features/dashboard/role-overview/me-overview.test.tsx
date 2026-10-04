@@ -106,6 +106,14 @@ describe('MeOverview', () => {
       'Proof submissions awaiting review',
     ])
       expect(screen.queryByText(text)).toBeNull()
-    expect(screen.getByText('Evaluation snapshots')).toBeTruthy()
+  })
+})
+
+describe('MeOverview without evaluation access', () => {
+  afterEach(cleanup)
+  it('hides the evaluation tile and snapshot section when no evaluations are passed', () => {
+    render(<MeOverview data={data} evaluations={[]} fullName="Leah Sy" onOpenActivity={vi.fn()} />)
+    expect(screen.queryByText('Evaluation snapshots')).toBeNull()
+    expect(screen.queryByText(/Evaluation snapshot/)).toBeNull()
   })
 })

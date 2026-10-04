@@ -53,6 +53,7 @@ import { ActivityProofDialog } from '../projects/activity-proof-dialog'
 import { ActionKpiRow } from './action-kpi-row'
 import { ExecutiveDashboard } from './executive-dashboard'
 import { PinnedCharts } from './pinned-charts'
+import { RoleOverviewDashboard } from './role-overview/role-overview'
 
 export const canLoadDashboardMonitoring = (
   role: PathwaysRole | null,
@@ -105,7 +106,7 @@ const actionWorkflowHref = (action: DashboardAction) => {
   return '/projects'
 }
 
-const dashboardActivityTarget = (href?: string) => {
+export const dashboardActivityTarget = (href?: string) => {
   const match = href?.match(/^\/projects\/([^/]+)\/activities\/([^/?#]+)/)
   if (!match) return null
 
@@ -123,7 +124,7 @@ const dashboardActivityTarget = (href?: string) => {
 
 type DashboardActivityTarget = NonNullable<ReturnType<typeof dashboardActivityTarget>>
 
-const DashboardActivityReviewPanel = ({
+export const DashboardActivityReviewPanel = ({
   role,
   target,
   onActivityChanged,
@@ -539,6 +540,9 @@ export const RoleDashboard = () => {
     }
     router.push(actionWorkflowHref(action))
   }
+
+  if (role && role !== 'System Administrator')
+    return <RoleOverviewDashboard fullName={profile?.fullName} role={role} />
 
   if (status === 'loading') {
     return (
