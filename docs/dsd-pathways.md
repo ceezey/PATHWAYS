@@ -973,6 +973,12 @@ Horizontal overflow container, tabular numerals, ~44px rows/headers, subtle head
 ### Dialogs
 Navy 45% overlay, centered bounded surface, scroll containment, visible 44px close control, stacked small-screen footer actions.
 
+#### Role dashboard KPI card (implemented)
+Bordered `bg-card` card, `rounded-xl`, 4px left accent in the semantic tone (danger, warning, primary for info, success); uppercase `text-xs` label, `text-3xl` tabular value in the tone, muted sub-line, optional one text action (44px target).
+
+#### Project health label (implemented)
+Derived only from open rule-based alerts: Critical (open CRITICAL alert), At risk (open HIGH or MEDIUM alert), On track (no open alert), Planned (project status). It is not a success rating and its caption says so. Evaluation scores show the stored number without a quality label.
+
 ### Figma component patterns (2026-10-03)
 Figma 1344:342 (content and decision support): metric cards show an uppercase muted label, a top-right tinted icon tile and a large value (danger tone colors the value), with no top border; project cards are flat white with title, area, period, status chips, a timeline bar and a footer action row. Figma 1344:505 (records): tables keep a subtle header surface and 52-64px rows; evidence and audit rows follow the existing list patterns. Figma 1344:179 (actions and inputs): buttons, underline tabs, dot-plus-text status badges and inputs already match; sizes stay 36/44/52. Figma 1344:646 (feedback): the detail sheet is 480px wide, confirmation dialogs lead with a tinted icon circle, empty states use an icon circle, error states use a red-tinted border with an outline retry, skeletons use 6px radius and toasts tint on success and error. Conflicts resolved to the DSD: tokens and the 8px card radius are kept; saturated sidebars, activity Delete and UCD/UCR chips are not adopted.
 
