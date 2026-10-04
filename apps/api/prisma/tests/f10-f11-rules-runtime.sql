@@ -304,11 +304,14 @@ ROLLBACK;
 BEGIN;
 SET LOCAL session_replication_role = replica;
 INSERT INTO pathways.projects(id,organization_id,code,title,start_date,end_date,status,created_by_id)
-SELECT pg_temp.u(310+n),pg_temp.u(1),'F10R-P'||(10+n),'F10 project '||(10+n),current_date-200,current_date-10,'ONGOING',pg_temp.u(101) FROM generate_series(1,5) n;
+SELECT pg_temp.u(310+n),pg_temp.u(1),'F10R-P'||(10+n),'F10 project '||(10+n),current_date-200,current_date-10,'ONGOING',pg_temp.u(101) FROM generate_series(1,8) n;
 INSERT INTO pathways.user_project_assignments(id,organization_id,project_id,user_id,assigned_by_id) VALUES
  (pg_temp.u(410),pg_temp.u(1),pg_temp.u(307),pg_temp.u(106),pg_temp.u(101)),
  (pg_temp.u(411),pg_temp.u(1),pg_temp.u(314),pg_temp.u(102),pg_temp.u(101)),
- (pg_temp.u(412),pg_temp.u(1),pg_temp.u(315),pg_temp.u(102),pg_temp.u(101));
+ (pg_temp.u(412),pg_temp.u(1),pg_temp.u(315),pg_temp.u(102),pg_temp.u(101)),
+ (pg_temp.u(413),pg_temp.u(1),pg_temp.u(316),pg_temp.u(102),pg_temp.u(101)),
+ (pg_temp.u(414),pg_temp.u(1),pg_temp.u(317),pg_temp.u(102),pg_temp.u(101)),
+ (pg_temp.u(415),pg_temp.u(1),pg_temp.u(318),pg_temp.u(102),pg_temp.u(101));
 INSERT INTO pathways.beneficiary_project_enrollments(id,organization_id,project_id,beneficiary_id,enrollment_date,status,recorded_by_id)
 SELECT pg_temp.u(8000+p*100+g),pg_temp.u(1),pg_temp.u(310+p),pg_temp.u(8500+p*100+g),current_date-100,'ACTIVE'::pathways.enrollment_status,pg_temp.u(101)
 FROM generate_series(1,2) p,generate_series(1,10) g
@@ -337,6 +340,9 @@ SELECT pg_temp.make_rule('p12',312,'BENEFICIARY_FOLLOW_UP_PERCENT','GTE','0',1,9
 SELECT pg_temp.make_rule('p13',313,'SURVEY_MEAN_IMPROVEMENT_POINTS','LT','100',1,9500);
 SELECT pg_temp.make_rule('p14',314,'PROJECT_OVERDUE_DAYS','GT','0',1,9510);
 SELECT pg_temp.make_rule('p15',315,'PROJECT_OVERDUE_DAYS','GT','0',1,9520);
+SELECT pg_temp.make_rule('p16',316,'PROJECT_OVERDUE_DAYS','GT','0',1,9530);
+SELECT pg_temp.make_rule('p17',317,'PROJECT_OVERDUE_DAYS','GT','0',1,9540);
+SELECT pg_temp.make_rule('p18',318,'PROJECT_OVERDUE_DAYS','GT','0',1,9550);
 COMMIT;
 CALL pg_temp.drain('metrics');
 -- Clears a project's overdue condition through a PROJECT_UPDATE source operation (runs as the current human).
@@ -435,6 +441,44 @@ SELECT pg_temp.ok((SELECT lifecycle FROM pathways.rule_based_alerts WHERE projec
  AND (SELECT revision FROM pathways.rule_based_alerts WHERE project_id=pg_temp.u(315))=3
  AND EXISTS(SELECT FROM pathways_rules_internal.decisions WHERE recommendation_id=(SELECT (doc->>'rec')::uuid FROM t_out WHERE name='p15_alert') AND outcome='ACCEPT'),
  'combined recommendation outcome on a human-resolved alert succeeds and leaves the lifecycle');
+
+-- G-F10-4 lifecycle through the real functions: disposition on terminal alerts, review, accept and decline.
+BEGIN;
+SELECT pg_temp.act(2);
+SELECT pg_temp.reject(format('SELECT pathways.f10_alert_disposition(%L,%L::jsonb)',(SELECT (doc->>'id')::uuid FROM t_out WHERE name='p15_alert'),
+ jsonb_build_object('action','RESOLVE','expectedRevision','3','note','Again','clientOperationId',pg_temp.u(9811))),'40001','resolve on a RESOLVED alert');
+SELECT pg_temp.reject(format('SELECT pathways.f10_alert_disposition(%L,%L::jsonb)',(SELECT (doc->>'id')::uuid FROM t_out WHERE name='p15_alert'),
+ jsonb_build_object('action','DISMISS','expectedRevision','3','note','Again','clientOperationId',pg_temp.u(9812))),'40001','dismiss on a RESOLVED alert');
+SELECT pg_temp.reject(format('SELECT pathways.f10_alert_disposition(%L,%L::jsonb)',(SELECT (doc->>'id')::uuid FROM t_out WHERE name='p1_alert'),
+ jsonb_build_object('action','RESOLVE','expectedRevision','3','note','Late','clientOperationId',pg_temp.u(9813))),'40001','resolve on an AUTO_RESOLVED alert');
+SELECT pg_temp.reject(format('SELECT pathways.f10_alert_disposition(%L,%L::jsonb)',(SELECT (doc->>'id')::uuid FROM t_out WHERE name='p1_alert'),
+ jsonb_build_object('action','DISMISS','expectedRevision','3','note','Late','clientOperationId',pg_temp.u(9814))),'40001','dismiss on an AUTO_RESOLVED alert');
+COMMIT;
+INSERT INTO t_out SELECT 'p16_alert',jsonb_build_object('id',(SELECT id FROM pathways.rule_based_alerts WHERE project_id=pg_temp.u(316)));
+INSERT INTO t_out SELECT 'p17_alert',jsonb_build_object('id',(SELECT id FROM pathways.rule_based_alerts WHERE project_id=pg_temp.u(317)));
+INSERT INTO t_out SELECT 'p18_alert',jsonb_build_object('id',(SELECT id FROM pathways.rule_based_alerts WHERE project_id=pg_temp.u(318)));
+BEGIN;
+SELECT pg_temp.act(2);
+INSERT INTO t_out SELECT 'p16_review',pathways.f10_alert_review((SELECT (doc->>'id')::uuid FROM t_out WHERE name='p16_alert'),
+ jsonb_build_object('expectedRevision','1','note','Looked at it','clientOperationId',pg_temp.u(9821)));
+INSERT INTO t_out SELECT 'p17_preview',pathways.f10_alert_preview((SELECT (doc->>'id')::uuid FROM t_out WHERE name='p17_alert'),
+ jsonb_build_object('expectedRevision','1','note','Accept','clientOperationId',pg_temp.u(9822),'outcome','ACCEPT'));
+INSERT INTO t_out SELECT 'p18_preview',pathways.f10_alert_preview((SELECT (doc->>'id')::uuid FROM t_out WHERE name='p18_alert'),
+ jsonb_build_object('expectedRevision','1','note','Decline','clientOperationId',pg_temp.u(9823),'outcome','DECLINE'));
+COMMIT;
+BEGIN;
+SELECT pg_temp.act(2);
+INSERT INTO t_out SELECT 'p17_confirm',pathways.f10_alert_confirm((SELECT (doc->>'id')::uuid FROM t_out WHERE name='p17_alert'),
+ jsonb_build_object('previewId',(SELECT doc->>'previewId' FROM t_out WHERE name='p17_preview'),'clientOperationId',pg_temp.u(9824)));
+INSERT INTO t_out SELECT 'p18_confirm',pathways.f10_alert_confirm((SELECT (doc->>'id')::uuid FROM t_out WHERE name='p18_alert'),
+ jsonb_build_object('previewId',(SELECT doc->>'previewId' FROM t_out WHERE name='p18_preview'),'clientOperationId',pg_temp.u(9825)));
+COMMIT;
+SELECT pg_temp.ok((SELECT lifecycle FROM pathways.rule_based_alerts WHERE project_id=pg_temp.u(316))='REVIEWED'
+ AND (SELECT doc->>'lifecycle' FROM t_out WHERE name='p16_review')='REVIEWED','alert review moves NEW to REVIEWED');
+SELECT pg_temp.ok((SELECT lifecycle FROM pathways.rule_based_alerts WHERE project_id=pg_temp.u(317))='ACTIONED'
+ AND EXISTS(SELECT FROM pathways_rules_internal.decisions WHERE alert_id=(SELECT (doc->>'id')::uuid FROM t_out WHERE name='p17_alert') AND outcome='ACCEPT'),'alert ACCEPT confirm gives ACTIONED with a decision row');
+SELECT pg_temp.ok((SELECT lifecycle FROM pathways.rule_based_alerts WHERE project_id=pg_temp.u(318))='NEW'
+ AND EXISTS(SELECT FROM pathways_rules_internal.decisions WHERE alert_id=(SELECT (doc->>'id')::uuid FROM t_out WHERE name='p18_alert') AND outcome='DECLINE'),'alert DECLINE confirm leaves the lifecycle with a decision row');
 
 -- M&E in scope of P3 is refused every read and action on the budget alert and its recommendation.
 BEGIN;
