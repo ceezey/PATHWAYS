@@ -62,6 +62,23 @@ const reportPlans: ReportPlan[] = [
     format: 'CSV',
     name: 'Masbate early childhood pilot plan summary',
   },
+  // Survey results come last because one form is small enough to be suppressed.
+  {
+    project: 'SSG',
+    by: 'me',
+    kind: 'SURVEY_FORM_RESULTS',
+    format: 'XLSX',
+    name: 'Life skills session feedback results',
+    formCode: 'training_outcome_survey',
+  },
+  {
+    project: 'ALS',
+    by: 'me',
+    kind: 'SURVEY_FORM_RESULTS',
+    format: 'XLSX',
+    name: 'Review class learner feedback results',
+    formCode: 'review_class_feedback',
+  },
 ]
 
 /** Generated report artifacts, each produced by a role that holds the matching report permission.
