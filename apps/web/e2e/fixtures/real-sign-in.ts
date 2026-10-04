@@ -153,7 +153,7 @@ export async function signIn(page: Page, email: string, actors: Record<string, A
   for (let i = 0; i < 6; i++) {
     await page.getByLabel(`Digit ${i + 1} of 6`).fill(code[i] as string)
   }
-  await page.getByRole('button', { name: 'Verify authenticator code' }).click()
+  await page.getByRole('button', { name: 'Verify' }).click()
   await page.waitForURL(
     (url) => !url.pathname.startsWith('/auth/mfa') && !url.pathname.startsWith('/staff/login'),
   )
