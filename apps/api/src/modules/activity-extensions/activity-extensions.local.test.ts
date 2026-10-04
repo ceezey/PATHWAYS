@@ -108,6 +108,7 @@ describe.skipIf(!enabled)('activity extension workflow on disposable PostgreSQL'
                 title: 'Extension activity',
                 plannedStartDate: new Date('2026-09-01T00:00:00.000Z'),
                 plannedEndDate: new Date('2026-11-30T00:00:00.000Z'),
+                actualStartDate: new Date('2026-09-01T00:00:00.000Z'),
                 status: 'IN_PROGRESS',
                 createdById: id(103),
               },
