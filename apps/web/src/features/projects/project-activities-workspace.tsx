@@ -7,6 +7,7 @@ import {
   LayoutGrid,
   List,
   Loader2,
+  Pencil,
   Plus,
   Search,
   UsersRound,
@@ -52,6 +53,7 @@ import {
   activityStatuses,
   activitySummary,
 } from './activity-utils'
+import { ProjectArchiveDialog } from './project-archive-dialog'
 import { ProjectWorkspaceHeader } from './project-workspace-header'
 import {
   useActivityDetailRead,
@@ -510,12 +512,25 @@ export const ProjectActivitiesWorkspace = ({
       <PageHeader
         title={labels.projectActivities}
         actions={
-          <Button asChild className="gap-2" variant="outline">
-            <Link href="/projects">
-              <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-              Back to Projects
-            </Link>
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button asChild className="gap-2" variant="outline">
+              <Link href="/projects">
+                <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+                Back to Projects
+              </Link>
+            </Button>
+            {/* Edit and archive moved here from the removed Overview tab. */}
+            {isUiActionAvailable(role, 'projects.profile.manage', profile) ? (
+              <Button asChild size="icon" variant="outline">
+                <Link aria-label="Edit project profile" href={`/projects/${project.id}/edit`}>
+                  <Pencil className="h-4 w-4" aria-hidden="true" />
+                </Link>
+              </Button>
+            ) : null}
+            {isUiActionAvailable(role, 'projects.archive', profile) ? (
+              <ProjectArchiveDialog projectId={project.id} title={project.title} />
+            ) : null}
+          </div>
         }
       />
       <ProjectWorkspaceHeader project={project} />

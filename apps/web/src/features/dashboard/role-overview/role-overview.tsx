@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 
 import { AsyncState } from '@/components/pathways'
 import { useCurrentRole } from '@/hooks/use-current-role'
@@ -8,7 +8,6 @@ import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
 import { pathwaysClient } from '@/lib/services/pathways-client'
 import { useAuthorizedRead } from '@/providers/authorized-query-provider'
 import type { PathwaysRole } from '@/types/pathways-role'
-import { DashboardActivityReviewPanel, dashboardActivityTarget } from '../role-dashboard'
 import { ManagerOverview } from './manager-overview'
 import { MeOverview } from './me-overview'
 import { OfficerOverview } from './officer-overview'
@@ -26,7 +25,7 @@ export const RoleOverviewDashboard = ({
 }) => {
   const { profile } = useCurrentRole()
   const read = useRoleOverview()
-  const [target, setTarget] = useState<ReturnType<typeof dashboardActivityTarget>>(null)
+  const router = useRouter()
   const extras = useProjectExtras(
     read.data?.projects ?? [],
     role,
@@ -65,7 +64,8 @@ export const RoleOverviewDashboard = ({
         title="Loading your dashboard"
       />
     )
-  const open = (href: string) => setTarget(dashboardActivityTarget(href))
+  // Each dashboard action opens its own page; the in-place panel refetch loop is bypassed.
+  const open = (href: string) => router.push(href)
   const data = read.data
   return (
     <>
@@ -97,15 +97,6 @@ export const RoleOverviewDashboard = ({
           readOnly={role === 'Grant Manager'}
         />
       ) : null}
-      <DashboardActivityReviewPanel
-        onActivityChanged={() => {
-          void read.refetch()
-          void counts.refetch()
-        }}
-        onClose={() => setTarget(null)}
-        role={role}
-        target={target}
-      />
     </>
   )
 }

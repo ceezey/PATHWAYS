@@ -94,7 +94,7 @@ describe('ManagerOverview', () => {
     expect(screen.getByText('Critical')).toBeTruthy()
     expect(screen.getByText('Managing 1 project · FutureMakers NCR')).toBeTruthy()
   })
-  it('opens expense approval in the activity sheet', () => {
+  it('opens expense approval in the budget ledger', () => {
     const open = vi.fn()
     render(
       <ManagerOverview
@@ -106,7 +106,7 @@ describe('ManagerOverview', () => {
       />,
     )
     fireEvent.click(screen.getByRole('button', { name: 'Approve Meals' }))
-    expect(open).toHaveBeenCalledWith(`/projects/${p}/activities/${a}?expense=${e}`)
+    expect(open).toHaveBeenCalledWith(`/projects/${p}/budget#expense-${e}`)
   })
   it('hides cards and tiles whose section is null', () => {
     const counts = { overdueActivities: null, forReview: null } as unknown as DashboardActionCounts

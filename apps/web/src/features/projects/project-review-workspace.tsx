@@ -8,7 +8,7 @@ import { AuditMetadataCard, EvidenceAttachmentsCard } from './evidence-panels'
 import { LiveEvaluationWorkspace } from './live-evaluation-workspace'
 import { ProjectRulesPanel } from './project-rules-panel'
 
-import { ArrowLeft, Eye, FileText, Loader2, Plus, Save } from 'lucide-react'
+import { Eye, FileText, Loader2, Plus, Save } from 'lucide-react'
 import Link from 'next/link'
 import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
@@ -316,14 +316,6 @@ const LegacyProjectWorkspace = ({
         eyebrow={labels.projectWorkspace}
         title={heading.title}
         description={heading.description}
-        actions={
-          <Button asChild className="gap-2" variant="outline">
-            <Link href="/projects">
-              <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-              Back to Projects
-            </Link>
-          </Button>
-        }
       />
       <ProjectWorkspaceHeader project={project} />
       {unavailableSections.length > 0 ? (

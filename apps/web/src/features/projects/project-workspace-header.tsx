@@ -13,7 +13,6 @@ import type { ProjectDetail } from '@/types/pathways'
 
 // Each tab carries the route it opens, so tab visibility equals route access.
 const createWorkspaceTabs = (labels: DisplayLabels): WorkspaceTabAccess[] => [
-  { label: 'Overview', path: '', route: 'project' },
   { label: labels.projectActivities, path: 'activities', route: 'activities' },
   { label: labels.projectIndicators, path: 'indicators', route: 'indicators' },
   { label: labels.projectEvidence, path: 'evidence', route: 'evidence' },

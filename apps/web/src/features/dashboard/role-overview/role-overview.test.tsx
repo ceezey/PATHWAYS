@@ -14,6 +14,7 @@ vi.mock('@/providers/authorized-query-provider', () => ({
 }))
 vi.mock('@/hooks/use-current-role', () => ({ useCurrentRole: () => ({ profile: null }) }))
 vi.mock('@/lib/services/pathways-client', () => ({ pathwaysClient: {} }))
+vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }))
 
 import { RoleOverviewDashboard } from './role-overview'
 
