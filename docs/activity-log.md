@@ -147,3 +147,8 @@
 - Dashboard: task cards centered, Open monitoring beside the project scope select, aggregate option relabeled Select Project.
 - Sidebar: collapsed state persisted in the pathways-sidebar cookie and read by the dashboard layout on first paint.
 - Collection: Data workspace eyebrow removed from collection, import and direct-entry headers.
+- Analytics export: format menu (CSV, XLS, XLSX, PDF) above Add to Dashboard; API export takes an optional format, renders non-CSV through createReportArtifact and audits the chosen format. CSV bytes unchanged.
+- Dashboard: aggregate scope option relabeled All projects.
+- Data Analysis: views, overview cards, chart panels and Add to Dashboard are hidden when the role lacks the permission (previously Unavailable or disabled). PRD/QAD rows that describe restricted wording on this page are now doc drift to reconcile after the defense.
+- Alerts: eyebrow and description removed, Manage rules moved right-aligned into the filter row, project default relabeled Select Project.
+- Alert repository: Alerts / Alert Repository breadcrumb, description removed, scope and status use the shared Select.
