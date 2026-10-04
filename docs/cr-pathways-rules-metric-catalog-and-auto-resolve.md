@@ -40,7 +40,7 @@ The PRD-F11 state machine gains `New --> AutoResolved` and `Reviewed --> AutoRes
 
 ## 5. Terminal alerts and recommendation states
 
-Developer decision on 2026-10-04: the code follows UC-F10-2. A direct alert outcome (Accept, Partially accept, Decline, Escalate) on a Resolved, Dismissed or Auto-resolved alert is rejected, and Record outcome is hidden for those alerts. A recommendation outcome is unchanged: it records the decision and may still reserve the linked alert revision.
+Developer decision on 2026-10-04: the code follows UC-F10-2. A direct alert outcome (Accept, Partially accept, Decline, Escalate) on a Resolved, Dismissed or Auto-resolved alert is rejected, and Record outcome is hidden for those alerts. Migration 0059 enforces this in `assert_runtime_mutation`, `outcome_preview_operation` and `outcome_confirm_operation`. The 0059 header comment omits `outcome_confirm_operation`; it is left as is because committed migration bytes are preserved. A recommendation outcome is unchanged: it records the decision and may still reserve the linked alert revision.
 
 The PRD-F11 diagram now matches the runtime: an outcome records a decision and leaves the recommendation status unchanged; only review and Auto-resolved change it.
 
