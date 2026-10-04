@@ -44,7 +44,6 @@ type Tx = Prisma.TransactionClient
 type DefinitionRow = Omit<MonitoringIndicator, 'progress' | 'contractVersion'>
 
 export function monitoringSqlError(error: unknown): never {
-  console.error("TMPDIAG", String(error), JSON.stringify((error as {meta?: unknown})?.meta))
   const code = error && typeof error === 'object' && 'code' in error ? error.code : null
   const meta = error && typeof error === 'object' && 'meta' in error ? error.meta : null
   const sqlCode = meta && typeof meta === 'object' && 'code' in meta ? meta.code : null

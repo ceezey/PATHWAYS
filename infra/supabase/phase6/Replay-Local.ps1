@@ -616,7 +616,7 @@ END $$;
       try {
         foreach ($currentSuite in @('activities/feature-read', 'dashboards/c8-runtime', 'dashboards/dashboard-home-runtime', 'reports/reports-runtime')) {
           pnpm --dir apps/api exec vitest run "src/modules/$currentSuite.local.test.ts"
-          if ($LASTEXITCODE -ne 0) { Write-Output "TMPDIAG suite failed $currentSuite" }
+          if ($LASTEXITCODE -ne 0) { throw "Current-schema suite $currentSuite failed." }
         }
       } finally { Pop-Location }
       Write-Output 'CURRENT_SCHEMA_API_RUNTIME=PASS'
