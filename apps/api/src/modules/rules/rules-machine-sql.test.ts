@@ -158,6 +158,22 @@ describe('fixed dedicated machine SQL transport', () => {
     expect(url.searchParams.get('connection_limit')).toBe('1')
     expect(url.searchParams.get('connect_timeout')).toBe('1')
   })
+  it('accepts a pooler project-ref suffix on the exact role only', () => {
+    const ref = 'abcdefghijklmnopqrst'
+    const url = (user: string) =>
+      `postgresql://${user}:secret@pool.example.invalid/local?sslmode=require`
+    expect(
+      machineDatabaseUrl(url(`pathways_rules_worker.${ref}`), 'pathways_rules_worker'),
+    ).toContain(`pathways_rules_worker.${ref}`)
+    for (const user of [
+      `pathways_rules_sweeper.${ref}`,
+      `pathways_rules_worker.${ref}1`,
+      'pathways_rules_worker.abc',
+    ])
+      expect(() => machineDatabaseUrl(url(user), 'pathways_rules_worker')).toThrow(
+        'Dedicated rule database configuration is invalid.',
+      )
+  })
   it('accepts only exact claim metadata and empty null, never an arbitrary scope or payload', async () => {
     const f = fixture()
     expect(await f.client.claim(f.invocation)).toBeNull()

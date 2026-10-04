@@ -54,9 +54,9 @@ Six internal roles are defined in `apps/api/src/modules/auth/rbac-contract.json`
 | PRD-F6 | Metadata-Driven Data Integration | Must-Have | F6 | R2 | 1.1, 1.4, 2.1 | Implemented |
 | PRD-F7 | Project Indicator and Monitoring | Must-Have | F7 | R3, R4 | 1.5 | Implemented; G-F7-1..5 Met |
 | PRD-F8 | Aggregated Monitoring Dashboard with SADDD Analysis | Must-Have | F8 | R3 | 1.6, 2.2, 2.3 | Implemented; Add to Dashboard live with browser pins; G-F8-7 Met locally at assumed scale (staging re-measure pending) |
-| PRD-F9 | Descriptive Analytics and Project Performance Summaries | Supporting | F9 | R3, R7 | 1.6, 2.2 | Implemented for KPI, participation, survey and timeline views plus participation breakdowns, indicator trends, server budget aggregate and closed-period survey release (hosted apply of 0057 pending); aggregate-only participation breakdowns deferred |
-| PRD-F10 | Rule-Based Alerts | Supporting | F10 | R7 | 1.7, 2.4 | Local API and initial runtime slice; integration verification pending |
-| PRD-F11 | Rule-Based Decision Support and Recommendations | Supporting | F11 | R7 | 1.7, 2.4 | Local human review API; integration verification pending |
+| PRD-F9 | Descriptive Analytics and Project Performance Summaries | Supporting | F9 | R3, R7 | 1.6, 2.2 | Implemented for KPI, participation, survey and timeline views plus participation breakdowns, indicator trends, server budget aggregate and closed-period survey release; aggregate-only participation breakdowns deferred |
+| PRD-F10 | Rule-Based Alerts | Supporting | F10 | R7 | 1.7, 2.4 | Runtime verified on local PostgreSQL; hosted scheduler activation pending |
+| PRD-F11 | Rule-Based Decision Support and Recommendations | Supporting | F11 | R7 | 1.7, 2.4 | Human review and auto-resolve verified on local PostgreSQL |
 | PRD-F12 | Reporting and Data Visualization | Supporting | None | R3 | 1.6 | Local preview and artifact APIs; six report kinds export as CSV, XLS, XLSX and PDF; scope and suppression verified on local PostgreSQL; hosted application deferred |
 | PRD-F13 | Public Project Tracker | Supporting | F12 | R8 | 1.8 | Local publication and approved-public APIs; final verification pending; hosted application deferred |
 
@@ -102,10 +102,10 @@ Status comes from the repository, not the manuscript labels "In Progress" and "P
 | FR-8 | Centralized encoded and imported records | PRD-F6 | High | P5 / R5 | Implemented |
 | FR-9 | Indicator and monitoring parameter configuration | PRD-F7 | High | P3 / R3, P4 / R4 | Implemented; reusable indicator definitions through the organization library (cr-pathways-indicator-library); project structure templates not built |
 | FR-10 | Aggregated dashboards and SADDD summaries | PRD-F8 | High | P3 / R3 | Implemented |
-| FR-11 | Descriptive analytics and performance summaries | PRD-F9 | Medium | P3 / R3, P7 / R7 | Implemented for four views and the breakdowns, trends and server budget aggregate; closed-period survey release awaits hosted apply of 0057 |
-| FR-12 | Rule-based alerts | PRD-F10 | Medium | P7 / R7 | Local API and runtime slice; integration verification pending |
+| FR-11 | Descriptive analytics and performance summaries | PRD-F9 | Medium | P3 / R3, P7 / R7 | Implemented for four views and the breakdowns, trends and server budget aggregate; closed-period survey release (0057, applied on PATHWAYS-devV2) |
+| FR-12 | Rule-based alerts | PRD-F10 | Medium | P7 / R7 | Runtime verified on local PostgreSQL; hosted scheduler activation pending |
 | FR-13 | Budget expense entries and liquidation evidence | PRD-F2 | High | P5 / R5 | Implemented |
-| FR-14 | Predefined recommendation prompts | PRD-F11 | Medium | P7 / R7 | Local human review API; integration verification pending |
+| FR-14 | Predefined recommendation prompts | PRD-F11 | Medium | P7 / R7 | Human review and auto-resolve verified on local PostgreSQL |
 | FR-15 | Monitoring reports and visual outputs | PRD-F12 | High | P3 / R3 | Local preview and artifact APIs; six report kinds in four formats; verified on local PostgreSQL |
 | FR-16 | Publish approved project information | PRD-F13 | Medium | P8 / R8 | Local publication API; final verification pending |
 | FR-17 | External view of approved summaries | PRD-F13 | Medium | P8 / R8 | Local approved-public API; final verification pending |
@@ -1100,7 +1100,7 @@ Not applicable: the dashboard is a read model with no lifecycle.
 | G-F9-7 | Survey results are released only for an exact non-overlapping period and only to roles with `assessments.detail.read` | Met | QAD-T33 |
 | G-F9-8 | Aggregate-only roles cannot difference open-period survey releases | Met | QAD-A21 |
 | G-F9-9 | Participation breakdowns, indicator trends and a server budget aggregate are available | Met | QAD-T63, QAD-T110, QAD-A39 |
-| G-F9-10 | Survey totals for Program Manager and Grant Manager through a closed-period release table | Met (local; hosted apply of 0057 pending) | QAD-T64 |
+| G-F9-10 | Survey totals for Program Manager and Grant Manager through a closed-period release table | Met | QAD-T64 |
 
 #### Use Cases
 
@@ -1160,10 +1160,12 @@ Not applicable: analytics views are read models with no lifecycle.
 - Human review, outcome, resolve and dismiss actions, with a required note where the action needs one.
 - Automatic resolution when the condition clears, and an unavailable result when a metric cannot be computed.
 - In-application notifications list and read marking.
+- Budget utilization, Beneficiary follow-up and survey improvement metrics as project-level aggregates with small-cell suppression, visible only to users who can read that source (cr-pathways-rules-metric-catalog-and-auto-resolve).
+- Scheduled background evaluation, drain every 5 minutes and sweep hourly, once a person sets the hosted credentials (cr-pathways-rules-hosted-scheduler).
 **Bounds (out):**
 - Free-form rules, raw SQL or code in rules: rules are predefined data only (Scope and Limitations / rfc-pathways-rule-alerts-decision-support)
 - Autonomous action on an alert: a human decision is always required (Scope and Limitations)
-- Budget, Beneficiary and survey metrics: unavailable in the admitted catalog (cr-pathways-f10-f11-runtime-authority)
+- Individual-level Beneficiary metrics and currency conversion: rule metrics are aggregates in one currency only (cr-pathways-rules-metric-catalog-and-auto-resolve)
 - Machine-learning or predictive alerts: out of scope (Scope and Limitations)
 - Email, SMS or named-recipient notifications: only in-application notifications exist (Scope and Limitations)
 **Lock:** Locked. Adding a gate or widening a bound requires an approved `cr-pathways-*`; anything outside these bounds is out of scope by default. System-wide bounds: section 6.1.
@@ -1172,13 +1174,13 @@ Not applicable: analytics views are read models with no lifecycle.
 
 | Gate | Condition | Status | QAD |
 |---|---|---|---|
-| G-F10-1 | A rule that holds for an episode raises exactly one alert carrying versioned evidence | Partly met | QAD-T09 |
+| G-F10-1 | A rule that holds for an episode raises exactly one alert carrying versioned evidence | Met | QAD-T09 |
 | G-F10-2 | An unavailable metric is recorded as not evaluated and never raises a misleading alert | Met | QAD-T24 |
 | G-F10-3 | A rule containing raw SQL or code is rejected | Met | QAD-A08 |
 | G-F10-4 | Alert status follows the lifecycle state machine and terminal alerts accept no further disposition | Met | QAD-T65 |
-| G-F10-5 | Only holders of the alert permissions read, review or record an outcome, scoped to their organization and project | Partly met | QAD-T66 |
-| G-F10-6 | Budget, Beneficiary and survey rule metrics evaluate and raise alerts | Not met | QAD-T67 |
-| G-F10-7 | Background evaluation runs on a schedule in the hosted environment | Not met | QAD-T68 |
+| G-F10-5 | Only holders of the alert permissions read, review or record an outcome, scoped to their organization and project | Met | QAD-T66 |
+| G-F10-6 | Budget, Beneficiary and survey rule metrics evaluate and raise alerts | Met | QAD-T67 |
+| G-F10-7 | Background evaluation runs on a schedule in the hosted environment | Partly met | QAD-T68 |
 
 #### Use Cases
 
@@ -1232,7 +1234,7 @@ flowchart LR
 | Permission | `rules.create`, `rules.update`, `rules.activate` |
 | Trigger | Administrator changes a threshold or rule |
 | Preconditions | Authenticated; rule catalog available |
-| Main flow | 1. Administrator opens rule settings (route `/settings/rules`). 2. Administrator drafts a rule version (route `/rules/:id/drafts`). 3. System validates it with a dry run (route `/rules/dry-run`). 4. Administrator activates it (route `/rules/:id/activate`). |
+| Main flow | 1. Administrator opens the rule board (route `/alerts/repository`; `/settings/rules` redirects there) and creates or edits a rule in its drawer. 2. Administrator drafts a rule version (route `/rules/:id/drafts`). 3. System validates it with a dry run (route `/rules/dry-run`). 4. Administrator activates it (route `/rules/:id/activate`). |
 | Alternate / exception | Invalid threshold or code-like content: rejected; archived rule cannot be activated |
 | Postconditions | New version is active and used by later evaluations; change recorded in the audit log |
 | Gates | G-F10-3, G-F10-4 |
@@ -1269,10 +1271,10 @@ stateDiagram-v2
 - Recommendation list and detail with the linked alert and supporting evidence.
 - Human review and outcome (Accept, Partially accept, Decline, Escalate) with a required note.
 - Status follows the recommendation state machine; the linked alert is updated with the decision.
+- Recommendations on budget, Beneficiary or survey conditions through the admitted aggregate metrics, and Auto-resolved when the linked alert clears before any outcome (cr-pathways-rules-metric-catalog-and-auto-resolve).
 **Bounds (out):**
 - Generated or predictive recommendations: prompts are predefined only (Scope and Limitations)
 - Automatic execution of a recommendation: a human decision is always required (Scope and Limitations)
-- Recommendations on budget, Beneficiary or survey conditions: their metrics are unavailable (cr-pathways-f10-f11-runtime-authority)
 - Named-individual notification of decisions: only in-application notifications exist (Scope and Limitations)
 **Lock:** Locked. Adding a gate or widening a bound requires an approved `cr-pathways-*`; anything outside these bounds is out of scope by default. System-wide bounds: section 6.1.
 
@@ -1280,11 +1282,11 @@ stateDiagram-v2
 
 | Gate | Condition | Status | QAD |
 |---|---|---|---|
-| G-F11-1 | An authorized user reviews a predefined recommendation linked to its alert and evidence | Partly met | QAD-T10 |
+| G-F11-1 | An authorized user reviews a predefined recommendation linked to its alert and evidence | Met | QAD-T10 |
 | G-F11-2 | An outcome requires a note and records actor, time and decision | Met | QAD-T69 |
 | G-F11-3 | A user without the outcome permission sees the recommendation read-only | Met | QAD-T70 |
 | G-F11-4 | A recommendation is retrieved from configuration and never generated at runtime | Met | QAD-A08 |
-| G-F11-5 | A recommendation is marked Auto-resolved when its linked alert clears | Not met | QAD-T71 |
+| G-F11-5 | A recommendation is marked Auto-resolved when its linked alert clears | Met | QAD-T71 |
 
 #### Use Cases
 
@@ -1311,7 +1313,7 @@ flowchart LR
 | Trigger | User opens the recommendations list |
 | Preconditions | Authenticated; a triggered alert has a linked recommendation in the user's scope |
 | Main flow | 1. User opens recommendations (route `/recommendations`). 2. User opens one to see the suggested action, linked alert and evidence (route `/recommendations/[recommendationId]`). 3. User marks it reviewed (route `/recommendations/:id/review`). |
-| Alternate / exception | Permission denied: no controls; no recommendations: empty state |
+| Alternate / exception | Permission denied: no controls; no recommendations: empty state; linked alert cleared before an outcome: Auto-resolved and read-only |
 | Postconditions | Status moves New to Reviewed; review recorded in the audit log |
 | Gates | G-F11-1, G-F11-3, G-F11-4, G-F11-5 |
 
@@ -1332,15 +1334,12 @@ flowchart LR
 
 ```mermaid
 stateDiagram-v2
-  %% Decline and Escalate record an outcome and leave status unchanged
+  %% Every outcome records a decision and leaves the recommendation status unchanged
   [*] --> New
   New --> Reviewed: review
-  New --> Resolved: outcome accepts
-  Reviewed --> Resolved: outcome accepts
-  New --> Dismissed: outcome declines
-  Reviewed --> Dismissed: outcome declines
-  Resolved --> [*]
-  Dismissed --> [*]
+  New --> AutoResolved: linked alert clears, no outcome recorded
+  Reviewed --> AutoResolved: linked alert clears, no outcome recorded
+  AutoResolved --> [*]
 ```
 
 ### PRD-F12 Reporting and Data Visualization
@@ -1933,8 +1932,8 @@ Current position is in [state](state.md); manuscript alignment findings are in `
 | Feature | Status |
 |---|---|
 | PRD-F1 to PRD-F8 | Implemented |
-| PRD-F9 | Implemented for four views and the breakdowns, trends and server budget aggregate; closed-period survey release awaits hosted apply of 0057 |
-| PRD-F10, PRD-F11 | Local API; integration verification pending |
+| PRD-F9 | Implemented for four views and the breakdowns, trends and server budget aggregate; closed-period survey release (0057, applied on PATHWAYS-devV2) |
+| PRD-F10, PRD-F11 | Runtime verified on local PostgreSQL; hosted scheduler activation pending |
 | PRD-F12 | Local preview and artifact APIs; six report kinds in four formats; verified on local PostgreSQL |
 | PRD-F13 | Local publication and approved-public APIs; final verification pending |
 

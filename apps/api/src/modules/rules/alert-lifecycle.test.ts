@@ -3,6 +3,7 @@ import {
   alertStatuses,
   applyEvaluation,
   applyHumanAction,
+  canAutoResolveRecommendation,
   decisionOutcomes,
   initialEpisodeCursor,
   supersedeEpisode,
@@ -115,15 +116,15 @@ describe('episode latch independent of human state', () => {
 describe('human actions do not prove condition resolution', () => {
   for (const status of alertStatuses)
     for (const outcome of decisionOutcomes) {
-      it(`${status} records ${outcome} independently`, () => {
-        const result = applyHumanAction(status, {
-          kind: 'OUTCOME',
-          outcome,
-          note: ' Synthetic outcome ',
-        })
-        const terminal = ['RESOLVED', 'DISMISSED', 'AUTO_RESOLVED'].includes(status)
+      it(`${status} handles ${outcome} per the alert lifecycle`, () => {
+        const action = { kind: 'OUTCOME', outcome, note: ' Synthetic outcome ' }
+        if (['RESOLVED', 'DISMISSED', 'AUTO_RESOLVED'].includes(status)) {
+          expect(() => applyHumanAction(status, action)).toThrow(/Terminal alerts/)
+          return
+        }
+        const result = applyHumanAction(status, action)
         expect(result.status).toBe(
-          !terminal && ['ACCEPT', 'PARTIALLY_ACCEPT'].includes(outcome) ? 'ACTIONED' : status,
+          ['ACCEPT', 'PARTIALLY_ACCEPT'].includes(outcome) ? 'ACTIONED' : status,
         )
         expect(result.outcome).toBe(outcome)
         expect(result.note).toBe('Synthetic outcome')
@@ -156,5 +157,15 @@ describe('human actions do not prove condition resolution', () => {
     const action = { kind, ...(kind === 'OUTCOME' ? { outcome: 'ACCEPT' } : {}) }
     for (const note of [undefined, '', '   ', 'a'.repeat(2001)])
       expect(() => applyHumanAction('NEW', { ...action, note })).toThrow()
+  })
+})
+
+describe('recommendation auto-resolution eligibility', () => {
+  it('allows only open recommendations with no recorded decision', () => {
+    expect(canAutoResolveRecommendation('NEW', false)).toBe(true)
+    expect(canAutoResolveRecommendation('REVIEWED', false)).toBe(true)
+    expect(canAutoResolveRecommendation('REVIEWED', true)).toBe(false)
+    for (const status of ['RESOLVED', 'DISMISSED', 'AUTO_RESOLVED'])
+      expect(canAutoResolveRecommendation(status, false)).toBe(false)
   })
 })

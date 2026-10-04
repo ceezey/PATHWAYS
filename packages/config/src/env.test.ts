@@ -94,4 +94,23 @@ describe('server-only machine readiness configuration', () => {
       }).RULES_WORKER_ENABLED,
     ).toBe(true)
   })
+  it('accepts pooler logins with a project ref and rejects a wrong role or malformed ref', () => {
+    const ref = 'abcdefghijklmnopqrst'
+    const remote = (user: string) =>
+      `postgresql://${user}:synthetic@db.example.invalid/local?sslmode=require`
+    const pooled = {
+      ...machine,
+      RULES_WORKER_DATABASE_URL: remote(`pathways_rules_worker.${ref}`),
+      RULES_SWEEPER_DATABASE_URL: remote(`pathways_rules_sweeper.${ref}`),
+    }
+    expect(readApiEnv(pooled).RULES_WORKER_ENABLED).toBe(true)
+    for (const user of [
+      `pathways_rules_sweeper.${ref}`,
+      `pathways_rules_worker.${ref}x`,
+      `pathways_rules_worker.${ref.slice(1)}`,
+      `pathways_rules_worker.${ref.toUpperCase()}`,
+      `pathways_rules_worker_x.${ref}`,
+    ])
+      expect(() => readApiEnv({ ...pooled, RULES_WORKER_DATABASE_URL: remote(user) })).toThrow()
+  })
 })

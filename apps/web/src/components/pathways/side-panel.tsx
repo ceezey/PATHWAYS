@@ -1,5 +1,7 @@
 import type { ReactNode, Ref, WheelEventHandler } from 'react'
 
+import { cn } from '@/lib/utils'
+
 import { SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 
 export const SidePanel = ({
@@ -9,6 +11,7 @@ export const SidePanel = ({
   containedScroll = false,
   onOverlayWheel,
   scrollRef,
+  className,
 }: {
   title: string
   description: string
@@ -16,13 +19,15 @@ export const SidePanel = ({
   containedScroll?: boolean
   onOverlayWheel?: WheelEventHandler<HTMLDivElement>
   scrollRef?: Ref<HTMLDivElement>
+  className?: string
 }) => (
   <SheetContent
-    className={
+    className={cn(
       containedScroll
         ? 'flex h-dvh max-h-dvh w-full flex-col overflow-hidden sm:max-w-xl'
-        : 'w-full overflow-y-auto sm:max-w-xl'
-    }
+        : 'w-full overflow-y-auto sm:max-w-xl',
+      className,
+    )}
     overlayProps={onOverlayWheel ? { onWheel: onOverlayWheel } : undefined}
   >
     <SheetHeader>

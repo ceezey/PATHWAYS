@@ -65,6 +65,20 @@ describe('routing and digest', () => {
     ).toEqual(['packages/imports/src/a.ts'])
     expect(routing([change('docs/sad-pathways.md', 'text')])).toEqual({})
   })
+  it('routes rules engine and rule editor changes to the determinism checker', () => {
+    const routed = routing([
+      change('apps/api/src/modules/rules/rule-engine.ts', 'new', 'old'),
+      change('apps/web/src/features/analytics/rules-validation.ts', 'new', 'old'),
+    ])
+    expect(routed['rule-engine-determinism-checker']).toEqual([
+      'apps/api/src/modules/rules/rule-engine.ts',
+      'apps/web/src/features/analytics/rules-validation.ts',
+    ])
+  })
+  it('routes the rules dispatch workflow to design-qa-agent', () => {
+    const file = '.github/workflows/rules-dispatch.yml'
+    expect(routing([change(file, 'new', 'old')])['design-qa-agent']).toContain(file)
+  })
   it('binds final, base, rename and deletion bytes independent of input order', () => {
     const a = change('a.ts', 'new', 'old')
     const b = change('b.ts', null, 'old')

@@ -17,3 +17,6 @@ apps/api/prisma/migrations/0043_activity_overdue_explanation/migration.sql -text
 apps/api/prisma/migrations/0044_activity_progress_review/migration.sql -text
 apps/api/prisma/migrations/0045_f9_descriptive_aggregates/migration.sql -text
 apps/api/prisma/migrations/0056_indicator_type/migration.sql -text
+apps/api/prisma/migrations/0058_rules_decision_status_auto_resolved/migration.sql -text
+apps/api/prisma/migrations/0059_rules_recommendation_auto_resolve/migration.sql -text
+apps/api/prisma/migrations/0060_rules_budget_beneficiary_survey_metrics/migration.sql -text

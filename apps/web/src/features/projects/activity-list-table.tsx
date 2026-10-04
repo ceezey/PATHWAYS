@@ -94,18 +94,16 @@ export const ActivityListTable = ({
       title="Activity list"
       description={`${activities.length} ${activities.length === 1 ? 'activity' : 'activities'} · sorted by due date`}
       actions={
-        <>
-          <Button
-            className="gap-2"
-            onClick={() => downloadCsv(activitiesCsv(rows, columns))}
-            size="sm"
-            type="button"
-            variant="outline"
-          >
-            <Download className="h-4 w-4" aria-hidden="true" />
-            Export
-          </Button>
-        </>
+        <Button
+          className="gap-2"
+          onClick={() => downloadCsv(activitiesCsv(rows, columns))}
+          size="sm"
+          type="button"
+          variant="outline"
+        >
+          <Download className="h-4 w-4" aria-hidden="true" />
+          Export
+        </Button>
       }
     >
       <div className="max-h-[36rem] overflow-auto rounded-lg border border-border">

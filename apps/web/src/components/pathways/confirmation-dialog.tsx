@@ -16,6 +16,7 @@ import {
 export const ConfirmationDialog = ({
   cancelLabel = 'Cancel',
   children,
+  confirmDisabled = false,
   confirmLabel,
   confirmVariant = 'destructive',
   description,
@@ -26,6 +27,7 @@ export const ConfirmationDialog = ({
 }: {
   cancelLabel?: string
   children?: ReactNode
+  confirmDisabled?: boolean
   confirmLabel: string
   confirmVariant?: React.ComponentProps<typeof Button>['variant']
   description: string
@@ -63,7 +65,12 @@ export const ConfirmationDialog = ({
           >
             {cancelLabel}
           </Button>
-          <Button onClick={onConfirm} type="button" variant={confirmVariant}>
+          <Button
+            disabled={confirmDisabled}
+            onClick={onConfirm}
+            type="button"
+            variant={confirmVariant}
+          >
             {confirmLabel}
           </Button>
         </DialogFooter>

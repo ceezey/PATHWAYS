@@ -103,6 +103,70 @@ describe('synthetic rule condition testing', () => {
       reason: 'MISSING_DATES',
     })
   })
+  it.each([
+    [
+      'BUDGET_UTILIZATION_PERCENT',
+      { 'Test planned budget total': '200', 'Test approved expense total': '50' },
+      'AVAILABLE',
+      '25',
+      'BUDGET_AGGREGATE',
+    ],
+    [
+      'BENEFICIARY_FOLLOW_UP_PERCENT',
+      {
+        'Test active enrollments with participation': '10',
+        'Test enrollments needing follow-up': '5',
+      },
+      'AVAILABLE',
+      '50',
+      'BENEFICIARY_AGGREGATE',
+    ],
+    [
+      'BENEFICIARY_FOLLOW_UP_PERCENT',
+      {
+        'Test active enrollments with participation': '4',
+        'Test enrollments needing follow-up': '2',
+      },
+      'SUPPRESSED',
+      null,
+      null,
+    ],
+    [
+      'SURVEY_MEAN_IMPROVEMENT_POINTS',
+      { 'Test complete pre and post pairs': '6', 'Test mean improvement in points': '-2.5' },
+      'AVAILABLE',
+      '-2.5',
+      'SURVEY_AGGREGATE',
+    ],
+  ])(
+    'builds aggregate inputs for %s without activity fallthrough',
+    async (metric, fields, state_, value, kind) => {
+      render(
+        <RuleTestWorkspace
+          rule={{
+            ...rule,
+            conditions: {
+              ...rule.conditions,
+              metric,
+              operator: 'GT',
+              threshold: '1',
+            } as HumanRule['conditions'],
+          }}
+        />,
+      )
+      fireEvent.change(screen.getByLabelText('Test reporting date (Asia/Manila)'), {
+        target: { value: '2026-09-27' },
+      })
+      for (const [label, entered] of Object.entries(fields))
+        fireEvent.change(screen.getByLabelText(label), { target: { value: entered } })
+      fireEvent.click(screen.getByRole('button', { name: 'Run condition test' }))
+      await waitFor(() => expect(state.call).toHaveBeenCalledOnce())
+      const observation = state.call.mock.calls[0][0].observations[0]
+      expect(observation).toMatchObject({ metric, cell: { state: state_, value } })
+      expect(observation.calculation?.kind ?? null).toBe(kind)
+      expect(screen.queryByText('Test activity population')).toBeNull()
+    },
+  )
   it('ignores an old test result after logout and return to the same principal', async () => {
     let finish: (value: unknown) => void = () => {}
     state.call.mockReturnValueOnce(

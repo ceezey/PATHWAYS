@@ -241,6 +241,19 @@ describe('two-step rule editor navigation', () => {
   })
 })
 
+describe('aggregate metric options', () => {
+  it('offers the new metrics with friendly labels and no record binding', async () => {
+    renderEditor({ projectId })
+    await screen.findByLabelText('Applies to')
+    const metricSelect = screen.getByLabelText('Metric')
+    for (const label of ['Budget utilization', 'Beneficiary follow-up', 'Survey mean improvement'])
+      expect(within(metricSelect).getByText(label)).toBeTruthy()
+    fireEvent.change(metricSelect, { target: { value: 'BUDGET_UTILIZATION_PERCENT' } })
+    expect(screen.queryByLabelText('Activity')).toBeNull()
+    expect(screen.queryByLabelText('Indicator')).toBeNull()
+  })
+})
+
 describe('project-scoped record bindings', () => {
   it('scopes activity options to the selected project and clears bindings on project change', async () => {
     renderEditor({ projectId })
@@ -490,10 +503,9 @@ describe('starting a rule from a template', () => {
   it('shows the three templates that have no backend metric as text with their exact reason', async () => {
     renderEditor({ projectId })
     await screen.findByLabelText('Applies to')
-    expect(
-      screen.getByText('Requires KPI achievement and Budget burn, not yet available'),
-    ).toBeTruthy()
-    expect(screen.getAllByText('Requires Budget burn, not yet available')).toHaveLength(2)
+    expect(screen.getAllByText('Requires a rule template that is not yet available')).toHaveLength(
+      3,
+    )
     expect(screen.queryByRole('button', { name: 'Apply Financial Efficiency Risk' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Apply Budget Under-utilization' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Apply Ideal Vector' })).toBeNull()

@@ -102,8 +102,22 @@ describe('direct current recommendation selection', () => {
         `/alerts?alert=${record.alertId}`,
       )
       expect(screen.queryByRole('button', { name: 'Mark reviewed' })).toBeNull()
+      expect(screen.queryByRole('button', { name: 'Record outcome' })).toBeNull()
     },
   )
+  it.each([
+    ['NEW', true],
+    ['AUTO_RESOLVED', false],
+  ])('shows outcome recording for %s: %s', async (status, shown) => {
+    state.permissions = [...state.permissions, 'recommendations.outcome.record']
+    state.detail.mockResolvedValue({ ...record, status })
+    mount()
+    await screen.findByRole('heading', { name: record.title })
+    expect(Boolean(screen.queryByRole('button', { name: 'Record outcome' }))).toBe(shown)
+    expect(screen.queryByRole('button', { name: 'Mark reviewed' })).toBeNull()
+    if (status === 'AUTO_RESOLVED')
+      expect(screen.getAllByText('Auto-resolved').length).toBeGreaterThan(0)
+  })
   it('keeps fresh scope or exposure denial authoritative and renders no record contents', async () => {
     state.detail.mockRejectedValue(Error('HTTP 403'))
     mount()

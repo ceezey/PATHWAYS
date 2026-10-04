@@ -1,6 +1,5 @@
 import type { AnchorHTMLAttributes } from 'react'
 
-
 declare global {
   interface Window {
     __PASSWORD_LOGIN_CONFIGURED__?: boolean

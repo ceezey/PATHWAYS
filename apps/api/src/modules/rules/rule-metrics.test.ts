@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import {
   activityObservation,
+  beneficiaryFollowUpObservation,
+  budgetObservation,
   indicatorObservation,
   timelineObservation as observeTimeline,
+  surveyImprovementObservation,
 } from './rule-metrics'
 const timelineObservation = (input: Record<string, unknown>) =>
   observeTimeline({ projectStatus: 'PLANNED', projectArchived: false, ...input })
@@ -389,5 +392,97 @@ describe('complete scoped activity population', () => {
       Array.from({ length: 1001 }, () => activity()),
     ])
       expect(() => activityObservation({ ...input, activities })).toThrow()
+  })
+})
+
+describe('aggregate-only project observations', () => {
+  const open = { projectStatus: 'ONGOING', projectArchived: false, revision: '1' }
+  const budget = (patch: Record<string, unknown> = {}) =>
+    budgetObservation({
+      ...context,
+      ...open,
+      recordCount: 2,
+      currencyCount: 1,
+      plannedTotal: '200',
+      approvedExpenseTotal: '50',
+      ...patch,
+    })
+  const follow = (population: number, followUp: number, patch: Record<string, unknown> = {}) =>
+    beneficiaryFollowUpObservation({ ...context, ...open, population, followUp, ...patch })
+  const survey = (pairCount: number, differenceSum: string, patch: Record<string, unknown> = {}) =>
+    surveyImprovementObservation({ ...context, ...open, pairCount, differenceSum, ...patch })
+
+  it('computes budget utilization exactly, uncapped, with project-level evidence', () => {
+    const result = budget()
+    expect(result.cell).toEqual({ state: 'AVAILABLE', value: '25', reason: null })
+    expect(result.source).toEqual({ kind: 'BUDGET_AGGREGATE', recordId: project, revision: '1' })
+    expect(budget({ approvedExpenseTotal: '300' }).cell.value).toBe('150')
+    expect(budget({ plannedTotal: '3', approvedExpenseTotal: '1' }).cell.value).toBe('33.3333')
+    expect(budget({ approvedExpenseTotal: '0' }).cell.state).toBe('ZERO')
+  })
+  it('reports budget unavailable reasons from existing codes', () => {
+    expect(budget({ recordCount: 0 }).cell.reason).toBe('EMPTY_POPULATION')
+    expect(budget({ plannedTotal: '0' }).cell.reason).toBe('ZERO_DENOMINATOR')
+    expect(budget({ currencyCount: 2 }).cell.reason).toBe('UNSUPPORTED_SOURCE')
+    expect(
+      budget({ plannedTotal: '0.0001', approvedExpenseTotal: '99999999999999' }).cell.reason,
+    ).toBe('PROGRESS_OUT_OF_RANGE')
+    expect(() => budget({ plannedTotal: '-1' })).toThrow()
+  })
+  it('suppresses beneficiary follow-up at the cohort boundaries', () => {
+    expect(follow(10, 4).cell.state).toBe('SUPPRESSED')
+    expect(follow(10, 5).cell).toEqual({ state: 'AVAILABLE', value: '50', reason: null })
+    expect(follow(10, 0).cell.state).toBe('ZERO')
+    expect(follow(10, 10).cell.value).toBe('100')
+    expect(follow(5, 5).cell.value).toBe('100')
+    expect(follow(5, 0).cell.state).toBe('ZERO')
+    expect(follow(0, 0).cell.reason).toBe('EMPTY_POPULATION')
+    for (const [population, count] of [
+      [4, 0],
+      [4, 4],
+      [10, 1],
+      [10, 4],
+      [10, 6],
+      [10, 9],
+    ])
+      expect(follow(population, count).cell).toEqual({
+        state: 'SUPPRESSED',
+        value: null,
+        reason: 'SUPPRESSED',
+      })
+    expect(follow(10, 5).calculation).toEqual({
+      kind: 'BENEFICIARY_AGGREGATE',
+      population: 10,
+      followUp: 5,
+    })
+    expect(() => follow(3, 4)).toThrow()
+  })
+  it('averages signed survey improvement and suppresses fewer than five pairs', () => {
+    expect(survey(5, '10').cell.value).toBe('2')
+    expect(survey(6, '-15').cell.value).toBe('-2.5')
+    expect(survey(7, '1').cell.value).toBe('0.1429')
+    expect(survey(5, '0').cell.state).toBe('ZERO')
+    expect(survey(5, '500').cell.value).toBe('100')
+    expect(survey(5, '-500').cell.value).toBe('-100')
+    expect(survey(4, '10').cell).toEqual({
+      state: 'SUPPRESSED',
+      value: null,
+      reason: 'SUPPRESSED',
+    })
+    expect(survey(0, '0').cell.reason).toBe('EMPTY_POPULATION')
+  })
+  it('is not applicable for archived or non-active projects and never leaks sources', () => {
+    for (const patch of [{ projectArchived: true }, { projectStatus: 'COMPLETED' }]) {
+      for (const result of [budget(patch), follow(10, 5, patch), survey(6, '12', patch)]) {
+        expect(result.cell).toEqual({
+          state: 'NOT_APPLICABLE',
+          value: null,
+          reason: 'NOT_APPLICABLE',
+        })
+        expect(result.source).toBeNull()
+        expect(result.calculation).toBeNull()
+      }
+    }
+    expect(follow(4, 2).source).toBeNull()
   })
 })
