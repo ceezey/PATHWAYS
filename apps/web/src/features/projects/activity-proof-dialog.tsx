@@ -145,6 +145,8 @@ const ScopedActivityProofDialog = ({
   // The progress field follows the beneficiary-based suggestion until the officer edits it.
   const [progressText, setProgressText] = useState('')
   const [progressEdited, setProgressEdited] = useState(false)
+  // Completion is an explicit officer choice; the derived bar alone never reaches 100.
+  const [completes, setCompletes] = useState(false)
   const suggestion = (() => {
     if (resume || !activity) return null
     const target = activity.targetBeneficiaries
@@ -155,7 +157,7 @@ const ScopedActivityProofDialog = ({
     const percent = Math.floor((total / target) * 100)
     // Automatic suggestions never reach 100: completion is only ever an explicit choice.
     return {
-      percent: Math.min(99, Math.max(activity.progress, percent)),
+      percent: completes ? 100 : Math.min(99, Math.max(activity.progress, percent)),
       total,
       target,
       includesSession: typeof session === 'number',
@@ -184,6 +186,7 @@ const ScopedActivityProofDialog = ({
     if (!activity || !open) return
     setProgressText('')
     setProgressEdited(false)
+    setCompletes(false)
     setNote(resume?.note ?? '')
     setFiles([])
     setError('')
@@ -582,6 +585,16 @@ const ScopedActivityProofDialog = ({
                     style={{ width: `${suggestion.percent}%` }}
                   />
                 </div>
+                <label className="flex min-h-11 items-center gap-2 text-sm text-foreground">
+                  <input
+                    checked={completes}
+                    className="h-4 w-4 accent-primary"
+                    disabled={submitting || locked}
+                    onChange={(event) => setCompletes(event.target.checked)}
+                    type="checkbox"
+                  />
+                  This proof completes the activity (100%)
+                </label>
               </>
             ) : (
               <>
