@@ -154,18 +154,7 @@ export function HumanReviewWorkspace({
     )
   return (
     <div className="space-y-6">
-      <PageHeader
-        title={kind === 'alert' ? labels.moduleAlerts : labels.moduleRecommendations}
-        eyebrow="Human review required"
-        description="Review recorded evidence and predefined recommendations. Decisions remain with your project team."
-        actions={
-          principalHasAtomicPermission(profile, 'rules.read') ? (
-            <Button asChild variant="outline">
-              <Link href="/alerts/repository">Manage rules</Link>
-            </Button>
-          ) : undefined
-        }
-      />
+      <PageHeader title={kind === 'alert' ? labels.moduleAlerts : labels.moduleRecommendations} />
       <div className="flex flex-wrap items-end gap-3">
         <div className="min-w-64 space-y-2">
           <Label htmlFor={`${kind}-project`}>Project</Label>
@@ -180,7 +169,7 @@ export function HumanReviewWorkspace({
               choose(null)
             }}
           >
-            <option value="">All accessible projects</option>
+            <option value="">Select Project</option>
             {projects.data?.map((project) => (
               <option key={project.id} value={project.id}>
                 {project.title}
@@ -203,6 +192,11 @@ export function HumanReviewWorkspace({
             onClick={() => setShowNotifications((value) => !value)}
           >
             {showNotifications ? 'Hide notifications' : 'Notifications'}
+          </Button>
+        ) : null}
+        {principalHasAtomicPermission(profile, 'rules.read') ? (
+          <Button asChild className="ml-auto" variant="outline">
+            <Link href="/alerts/repository">Manage rules</Link>
           </Button>
         ) : null}
       </div>
