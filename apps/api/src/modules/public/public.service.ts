@@ -154,6 +154,9 @@ export class PublicService {
         WHERE organization_id=${actor.organizationId}::uuid AND project_id=${projectId}::uuid FOR UPDATE`)
         if ((current?.revision ?? 0) !== body.expectedRevision)
           throw new ConflictException('Publication changed. Reload before continuing.')
+        // The database trigger also refuses this; checking here returns a clear 409 first.
+        if (operation === 'APPROVE' && current?.submittedById === actor.userId)
+          throw new ConflictException('A different reviewer must approve this revision.')
         if (operation === 'SUBMIT' && current?.state === 'PUBLISHED')
           throw new ConflictException('Withdraw the published revision before replacing it.')
         if (

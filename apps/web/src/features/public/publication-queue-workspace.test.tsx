@@ -12,6 +12,7 @@ const state = vi.hoisted(() => ({
   canApprove: true,
   canPublish: true,
   publicationState: 'FOR_REVIEW',
+  submittedBy: 'another-reviewer',
   capturedOwnerInvalid: false,
   transition: vi.fn(),
   success: vi.fn(),
@@ -73,7 +74,7 @@ vi.mock('@/providers/authorized-query-provider', () => ({
             revision: 1,
             state: state.publicationState,
             summary: 'Private proposed summary',
-            submittedById: 'another-reviewer',
+            submittedById: state.submittedBy,
             approvedById: null,
             publishedById: null,
           },
@@ -99,6 +100,7 @@ describe('publication current project and revision boundaries', () => {
     state.canApprove = true
     state.canPublish = true
     state.publicationState = 'FOR_REVIEW'
+    state.submittedBy = 'another-reviewer'
     state.capturedOwnerInvalid = false
     state.refetch.mockResolvedValue(undefined)
   })
@@ -125,6 +127,12 @@ describe('publication current project and revision boundaries', () => {
       expect(state.transition).not.toHaveBeenCalled()
     },
   )
+  it('disables approval for the reviewer who submitted the revision (QAD-T74)', () => {
+    state.submittedBy = state.user
+    render(<PublicationQueueWorkspace />)
+    const approve = screen.getByRole('button', { name: 'Approve revision' }) as HTMLButtonElement
+    expect(approve.disabled).toBe(true)
+  })
   it('does not expose cached publication data when its own current read fails', () => {
     const view = render(<PublicationQueueWorkspace />)
     state.publicationError = true
