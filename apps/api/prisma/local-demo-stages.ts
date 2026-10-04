@@ -1,4 +1,10 @@
 import type { CreateProjectDto } from '../src/modules/projects/projects.dto'
+import { stageAutoResolve } from './defense-demo-stage-autoresolve'
+import { stageBackdate } from './defense-demo-stage-backdate'
+import { stageProjectEvaluation } from './defense-demo-stage-evaluation'
+import { stageMonitoring } from './defense-demo-stage-monitoring'
+import { stageDefenseParticipation } from './defense-demo-stage-participation'
+import { stageSurvey } from './defense-demo-stage-survey'
 import { type DemoProject, addDaysIso, demoPrograms, demoProjects } from './local-demo-data'
 import type { DemoContext } from './local-demo-seed'
 import { stageActivities } from './local-demo-stage-activities'
@@ -128,6 +134,7 @@ const stages: Stage[] = [
   { name: 'team', run: stageTeam },
   { name: 'activities', run: stageActivities },
   { name: 'indicators', run: stageIndicators },
+  { name: 'monitoring', run: stageMonitoring },
   { name: 'beneficiaries', run: stageBeneficiaries },
   { name: 'journeys and forms', run: stageJourneysAndForms },
   { name: 'participation', run: stageParticipation },
@@ -137,12 +144,17 @@ const stages: Stage[] = [
   { name: 'milestones', run: stageMilestones },
   { name: 'assessments', run: stageAssessments },
   { name: 'journey outcomes', run: stageEnrollmentOutcomes },
+  { name: 'survey', run: stageSurvey },
+  { name: 'follow-up participation', run: stageDefenseParticipation },
   { name: 'rules', run: stageRules },
   { name: 'evaluation', run: stageEvaluation },
   { name: 'decisions', run: stageDecisions },
+  { name: 'auto-resolve', run: stageAutoResolve },
   { name: 'public tracker', run: stagePublishing },
+  { name: 'project evaluation', run: stageProjectEvaluation },
   { name: 'reports', run: stageReports },
   { name: 'evaluation criteria', run: stageCriteria },
+  { name: 'backdate', run: stageBackdate },
 ]
 
 const foundation = new Set(['programs', 'projects', 'team'])
