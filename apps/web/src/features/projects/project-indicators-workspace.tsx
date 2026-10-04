@@ -36,6 +36,7 @@ import {
   type ProjectIndicator,
   createIndicatorDraftSchema,
   formatMetricCell,
+  indicatorTypes,
   manualMeasurementSchema,
   type metricRecipes,
   type numericKinds,
@@ -49,6 +50,41 @@ const optional = (form: FormData, name: string) => text(form, name) || undefined
 const allActivities = 'ALL'
 const headClass =
   'sticky top-0 z-10 h-10 bg-surface-subtle px-4 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground'
+const codeSkipWords = new Set([
+  'a',
+  'an',
+  'and',
+  'at',
+  'by',
+  'for',
+  'in',
+  'of',
+  'on',
+  'the',
+  'to',
+  'with',
+])
+
+/** Readable code such as HR-01: name initials plus the first free two-digit number. */
+export const generateIndicatorCode = (name: string, existing: string[]) => {
+  const words = name
+    .toUpperCase()
+    .split(/[^A-Z0-9]+/)
+    .filter((word) => word && !codeSkipWords.has(word.toLowerCase()))
+  if (words.length === 0) return ''
+  const letters = words.length === 1 ? words[0].slice(0, 3) : words.map((word) => word[0]).join('')
+  const prefix = /^[A-Z]/.test(letters) ? letters.slice(0, 4) : `I${letters}`.slice(0, 4)
+  const used = new Set(existing.map((code) => code.toUpperCase()))
+  for (let n = 1; ; n += 1) {
+    const code = `${prefix}-${String(n).padStart(2, '0')}`
+    if (!used.has(code)) return code
+  }
+}
+
+const typeLabel = (value = 'OUTPUT') =>
+  value.charAt(0) + value.slice(1).toLowerCase().replaceAll('_', ' ')
+const typeOptions = indicatorTypes.map((value) => ({ value, label: typeLabel(value) }))
+
 /** Suggests a contract-valid code from the indicator name. */
 export const suggestIndicatorCode = (name: string) => {
   const code = name
@@ -73,6 +109,7 @@ export function indicatorInputFromForm(
     code: text(form, 'code'),
     name: text(form, 'name'),
     description: optional(form, 'description'),
+    indicatorType: optional(form, 'indicatorType'),
     unitLabel: text(form, 'unitLabel'),
     dataSource: text(form, 'dataSource'),
     mode,
@@ -117,13 +154,8 @@ const recipeContract: Record<Recipe, { kind: (typeof numericKinds)[number]; unit
   FORM_NUMERIC_AVERAGE: { kind: 'NON_NEGATIVE', unit: 'value' },
 }
 
-// Values a recipe fixes: completion runs 0 to 100, and counts start from zero.
-const recipeLocks: Partial<Record<Recipe, { baseline: string; target?: string }>> = {
-  ACTIVITY_COMPLETION_PERCENTAGE: { baseline: '0', target: '100' },
-  PARTICIPATION_RECORD_COUNT: { baseline: '0' },
-  DISTINCT_ATTENDING_INDIVIDUALS: { baseline: '0' },
-  EFFECTIVE_JOURNEY_EVENT_COUNT: { baseline: '0' },
-}
+// Suggested starting target per recipe; the target stays editable for every recipe.
+const recipeTargets: Partial<Record<Recipe, string>> = { ACTIVITY_COMPLETION_PERCENTAGE: '100' }
 
 const dayMs = 86_400_000
 const isoDay = (value: number) => new Date(value).toISOString().slice(0, 10)
@@ -142,6 +174,7 @@ function IndicatorForm({
   forms,
   activities,
   period,
+  existingCodes,
   busy,
   message,
   onSave,
@@ -149,14 +182,15 @@ function IndicatorForm({
 }: {
   forms: DigitalFormDefinition[]
   activities: Pick<Activity, 'id' | 'title' | 'journeyStageId'>[]
-  period: { periodStart: string; periodEnd: string }
+  period: { periodStart: string; periodEnd: string } | null
+  existingCodes: string[]
   busy: boolean
   message: string | null
   onSave: (input: CreateIndicatorInput) => Promise<boolean>
   onDone: () => void
 }) {
   const [name, setName] = useState('')
-  const [code, setCode] = useState<string | null>(null)
+  const [indicatorType, setIndicatorType] = useState<string>('OUTPUT')
   const [recipe, setRecipe] = useState<Recipe>(enabledRecipes[0])
   const [formId, setFormId] = useState('')
   const [fieldId, setFieldId] = useState('')
@@ -168,8 +202,8 @@ function IndicatorForm({
       (field) => field.id && ['INTEGER', 'DECIMAL'].includes(field.dataType),
     ) ?? []
   const formRecipe = recipe === 'FORM_NUMERIC_SUM' || recipe === 'FORM_NUMERIC_AVERAGE'
-  const locked = recipeLocks[recipe]
   const { kind, unit } = recipeContract[recipe]
+  const code = generateIndicatorCode(name, existingCodes)
   const save = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     try {
@@ -177,7 +211,7 @@ function IndicatorForm({
       setValidation(null)
       if (await onSave(input)) onDone()
     } catch {
-      setValidation('Check the code, name, baseline, target and recipe inputs, then save again.')
+      setValidation('Check the name, target and recipe inputs, then save again.')
     }
   }
   return (
@@ -187,23 +221,13 @@ function IndicatorForm({
       <input name="numericKind" type="hidden" value={kind} />
       {/* Counts must be whole numbers; every other domain rounds to two decimals. */}
       <input name="displayPrecision" type="hidden" value={kind === 'COUNT' ? 0 : 2} />
-      <input name="unitLabel" type="hidden" value={unit} />
-      <input name="periodStart" type="hidden" value={period.periodStart} />
-      <input name="periodEnd" type="hidden" value={period.periodEnd} />
+      {formRecipe ? null : <input name="unitLabel" type="hidden" value={unit} />}
+      <input name="code" type="hidden" value={code} />
+      <input name="baseline" type="hidden" value="0" />
+      <input name="periodStart" type="hidden" value={period?.periodStart ?? ''} />
+      <input name="periodEnd" type="hidden" value={period?.periodEnd ?? ''} />
       <fieldset disabled={busy} className="grid gap-3 md:grid-cols-2">
-        <div>
-          <label htmlFor="indicator-code">Code</label>
-          <Input
-            id="indicator-code"
-            name="code"
-            value={code ?? suggestIndicatorCode(name)}
-            onChange={(event) => setCode(event.target.value.toUpperCase())}
-            required
-            maxLength={40}
-            pattern="[A-Z][A-Z0-9_-]{1,39}"
-          />
-        </div>
-        <div>
+        <div className="md:col-span-2">
           <label htmlFor="indicator-name">Name</label>
           <Input
             id="indicator-name"
@@ -212,26 +236,37 @@ function IndicatorForm({
             onChange={(event) => setName(event.target.value)}
             required
             maxLength={160}
+            aria-describedby="indicator-code-preview"
+          />
+          <p className="mt-1 text-xs text-muted-foreground" id="indicator-code-preview">
+            {code ? `Indicator code: ${code}` : 'The indicator code is generated from the name.'}
+          </p>
+        </div>
+        <div>
+          <label htmlFor="indicator-type">Type</label>
+          <OptionSelect
+            id="indicator-type"
+            name="indicatorType"
+            value={indicatorType}
+            onValueChange={setIndicatorType}
+            options={typeOptions}
           />
         </div>
-        {(['baseline', 'target'] as const).map((field) => (
-          <div key={field}>
-            <label htmlFor={field}>{field === 'baseline' ? 'Baseline' : 'Target'}</label>
-            <Input
-              id={field}
-              key={`${field}-${locked?.[field] ?? 'free'}`}
-              name={field}
-              inputMode="decimal"
-              maxLength={21}
-              aria-describedby={`${field}-hint`}
-              readOnly={locked?.[field] !== undefined}
-              defaultValue={locked?.[field]}
-            />
-            <p className="mt-1 text-xs text-muted-foreground" id={`${field}-hint`}>
-              {locked?.[field] !== undefined ? 'Set by the recipe' : 'Blank means not configured'}
-            </p>
-          </div>
-        ))}
+        <div>
+          <label htmlFor="target">Target</label>
+          <Input
+            id="target"
+            key={`target-${recipe}`}
+            name="target"
+            inputMode="decimal"
+            maxLength={21}
+            aria-describedby="target-hint"
+            defaultValue={recipeTargets[recipe]}
+          />
+          <p className="mt-1 text-xs text-muted-foreground" id="target-hint">
+            Blank means not configured
+          </p>
+        </div>
         <div className="md:col-span-2">
           <label htmlFor="indicator-recipe">Recipe</label>
           <OptionSelect
@@ -262,6 +297,10 @@ function IndicatorForm({
                     .filter((form) => form.status === 'PUBLISHED')
                     .map((form) => ({ value: form.id, label: `${form.name} · v${form.version}` }))}
                 />
+              </div>
+              <div className="md:col-span-2">
+                <label htmlFor="indicator-unit-label">Unit label</label>
+                <Input id="indicator-unit-label" name="unitLabel" required maxLength={80} />
               </div>
               <div>
                 <label htmlFor="indicator-field">Stable numeric field</label>
@@ -311,7 +350,10 @@ function IndicatorForm({
       </fieldset>
       {validation ? <InlineNotice tone="danger">{validation}</InlineNotice> : null}
       {message ? <InlineNotice>{message}</InlineNotice> : null}
-      <Button className="gap-2" type="submit" disabled={busy}>
+      {period ? null : (
+        <InlineNotice>Loading the project dates for the reporting period.</InlineNotice>
+      )}
+      <Button className="gap-2" type="submit" disabled={busy || !period}>
         {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : null}
         {busy ? 'Saving...' : 'Save indicator'}
       </Button>
@@ -331,7 +373,7 @@ function NewIndicator(props: Omit<Parameters<typeof IndicatorForm>[0], 'onDone'>
       </DialogTrigger>
       <DialogShell
         title="Add project indicator"
-        description="The recipe calculates this indicator automatically over the project period. Baseline, target and recipe cannot change after creation; use a new code instead."
+        description="The recipe calculates this indicator automatically over the project period. Type, target and recipe cannot change after creation; create a new indicator instead."
       >
         <IndicatorForm {...props} onDone={() => setOpen(false)} />
       </DialogShell>
@@ -524,7 +566,9 @@ export function ProjectIndicatorsWorkspace({ projectId }: { projectId: string })
   const [managingId, setManagingId] = useState<string | null>(null)
   const managed = data?.find((item) => item.id === managingId && item.status === 'ACTIVE')
   const projectRead = useProjectRead(projectId)
-  const period = indicatorPeriod(projectRead.data?.startDate, projectRead.data?.endDate)
+  const period = projectRead.data
+    ? indicatorPeriod(projectRead.data.startDate, projectRead.data.endDate)
+    : null
   const currentKey = useRef(activeKey)
   currentKey.current = activeKey
   const canReadLibrary = principalHasAtomicPermission(profile, 'indicators.library.read')
@@ -675,6 +719,7 @@ export function ProjectIndicatorsWorkspace({ projectId }: { projectId: string })
               forms={availableBindings?.forms ?? []}
               activities={availableBindings?.activities ?? []}
               period={period}
+              existingCodes={(data ?? []).map((item) => item.code)}
               busy={creating}
               message={message ?? pendingCreate.notice}
               onSave={(input) =>
@@ -711,12 +756,6 @@ export function ProjectIndicatorsWorkspace({ projectId }: { projectId: string })
             )
           }
         />
-      ) : null}
-      {canCreate && data && !availableBindings ? (
-        <InlineNotice>
-          Binding choices could not be loaded yet. Manual definitions remain available; do not guess
-          form or activity identifiers.
-        </InlineNotice>
       ) : null}
       {error ? (
         <AsyncState
@@ -759,6 +798,10 @@ export function ProjectIndicatorsWorkspace({ projectId }: { projectId: string })
               <tbody>
                 {data.map((indicator) => {
                   const progress = indicator.progress.value
+                  // Product decision: only "no measurement yet" reads as 0; other unavailable states keep their label.
+                  const noDataYet =
+                    indicator.current.state === 'MISSING' &&
+                    indicator.current.reason === 'NO_MEASUREMENT'
                   const progressText = `Progress toward configured change: ${formatMetricCell(indicator.progress)}${progress !== null ? '%' : ''}`
                   return (
                     <Fragment key={indicator.id}>
@@ -777,18 +820,20 @@ export function ProjectIndicatorsWorkspace({ projectId }: { projectId: string })
                                 hideText
                               />
                             </div>
-                            <span className="text-xs text-muted-foreground">{progress ?? 0}%</span>
+                            <span className="text-xs text-muted-foreground">
+                              {progress !== null
+                                ? `${progress}%`
+                                : noDataYet
+                                  ? '0%'
+                                  : formatMetricCell(indicator.progress)}
+                            </span>
                           </div>
                         </td>
                         <td className="px-4 py-3 text-center">
                           {indicator.target ?? 'Not configured'}
                         </td>
-                        {/* Product decision: no measurement yet reads as 0, like the overview tiles. */}
                         <td className="px-4 py-3 text-center">
-                          {indicator.current.value === null &&
-                          indicator.current.state !== 'SUPPRESSED'
-                            ? '0'
-                            : formatMetricCell(indicator.current)}
+                          {noDataYet ? '0' : formatMetricCell(indicator.current)}
                         </td>
                         <td className="px-4 py-3 text-center">
                           <StatusBadge tone={indicator.status === 'ACTIVE' ? 'success' : 'neutral'}>
@@ -820,7 +865,10 @@ export function ProjectIndicatorsWorkspace({ projectId }: { projectId: string })
       )}
       <Dialog open={Boolean(managed)} onOpenChange={(open) => (open ? null : setManagingId(null))}>
         {managed ? (
-          <DialogShell title={`Manage ${managed.name}`} description={managed.code}>
+          <DialogShell
+            title={`Manage ${managed.name}`}
+            description={`${managed.code} · ${typeLabel(managed.indicatorType)} · Source: ${managed.dataSource ?? 'Not configured'}`}
+          >
             <IndicatorEditor
               key={`${managed.id}:${managed.revision}:${managed.measurementId ?? 'first'}:${recoveryGeneration}`}
               indicator={managed}

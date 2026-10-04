@@ -117,6 +117,6 @@ When this record is approved and verified, update the F9 section of `docs/sdd-pa
 
 **Enforcement.** Migration `0057_f9_survey_period_release` adds table `pathways.survey_period_releases` (owner `prisma`, row-level security forced, no runtime grants), the internal `pathways.p10_f9_survey_compute` (not executable by the runtime role), and `pathways.p10_f9_survey_release`, executable by `pathways_runtime`. `p10_f9_survey_aggregate` is rewritten to delegate to the compute function with identical checks. The release function requires `analytics.descriptive.read` and `monitoring.read`, an exact defined non-overlapping period and a closed period; the first call freezes the result and later calls return it (`ON CONFLICT DO NOTHING`, then re-select). The API `surveyAccess()` picks the live or frozen path and still writes one audit row per view or export.
 
-**Migration number.** The migration is `0057`, renumbered from `0056` because `0056_indicator_type` belongs to another branch. The developer approved this migration on 2026-10-04, overriding the sprint zero-migration rule for this one gate. Not applied to hosted.
+**Migration number.** The migration is `0057`, renumbered from `0056` because `0056_indicator_type` belongs to another branch. The developer approved this migration on 2026-10-04, overriding the sprint zero-migration rule for this one gate. Applied to PATHWAYS-devV2 on 2026-10-04 together with `0056_indicator_type`.
 
 **Verification.** `f9-survey-period-release-runtime.sql` and `analytics.service.test.ts`; QAD-T64 and QAD-A21.

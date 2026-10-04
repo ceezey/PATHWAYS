@@ -219,6 +219,31 @@ describe('report source authority, privacy and artifact recovery', () => {
     expect(preview.rows[0].slice(2, 8)).toEqual(Array(6).fill('Not available'))
     expect(preview.rows[0][8]).toBe('SUPPRESSED')
   })
+  it('lists a legacy indicator without measurement mode or direction in the indicator summary', async () => {
+    tx.$queryRaw.mockResolvedValue([
+      {
+        value: [
+          {
+            id: '79000000-0000-4000-8000-000000000031',
+            name: 'Legacy indicator',
+            code: 'LEGACY-01',
+            unitLabel: null,
+            baseline: null,
+            target: null,
+            direction: null,
+            periodStart: null,
+            periodEnd: null,
+            current: { state: 'MISSING', value: null, reason: 'LEGACY_REVIEW_REQUIRED' },
+          },
+        ],
+      },
+    ])
+    const reader = { ...actor, permissions: [...actor.permissions, 'reports.indicator.read'] }
+    state.actor = reader
+    const preview = await service.preview(reader, projectId, { kind: 'INDICATOR_SUMMARY' })
+    expect(preview.rows).toHaveLength(1)
+    expect(preview.rows[0].slice(0, 2)).toEqual(['LEGACY-01', 'Legacy indicator'])
+  })
   it('rejects a malformed suppressed release rather than leaking a count', async () => {
     tx.$queryRaw.mockResolvedValue([{ value: survey({ state: 'SUPPRESSED', respondents: null }) }])
     await expect(

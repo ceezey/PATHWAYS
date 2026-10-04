@@ -52,9 +52,9 @@ Six internal roles are defined in `apps/api/src/modules/auth/rbac-contract.json`
 | PRD-F4 | Beneficiary Journey Tracking | Must-Have | F4 | R6 | 1.1, 1.3 | Implemented; all G-F4 gates met |
 | PRD-F5 | Digital Data Collection and Preparation | Must-Have | F5 | R2 | 1.4, 2.1 | Implemented |
 | PRD-F6 | Metadata-Driven Data Integration | Must-Have | F6 | R2 | 1.1, 1.4, 2.1 | Implemented |
-| PRD-F7 | Project Indicator and Monitoring | Must-Have | F7 | R3, R4 | 1.5 | Implemented; G-F7-1..5 Met; project structure templates stay deferred (see [deferred features](deferred-features.md)) |
+| PRD-F7 | Project Indicator and Monitoring | Must-Have | F7 | R3, R4 | 1.5 | Implemented; G-F7-1..5 Met |
 | PRD-F8 | Aggregated Monitoring Dashboard with SADDD Analysis | Must-Have | F8 | R3 | 1.6, 2.2, 2.3 | Implemented; Add to Dashboard live with browser pins; G-F8-7 Met locally at assumed scale (staging re-measure pending) |
-| PRD-F9 | Descriptive Analytics and Project Performance Summaries | Supporting | F9 | R3, R7 | 1.6, 2.2 | Implemented for KPI, participation, survey and timeline views plus participation breakdowns, indicator trends, server budget aggregate and closed-period survey release (hosted apply of 0057 pending); aggregate-only participation breakdowns deferred |
+| PRD-F9 | Descriptive Analytics and Project Performance Summaries | Supporting | F9 | R3, R7 | 1.6, 2.2 | Implemented for KPI, participation, survey and timeline views plus participation breakdowns, indicator trends, server budget aggregate and closed-period survey release; aggregate-only participation breakdowns deferred |
 | PRD-F10 | Rule-Based Alerts | Supporting | F10 | R7 | 1.7, 2.4 | Runtime verified on local PostgreSQL; hosted scheduler activation pending |
 | PRD-F11 | Rule-Based Decision Support and Recommendations | Supporting | F11 | R7 | 1.7, 2.4 | Human review and auto-resolve verified on local PostgreSQL |
 | PRD-F12 | Reporting and Data Visualization | Supporting | None | R3 | 1.6 | Local preview and artifact APIs; six report kinds export as CSV, XLS, XLSX and PDF; scope and suppression verified on local PostgreSQL; hosted application deferred |
@@ -102,7 +102,7 @@ Status comes from the repository, not the manuscript labels "In Progress" and "P
 | FR-8 | Centralized encoded and imported records | PRD-F6 | High | P5 / R5 | Implemented |
 | FR-9 | Indicator and monitoring parameter configuration | PRD-F7 | High | P3 / R3, P4 / R4 | Implemented; reusable indicator definitions through the organization library (cr-pathways-indicator-library); project structure templates not built |
 | FR-10 | Aggregated dashboards and SADDD summaries | PRD-F8 | High | P3 / R3 | Implemented |
-| FR-11 | Descriptive analytics and performance summaries | PRD-F9 | Medium | P3 / R3, P7 / R7 | Implemented for four views and the breakdowns, trends and server budget aggregate; closed-period survey release awaits hosted apply of 0057 |
+| FR-11 | Descriptive analytics and performance summaries | PRD-F9 | Medium | P3 / R3, P7 / R7 | Implemented for four views and the breakdowns, trends and server budget aggregate; closed-period survey release (0057, applied on PATHWAYS-devV2) |
 | FR-12 | Rule-based alerts | PRD-F10 | Medium | P7 / R7 | Runtime verified on local PostgreSQL; hosted scheduler activation pending |
 | FR-13 | Budget expense entries and liquidation evidence | PRD-F2 | High | P5 / R5 | Implemented |
 | FR-14 | Predefined recommendation prompts | PRD-F11 | Medium | P7 / R7 | Human review and auto-resolve verified on local PostgreSQL |
@@ -919,11 +919,13 @@ stateDiagram-v2
 **Bounds (in):**
 - Create, update and list project-scoped indicators with baseline, target, direction and data source.
 - Record measurements against an indicator, with a replayed save returning the original result.
-- Show trusted current value and progress; missing values and invalid denominators show the established unavailable state, never an invented zero.
+- Show trusted current value and progress; the API returns the established unavailable state for missing values and invalid denominators, never an invented zero. The indicators list shows 0 and 0% only when no measurement exists yet; suppressed, withheld and not-applicable values keep their label (cr-pathways-overview-zero-display).
+- Classify each indicator by type (Output, Outcome, Activity, Budget, Timeline, Participation, Survey score) and add indicators through a guided form: generated code, Activity completion % recipe, baseline 0 and the project period (cr-pathways-indicator-form-and-type). Indicators copied from a library entry are classified Output.
 - Audit every indicator create, update and measurement.
 - Keep an organization indicator library of definition templates (create, list, archive under `indicators.library.*`) and create a project indicator from an entry by copying its definition; no live link and no project data in the library (cr-pathways-indicator-library).
 **Bounds (out):**
-- Live links between a library entry and project indicators, editing or deleting a library entry, sharing a library across organizations, and project structure templates: not built (deferred-features)
+- Live links between a library entry and project indicators, editing or deleting a library entry, and sharing a library across organizations: not built
+- Derived recipes other than Activity completion %: the database computes no value for them, so neither the add form nor the library offers them
 - Archiving indicators: the archive route exists but `indicators.archive` is granted to no role (rbac-contract.json)
 - Project-level target goal comparison: retired, historical column preserved (cr-pathways-retire-project-target-goal)
 - Disaggregation requirements on the indicator definition: disaggregation is computed in PRD-F8 from beneficiary fields (Scope and Limitations)
@@ -933,10 +935,10 @@ stateDiagram-v2
 
 | Gate | Condition | Status | QAD |
 |---|---|---|---|
-| G-F7-1 | An authorized user creates and updates an indicator in an assigned project; unauthorized roles and other organizations are refused | Met | QAD-T55, QAD-T106, QAD-A35 |
-| G-F7-2 | An indicator shows the correct trusted metric, target and source | Met | QAD-T07, QAD-T107, QAD-A36 |
+| G-F7-1 | An authorized user creates and updates an indicator in an assigned project; unauthorized roles and other organizations are refused | Met | QAD-T55, QAD-T106, QAD-T112, QAD-T113, QAD-A35 |
+| G-F7-2 | An indicator shows the correct trusted metric, target and source (the source and type in its manage dialog) | Met | QAD-T07, QAD-T107, QAD-A36 |
 | G-F7-3 | A measurement save is idempotent: the same key and input is read-only on retry, conflicting reuse fails | Met | QAD-T56, QAD-T108, QAD-A37, QAD-P05 |
-| G-F7-4 | Indicator progress is independent of the retired project target goal and shows unavailable states instead of zero | Met | QAD-T57, QAD-T109, QAD-A38 |
+| G-F7-4 | Indicator progress is independent of the retired project target goal; the API returns unavailable states instead of zero; the indicators list shows 0 and 0% only for an indicator with no measurement yet and keeps the label of every other unavailable state | Met | QAD-T57, QAD-T109, QAD-T114, QAD-A38 |
 | G-F7-5 | Indicator definitions can be reused across projects through an organization library; a project indicator created from an entry is an independent copy | Met | QAD-IL-01, QAD-IL-02, QAD-T58 |
 
 #### Use Cases
@@ -963,7 +965,7 @@ flowchart LR
 | Permission | `indicators.create`, `indicators.update` |
 | Trigger | The user opens a project workspace to define or change an indicator |
 | Preconditions | The user is authenticated, assigned to the project and holds the permission |
-| Main flow | 1. The user opens the indicator list (route `/projects/:projectId/indicators`). 2. The system lists existing indicators (`indicators.read`). 3. The user defines name, unit, baseline, target, direction and source. 4. The system validates the definition. 5. The user saves. |
+| Main flow | 1. The user opens the indicator list (route `/projects/:projectId/indicators`). 2. The system lists existing indicators (`indicators.read`). 3. The user enters name, type, target, recipe and source; the code, baseline 0, unit, direction and period are set automatically. 4. The system validates the definition. 5. The user saves. 6. Later changes cover only the name and description; type, target and recipe are fixed, so a different definition needs a new indicator. |
 | Alternate / exception | Permission denied: 403, no change. Required field missing or invalid: 400, nothing saved. Library entry missing, archived or from another organization: 404, nothing created. Using a library entry also needs `indicators.library.read`. |
 | Postconditions | The indicator is stored for the project and an audit event is written |
 | Gates | G-F7-1, G-F7-2, G-F7-5 |
@@ -975,8 +977,8 @@ flowchart LR
 | Actor | Monitoring and Evaluation Officer, Project Manager |
 | Permission | `indicators.update` |
 | Trigger | A new actual value is available for an indicator |
-| Preconditions | The indicator is active and in the user's assigned project |
-| Main flow | 1. The user opens the indicator. 2. The user enters the measured value and period. 3. The system saves it (route `/projects/:projectId/indicators/:indicatorId/measurements`). 4. The system recomputes progress against the target. |
+| Preconditions | The indicator is an active manual indicator (from a Manual library entry or created before cr-pathways-indicator-form-and-type) in the user's assigned project |
+| Main flow | 1. The user opens the indicator. 2. The user enters the measured value, its source and an optional note; the period is the indicator's own period. 3. The system saves it (route `/projects/:projectId/indicators/:indicatorId/measurements`). 4. The system recomputes progress against the target. |
 | Alternate / exception | Retry with the same key and input: the original result is returned. Same key with different input: rejected. Permission denied: 403. |
 | Postconditions | A measurement row exists and an audit event is written |
 | Gates | G-F7-3, G-F7-4 |
@@ -1098,7 +1100,7 @@ Not applicable: the dashboard is a read model with no lifecycle.
 | G-F9-7 | Survey results are released only for an exact non-overlapping period and only to roles with `assessments.detail.read` | Met | QAD-T33 |
 | G-F9-8 | Aggregate-only roles cannot difference open-period survey releases | Met | QAD-A21 |
 | G-F9-9 | Participation breakdowns, indicator trends and a server budget aggregate are available | Met | QAD-T63, QAD-T110, QAD-A39 |
-| G-F9-10 | Survey totals for Program Manager and Grant Manager through a closed-period release table | Met (local; hosted apply of 0057 pending) | QAD-T64 |
+| G-F9-10 | Survey totals for Program Manager and Grant Manager through a closed-period release table | Met | QAD-T64 |
 
 #### Use Cases
 
@@ -1930,7 +1932,7 @@ Current position is in [state](state.md); manuscript alignment findings are in `
 | Feature | Status |
 |---|---|
 | PRD-F1 to PRD-F8 | Implemented |
-| PRD-F9 | Implemented for four views and the breakdowns, trends and server budget aggregate; closed-period survey release awaits hosted apply of 0057 |
+| PRD-F9 | Implemented for four views and the breakdowns, trends and server budget aggregate; closed-period survey release (0057, applied on PATHWAYS-devV2) |
 | PRD-F10, PRD-F11 | Runtime verified on local PostgreSQL; hosted scheduler activation pending |
 | PRD-F12 | Local preview and artifact APIs; six report kinds in four formats; verified on local PostgreSQL |
 | PRD-F13 | Local publication and approved-public APIs; final verification pending |

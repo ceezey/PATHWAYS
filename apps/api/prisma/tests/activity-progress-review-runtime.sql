@@ -117,7 +117,7 @@ SELECT pg_temp.ok(NOT EXISTS(SELECT FROM pg_auth_members m JOIN pg_roles r ON r.
 SELECT pg_temp.ok(pg_get_userbyid(p.proowner)='rules_enqueue_owner' AND p.prosecdef AND p.provolatile='v'
  AND p.proconfig=ARRAY['search_path=""'] AND has_function_privilege('pathways_runtime',p.oid,'EXECUTE')
  AND NOT has_function_privilege('anon',p.oid,'EXECUTE') AND NOT has_function_privilege('authenticated',p.oid,'EXECUTE')
- AND md5(p.prosrc)='f43ddcc77120d4c068c604ddbba96b7b','f10_begin_source_operation owner mode search_path ACL and body'),
+ AND md5(p.prosrc)='a9c15dca6847b64f109cf7b2039c4145','f10_begin_source_operation owner mode search_path ACL and body'),
  pg_temp.ok(pg_get_userbyid(q.proowner)='rules_source_proof_owner' AND q.prosecdef AND q.provolatile='v'
  AND q.proconfig=ARRAY['search_path=""'] AND NOT has_function_privilege('pathways_runtime',q.oid,'EXECUTE')
  AND NOT has_function_privilege('anon',q.oid,'EXECUTE') AND md5(q.prosrc)='24ad351577ffffee2f66ff02dfe26c0a',

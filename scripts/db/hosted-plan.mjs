@@ -4,7 +4,7 @@
 
 export const BASELINE = '0000_pathways_baseline_through_0026'
 
-// The exact 34-row migration ledger (baseline plus 0027-0055, 0057 and 0058-0060) this script must produce, in order. This is
+// The exact 35-row migration ledger (baseline plus 0027-0057 and 0058-0060) this script must produce, in order. This is
 // the repository's own migration directory listing (apps/api/prisma/migrations),
 // asserted against the real directory in hosted-plan.test.mjs so this literal
 // list can never silently drift from the repo.
@@ -39,6 +39,7 @@ export const MIGRATIONS_IN_ORDER = Object.freeze([
   '0053_expense_submit_race',
   '0054_p09_role_allows_grants',
   '0055_rbac_v4_grants',
+  '0056_indicator_type',
   '0057_f9_survey_period_release',
   '0058_rules_decision_status_auto_resolved',
   '0059_rules_recommendation_auto_resolve',
@@ -119,6 +120,15 @@ export function buildPlan() {
     { type: 'deploy', migrations: range(54, 54) },
     // 0055 needs no preprovision: prisma owns pathways.p09_role_allows.
     { type: 'deploy', migrations: range(55, 55) },
+    // 0056 replaces two functions owned by rules_enqueue_owner, so it needs the same temporary
+    // SET-only chain as 0041, through its own scripts.
+    {
+      type: 'preprovision',
+      name: 'indicator-type',
+      file: 'hosted-indicator-type-preprovision.sql',
+    },
+    { type: 'deploy', migrations: range(56, 56) },
+    { type: 'cleanup', name: 'indicator-type', file: 'hosted-indicator-type-cleanup.sql' },
     // 0057 needs no preprovision: prisma owns p06_can, p10_f9_survey_aggregate and the source tables.
     { type: 'deploy', migrations: range(57, 57) },
     // 0058 needs no preprovision: it only adds one enum label owned by prisma.
@@ -207,6 +217,8 @@ const PRIOR_BUILD_COMPLETION_POINTS = [
   '0044_activity_progress_review',
   '0052_signin_password_hook',
   '0053_expense_submit_race',
+  '0055_rbac_v4_grants',
+  '0056_indicator_type',
   '0058_rules_decision_status_auto_resolved',
   '0060_rules_budget_beneficiary_survey_metrics',
 ]
@@ -217,6 +229,7 @@ export const RESIDUAL_CHAIN_CLEANUPS = Object.freeze({
   '0041_activity_media_evidence': 'activity-media',
   '0044_activity_progress_review': 'activity-review',
   '0053_expense_submit_race': 'expense-submit',
+  '0056_indicator_type': 'indicator-type',
   '0060_rules_budget_beneficiary_survey_metrics': 'rules-catalog',
 })
 // Ledger counts at which the caller must read live owner-membership state.
@@ -226,6 +239,8 @@ export const RESIDUAL_CHAIN_MIGRATIONS = Object.freeze([
   '0044_activity_progress_review',
   '0052_signin_password_hook',
   '0053_expense_submit_race',
+  '0055_rbac_v4_grants',
+  '0056_indicator_type',
   '0058_rules_decision_status_auto_resolved',
   '0060_rules_budget_beneficiary_survey_metrics',
 ])

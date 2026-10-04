@@ -24,8 +24,8 @@ test('MIGRATIONS_IN_ORDER matches the real migrations directory exactly, in orde
   assert.deepEqual([...MIGRATIONS_IN_ORDER].sort(), onDisk)
   // The migrations directory holds one folder per Prisma migration. 0000
   // squashes the original 0001-0026 into a single reviewed baseline, so the
-  // ledger has 34 rows (baseline plus 0027-0055, 0057 and 0058-0060) even though the numbering has gaps.
-  assert.equal(MIGRATIONS_IN_ORDER.length, 34)
+  // ledger has 35 rows (baseline plus 0027-0057 and 0058-0060) even though the numbering has gaps.
+  assert.equal(MIGRATIONS_IN_ORDER.length, 35)
   assert.equal(MIGRATIONS_IN_ORDER[0], BASELINE)
 })
 
@@ -74,6 +74,9 @@ test('the dry-run plan order exactly matches the documented stop points', () => 
     'cleanup:expense-submit',
     'deploy:0054_p09_role_allows_grants',
     'deploy:0055_rbac_v4_grants',
+    'preprovision:indicator-type',
+    'deploy:0056_indicator_type',
+    'cleanup:indicator-type',
     'deploy:0057_f9_survey_period_release',
     'deploy:0058_rules_decision_status_auto_resolved',
     'preprovision:rules-catalog',
@@ -248,14 +251,30 @@ test('planIndexForAppliedCount on a complete 0000-0060 ledger resumes at alter-r
   assert.equal(plan[index].type, 'alter-runtime-role')
 })
 
+test('planIndexForAppliedCount on a 0000-0056 ledger resumes at the 0057 deploy', () => {
+  const index = planIndexForAppliedCount(MIGRATIONS_IN_ORDER.indexOf('0056_indicator_type') + 1)
+  assert.deepEqual(buildPlan()[index].migrations, ['0057_f9_survey_period_release'])
+})
+
+test('planIndexForAppliedCount on a 0000-0056 ledger with residual owner memberships resumes at the indicator-type cleanup', () => {
+  const plan = buildPlan()
+  const index = planIndexForAppliedCount(MIGRATIONS_IN_ORDER.indexOf('0056_indicator_type') + 1, {
+    residualOwnerMemberships: true,
+  })
+  assert.equal(plan[index].type, 'cleanup')
+  assert.equal(plan[index].name, 'indicator-type')
+})
+
+test('planIndexForAppliedCount on a 0000-0055 ledger resumes at the 0056 preprovision', () => {
+  const plan = buildPlan()
+  const index = planIndexForAppliedCount(MIGRATIONS_IN_ORDER.indexOf('0055_rbac_v4_grants') + 1)
+  assert.equal(plan[index].type, 'preprovision')
+  assert.equal(plan[index].name, 'indicator-type')
+})
+
 test('planIndexForAppliedCount on a 0000-0054 ledger resumes at the 0055 deploy', () => {
   const index = planIndexForAppliedCount(MIGRATIONS_IN_ORDER.indexOf('0054_p09_role_allows_grants') + 1)
   assert.deepEqual(buildPlan()[index].migrations, ['0055_rbac_v4_grants'])
-})
-
-test('planIndexForAppliedCount on a 0000-0055 ledger resumes at the 0057 deploy', () => {
-  const index = planIndexForAppliedCount(MIGRATIONS_IN_ORDER.indexOf('0055_rbac_v4_grants') + 1)
-  assert.deepEqual(buildPlan()[index].migrations, ['0057_f9_survey_period_release'])
 })
 
 test('planIndexForAppliedCount on a 0000-0057 ledger resumes at the 0058 deploy', () => {
