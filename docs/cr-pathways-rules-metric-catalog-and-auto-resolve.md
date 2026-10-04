@@ -38,10 +38,16 @@ An alert or recommendation whose rule binds a Budget, Beneficiary or survey metr
 
 The PRD-F11 state machine gains `New --> AutoResolved` and `Reviewed --> AutoResolved` on "linked alert clears, no outcome recorded".
 
-## 5. Rollout order
+## 5. Terminal alerts and recommendation states
+
+Developer decision on 2026-10-04: the code follows UC-F10-2. A direct alert outcome (Accept, Partially accept, Decline, Escalate) on a Resolved, Dismissed or Auto-resolved alert is rejected, and Record outcome is hidden for those alerts. A recommendation outcome is unchanged: it records the decision and may still reserve the linked alert revision.
+
+The PRD-F11 diagram now matches the runtime: an outcome records a decision and leaves the recommendation status unchanged; only review and Auto-resolved change it.
+
+## 6. Rollout order
 
 The API and web contracts accept `AUTO_RESOLVED` and the new metric keys in a migration-free commit first. Migrations that emit them are applied to a hosted database only after every API deployment reading that database runs the widened contract. Recovery is a code redeploy or `RULES_WORKER_ENABLED=false`; applied migrations are never reverted.
 
-## 6. Verification
+## 7. Verification
 
 The PostgreSQL suite `apps/api/prisma/tests/f10-f11-rules-runtime.sql` must print `F10_F11_RULES_RUNTIME=PASS` on a full local replay. Unit tests cover metric builders, suppression boundaries and contract parsing. SAD review requires migration-integrity-guardian, organization-isolation-checker, beneficiary-privacy-guardian and rule-engine-determinism-checker.

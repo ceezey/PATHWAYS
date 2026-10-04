@@ -1332,17 +1332,11 @@ flowchart LR
 
 ```mermaid
 stateDiagram-v2
-  %% Decline and Escalate record an outcome and leave status unchanged
+  %% Every outcome records a decision and leaves the recommendation status unchanged
   [*] --> New
   New --> Reviewed: review
-  New --> Resolved: outcome accepts
-  Reviewed --> Resolved: outcome accepts
-  New --> Dismissed: outcome declines
-  Reviewed --> Dismissed: outcome declines
   New --> AutoResolved: linked alert clears, no outcome recorded
   Reviewed --> AutoResolved: linked alert clears, no outcome recorded
-  Resolved --> [*]
-  Dismissed --> [*]
   AutoResolved --> [*]
 ```
 
