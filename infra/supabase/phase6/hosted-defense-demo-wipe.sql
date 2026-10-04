@@ -122,15 +122,7 @@ TRUNCATE TABLE
 -- Reset the sweep cursor so the scheduler restarts from the first project.
 UPDATE pathways_rules_internal.sweep_cursor SET last_organization_id=NULL, last_project_id=NULL, exhausted=false;
 
-DO $$
-DECLARE r name;
-BEGIN
-  FOR r IN SELECT role_name FROM _wipe_grants LOOP
-    EXECUTE format('REVOKE %I FROM postgres GRANTED BY postgres', r);
-  END LOOP;
-END $$;
-
--- Abort unless every wiped table is empty and the temporary memberships are gone.
+-- Abort unless every wiped table is empty, checked while the temporary memberships still apply.
 DO $$
 DECLARE bad text;
 BEGIN
@@ -153,5 +145,14 @@ SELECT n.nspname||'.'||c.relname AS table_name, CASE WHEN (n.nspname,c.relname) 
 FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
 WHERE c.relkind='r' AND n.nspname IN ('pathways','pathways_rules_internal')
 ORDER BY action, 1;
+
+-- Drop exactly the temporary memberships added above.
+DO $$
+DECLARE r name;
+BEGIN
+  FOR r IN SELECT role_name FROM _wipe_grants LOOP
+    EXECUTE format('REVOKE %I FROM postgres GRANTED BY postgres', r);
+  END LOOP;
+END $$;
 
 COMMIT;
