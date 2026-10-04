@@ -173,3 +173,9 @@
 - Sign-in card narrowed to max-w-md to match the MFA card.
 - MFA page: verified, code-accepted and finding-workspace states now show a compact loading card; the session-check skeletons are replaced by the disabled OTP boxes so the page opens straight on the code entry.
 - MFA pending state: pulsing skeleton bar above the disabled OTP boxes; the footer always shows "Login", disabled while the session and factor check runs (e2e logout-during-discovery test now asserts the disabled state).
+
+## 2026-10-04 F13 public tracker UI
+
+- Public home, list and project pages now render only the eight allowlisted snapshot fields plus publish date; dropped the always-empty progress, beneficiary, budget, assessment, donate and indicator blocks of the legacy detail view (kept on disk, unused by public routes).
+- Staff preview reads the current revision's frozen snapshot through the authorized publication API (react-query via useAuthorizedRead), so reviewers see unpublished revisions; the queue links to it.
+- No API, schema or migration change. Local web typecheck, lint, tests (189 files) and build pass; G-F13-5 hosted verification stays Not met until checked on a hosted preview.
