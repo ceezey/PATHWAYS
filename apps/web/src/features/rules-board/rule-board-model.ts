@@ -136,6 +136,7 @@ const summarize = (node: RuleNode, words: boolean): string => {
   return parts.join(node.mode === 'AND' ? ' AND ' : ' OR ')
 }
 export const conditionSummary = (node: RuleNode) => summarize(node, false)
+export const conditionSentence = (node: RuleNode) => summarize(node, true)
 export const previewSentence = (draft: RuleDraft) =>
   `IF ${summarize(draft.conditions, true)} THEN raise a ${draft.severity.toLowerCase()} alert '${draft.name.trim() || 'Untitled rule'}' for assigned project users. Human review required.`
 

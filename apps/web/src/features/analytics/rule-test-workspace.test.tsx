@@ -78,7 +78,11 @@ describe('synthetic rule condition testing', () => {
   it('derives an exact timeline observation from entered test dates without reading live project data', async () => {
     render(<RuleTestWorkspace rule={rule} />)
     enter()
-    await screen.findByText('Test result: true')
+    await screen.findByRole('heading', { name: 'Test result' })
+    expect(screen.getAllByText('Triggered')).toHaveLength(2)
+    expect(screen.getByText('-2 days')).toBeTruthy()
+    expect(screen.getAllByText('Condition 1').length).toBeGreaterThan(0)
+    expect(screen.queryByText(/remaining:/)).toBeNull()
     expect(state.call.mock.calls[0][0].observations[0]).toMatchObject({
       metric: 'PROJECT_REMAINING_DAYS',
       cell: { state: 'AVAILABLE', value: '-2', reason: null },
@@ -192,7 +196,7 @@ describe('synthetic rule condition testing', () => {
         },
       }),
     )
-    expect(screen.queryByText('Test result: true')).toBeNull()
+    expect(screen.queryByText('Triggered')).toBeNull()
     expect(
       (screen.getByLabelText('Test reporting date (Asia/Manila)') as HTMLInputElement).value,
     ).toBe('')

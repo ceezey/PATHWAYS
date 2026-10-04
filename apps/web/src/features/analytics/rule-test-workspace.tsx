@@ -1,4 +1,5 @@
 'use client'
+import { StatusBadge } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -11,6 +12,7 @@ import type { RuleCondition, RuleNode } from '@/features/analytics/rules-validat
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { type SensitiveDraftOwner, useSensitiveDraftOwner } from '@/lib/auth/sensitive-drafts'
 import { rulesHumanClient } from '@/lib/services/rules-human-client'
+import { cn } from '@/lib/utils'
 import {
   type MetricDirection,
   type NumericKind,
@@ -21,6 +23,8 @@ import {
   scaledDecimal,
 } from '@pathways/shared'
 import { useEffect, useRef, useState } from 'react'
+import { conditionSentence, titleCase, unitOf } from '../rules-board/rule-board-model'
+import { selectClass } from '../rules-board/rule-drawer-shared'
 import {
   activityObservation,
   beneficiaryFollowUpObservation,
@@ -56,6 +60,16 @@ const aggregateFields = [
 type AggregateKey = (typeof aggregateFields)[number][0]
 const collect = (node: RuleNode): RuleCondition[] =>
   node.kind === 'CONDITION' ? [node] : node.children.flatMap(collect)
+type DryResult = DryEvidence['result']
+// Plain-language outcome and badge tone for each dry-run result.
+const outcome: Record<DryResult, { label: string; tone: 'warning' | 'success' | 'neutral' }> = {
+  TRUE: { label: 'Triggered', tone: 'warning' },
+  FALSE: { label: 'Not triggered', tone: 'success' },
+  UNAVAILABLE: { label: 'Unavailable', tone: 'neutral' },
+}
+// Conditions are named by their position in the rule instead of their internal ID.
+const conditionNames = (conditions: RuleCondition[], ids: string[]) =>
+  ids.map((id) => `Condition ${conditions.findIndex((item) => item.id === id) + 1}`).join(', ')
 export function RuleTestWorkspace({ rule }: { rule: HumanRule }) {
   const { profile, access } = useCurrentRole()
   const owner = useSensitiveDraftOwner(
@@ -272,14 +286,24 @@ function OwnedRuleTest({
   }
   return (
     <section
-      className="space-y-4 rounded-sm border border-border p-4"
+      className="space-y-4 rounded-xl border border-border bg-surface-subtle p-4"
       aria-label="Rule condition test"
     >
-      <h3 className="font-semibold">Test conditions</h3>
-      <p>
-        Enter test values below. This test does not fetch project measurements or create alerts,
-        notifications, or decisions.
-      </p>
+      <div className="space-y-1">
+        <h3 className="font-semibold text-foreground">Test conditions</h3>
+        <p className="text-sm text-muted-foreground">
+          Enter test values below. This test does not fetch project measurements or create alerts,
+          notifications, or decisions.
+        </p>
+      </div>
+      <ol className="space-y-1 text-sm">
+        {conditions.map((condition, index) => (
+          <li key={condition.id}>
+            <span className="font-semibold text-foreground">Condition {index + 1}</span>
+            <span className="text-muted-foreground"> · {conditionSentence(condition)}</span>
+          </li>
+        ))}
+      </ol>
       <form
         className="space-y-4"
         onSubmit={(event) => {
@@ -359,12 +383,12 @@ function OwnedRuleTest({
             return (
               <fieldset key={id} className="space-y-2 rounded-sm border border-border p-3">
                 <legend>Indicator test inputs {index + 1}</legend>
-                <p className="text-sm">
-                  Used by conditions{' '}
-                  {conditions
-                    .filter((item) => item.indicatorId === id)
-                    .map((item) => item.id)
-                    .join(', ')}
+                <p className="text-sm text-muted-foreground">
+                  Used by{' '}
+                  {conditionNames(
+                    conditions,
+                    conditions.filter((item) => item.indicatorId === id).map((item) => item.id),
+                  )}
                   .
                 </p>
                 <Label htmlFor={`test-current-${id}`}>Test current value</Label>
@@ -376,6 +400,7 @@ function OwnedRuleTest({
                 />
                 <Label htmlFor={`test-kind-${id}`}>Numeric domain</Label>
                 <select
+                  className={selectClass}
                   id={`test-kind-${id}`}
                   value={input.numericKind}
                   onChange={(event) => update({ numericKind: event.target.value as NumericKind })}
@@ -388,6 +413,7 @@ function OwnedRuleTest({
                 </select>
                 <Label htmlFor={`test-direction-${id}`}>Direction</Label>
                 <select
+                  className={selectClass}
                   id={`test-direction-${id}`}
                   value={input.direction}
                   onChange={(event) => update({ direction: event.target.value as MetricDirection })}
@@ -431,14 +457,17 @@ function OwnedRuleTest({
                   <p>
                     Test activity {index + 1}
                     {boundActivityIds.includes(activity.id)
-                      ? `; bound to ${conditions
-                          .filter((item) => item.activityId === activity.id)
-                          .map((item) => item.id)
-                          .join(', ')}`
+                      ? ` · bound to ${conditionNames(
+                          conditions,
+                          conditions
+                            .filter((item) => item.activityId === activity.id)
+                            .map((item) => item.id),
+                        )}`
                       : ''}
                   </p>
                   <Label htmlFor={`test-status-${activity.id}`}>Test activity status</Label>
                   <select
+                    className={selectClass}
                     id={`test-status-${activity.id}`}
                     value={activity.status}
                     onChange={(event) => {
@@ -509,33 +538,69 @@ function OwnedRuleTest({
           {busy ? 'Testing...' : 'Run condition test'}
         </Button>
       </form>
-      {notice ? <output>{notice}</output> : null}
+      {notice ? <output className="block text-sm text-danger">{notice}</output> : null}
       {result ? (
-        <div className="space-y-2">
-          <h4 className="font-semibold">Test result: {result.result.toLowerCase()}</h4>
-          <TestEvidence evidence={result.evidence} />
+        <div className="space-y-3 rounded-xl border border-border bg-card p-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h4 className="font-semibold text-foreground">Test result</h4>
+            <StatusBadge tone={outcome[result.result].tone}>
+              {outcome[result.result].label}
+            </StatusBadge>
+          </div>
+          <TestEvidence conditions={conditions} evidence={result.evidence} />
         </div>
       ) : null}
     </section>
   )
 }
-function TestEvidence({ evidence }: { evidence: DryEvidence }) {
-  return 'kind' in evidence ? (
-    <div className="space-y-2 border-l border-border pl-3">
-      <p>
-        {evidence.mode}: {evidence.result.toLowerCase()}
-      </p>
-      {evidence.children.map((child) => (
-        <TestEvidence
-          key={'kind' in child ? JSON.stringify(child) : child.condition.id}
-          evidence={child}
-        />
-      ))}
+function TestEvidence({
+  conditions,
+  evidence,
+}: { conditions: RuleCondition[]; evidence: DryEvidence }) {
+  if ('kind' in evidence)
+    return (
+      <div className="space-y-2">
+        {evidence.children.length > 1 ? (
+          <p className="flex items-center gap-2 text-sm text-muted-foreground">
+            {evidence.mode === 'AND' ? 'All conditions must match' : 'Any condition can match'}
+            <StatusBadge tone={outcome[evidence.result].tone}>
+              {outcome[evidence.result].label}
+            </StatusBadge>
+          </p>
+        ) : null}
+        <div className={cn('space-y-2', evidence.children.length > 1 && 'border-l-2 pl-3')}>
+          {evidence.children.map((child) => (
+            <TestEvidence
+              conditions={conditions}
+              evidence={child}
+              key={'kind' in child ? JSON.stringify(child) : child.condition.id}
+            />
+          ))}
+        </div>
+      </div>
+    )
+  const index = conditions.findIndex((item) => item.id === evidence.condition.id)
+  const unit = unitOf(evidence.condition.metric)
+  const cell = evidence.observation?.cell
+  const observed = cell?.value
+    ? `${cell.value}${unit === '%' ? '%' : unit === 'value' ? '' : ` ${unit}`}`
+    : cell?.reason
+      ? titleCase(cell.reason)
+      : 'No observation'
+  return (
+    <div className="flex flex-wrap items-start justify-between gap-3 rounded-md border border-border bg-surface-subtle p-3">
+      <div className="min-w-0 space-y-0.5">
+        <p className="text-sm font-semibold text-foreground">
+          {index >= 0 ? `Condition ${index + 1}` : 'Condition'}
+        </p>
+        <p className="text-sm text-muted-foreground">{conditionSentence(evidence.condition)}</p>
+        <p className="text-sm text-foreground">
+          Observed: <span className="font-semibold tabular-nums">{observed}</span>
+        </p>
+      </div>
+      <StatusBadge tone={outcome[evidence.result].tone}>
+        {outcome[evidence.result].label}
+      </StatusBadge>
     </div>
-  ) : (
-    <p>
-      Condition {evidence.condition.id}: {evidence.result.toLowerCase()};{' '}
-      {evidence.observation?.cell.value ?? evidence.observation?.cell.reason ?? 'no observation'}.
-    </p>
   )
 }
