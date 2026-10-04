@@ -15,6 +15,7 @@ export function OptionSelect({
   options,
   placeholder,
   label,
+  describedBy,
   ...props
 }: {
   id: string
@@ -22,6 +23,7 @@ export function OptionSelect({
   options: Option[]
   placeholder?: string
   label?: string
+  describedBy?: string
   value?: string
   defaultValue?: string
   required?: boolean
@@ -29,7 +31,7 @@ export function OptionSelect({
 }) {
   return (
     <Select name={name} {...props}>
-      <SelectTrigger id={id} aria-label={label}>
+      <SelectTrigger id={id} aria-label={label} aria-describedby={describedBy}>
         <SelectValue placeholder={placeholder} />
       </SelectTrigger>
       <SelectContent>

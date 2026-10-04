@@ -160,7 +160,8 @@ describe('P06 dedicated indicator workspace', () => {
     expect(screen.getByRole('combobox', { name: 'Recipe' }).textContent).toContain(
       'Activity completion percentage',
     )
-    expect(screen.getByRole('combobox', { name: 'Type' }).textContent).toContain('Output')
+    expect(screen.getByRole('combobox', { name: 'Type' }).textContent).toContain('Activity')
+    expect(screen.getByText(/it does not change the calculation/)).toBeTruthy()
     const target = screen.getByLabelText('Target') as HTMLInputElement
     expect(target.value).toBe('100')
     expect(target.readOnly).toBe(false)
@@ -361,7 +362,7 @@ describe('P06 dedicated indicator workspace', () => {
       mode: 'DERIVED',
       baseline: '0',
       code: 'HR-01',
-      indicatorType: 'OUTPUT',
+      indicatorType: 'ACTIVITY',
       direction: 'HIGHER_IS_BETTER',
       numericKind: 'PERCENTAGE',
       displayPrecision: '2',
