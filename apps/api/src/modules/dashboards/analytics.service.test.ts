@@ -19,8 +19,9 @@ import { AnalyticsController } from './analytics.controller'
 import { AnalyticsService } from './analytics.service'
 import { DashboardsService } from './dashboards.service'
 import {
+  analyticsTableCsv,
   buildDescriptiveAnalytics,
-  descriptiveAnalyticsCsv,
+  descriptiveAnalyticsTable,
   suppressSmallCount,
 } from './descriptive-analytics'
 
@@ -381,6 +382,30 @@ describe('analytics descriptive read and export', () => {
     expect(tx.beneficiary.findMany).not.toHaveBeenCalled()
   })
 
+  it('happy: export renders XLSX with the chosen format in the audit record', async () => {
+    const { service, tx } = harness()
+    const result = await service.export(actor('PROJECT_MANAGER'), {
+      projectId: projectA,
+      format: 'XLSX',
+    })
+    expect(result.contentType).toBe(
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    )
+    expect(result.fileName).toMatch(/\.xlsx$/)
+    expect(result.bytes.subarray(0, 2).toString('utf8')).toBe('PK')
+    expect(tx.auditLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ changes: expect.objectContaining({ format: 'XLSX' }) }),
+    })
+  })
+
+  it('sad: rejects an unsupported export format before any transaction', async () => {
+    const { service } = harness()
+    await expect(
+      service.export(actor('PROJECT_MANAGER'), { projectId: projectA, format: 'DOCX' }),
+    ).rejects.toMatchObject({ status: 400 })
+    expect(withAuthorizedOperation).not.toHaveBeenCalled()
+  })
+
   it('sad: rejects missing, malformed or partial-period queries before any transaction', async () => {
     const { service } = harness()
     const identity = actor('PROJECT_MANAGER')
@@ -508,35 +533,37 @@ describe('analytics descriptive read and export', () => {
   })
 
   it('abuse: CSV neutralizes spreadsheet formulas in labels', () => {
-    const csv = descriptiveAnalyticsCsv({
-      contractVersion: 'analytics.descriptive.v1',
-      projectId: projectA,
-      generatedAt: '2026-09-28T00:00:00.000Z',
-      monitoringPeriod: {
-        periodStart: '2026-09-01',
-        periodEnd: '2026-09-28',
-        businessTimeZone: 'UTC',
-      },
-      sadddPeriod: { periodStart: null, periodEnd: null },
-      sadddReleaseState: 'UNAVAILABLE',
-      privacy: {
-        threshold: 5,
-        complementarySuppression: true,
-        source: 'P06_SADDD_RELEASE',
-        beneficiaryRows: false,
-      },
-      counts: [],
-      distributions: [
-        {
-          section: 'ACTIVITY_STATE',
-          key: 'X',
-          label: '=HYPERLINK("x")',
-          metric: cell(6),
-          share: '1',
+    const csv = analyticsTableCsv(
+      descriptiveAnalyticsTable({
+        contractVersion: 'analytics.descriptive.v1',
+        projectId: projectA,
+        generatedAt: '2026-09-28T00:00:00.000Z',
+        monitoringPeriod: {
+          periodStart: '2026-09-01',
+          periodEnd: '2026-09-28',
+          businessTimeZone: 'UTC',
         },
-      ],
-      indicatorSummaries: [],
-    })
+        sadddPeriod: { periodStart: null, periodEnd: null },
+        sadddReleaseState: 'UNAVAILABLE',
+        privacy: {
+          threshold: 5,
+          complementarySuppression: true,
+          source: 'P06_SADDD_RELEASE',
+          beneficiaryRows: false,
+        },
+        counts: [],
+        distributions: [
+          {
+            section: 'ACTIVITY_STATE',
+            key: 'X',
+            label: '=HYPERLINK("x")',
+            metric: cell(6),
+            share: '1',
+          },
+        ],
+        indicatorSummaries: [],
+      }),
+    )
     expect(csv).toContain(`"'=HYPERLINK(""x"")"`)
   })
 })
@@ -595,7 +622,7 @@ describe('descriptive analytics small-cell and complementary suppression', () =>
     'count %i is %s in the read and the CSV for every person-derived count',
     (value, state, shown) => {
       const result = build(value)
-      const csv = descriptiveAnalyticsCsv(result)
+      const csv = analyticsTableCsv(descriptiveAnalyticsTable(result))
       for (const key of personKeys) {
         const row = result.counts.find((candidate) => candidate.key === key)
         expect(row?.metric.state).toBe(state)
@@ -610,7 +637,7 @@ describe('descriptive analytics small-cell and complementary suppression', () =>
 
   it('reconstruction: a suppressed SADDD total suppresses every paired monitoring count', () => {
     const result = build(37, sadddWith(suppressed))
-    const csv = descriptiveAnalyticsCsv(result)
+    const csv = analyticsTableCsv(descriptiveAnalyticsTable(result))
     expect(result.counts.find((row) => row.key === 'enrolledIndividuals')).toBeUndefined()
     for (const key of [
       'participationRecords',

@@ -3,6 +3,7 @@
 import {
   AlertTriangle,
   BarChart3,
+  ChevronDown,
   CircleDollarSign,
   ClipboardCheck,
   Download,
@@ -18,6 +19,12 @@ import { AsyncState, StatusMessage } from '@/components/pathways'
 import { EmptyState } from '@/components/pathways/empty-state'
 import { MetricCard } from '@/components/pathways/metric-card'
 import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import {
   Select,
   SelectContent,
@@ -148,6 +155,9 @@ export const countOpenAlerts = async (projectId: string, signal?: AbortSignal) =
   }
   return { count, capped }
 }
+
+const exportFormats = ['CSV', 'XLS', 'XLSX', 'PDF'] as const
+type ExportFormat = (typeof exportFormats)[number]
 
 export const AnalyticsDashboard = () => {
   const { labels } = useDisplayLabels()
@@ -549,7 +559,7 @@ export const AnalyticsDashboard = () => {
     }
   }, [analysisView, canReadSurveyTimeline, projectId, timelineLoadAttempt])
 
-  const exportDescriptive = async () => {
+  const exportDescriptive = async (format: ExportFormat) => {
     const view = analysisView === 'survey' || analysisView === 'timeline' ? analysisView : undefined
     if (!ANALYTICS_AGGREGATE_EXPORT_UI_ENABLED || !canExportAnalytics || !projectId || exporting)
       return
@@ -564,8 +574,8 @@ export const AnalyticsDashboard = () => {
           projectId: capturedProject,
           ...(exportPeriod ? { periodStart: exportPeriod.start, periodEnd: exportPeriod.end } : {}),
           ...(view ? { view } : {}),
-        })}`,
-        `${view ?? 'descriptive'}-analytics-${capturedProject.toLowerCase()}.csv`,
+        })}${format === 'CSV' ? '' : `&format=${format}`}`,
+        `${view ?? 'descriptive'}-analytics-${capturedProject.toLowerCase()}.${format.toLowerCase()}`,
       )
     } catch (caught) {
       toast.error(caught instanceof Error ? caught.message : 'Aggregate export unavailable.')
@@ -818,22 +828,33 @@ export const AnalyticsDashboard = () => {
           ) : null}
         </div>
         {ANALYTICS_AGGREGATE_EXPORT_UI_ENABLED && canExportAnalytics ? (
-          <div className="flex flex-wrap justify-end gap-2 border-t border-border pt-4 sm:col-span-2 xl:col-span-12 xl:row-start-4">
-            <Button
-              className="shrink-0"
-              disabled={
-                !selectedProject ||
-                exporting ||
-                (analysisView !== 'timeline' && !pickerPeriod) ||
-                (analysisView === 'survey' && surveyUnavailable)
-              }
-              onClick={() => void exportDescriptive()}
-              type="button"
-              variant="outline"
-            >
-              <Download className="mr-2 h-4 w-4" aria-hidden="true" />
-              {exporting ? 'Exporting aggregates' : 'Export aggregates (CSV)'}
-            </Button>
+          <div className="flex items-end sm:col-span-2 xl:col-span-3 xl:col-start-10 xl:row-start-2">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  className="shrink-0"
+                  disabled={
+                    !selectedProject ||
+                    exporting ||
+                    (analysisView !== 'timeline' && !pickerPeriod) ||
+                    (analysisView === 'survey' && surveyUnavailable)
+                  }
+                  type="button"
+                  variant="outline"
+                >
+                  <Download className="mr-2 h-4 w-4" aria-hidden="true" />
+                  {exporting ? 'Exporting aggregates' : 'Export aggregates'}
+                  <ChevronDown className="ml-2 h-4 w-4" aria-hidden="true" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-40">
+                {exportFormats.map((format) => (
+                  <DropdownMenuItem key={format} onSelect={() => void exportDescriptive(format)}>
+                    {format}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         ) : null}
       </section>

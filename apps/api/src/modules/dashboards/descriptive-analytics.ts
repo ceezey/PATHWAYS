@@ -291,8 +291,15 @@ function csvField(value: string | number | null): string {
   return `"${safe.replace(/"/g, '""')}"`
 }
 
-/** Aggregate-only CSV: suppressed cells export as their state with an empty value. */
-export function descriptiveAnalyticsCsv(data: DescriptiveAnalytics): string {
+export type AnalyticsTable = Array<Array<string | number | null>>
+
+/** Serializes an export table as quoted, formula-safe CSV. */
+export function analyticsTableCsv(table: AnalyticsTable): string {
+  return `${table.map((row) => row.map(csvField).join(',')).join('\r\n')}\r\n`
+}
+
+/** Aggregate-only table: suppressed cells export as their state with an empty value. */
+export function descriptiveAnalyticsTable(data: DescriptiveAnalytics): AnalyticsTable {
   const header = ['section', 'key', 'label', 'state', 'value', 'share', 'reason']
   const rows: Array<Array<string | number | null>> = [
     ...data.counts.map((row) => [
@@ -348,13 +355,13 @@ export function descriptiveAnalyticsCsv(data: DescriptiveAnalytics): string {
       ]
     }),
   ]
-  return `${[header, ...rows].map((row) => row.map(csvField).join(',')).join('\r\n')}\r\n`
+  return [header, ...rows]
 }
 
 type SurveyMetricField = Exclude<keyof SurveyAnalytics['overall'], 'key' | 'label'>
 
 /** Same header/marker convention as the combined CSV; one row per survey group cell. */
-export function surveyAnalyticsCsv(data: SurveyAnalytics): string {
+export function surveyAnalyticsTable(data: SurveyAnalytics): AnalyticsTable {
   const header = ['section', 'key', 'label', 'state', 'value', 'share', 'reason']
   const cells: Array<[SurveyMetricField, string]> = [
     ['pairs', 'Paired assessments'],
@@ -381,7 +388,7 @@ export function surveyAnalyticsCsv(data: SurveyAnalytics): string {
       }),
     ),
   ]
-  return `${[header, ...rows].map((row) => row.map(csvField).join(',')).join('\r\n')}\r\n`
+  return [header, ...rows]
 }
 
 type TimelineMetricField = Exclude<
@@ -390,7 +397,7 @@ type TimelineMetricField = Exclude<
 >
 
 /** Same header/marker convention as the combined CSV; one row per timeline metric. */
-export function timelineAnalyticsCsv(data: TimelineAnalytics): string {
+export function timelineAnalyticsTable(data: TimelineAnalytics): AnalyticsTable {
   const header = ['section', 'key', 'label', 'state', 'value', 'share', 'reason']
   const cells: Array<[TimelineMetricField, string]> = [
     ['elapsedPercent', 'Timeline elapsed (%)'],
@@ -404,5 +411,5 @@ export function timelineAnalyticsCsv(data: TimelineAnalytics): string {
     const metric = data[field]
     return ['TIMELINE', field, label, metric.state, metric.value, null, metric.reason]
   })
-  return `${[header, ...rows].map((row) => row.map(csvField).join(',')).join('\r\n')}\r\n`
+  return [header, ...rows]
 }

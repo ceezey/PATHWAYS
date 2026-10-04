@@ -39,6 +39,20 @@ const currentAccess = vi.hoisted(() => ({
   },
 }))
 
+// Plain buttons stand in for the Radix menu, matching the other workspace tests.
+vi.mock('@/components/ui/dropdown-menu', () => ({
+  DropdownMenu: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  DropdownMenuTrigger: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  DropdownMenuContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  DropdownMenuItem: ({
+    children,
+    onSelect,
+  }: { children: React.ReactNode; onSelect?: () => void }) => (
+    <button onClick={() => onSelect?.()} role="menuitem" type="button">
+      {children}
+    </button>
+  ),
+}))
 vi.mock('@/lib/services/pathways-client', () => ({
   pathwaysClient: api,
   descriptiveAnalyticsSearch: (query: Record<string, string>) =>
@@ -633,11 +647,20 @@ describe('Analytics dashboard request dependencies', () => {
     expect(table.textContent).toContain('Withheld')
     expect(table.textContent).toContain('Suppressed')
 
-    fireEvent.click(screen.getByRole('button', { name: 'Export aggregates (CSV)' }))
+    expect(screen.getByRole('button', { name: 'Export aggregates' })).toBeTruthy()
+    fireEvent.click(screen.getByText('CSV'))
     await waitFor(() =>
       expect(download).toHaveBeenCalledWith(
         '/analytics/descriptive/export?projectId=project-a&periodStart=2026-09-01&periodEnd=2026-09-30',
         'descriptive-analytics-project-a.csv',
+      ),
+    )
+    for (const format of ['XLS', 'PDF']) expect(screen.getByText(format)).toBeTruthy()
+    fireEvent.click(screen.getByText('XLSX'))
+    await waitFor(() =>
+      expect(download).toHaveBeenCalledWith(
+        '/analytics/descriptive/export?projectId=project-a&periodStart=2026-09-01&periodEnd=2026-09-30&format=XLSX',
+        'descriptive-analytics-project-a.xlsx',
       ),
     )
 
@@ -652,14 +675,14 @@ describe('Analytics dashboard request dependencies', () => {
     ]
     render(<AnalyticsDashboard />)
     await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
-    expect(screen.getByRole('button', { name: 'Export aggregates (CSV)' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Export aggregates' })).toBeTruthy()
   })
 
   it('hides descriptive statistics and export for roles without the analytics permissions', async () => {
     render(<AnalyticsDashboard />)
     await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
     expect(api.getDescriptiveAnalytics).not.toHaveBeenCalled()
-    expect(screen.queryByRole('button', { name: 'Export aggregates (CSV)' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Export aggregates' })).toBeNull()
     expect(screen.queryByTestId('descriptive-statistics')).toBeNull()
   })
 
@@ -671,7 +694,7 @@ describe('Analytics dashboard request dependencies', () => {
     api.getDescriptiveAnalytics.mockRejectedValue(new Error('Descriptive statistics unavailable.'))
     render(<AnalyticsDashboard />)
     await waitFor(() => expect(api.getDescriptiveAnalytics).toHaveBeenCalled())
-    expect(screen.queryByRole('button', { name: 'Export aggregates (CSV)' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Export aggregates' })).toBeNull()
     expect(download).not.toHaveBeenCalled()
   })
 
