@@ -138,3 +138,12 @@
 - Typecheck then surfaced a mock transaction type error in action-counts.service.test.ts; cast to Prisma.TransactionClient as other tests do.
 - Local lint, typecheck, test (api 105 files passed, 8 skipped for PostgreSQL; web 187) and build pass.
 - 0058-0060 applied on devV2 after master 6d4ee10f reached production; ledger 35 rows 0000-0060, pinned md5s match. First resume failed safely at 0059 because hosted-build --resume reuses a stale .tmp/hosted-build/migrations stage; clear it before resuming.
+
+## 2026-10-04 Testing-session UI fixes (feature/session-sprint-20261004, not pushed)
+
+- MFA card: Figma loading card for session checks, Verify button renamed and right-aligned, Login keeps the card in place until sign-out completes.
+- Site header: HDO Public Portal eyebrow removed (DSD public context updated).
+- Staff login: moved onto StaffAuthFrame (PATHWAYS mark, bordered 44px inputs); frame card radius set to the DSD 12px for all staff auth pages.
+- Dashboard: task cards centered, Open monitoring beside the project scope select, aggregate option relabeled Select Project.
+- Sidebar: collapsed state persisted in the pathways-sidebar cookie and read by the dashboard layout on first paint.
+- Collection: Data workspace eyebrow removed from collection, import and direct-entry headers.
