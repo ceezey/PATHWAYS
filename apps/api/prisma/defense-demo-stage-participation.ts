@@ -1,5 +1,4 @@
-import { planCohort } from './local-demo-data'
-import { demoProjects } from './local-demo-data'
+import { demoProjects, planCohort } from './local-demo-data'
 import type { DemoContext } from './local-demo-seed'
 import { registrarFor } from './local-demo-stage-people'
 import { projectOf, step } from './local-demo-util'
