@@ -273,12 +273,16 @@ test('planIndexForAppliedCount on a 0000-0055 ledger resumes at the 0056 preprov
 })
 
 test('planIndexForAppliedCount on a 0000-0054 ledger resumes at the 0055 deploy', () => {
-  const index = planIndexForAppliedCount(MIGRATIONS_IN_ORDER.indexOf('0054_p09_role_allows_grants') + 1)
+  const index = planIndexForAppliedCount(
+    MIGRATIONS_IN_ORDER.indexOf('0054_p09_role_allows_grants') + 1,
+  )
   assert.deepEqual(buildPlan()[index].migrations, ['0055_rbac_v4_grants'])
 })
 
 test('planIndexForAppliedCount on a 0000-0057 ledger resumes at the 0058 deploy', () => {
-  const index = planIndexForAppliedCount(MIGRATIONS_IN_ORDER.indexOf('0057_f9_survey_period_release') + 1)
+  const index = planIndexForAppliedCount(
+    MIGRATIONS_IN_ORDER.indexOf('0057_f9_survey_period_release') + 1,
+  )
   assert.deepEqual(buildPlan()[index].migrations, ['0058_rules_decision_status_auto_resolved'])
 })
 

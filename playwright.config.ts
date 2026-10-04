@@ -5,7 +5,9 @@ import { defineConfig, devices } from '@playwright/test'
 const localSupabaseEnv = (): Record<string, string> => {
   if (process.env.CI) return {}
   try {
-    const out = execSync('npx supabase status -o json', { stdio: ['ignore', 'pipe', 'ignore'] }).toString()
+    const out = execSync('npx supabase status -o json', {
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).toString()
     const status = JSON.parse(out.slice(out.indexOf('{')))
     return {
       NEXT_PUBLIC_SUPABASE_URL: status.API_URL,

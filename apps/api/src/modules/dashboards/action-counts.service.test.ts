@@ -7,6 +7,7 @@ import type { ApplicationIdentity } from '@app/modules/auth/developer-access'
 import type { RulesHumanService } from '@app/modules/rules/rules-human.service'
 import type { PrismaService } from '@app/prisma/prisma.service'
 import { dashboardActionCountsSchema } from '@pathways/shared'
+import type { Prisma } from '@prisma/client'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ActionCountsController } from './action-counts.controller'
 import { ActionCountsService } from './action-counts.service'
@@ -44,7 +45,7 @@ function setup() {
     activityUpdate: { count: vi.fn().mockResolvedValue(5) },
   }
   vi.mocked(withAuthorizedOperation).mockImplementation((async (_p, identity, _perm, fn) =>
-    fn(tx, identity)) as typeof withAuthorizedOperation)
+    fn(tx as unknown as Prisma.TransactionClient, identity)) as typeof withAuthorizedOperation)
   const rules = { listAlerts: vi.fn().mockResolvedValue({ items: [{}, {}], nextCursor: null }) }
   const service = new ActionCountsService(
     {} as PrismaService,

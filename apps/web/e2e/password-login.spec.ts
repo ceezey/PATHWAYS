@@ -17,9 +17,13 @@ test.beforeAll(async () => {
       loader: 'tsx',
     },
     alias: Object.fromEntries(
-      ['@/hooks/use-session', '@/lib/supabase/client', '@/lib/env', 'next/navigation', 'next/link'].map(
-        (name) => [name, fixture],
-      ),
+      [
+        '@/hooks/use-session',
+        '@/lib/supabase/client',
+        '@/lib/env',
+        'next/navigation',
+        'next/link',
+      ].map((name) => [name, fixture]),
     ),
     bundle: true,
     define: { 'process.env.NODE_ENV': '"test"' },
@@ -48,7 +52,9 @@ const loadComponent = async (page: import('@playwright/test').Page, mode: Mode =
       if (mode === 'pending-success') await gate
       if (mode === 'network') return route.abort()
       if (mode === 'rejected') return route.fulfill({ status: 401, json: {} })
-      await route.fulfill({ json: { accessToken: 'synthetic-access', refreshToken: 'synthetic-refresh' } })
+      await route.fulfill({
+        json: { accessToken: 'synthetic-access', refreshToken: 'synthetic-refresh' },
+      })
     } else await route.abort()
   })
   await page.goto('/component-fixture')
@@ -102,9 +108,7 @@ test('network denies access with a fixed message', async ({ page }) => {
   await expect(page.getByRole('alert')).toHaveText(
     'Authentication is temporarily unavailable. No application access was granted.',
   )
-  await expect
-    .poll(() => page.evaluate(() => window.__PASSWORD_LOGIN_NAVIGATION__))
-    .toBe(undefined)
+  await expect.poll(() => page.evaluate(() => window.__PASSWORD_LOGIN_NAVIGATION__)).toBe(undefined)
 })
 
 test('a restored validated session bypasses password entry for the existing TOTP transition', async ({

@@ -7,8 +7,8 @@ import {
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { PrismaService } from '@app/prisma/prisma.service'
-import type { ApplicationIdentity } from '../auth/developer-access'
 import { hasAtomicPermission } from '../auth/authorization-policy'
+import type { ApplicationIdentity } from '../auth/developer-access'
 import { BeneficiariesService } from './beneficiaries.service'
 
 const readState = vi.hoisted(() => ({ tx: undefined as unknown }))

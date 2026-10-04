@@ -575,6 +575,7 @@ const ScopedActivityProofDialog = ({
                   aria-valuenow={suggestion.percent}
                   className="h-2 w-full overflow-hidden rounded-full bg-muted"
                   role="progressbar"
+                  tabIndex={0}
                 >
                   <div
                     className="h-full rounded-full bg-primary transition-[width]"

@@ -127,3 +127,11 @@
 - Scheduler: inert GitHub Actions drain and sweep workflow, prompt-only machine login script, activation runbook in ops; G-F10-7 Partly met until a person sets credentials.
 - Hosted apply held: Preview and Production share devV2, so 0058-0060 wait until production runs the widened contract and 0056 lands without a gap.
 - 0059 header comment omits outcome_confirm_operation; recorded in the metric catalog CR section 5 instead, since the SAD checker blocks any byte change to a committed migration.
+
+## 2026-10-04 Dev CI lint and typecheck repair
+
+- CI validate failed at Lint on dev, so Typecheck, Test and Build never ran.
+- Biome safe fixes for formatting and import order in six test and config files.
+- Removed a useless Fragment in the activity list Export action; the proof dialog progress bar takes tabIndex 0 like the shared ProgressBar.
+- Typecheck then surfaced a mock transaction type error in action-counts.service.test.ts; cast to Prisma.TransactionClient as other tests do.
+- Local lint, typecheck, test (api 105 files passed, 8 skipped for PostgreSQL; web 187) and build pass.
