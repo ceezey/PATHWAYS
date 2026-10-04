@@ -170,5 +170,60 @@ export async function stageDecisions(ctx: DemoContext) {
       }),
     )
   }
+  // Budget and beneficiary alerts are hidden from the System Administrator, so the Project Manager
+  // and the Monitoring and Evaluation Officer decide them. The survey, past-end and overdue
+  // alerts are deliberately left new.
+  const visible = async (identity: Identity) =>
+    (
+      (await rules.listAlerts(identity, { limit: '100' })) as unknown as {
+        items: AlertRow[]
+      }
+    ).items
+  const budgetAlert = (await visible(pm)).find(
+    (row) => ruleCodes.get(row.ruleId) === 'BUDGET_NEAR_EXHAUSTED',
+  )
+  if (budgetAlert?.lifecycle === 'NEW') {
+    await step('review budget alert', () =>
+      rules.reviewAlert(pm, budgetAlert.id, {
+        expectedRevision: budgetAlert.revision,
+        note: 'Spending is close to the planned budget; the Grant Manager has been informed.',
+        clientOperationId: key('budget:review'),
+      }),
+    )
+    const [first] = await recommendationsOf(pm, budgetAlert.id)
+    await step('escalate budget recommendation', () =>
+      decide(
+        pm,
+        budgetAlert,
+        first,
+        'ESCALATE',
+        'The remaining budget needs a decision from the Grant Manager before further tranches.',
+        'budget:first',
+      ),
+    )
+  }
+  const followUpAlert = (await visible(me)).find(
+    (row) => ruleCodes.get(row.ruleId) === 'FOLLOW_UP_GAP',
+  )
+  if (followUpAlert?.lifecycle === 'NEW') {
+    await step('review follow-up alert', () =>
+      rules.reviewAlert(me, followUpAlert.id, {
+        expectedRevision: followUpAlert.revision,
+        note: 'Six participants are marked for follow-up after the fourth coaching session.',
+        clientOperationId: key('followup:review'),
+      }),
+    )
+    const [first] = await recommendationsOf(me, followUpAlert.id)
+    await step('accept follow-up recommendation', () =>
+      decide(
+        me,
+        followUpAlert,
+        first,
+        'ACCEPT',
+        'Household visits are scheduled for the coming week.',
+        'followup:first',
+      ),
+    )
+  }
   ctx.log('  alert decisions recorded')
 }
