@@ -8,6 +8,7 @@ import { DashboardsService } from '../src/modules/dashboards/dashboards.service'
 import { EvaluationsService } from '../src/modules/evaluations/evaluations.service'
 import { FinanceService } from '../src/modules/finance/finance.service'
 import { ImportsService } from '../src/modules/imports/imports.service'
+import { IndicatorLibraryService } from '../src/modules/indicators/indicator-library.service'
 import { IndicatorsService } from '../src/modules/indicators/indicators.service'
 import { MetadataService } from '../src/modules/metadata/metadata.service'
 import { ParticipantsService } from '../src/modules/participants/participants.service'
@@ -59,6 +60,7 @@ export type DemoContext = {
     projects: ProjectsService
     activities: ActivitiesService
     indicators: IndicatorsService
+    library: IndicatorLibraryService
     beneficiaries: BeneficiariesService
     metadata: MetadataService
     participants: ParticipantsService
@@ -151,6 +153,7 @@ async function main() {
     projects: new ProjectsService(runtime),
     activities: new ActivitiesService(runtime, storage),
     indicators,
+    library: new IndicatorLibraryService(runtime, indicators),
     beneficiaries,
     metadata: new MetadataService(runtime, participants),
     participants,
