@@ -94,7 +94,7 @@ export function manilaToday() {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' }).format(new Date())
 }
 
-function identityFor(
+export function identityFor(
   authUserId: string,
   organizationId: string,
   userId: string,
