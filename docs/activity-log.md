@@ -165,3 +165,10 @@
 ## 2026-10-04 Program Manager project assignment
 
 - System Administrator can assign a Program Manager to projects in User Management; zero assignments are allowed because managed programs still apply. Changes in canAssignRole, users service, access matrix and the user management workspace; no migration (RLS p09_assignment_insert already allows it). Recorded in cr-pathways-program-manager-project-assignment; program creation and manager_user_id setting stay deferred.
+
+## 2026-10-04 Sign-in page polish
+
+- Auth frame uses the DSD canvas beige (`bg-background`) instead of the blue gradient, on every auth page; DSD auth background note updated.
+- Sign-in title is now "Sign in", the "Project Information Management" subtitle is removed (frame description is optional), and "Forgot password?" is left aligned.
+- Sign-in card narrowed to max-w-md to match the MFA card.
+- MFA page: verified, code-accepted and finding-workspace states now show a compact loading card; the session-check skeletons are replaced by the disabled OTP boxes so the page opens straight on the code entry.

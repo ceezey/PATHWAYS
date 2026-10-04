@@ -12,17 +12,17 @@ export const StaffAuthFrame = ({
   backLink = true,
 }: {
   children: ReactNode
-  description: string
+  description?: string
   title: string
   backLink?: boolean
 }) => (
   <>
     <main
-      className="flex min-h-dvh w-full items-center justify-center bg-[linear-gradient(135deg,#C8EAF9_0%,#F5FBFE_28%,#FFFFFF_58%,#DCEFFC_100%)] px-4 py-8 sm:py-10"
+      className="flex min-h-dvh w-full items-center justify-center bg-background px-4 py-8 sm:py-10"
       id="main-content"
       tabIndex={-1}
     >
-      <Card className="w-full max-w-[520px] rounded-xl border-border bg-card shadow-dialog">
+      <Card className="w-full max-w-md rounded-xl border-border bg-card shadow-dialog">
         <CardHeader className="flex flex-col items-center space-y-2 p-6 pb-4 text-center sm:p-8 sm:pb-5">
           <BrandMark className="h-11 w-11" priority />
           <p className="font-heading text-3xl font-normal leading-[2.125rem] text-foreground">
@@ -31,9 +31,11 @@ export const StaffAuthFrame = ({
           <CardTitle as="h1" className="text-2xl leading-8 text-foreground">
             {title}
           </CardTitle>
-          <CardDescription className="max-w-[46ch] text-sm leading-6">
-            {description}
-          </CardDescription>
+          {description && (
+            <CardDescription className="max-w-[46ch] text-sm leading-6">
+              {description}
+            </CardDescription>
+          )}
         </CardHeader>
         <CardContent className="space-y-5 p-6 pt-0 sm:p-8 sm:pt-0">{children}</CardContent>
       </Card>
