@@ -176,6 +176,6 @@
 
 ## 2026-10-04 Dashboard and project navigation fixes
 - Role overview buttons (View, Resolve, Submit update, Resubmit proof, Review, Approve, list rows) now navigate to their own page instead of opening the in-place dashboard sheet, which kept reloading; activity buttons open the activity list with that activity's details open.
-- Project Manager budget alert rows, Log outcome and the Active budget alerts View open that alert on the Alerts page (`?alert=<id>`); Approve opens the Budget ledger with that expense expanded via a `#expense-<id>` hash.
+- Project Manager budget alert rows, Log outcome and the Active budget alerts View go to the alert's project Budget page; Approve opens the Budget ledger with that expense expanded via a `#expense-<id>` hash.
 - Project Overview tab removed; `/projects/:id` redirects to Project Activities, which now carries the Edit and Archive buttons.
 - Target Indicators, Evidence, Monitor & Evaluate, Budget and Journey stages get a Back button that steps back one page in history (falls back to Project Activities on a fresh tab); Evidence's Back to Projects link removed.

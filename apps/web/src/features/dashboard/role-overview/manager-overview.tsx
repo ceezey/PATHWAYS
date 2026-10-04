@@ -29,7 +29,6 @@ const bar = {
 const peso = (amount: string) =>
   `PHP ${Number(amount).toLocaleString('en-PH', { maximumFractionDigits: 0 })}`
 const budgetHref = (projectId: string) => `/projects/${projectId}/budget`
-const alertHref = (alertId: string) => `/alerts?alert=${alertId}`
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`
 
 /** Project Manager home: project health from alerts, expense approvals and budget alerts. */
@@ -75,7 +74,7 @@ export const ManagerOverview = ({
           <AccentKpi
             action={{
               label: 'View',
-              href: budgetAlerts[0] ? alertHref(budgetAlerts[0].id) : '/alerts',
+              href: budgetAlerts[0] ? budgetHref(budgetAlerts[0].projectId) : '/alerts',
             }}
             label="Active budget alerts"
             sub="Require your decision"
@@ -187,13 +186,13 @@ export const ManagerOverview = ({
         >
           {budgetAlerts.map((row) => (
             <ListRow
-              href={alertHref(row.id)}
+              href={budgetHref(row.projectId)}
               key={row.id}
               meta={row.explanation}
               title={`${row.title} · ${row.severity.charAt(0)}${row.severity.slice(1).toLowerCase()}`}
               trailing={
                 <Button asChild size="sm">
-                  <Link href={alertHref(row.id)}>Log outcome</Link>
+                  <Link href={budgetHref(row.projectId)}>Log outcome</Link>
                 </Button>
               }
             />
