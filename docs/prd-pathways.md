@@ -1000,7 +1000,7 @@ Not applicable: indicators have active and archived flags only; no approval life
 - "Add to Dashboard" pins from Analytics: up to 8 per browser, stored as references in local storage and re-fetched live on the role dashboard, so current permissions always apply (cr-pathways-f8-f9-f12-gate-closure).
 - Role home layouts from one read-only endpoint (`GET /dashboards/role-overview`, `projects.read`): Project Officer, Monitoring and Evaluation Officer and Project Manager each get a role layout, and Program Manager and Grant Manager share a portfolio view. Sections the caller lacks the permission for are omitted. System Administrator keeps the previous dashboard.
 - Project health (Critical, At risk, On track, Planned) derives only from open rule-based alerts and is not a success rating; evaluation scores show the stored number with no quality label.
-- Grant Manager is read-only on the portfolio view: no decision buttons. Row actions open the activity review sheet or navigate to Alerts.
+- Grant Manager is read-only on the portfolio view: no decision buttons. Row actions navigate to Alerts or the project page; no decision buttons. The activity review sheet opens only from the Project Officer, M&E Officer and Project Manager layouts.
 **Bounds (out):**
 - Request extension and an escalated-alerts queue on the role dashboards: deferred to Plan 2 (deferred-features register); the Project Manager "Pending your approval" list shows expenses only because no evaluation approval step exists.
 - SADDD for an open or undefined project period: omitted, not estimated (analytics.service.ts precondition)
