@@ -1,6 +1,6 @@
 'use client'
 
-import { LoaderCircle, ShieldCheck } from 'lucide-react'
+import { ArrowLeft, LoaderCircle, ShieldCheck } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
@@ -25,15 +25,8 @@ interface FactorChoice {
 export function MfaForm() {
   const router = useRouter()
   const { session, status, configured, refreshSession, signOut } = useSession()
-  const {
-    access,
-    mfaStatus,
-    accessError,
-    accessRefreshing,
-    refreshAccess,
-    claimWorkspaceHandoff,
-    resetWorkspaceHandoff,
-  } = useCurrentRole()
+  const { access, mfaStatus, accessError, accessRefreshing, refreshAccess, claimWorkspaceHandoff } =
+    useCurrentRole()
   const supabase = getBrowserSupabaseClient()
   const token = session?.access_token ?? null
   const tokenRef = useRef(token)
@@ -79,6 +72,15 @@ export function MfaForm() {
   const choices = verifiedFactors.length
     ? verifiedFactors
     : (current?.factors.filter((factor) => factor.factor_type === 'totp') ?? [])
+  const codeFormVisible = Boolean(
+    configured &&
+      status !== 'loading' &&
+      session &&
+      !accepted &&
+      current &&
+      current.status.aal !== 'aal2' &&
+      (privateEnrollment || choices.length > 0),
+  )
 
   useEffect(() => {
     if (handoffUser.current !== session?.user.id) {
@@ -95,7 +97,7 @@ export function MfaForm() {
     const timeout = window.setTimeout(() => {
       setAccepted(false)
       setError(
-        'Your code was accepted, but the session could not be confirmed. Recheck securely or sign in again.',
+        'Your code was accepted, but the session could not be confirmed. Reload this page or sign in again.',
       )
     }, 30_000)
     return () => window.clearTimeout(timeout)
@@ -373,7 +375,7 @@ export function MfaForm() {
   }
 
   return (
-    <Card className="mx-auto w-full max-w-xl" data-private="true">
+    <Card className="mx-auto w-full max-w-md" data-private="true">
       <CardHeader>
         <ShieldCheck className="mb-2 h-9 w-9 text-primary" aria-hidden="true" />
         <CardTitle>Security check</CardTitle>
@@ -451,7 +453,7 @@ export function MfaForm() {
                 ) : access === 'no_workspace' ? (
                   <output>
                     No authorized workspace is available. Ask an administrator to review your
-                    access, or sign out. You can recheck after access is updated.
+                    access, or sign out. Reload this page after access is updated.
                   </output>
                 ) : accessError ? (
                   <p className="text-sm text-destructive" role="alert">
@@ -459,7 +461,7 @@ export function MfaForm() {
                   </p>
                 ) : (
                   <output>
-                    Workspace access is not available. Recheck securely or ask the development
+                    Workspace access is not available. Reload this page or ask the development
                     administrator for help.
                   </output>
                 )}
@@ -561,8 +563,9 @@ export function MfaForm() {
                 be changed here.
               </p>
             )}
-            {(privateEnrollment || choices.length > 0) && (
+            {codeFormVisible && (
               <form
+                id="mfa-code-form"
                 className="space-y-3"
                 onSubmit={(event) => {
                   event.preventDefault()
@@ -581,37 +584,31 @@ export function MfaForm() {
                   disabled={busy}
                   className="justify-center"
                 />
-                <Button type="submit" disabled={busy || !isTotpCode(code)}>
-                  {busy ? 'Verifying...' : 'Verify authenticator code'}
-                </Button>
               </form>
             )}
           </div>
         )}
-        <div className="flex flex-wrap gap-3 border-t pt-4">
+        <div className="flex flex-wrap items-center gap-3">
           {session ? (
-            <Button type="button" variant="outline" disabled={busy} onClick={() => void leave()}>
-              Sign out and clear this page
+            <Button
+              type="button"
+              variant="outline"
+              className="gap-2"
+              aria-label="Sign out and return to login"
+              disabled={busy}
+              onClick={() => void leave()}
+            >
+              <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+              Login
             </Button>
           ) : (
             <Button asChild variant="outline">
               <Link href="/staff/login">Return to staff login</Link>
             </Button>
           )}
-          {allowedAccount && !privateEnrollment && (
-            <Button
-              type="button"
-              variant="ghost"
-              disabled={busy || accessRefreshing}
-              onClick={() => {
-                handoffAttempted.current = false
-                resetWorkspaceHandoff()
-                setHandoff('idle')
-                setRefresh((value) => value + 1)
-                refreshAccess()
-              }}
-            >
-              Recheck securely
+          {codeFormVisible && (
+            <Button type="submit" form="mfa-code-form" disabled={busy || !isTotpCode(code)}>
+              {busy ? 'Verifying...' : 'Verify authenticator code'}
             </Button>
           )}
         </div>
