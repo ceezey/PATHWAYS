@@ -114,6 +114,7 @@ export const ruleListSchema = z
 export const alertListSchema = z
   .object({ ...listFields, status: z.enum(alertStatuses).optional() })
   .strict()
+export const escalatedAlertListSchema = z.object(listFields).strict()
 export const recommendationListSchema = z
   .object({ ...listFields, alertId: uuidSchema.optional() })
   .strict()
@@ -171,6 +172,10 @@ export const alertOutputSchema = z
     predefinedRecommendations: z.array(recommendationSchema).min(1).max(10),
     linkedRecommendationIds: z.array(uuidSchema).max(10),
   })
+  .strict()
+// Escalation records only an outcome; the queue adds when the latest ESCALATE was recorded.
+export const escalatedAlertOutputSchema = alertOutputSchema
+  .extend({ escalatedAt: instant })
   .strict()
 export const recommendationOutputSchema = z
   .object({

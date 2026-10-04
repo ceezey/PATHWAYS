@@ -40,6 +40,8 @@ const data = {
       },
     ],
   },
+  myExtensions: null,
+  extensionQueue: null,
   datasetsImportedThisMonth: null,
   alerts: {
     open: 1,
@@ -69,6 +71,8 @@ const data = {
         budget: true,
       },
     ],
+    escalatedOpen: 0,
+    escalated: [],
   },
 } as RoleOverview
 const metrics = {
@@ -184,5 +188,42 @@ describe('ManagerOverview', () => {
       />,
     )
     expect(screen.getByText('Showing the first 20 projects.')).toBeTruthy()
+  })
+  it('adds extension rows with an EXT badge to Pending your approval', () => {
+    const open = vi.fn()
+    render(
+      <ManagerOverview
+        counts={null}
+        data={{
+          ...data,
+          approvalQueue: null,
+          extensionQueue: {
+            count: 1,
+            rows: [
+              {
+                id: '70000000-0000-4000-8000-000000000001',
+                activityId: a,
+                projectId: p,
+                projectTitle: 'FutureMakers NCR',
+                activityCode: 'ACT-009',
+                activityTitle: 'Distribute kits',
+                requesterName: 'Ron Perez',
+                requestedEndDate: '2026-12-15',
+                currentEndDate: '2026-11-30',
+                reason: 'Rains delayed delivery.',
+                stage: 'DECIDE',
+              },
+            ],
+          } as RoleOverview['extensionQueue'],
+        }}
+        fullName="Jan"
+        metrics={{}}
+        onOpenActivity={open}
+      />,
+    )
+    expect(screen.getByText('Pending your approval')).toBeTruthy()
+    expect(screen.getByText('EXT')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Approve extension for ACT-009' }))
+    expect(open).toHaveBeenCalledWith(`/projects/${p}/activities/${a}`)
   })
 })

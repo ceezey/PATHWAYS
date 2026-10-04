@@ -91,6 +91,7 @@ import type {
 } from '@/types/pathways'
 import type { PathwaysRole } from '@/types/pathways-role'
 import {
+  type ActivityExtension,
   type CreateIndicatorInput as ApiCreateIndicatorInput,
   type UpdateIndicatorInput as ApiUpdateIndicatorInput,
   type DashboardActionCounts,
@@ -105,6 +106,7 @@ import {
   type SurveyAnalytics,
   type TimelineAnalytics,
   type UseLibraryEntryInput,
+  activityExtensionSchema,
   dashboardActionCountsSchema,
   dashboardQuerySchema,
   descriptiveAnalyticsQuerySchema,
@@ -326,6 +328,30 @@ export interface PathwaysClient {
   ): Promise<SourceMutationResult<Activity>>
   recordActivityProgress(input: RecordActivityProgressInput): Promise<Activity>
   recordOverdueExplanation(input: RecordOverdueExplanationInput): Promise<Activity>
+  listActivityExtensions(projectId: string, activityId: string): Promise<ActivityExtension[]>
+  requestActivityExtension(
+    projectId: string,
+    activityId: string,
+    input: { requestedEndDate: string; reason: string; clientMutationId: string },
+  ): Promise<ActivityExtension>
+  verifyActivityExtension(
+    projectId: string,
+    activityId: string,
+    requestId: string,
+    input: { decision: 'VERIFY' | 'RETURN'; note: string; expectedUpdatedAt: string },
+  ): Promise<ActivityExtension>
+  decideActivityExtension(
+    projectId: string,
+    activityId: string,
+    requestId: string,
+    input: {
+      decision: 'APPROVE' | 'DECLINE'
+      note: string
+      expectedUpdatedAt: string
+      activityExpectedUpdatedAt: string
+      clientMutationId: string
+    },
+  ): Promise<ActivityExtension>
   reviewActivityUpdate(
     projectId: string,
     activityId: string,
@@ -605,6 +631,9 @@ const backendNotConfigured = (operation: string) =>
  * caller cannot mistake browser state for persisted data. Replace methods here only when the
  * corresponding real endpoint exists.
  */
+const extensionPath = (projectId: string, activityId: string) =>
+  `/projects/${encodeURIComponent(projectId)}/activities/${encodeURIComponent(activityId)}/extension-requests`
+
 class BackendReadyPathwaysClient implements PathwaysClient {
   async getAssessmentDetail(
     projectId: string,
@@ -854,6 +883,65 @@ class BackendReadyPathwaysClient implements PathwaysClient {
             category: input.category,
             explanation: input.explanation,
           }),
+        },
+      ),
+    )
+  }
+
+  async listActivityExtensions(projectId: string, activityId: string) {
+    return activityExtensionSchema
+      .array()
+      .parse(await requestFoundation(extensionPath(projectId, activityId)))
+  }
+
+  async requestActivityExtension(
+    projectId: string,
+    activityId: string,
+    input: { requestedEndDate: string; reason: string; clientMutationId: string },
+  ) {
+    return activityExtensionSchema.parse(
+      await requestFoundation(extensionPath(projectId, activityId), {
+        method: 'POST',
+        body: JSON.stringify(input),
+      }),
+    )
+  }
+
+  async verifyActivityExtension(
+    projectId: string,
+    activityId: string,
+    requestId: string,
+    input: { decision: 'VERIFY' | 'RETURN'; note: string; expectedUpdatedAt: string },
+  ) {
+    return activityExtensionSchema.parse(
+      await requestFoundation(
+        `${extensionPath(projectId, activityId)}/${encodeURIComponent(requestId)}/verify`,
+        {
+          method: 'POST',
+          body: JSON.stringify(input),
+        },
+      ),
+    )
+  }
+
+  async decideActivityExtension(
+    projectId: string,
+    activityId: string,
+    requestId: string,
+    input: {
+      decision: 'APPROVE' | 'DECLINE'
+      note: string
+      expectedUpdatedAt: string
+      activityExpectedUpdatedAt: string
+      clientMutationId: string
+    },
+  ) {
+    return activityExtensionSchema.parse(
+      await requestFoundation(
+        `${extensionPath(projectId, activityId)}/${encodeURIComponent(requestId)}/decide`,
+        {
+          method: 'POST',
+          body: JSON.stringify(input),
         },
       ),
     )

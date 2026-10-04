@@ -19,6 +19,10 @@ vi.mock('./activity-explain-delay-dialog', () => ({
   },
 }))
 vi.mock('./activity-proof-files', () => ({ ActivityProofFiles: () => null }))
+vi.mock('./activity-extension-panel', () => ({ ActivityExtensionPanel: () => null }))
+vi.mock('./activity-extension-dialog', () => ({
+  ActivityExtensionDialog: () => <div>Extension dialog</div>,
+}))
 vi.mock('./activity-proof-review-dialog', () => ({ ActivityProofReviewDialog: () => null }))
 
 import { ActivityDetailContent } from './activity-detail-panel'
@@ -82,7 +86,7 @@ describe('ActivityDetailContent server read model', () => {
     expect(document.body.textContent).not.toContain('Project target comparison')
   })
 
-  it('shows Request an extension as disabled with a Not available yet hint', () => {
+  it('opens the extension dialog from Request an extension', () => {
     render(
       <ActivityDetailContent
         activity={activity}
@@ -100,25 +104,15 @@ describe('ActivityDetailContent server read model', () => {
         onSubmitProof={vi.fn()}
       />,
     )
-    const button = screen.getByRole('button', { name: 'Request an extension' })
-    // aria-disabled (not native disabled) so the control stays keyboard/AT reachable.
-    expect(button.hasAttribute('disabled')).toBe(false)
-    expect(button.getAttribute('aria-disabled')).toBe('true')
-    button.focus()
-    expect(document.activeElement).toBe(button)
-    const describedBy = button.getAttribute('aria-describedby')
-    expect(describedBy).toBeTruthy()
-    expect(document.getElementById(describedBy as string)?.textContent).toBe('Not available yet')
+    expect(screen.queryByText('Extension dialog')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Request an extension' }))
+    expect(screen.getByText('Extension dialog')).toBeTruthy()
   })
 
-  it('hides Request an extension while unfinished controls are hidden', async () => {
-    vi.resetModules()
-    vi.doMock('@/constants/feature-flags', () => ({ UNFINISHED_CONTROLS_UI_ENABLED: false }))
-    const { ActivityDetailContent: HiddenContent } = await import('./activity-detail-panel')
-    vi.doUnmock('@/constants/feature-flags')
+  it('hides Request an extension for a cancelled activity', () => {
     render(
-      <HiddenContent
-        activity={activity}
+      <ActivityDetailContent
+        activity={{ ...activity, storedStatus: 'CANCELLED', status: 'Cancelled' }}
         canDecideProof={false}
         canEdit={false}
         canLogExpense={false}
@@ -134,7 +128,6 @@ describe('ActivityDetailContent server read model', () => {
       />,
     )
     expect(screen.queryByRole('button', { name: 'Request an extension' })).toBeNull()
-    expect(screen.queryByText('Not available yet')).toBeNull()
   })
 
   it.each([

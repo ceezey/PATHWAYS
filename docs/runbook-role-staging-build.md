@@ -160,6 +160,10 @@ Role-staging applied the original 0047, 0048 and 0051 before they were amended i
 
 0055 (cr-pathways-rbac-v4-grant-migration) replaces `pathways.p09_role_allows` keeping the ACL restored by 0054, revokes seven `role_permissions` rows and grants two, so the table goes from 317 to 312 rows. It needs no preprovision: prisma owns the function. It is applied with the same `--resume` command; from a ledger ending at 0054 it runs the 0055 deploy, then the runtime-role alteration and the postconditions. Verify read-only afterwards: ledger 30 rows 0000-0055 finished, 312 `role_permissions` rows, and the `p09_role_allows` ACL equal to `p09_role_allows_0035`. Applying to role-staging follows the staging auto-migrate authorization; production needs separate developer authorization.
 
+### Applying 0061 and 0062 to role-staging
+
+0061 (cr-pathways-activity-extension-request) adds one prisma-owned table and needs no preprovision. 0062 (cr-pathways-escalated-alerts) creates `pathways.f10_escalated_alert_list` owned by `rules_human_owner`, so `hosted-build.mjs` runs `hosted-rules-escalation-preprovision.sql` (temporary SET-only membership from prisma to `rules_human_owner`) before it and `hosted-rules-escalation-cleanup.sql` right after. The ledger then holds 37 rows (0000 plus 0027-0062). A ledger ending at 0061 or 0062 is read the same way as 0043/0044: `--resume` checks for a residual `rules_human_owner` membership and resumes at the 0062 deploy or the rules-escalation cleanup when it is still granted. Clear `.tmp/hosted-build/migrations` before any `--resume`.
+
 ### Disambiguating a ledger that stops exactly at 0043 or 0044
 
 The same ambiguity applies to the 0044 chain, so `--resume` reads the live owner memberships at those two ledger counts as well:

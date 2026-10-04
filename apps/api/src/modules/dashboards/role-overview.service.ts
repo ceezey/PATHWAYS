@@ -333,6 +333,98 @@ export class RoleOverviewService {
     }
   }
 
+  private async myExtensions(tx: Tx, actor: ApplicationIdentity) {
+    const where = {
+      organizationId: actor.organizationId,
+      project: projectScope(actor),
+      requestedById: actor.userId,
+    }
+    const [count, found] = await Promise.all([
+      tx.activityExtensionRequest.count({ where }),
+      tx.activityExtensionRequest.findMany({
+        where,
+        select: {
+          id: true,
+          activityId: true,
+          projectId: true,
+          requestedEndDate: true,
+          status: true,
+          verificationNote: true,
+          decisionNote: true,
+          activity: { select: { code: true, title: true } },
+        },
+        orderBy: [{ requestedAt: 'desc' }, { id: 'asc' }],
+        take: rows,
+      }),
+    ])
+    return {
+      count,
+      rows: found.map((e) => ({
+        id: e.id,
+        activityId: e.activityId,
+        projectId: e.projectId,
+        activityCode: e.activity.code.slice(0, 64),
+        activityTitle: e.activity.title.slice(0, 200),
+        requestedEndDate: day(e.requestedEndDate) as string,
+        status: e.status as 'PENDING' | 'VERIFIED' | 'RETURNED' | 'APPROVED' | 'DECLINED',
+        note:
+          (e.status === 'RETURNED'
+            ? e.verificationNote
+            : e.status === 'DECLINED'
+              ? e.decisionNote
+              : null
+          )?.slice(0, 2000) ?? null,
+      })),
+    }
+  }
+
+  // M&E verifies PENDING rows and the Project Manager decides VERIFIED rows, never their own.
+  private async extensionQueue(tx: Tx, actor: ApplicationIdentity, stage: 'VERIFY' | 'DECIDE') {
+    const where = {
+      organizationId: actor.organizationId,
+      project: projectScope(actor),
+      requestedById: { not: actor.userId },
+      ...(stage === 'VERIFY'
+        ? { status: 'PENDING' }
+        : { status: 'VERIFIED', NOT: { verifiedById: actor.userId } }),
+    }
+    const [count, found] = await Promise.all([
+      tx.activityExtensionRequest.count({ where }),
+      tx.activityExtensionRequest.findMany({
+        where,
+        select: {
+          id: true,
+          activityId: true,
+          projectId: true,
+          requestedEndDate: true,
+          currentEndDate: true,
+          reason: true,
+          project: { select: { title: true } },
+          activity: { select: { code: true, title: true } },
+          requestedBy: { select: { fullName: true } },
+        },
+        orderBy: [{ requestedAt: 'asc' }, { id: 'asc' }],
+        take: rows,
+      }),
+    ])
+    return {
+      count,
+      rows: found.map((e) => ({
+        id: e.id,
+        activityId: e.activityId,
+        projectId: e.projectId,
+        projectTitle: e.project.title.slice(0, 200),
+        activityCode: e.activity.code.slice(0, 64),
+        activityTitle: e.activity.title.slice(0, 200),
+        requesterName: e.requestedBy.fullName.slice(0, 200),
+        requestedEndDate: day(e.requestedEndDate) as string,
+        currentEndDate: day(e.currentEndDate),
+        reason: e.reason.slice(0, 2000),
+        stage,
+      })),
+    }
+  }
+
   /** Alert lifecycle lives behind the rules read routines, which enforce project scope. */
   private async alerts(actor: ApplicationIdentity) {
     const counted: Array<{
@@ -388,14 +480,21 @@ export class RoleOverviewService {
       budget: isBudget(a),
     })
     const budget = sorted.filter(isBudget)
+    // One page of the read-only escalation queue, already ordered by latest escalation.
+    const escalated = await this.rules.listEscalatedAlerts(actor, { limit: '100' })
     return {
       open: counted.length,
-      capped,
+      capped: capped || escalated.nextCursor !== null,
       bySeverity,
       byProject: [...projects].map(([projectId, v]) => ({ projectId, ...v })).slice(0, 100),
       recent: sorted.slice(0, 5).map(row),
       budgetOpen: budget.length,
       budgetRecent: budget.slice(0, 5).map(row),
+      escalatedOpen: escalated.items.length,
+      escalated: escalated.items.slice(0, 5).map((a) => ({
+        ...row(a as unknown as (typeof counted)[number]),
+        escalatedAt: new Date(a.escalatedAt).toISOString(),
+      })),
     }
   }
 
@@ -423,6 +522,13 @@ export class RoleOverviewService {
           submittedThisMonth: own?.month ?? null,
           proofQueue: can('evidence.review') ? await this.proofQueue(tx, actor) : null,
           approvalQueue: can('expenses.approve') ? await this.approvalQueue(tx, actor) : null,
+          myExtensions: submitter ? await this.myExtensions(tx, actor) : null,
+          extensionQueue:
+            can('evidence.review') && actor.roles[0] === 'MONITORING_AND_EVALUATION_OFFICER'
+              ? await this.extensionQueue(tx, actor, 'VERIFY')
+              : can('activities.update') && actor.roles[0] === 'PROJECT_MANAGER'
+                ? await this.extensionQueue(tx, actor, 'DECIDE')
+                : null,
           datasetsImportedThisMonth: can('imports.read')
             ? await tx.dataImportBatch.count({
                 where: {

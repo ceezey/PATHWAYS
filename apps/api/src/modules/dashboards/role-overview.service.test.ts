@@ -57,10 +57,17 @@ function setup() {
       count: vi.fn().mockResolvedValue(0),
     },
     dataImportBatch: { count: vi.fn().mockResolvedValue(2) },
+    activityExtensionRequest: {
+      findMany: vi.fn().mockResolvedValue([]),
+      count: vi.fn().mockResolvedValue(0),
+    },
   }
   vi.mocked(withAuthorizedOperation).mockImplementation((async (_p, identity, _perm, fn) =>
     fn(tx as unknown as Prisma.TransactionClient, identity)) as typeof withAuthorizedOperation)
-  const rules = { listAlerts: vi.fn().mockResolvedValue({ items: [], nextCursor: null }) }
+  const rules = {
+    listAlerts: vi.fn().mockResolvedValue({ items: [], nextCursor: null }),
+    listEscalatedAlerts: vi.fn().mockResolvedValue({ items: [], nextCursor: null }),
+  }
   const service = new RoleOverviewService(
     {} as PrismaService,
     rules as unknown as RulesHumanService,
@@ -333,5 +340,95 @@ describe('RoleOverviewService', () => {
       }
     }
     expect(tx.budgetExpenseEntry.findMany.mock.calls.length).toBeGreaterThan(0)
+  })
+
+  it('fills the verify queue for M&E excluding own requests', async () => {
+    const { tx, service } = setup()
+    const result = await service.read(actor('MONITORING_AND_EVALUATION_OFFICER'))
+    const where = tx.activityExtensionRequest.findMany.mock.calls[0][0].where
+    expect(where).toMatchObject({ status: 'PENDING', requestedById: { not: user } })
+    expect(where.project).toMatchObject({ organizationId: org, id: { in: [project] } })
+    expect(result.extensionQueue).toEqual({ count: 0, rows: [] })
+    expect(result.myExtensions).toBeNull()
+  })
+
+  it('fills the decide queue for the Project Manager excluding requested or verified rows', async () => {
+    const { tx, service } = setup()
+    const at = new Date('2026-10-01T00:00:00.000Z')
+    tx.activityExtensionRequest.findMany.mockImplementation(async ({ where }) =>
+      where.status === 'VERIFIED'
+        ? [
+            {
+              id: project,
+              activityId: project,
+              projectId: project,
+              requestedEndDate: at,
+              currentEndDate: null,
+              reason: 'r'.repeat(3000),
+              project: { title: 'P' },
+              activity: { code: 'A-1', title: 'T' },
+              requestedBy: { fullName: 'Officer' },
+            },
+          ]
+        : [],
+    )
+    const result = await service.read(actor('PROJECT_MANAGER'))
+    const call = tx.activityExtensionRequest.findMany.mock.calls.find(
+      ([arg]) => arg.where.status === 'VERIFIED',
+    )
+    expect(call?.[0].where).toMatchObject({
+      requestedById: { not: user },
+      NOT: { verifiedById: user },
+    })
+    expect(result.extensionQueue?.rows[0]).toMatchObject({
+      stage: 'DECIDE',
+      requestedEndDate: '2026-10-01',
+    })
+    expect(result.extensionQueue?.rows[0].reason).toHaveLength(2000)
+  })
+
+  it('returns own extension requests with the returned note for officers', async () => {
+    const { tx, service } = setup()
+    tx.activityExtensionRequest.findMany.mockResolvedValue([
+      {
+        id: project,
+        activityId: project,
+        projectId: project,
+        requestedEndDate: new Date('2026-11-01T00:00:00.000Z'),
+        status: 'RETURNED',
+        verificationNote: 'Attach the revised plan.',
+        decisionNote: null,
+        activity: { code: 'A-1', title: 'T' },
+      },
+    ])
+    const result = await service.read(actor('PROJECT_OFFICER'))
+    expect(tx.activityExtensionRequest.findMany.mock.calls[0][0].where.requestedById).toBe(user)
+    expect(result.myExtensions?.rows[0].note).toBe('Attach the revised plan.')
+    expect(result.extensionQueue).toBeNull()
+  })
+
+  it('maps escalated alerts with their escalation time and counts the page', async () => {
+    const { rules, service } = setup()
+    rules.listEscalatedAlerts.mockResolvedValue({
+      items: [
+        {
+          id: project,
+          projectId: project,
+          title: 'Escalated',
+          severity: 'HIGH',
+          explanation: 'x',
+          evidence: [{ metric: 'INDICATOR_PROGRESS_PERCENT' }],
+          predefinedRecommendations: [],
+          escalatedAt: '2026-10-02T00:00:00.000Z',
+        },
+      ],
+      nextCursor: 'more',
+    })
+    const result = await service.read(actor('PROGRAM_MANAGER'))
+    expect(rules.listEscalatedAlerts.mock.calls[0][1]).toEqual({ limit: '100' })
+    expect(result.alerts?.escalatedOpen).toBe(1)
+    expect(result.alerts?.capped).toBe(true)
+    expect(result.alerts?.escalated[0]).toMatchObject({ escalatedAt: '2026-10-02T00:00:00.000Z' })
+    expect(result.extensionQueue).toBeNull()
   })
 })

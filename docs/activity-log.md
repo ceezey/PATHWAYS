@@ -188,3 +188,12 @@
 - Seed: the Lavezares import faults (under minimum age, guardian consent) only failed at promotion as retryable errors, leaving the batch unfinished; they are now a day-first birth date and a blank required consent, rejected at validation.
 - Clean local wipe, full seed and `--verify`: exit 0, 23 of 23 checks. CRL follow-up and WSH survey improvement alerts fire (issue 2 confirmed, no fix needed).
 - Reported, not fixed (API): registration rule failures during import promotion are retried as transient instead of being flagged at validation or marked for review.
+
+## 2026-10-04 Plan 2: extension requests and escalated alerts (feature/session-sprint-20261004)
+
+- Resumed from the cloud handoff. A clean local baseline replay with 0061 passed (exit 0, ACTIVITY_EXTENSION_REQUESTS_RUNTIME 12 assertions, all four current-schema API suites), so the earlier current-schema suite failure did not reproduce; the TMPDIAG diagnostics were removed and SCHEMA_DRIFT stayed CLEAN with no accept needed.
+- 0062 adds `pathways.f10_escalated_alert_list` owned by `rules_human_owner` behind a new rules-escalation preprovision/cleanup pair; the schema owner lends CREATE inside the migration (0053 pattern). Ledger 37 rows. The runtime suite reuses the rules suite alerts and runs after it on the recovered 0060 clone (11 assertions).
+- API: `activity-extensions` module (request, verify, decide; approval runs ACTIVITY_UPDATE so rules re-evaluate) and `GET /alerts/escalated`. The shared extension contract carries `updatedAt` because verify and decide need it as the expected version.
+- Role overview: `myExtensions`, `extensionQueue`, `alerts.escalated` and `alerts.escalatedOpen`. Web: Request an extension dialog and extension panel replace the disabled placeholder; dashboards show returned notes, an Extension pending badge, the M&E verify queue, EXT rows in Pending your approval, and Escalated alerts on the portfolio.
+- Local environment notes: cdn.sheetjs.com is blocked here, so xlsx 0.18.5 was linked locally only (not committed); pnpm 11 needs `verify_deps_before_run=false` to stop reinstalling before each exec. `apps/web/src/lib/rbac/auth-navigation.contract.test.ts` already fails on the dashboard layout from a0d34a5 (sidebar cookie); not touched here.
+- Hosted apply (Task 8 step 4) is left for the developer: it needs the role-staging env file and credentials, which are not in this session.

@@ -33,6 +33,8 @@ const data = {
   submittedThisMonth: null,
   proofQueue: null,
   approvalQueue: null,
+  myExtensions: null,
+  extensionQueue: null,
   datasetsImportedThisMonth: null,
   alerts: {
     open: 1,
@@ -62,6 +64,8 @@ const data = {
         budget: true,
       },
     ],
+    escalatedOpen: 0,
+    escalated: [],
   },
 } as RoleOverview
 
@@ -105,5 +109,41 @@ describe('PortfolioOverview', () => {
     }))
     render(<PortfolioOverview data={{ ...data, projects }} metrics={{}} readOnly={false} />)
     expect(screen.getByText('Showing the first 20 projects.')).toBeTruthy()
+  })
+  it('shows escalated alerts with their date in place of open alerts', () => {
+    const alerts = data.alerts as NonNullable<RoleOverview['alerts']>
+    const escalated = [
+      { ...alerts.recent[0], title: 'Escalated KPI gap', escalatedAt: '2026-10-02T03:00:00.000Z' },
+    ]
+    render(
+      <PortfolioOverview
+        data={{ ...data, alerts: { ...alerts, escalated, escalatedOpen: 1 } }}
+        metrics={{}}
+        readOnly={false}
+      />,
+    )
+    expect(screen.getByText('Escalated alerts')).toBeTruthy()
+    expect(screen.getByText('Requiring program-level decision')).toBeTruthy()
+    expect(screen.getByText('Escalated KPI gap')).toBeTruthy()
+    expect(screen.getByText(/Escalated Oct 2, 2026/)).toBeTruthy()
+    expect(screen.queryByText('Open alerts')).toBeNull()
+  })
+  it('falls back to open alerts when nothing is escalated', () => {
+    render(<PortfolioOverview data={data} metrics={{}} readOnly={false} />)
+    expect(screen.getByText('Open alerts')).toBeTruthy()
+    expect(screen.queryByText('Escalated alerts')).toBeNull()
+  })
+  it('gives the Grant Manager no Decide button on escalated alerts', () => {
+    const alerts = data.alerts as NonNullable<RoleOverview['alerts']>
+    const escalated = [{ ...alerts.recent[0], escalatedAt: '2026-10-02T03:00:00.000Z' }]
+    render(
+      <PortfolioOverview
+        data={{ ...data, alerts: { ...alerts, escalated, escalatedOpen: 1 } }}
+        metrics={{}}
+        readOnly
+      />,
+    )
+    expect(screen.getByText('Escalated alerts')).toBeTruthy()
+    expect(screen.queryByRole('link', { name: 'Decide' })).toBeNull()
   })
 })

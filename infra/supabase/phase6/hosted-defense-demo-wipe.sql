@@ -41,6 +41,7 @@ BEGIN
 END $$;
 
 TRUNCATE TABLE
+  pathways.activity_extension_requests,
   pathways.activity_indicator_links,
   pathways.activity_journey_stage_mappings,
   pathways.activity_overdue_explanations,

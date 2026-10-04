@@ -26,6 +26,13 @@ const bar = {
 } as const
 const peso = (amount: string) =>
   `PHP ${Number(amount).toLocaleString('en-PH', { maximumFractionDigits: 0 })}`
+const longDate = (day: string) =>
+  new Date(`${day}T00:00:00Z`).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    timeZone: 'UTC',
+  })
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`
 
 /** Project Manager home: project health from alerts, expense approvals and budget alerts. */
@@ -45,6 +52,7 @@ export const ManagerOverview = ({
   const byProject = new Map(data.alerts?.byProject.map((row) => [row.projectId, row]))
   const budgetAlerts = data.alerts?.budgetRecent ?? []
   const approvals = data.approvalQueue
+  const extensions = data.extensionQueue
   const overdue = counts?.overdueActivities
   return (
     <div className="space-y-6">
@@ -59,12 +67,12 @@ export const ManagerOverview = ({
         title="Project management overview"
       />
       <KpiStrip label="Management counts">
-        {approvals ? (
+        {approvals || extensions ? (
           <AccentKpi
             label="Pending approvals"
-            sub="Expenses verified by M&E"
+            sub={extensions?.count ? 'Expenses and extensions' : 'Expenses verified by M&E'}
             tone="danger"
-            value={String(approvals.count)}
+            value={String((approvals?.count ?? 0) + (extensions?.count ?? 0))}
           />
         ) : null}
         {data.alerts ? (
@@ -144,9 +152,29 @@ export const ManagerOverview = ({
             <p className="px-1 text-xs text-muted-foreground">Showing the first 20 projects.</p>
           ) : null}
         </div>
-        {approvals ? (
+        {approvals || extensions ? (
           <ListCard empty="Nothing is waiting for your approval." title="Pending your approval">
-            {approvals.rows.map((row) => {
+            {extensions?.rows.map((row) => (
+              <ListRow
+                key={row.id}
+                lead={<InitialsBadge text="EXT" />}
+                meta={`Extension to ${longDate(row.requestedEndDate)} · ${row.requesterName} · ${row.projectTitle}`}
+                title={`${row.activityCode} — ${row.activityTitle}`}
+                trailing={
+                  <Button
+                    aria-label={`Approve extension for ${row.activityCode}`}
+                    onClick={() =>
+                      onOpenActivity(`/projects/${row.projectId}/activities/${row.activityId}`)
+                    }
+                    size="sm"
+                    type="button"
+                  >
+                    Approve
+                  </Button>
+                }
+              />
+            ))}
+            {approvals?.rows.map((row) => {
               const href = row.activityId
                 ? `/projects/${row.projectId}/activities/${row.activityId}?expense=${row.expenseId}`
                 : null
