@@ -9,9 +9,9 @@
 -- Each function keeps its signature, owner, ACL, SECURITY mode, volatility and empty search_path
 -- (checked below). The bodies keep the CRLF line endings of 0041 and 0044; only the marked lines differ.
 -- DBA prerequisite: the same temporary SET-only chain as 0041 from prisma to rules_store_owner and
--- rules_enqueue_owner. Run the 0041 preprovision script first (hosted-activity-media-preprovision.sql
--- hosted, forward-activity-media-preprovision.sql local) and the matching cleanup script afterwards
--- (hosted-activity-media-cleanup.sql, forward-activity-media-cleanup.sql), also after a failure.
+-- rules_enqueue_owner. Run hosted-indicator-type-preprovision.sql first (forward-activity-media-preprovision.sql
+-- in the disposable replay) and hosted-indicator-type-cleanup.sql afterwards (forward-activity-media-cleanup.sql),
+-- also after a failure.
 -- The schema owners lend CREATE for the two statements and take it back. No table, column, policy or
 -- grant remains changed.
 BEGIN;
