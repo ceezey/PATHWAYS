@@ -1,13 +1,6 @@
-import { EyeOff } from 'lucide-react'
-import Link from 'next/link'
-
 import { PageHeader } from '@/components/layout/page-header'
-import { EmptyState } from '@/components/pathways/empty-state'
-import { Button } from '@/components/ui/button'
-import { PublicProjectDetail } from '@/features/public/public-project-components'
+import { PublicTrackerPreview } from '@/features/public/public-tracker-preview'
 import { type ProtectedPageProps, requireServerPage } from '@/lib/rbac/server-access'
-import { pathwaysClient } from '@/lib/services/pathways-client'
-import { PathwaysClientError } from '@/lib/services/pathways-client'
 
 export const dynamic = 'force-dynamic'
 
@@ -15,46 +8,14 @@ export default async function ProtectedPage(props: ProtectedPageProps) {
   await requireServerPage('transparencyPreview', props)
   const projectId = (await props.params)?.projectId ?? ''
 
-  try {
-    const project = await pathwaysClient.getPublicProject(projectId)
-
-    return <PublicProjectDetail mode="staff-preview" project={project} />
-  } catch (error) {
-    if (
-      error instanceof PathwaysClientError &&
-      ['not_found', 'not_configured'].includes(error.code)
-    ) {
-      const unavailable = error.code === 'not_configured'
-      return (
-        <>
-          <PageHeader
-            eyebrow="Public Tracker"
-            title="Public preview unavailable"
-            description={
-              unavailable
-                ? 'Public preview is unavailable until the publication API is configured.'
-                : 'This project does not yet have an approved public record.'
-            }
-          />
-          <EmptyState
-            action={
-              <Button asChild variant="outline">
-                <Link href="/transparency">Back to Public Tracker</Link>
-              </Button>
-            }
-            className="min-h-80 rounded-lg border border-border bg-card"
-            description={
-              unavailable
-                ? 'Publishing and previewing approved public records require backend support.'
-                : 'Add an approved, non-sensitive public project record before opening the donor-facing staff preview.'
-            }
-            icon={EyeOff}
-            title="No approved public preview"
-          />
-        </>
-      )
-    }
-
-    throw error
-  }
+  return (
+    <div className="space-y-6">
+      <PageHeader
+        eyebrow="Public Tracker"
+        title="Public preview"
+        description="Review the frozen public snapshot for this project's current revision."
+      />
+      <PublicTrackerPreview projectId={projectId} />
+    </div>
+  )
 }
