@@ -389,8 +389,8 @@ Rules the service enforces (tests for each):
 
 **Interfaces:**
 - Produces new nullable sections in `roleOverviewSchema`:
-  - `myExtensions`: `list({ id, activityId, projectId, activityCode, activityTitle: text(200), requestedEndDate: day, status, note: text(2000).nullable() })` — PO's own latest 5 requests (status PENDING|VERIFIED|RETURNED|APPROVED|DECLINED; `note` = verification note for RETURNED, decision note for DECLINED); gate `activities.proof.submit`.
-  - `extensionQueue`: `list({ id, activityId, projectId, projectTitle, activityCode, activityTitle, requesterName, requestedEndDate, currentEndDate: day.nullable(), reason: text(2000), stage: 'VERIFY'|'DECIDE' })` — PENDING rows for M&E (`evidence.review`, excluding own requests), VERIFIED rows for PM (`activities.update` and role PROJECT_MANAGER, excluding rows they requested or verified); null otherwise.
+  - `myExtensions`: `list({ id, activityId, projectId, activityCode, activityTitle: text(200), requestedEndDate: day, status, note: text(2000).nullable() })`: PO's own latest 5 requests (status PENDING|VERIFIED|RETURNED|APPROVED|DECLINED; `note` = verification note for RETURNED, decision note for DECLINED); gate `activities.proof.submit`.
+  - `extensionQueue`: `list({ id, activityId, projectId, projectTitle, activityCode, activityTitle, requesterName, requestedEndDate, currentEndDate: day.nullable(), reason: text(2000), stage: 'VERIFY'|'DECIDE' })`: PENDING rows for M&E (`evidence.review`, excluding own requests), VERIFIED rows for PM (`activities.update` and role PROJECT_MANAGER, excluding rows they requested or verified); null otherwise.
   - `alerts.escalated`: `z.array(alertRow.extend({ escalatedAt: instant })).max(5)` plus `escalatedOpen: count`, filled from `RulesHumanService.listEscalatedAlerts` (one page of 100, `escalatedOpen` = items length, `capped` OR next cursor present).
 - All strings sliced to their caps in the service (Plan 1 C1 lesson).
 
@@ -413,7 +413,7 @@ Rules the service enforces (tests for each):
 
 ---
 
-### Task 7: Dashboards — extension and escalation sections
+### Task 7: Dashboards: extension and escalation sections
 
 **Files:**
 - Modify: `apps/web/src/features/dashboard/role-overview/officer-overview.tsx` (Needs your attention: RETURNED/DECLINED extension callouts with the note and an Open activity button; Your activities rows show "Extension pending" badge), `me-overview.tsx` (new card "Extension requests to verify" from `extensionQueue` stage VERIFY with Review button opening the activity), `manager-overview.tsx` ("Pending your approval" adds extension rows from `extensionQueue` stage DECIDE with an initials badge `EXT` and an Approve button opening the activity), `portfolio-overview.tsx` (replace "Open alerts" with "Escalated alerts" from `alerts.escalated` when present, fallback to open alerts when the escalated list is empty; header caption "Requiring program-level decision"; Decide only when not readOnly), plus their tests.

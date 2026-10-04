@@ -99,6 +99,8 @@ Workflow rule: an audit is finding and evidence, a Change Record is the approved
 | [RBAC v4 and Figma reference reconciliation](superpowers/specs/2026-10-01-rbac-v4-figma-reconciliation-design.md) | 2026-10-01-rbac-v4-figma-reconciliation-design.md | 2026-10-01 | Adopt manuscript RBAC v4 in docs; add a non-authoritative Figma reference section to DSD | Approved |
 | [RBAC v4 and Figma reference reconciliation plan](superpowers/plans/2026-10-01-rbac-v4-figma-reconciliation.md) | 2026-10-01-rbac-v4-figma-reconciliation.md | 2026-10-01 | Task-by-task plan for the RBAC v4 and Figma reference spec | Executed; merged into dev |
 | [Role dashboards plan](superpowers/plans/2026-10-04-role-dashboards.md) | 2026-10-04-role-dashboards.md | 2026-10-04 | Role-specific dashboards from one read-only overview endpoint | Executed; integrated into dev pending |
+| [Extension requests and escalated alerts plan](superpowers/plans/2026-10-04-extensions-and-escalations.md) | 2026-10-04-extensions-and-escalations.md | 2026-10-04 | Activity extension requests (0061) and the read-only escalated-alerts queue (0062) on the role dashboards | Executed; implemented and verified locally; hosted apply pending |
+| [Plan 2 cloud handoff](handoff-extensions-and-escalations.md) | handoff-extensions-and-escalations.md | 2026-10-04 | Paused state of Plan 2 Task 1 handed to the cloud session, with the SDD ledger rulings | Closed; resumed and completed |
 
 ### 1.7 Traceability Matrix
 
