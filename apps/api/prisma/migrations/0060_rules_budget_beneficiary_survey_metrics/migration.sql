@@ -13,13 +13,13 @@
 --  * rules_eligibility_owner: rule_dependency_fingerprint replaced (id and update-stamp digests only, never amounts),
 --    metadata-only column SELECT through eligibility_metadata_scope, plus new lease_family_allowed and
 --    rule_audience_allowed (a human sees a rule bound to a source family only with that family's read permission;
---    budget needs budgets.read and expenses.read, beneficiary aggregates.read, survey assessments.detail.read);
+--    budget needs budgets.read and expenses.read, beneficiary records.read (the individual-level key, since the follow-up share could be differenced to one person), survey assessments.detail.read);
 --  * RESTRICTIVE audience policies on pathways.rule_based_alerts and pathways.decision_recommendations.
 -- Each replaced function keeps its signature, owner, ACL, SECURITY DEFINER mode, volatility and empty search_path
 -- (checked below). The bodies keep the 0031 CRLF line endings; only the marked lines differ, and md5(prosrc) is
 -- pinned before and after. No table, column or grant outside this list changes.
 -- DBA prerequisite: run hosted-rules-catalog-preprovision.sql first (shared with 0059) and
--- hosted-rules-catalog-cleanup.sql afterwards, also after a failure. rules_store_owner lends schema CREATE.
+-- hosted-rules-catalog-cleanup.sql afterwards (after a failure, run prisma migrate resolve --rolled-back first). rules_store_owner lends schema CREATE.
 BEGIN;
 SET LOCAL lock_timeout = '5s';
 SET LOCAL statement_timeout = '60s';
@@ -128,7 +128,7 @@ BEGIN
  RETURN NOT EXISTS(SELECT FROM pathways_rules_internal.rule_bindings b WHERE b.organization_id=org AND b.project_id=project AND b.rule_version_id=wanted_rule AND (
   (b.metric_key='BUDGET_UTILIZATION_PERCENT' AND NOT (pathways.p06_can('budgets.read',project) IS TRUE
     AND pathways.p06_can('expenses.read',project) IS TRUE))
-  OR (b.metric_key='BENEFICIARY_FOLLOW_UP_PERCENT' AND pathways.p06_can('beneficiaries.aggregates.read',project) IS NOT TRUE)
+  OR (b.metric_key='BENEFICIARY_FOLLOW_UP_PERCENT' AND pathways.p06_can('beneficiaries.records.read',project) IS NOT TRUE)
   OR (b.metric_key='SURVEY_MEAN_IMPROVEMENT_POINTS' AND pathways.p06_can('assessments.detail.read',project) IS NOT TRUE)));
 END $$;
 REVOKE ALL ON FUNCTION pathways_rules_internal.lease_family_allowed(uuid,uuid,text),pathways_rules_internal.rule_audience_allowed(uuid) FROM PUBLIC,anon,authenticated,service_role,pathways_runtime,pathways_rules_worker,pathways_rules_sweeper;
@@ -642,6 +642,11 @@ CREATE POLICY f10_audience_recommendation_read ON pathways.decision_recommendati
  USING(EXISTS(SELECT 1 FROM pathways.rule_based_alerts a WHERE a.organization_id=decision_recommendations.organization_id
   AND a.project_id=decision_recommendations.project_id AND a.id=decision_recommendations.alert_id
   AND pathways_rules_internal.rule_audience_allowed(a.rule_id)));
+-- Direct runtime reads never see f10 rows (no API code reads them directly); they stay reachable only through the f10_* readers.
+CREATE POLICY f10_runtime_alert_direct_guard ON pathways.rule_based_alerts AS RESTRICTIVE FOR SELECT TO pathways_runtime
+ USING(runtime_contract_version IS DISTINCT FROM 'f10.v1');
+CREATE POLICY f10_runtime_recommendation_direct_guard ON pathways.decision_recommendations AS RESTRICTIVE FOR SELECT TO pathways_runtime
+ USING(runtime_contract_version IS DISTINCT FROM 'f10.v1');
 
 SET LOCAL ROLE rules_store_owner;
 DO $$ BEGIN IF pg_catalog.current_setting('pathways_0060.had_usage')<>'true' THEN REVOKE USAGE ON SCHEMA pathways_rules_internal FROM prisma; END IF; END $$;
@@ -649,6 +654,8 @@ RESET ROLE;
 
 -- Postconditions.
 DO $$ DECLARE fn record; BEGIN
+ IF pg_catalog.has_schema_privilege('prisma','pathways_rules_internal','USAGE')::text<>pg_catalog.current_setting('pathways_0060.had_usage') THEN
+  RAISE EXCEPTION '0060 lent prisma schema USAGE remains'; END IF;
  SELECT p.* INTO fn FROM pg_catalog.pg_proc p WHERE p.oid::pg_catalog.regprocedure::pg_catalog.text='pathways_rules_internal.evaluate_node(jsonb,jsonb,integer)';
  IF NOT FOUND THEN RAISE EXCEPTION 'Function pathways_rules_internal.evaluate_node(jsonb,jsonb,integer) not found'; END IF;
  IF pg_catalog.md5(fn.prosrc)<>'af2fabaa21d606419139e40ff4a247f6' OR pg_catalog.pg_get_userbyid(fn.proowner)<>'rules_projection_owner' OR fn.prosecdef IS DISTINCT FROM false
@@ -688,7 +695,7 @@ DO $$ DECLARE fn record; BEGIN
  THEN RAISE EXCEPTION '0060 lease_family_allowed postcondition failed'; END IF;
  SELECT p.* INTO fn FROM pg_catalog.pg_proc p WHERE p.oid::pg_catalog.regprocedure::pg_catalog.text='pathways_rules_internal.rule_audience_allowed(uuid)';
  IF NOT FOUND THEN RAISE EXCEPTION 'Function pathways_rules_internal.rule_audience_allowed(uuid) not found'; END IF;
- IF pg_catalog.md5(fn.prosrc)<>'b347e3940ade21d1eb6233572ee8576b' OR pg_catalog.pg_get_userbyid(fn.proowner)<>'rules_eligibility_owner'
+ IF pg_catalog.md5(fn.prosrc)<>'45116efb7ec89bd82613a3ad1e089774' OR pg_catalog.pg_get_userbyid(fn.proowner)<>'rules_eligibility_owner'
   OR NOT fn.prosecdef OR fn.proconfig IS DISTINCT FROM ARRAY['search_path=""']
   OR pg_catalog.has_function_privilege('pathways_runtime',fn.oid,'EXECUTE') OR pg_catalog.has_function_privilege('pathways_rules_worker',fn.oid,'EXECUTE')
   OR EXISTS(SELECT FROM pg_catalog.aclexplode(fn.proacl) x WHERE x.grantee=0)
@@ -701,6 +708,8 @@ DO $$ DECLARE fn record; BEGIN
    AND convalidated AND pg_catalog.pg_get_constraintdef(oid) LIKE '%SURVEY_MEAN_IMPROVEMENT_POINTS%')<>1
   OR (SELECT count(*) FROM pg_catalog.pg_policy WHERE polname IN ('f10_audience_alert_read','f10_audience_recommendation_read',
    'f10_audience_evaluation_read','f10_audience_notification_read') AND NOT polpermissive)<>4
+  OR (SELECT count(*) FROM pg_catalog.pg_policy WHERE polname IN ('f10_runtime_alert_direct_guard','f10_runtime_recommendation_direct_guard')
+   AND NOT polpermissive AND polroles=ARRAY[(SELECT oid FROM pg_catalog.pg_roles WHERE rolname='pathways_runtime')])<>2
   OR (SELECT count(*) FROM pg_catalog.pg_policy WHERE polname LIKE 'f10\_projection\_%' AND polrelid IN ('pathways.project_budget_records'::pg_catalog.regclass,'pathways.budget_expense_entries'::pg_catalog.regclass,'pathways.beneficiary_project_enrollments'::pg_catalog.regclass,'pathways.beneficiary_activity_participations'::pg_catalog.regclass,'pathways.assessment_results'::pg_catalog.regclass))<>5
   OR (SELECT count(*) FROM pg_catalog.pg_policy WHERE polname LIKE 'f10\_freshness\_%' AND polrelid IN ('pathways.project_budget_records'::pg_catalog.regclass,'pathways.budget_expense_entries'::pg_catalog.regclass,'pathways.beneficiary_project_enrollments'::pg_catalog.regclass,'pathways.beneficiary_activity_participations'::pg_catalog.regclass,'pathways.assessment_results'::pg_catalog.regclass))<>5
   OR NOT pg_catalog.has_column_privilege('rules_projection_owner','pathways.budget_expense_entries','amount','SELECT')

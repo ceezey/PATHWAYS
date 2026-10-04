@@ -1,6 +1,7 @@
 -- DBA cleanup for migrations 0059 and 0060 (rules catalog). Revokes the temporary SET chain that
--- hosted-rules-catalog-preprovision.sql granted. Run after a successful 0060 and also after a
--- failed or rolled-back attempt. Hosted endpoint must be independently pinned with TLS first.
+-- hosted-rules-catalog-preprovision.sql granted. Run after a successful 0060. After a failed attempt run
+-- `prisma migrate resolve --rolled-back <migration>` first: this script refuses while a ledger row is unfinished.
+-- Hosted endpoint must be independently pinned with TLS first.
 \set ON_ERROR_STOP on
 \if :{?target_project_ref}
 \else

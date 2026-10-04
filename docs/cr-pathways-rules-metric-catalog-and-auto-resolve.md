@@ -30,7 +30,7 @@ Evaluation uses the existing hourly sweep, not new source operations. A qualifyi
 
 ## 3. Audience restriction
 
-An alert or recommendation whose rule binds a Budget, Beneficiary or survey metric is readable only by users who also hold the source read: `budgets.read` and `expenses.read`, `beneficiaries.aggregates.read`, or `assessments.detail.read` respectively. A restrictive database policy hides the alert, its recommendations, notifications and history from everyone else, and their actions return 403. Rule authoring and dry-run use definitions or typed-in values only, so the System Administrator can still configure these rules.
+An alert or recommendation whose rule binds a Budget, Beneficiary or survey metric is readable only by users who also hold the source read: `budgets.read` and `expenses.read`, `beneficiaries.records.read`, or `assessments.detail.read` respectively. Beneficiary follow-up needs the record read (Project Officer, Monitoring and Evaluation Officer, Project Manager), not the aggregate read, because successive live values could otherwise be differenced to reveal one person's follow-up status. A restrictive database policy hides the alert, its recommendations, notifications and history from everyone else, and their actions return 403. Rule authoring and dry-run use definitions or typed-in values only, so the System Administrator can still configure these rules.
 
 ## 4. Recommendation Auto-resolved
 

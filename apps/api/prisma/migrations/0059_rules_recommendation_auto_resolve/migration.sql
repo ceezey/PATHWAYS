@@ -15,7 +15,7 @@
 -- signature, owner, ACL, SECURITY DEFINER mode, volatility and empty search_path (checked below). The bodies keep the
 -- 0031 CRLF line endings; only the marked lines differ, and md5(prosrc) is pinned before and after.
 -- DBA prerequisite: run hosted-rules-catalog-preprovision.sql first (a temporary SET-only chain from prisma to the
--- rules owner roles used here and in 0060) and hosted-rules-catalog-cleanup.sql afterwards, also after a failure.
+-- rules owner roles used here and in 0060) and hosted-rules-catalog-cleanup.sql afterwards (after a failure, run prisma migrate resolve --rolled-back first).
 -- The schema owner rules_store_owner lends CREATE for the function statements and takes it back.
 BEGIN;
 SET LOCAL lock_timeout = '5s';

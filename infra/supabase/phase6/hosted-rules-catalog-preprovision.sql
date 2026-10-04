@@ -3,7 +3,7 @@
 -- rules_store_owner, lending schema CREATE through the schema owner (rules_store_owner for pathways_rules_internal).
 -- The earlier cleanups revoked prisma's owner memberships, so this grants prisma a temporary SET-only chain to the
 -- six roles used (store, projection, eligibility, commit, runtime_guard, outcome; no ADMIN, no INHERIT). One chain
--- covers 0059 and 0060. Run hosted-rules-catalog-cleanup.sql right after 0060, also after a failed attempt.
+-- covers 0059 and 0060. Run hosted-rules-catalog-cleanup.sql right after 0060; after a failed attempt run `prisma migrate resolve --rolled-back <migration>` first.
 -- Hosted endpoint must be independently pinned with TLS first.
 \set ON_ERROR_STOP on
 \if :{?target_project_ref}

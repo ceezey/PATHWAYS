@@ -91,7 +91,7 @@ SELECT pg_temp.ok(NOT has_column_privilege('rules_eligibility_owner','pathways.b
 -- Fixtures: org A users 101 SA, 102 PM (P1,P3), 103 M&E (P1,P3), 104 PM (P2 only); org B user 105.
 BEGIN;
 SET LOCAL session_replication_role = replica;
-INSERT INTO auth.users(id) SELECT pg_temp.u(200+n) FROM generate_series(1,5) n;
+INSERT INTO auth.users(id) SELECT pg_temp.u(200+n) FROM generate_series(1,6) n;
 INSERT INTO pathways.organizations(id,code,name) VALUES (pg_temp.u(1),'F10R_A','Synthetic F10 org A'),(pg_temp.u(2),'F10R_B','Synthetic F10 org B');
 INSERT INTO pathways.system_users(id,organization_id,role_id,auth_user_id,full_name,email,account_status,activated_at)
 SELECT pg_temp.u(100+v.n),v.org,r.id,pg_temp.u(200+v.n),v.full_name,v.email,'ACTIVE',now()
@@ -99,7 +99,8 @@ FROM (VALUES (1,pg_temp.u(1),'SYSTEM_ADMINISTRATOR','F10 SA','f10-sa@example.inv
  (2,pg_temp.u(1),'PROJECT_MANAGER','F10 PM','f10-pm@example.invalid'),
  (3,pg_temp.u(1),'MONITORING_AND_EVALUATION_OFFICER','F10 ME','f10-me@example.invalid'),
  (4,pg_temp.u(1),'PROJECT_MANAGER','F10 PM other','f10-pm2@example.invalid'),
- (5,pg_temp.u(2),'PROJECT_MANAGER','F10 PM org B','f10-pmb@example.invalid')) v(n,org,role_code,full_name,email)
+ (5,pg_temp.u(2),'PROJECT_MANAGER','F10 PM org B','f10-pmb@example.invalid'),
+ (6,pg_temp.u(1),'GRANT_MANAGER','F10 GM aggregate only','f10-gm@example.invalid')) v(n,org,role_code,full_name,email)
 JOIN pathways.roles r ON r.code=v.role_code;
 -- P1 timeline, P2 out of scope, P3 budget 85 percent plus timeline, P4 zero planned, P5 three enrollments,
 -- P6 ten with five follow-ups, P7 six survey pairs, P8 mixed currency, P9 on hold, P10 org B.
@@ -114,7 +115,10 @@ INSERT INTO pathways.user_project_assignments(id,organization_id,project_id,user
  (pg_temp.u(403),pg_temp.u(1),pg_temp.u(301),pg_temp.u(103),pg_temp.u(101)),
  (pg_temp.u(404),pg_temp.u(1),pg_temp.u(303),pg_temp.u(103),pg_temp.u(101)),
  (pg_temp.u(405),pg_temp.u(1),pg_temp.u(302),pg_temp.u(104),pg_temp.u(101)),
- (pg_temp.u(406),pg_temp.u(2),pg_temp.u(310),pg_temp.u(105),pg_temp.u(105));
+ (pg_temp.u(406),pg_temp.u(2),pg_temp.u(310),pg_temp.u(105),pg_temp.u(105)),
+ (pg_temp.u(407),pg_temp.u(1),pg_temp.u(306),pg_temp.u(102),pg_temp.u(101)),
+ (pg_temp.u(408),pg_temp.u(1),pg_temp.u(306),pg_temp.u(106),pg_temp.u(101)),
+ (pg_temp.u(409),pg_temp.u(1),pg_temp.u(301),pg_temp.u(106),pg_temp.u(101));
 -- Budgets. P3: active record 100 (approved 85, pending 40) and an archived record 900 with approved 500 (both excluded).
 INSERT INTO pathways.project_budget_records(id,organization_id,project_id,category,currency,planned_budget,recorded_by_id,recorded_at,archived_at) VALUES
  (pg_temp.u(501),pg_temp.u(1),pg_temp.u(303),'Supplies','PHP',100,pg_temp.u(101),now()-interval '1 day',NULL),
@@ -313,6 +317,36 @@ COMMIT;
 BEGIN;
 SELECT pg_temp.act(2);
 SELECT pg_temp.ok(pathways.f10_alert_get((SELECT (doc->>'budget')::uuid FROM t_out WHERE name='p3_alerts')) IS NOT NULL,'PM sees the budget alert');
+COMMIT;
+
+-- Direct table reads as the runtime role never return f10 rows; legacy rows stay readable.
+BEGIN;
+SET LOCAL session_replication_role = replica;
+INSERT INTO pathways.decision_recommendations(id,organization_id,project_id,title,text,type,basis,status,proposed_by_id,proposed_at)
+VALUES(pg_temp.u(8002),pg_temp.u(1),pg_temp.u(302),'Legacy','Legacy recommendation','SUGGESTED_ACTION','COMBINED','NEW',pg_temp.u(101),now());
+COMMIT;
+BEGIN;
+SELECT pg_temp.act(3);
+SELECT pg_temp.ok((SELECT count(*) FROM pathways.rule_based_alerts WHERE runtime_contract_version='f10.v1')=0
+ AND (SELECT count(*) FROM pathways.decision_recommendations WHERE runtime_contract_version='f10.v1')=0,'M&E direct reads return no f10 alerts or recommendations');
+COMMIT;
+BEGIN;
+SELECT pg_temp.act(4);
+SELECT pg_temp.ok((SELECT count(*) FROM pathways.rule_based_alerts WHERE runtime_contract_version='f10.v1')=0
+ AND (SELECT count(*) FROM pathways.decision_recommendations WHERE runtime_contract_version='f10.v1')=0
+ AND (SELECT count(*) FROM pathways.decision_recommendations WHERE id=pg_temp.u(8002))=1,'direct reads hide f10 rows and keep the legacy row');
+COMMIT;
+
+-- Beneficiary follow-up alerts need beneficiaries.records.read: the aggregate-only Grant Manager (user 6, also in P1) is denied.
+INSERT INTO t_out SELECT 'p6_alert',jsonb_build_object('id',(SELECT id FROM pathways.rule_based_alerts WHERE project_id=pg_temp.u(306)));
+BEGIN;
+SELECT pg_temp.act(6);
+SELECT pg_temp.ok(pathways.f10_alert_get((SELECT (doc->>'id')::uuid FROM t_out WHERE name='p1_alert')) IS NOT NULL,'aggregate-only Grant Manager sees the timeline alert');
+SELECT pg_temp.reject(format('SELECT pathways.f10_alert_get(%L)',(SELECT (doc->>'id')::uuid FROM t_out WHERE name='p6_alert')),'42501','aggregate-only role cannot see the beneficiary alert');
+COMMIT;
+BEGIN;
+SELECT pg_temp.act(2);
+SELECT pg_temp.ok(pathways.f10_alert_get((SELECT (doc->>'id')::uuid FROM t_out WHERE name='p6_alert')) IS NOT NULL,'records.read holder sees the beneficiary alert');
 COMMIT;
 
 DO $$ BEGIN RAISE NOTICE 'F10_F11_RULES_RUNTIME=PASS (% checks)',(SELECT count(*) FROM t_results); END $$;
