@@ -68,6 +68,7 @@
 | Backup/restore | [runbook-backup-restore.md](runbook-backup-restore.md) | Working |
 | Migration baseline | [runbook-migration-baseline.md](runbook-migration-baseline.md) | Working |
 | Role-staging build | [runbook-role-staging-build.md](runbook-role-staging-build.md) | Working |
+| Defense demo reseed | [runbook-defense-demo.md](runbook-defense-demo.md) | Working |
 | Documentation reconciliation | [runbook-doc-reconciliation.md](runbook-doc-reconciliation.md) | Working |
 
 ### 1.5 Governance Templates and Audits

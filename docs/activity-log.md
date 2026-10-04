@@ -173,3 +173,10 @@
 - Sign-in card narrowed to max-w-md to match the MFA card.
 - MFA page: verified, code-accepted and finding-workspace states now show a compact loading card; the session-check skeletons are replaced by the disabled OTP boxes so the page opens straight on the code entry.
 - MFA pending state: pulsing skeleton bar above the disabled OTP boxes; the footer always shows "Login", disabled while the session and factor check runs (e2e logout-during-discovery test now asserts the disabled state).
+
+## 2026-10-04 Defense demo verify fixes
+
+- Verifier: activity updates, library entries, indicator bindings and publications force RLS, so the owner read 0; those checks now run as the M&E Officer or Project Manager on the runtime role. Escalation is read from the `decision.recorded` audit trail (F10 decisions never set `decision_recommendations.outcome`).
+- Seed: the Lavezares import faults (under minimum age, guardian consent) only failed at promotion as retryable errors, leaving the batch unfinished; they are now a day-first birth date and a blank required consent, rejected at validation.
+- Clean local wipe, full seed and `--verify`: exit 0, 23 of 23 checks. CRL follow-up and WSH survey improvement alerts fire (issue 2 confirmed, no fix needed).
+- Reported, not fixed (API): registration rule failures during import promotion are retried as transient instead of being flagged at validation or marked for review.
