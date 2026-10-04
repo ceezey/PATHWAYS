@@ -57,6 +57,18 @@ const data = {
         budget: true,
       },
     ],
+    budgetOpen: 1,
+    budgetRecent: [
+      {
+        id: e,
+        projectId: p,
+        title: 'Budget depletion risk',
+        severity: 'CRITICAL',
+        explanation: '91% utilized',
+        recommendation: null,
+        budget: true,
+      },
+    ],
   },
 } as RoleOverview
 const metrics = {
@@ -76,7 +88,7 @@ describe('ManagerOverview', () => {
       />,
     )
     expect(screen.getByText('Critical')).toBeTruthy()
-    expect(screen.getByText('Managing 1 project')).toBeTruthy()
+    expect(screen.getByText('Managing 1 project · FutureMakers NCR')).toBeTruthy()
   })
   it('opens expense approval in the activity sheet', () => {
     const open = vi.fn()
@@ -112,7 +124,9 @@ describe('ManagerOverview', () => {
       'For review',
     ])
       expect(screen.queryByText(text)).toBeNull()
-    expect(screen.getByText('On track')).toBeTruthy()
+    expect(screen.queryByText('On track')).toBeNull()
+    expect(screen.queryByText('Critical')).toBeNull()
+    expect(screen.queryByText(/Health reflects/)).toBeNull()
   })
   it('pluralizes overdue days', () => {
     const counts = {
@@ -121,5 +135,54 @@ describe('ManagerOverview', () => {
     } as unknown as DashboardActionCounts
     render(<ManagerOverview counts={counts} data={data} metrics={{}} onOpenActivity={vi.fn()} />)
     expect(screen.getByText('A-1 · 1 day')).toBeTruthy()
+  })
+  it('drives the budget tile and list from the budget alert fields', () => {
+    const alerts = {
+      ...data.alerts,
+      recent: [],
+      budgetOpen: 3,
+      capped: true,
+    } as RoleOverview['alerts']
+    render(
+      <ManagerOverview
+        counts={null}
+        data={{ ...data, alerts }}
+        metrics={{}}
+        onOpenActivity={vi.fn()}
+      />,
+    )
+    expect(screen.getByText('3+')).toBeTruthy()
+    expect(screen.getByText(/Budget depletion risk/)).toBeTruthy()
+  })
+  it('caps the subtitle at two project titles', () => {
+    const projects = ['A', 'B', 'C', 'D'].map((title, n) => ({
+      ...data.projects[0],
+      id: `20000000-0000-4000-8000-00000000010${n}`,
+      title,
+    }))
+    render(
+      <ManagerOverview
+        counts={null}
+        data={{ ...data, projects }}
+        metrics={{}}
+        onOpenActivity={vi.fn()}
+      />,
+    )
+    expect(screen.getByText('Managing 4 projects · A · B · +2 more')).toBeTruthy()
+  })
+  it('notes the project list limit', () => {
+    const projects = Array.from({ length: 20 }, (_, n) => ({
+      ...data.projects[0],
+      id: `20000000-0000-4000-8000-0000000002${String(n).padStart(2, '0')}`,
+    }))
+    render(
+      <ManagerOverview
+        counts={null}
+        data={{ ...data, projects }}
+        metrics={{}}
+        onOpenActivity={vi.fn()}
+      />,
+    )
+    expect(screen.getByText('Showing the first 20 projects.')).toBeTruthy()
   })
 })

@@ -33,9 +33,21 @@ export const RoleOverviewDashboard = ({
     principalHasAtomicPermission(profile, 'monitoring.read'),
   )
   // Overdue and For review tiles reuse the existing action counts read.
-  const counts = useAuthorizedRead('dashboard-action-counts', null, 'projects.read', () =>
-    pathwaysClient.getDashboardActionCounts(),
+  const counts = useAuthorizedRead(
+    'dashboard-action-counts',
+    null,
+    'projects.read',
+    () => pathwaysClient.getDashboardActionCounts(),
+    role === 'Project Manager',
   )
+  if (!read.eligible)
+    return (
+      <AsyncState
+        description="Your role has no dashboard data in this workspace."
+        status="empty"
+        title="Dashboard unavailable for your access"
+      />
+    )
   if (read.isError)
     return (
       <AsyncState
@@ -86,7 +98,10 @@ export const RoleOverviewDashboard = ({
         />
       ) : null}
       <DashboardActivityReviewPanel
-        onActivityChanged={() => void read.refetch()}
+        onActivityChanged={() => {
+          void read.refetch()
+          void counts.refetch()
+        }}
         onClose={() => setTarget(null)}
         role={role}
         target={target}

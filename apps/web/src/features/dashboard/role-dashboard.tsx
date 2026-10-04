@@ -495,7 +495,7 @@ export const RoleDashboard = () => {
     let mounted = true
     setStatus('loading')
 
-    if (!role) return
+    if (role !== 'System Administrator') return
     pathwaysClient
       .getDashboard(role)
       .then((viewModel) => {

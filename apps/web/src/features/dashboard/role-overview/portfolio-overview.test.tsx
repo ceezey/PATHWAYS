@@ -50,6 +50,18 @@ const data = {
         budget: true,
       },
     ],
+    budgetOpen: 1,
+    budgetRecent: [
+      {
+        id: p2,
+        projectId: p1,
+        title: 'Budget depletion risk',
+        severity: 'CRITICAL',
+        explanation: '91% utilized',
+        recommendation: 'Review reallocation',
+        budget: true,
+      },
+    ],
   },
 } as RoleOverview
 
@@ -79,5 +91,19 @@ describe('PortfolioOverview', () => {
       <PortfolioOverview data={{ ...data, projects: [data.projects[0]] }} metrics={{}} readOnly />,
     )
     expect(screen.getByText('1 project across 1 program')).toBeTruthy()
+  })
+  it('hides health labels and badges when alerts are null', () => {
+    render(<PortfolioOverview data={{ ...data, alerts: null }} metrics={{}} readOnly={false} />)
+    for (const text of ['Critical', 'At risk', 'On track'])
+      expect(screen.queryByText(text)).toBeNull()
+    expect(screen.queryByText(/Health reflects/)).toBeNull()
+  })
+  it('notes the project list limit', () => {
+    const projects = Array.from({ length: 20 }, (_, n) => ({
+      ...data.projects[0],
+      id: `20000000-0000-4000-8000-0000000002${String(n).padStart(2, '0')}`,
+    }))
+    render(<PortfolioOverview data={{ ...data, projects }} metrics={{}} readOnly={false} />)
+    expect(screen.getByText('Showing the first 20 projects.')).toBeTruthy()
   })
 })

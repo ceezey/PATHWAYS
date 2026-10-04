@@ -9,6 +9,7 @@ import {
   KpiStrip,
   ListCard,
   ListRow,
+  projectTitles,
 } from './primitives'
 
 type Data = RoleOverview
@@ -61,7 +62,7 @@ export const OfficerOverview = ({
     <div className="space-y-6">
       <DashboardHeading
         fullName={fullName}
-        subtitle={[longDate(data.businessDate), data.projects.map((p) => p.title).join(' & ')]
+        subtitle={[longDate(data.businessDate), projectTitles(data.projects)]
           .filter(Boolean)
           .join(' · ')}
         title="Your workspace"
@@ -99,7 +100,7 @@ export const OfficerOverview = ({
                 : 'Nothing is past due'
             }
             tone="danger"
-            value={String(overdue.length)}
+            value={`${overdue.length}${overdue.length === (activities?.rows.length ?? 0) && (activities?.count ?? 0) > overdue.length ? '+' : ''}`}
           />
         ) : null}
         {flagged ? (

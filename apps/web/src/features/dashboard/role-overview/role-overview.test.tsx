@@ -30,4 +30,9 @@ describe('RoleOverviewDashboard', () => {
     render(<RoleOverviewDashboard {...props} />)
     expect(screen.getByText('Dashboard unavailable')).toBeTruthy()
   })
+  it('shows an empty state when the viewer is not eligible', () => {
+    read.value = { ...read.value, isError: false, eligible: false }
+    render(<RoleOverviewDashboard {...props} />)
+    expect(screen.getByText('Dashboard unavailable for your access')).toBeTruthy()
+  })
 })

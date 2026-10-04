@@ -102,9 +102,9 @@ export const PortfolioOverview = ({
           tone="info"
           value={String(data.projects.filter((p) => p.status === 'ONGOING').length)}
         />
-        {kpi('Critical', 'danger')}
-        {kpi('At risk', 'warning')}
-        {kpi('On track', 'success')}
+        {data.alerts ? kpi('Critical', 'danger') : null}
+        {data.alerts ? kpi('At risk', 'warning') : null}
+        {data.alerts ? kpi('On track', 'success') : null}
       </KpiStrip>
       <div className="grid gap-4 xl:grid-cols-2">
         <div className="space-y-2">
@@ -133,19 +133,29 @@ export const PortfolioOverview = ({
                     className="h-1.5 w-20 overflow-hidden rounded-full bg-muted"
                   >
                     <div
-                      className={cn('h-full rounded-full', bar[health.tone])}
+                      className={cn(
+                        'h-full rounded-full',
+                        bar[data.alerts ? health.tone : 'neutral'],
+                      )}
                       style={{ width: `${Math.min(100, Number.parseFloat(value ?? '0') || 0)}%` }}
                     />
                   </div>
                   <span className="w-12 text-right text-sm tabular-nums">{value ?? '—'}</span>
-                  <StatusBadge tone={health.tone}>{health.label}</StatusBadge>
+                  {data.alerts ? (
+                    <StatusBadge tone={health.tone}>{health.label}</StatusBadge>
+                  ) : null}
                 </div>
               )
             })}
           </ListCard>
-          <p className="px-1 text-xs text-muted-foreground">
-            Health reflects open rule-based alerts, not a success score.
-          </p>
+          {data.alerts ? (
+            <p className="px-1 text-xs text-muted-foreground">
+              Health reflects open rule-based alerts, not a success score.
+            </p>
+          ) : null}
+          {data.projects.length === 20 ? (
+            <p className="px-1 text-xs text-muted-foreground">Showing the first 20 projects.</p>
+          ) : null}
         </div>
         <div className="space-y-2">
           <ListCard

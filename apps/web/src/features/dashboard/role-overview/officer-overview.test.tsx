@@ -127,4 +127,15 @@ describe('OfficerOverview', () => {
     for (const text of ['Overdue', 'Flagged proof', 'Your activities', 'Needs your attention'])
       expect(screen.queryByText(text)).toBeNull()
   })
+  it('marks the overdue count as a lower bound when the list is truncated', () => {
+    const rows = data.myActivities?.rows ?? []
+    render(
+      <OfficerOverview
+        data={{ ...data, myActivities: { count: 9, rows } }}
+        fullName="Ron"
+        onOpenActivity={vi.fn()}
+      />,
+    )
+    expect(screen.getByText('1+')).toBeTruthy()
+  })
 })

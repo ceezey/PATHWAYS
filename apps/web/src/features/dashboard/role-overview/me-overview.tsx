@@ -10,6 +10,7 @@ import {
   KpiStrip,
   ListCard,
   ListRow,
+  projectTitles,
 } from './primitives'
 
 const dot = {
@@ -57,7 +58,7 @@ export const MeOverview = ({
     <div className="space-y-6">
       <DashboardHeading
         fullName={fullName}
-        subtitle={[longDate(data.businessDate), data.projects.map((p) => p.title).join(' · ')]
+        subtitle={[longDate(data.businessDate), projectTitles(data.projects)]
           .filter(Boolean)
           .join(' · ')}
         title="Monitoring overview"

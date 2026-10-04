@@ -31,6 +31,13 @@ export const DashboardHeading = ({
   </header>
 )
 
+/** At most two project titles, then a count of the rest. */
+export const projectTitles = (projects: Array<{ title: string }>) =>
+  [
+    ...projects.slice(0, 2).map((p) => p.title),
+    ...(projects.length > 2 ? [`+${projects.length - 2} more`] : []),
+  ].join(' · ')
+
 export const KpiStrip = ({ children, label }: { children: ReactNode; label?: string }) => (
   <section aria-label={label} className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
     {children}

@@ -58,6 +58,18 @@ const data = {
         budget: true,
       },
     ],
+    budgetOpen: 1,
+    budgetRecent: [
+      {
+        id: u,
+        projectId: p,
+        title: 'Budget depletion risk',
+        severity: 'CRITICAL',
+        explanation: '91% utilized',
+        recommendation: 'Recommend reallocation',
+        budget: true,
+      },
+    ],
   },
 } as RoleOverview
 

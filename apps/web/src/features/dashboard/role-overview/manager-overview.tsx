@@ -11,6 +11,7 @@ import {
   KpiStrip,
   ListCard,
   ListRow,
+  projectTitles,
 } from './primitives'
 
 export type ProjectMetrics = Record<
@@ -42,14 +43,19 @@ export const ManagerOverview = ({
   onOpenActivity: (href: string) => void
 }) => {
   const byProject = new Map(data.alerts?.byProject.map((row) => [row.projectId, row]))
-  const budgetAlerts = data.alerts?.recent.filter((row) => row.budget) ?? []
+  const budgetAlerts = data.alerts?.budgetRecent ?? []
   const approvals = data.approvalQueue
   const overdue = counts?.overdueActivities
   return (
     <div className="space-y-6">
       <DashboardHeading
         fullName={fullName}
-        subtitle={`Managing ${plural(data.projects.length, 'project')}`}
+        subtitle={[
+          `Managing ${plural(data.projects.length, 'project')}`,
+          projectTitles(data.projects),
+        ]
+          .filter(Boolean)
+          .join(' · ')}
         title="Project management overview"
       />
       <KpiStrip label="Management counts">
@@ -67,7 +73,7 @@ export const ManagerOverview = ({
             label="Active budget alerts"
             sub="Require your decision"
             tone="warning"
-            value={String(budgetAlerts.length)}
+            value={`${data.alerts.budgetOpen}${data.alerts.capped ? '+' : ''}`}
           />
         ) : null}
         {overdue ? (
@@ -100,6 +106,7 @@ export const ManagerOverview = ({
           >
             {data.projects.map((project) => {
               const health = healthOf(project.status, byProject.get(project.id))
+              const tone = data.alerts ? health.tone : 'neutral'
               const m = metrics[project.id]
               return (
                 <div className="space-y-2 py-3" key={project.id}>
@@ -110,14 +117,16 @@ export const ManagerOverview = ({
                     >
                       {project.title}
                     </a>
-                    <StatusBadge tone={health.tone}>{health.label}</StatusBadge>
+                    {data.alerts ? (
+                      <StatusBadge tone={health.tone}>{health.label}</StatusBadge>
+                    ) : null}
                   </div>
                   <p className="text-xs text-muted-foreground">
                     KPI {m?.kpi ?? '—'} · Budget {m?.budget ? `${m.budget.percent}%` : '—'}
                   </p>
                   <div aria-hidden="true" className="h-1.5 overflow-hidden rounded-full bg-muted">
                     <div
-                      className={cn('h-full rounded-full', bar[health.tone])}
+                      className={cn('h-full rounded-full', bar[tone])}
                       style={{ width: `${Math.min(100, m?.budget?.percent ?? 0)}%` }}
                     />
                   </div>
@@ -125,10 +134,15 @@ export const ManagerOverview = ({
               )
             })}
           </ListCard>
-          <p className="px-1 text-xs text-muted-foreground">
-            Health reflects open rule-based alerts, not a success score. Bar colors are a visual
-            guide only.
-          </p>
+          {data.alerts ? (
+            <p className="px-1 text-xs text-muted-foreground">
+              Health reflects open rule-based alerts, not a success score. Bar colors are a visual
+              guide only.
+            </p>
+          ) : null}
+          {data.projects.length === 20 ? (
+            <p className="px-1 text-xs text-muted-foreground">Showing the first 20 projects.</p>
+          ) : null}
         </div>
         {approvals ? (
           <ListCard empty="Nothing is waiting for your approval." title="Pending your approval">
