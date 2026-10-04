@@ -39,7 +39,7 @@ DO $$ DECLARE fn record; BEGIN
  IF NOT FOUND THEN RAISE EXCEPTION 'Function pathways_rules_internal.assert_runtime_mutation(oid,text,jsonb,jsonb) not found'; END IF;
  IF pg_catalog.pg_get_userbyid(fn.proowner)<>'rules_runtime_guard_owner' OR fn.prosecdef IS DISTINCT FROM true OR fn.provolatile<>'v'
   OR fn.proconfig IS DISTINCT FROM ARRAY['search_path=""'] OR fn.prorettype<>'pg_catalog.void'::pg_catalog.regtype
-  OR pg_catalog.md5(fn.prosrc) NOT IN ('5203ca58bfe1e72e4f7933e7248637d3','af01cb794a63ddd69450bf402cbdf5ca')
+  OR pg_catalog.md5(fn.prosrc) NOT IN ('5203ca58bfe1e72e4f7933e7248637d3','5471c4a385d7bef25f59b068fa95c6e8')
  THEN RAISE EXCEPTION '0059 requires the reviewed 0031 assert_runtime_mutation definition'; END IF;
  PERFORM pg_catalog.set_config('pathways_0059.acl_0',coalesce(fn.proacl::text,''),true);
  SELECT p.* INTO fn FROM pg_catalog.pg_proc p WHERE p.oid::pg_catalog.regprocedure::pg_catalog.text='pathways_rules_internal.commit_rule_snapshot(uuid,text,uuid,bytea)';
@@ -53,9 +53,16 @@ DO $$ DECLARE fn record; BEGIN
  IF NOT FOUND THEN RAISE EXCEPTION 'Function pathways_rules_internal.outcome_preview_operation(uuid,jsonb,boolean) not found'; END IF;
  IF pg_catalog.pg_get_userbyid(fn.proowner)<>'rules_outcome_owner' OR fn.prosecdef IS DISTINCT FROM true OR fn.provolatile<>'v'
   OR fn.proconfig IS DISTINCT FROM ARRAY['search_path=""'] OR fn.prorettype<>'pg_catalog.jsonb'::pg_catalog.regtype
-  OR pg_catalog.md5(fn.prosrc) NOT IN ('0df50afc20941efef3a7c543a3544828','0fd80c968fbda9d9add83b3d1c60e53e')
+  OR pg_catalog.md5(fn.prosrc) NOT IN ('0df50afc20941efef3a7c543a3544828','9404d0e5c20fc16abd1c143aa5240fe1')
  THEN RAISE EXCEPTION '0059 requires the reviewed 0031 outcome_preview_operation definition'; END IF;
  PERFORM pg_catalog.set_config('pathways_0059.acl_2',coalesce(fn.proacl::text,''),true);
+ SELECT p.* INTO fn FROM pg_catalog.pg_proc p WHERE p.oid::pg_catalog.regprocedure::pg_catalog.text='pathways_rules_internal.outcome_confirm_operation(uuid,jsonb,boolean)';
+ IF NOT FOUND THEN RAISE EXCEPTION 'Function pathways_rules_internal.outcome_confirm_operation(uuid,jsonb,boolean) not found'; END IF;
+ IF pg_catalog.pg_get_userbyid(fn.proowner)<>'rules_outcome_owner' OR fn.prosecdef IS DISTINCT FROM true OR fn.provolatile<>'v'
+  OR fn.proconfig IS DISTINCT FROM ARRAY['search_path=""'] OR fn.prorettype<>'pg_catalog.jsonb'::pg_catalog.regtype
+  OR pg_catalog.md5(fn.prosrc) NOT IN ('bb1167c7f5b5c4d0245e9f651d5a20de','e79a2c5577d227953c5ff9ad550c8d6c')
+ THEN RAISE EXCEPTION '0059 requires the reviewed 0031 outcome_confirm_operation definition'; END IF;
+ PERFORM pg_catalog.set_config('pathways_0059.acl_3',coalesce(fn.proacl::text,''),true);
 END $$;
 SELECT pg_advisory_xact_lock(505005,1);
 
@@ -296,6 +303,8 @@ BEGIN
        SELECT FROM pathways_rules_internal.decisions d WHERE d.organization_id=org AND d.project_id=project
         AND d.alert_id=row_id AND d.operation_receipt_id=o.id AND d.actor_id=c.actor_id
         AND d.client_operation_id=c.operation_id
+        -- A direct alert outcome on a terminal alert is refused; recommendation outcomes keep their behavior (G-F10-4, 0059).
+        AND (c.operation_code='RECOMMENDATION_CONFIRM' OR old_row->>'lifecycle' IN ('NEW','REVIEWED','ACTIONED'))
         AND ((d.outcome IN ('ACCEPT','PARTIALLY_ACCEPT') AND
           ((old_row->>'lifecycle' IN ('NEW','REVIEWED','ACTIONED') AND new_row->>'lifecycle'='ACTIONED')
            OR (old_row->>'lifecycle' IN ('RESOLVED','DISMISSED','AUTO_RESOLVED') AND new_row->>'lifecycle'=old_row->>'lifecycle')))
@@ -581,6 +590,9 @@ BEGIN
  SELECT a.* INTO alert_row FROM pathways.rule_based_alerts a WHERE a.id=alert AND a.organization_id=org
   AND a.project_id=project AND a.runtime_contract_version='f10.v1' FOR NO KEY UPDATE;
  IF NOT FOUND THEN RAISE EXCEPTION 'Resource access is unavailable.' USING ERRCODE='42501'; END IF;
+ -- An outcome on a terminal alert is refused (G-F10-4, 0059).
+ IF NOT recommendation_route AND alert_row.lifecycle IN ('RESOLVED','DISMISSED','AUTO_RESOLVED') THEN
+  RAISE EXCEPTION 'The resource changed. Reload before retrying.' USING ERRCODE='40001'; END IF;
  IF recommendation IS NOT NULL THEN
   SELECT r.* INTO rec_row FROM pathways.decision_recommendations r WHERE r.id=recommendation AND r.organization_id=org
    AND r.project_id=project AND r.alert_id=alert AND r.runtime_contract_version='f10.v1' FOR NO KEY UPDATE;
@@ -623,6 +635,141 @@ EXCEPTION WHEN unique_violation THEN RAISE EXCEPTION 'The resource changed. Relo
 END $$;
 RESET ROLE;
 
+-- 3.4 outcome_confirm_operation
+SET LOCAL ROLE rules_outcome_owner;
+CREATE OR REPLACE FUNCTION pathways_rules_internal.outcome_confirm_operation(wanted uuid,input jsonb,recommendation_route boolean)
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$
+DECLARE org uuid;actor uuid;project uuid;alert uuid;recommendation uuid;preview_id uuid;op uuid;hash bytea;operation text;
+ metadata record;preview pathways_rules_internal.outcome_previews;receipt pathways_rules_internal.feature_operation_receipts;
+ old_alert pathways.rule_based_alerts;new_alert pathways.rule_based_alerts;
+ old_rec pathways.decision_recommendations;new_rec pathways.decision_recommendations;
+ recipients jsonb;moment timestamptz(3);decision uuid;result jsonb;
+BEGIN
+ PERFORM pathways_rules_internal.assert_runtime_provisioned();
+ org:=nullif(pg_catalog.current_setting('app.organization_id',true),'')::uuid;actor:=nullif(pg_catalog.current_setting('app.user_id',true),'')::uuid;
+ operation:=CASE WHEN recommendation_route THEN 'RECOMMENDATION_CONFIRM' ELSE 'ALERT_CONFIRM' END;
+ IF input IS NULL OR pg_catalog.jsonb_typeof(input)<>'object' OR NOT input ?& ARRAY['previewId','clientOperationId']
+  OR (input-ARRAY['previewId','clientOperationId'])<>'{}'::jsonb
+  OR pg_catalog.jsonb_typeof(input->'previewId') IS DISTINCT FROM 'string'
+  OR pg_catalog.jsonb_typeof(input->'clientOperationId') IS DISTINCT FROM 'string' THEN
+  RAISE EXCEPTION 'Invalid typed rules request.' USING ERRCODE='22023'; END IF;
+ preview_id:=(input->>'previewId')::uuid;op:=(input->>'clientOperationId')::uuid;
+ IF recommendation_route THEN
+  SELECT r.project_id,r.alert_id INTO project,alert FROM pathways.decision_recommendations r
+   WHERE r.id=wanted AND r.organization_id=org AND r.runtime_contract_version='f10.v1';recommendation:=wanted;
+ ELSE
+  SELECT a.project_id,a.id INTO project,alert FROM pathways.rule_based_alerts a
+   WHERE a.id=wanted AND a.organization_id=org AND a.runtime_contract_version='f10.v1';
+ END IF;
+ IF NOT FOUND OR session_user<>'pathways_runtime'
+  OR pathways.p06_can(CASE WHEN recommendation_route THEN 'recommendations.outcome.record' ELSE 'alerts.outcome.record' END,project) IS DISTINCT FROM true THEN
+  RAISE EXCEPTION 'Resource access is unavailable.' USING ERRCODE='42501'; END IF;
+ -- Separate read owner can retrieve only own preview target/write metadata,
+ -- never private_note/recipients/hash. This prevents a pre-marker note policy.
+ SELECT * INTO metadata FROM pathways_rules_internal.confirmation_preview_metadata(project,alert,recommendation,preview_id,recommendation_route);
+ recommendation:=metadata.recommendation_id;hash:=pg_catalog.sha256(pg_catalog.convert_to(input::text,'UTF8'));
+ PERFORM pathways_rules_internal.install_feature_context(project,operation,alert,recommendation,preview_id,op,hash);
+ SELECT o.* INTO receipt FROM pathways_rules_internal.feature_operation_receipts o
+  WHERE o.organization_id=org AND o.actor_id=actor AND o.client_operation_id=op;
+ IF FOUND THEN
+  IF receipt.operation_code IS DISTINCT FROM operation OR receipt.alert_id IS DISTINCT FROM alert
+   OR receipt.recommendation_id IS DISTINCT FROM recommendation OR receipt.preview_id IS DISTINCT FROM preview_id
+   OR receipt.canonical_request_hash IS DISTINCT FROM hash THEN
+   RAISE EXCEPTION 'The resource changed. Reload before retrying.' USING ERRCODE='40001'; END IF;
+  result:=receipt.safe_result||pg_catalog.jsonb_build_object('delivery',pathways_rules_internal.current_decision_delivery((receipt.safe_result->>'decisionId')::uuid));
+  PERFORM pathways_rules_internal.remove_feature_context();RETURN result;
+ END IF;
+ SELECT a.* INTO old_alert FROM pathways.rule_based_alerts a WHERE a.id=alert AND a.organization_id=org
+  AND a.project_id=project AND a.runtime_contract_version='f10.v1' FOR NO KEY UPDATE;
+ IF NOT FOUND THEN RAISE EXCEPTION 'Resource access is unavailable.' USING ERRCODE='42501'; END IF;
+ IF recommendation IS NOT NULL THEN
+  SELECT r.* INTO old_rec FROM pathways.decision_recommendations r WHERE r.id=recommendation AND r.organization_id=org
+   AND r.project_id=project AND r.alert_id=alert AND r.runtime_contract_version='f10.v1' FOR NO KEY UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'Resource access is unavailable.' USING ERRCODE='42501'; END IF;
+ END IF;
+ SELECT p.* INTO preview FROM pathways_rules_internal.outcome_previews p WHERE p.id=preview_id
+  AND p.organization_id=org AND p.project_id=project AND p.actor_id=actor AND p.alert_id=alert
+  AND p.recommendation_id IS NOT DISTINCT FROM recommendation FOR NO KEY UPDATE;
+ IF NOT FOUND OR preview.consumed_by_decision IS NOT NULL OR preview.expires_at<=pg_catalog.clock_timestamp()
+  OR preview.write_alert IS DISTINCT FROM metadata.write_alert OR preview.write_recommendation IS DISTINCT FROM metadata.write_recommendation
+  OR (preview.write_alert AND (preview.expected_alert_revision<>old_alert.revision
+   OR (NOT recommendation_route AND old_alert.lifecycle IN ('RESOLVED','DISMISSED','AUTO_RESOLVED'))))
+  OR (preview.write_recommendation AND preview.expected_recommendation_revision<>old_rec.revision) THEN
+  RAISE EXCEPTION 'The resource changed. Request a new preview.' USING ERRCODE='40001'; END IF;
+ IF pathways_rules_internal.feature_human_scope(org,project) IS DISTINCT FROM true
+  OR pathways_rules_internal.rule_exposure_allowed(old_alert.rule_id) IS DISTINCT FROM true
+  OR (preview.write_alert AND pathways.p06_can('alerts.outcome.record',project) IS DISTINCT FROM true)
+  OR (preview.write_recommendation AND pathways.p06_can('recommendations.outcome.record',project) IS DISTINCT FROM true) THEN
+  RAISE EXCEPTION 'Resource access is unavailable.' USING ERRCODE='42501'; END IF;
+ recipients:=pathways_rules_internal.outcome_recipients(org,project,actor);
+ IF pg_catalog.jsonb_array_length(recipients)>1000
+  OR preview.classification_fingerprint IS DISTINCT FROM pathways_rules_internal.classification_fingerprint(old_alert.rule_id)
+  OR preview.recipient_fingerprint IS DISTINCT FROM pg_catalog.sha256(pg_catalog.convert_to(recipients::text,'UTF8')) THEN
+  RAISE EXCEPTION 'The resource changed. Request a new preview.' USING ERRCODE='40001'; END IF;
+ moment:=pg_catalog.date_trunc('milliseconds',pg_catalog.clock_timestamp());decision:=pg_catalog.gen_random_uuid();
+ new_alert:=old_alert;new_rec:=old_rec;
+ IF preview.write_alert THEN
+  new_alert.lifecycle:=CASE WHEN preview.outcome IN ('ACCEPT','PARTIALLY_ACCEPT')
+   AND old_alert.lifecycle IN ('NEW','REVIEWED','ACTIONED') THEN 'ACTIONED' ELSE old_alert.lifecycle END;
+  new_alert.revision:=old_alert.revision+1;new_alert.updated_at:=moment;
+ END IF;
+ IF preview.write_recommendation THEN new_rec.revision:=old_rec.revision+1;new_rec.updated_at:=moment; END IF;
+ result:=pg_catalog.jsonb_build_object('decisionId',decision,'alertId',alert,'recommendationId',recommendation,
+  'alertRevision',new_alert.revision::text,'recommendationRevision',CASE WHEN recommendation IS NULL THEN NULL ELSE new_rec.revision::text END,
+  'lifecycle',new_alert.lifecycle,'outcome',preview.outcome,'recordedAt',moment,
+  'delivery',pg_catalog.jsonb_build_object('pending',0,'delivered',pg_catalog.jsonb_array_length(recipients),'failed',0));
+ receipt.id:=pg_catalog.gen_random_uuid();
+ INSERT INTO pathways_rules_internal.feature_operation_receipts
+ (id,organization_id,project_id,actor_id,client_operation_id,operation_code,alert_id,recommendation_id,preview_id,canonical_request_hash,safe_result,occurred_at)
+ VALUES(receipt.id,org,project,actor,op,operation,alert,recommendation,preview_id,hash,result,moment);
+ INSERT INTO pathways_rules_internal.decisions
+ (id,organization_id,project_id,alert_id,recommendation_id,actor_id,operation_receipt_id,outcome,note,client_operation_id,request_digest,created_at)
+ VALUES(decision,org,project,alert,recommendation,actor,receipt.id,preview.outcome,preview.private_note,op,hash,moment);
+ IF preview.write_alert AND new_alert.lifecycle IS DISTINCT FROM old_alert.lifecycle THEN
+  INSERT INTO pathways_rules_internal.lifecycle_events
+  (organization_id,project_id,alert_id,actor_kind,actor_id,state_before,state_after,operation_receipt_id,occurred_at)
+  VALUES(org,project,alert,'HUMAN',actor,old_alert.lifecycle,new_alert.lifecycle,receipt.id,moment);
+ END IF;
+ IF preview.write_alert THEN
+  PERFORM pathways_rules_internal.install_human_intent('pathways.rule_based_alerts'::regclass,pg_catalog.to_jsonb(old_alert),pg_catalog.to_jsonb(new_alert));
+  UPDATE pathways.rule_based_alerts SET lifecycle=new_alert.lifecycle,revision=new_alert.revision,updated_at=moment
+   WHERE id=alert AND organization_id=org AND project_id=project AND revision=old_alert.revision;
+  IF NOT FOUND THEN RAISE EXCEPTION 'The resource changed. Request a new preview.' USING ERRCODE='40001'; END IF;
+ END IF;
+ IF preview.write_recommendation THEN
+  PERFORM pathways_rules_internal.install_human_intent('pathways.decision_recommendations'::regclass,pg_catalog.to_jsonb(old_rec),pg_catalog.to_jsonb(new_rec));
+  UPDATE pathways.decision_recommendations SET revision=new_rec.revision,updated_at=moment
+   WHERE id=recommendation AND organization_id=org AND project_id=project AND revision=old_rec.revision;
+  IF NOT FOUND THEN RAISE EXCEPTION 'The resource changed. Request a new preview.' USING ERRCODE='40001'; END IF;
+ END IF;
+ UPDATE pathways_rules_internal.outcome_previews SET consumed_by_decision=decision
+  WHERE id=preview_id AND organization_id=org AND project_id=project AND actor_id=actor AND consumed_by_decision IS NULL;
+ IF NOT FOUND THEN RAISE EXCEPTION 'The resource changed. Request a new preview.' USING ERRCODE='40001'; END IF;
+ -- Native delivery means durable placement in the recipient's in-app inbox,
+ -- not email or read acknowledgement. No recipient note/body input is accepted.
+ INSERT INTO pathways_rules_internal.notifications
+  (organization_id,project_id,recipient_id,alert_id,decision_id,message,delivery_state,attempts,created_at)
+ SELECT org,project,(value#>>'{}')::uuid,alert,decision,preview.message,'DELIVERED',1,moment
+ FROM pg_catalog.jsonb_array_elements(recipients);
+ INSERT INTO pathways.audit_logs(organization_id,actor_user_id,project_id,action,entity_type,entity_id,changes)
+ VALUES(org,actor,project,'decision.recorded','RuleDecision',decision,
+  pg_catalog.jsonb_build_object('alertId',alert,'recommendationId',recommendation,'outcome',preview.outcome,
+   'alertRevision',new_alert.revision::text,'recommendationRevision',CASE WHEN recommendation IS NULL THEN NULL ELSE new_rec.revision::text END));
+ IF preview.expires_at<=pg_catalog.clock_timestamp()
+  OR preview.recipient_fingerprint IS DISTINCT FROM pg_catalog.sha256(pg_catalog.convert_to(
+   pathways_rules_internal.outcome_recipients(org,project,actor)::text,'UTF8')) THEN
+  RAISE EXCEPTION 'The resource changed. Request a new preview.' USING ERRCODE='40001'; END IF;
+ IF pathways_rules_internal.feature_human_scope(org,project) IS DISTINCT FROM true
+  OR pathways_rules_internal.rule_exposure_allowed(old_alert.rule_id) IS DISTINCT FROM true
+  OR (preview.write_alert AND pathways.p06_can('alerts.outcome.record',project) IS DISTINCT FROM true)
+  OR (preview.write_recommendation AND pathways.p06_can('recommendations.outcome.record',project) IS DISTINCT FROM true) THEN
+  RAISE EXCEPTION 'Resource access is unavailable.' USING ERRCODE='42501'; END IF;
+ PERFORM pathways_rules_internal.remove_feature_context();RETURN result;
+EXCEPTION WHEN unique_violation THEN RAISE EXCEPTION 'The resource changed. Request a new preview.' USING ERRCODE='40001';
+ WHEN invalid_text_representation OR numeric_value_out_of_range THEN RAISE EXCEPTION 'Invalid typed rules request.' USING ERRCODE='22023';
+END $$;
+RESET ROLE;
+
 SET LOCAL ROLE rules_store_owner;
 REVOKE CREATE ON SCHEMA pathways_rules_internal FROM rules_commit_owner,rules_runtime_guard_owner,rules_outcome_owner;
 DO $$ BEGIN IF pg_catalog.current_setting('pathways_0059.had_usage')<>'true' THEN REVOKE USAGE ON SCHEMA pathways_rules_internal FROM prisma; END IF; END $$;
@@ -632,7 +779,7 @@ RESET ROLE;
 DO $$ DECLARE fn record; BEGIN
  SELECT p.* INTO fn FROM pg_catalog.pg_proc p WHERE p.oid::pg_catalog.regprocedure::pg_catalog.text='pathways_rules_internal.assert_runtime_mutation(oid,text,jsonb,jsonb)';
  IF NOT FOUND THEN RAISE EXCEPTION 'Function pathways_rules_internal.assert_runtime_mutation(oid,text,jsonb,jsonb) not found'; END IF;
- IF pg_catalog.md5(fn.prosrc)<>'af01cb794a63ddd69450bf402cbdf5ca' OR pg_catalog.pg_get_userbyid(fn.proowner)<>'rules_runtime_guard_owner' OR fn.prosecdef IS DISTINCT FROM true
+ IF pg_catalog.md5(fn.prosrc)<>'5471c4a385d7bef25f59b068fa95c6e8' OR pg_catalog.pg_get_userbyid(fn.proowner)<>'rules_runtime_guard_owner' OR fn.prosecdef IS DISTINCT FROM true
   OR fn.provolatile<>'v' OR fn.proconfig IS DISTINCT FROM ARRAY['search_path=""']
   OR coalesce(fn.proacl::text,'') IS DISTINCT FROM pg_catalog.current_setting('pathways_0059.acl_0')
  THEN RAISE EXCEPTION '0059 assert_runtime_mutation postcondition failed'; END IF;
@@ -644,10 +791,16 @@ DO $$ DECLARE fn record; BEGIN
  THEN RAISE EXCEPTION '0059 commit_rule_snapshot postcondition failed'; END IF;
  SELECT p.* INTO fn FROM pg_catalog.pg_proc p WHERE p.oid::pg_catalog.regprocedure::pg_catalog.text='pathways_rules_internal.outcome_preview_operation(uuid,jsonb,boolean)';
  IF NOT FOUND THEN RAISE EXCEPTION 'Function pathways_rules_internal.outcome_preview_operation(uuid,jsonb,boolean) not found'; END IF;
- IF pg_catalog.md5(fn.prosrc)<>'0fd80c968fbda9d9add83b3d1c60e53e' OR pg_catalog.pg_get_userbyid(fn.proowner)<>'rules_outcome_owner' OR fn.prosecdef IS DISTINCT FROM true
+ IF pg_catalog.md5(fn.prosrc)<>'9404d0e5c20fc16abd1c143aa5240fe1' OR pg_catalog.pg_get_userbyid(fn.proowner)<>'rules_outcome_owner' OR fn.prosecdef IS DISTINCT FROM true
   OR fn.provolatile<>'v' OR fn.proconfig IS DISTINCT FROM ARRAY['search_path=""']
   OR coalesce(fn.proacl::text,'') IS DISTINCT FROM pg_catalog.current_setting('pathways_0059.acl_2')
  THEN RAISE EXCEPTION '0059 outcome_preview_operation postcondition failed'; END IF;
+ SELECT p.* INTO fn FROM pg_catalog.pg_proc p WHERE p.oid::pg_catalog.regprocedure::pg_catalog.text='pathways_rules_internal.outcome_confirm_operation(uuid,jsonb,boolean)';
+ IF NOT FOUND THEN RAISE EXCEPTION 'Function pathways_rules_internal.outcome_confirm_operation(uuid,jsonb,boolean) not found'; END IF;
+ IF pg_catalog.md5(fn.prosrc)<>'e79a2c5577d227953c5ff9ad550c8d6c' OR pg_catalog.pg_get_userbyid(fn.proowner)<>'rules_outcome_owner' OR fn.prosecdef IS DISTINCT FROM true
+  OR fn.provolatile<>'v' OR fn.proconfig IS DISTINCT FROM ARRAY['search_path=""']
+  OR coalesce(fn.proacl::text,'') IS DISTINCT FROM pg_catalog.current_setting('pathways_0059.acl_3')
+ THEN RAISE EXCEPTION '0059 outcome_confirm_operation postcondition failed'; END IF;
  IF pg_catalog.has_schema_privilege('rules_commit_owner','pathways_rules_internal','CREATE')
   OR pg_catalog.has_schema_privilege('rules_runtime_guard_owner','pathways_rules_internal','CREATE')
   OR pg_catalog.has_schema_privilege('rules_outcome_owner','pathways_rules_internal','CREATE')

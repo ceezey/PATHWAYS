@@ -175,6 +175,35 @@ SELECT pg_temp.ok((SELECT count(*) FROM pathways_rules_internal.lifecycle_events
 INSERT INTO t_out SELECT 'p1_counts',jsonb_build_object('evaluations',(SELECT count(*) FROM pathways_rules_internal.evaluations WHERE project_id=pg_temp.u(301)),
  'alerts',(SELECT count(*) FROM pathways.rule_based_alerts WHERE project_id=pg_temp.u(301)));
 
+SELECT pg_temp.ok((SELECT count(*) FROM pathways.decision_recommendations WHERE project_id=pg_temp.u(301))=3
+ AND NOT EXISTS((SELECT d.source_rule_recommendation_id,d.title,d.text FROM pathways.decision_recommendations d WHERE d.project_id=pg_temp.u(301))
+  EXCEPT (SELECT t.id,t.title,t.text FROM pathways.alert_rule_recommendations t WHERE t.rule_id=(SELECT (doc->>'id')::uuid FROM t_out WHERE name='rule_p1')))
+ AND NOT EXISTS((SELECT t.id,t.title,t.text FROM pathways.alert_rule_recommendations t WHERE t.rule_id=(SELECT (doc->>'id')::uuid FROM t_out WHERE name='rule_p1'))
+  EXCEPT (SELECT d.source_rule_recommendation_id,d.title,d.text FROM pathways.decision_recommendations d WHERE d.project_id=pg_temp.u(301)))
+ AND (SELECT array_agg(title||'|'||text ORDER BY title) FROM pathways.decision_recommendations WHERE project_id=pg_temp.u(301))
+  =ARRAY['Action 1|Synthetic action 1','Action 2|Synthetic action 2','Action 3|Synthetic action 3'],'recommendations equal the configured templates');
+
+-- G-F10-3 stored-rule abuse: closed shapes only, each refused with 22023.
+CREATE FUNCTION pg_temp.rule_input(cond jsonb,extra jsonb DEFAULT '{}',rec_extra jsonb DEFAULT '{}') RETURNS jsonb LANGUAGE sql AS $$
+ SELECT jsonb_build_object('name','Abuse','severity','HIGH','code','F10-ABUSE','projectId',pg_temp.u(301),'clientOperationId',pg_temp.u(9600),
+  'conditions',cond,'recommendations',jsonb_build_array(jsonb_build_object('id',pg_temp.u(9601),'title','T','text','X')||rec_extra))||extra
+$$;
+BEGIN;
+SELECT pg_temp.act(1);
+SELECT pg_temp.reject(format('SELECT pathways.f10_rule_create(%L::jsonb)',pg_temp.rule_input(
+ '{"kind":"CONDITION","id":"c1","metric":"PROJECT_OVERDUE_DAYS","operator":"GT","threshold":"0","sql":"SELECT 1"}')),'22023','condition with an extra key');
+SELECT pg_temp.reject(format('SELECT pathways.f10_rule_create(%L::jsonb)',pg_temp.rule_input(
+ '{"kind":"CONDITION","id":"c1","metric":"PROJECT_OVERDUE_DAYS","operator":"eval","threshold":"0"}')),'22023','operator outside the closed set');
+SELECT pg_temp.reject(format('SELECT pathways.f10_rule_create(%L::jsonb)',pg_temp.rule_input(
+ '{"kind":"CONDITION","id":"c1","metric":"FOO","operator":"GT","threshold":"0"}')),'22023','metric outside the catalog');
+SELECT pg_temp.reject(format('SELECT pathways.f10_rule_create(%L::jsonb)',pg_temp.rule_input(
+ '{"kind":"CONDITION","id":"c1","metric":"PROJECT_OVERDUE_DAYS","operator":"GT","threshold":"0"}','{"script":"x"}')),'22023','extra top-level key');
+SELECT pg_temp.reject(format('SELECT pathways.f10_rule_create(%L::jsonb)',pg_temp.rule_input(
+ '{"kind":"CONDITION","id":"c1","metric":"PROJECT_OVERDUE_DAYS","operator":"GT","threshold":"0"}','{}','{"html":"<b>"}')),'22023','recommendation with an extra key');
+SELECT pg_temp.reject(format('SELECT pathways.f10_rule_draft(%L,%L::jsonb)',(SELECT (doc->>'id')::uuid FROM t_out WHERE name='rule_p1'),
+ (pg_temp.rule_input('{"kind":"CONDITION","id":"c1","metric":"FOO","operator":"GT","threshold":"0"}')-'code'-'projectId')||'{"expectedVersion":1}'),'22023','draft with a metric outside the catalog');
+COMMIT;
+
 -- (3) Recommit with the same arguments writes nothing, no second job, sweep and drain keep one latched alert.
 BEGIN;
 SET LOCAL SESSION AUTHORIZATION pathways_rules_worker;
@@ -272,6 +301,26 @@ VALUES(pg_temp.u(8001),pg_temp.u(1),pg_temp.u(302),'Legacy','Legacy recommendati
 SELECT pg_temp.reject(format('UPDATE pathways.decision_recommendations SET status=%L WHERE id=%L','AUTO_RESOLVED',pg_temp.u(8001)),'23514','legacy row cannot be AUTO_RESOLVED');
 ROLLBACK;
 
+BEGIN;
+SET LOCAL session_replication_role = replica;
+INSERT INTO pathways.projects(id,organization_id,code,title,start_date,end_date,status,created_by_id)
+SELECT pg_temp.u(310+n),pg_temp.u(1),'F10R-P'||(10+n),'F10 project '||(10+n),current_date-200,current_date-10,'ONGOING',pg_temp.u(101) FROM generate_series(1,5) n;
+INSERT INTO pathways.user_project_assignments(id,organization_id,project_id,user_id,assigned_by_id) VALUES
+ (pg_temp.u(410),pg_temp.u(1),pg_temp.u(307),pg_temp.u(106),pg_temp.u(101)),
+ (pg_temp.u(411),pg_temp.u(1),pg_temp.u(314),pg_temp.u(102),pg_temp.u(101)),
+ (pg_temp.u(412),pg_temp.u(1),pg_temp.u(315),pg_temp.u(102),pg_temp.u(101));
+INSERT INTO pathways.beneficiary_project_enrollments(id,organization_id,project_id,beneficiary_id,enrollment_date,status,recorded_by_id)
+SELECT pg_temp.u(8000+p*100+g),pg_temp.u(1),pg_temp.u(310+p),pg_temp.u(8500+p*100+g),current_date-100,'ACTIVE'::pathways.enrollment_status,pg_temp.u(101)
+FROM generate_series(1,2) p,generate_series(1,10) g
+UNION ALL SELECT pg_temp.u(8300+g),pg_temp.u(1),pg_temp.u(313),pg_temp.u(8800+g),current_date-100,'ACTIVE',pg_temp.u(101) FROM generate_series(1,4) g;
+INSERT INTO pathways.beneficiary_activity_participations(id,organization_id,project_id,enrollment_id,activity_id,participation_date,progress_status,recorded_by_id,recorded_at)
+SELECT pg_temp.u(8900+p*100+g),pg_temp.u(1),pg_temp.u(310+p),pg_temp.u(8000+p*100+g),pg_temp.u(9900),current_date-5,
+ CASE WHEN g<=CASE p WHEN 1 THEN 4 ELSE 6 END THEN 'NEEDS_FOLLOW_UP' ELSE 'COMPLETED' END::pathways.progress_status,pg_temp.u(101),now()
+FROM generate_series(1,2) p,generate_series(1,10) g;
+INSERT INTO pathways.assessment_results(id,organization_id,project_id,enrollment_id,type,score,maximum_score,assessment_date,recorded_by_id)
+SELECT pg_temp.u(8400+g+t*10),pg_temp.u(1),pg_temp.u(313),pg_temp.u(8300+g),CASE t WHEN 0 THEN 'PRE_TEST' ELSE 'POST_TEST' END::pathways.assessment_type,
+ CASE t WHEN 0 THEN 50 ELSE 60 END,100,current_date-30+t*10,pg_temp.u(101) FROM generate_series(1,4) g,generate_series(0,1) t;
+COMMIT;
 -- (7) Budget, beneficiary and survey metrics. P3 also carries a timeline rule for the audience check.
 BEGIN;
 SELECT pg_temp.act(1);
@@ -283,8 +332,25 @@ SELECT pg_temp.make_rule('p6',306,'BENEFICIARY_FOLLOW_UP_PERCENT','GTE','50',1,9
 SELECT pg_temp.make_rule('p7',307,'SURVEY_MEAN_IMPROVEMENT_POINTS','LT','20',1,9450);
 SELECT pg_temp.make_rule('p8',308,'BUDGET_UTILIZATION_PERCENT','GTE','0',1,9460);
 SELECT pg_temp.make_rule('p9',309,'BUDGET_UTILIZATION_PERCENT','GTE','0',1,9470);
+SELECT pg_temp.make_rule('p11',311,'BENEFICIARY_FOLLOW_UP_PERCENT','GTE','0',1,9480);
+SELECT pg_temp.make_rule('p12',312,'BENEFICIARY_FOLLOW_UP_PERCENT','GTE','0',1,9490);
+SELECT pg_temp.make_rule('p13',313,'SURVEY_MEAN_IMPROVEMENT_POINTS','LT','100',1,9500);
+SELECT pg_temp.make_rule('p14',314,'PROJECT_OVERDUE_DAYS','GT','0',1,9510);
+SELECT pg_temp.make_rule('p15',315,'PROJECT_OVERDUE_DAYS','GT','0',1,9520);
 COMMIT;
 CALL pg_temp.drain('metrics');
+-- Clears a project's overdue condition through a PROJECT_UPDATE source operation (runs as the current human).
+CREATE FUNCTION pg_temp.clear_project(n integer,op integer) RETURNS void LANGUAGE plpgsql AS $$
+DECLARE p pathways.projects; started jsonb; ts timestamptz;
+BEGIN
+ SELECT * INTO p FROM pathways.projects WHERE id=pg_temp.u(n);
+ started:=pathways.f10_begin_source_operation('PROJECT_UPDATE',p.id,p.id,'CLIENT_MUTATION',pg_temp.u(op),'MUTATION',
+  jsonb_build_object('expectedUpdatedAt',to_char(p.updated_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
+   'title',p.title,'status',p.status,'startDate',p.start_date,'endDate',current_date+365));
+ ts:=(started->'generatedValues'->>'timestamp')::timestamptz;
+ UPDATE pathways.projects SET end_date=current_date+365,updated_at=ts WHERE id=p.id AND organization_id=p.organization_id;
+ PERFORM pathways.f10_finish_source_operation((started->>'operationHandle')::uuid);
+END $$;
 CREATE FUNCTION pg_temp.last_eval(tag text) RETURNS jsonb LANGUAGE sql AS $$
  SELECT jsonb_build_object('result',e.result,'cell',e.evidence->'conditions'->0->'cell','unit',e.evidence->'conditions'->0->>'unit')
  FROM pathways_rules_internal.evaluations e JOIN pathways.alert_rules r ON r.id=e.rule_version_id
@@ -304,6 +370,13 @@ SELECT pg_temp.ok(pg_temp.last_eval('p8')->>'result'='UNAVAILABLE' AND pg_temp.l
  AND NOT EXISTS(SELECT FROM pathways.rule_based_alerts WHERE project_id=pg_temp.u(308)),'mixed currency is UNSUPPORTED_SOURCE');
 SELECT pg_temp.ok(pg_temp.last_eval('p9')->>'result'='UNAVAILABLE' AND pg_temp.last_eval('p9')->'cell'->>'reason'='NOT_APPLICABLE','on-hold project is NOT_APPLICABLE');
 
+SELECT pg_temp.ok(pg_temp.last_eval('p11')->>'result'='UNAVAILABLE' AND pg_temp.last_eval('p11')->'cell'->>'state'='SUPPRESSED'
+ AND NOT EXISTS(SELECT FROM pathways.rule_based_alerts WHERE project_id=pg_temp.u(311)),'four follow-ups of ten are suppressed');
+SELECT pg_temp.ok(pg_temp.last_eval('p12')->>'result'='UNAVAILABLE' AND pg_temp.last_eval('p12')->'cell'->>'state'='SUPPRESSED'
+ AND NOT EXISTS(SELECT FROM pathways.rule_based_alerts WHERE project_id=pg_temp.u(312)),'complement of four is suppressed');
+SELECT pg_temp.ok(pg_temp.last_eval('p13')->>'result'='UNAVAILABLE' AND pg_temp.last_eval('p13')->'cell'->>'state'='SUPPRESSED'
+ AND NOT EXISTS(SELECT FROM pathways.rule_based_alerts WHERE project_id=pg_temp.u(313)),'four survey pairs are suppressed');
+
 -- Audience: M&E sees the timeline alert on P3 but not the budget alert; the PM sees both.
 INSERT INTO t_out SELECT 'p3_alerts',jsonb_build_object(
  'budget',(SELECT a.id FROM pathways.rule_based_alerts a JOIN pathways.alert_rules r ON r.id=a.rule_id WHERE a.project_id=pg_temp.u(303) AND r.display_code='F10-P3B'),
@@ -317,6 +390,90 @@ COMMIT;
 BEGIN;
 SELECT pg_temp.act(2);
 SELECT pg_temp.ok(pathways.f10_alert_get((SELECT (doc->>'budget')::uuid FROM t_out WHERE name='p3_alerts')) IS NOT NULL,'PM sees the budget alert');
+COMMIT;
+
+INSERT INTO t_out SELECT 'p3b_rec',jsonb_build_object('id',(SELECT d.id FROM pathways.decision_recommendations d WHERE d.alert_id=(SELECT (doc->>'budget')::uuid FROM t_out WHERE name='p3_alerts')),
+ 'tl',(SELECT d.id FROM pathways.decision_recommendations d WHERE d.alert_id=(SELECT (doc->>'timeline')::uuid FROM t_out WHERE name='p3_alerts')));
+INSERT INTO t_out SELECT 'p7_alert',jsonb_build_object('id',(SELECT id FROM pathways.rule_based_alerts WHERE project_id=pg_temp.u(307)),
+ 'rec',(SELECT id FROM pathways.decision_recommendations WHERE project_id=pg_temp.u(307)));
+-- G-F10-4: a direct alert outcome on a terminal alert is refused, at preview and at confirm.
+BEGIN;
+SELECT pg_temp.act(2);
+SELECT pg_temp.reject(format('SELECT pathways.f10_alert_preview(%L,%L::jsonb)',(SELECT (doc->>'id')::uuid FROM t_out WHERE name='p1_alert'),
+ jsonb_build_object('expectedRevision','3','note','Late outcome','clientOperationId',pg_temp.u(9801),'outcome','DECLINE')),'40001','alert outcome preview on an AUTO_RESOLVED alert');
+COMMIT;
+INSERT INTO t_out SELECT 'p14_alert',jsonb_build_object('id',(SELECT id FROM pathways.rule_based_alerts WHERE project_id=pg_temp.u(314)));
+BEGIN;
+SELECT pg_temp.act(2);
+INSERT INTO t_out SELECT 'p14_preview',pathways.f10_alert_preview((SELECT (doc->>'id')::uuid FROM t_out WHERE name='p14_alert'),
+ jsonb_build_object('expectedRevision','1','note','Open outcome','clientOperationId',pg_temp.u(9802),'outcome','DECLINE'));
+SELECT pg_temp.clear_project(314,9803);
+COMMIT;
+CALL pg_temp.drain('p14_clear');
+SELECT pg_temp.ok((SELECT lifecycle FROM pathways.rule_based_alerts WHERE project_id=pg_temp.u(314))='AUTO_RESOLVED','preview alert auto-resolved afterwards');
+BEGIN;
+SELECT pg_temp.act(2);
+SELECT pg_temp.reject(format('SELECT pathways.f10_alert_confirm(%L,%L::jsonb)',(SELECT (doc->>'id')::uuid FROM t_out WHERE name='p14_alert'),
+ jsonb_build_object('previewId',(SELECT doc->>'previewId' FROM t_out WHERE name='p14_preview'),'clientOperationId',pg_temp.u(9804))),'40001','confirm after the alert went terminal');
+COMMIT;
+-- Combined recommendation outcome keeps working when its linked alert was resolved by a human.
+INSERT INTO t_out SELECT 'p15_alert',jsonb_build_object('id',(SELECT id FROM pathways.rule_based_alerts WHERE project_id=pg_temp.u(315)),
+ 'rec',(SELECT id FROM pathways.decision_recommendations WHERE project_id=pg_temp.u(315)));
+BEGIN;
+SELECT pg_temp.act(2);
+SELECT pathways.f10_alert_disposition((SELECT (doc->>'id')::uuid FROM t_out WHERE name='p15_alert'),
+ jsonb_build_object('action','RESOLVE','expectedRevision','1','note','Resolved by PM','clientOperationId',pg_temp.u(9805)));
+INSERT INTO t_out SELECT 'p15_preview',pathways.f10_recommendation_preview((SELECT (doc->>'rec')::uuid FROM t_out WHERE name='p15_alert'),
+ jsonb_build_object('expectedRevision','1','expectedAlertRevision','2','note','Accepted','clientOperationId',pg_temp.u(9806),'outcome','ACCEPT'));
+COMMIT;
+BEGIN;
+SELECT pg_temp.act(2);
+INSERT INTO t_out SELECT 'p15_confirm',pathways.f10_recommendation_confirm((SELECT (doc->>'rec')::uuid FROM t_out WHERE name='p15_alert'),
+ jsonb_build_object('previewId',(SELECT doc->>'previewId' FROM t_out WHERE name='p15_preview'),'clientOperationId',pg_temp.u(9807)));
+COMMIT;
+SELECT pg_temp.ok((SELECT lifecycle FROM pathways.rule_based_alerts WHERE project_id=pg_temp.u(315))='RESOLVED'
+ AND (SELECT revision FROM pathways.rule_based_alerts WHERE project_id=pg_temp.u(315))=3
+ AND EXISTS(SELECT FROM pathways_rules_internal.decisions WHERE recommendation_id=(SELECT (doc->>'rec')::uuid FROM t_out WHERE name='p15_alert') AND outcome='ACCEPT'),
+ 'combined recommendation outcome on a human-resolved alert succeeds and leaves the lifecycle');
+
+-- M&E in scope of P3 is refused every read and action on the budget alert and its recommendation.
+BEGIN;
+SELECT pg_temp.act(3);
+SELECT pg_temp.reject(format('SELECT pathways.f10_alert_review(%L,%L::jsonb)',(SELECT (doc->>'budget')::uuid FROM t_out WHERE name='p3_alerts'),
+ jsonb_build_object('expectedRevision','1','note','Review','clientOperationId',pg_temp.u(9701))),'42501','M&E cannot review the budget alert');
+SELECT pg_temp.reject(format('SELECT pathways.f10_alert_preview(%L,%L::jsonb)',(SELECT (doc->>'budget')::uuid FROM t_out WHERE name='p3_alerts'),
+ jsonb_build_object('expectedRevision','1','note','Outcome','clientOperationId',pg_temp.u(9702),'outcome','DECLINE')),'42501','M&E cannot preview an outcome on the budget alert');
+SELECT pg_temp.reject(format('SELECT pathways.f10_recommendation_get(%L)',(SELECT (doc->>'id')::uuid FROM t_out WHERE name='p3b_rec')),'42501','M&E cannot read the budget recommendation');
+SELECT pg_temp.reject(format('SELECT pathways.f10_recommendation_preview(%L,%L::jsonb)',(SELECT (doc->>'id')::uuid FROM t_out WHERE name='p3b_rec'),
+ jsonb_build_object('expectedRevision','1','note','Outcome','clientOperationId',pg_temp.u(9703),'outcome','DECLINE')),'42501','M&E cannot preview an outcome on the budget recommendation');
+SELECT pg_temp.ok(NOT EXISTS(SELECT FROM jsonb_array_elements(pathways.f10_recommendation_list('{"limit":50}'::jsonb)->'items') i
+ WHERE i->>'id'=(SELECT doc->>'id' FROM t_out WHERE name='p3b_rec')),'budget recommendation absent from the M&E list');
+COMMIT;
+-- A role without assessments.detail.read (the Grant Manager, assigned to the survey project) is refused the survey alert.
+BEGIN;
+SELECT pg_temp.act(6);
+SELECT pg_temp.reject(format('SELECT pathways.f10_alert_get(%L)',(SELECT (doc->>'id')::uuid FROM t_out WHERE name='p7_alert')),'42501','no assessments.detail.read: survey alert');
+SELECT pg_temp.reject(format('SELECT pathways.f10_recommendation_get(%L)',(SELECT (doc->>'rec')::uuid FROM t_out WHERE name='p7_alert')),'42501','no assessments.detail.read: survey recommendation');
+COMMIT;
+-- In-scope PM that holds alerts.read and recommendations.read but not the action grants (revoked then restored inside this transaction).
+BEGIN;
+SET LOCAL session_replication_role = replica;
+CREATE TEMP TABLE t_saved_rp ON COMMIT DROP AS SELECT rp.* FROM pathways.role_permissions rp JOIN pathways.roles r ON r.id=rp.role_id JOIN pathways.permissions p ON p.id=rp.permission_id
+ WHERE r.code='PROJECT_MANAGER' AND p.code IN ('alerts.review','alerts.outcome.record','recommendations.review','recommendations.outcome.record');
+DELETE FROM pathways.role_permissions rp USING pathways.roles r,pathways.permissions p
+ WHERE rp.role_id=r.id AND rp.permission_id=p.id AND r.code='PROJECT_MANAGER'
+  AND p.code IN ('alerts.review','alerts.outcome.record','recommendations.review','recommendations.outcome.record');
+SELECT pg_temp.act(2);
+SELECT pg_temp.ok(pathways.f10_alert_get((SELECT (doc->>'timeline')::uuid FROM t_out WHERE name='p3_alerts')) IS NOT NULL
+ AND pathways.f10_recommendation_get((SELECT (doc->>'tl')::uuid FROM t_out WHERE name='p3b_rec')) IS NOT NULL,'reader without action grants still reads');
+SELECT pg_temp.reject(format('SELECT pathways.f10_alert_review(%L,%L::jsonb)',(SELECT (doc->>'timeline')::uuid FROM t_out WHERE name='p3_alerts'),
+ jsonb_build_object('expectedRevision','1','note','Review','clientOperationId',pg_temp.u(9711))),'42501','reader cannot review an alert');
+SELECT pg_temp.reject(format('SELECT pathways.f10_alert_preview(%L,%L::jsonb)',(SELECT (doc->>'timeline')::uuid FROM t_out WHERE name='p3_alerts'),
+ jsonb_build_object('expectedRevision','1','note','Outcome','clientOperationId',pg_temp.u(9712),'outcome','DECLINE')),'42501','reader cannot preview an alert outcome');
+SELECT pg_temp.reject(format('SELECT pathways.f10_recommendation_preview(%L,%L::jsonb)',(SELECT (doc->>'tl')::uuid FROM t_out WHERE name='p3b_rec'),
+ jsonb_build_object('expectedRevision','1','note','Outcome','clientOperationId',pg_temp.u(9713),'outcome','DECLINE')),'42501','reader cannot preview a recommendation outcome');
+RESET SESSION AUTHORIZATION;
+INSERT INTO pathways.role_permissions SELECT * FROM t_saved_rp;
 COMMIT;
 
 -- Direct table reads as the runtime role never return f10 rows; legacy rows stay readable.
