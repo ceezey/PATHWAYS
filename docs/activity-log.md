@@ -157,3 +157,7 @@
 - Activity proof: target-based activities could never complete (read-only bar capped at 99 since 13baeab1); added an explicit 'This proof completes the activity (100%)' checkbox. Activity completion % semantics unchanged (completed activities only).
 - Role dashboards: read-only `GET /dashboards/role-overview` (`projects.read`, sections null without their permission) with a shared contract; layouts for Project Officer, M&E Officer, Project Manager and a portfolio view for Program Manager and Grant Manager (Grant Manager read-only). System Administrator keeps the previous dashboard.
 - Project health labels derive only from open rule-based alerts; evaluation scores show the stored number with no quality label. Request extension, escalated-alerts queue and evaluation approval rows are deferred to Plan 2 (register and PRD updated; DSD patterns added).
+
+## 2026-10-04 Budget envelope total
+
+- Budget page: total allocated is now the project envelope (PROJECT_PROFILE_TOTAL) when one exists, and the Project-level row shows the envelope minus activity allocations (negative if over-allocated), so utilization matches the overview tile. Without an envelope the sum of activity rows is used. Rules metric and analytics aggregate still sum all rows (deferred-features.md).
