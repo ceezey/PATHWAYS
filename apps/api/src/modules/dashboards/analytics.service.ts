@@ -28,13 +28,21 @@ import type { ApplicationIdentity } from '../auth/developer-access'
 import { monitoringSqlError } from '../indicators/indicators.service'
 import { DashboardsService } from './dashboards.service'
 import {
+  type AnalyticsTable,
+  analyticsTableCsv,
   buildDescriptiveAnalytics,
   buildTimelineAnalytics,
-  descriptiveAnalyticsCsv,
-  surveyAnalyticsCsv,
+  descriptiveAnalyticsTable,
+  surveyAnalyticsTable,
   timelineAggregateSchema,
-  timelineAnalyticsCsv,
+  timelineAnalyticsTable,
 } from './descriptive-analytics'
+
+import {
+  ReportArtifactInputError,
+  createReportArtifact,
+  reportMime,
+} from '../reports/report-artifact'
 
 const logger = new Logger('AnalyticsService')
 
@@ -45,6 +53,43 @@ export function parseDescriptiveQuery(value: unknown): DescriptiveAnalyticsQuery
       'Descriptive analytics requires exactly one authorized project and an optional complete period.',
     )
   return parsed.data
+}
+
+const exportFormats = ['CSV', 'XLSX', 'XLS', 'PDF'] as const
+type ExportFormat = (typeof exportFormats)[number]
+
+/** Splits the optional file format off before the strict analytics query parse. */
+export function parseExportFormat(input: unknown): { format: ExportFormat; query: unknown } {
+  if (!input || typeof input !== 'object') return { format: 'CSV', query: input }
+  const { format = 'CSV', ...query } = input as Record<string, unknown>
+  if (!exportFormats.includes(format as ExportFormat))
+    throw new BadRequestException('Export format must be CSV, XLSX, XLS or PDF.')
+  return { format: format as ExportFormat, query }
+}
+
+async function exportArtifact(
+  format: ExportFormat,
+  title: string,
+  table: AnalyticsTable,
+  fileBase: string,
+) {
+  if (format === 'CSV')
+    return {
+      bytes: Buffer.from(analyticsTableCsv(table), 'utf8'),
+      contentType: 'text/csv; charset=utf-8',
+      fileName: `${fileBase}.csv`,
+    }
+  const rows = table.map((row) => row.map((cell) => (cell === null ? '' : String(cell))))
+  try {
+    return {
+      bytes: await createReportArtifact(title, rows, format),
+      contentType: reportMime[format],
+      fileName: `${fileBase}.${format.toLowerCase()}`,
+    }
+  } catch (error) {
+    if (error instanceof ReportArtifactInputError) throw new BadRequestException(error.message)
+    throw error
+  }
 }
 
 @Injectable()
@@ -364,9 +409,10 @@ export class AnalyticsService {
   }
 
   async export(identity: ApplicationIdentity, input: unknown) {
-    const query = parseDescriptiveQuery(input)
+    const { format, query: rawQuery } = parseExportFormat(input)
+    const query = parseDescriptiveQuery(rawQuery)
     return withAuthorizedOperation(this.prisma, identity, 'analytics.export', async (tx, actor) =>
-      this.withRetrievalFaultMapping(() => this.runExport(tx, actor, query)),
+      this.withRetrievalFaultMapping(() => this.runExport(tx, actor, query, format)),
     )
   }
 
@@ -374,12 +420,13 @@ export class AnalyticsService {
     tx: Prisma.TransactionClient,
     actor: ApplicationIdentity,
     query: DescriptiveAnalyticsQuery,
+    format: ExportFormat,
   ) {
     if (!hasAtomicPermission(actor.roles[0], actor.permissions, 'analytics.descriptive.read'))
       throw new ForbiddenException('Descriptive analytics permission is required.')
     if (query.view === 'survey') {
       const data = await this.computeSurvey(tx, actor, query)
-      const csv = surveyAnalyticsCsv(data)
+      const table = surveyAnalyticsTable(data)
       await tx.auditLog.create({
         data: {
           organizationId: actor.organizationId,
@@ -390,22 +437,23 @@ export class AnalyticsService {
           entityId: data.projectId,
           changes: {
             contractVersion: data.contractVersion,
-            format: 'CSV',
+            format,
             view: 'survey',
             period: data.period,
             rowCount: data.byActivity.length + 1,
           },
         },
       })
-      return {
-        bytes: Buffer.from(csv, 'utf8'),
-        contentType: 'text/csv; charset=utf-8',
-        fileName: `survey-analytics-${data.projectId}-${data.period.periodEnd}.csv`,
-      }
+      return exportArtifact(
+        format,
+        'Survey analytics',
+        table,
+        `survey-analytics-${data.projectId}-${data.period.periodEnd}`,
+      )
     }
     if (query.view === 'timeline') {
       const data = await this.computeTimeline(tx, actor, query)
-      const csv = timelineAnalyticsCsv(data)
+      const table = timelineAnalyticsTable(data)
       await tx.auditLog.create({
         data: {
           organizationId: actor.organizationId,
@@ -416,21 +464,22 @@ export class AnalyticsService {
           entityId: data.projectId,
           changes: {
             contractVersion: data.contractVersion,
-            format: 'CSV',
+            format,
             view: 'timeline',
             reportingDate: data.reportingDate,
             rowCount: 6,
           },
         },
       })
-      return {
-        bytes: Buffer.from(csv, 'utf8'),
-        contentType: 'text/csv; charset=utf-8',
-        fileName: `timeline-analytics-${data.projectId}-${data.reportingDate}.csv`,
-      }
+      return exportArtifact(
+        format,
+        'Timeline analytics',
+        table,
+        `timeline-analytics-${data.projectId}-${data.reportingDate}`,
+      )
     }
     const data = await this.compute(tx, actor, query)
-    const csv = descriptiveAnalyticsCsv(data)
+    const table = descriptiveAnalyticsTable(data)
     await tx.auditLog.create({
       data: {
         organizationId: actor.organizationId,
@@ -441,17 +490,18 @@ export class AnalyticsService {
         entityId: data.projectId,
         changes: {
           contractVersion: data.contractVersion,
-          format: 'CSV',
+          format,
           monitoringPeriod: data.monitoringPeriod,
           sadddReleaseState: data.sadddReleaseState,
           rowCount: data.counts.length + data.distributions.length,
         },
       },
     })
-    return {
-      bytes: Buffer.from(csv, 'utf8'),
-      contentType: 'text/csv; charset=utf-8',
-      fileName: `descriptive-analytics-${data.projectId}-${data.monitoringPeriod.periodEnd}.csv`,
-    }
+    return exportArtifact(
+      format,
+      'Descriptive analytics',
+      table,
+      `descriptive-analytics-${data.projectId}-${data.monitoringPeriod.periodEnd}`,
+    )
   }
 }

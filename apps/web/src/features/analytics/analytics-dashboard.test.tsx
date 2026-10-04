@@ -39,6 +39,20 @@ const currentAccess = vi.hoisted(() => ({
   },
 }))
 
+// Plain buttons stand in for the Radix menu, matching the other workspace tests.
+vi.mock('@/components/ui/dropdown-menu', () => ({
+  DropdownMenu: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  DropdownMenuTrigger: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  DropdownMenuContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  DropdownMenuItem: ({
+    children,
+    onSelect,
+  }: { children: React.ReactNode; onSelect?: () => void }) => (
+    <button onClick={() => onSelect?.()} role="menuitem" type="button">
+      {children}
+    </button>
+  ),
+}))
 vi.mock('@/lib/services/pathways-client', () => ({
   pathwaysClient: api,
   descriptiveAnalyticsSearch: (query: Record<string, string>) =>
@@ -356,7 +370,7 @@ describe('Analytics dashboard request dependencies', () => {
     render(<AnalyticsDashboard />)
 
     await screen.findAllByText('KPI achievement')
-    await waitFor(() => expect(budgetUtilizationCard()).toContain('Unavailable'))
+    expect(screen.queryByText('Budget utilization')).toBeNull()
   })
 
   it('surfaces a budget utilization server error instead of a false result', async () => {
@@ -475,7 +489,7 @@ describe('Analytics dashboard request dependencies', () => {
     expect(api.getActivities).toHaveBeenCalledTimes(1)
   })
 
-  it('shows "Unavailable", never "None yet", for indicator data a Project Officer cannot read', async () => {
+  it('hides indicator cards, never shows "None yet", for indicator data a Project Officer cannot read', async () => {
     currentAccess.role = 'Project Officer'
     currentAccess.profile.roles = ['PROJECT_OFFICER']
     currentAccess.profile.permissions = [
@@ -489,14 +503,13 @@ describe('Analytics dashboard request dependencies', () => {
     render(<AnalyticsDashboard />)
 
     await waitFor(() => expect(api.getActivities).toHaveBeenCalled())
-    await screen.findAllByText('KPI achievement')
-    await waitFor(() => expect(kpiCard()).toContain('Unavailable'))
+    await screen.findByLabelText('Analysis view')
+    expect(screen.queryByText('KPI achievement')).toBeNull()
+    expect(screen.queryByText('Beneficiary reach')).toBeNull()
+    expect(screen.queryByText('Unavailable')).toBeNull()
     expect(api.getProjectIndicators).not.toHaveBeenCalled()
     expect(api.getMonitoringDashboard).not.toHaveBeenCalled()
     expect(screen.queryByText('None yet')).toBeNull()
-    expect(
-      screen.getAllByText('Indicator reporting periods are not available for this role.').length,
-    ).toBeGreaterThan(0)
   })
 
   it('shows "None yet" for an empty KPI set only after a successful monitoring read', async () => {
@@ -539,7 +552,7 @@ describe('Analytics dashboard request dependencies', () => {
     expect((await screen.findByText(/Total participation/)).textContent).toContain('Suppressed')
   })
 
-  it('shows the restricted wording for participation to an aggregate-only role', async () => {
+  it('does not offer the participation view to an aggregate-only role', async () => {
     currentAccess.role = 'Program Manager'
     currentAccess.profile.roles = ['PROGRAM_MANAGER']
     currentAccess.profile.permissions = [
@@ -550,20 +563,9 @@ describe('Analytics dashboard request dependencies', () => {
     render(<AnalyticsDashboard />)
 
     await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
-    fireEvent.change(screen.getByLabelText('Analysis view'), {
-      target: { value: 'participation' },
-    })
-
-    expect(
-      await screen.findByText('Participation patterns are restricted for your role.'),
-    ).toBeTruthy()
-    const pin = screen.getByRole('button', { name: 'Add to Dashboard' }) as HTMLButtonElement
-    expect(pin.disabled).toBe(true)
-    expect(pin.title).toContain('cannot read participation detail')
-    expect(pin.getAttribute('aria-describedby')).toBe('pin-blocked-reason')
-    expect(document.getElementById('pin-blocked-reason')?.textContent).toContain(
-      'cannot read participation detail',
-    )
+    expect(screen.queryByText('Participation patterns', { selector: 'option' })).toBeNull()
+    expect(screen.queryByText('Participation patterns are restricted for your role.')).toBeNull()
+    expect(document.getElementById('pin-blocked-reason')).toBeNull()
   })
 
   it('does not issue permission-incompatible Activity or Indicator reads for Grant Manager', async () => {
@@ -633,11 +635,20 @@ describe('Analytics dashboard request dependencies', () => {
     expect(table.textContent).toContain('Withheld')
     expect(table.textContent).toContain('Suppressed')
 
-    fireEvent.click(screen.getByRole('button', { name: 'Export aggregates (CSV)' }))
+    expect(screen.getByRole('button', { name: 'Export aggregates' })).toBeTruthy()
+    fireEvent.click(screen.getByText('CSV'))
     await waitFor(() =>
       expect(download).toHaveBeenCalledWith(
         '/analytics/descriptive/export?projectId=project-a&periodStart=2026-09-01&periodEnd=2026-09-30',
         'descriptive-analytics-project-a.csv',
+      ),
+    )
+    for (const format of ['XLS', 'PDF']) expect(screen.getByText(format)).toBeTruthy()
+    fireEvent.click(screen.getByText('XLSX'))
+    await waitFor(() =>
+      expect(download).toHaveBeenCalledWith(
+        '/analytics/descriptive/export?projectId=project-a&periodStart=2026-09-01&periodEnd=2026-09-30&format=XLSX',
+        'descriptive-analytics-project-a.xlsx',
       ),
     )
 
@@ -652,14 +663,14 @@ describe('Analytics dashboard request dependencies', () => {
     ]
     render(<AnalyticsDashboard />)
     await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
-    expect(screen.getByRole('button', { name: 'Export aggregates (CSV)' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Export aggregates' })).toBeTruthy()
   })
 
   it('hides descriptive statistics and export for roles without the analytics permissions', async () => {
     render(<AnalyticsDashboard />)
     await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
     expect(api.getDescriptiveAnalytics).not.toHaveBeenCalled()
-    expect(screen.queryByRole('button', { name: 'Export aggregates (CSV)' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Export aggregates' })).toBeNull()
     expect(screen.queryByTestId('descriptive-statistics')).toBeNull()
   })
 
@@ -671,7 +682,7 @@ describe('Analytics dashboard request dependencies', () => {
     api.getDescriptiveAnalytics.mockRejectedValue(new Error('Descriptive statistics unavailable.'))
     render(<AnalyticsDashboard />)
     await waitFor(() => expect(api.getDescriptiveAnalytics).toHaveBeenCalled())
-    expect(screen.queryByRole('button', { name: 'Export aggregates (CSV)' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Export aggregates' })).toBeNull()
     expect(download).not.toHaveBeenCalled()
   })
 
@@ -699,6 +710,13 @@ describe('Analytics dashboard request dependencies', () => {
   })
 
   it('offers Add to Dashboard and Participation patterns regardless of the unfinished-controls flag', async () => {
+    currentAccess.profile.permissions = [
+      ...currentAccess.profile.permissions,
+      'analytics.descriptive.read',
+      'journeys.read',
+      'beneficiaries.records.read',
+      'assessments.detail.read',
+    ]
     vi.resetModules()
     vi.doMock('@/constants/feature-flags', () => ({
       ANALYTICS_AGGREGATE_EXPORT_UI_ENABLED: false,
@@ -713,19 +731,15 @@ describe('Analytics dashboard request dependencies', () => {
     expect(screen.getByText('Participation patterns', { selector: 'option' })).toBeTruthy()
   })
 
-  it('restricts the survey/timeline views without the descriptive read permission', async () => {
+  it('does not list the survey/timeline views without the descriptive read permission', async () => {
     render(<AnalyticsDashboard />)
     await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
 
-    const surveyOption = screen.getByText('Survey improvement', {
-      selector: 'option',
-    }) as HTMLOptionElement
-    const timelineOption = screen.getByText('Project / activity timeline adherence', {
-      selector: 'option',
-    }) as HTMLOptionElement
-    // Default profile holds monitoring.read but not analytics.descriptive.read: restricted.
-    expect(surveyOption.disabled).toBe(true)
-    expect(timelineOption.disabled).toBe(true)
+    // Default profile holds monitoring.read but not analytics.descriptive.read: not offered.
+    expect(screen.queryByText('Survey improvement', { selector: 'option' })).toBeNull()
+    expect(
+      screen.queryByText('Project / activity timeline adherence', { selector: 'option' }),
+    ).toBeNull()
   })
 
   describe('overview metric cards', () => {
@@ -735,11 +749,11 @@ describe('Analytics dashboard request dependencies', () => {
         .map((node) => node.parentElement?.parentElement?.textContent ?? '')
         .join(' | ')
 
-    it('shows the role-restricted state for alerts without alerts.read', async () => {
+    it('hides the alerts card and panel without alerts.read', async () => {
       render(<AnalyticsDashboard />)
       await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
-      expect(cardText('Rule-Based Alerts')).toContain('Unavailable')
-      expect(screen.getByText('Rule-Based Alerts are unavailable for this role.')).toBeTruthy()
+      expect(screen.queryByText('Rule-Based Alerts')).toBeNull()
+      expect(screen.queryByText('Rule-Based Alerts are unavailable for this role.')).toBeNull()
       expect(screen.queryByText('Rule-Based Alerts unavailable')).toBeNull()
     })
 
@@ -1131,34 +1145,28 @@ describe('Analytics dashboard request dependencies', () => {
         currentAccess.profile.permissions = [...permissions]
       })
 
-      it('disables the survey and timeline options and never fetches them', async () => {
+      it('does not list the survey and timeline options and never fetches them', async () => {
         render(<AnalyticsDashboard />)
         await waitFor(() => expect(api.getProjectsForRole).toHaveBeenCalled())
+        await screen.findByLabelText('Analysis view')
         for (const name of ['Survey improvement', 'Project / activity timeline adherence']) {
-          const option = (await screen.findByText(name, {
-            selector: 'option',
-          })) as HTMLOptionElement
-          expect(option.disabled).toBe(true)
+          expect(screen.queryByText(name, { selector: 'option' })).toBeNull()
         }
         expect(api.getSurveyAnalytics).not.toHaveBeenCalled()
         expect(api.getTimelineAnalytics).not.toHaveBeenCalled()
       })
 
-      it.each([
-        ['survey', 'Survey improvement is restricted for your role.'],
-        ['timeline', 'Timeline adherence is not available for this role.'],
-      ])(
-        'shows restricted wording, never empty-data wording, for the %s view',
-        async (view, wording) => {
+      it.each(['survey', 'timeline'])(
+        'does not offer the %s view and renders no restricted or empty-data panel',
+        async (view) => {
           render(<AnalyticsDashboard />)
           await waitFor(() => expect(api.getProjectsForRole).toHaveBeenCalled())
-          // A profile can lose a permission while a view is selected; the panel must stay restricted.
-          fireEvent.change(await screen.findByLabelText('Analysis view'), {
-            target: { value: view },
-          })
-          const restricted = await screen.findByText(wording)
-          // Other panels on the page may legitimately say "None yet"; this panel must not.
-          expect(within(restricted.parentElement as HTMLElement).queryByText('None yet')).toBeNull()
+          const select = (await screen.findByLabelText('Analysis view')) as HTMLSelectElement
+          expect(Array.from(select.options).some((option) => option.value === view)).toBe(false)
+          expect(screen.queryByText('Survey improvement is restricted for your role.')).toBeNull()
+          expect(
+            screen.queryByText('Timeline adherence is not available for this role.'),
+          ).toBeNull()
           expect(screen.queryByText('No paired pre/post assessments yet')).toBeNull()
           expect(screen.queryByText('No activities recorded yet')).toBeNull()
           expect(screen.queryByText(/No active reporting period/)).toBeNull()

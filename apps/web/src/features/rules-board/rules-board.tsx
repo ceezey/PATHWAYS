@@ -7,6 +7,13 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
   Table,
   TableBody,
   TableCell,
@@ -19,7 +26,6 @@ import { useCurrentRole } from '@/hooks/use-current-role'
 import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
 import { pathwaysClient } from '@/lib/services/pathways-client'
 import { rulesHumanClient } from '@/lib/services/rules-human-client'
-import { cn } from '@/lib/utils'
 import { useAuthorizedRead } from '@/providers/authorized-query-provider'
 import { useState } from 'react'
 import {
@@ -32,7 +38,9 @@ import {
   titleCase,
 } from './rule-board-model'
 import { type DrawerIntent, RuleDrawer } from './rule-drawer'
-import { selectClass } from './rule-drawer-shared'
+
+// Radix Select rejects an empty value, so the organization scope uses a sentinel.
+const ORGANIZATION_SCOPE = 'organization'
 
 type Status = 'ALL' | HumanRule['status']
 type Drawer = { mode: 'alert' | 'recommendation'; rule?: HumanRule; intent?: DrawerIntent }
@@ -170,9 +178,6 @@ export function RulesBoard() {
   const all = [...(list.data?.items ?? []), ...(more?.items ?? [])]
   const nextCursor = more ? more.nextCursor : (list.data?.nextCursor ?? null)
   const rules = filterRules(all, { search, status })
-  const scopeName = projectId
-    ? (projects.data?.find((project) => project.id === projectId)?.title ?? 'the selected project')
-    : 'Organization templates'
   const open = (rule: HumanRule | undefined, mode: Drawer['mode'], intent?: DrawerIntent) => {
     setView(null)
     setDrawer({ mode, rule, intent })
@@ -282,7 +287,6 @@ export function RulesBoard() {
     <div className="space-y-6">
       <PageHeader
         title="Alert & Recommendation Rules"
-        description={`Typed rules that raise alerts and recommendations for human review. Showing ${scopeName}.`}
         actions={
           <Button type="button" variant="outline" onClick={() => setView('manage')}>
             Manage Rules
@@ -293,35 +297,37 @@ export function RulesBoard() {
         <CardContent className="grid gap-3 p-4 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)]">
           <Input
             aria-label="Search rules"
-            className="h-9"
             placeholder="Search rules by name..."
             value={search}
             onChange={(event) => setSearch(event.target.value)}
           />
-          <select
-            aria-label="Scope"
-            className={cn(selectClass, 'h-9')}
-            value={projectId ?? ''}
-            onChange={(event) => changeScope(event.target.value || null)}
+          <Select
+            value={projectId ?? ORGANIZATION_SCOPE}
+            onValueChange={(value) => changeScope(value === ORGANIZATION_SCOPE ? null : value)}
           >
-            <option value="">Organization templates</option>
-            {projects.data?.map((project) => (
-              <option key={project.id} value={project.id}>
-                {project.title}
-              </option>
-            ))}
-          </select>
-          <select
-            aria-label="Status"
-            className={cn(selectClass, 'h-9')}
-            value={status}
-            onChange={(event) => setStatus(event.target.value as Status)}
-          >
-            <option value="ALL">All statuses</option>
-            <option value="DRAFT">Draft</option>
-            <option value="ACTIVE">Active</option>
-            <option value="ARCHIVED">Archived</option>
-          </select>
+            <SelectTrigger aria-label="Scope">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ORGANIZATION_SCOPE}>Organization templates</SelectItem>
+              {projects.data?.map((project) => (
+                <SelectItem key={project.id} value={project.id}>
+                  {project.title}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={status} onValueChange={(value) => setStatus(value as Status)}>
+            <SelectTrigger aria-label="Status">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="ALL">All statuses</SelectItem>
+              <SelectItem value="DRAFT">Draft</SelectItem>
+              <SelectItem value="ACTIVE">Active</SelectItem>
+              <SelectItem value="ARCHIVED">Archived</SelectItem>
+            </SelectContent>
+          </Select>
         </CardContent>
       </Card>
       {notice ? (

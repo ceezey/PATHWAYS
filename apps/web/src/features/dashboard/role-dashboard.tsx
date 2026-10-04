@@ -350,7 +350,7 @@ const ConnectedMonitoringSnapshot = ({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Select Project</SelectItem>
+              <SelectItem value="all">All projects</SelectItem>
               {projects.map((project) => (
                 <SelectItem key={project.id} value={project.id}>
                   {project.title}
