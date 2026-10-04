@@ -639,7 +639,6 @@ function OwnedImportWorkspace({ scope }: { scope: SensitiveDraftOwner }) {
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="Data workspace"
         editableLabelKey="moduleCollection"
         title={labels.moduleCollection}
         description="Upload a private CSV, workbook or text-based PDF, review field mappings, validate every row, and promote only valid generic submissions."
