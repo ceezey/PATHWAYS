@@ -101,7 +101,7 @@ Other runbooks: [local development](runbook-local-dev.md), [role staging build](
 Agents never create or store these credentials.
 
 1. Confirm every API deployment reading the target database runs the widened rules contract, then apply the pending rules migrations with their preprovision and cleanup scripts.
-2. Run `infra/supabase/phase6/hosted-rules-machine-login.sql` with `psql -v target_project_ref=... -v expected_database=postgres`; `password` prompts for the worker and sweeper passwords with hidden input and stores nothing.
+2. Run `infra/supabase/phase6/hosted-rules-machine-login.sql` with `psql -v target_project_ref=... -v expected_database=postgres`; `\password` prompts for the worker and sweeper passwords with hidden input and stores nothing.
 3. Generate two distinct tokens with `openssl rand -hex 32`. Store them as GitHub environment `rules-hosted` secrets `RULES_DRAIN_TOKEN` and `RULES_SWEEP_TOKEN`, and set variable `RULES_DISPATCH_API_BASE_URL` to the API base including `/api`.
 4. In Vercel `pathways-api`, set Sensitive `RULES_DRAIN_TOKEN`, `RULES_SWEEP_TOKEN`, `RULES_WORKER_DATABASE_URL` and `RULES_SWEEPER_DATABASE_URL` (session pooler, port 5432, user `role.<projectref>`, `sslmode=require`), `BUSINESS_TIME_ZONE=Asia/Manila`, with `RULES_WORKER_ENABLED=false`.
 5. Set `RULES_DISPATCH_ENABLED=true`, run the workflow by hand and expect a 403 "Rule processing is unavailable".
