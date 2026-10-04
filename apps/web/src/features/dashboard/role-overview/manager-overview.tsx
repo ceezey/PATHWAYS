@@ -1,5 +1,7 @@
 import type { DashboardActionCounts, RoleOverview } from '@pathways/shared'
 
+import Link from 'next/link'
+
 import { StatusBadge } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -26,6 +28,7 @@ const bar = {
 } as const
 const peso = (amount: string) =>
   `PHP ${Number(amount).toLocaleString('en-PH', { maximumFractionDigits: 0 })}`
+const budgetHref = (projectId: string) => `/projects/${projectId}/budget`
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`
 
 /** Project Manager home: project health from alerts, expense approvals and budget alerts. */
@@ -69,7 +72,10 @@ export const ManagerOverview = ({
         ) : null}
         {data.alerts ? (
           <AccentKpi
-            action={{ label: 'View', href: '/alerts' }}
+            action={{
+              label: 'View',
+              href: budgetAlerts[0] ? budgetHref(budgetAlerts[0].projectId) : '/alerts',
+            }}
             label="Active budget alerts"
             sub="Require your decision"
             tone="warning"
@@ -147,27 +153,24 @@ export const ManagerOverview = ({
         {approvals ? (
           <ListCard empty="Nothing is waiting for your approval." title="Pending your approval">
             {approvals.rows.map((row) => {
-              const href = row.activityId
-                ? `/projects/${row.projectId}/activities/${row.activityId}?expense=${row.expenseId}`
-                : null
+              // Expense approval lives in the budget ledger, which expands the hashed expense.
+              const href = `${budgetHref(row.projectId)}#expense-${row.expenseId}`
               return (
                 <ListRow
-                  href={href ? undefined : `/projects/${row.projectId}/budget`}
+                  href={href}
                   key={row.expenseId}
                   lead={<InitialsBadge text="EX" />}
                   meta={`Verified by ${row.verifiedByName ?? 'M&E'} · ${row.projectTitle}`}
                   title={`${row.description} · ${peso(row.amount)}`}
                   trailing={
-                    href ? (
-                      <Button
-                        aria-label={`Approve ${row.description}`}
-                        onClick={() => onOpenActivity(href)}
-                        size="sm"
-                        type="button"
-                      >
-                        Approve
-                      </Button>
-                    ) : null
+                    <Button
+                      aria-label={`Approve ${row.description}`}
+                      onClick={() => onOpenActivity(href)}
+                      size="sm"
+                      type="button"
+                    >
+                      Approve
+                    </Button>
                   }
                 />
               )
@@ -183,13 +186,13 @@ export const ManagerOverview = ({
         >
           {budgetAlerts.map((row) => (
             <ListRow
-              href="/alerts"
+              href={budgetHref(row.projectId)}
               key={row.id}
               meta={row.explanation}
               title={`${row.title} · ${row.severity.charAt(0)}${row.severity.slice(1).toLowerCase()}`}
               trailing={
                 <Button asChild size="sm">
-                  <a href="/alerts">Log outcome</a>
+                  <Link href={budgetHref(row.projectId)}>Log outcome</Link>
                 </Button>
               }
             />
