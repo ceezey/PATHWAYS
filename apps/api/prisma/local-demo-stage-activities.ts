@@ -197,7 +197,7 @@ async function completeWithProof(
   )
 }
 
-async function applyOutcome(
+export async function applyOutcome(
   ctx: DemoContext,
   project: DemoProject,
   activity: DemoActivity,
