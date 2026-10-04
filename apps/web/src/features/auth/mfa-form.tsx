@@ -399,7 +399,9 @@ export function MfaForm() {
         ) : status === 'loading' ? (
           <AsyncState status="loading" title="Checking your session..." />
         ) : !session ? (
-          leaving ? null : <p>Sign in before setting up MFA.</p>
+          leaving ? null : (
+            <p>Sign in before setting up MFA.</p>
+          )
         ) : accepted && current?.status.aal !== 'aal2' ? (
           <output className="flex items-center gap-2" aria-live="polite" aria-busy="true">
             <LoaderCircle
