@@ -376,18 +376,16 @@ test('zero and ambiguous workspaces do not authorize a first-result fallback', a
   await expect(handoffs(page)).toHaveCount(0)
 })
 
-test('logout during discovery cannot be undone by a late response', async ({ page }) => {
+test('login stays disabled while discovery is pending', async ({ page }) => {
   let release: () => void = () => undefined
   const discoveryWait = new Promise<void>((resolve) => {
     release = resolve
   })
   const state = await mount(page, { discoveryWait })
   await expect.poll(() => state.counts.discovery).toBe(1)
-  await page.getByRole('button', { name: 'Sign out and return to login' }).click()
+  await expect(page.getByRole('button', { name: 'Sign out and return to login' })).toBeDisabled()
+  await expect(page.getByRole('button', { name: 'Verify' })).toBeDisabled()
   release()
-  await expect(page.getByRole('link', { name: 'Return to staff login' })).toBeVisible()
-  await expect(handoffs(page)).toHaveCount(0)
-  expect(await cookie(page)).toBeUndefined()
 })
 
 test('a different subject cannot inherit the previous account profile', async ({ page }) => {

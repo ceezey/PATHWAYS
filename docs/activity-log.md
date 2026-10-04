@@ -172,3 +172,4 @@
 - Sign-in title is now "Sign in", the "Project Information Management" subtitle is removed (frame description is optional), and "Forgot password?" is left aligned.
 - Sign-in card narrowed to max-w-md to match the MFA card.
 - MFA page: verified, code-accepted and finding-workspace states now show a compact loading card; the session-check skeletons are replaced by the disabled OTP boxes so the page opens straight on the code entry.
+- MFA pending state: pulsing skeleton bar above the disabled OTP boxes; the footer always shows "Login", disabled while the session and factor check runs (e2e logout-during-discovery test now asserts the disabled state).
