@@ -149,6 +149,10 @@ UPDATE pathways.activity_extension_requests
   WHERE id=pg_temp.u(602);
 SELECT pg_temp.ok((SELECT count(*)=1 FROM pathways.activity_extension_requests WHERE id=pg_temp.u(602) AND status='APPROVED'),
   '4d the Project Manager can approve a verified request');
+SELECT pg_temp.reject(format($i$UPDATE pathways.activity_extension_requests
+  SET status='PENDING',verified_by_id=NULL,verified_at=NULL,decided_by_id=NULL,decided_at=NULL,decision_note=NULL
+  WHERE id=%L$i$,pg_temp.u(602)),
+  '23514','cannot move from APPROVED to PENDING','4e an approved request cannot be reset to PENDING');
 RESET ROLE;
 
 -- Assertion 5: no DELETE, and no UPDATE on request content.
@@ -169,7 +173,7 @@ RESET ROLE;
 
 DO $$ DECLARE total integer; BEGIN
  SELECT count(*) INTO total FROM aer_results;
- IF total<>12 THEN RAISE EXCEPTION '0061 activity-extension-requests checks expected 12 assertions, recorded %',total; END IF;
+ IF total<>13 THEN RAISE EXCEPTION '0061 activity-extension-requests checks expected 13 assertions, recorded %',total; END IF;
  RAISE NOTICE 'ACTIVITY_EXTENSION_REQUESTS_RUNTIME=PASS (% assertions)',total;
 END $$;
 ROLLBACK;

@@ -120,7 +120,25 @@ CREATE POLICY p05_activity_extension_requests_update ON pathways.activity_extens
   AND (decided_by_id IS NULL OR decided_by_id = nullif(current_setting('app.user_id', true), '')::uuid)
  );
 
+-- Review steps only move forward: PENDING to VERIFIED or RETURNED, VERIFIED to APPROVED or DECLINED.
+CREATE FUNCTION pathways.activity_extension_requests_transition() RETURNS trigger
+LANGUAGE plpgsql SECURITY INVOKER SET search_path='' AS $$
+BEGIN
+ IF NOT ((OLD.status='PENDING' AND NEW.status IN ('VERIFIED','RETURNED'))
+  OR (OLD.status='VERIFIED' AND NEW.status IN ('APPROVED','DECLINED')
+   AND NEW.verified_by_id=OLD.verified_by_id AND NEW.verified_at=OLD.verified_at
+   AND NEW.verification_note IS NOT DISTINCT FROM OLD.verification_note))
+ THEN RAISE EXCEPTION 'Extension request review cannot move from % to %',OLD.status,NEW.status
+  USING ERRCODE='23514', CONSTRAINT='activity_extension_requests_transition_check'; END IF;
+ RETURN NEW;
+END $$;
+ALTER FUNCTION pathways.activity_extension_requests_transition() OWNER TO prisma;
+REVOKE ALL ON FUNCTION pathways.activity_extension_requests_transition() FROM PUBLIC;
+CREATE TRIGGER activity_extension_requests_transition BEFORE UPDATE ON pathways.activity_extension_requests
+ FOR EACH ROW EXECUTE FUNCTION pathways.activity_extension_requests_transition();
+
 -- Request content is immutable; only the review fields can change, and nothing is deleted.
+REVOKE ALL ON TABLE pathways.activity_extension_requests FROM PUBLIC,anon,authenticated,service_role;
 GRANT SELECT, INSERT ON TABLE pathways.activity_extension_requests TO pathways_runtime;
 GRANT UPDATE (status, verified_by_id, verified_at, verification_note, decided_by_id, decided_at, decision_note, updated_at)
  ON TABLE pathways.activity_extension_requests TO pathways_runtime;
@@ -145,7 +163,13 @@ DO $$ BEGIN
   AND NOT has_table_privilege('pathways_runtime','pathways.activity_extension_requests','DELETE')
   AND has_column_privilege('pathways_runtime','pathways.activity_extension_requests','status','UPDATE')
   AND NOT has_column_privilege('pathways_runtime','pathways.activity_extension_requests','reason','UPDATE')
-  AND NOT has_column_privilege('pathways_runtime','pathways.activity_extension_requests','requested_end_date','UPDATE'))
+  AND NOT has_column_privilege('pathways_runtime','pathways.activity_extension_requests','requested_end_date','UPDATE')
+  AND NOT has_table_privilege('anon','pathways.activity_extension_requests','SELECT,INSERT,UPDATE,DELETE')
+  AND NOT has_table_privilege('authenticated','pathways.activity_extension_requests','SELECT,INSERT,UPDATE,DELETE')
+  AND NOT has_table_privilege('service_role','pathways.activity_extension_requests','SELECT,INSERT,UPDATE,DELETE'))
  THEN RAISE EXCEPTION '0061 grant postcondition failed'; END IF;
+ IF NOT EXISTS(SELECT FROM pg_catalog.pg_trigger WHERE tgrelid='pathways.activity_extension_requests'::pg_catalog.regclass
+  AND tgname='activity_extension_requests_transition' AND tgenabled='O')
+ THEN RAISE EXCEPTION '0061 transition trigger postcondition failed'; END IF;
 END $$;
 COMMIT;

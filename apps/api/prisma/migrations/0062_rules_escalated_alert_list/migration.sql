@@ -16,6 +16,8 @@ DO $$ BEGIN
  THEN RAISE EXCEPTION '0062 requires the temporary rules_human_owner SET chain (run hosted-rules-escalation-preprovision.sql)'; END IF;
  IF (SELECT pg_catalog.pg_get_userbyid(nspowner) FROM pg_catalog.pg_namespace WHERE nspname='pathways')<>'prisma'
  THEN RAISE EXCEPTION '0062 requires the reviewed pathways schema owner'; END IF;
+ IF has_schema_privilege('rules_human_owner','pathways','CREATE')
+ THEN RAISE EXCEPTION '0062 requires rules_human_owner to hold no CREATE on pathways before the loan'; END IF;
  IF pg_catalog.to_regprocedure('pathways.f10_escalated_alert_list(jsonb)') IS NOT NULL
  THEN RAISE EXCEPTION '0062 requires the function to not already exist'; END IF;
  IF (SELECT pg_catalog.pg_get_userbyid(proowner) FROM pg_catalog.pg_proc WHERE oid='pathways.f10_alert_list(jsonb)'::pg_catalog.regprocedure)<>'rules_human_owner'
@@ -67,7 +69,9 @@ DO $$ BEGIN
  IF NOT has_function_privilege('pathways_runtime','pathways.f10_escalated_alert_list(jsonb)','EXECUTE')
   OR has_function_privilege('anon','pathways.f10_escalated_alert_list(jsonb)','EXECUTE')
   OR has_function_privilege('authenticated','pathways.f10_escalated_alert_list(jsonb)','EXECUTE')
+  OR has_function_privilege('service_role','pathways.f10_escalated_alert_list(jsonb)','EXECUTE')
   OR has_function_privilege('pathways_rules_worker','pathways.f10_escalated_alert_list(jsonb)','EXECUTE')
+  OR has_function_privilege('pathways_rules_sweeper','pathways.f10_escalated_alert_list(jsonb)','EXECUTE')
   OR has_schema_privilege('rules_human_owner','pathways','CREATE')
  THEN RAISE EXCEPTION '0062 grant postcondition failed'; END IF;
 END $$;
