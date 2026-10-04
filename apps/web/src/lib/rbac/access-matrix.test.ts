@@ -79,6 +79,7 @@ describe('RBAC matrix', () => {
       userAdministration: {
         createAndAuthorizeRoles: pathwaysRoles,
         projectAssignmentRoles: [
+          'Program Manager',
           'Project Manager',
           'Project Officer',
           'Monitoring and Evaluation Officer',

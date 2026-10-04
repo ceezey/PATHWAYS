@@ -40,10 +40,10 @@ Migration `0061_activity_extension_requests`: one table, three policies, column 
 - `apps/web/src/features/projects/activity-extension-dialog.test.tsx`, `activity-extension-panel.test.tsx`
 - `apps/web/src/features/dashboard/role-overview/*.test.tsx`
 
-QAD-T115 to QAD-T117 and QAD-A40.
+QAD-T115 to QAD-T117 and QAD-A43.
 
 ## 5. Documents Updated
 
 - `docs/prd-pathways.md`: PRD-F2 and PRD-F8 bounds.
-- `docs/qad-pathways.md`: QAD-T115 to QAD-T117, QAD-A40.
+- `docs/qad-pathways.md`: QAD-T115 to QAD-T117, QAD-A43.
 - `docs/deferred-features.md`: the Plan 2 row narrowed to evaluation approval.

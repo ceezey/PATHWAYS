@@ -2,6 +2,7 @@ import { NotFoundException, ServiceUnavailableException } from '@nestjs/common'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { PrismaService } from '../../prisma/prisma.service'
 import type { ApplicationIdentity } from '../auth/developer-access'
+import { PublicProjectsController } from './public.controller'
 import { PublicService } from './public.service'
 
 const state = vi.hoisted(() => ({
@@ -123,5 +124,85 @@ describe('publication canonical request recovery', () => {
       }),
     ).rejects.toMatchObject({ status: 409 })
     expect(tx.$executeRaw).toHaveBeenCalledOnce()
+  })
+})
+const otherUser = 'abcdefab-0000-4000-8000-000000000003'
+const row = (stateName: string, submittedById = otherUser) => ({
+  revision: 2,
+  state: stateName,
+  summary: 'Synthetic approved summary.',
+  snapshot: {},
+  submittedById,
+  approvedById: null,
+  publishedById: null,
+  updatedAt: now,
+})
+describe('publication state machine (QAD-T74, QAD-T75)', () => {
+  let current: ReturnType<typeof row> | undefined
+  let updates: unknown[][]
+  beforeEach(() => {
+    vi.resetAllMocks()
+    state.actor = actor
+    state.tx = tx
+    updates = []
+    tx.project.findFirst.mockResolvedValue({ id: projectId })
+    tx.$executeRaw.mockResolvedValue(1)
+    tx.$queryRaw.mockImplementation((query: { sql?: string; values?: unknown[] } | string[]) => {
+      const text = Array.isArray(query) ? query.join('') : (query.sql ?? '')
+      if (text.includes('UPDATE pathways.project_publications')) {
+        updates.push((query as { values: unknown[] }).values)
+        const values = (query as { values: unknown[] }).values
+        return [{ ...current, revision: values[0], state: values[1], updatedAt: now }]
+      }
+      if (text.includes('FOR UPDATE')) return current ? [current] : []
+      return []
+    })
+  })
+  const body = { clientRequestId: requestId, expectedRevision: 2 }
+  it('lets a distinct reviewer approve a revision under review', async () => {
+    current = row('FOR_REVIEW')
+    await expect(service.transition(actor, projectId, 'APPROVE', body)).resolves.toMatchObject({
+      state: 'APPROVED',
+      revision: 2,
+    })
+  })
+  it('refuses approval by the reviewer who submitted the revision', async () => {
+    current = row('FOR_REVIEW', actor.userId)
+    await expect(service.transition(actor, projectId, 'APPROVE', body)).rejects.toMatchObject({
+      status: 409,
+    })
+    expect(updates).toHaveLength(0)
+  })
+  it.each([
+    ['PUBLISH', 'FOR_REVIEW'],
+    ['APPROVE', 'APPROVED'],
+    ['WITHDRAW', 'APPROVED'],
+  ] as const)('refuses %s from %s without a write', async (operation, from) => {
+    current = row(from)
+    await expect(service.transition(actor, projectId, operation, body)).rejects.toMatchObject({
+      status: 409,
+    })
+    expect(updates).toHaveLength(0)
+  })
+  it('withdraw returns the revision to review, then the public read reports it unavailable', async () => {
+    current = row('PUBLISHED')
+    await expect(service.transition(actor, projectId, 'WITHDRAW', body)).resolves.toMatchObject({
+      state: 'FOR_REVIEW',
+      revision: 3,
+    })
+    // The projection returns only PUBLISHED rows, so a withdrawn project yields an empty page.
+    const db = { $queryRaw: vi.fn().mockResolvedValue([{ projects: [] }]) }
+    await expect(
+      new PublicService(db as unknown as PrismaService).published(projectId),
+    ).rejects.toBeInstanceOf(NotFoundException)
+  })
+})
+describe('anonymous public routes (QAD-A09)', () => {
+  it('expose only the project list and project read, with no media route', () => {
+    const routes = Object.getOwnPropertyNames(PublicProjectsController.prototype).filter(
+      (name) => name !== 'constructor',
+    )
+    expect(routes.sort()).toEqual(['get', 'list'])
+    expect(Reflect.getMetadata('path', PublicProjectsController)).toBe('public/projects')
   })
 })

@@ -474,6 +474,7 @@ export function canAuthorizeRole(actor: CanonicalRole, target: CanonicalRole) {
 export function canAssignRole(actor: CanonicalRole, target: CanonicalRole) {
   return (
     [
+      'PROGRAM_MANAGER',
       'PROJECT_MANAGER',
       'PROJECT_OFFICER',
       'MONITORING_AND_EVALUATION_OFFICER',

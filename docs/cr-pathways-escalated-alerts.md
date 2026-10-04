@@ -32,10 +32,10 @@ One function; no table, column, policy or grant outside it. DBA prerequisite: `h
 - `apps/api/src/modules/dashboards/role-overview.service.test.ts`
 - `apps/web/src/features/dashboard/role-overview/portfolio-overview.test.tsx`
 
-QAD-T118 and QAD-A41.
+QAD-T118 and QAD-A44.
 
 ## 5. Documents Updated
 
 - `docs/prd-pathways.md`: PRD-F8 and PRD-F10 bounds.
-- `docs/qad-pathways.md`: QAD-T118, QAD-A41.
+- `docs/qad-pathways.md`: QAD-T118, QAD-A44.
 - `docs/runbook-role-staging-build.md`: the 37-row ledger and the new preprovision pair.

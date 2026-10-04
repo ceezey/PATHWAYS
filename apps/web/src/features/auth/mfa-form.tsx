@@ -6,7 +6,6 @@ import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
-import { AsyncState } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { OtpInput } from '@/components/ui/otp-input'
@@ -379,6 +378,40 @@ export function MfaForm() {
     }
   }
 
+  const loadingMessage =
+    accepted && current?.status.aal !== 'aal2'
+      ? 'Code accepted. Opening your workspace...'
+      : current?.status.aal === 'aal2' && current.status.applicationAccessEnabled
+        ? access === 'loading'
+          ? 'Finding your authorized workspace...'
+          : access === 'ready' && handoff !== 'stalled'
+            ? 'Opening your dashboard...'
+            : null
+        : null
+  // The OTP boxes show disabled while the session and factor check is still running.
+  const codePending =
+    configured &&
+    !accepted &&
+    !error &&
+    !accessError &&
+    (status === 'loading' || (Boolean(session) && !current))
+
+  if (loadingMessage && !error) {
+    return (
+      <Card className="mx-auto w-full max-w-md" data-private="true">
+        <CardContent className="flex flex-col items-center gap-4 p-8 text-center">
+          <LoaderCircle
+            className="h-8 w-8 animate-spin text-primary motion-reduce:animate-none"
+            aria-hidden="true"
+          />
+          <output className="text-sm font-medium" aria-live="polite" aria-busy="true">
+            {loadingMessage}
+          </output>
+        </CardContent>
+      </Card>
+    )
+  }
+
   return (
     <Card className="mx-auto w-full max-w-md" data-private="true">
       <CardHeader>
@@ -396,8 +429,22 @@ export function MfaForm() {
         )}
         {!configured ? (
           <p>The authentication connection is not configured.</p>
-        ) : status === 'loading' ? (
-          <AsyncState status="loading" title="Checking your session..." />
+        ) : codePending ? (
+          <div className="space-y-3" aria-busy="true">
+            <div aria-hidden="true" className="h-4 w-3/4 animate-pulse rounded-md bg-secondary" />
+            <label className="block text-sm" htmlFor="mfa-code">
+              Six-digit authenticator code
+            </label>
+            <OtpInput
+              id="mfa-code"
+              length={6}
+              label="Authenticator code"
+              value=""
+              onChange={() => {}}
+              disabled
+              className="justify-center"
+            />
+          </div>
         ) : !session ? (
           leaving ? null : (
             <p>Sign in before setting up MFA.</p>
@@ -413,10 +460,8 @@ export function MfaForm() {
         ) : !current ? (
           accessError ? (
             <p role="alert">{accessError}</p>
-          ) : error ? (
-            <output>Verification is blocked.</output>
           ) : (
-            <AsyncState status="loading" title="Checking current session and workspace access..." />
+            <output>Verification is blocked.</output>
           )
         ) : current.status.aal === 'aal2' ? (
           <div className="space-y-4">
@@ -600,23 +645,31 @@ export function MfaForm() {
               variant="outline"
               className="gap-2"
               aria-label="Sign out and return to login"
-              disabled={busy || leaving}
+              disabled={busy || leaving || codePending}
               onClick={() => void leave()}
             >
               <ArrowLeft className="h-4 w-4" aria-hidden="true" />
               Login
             </Button>
+          ) : codePending ? (
+            <Button type="button" variant="outline" className="gap-2" disabled>
+              <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+              Login
+            </Button>
           ) : (
-            <Button asChild variant="outline">
-              <Link href="/staff/login">Return to staff login</Link>
+            <Button asChild variant="outline" className="gap-2">
+              <Link href="/staff/login">
+                <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+                Login
+              </Link>
             </Button>
           )}
-          {codeFormVisible && (
+          {(codeFormVisible || codePending) && (
             <Button
               type="submit"
               form="mfa-code-form"
               className="ml-auto"
-              disabled={busy || !isTotpCode(code)}
+              disabled={codePending || busy || !isTotpCode(code)}
             >
               {busy ? 'Verifying...' : 'Verify'}
             </Button>

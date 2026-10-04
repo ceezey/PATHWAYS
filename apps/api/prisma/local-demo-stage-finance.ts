@@ -11,7 +11,7 @@ import type { DemoContext } from './local-demo-seed'
 import { activityCode } from './local-demo-stage-activities'
 import { projectOf, step, textPdf } from './local-demo-util'
 
-type BudgetRow = { id: string; category: string; plannedBudget: string }
+type BudgetRow = { id: string; activityId: string | null; category: string; plannedBudget: string }
 type ExpenseRow = {
   id: string
   description: string
@@ -23,7 +23,7 @@ type ExpenseRow = {
 
 const projectByKey = (key: string) => demoProjects.find((p) => p.key === key) as DemoProject
 
-/** Budget lines per project, entered by the Project Manager. */
+/** Category lines that are not activity allocations, entered by the Project Manager. */
 export async function stageBudgets(ctx: DemoContext) {
   const pm = ctx.staff.projectManager.identity
   let created = 0
@@ -33,20 +33,10 @@ export async function stageBudgets(ctx: DemoContext) {
     const existing = (await ctx.services.finance.budgets(pm, projectId)) as BudgetRow[]
     for (const line of lines ?? []) {
       if (existing.some((row) => row.category === line.category)) continue
-      let activityId: string | undefined
-      if (line.activityKey) {
-        const index = demoActivities[project.key].findIndex((a) => a.key === line.activityKey)
-        const activity = await ctx.owner.projectActivity.findFirstOrThrow({
-          where: { projectId, code: activityCode(project, index) },
-          select: { id: true },
-        })
-        activityId = activity.id
-      }
       await step(`budget ${line.category}`, () =>
         ctx.services.finance.createBudget(pm, projectId, {
           category: line.category,
           plannedBudget: line.amount,
-          ...(activityId ? { activityId } : {}),
           ...(line.remarks ? { remarks: line.remarks } : {}),
         }),
       )
@@ -83,8 +73,7 @@ export async function stageExpenses(ctx: DemoContext) {
       ctx.staff.projectManager.identity,
       projectId,
     )) as BudgetRow[]
-    const budget = budgets.find((row) => row.category === plan.budgetCategory)
-    if (!budget) throw new Error(`Budget line "${plan.budgetCategory}" is missing.`)
+    const budget = await budgetFor(ctx, project, plan, budgets)
     const already = (await listExpenses(ctx, projectId)).some(
       (row) => row.description === plan.description,
     )
@@ -95,6 +84,29 @@ export async function stageExpenses(ctx: DemoContext) {
     count += 1
   }
   ctx.log(`  expenses recorded: ${count}`)
+}
+
+/** The activity's own allocation, the named category line, or else the project envelope. */
+async function budgetFor(
+  ctx: DemoContext,
+  project: DemoProject,
+  plan: DemoExpense,
+  budgets: BudgetRow[],
+) {
+  let row: BudgetRow | undefined
+  if (plan.activityKey) {
+    const index = demoActivities[project.key].findIndex((a) => a.key === plan.activityKey)
+    const activity = await ctx.owner.projectActivity.findFirstOrThrow({
+      where: { projectId: projectOf(ctx, project.key), code: activityCode(project, index) },
+      select: { id: true },
+    })
+    row = budgets.find((entry) => entry.activityId === activity.id)
+  } else if (plan.budgetCategory)
+    row = budgets.find((entry) => entry.category === plan.budgetCategory)
+  else
+    row = budgets.find((entry) => !entry.activityId && entry.category === 'PROJECT_PROFILE_TOTAL')
+  if (!row) throw new Error(`No budget row is available for "${plan.description}".`)
+  return row
 }
 
 async function runExpense(
@@ -130,13 +142,15 @@ async function runExpense(
   }
   if (plan.flow === 'SUBMITTED') return
   let row = await findExpense(ctx, projectId, plan.description)
-  if (plan.flow === 'REJECTED') {
-    await finance.review(ctx.staff.me.identity, projectId, row.id, {
+  const reject = (identity: typeof submitter, stage: 'VERIFY' | 'APPROVE') =>
+    finance.review(identity, projectId, row.id, {
       expectedUpdatedAt: row.updatedAt,
       decision: 'REJECT',
-      stage: 'VERIFY',
+      stage,
       reason: plan.reason ?? 'The supporting documents are incomplete.',
     })
+  if (plan.flow === 'REJECTED' && plan.rejectStage !== 'APPROVE') {
+    await reject(ctx.staff.me.identity, 'VERIFY')
     return
   }
   await finance.review(ctx.staff.me.identity, projectId, row.id, {
@@ -146,12 +160,16 @@ async function runExpense(
   })
   if (plan.flow === 'VERIFIED') return
   row = await findExpense(ctx, projectId, plan.description)
+  if (plan.flow === 'REJECTED') {
+    await reject(ctx.staff.projectManager.identity, 'APPROVE')
+    return
+  }
   await finance.review(ctx.staff.projectManager.identity, projectId, row.id, {
     expectedUpdatedAt: row.updatedAt,
     decision: 'APPROVE',
     stage: 'APPROVE',
   })
   if (plan.flow === 'APPROVED') return
-  row = await findExpense(ctx, projectId, plan.description)
-  await finance.signoff(ctx.staff.programManager.identity, projectId, row.id)
+  const signer = plan.signer === 'GRANT_MANAGER' ? ctx.staff.grantManager : ctx.staff.programManager
+  await finance.signoff(signer.identity, projectId, row.id)
 }

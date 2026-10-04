@@ -12,10 +12,14 @@ import type { FormFieldValidationContract, SupportedFormFieldType } from '@pathw
 import { describe, expect, it } from 'vitest'
 
 import {
+  type ProjectKey,
   attendanceFields,
   demoActivities,
+  demoBudgets,
   demoCohorts,
+  demoExpenses,
   demoIndicators,
+  demoMilestones,
   demoProjects,
   demoRules,
   forbiddenVisibleWords,
@@ -88,6 +92,7 @@ describe('demo content', () => {
     )
     for (const wanted of [
       'COMPLETED',
+      'COMPLETED_LATE',
       'PENDING_REVIEW',
       'RETURNED',
       'PROGRESS_VERIFIED',
@@ -111,13 +116,17 @@ describe('demo content', () => {
   it('reserves an overdue explanation and a returned proof with the words the reviewers need', () => {
     for (const list of Object.values(demoActivities))
       for (const activity of list) {
-        if (activity.outcome === 'OVERDUE_EXPLAINED')
+        if (['OVERDUE_EXPLAINED', 'COMPLETED_LATE'].includes(activity.outcome))
           expect((activity.explanation ?? '').length).toBeGreaterThanOrEqual(10)
         if (activity.outcome === 'CANCELLED') expect(activity.reason).toBeTruthy()
         if (
-          ['COMPLETED', 'PENDING_REVIEW', 'RETURNED', 'PROGRESS_VERIFIED'].includes(
-            activity.outcome,
-          )
+          [
+            'COMPLETED',
+            'COMPLETED_LATE',
+            'PENDING_REVIEW',
+            'RETURNED',
+            'PROGRESS_VERIFIED',
+          ].includes(activity.outcome)
         )
           expect(activity.note).toBeTruthy()
       }
@@ -126,7 +135,7 @@ describe('demo content', () => {
   it('keeps every indicator reading inside its numeric domain, with several readings each', () => {
     for (const list of Object.values(demoIndicators))
       for (const indicator of list) {
-        expect(indicator.readings.length).toBeGreaterThanOrEqual(2)
+        if (indicator.readings.length) expect(indicator.readings.length).toBeGreaterThanOrEqual(2)
         for (const value of [indicator.baseline, indicator.target, ...indicator.readings]) {
           expect(Number.isFinite(Number(value))).toBe(true)
           if (indicator.numericKind === 'PERCENTAGE') expect(Number(value)).toBeLessThanOrEqual(100)
@@ -142,6 +151,175 @@ describe('demo content', () => {
       expect(rule.recommendations.length).toBeGreaterThan(0)
       expect(rule.code).toMatch(/^[A-Z][A-Z0-9_-]{1,79}$/)
     }
+  })
+})
+
+describe('defense dataset', () => {
+  const all = Object.entries(demoActivities).flatMap(([project, list]) =>
+    list.map((activity) => ({ ...activity, project: project as ProjectKey })),
+  )
+  const count = (outcome: string) => all.filter((a) => a.outcome === outcome).length
+  const closed = ['COMPLETED', 'COMPLETED_LATE', 'CANCELLED']
+  const open = all.filter((a) => !closed.includes(a.outcome))
+
+  it('mixes activity outcomes across the projects', () => {
+    expect(count('COMPLETED_LATE')).toBe(2)
+    expect(all.some((a) => a.outcome === 'COMPLETED_LATE' && a.project === 'CRL')).toBe(true)
+    expect(count('PENDING_REVIEW')).toBeGreaterThanOrEqual(2)
+    expect(count('PENDING_REVIEW')).toBeLessThanOrEqual(3)
+    expect(count('RETURNED')).toBe(2)
+    expect(count('CANCELLED')).toBe(1)
+    expect(count('NOT_STARTED')).toBeGreaterThanOrEqual(3)
+    for (const a of all.filter((entry) => entry.outcome === 'COMPLETED_LATE'))
+      expect(a.endOffset).toBeLessThan(0)
+    for (const a of all.filter((entry) => entry.outcome === 'RETURNED'))
+      expect((a.reviewNote ?? '').length).toBeGreaterThanOrEqual(30)
+  })
+
+  it('has exactly three overdue open activities, one explained, including one on CRL', () => {
+    const overdue = open.filter((a) => a.endOffset < 0)
+    expect(overdue).toHaveLength(3)
+    expect(overdue.filter((a) => a.outcome === 'OVERDUE_EXPLAINED')).toHaveLength(1)
+    expect(overdue.filter((a) => a.outcome === 'OVERDUE_OPEN')).toHaveLength(2)
+    expect(overdue.some((a) => a.project === 'CRL')).toBe(true)
+  })
+
+  it('keeps open activities from flipping overdue in the next three days', () => {
+    for (const a of open) expect(a.endOffset < 0 || a.endOffset > 2, a.key).toBe(true)
+  })
+
+  it('has one completed, four ongoing and one planned project', () => {
+    const status = (value: string) => demoProjects.filter((p) => p.status === value)
+    expect(status('COMPLETED').map((p) => p.key)).toEqual(['EHK'])
+    expect(status('COMPLETED')[0].endOffset).toBeLessThan(0)
+    expect(status('PLANNED')).toHaveLength(1)
+    expect(status('ONGOING')).toHaveLength(4)
+  })
+
+  it('covers every indicator type', () => {
+    const types = new Set(
+      Object.values(demoIndicators).flatMap((list) => list.map((i) => i.indicatorType)),
+    )
+    for (const type of [
+      'OUTPUT',
+      'OUTCOME',
+      'ACTIVITY',
+      'BUDGET',
+      'TIMELINE',
+      'PARTICIPATION',
+      'SURVEY_SCORE',
+    ])
+      expect(types.has(type as never), type).toBe(true)
+  })
+
+  it('has expenses in every review state with reasons, receipts and signers', () => {
+    const where = (fn: (e: (typeof demoExpenses)[number]) => boolean) => demoExpenses.filter(fn)
+    expect(where((e) => e.flow === 'SUBMITTED' && e.receipt).length).toBeGreaterThanOrEqual(2)
+    expect(where((e) => e.flow === 'SUBMITTED' && !e.receipt).length).toBeGreaterThanOrEqual(1)
+    expect(where((e) => e.flow === 'VERIFIED').length).toBeGreaterThanOrEqual(2)
+    expect(where((e) => e.flow === 'APPROVED').length).toBeGreaterThanOrEqual(2)
+    expect(
+      where((e) => e.flow === 'SIGNED_OFF' && e.signer === 'GRANT_MANAGER').length,
+    ).toBeGreaterThanOrEqual(1)
+    expect(
+      where((e) => e.flow === 'SIGNED_OFF' && e.signer === 'PROGRAM_MANAGER').length,
+    ).toBeGreaterThanOrEqual(1)
+    const rejected = where((e) => e.flow === 'REJECTED')
+    expect(rejected.length).toBeGreaterThanOrEqual(2)
+    expect(rejected.some((e) => e.rejectStage === 'VERIFY')).toBe(true)
+    expect(rejected.some((e) => e.rejectStage === 'APPROVE')).toBe(true)
+    for (const e of rejected) expect((e.reason ?? '').length).toBeGreaterThan(10)
+    for (const e of demoExpenses) {
+      expect(e.daysAgo).toBeLessThanOrEqual(60)
+      if (e.activityKey)
+        expect(
+          demoActivities[e.project].some((a) => a.key === e.activityKey),
+          e.description,
+        ).toBe(true)
+    }
+    expect(demoExpenses.some((e) => e.daysAgo <= 4)).toBe(true)
+  })
+
+  it('hits the approved-spend utilization targets on the overview basis within two points', () => {
+    // Overview basis: approved spend over the project envelope only (PROJECT_PROFILE_TOTAL).
+    const planned = (key: ProjectKey) =>
+      Number(demoProjects.find((p) => p.key === key)?.projectBudget) +
+      (demoBudgets[key] ?? [])
+        .filter((line) => line.category === 'PROJECT_PROFILE_TOTAL')
+        .reduce((sum, line) => sum + Number(line.amount), 0)
+    const approved = (key: ProjectKey, activityKey?: string) =>
+      demoExpenses
+        .filter((e) => e.project === key && ['APPROVED', 'SIGNED_OFF'].includes(e.flow))
+        .filter((e) => !activityKey || e.activityKey === activityKey)
+        .reduce((sum, e) => sum + Number(e.amount), 0)
+    const targets: Array<[ProjectKey, number]> = [
+      ['CRL', 92],
+      ['SSG', 20],
+      ['ALS', 80],
+      ['WSH', 105],
+      ['EHK', 96],
+      ['ECD', 0],
+    ]
+    for (const [key, target] of targets)
+      expect(Math.abs((approved(key) / planned(key)) * 100 - target), key).toBeLessThanOrEqual(2)
+    for (const a of demoActivities.CRL) expect(a.budget).toBeUndefined()
+    const activity = (key: string) => demoActivities.SSG.find((a) => a.key === key)
+    const share = (key: string) => (approved('SSG', key) / Number(activity(key)?.budget)) * 100
+    expect(Math.abs(share('orientation') - 95)).toBeLessThanOrEqual(2)
+    expect(share('returnedproof')).toBeGreaterThan(100)
+    expect(Number(activity('referral')?.budget)).toBe(0)
+    expect(demoExpenses.some((e) => e.activityKey === 'referral')).toBe(true)
+  })
+
+  it('keeps the planned project in the future and the completed project inside its dates', () => {
+    const project = (key: ProjectKey) =>
+      demoProjects.find((p) => p.key === key) as (typeof demoProjects)[number]
+    const ecd = project('ECD')
+    expect(ecd.startOffset).toBeGreaterThan(0)
+    expect(ecd.endOffset).toBeGreaterThan(ecd.startOffset)
+    for (const a of demoActivities.ECD) {
+      expect(a.outcome).toBe('NOT_STARTED')
+      expect(a.startOffset).toBeGreaterThanOrEqual(ecd.startOffset)
+    }
+    expect(demoExpenses.some((e) => e.project === 'ECD')).toBe(false)
+    expect(demoCohorts.ECD.count).toBe(0)
+    const ehk = project('EHK')
+    for (const a of demoActivities.EHK) expect(a.endOffset).toBeLessThanOrEqual(ehk.endOffset)
+    for (const e of demoExpenses.filter((row) => row.project === 'EHK'))
+      expect(-e.daysAgo).toBeLessThanOrEqual(ehk.endOffset)
+    for (const m of demoMilestones.filter((row) => row.project === 'EHK'))
+      expect(Math.max(m.targetOffset, m.completedOffset ?? m.targetOffset)).toBeLessThanOrEqual(
+        ehk.endOffset,
+      )
+  })
+
+  it('adds the budget, follow-up, survey and overdue rules', () => {
+    const rule = (code: string) => demoRules.find((r) => r.code === code)
+    const first = (code: string) => rule(code)?.conditions[0]
+    expect(rule('BUDGET_NEAR_EXHAUSTED')).toMatchObject({ project: 'CRL', severity: 'HIGH' })
+    expect(first('BUDGET_NEAR_EXHAUSTED')).toMatchObject({
+      metric: 'BUDGET_UTILIZATION_PERCENT',
+      operator: 'GTE',
+      threshold: '90',
+    })
+    expect(rule('FOLLOW_UP_GAP')).toMatchObject({ project: 'CRL', severity: 'MEDIUM' })
+    expect(first('FOLLOW_UP_GAP')).toMatchObject({
+      metric: 'BENEFICIARY_FOLLOW_UP_PERCENT',
+      operator: 'GTE',
+      threshold: '25',
+    })
+    expect(rule('LOW_SURVEY_IMPROVEMENT')).toMatchObject({ project: 'WSH', severity: 'MEDIUM' })
+    expect(first('LOW_SURVEY_IMPROVEMENT')).toMatchObject({
+      metric: 'SURVEY_MEAN_IMPROVEMENT_POINTS',
+      operator: 'LT',
+      threshold: '20',
+    })
+    expect(rule('ACTIVITY_OVERDUE_ANY')).toMatchObject({ project: 'CRL', severity: 'MEDIUM' })
+    expect(first('ACTIVITY_OVERDUE_ANY')).toMatchObject({
+      metric: 'ACTIVITY_OVERDUE_COUNT',
+      operator: 'GTE',
+      threshold: '1',
+    })
   })
 })
 

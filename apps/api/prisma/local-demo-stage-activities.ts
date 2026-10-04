@@ -144,7 +144,60 @@ async function startActivity(
   )
 }
 
-async function applyOutcome(
+async function explainOverdue(
+  ctx: DemoContext,
+  activity: DemoActivity,
+  code: string,
+  projectId: string,
+  activityId: string,
+) {
+  await ctx.services.activities.recordOverdueExplanation(
+    ctx.staff.me.identity,
+    projectId,
+    activityId,
+    {
+      clientMutationId: ctx.stable(`overdue:${code}`),
+      category: activity.category ?? 'OTHER',
+      explanation:
+        activity.explanation ??
+        'The activity was delayed by circumstances outside the team control.',
+    },
+  )
+}
+
+/** Submits the proof at 100 percent and has the Monitoring and Evaluation Officer approve it. */
+async function completeWithProof(
+  ctx: DemoContext,
+  project: DemoProject,
+  activity: DemoActivity,
+  code: string,
+  projectId: string,
+  activityId: string,
+  seed: number,
+) {
+  const updateId = await submitProof(
+    ctx,
+    project,
+    activity,
+    code,
+    ctx.staff[activity.officer].identity,
+    projectId,
+    activityId,
+    100,
+    activity.note ?? '',
+    seed,
+  )
+  await review(
+    ctx,
+    projectId,
+    activityId,
+    updateId,
+    'APPROVE',
+    activity.reviewNote ?? 'Proof verified.',
+  )
+}
+
+export async function applyOutcome(
   ctx: DemoContext,
   project: DemoProject,
   activity: DemoActivity,
@@ -177,18 +230,7 @@ async function applyOutcome(
       return
     case 'OVERDUE_EXPLAINED':
       await startActivity(ctx, projectId, activityId, code)
-      await ctx.services.activities.recordOverdueExplanation(
-        ctx.staff.me.identity,
-        projectId,
-        activityId,
-        {
-          clientMutationId: ctx.stable(`overdue:${code}`),
-          category: activity.category ?? 'OTHER',
-          explanation:
-            activity.explanation ??
-            'The activity was delayed by circumstances outside the team control.',
-        },
-      )
+      await explainOverdue(ctx, activity, code, projectId, activityId)
       return
     case 'PROGRESS_VERIFIED': {
       await startActivity(ctx, projectId, activityId, code)
@@ -252,30 +294,15 @@ async function applyOutcome(
       )
       return
     }
-    case 'COMPLETED': {
+    case 'COMPLETED_LATE':
       await startActivity(ctx, projectId, activityId, code)
-      const updateId = await submitProof(
-        ctx,
-        project,
-        activity,
-        code,
-        officer,
-        projectId,
-        activityId,
-        100,
-        activity.note ?? '',
-        seed,
-      )
-      await review(
-        ctx,
-        projectId,
-        activityId,
-        updateId,
-        'APPROVE',
-        activity.reviewNote ?? 'Proof verified.',
-      )
+      await explainOverdue(ctx, activity, code, projectId, activityId)
+      await completeWithProof(ctx, project, activity, code, projectId, activityId, seed)
       return
-    }
+    case 'COMPLETED':
+      await startActivity(ctx, projectId, activityId, code)
+      await completeWithProof(ctx, project, activity, code, projectId, activityId, seed)
+      return
   }
 }
 
@@ -312,7 +339,7 @@ export async function stageActivities(ctx: DemoContext) {
         plannedStartDate: plannedStart,
         plannedEndDate: plannedEnd,
         targetBeneficiaries: activity.target,
-        budgetAllocation: activity.budget,
+        ...(activity.budget ? { budgetAllocation: activity.budget } : {}),
         assignedUserIds: [ctx.staff[activity.officer].userId],
         ...(outside
           ? { timelineOverrideJustification: 'Planned dates follow the approved work plan.' }
