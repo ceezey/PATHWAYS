@@ -11,6 +11,8 @@ const base = {
   submittedThisMonth: null,
   proofQueue: null,
   approvalQueue: null,
+  myExtensions: null,
+  extensionQueue: null,
   datasetsImportedThisMonth: null,
   alerts: null,
 }
@@ -21,6 +23,30 @@ describe('roleOverviewSchema', () => {
   })
   it('rejects unknown keys so the payload cannot leak extra fields', () => {
     expect(() => roleOverviewSchema.parse({ ...base, email: 'x' })).toThrow()
+  })
+  it('rejects an escalated alert without its escalation time', () => {
+    const alerts = {
+      open: 0,
+      capped: false,
+      bySeverity: { CRITICAL: 0, HIGH: 0, MEDIUM: 0, LOW: 0 },
+      byProject: [],
+      recent: [],
+      budgetOpen: 0,
+      budgetRecent: [],
+      escalatedOpen: 1,
+      escalated: [
+        {
+          id: '10000000-0000-4000-8000-000000000001',
+          projectId: '10000000-0000-4000-8000-000000000002',
+          title: 'T',
+          severity: 'HIGH',
+          explanation: 'E',
+          recommendation: null,
+          budget: false,
+        },
+      ],
+    }
+    expect(() => roleOverviewSchema.parse({ ...base, alerts })).toThrow()
   })
   it('caps list sections at 5 rows', () => {
     const row = {
@@ -136,6 +162,39 @@ describe('roleOverviewSchema', () => {
           },
         ],
       },
+      myExtensions: {
+        count: 1,
+        rows: [
+          {
+            id: u(1),
+            activityId: u(2),
+            projectId: u(3),
+            activityCode: 'A',
+            activityTitle: 'A',
+            requestedEndDate: '2026-11-01',
+            status: 'RETURNED',
+            note: 'Attach the revised work plan.',
+          },
+        ],
+      },
+      extensionQueue: {
+        count: 1,
+        rows: [
+          {
+            id: u(1),
+            activityId: u(2),
+            projectId: u(3),
+            projectTitle: 'P',
+            activityCode: 'A',
+            activityTitle: 'A',
+            requesterName: 'R',
+            requestedEndDate: '2026-11-01',
+            currentEndDate: null,
+            reason: 'Rains delayed delivery.',
+            stage: 'DECIDE',
+          },
+        ],
+      },
       datasetsImportedThisMonth: 1,
       alerts: {
         open: 1,
@@ -145,6 +204,8 @@ describe('roleOverviewSchema', () => {
         recent: [alert],
         budgetOpen: 1,
         budgetRecent: [alert],
+        escalatedOpen: 1,
+        escalated: [{ ...alert, escalatedAt: at }],
       },
     }
     expect(roleOverviewSchema.parse(full)).toEqual(full)
