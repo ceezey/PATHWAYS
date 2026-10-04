@@ -71,7 +71,7 @@ export class RoleOverviewService {
       organizationId: actor.organizationId,
       archivedAt: null,
       project: projectScope(actor),
-      status: { not: 'CANCELLED' as const },
+      status: { notIn: ['COMPLETED', 'CANCELLED'] as Array<'COMPLETED' | 'CANCELLED'> },
       projectActivityAssignment_activity: {
         some: {
           status: 'ACTIVE' as const,
@@ -124,37 +124,58 @@ export class RoleOverviewService {
         status: { notIn: ['COMPLETED', 'CANCELLED'] as Array<'COMPLETED' | 'CANCELLED'> },
       },
     }
-    const [count, found] = await Promise.all([
-      tx.activityUpdate.count({ where }),
-      tx.activityUpdate.findMany({
-        where,
-        select: {
-          id: true,
-          activityId: true,
-          projectId: true,
-          reviewReason: true,
-          reviewedAt: true,
-          activity: { select: { code: true, title: true } },
-        },
-        orderBy: [{ reviewedAt: 'desc' }, { id: 'asc' }],
-        take: rows,
-      }),
-    ])
+    const candidates = await tx.activityUpdate.findMany({
+      where,
+      select: {
+        id: true,
+        activityId: true,
+        projectId: true,
+        reviewReason: true,
+        reviewedAt: true,
+        submittedAt: true,
+        activity: { select: { code: true, title: true } },
+      },
+      orderBy: [{ reviewedAt: 'desc' }, { id: 'asc' }],
+      take: 50,
+    })
+    // A resubmission is a newer update on the same activity, which clears the flag.
+    const later = candidates.length
+      ? await tx.activityUpdate.findMany({
+          where: {
+            organizationId: actor.organizationId,
+            project: projectScope(actor),
+            submittedById: actor.userId,
+            activityId: { in: candidates.map((u) => u.activityId) },
+            submittedAt: {
+              gt: new Date(Math.min(...candidates.map((u) => u.submittedAt.getTime()))),
+            },
+          },
+          select: { activityId: true, submittedAt: true },
+        })
+      : []
+    const open = candidates.filter(
+      (u) => !later.some((l) => l.activityId === u.activityId && l.submittedAt > u.submittedAt),
+    )
     return {
-      count,
-      rows: found.map((u) => ({
+      count: open.length,
+      rows: open.slice(0, rows).map((u) => ({
         updateId: u.id,
         activityId: u.activityId,
         projectId: u.projectId,
         activityCode: u.activity.code,
-        activityTitle: u.activity.title,
-        reviewReason: u.reviewReason ?? '',
+        activityTitle: u.activity.title.slice(0, 200),
+        reviewReason: (u.reviewReason ?? '').slice(0, 1000),
         reviewedAt: (u.reviewedAt ?? new Date(0)).toISOString(),
       })),
     }
   }
 
-  private async submissions(tx: Tx, actor: ApplicationIdentity, monthStart: Date) {
+  private async submissions(
+    tx: Tx,
+    actor: ApplicationIdentity,
+    monthStart: Date,
+    withExpenses: boolean,
+  ) {
     const own = {
       organizationId: actor.organizationId,
       project: projectScope(actor),
@@ -175,22 +196,26 @@ export class RoleOverviewService {
         orderBy: [{ submittedAt: 'desc' }, { id: 'asc' }],
         take: rows,
       }),
-      tx.budgetExpenseEntry.findMany({
-        where: own,
-        select: {
-          id: true,
-          projectId: true,
-          description: true,
-          amount: true,
-          status: true,
-          submittedAt: true,
-          budgetRecord: { select: { activityId: true } },
-        },
-        orderBy: [{ submittedAt: 'desc' }, { id: 'asc' }],
-        take: rows,
-      }),
+      withExpenses
+        ? tx.budgetExpenseEntry.findMany({
+            where: own,
+            select: {
+              id: true,
+              projectId: true,
+              description: true,
+              amount: true,
+              status: true,
+              submittedAt: true,
+              budgetRecord: { select: { activityId: true } },
+            },
+            orderBy: [{ submittedAt: 'desc' }, { id: 'asc' }],
+            take: rows,
+          })
+        : [],
       tx.activityUpdate.count({ where: { ...own, submittedAt: { gte: monthStart } } }),
-      tx.budgetExpenseEntry.count({ where: { ...own, submittedAt: { gte: monthStart } } }),
+      withExpenses
+        ? tx.budgetExpenseEntry.count({ where: { ...own, submittedAt: { gte: monthStart } } })
+        : 0,
     ])
     const merged = [
       ...updates.map((u) => ({
@@ -198,7 +223,7 @@ export class RoleOverviewService {
         id: u.id,
         projectId: u.projectId,
         activityId: u.activityId,
-        label: u.activity.title,
+        label: u.activity.title.slice(0, 300),
         amount: null,
         progress: u.progressPercent,
         status: u.status,
@@ -209,7 +234,7 @@ export class RoleOverviewService {
         id: e.id,
         projectId: e.projectId,
         activityId: e.budgetRecord.activityId ?? null,
-        label: e.description,
+        label: e.description.slice(0, 300),
         amount: e.amount.toFixed(2),
         progress: null,
         status: e.status,
@@ -300,7 +325,7 @@ export class RoleOverviewService {
         activityId: e.budgetRecord.activityId ?? null,
         projectId: e.projectId,
         projectTitle: e.project.title,
-        description: e.description,
+        description: e.description.slice(0, 300),
         amount: e.amount.toFixed(2),
         verifiedByName: e.verifiedBy?.fullName ?? null,
         verifiedAt: e.verifiedAt?.toISOString() ?? null,
@@ -348,24 +373,29 @@ export class RoleOverviewService {
         maxSeverity: p && rank(p.maxSeverity) <= rank(a.severity) ? p.maxSeverity : a.severity,
       })
     }
-    const recent = [...counted]
-      .sort((x, y) => rank(x.severity) - rank(y.severity) || x.id.localeCompare(y.id))
-      .slice(0, 5)
-      .map((a) => ({
-        id: a.id,
-        projectId: a.projectId,
-        title: a.title.slice(0, 300),
-        severity: a.severity,
-        explanation: a.explanation.slice(0, 1000),
-        recommendation: a.predefinedRecommendations[0]?.title.slice(0, 1000) ?? null,
-        budget: a.evidence.some((e) => e.metric === 'BUDGET_UTILIZATION_PERCENT'),
-      }))
+    const isBudget = (a: (typeof counted)[number]) =>
+      a.evidence.some((e) => e.metric === 'BUDGET_UTILIZATION_PERCENT')
+    const sorted = [...counted].sort(
+      (x, y) => rank(x.severity) - rank(y.severity) || x.id.localeCompare(y.id),
+    )
+    const row = (a: (typeof counted)[number]) => ({
+      id: a.id,
+      projectId: a.projectId,
+      title: a.title.slice(0, 300),
+      severity: a.severity,
+      explanation: a.explanation.slice(0, 1000),
+      recommendation: a.predefinedRecommendations[0]?.title.slice(0, 1000) ?? null,
+      budget: isBudget(a),
+    })
+    const budget = sorted.filter(isBudget)
     return {
       open: counted.length,
       capped,
       bySeverity,
       byProject: [...projects].map(([projectId, v]) => ({ projectId, ...v })).slice(0, 100),
-      recent,
+      recent: sorted.slice(0, 5).map(row),
+      budgetOpen: budget.length,
+      budgetRecent: budget.slice(0, 5).map(row),
     }
   }
 
@@ -381,7 +411,9 @@ export class RoleOverviewService {
         const can = (p: AtomicPermission) =>
           hasAtomicPermission(actor.roles[0], actor.permissions, p)
         const submitter = can('activities.proof.submit')
-        const own = submitter ? await this.submissions(tx, actor, monthStart) : null
+        const own = submitter
+          ? await this.submissions(tx, actor, monthStart, can('expenses.submit'))
+          : null
         return {
           actor,
           projects: await this.projects(tx, actor, can('projects.detail.read')),

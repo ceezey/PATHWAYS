@@ -129,6 +129,8 @@ export const roleOverviewSchema = z
           )
           .max(100),
         recent: z.array(alertRow).max(5),
+        budgetOpen: count,
+        budgetRecent: z.array(alertRow).max(5),
       })
       .strict()
       .nullable(),

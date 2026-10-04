@@ -38,4 +38,115 @@ describe('roleOverviewSchema', () => {
       roleOverviewSchema.parse({ ...base, proofQueue: { count: 6, rows: Array(6).fill(row) } }),
     ).toThrow()
   })
+  it('parses a fully populated payload and a five-row list', () => {
+    const u = (n: number) => `10000000-0000-4000-8000-00000000000${n}`
+    const at = '2026-10-04T00:00:00.000Z'
+    const alert = {
+      id: u(1),
+      projectId: u(2),
+      title: 'T',
+      severity: 'HIGH',
+      explanation: 'E',
+      recommendation: null,
+      budget: true,
+    }
+    const proof = {
+      updateId: u(1),
+      activityId: u(2),
+      projectId: u(3),
+      projectTitle: 'P',
+      activityCode: 'A',
+      activityTitle: 'A',
+      submitterName: 'S',
+      submittedAt: at,
+      progress: 5,
+    }
+    const full = {
+      ...base,
+      projects: [
+        {
+          id: u(1),
+          code: 'P',
+          title: 'P',
+          status: 'ONGOING',
+          programName: null,
+          managerName: null,
+        },
+      ],
+      myActivities: {
+        count: 1,
+        rows: [
+          {
+            id: u(1),
+            projectId: u(2),
+            projectTitle: 'P',
+            code: 'A',
+            title: 'A',
+            status: 'IN_PROGRESS',
+            overdue: false,
+            plannedEndDate: '2026-10-05',
+            progress: 10,
+          },
+        ],
+      },
+      flaggedProof: {
+        count: 1,
+        rows: [
+          {
+            updateId: u(1),
+            activityId: u(2),
+            projectId: u(3),
+            activityCode: 'A',
+            activityTitle: 'A',
+            reviewReason: 'r',
+            reviewedAt: at,
+          },
+        ],
+      },
+      recentSubmissions: {
+        count: 1,
+        rows: [
+          {
+            kind: 'EXPENSE',
+            id: u(1),
+            projectId: u(2),
+            activityId: null,
+            label: 'L',
+            amount: '1.00',
+            progress: null,
+            status: 'PENDING',
+            submittedAt: at,
+          },
+        ],
+      },
+      submittedThisMonth: { updates: 1, expenses: 1 },
+      proofQueue: { count: 5, rows: Array(5).fill(proof) },
+      approvalQueue: {
+        count: 1,
+        rows: [
+          {
+            expenseId: u(1),
+            activityId: null,
+            projectId: u(2),
+            projectTitle: 'P',
+            description: 'D',
+            amount: '1.00',
+            verifiedByName: null,
+            verifiedAt: null,
+          },
+        ],
+      },
+      datasetsImportedThisMonth: 1,
+      alerts: {
+        open: 1,
+        capped: false,
+        bySeverity: { CRITICAL: 0, HIGH: 1, MEDIUM: 0, LOW: 0 },
+        byProject: [{ projectId: u(2), open: 1, maxSeverity: 'HIGH' }],
+        recent: [alert],
+        budgetOpen: 1,
+        budgetRecent: [alert],
+      },
+    }
+    expect(roleOverviewSchema.parse(full)).toEqual(full)
+  })
 })

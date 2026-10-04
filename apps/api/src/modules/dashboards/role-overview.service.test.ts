@@ -172,6 +172,8 @@ describe('RoleOverviewService', () => {
     expect(result.alerts?.byProject).toEqual([
       { projectId: project, open: 2, maxSeverity: 'CRITICAL' },
     ])
+    expect(result.alerts?.budgetOpen).toBe(1)
+    expect(result.alerts?.budgetRecent).toHaveLength(1)
     expect(result.alerts?.recent[0]).toMatchObject({
       severity: 'CRITICAL',
       budget: true,
@@ -192,5 +194,144 @@ describe('RoleOverviewService', () => {
     const viewer = { ...base, permissions: base.permissions.filter((p) => p !== 'alerts.read') }
     expect((await service.read(viewer)).alerts).toBeNull()
     expect(rules.listAlerts).not.toHaveBeenCalled()
+  })
+
+  it('keeps budget alert counts independent of the top-5 recent list', async () => {
+    const { rules, service } = setup()
+    const alert = (n: number, severity: string, metric: string) => ({
+      id: `40000000-0000-4000-8000-00000000010${n}`,
+      projectId: project,
+      title: 't',
+      severity,
+      explanation: 'x',
+      evidence: [{ metric }],
+      predefinedRecommendations: [],
+    })
+    rules.listAlerts.mockImplementation(async (_i, q) => ({
+      items:
+        q.status === 'NEW'
+          ? [
+              ...[1, 2, 3, 4, 5].map((n) => alert(n, 'HIGH', 'INDICATOR_PROGRESS_PERCENT')),
+              alert(6, 'LOW', 'BUDGET_UTILIZATION_PERCENT'),
+            ]
+          : [],
+      nextCursor: null,
+    }))
+    const result = await service.read(actor('PROJECT_MANAGER'))
+    expect(result.alerts?.recent.every((a) => !a.budget)).toBe(true)
+    expect(result.alerts?.budgetOpen).toBe(1)
+    expect(result.alerts?.budgetRecent).toHaveLength(1)
+  })
+
+  it('parses when an expense description exceeds the row text caps', async () => {
+    const { tx, service } = setup()
+    const long = 'x'.repeat(2000)
+    const submittedAt = new Date('2026-10-02T00:00:00.000Z')
+    tx.budgetExpenseEntry.findMany.mockResolvedValue([
+      {
+        id: project,
+        projectId: project,
+        description: long,
+        amount: { toFixed: () => '1.00' },
+        status: 'VERIFIED',
+        submittedAt,
+        verifiedAt: submittedAt,
+        project: { title: 'P' },
+        verifiedBy: null,
+        budgetRecord: { activityId: null },
+      },
+    ])
+    const result = await service.read(actor('PROJECT_MANAGER'))
+    expect(result.recentSubmissions?.rows[0].label).toHaveLength(300)
+    expect(result.approvalQueue?.rows[0].description).toHaveLength(300)
+  })
+
+  it('counts open overdue work only: completed and cancelled activities are excluded', async () => {
+    const { tx, service } = setup()
+    await service.read(actor('PROJECT_OFFICER'))
+    expect(tx.projectActivity.findMany.mock.calls[0][0].where.status).toEqual({
+      notIn: ['COMPLETED', 'CANCELLED'],
+    })
+  })
+
+  it('drops flagged proof once the same activity has a later update', async () => {
+    const { tx, service } = setup()
+    const activityId = '50000000-0000-4000-8000-000000000001'
+    const rejected = {
+      id: '60000000-0000-4000-8000-000000000001',
+      activityId,
+      projectId: project,
+      reviewReason: 'blurry',
+      reviewedAt: new Date('2026-10-02T00:00:00.000Z'),
+      submittedAt: new Date('2026-10-01T00:00:00.000Z'),
+      activity: { code: 'A', title: 'T' },
+    }
+    tx.activityUpdate.findMany.mockImplementation(async (arg) => {
+      if (arg.where.status === 'REJECTED') return [rejected]
+      if (arg.where.activityId)
+        return [{ activityId, submittedAt: new Date('2026-10-03T00:00:00.000Z') }]
+      return []
+    })
+    const result = await service.read(actor('PROJECT_OFFICER'))
+    expect(result.flaggedProof).toEqual({ count: 0, rows: [] })
+    const later = tx.activityUpdate.findMany.mock.calls.find(([a]) => a.where.activityId)?.[0]
+    expect(later.where).toMatchObject({ organizationId: org, submittedById: user })
+    expect(later.where.project).toMatchObject({ organizationId: org })
+  })
+
+  it('keeps a flagged proof with no later update', async () => {
+    const { tx, service } = setup()
+    tx.activityUpdate.findMany.mockImplementation(async (arg) =>
+      arg.where.status === 'REJECTED'
+        ? [
+            {
+              id: '60000000-0000-4000-8000-000000000001',
+              activityId: '50000000-0000-4000-8000-000000000001',
+              projectId: project,
+              reviewReason: null,
+              reviewedAt: new Date('2026-10-02T00:00:00.000Z'),
+              submittedAt: new Date('2026-10-01T00:00:00.000Z'),
+              activity: { code: 'A', title: 'T' },
+            },
+          ]
+        : [],
+    )
+    const result = await service.read(actor('PROJECT_OFFICER'))
+    expect(result.flaggedProof?.count).toBe(1)
+  })
+
+  it('omits expenses without expenses.submit', async () => {
+    const { tx, service } = setup()
+    const base = actor('PROJECT_OFFICER')
+    const viewer = { ...base, permissions: base.permissions.filter((p) => p !== 'expenses.submit') }
+    const result = await service.read(viewer)
+    expect(tx.budgetExpenseEntry.findMany).not.toHaveBeenCalled()
+    expect(result.submittedThisMonth?.expenses).toBe(0)
+  })
+
+  it('scopes project, activity, expense and flagged queries', async () => {
+    const { tx, service } = setup()
+    const check = (arg: { where: Record<string, unknown> }) => {
+      expect(arg.where.organizationId).toBe(org)
+    }
+    for (const role of ['PROJECT_OFFICER', 'PROJECT_MANAGER'] as const) {
+      vi.clearAllMocks()
+      await service.read(actor(role))
+      const [p] = tx.project.findMany.mock.calls[0]
+      expect(p.where).toMatchObject({ organizationId: org, id: { in: [project] } })
+      for (const fn of [
+        tx.projectActivity.findMany,
+        tx.projectActivity.count,
+        tx.budgetExpenseEntry.findMany,
+        tx.budgetExpenseEntry.count,
+        tx.activityUpdate.findMany,
+      ]) {
+        for (const [arg] of fn.mock.calls) {
+          check(arg)
+          expect(arg.where.project).toMatchObject({ organizationId: org, id: { in: [project] } })
+        }
+      }
+    }
+    expect(tx.budgetExpenseEntry.findMany.mock.calls.length).toBeGreaterThan(0)
   })
 })
