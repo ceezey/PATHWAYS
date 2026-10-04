@@ -30,7 +30,7 @@ describe('auth navigation failure and wiring contracts', () => {
   it('keeps the application shell outside the content guard without a duplicate layout RPC', () => {
     const layout = source('app/(dashboard)/layout.tsx')
     expect(layout).not.toContain('await requireServerRoute')
-    expect(layout).toMatch(/<AppShell>\s*<ProtectedRoute>/)
+    expect(layout).toMatch(/<AppShell(?:\s[^>]*)?>\s*<ProtectedRoute>/)
   })
   it('keeps recovery free of domain data, arbitrary destinations and automatic redirects', () => {
     expect(ACCESS_UNAVAILABLE_PATH).toBe('/auth/access-unavailable')

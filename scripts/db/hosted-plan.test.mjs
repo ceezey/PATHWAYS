@@ -311,7 +311,9 @@ test('planIndexForAppliedCount on a 0000-0059 ledger resumes at the 0060 deploy'
 test('planIndexForAppliedCount on a 0000-0060 ledger resumes at the 0061 deploy, or at the rules-catalog cleanup with residual owner memberships', () => {
   const plan = buildPlan()
   const applied = MIGRATIONS_IN_ORDER.indexOf('0060_rules_budget_beneficiary_survey_metrics') + 1
-  assert.deepEqual(plan[planIndexForAppliedCount(applied)].migrations, ['0061_activity_extension_requests'])
+  assert.deepEqual(plan[planIndexForAppliedCount(applied)].migrations, [
+    '0061_activity_extension_requests',
+  ])
   const index = planIndexForAppliedCount(applied, { residualOwnerMemberships: true })
   assert.equal(plan[index].type, 'cleanup')
   assert.equal(plan[index].name, 'rules-catalog')
