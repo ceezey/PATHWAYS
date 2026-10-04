@@ -47,6 +47,7 @@ $forwardInventory = @(
   '0058_rules_decision_status_auto_resolved'
   '0059_rules_recommendation_auto_resolve'
   '0060_rules_budget_beneficiary_survey_metrics'
+  '0061_activity_extension_requests'
 )
 if (($forwardMigrations.Name -join ',') -cne ($forwardInventory -join ',')) { throw 'Forward migration inventory requires renewed review.' }
 

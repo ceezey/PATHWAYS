@@ -89,6 +89,7 @@ model Organization {
   beneficiaryJourneyEvent_organization          BeneficiaryJourneyEvent[]          @relation("BeneficiaryJourneyEvent_organization")
   activityUpdate_organization                   ActivityUpdate[]                   @relation("ActivityUpdate_organization")
   activityOverdueExplanation_organization       ActivityOverdueExplanation[]       @relation("ActivityOverdueExplanation_organization")
+  activityExtensionRequest_organization ActivityExtensionRequest[] @relation("ActivityExtensionRequest_organization")
   indicatorLibraryEntry_organization            IndicatorLibraryEntry[]            @relation("IndicatorLibraryEntry_organization")
 
   @@index([status], map: "organizations_status_idx")
@@ -218,6 +219,9 @@ model SystemUser {
   activityUpdate_submittedBy                  ActivityUpdate[]                   @relation("ActivityUpdate_submittedBy")
   activityUpdate_reviewedBy                   ActivityUpdate[]                   @relation("ActivityUpdate_reviewedBy")
   activityOverdueExplanation_recordedBy       ActivityOverdueExplanation[]       @relation("ActivityOverdueExplanation_recordedBy")
+  activityExtensionRequest_requestedBy ActivityExtensionRequest[] @relation("ActivityExtensionRequest_requestedBy")
+  activityExtensionRequest_verifiedBy ActivityExtensionRequest[] @relation("ActivityExtensionRequest_verifiedBy")
+  activityExtensionRequest_decidedBy ActivityExtensionRequest[] @relation("ActivityExtensionRequest_decidedBy")
   indicatorLibraryEntry_createdBy             IndicatorLibraryEntry[]            @relation("IndicatorLibraryEntry_createdBy")
   userProjectAssignment_user                  UserProjectAssignment[]            @relation("UserProjectAssignment_user")
   projectPublication_submittedBy              ProjectPublication[]               @relation("ProjectPublication_submittedBy")
@@ -725,6 +729,7 @@ model Project {
   beneficiaryJourneyEvent_project          BeneficiaryJourneyEvent[]          @relation("BeneficiaryJourneyEvent_project")
   activityUpdate_project                   ActivityUpdate[]                   @relation("ActivityUpdate_project")
   activityOverdueExplanation_project       ActivityOverdueExplanation[]       @relation("ActivityOverdueExplanation_project")
+  activityExtensionRequest_project ActivityExtensionRequest[] @relation("ActivityExtensionRequest_project")
   projectPublication_project               ProjectPublication?                @relation("ProjectPublication_project")
 
   @@unique([organizationId, id], map: "projects_scope_key")
@@ -809,6 +814,7 @@ model ProjectActivity {
   beneficiaryJourneyEvent_activity          BeneficiaryJourneyEvent[]          @relation("BeneficiaryJourneyEvent_activity")
   activityUpdate_activity                   ActivityUpdate[]                   @relation("ActivityUpdate_activity")
   activityOverdueExplanation_activity       ActivityOverdueExplanation[]       @relation("ActivityOverdueExplanation_activity")
+  activityExtensionRequest_activity ActivityExtensionRequest[] @relation("ActivityExtensionRequest_activity")
 
   @@unique([organizationId, projectId, id], map: "project_activities_scope_key")
   @@unique([organizationId, projectId, code], map: "project_activities_project_code_key")
@@ -873,6 +879,40 @@ model ActivityOverdueExplanation {
   @@index([organizationId, projectId, activityId, recordedAt], map: "activity_overdue_explanations_activity_time_idx")
   @@index([organizationId, recordedById], map: "activity_overdue_explanations_recorded_by_idx")
   @@map("activity_overdue_explanations")
+  @@schema("pathways")
+}
+
+model ActivityExtensionRequest {
+  id                String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId    String          @map("organization_id") @db.Uuid
+  projectId         String          @map("project_id") @db.Uuid
+  activityId        String          @map("activity_id") @db.Uuid
+  currentEndDate    DateTime?       @map("current_end_date") @db.Date
+  requestedEndDate  DateTime        @map("requested_end_date") @db.Date
+  reason            String
+  status            String          @default("PENDING")
+  requestedById     String          @map("requested_by_id") @db.Uuid
+  requestedAt       DateTime        @default(now()) @map("requested_at") @db.Timestamptz(3)
+  verifiedById      String?         @map("verified_by_id") @db.Uuid
+  verifiedAt        DateTime?       @map("verified_at") @db.Timestamptz(3)
+  verificationNote  String?         @map("verification_note")
+  decidedById       String?         @map("decided_by_id") @db.Uuid
+  decidedAt         DateTime?       @map("decided_at") @db.Timestamptz(3)
+  decisionNote      String?         @map("decision_note")
+  clientMutationId  String          @map("client_mutation_id") @db.Uuid
+  updatedAt         DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  organization      Organization    @relation("ActivityExtensionRequest_organization", fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "activity_extension_requests_organization_fk")
+  project           Project         @relation("ActivityExtensionRequest_project", fields: [organizationId, projectId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "activity_extension_requests_project_fk")
+  activity          ProjectActivity @relation("ActivityExtensionRequest_activity", fields: [organizationId, projectId, activityId], references: [organizationId, projectId, id], onDelete: Restrict, onUpdate: Restrict, map: "activity_extension_requests_activity_fk")
+  requestedBy       SystemUser      @relation("ActivityExtensionRequest_requestedBy", fields: [organizationId, requestedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "activity_extension_requests_requested_by_fk")
+  verifiedBy        SystemUser?     @relation("ActivityExtensionRequest_verifiedBy", fields: [organizationId, verifiedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "activity_extension_requests_verified_by_fk")
+  decidedBy         SystemUser?     @relation("ActivityExtensionRequest_decidedBy", fields: [organizationId, decidedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "activity_extension_requests_decided_by_fk")
+
+  @@unique([organizationId, projectId, activityId, id], map: "activity_extension_requests_scope_key")
+  @@unique([organizationId, clientMutationId], map: "activity_extension_requests_client_key")
+  @@index([organizationId, projectId, status, requestedAt], map: "activity_extension_requests_status_idx")
+  @@index([organizationId, requestedById], map: "activity_extension_requests_requested_by_idx")
+  @@map("activity_extension_requests")
   @@schema("pathways")
 }
 
