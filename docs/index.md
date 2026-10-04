@@ -97,6 +97,7 @@ Workflow rule: an audit is finding and evidence, a Change Record is the approved
 | [Replay harness modernization plan](superpowers/plans/2026-10-01-replay-harness-modernization.md) | 2026-10-01-replay-harness-modernization.md | 2026-10-01 | Parallel-safe, faster local migration replays with drift detection | Written; not started |
 | [RBAC v4 and Figma reference reconciliation](superpowers/specs/2026-10-01-rbac-v4-figma-reconciliation-design.md) | 2026-10-01-rbac-v4-figma-reconciliation-design.md | 2026-10-01 | Adopt manuscript RBAC v4 in docs; add a non-authoritative Figma reference section to DSD | Approved |
 | [RBAC v4 and Figma reference reconciliation plan](superpowers/plans/2026-10-01-rbac-v4-figma-reconciliation.md) | 2026-10-01-rbac-v4-figma-reconciliation.md | 2026-10-01 | Task-by-task plan for the RBAC v4 and Figma reference spec | Executed; merged into dev |
+| [Role dashboards plan](superpowers/plans/2026-10-04-role-dashboards.md) | 2026-10-04-role-dashboards.md | 2026-10-04 | Role-specific dashboards from one read-only overview endpoint | Executed; integrated into dev pending |
 
 ### 1.7 Traceability Matrix
 

@@ -99,6 +99,7 @@ import {
   type DescriptiveAnalyticsQuery,
   type ManualMeasurementInput,
   type MonitoringDashboard,
+  type RoleOverview,
   type SadddDashboard,
   type SadddQuery,
   type SurveyAnalytics,
@@ -112,6 +113,7 @@ import {
   monitoringDashboardSchema,
   projectIndicatorListSchema,
   projectIndicatorSchema,
+  roleOverviewSchema,
   sadddDashboardSchema,
   sadddQuerySchema,
   surveyAnalyticsSchema,
@@ -374,6 +376,7 @@ export interface PathwaysClient {
   ): Promise<SourceMutationResult<ProjectIndicator>>
   getMonitoringDashboard(query?: DashboardQuery): Promise<MonitoringDashboard>
   getDashboardActionCounts(): Promise<DashboardActionCounts>
+  getRoleOverview(): Promise<RoleOverview>
   getSadddDashboard(query: SadddQuery): Promise<SadddDashboard>
   getDescriptiveAnalytics(query: DescriptiveAnalyticsQuery): Promise<DescriptiveAnalytics>
   getSurveyAnalytics(query: DescriptiveAnalyticsQuery): Promise<SurveyAnalytics>
@@ -1104,6 +1107,10 @@ class BackendReadyPathwaysClient implements PathwaysClient {
 
   async getDashboardActionCounts(): Promise<DashboardActionCounts> {
     return dashboardActionCountsSchema.parse(await requestFoundation('/dashboards/action-counts'))
+  }
+
+  async getRoleOverview(): Promise<RoleOverview> {
+    return roleOverviewSchema.parse(await requestFoundation('/dashboards/role-overview'))
   }
 
   async getMonitoringDashboard(query: DashboardQuery = {}): Promise<MonitoringDashboard> {

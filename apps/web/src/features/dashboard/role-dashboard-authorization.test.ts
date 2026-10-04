@@ -47,9 +47,9 @@ const api = vi.hoisted(() => ({
 }))
 vi.mock('@/hooks/use-current-role', () => ({
   useCurrentRole: () => ({
-    role: 'Monitoring and Evaluation Officer',
+    role: 'System Administrator',
     profile: {
-      roles: ['MONITORING_AND_EVALUATION_OFFICER'],
+      roles: ['SYSTEM_ADMINISTRATOR'],
       permissions: state.permissions,
       assignedProjectIds: [],
     },
@@ -77,7 +77,7 @@ describe('overview supporting requests use current grants', () => {
   afterEach(cleanup)
   it('mounts supporting project monitoring only for current eligible access', async () => {
     render(createElement(RoleDashboard))
-    await screen.findByRole('heading', { name: 'Welcome! Monitoring and Evaluation Officer' })
+    await screen.findByRole('heading', { name: 'Welcome! System Administrator' })
     await waitFor(() => expect(api.getProjectsForRole).toHaveBeenCalledOnce())
     expect(screen.getByRole('button', { name: 'Open monitoring' })).toBeTruthy()
   })
@@ -86,7 +86,7 @@ describe('overview supporting requests use current grants', () => {
     async (permission) => {
       state.permissions = state.permissions.filter((value) => value !== permission)
       render(createElement(RoleDashboard))
-      await screen.findByRole('heading', { name: 'Welcome! Monitoring and Evaluation Officer' })
+      await screen.findByRole('heading', { name: 'Welcome! System Administrator' })
       expect(api.getDashboard).toHaveBeenCalledOnce()
       expect(api.getProjectsForRole).not.toHaveBeenCalled()
       expect(api.getMonitoringDashboard).not.toHaveBeenCalled()

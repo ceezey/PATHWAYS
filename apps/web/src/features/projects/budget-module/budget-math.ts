@@ -1,4 +1,9 @@
-export type BudgetRow = { id: string; activityId: string | null; plannedBudget: string }
+export type BudgetRow = {
+  id: string
+  activityId: string | null
+  category: string
+  plannedBudget: string
+}
 export type ExpenseRow = {
   id: string
   budgetRecordId: string
@@ -28,6 +33,7 @@ export type BudgetAlert = {
 }
 
 export const projectLevelKey = 'project-level'
+export const projectEnvelopeCategory = 'PROJECT_PROFILE_TOTAL'
 // Visual thresholds only; they never block or change any record.
 export const DANGER_PCT = 90
 export const WARN_PCT = 70
@@ -46,7 +52,10 @@ export const remaining = (allocated: number, used: number) => allocated - used
 export const toneFor = (pct: number | null): Tone =>
   pct === null ? 'info' : pct >= DANGER_PCT ? 'danger' : pct >= WARN_PCT ? 'warning' : 'success'
 
-/** Only APPROVED expenses count as spending; PENDING and VERIFIED are shown as pending. */
+/**
+ * Only APPROVED expenses count as spending; PENDING and VERIFIED are shown as pending.
+ * With a project envelope, the project-level row is the envelope minus activity allocations (negative if over-allocated), so row allocations sum to the envelope.
+ */
 export const buildActivityRows = (
   budgets: BudgetRow[],
   expenses: ExpenseRow[],
@@ -54,6 +63,8 @@ export const buildActivityRows = (
 ): ActivityBudgetRow[] => {
   const rows = new Map<string, ActivityBudgetRow>()
   const keyOf = new Map<string, string>()
+  let envelope = 0
+  let hasEnvelope = false
   for (const budget of budgets) {
     const key = budget.activityId ?? projectLevelKey
     const activity = activities.find((item) => item.id === budget.activityId)
@@ -67,9 +78,18 @@ export const buildActivityRows = (
       pending: 0,
       utilization: null,
     }
-    row.allocated += toNumber(budget.plannedBudget)
+    if (budget.category === projectEnvelopeCategory) {
+      hasEnvelope = true
+      envelope += toNumber(budget.plannedBudget)
+    } else row.allocated += toNumber(budget.plannedBudget)
     rows.set(key, row)
     keyOf.set(budget.id, key)
+  }
+  const project = rows.get(projectLevelKey)
+  if (hasEnvelope && project) {
+    let sub = 0
+    for (const row of rows.values()) if (row.activityId) sub += row.allocated
+    project.allocated = envelope - sub
   }
   for (const expense of expenses) {
     const row = rows.get(keyOf.get(expense.budgetRecordId) ?? '')
