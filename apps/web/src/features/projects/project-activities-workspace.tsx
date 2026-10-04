@@ -662,6 +662,7 @@ export const ProjectActivitiesWorkspace = ({
         budgetReferences={budgetReferences}
         loading={Boolean(selectedActivityId) && detail.isPending}
         canDecideProof={canDecideProof}
+        canDecideExtension={role === 'Project Manager' && inProjectScope && canUpdate}
         canEdit={canUpdate}
         canLogExpense={canLogExpense}
         canReadBudgets={principalHasAtomicPermission(profile, 'budgets.read')}

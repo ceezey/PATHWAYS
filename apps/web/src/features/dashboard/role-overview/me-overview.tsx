@@ -166,6 +166,30 @@ export const MeOverview = ({
           </ListCard>
         ) : null}
       </div>
+      {data.extensionQueue ? (
+        <ListCard empty="No extension requests are waiting." title="Extension requests to verify">
+          {data.extensionQueue.rows.map((row) => (
+            <ListRow
+              key={row.id}
+              lead={<InitialsBadge text={initials(row.requesterName)} />}
+              meta={`${row.requesterName} · New end ${longDate(row.requestedEndDate)} · ${row.projectTitle}`}
+              title={`${row.activityCode} — ${row.activityTitle}`}
+              trailing={
+                <Button
+                  aria-label={`Review extension for ${row.activityCode}`}
+                  onClick={() =>
+                    onOpenActivity(`/projects/${row.projectId}/activities/${row.activityId}`)
+                  }
+                  size="sm"
+                  type="button"
+                >
+                  Review
+                </Button>
+              }
+            />
+          ))}
+        </ListCard>
+      ) : null}
       {evaluations.length ? (
         <section className="rounded-xl border border-border bg-card">
           <div className="flex min-h-12 items-center border-b border-border px-4">

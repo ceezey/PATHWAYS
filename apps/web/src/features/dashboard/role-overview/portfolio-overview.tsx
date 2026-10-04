@@ -22,6 +22,8 @@ const dot = {
 } as const
 const peso = (amount: string) =>
   `PHP ${Number(amount).toLocaleString('en-PH', { maximumFractionDigits: 0 })}`
+const shortDate = (iso: string) =>
+  new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`
 
 /** Program and Grant Manager portfolio; Grant Manager is read-only with no decision buttons. */
@@ -36,6 +38,11 @@ export const PortfolioOverview = ({
   metrics: ProjectMetrics
   readOnly: boolean
 }) => {
+  // Escalated alerts replace the open list when any exist; open alerts remain the fallback.
+  const escalated = data.alerts?.escalated.length ? data.alerts.escalated : null
+  const alertRows: Array<
+    NonNullable<RoleOverview['alerts']>['recent'][number] & { escalatedAt?: string }
+  > = escalated ?? data.alerts?.recent ?? []
   const byProject = new Map(data.alerts?.byProject.map((row) => [row.projectId, row]))
   const rows = data.projects.map((project) => ({
     project,
@@ -175,11 +182,12 @@ export const PortfolioOverview = ({
       </div>
       {data.alerts ? (
         <ListCard
+          caption={escalated ? 'Requiring program-level decision' : undefined}
           empty="No open alerts in your portfolio."
-          title="Open alerts"
+          title={escalated ? 'Escalated alerts' : 'Open alerts'}
           viewAll={{ label: 'View all', href: '/alerts' }}
         >
-          {data.alerts.recent.map((row) => (
+          {alertRows.map((row) => (
             <div className="flex items-start gap-3 py-3" key={row.id}>
               <span
                 aria-hidden="true"
@@ -191,6 +199,11 @@ export const PortfolioOverview = ({
                   {data.projects.find((p) => p.id === row.projectId)?.title ?? 'Project'} ·{' '}
                   {row.explanation}
                 </p>
+                {row.escalatedAt ? (
+                  <p className="text-xs text-muted-foreground">
+                    Escalated {shortDate(row.escalatedAt)}
+                  </p>
+                ) : null}
                 {row.recommendation ? (
                   <p className="rounded-md bg-surface-subtle px-3 py-1.5 text-xs">
                     {row.recommendation}

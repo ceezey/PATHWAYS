@@ -24,6 +24,7 @@ type Operation =
   | 'RULE_ACTIVATE'
   | 'RULE_ARCHIVE'
   | 'ALERT_LIST'
+  | 'ESCALATED_ALERT_LIST'
   | 'ALERT_GET'
   | 'ALERT_HISTORY'
   | 'ALERT_REVIEW'
@@ -57,6 +58,8 @@ function operationSql(operation: Operation, id: string | null, input: unknown): 
       return Prisma.sql`SELECT pathways.f10_rule_archive(${id}::uuid,${body}::jsonb) AS result`
     case 'ALERT_LIST':
       return Prisma.sql`SELECT pathways.f10_alert_list(${body}::jsonb) AS result`
+    case 'ESCALATED_ALERT_LIST':
+      return Prisma.sql`SELECT pathways.f10_escalated_alert_list(${body}::jsonb) AS result`
     case 'ALERT_GET':
       return Prisma.sql`SELECT pathways.f10_alert_get(${id}::uuid) AS result`
     case 'ALERT_HISTORY':
@@ -209,6 +212,17 @@ export class RulesHumanService {
       null,
       parse(contracts.alertListSchema, query),
       contracts.pageSchema(contracts.alertOutputSchema),
+    )
+  }
+  // Read-only queue of alerts whose latest recorded outcome is ESCALATE; the limit defaults like listAlerts.
+  listEscalatedAlerts(identity: ApplicationIdentity, query: unknown) {
+    return this.execute(
+      identity,
+      'alerts.read',
+      'ESCALATED_ALERT_LIST',
+      null,
+      parse(contracts.escalatedAlertListSchema, query),
+      contracts.pageSchema(contracts.escalatedAlertOutputSchema),
     )
   }
   getAlert(identity: ApplicationIdentity, id: string) {

@@ -105,6 +105,37 @@ const alertRow = z
   })
   .strict()
 
+const extensionStatus = z.enum(['PENDING', 'VERIFIED', 'RETURNED', 'APPROVED', 'DECLINED'])
+
+const myExtensionRow = z
+  .object({
+    id,
+    activityId: id,
+    projectId: id,
+    activityCode: text(64),
+    activityTitle: text(200),
+    requestedEndDate: day,
+    status: extensionStatus,
+    note: text(2000).nullable(),
+  })
+  .strict()
+
+const extensionQueueRow = z
+  .object({
+    id,
+    activityId: id,
+    projectId: id,
+    projectTitle: text(200),
+    activityCode: text(64),
+    activityTitle: text(200),
+    requesterName: text(200),
+    requestedEndDate: day,
+    currentEndDate: day.nullable(),
+    reason: text(2000),
+    stage: z.enum(['VERIFY', 'DECIDE']),
+  })
+  .strict()
+
 /** Role dashboard sections; a `null` section means the viewer lacks its permission. */
 export const roleOverviewSchema = z
   .object({
@@ -117,6 +148,8 @@ export const roleOverviewSchema = z
     submittedThisMonth: z.object({ updates: count, expenses: count }).strict().nullable(),
     proofQueue: list(proofRow).nullable(),
     approvalQueue: list(approvalRow).nullable(),
+    myExtensions: list(myExtensionRow).nullable(),
+    extensionQueue: list(extensionQueueRow).nullable(),
     datasetsImportedThisMonth: count.nullable(),
     alerts: z
       .object({
@@ -131,6 +164,8 @@ export const roleOverviewSchema = z
         recent: z.array(alertRow).max(5),
         budgetOpen: count,
         budgetRecent: z.array(alertRow).max(5),
+        escalatedOpen: count,
+        escalated: z.array(alertRow.extend({ escalatedAt: instant })).max(5),
       })
       .strict()
       .nullable(),

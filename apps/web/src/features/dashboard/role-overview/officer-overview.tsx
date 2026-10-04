@@ -57,6 +57,16 @@ export const OfficerOverview = ({
   const activities = data.myActivities
   const overdue = activities?.rows.filter((row) => row.overdue) ?? []
   const flagged = data.flaggedProof
+  // Returned and declined requests carry the reviewer note back to the requester.
+  const extensionNotices =
+    data.myExtensions?.rows.filter(
+      (row) => row.status === 'RETURNED' || row.status === 'DECLINED',
+    ) ?? []
+  const pendingExtension = new Set(
+    data.myExtensions?.rows
+      .filter((row) => row.status === 'PENDING' || row.status === 'VERIFIED')
+      .map((row) => row.activityId),
+  )
   const projectCount = new Set(activities?.rows.map((row) => row.projectId)).size
   return (
     <div className="space-y-6">
@@ -146,7 +156,14 @@ export const OfficerOverview = ({
                   meta={`${row.projectTitle} · ${row.plannedEndDate ? `${row.overdue ? 'Was due' : 'Due'} ${longDate(row.plannedEndDate)}` : 'No due date'} · ${row.progress}%`}
                   onOpen={() => onOpenActivity(activityHref(row.projectId, row.id))}
                   title={row.title}
-                  trailing={<StatusBadge tone={badge.tone}>{badge.text}</StatusBadge>}
+                  trailing={
+                    <span className="flex flex-wrap justify-end gap-1">
+                      {pendingExtension.has(row.id) ? (
+                        <StatusBadge tone="warning">Extension pending</StatusBadge>
+                      ) : null}
+                      <StatusBadge tone={badge.tone}>{badge.text}</StatusBadge>
+                    </span>
+                  }
                 />
               )
             })}
@@ -197,7 +214,28 @@ export const OfficerOverview = ({
                 </Button>
               </div>
             ))}
-            {!flagged?.rows.length && !overdue.length ? (
+            {extensionNotices.map((row) => (
+              <div
+                className="space-y-2 rounded-lg border border-warning/40 bg-warning-subtle p-3"
+                key={row.id}
+              >
+                <p className="text-sm font-semibold text-foreground">
+                  Extension {row.status === 'RETURNED' ? 'returned' : 'declined'} ·{' '}
+                  {row.activityCode}
+                </p>
+                <p className="text-sm text-foreground">
+                  {row.note || 'The reviewer left no note.'}
+                </p>
+                <Button
+                  onClick={() => onOpenActivity(activityHref(row.projectId, row.activityId))}
+                  size="sm"
+                  type="button"
+                >
+                  Open activity
+                </Button>
+              </div>
+            ))}
+            {!flagged?.rows.length && !overdue.length && !extensionNotices.length ? (
               <p className="py-4 text-center text-sm text-muted-foreground">
                 Nothing needs your attention.
               </p>
