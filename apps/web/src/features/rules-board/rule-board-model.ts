@@ -1,5 +1,9 @@
 import type { HumanRule } from '@/features/analytics/rules-human-contract'
-import { type RuleNode, ruleMetrics } from '@/features/analytics/rules-validation'
+import {
+  type RuleMetricKey,
+  type RuleNode,
+  ruleMetrics,
+} from '@/features/analytics/rules-validation'
 
 export type MetricScope =
   | 'Project'
@@ -43,7 +47,7 @@ const entry = (
   unit: MetricUnit,
   category: MetricCategory,
 ): MetricEntry => ({ label, scope, unit, category })
-export const METRIC_CATALOG: Record<string, MetricEntry> = {
+export const METRIC_CATALOG: Record<RuleMetricKey, MetricEntry> = {
   INDICATOR_CURRENT_VALUE: entry('Indicator current value', 'Indicator', 'value', 'Performance'),
   INDICATOR_PROGRESS_PERCENT: entry('Indicator progress', 'Indicator', '%', 'Performance'),
   PROJECT_TIMELINE_ELAPSED_PERCENT: entry('Project timeline elapsed', 'Project', '%', 'Schedule'),
@@ -84,12 +88,15 @@ export const operatorWords = {
   BETWEEN: 'between',
 } as const
 
-export const scopeOf = (key: string): MetricScope => METRIC_CATALOG[key]?.scope ?? 'Project'
-export const unitOf = (key: string): MetricUnit => METRIC_CATALOG[key]?.unit ?? 'value'
+export const scopeOf = (key: string): MetricScope =>
+  (METRIC_CATALOG as Record<string, MetricEntry | undefined>)[key]?.scope ?? 'Project'
+export const unitOf = (key: string): MetricUnit =>
+  (METRIC_CATALOG as Record<string, MetricEntry | undefined>)[key]?.unit ?? 'value'
 export const categoryOf = (key: string): MetricCategory | null =>
-  METRIC_CATALOG[key]?.category ?? null
+  (METRIC_CATALOG as Record<string, MetricEntry | undefined>)[key]?.category ?? null
 export const metricLabel = (key: string) =>
-  METRIC_CATALOG[key]?.label ?? key.replaceAll('_', ' ').toLowerCase()
+  (METRIC_CATALOG as Record<string, MetricEntry | undefined>)[key]?.label ??
+  key.replaceAll('_', ' ').toLowerCase()
 /** A metric is selectable only once the validated rule contract accepts it. */
 export const isMetricAvailable = (key: string) => (ruleMetrics as readonly string[]).includes(key)
 export const availableMetrics = (scopes?: readonly MetricScope[]) =>

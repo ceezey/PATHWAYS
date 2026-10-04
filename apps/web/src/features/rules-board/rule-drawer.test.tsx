@@ -135,7 +135,19 @@ describe('RuleDrawer', () => {
       },
     })
     expect(body.recommendations).toHaveLength(1)
+    expect(body.recommendations[0]).toMatchObject({
+      title: 'Review flagged condition',
+      text: 'Review the recorded evidence and decide on a response.',
+    })
     await waitFor(() => expect(onSaved).toHaveBeenCalledWith(null))
+  })
+  it('blocks saving without a complete recommendation', async () => {
+    renderDrawer()
+    fillBasics()
+    fireEvent.change(screen.getByLabelText('Suggested response'), { target: { value: '' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save Rule' }))
+    expect((await screen.findByRole('alert')).textContent).toMatch(/at least one recommendation/)
+    expect(state.createRule).not.toHaveBeenCalled()
   })
   it('blocks saving an invalid threshold', async () => {
     renderDrawer()
@@ -148,9 +160,12 @@ describe('RuleDrawer', () => {
   it('requires a note before deactivating an active rule', async () => {
     renderDrawer({ rule: activeRule })
     fireEvent.click(screen.getByRole('button', { name: 'Deactivate' }))
-    fireEvent.click(await screen.findByRole('button', { name: 'Deactivate rule' }))
+    const confirm = await screen.findByRole('button', { name: 'Deactivate rule' })
+    expect((confirm as HTMLButtonElement).disabled).toBe(true)
+    expect(screen.getByText('Enter a note to deactivate this rule.')).toBeTruthy()
+    fireEvent.click(confirm)
     expect(state.archiveRule).not.toHaveBeenCalled()
-    fireEvent.change(screen.getByLabelText('Deactivation note'), {
+    fireEvent.change(screen.getByLabelText('Deactivation note (required)'), {
       target: { value: 'Superseded by a new rule.' },
     })
     fireEvent.click(screen.getByRole('button', { name: 'Deactivate rule' }))

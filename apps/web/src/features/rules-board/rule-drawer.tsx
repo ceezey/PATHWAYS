@@ -1,13 +1,11 @@
 'use client'
 
-import { ConfirmationDialog, SidePanel, UnavailableHint } from '@/components/pathways'
-import { Button } from '@/components/ui/button'
+import { SidePanel } from '@/components/pathways'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Sheet } from '@/components/ui/sheet'
-import { Textarea } from '@/components/ui/textarea'
-import { RuleTreeView, clearRecordBindings } from '@/features/analytics/rule-condition-editor'
+import { clearRecordBindings } from '@/features/analytics/rule-condition-editor'
 import { RuleEditor } from '@/features/analytics/rule-editor'
 import { RuleTestWorkspace } from '@/features/analytics/rule-test-workspace'
 import {
@@ -18,32 +16,33 @@ import {
 import {
   type RuleCondition,
   type RuleNode,
-  operators,
   parseRuleTree,
 } from '@/features/analytics/rules-validation'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { type SensitiveDraftOwner, useSensitiveDraftOwner } from '@/lib/auth/sensitive-drafts'
 import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
-import { PathwaysClientError, pathwaysClient } from '@/lib/services/pathways-client'
+import { PathwaysClientError } from '@/lib/services/pathways-client'
 import { rulesHumanClient } from '@/lib/services/rules-human-client'
-import { cn } from '@/lib/utils'
-import { useAuthorizedRead } from '@/providers/authorized-query-provider'
 import { useEffect, useRef, useState } from 'react'
 import {
   type MetricScope,
-  SCOPES,
   appliesTo,
   availableMetrics,
   categoryOf,
-  metricLabel,
-  operatorWords,
   previewSentence,
   suggestRuleCode,
-  unitLabel,
 } from './rule-board-model'
 import { ApplyToFields, ConditionBuilder, useBindingChoices } from './rule-condition-rows'
 import { RuleDrawerFooter } from './rule-drawer-footer'
-import { type Mode, type Rec, newRec, newRow, recordBound, selectClass } from './rule-drawer-shared'
+import {
+  DEFAULT_REC,
+  type Mode,
+  type Rec,
+  newRec,
+  newRow,
+  recordBound,
+  selectClass,
+} from './rule-drawer-shared'
 import { LifecyclePrompt } from './rule-lifecycle-prompt'
 import { RuleOutputFields, RulePreview } from './rule-output-fields'
 
@@ -128,8 +127,9 @@ function OwnedDrawer({
   )
   const [severity, setSeverity] = useState<HumanRule['severity']>(rule?.severity ?? 'MEDIUM')
   const [recs, setRecs] = useState<Rec[]>(
-    rule?.recommendations.map((item) => ({ ...item })) ??
-      (mode === 'recommendation' ? [newRec()] : []),
+    rule?.recommendations.map((item) => ({ ...item })) ?? [
+      mode === 'alert' ? { ...newRec(), ...DEFAULT_REC } : newRec(),
+    ],
   )
   const [notice, setNotice] = useState('')
   const [busy, setBusy] = useState(false)
@@ -220,19 +220,14 @@ function OwnedDrawer({
       return setNotice('Enter a rule code using capital letters, numbers, underscores, or hyphens.')
     if (!scopeOwner) return setNotice('Current permission for the selected scope is required.')
     if (!captured.current) {
-      const filled = recs.filter((item) => item.title.trim() || item.text.trim())
+      if (!recs.length || recs.some((item) => !item.title.trim() || !item.text.trim()))
+        return setNotice(
+          'Add at least one recommendation, each with a title and suggested response.',
+        )
       const content = {
         name,
         severity,
-        recommendations: filled.length
-          ? filled
-          : [
-              {
-                id: crypto.randomUUID(),
-                title: 'Review flagged condition',
-                text: 'Review the recorded evidence and decide on a response.',
-              },
-            ],
+        recommendations: recs,
         clientOperationId: crypto.randomUUID(),
       }
       let conditions: RuleNode

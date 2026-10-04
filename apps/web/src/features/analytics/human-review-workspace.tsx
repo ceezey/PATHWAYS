@@ -4,7 +4,7 @@ import { PageHeader } from '@/components/layout/page-header'
 import { AsyncState, EmptyState, SectionCard, StatusBadge } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
-import { ReviewCardList } from '@/features/rules-board/review-card-list'
+import { ReviewCardList, statusLabel } from '@/features/rules-board/review-card-list'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'
 import { useSensitiveDraftOwner } from '@/lib/auth/sensitive-drafts'
@@ -282,7 +282,7 @@ export function HumanReviewWorkspace({
               <div className="space-y-4">
                 <h2 className="text-xl font-semibold">{item.title}</h2>
                 <StatusBadge tone="neutral">
-                  {copy('lifecycle' in item ? item.lifecycle : item.status)}
+                  {statusLabel('lifecycle' in item ? item.lifecycle : item.status)}
                 </StatusBadge>
                 {'evidence' in item ? (
                   <AlertEvidence item={item} />

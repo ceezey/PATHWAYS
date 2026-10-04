@@ -27,6 +27,7 @@ export function LifecyclePrompt({
           ? 'Activate this version for deterministic evaluation and predefined recommendations?'
           : 'Deactivate this rule? Recorded history remains available.'
       }
+      confirmDisabled={action === 'deactivate' && !note.trim()}
       onConfirm={() => action && onConfirm(action)}
       onOpenChange={(open) => !open && onCancel()}
       open={action !== null}
@@ -34,13 +35,21 @@ export function LifecyclePrompt({
     >
       {action === 'deactivate' ? (
         <div className="space-y-2">
-          <Label htmlFor="rule-deactivate-note">Deactivation note</Label>
+          <Label htmlFor="rule-deactivate-note">Deactivation note (required)</Label>
           <Textarea
+            aria-describedby="rule-deactivate-note-error"
+            aria-invalid={!note.trim()}
             id="rule-deactivate-note"
+            required
             maxLength={2000}
             value={note}
             onChange={(event) => onNote(event.target.value)}
           />
+          {note.trim() ? null : (
+            <p className="text-sm text-danger" id="rule-deactivate-note-error">
+              Enter a note to deactivate this rule.
+            </p>
+          )}
         </div>
       ) : null}
     </ConfirmationDialog>

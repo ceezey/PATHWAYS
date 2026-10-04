@@ -41,7 +41,7 @@ export function RuleOutputFields({ mode, severity, onSeverity, recs, onRecs }: P
               )
             }
           />
-          {mode === 'alert' || recs.length > 1 ? (
+          {recs.length > 1 ? (
             <Button
               type="button"
               variant="outline"
@@ -67,8 +67,8 @@ export function RuleOutputFields({ mode, severity, onSeverity, recs, onRecs }: P
       <section className="space-y-3">
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-2">
-            <Label htmlFor="rule-time-basis">Time Basis</Label>
-            <p className="text-sm text-muted-foreground" id="rule-time-basis">
+            <p className="text-sm font-medium">Time Basis</p>
+            <p className="text-sm text-muted-foreground">
               Evaluated when source data changes and on the scheduled sweep
             </p>
           </div>
@@ -98,19 +98,10 @@ export function RuleOutputFields({ mode, severity, onSeverity, recs, onRecs }: P
         </div>
       </section>
       <section className="space-y-3">
-        {mode === 'recommendation' ? (
-          <>
-            <h3 className="font-semibold">Recommendation</h3>
-            {recsInput}
-          </>
-        ) : (
-          <details className="space-y-3">
-            <summary className="cursor-pointer font-semibold">
-              Predefined recommendations (optional)
-            </summary>
-            <div className="mt-3">{recsInput}</div>
-          </details>
-        )}
+        <h3 className="font-semibold">
+          {mode === 'recommendation' ? 'Recommendation' : 'Predefined recommendations'}
+        </h3>
+        {recsInput}
       </section>
     </>
   )

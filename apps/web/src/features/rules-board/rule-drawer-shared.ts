@@ -16,3 +16,7 @@ export const newRow = (metric: string): RuleCondition => ({
   threshold: '',
 })
 export const newRec = (): Rec => ({ id: crypto.randomUUID(), title: '', text: '' })
+export const DEFAULT_REC = {
+  title: 'Review flagged condition',
+  text: 'Review the recorded evidence and decide on a response.',
+}
