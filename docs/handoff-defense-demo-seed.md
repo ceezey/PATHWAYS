@@ -9,15 +9,14 @@ Paused 2026-10-04 23:55 (UTC+8) to move work to a cloud session.
 
 ## Debug issues from the last round
 1. `decisions` stage 503 on accepting the WSH bottleneck recommendation: fixed in `385909d9` and `39a03802`.
-2. CRL follow-up >= 25% and WSH survey improvement < 20 alerts not firing: rules confirmed ACTIVE; metric check was in progress, no fix committed. Confirm after the clean run.
+2. CRL follow-up >= 25% and WSH survey improvement < 20 alerts not firing: both fire on a clean run; no fix needed.
 3. Journey notes "added: 0" on rerun: fixed in `942163ce`.
 4. `reports` stage 409 on rerun: fixed in `942163ce`.
-5. `node scripts/db/defense-demo.mjs --test-local --verify`: in review. Checks under inspection in `apps/api/prisma/defense-demo-verify.ts`: pending proof, library entries, derived indicator, public publication, partially processed import, escalated alert.
+5. `node scripts/db/defense-demo.mjs --test-local --verify`: fixed. Four checks read forced-RLS tables as the owner and now run as staff; escalation reads the decision audit trail; the Lavezares import now uses validation-level faults. Clean run: 23 of 23.
 
 ## Next steps
-- Rerun `--verify`, fix seed-side failures (or a wrong check in the verifier), and confirm issue 2.
-- Verify: `pnpm typecheck` in apps/api; vitest `prisma/local-demo-data.test.ts prisma/defense-demo-stage.test.ts prisma/defense-demo-seed.test.ts`.
-- Then merge into `dev` locally and wait for the user's go-ahead to push.
+- Merged into `dev`. Hosted run per the runbook (user only).
+- Open product note: registration rule failures during import promotion are retried as transient (see activity log).
 
 ## Constraints
 - No migrations, no API service edits unless a genuine product bug (report it instead), never disable triggers.
