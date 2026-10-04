@@ -144,6 +144,11 @@ describe('approved CSV RBAC contract', () => {
       expect(canAssignRole(role, 'GRANT_MANAGER')).toBe(role === 'SYSTEM_ADMINISTRATOR')
     }
   })
+  it('permits only Admin to assign Program Manager', () => {
+    for (const role of Object.keys(rolePermissions) as Array<keyof typeof rolePermissions>) {
+      expect(canAssignRole(role, 'PROGRAM_MANAGER')).toBe(role === 'SYSTEM_ADMINISTRATOR')
+    }
+  })
   it('denies discretionary actions absent from the CSV', () => {
     for (const permissions of Object.values(rolePermissions)) {
       expect(permissions).not.toContain('programs.create')

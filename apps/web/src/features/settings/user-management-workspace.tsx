@@ -242,7 +242,11 @@ export const UserManagementWorkspace = ({
       return
     }
 
-    if (isProjectAssignableRole(editor.role) && selectedProjectIds.length === 0) {
+    if (
+      isProjectAssignableRole(editor.role) &&
+      editor.role !== 'Program Manager' &&
+      selectedProjectIds.length === 0
+    ) {
       setEditorError('Select at least one permitted project assignment.')
       return
     }
@@ -787,6 +791,9 @@ const UserEditorDialog = ({
                 Choose only projects inside your permitted scope.
                 {editor.role === 'Monitoring and Evaluation Officer'
                   ? ' Multiple projects may be selected.'
+                  : ''}
+                {editor.role === 'Program Manager'
+                  ? ' Optional for Program Managers; managed programs still apply.'
                   : ''}{' '}
                 Changes apply when the account is saved.
               </p>

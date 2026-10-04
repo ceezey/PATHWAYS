@@ -181,5 +181,11 @@ describe('user management utilities', () => {
     expect(getProjectAccessLabels('Grant Manager', [], testProjects)).toEqual([
       'No project assigned',
     ])
+    expect(getProjectAccessLabels('Program Manager', [], testProjects)).toEqual([
+      'Managed programs',
+    ])
+    expect(getProjectAccessLabels('Program Manager', ['project-alpha'], testProjects)).toEqual([
+      'Project Alpha',
+    ])
   })
 })

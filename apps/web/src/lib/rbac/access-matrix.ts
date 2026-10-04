@@ -19,6 +19,7 @@ export type ProjectAssignmentScope =
   | 'none'
 
 export const projectAssignableRoles = [
+  'Program Manager',
   'Project Manager',
   'Project Officer',
   'Monitoring and Evaluation Officer',
