@@ -1,4 +1,5 @@
-import { ForbiddenException } from '@nestjs/common'
+import { BadRequestException, ForbiddenException } from '@nestjs/common'
+import { Prisma } from '@prisma/client'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { PrismaService } from '../../prisma/prisma.service'
 import { hasAtomicPermission } from '../auth/authorization-policy'
@@ -40,13 +41,30 @@ const actor = {
 } as ApplicationIdentity
 const tx = {
   project: { findFirst: vi.fn() },
-  projectEvaluation: { findFirst: vi.fn(), findMany: vi.fn() },
-  projectEvaluationCriterion: { findMany: vi.fn(), updateMany: vi.fn(), create: vi.fn() },
-  projectEvaluationScore: { findMany: vi.fn() },
+  projectEvaluation: {
+    findFirst: vi.fn(),
+    findMany: vi.fn(),
+    count: vi.fn(),
+    create: vi.fn(),
+    updateMany: vi.fn(),
+  },
+  projectEvaluationCriterion: {
+    findMany: vi.fn(),
+    updateMany: vi.fn(),
+    create: vi.fn(),
+    count: vi.fn(),
+  },
+  projectEvaluationScore: { findMany: vi.fn(), upsert: vi.fn() },
   $queryRaw: vi.fn(),
   auditLog: { create: vi.fn(), findFirst: vi.fn() },
 }
-const service = new EvaluationsService({} as PrismaService, {} as EvaluationMetricsService)
+const computeMany = vi.fn()
+const service = new EvaluationsService(
+  {} as PrismaService,
+  {
+    computeMany,
+  } as unknown as EvaluationMetricsService,
+)
 const input = {
   criteria: [
     { id: criterionId, weightPercentage: 100, expectedUpdatedAt: updatedAt.toISOString() },
@@ -71,6 +89,7 @@ describe('evaluation reads and draft-only configuration', () => {
       projectId,
       criteria: [],
       evaluations: [],
+      hasMore: false,
     })
     expect(tx.projectEvaluation.findFirst).not.toHaveBeenCalled()
   })

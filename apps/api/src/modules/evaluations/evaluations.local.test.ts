@@ -45,9 +45,9 @@ describe.skipIf(!enabled)('evaluation write path on disposable PostgreSQL', () =
   let service: EvaluationsService
   let evaluationId = ''
 
-  const current = async () => {
+  const current = async (id = evaluationId) => {
     const detail = await service.get(identity(2), projectId)
-    const row = detail.evaluations[0]
+    const row = detail.evaluations.find((evaluation) => evaluation.id === id)
     if (!row) throw new Error('Evaluation fixture is missing.')
     return row
   }
@@ -174,6 +174,7 @@ describe.skipIf(!enabled)('evaluation write path on disposable PostgreSQL', () =
     expect(started.status).toBe('DRAFT')
     const scored = await service.saveScores(identity(2), projectId, evaluationId, {
       expectedUpdatedAt: started.updatedAt,
+      commentary: 'Evaluator narrative.',
       scores: created.criteria.map((row) => ({
         criterionId: row.id,
         manualScore: 80,
@@ -197,7 +198,8 @@ describe.skipIf(!enabled)('evaluation write path on disposable PostgreSQL', () =
     expect(returned.status).toBe('DRAFT')
     expect(returned.evaluatedAt).toBeNull()
     expect(returned.overallScore).toBeNull()
-    expect(returned.commentary).toBe(reason)
+    expect(returned.returnReason).toBe(reason)
+    expect(returned.commentary).toBe('Evaluator narrative.')
   })
 
   it('rejects a project manager draft edit with 23514', async () => {
@@ -226,6 +228,7 @@ describe.skipIf(!enabled)('evaluation write path on disposable PostgreSQL', () =
     })
     expect(edited.status).toBe('DRAFT')
     expect(edited.commentary).toBe('Clarified the notes.')
+    expect(edited.returnReason).toBe(reason)
   })
 
   it('rejects a second M&E officer submitting without taking over evaluated_by_id', async () => {
@@ -249,6 +252,16 @@ describe.skipIf(!enabled)('evaluation write path on disposable PostgreSQL', () =
       expectedUpdatedAt: before.updatedAt,
     })
     expect(submitted.status).toBe('SUBMITTED')
+    expect(submitted.returnReason).toBeNull()
+    // The evaluator cannot return their own submission either, even by raw SQL.
+    const selfReturn = await failure(
+      asUser(
+        2,
+        (tx) =>
+          tx.$executeRaw`UPDATE pathways.project_evaluations SET status = 'DRAFT', evaluated_at = NULL, overall_score = NULL, return_reason = 'Self return' WHERE id = ${evaluationId}::uuid`,
+      ),
+    )
+    expect(selfReturn).toContain('Returning an evaluation requires evaluations.approve')
     // The evaluator cannot review or sign off their own evaluation, by service or by raw SQL.
     await expect(
       service.signoff(identity(2), projectId, evaluationId, {
@@ -256,13 +269,14 @@ describe.skipIf(!enabled)('evaluation write path on disposable PostgreSQL', () =
         feedback: 'Self sign-off.',
       }),
     ).rejects.toBeInstanceOf(ForbiddenException)
-    await failure(
+    const selfReview = await failure(
       asUser(
         2,
         (tx) =>
           tx.$executeRaw`UPDATE pathways.project_evaluations SET status = 'REVIEWED', reviewed_by_id = ${id(102)}::uuid, reviewed_at = now(), review_feedback = 'Self review' WHERE id = ${evaluationId}::uuid`,
       ),
     )
+    expect(selfReview).toMatch(/23514|42501/)
     const unchanged = await current()
     expect(unchanged.status).toBe('SUBMITTED')
     expect(unchanged.reviewedBy).toBeNull()
@@ -343,7 +357,7 @@ describe.skipIf(!enabled)('evaluation write path on disposable PostgreSQL', () =
       (tx) =>
         tx.$executeRaw`UPDATE pathways.project_evaluations SET evaluated_by_id = ${id(104)}::uuid WHERE id = ${started.id}::uuid`,
     )
-    const taken = await current()
+    const taken = await current(started.id)
     expect(taken.status).toBe('DRAFT')
     expect(taken.evaluatedBy?.id).toBe(id(104))
     const submitted = await service.submit(identity(4), projectId, started.id, {
