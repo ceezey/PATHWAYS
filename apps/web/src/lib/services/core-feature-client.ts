@@ -350,11 +350,14 @@ export const coreDataClient = {
     ),
 }
 
-export async function downloadCoreArtifact(
+export type CoreArtifact = { blob: Blob; fileName: string }
+
+/** Fetches an artifact as a typed Blob under the same owner and size checks as a download. */
+export async function fetchCoreArtifact(
   url: string,
   fileName: string,
   isOwnerCurrent: () => boolean = () => true,
-) {
+): Promise<CoreArtifact> {
   const owner = ownerCookie()
   const generation = sensitiveDraftGeneration()
   const current = () =>
@@ -408,9 +411,6 @@ export async function downloadCoreArtifact(
     bytes.set(chunk, offset)
     offset += chunk.length
   }
-  const objectUrl = URL.createObjectURL(new Blob([bytes], { type: mime }))
-  const link = document.createElement('a')
-  link.href = objectUrl
   const extensions: Record<string, string> = {
     'text/csv': 'csv',
     'application/pdf': 'pdf',
@@ -419,16 +419,38 @@ export async function downloadCoreArtifact(
     'image/png': 'png',
     'image/jpeg': 'jpg',
   }
-  const extension = extensions[mime]
-  link.download = fileName.replace(/\.[a-z0-9]+$/, `.${extension}`)
+  return {
+    blob: new Blob([bytes], { type: mime }),
+    fileName: fileName.replace(/.[a-z0-9]+$/, `.${extensions[mime]}`),
+  }
+}
+
+/** Saves an already fetched artifact through a short-lived object URL. */
+export function saveCoreArtifact(
+  artifact: CoreArtifact,
+  isOwnerCurrent: () => boolean = () => true,
+) {
+  const objectUrl = URL.createObjectURL(artifact.blob)
+  const link = document.createElement('a')
+  link.href = objectUrl
+  link.download = artifact.fileName
   try {
-    if (!current()) throw new PathwaysClientError('Artifact ownership changed.', 'unauthorized')
+    if (!isOwnerCurrent())
+      throw new PathwaysClientError('Artifact ownership changed.', 'unauthorized')
     document.body.append(link)
     link.click()
   } finally {
     link.remove()
     setTimeout(() => URL.revokeObjectURL(objectUrl), 1000)
   }
+}
+
+export async function downloadCoreArtifact(
+  url: string,
+  fileName: string,
+  isOwnerCurrent: () => boolean = () => true,
+) {
+  saveCoreArtifact(await fetchCoreArtifact(url, fileName, isOwnerCurrent), isOwnerCurrent)
 }
 export const coreFeatureClient = {
   publication: (id: string, signal?: AbortSignal) =>
