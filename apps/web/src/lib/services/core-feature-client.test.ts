@@ -190,7 +190,7 @@ describe('Core client request and strict response boundaries', () => {
       fetcher.mockResolvedValueOnce(
         json(
           operation === 'read'
-            ? { projectId: otherId, evaluation: null, criteria: [] }
+            ? { projectId: otherId, evaluations: [], criteria: [] }
             : { projectId: otherId, configured: 1 },
         ),
       )
@@ -272,7 +272,7 @@ describe('Core client request and strict response boundaries', () => {
     expect(fetcher).not.toHaveBeenCalled()
   })
   it('cancels a JSON response arriving after ownership invalidation before reading its body', async () => {
-    const response = json({ projectId, evaluation: null, criteria: [] })
+    const response = json({ projectId, evaluations: [], criteria: [] })
     if (!response.body) throw new Error('Test response requires a stream')
     const cancel = vi.spyOn(response.body, 'cancel')
     const read = vi.spyOn(response.body, 'getReader')
@@ -315,7 +315,7 @@ describe('Core client request and strict response boundaries', () => {
     await vi.waitFor(() => expect(delayed.read).toHaveBeenCalled())
     clearSensitiveDraftStorage()
     delayed.send(
-      new TextEncoder().encode(JSON.stringify({ projectId, evaluation: null, criteria: [] })),
+      new TextEncoder().encode(JSON.stringify({ projectId, evaluations: [], criteria: [] })),
     )
     await rejection
     expect(delayed.cancel).toHaveBeenCalledOnce()

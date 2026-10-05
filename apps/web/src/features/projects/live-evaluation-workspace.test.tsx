@@ -11,8 +11,17 @@ const state = vi.hoisted(() => ({
   revision: '2026-09-27T00:00:00.000Z',
   empty: false,
   extraSettings: false,
+  published: false,
+  evaluation: null as Record<string, unknown> | null,
   configure: vi.fn(),
   initialize: vi.fn(),
+  createCriteria: vi.fn(),
+  publish: vi.fn(),
+  createEvaluation: vi.fn(),
+  saveScores: vi.fn(),
+  submit: vi.fn(),
+  returnEvaluation: vi.fn(),
+  signoff: vi.fn(),
   refetch: vi.fn(),
   success: vi.fn(),
   error: vi.fn(),
@@ -28,11 +37,14 @@ vi.mock('@/hooks/use-current-role', () => ({
       permissions:
         state.role === 'SYSTEM_ADMINISTRATOR'
           ? ['monitoring.read', 'settings.configure']
-          : [
-              'monitoring.read',
-              'evaluations.weights.configure',
-              ...(state.extraSettings ? ['settings.configure'] : []),
-            ],
+          : state.role === 'PROJECT_MANAGER'
+            ? ['monitoring.read', 'evaluations.approve', 'evaluations.signoff']
+            : [
+                'monitoring.read',
+                'evaluations.weights.configure',
+                'evaluations.submit',
+                ...(state.extraSettings ? ['settings.configure'] : []),
+              ],
       assignedProjectIds: [projectId],
     },
   }),
@@ -67,13 +79,19 @@ vi.mock('@/lib/services/core-feature-client', () => ({
   coreDataClient: {
     configureWeights: (...args: unknown[]) => state.configure(...args),
     initializeCriteria: (...args: unknown[]) => state.initialize(...args),
+    createCriteria: (...args: unknown[]) => state.createCriteria(...args),
+    publishCriteria: (...args: unknown[]) => state.publish(...args),
+    createEvaluation: (...args: unknown[]) => state.createEvaluation(...args),
+    saveEvaluationScores: (...args: unknown[]) => state.saveScores(...args),
+    submitEvaluation: (...args: unknown[]) => state.submit(...args),
+    returnEvaluation: (...args: unknown[]) => state.returnEvaluation(...args),
+    signoffEvaluation: (...args: unknown[]) => state.signoff(...args),
   },
 }))
 vi.mock('@/providers/authorized-query-provider', () => ({
   useAuthorizedRead: () => ({
     data: {
       projectId,
-      evaluation: null,
       criteria: state.empty
         ? []
         : [
@@ -81,14 +99,16 @@ vi.mock('@/providers/authorized-query-provider', () => ({
               id: criterionId,
               name: 'Recorded criterion',
               code: 'outcomes',
-              type: 'KPI',
+              description: null,
+              type: 'OTHER',
               version: 1,
-              status: 'DRAFT',
+              status: state.published ? 'PUBLISHED' : 'DRAFT',
               weightPercentage: '100',
               maximumScore: '100',
               updatedAt: state.revision,
             },
           ],
+      evaluations: state.evaluation ? [state.evaluation] : [],
     },
     isPending: false,
     isError: state.readError,
@@ -111,6 +131,8 @@ describe('evaluation editor revisions and retry identity', () => {
     state.revision = '2026-09-27T00:00:00.000Z'
     state.empty = false
     state.extraSettings = false
+    state.published = false
+    state.evaluation = null
     state.refetch.mockResolvedValue(undefined)
   })
   afterEach(cleanup)
@@ -191,5 +213,143 @@ describe('evaluation editor revisions and retry identity', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Initialize draft rubric' }))
     await waitFor(() => expect(state.success).toHaveBeenCalledOnce())
     expect(state.initialize.mock.calls[1][1]).toEqual(state.initialize.mock.calls[0][1])
+  })
+})
+const openEvaluation = {
+  id: 'evaluation-1',
+  title: 'Mid-term 2026',
+  periodLabel: null,
+  periodStart: '2026-01-01',
+  periodEnd: '2026-06-30',
+  overallScore: null,
+  commentary: null,
+  status: 'DRAFT',
+  updatedAt: '2026-10-01T00:00:00.000Z',
+  evaluatedBy: null,
+  evaluatedAt: null,
+  reviewedBy: null,
+  reviewedAt: null,
+  reviewFeedback: null,
+  signedOffBy: null,
+  signedOffAt: null,
+  scores: [] as unknown[],
+}
+describe('evaluation rounds: criteria publishing, scoring, submit and review', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    state.readError = false
+    state.role = 'MONITORING_AND_EVALUATION_OFFICER'
+    state.user = 'evaluator'
+    state.generation = 0
+    state.revision = '2026-09-27T00:00:00.000Z'
+    state.empty = false
+    state.extraSettings = false
+    state.published = false
+    state.evaluation = null
+    state.refetch.mockResolvedValue(undefined)
+  })
+  afterEach(cleanup)
+  it('publishes draft criteria after confirmation', async () => {
+    state.publish.mockResolvedValue({ projectId, published: 1 })
+    render(<LiveEvaluationWorkspace projectId={projectId} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Publish criteria' }))
+    const confirmButtons = screen.getAllByRole('button', { name: 'Publish criteria' })
+    fireEvent.click(confirmButtons[confirmButtons.length - 1])
+    await waitFor(() => expect(state.success).toHaveBeenCalledOnce())
+    expect(state.publish).toHaveBeenCalledWith(projectId, {
+      criteria: [{ id: criterionId, expectedUpdatedAt: state.revision }],
+    })
+  })
+  it('starts an evaluation once criteria are published', async () => {
+    state.published = true
+    state.createEvaluation.mockResolvedValue({ ...openEvaluation })
+    render(<LiveEvaluationWorkspace projectId={projectId} />)
+    fireEvent.change(screen.getByLabelText('Title'), { target: { value: 'Mid-term 2026' } })
+    fireEvent.change(screen.getByLabelText('Period start'), { target: { value: '2026-01-01' } })
+    fireEvent.change(screen.getByLabelText('Period end'), { target: { value: '2026-06-30' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Start evaluation' }))
+    await waitFor(() => expect(state.success).toHaveBeenCalledOnce())
+    expect(state.createEvaluation).toHaveBeenCalledOnce()
+  })
+  it('scores and submits an open draft evaluation', async () => {
+    state.published = true
+    state.evaluation = { ...openEvaluation }
+    state.saveScores.mockResolvedValue({ ...openEvaluation })
+    state.submit.mockResolvedValue({ ...openEvaluation, status: 'SUBMITTED' })
+    render(<LiveEvaluationWorkspace projectId={projectId} />)
+    fireEvent.change(screen.getByLabelText('Score for Recorded criterion'), {
+      target: { value: '80' },
+    })
+    fireEvent.change(screen.getByLabelText('Note for Recorded criterion'), {
+      target: { value: 'Evidence note' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save scores' }))
+    await waitFor(() => expect(state.saveScores).toHaveBeenCalledOnce())
+    expect(state.saveScores.mock.calls[0][2].scores[0]).toMatchObject({
+      criterionId,
+      manualScore: 80,
+      note: 'Evidence note',
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Submit evaluation' }))
+    const confirmButtons = screen.getAllByRole('button', { name: 'Submit evaluation' })
+    fireEvent.click(confirmButtons[confirmButtons.length - 1])
+    await waitFor(() => expect(state.submit).toHaveBeenCalledOnce())
+  })
+  it('lets the Project Manager return a submitted evaluation for correction', async () => {
+    state.role = 'PROJECT_MANAGER'
+    state.published = true
+    state.evaluation = {
+      ...openEvaluation,
+      status: 'SUBMITTED',
+      scores: [
+        {
+          criterionId,
+          score: '80',
+          maximumScore: '100',
+          weightedScore: '80',
+          commentary: 'Evidence note',
+        },
+      ],
+    }
+    state.returnEvaluation.mockResolvedValue({ ...state.evaluation, status: 'DRAFT' })
+    render(<LiveEvaluationWorkspace projectId={projectId} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Return for correction' }))
+    fireEvent.change(screen.getByLabelText('Reason for returning'), {
+      target: { value: 'Please recheck scores' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Return evaluation' }))
+    await waitFor(() => expect(state.returnEvaluation).toHaveBeenCalledOnce())
+    expect(state.returnEvaluation.mock.calls[0][2]).toMatchObject({
+      reason: 'Please recheck scores',
+    })
+  })
+  it('lets the Project Manager sign off a submitted evaluation', async () => {
+    state.role = 'PROJECT_MANAGER'
+    state.published = true
+    state.evaluation = {
+      ...openEvaluation,
+      status: 'SUBMITTED',
+      scores: [
+        {
+          criterionId,
+          score: '80',
+          maximumScore: '100',
+          weightedScore: '80',
+          commentary: 'Evidence note',
+        },
+      ],
+    }
+    state.signoff.mockResolvedValue({ ...state.evaluation, status: 'SIGNED_OFF' })
+    render(<LiveEvaluationWorkspace projectId={projectId} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Sign off' }))
+    fireEvent.change(screen.getByLabelText('Sign-off feedback'), {
+      target: { value: 'Scores agree with the records.' },
+    })
+    const confirmButtons = screen.getAllByRole('button', { name: 'Sign off' })
+    fireEvent.click(confirmButtons[confirmButtons.length - 1])
+    await waitFor(() => expect(state.signoff).toHaveBeenCalledOnce())
+    expect(state.signoff.mock.calls[0][2]).toMatchObject({
+      feedback: 'Scores agree with the records.',
+    })
   })
 })
