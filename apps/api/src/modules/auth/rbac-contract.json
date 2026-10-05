@@ -238,8 +238,8 @@
       "PROGRAM_MANAGER",
       "GRANT_MANAGER"
     ],
-    "evaluations.submit": [],
-    "evaluations.approve": [],
+    "evaluations.submit": ["MONITORING_AND_EVALUATION_OFFICER"],
+    "evaluations.approve": ["PROJECT_MANAGER"],
     "public.preview": [
       "SYSTEM_ADMINISTRATOR",
       "PROJECT_MANAGER",
@@ -361,7 +361,7 @@
       "PROJECT_MANAGER"
     ],
     "evaluations.archive": [],
-    "evaluations.signoff": [],
+    "evaluations.signoff": ["PROJECT_MANAGER"],
     "assessments.read": [
       "SYSTEM_ADMINISTRATOR",
       "MONITORING_AND_EVALUATION_OFFICER",
@@ -482,7 +482,7 @@
       "GRANT_MANAGER"
     ],
     "forms.templates.import": ["SYSTEM_ADMINISTRATOR", "MONITORING_AND_EVALUATION_OFFICER"],
-    "evaluations.weights.configure": ["SYSTEM_ADMINISTRATOR", "MONITORING_AND_EVALUATION_OFFICER"],
+    "evaluations.weights.configure": ["MONITORING_AND_EVALUATION_OFFICER"],
     "dashboards.customize": [
       "SYSTEM_ADMINISTRATOR",
       "MONITORING_AND_EVALUATION_OFFICER",
@@ -1845,6 +1845,17 @@
         ["PROJECT_OFFICER", "assessments.read"],
         ["PROJECT_OFFICER", "analytics.saddd.read"]
       ]
+    },
+    {
+      "changeRecord": "cr-pathways-evaluation-write-path",
+      "migration": "0063_evaluation_write_path",
+      "rows": [87],
+      "grants": [
+        ["MONITORING_AND_EVALUATION_OFFICER", "evaluations.submit"],
+        ["PROJECT_MANAGER", "evaluations.approve"],
+        ["PROJECT_MANAGER", "evaluations.signoff"]
+      ],
+      "revokes": [["SYSTEM_ADMINISTRATOR", "evaluations.weights.configure"]]
     }
   ]
 }

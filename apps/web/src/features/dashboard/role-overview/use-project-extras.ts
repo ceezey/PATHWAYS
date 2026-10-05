@@ -70,7 +70,7 @@ export const useProjectExtras = (
       setEvaluations(
         rows.map(([id, title], i) => {
           const r = results[i]
-          const score = r?.status === 'fulfilled' ? r.value.evaluation?.overallScore : null
+          const score = r?.status === 'fulfilled' ? r.value.evaluations[0]?.overallScore : null
           return { projectId: id, title, score: score ?? null }
         }),
       )

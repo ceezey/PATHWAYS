@@ -4,6 +4,7 @@ import { createClient } from '@supabase/supabase-js'
 import { ActivitiesService } from '../src/modules/activities/activities.service'
 import { BeneficiariesService } from '../src/modules/beneficiaries/beneficiaries.service'
 import { DashboardsService } from '../src/modules/dashboards/dashboards.service'
+import { EvaluationMetricsService } from '../src/modules/evaluations/evaluation-metrics'
 import { EvaluationsService } from '../src/modules/evaluations/evaluations.service'
 import { FinanceService } from '../src/modules/finance/finance.service'
 import { ImportsService } from '../src/modules/imports/imports.service'
@@ -143,7 +144,7 @@ async function seed(owner: PrismaClient, testLocal: boolean) {
         reports: new ReportsService(runtime, storage, new DashboardsService(runtime, indicators)),
         rules: new RulesHumanService(runtime),
         publication: new PublicService(runtime),
-        evaluations: new EvaluationsService(runtime),
+        evaluations: new EvaluationsService(runtime, new EvaluationMetricsService(indicators)),
       },
       staff,
       programIds: new Map(),

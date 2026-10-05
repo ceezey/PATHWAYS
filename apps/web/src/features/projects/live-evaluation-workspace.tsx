@@ -2,6 +2,7 @@
 import { PageHeader } from '@/components/layout/page-header'
 import {
   AsyncState,
+  ConfirmationDialog,
   EmptyState,
   LoadingSkeleton,
   SectionCard,
@@ -9,15 +10,20 @@ import {
 } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useOperationRequestId } from '@/lib/auth/operation-request-id'
 import { useSensitiveDraftOwner } from '@/lib/auth/sensitive-drafts'
 import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
 import { coreDataClient } from '@/lib/services/core-feature-client'
+import type { evaluationDetailSchema } from '@/lib/services/core-feature-client'
 import { useAuthorizedRead } from '@/providers/authorized-query-provider'
 import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
+import type { z } from 'zod'
 import { InlineNotice, OptionSelect } from './option-select'
+
+type EvaluationDetail = z.infer<typeof evaluationDetailSchema>
 
 const headClass =
   'sticky top-0 z-10 h-10 bg-surface-subtle px-4 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground'
@@ -28,6 +34,20 @@ const types = [
   'BENEFICIARY_REACH',
   'OTHER',
 ] as const
+const computedTypes = new Set([
+  'KPI',
+  'TIMELINE_COMPLIANCE',
+  'BUDGET_EFFICIENCY',
+  'BENEFICIARY_REACH',
+])
+const statusTone = {
+  DRAFT: 'neutral',
+  SUBMITTED: 'info',
+  REVIEWED: 'info',
+  SIGNED_OFF: 'success',
+  ARCHIVED: 'neutral',
+} as const
+const openStatuses = new Set(['DRAFT', 'SUBMITTED', 'REVIEWED'])
 type Draft = {
   localId: string
   code: string
@@ -44,6 +64,7 @@ const blank = (): Draft => ({
   weightPercentage: '',
   maximumScore: '100',
 })
+const named = (value: { id: string; name: string } | null) => value?.name ?? 'Not yet'
 export function LiveEvaluationWorkspace({ projectId }: { projectId: string }) {
   const { profile } = useCurrentRole()
   const boundary = useSensitiveDraftOwner(
@@ -66,13 +87,25 @@ function EvaluationContent({ projectId }: { projectId: string }) {
     coreDataClient.evaluation(projectId, signal),
   )
   const current = !read.isError && !read.isPending ? read.data : undefined
+  const criteria = current?.criteria ?? []
+  const draftCriteria = criteria.filter((row) => row.status === 'DRAFT')
+  const publishedCriteria = criteria.filter((row) => row.status === 'PUBLISHED')
+  const openEvaluation = current?.evaluations.find((row) => openStatuses.has(row.status)) ?? null
   const owner = useSensitiveDraftOwner(
     profile,
     'evaluation-weights',
     'evaluations.weights.configure',
     projectId,
-    current?.criteria.map((row) => `${row.id}:${row.updatedAt}`).join('|') ?? null,
+    criteria.map((row) => `${row.id}:${row.updatedAt}`).join('|') || null,
     Boolean(current),
+  )
+  const createCriteriaOwner = useSensitiveDraftOwner(
+    profile,
+    'evaluation-criteria-create',
+    'evaluations.weights.configure',
+    projectId,
+    projectId,
+    Boolean(current) && criteria.length === 0,
   )
   const initOwner = useSensitiveDraftOwner(
     profile,
@@ -80,8 +113,34 @@ function EvaluationContent({ projectId }: { projectId: string }) {
     'settings.configure',
     projectId,
     projectId,
-    Boolean(current),
+    Boolean(current) && criteria.length === 0,
   )
+  const createEvalOwner = useSensitiveDraftOwner(
+    profile,
+    'evaluation-create',
+    'evaluations.submit',
+    projectId,
+    projectId,
+    Boolean(current) && publishedCriteria.length > 0 && !openEvaluation,
+  )
+  const scoreOwner = useSensitiveDraftOwner(
+    profile,
+    'evaluation-scores',
+    'evaluations.submit',
+    projectId,
+    openEvaluation ? `${openEvaluation.id}:${openEvaluation.updatedAt}` : null,
+    Boolean(openEvaluation && openEvaluation.status === 'DRAFT'),
+  )
+  const reviewOwner = useSensitiveDraftOwner(
+    profile,
+    'evaluation-review',
+    'evaluations.approve',
+    projectId,
+    openEvaluation ? `${openEvaluation.id}:${openEvaluation.updatedAt}` : null,
+    Boolean(openEvaluation && openEvaluation.status === 'SUBMITTED'),
+  )
+  const canSignOff = principalHasAtomicPermission(profile, 'evaluations.signoff')
+
   const [weightDraft, setWeightDraft] = useState<{
     key: string
     generation: number
@@ -95,6 +154,23 @@ function EvaluationContent({ projectId }: { projectId: string }) {
       ? weightDraft.values
       : {}
   const [drafts, setDrafts] = useState<Draft[]>([blank()])
+  const [evalForm, setEvalForm] = useState({
+    title: '',
+    periodLabel: '',
+    periodStart: '',
+    periodEnd: '',
+  })
+  const [scoreDraft, setScoreDraft] = useState<Record<string, { score: string; note: string }>>({})
+  // A computed criterion a save attempt could not compute falls back to a manual score and
+  // note, same as criterion type Other; this tracks that a retry should offer the fallback.
+  const [manualFallback, setManualFallback] = useState(false)
+  const [narrative, setNarrative] = useState('')
+  const [returnReason, setReturnReason] = useState('')
+  const [signoffFeedback, setSignoffFeedback] = useState('')
+  const [publishOpen, setPublishOpen] = useState(false)
+  const [submitOpen, setSubmitOpen] = useState(false)
+  const [returnOpen, setReturnOpen] = useState(false)
+  const [signoffOpen, setSignoffOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const activeOperation = useRef<{ isCurrent: () => boolean } | null>(null)
   const requests = useOperationRequestId()
@@ -105,36 +181,33 @@ function EvaluationContent({ projectId }: { projectId: string }) {
   // biome-ignore lint/correctness/useExhaustiveDependencies: Criterion setup drafts belong to the current initialization grant and identity.
   useEffect(() => {
     setDrafts([blank()])
-  }, [initOwner?.key, initOwner?.generation])
+  }, [
+    initOwner?.key,
+    initOwner?.generation,
+    createCriteriaOwner?.key,
+    createCriteriaOwner?.generation,
+  ])
+  // biome-ignore lint/correctness/useExhaustiveDependencies: Score drafts belong to the current open evaluation's revision.
+  useEffect(() => {
+    setScoreDraft({})
+    setNarrative(openEvaluation?.commentary ?? '')
+    setManualFallback(false)
+  }, [scoreOwner?.key, scoreOwner?.generation])
   useEffect(() => {
     if (activeOperation.current && !activeOperation.current.isCurrent()) {
       activeOperation.current = null
       setBusy(false)
     }
   })
-  const configure = async () => {
-    if (!owner?.isCurrent() || !current || busy || activeOperation.current) return
+
+  const run = async (owner: { isCurrent: () => boolean } | null, body: () => Promise<unknown>) => {
+    if (!owner?.isCurrent() || busy || activeOperation.current) return
     const captured = owner
     activeOperation.current = captured
     setBusy(true)
     try {
-      await coreDataClient.configureWeights(projectId, {
-        criteria: current.criteria
-          .filter((row) => row.status === 'DRAFT')
-          .map((row) => ({
-            id: row.id,
-            weightPercentage: Number(weights[row.id] ?? row.weightPercentage),
-            expectedUpdatedAt: row.updatedAt,
-          })),
-      })
-      if (captured.isCurrent()) {
-        setWeightDraft(null)
-        await read.refetch()
-        if (captured.isCurrent()) toast.success('Draft weights configured.')
-      }
-    } catch (error) {
-      if (captured.isCurrent())
-        toast.error(error instanceof Error ? error.message : 'Weight update unavailable.')
+      await body()
+      return captured
     } finally {
       if (activeOperation.current === captured) {
         activeOperation.current = null
@@ -142,89 +215,198 @@ function EvaluationContent({ projectId }: { projectId: string }) {
       }
     }
   }
-  const initialize = async () => {
-    if (!initOwner?.isCurrent() || busy || activeOperation.current) return
-    const captured = initOwner
-    const body = {
-      criteria: drafts.map((row) => ({
-        code: row.code.trim(),
-        name: row.name.trim(),
-        type: row.type,
-        weightPercentage: Number(row.weightPercentage),
-        maximumScore: Number(row.maximumScore),
-      })),
-    }
-    const clientRequestId = requests.forBody(`${captured.key}:${captured.generation}`, body)
-    activeOperation.current = captured
-    setBusy(true)
-    try {
-      await coreDataClient.initializeCriteria(projectId, {
-        clientRequestId,
-        ...body,
+
+  const configure = () =>
+    run(owner, async () => {
+      await coreDataClient.configureWeights(projectId, {
+        criteria: draftCriteria.map((row) => ({
+          id: row.id,
+          weightPercentage: Number(weights[row.id] ?? row.weightPercentage),
+          expectedUpdatedAt: row.updatedAt,
+        })),
       })
-      if (captured.isCurrent()) {
+      if (owner?.isCurrent()) {
+        setWeightDraft(null)
+        await read.refetch()
+        if (owner?.isCurrent()) toast.success('Draft weights configured.')
+      }
+    }).catch((error) => {
+      if (owner?.isCurrent())
+        toast.error(error instanceof Error ? error.message : 'Weight update unavailable.')
+    })
+
+  const publish = () =>
+    run(owner, async () => {
+      await coreDataClient.publishCriteria(projectId, {
+        criteria: draftCriteria.map((row) => ({ id: row.id, expectedUpdatedAt: row.updatedAt })),
+      })
+      if (owner?.isCurrent()) {
+        setPublishOpen(false)
+        await read.refetch()
+        if (owner?.isCurrent()) toast.success('Evaluation criteria published.')
+      }
+    }).catch((error) => {
+      if (owner?.isCurrent())
+        toast.error(error instanceof Error ? error.message : 'Publishing is unavailable.')
+    })
+
+  const initialize = () => {
+    const target = createCriteriaOwner ?? initOwner
+    const useAppPath = Boolean(createCriteriaOwner)
+    return run(target, async () => {
+      const body = {
+        criteria: drafts.map((row) => ({
+          code: row.code.trim(),
+          name: row.name.trim(),
+          type: row.type,
+          weightPercentage: Number(row.weightPercentage),
+          maximumScore: Number(row.maximumScore),
+        })),
+      }
+      const clientRequestId = requests.forBody(`${target?.key}:${target?.generation}`, body)
+      await (useAppPath
+        ? coreDataClient.createCriteria(projectId, { clientRequestId, ...body })
+        : coreDataClient.initializeCriteria(projectId, { clientRequestId, ...body }))
+      if (target?.isCurrent()) {
         requests.acknowledge(clientRequestId)
         setDrafts([blank()])
         await read.refetch()
-        if (captured.isCurrent()) toast.success('Initial draft criteria configured.')
+        if (target?.isCurrent()) toast.success('Initial draft criteria configured.')
       }
-    } catch (error) {
-      if (captured.isCurrent())
+    }).catch((error) => {
+      if (target?.isCurrent())
         toast.error(error instanceof Error ? error.message : 'Criterion setup unavailable.')
-    } finally {
-      if (activeOperation.current === captured) {
-        activeOperation.current = null
-        setBusy(false)
-      }
-    }
+    })
   }
+
+  const startEvaluation = () =>
+    run(createEvalOwner, async () => {
+      const clientRequestId = requests.forBody(
+        `${createEvalOwner?.key}:${createEvalOwner?.generation}`,
+        evalForm,
+      )
+      await coreDataClient.createEvaluation(projectId, {
+        clientRequestId,
+        title: evalForm.title.trim(),
+        periodLabel: evalForm.periodLabel.trim() || undefined,
+        periodStart: evalForm.periodStart,
+        periodEnd: evalForm.periodEnd,
+      })
+      if (createEvalOwner?.isCurrent()) {
+        requests.acknowledge(clientRequestId)
+        setEvalForm({ title: '', periodLabel: '', periodStart: '', periodEnd: '' })
+        await read.refetch()
+        if (createEvalOwner?.isCurrent()) toast.success('Evaluation started.')
+      }
+    }).catch((error) => {
+      if (createEvalOwner?.isCurrent())
+        toast.error(
+          error instanceof Error ? error.message : 'Starting an evaluation is unavailable.',
+        )
+    })
+
+  const saveScores = () =>
+    run(scoreOwner, async () => {
+      if (!openEvaluation) return
+      await coreDataClient.saveEvaluationScores(projectId, openEvaluation.id, {
+        expectedUpdatedAt: openEvaluation.updatedAt,
+        commentary: narrative,
+        scores: publishedCriteria.map((row) => {
+          const draft = scoreDraft[row.id]
+          const parsed = draft?.score.trim() ? Number(draft.score) : undefined
+          return {
+            criterionId: row.id,
+            ...(parsed !== undefined ? { manualScore: parsed } : {}),
+            ...(draft?.note.trim() ? { note: draft.note.trim() } : {}),
+          }
+        }),
+      })
+      if (scoreOwner?.isCurrent()) {
+        setManualFallback(false)
+        await read.refetch()
+        if (scoreOwner?.isCurrent()) toast.success('Scores saved.')
+      }
+    }).catch((error) => {
+      if (scoreOwner?.isCurrent()) {
+        setManualFallback(true)
+        toast.error(error instanceof Error ? error.message : 'Scores could not be saved.')
+      }
+    })
+
+  const submitEvaluation = () =>
+    run(scoreOwner, async () => {
+      if (!openEvaluation) return
+      await coreDataClient.submitEvaluation(projectId, openEvaluation.id, {
+        expectedUpdatedAt: openEvaluation.updatedAt,
+      })
+      if (scoreOwner?.isCurrent()) {
+        setSubmitOpen(false)
+        await read.refetch()
+        if (scoreOwner?.isCurrent()) toast.success('Evaluation submitted for review.')
+      }
+    }).catch((error) => {
+      if (scoreOwner?.isCurrent())
+        toast.error(error instanceof Error ? error.message : 'Submission is unavailable.')
+    })
+
+  const returnEvaluation = () =>
+    run(reviewOwner, async () => {
+      if (!openEvaluation) return
+      await coreDataClient.returnEvaluation(projectId, openEvaluation.id, {
+        expectedUpdatedAt: openEvaluation.updatedAt,
+        reason: returnReason.trim(),
+      })
+      if (reviewOwner?.isCurrent()) {
+        setReturnOpen(false)
+        setReturnReason('')
+        await read.refetch()
+        if (reviewOwner?.isCurrent()) toast.success('Evaluation returned for correction.')
+      }
+    }).catch((error) => {
+      if (reviewOwner?.isCurrent())
+        toast.error(
+          error instanceof Error ? error.message : 'Returning this evaluation is unavailable.',
+        )
+    })
+
+  const signoff = () =>
+    run(reviewOwner, async () => {
+      if (!openEvaluation) return
+      await coreDataClient.signoffEvaluation(projectId, openEvaluation.id, {
+        expectedUpdatedAt: openEvaluation.updatedAt,
+        feedback: signoffFeedback.trim(),
+      })
+      if (reviewOwner?.isCurrent()) {
+        setSignoffOpen(false)
+        setSignoffFeedback('')
+        await read.refetch()
+        if (reviewOwner?.isCurrent()) toast.success('Evaluation signed off.')
+      }
+    }).catch((error) => {
+      if (reviewOwner?.isCurrent())
+        toast.error(error instanceof Error ? error.message : 'Sign-off is unavailable.')
+    })
+
   const edit = (index: number, key: keyof Draft, value: string) =>
     setDrafts((rows) => rows.map((row, i) => (i === index ? { ...row, [key]: value } : row)))
+
   return (
     <div className="space-y-6">
       <PageHeader
         eyebrow="Project review"
         title="Monitor & Evaluate"
-        description="Review persisted evaluation information and configure draft criterion weights."
+        description="Set up OECD-DAC style evaluation criteria, run an evaluation round, and review and sign off its results."
       />
       <SectionCard
-        title="Evaluation history"
-        description="Only persisted evaluation results appear here."
-      >
-        {read.isPending ? (
-          <AsyncState
-            status="loading"
-            title="Loading evaluation"
-            description="Verifying current project scope."
-          />
-        ) : read.isError ? (
-          <AsyncState
-            status="error"
-            title="Evaluation unavailable"
-            description="Current monitoring access could not be verified."
-            onRetry={() => void read.refetch()}
-          />
-        ) : current?.evaluation ? (
-          <div>
-            <p className="font-semibold">{current.evaluation.title}</p>
-            <p>
-              {current.evaluation.periodStart} to {current.evaluation.periodEnd}
-            </p>
-            <StatusBadge>{current.evaluation.status}</StatusBadge>
-            <p className="mt-3">
-              Overall score: {current.evaluation.overallScore ?? 'Not available'}
-            </p>
-          </div>
-        ) : (
-          <EmptyState
-            title="No persisted evaluation"
-            description="Draft criterion configuration does not create evaluations or scores."
-          />
-        )}
-      </SectionCard>
-      <SectionCard
         title="Evaluation criteria"
-        description="Published criterion definitions remain immutable; current configuration changes only draft weights."
+        description="Draft criteria can be edited freely; publishing locks them before an evaluation can use them."
+        actions={
+          owner && draftCriteria.length > 0 ? (
+            <Button disabled={busy} onClick={() => setPublishOpen(true)}>
+              Publish criteria
+            </Button>
+          ) : null
+        }
       >
         {read.isPending && !read.isError ? (
           <LoadingSkeleton />
@@ -232,7 +414,7 @@ function EvaluationContent({ projectId }: { projectId: string }) {
           <InlineNotice tone="danger">
             Current criteria access could not be verified. Reload the evaluation to continue.
           </InlineNotice>
-        ) : current?.criteria.length ? (
+        ) : criteria.length ? (
           <div className="space-y-4">
             <div className="max-h-[36rem] overflow-auto rounded-lg border border-border">
               <table className="w-full min-w-[640px] text-sm tabular-nums">
@@ -245,7 +427,7 @@ function EvaluationContent({ projectId }: { projectId: string }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {current.criteria.map((row) => (
+                  {criteria.map((row) => (
                     <tr
                       key={row.id}
                       className="border-b border-border last:border-0 hover:bg-muted"
@@ -257,7 +439,9 @@ function EvaluationContent({ projectId }: { projectId: string }) {
                         </p>
                       </td>
                       <td className="px-4 py-3">
-                        <StatusBadge>{row.status}</StatusBadge>
+                        <StatusBadge tone={row.status === 'PUBLISHED' ? 'success' : 'neutral'}>
+                          {row.status}
+                        </StatusBadge>
                       </td>
                       <td className="px-4 py-2">
                         <Input
@@ -285,7 +469,7 @@ function EvaluationContent({ projectId }: { projectId: string }) {
                 </tbody>
               </table>
             </div>
-            {owner && current.criteria.some((row) => row.status === 'DRAFT') ? (
+            {owner && draftCriteria.length > 0 ? (
               <Button disabled={busy} onClick={() => void configure()}>
                 {busy ? 'Saving' : 'Save draft weights'}
               </Button>
@@ -294,17 +478,14 @@ function EvaluationContent({ projectId }: { projectId: string }) {
         ) : (
           <EmptyState
             title="No configured criteria"
-            description="An authorized administrator can initialize a project rubric before weight configuration."
+            description="An authorized Monitoring and Evaluation Officer or administrator can set up this project's rubric."
           />
         )}
       </SectionCard>
-      {initOwner &&
-      !read.isError &&
-      current?.criteria.length === 0 &&
-      principalHasAtomicPermission(profile, 'settings.configure') ? (
+      {(createCriteriaOwner || initOwner) && !read.isError && criteria.length === 0 ? (
         <SectionCard
           title="Initial draft rubric"
-          description="Define this project's criteria. Positive weights must total 100 percent; no score or evaluation history is created."
+          description="Define this project's criteria. Positive weights must total 100 percent; no score or evaluation history is created until criteria are published."
         >
           <div className="space-y-4">
             <fieldset disabled={busy} className="min-w-0">
@@ -415,6 +596,286 @@ function EvaluationContent({ projectId }: { projectId: string }) {
             </div>
           </div>
         </SectionCard>
+      ) : null}
+      <SectionCard
+        title="Evaluations"
+        description="Only persisted, submitted evaluation rounds appear here; the donor report accepts signed-off rounds only."
+      >
+        {read.isPending ? (
+          <AsyncState
+            status="loading"
+            title="Loading evaluations"
+            description="Verifying current project scope."
+          />
+        ) : read.isError ? (
+          <AsyncState
+            status="error"
+            title="Evaluations unavailable"
+            description="Current monitoring access could not be verified."
+            onRetry={() => void read.refetch()}
+          />
+        ) : current && current.evaluations.length > 0 ? (
+          <div className="space-y-4">
+            {current.evaluations.map((row) => (
+              <EvaluationCard key={row.id} evaluation={row} />
+            ))}
+          </div>
+        ) : (
+          <EmptyState
+            title="No evaluation yet"
+            description="Publish the evaluation criteria, then start an evaluation round."
+          />
+        )}
+      </SectionCard>
+      {createEvalOwner ? (
+        <SectionCard
+          title="Start an evaluation"
+          description="Mid-term or final: give the round a title and the period it covers."
+        >
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Input
+              aria-label="Title"
+              placeholder="Title, e.g. Mid-term 2026"
+              value={evalForm.title}
+              onChange={(event) => setEvalForm((v) => ({ ...v, title: event.target.value }))}
+            />
+            <Input
+              aria-label="Period label"
+              placeholder="Period label (optional)"
+              value={evalForm.periodLabel}
+              onChange={(event) => setEvalForm((v) => ({ ...v, periodLabel: event.target.value }))}
+            />
+            <Input
+              aria-label="Period start"
+              type="date"
+              value={evalForm.periodStart}
+              onChange={(event) => setEvalForm((v) => ({ ...v, periodStart: event.target.value }))}
+            />
+            <Input
+              aria-label="Period end"
+              type="date"
+              value={evalForm.periodEnd}
+              onChange={(event) => setEvalForm((v) => ({ ...v, periodEnd: event.target.value }))}
+            />
+          </div>
+          <div className="mt-3">
+            <Button
+              disabled={
+                busy ||
+                !evalForm.title.trim() ||
+                !evalForm.periodStart ||
+                !evalForm.periodEnd ||
+                evalForm.periodEnd < evalForm.periodStart
+              }
+              onClick={() => void startEvaluation()}
+            >
+              Start evaluation
+            </Button>
+          </div>
+        </SectionCard>
+      ) : null}
+      {openEvaluation && (scoreOwner || reviewOwner || openEvaluation.status !== 'DRAFT') ? (
+        <SectionCard
+          title={`Score: ${openEvaluation.title}`}
+          description="Computed criteria are read-only and recalculate on save; the rest need a score and a note."
+        >
+          <div className="space-y-4">
+            <div className="overflow-auto rounded-lg border border-border">
+              <table className="w-full min-w-[720px] text-sm tabular-nums">
+                <thead>
+                  <tr className="border-b border-border">
+                    <th className={headClass}>Criterion</th>
+                    <th className={headClass}>Score</th>
+                    <th className={headClass}>Weighted</th>
+                    <th className={headClass}>Note / formula</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {publishedCriteria.map((row) => {
+                    const score = openEvaluation.scores.find((s) => s.criterionId === row.id)
+                    const computed = computedTypes.has(row.type)
+                    const editable = Boolean(scoreOwner) && openEvaluation.status === 'DRAFT'
+                    // A computed criterion that a save attempt could not compute falls back to
+                    // a manual score and note, same as criterion type Other.
+                    const fallback = computed && manualFallback && !score
+                    const manualInput = editable && (!computed || fallback)
+                    const draft = scoreDraft[row.id] ?? { score: '', note: '' }
+                    return (
+                      <tr key={row.id} className="border-b border-border last:border-0">
+                        <td className="px-4 py-3">
+                          <p className="font-medium text-foreground">{row.name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {row.code} · {row.type} · weight {row.weightPercentage}%
+                          </p>
+                          {fallback ? (
+                            <p className="text-xs text-warning">
+                              Could not be computed; enter a score and a note.
+                            </p>
+                          ) : null}
+                        </td>
+                        <td className="px-4 py-2">
+                          {manualInput ? (
+                            <Input
+                              aria-label={`Score for ${row.name}`}
+                              className="w-28"
+                              type="number"
+                              min="0"
+                              max={row.maximumScore}
+                              step="0.0001"
+                              value={draft.score}
+                              onChange={(event) =>
+                                setScoreDraft((v) => ({
+                                  ...v,
+                                  [row.id]: { ...draft, score: event.target.value },
+                                }))
+                              }
+                            />
+                          ) : (
+                            <span>
+                              {score ? `${score.score} / ${score.maximumScore}` : 'Not yet'}
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">{score?.weightedScore ?? 'Not yet'}</td>
+                        <td className="px-4 py-3">
+                          {manualInput ? (
+                            <Textarea
+                              aria-label={`Note for ${row.name}`}
+                              maxLength={2000}
+                              rows={2}
+                              value={draft.note}
+                              onChange={(event) =>
+                                setScoreDraft((v) => ({
+                                  ...v,
+                                  [row.id]: { ...draft, note: event.target.value },
+                                }))
+                              }
+                            />
+                          ) : (
+                            <p className="text-xs text-muted-foreground">
+                              {score?.commentary ?? 'Not yet scored.'}
+                            </p>
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+            {scoreOwner ? (
+              <>
+                <Textarea
+                  aria-label="Evaluation narrative"
+                  placeholder="Evaluator narrative (optional)"
+                  rows={3}
+                  value={narrative}
+                  onChange={(event) => setNarrative(event.target.value)}
+                />
+                <div className="flex flex-wrap gap-3">
+                  <Button variant="outline" disabled={busy} onClick={() => void saveScores()}>
+                    Save scores
+                  </Button>
+                  <Button disabled={busy} onClick={() => setSubmitOpen(true)}>
+                    Submit evaluation
+                  </Button>
+                </div>
+              </>
+            ) : null}
+            {reviewOwner && openEvaluation.status === 'SUBMITTED' ? (
+              <div className="flex flex-wrap gap-3">
+                <Button variant="outline" disabled={busy} onClick={() => setReturnOpen(true)}>
+                  Return for correction
+                </Button>
+                {canSignOff ? (
+                  <Button disabled={busy} onClick={() => setSignoffOpen(true)}>
+                    Sign off
+                  </Button>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+        </SectionCard>
+      ) : null}
+      <ConfirmationDialog
+        open={publishOpen}
+        onOpenChange={setPublishOpen}
+        title="Publish evaluation criteria"
+        description="Publishing locks every draft criterion's weight, type and maximum score. This cannot be undone; a new version is needed to change them again."
+        confirmLabel="Publish criteria"
+        onConfirm={() => void publish()}
+      />
+      <ConfirmationDialog
+        open={submitOpen}
+        onOpenChange={setSubmitOpen}
+        title="Submit this evaluation"
+        description="Submitting locks the scores for review. The Project Manager reviews and signs off, or returns it for correction."
+        confirmLabel="Submit evaluation"
+        confirmVariant="default"
+        onConfirm={() => void submitEvaluation()}
+      />
+      <ConfirmationDialog
+        open={returnOpen}
+        onOpenChange={setReturnOpen}
+        title="Return for correction"
+        description="The evaluation reopens as a draft for the Monitoring and Evaluation Officer. Explain what needs to change."
+        confirmLabel="Return evaluation"
+        confirmVariant="default"
+        confirmDisabled={!returnReason.trim()}
+        onConfirm={() => void returnEvaluation()}
+      >
+        <Textarea
+          aria-label="Reason for returning"
+          placeholder="Reason (required)"
+          rows={3}
+          value={returnReason}
+          onChange={(event) => setReturnReason(event.target.value)}
+        />
+      </ConfirmationDialog>
+      <ConfirmationDialog
+        open={signoffOpen}
+        onOpenChange={setSignoffOpen}
+        title="Sign off this evaluation"
+        description="Sign-off makes this evaluation final and reportable. Scores and the review feedback become permanent."
+        confirmLabel="Sign off"
+        confirmVariant="default"
+        confirmDisabled={!signoffFeedback.trim()}
+        onConfirm={() => void signoff()}
+      >
+        <Textarea
+          aria-label="Sign-off feedback"
+          placeholder="Feedback (required)"
+          rows={3}
+          value={signoffFeedback}
+          onChange={(event) => setSignoffFeedback(event.target.value)}
+        />
+      </ConfirmationDialog>
+    </div>
+  )
+}
+function EvaluationCard({ evaluation }: { evaluation: EvaluationDetail }) {
+  return (
+    <div className="rounded-lg border border-border p-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <p className="font-semibold text-foreground">{evaluation.title}</p>
+          <p className="text-xs text-muted-foreground">
+            {evaluation.periodLabel ? `${evaluation.periodLabel} · ` : ''}
+            {evaluation.periodStart} to {evaluation.periodEnd}
+          </p>
+        </div>
+        <StatusBadge tone={statusTone[evaluation.status]}>{evaluation.status}</StatusBadge>
+      </div>
+      <p className="mt-2 text-sm">Overall score: {evaluation.overallScore ?? 'Not available'}</p>
+      <div className="mt-3 grid gap-2 text-xs text-muted-foreground sm:grid-cols-3">
+        <p>Evaluated by: {named(evaluation.evaluatedBy)}</p>
+        <p>Reviewed by: {named(evaluation.reviewedBy)}</p>
+        <p>Signed off by: {named(evaluation.signedOffBy)}</p>
+      </div>
+      {evaluation.reviewFeedback ? (
+        <p className="mt-2 text-sm text-muted-foreground">
+          Review feedback: {evaluation.reviewFeedback}
+        </p>
       ) : null}
     </div>
   )

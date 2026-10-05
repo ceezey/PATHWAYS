@@ -1020,7 +1020,7 @@ The board's UI foundations (`1344:913`) and color palette (`1344:1487`) mirror t
 - the flat six-item sidebar; grouped navigation in `apps/web/src/constants/navigation.ts` stays;
 - the `UCD` and `UCR` role labels and the "National scope" chip; show the six system role names and organization scope;
 - "Delete" on activities; activities are cancelled through status, never deleted;
-- the Project Manager "Budget approvals restricted" chip and "expenses + evaluations" approvals; the expense chain is verify, approve, sign-off and no role holds evaluation approval stages;
+- the Project Manager "Budget approvals restricted" chip and "expenses + evaluations" approvals; the expense chain is verify, approve, sign-off, and the evaluation chain is submit (Monitoring and Evaluation Officer), then review and sign-off together (Project Manager), not the board's wording;
 - the notification inbox; registered as deferred;
 - all sample names, places, codes and amounts.
 

@@ -5,6 +5,7 @@ import { BENEFICIARY_STEP_UP_KEY } from '../../common/decorators/beneficiary-ste
 import type { PrismaService } from '../../prisma/prisma.service'
 import { hasAtomicPermission } from '../auth/authorization-policy'
 import type { ApplicationIdentity } from '../auth/developer-access'
+import type { EvaluationMetricsService } from './evaluation-metrics'
 import { EvaluationsController } from './evaluations.controller'
 import { EvaluationsService } from './evaluations.service'
 
@@ -65,7 +66,7 @@ const tx = {
   project: { findFirst: vi.fn() },
   assessmentResult: { findFirst: vi.fn() },
 }
-const service = new EvaluationsService({} as PrismaService)
+const service = new EvaluationsService({} as PrismaService, {} as EvaluationMetricsService)
 const read = (projectKey = projectId, id = assessmentId) =>
   Promise.resolve().then(() => service.getAssessmentDetail(officer, projectKey, id))
 
