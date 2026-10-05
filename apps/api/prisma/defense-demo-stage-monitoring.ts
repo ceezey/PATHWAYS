@@ -50,10 +50,12 @@ const libraryPlans: LibraryPlan[] = [
   },
 ]
 
-const libraryReadings: Record<string, string[]> = { 'LIB-HH-VISITED': ['8', '16', '24'] }
+export const libraryReadings: Record<string, string[]> = { 'LIB-HH-VISITED': ['8', '16', '24'] }
+/** Target of the manual library indicator, which counts CRL households. */
+export const manualLibraryTarget = '30'
 
 /** Latest value corrected after a data quality review: project, indicator code, corrected value. */
-const corrections: Array<[ProjectKey, string, string]> = [
+export const corrections: Array<[ProjectKey, string, string]> = [
   ['SSG', 'SSG-GIRLS-ENR', '108'],
   ['CRL', 'CRL-HH-DIV', '25'],
   ['ALS', 'ALS-COMPLETION', '20.00'],
@@ -91,7 +93,7 @@ export async function stageMonitoring(ctx: DemoContext) {
         periodStart,
         periodEnd,
         baseline: plan.entry.mode === 'DERIVED' ? '0.00' : '0',
-        target: plan.entry.mode === 'DERIVED' ? '100.00' : '30',
+        target: plan.entry.mode === 'DERIVED' ? '100.00' : manualLibraryTarget,
       }),
     )) as unknown as { id: string }
     let previous: string | null = null
