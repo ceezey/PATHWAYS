@@ -285,3 +285,7 @@
 ## 2026-10-06
 
 - Evaluation write path verified locally: full MigrationBaseline replay 0000-0064 green with the evaluations runtime suite (8 cases) wired in, f10-f11 and 0063 suites pass, API and web typecheck, lint and tests pass, defense rehearsal 23/23. `finance-evaluation-decisions.sql` remains a stale Phase 3 suite (fails at fixtures on the rules source-proof trigger). CR approved by the developer; not applied to devV2.
+
+## 2026-10-06 Evaluation write path final review fixes
+- Migration 0064 (still unapplied) gains `return_reason` (returns no longer overwrite the evaluator narrative; approve-only, reason required, cleared on resubmission) and a stronger postcondition. Evaluation reads return an allowlisted criterion snapshot, per-score source and note, newest 20 plus `hasMore`; saves claim the draft with a guarded update and upsert, keep rows not resupplied and return structured per-criterion errors. Beneficiary reach is an enrolled count with small-cell suppression, Budget efficiency is not computable for roles without budget access, and the efficiency ratio is now scaled to a percent (1.00 = full score). The workspace prefills manual scores, shows the return reason, blocks submit with unsaved edits.
+- Deferred (docs/deferred-features.md): closed-evaluation view, display labels, workspace split, criteria versioning, workspace UI tests. Full MigrationBaseline replay green (161 PASS, evaluations suite 8 passed); API 2222 and web 1821 tests pass.

@@ -45,7 +45,11 @@ it directly through the database owner connection.
   reach) are scored automatically from project data; the fifth (Other, for Relevance, Coherence,
   Sustainability and similar judgment criteria) is scored manually with a required note. A
   computed type that cannot be computed from the project's data falls back to the same manual
-  requirement, naming the reason.
+  requirement, naming the reason. Beneficiary reach counts beneficiaries enrolled (active or
+  completed by the evaluation period end), not the SADDD reached figure the project overview shows;
+  counts of 1-4 are suppressed (not computable, never printed). Budget efficiency needs
+  `budgets.read`, which M&E does not hold, so for M&E it is always not computable and takes a
+  manual score and note.
 - **Lifecycle:** M&E scores and submits; the Project Manager reviews and signs off in one action
   (or returns the evaluation to draft with a reason). Signed off is final and reportable.
 - **Visibility:** every role that can already see the Monitor & Evaluate tab keeps read-only
@@ -72,7 +76,10 @@ New migration `0064_evaluation_write_path`:
   differ from `reviewed_by_id` (still must differ from `evaluated_by_id`), so one Project Manager
   action can review and sign off together. `p3_guard_evaluation` gains one transition,
   `SUBMITTED -> DRAFT` ("return for correction"), which clears `evaluated_at` and `overall_score`
-  and freezes every other recorded field except `commentary` (used for the return reason).
+  and freezes every other recorded field except the new `return_reason` column (the return
+  reason never overwrites the evaluator's commentary). Only an `evaluations.approve` holder may
+  return, a reason is required, and the CHECK plus the guard clear `return_reason` on resubmission
+  and outside DRAFT. The postcondition asserts the policies, the column and the approve check.
 - `project_evaluations`' `p09_update` RLS policy is rebuilt: no UPDATE could reach `DRAFT` before
   this change, so the baseline's `WITH CHECK` sent it to the generic `evaluations.submit` case.
   The Project Manager's return only holds `evaluations.approve`, so `DRAFT` now accepts either
@@ -86,7 +93,10 @@ New migration `0064_evaluation_write_path`:
 - `rbac-contract.json` updated (`permissions` map and a new `amendments` entry) to match.
 
 ### Authorization / Privacy
-No new data exposure; evaluation actor names were already visible to monitoring.read holders.
+Evaluation actor names were already visible to monitoring.read holders. The evaluation response
+now returns only an allowlisted criterion snapshot, and the reach criterion is an enrolled count
+with the small-cell rule applied (counts 1-4 are never shown), which is distinct from the SADDD
+reached figure.
 The RBAC ceiling in `authorization-policy.ts` is updated alongside the database grants.
 
 ### API
@@ -111,7 +121,7 @@ Sign off actions, each behind a confirmation dialog matching the DSD's consequen
 - `live-evaluation-workspace.test.tsx`: updated plus five new tests covering publish, start,
   score + submit, return, and sign-off.
 - `prisma/legacy-retirement.test.ts`: migration directory list updated.
-- API and web `pnpm typecheck` and `pnpm lint` (biome) are clean; the full API (2198 tests) and
+- API and web `pnpm typecheck` and `pnpm lint` (biome) are clean; the full API (2222 tests) and
   the touched web suites pass.
 - Migration, runtime suite and defense rehearsal were run locally; see section 9 for results.
 
@@ -141,8 +151,9 @@ Apply `0064_evaluation_write_path` after `0063`. Rollback: revert the migration 
 `p09_update` policy, all reproduced verbatim in this migration's predecessor state in
 `0000_pathways_baseline_through_0026`; restore `p10_guard_evaluation_weight` and its trigger; drop
 the two new actor-binding policies; reinstate the original `project_evaluation_criteria` INSERT
-policy; revert the `role_permissions` and `rbac-contract.json` changes). No destructive data
-change; existing rows are unaffected.
+policy; drop the `return_reason` column and its constraint, revert the `role_permissions` and `rbac-contract.json` changes). Restoring the original
+`p3_evaluation_values` CHECK needs `NOT VALID` or a data decision once one-action sign-offs exist
+(a reviewer equal to the signer would violate it). Otherwise no destructive data change.
 
 ## 7. Verification
 
@@ -165,6 +176,6 @@ Verified locally on 2026-10-06 (worktree `feature/evaluation-write-path`); no ho
 
 - Replay: `Replay-Local.ps1 -MigrationBaseline` exit 0 on 0000-0064 (161 PASS, 0 FAIL), including `F10_F11_RULES_RUNTIME`, `FORWARD_0063_RULES_SCOPE_MEMO_RUNTIME`, `RBAC_V4_GRANTS_RUNTIME` and `CURRENT_SCHEMA_API_RUNTIME`; the wired `evaluations.local.test.ts` ran inside the gate (8 passed).
 - Suites: `f10-f11-rules-runtime.sql` PASS (75 checks) on the saved template. `finance-evaluation-decisions.sql` is a stale Phase 3 suite that already fails at its project fixture insert ("Source proof unavailable", rules source-proof trigger) before any evaluation logic; its 0064 assertion edit stays unexecuted and the new runtime suite covers that behavior.
-- API: typecheck and biome clean; 114 test files passed (2198 tests, 20 skipped). Web: typecheck and biome clean; 203 files (1817 tests) passed.
+- API: typecheck and biome clean; 116 test files passed (2222 tests, 20 skipped). Web: typecheck and biome clean; 203 files (1821 tests) passed. After the final review fixes (return reason column, snapshot allowlist, enrolled reach, budget visibility, guarded saves) the full MigrationBaseline replay was re-run: exit 0, 161 PASS lines, evaluations.local.test.ts 8 passed.
 - Defense rehearsal on the local stack: `db:local:reset`, wipe, `db:defense:local`, `defense-demo.mjs --test-local --verify` returned 23/23.
 - Not yet applied to devV2; controller SAD migration review is separate.

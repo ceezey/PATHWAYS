@@ -1377,7 +1377,7 @@ stateDiagram-v2
 | G-F12-3 | Export writes an audit event without report content | Met | QAD-T72 |
 | G-F12-4 | Every report type exports as CSV, XLS, XLSX and PDF | Met | QAD-T73, QAD-T111, QAD-T119, QAD-T120 |
 | G-F12-5 | Descriptive views refuse callers without `analytics.descriptive.read` and exports refuse callers without `analytics.export` | Met | QAD-A18 |
-| G-F12-6 | An evaluation can be created, scored (computed or manual with a required note), submitted, and reviewed and signed off by a distinct Project Manager, feeding the Evaluation report | Partly met: code and API/web tests pass; migration 0063 not yet applied or runtime-verified against any database | cr-pathways-evaluation-write-path |
+| G-F12-6 | An evaluation can be created, scored (computed or manual with a required note), submitted, and reviewed and signed off by a distinct Project Manager, feeding the Evaluation report | Met locally: migration 0064 applied and runtime verified on a local disposable replay (evaluations suite); not yet applied to any hosted database | cr-pathways-evaluation-write-path |
 
 #### Use Cases
 
