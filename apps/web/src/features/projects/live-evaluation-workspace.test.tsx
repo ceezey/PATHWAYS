@@ -12,6 +12,7 @@ const state = vi.hoisted(() => ({
   empty: false,
   extraSettings: false,
   published: false,
+  criterionType: 'OTHER',
   evaluation: null as Record<string, unknown> | null,
   configure: vi.fn(),
   initialize: vi.fn(),
@@ -100,7 +101,7 @@ vi.mock('@/providers/authorized-query-provider', () => ({
               name: 'Recorded criterion',
               code: 'outcomes',
               description: null,
-              type: 'OTHER',
+              type: state.criterionType,
               version: 1,
               status: state.published ? 'PUBLISHED' : 'DRAFT',
               weightPercentage: '100',
@@ -132,6 +133,7 @@ describe('evaluation editor revisions and retry identity', () => {
     state.empty = false
     state.extraSettings = false
     state.published = false
+    state.criterionType = 'OTHER'
     state.evaluation = null
     state.refetch.mockResolvedValue(undefined)
   })
@@ -223,6 +225,7 @@ const openEvaluation = {
   periodEnd: '2026-06-30',
   overallScore: null,
   commentary: null,
+  returnReason: null,
   status: 'DRAFT',
   updatedAt: '2026-10-01T00:00:00.000Z',
   evaluatedBy: null,
@@ -245,6 +248,7 @@ describe('evaluation rounds: criteria publishing, scoring, submit and review', (
     state.empty = false
     state.extraSettings = false
     state.published = false
+    state.criterionType = 'OTHER'
     state.evaluation = null
     state.refetch.mockResolvedValue(undefined)
   })
@@ -294,6 +298,64 @@ describe('evaluation rounds: criteria publishing, scoring, submit and review', (
     const confirmButtons = screen.getAllByRole('button', { name: 'Submit evaluation' })
     fireEvent.click(confirmButtons[confirmButtons.length - 1])
     await waitFor(() => expect(state.submit).toHaveBeenCalledOnce())
+  })
+  it('prefills saved manual scores and keeps the return reason out of the narrative', () => {
+    state.published = true
+    state.evaluation = {
+      ...openEvaluation,
+      returnReason: 'Recheck the scores',
+      scores: [
+        {
+          criterionId,
+          score: '80',
+          maximumScore: '100',
+          weightedScore: '80',
+          commentary: 'Evidence note',
+          source: 'manual',
+          note: 'Evidence note',
+        },
+      ],
+    }
+    render(<LiveEvaluationWorkspace projectId={projectId} />)
+    expect((screen.getByLabelText('Score for Recorded criterion') as HTMLInputElement).value).toBe(
+      '80',
+    )
+    expect(
+      (screen.getByLabelText('Note for Recorded criterion') as HTMLTextAreaElement).value,
+    ).toBe('Evidence note')
+    expect(screen.getByText('Returned for correction: Recheck the scores')).toBeTruthy()
+    expect((screen.getByLabelText('Evaluation narrative') as HTMLTextAreaElement).value).toBe('')
+  })
+  it('disables submitting while there are unsaved edits', () => {
+    state.published = true
+    state.evaluation = { ...openEvaluation }
+    render(<LiveEvaluationWorkspace projectId={projectId} />)
+    const submit = screen.getByRole('button', { name: 'Submit evaluation' })
+    expect(submit.hasAttribute('disabled')).toBe(false)
+    fireEvent.change(screen.getByLabelText('Evaluation narrative'), { target: { value: 'Draft' } })
+    expect(submit.hasAttribute('disabled')).toBe(true)
+    expect(screen.getByText('Save before submitting.')).toBeTruthy()
+  })
+  it('offers manual inputs for a computed criterion only after the server reports it', async () => {
+    state.published = true
+    state.criterionType = 'BENEFICIARY_REACH'
+    state.evaluation = { ...openEvaluation }
+    state.saveScores.mockRejectedValue(
+      Object.assign(new Error('Review the highlighted form fields.'), {
+        fieldErrors: [
+          {
+            fieldCode: criterionId,
+            code: 'NOT_COMPUTABLE',
+            message: 'Not computable: small cell.',
+          },
+        ],
+      }),
+    )
+    render(<LiveEvaluationWorkspace projectId={projectId} />)
+    expect(screen.queryByLabelText('Score for Recorded criterion')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Save scores' }))
+    await waitFor(() => expect(screen.getByLabelText('Score for Recorded criterion')).toBeTruthy())
+    expect(screen.getByText('Not computable: small cell.')).toBeTruthy()
   })
   it('lets the Project Manager return a submitted evaluation for correction', async () => {
     state.role = 'PROJECT_MANAGER'

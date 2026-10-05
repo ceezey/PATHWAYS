@@ -201,6 +201,56 @@ describe('Core client request and strict response boundaries', () => {
       ).rejects.toThrow('could not be validated')
     },
   )
+  it('parses a populated evaluation response and rejects an extra snapshot key', async () => {
+    const criterion = {
+      id: otherId,
+      code: 'REL',
+      version: 1,
+      type: 'OTHER',
+      name: 'Relevance',
+      description: null,
+      weight_percentage: '60',
+      maximum_score: '100',
+    }
+    const evaluation = {
+      id: expenseId,
+      title: 'Mid-term',
+      periodLabel: null,
+      periodStart: '2026-01-01',
+      periodEnd: '2026-06-30',
+      overallScore: '80',
+      commentary: null,
+      returnReason: null,
+      status: 'SUBMITTED',
+      updatedAt,
+      evaluatedBy: { id: userId, name: 'Evaluator' },
+      evaluatedAt: updatedAt,
+      reviewedBy: null,
+      reviewedAt: null,
+      reviewFeedback: null,
+      signedOffBy: null,
+      signedOffAt: null,
+      scores: [
+        {
+          criterionId: otherId,
+          score: '80',
+          maximumScore: '100',
+          weightedScore: '48',
+          commentary: 'Judged against the plan.',
+          source: 'manual',
+          note: 'Judged against the plan.',
+          criterion,
+        },
+      ],
+    }
+    const body = { projectId, criteria: [], evaluations: [evaluation], hasMore: false }
+    fetcher.mockResolvedValueOnce(json(body))
+    await expect(coreDataClient.evaluation(projectId)).resolves.toEqual(body)
+    const leaking = structuredClone(body)
+    Object.assign(leaking.evaluations[0].scores[0].criterion, { beneficiaryId: otherId })
+    fetcher.mockResolvedValueOnce(json(leaking))
+    await expect(coreDataClient.evaluation(projectId)).rejects.toThrow('could not be validated')
+  })
   it('accepts only the allowlisted publication snapshot for the requested project', async () => {
     fetcher.mockResolvedValueOnce(json(publication))
     await expect(coreFeatureClient.publication(projectId)).resolves.toEqual(publication)

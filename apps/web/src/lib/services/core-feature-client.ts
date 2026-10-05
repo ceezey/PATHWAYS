@@ -188,6 +188,8 @@ const evaluationScoreSchema = z
     maximumScore: decimal,
     weightedScore: decimal,
     commentary: z.string().nullable(),
+    source: z.enum(['computed', 'manual']),
+    note: z.string().nullable(),
     criterion: criterionSnapshotSchema,
   })
   .strict()
@@ -200,6 +202,7 @@ export const evaluationDetailSchema = z
     periodEnd: z.string(),
     overallScore: decimal.nullable(),
     commentary: z.string().nullable(),
+    returnReason: z.string().nullable(),
     status: z.enum(['DRAFT', 'SUBMITTED', 'REVIEWED', 'SIGNED_OFF', 'ARCHIVED']),
     updatedAt: timestamp,
     evaluatedBy: evaluationPersonSchema,
@@ -217,6 +220,7 @@ export const evaluationSchema = z
     projectId: uuid,
     criteria: z.array(criterionSchema).max(100),
     evaluations: z.array(evaluationDetailSchema).max(20),
+    hasMore: z.boolean(),
   })
   .strict()
 const criteriaReceiptSchema = z

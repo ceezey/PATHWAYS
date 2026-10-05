@@ -33,7 +33,10 @@ export const useProjectExtras = (
       setEvaluations(
         rows.map(([id, title], i) => {
           const r = results[i]
-          const score = r?.status === 'fulfilled' ? r.value.evaluations[0]?.overallScore : null
+          const score =
+            r?.status === 'fulfilled'
+              ? r.value.evaluations.find((row) => row.status === 'SIGNED_OFF')?.overallScore
+              : null
           return { projectId: id, title, score: score ?? null }
         }),
       )

@@ -24,6 +24,7 @@ import type { z } from 'zod'
 import { InlineNotice, OptionSelect } from './option-select'
 
 type EvaluationDetail = z.infer<typeof evaluationDetailSchema>
+type SavedScore = EvaluationDetail['scores'][number]
 
 const headClass =
   'sticky top-0 z-10 h-10 bg-surface-subtle px-4 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground'
@@ -64,6 +65,11 @@ const blank = (): Draft => ({
   weightPercentage: '',
   maximumScore: '100',
 })
+// A manual saved score prefills its inputs; everything else starts empty.
+const prefill = (saved?: SavedScore) =>
+  saved?.source === 'manual'
+    ? { score: saved.score, note: saved.note ?? '' }
+    : { score: '', note: '' }
 const named = (value: { id: string; name: string } | null) => value?.name ?? 'Not yet'
 export function LiveEvaluationWorkspace({ projectId }: { projectId: string }) {
   const { profile } = useCurrentRole()
@@ -161,10 +167,12 @@ function EvaluationContent({ projectId }: { projectId: string }) {
     periodEnd: '',
   })
   const [scoreDraft, setScoreDraft] = useState<Record<string, { score: string; note: string }>>({})
-  // A computed criterion a save attempt could not compute falls back to a manual score and
-  // note, same as criterion type Other; this tracks that a retry should offer the fallback.
-  const [manualFallback, setManualFallback] = useState(false)
+  // Computed criteria the server reported as not computable, by id with the reason; only these
+  // fall back to a manual score and note, same as criterion type Other.
+  const [manualReasons, setManualReasons] = useState<Record<string, string>>({})
   const [narrative, setNarrative] = useState('')
+  // Unsaved score or narrative edits block submitting, which would otherwise discard them.
+  const [unsaved, setUnsaved] = useState(false)
   const [returnReason, setReturnReason] = useState('')
   const [signoffFeedback, setSignoffFeedback] = useState('')
   const [publishOpen, setPublishOpen] = useState(false)
@@ -191,7 +199,8 @@ function EvaluationContent({ projectId }: { projectId: string }) {
   useEffect(() => {
     setScoreDraft({})
     setNarrative(openEvaluation?.commentary ?? '')
-    setManualFallback(false)
+    setManualReasons({})
+    setUnsaved(false)
   }, [scoreOwner?.key, scoreOwner?.generation])
   useEffect(() => {
     if (activeOperation.current && !activeOperation.current.isCurrent()) {
@@ -312,24 +321,32 @@ function EvaluationContent({ projectId }: { projectId: string }) {
         expectedUpdatedAt: openEvaluation.updatedAt,
         commentary: narrative,
         scores: publishedCriteria.map((row) => {
-          const draft = scoreDraft[row.id]
-          const parsed = draft?.score.trim() ? Number(draft.score) : undefined
+          const saved = openEvaluation.scores.find((s) => s.criterionId === row.id)
+          const draft = scoreDraft[row.id] ?? prefill(saved)
+          const parsed = draft.score.trim() ? Number(draft.score) : undefined
           return {
             criterionId: row.id,
             ...(parsed !== undefined ? { manualScore: parsed } : {}),
-            ...(draft?.note.trim() ? { note: draft.note.trim() } : {}),
+            ...(draft.note.trim() ? { note: draft.note.trim() } : {}),
           }
         }),
       })
       if (scoreOwner?.isCurrent()) {
-        setManualFallback(false)
+        setManualReasons({})
+        setUnsaved(false)
         await read.refetch()
         if (scoreOwner?.isCurrent()) toast.success('Scores saved.')
       }
     }).catch((error) => {
       if (scoreOwner?.isCurrent()) {
-        setManualFallback(true)
-        toast.error(error instanceof Error ? error.message : 'Scores could not be saved.')
+        const flagged = (error as { fieldErrors?: { fieldCode: string; message: string }[] })
+          .fieldErrors
+        if (flagged?.length) {
+          setManualReasons(
+            Object.fromEntries(flagged.map((item) => [item.fieldCode, item.message])),
+          )
+          toast.error('Enter a score and a note for the highlighted criteria.')
+        } else toast.error(error instanceof Error ? error.message : 'Scores could not be saved.')
       }
     })
 
@@ -387,6 +404,11 @@ function EvaluationContent({ projectId }: { projectId: string }) {
         toast.error(error instanceof Error ? error.message : 'Sign-off is unavailable.')
     })
 
+  const editScore = (id: string, value: { score: string; note: string }) => {
+    setScoreDraft((v) => ({ ...v, [id]: value }))
+    setUnsaved(true)
+  }
+
   const edit = (index: number, key: keyof Draft, value: string) =>
     setDrafts((rows) => rows.map((row, i) => (i === index ? { ...row, [key]: value } : row)))
 
@@ -399,7 +421,7 @@ function EvaluationContent({ projectId }: { projectId: string }) {
       />
       <SectionCard
         title="Evaluation criteria"
-        description="Draft criteria can be edited freely; publishing locks them before an evaluation can use them."
+        description="Draft weights can be adjusted before publishing; published criteria cannot be changed in-app."
         actions={
           owner && draftCriteria.length > 0 ? (
             <Button disabled={busy} onClick={() => setPublishOpen(true)}>
@@ -695,11 +717,12 @@ function EvaluationContent({ projectId }: { projectId: string }) {
                     const score = openEvaluation.scores.find((s) => s.criterionId === row.id)
                     const computed = computedTypes.has(row.type)
                     const editable = Boolean(scoreOwner) && openEvaluation.status === 'DRAFT'
-                    // A computed criterion that a save attempt could not compute falls back to
-                    // a manual score and note, same as criterion type Other.
-                    const fallback = computed && manualFallback && !score
-                    const manualInput = editable && (!computed || fallback)
-                    const draft = scoreDraft[row.id] ?? { score: '', note: '' }
+                    // Only a computed criterion the server could not compute, or one already
+                    // scored manually, takes manual input, same as criterion type Other.
+                    const reason = manualReasons[row.id]
+                    const manualInput =
+                      editable && (!computed || reason !== undefined || score?.source === 'manual')
+                    const draft = scoreDraft[row.id] ?? prefill(score)
                     return (
                       <tr key={row.id} className="border-b border-border last:border-0">
                         <td className="px-4 py-3">
@@ -707,10 +730,8 @@ function EvaluationContent({ projectId }: { projectId: string }) {
                           <p className="text-xs text-muted-foreground">
                             {row.code} · {row.type} · weight {row.weightPercentage}%
                           </p>
-                          {fallback ? (
-                            <p className="text-xs text-warning">
-                              Could not be computed; enter a score and a note.
-                            </p>
+                          {reason !== undefined ? (
+                            <p className="text-xs text-warning">{reason}</p>
                           ) : null}
                         </td>
                         <td className="px-4 py-2">
@@ -724,10 +745,7 @@ function EvaluationContent({ projectId }: { projectId: string }) {
                               step="0.0001"
                               value={draft.score}
                               onChange={(event) =>
-                                setScoreDraft((v) => ({
-                                  ...v,
-                                  [row.id]: { ...draft, score: event.target.value },
-                                }))
+                                editScore(row.id, { ...draft, score: event.target.value })
                               }
                             />
                           ) : (
@@ -745,10 +763,7 @@ function EvaluationContent({ projectId }: { projectId: string }) {
                               rows={2}
                               value={draft.note}
                               onChange={(event) =>
-                                setScoreDraft((v) => ({
-                                  ...v,
-                                  [row.id]: { ...draft, note: event.target.value },
-                                }))
+                                editScore(row.id, { ...draft, note: event.target.value })
                               }
                             />
                           ) : (
@@ -763,6 +778,9 @@ function EvaluationContent({ projectId }: { projectId: string }) {
                 </tbody>
               </table>
             </div>
+            {openEvaluation.status === 'DRAFT' && openEvaluation.returnReason ? (
+              <InlineNotice>Returned for correction: {openEvaluation.returnReason}</InlineNotice>
+            ) : null}
             {scoreOwner ? (
               <>
                 <Textarea
@@ -770,15 +788,23 @@ function EvaluationContent({ projectId }: { projectId: string }) {
                   placeholder="Evaluator narrative (optional)"
                   rows={3}
                   value={narrative}
-                  onChange={(event) => setNarrative(event.target.value)}
+                  onChange={(event) => {
+                    setNarrative(event.target.value)
+                    setUnsaved(true)
+                  }}
                 />
                 <div className="flex flex-wrap gap-3">
                   <Button variant="outline" disabled={busy} onClick={() => void saveScores()}>
                     Save scores
                   </Button>
-                  <Button disabled={busy} onClick={() => setSubmitOpen(true)}>
+                  <Button disabled={busy || unsaved} onClick={() => setSubmitOpen(true)}>
                     Submit evaluation
                   </Button>
+                  {unsaved ? (
+                    <p className="self-center text-xs text-muted-foreground">
+                      Save before submitting.
+                    </p>
+                  ) : null}
                 </div>
               </>
             ) : null}
@@ -801,7 +827,7 @@ function EvaluationContent({ projectId }: { projectId: string }) {
         open={publishOpen}
         onOpenChange={setPublishOpen}
         title="Publish evaluation criteria"
-        description="Publishing locks every draft criterion's weight, type and maximum score. This cannot be undone; a new version is needed to change them again."
+        description="Publishing locks every draft criterion's weight, type and maximum score. Published criteria cannot be changed in-app."
         confirmLabel="Publish criteria"
         onConfirm={() => void publish()}
       />
