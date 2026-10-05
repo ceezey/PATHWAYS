@@ -74,6 +74,6 @@ The response keeps `Content-Disposition: attachment` with a generic name and the
 **Unchanged limits.** The 10 MiB size cap, the thirty-second request ceiling and the pending-only window still apply, and bytes already shown cannot be retracted, as section 4 already states for downloads. The upload list includes video, but proof files above 10 MiB stay unavailable for both preview and download.
 
 **Verification.**
-- API tests: each allow-listed type returns its recorded type and extension; a signature mismatch, an unverified upload or an unlisted type returns `application/octet-stream`; nosniff and no-store headers are present; range and HEAD behaviour is unchanged; and a denied admission still reads no body.
+- API tests: each allow-listed type returns its recorded type and extension; a signature mismatch or an unlisted type returns `application/octet-stream`; an unverified upload is still refused at admission (section 2), which is stricter; nosniff and no-store headers are present; range and HEAD behaviour is unchanged; and a denied admission still reads no body.
 - Web tests: the inspection control opens the modal, renders by type, revokes the URL on close, and downloads with a single fetch.
 - Before merge: an isolation, privacy and design review of the exact code by organization-isolation-checker, beneficiary-privacy-guardian and design-qa-agent.
