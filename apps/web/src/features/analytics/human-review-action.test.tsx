@@ -179,7 +179,7 @@ describe('owned human decision flow', () => {
     enter()
     await screen.findByText('2 recipients will receive an in-app notification.')
     expect(state.confirm).not.toHaveBeenCalled()
-    fireEvent.click(screen.getByRole('button', { name: 'Confirm and record outcome' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Record Outcome' }))
     await waitFor(() => expect(state.committed).toHaveBeenCalledOnce())
     expect(state.preview.mock.calls[0][1]).toMatchObject({
       expectedRevision: '7',
@@ -195,12 +195,12 @@ describe('owned human decision flow', () => {
     state.confirm.mockRejectedValueOnce(new Error('lost response'))
     render(<HumanReviewAction {...props} />)
     enter()
-    await screen.findByRole('button', { name: 'Confirm and record outcome' })
-    fireEvent.click(screen.getByRole('button', { name: 'Confirm and record outcome' }))
+    await screen.findByRole('button', { name: 'Record Outcome' })
+    fireEvent.click(screen.getByRole('button', { name: 'Record Outcome' }))
     await screen.findByText(
       'A response was not confirmed. Retry this same confirmation or reload the record.',
     )
-    fireEvent.click(screen.getByRole('button', { name: 'Confirm and record outcome' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Record Outcome' }))
     await waitFor(() => expect(state.committed).toHaveBeenCalledOnce())
     expect(state.confirm.mock.calls[1][1]).toEqual(state.confirm.mock.calls[0][1])
   })

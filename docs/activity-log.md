@@ -263,3 +263,6 @@
 
 ## 2026-10-05 Alert metric units for display
 - Alert cards and evidence tables show COUNT without a unit, PERCENT rounded to two decimals with `%`, and POINTS as `pts` through `formatMetricValue`; rule and indicator setup keep their unit selections.
+
+## 2026-10-05 Outcome form actions
+- Close now sits right aligned beside the primary action in both the outcome form and the confirm step; "Confirm and record outcome" is renamed "Record Outcome".

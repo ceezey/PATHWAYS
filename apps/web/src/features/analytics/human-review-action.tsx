@@ -221,6 +221,12 @@ function OwnedAction({
       if (isCurrent()) setBusy(false)
     }
   }
+  // Close sits beside the primary action, right aligned, in both the form and the confirm step.
+  const close = (
+    <Button disabled={busy} onClick={onCancel} type="button" variant="outline">
+      Close
+    </Button>
+  )
   return (
     <section
       className="space-y-4 rounded-sm border border-border bg-background p-4"
@@ -234,13 +240,16 @@ function OwnedAction({
           <p className="text-sm text-muted-foreground">
             Preview expires {new Date(preview.expiresAt).toLocaleString()}.
           </p>
-          <Button
-            disabled={busy || !currentWriteSet()}
-            onClick={() => void confirm()}
-            type="button"
-          >
-            {busy ? 'Recording...' : 'Confirm and record outcome'}
-          </Button>
+          <div className="flex justify-end gap-2">
+            {close}
+            <Button
+              disabled={busy || !currentWriteSet()}
+              onClick={() => void confirm()}
+              type="button"
+            >
+              {busy ? 'Recording...' : 'Record Outcome'}
+            </Button>
+          </div>
         </div>
       ) : (
         <form
@@ -300,23 +309,23 @@ function OwnedAction({
               linked alert.
             </p>
           ) : null}
-          <Button disabled={busy || (needsAlert && !canWriteAlert)} type="submit">
-            {busy
-              ? 'Submitting...'
-              : mode === 'outcome'
-                ? 'Preview outcome'
-                : mode === 'review'
-                  ? 'Mark reviewed'
-                  : mode === 'resolve'
-                    ? 'Resolve alert'
-                    : 'Dismiss alert'}
-          </Button>
+          <div className="flex justify-end gap-2">
+            {close}
+            <Button disabled={busy || (needsAlert && !canWriteAlert)} type="submit">
+              {busy
+                ? 'Submitting...'
+                : mode === 'outcome'
+                  ? 'Preview outcome'
+                  : mode === 'review'
+                    ? 'Mark reviewed'
+                    : mode === 'resolve'
+                      ? 'Resolve alert'
+                      : 'Dismiss alert'}
+            </Button>
+          </div>
         </form>
       )}
       {notice ? <output className="block text-sm">{notice}</output> : null}
-      <Button disabled={busy} onClick={onCancel} type="button" variant="outline">
-        Close
-      </Button>
     </section>
   )
 }
