@@ -44,3 +44,10 @@ export async function copyObjects(
   log(`Copied ${objects.length} storage object(s).`)
   return objects.length
 }
+
+/** Refuses a copy whose target is the source, which would upsert objects onto themselves. */
+export function assertDistinctStorage(source, target) {
+  const norm = (url) => new URL(url).origin
+  if (norm(source.url) === norm(target.url))
+    throw new Error('Storage source and target are the same project; refusing to copy.')
+}
