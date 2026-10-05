@@ -46,7 +46,7 @@ None.
 None.
 
 ### Tests
-`scripts/db/defense-snapshot-parse.test.mjs`, `-dates`, `-target`, `-sql`, `-storage` and `-cli` suites (`node --test`), the shared parser in `defense-demo-wipe.test.mjs`. Local rehearsal: not yet run (Task 6 records the result here).
+`scripts/db/defense-snapshot-parse.test.mjs`, `-dates`, `-target`, `-sql`, `-storage` and `-cli` suites (`node --test`), the shared parser in `defense-demo-wipe.test.mjs`. Local rehearsal passed on 2026-10-06 (fixture identities, `--test-local`): seed and `--verify` clean (23 true rows), dump of 77 tables (8323 rows) and 75 storage objects, restore at +3 days shifted all 7 baseline date rows exactly 3 days, a tampered identities file rolled back with the data unchanged, delta-0 restore and `--verify` clean; the storage copy is skipped under `--test-local` (source equals target) and stays hosted-only.
 
 ### Documentation
 `runbook-defense-demo.md` section 8, `handoff-defense-demo-seed.md` constraints, `index.md`, `activity-log.md`.
@@ -65,7 +65,7 @@ Any error before COMMIT rolls back the whole database restore. After a bad commi
 ## 7. Verification
 
 - `node --test scripts/db/defense-snapshot-*.test.mjs scripts/db/defense-demo-wipe.test.mjs`
-- Local rehearsal: not yet run (Task 6 updates this line).
+- Local rehearsal: passed (see Tests).
 - Hosted (developer): `node scripts/db/defense-demo.mjs --env-file .tmp/defense-seed.env --verify` with no failures.
 
 ## 8. Approval
@@ -74,4 +74,4 @@ Developer, 2026-10-06 (spec approved).
 
 ## 9. Disposition
 
-Implemented on `feature/defense-seed-snapshot`. Local rehearsal: not yet run (Task 6 updates this line). Hosted restore pending (developer).
+Implemented on `feature/defense-seed-snapshot`. Local rehearsal passed. Hosted restore pending (developer).

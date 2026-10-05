@@ -277,4 +277,4 @@
 ## 2026-10-06 Defense seed snapshot
 - `scripts/db/defense-snapshot.mjs` (mirror, dump, restore, storage) restores a locally seeded defense workspace onto devV2 in one transaction: wipe up to its revoke, migration and identity checks, `session_replication_role = replica`, staged load with the day shift, row-count check, commit, then a storage upsert (cr-pathways-defense-seed-snapshot).
 - Restore runs as `postgres` (`HOSTED_ADMIN_URL`, session pooler) because `prisma` cannot set `session_replication_role`; RLS is bypassed by BYPASSRLS plus the wipe's temporary owner memberships, never disabled. The hosted password travels only as `PGPASSWORD`.
-- Local rehearsal: not yet run. Hosted restore pending (developer).
+- Local rehearsal passed: 77 tables (8323 rows), exact +3-day shift, tampered identities rolled back, delta-0 restore and `--verify` clean; storage copy is hosted-only. Hosted restore pending (developer).

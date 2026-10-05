@@ -75,7 +75,7 @@ Seeds locally through the real services once, then restores that data onto devV2
 2. `node scripts/db/defense-snapshot.mjs mirror --env-file .tmp/defense-seed.env`: copies the devV2 organization, staff rows and auth user ids into the local stack and writes `.tmp/defense-identities.json`. Local sign-in for these accounts stays off until the next reset.
 3. `pnpm db:defense:local`, then `node scripts/db/defense-demo.mjs --test-local --verify` with no failures.
 4. `node scripts/db/defense-snapshot.mjs dump`: writes `.tmp/defense-snapshot/data.sql` and `manifest.json`.
-5. Set GitHub variable `RULES_DISPATCH_ENABLED=false` and keep it false during the restore. Optionally take a `pg_dump` backup.
+5. Run the hosted wipe dry-run (section 4 step 2) and check its KEEP counts. Set GitHub variable `RULES_DISPATCH_ENABLED=false` and keep it false during the restore. Optionally take a `pg_dump` backup.
 6. `node scripts/db/defense-snapshot.mjs restore --env-file .tmp/defense-seed.env`: storage preconditions are checked first (service role key present, local storage API reachable, source differs from target; `--skip-storage` skips them), then wipe, migration and identity checks, load with triggers skipped, date shift by (Manila restore day minus seed day), row-count check, commit, then the storage copy. Any database error rolls everything back. If only the storage copy fails, run the printed rerun command, which is the same command with `storage` instead of `restore`.
 7. `node scripts/db/defense-demo.mjs --env-file .tmp/defense-seed.env --verify` with no failures, then section 4 step 7.
 8. `pnpm db:local:reset` to get the normal local accounts back.
@@ -88,5 +88,6 @@ Known limits of the snapshot:
 - The identity check does not compare role codes.
 - Release rows frozen by the local `--verify` are carried into the snapshot.
 - Old hosted storage objects are left in place.
+- Alerts restore as captured; the hourly sweep may re-evaluate them.
 
 Local rehearsal without hosted access: build an identities fixture with new ids from the local stack, then `mirror --identities <fixture>`, seed, `dump --identities <fixture>`, run the wipe and `restore --test-local --identities <fixture>`; `--today` (local only) simulates a later restore day.
