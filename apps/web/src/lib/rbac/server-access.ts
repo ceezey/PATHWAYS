@@ -10,6 +10,7 @@ import {
   RouteCheckError,
   type RouteKey,
   type RouteSelection,
+  displayQueryKeys,
   parseRouteSelection,
   requestRouteCheck,
 } from './route-access'
@@ -17,15 +18,6 @@ import {
 export type ProtectedPageProps = {
   params?: Promise<Record<string, string>>
   searchParams?: Promise<Record<string, string | string[] | undefined>>
-}
-const displayQueryKeys: Partial<Record<RouteKey, readonly string[]>> = {
-  activity: ['proof', 'review', 'action'],
-  alerts: ['alert'],
-  beneficiaries: ['q', 'project', 'location', 'sex', 'age', 'disability', 'status', 'page'],
-  beneficiary: ['returnTo'],
-  budget: ['expense'],
-  formEntry: ['submissionId'],
-  indicatorLibrary: ['project'],
 }
 export async function requireServerPage(route: RouteKey, props: ProtectedPageProps) {
   const { _rsc: _transport, ...query } = (await props.searchParams) ?? {}

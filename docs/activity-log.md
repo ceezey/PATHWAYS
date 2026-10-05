@@ -228,3 +228,7 @@
 ## 2026-10-05 Demo seed slow-link transactions
 - `stageTeam` and `asUser` interactive transactions use `slowLinkTx` (15 s wait, 60 s timeout) because Prisma's 5 s default timed out on a hosted devV2 seed over a slow link.
 - Local rehearsal (runbook-defense-demo section 6) reseeded and passed all 23 verify checks.
+
+## 2026-10-05 Dashboard Approve links reached Unauthorized
+- The middleware kept its own display-only query key list, missing `budget ?expense`, `activity ?action`, `formEntry ?submissionId` and `indicatorLibrary ?project`, so the Project Manager Approve buttons redirected to `/unauthorized`.
+- `displayQueryKeys` now lives in `route-access.ts` and both the middleware and `requireServerPage` use it; a frontend alias test covers all four keys.
