@@ -167,3 +167,25 @@
     animation: none !important;
   }
 }
+
+/* Print pagination for the report route and any printed page. */
+@media print {
+  @page {
+    size: A4;
+  }
+  html,
+  body {
+    background: #fff;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .print-break-before {
+    break-before: page;
+  }
+  .print-avoid {
+    break-inside: avoid;
+  }
+  .print-table-head {
+    display: table-header-group;
+  }
+}
