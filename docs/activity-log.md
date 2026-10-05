@@ -207,3 +207,8 @@
 ## 2026-10-05 EHK demo cohort sized for SADDD
 - SADDD releases only for a closed project (EHK) and suppresses the whole table when any sex, age band (at project end) or disability count is 1 to 4; the old 16-person EHK cohort was always fully suppressed.
 - EHK cohort now 45 people (ages kept clear of band edges, 5 with disability), so every marginal is 5 or more; a test in `local-demo-data.test.ts` guards this. Reseed needed (wipe, then seed) for local and devV2.
+
+## 2026-10-05 Defense readiness audit (priority)
+- Reconciled the Sheet3 defense-readiness task sheet (35 tasks) and the pitch against code and PRD gates in [audit-pathways-defense-readiness-20261005](audit-pathways-defense-readiness-20261005.md); marked priority in index and state.
+- Code: 12 of 13 PRD features implemented; F10 hosted scheduler inert, F13 hosted verification Not met, reports project-scoped only.
+- Pitch is stale: export (G-F12-4), G-F3-6, G-F4-6 and G-F9-9 are Met but listed Not met; the sheet's Futuremakers project is not in the seed.
