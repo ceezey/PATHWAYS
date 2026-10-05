@@ -456,7 +456,10 @@ export class ReportsService {
         generatedAt: source.generatedAt,
         unavailableReasons: source.unavailableReasons,
       })
-    } catch {
+    } catch (error) {
+      new Logger(ReportsService.name).warn(
+        `Designed PDF unavailable for report ${id}: ${error instanceof Error ? error.name : 'Error'}; using pdfkit.`,
+      )
       return null
     }
   }

@@ -370,6 +370,9 @@ describe('report source authority, privacy and artifact recovery', () => {
     await service.generate(actor, projectId, body).catch(() => undefined)
     expect(renderer.render).toHaveBeenCalledOnce()
     expect(state.artifact).toHaveBeenCalledOnce()
+    const warning = vi.mocked(Logger.prototype.warn).mock.calls.flat().join(' ')
+    expect(warning).toContain('using pdfkit')
+    expect(warning).not.toContain('Private report')
     expect(storage.uploadPrivateFile).toHaveBeenCalledWith(
       'pathways-private',
       expect.any(String),
