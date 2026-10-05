@@ -1,7 +1,7 @@
 'use client'
 
 import { AlertTriangle, LoaderCircle, MapPinned } from 'lucide-react'
-import type { GeoJSONSource, MapLibreMap } from 'maplibre-gl'
+import type { GeoJSONSource, MapLayerMouseEvent, MapLibreMap } from 'maplibre-gl'
 import { useEffect, useRef, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
@@ -31,6 +31,10 @@ type AnalyticsCoverageMapProps = Readonly<{
   initialCenter?: readonly [longitude: number, latitude: number]
   initialZoom?: number
   className?: string
+  /** Feature `properties.id` drawn larger; hovering or tapping a point reports its id. */
+  activeFeatureId?: string | null
+  onActiveFeatureChange?: (id: string | null) => void
+  emptyDescription?: string
 }>
 
 type MapStatus = 'loading' | 'ready' | 'error'
@@ -80,6 +84,9 @@ export const AnalyticsCoverageMap = ({
   initialCenter = defaultCenter,
   initialZoom = defaultZoom,
   className,
+  activeFeatureId,
+  onActiveFeatureChange,
+  emptyDescription = 'No authoritative project coordinates are available. Text-only implementation areas remain unresolved and unplotted.',
 }: AnalyticsCoverageMapProps) => {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<MapLibreMap | null>(null)
@@ -93,7 +100,10 @@ export const AnalyticsCoverageMap = ({
   const centerLongitude = initialCenter[0]
   const centerLatitude = initialCenter[1]
 
+  const onActiveRef = useRef(onActiveFeatureChange)
+
   latestFeaturesRef.current = featureCollection
+  onActiveRef.current = onActiveFeatureChange
 
   useEffect(() => {
     const container = containerRef.current
@@ -126,8 +136,9 @@ export const AnalyticsCoverageMap = ({
         })
         mapRef.current = map
 
+        // Ready once the style parses, not after every tile, so slow mobile tiles never hold the overlay.
         handleLoad = () => {
-          if (cancelled || !map) return
+          if (cancelled || !map || styleLoaded) return
           styleLoaded = true
           map.addSource(sourceId, {
             type: 'geojson',
@@ -139,7 +150,7 @@ export const AnalyticsCoverageMap = ({
             source: sourceId,
             paint: {
               'circle-color': chartPalette[0],
-              'circle-radius': 7,
+              'circle-radius': 8,
               'circle-stroke-color': '#ffffff',
               'circle-stroke-width': 2,
             },
@@ -163,8 +174,24 @@ export const AnalyticsCoverageMap = ({
           )
         }
 
+        const pointId = (event: MapLayerMouseEvent) => {
+          const id = event.features?.[0]?.properties?.id
+          return typeof id === 'string' ? id : null
+        }
+        const handlePoint = (event: MapLayerMouseEvent) => {
+          if (map) map.getCanvas().style.cursor = 'pointer'
+          onActiveRef.current?.(pointId(event))
+        }
+        const handleLeave = () => {
+          if (map) map.getCanvas().style.cursor = ''
+        }
+
+        map.on('style.load', handleLoad)
         map.on('load', handleLoad)
         map.on('error', handleError)
+        map.on('mouseenter', layerId, handlePoint)
+        map.on('click', layerId, handlePoint)
+        map.on('mouseleave', layerId, handleLeave)
         map.addControl(new NavigationControl({ showCompass: false }), 'top-right')
 
         if (typeof ResizeObserver !== 'undefined') {
@@ -181,6 +208,7 @@ export const AnalyticsCoverageMap = ({
     return () => {
       cancelled = true
       resizeObserver?.disconnect()
+      if (map && handleLoad) map.off('style.load', handleLoad)
       if (map && handleLoad) map.off('load', handleLoad)
       if (map && handleError) map.off('error', handleError)
       map?.remove()
@@ -197,6 +225,17 @@ export const AnalyticsCoverageMap = ({
       syncMapCamera(map, featureCollection, [centerLongitude, centerLatitude], initialZoom)
     }
   }, [centerLatitude, centerLongitude, featureCollection, initialZoom])
+
+  useEffect(() => {
+    const map = mapRef.current
+    if (status !== 'ready' || !map || activeFeatureId === undefined) return
+    map.setPaintProperty(layerId, 'circle-radius', [
+      'case',
+      ['==', ['get', 'id'], activeFeatureId ?? ''],
+      12,
+      8,
+    ])
+  }, [activeFeatureId, status])
 
   const hasFeatures = featureCollection.features.length > 0
 
@@ -225,7 +264,7 @@ export const AnalyticsCoverageMap = ({
         />
       ) : !hasFeatures ? (
         <MapNotice
-          description="No authoritative project coordinates are available. Text-only implementation areas remain unresolved and unplotted."
+          description={emptyDescription}
           icon={MapPinned}
           title="No mapped locations available"
         />

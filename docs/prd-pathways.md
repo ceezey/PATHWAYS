@@ -1365,7 +1365,7 @@ stateDiagram-v2
 - Hosted report delivery: hosted application deferred (Scope and Limitations / rfc-pathways-aws-hosting-migration)
 - Report exports containing Beneficiary identity for aggregate-only roles: denied by policy (rfc-pathways-saddd-privacy)
 - Scheduled or emailed reports: not built (Scope and Limitations)
-- Maps and free-form chart building: not built (Scope and Limitations)
+- Free-form chart building: not built (Scope and Limitations); the project coverage map is built at bundled place centroids, without province polygons (cr-pathways-project-coverage-map)
 **Lock:** Locked. Adding a gate or widening a bound requires an approved `cr-pathways-*`; anything outside these bounds is out of scope by default. System-wide bounds: section 6.1.
 
 #### Gate Criteria

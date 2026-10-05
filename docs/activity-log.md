@@ -212,3 +212,7 @@
 - Reconciled the Sheet3 defense-readiness task sheet (35 tasks) and the pitch against code and PRD gates in [audit-pathways-defense-readiness-20261005](audit-pathways-defense-readiness-20261005.md); marked priority in index and state.
 - Code: 12 of 13 PRD features implemented; F10 hosted scheduler inert, F13 hosted verification Not met, reports project-scoped only.
 - Pitch is stale: export (G-F12-4), G-F3-6, G-F4-6 and G-F9-9 are Met but listed Not met; the sheet's Futuremakers project is not in the seed.
+
+## 2026-10-05 Project coverage map (feature/gis-coverage-map-n0hyrs)
+- `GET /analytics/project-map` places scoped projects at bundled PH city/province centroids parsed from `implementationArea`, each with its Project Overview metrics and suppressed SADDD sex buckets (cr-pathways-project-coverage-map).
+- The map overlay now clears on `style.load` instead of waiting for every tile; hover, tap or the project list opens an overview card.
