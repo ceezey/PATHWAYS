@@ -3,7 +3,7 @@ import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { readPublicSnapshots } from '@/lib/services/public-projects'
-import { PublicTrackerDetail, PublicTrackerHome } from './public-tracker-view'
+import { PublicTrackerDetail, PublicTrackerList } from './public-tracker-view'
 
 const snapshot = {
   id: '10000000-0000-4000-8000-000000000001',
@@ -41,7 +41,7 @@ describe('public tracker view', () => {
   })
 
   it('shows the no current projects message when nothing is published', () => {
-    render(<PublicTrackerHome projects={[]} />)
+    render(<PublicTrackerList projects={[]} />)
     expect(screen.getByText('No current projects')).toBeTruthy()
   })
 

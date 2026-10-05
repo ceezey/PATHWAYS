@@ -273,3 +273,20 @@
 ## 2026-10-05 Rules scope memo migration 0063
 - `0063_rules_scope_memo` replaces `pathways_rules_internal.human_rules_scope` (still owned by `rules_eligibility_owner`, same EXECUTE ACL, asserted in the migration) with a plpgsql version that memoizes the per-project result in a transaction-local setting keyed by `app.user_id`; semantics are unchanged.
 - It wires like 0062: hosted and forward preprovision/cleanup pairs for a temporary `rules_eligibility_owner` SET chain, plan, build, local-reset, Verify-Forward inventory and `rules-scope-memo-runtime.sql` (12 assertions: parity, actor change, forged slot, non-runtime session, transaction-local).
+
+## 2026-10-05 Public landing redesign
+- Public home (`/`) rebuilt as the PATHWAYS landing: hero with pathway card, challenge, operational pathway, privacy, capabilities, audiences, published projects, mission, share needs, partner, footer (`public-landing.tsx`).
+- Site header restyled to the dark navy wordmark with Home, Projects, Organizations, About Us and a Share your needs link; survey, waitlist and contact CTAs point at in-page anchors (`landingLinks`) until real destinations exist.
+- Revision: removed hero CTAs, the Help shape and Published projects sections, and the header Share your needs link; Our mission now follows The challenge.
+- Header Organizations dropdown lists `publicOrganizations` (Plan International Pilipinas) linking to `/organizations/[slug]`, which lists all published snapshots because snapshots carry no organization field yet.
+- Added `/about` (mission, who it is for, contact us); footer and partner CTAs point to `/about#contact`.
+- Typography and copy pass: Momo Trust Display limited to headings and the wordmark, body text uses the UI font; gradients and glows added across sections; copy rewritten; about page gains Why PATHWAYS and principles; shared sections moved to `public-sections.tsx`, about page to `public-about.tsx`.
+- Landing How it works is now a scroll-driven five-step journey (`public-journey.tsx`, content and illustrative mock screens in `public-journey-content.tsx`); hero pathway steps link into it; reduced motion respected; covered by `public-journey.test.tsx`.
+- Journey moved into the hero as a compact card (`HeroJourney`): on wide screens the hero pins and scrolling advances the five steps, elsewhere steps are tapped; the separate How it works section was removed.
+- Hero journey reworked from a card into a seamless vertical timeline: the active step expands with its description and mock screen, completed steps show a check, upcoming steps stay collapsed.
+- Final UX pass: card layouts replaced with open layouts; dark and light surfaces melt through gradient blend bands, consecutive dark sections share one `DarkRun` surface; scroll reveals, clamped parallax glows, a word-by-word mission highlight, and a top progress bar (`public-motion.tsx`), all settling under reduced motion.
+- Contact us gains a front-end-only form (`public-contact-form.tsx`, zod-validated, labelled as a preview that does not send or store messages); covered by `public-contact-form.test.tsx`.
+- Dark-to-light transitions switched from gradient fades to hard-edged layered SVG waves (`Blend` in `public-sections.tsx`).
+- Removed the Projects tab and footer link; the hero Published projects link now opens the organization page. The `/public/projects` route stays for detail breadcrumbs and the staff publication queue.
+- Added `/organizations` (card list) and restyled `/organizations/[slug]` to the landing design (`public-organizations.tsx`); organization profiles live in `publicOrganizations`, with the Plan International Pilipinas summary paraphrased from its official site; header dropdown gains All organizations, footer gains Organizations.
+- Organizations header item is now a link to `/organizations` that reveals the organization list on hover or keyboard focus (All organizations entry removed); the organizations page drops its section heading and the initials badge.

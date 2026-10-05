@@ -46,16 +46,33 @@ export const fixedDashboardNavItemLabels = {
   backupRecovery: 'Backup & Recovery',
 } as const
 
+export const publicContactHref = '/about#contact'
+export const organizationsHref = '/organizations'
+
+// Organizations with a public project page; slugs are public route segments, profiles paraphrase each organization's own site.
+export const publicOrganizations = [
+  {
+    slug: 'plan-international-pilipinas',
+    name: 'Plan International Pilipinas',
+    location: 'Philippines · nationwide',
+    summary:
+      "Plan International Pilipinas stands with girls so they can stay safe, stay in school, and lead change, breaking barriers and driving equality in communities across the country. Its work includes youth-led efforts such as young broadcasters championing children's rights on local radio.",
+    focus: ["Girls' rights", 'Child protection', 'Education', 'Youth leadership'],
+    credentials: 'DSWD-licensed for public solicitation and PCNC-accredited.',
+    website: 'https://plan-international.org/philippines/',
+  },
+] as const
+
 export const publicNavigation: NavItem[] = [
   {
     href: '/',
-    label: 'Dashboard',
+    label: 'Home',
     description: 'Approved public PATHWAYS project summaries.',
   },
   {
-    href: '/public/projects',
-    label: 'Projects',
-    description: 'Browse approved public project pages.',
+    href: '/about',
+    label: 'About Us',
+    description: 'The PATHWAYS mission and contact details.',
   },
 ]
 
