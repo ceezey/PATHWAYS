@@ -255,3 +255,8 @@
 
 ## 2026-10-05 Linked recommendations named by title
 - Alert details label each linked recommendation by its title ("Linked recommendation: Reschedule delayed activities") from one summary read filtered by alertId; the numbered label remains the fallback while loading or on failure.
+
+## 2026-10-05 F12 designed PDF renderer
+- F12 designed PDF: Puppeteer renderer module, print route and pdfkit fallback under cr-pathways-report-pdf-renderer; hosted Chromium verification pending.
+- Ready fix: the print page now flags ready from the chart `onChartReady` trigger, and the empty state reports `data-report-ready="empty"` so the renderer falls back instead of storing a blank PDF.
+- Final fix wave: 40 s render deadline, protocol timeout, shared browser discarded on failure, stage-tagged single fallback warning, one-group chart without Total rows.
