@@ -3,10 +3,11 @@
 import {
   AlertTriangle,
   BarChart3,
+  CalendarClock,
   ChevronDown,
-  CircleDollarSign,
   ClipboardCheck,
   Download,
+  PhilippinePeso,
   Plus,
   Target,
   UsersRound,
@@ -37,6 +38,7 @@ import { metricUnavailableLabel, overviewMetricLabel } from '@/features/projects
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'
 import { addPin } from '@/lib/dashboard-pins'
+import { formatCappedPercent } from '@/lib/percent'
 import { can } from '@/lib/rbac/can'
 import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
 import { downloadCoreArtifact } from '@/lib/services/core-feature-client'
@@ -63,17 +65,17 @@ import {
   SadddChart,
   SurveyImprovementChart,
 } from './analytics-charts'
-import { AnalyticsCoverageMap } from './analytics-coverage-map'
-import { toProjectCoverageFeatureCollection } from './analytics-location-utils'
 import {
   deriveAnalyticsReportingPeriods,
   nonOverlappingAnalyticsPeriods,
 } from './analytics-reporting-periods'
+import { formatDate } from './analytics-utils'
 import { BudgetSummaryCard } from './budget-summary-card'
 import { IndicatorTrendChart } from './indicator-trend-chart'
 import { InsightStatus } from './insight-status'
 import { activeIndicators, metricNumber, progressRows } from './kpi-rows'
 import { ParticipationBreakdownPanel } from './participation-breakdown-panel'
+import { ProjectCoverageMapPanel } from './project-coverage-map-panel'
 import {
   canReadInsight,
   useBudgetSummary,
@@ -95,9 +97,6 @@ const visualizationTypes = [
 ] as const
 type AnalysisView = (typeof analysisViews)[number]['value']
 type VisualizationType = (typeof visualizationTypes)[number]['value']
-
-const missingSadddDates = 'Project reporting dates are not recorded.'
-const openProjectSaddd = "SADDD analysis is available only after the project's recorded end date."
 
 const businessDateInManila = (date = new Date()) => {
   const parts = new Intl.DateTimeFormat('en-US', {
@@ -230,13 +229,6 @@ export const AnalyticsDashboard = () => {
   const openAlertText = openAlerts ? `${openAlerts.count}${openAlerts.capped ? '+' : ''}` : ''
   const alertsLoading = canReadAlerts && Boolean(projectId) && !openAlerts && !alertRead.isError
   const alertsFailed = canReadAlerts && !openAlerts && alertRead.isError
-  const projectCoverageFeatures = useMemo(
-    () =>
-      toProjectCoverageFeatureCollection(
-        selectedProject ? { id: selectedProject.id, title: selectedProject.title } : null,
-      ),
-    [selectedProject],
-  )
   const reportingPeriods = useMemo(
     () =>
       deriveAnalyticsReportingPeriods(
@@ -261,13 +253,22 @@ export const AnalyticsDashboard = () => {
   const surveyUnavailable = !canReadSurvey || surveyClosedPeriodRequired
   const pickerPeriods = analysisView === 'survey' ? surveyPeriods : reportingPeriods
   const pickerPeriod = analysisView === 'survey' ? surveyPeriod : selectedPeriod
-  const sadddUnavailableReason =
+  // SADDD is withheld by policy until the project period closes; this is a notice, not an error.
+  const sadddNotice =
     !selectedProject?.startDate || !selectedProject.endDate
-      ? missingSadddDates
+      ? {
+          title: 'SADDD needs project dates',
+          description:
+            "Record this project's start and end dates to enable the sex, age and disability breakdown.",
+        }
       : selectedProject.endDate >= businessDateInManila()
-        ? openProjectSaddd
-        : ''
-  const sadddEligible = sadddUnavailableReason === ''
+        ? {
+            title: `SADDD opens after this project ends on ${formatDate(selectedProject.endDate)}`,
+            description:
+              'Sex, age and disability breakdowns use the final counts of a closed project period, so they are not shown while the project is ongoing. Select a completed project to see them now.',
+          }
+        : null
+  const sadddEligible = sadddNotice === null
   const periodRange = selectedPeriod
     ? { periodStart: selectedPeriod.start, periodEnd: selectedPeriod.end }
     : {}
@@ -379,7 +380,7 @@ export const AnalyticsDashboard = () => {
     setSaddd(null)
     if (!sadddEligible) {
       setSadddLoading(false)
-      setSadddError(sadddUnavailableReason)
+      setSadddError('')
       return
     }
     let active = true
@@ -400,7 +401,7 @@ export const AnalyticsDashboard = () => {
     return () => {
       active = false
     }
-  }, [projectId, sadddEligible, sadddLoadAttempt, sadddUnavailableReason, selectedProject])
+  }, [projectId, sadddEligible, sadddLoadAttempt, selectedProject])
 
   useEffect(() => {
     if (!projectId || !selectedPeriod || !canReadIndicators) {
@@ -889,7 +890,7 @@ export const AnalyticsDashboard = () => {
           <ChartPanel
             description={
               mapSelected
-                ? `Interactive coverage for ${selectedProject.title}. Only authoritative persisted project coordinates are plotted.`
+                ? 'Projects placed by implementation area. Hover or tap a point for its KPI, progress and SADDD overview.'
                 : undefined
             }
             title={
@@ -903,7 +904,7 @@ export const AnalyticsDashboard = () => {
           >
             {mapSelected ? (
               <>
-                <AnalyticsCoverageMap featureCollection={projectCoverageFeatures} />
+                <ProjectCoverageMapPanel />
                 {mapDataLoading ? (
                   <output className="mt-4 rounded-xl border border-border bg-surface-subtle p-3 text-sm text-muted-foreground">
                     Updating project analytics.
@@ -1018,7 +1019,7 @@ export const AnalyticsDashboard = () => {
                 tone={averageKpi === null ? 'info' : averageKpi >= 70 ? 'success' : 'warning'}
                 value={
                   averageKpi !== null
-                    ? `${averageKpi}%`
+                    ? formatCappedPercent(averageKpi)
                     : monitoringReadable
                       ? 'None yet'
                       : 'Unavailable'
@@ -1036,7 +1037,7 @@ export const AnalyticsDashboard = () => {
                         ? 'Several currencies are recorded; see the Budget utilization panel.'
                         : 'Approved expenses against planned budget allocations; pending is not counted.'
                 }
-                icon={CircleDollarSign}
+                icon={PhilippinePeso}
                 label="Budget utilization"
                 tone={
                   budgetUtilizationPercent === null
@@ -1055,7 +1056,7 @@ export const AnalyticsDashboard = () => {
                         : budgetCurrencies.length > 1
                           ? 'Multiple currencies'
                           : budgetUtilizationPercent !== null
-                            ? `${budgetUtilizationPercent}%`
+                            ? formatCappedPercent(budgetUtilizationPercent, 'over budget')
                             : 'No budget'
                 }
               />
@@ -1149,6 +1150,12 @@ export const AnalyticsDashboard = () => {
                   title="Loading SADDD analysis"
                   description="Loading the scoped beneficiary aggregate data."
                   icon={UsersRound}
+                />
+              ) : sadddNotice ? (
+                <EmptyState
+                  description={sadddNotice.description}
+                  icon={CalendarClock}
+                  title={sadddNotice.title}
                 />
               ) : sadddError ? (
                 <AsyncState

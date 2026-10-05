@@ -196,10 +196,80 @@
 - API: `activity-extensions` module (request, verify, decide; approval runs ACTIVITY_UPDATE so rules re-evaluate) and `GET /alerts/escalated`. The shared extension contract carries `updatedAt` because verify and decide need it as the expected version.
 - Role overview: `myExtensions`, `extensionQueue`, `alerts.escalated` and `alerts.escalatedOpen`. Web: Request an extension dialog and extension panel replace the disabled placeholder; dashboards show returned notes, an Extension pending badge, the M&E verify queue, EXT rows in Pending your approval, and Escalated alerts on the portfolio.
 - Local environment notes: cdn.sheetjs.com is blocked here, so xlsx 0.18.5 was linked locally only (not committed); pnpm 11 needs `verify_deps_before_run=false` to stop reinstalling before each exec. `apps/web/src/lib/rbac/auth-navigation.contract.test.ts` already fails on the dashboard layout from a0d34a5 (sidebar cookie); not touched here.
-- Hosted apply (Task 8 step 4) is left for the developer: it needs the role-staging env file and credentials, which are not in this session.
+- Hosted apply: the developer ran `hosted-build.mjs --resume` against PATHWAYS-devV2 (a first run from a checkout without 0061/0062 only re-ran the 0060 postconditions). A read-only check then showed 37 finished ledger rows ending at 0062, none broken, the 0061 table and transition trigger present, the 0062 function owned by `rules_human_owner`, and no residual owner membership or lent CREATE.
 
 ## 2026-10-04 Dashboard and project navigation fixes
 - Role overview buttons (View, Resolve, Submit update, Resubmit proof, Review, Approve, list rows) now navigate to their own page instead of opening the in-place dashboard sheet, which kept reloading; activity buttons open the activity list with that activity's details open.
 - Project Manager budget alert rows, Log outcome and the Active budget alerts View go to the alert's project Budget page; Approve opens the Budget ledger with that expense expanded via a `#expense-<id>` hash.
 - Project Overview tab removed; `/projects/:id` redirects to Project Activities, which now carries the Edit and Archive buttons.
 - Target Indicators, Evidence, Monitor & Evaluate, Budget and Journey stages get a Back button that steps back one page in history (falls back to Project Activities on a fresh tab); Evidence's Back to Projects link removed.
+
+## 2026-10-05 EHK demo cohort sized for SADDD
+- SADDD releases only for a closed project (EHK) and suppresses the whole table when any sex, age band (at project end) or disability count is 1 to 4; the old 16-person EHK cohort was always fully suppressed.
+- EHK cohort now 45 people (ages kept clear of band edges, 5 with disability), so every marginal is 5 or more; a test in `local-demo-data.test.ts` guards this. Reseed needed (wipe, then seed) for local and devV2.
+
+## 2026-10-05 Defense readiness audit (priority)
+- Reconciled the Sheet3 defense-readiness task sheet (35 tasks) and the pitch against code and PRD gates in [audit-pathways-defense-readiness-20261005](audit-pathways-defense-readiness-20261005.md); marked priority in index and state.
+- Code: 12 of 13 PRD features implemented; F10 hosted scheduler inert, F13 hosted verification Not met, reports project-scoped only.
+- Pitch is stale: export (G-F12-4), G-F3-6, G-F4-6 and G-F9-9 are Met but listed Not met; the sheet's Futuremakers project is not in the seed.
+
+## 2026-10-05 Project coverage map (feature/gis-coverage-map-n0hyrs)
+- `GET /analytics/project-map` places scoped projects at bundled PH city/province centroids parsed from `implementationArea`, each with its Project Overview metrics and suppressed SADDD sex buckets (cr-pathways-project-coverage-map).
+- The map overlay now clears on `style.load` instead of waiting for every tile; hover, tap or the project list opens an overview card.
+
+## 2026-10-05 Connected three-role defense script
+- Pitch v2.1: one SSG session traced through Plan, Collect, Verify, Decide, Report, ending on EHK as the completed cycle; M&E, PO and PM only; FR-1 to FR-17 each mapped to a step; metadata-driven import is live and manual encoding is shown without saving; rule setup moved to Q&A.
+- Seed: the EHK signed-off evaluation now uses the six OECD-DAC criteria (weights 15/10/25/20/15/15, overall 87.55) in `defense-demo-stage-evaluation.ts` only; takes effect after a wipe and full reseed.
+- Audit: Futuremakers relabelled to SSG-ES-2026 (DR-03); DR-01, DR-02, DR-05, DR-07 closed; DR-08 (no in-app evaluation scoring) and DR-09 (second reviewer outside the three roles) added; in-app evaluation scoring registered in deferred-features.
+
+## 2026-10-05 Coverage map popups
+- Per product owner feedback, the overview now opens in a popup on the hovered dot (tap pins it and pans the dot into view on phones); the card and project-code list under the map are gone.
+
+## 2026-10-05 Demo seed slow-link transactions
+- `stageTeam` and `asUser` interactive transactions use `slowLinkTx` (15 s wait, 60 s timeout) because Prisma's 5 s default timed out on a hosted devV2 seed over a slow link.
+- Local rehearsal (runbook-defense-demo section 6) reseeded and passed all 23 verify checks.
+
+## 2026-10-05 Dashboard Approve links reached Unauthorized
+- The middleware kept its own display-only query key list, missing `budget ?expense`, `activity ?action`, `formEntry ?submissionId` and `indicatorLibrary ?project`, so the Project Manager Approve buttons redirected to `/unauthorized`.
+- `displayQueryKeys` now lives in `route-access.ts` and both the middleware and `requireServerPage` use it; a frontend alias test covers all four keys.
+
+## 2026-10-05 Dashboard project metrics use the cached summary read
+- Manager dashboards fetched every project's overview metrics in a raw effect with no cache, so each remount refired up to 20 requests; they now use `useProjectOverviewMetricsRead` (30 s summary cache, identity scoped) through `useProjectMetrics`.
+- Alert and recommendation 503s trace to per-row RLS scope checks (`human_rules_scope` via `eligibility_metadata_scope`, about 14,000 `p06_can` calls per alert list); a per-transaction memo cut a local alert list from 25.6 s to 0.63 s in a rolled-back trial, pending a migration decision.
+
+## 2026-10-05 Clickable alert and recommendation cards
+- Per product owner request, the Review plan and Review buttons are gone; each card in the Alerts and Recommendations queues is now one button that opens its record details.
+
+## 2026-10-05 KPI overrun note removed
+- Per product owner request, KPI and indicator progress above 100% now shows `100%` with no "over target" note; `formatCappedPercent` names an overrun only when a label is passed, so over budget and past schedule still alert.
+
+## 2026-10-05 Budget alert labels and ledger filter line
+- The project-level budget row has no activity code, so its alert and recommendation printed the placeholder (`Budget at 92% - -`, `Signal: - utilization`); they now name the row by its title.
+- The budget recommendation card is clickable in place of its Review plan button, and a View expenses link now shows "Showing N of M expenses for <row>" above the ledger.
+
+## 2026-10-05 SADDD closed-period notice
+- SADDD withheld for an open or undated project now shows a neutral notice naming the end date and the reason (final counts of a closed period) instead of a red "SADDD analysis unavailable" error; real load failures keep the error state.
+
+## 2026-10-05 Outcome picker uses the DSD select
+- The alert and recommendation Outcome picker is the DSD `Select` (white trigger, Radix menu, "Choose an outcome" placeholder) in place of a native select; its test drives the repo's native Select mock.
+
+## 2026-10-05 Linked recommendations named by title
+- Alert details label each linked recommendation by its title ("Linked recommendation: Reschedule delayed activities") from one summary read filtered by alertId; the numbered label remains the fallback while loading or on failure.
+
+## 2026-10-05 F12 designed PDF renderer
+- F12 designed PDF: Puppeteer renderer module, print route and pdfkit fallback under cr-pathways-report-pdf-renderer; hosted Chromium verification pending.
+- Ready fix: the print page now flags ready from the chart `onChartReady` trigger, and the empty state reports `data-report-ready="empty"` so the renderer falls back instead of storing a blank PDF.
+- Final fix wave: 40 s render deadline, protocol timeout, shared browser discarded on failure, stage-tagged single fallback warning, one-group chart without Total rows.
+
+## 2026-10-05 Alert metric units for display
+- Alert cards and evidence tables show COUNT without a unit, PERCENT rounded to two decimals with `%`, and POINTS as `pts` through `formatMetricValue`; rule and indicator setup keep their unit selections.
+
+## 2026-10-05 Outcome form actions
+- Close now sits right aligned beside the primary action in both the outcome form and the confirm step; "Confirm and record outcome" is renamed "Record Outcome".
+
+## 2026-10-05 Outcome recorded feedback
+- A confirmed outcome registered (201, decision row, 6 notifications) but the form silently reopened, and the recorder is never a notification recipient; now a toast confirms "Outcome recorded: <outcome>. N recipients notified." (or the reviewed, resolved or dismissed action) and the form closes.
+
+## 2026-10-05 Rules scope memo migration 0063
+- `0063_rules_scope_memo` replaces `pathways_rules_internal.human_rules_scope` (still owned by `rules_eligibility_owner`, same EXECUTE ACL, asserted in the migration) with a plpgsql version that memoizes the per-project result in a transaction-local setting keyed by `app.user_id`; semantics are unchanged.
+- It wires like 0062: hosted and forward preprovision/cleanup pairs for a temporary `rules_eligibility_owner` SET chain, plan, build, local-reset, Verify-Forward inventory and `rules-scope-memo-runtime.sql` (12 assertions: parity, actor change, forged slot, non-runtime session, transaction-local).

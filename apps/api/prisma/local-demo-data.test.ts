@@ -13,6 +13,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   type ProjectKey,
+  addDaysIso,
   attendanceFields,
   demoActivities,
   demoBudgets,
@@ -355,6 +356,26 @@ describe('demo cohorts', () => {
     const female = pilot.filter((person) => person.sex === 'FEMALE').length
     expect(female).toBeLessThan(5)
     expect(pilot.length - female).toBeLessThan(5)
+  })
+
+  it('keeps every EHK SADDD marginal at 5 or more so the closed release is not suppressed', () => {
+    const ehk = demoProjects.find((p) => p.key === 'EHK') as (typeof demoProjects)[number]
+    const projectStart = addDaysIso(today, ehk.startOffset)
+    const projectEnd = addDaysIso(today, ehk.endOffset)
+    const ageAtEnd = (born: string) => {
+      const [by, bm, bd] = born.split('-').map(Number)
+      const [ey, em, ed] = projectEnd.split('-').map(Number)
+      return ey - by - (em < bm || (em === bm && ed < bd) ? 1 : 0)
+    }
+    const band = (age: number) =>
+      age <= 9 ? '0-9' : age <= 14 ? '10-14' : age <= 17 ? '15-17' : age <= 24 ? '18-24' : '25+'
+    const counts = new Map<string, number>()
+    for (const person of planCohort(ehk, today, projectStart)) {
+      expect(person.enrollmentDate <= projectEnd).toBe(true)
+      for (const key of [person.sex, band(ageAtEnd(person.birthDate)), person.disability])
+        counts.set(key, (counts.get(key) ?? 0) + 1)
+    }
+    for (const n of counts.values()) expect(n).toBeGreaterThanOrEqual(5)
   })
 })
 

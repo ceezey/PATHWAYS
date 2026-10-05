@@ -7,13 +7,18 @@ async function ProjectActivityDetailPage({
   searchParams,
 }: {
   params: Promise<{ activityId: string; projectId: string }>
-  searchParams: Promise<{ proof?: string; review?: string }>
+  searchParams: Promise<{ action?: string; proof?: string; review?: string }>
 }) {
   const { activityId, projectId } = await params
-  const { proof, review } = await searchParams
+  const { action, proof, review } = await searchParams
 
   return (
-    <ActivityDetailPage activityId={activityId} proofId={review ?? proof} projectId={projectId} />
+    <ActivityDetailPage
+      activityId={activityId}
+      action={action}
+      proofId={review ?? proof}
+      projectId={projectId}
+    />
   )
 }
 

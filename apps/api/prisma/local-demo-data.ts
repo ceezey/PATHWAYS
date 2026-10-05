@@ -745,7 +745,8 @@ export const demoCohorts: Record<ProjectKey, DemoCohort> = {
   // The pilot has not started, so nobody is enrolled yet.
   ECD: { count: 0, ages: [5], femaleShare: 0.5 },
   WSH: { count: 20, ages: [8, 9, 10, 11, 12, 7, 6, 41, 35, 50], femaleShare: 0.5 },
-  EHK: { count: 16, ages: [6, 7, 8, 9, 10, 11, 12, 13, 38, 44], femaleShare: 0.55 },
+  // Every SADDD marginal (sex, age band at project end, disability) stays at 5 or more, so the closed-project release shows.
+  EHK: { count: 45, ages: [6, 11, 35, 7, 12, 8, 13, 42, 6, 10, 7, 12], femaleShare: 0.55 },
 }
 
 export const femaleFirstNames = [

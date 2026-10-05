@@ -326,6 +326,9 @@ export function LiveReportingWorkspace({
                 ))}
               </SelectContent>
             </Select>
+            <span className="block text-xs text-muted-foreground">
+              PDF includes charts and DSD styling.
+            </span>
           </Label>
         </div>
         <div className="mt-4 flex flex-wrap items-end gap-3">

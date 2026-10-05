@@ -1,3 +1,4 @@
+import { formatCappedPercent } from '@/lib/percent'
 import { cn } from '@/lib/utils'
 
 export const ProgressBar = ({
@@ -20,7 +21,9 @@ export const ProgressBar = ({
       {label && !hideText ? (
         <div className="flex items-center justify-between gap-3 text-sm">
           <span className="font-medium text-foreground">{label}</span>
-          <span className="text-muted-foreground tabular-nums">{safeValue}%</span>
+          <span className="text-muted-foreground tabular-nums">
+            {value > 100 ? formatCappedPercent(value) : `${safeValue}%`}
+          </span>
         </div>
       ) : null}
       <div

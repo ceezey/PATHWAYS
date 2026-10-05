@@ -11,6 +11,7 @@ import type { PrismaService } from '../../prisma/prisma.service'
 import { hasAtomicPermission } from '../auth/authorization-policy'
 import type { ApplicationIdentity } from '../auth/developer-access'
 import type { DashboardsService } from '../dashboards/dashboards.service'
+import { ReportPdfError, type ReportPdfRenderer } from '../report-pdf/report-pdf.renderer'
 import type { StorageService } from '../storage/storage.service'
 import { reportInputSchema, reportQuerySchema } from './reports.dto'
 import { ReportsService } from './reports.service'
@@ -101,10 +102,12 @@ const tx = {
 }
 const storage = { uploadPrivateFile: vi.fn(), deleteFile: vi.fn() }
 const dashboards = { monitoringInTransaction: vi.fn() }
+const renderer = { render: vi.fn() }
 const service = new ReportsService(
   {} as PrismaService,
   storage as unknown as StorageService,
   dashboards as unknown as DashboardsService,
+  renderer as unknown as ReportPdfRenderer,
 )
 const body = { clientRequestId: id, name: 'Private report', kind: 'PROJECT_SUMMARY', format: 'PDF' }
 const field = {
@@ -136,6 +139,7 @@ describe('report source authority, privacy and artifact recovery', () => {
     state.lostCommit = false
     state.read.mockResolvedValue(Buffer.from('%PDF-fixture'))
     state.artifact.mockResolvedValue(Buffer.from('%PDF-fixture'))
+    renderer.render.mockRejectedValue(new ReportPdfError('launch', 'Error'))
     tx.project.findFirst.mockResolvedValue(project)
     tx.projectEvaluation.findFirst.mockResolvedValue(null)
     tx.projectEvaluationScore.findMany.mockResolvedValue([])
@@ -346,6 +350,44 @@ describe('report source authority, privacy and artifact recovery', () => {
     await expect(failure).rejects.toBeInstanceOf(ServiceUnavailableException)
     await expect(failure).rejects.toThrow('Report generation temporarily unavailable')
     expect(storage.uploadPrivateFile).not.toHaveBeenCalled()
+  })
+  it('stores the designed PDF from the renderer without calling pdfkit', async () => {
+    renderer.render.mockResolvedValue(Buffer.from('%PDF-designed'))
+    await service.generate(actor, projectId, body).catch(() => undefined)
+    expect(renderer.render).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ title: 'Private report', kind: 'PROJECT_SUMMARY' }),
+    )
+    expect(state.artifact).not.toHaveBeenCalled()
+    expect(storage.uploadPrivateFile).toHaveBeenCalledWith(
+      'pathways-private',
+      expect.any(String),
+      Buffer.from('%PDF-designed'),
+      'application/pdf',
+    )
+  })
+  it('falls back to the pdfkit artifact when the renderer fails', async () => {
+    await service.generate(actor, projectId, body).catch(() => undefined)
+    expect(renderer.render).toHaveBeenCalledOnce()
+    expect(state.artifact).toHaveBeenCalledOnce()
+    const warning = vi.mocked(Logger.prototype.warn).mock.calls.flat().join(' ')
+    expect(vi.mocked(Logger.prototype.warn)).toHaveBeenCalledOnce()
+    expect(warning).toContain('at launch')
+    expect(warning).toContain('using pdfkit')
+    expect(warning).not.toContain('Private report')
+    expect(storage.uploadPrivateFile).toHaveBeenCalledWith(
+      'pathways-private',
+      expect.any(String),
+      Buffer.from('%PDF-fixture'),
+      'application/pdf',
+    )
+  })
+  it('never launches the renderer for spreadsheet formats', async () => {
+    for (const format of ['CSV', 'XLS', 'XLSX'])
+      await service
+        .generate(actor, projectId, { ...body, format, clientRequestId: crypto.randomUUID() })
+        .catch(() => undefined)
+    expect(renderer.render).not.toHaveBeenCalled()
   })
   it('reports a private artifact read outage on export as unavailable without audit', async () => {
     let fingerprint: unknown

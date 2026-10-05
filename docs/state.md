@@ -10,6 +10,7 @@ The earlier [revised RBAC and migration baseline Change Record](cr-pathways-revi
 
 ## Open signals
 
+- **Priority (2026-10-05):** the [defense readiness audit](audit-pathways-defense-readiness-20261005.md) is the working task list until the 2026-10-06 defense; its section 5 sets the order.
 - PATHWAYS-dev migration 0020 has an unexplained checksum mismatch; the original applied SQL is unavailable, and the developer approved this historical checksum exception. Forward corrections 0027/0028 and the baseline registration are verified following preview and isolated backup restoration checks. Historical bytes remain in the approved immutable archive; ledger entries remain unchanged.
 - Migration 0015 checksum matches the unchanged SQL with CRLF line endings.
 - Finance sign-off, evaluation, reporting, alerts/recommendations and publishing are implemented through migrations 0029-0034 and verified on a synthetic local replay; PATHWAYS-dev remains at 0028 and hosted installation is pending. Indicator-based rules need an eligibility approval path that does not exist yet. Migrations 0058-0060 (2026-10-04) add budget, Beneficiary and survey rule metrics and recommendation Auto-resolve, verified on local replay and not yet applied to hosted; the hosted rules scheduler waits for human-set credentials.

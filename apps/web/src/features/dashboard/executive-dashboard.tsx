@@ -15,6 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { formatCappedPercent } from '@/lib/percent'
 import { cn } from '@/lib/utils'
 import type {
   DashboardAction,
@@ -138,7 +139,7 @@ export const ExecutiveDashboard = ({
             icon={Target}
             label="Goal outlook"
             value={context.goalOutlook}
-            helperText={`${context.goalAchievement}% of the outcome target achieved`}
+            helperText={`${formatCappedPercent(context.goalAchievement)} of the outcome target achieved`}
             progress={context.goalAchievement}
             tone={statusTone(context.deliveryStatus)}
           />

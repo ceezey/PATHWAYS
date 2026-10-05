@@ -1,7 +1,7 @@
 'use client'
 
 import { ChevronDown, ChevronRight, Info, Receipt } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
 import { EmptyState, SectionCard, StatusBadge } from '@/components/pathways'
@@ -25,11 +25,13 @@ const statusLabel = {
   REJECTED: { text: 'Rejected', tone: 'danger' },
 } as const
 
-/** Expense id from a `#expense-<id>` link, read on the client only. */
+/** Expense id from an `?expense=<id>` or `#expense-<id>` link, read on the client only. */
 export const hashedExpenseId = () =>
   typeof window === 'undefined'
     ? null
-    : (window.location.hash.match(/^#expense-(.+)$/)?.[1] ?? null)
+    : (new URLSearchParams(window.location.search).get('expense') ??
+      window.location.hash.match(/^#expense-(.+)$/)?.[1] ??
+      null)
 
 export const BudgetLedger = ({
   projectId,
@@ -53,6 +55,13 @@ export const BudgetLedger = ({
   const rows = module.expenses.filter(
     (expense) => !activityKey || (budgetOf(expense)?.activityId ?? projectLevelKey) === activityKey,
   )
+  const filterActivity = module.activities.find((a) => a.id === activityKey)
+  const filterLabel =
+    activityKey === projectLevelKey
+      ? 'Project-level budget'
+      : filterActivity
+        ? `${filterActivity.code} ${filterActivity.title}`
+        : 'this activity'
   const stepFor = (expense: Expense): ReviewAction | null => {
     if (expense.status === 'PENDING' && expense.receiptEvidenceId && can('expenses.verify'))
       return expense.submittedById === me ? null : 'VERIFY'
@@ -64,6 +73,18 @@ export const BudgetLedger = ({
         : 'SIGNOFF'
     return null
   }
+  // A dashboard link scrolls to its expense once and opens that expense's review step.
+  const linked = useRef(hashedExpenseId())
+  // biome-ignore lint/correctness/useExhaustiveDependencies: runs once when the linked expense loads.
+  useEffect(() => {
+    const id = linked.current
+    const expense = id ? module.expenses.find((row) => row.id === id) : undefined
+    if (!expense) return
+    linked.current = null
+    document.getElementById(`expense-${expense.id}`)?.scrollIntoView({ block: 'center' })
+    const step = stepFor(expense)
+    if (step) setReview({ expense, action: step })
+  }, [module.expenses])
   const download = async (expense: Expense) => {
     try {
       await downloadCoreArtifact(
@@ -87,6 +108,11 @@ export const BudgetLedger = ({
       description="Every submitted expense and where it stands in review."
       title="Expense ledger"
     >
+      {activityKey ? (
+        <output className="mb-3 block text-sm font-semibold text-foreground">
+          Showing {rows.length} of {module.expenses.length} expenses for {filterLabel}
+        </output>
+      ) : null}
       <p className="mb-4 flex items-start gap-2 rounded-md border border-info/30 bg-info-subtle p-3 text-sm">
         <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
         Only approved expenses count toward budget used. Pending and verified expenses are shown
@@ -108,7 +134,7 @@ export const BudgetLedger = ({
             const expanded = open === expense.id
             const Chevron = expanded ? ChevronDown : ChevronRight
             return (
-              <li className="py-3" key={expense.id}>
+              <li className="py-3" id={`expense-${expense.id}`} key={expense.id}>
                 <div className="flex flex-wrap items-center gap-3">
                   <button
                     aria-expanded={expanded}

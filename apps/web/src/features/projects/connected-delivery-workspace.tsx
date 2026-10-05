@@ -34,6 +34,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useSourceMutationContext } from '@/hooks/use-source-mutation-context'
+import { formatCappedPercent } from '@/lib/percent'
 import { isUiActionAvailable } from '@/lib/rbac/ui-action-availability'
 import { pathwaysClient } from '@/lib/services/pathways-client'
 import { isSourceReplay, sourceMutationTickets } from '@/lib/services/source-mutation'
@@ -165,7 +166,12 @@ export function ConnectedBudgetWorkspace({ projectId }: { projectId: string }) {
               'Remaining budget',
               budget ? peso(budget.plannedAmount - budget.actualSpending) : 'Unavailable',
             ],
-            ['Efficiency', budget ? `${utilization}% utilized` : 'Unavailable'],
+            [
+              'Efficiency',
+              budget
+                ? `${formatCappedPercent(utilization, 'over budget')} utilized`
+                : 'Unavailable',
+            ],
           ].map(([label, value], index) => (
             <div
               className={`p-4 ${index ? 'border-t border-border sm:border-l sm:border-t-0' : ''}`}

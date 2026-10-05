@@ -4,6 +4,8 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { HumanReviewAction } from './human-review-action'
 import type { HumanAlert, HumanRecommendation } from './rules-human-contract'
+const toastSuccess = vi.hoisted(() => vi.fn())
+vi.mock('sonner', () => ({ toast: { success: toastSuccess } }))
 const state = vi.hoisted(() => ({
   permissions: [
     'recommendations.review',
@@ -16,6 +18,49 @@ const state = vi.hoisted(() => ({
   confirm: vi.fn(),
   committed: vi.fn(),
 }))
+// The DSD Select renders through a portal, so tests drive an equivalent native select.
+vi.mock('@/components/ui/select', async () => {
+  const React = await import('react')
+  type Part = {
+    children?: React.ReactNode
+    'aria-label'?: string
+    disabled?: boolean
+    placeholder?: string
+    value?: string
+  }
+  const SelectTrigger = ({ children }: Part) => <>{children}</>
+  const SelectValue = (_props: Part) => null
+  const SelectContent = ({ children }: Part) => <>{children}</>
+  const SelectItem = ({ children, disabled, value }: Part) => (
+    <option disabled={disabled} value={value}>
+      {children}
+    </option>
+  )
+  const Select = ({
+    children,
+    disabled,
+    value,
+    onValueChange,
+  }: Part & { onValueChange?: (value: string) => void }) => {
+    const parts = React.Children.toArray(children) as React.ReactElement<Part>[]
+    const trigger = parts.find((part) => part.type === SelectTrigger)
+    const content = parts.find((part) => part.type === SelectContent)
+    const placeholder = (trigger?.props.children as React.ReactElement<Part> | undefined)?.props
+      .placeholder
+    return (
+      <select
+        aria-label={trigger?.props['aria-label']}
+        disabled={disabled}
+        value={value}
+        onChange={(event) => onValueChange?.(event.target.value)}
+      >
+        <option value="">{placeholder}</option>
+        {content?.props.children}
+      </select>
+    )
+  }
+  return { Select, SelectContent, SelectItem, SelectTrigger, SelectValue }
+})
 vi.mock('@/hooks/use-current-role', () => ({
   useCurrentRole: () => ({
     profile: {
@@ -136,8 +181,9 @@ describe('owned human decision flow', () => {
     enter()
     await screen.findByText('2 recipients will receive an in-app notification.')
     expect(state.confirm).not.toHaveBeenCalled()
-    fireEvent.click(screen.getByRole('button', { name: 'Confirm and record outcome' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Record Outcome' }))
     await waitFor(() => expect(state.committed).toHaveBeenCalledOnce())
+    expect(toastSuccess).toHaveBeenCalledWith('Outcome recorded: decline. 2 recipients notified.')
     expect(state.preview.mock.calls[0][1]).toMatchObject({
       expectedRevision: '7',
       note: 'Private explanation',
@@ -152,12 +198,12 @@ describe('owned human decision flow', () => {
     state.confirm.mockRejectedValueOnce(new Error('lost response'))
     render(<HumanReviewAction {...props} />)
     enter()
-    await screen.findByRole('button', { name: 'Confirm and record outcome' })
-    fireEvent.click(screen.getByRole('button', { name: 'Confirm and record outcome' }))
+    await screen.findByRole('button', { name: 'Record Outcome' })
+    fireEvent.click(screen.getByRole('button', { name: 'Record Outcome' }))
     await screen.findByText(
       'A response was not confirmed. Retry this same confirmation or reload the record.',
     )
-    fireEvent.click(screen.getByRole('button', { name: 'Confirm and record outcome' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Record Outcome' }))
     await waitFor(() => expect(state.committed).toHaveBeenCalledOnce())
     expect(state.confirm.mock.calls[1][1]).toEqual(state.confirm.mock.calls[0][1])
   })

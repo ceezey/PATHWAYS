@@ -78,4 +78,18 @@ describe('frontend route aliases', () => {
       authorizationPathForUiPath(`/beneficiaries/${beneficiaryId}/edit?projectId=${projectId}`),
     ).toBe(`/beneficiaries/${beneficiaryId}/edit?projectId=${projectId}`)
   })
+
+  it('strips every display-only query key the protected pages accept', () => {
+    const activity = `/projects/${projectId}/activities/${beneficiaryId}`
+    const form = `/collection/projects/${projectId}/forms/${beneficiaryId}/entries/new`
+    for (const [ui, checked] of [
+      [`/projects/${projectId}/budget?expense=${beneficiaryId}`, `/projects/${projectId}/budget`],
+      [`${activity}?action=extension`, activity],
+      [`${form}?submissionId=${beneficiaryId}`, form],
+      [`/indicators/library?project=${projectId}`, '/indicators/library'],
+    ]) {
+      expect(authorizationPathForUiPath(ui)).toBe(checked)
+    }
+    expect(authorizationPathForUiPath(`/projects/${projectId}/budget?review=x`)).toBeNull()
+  })
 })

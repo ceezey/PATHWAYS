@@ -314,9 +314,7 @@ describe('Analytics dashboard request dependencies', () => {
     })
     await waitFor(() => expect(api.getActivities).toHaveBeenCalledWith('project-b'))
     expect(api.getSadddDashboard).not.toHaveBeenCalled()
-    expect(
-      screen.getByText("SADDD analysis is available only after the project's recorded end date."),
-    ).toBeTruthy()
+    expect(screen.getByText('SADDD opens after this project ends on Dec 31, 2026')).toBeTruthy()
     await waitFor(() =>
       expect(api.getMonitoringDashboard).toHaveBeenCalledWith({
         projectId: 'project-b',
@@ -334,7 +332,8 @@ describe('Analytics dashboard request dependencies', () => {
       ),
     ).toBe(false)
     expect(screen.getByTestId('coverage-map').getAttribute('data-instance')).toBe(mapInstance)
-    expect(coverageMap.featureCollections.at(-1)).not.toBe(firstFeatureCollection)
+    // The map covers every scoped project, so a project change keeps the same points.
+    expect(coverageMap.featureCollections.at(-1)).toBe(firstFeatureCollection)
   })
 
   it('shows budget utilization from the insights read', async () => {
@@ -411,7 +410,7 @@ describe('Analytics dashboard request dependencies', () => {
     expect(await screen.findByRole('heading', { name: 'Project Coverage Map' })).toBeTruthy()
     expect(
       screen.getByText(
-        'Interactive coverage for No Coordinates Project. Only authoritative persisted project coordinates are plotted.',
+        'Projects placed by implementation area. Hover or tap a point for its KPI, progress and SADDD overview.',
       ),
     ).toBeTruthy()
     expect(screen.getByTestId('coverage-map')).toBeTruthy()
@@ -437,9 +436,8 @@ describe('Analytics dashboard request dependencies', () => {
 
     await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalledTimes(1))
     expect(api.getSadddDashboard).not.toHaveBeenCalled()
-    expect(screen.getAllByText('Project reporting dates are not recorded.').length).toBeGreaterThan(
-      0,
-    )
+    expect(screen.getByText('SADDD needs project dates')).toBeTruthy()
+    expect(screen.queryByText('SADDD analysis unavailable')).toBeNull()
   })
 
   it('withholds monitoring when no valid active Indicator period exists', async () => {

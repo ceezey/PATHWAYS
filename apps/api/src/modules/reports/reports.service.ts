@@ -21,6 +21,7 @@ import { projectScope } from '../auth/authorized-data.service'
 import { withAuthorizedOperation } from '../auth/authorized-operation'
 import type { ApplicationIdentity } from '../auth/developer-access'
 import { DashboardsService } from '../dashboards/dashboards.service'
+import { ReportPdfError, ReportPdfRenderer } from '../report-pdf/report-pdf.renderer'
 import { createPrivateInspectionReader } from '../storage/private-inspection-reader'
 import { StorageService } from '../storage/storage.service'
 import {
@@ -98,6 +99,7 @@ export class ReportsService {
     @Inject(PrismaService) private readonly prisma: PrismaService,
     @Inject(StorageService) private readonly storage: StorageService,
     @Inject(DashboardsService) private readonly dashboards: DashboardsService,
+    @Inject(ReportPdfRenderer) private readonly pdf: ReportPdfRenderer,
   ) {}
   private permissions(actor: ApplicationIdentity, kind: ReportKind) {
     if (
@@ -443,6 +445,26 @@ export class ReportsService {
       return rows.map((row) => ({ ...row, generatedAt: row.generatedAt?.toISOString() ?? null }))
     })
   }
+  // Designed PDF through headless Chromium; null keeps the pdfkit artifact as the fallback.
+  private async designedPdf(id: string, title: string, source: Preview) {
+    try {
+      return await this.pdf.render(id, {
+        title,
+        kind: source.kind,
+        columns: source.columns,
+        rows: source.rows,
+        generatedAt: source.generatedAt,
+        unavailableReasons: source.unavailableReasons,
+      })
+    } catch (error) {
+      const known = error instanceof ReportPdfError ? error : null
+      const cause = known?.causeName ?? (error instanceof Error ? error.name : 'Error')
+      new Logger(ReportsService.name).warn(
+        `Designed PDF unavailable for report ${id} at ${known?.stage ?? 'unknown'} (${cause}); using pdfkit.`,
+      )
+      return null
+    }
+  }
   async generate(identity: ApplicationIdentity, requestedProjectId: string, input: unknown) {
     if (!uuid.safeParse(requestedProjectId).success)
       throw new NotFoundException('Project unavailable.')
@@ -517,11 +539,15 @@ export class ReportsService {
     if (prepare.complete) return { id: prepare.id, status: 'GENERATED' as const }
     let bytes: Buffer
     try {
-      bytes = await createReportArtifact(
-        body.name,
-        [prepare.source.columns, ...prepare.source.rows],
-        body.format,
-      )
+      bytes =
+        (body.format === 'PDF'
+          ? await this.designedPdf(prepare.id, body.name, prepare.source)
+          : null) ??
+        (await createReportArtifact(
+          body.name,
+          [prepare.source.columns, ...prepare.source.rows],
+          body.format,
+        ))
     } catch (error) {
       // Correctable input keeps its fixed descriptive message; integrity/renderer faults do not.
       if (error instanceof ReportArtifactInputError)

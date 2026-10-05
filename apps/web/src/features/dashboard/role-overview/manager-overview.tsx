@@ -4,6 +4,7 @@ import Link from 'next/link'
 
 import { StatusBadge } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
+import { formatCappedPercent } from '@/lib/percent'
 import { cn } from '@/lib/utils'
 import { healthOf } from './health'
 import {
@@ -136,7 +137,8 @@ export const ManagerOverview = ({
                     ) : null}
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    KPI {m?.kpi ?? '—'} · Budget {m?.budget ? `${m.budget.percent}%` : '—'}
+                    KPI {m?.kpi ?? '—'} · Budget{' '}
+                    {m?.budget ? formatCappedPercent(m.budget.percent, 'over budget') : '—'}
                   </p>
                   <div aria-hidden="true" className="h-1.5 overflow-hidden rounded-full bg-muted">
                     <div
@@ -170,7 +172,9 @@ export const ManagerOverview = ({
                   <Button
                     aria-label={`Approve extension for ${row.activityCode}`}
                     onClick={() =>
-                      onOpenActivity(`/projects/${row.projectId}/activities/${row.activityId}`)
+                      onOpenActivity(
+                        `/projects/${row.projectId}/activities/${row.activityId}?action=extension`,
+                      )
                     }
                     size="sm"
                     type="button"
@@ -181,8 +185,8 @@ export const ManagerOverview = ({
               />
             ))}
             {approvals?.rows.map((row) => {
-              // Expense approval lives in the budget ledger, which expands the hashed expense.
-              const href = `${budgetHref(row.projectId)}#expense-${row.expenseId}`
+              // Expense approval opens the budget ledger with that expense's review drawer.
+              const href = `${budgetHref(row.projectId)}?expense=${row.expenseId}`
               return (
                 <ListRow
                   href={href}

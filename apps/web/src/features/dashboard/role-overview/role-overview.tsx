@@ -12,6 +12,7 @@ import { ManagerOverview } from './manager-overview'
 import { MeOverview } from './me-overview'
 import { OfficerOverview } from './officer-overview'
 import { PortfolioOverview } from './portfolio-overview'
+import { useProjectMetrics } from './project-metrics-reads'
 import { useProjectExtras } from './use-project-extras'
 import { useRoleOverview } from './use-role-overview'
 
@@ -26,11 +27,12 @@ export const RoleOverviewDashboard = ({
   const { profile } = useCurrentRole()
   const read = useRoleOverview()
   const router = useRouter()
-  const extras = useProjectExtras(
+  const evaluations = useProjectExtras(
     read.data?.projects ?? [],
     role,
     principalHasAtomicPermission(profile, 'monitoring.read'),
   )
+  const { metrics, reads } = useProjectMetrics(read.data?.projects ?? [], role)
   // Overdue and For review tiles reuse the existing action counts read.
   const counts = useAuthorizedRead(
     'dashboard-action-counts',
@@ -69,13 +71,14 @@ export const RoleOverviewDashboard = ({
   const data = read.data
   return (
     <>
+      {reads}
       {role === 'Project Officer' ? (
         <OfficerOverview data={data} fullName={fullName} onOpenActivity={open} />
       ) : null}
       {role === 'Monitoring and Evaluation Officer' ? (
         <MeOverview
           data={data}
-          evaluations={extras.evaluations}
+          evaluations={evaluations}
           fullName={fullName}
           onOpenActivity={open}
         />
@@ -85,7 +88,7 @@ export const RoleOverviewDashboard = ({
           counts={counts.data ?? null}
           data={data}
           fullName={fullName}
-          metrics={extras.metrics}
+          metrics={metrics}
           onOpenActivity={open}
         />
       ) : null}
@@ -93,7 +96,7 @@ export const RoleOverviewDashboard = ({
         <PortfolioOverview
           data={data}
           fullName={fullName}
-          metrics={extras.metrics}
+          metrics={metrics}
           readOnly={role === 'Grant Manager'}
         />
       ) : null}

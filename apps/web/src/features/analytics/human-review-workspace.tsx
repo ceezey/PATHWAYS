@@ -4,7 +4,15 @@ import { PageHeader } from '@/components/layout/page-header'
 import { AsyncState, EmptyState, SectionCard, StatusBadge } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { ReviewCardList, statusLabel } from '@/features/rules-board/review-card-list'
+import { formatMetricValue } from '@/features/rules-board/rule-board-model'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'
 import { useSensitiveDraftOwner } from '@/lib/auth/sensitive-drafts'
@@ -34,6 +42,9 @@ const permissionFor = (kind: 'alert' | 'recommendation', action: 'read' | 'revie
       : action === 'review'
         ? 'recommendations.review'
         : 'recommendations.outcome.record'
+
+// Radix Select rejects an empty value, so the unfiltered queue uses a sentinel.
+const ALL_PROJECTS = 'all'
 
 export function HumanReviewWorkspace({
   kind,
@@ -158,24 +169,27 @@ export function HumanReviewWorkspace({
       <div className="flex flex-wrap items-end gap-3">
         <div className="min-w-64 space-y-2">
           <Label htmlFor={`${kind}-project`}>Project</Label>
-          <select
-            className="h-10 w-full rounded-sm border border-input bg-background px-3"
-            id={`${kind}-project`}
-            value={projectId ?? ''}
-            onChange={(event) => {
-              setProjectId(event.target.value || null)
+          <Select
+            value={projectId ?? ALL_PROJECTS}
+            onValueChange={(value) => {
+              setProjectId(value === ALL_PROJECTS ? null : value)
               setCursor(null)
               setNotificationCursor(null)
               choose(null)
             }}
           >
-            <option value="">Select Project</option>
-            {projects.data?.map((project) => (
-              <option key={project.id} value={project.id}>
-                {project.title}
-              </option>
-            ))}
-          </select>
+            <SelectTrigger id={`${kind}-project`}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL_PROJECTS}>All projects</SelectItem>
+              {projects.data?.map((project) => (
+                <SelectItem key={project.id} value={project.id}>
+                  {project.title}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
         <Button type="button" variant="outline" onClick={refresh}>
           Refresh queue
@@ -346,7 +360,10 @@ export function HumanReviewWorkspace({
                     item={item}
                     mode={mode}
                     linkedAlert={linked.data}
-                    onCommitted={refresh}
+                    onCommitted={() => {
+                      setMode(null)
+                      refresh()
+                    }}
                     onCancel={() => setMode(null)}
                   />
                 ) : null}
@@ -455,6 +472,19 @@ export function HumanReviewWorkspace({
 }
 function AlertEvidence({ item }: { item: HumanAlert }) {
   const { profile } = useCurrentRole()
+  const canReadLinked =
+    principalHasAtomicPermission(profile, 'recommendations.read') &&
+    item.linkedRecommendationIds.length > 0
+  // One read labels each linked recommendation by its title instead of a number.
+  const linked = useAuthorizedRead(
+    `alert-linked-recommendations:${item.id}`,
+    item.projectId,
+    'recommendations.read',
+    (signal) => rulesHumanClient.listRecommendations({ alertId: item.id, limit: '10' }, signal),
+    canReadLinked,
+    { freshness: 'summary' },
+  )
+  const titleOf = (id: string) => linked.data?.items.find((row) => row.id === id)?.title
   return (
     <div className="space-y-4">
       <p className="whitespace-pre-wrap">{item.explanation}</p>
@@ -465,13 +495,14 @@ function AlertEvidence({ item }: { item: HumanAlert }) {
       </p>
       <RuleTreeView node={item.conditions} />
       <EvidenceTable evidence={item.evidence} />
-      {principalHasAtomicPermission(profile, 'recommendations.read') &&
-      item.linkedRecommendationIds.length ? (
+      {canReadLinked ? (
         <ul className="space-y-2">
           {item.linkedRecommendationIds.map((id, index) => (
             <li key={id}>
               <Link className="text-primary underline" href={`/recommendations/${id}`}>
-                View linked recommendation {index + 1}
+                {titleOf(id)
+                  ? `Linked recommendation: ${titleOf(id)}`
+                  : `View linked recommendation ${index + 1}`}
               </Link>
             </li>
           ))}
@@ -518,12 +549,15 @@ function EvidenceTable({ evidence }: { evidence: HumanAlert['evidence'] }) {
               </th>
               <td className="p-2">
                 {evidence.cell.value !== null
-                  ? `${evidence.cell.value} ${evidence.unit}`
+                  ? formatMetricValue(evidence.cell.value, evidence.unit)
                   : `${copy(evidence.cell.state)}${evidence.cell.reason ? ` (${copy(evidence.cell.reason)})` : ''}`}
               </td>
               <td className="p-2">
-                {comparisonCopy[evidence.operator]} {evidence.threshold}
-                {evidence.thresholdMaximum !== null ? ` to ${evidence.thresholdMaximum}` : ''}
+                {comparisonCopy[evidence.operator]}{' '}
+                {formatMetricValue(evidence.threshold, evidence.unit)}
+                {evidence.thresholdMaximum !== null
+                  ? ` to ${formatMetricValue(evidence.thresholdMaximum, evidence.unit)}`
+                  : ''}
               </td>
               <td className="p-2">{copy(evidence.result)}</td>
             </tr>

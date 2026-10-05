@@ -29,6 +29,7 @@ import type { DisplayLabelKey } from '@/constants/display-labels'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'
 import { useSensitiveDraftOwner } from '@/lib/auth/sensitive-drafts'
+import { formatCappedPercent } from '@/lib/percent'
 import { canAccessProjectForRole } from '@/lib/rbac/data-scope'
 import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
 import { PathwaysClientError, pathwaysClient } from '@/lib/services/pathways-client'
@@ -744,8 +745,10 @@ const IndicatorsView = ({
             </dl>
             <div className="mt-4">
               <p>
-                Progress toward configured change: {formatMetricCell(indicator.progress)}
-                {indicator.progress.value !== null ? '%' : ''}
+                Progress toward configured change:{' '}
+                {indicator.progress.value !== null
+                  ? formatCappedPercent(indicator.progress.value)
+                  : formatMetricCell(indicator.progress)}
               </p>
             </div>
             <div className="mt-4 text-sm text-muted-foreground">

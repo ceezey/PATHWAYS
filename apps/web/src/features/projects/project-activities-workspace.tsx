@@ -13,7 +13,7 @@ import {
   UsersRound,
 } from 'lucide-react'
 import Link from 'next/link'
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { PageHeader } from '@/components/layout/page-header'
 import {
@@ -183,10 +183,12 @@ const ActivityStatusSummary = ({
 )
 
 export const ProjectActivitiesWorkspace = ({
+  initialAction,
   initialActivityId,
   initialProofId,
   projectId,
 }: {
+  initialAction?: string
   initialActivityId?: string
   initialProofId?: string
   projectId: string
@@ -449,6 +451,16 @@ export const ProjectActivitiesWorkspace = ({
     setProofOpen(true)
   }
 
+  // A dashboard "Submit update" link opens the update form once the activity loads.
+  const updateOpened = useRef(false)
+  // biome-ignore lint/correctness/useExhaustiveDependencies: runs once per loaded activity.
+  useEffect(() => {
+    if (initialAction !== 'update' || updateOpened.current || !selectedActivity) return
+    if (selectedActivity.id !== initialActivityId) return
+    updateOpened.current = true
+    openProof(selectedActivity)
+  }, [initialAction, initialActivityId, selectedActivity])
+
   if (loading) {
     return (
       <AsyncState
@@ -680,6 +692,7 @@ export const ProjectActivitiesWorkspace = ({
         onSubmitProof={openProof}
         open={Boolean(selectedActivityId) && !detail.isError}
         pendingExpenses={pendingExpenses}
+        focusExtension={initialAction === 'extension'}
         requestedProofId={initialProofId}
       />
       <ActivityEditorLoadingDialog

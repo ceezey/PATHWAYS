@@ -395,6 +395,17 @@ export function MfaForm() {
     !error &&
     !accessError &&
     (status === 'loading' || (Boolean(session) && !current))
+  // Setup sits in the footer row beside Login when no factor exists yet.
+  const setupVisible = Boolean(
+    configured &&
+      !codePending &&
+      session &&
+      !accepted &&
+      current &&
+      current.status.aal !== 'aal2' &&
+      !privateEnrollment &&
+      current.factors.length === 0,
+  )
 
   if (loadingMessage && !error) {
     return (
@@ -568,13 +579,6 @@ export function MfaForm() {
                   Have your authenticator app ready. Clicking below creates one TOTP factor for this
                   account. The code and verification stay between your browser and Supabase Auth.
                 </p>
-                <Button
-                  type="button"
-                  disabled={busy || enrollmentAttempted}
-                  onClick={() => void enroll()}
-                >
-                  Set up authenticator
-                </Button>
               </>
             ) : choices.length ? (
               <>
@@ -662,6 +666,16 @@ export function MfaForm() {
                 <ArrowLeft className="h-4 w-4" aria-hidden="true" />
                 Login
               </Link>
+            </Button>
+          )}
+          {setupVisible && (
+            <Button
+              type="button"
+              className="ml-auto"
+              disabled={busy || enrollmentAttempted}
+              onClick={() => void enroll()}
+            >
+              Set up authenticator
             </Button>
           )}
           {(codeFormVisible || codePending) && (

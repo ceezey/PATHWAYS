@@ -106,7 +106,7 @@ describe('ManagerOverview', () => {
       />,
     )
     fireEvent.click(screen.getByRole('button', { name: 'Approve Meals' }))
-    expect(open).toHaveBeenCalledWith(`/projects/${p}/budget#expense-${e}`)
+    expect(open).toHaveBeenCalledWith(`/projects/${p}/budget?expense=${e}`)
   })
   it('hides cards and tiles whose section is null', () => {
     const counts = { overdueActivities: null, forReview: null } as unknown as DashboardActionCounts
@@ -224,6 +224,6 @@ describe('ManagerOverview', () => {
     expect(screen.getByText('Pending your approval')).toBeTruthy()
     expect(screen.getByText('EXT')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Approve extension for ACT-009' }))
-    expect(open).toHaveBeenCalledWith(`/projects/${p}/activities/${a}`)
+    expect(open).toHaveBeenCalledWith(`/projects/${p}/activities/${a}?action=extension`)
   })
 })

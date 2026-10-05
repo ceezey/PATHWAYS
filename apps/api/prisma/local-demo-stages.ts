@@ -19,7 +19,7 @@ import { stageBeneficiaries, stageIndicators } from './local-demo-stage-people'
 import { stagePublishing } from './local-demo-stage-publishing'
 import { stageReports } from './local-demo-stage-reports'
 import { stageEvaluation, stageRules } from './local-demo-stage-rules'
-import { message, projectOf } from './local-demo-util'
+import { message, projectOf, slowLinkTx } from './local-demo-util'
 
 type Stage = { name: string; run: (ctx: DemoContext) => Promise<void> }
 
@@ -125,7 +125,7 @@ async function stageTeam(ctx: DemoContext) {
           })
       }
     }
-  })
+  }, slowLinkTx)
 }
 
 const stages: Stage[] = [

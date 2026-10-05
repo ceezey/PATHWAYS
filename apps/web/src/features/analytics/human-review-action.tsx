@@ -2,6 +2,13 @@
 
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import {
   type DecisionOutcome,
@@ -17,6 +24,7 @@ import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
 import { PathwaysClientError } from '@/lib/services/pathways-client'
 import { rulesHumanClient } from '@/lib/services/rules-human-client'
 import { useEffect, useRef, useState } from 'react'
+import { toast } from 'sonner'
 
 type Props = {
   kind: 'alert' | 'recommendation'
@@ -26,6 +34,13 @@ type Props = {
   onCommitted: () => void
   onCancel: () => void
 }
+const doneCopy = {
+  review: 'Marked reviewed.',
+  resolve: 'Alert resolved.',
+  dismiss: 'Alert dismissed.',
+  outcome: 'Outcome recorded.',
+} as const
+
 export function HumanReviewAction(props: Props) {
   const { profile, access } = useCurrentRole()
   const permission =
@@ -155,7 +170,7 @@ function OwnedAction({
       if (currentWriteSet()) {
         captured.current = null
         setNote('')
-        setNotice('Recorded.')
+        toast.success(doneCopy[mode])
         onCommitted()
       }
     } catch (error) {
@@ -201,6 +216,10 @@ function OwnedAction({
       captured.current = null
       setNote('')
       setPreview(null)
+      // The recorder is never a recipient, so the toast is their confirmation.
+      toast.success(
+        `Outcome recorded: ${result.outcome.replaceAll('_', ' ').toLowerCase()}. ${preview.recipientCount} recipient${preview.recipientCount === 1 ? '' : 's'} notified.`,
+      )
       onCommitted()
     } catch (error) {
       if (isCurrent())
@@ -214,6 +233,12 @@ function OwnedAction({
       if (isCurrent()) setBusy(false)
     }
   }
+  // Close sits beside the primary action, right aligned, in both the form and the confirm step.
+  const close = (
+    <Button disabled={busy} onClick={onCancel} type="button" variant="outline">
+      Close
+    </Button>
+  )
   return (
     <section
       className="space-y-4 rounded-sm border border-border bg-background p-4"
@@ -227,13 +252,16 @@ function OwnedAction({
           <p className="text-sm text-muted-foreground">
             Preview expires {new Date(preview.expiresAt).toLocaleString()}.
           </p>
-          <Button
-            disabled={busy || !currentWriteSet()}
-            onClick={() => void confirm()}
-            type="button"
-          >
-            {busy ? 'Recording...' : 'Confirm and record outcome'}
-          </Button>
+          <div className="flex justify-end gap-2">
+            {close}
+            <Button
+              disabled={busy || !currentWriteSet()}
+              onClick={() => void confirm()}
+              type="button"
+            >
+              {busy ? 'Recording...' : 'Record Outcome'}
+            </Button>
+          </div>
         </div>
       ) : (
         <form
@@ -246,29 +274,31 @@ function OwnedAction({
           {mode === 'outcome' ? (
             <div className="space-y-2">
               <Label htmlFor={`outcome-${item.id}`}>Outcome</Label>
-              <select
-                className="h-10 w-full rounded-sm border border-input bg-background px-3"
-                id={`outcome-${item.id}`}
-                value={outcome}
+              <Select
                 disabled={busy || locked}
                 required
-                onChange={(event) => setOutcome(event.target.value as DecisionOutcome)}
+                value={outcome}
+                onValueChange={(value) => setOutcome(value as DecisionOutcome)}
               >
-                <option value="">Choose an outcome</option>
-                {decisionOutcomes.map((value) => (
-                  <option
-                    key={value}
-                    value={value}
-                    disabled={
-                      kind === 'recommendation' &&
-                      ['ACCEPT', 'PARTIALLY_ACCEPT'].includes(value) &&
-                      !canWriteAlert
-                    }
-                  >
-                    {value.replaceAll('_', ' ')}
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger aria-label="Outcome" id={`outcome-${item.id}`}>
+                  <SelectValue placeholder="Choose an outcome" />
+                </SelectTrigger>
+                <SelectContent>
+                  {decisionOutcomes.map((value) => (
+                    <SelectItem
+                      key={value}
+                      value={value}
+                      disabled={
+                        kind === 'recommendation' &&
+                        ['ACCEPT', 'PARTIALLY_ACCEPT'].includes(value) &&
+                        !canWriteAlert
+                      }
+                    >
+                      {value.replaceAll('_', ' ')}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           ) : null}
           <div className="space-y-2">
@@ -291,23 +321,23 @@ function OwnedAction({
               linked alert.
             </p>
           ) : null}
-          <Button disabled={busy || (needsAlert && !canWriteAlert)} type="submit">
-            {busy
-              ? 'Submitting...'
-              : mode === 'outcome'
-                ? 'Preview outcome'
-                : mode === 'review'
-                  ? 'Mark reviewed'
-                  : mode === 'resolve'
-                    ? 'Resolve alert'
-                    : 'Dismiss alert'}
-          </Button>
+          <div className="flex justify-end gap-2">
+            {close}
+            <Button disabled={busy || (needsAlert && !canWriteAlert)} type="submit">
+              {busy
+                ? 'Submitting...'
+                : mode === 'outcome'
+                  ? 'Preview outcome'
+                  : mode === 'review'
+                    ? 'Mark reviewed'
+                    : mode === 'resolve'
+                      ? 'Resolve alert'
+                      : 'Dismiss alert'}
+            </Button>
+          </div>
         </form>
       )}
       {notice ? <output className="block text-sm">{notice}</output> : null}
-      <Button disabled={busy} onClick={onCancel} type="button" variant="outline">
-        Close
-      </Button>
     </section>
   )
 }

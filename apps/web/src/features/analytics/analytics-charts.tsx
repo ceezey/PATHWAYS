@@ -1,6 +1,7 @@
 'use client'
 
 import { chartPalette, chartSignal } from '@/lib/chart-palette'
+import { formatCappedPercent } from '@/lib/percent'
 import { type SadddDashboard, type SurveyGroup, formatMetricCell } from '@pathways/shared'
 import ReactECharts from 'echarts-for-react'
 
@@ -71,15 +72,21 @@ export const IndicatorProgressChart = ({ rows }: { rows: DescriptiveAnalysisRow[
       animation: false,
       aria: {
         enabled: true,
-        description: `Indicator progress toward target. ${rows.map((row) => `${row.label}: ${row.value}%`).join('; ')}.`,
+        description: `Indicator progress toward target. ${rows.map((row) => `${row.label}: ${formatCappedPercent(row.value)}`).join('; ')}.`,
       },
       color: [chartPalette[0]],
-      tooltip: { trigger: 'axis', valueFormatter: (value: number) => `${value}%` },
-      grid: { ...grid, left: 8, right: 24 },
+      tooltip: {
+        trigger: 'axis',
+        formatter: (items: Array<{ dataIndex: number; name: string }>) =>
+          items
+            .map((item) => `${item.name}: ${formatCappedPercent(rows[item.dataIndex]?.value ?? 0)}`)
+            .join('<br/>'),
+      },
+      grid: { ...grid, left: 8, right: 48 },
       xAxis: {
         type: 'value',
         min: 0,
-        max: Math.max(100, ...rows.map((row) => row.value)),
+        max: 100,
         name: '% of target',
       },
       yAxis: { type: 'category', inverse: true, data: rows.map((row) => row.label) },
@@ -87,8 +94,17 @@ export const IndicatorProgressChart = ({ rows }: { rows: DescriptiveAnalysisRow[
         {
           name: 'Progress',
           type: 'bar',
-          data: rows.map((row) => row.value),
-          label: { show: true, position: 'right', formatter: '{c}%' },
+          // Bars stop at 100%; an overrun keeps its real value in the label and turns red.
+          data: rows.map((row) => ({
+            value: Math.min(100, row.value),
+            ...(row.value > 100 ? { itemStyle: { color: chartSignal.danger } } : {}),
+          })),
+          label: {
+            show: true,
+            position: 'right',
+            formatter: ({ dataIndex }: { dataIndex: number }) =>
+              (rows[dataIndex]?.value ?? 0) > 100 ? '100%+' : `${rows[dataIndex]?.value ?? 0}%`,
+          },
         },
       ],
     }}

@@ -20,6 +20,7 @@ import { useCurrentRole } from '@/hooks/use-current-role'
 import { usePendingCreate } from '@/hooks/use-pending-create'
 import { useSourceMutationContext } from '@/hooks/use-source-mutation-context'
 import { fingerprintOf } from '@/lib/forms/pending-create'
+import { formatCappedPercent } from '@/lib/percent'
 import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
 import { indicatorLibraryClient } from '@/lib/services/indicator-library-client'
 import { PathwaysClientError, pathwaysClient } from '@/lib/services/pathways-client'
@@ -824,7 +825,7 @@ export function ProjectIndicatorsWorkspace({ projectId }: { projectId: string })
                   const noDataYet =
                     indicator.current.state === 'MISSING' &&
                     indicator.current.reason === 'NO_MEASUREMENT'
-                  const progressText = `Progress toward configured change: ${formatMetricCell(indicator.progress)}${progress !== null ? '%' : ''}`
+                  const progressText = `Progress toward configured change: ${progress !== null ? formatCappedPercent(progress) : formatMetricCell(indicator.progress)}`
                   return (
                     <Fragment key={indicator.id}>
                       <tr
@@ -844,7 +845,7 @@ export function ProjectIndicatorsWorkspace({ projectId }: { projectId: string })
                             </div>
                             <span className="text-xs text-muted-foreground">
                               {progress !== null
-                                ? `${progress}%`
+                                ? formatCappedPercent(progress)
                                 : noDataYet
                                   ? '0%'
                                   : formatMetricCell(indicator.progress)}

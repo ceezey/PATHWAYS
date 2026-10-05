@@ -118,6 +118,9 @@ export function sha256(buffer: Buffer) {
   return createHash('sha256').update(buffer).digest('hex')
 }
 
+// Prisma's 5-second interactive transaction default is too short for a hosted run over a slow link.
+export const slowLinkTx = { maxWait: 15_000, timeout: 60_000 }
+
 export type RuntimeTx = Parameters<Parameters<DemoContext['runtime']['$transaction']>[0]>[0]
 
 /** Runs a read on the runtime role with the verified identity of one staff member, the same
@@ -133,5 +136,5 @@ export async function asUser<T>(
       set_config('app.organization_id', ${ctx.organizationId}, true),
       set_config('app.user_id', ${staff.userId}, true)`
     return run(tx as RuntimeTx)
-  })
+  }, slowLinkTx)
 }

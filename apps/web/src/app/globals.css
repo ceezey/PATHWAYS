@@ -3,6 +3,11 @@
 @tailwind utilities;
 
 @layer base {
+  /* Grid cells may shrink below their content so long text truncates instead of widening the page. */
+  .grid > * {
+    min-width: 0;
+  }
+
   :root {
     /* Neutrals: canvas page ground, paper cards, ink text, divider borders */
     --background: 37.5 26.7% 94.1%;
@@ -160,5 +165,27 @@
   .animate-pulse,
   .animate-spin {
     animation: none !important;
+  }
+}
+
+/* Print pagination for the report route and any printed page. */
+@media print {
+  @page {
+    size: A4;
+  }
+  html,
+  body {
+    background: #fff;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .print-break-before {
+    break-before: page;
+  }
+  .print-avoid {
+    break-inside: avoid;
+  }
+  .print-table-head {
+    display: table-header-group;
   }
 }

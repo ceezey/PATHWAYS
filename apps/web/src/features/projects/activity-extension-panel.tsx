@@ -2,7 +2,7 @@
 
 import type { ActivityExtension, ActivityExtensionStatus } from '@pathways/shared'
 import { Loader2 } from 'lucide-react'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
 import { StatusBadge } from '@/components/pathways'
@@ -46,12 +46,14 @@ export const ActivityExtensionPanel = ({
   activity,
   canVerify,
   canDecide,
+  focus = false,
   refreshKey = 0,
   onDecided,
 }: {
   activity: Activity
   canVerify: boolean
   canDecide: boolean
+  focus?: boolean
   refreshKey?: number
   onDecided: () => void
 }) => {
@@ -74,6 +76,17 @@ export const ActivityExtensionPanel = ({
     void refreshKey
     void load()
   }, [load, refreshKey])
+
+  // A dashboard "Approve" link scrolls to the loaded request and focuses its note.
+  const sectionRef = useRef<HTMLElement>(null)
+  const loaded = Boolean(latest)
+  useEffect(() => {
+    if (!focus || !loaded) return
+    sectionRef.current?.scrollIntoView({ block: 'center' })
+    sectionRef.current
+      ?.querySelector<HTMLTextAreaElement>('textarea')
+      ?.focus({ preventScroll: true })
+  }, [focus, loaded])
 
   if (!latest) return null
   const actions: Decision[] =
@@ -133,7 +146,11 @@ export const ActivityExtensionPanel = ({
   }
 
   return (
-    <section aria-label="Extension request" className="space-y-3 rounded-md border p-4">
+    <section
+      aria-label="Extension request"
+      ref={sectionRef}
+      className="space-y-3 rounded-md border p-4"
+    >
       <div className="flex flex-wrap items-center gap-2">
         <h3 className="text-sm font-semibold">Extension request</h3>
         <StatusBadge tone={statusTone(latest.status)}>{statusLabel[latest.status]}</StatusBadge>

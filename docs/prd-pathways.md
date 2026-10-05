@@ -301,7 +301,7 @@ flowchart LR
 | G-F2-17 | An expense is verified, then approved by a distinct reviewer; rejection requires a reason | Met | QAD-T47, QAD-T103, QAD-A34 |
 | G-F2-18 | Final sign-off is recorded once per expense by a holder of `expenses.signoff` | Met | QAD-T48, QAD-T85 |
 | G-F2-19 | Overview metrics derive budget utilization and timeline deterministically and deny out-of-scope projects | Met | QAD-P03, QAD-P08 |
-| G-F2-20 | An assigned officer requests an extension, a different M&E Officer verifies it and a Project Manager who is neither approves it, moving only the planned end date; a stale activity returns 409 and an unassigned officer 403 | Met (local; hosted apply pending) | QAD-T115, QAD-T116, QAD-T117, QAD-A43 |
+| G-F2-20 | An assigned officer requests an extension, a different M&E Officer verifies it and a Project Manager who is neither approves it, moving only the planned end date; a stale activity returns 409 and an unassigned officer 403 | Met | QAD-T115, QAD-T116, QAD-T117, QAD-A43 |
 
 #### Use Cases
 
@@ -1023,7 +1023,7 @@ Not applicable: indicators have active and archived flags only; no approval life
 | G-F8-5 | Program Manager and Grant Manager receive aggregates only, with raw beneficiary denial unchanged | Met | QAD-R06 |
 | G-F8-6 | SADDD is omitted for an open project period instead of failing the dashboard | Met | QAD-T61 |
 | G-F8-7 | Dashboard responsiveness is verified at production scale | Met (local, assumed scale, single user; staging re-measure pending) | QAD-T62, QAD-T87 |
-| G-F8-8 | The portfolio lists alerts whose latest outcome is ESCALATE only for projects the viewer may read, without the decision note or actor | Met (local; hosted apply pending) | QAD-T118, QAD-A44 |
+| G-F8-8 | The portfolio lists alerts whose latest outcome is ESCALATE only for projects the viewer may read, without the decision note or actor | Met | QAD-T118, QAD-A44 |
 
 #### Use Cases
 
@@ -1190,7 +1190,7 @@ Not applicable: analytics views are read models with no lifecycle.
 | G-F10-5 | Only holders of the alert permissions read, review or record an outcome, scoped to their organization and project | Met | QAD-T66 |
 | G-F10-6 | Budget, Beneficiary and survey rule metrics evaluate and raise alerts | Met | QAD-T67 |
 | G-F10-7 | Background evaluation runs on a schedule in the hosted environment | Partly met | QAD-T68 |
-| G-F10-8 | Escalated alerts are listed read-only by latest outcome, never changing the lifecycle | Met (local; hosted apply pending) | QAD-T118, QAD-A44 |
+| G-F10-8 | Escalated alerts are listed read-only by latest outcome, never changing the lifecycle | Met | QAD-T118, QAD-A44 |
 
 #### Use Cases
 
@@ -1365,7 +1365,7 @@ stateDiagram-v2
 - Hosted report delivery: hosted application deferred (Scope and Limitations / rfc-pathways-aws-hosting-migration)
 - Report exports containing Beneficiary identity for aggregate-only roles: denied by policy (rfc-pathways-saddd-privacy)
 - Scheduled or emailed reports: not built (Scope and Limitations)
-- Maps and free-form chart building: not built (Scope and Limitations)
+- Free-form chart building: not built (Scope and Limitations); the project coverage map is built at bundled place centroids, without province polygons (cr-pathways-project-coverage-map)
 **Lock:** Locked. Adding a gate or widening a bound requires an approved `cr-pathways-*`; anything outside these bounds is out of scope by default. System-wide bounds: section 6.1.
 
 #### Gate Criteria
@@ -1373,9 +1373,9 @@ stateDiagram-v2
 | Gate | Condition | Status | QAD |
 |---|---|---|---|
 | G-F12-1 | Report and visualization output respects role scope and suppression | Met (local PostgreSQL replay) | QAD-T13 |
-| G-F12-2 | A failed report or export leaves source data intact | Met | QAD-T26 |
+| G-F12-2 | A failed report or export leaves source data intact | Met | QAD-T26, QAD-T120 |
 | G-F12-3 | Export writes an audit event without report content | Met | QAD-T72 |
-| G-F12-4 | Every report type exports as CSV, XLS, XLSX and PDF | Met | QAD-T73, QAD-T111 |
+| G-F12-4 | Every report type exports as CSV, XLS, XLSX and PDF | Met | QAD-T73, QAD-T111, QAD-T119, QAD-T120 |
 | G-F12-5 | Descriptive views refuse callers without `analytics.descriptive.read` and exports refuse callers without `analytics.export` | Met | QAD-A18 |
 
 #### Use Cases

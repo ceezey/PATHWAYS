@@ -160,6 +160,16 @@ const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-
 export const isPublicPath = (path: string) =>
   path === '/' || path === '/public/projects' || /^\/public\/projects\/[^/]+$/.test(path)
 /** UI-only paths reuse an existing verified route; no role policy is added. */
+// Display-only query keys, shared by the middleware and protected pages so they cannot drift.
+export const displayQueryKeys: Partial<Record<RouteKey, readonly string[]>> = {
+  activity: ['proof', 'review', 'action'],
+  alerts: ['alert'],
+  beneficiaries: ['q', 'project', 'location', 'sex', 'age', 'disability', 'status', 'page'],
+  beneficiary: ['returnTo'],
+  budget: ['expense'],
+  formEntry: ['submissionId'],
+  indicatorLibrary: ['project'],
+}
 export function authorizationPathForUiPath(input: string): string | null {
   if (input.split('?').length > 2) return null
   const [pathname, rawQuery = ''] = input.split('?')
@@ -183,12 +193,6 @@ export function authorizationPathForUiPath(input: string): string | null {
 
   const route = matchRoute(canonical)?.route
   if (!route) return null
-  const displayKeys: Partial<Record<RouteKey, readonly string[]>> = {
-    activity: ['proof', 'review'],
-    alerts: ['alert'],
-    beneficiaries: ['q', 'project', 'location', 'sex', 'age', 'disability', 'status', 'page'],
-    beneficiary: ['returnTo'],
-  }
   const authorityKeys: Partial<Record<RouteKey, readonly string[]>> = {
     beneficiary: ['projectId'],
     beneficiaryEdit: ['projectId'],
@@ -200,7 +204,7 @@ export function authorizationPathForUiPath(input: string): string | null {
   for (const [key, value] of new URLSearchParams(rawQuery)) {
     if (seen.has(key) || value.length > 512) return null
     seen.add(key)
-    if (displayKeys[route]?.includes(key)) continue
+    if (displayQueryKeys[route]?.includes(key)) continue
     if (!authorityKeys[route]?.includes(key)) return null
     authorizedQuery.set(key, value)
   }

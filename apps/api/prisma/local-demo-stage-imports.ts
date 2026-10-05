@@ -342,7 +342,8 @@ async function runImport(
     )
     status = 'VALIDATED'
   }
-  if (status === 'VALIDATED') {
+  // A batch left PROCESSING by an interrupted run is reprocessed, which reconciles its status.
+  if (status === 'VALIDATED' || status === 'PROCESSING') {
     const validated = (await ctx.services.imports.getBatch(me, projectId, id)) as unknown as Batch
     await step(`${label}: process`, () =>
       ctx.services.imports.process(me, projectId, id, {
