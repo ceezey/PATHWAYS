@@ -3,7 +3,10 @@ import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/hooks/use-current-role', () => ({ useCurrentRole: () => ({ profile: null }) }))
-vi.mock('@/lib/services/core-feature-client', () => ({ downloadCoreArtifact: vi.fn() }))
+vi.mock('@/lib/services/core-feature-client', () => ({
+  fetchCoreArtifact: vi.fn(),
+  saveCoreArtifact: vi.fn(),
+}))
 vi.mock('./expense-review-drawer', () => ({ ExpenseReviewDrawer: () => null }))
 
 import { BudgetLedger } from './budget-ledger'

@@ -281,3 +281,7 @@
 ## 2026-10-06 Change password modal and profile action row
 - My Profile Change password is now a button that opens a TOTP step-up modal, then a new-password step in the same dialog; the email or phone nonce step is hidden (tracked in deferred-features) and `reauthentication_needed` shows a sign-in-again message without the uncertain lock.
 - Save profile and Reload profile share one row, Save left and Reload right.
+
+## 2026-10-06 Proof file preview modal
+- Budget receipt downloads (expense ledger and live finance workspace) now open `ProofPreviewDialog`, which fetches the blob through `fetchCoreArtifact`, previews it by its Content-Type (image, PDF, video, else an unavailable state), and downloads the same blob via `saveCoreArtifact` with no second request; the object URL is revoked on close.
+- Private activity proof inspection (`private-proof-inspection.tsx`, `EvidenceDownloadControl`) is unchanged because its Change Record forbids inline preview; the receipt endpoint already returns `application/pdf`, `image/png` or `image/jpeg`.
