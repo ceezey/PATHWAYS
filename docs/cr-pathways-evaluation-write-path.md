@@ -111,12 +111,9 @@ Sign off actions, each behind a confirmation dialog matching the DSD's consequen
 - `live-evaluation-workspace.test.tsx`: updated plus five new tests covering publish, start,
   score + submit, return, and sign-off.
 - `prisma/legacy-retirement.test.ts`: migration directory list updated.
-- API and web `pnpm typecheck` and `pnpm lint` (biome) are clean; the full API (2180 tests) and
+- API and web `pnpm typecheck` and `pnpm lint` (biome) are clean; the full API (2198 tests) and
   the touched web suites pass.
-- **Not run:** the migration SQL itself has not been executed against any Postgres instance in
-  this session (no database credentials were available). The `.local.test.ts` runtime suite that
-  would exercise it end to end (modeled on `activity-extensions.local.test.ts`) was not written or
-  run. This is the open verification item before the migration goes anywhere beyond this branch.
+- Migration, runtime suite and defense rehearsal were run locally; see section 9 for results.
 
 ### Documentation
 This record; `deferred-features.md` (the "In-app evaluation scoring" row); `dsd-pathways.md`
@@ -149,13 +146,14 @@ change; existing rows are unaffected.
 
 ## 7. Verification
 
-Before this leaves the branch: apply the migration to a local database, run
-`pnpm db:defense:local -- --verify` and confirm it stays 23/23; add an
-`evaluations.local.test.ts` runtime suite (modeled on `activity-extensions.local.test.ts`)
-covering create -> score -> submit -> return -> resubmit -> sign off, the RLS denials for other
-roles (including a Project Manager `DRAFT -> DRAFT` edit, which the trigger rejects), and an Evaluation report export of the signed-off result. Locally, walk through the UI as
-M&E (create criteria, publish, start an evaluation, score, submit), then as Project Manager
-(return, then sign off), then as a read-only role (Program or Grant Manager).
+Completed locally (results in section 9): the migration applied through the full 0000-0064 replay;
+`evaluations.local.test.ts` (8 cases) covers create, score, submit, return, resubmit and sign off,
+the RLS denials for other roles (including a Project Manager `DRAFT -> DRAFT` edit, which the
+trigger rejects) and evaluator self-binding; and the defense rehearsal stayed 23/23.
+
+Not yet performed: the in-app UI walkthrough as M&E (create criteria, publish, start an evaluation,
+score, submit), then as Project Manager (return, then sign off), then as a read-only role (Program
+or Grant Manager). This is pending a human.
 
 ## 8. Approval
 
@@ -165,7 +163,7 @@ Approved by the developer on 2026-10-06.
 
 Verified locally on 2026-10-06 (worktree `feature/evaluation-write-path`); no hosted database, including devV2, was touched.
 
-- Replay: `Replay-Local.ps1 -MigrationBaseline` exit 0 on 0000-0064, including `F10_F11_RULES_RUNTIME`, `FORWARD_0063_RULES_SCOPE_MEMO_RUNTIME`, `RBAC_V4_GRANTS_RUNTIME` and `CURRENT_SCHEMA_API_RUNTIME`; the wired `evaluations.local.test.ts` ran inside the gate (8 passed).
+- Replay: `Replay-Local.ps1 -MigrationBaseline` exit 0 on 0000-0064 (161 PASS, 0 FAIL), including `F10_F11_RULES_RUNTIME`, `FORWARD_0063_RULES_SCOPE_MEMO_RUNTIME`, `RBAC_V4_GRANTS_RUNTIME` and `CURRENT_SCHEMA_API_RUNTIME`; the wired `evaluations.local.test.ts` ran inside the gate (8 passed).
 - Suites: `f10-f11-rules-runtime.sql` PASS (75 checks) on the saved template. `finance-evaluation-decisions.sql` is a stale Phase 3 suite that already fails at its project fixture insert ("Source proof unavailable", rules source-proof trigger) before any evaluation logic; its 0064 assertion edit stays unexecuted and the new runtime suite covers that behavior.
 - API: typecheck and biome clean; 114 test files passed (2198 tests, 20 skipped). Web: typecheck and biome clean; 203 files (1817 tests) passed.
 - Defense rehearsal on the local stack: `db:local:reset`, wipe, `db:defense:local`, `defense-demo.mjs --test-local --verify` returned 23/23.

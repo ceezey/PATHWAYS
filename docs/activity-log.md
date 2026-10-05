@@ -280,7 +280,7 @@
 - Migration `0064_evaluation_write_path`: RBAC grants/revoke above; `project_evaluation_criteria` INSERT also accepts `evaluations.weights.configure`; drops `p10_guard_evaluation_weight` (no longer needed once System Administrator loses the permission it gated); relaxes the `project_evaluations` CHECK so sign-off and review can be the same person (still distinct from the evaluator); adds a `SUBMITTED -> DRAFT` return transition; adds actor-binding RLS policies.
 - API: new routes for criteria create/publish and evaluation create/score/submit/return/signoff; `GET` now returns every evaluation (capped 20) with its scores, not only the latest summary.
 - Web: `live-evaluation-workspace.tsx` rebuilt with a publish action, an evaluations list, a start-evaluation form, a scoring table and submit/return/sign-off actions behind confirmation dialogs.
-- Tests: API (2180 tests) and the touched web suites pass; `pnpm typecheck` and `biome check` clean on both apps. The migration itself has not been run against any database in this session (no database credentials available); a `.local.test.ts` runtime suite and a local apply plus `--verify` are the open item before this leaves the branch. Seed, devV2 and the 2026-10-06 reseed are untouched.
+- Tests: API (2180 tests) and the touched web suites pass; `pnpm typecheck` and `biome check` clean on both apps. The migration itself has not been run against any database in this session (no database credentials available); a `.local.test.ts` runtime suite and a local apply plus `--verify` are the open item before this leaves the branch. Seed, devV2 and the 2026-10-06 reseed are untouched. (superseded by the later 2026-10-06 entry)
 
 ## 2026-10-06
 
