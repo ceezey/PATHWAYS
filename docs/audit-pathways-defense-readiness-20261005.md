@@ -46,13 +46,15 @@ Specific claims verified:
 
 | ID | Severity | Finding | Evidence | Recommended disposition |
 |---|---|---|---|---|
-| DR-01 | High | Pitch "Not met" list says export to CSV, XLS, XLSX and PDF is Not met; PRD marks G-F12-4 Met and code exports all four | `report-artifact.ts`; PRD G-F12-4 | Update pitch: export Met locally, hosted CSV unverified |
-| DR-02 | High | Pitch judging map lists G-F3-6, G-F4-6 and G-F9-9 as Not met; all three are Met in PRD and code | 0048, 0049, `analytics-insights.controller.ts` | Update pitch section 4 |
-| DR-03 | High | Sheet names a "Futuremakers" demo project; the real seed has none (only unused mocks under `apps/web/src/mocks`) | `local-demo-data.ts` creates SSG, CRL, ALS, ECD, WSH, EHK | Team decision: rename a seeded project or relabel the sheet task |
+| DR-01 | High | Pitch "Not met" list says export to CSV, XLS, XLSX and PDF is Not met; PRD marks G-F12-4 Met and code exports all four | `report-artifact.ts`; PRD G-F12-4 | Closed 2026-10-05: pitch v2.1 section 3.5 |
+| DR-02 | High | Pitch judging map lists G-F3-6, G-F4-6 and G-F9-9 as Not met; all three are Met in PRD and code | 0048, 0049, `analytics-insights.controller.ts` | Closed 2026-10-05: pitch v2.1 section 4 |
+| DR-03 | High | Sheet names a "Futuremakers" demo project; the real seed has none (only unused mocks under `apps/web/src/mocks`) | `local-demo-data.ts` creates SSG, CRL, ALS, ECD, WSH, EHK | Closed 2026-10-05: relabelled to SSG-ES-2026; Sheet3 kept as reference |
 | DR-04 | High | Pitch section 5 readiness checklist is unchecked; no hosted reseed or `--verify` result recorded, and c6527110 needs a reseed | runbook-defense-demo section 4 | Reseed devV2, record `--verify` output |
-| DR-05 | Medium | Demo script has no expected on-screen output per step and no per-step fallback; omits extensions, escalations, alerts | pitch section 3 | Add expected outputs and fallback column |
+| DR-05 | Medium | Demo script has no expected on-screen output per step and no per-step fallback; omits extensions, escalations, alerts | pitch section 3 | Closed 2026-10-05: pitch v2.1 chain with expected output, fallback and FR coverage |
 | DR-06 | Medium | Rules scheduler is inert on hosted, so live alerts depend on a manual drain | `rules-dispatch.yml`; runbook section 5 | Enable once or state manual trigger in script |
-| DR-07 | Low | Pitch "Last reconciled 2026-10-01" predates 10-03 to 10-05 gate closures | pitch header | Bump after DR-01, DR-02 |
+| DR-07 | Low | Pitch "Last reconciled 2026-10-01" predates 10-03 to 10-05 gate closures | pitch header | Closed 2026-10-05: pitch reconciled 2026-10-05 |
+| DR-08 | Medium | No in-app path creates, scores, submits or signs off an evaluation; the EHK OECD-DAC evaluation is seeded | `evaluations.controller.ts`; `defense-demo-stage-evaluation.ts` | Disclosed in pitch Q&A; registered in deferred-features |
+| DR-09 | Medium | Publishing a new form and approving a public revision need a second reviewer outside M&E, PO and PM | `metadata.service.ts` author check; `public.service.ts` distinct approver | Shown as controls (step 15), explained in pitch Q&A |
 
 ## 4. Sheet3 Task Status
 
@@ -75,7 +77,7 @@ Specific claims verified:
 
 | Task | Status | Evidence | Gap / next action |
 |---|---|---|---|
-| Populate Futuremakers demo project | Missing as named | see DR-03 | Decide name; seed otherwise covers activities, indicators, beneficiaries, budgets, rules, reports |
+| Populate Futuremakers demo project | Done (relabelled) | SSG-ES-2026 per DR-03 | Seed covers activities, indicators, beneficiaries, budgets, rules, reports |
 | Populate one completed historical project | Done (needs reseed) | EHK closed, evaluation signed off; 45-person cohort | Reseed local and devV2 |
 | Validate demo data against expected outputs | Partial | `defense-demo-verify.ts` 23/23 local, presence and threshold checks | Add expected numbers for key dashboard, rule and report values |
 
@@ -96,7 +98,7 @@ Specific claims verified:
 | Dashboard actionability audit | Missing | role-overview code only | Teammate read-back review |
 | Report-generation validation | Missing | runtime test covers scope and suppression only | Reconcile one report per kind against source |
 | Performance testing | Partial | QAD-T62/T87 local single user (about 500 ms) | Time key screens on devV2 |
-| Golden demo path | Partial | pitch section 3, runbook | Expected outputs, fallbacks, two clean runs |
+| Golden demo path | Partial | pitch v2.1 section 3: 18-step chain, three roles, FR-1 to FR-17 | Two clean rehearsal runs; record rehearsal values |
 
 ### P1: Defense and documentation outputs
 
@@ -113,7 +115,7 @@ Specific claims verified:
 |---|---|---|---|
 | Analyze client dummy dataset | Partial | demo-fixtures CSVs; activity-log notes (100 rows, 36 columns) | No field inventory or analysis doc |
 | Dynamic project report template | Partial | 6 fixed report kinds, 4 formats | No section choice, period or location input |
-| OECD mid-term evaluation workflow | Partial (label only) | user-defined weighted criteria in `evaluations.service.ts` | No DAC criteria mapping |
+| OECD mid-term evaluation workflow | Partial | EHK evaluation seeded on the six OECD-DAC criteria (overall 87.55); descriptions separate system evidence from evaluator judgment | No in-app scoring (DR-08) |
 | Beneficiary last modified by/when | Partial | `updated_at` and audit events exist; no `updated_by`; not shown | Read latest `BENEFICIARY_PROFILE_UPDATED` audit row, or skip |
 | Public Tracker publishing setup | Mostly implemented | submit, approve (distinct), publish, withdraw; frozen preview | Field selection is hard-coded |
 | Incident response + continuity | Partial | ops section 4 first actions, backup runbook | No escalation path; RPO/RTO unmeasured |
@@ -128,14 +130,13 @@ Specific claims verified:
 
 ## 5. Priority Order for 2026-10-05
 
-1. Reseed devV2 (c6527110 cohort), run `--verify`, record output (DR-04).
-2. Freeze: tag the head, record deployment and DB version.
-3. Resolve the Futuremakers naming question (DR-03).
-4. Run pitch steps 1 to 9 on devV2 per role, recording PASS/FAIL with expected vs actual; this covers E2E, role testing and the golden path together.
-5. Public boundary check as an outsider on the hosted tracker (closes G-F13-5 if clean).
-6. Fix pitch DR-01, DR-02, DR-05, DR-07; decide DR-06.
-7. Computation and rule reference tables, then the cheat sheet and panel script built from them.
-8. P2 and P3 only after the above.
+1. Local rehearsal first: wipe, full seed (includes the EHK OECD-DAC evaluation), `--verify`, then run pitch section 3.1 steps 1 to 18 twice with the three roles, recording expected vs actual (covers E2E, role testing and the golden path).
+2. Reseed devV2 late on 2026-10-05, run `--verify`, record output (DR-04); only read-only steps are checked on devV2 before the defense.
+3. Freeze: tag the head, record deployment and DB version.
+4. Public boundary check as an outsider on the hosted tracker (closes G-F13-5 if clean).
+5. Decide DR-06 (activate the hosted scheduler once, or leave alerts as seeded).
+6. Computation and rule reference tables, then the cheat sheet and panel script built from them.
+7. P2 and P3 only after the above.
 
 ## 6. Non-Findings / Verified Controls
 
@@ -147,5 +148,5 @@ Specific claims verified:
 ## 7. Summary
 
 - Features: 12 of 13 PRD features implemented in code; F10 Partial (hosted scheduler inert); F13 hosted verification Not met; F12 reports are project-scoped only.
-- Sheet3 (35 tasks): 1 Done, 2 Implemented or mostly implemented, 2 Ongoing, 22 Partial, 8 Missing.
-- Highest-risk open items: no frozen build, no executed E2E record, demo data not reseeded on devV2, Futuremakers mismatch, stale pitch Not-met list.
+- Sheet3 (35 tasks): 2 Done, 2 Implemented or mostly implemented, 2 Ongoing, 22 Partial, 7 Missing (Futuremakers relabelled 2026-10-05).
+- Highest-risk open items: no frozen build, no executed E2E record, demo data not reseeded on devV2, no in-app evaluation scoring (DR-08).

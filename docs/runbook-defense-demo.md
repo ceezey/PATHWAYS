@@ -12,7 +12,7 @@ Rebuilds the devV2 domain data for the 2026-10-06 tool defense while keeping eve
 - Activities in every state: completed on time, completed late with an overdue explanation, for review (M&E queue), returned with a reason (officer queue), overdue (one explained), not started, cancelled. No open activity ends within two days of the run.
 - Journey stages mapped to activities (SSG, ALS, CRL, WSH), attendance, follow-up flags and journey notes.
 - Budget utilization from 0% (ECD) to 105% (WSH), and expenses in every review state with live queues for verify, approve and sign-off.
-- Every indicator type, library entries, a derived Activity completion % indicator, correction chains, a closed WSH survey period, two training surveys (one suppressed under 5), a signed-off EHK evaluation.
+- Every indicator type, library entries, a derived Activity completion % indicator, correction chains, a closed WSH survey period, two training surveys (one suppressed under 5), a signed-off EHK evaluation on the six OECD-DAC criteria (overall 87.55).
 - Rules with HIGH, MEDIUM and CRITICAL alerts, decisions (accept, partially accept, decline, resolve, escalate), one auto-resolved alert, public tracker publications and reports.
 
 Service audit timestamps (submitted, reviewed, approved) are immutable by design and read as the run day; run the reseed late on 2026-10-05 so they read as yesterday.
