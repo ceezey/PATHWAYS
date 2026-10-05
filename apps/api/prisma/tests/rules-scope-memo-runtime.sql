@@ -25,7 +25,8 @@ CREATE FUNCTION pg_temp.act(n integer) RETURNS void LANGUAGE plpgsql AS $$
 BEGIN
  EXECUTE 'SET LOCAL SESSION AUTHORIZATION pathways_runtime';
  EXECUTE 'SET LOCAL ROLE rules_human_owner';
- PERFORM set_config('app.organization_id',pg_temp.u(1)::text,true),set_config('app.user_id',pg_temp.u(100+n)::text,true);
+ PERFORM set_config('request.jwt.claim.sub',pg_temp.u(200+n)::text,true),
+  set_config('app.organization_id',pg_temp.u(1)::text,true),set_config('app.user_id',pg_temp.u(100+n)::text,true);
 END $$;
 CREATE FUNCTION pg_temp.slot(project uuid) RETURNS text LANGUAGE sql IMMUTABLE AS $$
  SELECT 'pathways_rules_scope.p'||replace(project::text,'-','')
