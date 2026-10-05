@@ -19,13 +19,13 @@ DO $$ BEGIN
  THEN RAISE EXCEPTION '0063 requires the temporary rules_store_owner SET chain (run hosted-rules-scope-memo-preprovision.sql)'; END IF;
  IF has_schema_privilege('rules_eligibility_owner','pathways_rules_internal','CREATE')
  THEN RAISE EXCEPTION '0063 requires rules_eligibility_owner to hold no CREATE on pathways_rules_internal before the loan'; END IF;
- IF pg_catalog.to_regprocedure('pathways_rules_internal.human_rules_scope(uuid,uuid)') IS NULL
+ IF NOT EXISTS(SELECT FROM pg_catalog.pg_proc p WHERE p.oid::pg_catalog.regprocedure::pg_catalog.text='pathways_rules_internal.human_rules_scope(uuid,uuid)')
  THEN RAISE EXCEPTION '0063 requires human_rules_scope to exist'; END IF;
- IF (SELECT pg_catalog.pg_get_userbyid(proowner) FROM pg_catalog.pg_proc WHERE oid='pathways_rules_internal.human_rules_scope(uuid,uuid)'::pg_catalog.regprocedure)<>'rules_eligibility_owner'
+ IF (SELECT pg_catalog.pg_get_userbyid(proowner) FROM pg_catalog.pg_proc WHERE oid::pg_catalog.regprocedure::pg_catalog.text='pathways_rules_internal.human_rules_scope(uuid,uuid)')<>'rules_eligibility_owner'
  THEN RAISE EXCEPTION '0063 requires rules_eligibility_owner to own human_rules_scope'; END IF;
  -- Remember the ACL so the postcondition proves it is unchanged.
  PERFORM pg_catalog.set_config('pathways.m0063_acl',
-  (SELECT coalesce(proacl::text,'') FROM pg_catalog.pg_proc WHERE oid='pathways_rules_internal.human_rules_scope(uuid,uuid)'::pg_catalog.regprocedure),true);
+  (SELECT coalesce(proacl::text,'') FROM pg_catalog.pg_proc WHERE oid::pg_catalog.regprocedure::pg_catalog.text='pathways_rules_internal.human_rules_scope(uuid,uuid)'),true);
 END $$;
 SELECT pg_advisory_xact_lock(505005,1);
 
@@ -61,13 +61,13 @@ RESET ROLE;
 
 -- Postconditions.
 DO $$ BEGIN
- IF (SELECT pg_catalog.pg_get_userbyid(proowner) FROM pg_catalog.pg_proc WHERE oid='pathways_rules_internal.human_rules_scope(uuid,uuid)'::pg_catalog.regprocedure)<>'rules_eligibility_owner'
-  OR (SELECT l.lanname FROM pg_catalog.pg_proc p JOIN pg_catalog.pg_language l ON l.oid=p.prolang WHERE p.oid='pathways_rules_internal.human_rules_scope(uuid,uuid)'::pg_catalog.regprocedure)<>'plpgsql'
-  OR (SELECT provolatile FROM pg_catalog.pg_proc WHERE oid='pathways_rules_internal.human_rules_scope(uuid,uuid)'::pg_catalog.regprocedure)<>'s'
-  OR (SELECT prosecdef FROM pg_catalog.pg_proc WHERE oid='pathways_rules_internal.human_rules_scope(uuid,uuid)'::pg_catalog.regprocedure)
-  OR (SELECT proconfig FROM pg_catalog.pg_proc WHERE oid='pathways_rules_internal.human_rules_scope(uuid,uuid)'::pg_catalog.regprocedure) IS DISTINCT FROM ARRAY['search_path=""']
+ IF (SELECT pg_catalog.pg_get_userbyid(proowner) FROM pg_catalog.pg_proc WHERE oid::pg_catalog.regprocedure::pg_catalog.text='pathways_rules_internal.human_rules_scope(uuid,uuid)')<>'rules_eligibility_owner'
+  OR (SELECT l.lanname FROM pg_catalog.pg_proc p JOIN pg_catalog.pg_language l ON l.oid=p.prolang WHERE p.oid::pg_catalog.regprocedure::pg_catalog.text='pathways_rules_internal.human_rules_scope(uuid,uuid)')<>'plpgsql'
+  OR (SELECT provolatile FROM pg_catalog.pg_proc WHERE oid::pg_catalog.regprocedure::pg_catalog.text='pathways_rules_internal.human_rules_scope(uuid,uuid)')<>'s'
+  OR (SELECT prosecdef FROM pg_catalog.pg_proc WHERE oid::pg_catalog.regprocedure::pg_catalog.text='pathways_rules_internal.human_rules_scope(uuid,uuid)')
+  OR (SELECT proconfig FROM pg_catalog.pg_proc WHERE oid::pg_catalog.regprocedure::pg_catalog.text='pathways_rules_internal.human_rules_scope(uuid,uuid)') IS DISTINCT FROM ARRAY['search_path=""']
  THEN RAISE EXCEPTION '0063 function shape postcondition failed'; END IF;
- IF (SELECT coalesce(proacl::text,'') FROM pg_catalog.pg_proc WHERE oid='pathways_rules_internal.human_rules_scope(uuid,uuid)'::pg_catalog.regprocedure)
+ IF (SELECT coalesce(proacl::text,'') FROM pg_catalog.pg_proc WHERE oid::pg_catalog.regprocedure::pg_catalog.text='pathways_rules_internal.human_rules_scope(uuid,uuid)')
    IS DISTINCT FROM pg_catalog.current_setting('pathways.m0063_acl')
   OR NOT has_function_privilege('rules_eligibility_owner','pathways_rules_internal.human_rules_scope(uuid,uuid)','EXECUTE')
   OR NOT has_function_privilege('rules_capacity_owner','pathways_rules_internal.human_rules_scope(uuid,uuid)','EXECUTE')
@@ -83,7 +83,7 @@ DO $$ BEGIN
   OR has_function_privilege('pathways_rules_sweeper','pathways_rules_internal.human_rules_scope(uuid,uuid)','EXECUTE')
   OR has_schema_privilege('rules_eligibility_owner','pathways_rules_internal','CREATE')
   OR EXISTS(SELECT FROM pg_catalog.pg_proc p, pg_catalog.aclexplode(p.proacl) a
-   WHERE p.oid='pathways_rules_internal.human_rules_scope(uuid,uuid)'::pg_catalog.regprocedure AND a.grantee=0)
+   WHERE p.oid::pg_catalog.regprocedure::pg_catalog.text='pathways_rules_internal.human_rules_scope(uuid,uuid)' AND a.grantee=0)
  THEN RAISE EXCEPTION '0063 grant postcondition failed'; END IF;
 END $$;
 COMMIT;
