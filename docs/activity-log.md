@@ -321,3 +321,8 @@
 - Hero switched to a single column: intro copy stacks above the pathway timeline, which pins and advances on scroll on wide screens.
 - Hero walkthrough restored to the original full layout under the intro: tall steps on a progress rail beside a sticky preview panel, with icons and key points.
 - Home hero headline enlarged to match the About Us hero (text-7xl, roomier padding).
+## 2026-10-05 Demo numbers reconciled with cohorts
+- Defense seed cohorts now SSG 150, CRL 30, ALS 30, WSH 30, EHK 70 (ECD 0); people and household indicators, corrections, library readings and activity reach stay within each cohort, and targets sit just above it (SSG-GIRLS-ENR 108 of 120, EHK-FAMILIES 68 of 72, ALS-ENROLLED 30 of 30, CRL-HH-DIV 25 of 30).
+- New guard tests in `local-demo-data.test.ts` keep every started project at 30 or more people and every people count within its cohort.
+- CRL journey branches after COACHING into Wage employment and Enterprise start-up; the beneficiary journey track shows the sibling branch as "Not on path".
+- Deferred: beneficiary-linked survey and pre/post imports, and an application write path for assessment results. devV2 wipe, reseed and --verify (DR-04) stay with the developer.

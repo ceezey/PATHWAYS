@@ -19,6 +19,8 @@ type StageSpec = {
   order: number
   type: 'ENTRY' | 'CORE' | 'BRANCH' | 'FOLLOW_UP'
   terminal?: boolean
+  /** Code of the earlier, non-terminal stage this branch splits from. */
+  parent?: string
   description: string
   activityKeys: string[]
 }
@@ -112,9 +114,27 @@ const journeyStages: Partial<Record<ProjectKey, StageSpec[]>> = {
       activityKeys: ['livelihood'],
     },
     {
+      code: 'WAGE-JOB',
+      name: 'Wage employment',
+      order: 3,
+      type: 'BRANCH',
+      parent: 'COACHING',
+      description: 'Placed in a local job after coaching.',
+      activityKeys: [],
+    },
+    {
+      code: 'ENTERPRISE',
+      name: 'Enterprise start-up',
+      order: 4,
+      type: 'BRANCH',
+      parent: 'COACHING',
+      description: 'Started a household enterprise after coaching.',
+      activityKeys: [],
+    },
+    {
       code: 'SAVINGS',
       name: 'Savings group member',
-      order: 3,
+      order: 5,
       type: 'FOLLOW_UP',
       terminal: true,
       description: 'Joined a savings group.',
@@ -213,12 +233,18 @@ export async function stageJourneysAndForms(ctx: DemoContext) {
     const projectId = projectOf(ctx, project.key)
     const existing = await ctx.services.participants.listStages(me.identity, projectId)
     if (existing.length === 0) {
+      // Ids are assigned up front so a branch can name its parent stage in the same save.
+      const ids = new Map(
+        specs.map((spec) => [spec.code, ctx.stable(`stage:${project.code}:${spec.code}`)]),
+      )
       const stages: Array<{
+        id: string
         code: string
         name: string
         order: number
         type: StageSpec['type']
         terminal: boolean
+        parentStageId?: string
         description: string
         mappedActivityIds: string[]
       }> = []
@@ -226,11 +252,13 @@ export async function stageJourneysAndForms(ctx: DemoContext) {
         const mapped: string[] = []
         for (const key of spec.activityKeys) mapped.push(await activityId(ctx, project, key))
         stages.push({
+          id: ids.get(spec.code) as string,
           code: spec.code,
           name: spec.name,
           order: spec.order,
           type: spec.type,
           terminal: spec.terminal ?? false,
+          parentStageId: spec.parent ? ids.get(spec.parent) : undefined,
           description: spec.description,
           mappedActivityIds: mapped,
         })
