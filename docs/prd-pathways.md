@@ -1373,9 +1373,9 @@ stateDiagram-v2
 | Gate | Condition | Status | QAD |
 |---|---|---|---|
 | G-F12-1 | Report and visualization output respects role scope and suppression | Met (local PostgreSQL replay) | QAD-T13 |
-| G-F12-2 | A failed report or export leaves source data intact | Met | QAD-T26 |
+| G-F12-2 | A failed report or export leaves source data intact | Met | QAD-T26, QAD-T120 |
 | G-F12-3 | Export writes an audit event without report content | Met | QAD-T72 |
-| G-F12-4 | Every report type exports as CSV, XLS, XLSX and PDF | Met | QAD-T73, QAD-T111 |
+| G-F12-4 | Every report type exports as CSV, XLS, XLSX and PDF | Met | QAD-T73, QAD-T111, QAD-T119, QAD-T120 |
 | G-F12-5 | Descriptive views refuse callers without `analytics.descriptive.read` and exports refuse callers without `analytics.export` | Met | QAD-A18 |
 
 #### Use Cases

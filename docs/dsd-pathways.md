@@ -1074,6 +1074,16 @@ Libraries: ECharts, MapLibre GL.
 - apply SADDD suppression before visualization/export;
 - do not expose sensitive Beneficiary coordinates without explicit authorization.
 
+### Printed report
+
+The PDF report route `/print/reports/[id]` is the printed form of a report.
+
+- Header: brand mark, `PATHWAYS` overline in navy, report name in the heading font, report type and generated time in muted text, 4px navy bottom rule.
+- Unavailable or withheld data: warning-subtle callout listing each reason in text.
+- Chart: one bar chart of numeric `Value` cells (at most 20), `chartPalette[0]`, value labels on top, animation off, SVG renderer; suppressed or unavailable rows are counted in a caption, never charted as zero.
+- Table: surface-subtle header repeated on each page, divider row rules, rows never split across pages.
+- Print classes: `.print-avoid` (no split), `.print-break-before` (new page), `.print-table-head` (repeating header); A4 with 20mm top and bottom and 15mm side margins and a centered page-number footer.
+
 ## 5. Motion & Micro-interactions
 
 - normal transitions: approximately `150ms`;

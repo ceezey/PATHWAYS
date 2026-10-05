@@ -18,7 +18,7 @@ const kindLabels: Record<string, string> = {
 
 export function PrintReportView({ report }: { report: PrintReport | null }) {
   const chart = useMemo(() => (report ? printChartData(report) : null), [report])
-  // The snapshot never changes after mount, so the chart finishes at most once.
+  // The finished event can fire before binding, so chart-ready also marks the chart done.
   const [chartDone, setChartDone] = useState(false)
   if (!report)
     return (
@@ -60,6 +60,7 @@ export function PrintReportView({ report }: { report: PrintReport | null }) {
             option={printChartOption(chart.points)}
             opts={{ renderer: 'svg' }}
             style={{ height: 280 }}
+            onChartReady={() => requestAnimationFrame(() => setChartDone(true))}
             onEvents={{ finished: () => setChartDone(true) }}
           />
           {chart.excluded > 0 && (
