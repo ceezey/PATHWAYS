@@ -24,12 +24,14 @@ const Row = ({ label, value, detail }: { label: string; value: string; detail?: 
 const percent = (cell: MetricCell | undefined) =>
   cell ? overviewMetricLabel(cell, 'percent') : restricted
 
-/** Overview aggregates for one mapped project, below the map on phones and over it from `sm`; SADDD values arrive suppressed. */
+/** Overview aggregates for one mapped location, shown in the map popup; SADDD values arrive suppressed. */
 export const ProjectMapCard = ({
   project,
+  place,
   onClose,
 }: {
   project: ProjectMapProject
+  place: string
   onClose: () => void
 }) => {
   const { overview, sadddSex } = project
@@ -41,15 +43,12 @@ export const ProjectMapCard = ({
     .join(' · ')
 
   return (
-    <aside
-      aria-label={`${project.title} overview`}
-      className="mt-3 rounded-xl border border-border bg-background/95 p-4 shadow-sm backdrop-blur-sm sm:absolute sm:bottom-3 sm:left-3 sm:z-10 sm:mt-0 sm:max-h-[calc(100%-1.5rem)] sm:w-80 sm:overflow-y-auto"
-    >
+    <aside aria-label={`${project.title} overview`} className="w-64 max-w-full text-left sm:w-72">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="font-medium text-foreground">{project.title}</p>
           <p className="text-xs text-muted-foreground">
-            {project.code} · {project.places.map((place) => place.name).join(', ')}
+            {project.code} · {place}
           </p>
         </div>
         <Button

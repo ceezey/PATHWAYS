@@ -1,8 +1,16 @@
 'use client'
 
 import { AlertTriangle, LoaderCircle, MapPinned } from 'lucide-react'
-import type { GeoJSONSource, MapLayerMouseEvent, MapLibreMap } from 'maplibre-gl'
-import { useEffect, useRef, useState } from 'react'
+import type {
+  GeoJSONSource,
+  MapGeoJSONFeature,
+  MapLayerMouseEvent,
+  MapLibreMap,
+  MapMouseEvent,
+  Popup,
+} from 'maplibre-gl'
+import { type ReactNode, useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 
 import { Button } from '@/components/ui/button'
 import { chartPalette } from '@/lib/chart-palette'
@@ -31,13 +39,20 @@ type AnalyticsCoverageMapProps = Readonly<{
   initialCenter?: readonly [longitude: number, latitude: number]
   initialZoom?: number
   className?: string
-  /** Feature `properties.id` drawn larger; hovering or tapping a point reports its id. */
-  activeFeatureId?: string | null
-  onActiveFeatureChange?: (id: string | null) => void
+  /** Content of the popup anchored on a hovered or tapped point. */
+  renderPopup?: (point: MapPoint, close: () => void) => ReactNode
   emptyDescription?: string
 }>
 
 type MapStatus = 'loading' | 'ready' | 'error'
+
+export type MapPoint = Readonly<{
+  id: string
+  label: string
+  coordinates: readonly [longitude: number, latitude: number]
+}>
+
+type OpenPoint = MapPoint & Readonly<{ pinned: boolean }>
 
 const syncMapCamera = (
   map: MapLibreMap,
@@ -84,8 +99,7 @@ export const AnalyticsCoverageMap = ({
   initialCenter = defaultCenter,
   initialZoom = defaultZoom,
   className,
-  activeFeatureId,
-  onActiveFeatureChange,
+  renderPopup,
   emptyDescription = 'No authoritative project coordinates are available. Text-only implementation areas remain unresolved and unplotted.',
 }: AnalyticsCoverageMapProps) => {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -100,10 +114,11 @@ export const AnalyticsCoverageMap = ({
   const centerLongitude = initialCenter[0]
   const centerLatitude = initialCenter[1]
 
-  const onActiveRef = useRef(onActiveFeatureChange)
+  const popupRef = useRef<{ popup: Popup; node: HTMLDivElement } | null>(null)
+  const [openPoint, setOpenPoint] = useState<OpenPoint | null>(null)
+  const hasPopup = Boolean(renderPopup)
 
   latestFeaturesRef.current = featureCollection
-  onActiveRef.current = onActiveFeatureChange
 
   useEffect(() => {
     const container = containerRef.current
@@ -125,7 +140,8 @@ export const AnalyticsCoverageMap = ({
     setErrorMessage('')
 
     void import('maplibre-gl')
-      .then(({ Map: MapLibre, NavigationControl }) => {
+      .then((maplibre) => {
+        const { Map: MapLibre, NavigationControl } = maplibre
         if (cancelled) return
 
         map = new MapLibre({
@@ -174,24 +190,64 @@ export const AnalyticsCoverageMap = ({
           )
         }
 
-        const pointId = (event: MapLayerMouseEvent) => {
-          const id = event.features?.[0]?.properties?.id
-          return typeof id === 'string' ? id : null
+        const toPoint = (
+          feature: MapGeoJSONFeature | undefined,
+          pinned: boolean,
+        ): OpenPoint | null => {
+          const id = feature?.properties?.id
+          if (typeof id !== 'string' || feature?.geometry.type !== 'Point') return null
+          const [longitude, latitude] = feature.geometry.coordinates
+          const label = feature.properties?.label
+          return {
+            id,
+            label: typeof label === 'string' ? label : '',
+            coordinates: [longitude, latitude],
+            pinned,
+          }
         }
-        const handlePoint = (event: MapLayerMouseEvent) => {
+        // Hover previews a point; a click or tap pins it until closed or the map is tapped elsewhere.
+        const handleEnter = (event: MapLayerMouseEvent) => {
           if (map) map.getCanvas().style.cursor = 'pointer'
-          onActiveRef.current?.(pointId(event))
+          setOpenPoint((current) =>
+            current?.pinned ? current : toPoint(event.features?.[0], false),
+          )
         }
         const handleLeave = () => {
           if (map) map.getCanvas().style.cursor = ''
+          setOpenPoint((current) => (current?.pinned ? current : null))
+        }
+        const handleClick = (event: MapMouseEvent) => {
+          const onPoint = map?.queryRenderedFeatures(event.point, { layers: [layerId] }) ?? []
+          const point = toPoint(onPoint[0], true)
+          setOpenPoint(point)
+          // Center a tapped point low in the frame so its popup fits above it, even near an edge.
+          if (point && map) {
+            const offsetY = Math.min(140, map.getContainer().clientHeight / 3)
+            map.easeTo({ center: [...point.coordinates], offset: [0, offsetY], duration: 300 })
+          }
+        }
+        if (hasPopup) {
+          const node = document.createElement('div')
+          popupRef.current = {
+            node,
+            popup: new maplibre.Popup({
+              closeButton: false,
+              closeOnClick: false,
+              focusAfterOpen: false,
+              maxWidth: 'min(320px, calc(100vw - 4rem))',
+              offset: 14,
+            }).setDOMContent(node),
+          }
         }
 
         map.on('style.load', handleLoad)
         map.on('load', handleLoad)
         map.on('error', handleError)
-        map.on('mouseenter', layerId, handlePoint)
-        map.on('click', layerId, handlePoint)
-        map.on('mouseleave', layerId, handleLeave)
+        if (hasPopup) {
+          map.on('mouseenter', layerId, handleEnter)
+          map.on('mouseleave', layerId, handleLeave)
+          map.on('click', handleClick)
+        }
         map.addControl(new NavigationControl({ showCompass: false }), 'top-right')
 
         if (typeof ResizeObserver !== 'undefined') {
@@ -208,6 +264,9 @@ export const AnalyticsCoverageMap = ({
     return () => {
       cancelled = true
       resizeObserver?.disconnect()
+      popupRef.current?.popup.remove()
+      popupRef.current = null
+      setOpenPoint(null)
       if (map && handleLoad) map.off('style.load', handleLoad)
       if (map && handleLoad) map.off('load', handleLoad)
       if (map && handleError) map.off('error', handleError)
@@ -215,7 +274,7 @@ export const AnalyticsCoverageMap = ({
       if (mapRef.current === map) mapRef.current = null
       delete container.dataset.mapAttempt
     }
-  }, [centerLatitude, centerLongitude, initialZoom, resolvedStyleUrl, retryKey])
+  }, [centerLatitude, centerLongitude, hasPopup, initialZoom, resolvedStyleUrl, retryKey])
 
   useEffect(() => {
     const map = mapRef.current
@@ -228,14 +287,17 @@ export const AnalyticsCoverageMap = ({
 
   useEffect(() => {
     const map = mapRef.current
-    if (status !== 'ready' || !map || activeFeatureId === undefined) return
+    const entry = popupRef.current
+    if (status !== 'ready' || !map || !entry) return
+    if (openPoint) entry.popup.setLngLat([...openPoint.coordinates]).addTo(map)
+    else entry.popup.remove()
     map.setPaintProperty(layerId, 'circle-radius', [
       'case',
-      ['==', ['get', 'id'], activeFeatureId ?? ''],
-      12,
+      ['==', ['get', 'id'], openPoint?.id ?? ''],
+      11,
       8,
     ])
-  }, [activeFeatureId, status])
+  }, [openPoint, status])
 
   const hasFeatures = featureCollection.features.length > 0
 
@@ -269,6 +331,12 @@ export const AnalyticsCoverageMap = ({
           title="No mapped locations available"
         />
       ) : null}
+      {openPoint && renderPopup && popupRef.current
+        ? createPortal(
+            renderPopup(openPoint, () => setOpenPoint(null)),
+            popupRef.current.node,
+          )
+        : null}
     </section>
   )
 }

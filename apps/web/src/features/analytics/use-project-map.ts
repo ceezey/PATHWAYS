@@ -37,7 +37,7 @@ export const toProjectMapFeatures = (map: ProjectMap | undefined): SafeMapFeatur
       project.places.map((place, index) => ({
         type: 'Feature' as const,
         id: `${project.id}:${index}`,
-        properties: { id: project.id, label: `${project.title} · ${place.name}` },
+        properties: { id: project.id, label: place.name },
         geometry: {
           type: 'Point' as const,
           coordinates: offset(place.longitude, place.latitude, seen),

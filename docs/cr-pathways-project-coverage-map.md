@@ -16,7 +16,7 @@ PRD-F12 bounds listed "Maps and free-form chart building: not built". The map co
 
 - `GET /analytics/project-map` (`projects.read`) in an isolated `project-map` module lists the caller's scoped projects (up to 100) whose free-text `implementationArea` names a known Philippine city, municipality or province, placed at bundled approximate centroids (`ph-places.ts`). Unknown text resolves to nothing, never a guess.
 - Each project carries the existing Project Overview metrics (KPI achievement, timeline progress, beneficiaries reached, budget utilization) read through `ProjectOverviewMetricsService`, and the suppressed SADDD sex buckets through `DashboardsService.saddd` once the closed-project release exists.
-- The map clears its overlay on `style.load`; hovering, tapping or picking a project code below the map opens an overview card. Free-form chart building stays not built.
+- The map clears its overlay on `style.load`. Each location is a dot; hovering it opens that location's overview in a popup on the dot, and a click or tap pins the popup (revised 2026-10-05 per product owner: no cards or list below the map). Free-form chart building stays not built.
 
 ## 4. Impact
 
@@ -27,7 +27,7 @@ None. No table, column or migration; points are project-level centroids, never B
 Scope is `projectScope`; each overview section is null without its source permission, and SADDD uses the RFC small-cell rule (1-4 suppressed) already applied by the reused services.
 
 ### UI
-`project-coverage-map-panel.tsx` (react-query via `useAuthorizedRead`), `project-map-card.tsx`; nothing depends on hover alone (tap and a keyboard-reachable project list).
+`project-coverage-map-panel.tsx` (react-query via `useAuthorizedRead`), `project-map-card.tsx` rendered in a MapLibre popup; tap pins the popup so touch devices do not depend on hover.
 
 ### Tests
 `apps/api/src/modules/project-map/ph-places.test.ts` covers place resolution; existing coverage map tests still pass.

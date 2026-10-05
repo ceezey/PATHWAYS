@@ -221,3 +221,6 @@
 - Pitch v2.1: one SSG session traced through Plan, Collect, Verify, Decide, Report, ending on EHK as the completed cycle; M&E, PO and PM only; FR-1 to FR-17 each mapped to a step; metadata-driven import is live and manual encoding is shown without saving; rule setup moved to Q&A.
 - Seed: the EHK signed-off evaluation now uses the six OECD-DAC criteria (weights 15/10/25/20/15/15, overall 87.55) in `defense-demo-stage-evaluation.ts` only; takes effect after a wipe and full reseed.
 - Audit: Futuremakers relabelled to SSG-ES-2026 (DR-03); DR-01, DR-02, DR-05, DR-07 closed; DR-08 (no in-app evaluation scoring) and DR-09 (second reviewer outside the three roles) added; in-app evaluation scoring registered in deferred-features.
+
+## 2026-10-05 Coverage map popups
+- Per product owner feedback, the overview now opens in a popup on the hovered dot (tap pins it and pans the dot into view on phones); the card and project-code list under the map are gone.
