@@ -19,7 +19,7 @@ export type ProtectedPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>
 }
 const displayQueryKeys: Partial<Record<RouteKey, readonly string[]>> = {
-  activity: ['proof', 'review'],
+  activity: ['proof', 'review', 'action'],
   alerts: ['alert'],
   beneficiaries: ['q', 'project', 'location', 'sex', 'age', 'disability', 'status', 'page'],
   beneficiary: ['returnTo'],

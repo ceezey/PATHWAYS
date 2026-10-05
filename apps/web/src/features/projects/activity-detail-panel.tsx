@@ -291,7 +291,9 @@ export const ActivityDetailContent = ({
               .map(({ proof, version }, reverseIndex) => {
                 const isLatest = reverseIndex === 0
                 const highlighted = Boolean(
-                  requestedProofId && proof.proofIds.includes(requestedProofId),
+                  requestedProofId &&
+                    (proof.proofIds.includes(requestedProofId) ||
+                      proof.updateId === requestedProofId),
                 )
                 const proofUpdate = activity.updateNotes.find(
                   (update) => update.id === proof.updateId,
@@ -303,6 +305,7 @@ export const ActivityDetailContent = ({
                     className={`rounded-xl border bg-background p-4 ${
                       highlighted ? 'border-primary ring-2 ring-primary/20' : 'border-border'
                     }`}
+                    data-update-id={proof.updateId}
                     id={`activity-proof-${proof.id}`}
                     key={proof.id}
                   >
@@ -686,8 +689,10 @@ export const ActivityDetailPanel = ({
     if (!open || !requestedProofId || !loadedActivityId) return
     const frame = window.requestAnimationFrame(() => {
       document
-        .getElementById(`activity-proof-${requestedProofId}`)
-        ?.scrollIntoView({ block: 'center' })
+      const target =
+        document.getElementById(`activity-proof-${requestedProofId}`) ??
+        document.querySelector(`[data-update-id="${CSS.escape(requestedProofId)}"]`)
+      target?.scrollIntoView({ block: 'center' })
     })
     return () => window.cancelAnimationFrame(frame)
   }, [open, requestedProofId, loadedActivityId])

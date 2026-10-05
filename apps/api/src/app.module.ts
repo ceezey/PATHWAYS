@@ -27,6 +27,7 @@ import { MetadataModule } from './modules/metadata/metadata.module'
 import { ParticipantsModule } from './modules/participants/participants.module'
 import { ProfileModule } from './modules/profile/profile.module'
 import { ProgramsModule } from './modules/programs/programs.module'
+import { ProjectMapModule } from './modules/project-map/project-map.module'
 import { ProjectsModule } from './modules/projects/projects.module'
 import { PublicModule } from './modules/public/public.module'
 import { ReportsModule } from './modules/reports/reports.module'
@@ -187,6 +188,7 @@ export function createPathwaysPinoHttpOptions(environment = process.env.NODE_ENV
     IndicatorsModule,
     DashboardsModule,
     AnalyticsInsightsModule,
+    ProjectMapModule,
     EvaluationsModule,
     FinanceModule,
     ReportsModule,

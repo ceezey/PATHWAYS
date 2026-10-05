@@ -100,7 +100,7 @@ export const JourneyTrack = ({ stages, selectedId, onSelect, stageState }: Track
                     {/* Branches sit side by side under the parent, joined by one bar. */}
                     <ul className="flex" aria-label={`Branches of ${root.code}`}>
                       {kids.map((kid, kidIndex) => (
-                        <li key={kid.id} className="relative flex flex-col items-center">
+                        <li key={kid.id} className="relative flex flex-col items-center px-1">
                           {kids.length > 1 ? (
                             <span
                               aria-hidden="true"

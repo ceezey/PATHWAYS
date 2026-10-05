@@ -213,6 +213,10 @@
 - Code: 12 of 13 PRD features implemented; F10 hosted scheduler inert, F13 hosted verification Not met, reports project-scoped only.
 - Pitch is stale: export (G-F12-4), G-F3-6, G-F4-6 and G-F9-9 are Met but listed Not met; the sheet's Futuremakers project is not in the seed.
 
+## 2026-10-05 Project coverage map (feature/gis-coverage-map-n0hyrs)
+- `GET /analytics/project-map` places scoped projects at bundled PH city/province centroids parsed from `implementationArea`, each with its Project Overview metrics and suppressed SADDD sex buckets (cr-pathways-project-coverage-map).
+- The map overlay now clears on `style.load` instead of waiting for every tile; hover, tap or the project list opens an overview card.
+
 ## 2026-10-05 Connected three-role defense script
 - Pitch v2.1: one SSG session traced through Plan, Collect, Verify, Decide, Report, ending on EHK as the completed cycle; M&E, PO and PM only; FR-1 to FR-17 each mapped to a step; metadata-driven import is live and manual encoding is shown without saving; rule setup moved to Q&A.
 - Seed: the EHK signed-off evaluation now uses the six OECD-DAC criteria (weights 15/10/25/20/15/15, overall 87.55) in `defense-demo-stage-evaluation.ts` only; takes effect after a wipe and full reseed.

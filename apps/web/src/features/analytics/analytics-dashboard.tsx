@@ -63,8 +63,6 @@ import {
   SadddChart,
   SurveyImprovementChart,
 } from './analytics-charts'
-import { AnalyticsCoverageMap } from './analytics-coverage-map'
-import { toProjectCoverageFeatureCollection } from './analytics-location-utils'
 import {
   deriveAnalyticsReportingPeriods,
   nonOverlappingAnalyticsPeriods,
@@ -74,6 +72,7 @@ import { IndicatorTrendChart } from './indicator-trend-chart'
 import { InsightStatus } from './insight-status'
 import { activeIndicators, metricNumber, progressRows } from './kpi-rows'
 import { ParticipationBreakdownPanel } from './participation-breakdown-panel'
+import { ProjectCoverageMapPanel } from './project-coverage-map-panel'
 import {
   canReadInsight,
   useBudgetSummary,
@@ -230,13 +229,6 @@ export const AnalyticsDashboard = () => {
   const openAlertText = openAlerts ? `${openAlerts.count}${openAlerts.capped ? '+' : ''}` : ''
   const alertsLoading = canReadAlerts && Boolean(projectId) && !openAlerts && !alertRead.isError
   const alertsFailed = canReadAlerts && !openAlerts && alertRead.isError
-  const projectCoverageFeatures = useMemo(
-    () =>
-      toProjectCoverageFeatureCollection(
-        selectedProject ? { id: selectedProject.id, title: selectedProject.title } : null,
-      ),
-    [selectedProject],
-  )
   const reportingPeriods = useMemo(
     () =>
       deriveAnalyticsReportingPeriods(
@@ -889,7 +881,7 @@ export const AnalyticsDashboard = () => {
           <ChartPanel
             description={
               mapSelected
-                ? `Interactive coverage for ${selectedProject.title}. Only authoritative persisted project coordinates are plotted.`
+                ? 'Projects placed by implementation area. Hover or tap a point for its KPI, progress and SADDD overview.'
                 : undefined
             }
             title={
@@ -903,7 +895,7 @@ export const AnalyticsDashboard = () => {
           >
             {mapSelected ? (
               <>
-                <AnalyticsCoverageMap featureCollection={projectCoverageFeatures} />
+                <ProjectCoverageMapPanel selectedProjectId={selectedProject.id} />
                 {mapDataLoading ? (
                   <output className="mt-4 rounded-xl border border-border bg-surface-subtle p-3 text-sm text-muted-foreground">
                     Updating project analytics.

@@ -3,6 +3,11 @@
 @tailwind utilities;
 
 @layer base {
+  /* Grid cells may shrink below their content so long text truncates instead of widening the page. */
+  .grid > * {
+    min-width: 0;
+  }
+
   :root {
     /* Neutrals: canvas page ground, paper cards, ink text, divider borders */
     --background: 37.5 26.7% 94.1%;

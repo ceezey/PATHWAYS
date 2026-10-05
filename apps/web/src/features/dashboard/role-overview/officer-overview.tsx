@@ -15,6 +15,11 @@ import {
 type Data = RoleOverview
 const activityHref = (projectId: string, activityId: string) =>
   `/projects/${projectId}/activities/${activityId}`
+// Returned proof opens the activity scrolled to that update; overdue opens the update form.
+const proofHref = (row: { projectId: string; activityId: string; updateId: string }) =>
+  `${activityHref(row.projectId, row.activityId)}?proof=${row.updateId}`
+const updateHref = (projectId: string, activityId: string) =>
+  `${activityHref(projectId, activityId)}?action=update`
 const peso = (amount: string) =>
   `PHP ${Number(amount).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`
 const longDate = (day: string) =>
@@ -119,10 +124,7 @@ export const OfficerOverview = ({
               flagged.rows[0]
                 ? {
                     label: 'Resolve',
-                    onClick: () =>
-                      onOpenActivity(
-                        activityHref(flagged.rows[0].projectId, flagged.rows[0].activityId),
-                      ),
+                    onClick: () => onOpenActivity(proofHref(flagged.rows[0])),
                   }
                 : undefined
             }
@@ -183,11 +185,7 @@ export const OfficerOverview = ({
                 <p className="text-sm text-foreground">
                   {row.reviewReason || 'The reviewer returned this proof.'}
                 </p>
-                <Button
-                  onClick={() => onOpenActivity(activityHref(row.projectId, row.activityId))}
-                  size="sm"
-                  type="button"
-                >
+                <Button onClick={() => onOpenActivity(proofHref(row))} size="sm" type="button">
                   Resubmit proof
                 </Button>
               </div>
@@ -206,7 +204,7 @@ export const OfficerOverview = ({
                   {row.title} passed its planned end date. Submit a progress update.
                 </p>
                 <Button
-                  onClick={() => onOpenActivity(activityHref(row.projectId, row.id))}
+                  onClick={() => onOpenActivity(updateHref(row.projectId, row.id))}
                   size="sm"
                   type="button"
                 >
