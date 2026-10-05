@@ -212,7 +212,7 @@ export const PortfolioOverview = ({
               </div>
               {readOnly ? null : (
                 <Button asChild size="sm">
-                  <Link href="/alerts">Decide</Link>
+                  <Link href={`/alerts?alert=${row.id}`}>Decide</Link>
                 </Button>
               )}
             </div>

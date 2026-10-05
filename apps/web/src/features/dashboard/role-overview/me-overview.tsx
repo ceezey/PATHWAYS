@@ -120,7 +120,7 @@ export const MeOverview = ({
                   <div className="min-w-0">
                     <Link
                       className="text-sm font-medium text-primary hover:underline"
-                      href="/alerts"
+                      href={`/alerts?alert=${row.id}`}
                     >
                       {row.title}
                     </Link>

@@ -13,7 +13,7 @@ import {
   UsersRound,
 } from 'lucide-react'
 import Link from 'next/link'
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { PageHeader } from '@/components/layout/page-header'
 import {
@@ -184,10 +184,12 @@ const ActivityStatusSummary = ({
 
 export const ProjectActivitiesWorkspace = ({
   initialActivityId,
+  initialOpenUpdate,
   initialProofId,
   projectId,
 }: {
   initialActivityId?: string
+  initialOpenUpdate?: boolean
   initialProofId?: string
   projectId: string
 }) => {
@@ -448,6 +450,16 @@ export const ProjectActivitiesWorkspace = ({
     setProofActivity(activity)
     setProofOpen(true)
   }
+
+  // A dashboard "Submit update" link opens the update form once the activity loads.
+  const updateOpened = useRef(false)
+  // biome-ignore lint/correctness/useExhaustiveDependencies: runs once per loaded activity.
+  useEffect(() => {
+    if (!initialOpenUpdate || updateOpened.current || !selectedActivity) return
+    if (selectedActivity.id !== initialActivityId) return
+    updateOpened.current = true
+    openProof(selectedActivity)
+  }, [initialOpenUpdate, initialActivityId, selectedActivity])
 
   if (loading) {
     return (

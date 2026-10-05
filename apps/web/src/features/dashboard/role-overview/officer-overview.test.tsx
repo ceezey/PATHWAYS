@@ -86,7 +86,13 @@ describe('OfficerOverview', () => {
     const open = vi.fn()
     render(<OfficerOverview data={data} fullName="Ron Perez" onOpenActivity={open} />)
     fireEvent.click(screen.getByRole('button', { name: 'Resubmit proof' }))
-    expect(open).toHaveBeenCalledWith(`/projects/${p}/activities/${a}`)
+    expect(open).toHaveBeenCalledWith(`/projects/${p}/activities/${a}?proof=${u}`)
+  })
+  it('opens the update form from Submit update', () => {
+    const open = vi.fn()
+    render(<OfficerOverview data={data} fullName="Ron Perez" onOpenActivity={open} />)
+    fireEvent.click(screen.getAllByRole('button', { name: 'Submit update' })[0])
+    expect(open).toHaveBeenCalledWith(expect.stringMatching(/\/activities\/[^?]+\?action=update$/))
   })
   it('labels a returned submission and formats the amount', () => {
     render(
