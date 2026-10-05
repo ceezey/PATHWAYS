@@ -1,12 +1,9 @@
 import type { Metadata } from 'next'
 
-import { PublicTrackerHome, PublicTrackerUnavailable } from '@/features/public/public-tracker-view'
-import { readPublicSnapshots } from '@/lib/services/public-projects'
+import { PublicLandingPage } from '@/features/public/public-landing'
 
-export const metadata: Metadata = { title: 'Public Impact Overview' }
-export const dynamic = 'force-dynamic'
+export const metadata: Metadata = { title: 'Home' }
 
-export default async function HomePage() {
-  const projects = await readPublicSnapshots().catch(() => null)
-  return projects ? <PublicTrackerHome projects={projects} /> : <PublicTrackerUnavailable />
+export default function HomePage() {
+  return <PublicLandingPage />
 }
