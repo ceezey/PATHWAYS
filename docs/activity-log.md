@@ -273,3 +273,7 @@
 ## 2026-10-05 Rules scope memo migration 0063
 - `0063_rules_scope_memo` replaces `pathways_rules_internal.human_rules_scope` (still owned by `rules_eligibility_owner`, same EXECUTE ACL, asserted in the migration) with a plpgsql version that memoizes the per-project result in a transaction-local setting keyed by `app.user_id`; semantics are unchanged.
 - It wires like 0062: hosted and forward preprovision/cleanup pairs for a temporary `rules_eligibility_owner` SET chain, plan, build, local-reset, Verify-Forward inventory and `rules-scope-memo-runtime.sql` (12 assertions: parity, actor change, forged slot, non-runtime session, transaction-local).
+
+## 2026-10-06 Change password modal and profile action row
+- My Profile Change password is now a button that opens a TOTP step-up modal, then a new-password step in the same dialog; the email or phone nonce step is hidden (tracked in deferred-features) and `reauthentication_needed` shows a sign-in-again message without the uncertain lock.
+- Save profile and Reload profile share one row, Save left and Reload right.

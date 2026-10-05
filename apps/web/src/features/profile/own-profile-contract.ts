@@ -24,8 +24,6 @@ export const ownPasswordSchema = z
   .object({
     password: strongPasswordSchema,
     confirmPassword: z.string(),
-    nonce: z.string().regex(/^\d{6,10}$/, 'Enter the code sent to your email or phone.'),
-    mfaCode: z.string().regex(/^\d{6}$/, 'Enter the six-digit authenticator code.'),
   })
   .refine((values) => values.password === values.confirmPassword, {
     path: ['confirmPassword'],

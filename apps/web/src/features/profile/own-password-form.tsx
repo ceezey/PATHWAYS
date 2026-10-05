@@ -1,17 +1,26 @@
 'use client'
 
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useSession } from '@/hooks/use-session'
 import { ownProfileClient } from '@/lib/services/own-profile-client'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { useEffect, useRef, useState } from 'react'
+import { OwnPasswordDialog, type PasswordStep } from './own-password-dialog'
 import {
   bindPasswordSession,
   createPasswordAuthClient,
   currentContinuation,
 } from './own-password-operation'
 import { ownPasswordSchema } from './own-profile-contract'
+
+const UNCERTAIN =
+  'The password change could not be confirmed. Sign in with the new password before trying again.'
+const REAUTH_CODES = new Set([
+  'reauthentication_needed',
+  'reauthentication_not_valid',
+  'reauth_nonce_missing',
+])
 
 export function OwnPasswordForm() {
   const { session, signOut } = useSession()
@@ -45,32 +54,52 @@ export function OwnPasswordForm() {
       access === 'ready' &&
       Boolean(profile?.permissions.includes('profile.manage'))
   }
-  const [sent, setSent] = useState(false)
+  const [step, setStep] = useState<PasswordStep | null>(null)
   const [busy, setBusy] = useState(false)
   const [notice, setNotice] = useState('')
   const [uncertain, setUncertain] = useState(false)
   const inFlight = useRef(false)
+  const verifiedClient = useRef<SupabaseClient | null>(null)
   const subject = session?.user.id
 
-  const sendCode = async () => {
+  const close = () => {
+    verifiedClient.current = null
+    setStep(null)
+  }
+
+  const verifyCode = async (code: string) => {
     const isCurrent = captureCurrent()
-    if (inFlight.current) return
+    if (inFlight.current || uncertain) return
     inFlight.current = true
     setBusy(true)
     setNotice('')
-    const { step } = currentContinuation(isCurrent)
+    const { step: run } = currentContinuation(isCurrent)
     try {
-      if (!session || !subject) throw new Error('unavailable')
+      if (!session || !subject || !/^\d{6}$/.test(code)) throw new Error('verification')
       const client = createPasswordAuthClient()
       await bindPasswordSession(client, session, isCurrent)
-      await step(() => ownProfileClient.read())
-      const { error } = await step(() => client.auth.reauthenticate())
-      if (error) throw new Error('unavailable')
-      setSent(true)
-      setNotice('Enter the code sent to your email or phone and a fresh authenticator code.')
-    } catch {
-      if (isCurrent())
-        setNotice('Password verification could not start. Check your session and try again.')
+      const current = await run(() => client.auth.getUser())
+      if (current.error || current.data.user?.id !== subject) throw new Error('verification')
+      const factors = await run(() => client.auth.mfa.listFactors())
+      const factor = factors.data?.totp.find((entry) => entry.status === 'verified')
+      if (factors.error || !factor) throw new Error('verification')
+      const verification = await run(() =>
+        client.auth.mfa.challengeAndVerify({ factorId: factor.id, code }),
+      )
+      if (verification.error) throw new Error('rejected')
+      const verified = await run(() => client.auth.getUser())
+      if (verified.error || verified.data.user?.id !== subject) throw new Error('verification')
+      await run(() => ownProfileClient.read())
+      // The verified AAL2 session lives only in this client, so the next step reuses it.
+      verifiedClient.current = client
+      setStep('password')
+    } catch (error) {
+      if (!isCurrent()) return
+      setNotice(
+        error instanceof Error && error.message === 'rejected'
+          ? 'The code was not accepted. Try the next authenticator code.'
+          : 'Account verification failed. Check your session and authenticator code.',
+      )
     } finally {
       inFlight.current = false
       if (isCurrent()) setBusy(false)
@@ -91,42 +120,31 @@ export function OwnPasswordForm() {
     setBusy(true)
     setNotice('')
     let mutationStarted = false
-    const { step, assertCurrent } = currentContinuation(isCurrent)
+    const { step: run, assertCurrent } = currentContinuation(isCurrent)
     try {
-      if (!session || !subject) throw new Error('verification')
-      const client = createPasswordAuthClient()
-      await bindPasswordSession(client, session, isCurrent)
-      const current = await step(() => client.auth.getUser())
-      if (current.error || current.data.user?.id !== subject) throw new Error('verification')
-      const factors = await step(() => client.auth.mfa.listFactors())
-      const factor = factors.data?.totp.find((entry) => entry.status === 'verified')
-      if (factors.error || !factor) throw new Error('verification')
-      const verification = await step(() =>
-        client.auth.mfa.challengeAndVerify({
-          factorId: factor.id,
-          code: parsed.data.mfaCode,
-        }),
-      )
-      if (verification.error) throw new Error('verification')
-      const verified = await step(() => client.auth.getUser())
+      const client = verifiedClient.current
+      if (!session || !subject || !client) throw new Error('verification')
+      const verified = await run(() => client.auth.getUser())
       if (verified.error || verified.data.user?.id !== subject) throw new Error('verification')
-      await step(() => ownProfileClient.read())
+      await run(() => ownProfileClient.read())
       assertCurrent()
       mutationStarted = true
-      const result = await client.auth.updateUser({
-        password: parsed.data.password,
-        nonce: parsed.data.nonce,
-      })
+      const result = await client.auth.updateUser({ password: parsed.data.password })
       if (!isCurrent()) return
       if (result.error) {
+        close()
+        if (REAUTH_CODES.has(result.error.code ?? '')) {
+          // Auth definitely refused the change, so a retry after a fresh sign-in is safe.
+          setNotice('For security, sign out and sign in again, then change your password.')
+          return
+        }
         // Auth may have committed before a transport failure. Never invite a blind retry.
         setUncertain(true)
-        setNotice(
-          'The password change could not be confirmed. Sign in with the new password before trying again.',
-        )
+        setNotice(UNCERTAIN)
         return
       }
       setUncertain(true)
+      close()
       setNotice('Password changed. Signing out; sign in again with your new password.')
       try {
         await signOut()
@@ -137,12 +155,11 @@ export function OwnPasswordForm() {
       }
     } catch {
       if (!isCurrent()) return
+      close()
       if (mutationStarted) {
         setUncertain(true)
-        setNotice(
-          'The password change could not be confirmed. Sign in with the new password before trying again.',
-        )
-      } else setNotice('Account verification failed. Check your session and verification codes.')
+        setNotice(UNCERTAIN)
+      } else setNotice('Account verification failed. Check your session and try again.')
     } finally {
       form.reset()
       inFlight.current = false
@@ -153,50 +170,30 @@ export function OwnPasswordForm() {
   return (
     <div className="space-y-4">
       <p className="text-sm text-muted-foreground">
-        Verify your account with email or phone and your authenticator before changing your
-        password.
+        Confirm your authenticator code, then choose a new password.
       </p>
       <Button
         disabled={busy || uncertain}
-        onClick={() => void sendCode()}
+        onClick={() => {
+          setNotice('')
+          setStep('code')
+        }}
         type="button"
         variant="outline"
       >
-        {busy ? 'Verifying...' : sent ? 'Send a new verification code' : 'Send verification code'}
+        Change password
       </Button>
-      {sent && (
-        <form className="space-y-4" onSubmit={(event) => void submit(event)}>
-          {[
-            ['nonce', 'Email or phone verification code', 'text', 'one-time-code'],
-            ['mfaCode', 'Authenticator code', 'text', 'one-time-code'],
-            ['password', 'New password', 'password', 'new-password'],
-            ['confirmPassword', 'Confirm new password', 'password', 'new-password'],
-          ].map(([name, label, type, autoComplete]) => (
-            <div key={name} className="space-y-2">
-              <label className="text-sm font-medium" htmlFor={`own-${name}`}>
-                {label}
-              </label>
-              <Input
-                autoComplete={autoComplete}
-                disabled={busy || uncertain}
-                id={`own-${name}`}
-                name={name}
-                type={type}
-                required
-                maxLength={type === 'password' ? 64 : 10}
-                inputMode={type === 'password' ? undefined : 'numeric'}
-              />
-            </div>
-          ))}
-          <p className="text-sm text-muted-foreground">
-            Use 12 to 64 characters with uppercase, lowercase, a number, and a symbol.
-          </p>
-          <Button disabled={busy || uncertain} type="submit">
-            {busy ? 'Changing password...' : 'Change password'}
-          </Button>
-        </form>
+      {step && (
+        <OwnPasswordDialog
+          step={step}
+          busy={busy}
+          notice={notice}
+          onVerify={(code) => void verifyCode(code)}
+          onSubmit={(event) => void submit(event)}
+          onClose={close}
+        />
       )}
-      {notice && <output className="block text-sm">{notice}</output>}
+      {notice && !step && <output className="block text-sm">{notice}</output>}
     </div>
   )
 }
