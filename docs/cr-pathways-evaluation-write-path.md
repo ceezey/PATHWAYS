@@ -76,13 +76,11 @@ New migration `0064_evaluation_write_path`:
 - `project_evaluations`' `p09_update` RLS policy is rebuilt: no UPDATE could reach `DRAFT` before
   this change, so the baseline's `WITH CHECK` sent it to the generic `evaluations.submit` case.
   The Project Manager's return only holds `evaluations.approve`, so `DRAFT` now accepts either
-  holder. Found on a second, careful trace of the lifecycle (not caught in the first pass): since
-  RLS `WITH CHECK` only sees the proposed new row, not the row's prior status, this does let a
-  Project Manager directly edit an unsubmitted draft's recorded fields at the database layer, not
-  only through the return action. The application never exposes that broader path (`returnToDraft`
-  sets only `status`, `evaluatedAt`, `overallScore` and `commentary`), and scores stay gated by
-  their own unchanged `evaluations.submit` policy, so the gap is a database-layer, defense-in-depth
-  one, not one reachable through the product. Flagged here rather than silently shipped.
+  holder. RLS `WITH CHECK` only sees the proposed new row, not the prior status, so the gap
+  is closed in the lifecycle trigger: `p3_guard_evaluation` rejects a runtime `DRAFT -> DRAFT`
+  update unless the caller holds `evaluations.submit` on the project (SQLSTATE 23514, `Draft
+  evaluation edits require evaluations.submit`). A Project Manager can therefore only return a
+  submitted evaluation, not edit an unsubmitted draft's recorded fields.
 - Two new RESTRICTIVE policies bind `evaluated_by_id` / `reviewed_by_id` / `signed_off_by_id` to
   the calling session on the statement that sets each one.
 - `rbac-contract.json` updated (`permissions` map and a new `amendments` entry) to match.
@@ -155,7 +153,7 @@ Before this leaves the branch: apply the migration to a local database, run
 `pnpm db:defense:local -- --verify` and confirm it stays 23/23; add an
 `evaluations.local.test.ts` runtime suite (modeled on `activity-extensions.local.test.ts`)
 covering create -> score -> submit -> return -> resubmit -> sign off, the RLS denials for other
-roles, and an Evaluation report export of the signed-off result. Locally, walk through the UI as
+roles (including a Project Manager `DRAFT -> DRAFT` edit, which the trigger rejects), and an Evaluation report export of the signed-off result. Locally, walk through the UI as
 M&E (create criteria, publish, start an evaluation, score, submit), then as Project Manager
 (return, then sign off), then as a read-only role (Program or Grant Manager).
 

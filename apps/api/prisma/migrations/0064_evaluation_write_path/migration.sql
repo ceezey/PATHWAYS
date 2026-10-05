@@ -11,10 +11,7 @@
 -- runtime caller can only ever record themselves as having acted. The p09_update WITH CHECK is
 -- rebuilt because no UPDATE could previously reach DRAFT: the DRAFT case now accepts either
 -- evaluations.submit (the evaluator's own in-progress draft) or evaluations.approve (the Project
--- Manager's return). RLS cannot see the row's prior status inside WITH CHECK, only the lifecycle
--- trigger can, so this does let a Project Manager directly edit an unsubmitted draft's recorded
--- fields at the database layer; the application never exposes that path (only the exact three
--- fields a return sets), and scores stay gated by their own unchanged evaluations.submit policy.
+-- Manager's return). RLS cannot see the prior status, so p3_guard_evaluation rejects runtime DRAFT->DRAFT edits without evaluations.submit.
 -- project_evaluation_criteria INSERT
 -- now also accepts evaluations.weights.configure (previously settings.configure only), so Monitoring
 -- and Evaluation Officer can start a criteria set; the UPDATE policy already required
@@ -151,6 +148,11 @@ BEGIN
   RETURN OLD;
  ELSE
   IF OLD.status='DRAFT' THEN
+   -- Only the evaluator role may edit a draft at runtime; RLS cannot see the prior status.
+   IF NEW.status='DRAFT' AND current_user='pathways_runtime'
+    AND NOT pathways.p05_has_project_permission('evaluations.submit',NEW.project_id) THEN
+    RAISE EXCEPTION USING ERRCODE='23514',MESSAGE='Draft evaluation edits require evaluations.submit';
+   END IF;
    IF NEW.status NOT IN ('DRAFT','SUBMITTED') THEN RAISE EXCEPTION USING ERRCODE='23514',MESSAGE='Evaluation must be submitted before review'; END IF;
    IF NEW.status='SUBMITTED' THEN
     SELECT sum((criterion_snapshot->>'weight_percentage')::numeric),sum(weighted_score),count(*)
@@ -218,6 +220,7 @@ DO $$ BEGIN
  OR EXISTS(SELECT FROM pg_catalog.pg_trigger WHERE tgname='p10_evaluation_weight')
  OR to_regprocedure('pathways.p10_guard_evaluation_weight()') IS NOT NULL
  OR (SELECT count(*) FROM pg_catalog.pg_policies WHERE schemaname='pathways' AND tablename='project_evaluations' AND policyname='p09_update')<>1
+ OR position('Draft evaluation edits require evaluations.submit' IN pg_catalog.pg_get_functiondef('pathways.p3_guard_evaluation()'::pg_catalog.regprocedure))=0
  THEN RAISE EXCEPTION '0064 verification failed'; END IF;
 END $$;
 COMMIT;
