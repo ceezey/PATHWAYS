@@ -269,3 +269,7 @@
 
 ## 2026-10-05 Outcome recorded feedback
 - A confirmed outcome registered (201, decision row, 6 notifications) but the form silently reopened, and the recorder is never a notification recipient; now a toast confirms "Outcome recorded: <outcome>. N recipients notified." (or the reviewed, resolved or dismissed action) and the form closes.
+
+## 2026-10-05 Rules scope memo migration 0063
+- `0063_rules_scope_memo` replaces `pathways_rules_internal.human_rules_scope` (still owned by `rules_eligibility_owner`, same EXECUTE ACL, asserted in the migration) with a plpgsql version that memoizes the per-project result in a transaction-local setting keyed by `app.user_id`; semantics are unchanged.
+- It wires like 0062: hosted and forward preprovision/cleanup pairs for a temporary `rules_eligibility_owner` SET chain, plan, build, local-reset, Verify-Forward inventory and `rules-scope-memo-runtime.sql` (12 assertions: parity, actor change, forged slot, non-runtime session, transaction-local).
