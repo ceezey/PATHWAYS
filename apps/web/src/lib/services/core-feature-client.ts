@@ -421,7 +421,7 @@ export async function fetchCoreArtifact(
   }
   return {
     blob: new Blob([bytes], { type: mime }),
-    fileName: fileName.replace(/.[a-z0-9]+$/, `.${extensions[mime]}`),
+    fileName: fileName.replace(/\.[a-z0-9]+$/, `.${extensions[mime]}`),
   }
 }
 
