@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs'
 import {
   assertLocalContainer,
   dumpLocal,
+  parseJson,
   psqlLocal,
   psqlUrl,
   readJson,
@@ -35,7 +36,10 @@ export async function mirror(args, files, hostedEnv) {
     ? {
         projectRef: ALLOWED_PROJECT_REF,
         capturedAt: new Date().toISOString(),
-        ...JSON.parse(psqlUrl(libpqUrl(env.DIRECT_URL), mirrorReadSql()).trim()),
+        ...parseJson(
+          psqlUrl(libpqUrl(env.DIRECT_URL), mirrorReadSql()).trim(),
+          'The devV2 identities query result',
+        ),
       }
     : readJson(args.identities)
   assertIdentities(identities)
@@ -55,10 +59,13 @@ export async function dump(args, files, readIdentities) {
       'The local organization is not the mirrored one; run mirror, then pnpm db:defense:local.',
     )
   const tables = parseWipeTables(readFileSync(files.wipe, 'utf8'))
-  const seed = JSON.parse(psqlLocal(seedInfoSql()).trim())
+  const seed = parseJson(psqlLocal(seedInfoSql()).trim(), 'The local query result')
   if (!seed.seedDay) throw new Error('No seeded audit rows; run pnpm db:defense:local first.')
-  const dateColumns = JSON.parse(psqlLocal(dateColumnsSql(tables)).trim())
-  const storage = JSON.parse(psqlLocal(storageObjectsSql(organizationId)).trim())
+  const dateColumns = parseJson(psqlLocal(dateColumnsSql(tables)).trim(), 'The local query result')
+  const storage = parseJson(
+    psqlLocal(storageObjectsSql(organizationId)).trim(),
+    'The local query result',
+  )
   const text = dumpLocal(tables)
   const { blocks } = parseDump(text)
   assertSameTables(tables, blocks)

@@ -44,21 +44,29 @@ export const psqlLocal = (sql, options = {}) =>
     { input: sql, ...options },
   )
 
-/** Runs SQL against a URL with the container's psql; the URL travels by environment, never argv. */
-export const psqlUrl = (url, sql, options = {}) =>
-  docker(
-    [
-      'exec',
-      '-i',
-      '-e',
-      'PATHWAYS_SNAPSHOT_PGURL',
-      localDatabase.container,
-      'sh',
-      '-c',
-      `exec psql "$PATHWAYS_SNAPSHOT_PGURL" ${PSQL_FLAGS.join(' ')}`,
-    ],
-    { input: sql, env: { PATHWAYS_SNAPSHOT_PGURL: url }, ...options },
-  )
+/** Builds docker args for psql on a URL with the password split out, so it never reaches argv. */
+export function psqlUrlArgs(rawUrl) {
+  const url = new URL(rawUrl)
+  const password = decodeURIComponent(url.password)
+  url.password = ''
+  const args = [
+    'exec',
+    '-i',
+    '-e',
+    'PGPASSWORD',
+    localDatabase.container,
+    'psql',
+    url.toString(),
+    ...PSQL_FLAGS,
+  ]
+  return { args, password }
+}
+
+/** Runs SQL against a URL with the container's psql; the password travels by environment only. */
+export function psqlUrl(url, sql, options = {}) {
+  const { args, password } = psqlUrlArgs(url)
+  return docker(args, { input: sql, env: { PGPASSWORD: password }, ...options })
+}
 
 /** Data-only dump of exactly the given tables from the local stack. */
 export const dumpLocal = (tables) =>
@@ -78,7 +86,16 @@ export const dumpLocal = (tables) =>
     ...tables.map((table) => `--table=${table}`),
   ])
 
-export const readJson = (file) => JSON.parse(readFileSync(file, 'utf8'))
+/** Parses JSON with a fixed error so file or query content never reaches stderr. */
+export function parseJson(text, what) {
+  try {
+    return JSON.parse(text)
+  } catch {
+    throw new Error(`${what} is not valid JSON.`)
+  }
+}
+
+export const readJson = (file) => parseJson(readFileSync(file, 'utf8'), file.split(/[\/]/).pop())
 
 /** Writes a private file, creating its directory. */
 export function writeText(file, text) {

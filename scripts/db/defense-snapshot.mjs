@@ -41,7 +41,13 @@ const files = {
 }
 
 function parseArgs(argv) {
-  const value = (name) => (argv.includes(name) ? argv[argv.indexOf(name) + 1] : undefined)
+  const value = (name) => {
+    const index = argv.indexOf(name)
+    if (index === -1) return undefined
+    const next = argv[index + 1]
+    if (next === undefined || next.startsWith('--')) throw new Error(`${name} needs a value.`)
+    return next
+  }
   return {
     command: argv[0],
     envFile: value('--env-file'),
@@ -75,28 +81,31 @@ function restoreTarget(args) {
       label: 'the local stack',
       verify: 'node scripts/db/defense-demo.mjs --test-local --verify',
       run: (sql) => psqlLocal(sql, { capture: false }),
-      storage: localStorageApi(),
     }
   }
   const env = hostedEnv(args.envFile)
+  const needStorage = args.command === 'storage' || !args.skipStorage
+  if (needStorage && !env.SUPABASE_SERVICE_ROLE_KEY)
+    throw new Error('SUPABASE_SERVICE_ROLE_KEY is required in the env file for the storage copy.')
   const url = libpqUrl(assertRestoreTarget(env))
+  const target = { url: env.SUPABASE_URL, key: env.SUPABASE_SERVICE_ROLE_KEY }
+  const source = needStorage ? localStorageApi() : null
+  if (source) assertDistinctStorage(source, target)
   assertLocalContainer()
   return {
     label: `hosted project ${ALLOWED_PROJECT_REF} (PATHWAYS-devV2)`,
     verify: `node scripts/db/defense-demo.mjs --env-file ${args.envFile} --verify`,
     run: (sql) => psqlUrl(url, sql, { capture: false }),
-    storage: { url: env.SUPABASE_URL, key: env.SUPABASE_SERVICE_ROLE_KEY },
+    storage: source && { source, target },
   }
 }
 
-async function copyStorage(manifest, target) {
-  const source = localStorageApi()
-  assertDistinctStorage(source, target.storage)
+async function copyStorage(manifest, target, args) {
   try {
-    await copyObjects(manifest.storage, source, target.storage)
+    await copyObjects(manifest.storage, target.storage.source, target.storage.target)
   } catch (error) {
     console.error(
-      'Storage copy failed; rerun: node scripts/db/defense-snapshot.mjs storage --env-file <path>',
+      `Storage copy failed; rerun: node scripts/db/defense-snapshot.mjs storage --env-file ${args.envFile}`,
     )
     throw error
   }
@@ -139,7 +148,7 @@ async function restore(args) {
   )
   console.info('Database restore committed.')
   if (args.testLocal) console.info('Storage copy skipped: the local stack is already the source.')
-  else if (!args.skipStorage) await copyStorage(manifest, target)
+  else if (!args.skipStorage) await copyStorage(manifest, target, args)
   console.info(`Next: ${target.verify}`)
 }
 
@@ -149,7 +158,7 @@ async function storage(args) {
       'Storage source and target are the same project; --test-local has nothing to copy.',
     )
   const target = restoreTarget(args)
-  await copyStorage(readJson(files.manifest), target)
+  await copyStorage(readJson(files.manifest), target, args)
 }
 
 const commands = {
