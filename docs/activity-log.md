@@ -242,3 +242,7 @@
 
 ## 2026-10-05 KPI overrun note removed
 - Per product owner request, KPI and indicator progress above 100% now shows `100%` with no "over target" note; `formatCappedPercent` names an overrun only when a label is passed, so over budget and past schedule still alert.
+
+## 2026-10-05 Budget alert labels and ledger filter line
+- The project-level budget row has no activity code, so its alert and recommendation printed the placeholder (`Budget at 92% - -`, `Signal: - utilization`); they now name the row by its title.
+- The budget recommendation card is clickable in place of its Review plan button, and a View expenses link now shows "Showing N of M expenses for <row>" above the ledger.

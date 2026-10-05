@@ -71,6 +71,12 @@ describe('budget math', () => {
     expect(deriveRecommendations(rows)).toHaveLength(1)
     expect(deriveAlerts(rows, [], 1500, 1400).some((a) => a.id === 'low-remaining')).toBe(true)
   })
+  it('names the project-level row instead of printing its placeholder code', () => {
+    const rows = buildActivityRows(budgets, [exp('e1', 'b2', '480.00', 'APPROVED')], labels)
+    const alert = deriveAlerts(rows, [], 1500, 480).find((a) => a.id === 'high-project-level')
+    expect(alert?.title).toBe('Budget at 96% - Project-level budget')
+    expect(deriveRecommendations(rows)[0]?.signal).toBe('Project-level budget utilization is 96%')
+  })
   describe('project envelope', () => {
     const envelope = {
       id: 'env',

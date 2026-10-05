@@ -55,6 +55,13 @@ export const BudgetLedger = ({
   const rows = module.expenses.filter(
     (expense) => !activityKey || (budgetOf(expense)?.activityId ?? projectLevelKey) === activityKey,
   )
+  const filterActivity = module.activities.find((a) => a.id === activityKey)
+  const filterLabel =
+    activityKey === projectLevelKey
+      ? 'Project-level budget'
+      : filterActivity
+        ? `${filterActivity.code} ${filterActivity.title}`
+        : 'this activity'
   const stepFor = (expense: Expense): ReviewAction | null => {
     if (expense.status === 'PENDING' && expense.receiptEvidenceId && can('expenses.verify'))
       return expense.submittedById === me ? null : 'VERIFY'
@@ -101,6 +108,11 @@ export const BudgetLedger = ({
       description="Every submitted expense and where it stands in review."
       title="Expense ledger"
     >
+      {activityKey ? (
+        <p className="mb-3 text-sm font-semibold text-foreground" role="status">
+          Showing {rows.length} of {module.expenses.length} expenses for {filterLabel}
+        </p>
+      ) : null}
       <p className="mb-4 flex items-start gap-2 rounded-md border border-info/30 bg-info-subtle p-3 text-sm">
         <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
         Only approved expenses count toward budget used. Pending and verified expenses are shown

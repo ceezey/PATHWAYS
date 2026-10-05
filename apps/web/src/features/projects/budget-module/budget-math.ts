@@ -101,6 +101,9 @@ export const buildActivityRows = (
   return [...rows.values()]
 }
 
+// The project-level row has no activity code, so it is named by its title.
+const rowLabel = (row: ActivityBudgetRow) => (row.activityId ? row.code : row.title)
+
 export const deriveAlerts = (
   rows: ActivityBudgetRow[],
   expenses: ExpenseRow[],
@@ -113,7 +116,7 @@ export const deriveAlerts = (
       alerts.push({
         id: `high-${row.key}`,
         tone: 'danger',
-        title: `Budget at ${row.utilization}% - ${row.code}`,
+        title: `Budget at ${row.utilization}% - ${rowLabel(row)}`,
         consequence: `${row.title} is close to its allocation; further approved expenses may exceed it.`,
         activityKey: row.key,
       })
@@ -146,6 +149,6 @@ export const deriveRecommendations = (rows: ActivityBudgetRow[]) =>
     .map((row) => ({
       id: `plan-${row.key}`,
       activityKey: row.key,
-      signal: `${row.code} utilization is ${row.utilization}%`,
+      signal: `${rowLabel(row)} utilization is ${row.utilization}%`,
       suggestion: `Consider reviewing the plan or allocation for ${row.title}.`,
     }))

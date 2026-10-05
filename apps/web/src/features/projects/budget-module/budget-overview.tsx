@@ -171,25 +171,24 @@ export const BudgetOverview = ({
         {recommendations.length > 0 ? (
           <ul className="mt-4 space-y-3">
             {recommendations.map((item) => (
-              <li
-                className="flex flex-wrap items-start gap-3 rounded-md border border-warning/30 bg-warning-subtle p-4"
-                key={item.id}
-              >
-                <Lightbulb className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
-                <div className="min-w-0 flex-1">
-                  <p className="font-semibold text-foreground">Recommendation (advisory)</p>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    Signal: {item.signal}. {item.suggestion} Nothing is changed automatically.
-                  </p>
-                </div>
-                <Button
+              <li key={item.id}>
+                {/* The whole card opens the ledger; there is no separate review button. */}
+                <button
+                  aria-label={`Review plan: ${item.signal}`}
+                  className="flex w-full items-start gap-3 rounded-md border border-warning/30 bg-warning-subtle p-4 text-left transition-colors hover:border-warning/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   onClick={() => onOpenLedger(item.activityKey)}
-                  size="sm"
                   type="button"
-                  variant="outline"
                 >
-                  Review plan
-                </Button>
+                  <Lightbulb className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
+                  <span className="block min-w-0 flex-1">
+                    <span className="block font-semibold text-foreground">
+                      Recommendation (advisory)
+                    </span>
+                    <span className="mt-1 block text-sm text-muted-foreground">
+                      Signal: {item.signal}. {item.suggestion} Nothing is changed automatically.
+                    </span>
+                  </span>
+                </button>
               </li>
             ))}
           </ul>
