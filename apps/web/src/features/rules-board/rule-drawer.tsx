@@ -34,15 +34,7 @@ import {
 } from './rule-board-model'
 import { ApplyToFields, ConditionBuilder, useBindingChoices } from './rule-condition-rows'
 import { RuleDrawerFooter } from './rule-drawer-footer'
-import {
-  DEFAULT_REC,
-  type Mode,
-  type Rec,
-  newRec,
-  newRow,
-  recordBound,
-  selectClass,
-} from './rule-drawer-shared'
+import { DEFAULT_REC, type Mode, type Rec, newRec, newRow, recordBound } from './rule-drawer-shared'
 import { LifecyclePrompt } from './rule-lifecycle-prompt'
 import { RuleOutputFields, RulePreview } from './rule-output-fields'
 
@@ -307,10 +299,10 @@ function OwnedDrawer({
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="rule-category">Rule Category</Label>
-              <select className={selectClass} disabled id="rule-category" value={category ?? ''}>
-                <option value="">{category ?? 'Derived from the first metric'}</option>
-              </select>
+              <p className="text-sm font-medium">Rule Category</p>
+              <p className="text-sm text-muted-foreground" data-testid="rule-category">
+                {category ?? 'Derived from the first metric'}
+              </p>
             </div>
           </section>
           <ApplyToFields

@@ -11,7 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { ReviewCardList, statusLabel } from '@/features/rules-board/review-card-list'
+import { ReviewCardList, basisLabel, statusLabel } from '@/features/rules-board/review-card-list'
 import { formatMetricValue } from '@/features/rules-board/rule-board-model'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'
@@ -23,6 +23,7 @@ import { useAuthorizedRead } from '@/providers/authorized-query-provider'
 import Link from 'next/link'
 import { useRef, useState } from 'react'
 import { HumanReviewAction } from './human-review-action'
+import { LinkedAlertSummary } from './linked-alert-summary'
 import { RuleTreeView, comparisonCopy } from './rule-condition-editor'
 import type { HumanAlert, HumanNotification } from './rules-human-contract'
 
@@ -298,14 +299,9 @@ export function HumanReviewWorkspace({
                   <>
                     <p className="whitespace-pre-wrap">{item.text}</p>
                     <h3 className="font-semibold">Recommendation basis</h3>
-                    <p className="whitespace-pre-wrap">{item.basis}</p>
+                    <p className="whitespace-pre-wrap">{basisLabel(item.basis)}</p>
                     {principalHasAtomicPermission(profile, 'alerts.read') ? (
-                      <Link
-                        className="text-primary underline"
-                        href={`/alerts?alert=${item.alertId}`}
-                      >
-                        View linked alert
-                      </Link>
+                      <LinkedAlertSummary alertId={item.alertId} projectId={item.projectId} />
                     ) : null}
                   </>
                 )}

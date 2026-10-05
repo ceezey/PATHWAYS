@@ -273,3 +273,7 @@
 ## 2026-10-05 Rules scope memo migration 0063
 - `0063_rules_scope_memo` replaces `pathways_rules_internal.human_rules_scope` (still owned by `rules_eligibility_owner`, same EXECUTE ACL, asserted in the migration) with a plpgsql version that memoizes the per-project result in a transaction-local setting keyed by `app.user_id`; semantics are unchanged.
 - It wires like 0062: hosted and forward preprovision/cleanup pairs for a temporary `rules_eligibility_owner` SET chain, plan, build, local-reset, Verify-Forward inventory and `rules-scope-memo-runtime.sql` (12 assertions: parity, actor change, forged slot, non-runtime session, transaction-local).
+
+## 2026-10-06 Rule category and linked alert naming
+- The rule drawer shows the derived Rule Category as text instead of a disabled select, since the rule contract stores no category.
+- Recommendation details name the linked alert (title, severity, status, explanation and measured value) instead of a bare "View linked alert" link, and the raw `KPI` and `COMBINED` basis values read as indicator (KPI) results and project monitoring signals.
