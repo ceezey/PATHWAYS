@@ -233,8 +233,8 @@ export class ActivitiesController {
     // Streamed after final authorization and audit. A failed integrity check destroys the
     // connection, so the client never receives a complete unverified attachment.
     return new StreamableFile(released.body, {
-      type: 'application/octet-stream',
-      disposition: 'attachment; filename="activity-proof.bin"',
+      type: released.contentType,
+      disposition: `attachment; filename="${released.fileName}"`,
       length: released.byteSize,
     }).setErrorHandler((_error, destination) => {
       // The Express response is a destroyable socket-backed stream.

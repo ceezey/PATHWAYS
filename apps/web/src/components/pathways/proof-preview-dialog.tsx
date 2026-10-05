@@ -16,6 +16,9 @@ import type { CoreArtifact } from '@/lib/services/core-feature-client'
 
 import { AsyncState } from './async-state'
 
+const imageTypes = ['image/png', 'image/jpeg', 'image/webp']
+const videoTypes = ['video/mp4', 'video/quicktime', 'video/webm']
+
 type Loaded = { artifact: CoreArtifact; url: string }
 
 type ProofPreviewDialogProps = {
@@ -85,7 +88,7 @@ export const ProofPreviewDialog = ({
             status="loading"
             title="Loading preview"
           />
-        ) : mime.startsWith('image/') ? (
+        ) : imageTypes.includes(mime) ? (
           <div className="max-h-[60dvh] overflow-auto rounded-md border border-border bg-surface-subtle p-2">
             {/* Blob URLs are browser-local and cannot use the Next.js image optimizer. */}
             <img alt={title} className="mx-auto h-auto max-w-full" src={loaded.url} />
@@ -96,7 +99,7 @@ export const ProofPreviewDialog = ({
             src={loaded.url}
             title={title}
           />
-        ) : mime.startsWith('video/') ? (
+        ) : videoTypes.includes(mime) ? (
           // biome-ignore lint/a11y/useMediaCaption: proof recordings have no caption track
           <video className="max-h-[60dvh] w-full rounded-md" controls src={loaded.url} />
         ) : (

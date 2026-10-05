@@ -21,7 +21,8 @@ vi.mock('../auth/authorized-operation', () => ({
   ),
 }))
 // `read` is the verification pass; `release` is the streamed pass after final audit.
-vi.mock('../storage/private-inspection-reader', () => ({
+vi.mock('../storage/private-inspection-reader', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../storage/private-inspection-reader')>()),
   createPrivateObjectStreamer: () => ({ verify: state.read, release: state.release }),
 }))
 vi.mock('@pathways/config', () => ({
@@ -73,6 +74,7 @@ const proof = () => ({
   status: 'PENDING',
   submittedById: ids.submitterId,
   storageReady: true,
+  contentType: 'application/pdf',
   publicVisibilityStatus: 'PRIVATE',
   updatedAt,
   bucket: 'private',
@@ -314,6 +316,88 @@ describe('purpose-limited activity proof inspection', () => {
         },
       },
     })
+  })
+  const signatures: Array<[string, string, Buffer]> = [
+    ['application/pdf', 'pdf', Buffer.from('%PDF-1.7 synthetic')],
+    ['image/jpeg', 'jpg', Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0, 0])],
+    ['image/png', 'png', Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0])],
+    ['image/webp', 'webp', Buffer.from('RIFF    WEBPVP8 ', 'latin1')],
+    ['video/mp4', 'mp4', Buffer.concat([Buffer.from([0, 0, 0, 16]), Buffer.from('ftypisom    ')])],
+    [
+      'video/quicktime',
+      'mov',
+      Buffer.concat([Buffer.from([0, 0, 0, 16]), Buffer.from('ftypqt      ')]),
+    ],
+    [
+      'video/webm',
+      'webm',
+      Buffer.from([0x1a, 0x45, 0xdf, 0xa3, 0x42, 0x82, 0x84, 0x77, 0x65, 0x62, 0x6d]),
+    ],
+  ]
+  const releaseWith = (...chunks: Buffer[]) =>
+    state.release.mockImplementation(async () => Readable.from(chunks))
+  const drain = async (body: Readable) => {
+    const parts: Buffer[] = []
+    for await (const chunk of body) parts.push(chunk as Buffer)
+    return Buffer.concat(parts)
+  }
+  it.each(signatures)('returns recorded type %s with .%s extension', async (type, ext, bytes) => {
+    tx.evidenceMedia.findMany.mockImplementation(async () => [{ ...proof(), contentType: type }])
+    releaseWith(bytes.subarray(0, 4), bytes.subarray(4))
+    const result = await inspect()
+    expect(result.contentType).toBe(type)
+    expect(result.fileName).toBe(`activity-proof.${ext}`)
+    expect(await drain(result.body)).toEqual(bytes)
+  })
+  it.each([
+    ['signature mismatch', { contentType: 'image/png' }, Buffer.from('%PDF-1.7')],
+    ['unverified upload', { storageReady: false }, Buffer.from('%PDF-1.7')],
+    ['unlisted type', { contentType: 'text/html' }, Buffer.from('<html>')],
+  ])('falls back to octet-stream on %s', async (_name, change, bytes) => {
+    tx.evidenceMedia.findMany.mockImplementation(async () => [{ ...proof(), ...change }])
+    releaseWith(bytes)
+    if ('storageReady' in change) {
+      await expect(inspect()).rejects.toThrow()
+      return
+    }
+    const result = await inspect()
+    expect(result.contentType).toBe('application/octet-stream')
+    expect(result.fileName).toBe('activity-proof.bin')
+    expect(await drain(result.body)).toEqual(bytes)
+  })
+  it('keeps the released body complete across a multi-chunk peek and never exposes MIME in audit or context', async () => {
+    const bytes = Buffer.concat([Buffer.from('%PDF-1.7'), Buffer.alloc(9000, 1)])
+    releaseWith(bytes.subarray(0, 100), bytes.subarray(100, 5000), bytes.subarray(5000))
+    const result = await inspect()
+    expect(await drain(result.body)).toEqual(bytes)
+    expect(JSON.stringify(tx.auditLog.create.mock.calls)).not.toContain('pdf')
+    expect(JSON.stringify(await context())).not.toContain('contentType')
+  })
+  it('destroys the stream when integrity fails after the peek', async () => {
+    state.release.mockImplementation(async () =>
+      Readable.from(
+        (async function* () {
+          yield Buffer.from('%PDF-1.7')
+          yield Buffer.alloc(5000)
+          throw new Error('synthetic integrity failure')
+        })(),
+      ),
+    )
+    const result = await inspect()
+    await expect(drain(result.body)).rejects.toThrow('synthetic integrity failure')
+    expect(result.body.destroyed).toBe(true)
+  })
+  it('fails before any header decision when the first chunk errors', async () => {
+    state.release.mockImplementation(async () =>
+      Readable.from(
+        new Readable({
+          read() {
+            this.destroy(new Error('synthetic early failure'))
+          },
+        }),
+      ),
+    )
+    await expect(inspect()).rejects.toThrow('temporarily unavailable')
   })
   it.each([
     {},

@@ -1,3 +1,4 @@
+import { Readable } from 'node:stream'
 import {
   BadRequestException,
   ConflictException,
@@ -16,13 +17,63 @@ import { hasAtomicPermission } from '../auth/authorization-policy'
 import { projectScope } from '../auth/authorized-data.service'
 import { withAuthorizedOperation } from '../auth/authorized-operation'
 import { type ApplicationIdentity, UUID_PATTERN } from '../auth/developer-access'
-import { createPrivateObjectStreamer } from '../storage/private-inspection-reader'
-import { PROOF_STORAGE_DEADLINE_MS } from './activities.dto'
+import {
+  createPrivateObjectStreamer,
+  matchesEvidenceSignature,
+} from '../storage/private-inspection-reader'
+import { PROOF_STORAGE_DEADLINE_MS, activityEvidenceContentTypes } from './activities.dto'
 
 // cr-pathways-activity-progress-media 3.5: at most ten proofs per update, discovery bounded to
 // eleven, every activity-update evidence type, and the configured per-file byte bound.
 const MAX_PROOFS = 10
 const activityProofTypes = ['PROGRESS_PROOF', 'COMPLETION_PROOF', 'PHOTO', 'VIDEO', 'DOCUMENT']
+
+// Enough leading bytes for the longest signature check (4096 byte ISO box plus its brand).
+const PEEK_BYTES = 4096 + 16
+const proofExtensions: Record<string, string> = {
+  'application/pdf': 'pdf',
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+  'video/mp4': 'mp4',
+  'video/quicktime': 'mov',
+  'video/webm': 'webm',
+}
+
+// Reads only the first chunks of the released stream and re-emits them ahead of the rest.
+async function peekLeading(body: Readable) {
+  const source = body[Symbol.asyncIterator]()
+  const head: Buffer[] = []
+  let length = 0
+  let ended = false
+  try {
+    while (length < PEEK_BYTES) {
+      const next = await source.next()
+      if (next.done) {
+        ended = true
+        break
+      }
+      head.push(Buffer.from(next.value))
+      length += head[head.length - 1].length
+    }
+  } catch (error) {
+    body.destroy()
+    throw error
+  }
+  async function* rest() {
+    try {
+      yield* head
+      while (!ended) {
+        const next = await source.next()
+        if (next.done) return
+        yield next.value as Buffer
+      }
+    } finally {
+      body.destroy()
+    }
+  }
+  return { leading: Buffer.concat(head).subarray(0, PEEK_BYTES), stream: Readable.from(rest()) }
+}
 
 const unavailable = () => new NotFoundException('Activity proof unavailable.')
 const stale = () => new ConflictException('Activity proof changed. Reload before inspecting.')
@@ -67,6 +118,7 @@ const proofSelection = {
   status: true,
   submittedById: true,
   storageReady: true,
+  contentType: true,
   publicVisibilityStatus: true,
   updatedAt: true,
   bucket: true,
@@ -322,7 +374,19 @@ export class PrivateProofInspectionService {
     // Second pass, only after final authorization and audit: the counted, digest-checked
     // stream that is released. It withholds its final bytes unless the object still verifies.
     try {
-      return { body: await storage.release(object), byteSize: object.expectedBytes }
+      const peeked = await peekLeading(await storage.release(object))
+      // The recorded type is trusted only when listed, verified and signature-matched.
+      const contentType = initial.proof.contentType
+      const typed =
+        initial.proof.storageReady &&
+        (activityEvidenceContentTypes as readonly string[]).includes(contentType) &&
+        matchesEvidenceSignature(contentType, peeked.leading)
+      return {
+        body: peeked.stream,
+        byteSize: object.expectedBytes,
+        contentType: typed ? contentType : 'application/octet-stream',
+        fileName: `activity-proof.${typed ? proofExtensions[contentType] : 'bin'}`,
+      }
     } catch {
       throw new ServiceUnavailableException('Private inspection is temporarily unavailable.')
     }

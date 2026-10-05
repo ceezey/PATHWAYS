@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ProjectPhaseFiveWorkspace } from './project-review-workspace'
 
 const projectId = '72000000-0000-4000-8000-000000000004'
-const coreApi = vi.hoisted(() => ({ reports: vi.fn() }))
+const coreApi = vi.hoisted(() => ({ reports: vi.fn(), save: vi.fn() }))
 const api = vi.hoisted(() => ({
   getEvidence: vi.fn(),
   getProject: vi.fn(),
@@ -47,7 +47,10 @@ vi.mock('@/lib/services/pathways-client', () => ({
   PathwaysClientError: MockPathwaysClientError,
 }))
 vi.mock('@/lib/services/private-proof-client', () => ({ privateProofClient: proofClient }))
-vi.mock('@/lib/services/core-feature-client', () => ({ coreDataClient: coreApi }))
+vi.mock('@/lib/services/core-feature-client', () => ({
+  coreDataClient: coreApi,
+  saveCoreArtifact: coreApi.save,
+}))
 vi.mock('./budget-module/budget-module', () => ({
   BudgetModule: ({ projectId }: { projectId: string }) => <div>Finance for {projectId}</div>,
 }))
@@ -239,7 +242,7 @@ describe('shared project workspace optional loading', () => {
     )
     for (const name of ['Validate', 'Flag', 'Approve', 'Return for Revision'])
       expect(screen.queryByRole('button', { name })).toBeNull()
-    expect(screen.getByRole('button', { name: 'Download for review' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Preview for review' })).toBeTruthy()
   })
   it('renders evidence rows with icon, size, uploader, date, status and View', async () => {
     access.profile.permissions = reviewerPermissions
@@ -269,7 +272,8 @@ describe('shared project workspace optional loading', () => {
     expect(screen.getByText('Approved')).toBeTruthy()
     expect(screen.getByText('Returned')).toBeTruthy()
     expect(document.querySelectorAll('[data-testid="evidence-icon"] svg')).toHaveLength(3)
-    expect(screen.getAllByText('View')).toHaveLength(3)
+    expect(screen.getAllByText('View')).toHaveLength(2)
+    expect(screen.getAllByText('Preview')).toHaveLength(1)
     expect(screen.getByText('Audit metadata')).toBeTruthy()
     expect(screen.getByText('Evidence approved')).toBeTruthy()
     expect(screen.getByText(/Synthetic reviewer/)).toBeTruthy()
@@ -291,7 +295,7 @@ describe('shared project workspace optional loading', () => {
       api.getEvidence.mockResolvedValue({ scope: 'detail', records: [proof] })
       render(<ProjectPhaseFiveWorkspace projectId={projectId} view="evidence" />)
       expect(await screen.findByRole('button', { name: 'Not available yet' })).toBeTruthy()
-      expect(screen.queryByRole('button', { name: 'Download for review' })).toBeNull()
+      expect(screen.queryByRole('button', { name: 'Preview for review' })).toBeNull()
       expect(screen.queryByRole('link', { name: 'Review proof' })).toBeNull()
       expect(screen.queryByRole('button', { name: 'Approve' })).toBeNull()
     },
@@ -301,7 +305,7 @@ describe('shared project workspace optional loading', () => {
     api.getEvidence.mockResolvedValue({ scope: 'detail', records: [proof] })
     render(<ProjectPhaseFiveWorkspace projectId={projectId} view="evidence" />)
     expect(await screen.findByRole('button', { name: 'Not available yet' })).toBeTruthy()
-    expect(screen.queryByRole('button', { name: 'Download for review' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Preview for review' })).toBeNull()
     expect(screen.queryByRole('link', { name: 'Review proof' })).toBeNull()
   })
   it('fetches evidence with evidence.read alone but keeps download disabled without activities.read', async () => {
@@ -335,7 +339,7 @@ describe('shared project workspace optional loading', () => {
     expect(await screen.findByText('Activity evidence summary')).toBeTruthy()
     expect(screen.getByRole('rowheader', { name: 'Synthetic activity' })).toBeTruthy()
     expect(screen.queryByText('Activity evidence list')).toBeNull()
-    expect(screen.queryByRole('button', { name: 'Download for review' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Preview for review' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Not available yet' })).toBeNull()
     expect(screen.queryByRole('link', { name: 'Review proof' })).toBeNull()
     expect(screen.queryByText('Submitter')).toBeNull()
@@ -346,7 +350,7 @@ describe('shared project workspace optional loading', () => {
     render(<ProjectPhaseFiveWorkspace projectId={projectId} view="evidence" />)
     expect(await screen.findByRole('heading', { name: 'Evidence' })).toBeTruthy()
     expect(api.getEvidence).not.toHaveBeenCalled()
-    expect(screen.queryByRole('button', { name: 'Download for review' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Preview for review' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Not available yet' })).toBeNull()
     expect(screen.queryByRole('link', { name: 'Review proof' })).toBeNull()
   })
@@ -369,7 +373,7 @@ describe('shared project workspace optional loading', () => {
       })
       render(<ProjectPhaseFiveWorkspace projectId={projectId} view="evidence" />)
       expect(await screen.findByRole('button', { name: 'Not available yet' })).toBeTruthy()
-      expect(screen.queryByRole('button', { name: 'Download for review' })).toBeNull()
+      expect(screen.queryByRole('button', { name: 'Preview for review' })).toBeNull()
       expect(screen.queryByRole('link', { name: 'Review proof' })).toBeNull()
     },
   )
@@ -380,28 +384,28 @@ describe('shared project workspace optional loading', () => {
       api.getEvidence.mockResolvedValue({ scope: 'detail', records: [proof] })
     })
 
-    it('loads and downloads the file without rendering it inline, then revokes the object URL', async () => {
-      const blob = new Blob(['synthetic-bytes'], { type: 'application/octet-stream' })
+    it('fetches only after Preview, renders by type, downloads the same blob and revokes the URL', async () => {
+      const blob = new Blob(['synthetic-bytes'], { type: 'image/png' })
+      const file = { blob, fileName: 'activity-proof.png' }
       proofClient.context.mockResolvedValue(proofContext)
-      proofClient.inspect.mockResolvedValue(blob)
-      const createObjectURL = vi.fn().mockReturnValue('blob:synthetic')
-      const revokeObjectURL = vi.fn()
+      proofClient.inspect.mockResolvedValue(file)
       const originalCreate = URL.createObjectURL
       const originalRevoke = URL.revokeObjectURL
-      URL.createObjectURL = createObjectURL
-      URL.revokeObjectURL = revokeObjectURL
+      URL.createObjectURL = vi.fn().mockReturnValue('blob:synthetic')
+      URL.revokeObjectURL = vi.fn()
       try {
         render(<ProjectPhaseFiveWorkspace projectId={projectId} view="evidence" />)
-        const button = await screen.findByRole('button', { name: 'Download for review' })
+        const button = await screen.findByRole('button', { name: 'Preview for review' })
+        expect(proofClient.inspect).not.toHaveBeenCalled()
         fireEvent.click(button)
-        await waitFor(() => expect(proofClient.inspect).toHaveBeenCalled())
-        await waitFor(() => expect(createObjectURL).toHaveBeenCalledWith(blob))
-        await waitFor(() => expect(revokeObjectURL).toHaveBeenCalledWith('blob:synthetic'))
+        const image = await screen.findByRole('img', { name: 'Activity proof' })
+        expect(image.getAttribute('src')).toBe('blob:synthetic')
         expect(proofClient.context).toHaveBeenCalledWith(projectId, activityId, updateId)
-        // No inline rendering: no <img>/<iframe>/<embed> is created from the retrieved bytes.
-        expect(document.querySelector('img[src^="blob:"]')).toBeNull()
-        expect(document.querySelector('iframe[src^="blob:"]')).toBeNull()
-        expect(document.querySelector('embed[src^="blob:"]')).toBeNull()
+        fireEvent.click(screen.getByRole('button', { name: 'Download' }))
+        expect(coreApi.save).toHaveBeenCalledWith(file, expect.any(Function))
+        expect(proofClient.inspect).toHaveBeenCalledTimes(1)
+        fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' })
+        await waitFor(() => expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:synthetic'))
       } finally {
         URL.createObjectURL = originalCreate
         URL.revokeObjectURL = originalRevoke
@@ -429,7 +433,7 @@ describe('shared project workspace optional loading', () => {
       URL.createObjectURL = createObjectURL
       try {
         render(<ProjectPhaseFiveWorkspace projectId={projectId} view="evidence" />)
-        const button = await screen.findByRole('button', { name: 'Download for review' })
+        const button = await screen.findByRole('button', { name: 'Preview for review' })
         fireEvent.click(button)
         expect(await screen.findByText('Private inspection is not authorized.')).toBeTruthy()
         expect(createObjectURL).not.toHaveBeenCalled()

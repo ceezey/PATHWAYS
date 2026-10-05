@@ -4,9 +4,9 @@
 
 **Date:** 2026-09-27
 
-**Status:** Approved; local implementation and verification pending (amendment proposed 2026-10-06, see section 6)
+**Status:** Approved; local implementation and verification pending (amended 2026-10-06, see section 6)
 
-**Reading note:** if section 6 is approved, it supersedes the `application/octet-stream` response type and the "no inline preview" and "blob cache" bans in section 3 for the inspection route only. Everything else in sections 1 to 5 stays in force.
+**Reading note:** section 6 supersedes the `application/octet-stream` response type and the "no inline preview" and "blob cache" bans in section 3 for the inspection route only. Everything else in sections 1 to 5 stays in force.
 
 **Approval:** Developer reply on 2026-09-27: "Approve this local inspection and old-route withdrawal proposal"
 
@@ -53,9 +53,9 @@ The old generic download route returns uniform capability denial under current a
 
 Before implementation require exact proposed-code isolation/privacy/design review. Final acceptance requires all-role and individual-grant denial, assignment/account/org revocation, self-review and cross-scope denial, pending/revision/lineage/sibling checks, private-bucket/redirect/size/digest/deadline/disconnect cases, revocation or review during storage I/O, audit-failure withholding, safe headers, old URL/HEAD/range denial and accessibility checks. Use synthetic fixtures. No authenticated browser/storage runtime or engineering approval is claimed by this Change Record. Mark Applied only after required implementation, current-content reviews and verification pass.
 
-## 6. Proposed amendment 2026-10-06: in-modal preview for the inspecting reviewer
+## 6. Approved amendment 2026-10-06: in-modal preview for the inspecting reviewer
 
-**Status: Proposed, awaiting developer approval.** The developer asked on 2026-10-06 for proof downloads to show what the file looks like before it is saved, as budget receipts now do through `ProofPreviewDialog`.
+**Status: Approved by the developer on 2026-10-06 ("I approve"); implementation on branch feature/activity-proof-preview, verification pending.** The developer asked on 2026-10-06 for proof downloads to show what the file looks like before it is saved, as budget receipts now do through `ProofPreviewDialog`.
 
 **Decision.** The assigned M&E reviewer admitted by sections 2 and 3 may view the inspected proof inside a modal before choosing to save it. Admission, the bounded transfer, the final authorization transaction and the `EVIDENCE_PRIVATE_INSPECTION_AUTHORIZED` audit event are unchanged, and so is the set of people who can inspect. No new route, permission, grant, role, schema or migration is introduced.
 
@@ -73,7 +73,7 @@ The response keeps `Content-Disposition: attachment` with a generic name and the
 
 **Unchanged limits.** The 10 MiB size cap, the thirty-second request ceiling and the pending-only window still apply, and bytes already shown cannot be retracted, as section 4 already states for downloads. The upload list includes video, but proof files above 10 MiB stay unavailable for both preview and download.
 
-**Verification on approval.**
+**Verification.**
 - API tests: each allow-listed type returns its recorded type and extension; a signature mismatch, an unverified upload or an unlisted type returns `application/octet-stream`; nosniff and no-store headers are present; range and HEAD behaviour is unchanged; and a denied admission still reads no body.
 - Web tests: the inspection control opens the modal, renders by type, revokes the URL on close, and downloads with a single fetch.
 - Before merge: an isolation, privacy and design review of the exact code by organization-isolation-checker, beneficiary-privacy-guardian and design-qa-agent.

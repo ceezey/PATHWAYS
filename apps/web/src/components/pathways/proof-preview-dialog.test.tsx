@@ -27,6 +27,11 @@ describe('ProofPreviewDialog', () => {
     )
   })
 
+  it('renders an image for WebP', async () => {
+    setup(async () => artifact('image/webp'))
+    expect(await screen.findByRole('img', { name: 'Proof' })).toBeTruthy()
+  })
+
   it('renders an iframe for PDFs', async () => {
     setup(async () => artifact('application/pdf'))
     expect((await screen.findByTitle('Proof')).tagName).toBe('IFRAME')
@@ -36,6 +41,15 @@ describe('ProofPreviewDialog', () => {
     setup(async () => artifact('video/mp4'))
     await waitFor(() => expect(document.querySelector('video[controls]')).not.toBeNull())
   })
+
+  it.each(['image/svg+xml', 'image/gif', 'video/x-msvideo', 'text/html'])(
+    'never renders %s',
+    async (type) => {
+      setup(async () => artifact(type))
+      await screen.findByText('Preview not available for this file type.')
+      expect(document.querySelector('img, iframe, video')).toBeNull()
+    },
+  )
 
   it('shows the unavailable state but keeps Download for other types', async () => {
     const { save } = setup(async () => artifact('application/zip'))
