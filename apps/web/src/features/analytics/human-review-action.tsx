@@ -2,6 +2,13 @@
 
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import {
   type DecisionOutcome,
@@ -246,29 +253,31 @@ function OwnedAction({
           {mode === 'outcome' ? (
             <div className="space-y-2">
               <Label htmlFor={`outcome-${item.id}`}>Outcome</Label>
-              <select
-                className="h-10 w-full rounded-sm border border-input bg-background px-3"
-                id={`outcome-${item.id}`}
-                value={outcome}
+              <Select
                 disabled={busy || locked}
                 required
-                onChange={(event) => setOutcome(event.target.value as DecisionOutcome)}
+                value={outcome}
+                onValueChange={(value) => setOutcome(value as DecisionOutcome)}
               >
-                <option value="">Choose an outcome</option>
-                {decisionOutcomes.map((value) => (
-                  <option
-                    key={value}
-                    value={value}
-                    disabled={
-                      kind === 'recommendation' &&
-                      ['ACCEPT', 'PARTIALLY_ACCEPT'].includes(value) &&
-                      !canWriteAlert
-                    }
-                  >
-                    {value.replaceAll('_', ' ')}
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger aria-label="Outcome" id={`outcome-${item.id}`}>
+                  <SelectValue placeholder="Choose an outcome" />
+                </SelectTrigger>
+                <SelectContent>
+                  {decisionOutcomes.map((value) => (
+                    <SelectItem
+                      key={value}
+                      value={value}
+                      disabled={
+                        kind === 'recommendation' &&
+                        ['ACCEPT', 'PARTIALLY_ACCEPT'].includes(value) &&
+                        !canWriteAlert
+                      }
+                    >
+                      {value.replaceAll('_', ' ')}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           ) : null}
           <div className="space-y-2">

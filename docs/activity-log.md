@@ -249,3 +249,6 @@
 
 ## 2026-10-05 SADDD closed-period notice
 - SADDD withheld for an open or undated project now shows a neutral notice naming the end date and the reason (final counts of a closed period) instead of a red "SADDD analysis unavailable" error; real load failures keep the error state.
+
+## 2026-10-05 Outcome picker uses the DSD select
+- The alert and recommendation Outcome picker is the DSD `Select` (white trigger, Radix menu, "Choose an outcome" placeholder) in place of a native select; its test drives the repo's native Select mock.

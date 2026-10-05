@@ -16,6 +16,49 @@ const state = vi.hoisted(() => ({
   confirm: vi.fn(),
   committed: vi.fn(),
 }))
+// The DSD Select renders through a portal, so tests drive an equivalent native select.
+vi.mock('@/components/ui/select', async () => {
+  const React = await import('react')
+  type Part = {
+    children?: React.ReactNode
+    'aria-label'?: string
+    disabled?: boolean
+    placeholder?: string
+    value?: string
+  }
+  const SelectTrigger = ({ children }: Part) => <>{children}</>
+  const SelectValue = (_props: Part) => null
+  const SelectContent = ({ children }: Part) => <>{children}</>
+  const SelectItem = ({ children, disabled, value }: Part) => (
+    <option disabled={disabled} value={value}>
+      {children}
+    </option>
+  )
+  const Select = ({
+    children,
+    disabled,
+    value,
+    onValueChange,
+  }: Part & { onValueChange?: (value: string) => void }) => {
+    const parts = React.Children.toArray(children) as React.ReactElement<Part>[]
+    const trigger = parts.find((part) => part.type === SelectTrigger)
+    const content = parts.find((part) => part.type === SelectContent)
+    const placeholder = (trigger?.props.children as React.ReactElement<Part> | undefined)?.props
+      .placeholder
+    return (
+      <select
+        aria-label={trigger?.props['aria-label']}
+        disabled={disabled}
+        value={value}
+        onChange={(event) => onValueChange?.(event.target.value)}
+      >
+        <option value="">{placeholder}</option>
+        {content?.props.children}
+      </select>
+    )
+  }
+  return { Select, SelectContent, SelectItem, SelectTrigger, SelectValue }
+})
 vi.mock('@/hooks/use-current-role', () => ({
   useCurrentRole: () => ({
     profile: {
