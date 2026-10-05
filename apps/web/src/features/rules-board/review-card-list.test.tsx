@@ -36,7 +36,7 @@ const recommendation = {
 
 afterEach(cleanup)
 describe('ReviewCardList', () => {
-  it('renders alert cards with severity, basis line and outline Review', () => {
+  it('renders alert cards with severity and basis line as one clickable card', () => {
     const onSelect = vi.fn()
     render(
       <ReviewCardList
@@ -61,6 +61,13 @@ describe('ReviewCardList', () => {
       'warning-subtle',
     )
     expect(screen.queryByText('High')).toBeNull()
+    expect(screen.getAllByRole('button')).toHaveLength(1)
+  })
+  it('selects a recommendation by clicking anywhere on its card', () => {
+    const onSelect = vi.fn()
+    render(<ReviewCardList items={[recommendation]} selectedId={null} onSelect={onSelect} />)
+    fireEvent.click(screen.getByText('Based on the linked budget alert'))
+    expect(onSelect).toHaveBeenCalledWith(id(3))
   })
   it('labels statuses and never uses Accepted or Rejected', () => {
     const labels = ['NEW', 'REVIEWED', 'ACTIONED', 'RESOLVED', 'DISMISSED', 'AUTO_RESOLVED'].map(

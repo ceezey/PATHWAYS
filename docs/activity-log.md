@@ -236,3 +236,6 @@
 ## 2026-10-05 Dashboard project metrics use the cached summary read
 - Manager dashboards fetched every project's overview metrics in a raw effect with no cache, so each remount refired up to 20 requests; they now use `useProjectOverviewMetricsRead` (30 s summary cache, identity scoped) through `useProjectMetrics`.
 - Alert and recommendation 503s trace to per-row RLS scope checks (`human_rules_scope` via `eligibility_metadata_scope`, about 14,000 `p06_can` calls per alert list); a per-transaction memo cut a local alert list from 25.6 s to 0.63 s in a rolled-back trial, pending a migration decision.
+
+## 2026-10-05 Clickable alert and recommendation cards
+- Per product owner request, the Review plan and Review buttons are gone; each card in the Alerts and Recommendations queues is now one button that opens its record details.
