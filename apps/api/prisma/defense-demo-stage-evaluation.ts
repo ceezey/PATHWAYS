@@ -2,30 +2,61 @@ import { addDaysIso } from './local-demo-data'
 import type { DemoContext } from './local-demo-seed'
 import { projectOf, step } from './local-demo-util'
 
+/** OECD-DAC criteria; PATHWAYS supplies the evidence and the evaluator supplies the score. */
 const criteria = [
   {
-    code: 'REACH',
-    name: 'Families reached against target',
-    description: 'Share of the family target that received a hygiene and learning kit.',
+    code: 'RELEVANCE',
+    name: 'Relevance',
+    description:
+      'Kits matched the needs recorded in beneficiary profiles; evaluator judgment on fit to the post-disaster context.',
+    type: 'OTHER',
+    weightPercentage: 15,
+    score: 92,
+  },
+  {
+    code: 'COHERENCE',
+    name: 'Coherence',
+    description:
+      'Distribution aligned with partner and school activities on the project timeline; evaluator judgment.',
+    type: 'OTHER',
+    weightPercentage: 10,
+    score: 85,
+  },
+  {
+    code: 'EFFECTIVENESS',
+    name: 'Effectiveness',
+    description:
+      'Families reached against the EHK-FAMILIES target from indicator readings; evaluator judgment on results.',
     type: 'BENEFICIARY_REACH',
-    weightPercentage: 40,
-    score: 94,
+    weightPercentage: 25,
+    score: 99,
   },
   {
-    code: 'TIMELINE',
-    name: 'Timeline compliance',
-    description: 'Activities completed on or before their planned end dates.',
-    type: 'TIMELINE_COMPLIANCE',
-    weightPercentage: 30,
-    score: 88,
-  },
-  {
-    code: 'BUDGET',
-    name: 'Budget utilization',
-    description: 'Approved expenses against the planned budget.',
+    code: 'EFFICIENCY',
+    name: 'Efficiency',
+    description:
+      'Approved expenses against the planned budget and activities completed on schedule; evaluator judgment.',
     type: 'BUDGET_EFFICIENCY',
-    weightPercentage: 30,
-    score: 91,
+    weightPercentage: 20,
+    score: 90,
+  },
+  {
+    code: 'IMPACT',
+    name: 'Impact',
+    description:
+      'Participation and SADDD results after project end; evaluator judgment on wider effects for families.',
+    type: 'OTHER',
+    weightPercentage: 15,
+    score: 80,
+  },
+  {
+    code: 'SUSTAINABILITY',
+    name: 'Sustainability',
+    description:
+      'Hand-over of hygiene practice to schools after close; evaluator judgment, not measured by the system.',
+    type: 'OTHER',
+    weightPercentage: 15,
+    score: 70,
   },
 ] as const
 
@@ -77,12 +108,12 @@ export async function stageProjectEvaluation(ctx: DemoContext) {
   const evaluation = await ctx.owner.projectEvaluation.create({
     data: {
       ...scope,
-      title: 'Final results evaluation',
+      title: 'Final evaluation (OECD-DAC criteria)',
       periodLabel: 'Full project period',
       periodStart: project.startDate as Date,
       periodEnd: project.endDate as Date,
       commentary:
-        'Kits reached nearly every targeted family on schedule, and spending closed slightly under the planned budget.',
+        'Strong relevance, effectiveness and efficiency: kits reached nearly every targeted family on schedule and spending closed under budget. Sustainability rests on school hand-over and needs follow-up.',
       evaluatedById: ctx.staff.me.userId,
     },
   })
