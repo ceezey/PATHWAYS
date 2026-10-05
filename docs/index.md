@@ -104,6 +104,8 @@ Workflow rule: an audit is finding and evidence, a Change Record is the approved
 | [Designed PDF reports design](superpowers/specs/2026-10-05-f12-puppeteer-pdf-design.md) | 2026-10-05-f12-puppeteer-pdf-design.md | 2026-10-05 | Puppeteer-rendered designed PDF reports from a print route with the pdfkit fallback | Executed on feature branch; hosted verification pending |
 | [Designed PDF reports plan](superpowers/plans/2026-10-05-f12-puppeteer-pdf.md) | 2026-10-05-f12-puppeteer-pdf.md | 2026-10-05 | Renderer module, generate wiring, print route, docs and local check | Executed on feature branch; hosted verification pending |
 | [Plan 2 cloud handoff](handoff-extensions-and-escalations.md) | handoff-extensions-and-escalations.md | 2026-10-04 | Paused state of Plan 2 Task 1 handed to the cloud session, with the SDD ledger rulings | Closed; resumed and completed |
+| [Defense seed snapshot design](superpowers/specs/2026-10-06-defense-seed-snapshot-design.md) | 2026-10-06-defense-seed-snapshot-design.md | 2026-10-06 | Local service seed with mirrored devV2 identities, restored onto devV2 in one transaction with triggers skipped and dates shifted | Approved |
+| [Defense seed snapshot plan](superpowers/plans/2026-10-06-defense-seed-snapshot.md) | 2026-10-06-defense-seed-snapshot.md | 2026-10-06 | Parsers, SQL builders, storage copy, CLI, local rehearsal and docs for the snapshot restore | Executed on feature branch; hosted restore pending |
 
 ### 1.7 Traceability Matrix
 
@@ -145,6 +147,7 @@ Newest first. Core P1 supporting contract reconciliation is approved for local i
 
 | CR ID | Date | Summary | Status |
 |---|---|---|---|
+| [cr-pathways-defense-seed-snapshot](cr-pathways-defense-seed-snapshot.md) | 2026-10-06 | Defense demo snapshot restore: local service seed with mirrored devV2 identities, data-only dump of the wipe tables, one-transaction restore on devV2 with triggers skipped (replica role), staged day shift and storage upsert; no migration | Approved; local rehearsal passed, hosted restore pending |
 | [cr-pathways-report-pdf-renderer](cr-pathways-report-pdf-renderer.md) | 2026-10-05 | PRD-F12 UC-F12-1: PDF reports rendered by headless Chromium from `/print/reports/[id]` with an injected snapshot, pdfkit fallback, env keys `WEB_PROTECTION_BYPASS` and `PDF_CHROME_PATH`, no migration | Applied locally; hosted verification pending |
 | [cr-pathways-f8-f9-f12-gate-closure](cr-pathways-f8-f9-f12-gate-closure.md) | 2026-10-04 | Closes G-F9-9, G-F9-10 and G-F12-4: analytics insights API (participation, indicator trends, approved-only budget), closed-period survey release for aggregate-only roles (migration 0057), monitoring and evaluation report kinds with bare `text/csv`, export button, Participation option and browser-stored Add to Dashboard pins | Applied; 0057 applied on PATHWAYS-devV2 |
 | [cr-pathways-rbac-v4-grant-migration](cr-pathways-rbac-v4-grant-migration.md) | 2026-10-02 | Migration 0055 applies RBAC v4 cells V4-C01, C02, C06, C07, C09, C10 (312 role grants); Project Officer keeps `beneficiaries.aggregates.read` re-sourced to v4 rows 112-117; Encode Project Data retired with `submissions.write` kept for four survey and monitoring form types | Applied; role-staging verified 2026-10-02 |

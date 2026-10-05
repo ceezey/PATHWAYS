@@ -96,7 +96,7 @@ const ALLOWED_DIRECT_PG_HOST = `db.${ALLOWED_PROJECT_REF}.supabase.co`
  * `*.pooler.supabase.com` host (username must then be exactly
  * `<role>.<ref>`). Anything else, including any loopback host, is rejected.
  */
-function assertHostedPgUrl(url, label, expectedRole) {
+export function assertHostedPgUrl(url, label, expectedRole) {
   const host = (url.hostname || '').toLowerCase()
   const username = safeUsername(url)
   if (host === ALLOWED_DIRECT_PG_HOST) {

@@ -294,3 +294,11 @@
 - API: the inspection response carries the recorded type and matching extension only for an allow-listed, storage-ready type whose first streamed bytes pass `matchesEvidenceSignature`; otherwise `application/octet-stream` and `activity-proof.bin`. The service retains whole chunks of the released stream until at least 4112 bytes arrive (often one chunk) and re-emits them, and destroys the inner body if the returned stream is destroyed before its first read, so bounded counting, final digest withholding and destroy-on-error are unchanged.
 - Web: both inspection call sites (`PrivateProofInspection`, `EvidenceDownloadControl`) now open `ProofPreviewDialog` on Preview and Download reuses the same Blob; the dialog renders only png, jpeg, webp, pdf, mp4, quicktime and webm.
 
+## 2026-10-06 Defense seed snapshot
+- `scripts/db/defense-snapshot.mjs` (mirror, dump, restore, storage) restores a locally seeded defense workspace onto devV2 in one transaction: wipe up to its revoke, migration and identity checks, `session_replication_role = replica`, staged load with the day shift, row-count check, commit, then a storage upsert (cr-pathways-defense-seed-snapshot).
+- Restore runs as `postgres` (`HOSTED_ADMIN_URL`, session pooler) because `prisma` cannot set `session_replication_role`; RLS is bypassed by BYPASSRLS plus the wipe's temporary owner memberships, never disabled. The hosted password travels only as `PGPASSWORD`.
+- Local rehearsal passed: 77 tables (8323 rows), exact +3-day shift, tampered identities rolled back, delta-0 restore and `--verify` clean; storage copy is hosted-only. Hosted restore pending (developer).
+
+## 2026-10-06 Defense seed snapshot final fixes
+- The restore now copies storage before any hosted database connection, prints a summary and refuses a date shift or warning without `--allow-shift`, adds `--dry-run` (ROLLBACK, no storage), explains psql exit codes 3 and 2, and `mirror` fails fast on a local versus devV2 migration mismatch.
+- Pooler URLs must use port 5432, storage copy logs progress every 10 objects, and the runbook adds the `RULES_DISPATCH_ENABLED=true` step after `--verify`.
