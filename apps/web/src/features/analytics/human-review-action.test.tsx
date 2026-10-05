@@ -4,6 +4,8 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { HumanReviewAction } from './human-review-action'
 import type { HumanAlert, HumanRecommendation } from './rules-human-contract'
+const toastSuccess = vi.hoisted(() => vi.fn())
+vi.mock('sonner', () => ({ toast: { success: toastSuccess } }))
 const state = vi.hoisted(() => ({
   permissions: [
     'recommendations.review',
@@ -181,6 +183,7 @@ describe('owned human decision flow', () => {
     expect(state.confirm).not.toHaveBeenCalled()
     fireEvent.click(screen.getByRole('button', { name: 'Record Outcome' }))
     await waitFor(() => expect(state.committed).toHaveBeenCalledOnce())
+    expect(toastSuccess).toHaveBeenCalledWith('Outcome recorded: decline. 2 recipients notified.')
     expect(state.preview.mock.calls[0][1]).toMatchObject({
       expectedRevision: '7',
       note: 'Private explanation',

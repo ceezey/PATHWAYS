@@ -360,7 +360,10 @@ export function HumanReviewWorkspace({
                     item={item}
                     mode={mode}
                     linkedAlert={linked.data}
-                    onCommitted={refresh}
+                    onCommitted={() => {
+                      setMode(null)
+                      refresh()
+                    }}
                     onCancel={() => setMode(null)}
                   />
                 ) : null}

@@ -24,6 +24,7 @@ import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
 import { PathwaysClientError } from '@/lib/services/pathways-client'
 import { rulesHumanClient } from '@/lib/services/rules-human-client'
 import { useEffect, useRef, useState } from 'react'
+import { toast } from 'sonner'
 
 type Props = {
   kind: 'alert' | 'recommendation'
@@ -33,6 +34,13 @@ type Props = {
   onCommitted: () => void
   onCancel: () => void
 }
+const doneCopy = {
+  review: 'Marked reviewed.',
+  resolve: 'Alert resolved.',
+  dismiss: 'Alert dismissed.',
+  outcome: 'Outcome recorded.',
+} as const
+
 export function HumanReviewAction(props: Props) {
   const { profile, access } = useCurrentRole()
   const permission =
@@ -162,7 +170,7 @@ function OwnedAction({
       if (currentWriteSet()) {
         captured.current = null
         setNote('')
-        setNotice('Recorded.')
+        toast.success(doneCopy[mode])
         onCommitted()
       }
     } catch (error) {
@@ -208,6 +216,10 @@ function OwnedAction({
       captured.current = null
       setNote('')
       setPreview(null)
+      // The recorder is never a recipient, so the toast is their confirmation.
+      toast.success(
+        `Outcome recorded: ${result.outcome.replaceAll('_', ' ').toLowerCase()}. ${preview.recipientCount} recipient${preview.recipientCount === 1 ? '' : 's'} notified.`,
+      )
       onCommitted()
     } catch (error) {
       if (isCurrent())

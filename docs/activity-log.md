@@ -266,3 +266,6 @@
 
 ## 2026-10-05 Outcome form actions
 - Close now sits right aligned beside the primary action in both the outcome form and the confirm step; "Confirm and record outcome" is renamed "Record Outcome".
+
+## 2026-10-05 Outcome recorded feedback
+- A confirmed outcome registered (201, decision row, 6 notifications) but the form silently reopened, and the recorder is never a notification recipient; now a toast confirms "Outcome recorded: <outcome>. N recipients notified." (or the reviewed, resolved or dismissed action) and the form closes.
