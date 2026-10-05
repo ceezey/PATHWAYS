@@ -6,6 +6,7 @@ import {
   conditionSummary,
   filterRules,
   flattenRecommendations,
+  formatMetricValue,
   isMetricAvailable,
   previewSentence,
   severityTone,
@@ -96,5 +97,16 @@ describe('rule board model', () => {
     expect(severityTone('CRITICAL')).toBe('danger')
     expect(severityTone('MEDIUM')).toBe('warning')
     expect(severityTone('LOW')).toBe('neutral')
+  })
+})
+
+describe('formatMetricValue', () => {
+  it('drops COUNT, rounds PERCENT to two decimals and shortens POINTS', () => {
+    expect(formatMetricValue('2', 'COUNT')).toBe('2')
+    expect(formatMetricValue('108.1081', 'PERCENT')).toBe('108.11%')
+    expect(formatMetricValue('92', 'PERCENT')).toBe('92%')
+    expect(formatMetricValue('55', '%')).toBe('55%')
+    expect(formatMetricValue('11.625', 'POINTS')).toBe('11.625 pts')
+    expect(formatMetricValue('30', 'DAYS')).toBe('30 DAYS')
   })
 })

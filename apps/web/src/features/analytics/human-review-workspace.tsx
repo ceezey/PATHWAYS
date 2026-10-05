@@ -12,6 +12,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { ReviewCardList, statusLabel } from '@/features/rules-board/review-card-list'
+import { formatMetricValue } from '@/features/rules-board/rule-board-model'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'
 import { useSensitiveDraftOwner } from '@/lib/auth/sensitive-drafts'
@@ -545,12 +546,15 @@ function EvidenceTable({ evidence }: { evidence: HumanAlert['evidence'] }) {
               </th>
               <td className="p-2">
                 {evidence.cell.value !== null
-                  ? `${evidence.cell.value} ${evidence.unit}`
+                  ? formatMetricValue(evidence.cell.value, evidence.unit)
                   : `${copy(evidence.cell.state)}${evidence.cell.reason ? ` (${copy(evidence.cell.reason)})` : ''}`}
               </td>
               <td className="p-2">
-                {comparisonCopy[evidence.operator]} {evidence.threshold}
-                {evidence.thresholdMaximum !== null ? ` to ${evidence.thresholdMaximum}` : ''}
+                {comparisonCopy[evidence.operator]}{' '}
+                {formatMetricValue(evidence.threshold, evidence.unit)}
+                {evidence.thresholdMaximum !== null
+                  ? ` to ${formatMetricValue(evidence.thresholdMaximum, evidence.unit)}`
+                  : ''}
               </td>
               <td className="p-2">{copy(evidence.result)}</td>
             </tr>

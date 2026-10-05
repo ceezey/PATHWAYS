@@ -260,3 +260,6 @@
 - F12 designed PDF: Puppeteer renderer module, print route and pdfkit fallback under cr-pathways-report-pdf-renderer; hosted Chromium verification pending.
 - Ready fix: the print page now flags ready from the chart `onChartReady` trigger, and the empty state reports `data-report-ready="empty"` so the renderer falls back instead of storing a blank PDF.
 - Final fix wave: 40 s render deadline, protocol timeout, shared browser discarded on failure, stage-tagged single fallback warning, one-group chart without Total rows.
+
+## 2026-10-05 Alert metric units for display
+- Alert cards and evidence tables show COUNT without a unit, PERCENT rounded to two decimals with `%`, and POINTS as `pts` through `formatMetricValue`; rule and indicator setup keep their unit selections.

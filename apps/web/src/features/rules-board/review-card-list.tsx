@@ -2,7 +2,7 @@ import { StatusBadge } from '@/components/pathways'
 import type { HumanAlert, HumanRecommendation } from '@/features/analytics/rules-human-contract'
 import { cn } from '@/lib/utils'
 import { Lightbulb, TriangleAlert } from 'lucide-react'
-import { metricLabel, severityTone, titleCase } from './rule-board-model'
+import { formatMetricValue, metricLabel, severityTone, titleCase } from './rule-board-model'
 
 const STATUS_LABELS: Record<string, string> = {
   NEW: 'New',
@@ -20,11 +20,10 @@ const statusTone = (status: string) =>
     : status === 'ACTIONED'
       ? ('success' as const)
       : ('neutral' as const)
-const withUnit = (value: string, unit: string) => `${value}${unit === '%' ? '%' : ` ${unit}`}`
 const basisLine = (alert: HumanAlert) => {
   const seen = alert.evidence.find((item) => item.cell.value !== null)
   return seen?.cell.value
-    ? `Current ${metricLabel(seen.metric).toLowerCase()} ${withUnit(seen.cell.value, seen.unit)} vs threshold ${withUnit(seen.threshold, seen.unit)}`
+    ? `Current ${metricLabel(seen.metric).toLowerCase()} ${formatMetricValue(seen.cell.value, seen.unit)} vs threshold ${formatMetricValue(seen.threshold, seen.unit)}`
     : null
 }
 

@@ -107,6 +107,17 @@ const suffix = (key: string) => {
   const unit = unitOf(key)
   return unit === '%' ? '%' : unit === 'days' || unit === 'points' ? ` ${unit}` : ''
 }
+/** Display only: COUNT drops its unit, PERCENT rounds to 2 decimals with %, POINTS reads pts. */
+export const formatMetricValue = (value: string, unit: string) => {
+  const kind = unit.toUpperCase()
+  if (kind === 'COUNT') return value
+  if (kind === 'PERCENT' || kind === '%') {
+    const n = Number(value)
+    return `${Number.isFinite(n) ? Number(n.toFixed(2)) : value}%`
+  }
+  if (kind === 'POINTS') return `${value} pts`
+  return `${value} ${unit}`
+}
 export const unitLabel = (key: string) => (unitOf(key) === 'value' ? 'Value' : unitOf(key))
 export const firstMetric = (node: RuleNode): string =>
   node.kind === 'CONDITION' ? node.metric : firstMetric(node.children[0] as RuleNode)
