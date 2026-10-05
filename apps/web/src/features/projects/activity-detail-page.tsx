@@ -3,19 +3,19 @@
 import { ProjectActivitiesWorkspace } from './project-activities-workspace'
 
 export const ActivityDetailPage = ({
+  action,
   activityId,
-  openUpdate,
   proofId,
   projectId,
 }: {
+  action?: string
   activityId: string
-  openUpdate?: boolean
   proofId?: string
   projectId: string
 }) => (
   <ProjectActivitiesWorkspace
     initialActivityId={activityId}
-    initialOpenUpdate={openUpdate}
+    initialAction={action}
     initialProofId={proofId}
     projectId={projectId}
   />

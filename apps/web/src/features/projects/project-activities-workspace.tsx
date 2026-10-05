@@ -183,13 +183,13 @@ const ActivityStatusSummary = ({
 )
 
 export const ProjectActivitiesWorkspace = ({
+  initialAction,
   initialActivityId,
-  initialOpenUpdate,
   initialProofId,
   projectId,
 }: {
+  initialAction?: string
   initialActivityId?: string
-  initialOpenUpdate?: boolean
   initialProofId?: string
   projectId: string
 }) => {
@@ -455,11 +455,11 @@ export const ProjectActivitiesWorkspace = ({
   const updateOpened = useRef(false)
   // biome-ignore lint/correctness/useExhaustiveDependencies: runs once per loaded activity.
   useEffect(() => {
-    if (!initialOpenUpdate || updateOpened.current || !selectedActivity) return
+    if (initialAction !== 'update' || updateOpened.current || !selectedActivity) return
     if (selectedActivity.id !== initialActivityId) return
     updateOpened.current = true
     openProof(selectedActivity)
-  }, [initialOpenUpdate, initialActivityId, selectedActivity])
+  }, [initialAction, initialActivityId, selectedActivity])
 
   if (loading) {
     return (
@@ -692,6 +692,7 @@ export const ProjectActivitiesWorkspace = ({
         onSubmitProof={openProof}
         open={Boolean(selectedActivityId) && !detail.isError}
         pendingExpenses={pendingExpenses}
+        focusExtension={initialAction === 'extension'}
         requestedProofId={initialProofId}
       />
       <ActivityEditorLoadingDialog

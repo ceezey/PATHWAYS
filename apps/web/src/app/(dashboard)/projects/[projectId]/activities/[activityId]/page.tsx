@@ -15,7 +15,7 @@ async function ProjectActivityDetailPage({
   return (
     <ActivityDetailPage
       activityId={activityId}
-      openUpdate={action === 'update'}
+      action={action}
       proofId={review ?? proof}
       projectId={projectId}
     />

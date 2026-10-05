@@ -76,6 +76,7 @@ export const ActivityDetailContent = ({
   budgetReferences = [],
   canDecideProof,
   canDecideExtension = false,
+  focusExtension = false,
   canEdit,
   canLogExpense,
   canReadBudgets = false,
@@ -98,6 +99,7 @@ export const ActivityDetailContent = ({
   budgetReferences?: ExpenseBudgetReference[]
   canDecideProof: boolean
   canDecideExtension?: boolean
+  focusExtension?: boolean
   canEdit: boolean
   canLogExpense: boolean
   canReadBudgets?: boolean
@@ -571,6 +573,7 @@ export const ActivityDetailContent = ({
         activity={activity}
         canDecide={canDecideExtension}
         canVerify={canValidateProof}
+        focus={focusExtension}
         onDecided={() => {
           void pathwaysClient
             .getActivity(activity.projectId, activity.id)
@@ -636,6 +639,7 @@ export const ActivityDetailPanel = ({
   budgetReferences = [],
   canDecideProof,
   canDecideExtension = false,
+  focusExtension = false,
   canEdit,
   canLogExpense,
   canReadBudgets = false,
@@ -661,6 +665,7 @@ export const ActivityDetailPanel = ({
   budgetReferences?: ExpenseBudgetReference[]
   canDecideProof: boolean
   canDecideExtension?: boolean
+  focusExtension?: boolean
   canEdit: boolean
   canLogExpense: boolean
   canReadBudgets?: boolean
@@ -717,6 +722,7 @@ export const ActivityDetailPanel = ({
             budgetReferences={budgetReferences}
             canDecideProof={canDecideProof}
             canDecideExtension={canDecideExtension}
+            focusExtension={focusExtension}
             canEdit={canEdit}
             canLogExpense={canLogExpense}
             canReadBudgets={canReadBudgets}
