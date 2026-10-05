@@ -236,6 +236,7 @@ describe.skipIf(!enabled)('evaluation write path on disposable PostgreSQL', () =
           tx.$executeRaw`UPDATE pathways.project_evaluations SET status = 'SUBMITTED', evaluated_at = now() WHERE id = ${evaluationId}::uuid`,
       ),
     )
+    expect(message).toContain('42501')
     expect(message).toContain('row-level security')
     const row = await current()
     expect(row.status).toBe('DRAFT')
@@ -248,6 +249,25 @@ describe.skipIf(!enabled)('evaluation write path on disposable PostgreSQL', () =
       expectedUpdatedAt: before.updatedAt,
     })
     expect(submitted.status).toBe('SUBMITTED')
+    // The evaluator cannot review or sign off their own evaluation, by service or by raw SQL.
+    await expect(
+      service.signoff(identity(2), projectId, evaluationId, {
+        expectedUpdatedAt: submitted.updatedAt,
+        feedback: 'Self sign-off.',
+      }),
+    ).rejects.toBeInstanceOf(ForbiddenException)
+    await failure(
+      asUser(
+        2,
+        (tx) =>
+          tx.$executeRaw`UPDATE pathways.project_evaluations SET status = 'REVIEWED', reviewed_by_id = ${id(102)}::uuid, reviewed_at = now(), review_feedback = 'Self review' WHERE id = ${evaluationId}::uuid`,
+      ),
+    )
+    const unchanged = await current()
+    expect(unchanged.status).toBe('SUBMITTED')
+    expect(unchanged.reviewedBy).toBeNull()
+    expect(unchanged.signedOffBy).toBeNull()
+    expect(unchanged.updatedAt).toBe(submitted.updatedAt)
     const signed = await service.signoff(identity(3), projectId, evaluationId, {
       expectedUpdatedAt: submitted.updatedAt,
       feedback: 'Reviewed and accepted.',
@@ -293,5 +313,44 @@ describe.skipIf(!enabled)('evaluation write path on disposable PostgreSQL', () =
       expect(result.status).toBe('rejected')
       expect((result as PromiseRejectedResult).reason).toBeInstanceOf(ForbiddenException)
     }
+    const after = await service.get(identity(5), projectId)
+    expect(after.evaluations).toHaveLength(1)
+    expect(after.evaluations[0]?.status).toBe('SIGNED_OFF')
+    expect(after.evaluations[0]?.scores).toHaveLength(2)
+    expect(after.evaluations[0]?.reviewedBy?.id).toBe(id(103))
+    expect(after.evaluations[0]?.signedOffBy?.id).toBe(id(103))
+    expect(after.evaluations[0]?.updatedAt).toBe(stamp)
+  })
+
+  it('lets a second M&E officer submit once it has taken over evaluated_by_id', async () => {
+    const { criteria } = await service.get(identity(2), projectId)
+    const started = await service.createEvaluation(identity(2), projectId, {
+      clientRequestId: id(905),
+      title: 'Final evaluation',
+      periodStart: '2026-07-01',
+      periodEnd: '2026-12-31',
+    })
+    const scored = await service.saveScores(identity(2), projectId, started.id, {
+      expectedUpdatedAt: started.updatedAt,
+      scores: criteria.map((row) => ({
+        criterionId: row.id,
+        manualScore: 70,
+        note: 'Judged against the work plan.',
+      })),
+    })
+    await asUser(
+      4,
+      (tx) =>
+        tx.$executeRaw`UPDATE pathways.project_evaluations SET evaluated_by_id = ${id(104)}::uuid WHERE id = ${started.id}::uuid`,
+    )
+    const taken = await current()
+    expect(taken.status).toBe('DRAFT')
+    expect(taken.evaluatedBy?.id).toBe(id(104))
+    const submitted = await service.submit(identity(4), projectId, started.id, {
+      expectedUpdatedAt: taken.updatedAt,
+    })
+    expect(scored.status).toBe('DRAFT')
+    expect(submitted.status).toBe('SUBMITTED')
+    expect(submitted.evaluatedBy?.id).toBe(id(104))
   })
 })
