@@ -1,9 +1,11 @@
 // Pure SQL builders for the defense snapshot: identity mirror, dump queries and the one-transaction restore.
-import { splitWipe } from './defense-snapshot-parse.mjs'
+import { assertSameTables, parseWipeTables, splitWipe } from './defense-snapshot-parse.mjs'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const TABLE_NAME = /^[a-z_][a-z0-9_]*\.[a-z_][a-z0-9_]*$/
 const MIGRATION = /^\d{4}_[a-z0-9_]+$/
+const COLUMN = /^("(?:[^"]|"")+"|[a-z_][a-z0-9_]*)$/
+const ON_ERROR = String.raw`\set ON_ERROR_STOP on`
 const TAG = '$snapshot_json$'
 
 export const quoteIdent = (name) => `"${String(name).replaceAll('"', '""')}"`
@@ -31,7 +33,9 @@ export const mirrorReadSql = () => `SELECT jsonb_build_object(
 export function mirrorWriteSql({ organization, users }) {
   const org = dollarQuote(JSON.stringify(organization))
   const list = dollarQuote(JSON.stringify(users))
-  return `BEGIN;
+  return `${ON_ERROR}
+DO $local$ BEGIN IF inet_server_addr() IS NOT NULL THEN RAISE EXCEPTION 'Mirror write runs only on the local database'; END IF; END $local$;
+BEGIN;
 DELETE FROM pathways.user_step_up_pins;
 DELETE FROM pathways.system_users;
 DELETE FROM pathways.organizations;
@@ -136,6 +140,9 @@ export function stagedLoadSql(blocks, dateColumns, delta) {
   return blocks
     .map((block, index) => {
       const target = `${block.schema}.${block.table}`
+      for (const column of block.columns.split(',')) {
+        if (!COLUMN.test(column.trim())) throw new Error(`Invalid column list for ${target}.`)
+      }
       const stage = `pg_temp.snapshot_${index}`
       const shift = shiftSql(stage, dateColumns[target] ?? [], delta)
       return [
@@ -173,8 +180,10 @@ END $counts$;`
 
 /** The whole restore: wipe head, checks, replica-role staged load, counts, wipe revoke and COMMIT. */
 export function buildRestoreSql({ wipeSql, migration, users, blocks, dateColumns, tables, delta }) {
+  assertSameTables(parseWipeTables(wipeSql), blocks)
   const { head, tail } = splitWipe(wipeSql)
   return [
+    ON_ERROR,
     "SET client_encoding = 'UTF8';",
     head,
     'SET LOCAL statement_timeout = 0;',

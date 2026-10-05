@@ -16,6 +16,8 @@ import {
   storageObjectsSql,
 } from './defense-snapshot-sql.mjs'
 
+const STOP = String.raw`\set ON_ERROR_STOP on
+`
 const ORG = '11111111-1111-4111-8111-111111111111'
 const U1 = '22222222-2222-4222-8222-222222222222'
 const A1 = '33333333-3333-4333-8333-333333333333'
@@ -70,7 +72,9 @@ test('mirrorReadSql drops contact number, last sign-in and role id', () => {
 test('mirrorWriteSql deletes children first and inserts parents first', () => {
   const sql = mirrorWriteSql({ organization: { id: ORG }, users })
   const at = (text) => sql.indexOf(text)
-  assert.match(sql, /^BEGIN;/)
+  assert.ok(sql.startsWith(STOP))
+  assert.match(sql, /inet_server_addr\(\) IS NOT NULL THEN RAISE/)
+  assert.match(sql, /\nBEGIN;\n/)
   assert.ok(at('DELETE FROM pathways.user_step_up_pins') < at('DELETE FROM pathways.system_users'))
   assert.ok(at('DELETE FROM pathways.system_users') < at('DELETE FROM pathways.organizations'))
   assert.ok(at('DELETE FROM pathways.organizations') < at('DELETE FROM auth.users'))
@@ -202,4 +206,21 @@ test('buildRestoreSql keeps one transaction in the safe order', () => {
   assert.equal(sql.match(/^BEGIN;$/gm).length, 1)
   assert.equal(sql.match(/^COMMIT;$/gm).length, 1)
   assert.doesNotMatch(sql, /DISABLE (ROW LEVEL SECURITY|TRIGGER)/i)
+})
+
+test('buildRestoreSql starts with ON_ERROR_STOP and refuses kept or unlisted tables', () => {
+  const args = { wipeSql: wipe, migration: '0063_x', users, blocks, dateColumns, tables, delta: 0 }
+  assert.ok(buildRestoreSql(args).startsWith(STOP))
+  const kept = [
+    ...blocks,
+    { schema: 'pathways', table: 'user_step_up_pins', columns: 'id', rows: [] },
+  ]
+  assert.throws(() => buildRestoreSql({ ...args, blocks: kept }), /Dumped tables differ/)
+})
+
+test('stagedLoadSql rejects an injected column list', () => {
+  const bad = [
+    { schema: 'pathways', table: 'notes', columns: 'a) FROM stdin; DROP TABLE x; --', rows: [] },
+  ]
+  assert.throws(() => stagedLoadSql(bad, {}, 0), /Invalid column list/)
 })
