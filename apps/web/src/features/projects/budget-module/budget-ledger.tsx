@@ -109,9 +109,9 @@ export const BudgetLedger = ({
       title="Expense ledger"
     >
       {activityKey ? (
-        <p className="mb-3 text-sm font-semibold text-foreground" role="status">
+        <output className="mb-3 block text-sm font-semibold text-foreground">
           Showing {rows.length} of {module.expenses.length} expenses for {filterLabel}
-        </p>
+        </output>
       ) : null}
       <p className="mb-4 flex items-start gap-2 rounded-md border border-info/30 bg-info-subtle p-3 text-sm">
         <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
