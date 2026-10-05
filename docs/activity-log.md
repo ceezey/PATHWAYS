@@ -290,3 +290,6 @@
 - Removed the Projects tab and footer link; the hero Published projects link now opens the organization page. The `/public/projects` route stays for detail breadcrumbs and the staff publication queue.
 - Added `/organizations` (card list) and restyled `/organizations/[slug]` to the landing design (`public-organizations.tsx`); organization profiles live in `publicOrganizations`, with the Plan International Pilipinas summary paraphrased from its official site; header dropdown gains All organizations, footer gains Organizations.
 - Organizations header item is now a link to `/organizations` that reveals the organization list on hover or keyboard focus (All organizations entry removed); the organizations page drops its section heading and the initials badge.
+- Hero switched to a single column: intro copy stacks above the pathway timeline, which pins and advances on scroll on wide screens.
+- Hero walkthrough restored to the original full layout under the intro: tall steps on a progress rail beside a sticky preview panel, with icons and key points.
+- Home hero headline enlarged to match the About Us hero (text-7xl, roomier padding).

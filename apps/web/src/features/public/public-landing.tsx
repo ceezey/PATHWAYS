@@ -45,7 +45,7 @@ const Hero = () => (
         <Eyebrow tone="text-sky-200">Project information management · Decision support</Eyebrow>
       </Reveal>
       <Reveal delay={160} variant="scale">
-        <h1 className="text-4xl leading-tight text-slate-100 sm:text-5xl sm:leading-[1.12]">
+        <h1 className="max-w-4xl text-5xl leading-[1.05] text-slate-100 sm:text-7xl sm:leading-[1.02]">
           A clearer path to{' '}
           <span className="bg-gradient-to-r from-sky-300 to-teal-200 bg-clip-text text-transparent">
             meaningful change.
