@@ -59,8 +59,10 @@ SET LOCAL ROLE rules_store_owner;
 REVOKE CREATE ON SCHEMA pathways_rules_internal FROM rules_eligibility_owner;
 RESET ROLE;
 
--- Postconditions.
-DO $$ BEGIN
+-- Postconditions; the function oid is resolved by text because prisma holds no USAGE on the schema.
+DO $$ DECLARE f oid; BEGIN
+ SELECT p.oid INTO f FROM pg_catalog.pg_proc p WHERE p.oid::pg_catalog.regprocedure::pg_catalog.text='pathways_rules_internal.human_rules_scope(uuid,uuid)';
+ IF f IS NULL THEN RAISE EXCEPTION '0063 function missing after replace'; END IF;
  IF (SELECT pg_catalog.pg_get_userbyid(proowner) FROM pg_catalog.pg_proc WHERE oid::pg_catalog.regprocedure::pg_catalog.text='pathways_rules_internal.human_rules_scope(uuid,uuid)')<>'rules_eligibility_owner'
   OR (SELECT l.lanname FROM pg_catalog.pg_proc p JOIN pg_catalog.pg_language l ON l.oid=p.prolang WHERE p.oid::pg_catalog.regprocedure::pg_catalog.text='pathways_rules_internal.human_rules_scope(uuid,uuid)')<>'plpgsql'
   OR (SELECT provolatile FROM pg_catalog.pg_proc WHERE oid::pg_catalog.regprocedure::pg_catalog.text='pathways_rules_internal.human_rules_scope(uuid,uuid)')<>'s'
@@ -69,18 +71,18 @@ DO $$ BEGIN
  THEN RAISE EXCEPTION '0063 function shape postcondition failed'; END IF;
  IF (SELECT coalesce(proacl::text,'') FROM pg_catalog.pg_proc WHERE oid::pg_catalog.regprocedure::pg_catalog.text='pathways_rules_internal.human_rules_scope(uuid,uuid)')
    IS DISTINCT FROM pg_catalog.current_setting('pathways.m0063_acl')
-  OR NOT has_function_privilege('rules_eligibility_owner','pathways_rules_internal.human_rules_scope(uuid,uuid)','EXECUTE')
-  OR NOT has_function_privilege('rules_capacity_owner','pathways_rules_internal.human_rules_scope(uuid,uuid)','EXECUTE')
-  OR NOT has_function_privilege('rules_config_owner','pathways_rules_internal.human_rules_scope(uuid,uuid)','EXECUTE')
-  OR NOT has_function_privilege('rules_human_owner','pathways_rules_internal.human_rules_scope(uuid,uuid)','EXECUTE')
-  OR NOT has_function_privilege('rules_outcome_owner','pathways_rules_internal.human_rules_scope(uuid,uuid)','EXECUTE')
-  OR NOT has_function_privilege('rules_runtime_guard_owner','pathways_rules_internal.human_rules_scope(uuid,uuid)','EXECUTE')
-  OR has_function_privilege('anon','pathways_rules_internal.human_rules_scope(uuid,uuid)','EXECUTE')
-  OR has_function_privilege('authenticated','pathways_rules_internal.human_rules_scope(uuid,uuid)','EXECUTE')
-  OR has_function_privilege('service_role','pathways_rules_internal.human_rules_scope(uuid,uuid)','EXECUTE')
-  OR has_function_privilege('pathways_runtime','pathways_rules_internal.human_rules_scope(uuid,uuid)','EXECUTE')
-  OR has_function_privilege('pathways_rules_worker','pathways_rules_internal.human_rules_scope(uuid,uuid)','EXECUTE')
-  OR has_function_privilege('pathways_rules_sweeper','pathways_rules_internal.human_rules_scope(uuid,uuid)','EXECUTE')
+  OR NOT pg_catalog.has_function_privilege('rules_eligibility_owner',f,'EXECUTE')
+  OR NOT pg_catalog.has_function_privilege('rules_capacity_owner',f,'EXECUTE')
+  OR NOT pg_catalog.has_function_privilege('rules_config_owner',f,'EXECUTE')
+  OR NOT pg_catalog.has_function_privilege('rules_human_owner',f,'EXECUTE')
+  OR NOT pg_catalog.has_function_privilege('rules_outcome_owner',f,'EXECUTE')
+  OR NOT pg_catalog.has_function_privilege('rules_runtime_guard_owner',f,'EXECUTE')
+  OR pg_catalog.has_function_privilege('anon',f,'EXECUTE')
+  OR pg_catalog.has_function_privilege('authenticated',f,'EXECUTE')
+  OR pg_catalog.has_function_privilege('service_role',f,'EXECUTE')
+  OR pg_catalog.has_function_privilege('pathways_runtime',f,'EXECUTE')
+  OR pg_catalog.has_function_privilege('pathways_rules_worker',f,'EXECUTE')
+  OR pg_catalog.has_function_privilege('pathways_rules_sweeper',f,'EXECUTE')
   OR has_schema_privilege('rules_eligibility_owner','pathways_rules_internal','CREATE')
   OR EXISTS(SELECT FROM pg_catalog.pg_proc p, pg_catalog.aclexplode(p.proacl) a
    WHERE p.oid::pg_catalog.regprocedure::pg_catalog.text='pathways_rules_internal.human_rules_scope(uuid,uuid)' AND a.grantee=0)
