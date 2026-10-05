@@ -232,3 +232,7 @@
 ## 2026-10-05 Dashboard Approve links reached Unauthorized
 - The middleware kept its own display-only query key list, missing `budget ?expense`, `activity ?action`, `formEntry ?submissionId` and `indicatorLibrary ?project`, so the Project Manager Approve buttons redirected to `/unauthorized`.
 - `displayQueryKeys` now lives in `route-access.ts` and both the middleware and `requireServerPage` use it; a frontend alias test covers all four keys.
+
+## 2026-10-05 Dashboard project metrics use the cached summary read
+- Manager dashboards fetched every project's overview metrics in a raw effect with no cache, so each remount refired up to 20 requests; they now use `useProjectOverviewMetricsRead` (30 s summary cache, identity scoped) through `useProjectMetrics`.
+- Alert and recommendation 503s trace to per-row RLS scope checks (`human_rules_scope` via `eligibility_metadata_scope`, about 14,000 `p06_can` calls per alert list); a per-transaction memo cut a local alert list from 25.6 s to 0.63 s in a rolled-back trial, pending a migration decision.

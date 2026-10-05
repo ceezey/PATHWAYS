@@ -6,8 +6,9 @@ const read = vi.hoisted(() => ({
   value: { eligible: true, data: null as unknown, isError: false, refetch: vi.fn() },
 }))
 vi.mock('./use-role-overview', () => ({ useRoleOverview: () => read.value }))
-vi.mock('./use-project-extras', () => ({
-  useProjectExtras: () => ({ metrics: {}, evaluations: [] }),
+vi.mock('./use-project-extras', () => ({ useProjectExtras: () => [] }))
+vi.mock('./project-metrics-reads', () => ({
+  useProjectMetrics: () => ({ metrics: {}, reads: null }),
 }))
 vi.mock('@/providers/authorized-query-provider', () => ({
   useAuthorizedRead: () => ({ data: null }),
