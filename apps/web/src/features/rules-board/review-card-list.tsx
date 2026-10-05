@@ -20,7 +20,15 @@ const statusTone = (status: string) =>
     : status === 'ACTIONED'
       ? ('success' as const)
       : ('neutral' as const)
-const basisLine = (alert: HumanAlert) => {
+const BASIS_LABELS: Record<string, string> = {
+  KPI: 'Based on indicator (KPI) results',
+  COMBINED: 'Based on project monitoring signals',
+}
+/** Plain-language basis; unknown or free-text values pass through with a Based on prefix. */
+export const basisLabel = (basis: string) =>
+  BASIS_LABELS[basis] ?? (basis.startsWith('Based on') ? basis : `Based on ${basis}`)
+/** The first measured evidence value against its threshold, or null when none was measured. */
+export const basisLine = (alert: HumanAlert) => {
   const seen = alert.evidence.find((item) => item.cell.value !== null)
   return seen?.cell.value
     ? `Current ${metricLabel(seen.metric).toLowerCase()} ${formatMetricValue(seen.cell.value, seen.unit)} vs threshold ${formatMetricValue(seen.threshold, seen.unit)}`
@@ -79,7 +87,7 @@ export function ReviewCardList({ items, selectedId, onSelect, projectLabel }: Pr
                 ) : null}
                 {alert ? null : (
                   <span className="line-clamp-2 block text-sm text-muted-foreground">
-                    {item.basis.startsWith('Based on') ? item.basis : `Based on ${item.basis}`}
+                    {basisLabel(item.basis)}
                   </span>
                 )}
                 <span className="flex flex-wrap gap-2 pt-1">
