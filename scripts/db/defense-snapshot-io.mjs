@@ -95,7 +95,7 @@ export function parseJson(text, what) {
   }
 }
 
-export const readJson = (file) => parseJson(readFileSync(file, 'utf8'), file.split(/[\/]/).pop())
+export const readJson = (file) => parseJson(readFileSync(file, 'utf8'), path.basename(file))
 
 /** Writes a private file, creating its directory. */
 export function writeText(file, text) {

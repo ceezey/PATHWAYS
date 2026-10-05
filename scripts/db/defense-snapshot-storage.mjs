@@ -20,7 +20,7 @@ export async function copyObjects(
 ) {
   if (!source.key || !target.key)
     throw new Error('Storage copy needs service role keys for source and target.')
-  for (const object of objects) {
+  for (const [index, object] of objects.entries()) {
     const label = `${object.bucket}/${object.name}`
     const download = await fetchImpl(objectUrl(source.url, object.bucket, object.name), {
       headers: authHeaders(source.key),
@@ -40,6 +40,8 @@ export async function copyObjects(
       const reason = (await upload.text()).slice(0, 200)
       throw new Error(`Upload failed (${upload.status}) for ${label}: ${reason}`)
     }
+    if ((index + 1) % 10 === 0 && index + 1 < objects.length)
+      log(`Copied ${index + 1}/${objects.length} storage object(s).`)
   }
   log(`Copied ${objects.length} storage object(s).`)
   return objects.length

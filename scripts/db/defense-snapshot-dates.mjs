@@ -30,7 +30,9 @@ export function restoreWarnings({ seedDay, restoreDay, dumpedAt, now = new Date(
     warnings.push(
       'Seed and restore fall in different months; month-relative demo data (imports this month) may not read as seeded.',
     )
-  const latest = Date.parse(dumpedAt) + dayDelta(seedDay, restoreDay) * DAY_MS
+  const dumped = Date.parse(dumpedAt)
+  if (Number.isNaN(dumped)) throw new Error('Manifest dumpedAt is not a valid date.')
+  const latest = dumped + dayDelta(seedDay, restoreDay) * DAY_MS
   if (latest > now.getTime())
     warnings.push(
       `Shifted timestamps reach ${new Date(latest).toISOString()}, after now; restore later in the day or seed earlier.`,

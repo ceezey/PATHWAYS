@@ -14,6 +14,8 @@ export function assertRestoreTarget(env) {
     throw new Error('HOSTED_ADMIN_URL is not a valid URL.')
   }
   assertHostedPgUrl(url, 'HOSTED_ADMIN_URL', 'postgres')
+  if (/.pooler.supabase.com$/i.test(url.hostname) && url.port && url.port !== '5432')
+    throw new Error('HOSTED_ADMIN_URL on the pooler must use the session port 5432.')
   return raw
 }
 
@@ -43,4 +45,17 @@ export function assertIdentities(identities) {
     if (!valid) throw new Error(`Identities file user ${index} is invalid.`)
   }
   return identities
+}
+
+/** Latest finished migration name, as the restore and the mirror compare it. */
+export const latestMigrationSql = () =>
+  'SELECT max(migration_name) FROM public._prisma_migrations WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL;'
+
+/** Fails unless the local stack and devV2 report the same non-empty latest migration. */
+export function assertSameMigration(local, hosted) {
+  const [a, b] = [local, hosted].map((name) => String(name).trim())
+  if (!a || a !== b)
+    throw new Error(
+      `Local migration (${a || 'none'}) and devV2 migration (${b || 'none'}) differ; align the local stack first.`,
+    )
 }

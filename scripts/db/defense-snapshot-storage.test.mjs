@@ -73,3 +73,11 @@ test('copyObjects refuses to run without both keys', async () => {
     /service role keys/,
   )
 })
+
+test('copyObjects logs progress every 10 objects and a final count', async () => {
+  const objects = Array.from({ length: 12 }, (_, i) => ({ ...object, name: `o/${i}.csv` }))
+  const { impl } = fakeFetch(objects.flatMap(() => [{ status: 200 }, { status: 200 }]))
+  const lines = []
+  await copyObjects(objects, source, target, { fetchImpl: impl, log: (line) => lines.push(line) })
+  assert.deepEqual(lines, ['Copied 10/12 storage object(s).', 'Copied 12 storage object(s).'])
+})

@@ -1,7 +1,12 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { assertIdentities, assertRestoreTarget, libpqUrl } from './defense-snapshot-target.mjs'
+import {
+  assertIdentities,
+  assertRestoreTarget,
+  assertSameMigration,
+  libpqUrl,
+} from './defense-snapshot-target.mjs'
 
 const ref = 'klbtoqdalmcsfjqophty'
 const pooler = `postgresql://postgres.${ref}:pw@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres`
@@ -69,4 +74,18 @@ test('assertIdentities rejects bad rows without echoing emails', () => {
   )
   assert.throws(() => assertIdentities({ ...identities(), users: [] }), /no users/)
   assert.throws(() => assertIdentities({ users: [] }), /organization id/)
+})
+
+test('assertRestoreTarget requires session port 5432 on the pooler', () => {
+  assert.throws(
+    () => assertRestoreTarget({ HOSTED_ADMIN_URL: pooler.replace(':5432', ':6543') }),
+    /5432/,
+  )
+  assert.doesNotThrow(() => assertRestoreTarget({ HOSTED_ADMIN_URL: pooler }))
+})
+
+test('assertSameMigration compares the local and hosted latest migrations', () => {
+  assert.doesNotThrow(() => assertSameMigration('0063_x\n', '0063_x'))
+  assert.throws(() => assertSameMigration('0063_x', '0062_y'), /differ/)
+  assert.throws(() => assertSameMigration('', ''), /differ/)
 })

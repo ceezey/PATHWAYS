@@ -18,7 +18,8 @@ The hosted devV2 reseed (`runbook-defense-demo.md` section 4) drives every servi
 - `mirror` reads the devV2 organization and `system_users` (minus contact number and last sign-in) with role codes over `DIRECT_URL` into `.tmp/defense-identities.json`, runs the wipe locally and replaces the local organization, staff rows and auth users with those ids. No passwords or TOTP secrets are read. The generated SQL refuses to run unless it arrives over the local Unix socket.
 - `dump` takes a data-only `pg_dump` of exactly the tables `hosted-defense-demo-wipe.sql` truncates, plus a manifest: seed day (Manila day of the first seeded audit row), latest migration, row counts, date and timestamp columns, and storage objects under the organization prefix.
 - `restore` runs one transaction on devV2 as `postgres` (`HOSTED_ADMIN_URL`, since `prisma` cannot set `session_replication_role`). The generated SQL begins with `\set ON_ERROR_STOP on`, validates every COPY column list and refuses kept tables. Sequence: the wipe file up to its revoke, a migration check, an identity check, `SET LOCAL session_replication_role = replica`, each table copied into a temporary staging table, shifted there by (Manila restore day minus seed day) and inserted, a row-count check against the manifest, the wipe's revoke and COMMIT.
-- Storage objects are then upserted to the same bucket and path with the service role key, media type parameters dropped. Before any hosted connection the restore checks that `SUPABASE_SERVICE_ROLE_KEY` is present, the local storage API is reachable and source and target differ; `--skip-storage` skips these checks and the copy. The `storage` command reruns the copy alone (uploads are upserts), and a failed copy prints a paste-ready rerun command.
+- Storage objects are upserted to the same bucket and path with the service role key, media type parameters dropped, before any hosted database connection (paths are new seed UUIDs under the organization prefix, so an early upload cannot break current data). The restore first checks that `SUPABASE_SERVICE_ROLE_KEY` is present, the local storage API is reachable and source and target differ; `--skip-storage` skips these checks and the copy. The `storage` command reruns the copy alone (uploads are upserts), and a failed copy prints a paste-ready rerun command.
+- Before the irreversible run the tool prints a summary and refuses a nonzero date delta or any warning unless `--allow-shift` is passed; `--dry-run` runs the same SQL ending in ROLLBACK and skips storage. psql exit 3 prints that the restore rolled back, exit 2 prints a connection-lost hint. `mirror` fails fast when the local and devV2 latest migrations differ, and the pooler URL must use session port 5432.
 - Flags with a missing value throw instead of being ignored.
 - Deviation from the approved design: RLS is bypassed, never disabled. `postgres` has BYPASSRLS and, inside the wipe file's owner-membership window, INHERIT memberships giving it owner privileges on `prisma`, `report_projection_owner` and `rules_store_owner` tables. This reverses the handoff rule "never disable triggers" for the restore step only: triggers are skipped only inside this transaction, and the local seed keeps every trigger.
 
@@ -35,6 +36,7 @@ No migration. Kept tables (organization, roles, permissions, role permissions, s
 - Release rows frozen by the local `--verify` are carried into the snapshot.
 - Alerts restore as captured; the hourly sweep may re-evaluate them.
 - Old hosted storage objects are left in place, as with the wipe.
+- A date delta above 0 is untested end to end with `--verify`; the supported defense path is a same-Manila-day mirror, seed, dump and restore.
 
 ### Authorization / Privacy
 The restore URL must be `postgres` on the devV2 session pooler host (`postgres.klbtoqdalmcsfjqophty`, `*.pooler.supabase.com:5432`). The identities file holds staff emails and names and stays under `.tmp/`; the tool prints counts only.
@@ -74,4 +76,4 @@ Developer, 2026-10-06 (spec approved).
 
 ## 9. Disposition
 
-Implemented on `feature/defense-seed-snapshot`. Local rehearsal passed. Hosted restore pending (developer).
+Implemented on `feature/defense-seed-snapshot`. Local rehearsal passed. Hosted restore pending (developer). The hosted storage copy and hosted pooler connectivity are unproven until the developer's run; run `--dry-run` first.

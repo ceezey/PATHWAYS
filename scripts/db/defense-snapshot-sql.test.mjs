@@ -224,3 +224,18 @@ test('stagedLoadSql rejects an injected column list', () => {
   ]
   assert.throws(() => stagedLoadSql(bad, {}, 0), /Invalid column list/)
 })
+
+test('buildRestoreSql with dryRun ends in ROLLBACK and never commits', () => {
+  const sql = buildRestoreSql({
+    wipeSql: wipe,
+    migration: '0063_x',
+    users,
+    blocks,
+    dateColumns,
+    tables,
+    delta: 0,
+    dryRun: true,
+  })
+  assert.match(sql, /ROLLBACK;\s*$/)
+  assert.ok(!sql.includes('COMMIT;'))
+})

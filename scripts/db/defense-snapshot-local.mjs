@@ -24,7 +24,12 @@ import {
   seedInfoSql,
   storageObjectsSql,
 } from './defense-snapshot-sql.mjs'
-import { assertIdentities, libpqUrl } from './defense-snapshot-target.mjs'
+import {
+  assertIdentities,
+  assertSameMigration,
+  latestMigrationSql,
+  libpqUrl,
+} from './defense-snapshot-target.mjs'
 import { ALLOWED_PROJECT_REF } from './hosted-seed-target.mjs'
 
 export async function mirror(args, files, hostedEnv) {
@@ -32,6 +37,11 @@ export async function mirror(args, files, hostedEnv) {
     throw new Error('mirror needs exactly one of --env-file or --identities.')
   const env = args.envFile ? hostedEnv(args.envFile) : null
   assertLocalContainer()
+  if (env)
+    assertSameMigration(
+      psqlLocal(latestMigrationSql()),
+      psqlUrl(libpqUrl(env.DIRECT_URL), latestMigrationSql()),
+    )
   const identities = env
     ? {
         projectRef: ALLOWED_PROJECT_REF,

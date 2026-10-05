@@ -178,10 +178,20 @@ BEGIN
 END $counts$;`
 }
 
-/** The whole restore: wipe head, checks, replica-role staged load, counts, wipe revoke and COMMIT. */
-export function buildRestoreSql({ wipeSql, migration, users, blocks, dateColumns, tables, delta }) {
+/** The whole restore: wipe head, checks, replica-role staged load, counts, wipe revoke and COMMIT (ROLLBACK when dryRun). */
+export function buildRestoreSql({
+  wipeSql,
+  migration,
+  users,
+  blocks,
+  dateColumns,
+  tables,
+  delta,
+  dryRun = false,
+}) {
   assertSameTables(parseWipeTables(wipeSql), blocks)
-  const { head, tail } = splitWipe(wipeSql)
+  const { head, tail: wipeTail } = splitWipe(wipeSql)
+  const tail = dryRun ? wipeTail.replace(/COMMIT;(\s*)$/, 'ROLLBACK;$1') : wipeTail
   return [
     ON_ERROR,
     "SET client_encoding = 'UTF8';",

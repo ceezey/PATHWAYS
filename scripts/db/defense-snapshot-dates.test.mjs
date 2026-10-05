@@ -51,3 +51,10 @@ test('restoreWarnings flags a month change', () => {
   assert.equal(warnings.length, 1)
   assert.match(warnings[0], /different months/)
 })
+
+test('restoreWarnings throws on an invalid dumpedAt', () => {
+  assert.throws(
+    () => restoreWarnings({ seedDay: '2026-10-06', restoreDay: '2026-10-06', dumpedAt: 'nope' }),
+    /dumpedAt/,
+  )
+})
