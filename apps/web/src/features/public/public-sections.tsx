@@ -51,6 +51,7 @@ const frontWave = 'M0,72 C240,116 500,28 740,56 C980,84 1220,120 1440,80 L1440,1
 export const Blend = ({ to }: { to: 'dark' | 'light' }) => (
   <div aria-hidden="true" className={`-mb-px ${to === 'dark' ? 'bg-white' : 'bg-blue-950'}`}>
     <svg
+      aria-hidden="true"
       viewBox="0 0 1440 120"
       preserveAspectRatio="none"
       className={`block h-16 w-full sm:h-28 ${to === 'dark' ? '-scale-x-100' : ''}`}
