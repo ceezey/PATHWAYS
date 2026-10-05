@@ -84,6 +84,12 @@ WITH CHECK (pathways.p05_has_project_permission('settings.configure',project_id)
 DROP TRIGGER p10_evaluation_weight ON pathways.project_evaluation_criteria;
 DROP FUNCTION pathways.p10_guard_evaluation_weight();
 
+-- The Project Manager's return reason lives in its own column so it never overwrites the evaluator's
+-- narrative commentary; it is only meaningful on a returned DRAFT and is cleared on resubmission.
+ALTER TABLE pathways.project_evaluations ADD COLUMN return_reason text;
+ALTER TABLE pathways.project_evaluations ADD CONSTRAINT p3_evaluation_return_reason
+ CHECK (return_reason IS NULL OR (length(btrim(return_reason)) > 0 AND length(return_reason) <= 2000));
+
 -- Reviewer and signer may now be the same person (Project Manager reviews and signs off in one
 -- sitting); both must still differ from the evaluator.
 ALTER TABLE pathways.project_evaluations DROP CONSTRAINT p3_evaluation_values;
@@ -107,6 +113,7 @@ ALTER TABLE pathways.project_evaluations ADD CONSTRAINT p3_evaluation_values CHE
    AND (((status = 'SIGNED_OFF'::pathways.evaluation_status) AND (archived_at IS NULL))
     OR ((status = 'ARCHIVED'::pathways.evaluation_status) AND (archived_at >= signed_off_at))))
  )
+ AND ((status = 'DRAFT'::pathways.evaluation_status) OR (return_reason IS NULL))
  AND ((reviewed_by_id IS NULL) OR (reviewed_by_id <> evaluated_by_id))
  AND ((signed_off_by_id IS NULL) OR (signed_off_by_id <> evaluated_by_id))
 );
@@ -154,17 +161,28 @@ BEGIN
     RAISE EXCEPTION USING ERRCODE='23514',MESSAGE='Draft evaluation edits require evaluations.submit';
    END IF;
    IF NEW.status NOT IN ('DRAFT','SUBMITTED') THEN RAISE EXCEPTION USING ERRCODE='23514',MESSAGE='Evaluation must be submitted before review'; END IF;
+   IF NEW.status='DRAFT' AND NEW.return_reason IS DISTINCT FROM OLD.return_reason THEN
+    RAISE EXCEPTION USING ERRCODE='23514',MESSAGE='Return reason changes only when an evaluation is returned';
+   END IF;
    IF NEW.status='SUBMITTED' THEN
+    NEW.return_reason:=NULL;
     SELECT sum((criterion_snapshot->>'weight_percentage')::numeric),sum(weighted_score),count(*)
      INTO weights,result,count_scores FROM pathways.project_evaluation_scores WHERE evaluation_id=NEW.id;
     IF count_scores=0 OR weights<>100 THEN RAISE EXCEPTION USING ERRCODE='23514',MESSAGE='Evaluation submission requires criteria weights totaling 100'; END IF;
     NEW.overall_score:=round(result,4);
    END IF;
   ELSIF OLD.status='SUBMITTED' AND NEW.status='DRAFT' THEN
-   -- Commentary may change here too: it carries the Project Manager's return reason, shown
-   -- back to the Monitoring and Evaluation Officer alongside the reopened draft.
-   IF (to_jsonb(NEW)-ARRAY['updated_at','status','evaluated_at','overall_score','commentary'])
-    IS DISTINCT FROM (to_jsonb(OLD)-ARRAY['updated_at','status','evaluated_at','overall_score','commentary']) THEN
+   -- Return reason (not commentary) may change here: it is shown back to the Monitoring and
+   -- Evaluation Officer alongside the reopened draft, and only an approver may record it.
+   IF current_user='pathways_runtime'
+    AND NOT pathways.p05_has_project_permission('evaluations.approve',NEW.project_id) THEN
+    RAISE EXCEPTION USING ERRCODE='23514',MESSAGE='Returning an evaluation requires evaluations.approve';
+   END IF;
+   IF NEW.return_reason IS NULL THEN
+    RAISE EXCEPTION USING ERRCODE='23514',MESSAGE='Returned evaluation requires a reason';
+   END IF;
+   IF (to_jsonb(NEW)-ARRAY['updated_at','status','evaluated_at','overall_score','return_reason'])
+    IS DISTINCT FROM (to_jsonb(OLD)-ARRAY['updated_at','status','evaluated_at','overall_score','return_reason']) THEN
     RAISE EXCEPTION USING ERRCODE='23514',MESSAGE='Returned evaluation must not change recorded content';
    END IF;
    IF NEW.evaluated_at IS NOT NULL OR NEW.overall_score IS NOT NULL THEN
@@ -221,6 +239,11 @@ DO $$ BEGIN
  OR to_regprocedure('pathways.p10_guard_evaluation_weight()') IS NOT NULL
  OR (SELECT count(*) FROM pg_catalog.pg_policies WHERE schemaname='pathways' AND tablename='project_evaluations' AND policyname='p09_update')<>1
  OR position('Draft evaluation edits require evaluations.submit' IN pg_catalog.pg_get_functiondef('pathways.p3_guard_evaluation()'::pg_catalog.regprocedure))=0
+ OR position('p05_has_project_permission(''evaluations.approve'',NEW.project_id)' IN pg_catalog.pg_get_functiondef('pathways.p3_guard_evaluation()'::pg_catalog.regprocedure))=0
+ OR (SELECT count(*) FROM pg_catalog.pg_policies WHERE schemaname='pathways' AND tablename='project_evaluations'
+   AND policyname IN ('p05_evaluation_actor_insert','p05_evaluation_actor_update'))<>2
+ OR (SELECT count(*) FROM pg_catalog.pg_policies WHERE schemaname='pathways' AND tablename='project_evaluation_criteria' AND policyname='p09_insert')<>1
+ OR NOT EXISTS(SELECT FROM information_schema.columns WHERE table_schema='pathways' AND table_name='project_evaluations' AND column_name='return_reason')
  THEN RAISE EXCEPTION '0064 verification failed'; END IF;
 END $$;
 COMMIT;
