@@ -11,7 +11,7 @@ import type { PrismaService } from '../../prisma/prisma.service'
 import { hasAtomicPermission } from '../auth/authorization-policy'
 import type { ApplicationIdentity } from '../auth/developer-access'
 import type { DashboardsService } from '../dashboards/dashboards.service'
-import type { ReportPdfRenderer } from '../report-pdf/report-pdf.renderer'
+import { ReportPdfError, type ReportPdfRenderer } from '../report-pdf/report-pdf.renderer'
 import type { StorageService } from '../storage/storage.service'
 import { reportInputSchema, reportQuerySchema } from './reports.dto'
 import { ReportsService } from './reports.service'
@@ -139,7 +139,7 @@ describe('report source authority, privacy and artifact recovery', () => {
     state.lostCommit = false
     state.read.mockResolvedValue(Buffer.from('%PDF-fixture'))
     state.artifact.mockResolvedValue(Buffer.from('%PDF-fixture'))
-    renderer.render.mockRejectedValue(new Error('PDF renderer unavailable.'))
+    renderer.render.mockRejectedValue(new ReportPdfError('launch', 'Error'))
     tx.project.findFirst.mockResolvedValue(project)
     tx.projectEvaluation.findFirst.mockResolvedValue(null)
     tx.projectEvaluationScore.findMany.mockResolvedValue([])
@@ -371,6 +371,8 @@ describe('report source authority, privacy and artifact recovery', () => {
     expect(renderer.render).toHaveBeenCalledOnce()
     expect(state.artifact).toHaveBeenCalledOnce()
     const warning = vi.mocked(Logger.prototype.warn).mock.calls.flat().join(' ')
+    expect(vi.mocked(Logger.prototype.warn)).toHaveBeenCalledOnce()
+    expect(warning).toContain('at launch')
     expect(warning).toContain('using pdfkit')
     expect(warning).not.toContain('Private report')
     expect(storage.uploadPrivateFile).toHaveBeenCalledWith(

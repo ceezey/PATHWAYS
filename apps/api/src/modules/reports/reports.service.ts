@@ -21,7 +21,7 @@ import { projectScope } from '../auth/authorized-data.service'
 import { withAuthorizedOperation } from '../auth/authorized-operation'
 import type { ApplicationIdentity } from '../auth/developer-access'
 import { DashboardsService } from '../dashboards/dashboards.service'
-import { ReportPdfRenderer } from '../report-pdf/report-pdf.renderer'
+import { ReportPdfError, ReportPdfRenderer } from '../report-pdf/report-pdf.renderer'
 import { createPrivateInspectionReader } from '../storage/private-inspection-reader'
 import { StorageService } from '../storage/storage.service'
 import {
@@ -457,8 +457,10 @@ export class ReportsService {
         unavailableReasons: source.unavailableReasons,
       })
     } catch (error) {
+      const known = error instanceof ReportPdfError ? error : null
+      const cause = known?.causeName ?? (error instanceof Error ? error.name : 'Error')
       new Logger(ReportsService.name).warn(
-        `Designed PDF unavailable for report ${id}: ${error instanceof Error ? error.name : 'Error'}; using pdfkit.`,
+        `Designed PDF unavailable for report ${id} at ${known?.stage ?? 'unknown'} (${cause}); using pdfkit.`,
       )
       return null
     }

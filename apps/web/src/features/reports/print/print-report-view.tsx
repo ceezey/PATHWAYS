@@ -22,7 +22,7 @@ export function PrintReportView({ report }: { report: PrintReport | null }) {
   const [chartDone, setChartDone] = useState(false)
   if (!report)
     return (
-      <main data-report-ready="true" className="p-8 text-sm text-muted-foreground">
+      <main data-report-ready="empty" className="p-8 text-sm text-muted-foreground">
         No report data.
       </main>
     )
@@ -55,7 +55,9 @@ export function PrintReportView({ report }: { report: PrintReport | null }) {
       )}
       {chart && (
         <section className="print-avoid mt-6">
-          <h2 className="text-sm font-semibold text-navy">Summary</h2>
+          <h2 className="text-sm font-semibold text-navy">
+            {chart.group ? `Summary: ${chart.group}` : 'Summary'}
+          </h2>
           <ReactECharts
             option={printChartOption(chart.points)}
             opts={{ renderer: 'svg' }}
@@ -63,10 +65,11 @@ export function PrintReportView({ report }: { report: PrintReport | null }) {
             onChartReady={() => requestAnimationFrame(() => setChartDone(true))}
             onEvents={{ finished: () => setChartDone(true) }}
           />
-          {chart.excluded > 0 && (
+          {(chart.excluded > 0 || chart.capped > 0) && (
             <p className="text-xs text-muted-foreground">
-              {chart.excluded} of {chart.total} rows not charted because their value is suppressed
-              or unavailable.
+              {chart.excluded > 0 &&
+                `${chart.excluded} of ${chart.total} rows not charted because their value is suppressed or unavailable. `}
+              {chart.capped > 0 && 'Showing the first 20 values.'}
             </p>
           )}
         </section>

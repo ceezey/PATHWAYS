@@ -1,6 +1,5 @@
-import { Logger } from '@nestjs/common'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { type PrintSnapshot, ReportPdfRenderer } from './report-pdf.renderer'
+import { type PrintSnapshot, ReportPdfError, ReportPdfRenderer } from './report-pdf.renderer'
 
 const state = vi.hoisted(() => ({ launch: vi.fn(), executablePath: vi.fn() }))
 vi.mock('puppeteer-core', () => ({ default: { launch: state.launch } }))
@@ -19,7 +18,7 @@ const snapshot: PrintSnapshot = {
 }
 type Handler = (request: { url: () => string; continue: () => void; abort: () => void }) => void
 
-function fakePage(pdfBytes = Buffer.from('%PDF-designed')) {
+function fakePage(pdfBytes = Buffer.from('%PDF-designed'), ready = 'true') {
   const handlers: Handler[] = []
   return {
     handlers,
@@ -28,7 +27,7 @@ function fakePage(pdfBytes = Buffer.from('%PDF-designed')) {
     setExtraHTTPHeaders: vi.fn().mockResolvedValue(undefined),
     on: vi.fn((_event: string, handler: Handler) => handlers.push(handler)),
     goto: vi.fn().mockResolvedValue(undefined),
-    waitForSelector: vi.fn().mockResolvedValue(undefined),
+    waitForSelector: vi.fn().mockResolvedValue({ evaluate: vi.fn().mockResolvedValue(ready) }),
     pdf: vi.fn().mockResolvedValue(new Uint8Array(pdfBytes)),
     close: vi.fn().mockResolvedValue(undefined),
   }
@@ -44,7 +43,6 @@ function fakeBrowser(page: ReturnType<typeof fakePage>) {
 describe('ReportPdfRenderer', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => {})
     process.env.WEB_ORIGIN = 'https://web.example.test'
     process.env.PDF_CHROME_PATH = 'C:/chrome.exe'
     process.env.WEB_PROTECTION_BYPASS = ''
@@ -56,7 +54,11 @@ describe('ReportPdfRenderer', () => {
     const bytes = await new ReportPdfRenderer().render(reportId, snapshot)
     expect(bytes.toString()).toBe('%PDF-designed')
     expect(state.launch).toHaveBeenCalledWith(
-      expect.objectContaining({ executablePath: 'C:/chrome.exe' }),
+      expect.objectContaining({
+        executablePath: 'C:/chrome.exe',
+        headless: true,
+        protocolTimeout: 20_000,
+      }),
     )
     expect(page.evaluateOnNewDocument).toHaveBeenCalledWith(expect.any(Function), snapshot)
     expect(page.goto).toHaveBeenCalledWith(
@@ -64,7 +66,7 @@ describe('ReportPdfRenderer', () => {
       expect.objectContaining({ waitUntil: 'networkidle0' }),
     )
     expect(page.waitForSelector).toHaveBeenCalledWith(
-      '[data-report-ready="true"]',
+      '[data-report-ready]:not([data-report-ready="false"])',
       expect.anything(),
     )
     expect(page.pdf).toHaveBeenCalledWith(
@@ -72,6 +74,7 @@ describe('ReportPdfRenderer', () => {
         format: 'A4',
         printBackground: true,
         margin: { top: '20mm', bottom: '20mm', left: '15mm', right: '15mm' },
+        timeout: 20_000,
       }),
     )
     expect(page.close).toHaveBeenCalledOnce()
@@ -110,22 +113,26 @@ describe('ReportPdfRenderer', () => {
     const page = fakePage()
     page.goto.mockRejectedValue(new Error('Navigation timeout'))
     state.launch.mockResolvedValue(fakeBrowser(page))
-    await expect(new ReportPdfRenderer().render(reportId, snapshot)).rejects.toThrow()
+    await expect(new ReportPdfRenderer().render(reportId, snapshot)).rejects.toMatchObject({
+      stage: 'navigate',
+    })
     expect(page.close).toHaveBeenCalledOnce()
   })
 
   it('rejects an empty PDF', async () => {
     const page = fakePage(Buffer.alloc(0))
     state.launch.mockResolvedValue(fakeBrowser(page))
-    await expect(new ReportPdfRenderer().render(reportId, snapshot)).rejects.toThrow()
+    await expect(new ReportPdfRenderer().render(reportId, snapshot)).rejects.toMatchObject({
+      stage: 'size',
+    })
     expect(page.close).toHaveBeenCalledOnce()
   })
 
   it('refuses without WEB_ORIGIN or with a non-UUID report id before launching', async () => {
     const renderer = new ReportPdfRenderer()
-    await expect(renderer.render('../../admin', snapshot)).rejects.toThrow()
+    await expect(renderer.render('../../admin', snapshot)).rejects.toMatchObject({ stage: 'input' })
     process.env.WEB_ORIGIN = ''
-    await expect(renderer.render(reportId, snapshot)).rejects.toThrow('PDF renderer unavailable.')
+    await expect(renderer.render(reportId, snapshot)).rejects.toMatchObject({ stage: 'config' })
     expect(state.launch).not.toHaveBeenCalled()
   })
 
@@ -153,9 +160,9 @@ describe('ReportPdfRenderer', () => {
     const platform = Object.getOwnPropertyDescriptor(process, 'platform')
     Object.defineProperty(process, 'platform', { value: 'win32' })
     try {
-      await expect(new ReportPdfRenderer().render(reportId, snapshot)).rejects.toThrow(
-        'PDF renderer unavailable.',
-      )
+      await expect(new ReportPdfRenderer().render(reportId, snapshot)).rejects.toMatchObject({
+        stage: 'launch',
+      })
     } finally {
       if (platform) Object.defineProperty(process, 'platform', platform)
     }
@@ -169,5 +176,71 @@ describe('ReportPdfRenderer', () => {
     await renderer.render(reportId, snapshot)
     await renderer.onModuleDestroy()
     expect(browser.close).toHaveBeenCalledOnce()
+  })
+
+  it('fails at the ready stage for the empty print state without printing', async () => {
+    const page = fakePage(Buffer.from('%PDF'), 'empty')
+    state.launch.mockResolvedValue(fakeBrowser(page))
+    await expect(new ReportPdfRenderer().render(reportId, snapshot)).rejects.toMatchObject({
+      stage: 'ready',
+    })
+    expect(page.pdf).not.toHaveBeenCalled()
+  })
+
+  it('rejects with a fixed-message ReportPdfError that carries no cause text', async () => {
+    const page = fakePage()
+    page.goto.mockRejectedValue(new TypeError('secret report content'))
+    state.launch.mockResolvedValue(fakeBrowser(page))
+    const failure = await new ReportPdfRenderer().render(reportId, snapshot).catch((e) => e)
+    expect(failure).toBeInstanceOf(ReportPdfError)
+    expect(failure.message).not.toContain('secret')
+    expect(failure.causeName).toBe('TypeError')
+  })
+
+  it('discards the browser after a failure so the next render launches again', async () => {
+    const page = fakePage()
+    page.goto.mockRejectedValueOnce(new Error('Navigation timeout'))
+    const first = fakeBrowser(page)
+    state.launch.mockResolvedValueOnce(first).mockResolvedValueOnce(fakeBrowser(page))
+    const renderer = new ReportPdfRenderer()
+    await expect(renderer.render(reportId, snapshot)).rejects.toBeInstanceOf(ReportPdfError)
+    expect(first.close).toHaveBeenCalledOnce()
+    await renderer.render(reportId, snapshot)
+    expect(state.launch).toHaveBeenCalledTimes(2)
+  })
+
+  it('rejects at the deadline stage when the browser wedges', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    try {
+      const page = fakePage()
+      page.goto.mockReturnValue(new Promise(() => undefined))
+      const browser = fakeBrowser(page)
+      state.launch.mockResolvedValue(browser)
+      const outcome = expect(
+        new ReportPdfRenderer().render(reportId, snapshot),
+      ).rejects.toMatchObject({ stage: 'deadline' })
+      while (!page.goto.mock.calls.length) await new Promise((resolve) => setImmediate(resolve))
+      await vi.advanceTimersByTimeAsync(40_000)
+      await outcome
+      expect(browser.close).toHaveBeenCalledOnce()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('launches the Linux bundle with the shell headless mode and a protocol timeout', async () => {
+    process.env.PDF_CHROME_PATH = ''
+    state.executablePath.mockResolvedValue('/tmp/chromium')
+    state.launch.mockResolvedValue(fakeBrowser(fakePage()))
+    const platform = Object.getOwnPropertyDescriptor(process, 'platform')
+    Object.defineProperty(process, 'platform', { value: 'linux' })
+    try {
+      await new ReportPdfRenderer().render(reportId, snapshot)
+    } finally {
+      if (platform) Object.defineProperty(process, 'platform', platform)
+    }
+    expect(state.launch).toHaveBeenCalledWith(
+      expect.objectContaining({ headless: 'shell', protocolTimeout: 20_000 }),
+    )
   })
 })

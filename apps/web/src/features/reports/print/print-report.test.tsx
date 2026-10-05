@@ -6,8 +6,8 @@ import { type PrintReport, readPrintReport, sampleReport } from './print-report-
 import { PrintReportView } from './print-report-view'
 
 vi.mock('echarts-for-react', () => ({
-  default: ({ onEvents }: { onEvents?: { finished?: () => void } }) => {
-    setTimeout(() => onEvents?.finished?.(), 0)
+  default: ({ onChartReady }: { onChartReady?: () => void }) => {
+    setTimeout(() => onChartReady?.(), 0)
     return <div data-testid="chart" />
   },
 }))
@@ -41,6 +41,8 @@ describe('print report payload', () => {
 describe('print report chart', () => {
   it('charts only numeric Value cells labelled by the preceding column', () => {
     expect(printChartData(report)).toEqual({
+      group: 'Sex',
+      capped: 0,
       points: [
         { label: 'Female', value: 42 },
         { label: 'Male', value: 1204 },
@@ -53,9 +55,49 @@ describe('print report chart', () => {
     expect(printChartData({ ...report, columns: ['Code', 'Title'], rows: [['A', 'B']] })).toBeNull()
     expect(printChartData({ ...report, rows: [report.rows[0] as string[]] })).toBeNull()
   })
-  it('caps the chart at twenty bars', () => {
+  it('caps the chart at twenty bars and counts the dropped ones', () => {
     const rows = Array.from({ length: 25 }, (_, index) => ['Sex', `C${index}`, `${index}`, '', ''])
-    expect(printChartData({ ...report, rows })?.points).toHaveLength(20)
+    const chart = printChartData({ ...report, rows })
+    expect(chart?.points).toHaveLength(20)
+    expect(chart?.capped).toBe(5)
+  })
+  it('charts only the first group and skips Total rows', () => {
+    const rows = [
+      ['Total', 'Individuals', '99', 'AVAILABLE', ''],
+      ['sex', 'Female', '42', 'AVAILABLE', ''],
+      ['sex', 'Male', '30', 'AVAILABLE', ''],
+      ['age', '0-17', '10', 'AVAILABLE', ''],
+      ['age', '18+', '60', 'AVAILABLE', ''],
+    ]
+    expect(printChartData({ ...report, rows })).toEqual({
+      group: 'sex',
+      points: [
+        { label: 'Female', value: 42 },
+        { label: 'Male', value: 30 },
+      ],
+      excluded: 0,
+      capped: 0,
+      total: 2,
+    })
+  })
+  it('does not count an empty Value cell as excluded', () => {
+    const rows = [
+      ['Section', 'A', '1', '', ''],
+      ['Section', 'B', '2', '', ''],
+      ['Section', 'C', '', '', ''],
+    ]
+    expect(printChartData({ ...report, rows })).toMatchObject({ excluded: 0, total: 3 })
+  })
+  it('does not group when the Value column is among the first two', () => {
+    const chart = printChartData({
+      ...report,
+      columns: ['Code', 'Value'],
+      rows: [
+        ['A', '1'],
+        ['B', '2'],
+      ],
+    })
+    expect(chart).toMatchObject({ group: null, total: 2 })
   })
   it('disables animation so the headless capture is never blank', () => {
     expect(printChartOption([{ label: 'A', value: 1 }])).toMatchObject({ animation: false })
@@ -69,6 +111,7 @@ describe('PrintReportView', () => {
     expect(screen.getByText(/Beneficiary summary/)).toBeTruthy()
     expect(screen.getByText(/Participation counts are withheld/)).toBeTruthy()
     expect(screen.getByText('1,204')).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'Summary: Sex' })).toBeTruthy()
     expect(screen.getByText(/1 of 3 rows not charted/)).toBeTruthy()
     expect(screen.getByTestId('chart')).toBeTruthy()
     await waitFor(() => expect(container.querySelector('[data-report-ready="true"]')).toBeTruthy())
@@ -80,9 +123,10 @@ describe('PrintReportView', () => {
     expect(screen.queryByTestId('chart')).toBeNull()
     await waitFor(() => expect(container.querySelector('[data-report-ready="true"]')).toBeTruthy())
   })
-  it('shows an empty state without a payload', () => {
+  it('shows an empty state that never counts as ready', () => {
     const { container } = render(<PrintReportView report={null} />)
     expect(screen.getByText('No report data.')).toBeTruthy()
-    expect(container.querySelector('[data-report-ready="true"]')).toBeTruthy()
+    expect(container.querySelector('[data-report-ready="empty"]')).toBeTruthy()
+    expect(container.querySelector('[data-report-ready="true"]')).toBeNull()
   })
 })

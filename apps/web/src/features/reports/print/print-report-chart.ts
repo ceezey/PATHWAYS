@@ -9,21 +9,34 @@ const numeric = (value: string) => {
   return /^-?\d+(\.\d+)?$/.test(text) ? Number(text) : null
 }
 
-/** Numeric Value cells labelled by the preceding column; suppressed or missing cells are counted, never charted. */
+/** One group of numeric Value cells labelled by the preceding column; Total rows are skipped and other cells are counted, never charted. */
 export function printChartData(report: PrintReport) {
   const valueIndex = report.columns.indexOf('Value')
   if (valueIndex < 0 || report.columns.length < 2) return null
   const labelIndex = valueIndex > 0 ? valueIndex - 1 : 1
+  const grouped = valueIndex >= 2
+  const candidates = grouped
+    ? report.rows.filter((row) => (row[0] ?? '').trim().toLowerCase() !== 'total')
+    : report.rows
+  const group = grouped
+    ? (candidates.find((row) => numeric(row[valueIndex] ?? '') !== null)?.[0] ?? null)
+    : null
+  const rows = grouped ? candidates.filter((row) => row[0] === group) : candidates
   const points: Point[] = []
-  for (const row of report.rows) {
-    const value = numeric(row[valueIndex] ?? '')
+  let excluded = 0
+  for (const row of rows) {
+    const cell = (row[valueIndex] ?? '').trim()
+    const value = numeric(cell)
     if (value !== null) points.push({ label: row[labelIndex] ?? '', value })
+    else if (cell) excluded += 1
   }
   if (points.length < 2) return null
   return {
+    group,
     points: points.slice(0, MAX_BARS),
-    excluded: report.rows.length - points.length,
-    total: report.rows.length,
+    excluded,
+    capped: Math.max(0, points.length - MAX_BARS),
+    total: rows.length,
   }
 }
 

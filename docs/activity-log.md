@@ -236,4 +236,7 @@
 ## 2026-10-05 Dashboard project metrics use the cached summary read
 - Manager dashboards fetched every project's overview metrics in a raw effect with no cache, so each remount refired up to 20 requests; they now use `useProjectOverviewMetricsRead` (30 s summary cache, identity scoped) through `useProjectMetrics`.
 - Alert and recommendation 503s trace to per-row RLS scope checks (`human_rules_scope` via `eligibility_metadata_scope`, about 14,000 `p06_can` calls per alert list); a per-transaction memo cut a local alert list from 25.6 s to 0.63 s in a rolled-back trial, pending a migration decision.
+## 2026-10-05 F12 designed PDF renderer
 - F12 designed PDF: Puppeteer renderer module, print route and pdfkit fallback under cr-pathways-report-pdf-renderer; hosted Chromium verification pending.
+- Ready fix: the print page now flags ready from the chart `onChartReady` trigger, and the empty state reports `data-report-ready="empty"` so the renderer falls back instead of storing a blank PDF.
+- Final fix wave: 40 s render deadline, protocol timeout, shared browser discarded on failure, stage-tagged single fallback warning, one-group chart without Total rows.

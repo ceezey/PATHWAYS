@@ -15,9 +15,9 @@ PRD-F12 UC-F12-1 asks for reports that read as designed documents. The pdfkit PD
 
 ## 3. Proposed Change
 
-1. **Print route.** `/print/reports/[id]` in `apps/web` renders the report header, a warning callout for unavailable or withheld data, one bar chart of numeric `Value` cells and the table, styled by the DSD "Printed report" pattern.
-2. **Renderer module.** `apps/api/src/modules/report-pdf` (`ReportPdfModule`, `ReportPdfRenderer`) launches headless Chromium, injects the already authorized snapshot into the page, prints A4 and always closes the page. Only requests to `WEB_ORIGIN` are allowed; others are aborted.
-3. **Generate wiring.** `ReportsService.generate()` uses the renderer for PDF. A renderer failure logs one warning with the report id and error name and falls back to the pdfkit artifact, so G-F12-2 and G-F12-4 stay Met. Spreadsheet formats never launch Chromium.
+1. **Print route.** `/print/reports/[id]` in `apps/web` renders the report header, a warning callout for unavailable or withheld data, one bar chart of numeric `Value` cells (one group per chart, Total rows excluded, label from the column before `Value`) and the table, styled by the DSD "Printed report" pattern.
+2. **Renderer module.** `apps/api/src/modules/report-pdf` (`ReportPdfModule`, `ReportPdfRenderer`) launches headless Chromium, injects the already authorized snapshot into the page, prints A4 and always closes the page. Only requests to `WEB_ORIGIN` are allowed; others are aborted. The page is ready only when `data-report-ready="true"`, driven by the chart `onChartReady` event; the empty state reports `empty` and fails fast to pdfkit. A 20 s protocol timeout and a 40 s overall deadline bound a wedged browser, which is then discarded so the next render relaunches.
+3. **Generate wiring.** `ReportsService.generate()` uses the renderer for PDF. A renderer failure falls back to the pdfkit artifact and `ReportsService` logs one stage-tagged warning (report id, failing stage, original error name; no report content), so G-F12-2 and G-F12-4 stay Met. Spreadsheet formats never launch Chromium.
 4. **Deterministic developer scripts.** `apps/api/prisma/defense-demo-seed.ts`, `apps/api/prisma/local-demo-seed.ts` and `reports-runtime.local.test.ts` pass an always-rejecting renderer stub, so seeds and replay stay on pdfkit and never launch Chromium.
 5. **Form hint.** The generate form shows "PDF includes charts and DSD styling." under the Format select.
 6. **Configuration and dependencies.** New env keys `WEB_PROTECTION_BYPASS` (protected preview deployments) and `PDF_CHROME_PATH` (local browser path) in `packages/config/src/env.ts`. New pinned dependencies `puppeteer-core` 25.12.0 and `@sparticuz/chromium` 153.0.0.
@@ -60,7 +60,9 @@ No migration. Roll back by reverting the code; the fallback already restores pdf
 
 - Unit tests above, the scoped biome checks and `pnpm docs:check` (no new failures).
 - Local end-to-end: built web app on port 3100, `/print/reports/[id]` returns 200 without sign-in, and the built renderer produced a real PDF with local Edge.
-- Hosted verification pending: Chromium on Vercel Functions needs the pathways-api function settings and one hosted PDF smoke test (see the deferred register).
+- `pnpm docs:check`: 15 failures on this branch versus 18 on dev, none from new files.
+- Hosted verification pending: Chromium on Vercel Functions needs the pathways-api function settings and one hosted PDF smoke test (see the deferred register). Checklist: function bundle under the 250 MB limit, and expect Linux Chromium fonts to differ from the local Edge render.
+- Kill switch: set `PDF_CHROME_PATH` on pathways-api to a non-existent path to force pdfkit without a code change.
 
 ## 8. Approval
 
