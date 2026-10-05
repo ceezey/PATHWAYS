@@ -4,6 +4,13 @@ import { PageHeader } from '@/components/layout/page-header'
 import { AsyncState, EmptyState, SectionCard, StatusBadge } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { ReviewCardList, statusLabel } from '@/features/rules-board/review-card-list'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'
@@ -34,6 +41,9 @@ const permissionFor = (kind: 'alert' | 'recommendation', action: 'read' | 'revie
       : action === 'review'
         ? 'recommendations.review'
         : 'recommendations.outcome.record'
+
+// Radix Select rejects an empty value, so the unfiltered queue uses a sentinel.
+const ALL_PROJECTS = 'all'
 
 export function HumanReviewWorkspace({
   kind,
@@ -158,24 +168,27 @@ export function HumanReviewWorkspace({
       <div className="flex flex-wrap items-end gap-3">
         <div className="min-w-64 space-y-2">
           <Label htmlFor={`${kind}-project`}>Project</Label>
-          <select
-            className="h-10 w-full rounded-sm border border-input bg-background px-3"
-            id={`${kind}-project`}
-            value={projectId ?? ''}
-            onChange={(event) => {
-              setProjectId(event.target.value || null)
+          <Select
+            value={projectId ?? ALL_PROJECTS}
+            onValueChange={(value) => {
+              setProjectId(value === ALL_PROJECTS ? null : value)
               setCursor(null)
               setNotificationCursor(null)
               choose(null)
             }}
           >
-            <option value="">Select Project</option>
-            {projects.data?.map((project) => (
-              <option key={project.id} value={project.id}>
-                {project.title}
-              </option>
-            ))}
-          </select>
+            <SelectTrigger id={`${kind}-project`}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL_PROJECTS}>All projects</SelectItem>
+              {projects.data?.map((project) => (
+                <SelectItem key={project.id} value={project.id}>
+                  {project.title}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
         <Button type="button" variant="outline" onClick={refresh}>
           Refresh queue
