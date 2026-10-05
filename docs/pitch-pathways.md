@@ -39,7 +39,7 @@ L = live action, S = show seeded state. "Rehearsal" values are recorded at the l
 | # | Role | Action | Input | Output | Expected on screen | FR |
 |---|---|---|---|---|---|---|
 | **Plan** | | *What the session must achieve and how it is recorded (2 min)* | | | | |
-| 1 | M&E | S: SSG indicators: type, baseline, target, derived activity completion (`/projects/:ssg/indicators`) | Project | Targets the session must move | SSG-GIRLS-ENR 541 of 900; SSG-ATT-RATE 79.4 (baseline 68, target 90); SSG-KNOW-SCORE 67 of 75; LIB-ACT-COMPLETE derived | FR-9 |
+| 1 | M&E | S: SSG indicators: type, baseline, target, derived activity completion (`/projects/:ssg/indicators`) | Project | Targets the session must move | SSG-GIRLS-ENR 108 of 120 (150 registered, 111 girls); SSG-ATT-RATE 79.4 (baseline 68, target 90); SSG-KNOW-SCORE 67 of 75; LIB-ACT-COMPLETE derived | FR-9 |
 | 2 | M&E | S: published SSG forms and their fields (`/collection/forms`) | Targets | Instruments for the session | Beneficiary registration, Life Skills Session Attendance, Household Profile Update, two feedback surveys | FR-6 |
 | **Collect** | | *The PO brings the session's field data in (5 min)* | | | | |
 | 3 | PO | S: dashboard with the assigned session activity; aside: no Budget or Public Tracker menu, and `/transparency` is refused | Instruments | Session to run | Flagged proof "Peer educator training for senior high school girls", overdue items | FR-1 |

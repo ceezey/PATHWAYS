@@ -273,3 +273,9 @@
 ## 2026-10-05 Rules scope memo migration 0063
 - `0063_rules_scope_memo` replaces `pathways_rules_internal.human_rules_scope` (still owned by `rules_eligibility_owner`, same EXECUTE ACL, asserted in the migration) with a plpgsql version that memoizes the per-project result in a transaction-local setting keyed by `app.user_id`; semantics are unchanged.
 - It wires like 0062: hosted and forward preprovision/cleanup pairs for a temporary `rules_eligibility_owner` SET chain, plan, build, local-reset, Verify-Forward inventory and `rules-scope-memo-runtime.sql` (12 assertions: parity, actor change, forged slot, non-runtime session, transaction-local).
+
+## 2026-10-05 Demo numbers reconciled with cohorts
+- Defense seed cohorts now SSG 150, CRL 30, ALS 30, WSH 30, EHK 70 (ECD 0); people and household indicators, corrections, library readings and activity reach stay within each cohort, and targets sit just above it (SSG-GIRLS-ENR 108 of 120, EHK-FAMILIES 68 of 72, ALS-ENROLLED 30 of 30, CRL-HH-DIV 25 of 30).
+- New guard tests in `local-demo-data.test.ts` keep every started project at 30 or more people and every people count within its cohort.
+- CRL journey branches after COACHING into Wage employment and Enterprise start-up; the beneficiary journey track shows the sibling branch as "Not on path".
+- Deferred: beneficiary-linked survey and pre/post imports, and an application write path for assessment results. devV2 wipe, reseed and --verify (DR-04) stay with the developer.
