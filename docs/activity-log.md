@@ -246,3 +246,6 @@
 ## 2026-10-05 Budget alert labels and ledger filter line
 - The project-level budget row has no activity code, so its alert and recommendation printed the placeholder (`Budget at 92% - -`, `Signal: - utilization`); they now name the row by its title.
 - The budget recommendation card is clickable in place of its Review plan button, and a View expenses link now shows "Showing N of M expenses for <row>" above the ledger.
+
+## 2026-10-05 SADDD closed-period notice
+- SADDD withheld for an open or undated project now shows a neutral notice naming the end date and the reason (final counts of a closed period) instead of a red "SADDD analysis unavailable" error; real load failures keep the error state.

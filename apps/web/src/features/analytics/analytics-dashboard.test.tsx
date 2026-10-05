@@ -314,9 +314,7 @@ describe('Analytics dashboard request dependencies', () => {
     })
     await waitFor(() => expect(api.getActivities).toHaveBeenCalledWith('project-b'))
     expect(api.getSadddDashboard).not.toHaveBeenCalled()
-    expect(
-      screen.getByText("SADDD analysis is available only after the project's recorded end date."),
-    ).toBeTruthy()
+    expect(screen.getByText('SADDD opens after this project ends on Dec 31, 2026')).toBeTruthy()
     await waitFor(() =>
       expect(api.getMonitoringDashboard).toHaveBeenCalledWith({
         projectId: 'project-b',
@@ -438,9 +436,8 @@ describe('Analytics dashboard request dependencies', () => {
 
     await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalledTimes(1))
     expect(api.getSadddDashboard).not.toHaveBeenCalled()
-    expect(screen.getAllByText('Project reporting dates are not recorded.').length).toBeGreaterThan(
-      0,
-    )
+    expect(screen.getByText('SADDD needs project dates')).toBeTruthy()
+    expect(screen.queryByText('SADDD analysis unavailable')).toBeNull()
   })
 
   it('withholds monitoring when no valid active Indicator period exists', async () => {

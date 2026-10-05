@@ -3,6 +3,7 @@
 import {
   AlertTriangle,
   BarChart3,
+  CalendarClock,
   ChevronDown,
   ClipboardCheck,
   Download,
@@ -68,6 +69,7 @@ import {
   deriveAnalyticsReportingPeriods,
   nonOverlappingAnalyticsPeriods,
 } from './analytics-reporting-periods'
+import { formatDate } from './analytics-utils'
 import { BudgetSummaryCard } from './budget-summary-card'
 import { IndicatorTrendChart } from './indicator-trend-chart'
 import { InsightStatus } from './insight-status'
@@ -95,9 +97,6 @@ const visualizationTypes = [
 ] as const
 type AnalysisView = (typeof analysisViews)[number]['value']
 type VisualizationType = (typeof visualizationTypes)[number]['value']
-
-const missingSadddDates = 'Project reporting dates are not recorded.'
-const openProjectSaddd = "SADDD analysis is available only after the project's recorded end date."
 
 const businessDateInManila = (date = new Date()) => {
   const parts = new Intl.DateTimeFormat('en-US', {
@@ -254,13 +253,22 @@ export const AnalyticsDashboard = () => {
   const surveyUnavailable = !canReadSurvey || surveyClosedPeriodRequired
   const pickerPeriods = analysisView === 'survey' ? surveyPeriods : reportingPeriods
   const pickerPeriod = analysisView === 'survey' ? surveyPeriod : selectedPeriod
-  const sadddUnavailableReason =
+  // SADDD is withheld by policy until the project period closes; this is a notice, not an error.
+  const sadddNotice =
     !selectedProject?.startDate || !selectedProject.endDate
-      ? missingSadddDates
+      ? {
+          title: 'SADDD needs project dates',
+          description:
+            "Record this project's start and end dates to enable the sex, age and disability breakdown.",
+        }
       : selectedProject.endDate >= businessDateInManila()
-        ? openProjectSaddd
-        : ''
-  const sadddEligible = sadddUnavailableReason === ''
+        ? {
+            title: `SADDD opens after this project ends on ${formatDate(selectedProject.endDate)}`,
+            description:
+              'Sex, age and disability breakdowns use the final counts of a closed project period, so they are not shown while the project is ongoing. Select a completed project to see them now.',
+          }
+        : null
+  const sadddEligible = sadddNotice === null
   const periodRange = selectedPeriod
     ? { periodStart: selectedPeriod.start, periodEnd: selectedPeriod.end }
     : {}
@@ -372,7 +380,7 @@ export const AnalyticsDashboard = () => {
     setSaddd(null)
     if (!sadddEligible) {
       setSadddLoading(false)
-      setSadddError(sadddUnavailableReason)
+      setSadddError('')
       return
     }
     let active = true
@@ -393,7 +401,7 @@ export const AnalyticsDashboard = () => {
     return () => {
       active = false
     }
-  }, [projectId, sadddEligible, sadddLoadAttempt, sadddUnavailableReason, selectedProject])
+  }, [projectId, sadddEligible, sadddLoadAttempt, selectedProject])
 
   useEffect(() => {
     if (!projectId || !selectedPeriod || !canReadIndicators) {
@@ -1142,6 +1150,12 @@ export const AnalyticsDashboard = () => {
                   title="Loading SADDD analysis"
                   description="Loading the scoped beneficiary aggregate data."
                   icon={UsersRound}
+                />
+              ) : sadddNotice ? (
+                <EmptyState
+                  description={sadddNotice.description}
+                  icon={CalendarClock}
+                  title={sadddNotice.title}
                 />
               ) : sadddError ? (
                 <AsyncState
