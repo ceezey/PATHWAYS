@@ -468,6 +468,19 @@ export function HumanReviewWorkspace({
 }
 function AlertEvidence({ item }: { item: HumanAlert }) {
   const { profile } = useCurrentRole()
+  const canReadLinked =
+    principalHasAtomicPermission(profile, 'recommendations.read') &&
+    item.linkedRecommendationIds.length > 0
+  // One read labels each linked recommendation by its title instead of a number.
+  const linked = useAuthorizedRead(
+    `alert-linked-recommendations:${item.id}`,
+    item.projectId,
+    'recommendations.read',
+    (signal) => rulesHumanClient.listRecommendations({ alertId: item.id, limit: '10' }, signal),
+    canReadLinked,
+    { freshness: 'summary' },
+  )
+  const titleOf = (id: string) => linked.data?.items.find((row) => row.id === id)?.title
   return (
     <div className="space-y-4">
       <p className="whitespace-pre-wrap">{item.explanation}</p>
@@ -478,13 +491,14 @@ function AlertEvidence({ item }: { item: HumanAlert }) {
       </p>
       <RuleTreeView node={item.conditions} />
       <EvidenceTable evidence={item.evidence} />
-      {principalHasAtomicPermission(profile, 'recommendations.read') &&
-      item.linkedRecommendationIds.length ? (
+      {canReadLinked ? (
         <ul className="space-y-2">
           {item.linkedRecommendationIds.map((id, index) => (
             <li key={id}>
               <Link className="text-primary underline" href={`/recommendations/${id}`}>
-                View linked recommendation {index + 1}
+                {titleOf(id)
+                  ? `Linked recommendation: ${titleOf(id)}`
+                  : `View linked recommendation ${index + 1}`}
               </Link>
             </li>
           ))}

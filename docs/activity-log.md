@@ -252,3 +252,6 @@
 
 ## 2026-10-05 Outcome picker uses the DSD select
 - The alert and recommendation Outcome picker is the DSD `Select` (white trigger, Radix menu, "Choose an outcome" placeholder) in place of a native select; its test drives the repo's native Select mock.
+
+## 2026-10-05 Linked recommendations named by title
+- Alert details label each linked recommendation by its title ("Linked recommendation: Reschedule delayed activities") from one summary read filtered by alertId; the numbered label remains the fallback while loading or on failure.

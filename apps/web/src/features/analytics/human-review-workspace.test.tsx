@@ -25,6 +25,8 @@ vi.mock('@/hooks/use-current-role', () => ({
       assignedProjectIds: ['10000000-0000-4000-8000-000000000001'],
     },
     access: 'ready',
+    role: state.role === 'PROJECT_MANAGER' ? 'Project Manager' : 'Project Officer',
+    assignedProjectIds: ['10000000-0000-4000-8000-000000000001'],
   }),
 }))
 vi.mock('@/hooks/use-display-labels', () => ({
@@ -152,5 +154,30 @@ describe('alert outcome controls', () => {
     )
     await screen.findByRole('heading', { name: alert.title })
     expect(Boolean(screen.queryByRole('button', { name: 'Record outcome' }))).toBe(shown)
+  })
+  it('labels a linked recommendation by its title', async () => {
+    const recommendationId = '50000000-0000-4000-8000-000000000009'
+    state.role = 'PROJECT_MANAGER'
+    state.permissions = ['projects.read', 'alerts.read', 'recommendations.read']
+    state.getAlert.mockResolvedValue({ ...alert, linkedRecommendationIds: [recommendationId] })
+    state.recommendations.mockResolvedValue({
+      items: [{ id: recommendationId, title: 'Reschedule delayed activities' }],
+      nextCursor: null,
+    })
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <AuthorizedQueryProvider>
+          <HumanReviewWorkspace kind="alert" initialId={alert.id} />
+        </AuthorizedQueryProvider>
+      </QueryClientProvider>,
+    )
+    const link = await screen.findByRole('link', {
+      name: 'Linked recommendation: Reschedule delayed activities',
+    })
+    expect(link.getAttribute('href')).toBe(`/recommendations/${recommendationId}`)
+    expect(state.recommendations).toHaveBeenCalledWith(
+      { alertId: alert.id, limit: '10' },
+      expect.anything(),
+    )
   })
 })
