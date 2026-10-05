@@ -49,6 +49,7 @@ export const MIGRATIONS_IN_ORDER = Object.freeze([
   '0063_rules_scope_memo',
   '0064_evaluation_write_path',
   '0065_zone_check_memo',
+  '0065_beneficiary_reach_kpi_values',
 ])
 
 function range(from, to) {
@@ -166,6 +167,8 @@ export function buildPlan() {
     { type: 'deploy', migrations: range(64, 64) },
     // 0065 needs no preprovision: prisma owns both p06 functions and the new helper.
     { type: 'deploy', migrations: range(65, 65) },
+    // 0065 needs no preprovision: prisma owns every function and source table it reads.
+    { type: 'deploy', migrations: range(66, 66) },
     { type: 'alter-runtime-role' },
     { type: 'postconditions' },
   ]
@@ -257,6 +260,7 @@ const PRIOR_BUILD_COMPLETION_POINTS = [
   '0061_activity_extension_requests',
   '0062_rules_escalated_alert_list',
   '0063_rules_scope_memo',
+  '0065_beneficiary_reach_kpi_values',
 ]
 
 // The migrations whose completion is ambiguous with a residual temporary owner chain, and the
@@ -284,6 +288,7 @@ export const RESIDUAL_CHAIN_MIGRATIONS = Object.freeze([
   '0061_activity_extension_requests',
   '0062_rules_escalated_alert_list',
   '0063_rules_scope_memo',
+  '0065_beneficiary_reach_kpi_values',
 ])
 
 export function planIndexForAppliedCount(appliedCount, { residualOwnerMemberships = false } = {}) {

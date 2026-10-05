@@ -92,6 +92,7 @@ test('the dry-run plan order exactly matches the documented stop points', () => 
     'cleanup:rules-scope-memo',
     'deploy:0064_evaluation_write_path',
     'deploy:0065_zone_check_memo',
+    'deploy:0065_beneficiary_reach_kpi_values',
     'alter-runtime-role',
     'postconditions',
   ])
