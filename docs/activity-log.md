@@ -281,3 +281,7 @@
 - API: new routes for criteria create/publish and evaluation create/score/submit/return/signoff; `GET` now returns every evaluation (capped 20) with its scores, not only the latest summary.
 - Web: `live-evaluation-workspace.tsx` rebuilt with a publish action, an evaluations list, a start-evaluation form, a scoring table and submit/return/sign-off actions behind confirmation dialogs.
 - Tests: API (2180 tests) and the touched web suites pass; `pnpm typecheck` and `biome check` clean on both apps. The migration itself has not been run against any database in this session (no database credentials available); a `.local.test.ts` runtime suite and a local apply plus `--verify` are the open item before this leaves the branch. Seed, devV2 and the 2026-10-06 reseed are untouched.
+
+## 2026-10-06
+
+- Evaluation write path verified locally: full MigrationBaseline replay 0000-0064 green with the evaluations runtime suite (8 cases) wired in, f10-f11 and 0063 suites pass, API and web typecheck, lint and tests pass, defense rehearsal 23/23. `finance-evaluation-decisions.sql` remains a stale Phase 3 suite (fails at fixtures on the rules source-proof trigger). CR approved by the developer; not applied to devV2.

@@ -2,7 +2,7 @@
 
 **ID:** `cr-pathways-evaluation-write-path`
 **Date:** 2026-10-06
-**Status:** Proposed
+**Status:** Approved (developer, 2026-10-06)
 
 ## 1. Trigger
 
@@ -139,7 +139,7 @@ section on evaluation approval stages; `sdd-pathways.md`'s evaluation entity not
 ## 6. Migration / Rollback
 
 Apply `0064_evaluation_write_path` after `0063`. Rollback: revert the migration (restore
-`p09_role_allows` to its pre-0063 body per the preserved SQL in 0055; restore the original
+`p09_role_allows` to its pre-0064 body per the preserved SQL in 0055; restore the original
 `p3_evaluation_values` CHECK, `p3_guard_evaluation` function body and `project_evaluations`
 `p09_update` policy, all reproduced verbatim in this migration's predecessor state in
 `0000_pathways_baseline_through_0026`; restore `p10_guard_evaluation_weight` and its trigger; drop
@@ -159,10 +159,14 @@ M&E (create criteria, publish, start an evaluation, score, submit), then as Proj
 
 ## 8. Approval
 
-Pending developer review.
+Approved by the developer on 2026-10-06.
 
 ## 9. Disposition
 
-Code and tests in this repository are complete and passing (API: 2180 tests; web: full touched
-suites). Not yet applied to any database, local or hosted. Devv2 and the seed are untouched, so
-the 2026-10-06 defense reseed and its `--verify` are unaffected by this branch.
+Verified locally on 2026-10-06 (worktree `feature/evaluation-write-path`); no hosted database, including devV2, was touched.
+
+- Replay: `Replay-Local.ps1 -MigrationBaseline` exit 0 on 0000-0064, including `F10_F11_RULES_RUNTIME`, `FORWARD_0063_RULES_SCOPE_MEMO_RUNTIME`, `RBAC_V4_GRANTS_RUNTIME` and `CURRENT_SCHEMA_API_RUNTIME`; the wired `evaluations.local.test.ts` ran inside the gate (8 passed).
+- Suites: `f10-f11-rules-runtime.sql` PASS (75 checks) on the saved template. `finance-evaluation-decisions.sql` is a stale Phase 3 suite that already fails at its project fixture insert ("Source proof unavailable", rules source-proof trigger) before any evaluation logic; its 0064 assertion edit stays unexecuted and the new runtime suite covers that behavior.
+- API: typecheck and biome clean; 114 test files passed (2198 tests, 20 skipped). Web: typecheck and biome clean; 203 files (1817 tests) passed.
+- Defense rehearsal on the local stack: `db:local:reset`, wipe, `db:defense:local`, `defense-demo.mjs --test-local --verify` returned 23/23.
+- Not yet applied to devV2; controller SAD migration review is separate.
