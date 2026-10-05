@@ -109,6 +109,17 @@ const OwnedProfileWorkspace = ({ owner: draftOwner }: { owner: SensitiveDraftOwn
     }
   }
 
+  const reload = (
+    <Button
+      disabled={busy}
+      onClick={() => setAttempt((value) => value + 1)}
+      type="button"
+      variant="outline"
+    >
+      Reload profile
+    </Button>
+  )
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -155,23 +166,20 @@ const OwnedProfileWorkspace = ({ owner: draftOwner }: { owner: SensitiveDraftOwn
                 />
               </div>
               <p className="text-sm">Email address: {email || 'Not recorded'}</p>
-              <Button disabled={busy} type="submit">
-                {busy ? 'Saving...' : 'Save profile'}
-              </Button>
+              <div className="flex items-center justify-between gap-2">
+                <Button disabled={busy} type="submit">
+                  {busy ? 'Saving...' : 'Save profile'}
+                </Button>
+                {reload}
+              </div>
             </form>
           ) : (
-            <output className="text-sm">Loading profile...</output>
+            <>
+              <output className="text-sm">Loading profile...</output>
+              <div className="mt-4 flex justify-end">{reload}</div>
+            </>
           )}
           {notice && <output className="mt-4 block text-sm">{notice}</output>}
-          <Button
-            className="mt-4"
-            disabled={busy}
-            onClick={() => setAttempt((value) => value + 1)}
-            type="button"
-            variant="outline"
-          >
-            Reload profile
-          </Button>
         </SectionCard>
         <SectionCard title="Change password" description="Requires a fresh account verification.">
           <OwnPasswordForm />

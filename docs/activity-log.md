@@ -277,3 +277,7 @@
 ## 2026-10-06 Rule category and linked alert naming
 - The rule drawer shows the derived Rule Category as text instead of a disabled select, since the rule contract stores no category.
 - Recommendation details name the linked alert (title, severity, status, explanation and measured value) instead of a bare "View linked alert" link, and the raw `KPI` and `COMBINED` basis values read as indicator (KPI) results and project monitoring signals.
+
+## 2026-10-06 Change password modal and profile action row
+- My Profile Change password is now a button that opens a TOTP step-up modal, then a new-password step in the same dialog; the email or phone nonce step is hidden (tracked in deferred-features) and `reauthentication_needed` shows a sign-in-again message without the uncertain lock.
+- Save profile and Reload profile share one row, Save left and Reload right.

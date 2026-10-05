@@ -71,6 +71,14 @@ describe('own profile editing', () => {
     expect(screen.queryByText('Beneficiary access PIN')).toBeNull()
   })
 
+  it('places Save profile and Reload profile on one row', async () => {
+    render(<OwnProfileWorkspace />)
+    await screen.findByLabelText('Name')
+    const row = screen.getByRole('button', { name: 'Save profile' }).parentElement
+    expect(row?.className).toContain('justify-between')
+    expect(row?.contains(screen.getByRole('button', { name: 'Reload profile' }))).toBe(true)
+  })
+
   it('updates only approved editable fields with the loaded revision', async () => {
     render(<OwnProfileWorkspace />)
     const input = await screen.findByLabelText('Name')
