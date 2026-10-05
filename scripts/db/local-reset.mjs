@@ -52,7 +52,7 @@ const cleanup = {
   '0060_rules_budget_beneficiary_survey_metrics': ['hosted-rules-catalog-cleanup.sql', []],
   // 0062's temporary SET membership to rules_human_owner is revoked right after it.
   '0062_rules_escalated_alert_list': ['hosted-rules-escalation-cleanup.sql', []],
-  // 0063's temporary SET membership to rules_eligibility_owner is revoked right after it.
+  // 0063's temporary SET chain to rules_store_owner and rules_eligibility_owner is revoked right after it.
   '0063_rules_scope_memo': ['hosted-rules-scope-memo-cleanup.sql', []],
 }
 

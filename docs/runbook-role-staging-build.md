@@ -164,6 +164,10 @@ Role-staging applied the original 0047, 0048 and 0051 before they were amended i
 
 0061 (cr-pathways-activity-extension-request) adds one prisma-owned table and needs no preprovision. 0062 (cr-pathways-escalated-alerts) creates `pathways.f10_escalated_alert_list` owned by `rules_human_owner`, so `hosted-build.mjs` runs `hosted-rules-escalation-preprovision.sql` (temporary SET-only membership from prisma to `rules_human_owner`) before it and `hosted-rules-escalation-cleanup.sql` right after. The ledger then holds 37 rows (0000 plus 0027-0062). A ledger ending at 0061 or 0062 is read the same way as 0043/0044: `--resume` checks for a residual `rules_human_owner` membership and resumes at the 0062 deploy or the rules-escalation cleanup when it is still granted. Clear `.tmp/hosted-build/migrations` before any `--resume`.
 
+### Applying 0063 to role-staging
+
+0063 (rules scope memo) replaces `pathways_rules_internal.human_rules_scope`, so `hosted-build.mjs` runs `hosted-rules-scope-memo-preprovision.sql` (temporary SET-only chain from prisma to `rules_store_owner` and `rules_eligibility_owner`) before it and `hosted-rules-scope-memo-cleanup.sql` after it. After a failed 0063 preprovision on a 0062 ledger, run `prisma migrate resolve --rolled-back 0063_rules_scope_memo` if a failed row exists, then `hosted-rules-scope-memo-cleanup.sql`, then `--resume`.
+
 ### Disambiguating a ledger that stops exactly at 0043 or 0044
 
 The same ambiguity applies to the 0044 chain, so `--resume` reads the live owner memberships at those two ledger counts as well:

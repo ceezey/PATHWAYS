@@ -33,7 +33,7 @@ DO $$ BEGIN
  IF EXISTS(SELECT FROM public._prisma_migrations WHERE finished_at IS NULL AND rolled_back_at IS NULL) THEN
   RAISE EXCEPTION 'A migration is still in progress'; END IF;
 END $$;
-REVOKE rules_eligibility_owner FROM prisma GRANTED BY postgres;
+REVOKE rules_store_owner,rules_eligibility_owner FROM prisma GRANTED BY postgres;
 DO $$ BEGIN
  IF EXISTS(SELECT FROM pg_catalog.pg_auth_members m JOIN pg_catalog.pg_roles r ON r.oid=m.roleid
   WHERE m.member=(SELECT oid FROM pg_catalog.pg_roles WHERE rolname='prisma') AND r.rolname LIKE 'rules\_%\_owner')

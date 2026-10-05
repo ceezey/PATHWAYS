@@ -152,7 +152,7 @@ export function buildPlan() {
     },
     { type: 'deploy', migrations: range(62, 62) },
     { type: 'cleanup', name: 'rules-escalation', file: 'hosted-rules-escalation-cleanup.sql' },
-    // 0063 replaces a function owned by rules_eligibility_owner, so it needs the same temporary SET-only membership.
+    // 0063 replaces a function owned by rules_eligibility_owner under a rules_store_owner CREATE loan, so it needs a temporary SET-only chain to both.
     {
       type: 'preprovision',
       name: 'rules-scope-memo',
@@ -230,7 +230,7 @@ export function assertResumablePrefix(ledgerRows) {
 //  * 0061_activity_extension_requests and 0062_rules_escalated_alert_list follow the same two shapes for the
 //    rules-escalation membership (temporary rules_human_owner SET chain) granted before and revoked after 0062.
 //  * 0062_rules_escalated_alert_list and 0063_rules_scope_memo follow the same two shapes for the
-//    rules-scope-memo membership (temporary rules_eligibility_owner SET chain) granted before and revoked after 0063.
+//    rules-scope-memo membership (temporary rules_store_owner and rules_eligibility_owner SET chain) granted before and revoked after 0063.
 //    A 0062 ledger with a residual chain resumes at the rules-escalation cleanup, whose own precondition rejects it
 //    when the residual chain is the 0063 one.
 // The caller therefore checks live database state (whether prisma still holds a temporary

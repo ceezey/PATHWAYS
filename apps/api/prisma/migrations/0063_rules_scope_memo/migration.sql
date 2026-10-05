@@ -1,10 +1,11 @@
 -- 0063 rules scope memo: pathways_rules_internal.human_rules_scope is called per row by about 31 RLS policies and ran up
 -- to ten p06_can checks each time, so one alert list made about 14,000 p06_can calls and timed out. The function now
 -- memoizes its result per project in a transaction-local setting keyed by the acting user, so an actor change
--- recomputes and a forged slot value for another actor is ignored. Semantics are unchanged. No table, column, policy or
--- grant changes: CREATE OR REPLACE keeps the owner (rules_eligibility_owner) and the EXECUTE ACL, asserted below.
+-- recomputes and a forged slot value for another actor is ignored. The memo is transaction-scoped per actor and project. No table, column, policy or
+-- grant changes outside a one-statement schema CREATE loan: CREATE OR REPLACE keeps the owner (rules_eligibility_owner) and the EXECUTE ACL, asserted below.
 -- DBA prerequisite: run hosted-rules-scope-memo-preprovision.sql first and hosted-rules-scope-memo-cleanup.sql afterwards
--- (after a failure, run prisma migrate resolve --rolled-back first). Replacing a function needs ownership only.
+-- (after a failure, run prisma migrate resolve --rolled-back first). PostgreSQL checks CREATE on the schema even for a
+-- replace, so rules_store_owner, the schema owner, lends CREATE on pathways_rules_internal for the one statement.
 BEGIN;
 SET LOCAL lock_timeout = '5s';
 SET LOCAL statement_timeout = '60s';
@@ -14,6 +15,10 @@ DO $$ BEGIN
  THEN RAISE EXCEPTION '0063 requires the verified 0062 state and migration identity'; END IF;
  IF NOT pg_catalog.pg_has_role('prisma','rules_eligibility_owner','SET')
  THEN RAISE EXCEPTION '0063 requires the temporary rules_eligibility_owner SET chain (run hosted-rules-scope-memo-preprovision.sql)'; END IF;
+ IF NOT pg_catalog.pg_has_role('prisma','rules_store_owner','SET')
+ THEN RAISE EXCEPTION '0063 requires the temporary rules_store_owner SET chain (run hosted-rules-scope-memo-preprovision.sql)'; END IF;
+ IF has_schema_privilege('rules_eligibility_owner','pathways_rules_internal','CREATE')
+ THEN RAISE EXCEPTION '0063 requires rules_eligibility_owner to hold no CREATE on pathways_rules_internal before the loan'; END IF;
  IF pg_catalog.to_regprocedure('pathways_rules_internal.human_rules_scope(uuid,uuid)') IS NULL
  THEN RAISE EXCEPTION '0063 requires human_rules_scope to exist'; END IF;
  IF (SELECT pg_catalog.pg_get_userbyid(proowner) FROM pg_catalog.pg_proc WHERE oid='pathways_rules_internal.human_rules_scope(uuid,uuid)'::pg_catalog.regprocedure)<>'rules_eligibility_owner'
@@ -22,8 +27,11 @@ DO $$ BEGIN
  PERFORM pg_catalog.set_config('pathways.m0063_acl',
   (SELECT coalesce(proacl::text,'') FROM pg_catalog.pg_proc WHERE oid='pathways_rules_internal.human_rules_scope(uuid,uuid)'::pg_catalog.regprocedure),true);
 END $$;
-SELECT pg_advisory_xact_lock(505006,1);
+SELECT pg_advisory_xact_lock(505005,1);
 
+SET LOCAL ROLE rules_store_owner;
+GRANT CREATE ON SCHEMA pathways_rules_internal TO rules_eligibility_owner;
+RESET ROLE;
 SET LOCAL ROLE rules_eligibility_owner;
 CREATE OR REPLACE FUNCTION pathways_rules_internal.human_rules_scope(org uuid, project uuid)
  RETURNS boolean LANGUAGE plpgsql STABLE SET search_path TO '' AS $function$
@@ -46,6 +54,9 @@ BEGIN
  PERFORM pg_catalog.set_config(slot, actor||CASE WHEN result THEN ':t' ELSE ':f' END, true);
  RETURN result;
 END $function$;
+RESET ROLE;
+SET LOCAL ROLE rules_store_owner;
+REVOKE CREATE ON SCHEMA pathways_rules_internal FROM rules_eligibility_owner;
 RESET ROLE;
 
 -- Postconditions.
@@ -70,6 +81,7 @@ DO $$ BEGIN
   OR has_function_privilege('pathways_runtime','pathways_rules_internal.human_rules_scope(uuid,uuid)','EXECUTE')
   OR has_function_privilege('pathways_rules_worker','pathways_rules_internal.human_rules_scope(uuid,uuid)','EXECUTE')
   OR has_function_privilege('pathways_rules_sweeper','pathways_rules_internal.human_rules_scope(uuid,uuid)','EXECUTE')
+  OR has_schema_privilege('rules_eligibility_owner','pathways_rules_internal','CREATE')
   OR EXISTS(SELECT FROM pg_catalog.pg_proc p, pg_catalog.aclexplode(p.proacl) a
    WHERE p.oid='pathways_rules_internal.human_rules_scope(uuid,uuid)'::pg_catalog.regprocedure AND a.grantee=0)
  THEN RAISE EXCEPTION '0063 grant postcondition failed'; END IF;

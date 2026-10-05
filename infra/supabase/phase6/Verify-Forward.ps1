@@ -971,7 +971,8 @@ SELECT (pg_catalog.pg_get_userbyid(p.proowner)='rules_eligibility_owner' AND NOT
  AND NOT has_function_privilege('pathways_runtime',p.oid,'EXECUTE') AND NOT has_function_privilege('anon',p.oid,'EXECUTE')
  AND NOT has_function_privilege('authenticated',p.oid,'EXECUTE') AND NOT has_function_privilege('service_role',p.oid,'EXECUTE')
  AND NOT has_schema_privilege('rules_eligibility_owner','pathways_rules_internal','CREATE')
- AND NOT pg_catalog.pg_has_role('prisma','rules_eligibility_owner','MEMBER'))::text
+ AND NOT pg_catalog.pg_has_role('prisma','rules_eligibility_owner','MEMBER')
+ AND NOT pg_catalog.pg_has_role('prisma','rules_store_owner','MEMBER'))::text
 FROM pg_catalog.pg_proc p WHERE p.oid='pathways_rules_internal.human_rules_scope(uuid,uuid)'::pg_catalog.regprocedure;
 "@
     if ($scopeMemoShape.Trim() -cne 'true') { throw "0063 rules scope memo inventory differs in $db." }

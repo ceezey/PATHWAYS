@@ -1,6 +1,6 @@
 -- Owned disposable local CI only. Never use on hosted databases.
 -- Forward equivalent of hosted-rules-scope-memo-preprovision.sql for 0063_rules_scope_memo: a temporary
--- SET-only membership from prisma to rules_eligibility_owner, granted in the post-cleanup role state. Pair with
+-- SET-only membership from prisma to rules_store_owner and rules_eligibility_owner, granted in the post-cleanup role state. Pair with
 -- forward-rules-scope-memo-cleanup.sql.
 \set ON_ERROR_STOP on
 BEGIN;
@@ -20,14 +20,15 @@ DO $$ BEGIN
  OR EXISTS(SELECT FROM pg_catalog.pg_auth_members m JOIN pg_catalog.pg_roles r ON r.oid=m.roleid
   WHERE m.member=(SELECT oid FROM pg_catalog.pg_roles WHERE rolname='prisma')
   AND (r.rolname LIKE 'rules\_%\_owner' OR r.rolname IN('public_projection_owner','report_projection_owner','finance_operation_owner')))
- OR NOT EXISTS(SELECT FROM pg_catalog.pg_roles WHERE rolname='rules_eligibility_owner' AND NOT rolinherit AND NOT rolcanlogin AND NOT rolsuper)
+ OR (SELECT count(*) FROM pg_catalog.pg_roles WHERE rolname IN('rules_store_owner','rules_eligibility_owner') AND NOT rolinherit AND NOT rolcanlogin AND NOT rolsuper)<>2
  THEN RAISE EXCEPTION 'Verified 0062 ledger without 0063, clean ledger and post-cleanup prisma role required'; END IF;
 END $$;
-GRANT rules_eligibility_owner TO prisma WITH ADMIN FALSE, INHERIT FALSE, SET TRUE GRANTED BY postgres;
+GRANT rules_store_owner,rules_eligibility_owner TO prisma WITH ADMIN FALSE, INHERIT FALSE, SET TRUE GRANTED BY postgres;
 DO $$ BEGIN
- IF NOT pg_catalog.pg_has_role('prisma','rules_eligibility_owner','SET') OR pg_catalog.pg_has_role('prisma','rules_eligibility_owner','USAGE')
+ IF NOT pg_catalog.pg_has_role('prisma','rules_store_owner','SET') OR NOT pg_catalog.pg_has_role('prisma','rules_eligibility_owner','SET')
+ OR pg_catalog.pg_has_role('prisma','rules_store_owner','USAGE') OR pg_catalog.pg_has_role('prisma','rules_eligibility_owner','USAGE')
  OR (SELECT count(*) FROM pg_catalog.pg_auth_members m JOIN pg_catalog.pg_roles r ON r.oid=m.roleid
-  WHERE m.member=(SELECT oid FROM pg_catalog.pg_roles WHERE rolname='prisma') AND r.rolname LIKE 'rules\_%\_owner')<>1
+  WHERE m.member=(SELECT oid FROM pg_catalog.pg_roles WHERE rolname='prisma') AND r.rolname LIKE 'rules\_%\_owner')<>2
  THEN RAISE EXCEPTION 'Temporary rules scope memo SET chain postcondition failed'; END IF;
 END $$;
 COMMIT;
