@@ -44,6 +44,10 @@ export const apiEnvSchema = z
     SUPABASE_SERVICE_ROLE_KEY: optionalString,
     SUPABASE_JWT_SECRET: optionalString,
     WEB_ORIGIN: optionalUrl,
+    // Vercel Protection Bypass for Automation secret of the web project, sent only to WEB_ORIGIN.
+    WEB_PROTECTION_BYPASS: optionalString,
+    // Local Chrome or Edge executable for the PDF renderer; Linux hosts use the bundled Chromium.
+    PDF_CHROME_PATH: optionalString,
     SENTRY_DSN_API: optionalString,
     UPLOADS_BUCKET: z.string().default('uploads'),
     EVIDENCE_BUCKET: z.string().default('pathways-private'),
