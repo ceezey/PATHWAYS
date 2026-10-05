@@ -4,9 +4,9 @@ import {
   AlertTriangle,
   BarChart3,
   ChevronDown,
-  CircleDollarSign,
   ClipboardCheck,
   Download,
+  PhilippinePeso,
   Plus,
   Target,
   UsersRound,
@@ -37,6 +37,7 @@ import { metricUnavailableLabel, overviewMetricLabel } from '@/features/projects
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'
 import { addPin } from '@/lib/dashboard-pins'
+import { formatCappedPercent } from '@/lib/percent'
 import { can } from '@/lib/rbac/can'
 import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
 import { downloadCoreArtifact } from '@/lib/services/core-feature-client'
@@ -1010,7 +1011,7 @@ export const AnalyticsDashboard = () => {
                 tone={averageKpi === null ? 'info' : averageKpi >= 70 ? 'success' : 'warning'}
                 value={
                   averageKpi !== null
-                    ? `${averageKpi}%`
+                    ? formatCappedPercent(averageKpi)
                     : monitoringReadable
                       ? 'None yet'
                       : 'Unavailable'
@@ -1028,7 +1029,7 @@ export const AnalyticsDashboard = () => {
                         ? 'Several currencies are recorded; see the Budget utilization panel.'
                         : 'Approved expenses against planned budget allocations; pending is not counted.'
                 }
-                icon={CircleDollarSign}
+                icon={PhilippinePeso}
                 label="Budget utilization"
                 tone={
                   budgetUtilizationPercent === null
@@ -1047,7 +1048,7 @@ export const AnalyticsDashboard = () => {
                         : budgetCurrencies.length > 1
                           ? 'Multiple currencies'
                           : budgetUtilizationPercent !== null
-                            ? `${budgetUtilizationPercent}%`
+                            ? formatCappedPercent(budgetUtilizationPercent, 'over budget')
                             : 'No budget'
                 }
               />

@@ -1,8 +1,9 @@
 'use client'
 
-import { CircleDollarSign } from 'lucide-react'
+import { PhilippinePeso } from 'lucide-react'
 
 import { EmptyState } from '@/components/pathways/empty-state'
+import { formatCappedPercent } from '@/lib/percent'
 import type { BudgetSummary } from '@pathways/shared'
 
 export const NO_BUDGET_LABEL = 'No budget'
@@ -17,7 +18,7 @@ export const BudgetSummaryCard = ({ data }: { data: BudgetSummary }) =>
   data.currencies.length === 0 ? (
     <EmptyState
       description="No budget allocations are recorded for this project."
-      icon={CircleDollarSign}
+      icon={PhilippinePeso}
       title={NO_BUDGET_LABEL}
     />
   ) : (
@@ -42,7 +43,9 @@ export const BudgetSummaryCard = ({ data }: { data: BudgetSummary }) =>
               <td className="p-3 tabular-nums">{money(row.approved, row.currency)}</td>
               <td className="p-3 tabular-nums">{money(row.pending, row.currency)}</td>
               <td className="p-3 tabular-nums">
-                {row.utilizationPercent === null ? NO_BUDGET_LABEL : `${row.utilizationPercent}%`}
+                {row.utilizationPercent === null
+                  ? NO_BUDGET_LABEL
+                  : formatCappedPercent(row.utilizationPercent, 'over budget')}
               </td>
             </tr>
           ))}

@@ -11,6 +11,7 @@ import {
   StatusBadge,
 } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
+import { formatCappedPercent } from '@/lib/percent'
 import { cn } from '@/lib/utils'
 
 import { formatCurrency } from '../activity-utils'
@@ -119,7 +120,11 @@ export const BudgetOverview = ({
         <StatCard label="Total budget" sub="Approved allocation" value={peso(totals.allocated)} />
         <StatCard
           label="Total logged"
-          sub={pct === null ? 'Utilization not available' : `${pct}% utilized`}
+          sub={
+            pct === null
+              ? 'Utilization not available'
+              : `${formatCappedPercent(pct, 'over budget')} utilized`
+          }
           tone={tone}
           value={peso(totals.used)}
         >

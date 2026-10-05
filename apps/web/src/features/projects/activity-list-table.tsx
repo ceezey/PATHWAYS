@@ -5,6 +5,7 @@ import { useMemo, useState } from 'react'
 
 import { SectionCard, StatusBadge } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
+import { formatCappedPercent } from '@/lib/percent'
 import { cn } from '@/lib/utils'
 import type { ActivitySummary } from '@/types/pathways'
 
@@ -33,7 +34,9 @@ const beneficiariesText = (activity: ActivitySummary) => {
 }
 
 const budgetText = (activity: ActivitySummary) =>
-  activity.budgetUtilization == null ? missing : `${activity.budgetUtilization}%`
+  activity.budgetUtilization == null
+    ? missing
+    : formatCappedPercent(activity.budgetUtilization, 'over budget')
 
 const indicatorsText = (activity: ActivitySummary) =>
   String(activity.indicatorCount ?? activity.indicatorIds.length)

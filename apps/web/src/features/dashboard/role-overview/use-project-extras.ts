@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 
+import { formatCappedPercent } from '@/lib/percent'
 import { coreDataClient } from '@/lib/services/core-feature-client'
 import { pathwaysClient } from '@/lib/services/pathways-client'
 import type { PathwaysRole } from '@/types/pathways-role'
@@ -20,7 +21,7 @@ const loadMetrics = async (id: string): Promise<ProjectMetrics[string]> => {
   const b = m.budgetUtilization
   const allocated = Number(b?.approvedBudget)
   return {
-    kpi: kpi === null ? null : `${kpi}%`,
+    kpi: kpi === null ? null : formatCappedPercent(kpi),
     budget:
       b?.approvedBudget && allocated > 0
         ? {
