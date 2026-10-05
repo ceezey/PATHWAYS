@@ -285,3 +285,6 @@
 ## 2026-10-06 Proof file preview modal
 - Budget receipt downloads (expense ledger and live finance workspace) now open `ProofPreviewDialog`, which fetches the blob through `fetchCoreArtifact`, previews it by its Content-Type (image, PDF, video, else an unavailable state), and downloads the same blob via `saveCoreArtifact` with no second request; the object URL is revoked on close.
 - Private activity proof inspection (`private-proof-inspection.tsx`, `EvidenceDownloadControl`) is unchanged because its Change Record forbids inline preview; the receipt endpoint already returns `application/pdf`, `image/png` or `image/jpeg`.
+
+## 2026-10-06 Proposed activity proof preview amendment
+- `cr-pathways-private-activity-proof-inspection` section 6 proposes in-modal preview for the inspecting reviewer: the recorded content type is returned only for allow-listed, verified, signature-matching proof, and the client holds the bytes as a Blob only while the modal is open; awaiting developer approval.
