@@ -224,3 +224,7 @@
 
 ## 2026-10-05 Coverage map popups
 - Per product owner feedback, the overview now opens in a popup on the hovered dot (tap pins it and pans the dot into view on phones); the card and project-code list under the map are gone.
+
+## 2026-10-05 Demo seed slow-link transactions
+- `stageTeam` and `asUser` interactive transactions use `slowLinkTx` (15 s wait, 60 s timeout) because Prisma's 5 s default timed out on a hosted devV2 seed over a slow link.
+- Local rehearsal (runbook-defense-demo section 6) reseeded and passed all 23 verify checks.
