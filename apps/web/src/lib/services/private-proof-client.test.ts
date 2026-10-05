@@ -2,6 +2,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const request = vi.hoisted(() => vi.fn())
 vi.mock('./pathways-client', () => ({
+  PathwaysClientError: class extends Error {
+    constructor(
+      message: string,
+      readonly code: string,
+    ) {
+      super(message)
+    }
+  },
   requestFoundation: vi.fn(),
   requestFoundationResponse: request,
 }))
@@ -21,6 +29,7 @@ const respond = (type: string, name: string, nosniff = 'nosniff') =>
     new Response('abc', {
       headers: {
         'content-type': type,
+        'content-length': '3',
         'x-content-type-options': nosniff,
         'content-disposition': `attachment; filename="${name}"`,
       },
@@ -28,6 +37,7 @@ const respond = (type: string, name: string, nosniff = 'nosniff') =>
   )
 const inspect = () => privateProofClient.inspect('p', context, id, new AbortController().signal)
 beforeEach(() => request.mockReset())
+const oversize = 10 * 1024 * 1024 + 1
 
 describe('privateProofClient.inspect', () => {
   it.each([
@@ -53,5 +63,36 @@ describe('privateProofClient.inspect', () => {
   ])('rejects %s with %s and nosniff %s', async (type, name, nosniff) => {
     respond(type, name, nosniff)
     await expect(inspect()).rejects.toThrow('Private proof unavailable.')
+  })
+  it.each([String(oversize), 'abc', '0', ''])(
+    'cancels the body without reading it for content-length %j',
+    async (length) => {
+      const cancel = vi.fn(async () => undefined)
+      const blob = vi.fn()
+      const headers = new Headers({
+        'content-type': 'application/pdf',
+        'x-content-type-options': 'nosniff',
+        'content-disposition': 'attachment; filename="activity-proof.pdf"',
+      })
+      if (length) headers.set('content-length', length)
+      request.mockResolvedValue({ headers, body: { cancel }, blob })
+      await expect(inspect()).rejects.toThrow('larger than 10 MiB')
+      expect(cancel).toHaveBeenCalledTimes(1)
+      expect(blob).not.toHaveBeenCalled()
+    },
+  )
+  it('rejects an oversize body even when content-length understates it', async () => {
+    const headers = new Headers({
+      'content-type': 'application/pdf',
+      'content-length': '3',
+      'x-content-type-options': 'nosniff',
+      'content-disposition': 'attachment; filename="activity-proof.pdf"',
+    })
+    request.mockResolvedValue({
+      headers,
+      body: { cancel: vi.fn() },
+      blob: async () => ({ size: oversize, type: 'application/pdf' }),
+    })
+    await expect(inspect()).rejects.toThrow('larger than 10 MiB')
   })
 })

@@ -1,5 +1,9 @@
 import { z } from 'zod'
-import { requestFoundation, requestFoundationResponse } from './pathways-client'
+import {
+  PathwaysClientError,
+  requestFoundation,
+  requestFoundationResponse,
+} from './pathways-client'
 
 const revision = z.string().datetime({ precision: 3 })
 const contextSchema = z
@@ -32,6 +36,7 @@ const proofExtensions: Record<string, string> = {
   'video/webm': 'webm',
 }
 const MAX_PROOF_BYTES = 10 * 1024 * 1024
+const TOO_LARGE = 'This proof is larger than 10 MiB and cannot be previewed or downloaded here.'
 export type PrivateProofFile = { blob: Blob; fileName: string }
 export type PrivateProofContext = z.infer<typeof contextSchema>
 const prefix = (projectId: string, activityId: string, updateId: string) =>
@@ -79,8 +84,13 @@ export const privateProofClient = {
         `attachment; filename="activity-proof.${extension}"`
     )
       throw new Error('Private proof unavailable.')
+    const length = response.headers.get('content-length')
+    if (length === null || !/^[1-9]\d*$/.test(length) || Number(length) > MAX_PROOF_BYTES) {
+      await response.body?.cancel().catch(() => undefined)
+      throw new PathwaysClientError(TOO_LARGE, 'invalid')
+    }
     const blob = await response.blob()
-    if (blob.size > MAX_PROOF_BYTES) throw new Error('Private proof unavailable.')
+    if (blob.size > MAX_PROOF_BYTES) throw new PathwaysClientError(TOO_LARGE, 'invalid')
     return {
       blob: blob.type === type ? blob : new Blob([blob], { type }),
       fileName: `activity-proof.${extension}`,

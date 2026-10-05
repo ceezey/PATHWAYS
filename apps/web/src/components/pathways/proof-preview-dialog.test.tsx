@@ -51,6 +51,17 @@ describe('ProofPreviewDialog', () => {
     },
   )
 
+  it('falls back to unavailable when the browser cannot play the video', async () => {
+    setup(async () => artifact('video/quicktime'))
+    await waitFor(() => expect(document.querySelector('video')).not.toBeNull())
+    fireEvent.error(document.querySelector('video') as HTMLVideoElement)
+    await screen.findByText('Preview not available for this file type.')
+    expect(document.querySelector('video')).toBeNull()
+    expect((screen.getByRole('button', { name: 'Download' }) as HTMLButtonElement).disabled).toBe(
+      false,
+    )
+  })
+
   it('shows the unavailable state but keeps Download for other types', async () => {
     const { save } = setup(async () => artifact('application/zip'))
     await screen.findByText('Preview not available for this file type.')

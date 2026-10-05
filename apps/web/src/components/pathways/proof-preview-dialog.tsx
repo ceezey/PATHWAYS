@@ -40,6 +40,7 @@ export const ProofPreviewDialog = ({
   const [loaded, setLoaded] = useState<Loaded | null>(null)
   const [error, setError] = useState('')
   const [attempt, setAttempt] = useState(0)
+  const [failed, setFailed] = useState(false)
   const loadRef = useRef(load)
   loadRef.current = load
 
@@ -50,6 +51,7 @@ export const ProofPreviewDialog = ({
     let url = ''
     setLoaded(null)
     setError('')
+    setFailed(false)
     loadRef
       .current()
       .then((artifact) => {
@@ -88,10 +90,25 @@ export const ProofPreviewDialog = ({
             status="loading"
             title="Loading preview"
           />
+        ) : failed ||
+          !(
+            imageTypes.includes(mime) ||
+            mime === 'application/pdf' ||
+            videoTypes.includes(mime)
+          ) ? (
+          <div className="flex flex-col items-center gap-2 rounded-md border border-border bg-surface-subtle p-8 text-center text-sm text-muted-foreground">
+            <FileQuestion aria-hidden="true" className="h-6 w-6" />
+            Preview not available for this file type.
+          </div>
         ) : imageTypes.includes(mime) ? (
           <div className="max-h-[60dvh] overflow-auto rounded-md border border-border bg-surface-subtle p-2">
             {/* Blob URLs are browser-local and cannot use the Next.js image optimizer. */}
-            <img alt={title} className="mx-auto h-auto max-w-full" src={loaded.url} />
+            <img
+              alt={title}
+              className="mx-auto h-auto max-w-full"
+              onError={() => setFailed(true)}
+              src={loaded.url}
+            />
           </div>
         ) : mime === 'application/pdf' ? (
           <iframe
@@ -99,14 +116,14 @@ export const ProofPreviewDialog = ({
             src={loaded.url}
             title={title}
           />
-        ) : videoTypes.includes(mime) ? (
-          // biome-ignore lint/a11y/useMediaCaption: proof recordings have no caption track
-          <video className="max-h-[60dvh] w-full rounded-md" controls src={loaded.url} />
         ) : (
-          <div className="flex flex-col items-center gap-2 rounded-md border border-border bg-surface-subtle p-8 text-center text-sm text-muted-foreground">
-            <FileQuestion aria-hidden="true" className="h-6 w-6" />
-            Preview not available for this file type.
-          </div>
+          // biome-ignore lint/a11y/useMediaCaption: proof recordings have no caption track
+          <video
+            className="max-h-[60dvh] w-full rounded-md"
+            controls
+            onError={() => setFailed(true)}
+            src={loaded.url}
+          />
         )}
         <DialogFooter>
           <Button

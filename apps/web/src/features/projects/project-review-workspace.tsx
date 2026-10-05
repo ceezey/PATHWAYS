@@ -8,9 +8,9 @@ import { AuditMetadataCard, EvidenceAttachmentsCard } from './evidence-panels'
 import { LiveEvaluationWorkspace } from './live-evaluation-workspace'
 import { ProjectRulesPanel } from './project-rules-panel'
 
-import { Eye, FileText, Loader2, Plus, Save } from 'lucide-react'
+import { FileText, Plus, Save } from 'lucide-react'
 import Link from 'next/link'
-import { type ReactNode, useEffect, useRef, useState } from 'react'
+import { type ReactNode, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 
 import { PageHeader } from '@/components/layout/page-header'
@@ -32,7 +32,7 @@ import { useSensitiveDraftOwner } from '@/lib/auth/sensitive-drafts'
 import { formatCappedPercent } from '@/lib/percent'
 import { canAccessProjectForRole } from '@/lib/rbac/data-scope'
 import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
-import { PathwaysClientError, pathwaysClient } from '@/lib/services/pathways-client'
+import { pathwaysClient } from '@/lib/services/pathways-client'
 import { privateProofClient } from '@/lib/services/private-proof-client'
 import type {
   ActivitySummary,

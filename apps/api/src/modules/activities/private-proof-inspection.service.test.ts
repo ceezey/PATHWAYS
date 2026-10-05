@@ -351,9 +351,9 @@ describe('purpose-limited activity proof inspection', () => {
   })
   it.each([
     ['signature mismatch', { contentType: 'image/png' }, Buffer.from('%PDF-1.7')],
-    ['unverified upload', { storageReady: false }, Buffer.from('%PDF-1.7')],
+    ['unverified upload (rejected at admission)', { storageReady: false }, Buffer.from('%PDF-1.7')],
     ['unlisted type', { contentType: 'text/html' }, Buffer.from('<html>')],
-  ])('falls back to octet-stream on %s', async (_name, change, bytes) => {
+  ])('handles %s', async (_name, change, bytes) => {
     tx.evidenceMedia.findMany.mockImplementation(async () => [{ ...proof(), ...change }])
     releaseWith(bytes)
     if ('storageReady' in change) {
@@ -386,6 +386,14 @@ describe('purpose-limited activity proof inspection', () => {
     const result = await inspect()
     await expect(drain(result.body)).rejects.toThrow('synthetic integrity failure')
     expect(result.body.destroyed).toBe(true)
+  })
+  it('destroys the inner body when the returned stream is destroyed before reading', async () => {
+    const inner = Readable.from([Buffer.from('%PDF-1.7'), Buffer.alloc(5000)])
+    state.release.mockImplementation(async () => inner)
+    const result = await inspect()
+    result.body.destroy()
+    await new Promise((resolve) => setImmediate(resolve))
+    expect(inner.destroyed).toBe(true)
   })
   it('fails before any header decision when the first chunk errors', async () => {
     state.release.mockImplementation(async () =>

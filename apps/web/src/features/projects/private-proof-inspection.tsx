@@ -98,10 +98,9 @@ function OwnedInspection({
       {context?.proofs.map((proof, index) => (
         <PrivateProofPreview
           key={proof.id}
-          ariaLabel={`Preview privately for verification: ${proof.label} ${index + 1}`}
           isCurrent={current}
           fetchProof={(signal) => inspect(proof.id, signal)}
-          label={`Preview ${proof.label} ${index + 1}`}
+          label={`Preview privately for verification: ${proof.label} ${index + 1}`}
           title={`${proof.label} ${index + 1}`}
         />
       ))}

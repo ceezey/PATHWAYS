@@ -291,6 +291,6 @@
 
 ## 2026-10-06 Activity proof in-modal preview implemented
 - `cr-pathways-private-activity-proof-inspection` section 6 approved by the developer ("I approve"); implemented on feature/activity-proof-preview, verification pending.
-- API: the inspection response carries the recorded type and matching extension only for an allow-listed, storage-ready type whose first streamed bytes pass `matchesEvidenceSignature`; otherwise `application/octet-stream` and `activity-proof.bin`. The service peeks at most about 4 KiB of the released stream and re-emits it, so bounded counting, final digest withholding and destroy-on-error are unchanged.
+- API: the inspection response carries the recorded type and matching extension only for an allow-listed, storage-ready type whose first streamed bytes pass `matchesEvidenceSignature`; otherwise `application/octet-stream` and `activity-proof.bin`. The service retains whole chunks of the released stream until at least 4112 bytes arrive (often one chunk) and re-emits them, and destroys the inner body if the returned stream is destroyed before its first read, so bounded counting, final digest withholding and destroy-on-error are unchanged.
 - Web: both inspection call sites (`PrivateProofInspection`, `EvidenceDownloadControl`) now open `ProofPreviewDialog` on Preview and Download reuses the same Blob; the dialog renders only png, jpeg, webp, pdf, mp4, quicktime and webm.
 

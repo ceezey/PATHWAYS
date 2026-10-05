@@ -72,7 +72,10 @@ async function peekLeading(body: Readable) {
       body.destroy()
     }
   }
-  return { leading: Buffer.concat(head).subarray(0, PEEK_BYTES), stream: Readable.from(rest()) }
+  const stream = Readable.from(rest())
+  // A stream destroyed before its first read never runs the generator finally.
+  stream.once('close', () => body.destroy())
+  return { leading: Buffer.concat(head).subarray(0, PEEK_BYTES), stream }
 }
 
 const unavailable = () => new NotFoundException('Activity proof unavailable.')
