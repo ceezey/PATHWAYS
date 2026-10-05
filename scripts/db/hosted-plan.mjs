@@ -260,7 +260,6 @@ const PRIOR_BUILD_COMPLETION_POINTS = [
   '0061_activity_extension_requests',
   '0062_rules_escalated_alert_list',
   '0063_rules_scope_memo',
-  '0065_beneficiary_reach_kpi_values',
 ]
 
 // The migrations whose completion is ambiguous with a residual temporary owner chain, and the
@@ -288,7 +287,6 @@ export const RESIDUAL_CHAIN_MIGRATIONS = Object.freeze([
   '0061_activity_extension_requests',
   '0062_rules_escalated_alert_list',
   '0063_rules_scope_memo',
-  '0065_beneficiary_reach_kpi_values',
 ])
 
 export function planIndexForAppliedCount(appliedCount, { residualOwnerMemberships = false } = {}) {

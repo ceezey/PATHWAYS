@@ -2,10 +2,11 @@
 -- p06_monitoring and p06_home_dashboard release the four reach counts from p06_compute_monitoring with 1-4 and
 -- nested-count complementary suppression instead of SENSITIVE_RELEASE_NOT_ENABLED_V1; the home dashboard keeps the
 -- placeholder for callers without monitoring.read on every requested project, since its own gate is projects.read.
--- p06_participation_breakdown and p06_indicator_values release suppressed participation counts and indicator current
--- values without journeys.read, beneficiaries.records.read or indicators.read. Every function is owned by prisma, which
+-- p06_participation_breakdown releases exact participation counts (no suppression, by developer decision) and
+-- p06_indicator_values releases indicator current values, both without journeys.read, beneficiaries.records.read or indicators.read. Every function is owned by prisma, which
 -- owns every source table; hosted prisma has no BYPASSRLS, so the only FORCE RLS sources (indicator bindings and
--- measurements) are read through their p06_*_owner_read policies, which need monitoring.read on the project.
+-- measurements) are read through their p06_*_owner_read policies, which need monitoring.read on the project. The reach release also hides participationRecords
+-- when its difference from enrolled individuals or attending individuals is 1-4.
 -- No table, column, policy, role or permission grant changes (role_permissions stays 314); no DBA preprovision.
 BEGIN;
 SET LOCAL lock_timeout = '5s';
@@ -16,7 +17,7 @@ DO $$ BEGIN
  THEN RAISE EXCEPTION '0065 requires the verified 0064 state and migration identity'; END IF;
  IF (SELECT pg_catalog.pg_get_userbyid(nspowner) FROM pg_catalog.pg_namespace WHERE nspname='pathways')<>'prisma'
   OR EXISTS(SELECT FROM pg_catalog.pg_proc p JOIN pg_catalog.pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='pathways'
-   AND p.proname IN ('p06_participation_breakdown','p06_indicator_values','p06_complement_cell','p06_release_reach','p06_suppress_breakdown'))
+   AND p.proname IN ('p06_participation_breakdown','p06_indicator_values','p06_complement_cell','p06_release_reach'))
  THEN RAISE EXCEPTION '0065 requires prisma to own pathways and no earlier release functions'; END IF;
  IF EXISTS(SELECT FROM pg_catalog.pg_proc p WHERE p.oid IN (
    'pathways.p06_monitoring(uuid,uuid[],date,date,text)'::pg_catalog.regprocedure,
@@ -25,8 +26,11 @@ DO $$ BEGIN
    'pathways.p06_compute_indicator_value(uuid,uuid,uuid,text)'::pg_catalog.regprocedure)
   AND pg_catalog.pg_get_userbyid(p.proowner)<>'prisma')
  THEN RAISE EXCEPTION '0065 requires prisma to own the p06 monitoring and indicator functions'; END IF;
- IF NOT (SELECT relforcerowsecurity FROM pg_catalog.pg_class WHERE oid='pathways.project_indicator_measurements'::pg_catalog.regclass)
-  OR (SELECT count(*) FROM pg_catalog.pg_policy WHERE polname IN ('p06_binding_owner_read','p06_measurement_owner_read'))<>2
+ IF NOT (SELECT bool_and(relforcerowsecurity) FROM pg_catalog.pg_class WHERE oid IN (
+   'pathways.project_indicator_bindings'::pg_catalog.regclass,'pathways.project_indicator_measurements'::pg_catalog.regclass))
+  OR (SELECT count(*) FROM pg_catalog.pg_policy WHERE (polname,polrelid,polroles) IN (
+   ('p06_binding_owner_read','pathways.project_indicator_bindings'::pg_catalog.regclass,ARRAY[(SELECT oid FROM pg_catalog.pg_roles WHERE rolname='prisma')]),
+   ('p06_measurement_owner_read','pathways.project_indicator_measurements'::pg_catalog.regclass,ARRAY[(SELECT oid FROM pg_catalog.pg_roles WHERE rolname='prisma')])))<>2
  THEN RAISE EXCEPTION '0065 requires the prisma owner read policies on indicator bindings and measurements'; END IF;
  -- Remember both replaced ACLs and the grant count so the postcondition proves them unchanged.
  PERFORM pg_catalog.set_config('pathways.m0065_monitoring_acl',(SELECT coalesce(proacl::text,'') FROM pg_catalog.pg_proc
@@ -49,7 +53,7 @@ AS $function$
     THEN pathways.p06_cell(NULL, 'COMPLEMENTARY_SUPPRESSION') ELSE inner_cell END
 $function$;
 
--- Applies nested-count suppression to records, individuals and attending individuals (records >= individuals >= attending).
+-- Applies nested-count suppression to enrolled records, individuals, attending individuals and participation records.
 CREATE FUNCTION pathways.p06_release_reach(data jsonb)
  RETURNS jsonb
  LANGUAGE plpgsql
@@ -60,34 +64,19 @@ DECLARE
   r jsonb := data->'enrolledBeneficiaryRecords';
   i jsonb := data->'enrolledIndividuals';
   a jsonb := data->'attendingIndividuals';
+  p jsonb := data->'participationRecords';
 BEGIN
   i := pathways.p06_complement_cell(r, i);
   a := pathways.p06_complement_cell(i, a);
   a := pathways.p06_complement_cell(r, a);
-  RETURN data || jsonb_build_object('enrolledIndividuals', i, 'attendingIndividuals', a);
+  -- Participation records are not nested in people, so they are hidden when they sit 1-4 from either visible people count.
+  p := pathways.p06_complement_cell(i, p);
+  IF p->>'value' IS NOT NULL AND a->>'value' IS NOT NULL
+     AND (p->>'value')::numeric - (a->>'value')::numeric BETWEEN 1 AND 4 THEN
+    p := pathways.p06_cell(NULL, 'COMPLEMENTARY_SUPPRESSION');
+  END IF;
+  RETURN data || jsonb_build_object('enrolledIndividuals', i, 'attendingIndividuals', a, 'participationRecords', p);
 END
-$function$;
-
--- Hides cells from 1-4 records or people, and the smallest other non-zero cell when exactly one cell is hidden.
-CREATE FUNCTION pathways.p06_suppress_breakdown(items jsonb, hide_all boolean)
- RETURNS jsonb
- LANGUAGE sql
- IMMUTABLE
- SET search_path TO ''
-AS $function$
-  WITH cells AS (
-    SELECT x.ord, x.item, (x.item->>'n')::bigint AS n,
-      hide_all OR (x.item->>'n')::bigint BETWEEN 1 AND 4 OR (x.item->>'c')::bigint BETWEEN 1 AND 4 AS small
-    FROM jsonb_array_elements(items) WITH ORDINALITY x(item, ord)
-  ), cover AS (
-    SELECT c.ord FROM cells c
-    WHERE NOT c.small AND c.n > 0 AND (SELECT count(*) FROM cells WHERE small) = 1
-    ORDER BY c.n, c.ord LIMIT 1
-  )
-  SELECT coalesce(jsonb_agg((c.item - 'n' - 'c') || CASE WHEN c.small OR c.ord IN (SELECT ord FROM cover)
-      THEN jsonb_build_object('count', NULL, 'suppressed', true)
-      ELSE jsonb_build_object('count', c.n, 'suppressed', false) END ORDER BY c.ord), '[]'::jsonb)
-  FROM cells c
 $function$;
 
 CREATE OR REPLACE FUNCTION pathways.p06_monitoring(wanted_org uuid, wanted_projects uuid[], start_on date, end_on date, zone text)
@@ -203,7 +192,7 @@ BEGIN
 END
 $function$;
 
--- Suppressed participation counts by activity, month and attendance status for one project and an optional period.
+-- Exact participation counts by activity, month and attendance status for one project and an optional period.
 CREATE FUNCTION pathways.p06_participation_breakdown(wanted_project uuid, start_on date DEFAULT NULL, end_on date DEFAULT NULL)
  RETURNS jsonb
  LANGUAGE plpgsql
@@ -212,12 +201,7 @@ CREATE FUNCTION pathways.p06_participation_breakdown(wanted_project uuid, start_
 AS $function$
 DECLARE
   org uuid := nullif(current_setting('app.organization_id', true), '')::uuid;
-  total bigint;
-  contributors bigint;
-  hide_all boolean;
-  activity_items jsonb;
-  month_items jsonb;
-  status_items jsonb;
+  result jsonb;
 BEGIN
   IF org IS NULL OR wanted_project IS NULL
      OR NOT pathways.p06_can('monitoring.read', wanted_project)
@@ -232,7 +216,7 @@ BEGIN
 
   WITH accepted AS MATERIALIZED (
     SELECT p.activity_id, a.title, to_char(p.participation_date, 'YYYY-MM') AS month,
-      p.attendance_status::text AS status, e.beneficiary_id
+      p.attendance_status::text AS status
     FROM pathways.beneficiary_activity_participations p
     JOIN pathways.beneficiary_project_enrollments e
       ON e.organization_id = p.organization_id AND e.project_id = p.project_id AND e.id = p.enrollment_id
@@ -247,28 +231,22 @@ BEGIN
       AND a.archived_at IS NULL AND a.status <> 'CANCELLED'
       AND s.status = 'VALIDATED' AND NOT s.is_dummy_record
   )
-  SELECT
-    (SELECT count(*) FROM accepted),
-    (SELECT count(DISTINCT beneficiary_id) FROM accepted),
-    (SELECT coalesce(jsonb_agg(jsonb_build_object('activityId', g.activity_id, 'activityName', g.title, 'n', g.n, 'c', g.c)
-       ORDER BY g.title, g.activity_id), '[]'::jsonb)
-     FROM (SELECT activity_id, min(title) AS title, count(*) AS n, count(DISTINCT beneficiary_id) AS c
-       FROM accepted GROUP BY activity_id) g),
-    (SELECT coalesce(jsonb_agg(jsonb_build_object('month', g.month, 'n', g.n, 'c', g.c) ORDER BY g.month), '[]'::jsonb)
-     FROM (SELECT month, count(*) AS n, count(DISTINCT beneficiary_id) AS c FROM accepted GROUP BY month) g),
-    (SELECT jsonb_agg(jsonb_build_object('status', v.status, 'n', coalesce(g.n, 0), 'c', coalesce(g.c, 0)) ORDER BY v.ord)
-     FROM (VALUES ('PRESENT', 1), ('ABSENT', 2), ('COMPLETED', 3), ('NOT_COMPLETED', 4), ('EXCUSED', 5)) v(status, ord)
-     LEFT JOIN (SELECT status, count(*) AS n, count(DISTINCT beneficiary_id) AS c FROM accepted GROUP BY status) g USING (status))
-  INTO total, contributors, activity_items, month_items, status_items;
-
-  hide_all := total BETWEEN 1 AND 4 OR contributors BETWEEN 1 AND 4;
-  RETURN jsonb_build_object(
+  SELECT jsonb_build_object(
     'projectId', wanted_project,
-    'total', CASE WHEN hide_all THEN NULL ELSE total END,
-    'totalSuppressed', hide_all,
-    'byActivity', pathways.p06_suppress_breakdown(activity_items, hide_all),
-    'byMonth', pathways.p06_suppress_breakdown(month_items, hide_all),
-    'byAttendanceStatus', pathways.p06_suppress_breakdown(status_items, hide_all));
+    'total', (SELECT count(*) FROM accepted),
+    'totalSuppressed', false,
+    'byActivity', (SELECT coalesce(jsonb_agg(jsonb_build_object('activityId', g.activity_id, 'activityName', g.title,
+        'count', g.n, 'suppressed', false) ORDER BY g.title, g.activity_id), '[]'::jsonb)
+      FROM (SELECT activity_id, min(title) AS title, count(*) AS n FROM accepted GROUP BY activity_id) g),
+    'byMonth', (SELECT coalesce(jsonb_agg(jsonb_build_object('month', g.month, 'count', g.n, 'suppressed', false)
+        ORDER BY g.month), '[]'::jsonb)
+      FROM (SELECT month, count(*) AS n FROM accepted GROUP BY month) g),
+    'byAttendanceStatus', (SELECT jsonb_agg(jsonb_build_object('status', v.status, 'count', coalesce(g.n, 0),
+        'suppressed', false) ORDER BY v.ord)
+      FROM (VALUES ('PRESENT', 1), ('ABSENT', 2), ('COMPLETED', 3), ('NOT_COMPLETED', 4), ('EXCUSED', 5)) v(status, ord)
+      LEFT JOIN (SELECT status, count(*) AS n FROM accepted GROUP BY status) g USING (status)))
+  INTO result;
+  RETURN result;
 END
 $function$;
 
@@ -312,12 +290,10 @@ $function$;
 
 ALTER FUNCTION pathways.p06_complement_cell(jsonb, jsonb) OWNER TO prisma;
 ALTER FUNCTION pathways.p06_release_reach(jsonb) OWNER TO prisma;
-ALTER FUNCTION pathways.p06_suppress_breakdown(jsonb, boolean) OWNER TO prisma;
 ALTER FUNCTION pathways.p06_participation_breakdown(uuid, date, date) OWNER TO prisma;
 ALTER FUNCTION pathways.p06_indicator_values(uuid, text) OWNER TO prisma;
 REVOKE ALL ON FUNCTION pathways.p06_complement_cell(jsonb, jsonb) FROM PUBLIC, anon, authenticated, service_role, pathways_runtime;
 REVOKE ALL ON FUNCTION pathways.p06_release_reach(jsonb) FROM PUBLIC, anon, authenticated, service_role, pathways_runtime;
-REVOKE ALL ON FUNCTION pathways.p06_suppress_breakdown(jsonb, boolean) FROM PUBLIC, anon, authenticated, service_role, pathways_runtime;
 REVOKE ALL ON FUNCTION pathways.p06_participation_breakdown(uuid, date, date) FROM PUBLIC, anon, authenticated, service_role, pathways_runtime;
 REVOKE ALL ON FUNCTION pathways.p06_indicator_values(uuid, text) FROM PUBLIC, anon, authenticated, service_role, pathways_runtime;
 GRANT EXECUTE ON FUNCTION pathways.p06_participation_breakdown(uuid, date, date) TO pathways_runtime;
@@ -345,8 +321,7 @@ DO $$ DECLARE fn text; runtime oid := (SELECT oid FROM pg_catalog.pg_roles WHERE
    WHERE p.oid=fn::pg_catalog.regprocedure AND a.grantee NOT IN (p.proowner, runtime))
   THEN RAISE EXCEPTION '0065 % ACL postcondition failed',fn; END IF;
  END LOOP;
- FOREACH fn IN ARRAY ARRAY['pathways.p06_complement_cell(jsonb,jsonb)','pathways.p06_release_reach(jsonb)',
-   'pathways.p06_suppress_breakdown(jsonb,boolean)'] LOOP
+ FOREACH fn IN ARRAY ARRAY['pathways.p06_complement_cell(jsonb,jsonb)','pathways.p06_release_reach(jsonb)'] LOOP
   IF NOT EXISTS(SELECT FROM pg_catalog.pg_proc p WHERE p.oid=fn::pg_catalog.regprocedure
     AND pg_catalog.pg_get_userbyid(p.proowner)='prisma' AND NOT p.prosecdef AND p.provolatile='i'
     AND p.proconfig IS NOT DISTINCT FROM ARRAY['search_path=""'])

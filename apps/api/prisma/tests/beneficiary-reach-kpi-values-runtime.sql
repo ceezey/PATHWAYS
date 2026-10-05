@@ -1,5 +1,5 @@
 -- cr-pathways-beneficiary-reach-kpi-values (migration 0065): runtime checks for the released reach counts,
--- pathways.p06_participation_breakdown and pathways.p06_indicator_values. Synthetic fixtures only; everything rolls
+-- pathways.p06_participation_breakdown (exact counts) and pathways.p06_indicator_values. Synthetic fixtures only; everything rolls
 -- back. Run as a local superuser against a disposable pathways_phase2_* or pathways_phase4_* replay database with 0065.
 \set ON_ERROR_STOP on
 BEGIN;
@@ -71,7 +71,8 @@ END $$;
 
 -- Org A: Program Manager u101, Grant Manager u102, Project Officer u103, M&E Officer u104. Org B: Grant Manager u105.
 -- Projects: A1 u301 visible counts, A2 u302 unassigned, A3 u303 attending complement, A4 u304 records complement,
--- A5 u305 small cohort, B1 u306 org B.
+-- A5 u305 small cohort, B1 u306 org B, A6 u307 records vs attending, A7 u308 small individuals with visible records,
+-- A8 u309 records vs individuals.
 SET LOCAL session_replication_role = replica;
 INSERT INTO auth.users(id) SELECT pg_temp.u(200+n) FROM generate_series(1,5) n;
 INSERT INTO pathways.organizations(id,code,name) VALUES
@@ -103,22 +104,25 @@ WHERE r.code IN ('PROGRAM_MANAGER','GRANT_MANAGER','PROJECT_OFFICER','MONITORING
 ON CONFLICT DO NOTHING;
 INSERT INTO pathways.projects(id,organization_id,code,title,start_date,end_date,created_by_id)
 SELECT pg_temp.u(300+n),pg_temp.u(CASE WHEN n=6 THEN 2 ELSE 1 END),'BRK-P'||n,'BRK project '||n,'2026-01-01','2026-12-31',pg_temp.u(101)
-FROM generate_series(1,6) n;
+FROM generate_series(1,9) n;
 INSERT INTO pathways.user_project_assignments(id,organization_id,project_id,user_id,assigned_by_id)
 SELECT gen_random_uuid(),pg_temp.u(1),pg_temp.u(300+v.p),pg_temp.u(100+n),pg_temp.u(101)
-FROM generate_series(1,4) n CROSS JOIN (VALUES (1),(3),(4),(5)) v(p)
+FROM generate_series(1,4) n CROSS JOIN (VALUES (1),(3),(4),(5),(7),(8),(9)) v(p)
 UNION ALL SELECT gen_random_uuid(),pg_temp.u(2),pg_temp.u(306),pg_temp.u(105),pg_temp.u(105);
 INSERT INTO pathways.project_activities(id,organization_id,project_id,code,title,planned_start_date,planned_end_date,actual_start_date,status,created_by_id)
 VALUES
   (pg_temp.u(501),pg_temp.u(1),pg_temp.u(301),'BRK-A1','Workshop','2026-01-01','2026-06-30','2026-01-01','IN_PROGRESS',pg_temp.u(101)),
   (pg_temp.u(502),pg_temp.u(1),pg_temp.u(301),'BRK-A2','Visit','2026-01-01','2026-06-30','2026-01-01','IN_PROGRESS',pg_temp.u(101)),
   (pg_temp.u(503),pg_temp.u(1),pg_temp.u(303),'BRK-A3','Session','2026-01-01','2026-06-30','2026-01-01','IN_PROGRESS',pg_temp.u(101)),
-  (pg_temp.u(504),pg_temp.u(1),pg_temp.u(303),'BRK-A4','Follow-up','2026-01-01','2026-06-30','2026-01-01','IN_PROGRESS',pg_temp.u(101));
--- A1: 20 individuals; 9 present at the Workshop in February, 3 absent from the Visit in March, one draft excluded.
+  (pg_temp.u(504),pg_temp.u(1),pg_temp.u(303),'BRK-A4','Follow-up','2026-01-01','2026-06-30','2026-01-01','IN_PROGRESS',pg_temp.u(101)),
+  (pg_temp.u(505),pg_temp.u(1),pg_temp.u(307),'BRK-A5','Training','2026-01-01','2026-06-30','2026-01-01','IN_PROGRESS',pg_temp.u(101)),
+  (pg_temp.u(506),pg_temp.u(1),pg_temp.u(309),'BRK-A6','Clinic','2026-01-01','2026-06-30','2026-01-01','IN_PROGRESS',pg_temp.u(101));
+-- A1: 20 individuals; 9 present at the Workshop in February and 2 of them again in April, 3 absent from the Visit in March, one draft excluded.
 SELECT pg_temp.enroll(301,1000,20,0);
 SELECT pg_temp.attend(301,501,1000,1,9,'2026-02-10','PRESENT','VALIDATED');
 SELECT pg_temp.attend(301,502,1000,10,12,'2026-03-10','ABSENT','VALIDATED');
 SELECT pg_temp.attend(301,502,1000,1,1,'2026-03-10','PRESENT','DRAFT');
+SELECT pg_temp.attend(301,501,1000,1,2,'2026-04-10','PRESENT','VALIDATED');
 -- A3: 8 individuals, 6 present at the Session, and person 1 alone at five Follow-up sessions.
 SELECT pg_temp.enroll(303,2000,8,0);
 SELECT pg_temp.attend(303,503,2000,1,6,'2026-02-10','PRESENT','VALIDATED');
@@ -126,6 +130,14 @@ SELECT pg_temp.attend(303,504,2000,1,1,make_date(2026,2,d),'PRESENT','VALIDATED'
 -- A4: 6 individuals and 1 group. A5: 3 individuals.
 SELECT pg_temp.enroll(304,3000,6,1);
 SELECT pg_temp.enroll(305,4000,3,0);
+-- A6: 20 individuals, 8 present at the Training and 2 of them again, so records are 2 above attending. A7: 2 individuals and 5 groups.
+-- A8: 10 individuals, 7 present at the Clinic, so records and attending are 3 below individuals.
+SELECT pg_temp.enroll(307,5000,20,0);
+SELECT pg_temp.attend(307,505,5000,1,8,'2026-02-10','PRESENT','VALIDATED');
+SELECT pg_temp.attend(307,505,5000,1,2,'2026-02-11','PRESENT','VALIDATED');
+SELECT pg_temp.enroll(308,6000,2,5);
+SELECT pg_temp.enroll(309,7000,10,0);
+SELECT pg_temp.attend(309,506,7000,1,7,'2026-02-10','PRESENT','VALIDATED');
 -- A1 indicators: a manual count measured at 12 and a derived count bound to the Visit (3 records from 3 people).
 INSERT INTO pathways.project_indicators(id,organization_id,project_id,code,name,description,unit,unit_label,data_source,measurement_mode,numeric_kind,direction,display_precision,period_start,period_end,baseline_value,target_value,created_by_id)
 VALUES
@@ -147,9 +159,8 @@ SELECT pg_temp.ok(has_function_privilege('pathways_runtime','pathways.p06_partic
    WHERE has_function_privilege(r.name,f.fn,'EXECUTE')),
   '2 only the runtime executes the two release functions');
 SELECT pg_temp.ok(NOT has_function_privilege('pathways_runtime','pathways.p06_complement_cell(jsonb,jsonb)','EXECUTE')
-  AND NOT has_function_privilege('pathways_runtime','pathways.p06_release_reach(jsonb)','EXECUTE')
-  AND NOT has_function_privilege('pathways_runtime','pathways.p06_suppress_breakdown(jsonb,boolean)','EXECUTE'),
-  '3 suppression helpers are owner only');
+  AND NOT has_function_privilege('pathways_runtime','pathways.p06_release_reach(jsonb)','EXECUTE'),
+  '3 reach helpers are owner only');
 SELECT pg_temp.ok(NOT EXISTS(SELECT FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
    WHERE n.nspname='pathways' AND c.relname IN ('beneficiaries','beneficiary_project_enrollments','beneficiary_activity_participations',
     'project_activities','form_submissions','project_milestones','project_indicators')
@@ -164,7 +175,7 @@ SELECT pg_temp.ok(NOT pathways.p09_role_allows('PROJECT_OFFICER','monitoring.rea
 SET LOCAL ROLE pathways_runtime;
 SELECT pg_temp.act_as(1,1);
 INSERT INTO brk_out SELECT 'pm_a'||p, pathways.p06_monitoring(pg_temp.u(1),ARRAY[pg_temp.u(300+p)],'2026-01-01','2026-06-30','Asia/Manila')
- FROM (VALUES (1),(3),(4),(5)) v(p);
+ FROM (VALUES (1),(3),(4),(5),(7),(8),(9)) v(p);
 INSERT INTO brk_out SELECT 'pm_home_a1', pathways.p06_home_dashboard(pg_temp.u(1),ARRAY[pg_temp.u(301)],'2026-01-01','2026-06-30','Asia/Manila');
 INSERT INTO brk_out SELECT 'pm_parts', pathways.p06_participation_breakdown(pg_temp.u(301),NULL,NULL);
 INSERT INTO brk_out SELECT 'pm_parts_feb', pathways.p06_participation_breakdown(pg_temp.u(301),'2026-02-01','2026-02-28');
@@ -204,7 +215,7 @@ RESET ROLE;
 
 -- Reach counts.
 SELECT pg_temp.ok((SELECT d#>>'{enrolledBeneficiaryRecords,value}'='20' AND d#>>'{enrolledIndividuals,value}'='20'
-  AND d#>>'{attendingIndividuals,value}'='9' AND d#>>'{participationRecords,value}'='12' FROM pg_temp.doc('pm_a1') d),
+  AND d#>>'{attendingIndividuals,value}'='9' AND d#>>'{participationRecords,value}'='14' FROM pg_temp.doc('pm_a1') d),
   '7 A1 releases visible reach counts and excludes the draft submission');
 SELECT pg_temp.ok((SELECT d#>>'{enrolledIndividuals,value}'='8' AND d#>>'{attendingIndividuals,state}'='SUPPRESSED'
   AND d#>>'{attendingIndividuals,reason}'='COMPLEMENTARY_SUPPRESSION' AND d#>>'{attendingIndividuals,value}' IS NULL
@@ -220,31 +231,31 @@ SELECT pg_temp.ok(NOT EXISTS(SELECT FROM brk_out o,
   unnest(ARRAY['participationRecords','attendingIndividuals','enrolledBeneficiaryRecords','enrolledIndividuals']) k
   WHERE o.name LIKE 'pm\_a%' AND o.doc->k->>'value' IN ('1','2','3','4')),
   '11 no released reach cell carries a value of 1-4');
-SELECT pg_temp.ok((SELECT d#>>'{enrolledIndividuals,value}'='20' AND d#>>'{participationRecords,value}'='12'
+SELECT pg_temp.ok((SELECT d#>>'{enrolledIndividuals,value}'='20' AND d#>>'{participationRecords,value}'='14'
   FROM pg_temp.doc('pm_home_a1') d),
   '12 the home dashboard releases the same counts to a monitoring.read holder');
--- Participation breakdown.
-SELECT pg_temp.ok((SELECT d->>'total'='12' AND d->>'totalSuppressed'='false' AND jsonb_array_length(d->'byActivity')=2
-  AND NOT EXISTS(SELECT FROM jsonb_array_elements(d->'byActivity') x WHERE x->>'suppressed'<>'true' OR x->'count'<>'null'::jsonb)
+-- Participation breakdown: exact counts for every cell, including 1-4.
+SELECT pg_temp.ok((SELECT d->>'total'='14' AND d->>'totalSuppressed'='false'
+  AND d->'byActivity'=jsonb_build_array(
+   jsonb_build_object('activityId',pg_temp.u(502),'activityName','Visit','count',3,'suppressed',false),
+   jsonb_build_object('activityId',pg_temp.u(501),'activityName','Workshop','count',11,'suppressed',false))
   FROM pg_temp.doc('pm_parts') d),
-  '13 a lone small activity hides the smallest other activity too, and the total stays visible');
-SELECT pg_temp.ok((SELECT jsonb_array_length(d->'byMonth')=2
-  AND NOT EXISTS(SELECT FROM jsonb_array_elements(d->'byMonth') x WHERE x->>'suppressed'<>'true')
-  AND jsonb_array_length(d->'byAttendanceStatus')=5
-  AND (SELECT x->>'suppressed' FROM jsonb_array_elements(d->'byAttendanceStatus') x WHERE x->>'status'='PRESENT')='true'
-  AND (SELECT x->>'suppressed' FROM jsonb_array_elements(d->'byAttendanceStatus') x WHERE x->>'status'='ABSENT')='true'
-  AND (SELECT x->>'count' FROM jsonb_array_elements(d->'byAttendanceStatus') x WHERE x->>'status'='COMPLETED')='0'
+  '13 the breakdown shows a small activity count of 3 exactly, with no suppression');
+SELECT pg_temp.ok((SELECT d->'byMonth'='[{"month":"2026-02","count":9,"suppressed":false},{"month":"2026-03","count":3,"suppressed":false},{"month":"2026-04","count":2,"suppressed":false}]'::jsonb
+  AND d->'byAttendanceStatus'='[{"status":"PRESENT","count":11,"suppressed":false},{"status":"ABSENT","count":3,"suppressed":false},{"status":"COMPLETED","count":0,"suppressed":false},{"status":"NOT_COMPLETED","count":0,"suppressed":false},{"status":"EXCUSED","count":0,"suppressed":false}]'::jsonb
   FROM pg_temp.doc('pm_parts') d),
-  '14 months and statuses use the same complement rule and zeros stay visible');
+  '14 months and statuses are exact, small cells and zeros included');
 SELECT pg_temp.ok((SELECT d->>'total'='9'
   AND d->'byActivity'=jsonb_build_array(jsonb_build_object('activityId',pg_temp.u(501),'activityName','Workshop','count',9,'suppressed',false))
   AND d->'byMonth'='[{"month":"2026-02","count":9,"suppressed":false}]'::jsonb
   FROM pg_temp.doc('pm_parts_feb') d),
   '15 a period keeps only February and shows it');
-SELECT pg_temp.ok((SELECT d->>'total'='11' AND jsonb_array_length(d->'byActivity')=2
-  AND NOT EXISTS(SELECT FROM jsonb_array_elements(d->'byActivity') x WHERE x->>'suppressed'<>'true')
+SELECT pg_temp.ok((SELECT d->>'total'='11'
+  AND d->'byActivity'=jsonb_build_array(
+   jsonb_build_object('activityId',pg_temp.u(504),'activityName','Follow-up','count',5,'suppressed',false),
+   jsonb_build_object('activityId',pg_temp.u(503),'activityName','Session','count',6,'suppressed',false))
   FROM pg_temp.doc('pm_parts_a3') d),
-  '16 one person at five sessions is hidden by the people rule and covered by a complement');
+  '16 one person at five sessions shows five records exactly');
 -- KPI values.
 SELECT pg_temp.ok((SELECT x#>>'{current,value}'='12' AND x#>>'{current,state}'='AVAILABLE'
   FROM jsonb_array_elements(pg_temp.doc('pm_kpi')) x WHERE x->>'code'='BRK-MANUAL'),
@@ -269,10 +280,20 @@ SELECT pg_temp.ok((SELECT d#>>'{participationRecords,reason}'='SENSITIVE_RELEASE
   AND d#>>'{enrolledIndividuals,reason}'='SENSITIVE_RELEASE_NOT_ENABLED_V1' AND jsonb_array_length(d->'activities')=5
   FROM pg_temp.doc('po_home') d),
   '24 Project Officer home dashboard keeps the withheld placeholder without raising');
+-- Records versus people complements.
+SELECT pg_temp.ok((SELECT d#>>'{participationRecords,state}'='SUPPRESSED' AND d#>>'{participationRecords,reason}'='COMPLEMENTARY_SUPPRESSION'
+  AND d#>>'{attendingIndividuals,value}'='8' AND d#>>'{enrolledIndividuals,value}'='20' FROM pg_temp.doc('pm_a7') d),
+  '31 participation records are hidden when records minus attending individuals is 1-4');
+SELECT pg_temp.ok((SELECT d#>>'{enrolledBeneficiaryRecords,value}'='7' AND d#>>'{enrolledIndividuals,reason}'='SMALL_COHORT'
+  AND d#>>'{participationRecords,value}'='0' FROM pg_temp.doc('pm_a8') d),
+  '32 individuals of 1-4 are SMALL_COHORT while the enrolled records stay visible');
+SELECT pg_temp.ok((SELECT d#>>'{attendingIndividuals,reason}'='COMPLEMENTARY_SUPPRESSION' AND d#>>'{participationRecords,reason}'='COMPLEMENTARY_SUPPRESSION'
+  AND d#>>'{enrolledIndividuals,value}'='10' FROM pg_temp.doc('pm_a9') d),
+  '33 participation records are hidden when enrolled individuals minus records is 1-4');
 
 DO $$ DECLARE total integer; BEGIN
  SELECT count(*) INTO total FROM brk_results;
- IF total<>32 THEN RAISE EXCEPTION '0065 beneficiary-reach-kpi-values checks expected 32 assertions, recorded %',total; END IF;
+ IF total<>35 THEN RAISE EXCEPTION '0065 beneficiary-reach-kpi-values checks expected 35 assertions, recorded %',total; END IF;
  RAISE NOTICE 'BENEFICIARY_REACH_KPI_VALUES_RUNTIME=PASS (% assertions)',total;
 END $$;
 ROLLBACK;
