@@ -6,6 +6,7 @@ import type { Prisma } from '@prisma/client'
 import { describe, expect, it } from 'vitest'
 import { type CanonicalRole, roleNames, rolePermissions } from '../auth/authorization-policy'
 import { DashboardsService } from '../dashboards/dashboards.service'
+import { ReportPdfRenderer } from '../report-pdf/report-pdf.renderer'
 import type { StorageService } from '../storage/storage.service'
 import { type ReportKind, reportKinds } from './reports.dto'
 import { ReportsService } from './reports.service'
@@ -230,6 +231,7 @@ describe.skipIf(!enabled)('report preview scope and suppression on disposable Po
               scoped,
               {} as StorageService,
               new DashboardsService(scoped, new IndicatorsService(scoped)),
+              new ReportPdfRenderer(),
             )
             await tx.$executeRaw`SET LOCAL session_replication_role = origin`
             // The indicator report SQL also requires session_user to be the runtime role.

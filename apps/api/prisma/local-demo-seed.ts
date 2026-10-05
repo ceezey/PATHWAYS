@@ -14,6 +14,7 @@ import { MetadataService } from '../src/modules/metadata/metadata.service'
 import { ParticipantsService } from '../src/modules/participants/participants.service'
 import { ProjectsService } from '../src/modules/projects/projects.service'
 import { PublicService } from '../src/modules/public/public.service'
+import { ReportPdfRenderer } from '../src/modules/report-pdf/report-pdf.renderer'
 import { ReportsService } from '../src/modules/reports/reports.service'
 import { RulesHumanService } from '../src/modules/rules/rules-human.service'
 import { StorageService } from '../src/modules/storage/storage.service'
@@ -159,7 +160,12 @@ async function main() {
     participants,
     imports: new ImportsService(runtime, storage, beneficiaries, participants),
     finance: new FinanceService(runtime, storage),
-    reports: new ReportsService(runtime, storage, new DashboardsService(runtime, indicators)),
+    reports: new ReportsService(
+      runtime,
+      storage,
+      new DashboardsService(runtime, indicators),
+      new ReportPdfRenderer(),
+    ),
     rules: new RulesHumanService(runtime),
     publication: new PublicService(runtime),
     evaluations: new EvaluationsService(runtime),
