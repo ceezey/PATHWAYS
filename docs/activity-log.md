@@ -239,3 +239,6 @@
 
 ## 2026-10-05 Clickable alert and recommendation cards
 - Per product owner request, the Review plan and Review buttons are gone; each card in the Alerts and Recommendations queues is now one button that opens its record details.
+
+## 2026-10-05 KPI overrun note removed
+- Per product owner request, KPI and indicator progress above 100% now shows `100%` with no "over target" note; `formatCappedPercent` names an overrun only when a label is passed, so over budget and past schedule still alert.
