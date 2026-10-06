@@ -569,6 +569,15 @@ export interface BeneficiaryMediaReservedFile {
   uploadUrl: string | null
 }
 
+/** Server-computed directory summary; restricted when the caller cannot read journeys. */
+export type BeneficiaryProgress =
+  | { restricted: true }
+  | {
+      restricted: false
+      lastParticipation: { activityId: string; title: string; date: string } | null
+      stage: { code: string; name: string; progressPercent: number } | null
+    }
+
 export interface BeneficiaryRecord extends Beneficiary {
   subjectType: 'INDIVIDUAL' | 'GROUP' | 'COMMUNITY' | 'UNSPECIFIED_LEGACY'
   firstName: string
@@ -585,6 +594,8 @@ export interface BeneficiaryRecord extends Beneficiary {
   guardianConsent: boolean
   enrollments: BeneficiaryEnrollment[]
   participation: BeneficiaryParticipationRecord[]
+  /** Present only on directory list rows. */
+  progress?: BeneficiaryProgress
   assessments: BeneficiaryAssessmentRecord[]
   notes: BeneficiaryNoteRecord[]
   updatedAt: string

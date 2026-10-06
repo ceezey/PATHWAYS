@@ -2120,6 +2120,7 @@ interface ApiBeneficiary {
     status: 'ACTIVE' | 'COMPLETED' | 'DROPPED' | 'TRANSFERRED' | 'INACTIVE'
   } | null
   consentProvenance: BeneficiaryRecord['consentProvenance']
+  progress?: BeneficiaryRecord['progress']
   updatedAt: string
 }
 
@@ -2538,6 +2539,7 @@ function mapBeneficiary(row: ApiBeneficiary): BeneficiaryRecord {
         ]
       : [],
     participation: [],
+    ...(row.progress ? { progress: row.progress } : {}),
     assessments: [],
     notes: [],
     updatedAt: row.updatedAt,
