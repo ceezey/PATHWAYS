@@ -1,5 +1,4 @@
 'use client'
-import { PageHeader } from '@/components/layout/page-header'
 import {
   AsyncState,
   ConfirmationDialog,
@@ -414,11 +413,11 @@ function EvaluationContent({ projectId }: { projectId: string }) {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        eyebrow="Project review"
-        title="Monitor & Evaluate"
-        description="Set up OECD-DAC style evaluation criteria, run an evaluation round, and review and sign off its results."
-      />
+      {/* The workspace frame draws the project title; this tab keeps only its own note. */}
+      <p className="text-sm text-muted-foreground">
+        Set up OECD-DAC style evaluation criteria, run an evaluation round, and review and sign off
+        its results.
+      </p>
       <SectionCard
         title="Evaluation criteria"
         description="Draft weights can be adjusted before publishing; published criteria cannot be changed in-app."

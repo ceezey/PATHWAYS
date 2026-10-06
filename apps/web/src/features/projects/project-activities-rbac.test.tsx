@@ -139,7 +139,6 @@ const renderDetail = async (detail: Activity) => {
     </QueryClientProvider>,
   )
   // The open detail sheet is modal, so the page behind it is aria-hidden.
-  await screen.findByText('Activities', { selector: 'h1' })
   await screen.findByText('Community sessions')
 }
 

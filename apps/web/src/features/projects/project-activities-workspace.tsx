@@ -1,13 +1,11 @@
 'use client'
 
 import {
-  ArrowLeft,
   CalendarClock,
   Eye,
   LayoutGrid,
   List,
   Loader2,
-  Pencil,
   Plus,
   Search,
   UsersRound,
@@ -28,7 +26,6 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useCurrentRole } from '@/hooks/use-current-role'
-import { useDisplayLabels } from '@/hooks/use-display-labels'
 import { canAccessProjectForRole } from '@/lib/rbac/data-scope'
 import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
 import { isUiActionAvailable } from '@/lib/rbac/ui-action-availability'
@@ -53,8 +50,6 @@ import {
   activityStatuses,
   activitySummary,
 } from './activity-utils'
-import { ProjectArchiveDialog } from './project-archive-dialog'
-import { ProjectWorkspaceHeader } from './project-workspace-header'
 import {
   useActivityDetailRead,
   useProjectActivitiesRead,
@@ -193,7 +188,6 @@ export const ProjectActivitiesWorkspace = ({
   initialProofId?: string
   projectId: string
 }) => {
-  const { labels } = useDisplayLabels()
   const { role, assignedProjectIds, profile } = useCurrentRole()
   const inProjectScope = role ? canAccessProjectForRole(role, projectId, assignedProjectIds) : false
   // Create and edit are separate authorities (a create-only role never edits).
@@ -521,31 +515,6 @@ export const ProjectActivitiesWorkspace = ({
 
   return (
     <>
-      <PageHeader
-        title={labels.projectActivities}
-        actions={
-          <div className="flex flex-wrap items-center gap-2">
-            <Button asChild className="gap-2" variant="outline">
-              <Link href="/projects">
-                <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-                Back to Projects
-              </Link>
-            </Button>
-            {/* Edit and archive moved here from the removed Overview tab. */}
-            {isUiActionAvailable(role, 'projects.profile.manage', profile) ? (
-              <Button asChild size="icon" variant="outline">
-                <Link aria-label="Edit project profile" href={`/projects/${project.id}/edit`}>
-                  <Pencil className="h-4 w-4" aria-hidden="true" />
-                </Link>
-              </Button>
-            ) : null}
-            {isUiActionAvailable(role, 'projects.archive', profile) ? (
-              <ProjectArchiveDialog projectId={project.id} title={project.title} />
-            ) : null}
-          </div>
-        }
-      />
-      <ProjectWorkspaceHeader project={project} />
       <FilterBar className="min-w-0 flex-wrap gap-x-3 gap-y-2 px-3 py-2">
         <ActivityStatusSummary
           activeStatus={statusFilter}

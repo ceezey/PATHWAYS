@@ -25,7 +25,6 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogFooter } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import type { DisplayLabelKey } from '@/constants/display-labels'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'
 import { useSensitiveDraftOwner } from '@/lib/auth/sensitive-drafts'
@@ -46,7 +45,6 @@ import { PrivateProofPreview } from './private-proof-preview'
 
 import { formatDate } from './activity-utils'
 import { addIndicatorSchema } from './project-review-utils'
-import { ProjectWorkspaceHeader } from './project-workspace-header'
 
 export type PhaseFiveWorkspaceView =
   | 'evidence'
@@ -59,22 +57,6 @@ type LegacyWorkspaceView = Exclude<
   PhaseFiveWorkspaceView,
   'monitor-evaluate' | 'budget' | 'transparency'
 >
-
-const viewTitles: Record<LegacyWorkspaceView, { title: string; description: string }> = {
-  evidence: {
-    title: 'Evidence & Reports',
-    description: 'Review activity proof, attached files, and report records.',
-  },
-  indicators: {
-    title: 'Target Indicators',
-    description: 'Track baselines, targets, current values, and connected activities.',
-  },
-}
-
-const viewLabelKeys: Record<LegacyWorkspaceView, DisplayLabelKey> = {
-  evidence: 'projectEvidence',
-  indicators: 'projectIndicators',
-}
 
 const statusTone = (status: string) => {
   if (['Approved', 'Accepted', 'Met', 'Verified', 'Validated', 'On Track'].includes(status)) {
@@ -255,10 +237,6 @@ const LegacyProjectWorkspace = ({
     principalHasAtomicPermission(profile, 'evidence.review') &&
     principalHasAtomicPermission(profile, 'activities.read')
   const canAddIndicator = principalHasAtomicPermission(profile, 'indicators.create')
-  const heading = {
-    ...viewTitles[view],
-    title: labels[viewLabelKeys[view]],
-  }
 
   const addIndicator = () => {
     if (!canAddIndicator) {
@@ -314,12 +292,6 @@ const LegacyProjectWorkspace = ({
 
   return (
     <>
-      <PageHeader
-        eyebrow={labels.projectWorkspace}
-        title={heading.title}
-        description={heading.description}
-      />
-      <ProjectWorkspaceHeader project={project} />
       {unavailableSections.length > 0 ? (
         <SectionCard
           title="Some information is unavailable"

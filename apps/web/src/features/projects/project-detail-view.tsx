@@ -1,6 +1,6 @@
 'use client'
 
-import { ArrowLeft, CalendarDays, FolderKanban, Pencil } from 'lucide-react'
+import { CalendarDays, FolderKanban } from 'lucide-react'
 import Link from 'next/link'
 
 import { PageHeader } from '@/components/layout/page-header'
@@ -10,11 +10,9 @@ import { useCurrentRole } from '@/hooks/use-current-role'
 import { isUiActionAvailable } from '@/lib/rbac/ui-action-availability'
 import { PathwaysClientError } from '@/lib/services/pathways-client'
 
-import { ProjectArchiveDialog } from './project-archive-dialog'
 import { ProjectOverviewMetrics } from './project-overview-metrics'
 import { ProjectTeamEditorDialog } from './project-team-editor-dialog'
 import { formatNumber, projectHealthTone, projectStatusTone } from './project-utils'
-import { ProjectWorkspaceHeader } from './project-workspace-header'
 import { useProjectRead } from './use-project-reads'
 
 export const ProjectDetailView = ({ projectId }: { projectId: string }) => {
@@ -23,7 +21,6 @@ export const ProjectDetailView = ({ projectId }: { projectId: string }) => {
   // Team changes are saved through PATCH /projects/:id, which also requires projects.update.
   const canManageProjectTeam =
     isUiActionAvailable(role, 'projects.team.manage', profile) && canManageProjectProfile
-  const canArchiveProject = isUiActionAvailable(role, 'projects.archive', profile)
   // Shared with the Activities tab through the same stable query key.
   const read = useProjectRead(projectId)
   const project = read.data ?? null
@@ -97,31 +94,6 @@ export const ProjectDetailView = ({ projectId }: { projectId: string }) => {
   return (
     <>
       <StatusMessage>Project loaded.</StatusMessage>
-      <PageHeader
-        title="Project overview"
-        actions={
-          <div className="flex flex-wrap items-center gap-2">
-            <Button asChild className="gap-2" variant="outline">
-              <Link href="/projects">
-                <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-                Back to Projects
-              </Link>
-            </Button>
-            {/* Hidden, not disabled, when PATCH /projects/:id would be rejected. */}
-            {role && canManageProjectProfile ? (
-              <Button asChild size="icon" variant="outline">
-                <Link aria-label="Edit project profile" href={`/projects/${project.id}/edit`}>
-                  <Pencil className="h-4 w-4" aria-hidden="true" />
-                </Link>
-              </Button>
-            ) : null}
-            {role && canArchiveProject ? (
-              <ProjectArchiveDialog projectId={project.id} title={project.title} />
-            ) : null}
-          </div>
-        }
-      />
-      <ProjectWorkspaceHeader project={project} />
       <section className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
         <SectionCard
           title="Project preview"

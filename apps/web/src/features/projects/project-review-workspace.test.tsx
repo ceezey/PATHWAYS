@@ -121,7 +121,7 @@ describe('shared project workspace optional loading', () => {
   it('keeps an authorized view usable when one optional service is unavailable', async () => {
     render(<ProjectPhaseFiveWorkspace projectId={projectId} view="evidence" />)
 
-    expect(await screen.findByRole('heading', { name: 'Evidence' })).toBeTruthy()
+    expect(await screen.findByRole('heading', { name: 'Report records' })).toBeTruthy()
     expect(await screen.findByText('Some information is unavailable')).toBeTruthy()
     expect(screen.getByText('Evidence records')).toBeTruthy()
     expect(screen.getByText('No evidence records are available for this project.')).toBeTruthy()
@@ -147,7 +147,7 @@ describe('shared project workspace optional loading', () => {
       api.getProject.mockResolvedValue({ id: projectId, title: 'Project Alpha', metricsAvailable })
       api.getEvidence.mockResolvedValue({ scope: 'detail', records: [] })
       render(<ProjectPhaseFiveWorkspace projectId={projectId} view="evidence" />)
-      expect(await screen.findByRole('heading', { name: 'Evidence' })).toBeTruthy()
+      expect(await screen.findByRole('heading', { name: 'Report records' })).toBeTruthy()
       expect(
         await screen.findByText('No evidence records are available for this project.'),
       ).toBeTruthy()
@@ -164,7 +164,7 @@ describe('shared project workspace optional loading', () => {
     })
     api.getEvidence.mockResolvedValue({ scope: 'detail', records: [] })
     render(<ProjectPhaseFiveWorkspace projectId={projectId} view="evidence" />)
-    expect(await screen.findByRole('heading', { name: 'Evidence' })).toBeTruthy()
+    expect(await screen.findByRole('heading', { name: 'Report records' })).toBeTruthy()
     expect(coreApi.reports).not.toHaveBeenCalled()
   })
   it('keeps failed project authorization authoritative and does not read children', async () => {
@@ -186,7 +186,7 @@ describe('shared project workspace optional loading', () => {
       render(<ProjectPhaseFiveWorkspace projectId={projectId} view={view} />)
       expect(
         await screen.findByRole('heading', {
-          name: 'Indicators',
+          name: 'Indicator cards',
         }),
       ).toBeTruthy()
       await waitFor(() => expect(api.getProjectIndicators).toHaveBeenCalledWith(projectId))
@@ -348,7 +348,7 @@ describe('shared project workspace optional loading', () => {
     access.profile.permissions = reviewerPermissions.filter((value) => value !== 'evidence.read')
     api.getEvidence.mockResolvedValue({ scope: 'detail', records: [proof] })
     render(<ProjectPhaseFiveWorkspace projectId={projectId} view="evidence" />)
-    expect(await screen.findByRole('heading', { name: 'Evidence' })).toBeTruthy()
+    expect(await screen.findByRole('heading', { name: 'Report records' })).toBeTruthy()
     expect(api.getEvidence).not.toHaveBeenCalled()
     expect(screen.queryByRole('button', { name: 'Preview for review' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Not available yet' })).toBeNull()
