@@ -200,7 +200,13 @@ const expenseStep = {
  * Every expense logged against the activity and where it stands, so a submitted entry is
  * visible to the officer who logged it and stays visible through verification and approval.
  */
-export const ActivityExpenses = ({ expenses }: { expenses: ActivityExpenseEntry[] }) => {
+export const ActivityExpenses = ({
+  activityTitle,
+  expenses,
+}: {
+  activityTitle?: string
+  expenses: ActivityExpenseEntry[]
+}) => {
   if (expenses.length === 0)
     return (
       <p className="rounded-lg border border-dashed border-border p-3 text-sm text-muted-foreground">
@@ -217,7 +223,7 @@ export const ActivityExpenses = ({ expenses }: { expenses: ActivityExpenseEntry[
               <div className="min-w-0">
                 <p className="font-medium text-foreground">{expense.description}</p>
                 <p className="text-xs text-muted-foreground">
-                  {categoryLabel(expense.category)} · {formatDate(expense.date)}
+                  {categoryLabel(expense.category, activityTitle)} · {formatDate(expense.date)}
                 </p>
               </div>
               <div className="flex shrink-0 items-center gap-2">

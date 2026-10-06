@@ -521,3 +521,6 @@
 
 ## 2026-10-07 Activity proof download restored (fix/activity-proof-download)
 - Previewing a proof from the activity panel reloaded the page: the panel called the generic proof download that eef96516 had withdrawn (always 403), and every 403 re-verifies all authorized reads. The download is restored for `evidence.read` holders with project/org scope, a SHA-256 integrity check and no-store/nosniff headers; recorded as an amendment in cr-pathways-private-activity-proof-inspection.
+
+## 2026-10-07 Activity budget lines name their activity (fix/activity-budget-line-name)
+- The activity panel listed pending expenses by the raw `ACTIVITY_PROFILE_TOTAL` code and logged expenses as "Activity budget". `categoryLabel` now takes the activity title, so the panel and the budget ledger read "Activity budget: <activity title>", matching the finance workspace.
