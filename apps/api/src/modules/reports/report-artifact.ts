@@ -104,7 +104,10 @@ export async function createReportArtifact(
           )
       }
     bytes = await new Promise<Buffer>((resolve, reject) => {
+      // Starting on the bundled font keeps pdfkit from loading its standard Helvetica, which
+      // bundled deployments cannot resolve.
       const doc = new PDFDocument({
+        font: font as unknown as string,
         size: 'A4',
         margin: 44,
         tagged: true,
