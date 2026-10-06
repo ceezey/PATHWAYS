@@ -190,7 +190,7 @@ describe('Core client request and strict response boundaries', () => {
       fetcher.mockResolvedValueOnce(
         json(
           operation === 'read'
-            ? { projectId: otherId, evaluations: [], criteria: [] }
+            ? { projectId: otherId, evaluations: [], criteria: [], hasMore: false }
             : { projectId: otherId, configured: 1 },
         ),
       )
@@ -201,6 +201,117 @@ describe('Core client request and strict response boundaries', () => {
       ).rejects.toThrow('could not be validated')
     },
   )
+  describe('evaluation mutations', () => {
+    const evaluationId = '78000000-0000-4000-8000-000000000008'
+    const detail = {
+      id: evaluationId,
+      title: 'Mid-term',
+      periodLabel: null,
+      periodStart: '2026-01-01',
+      periodEnd: '2026-06-30',
+      overallScore: null,
+      commentary: null,
+      returnReason: null,
+      status: 'DRAFT',
+      updatedAt,
+      evaluatedBy: null,
+      evaluatedAt: null,
+      reviewedBy: null,
+      reviewedAt: null,
+      reviewFeedback: null,
+      signedOffBy: null,
+      signedOffAt: null,
+      scores: [],
+    }
+    const receipt = {
+      criteria: [{ id: otherId, code: 'REL', version: 1, status: 'DRAFT', updatedAt }],
+    }
+    const body = { synthetic: 'body' }
+    const base = `/projects/${projectId}/evaluation`
+    const cases = [
+      [
+        'createCriteria',
+        (b: unknown) => coreDataClient.createCriteria(projectId, b),
+        `${base}/criteria`,
+        'POST',
+        receipt,
+        null,
+      ],
+      [
+        'publishCriteria',
+        (b: unknown) => coreDataClient.publishCriteria(projectId, b),
+        `${base}/criteria/publish`,
+        'POST',
+        { projectId, published: 1 },
+        { projectId: otherId, published: 1 },
+      ],
+      [
+        'createEvaluation',
+        (b: unknown) => coreDataClient.createEvaluation(projectId, b),
+        `${base}/evaluations`,
+        'POST',
+        detail,
+        null,
+      ],
+      [
+        'saveEvaluationScores',
+        (b: unknown) => coreDataClient.saveEvaluationScores(projectId, evaluationId, b),
+        `${base}/evaluations/${evaluationId}/scores`,
+        'PATCH',
+        detail,
+        { ...detail, id: otherId },
+      ],
+      [
+        'submitEvaluation',
+        (b: unknown) => coreDataClient.submitEvaluation(projectId, evaluationId, b),
+        `${base}/evaluations/${evaluationId}/submit`,
+        'POST',
+        detail,
+        { ...detail, id: otherId },
+      ],
+      [
+        'returnEvaluation',
+        (b: unknown) => coreDataClient.returnEvaluation(projectId, evaluationId, b),
+        `${base}/evaluations/${evaluationId}/return`,
+        'POST',
+        detail,
+        { ...detail, id: otherId },
+      ],
+      [
+        'signoffEvaluation',
+        (b: unknown) => coreDataClient.signoffEvaluation(projectId, evaluationId, b),
+        `${base}/evaluations/${evaluationId}/signoff`,
+        'POST',
+        detail,
+        { ...detail, id: otherId },
+      ],
+    ] as const
+    it.each(cases)(
+      '%s sends the request unchanged and binds the response',
+      async (_name, call, url, method, ok, mismatched) => {
+        fetcher.mockResolvedValueOnce(json(ok))
+        await expect(call(body)).resolves.toEqual(ok)
+        const [calledUrl, init] = fetcher.mock.calls[0]
+        expect(String(calledUrl).endsWith(`/api${url}`)).toBe(true)
+        expect(init?.method).toBe(method)
+        expect(init?.body).toBe(JSON.stringify(body))
+        if (mismatched) {
+          fetcher.mockResolvedValueOnce(json(mismatched))
+          await expect(call(body)).rejects.toThrow('could not be validated')
+        }
+      },
+    )
+    it.each(cases.filter((row) => row[4] === detail))(
+      '%s rejects a detail without returnReason or with an extra key',
+      async (_name, call) => {
+        const { returnReason: _omitted, ...missing } = detail
+        fetcher.mockResolvedValueOnce(json(missing))
+        await expect(call(body)).rejects.toThrow('could not be validated')
+        fetcher.mockResolvedValueOnce(json({ ...detail, extra: 'x' }))
+        await expect(call(body)).rejects.toThrow('could not be validated')
+      },
+    )
+  })
   it('parses a populated evaluation response and rejects an extra snapshot key', async () => {
     const criterion = {
       id: otherId,

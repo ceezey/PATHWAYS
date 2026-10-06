@@ -621,7 +621,7 @@ function EvaluationContent({ projectId }: { projectId: string }) {
       ) : null}
       <SectionCard
         title="Evaluations"
-        description="Only persisted, submitted evaluation rounds appear here; the donor report accepts signed-off rounds only."
+        description="Every evaluation round appears here, including a draft in progress; the donor report accepts signed-off rounds only."
       >
         {read.isPending ? (
           <AsyncState

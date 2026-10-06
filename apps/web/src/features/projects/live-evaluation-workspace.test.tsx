@@ -1,8 +1,12 @@
+import type { evaluationDetailSchema } from '@/lib/services/core-feature-client'
 /* @vitest-environment jsdom */
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { useLayoutEffect } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { z } from 'zod'
 import { LiveEvaluationWorkspace } from './live-evaluation-workspace'
+
+type EvaluationDetail = z.infer<typeof evaluationDetailSchema>
 const state = vi.hoisted(() => ({
   readError: false,
   role: 'MONITORING_AND_EVALUATION_OFFICER',
@@ -13,7 +17,7 @@ const state = vi.hoisted(() => ({
   extraSettings: false,
   published: false,
   criterionType: 'OTHER',
-  evaluation: null as Record<string, unknown> | null,
+  evaluation: null as EvaluationDetail | null,
   configure: vi.fn(),
   initialize: vi.fn(),
   createCriteria: vi.fn(),
@@ -110,6 +114,7 @@ vi.mock('@/providers/authorized-query-provider', () => ({
             },
           ],
       evaluations: state.evaluation ? [state.evaluation] : [],
+      hasMore: false,
     },
     isPending: false,
     isError: state.readError,
@@ -217,8 +222,28 @@ describe('evaluation editor revisions and retry identity', () => {
     expect(state.initialize.mock.calls[1][1]).toEqual(state.initialize.mock.calls[0][1])
   })
 })
-const openEvaluation = {
-  id: 'evaluation-1',
+const evaluationId = '30000000-0000-4000-8000-000000000003'
+const savedScore = (): EvaluationDetail['scores'][number] => ({
+  criterionId,
+  score: '80',
+  maximumScore: '100',
+  weightedScore: '80',
+  commentary: 'Evidence note',
+  source: 'manual',
+  note: 'Evidence note',
+  criterion: {
+    id: criterionId,
+    code: 'outcomes',
+    version: 1,
+    type: 'OTHER',
+    name: 'Recorded criterion',
+    description: null,
+    weight_percentage: '100',
+    maximum_score: '100',
+  },
+})
+const openEvaluation: EvaluationDetail = {
+  id: evaluationId,
   title: 'Mid-term 2026',
   periodLabel: null,
   periodStart: '2026-01-01',
@@ -235,7 +260,7 @@ const openEvaluation = {
   reviewFeedback: null,
   signedOffBy: null,
   signedOffAt: null,
-  scores: [] as unknown[],
+  scores: [],
 }
 describe('evaluation rounds: criteria publishing, scoring, submit and review', () => {
   beforeEach(() => {
@@ -304,17 +329,7 @@ describe('evaluation rounds: criteria publishing, scoring, submit and review', (
     state.evaluation = {
       ...openEvaluation,
       returnReason: 'Recheck the scores',
-      scores: [
-        {
-          criterionId,
-          score: '80',
-          maximumScore: '100',
-          weightedScore: '80',
-          commentary: 'Evidence note',
-          source: 'manual',
-          note: 'Evidence note',
-        },
-      ],
+      scores: [savedScore()],
     }
     render(<LiveEvaluationWorkspace projectId={projectId} />)
     expect((screen.getByLabelText('Score for Recorded criterion') as HTMLInputElement).value).toBe(
@@ -363,15 +378,7 @@ describe('evaluation rounds: criteria publishing, scoring, submit and review', (
     state.evaluation = {
       ...openEvaluation,
       status: 'SUBMITTED',
-      scores: [
-        {
-          criterionId,
-          score: '80',
-          maximumScore: '100',
-          weightedScore: '80',
-          commentary: 'Evidence note',
-        },
-      ],
+      scores: [savedScore()],
     }
     state.returnEvaluation.mockResolvedValue({ ...state.evaluation, status: 'DRAFT' })
     render(<LiveEvaluationWorkspace projectId={projectId} />)
@@ -391,15 +398,7 @@ describe('evaluation rounds: criteria publishing, scoring, submit and review', (
     state.evaluation = {
       ...openEvaluation,
       status: 'SUBMITTED',
-      scores: [
-        {
-          criterionId,
-          score: '80',
-          maximumScore: '100',
-          weightedScore: '80',
-          commentary: 'Evidence note',
-        },
-      ],
+      scores: [savedScore()],
     }
     state.signoff.mockResolvedValue({ ...state.evaluation, status: 'SIGNED_OFF' })
     render(<LiveEvaluationWorkspace projectId={projectId} />)

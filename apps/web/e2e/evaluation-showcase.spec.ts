@@ -11,9 +11,9 @@ test.beforeAll(async () => {
   actors = await loadActors([seedAccounts.ME, seedAccounts.PM])
 })
 
-// Opens the Safe Schools for Girls project (has indicators, a budget envelope and enrolled
-// beneficiaries, so KPI, Budget efficiency and Beneficiary reach all have something to compute
-// from) and its Monitor & Evaluate tab. Each test gets its own fresh browser context, so a plain
+// Opens the Safe Schools for Girls project (has indicators and enrolled beneficiaries for KPI and
+// Beneficiary reach; Monitoring and Evaluation cannot compute Budget efficiency, which needs
+// budgets.read and expenses.read, so that criterion takes a manual score and note) and its Monitor & Evaluate tab. Each test gets its own fresh browser context, so a plain
 // sign-in works even though a different role signed in last in the previous test.
 async function openSsg(page: Page) {
   const card = page.locator('[data-testid^="project-card-"]').filter({
@@ -88,19 +88,29 @@ test('Monitoring and Evaluation Officer starts, scores and submits an evaluation
   }
   await page.screenshot({ path: `${shots}/05-evaluation-started.png`, fullPage: true })
 
-  // Score every row that still needs a manual value and a note (computed rows fill themselves).
-  const scoreInputs = page.locator('input[aria-label^="Score for "]')
-  const count = await scoreInputs.count()
-  for (let i = 0; i < count; i++) {
-    const input = scoreInputs.nth(i)
-    const label = (await input.getAttribute('aria-label')) ?? ''
-    const criterion = label.replace('Score for ', '')
-    await input.fill('80')
-    await page.getByLabel(`Note for ${criterion}`).fill('Evidence reviewed against field records.')
+  // Score every row that shows manual inputs (computed rows fill themselves).
+  const fillManualScores = async () => {
+    const scoreInputs = page.locator('input[aria-label^="Score for "]')
+    const count = await scoreInputs.count()
+    for (let i = 0; i < count; i++) {
+      const input = scoreInputs.nth(i)
+      const label = (await input.getAttribute('aria-label')) ?? ''
+      const criterion = label.replace('Score for ', '')
+      await input.fill('80')
+      await page
+        .getByLabel(`Note for ${criterion}`)
+        .fill('Evidence reviewed against field records.')
+    }
   }
+  await fillManualScores()
   await page.screenshot({ path: `${shots}/06-scores-entered.png`, fullPage: true })
   await page.getByRole('button', { name: 'Save scores' }).click()
   await page.waitForTimeout(500)
+  // The first save flags computed criteria that are not computable (for example Budget
+  // efficiency); their manual inputs appear now, so fill them and save again before Submit.
+  await fillManualScores()
+  await page.getByRole('button', { name: 'Save scores' }).click()
+  await expect(page.getByText('Save before submitting.')).toBeHidden()
   await page.screenshot({ path: `${shots}/07-scores-saved.png`, fullPage: true })
 
   await page.getByRole('button', { name: 'Submit evaluation' }).click()

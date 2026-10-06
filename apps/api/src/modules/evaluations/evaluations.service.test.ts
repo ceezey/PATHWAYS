@@ -1,5 +1,4 @@
-import { BadRequestException, ForbiddenException } from '@nestjs/common'
-import { Prisma } from '@prisma/client'
+import { ForbiddenException } from '@nestjs/common'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { PrismaService } from '../../prisma/prisma.service'
 import { hasAtomicPermission } from '../auth/authorization-policy'
