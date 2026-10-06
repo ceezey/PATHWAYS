@@ -2,8 +2,8 @@
 
 import { PhilippinePeso } from 'lucide-react'
 
+import { CappedPercent } from '@/components/pathways'
 import { EmptyState } from '@/components/pathways/empty-state'
-import { formatCappedPercent } from '@/lib/percent'
 import type { BudgetSummary } from '@pathways/shared'
 
 export const NO_BUDGET_LABEL = 'No budget'
@@ -43,9 +43,11 @@ export const BudgetSummaryCard = ({ data }: { data: BudgetSummary }) =>
               <td className="p-3 tabular-nums">{money(row.approved, row.currency)}</td>
               <td className="p-3 tabular-nums">{money(row.pending, row.currency)}</td>
               <td className="p-3 tabular-nums">
-                {row.utilizationPercent === null
-                  ? NO_BUDGET_LABEL
-                  : formatCappedPercent(row.utilizationPercent, 'over budget')}
+                {row.utilizationPercent === null ? (
+                  NO_BUDGET_LABEL
+                ) : (
+                  <CappedPercent value={row.utilizationPercent} overLabel="over budget" />
+                )}
               </td>
             </tr>
           ))}

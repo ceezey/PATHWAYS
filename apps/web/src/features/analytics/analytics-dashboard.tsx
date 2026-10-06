@@ -16,7 +16,7 @@ import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
 
 import { PageHeader } from '@/components/layout/page-header'
-import { AsyncState, StatusMessage } from '@/components/pathways'
+import { AsyncState, CappedPercent, StatusMessage } from '@/components/pathways'
 import { EmptyState } from '@/components/pathways/empty-state'
 import { MetricCard } from '@/components/pathways/metric-card'
 import { Button } from '@/components/ui/button'
@@ -1110,17 +1110,19 @@ export const AnalyticsDashboard = () => {
                       : 'success'
                 }
                 value={
-                  !canReadBudgetUtilization
-                    ? 'Unavailable'
-                    : budgetRead.isError
-                      ? 'Unavailable'
-                      : !budgetRead.data
-                        ? 'Loading...'
-                        : budgetCurrencies.length > 1
-                          ? 'Multiple currencies'
-                          : budgetUtilizationPercent !== null
-                            ? formatCappedPercent(budgetUtilizationPercent, 'over budget')
-                            : 'No budget'
+                  !canReadBudgetUtilization ? (
+                    'Unavailable'
+                  ) : budgetRead.isError ? (
+                    'Unavailable'
+                  ) : !budgetRead.data ? (
+                    'Loading...'
+                  ) : budgetCurrencies.length > 1 ? (
+                    'Multiple currencies'
+                  ) : budgetUtilizationPercent !== null ? (
+                    <CappedPercent value={budgetUtilizationPercent} overLabel="over budget" />
+                  ) : (
+                    'No budget'
+                  )
                 }
               />
             ) : null}
