@@ -127,18 +127,18 @@ export const ProjectDetailView = ({ projectId }: { projectId: string }) => {
                     : formatNumber(project.targetBeneficiaries)}
                 </dd>
               </div>
-              <div>
-                <dt className="text-muted-foreground">Planned project budget</dt>
-                <dd className="mt-1 font-medium text-foreground">
-                  {project.projectBudget === null || project.projectBudget === undefined
-                    ? 'Not recorded'
-                    : new Intl.NumberFormat('en-US', {
-                        currency: 'PHP',
-                        maximumFractionDigits: 2,
-                        style: 'currency',
-                      }).format(Number(project.projectBudget))}
-                </dd>
-              </div>
+              {project.projectBudget === null || project.projectBudget === undefined ? null : (
+                <div>
+                  <dt className="text-muted-foreground">Planned project budget</dt>
+                  <dd className="mt-1 font-medium text-foreground">
+                    {new Intl.NumberFormat('en-US', {
+                      currency: 'PHP',
+                      maximumFractionDigits: 2,
+                      style: 'currency',
+                    }).format(Number(project.projectBudget))}
+                  </dd>
+                </div>
+              )}
             </dl>
           </div>
         </SectionCard>

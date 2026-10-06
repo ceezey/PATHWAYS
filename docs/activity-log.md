@@ -515,3 +515,6 @@
 
 ## 2026-10-07 Enrollment date uses the business date (fix/enrollment-business-date)
 - Registering a beneficiary between midnight and 08:00 Manila failed with "enrollment_date cannot be future." because the check compared the business-date enrollment against the UTC clock. Registration and project enrollment now compare against the business date (`BUSINESS_TIME_ZONE`), as the birth-date checks already did.
+
+## 2026-10-07 Project preview tiles (fix/overview-metrics-layout)
+- Project preview and Quick Preview leave out Budget utilization when the role cannot read the budget (instead of "Unavailable"), place Beneficiaries reached / target beside KPI achievement, and show Timeline as a full-width progress bar. The Overview hides "Planned project budget" when none is recorded.
