@@ -3,7 +3,7 @@ import type { PrintReport } from './print-report-payload'
 
 const figure = (label: string, value: string | null, percent: number | null, detail = '') => ({
   label,
-  state: value === null ? 'SUPPRESSED' : 'AVAILABLE',
+  state: value === null ? ('SUPPRESSED' as const) : ('AVAILABLE' as const),
   value,
   reason: value === null ? 'SMALL_CELL' : null,
   detail,

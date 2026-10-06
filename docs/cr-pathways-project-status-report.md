@@ -5,7 +5,9 @@ Status: implemented on feature/project-status-report, not pushed. Spec: docs/sup
 ## Scope
 
 - Project summary report gains a structured `sections` object; the other five kinds keep their data and get the shared document look.
-- Out of scope: migrations, new permissions, pdfkit layout, CSV and XLSX layout.
+- Out of scope: migrations, new permissions, pdfkit layout, the other kinds' data.
+- The Project summary flat copy (pdfkit, CSV, XLSX) changes shape to Section, Item, Value, Detail.
+- Implementing partners come from the structured partner links, not the legacy text column.
 
 ## Permissions per section
 
@@ -25,6 +27,10 @@ A missing permission omits the section and adds one line to `unavailableReasons`
 - Budget: OFF TRACK above 100 percent used, AT RISK when used exceeds timeline elapsed by more than 15 points, else ON TRACK.
 - Indicators: OFF TRACK when KPI achievement is more than 25 points below timeline elapsed, AT RISK when more than 10 below, else ON TRACK.
 - Any missing input is NOT AVAILABLE. The report footer states these rules.
+
+## Dated snapshot
+
+A status report is dated as of its generation. The export freshness check hashes the sections without today-dependent fields (report date, timeline elapsed, overdue flags, derived statuses, alert evaluation time), so a download stays valid on later days while project data is unchanged. Any other section change, or a viewer lacking a section permission, still fails the check. Project summaries generated before this change must be regenerated.
 
 ## Rollback
 

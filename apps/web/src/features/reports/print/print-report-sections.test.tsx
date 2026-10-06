@@ -28,6 +28,14 @@ describe('report sections schema', () => {
     expect(accepts({ alerts: many(10, alert) })).toBe(true)
     expect(accepts({ alerts: many(11, alert) })).toBe(false)
     expect(accepts({ extra: 1 })).toBe(false)
+    expect(accepts({ overview: many(11, sections.overview[0] as object) })).toBe(false)
+    const figure = sections.keyFigures?.[0] as object
+    expect(accepts({ keyFigures: [{ ...figure, state: 'MADE_UP' }] })).toBe(false)
+    expect(accepts({ keyFigures: [{ ...figure, percent: 1e9 }] })).toBe(false)
+    expect(accepts({ alerts: [{ ...alert, severity: 'SEVERE' }] })).toBe(false)
+    expect(accepts({ information: { ...sections.information, title: 'x'.repeat(2001) } })).toBe(
+      false,
+    )
   })
 })
 
@@ -82,6 +90,7 @@ describe('project status layout', () => {
         }}
       />,
     )
+    expect(screen.getByRole('heading', { name: 'Data' })).toBeTruthy()
     expect(screen.getByText('Available')).toBeTruthy()
     expect(screen.getByText('Fewer than 5')).toBeTruthy()
   })

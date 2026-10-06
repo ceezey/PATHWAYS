@@ -29,11 +29,11 @@ export const reportSectionsSchema = z
         z
           .object({
             label: text,
-            state: text,
+            state: z.enum(['AVAILABLE', 'ZERO', 'MISSING', 'NOT_APPLICABLE', 'SUPPRESSED']),
             value: text.nullable(),
             reason: text.nullable(),
             detail: text,
-            percent: z.number().nullable(),
+            percent: z.number().finite().min(-100000).max(100000).nullable(),
           })
           .strict(),
       )
@@ -73,7 +73,7 @@ export const reportSectionsSchema = z
         z
           .object({
             title: text,
-            severity: text,
+            severity: z.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']),
             explanation: text,
             evaluatedAt: z.string().max(40),
           })

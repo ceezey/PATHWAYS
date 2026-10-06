@@ -36,7 +36,7 @@ export function StatePill({ state }: { state: string }) {
   )
 }
 
-function Band({ title }: { title: string }) {
+export function Band({ title }: { title: string }) {
   return (
     <h2 className="print-avoid mt-5 bg-navy px-3 py-1.5 text-sm font-semibold text-navy-foreground">
       {title}
@@ -45,8 +45,8 @@ function Band({ title }: { title: string }) {
 }
 
 const th = 'border border-border bg-surface-subtle px-2 py-1.5 text-left font-semibold'
-const td = 'border border-border px-2 py-1.5 align-top'
-const Table = ({ head, children }: { head: string[]; children: React.ReactNode }) => (
+export const td = 'border border-border px-2 py-1.5 align-top'
+export const Table = ({ head, children }: { head: string[]; children: React.ReactNode }) => (
   <table className="w-full border-collapse text-xs">
     <thead className="print-table-head">
       <tr>
@@ -104,7 +104,7 @@ export function ProjectStatusSections({ sections }: { sections: ReportSections }
       {sections.keyFigures && (
         <>
           <Band title="Key figures" />
-          <div className="mt-2 grid grid-cols-4 gap-2">
+          <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4 print:grid-cols-4">
             {sections.keyFigures.map((figure) => (
               <div
                 key={figure.label}
@@ -178,7 +178,9 @@ export function ProjectStatusSections({ sections }: { sections: ReportSections }
                   <span
                     className={cn(
                       pill,
-                      levelStyle[a.severity === 'LOW' ? 'AT_RISK' : 'OFF_TRACK'].className,
+                      levelStyle[
+                        a.severity === 'LOW' || a.severity === 'MEDIUM' ? 'AT_RISK' : 'OFF_TRACK'
+                      ].className,
                     )}
                   >
                     {a.severity}
