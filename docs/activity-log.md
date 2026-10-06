@@ -420,3 +420,8 @@
 - The four Create Rule buttons on the repository tab are gone; the Create rule tab is the single entry point. Each card keeps View All, and the empty state names the tab instead of repeating a button. Without `rules.create` the guidance line is omitted, matching the hidden tab.
 - `open` no longer carries a create branch, since every remaining caller passes an existing rule.
 - Board tests updated for the removal, plus a test that the empty state omits the guidance without `rules.create`. The tab test now drives Radix with mouse down, which is what activates a trigger.
+
+## 2026-10-06 Logged expenses stay visible on the activity (feat/project-workspace-frame-ui)
+- The activity panel listed expenses only while they were `PENDING` and only to a validator, so an officer never saw the expense they had just logged, and the entry disappeared from every panel the moment it was verified. Only approved money then reappeared, as budget used.
+- New `ActivityExpenses` section lists every non-rejected expense on the activity with its review step (For review, Verified awaiting approval, Approved), its amount and who has acted so far. It is shown to any principal holding `expenses.read`, which is the same grant the budget ledger already requires, so no access widens.
+- The validator's own "Submitted expenses for validation" action list is unchanged; the new list is read-only.

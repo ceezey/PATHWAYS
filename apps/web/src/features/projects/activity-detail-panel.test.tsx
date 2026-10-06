@@ -174,6 +174,65 @@ describe('ActivityDetailContent presentation', () => {
     expect(screen.getByText('43%')).toBeTruthy()
   })
 
+  const expense = (id: string, status: 'PENDING' | 'VERIFIED' | 'APPROVED') => ({
+    id,
+    amount: 9800,
+    category: 'ACTIVITY_PROFILE_TOTAL',
+    date: '2026-10-02',
+    description: 'Meals and transport for referral mapping',
+    status,
+    submittedByName: 'Liza Bautista',
+    verifiedByName: status === 'PENDING' ? null : 'Carlo Mendoza',
+    approvedByName: status === 'APPROVED' ? 'Ana Cruz' : null,
+  })
+
+  // A logged expense used to be visible only to validators, and only while PENDING, so it
+  // vanished from every panel the moment it was verified.
+  it.each([
+    ['PENDING' as const, 'For review'],
+    ['VERIFIED' as const, 'Verified, awaiting approval'],
+    ['APPROVED' as const, 'Approved'],
+  ])('keeps a %s expense visible with its review step', (status, label) => {
+    render(
+      <ActivityDetailContent
+        {...base}
+        activity={activity}
+        activityExpenses={[expense('e1', status)]}
+        canReadExpenses
+        indicators={[]}
+      />,
+    )
+    expect(screen.getByText('Logged expenses')).toBeTruthy()
+    expect(screen.getByText(label)).toBeTruthy()
+    expect(screen.getByText('₱9,800.00')).toBeTruthy()
+    expect(screen.getByText(/Logged by Liza Bautista/)).toBeTruthy()
+  })
+
+  it('names the reviewer who has acted so far', () => {
+    render(
+      <ActivityDetailContent
+        {...base}
+        activity={activity}
+        activityExpenses={[expense('e1', 'VERIFIED')]}
+        canReadExpenses
+        indicators={[]}
+      />,
+    )
+    expect(screen.getByText(/Verified by Carlo Mendoza/)).toBeTruthy()
+  })
+
+  it('hides the expense trail from a viewer without expense access', () => {
+    render(
+      <ActivityDetailContent
+        {...base}
+        activity={activity}
+        activityExpenses={[expense('e1', 'PENDING')]}
+        indicators={[]}
+      />,
+    )
+    expect(screen.queryByText('Logged expenses')).toBeNull()
+  })
+
   it('says progress is system-calculated rather than typed in', () => {
     render(
       <ActivityDetailContent

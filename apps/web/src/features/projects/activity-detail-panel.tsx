@@ -29,6 +29,8 @@ import type {
 
 import {
   ActivityBudget,
+  type ActivityExpenseEntry,
+  ActivityExpenses,
   ActivityIndicators,
   ActivityProgress,
   ActivityTeam,
@@ -90,6 +92,8 @@ const formatProofDate = (value: string) => {
 
 export const ActivityDetailContent = ({
   activity,
+  activityExpenses = [],
+  canReadExpenses = false,
   budgetReferences = [],
   canDecideProof,
   canDecideExtension = false,
@@ -116,6 +120,8 @@ export const ActivityDetailContent = ({
   requestedProofId,
 }: {
   activity: Activity
+  activityExpenses?: ActivityExpenseEntry[]
+  canReadExpenses?: boolean
   budgetReferences?: ExpenseBudgetReference[]
   canDecideProof: boolean
   canDecideExtension?: boolean
@@ -244,6 +250,12 @@ export const ActivityDetailContent = ({
       <PanelSection id={`activity-budget-${activity.id}`} title="Activity budget">
         <ActivityBudget activity={activity} canReadBudgets={canReadBudgets} />
       </PanelSection>
+
+      {canReadExpenses ? (
+        <PanelSection id={`activity-expenses-${activity.id}`} title="Logged expenses">
+          <ActivityExpenses expenses={activityExpenses} />
+        </PanelSection>
+      ) : null}
 
       {canValidateExpense && pendingExpenses.length ? (
         <section aria-labelledby={`expense-submissions-${activity.id}`}>
@@ -644,6 +656,8 @@ export const ActivityDetailContent = ({
 
 export const ActivityDetailPanel = ({
   activity,
+  activityExpenses = [],
+  canReadExpenses = false,
   budgetReferences = [],
   canDecideProof,
   canDecideExtension = false,
@@ -673,6 +687,8 @@ export const ActivityDetailPanel = ({
   requestedProofId,
 }: {
   activity: Activity | null
+  activityExpenses?: ActivityExpenseEntry[]
+  canReadExpenses?: boolean
   budgetReferences?: ExpenseBudgetReference[]
   canDecideProof: boolean
   canDecideExtension?: boolean
@@ -733,6 +749,8 @@ export const ActivityDetailPanel = ({
         >
           <ActivityDetailContent
             activity={activity}
+            activityExpenses={activityExpenses}
+            canReadExpenses={canReadExpenses}
             budgetReferences={budgetReferences}
             canDecideProof={canDecideProof}
             canDecideExtension={canDecideExtension}

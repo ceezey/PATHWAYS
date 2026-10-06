@@ -3,8 +3,8 @@
 import { ProgressBar, StatusBadge } from '@/components/pathways'
 import type { Activity, ProjectIndicator, ProjectTeamMember } from '@/types/pathways'
 
-import { formatCurrency } from './activity-utils'
-import { activityBudgetFigures, toneFor } from './budget-module/budget-math'
+import { formatCurrency, formatDate } from './activity-utils'
+import { activityBudgetFigures, categoryLabel, toneFor } from './budget-module/budget-math'
 
 const sectionHeading = 'text-xs font-semibold uppercase tracking-wide text-muted-foreground'
 
@@ -174,4 +174,66 @@ export const ProofStatusBadge = ({ status }: { status: string }) => {
   const label = status === 'Accepted' ? 'Verified' : status === 'Flagged' ? 'Insufficient' : status
   const tone = status === 'Accepted' ? 'success' : status === 'Flagged' ? 'warning' : 'info'
   return <StatusBadge tone={tone}>{label}</StatusBadge>
+}
+
+export type ActivityExpenseEntry = {
+  id: string
+  amount: number
+  category: string
+  date: string
+  description: string
+  status: 'PENDING' | 'VERIFIED' | 'APPROVED' | 'REJECTED'
+  submittedByName: string | null
+  verifiedByName: string | null
+  approvedByName: string | null
+}
+
+const expenseStep = {
+  PENDING: { label: 'For review', tone: 'warning' },
+  VERIFIED: { label: 'Verified, awaiting approval', tone: 'info' },
+  APPROVED: { label: 'Approved', tone: 'success' },
+  REJECTED: { label: 'Rejected', tone: 'danger' },
+} as const
+
+/**
+ * Every expense logged against the activity and where it stands, so a submitted entry is
+ * visible to the officer who logged it and stays visible through verification and approval.
+ */
+export const ActivityExpenses = ({ expenses }: { expenses: ActivityExpenseEntry[] }) => {
+  if (expenses.length === 0)
+    return (
+      <p className="rounded-lg border border-dashed border-border p-3 text-sm text-muted-foreground">
+        No expense has been logged against this activity yet.
+      </p>
+    )
+  return (
+    <ul className="space-y-2">
+      {expenses.map((expense) => {
+        const step = expenseStep[expense.status]
+        return (
+          <li className="rounded-lg border border-border bg-card p-3 text-sm" key={expense.id}>
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="font-medium text-foreground">{expense.description}</p>
+                <p className="text-xs text-muted-foreground">
+                  {categoryLabel(expense.category)} · {formatDate(expense.date)}
+                </p>
+              </div>
+              <div className="flex shrink-0 items-center gap-2">
+                <span className="font-medium tabular-nums text-foreground">
+                  {formatCurrency(expense.amount)}
+                </span>
+                <StatusBadge tone={step.tone}>{step.label}</StatusBadge>
+              </div>
+            </div>
+            <p className="mt-2 text-xs text-muted-foreground">
+              Logged by {expense.submittedByName ?? 'Unnamed user'}
+              {expense.verifiedByName ? ` · Verified by ${expense.verifiedByName}` : ''}
+              {expense.approvedByName ? ` · Approved by ${expense.approvedByName}` : ''}
+            </p>
+          </li>
+        )
+      })}
+    </ul>
+  )
 }

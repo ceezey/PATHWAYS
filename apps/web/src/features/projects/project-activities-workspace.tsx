@@ -36,6 +36,7 @@ import { useAuthorizedRead } from '@/providers/authorized-query-provider'
 import type { Activity, ActivityStatus, ActivitySummary, Indicator } from '@/types/pathways'
 
 import { ActivityDetailPanel } from './activity-detail-panel'
+import type { ActivityExpenseEntry } from './activity-detail-sections'
 import { ActivityEditorLoadingDialog } from './activity-editor-loading-dialog'
 import type { ExpenseBudgetReference } from './activity-expense-dialog'
 import type { PendingExpense } from './activity-expense-review-dialog'
@@ -323,6 +324,34 @@ export const ProjectActivitiesWorkspace = ({
         ]
       })
   }, [expensesRead.data, budgetReferences, projectId, selectedActivity])
+  /**
+   * Every expense on this activity that has not been rejected, whatever its review step.
+   * The panel used to show only PENDING entries and only to validators, so a logged expense
+   * was invisible to its submitter and vanished from view the moment it was verified.
+   */
+  const activityExpenses: ActivityExpenseEntry[] = useMemo(() => {
+    if (!selectedActivity) return []
+    const referenceMap = new Map(budgetReferences.map((row) => [row.id, row]))
+    return (expensesRead.data ?? [])
+      .filter((expense) => expense.status !== 'REJECTED')
+      .flatMap((expense) => {
+        const reference = referenceMap.get(expense.budgetRecordId)
+        if (!reference || reference.activityId !== selectedActivity.id) return []
+        return [
+          {
+            id: expense.id,
+            amount: Number(expense.amount),
+            category: reference.category,
+            date: expense.expenseDate,
+            description: expense.description,
+            status: expense.status,
+            submittedByName: expense.submittedByName,
+            verifiedByName: expense.verifiedByName,
+            approvedByName: expense.approvedByName,
+          },
+        ]
+      })
+  }, [expensesRead.data, budgetReferences, selectedActivity])
   const refreshExpenses = () => {
     void expensesRead.refetch()
     void expenseReferencesRead.refetch()
@@ -670,6 +699,8 @@ export const ProjectActivitiesWorkspace = ({
         onOpenChange={closeDetail}
         onSubmitProof={openProof}
         open={Boolean(selectedActivityId) && !detail.isError}
+        activityExpenses={activityExpenses}
+        canReadExpenses={canReadExpenses}
         pendingExpenses={pendingExpenses}
         focusExtension={initialAction === 'extension'}
         requestedProofId={initialProofId}
