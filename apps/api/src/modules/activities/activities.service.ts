@@ -103,7 +103,13 @@ const activitySelection = {
       reviewedBy: { select: { fullName: true } },
       evidenceMedia_update: {
         where: { storageReady: true },
-        select: { id: true, fileName: true, status: true, submittedAt: true },
+        select: {
+          id: true,
+          fileName: true,
+          status: true,
+          rejectionReason: true,
+          submittedAt: true,
+        },
         orderBy: { id: 'asc' as const },
         take: 10,
       },
@@ -341,6 +347,8 @@ function mapActivity(
         updateId: update.id,
         fileName: proof.fileName,
         status: reviewStatus[proof.status],
+        // Why this file alone was not enough, so the submitter can fix that file.
+        rejectionReason: proof.rejectionReason,
         submittedAt: proof.submittedAt.toISOString(),
         submittedBy: update.submittedBy.fullName,
         updateUpdatedAt: update.updatedAt.toISOString(),

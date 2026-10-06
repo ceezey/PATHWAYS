@@ -18,7 +18,7 @@ const api = vi.hoisted(() => ({
   getActivities: vi.fn(),
   getActivity: vi.fn(),
   getAssignableProjectOfficers: vi.fn(),
-  getIndicators: vi.fn(),
+  getProjectIndicators: vi.fn(),
   getJourneyStages: vi.fn(),
   getProject: vi.fn(),
   getProjectOverviewMetrics: vi.fn(),
@@ -216,8 +216,15 @@ describe('project activities permission-aware loading', () => {
     })
     api.getActivities.mockResolvedValue([summary])
     api.getActivity.mockResolvedValue(detail)
-    api.getIndicators.mockResolvedValue([
-      { id: indicatorId, code: 'IND-READING', label: 'Reading' },
+    api.getProjectIndicators.mockResolvedValue([
+      {
+        id: indicatorId,
+        projectId,
+        code: 'IND-READING',
+        name: 'Reading',
+        target: '500',
+        current: { state: 'AVAILABLE', value: '284', reason: null },
+      },
     ])
     api.getJourneyStages.mockResolvedValue([])
     api.getProjectOverviewMetrics.mockResolvedValue(null)
@@ -237,7 +244,7 @@ describe('project activities permission-aware loading', () => {
     expect(api.getProject).toHaveBeenCalledWith(projectId, expect.any(AbortSignal))
     expect(api.getActivities).toHaveBeenCalledWith(projectId, expect.any(AbortSignal))
     await waitFor(() => expect(api.getJourneyStages).toHaveBeenCalledOnce())
-    expect(api.getIndicators).not.toHaveBeenCalled()
+    expect(api.getProjectIndicators).not.toHaveBeenCalled()
     expect(api.getActivity).not.toHaveBeenCalled()
     expect(api.getUsers).not.toHaveBeenCalled()
   })
@@ -262,7 +269,7 @@ describe('project activities permission-aware loading', () => {
     renderWorkspace()
 
     await screen.findByRole('heading', { name: 'Assigned project' })
-    await waitFor(() => expect(api.getIndicators).toHaveBeenCalledOnce())
+    await waitFor(() => expect(api.getProjectIndicators).toHaveBeenCalledOnce())
     expect(api.getJourneyStages).toHaveBeenCalledOnce()
     expect(api.getAssignableProjectOfficers).not.toHaveBeenCalled()
     fireEvent.click(screen.getByRole('button', { name: 'New Activity' }))
@@ -273,7 +280,7 @@ describe('project activities permission-aware loading', () => {
       expect.any(AbortSignal),
     )
     expect(api.getUsers).not.toHaveBeenCalled()
-    expect(api.getIndicators).toHaveBeenCalledOnce()
+    expect(api.getProjectIndicators).toHaveBeenCalledOnce()
     expect(api.getJourneyStages).toHaveBeenCalledOnce()
   })
 
@@ -292,7 +299,7 @@ describe('project activities permission-aware loading', () => {
     asProjectManager()
     renderWorkspace()
     await screen.findByRole('heading', { name: 'Assigned project' })
-    await waitFor(() => expect(api.getIndicators).toHaveBeenCalledOnce())
+    await waitFor(() => expect(api.getProjectIndicators).toHaveBeenCalledOnce())
     fireEvent.change(screen.getByRole('textbox', { name: 'Search activities' }), {
       target: { value: 'ind-reading' },
     })
@@ -317,7 +324,7 @@ describe('project activities permission-aware loading', () => {
     }
     expect(api.getActivity).toHaveBeenCalledTimes(2)
     expect(api.getActivity).toHaveBeenCalledWith(projectId, activityId, expect.any(AbortSignal))
-    expect(api.getIndicators).toHaveBeenCalledOnce()
+    expect(api.getProjectIndicators).toHaveBeenCalledOnce()
     expect(api.getJourneyStages).toHaveBeenCalledOnce()
     expect(api.getActivities).toHaveBeenCalledOnce()
   })

@@ -55,6 +55,145 @@ const activity: Activity = {
   updatedAt: '2026-09-25T00:00:00.000Z',
 }
 
+describe('ActivityDetailContent presentation', () => {
+  afterEach(cleanup)
+
+  const base = {
+    canDecideProof: false,
+    canEdit: false,
+    canLogExpense: false,
+    canRequestExtension: false,
+    canSubmitProof: false,
+    canValidateExpense: false,
+    canValidateProof: false,
+    journeyStages: [],
+    onActivityChanged: vi.fn(),
+    onEdit: vi.fn(),
+    onSubmitProof: vi.fn(),
+  }
+
+  it('names each assigned person with the role they hold on the project team', () => {
+    render(
+      <ActivityDetailContent
+        {...base}
+        activity={{
+          ...activity,
+          assignedTo: ['Ron Perez', 'Leah Sy'],
+          assignedUserIds: ['user-1', 'user-2'],
+        }}
+        indicators={[]}
+        projectTeam={[
+          { userId: 'user-1', fullName: 'Ron Perez', role: 'Project Officer' },
+          { userId: 'user-2', fullName: 'Leah Sy', role: 'Monitoring and Evaluation Officer' },
+        ]}
+      />,
+    )
+    expect(screen.getByText('Project team')).toBeTruthy()
+    expect(screen.getByText('(Project Officer)')).toBeTruthy()
+    expect(screen.getByText('(Monitoring and Evaluation Officer)')).toBeTruthy()
+  })
+
+  it('leaves the role off an assignee the project team does not name', () => {
+    render(
+      <ActivityDetailContent
+        {...base}
+        activity={{ ...activity, assignedTo: ['Outside Helper'], assignedUserIds: ['user-9'] }}
+        indicators={[]}
+        projectTeam={[]}
+      />,
+    )
+    const entry = screen.getByText('Outside Helper')
+    expect(entry.textContent).toBe('Outside Helper')
+  })
+
+  it('shows a connected indicator as actual against target', () => {
+    render(
+      <ActivityDetailContent
+        {...base}
+        activity={{ ...activity, indicatorIds: ['i1'] }}
+        indicators={[
+          { id: 'i1', projectId: activity.projectId, code: 'IND-1', label: 'Youth trained' },
+        ]}
+        indicatorRows={
+          [
+            {
+              id: 'i1',
+              code: 'IND-1',
+              name: 'Youth trained',
+              target: '500',
+              current: { state: 'AVAILABLE', value: '284', reason: null },
+            },
+          ] as never
+        }
+      />,
+    )
+    expect(screen.getByText('Connected indicators (1)')).toBeTruthy()
+    expect(screen.getByText('Actual: 284')).toBeTruthy()
+    expect(screen.getByText('Target: 500')).toBeTruthy()
+  })
+
+  it('says a current value is unavailable instead of charting a suppressed cell', () => {
+    render(
+      <ActivityDetailContent
+        {...base}
+        activity={{ ...activity, indicatorIds: ['i1'] }}
+        indicators={[
+          { id: 'i1', projectId: activity.projectId, code: 'IND-1', label: 'Youth trained' },
+        ]}
+        indicatorRows={
+          [
+            {
+              id: 'i1',
+              code: 'IND-1',
+              name: 'Youth trained',
+              target: '500',
+              current: { state: 'SUPPRESSED', value: null, reason: 'Small group' },
+            },
+          ] as never
+        }
+      />,
+    )
+    expect(screen.getByText('Current value not available')).toBeTruthy()
+  })
+
+  it('states budget utilization against the allocation', () => {
+    render(
+      <ActivityDetailContent
+        {...base}
+        activity={{
+          ...activity,
+          budgetAllocation: 60000,
+          budgetLogged: 25800,
+          budgetLoggedEntries: 3,
+        }}
+        canReadBudgets
+        indicators={[]}
+      />,
+    )
+    expect(screen.getByText('Utilization')).toBeTruthy()
+    expect(screen.getByText('43%')).toBeTruthy()
+  })
+
+  it('says progress is system-calculated rather than typed in', () => {
+    render(
+      <ActivityDetailContent
+        {...base}
+        activity={{
+          ...activity,
+          status: 'In Progress',
+          progress: 57,
+          beneficiariesReached: 284,
+          targetBeneficiaries: 500,
+        }}
+        indicators={[]}
+      />,
+    )
+    expect(screen.getByText('57% complete')).toBeTruthy()
+    expect(screen.getByText('284/500')).toBeTruthy()
+    expect(screen.getByText('System-calculated from participation records.')).toBeTruthy()
+  })
+})
+
 describe('ActivityDetailContent server read model', () => {
   afterEach(cleanup)
 
@@ -154,7 +293,7 @@ describe('ActivityDetailContent server read model', () => {
           onSubmitProof={vi.fn()}
         />,
       )
-      const allocation = screen.getByText('Allocated budget').parentElement
+      const allocation = screen.getByText('Allocated').parentElement
       expect(allocation?.querySelector('dd')?.textContent).toBe(label)
       expect(allocation?.textContent).not.toContain('₱0')
     },
@@ -182,7 +321,7 @@ describe('ActivityDetailContent server read model', () => {
         onSubmitProof={vi.fn()}
       />,
     )
-    const cell = screen.getByText('Logged budget').parentElement?.querySelector('dd')
+    const cell = screen.getByText('Logged expenses').parentElement?.querySelector('dd')
     expect(cell?.textContent).toBe(label)
     expect(cell?.textContent).not.toBe('₱0.00')
   })

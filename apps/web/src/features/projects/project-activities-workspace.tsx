@@ -263,7 +263,14 @@ export const ProjectActivitiesWorkspace = ({
     (signal) => pathwaysClient.getAssignableProjectOfficers(projectId, signal),
     canReadOfficers && formOpen,
   )
-  const indicators = indicatorRead.data ?? []
+  const indicatorRows = indicatorRead.data ?? []
+  // Code and label only, the shape the editor and the search index expect.
+  const indicators = indicatorRows.map(({ id, projectId: scope, code, name }) => ({
+    id,
+    projectId: scope,
+    code,
+    label: name,
+  }))
   const journeyStages = journeyStageRead.data ?? []
   const officers = officerRead.data ?? []
   const editorReads = [
@@ -652,7 +659,10 @@ export const ProjectActivitiesWorkspace = ({
         canSubmitProof={canSubmitProof}
         canValidateExpense={canValidateExpense}
         canValidateProof={canValidateProof}
+        canOpenProof={principalHasAtomicPermission(profile, 'evidence.read')}
+        indicatorRows={indicatorRows}
         indicators={indicators}
+        projectTeam={project?.team ?? []}
         journeyStages={journeyStages}
         onActivityChanged={(activity) => upsertActivity(activity, false)}
         onEdit={openEdit}
