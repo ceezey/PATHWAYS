@@ -14,7 +14,7 @@ import { projectScope } from '../auth/authorized-data.service'
 import { withAuthorizedOperation } from '../auth/authorized-operation'
 import type { ApplicationIdentity } from '../auth/developer-access'
 import { provisionCriteria } from './evaluation-criteria-template'
-import { EvaluationMetricsService, noDataPrefix } from './evaluation-metrics'
+import { EvaluationMetricsService, classifyScoreCommentary } from './evaluation-metrics'
 
 const projectIdSchema = z.string().uuid()
 // Locked auth RFC: System Administrator is denied assessment/survey detail and
@@ -70,8 +70,6 @@ const named = (value: { id: string; fullName: string } | null) =>
 const day = (value: Date) => value.toISOString().slice(0, 10)
 
 const maxEvaluations = 20
-// Marker of manual scores stored before automatic scoring; read only.
-const manualMarker = ' Manual score recorded: '
 // Allowlist for the stored criterion snapshot; numbers become strings and any other key is dropped.
 const snapshotNumber = z.union([z.string(), z.number()]).transform(String)
 const criterionSnapshotView = z.object({
@@ -155,21 +153,13 @@ function mapScore(score: ScoreDetailRow) {
         weight_percentage: '0',
         maximum_score: score.maximumScore.toString(),
       }
-  const text = score.commentary ?? ''
-  const missing = text.startsWith(noDataPrefix)
-  const marked = text.indexOf(manualMarker)
-  // Rounds closed before automatic scoring may hold a manual score with its note.
-  const manual = !missing && (criterion.type === 'OTHER' || marked >= 0)
-  const source = missing ? 'no_data' : manual ? 'manual' : 'computed'
+  const view = classifyScoreCommentary(score.commentary, criterion.type)
   return {
     criterionId: score.criterionId,
     score: score.score.toString(),
     maximumScore: score.maximumScore.toString(),
     weightedScore: score.weightedScore.toString(),
-    source: source as 'computed' | 'no_data' | 'manual',
-    evidence: source === 'computed' ? text : null,
-    reason: missing ? text.slice(noDataPrefix.length) : null,
-    note: manual ? (marked >= 0 ? text.slice(marked + manualMarker.length) : text) : null,
+    ...view,
     criterion,
   }
 }

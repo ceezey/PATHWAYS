@@ -414,3 +414,4 @@
 - A criterion without data scores 0 with a stored "No data: reason" (commentary column); rows carry source, evidence and reason in the API and a Source column in the UI and the evaluation report. Budget efficiency is dropped; old OTHER and budget rows in open rounds score 0 as "no longer scored automatically".
 - Migration 0069 only adds INDICATOR_LINKAGE and ASSESSMENT_GAIN to criterion_type (dry run rolled back on local Postgres as prisma; not applied). Change record `cr-pathways-evaluation-auto-scoring` supersedes section 5 of `cr-pathways-evaluation-write-path`.
 - Removed the criteria initialize, create, publish and weights routes, the manual score fields and the rubric UI; seeds start rounds through the service.
+- 2026-10-06 Fixed SAD review blockers on evaluation auto-scoring (gain complement small-cell, reason wording, report Source cell, e2e spec, seed narrative, enum order).

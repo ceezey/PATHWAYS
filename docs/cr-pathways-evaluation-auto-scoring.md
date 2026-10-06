@@ -30,7 +30,7 @@ Criteria are a fixed default OECD-DAC set, provisioned and published automatical
 | Sustainability | 15 | KPI | Same as Effectiveness |
 
 - A criterion without data (no target, no due activity, no activities, no indicators, no pairs, or a count of 1-4) scores 0 with the stored commentary `No data: <reason>`. Weights stay fixed at 100 and the round stays submittable. Other rows store a short evidence string such as `Reach 82% of target`. The API returns `source` (`computed`, `no_data`, `manual`), `evidence`, `reason` and `note` per score; the report gains a Source column.
-- Impact does not use `p10_f9_survey_aggregate`: it only answers for an exact defined indicator period, so it cannot be scoped to an evaluation period. The same latest-pair rule is counted in SQL under RLS (the M&E role holds `assessments.detail.read`); only counts leave the database and 1-4 is suppressed.
+- Impact does not use `p10_f9_survey_aggregate`: it only answers for an exact defined indicator period, so it cannot be scoped to an evaluation period. The same latest-pair rule is counted in SQL under RLS (the M&E role holds `assessments.detail.read`); only counts leave the database and a count of 1-4 is suppressed, applied to the pair total, the improved count and its complement (pairs minus improved), each of which must be 0 or at least 5.
 - Scores are computed when a round starts, on Recompute (draft only) and again on submit. Request fields for manual score and note are removed. Retired OTHER and BUDGET_EFFICIENCY rows that remain in an open round score 0 as `No data: criterion is no longer scored automatically`.
 - Routes `criteria/initialize`, `criteria`, `criteria/publish` and `weights` are removed; the narrative, submit, return and sign-off stay human.
 

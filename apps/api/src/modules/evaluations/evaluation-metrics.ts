@@ -44,7 +44,29 @@ const scored = (percent: number, maximumScore: string, evidence: string): Comput
 // Counts of 1-4 are suppressed like every other aggregate.
 const smallCell = (count: number) =>
   suppressSmallCount(numericMetric(String(count))).state === 'SUPPRESSED'
-const smallCellReason = 'the count is below the small-cell reporting threshold (fewer than 5)'
+const smallCellReason = (count: string) =>
+  `the ${count} count is below the small-cell reporting threshold (fewer than 5)`
+
+const manualMarker = ' Manual score recorded: '
+// Splits stored commentary into the source, evidence, reason and manual note shown to readers.
+export function classifyScoreCommentary(commentary: string | null, criterionType: string) {
+  const text = commentary ?? ''
+  const missing = text.startsWith(noDataPrefix)
+  const marked = text.indexOf(manualMarker)
+  // Rounds closed before automatic scoring may hold a manual score with its note.
+  const manual = !missing && (criterionType === 'OTHER' || marked >= 0)
+  const source = missing
+    ? ('no_data' as const)
+    : manual
+      ? ('manual' as const)
+      : ('computed' as const)
+  return {
+    source,
+    evidence: source === 'computed' ? text : null,
+    reason: missing ? text.slice(noDataPrefix.length) : null,
+    note: manual ? (marked >= 0 ? text.slice(marked + manualMarker.length) : text) : null,
+  }
+}
 
 type EvaluationProject = { id: string; targetBeneficiaries: number | null }
 type Period = { start: string; end: string }
@@ -133,7 +155,7 @@ export class EvaluationMetricsService {
       WHERE organization_id = ${actor.organizationId}::uuid AND project_id = ${project.id}::uuid
         AND status IN ('ACTIVE', 'COMPLETED') AND enrollment_date <= ${periodEnd}::date`
     const enrolled = row?.count ?? 0
-    if (smallCell(enrolled)) return noData(`enrolled ${smallCellReason}`)
+    if (smallCell(enrolled)) return noData(smallCellReason('enrolled'))
     const raw = ((enrolled / project.targetBeneficiaries) * 100).toFixed(4)
     return scored(
       clampPercent(raw),
@@ -222,8 +244,9 @@ export class EvaluationMetricsService {
     const pairs = row?.pairs ?? 0
     const improved = row?.improved ?? 0
     if (pairs === 0) return noData('no paired pre/post assessments in the period')
-    if (smallCell(pairs) || smallCell(improved))
-      return noData(`paired assessment ${smallCellReason}`)
+    if (smallCell(pairs)) return noData(smallCellReason('paired assessment'))
+    if (smallCell(improved)) return noData(smallCellReason('improved assessment'))
+    if (smallCell(pairs - improved)) return noData(smallCellReason('not-improved assessment'))
     return scored(
       (improved / pairs) * 100,
       maximumScore,

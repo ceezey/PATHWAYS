@@ -549,7 +549,7 @@ describe('report source authority, privacy and artifact recovery', () => {
         '8',
         '10',
         '40',
-        'KPI achievement 80%',
+        'Computed: KPI achievement 80%',
       ])
       expect(Object.keys(preview).sort()).toEqual(previewKeys)
       const where = tx.projectEvaluation.findFirst.mock.calls[0][0].where
@@ -559,6 +559,30 @@ describe('report source authority, privacy and artifact recovery', () => {
         call[0].join('').includes('INSERT INTO pathways.reports'),
       )
       expect(insert?.[11]).toBe(signedOff.id)
+    })
+
+    it('renders no-data and legacy manual scores without internal markers or notes', async () => {
+      grant('monitoring.read')
+      tx.projectEvaluation.findFirst.mockResolvedValue(signedOff)
+      const row = (commentary: string, type: string) => ({
+        score: { toString: () => '0' },
+        maximumScore: { toString: () => '10' },
+        weightedScore: { toString: () => '0' },
+        commentary,
+        criterionSnapshot: { code: 'C1', name: 'Relevance', weight_percentage: '50', type },
+      })
+      tx.projectEvaluationScore.findMany.mockResolvedValue([
+        row(
+          'No data: the enrolled count is below the small-cell reporting threshold (fewer than 5)',
+          'BENEFICIARY_REACH',
+        ),
+        row('Not computable: old text Manual score recorded: private evaluator note', 'KPI'),
+      ])
+      const preview = await service.preview(actor, projectId, { kind: 'EVALUATION_REPORT' })
+      expect(preview.rows[1][6]).toBe(
+        'No data: the enrolled count is below the small-cell reporting threshold (fewer than 5)',
+      )
+      expect(preview.rows[2][6]).toBe('Manual score')
     })
 
     it('lists the new kinds only for holders of the extra grant', async () => {

@@ -29,6 +29,8 @@ const progress = (...values: string[]) => {
     values.map((value) => ({ progress: numericMetric(value) as MetricCell })),
   )
 }
+const cell = (count: string) =>
+  `the ${count} count is below the small-cell reporting threshold (fewer than 5)`
 const noData = (reason: string) => ({ score: '0.0000', commentary: `No data: ${reason}` })
 
 describe('automatic evaluation criterion scores', () => {
@@ -106,8 +108,7 @@ describe('automatic evaluation criterion scores', () => {
 
   it.each([1, 4])('suppresses a small enrolled count of %i', async (count) => {
     tx.$queryRaw.mockResolvedValue([{ count }])
-    expect((await run('BENEFICIARY_REACH'))?.commentary).toContain('No data: enrolled')
-    expect((await run('BENEFICIARY_REACH'))?.score).toBe('0.0000')
+    expect(await run('BENEFICIARY_REACH')).toEqual(noData(`${cell('enrolled')}`))
   })
 
   it('scores assessment gain as the share of paired assessments that improved', async () => {
@@ -125,10 +126,22 @@ describe('automatic evaluation criterion scores', () => {
       noData('no paired pre/post assessments in the period'),
     )
     tx.$queryRaw.mockResolvedValue([{ pairs: 3, improved: 2 }])
-    expect((await run('ASSESSMENT_GAIN'))?.commentary).toContain('No data: paired assessment')
-    tx.$queryRaw.mockResolvedValue([{ pairs: 20, improved: 2 }])
-    expect((await run('ASSESSMENT_GAIN'))?.score).toBe('0.0000')
+    expect(await run('ASSESSMENT_GAIN')).toEqual(noData(cell('paired assessment')))
   })
+
+  it.each([
+    [6, 5, noData(cell('not-improved assessment'))],
+    [6, 1, noData(cell('improved assessment'))],
+    [10, 5, { score: '50.0000', commentary: 'Improved in 5 of 10 paired assessments' }],
+    [5, 5, { score: '100.0000', commentary: 'Improved in 5 of 5 paired assessments' }],
+    [5, 0, { score: '0.0000', commentary: 'Improved in 0 of 5 paired assessments' }],
+  ])(
+    'small-cell checks improved and not-improved counts for %i pairs, %i improved',
+    async (pairs, improved, expected) => {
+      tx.$queryRaw.mockResolvedValue([{ pairs, improved }])
+      expect(await run('ASSESSMENT_GAIN')).toEqual(expected)
+    },
+  )
 
   it.each(['OTHER', 'BUDGET_EFFICIENCY'] as const)(
     'scores the retired %s criterion 0 with a reason so old rounds can still be submitted',

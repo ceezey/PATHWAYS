@@ -4,7 +4,6 @@ import {
   AsyncState,
   ConfirmationDialog,
   EmptyState,
-  LoadingSkeleton,
   SectionCard,
   StatusBadge,
 } from '@/components/pathways'
@@ -117,7 +116,7 @@ function EvaluationContent({ projectId }: { projectId: string }) {
   const evalForm = { ...defaults, ...edits }
   const title = edits.title ?? `Evaluation ${evalForm.periodStart} to ${evalForm.periodEnd}`
   const [narrative, setNarrative] = useState('')
-  // Unsaved score or narrative edits block submitting, which would otherwise discard them.
+  // Unsaved narrative edits block submitting, which would otherwise discard them.
   const [unsaved, setUnsaved] = useState(false)
   const [returnReason, setReturnReason] = useState('')
   const [signoffFeedback, setSignoffFeedback] = useState('')

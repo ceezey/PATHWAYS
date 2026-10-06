@@ -37,7 +37,7 @@ export async function stageProjectEvaluation(ctx: DemoContext) {
     ctx.services.evaluations.saveScores(ctx.staff.me.identity, projectId, started.id, {
       expectedUpdatedAt: started.updatedAt,
       commentary:
-        'Scores are computed from the project record: beneficiary reach, indicator achievement, activity delivery, indicator linkage and assessment gain. Criteria without data score zero and are labeled.',
+        'Emergency Hygiene and Learning Kits reached the Guiuan households it targeted, and the delivered kits match the planned distribution activities. Indicators are linked to the activities that produce them and KPI achievement is on track. Pre and post assessments show most paired learners improved after the hygiene sessions.',
     }),
   )
   const evaluation = { id: started.id }
@@ -52,7 +52,7 @@ export async function stageProjectEvaluation(ctx: DemoContext) {
       status: 'REVIEWED',
       reviewedById: ctx.staff.projectManager.userId,
       reviewedAt: at(reviewedDaysAgo),
-      reviewFeedback: 'Scores agree with the distribution records and the cleared expenses.',
+      reviewFeedback: 'Scores agree with the distribution records and the assessment results.',
     },
   })
   await ctx.owner.projectEvaluation.update({
