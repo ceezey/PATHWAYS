@@ -5,6 +5,7 @@ import {
   demoProjects,
   planCohort,
 } from './local-demo-data'
+import { catarmanBatch, lavezaresBatch } from './local-demo-stage-imports'
 import { outcomes } from './local-demo-stage-outcomes'
 
 /** One activity people attend, recorded through its published attendance form inside its planned window. */
@@ -71,6 +72,9 @@ const sessionNotes = [
   'Participated actively in the session.',
 ]
 
+/** Notes only this stage writes (the shared 'Participated actively' text is excluded), so a rerun can be recognised. */
+export const stageNoteMarkers = [absentNote, ...sessionNotes.slice(0, 3)]
+
 /** Deterministic spread so every run seeds the same attendance. */
 export const mix = (...parts: number[]) =>
   Math.abs(parts.reduce((sum, part) => Math.imul(sum ^ (part + 0x9e3779b9), 0x85ebca6b) >>> 0, 17))
@@ -92,12 +96,7 @@ export function activityWindow(project: ProjectKey, key: string, today: string) 
 /** Which branch a person follows: about 55 percent take the first. */
 export const branchOf = (ordinal: number) => (mix(ordinal, 5) % 100 < 55 ? 'A' : 'B')
 
-/**
- * Sessions an enrollment attended, scheduled forward from a week after enrollment: each track
- * starts a few days after the previous one inside its activity window, and the schedule stops
- * where today, the end of the project or the person leaving cuts it off. People who left stop
- * a week before leaving and never reach a post-assessment.
- */
+/** Sessions an enrollment attends: tracks run in order from a week after enrollment, cut off by today, the project end or leaving. */
 export function planSessions(project: ProjectKey, who: EnrollmentFact, today: string): Session[] {
   const tracks = journeyTracks[project] ?? []
   const yesterday = addDaysIso(today, -1)
@@ -136,10 +135,7 @@ export function planSessions(project: ProjectKey, who: EnrollmentFact, today: st
 
 export type PlannedTest = { type: 'PRE_TEST' | 'POST_TEST'; date: string; score: number }
 
-/**
- * Pre-test at the first session of the pre track. Post-test at the first session of the post
- * track when the journey has one, otherwise at the last pre-track session of a completer.
- */
+/** Pre-test at the first pre-track session, post-test at the post track (or a completer's last pre-track session). */
 export function planTests(
   who: EnrollmentFact,
   pre: string[],
@@ -180,12 +176,47 @@ export function plannedFacts(project: ProjectKey, code: string, today: string) {
   }
 }
 
-/** Present or completed attendance rows of one activity across the planned cohort. */
+export type JourneyPerson = {
+  code: string
+  firstName: string
+  middleName: string
+  lastName: string
+  barangay: string
+  enrollmentDate: string
+}
+
+const importedBatch = { CRL: catarmanBatch, ALS: lavezaresBatch } as const
+
+/** Everyone enrolled in the project who gets sessions: the planned cohort, then the cleanly imported people. */
+export function cohortPeople(project: ProjectKey, today: string) {
+  const plan = demoProjects.find((p) => p.key === project)
+  if (!plan) return []
+  const people: Array<{ person: JourneyPerson; ordinal: number }> = planCohort(
+    plan,
+    today,
+    projectStartIso(project, today),
+  ).map((person, ordinal) => ({ person, ordinal }))
+  const batch = project === 'CRL' || project === 'ALS' ? importedBatch[project] : []
+  for (const [index, row] of batch.filter((r) => !r.fault).entries())
+    people.push({
+      ordinal: 1000 + index,
+      person: {
+        code: row.code,
+        firstName: row.first,
+        middleName: row.middle,
+        lastName: row.last,
+        barangay: row.barangay,
+        enrollmentDate: addDaysIso(today, row.enrolledOffset),
+      },
+    })
+  return people
+}
+
+/** Present or completed attendance rows of one activity across everyone enrolled. */
 function attendanceRows(project: ProjectKey, activity: string, today: string) {
   const track = (journeyTracks[project] ?? []).findIndex((t) => t.activity === activity)
-  const plan = demoProjects.find((p) => p.key === project)
-  if (track < 0 || !plan) return null
-  return planCohort(plan, today, projectStartIso(project, today)).flatMap((person, ordinal) =>
+  if (track < 0) return null
+  return cohortPeople(project, today).flatMap(({ person, ordinal }) =>
     planSessions(
       project,
       {

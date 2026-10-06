@@ -2,11 +2,13 @@ import { wshPairs } from './defense-demo-stage-survey'
 import { addDaysIso, demoProjects } from './local-demo-data'
 import {
   type EnrollmentFact,
+  cohortPeople,
   journeyTracks,
   pendingSessions,
   planSessions,
   planTests,
   plannedFacts,
+  stageNoteMarkers,
 } from './local-demo-journeys'
 import type { DemoContext } from './local-demo-seed'
 import { activityId as activityIdFor, attendanceForms } from './local-demo-stage-forms'
@@ -22,14 +24,21 @@ const stageNotes = [
   'Strong participation; the member offered to help other learners.',
 ]
 
+/** Cached per context so an in-process retry reuses the first plan; a fresh process on written data is refused. */
 const firstRun = new WeakMap<DemoContext, Map<string, Map<string, string>>>()
 
-/** Latest event per enrollment before this stage first wrote anything, so a retry reproduces the same plan. */
-async function firstRunLatest(ctx: DemoContext, projectId: string) {
+export async function firstRunLatest(ctx: DemoContext, projectId: string) {
   const byProject = firstRun.get(ctx) ?? new Map<string, Map<string, string>>()
   firstRun.set(ctx, byProject)
   const known = byProject.get(projectId)
   if (known) return known
+  const written = await ctx.owner.beneficiaryActivityParticipation.count({
+    where: { projectId, progressNotes: { in: stageNoteMarkers } },
+  })
+  if (written > 0)
+    throw new Error(
+      'Journey records already exist for this project; reset the database and rerun the seed instead of rescheduling.',
+    )
   const rows = await ctx.owner.beneficiaryJourneyEvent.groupBy({
     by: ['enrollmentId'],
     where: { projectId },
@@ -42,18 +51,13 @@ async function firstRunLatest(ctx: DemoContext, projectId: string) {
   return latest
 }
 
-/** Cohort members keep their registration index so rosters and sessions agree; imports follow them. */
-const cohortOrdinal = (project: Project, code: string, position: number) => {
-  const index = Number(new RegExp(`^BEN-${project.code}-(\\d+)$`).exec(code)?.[1]) - 1
-  return Number.isInteger(index) && index >= 0 ? index : 1000 + position
+/** Everyone keeps the ordinal the planner gave them, so rosters and recorded sessions agree. */
+const ordinalOf = (project: Project, today: string) => {
+  const known = new Map(cohortPeople(project.key, today).map((p) => [p.person.code, p.ordinal]))
+  return (code: string, position: number) => known.get(code) ?? 1000 + position
 }
 
-/**
- * Records attendance through each activity's published attendance form, in the order the product
- * requires: stages, mappings and forms already exist, then a submission per session (which writes
- * the participation and the staged journey event), then a few visit notes as event corrections.
- * Runs before the outcomes stage because only active enrollments accept attendance.
- */
+/** Records attendance through each activity's published form (submission, participation, staged event), then a few visit notes. */
 async function recordProject(ctx: DemoContext, project: Project) {
   const tracks = journeyTracks[project.key] ?? []
   const projectId = projectOf(ctx, project.key)
@@ -94,9 +98,10 @@ async function recordProject(ctx: DemoContext, project: Project) {
   )
   let recorded = 0
   let noted = 0
+  const ordinals = ordinalOf(project, ctx.today)
   for (const [position, enrollment] of enrollments.entries()) {
     const code = enrollment.beneficiary.code
-    const ordinal = cohortOrdinal(project, code, position)
+    const ordinal = ordinals(code, position)
     const who: EnrollmentFact = {
       ordinal,
       enrollmentDate: iso(enrollment.enrollmentDate),
@@ -180,12 +185,7 @@ export async function stageJourneyRecords(ctx: DemoContext) {
   if (failed.length) throw new Error(failed.map((run) => String(run.reason)).join('; '))
 }
 
-/**
- * Pre and post tests tied to attendance. No service writes assessment results, so the rows go in
- * on the owner connection, but each references the validated attendance submission of the same
- * enrollment and activity, which the database guards require. Pre-test is the first session,
- * post-test the last one for completers (and the closed WSH survey period pairs).
- */
+/** Pre and post tests on the owner connection (no service writes them), each sourced from a validated attendance submission of the same enrollment and activity. */
 export async function stageAssessments(ctx: DemoContext) {
   let written = 0
   for (const project of demoProjects) {
@@ -193,6 +193,7 @@ export async function stageAssessments(ctx: DemoContext) {
     const pre = tracks.findIndex((track) => track.assess === 'pre')
     const post = tracks.findIndex((track) => track.assess === 'post')
     if (pre < 0) continue
+    const ordinals = ordinalOf(project, ctx.today)
     const projectId = projectOf(ctx, project.key)
     const recorded = new Set(
       (
@@ -228,7 +229,7 @@ export async function stageAssessments(ctx: DemoContext) {
       const preRows = rows.filter((r) => r.activityId === activities.pre)
       const postRows = activities.post ? rows.filter((r) => r.activityId === activities.post) : null
       const who: EnrollmentFact = {
-        ordinal: cohortOrdinal(project, enrollment.beneficiary.code, position),
+        ordinal: ordinals(enrollment.beneficiary.code, position),
         status: enrollment.status,
         enrollmentDate: iso(enrollment.enrollmentDate),
         endedDate: enrollment.endedDate ? iso(enrollment.endedDate) : null,

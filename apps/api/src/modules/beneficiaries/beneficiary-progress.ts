@@ -45,7 +45,7 @@ export async function loadProgress(
   const progress = new Map<string, BeneficiaryProgress>()
   if (enrollmentIds.length === 0) return progress
   const org = actor.organizationId
-  // The current stage follows the detail page: the stage mapped to the latest participation, else the first stage.
+  // Current stage: the terminal stage once reached, else the stage of the latest participation that maps to one (date, then stage order, then id), else the first stage.
   const rows = await tx.$queryRaw<ProgressRow[]>`
     SELECT i.id AS enrollment_id, p.activity_id, p.title AS activity_title, p.participation_date,
       s.code AS stage_code, s.name AS stage_name,
@@ -66,13 +66,26 @@ export async function loadProgress(
         AND x.project_id = ${projectId}::uuid
       ORDER BY x.participation_date DESC, x.recorded_at DESC LIMIT 1) p ON true
     LEFT JOIN LATERAL (
-      SELECT g.code, g.name FROM pathways.journey_stages g
-      WHERE g.organization_id = ${org}::uuid AND g.project_id = ${projectId}::uuid
-        AND g.archived_at IS NULL
-      ORDER BY (EXISTS (SELECT 1 FROM pathways.activity_journey_stage_mappings m
-        WHERE m.organization_id = ${org}::uuid AND m.project_id = ${projectId}::uuid
-          AND m.stage_id = g.id AND m.activity_id = p.activity_id)) DESC, g.stage_order
-      LIMIT 1) s ON true
+      SELECT c.code, c.name FROM (
+        SELECT g.code, g.name, 1 AS pri, e.event_date AS day, e.id::text AS tie, g.stage_order
+        FROM pathways.beneficiary_journey_events e
+        JOIN pathways.journey_stages g ON g.id = e.stage_id AND g.is_terminal AND g.archived_at IS NULL
+        WHERE e.organization_id = ${org}::uuid AND e.enrollment_id = i.id
+          AND e.project_id = ${projectId}::uuid AND e.corrects_event_id IS NULL
+        UNION ALL
+        SELECT g.code, g.name, 2, x.participation_date, x.id::text, g.stage_order
+        FROM pathways.beneficiary_activity_participations x
+        JOIN pathways.activity_journey_stage_mappings m ON m.organization_id = x.organization_id
+          AND m.project_id = x.project_id AND m.activity_id = x.activity_id
+        JOIN pathways.journey_stages g ON g.id = m.stage_id AND g.archived_at IS NULL
+        WHERE x.organization_id = ${org}::uuid AND x.enrollment_id = i.id
+          AND x.project_id = ${projectId}::uuid
+        UNION ALL
+        SELECT g.code, g.name, 3, NULL, g.id::text, g.stage_order
+        FROM pathways.journey_stages g
+        WHERE g.organization_id = ${org}::uuid AND g.project_id = ${projectId}::uuid
+          AND g.archived_at IS NULL) c
+      ORDER BY c.pri, c.day DESC NULLS LAST, c.stage_order, c.tie DESC LIMIT 1) s ON true
     LEFT JOIN LATERAL (
       SELECT count(DISTINCT e.stage_id) FILTER (WHERE g.stage_type NOT IN ('ENTRY', 'FOLLOW_UP')) AS reached,
         coalesce(bool_or(g.is_terminal), false) AS at_terminal

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import {
   type ProjectKey,
@@ -6,22 +6,22 @@ import {
   demoActivities,
   demoCohorts,
   demoProjects,
-  planCohort,
 } from './local-demo-data'
 import {
   type EnrollmentFact,
   activityWindow,
   branchOf,
+  cohortPeople,
   journeyTracks,
   pendingSessions,
   planSessions,
   planTests,
   plannedFacts,
   plannedReach,
-  projectStartIso,
   sessionRoster,
 } from './local-demo-journeys'
 import { attendanceForms, journeyStages } from './local-demo-stage-forms'
+import { firstRunLatest } from './local-demo-stage-journeys'
 import { outcomes } from './local-demo-stage-outcomes'
 
 const today = '2026-10-06'
@@ -30,10 +30,9 @@ const keys = Object.keys(journeyTracks) as ProjectKey[]
 const trackIndex = (key: ProjectKey, assess: 'pre' | 'post') =>
   (journeyTracks[key] ?? []).findIndex((t) => t.assess === assess)
 
-/** Enrollment facts as the seed leaves them: outcomes end some enrollments on their event date. */
+/** Enrollment facts as the seed leaves them, imported people included. */
 function facts(key: ProjectKey): EnrollmentFact[] {
-  const project = demoProjects.find((p) => p.key === key) as (typeof demoProjects)[number]
-  return planCohort(project, today, projectStartIso(key, today)).map((person, ordinal) => ({
+  return cohortPeople(key, today).map(({ person, ordinal }) => ({
     ordinal,
     enrollmentDate: person.enrollmentDate,
     ...plannedFacts(key, person.code, today),
@@ -221,7 +220,7 @@ describe('journey records follow the product prerequisites', () => {
           ),
         ).length
         expect(reach, `${key}:${track.activity}`).toBe(people)
-        expect(reach ?? 0).toBeLessThanOrEqual(demoCohorts[key].count)
+        expect(reach ?? 0).toBeLessThanOrEqual(facts(key).length)
         const target = demoActivities[key].find((a) => a.key === track.activity)?.target ?? 0
         expect(reach ?? 0, `${key}:${track.activity} target`).toBeLessThanOrEqual(target)
       }
@@ -232,5 +231,61 @@ describe('journey records follow the product prerequisites', () => {
       const stage = journeyStages[outcome.project]?.find((s) => s.code === outcome.stage)
       expect(stage?.terminal, `${outcome.project}:${outcome.stage}`).toBe(true)
     }
+  })
+
+  it('counts the cleanly imported people as enrolled and attending', () => {
+    expect(cohortPeople('CRL', today).length).toBe(demoCohorts.CRL.count + 12)
+    expect(cohortPeople('ALS', today).length).toBe(demoCohorts.ALS.count + 6)
+    const imported = facts('ALS').filter((who) => who.ordinal >= 1000)
+    expect(imported.some((who) => planSessions('ALS', who, today).length > 0)).toBe(true)
+  })
+
+  it('keeps stages in order across a retry that already stored part of the plan', () => {
+    for (const key of keys)
+      for (const who of facts(key)) {
+        const planned = planSessions(key, who, today)
+        const key2 = (s: (typeof planned)[number]) => `${s.track}|${s.date}`
+        const stored = new Set(planned.slice(0, Math.ceil(planned.length / 2)).map(key2))
+        const retried = pendingSessions(planSessions(key, who, today), stored, key2)
+        const all = [...planned.filter((s) => stored.has(key2(s))), ...retried]
+        expect(new Set(all.map(key2)).size).toBe(all.length)
+        const order = all.map((s) => s.track)
+        expect(order).toEqual([...order].sort((a, b) => a - b))
+      }
+  })
+
+  it('would restart a person at the first track if the plan were rebuilt after the writes', () => {
+    const who = facts('SSG').find((f) => planSessions('SSG', f, today).some((s) => s.track >= 2))
+    expect(who).toBeDefined()
+    const planned = planSessions('SSG', who as EnrollmentFact, today)
+    const after = planned[planned.length - 1].date
+    const rebuilt = planSessions('SSG', { ...(who as EnrollmentFact), after }, today)
+    expect(rebuilt.length === 0 || rebuilt[0].track <= planned[planned.length - 1].track).toBe(true)
+  })
+})
+
+describe('journey records retry snapshot', () => {
+  const stub = (written: number, latest: Date) => {
+    const groupBy = vi.fn().mockResolvedValue([{ enrollmentId: 'e1', _max: { eventDate: latest } }])
+    const count = vi.fn().mockResolvedValue(written)
+    const ctx = {
+      owner: { beneficiaryActivityParticipation: { count }, beneficiaryJourneyEvent: { groupBy } },
+    }
+    return { ctx: ctx as never, groupBy }
+  }
+
+  it('returns the first snapshot on a retry even after later events were written', async () => {
+    const { ctx, groupBy } = stub(0, new Date('2026-08-01T00:00:00.000Z'))
+    const first = await firstRunLatest(ctx, 'p1')
+    groupBy.mockResolvedValue([{ enrollmentId: 'e1', _max: { eventDate: new Date('2026-10-01') } }])
+    const retry = await firstRunLatest(ctx, 'p1')
+    expect(retry).toBe(first)
+    expect(retry.get('e1')).toBe('2026-08-01')
+    expect(groupBy).toHaveBeenCalledTimes(1)
+  })
+
+  it('refuses a fresh process that finds this stage notes already stored', async () => {
+    const { ctx } = stub(3, new Date('2026-08-01T00:00:00.000Z'))
+    await expect(firstRunLatest(ctx, 'p2')).rejects.toThrow(/reset the database and rerun/)
   })
 })

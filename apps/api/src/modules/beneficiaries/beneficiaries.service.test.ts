@@ -772,6 +772,26 @@ describe('F3 scoped read and denial gates', () => {
     })
   })
 
+  it('gives the detail read the same summary as the list for a completer at the terminal stage', async () => {
+    const reader = { ...actor, permissions: [...actor.permissions, 'journeys.read'] }
+    const summaryRow = {
+      enrollment_id: enrollmentId,
+      activity_id: otherProjectId,
+      activity_title: 'Kit distribution',
+      participation_date: new Date('2026-07-01T00:00:00.000Z'),
+      stage_code: 'COMPLETED',
+      stage_name: 'Returned to school',
+      reached: 2,
+      at_terminal: true,
+      path_length: 3,
+    }
+    readState.tx = { ...readTx, $queryRaw: vi.fn().mockResolvedValue([summaryRow]) }
+    const listed = (await service.list(reader, projectId, query)).items[0].progress
+    const detail = (await service.get(reader, projectId, beneficiaryId)).progress
+    expect(detail).toEqual(listed)
+    expect(detail).toMatchObject({ stage: { code: 'COMPLETED', progressPercent: 100 } })
+  })
+
   it('reports no participation or stage when a journey reader has none recorded', async () => {
     const reader = { ...actor, permissions: [...actor.permissions, 'journeys.read'] }
     readState.tx = { ...readTx, $queryRaw: vi.fn().mockResolvedValue([]) }
