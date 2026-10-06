@@ -1,7 +1,7 @@
 /* @vitest-environment jsdom */
 import { AuthorizedQueryProvider } from '@/providers/authorized-query-provider'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { RulesBoard } from './rules-board'
 
@@ -88,7 +88,7 @@ describe('RulesBoard', () => {
     expect(await screen.findAllByText('Low indicator progress')).toBeTruthy()
     expect(screen.getByText('Review plan')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Manage Rules' })).toBeTruthy()
-    expect(screen.getAllByRole('button', { name: 'Create Rule' })).toHaveLength(2)
+    expect(screen.queryByRole('button', { name: 'Create Rule' })).toBeNull()
   })
   it('keeps severity out of the recommendation table', async () => {
     renderBoard()
@@ -107,25 +107,28 @@ describe('RulesBoard', () => {
       'Status',
     ])
   })
-  it('hides Create Rule without rules.create', async () => {
-    state.permissions = ['rules.read', 'projects.read']
-    renderBoard()
-    await screen.findAllByText('Low indicator progress')
-    expect(screen.queryByRole('button', { name: 'Create Rule' })).toBeNull()
-  })
-  it('shows a truthful empty state with a create action', async () => {
+  it('points the empty state at the Create rule tab instead of repeating a button', async () => {
     state.listRules.mockResolvedValue({ items: [], nextCursor: null })
     renderBoard()
     expect((await screen.findAllByText('None yet')).length).toBe(2)
-    expect(screen.getAllByRole('button', { name: 'Create Rule' }).length).toBe(4)
+    expect(screen.queryByRole('button', { name: 'Create Rule' })).toBeNull()
+    expect(screen.getAllByText(/Use the Create rule tab to add one\./).length).toBe(2)
+  })
+  it('omits the create guidance without rules.create', async () => {
+    state.permissions = ['rules.read', 'projects.read']
+    state.listRules.mockResolvedValue({ items: [], nextCursor: null })
+    renderBoard()
+    expect((await screen.findAllByText('None yet')).length).toBe(2)
+    expect(screen.queryByText(/Use the Create rule tab/)).toBeNull()
   })
   it('opens the builder in the Create rule tab rather than a side panel', async () => {
     renderBoard()
     await screen.findAllByText('Low indicator progress')
     expect(screen.getByRole('tab', { name: 'Rule repository' })).toBeTruthy()
-    fireEvent.click(screen.getAllByRole('button', { name: 'Create Rule' })[0] as HTMLElement)
+    // Radix activates a tab on mouse down, not on a synthetic click.
+    fireEvent.mouseDown(screen.getByRole('tab', { name: 'Create rule' }))
     const tab = await screen.findByRole('tab', { name: 'Create rule' })
-    expect(tab.getAttribute('data-state')).toBe('active')
+    await waitFor(() => expect(tab.getAttribute('data-state')).toBe('active'))
     expect(await screen.findByLabelText('Rule Name')).toBeTruthy()
     expect(screen.queryByRole('dialog')).toBeNull()
   })

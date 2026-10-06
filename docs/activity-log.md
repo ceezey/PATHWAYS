@@ -415,3 +415,8 @@
 - The builder offers the recommendations already written on rules in the current scope under Reuse a saved recommendation. `RulesBoard` passes them from the list it already holds, so no extra read. A reused entry is copied under a fresh identity, keeping recommendation ids distinct per rule and leaving the source rule untouched.
 - `RuleDrawer` now prefixes the save failure with the message the API returned. The generic fallback hid which check refused the write: authority (42501), typed request (22023) or version (40001) all read the same before.
 - Two drawer tests added: a saved rule's recommendation collapses to its title until edited, and a reused recommendation is sent with a new id. Web typecheck and biome clean; 30 rules-board tests pass.
+
+## 2026-10-06 One entry point for rule creation (feat/project-workspace-frame-ui)
+- The four Create Rule buttons on the repository tab are gone; the Create rule tab is the single entry point. Each card keeps View All, and the empty state names the tab instead of repeating a button. Without `rules.create` the guidance line is omitted, matching the hidden tab.
+- `open` no longer carries a create branch, since every remaining caller passes an existing rule.
+- Board tests updated for the removal, plus a test that the empty state omits the guidance without `rules.create`. The tab test now drives Radix with mouse down, which is what activates a trigger.

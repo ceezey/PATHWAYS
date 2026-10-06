@@ -184,12 +184,10 @@ export function RulesBoard() {
   const savedRecommendations = all.flatMap((rule) => rule.recommendations)
   const nextCursor = more ? more.nextCursor : (list.data?.nextCursor ?? null)
   const rules = filterRules(all, { search, status })
-  // Creating runs in the Create rule tab; an existing rule still opens the side panel.
-  const open = (rule: HumanRule | undefined, mode: Drawer['mode'], intent?: DrawerIntent) => {
+  // Creating runs in the Create rule tab; an existing rule opens the side panel.
+  const open = (rule: HumanRule, mode: Drawer['mode'], intent?: DrawerIntent) => {
     setView(null)
-    if (rule) return setDrawer({ mode, rule, intent })
-    setCreateMode(mode)
-    setTab('create')
+    setDrawer({ mode, rule, intent })
   }
   const changeScope = (value: string | null) => {
     setProjectId(value)
@@ -239,21 +237,11 @@ export function RulesBoard() {
     ) : !all.length ? (
       <EmptyState
         title="None yet"
-        description={
+        description={`${
           kind === 'alerts'
             ? 'No alert rules exist in this scope.'
             : 'No recommendations are defined in this scope.'
-        }
-        action={
-          canCreate ? (
-            <Button
-              type="button"
-              onClick={() => open(undefined, kind === 'alerts' ? 'alert' : 'recommendation')}
-            >
-              Create Rule
-            </Button>
-          ) : undefined
-        }
+        }${canCreate ? ' Use the Create rule tab to add one.' : ''}`}
       />
     ) : !rules.length ? (
       <EmptyState title="No rules match" description="Change the search or status filter." />
@@ -273,19 +261,9 @@ export function RulesBoard() {
           : 'Rule-based Recommendation Configuration'
       }
       actions={
-        <>
-          <Button type="button" variant="outline" onClick={() => setView(kind)}>
-            View All
-          </Button>
-          {canCreate ? (
-            <Button
-              type="button"
-              onClick={() => open(undefined, kind === 'alerts' ? 'alert' : 'recommendation')}
-            >
-              Create Rule
-            </Button>
-          ) : null}
-        </>
+        <Button type="button" variant="outline" onClick={() => setView(kind)}>
+          View All
+        </Button>
       }
     >
       <div className="rounded-md border border-border bg-surface-subtle p-2">
