@@ -489,3 +489,6 @@
 - The "plain layout" PDF warning locally is configuration, not code: `apps/api/.env` sets neither `PDF_CHROME_PATH` nor `WEB_ORIGIN`, so the designed renderer refuses to launch on Windows and every PDF falls back to pdfkit.
 - Project summary reports now leave out what the actor has no grant for: no "not included: access is required" reasons, no Budget, Indicators or Schedule overview row outside scope, and the status rules footer lists only the areas shown. Data-driven reasons (missing project dates, row caps) and "Fewer than 5" suppression stay. Summaries saved earlier by partially scoped users now read as stale on download and need regenerating.
 - Percent overrun labels ("(5% over budget)", "(3% past schedule)") render as a small muted note beside the capped value through `CappedPercent`; `formatCappedPercent` keeps the plain string for CSV and accessible text.
+
+## 2026-10-06 Expense dialog uses the DSD select (fix/expense-dialog-dsd-select)
+- The Log expense budget allocation picker moves from a native select to `ui/select`, matching the DSD rule that selects use `ui/select`, and shows the activity envelope as "Activity budget" through `categoryLabel` instead of `ACTIVITY_PROFILE_TOTAL`.

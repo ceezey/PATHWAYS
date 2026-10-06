@@ -40,6 +40,33 @@ vi.mock('@/components/ui/dialog', () => ({
   Dialog: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   DialogFooter: ({ children }: { children: ReactNode }) => <div>{children}</div>,
 }))
+// The DSD Select renders through a portal, so tests drive an equivalent native select.
+vi.mock('@/components/ui/select', () => ({
+  Select: ({
+    children,
+    onValueChange,
+    value,
+  }: {
+    children: ReactNode
+    onValueChange: (value: string) => void
+    value: string
+  }) => (
+    <select
+      aria-label="Budget allocation"
+      onChange={(event) => onValueChange(event.target.value)}
+      value={value}
+    >
+      <option value="">Choose a linked allocation</option>
+      {children}
+    </select>
+  ),
+  SelectContent: ({ children }: { children: ReactNode }) => <>{children}</>,
+  SelectItem: ({ children, value }: { children: ReactNode; value: string }) => (
+    <option value={value}>{children}</option>
+  ),
+  SelectTrigger: ({ children }: { children: ReactNode }) => <>{children}</>,
+  SelectValue: () => null,
+}))
 
 import { ActivityExpenseDialog } from './activity-expense-dialog'
 
@@ -52,6 +79,7 @@ const activity = {
 const references = [
   { id: 'budget-1', category: 'Supplies', activityId: activity.id },
   { id: 'budget-2', category: 'Other activity budget', activityId: 'other-activity' },
+  { id: 'budget-3', category: 'ACTIVITY_PROFILE_TOTAL', activityId: activity.id },
 ]
 
 const renderDialog = (permissions = state.profile.permissions) => {
@@ -124,6 +152,12 @@ describe('ActivityExpenseDialog', () => {
     renderDialog(['expenses.submit'])
     expect(screen.getByText('Supplies')).toBeTruthy()
     expect(screen.queryByText('Other activity budget')).toBeNull()
+  })
+
+  it('names the activity envelope instead of showing its stored category code', () => {
+    renderDialog(['expenses.submit'])
+    expect(screen.getByRole('option', { name: 'Activity budget' })).toBeTruthy()
+    expect(screen.queryByText('ACTIVITY_PROFILE_TOTAL')).toBeNull()
   })
 
   it('hides the submission form when expenses.submit is absent', () => {
