@@ -229,6 +229,19 @@ const monitoring = {
   participationRecords: { value: null, state: 'MISSING', reason: 'MISSING' },
 }
 
+const loadMapsDashboard = async () => {
+  vi.resetModules()
+  vi.doMock('@/constants/feature-flags', () => ({
+    ANALYTICS_AGGREGATE_EXPORT_UI_ENABLED: true,
+    UNFINISHED_CONTROLS_UI_ENABLED: true,
+    DASHBOARD_PINS_UI_ENABLED: false,
+    MAPS_UI_ENABLED: true,
+  }))
+  const { AnalyticsDashboard: MapsDashboard } = await import('./analytics-dashboard')
+  vi.doUnmock('@/constants/feature-flags')
+  return MapsDashboard
+}
+
 describe('Analytics dashboard request dependencies', () => {
   beforeEach(() => {
     vi.useFakeTimers({ toFake: ['Date'] })
@@ -288,7 +301,8 @@ describe('Analytics dashboard request dependencies', () => {
   })
 
   it('derives exact periods and keeps period changes monitoring-only', async () => {
-    render(<AnalyticsDashboard />)
+    const MapsDashboard = await loadMapsDashboard()
+    render(<MapsDashboard />)
 
     await waitFor(() =>
       expect(api.getMonitoringDashboard).toHaveBeenCalledWith({
@@ -409,13 +423,20 @@ describe('Analytics dashboard request dependencies', () => {
     await waitFor(() => expect(screen.getByText('Budget utilization unavailable')).toBeTruthy())
   })
 
+  it('does not offer the Map visualization while maps are hidden', async () => {
+    render(<AnalyticsDashboard />)
+    await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
+    expect(screen.queryByRole('option', { name: 'Map' })).toBeNull()
+  })
+
   it('renders the Project-scoped empty map without requiring a reporting period', async () => {
     api.getProjectsForRole.mockResolvedValue([
       project('project-empty', 'No Coordinates Project', null, null),
     ])
     api.getProjectIndicators.mockResolvedValue([])
 
-    render(<AnalyticsDashboard />)
+    const MapsDashboard = await loadMapsDashboard()
+    render(<MapsDashboard />)
 
     await waitFor(() => expect(api.getProjectIndicators).toHaveBeenCalledWith('project-empty'))
     fireEvent.change(screen.getByLabelText('Visualization type'), {
@@ -659,6 +680,7 @@ describe('Analytics dashboard request dependencies', () => {
       ANALYTICS_AGGREGATE_EXPORT_UI_ENABLED: true,
       UNFINISHED_CONTROLS_UI_ENABLED: true,
       DASHBOARD_PINS_UI_ENABLED: false,
+      MAPS_UI_ENABLED: false,
     }))
     const { AnalyticsDashboard: ExportEnabledDashboard } = await import('./analytics-dashboard')
     currentAccess.profile.permissions = [
@@ -782,6 +804,7 @@ describe('Analytics dashboard request dependencies', () => {
       ANALYTICS_AGGREGATE_EXPORT_UI_ENABLED: true,
       UNFINISHED_CONTROLS_UI_ENABLED: true,
       DASHBOARD_PINS_UI_ENABLED: false,
+      MAPS_UI_ENABLED: false,
     }))
     const { AnalyticsDashboard: ExportEnabledDashboard } = await import('./analytics-dashboard')
     render(<ExportEnabledDashboard />)
@@ -839,6 +862,7 @@ describe('Analytics dashboard request dependencies', () => {
       ANALYTICS_AGGREGATE_EXPORT_UI_ENABLED: true,
       UNFINISHED_CONTROLS_UI_ENABLED: true,
       DASHBOARD_PINS_UI_ENABLED: true,
+      MAPS_UI_ENABLED: false,
     }))
     const { AnalyticsDashboard: PinsEnabledDashboard } = await import('./analytics-dashboard')
     vi.doUnmock('@/constants/feature-flags')
@@ -877,6 +901,7 @@ describe('Analytics dashboard request dependencies', () => {
       ANALYTICS_AGGREGATE_EXPORT_UI_ENABLED: false,
       UNFINISHED_CONTROLS_UI_ENABLED: false,
       DASHBOARD_PINS_UI_ENABLED: true,
+      MAPS_UI_ENABLED: false,
     }))
     const { AnalyticsDashboard: HiddenDashboard } = await import('./analytics-dashboard')
     vi.doUnmock('@/constants/feature-flags')

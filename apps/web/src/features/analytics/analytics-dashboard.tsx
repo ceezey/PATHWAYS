@@ -36,6 +36,7 @@ import {
 import {
   ANALYTICS_AGGREGATE_EXPORT_UI_ENABLED,
   DASHBOARD_PINS_UI_ENABLED,
+  MAPS_UI_ENABLED,
 } from '@/constants/feature-flags'
 import { metricUnavailableLabel, overviewMetricLabel } from '@/features/projects/project-utils'
 import { useCurrentRole } from '@/hooks/use-current-role'
@@ -836,11 +837,13 @@ export const AnalyticsDashboard = () => {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {visualizationTypes.map((type) => (
-                <SelectItem key={type.value} value={type.value}>
-                  {type.label}
-                </SelectItem>
-              ))}
+              {visualizationTypes
+                .filter((type) => MAPS_UI_ENABLED || type.value !== 'map')
+                .map((type) => (
+                  <SelectItem key={type.value} value={type.value}>
+                    {type.label}
+                  </SelectItem>
+                ))}
             </SelectContent>
           </Select>
         </div>

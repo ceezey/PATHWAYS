@@ -527,3 +527,6 @@
 
 ## 2026-10-07 Unreadable KPI and reach tiles hidden (fix/hide-unreadable-metric-tiles)
 - Project preview and Quick Preview leave out KPI achievement and Beneficiaries reached when the role cannot read them (Project Officers lack `monitoring.read` and `analytics.saddd.read`), like Budget utilization; Timeline always shows.
+
+## 2026-10-07 Maps and Backup & Recovery hidden (fix/hide-backup-and-maps)
+- The Analytics "Map" visualization is hidden for every role behind `MAPS_UI_ENABLED = false`, and Backup & Recovery is hidden behind `BACKUP_RECOVERY_UI_ENABLED = false` (sidebar entry removed, `/settings/backups` returns not found). Both are registered in docs/deferred-features.md.
