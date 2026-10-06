@@ -68,3 +68,40 @@ describe('BeneficiaryDirectory', () => {
     expect(clear.hasAttribute('disabled')).toBe(true)
   })
 })
+
+describe('BeneficiaryDirectory journey summary', () => {
+  const show = (progress: (typeof testBeneficiaries)[number]['progress']) => {
+    render(
+      <DisplayLabelsProvider>
+        <BeneficiaryDirectory
+          activities={testActivities}
+          beneficiaries={[{ ...testBeneficiaries[0], participation: [], progress }]}
+          projects={mockProjects}
+          stages={mockJourneyStages}
+        />
+      </DisplayLabelsProvider>,
+    )
+  }
+
+  it('shows the stage and last activity the server computed', () => {
+    show({
+      restricted: false,
+      lastParticipation: { activityId: 'a1', title: 'Life skills session', date: '2026-09-30' },
+      stage: { code: 'LIFESKILLS', name: 'Life skills sessions', progressPercent: 40 },
+    })
+    expect(screen.getByText('LIFESKILLS')).toBeTruthy()
+    expect(screen.getByText('Life skills session')).toBeTruthy()
+    expect(screen.queryByText('No participation yet')).toBeNull()
+  })
+
+  it('shows Restricted, never No participation yet, when the caller cannot read journeys', () => {
+    show({ restricted: true })
+    expect(screen.getAllByText('Restricted').length).toBe(2)
+    expect(screen.queryByText('No participation yet')).toBeNull()
+  })
+
+  it('shows No participation yet only when nothing is recorded', () => {
+    show({ restricted: false, lastParticipation: null, stage: null })
+    expect(screen.getByText('No participation yet')).toBeTruthy()
+  })
+})

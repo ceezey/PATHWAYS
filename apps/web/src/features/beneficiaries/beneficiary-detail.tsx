@@ -61,6 +61,7 @@ import {
   formatDate,
   progressionRate,
   projectTitle,
+  resolveJourneySummary,
   stageForActivity,
   stageTypeTone,
 } from './beneficiary-utils'
@@ -177,14 +178,18 @@ export const BeneficiaryDetail = ({
     profile,
   )
 
-  const currentStage = useMemo(
-    () => deriveCurrentStage(participation, stages, activities),
-    [activities, participation, stages],
+  const summary = useMemo(
+    () =>
+      resolveJourneySummary(
+        beneficiary.progress,
+        stages,
+        deriveCurrentStage(participation, stages, activities),
+        progressionRate(participation, stages, activities),
+      ),
+    [activities, beneficiary.progress, participation, stages],
   )
-  const progress = useMemo(
-    () => progressionRate(participation, stages, activities),
-    [activities, participation, stages],
-  )
+  const currentStage = summary.stage
+  const progress = summary.percent
   const orderedStages = useMemo(
     () => stages.slice().sort((first, second) => first.order - second.order),
     [stages],

@@ -362,6 +362,70 @@ export const demoActivities: Record<ProjectKey, DemoActivity[]> = {
         'The attendance sheet in the uploaded proof is unsigned; please upload the signed copy.',
       reached: 22,
     },
+    {
+      key: 'webinar',
+      title: 'Career pathway orientation webinar',
+      type: 'Capacity Building',
+      description:
+        'Online orientation for senior girls on career pathways, scholarships and the entrepreneurship and technology skills tracks.',
+      startOffset: -45,
+      endOffset: 25,
+      target: 100,
+      outcome: 'PROGRESS_VERIFIED',
+      officer: 'liza',
+      progress: 60,
+      note: 'Two webinar sessions held; the girls chose their tracks at the end of each session.',
+      reviewNote: 'Attendance sheets match the reported figure.',
+      reached: 80,
+    },
+    {
+      key: 'entrep',
+      title: 'Entrepreneurship track sessions',
+      type: 'Capacity Building',
+      description:
+        'Weekly sessions on small enterprise planning and savings for girls who chose the entrepreneurship track.',
+      startOffset: -30,
+      endOffset: 30,
+      target: 80,
+      outcome: 'PROGRESS_VERIFIED',
+      officer: 'liza',
+      progress: 45,
+      note: 'Entrepreneurship sessions are running in three schools.',
+      reviewNote: 'Attendance sheets match the reported figure.',
+      reached: 40,
+    },
+    {
+      key: 'tech',
+      title: 'Technology skills track sessions',
+      type: 'Capacity Building',
+      description:
+        'Weekly sessions on basic computer and digital safety skills for girls who chose the technology track.',
+      startOffset: -30,
+      endOffset: 30,
+      target: 70,
+      outcome: 'PROGRESS_VERIFIED',
+      officer: 'liza',
+      progress: 45,
+      note: 'Technology sessions are running at the school computer laboratories.',
+      reviewNote: 'Attendance sheets match the reported figure.',
+      reached: 35,
+    },
+    {
+      key: 'posttest',
+      title: 'Post-assessment administration',
+      type: 'Assessment',
+      description:
+        'Post-assessment on life skills, career readiness and safety practices after the track sessions.',
+      startOffset: -20,
+      endOffset: 20,
+      target: 100,
+      outcome: 'PROGRESS_VERIFIED',
+      officer: 'liza',
+      progress: 40,
+      note: 'The post-assessment was given to the first groups that finished their track.',
+      reviewNote: 'Attendance sheets match the reported figure.',
+      reached: 30,
+    },
   ],
   CRL: [
     {
@@ -404,7 +468,7 @@ export const demoActivities: Record<ProjectKey, DemoActivity[]> = {
         'Starter grants and coaching for household enterprises in abaca and coconut processing.',
       startOffset: -30,
       endOffset: 60,
-      target: 30,
+      target: 45,
       outcome: 'PROGRESS_VERIFIED',
       officer: 'emmanuel',
       progress: 40,
@@ -570,7 +634,7 @@ export const demoActivities: Record<ProjectKey, DemoActivity[]> = {
       description: 'Review classes before the accreditation and equivalency assessment.',
       startOffset: -60,
       endOffset: 10,
-      target: 26,
+      target: 40,
       outcome: 'PROGRESS_VERIFIED',
       officer: 'liza',
       progress: 85,
@@ -588,6 +652,70 @@ export const demoActivities: Record<ProjectKey, DemoActivity[]> = {
       target: 30,
       outcome: 'NOT_STARTED',
       officer: 'liza',
+    },
+    {
+      key: 'webinar',
+      title: 'Career pathway orientation webinar',
+      type: 'Education Delivery',
+      description:
+        'Online orientation for learners on career pathways after accreditation and the two skills tracks.',
+      startOffset: -35,
+      endOffset: 25,
+      target: 30,
+      outcome: 'PROGRESS_VERIFIED',
+      officer: 'liza',
+      progress: 60,
+      note: 'Two webinar sessions held for the learning centers.',
+      reviewNote: 'Attendance sheets match the reported figure.',
+      reached: 24,
+    },
+    {
+      key: 'entrep',
+      title: 'Entrepreneurship track sessions',
+      type: 'Education Delivery',
+      description:
+        'Weekly sessions on starting a small business for learners who chose the entrepreneurship track.',
+      startOffset: -30,
+      endOffset: 30,
+      target: 16,
+      outcome: 'PROGRESS_VERIFIED',
+      officer: 'liza',
+      progress: 50,
+      note: 'Entrepreneurship sessions are running at two learning centers.',
+      reviewNote: 'Attendance sheets match the reported figure.',
+      reached: 12,
+    },
+    {
+      key: 'tech',
+      title: 'Technology skills track sessions',
+      type: 'Education Delivery',
+      description:
+        'Weekly sessions on basic computer skills for learners who chose the technology track.',
+      startOffset: -30,
+      endOffset: 30,
+      target: 14,
+      outcome: 'PROGRESS_VERIFIED',
+      officer: 'liza',
+      progress: 50,
+      note: 'Technology sessions are running at the community learning center.',
+      reviewNote: 'Attendance sheets match the reported figure.',
+      reached: 11,
+    },
+    {
+      key: 'assessment',
+      title: 'Accreditation and equivalency assessment administration',
+      type: 'Assessment',
+      description:
+        'Administration of the post-assessment and accreditation and equivalency assessment after the track sessions.',
+      startOffset: -20,
+      endOffset: 18,
+      target: 26,
+      outcome: 'PROGRESS_VERIFIED',
+      officer: 'liza',
+      progress: 40,
+      note: 'The first group of learners took the assessment.',
+      reviewNote: 'Attendance sheets match the reported figure.',
+      reached: 10,
     },
   ],
   ECD: [
@@ -726,6 +854,8 @@ export type DemoCohort = {
   /** Repeating age pattern; the cohort cycles through it. */
   ages: number[]
   femaleShare: number
+  /** Latest enrollment offset from the project start in days, when enrollment closes early. */
+  enrollWindowDays?: number
 }
 
 export const demoCohorts: Record<ProjectKey, DemoCohort> = {
@@ -746,7 +876,12 @@ export const demoCohorts: Record<ProjectKey, DemoCohort> = {
   ECD: { count: 0, ages: [5], femaleShare: 0.5 },
   WSH: { count: 30, ages: [8, 9, 10, 11, 12, 7, 6, 41, 35, 50], femaleShare: 0.5 },
   // Every SADDD marginal (sex, age band at project end, disability) stays at 5 or more, so the closed-project release shows.
-  EHK: { count: 70, ages: [6, 11, 35, 7, 12, 8, 13, 42, 6, 10, 7, 12], femaleShare: 0.55 },
+  EHK: {
+    count: 70,
+    ages: [6, 11, 35, 7, 12, 8, 13, 42, 6, 10, 7, 12],
+    femaleShare: 0.55,
+    enrollWindowDays: 115,
+  },
 }
 
 export const femaleFirstNames = [
@@ -858,6 +993,17 @@ export type PlannedPerson = {
   enrollmentDate: string
 }
 
+/** Day offset from the project start: three days apart, spread evenly when that would pass the cap. */
+function enrollmentOffset(index: number, cohort: DemoCohort, daysRunning: number) {
+  const cap = Math.max(
+    20,
+    Math.min(daysRunning - 10, cohort.enrollWindowDays ?? Number.MAX_SAFE_INTEGER),
+  )
+  const natural = 20 + index * 3
+  if (20 + (cohort.count - 1) * 3 <= cap) return natural
+  return 20 + Math.floor((index * (cap - 20)) / Math.max(1, cohort.count - 1))
+}
+
 /** Deterministic cohort for one project: same input, same people. */
 export function planCohort(
   project: DemoProject,
@@ -871,10 +1017,7 @@ export function planCohort(
     const age = cohort.ages[index % cohort.ages.length]
     const female = (index * 7 + seed) % 100 < cohort.femaleShare * 100
     const firstNames = female ? femaleFirstNames : maleFirstNames
-    const enrollOffset = Math.min(
-      20 + index * 3,
-      Math.max(20, daysBetween(projectStart, today) - 10),
-    )
+    const enrollOffset = enrollmentOffset(index, cohort, daysBetween(projectStart, today))
     const enrollmentDate = addDaysIso(projectStart, enrollOffset)
     people.push({
       code: `BEN-${project.code}-${String(index + 1).padStart(3, '0')}`,

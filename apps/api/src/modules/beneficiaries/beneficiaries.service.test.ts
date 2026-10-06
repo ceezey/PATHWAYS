@@ -10,6 +10,7 @@ import type { PrismaService } from '@app/prisma/prisma.service'
 import { hasAtomicPermission } from '../auth/authorization-policy'
 import type { ApplicationIdentity } from '../auth/developer-access'
 import { BeneficiariesService } from './beneficiaries.service'
+import { canReadProgress, progressPercent } from './beneficiary-progress'
 
 const readState = vi.hoisted(() => ({ tx: undefined as unknown }))
 
@@ -738,6 +739,82 @@ describe('F3 scoped read and denial gates', () => {
     expect(readTx.beneficiary.findFirst).not.toHaveBeenCalled()
   })
 
+  it('returns the latest participation and current stage in one extra query for journey readers', async () => {
+    const reader = { ...actor, permissions: [...actor.permissions, 'journeys.read'] }
+    const raw = vi.fn().mockResolvedValue([
+      {
+        enrollment_id: enrollmentId,
+        activity_id: otherProjectId,
+        activity_title: 'Life skills session',
+        participation_date: new Date('2026-09-30T00:00:00.000Z'),
+        stage_code: 'LIFESKILLS',
+        stage_name: 'Life skills and leadership sessions',
+        reached: 1,
+        at_terminal: false,
+        path_length: 4,
+      },
+    ])
+    readState.tx = { ...readTx, $queryRaw: raw }
+    const [item] = (await service.list(reader, projectId, query)).items
+    expect(raw).toHaveBeenCalledTimes(1)
+    expect(item.progress).toEqual({
+      restricted: false,
+      lastParticipation: {
+        activityId: otherProjectId,
+        title: 'Life skills session',
+        date: '2026-09-30',
+      },
+      stage: {
+        code: 'LIFESKILLS',
+        name: 'Life skills and leadership sessions',
+        progressPercent: 50,
+      },
+    })
+  })
+
+  it('gives the detail read the same summary as the list for a completer at the terminal stage', async () => {
+    const reader = { ...actor, permissions: [...actor.permissions, 'journeys.read'] }
+    const summaryRow = {
+      enrollment_id: enrollmentId,
+      activity_id: otherProjectId,
+      activity_title: 'Kit distribution',
+      participation_date: new Date('2026-07-01T00:00:00.000Z'),
+      stage_code: 'COMPLETED',
+      stage_name: 'Returned to school',
+      reached: 2,
+      at_terminal: true,
+      path_length: 3,
+    }
+    readState.tx = { ...readTx, $queryRaw: vi.fn().mockResolvedValue([summaryRow]) }
+    const listed = (await service.list(reader, projectId, query)).items[0].progress
+    const detail = (await service.get(reader, projectId, beneficiaryId)).progress
+    expect(detail).toEqual(listed)
+    expect(detail).toMatchObject({ stage: { code: 'COMPLETED', progressPercent: 100 } })
+  })
+
+  it('reports no participation or stage when a journey reader has none recorded', async () => {
+    const reader = { ...actor, permissions: [...actor.permissions, 'journeys.read'] }
+    readState.tx = { ...readTx, $queryRaw: vi.fn().mockResolvedValue([]) }
+    const [item] = (await service.list(reader, projectId, query)).items
+    expect(item.progress).toEqual({ restricted: false, lastParticipation: null, stage: null })
+  })
+
+  it('marks progress restricted without a journey grant and never queries journey tables', async () => {
+    const raw = vi.fn()
+    readState.tx = { ...readTx, $queryRaw: raw }
+    const [item] = (await service.list(actor, projectId, query)).items
+    expect(item.progress).toEqual({ restricted: true })
+    expect(raw).not.toHaveBeenCalled()
+  })
+
+  it('marks detail progress restricted without a journey grant and never queries journey tables', async () => {
+    const raw = vi.fn()
+    readState.tx = { ...readTx, $queryRaw: raw }
+    const detail = await service.get(actor, projectId, beneficiaryId)
+    expect(detail.progress).toEqual({ restricted: true })
+    expect(raw).not.toHaveBeenCalled()
+  })
+
   it.each(['PROGRAM_MANAGER', 'GRANT_MANAGER', 'SYSTEM_ADMINISTRATOR'])(
     'G-F3-5 denies beneficiary detail to %s even with a claimed records.read grant',
     async (role) => {
@@ -748,4 +825,24 @@ describe('F3 scoped read and denial gates', () => {
       expect(readTx.beneficiary.findFirst).not.toHaveBeenCalled()
     },
   )
+})
+
+describe('directory progress rules', () => {
+  const grant = (roles: string[]) => ({ ...actor, roles, permissions: ['journeys.read'] })
+
+  it('refuses aggregate-only roles even with a claimed journeys.read grant', () => {
+    expect(canReadProgress(grant(['PROGRAM_MANAGER']))).toBe(false)
+    expect(canReadProgress(grant(['GRANT_MANAGER']))).toBe(false)
+  })
+
+  it('measures progress along the person own path and caps a terminal stage at 100', () => {
+    // Path: entry, core, one branch, final = 4 steps.
+    expect(progressPercent({ reached: 0, at_terminal: false, path_length: 4 })).toBe(25)
+    expect(progressPercent({ reached: 1, at_terminal: false, path_length: 4 })).toBe(50)
+    expect(progressPercent({ reached: 2, at_terminal: false, path_length: 4 })).toBe(75)
+    expect(progressPercent({ reached: 3, at_terminal: false, path_length: 4 })).toBe(100)
+    expect(progressPercent({ reached: 1, at_terminal: true, path_length: 4 })).toBe(100)
+    expect(progressPercent({ reached: 9, at_terminal: false, path_length: 4 })).toBe(100)
+    expect(progressPercent({ reached: 0, at_terminal: false, path_length: 0 })).toBe(0)
+  })
 })

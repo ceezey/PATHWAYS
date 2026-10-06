@@ -203,17 +203,19 @@ export const BeneficiaryDirectory = ({
             projectStages,
             projectActivities,
           )
-          const progress = progressionRate(
-            row.original.participation,
-            projectStages,
-            projectActivities,
-          )
+          const summary = row.original.progress
+          if (summary?.restricted)
+            return <span className="text-sm text-muted-foreground">Restricted</span>
+          const stage = summary ? summary.stage : currentStage
+          const progress = summary
+            ? (summary.stage?.progressPercent ?? 0)
+            : progressionRate(row.original.participation, projectStages, projectActivities)
 
           return (
             <div className="min-w-[180px] space-y-2">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="font-medium">{currentStage?.code ?? 'No stage'}</span>
-                <span className="text-muted-foreground">{currentStage?.name ?? 'Unmapped'}</span>
+                <span className="font-medium">{stage?.code ?? 'No stage'}</span>
+                <span className="text-muted-foreground">{stage?.name ?? 'Unmapped'}</span>
               </div>
               <ProgressBar value={progress} tone={progress >= 60 ? 'success' : 'info'} />
             </div>
@@ -223,6 +225,18 @@ export const BeneficiaryDirectory = ({
       {
         header: 'Last activity',
         cell: ({ row }) => {
+          const summary = row.original.progress
+          if (summary?.restricted)
+            return <span className="text-sm text-muted-foreground">Restricted</span>
+          if (summary?.lastParticipation)
+            return (
+              <div className="space-y-1 text-sm">
+                <p className="font-medium">{summary.lastParticipation.title}</p>
+                <p className="text-xs text-muted-foreground">
+                  {formatDate(summary.lastParticipation.date)}
+                </p>
+              </div>
+            )
           const latest = [...row.original.participation].sort((first, second) =>
             second.participatedAt.localeCompare(first.participatedAt),
           )[0]

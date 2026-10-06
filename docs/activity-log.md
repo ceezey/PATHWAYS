@@ -354,3 +354,13 @@
 - Project summary becomes a one-page status report: project information, overview (Schedule, Budget, Indicators with ON TRACK, AT RISK, OFF TRACK or NOT AVAILABLE), key figures, milestones, indicators and open alerts. Spec: docs/superpowers/specs/2026-10-06-project-status-report-design.md; CR: [cr-pathways-project-status-report](cr-pathways-project-status-report.md).
 - API: new `sections` on the report snapshot (fingerprint, generate re-check and designed PDF include it); flat columns and rows stay for pdfkit, CSV and XLSX. `ProjectOverviewMetricsService.readInTransaction` and `RulesHumanService.listAlertsInTransaction` expose the existing reads inside the report transaction. No migration, no new permission.
 - Web: shared print look for all kinds, Project summary section components, `?sample=project` fixture, in-app preview uses the same component.
+
+## 2026-10-06 Realistic demo journeys and directory progress
+- Every enrollment now carries a record that matches its status: attendance through the published attendance form of each stage-mapped activity (submission, participation, staged journey event), then completion or dropout transitions, then pre and post tests that reference the attendance submission.
+- SSG and ALS journeys branch: WEBINAR, then ENTREP or TECH (about 55 to 45), then a post-assessment step; each has a mapped activity and a published form. EHK gets stages and a kit distribution form. New stages `local-demo-stage-journeys.ts`, pure planner `local-demo-journeys.ts`, guard tests `local-demo-journeys.test.ts`.
+- Seeded proof photos are AI-generated, non-identifiable illustrative photos (no real people) (`prisma/assets/demo-photos`) and the attendance sheet PDFs list the date, venue, facilitator and attendees.
+- Beneficiary list API returns per row the latest participation and current stage (one query per page, journeys.read only, otherwise restricted); the directory shows "Restricted" instead of "No participation yet" when the caller cannot read journeys.
+- Assessment results still use the owner path (no service writes them), now tied to a validated attendance submission of the same enrollment and activity.
+
+## 2026-10-06 Fix round 1
+- Journey records survive a stage retry (first-run event snapshot, stored sessions skipped, all projects settle before failing); directory progress follows the person's own path (branch counted once, terminal stage 100) and the current stage follows the detail page rule; activity reach comes from the seeded attendance.
