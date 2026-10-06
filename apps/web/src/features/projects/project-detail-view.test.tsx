@@ -220,9 +220,18 @@ describe('project overview metrics', () => {
   it('shows endpoint values, suppression and a permission-null section without zeros', async () => {
     renderView()
     await waitFor(async () => expect(await tile('KPI achievement')).toBe('60.3%'))
-    expect(await tile('Budget utilization')).toBe('Unavailable')
+    expect(screen.queryByText('Budget utilization')).toBeNull()
     expect(await tile('Beneficiaries reached / target')).toBe('Suppressed (fewer than 5) / 1,200')
     expect(await tile('Timeline')).toBe('50%')
+    expect(
+      screen.getByRole('progressbar', { name: 'Timeline' }).getAttribute('aria-valuenow'),
+    ).toBe('50')
+  })
+
+  it('hides the planned project budget when none is recorded', async () => {
+    renderView()
+    expect(await screen.findByText('Project preview')).toBeTruthy()
+    expect(screen.queryByText('Planned project budget')).toBeNull()
   })
 
   it('says "None yet" for KPI and timeline without data, and 0 for budget and reach', async () => {
