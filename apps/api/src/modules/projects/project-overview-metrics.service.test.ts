@@ -138,7 +138,7 @@ function harness(
     },
   }
   const indicators = {
-    readInTransaction: vi.fn(async () =>
+    readReleasedInTransaction: vi.fn(async () =>
       (options.indicators ?? [cell('40'), cell('80.5')]).map(progress),
     ),
   }
@@ -254,13 +254,27 @@ describe('GET /projects/:projectId/overview-metrics', () => {
     expect(tx.budgetExpenseEntry.aggregate).not.toHaveBeenCalled()
   })
 
-  it('returns KPI achievement as null without indicator read permission', async () => {
+  it('returns KPI achievement to a Program Manager through the released values', async () => {
     const { service, indicators } = harness()
     const manager = actor('PROGRAM_MANAGER')
     expect(manager.permissions).not.toContain('indicators.read')
     const result = await service.read(manager, projectA)
+    expect(result.kpiAchievement?.metric.state).toBe('AVAILABLE')
+    expect(indicators.readReleasedInTransaction).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ roles: ['PROGRAM_MANAGER'] }),
+      [projectA],
+    )
+  })
+
+  it('returns KPI achievement as null without monitoring.read', async () => {
+    const { service, indicators } = harness()
+    const officer = actor('PROJECT_OFFICER')
+    expect(officer.permissions).not.toContain('monitoring.read')
+    const result = await service.read(officer, projectA)
     expect(result.kpiAchievement).toBeNull()
-    expect(indicators.readInTransaction).not.toHaveBeenCalled()
+    expect(result.efficiencyRatio).toBeNull()
+    expect(indicators.readReleasedInTransaction).not.toHaveBeenCalled()
   })
 
   it('serves the efficiency ratio when both KPI and budget sections are readable', async () => {
@@ -274,13 +288,6 @@ describe('GET /projects/:projectId/overview-metrics', () => {
     const officer = actor('MONITORING_AND_EVALUATION_OFFICER')
     expect(officer.permissions).not.toContain('budgets.read')
     expect((await service.read(officer, projectA)).efficiencyRatio).toBeNull()
-  })
-
-  it('returns the efficiency ratio as null without indicator or monitoring read permission', async () => {
-    const { service } = harness()
-    const manager = actor('PROGRAM_MANAGER')
-    expect(manager.permissions).not.toContain('indicators.read')
-    expect((await service.read(manager, projectA)).efficiencyRatio).toBeNull()
   })
 
   it('reports the server-side aggregate total regardless of how many approved expenses exist', async () => {
@@ -318,7 +325,7 @@ describe('GET /projects/:projectId/overview-metrics', () => {
     expect(tx.project.findFirst.mock.calls[0]?.[0].where.AND[0]).toMatchObject({
       organizationId: orgA,
     })
-    expect(indicators.readInTransaction).not.toHaveBeenCalled()
+    expect(indicators.readReleasedInTransaction).not.toHaveBeenCalled()
     expect(tx.budgetExpenseEntry.aggregate).not.toHaveBeenCalled()
     expect(tx.$queryRaw).not.toHaveBeenCalled()
   })

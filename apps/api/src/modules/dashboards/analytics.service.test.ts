@@ -289,7 +289,7 @@ function harness(
     },
   }
   const indicators = {
-    readInTransaction: vi.fn(async () => [
+    readReleasedInTransaction: vi.fn(async () => [
       indicator('40000000-0000-4000-8000-000000000001', 'people', cell(10)),
       indicator('40000000-0000-4000-8000-000000000002', 'people', cell(20)),
       indicator('40000000-0000-4000-8000-000000000003', 'sessions', suppressed),

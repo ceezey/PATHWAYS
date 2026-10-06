@@ -17,7 +17,7 @@ import {
 } from '@pathways/shared'
 import { Prisma } from '@prisma/client'
 import { PrismaService } from '../../prisma/prisma.service'
-import { hasAtomicPermission } from '../auth/authorization-policy'
+import { type AtomicPermission, hasAtomicPermission } from '../auth/authorization-policy'
 import { projectScope } from '../auth/authorized-data.service'
 import { withAuthorizedOperation } from '../auth/authorized-operation'
 import type { ApplicationIdentity } from '../auth/developer-access'
@@ -119,9 +119,12 @@ export class DashboardsService {
       } catch (error) {
         monitoringSqlError(error)
       }
-      const allowed = hasAtomicPermission(actor.roles[0], actor.permissions, 'monitoring.read')
+      const can = (permission: AtomicPermission) =>
+        hasAtomicPermission(actor.roles[0], actor.permissions, permission)
+      // Released values need monitoring.read and reports.indicator.read, as p06_indicator_values checks.
+      const allowed = can('monitoring.read') && can('reports.indicator.read')
       const indicators = allowed
-        ? await this.indicators.readInTransaction(
+        ? await this.indicators.readReleasedInTransaction(
             tx,
             actor,
             projects.map((project) => project.id),
@@ -137,7 +140,7 @@ export class DashboardsService {
         indicators,
         indicatorNote: allowed
           ? 'Indicator comparisons use definitions whose reporting period exactly matches this filter. Different units are not averaged into a KPI score.'
-          : 'Indicator definitions require monitoring.read; this role receives aggregate monitoring only.',
+          : 'Indicator values require monitoring.read and reports.indicator.read; this role receives aggregate monitoring only.',
         generatedAt: new Date().toISOString(),
         contractVersion: P06_CONTRACT_VERSION,
         refresh: 'READ_TIME_NO_CACHE',

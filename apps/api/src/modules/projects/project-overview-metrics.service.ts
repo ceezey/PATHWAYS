@@ -39,7 +39,7 @@ export class ProjectOverviewMetricsService {
   ) {}
 
   private async kpi(tx: Tx, actor: ApplicationIdentity, projectId: string) {
-    const rows = await this.indicators.readInTransaction(tx, actor, [projectId])
+    const rows = await this.indicators.readReleasedInTransaction(tx, actor, [projectId])
     return kpiAchievement(rows.map((row) => row.progress))
   }
 
@@ -92,9 +92,11 @@ export class ProjectOverviewMetricsService {
       startDate: row.startDate?.toISOString().slice(0, 10) ?? null,
       endDate: row.endDate?.toISOString().slice(0, 10) ?? null,
     }
-    // p06_indicator_value requires monitoring.read in the database as well.
+    // p06_indicator_values requires monitoring.read and reports.indicator.read in the database as well.
     const kpi =
-      can('indicators.read') && can('monitoring.read') ? await this.kpi(tx, actor, row.id) : null
+      can('monitoring.read') && can('reports.indicator.read')
+        ? await this.kpi(tx, actor, row.id)
+        : null
     // Spending totals are expense data, so both finance reads are required.
     const budget =
       can('budgets.read') && can('expenses.read')
