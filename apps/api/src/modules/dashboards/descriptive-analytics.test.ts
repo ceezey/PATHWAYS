@@ -1,17 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { buildTimelineAnalytics } from './descriptive-analytics'
 
-const aggregate = (lastCompletedOn: string | null) => ({
-  activities: {
-    eligible: 2,
-    completed: 1,
-    overdue: 0,
-    missingDates: 0,
-    maxOverdueDays: null,
-    lastCompletedOn,
-  },
+const aggregate = {
+  activities: { eligible: 2, completed: 1, overdue: 0, missingDates: 0, maxOverdueDays: null },
   milestones: { completed: 0, rated: 0, onTime: 0 },
-})
+}
 
 const build = (
   status: 'PLANNED' | 'ONGOING' | 'COMPLETED' | 'ON_HOLD' | 'CANCELLED',
@@ -29,7 +22,8 @@ const build = (
       startDate: '2026-01-01',
       endDate: overrides.endDate === undefined ? '2026-08-22' : overrides.endDate,
     },
-    aggregate: aggregate(lastCompletedOn),
+    aggregate,
+    lastCompletedOn,
   })
 
 describe('buildTimelineAnalytics final position', () => {
@@ -56,10 +50,17 @@ describe('buildTimelineAnalytics final position', () => {
     })
   })
 
-  it('completed without a project end date is MISSING NO_PROJECT_DATES', () => {
-    expect(build('COMPLETED', '2026-09-01', { endDate: null }).overdueDays).toMatchObject({
+  it('completed without a project end date is 100% elapsed, 0 remaining, overdue MISSING NO_PROJECT_DATES', () => {
+    const view = build('COMPLETED', '2026-09-01', { endDate: null })
+    expect(view.elapsedPercent).toMatchObject({ state: 'AVAILABLE', value: '100' })
+    expect(view.remainingDays).toMatchObject({ state: 'ZERO', value: '0' })
+    expect(view.overdueDays).toMatchObject({ state: 'MISSING', reason: 'NO_PROJECT_DATES' })
+  })
+
+  it('an invalid completion date is treated as missing', () => {
+    expect(build('COMPLETED', '2026-13-45').overdueDays).toMatchObject({
       state: 'MISSING',
-      reason: 'NO_PROJECT_DATES',
+      reason: 'NO_COMPLETION_DATE',
     })
   })
 

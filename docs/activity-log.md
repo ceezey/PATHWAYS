@@ -406,4 +406,4 @@
 ## 2026-10-06 Timeline final position (0068)
 - Bug: Analytics timeline Elapsed, Remaining days and Overdue days read Not applicable for COMPLETED and ON_HOLD projects.
 - `buildTimelineAnalytics` now reports a completed project's final position (100% elapsed, 0 remaining, overdue = days the last completed activity ended after the planned end; MISSING `NO_COMPLETION_DATE` or `NO_PROJECT_DATES`, never a fake 0) and computes ON_HOLD like ONGOING; CANCELLED and archived stay Not applicable. Rule-engine `timelineObservation` is unchanged.
-- Migration 0068 adds `activities.lastCompletedOn` to `p10_f9_timeline_aggregate` (same signature, owner and ACL); runtime SQL suite and unit tests extended. Not applied to any shared database.
+- Migration 0068 is additive: new `p10_f9_timeline_last_completion(uuid,uuid)` returns the last completed activity date and the aggregate is untouched, because devV2 serves preview and production and the deployed strict aggregate schema would reject a new key (503) until both redeploy; computeTimeline calls it only for COMPLETED projects. Not applied to any shared database.

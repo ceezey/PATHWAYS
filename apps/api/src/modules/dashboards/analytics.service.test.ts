@@ -131,7 +131,6 @@ type FixtureActivity = {
   status: string
   archivedAt: Date | null
   plannedEndDate: Date | null
-  actualEndDate?: Date | null
 }
 type FixtureMilestone = {
   status: string
@@ -166,12 +165,6 @@ function timelineAggregateFromFixture(
       overdue: dated.filter((a) => days(a) > 0).length,
       missingDates: open.length - dated.length,
       maxOverdueDays: dated.length ? Math.max(0, ...dated.map(days)) : null,
-      lastCompletedOn:
-        eligible
-          .filter((a) => a.status === 'COMPLETED' && a.actualEndDate)
-          .map((a) => (a.actualEndDate as Date).toISOString().slice(0, 10))
-          .sort()
-          .at(-1) ?? null,
     },
     milestones: {
       completed: completedMilestones.length,
@@ -193,6 +186,8 @@ function harness(
     /** Overrides what the trusted SQL function returns (instead of deriving it from fixtures). */
     surveyAggregate?: unknown
     timelineAggregate?: unknown
+    /** What pathways.p10_f9_timeline_last_completion returns (a Date, as Prisma maps a date column). */
+    lastCompletion?: Date | null
     /** Makes the trusted SQL function fail with this Prisma-style error. */
     aggregateError?: { code?: string; meta?: { code: string } }
   } = {},
@@ -244,6 +239,8 @@ function harness(
       sqlCalls.push(sql)
       if (sql.includes('p06_saddd')) return [{ data: sadddRaw }]
       if (sql.includes('p06_monitoring')) return [{ data: monitoringRaw }]
+      if (sql.includes('p10_f9_timeline_last_completion'))
+        return [{ data: options.lastCompletion ?? null }]
       if (
         sql.includes('p10_f9_survey_aggregate') ||
         sql.includes('p10_f9_survey_release') ||
@@ -909,6 +906,36 @@ describe('analytics descriptive views: survey and timeline', () => {
         }),
       }),
     )
+  })
+
+  it('happy: a COMPLETED project gets its final position from the last-completion function', async () => {
+    const { service, sqlCalls } = harness(releasedSaddd, '2026-12-31', {
+      projectStatus: 'COMPLETED',
+      lastCompletion: new Date('2027-01-05'),
+    })
+    const result = await service.descriptive(actor('MONITORING_AND_EVALUATION_OFFICER'), {
+      projectId: projectA,
+      view: 'timeline',
+    })
+    expect(result).toMatchObject({
+      elapsedPercent: { state: 'AVAILABLE', value: '100' },
+      remainingDays: { state: 'ZERO', value: '0' },
+      overdueDays: { state: 'AVAILABLE', value: '5' },
+    })
+    expect(sqlCalls.filter((sql) => sql.includes('p10_f9_timeline_last_completion'))).toHaveLength(
+      1,
+    )
+  })
+
+  it('happy: the last-completion function is not called for an ONGOING project', async () => {
+    const { service, sqlCalls } = harness(releasedSaddd, '2026-12-31', {
+      projectStatus: 'ONGOING',
+    })
+    await service.descriptive(actor('MONITORING_AND_EVALUATION_OFFICER'), {
+      projectId: projectA,
+      view: 'timeline',
+    })
+    expect(sqlCalls.some((sql) => sql.includes('p10_f9_timeline_last_completion'))).toBe(false)
   })
 
   it('sad: survey is MISSING (NO_PAIRED_ASSESSMENTS) rather than a fabricated zero when there is no data', async () => {

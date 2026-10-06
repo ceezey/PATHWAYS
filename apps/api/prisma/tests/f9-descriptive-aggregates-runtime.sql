@@ -238,7 +238,8 @@ SELECT set_config('request.jwt.claim.sub',pg_temp.u(201)::text,true),
        set_config('app.organization_id',pg_temp.u(1)::text,true),
        set_config('app.user_id',pg_temp.u(101)::text,true);
 INSERT INTO f9_out VALUES
-  ('timeline_pm',pathways.p10_f9_timeline_aggregate(pg_temp.u(1),pg_temp.u(301),DATE '2026-06-15'));
+  ('timeline_pm',pathways.p10_f9_timeline_aggregate(pg_temp.u(1),pg_temp.u(301),DATE '2026-06-15')),
+  ('last_pm',jsonb_build_object('d',pathways.p10_f9_timeline_last_completion(pg_temp.u(1),pg_temp.u(301))));
 -- The Program Manager cannot read the underlying rows directly, only the aggregate.
 SELECT pg_temp.ok((SELECT count(*)=0 FROM pathways.assessment_results),
   'Program Manager sees zero assessment rows directly (assessments.detail.read is absent)');
@@ -252,10 +253,16 @@ SELECT pg_temp.reject(
 SELECT pg_temp.reject(
   format($i$SELECT pathways.p10_f9_timeline_aggregate(%L,%L,DATE '2026-06-15')$i$,pg_temp.u(1),pg_temp.u(302)),
   '42501','Program Manager is denied timeline aggregate for an unassigned project');
+SELECT pg_temp.reject(
+  format($i$SELECT pathways.p10_f9_timeline_last_completion(%L,%L)$i$,pg_temp.u(1),pg_temp.u(302)),
+  '42501','Program Manager is denied the last completion for an unassigned project');
 -- Cross-organization: org A session targeting org B's organization and project.
 SELECT pg_temp.reject(
   format($i$SELECT pathways.p10_f9_timeline_aggregate(%L,%L,DATE '2026-06-15')$i$,pg_temp.u(2),pg_temp.u(303)),
   '42501','A cross-organization timeline aggregate request is denied');
+SELECT pg_temp.reject(
+  format($i$SELECT pathways.p10_f9_timeline_last_completion(%L,%L)$i$,pg_temp.u(2),pg_temp.u(303)),
+  '42501','A cross-organization last completion request is denied');
 RESET ROLE;
 
 SET LOCAL ROLE pathways_runtime;
@@ -264,7 +271,8 @@ SELECT set_config('request.jwt.claim.sub',pg_temp.u(202)::text,true),
        set_config('app.user_id',pg_temp.u(102)::text,true);
 INSERT INTO f9_out VALUES
   ('timeline_gm',pathways.p10_f9_timeline_aggregate(pg_temp.u(1),pg_temp.u(301),DATE '2026-06-15')),
-  ('timeline_gm_a2',pathways.p10_f9_timeline_aggregate(pg_temp.u(1),pg_temp.u(302),DATE '2026-06-15'));
+  ('timeline_gm_a2',pathways.p10_f9_timeline_aggregate(pg_temp.u(1),pg_temp.u(302),DATE '2026-06-15')),
+  ('last_gm_a2',jsonb_build_object('d',pathways.p10_f9_timeline_last_completion(pg_temp.u(1),pg_temp.u(302))));
 SELECT pg_temp.reject(
   format($i$SELECT pathways.p10_f9_survey_aggregate(%L,%L,DATE '2026-01-01',DATE '2026-12-31')$i$,pg_temp.u(1),pg_temp.u(301)),
   '42501','Grant Manager is denied the survey aggregate (assessments.detail.read is absent)');
@@ -363,8 +371,12 @@ SELECT set_config('request.jwt.claim.sub',pg_temp.u(206)::text,true),
 SELECT pg_temp.reject(
   format($i$SELECT pathways.p10_f9_timeline_aggregate(%L,%L,DATE '2026-06-15')$i$,pg_temp.u(1),pg_temp.u(301)),
   '42501','An org B session is denied org A timeline aggregate');
+SELECT pg_temp.reject(
+  format($i$SELECT pathways.p10_f9_timeline_last_completion(%L,%L)$i$,pg_temp.u(1),pg_temp.u(301)),
+  '42501','An org B session is denied org A last completion');
 INSERT INTO f9_out VALUES
   ('timeline_b',pathways.p10_f9_timeline_aggregate(pg_temp.u(2),pg_temp.u(303),DATE '2026-06-15')),
+  ('last_b',jsonb_build_object('d',pathways.p10_f9_timeline_last_completion(pg_temp.u(2),pg_temp.u(303)))),
   ('survey_b',pathways.p10_f9_survey_aggregate(pg_temp.u(2),pg_temp.u(303),DATE '2026-01-01',DATE '2026-12-31'));
 RESET ROLE;
 
@@ -428,10 +440,10 @@ SELECT pg_temp.ok((SELECT (doc->'activities'->>'eligible')::int=1 AND (doc->'act
     AND (doc->'milestones'->>'onTime')::int=0 AND (doc->'milestones'->>'rated')::int=1
     FROM f9_out WHERE name='timeline_b'),
   'org B timeline counts only org B rows');
-SELECT pg_temp.ok((SELECT doc->'activities'->>'lastCompletedOn'='2026-01-02' FROM f9_out WHERE name='timeline_pm')
-  AND (SELECT doc->'activities'->>'lastCompletedOn'='2026-01-05' FROM f9_out WHERE name='timeline_gm_a2')
-  AND (SELECT doc->'activities'->'lastCompletedOn'='null'::jsonb FROM f9_out WHERE name='timeline_b'),
-  'lastCompletedOn is the latest completed actual end date, and null when no activity completed');
+SELECT pg_temp.ok((SELECT doc->>'d'='2026-01-02' FROM f9_out WHERE name='last_pm')
+  AND (SELECT doc->>'d'='2026-01-05' FROM f9_out WHERE name='last_gm_a2')
+  AND (SELECT doc->'d'='null'::jsonb FROM f9_out WHERE name='last_b'),
+  'last completion is the latest completed actual end date, null when none, and org B counts only org B rows');
 
 -- Privacy: outputs carry only the documented count/sum keys and no fixture identifier.
 SELECT pg_temp.ok((SELECT NOT EXISTS(
@@ -446,7 +458,7 @@ SELECT pg_temp.ok((SELECT NOT EXISTS(
     WHERE o.name LIKE 'timeline%' AND k NOT IN ('activities','milestones'))
   AND NOT EXISTS(
     SELECT FROM f9_out o, jsonb_object_keys(o.doc->'activities') k
-    WHERE o.name LIKE 'timeline%' AND k NOT IN ('eligible','completed','overdue','missingDates','maxOverdueDays','lastCompletedOn'))
+    WHERE o.name LIKE 'timeline%' AND k NOT IN ('eligible','completed','overdue','missingDates','maxOverdueDays'))
   AND NOT EXISTS(
     SELECT FROM f9_out o, jsonb_object_keys(o.doc->'milestones') k
     WHERE o.name LIKE 'timeline%' AND k NOT IN ('completed','rated','onTime'))),

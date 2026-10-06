@@ -199,8 +199,7 @@ const daysBetween = (start: string, end: string) =>
  * Activity and milestone counts returned by the trusted
  * pathways.p10_f9_timeline_aggregate function. Counts only: no row or identifier.
  * `maxOverdueDays` is the SQL mirror of the largest per-activity overdue days and
- * is validated but not part of the timeline view contract. `lastCompletedOn` is the
- * latest actual end date of a completed activity, used for a completed project's final position.
+ * is validated but not part of the timeline view contract.
  */
 export const timelineAggregateSchema = z
   .object({
@@ -211,7 +210,6 @@ export const timelineAggregateSchema = z
         overdue: z.number().int().min(0),
         missingDates: z.number().int().min(0),
         maxOverdueDays: z.number().int().min(0).nullable(),
-        lastCompletedOn: z.string().refine(isCalendarDate).nullable().optional(),
       })
       .strict(),
     milestones: milestoneCountsSchema,
@@ -227,8 +225,8 @@ export type TimelineAggregate = z.infer<typeof timelineAggregateSchema>
  * two never drift. Reasons are remapped to the descriptive-analytics vocabulary
  * (NO_PROJECT_DATES/NO_ACTIVITIES) so callers see one consistent set of MISSING
  * reasons for this view. A COMPLETED project reports its final position (100% elapsed,
- * 0 remaining, overdue = days its last completed activity ended after the planned end);
- * ON_HOLD dates keep running like ONGOING.
+ * 0 remaining, overdue = days its last completed activity ended after the planned end,
+ * from the separate `lastCompletedOn` input); ON_HOLD dates keep running like ONGOING.
  */
 export function buildTimelineAnalytics(input: {
   projectId: string
@@ -242,6 +240,8 @@ export function buildTimelineAnalytics(input: {
     endDate: string | null
   }
   aggregate: TimelineAggregate
+  /** Latest actual end date of a completed activity (YYYY-MM-DD), read apart from the aggregate. */
+  lastCompletedOn: string | null
 }): TimelineAnalytics {
   const aggregate = timelineAggregateSchema.parse(input.aggregate)
   const scope = { organizationId: input.organizationId, projectId: input.projectId }
@@ -265,7 +265,10 @@ export function buildTimelineAnalytics(input: {
       'NO_PROJECT_DATES',
     )
   const { endDate } = input.project
-  const { lastCompletedOn = null, ...counts } = aggregate.activities
+  const lastCompletedOn =
+    input.lastCompletedOn !== null && isCalendarDate(input.lastCompletedOn)
+      ? input.lastCompletedOn
+      : null
   const final = input.project.status === 'COMPLETED' && !input.project.archived
   const elapsedPercent = final ? numericMetric('100') : cellFor('PROJECT_TIMELINE_ELAPSED_PERCENT')
   const remainingDays = final ? numericMetric('0') : cellFor('PROJECT_REMAINING_DAYS')
@@ -276,7 +279,7 @@ export function buildTimelineAnalytics(input: {
     else if (lastCompletedOn === null) overdueDays = missingMetric('NO_COMPLETION_DATE')
     else overdueDays = numericMetric(String(Math.max(0, daysBetween(endDate, lastCompletedOn))))
   }
-  const { maxOverdueDays: _maxOverdueDays, ...activityCounts } = counts
+  const { maxOverdueDays: _maxOverdueDays, ...activityCounts } = aggregate.activities
   const activityCells = activityAggregateCells(activityCounts)
   return {
     contractVersion: TIMELINE_ANALYTICS_CONTRACT_VERSION,
