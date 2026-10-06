@@ -658,7 +658,8 @@ END $$;
   Write-Output ('PHASE6_LOCAL_REPLAY=FAILED; ' + $_.Exception.Message)
   $phase6Exit = 1
 } finally {
-  Write-ReplaySummary (Join-Path $phase6Root '.tmp/replay-timing.json')
+  # Timing is diagnostic only, so a summary failure never skips cleanup or masks the real result.
+  try { Write-ReplaySummary (Join-Path $phase6Root '.tmp/replay-timing.json') } catch { Write-Output ('REPLAY_TIMING_SUMMARY=SKIPPED; ' + $_.Exception.Message) }
   foreach ($phase6EnvironmentName in $phase6PreviousEnvironment.Keys) {
     $phase6Previous = $phase6PreviousEnvironment[$phase6EnvironmentName]
     if ($phase6Previous.Present) {
