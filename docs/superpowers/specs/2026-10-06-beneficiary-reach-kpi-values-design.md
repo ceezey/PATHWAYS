@@ -23,7 +23,7 @@ Release beneficiary reach and counts with 1-4 shown as "fewer than 5", open part
 - Each release is a SECURITY DEFINER function with explicit scope checks, following the existing `p06_*` and `p34_*` patterns.
 - Suppression: counts 1-4 are SUPPRESSED; related counts get complementary suppression so a hidden count cannot be derived by subtraction (same approach as 0060 rule metrics).
 - One code path per surface: the API uses the definer release for every role rather than branching by role.
-- Developer decisions 2026-10-06: the participation breakdown returns exact counts with no suppression; the reach release keeps 1-4 suppression and complements and also hides participationRecords when it is 1-4 below enrolled individuals or 1-4 above attending individuals; KPI values stay unchanged. The developer accepts the residual risk that a KPI value and a reach count could be differenced.
+- Developer decisions 2026-10-06: the participation breakdown returns exact counts with no suppression; the reach release keeps 1-4 suppression and complements and also hides participationRecords when it is 1-4 below enrolled individuals or 1-4 above attending individuals (judged on the released people counts) and whenever either people count was complement-hidden; KPI values stay unchanged. The developer accepts the residual risk that a KPI value and a reach count could be differenced.
 
 ## Migration 0065
 

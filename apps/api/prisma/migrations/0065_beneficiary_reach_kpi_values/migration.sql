@@ -7,7 +7,8 @@
 -- indicators.read. Every function is owned by prisma, which owns every source table; hosted prisma has no BYPASSRLS,
 -- so the only FORCE RLS sources (indicator bindings and measurements) are read through their p06_*_owner_read
 -- policies, which need monitoring.read on the project. The reach release also hides participationRecords when it is
--- 1-4 below enrolled individuals or 1-4 above attending individuals, judged on the counts before their own suppression.
+-- 1-4 below enrolled individuals or 1-4 above attending individuals, judged only on the released people counts, and
+-- always when either people count was hidden by complementary suppression, so a released value never pins a hidden one.
 -- No table, column, policy, role or permission grant changes (role_permissions stays 314); no DBA preprovision.
 BEGIN;
 SET LOCAL lock_timeout = '5s';
@@ -70,11 +71,15 @@ BEGIN
   i := pathways.p06_complement_cell(r, i);
   a := pathways.p06_complement_cell(i, a);
   a := pathways.p06_complement_cell(r, a);
-  -- Records are hidden when 1-4 below enrolled individuals or 1-4 above attending individuals, using the incoming counts.
-  p := pathways.p06_complement_cell(data->'enrolledIndividuals', p);
-  IF p->>'value' IS NOT NULL AND data->'attendingIndividuals'->>'value' IS NOT NULL
-     AND (p->>'value')::numeric - (data->'attendingIndividuals'->>'value')::numeric BETWEEN 1 AND 4 THEN
+  -- Records depend only on public cells: hidden whenever a people count was complement-hidden, else by the 1-4 rules.
+  IF i->>'reason' = 'COMPLEMENTARY_SUPPRESSION' OR a->>'reason' = 'COMPLEMENTARY_SUPPRESSION' THEN
     p := pathways.p06_cell(NULL, 'COMPLEMENTARY_SUPPRESSION');
+  ELSE
+    p := pathways.p06_complement_cell(i, p);
+    IF p->>'value' IS NOT NULL AND a->>'value' IS NOT NULL
+       AND (p->>'value')::numeric - (a->>'value')::numeric BETWEEN 1 AND 4 THEN
+      p := pathways.p06_cell(NULL, 'COMPLEMENTARY_SUPPRESSION');
+    END IF;
   END IF;
   RETURN data || jsonb_build_object('enrolledIndividuals', i, 'attendingIndividuals', a, 'participationRecords', p);
 END
