@@ -46,12 +46,13 @@ import type {
   RoleDashboardViewModel,
 } from '@/types/pathways'
 import { type PathwaysRole, getPathwaysRoleDisplayName } from '@/types/pathways-role'
-import { businessCalendarDate, formatMetricCell } from '@pathways/shared'
+import { businessCalendarDate } from '@pathways/shared'
 
 import { ActivityDetailPanel } from '../projects/activity-detail-panel'
 import { ActivityProofDialog } from '../projects/activity-proof-dialog'
 import { ActionKpiRow } from './action-kpi-row'
 import { ExecutiveDashboard } from './executive-dashboard'
+import { monitoringReachMetrics } from './monitoring-reach-metrics'
 import { PinnedCharts } from './pinned-charts'
 import { RoleOverviewDashboard } from './role-overview/role-overview'
 
@@ -251,7 +252,6 @@ const trailingYearPeriod = () => {
   start.setUTCDate(start.getUTCDate() - 365)
   return { periodStart: start.toISOString().slice(0, 10), periodEnd }
 }
-const PERIOD_NOTE = 'Covers the last 12 months.'
 const ConnectedMonitoringSnapshot = ({
   role,
   action,
@@ -301,32 +301,7 @@ const ConnectedMonitoringSnapshot = ({
       })
       .then((result) => {
         if (!active) return
-        setMetrics([
-          {
-            id: 'projects',
-            label: 'Authorized projects',
-            value: String(result.scopeProjectCount),
-            helperText: 'Server-derived project scope.',
-          },
-          {
-            id: 'participation',
-            label: 'Participation records',
-            value: countOrZero(result.participationRecords),
-            helperText: `Committed records, not a count of people. ${PERIOD_NOTE}`,
-          },
-          {
-            id: 'attending',
-            label: 'Distinct attending individuals',
-            value: countOrZero(result.attendingIndividuals),
-            helperText: `Present/completed attendance; deduplicated across projects. ${PERIOD_NOTE}`,
-          },
-          {
-            id: 'enrolled',
-            label: 'Enrolled individuals',
-            value: countOrZero(result.enrolledIndividuals),
-            helperText: 'Enrollment overlaps the last 12 months; privacy suppression applies.',
-          },
-        ])
+        setMetrics(monitoringReachMetrics(result))
       })
       .catch((caught: unknown) => {
         if (active)
@@ -474,10 +449,6 @@ const DashboardListItem = ({
     ) : null}
   </div>
 )
-
-// Snapshot counts read 0 when no records exist yet; suppressed counts keep their label (cr-pathways-overview-zero-display).
-const countOrZero = (cell: Parameters<typeof formatMetricCell>[0]) =>
-  cell.state === 'MISSING' || cell.state === 'NOT_APPLICABLE' ? '0' : formatMetricCell(cell)
 
 export const RoleDashboard = () => {
   const router = useRouter()
