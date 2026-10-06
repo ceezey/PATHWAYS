@@ -2,7 +2,12 @@ import { clearSensitiveDraftStorage } from '@/lib/auth/sensitive-drafts'
 /* @vitest-environment jsdom */
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { LiveReportingWorkspace, allowedKinds, kinds } from './live-reporting-workspace'
+import {
+  LiveReportingWorkspace,
+  allowedKinds,
+  kinds,
+  reportFileName,
+} from './live-reporting-workspace'
 import { sampleProjectReport } from './print/print-report-sample'
 
 const state = vi.hoisted(() => ({
@@ -292,9 +297,13 @@ describe('report generation owned retries', () => {
     expect(state.downloadArtifact.mock.calls[0][0]).toBe(
       `/projects/${state.project}/reports/30000000-0000-4000-8000-000000000003/export`,
     )
-    expect(state.downloadArtifact.mock.calls[0][1]).toBe(
-      'report-30000000-0000-4000-8000-000000000003.pdf',
-    )
+    expect(state.downloadArtifact.mock.calls[0][1]).toBe('Private saved report.pdf')
+  })
+  it.each([
+    ['Q3: North/South <draft>?', 'Q3 North South draft.pdf'],
+    ['  ...  ', 'report-30000000-0000-4000-8000-000000000003.pdf'],
+  ])('makes the report name %j a safe file name', (name, expected) => {
+    expect(reportFileName(name, '30000000-0000-4000-8000-000000000003', 'pdf')).toBe(expected)
   })
   it('hides generate and download actions for a role missing those permissions', () => {
     state.permissions = ['reports.read', 'reports.project.read', 'forms.read', 'assessments.read']
@@ -330,5 +339,38 @@ describe('report kinds requiring monitoring.read', () => {
   it('offers both kinds with monitoring.read', () => {
     const offered = allowedKinds(profile([...grants, 'monitoring.read']))
     expect(offered).toEqual(expect.arrayContaining(['MONITORING_REPORT', 'EVALUATION_REPORT']))
+  })
+})
+
+describe('beneficiary summary kind', () => {
+  const profile = (role: string, permissions: string[]) =>
+    ({
+      userId: 'u',
+      organizationId: 'org',
+      roles: [role],
+      permissions,
+      assignedProjectIds: [],
+    }) as unknown as Parameters<typeof allowedKinds>[0]
+  const grants = ['reports.read', 'reports.beneficiary.read', 'beneficiaries.aggregates.read']
+
+  it('is hidden from a project officer who lacks analytics.saddd.read', () => {
+    expect(allowedKinds(profile('PROJECT_OFFICER', grants))).not.toContain('BENEFICIARY_SUMMARY')
+  })
+
+  it('is hidden when either aggregate grant is revoked', () => {
+    const full = [...grants, 'analytics.saddd.read']
+    for (const missing of ['analytics.saddd.read', 'beneficiaries.aggregates.read']) {
+      const permissions = full.filter((permission) => permission !== missing)
+      expect(allowedKinds(profile('MONITORING_AND_EVALUATION_OFFICER', permissions))).not.toContain(
+        'BENEFICIARY_SUMMARY',
+      )
+    }
+  })
+
+  it('is offered with both aggregate grants', () => {
+    const permissions = [...grants, 'analytics.saddd.read']
+    expect(allowedKinds(profile('MONITORING_AND_EVALUATION_OFFICER', permissions))).toContain(
+      'BENEFICIARY_SUMMARY',
+    )
   })
 })

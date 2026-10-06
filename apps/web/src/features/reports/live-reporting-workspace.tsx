@@ -33,21 +33,25 @@ type Kind =
   | 'EVALUATION_REPORT'
 type Principal = Parameters<typeof principalHasAtomicPermission>[0]
 type AtomicPermission = Parameters<typeof principalHasAtomicPermission>[1]
-type KindDefinition = { label: string; permission: AtomicPermission; requires?: AtomicPermission }
+type KindDefinition = { label: string; permission: AtomicPermission; requires?: AtomicPermission[] }
 export const kinds: Record<Kind, KindDefinition> = {
   PROJECT_SUMMARY: { label: 'Project summary', permission: 'reports.project.read' },
   INDICATOR_SUMMARY: { label: 'Indicator summary', permission: 'reports.indicator.read' },
-  BENEFICIARY_SUMMARY: { label: 'Beneficiary summary', permission: 'reports.beneficiary.read' },
+  BENEFICIARY_SUMMARY: {
+    label: 'Beneficiary summary',
+    permission: 'reports.beneficiary.read',
+    requires: ['analytics.saddd.read', 'beneficiaries.aggregates.read'],
+  },
   SURVEY_FORM_RESULTS: { label: 'Survey results', permission: 'reports.project.read' },
   MONITORING_REPORT: {
     label: 'Monitoring report',
     permission: 'reports.indicator.read',
-    requires: 'monitoring.read',
+    requires: ['monitoring.read'],
   },
   EVALUATION_REPORT: {
     label: 'Evaluation report',
     permission: 'reports.project.read',
-    requires: 'monitoring.read',
+    requires: ['monitoring.read'],
   },
 }
 
@@ -56,9 +60,19 @@ export const allowedKinds = (profile: Principal) =>
   (Object.keys(kinds) as Kind[]).filter(
     (kind) =>
       principalHasAtomicPermission(profile, kinds[kind].permission) &&
-      (!kinds[kind].requires || principalHasAtomicPermission(profile, kinds[kind].requires)) &&
+      (kinds[kind].requires ?? []).every((grant) => principalHasAtomicPermission(profile, grant)) &&
       (kind !== 'SURVEY_FORM_RESULTS' || principalHasAtomicPermission(profile, 'assessments.read')),
   )
+
+/** Download name from the saved report name, stripped of characters file systems reject. */
+export const reportFileName = (name: string, reportId: string, extension: string) => {
+  const base = Array.from(name, (char) => (char < ' ' || '\\/:*?"<>|'.includes(char) ? ' ' : char))
+    .join('')
+    .replace(/\s+/g, ' ')
+    .replace(/^[\s.]+|[\s.]+$/g, '')
+    .slice(0, 150)
+  return `${base || `report-${reportId}`}.${extension}`
+}
 export function LiveReportingWorkspace({
   initialKind,
   previewOnly = false,
@@ -148,14 +162,14 @@ export function LiveReportingWorkspace({
   useEffect(() => {
     setSelectedForm(null)
   }, [id])
-  const download = async (reportId: string, extension: string) => {
+  const download = async (reportId: string, name: string, extension: string) => {
     const captured = exportOwner
     if (!captured?.isCurrent()) return
     setStatusMessage(`Downloading report as ${extension.toUpperCase()}.`)
     try {
       await downloadCoreArtifact(
         `/projects/${id}/reports/${reportId}/export`,
-        `report-${reportId}.${extension}`,
+        reportFileName(name, reportId, extension),
         captured.isCurrent,
       )
       if (captured.isCurrent()) setStatusMessage(`Report downloaded as ${extension.toUpperCase()}.`)
@@ -458,7 +472,9 @@ export function LiveReportingWorkspace({
                   <Button
                     variant="outline"
                     disabled={report.status !== 'GENERATED' || !report.format}
-                    onClick={() => void download(report.id, report.format?.toLowerCase() ?? '')}
+                    onClick={() =>
+                      void download(report.id, report.name, report.format?.toLowerCase() ?? '')
+                    }
                   >
                     <Download className="mr-2 h-4 w-4" />
                     Download
