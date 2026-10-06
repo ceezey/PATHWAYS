@@ -527,3 +527,6 @@
 
 ## 2026-10-07 Unreadable KPI and reach tiles hidden (fix/hide-unreadable-metric-tiles)
 - Project preview and Quick Preview leave out KPI achievement and Beneficiaries reached when the role cannot read them (Project Officers lack `monitoring.read` and `analytics.saddd.read`), like Budget utilization; Timeline always shows.
+
+## 2026-10-07 Activity budget hidden without budget access (fix/hide-activity-budget-without-access)
+- The activity panel's Activity budget section (Allocated, Spent, Remaining) showed "Unavailable" to roles without `budgets.read`, such as Project Officers. It is now left out for them.
