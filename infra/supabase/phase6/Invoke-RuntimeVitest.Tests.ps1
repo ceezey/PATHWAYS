@@ -28,9 +28,17 @@ Describe 'Invoke-RuntimeVitest' {
       "$out" | Should -Match 'Replay-Local.ps1 -MigrationBaseline -SaveTemplate'
     } finally { Set-Content $manifest $saved -NoNewline }
   }
-  It 'restores the environment and removes the cluster after a run' {
-    $out = pwsh -NoProfile -Command "`$env:DATABASE_URL='keep'; Remove-Item Env:PATHWAYS_REPORTS_LOCAL_TESTS -ErrorAction SilentlyContinue; & '$runner' -File '$reports' | Out-Null; `$env:DATABASE_URL; [bool]`$env:PATHWAYS_REPORTS_LOCAL_TESTS; [bool]`$env:PATHWAYS_REPLAY_PORT; exit 0"
-    $out | Should -Be @('keep', 'False', 'False')
+  It 'restores the environment and removes the cluster after a failed run' {
+    $saved = Get-Content $manifest -Raw
+    $env:DATABASE_URL = 'keep'
+    try {
+      ($saved | ConvertFrom-Json | ForEach-Object { $_.migrationsHash = 'stale'; $_ } | ConvertTo-Json) | Set-Content $manifest
+      & $runner -File $reports *> $null
+      $LASTEXITCODE | Should -Not -Be 0
+      $env:DATABASE_URL | Should -Be 'keep'
+      $env:PATHWAYS_REPORTS_LOCAL_TESTS | Should -BeNullOrEmpty
+      $env:PATHWAYS_REPLAY_PORT | Should -BeNullOrEmpty
+    } finally { Set-Content $manifest $saved -NoNewline; Remove-Item Env:DATABASE_URL -ErrorAction SilentlyContinue }
     (Get-ChildItem (Join-Path $root '.tmp') -Directory -Filter 'pathways-runtime-*').Count | Should -Be 0
   }
 }

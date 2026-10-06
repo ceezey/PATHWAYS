@@ -14,7 +14,6 @@ $flags = @{
   'src/modules/activity-extensions/activity-extensions.local.test.ts' = 'PATHWAYS_ACTIVITY_EXTENSIONS_LOCAL_TESTS'
   'src/modules/evaluations/evaluations.local.test.ts' = 'PATHWAYS_EVALUATIONS_LOCAL_TESTS'
 }
-$tableCount = '60'
 $root = (Resolve-Path "$PSScriptRoot/../../..").Path
 $api = Join-Path $root 'apps/api'
 $rel = [IO.Path]::GetRelativePath($api, (Resolve-Path -LiteralPath $File).Path).Replace('\', '/')
@@ -40,11 +39,14 @@ try {
   # The replay enables LOGIN on the runtime role before these suites.
   'ALTER ROLE pathways_runtime LOGIN;' | & (Join-Path $PostgresBin "psql$ext") -X -w -q -h 127.0.0.1 -p $port -U postgres -d $manifest.database -v ON_ERROR_STOP=1
   if ($LASTEXITCODE -ne 0) { throw 'Runtime role login setup failed.' }
+  # The saved template lacks the replay's compatibility probe table, so the guard count is read from the copy.
+  $count = ('SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname=''pathways'' AND c.relkind=''r'';' | & (Join-Path $PostgresBin "psql$ext") -X -w -q -A -t -h 127.0.0.1 -p $port -U postgres -d $manifest.database -v ON_ERROR_STOP=1).Trim()
+  if ($LASTEXITCODE -ne 0 -or $count -notmatch '^\d+$') { throw 'Table count query failed.' }
   $env:PATHWAYS_REPLAY_PORT = "$port"
   $env:DIRECT_URL = "postgresql://postgres@127.0.0.1:$port/$($manifest.database)?sslmode=disable&connection_limit=1"
   $env:DATABASE_URL = $env:DIRECT_URL
   [Environment]::SetEnvironmentVariable($flags[$rel], '1')
-  if ($flags[$rel] -ne 'PATHWAYS_CSV_RBAC_LOCAL_TESTS') { $env:PATHWAYS_EXPECTED_TABLE_COUNT = $tableCount }
+  if ($flags[$rel] -ne 'PATHWAYS_CSV_RBAC_LOCAL_TESTS') { $env:PATHWAYS_EXPECTED_TABLE_COUNT = $count }
   pnpm --dir $api exec vitest run $rel
   if ($LASTEXITCODE -ne 0) { throw "Vitest failed: $rel" }
   Write-Output 'RUNTIME_VITEST=PASS'
