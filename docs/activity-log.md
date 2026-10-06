@@ -545,3 +545,6 @@
 
 ## 2026-10-07 Hosted PDF report diagnostics (fix/report-artifact-diagnostics)
 - PDF reports failed on the Vercel preview with 503 while CSV worked; no designed-PDF warning was logged, so the pdfkit fallback is the suspect (its font is read from disk next to the compiled module, and the Vercel NestJS preset builds without `nest build`, which copies `modules/reports/assets`). pdfkit now also looks for the font under the working directory, and a generation failure logs only the error name and system code.
+
+## 2026-10-07 Step-up Reset button hidden (fix/hide-step-up-reset)
+- The beneficiary access verification dialog hides its Reset button behind `STEP_UP_RESET_UI_ENABLED = false`; registered in docs/deferred-features.md.
