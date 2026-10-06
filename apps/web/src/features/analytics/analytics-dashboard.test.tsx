@@ -20,6 +20,7 @@ const api = vi.hoisted(() => ({
 const alertHook = vi.hoisted(() => ({ result: { data: undefined } as Record<string, unknown> }))
 const download = vi.hoisted(() => vi.fn())
 const previewExport = vi.hoisted(() => vi.fn())
+const toastError = vi.hoisted(() => vi.fn())
 const idle = { data: undefined, isError: false, isPending: true, refetch: vi.fn() }
 const insights = vi.hoisted(() => ({
   budget: {} as Record<string, unknown>,
@@ -63,6 +64,7 @@ vi.mock('@/lib/services/pathways-client', () => ({
 vi.mock('@/lib/services/core-feature-client', () => ({
   downloadCoreArtifact: download,
 }))
+vi.mock('sonner', () => ({ toast: { error: toastError, success: vi.fn() } }))
 vi.mock('echarts-for-react', () => ({ default: () => <div>chart</div> }))
 vi.mock('./use-analytics-insights', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./use-analytics-insights')>()),
@@ -651,7 +653,7 @@ describe('Analytics dashboard request dependencies', () => {
     })
     expect(dialog.textContent).toContain('Showing 1 of 7 rows')
     expect(dialog.textContent).toContain('SUPPRESSED')
-    expect(screen.getByText(/KPI .* indicator performance for Project A/)).toBeTruthy()
+    expect(screen.getByText(/Descriptive analytics for Project A/)).toBeTruthy()
     expect(download).not.toHaveBeenCalled()
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
     await waitFor(() => expect(screen.queryByTestId('analytics-export-preview')).toBeNull())
@@ -717,7 +719,9 @@ describe('Analytics dashboard request dependencies', () => {
     render(<ExportEnabledDashboard />)
     await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
     fireEvent.click(screen.getByText('CSV'))
-    await waitFor(() => expect(previewExport).toHaveBeenCalled())
+    await waitFor(() =>
+      expect(toastError).toHaveBeenCalledWith('Monitoring verification is unavailable.'),
+    )
     expect(screen.queryByTestId('analytics-export-preview')).toBeNull()
     expect(download).not.toHaveBeenCalled()
     vi.doUnmock('@/constants/feature-flags')

@@ -424,10 +424,44 @@ describe('analytics descriptive read and export', () => {
       '0.6',
       '',
     ])
-    expect(tx.auditLog.create).toHaveBeenCalledTimes(1)
-    expect(tx.auditLog.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({ action: 'ANALYTICS_DESCRIPTIVE_EXPORTED' }),
+    // The preview is audited as a view; only the file export writes the export row.
+    const calls = tx.auditLog.create.mock.calls as unknown as Array<
+      [{ data: { action: string; changes: unknown } }]
+    >
+    const actions = calls.map(([call]) => call.data.action)
+    expect(actions).toEqual(['ANALYTICS_DESCRIPTIVE_VIEWED', 'ANALYTICS_DESCRIPTIVE_EXPORTED'])
+    expect(calls[0]?.[0].data.changes).toMatchObject({
+      source: 'EXPORT_PREVIEW',
     })
+  })
+
+  it('happy: preview caps rows at 50 and reports the full row count', async () => {
+    const group = (n: number) => ({
+      activityId: `40000000-0000-4000-8000-${String(n).padStart(12, '0')}`,
+      pairs: 20,
+      sumPre: 1000,
+      sumPost: 1400,
+      improved: 15,
+      same: 3,
+      declined: 2,
+    })
+    const { service } = harness(releasedSaddd, '2026-06-30', {
+      surveyAggregate: {
+        excludedRecords: 0,
+        groups: [
+          { ...group(0), activityId: null },
+          ...Array.from({ length: 60 }, (_, i) => group(i + 1)),
+        ],
+      },
+    })
+    const preview = await service.exportPreview(actor('PROJECT_MANAGER'), {
+      projectId: projectA,
+      periodStart: '2026-01-01',
+      periodEnd: '2026-12-31',
+      view: 'survey',
+    })
+    expect(preview.rows).toHaveLength(50)
+    expect(preview.totalRows).toBeGreaterThan(50)
   })
 
   it('abuse: preview keeps small-cell suppression and needs analytics.export', async () => {

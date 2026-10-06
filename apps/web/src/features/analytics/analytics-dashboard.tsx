@@ -902,7 +902,6 @@ export const AnalyticsDashboard = () => {
             analysisView === 'timeline'
               ? 'current reporting date'
               : (pickerPeriod?.label ?? 'all periods'),
-          view: analysisMeta.title,
         }}
         downloading={exporting}
         format={exportPreview?.format ?? ''}

@@ -347,5 +347,5 @@
 - Deferred (docs/deferred-features.md): closed-evaluation view, display labels, workspace split, criteria versioning, workspace UI tests. Full MigrationBaseline replay green (161 PASS, evaluations suite 8 passed); API 2222 and web 1821 tests pass.
 
 ## 2026-10-06 Analytics export preview and 503 diagnosis (fix/analytics-page)
-- Export aggregates now opens a preview dialog (first 50 rows of the exact suppressed table, project, period, view) before Download; the new `GET /analytics/descriptive/export/preview` writes no export audit row.
+- Export aggregates now opens a preview dialog (first 50 rows of the exact suppressed table, project, period, view) before Download; the new `GET /analytics/descriptive/export/preview` is audited as a view (source EXPORT_PREVIEW), not as an export.
 - Analytics 503s keep their specific message (timeout, contract, file render fault) and log a non-sensitive cause; the web client shows 503 reasons instead of the generic text. No migration.

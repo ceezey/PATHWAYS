@@ -18,7 +18,7 @@ export const AnalyticsExportPreviewDialog = ({
   onDownload,
   preview,
 }: {
-  context: { project: string; period: string; view: string }
+  context: { project: string; period: string }
   downloading: boolean
   format: string
   onCancel: () => void
@@ -30,7 +30,7 @@ export const AnalyticsExportPreviewDialog = ({
     confirmDisabled={downloading}
     confirmLabel={downloading ? 'Downloading' : 'Download'}
     confirmVariant="default"
-    description={`${context.view} for ${context.project}, ${context.period}. The ${format} file contains these aggregate rows only.`}
+    description={`${preview?.title ?? 'Aggregates'} for ${context.project}, ${context.period}. The ${format} file contains these aggregate rows only.`}
     onConfirm={onDownload}
     onOpenChange={(open) => {
       if (!open) onCancel()

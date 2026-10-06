@@ -21,6 +21,7 @@ import {
 } from '@pathways/shared'
 import { Prisma } from '@prisma/client'
 import { PrismaService } from '../../prisma/prisma.service'
+import { prismaDiagnosticCode } from '../../prisma/transaction-diagnostic'
 import { hasAtomicPermission } from '../auth/authorization-policy'
 import { projectScope } from '../auth/authorized-data.service'
 import { withAuthorizedOperation } from '../auth/authorized-operation'
@@ -100,11 +101,28 @@ async function exportArtifact(
   }
 }
 
-/** Non-sensitive fault label (error name, driver code or SQL state) for logs; never the message. */
+/** Own data property read without invoking getters. */
+function ownString(value: unknown, key: string, pattern: RegExp) {
+  if (!value || typeof value !== 'object') return ''
+  const found = Object.getOwnPropertyDescriptor(value, key)?.value
+  return typeof found === 'string' && pattern.test(found) ? found : ''
+}
+
+/** Allowlisted fault label (error name, Prisma code, SQL state) for logs; never the message. */
 function faultCause(error: unknown) {
-  if (!error || typeof error !== 'object') return 'UNKNOWN'
-  const { name, code, meta } = error as { name?: string; code?: unknown; meta?: { code?: unknown } }
-  return [name, code, meta?.code].filter((part) => typeof part === 'string').join(':') || 'UNKNOWN'
+  const meta =
+    error && typeof error === 'object'
+      ? Object.getOwnPropertyDescriptor(error, 'meta')?.value
+      : null
+  return (
+    [
+      ownString(error, 'name', /^[A-Za-z]{1,64}$/),
+      prismaDiagnosticCode(error),
+      ownString(meta, 'code', /^[0-9A-Z]{5}$/),
+    ]
+      .filter(Boolean)
+      .join(':') || 'UNKNOWN'
+  )
 }
 
 @Injectable()
@@ -349,6 +367,7 @@ export class AnalyticsService {
     actor: ApplicationIdentity,
     projectId: string,
     query: DescriptiveAnalyticsQuery,
+    source?: 'EXPORT_PREVIEW',
   ) {
     await tx.auditLog.create({
       data: {
@@ -362,6 +381,7 @@ export class AnalyticsService {
           view: query.view ?? 'combined',
           periodStart: query.periodStart ?? null,
           periodEnd: query.periodEnd ?? null,
+          ...(source ? { source } : {}),
         },
       },
     })
@@ -396,6 +416,8 @@ export class AnalyticsService {
             ? 'CONTRACT_OR_DATABASE_UNAVAILABLE'
             : 'UNEXPECTED_FAULT',
         cause: faultCause(error),
+        // A typed 503 carries our own curated message, so it is safe to log.
+        ...(error instanceof ServiceUnavailableException ? { detail: error.message } : {}),
       })
       // A typed 503 already names its cause (timeout, contract), so it is passed through.
       if (error instanceof ServiceUnavailableException) throw error
@@ -448,12 +470,13 @@ export class AnalyticsService {
     )
   }
 
-  /** The first rows of the exact table the file contains, without writing an export audit row. */
+  /** The first rows of the exact table the file contains, audited as a view (source EXPORT_PREVIEW), never as an export. */
   async exportPreview(identity: ApplicationIdentity, input: unknown) {
     const query = parseDescriptiveQuery(input)
     return withAuthorizedOperation(this.prisma, identity, 'analytics.export', async (tx, actor) =>
       this.withRetrievalFaultMapping(async () => {
-        const { title, table } = await this.exportSource(tx, actor, query)
+        const { title, table, projectId } = await this.exportSource(tx, actor, query)
+        await this.recordViewedAudit(tx, actor, projectId, query, 'EXPORT_PREVIEW')
         const text = (row: AnalyticsTable[number]) =>
           row.map((cell) => (cell === null ? '' : String(cell)))
         return {
