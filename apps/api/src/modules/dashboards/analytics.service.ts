@@ -321,6 +321,11 @@ export class AnalyticsService {
     if (!aggregate.success)
       throw new ServiceUnavailableException('Timeline aggregate response contract is unavailable.')
     // Parsed against the contract, same as every other view, instead of trusting the builder's shape.
+    // Only a completed, unarchived project reports a final position; others skip the extra query.
+    const lastCompletedOn =
+      project.status === 'COMPLETED' && project.archivedAt === null
+        ? await this.lastCompletion(tx, actor, project.id)
+        : null
     return timelineAnalyticsSchema.parse(
       buildTimelineAnalytics({
         projectId: project.id,
@@ -334,8 +339,23 @@ export class AnalyticsService {
           endDate: project.endDate ? project.endDate.toISOString().slice(0, 10) : null,
         },
         aggregate: aggregate.data,
+        lastCompletedOn,
       }),
     )
+  }
+
+  /** Latest completed-activity end date from the trusted function, as YYYY-MM-DD or null. */
+  private async lastCompletion(
+    tx: Prisma.TransactionClient,
+    actor: ApplicationIdentity,
+    projectId: string,
+  ): Promise<string | null> {
+    const raw = await this.callAggregate(
+      tx,
+      Prisma.sql`SELECT pathways.p10_f9_timeline_last_completion(${actor.organizationId}::uuid,${projectId}::uuid) AS data`,
+    )
+    if (raw instanceof Date) return raw.toISOString().slice(0, 10)
+    return typeof raw === 'string' ? raw : null
   }
 
   private async recordViewedAudit(

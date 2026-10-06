@@ -309,6 +309,20 @@ export const BeneficiaryDirectory = ({
     table.setPageIndex(0)
   }
 
+  // Returns a filter setter that also sends the table back to page 1.
+  const withPageReset = (setter: (value: string) => void) => (value: string) => {
+    setter(value)
+    table.setPageIndex(0)
+  }
+
+  const pageCount = table.getPageCount()
+  const { pageIndex } = table.getState().pagination
+
+  // Clamps the page when the filtered list shrinks below the current page.
+  useEffect(() => {
+    if (pageIndex > 0 && pageIndex >= pageCount) table.setPageIndex(Math.max(0, pageCount - 1))
+  }, [pageCount, pageIndex, table])
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -347,18 +361,26 @@ export const BeneficiaryDirectory = ({
                 placeholder="Enter Beneficiary name or code"
                 type="search"
                 value={search}
-                onChange={(event) => setSearch(event.target.value)}
+                onChange={(event) => withPageReset(setSearch)(event.target.value)}
               />
             </span>
           </div>
-          <FilterSelect label="Project" value={projectId} onValueChange={setProjectId}>
+          <FilterSelect
+            label="Project"
+            value={projectId}
+            onValueChange={withPageReset(setProjectId)}
+          >
             {scopedProjects.map((project) => (
               <SelectItem key={project.id} value={project.id}>
                 {project.title}
               </SelectItem>
             ))}
           </FilterSelect>
-          <FilterSelect label="Location" value={location} onValueChange={setLocation}>
+          <FilterSelect
+            label="Location"
+            value={location}
+            onValueChange={withPageReset(setLocation)}
+          >
             <SelectItem value={allValue}>All locations</SelectItem>
             {locations.map((item) => (
               <SelectItem key={item} value={item}>
@@ -366,7 +388,7 @@ export const BeneficiaryDirectory = ({
               </SelectItem>
             ))}
           </FilterSelect>
-          <FilterSelect label="Sex" value={sex} onValueChange={setSex}>
+          <FilterSelect label="Sex" value={sex} onValueChange={withPageReset(setSex)}>
             <SelectItem value={allValue}>All sex values</SelectItem>
             <SelectItem value="Female">Female</SelectItem>
             <SelectItem value="Male">Male</SelectItem>
@@ -374,7 +396,11 @@ export const BeneficiaryDirectory = ({
             <SelectItem value="Prefer not to say">Prefer not to say</SelectItem>
             <SelectItem value="Not specified">Not specified</SelectItem>
           </FilterSelect>
-          <FilterSelect label="Age group" value={ageGroup} onValueChange={setAgeGroup}>
+          <FilterSelect
+            label="Age group"
+            value={ageGroup}
+            onValueChange={withPageReset(setAgeGroup)}
+          >
             <SelectItem value={allValue}>All age groups</SelectItem>
             <SelectItem value="5-9">5-9</SelectItem>
             <SelectItem value="10-14">10-14</SelectItem>
@@ -386,7 +412,7 @@ export const BeneficiaryDirectory = ({
           <FilterSelect
             label="Disability status"
             value={disabilityStatus}
-            onValueChange={setDisabilityStatus}
+            onValueChange={withPageReset(setDisabilityStatus)}
           >
             <SelectItem value={allValue}>All statuses</SelectItem>
             <SelectItem value="With disability">With disability</SelectItem>
@@ -396,7 +422,7 @@ export const BeneficiaryDirectory = ({
           <FilterSelect
             label="Enrollment status"
             value={enrollmentStatus}
-            onValueChange={setEnrollmentStatus}
+            onValueChange={withPageReset(setEnrollmentStatus)}
           >
             <SelectItem value={allValue}>All enrollment statuses</SelectItem>
             <SelectItem value="Active">Active</SelectItem>
