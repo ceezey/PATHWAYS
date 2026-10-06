@@ -530,3 +530,6 @@
 
 ## 2026-10-07 Maps and Backup & Recovery hidden (fix/hide-backup-and-maps)
 - The Analytics "Map" visualization is hidden for every role behind `MAPS_UI_ENABLED = false`, and Backup & Recovery is hidden behind `BACKUP_RECOVERY_UI_ENABLED = false` (sidebar entry removed, `/settings/backups` returns not found). Both are registered in docs/deferred-features.md.
+
+## 2026-10-07 Target Indicators tab layout (fix/indicators-tab-layout)
+- The project Target Indicators tab drops its intro note, hides "Use from library" and the Indicator library link behind `INDICATOR_LIBRARY_UI_ENABLED = false`, and moves Refresh indicators and Add project indicator into the Indicators card heading, right aligned. The card now also holds the loading, error and empty states, so Add stays reachable with no indicators.

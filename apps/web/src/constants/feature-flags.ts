@@ -36,6 +36,13 @@ export const MAPS_UI_ENABLED = false
 export const BACKUP_RECOVERY_UI_ENABLED = false
 
 /**
+ * The project Target Indicators tab hides "Use from library" and the Indicator library link
+ * (2026-10-07, developer request). The library page, API and permissions stay in place; see
+ * docs/deferred-features.md.
+ */
+export const INDICATOR_LIBRARY_UI_ENABLED = false
+
+/**
  * Controls with no backend yet (disabled "Not available yet" buttons, disabled form options,
  * the beneficiary Media proof tab and similar) are shown (true, the shipped value). Set to
  * `false` to hide them so the product shows no unfinished state; nothing server-side changes.
