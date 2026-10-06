@@ -33,6 +33,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Sheet } from '@/components/ui/sheet'
+import { DASHBOARD_PINS_UI_ENABLED } from '@/constants/feature-flags'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { can } from '@/lib/rbac/can'
 import { type RoutePrincipal, principalHasAtomicPermission } from '@/lib/rbac/route-access'
@@ -371,7 +372,7 @@ const ConnectedMonitoringSnapshot = ({
           title="No authorized projects"
         />
       )}
-      <PinnedCharts projects={projects} />
+      {DASHBOARD_PINS_UI_ENABLED ? <PinnedCharts projects={projects} /> : null}
     </SectionCard>
   )
 }

@@ -11,9 +11,23 @@ afterEach(() => {
   vi.resetModules()
 })
 
+const loadEditor = async (flags: Record<string, boolean>) => {
+  vi.resetModules()
+  vi.doMock('@/constants/feature-flags', () => flags)
+  return (await import('./page-heading-editor')).PageHeadingEditor
+}
+const shownFlags = { UNFINISHED_CONTROLS_UI_ENABLED: true, PAGE_HEADING_EDITOR_UI_ENABLED: true }
+
 describe('PageHeadingEditor', () => {
-  it('renders a focusable, aria-disabled pencil control with the Not available yet hint', () => {
-    render(<PageHeadingEditor labelKey="moduleProjects" title="Projects" />)
+  it('renders nothing with the shipped flags', () => {
+    const { container } = render(<PageHeadingEditor labelKey="moduleProjects" title="Projects" />)
+
+    expect(container.innerHTML).toBe('')
+  })
+
+  it('renders a focusable, aria-disabled pencil control with the Not available yet hint', async () => {
+    const Editor = await loadEditor(shownFlags)
+    render(<Editor labelKey="moduleProjects" title="Projects" />)
 
     const button = screen.getByRole('button', { name: 'Edit Projects page heading' })
     // Native `disabled` would remove the control from the tab order, hiding
@@ -32,8 +46,9 @@ describe('PageHeadingEditor', () => {
     expect(hint?.className).toContain('sr-only')
   })
 
-  it('opens no dialog when clicked', () => {
-    render(<PageHeadingEditor labelKey="moduleProjects" title="Projects" />)
+  it('opens no dialog when clicked', async () => {
+    const Editor = await loadEditor(shownFlags)
+    render(<Editor labelKey="moduleProjects" title="Projects" />)
 
     const button = screen.getByRole('button', { name: 'Edit Projects page heading' })
     button.click()
@@ -42,10 +57,11 @@ describe('PageHeadingEditor', () => {
     expect(button.getAttribute('aria-disabled')).toBe('true')
   })
 
-  it('renders nothing while unfinished controls are hidden', async () => {
-    vi.resetModules()
-    vi.doMock('@/constants/feature-flags', () => ({ UNFINISHED_CONTROLS_UI_ENABLED: false }))
-    const { PageHeadingEditor: HiddenEditor } = await import('./page-heading-editor')
+  it.each([
+    { UNFINISHED_CONTROLS_UI_ENABLED: false, PAGE_HEADING_EDITOR_UI_ENABLED: true },
+    { UNFINISHED_CONTROLS_UI_ENABLED: true, PAGE_HEADING_EDITOR_UI_ENABLED: false },
+  ])('renders nothing while either flag is off: %j', async (flags) => {
+    const HiddenEditor = await loadEditor(flags)
     const { container } = render(<HiddenEditor labelKey="moduleProjects" title="Projects" />)
 
     expect(container.innerHTML).toBe('')

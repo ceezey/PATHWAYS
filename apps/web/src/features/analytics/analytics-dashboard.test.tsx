@@ -658,6 +658,7 @@ describe('Analytics dashboard request dependencies', () => {
     vi.doMock('@/constants/feature-flags', () => ({
       ANALYTICS_AGGREGATE_EXPORT_UI_ENABLED: true,
       UNFINISHED_CONTROLS_UI_ENABLED: true,
+      DASHBOARD_PINS_UI_ENABLED: false,
     }))
     const { AnalyticsDashboard: ExportEnabledDashboard } = await import('./analytics-dashboard')
     currentAccess.profile.permissions = [
@@ -780,6 +781,7 @@ describe('Analytics dashboard request dependencies', () => {
     vi.doMock('@/constants/feature-flags', () => ({
       ANALYTICS_AGGREGATE_EXPORT_UI_ENABLED: true,
       UNFINISHED_CONTROLS_UI_ENABLED: true,
+      DASHBOARD_PINS_UI_ENABLED: false,
     }))
     const { AnalyticsDashboard: ExportEnabledDashboard } = await import('./analytics-dashboard')
     render(<ExportEnabledDashboard />)
@@ -824,8 +826,23 @@ describe('Analytics dashboard request dependencies', () => {
     expect(download).not.toHaveBeenCalled()
   })
 
-  it('pins the current view, project and period with Add to Dashboard', async () => {
+  it('hides Add to Dashboard while the dashboard pins flag is off', async () => {
     render(<AnalyticsDashboard />)
+    await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
+
+    expect(screen.queryByRole('button', { name: 'Add to Dashboard' })).toBeNull()
+  })
+
+  it('pins the current view, project and period with Add to Dashboard (flag on)', async () => {
+    vi.resetModules()
+    vi.doMock('@/constants/feature-flags', () => ({
+      ANALYTICS_AGGREGATE_EXPORT_UI_ENABLED: true,
+      UNFINISHED_CONTROLS_UI_ENABLED: true,
+      DASHBOARD_PINS_UI_ENABLED: true,
+    }))
+    const { AnalyticsDashboard: PinsEnabledDashboard } = await import('./analytics-dashboard')
+    vi.doUnmock('@/constants/feature-flags')
+    render(<PinsEnabledDashboard />)
     await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
 
     await waitFor(() =>
@@ -859,6 +876,7 @@ describe('Analytics dashboard request dependencies', () => {
     vi.doMock('@/constants/feature-flags', () => ({
       ANALYTICS_AGGREGATE_EXPORT_UI_ENABLED: false,
       UNFINISHED_CONTROLS_UI_ENABLED: false,
+      DASHBOARD_PINS_UI_ENABLED: true,
     }))
     const { AnalyticsDashboard: HiddenDashboard } = await import('./analytics-dashboard')
     vi.doUnmock('@/constants/feature-flags')

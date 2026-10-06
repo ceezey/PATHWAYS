@@ -33,7 +33,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { ANALYTICS_AGGREGATE_EXPORT_UI_ENABLED } from '@/constants/feature-flags'
+import {
+  ANALYTICS_AGGREGATE_EXPORT_UI_ENABLED,
+  DASHBOARD_PINS_UI_ENABLED,
+} from '@/constants/feature-flags'
 import { metricUnavailableLabel, overviewMetricLabel } from '@/features/projects/project-utils'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'
@@ -861,7 +864,7 @@ export const AnalyticsDashboard = () => {
             </SelectContent>
           </Select>
         </div>
-        {pinPermitted ? (
+        {DASHBOARD_PINS_UI_ENABLED && pinPermitted ? (
           <div className="flex items-end sm:col-span-2 xl:col-span-3 xl:col-start-10 xl:row-start-3">
             <Button
               className="shrink-0"
