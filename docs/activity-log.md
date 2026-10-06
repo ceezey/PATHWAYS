@@ -548,3 +548,6 @@
 
 ## 2026-10-07 Step-up Reset button hidden (fix/hide-step-up-reset)
 - The beneficiary access verification dialog hides its Reset button behind `STEP_UP_RESET_UI_ENABLED = false`; registered in docs/deferred-features.md.
+
+## 2026-10-07 PDF reports on Vercel (fix/pdfkit-default-font)
+- Root cause of the preview 503: `new PDFDocument()` loads pdfkit's default Helvetica through `createRequire(...)('#standard-fonts/Helvetica')`, which Vercel's file tracing does not bundle, so every pdfkit PDF threw MODULE_NOT_FOUND. Documents now start on the bundled NotoSans font, so the standard fonts are never loaded. Reproduced against the compiled CommonJS build with the standard fonts blocked: before the fix MODULE_NOT_FOUND, after it a valid PDF.
