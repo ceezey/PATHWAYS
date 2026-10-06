@@ -364,3 +364,6 @@
 
 ## 2026-10-06 Fix round 1
 - Journey records survive a stage retry (first-run event snapshot, stored sessions skipped, all projects settle before failing); directory progress follows the person's own path (branch counted once, terminal stage 100) and the current stage follows the detail page rule; activity reach comes from the seeded attendance.
+
+## 2026-10-06 Zone check memo migration 0065
+- [cr-pathways-zone-check-memo](cr-pathways-zone-check-memo.md): `0065_zone_check_memo` adds `p06_zone_is_valid`, which remembers a validated timezone per transaction, and `p06_assert_scope` and `p06_home_dashboard` use it instead of reading `pg_timezone_names` on every call (0.43 s each on devV2, which timed out the 3 s analytics reads). Owner, SECURITY DEFINER and ACLs are unchanged; hosted plan, Verify-Forward and the runtime suite register 0065.
