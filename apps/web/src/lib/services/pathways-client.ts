@@ -414,6 +414,7 @@ export interface PathwaysClient {
   ): Promise<ProjectMilestone>
   getEvidence(projectId: string): Promise<EvidenceList>
   getProjectIndicators(projectId: string, signal?: AbortSignal): Promise<ProjectIndicator[]>
+  getProjectIndicatorValues(projectId: string, signal?: AbortSignal): Promise<ProjectIndicator[]>
   getProjectIndicator(projectId: string, indicatorId: string): Promise<ProjectIndicator>
   createProjectIndicator(
     projectId: string,
@@ -1154,6 +1155,18 @@ class BackendReadyPathwaysClient implements PathwaysClient {
   async getProjectIndicators(projectId: string, signal?: AbortSignal): Promise<ProjectIndicator[]> {
     return projectIndicatorListSchema.parse(
       await requestFoundation(`/projects/${encodeURIComponent(projectId)}/indicators`, { signal }),
+    )
+  }
+
+  // KPI values for monitoring.read holders without indicators.read; definitions stay closed.
+  async getProjectIndicatorValues(
+    projectId: string,
+    signal?: AbortSignal,
+  ): Promise<ProjectIndicator[]> {
+    return projectIndicatorListSchema.parse(
+      await requestFoundation(`/projects/${encodeURIComponent(projectId)}/indicator-values`, {
+        signal,
+      }),
     )
   }
 
