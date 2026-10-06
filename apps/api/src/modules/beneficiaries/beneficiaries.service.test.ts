@@ -807,6 +807,14 @@ describe('F3 scoped read and denial gates', () => {
     expect(raw).not.toHaveBeenCalled()
   })
 
+  it('marks detail progress restricted without a journey grant and never queries journey tables', async () => {
+    const raw = vi.fn()
+    readState.tx = { ...readTx, $queryRaw: raw }
+    const detail = await service.get(actor, projectId, beneficiaryId)
+    expect(detail.progress).toEqual({ restricted: true })
+    expect(raw).not.toHaveBeenCalled()
+  })
+
   it.each(['PROGRAM_MANAGER', 'GRANT_MANAGER', 'SYSTEM_ADMINISTRATOR'])(
     'G-F3-5 denies beneficiary detail to %s even with a claimed records.read grant',
     async (role) => {
