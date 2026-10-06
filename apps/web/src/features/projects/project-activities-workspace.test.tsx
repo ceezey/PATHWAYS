@@ -89,6 +89,14 @@ vi.mock('@/components/ui/dropdown-menu', () => ({
     </button>
   ),
 }))
+// A Project Manager now reads expenses and budget lines for the activity expense trail.
+vi.mock('@/lib/services/core-feature-client', () => ({
+  coreDataClient: {
+    budgetReferences: vi.fn().mockResolvedValue([]),
+    budgets: vi.fn().mockResolvedValue([]),
+    expenses: vi.fn().mockResolvedValue([]),
+  },
+}))
 vi.mock('@/hooks/use-current-role', () => ({ useCurrentRole: () => access }))
 vi.mock('@/hooks/use-display-labels', () => ({
   useDisplayLabels: () => ({ labels: { projectActivities: 'Activities' } }),

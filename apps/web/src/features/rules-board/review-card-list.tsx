@@ -36,6 +36,28 @@ export const basisLine = (alert: HumanAlert) => {
     : null
 }
 
+// Tailwind needs whole class names, so each tone keeps its own surface, border, icon and title styles.
+const TONE_STYLES = {
+  danger: {
+    border: 'border-danger/30',
+    surface: 'bg-danger-subtle hover:bg-danger-subtle/70',
+    icon: 'text-danger',
+    title: 'text-danger',
+  },
+  warning: {
+    border: 'border-warning/30',
+    surface: 'bg-warning-subtle hover:bg-warning-subtle/70',
+    icon: 'text-warning',
+    title: 'text-foreground',
+  },
+  neutral: {
+    border: 'border-border',
+    surface: 'bg-muted hover:bg-muted/70',
+    icon: 'text-muted-foreground',
+    title: 'text-foreground',
+  },
+} as const
+
 type Props = {
   items: (HumanAlert | HumanRecommendation)[]
   selectedId: string | null
@@ -53,12 +75,13 @@ export function ReviewCardList({ items, selectedId, onSelect, projectLabel, deta
         const label = alert ? projectLabel?.(item.projectId) : undefined
         const basis = alert ? basisLine(item) : null
         const open = item.id === selectedId
+        const tone = TONE_STYLES[alert ? severityTone(item.severity) : 'warning']
         return (
           <li key={item.id}>
             <div
               className={cn(
                 'overflow-hidden rounded-md border',
-                alert ? 'border-danger/30' : 'border-warning/30',
+                tone.border,
                 open && 'ring-2 ring-ring',
               )}
             >
@@ -68,9 +91,7 @@ export function ReviewCardList({ items, selectedId, onSelect, projectLabel, deta
                 aria-expanded={open}
                 className={cn(
                   'flex w-full flex-col gap-2 p-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',
-                  alert
-                    ? 'bg-danger-subtle hover:bg-danger-subtle/70'
-                    : 'bg-warning-subtle hover:bg-warning-subtle/70',
+                  tone.surface,
                 )}
                 data-card-kind={alert ? 'alert' : 'recommendation'}
                 type="button"
@@ -78,9 +99,12 @@ export function ReviewCardList({ items, selectedId, onSelect, projectLabel, deta
               >
                 <span className="flex flex-wrap items-center gap-2">
                   {alert ? (
-                    <TriangleAlert aria-hidden="true" className="h-4 w-4 shrink-0 text-danger" />
+                    <TriangleAlert
+                      aria-hidden="true"
+                      className={cn('h-4 w-4 shrink-0', tone.icon)}
+                    />
                   ) : (
-                    <Lightbulb aria-hidden="true" className="h-4 w-4 shrink-0 text-warning" />
+                    <Lightbulb aria-hidden="true" className={cn('h-4 w-4 shrink-0', tone.icon)} />
                   )}
                   {alert ? (
                     <StatusBadge tone={severityTone(item.severity)}>
@@ -89,12 +113,7 @@ export function ReviewCardList({ items, selectedId, onSelect, projectLabel, deta
                   ) : null}
                   <StatusBadge tone={statusTone(status)}>{statusLabel(status)}</StatusBadge>
                 </span>
-                <span
-                  className={cn(
-                    'block font-semibold leading-snug',
-                    alert ? 'text-danger' : 'text-foreground',
-                  )}
-                >
+                <span className={cn('block font-semibold leading-snug', tone.title)}>
                   {item.title}
                 </span>
                 {label ? (

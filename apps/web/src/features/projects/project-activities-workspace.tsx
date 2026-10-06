@@ -219,8 +219,10 @@ export const ProjectActivitiesWorkspace = ({
   const canReadExpenseReferences =
     (canLogExpense || canValidateExpense) &&
     principalHasAtomicPermission(profile, 'expenses.submit')
-  const canReadExpenses =
-    (canLogExpense || canValidateExpense) && principalHasAtomicPermission(profile, 'expenses.read')
+  // Any in-scope principal holding the grant, not only the officer who logs and the officer
+  // who verifies: the Project Manager who approves has to see the same entries.
+  const canReadExpenses = inProjectScope && principalHasAtomicPermission(profile, 'expenses.read')
+  const canReadBudgetLines = inProjectScope && principalHasAtomicPermission(profile, 'budgets.read')
 
   const [query, setQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<ActivityStatus | null>(null)
@@ -299,7 +301,26 @@ export const ProjectActivitiesWorkspace = ({
     (signal) => coreDataClient.expenses(projectId, signal),
     canReadExpenses,
   )
+  const budgetLinesRead = useAuthorizedRead(
+    'finance-budgets',
+    projectId,
+    'budgets.read',
+    (signal) => coreDataClient.budgets(projectId, signal),
+    canReadBudgetLines,
+  )
   const budgetReferences: ExpenseBudgetReference[] = expenseReferencesRead.data ?? []
+  /**
+   * Budget record to activity, from whichever read the principal is allowed. The reference
+   * read needs expenses.submit, so an approver reaches the same linkage through budgets.read.
+   */
+  const activityOfBudgetRecord = useMemo(() => {
+    const map = new Map<string, { activityId: string | null; category: string }>()
+    for (const line of budgetLinesRead.data ?? [])
+      map.set(line.id, { activityId: line.activityId, category: line.category })
+    for (const reference of budgetReferences)
+      map.set(reference.id, { activityId: reference.activityId, category: reference.category })
+    return map
+  }, [budgetLinesRead.data, budgetReferences])
   const pendingExpenses: PendingExpense[] = useMemo(() => {
     if (!selectedActivity) return []
     const referenceMap = new Map(budgetReferences.map((row) => [row.id, row]))
@@ -331,11 +352,10 @@ export const ProjectActivitiesWorkspace = ({
    */
   const activityExpenses: ActivityExpenseEntry[] = useMemo(() => {
     if (!selectedActivity) return []
-    const referenceMap = new Map(budgetReferences.map((row) => [row.id, row]))
     return (expensesRead.data ?? [])
       .filter((expense) => expense.status !== 'REJECTED')
       .flatMap((expense) => {
-        const reference = referenceMap.get(expense.budgetRecordId)
+        const reference = activityOfBudgetRecord.get(expense.budgetRecordId)
         if (!reference || reference.activityId !== selectedActivity.id) return []
         return [
           {
@@ -351,10 +371,14 @@ export const ProjectActivitiesWorkspace = ({
           },
         ]
       })
-  }, [expensesRead.data, budgetReferences, selectedActivity])
+  }, [expensesRead.data, activityOfBudgetRecord, selectedActivity])
   const refreshExpenses = () => {
     void expensesRead.refetch()
     void expenseReferencesRead.refetch()
+    void budgetLinesRead.refetch()
+    // Approved spend and allocation come from the activity read, so it refreshes with the
+    // expense list; otherwise an approved expense leaves In review before it reaches Spent.
+    void detail.refetch()
   }
   const detailNotFound =
     detail.isError &&
