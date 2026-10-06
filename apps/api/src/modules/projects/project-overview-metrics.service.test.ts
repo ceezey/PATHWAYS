@@ -137,11 +137,8 @@ function harness(
       }),
     },
   }
-  const indicators = {
-    readReleasedInTransaction: vi.fn(async () =>
-      (options.indicators ?? [cell('40'), cell('80.5')]).map(progress),
-    ),
-  }
+  const rows = async () => (options.indicators ?? [cell('40'), cell('80.5')]).map(progress)
+  const indicators = { readInTransaction: vi.fn(rows), readReleasedInTransaction: vi.fn(rows) }
   const dashboards = new DashboardsService(
     {} as PrismaService,
     indicators as unknown as IndicatorsService,
@@ -254,7 +251,7 @@ describe('GET /projects/:projectId/overview-metrics', () => {
     expect(tx.budgetExpenseEntry.aggregate).not.toHaveBeenCalled()
   })
 
-  it('returns KPI achievement to a Program Manager through the released values', async () => {
+  it('returns KPI achievement to a Program Manager through the released values only', async () => {
     const { service, indicators } = harness()
     const manager = actor('PROGRAM_MANAGER')
     expect(manager.permissions).not.toContain('indicators.read')
@@ -265,6 +262,14 @@ describe('GET /projects/:projectId/overview-metrics', () => {
       expect.objectContaining({ roles: ['PROGRAM_MANAGER'] }),
       [projectA],
     )
+    expect(indicators.readInTransaction).not.toHaveBeenCalled()
+  })
+
+  it('keeps the definitions read for a role holding indicators.read', async () => {
+    const { service, indicators } = harness()
+    await service.read(actor('MONITORING_AND_EVALUATION_OFFICER'), projectA)
+    expect(indicators.readInTransaction).toHaveBeenCalled()
+    expect(indicators.readReleasedInTransaction).not.toHaveBeenCalled()
   })
 
   it('returns KPI achievement as null without monitoring.read', async () => {
@@ -273,7 +278,7 @@ describe('GET /projects/:projectId/overview-metrics', () => {
     expect(officer.permissions).not.toContain('monitoring.read')
     const result = await service.read(officer, projectA)
     expect(result.kpiAchievement).toBeNull()
-    expect(result.efficiencyRatio).toBeNull()
+    expect(indicators.readInTransaction).not.toHaveBeenCalled()
     expect(indicators.readReleasedInTransaction).not.toHaveBeenCalled()
   })
 
@@ -325,7 +330,7 @@ describe('GET /projects/:projectId/overview-metrics', () => {
     expect(tx.project.findFirst.mock.calls[0]?.[0].where.AND[0]).toMatchObject({
       organizationId: orgA,
     })
-    expect(indicators.readReleasedInTransaction).not.toHaveBeenCalled()
+    expect(indicators.readInTransaction).not.toHaveBeenCalled()
     expect(tx.budgetExpenseEntry.aggregate).not.toHaveBeenCalled()
     expect(tx.$queryRaw).not.toHaveBeenCalled()
   })

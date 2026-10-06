@@ -1158,7 +1158,7 @@ class BackendReadyPathwaysClient implements PathwaysClient {
     )
   }
 
-  // KPI values for monitoring.read holders without indicators.read; definitions stay closed.
+  // KPI values for monitoring.read and reports.indicator.read holders without indicators.read; definitions stay closed.
   async getProjectIndicatorValues(
     projectId: string,
     signal?: AbortSignal,

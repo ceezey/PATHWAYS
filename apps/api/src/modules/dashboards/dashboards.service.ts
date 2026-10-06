@@ -121,15 +121,14 @@ export class DashboardsService {
       }
       const can = (permission: AtomicPermission) =>
         hasAtomicPermission(actor.roles[0], actor.permissions, permission)
-      // Released values need monitoring.read and reports.indicator.read, as p06_indicator_values checks.
-      const allowed = can('monitoring.read') && can('reports.indicator.read')
+      // Definitions holders keep the definitions read; others need monitoring.read and reports.indicator.read for released values.
+      const definitions = can('indicators.read')
+      const allowed = can('monitoring.read') && (definitions || can('reports.indicator.read'))
+      const scopeIds = projects.map((project) => project.id)
       const indicators = allowed
-        ? await this.indicators.readReleasedInTransaction(
-            tx,
-            actor,
-            projects.map((project) => project.id),
-            period,
-          )
+        ? definitions
+          ? await this.indicators.readInTransaction(tx, actor, scopeIds, period)
+          : await this.indicators.readReleasedInTransaction(tx, actor, scopeIds, period)
         : []
       const raw = result[0]?.data
       const parsed = monitoringDashboardSchema.safeParse({
@@ -140,7 +139,7 @@ export class DashboardsService {
         indicators,
         indicatorNote: allowed
           ? 'Indicator comparisons use definitions whose reporting period exactly matches this filter. Different units are not averaged into a KPI score.'
-          : 'Indicator values require monitoring.read and reports.indicator.read; this role receives aggregate monitoring only.',
+          : 'Indicator definitions require monitoring.read; this role receives aggregate monitoring only.',
         generatedAt: new Date().toISOString(),
         contractVersion: P06_CONTRACT_VERSION,
         refresh: 'READ_TIME_NO_CACHE',

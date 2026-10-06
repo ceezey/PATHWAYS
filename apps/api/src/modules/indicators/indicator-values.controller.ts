@@ -3,7 +3,7 @@ import { RequirePermission } from '../../common/decorators/permission.decorator'
 import type { AuthenticatedRequest } from '../auth/developer-access'
 import { IndicatorsService } from './indicators.service'
 
-/** KPI values for monitoring.read holders; definitions stay behind indicators.read. */
+/** KPI values for monitoring.read plus reports.indicator.read holders; definitions stay behind indicators.read. */
 @Controller('projects/:projectId/indicator-values')
 export class IndicatorValuesController {
   constructor(@Inject(IndicatorsService) private readonly service: IndicatorsService) {}

@@ -185,6 +185,7 @@ export class IndicatorsService {
         CROSS JOIN LATERAL jsonb_array_elements(pathways.p06_indicator_values(p.id, ${zone})) AS v(item)
         WHERE ${options.periodStart ?? null}::text IS NULL
           OR (v.item->>'periodStart' = ${options.periodStart ?? null}::text AND v.item->>'periodEnd' = ${options.periodEnd ?? null}::text)
+        ORDER BY v.item->>'code', v.item->>'id'
         LIMIT 101
       `)
     } catch (error) {

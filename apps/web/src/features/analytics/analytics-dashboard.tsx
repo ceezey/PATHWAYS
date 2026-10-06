@@ -734,7 +734,10 @@ export const AnalyticsDashboard = () => {
     ? Math.round(progressValues.reduce((sum, value) => sum + value, 0) / progressValues.length)
     : null
   // "None yet" only when the role can read the source and the read succeeded empty.
-  const periodsReadable = canReadIndicators && !projectDataLoading && !projectDataError
+  const periodsReadable =
+    (canReadIndicatorDefinitions || canReadIndicatorValues) &&
+    !projectDataLoading &&
+    !projectDataError
   const monitoringReadable = canReadIndicators && monitoring !== null && !monitoringError
   const completedActivities = activities.filter(
     (activity) => activity.status === 'Completed',
