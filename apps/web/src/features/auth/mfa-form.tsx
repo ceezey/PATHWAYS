@@ -12,6 +12,7 @@ import { OtpInput } from '@/components/ui/otp-input'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useSession } from '@/hooks/use-session'
 import { webEnv } from '@/lib/env'
+import { landingPath } from '@/lib/rbac/route-access'
 import { getBrowserSupabaseClient } from '@/lib/supabase/client'
 import { AuthAccessError, type MfaStatus, parseMfaStatus, requestAuthJson } from './auth-access'
 import { getQrImageSource, getVerifiedTotpFactors, isTotpCode, verifyTotpCode } from './mfa-flow'
@@ -25,8 +26,15 @@ interface FactorChoice {
 export function MfaForm() {
   const router = useRouter()
   const { session, status, configured, refreshSession, signOut } = useSession()
-  const { access, mfaStatus, accessError, accessRefreshing, refreshAccess, claimWorkspaceHandoff } =
-    useCurrentRole()
+  const {
+    access,
+    mfaStatus,
+    accessError,
+    accessRefreshing,
+    refreshAccess,
+    claimWorkspaceHandoff,
+    profile,
+  } = useCurrentRole()
   const supabase = getBrowserSupabaseClient()
   const token = session?.access_token ?? null
   const tokenRef = useRef(token)
@@ -127,9 +135,8 @@ export function MfaForm() {
     }
     setHandoff('opening')
     try {
-      // Fixed destination only. /workspace independently checks the live
-      // session/context and dashboard capability before redirecting there.
-      router.replace('/workspace')
+      // Fixed destinations only; each independently checks the live session, context and route.
+      router.replace(landingPath(profile))
     } catch {
       setHandoff('stalled')
     }
@@ -141,6 +148,7 @@ export function MfaForm() {
     access,
     accessRefreshing,
     claimWorkspaceHandoff,
+    profile,
     router,
   ])
 

@@ -320,7 +320,8 @@ describe('report source authority, privacy and artifact recovery', () => {
       /^SELECT 1::integer AS locked FROM pg_catalog\.pg_advisory_xact_lock/,
     )
     const retry = await service.generate(actor, projectId, body)
-    expect(retry).toEqual(first)
+    // pdfFallback describes the render that just ran, so a recovered report omits it.
+    expect(retry).toEqual({ id: first.id, status: first.status })
     expect(storage.uploadPrivateFile).toHaveBeenCalledOnce()
     expect(tx.auditLog.create).toHaveBeenCalledOnce()
     await expect(
@@ -369,7 +370,8 @@ describe('report source authority, privacy and artifact recovery', () => {
   })
   it('stores the designed PDF from the renderer without calling pdfkit', async () => {
     renderer.render.mockResolvedValue(Buffer.from('%PDF-designed'))
-    await service.generate(actor, projectId, body).catch(() => undefined)
+    const acknowledgement = await service.generate(actor, projectId, body).catch(() => undefined)
+    expect(acknowledgement).not.toHaveProperty('pdfFallback')
     expect(renderer.render).toHaveBeenCalledWith(
       expect.any(String),
       expect.objectContaining({ title: 'Private report', kind: 'PROJECT_SUMMARY' }),
@@ -383,7 +385,9 @@ describe('report source authority, privacy and artifact recovery', () => {
     )
   })
   it('falls back to the pdfkit artifact when the renderer fails', async () => {
-    await service.generate(actor, projectId, body).catch(() => undefined)
+    const acknowledgement = await service.generate(actor, projectId, body).catch(() => undefined)
+    // The caller is told the stored PDF is the plain layout, so it can say it will not match.
+    expect(acknowledgement).toMatchObject({ pdfFallback: true })
     expect(renderer.render).toHaveBeenCalledOnce()
     expect(state.artifact).toHaveBeenCalledOnce()
     const warning = vi.mocked(Logger.prototype.warn).mock.calls.flat().join(' ')
@@ -537,11 +541,20 @@ describe('report source authority, privacy and artifact recovery', () => {
           score: { toString: () => '8' },
           maximumScore: { toString: () => '10' },
           weightedScore: { toString: () => '40' },
+          commentary: 'KPI achievement 80%',
           criterionSnapshot: { code: 'C1', name: 'Relevance', weight_percentage: '50' },
         },
       ])
       const preview = await service.preview(actor, projectId, { kind: 'EVALUATION_REPORT' })
-      expect(preview.rows[1]).toEqual(['Criterion', 'C1 Relevance', '50', '8', '10', '40'])
+      expect(preview.rows[1]).toEqual([
+        'Criterion',
+        'C1 Relevance',
+        '50',
+        '8',
+        '10',
+        '40',
+        'Computed: KPI achievement 80%',
+      ])
       expect(Object.keys(preview).sort()).toEqual(previewKeys)
       const where = tx.projectEvaluation.findFirst.mock.calls[0][0].where
       expect(where.status).toEqual({ in: ['SIGNED_OFF', 'ARCHIVED'] })
@@ -550,6 +563,34 @@ describe('report source authority, privacy and artifact recovery', () => {
         call[0].join('').includes('INSERT INTO pathways.reports'),
       )
       expect(insert?.[11]).toBe(signedOff.id)
+    })
+
+    it('renders no-data and legacy manual scores without internal markers or notes', async () => {
+      grant('monitoring.read')
+      tx.projectEvaluation.findFirst.mockResolvedValue(signedOff)
+      const row = (commentary: string | null, type: string) => ({
+        score: { toString: () => '0' },
+        maximumScore: { toString: () => '10' },
+        weightedScore: { toString: () => '0' },
+        commentary,
+        criterionSnapshot: { code: 'C1', name: 'Relevance', weight_percentage: '50', type },
+      })
+      tx.projectEvaluationScore.findMany.mockResolvedValue([
+        row(
+          'No data: the enrolled count is below the small-cell reporting threshold (fewer than 5)',
+          'BENEFICIARY_REACH',
+        ),
+        row('Not computable: old text Manual score recorded: private evaluator note', 'KPI'),
+        row(null, 'BUDGET_EFFICIENCY'),
+        row(null, 'BENEFICIARY_REACH'),
+      ])
+      const preview = await service.preview(actor, projectId, { kind: 'EVALUATION_REPORT' })
+      expect(preview.rows[1][6]).toBe(
+        'No data: the enrolled count is below the small-cell reporting threshold (fewer than 5)',
+      )
+      expect(preview.rows[2][6]).toBe('Manual score')
+      expect(preview.rows[3][6]).toBe('Manual score')
+      expect(preview.rows[4][6]).toBe('Manual score')
     })
 
     it('lists the new kinds only for holders of the extra grant', async () => {
@@ -587,7 +628,8 @@ describe('report source authority, privacy and artifact recovery', () => {
     expect(preview.rows.some((row) => row[0] === 'Overview')).toBe(true)
     expect(preview.unavailableReasons.length).toBeGreaterThan(0)
     renderer.render.mockResolvedValue(Buffer.from('%PDF-designed'))
-    await service.generate(actor, projectId, body).catch(() => undefined)
+    const acknowledgement = await service.generate(actor, projectId, body).catch(() => undefined)
+    expect(acknowledgement).not.toHaveProperty('pdfFallback')
     expect(renderer.render).toHaveBeenCalledWith(
       expect.any(String),
       expect.objectContaining({

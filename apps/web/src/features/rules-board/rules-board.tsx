@@ -21,6 +21,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import type { HumanRule } from '@/features/analytics/rules-human-contract'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
@@ -28,6 +29,7 @@ import { pathwaysClient } from '@/lib/services/pathways-client'
 import { rulesHumanClient } from '@/lib/services/rules-human-client'
 import { useAuthorizedRead } from '@/providers/authorized-query-provider'
 import { useState } from 'react'
+import { toast } from 'sonner'
 import {
   appliesTo,
   conditionSummary,
@@ -37,15 +39,22 @@ import {
   statusTone,
   titleCase,
 } from './rule-board-model'
-import { type DrawerIntent, RuleDrawer } from './rule-drawer'
+import { type DrawerIntent, RuleDrawer, type RuleOutcome } from './rule-drawer'
 
 // Radix Select rejects an empty value, so the organization scope uses a sentinel.
 const ORGANIZATION_SCOPE = 'organization'
 
 type Status = 'ALL' | HumanRule['status']
+type Tab = 'repository' | 'create'
 type Drawer = { mode: 'alert' | 'recommendation'; rule?: HumanRule; intent?: DrawerIntent }
 type View = 'alerts' | 'recommendations' | 'manage'
 const PREVIEW_ROWS = 5
+const outcomeCopy: Record<RuleOutcome, string> = {
+  created: 'Rule created as a draft. Activate it to start checking project data.',
+  drafted: 'Draft saved.',
+  activated: 'Rule activated.',
+  deactivated: 'Rule deactivated.',
+}
 const head = 'sticky top-0 z-10 bg-surface-subtle'
 const row = 'h-14 cursor-pointer'
 
@@ -163,6 +172,8 @@ export function RulesBoard() {
   const [loadingMore, setLoadingMore] = useState(false)
   const [moreError, setMoreError] = useState(false)
   const [drawer, setDrawer] = useState<Drawer | null>(null)
+  const [tab, setTab] = useState<Tab>('repository')
+  const [createMode, setCreateMode] = useState<Drawer['mode']>('alert')
   const [view, setView] = useState<View | null>(null)
   const [notice, setNotice] = useState('')
   const canCreate = principalHasAtomicPermission(profile, 'rules.create')
@@ -176,9 +187,12 @@ export function RulesBoard() {
     ),
   )
   const all = [...(list.data?.items ?? []), ...(more?.items ?? [])]
+  // Recommendations already written in this scope, offered for reuse on a new rule.
+  const savedRecommendations = all.flatMap((rule) => rule.recommendations)
   const nextCursor = more ? more.nextCursor : (list.data?.nextCursor ?? null)
   const rules = filterRules(all, { search, status })
-  const open = (rule: HumanRule | undefined, mode: Drawer['mode'], intent?: DrawerIntent) => {
+  // Creating runs in the Create rule tab; an existing rule opens the side panel.
+  const open = (rule: HumanRule, mode: Drawer['mode'], intent?: DrawerIntent) => {
     setView(null)
     setDrawer({ mode, rule, intent })
   }
@@ -205,9 +219,11 @@ export function RulesBoard() {
       setLoadingMore(false)
     }
   }
-  const saved = (scope: string | null) => {
+  const saved = (scope: string | null, outcome: RuleOutcome = 'drafted') => {
     setDrawer(null)
-    setNotice('Rule changes saved.')
+    setTab('repository')
+    toast.success(outcomeCopy[outcome])
+    setNotice(outcomeCopy[outcome])
     setMore(null)
     if (scope !== projectId) changeScope(scope)
     else void list.refetch()
@@ -229,21 +245,11 @@ export function RulesBoard() {
     ) : !all.length ? (
       <EmptyState
         title="None yet"
-        description={
+        description={`${
           kind === 'alerts'
             ? 'No alert rules exist in this scope.'
             : 'No recommendations are defined in this scope.'
-        }
-        action={
-          canCreate ? (
-            <Button
-              type="button"
-              onClick={() => open(undefined, kind === 'alerts' ? 'alert' : 'recommendation')}
-            >
-              Create Rule
-            </Button>
-          ) : undefined
-        }
+        }${canCreate ? ' Use the Create rule tab to add one.' : ''}`}
       />
     ) : !rules.length ? (
       <EmptyState title="No rules match" description="Change the search or status filter." />
@@ -263,19 +269,9 @@ export function RulesBoard() {
           : 'Rule-based Recommendation Configuration'
       }
       actions={
-        <>
-          <Button type="button" variant="outline" onClick={() => setView(kind)}>
-            View All
-          </Button>
-          {canCreate ? (
-            <Button
-              type="button"
-              onClick={() => open(undefined, kind === 'alerts' ? 'alert' : 'recommendation')}
-            >
-              Create Rule
-            </Button>
-          ) : null}
-        </>
+        <Button type="button" variant="outline" onClick={() => setView(kind)}>
+          View All
+        </Button>
       }
     >
       <div className="rounded-md border border-border bg-surface-subtle p-2">
@@ -293,50 +289,86 @@ export function RulesBoard() {
           </Button>
         }
       />
-      <Card>
-        <CardContent className="grid gap-3 p-4 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)]">
-          <Input
-            aria-label="Search rules"
-            placeholder="Search rules by name..."
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-          />
-          <Select
-            value={projectId ?? ORGANIZATION_SCOPE}
-            onValueChange={(value) => changeScope(value === ORGANIZATION_SCOPE ? null : value)}
-          >
-            <SelectTrigger aria-label="Scope">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ORGANIZATION_SCOPE}>Organization templates</SelectItem>
-              {projects.data?.map((project) => (
-                <SelectItem key={project.id} value={project.id}>
-                  {project.title}
-                </SelectItem>
+      <Tabs value={tab} onValueChange={(value) => setTab(value as Tab)}>
+        <TabsList>
+          <TabsTrigger value="repository">Rule repository</TabsTrigger>
+          {canCreate ? <TabsTrigger value="create">Create rule</TabsTrigger> : null}
+        </TabsList>
+        <TabsContent className="space-y-6" value="repository">
+          <Card>
+            <CardContent className="grid gap-3 p-4 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)]">
+              <Input
+                aria-label="Search rules"
+                placeholder="Search rules by name..."
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+              />
+              <Select
+                value={projectId ?? ORGANIZATION_SCOPE}
+                onValueChange={(value) => changeScope(value === ORGANIZATION_SCOPE ? null : value)}
+              >
+                <SelectTrigger aria-label="Scope">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ORGANIZATION_SCOPE}>Organization templates</SelectItem>
+                  {projects.data?.map((project) => (
+                    <SelectItem key={project.id} value={project.id}>
+                      {project.title}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={status} onValueChange={(value) => setStatus(value as Status)}>
+                <SelectTrigger aria-label="Status">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">All statuses</SelectItem>
+                  <SelectItem value="DRAFT">Draft</SelectItem>
+                  <SelectItem value="ACTIVE">Active</SelectItem>
+                  <SelectItem value="ARCHIVED">Archived</SelectItem>
+                </SelectContent>
+              </Select>
+            </CardContent>
+          </Card>
+          {notice ? (
+            <output className="block text-sm" aria-live="polite">
+              {notice}
+            </output>
+          ) : null}
+          {card('alerts')}
+          {card('recommendations')}
+        </TabsContent>
+        {canCreate ? (
+          <TabsContent className="space-y-4" value="create">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-sm font-medium">Rule output</span>
+              {(['alert', 'recommendation'] as const).map((item) => (
+                <Button
+                  key={item}
+                  size="sm"
+                  type="button"
+                  variant={createMode === item ? 'default' : 'outline'}
+                  onClick={() => setCreateMode(item)}
+                >
+                  {item === 'alert' ? 'Alert rule' : 'Recommendation rule'}
+                </Button>
               ))}
-            </SelectContent>
-          </Select>
-          <Select value={status} onValueChange={(value) => setStatus(value as Status)}>
-            <SelectTrigger aria-label="Status">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="ALL">All statuses</SelectItem>
-              <SelectItem value="DRAFT">Draft</SelectItem>
-              <SelectItem value="ACTIVE">Active</SelectItem>
-              <SelectItem value="ARCHIVED">Archived</SelectItem>
-            </SelectContent>
-          </Select>
-        </CardContent>
-      </Card>
-      {notice ? (
-        <output className="block text-sm" aria-live="polite">
-          {notice}
-        </output>
-      ) : null}
-      {card('alerts')}
-      {card('recommendations')}
+            </div>
+            <RuleDrawer
+              inline
+              key={`new:${createMode}`}
+              library={savedRecommendations}
+              mode={createMode}
+              onClose={() => setTab('repository')}
+              onSaved={saved}
+              projectId={projectId}
+              projects={projects.data ?? []}
+            />
+          </TabsContent>
+        ) : null}
+      </Tabs>
       <Dialog open={view !== null} onOpenChange={(next) => !next && setView(null)}>
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-5xl">
           <DialogHeader>
@@ -374,6 +406,7 @@ export function RulesBoard() {
           intent={drawer.intent}
           mode={drawer.mode}
           onClose={() => setDrawer(null)}
+          library={savedRecommendations}
           onSaved={saved}
           projectId={projectId}
           projects={projects.data ?? []}

@@ -541,11 +541,14 @@ export class ReportsService {
     )
     if (prepare.complete) return { id: prepare.id, status: 'GENERATED' as const }
     let bytes: Buffer
+    // Set when a PDF was asked for and Chromium could not render it, so the caller can say so.
+    let pdfFallback = false
     try {
+      const designed =
+        body.format === 'PDF' ? await this.designedPdf(prepare.id, body.name, prepare.source) : null
+      pdfFallback = body.format === 'PDF' && designed === null
       bytes =
-        (body.format === 'PDF'
-          ? await this.designedPdf(prepare.id, body.name, prepare.source)
-          : null) ??
+        designed ??
         (await createReportArtifact(
           body.name,
           [prepare.source.columns, ...prepare.source.rows],
@@ -599,7 +602,7 @@ export class ReportsService {
         throw new ServiceUnavailableException('Private report storage unavailable.')
       }
       finalizationAttempted = true
-      return await withAuthorizedOperation(
+      const acknowledgement = await withAuthorizedOperation(
         this.prisma,
         identity,
         'reports.generate',
@@ -636,6 +639,7 @@ export class ReportsService {
         },
         { isolationLevel: 'RepeatableRead' },
       )
+      return pdfFallback ? { ...acknowledgement, pdfFallback: true as const } : acknowledgement
     } catch (error) {
       if (uploaded && !finalizationAttempted)
         await this.storage.deleteFile('pathways-private', key).catch(() => undefined)

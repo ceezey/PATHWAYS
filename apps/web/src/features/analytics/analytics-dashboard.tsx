@@ -171,6 +171,11 @@ export const AnalyticsDashboard = () => {
   const { role, profile } = useCurrentRole()
   const canReadActivities = principalHasAtomicPermission(profile, 'activities.read')
   const canReadIndicators = principalHasAtomicPermission(profile, 'monitoring.read')
+  // Definitions need indicators.read; other monitoring roles read released values for periods and KPIs.
+  const canReadIndicatorDefinitions =
+    canReadIndicators && principalHasAtomicPermission(profile, 'indicators.read')
+  const canReadIndicatorValues =
+    canReadIndicators && principalHasAtomicPermission(profile, 'reports.indicator.read')
   const canReadDescriptive = principalHasAtomicPermission(profile, 'analytics.descriptive.read')
   // Survey and timeline read person-derived aggregates, so the API requires both permissions
   // (analytics.descriptive.read and monitoring.read). Anything less is restricted, never "None yet".
@@ -353,9 +358,11 @@ export const AnalyticsDashboard = () => {
       canReadActivities
         ? pathwaysClient.getActivities(projectId)
         : Promise.resolve<ActivitySummary[]>([]),
-      canReadIndicators
+      canReadIndicatorDefinitions
         ? pathwaysClient.getProjectIndicators(projectId)
-        : Promise.resolve<ProjectIndicator[]>([]),
+        : canReadIndicatorValues
+          ? pathwaysClient.getProjectIndicatorValues(projectId)
+          : Promise.resolve<ProjectIndicator[]>([]),
     ])
       .then(([nextActivities, nextIndicators]) => {
         if (!active) return
@@ -374,7 +381,14 @@ export const AnalyticsDashboard = () => {
     return () => {
       active = false
     }
-  }, [canReadActivities, canReadIndicators, projectDataLoadAttempt, projectId, selectedProject])
+  }, [
+    canReadActivities,
+    canReadIndicatorDefinitions,
+    canReadIndicatorValues,
+    projectDataLoadAttempt,
+    projectId,
+    selectedProject,
+  ])
 
   useEffect(() => {
     setPeriod((current) =>
@@ -720,7 +734,10 @@ export const AnalyticsDashboard = () => {
     ? Math.round(progressValues.reduce((sum, value) => sum + value, 0) / progressValues.length)
     : null
   // "None yet" only when the role can read the source and the read succeeded empty.
-  const periodsReadable = canReadIndicators && !projectDataLoading && !projectDataError
+  const periodsReadable =
+    (canReadIndicatorDefinitions || canReadIndicatorValues) &&
+    !projectDataLoading &&
+    !projectDataError
   const monitoringReadable = canReadIndicators && monitoring !== null && !monitoringError
   const completedActivities = activities.filter(
     (activity) => activity.status === 'Completed',
@@ -1567,21 +1584,21 @@ const TimelineAnalyticsPanel = ({
   return (
     <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3" data-testid="timeline-analytics">
       <MetricCard
-        description="Share of the project period elapsed as of the reporting date."
+        description="Share of the project period elapsed as of the reporting date; 100% once completed."
         icon={ClipboardCheck}
         label="Elapsed"
         tone="info"
         value={analyticsCellValue(data.elapsedPercent, 'percent')}
       />
       <MetricCard
-        description="Calendar days remaining before the project's recorded end date."
+        description="Calendar days remaining before the project's recorded end date; 0 once completed."
         icon={ClipboardCheck}
         label="Remaining days"
         tone="info"
         value={analyticsCellValue(data.remainingDays)}
       />
       <MetricCard
-        description="Calendar days past the project's recorded end date."
+        description="Calendar days past the project's recorded end date; once completed, how late its last activity finished."
         icon={AlertTriangle}
         label="Overdue days"
         tone={

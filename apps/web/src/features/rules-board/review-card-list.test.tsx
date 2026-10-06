@@ -46,7 +46,8 @@ describe('ReviewCardList', () => {
         projectLabel={() => 'ACT-001'}
       />,
     )
-    expect(screen.getByText('Budget depletion risk — ACT-001')).toBeTruthy()
+    expect(screen.getByText('Budget depletion risk')).toBeTruthy()
+    expect(screen.getByText('ACT-001')).toBeTruthy()
     expect(screen.getByText('Current indicator progress 55% vs threshold 70%')).toBeTruthy()
     expect(screen.getByText('High')).toBeTruthy()
     expect(screen.getByText('Auto-resolved')).toBeTruthy()

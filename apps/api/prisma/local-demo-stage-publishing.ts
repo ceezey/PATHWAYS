@@ -11,7 +11,7 @@ const publications: Array<{
     project: 'EHK',
     state: 'PUBLISHED',
     summary:
-      'Emergency Hygiene and Learning Kits reached 68 families in Sulangan, Salug and Bungtod in Guiuan, Eastern Samar, helping learners return to school within eight weeks of the typhoon.',
+      'Emergency Hygiene and Learning Kits reached 70 families in Sulangan, Salug and Bungtod in Guiuan, Eastern Samar, helping learners return to school within eight weeks of the typhoon.',
   },
   {
     project: 'CRL',

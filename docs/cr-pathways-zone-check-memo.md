@@ -2,7 +2,7 @@
 
 **ID:** `cr-pathways-zone-check-memo`
 **Date:** 2026-10-06
-**Status:** Approved (developer, 2026-10-06: remember per request, migration 0065)
+**Status:** Applied (2026-10-06; 0065 on PATHWAYS-devV2 with 0064, 40-row ledger; master via PR #44)
 
 ## 1. Problem
 
@@ -40,3 +40,9 @@ then `DROP FUNCTION pathways.p06_zone_is_valid(text)`. No data changes.
 
 On devV2, together with 0064:
 `node scripts/db/hosted-build.mjs --env-file .tmp/role-staging-build.env --resume`
+
+## 5. Disposition
+
+- SAD: organization-isolation-checker and design-qa-agent PASS; migration-integrity-guardian BLOCKED in round 1 (an empty zone was accepted on a reused session through the placeholder setting), fixed by rejecting `''`, then PASS at digest ed04c525.
+- Replay: `Replay-Local.ps1 -MigrationBaseline` exit 0 with `ZONE_CHECK_MEMO_RUNTIME=PASS`.
+- Applied to devV2 on 2026-10-06 at about 11:30 Manila with 0064 (ledger 40 rows 0000-0065, postconditions PASS). Measured before the fix: 0.43 s per `pg_timezone_names` call. Merged to master in PR #44.

@@ -1,4 +1,5 @@
 import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
 
 type Props = {
   busy: boolean
@@ -8,7 +9,9 @@ type Props = {
   hasRule: boolean
   nested: boolean
   showTest: boolean
+  inline?: boolean
   onTest: () => void
+  onCancel?: () => void
   onConfirm: (action: 'activate' | 'deactivate') => void
 }
 /** Stacked right-aligned drawer actions: Save Rule, Test Rule, then lifecycle changes. */
@@ -20,11 +23,20 @@ export function RuleDrawerFooter({
   hasRule,
   nested,
   showTest,
+  inline,
   onTest,
+  onCancel,
   onConfirm,
 }: Props) {
   return (
-    <div className="sticky bottom-0 flex flex-col items-end gap-2 border-t border-border bg-card pb-1 pt-3">
+    <div
+      className={cn(
+        'border-t border-border bg-card pb-1 pt-3',
+        inline
+          ? 'flex flex-row-reverse flex-wrap justify-start gap-2'
+          : 'sticky bottom-0 flex flex-col items-end gap-2',
+      )}
+    >
       {canWrite ? (
         <Button className="w-40" disabled={busy || nested} form="rule-drawer-form" type="submit">
           {busy ? 'Saving...' : 'Save Rule'}
@@ -59,6 +71,11 @@ export function RuleDrawerFooter({
           onClick={() => onConfirm('deactivate')}
         >
           Deactivate
+        </Button>
+      ) : null}
+      {onCancel ? (
+        <Button className="w-40" type="button" variant="outline" onClick={() => onCancel()}>
+          Cancel
         </Button>
       ) : null}
     </div>

@@ -112,6 +112,10 @@ export const expenseSchema = z
     updatedAt: timestamp,
     signedOffById: uuid.nullable(),
     signedOffAt: timestamp.nullable(),
+    submittedByName: z.string().max(200).nullable(),
+    verifiedByName: z.string().max(200).nullable(),
+    approvedByName: z.string().max(200).nullable(),
+    signedOffByName: z.string().max(200).nullable(),
   })
   .strict()
 export const expenseAck = z
@@ -162,7 +166,15 @@ const criterionSchema = z
     code: z.string(),
     name: z.string(),
     description: z.string().nullable(),
-    type: z.enum(['KPI', 'TIMELINE_COMPLIANCE', 'BUDGET_EFFICIENCY', 'BENEFICIARY_REACH', 'OTHER']),
+    type: z.enum([
+      'KPI',
+      'TIMELINE_COMPLIANCE',
+      'BUDGET_EFFICIENCY',
+      'BENEFICIARY_REACH',
+      'INDICATOR_LINKAGE',
+      'ASSESSMENT_GAIN',
+      'OTHER',
+    ]),
     version: z.number().int(),
     weightPercentage: decimal,
     maximumScore: decimal,
@@ -189,8 +201,9 @@ const evaluationScoreSchema = z
     score: decimal,
     maximumScore: decimal,
     weightedScore: decimal,
-    commentary: z.string().nullable(),
-    source: z.enum(['computed', 'manual']),
+    source: z.enum(['computed', 'no_data', 'manual']),
+    evidence: z.string().nullable(),
+    reason: z.string().nullable(),
     note: z.string().nullable(),
     criterion: criterionSnapshotSchema,
   })
@@ -223,24 +236,6 @@ export const evaluationSchema = z
     criteria: z.array(criterionSchema).max(100),
     evaluations: z.array(evaluationDetailSchema).max(20),
     hasMore: z.boolean(),
-  })
-  .strict()
-const criteriaReceiptSchema = z
-  .object({
-    criteria: z
-      .array(
-        z
-          .object({
-            id: uuid,
-            code: z.string(),
-            version: z.literal(1),
-            status: z.literal('DRAFT'),
-            updatedAt: timestamp,
-          })
-          .strict(),
-      )
-      .min(1)
-      .max(100),
   })
   .strict()
 const auditSchema = z
@@ -360,7 +355,13 @@ export const coreDataClient = {
   ) =>
     post(
       `${path(id)}/reports`,
-      z.object({ id: uuid, status: z.literal('GENERATED') }).strict(),
+      z
+        .object({
+          id: uuid,
+          status: z.literal('GENERATED'),
+          pdfFallback: z.literal(true).optional(),
+        })
+        .strict(),
       body,
     ),
   evaluation: (id: string, signal?: AbortSignal) =>
@@ -368,28 +369,6 @@ export const coreDataClient = {
       `${path(id)}/evaluation`,
       evaluationSchema.refine((row) => row.projectId === id),
       { signal },
-    ),
-  initializeCriteria: (id: string, body: unknown) =>
-    post(`${path(id)}/evaluation/criteria/initialize`, criteriaReceiptSchema, body),
-  createCriteria: (id: string, body: unknown) =>
-    post(`${path(id)}/evaluation/criteria`, criteriaReceiptSchema, body),
-  publishCriteria: (id: string, body: unknown) =>
-    post(
-      `${path(id)}/evaluation/criteria/publish`,
-      z
-        .object({ projectId: uuid, published: z.number().int() })
-        .strict()
-        .refine((row) => row.projectId === id),
-      body,
-    ),
-  configureWeights: (id: string, body: unknown) =>
-    read(
-      `${path(id)}/evaluation/weights`,
-      z
-        .object({ projectId: uuid, configured: z.number().int() })
-        .strict()
-        .refine((row) => row.projectId === id),
-      { method: 'PATCH', body: JSON.stringify(body) },
     ),
   createEvaluation: (id: string, body: unknown) =>
     post(`${path(id)}/evaluation/evaluations`, evaluationDetailSchema, body),

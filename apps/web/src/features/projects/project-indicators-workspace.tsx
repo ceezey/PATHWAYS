@@ -8,6 +8,7 @@ import { useProjectRead } from './use-project-reads'
 import { AsyncState } from '@/components/pathways/async-state'
 import { DialogShell } from '@/components/pathways/dialog-shell'
 import { EmptyState } from '@/components/pathways/empty-state'
+import { MetricTooltip } from '@/components/pathways/metric-tooltip'
 import { ProgressBar } from '@/components/pathways/progress-bar'
 import { SectionCard } from '@/components/pathways/section-card'
 import { StatusBadge } from '@/components/pathways/status-badge'
@@ -15,6 +16,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogTrigger } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
+import { metricGlossary } from '@/constants/metric-glossary'
 import { useMonitoringRead } from '@/features/analytics/use-monitoring-read'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { usePendingCreate } from '@/hooks/use-pending-create'
@@ -367,7 +369,12 @@ function IndicatorForm({
           )}
         </div>
         <div className="md:col-span-2">
-          <label htmlFor="indicator-data-source">Source description</label>
+          <span className="flex items-center gap-1">
+            <label htmlFor="indicator-data-source">Source description</label>
+            <MetricTooltip label="Source description">
+              {metricGlossary.sourceDescription}
+            </MetricTooltip>
+          </span>
           <Textarea id="indicator-data-source" name="dataSource" required maxLength={300} />
         </div>
       </fieldset>
@@ -503,9 +510,10 @@ function IndicatorEditor({
               {indicator.measurementId ? 'Append a correction' : 'Record the first measurement'}
             </legend>
             <div>
-              <label htmlFor={`${rowId}-value`} className="block">
-                Exact value
-              </label>
+              <span className="flex items-center gap-1">
+                <label htmlFor={`${rowId}-value`}>Exact value</label>
+                <MetricTooltip label="Exact value">{metricGlossary.exactValue}</MetricTooltip>
+              </span>
               <Input
                 id={`${rowId}-value`}
                 name="value"
@@ -515,9 +523,12 @@ function IndicatorEditor({
               />
             </div>
             <div>
-              <label htmlFor={`${rowId}-source`} className="block">
-                Measurement source
-              </label>
+              <span className="flex items-center gap-1">
+                <label htmlFor={`${rowId}-source`}>Measurement source</label>
+                <MetricTooltip label="Measurement source">
+                  {metricGlossary.measurementSource}
+                </MetricTooltip>
+              </span>
               <Input id={`${rowId}-source`} name="source" maxLength={300} required />
             </div>
             <div>
@@ -529,9 +540,12 @@ function IndicatorEditor({
 
             {indicator.measurementId ? (
               <div>
-                <label htmlFor={`${rowId}-reason`} className="block">
-                  Correction reason
-                </label>
+                <span className="flex items-center gap-1">
+                  <label htmlFor={`${rowId}-reason`}>Correction reason</label>
+                  <MetricTooltip label="Correction reason">
+                    {metricGlossary.correctionReason}
+                  </MetricTooltip>
+                </span>
                 <Input id={`${rowId}-reason`} name="reason" maxLength={1000} required />
               </div>
             ) : null}
@@ -719,8 +733,8 @@ export function ProjectIndicatorsWorkspace({ projectId }: { projectId: string })
       />
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold">Target indicators</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
+          {/* The workspace frame draws the project title; this tab keeps only its own note. */}
+          <p className="text-sm text-muted-foreground">
             Project-owned definitions, exact values and attributable corrections. No automatic
             project-success rating.
           </p>
@@ -810,9 +824,18 @@ export function ProjectIndicatorsWorkspace({ projectId }: { projectId: string })
                 <tr className="border-b border-border">
                   <th className={`${headClass} w-32`}>Code</th>
                   <th className={`${headClass} w-[40%]`}>Indicator</th>
-                  <th className={`${headClass} text-center`}>Target</th>
-                  <th className={`${headClass} text-center`}>Actual</th>
-                  <th className={`${headClass} text-center`}>Status</th>
+                  <th className={`${headClass} text-center`}>
+                    Target
+                    <MetricTooltip label="Target">{metricGlossary.target}</MetricTooltip>
+                  </th>
+                  <th className={`${headClass} text-center`}>
+                    Actual
+                    <MetricTooltip label="Actual">{metricGlossary.actual}</MetricTooltip>
+                  </th>
+                  <th className={`${headClass} text-center`}>
+                    Status
+                    <MetricTooltip label="Status">{metricGlossary.indicatorStatus}</MetricTooltip>
+                  </th>
                   <th className={headClass}>
                     <span className="sr-only">Actions</span>
                   </th>

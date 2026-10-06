@@ -140,7 +140,7 @@ describe('RuleDrawer', () => {
       title: 'Review flagged condition',
       text: 'Review the recorded evidence and decide on a response.',
     })
-    await waitFor(() => expect(onSaved).toHaveBeenCalledWith(null))
+    await waitFor(() => expect(onSaved).toHaveBeenCalledWith(null, 'created'))
   })
   it('blocks saving without a complete recommendation', async () => {
     renderDrawer()
@@ -157,6 +157,28 @@ describe('RuleDrawer', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save Rule' }))
     await screen.findByRole('alert')
     expect(state.createRule).not.toHaveBeenCalled()
+  })
+  it('collapses a saved rule recommendation to its title until edited', async () => {
+    renderDrawer({ rule: activeRule })
+    await screen.findByLabelText('Rule Name')
+    expect(screen.getByText('Review')).toBeTruthy()
+    expect(screen.queryByLabelText('Recommendation title')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Edit recommendation 1' }))
+    expect((screen.getByLabelText('Recommendation title') as HTMLInputElement).value).toBe('Review')
+    fireEvent.click(screen.getByRole('button', { name: 'Done' }))
+    expect(screen.queryByLabelText('Recommendation title')).toBeNull()
+  })
+  it('copies a reused recommendation under a new identity', async () => {
+    const saved = { id: '60000000-0000-4000-8000-000000000009', title: 'Reassign', text: 'Move.' }
+    renderDrawer({ library: [saved] })
+    await screen.findByLabelText('Rule Name')
+    fireEvent.click(screen.getByRole('button', { name: 'Reuse' }))
+    fillBasics()
+    fireEvent.click(screen.getByRole('button', { name: 'Save Rule' }))
+    await waitFor(() => expect(state.createRule).toHaveBeenCalled())
+    const sent = state.createRule.mock.calls[0]?.[0].recommendations
+    expect(sent.some((item: { title: string }) => item.title === 'Reassign')).toBe(true)
+    expect(sent.every((item: { id: string }) => item.id !== saved.id)).toBe(true)
   })
   it('keeps advanced editor labels bound to its own fields over the drawer', async () => {
     const nested = {

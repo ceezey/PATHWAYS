@@ -2,6 +2,7 @@ import { StatusBadge } from '@/components/pathways'
 import type { HumanAlert, HumanRecommendation } from '@/features/analytics/rules-human-contract'
 import { cn } from '@/lib/utils'
 import { Lightbulb, TriangleAlert } from 'lucide-react'
+import type { ReactNode } from 'react'
 import { formatMetricValue, metricLabel, severityTone, titleCase } from './rule-board-model'
 
 const STATUS_LABELS: Record<string, string> = {
@@ -35,13 +36,37 @@ export const basisLine = (alert: HumanAlert) => {
     : null
 }
 
+// Tailwind needs whole class names, so each tone keeps its own surface, border, icon and title styles.
+const TONE_STYLES = {
+  danger: {
+    border: 'border-danger/30',
+    surface: 'bg-danger-subtle hover:bg-danger-subtle/70',
+    icon: 'text-danger',
+    title: 'text-danger',
+  },
+  warning: {
+    border: 'border-warning/30',
+    surface: 'bg-warning-subtle hover:bg-warning-subtle/70',
+    icon: 'text-warning',
+    title: 'text-foreground',
+  },
+  neutral: {
+    border: 'border-border',
+    surface: 'bg-muted hover:bg-muted/70',
+    icon: 'text-muted-foreground',
+    title: 'text-foreground',
+  },
+} as const
+
 type Props = {
   items: (HumanAlert | HumanRecommendation)[]
   selectedId: string | null
   onSelect: (id: string) => void
   projectLabel?: (projectId: string) => string | undefined
+  /** Rendered inside the selected card, below its summary. */
+  details?: ReactNode
 }
-export function ReviewCardList({ items, selectedId, onSelect, projectLabel }: Props) {
+export function ReviewCardList({ items, selectedId, onSelect, projectLabel, details }: Props) {
   return (
     <ul className="space-y-3">
       {items.map((item) => {
@@ -49,48 +74,38 @@ export function ReviewCardList({ items, selectedId, onSelect, projectLabel }: Pr
         const status = alert ? item.lifecycle : item.status
         const label = alert ? projectLabel?.(item.projectId) : undefined
         const basis = alert ? basisLine(item) : null
+        const open = item.id === selectedId
+        const tone = TONE_STYLES[alert ? severityTone(item.severity) : 'warning']
         return (
           <li key={item.id}>
-            {/* The whole card selects the record; there is no separate review button. */}
-            <button
-              aria-label={`Review ${item.title}`}
-              aria-pressed={item.id === selectedId}
+            <div
               className={cn(
-                'flex w-full items-start gap-3 rounded-md border p-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                alert
-                  ? 'border-danger/30 bg-danger-subtle hover:border-danger/60'
-                  : 'border-warning/30 bg-warning-subtle hover:border-warning/60',
-                item.id === selectedId && 'ring-2 ring-ring',
+                'overflow-hidden rounded-md border',
+                tone.border,
+                open && 'ring-2 ring-ring',
               )}
-              data-card-kind={alert ? 'alert' : 'recommendation'}
-              type="button"
-              onClick={() => onSelect(item.id)}
             >
-              {alert ? (
-                <TriangleAlert aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0 text-danger" />
-              ) : (
-                <Lightbulb aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0 text-warning" />
-              )}
-              <span className="block min-w-0 flex-1 space-y-1">
-                <span
-                  className={cn('block font-semibold', alert ? 'text-danger' : 'text-foreground')}
-                >
-                  {label ? `${item.title} — ${label}` : item.title}
-                </span>
-                {alert ? (
-                  <span className="line-clamp-2 block text-sm text-muted-foreground">
-                    {item.explanation}
-                  </span>
-                ) : null}
-                {basis ? (
-                  <span className="block text-sm text-muted-foreground">{basis}</span>
-                ) : null}
-                {alert ? null : (
-                  <span className="line-clamp-2 block text-sm text-muted-foreground">
-                    {basisLabel(item.basis)}
-                  </span>
+              {/* The whole card opens the record; there is no separate review button. */}
+              <button
+                aria-label={`Review ${item.title}`}
+                aria-expanded={open}
+                className={cn(
+                  'flex w-full flex-col gap-2 p-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',
+                  tone.surface,
                 )}
-                <span className="flex flex-wrap gap-2 pt-1">
+                data-card-kind={alert ? 'alert' : 'recommendation'}
+                type="button"
+                onClick={() => onSelect(item.id)}
+              >
+                <span className="flex flex-wrap items-center gap-2">
+                  {alert ? (
+                    <TriangleAlert
+                      aria-hidden="true"
+                      className={cn('h-4 w-4 shrink-0', tone.icon)}
+                    />
+                  ) : (
+                    <Lightbulb aria-hidden="true" className={cn('h-4 w-4 shrink-0', tone.icon)} />
+                  )}
                   {alert ? (
                     <StatusBadge tone={severityTone(item.severity)}>
                       {titleCase(item.severity)}
@@ -98,8 +113,21 @@ export function ReviewCardList({ items, selectedId, onSelect, projectLabel }: Pr
                   ) : null}
                   <StatusBadge tone={statusTone(status)}>{statusLabel(status)}</StatusBadge>
                 </span>
-              </span>
-            </button>
+                <span className={cn('block font-semibold leading-snug', tone.title)}>
+                  {item.title}
+                </span>
+                {label ? (
+                  <span className="block text-sm text-muted-foreground">{label}</span>
+                ) : null}
+                {basis ? <span className="block text-sm">{basis}</span> : null}
+                {alert ? null : (
+                  <span className="line-clamp-2 block text-sm text-muted-foreground">
+                    {basisLabel(item.basis)}
+                  </span>
+                )}
+              </button>
+              {open ? details : null}
+            </div>
           </li>
         )
       })}

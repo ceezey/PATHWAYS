@@ -3,7 +3,6 @@
 import { Wallet } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
-import { PageHeader } from '@/components/layout/page-header'
 import { AsyncState } from '@/components/pathways'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useCurrentRole } from '@/hooks/use-current-role'
@@ -49,11 +48,17 @@ export const BudgetModule = ({ projectId }: { projectId: string }) => {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        actions={<BudgetActions onDone={module.refresh} projectId={projectId} />}
-        description="Allocations, approved spending and expense review for this project."
-        title="Budget"
-      />
+      {/* The workspace frame draws the project title; this tab keeps its note and actions. */}
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <p className="text-sm text-muted-foreground">
+          Allocations, approved spending and expense review for this project.
+        </p>
+        <BudgetActions
+          activities={module.activities}
+          onDone={module.refresh}
+          projectId={projectId}
+        />
+      </div>
       <Tabs onValueChange={setTab} value={tab}>
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>

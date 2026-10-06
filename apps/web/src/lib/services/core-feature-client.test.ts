@@ -185,23 +185,12 @@ describe('Core client request and strict response boundaries', () => {
       'could not be validated',
     )
   })
-  it.each(['read', 'configure'] as const)(
-    'binds the evaluation %s response to its project',
-    async (operation) => {
-      fetcher.mockResolvedValueOnce(
-        json(
-          operation === 'read'
-            ? { projectId: otherId, evaluations: [], criteria: [], hasMore: false }
-            : { projectId: otherId, configured: 1 },
-        ),
-      )
-      await expect(
-        operation === 'read'
-          ? coreDataClient.evaluation(projectId)
-          : coreDataClient.configureWeights(projectId, {}),
-      ).rejects.toThrow('could not be validated')
-    },
-  )
+  it('binds the evaluation read response to its project', async () => {
+    fetcher.mockResolvedValueOnce(
+      json({ projectId: otherId, evaluations: [], criteria: [], hasMore: false }),
+    )
+    await expect(coreDataClient.evaluation(projectId)).rejects.toThrow('could not be validated')
+  })
   describe('evaluation mutations', () => {
     const evaluationId = '78000000-0000-4000-8000-000000000008'
     const detail = {
@@ -224,28 +213,9 @@ describe('Core client request and strict response boundaries', () => {
       signedOffAt: null,
       scores: [],
     }
-    const receipt = {
-      criteria: [{ id: otherId, code: 'REL', version: 1, status: 'DRAFT', updatedAt }],
-    }
     const body = { synthetic: 'body' }
     const base = `/projects/${projectId}/evaluation`
     const cases = [
-      [
-        'createCriteria',
-        (b: unknown) => coreDataClient.createCriteria(projectId, b),
-        `${base}/criteria`,
-        'POST',
-        receipt,
-        null,
-      ],
-      [
-        'publishCriteria',
-        (b: unknown) => coreDataClient.publishCriteria(projectId, b),
-        `${base}/criteria/publish`,
-        'POST',
-        { projectId, published: 1 },
-        { projectId: otherId, published: 1 },
-      ],
       [
         'createEvaluation',
         (b: unknown) => coreDataClient.createEvaluation(projectId, b),
@@ -348,9 +318,10 @@ describe('Core client request and strict response boundaries', () => {
           score: '80',
           maximumScore: '100',
           weightedScore: '48',
-          commentary: 'Judged against the plan.',
-          source: 'manual',
-          note: 'Judged against the plan.',
+          source: 'no_data',
+          evidence: null,
+          reason: 'no paired pre/post assessments in the period',
+          note: null,
           criterion,
         },
       ],

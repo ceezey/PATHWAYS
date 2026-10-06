@@ -29,6 +29,7 @@ import {
   appliesTo,
   availableMetrics,
   categoryOf,
+  conditionSummary,
   previewSentence,
   suggestRuleCode,
 } from './rule-board-model'
@@ -36,7 +37,8 @@ import { ApplyToFields, ConditionBuilder, useBindingChoices } from './rule-condi
 import { RuleDrawerFooter } from './rule-drawer-footer'
 import { DEFAULT_REC, type Mode, type Rec, newRec, newRow, recordBound } from './rule-drawer-shared'
 import { LifecyclePrompt } from './rule-lifecycle-prompt'
-import { RuleOutputFields, RulePreview } from './rule-output-fields'
+import { RecommendationFields, RulePreview, SeverityField } from './rule-output-fields'
+import { RuleStepCard } from './rule-step-card'
 
 export type DrawerIntent = 'test' | 'activate' | 'deactivate'
 type Props = {
@@ -45,9 +47,14 @@ type Props = {
   projectId: string | null
   projects: { id: string; title: string }[]
   intent?: DrawerIntent
+  /** Recommendations already saved on rules in scope, offered for reuse in the builder. */
+  library?: Rec[]
+  /** Inline renders the builder in the page beside a sticky preview instead of a side panel. */
+  inline?: boolean
   onClose: () => void
-  onSaved: (scopeProjectId: string | null) => void
+  onSaved: (scopeProjectId: string | null, outcome?: RuleOutcome) => void
 }
+export type RuleOutcome = 'created' | 'drafted' | 'activated' | 'deactivated'
 /** Splits a stored tree into the flat rows the drawer edits, or null when it nests deeper. */
 const flatten = (node: RuleNode): { mode: Mode; rows: RuleCondition[] } | null =>
   node.kind === 'CONDITION'
@@ -73,6 +80,12 @@ export function RuleDrawer(props: Props) {
     : props.mode === 'alert'
       ? 'Create Alert Rule'
       : 'Create Recommendation Rule'
+  if (props.inline)
+    return owner ? (
+      <OwnedDrawer key={`${owner.generation}:${owner.key}`} {...props} owner={owner} />
+    ) : (
+      <output>Current rule access is required.</output>
+    )
   return (
     <Sheet open onOpenChange={(open) => !open && props.onClose()}>
       <SidePanel
@@ -97,6 +110,9 @@ function OwnedDrawer({
   projectId,
   projects,
   intent,
+  library,
+  inline,
+  onClose,
   onSaved,
   owner,
 }: Props & { owner: SensitiveDraftOwner }) {
@@ -183,10 +199,11 @@ function OwnedDrawer({
     if (error instanceof PathwaysClientError && [400, 403, 404, 409].includes(error.status ?? 0)) {
       captured.current = null
       setLocked(false)
-      setNotice(fallback)
+      // The server states which check refused the write; the fallback alone hides it.
+      setNotice(error.message ? `${error.message} ${fallback}` : fallback)
     } else setNotice('A response was not confirmed. Retry the same operation.')
   }
-  const run = async (task: () => Promise<unknown>, failure: string) => {
+  const run = async (task: () => Promise<unknown>, failure: string, outcome: RuleOutcome) => {
     if (!isCurrent() || inFlight.current) return
     inFlight.current = true
     setBusy(true)
@@ -196,7 +213,7 @@ function OwnedDrawer({
       await task()
       if (isCurrent()) {
         captured.current = null
-        onSaved(scopeProjectId)
+        onSaved(scopeProjectId, outcome)
       }
     } catch (error) {
       fail(error, failure)
@@ -247,6 +264,7 @@ function OwnedDrawer({
           ? rulesHumanClient.draftRule(rule.id, body)
           : rulesHumanClient.createRule(body as Parameters<typeof rulesHumanClient.createRule>[0]),
       'The rule could not be saved. Verify your access, project records, and current version before retrying.',
+      rule ? 'drafted' : 'created',
     )
   }
   const lifecycle = async (action: 'activate' | 'deactivate') => {
@@ -261,9 +279,20 @@ function OwnedDrawer({
           ? rulesHumanClient.activateRule(rule.id, body)
           : rulesHumanClient.archiveRule(rule.id, { ...body, note: note.trim() }),
       'This operation could not be completed. Refresh the rule and verify current access.',
+      action === 'activate' ? 'activated' : 'deactivated',
     )
   }
-  return (
+  const preview = (
+    <RulePreview
+      condition={conditionSummary(tree)}
+      mode={mode}
+      name={name}
+      recommendation={recs[0]}
+      sentence={previewSentence({ name, severity, conditions: tree })}
+      severity={severity}
+    />
+  )
+  const builder = (
     <div className="space-y-6">
       <form
         className="space-y-6"
@@ -274,8 +303,11 @@ function OwnedDrawer({
         }}
       >
         <fieldset className="space-y-6" disabled={busy || locked || !canWrite}>
-          <section className="space-y-3">
-            <h3 className="font-semibold">Basic Rule Information</h3>
+          <RuleStepCard
+            step={1}
+            title="Name and scope"
+            hint="Name the rule and choose the projects it watches."
+          >
             <div className="space-y-2">
               <Label htmlFor="drawer-rule-name">Rule Name</Label>
               <Input
@@ -304,36 +336,54 @@ function OwnedDrawer({
                 {category ?? 'Derived from the first metric'}
               </p>
             </div>
-          </section>
-          <ApplyToFields
-            locked={Boolean(rule)}
-            onProject={changeProject}
-            onToggle={toggleScope}
-            projects={projects}
-            scopeProjectId={scopeProjectId}
-            scopes={scopes}
-          />
-          <ConditionBuilder
-            activities={activities}
-            indicators={indicators}
-            matchMode={matchMode}
-            metricOptions={metricOptions}
-            nestedRule={nested ? rule : undefined}
-            onAdvanced={() => setAdvanced(true)}
-            rows={rows}
-            scopeProjectId={scopeProjectId}
-            setMatchMode={setMatchMode}
-            setRows={setRows}
-          />
-          <RuleOutputFields
-            mode={mode}
-            onRecs={setRecs}
-            onSeverity={setSeverity}
-            recs={recs}
-            severity={severity}
-          />
+            <ApplyToFields
+              locked={Boolean(rule)}
+              onProject={changeProject}
+              onToggle={toggleScope}
+              projects={projects}
+              scopeProjectId={scopeProjectId}
+              scopes={scopes}
+            />
+          </RuleStepCard>
+          <RuleStepCard
+            step={2}
+            title="What are you watching?"
+            hint="Pick the metric to monitor and the threshold that flags it."
+          >
+            <ConditionBuilder
+              activities={activities}
+              indicators={indicators}
+              matchMode={matchMode}
+              metricOptions={metricOptions}
+              nestedRule={nested ? rule : undefined}
+              onAdvanced={() => setAdvanced(true)}
+              rows={rows}
+              scopeProjectId={scopeProjectId}
+              setMatchMode={setMatchMode}
+              setRows={setRows}
+            />
+          </RuleStepCard>
+          <RuleStepCard
+            step={3}
+            title="How should this read?"
+            hint="Severity sets how the output is read, from a progress milestone to an urgent risk."
+          >
+            <SeverityField mode={mode} onSeverity={setSeverity} severity={severity} />
+          </RuleStepCard>
+          <RuleStepCard
+            step={4}
+            title="What should the system recommend?"
+            hint="Write the response the system retrieves when this rule matches. It is stored, not generated."
+          >
+            <RecommendationFields
+              hasRule={Boolean(rule)}
+              library={library}
+              onRecs={setRecs}
+              recs={recs}
+            />
+          </RuleStepCard>
         </fieldset>
-        <RulePreview sentence={previewSentence({ name, severity, conditions: tree })} />
+        {inline ? null : preview}
       </form>
       {showTest && rule ? (
         <RuleTestWorkspace key={`${rule.id}:${rule.version}`} rule={rule} />
@@ -349,7 +399,9 @@ function OwnedDrawer({
         canDeactivate={canDeactivate}
         canWrite={canWrite}
         hasRule={Boolean(rule)}
+        inline={inline}
         nested={nested}
+        onCancel={inline ? onClose : undefined}
         onConfirm={setConfirm}
         onTest={() => setShowTest((value) => !value)}
         showTest={showTest}
@@ -371,6 +423,13 @@ function OwnedDrawer({
           </DialogContent>
         </Dialog>
       ) : null}
+    </div>
+  )
+  if (!inline) return builder
+  return (
+    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start">
+      {builder}
+      <div className="lg:sticky lg:top-4">{preview}</div>
     </div>
   )
 }

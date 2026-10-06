@@ -434,6 +434,28 @@ describe('P05 activity proof authorization', () => {
     expect(tx.budgetExpenseEntry.aggregate).not.toHaveBeenCalled()
   })
 
+  it('allocates from every live budget line, matching the list and the finance ledger', async () => {
+    const officer = {
+      ...actor,
+      roles: ['PROJECT_MANAGER'],
+      permissions: ['activities.read', 'budgets.read'],
+    }
+    state.actor = officer as ApplicationIdentity
+    tx.project.findFirst.mockResolvedValueOnce({ projectActivity_project: [activity] })
+    // An activity envelope plus a named category line; the detail used to read only the first.
+    tx.projectBudgetRecord.findMany.mockResolvedValueOnce([
+      { activityId, plannedBudget: new Prisma.Decimal('40000') },
+      { activityId, plannedBudget: new Prisma.Decimal('20000') },
+    ])
+    await expect(service.get(officer, projectId, activityId)).resolves.toMatchObject({
+      budgetAllocation: '60000.00',
+    })
+    // No category filter: a line that funds the activity counts whatever it is called.
+    const where = tx.projectBudgetRecord.findMany.mock.calls[0]?.[0].where
+    expect(where).toMatchObject({ archivedAt: null })
+    expect(where).not.toHaveProperty('category')
+  })
+
   it('reads no expenses for an out-of-scope activity', async () => {
     const reader = { ...actor, permissions: ['activities.read', 'expenses.read'] }
     state.actor = reader

@@ -70,6 +70,7 @@
 | Role-staging build | [runbook-role-staging-build.md](runbook-role-staging-build.md) | Working |
 | Defense demo reseed | [runbook-defense-demo.md](runbook-defense-demo.md) | Working |
 | Documentation reconciliation | [runbook-doc-reconciliation.md](runbook-doc-reconciliation.md) | Working |
+| Rule creation test script | [runbook-rule-creation-test.md](runbook-rule-creation-test.md) | Working |
 
 ### 1.5 Governance Templates and Audits
 
@@ -192,7 +193,10 @@ Newest first. Core P1 supporting contract reconciliation is approved for local i
 | [cr-pathways-csv-rbac-realignment](cr-pathways-csv-rbac-realignment.md) | 2026-09-26 | CSV action matrix, authorization realignment, preserved migration history and development-only correction | Applied; PATHWAYS-dev 0026 verified, approved 0020 checksum exception retained |
 | [cr-pathways-replay-harness-modernization](cr-pathways-replay-harness-modernization.md) | 2026-10-01 | Retire the pre-baseline replay switches; baseline replay unchanged | Approved |
 | [cr-pathways-evaluation-write-path](cr-pathways-evaluation-write-path.md) | 2026-10-06 | Opens the evaluation write path (DR-08): M&E creates, edits, publishes criteria and scores/submits; Project Manager reviews and signs off together or returns for correction; four criterion types compute from project data, Other is always manual with a required note (migration 0063) | Proposed; code and tests complete on `feat/evaluation-write-path`, migration not yet run against any database |
+| [cr-pathways-evaluation-auto-scoring](cr-pathways-evaluation-auto-scoring.md) | 2026-10-06 | Supersedes section 5 of the write-path CR: fixed OECD-DAC criteria provisioned automatically and every score computed from project data with labeled no-data rows; migration 0069 adds two criterion types. |
 | [cr-pathways-zone-check-memo](cr-pathways-zone-check-memo.md) | 2026-10-06 | Remembers a validated timezone per transaction so the analytics reads stop re-reading pg_timezone_names (migration 0065) | Approved; applied to devV2 with 0064 |
+| [cr-pathways-beneficiary-reach-kpi-values](cr-pathways-beneficiary-reach-kpi-values.md) | 2026-10-06 | Releases beneficiary reach with small-cell suppression, KPI values only and SADDD for ongoing projects (migration 0066, applied on devV2). |
+| [cr-pathways-beneficiary-progress-read](cr-pathways-beneficiary-progress-read.md) | 2026-10-06 | Reads the beneficiary list progress through one SECURITY DEFINER function so the page stops timing out under RLS (migration 0067, proposed). |
 | development-branch-dev-2026-09-26 | 2026-09-26 | Developer replaced `Backend-DB` with `dev` for development; retained `origin/master` for deployment and aligned development preview configuration | Applied |
 | deployment-branch-policy-2026-09-26 | 2026-09-26 | Developer designated `origin/master` for deployment and initially `Backend-DB` for development; authorized connected Vercel API/web projects and explicit remote API/web-origin configuration | Applied; development branch superseded by `dev` |
 | workflow-adoption-2026-09-26 | 2026-09-26 | Adopted the PATHWAYS documentation and agent workflow: added manifest, suite, build/AGENTS materialization, RFC/runbook/templates while preserving PATHWAYS execution controls | Applied as documentation package |

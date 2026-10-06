@@ -34,6 +34,13 @@ export type BudgetAlert = {
 
 export const projectLevelKey = 'project-level'
 export const projectEnvelopeCategory = 'PROJECT_PROFILE_TOTAL'
+// Stored envelope categories read as enum names, so the ledger shows these instead.
+const categoryLabels: Record<string, string> = {
+  PROJECT_PROFILE_TOTAL: 'Project budget',
+  ACTIVITY_PROFILE_TOTAL: 'Activity budget',
+}
+export const categoryLabel = (category: string | null | undefined) =>
+  category ? (categoryLabels[category] ?? category) : 'Unrecorded budget line'
 // Visual thresholds only; they never block or change any record.
 export const DANGER_PCT = 90
 export const WARN_PCT = 70
@@ -152,3 +159,36 @@ export const deriveRecommendations = (rows: ActivityBudgetRow[]) =>
       signal: `${rowLabel(row)} utilization is ${row.utilization}%`,
       suggestion: `Consider reviewing the plan or allocation for ${row.title}.`,
     }))
+
+export type ActivityBudgetFigures = {
+  /** Null means the viewer cannot read budgets, which is different from nothing allocated. */
+  allocated: number | null
+  /** Approved spending only, the same rule the ledger and the overview metric use. */
+  spent: number | null
+  /** Submitted and verified expenses awaiting approval. */
+  pending: number | null
+  remaining: number | null
+  utilization: number | null
+  readable: boolean
+}
+
+/**
+ * One reading of an activity's money, so the activity panel, the ledger and the evidence
+ * tab never disagree. Allocation counts every live budget line for the activity, and the
+ * in-review total is summed from the expenses the caller already holds.
+ */
+export const activityBudgetFigures = (
+  activity: { budgetAllocation?: number | null; budgetLogged?: number | null },
+  pending: number | null = null,
+): ActivityBudgetFigures => {
+  const allocated = activity.budgetAllocation ?? null
+  const spent = activity.budgetLogged ?? null
+  return {
+    allocated,
+    spent,
+    pending,
+    remaining: allocated === null || spent === null ? null : allocated - spent,
+    utilization: allocated !== null && spent !== null ? utilization(spent, allocated) : null,
+    readable: allocated !== null || spent !== null,
+  }
+}

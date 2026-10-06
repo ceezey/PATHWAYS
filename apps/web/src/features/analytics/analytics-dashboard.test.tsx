@@ -11,6 +11,7 @@ const api = vi.hoisted(() => ({
   getActivities: vi.fn(),
   getMonitoringDashboard: vi.fn(),
   getProjectIndicators: vi.fn(),
+  getProjectIndicatorValues: vi.fn(),
   getProjectsForRole: vi.fn(),
   getSadddDashboard: vi.fn(),
   getDescriptiveAnalytics: vi.fn(),
@@ -36,7 +37,13 @@ const currentAccess = vi.hoisted(() => ({
   profile: {
     userId: 'user-1',
     roles: ['MONITORING_AND_EVALUATION_OFFICER'],
-    permissions: ['projects.read', 'activities.read', 'monitoring.read', 'analytics.read'],
+    permissions: [
+      'projects.read',
+      'activities.read',
+      'monitoring.read',
+      'analytics.read',
+      'indicators.read',
+    ],
     assignedProjectIds: ['project-a', 'project-b'],
   },
 }))
@@ -233,6 +240,7 @@ describe('Analytics dashboard request dependencies', () => {
       'activities.read',
       'monitoring.read',
       'analytics.read',
+      'indicators.read',
     ]
     alertHook.result = { data: undefined }
     coverageMap.instanceCount = 0
@@ -254,6 +262,9 @@ describe('Analytics dashboard request dependencies', () => {
     api.getProjectsForRole.mockResolvedValue(projects)
     api.getActivities.mockResolvedValue([])
     api.getProjectIndicators.mockImplementation((projectId: keyof typeof indicators) =>
+      Promise.resolve(indicators[projectId]),
+    )
+    api.getProjectIndicatorValues.mockImplementation((projectId: keyof typeof indicators) =>
       Promise.resolve(indicators[projectId]),
     )
     api.getMonitoringDashboard.mockResolvedValue(monitoring)
@@ -531,6 +542,43 @@ describe('Analytics dashboard request dependencies', () => {
     expect(screen.queryByText('None yet')).toBeNull()
   })
 
+  it('loads KPI rows and reporting periods for a Program Manager without indicator definitions, on every mount', async () => {
+    currentAccess.role = 'Program Manager'
+    currentAccess.profile.roles = ['PROGRAM_MANAGER']
+    currentAccess.profile.permissions = [
+      'projects.read',
+      'monitoring.read',
+      'analytics.read',
+      'reports.indicator.read',
+    ]
+    const released = indicator('project-a', 'A-SEP', '2026-09-01', '2026-09-30')
+    api.getProjectIndicatorValues.mockResolvedValue([released])
+    api.getMonitoringDashboard.mockResolvedValue({ ...monitoring, indicators: [released] })
+
+    // A second mount stands in for Alerts -> browser Back -> Analytics.
+    for (const _visit of [1, 2]) {
+      render(<AnalyticsDashboard />)
+      await waitFor(() =>
+        expect(api.getMonitoringDashboard).toHaveBeenLastCalledWith({
+          projectId: 'project-a',
+          periodStart: '2026-09-01',
+          periodEnd: '2026-09-30',
+        }),
+      )
+      await waitFor(() =>
+        expect(screen.getByLabelText('Reporting period')).toHaveProperty(
+          'value',
+          '2026-09-01::2026-09-30',
+        ),
+      )
+      expect((await screen.findAllByText(/A-SEP/)).length).toBeGreaterThan(0)
+      expect(screen.queryByText(/Analytics data unavailable/)).toBeNull()
+      cleanup()
+    }
+    expect(api.getProjectIndicatorValues).toHaveBeenCalledWith('project-a')
+    expect(api.getProjectIndicators).not.toHaveBeenCalled()
+  })
+
   it('shows "None yet" for an empty KPI set only after a successful monitoring read', async () => {
     render(<AnalyticsDashboard />)
 
@@ -577,6 +625,7 @@ describe('Analytics dashboard request dependencies', () => {
     currentAccess.profile.permissions = [
       ...currentAccess.profile.permissions,
       'analytics.descriptive.read',
+      'reports.indicator.read',
     ]
 
     render(<AnalyticsDashboard />)
@@ -1276,6 +1325,7 @@ describe('Analytics dashboard request dependencies', () => {
           'analytics.read',
           'analytics.descriptive.read',
           'analytics.export',
+          'reports.indicator.read',
         ]
       })
 
