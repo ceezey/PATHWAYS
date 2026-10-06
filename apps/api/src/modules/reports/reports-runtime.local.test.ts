@@ -6,7 +6,9 @@ import type { Prisma } from '@prisma/client'
 import { describe, expect, it } from 'vitest'
 import { type CanonicalRole, roleNames, rolePermissions } from '../auth/authorization-policy'
 import { DashboardsService } from '../dashboards/dashboards.service'
+import { ProjectOverviewMetricsService } from '../projects/project-overview-metrics.service'
 import type { ReportPdfRenderer } from '../report-pdf/report-pdf.renderer'
+import { RulesHumanService } from '../rules/rules-human.service'
 import type { StorageService } from '../storage/storage.service'
 import { type ReportKind, reportKinds } from './reports.dto'
 import { ReportsService } from './reports.service'
@@ -227,14 +229,18 @@ describe.skipIf(!enabled)('report preview scope and suppression on disposable Po
             Object.defineProperty(scoped, '$transaction', {
               value: (work: (inner: Prisma.TransactionClient) => Promise<unknown>) => work(tx),
             })
+            const indicators = new IndicatorsService(scoped)
+            const dashboards = new DashboardsService(scoped, indicators)
             const reports = new ReportsService(
               scoped,
               {} as StorageService,
-              new DashboardsService(scoped, new IndicatorsService(scoped)),
+              dashboards,
               // The runtime test keep pdfkit output deterministic by disabling the Chromium renderer.
               {
                 render: () => Promise.reject(new Error('PDF renderer disabled.')),
               } as unknown as ReportPdfRenderer,
+              new ProjectOverviewMetricsService(scoped, indicators, dashboards),
+              new RulesHumanService(scoped),
             )
             await tx.$executeRaw`SET LOCAL session_replication_role = origin`
             // The indicator report SQL also requires session_user to be the runtime role.

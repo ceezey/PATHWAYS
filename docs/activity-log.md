@@ -349,3 +349,7 @@
 ## 2026-10-06 Analytics export preview and 503 diagnosis (fix/analytics-page)
 - Export aggregates now opens a preview dialog (first 50 rows of the exact suppressed table, project, period, view) before Download; the new `GET /analytics/descriptive/export/preview` is audited as a view (source EXPORT_PREVIEW), not as an export.
 - Analytics 503s keep their specific message (timeout, contract, file render fault) and log a non-sensitive cause; the web client shows 503 reasons instead of the generic text. No migration.
+## 2026-10-06 Project status report (feature/project-status-report)
+- Project summary becomes a one-page status report: project information, overview (Schedule, Budget, Indicators with ON TRACK, AT RISK, OFF TRACK or NOT AVAILABLE), key figures, milestones, indicators and open alerts. Spec: docs/superpowers/specs/2026-10-06-project-status-report-design.md; CR: [cr-pathways-project-status-report](cr-pathways-project-status-report.md).
+- API: new `sections` on the report snapshot (fingerprint, generate re-check and designed PDF include it); flat columns and rows stay for pdfkit, CSV and XLSX. `ProjectOverviewMetricsService.readInTransaction` and `RulesHumanService.listAlertsInTransaction` expose the existing reads inside the report transaction. No migration, no new permission.
+- Web: shared print look for all kinds, Project summary section components, `?sample=project` fixture, in-app preview uses the same component.

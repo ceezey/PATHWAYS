@@ -2,6 +2,7 @@ import { contextCookieName } from '@/features/auth/workspace-access'
 import { sensitiveDraftGeneration } from '@/lib/auth/sensitive-drafts'
 import { z } from 'zod'
 import { PathwaysClientError, requestFoundationResponse } from './pathways-client'
+import { reportSectionsSchema } from './report-sections'
 
 const ownerCookie = () =>
   typeof document === 'undefined'
@@ -138,6 +139,7 @@ export const reportPreviewSchema = z
     formId: uuid.nullable(),
     columns: z.array(z.string()).max(30),
     rows: z.array(z.array(z.string().max(2000)).max(30)).max(1000),
+    sections: reportSectionsSchema.optional(),
     generatedAt: timestamp,
     unavailableReasons: z.array(z.string()).max(20),
   })

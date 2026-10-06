@@ -65,60 +65,65 @@ export class ProjectOverviewMetricsService {
   }
 
   read(identity: ApplicationIdentity, projectId: string) {
-    return withAuthorizedOperation(this.prisma, identity, 'projects.read', async (tx, actor) => {
-      if (!UUID_PATTERN.test(projectId)) throw new NotFoundException('Project unavailable.')
-      const row = await tx.project.findFirst({
-        where: { AND: [projectScope(actor), { id: projectId.toLowerCase() }] },
-        select: { id: true, startDate: true, endDate: true, targetBeneficiaries: true },
-      })
-      if (!row) throw new NotFoundException('Project unavailable.')
-      const can = (permission: AtomicPermission) =>
-        hasAtomicPermission(actor.roles[0], actor.permissions, permission)
-      const zone = readApiEnv(process.env).BUSINESS_TIME_ZONE
-      let businessDate: string
-      try {
-        businessDate = businessCalendarDate(new Date(), zone)
-      } catch {
-        throw new ServiceUnavailableException('The configured business time zone is invalid.')
-      }
-      const project = {
-        id: row.id,
-        startDate: row.startDate?.toISOString().slice(0, 10) ?? null,
-        endDate: row.endDate?.toISOString().slice(0, 10) ?? null,
-      }
-      // p06_indicator_value requires monitoring.read in the database as well.
-      const kpi =
-        can('indicators.read') && can('monitoring.read') ? await this.kpi(tx, actor, row.id) : null
-      // Spending totals are expense data, so both finance reads are required.
-      const budget =
-        can('budgets.read') && can('expenses.read')
-          ? await readProjectBudget(tx, actor.organizationId, row.id)
-          : null
-      const reached =
-        can('beneficiaries.aggregates.read') && can('analytics.saddd.read')
-          ? {
-              metric: await this.reached(tx, actor, project, businessDate, zone),
-              target: row.targetBeneficiaries ?? null,
-            }
-          : null
-      const parsed = projectOverviewMetricsSchema.safeParse({
-        contractVersion: PROJECT_OVERVIEW_METRICS_CONTRACT_VERSION,
-        projectId: row.id,
-        businessDate,
-        generatedAt: new Date().toISOString(),
-        kpiAchievement: kpi,
-        budgetUtilization: budget,
-        efficiencyRatio: kpi && budget ? efficiencyRatio(kpi.metric, budget.metric) : null,
-        beneficiariesReached: reached,
-        timeline: {
-          metric: timelineProgress(project.startDate, project.endDate, businessDate),
-          startDate: project.startDate,
-          endDate: project.endDate,
-        },
-      })
-      if (!parsed.success)
-        throw new ServiceUnavailableException('Project overview contract is unavailable.')
-      return parsed.data
+    return withAuthorizedOperation(this.prisma, identity, 'projects.read', (tx, actor) =>
+      this.readInTransaction(tx, actor, projectId),
+    )
+  }
+
+  /** Reads the overview inside an already-authorized transaction; each field keeps its own gate. */
+  async readInTransaction(tx: Tx, actor: ApplicationIdentity, projectId: string) {
+    if (!UUID_PATTERN.test(projectId)) throw new NotFoundException('Project unavailable.')
+    const row = await tx.project.findFirst({
+      where: { AND: [projectScope(actor), { id: projectId.toLowerCase() }] },
+      select: { id: true, startDate: true, endDate: true, targetBeneficiaries: true },
     })
+    if (!row) throw new NotFoundException('Project unavailable.')
+    const can = (permission: AtomicPermission) =>
+      hasAtomicPermission(actor.roles[0], actor.permissions, permission)
+    const zone = readApiEnv(process.env).BUSINESS_TIME_ZONE
+    let businessDate: string
+    try {
+      businessDate = businessCalendarDate(new Date(), zone)
+    } catch {
+      throw new ServiceUnavailableException('The configured business time zone is invalid.')
+    }
+    const project = {
+      id: row.id,
+      startDate: row.startDate?.toISOString().slice(0, 10) ?? null,
+      endDate: row.endDate?.toISOString().slice(0, 10) ?? null,
+    }
+    // p06_indicator_value requires monitoring.read in the database as well.
+    const kpi =
+      can('indicators.read') && can('monitoring.read') ? await this.kpi(tx, actor, row.id) : null
+    // Spending totals are expense data, so both finance reads are required.
+    const budget =
+      can('budgets.read') && can('expenses.read')
+        ? await readProjectBudget(tx, actor.organizationId, row.id)
+        : null
+    const reached =
+      can('beneficiaries.aggregates.read') && can('analytics.saddd.read')
+        ? {
+            metric: await this.reached(tx, actor, project, businessDate, zone),
+            target: row.targetBeneficiaries ?? null,
+          }
+        : null
+    const parsed = projectOverviewMetricsSchema.safeParse({
+      contractVersion: PROJECT_OVERVIEW_METRICS_CONTRACT_VERSION,
+      projectId: row.id,
+      businessDate,
+      generatedAt: new Date().toISOString(),
+      kpiAchievement: kpi,
+      budgetUtilization: budget,
+      efficiencyRatio: kpi && budget ? efficiencyRatio(kpi.metric, budget.metric) : null,
+      beneficiariesReached: reached,
+      timeline: {
+        metric: timelineProgress(project.startDate, project.endDate, businessDate),
+        startDate: project.startDate,
+        endDate: project.endDate,
+      },
+    })
+    if (!parsed.success)
+      throw new ServiceUnavailableException('Project overview contract is unavailable.')
+    return parsed.data
   }
 }

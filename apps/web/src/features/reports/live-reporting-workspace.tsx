@@ -19,6 +19,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { ProjectStatusSections } from '@/features/reports/print/print-report-sections'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useOperationRequestId } from '@/lib/auth/operation-request-id'
 import { useSensitiveDraftOwner } from '@/lib/auth/sensitive-drafts'
@@ -400,6 +401,17 @@ export function LiveReportingWorkspace({
               'Choose an authorized project with recorded report data.'
             }
           />
+        ) : currentPreview.sections ? (
+          <div className="mx-auto max-w-[180mm]">
+            {currentPreview.unavailableReasons.length > 0 && (
+              <ul className="list-disc rounded-md border border-warning bg-warning-subtle p-3 pl-7 text-sm">
+                {currentPreview.unavailableReasons.map((reason) => (
+                  <li key={reason}>{reason}</li>
+                ))}
+              </ul>
+            )}
+            <ProjectStatusSections sections={currentPreview.sections} />
+          </div>
         ) : (
           <div className="overflow-x-auto">
             <Table>
