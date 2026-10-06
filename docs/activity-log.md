@@ -518,3 +518,6 @@
 
 ## 2026-10-07 Project preview tiles (fix/overview-metrics-layout)
 - Project preview and Quick Preview leave out Budget utilization when the role cannot read the budget (instead of "Unavailable"), place Beneficiaries reached / target beside KPI achievement, and show Timeline as a full-width progress bar. The Overview hides "Planned project budget" when none is recorded.
+
+## 2026-10-07 Activity proof download restored (fix/activity-proof-download)
+- Previewing a proof from the activity panel reloaded the page: the panel called the generic proof download that eef96516 had withdrawn (always 403), and every 403 re-verifies all authorized reads. The download is restored for `evidence.read` holders with project/org scope, a SHA-256 integrity check and no-store/nosniff headers; recorded as an amendment in cr-pathways-private-activity-proof-inspection.
