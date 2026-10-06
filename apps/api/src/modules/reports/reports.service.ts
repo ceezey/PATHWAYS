@@ -32,6 +32,7 @@ import {
   createReportArtifact,
   reportMime,
 } from './report-artifact'
+import { sourceContent, sourceFingerprint } from './report-fingerprint'
 import { type ProjectSections, flattenSections } from './report-project-status'
 import { projectStatusSource } from './report-project-status-source'
 import {
@@ -68,19 +69,6 @@ type Preview = {
   generatedAt: string
   unavailableReasons: string[]
 }
-const sourceFingerprint = (source: Preview) =>
-  hash(
-    JSON.stringify({
-      projectId: source.projectId,
-      formId: source.formId,
-      ...(source.evaluationId ? { evaluationId: source.evaluationId } : {}),
-      kind: source.kind,
-      columns: source.columns,
-      rows: source.rows,
-      ...(source.sections ? { sections: source.sections } : {}),
-      unavailableReasons: source.unavailableReasons,
-    }),
-  )
 type Artifact = {
   id: string
   projectId: string
@@ -145,7 +133,11 @@ export class ReportsService {
         sector: true,
         startDate: true,
         endDate: true,
-        implementingPartners: true,
+        implementingPartnerLinks: {
+          select: { partner: { select: { name: true } } },
+          orderBy: { partnerId: 'asc' },
+          take: 20,
+        },
         programManager: { select: { fullName: true } },
       },
     })
@@ -614,18 +606,7 @@ export class ReportsService {
         async (tx, actor) => {
           const current = await this.source(tx, actor, projectId, body.kind, body.formId)
           if (
-            JSON.stringify({
-              columns: current.columns,
-              rows: current.rows,
-              sections: current.sections,
-              unavailableReasons: current.unavailableReasons,
-            }) !==
-            JSON.stringify({
-              columns: prepare.source.columns,
-              rows: prepare.source.rows,
-              sections: prepare.source.sections,
-              unavailableReasons: prepare.source.unavailableReasons,
-            })
+            JSON.stringify(sourceContent(current)) !== JSON.stringify(sourceContent(prepare.source))
           )
             throw new ConflictException('Report source changed. Generate again.')
           if (body.kind === 'SURVEY_FORM_RESULTS') {

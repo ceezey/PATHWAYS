@@ -15,6 +15,7 @@ import type { ProjectOverviewMetricsService } from '../projects/project-overview
 import { ReportPdfError, type ReportPdfRenderer } from '../report-pdf/report-pdf.renderer'
 import type { RulesHumanService } from '../rules/rules-human.service'
 import type { StorageService } from '../storage/storage.service'
+import { sourceFingerprint } from './report-fingerprint'
 import { reportInputSchema, reportQuerySchema } from './reports.dto'
 import { ReportsService } from './reports.service'
 const state = vi.hoisted(() => ({
@@ -92,6 +93,8 @@ const project = {
   sector: null,
   startDate: null,
   endDate: null,
+  implementingPartnerLinks: [],
+  programManager: null,
 }
 const tx = {
   project: { findFirst: vi.fn() },
@@ -148,6 +151,7 @@ describe('report source authority, privacy and artifact recovery', () => {
     renderer.render.mockRejectedValue(new ReportPdfError('launch', 'Error'))
     tx.project.findFirst.mockResolvedValue(project)
     overview.readInTransaction.mockResolvedValue({
+      businessDate: '2026-10-06',
       timeline: { metric: { state: 'MISSING', value: null, reason: 'PROJECT_DATES_REQUIRED' } },
       budgetUtilization: null,
       kpiAchievement: null,
@@ -590,5 +594,46 @@ describe('report source authority, privacy and artifact recovery', () => {
         sections: expect.objectContaining({ overview: expect.any(Array) }),
       }),
     )
+  })
+  describe('project summary section integrity', () => {
+    const budgetOverview = (state: string) => ({
+      businessDate: '2026-10-06',
+      timeline: { metric: { state: 'AVAILABLE', value: '50', reason: null } },
+      budgetUtilization: {
+        metric: { state, value: state === 'AVAILABLE' ? '40' : null, reason: null },
+        approvedBudget: '100.00',
+        countableSpending: '40.00',
+      },
+      kpiAchievement: null,
+      beneficiariesReached: null,
+    })
+    it('rejects generation when a section-only field changes between prepare and finalize', async () => {
+      overview.readInTransaction
+        .mockResolvedValueOnce(budgetOverview('AVAILABLE'))
+        .mockResolvedValue(budgetOverview('SUPPRESSED'))
+      await expect(service.generate(actor, projectId, body)).rejects.toThrow(
+        'Report source changed',
+      )
+    })
+    it('rejects export when the stored fingerprint was taken from different sections', async () => {
+      overview.readInTransaction.mockResolvedValue(budgetOverview('AVAILABLE'))
+      const first = await service.preview(actor, projectId, { kind: 'PROJECT_SUMMARY' })
+      const stored = sourceFingerprint({ ...first, evaluationId: null })
+      tx.$queryRaw.mockResolvedValue([
+        {
+          id,
+          projectId,
+          formId: null,
+          type: 'PROJECT_SUMMARY',
+          sourceFingerprint: stored,
+          status: 'GENERATED',
+        },
+      ])
+      await service.export(actor, projectId, id).catch((error: Error) => {
+        expect(error.message).not.toContain('stale')
+      })
+      overview.readInTransaction.mockResolvedValue(budgetOverview('SUPPRESSED'))
+      await expect(service.export(actor, projectId, id)).rejects.toThrow('Report source is stale')
+    })
   })
 })

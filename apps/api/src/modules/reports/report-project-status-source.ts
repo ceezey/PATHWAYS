@@ -1,5 +1,5 @@
 import { readApiEnv } from '@pathways/config'
-import { type MetricCell, businessCalendarDate } from '@pathways/shared'
+import type { MetricCell } from '@pathways/shared'
 import type { Prisma } from '@prisma/client'
 import { type AtomicPermission, hasAtomicPermission } from '../auth/authorization-policy'
 import type { ApplicationIdentity } from '../auth/developer-access'
@@ -8,7 +8,10 @@ import type { ProjectOverviewMetricsService } from '../projects/project-overview
 import type { RulesHumanService } from '../rules/rules-human.service'
 import {
   type Figure,
+  INDICATOR_CAP,
   type ProjectSections,
+  TIMELINE_LABEL,
+  clip,
   indicatorRows,
   isOverdue,
   metricPercent,
@@ -30,10 +33,11 @@ type ProjectRow = {
   sector: string | null
   startDate: Date | null
   endDate: Date | null
-  implementingPartners: string | null
+  implementingPartnerLinks: Array<{ partner: { name: string } }>
   programManager: { fullName: string } | null
 }
-const OPEN_ALERTS = new Set(['NEW', 'REVIEWED', 'ACTIONED'])
+const OPEN_ALERTS = ['NEW', 'REVIEWED', 'ACTIONED'] as const
+const ALERT_CAP = 10
 const day = (value: Date | null) => value?.toISOString().slice(0, 10) ?? null
 const figure = (
   label: string,
@@ -61,12 +65,12 @@ export async function projectStatusSource(
   const can = (permission: AtomicPermission) =>
     hasAtomicPermission(actor.roles[0], actor.permissions, permission)
   const zone = readApiEnv(process.env).BUSINESS_TIME_ZONE
-  const reportDate = businessCalendarDate(new Date(), zone)
   const unavailableReasons: string[] = []
   const overview = await deps.overview.readInTransaction(tx, actor, projectId)
+  const reportDate = overview.businessDate
 
   const keyFigures = [
-    figure('Timeline elapsed', overview.timeline.metric, '', '%', true),
+    figure(TIMELINE_LABEL, overview.timeline.metric, '', '%', true),
     ...(overview.budgetUtilization
       ? [
           figure(
@@ -114,7 +118,7 @@ export async function projectStatusSource(
     milestones = rows.map((row) => {
       const item = { status: row.status as string, targetDate: day(row.targetDate) }
       return {
-        title: row.title,
+        title: clip(row.title),
         status: item.status,
         targetDate: item.targetDate,
         completionDate: day(row.completionDate),
@@ -137,34 +141,43 @@ export async function projectStatusSource(
         { ...period, businessTimeZone: zone },
       )
       indicators = indicatorRows(data.indicators)
+      if (data.indicators.length > INDICATOR_CAP)
+        unavailableReasons.push(`Only the first ${INDICATOR_CAP} indicators are shown.`)
     }
   }
 
   let alerts: ProjectSections['alerts']
   if (can('alerts.read')) {
-    const page = await deps.rules.listAlertsInTransaction(tx, actor, { projectId, limit: '100' })
-    alerts = topAlerts(page.items.filter((item) => OPEN_ALERTS.has(item.lifecycle))).map(
-      (item) => ({
-        title: item.title,
-        severity: item.severity,
-        explanation: item.explanation,
-        evaluatedAt: item.evaluatedAt,
-      }),
-    )
+    const pages = []
+    for (const status of OPEN_ALERTS)
+      pages.push(
+        await deps.rules.listAlertsInTransaction(tx, actor, { projectId, status, limit: '10' }),
+      )
+    const open = pages.flatMap((page) => page.items)
+    if (open.length > ALERT_CAP || pages.some((page) => page.nextCursor))
+      unavailableReasons.push(`Only the ${ALERT_CAP} highest-severity open alerts are shown.`)
+    alerts = topAlerts(open).map((item) => ({
+      title: item.title,
+      severity: item.severity,
+      explanation: clip(item.explanation),
+      evaluatedAt: item.evaluatedAt,
+    }))
   } else unavailableReasons.push('Open alerts are not included: alert access is required.')
 
   const sections: ProjectSections = {
     reportDate,
     information: {
       code: project.code,
-      title: project.title,
+      title: clip(project.title),
       status: project.status,
-      sector: project.sector ?? 'Not specified',
-      area: project.implementationArea ?? 'Not specified',
+      sector: clip(project.sector ?? 'Not specified'),
+      area: clip(project.implementationArea ?? 'Not specified'),
       startDate: day(project.startDate) ?? 'Not specified',
       endDate: day(project.endDate) ?? 'Not specified',
       manager: project.programManager?.fullName ?? null,
-      partners: project.implementingPartners ?? 'Not specified',
+      partners: project.implementingPartnerLinks.length
+        ? clip(project.implementingPartnerLinks.map((link) => link.partner.name).join(', '), 1000)
+        : 'Not specified',
     },
     overview: overviewRows({
       reportDate,

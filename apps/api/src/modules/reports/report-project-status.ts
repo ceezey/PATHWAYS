@@ -16,7 +16,7 @@ export type ProjectSections = {
     string
   > & { manager: string | null }
   overview: Array<{ area: string; status: StatusLevel; comment: string }>
-  keyFigures?: Figure[]
+  keyFigures: Figure[]
   milestones?: Array<{
     title: string
     status: string
@@ -67,6 +67,8 @@ export const isOverdue = (
   milestone.targetDate < reportDate &&
   !closed.has(milestone.status)
 
+// Percents carry one decimal, so integer tenths keep every threshold comparison exact.
+const tenths = (percent: number) => Math.round(percent * 10)
 const row = (area: string, status: StatusLevel, comment: string) => ({ area, status, comment })
 const na = (area: string, why: string) => row(area, 'NOT_AVAILABLE', why)
 
@@ -90,50 +92,75 @@ export function overviewRows(input: OverviewInput) {
         ? row('Schedule', 'AT_RISK', `${overdue.length} milestone(s) overdue.`)
         : row('Schedule', 'ON_TRACK', 'No overdue milestones.')
   let spend = na('Budget', 'Budget or timeline data is not available.')
-  if (budget !== null && budget > 100)
-    spend = row('Budget', 'OFF_TRACK', `Budget used is ${budget}% of the approved amount.`)
-  else if (budget !== null && timeline !== null)
+  if (budget !== null && timeline !== null)
     spend =
-      budget - timeline > 15
-        ? row(
-            'Budget',
-            'AT_RISK',
-            `Budget used (${budget}%) is ahead of the timeline (${timeline}%).`,
-          )
-        : row(
-            'Budget',
-            'ON_TRACK',
-            `Budget used (${budget}%) is in line with the timeline (${timeline}%).`,
-          )
+      tenths(budget) > 1000
+        ? row('Budget', 'OFF_TRACK', `Budget used is ${budget}% of the approved amount.`)
+        : tenths(budget) - tenths(timeline) > 150
+          ? row(
+              'Budget',
+              'AT_RISK',
+              `Budget used (${budget}%) is ahead of the timeline (${timeline}%).`,
+            )
+          : row(
+              'Budget',
+              'ON_TRACK',
+              `Budget used (${budget}%) is in line with the timeline (${timeline}%).`,
+            )
   let results = na('Indicators', 'KPI or timeline data is not available.')
   if (kpi !== null && timeline !== null) {
-    const gap = timeline - kpi
+    const gap = tenths(timeline) - tenths(kpi)
     const text = `KPI achievement (${kpi}%) against timeline (${timeline}%).`
-    results = row('Indicators', gap > 25 ? 'OFF_TRACK' : gap > 10 ? 'AT_RISK' : 'ON_TRACK', text)
+    results = row('Indicators', gap > 250 ? 'OFF_TRACK' : gap > 100 ? 'AT_RISK' : 'ON_TRACK', text)
   }
   return [schedule, spend, results]
 }
 
-/** Alerts newest-severity first, capped at 10. */
+/** Alerts by highest severity first, capped at 10. */
 export const topAlerts = <T extends { severity: string }>(alerts: T[]) =>
   [...alerts]
     .sort((a, b) => SEVERITY.indexOf(a.severity) - SEVERITY.indexOf(b.severity))
     .slice(0, 10)
 
+const cellText = (cell: MetricCell, suffix = '') =>
+  cell.state === 'SUPPRESSED'
+    ? 'Fewer than 5'
+    : cell.value === null
+      ? 'Not available'
+      : `${cell.value}${suffix}`
+const figureText = (f: Figure) =>
+  f.state === 'SUPPRESSED' ? 'Fewer than 5' : (f.value ?? 'Not available')
+
+export const INDICATOR_CAP = 50
 export const indicatorRows = (items: MonitoringIndicator[]) =>
-  items.slice(0, 50).map((i) => ({
+  items.slice(0, INDICATOR_CAP).map((i) => ({
     code: i.code,
     name: i.name,
     baseline: i.baseline,
     target: i.target,
-    current: i.current.value ?? 'Not available',
-    progress: i.progress.value === null ? 'Not available' : `${i.progress.value}%`,
+    current: cellText(i.current),
+    progress: cellText(i.progress, '%'),
   }))
 
+/** Free text is clipped so one long value cannot break the cell limit of any format. */
+export const clip = (value: string, max = 500) =>
+  value.length > max ? `${value.slice(0, max - 3)}...` : value
+
+export const TIMELINE_LABEL = 'Timeline elapsed'
+
+/** Sections without the calendar-dependent parts, so the same data hashes the same on any day. */
+export const stableSections = (s: ProjectSections) => {
+  const { reportDate: _date, overview: _overview, ...rest } = s
+  return {
+    ...rest,
+    keyFigures: s.keyFigures.filter((f) => f.label !== TIMELINE_LABEL),
+    milestones: s.milestones?.map(({ overdue: _overdue, ...m }) => m),
+    alerts: s.alerts?.map(({ evaluatedAt: _evaluated, ...a }) => a),
+  }
+}
+
 /** Flat Section/Item/Value/Detail copy so pdfkit, CSV and XLSX keep working. */
-export function flattenSections(
-  s: Omit<ProjectSections, 'information'> & Pick<ProjectSections, 'information'>,
-) {
+export function flattenSections(s: ProjectSections) {
   const rows: string[][] = []
   const info = s.information
   const infoPairs: Array<[string, string]> = [
@@ -149,8 +176,7 @@ export function flattenSections(
   ]
   for (const [item, value] of infoPairs) rows.push(['Project information', item, value, ''])
   for (const o of s.overview) rows.push(['Overview', o.area, statusLabel[o.status], o.comment])
-  for (const f of s.keyFigures ?? [])
-    rows.push(['Key figures', f.label, f.value ?? 'Not available', f.detail || f.reason || ''])
+  for (const f of s.keyFigures ?? []) rows.push(['Key figures', f.label, figureText(f), f.detail])
   for (const m of s.milestones ?? [])
     rows.push([
       'Milestones',

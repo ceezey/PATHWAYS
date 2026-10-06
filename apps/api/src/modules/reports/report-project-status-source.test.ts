@@ -9,6 +9,7 @@ const cell = (value: string | null, state = 'AVAILABLE', reason: string | null =
   reason,
 })
 const fullOverview = {
+  businessDate: '2026-10-06',
   timeline: { metric: cell('50'), startDate: '2026-01-01', endDate: '2026-12-31' },
   budgetUtilization: {
     metric: cell('40'),
@@ -47,7 +48,10 @@ const project = {
   sector: 'Health',
   startDate: new Date('2026-01-01'),
   endDate: new Date('2026-12-31'),
-  implementingPartners: 'Partner A',
+  implementingPartnerLinks: [
+    { partner: { name: 'Partner A' } },
+    { partner: { name: 'Partner B' } },
+  ],
   programManager: { fullName: 'Maria Santos' },
 }
 const all = [
@@ -72,14 +76,12 @@ describe('project status source', () => {
     vi.clearAllMocks()
     deps.overview.readInTransaction.mockResolvedValue(fullOverview)
     deps.dashboards.monitoringInTransaction.mockResolvedValue({ indicators: [indicator] })
-    deps.rules.listAlertsInTransaction.mockResolvedValue({
-      items: [
-        alert('Low one', 'LOW'),
-        alert('Closed', 'CRITICAL', 'RESOLVED'),
-        alert('Critical one', 'CRITICAL', 'REVIEWED'),
-      ],
+    deps.rules.listAlertsInTransaction.mockImplementation(async (_tx, _actor, query) => ({
+      items: [alert('Low one', 'LOW'), alert('Critical one', 'CRITICAL', 'REVIEWED')].filter(
+        (item) => item.lifecycle === query.status,
+      ),
       nextCursor: null,
-    })
+    }))
     tx.projectMilestone.findMany.mockResolvedValue([
       {
         title: 'Kickoff',
@@ -93,6 +95,7 @@ describe('project status source', () => {
     const { sections, unavailableReasons } = await run()
     expect(unavailableReasons).toEqual([])
     expect(sections.information.manager).toBe('Maria Santos')
+    expect(sections.information.partners).toBe('Partner A, Partner B')
     expect(sections.keyFigures?.map((f) => f.label)).toEqual([
       'Timeline elapsed',
       'Budget used',
@@ -143,5 +146,33 @@ describe('project status source', () => {
     )
     expect(sections.indicators).toBeUndefined()
     expect(unavailableReasons.join(' ')).toContain('project dates')
+  })
+  it('clips a 4000-character alert explanation below the cell limit', async () => {
+    deps.rules.listAlertsInTransaction.mockResolvedValue({
+      items: [{ ...alert('Long', 'HIGH'), explanation: 'x'.repeat(4000) }],
+      nextCursor: null,
+    })
+    const { sections } = await run()
+    expect(sections.alerts?.[0]?.explanation.length).toBeLessThanOrEqual(500)
+    expect(sections.alerts?.[0]?.explanation.endsWith('...')).toBe(true)
+  })
+  it('says when more than ten open alerts exist', async () => {
+    deps.rules.listAlertsInTransaction.mockResolvedValue({
+      items: Array.from({ length: 11 }, (_, n) => alert(`A${n}`, 'LOW')),
+      nextCursor: null,
+    })
+    const { sections, unavailableReasons } = await run()
+    expect(sections.alerts).toHaveLength(10)
+    expect(unavailableReasons.join(' ')).toContain('10 highest-severity')
+  })
+  it.each([
+    ['activities.read', 'milestones', 'Milestones'],
+    ['monitoring.read', 'indicators', 'Indicators'],
+    ['alerts.read', 'alerts', 'Open alerts'],
+  ] as const)('drops only the section behind %s', async (permission, key, name) => {
+    const { sections, unavailableReasons } = await run(all.filter((p) => p !== permission))
+    for (const other of ['milestones', 'indicators', 'alerts'] as const)
+      expect(sections[other] === undefined).toBe(other === key)
+    expect(unavailableReasons.filter((reason) => reason.startsWith(name))).toHaveLength(1)
   })
 })

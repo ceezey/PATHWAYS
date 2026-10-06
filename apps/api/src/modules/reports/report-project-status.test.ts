@@ -22,7 +22,9 @@ describe('project status overview rules', () => {
     expect(status({ timeline: 50, budget: 65.1 }, 'Budget')).toBe('AT_RISK')
     expect(status({ timeline: 100, budget: 100 }, 'Budget')).toBe('ON_TRACK')
     expect(status({ timeline: 100, budget: 100.1 }, 'Budget')).toBe('OFF_TRACK')
-    expect(status({ timeline: null, budget: 120 }, 'Budget')).toBe('OFF_TRACK')
+    expect(status({ timeline: null, budget: 120 }, 'Budget')).toBe('NOT_AVAILABLE')
+    expect(status({ timeline: 30.2, budget: 45.2 }, 'Budget')).toBe('ON_TRACK')
+    expect(status({ timeline: 30.2, budget: 45.3 }, 'Budget')).toBe('AT_RISK')
     expect(status({ timeline: null, budget: 50 }, 'Budget')).toBe('NOT_AVAILABLE')
     expect(status({ budget: null }, 'Budget')).toBe('NOT_AVAILABLE')
   })
@@ -31,6 +33,8 @@ describe('project status overview rules', () => {
     expect(status({ timeline: 50, kpi: 39.9 }, 'Indicators')).toBe('AT_RISK')
     expect(status({ timeline: 50, kpi: 25 }, 'Indicators')).toBe('AT_RISK')
     expect(status({ timeline: 50, kpi: 24.9 }, 'Indicators')).toBe('OFF_TRACK')
+    expect(status({ timeline: 30.2, kpi: 20.2 }, 'Indicators')).toBe('ON_TRACK')
+    expect(status({ timeline: 50.3, kpi: 25.3 }, 'Indicators')).toBe('AT_RISK')
     expect(status({ kpi: null }, 'Indicators')).toBe('NOT_AVAILABLE')
   })
   it('gives every row a one-line comment', () => {
@@ -62,6 +66,16 @@ describe('flattened sections', () => {
         manager: 'Maria Santos',
         partners: 'Partner A',
       },
+      keyFigures: [
+        {
+          label: 'Beneficiaries reached',
+          state: 'SUPPRESSED',
+          value: null,
+          reason: 'SMALL_CELL',
+          detail: '',
+          percent: null,
+        },
+      ],
       overview: [{ area: 'Schedule', status: 'ON_TRACK', comment: 'No overdue milestones.' }],
       milestones: [
         {
@@ -78,5 +92,6 @@ describe('flattened sections', () => {
     expect(rows.flat().join('|')).toContain('Schedule')
     expect(rows.flat().join('|')).toContain('Kickoff')
     expect(rows.flat().join('|')).toContain('Maria Santos')
+    expect(rows.flat()).toContain('Fewer than 5')
   })
 })
