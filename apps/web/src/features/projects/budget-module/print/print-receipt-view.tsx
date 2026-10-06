@@ -29,11 +29,11 @@ const peso = (amount: string, currency: string) => {
 }
 
 const Fact = ({ label, value }: { label: string; value: string }) => (
-  <div>
+  <div className="min-w-0">
     <dt className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
       {label}
     </dt>
-    <dd className="mt-0.5 text-xs font-medium text-ink">{value}</dd>
+    <dd className="mt-0.5 break-all text-xs font-medium text-ink">{value}</dd>
   </div>
 )
 
@@ -99,7 +99,7 @@ export function PrintReceiptView({ receipt }: { receipt: PrintReceipt | null }) 
       </dl>
 
       <Band title="Particulars" />
-      <Table head={['Description', 'Budget line', 'Activity', 'Amount']}>
+      <Table head={['Description', 'Budget line', 'Activity', 'Amount']} numericLastColumn>
         <tr className="print-avoid">
           <td className={td}>{expense.description}</td>
           <td className={td}>{receipt.budgetLine}</td>
