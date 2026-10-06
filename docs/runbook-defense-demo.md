@@ -72,7 +72,7 @@ Follow `docs/ops-pathways.md` section "Rules scheduler activation": run `infra/s
 Seeds locally through the real services once, then restores that data onto devV2 in one transaction with triggers skipped (`cr-pathways-defense-seed-snapshot`). It replaces steps 2 to 5 of section 4; step 7 still applies. Needs Docker with the local stack at the same migration as devV2.
 
 1. `pnpm db:local:reset`
-2. `node scripts/db/defense-snapshot.mjs mirror --env-file .tmp/defense-seed.env`: copies the devV2 organization, staff rows and auth user ids into the local stack and writes `.tmp/defense-identities.json`. Local sign-in for these accounts stays off until the next reset.
+2. `node scripts/db/defense-snapshot.mjs mirror --env-file .tmp/defense-seed.env`: copies the devV2 organization, staff rows and auth user ids into the local stack and writes `.tmp/defense-identities.json`. Local sign-in for these accounts stays off until the next reset. Required, right after step 1 and before step 3: it must print "Mirrored 1 organization and 7 staff accounts into the local stack", and `.tmp/defense-identities.json` must show today's time. A seed run without it uses the reset's fresh ids, so step 7 refuses the dump on the identity check and the ~30-minute seed has to be redone from step 1.
 3. `pnpm db:defense:local`, then `node scripts/db/defense-demo.mjs --test-local --verify` with no failures.
 4. `node scripts/db/defense-snapshot.mjs dump`: writes `.tmp/defense-snapshot/data.sql` and `manifest.json`.
 5. Run the hosted wipe dry-run (section 4 step 2) and check its KEEP counts. Set GitHub variable `RULES_DISPATCH_ENABLED=false` and keep it false during the restore. No backup is needed: recovery is section 4 (rerun the wipe and the seed).
