@@ -1,4 +1,5 @@
-import { Inject, Injectable, ServiceUnavailableException } from '@nestjs/common'
+import { Inject, Injectable, Logger, ServiceUnavailableException } from '@nestjs/common'
+import { faultCause } from '../../prisma/transaction-diagnostic'
 import { canStartMachineWork, rulesPhaseBudget } from './rules-dispatch-budget'
 import { machineAcknowledgement } from './rules-machine-acknowledgement'
 import type { MachineInvocation } from './rules-machine-boundary'
@@ -28,12 +29,29 @@ export interface RulesMachineSql {
   sweep(invocation: MachineInvocation): Promise<void>
 }
 export class RulesSqlFailure extends Error {
-  constructor(readonly kind: 'STALE' | 'CANCELLED' | 'DENIED' | 'UNCERTAIN') {
+  constructor(
+    readonly kind: 'STALE' | 'CANCELLED' | 'DENIED' | 'UNCERTAIN',
+    /** Allowlisted fault label for server logs only. */
+    readonly diagnostic = '',
+  ) {
     super('Rule processing is unavailable.')
   }
 }
+const logger = new Logger('RulesMachineWorker')
 const unavailable = () =>
   new ServiceUnavailableException('Rule processing is temporarily unavailable.')
+
+/** One allowlisted warning per failed machine run; never messages, SQL or row data. */
+function fault(purpose: 'DRAIN' | 'SWEEP', error: unknown) {
+  const failure = error instanceof RulesSqlFailure ? error : undefined
+  logger.warn({
+    event: 'PATHWAYS_RULES_MACHINE_FAILED',
+    purpose,
+    ...(failure && { kind: failure.kind }),
+    cause: failure?.diagnostic || faultCause(error),
+  })
+  return unavailable()
+}
 
 @Injectable()
 export class RulesMachineWorker {
@@ -87,8 +105,8 @@ export class RulesMachineWorker {
       }
       rulesPhaseBudget(invocation, 'RESPONSE')
       return machineAcknowledgement()
-    } catch {
-      throw unavailable()
+    } catch (error) {
+      throw fault('DRAIN', error)
     }
   }
 
@@ -100,8 +118,8 @@ export class RulesMachineWorker {
       await this.sql.sweep(invocation)
       rulesPhaseBudget(invocation, 'RESPONSE')
       return machineAcknowledgement()
-    } catch {
-      throw unavailable()
+    } catch (error) {
+      throw fault('SWEEP', error)
     }
   }
 }

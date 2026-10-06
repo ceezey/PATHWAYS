@@ -38,3 +38,27 @@ export function transactionDiagnostic(error: unknown): { transactionFailure?: Tr
   }
   return { transactionFailure }
 }
+
+/** Own data property read without invoking getters. */
+function ownString(value: unknown, key: string, pattern: RegExp) {
+  if (!value || typeof value !== 'object') return ''
+  const found = Object.getOwnPropertyDescriptor(value, key)?.value
+  return typeof found === 'string' && pattern.test(found) ? found : ''
+}
+
+/** Allowlisted fault label (error name, Prisma code, SQL state) for logs; never the message. */
+export function faultCause(error: unknown) {
+  const meta =
+    error && typeof error === 'object'
+      ? Object.getOwnPropertyDescriptor(error, 'meta')?.value
+      : null
+  return (
+    [
+      ownString(error, 'name', /^[A-Za-z]{1,64}$/),
+      prismaDiagnosticCode(error),
+      ownString(meta, 'code', /^[0-9A-Z]{5}$/),
+    ]
+      .filter(Boolean)
+      .join(':') || 'UNKNOWN'
+  )
+}

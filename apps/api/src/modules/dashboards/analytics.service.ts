@@ -21,7 +21,7 @@ import {
 } from '@pathways/shared'
 import { Prisma } from '@prisma/client'
 import { PrismaService } from '../../prisma/prisma.service'
-import { prismaDiagnosticCode } from '../../prisma/transaction-diagnostic'
+import { faultCause } from '../../prisma/transaction-diagnostic'
 import { hasAtomicPermission } from '../auth/authorization-policy'
 import { projectScope } from '../auth/authorized-data.service'
 import { withAuthorizedOperation } from '../auth/authorized-operation'
@@ -99,30 +99,6 @@ async function exportArtifact(
       `The ${format} file could not be generated on this server. Export CSV instead.`,
     )
   }
-}
-
-/** Own data property read without invoking getters. */
-function ownString(value: unknown, key: string, pattern: RegExp) {
-  if (!value || typeof value !== 'object') return ''
-  const found = Object.getOwnPropertyDescriptor(value, key)?.value
-  return typeof found === 'string' && pattern.test(found) ? found : ''
-}
-
-/** Allowlisted fault label (error name, Prisma code, SQL state) for logs; never the message. */
-function faultCause(error: unknown) {
-  const meta =
-    error && typeof error === 'object'
-      ? Object.getOwnPropertyDescriptor(error, 'meta')?.value
-      : null
-  return (
-    [
-      ownString(error, 'name', /^[A-Za-z]{1,64}$/),
-      prismaDiagnosticCode(error),
-      ownString(meta, 'code', /^[0-9A-Z]{5}$/),
-    ]
-      .filter(Boolean)
-      .join(':') || 'UNKNOWN'
-  )
 }
 
 @Injectable()
