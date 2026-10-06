@@ -45,6 +45,7 @@ import { ActivityProgressDialog } from './activity-progress-dialog'
 import { ActivityProofFiles } from './activity-proof-files'
 import { ActivityProofReviewDialog } from './activity-proof-review-dialog'
 import { activityStatusTone, formatCurrency, formatDate } from './activity-utils'
+import { categoryLabel } from './budget-module/budget-math'
 
 type ProofGroup = ActivityProof & { proofIds: string[]; items: ActivityProof[] }
 
@@ -263,7 +264,7 @@ export const ActivityDetailContent = ({
 
       {canReadExpenses ? (
         <PanelSection id={`activity-expenses-${activity.id}`} title="Logged expenses">
-          <ActivityExpenses expenses={activityExpenses} />
+          <ActivityExpenses activityTitle={activity.title} expenses={activityExpenses} />
         </PanelSection>
       ) : null}
 
@@ -288,7 +289,7 @@ export const ActivityDetailContent = ({
               >
                 <span>
                   <span className="block text-sm font-medium text-foreground">
-                    {expense.category}
+                    {categoryLabel(expense.category, activity.title)}
                   </span>
                   <span className="mt-1 block text-xs text-muted-foreground">
                     {expense.description}

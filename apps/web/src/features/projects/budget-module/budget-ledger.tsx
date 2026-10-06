@@ -212,7 +212,9 @@ export const BudgetLedger = ({
                         </div>
                         <div>
                           <dt className="text-muted-foreground">Budget line</dt>
-                          <dd className="font-medium">{categoryLabel(budget?.category)}</dd>
+                          <dd className="font-medium">
+                            {categoryLabel(budget?.category, activity?.title)}
+                          </dd>
                         </div>
                         <div>
                           <dt className="text-muted-foreground">Allocated to this line</dt>
