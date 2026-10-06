@@ -392,3 +392,10 @@
 - Seed: each demo indicator now lists its producing `activityKeys`; the indicators stage writes the links on the runtime role (the table forces RLS); `--verify` checks that no seeded indicator with readings is unlinked.
 - EHK numbers aligned: distribution reached 70 families, EHK-FAMILIES target 75 (project reach target) with readings 34 then 70; new EHK-KITS output indicator linked to procurement.
 - Web: indicator progress percent rounds to one decimal (`formatCappedPercent`, `ProgressBar`).
+
+## 2026-10-06 Demo data realism audit
+- EHK budget rescaled to PHP 280,000 (96 percent spent, same ratio) so 70 kits and families cost realistic unit amounts; ALS budget rescaled to PHP 620,000 (80 percent).
+- Expense dates now fall in the window of their activity (procurement, distribution, training), not the last two months; `--verify` checks expense dates against project and activity dates.
+- Indicator readings aligned with notes and milestones (WSH schools 8, clubs 8, handover 50 percent; ALS module completion 72 percent); CRL reach target 45 matches enrollments.
+- SSG cohort ages and sex mix suit a girls program; webinar targets cover their participants.
+- Limitation: audit, alert, evidence and approval timestamps are stamped by the database at seed time and cannot be backdated through supported inputs.
