@@ -130,7 +130,10 @@ async function recordProject(ctx: DemoContext, project: Project) {
         orderBy: [{ eventDate: 'desc' }, { recordedAt: 'desc' }],
         select: { id: true, eventDate: true, description: true, stageId: true },
       })
-      if (event) {
+      const corrected =
+        event &&
+        (await ctx.owner.beneficiaryJourneyEvent.count({ where: { correctsEventId: event.id } }))
+      if (event && !corrected) {
         await step(`journey note ${code}`, () =>
           ctx.services.participants.correctEvent(
             officer,
