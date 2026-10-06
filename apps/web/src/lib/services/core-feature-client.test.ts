@@ -552,6 +552,24 @@ describe('owned private artifact delivery', () => {
     await vi.runAllTimersAsync()
     expect(revoke).toHaveBeenCalledWith('blob:synthetic')
   })
+  it('saves a readable report name produced by the reporting workspace', async () => {
+    fetcher.mockResolvedValueOnce(
+      new Response('synthetic pdf bytes', { headers: { 'Content-Type': 'application/pdf' } }),
+    )
+    vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:synthetic')
+    await downloadCoreArtifact('/synthetic-artifact', 'Hygiene Kits – Guiuan Evaluation report.pdf')
+    expect(link.download).toBe('Hygiene Kits – Guiuan Evaluation report.pdf')
+    expect(click).toHaveBeenCalledOnce()
+  })
+  it.each(['../report.pdf', 'a\\b.pdf', '.hidden.pdf', 'report.exe', `${'a'.repeat(201)}.pdf`])(
+    'rejects the unsafe file name %j before fetching',
+    async (name) => {
+      await expect(downloadCoreArtifact('/synthetic-artifact', name)).rejects.toThrow(
+        'Current artifact access is required',
+      )
+      expect(fetcher).not.toHaveBeenCalled()
+    },
+  )
   it('rejects an unapproved MIME before saving', async () => {
     const response = new Response('<script>synthetic</script>', {
       headers: { 'Content-Type': 'text/html' },

@@ -419,7 +419,12 @@ export async function fetchCoreArtifact(
     owner !== null &&
     owner === ownerCookie() &&
     generation === sensitiveDraftGeneration()
-  if (!current() || !/^[a-z0-9-]+\.(csv|xlsx|xls|pdf|png|jpg)$/.test(fileName))
+  // Allows readable names but no control, path or reserved characters, leading dot, or long names.
+  if (
+    !current() ||
+    // biome-ignore lint/suspicious/noControlCharactersInRegex: Control characters are rejected on purpose.
+    !/^(?!\.)[^\x00-\x1f\\/:*?"<>|]{1,200}\.(csv|xlsx|xls|pdf|png|jpg)$/.test(fileName)
+  )
     throw new PathwaysClientError('Current artifact access is required.', 'unauthorized')
   const response = await requestFoundationResponse(url, { signal: AbortSignal.timeout(20000) })
   if (!current() || !response.body) {

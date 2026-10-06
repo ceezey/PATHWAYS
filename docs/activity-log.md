@@ -496,3 +496,6 @@
 ## 2026-10-06 Designed PDF finds a local browser (fix/pdf-browser-autodetect)
 - Local Windows and macOS runs fell back to the plain pdfkit layout unless each developer set `PDF_CHROME_PATH`. With it blank, the renderer now launches the first standard Chrome or Edge install (Program Files, Program Files (x86), LocalAppData on Windows; /Applications on macOS). An explicit `PDF_CHROME_PATH` still wins, so the kill switch is unchanged, and Linux keeps the bundled Chromium.
 - Verified with `scripts/check-pdf-renderer.ts` and `PDF_CHROME_PATH` blank: report and receipt both render through Chrome. `WEB_ORIGIN` stays blank locally; the renderer already navigates to the loopback web app outside production.
+
+## 2026-10-06 Report downloads accept readable names (fix/report-download-name)
+- Saved report downloads failed with "Current artifact access is required." because `fetchCoreArtifact` still only accepted `[a-z0-9-]` file names, while the reports workspace now names downloads after the report (spaces, capitals, en dashes). The guard now allows readable names up to 200 characters and still rejects control, path and reserved characters, a leading dot, and unlisted extensions before any request.
