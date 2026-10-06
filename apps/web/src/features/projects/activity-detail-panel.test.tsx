@@ -198,6 +198,7 @@ describe('ActivityDetailContent presentation', () => {
         {...base}
         activity={activity}
         activityExpenses={[expense('e1', status)]}
+        canReadBudgets
         canReadExpenses
         indicators={[]}
       />,
@@ -267,6 +268,7 @@ describe('ActivityDetailContent server read model', () => {
         canDecideProof={false}
         canEdit={false}
         canLogExpense={false}
+        canReadBudgets
         canRequestExtension={false}
         canSubmitProof={false}
         canValidateExpense={false}
@@ -282,7 +284,7 @@ describe('ActivityDetailContent server read model', () => {
     expect(screen.getByText('2 of 41')).toBeTruthy()
     expect(screen.getByText('₱55,678.90')).toBeTruthy()
     // Spent and remaining both read as withheld, never as zero, without expense access.
-    expect(screen.getAllByText('Unavailable').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('None yet').length).toBeGreaterThan(0)
     expect(screen.getByText('No journey stage linked')).toBeTruthy()
     expect(screen.getByText('No indicators are connected to this activity.')).toBeTruthy()
     expect(document.body.textContent).not.toContain('NaN')
@@ -333,10 +335,30 @@ describe('ActivityDetailContent server read model', () => {
     expect(screen.queryByRole('button', { name: 'Request an extension' })).toBeNull()
   })
 
-  it.each([
-    [true, 'None yet'],
-    [false, 'Unavailable'],
-  ])(
+  it('leaves out the activity budget for a role without budget access', () => {
+    render(
+      <ActivityDetailContent
+        activity={{ ...activity, budgetAllocation: null, budgetLogged: 12 }}
+        canDecideProof={false}
+        canEdit={false}
+        canLogExpense={false}
+        canReadBudgets={false}
+        canRequestExtension={false}
+        canSubmitProof={false}
+        canValidateExpense={false}
+        canValidateProof={false}
+        indicators={[]}
+        journeyStages={[]}
+        onActivityChanged={vi.fn()}
+        onEdit={vi.fn()}
+        onSubmitProof={vi.fn()}
+      />,
+    )
+    expect(screen.queryByText('Activity budget')).toBeNull()
+    expect(screen.queryByText('Allocated')).toBeNull()
+  })
+
+  it.each([[true, 'None yet']])(
     'labels a missing allocation for budget readers=%s as %s, never as zero',
     (canReadBudgets, label) => {
       render(
@@ -365,7 +387,7 @@ describe('ActivityDetailContent server read model', () => {
 
   it.each([
     [{ budgetLogged: 0, budgetLoggedEntries: 0 }, 'None yet'],
-    [{ budgetLogged: null, budgetLoggedEntries: null }, 'Unavailable'],
+    [{ budgetLogged: null, budgetLoggedEntries: null }, 'None yet'],
     [{ budgetLogged: 1500.5, budgetLoggedEntries: 2 }, '₱1,500.50'],
   ])('labels the logged budget %j as %s and never fabricates ₱0', (logged, label) => {
     render(
@@ -374,6 +396,7 @@ describe('ActivityDetailContent server read model', () => {
         canDecideProof={false}
         canEdit={false}
         canLogExpense={false}
+        canReadBudgets
         canRequestExtension={false}
         canSubmitProof={false}
         canValidateExpense={false}

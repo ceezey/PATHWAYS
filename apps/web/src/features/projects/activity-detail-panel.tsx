@@ -254,13 +254,11 @@ export const ActivityDetailContent = ({
         <ActivityIndicators rows={connectedIndicators} />
       </PanelSection>
 
-      <PanelSection id={`activity-budget-${activity.id}`} title="Activity budget">
-        <ActivityBudget
-          activity={activity}
-          canReadBudgets={canReadBudgets}
-          pending={inReviewTotal}
-        />
-      </PanelSection>
+      {canReadBudgets ? (
+        <PanelSection id={`activity-budget-${activity.id}`} title="Activity budget">
+          <ActivityBudget activity={activity} canReadBudgets pending={inReviewTotal} />
+        </PanelSection>
+      ) : null}
 
       {canReadExpenses ? (
         <PanelSection id={`activity-expenses-${activity.id}`} title="Logged expenses">
