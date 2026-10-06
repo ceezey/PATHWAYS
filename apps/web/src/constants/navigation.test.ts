@@ -20,7 +20,6 @@ describe('navigation constants', () => {
       '/transparency',
       '/settings/users',
       '/settings/audit',
-      '/settings/backups',
     ])
     expect(dashboardNavigation.map((item) => item.label)).toEqual([
       'Dashboard',
@@ -33,7 +32,6 @@ describe('navigation constants', () => {
       'Public Tracker',
       'User Management',
       'Audit Log',
-      'Backup & Recovery',
     ])
   })
 
@@ -65,7 +63,7 @@ describe('navigation constants', () => {
     expect(getDashboardNavigationLabel('/settings/users')).toBe('User Management')
     expect(getDashboardNavigationLabel('/alerts/repository')).toBe('Alerts')
     expect(getDashboardNavigationLabel('/settings/audit')).toBe('Audit Log')
-    expect(getDashboardNavigationLabel('/settings/backups')).toBe('Backup & Recovery')
+    expect(getDashboardNavigationLabel('/settings/backups')).not.toBe('Backup & Recovery')
     expect(getDashboardNavigationLabel('/transparency')).toBe('Public Tracker')
   })
 })
