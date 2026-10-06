@@ -201,6 +201,15 @@ describe('automatic evaluation workspace', () => {
     expect(screen.getByText('88.8 / 100')).toBeTruthy()
   })
 
+  it('shows a manual row without a note as a manual score with no note', () => {
+    state.evaluation = {
+      ...openEvaluation,
+      scores: [score('EFFECT', 'Effectiveness', '100', '99', { source: 'manual', evidence: null })],
+    }
+    render(<LiveEvaluationWorkspace projectId={projectId} />)
+    expect(screen.getByText('Manual score: no note')).toBeTruthy()
+  })
+
   it('recomputes with the narrative and submits after confirmation', async () => {
     state.evaluation = { ...openEvaluation }
     state.saveScores.mockResolvedValue({ ...openEvaluation })

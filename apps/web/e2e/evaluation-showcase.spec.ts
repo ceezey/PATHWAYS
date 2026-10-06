@@ -31,7 +31,7 @@ test('Monitoring and Evaluation Officer starts, recomputes and submits an evalua
   await openSsg(page)
   await page.screenshot({ path: `${shots}/01-empty.png`, fullPage: true })
 
-  // Start an evaluation, if none is already open; criteria are scored automatically.
+  // The default seed already opens a draft round; the Start form only shows when none is open.
   const titleInput = page.getByLabel('Title')
   if (await titleInput.isVisible().catch(() => false)) {
     await titleInput.fill('Mid-term 2026')
@@ -39,7 +39,7 @@ test('Monitoring and Evaluation Officer starts, recomputes and submits an evalua
     await page.getByLabel('Period end').fill('2026-06-30')
     await page.getByRole('button', { name: 'Start evaluation' }).click()
   }
-  await expect(page.getByText('Review: Mid-term 2026')).toBeVisible()
+  await expect(page.getByText(/^Review: /)).toBeVisible()
   await expect(page.getByRole('columnheader', { name: 'Source' })).toBeVisible()
   await page.screenshot({ path: `${shots}/02-evaluation-started.png`, fullPage: true })
 

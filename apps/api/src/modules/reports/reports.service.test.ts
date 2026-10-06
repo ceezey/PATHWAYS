@@ -564,7 +564,7 @@ describe('report source authority, privacy and artifact recovery', () => {
     it('renders no-data and legacy manual scores without internal markers or notes', async () => {
       grant('monitoring.read')
       tx.projectEvaluation.findFirst.mockResolvedValue(signedOff)
-      const row = (commentary: string, type: string) => ({
+      const row = (commentary: string | null, type: string) => ({
         score: { toString: () => '0' },
         maximumScore: { toString: () => '10' },
         weightedScore: { toString: () => '0' },
@@ -577,12 +577,16 @@ describe('report source authority, privacy and artifact recovery', () => {
           'BENEFICIARY_REACH',
         ),
         row('Not computable: old text Manual score recorded: private evaluator note', 'KPI'),
+        row(null, 'BUDGET_EFFICIENCY'),
+        row(null, 'BENEFICIARY_REACH'),
       ])
       const preview = await service.preview(actor, projectId, { kind: 'EVALUATION_REPORT' })
       expect(preview.rows[1][6]).toBe(
         'No data: the enrolled count is below the small-cell reporting threshold (fewer than 5)',
       )
       expect(preview.rows[2][6]).toBe('Manual score')
+      expect(preview.rows[3][6]).toBe('Manual score')
+      expect(preview.rows[4][6]).toBe('Manual score')
     })
 
     it('lists the new kinds only for holders of the extra grant', async () => {

@@ -415,3 +415,4 @@
 - Migration 0069 only adds INDICATOR_LINKAGE and ASSESSMENT_GAIN to criterion_type (dry run rolled back on local Postgres as prisma; not applied). Change record `cr-pathways-evaluation-auto-scoring` supersedes section 5 of `cr-pathways-evaluation-write-path`.
 - Removed the criteria initialize, create, publish and weights routes, the manual score fields and the rubric UI; seeds start rounds through the service.
 - 2026-10-06 Fixed SAD review blockers on evaluation auto-scoring (gain complement small-cell, reason wording, report Source cell, e2e spec, seed narrative, enum order).
+- 2026-10-06 Fixed design-review blockers on evaluation auto-scoring (blank commentary is a manual score in workspace and report, e2e spec tolerates the seeded open round).

@@ -53,8 +53,9 @@ export function classifyScoreCommentary(commentary: string | null, criterionType
   const text = commentary ?? ''
   const missing = text.startsWith(noDataPrefix)
   const marked = text.indexOf(manualMarker)
-  // Rounds closed before automatic scoring may hold a manual score with its note.
-  const manual = !missing && (criterionType === 'OTHER' || marked >= 0)
+  const blank = text.trim() === ''
+  // Rounds closed before automatic scoring, and scores written without commentary, are manual.
+  const manual = !missing && (blank || criterionType === 'OTHER' || marked >= 0)
   const source = missing
     ? ('no_data' as const)
     : manual
@@ -64,7 +65,7 @@ export function classifyScoreCommentary(commentary: string | null, criterionType
     source,
     evidence: source === 'computed' ? text : null,
     reason: missing ? text.slice(noDataPrefix.length) : null,
-    note: manual ? (marked >= 0 ? text.slice(marked + manualMarker.length) : text) : null,
+    note: manual && !blank ? (marked >= 0 ? text.slice(marked + manualMarker.length) : text) : null,
   }
 }
 

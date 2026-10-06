@@ -3,7 +3,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { rolePermissions } from '../auth/authorization-policy'
 import type { ApplicationIdentity } from '../auth/developer-access'
 import type { IndicatorsService } from '../indicators/indicators.service'
-import { type CriterionType, EvaluationMetricsService } from './evaluation-metrics'
+import {
+  type CriterionType,
+  EvaluationMetricsService,
+  classifyScoreCommentary,
+} from './evaluation-metrics'
 
 const organizationId = '10000000-0000-4000-8000-00000000000a'
 const project = {
@@ -149,4 +153,22 @@ describe('automatic evaluation criterion scores', () => {
       expect(await run(type)).toEqual(noData('criterion is no longer scored automatically'))
     },
   )
+})
+
+describe('classifyScoreCommentary', () => {
+  it.each([
+    [null, 'BUDGET_EFFICIENCY'],
+    [null, 'BENEFICIARY_REACH'],
+    ['', 'BENEFICIARY_REACH'],
+    ['  ', 'BUDGET_EFFICIENCY'],
+  ])('treats blank commentary %j on %s as a manual score without a note', (text, type) => {
+    expect(classifyScoreCommentary(text, type)).toMatchObject({ source: 'manual', note: null })
+  })
+
+  it('keeps evidence text computed', () => {
+    expect(classifyScoreCommentary('Reach 82% of target', 'BENEFICIARY_REACH')).toMatchObject({
+      source: 'computed',
+      evidence: 'Reach 82% of target',
+    })
+  })
 })

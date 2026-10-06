@@ -57,7 +57,7 @@ const snapshot = z
 
 // Donor-facing source text; the internal markers and the evaluator's free-text note are never shown.
 const sourceCell = (view: ReturnType<typeof classifyScoreCommentary>) =>
-  view.source === 'computed'
+  view.source === 'computed' && view.evidence
     ? `Computed: ${view.evidence}`
     : view.source === 'no_data'
       ? `No data: ${view.reason}`
