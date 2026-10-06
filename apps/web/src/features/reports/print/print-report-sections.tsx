@@ -150,6 +150,23 @@ export function ProjectStatusSections({ sections }: { sections: ReportSections }
           </div>
         </>
       )}
+      {sections.budget && (
+        <>
+          <Band title="Budget" />
+          <Table head={['Budget line', 'Planned', 'Approved spending', 'In review', 'Remaining']}>
+            {sections.budget.map((b, index) => (
+              // biome-ignore lint/suspicious/noArrayIndexKey: line names can repeat in an immutable snapshot
+              <tr key={index} className="print-avoid">
+                <td className={td}>{b.line}</td>
+                <td className={cn(td, 'text-right')}>{`${b.currency} ${b.planned}`}</td>
+                <td className={cn(td, 'text-right')}>{`${b.currency} ${b.approved}`}</td>
+                <td className={cn(td, 'text-right')}>{`${b.currency} ${b.inReview}`}</td>
+                <td className={cn(td, 'text-right')}>{`${b.currency} ${b.remaining}`}</td>
+              </tr>
+            ))}
+          </Table>
+        </>
+      )}
       {sections.milestones && (
         <>
           <Band title="Milestones" />

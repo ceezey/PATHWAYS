@@ -551,3 +551,6 @@
 
 ## 2026-10-07 PDF reports on Vercel (fix/pdfkit-default-font)
 - Root cause of the preview 503: `new PDFDocument()` loads pdfkit's default Helvetica through `createRequire(...)('#standard-fonts/Helvetica')`, which Vercel's file tracing does not bundle, so every pdfkit PDF threw MODULE_NOT_FOUND. Documents now start on the bundled NotoSans font, so the standard fonts are never loaded. Reproduced against the compiled CommonJS build with the standard fonts blocked: before the fix MODULE_NOT_FOUND, after it a valid PDF.
+
+## 2026-10-07 Budget section in the Project summary report (feat/report-budget-section)
+- The Project summary report gains a Budget section for actors holding both `budgets.read` and `expenses.read` (Project Managers among them): each active budget line, activity lines named by their activity, with planned amount, approved spending, spending in review (pending or verified) and remaining (planned minus approved). Rejected expenses are left out, at most 50 lines are shown, and the section appears in the designed PDF, the pdfkit PDF, CSV and XLSX. No migration; no new report type.

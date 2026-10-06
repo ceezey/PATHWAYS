@@ -17,6 +17,14 @@ export type ProjectSections = {
   > & { manager: string | null }
   overview: Array<{ area: string; status: StatusLevel; comment: string }>
   keyFigures: Figure[]
+  budget?: Array<{
+    line: string
+    currency: string
+    planned: string
+    approved: string
+    inReview: string
+    remaining: string
+  }>
   milestones?: Array<{
     title: string
     status: string
@@ -177,6 +185,13 @@ export function flattenSections(s: ProjectSections) {
   for (const [item, value] of infoPairs) rows.push(['Project information', item, value, ''])
   for (const o of s.overview) rows.push(['Overview', o.area, statusLabel[o.status], o.comment])
   for (const f of s.keyFigures ?? []) rows.push(['Key figures', f.label, figureText(f), f.detail])
+  for (const b of s.budget ?? [])
+    rows.push([
+      'Budget',
+      b.line,
+      `${b.currency} ${b.remaining} remaining`,
+      `Planned ${b.planned}; approved spending ${b.approved}; in review ${b.inReview}`,
+    ])
   for (const m of s.milestones ?? [])
     rows.push([
       'Milestones',

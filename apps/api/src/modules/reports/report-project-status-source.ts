@@ -1,6 +1,6 @@
 import { readApiEnv } from '@pathways/config'
 import type { MetricCell } from '@pathways/shared'
-import type { Prisma } from '@prisma/client'
+import { Prisma } from '@prisma/client'
 import { type AtomicPermission, hasAtomicPermission } from '../auth/authorization-policy'
 import type { ApplicationIdentity } from '../auth/developer-access'
 import type { DashboardsService } from '../dashboards/dashboards.service'
@@ -38,6 +38,57 @@ type ProjectRow = {
 }
 const OPEN_ALERTS = ['NEW', 'REVIEWED', 'ACTIONED'] as const
 const ALERT_CAP = 10
+const BUDGET_CAP = 50
+const LINE_LABELS: Record<string, string> = {
+  PROJECT_PROFILE_TOTAL: 'Project budget',
+  ACTIVITY_PROFILE_TOTAL: 'Activity budget',
+}
+const money = (value: Prisma.Decimal) =>
+  value.toNumber().toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+
+/** Each budget line with its approved spending, spending still in review, and what remains. */
+async function budgetRows(tx: Prisma.TransactionClient, organizationId: string, projectId: string) {
+  const lines = await tx.projectBudgetRecord.findMany({
+    where: { organizationId, projectId, archivedAt: null },
+    select: {
+      id: true,
+      category: true,
+      currency: true,
+      plannedBudget: true,
+      activity: { select: { title: true } },
+    },
+    orderBy: [{ category: 'desc' }, { id: 'asc' }],
+    take: BUDGET_CAP + 1,
+  })
+  const shown = lines.slice(0, BUDGET_CAP)
+  const sums = await tx.budgetExpenseEntry.groupBy({
+    by: ['budgetRecordId', 'status'],
+    where: {
+      organizationId,
+      projectId,
+      budgetRecordId: { in: shown.map((line) => line.id) },
+      status: { not: 'REJECTED' },
+    },
+    _sum: { amount: true },
+  })
+  const total = (id: string, approved: boolean) =>
+    sums
+      .filter((row) => row.budgetRecordId === id && (row.status === 'APPROVED') === approved)
+      .reduce((sum, row) => sum.add(row._sum.amount ?? 0), new Prisma.Decimal(0))
+  const rows = shown.map((line) => {
+    const approved = total(line.id, true)
+    const label = LINE_LABELS[line.category] ?? line.category
+    return {
+      line: clip(line.activity ? `${label}: ${line.activity.title}` : label),
+      currency: line.currency,
+      planned: money(line.plannedBudget),
+      approved: money(approved),
+      inReview: money(total(line.id, false)),
+      remaining: money(line.plannedBudget.sub(approved)),
+    }
+  })
+  return { rows, capped: lines.length > BUDGET_CAP }
+}
 const day = (value: Date | null) => value?.toISOString().slice(0, 10) ?? null
 const figure = (
   label: string,
@@ -134,6 +185,13 @@ export async function projectStatusSource(
     }
   }
 
+  let budget: ProjectSections['budget']
+  if (can('budgets.read') && can('expenses.read')) {
+    const read = await budgetRows(tx, actor.organizationId, projectId)
+    budget = read.rows
+    if (read.capped) unavailableReasons.push(`Only the first ${BUDGET_CAP} budget lines are shown.`)
+  }
+
   let alerts: ProjectSections['alerts']
   if (can('alerts.read')) {
     const pages = []
@@ -181,6 +239,7 @@ export async function projectStatusSource(
       kpi: metricPercent(overview.kpiAchievement?.metric ?? null),
     }).filter((row) => inScope[row.area]),
     keyFigures,
+    ...(budget ? { budget } : {}),
     ...(milestones ? { milestones } : {}),
     ...(indicators ? { indicators } : {}),
     ...(alerts ? { alerts } : {}),
