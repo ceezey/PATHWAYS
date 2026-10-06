@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ApplicationIdentity } from '../auth/developer-access'
 import { projectStatusSource } from './report-project-status-source'
@@ -39,7 +40,23 @@ const deps = {
   dashboards: { monitoringInTransaction: vi.fn() },
   rules: { listAlertsInTransaction: vi.fn() },
 }
-const tx = { projectMilestone: { findMany: vi.fn() } }
+const tx = {
+  projectMilestone: { findMany: vi.fn() },
+  projectBudgetRecord: { findMany: vi.fn() },
+  budgetExpenseEntry: { groupBy: vi.fn() },
+}
+const line = (id: string, category: string, planned: string, title?: string) => ({
+  id,
+  category,
+  currency: 'PHP',
+  plannedBudget: new Prisma.Decimal(planned),
+  activity: title ? { title } : null,
+})
+const spent = (budgetRecordId: string, status: string, amount: string) => ({
+  budgetRecordId,
+  status,
+  _sum: { amount: new Prisma.Decimal(amount) },
+})
 const project = {
   code: 'SYN',
   title: 'Fictional project',
@@ -90,6 +107,37 @@ describe('project status source', () => {
         completionDate: null,
       },
     ])
+    tx.projectBudgetRecord.findMany.mockResolvedValue([
+      line('b1', 'PROJECT_PROFILE_TOTAL', '3200000'),
+      line('b2', 'ACTIVITY_PROFILE_TOTAL', '50000', 'Farmer training'),
+    ])
+    tx.budgetExpenseEntry.groupBy.mockResolvedValue([
+      spent('b1', 'APPROVED', '1000000.5'),
+      spent('b1', 'PENDING', '200000'),
+      spent('b1', 'VERIFIED', '3750'),
+      spent('b2', 'APPROVED', '12000'),
+    ])
+  })
+  it('lists each budget line with approved, in-review and remaining amounts', async () => {
+    const { sections } = await run()
+    expect(sections.budget).toEqual([
+      {
+        line: 'Project budget',
+        currency: 'PHP',
+        planned: '3,200,000.00',
+        approved: '1,000,000.50',
+        inReview: '203,750.00',
+        remaining: '2,199,999.50',
+      },
+      {
+        line: 'Activity budget: Farmer training',
+        currency: 'PHP',
+        planned: '50,000.00',
+        approved: '12,000.00',
+        inReview: '0.00',
+        remaining: '38,000.00',
+      },
+    ])
   })
   it('returns every section for a full-permission actor', async () => {
     const { sections, unavailableReasons } = await run()
@@ -117,7 +165,9 @@ describe('project status source', () => {
     expect(sections.milestones).toBeUndefined()
     expect(sections.indicators).toBeUndefined()
     expect(sections.alerts).toBeUndefined()
+    expect(sections.budget).toBeUndefined()
     expect(tx.projectMilestone.findMany).not.toHaveBeenCalled()
+    expect(tx.projectBudgetRecord.findMany).not.toHaveBeenCalled()
     expect(deps.dashboards.monitoringInTransaction).not.toHaveBeenCalled()
     expect(deps.rules.listAlertsInTransaction).not.toHaveBeenCalled()
     expect(unavailableReasons).toEqual([])
@@ -180,9 +230,11 @@ describe('project status source', () => {
     ['activities.read', 'milestones'],
     ['monitoring.read', 'indicators'],
     ['alerts.read', 'alerts'],
+    ['budgets.read', 'budget'],
+    ['expenses.read', 'budget'],
   ] as const)('drops only the section behind %s', async (permission, key) => {
     const { sections, unavailableReasons } = await run(all.filter((p) => p !== permission))
-    for (const other of ['milestones', 'indicators', 'alerts'] as const)
+    for (const other of ['milestones', 'indicators', 'alerts', 'budget'] as const)
       expect(sections[other] === undefined).toBe(other === key)
     expect(unavailableReasons).toEqual([])
   })

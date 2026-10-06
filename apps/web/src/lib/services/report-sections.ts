@@ -39,6 +39,21 @@ export const reportSectionsSchema = z
       )
       .max(10)
       .optional(),
+    budget: z
+      .array(
+        z
+          .object({
+            line: text,
+            currency: z.string().max(3),
+            planned: text,
+            approved: text,
+            inReview: text,
+            remaining: text,
+          })
+          .strict(),
+      )
+      .max(50)
+      .optional(),
     milestones: z
       .array(
         z
