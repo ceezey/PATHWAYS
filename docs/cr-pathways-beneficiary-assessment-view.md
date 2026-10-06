@@ -2,7 +2,7 @@
 
 **ID:** `cr-pathways-beneficiary-assessment-view`
 **Date:** 2026-10-06
-**Status:** Implemented on `feature/beneficiary-assessment-view`, not pushed
+**Status:** Implemented (2026-10-06; on origin/dev 91f77177, PR #45; no migration)
 
 ## 1. Scope
 

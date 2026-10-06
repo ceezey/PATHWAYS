@@ -381,3 +381,8 @@
 
 ## 2026-10-06 Replay step timing
 - `Replay-Local.ps1` prints `REPLAY_STEP <label> <seconds>s` per migration, SQL and Vitest step and writes `.tmp/replay-timing.json` (helper in `replay-timing.ps1`).
+
+## 2026-10-06 Change records for the devV2 applies
+- Applied: 0064 evaluation write path and 0065 zone check memo (about 11:30, ledger 40 rows), 0066 beneficiary reach and SADDD for ongoing projects (14:39, ledger 41 rows); `defense-demo --verify` 23 of 23 after each.
+- CRs updated: evaluation write path, zone check memo, defense seed snapshot (second, realistic restore), beneficiary assessment view, project status report; new `cr-pathways-beneficiary-reach-kpi-values`.
+- Rules dispatch: the drain is green after the developer set the `pathways_rules_worker` password; the sweep waits for production to run the isolation fix (PR #45).

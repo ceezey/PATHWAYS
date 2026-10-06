@@ -2,7 +2,7 @@
 
 **ID:** `cr-pathways-evaluation-write-path`
 **Date:** 2026-10-06
-**Status:** Approved (developer, 2026-10-06)
+**Status:** Applied (2026-10-06; 0064 on PATHWAYS-devV2 with 0065, 40-row ledger; master via PR #44)
 
 ## 1. Trigger
 
@@ -178,4 +178,5 @@ Verified locally on 2026-10-06 (worktree `feature/evaluation-write-path`); no ho
 - Suites: `f10-f11-rules-runtime.sql` PASS (75 checks) on the saved template. `finance-evaluation-decisions.sql` is a stale Phase 3 suite that already fails at its project fixture insert ("Source proof unavailable", rules source-proof trigger) before any evaluation logic; its 0064 assertion edit stays unexecuted and the new runtime suite covers that behavior.
 - API: typecheck and biome clean; 116 test files passed (2222 tests, 20 skipped). Web: typecheck and biome clean; 203 files (1821 tests) passed. After the final review fixes (return reason column, snapshot allowlist, enrolled reach, budget visibility, guarded saves) the full MigrationBaseline replay was re-run: exit 0, 161 PASS lines, evaluations.local.test.ts 8 passed.
 - Defense rehearsal on the local stack: `db:local:reset`, wipe, `db:defense:local`, `defense-demo.mjs --test-local --verify` returned 23/23.
-- Not yet applied to devV2; controller SAD migration review is separate.
+- SAD migration review: every triggered role PASS (evidence `.tmp/sad-0064*`).
+- Applied to devV2 on 2026-10-06 at about 11:30 Manila through `hosted-build.mjs --env-file .tmp/role-staging-build.env --resume` together with 0065: ledger exactly 40 rows 0000-0065, all finished; role_permissions 314; the staged migration bytes matched the repo. The realistic snapshot was restored afterwards and `defense-demo --verify` returned 23/23. Merged to master in PR #44 (c8d47856); production uses devV2, so no separate database step.
