@@ -14,6 +14,7 @@ function Write-ReplaySummary([string]$JsonPath) {
   $steps = @($script:ReplaySteps | Sort-Object seconds -Descending)
   Write-Output 'REPLAY_TIMING (slowest first)'
   foreach ($s in $steps) { Write-Output ('{0,8:N1}s  {1}' -f $s.seconds, $s.name) }
+  Write-Output ('{0,8:N1}s  (outside timed steps)' -f ($total - ($steps | Measure-Object seconds -Sum).Sum))
   Write-Output "REPLAY_TOTAL ${total}s"
   [ordered]@{ steps = $steps; totalSeconds = $total } | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $JsonPath
 }
