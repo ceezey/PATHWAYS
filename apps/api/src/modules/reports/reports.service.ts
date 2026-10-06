@@ -658,6 +658,11 @@ export class ReportsService {
       // Correctable input keeps its fixed descriptive message; integrity/renderer faults do not.
       if (error instanceof ReportArtifactInputError)
         throw new UnprocessableEntityException(error.message)
+      // Only the error name and system code are logged; report content never is.
+      const code = (error as { code?: unknown } | null)?.code
+      new Logger(ReportsService.name).warn(
+        `Report artifact unavailable for report ${prepare.id} (${body.format}): ${error instanceof Error ? error.name : 'Error'}${typeof code === 'string' ? ` ${code}` : ''}`,
+      )
       throw new ServiceUnavailableException('Report generation temporarily unavailable.')
     }
     const sha = hash(bytes)

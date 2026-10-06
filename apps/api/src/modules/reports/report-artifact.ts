@@ -1,9 +1,17 @@
 import { createHash } from 'node:crypto'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { toWorkbookBytes } from '@pathways/imports'
 import PDFDocument from 'pdfkit'
 import { z } from 'zod'
+
+// Bundled deployments keep traced assets at their source path, so the working directory is tried too.
+const reportAsset = (name: string) =>
+  [
+    join(__dirname, 'assets', name),
+    join(process.cwd(), 'src', 'modules', 'reports', 'assets', name),
+    join(process.cwd(), 'apps', 'api', 'src', 'modules', 'reports', 'assets', name),
+  ].find((path) => existsSync(path)) ?? join(__dirname, 'assets', name)
 
 export type ReportFormat = 'CSV' | 'XLSX' | 'XLS' | 'PDF'
 export const REPORT_MAX_BYTES = 10 * 1024 * 1024
@@ -59,13 +67,13 @@ export async function createReportArtifact(
       ),
     )
   } else {
-    const font = readFileSync(join(__dirname, 'assets', 'NotoSans-Regular.ttf'))
+    const font = readFileSync(reportAsset('NotoSans-Regular.ttf'))
     if (
       createHash('sha256').update(font).digest('hex') !==
       'b85c38ecea8a7cfb39c24e395a4007474fa5a4fc864f6ee33309eb4948d232d5'
     )
       throw new Error('Report font integrity unavailable.')
-    const coverageBytes = readFileSync(join(__dirname, 'assets', 'NotoSans-Regular.coverage.json'))
+    const coverageBytes = readFileSync(reportAsset('NotoSans-Regular.coverage.json'))
     if (
       createHash('sha256').update(coverageBytes).digest('hex') !==
       '9c6ab5f368727f0fec5219301ec5f42888065cd266871ed089eba0b9e002974c'
