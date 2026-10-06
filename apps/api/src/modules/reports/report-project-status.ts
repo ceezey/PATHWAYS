@@ -92,21 +92,21 @@ export function overviewRows(input: OverviewInput) {
         ? row('Schedule', 'AT_RISK', `${overdue.length} milestone(s) overdue.`)
         : row('Schedule', 'ON_TRACK', 'No overdue milestones.')
   let spend = na('Budget', 'Budget or timeline data is not available.')
-  if (budget !== null && timeline !== null)
+  if (budget !== null && tenths(budget) > 1000)
+    spend = row('Budget', 'OFF_TRACK', `Budget used is ${budget}% of the approved amount.`)
+  else if (budget !== null && timeline !== null)
     spend =
-      tenths(budget) > 1000
-        ? row('Budget', 'OFF_TRACK', `Budget used is ${budget}% of the approved amount.`)
-        : tenths(budget) - tenths(timeline) > 150
-          ? row(
-              'Budget',
-              'AT_RISK',
-              `Budget used (${budget}%) is ahead of the timeline (${timeline}%).`,
-            )
-          : row(
-              'Budget',
-              'ON_TRACK',
-              `Budget used (${budget}%) is in line with the timeline (${timeline}%).`,
-            )
+      tenths(budget) - tenths(timeline) > 150
+        ? row(
+            'Budget',
+            'AT_RISK',
+            `Budget used (${budget}%) is ahead of the timeline (${timeline}%).`,
+          )
+        : row(
+            'Budget',
+            'ON_TRACK',
+            `Budget used (${budget}%) is in line with the timeline (${timeline}%).`,
+          )
   let results = na('Indicators', 'KPI or timeline data is not available.')
   if (kpi !== null && timeline !== null) {
     const gap = tenths(timeline) - tenths(kpi)
