@@ -542,3 +542,9 @@
 ## 2026-10-07 Analytics filter layout and SADDD for Project Officers (fix/analytics-filter-layout)
 - The Analysis and visualization card moves Export aggregates (and Add to Dashboard, while hidden) into its heading, right aligned, so the fields form one even grid for every role: Project filter, Reporting period and Analysis view, then Indicator and Visualization type.
 - Roles without `analytics.saddd.read` (Project Officers) get no SADDD Analysis card and no SADDD request instead of "Required application permission is missing."
+
+## 2026-10-07 Hosted PDF report diagnostics (fix/report-artifact-diagnostics)
+- PDF reports failed on the Vercel preview with 503 while CSV worked; no designed-PDF warning was logged, so the pdfkit fallback is the suspect (its font is read from disk next to the compiled module, and the Vercel NestJS preset builds without `nest build`, which copies `modules/reports/assets`). pdfkit now also looks for the font under the working directory, and a generation failure logs only the error name and system code.
+
+## 2026-10-07 Step-up Reset button hidden (fix/hide-step-up-reset)
+- The beneficiary access verification dialog hides its Reset button behind `STEP_UP_RESET_UI_ENABLED = false`; registered in docs/deferred-features.md.
