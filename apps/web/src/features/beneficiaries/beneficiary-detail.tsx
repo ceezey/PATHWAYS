@@ -10,7 +10,7 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
 import { DialogShell } from '@/components/pathways/dialog-shell'
@@ -37,7 +37,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { isUiActionAvailable } from '@/lib/rbac/ui-action-availability'
-import { type AssessmentDetail, pathwaysClient } from '@/lib/services/pathways-client'
+import { pathwaysClient } from '@/lib/services/pathways-client'
 import type {
   ActivitySummary,
   BeneficiaryAssessmentRecord,
@@ -66,7 +66,7 @@ import {
   stageTypeTone,
 } from './beneficiary-utils'
 
-const assessmentTypeLabel: Record<AssessmentDetail['type'], string> = {
+const assessmentTypeLabel: Record<BeneficiaryAssessmentRecord['type'], string> = {
   PRE_TEST: 'Pre-test',
   POST_TEST: 'Post-test',
   OUTCOME_SURVEY: 'Outcome survey',
@@ -110,9 +110,6 @@ export const BeneficiaryDetail = ({
   const [participationOpen, setParticipationOpen] = useState(false)
   const [savingParticipation, setSavingParticipation] = useState(false)
   const participationClientId = useRef<string | null>(null)
-  const [selectedAssessment, setSelectedAssessment] = useState<BeneficiaryAssessmentRecord | null>(
-    beneficiary.assessments[0] ?? null,
-  )
   const [selectedStage, setSelectedStage] = useState<JourneyStageConfig | null>(null)
   const [participationDraft, setParticipationDraft] = useState({
     activityId: activities[0]?.id ?? '',
@@ -157,21 +154,6 @@ export const BeneficiaryDetail = ({
     profile,
   )
   const canCorrectJourney = isUiActionAvailable(role, 'beneficiaries.journey.correct', profile)
-  const [assessmentDetail, setAssessmentDetail] = useState<
-    { state: 'idle' | 'loading' | 'error' } | { state: 'ready'; detail: AssessmentDetail }
-  >({ state: 'idle' })
-  useEffect(() => {
-    if (!assessmentOpen || !selectedAssessment || !canViewAssessmentDetail) return
-    const controller = new AbortController()
-    setAssessmentDetail({ state: 'loading' })
-    pathwaysClient
-      .getAssessmentDetail(selectedAssessment.projectId, selectedAssessment.id, controller.signal)
-      .then((detail) => setAssessmentDetail({ state: 'ready', detail }))
-      .catch(() => {
-        if (!controller.signal.aborted) setAssessmentDetail({ state: 'error' })
-      })
-    return () => controller.abort()
-  }, [assessmentOpen, selectedAssessment, canViewAssessmentDetail])
   const canRecordParticipation = isUiActionAvailable(
     role,
     'beneficiaries.participation.record',
@@ -244,6 +226,10 @@ export const BeneficiaryDetail = ({
   const selectedStageAssessments = selectedStage
     ? beneficiary.assessments.filter((assessment) => assessment.stageId === selectedStage.id)
     : []
+  const preAssessment = selectedStageAssessments.find((item) => item.type === 'PRE_TEST')
+  const postAssessment = selectedStageAssessments.filter((item) => item.type === 'POST_TEST').at(-1)
+  const assessmentChange =
+    preAssessment && postAssessment ? postAssessment.score - preAssessment.score : null
   const selectedStageNotes = selectedStage
     ? notes.filter((note) => note.stageId === selectedStage.id)
     : []
@@ -275,13 +261,6 @@ export const BeneficiaryDetail = ({
         : (selectedStageParticipationActivities[0]?.id ?? ''),
     }))
     setParticipationOpen(true)
-  }
-
-  const openAssessmentForSelectedStage = () => {
-    const assessment = selectedStageAssessments[0]
-    if (!assessment) return
-    setSelectedAssessment(assessment)
-    setAssessmentOpen(true)
   }
 
   const openJourneyTransition = () => {
@@ -671,9 +650,13 @@ export const BeneficiaryDetail = ({
                           <Button
                             aria-label="View assessment"
                             disabled={selectedStageAssessments.length === 0}
-                            onClick={openAssessmentForSelectedStage}
+                            onClick={() => setAssessmentOpen(true)}
                             size="icon"
-                            title="View assessment"
+                            title={
+                              selectedStageAssessments.length === 0
+                                ? 'No assessments are recorded for this stage.'
+                                : 'View assessment'
+                            }
                             type="button"
                             variant="outline"
                           >
@@ -760,43 +743,29 @@ export const BeneficiaryDetail = ({
       <Dialog open={assessmentOpen} onOpenChange={setAssessmentOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{selectedAssessment?.title ?? 'Assessment record'}</DialogTitle>
-            <DialogDescription>Human-reviewed assessment basis.</DialogDescription>
+            <DialogTitle>Assessment results</DialogTitle>
+            <DialogDescription>
+              {selectedStage ? `${stageDisplayCode(selectedStage)} ${selectedStage.name}` : 'Stage'}
+            </DialogDescription>
           </DialogHeader>
-          {selectedAssessment && assessmentDetail.state === 'loading' ? (
-            <output className="block text-sm text-muted-foreground">
-              Loading assessment detail.
-            </output>
-          ) : selectedAssessment && assessmentDetail.state === 'error' ? (
-            <p className="text-sm text-destructive" role="alert">
-              Assessment detail is unavailable for your current access.
-            </p>
-          ) : selectedAssessment && assessmentDetail.state === 'ready' ? (
-            <div className="space-y-4">
-              <div className="rounded-lg border border-border bg-surface-subtle p-4">
-                <p className="text-sm text-muted-foreground">Score</p>
+          <div className="space-y-4">
+            {selectedStageAssessments.map((item) => (
+              <div className="rounded-lg border border-border bg-surface-subtle p-4" key={item.id}>
+                <p className="text-sm text-muted-foreground">
+                  {assessmentTypeLabel[item.type]} on {formatDate(item.assessedAt)}
+                </p>
                 <p className="mt-1 text-3xl font-semibold text-foreground">
-                  {assessmentDetail.detail.score} / {assessmentDetail.detail.maximumScore}
+                  {item.score} / {item.maximumScore}
                 </p>
               </div>
+            ))}
+            {assessmentChange !== null ? (
               <SummaryRow
-                label="Assessment type"
-                value={assessmentTypeLabel[assessmentDetail.detail.type]}
+                label="Change from pre-test to post-test"
+                value={`${assessmentChange > 0 ? '+' : ''}${assessmentChange}`}
               />
-              <SummaryRow
-                label="Assessment date"
-                value={formatDate(assessmentDetail.detail.assessmentDate)}
-              />
-              {assessmentDetail.detail.beneficiary ? (
-                <SummaryRow
-                  label="Beneficiary code"
-                  value={assessmentDetail.detail.beneficiary.code}
-                />
-              ) : null}
-            </div>
-          ) : (
-            <p className="text-sm text-muted-foreground">No assessment is available.</p>
-          )}
+            ) : null}
+          </div>
         </DialogContent>
       </Dialog>
 

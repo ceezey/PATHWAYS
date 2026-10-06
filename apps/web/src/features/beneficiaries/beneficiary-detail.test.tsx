@@ -503,3 +503,63 @@ describe('BeneficiaryDetail journey actions', () => {
     expect(() => screen.getByRole('button', { name: 'Save note' })).not.toThrow()
   })
 })
+
+describe('BeneficiaryDetail assessments', () => {
+  const assessment = (id: string, type: 'PRE_TEST' | 'POST_TEST', score: number, date: string) => ({
+    id,
+    beneficiaryId: beneficiary.id,
+    projectId: project.id,
+    stageId: stage.id,
+    type,
+    title: type === 'PRE_TEST' ? 'Pre-test' : 'Post-test',
+    assessedAt: date,
+    score,
+    maximumScore: 50,
+    source: 'Assessment result',
+    note: '',
+  })
+  const renderWith = (assessments: BeneficiaryRecord['assessments']) =>
+    render(
+      <BeneficiaryDetail
+        activities={[activity]}
+        beneficiary={{ ...beneficiary, assessments }}
+        participationForms={[form]}
+        projectId={project.id}
+        projects={[project]}
+        stages={[stage]}
+      />,
+    )
+
+  it('opens the pre and post scores with the change for the selected stage', () => {
+    renderWith([
+      assessment('a1', 'PRE_TEST', 40, '2026-06-01'),
+      assessment('a2', 'POST_TEST', 45, '2026-06-20'),
+    ])
+    fireEvent.click(screen.getByRole('button', { name: /J1 Entry stage/ }))
+    const button = screen.getByRole('button', { name: 'View assessment' })
+    expect((button as HTMLButtonElement).disabled).toBe(false)
+    fireEvent.click(button)
+    const dialog = screen.getByRole('dialog')
+    expect(dialog.textContent).toContain('Pre-test')
+    expect(dialog.textContent).toContain('40 / 50')
+    expect(dialog.textContent).toContain('Post-test')
+    expect(dialog.textContent).toContain('45 / 50')
+    expect(dialog.textContent).toContain('Change from pre-test to post-test')
+    expect(dialog.textContent).toContain('+5')
+  })
+
+  it('omits the change when only one result exists', () => {
+    renderWith([assessment('a1', 'PRE_TEST', 40, '2026-06-01')])
+    fireEvent.click(screen.getByRole('button', { name: /J1 Entry stage/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'View assessment' }))
+    expect(screen.getByRole('dialog').textContent).not.toContain('Change from')
+  })
+
+  it('disables the button with a reason when the stage has no assessments', () => {
+    renderWith([])
+    fireEvent.click(screen.getByRole('button', { name: /J1 Entry stage/ }))
+    const button = screen.getByRole('button', { name: 'View assessment' }) as HTMLButtonElement
+    expect(button.disabled).toBe(true)
+    expect(button.title).toBe('No assessments are recorded for this stage.')
+  })
+})

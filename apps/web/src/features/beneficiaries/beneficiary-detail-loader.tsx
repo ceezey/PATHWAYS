@@ -8,10 +8,12 @@ import { AsyncState, StatusMessage } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
-import { pathwaysClient } from '@/lib/services/pathways-client'
+import { isUiActionAvailable } from '@/lib/rbac/ui-action-availability'
+import { type AssessmentSummary, pathwaysClient } from '@/lib/services/pathways-client'
 import { PathwaysClientError } from '@/lib/services/pathways-client'
 import type {
   ActivitySummary,
+  BeneficiaryAssessmentRecord,
   BeneficiaryRecord,
   DigitalFormDefinition,
   JourneyStageConfig,
@@ -37,6 +39,30 @@ type DetailState =
   | { status: 'unavailable' }
   | { status: 'error' }
 
+const assessmentTypeTitle = {
+  PRE_TEST: 'Pre-test',
+  POST_TEST: 'Post-test',
+  OUTCOME_SURVEY: 'Outcome survey',
+  FEEDBACK_SURVEY: 'Feedback survey',
+  OTHER: 'Assessment',
+} as const
+
+const toAssessmentRecord =
+  (beneficiaryId: string, projectId: string) =>
+  (row: AssessmentSummary): BeneficiaryAssessmentRecord => ({
+    id: row.id,
+    beneficiaryId,
+    projectId,
+    stageId: row.stageId ?? '',
+    type: row.type,
+    title: assessmentTypeTitle[row.type],
+    assessedAt: row.assessmentDate,
+    score: Number(row.score),
+    maximumScore: Number(row.maximumScore),
+    source: 'Assessment result',
+    note: '',
+  })
+
 export const BeneficiaryDetailLoader = ({
   beneficiaryId,
   projectId,
@@ -46,6 +72,7 @@ export const BeneficiaryDetailLoader = ({
 }) => {
   const { role, profile } = useCurrentRole()
   const canReadForms = principalHasAtomicPermission(profile, 'forms.read')
+  const canReadAssessments = isUiActionAvailable(role, 'assessments.detail.view', profile)
   const [state, setState] = useState<DetailState>({ status: 'loading' })
   const [loadAttempt, setLoadAttempt] = useState(0)
 
@@ -54,6 +81,7 @@ export const BeneficiaryDetailLoader = ({
     const verifiedRole = role
     void loadAttempt
     let active = true
+    const controller = new AbortController()
 
     const loadDetail = async () => {
       setState({ status: 'loading' })
@@ -81,6 +109,17 @@ export const BeneficiaryDetailLoader = ({
         if (!beneficiary || !scopedProjectId) {
           throw new PathwaysClientError('Beneficiary not found.', 'not_found')
         }
+        const enrollmentId = beneficiary.enrollments.find(
+          (enrollment) => enrollment.projectId === scopedProjectId,
+        )?.id
+        // A denied or failed assessment read leaves the page usable with no assessments.
+        const assessments =
+          canReadAssessments && enrollmentId
+            ? await pathwaysClient
+                .getBeneficiaryAssessments(scopedProjectId, enrollmentId, controller.signal)
+                .then((rows) => rows.map(toAssessmentRecord(beneficiaryId, scopedProjectId)))
+                .catch((): BeneficiaryAssessmentRecord[] => [])
+            : []
         const [activities, stages, history, forms] = await Promise.all([
           pathwaysClient.getActivities(scopedProjectId),
           pathwaysClient.getJourneyStages(scopedProjectId),
@@ -93,7 +132,7 @@ export const BeneficiaryDetailLoader = ({
           setState({
             status: 'ready',
             data: {
-              beneficiary: { ...beneficiary, ...journey },
+              beneficiary: { ...beneficiary, ...journey, assessments },
               projects,
               projectId: scopedProjectId,
               participationForms: forms.filter(
@@ -123,8 +162,9 @@ export const BeneficiaryDetailLoader = ({
 
     return () => {
       active = false
+      controller.abort()
     }
-  }, [beneficiaryId, loadAttempt, projectId, role, canReadForms])
+  }, [beneficiaryId, loadAttempt, projectId, role, canReadForms, canReadAssessments])
 
   if (state.status === 'loading') {
     return (
