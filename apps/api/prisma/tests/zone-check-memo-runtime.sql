@@ -46,6 +46,9 @@ SELECT pg_temp.ok(NOT has_function_privilege('pathways_runtime', 'pathways.p06_z
   AND NOT has_function_privilege('authenticated', 'pathways.p06_zone_is_valid(text)', 'EXECUTE'),
   'helper is not executable by the runtime or Data API roles');
 
+SELECT set_config('pathways_zone.valid', '', true);
+SELECT pg_temp.ok(NOT pathways.p06_zone_is_valid(''), 'an empty zone is rejected after the setting was used');
+
 -- Callers: an authorized actor (Project Manager with analytics.read) in a fresh setting state.
 INSERT INTO auth.users(id) VALUES (pg_temp.u(101));
 INSERT INTO pathways.organizations(id, code, name) VALUES (pg_temp.u(1), 'ZONE_MEMO_A', 'Zone memo organization');
@@ -67,6 +70,15 @@ SELECT pg_temp.expect_22023(
   format('SELECT pathways.p06_assert_scope(%L::uuid, ARRAY[]::uuid[], %L, %L::date, %L::date, %L)',
     pg_temp.u(1), 'analytics.read', '2026-06-01', '2026-06-30', 'Not/AZone'),
   'Invalid bounded monitoring period', 'p06_assert_scope rejects an invalid zone');
+SELECT pathways.p06_assert_scope(pg_temp.u(1), ARRAY[]::uuid[], 'analytics.read', DATE '2026-06-01', DATE '2026-06-30', 'Asia/Manila');
+SELECT pg_temp.expect_22023(
+  format('SELECT pathways.p06_assert_scope(%L::uuid, ARRAY[]::uuid[], %L, %L::date, %L::date, %L)',
+    pg_temp.u(1), 'analytics.read', '2026-06-01', '2026-06-30', ''),
+  'Invalid bounded monitoring period', 'p06_assert_scope rejects an empty zone');
+SELECT pg_temp.expect_22023(
+  format('SELECT pathways.p06_home_dashboard(%L::uuid, ARRAY[]::uuid[], %L::date, %L::date, %L)',
+    pg_temp.u(1), '2026-06-01', '2026-06-30', ''),
+  'Invalid bounded dashboard period', 'p06_home_dashboard rejects an empty zone');
 SELECT pathways.p06_assert_scope(pg_temp.u(1), ARRAY[]::uuid[], 'analytics.read', DATE '2026-06-01', DATE '2026-06-30', 'Asia/Manila');
 SELECT pg_temp.ok(current_setting('pathways_zone.valid', true) = 'Asia/Manila', 'p06_assert_scope accepts Asia/Manila and remembers it');
 SELECT pg_temp.expect_22023(

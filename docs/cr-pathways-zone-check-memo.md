@@ -24,14 +24,16 @@ list calls `p06_indicator_value` once per indicator, and each call reaches `p06_
 - `p06_assert_scope` and `p06_home_dashboard` are recreated from their replayed 0064 definitions
   with only the predicate changed to `OR NOT pathways.p06_zone_is_valid(zone)`. Owner, SECURITY
   DEFINER, search_path and ACL are unchanged, asserted in the migration against the saved ACLs.
-- Residual: a session that forges `pathways_zone.valid` can only skip the list check for a zone
-  that `AT TIME ZONE` must still accept, so a forged invalid zone still fails with 22023 later.
+- Residual: a session that forges `pathways_zone.valid` to a specific non-empty zone name skips the
+  list check for exactly that name. The empty string (which a used placeholder returns in later
+  transactions of a pooled session) is rejected explicitly.
 - Tests: `apps/api/prisma/tests/zone-check-memo-runtime.sql`, wired into `Replay-Local.ps1`;
   0065 is registered in `Verify-Forward.ps1`, `hosted-plan.mjs` and its tests.
 
 ## 3. Rollback
 
-`CREATE OR REPLACE` the two functions with the 0028 bodies (the `pg_timezone_names` predicate),
+`CREATE OR REPLACE` the two functions with the `pg_timezone_names` predicate: the `p06_assert_scope` body is the 0028 one and the
+`p06_home_dashboard` body is the 0000 baseline one,
 then `DROP FUNCTION pathways.p06_zone_is_valid(text)`. No data changes.
 
 ## 4. Apply

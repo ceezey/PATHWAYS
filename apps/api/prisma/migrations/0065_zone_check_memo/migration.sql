@@ -2,8 +2,7 @@
 -- list reaches the check several times per indicator, so the 3 s statement_timeout of the analytics reads failed with 57014.
 -- New pathways.p06_zone_is_valid(text) remembers a zone that passed the list check in a transaction-local setting, and
 -- p06_assert_scope and p06_home_dashboard now call it. CREATE OR REPLACE changes only that predicate; owner, SECURITY DEFINER,
--- search_path and ACL stay as before (asserted below). Residual: a session that forges pathways_zone.valid can only skip the list check
--- for a zone that AT TIME ZONE must still accept, so a forged invalid zone still fails with 22023 later.
+-- search_path and ACL stay as before (asserted below). Residual: a session that forges pathways_zone.valid to a specific non-empty zone name skips the list check for exactly that name; the empty string is rejected explicitly.
 BEGIN;
 SET LOCAL lock_timeout = '5s';
 SET LOCAL statement_timeout = '60s';
@@ -26,7 +25,7 @@ SELECT pg_advisory_xact_lock(505005,2);
 CREATE FUNCTION pathways.p06_zone_is_valid(zone text)
  RETURNS boolean LANGUAGE plpgsql STABLE SET search_path TO '' AS $function$
 BEGIN
- IF zone IS NULL OR pg_catalog.length(zone) > 100 THEN RETURN false; END IF;
+ IF zone IS NULL OR zone = '' OR pg_catalog.length(zone) > 100 THEN RETURN false; END IF;
  IF pg_catalog.current_setting('pathways_zone.valid', true) = zone THEN RETURN true; END IF;
  IF NOT EXISTS (SELECT FROM pg_catalog.pg_timezone_names WHERE name = zone) THEN RETURN false; END IF;
  PERFORM pg_catalog.set_config('pathways_zone.valid', zone, true);
@@ -270,6 +269,7 @@ DO $$ BEGIN
   OR pg_catalog.has_function_privilege('service_role',to_regprocedure('pathways.p06_zone_is_valid(text)'),'EXECUTE')
  THEN RAISE EXCEPTION '0065 grant postcondition failed'; END IF;
  IF NOT pathways.p06_zone_is_valid('Asia/Manila') OR pathways.p06_zone_is_valid('Not/AZone') OR pathways.p06_zone_is_valid(NULL)
+  OR (SELECT pg_catalog.set_config('pathways_zone.valid','',true)) IS NULL OR pathways.p06_zone_is_valid('')
  THEN RAISE EXCEPTION '0065 helper behavior postcondition failed'; END IF;
 END $$;
 COMMIT;
