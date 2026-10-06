@@ -530,3 +530,15 @@
 
 ## 2026-10-07 Activity budget hidden without budget access (fix/hide-activity-budget-without-access)
 - The activity panel's Activity budget section (Allocated, Spent, Remaining) showed "Unavailable" to roles without `budgets.read`, such as Project Officers. It is now left out for them.
+## 2026-10-07 Maps and Backup & Recovery hidden (fix/hide-backup-and-maps)
+- The Analytics "Map" visualization is hidden for every role behind `MAPS_UI_ENABLED = false`, and Backup & Recovery is hidden behind `BACKUP_RECOVERY_UI_ENABLED = false` (sidebar entry removed, `/settings/backups` returns not found). Both are registered in docs/deferred-features.md.
+
+## 2026-10-07 Target Indicators tab layout (fix/indicators-tab-layout)
+- The project Target Indicators tab drops its intro note, hides "Use from library" and the Indicator library link behind `INDICATOR_LIBRARY_UI_ENABLED = false`, and moves Refresh indicators and Add project indicator into the Indicators card heading, right aligned. The card now also holds the loading, error and empty states, so Add stays reachable with no indicators.
+
+## 2026-10-07 System Administrator dashboard cards hidden (fix/admin-dashboard-cards)
+- The System Administrator dashboard no longer shows the Active budget alerts and Overdue activities cards or the Project monitoring card, behind `ADMIN_DASHBOARD_MONITORING_UI_ENABLED = false`; their requests are skipped too.
+
+## 2026-10-07 Analytics filter layout and SADDD for Project Officers (fix/analytics-filter-layout)
+- The Analysis and visualization card moves Export aggregates (and Add to Dashboard, while hidden) into its heading, right aligned, so the fields form one even grid for every role: Project filter, Reporting period and Analysis view, then Indicator and Visualization type.
+- Roles without `analytics.saddd.read` (Project Officers) get no SADDD Analysis card and no SADDD request instead of "Required application permission is missing."

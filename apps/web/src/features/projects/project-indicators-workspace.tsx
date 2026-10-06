@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogTrigger } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
+import { INDICATOR_LIBRARY_UI_ENABLED } from '@/constants/feature-flags'
 import { metricGlossary } from '@/constants/metric-glossary'
 import { useMonitoringRead } from '@/features/analytics/use-monitoring-read'
 import { useCurrentRole } from '@/hooks/use-current-role'
@@ -717,6 +718,32 @@ export function ProjectIndicatorsWorkspace({ projectId }: { projectId: string })
   }, [activeKey])
 
   const availableBindings = bindingRead.data ?? null
+  // Refresh and create sit in the Indicators card heading.
+  const indicatorActions = (
+    <>
+      <Button type="button" variant="outline" onClick={reload} disabled={loading || busy}>
+        {loading ? 'Refreshing...' : 'Refresh indicators'}
+      </Button>
+      {canCreate && data ? (
+        <NewIndicator
+          key={activeKey}
+          forms={availableBindings?.forms ?? []}
+          activities={availableBindings?.activities ?? []}
+          period={period}
+          existingCodes={(data ?? []).map((item) => item.code)}
+          busy={creating}
+          message={message ?? pendingCreate.notice}
+          onSave={(input) =>
+            mutate(
+              () =>
+                pathwaysClient.createProjectIndicator(projectId, input, createContext ?? undefined),
+              fingerprintOf(input.code),
+            )
+          }
+        />
+      ) : null}
+    </>
+  )
   return (
     <section className="space-y-5">
       <SourceMutationRecovery
@@ -731,51 +758,8 @@ export function ProjectIndicatorsWorkspace({ projectId }: { projectId: string })
           }
         }}
       />
-      <header className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          {/* The workspace frame draws the project title; this tab keeps only its own note. */}
-          <p className="text-sm text-muted-foreground">
-            Project-owned definitions, exact values and attributable corrections. No automatic
-            project-success rating.
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {canReadLibrary ? (
-            <Button asChild variant="outline">
-              <Link href={`/indicators/library?project=${encodeURIComponent(projectId)}`}>
-                Indicator library
-              </Link>
-            </Button>
-          ) : null}
-          <Button type="button" variant="outline" onClick={reload} disabled={loading || busy}>
-            {loading ? 'Refreshing...' : 'Refresh indicators'}
-          </Button>
-          {canCreate && data ? (
-            <NewIndicator
-              key={activeKey}
-              forms={availableBindings?.forms ?? []}
-              activities={availableBindings?.activities ?? []}
-              period={period}
-              existingCodes={(data ?? []).map((item) => item.code)}
-              busy={creating}
-              message={message ?? pendingCreate.notice}
-              onSave={(input) =>
-                mutate(
-                  () =>
-                    pathwaysClient.createProjectIndicator(
-                      projectId,
-                      input,
-                      createContext ?? undefined,
-                    ),
-                  fingerprintOf(input.code),
-                )
-              }
-            />
-          ) : null}
-        </div>
-      </header>
       {message ? <InlineNotice>{message}</InlineNotice> : null}
-      {canCreate && data && libraryRead.data?.length ? (
+      {INDICATOR_LIBRARY_UI_ENABLED && canCreate && data && libraryRead.data?.length ? (
         <UseFromLibrary
           entries={libraryRead.data}
           busy={creating}
@@ -794,30 +778,35 @@ export function ProjectIndicatorsWorkspace({ projectId }: { projectId: string })
           }
         />
       ) : null}
-      {error ? (
-        <AsyncState
-          status="error"
-          title="Indicators unavailable"
-          description={error}
-          onRetry={reload}
-        />
-      ) : !data ? (
-        <AsyncState
-          status="loading"
-          title="Loading verified indicators"
-          description="Verifying current project scope."
-        />
-      ) : data.length === 0 ? (
-        <EmptyState
-          icon={Target}
-          title="No indicators configured"
-          description="An authorized Monitoring and Evaluation Officer can add this project's first indicator."
-        />
-      ) : (
-        <SectionCard
-          title="Indicators"
-          description={`${data.length} ${data.length === 1 ? 'indicator' : 'indicators'} · definition, exact values and progress toward configured change`}
-        >
+      <SectionCard
+        title="Indicators"
+        description={
+          data?.length
+            ? `${data.length} ${data.length === 1 ? 'indicator' : 'indicators'} · definition, exact values and progress toward configured change`
+            : undefined
+        }
+        actions={indicatorActions}
+      >
+        {error ? (
+          <AsyncState
+            status="error"
+            title="Indicators unavailable"
+            description={error}
+            onRetry={reload}
+          />
+        ) : !data ? (
+          <AsyncState
+            status="loading"
+            title="Loading verified indicators"
+            description="Verifying current project scope."
+          />
+        ) : data.length === 0 ? (
+          <EmptyState
+            icon={Target}
+            title="No indicators configured"
+            description="An authorized Monitoring and Evaluation Officer can add this project's first indicator."
+          />
+        ) : (
           <div className="max-h-[36rem] overflow-auto rounded-lg border border-border">
             <table className="w-full min-w-[880px] text-sm tabular-nums">
               <thead>
@@ -907,8 +896,8 @@ export function ProjectIndicatorsWorkspace({ projectId }: { projectId: string })
               </tbody>
             </table>
           </div>
-        </SectionCard>
-      )}
+        )}
+      </SectionCard>
       <Dialog open={Boolean(managed)} onOpenChange={(open) => (open ? null : setManagingId(null))}>
         {managed ? (
           <DialogShell
