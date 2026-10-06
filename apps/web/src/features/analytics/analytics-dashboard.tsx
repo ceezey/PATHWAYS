@@ -291,7 +291,9 @@ export const AnalyticsDashboard = () => {
               'Sex, age and disability breakdowns are shown once the project has started. Select a started project to see them now.',
           }
         : null
-  const sadddEligible = sadddNotice === null
+  // Roles without the SADDD release grant (Project Officers) get no SADDD card or request.
+  const canReadSaddd = principalHasAtomicPermission(profile, 'analytics.saddd.read')
+  const sadddEligible = canReadSaddd && sadddNotice === null
   const sadddOngoing = sadddEligible && (selectedProject?.endDate ?? '') >= businessDateInManila()
   const periodRange = selectedPeriod
     ? { periodStart: selectedPeriod.start, periodEnd: selectedPeriod.end }
@@ -768,12 +770,65 @@ export const AnalyticsDashboard = () => {
         aria-labelledby="analytics-view-title"
         className="grid gap-4 rounded-2xl border border-border bg-card p-5 sm:grid-cols-2 xl:grid-cols-12"
       >
-        <div className="sm:col-span-2 xl:col-span-12">
+        {/* Actions sit in the heading so the fields keep one even grid for every role. */}
+        <div className="flex flex-wrap items-center justify-between gap-3 sm:col-span-2 xl:col-span-12">
           <h2 className="text-lg font-semibold" id="analytics-view-title">
             Analysis and visualization
           </h2>
+          <div className="flex flex-wrap items-center gap-2">
+            {DASHBOARD_PINS_UI_ENABLED && pinPermitted ? (
+              <div className="flex items-center">
+                <Button
+                  className="shrink-0"
+                  aria-describedby={pinBlockedReason ? 'pin-blocked-reason' : undefined}
+                  disabled={!selectedProject || !profile?.userId || Boolean(pinBlockedReason)}
+                  onClick={addToDashboard}
+                  title={pinBlockedReason || undefined}
+                  type="button"
+                >
+                  <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
+                  Add to Dashboard
+                </Button>
+                {pinBlockedReason ? (
+                  <p className="ml-3 text-xs text-muted-foreground" id="pin-blocked-reason">
+                    {pinBlockedReason}
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
+            {ANALYTICS_AGGREGATE_EXPORT_UI_ENABLED && canExportAnalytics ? (
+              <div className="flex items-center">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      className="shrink-0"
+                      disabled={
+                        !selectedProject ||
+                        exporting ||
+                        (analysisView !== 'timeline' && !pickerPeriod) ||
+                        (analysisView === 'survey' && surveyUnavailable)
+                      }
+                      type="button"
+                      variant="outline"
+                    >
+                      <Download className="mr-2 h-4 w-4" aria-hidden="true" />
+                      {exporting && !exportPreview ? 'Preparing preview' : 'Export aggregates'}
+                      <ChevronDown className="ml-2 h-4 w-4" aria-hidden="true" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-40">
+                    {exportFormats.map((format) => (
+                      <DropdownMenuItem key={format} onSelect={() => void previewExport(format)}>
+                        {format}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            ) : null}
+          </div>
         </div>
-        <div className="space-y-2 xl:col-span-4">
+        <div className="space-y-2 sm:col-span-2 xl:col-span-5">
           <span className="text-sm font-medium">Project filter</span>
           <Select value={projectId} onValueChange={handleProjectChange}>
             <SelectTrigger aria-label="Project filter">
@@ -788,7 +843,7 @@ export const AnalyticsDashboard = () => {
             </SelectContent>
           </Select>
         </div>
-        <div className="space-y-2 xl:col-span-2">
+        <div className="space-y-2 xl:col-span-3">
           <span className="text-sm font-medium">Reporting period</span>
           <Select
             disabled={pickerPeriods.length === 0}
@@ -807,7 +862,7 @@ export const AnalyticsDashboard = () => {
             </SelectContent>
           </Select>
         </div>
-        <div className="space-y-2 xl:col-span-3">
+        <div className="space-y-2 xl:col-span-4">
           <span className="text-sm font-medium">Analysis view</span>
           <Select
             value={analysisView}
@@ -827,27 +882,7 @@ export const AnalyticsDashboard = () => {
             </SelectContent>
           </Select>
         </div>
-        <div className="space-y-2 xl:col-span-3 xl:col-start-7 xl:row-start-3">
-          <span className="text-sm font-medium">Visualization type</span>
-          <Select
-            value={visualizationType}
-            onValueChange={(value) => setVisualizationType(value as VisualizationType)}
-          >
-            <SelectTrigger aria-label="Visualization type">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {visualizationTypes
-                .filter((type) => MAPS_UI_ENABLED || type.value !== 'map')
-                .map((type) => (
-                  <SelectItem key={type.value} value={type.value}>
-                    {type.label}
-                  </SelectItem>
-                ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-2 sm:col-span-2 xl:col-span-6 xl:row-start-3">
+        <div className="space-y-2 xl:col-span-8">
           <span className="text-sm font-medium">Indicator</span>
           <Select
             disabled={analysisView !== 'kpi'}
@@ -867,56 +902,26 @@ export const AnalyticsDashboard = () => {
             </SelectContent>
           </Select>
         </div>
-        {DASHBOARD_PINS_UI_ENABLED && pinPermitted ? (
-          <div className="flex items-end sm:col-span-2 xl:col-span-3 xl:col-start-10 xl:row-start-3">
-            <Button
-              className="shrink-0"
-              aria-describedby={pinBlockedReason ? 'pin-blocked-reason' : undefined}
-              disabled={!selectedProject || !profile?.userId || Boolean(pinBlockedReason)}
-              onClick={addToDashboard}
-              title={pinBlockedReason || undefined}
-              type="button"
-            >
-              <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
-              Add to Dashboard
-            </Button>
-            {pinBlockedReason ? (
-              <p className="ml-3 text-xs text-muted-foreground" id="pin-blocked-reason">
-                {pinBlockedReason}
-              </p>
-            ) : null}
-          </div>
-        ) : null}
-        {ANALYTICS_AGGREGATE_EXPORT_UI_ENABLED && canExportAnalytics ? (
-          <div className="flex items-end sm:col-span-2 xl:col-span-3 xl:col-start-10 xl:row-start-2">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  className="shrink-0"
-                  disabled={
-                    !selectedProject ||
-                    exporting ||
-                    (analysisView !== 'timeline' && !pickerPeriod) ||
-                    (analysisView === 'survey' && surveyUnavailable)
-                  }
-                  type="button"
-                  variant="outline"
-                >
-                  <Download className="mr-2 h-4 w-4" aria-hidden="true" />
-                  {exporting && !exportPreview ? 'Preparing preview' : 'Export aggregates'}
-                  <ChevronDown className="ml-2 h-4 w-4" aria-hidden="true" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-40">
-                {exportFormats.map((format) => (
-                  <DropdownMenuItem key={format} onSelect={() => void previewExport(format)}>
-                    {format}
-                  </DropdownMenuItem>
+        <div className="space-y-2 xl:col-span-4">
+          <span className="text-sm font-medium">Visualization type</span>
+          <Select
+            value={visualizationType}
+            onValueChange={(value) => setVisualizationType(value as VisualizationType)}
+          >
+            <SelectTrigger aria-label="Visualization type">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {visualizationTypes
+                .filter((type) => MAPS_UI_ENABLED || type.value !== 'map')
+                .map((type) => (
+                  <SelectItem key={type.value} value={type.value}>
+                    {type.label}
+                  </SelectItem>
                 ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        ) : null}
+            </SelectContent>
+          </Select>
+        </div>
       </section>
 
       <AnalyticsExportPreviewDialog
@@ -1214,73 +1219,75 @@ export const AnalyticsDashboard = () => {
                 )}
               </ChartPanel>
             ) : null}
-            <ChartPanel title="SADDD Analysis">
-              {sadddLoading ? (
-                <AsyncState
-                  status="loading"
-                  title="Loading SADDD analysis"
-                  description="Loading the scoped beneficiary aggregate data."
-                  icon={UsersRound}
-                />
-              ) : sadddNotice ? (
-                <EmptyState
-                  description={sadddNotice.description}
-                  icon={CalendarClock}
-                  title={sadddNotice.title}
-                />
-              ) : sadddError ? (
-                <AsyncState
-                  status="error"
-                  title="SADDD analysis unavailable"
-                  description={sadddError}
-                  icon={AlertTriangle}
-                  onRetry={
-                    sadddEligible ? () => setSadddLoadAttempt((value) => value + 1) : undefined
-                  }
-                />
-              ) : saddd ? (
-                <>
-                  <StatusMessage>SADDD analysis loaded.</StatusMessage>
-                  {sadddOngoing ? (
-                    <p className="mb-2 text-sm text-muted-foreground">
-                      Counts to date; groups of fewer than 5 are hidden.
-                    </p>
-                  ) : null}
-                  <div data-testid="saddd-chart">
-                    <SadddChart dashboard={saddd} />
-                  </div>
-                  <details className="mt-3 rounded-xl border border-border p-3 text-sm">
-                    <summary className="cursor-pointer font-medium">
-                      Accessible SADDD data table
-                    </summary>
-                    <table className="mt-3 w-full text-left">
-                      <thead>
-                        <tr>
-                          <th>Dimension</th>
-                          <th>Category</th>
-                          <th>Count</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {[
-                          ...saddd.sex.map((row) => ({ ...row, dimension: 'Sex' })),
-                          ...saddd.age.map((row) => ({ ...row, dimension: 'Age' })),
-                          ...saddd.disability.map((row) => ({ ...row, dimension: 'Disability' })),
-                        ].map((row) => (
-                          <tr key={`${row.dimension}-${row.key}`}>
-                            <td>{row.dimension}</td>
-                            <td>{row.label}</td>
-                            <td>{formatMetricCell(row.metric)}</td>
+            {canReadSaddd ? (
+              <ChartPanel title="SADDD Analysis">
+                {sadddLoading ? (
+                  <AsyncState
+                    status="loading"
+                    title="Loading SADDD analysis"
+                    description="Loading the scoped beneficiary aggregate data."
+                    icon={UsersRound}
+                  />
+                ) : sadddNotice ? (
+                  <EmptyState
+                    description={sadddNotice.description}
+                    icon={CalendarClock}
+                    title={sadddNotice.title}
+                  />
+                ) : sadddError ? (
+                  <AsyncState
+                    status="error"
+                    title="SADDD analysis unavailable"
+                    description={sadddError}
+                    icon={AlertTriangle}
+                    onRetry={
+                      sadddEligible ? () => setSadddLoadAttempt((value) => value + 1) : undefined
+                    }
+                  />
+                ) : saddd ? (
+                  <>
+                    <StatusMessage>SADDD analysis loaded.</StatusMessage>
+                    {sadddOngoing ? (
+                      <p className="mb-2 text-sm text-muted-foreground">
+                        Counts to date; groups of fewer than 5 are hidden.
+                      </p>
+                    ) : null}
+                    <div data-testid="saddd-chart">
+                      <SadddChart dashboard={saddd} />
+                    </div>
+                    <details className="mt-3 rounded-xl border border-border p-3 text-sm">
+                      <summary className="cursor-pointer font-medium">
+                        Accessible SADDD data table
+                      </summary>
+                      <table className="mt-3 w-full text-left">
+                        <thead>
+                          <tr>
+                            <th>Dimension</th>
+                            <th>Category</th>
+                            <th>Count</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </details>
-                </>
-              ) : (
-                <UnavailableChart description="SADDD analysis is unavailable for this project." />
-              )}
-            </ChartPanel>
+                        </thead>
+                        <tbody>
+                          {[
+                            ...saddd.sex.map((row) => ({ ...row, dimension: 'Sex' })),
+                            ...saddd.age.map((row) => ({ ...row, dimension: 'Age' })),
+                            ...saddd.disability.map((row) => ({ ...row, dimension: 'Disability' })),
+                          ].map((row) => (
+                            <tr key={`${row.dimension}-${row.key}`}>
+                              <td>{row.dimension}</td>
+                              <td>{row.label}</td>
+                              <td>{formatMetricCell(row.metric)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </details>
+                  </>
+                ) : (
+                  <UnavailableChart description="SADDD analysis is unavailable for this project." />
+                )}
+              </ChartPanel>
+            ) : null}
             {canReadDescriptive ? (
               <ChartPanel
                 description="Counts and shares come from suppressed aggregates. A suppressed cell withholds every share in its group."

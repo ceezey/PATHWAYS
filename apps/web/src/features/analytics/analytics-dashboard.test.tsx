@@ -253,6 +253,7 @@ describe('Analytics dashboard request dependencies', () => {
       'activities.read',
       'monitoring.read',
       'analytics.read',
+      'analytics.saddd.read',
       'indicators.read',
     ]
     alertHook.result = { data: undefined }
@@ -455,6 +456,16 @@ describe('Analytics dashboard request dependencies', () => {
       features: [],
     })
     expect(api.getMonitoringDashboard).not.toHaveBeenCalled()
+  })
+
+  it('shows no SADDD card and makes no SADDD request without the SADDD grant', async () => {
+    currentAccess.profile.permissions = currentAccess.profile.permissions.filter(
+      (permission) => permission !== 'analytics.saddd.read',
+    )
+    render(<AnalyticsDashboard />)
+    await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
+    expect(screen.queryByText('SADDD Analysis')).toBeNull()
+    expect(api.getSadddDashboard).not.toHaveBeenCalled()
   })
 
   it.each([

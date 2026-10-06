@@ -536,3 +536,7 @@
 
 ## 2026-10-07 System Administrator dashboard cards hidden (fix/admin-dashboard-cards)
 - The System Administrator dashboard no longer shows the Active budget alerts and Overdue activities cards or the Project monitoring card, behind `ADMIN_DASHBOARD_MONITORING_UI_ENABLED = false`; their requests are skipped too.
+
+## 2026-10-07 Analytics filter layout and SADDD for Project Officers (fix/analytics-filter-layout)
+- The Analysis and visualization card moves Export aggregates (and Add to Dashboard, while hidden) into its heading, right aligned, so the fields form one even grid for every role: Project filter, Reporting period and Analysis view, then Indicator and Visualization type.
+- Roles without `analytics.saddd.read` (Project Officers) get no SADDD Analysis card and no SADDD request instead of "Required application permission is missing."
