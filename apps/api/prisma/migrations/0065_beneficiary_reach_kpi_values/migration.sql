@@ -3,10 +3,11 @@
 -- nested-count complementary suppression instead of SENSITIVE_RELEASE_NOT_ENABLED_V1; the home dashboard keeps the
 -- placeholder for callers without monitoring.read on every requested project, since its own gate is projects.read.
 -- p06_participation_breakdown releases exact participation counts (no suppression, by developer decision) and
--- p06_indicator_values releases indicator current values, both without journeys.read, beneficiaries.records.read or indicators.read. Every function is owned by prisma, which
--- owns every source table; hosted prisma has no BYPASSRLS, so the only FORCE RLS sources (indicator bindings and
--- measurements) are read through their p06_*_owner_read policies, which need monitoring.read on the project. The reach release also hides participationRecords
--- when its difference from enrolled individuals or attending individuals is 1-4.
+-- p06_indicator_values releases indicator current values, both without journeys.read, beneficiaries.records.read or
+-- indicators.read. Every function is owned by prisma, which owns every source table; hosted prisma has no BYPASSRLS,
+-- so the only FORCE RLS sources (indicator bindings and measurements) are read through their p06_*_owner_read
+-- policies, which need monitoring.read on the project. The reach release also hides participationRecords when it is
+-- 1-4 below enrolled individuals or 1-4 above attending individuals, judged on the counts before their own suppression.
 -- No table, column, policy, role or permission grant changes (role_permissions stays 314); no DBA preprovision.
 BEGIN;
 SET LOCAL lock_timeout = '5s';
@@ -69,10 +70,10 @@ BEGIN
   i := pathways.p06_complement_cell(r, i);
   a := pathways.p06_complement_cell(i, a);
   a := pathways.p06_complement_cell(r, a);
-  -- Participation records are not nested in people, so they are hidden when they sit 1-4 from either visible people count.
-  p := pathways.p06_complement_cell(i, p);
-  IF p->>'value' IS NOT NULL AND a->>'value' IS NOT NULL
-     AND (p->>'value')::numeric - (a->>'value')::numeric BETWEEN 1 AND 4 THEN
+  -- Records are hidden when 1-4 below enrolled individuals or 1-4 above attending individuals, using the incoming counts.
+  p := pathways.p06_complement_cell(data->'enrolledIndividuals', p);
+  IF p->>'value' IS NOT NULL AND data->'attendingIndividuals'->>'value' IS NOT NULL
+     AND (p->>'value')::numeric - (data->'attendingIndividuals'->>'value')::numeric BETWEEN 1 AND 4 THEN
     p := pathways.p06_cell(NULL, 'COMPLEMENTARY_SUPPRESSION');
   END IF;
   RETURN data || jsonb_build_object('enrolledIndividuals', i, 'attendingIndividuals', a, 'participationRecords', p);
