@@ -136,12 +136,36 @@ describe('ReportPdfRenderer', () => {
     expect(page.close).toHaveBeenCalledOnce()
   })
 
-  it('refuses without WEB_ORIGIN or with a non-UUID report id before launching', async () => {
+  it('refuses a non-UUID report id before launching', async () => {
     const renderer = new ReportPdfRenderer(new PrintPdfRenderer())
     await expect(renderer.render('../../admin', snapshot)).rejects.toMatchObject({ stage: 'input' })
-    process.env.WEB_ORIGIN = ''
-    await expect(renderer.render(reportId, snapshot)).rejects.toMatchObject({ stage: 'config' })
     expect(state.launch).not.toHaveBeenCalled()
+  })
+
+  it('refuses in production without WEB_ORIGIN, before launching', async () => {
+    process.env.WEB_ORIGIN = ''
+    const node = process.env.NODE_ENV
+    process.env.NODE_ENV = 'production'
+    try {
+      await expect(
+        new ReportPdfRenderer(new PrintPdfRenderer()).render(reportId, snapshot),
+      ).rejects.toMatchObject({ stage: 'config' })
+      expect(state.launch).not.toHaveBeenCalled()
+    } finally {
+      process.env.NODE_ENV = node
+    }
+  })
+
+  // WEB_ORIGIN is the CORS allowlist entry and must be HTTPS, so a local run leaves it blank.
+  it('navigates to the loopback web app outside production when WEB_ORIGIN is blank', async () => {
+    process.env.WEB_ORIGIN = ''
+    const page = fakePage()
+    state.launch.mockResolvedValue(fakeBrowser(page))
+    await new ReportPdfRenderer(new PrintPdfRenderer()).render(reportId, snapshot)
+    expect(page.goto).toHaveBeenCalledWith(
+      `http://127.0.0.1:3000/print/reports/${reportId}`,
+      expect.objectContaining({ waitUntil: 'networkidle0' }),
+    )
   })
 
   it('shares one launch between simultaneous first renders', async () => {

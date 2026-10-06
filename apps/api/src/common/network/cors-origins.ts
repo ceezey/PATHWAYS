@@ -1,6 +1,7 @@
 import type { CorsOptions } from '@nestjs/common/interfaces/external/cors-options.interface'
 
-const localWebOrigins = ['http://127.0.0.1:3000', 'http://localhost:3000'] as const
+/** Loopback web origins a local run serves from; allowed for CORS without a configured origin. */
+export const localWebOrigins = ['http://127.0.0.1:3000', 'http://localhost:3000'] as const
 
 export function allowedWebOrigins(configuredOrigin: string) {
   if (!configuredOrigin) return [...localWebOrigins]

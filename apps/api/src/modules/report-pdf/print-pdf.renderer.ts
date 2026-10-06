@@ -1,6 +1,7 @@
 import { Injectable, type OnModuleDestroy } from '@nestjs/common'
 import { readApiEnv } from '@pathways/config'
 import type { Browser, HTTPRequest } from 'puppeteer-core'
+import { localWebOrigins } from '../../common/network/cors-origins'
 
 const footer =
   '<div style="width:100%;font-size:8px;color:#6F7785;text-align:center;font-family:Arial,sans-serif">PATHWAYS · Page <span class="pageNumber"></span> of <span class="totalPages"></span></div>'
@@ -56,8 +57,12 @@ export class PrintPdfRenderer implements OnModuleDestroy {
 
   async render(request: PrintPdfRequest): Promise<Buffer> {
     const env = readApiEnv(process.env)
-    if (!env.WEB_ORIGIN) throw new PrintPdfError('config')
-    const origin = new URL(env.WEB_ORIGIN).origin
+    // WEB_ORIGIN is the CORS allowlist entry and must be HTTPS, so a local run leaves it blank.
+    // The renderer still needs somewhere to navigate: outside production that is the loopback web app.
+    const configured =
+      env.WEB_ORIGIN || (process.env.NODE_ENV === 'production' ? '' : localWebOrigins[0])
+    if (!configured) throw new PrintPdfError('config')
+    const origin = new URL(configured).origin
     let stage: PrintPdfStage = 'launch'
     let shared: Shared | null = null
     let timer: NodeJS.Timeout | undefined
