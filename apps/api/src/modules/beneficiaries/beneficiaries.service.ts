@@ -35,6 +35,7 @@ import {
   canonicalIdentifierType,
   canonicalIdentifierValue,
 } from './beneficiaries.dto'
+import { canReadProgress, loadProgress } from './beneficiary-progress'
 
 type Tx = Prisma.TransactionClient
 
@@ -493,8 +494,27 @@ export class BeneficiariesService {
         })
         const hasMore = rows.length > query.limit
         const page = rows.slice(0, query.limit)
+        const progress = canReadProgress(actor)
+          ? await loadProgress(
+              tx,
+              actor,
+              scopedProjectId,
+              page.flatMap((row) =>
+                row.beneficiaryProjectEnrollment_beneficiary.map((enrollment) => enrollment.id),
+              ),
+            )
+          : null
         return {
-          items: page.map((row) => this.mapBeneficiary(row, scopedProjectId)),
+          items: page.map((row) => ({
+            ...this.mapBeneficiary(row, scopedProjectId),
+            progress: progress
+              ? (progress.get(row.beneficiaryProjectEnrollment_beneficiary[0]?.id ?? '') ?? {
+                  restricted: false as const,
+                  lastParticipation: null,
+                  stage: null,
+                })
+              : { restricted: true as const },
+          })),
           nextCursor: hasMore ? page.at(-1)?.id : null,
         }
       },

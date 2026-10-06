@@ -14,6 +14,8 @@ export type Outcome = {
   people: number[]
   eventType: 'COMPLETION' | 'FOLLOW_UP' | 'DROPOUT'
   description: string
+  /** Code of the journey stage the outcome lands on, for projects that define one. */
+  stage?: string
   /** Days before the run date; defaults to the run date. */
   daysAgo?: number
 }
@@ -23,6 +25,7 @@ export const outcomes: Outcome[] = [
     project: 'ALS',
     people: [0, 1, 2, 3, 4, 5],
     eventType: 'COMPLETION',
+    stage: 'ASSESSED',
     description:
       'Completed the module set and is registered for the accreditation and equivalency assessment.',
   },
@@ -49,6 +52,7 @@ export const outcomes: Outcome[] = [
     project: 'EHK',
     people: Array.from({ length: 62 }, (_, i) => i),
     eventType: 'COMPLETION',
+    stage: 'COMPLETED',
     description: 'Received the hygiene and learning kit and returned to school.',
     daysAgo: 50,
   },
@@ -77,6 +81,14 @@ export async function stageEnrollmentOutcomes(ctx: DemoContext) {
       ctx.today,
       (row.startDate as Date).toISOString().slice(0, 10),
     )
+    const stages = outcome.stage
+      ? await ctx.services.participants.listStages(
+          ctx.staff[project.officers[0]].identity,
+          projectId,
+        )
+      : []
+    const stageId = stages.find((entry) => entry.code === outcome.stage)?.id
+    if (outcome.stage && !stageId) throw new Error(`Journey stage ${outcome.stage} is missing.`)
     for (const index of outcome.people) {
       const person = cohort[index]
       const beneficiary = await ctx.owner.beneficiary.findFirst({
@@ -108,6 +120,7 @@ export async function stageEnrollmentOutcomes(ctx: DemoContext) {
             eventType: outcome.eventType,
             eventDate: addDaysIso(ctx.today, -(outcome.daysAgo ?? 0)),
             description: outcome.description,
+            ...(stageId ? { stageId } : {}),
           },
         ),
       )

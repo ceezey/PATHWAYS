@@ -738,6 +738,59 @@ describe('F3 scoped read and denial gates', () => {
     expect(readTx.beneficiary.findFirst).not.toHaveBeenCalled()
   })
 
+  it('returns the latest participation and current stage in one extra query for journey readers', async () => {
+    const reader = { ...actor, permissions: [...actor.permissions, 'journeys.read'] }
+    const raw = vi.fn().mockResolvedValue([
+      {
+        enrollment_id: enrollmentId,
+        activity_id: otherProjectId,
+        activity_title: 'Life skills session',
+        participation_date: new Date('2026-09-30T00:00:00.000Z'),
+        stage_code: 'LIFESKILLS',
+        stage_name: 'Life skills and leadership sessions',
+        reached: 1,
+        total_stages: 4,
+      },
+    ])
+    readState.tx = { ...readTx, $queryRaw: raw }
+    const [item] = (await service.list(reader, projectId, query)).items
+    expect(raw).toHaveBeenCalledTimes(1)
+    expect(item.progress).toEqual({
+      restricted: false,
+      lastParticipation: {
+        activityId: otherProjectId,
+        title: 'Life skills session',
+        date: '2026-09-30',
+      },
+      stage: {
+        code: 'LIFESKILLS',
+        name: 'Life skills and leadership sessions',
+        progressPercent: 25,
+      },
+    })
+  })
+
+  it('reports no participation or stage when a journey reader has none recorded', async () => {
+    const reader = { ...actor, permissions: [...actor.permissions, 'journeys.read'] }
+    readState.tx = { ...readTx, $queryRaw: vi.fn().mockResolvedValue([]) }
+    const [item] = (await service.list(reader, projectId, query)).items
+    expect(item.progress).toEqual({ restricted: false, lastParticipation: null, stage: null })
+  })
+
+  it('marks progress restricted without a journey grant and never queries journey tables', async () => {
+    const raw = vi.fn()
+    readState.tx = { ...readTx, $queryRaw: raw }
+    const [item] = (await service.list(actor, projectId, query)).items
+    expect(item.progress).toEqual({ restricted: true })
+    const aggregate = {
+      ...actor,
+      roles: ['PROGRAM_MANAGER'],
+      permissions: [...actor.permissions, 'journeys.read'],
+    }
+    await service.list(aggregate, projectId, query).catch(() => undefined)
+    expect(raw).not.toHaveBeenCalled()
+  })
+
   it.each(['PROGRAM_MANAGER', 'GRANT_MANAGER', 'SYSTEM_ADMINISTRATOR'])(
     'G-F3-5 denies beneficiary detail to %s even with a claimed records.read grant',
     async (role) => {

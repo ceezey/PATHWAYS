@@ -10,11 +10,11 @@ import type { DemoContext } from './local-demo-seed'
 import { stageActivities } from './local-demo-stage-activities'
 import { stageCriteria } from './local-demo-stage-criteria'
 import { stageDecisions } from './local-demo-stage-decisions'
-import { stageAssessments, stageMilestones } from './local-demo-stage-evidence'
+import { stageMilestones } from './local-demo-stage-evidence'
 import { stageBudgets, stageExpenses } from './local-demo-stage-finance'
 import { stageJourneysAndForms, stageParticipation } from './local-demo-stage-forms'
 import { stageImports } from './local-demo-stage-imports'
-import { stageJourneyRecords } from './local-demo-stage-journeys'
+import { stageAssessments, stageJourneyRecords } from './local-demo-stage-journeys'
 import { stageEnrollmentOutcomes } from './local-demo-stage-outcomes'
 import { stageBeneficiaries, stageIndicators } from './local-demo-stage-people'
 import { stagePublishing } from './local-demo-stage-publishing'
@@ -143,11 +143,11 @@ const stages: Stage[] = [
   { name: 'budgets', run: stageBudgets },
   { name: 'expenses', run: stageExpenses },
   { name: 'milestones', run: stageMilestones },
+  { name: 'journey records', run: stageJourneyRecords },
   { name: 'journey outcomes', run: stageEnrollmentOutcomes },
   { name: 'assessments', run: stageAssessments },
   { name: 'survey', run: stageSurvey },
   { name: 'follow-up participation', run: stageDefenseParticipation },
-  { name: 'journey records', run: stageJourneyRecords },
   { name: 'rules', run: stageRules },
   { name: 'evaluation', run: stageEvaluation },
   { name: 'decisions', run: stageDecisions },

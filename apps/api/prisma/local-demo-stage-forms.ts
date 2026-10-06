@@ -142,6 +142,33 @@ export const journeyStages: Partial<Record<ProjectKey, StageSpec[]>> = {
       activityKeys: [],
     },
   ],
+  EHK: [
+    {
+      code: 'ENROLLED',
+      name: 'Registered as a beneficiary family',
+      order: 1,
+      type: 'ENTRY',
+      description: 'Family registered for the hygiene and learning kit.',
+      activityKeys: [],
+    },
+    {
+      code: 'KIT-DISTRIBUTION',
+      name: 'Kit distribution',
+      order: 2,
+      type: 'CORE',
+      description: 'Received the hygiene and learning kit.',
+      activityKeys: ['distribute'],
+    },
+    {
+      code: 'COMPLETED',
+      name: 'Returned to school',
+      order: 3,
+      type: 'CORE',
+      terminal: true,
+      description: 'Learner back in school after receiving the kit.',
+      activityKeys: [],
+    },
+  ],
   WSH: [
     {
       code: 'ENROLLED',
@@ -171,30 +198,63 @@ export const journeyStages: Partial<Record<ProjectKey, StageSpec[]>> = {
   ],
 }
 
-export const attendanceForms: Partial<
-  Record<ProjectKey, { code: string; name: string; activityKey: string; stageCode: string }>
-> = {
-  SSG: {
-    code: 'lifeskills_attendance',
-    name: 'Life Skills Session Attendance',
-    activityKey: 'lifeskills',
-    stageCode: 'LIFESKILLS',
-  },
-  ALS: {
-    code: 'review_class_attendance',
-    name: 'Review Class Attendance',
-    activityKey: 'reviewclass',
-    stageCode: 'REVIEW-CLASS',
-  },
-  CRL: {
-    code: 'coaching_attendance',
-    name: 'Livelihood Coaching Attendance',
-    activityKey: 'livelihood',
-    stageCode: 'COACHING',
-  },
+export type AttendanceFormSpec = {
+  code: string
+  name: string
+  activityKey: string
+  stageCode: string
 }
 
-async function activityId(ctx: DemoContext, project: DemoProject, key: string) {
+export const attendanceForms: Partial<Record<ProjectKey, AttendanceFormSpec[]>> = {
+  SSG: [
+    {
+      code: 'lifeskills_attendance',
+      name: 'Life Skills Session Attendance',
+      activityKey: 'lifeskills',
+      stageCode: 'LIFESKILLS',
+    },
+    {
+      code: 'peer_educator_attendance',
+      name: 'Peer Educator Training Attendance',
+      activityKey: 'returnedproof',
+      stageCode: 'PEER-EDUCATOR',
+    },
+  ],
+  ALS: [
+    {
+      code: 'review_class_attendance',
+      name: 'Review Class Attendance',
+      activityKey: 'reviewclass',
+      stageCode: 'REVIEW-CLASS',
+    },
+  ],
+  CRL: [
+    {
+      code: 'coaching_attendance',
+      name: 'Livelihood Coaching Attendance',
+      activityKey: 'livelihood',
+      stageCode: 'COACHING',
+    },
+  ],
+  WSH: [
+    {
+      code: 'hygiene_club_attendance',
+      name: 'Hygiene Club Training Attendance',
+      activityKey: 'hygiene',
+      stageCode: 'HYGIENE-CLUB',
+    },
+  ],
+  EHK: [
+    {
+      code: 'kit_distribution_attendance',
+      name: 'Kit Distribution Attendance',
+      activityKey: 'distribute',
+      stageCode: 'KIT-DISTRIBUTION',
+    },
+  ],
+}
+
+export async function activityId(ctx: DemoContext, project: DemoProject, key: string) {
   const index = demoActivities[project.key].findIndex((a) => a.key === key)
   const row = await ctx.owner.projectActivity.findFirstOrThrow({
     where: { projectId: projectOf(ctx, project.key), code: activityCode(project, index) },
@@ -271,24 +331,24 @@ export async function stageJourneysAndForms(ctx: DemoContext) {
   }
 
   for (const project of demoProjects) {
-    const spec = attendanceForms[project.key]
-    if (!spec) continue
     const projectId = projectOf(ctx, project.key)
     const stages = await ctx.services.participants.listStages(me.identity, projectId)
-    const stage = stages.find((entry) => entry.code === spec.stageCode)
-    if (!stage) throw new Error(`Journey stage ${spec.stageCode} is missing for ${project.code}.`)
-    const boundActivityId = await activityId(ctx, project, spec.activityKey)
-    await step(`attendance form ${project.code}`, () =>
-      createAndPublish(ctx, projectId, me, {
-        code: spec.code,
-        name: spec.name,
-        description: 'Records who attended each session and how each participant is progressing.',
-        formType: 'ACTIVITY_MONITORING',
-        activityId: boundActivityId,
-        journeyStageId: stage.id,
-        fields: attendanceFields,
-      }),
-    )
+    for (const spec of attendanceForms[project.key] ?? []) {
+      const stage = stages.find((entry) => entry.code === spec.stageCode)
+      if (!stage) throw new Error(`Journey stage ${spec.stageCode} is missing for ${project.code}.`)
+      const boundActivityId = await activityId(ctx, project, spec.activityKey)
+      await step(`attendance form ${spec.code}`, () =>
+        createAndPublish(ctx, projectId, me, {
+          code: spec.code,
+          name: spec.name,
+          description: 'Records who attended each session and how each participant is progressing.',
+          formType: 'ACTIVITY_MONITORING',
+          activityId: boundActivityId,
+          journeyStageId: stage.id,
+          fields: attendanceFields,
+        }),
+      )
+    }
   }
 
   const ssg = projectOf(ctx, 'SSG')
@@ -360,7 +420,10 @@ async function submitOne(
 export async function stageParticipation(ctx: DemoContext) {
   let recorded = 0
   for (const project of demoProjects) {
-    const spec = attendanceForms[project.key]
+    // WSH and EHK attendance is recorded by the journey records stage.
+    const spec = ['SSG', 'ALS', 'CRL'].includes(project.key)
+      ? attendanceForms[project.key]?.[0]
+      : undefined
     if (!spec) continue
     const projectId = projectOf(ctx, project.key)
     const registrar = registrarFor(ctx, project)
