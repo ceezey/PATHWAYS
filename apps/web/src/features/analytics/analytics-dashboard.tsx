@@ -1584,21 +1584,21 @@ const TimelineAnalyticsPanel = ({
   return (
     <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3" data-testid="timeline-analytics">
       <MetricCard
-        description="Share of the project period elapsed as of the reporting date."
+        description="Share of the project period elapsed as of the reporting date; 100% once completed."
         icon={ClipboardCheck}
         label="Elapsed"
         tone="info"
         value={analyticsCellValue(data.elapsedPercent, 'percent')}
       />
       <MetricCard
-        description="Calendar days remaining before the project's recorded end date."
+        description="Calendar days remaining before the project's recorded end date; 0 once completed."
         icon={ClipboardCheck}
         label="Remaining days"
         tone="info"
         value={analyticsCellValue(data.remainingDays)}
       />
       <MetricCard
-        description="Calendar days past the project's recorded end date."
+        description="Calendar days past the project's recorded end date; once completed, how late its last activity finished."
         icon={AlertTriangle}
         label="Overdue days"
         tone={

@@ -70,6 +70,8 @@ export const metricUnavailableLabel = (cell: MetricCell) => {
       return 'No activities recorded yet'
     case 'NO_PROJECT_DATES':
       return 'Project start and end dates are not recorded'
+    case 'NO_COMPLETION_DATE':
+      return 'No completed activity end date recorded'
     // Unknown reasons are not assumed to be empty.
     default:
       return 'Unavailable'
