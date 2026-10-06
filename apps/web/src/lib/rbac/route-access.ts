@@ -630,3 +630,10 @@ export async function requestRouteCheck(
     signal?.removeEventListener('abort', abort)
   }
 }
+
+/** Post-sign-in destination; each target page still runs its own server route check. */
+export const landingPath = (principal: RoutePrincipal | null | undefined) =>
+  principal?.roles[0] === 'SYSTEM_ADMINISTRATOR' &&
+  principalHasAtomicPermission(principal, 'users.authorize')
+    ? routePolicy.users.path
+    : '/workspace'
