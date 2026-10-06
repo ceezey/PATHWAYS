@@ -76,4 +76,4 @@ Developer, 2026-10-06 (spec approved).
 
 ## 9. Disposition
 
-Implemented on `feature/defense-seed-snapshot`. Local rehearsal passed. Hosted restore pending (developer). The hosted storage copy and hosted pooler connectivity are unproven until the developer's run; run `--dry-run` first.
+Implemented and merged (origin/dev cf51de1e). Local rehearsal passed. Hosted restore done 2026-10-06 on devV2 at 0063 with PR #43 numbers: dry run rolled back clean, storage copy needed one rerun after a transient 504 (75 objects), database restore committed (77 tables, 12600 rows, delta 0), and `--verify` passed 23 of 23.

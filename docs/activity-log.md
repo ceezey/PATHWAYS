@@ -326,3 +326,7 @@
 - New guard tests in `local-demo-data.test.ts` keep every started project at 30 or more people and every people count within its cohort.
 - CRL journey branches after COACHING into Wage employment and Enterprise start-up; the beneficiary journey track shows the sibling branch as "Not on path".
 - Deferred: beneficiary-linked survey and pre/post imports, and an application write path for assessment results. devV2 wipe, reseed and --verify (DR-04) stay with the developer.
+
+## 2026-10-06 Hosted defense reseed (DR-04)
+- devV2 reseeded with the PR #43 reconciled numbers through the snapshot path: local seed and `--verify` 23 of 23, dump of 77 tables (12600 rows) and 75 storage objects at 0063, hosted `--dry-run` rolled back clean, storage copy completed on rerun after a transient Storage 504, database restore committed with delta 0.
+- devV2 `--verify` passed 23 of 23, closing DR-04; `RULES_DISPATCH_ENABLED` is re-enabled by the developer after this run.
