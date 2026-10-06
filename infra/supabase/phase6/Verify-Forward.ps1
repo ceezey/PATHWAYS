@@ -54,6 +54,7 @@ $forwardInventory = @(
   '0065_zone_check_memo'
   '0066_beneficiary_reach_kpi_values'
   '0067_beneficiary_progress_read'
+  '0068_timeline_final_position'
 )
 if (($forwardMigrations.Name -join ',') -cne ($forwardInventory -join ',')) { throw 'Forward migration inventory requires renewed review.' }
 
@@ -1014,6 +1015,18 @@ SELECT (SELECT pg_catalog.pg_get_userbyid(p.proowner)='prisma' AND p.prosecdef A
     if ($progressShape.Trim() -cne 'true') { throw "0067 beneficiary progress inventory differs in $db." }
   }
   Write-Output 'FORWARD_0067_BENEFICIARY_PROGRESS_INVENTORY=PASS'
+  # 0068 inventory: the timeline aggregate keeps its definer shape and runtime-only EXECUTE and emits lastCompletedOn.
+  foreach ($db in @('pathways_phase4_baseline', 'pathways_phase4_forward_restore')) {
+    $timelineShape = Read-ForwardSql $db @"
+SELECT (SELECT pg_catalog.pg_get_userbyid(p.proowner)='prisma' AND p.prosecdef AND p.provolatile='s'
+  AND p.prosrc LIKE '%lastCompletedOn%'
+  AND has_function_privilege('pathways_runtime',p.oid,'EXECUTE') AND NOT has_function_privilege('anon',p.oid,'EXECUTE')
+  AND NOT has_function_privilege('authenticated',p.oid,'EXECUTE') AND NOT has_function_privilege('service_role',p.oid,'EXECUTE')
+ FROM pg_catalog.pg_proc p WHERE p.oid='pathways.p10_f9_timeline_aggregate(uuid,uuid,date)'::pg_catalog.regprocedure)::text;
+"@
+    if ($timelineShape.Trim() -cne 'true') { throw "0068 timeline aggregate inventory differs in $db." }
+  }
+  Write-Output 'FORWARD_0068_TIMELINE_FINAL_POSITION_INVENTORY=PASS'
 } finally {
   foreach ($key in $forwardPriorEnvironment.Keys) { Set-Item -LiteralPath "Env:$key" -Value $forwardPriorEnvironment[$key] }
 }

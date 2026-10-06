@@ -211,7 +211,7 @@ export const timelineAggregateSchema = z
         overdue: z.number().int().min(0),
         missingDates: z.number().int().min(0),
         maxOverdueDays: z.number().int().min(0).nullable(),
-        lastCompletedOn: z.string().refine(isCalendarDate).nullable(),
+        lastCompletedOn: z.string().refine(isCalendarDate).nullable().optional(),
       })
       .strict(),
     milestones: milestoneCountsSchema,
@@ -265,7 +265,7 @@ export function buildTimelineAnalytics(input: {
       'NO_PROJECT_DATES',
     )
   const { endDate } = input.project
-  const { lastCompletedOn, ...counts } = aggregate.activities
+  const { lastCompletedOn = null, ...counts } = aggregate.activities
   const final = input.project.status === 'COMPLETED' && !input.project.archived
   const elapsedPercent = final ? numericMetric('100') : cellFor('PROJECT_TIMELINE_ELAPSED_PERCENT')
   const remainingDays = final ? numericMetric('0') : cellFor('PROJECT_REMAINING_DAYS')
