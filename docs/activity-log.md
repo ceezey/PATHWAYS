@@ -512,3 +512,6 @@
 ## 2026-10-07 Evaluation report rounds (feature/evaluation-report-rounds)
 - The Evaluation report always used the latest signed-off round, and once a newer round was signed off every older saved evaluation report failed its download re-check as stale. Reports now take an optional `evaluationId` (Evaluation report only), served from the new `GET /projects/:projectId/reports/evaluation-rounds` (signed-off and archived rounds, newest first, allowlisted fields), and downloads re-check a saved report against its stored `reports.evaluation_id`. No migration.
 - The Reports page shows a Round select for Evaluation report (default newest), names the report after the round, and labels each saved evaluation report with its round.
+
+## 2026-10-07 Enrollment date uses the business date (fix/enrollment-business-date)
+- Registering a beneficiary between midnight and 08:00 Manila failed with "enrollment_date cannot be future." because the check compared the business-date enrollment against the UTC clock. Registration and project enrollment now compare against the business date (`BUSINESS_TIME_ZONE`), as the birth-date checks already did.

@@ -209,8 +209,7 @@ function parseRegistration(
   )
   const enrollmentDate = exactDate(values.enrollment_date, 'enrollment_date')
   if (!enrollmentDate) throw new BadRequestException('enrollment_date is required.')
-  if (enrollmentDate > new Date())
-    throw new BadRequestException('enrollment_date cannot be future.')
+  if (enrollmentDate > today) throw new BadRequestException('enrollment_date cannot be future.')
 
   const participationConsent = values.consent_recorded
   const dataConsent = values.data_processing_consent_recorded
@@ -1236,7 +1235,8 @@ export class BeneficiariesService {
         if (!UUID_PATTERN.test(beneficiaryId))
           throw new NotFoundException('Beneficiary unavailable.')
         const date = exactDate(input.enrollmentDate, 'enrollmentDate')
-        if (!date || date > new Date()) throw new BadRequestException('Enrollment date is invalid.')
+        if (!date || date > businessToday())
+          throw new BadRequestException('Enrollment date is invalid.')
         const [result] = await tx.$queryRaw<
           Array<{ id: string; enrollment_date: Date; status: string }>
         >`

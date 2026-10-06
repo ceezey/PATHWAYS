@@ -4,7 +4,7 @@ import {
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { PrismaService } from '@app/prisma/prisma.service'
 import { hasAtomicPermission } from '../auth/authorization-policy'
@@ -409,6 +409,27 @@ describe('P04 beneficiary registration service', () => {
   ])('rejects invalid or inferred registration facts: %s', async (patch) => {
     await expect(promote(values(patch))).rejects.toBeInstanceOf(BadRequestException)
     expect(tx.beneficiary.createMany).not.toHaveBeenCalled()
+  })
+
+  describe('enrollment date against the business date', () => {
+    // 01:00 on 2026-10-07 in Manila is still 2026-10-06 in UTC.
+    beforeEach(() => {
+      vi.useFakeTimers({ now: new Date('2026-10-06T17:00:00.000Z'), toFake: ['Date'] })
+    })
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+    it('accepts enrollment on the business date before UTC reaches it', async () => {
+      await expect(promote(values({ enrollment_date: '2026-10-07' }))).resolves.toMatchObject({
+        kind: 'PROCESSED',
+      })
+    })
+    it('rejects enrollment after the business date', async () => {
+      await expect(promote(values({ enrollment_date: '2026-10-08' }))).rejects.toMatchObject({
+        status: 400,
+        message: 'enrollment_date cannot be future.',
+      })
+    })
   })
 
   describe('minimum age and future birth date (cr-pathways-default-registration-form)', () => {
