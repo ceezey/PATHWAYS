@@ -84,6 +84,8 @@ export async function stageIndicators(ctx: DemoContext) {
         where: { organizationId: ctx.organizationId, projectId, code: { in: codes } },
         select: { id: true },
       })
+      if (activities.length !== indicator.activityKeys.length)
+        throw new Error(`Indicator ${indicator.code} links unresolved activities.`)
       await asUser(ctx, ctx.staff.me, (tx) =>
         tx.activityIndicatorLink.createMany({
           data: activities.map((activity) => ({
