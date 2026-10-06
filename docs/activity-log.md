@@ -507,3 +507,4 @@
 ## 2026-10-07 Dynamic project report template (docs only)
 - Drafted [dynamic project report template design](superpowers/specs/2026-10-07-dynamic-project-report-template-design.md): one template with five presets (Midterm, Evidence, Quarterly, Final, Donor brief), per-section toggles, period and filters, four block types (Fixed, Auto, Narrative, Conditional) and per-format behaviour for PDF, DOCX, XLSX and CSV.
 - Today's builder offers only project, kind and format; filters, section toggles, narratives and DOCX are target state and need a CR, a narrative migration and a DOCX writer decision before build.
+- Added docs/project-report-template.xlsx: the report template as a workbook (Cover, About, Contents with preset-driven Include and Check columns, one sheet per section and annex, Sign-off, Guide). Yellow cells are editable, blue cells are system data (fictional sample), and the rest are formulas; 189 formulas recalculated in Excel with zero errors.
