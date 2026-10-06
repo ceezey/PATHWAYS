@@ -330,3 +330,10 @@
 ## 2026-10-06 Hosted defense reseed (DR-04)
 - devV2 reseeded with the PR #43 reconciled numbers through the snapshot path: local seed and `--verify` 23 of 23, dump of 77 tables (12600 rows) and 75 storage objects at 0063, hosted `--dry-run` rolled back clean, storage copy completed on rerun after a transient Storage 504, database restore committed with delta 0.
 - devV2 `--verify` passed 23 of 23, closing DR-04; `RULES_DISPATCH_ENABLED` is re-enabled by the developer after this run.
+
+## 2026-10-06 Realistic demo journeys and directory progress
+- Every enrollment now carries a record that matches its status: attendance through the published attendance form of each stage-mapped activity (submission, participation, staged journey event), then completion or dropout transitions, then pre and post tests that reference the attendance submission.
+- SSG and ALS journeys branch: WEBINAR, then ENTREP or TECH (about 55 to 45), then a post-assessment step; each has a mapped activity and a published form. EHK gets stages and a kit distribution form. New stages `local-demo-stage-journeys.ts`, pure planner `local-demo-journeys.ts`, guard tests `local-demo-journeys.test.ts`.
+- Seeded proof photos are real field photographs (`prisma/assets/demo-photos`) and the attendance sheet PDFs list the date, venue, facilitator and attendees.
+- Beneficiary list API returns per row the latest participation and current stage (one query per page, journeys.read only, otherwise restricted); the directory shows "Restricted" instead of "No participation yet" when the caller cannot read journeys.
+- Assessment results still use the owner path (no service writes them), now tied to a validated attendance submission of the same enrollment and activity.
