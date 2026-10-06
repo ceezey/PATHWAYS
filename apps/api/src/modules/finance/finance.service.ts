@@ -18,7 +18,7 @@ import { hasAtomicPermission } from '../auth/authorization-policy'
 import { projectScope } from '../auth/authorized-data.service'
 import { withAuthorizedOperation } from '../auth/authorized-operation'
 import type { ApplicationIdentity } from '../auth/developer-access'
-import { ReceiptPdfRenderer } from '../report-pdf/receipt-pdf.renderer'
+import { ReceiptPdfError, ReceiptPdfRenderer } from '../report-pdf/receipt-pdf.renderer'
 import { createPrivateInspectionReader } from '../storage/private-inspection-reader'
 import { StorageService } from '../storage/storage.service'
 
@@ -516,8 +516,14 @@ export class FinanceService {
     let bytes: Buffer
     try {
       bytes = await this.receipts.render(canonicalId, snapshot)
-    } catch {
-      // Renderer faults are an outage, never a diagnostic for the caller.
+    } catch (error) {
+      // The caller gets an outage; the failing stage is logged so a misconfigured
+      // renderer (no WEB_ORIGIN, no PDF_CHROME_PATH off Linux) is diagnosable.
+      const stage = error instanceof ReceiptPdfError ? error.stage : 'unknown'
+      const cause = error instanceof ReceiptPdfError ? error.causeName : 'Error'
+      new Logger(FinanceService.name).warn(
+        `Receipt document unavailable for expense ${canonicalId} at ${stage} (${cause}).`,
+      )
       throw new ServiceUnavailableException('Receipt document temporarily unavailable.')
     }
     return { bytes, fileName: `disbursement-receipt-${snapshot.receiptNo}.pdf` }
