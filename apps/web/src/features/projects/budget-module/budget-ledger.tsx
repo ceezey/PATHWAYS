@@ -15,7 +15,7 @@ import {
 } from '@/lib/services/core-feature-client'
 
 import { formatCurrency, formatDate } from '../activity-utils'
-import { categoryLabel, projectLevelKey } from './budget-math'
+import { categoryLabel, projectLevelKey, remaining } from './budget-math'
 import { ExpenseReviewDrawer, type ReviewAction } from './expense-review-drawer'
 import type { useBudgetModule } from './use-budget-module'
 
@@ -140,6 +140,9 @@ export const BudgetLedger = ({
           {rows.map((expense) => {
             const budget = budgetOf(expense)
             const activity = module.activities.find((a) => a.id === budget?.activityId)
+            const activityRow = module.activityRows.find(
+              (row) => row.key === (budget?.activityId ?? projectLevelKey),
+            )
             const status = statusLabel[expense.status]
             const step = stepFor(expense)
             const expanded = open === expense.id
@@ -215,6 +218,35 @@ export const BudgetLedger = ({
                           <dt className="text-muted-foreground">Allocated to this line</dt>
                           <dd className="font-medium tabular-nums">
                             {budget ? formatCurrency(Number(budget.plannedBudget)) : 'Not recorded'}
+                          </dd>
+                        </div>
+                      </dl>
+                      {/* The whole activity, the same totals its panel and the overview show. */}
+                      <dl className="mt-2 grid gap-2 border-t border-border pt-2 text-sm sm:grid-cols-4">
+                        <div>
+                          <dt className="text-muted-foreground">Activity allocated</dt>
+                          <dd className="font-medium tabular-nums">
+                            {activityRow ? formatCurrency(activityRow.allocated) : 'Not recorded'}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="text-muted-foreground">Spent (approved)</dt>
+                          <dd className="font-medium tabular-nums text-success">
+                            {activityRow ? formatCurrency(activityRow.used) : 'Not recorded'}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="text-muted-foreground">In review</dt>
+                          <dd className="font-medium tabular-nums text-warning">
+                            {activityRow ? formatCurrency(activityRow.pending) : 'Not recorded'}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="text-muted-foreground">Remaining</dt>
+                          <dd className="font-medium tabular-nums">
+                            {activityRow
+                              ? formatCurrency(remaining(activityRow.allocated, activityRow.used))
+                              : 'Not recorded'}
                           </dd>
                         </div>
                       </dl>

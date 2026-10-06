@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   type ExpenseRow,
+  activityBudgetFigures,
   buildActivityRows,
   deriveAlerts,
   deriveRecommendations,
@@ -138,5 +139,67 @@ describe('budget math', () => {
       })
       expect(sum(rows, 'allocated')).toBe(5000)
     })
+  })
+})
+
+describe('activityBudgetFigures', () => {
+  it('reads allocated, spent, in-review and remaining as one consistent set', () => {
+    const figures = activityBudgetFigures({
+      budgetAllocation: 60000,
+      budgetLogged: 25800,
+      budgetPending: 9800,
+    })
+    expect(figures).toMatchObject({
+      allocated: 60000,
+      spent: 25800,
+      pending: 9800,
+      remaining: 34200,
+      utilization: 43,
+      readable: true,
+    })
+  })
+
+  it('keeps no-access apart from nothing-allocated instead of showing zero', () => {
+    const noAccess = activityBudgetFigures({ budgetAllocation: null, budgetLogged: null })
+    expect(noAccess).toMatchObject({ allocated: null, remaining: null, utilization: null })
+    expect(noAccess.readable).toBe(false)
+    const unfunded = activityBudgetFigures({ budgetAllocation: 0, budgetLogged: 0 })
+    expect(unfunded.readable).toBe(true)
+    // No allocation to measure against, so utilization is not available rather than 0%.
+    expect(unfunded.utilization).toBeNull()
+  })
+
+  it('matches the ledger aggregation for the same activity', () => {
+    const budgets = [
+      { id: 'b1', activityId: 'a1', category: 'ACTIVITY_PROFILE_TOTAL', plannedBudget: '40000.00' },
+      { id: 'b2', activityId: 'a1', category: 'Training materials', plannedBudget: '20000.00' },
+    ]
+    const expenses = [
+      {
+        id: 'e1',
+        budgetRecordId: 'b1',
+        amount: '25800.00',
+        status: 'APPROVED' as const,
+        receiptEvidenceId: null,
+      },
+      {
+        id: 'e2',
+        budgetRecordId: 'b2',
+        amount: '9800.00',
+        status: 'VERIFIED' as const,
+        receiptEvidenceId: null,
+      },
+    ]
+    const [row] = buildActivityRows(budgets, expenses, [
+      { id: 'a1', code: 'ACT-1', title: 'Training' },
+    ])
+    const figures = activityBudgetFigures({
+      budgetAllocation: 60000,
+      budgetLogged: 25800,
+      budgetPending: 9800,
+    })
+    expect(row.allocated).toBe(figures.allocated)
+    expect(row.used).toBe(figures.spent)
+    expect(row.pending).toBe(figures.pending)
   })
 })

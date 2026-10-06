@@ -8,6 +8,7 @@ import { ProjectPhaseFiveWorkspace } from './project-review-workspace'
 const projectId = '72000000-0000-4000-8000-000000000004'
 const coreApi = vi.hoisted(() => ({ reports: vi.fn(), save: vi.fn() }))
 const api = vi.hoisted(() => ({
+  getActivities: vi.fn(),
   getEvidence: vi.fn(),
   getProject: vi.fn(),
   getProjectIndicators: vi.fn(),

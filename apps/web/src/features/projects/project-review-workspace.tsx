@@ -184,6 +184,16 @@ const LegacyProjectWorkspace = ({
         setProject(projectRecord)
         const requests: Promise<void>[] = []
         if (view === 'evidence') {
+          if (canReadActivities) {
+            requests.push(
+              optional(
+                'Connected activities',
+                pathwaysClient.getActivities(projectId),
+                // A missing list leaves the tab usable; the budget column reads as a dash.
+                (list) => setActivities(list ?? []),
+              ),
+            )
+          }
           if (canReadEvidence) {
             requests.push(
               optional('Evidence records', pathwaysClient.getEvidence(projectId), (list) =>
@@ -210,7 +220,8 @@ const LegacyProjectWorkspace = ({
               optional(
                 'Connected activities',
                 pathwaysClient.getActivities(projectId),
-                setActivities,
+                // A missing list leaves the tab usable; the budget column reads as a dash.
+                (list) => setActivities(list ?? []),
               ),
             )
           }
@@ -308,6 +319,7 @@ const LegacyProjectWorkspace = ({
       ) : null}
       {view === 'evidence' ? (
         <EvidenceView
+          activities={activities}
           projectId={projectId}
           canReviewEvidence={canReviewEvidence}
           evidence={evidence}
@@ -422,10 +434,19 @@ function applyEvidence(
   }
 }
 
-const EvidenceSummaryCard = ({ activities }: { activities: EvidenceActivitySummary[] }) => (
+/** Dash when there is no allocation to measure against, or no budget access. */
+const budgetUsedText = (activity: ActivitySummary | undefined) =>
+  activity?.budgetUtilization == null
+    ? '\u2014'
+    : formatCappedPercent(activity.budgetUtilization, 'over budget')
+
+const EvidenceSummaryCard = ({
+  activities,
+  budgets,
+}: { activities: EvidenceActivitySummary[]; budgets: ActivitySummary[] }) => (
   <SectionCard
     title="Activity evidence summary"
-    description="Evidence counts by activity. Submission detail stays with assigned project roles."
+    description="Evidence counts by activity, beside the same budget reading the activity and budget tabs show."
   >
     {activities.length > 0 ? (
       <div className="overflow-x-auto">
@@ -444,8 +465,11 @@ const EvidenceSummaryCard = ({ activities }: { activities: EvidenceActivitySumma
               <th className="py-2 pr-3 text-right font-medium" scope="col">
                 Approved
               </th>
-              <th className="py-2 text-right font-medium" scope="col">
+              <th className="py-2 pr-3 text-right font-medium" scope="col">
                 Returned
+              </th>
+              <th className="py-2 text-right font-medium" scope="col">
+                Budget used
               </th>
             </tr>
           </thead>
@@ -458,7 +482,10 @@ const EvidenceSummaryCard = ({ activities }: { activities: EvidenceActivitySumma
                 <td className="py-2 pr-3 text-right tabular-nums">{row.total}</td>
                 <td className="py-2 pr-3 text-right tabular-nums">{row.submitted}</td>
                 <td className="py-2 pr-3 text-right tabular-nums">{row.approved}</td>
-                <td className="py-2 text-right tabular-nums">{row.returned}</td>
+                <td className="py-2 pr-3 text-right tabular-nums">{row.returned}</td>
+                <td className="py-2 text-right tabular-nums">
+                  {budgetUsedText(budgets.find((item) => item.id === row.activityId))}
+                </td>
               </tr>
             ))}
           </tbody>
@@ -522,12 +549,14 @@ const EvidenceDownloadControl = ({
 }
 
 const EvidenceView = ({
+  activities,
   projectId,
   canReviewEvidence,
   evidence,
   evidenceSummary,
   reports,
 }: {
+  activities: ActivitySummary[]
   projectId: string
   canReviewEvidence: boolean
   evidence: EvidenceRecord[]
@@ -536,7 +565,7 @@ const EvidenceView = ({
 }) => (
   <section className="grid gap-4 xl:grid-cols-[1.4fr_0.6fr]">
     {evidenceSummary ? (
-      <EvidenceSummaryCard activities={evidenceSummary} />
+      <EvidenceSummaryCard activities={evidenceSummary} budgets={activities} />
     ) : (
       <>
         <EvidenceAttachmentsCard

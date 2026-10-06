@@ -385,17 +385,38 @@ describe('P05 activity proof authorization', () => {
     }
     state.actor = reader as ApplicationIdentity
     tx.project.findFirst.mockResolvedValueOnce({ projectActivity_project: [activity] })
-    tx.budgetExpenseEntry.aggregate.mockResolvedValueOnce({
-      _sum: { amount: new Prisma.Decimal('1500.5') },
-      _count: { _all: 2 },
-    })
+    tx.budgetExpenseEntry.aggregate
+      .mockResolvedValueOnce({
+        _sum: { amount: new Prisma.Decimal('1500.5') },
+        _count: { _all: 2 },
+      })
+      .mockResolvedValueOnce({
+        _sum: { amount: new Prisma.Decimal('980') },
+        _count: { _all: 1 },
+      })
     const detail = await service.get(reader, projectId, activityId)
-    expect(detail).toMatchObject({ budgetLogged: '1500.50', budgetLoggedEntries: 2 })
+    expect(detail).toMatchObject({
+      budgetLogged: '1500.50',
+      budgetLoggedEntries: 2,
+      // Money still in review is reported apart from approved spend, as the ledger shows it.
+      budgetPending: '980.00',
+      budgetPendingEntries: 1,
+    })
     expect(tx.budgetExpenseEntry.aggregate).toHaveBeenCalledWith({
       where: {
         organizationId,
         projectId,
         status: 'APPROVED',
+        budgetRecord: { organizationId, projectId, activityId },
+      },
+      _sum: { amount: true },
+      _count: { _all: true },
+    })
+    expect(tx.budgetExpenseEntry.aggregate).toHaveBeenCalledWith({
+      where: {
+        organizationId,
+        projectId,
+        status: { in: ['PENDING', 'VERIFIED'] },
         budgetRecord: { organizationId, projectId, activityId },
       },
       _sum: { amount: true },
@@ -411,13 +432,15 @@ describe('P05 activity proof authorization', () => {
     }
     state.actor = reader as ApplicationIdentity
     tx.project.findFirst.mockResolvedValueOnce({ projectActivity_project: [activity] })
-    tx.budgetExpenseEntry.aggregate.mockResolvedValueOnce({
+    tx.budgetExpenseEntry.aggregate.mockResolvedValue({
       _sum: { amount: null },
       _count: { _all: 0 },
     })
     await expect(service.get(reader, projectId, activityId)).resolves.toMatchObject({
       budgetLogged: '0.00',
       budgetLoggedEntries: 0,
+      budgetPending: '0.00',
+      budgetPendingEntries: 0,
     })
   })
 
@@ -432,6 +455,28 @@ describe('P05 activity proof authorization', () => {
     const detail = await service.get(officer, projectId, activityId)
     expect(detail).toMatchObject({ budgetLogged: null, budgetLoggedEntries: null })
     expect(tx.budgetExpenseEntry.aggregate).not.toHaveBeenCalled()
+  })
+
+  it('allocates from every live budget line, matching the list and the finance ledger', async () => {
+    const officer = {
+      ...actor,
+      roles: ['PROJECT_MANAGER'],
+      permissions: ['activities.read', 'budgets.read'],
+    }
+    state.actor = officer as ApplicationIdentity
+    tx.project.findFirst.mockResolvedValueOnce({ projectActivity_project: [activity] })
+    // An activity envelope plus a named category line; the detail used to read only the first.
+    tx.projectBudgetRecord.findMany.mockResolvedValueOnce([
+      { activityId, plannedBudget: new Prisma.Decimal('40000') },
+      { activityId, plannedBudget: new Prisma.Decimal('20000') },
+    ])
+    await expect(service.get(officer, projectId, activityId)).resolves.toMatchObject({
+      budgetAllocation: '60000.00',
+    })
+    // No category filter: a line that funds the activity counts whatever it is called.
+    const where = tx.projectBudgetRecord.findMany.mock.calls[0]?.[0].where
+    expect(where).toMatchObject({ archivedAt: null })
+    expect(where).not.toHaveProperty('category')
   })
 
   it('reads no expenses for an out-of-scope activity', async () => {

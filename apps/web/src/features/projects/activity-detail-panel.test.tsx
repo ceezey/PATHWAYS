@@ -218,7 +218,8 @@ describe('ActivityDetailContent server read model', () => {
 
     expect(screen.getByText('2 of 41')).toBeTruthy()
     expect(screen.getByText('₱55,678.90')).toBeTruthy()
-    expect(screen.getByText('Unavailable')).toBeTruthy()
+    // Spent and remaining both read as withheld, never as zero, without expense access.
+    expect(screen.getAllByText('Unavailable').length).toBeGreaterThan(0)
     expect(screen.getByText('No journey stage linked')).toBeTruthy()
     expect(screen.getByText('No indicators are connected to this activity.')).toBeTruthy()
     expect(document.body.textContent).not.toContain('NaN')
@@ -321,7 +322,7 @@ describe('ActivityDetailContent server read model', () => {
         onSubmitProof={vi.fn()}
       />,
     )
-    const cell = screen.getByText('Logged expenses').parentElement?.querySelector('dd')
+    const cell = screen.getByText('Spent (approved)').parentElement?.querySelector('dd')
     expect(cell?.textContent).toBe(label)
     expect(cell?.textContent).not.toBe('₱0.00')
   })

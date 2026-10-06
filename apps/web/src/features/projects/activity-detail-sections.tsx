@@ -4,6 +4,7 @@ import { ProgressBar, StatusBadge } from '@/components/pathways'
 import type { Activity, ProjectIndicator, ProjectTeamMember } from '@/types/pathways'
 
 import { formatCurrency } from './activity-utils'
+import { activityBudgetFigures, toneFor } from './budget-module/budget-math'
 
 const sectionHeading = 'text-xs font-semibold uppercase tracking-wide text-muted-foreground'
 
@@ -96,42 +97,48 @@ export const ActivityIndicators = ({
   )
 }
 
-/** Allocation against logged spending for this activity alone. */
+/** Allocation, approved spending and money still in review for this activity. */
 export const ActivityBudget = ({
   activity,
   canReadBudgets,
 }: { activity: Activity; canReadBudgets: boolean }) => {
-  const allocated = activity.budgetAllocation
-  const logged = activity.budgetLogged
-  const percent =
-    allocated !== null && allocated > 0 && logged !== null
-      ? Math.min(100, Math.round((logged / allocated) * 100))
-      : null
+  const figures = activityBudgetFigures(activity)
+  const money = (value: number | null) =>
+    value === null ? (canReadBudgets ? 'None yet' : 'Unavailable') : formatCurrency(value)
   return (
     <dl className="space-y-2 rounded-lg border border-border bg-surface-subtle p-3 text-sm">
       <div className="flex items-center justify-between">
         <dt className="text-muted-foreground">Allocated</dt>
-        <dd className="font-medium tabular-nums text-foreground">
-          {formatCurrency(allocated, canReadBudgets ? 'None yet' : 'Unavailable')}
-        </dd>
+        <dd className="font-medium tabular-nums text-foreground">{money(figures.allocated)}</dd>
       </div>
       <div className="flex items-center justify-between">
-        <dt className="text-muted-foreground">Logged expenses</dt>
+        <dt className="text-muted-foreground">Spent (approved)</dt>
         <dd className="font-medium tabular-nums text-success">
-          {activity.budgetLoggedEntries === 0 ? 'None yet' : formatCurrency(logged, 'Unavailable')}
+          {/* No approved entry at all reads as nothing yet, never as a fabricated zero. */}
+          {activity.budgetLoggedEntries === 0 ? 'None yet' : money(figures.spent)}
         </dd>
       </div>
-      {percent === null ? null : (
+      {figures.pending ? (
+        <div className="flex items-center justify-between">
+          <dt className="text-muted-foreground">In review</dt>
+          <dd className="font-medium tabular-nums text-warning">{money(figures.pending)}</dd>
+        </div>
+      ) : null}
+      <div className="flex items-center justify-between border-t border-border pt-2">
+        <dt className="text-muted-foreground">Remaining</dt>
+        <dd className="font-medium tabular-nums text-foreground">{money(figures.remaining)}</dd>
+      </div>
+      {figures.utilization === null ? null : (
         <div>
           <div className="flex items-center justify-between">
             <dt className="text-muted-foreground">Utilization</dt>
-            <dd className="font-medium tabular-nums text-foreground">{percent}%</dd>
+            <dd className="font-medium tabular-nums text-foreground">{figures.utilization}%</dd>
           </div>
           <ProgressBar
             label="Activity budget utilization"
             hideText
-            tone={percent >= 90 ? 'danger' : percent >= 70 ? 'warning' : 'success'}
-            value={percent}
+            tone={toneFor(figures.utilization)}
+            value={figures.utilization}
           />
         </div>
       )}

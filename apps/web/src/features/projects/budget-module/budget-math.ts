@@ -159,3 +159,37 @@ export const deriveRecommendations = (rows: ActivityBudgetRow[]) =>
       signal: `${rowLabel(row)} utilization is ${row.utilization}%`,
       suggestion: `Consider reviewing the plan or allocation for ${row.title}.`,
     }))
+
+export type ActivityBudgetFigures = {
+  /** Null means the viewer cannot read budgets, which is different from nothing allocated. */
+  allocated: number | null
+  /** Approved spending only, the same rule the ledger and the overview metric use. */
+  spent: number | null
+  /** Submitted and verified expenses awaiting approval. */
+  pending: number | null
+  remaining: number | null
+  utilization: number | null
+  readable: boolean
+}
+
+/**
+ * One reading of an activity's money, so the activity panel, the ledger and the evidence
+ * tab never disagree. Allocation counts every live budget line for the activity.
+ */
+export const activityBudgetFigures = (activity: {
+  budgetAllocation?: number | null
+  budgetLogged?: number | null
+  budgetPending?: number | null
+}): ActivityBudgetFigures => {
+  const allocated = activity.budgetAllocation ?? null
+  const spent = activity.budgetLogged ?? null
+  const pending = activity.budgetPending ?? null
+  return {
+    allocated,
+    spent,
+    pending,
+    remaining: allocated === null || spent === null ? null : allocated - spent,
+    utilization: allocated !== null && spent !== null ? utilization(spent, allocated) : null,
+    readable: allocated !== null || spent !== null,
+  }
+}

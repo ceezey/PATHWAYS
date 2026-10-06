@@ -2945,6 +2945,16 @@ function parseActivity(value: unknown): Activity {
     budgetAllocation,
     budgetLogged,
     budgetLoggedEntries,
+    // Left absent on a response that predates the pending totals, which reads as not available.
+    ...(row.budgetPending === undefined
+      ? {}
+      : {
+          budgetPending: row.budgetPending === null ? null : Number(row.budgetPending),
+          budgetPendingEntries:
+            row.budgetPendingEntries === null || row.budgetPendingEntries === undefined
+              ? null
+              : Number(row.budgetPendingEntries),
+        }),
     capabilities: parseActivityCapabilities(row.capabilities),
     overdueExplanations: parseOverdueExplanations(row.overdueExplanations),
     overdueExplanationNeeded: row.overdueExplanationNeeded,

@@ -10,7 +10,7 @@ vi.mock('@/lib/services/core-feature-client', () => ({
 vi.mock('./expense-review-drawer', () => ({ ExpenseReviewDrawer: () => null }))
 
 import { BudgetLedger } from './budget-ledger'
-import { projectLevelKey } from './budget-math'
+import { buildActivityRows, projectLevelKey } from './budget-math'
 
 const expense = (id: string, budgetRecordId: string) => ({
   id,
@@ -35,6 +35,30 @@ const module = {
   ],
   expenses: [expense('e1', 'b1'), expense('e2', 'b2')],
   activities: [{ id: 'a1', code: 'ACT-1', title: 'Training' }],
+  // The same aggregation the budget tab shows, so the ledger cannot drift from it.
+  activityRows: buildActivityRows(
+    [
+      { id: 'b1', activityId: null, category: 'PROJECT_PROFILE_TOTAL', plannedBudget: '5000.00' },
+      { id: 'b2', activityId: 'a1', category: 'ACTIVITY_PROFILE_TOTAL', plannedBudget: '2000.00' },
+    ],
+    [
+      {
+        id: 'e1',
+        budgetRecordId: 'b1',
+        amount: '100.00',
+        status: 'APPROVED',
+        receiptEvidenceId: null,
+      },
+      {
+        id: 'e2',
+        budgetRecordId: 'b2',
+        amount: '100.00',
+        status: 'APPROVED',
+        receiptEvidenceId: null,
+      },
+    ],
+    [{ id: 'a1', code: 'ACT-1', title: 'Training' }],
+  ),
 } as never
 
 afterEach(cleanup)
