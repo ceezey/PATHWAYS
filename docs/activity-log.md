@@ -368,6 +368,20 @@
 ## 2026-10-06 Zone check memo migration 0065
 - [cr-pathways-zone-check-memo](cr-pathways-zone-check-memo.md): `0065_zone_check_memo` adds `p06_zone_is_valid`, which remembers a validated timezone per transaction, and `p06_assert_scope` and `p06_home_dashboard` use it instead of reading `pg_timezone_names` on every call (0.43 s each on devV2, which timed out the 3 s analytics reads). Owner, SECURITY DEFINER and ACLs are unchanged; hosted plan, Verify-Forward and the runtime suite register 0065.
 
+## 2026-10-06 Rules sweep isolation fix and machine fault logging
+- The hourly sweep failed on hosted with 42501 because `sweep_rule_projects()` requires read committed while `RulesMachineSqlClient.phase()` ran every CAPTURE phase under RepeatableRead; only drain snapshot capture (`capture_rule_snapshot` via `install_capture_context`) needs RepeatableRead, so the sweep now runs ReadCommitted with the unchanged CAPTURE budget. All other machine routines already ran ReadCommitted as their migrations require.
+- `RulesMachineWorker.drain` and `sweep` now log one `PATHWAYS_RULES_MACHINE_FAILED` warning (purpose, failure kind, allowlisted error name, Prisma code and SQLSTATE; never messages or SQL) before the unchanged 503; `faultCause` moved to `prisma/transaction-diagnostic.ts` for reuse. No migration.
+
+## 2026-10-06 Beneficiary assessment view
+- [cr-pathways-beneficiary-assessment-view](cr-pathways-beneficiary-assessment-view.md): new enrollment-scoped assessment list read (same guards as the detail read) feeds the beneficiary detail page; "View assessment" now shows pre and post scores and the change for the selected stage. No migration.
+- Assessment view fix round 1: list read also requires `beneficiaries.records.read` and a live Beneficiary; the page pairs pre and post across stages, explains a failed read, and guard tests now fail if the denied-role or button gates are removed.
+
+## 2026-10-06 Fast runtime Vitest runner
+- `Invoke-RuntimeVitest.ps1` runs one DB-backed `*.local.test.ts` against a copy of the saved replay template; both fast runners share `replay-template.ps1` for the freshness check; Fast Checks documented in `docs/runbook-local-dev.md`; CI cache deferred row added.
+
+## 2026-10-06 Replay step timing
+- `Replay-Local.ps1` prints `REPLAY_STEP <label> <seconds>s` per migration, SQL and Vitest step and writes `.tmp/replay-timing.json` (helper in `replay-timing.ps1`).
+
 ## 2026-10-06 Project frame, report parity, budget receipts, activity panel, M&E hints (feat/project-workspace-frame-ui)
 - Project tabs share one frame: the tab routes move into a `(workspace)` route group (URLs unchanged, `edit` stays outside) whose `layout.tsx` renders `ProjectWorkspaceFrame` once. The frame reads the project through the existing `useProjectRead` key and draws the title with Back, Edit and Archive, then the tab strip; `ProjectWorkspaceHeader` keeps the description and tabs only. Indicators, Monitoring & Evaluation, Budget and Journey Stages had no tab strip at all, so their `BackButton` is gone. Overview returns, re-routing the orphaned `ProjectDetailView`.
 - Report preview renders `PrintReportView`, the component the print page feeds to Chromium, so preview and export match for all six kinds instead of only Project summary. `generate` returns `pdfFallback` when Chromium failed and the stored PDF is the pdfkit layout; the workspace says so rather than reporting plain success. The flag describes that render, so a recovered report omits it.

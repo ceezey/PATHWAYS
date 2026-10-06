@@ -58,9 +58,15 @@ Live import files for the presentation are in `apps/api/prisma/demo-fixtures/`:
 
 Passwords for the seeded accounts are written only to the ignored `.tmp/local-seed/`.
 
-## Fast Runtime SQL Runs
+## Fast Checks
 
 For development speed only. Save the replayed cluster once per migration change with `./infra/supabase/phase6/Replay-Local.ps1 -MigrationBaseline -SaveTemplate` (writes `.tmp/pathways-replay-template/` with a migrations hash). Then run any runtime SQL file with `./infra/supabase/phase6/Invoke-RuntimeSql.ps1 -File apps/api/prisma/tests/<file>.sql`. Each run copies the template to a disposable loopback cluster on a free port and deletes it afterwards. The runner refuses a stale template after any migration change. The template drops the replay recovery clone databases so it stays small; `finance-expense-runtime.sql` measured 3.6 s end to end. `project-indicator-dashboard-runtime.sql` is replay-only: it fails at line 46 ("Source proof unavailable") under the runner and also reads the replay-set psql variable `PHASE4_INDICATOR_POLICY`. The full `Replay-Local.ps1 -MigrationBaseline` stays the merge gate.
+
+`./infra/supabase/phase6/Invoke-RuntimeVitest.ps1 -File apps/api/src/modules/<module>/<name>.local.test.ts` does the same for DB-backed Vitest suites: it copies the template, enables LOGIN on `pathways_runtime`, sets the replay environment for that suite (enable flag, `PATHWAYS_REPLAY_PORT`, `PATHWAYS_EXPECTED_TABLE_COUNT`, `DATABASE_URL`) and runs `vitest run`. It refuses a file outside its flag map, refuses a stale template, and restores the environment afterwards.
+
+- Save the template after any migration change.
+- Run each affected `*.local.test.ts` and `.sql` suite through the fast runners before review and push.
+- The full replay stays the gate before a merge to master.
 
 ## End of Session
 

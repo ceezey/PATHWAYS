@@ -142,9 +142,11 @@ function integrateEntry(
           beneficiaryId: beneficiary.id,
           projectId: input.projectId,
           stageId: activity.journeyStageId,
+          type: field === 'pre_test_score' ? 'PRE_TEST' : 'POST_TEST',
           title,
           assessedAt: input.date,
           score: Number(input.values[field]),
+          maximumScore: 100,
           source: `${input.source} entry ${entry.id}`,
           note: input.values.note ?? '',
         })

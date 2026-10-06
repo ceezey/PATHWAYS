@@ -257,9 +257,12 @@ describe.skipIf(!enabled)('report preview scope and suppression on disposable Po
               )
             }
             const summary = await preview('PROJECT_MANAGER', projectAssigned, 'PROJECT_SUMMARY')
-            expect(summary.rows[0]?.[0], 'project summary is the assigned project').toBe(
+            expect(summary.rows[0], 'project summary is the assigned project').toEqual([
+              'Project information',
+              'Code',
               'RPT-ASSIGNED',
-            )
+              '',
+            ])
             const indicator = await preview('PROJECT_MANAGER', projectAssigned, 'INDICATOR_SUMMARY')
             expect(
               indicator.rows.map((row) => row[0]),
@@ -307,15 +310,15 @@ describe.skipIf(!enabled)('report preview scope and suppression on disposable Po
               projectAssigned,
               'MONITORING_REPORT',
             )
-            // The trusted monitoring aggregate withholds participation counts from every role.
+            // The monitoring aggregate releases participation counts with 1-4 suppressed.
             const participation = monitoring.rows.filter((row) => row[0] === 'Participation')
             expect(
               participation.length,
               'monitoring report lists participation rows',
             ).toBeGreaterThan(0)
             expect(
-              participation.filter((row) => /^\d+$/.test(row[2] ?? '')),
-              'monitoring report withholds every participation count',
+              participation.filter((row) => /^[1-4]$/.test(row[2] ?? '')),
+              'monitoring report shows no participation count of 1 to 4',
             ).toEqual([])
 
             // 6. No signed-off evaluation: empty rows, a reason, and only allowlisted keys.

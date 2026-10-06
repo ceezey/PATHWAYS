@@ -7,11 +7,14 @@ import { useEffect, useState } from 'react'
 import { AsyncState, StatusMessage } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import { useCurrentRole } from '@/hooks/use-current-role'
+import { STEP_UP_COMPLETED_EVENT } from '@/lib/auth/beneficiary-step-up-events'
 import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
-import { pathwaysClient } from '@/lib/services/pathways-client'
+import { isUiActionAvailable } from '@/lib/rbac/ui-action-availability'
+import { type AssessmentSummary, pathwaysClient } from '@/lib/services/pathways-client'
 import { PathwaysClientError } from '@/lib/services/pathways-client'
 import type {
   ActivitySummary,
+  BeneficiaryAssessmentRecord,
   BeneficiaryRecord,
   DigitalFormDefinition,
   JourneyStageConfig,
@@ -20,6 +23,7 @@ import type {
 
 import { BeneficiaryDetail } from './beneficiary-detail'
 import { mapBeneficiaryJourneyHistory } from './beneficiary-journey-adapter'
+import { assessmentTypeLabel } from './beneficiary-utils'
 
 type DetailData = {
   beneficiary: BeneficiaryRecord
@@ -28,6 +32,7 @@ type DetailData = {
   stages: JourneyStageConfig[]
   participationForms: DigitalFormDefinition[]
   projectId: string
+  assessmentsUnavailable: boolean
 }
 
 type DetailState =
@@ -36,6 +41,22 @@ type DetailState =
   | { status: 'restricted' }
   | { status: 'unavailable' }
   | { status: 'error' }
+
+const toAssessmentRecord =
+  (beneficiaryId: string, projectId: string) =>
+  (row: AssessmentSummary): BeneficiaryAssessmentRecord => ({
+    id: row.id,
+    beneficiaryId,
+    projectId,
+    stageId: row.stageId ?? '',
+    type: row.type,
+    title: assessmentTypeLabel[row.type],
+    assessedAt: row.assessmentDate,
+    score: Number(row.score),
+    maximumScore: Number(row.maximumScore),
+    source: 'Assessment result',
+    note: '',
+  })
 
 export const BeneficiaryDetailLoader = ({
   beneficiaryId,
@@ -46,6 +67,7 @@ export const BeneficiaryDetailLoader = ({
 }) => {
   const { role, profile } = useCurrentRole()
   const canReadForms = principalHasAtomicPermission(profile, 'forms.read')
+  const canReadAssessments = isUiActionAvailable(role, 'assessments.detail.view', profile)
   const [state, setState] = useState<DetailState>({ status: 'loading' })
   const [loadAttempt, setLoadAttempt] = useState(0)
 
@@ -54,6 +76,7 @@ export const BeneficiaryDetailLoader = ({
     const verifiedRole = role
     void loadAttempt
     let active = true
+    const controller = new AbortController()
 
     const loadDetail = async () => {
       setState({ status: 'loading' })
@@ -81,11 +104,27 @@ export const BeneficiaryDetailLoader = ({
         if (!beneficiary || !scopedProjectId) {
           throw new PathwaysClientError('Beneficiary not found.', 'not_found')
         }
-        const [activities, stages, history, forms] = await Promise.all([
+        const enrollmentId = beneficiary.enrollments.find(
+          (enrollment) => enrollment.projectId === scopedProjectId,
+        )?.id
+        let assessmentsUnavailable = false
+        // A denied or failed assessment read leaves the page usable and says so on the button.
+        const readAssessments =
+          canReadAssessments && enrollmentId
+            ? pathwaysClient
+                .getBeneficiaryAssessments(scopedProjectId, enrollmentId, controller.signal)
+                .then((rows) => rows.map(toAssessmentRecord(beneficiaryId, scopedProjectId)))
+                .catch((): BeneficiaryAssessmentRecord[] => {
+                  assessmentsUnavailable = true
+                  return []
+                })
+            : Promise.resolve([])
+        const [activities, stages, history, forms, assessments] = await Promise.all([
           pathwaysClient.getActivities(scopedProjectId),
           pathwaysClient.getJourneyStages(scopedProjectId),
           pathwaysClient.getBeneficiaryJourneyHistory(scopedProjectId, beneficiaryId),
           canReadForms ? pathwaysClient.getDigitalForms(scopedProjectId) : Promise.resolve([]),
+          readAssessments,
         ])
         const journey = mapBeneficiaryJourneyHistory(history)
 
@@ -93,7 +132,7 @@ export const BeneficiaryDetailLoader = ({
           setState({
             status: 'ready',
             data: {
-              beneficiary: { ...beneficiary, ...journey },
+              beneficiary: { ...beneficiary, ...journey, assessments },
               projects,
               projectId: scopedProjectId,
               participationForms: forms.filter(
@@ -101,6 +140,7 @@ export const BeneficiaryDetailLoader = ({
               ),
               activities,
               stages,
+              assessmentsUnavailable,
             },
           })
         }
@@ -123,8 +163,41 @@ export const BeneficiaryDetailLoader = ({
 
     return () => {
       active = false
+      controller.abort()
     }
-  }, [beneficiaryId, loadAttempt, projectId, role, canReadForms])
+  }, [beneficiaryId, loadAttempt, projectId, role, canReadForms, canReadAssessments])
+
+  // A completed step-up re-reads only the assessments, keeping the page and selected stage.
+  useEffect(() => {
+    if (state.status !== 'ready' || !state.data.assessmentsUnavailable || !canReadAssessments)
+      return
+    const { beneficiary, projectId: scoped } = state.data
+    const enrollmentId = beneficiary.enrollments.find((item) => item.projectId === scoped)?.id
+    if (!enrollmentId) return
+    const onCompleted = () =>
+      pathwaysClient
+        .getBeneficiaryAssessments(scoped, enrollmentId)
+        .then((rows) =>
+          setState((current) =>
+            current.status === 'ready'
+              ? {
+                  status: 'ready',
+                  data: {
+                    ...current.data,
+                    assessmentsUnavailable: false,
+                    beneficiary: {
+                      ...current.data.beneficiary,
+                      assessments: rows.map(toAssessmentRecord(beneficiary.id, scoped)),
+                    },
+                  },
+                }
+              : current,
+          ),
+        )
+        .catch(() => undefined)
+    window.addEventListener(STEP_UP_COMPLETED_EVENT, onCompleted)
+    return () => window.removeEventListener(STEP_UP_COMPLETED_EVENT, onCompleted)
+  }, [state, canReadAssessments])
 
   if (state.status === 'loading') {
     return (

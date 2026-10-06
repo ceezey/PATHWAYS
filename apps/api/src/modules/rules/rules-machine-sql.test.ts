@@ -225,4 +225,17 @@ describe('fixed dedicated machine SQL transport', () => {
     expect(query.sql).toContain('sweep_rule_projects()')
     expect(query.sql).not.toContain('committed_acknowledgement')
   })
+  it('sweep runs ReadCommitted with the capture budget while drain capture stays RepeatableRead', async () => {
+    const f = fixture('SWEEP')
+    state.result = { processed: 0, continued: false }
+    await f.client.sweep(f.invocation)
+    expect(state.options[0]).toMatchObject({ timeout: 5000, isolationLevel: 'ReadCommitted' })
+  })
+  it('keeps the SQLSTATE and Prisma code on the failure for diagnostics only', async () => {
+    const f = fixture()
+    state.error = Object.assign(Error('secret text'), { code: 'P2010', meta: { code: '42501' } })
+    const error = await f.client.claim(f.invocation).catch((e) => e)
+    expect(error.diagnostic).toBe('P2010:42501')
+    expect(error.message).toBe('Rule processing is unavailable.')
+  })
 })

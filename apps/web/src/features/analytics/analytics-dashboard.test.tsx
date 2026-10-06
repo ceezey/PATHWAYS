@@ -239,7 +239,7 @@ describe('Analytics dashboard request dependencies', () => {
     coverageMap.featureCollections.length = 0
     const projects = [
       project('project-a', 'Project A', null, null),
-      project('project-b', 'Project B', '2026-09-15', '2026-12-31'),
+      project('project-b', 'Project B', '2026-10-15', '2026-12-31'),
     ]
     const indicators = {
       'project-a': [
@@ -318,7 +318,7 @@ describe('Analytics dashboard request dependencies', () => {
     })
     await waitFor(() => expect(api.getActivities).toHaveBeenCalledWith('project-b'))
     expect(api.getSadddDashboard).not.toHaveBeenCalled()
-    expect(screen.getByText('SADDD opens after this project ends on Dec 31, 2026')).toBeTruthy()
+    expect(screen.getByText('SADDD opens when this project starts on Oct 15, 2026')).toBeTruthy()
     await waitFor(() =>
       expect(api.getMonitoringDashboard).toHaveBeenCalledWith({
         projectId: 'project-b',
@@ -442,6 +442,23 @@ describe('Analytics dashboard request dependencies', () => {
     expect(api.getSadddDashboard).not.toHaveBeenCalled()
     expect(screen.getByText('SADDD needs project dates')).toBeTruthy()
     expect(screen.queryByText('SADDD analysis unavailable')).toBeNull()
+  })
+
+  it('requests SADDD for an ongoing project and captions it as counts to date', async () => {
+    api.getProjectsForRole.mockResolvedValue([
+      project('project-live', 'Ongoing project', '2026-09-01', '2026-12-31'),
+    ])
+    api.getProjectIndicators.mockResolvedValue([
+      indicator('project-live', 'L-SEP', '2026-09-01', '2026-09-30'),
+    ])
+
+    render(<AnalyticsDashboard />)
+
+    await waitFor(() => expect(api.getSadddDashboard).toHaveBeenCalled())
+    expect(
+      await screen.findByText('Counts to date; groups of fewer than 5 are hidden.'),
+    ).toBeTruthy()
+    expect(screen.queryByText(/SADDD opens/)).toBeNull()
   })
 
   it('withholds monitoring when no valid active Indicator period exists', async () => {

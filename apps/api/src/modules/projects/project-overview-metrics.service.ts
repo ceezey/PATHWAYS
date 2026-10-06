@@ -44,9 +44,9 @@ export class ProjectOverviewMetricsService {
   }
 
   /**
-   * Distinct individuals from the Locked SADDD release (fixed, closed project period),
+   * Distinct individuals from the SADDD release (live to date once the project has started),
    * with the RFC small-cell rule applied: counts 1-4 are suppressed, 0 and 5+ stay visible.
-   * Preconditions mirror p06_saddd so an open project reports "not released" instead of
+   * Preconditions mirror p06_saddd so a not-started project reports "not started" instead of
    * aborting the transaction; the database release function remains the authority.
    */
   private async reached(
@@ -58,7 +58,7 @@ export class ProjectOverviewMetricsService {
   ): Promise<MetricCell> {
     if (!project.startDate || !project.endDate || project.endDate < project.startDate)
       return missingMetric('PROJECT_DATES_REQUIRED')
-    if (project.endDate >= businessDate) return missingMetric('RELEASED_AFTER_PROJECT_CLOSE')
+    if (project.startDate > businessDate) return missingMetric('NOT_STARTED')
     if (zone !== sadddReleaseTimeZone) return missingMetric('RELEASE_UNAVAILABLE')
     const saddd = await this.dashboards.sadddInTransaction(tx, actor, project.id)
     return suppressSmallCount(saddd.total)

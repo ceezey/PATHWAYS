@@ -261,14 +261,14 @@ describe('BeneficiaryAccessGate PIN fallback (cr-pathways-beneficiary-step-up-pi
     expect(input.type).toBe('password')
     expect(input.getAttribute('inputmode')).toBe('numeric')
     expect(input.getAttribute('autocomplete')).toBe('off')
-    expect(document.activeElement).toBe(input)
+    await waitFor(() => expect(document.activeElement).toBe(input))
 
     fireEvent.change(input, { target: { value: '73a6150' } })
     expect(pinInput().value).toBe('736150')
     fireEvent.click(screen.getByRole('button', { name: 'Verify PIN' }))
     expect(await screen.findByText('Incorrect PIN. Personal details remain hidden.')).toBeTruthy()
     expect(pinInput().value).toBe('')
-    expect(document.activeElement).toBe(pinInput())
+    await waitFor(() => expect(document.activeElement).toBe(pinInput()))
     expect(screen.queryByText('Scoped beneficiary content')).toBeNull()
 
     fireEvent.change(pinInput(), { target: { value: '482915' } })
@@ -292,7 +292,7 @@ describe('BeneficiaryAccessGate PIN fallback (cr-pathways-beneficiary-step-up-pi
       screen.getAllByText('PIN locked. Use your authenticator to unlock it.').length,
     ).toBeGreaterThan(0)
     expect(usePin()).toBeNull()
-    expect(document.activeElement).toBe(codeInput())
+    await waitFor(() => expect(document.activeElement).toBe(codeInput()))
   })
 
   it('unlocks a locked PIN after a successful authenticator step-up', async () => {
@@ -391,7 +391,9 @@ describe('BeneficiaryAccessGate PIN fallback (cr-pathways-beneficiary-step-up-pi
     const newPin = (await screen.findByLabelText('New PIN')) as HTMLInputElement
     fireEvent.change(newPin, { target: { value: '482915' } })
     fireEvent.keyDown(newPin, { key: 'Enter' })
-    expect(document.activeElement).toBe(screen.getByLabelText('Confirm new PIN'))
+    await waitFor(() =>
+      expect(document.activeElement).toBe(screen.getByLabelText('Confirm new PIN')),
+    )
     expect((screen.getByLabelText('New PIN') as HTMLInputElement).value).toBe('482915')
     expect(screen.queryByText('The PINs do not match. Enter them again.')).toBeNull()
     fireEvent.change(screen.getByLabelText('Confirm new PIN'), { target: { value: '482915' } })
