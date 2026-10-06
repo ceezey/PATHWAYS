@@ -20,6 +20,7 @@ import {
   PathwaysClientError,
   pathwaysClient,
   recoverSourceMutation,
+  requestFoundation,
   requestFoundationResponse,
 } from './pathways-client'
 
@@ -782,6 +783,30 @@ describe('PATHWAYS frontend data boundary', () => {
 
     await expect(pathwaysClient.getProject(projectId)).rejects.toMatchObject({
       code: 'network',
+      message: 'The requested operation could not be completed.',
+    })
+  })
+
+  it('surfaces the API reason for a 503 but never the body of a 500', async () => {
+    setupSourceBrowser()
+    const reply = (status: number) =>
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue(
+          new Response(JSON.stringify({ message: 'The PDF file could not be generated.' }), {
+            status,
+            headers: { 'Content-Type': 'application/json' },
+          }),
+        ),
+      )
+    reply(503)
+    await expect(requestFoundation('/analytics/descriptive/export')).rejects.toMatchObject({
+      status: 503,
+      message: 'The PDF file could not be generated.',
+    })
+    reply(500)
+    await expect(requestFoundation('/analytics/descriptive/export')).rejects.toMatchObject({
+      status: 500,
       message: 'The requested operation could not be completed.',
     })
   })

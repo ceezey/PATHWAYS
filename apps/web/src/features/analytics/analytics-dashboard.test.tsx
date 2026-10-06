@@ -19,6 +19,7 @@ const api = vi.hoisted(() => ({
 }))
 const alertHook = vi.hoisted(() => ({ result: { data: undefined } as Record<string, unknown> }))
 const download = vi.hoisted(() => vi.fn())
+const previewExport = vi.hoisted(() => vi.fn())
 const idle = { data: undefined, isError: false, isPending: true, refetch: vi.fn() }
 const insights = vi.hoisted(() => ({
   budget: {} as Record<string, unknown>,
@@ -55,6 +56,7 @@ vi.mock('@/components/ui/dropdown-menu', () => ({
 }))
 vi.mock('@/lib/services/pathways-client', () => ({
   pathwaysClient: api,
+  getAnalyticsExportPreview: previewExport,
   descriptiveAnalyticsSearch: (query: Record<string, string>) =>
     `?${new URLSearchParams(query).toString()}`,
 }))
@@ -620,6 +622,12 @@ describe('Analytics dashboard request dependencies', () => {
       indicatorSummaries: [],
     })
     download.mockResolvedValue(undefined)
+    previewExport.mockResolvedValue({
+      title: 'Descriptive analytics',
+      columns: ['section', 'key', 'state'],
+      rows: [['COUNT', 'sadddTotal', 'SUPPRESSED']],
+      totalRows: 7,
+    })
     render(<ExportEnabledDashboard />)
 
     await waitFor(() =>
@@ -635,6 +643,22 @@ describe('Analytics dashboard request dependencies', () => {
 
     expect(screen.getByRole('button', { name: 'Export aggregates' })).toBeTruthy()
     fireEvent.click(screen.getByText('CSV'))
+    const dialog = await screen.findByTestId('analytics-export-preview')
+    expect(previewExport).toHaveBeenCalledWith({
+      projectId: 'project-a',
+      periodStart: '2026-09-01',
+      periodEnd: '2026-09-30',
+    })
+    expect(dialog.textContent).toContain('Showing 1 of 7 rows')
+    expect(dialog.textContent).toContain('SUPPRESSED')
+    expect(screen.getByText(/KPI .* indicator performance for Project A/)).toBeTruthy()
+    expect(download).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    await waitFor(() => expect(screen.queryByTestId('analytics-export-preview')).toBeNull())
+    expect(download).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByText('CSV'))
+    await screen.findByTestId('analytics-export-preview')
+    fireEvent.click(screen.getByRole('button', { name: 'Download' }))
     await waitFor(() =>
       expect(download).toHaveBeenCalledWith(
         '/analytics/descriptive/export?projectId=project-a&periodStart=2026-09-01&periodEnd=2026-09-30',
@@ -642,7 +666,10 @@ describe('Analytics dashboard request dependencies', () => {
       ),
     )
     for (const format of ['XLS', 'PDF']) expect(screen.getByText(format)).toBeTruthy()
+    await waitFor(() => expect(screen.queryByTestId('analytics-export-preview')).toBeNull())
     fireEvent.click(screen.getByText('XLSX'))
+    await screen.findByTestId('analytics-export-preview')
+    fireEvent.click(screen.getByRole('button', { name: 'Download' }))
     await waitFor(() =>
       expect(download).toHaveBeenCalledWith(
         '/analytics/descriptive/export?projectId=project-a&periodStart=2026-09-01&periodEnd=2026-09-30&format=XLSX',
@@ -650,6 +677,49 @@ describe('Analytics dashboard request dependencies', () => {
       ),
     )
 
+    vi.doUnmock('@/constants/feature-flags')
+  })
+
+  it('loads every analytics panel on mount without a Retry click', async () => {
+    render(<AnalyticsDashboard />)
+    await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(api.getActivities).toHaveBeenCalledTimes(1))
+    expect(api.getProjectIndicators).toHaveBeenCalledTimes(1)
+    expect(screen.queryByRole('button', { name: /retry/i })).toBeNull()
+    fireEvent.change(screen.getByLabelText('Reporting period'), {
+      target: { value: '2026-08-01::2026-08-31' },
+    })
+    await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalledTimes(2))
+    expect(screen.queryByRole('button', { name: /retry/i })).toBeNull()
+  })
+
+  it('offers Retry only after a real failure and reloads on click', async () => {
+    api.getMonitoringDashboard.mockRejectedValueOnce(new Error('Monitoring unavailable.'))
+    render(<AnalyticsDashboard />)
+    const retry = await screen.findByRole('button', { name: /retry/i })
+    fireEvent.click(retry)
+    await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalledTimes(2))
+  })
+
+  it('shows the specific server reason when the export preview fails', async () => {
+    currentAccess.profile.permissions = [
+      ...currentAccess.profile.permissions,
+      'analytics.descriptive.read',
+      'analytics.export',
+    ]
+    previewExport.mockRejectedValue(new Error('Monitoring verification is unavailable.'))
+    vi.resetModules()
+    vi.doMock('@/constants/feature-flags', () => ({
+      ANALYTICS_AGGREGATE_EXPORT_UI_ENABLED: true,
+      UNFINISHED_CONTROLS_UI_ENABLED: true,
+    }))
+    const { AnalyticsDashboard: ExportEnabledDashboard } = await import('./analytics-dashboard')
+    render(<ExportEnabledDashboard />)
+    await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
+    fireEvent.click(screen.getByText('CSV'))
+    await waitFor(() => expect(previewExport).toHaveBeenCalled())
+    expect(screen.queryByTestId('analytics-export-preview')).toBeNull()
+    expect(download).not.toHaveBeenCalled()
     vi.doUnmock('@/constants/feature-flags')
   })
 

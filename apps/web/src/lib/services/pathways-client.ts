@@ -122,6 +122,7 @@ import {
   timelineAnalyticsSchema,
 } from '@pathways/shared'
 import { type ProjectOverviewMetrics, projectOverviewMetricsSchema } from '@pathways/shared'
+import { z } from 'zod'
 import { readPublicProjects } from './public-projects'
 type CreateIndicatorInput = Omit<ApiCreateIndicatorInput, 'clientMutationId'>
 type UpdateIndicatorInput = Omit<ApiUpdateIndicatorInput, 'clientMutationId'>
@@ -2024,6 +2025,22 @@ export function descriptiveAnalyticsSearch(query: DescriptiveAnalyticsQuery): st
   return `?${params.toString()}`
 }
 
+const analyticsExportPreviewSchema = z.object({
+  title: z.string(),
+  columns: z.array(z.string()),
+  rows: z.array(z.array(z.string())),
+  totalRows: z.number().int().nonnegative(),
+})
+
+/** First rows of the aggregate table a descriptive export would contain, with suppression applied. */
+export async function getAnalyticsExportPreview(query: DescriptiveAnalyticsQuery) {
+  return analyticsExportPreviewSchema.parse(
+    await requestFoundation(
+      `/analytics/descriptive/export/preview${descriptiveAnalyticsSearch(query)}`,
+    ),
+  )
+}
+
 export const pathwaysClient: PathwaysClient = new BackendReadyPathwaysClient()
 
 const roleCodeByName: Record<PathwaysRole, string> = {
@@ -2296,7 +2313,8 @@ export async function requestFoundationResponse(
       response.status === 400 ||
       response.status === 403 ||
       response.status === 409 ||
-      response.status === 422
+      response.status === 422 ||
+      response.status === 503
     ) {
       const body = (await response.json().catch(() => null)) as {
         message?: { errors?: unknown; message?: unknown } | string | unknown[]

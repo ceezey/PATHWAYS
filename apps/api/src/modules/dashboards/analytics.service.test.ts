@@ -14,6 +14,7 @@ import {
   surveyAggregateFromRows,
 } from '@pathways/shared'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import * as reportArtifact from '../reports/report-artifact'
 import { activityObservation } from '../rules/rule-metrics'
 import { AnalyticsController } from './analytics.controller'
 import { AnalyticsService } from './analytics.service'
@@ -395,6 +396,70 @@ describe('analytics descriptive read and export', () => {
     expect(result.bytes.subarray(0, 2).toString('utf8')).toBe('PK')
     expect(tx.auditLog.create).toHaveBeenCalledWith({
       data: expect.objectContaining({ changes: expect.objectContaining({ format: 'XLSX' }) }),
+    })
+  })
+
+  it('happy: preview returns the exported table rows without an export audit record', async () => {
+    const { service, tx } = harness()
+    const identity = actor('PROJECT_MANAGER')
+    const preview = await service.exportPreview(identity, { projectId: projectA })
+    const csvLines = (await exportText(service, identity)).split('\r\n').filter(Boolean)
+    expect(preview.columns).toEqual([
+      'section',
+      'key',
+      'label',
+      'state',
+      'value',
+      'share',
+      'reason',
+    ])
+    expect(preview.totalRows).toBe(csvLines.length - 1)
+    expect(preview.rows.length).toBeLessThanOrEqual(50)
+    expect(preview.rows).toContainEqual([
+      'SADDD_SEX',
+      'FEMALE',
+      'FEMALE',
+      'AVAILABLE',
+      '18',
+      '0.6',
+      '',
+    ])
+    expect(tx.auditLog.create).toHaveBeenCalledTimes(1)
+    expect(tx.auditLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ action: 'ANALYTICS_DESCRIPTIVE_EXPORTED' }),
+    })
+  })
+
+  it('abuse: preview keeps small-cell suppression and needs analytics.export', async () => {
+    const { service } = harness(suppressedSaddd)
+    const preview = await service.exportPreview(actor('PROGRAM_MANAGER'), { projectId: projectA })
+    const sadddRows = preview.rows.filter((row) => row[0].startsWith('SADDD_'))
+    expect(sadddRows).toHaveLength(6)
+    for (const row of sadddRows) expect(row.slice(3)).toEqual(['SUPPRESSED', '', '', 'SMALL_CELL'])
+    const readOnly = actor('PROJECT_MANAGER', {
+      permissions: rolePermissions.PROJECT_MANAGER.filter((p) => p !== 'analytics.export'),
+    })
+    await expect(service.exportPreview(readOnly, { projectId: projectA })).rejects.toMatchObject({
+      status: 403,
+    })
+  })
+
+  it('sad: a typed 503 keeps its specific message and a file render fault names the format', async () => {
+    const timeout = harness(releasedSaddd, '2026-06-30', {
+      aggregateError: { meta: { code: '57014' } },
+    })
+    await expect(
+      timeout.service.export(actor('PROGRAM_MANAGER'), { projectId: projectA, view: 'timeline' }),
+    ).rejects.toThrow(/exceeded its query limit/)
+    vi.spyOn(reportArtifact, 'createReportArtifact').mockRejectedValueOnce(
+      Object.assign(new Error('ENOENT'), { code: 'ENOENT' }),
+    )
+    const { service } = harness()
+    await expect(
+      service.export(actor('PROJECT_MANAGER'), { projectId: projectA, format: 'PDF' }),
+    ).rejects.toMatchObject({
+      status: 503,
+      message: 'The PDF file could not be generated on this server. Export CSV instead.',
     })
   })
 
