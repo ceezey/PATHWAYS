@@ -499,3 +499,7 @@
 
 ## 2026-10-06 Report downloads accept readable names (fix/report-download-name)
 - Saved report downloads failed with "Current artifact access is required." because `fetchCoreArtifact` still only accepted `[a-z0-9-]` file names, while the reports workspace now names downloads after the report (spaces, capitals, en dashes). The guard now allows readable names up to 200 characters and still rejects control, path and reserved characters, a leading dot, and unlisted extensions before any request.
+
+## 2026-10-07 Hide Add to Dashboard and the page-heading pencil (fix/hide-add-to-dashboard)
+- Analytics "Add to Dashboard" and the role dashboard "Monitoring charts" section are hidden for all users behind `DASHBOARD_PINS_UI_ENABLED = false`; pins already in browser storage stay untouched.
+- The disabled page-heading pencil is hidden for every role behind `PAGE_HEADING_EDITOR_UI_ENABLED = false`; other pencil edit buttons (project team, budget, activity) are unaffected. Both are registered in docs/deferred-features.md.

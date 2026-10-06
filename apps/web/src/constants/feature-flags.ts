@@ -28,3 +28,18 @@ export const ANALYTICS_AGGREGATE_EXPORT_UI_ENABLED = true
  * Each gated entry is listed in docs/deferred-features.md.
  */
 export const UNFINISHED_CONTROLS_UI_ENABLED = true
+
+/**
+ * The analytics "Add to Dashboard" button and the role dashboard's pinned "Monitoring charts"
+ * section are hidden (2026-10-06, developer request). Browser-stored pins, the pin library and
+ * the components stay in place; only these two UI entry points are gated by this flag. See
+ * docs/deferred-features.md.
+ */
+export const DASHBOARD_PINS_UI_ENABLED = false
+
+/**
+ * The page-heading pencil is hidden for every role, System Administrator included (2026-10-07,
+ * developer request), on top of `UNFINISHED_CONTROLS_UI_ENABLED`. The component stays in place;
+ * see docs/deferred-features.md.
+ */
+export const PAGE_HEADING_EDITOR_UI_ENABLED = false
