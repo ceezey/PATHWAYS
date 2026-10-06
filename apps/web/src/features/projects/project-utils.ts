@@ -56,6 +56,8 @@ export const metricUnavailableLabel = (cell: MetricCell) => {
       return 'Budget not recorded'
     case 'RELEASED_AFTER_PROJECT_CLOSE':
       return 'After project close'
+    case 'NOT_STARTED':
+      return 'Not started yet'
     case 'RESTATEMENT_REVIEW_REQUIRED':
       return 'Under review'
     // F9 survey/timeline analytics reasons (analytics.descriptive.survey.v1 /

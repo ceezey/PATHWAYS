@@ -182,6 +182,7 @@ function harness(
     activities?: unknown[]
     milestones?: unknown[]
     projectStatus?: string
+    projectStart?: string
     /** Overrides what the trusted SQL function returns (instead of deriving it from fixtures). */
     surveyAggregate?: unknown
     timelineAggregate?: unknown
@@ -204,7 +205,7 @@ function harness(
               ...found,
               status: options.projectStatus ?? 'ONGOING',
               archivedAt: null,
-              startDate: new Date('2026-01-01'),
+              startDate: new Date(options.projectStart ?? '2026-01-01'),
               endDate: new Date(projectEnd),
             }
           : null
@@ -549,8 +550,18 @@ describe('analytics descriptive read and export', () => {
     expect(sex.map((row) => row.share)).toEqual([null, null])
   })
 
-  it('sad: an open project period omits SADDD instead of calling the release', async () => {
+  it('happy: an ongoing project releases SADDD live to date', async () => {
     const { service, sqlCalls } = harness(releasedSaddd, '2099-12-31')
+    const result = await descriptive(service, actor('PROJECT_MANAGER'), { projectId: projectA })
+    expect(result.sadddReleaseState).not.toBe('UNAVAILABLE')
+    expect(result.distributions.some((row) => row.section.startsWith('SADDD_'))).toBe(true)
+    expect(sqlCalls.some((sql) => sql.includes('p06_saddd'))).toBe(true)
+  })
+
+  it('sad: a not-started project omits SADDD instead of calling the release', async () => {
+    const { service, sqlCalls } = harness(releasedSaddd, '2099-12-31', {
+      projectStart: '2098-01-01',
+    })
     const result = await descriptive(service, actor('PROJECT_MANAGER'), { projectId: projectA })
     expect(result.sadddReleaseState).toBe('UNAVAILABLE')
     expect(result.distributions.some((row) => row.section.startsWith('SADDD_'))).toBe(false)
