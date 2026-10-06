@@ -1149,7 +1149,7 @@ flowchart LR
 | Permission | `analytics.export` |
 | Trigger | An API client or staff member requests the aggregate export |
 | Preconditions | The user holds `analytics.export` and `analytics.descriptive.read` for the same project |
-| Main flow | 1. The caller requests the export (route `/analytics/descriptive/export`). 2. The system applies the same role, period and suppression rules as the view. 3. The system returns the aggregate rows. |
+| Main flow | 1. The caller requests the export (route `/analytics/descriptive/export`). 2. The system applies the same role, period and suppression rules as the view. 3. The system returns the aggregate rows. The interface first shows the first 50 rows from `/analytics/descriptive/export/preview` (same permission and suppression; audited as `ANALYTICS_DESCRIPTIVE_VIEWED` with source `EXPORT_PREVIEW`) and downloads only on confirmation. |
 | Alternate / exception | Permission denied: 403 before any query. Open period for a role without `assessments.detail.read`: 400 and no audit row. Retrieval fault: 503. The interface button is visible. |
 | Postconditions | One `ANALYTICS_DESCRIPTIVE_EXPORTED` audit row records contract version, view and row count |
 | Gates | G-F9-4, G-F9-6, G-F9-7 |

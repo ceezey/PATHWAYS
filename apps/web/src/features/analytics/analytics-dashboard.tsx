@@ -42,7 +42,11 @@ import { formatCappedPercent } from '@/lib/percent'
 import { can } from '@/lib/rbac/can'
 import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
 import { downloadCoreArtifact } from '@/lib/services/core-feature-client'
-import { descriptiveAnalyticsSearch, pathwaysClient } from '@/lib/services/pathways-client'
+import {
+  descriptiveAnalyticsSearch,
+  getAnalyticsExportPreview,
+  pathwaysClient,
+} from '@/lib/services/pathways-client'
 import { rulesHumanClient } from '@/lib/services/rules-human-client'
 import { useAuthorizedRead } from '@/providers/authorized-query-provider'
 import type { ActivitySummary, ProjectIndicator, ProjectSummary } from '@/types/pathways'
@@ -65,6 +69,10 @@ import {
   SadddChart,
   SurveyImprovementChart,
 } from './analytics-charts'
+import {
+  type AnalyticsExportPreview,
+  AnalyticsExportPreviewDialog,
+} from './analytics-export-preview'
 import {
   deriveAnalyticsReportingPeriods,
   nonOverlappingAnalyticsPeriods,
@@ -180,6 +188,12 @@ export const AnalyticsDashboard = () => {
   const [descriptiveError, setDescriptiveError] = useState('')
   const [descriptiveLoadAttempt, setDescriptiveLoadAttempt] = useState(0)
   const [exporting, setExporting] = useState(false)
+  const [exportPreview, setExportPreview] = useState<{
+    format: ExportFormat
+    path: string
+    fileName: string
+    data: AnalyticsExportPreview
+  } | null>(null)
   const [projects, setProjects] = useState<ProjectSummary[]>([])
   const [projectId, setProjectId] = useState('')
   const [period, setPeriod] = useState('')
@@ -560,24 +574,41 @@ export const AnalyticsDashboard = () => {
     }
   }, [analysisView, canReadSurveyTimeline, projectId, timelineLoadAttempt])
 
-  const exportDescriptive = async (format: ExportFormat) => {
+  /** Loads the file's first rows for review; the download itself waits for confirmation. */
+  const previewExport = async (format: ExportFormat) => {
     const view = analysisView === 'survey' || analysisView === 'timeline' ? analysisView : undefined
     if (!ANALYTICS_AGGREGATE_EXPORT_UI_ENABLED || !canExportAnalytics || !projectId || exporting)
       return
     const exportPeriod = view === 'survey' ? surveyPeriod : selectedPeriod
     if (view !== 'timeline' && !exportPeriod) return
     if (view === 'survey' && surveyUnavailable) return
-    const capturedProject = projectId
+    const query = {
+      projectId,
+      ...(exportPeriod ? { periodStart: exportPeriod.start, periodEnd: exportPeriod.end } : {}),
+      ...(view ? { view } : {}),
+    }
     setExporting(true)
     try {
-      await downloadCoreArtifact(
-        `/analytics/descriptive/export${descriptiveAnalyticsSearch({
-          projectId: capturedProject,
-          ...(exportPeriod ? { periodStart: exportPeriod.start, periodEnd: exportPeriod.end } : {}),
-          ...(view ? { view } : {}),
-        })}${format === 'CSV' ? '' : `&format=${format}`}`,
-        `${view ?? 'descriptive'}-analytics-${capturedProject.toLowerCase()}.${format.toLowerCase()}`,
-      )
+      const data = await getAnalyticsExportPreview(query)
+      setExportPreview({
+        format,
+        data,
+        path: `/analytics/descriptive/export${descriptiveAnalyticsSearch(query)}${format === 'CSV' ? '' : `&format=${format}`}`,
+        fileName: `${view ?? 'descriptive'}-analytics-${projectId.toLowerCase()}.${format.toLowerCase()}`,
+      })
+    } catch (caught) {
+      toast.error(caught instanceof Error ? caught.message : 'Aggregate export unavailable.')
+    } finally {
+      setExporting(false)
+    }
+  }
+
+  const downloadExport = async () => {
+    if (!exportPreview || exporting) return
+    setExporting(true)
+    try {
+      await downloadCoreArtifact(exportPreview.path, exportPreview.fileName)
+      setExportPreview(null)
     } catch (caught) {
       toast.error(caught instanceof Error ? caught.message : 'Aggregate export unavailable.')
     } finally {
@@ -848,13 +879,13 @@ export const AnalyticsDashboard = () => {
                   variant="outline"
                 >
                   <Download className="mr-2 h-4 w-4" aria-hidden="true" />
-                  {exporting ? 'Exporting aggregates' : 'Export aggregates'}
+                  {exporting && !exportPreview ? 'Preparing preview' : 'Export aggregates'}
                   <ChevronDown className="ml-2 h-4 w-4" aria-hidden="true" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" className="w-40">
                 {exportFormats.map((format) => (
-                  <DropdownMenuItem key={format} onSelect={() => void exportDescriptive(format)}>
+                  <DropdownMenuItem key={format} onSelect={() => void previewExport(format)}>
                     {format}
                   </DropdownMenuItem>
                 ))}
@@ -864,6 +895,20 @@ export const AnalyticsDashboard = () => {
         ) : null}
       </section>
 
+      <AnalyticsExportPreviewDialog
+        context={{
+          project: selectedProject?.title ?? 'the selected project',
+          period:
+            analysisView === 'timeline'
+              ? 'current reporting date'
+              : (pickerPeriod?.label ?? 'all periods'),
+        }}
+        downloading={exporting}
+        format={exportPreview?.format ?? ''}
+        onCancel={() => setExportPreview(null)}
+        onDownload={() => void downloadExport()}
+        preview={exportPreview?.data ?? null}
+      />
       {loading ? (
         <AsyncState
           status="loading"

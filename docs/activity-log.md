@@ -345,3 +345,7 @@
 ## 2026-10-06 Evaluation write path final review fixes
 - Migration 0064 (still unapplied) gains `return_reason` (returns no longer overwrite the evaluator narrative; approve-only, reason required, cleared on resubmission) and a stronger postcondition. Evaluation reads return an allowlisted criterion snapshot, per-score source and note, newest 20 plus `hasMore`; saves claim the draft with a guarded update and upsert, keep rows not resupplied and return structured per-criterion errors. Beneficiary reach is an enrolled count with small-cell suppression, Budget efficiency is not computable for roles without budget access, and the efficiency ratio is now scaled to a percent (1.00 = full score). The workspace prefills manual scores, shows the return reason, blocks submit with unsaved edits.
 - Deferred (docs/deferred-features.md): closed-evaluation view, display labels, workspace split, criteria versioning, workspace UI tests. Full MigrationBaseline replay green (161 PASS, evaluations suite 8 passed); API 2222 and web 1821 tests pass.
+
+## 2026-10-06 Analytics export preview and 503 diagnosis (fix/analytics-page)
+- Export aggregates now opens a preview dialog (first 50 rows of the exact suppressed table, project, period, view) before Download; the new `GET /analytics/descriptive/export/preview` is audited as a view (source EXPORT_PREVIEW), not as an export.
+- Analytics 503s keep their specific message (timeout, contract, file render fault) and log a non-sensitive cause; the web client shows 503 reasons instead of the generic text. No migration.
