@@ -180,6 +180,8 @@ export function RulesBoard() {
     ),
   )
   const all = [...(list.data?.items ?? []), ...(more?.items ?? [])]
+  // Recommendations already written in this scope, offered for reuse on a new rule.
+  const savedRecommendations = all.flatMap((rule) => rule.recommendations)
   const nextCursor = more ? more.nextCursor : (list.data?.nextCursor ?? null)
   const rules = filterRules(all, { search, status })
   // Creating runs in the Create rule tab; an existing rule still opens the side panel.
@@ -371,6 +373,7 @@ export function RulesBoard() {
             <RuleDrawer
               inline
               key={`new:${createMode}`}
+              library={savedRecommendations}
               mode={createMode}
               onClose={() => setTab('repository')}
               onSaved={saved}
@@ -417,6 +420,7 @@ export function RulesBoard() {
           intent={drawer.intent}
           mode={drawer.mode}
           onClose={() => setDrawer(null)}
+          library={savedRecommendations}
           onSaved={saved}
           projectId={projectId}
           projects={projects.data ?? []}

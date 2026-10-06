@@ -47,6 +47,8 @@ type Props = {
   projectId: string | null
   projects: { id: string; title: string }[]
   intent?: DrawerIntent
+  /** Recommendations already saved on rules in scope, offered for reuse in the builder. */
+  library?: Rec[]
   /** Inline renders the builder in the page beside a sticky preview instead of a side panel. */
   inline?: boolean
   onClose: () => void
@@ -107,6 +109,7 @@ function OwnedDrawer({
   projectId,
   projects,
   intent,
+  library,
   inline,
   onClose,
   onSaved,
@@ -195,7 +198,8 @@ function OwnedDrawer({
     if (error instanceof PathwaysClientError && [400, 403, 404, 409].includes(error.status ?? 0)) {
       captured.current = null
       setLocked(false)
-      setNotice(fallback)
+      // The server states which check refused the write; the fallback alone hides it.
+      setNotice(error.message ? `${error.message} ${fallback}` : fallback)
     } else setNotice('A response was not confirmed. Retry the same operation.')
   }
   const run = async (task: () => Promise<unknown>, failure: string) => {
@@ -368,7 +372,12 @@ function OwnedDrawer({
             title="What should the system recommend?"
             hint="Write the response the system retrieves when this rule matches. It is stored, not generated."
           >
-            <RecommendationFields onRecs={setRecs} recs={recs} />
+            <RecommendationFields
+              hasRule={Boolean(rule)}
+              library={library}
+              onRecs={setRecs}
+              recs={recs}
+            />
           </RuleStepCard>
         </fieldset>
         {inline ? null : preview}
