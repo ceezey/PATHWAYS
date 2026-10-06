@@ -133,8 +133,8 @@ export class AnalyticsService {
   ) {}
 
   /**
-   * Mirrors the p06_saddd V1 preconditions (fixed, valid, closed project period)
-   * so an open project omits SADDD instead of aborting the whole transaction.
+   * Mirrors the p06_saddd preconditions (valid dates, project started; ongoing projects
+   * release live to date) so a not-started project omits SADDD instead of aborting the transaction.
    * The database release function remains the enforcing authority.
    */
   private async sadddReleasable(
@@ -148,8 +148,8 @@ export class AnalyticsService {
       select: { startDate: true, endDate: true },
     })
     if (!project?.startDate || !project.endDate || project.endDate < project.startDate) return false
-    const end = project.endDate.toISOString().slice(0, 10)
-    return end < businessCalendarDate(new Date(), period.businessTimeZone)
+    const start = project.startDate.toISOString().slice(0, 10)
+    return start <= businessCalendarDate(new Date(), period.businessTimeZone)
   }
 
   /**
