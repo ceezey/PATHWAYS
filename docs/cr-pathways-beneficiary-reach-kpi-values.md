@@ -40,6 +40,6 @@ API and web fast slice:
 ## 5. Deferred
 
 These are tracked in the reach plan ledger under `.superpowers/sdd/2026-10-06-beneficiary-reach-kpi-values/`:
-- the KPI-values route and the Program and Grant Manager analytics access fix
+- the KPI-values route and the Program and Grant Manager analytics access fix; Program and Grant Managers now see released values (including person-derived calculated KPIs, as the Indicator Summary report already does), and evaluation metrics keep the definitions read
 - participation insights reading the exact breakdown
 - the rest of the API and web tasks, and the full docs
