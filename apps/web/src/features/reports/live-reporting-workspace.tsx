@@ -33,21 +33,25 @@ type Kind =
   | 'EVALUATION_REPORT'
 type Principal = Parameters<typeof principalHasAtomicPermission>[0]
 type AtomicPermission = Parameters<typeof principalHasAtomicPermission>[1]
-type KindDefinition = { label: string; permission: AtomicPermission; requires?: AtomicPermission }
+type KindDefinition = { label: string; permission: AtomicPermission; requires?: AtomicPermission[] }
 export const kinds: Record<Kind, KindDefinition> = {
   PROJECT_SUMMARY: { label: 'Project summary', permission: 'reports.project.read' },
   INDICATOR_SUMMARY: { label: 'Indicator summary', permission: 'reports.indicator.read' },
-  BENEFICIARY_SUMMARY: { label: 'Beneficiary summary', permission: 'reports.beneficiary.read' },
+  BENEFICIARY_SUMMARY: {
+    label: 'Beneficiary summary',
+    permission: 'reports.beneficiary.read',
+    requires: ['analytics.saddd.read', 'beneficiaries.aggregates.read'],
+  },
   SURVEY_FORM_RESULTS: { label: 'Survey results', permission: 'reports.project.read' },
   MONITORING_REPORT: {
     label: 'Monitoring report',
     permission: 'reports.indicator.read',
-    requires: 'monitoring.read',
+    requires: ['monitoring.read'],
   },
   EVALUATION_REPORT: {
     label: 'Evaluation report',
     permission: 'reports.project.read',
-    requires: 'monitoring.read',
+    requires: ['monitoring.read'],
   },
 }
 
@@ -56,7 +60,7 @@ export const allowedKinds = (profile: Principal) =>
   (Object.keys(kinds) as Kind[]).filter(
     (kind) =>
       principalHasAtomicPermission(profile, kinds[kind].permission) &&
-      (!kinds[kind].requires || principalHasAtomicPermission(profile, kinds[kind].requires)) &&
+      (kinds[kind].requires ?? []).every((grant) => principalHasAtomicPermission(profile, grant)) &&
       (kind !== 'SURVEY_FORM_RESULTS' || principalHasAtomicPermission(profile, 'assessments.read')),
   )
 export function LiveReportingWorkspace({

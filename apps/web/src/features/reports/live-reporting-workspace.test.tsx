@@ -332,3 +332,36 @@ describe('report kinds requiring monitoring.read', () => {
     expect(offered).toEqual(expect.arrayContaining(['MONITORING_REPORT', 'EVALUATION_REPORT']))
   })
 })
+
+describe('beneficiary summary kind', () => {
+  const profile = (role: string, permissions: string[]) =>
+    ({
+      userId: 'u',
+      organizationId: 'org',
+      roles: [role],
+      permissions,
+      assignedProjectIds: [],
+    }) as unknown as Parameters<typeof allowedKinds>[0]
+  const grants = ['reports.read', 'reports.beneficiary.read', 'beneficiaries.aggregates.read']
+
+  it('is hidden from a project officer who lacks analytics.saddd.read', () => {
+    expect(allowedKinds(profile('PROJECT_OFFICER', grants))).not.toContain('BENEFICIARY_SUMMARY')
+  })
+
+  it('is hidden when either aggregate grant is revoked', () => {
+    const full = [...grants, 'analytics.saddd.read']
+    for (const missing of ['analytics.saddd.read', 'beneficiaries.aggregates.read']) {
+      const permissions = full.filter((permission) => permission !== missing)
+      expect(allowedKinds(profile('MONITORING_AND_EVALUATION_OFFICER', permissions))).not.toContain(
+        'BENEFICIARY_SUMMARY',
+      )
+    }
+  })
+
+  it('is offered with both aggregate grants', () => {
+    const permissions = [...grants, 'analytics.saddd.read']
+    expect(allowedKinds(profile('MONITORING_AND_EVALUATION_OFFICER', permissions))).toContain(
+      'BENEFICIARY_SUMMARY',
+    )
+  })
+})
