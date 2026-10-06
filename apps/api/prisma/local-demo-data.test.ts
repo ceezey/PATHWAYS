@@ -145,6 +145,23 @@ describe('demo content', () => {
       }
   })
 
+  it('links every indicator to real activities of its project', () => {
+    for (const [key, list] of Object.entries(demoIndicators))
+      for (const indicator of list) {
+        expect(indicator.activityKeys.length, indicator.code).toBeGreaterThan(0)
+        const keys = new Set(demoActivities[key as ProjectKey].map((a) => a.key))
+        for (const activityKey of indicator.activityKeys)
+          expect(keys.has(activityKey), `${indicator.code} ${activityKey}`).toBe(true)
+      }
+  })
+
+  it('explains the project reach from the linked activities and indicators', () => {
+    const ehk = demoIndicators.EHK.find((i) => i.code === 'EHK-FAMILIES')
+    const distribute = demoActivities.EHK.find((a) => a.key === 'distribute')
+    expect(Number(ehk?.readings.at(-1))).toBe(distribute?.reached)
+    expect(Number(ehk?.target)).toBe(demoProjects.find((p) => p.key === 'EHK')?.targetBeneficiaries)
+  })
+
   it('keeps the rules structured, within the metric catalog and with predefined recommendations', () => {
     expect(demoRules.some((rule) => rule.code === 'OPERATIONS_BOTTLENECK')).toBe(true)
     expect(demoRules.length).toBeGreaterThanOrEqual(4)

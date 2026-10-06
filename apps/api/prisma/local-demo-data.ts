@@ -841,9 +841,9 @@ export const demoActivities: Record<ProjectKey, DemoActivity[]> = {
       outcome: 'COMPLETED',
       officer: 'liza',
       progress: 100,
-      note: 'Kits distributed to 68 families; signed acknowledgment lists submitted.',
+      note: 'Kits distributed to 70 families; signed acknowledgment lists submitted.',
       reviewNote: 'Acknowledgment lists reconciled with the beneficiary registry.',
-      reached: 68,
+      reached: 70,
     },
   ],
 }
@@ -1060,6 +1060,8 @@ export type DemoIndicator = {
   target: string
   /** Successive readings, oldest first. */
   readings: string[]
+  /** Keys of the project activities that produce this indicator. */
+  activityKeys: string[]
 }
 
 export const demoIndicators: Record<ProjectKey, DemoIndicator[]> = {
@@ -1073,6 +1075,7 @@ export const demoIndicators: Record<ProjectKey, DemoIndicator[]> = {
       baseline: '0',
       target: '120',
       readings: ['30', '62', '90', '105'],
+      activityKeys: ['baseline', 'orientation', 'lifeskills', 'returnedproof'],
     },
     {
       code: 'SSG-ATT-RATE',
@@ -1083,6 +1086,7 @@ export const demoIndicators: Record<ProjectKey, DemoIndicator[]> = {
       baseline: '68.00',
       target: '90.00',
       readings: ['70.50', '73.20', '76.80', '79.40'],
+      activityKeys: ['lifeskills', 'kits'],
     },
     {
       code: 'SSG-COMM-FUNC',
@@ -1093,6 +1097,7 @@ export const demoIndicators: Record<ProjectKey, DemoIndicator[]> = {
       baseline: '2',
       target: '14',
       readings: ['3', '5', '8'],
+      activityKeys: ['committee', 'referral'],
     },
     {
       code: 'SSG-KNOW-SCORE',
@@ -1103,6 +1108,7 @@ export const demoIndicators: Record<ProjectKey, DemoIndicator[]> = {
       baseline: '52.00',
       target: '75.00',
       readings: ['58.00', '63.50', '67.00'],
+      activityKeys: ['committee', 'posttest'],
     },
   ],
   CRL: [
@@ -1115,6 +1121,7 @@ export const demoIndicators: Record<ProjectKey, DemoIndicator[]> = {
       baseline: '6',
       target: '30',
       readings: ['12', '18', '24'],
+      activityKeys: ['livelihood', 'enterprise', 'savings'],
     },
     {
       code: 'CRL-DRR-TEAMS',
@@ -1125,6 +1132,7 @@ export const demoIndicators: Record<ProjectKey, DemoIndicator[]> = {
       baseline: '0',
       target: '10',
       readings: ['2', '5', '5'],
+      activityKeys: ['drrm', 'drill', 'hazards'],
     },
     {
       code: 'CRL-BUDGET-USE',
@@ -1135,6 +1143,7 @@ export const demoIndicators: Record<ProjectKey, DemoIndicator[]> = {
       baseline: '0.00',
       target: '100.00',
       readings: ['25.00', '48.50', '71.00'],
+      activityKeys: ['livelihood', 'monitoring'],
     },
   ],
   ALS: [
@@ -1147,6 +1156,7 @@ export const demoIndicators: Record<ProjectKey, DemoIndicator[]> = {
       baseline: '0',
       target: '30',
       readings: ['18', '26', '30'],
+      activityKeys: ['mapping', 'sessions'],
     },
     {
       code: 'ALS-COMPLETION',
@@ -1157,6 +1167,7 @@ export const demoIndicators: Record<ProjectKey, DemoIndicator[]> = {
       baseline: '0.00',
       target: '80.00',
       readings: ['5.00', '12.50', '20.00'],
+      activityKeys: ['reviewclass', 'results', 'assessment'],
     },
   ],
   ECD: [
@@ -1169,6 +1180,7 @@ export const demoIndicators: Record<ProjectKey, DemoIndicator[]> = {
       baseline: '0',
       target: '40',
       readings: [],
+      activityKeys: ['parenting'],
     },
   ],
   WSH: [
@@ -1181,6 +1193,7 @@ export const demoIndicators: Record<ProjectKey, DemoIndicator[]> = {
       baseline: '1',
       target: '12',
       readings: ['2', '4', '5'],
+      activityKeys: ['facility', 'rehab'],
     },
     {
       code: 'WSH-CLUBS',
@@ -1191,6 +1204,7 @@ export const demoIndicators: Record<ProjectKey, DemoIndicator[]> = {
       baseline: '0',
       target: '12',
       readings: ['1', '3'],
+      activityKeys: ['hygiene'],
     },
     {
       code: 'WSH-HANDOVER',
@@ -1201,6 +1215,7 @@ export const demoIndicators: Record<ProjectKey, DemoIndicator[]> = {
       baseline: '0.00',
       target: '100.00',
       readings: ['17.00', '33.00', '42.00'],
+      activityKeys: ['rehab', 'handover'],
     },
   ],
   EHK: [
@@ -1211,8 +1226,20 @@ export const demoIndicators: Record<ProjectKey, DemoIndicator[]> = {
       unit: 'families',
       numericKind: 'COUNT',
       baseline: '0',
-      target: '72',
-      readings: ['34', '68'],
+      target: '75',
+      readings: ['34', '70'],
+      activityKeys: ['distribute'],
+    },
+    {
+      code: 'EHK-KITS',
+      indicatorType: 'OUTPUT',
+      name: 'Hygiene and learning kits procured',
+      unit: 'kits',
+      numericKind: 'COUNT',
+      baseline: '0',
+      target: '70',
+      readings: ['35', '70'],
+      activityKeys: ['procure'],
     },
   ],
 }
