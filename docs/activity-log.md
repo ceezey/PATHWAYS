@@ -533,3 +533,6 @@
 
 ## 2026-10-07 Target Indicators tab layout (fix/indicators-tab-layout)
 - The project Target Indicators tab drops its intro note, hides "Use from library" and the Indicator library link behind `INDICATOR_LIBRARY_UI_ENABLED = false`, and moves Refresh indicators and Add project indicator into the Indicators card heading, right aligned. The card now also holds the loading, error and empty states, so Add stays reachable with no indicators.
+
+## 2026-10-07 System Administrator dashboard cards hidden (fix/admin-dashboard-cards)
+- The System Administrator dashboard no longer shows the Active budget alerts and Overdue activities cards or the Project monitoring card, behind `ADMIN_DASHBOARD_MONITORING_UI_ENABLED = false`; their requests are skipped too.

@@ -75,11 +75,13 @@ describe('overview supporting requests use current grants', () => {
     api.getProjectsForRole.mockResolvedValue([])
   })
   afterEach(cleanup)
-  it('mounts supporting project monitoring only for current eligible access', async () => {
+  it('hides the administrator monitoring card and skips its requests while the flag is off', async () => {
     render(createElement(RoleDashboard))
     await screen.findByRole('heading', { name: 'Welcome! System Administrator' })
-    await waitFor(() => expect(api.getProjectsForRole).toHaveBeenCalledOnce())
-    expect(screen.getByRole('button', { name: 'Open monitoring' })).toBeTruthy()
+    expect(api.getDashboard).toHaveBeenCalledOnce()
+    expect(api.getProjectsForRole).not.toHaveBeenCalled()
+    expect(screen.queryByText('Project monitoring')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Open monitoring' })).toBeNull()
   })
   it.each(['monitoring.read', 'analytics.read'])(
     'loads the home overview but skips supporting requests and shortcut without %s',

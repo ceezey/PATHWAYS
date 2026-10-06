@@ -43,6 +43,13 @@ export const BACKUP_RECOVERY_UI_ENABLED = false
 export const INDICATOR_LIBRARY_UI_ENABLED = false
 
 /**
+ * The System Administrator dashboard hides its Active budget alerts and Overdue activities cards
+ * and the Project monitoring card (2026-10-07, developer request). Other roles' dashboards are
+ * unchanged; see docs/deferred-features.md.
+ */
+export const ADMIN_DASHBOARD_MONITORING_UI_ENABLED = false
+
+/**
  * Controls with no backend yet (disabled "Not available yet" buttons, disabled form options,
  * the beneficiary Media proof tab and similar) are shown (true, the shipped value). Set to
  * `false` to hide them so the product shows no unfinished state; nothing server-side changes.
