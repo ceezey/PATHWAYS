@@ -202,6 +202,18 @@ describe.skipIf(!enabled)('evaluation write path on disposable PostgreSQL', () =
     expect(returned.commentary).toBe('Evaluator narrative.')
   })
 
+  it('rejects a raw insert that carries a return reason with 23514', async () => {
+    const message = await failure(
+      asUser(
+        2,
+        (tx) =>
+          tx.$executeRaw`INSERT INTO pathways.project_evaluations(organization_id, project_id, title, period_start, period_end, evaluated_by_id, return_reason) VALUES (${organizationId}::uuid, ${projectId}::uuid, 'Seeded reason', '2026-01-01', '2026-02-01', ${id(102)}::uuid, 'Forged')`,
+      ),
+    )
+    expect(message).toContain('23514')
+    expect(message).toContain('New evaluation cannot carry a return reason')
+  })
+
   it('rejects a project manager draft edit with 23514', async () => {
     const message = await failure(
       asUser(

@@ -150,6 +150,7 @@ DECLARE weights numeric; result numeric; count_scores bigint;
 BEGIN
  IF TG_OP='INSERT' THEN
   IF NEW.status<>'DRAFT' THEN RAISE EXCEPTION USING ERRCODE='23514',MESSAGE='Evaluation must begin DRAFT'; END IF;
+  IF NEW.return_reason IS NOT NULL THEN RAISE EXCEPTION USING ERRCODE='23514',MESSAGE='New evaluation cannot carry a return reason'; END IF;
  ELSIF TG_OP='DELETE' THEN
   IF OLD.status<>'DRAFT' THEN RAISE EXCEPTION USING ERRCODE='23514',MESSAGE='Submitted evaluation cannot be deleted'; END IF;
   RETURN OLD;

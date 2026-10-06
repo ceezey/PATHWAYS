@@ -48,7 +48,7 @@ it directly through the database owner connection.
   requirement, naming the reason. Beneficiary reach counts beneficiaries enrolled (active or
   completed by the evaluation period end), not the SADDD reached figure the project overview shows;
   counts of 1-4 are suppressed (not computable, never printed). Budget efficiency needs
-  `budgets.read`, which M&E does not hold, so for M&E it is always not computable and takes a
+  `budgets.read` and `expenses.read`, and M&E lacks `budgets.read`, so for M&E it is always not computable and takes a
   manual score and note.
 - **Lifecycle:** M&E scores and submits; the Project Manager reviews and signs off in one action
   (or returns the evaluation to draft with a reason). Signed off is final and reportable.
