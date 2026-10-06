@@ -1,6 +1,6 @@
 /**
  * Renders one report page and one receipt page through the real Chromium pipeline.
- * Needs WEB_ORIGIN and, off Linux, PDF_CHROME_PATH; no database and no running API.
+ * Off Linux it needs an installed Chrome or Edge, or PDF_CHROME_PATH; no database and no running API.
  * Run with: pnpm --filter @pathways/api exec tsx scripts/check-pdf-renderer.ts
  */
 import { config } from 'dotenv'
