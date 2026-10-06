@@ -249,8 +249,20 @@ export class ActivitiesController {
     @Param('projectId') projectId: string,
     @Param('activityId') activityId: string,
     @Param('evidenceId') evidenceId: string,
+    @Res({ passthrough: true }) response: { setHeader(name: string, value: string): void },
   ) {
-    return this.activities.downloadProof(profile(request), projectId, activityId, evidenceId)
+    const proof = await this.activities.downloadProof(
+      profile(request),
+      projectId,
+      activityId,
+      evidenceId,
+    )
+    response.setHeader('Cache-Control', 'private, no-store')
+    response.setHeader('X-Content-Type-Options', 'nosniff')
+    return new StreamableFile(proof.body, {
+      type: proof.contentType,
+      disposition: `attachment; filename="${proof.fileName.replace(/[^\w.-]/g, '_')}"`,
+    })
   }
 }
 

@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { performance } from 'node:perf_hooks'
 import {
   beginRuleSourceOperation,
@@ -2378,13 +2378,44 @@ export class ActivitiesService {
 
   async downloadProof(
     identity: ApplicationIdentity,
-    _projectId: string,
-    _activityId: string,
-    _evidenceId: string,
+    projectId: string,
+    activityId: string,
+    evidenceId: string,
   ) {
-    return withAuthorizedOperation(this.prisma, identity, 'evidence.read', async () => {
-      throw new ForbiddenException('Private proof download is unavailable.')
-    })
+    const metadata = await withAuthorizedOperation(
+      this.prisma,
+      identity,
+      'evidence.read',
+      async (tx, actor) => {
+        const project = await this.requireProject(tx, actor, projectId)
+        if (!UUID_PATTERN.test(activityId) || !UUID_PATTERN.test(evidenceId))
+          throw new NotFoundException('Proof unavailable.')
+        const proof = await tx.evidenceMedia.findFirst({
+          where: {
+            id: evidenceId.toLowerCase(),
+            organizationId: actor.organizationId,
+            projectId: project.id,
+            activityId: activityId.toLowerCase(),
+            storageReady: true,
+            activityUpdateId: { not: null },
+          },
+          select: {
+            bucket: true,
+            objectKey: true,
+            fileName: true,
+            contentType: true,
+            sha256: true,
+          },
+        })
+        if (!proof) throw new NotFoundException('Proof unavailable.')
+        return proof
+      },
+    )
+    const body = await this.storage.downloadPrivateFile(metadata.bucket, metadata.objectKey)
+    // Bytes that no longer match the recorded digest are never released.
+    if (createHash('sha256').update(body).digest('hex') !== metadata.sha256)
+      throw new NotFoundException('Proof unavailable.')
+    return { fileName: metadata.fileName, contentType: metadata.contentType, body }
   }
 
   listMilestones(identity: ApplicationIdentity, projectId: string) {
