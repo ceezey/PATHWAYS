@@ -228,6 +228,17 @@ describe('project overview metrics', () => {
     ).toBe('50')
   })
 
+  it('leaves out KPI and reach tiles the role cannot read and keeps the timeline', async () => {
+    api.getProjectOverviewMetrics.mockResolvedValue(
+      metrics({ kpiAchievement: null, budgetUtilization: null, beneficiariesReached: null }),
+    )
+    renderView()
+    await waitFor(async () => expect(await tile('Timeline')).toBe('50%'))
+    expect(screen.queryByText('KPI achievement')).toBeNull()
+    expect(screen.queryByText('Budget utilization')).toBeNull()
+    expect(screen.queryByText('Beneficiaries reached / target')).toBeNull()
+  })
+
   it('hides the planned project budget when none is recorded', async () => {
     renderView()
     expect(await screen.findByText('Project preview')).toBeTruthy()

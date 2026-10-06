@@ -524,3 +524,6 @@
 
 ## 2026-10-07 Activity budget lines name their activity (fix/activity-budget-line-name)
 - The activity panel listed pending expenses by the raw `ACTIVITY_PROFILE_TOTAL` code and logged expenses as "Activity budget". `categoryLabel` now takes the activity title, so the panel and the budget ledger read "Activity budget: <activity title>", matching the finance workspace.
+
+## 2026-10-07 Unreadable KPI and reach tiles hidden (fix/hide-unreadable-metric-tiles)
+- Project preview and Quick Preview leave out KPI achievement and Beneficiaries reached when the role cannot read them (Project Officers lack `monitoring.read` and `analytics.saddd.read`), like Budget utilization; Timeline always shows.
