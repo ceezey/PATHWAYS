@@ -94,6 +94,7 @@ test('the dry-run plan order exactly matches the documented stop points', () => 
     'deploy:0065_zone_check_memo',
     'deploy:0066_beneficiary_reach_kpi_values',
     'deploy:0067_beneficiary_progress_read',
+    'deploy:0068_timeline_final_position',
     'deploy:0069_evaluation_auto_scoring',
     'alter-runtime-role',
     'postconditions',
