@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+import path from 'node:path'
 import type { ApplicationIdentity } from '../src/modules/auth/developer-access'
 import {
   type DemoActivity,
@@ -6,8 +8,47 @@ import {
   demoActivities,
   demoProjects,
 } from './local-demo-data'
+import { sessionRoster } from './local-demo-journeys'
 import type { DemoContext } from './local-demo-seed'
-import { asUser, fieldPhotoPng, projectOf, sha256, textPdf } from './local-demo-util'
+import { asUser, projectOf, sha256, textPdf } from './local-demo-util'
+
+const photoDir = path.join(__dirname, 'assets', 'demo-photos')
+
+/** The seeded field photo that matches the project and activity. */
+export function proofPhotoName(project: DemoProject, activity: DemoActivity) {
+  if (/follow-up|home visit|referral/i.test(`${activity.title} ${activity.description}`))
+    return 'household-follow-up'
+  return {
+    SSG: 'committee-training',
+    ALS: 'learning-center-review',
+    EHK: 'hygiene-kit-distribution',
+    CRL: 'livelihood-coaching',
+    WSH: 'wash-handwashing',
+    ECD: 'household-follow-up',
+  }[project.key]
+}
+
+/** Attendance sheet lines: title, date, venue, facilitator and the people the seed records at the session. */
+export function attendanceSheetLines(project: DemoProject, activity: DemoActivity, today: string) {
+  const roster = sessionRoster(project.key, activity.key, today)
+  const date = roster?.date ?? addDaysIso(today, Math.min(activity.endOffset, -1))
+  const venue = `${roster?.people[0]?.barangay ?? project.barangays[0]}, ${project.cityMunicipality}, ${project.province}`
+  const people = (roster?.people ?? []).slice(0, 14)
+  return [
+    `Project: ${project.title}`,
+    `Date: ${date}`,
+    `Venue: ${venue}`,
+    'Facilitator: Project Officer, assigned to the activity',
+    people.length > 0
+      ? `Participants present (${people.length}):`
+      : `Participants: ${activity.reached ?? activity.target} signed the list on site.`,
+    ...people.map(
+      (p, i) =>
+        `${i + 1}. ${p.lastName}, ${p.firstName} ${p.middleName.charAt(0)}.  ${p.code}  signed`,
+    ),
+    'Prepared by the project officer for monitoring review.',
+  ]
+}
 
 export const activityCode = (project: DemoProject, index: number) =>
   `${project.key}-${String(index + 1).padStart(2, '0')}`
@@ -31,24 +72,24 @@ async function putSignedUpload(
   if (error) throw error
 }
 
-type ProofFile = { fileName: string; contentType: 'image/png' | 'application/pdf'; bytes: Buffer }
+type ProofFile = { fileName: string; contentType: 'image/jpeg' | 'application/pdf'; bytes: Buffer }
 
-function proofFiles(project: DemoProject, activity: DemoActivity, seed: number): ProofFile[] {
+function proofFiles(
+  project: DemoProject,
+  activity: DemoActivity,
+  today: string,
+  _seed: number,
+): ProofFile[] {
   return [
     {
-      fileName: `${activity.key}-field-photo.png`,
-      contentType: 'image/png',
-      bytes: fieldPhotoPng(seed),
+      fileName: `${activity.key}-field-photo.jpg`,
+      contentType: 'image/jpeg',
+      bytes: readFileSync(path.join(photoDir, `${proofPhotoName(project, activity)}.jpg`)),
     },
     {
       fileName: `${activity.key}-attendance-sheet.pdf`,
       contentType: 'application/pdf',
-      bytes: textPdf(`${activity.title}`, [
-        `Project: ${project.title}`,
-        `Location: ${project.cityMunicipality}, ${project.province}`,
-        'Participants signed the attendance list on site.',
-        'Prepared by the project officer for monitoring review.',
-      ]),
+      bytes: textPdf(activity.title, attendanceSheetLines(project, activity, today)),
     },
   ]
 }
@@ -65,7 +106,7 @@ async function submitProof(
   note: string,
   seed: number,
 ) {
-  const files = proofFiles(project, activity, seed)
+  const files = proofFiles(project, activity, ctx.today, seed)
   const clientUpdateId = ctx.stable(`proof:${code}:${progress}`)
   const reserved = (await ctx.services.activities.reserveProof(officer, projectId, activityId, {
     clientUpdateId,

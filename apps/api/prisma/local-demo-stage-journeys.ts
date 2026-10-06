@@ -1,6 +1,12 @@
 import { wshPairs } from './defense-demo-stage-survey'
 import { addDaysIso, demoProjects } from './local-demo-data'
-import { type EnrollmentFact, journeyTracks, planSessions, planTests } from './local-demo-journeys'
+import {
+  type EnrollmentFact,
+  journeyTracks,
+  planSessions,
+  planTests,
+  plannedFacts,
+} from './local-demo-journeys'
 import type { DemoContext } from './local-demo-seed'
 import { activityId as activityIdFor, attendanceForms } from './local-demo-stage-forms'
 import { outcomes } from './local-demo-stage-outcomes'
@@ -15,19 +21,10 @@ const stageNotes = [
   'Strong participation; the member offered to help other learners.',
 ]
 
-/** What the outcomes stage will do to a cohort member later, so sessions stop before they leave. */
-function plannedFacts(project: Project, code: string, today: string) {
+/** Cohort members keep their registration index so rosters and sessions agree; imports follow them. */
+const cohortOrdinal = (project: Project, code: string, position: number) => {
   const index = Number(new RegExp(`^BEN-${project.code}-(\\d+)$`).exec(code)?.[1]) - 1
-  const outcome = outcomes.find((o) => o.project === project.key && o.people.includes(index))
-  return {
-    endedDate: outcome ? addDaysIso(today, -(outcome.daysAgo ?? 0)) : null,
-    status:
-      outcome?.eventType === 'COMPLETION'
-        ? ('COMPLETED' as const)
-        : outcome?.eventType === 'DROPOUT'
-          ? ('DROPPED' as const)
-          : ('ACTIVE' as const),
-  }
+  return Number.isInteger(index) && index >= 0 ? index : 1000 + position
 }
 
 /**
@@ -84,18 +81,17 @@ async function recordProject(ctx: DemoContext, project: Project) {
   )
   let recorded = 0
   let noted = 0
-  for (const [ordinal, enrollment] of enrollments.entries()) {
+  for (const [position, enrollment] of enrollments.entries()) {
     const code = enrollment.beneficiary.code
+    const ordinal = cohortOrdinal(project, code, position)
     const who: EnrollmentFact = {
       ordinal,
       enrollmentDate: iso(enrollment.enrollmentDate),
-      ...plannedFacts(project, code, ctx.today),
+      after: latest.get(enrollment.id) || undefined,
+      ...plannedFacts(project.key, code, ctx.today),
     }
-    const after = latest.get(enrollment.id) ?? ''
     const sessions = planSessions(project.key, who, ctx.today)
-      .filter(
-        (s) => s.date > after && !taken.has(`${enrollment.id}|${activityIds[s.track]}|${s.date}`),
-      )
+      .filter((s) => !taken.has(`${enrollment.id}|${activityIds[s.track]}|${s.date}`))
       .sort((a, b) => a.date.localeCompare(b.date))
     for (const session of sessions) {
       const formId = formIds[session.track]
@@ -173,12 +169,16 @@ export async function stageJourneyRecords(ctx: DemoContext) {
 export async function stageAssessments(ctx: DemoContext) {
   let written = 0
   for (const project of demoProjects) {
-    const tracks = journeyTracks[project.key]
-    const assessed = tracks?.findIndex((track) => track.assessed) ?? -1
-    if (!tracks || assessed < 0) continue
+    const tracks = journeyTracks[project.key] ?? []
+    const pre = tracks.findIndex((track) => track.assess === 'pre')
+    const post = tracks.findIndex((track) => track.assess === 'post')
+    if (pre < 0) continue
     const projectId = projectOf(ctx, project.key)
     if ((await ctx.owner.assessmentResult.count({ where: { projectId } })) > 0) continue
-    const activityId = await activityIdFor(ctx, project, tracks[assessed].activity)
+    const activities = {
+      pre: await activityIdFor(ctx, project, tracks[pre].activity),
+      post: post >= 0 ? await activityIdFor(ctx, project, tracks[post].activity) : null,
+    }
     const enrollments = await ctx.owner.beneficiaryProjectEnrollment.findMany({
       where: { organizationId: ctx.organizationId, projectId },
       orderBy: [{ enrollmentDate: 'asc' }, { beneficiary: { code: 'asc' } }],
@@ -187,27 +187,31 @@ export async function stageAssessments(ctx: DemoContext) {
         status: true,
         enrollmentDate: true,
         endedDate: true,
+        beneficiary: { select: { code: true } },
         beneficiaryActivityParticipation_enrollment: {
-          where: { activityId, sourceSubmissionId: { not: null } },
+          where: { sourceSubmissionId: { not: null } },
           orderBy: { participationDate: 'asc' },
-          select: { participationDate: true, sourceSubmissionId: true },
+          select: { activityId: true, participationDate: true, sourceSubmissionId: true },
         },
       },
     })
     let paired = 0
-    for (const [ordinal, enrollment] of enrollments.entries()) {
-      const own = enrollment.beneficiaryActivityParticipation_enrollment
+    for (const [position, enrollment] of enrollments.entries()) {
+      const rows = enrollment.beneficiaryActivityParticipation_enrollment
+      const preRows = rows.filter((r) => r.activityId === activities.pre)
+      const postRows = activities.post ? rows.filter((r) => r.activityId === activities.post) : null
       const who: EnrollmentFact = {
-        ordinal,
+        ordinal: cohortOrdinal(project, enrollment.beneficiary.code, position),
         status: enrollment.status,
         enrollmentDate: iso(enrollment.enrollmentDate),
         endedDate: enrollment.endedDate ? iso(enrollment.endedDate) : null,
       }
       // WSH is past its end date: the first eight learners complete the closed-period survey pair.
-      const pair = project.key === 'WSH' && own.length > 1 && paired < wshPairs.length
+      const pair = project.key === 'WSH' && preRows.length > 1 && paired < wshPairs.length
       const planned = planTests(
         pair ? { ...who, status: 'COMPLETED' } : who,
-        own.map((p) => iso(p.participationDate)),
+        preRows.map((r) => iso(r.participationDate)),
+        postRows?.map((r) => iso(r.participationDate)) ?? null,
       )
       if (pair) {
         planned[0].score = wshPairs[paired].pre
@@ -215,12 +219,13 @@ export async function stageAssessments(ctx: DemoContext) {
         paired += 1
       }
       for (const test of planned) {
-        const source = test.type === 'PRE_TEST' ? own[0] : own[own.length - 1]
+        const isPre = test.type === 'PRE_TEST'
+        const source = isPre ? preRows[0] : postRows ? postRows[0] : preRows[preRows.length - 1]
         await ctx.owner.assessmentResult.create({
           data: {
             organizationId: ctx.organizationId,
             projectId,
-            activityId,
+            activityId: isPre || !activities.post ? activities.pre : activities.post,
             enrollmentId: enrollment.id,
             sourceSubmissionId: source.sourceSubmissionId,
             type: test.type,

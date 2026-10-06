@@ -4,46 +4,52 @@ import {
   type ProjectKey,
   addDaysIso,
   demoActivities,
+  demoCohorts,
   demoProjects,
   planCohort,
 } from './local-demo-data'
 import {
   type EnrollmentFact,
   activityWindow,
+  branchOf,
   journeyTracks,
   planSessions,
   planTests,
+  plannedFacts,
+  projectStartIso,
+  sessionRoster,
 } from './local-demo-journeys'
 import { attendanceForms, journeyStages } from './local-demo-stage-forms'
-import { outcomes } from './local-demo-stage-outcomes'
 
 const today = '2026-10-06'
-const baseStart = { SSG: '2026-03-03' } as Partial<Record<ProjectKey, string>>
 const held = ['COMPLETED', 'COMPLETED_LATE', 'PROGRESS_VERIFIED', 'PENDING_REVIEW', 'RETURNED']
 const keys = Object.keys(journeyTracks) as ProjectKey[]
-const assessedTrack = (key: ProjectKey) => (journeyTracks[key] ?? []).findIndex((t) => t.assessed)
+const trackIndex = (key: ProjectKey, assess: 'pre' | 'post') =>
+  (journeyTracks[key] ?? []).findIndex((t) => t.assess === assess)
 
 /** Enrollment facts as the seed leaves them: outcomes end some enrollments on their event date. */
 function facts(key: ProjectKey): EnrollmentFact[] {
   const project = demoProjects.find((p) => p.key === key) as (typeof demoProjects)[number]
-  const start = baseStart[key] ?? addDaysIso(today, project.startOffset)
-  return planCohort(project, today, start).map((person, ordinal) => {
-    const outcome = outcomes.find((o) => o.project === key && o.people.includes(ordinal))
-    const status =
-      outcome?.eventType === 'COMPLETION'
-        ? 'COMPLETED'
-        : outcome?.eventType === 'DROPOUT'
-          ? 'DROPPED'
-          : 'ACTIVE'
-    const endedDate = outcome ? addDaysIso(today, -(outcome.daysAgo ?? 0)) : null
-    return { ordinal, enrollmentDate: person.enrollmentDate, endedDate, status }
-  })
+  return planCohort(project, today, projectStartIso(key, today)).map((person, ordinal) => ({
+    ordinal,
+    enrollmentDate: person.enrollmentDate,
+    ...plannedFacts(key, person.code, today),
+  }))
 }
 
-const assessedDates = (key: ProjectKey, who: EnrollmentFact) =>
+const datesOf = (key: ProjectKey, who: EnrollmentFact, track: number) =>
   planSessions(key, who, today)
-    .filter((s) => s.track === assessedTrack(key))
+    .filter((s) => s.track === track)
     .map((s) => s.date)
+
+const testsOf = (key: ProjectKey, who: EnrollmentFact) => {
+  const post = trackIndex(key, 'post')
+  return planTests(
+    who,
+    datesOf(key, who, trackIndex(key, 'pre')),
+    post >= 0 ? datesOf(key, who, post) : null,
+  )
+}
 
 describe('journey records follow the product prerequisites', () => {
   it('attaches attendance only to activities that are held, never started or cancelled', () => {
@@ -67,6 +73,27 @@ describe('journey records follow the product prerequisites', () => {
       }
   })
 
+  it('declares the webinar, two branches and the post step under WEBINAR for SSG and ALS', () => {
+    for (const key of ['SSG', 'ALS'] as const) {
+      const stages = journeyStages[key] ?? []
+      const webinar = stages.find((s) => s.code === 'WEBINAR')
+      expect(webinar?.type).toBe('CORE')
+      for (const code of ['ENTREP', 'TECH']) {
+        const branch = stages.find((s) => s.code === code)
+        expect(branch?.type).toBe('BRANCH')
+        expect(branch?.parent).toBe('WEBINAR')
+        expect((branch?.order ?? 0) > (webinar?.order ?? 99)).toBe(true)
+      }
+      const post = stages.find((s) => s.code === (key === 'SSG' ? 'POST-ASSESSMENT' : 'ASSESSED'))
+      expect((post?.order ?? 0) > (stages.find((s) => s.code === 'TECH')?.order ?? 99)).toBe(true)
+    }
+    for (const code of ['ENROLLED', 'LIFESKILLS', 'PEER-EDUCATOR', 'FOLLOW-UP', 'COMPLETED'])
+      expect(
+        journeyStages.SSG?.some((s) => s.code === code),
+        code,
+      ).toBe(true)
+  })
+
   it('keeps sessions inside the activity window, the enrollment and the past', () => {
     for (const key of keys)
       for (const who of facts(key))
@@ -79,15 +106,39 @@ describe('journey records follow the product prerequisites', () => {
         }
   })
 
+  it('follows stage order by date, one branch per person, post-test only after a branch', () => {
+    for (const key of ['SSG', 'ALS'] as const) {
+      const tracks = journeyTracks[key] ?? []
+      for (const who of facts(key)) {
+        const sessions = planSessions(key, who, today)
+        const order = sessions.map((s) => s.track)
+        expect(order, `${key} #${who.ordinal}`).toEqual([...order].sort((a, b) => a - b))
+        const branches = new Set(sessions.map((s) => tracks[s.track].branch).filter(Boolean))
+        expect(branches.size).toBeLessThanOrEqual(1)
+        if (sessions.some((s) => tracks[s.track].assess === 'post')) expect(branches.size).toBe(1)
+        for (let i = 1; i < sessions.length; i += 1)
+          expect(sessions[i].date > sessions[i - 1].date).toBe(true)
+      }
+    }
+  })
+
+  it('splits SSG and ALS people across the two branches about 55 to 45', () => {
+    for (const key of ['SSG', 'ALS'] as const) {
+      const people = facts(key)
+      const first = people.filter((who) => branchOf(who.ordinal) === 'A').length
+      expect(first / people.length, key).toBeGreaterThan(0.45)
+      expect(first / people.length, key).toBeLessThan(0.65)
+    }
+  })
+
   it('gives every completed enrollment attendance, a closing session and pre and post tests', () => {
     for (const key of keys)
       for (const who of facts(key).filter((f) => f.status === 'COMPLETED')) {
         const sessions = planSessions(key, who, today)
         expect(sessions.length, `${key} #${who.ordinal}`).toBeGreaterThan(0)
-        expect(sessions.some((s) => s.progress === 'COMPLETED')).toBe(true)
-        const tests = planTests(who, assessedDates(key, who))
+        expect(sessions[sessions.length - 1].progress).toBe('COMPLETED')
         expect(
-          tests.map((t) => t.type),
+          testsOf(key, who).map((t) => t.type),
           `${key} #${who.ordinal}`,
         ).toEqual(['PRE_TEST', 'POST_TEST'])
       }
@@ -96,9 +147,9 @@ describe('journey records follow the product prerequisites', () => {
   it('dates each test on an attended session, pre-test before post-test', () => {
     for (const key of keys)
       for (const who of facts(key)) {
-        const dates = assessedDates(key, who)
-        const tests = planTests(who, dates)
-        for (const test of tests) expect(dates).toContain(test.date)
+        const all = planSessions(key, who, today).map((s) => s.date)
+        const tests = testsOf(key, who)
+        for (const test of tests) expect(all).toContain(test.date)
         if (tests.length === 2) expect(tests[0].date < tests[1].date).toBe(true)
       }
   })
@@ -108,9 +159,7 @@ describe('journey records follow the product prerequisites', () => {
       for (const who of facts(key).filter((f) => f.status === 'DROPPED')) {
         for (const session of planSessions(key, who, today))
           expect(session.date <= addDaysIso(who.endedDate as string, -7)).toBe(true)
-        expect(planTests(who, assessedDates(key, who)).map((t) => t.type)).not.toContain(
-          'POST_TEST',
-        )
+        expect(testsOf(key, who).map((t) => t.type)).not.toContain('POST_TEST')
       }
   })
 
@@ -124,15 +173,24 @@ describe('journey records follow the product prerequisites', () => {
     }
   })
 
-  it('keeps pre-test scores below post-test scores for most completers', () => {
+  it('keeps pre-test scores below post-test scores for most people with both', () => {
     let better = 0
     let total = 0
     for (const key of keys)
-      for (const who of facts(key).filter((f) => f.status === 'COMPLETED')) {
-        const [pre, post] = planTests(who, assessedDates(key, who))
+      for (const who of facts(key)) {
+        const [pre, post] = testsOf(key, who)
+        if (!post) continue
         total += 1
         if (post.score > pre.score) better += 1
       }
+    expect(total).toBeGreaterThan(10)
     expect(better / total).toBeGreaterThan(0.8)
+  })
+
+  it('lists the attendees of the latest session of an attended activity for the proof sheet', () => {
+    const roster = sessionRoster('ALS', 'reviewclass', today)
+    expect(roster?.people.length).toBeGreaterThan(0)
+    expect((roster?.people.length ?? 0) <= demoCohorts.ALS.count).toBe(true)
+    expect(sessionRoster('ALS', 'mapping', today)).toBeNull()
   })
 })
