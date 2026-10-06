@@ -1647,6 +1647,8 @@ enum CriterionType {
   BUDGET_EFFICIENCY
   BENEFICIARY_REACH
   OTHER
+  INDICATOR_LINKAGE
+  ASSESSMENT_GAIN
 
   @@map("criterion_type")
   @@schema("pathways")

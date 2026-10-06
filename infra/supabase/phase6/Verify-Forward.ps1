@@ -55,6 +55,7 @@ $forwardInventory = @(
   '0066_beneficiary_reach_kpi_values'
   '0067_beneficiary_progress_read'
   '0068_timeline_final_position'
+  '0069_evaluation_auto_scoring'
 )
 if (($forwardMigrations.Name -join ',') -cne ($forwardInventory -join ',')) { throw 'Forward migration inventory requires renewed review.' }
 
@@ -1026,6 +1027,15 @@ SELECT (SELECT pg_catalog.pg_get_userbyid(p.proowner)='prisma' AND p.prosecdef A
     if ($timelineShape.Trim() -cne 'true') { throw "0068 timeline last completion inventory differs in $db." }
   }
   Write-Output 'FORWARD_0068_TIMELINE_LAST_COMPLETION_INVENTORY=PASS'
+  # 0069 inventory: criterion_type gained INDICATOR_LINKAGE and ASSESSMENT_GAIN and kept its five earlier values.
+  foreach ($db in @('pathways_phase4_baseline', 'pathways_phase4_forward_restore')) {
+    $criterionShape = Read-ForwardSql $db @"
+SELECT (SELECT count(*)=7 AND bool_and(e.enumlabel IN ('KPI','TIMELINE_COMPLIANCE','BUDGET_EFFICIENCY','BENEFICIARY_REACH','OTHER','INDICATOR_LINKAGE','ASSESSMENT_GAIN'))
+ FROM pg_catalog.pg_enum e WHERE e.enumtypid='pathways.criterion_type'::pg_catalog.regtype)::text;
+"@
+    if ($criterionShape.Trim() -cne 'true') { throw "0069 criterion type inventory differs in $db." }
+  }
+  Write-Output 'FORWARD_0069_EVALUATION_AUTO_SCORING_INVENTORY=PASS'
 } finally {
   foreach ($key in $forwardPriorEnvironment.Keys) { Set-Item -LiteralPath "Env:$key" -Value $forwardPriorEnvironment[$key] }
 }

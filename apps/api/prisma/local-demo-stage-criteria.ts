@@ -1,94 +1,35 @@
-import type { ProjectKey } from './local-demo-data'
+import { addDaysIso } from './local-demo-data'
 import type { DemoContext } from './local-demo-seed'
 import { projectOf, step } from './local-demo-util'
 
-const criteriaByProject: Partial<
-  Record<
-    ProjectKey,
-    Array<{
-      code: string
-      name: string
-      description: string
-      type: 'KPI' | 'TIMELINE_COMPLIANCE' | 'BUDGET_EFFICIENCY' | 'BENEFICIARY_REACH' | 'OTHER'
-      weightPercentage: number
-    }>
-  >
-> = {
-  SSG: [
-    {
-      code: 'REACH',
-      name: 'Girls reached against target',
-      description: 'Share of the girls target reached by school protection activities.',
-      type: 'BENEFICIARY_REACH',
-      weightPercentage: 30,
-    },
-    {
-      code: 'TIMELINE',
-      name: 'Timeline compliance',
-      description: 'Activities completed on or before their planned end dates.',
-      type: 'TIMELINE_COMPLIANCE',
-      weightPercentage: 25,
-    },
-    {
-      code: 'BUDGET',
-      name: 'Budget utilization',
-      description: 'Approved expenses against the planned budget for the period.',
-      type: 'BUDGET_EFFICIENCY',
-      weightPercentage: 20,
-    },
-    {
-      code: 'ATTENDANCE',
-      name: 'Regular school attendance of girls',
-      description: 'Attendance indicator progress against its target.',
-      type: 'KPI',
-      weightPercentage: 25,
-    },
-  ],
-  ALS: [
-    {
-      code: 'ENROLMENT',
-      name: 'Learner enrollment against target',
-      description: 'Learners enrolled in community learning centers.',
-      type: 'BENEFICIARY_REACH',
-      weightPercentage: 40,
-    },
-    {
-      code: 'COMPLETION',
-      name: 'Module completion rate',
-      description: 'Learners completing the module set.',
-      type: 'KPI',
-      weightPercentage: 35,
-    },
-    {
-      code: 'TIMELINE',
-      name: 'Timeline compliance',
-      description: 'Activities completed on schedule.',
-      type: 'TIMELINE_COMPLIANCE',
-      weightPercentage: 25,
-    },
-  ],
-}
+/** Projects that get an evaluation round in progress; criteria are provisioned by the application. */
+const evaluatedProjects = ['SSG', 'ALS'] as const
 
-/** Draft evaluation criteria with weights totalling 100 percent, initialized by the System
- * Administrator. */
+/** One draft mid-term round per project, started by Monitoring and Evaluation so the default
+ * criteria are provisioned and every score is computed from the project data. */
 export async function stageCriteria(ctx: DemoContext) {
-  const admin = ctx.staff.admin.identity
   let count = 0
-  for (const [key, criteria] of Object.entries(criteriaByProject) as Array<
-    [ProjectKey, NonNullable<(typeof criteriaByProject)[ProjectKey]>]
-  >) {
+  for (const key of evaluatedProjects) {
     const projectId = projectOf(ctx, key)
-    const current = (await ctx.services.evaluations.get(admin, projectId)) as unknown as {
-      criteria: unknown[]
-    }
-    if (current.criteria.length > 0) continue
-    await step(`criteria ${key}`, () =>
-      ctx.services.evaluations.initializeCriteria(admin, projectId, {
-        clientRequestId: ctx.stable(`criteria:${key}`),
-        criteria: criteria.map((row) => ({ ...row, maximumScore: 100 })),
+    const current = await ctx.owner.projectEvaluation.count({
+      where: { organizationId: ctx.organizationId, projectId },
+    })
+    if (current > 0) continue
+    const project = await ctx.owner.project.findUniqueOrThrow({
+      where: { id: projectId },
+      select: { startDate: true, endDate: true },
+    })
+    const start = project.startDate?.toISOString().slice(0, 10) ?? addDaysIso(ctx.today, -180)
+    const end = project.endDate?.toISOString().slice(0, 10)
+    await step(`evaluation ${key}`, () =>
+      ctx.services.evaluations.createEvaluation(ctx.staff.me.identity, projectId, {
+        clientRequestId: ctx.stable(`evaluation:${key}`),
+        title: 'Mid-term evaluation',
+        periodStart: start,
+        periodEnd: end && end < ctx.today ? end : ctx.today,
       }),
     )
     count += 1
   }
-  ctx.log(`  evaluation criteria sets initialized: ${count}`)
+  ctx.log(`  evaluation rounds started: ${count}`)
 }

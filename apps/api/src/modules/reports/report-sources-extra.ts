@@ -3,6 +3,7 @@ import { type MonitoringDashboard, metricCellSchema } from '@pathways/shared'
 import type { Prisma } from '@prisma/client'
 import { z } from 'zod'
 import type { ApplicationIdentity } from '../auth/developer-access'
+import { classifyScoreCommentary } from '../evaluations/evaluation-metrics'
 
 export type ExtraReportKind = 'MONITORING_REPORT' | 'EVALUATION_REPORT'
 export const isExtraReportKind = (kind: string): kind is ExtraReportKind =>
@@ -50,8 +51,17 @@ const snapshot = z
     code: z.string(),
     name: z.string(),
     weight_percentage: z.union([z.string(), z.number()]),
+    type: z.string().optional(),
   })
   .passthrough()
+
+// Donor-facing source text; the internal markers and the evaluator's free-text note are never shown.
+const sourceCell = (view: ReturnType<typeof classifyScoreCommentary>) =>
+  view.source === 'computed' && view.evidence
+    ? `Computed: ${view.evidence}`
+    : view.source === 'no_data'
+      ? `No data: ${view.reason}`
+      : 'Manual score'
 
 /** Latest signed-off or archived evaluation with its criterion scores, or an empty table. */
 export async function evaluationReportTable(
@@ -66,6 +76,7 @@ export async function evaluationReportTable(
     'Score',
     'Maximum score',
     'Weighted score',
+    'Source',
   ]
   const evaluation = await tx.projectEvaluation.findFirst({
     where: {
@@ -86,7 +97,13 @@ export async function evaluationReportTable(
   if (!evaluation) return { columns, rows: [] as string[][], evaluationId: null }
   const scores = await tx.projectEvaluationScore.findMany({
     where: { organizationId: actor.organizationId, projectId, evaluationId: evaluation.id },
-    select: { score: true, maximumScore: true, weightedScore: true, criterionSnapshot: true },
+    select: {
+      score: true,
+      maximumScore: true,
+      weightedScore: true,
+      commentary: true,
+      criterionSnapshot: true,
+    },
     orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
     take: 101,
   })
@@ -100,9 +117,14 @@ export async function evaluationReportTable(
       evaluation.overallScore?.toString() ?? 'Not available',
       '',
       '',
+      '',
     ],
     ...scores.map((row, index) => {
       const meta = snapshot.safeParse(row.criterionSnapshot)
+      const view = classifyScoreCommentary(
+        row.commentary,
+        meta.success ? (meta.data.type ?? '') : '',
+      )
       return [
         'Criterion',
         meta.success ? `${meta.data.code} ${meta.data.name}` : `Criterion ${index + 1}`,
@@ -110,6 +132,7 @@ export async function evaluationReportTable(
         row.score.toString(),
         row.maximumScore.toString(),
         row.weightedScore.toString(),
+        sourceCell(view),
       ]
     }),
   ]

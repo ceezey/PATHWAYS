@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { PrismaService } from '../../prisma/prisma.service'
 import { hasAtomicPermission } from '../auth/authorization-policy'
 import type { ApplicationIdentity } from '../auth/developer-access'
+import { provisionCriteria } from './evaluation-criteria-template'
 import type { EvaluationMetricsService } from './evaluation-metrics'
 import { EvaluationsService } from './evaluations.service'
 
@@ -21,6 +22,7 @@ vi.mock('../auth/authorized-operation', () => ({
     return work(scope.tx, actor)
   },
 }))
+vi.mock('./evaluation-criteria-template', () => ({ provisionCriteria: vi.fn() }))
 const projectId = '10000000-0000-4000-8000-000000000001'
 const criterionId = '20000000-0000-4000-8000-000000000002'
 const organizationId = '30000000-0000-4000-8000-000000000003'
@@ -34,7 +36,7 @@ const evaluator = {
   aal: 'aal2',
   fullName: 'Fictional evaluator',
   roles: ['MONITORING_AND_EVALUATION_OFFICER'],
-  permissions: ['monitoring.read', 'evaluations.submit'],
+  permissions: ['monitoring.read', 'evaluations.submit', 'evaluations.weights.configure'],
   assignedProjectIds: [projectId],
 } as ApplicationIdentity
 const tx = {
@@ -47,7 +49,7 @@ const tx = {
     updateMany: vi.fn(),
   },
   projectEvaluationCriterion: { findMany: vi.fn(), count: vi.fn() },
-  projectEvaluationScore: { findMany: vi.fn(), upsert: vi.fn() },
+  projectEvaluationScore: { findMany: vi.fn(), upsert: vi.fn(), count: vi.fn() },
   $queryRaw: vi.fn(),
   auditLog: { create: vi.fn() },
 }
@@ -192,99 +194,129 @@ describe('evaluation detail contract, history bounds and idempotent start', () =
   })
 })
 
-describe('saving scores', () => {
-  const body = (scores: unknown[], extra: Record<string, unknown> = {}) => ({
-    expectedUpdatedAt: updatedAt.toISOString(),
-    scores,
-    ...extra,
-  })
-  const manual = (id: string, manualScore = 70) => ({
-    criterionId: id,
-    manualScore,
-    note: 'Judged against the plan.',
-  })
-  const rejection = (call: Promise<unknown>) =>
-    call.then(
-      () => {
-        throw new Error('Expected a rejection.')
-      },
-      (error: BadRequestException) => error.getResponse() as { errors: unknown[] },
-    )
+describe('automatic scoring', () => {
+  const criteria = [
+    { id: criterionId, type: 'KPI', maximumScore: dec(100) },
+    { id: secondCriterionId, type: 'ASSESSMENT_GAIN', maximumScore: dec(100) },
+  ]
+  const computed = new Map([
+    [criterionId, { score: '94.0000', commentary: 'KPI achievement 94%' }],
+    [secondCriterionId, { score: '0.0000', commentary: 'No data: no paired pre/post assessments' }],
+  ])
+  const start = {
+    clientRequestId: criterionId,
+    title: 'Mid-term',
+    periodStart: '2026-01-01',
+    periodEnd: '2026-06-30',
+  }
   beforeEach(() => {
     vi.clearAllMocks()
     scope.actor = evaluator
     scope.tx = tx
-    tx.project.findFirst.mockResolvedValue({
-      id: projectId,
-      startDate: null,
-      endDate: null,
-      targetBeneficiaries: null,
-    })
-    tx.projectEvaluation.findFirst.mockResolvedValue(detailRow())
+    tx.project.findFirst.mockResolvedValue({ id: projectId, targetBeneficiaries: 10 })
+    tx.projectEvaluation.findFirst.mockResolvedValue(null)
+    tx.projectEvaluation.findMany.mockResolvedValue([])
+    tx.projectEvaluation.count.mockResolvedValue(0)
+    tx.projectEvaluation.create.mockResolvedValue({ id: evaluationId })
     tx.projectEvaluation.updateMany.mockResolvedValue({ count: 1 })
-    tx.projectEvaluationCriterion.findMany.mockResolvedValue([
-      { id: criterionId, type: 'OTHER', maximumScore: dec(100) },
-      { id: secondCriterionId, type: 'OTHER', maximumScore: dec(100) },
-    ])
+    tx.projectEvaluationCriterion.findMany.mockResolvedValue(criteria)
+    tx.projectEvaluationCriterion.count.mockResolvedValue(2)
     tx.projectEvaluationScore.findMany.mockResolvedValue([])
     tx.projectEvaluationScore.upsert.mockResolvedValue({})
     tx.auditLog.create.mockResolvedValue({})
-    computeMany.mockResolvedValue(new Map())
+    computeMany.mockResolvedValue(computed)
   })
 
-  it('claims the draft with a guarded update before writing any score', async () => {
-    await service.saveScores(
-      evaluator,
-      projectId,
-      evaluationId,
-      body([manual(criterionId), manual(secondCriterionId)], { commentary: 'Narrative' }),
-    )
+  it('provisions the criteria and scores every one when a round starts', async () => {
+    tx.projectEvaluation.findFirst.mockResolvedValueOnce(null).mockResolvedValue(detailRow())
+    await service.createEvaluation(evaluator, projectId, start)
+    expect(provisionCriteria).toHaveBeenCalledOnce()
+    expect(computeMany.mock.calls[0][3]).toEqual({ start: '2026-01-01', end: '2026-06-30' })
+    expect(tx.projectEvaluationScore.upsert).toHaveBeenCalledTimes(2)
+    expect(tx.projectEvaluationScore.upsert.mock.calls[1][0].create).toMatchObject({
+      score: '0.0000',
+      commentary: 'No data: no paired pre/post assessments',
+    })
+  })
+
+  it('does not provision for a retried start of the open round', async () => {
+    tx.projectEvaluation.findFirst.mockResolvedValue(detailRow())
+    await service.createEvaluation(evaluator, projectId, start)
+    expect(provisionCriteria).not.toHaveBeenCalled()
+    expect(tx.projectEvaluationScore.upsert).not.toHaveBeenCalled()
+  })
+
+  it('recomputes all scores and claims the draft with a guarded update', async () => {
+    tx.projectEvaluation.findFirst.mockResolvedValue(detailRow())
+    await service.saveScores(evaluator, projectId, evaluationId, {
+      expectedUpdatedAt: updatedAt.toISOString(),
+      commentary: 'Narrative',
+    })
     const claim = tx.projectEvaluation.updateMany.mock.calls[0][0]
     expect(claim.where).toMatchObject({ id: evaluationId, status: 'DRAFT', updatedAt })
     expect(claim.data).toMatchObject({ commentary: 'Narrative' })
     expect(tx.projectEvaluationScore.upsert).toHaveBeenCalledTimes(2)
   })
 
-  it('rejects a stale save with 409 and writes nothing', async () => {
+  it('rejects a stale recompute with 409 and writes nothing', async () => {
+    tx.projectEvaluation.findFirst.mockResolvedValue(detailRow())
     tx.projectEvaluation.updateMany.mockResolvedValue({ count: 0 })
     await expect(
-      service.saveScores(evaluator, projectId, evaluationId, body([manual(criterionId)])),
+      service.saveScores(evaluator, projectId, evaluationId, {
+        expectedUpdatedAt: updatedAt.toISOString(),
+      }),
     ).rejects.toThrow('changed')
     expect(tx.projectEvaluationScore.upsert).not.toHaveBeenCalled()
   })
 
-  it('keeps saved scores for rows the request does not resupply', async () => {
-    tx.projectEvaluationScore.findMany.mockResolvedValue([
-      scoreRow(criterionId),
-      scoreRow(secondCriterionId),
-    ])
-    await service.saveScores(evaluator, projectId, evaluationId, body([manual(criterionId, 90)]))
-    expect(tx.projectEvaluationScore.upsert).toHaveBeenCalledOnce()
-    expect(tx.projectEvaluationScore.upsert.mock.calls[0][0].update).toMatchObject({
-      score: '90.0000',
+  it('refuses to recompute a round that is no longer a draft', async () => {
+    tx.projectEvaluation.findFirst.mockResolvedValue(detailRow({ status: 'SUBMITTED' }))
+    await expect(
+      service.saveScores(evaluator, projectId, evaluationId, {
+        expectedUpdatedAt: updatedAt.toISOString(),
+      }),
+    ).rejects.toThrow('draft')
+  })
+
+  it('refreshes the scores before submitting', async () => {
+    tx.projectEvaluation.findFirst.mockResolvedValue(detailRow())
+    tx.projectEvaluationScore.count.mockResolvedValue(2)
+    await service.submit(evaluator, projectId, evaluationId, {
+      expectedUpdatedAt: updatedAt.toISOString(),
+    })
+    expect(computeMany).toHaveBeenCalledOnce()
+    expect(tx.projectEvaluationScore.upsert).toHaveBeenCalledTimes(2)
+    expect(tx.projectEvaluation.updateMany.mock.calls[0][0].data).toMatchObject({
+      status: 'SUBMITTED',
     })
   })
 
-  it('lists every criterion that still needs a manual score and why', async () => {
-    tx.projectEvaluationCriterion.findMany.mockResolvedValue([
-      { id: criterionId, type: 'OTHER', maximumScore: dec(100) },
-      { id: secondCriterionId, type: 'BENEFICIARY_REACH', maximumScore: dec(100) },
+  it('exposes the source, evidence and no-data reason of each stored score', async () => {
+    tx.projectEvaluationCriterion.findMany.mockResolvedValue([])
+    tx.projectEvaluation.findMany.mockResolvedValue([detailRow()])
+    tx.projectEvaluationScore.findMany.mockResolvedValue([
+      scoreRow(criterionId, {
+        commentary: 'KPI achievement 94%',
+        criterionSnapshot: snapshot(criterionId, { type: 'KPI' }),
+      }),
+      scoreRow(secondCriterionId, {
+        score: dec(0),
+        commentary: 'No data: no paired pre/post assessments',
+        criterionSnapshot: snapshot(secondCriterionId, { type: 'ASSESSMENT_GAIN' }),
+      }),
     ])
-    computeMany.mockResolvedValue(
-      new Map([[secondCriterionId, { score: null, commentary: 'Not computable: small cell.' }]]),
-    )
-    const response = await rejection(
-      service.saveScores(evaluator, projectId, evaluationId, body([{ criterionId }])),
-    )
-    expect(response.errors).toEqual([
-      { fieldCode: criterionId, code: 'MANUAL_REQUIRED', message: expect.any(String) },
-      {
-        fieldCode: secondCriterionId,
-        code: 'NOT_COMPUTABLE',
-        message: 'Not computable: small cell.',
-      },
-    ])
-    expect(tx.projectEvaluationScore.upsert).not.toHaveBeenCalled()
+    const [row] = (await service.get(evaluator, projectId)).evaluations
+    expect(row?.scores[0]).toMatchObject({
+      source: 'computed',
+      evidence: 'KPI achievement 94%',
+      reason: null,
+      note: null,
+    })
+    expect(row?.scores[1]).toMatchObject({
+      source: 'no_data',
+      evidence: null,
+      reason: 'no paired pre/post assessments',
+    })
   })
 })
 

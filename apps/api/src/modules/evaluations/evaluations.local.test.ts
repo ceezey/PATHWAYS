@@ -80,8 +80,19 @@ describe.skipIf(!enabled)('evaluation write path on disposable PostgreSQL', () =
       SELECT current_user = 'pathways_runtime' AND session_user = 'pathways_runtime' AS safe
     `
     expect(login?.safe).toBe(true)
-    // Only criteria of type OTHER are scored, so the computed-metrics service is never reached.
-    const metrics = { computeMany: async () => new Map() } as unknown as EvaluationMetricsService
+    // Every criterion scores 80 so the overall score is predictable; the real formulas are unit tested.
+    const metrics = {
+      computeMany: async (
+        _tx: unknown,
+        _actor: unknown,
+        _project: unknown,
+        _period: unknown,
+        criteria: Array<{ id: string }>,
+      ) =>
+        new Map(
+          criteria.map((row) => [row.id, { score: '80.0000', commentary: 'KPI achievement 80%' }]),
+        ),
+    } as unknown as EvaluationMetricsService
     service = new EvaluationsService(runtime, metrics)
 
     await owner.$transaction(async (tx) => {
@@ -153,17 +164,7 @@ describe.skipIf(!enabled)('evaluation write path on disposable PostgreSQL', () =
     }
   }, 30_000)
 
-  it('lets the M&E officer create and publish criteria, start, score and submit', async () => {
-    const created = await service.createCriteria(identity(2), projectId, {
-      clientRequestId: id(901),
-      criteria: [
-        { code: 'REL', name: 'Relevance', type: 'OTHER', weightPercentage: 60, maximumScore: 100 },
-        { code: 'COH', name: 'Coherence', type: 'OTHER', weightPercentage: 40, maximumScore: 100 },
-      ],
-    })
-    await service.publishCriteria(identity(2), projectId, {
-      criteria: created.criteria.map((row) => ({ id: row.id, expectedUpdatedAt: row.updatedAt })),
-    })
+  it('lets the M&E officer start a round that provisions, scores, then submit', async () => {
     const started = await service.createEvaluation(identity(2), projectId, {
       clientRequestId: id(902),
       title: 'Mid-term evaluation',
@@ -172,14 +173,14 @@ describe.skipIf(!enabled)('evaluation write path on disposable PostgreSQL', () =
     })
     evaluationId = started.id
     expect(started.status).toBe('DRAFT')
+    const provisioned = await service.get(identity(2), projectId)
+    expect(provisioned.criteria).toHaveLength(6)
+    expect(provisioned.criteria.every((row) => row.status === 'PUBLISHED')).toBe(true)
+    expect(started.scores).toHaveLength(6)
+    expect(started.scores.every((row) => row.source === 'computed')).toBe(true)
     const scored = await service.saveScores(identity(2), projectId, evaluationId, {
       expectedUpdatedAt: started.updatedAt,
       commentary: 'Evaluator narrative.',
-      scores: created.criteria.map((row) => ({
-        criterionId: row.id,
-        manualScore: 80,
-        note: 'Judged against the work plan.',
-      })),
     })
     const submitted = await service.submit(identity(2), projectId, evaluationId, {
       expectedUpdatedAt: scored.updatedAt,
@@ -232,11 +233,6 @@ describe.skipIf(!enabled)('evaluation write path on disposable PostgreSQL', () =
     const edited = await service.saveScores(identity(2), projectId, evaluationId, {
       expectedUpdatedAt: before.updatedAt,
       commentary: 'Clarified the notes.',
-      scores: before.scores.map((row) => ({
-        criterionId: row.criterionId,
-        manualScore: 80,
-        note: 'Judged against the work plan, clarified.',
-      })),
     })
     expect(edited.status).toBe('DRAFT')
     expect(edited.commentary).toBe('Clarified the notes.')
@@ -306,15 +302,9 @@ describe.skipIf(!enabled)('evaluation write path on disposable PostgreSQL', () =
   it('lets the program manager read but forbids every write', async () => {
     const detail = await service.get(identity(5), projectId)
     expect(detail.evaluations[0]?.status).toBe('SIGNED_OFF')
-    expect(detail.evaluations[0]?.scores.length).toBe(2)
+    expect(detail.evaluations[0]?.scores.length).toBe(6)
     const stamp = detail.evaluations[0]?.updatedAt ?? ''
     const writes = [
-      service.createCriteria(identity(5), projectId, {
-        clientRequestId: id(903),
-        criteria: [
-          { code: 'X', name: 'X', type: 'OTHER', weightPercentage: 100, maximumScore: 100 },
-        ],
-      }),
       service.createEvaluation(identity(5), projectId, {
         clientRequestId: id(904),
         title: 'Blocked',
@@ -323,7 +313,6 @@ describe.skipIf(!enabled)('evaluation write path on disposable PostgreSQL', () =
       }),
       service.saveScores(identity(5), projectId, evaluationId, {
         expectedUpdatedAt: stamp,
-        scores: [{ criterionId: id(1), manualScore: 1, note: 'x' }],
       }),
       service.submit(identity(5), projectId, evaluationId, { expectedUpdatedAt: stamp }),
       service.returnToDraft(identity(5), projectId, evaluationId, {
@@ -342,14 +331,13 @@ describe.skipIf(!enabled)('evaluation write path on disposable PostgreSQL', () =
     const after = await service.get(identity(5), projectId)
     expect(after.evaluations).toHaveLength(1)
     expect(after.evaluations[0]?.status).toBe('SIGNED_OFF')
-    expect(after.evaluations[0]?.scores).toHaveLength(2)
+    expect(after.evaluations[0]?.scores).toHaveLength(6)
     expect(after.evaluations[0]?.reviewedBy?.id).toBe(id(103))
     expect(after.evaluations[0]?.signedOffBy?.id).toBe(id(103))
     expect(after.evaluations[0]?.updatedAt).toBe(stamp)
   })
 
   it('lets a second M&E officer submit once it has taken over evaluated_by_id', async () => {
-    const { criteria } = await service.get(identity(2), projectId)
     const started = await service.createEvaluation(identity(2), projectId, {
       clientRequestId: id(905),
       title: 'Final evaluation',
@@ -358,11 +346,6 @@ describe.skipIf(!enabled)('evaluation write path on disposable PostgreSQL', () =
     })
     const scored = await service.saveScores(identity(2), projectId, started.id, {
       expectedUpdatedAt: started.updatedAt,
-      scores: criteria.map((row) => ({
-        criterionId: row.id,
-        manualScore: 70,
-        note: 'Judged against the work plan.',
-      })),
     })
     await asUser(
       4,
