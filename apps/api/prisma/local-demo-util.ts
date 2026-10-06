@@ -1,5 +1,4 @@
 import { createHash } from 'node:crypto'
-import { deflateSync } from 'node:zlib'
 import type { ProjectKey } from './local-demo-data'
 import type { DemoContext, Staff } from './local-demo-seed'
 
@@ -16,63 +15,6 @@ export function message(error: unknown) {
     if (error instanceof Error) return error.message
   }
   return String(error)
-}
-
-const crcTable = (() => {
-  const table: number[] = []
-  for (let n = 0; n < 256; n += 1) {
-    let c = n
-    for (let k = 0; k < 8; k += 1) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1
-    table[n] = c >>> 0
-  }
-  return table
-})()
-
-function crc32(buffer: Buffer) {
-  let c = 0xffffffff
-  for (const byte of buffer) c = crcTable[(c ^ byte) & 0xff] ^ (c >>> 8)
-  return (c ^ 0xffffffff) >>> 0
-}
-
-function chunk(type: string, data: Buffer) {
-  const length = Buffer.alloc(4)
-  length.writeUInt32BE(data.length)
-  const body = Buffer.concat([Buffer.from(type, 'ascii'), data])
-  const crc = Buffer.alloc(4)
-  crc.writeUInt32BE(crc32(body))
-  return Buffer.concat([length, body, crc])
-}
-
-/** A plain colored PNG with a soft diagonal gradient, used as a field photo stand-in. */
-export function fieldPhotoPng(seed: number, width = 640, height = 400) {
-  const base = [
-    [58, 122, 168],
-    [96, 150, 96],
-    [176, 128, 72],
-    [128, 96, 152],
-  ][seed % 4]
-  const raw = Buffer.alloc((width * 3 + 1) * height)
-  for (let y = 0; y < height; y += 1) {
-    const row = y * (width * 3 + 1)
-    raw[row] = 0
-    for (let x = 0; x < width; x += 1) {
-      const shade = 0.65 + 0.35 * ((x + y) / (width + height))
-      const band = (Math.floor(x / 80) + Math.floor(y / 80)) % 2 ? 0.94 : 1
-      for (let channel = 0; channel < 3; channel += 1)
-        raw[row + 1 + x * 3 + channel] = Math.min(255, Math.round(base[channel] * shade * band))
-    }
-  }
-  const header = Buffer.alloc(13)
-  header.writeUInt32BE(width, 0)
-  header.writeUInt32BE(height, 4)
-  header[8] = 8
-  header[9] = 2
-  return Buffer.concat([
-    Buffer.from('89504e470d0a1a0a', 'hex'),
-    chunk('IHDR', header),
-    chunk('IDAT', deflateSync(raw)),
-    chunk('IEND', Buffer.alloc(0)),
-  ])
 }
 
 /** A small single-page PDF (attendance sheet or receipt) with plain text lines. */

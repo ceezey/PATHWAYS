@@ -11,6 +11,7 @@ const state = vi.hoisted(() => ({
   queue: vi.fn(),
   projects: vi.fn(),
   alerts: vi.fn(),
+  alert: vi.fn(),
 }))
 vi.mock('@/hooks/use-current-role', () => ({
   useCurrentRole: () => ({
@@ -44,6 +45,7 @@ vi.mock('@/lib/services/rules-human-client', () => ({
     listRecommendations: state.queue,
     getRecommendation: state.detail,
     listAlerts: state.alerts,
+    getAlert: state.alert,
   },
 }))
 const record = {
@@ -77,6 +79,15 @@ beforeEach(() => {
   state.projects.mockResolvedValue([])
   state.queue.mockResolvedValue({ items: [], nextCursor: null })
   state.detail.mockResolvedValue(record)
+  state.alert.mockResolvedValue({
+    id: record.alertId,
+    projectId: record.projectId,
+    title: 'Activity overdue',
+    severity: 'HIGH',
+    lifecycle: 'NEW',
+    explanation: 'The facilitator session is past its planned end date.',
+    evidence: [],
+  })
 })
 afterEach(cleanup)
 describe('direct current recommendation selection', () => {
@@ -98,9 +109,11 @@ describe('direct current recommendation selection', () => {
       expect(await screen.findByRole('heading', { name: record.title })).toBeTruthy()
       expect(state.detail).toHaveBeenCalledWith(record.id, expect.any(AbortSignal))
       expect(state.alerts).not.toHaveBeenCalled()
-      expect(screen.getByRole('link', { name: 'View linked alert' }).getAttribute('href')).toBe(
-        `/alerts?alert=${record.alertId}`,
-      )
+      expect(
+        (await screen.findByRole('link', { name: 'Activity overdue' })).getAttribute('href'),
+      ).toBe(`/alerts?alert=${record.alertId}`)
+      expect(screen.getByText('The facilitator session is past its planned end date.')).toBeTruthy()
+      expect(state.alert).toHaveBeenCalledWith(record.alertId, expect.any(AbortSignal))
       expect(screen.queryByRole('button', { name: 'Mark reviewed' })).toBeNull()
       expect(screen.queryByRole('button', { name: 'Record outcome' })).toBeNull()
     },

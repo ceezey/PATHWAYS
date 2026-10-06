@@ -11,8 +11,11 @@ import type { PrismaService } from '../../prisma/prisma.service'
 import { hasAtomicPermission } from '../auth/authorization-policy'
 import type { ApplicationIdentity } from '../auth/developer-access'
 import type { DashboardsService } from '../dashboards/dashboards.service'
+import type { ProjectOverviewMetricsService } from '../projects/project-overview-metrics.service'
 import { ReportPdfError, type ReportPdfRenderer } from '../report-pdf/report-pdf.renderer'
+import type { RulesHumanService } from '../rules/rules-human.service'
 import type { StorageService } from '../storage/storage.service'
+import { sourceFingerprint } from './report-fingerprint'
 import { reportInputSchema, reportQuerySchema } from './reports.dto'
 import { ReportsService } from './reports.service'
 const state = vi.hoisted(() => ({
@@ -90,6 +93,8 @@ const project = {
   sector: null,
   startDate: null,
   endDate: null,
+  implementingPartnerLinks: [],
+  programManager: null,
 }
 const tx = {
   project: { findFirst: vi.fn() },
@@ -103,11 +108,15 @@ const tx = {
 const storage = { uploadPrivateFile: vi.fn(), deleteFile: vi.fn() }
 const dashboards = { monitoringInTransaction: vi.fn() }
 const renderer = { render: vi.fn() }
+const overview = { readInTransaction: vi.fn() }
+const rules = { listAlertsInTransaction: vi.fn() }
 const service = new ReportsService(
   {} as PrismaService,
   storage as unknown as StorageService,
   dashboards as unknown as DashboardsService,
   renderer as unknown as ReportPdfRenderer,
+  overview as unknown as ProjectOverviewMetricsService,
+  rules as unknown as RulesHumanService,
 )
 const body = { clientRequestId: id, name: 'Private report', kind: 'PROJECT_SUMMARY', format: 'PDF' }
 const field = {
@@ -141,6 +150,13 @@ describe('report source authority, privacy and artifact recovery', () => {
     state.artifact.mockResolvedValue(Buffer.from('%PDF-fixture'))
     renderer.render.mockRejectedValue(new ReportPdfError('launch', 'Error'))
     tx.project.findFirst.mockResolvedValue(project)
+    overview.readInTransaction.mockResolvedValue({
+      businessDate: '2026-10-06',
+      timeline: { metric: { state: 'MISSING', value: null, reason: 'PROJECT_DATES_REQUIRED' } },
+      budgetUtilization: null,
+      kpiAchievement: null,
+      beneficiariesReached: null,
+    })
     tx.projectEvaluation.findFirst.mockResolvedValue(null)
     tx.projectEvaluationScore.findMany.mockResolvedValue([])
     tx.$queryRaw.mockResolvedValue([])
@@ -563,5 +579,61 @@ describe('report source authority, privacy and artifact recovery', () => {
     ])
     await expect(service.export(actor, projectId, id)).rejects.toThrow('Report source is stale')
     expect(state.read).not.toHaveBeenCalled()
+  })
+  it('returns sections with a flattened copy and sends them to the designed renderer', async () => {
+    const preview = await service.preview(actor, projectId, { kind: 'PROJECT_SUMMARY' })
+    expect(preview.sections?.information.code).toBe('SYN')
+    expect(preview.columns).toEqual(['Section', 'Item', 'Value', 'Detail'])
+    expect(preview.rows.some((row) => row[0] === 'Overview')).toBe(true)
+    expect(preview.unavailableReasons.length).toBeGreaterThan(0)
+    renderer.render.mockResolvedValue(Buffer.from('%PDF-designed'))
+    await service.generate(actor, projectId, body).catch(() => undefined)
+    expect(renderer.render).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        sections: expect.objectContaining({ overview: expect.any(Array) }),
+      }),
+    )
+  })
+  describe('project summary section integrity', () => {
+    const budgetOverview = (state: string) => ({
+      businessDate: '2026-10-06',
+      timeline: { metric: { state: 'AVAILABLE', value: '50', reason: null } },
+      budgetUtilization: {
+        metric: { state, value: state === 'AVAILABLE' ? '40' : null, reason: null },
+        approvedBudget: '100.00',
+        countableSpending: '40.00',
+      },
+      kpiAchievement: null,
+      beneficiariesReached: null,
+    })
+    it('rejects generation when a section-only field changes between prepare and finalize', async () => {
+      overview.readInTransaction
+        .mockResolvedValueOnce(budgetOverview('AVAILABLE'))
+        .mockResolvedValue(budgetOverview('SUPPRESSED'))
+      await expect(service.generate(actor, projectId, body)).rejects.toThrow(
+        'Report source changed',
+      )
+    })
+    it('rejects export when the stored fingerprint was taken from different sections', async () => {
+      overview.readInTransaction.mockResolvedValue(budgetOverview('AVAILABLE'))
+      const first = await service.preview(actor, projectId, { kind: 'PROJECT_SUMMARY' })
+      const stored = sourceFingerprint({ ...first, evaluationId: null })
+      tx.$queryRaw.mockResolvedValue([
+        {
+          id,
+          projectId,
+          formId: null,
+          type: 'PROJECT_SUMMARY',
+          sourceFingerprint: stored,
+          status: 'GENERATED',
+        },
+      ])
+      await service.export(actor, projectId, id).catch((error: Error) => {
+        expect(error.message).not.toContain('stale')
+      })
+      overview.readInTransaction.mockResolvedValue(budgetOverview('SUPPRESSED'))
+      await expect(service.export(actor, projectId, id)).rejects.toThrow('Report source is stale')
+    })
   })
 })

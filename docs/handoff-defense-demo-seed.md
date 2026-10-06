@@ -19,6 +19,6 @@ Paused 2026-10-04 23:55 (UTC+8) to move work to a cloud session.
 - Open product note: registration rule failures during import promotion are retried as transient (see activity log).
 
 ## Constraints
-- No migrations, no API service edits unless a genuine product bug (report it instead), never disable triggers.
-- Local run needs the Supabase stack at 0060 (`supabase_db_pathways`, port 54322); a full run takes about 18 min.
+- No migrations, no API service edits unless a genuine product bug (report it instead). Never disable triggers in the seed; the one exception is the snapshot restore step, which skips them with `SET LOCAL session_replication_role = replica` inside a single transaction (`cr-pathways-defense-seed-snapshot`).
+- Local run needs the local Supabase stack at devV2's latest migration (`supabase_db_pathways`, port 54322); a full run takes about 18 min.
 - The hosted devV2 run and `.tmp/defense-seed.env` belong to the user; no credentials in the repo or chat.

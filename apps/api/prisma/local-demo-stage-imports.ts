@@ -22,7 +22,7 @@ export const registrationHeaders = [
   'Enrollment date',
 ]
 
-type HistoricRow = {
+export type HistoricRow = {
   code: string
   first: string
   middle: string
@@ -74,7 +74,7 @@ function csvBuffer(
   return Buffer.from(`${lines.join('\r\n')}\r\n`, 'utf8')
 }
 
-const catarmanBatch: HistoricRow[] = [
+export const catarmanBatch: HistoricRow[] = [
   {
     code: 'CAT-2026-001',
     first: 'Mylene',
@@ -197,7 +197,7 @@ const catarmanBatch: HistoricRow[] = [
   },
 ]
 
-const lavezaresBatch: HistoricRow[] = [
+export const lavezaresBatch: HistoricRow[] = [
   {
     code: 'LAV-2026-001',
     first: 'Jomar',

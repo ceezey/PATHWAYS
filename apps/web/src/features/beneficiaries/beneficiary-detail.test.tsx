@@ -285,6 +285,41 @@ describe('BeneficiaryDetail layout', () => {
     fireEvent.click(upcoming)
     expect(upcoming.getAttribute('aria-pressed')).toBe('true')
   })
+
+  it('shows the sibling of the branch a person is on as not on their path', () => {
+    const branch = (code: string, name: string, order: number): JourneyStageConfig => ({
+      ...stage,
+      id: `stage-${code}`,
+      code,
+      name,
+      order,
+      type: 'Branch',
+      parentStageId: stage.id,
+      mappedActivityIds: [`activity-${code}`],
+    })
+    const participation = {
+      id: 'participation-a',
+      beneficiaryId: beneficiary.id,
+      projectId: project.id,
+      activityId: 'activity-J3',
+      participatedAt: '2026-06-10',
+      attendanceStatus: 'Present' as const,
+      note: '',
+    }
+    render(
+      <BeneficiaryDetail
+        activities={[activity]}
+        beneficiary={{ ...beneficiary, participation: [participation] }}
+        participationForms={[form]}
+        projectId={project.id}
+        projects={[project]}
+        stages={[stage, branch('J2', 'Wage employment', 2), branch('J3', 'Enterprise start-up', 3)]}
+      />,
+    )
+    expect(screen.getByRole('button', { name: 'J1 Entry stage: Done' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'J2 Wage employment: Not on path' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'J3 Enterprise start-up: Current' })).toBeTruthy()
+  })
 })
 
 describe('BeneficiaryDetail journey actions', () => {

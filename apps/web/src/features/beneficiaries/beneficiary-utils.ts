@@ -112,6 +112,23 @@ export const progressionRate = (
   return stages.length > 0 ? Math.round((reachedStageIds.size / stages.length) * 100) : 0
 }
 
+/** One current stage and percent for list and detail: the server summary wins, the client rule is the fallback. */
+export const resolveJourneySummary = (
+  progress: BeneficiaryRecord['progress'],
+  stages: JourneyStageConfig[],
+  derivedStage: JourneyStageConfig | undefined,
+  derivedPercent: number,
+) => {
+  if (!progress || progress.restricted) return { stage: derivedStage, percent: derivedPercent }
+  const stage = progress.stage
+    ? stages.find((item) => item.code === progress.stage?.code)
+    : undefined
+  return {
+    stage: stage ?? derivedStage,
+    percent: progress.stage?.progressPercent ?? derivedPercent,
+  }
+}
+
 const beneficiaryDateFormatter = new Intl.DateTimeFormat('en-US', {
   dateStyle: 'medium',
   timeZone: 'UTC',

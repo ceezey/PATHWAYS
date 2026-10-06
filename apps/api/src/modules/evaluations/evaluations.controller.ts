@@ -29,6 +29,28 @@ export class EvaluationsController {
     if (!request.user) throw new ForbiddenException('Application profile required.')
     return this.service.initializeCriteria(request.user, projectId, input)
   }
+  @Post('criteria')
+  @Header('Cache-Control', 'private, no-store')
+  @RequirePermission('evaluations.weights.configure')
+  createCriteria(
+    @Req() request: AuthenticatedRequest,
+    @Param('projectId') projectId: string,
+    @Body() input: unknown,
+  ) {
+    if (!request.user) throw new ForbiddenException('Application profile required.')
+    return this.service.createCriteria(request.user, projectId, input)
+  }
+  @Post('criteria/publish')
+  @Header('Cache-Control', 'private, no-store')
+  @RequirePermission('evaluations.weights.configure')
+  publishCriteria(
+    @Req() request: AuthenticatedRequest,
+    @Param('projectId') projectId: string,
+    @Body() input: unknown,
+  ) {
+    if (!request.user) throw new ForbiddenException('Application profile required.')
+    return this.service.publishCriteria(request.user, projectId, input)
+  }
   @Get()
   @Header('Cache-Control', 'private, no-store')
   @RequirePermission('monitoring.read')
@@ -58,5 +80,64 @@ export class EvaluationsController {
   ) {
     if (!request.user) throw new ForbiddenException('Application profile required.')
     return this.service.configureWeights(request.user, projectId, input)
+  }
+  @Post('evaluations')
+  @Header('Cache-Control', 'private, no-store')
+  @RequirePermission('evaluations.submit')
+  createEvaluation(
+    @Req() request: AuthenticatedRequest,
+    @Param('projectId') projectId: string,
+    @Body() input: unknown,
+  ) {
+    if (!request.user) throw new ForbiddenException('Application profile required.')
+    return this.service.createEvaluation(request.user, projectId, input)
+  }
+  @Patch('evaluations/:evaluationId/scores')
+  @Header('Cache-Control', 'private, no-store')
+  @RequirePermission('evaluations.submit')
+  saveScores(
+    @Req() request: AuthenticatedRequest,
+    @Param('projectId') projectId: string,
+    @Param('evaluationId') evaluationId: string,
+    @Body() input: unknown,
+  ) {
+    if (!request.user) throw new ForbiddenException('Application profile required.')
+    return this.service.saveScores(request.user, projectId, evaluationId, input)
+  }
+  @Post('evaluations/:evaluationId/submit')
+  @Header('Cache-Control', 'private, no-store')
+  @RequirePermission('evaluations.submit')
+  submit(
+    @Req() request: AuthenticatedRequest,
+    @Param('projectId') projectId: string,
+    @Param('evaluationId') evaluationId: string,
+    @Body() input: unknown,
+  ) {
+    if (!request.user) throw new ForbiddenException('Application profile required.')
+    return this.service.submit(request.user, projectId, evaluationId, input)
+  }
+  @Post('evaluations/:evaluationId/return')
+  @Header('Cache-Control', 'private, no-store')
+  @RequirePermission('evaluations.approve')
+  returnToDraft(
+    @Req() request: AuthenticatedRequest,
+    @Param('projectId') projectId: string,
+    @Param('evaluationId') evaluationId: string,
+    @Body() input: unknown,
+  ) {
+    if (!request.user) throw new ForbiddenException('Application profile required.')
+    return this.service.returnToDraft(request.user, projectId, evaluationId, input)
+  }
+  @Post('evaluations/:evaluationId/signoff')
+  @Header('Cache-Control', 'private, no-store')
+  @RequirePermission('evaluations.approve')
+  signoff(
+    @Req() request: AuthenticatedRequest,
+    @Param('projectId') projectId: string,
+    @Param('evaluationId') evaluationId: string,
+    @Body() input: unknown,
+  ) {
+    if (!request.user) throw new ForbiddenException('Application profile required.')
+    return this.service.signoff(request.user, projectId, evaluationId, input)
   }
 }

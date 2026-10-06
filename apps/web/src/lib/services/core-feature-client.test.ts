@@ -1,3 +1,4 @@
+import { sampleProjectReport } from '@/features/reports/print/print-report-sample'
 import { clearSensitiveDraftStorage } from '@/lib/auth/sensitive-drafts'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -190,7 +191,7 @@ describe('Core client request and strict response boundaries', () => {
       fetcher.mockResolvedValueOnce(
         json(
           operation === 'read'
-            ? { projectId: otherId, evaluation: null, criteria: [] }
+            ? { projectId: otherId, evaluations: [], criteria: [], hasMore: false }
             : { projectId: otherId, configured: 1 },
         ),
       )
@@ -201,6 +202,167 @@ describe('Core client request and strict response boundaries', () => {
       ).rejects.toThrow('could not be validated')
     },
   )
+  describe('evaluation mutations', () => {
+    const evaluationId = '78000000-0000-4000-8000-000000000008'
+    const detail = {
+      id: evaluationId,
+      title: 'Mid-term',
+      periodLabel: null,
+      periodStart: '2026-01-01',
+      periodEnd: '2026-06-30',
+      overallScore: null,
+      commentary: null,
+      returnReason: null,
+      status: 'DRAFT',
+      updatedAt,
+      evaluatedBy: null,
+      evaluatedAt: null,
+      reviewedBy: null,
+      reviewedAt: null,
+      reviewFeedback: null,
+      signedOffBy: null,
+      signedOffAt: null,
+      scores: [],
+    }
+    const receipt = {
+      criteria: [{ id: otherId, code: 'REL', version: 1, status: 'DRAFT', updatedAt }],
+    }
+    const body = { synthetic: 'body' }
+    const base = `/projects/${projectId}/evaluation`
+    const cases = [
+      [
+        'createCriteria',
+        (b: unknown) => coreDataClient.createCriteria(projectId, b),
+        `${base}/criteria`,
+        'POST',
+        receipt,
+        null,
+      ],
+      [
+        'publishCriteria',
+        (b: unknown) => coreDataClient.publishCriteria(projectId, b),
+        `${base}/criteria/publish`,
+        'POST',
+        { projectId, published: 1 },
+        { projectId: otherId, published: 1 },
+      ],
+      [
+        'createEvaluation',
+        (b: unknown) => coreDataClient.createEvaluation(projectId, b),
+        `${base}/evaluations`,
+        'POST',
+        detail,
+        null,
+      ],
+      [
+        'saveEvaluationScores',
+        (b: unknown) => coreDataClient.saveEvaluationScores(projectId, evaluationId, b),
+        `${base}/evaluations/${evaluationId}/scores`,
+        'PATCH',
+        detail,
+        { ...detail, id: otherId },
+      ],
+      [
+        'submitEvaluation',
+        (b: unknown) => coreDataClient.submitEvaluation(projectId, evaluationId, b),
+        `${base}/evaluations/${evaluationId}/submit`,
+        'POST',
+        detail,
+        { ...detail, id: otherId },
+      ],
+      [
+        'returnEvaluation',
+        (b: unknown) => coreDataClient.returnEvaluation(projectId, evaluationId, b),
+        `${base}/evaluations/${evaluationId}/return`,
+        'POST',
+        detail,
+        { ...detail, id: otherId },
+      ],
+      [
+        'signoffEvaluation',
+        (b: unknown) => coreDataClient.signoffEvaluation(projectId, evaluationId, b),
+        `${base}/evaluations/${evaluationId}/signoff`,
+        'POST',
+        detail,
+        { ...detail, id: otherId },
+      ],
+    ] as const
+    it.each(cases)(
+      '%s sends the request unchanged and binds the response',
+      async (_name, call, url, method, ok, mismatched) => {
+        fetcher.mockResolvedValueOnce(json(ok))
+        await expect(call(body)).resolves.toEqual(ok)
+        const [calledUrl, init] = fetcher.mock.calls[0]
+        expect(String(calledUrl).endsWith(`/api${url}`)).toBe(true)
+        expect(init?.method).toBe(method)
+        expect(init?.body).toBe(JSON.stringify(body))
+        if (mismatched) {
+          fetcher.mockResolvedValueOnce(json(mismatched))
+          await expect(call(body)).rejects.toThrow('could not be validated')
+        }
+      },
+    )
+    it.each(cases.filter((row) => row[4] === detail))(
+      '%s rejects a detail without returnReason or with an extra key',
+      async (_name, call) => {
+        const { returnReason: _omitted, ...missing } = detail
+        fetcher.mockResolvedValueOnce(json(missing))
+        await expect(call(body)).rejects.toThrow('could not be validated')
+        fetcher.mockResolvedValueOnce(json({ ...detail, extra: 'x' }))
+        await expect(call(body)).rejects.toThrow('could not be validated')
+      },
+    )
+  })
+  it('parses a populated evaluation response and rejects an extra snapshot key', async () => {
+    const criterion = {
+      id: otherId,
+      code: 'REL',
+      version: 1,
+      type: 'OTHER',
+      name: 'Relevance',
+      description: null,
+      weight_percentage: '60',
+      maximum_score: '100',
+    }
+    const evaluation = {
+      id: expenseId,
+      title: 'Mid-term',
+      periodLabel: null,
+      periodStart: '2026-01-01',
+      periodEnd: '2026-06-30',
+      overallScore: '80',
+      commentary: null,
+      returnReason: null,
+      status: 'SUBMITTED',
+      updatedAt,
+      evaluatedBy: { id: userId, name: 'Evaluator' },
+      evaluatedAt: updatedAt,
+      reviewedBy: null,
+      reviewedAt: null,
+      reviewFeedback: null,
+      signedOffBy: null,
+      signedOffAt: null,
+      scores: [
+        {
+          criterionId: otherId,
+          score: '80',
+          maximumScore: '100',
+          weightedScore: '48',
+          commentary: 'Judged against the plan.',
+          source: 'manual',
+          note: 'Judged against the plan.',
+          criterion,
+        },
+      ],
+    }
+    const body = { projectId, criteria: [], evaluations: [evaluation], hasMore: false }
+    fetcher.mockResolvedValueOnce(json(body))
+    await expect(coreDataClient.evaluation(projectId)).resolves.toEqual(body)
+    const leaking = structuredClone(body)
+    Object.assign(leaking.evaluations[0].scores[0].criterion, { beneficiaryId: otherId })
+    fetcher.mockResolvedValueOnce(json(leaking))
+    await expect(coreDataClient.evaluation(projectId)).rejects.toThrow('could not be validated')
+  })
   it('accepts only the allowlisted publication snapshot for the requested project', async () => {
     fetcher.mockResolvedValueOnce(json(publication))
     await expect(coreFeatureClient.publication(projectId)).resolves.toEqual(publication)
@@ -253,6 +415,16 @@ describe('Core client request and strict response boundaries', () => {
       evaluation,
     )
   })
+  it('parses a project summary preview with sections and rejects unknown section keys', async () => {
+    const { sections } = sampleProjectReport
+    const body = { ...preview, kind: 'PROJECT_SUMMARY', formId: null, sections }
+    fetcher.mockResolvedValueOnce(json(body))
+    await expect(coreDataClient.reportPreview(projectId, 'PROJECT_SUMMARY')).resolves.toEqual(body)
+    fetcher.mockResolvedValueOnce(json({ ...body, sections: { ...sections, extra: 1 } }))
+    await expect(coreDataClient.reportPreview(projectId, 'PROJECT_SUMMARY')).rejects.toThrow(
+      'could not be validated',
+    )
+  })
   it('rejects a form-bearing response to a non-survey preview', async () => {
     fetcher.mockResolvedValueOnce(json({ ...preview, kind: 'PROJECT_SUMMARY' }))
     await expect(coreDataClient.reportPreview(projectId, 'PROJECT_SUMMARY')).rejects.toThrow(
@@ -272,7 +444,7 @@ describe('Core client request and strict response boundaries', () => {
     expect(fetcher).not.toHaveBeenCalled()
   })
   it('cancels a JSON response arriving after ownership invalidation before reading its body', async () => {
-    const response = json({ projectId, evaluation: null, criteria: [] })
+    const response = json({ projectId, evaluations: [], criteria: [] })
     if (!response.body) throw new Error('Test response requires a stream')
     const cancel = vi.spyOn(response.body, 'cancel')
     const read = vi.spyOn(response.body, 'getReader')
@@ -315,7 +487,7 @@ describe('Core client request and strict response boundaries', () => {
     await vi.waitFor(() => expect(delayed.read).toHaveBeenCalled())
     clearSensitiveDraftStorage()
     delayed.send(
-      new TextEncoder().encode(JSON.stringify({ projectId, evaluation: null, criteria: [] })),
+      new TextEncoder().encode(JSON.stringify({ projectId, evaluations: [], criteria: [] })),
     )
     await rejection
     expect(delayed.cancel).toHaveBeenCalledOnce()

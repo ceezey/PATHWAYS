@@ -35,6 +35,7 @@ import {
   canonicalIdentifierType,
   canonicalIdentifierValue,
 } from './beneficiaries.dto'
+import { canReadProgress, loadProgress } from './beneficiary-progress'
 
 type Tx = Prisma.TransactionClient
 
@@ -493,8 +494,27 @@ export class BeneficiariesService {
         })
         const hasMore = rows.length > query.limit
         const page = rows.slice(0, query.limit)
+        const progress = canReadProgress(actor)
+          ? await loadProgress(
+              tx,
+              actor,
+              scopedProjectId,
+              page.flatMap((row) =>
+                row.beneficiaryProjectEnrollment_beneficiary.map((enrollment) => enrollment.id),
+              ),
+            )
+          : null
         return {
-          items: page.map((row) => this.mapBeneficiary(row, scopedProjectId)),
+          items: page.map((row) => ({
+            ...this.mapBeneficiary(row, scopedProjectId),
+            progress: progress
+              ? (progress.get(row.beneficiaryProjectEnrollment_beneficiary[0]?.id ?? '') ?? {
+                  restricted: false as const,
+                  lastParticipation: null,
+                  stage: null,
+                })
+              : { restricted: true as const },
+          })),
           nextCursor: hasMore ? page.at(-1)?.id : null,
         }
       },
@@ -672,7 +692,16 @@ export class BeneficiariesService {
       async (tx, actor) => {
         const project = await this.requireProject(tx, actor, projectId)
         const row = await this.requireBeneficiary(tx, actor, project.id, beneficiaryId)
-        return this.mapBeneficiary(row, project.id)
+        const enrollmentId = row.beneficiaryProjectEnrollment_beneficiary[0]?.id
+        const progress =
+          canReadProgress(actor) && enrollmentId
+            ? ((await loadProgress(tx, actor, project.id, [enrollmentId])).get(enrollmentId) ?? {
+                restricted: false as const,
+                lastParticipation: null,
+                stage: null,
+              })
+            : { restricted: true as const }
+        return { ...this.mapBeneficiary(row, project.id), progress }
       },
     )
   }

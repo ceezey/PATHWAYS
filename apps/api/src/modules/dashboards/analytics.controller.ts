@@ -29,6 +29,13 @@ export class AnalyticsController {
     return this.service.descriptive(identity(request), query)
   }
 
+  @Get('descriptive/export/preview')
+  @Header('Cache-Control', 'private, no-store')
+  @RequirePermission('analytics.export')
+  exportPreview(@Req() request: AuthenticatedRequest, @Query() query: unknown) {
+    return this.service.exportPreview(identity(request), query)
+  }
+
   @Get('descriptive/export')
   @Header('Cache-Control', 'private, no-store')
   @RequirePermission('analytics.export')

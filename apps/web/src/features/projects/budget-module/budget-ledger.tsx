@@ -4,11 +4,11 @@ import { ChevronDown, ChevronRight, Info, Receipt } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
-import { EmptyState, SectionCard, StatusBadge } from '@/components/pathways'
+import { EmptyState, ProofPreviewDialog, SectionCard, StatusBadge } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
-import { downloadCoreArtifact } from '@/lib/services/core-feature-client'
+import { fetchCoreArtifact, saveCoreArtifact } from '@/lib/services/core-feature-client'
 
 import { formatCurrency, formatDate } from '../activity-utils'
 import { projectLevelKey } from './budget-math'
@@ -49,6 +49,7 @@ export const BudgetLedger = ({
     principalHasAtomicPermission(profile, permission)
   const me = profile?.userId ?? ''
   const [open, setOpen] = useState<string | null>(hashedExpenseId)
+  const [preview, setPreview] = useState<Expense | null>(null)
   const [review, setReview] = useState<{ expense: Expense; action: ReviewAction } | null>(null)
 
   const budgetOf = (expense: Expense) => module.budgets.find((b) => b.id === expense.budgetRecordId)
@@ -85,17 +86,6 @@ export const BudgetLedger = ({
     const step = stepFor(expense)
     if (step) setReview({ expense, action: step })
   }, [module.expenses])
-  const download = async (expense: Expense) => {
-    try {
-      await downloadCoreArtifact(
-        `/projects/${projectId}/finance/expenses/${expense.id}/receipt`,
-        `receipt-${expense.receiptEvidenceId}.pdf`,
-      )
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Receipt download unavailable.')
-    }
-  }
-
   return (
     <SectionCard
       actions={
@@ -197,8 +187,8 @@ export const BudgetLedger = ({
                     </div>
                     {expense.receiptEvidenceId ? (
                       can('evidence.read') ? (
-                        <Button onClick={() => void download(expense)} size="sm" variant="outline">
-                          Download private receipt
+                        <Button onClick={() => setPreview(expense)} size="sm" variant="outline">
+                          Preview private receipt
                         </Button>
                       ) : (
                         <p className="text-muted-foreground">Receipt attached.</p>
@@ -215,6 +205,18 @@ export const BudgetLedger = ({
           })}
         </ul>
       )}
+      <ProofPreviewDialog
+        load={() =>
+          fetchCoreArtifact(
+            `/projects/${projectId}/finance/expenses/${preview?.id}/receipt`,
+            `receipt-${preview?.receiptEvidenceId}.pdf`,
+          )
+        }
+        onOpenChange={(open) => !open && setPreview(null)}
+        open={preview !== null}
+        save={saveCoreArtifact}
+        title="Private receipt"
+      />
       <ExpenseReviewDrawer
         action={review?.action ?? null}
         expense={review?.expense ?? null}

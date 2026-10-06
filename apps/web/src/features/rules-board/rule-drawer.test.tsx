@@ -99,7 +99,8 @@ describe('RuleDrawer', () => {
       target: { value: 'ACTIVITY_OVERDUE_COUNT' },
     })
     expect((screen.getByLabelText('Unit') as HTMLInputElement).value).toBe('count')
-    expect((screen.getByLabelText('Rule Category') as HTMLSelectElement).disabled).toBe(true)
+    expect(screen.getByTestId('rule-category').textContent).toBe('Delivery')
+    expect(screen.queryByLabelText('Rule Category')).toBeNull()
   })
   it('keeps scopes with an available metric enabled', () => {
     renderDrawer()

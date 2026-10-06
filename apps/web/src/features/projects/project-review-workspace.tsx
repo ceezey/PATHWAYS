@@ -8,9 +8,9 @@ import { AuditMetadataCard, EvidenceAttachmentsCard } from './evidence-panels'
 import { LiveEvaluationWorkspace } from './live-evaluation-workspace'
 import { ProjectRulesPanel } from './project-rules-panel'
 
-import { Eye, FileText, Loader2, Plus, Save } from 'lucide-react'
+import { FileText, Plus, Save } from 'lucide-react'
 import Link from 'next/link'
-import { type ReactNode, useEffect, useRef, useState } from 'react'
+import { type ReactNode, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 
 import { PageHeader } from '@/components/layout/page-header'
@@ -32,7 +32,7 @@ import { useSensitiveDraftOwner } from '@/lib/auth/sensitive-drafts'
 import { formatCappedPercent } from '@/lib/percent'
 import { canAccessProjectForRole } from '@/lib/rbac/data-scope'
 import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
-import { PathwaysClientError, pathwaysClient } from '@/lib/services/pathways-client'
+import { pathwaysClient } from '@/lib/services/pathways-client'
 import { privateProofClient } from '@/lib/services/private-proof-client'
 import type {
   ActivitySummary,
@@ -42,6 +42,7 @@ import type {
   ProjectDetail,
   ProjectIndicator,
 } from '@/types/pathways'
+import { PrivateProofPreview } from './private-proof-preview'
 
 import { formatDate } from './activity-utils'
 import { addIndicatorSchema } from './project-review-utils'
@@ -499,12 +500,7 @@ const EvidenceSummaryCard = ({ activities }: { activities: EvidenceActivitySumma
   </SectionCard>
 )
 
-/**
- * Server-authorized download only. Per the approved private inspection Change Record
- * (docs/cr-pathways-private-activity-proof-inspection.md), no inline preview or blob cache is
- * permitted: the object URL exists only long enough to trigger the attachment download and is
- * revoked immediately after.
- */
+/** Preview then optional download through the private inspection route (CR section 6). */
 const EvidenceDownloadControl = ({
   activityId,
   eligible,
@@ -529,15 +525,6 @@ const EvidenceDownloadControl = ({
       profile?.roles[0] === 'MONITORING_AND_EVALUATION_OFFICER' &&
       principalHasAtomicPermission(profile, 'evidence.read'),
   )
-  const [busy, setBusy] = useState(false)
-  const [notice, setNotice] = useState('')
-  const mounted = useRef(true)
-  useEffect(() => {
-    mounted.current = true
-    return () => {
-      mounted.current = false
-    }
-  }, [])
 
   if (!owner) {
     return (
@@ -547,67 +534,18 @@ const EvidenceDownloadControl = ({
     )
   }
 
-  const download = async () => {
-    if (busy || !owner.isCurrent()) return
-    setBusy(true)
-    setNotice('')
-    const controller = new AbortController()
-    try {
-      const context = await privateProofClient.context(projectId, activityId, updateId)
-      if (!owner.isCurrent()) return
-      const blob = await privateProofClient.inspect(
-        projectId,
-        context,
-        evidenceId,
-        controller.signal,
-      )
-      if (!owner.isCurrent()) return
-      // One explicit user-requested attachment; never render inline or retain the URL.
-      const url = URL.createObjectURL(blob)
-      try {
-        const anchor = document.createElement('a')
-        anchor.href = url
-        anchor.download = 'activity-proof.bin'
-        anchor.click()
-      } finally {
-        URL.revokeObjectURL(url)
-      }
-    } catch (error) {
-      if (!owner.isCurrent()) return
-      setNotice(
-        error instanceof PathwaysClientError
-          ? error.message
-          : 'Private inspection is unavailable. Reload after checking your access.',
-      )
-    } finally {
-      if (mounted.current && owner.isCurrent()) setBusy(false)
-    }
-  }
-
   return (
-    <div className="flex flex-col items-end gap-1">
-      <Button
-        aria-label="Download for review"
-        className="gap-2"
-        disabled={busy}
-        onClick={() => void download()}
-        size="sm"
-        type="button"
-        variant="outline"
-      >
-        {busy ? (
-          <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-        ) : (
-          <Eye className="h-4 w-4" aria-hidden="true" />
-        )}
-        View
-      </Button>
-      {notice ? (
-        <output aria-live="polite" className="max-w-xs text-right text-xs text-destructive">
-          {notice}
-        </output>
-      ) : null}
-    </div>
+    <PrivateProofPreview
+      ariaLabel="Preview for review"
+      fetchProof={async (signal) => {
+        const context = await privateProofClient.context(projectId, activityId, updateId)
+        if (!owner.isCurrent()) throw new Error('Proof access changed.')
+        return privateProofClient.inspect(projectId, context, evidenceId, signal)
+      }}
+      isCurrent={owner.isCurrent}
+      label="Preview"
+      title="Activity proof"
+    />
   )
 }
 

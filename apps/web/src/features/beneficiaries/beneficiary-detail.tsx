@@ -61,6 +61,7 @@ import {
   formatDate,
   progressionRate,
   projectTitle,
+  resolveJourneySummary,
   stageForActivity,
   stageTypeTone,
 } from './beneficiary-utils'
@@ -177,24 +178,44 @@ export const BeneficiaryDetail = ({
     profile,
   )
 
-  const currentStage = useMemo(
-    () => deriveCurrentStage(participation, stages, activities),
-    [activities, participation, stages],
+  const summary = useMemo(
+    () =>
+      resolveJourneySummary(
+        beneficiary.progress,
+        stages,
+        deriveCurrentStage(participation, stages, activities),
+        progressionRate(participation, stages, activities),
+      ),
+    [activities, beneficiary.progress, participation, stages],
   )
-  const progress = useMemo(
-    () => progressionRate(participation, stages, activities),
-    [activities, participation, stages],
-  )
+  const currentStage = summary.stage
+  const progress = summary.percent
   const orderedStages = useMemo(
     () => stages.slice().sort((first, second) => first.order - second.order),
     [stages],
   )
+  const reachedStageIds = useMemo(
+    () =>
+      new Set(
+        participation.map((record) => stageForActivity(record.activityId, stages, activities)?.id),
+      ),
+    [activities, participation, stages],
+  )
+  // A branch is off this person's path when they have no events on it but do on a sibling branch.
+  const offPath = (stage: JourneyStageConfig) =>
+    Boolean(stage.parentStageId) &&
+    !reachedStageIds.has(stage.id) &&
+    stages.some(
+      (sibling) => sibling.parentStageId === stage.parentStageId && reachedStageIds.has(sibling.id),
+    )
   const stageState = (stage: JourneyStageConfig) =>
-    !currentStage || stage.order === currentStage.order
-      ? 'current'
-      : stage.order < currentStage.order
-        ? 'done'
-        : 'upcoming'
+    offPath(stage)
+      ? 'off-path'
+      : !currentStage || stage.order === currentStage.order
+        ? 'current'
+        : stage.order < currentStage.order
+          ? 'done'
+          : 'upcoming'
   const stageDisplayCode = (stage: JourneyStageConfig) => {
     const index = orderedStages.findIndex((candidate) => candidate.id === stage.id)
     return index >= 0 ? `J${index + 1}` : stage.code

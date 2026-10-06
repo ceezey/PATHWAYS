@@ -11,5 +11,6 @@ import { ProjectsService } from './projects.service'
   imports: [DashboardsModule, IndicatorsModule],
   controllers: [ProjectsController, ProjectOverviewMetricsController],
   providers: [ProjectsService, ProjectOverviewMetricsService],
+  exports: [ProjectOverviewMetricsService],
 })
 export class ProjectsModule {}

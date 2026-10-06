@@ -24,6 +24,6 @@ import { RoleOverviewService } from './role-overview.service'
     RoleOverviewService,
     RulesHumanService,
   ],
-  exports: [DashboardsService],
+  exports: [DashboardsService, RulesHumanService],
 })
 export class DashboardsModule {}

@@ -2,12 +2,14 @@ import { Injectable, type OnModuleDestroy } from '@nestjs/common'
 import { readApiEnv } from '@pathways/config'
 import type { Browser, HTTPRequest } from 'puppeteer-core'
 import { REPORT_MAX_BYTES, validatedReportRows } from '../reports/report-artifact'
+import type { ProjectSections } from '../reports/report-project-status'
 
 export type PrintSnapshot = {
   title: string
   kind: string
   columns: string[]
   rows: string[][]
+  sections?: ProjectSections
   generatedAt: string
   unavailableReasons: string[]
 }

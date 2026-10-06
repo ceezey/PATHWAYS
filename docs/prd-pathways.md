@@ -1005,7 +1005,7 @@ Not applicable: indicators have active and archived flags only; no approval life
 - Extension request sections (own requests for the Project Officer, a verify queue for the M&E Officer, approval rows for the Project Manager) and an escalated-alerts queue on the Program and Grant Manager portfolio, falling back to open alerts when nothing is escalated (cr-pathways-activity-extension-request, cr-pathways-escalated-alerts).
 - Grant Manager is read-only on the portfolio view. Row actions navigate to Alerts or the project page; no decision buttons. The activity review sheet opens only from the Project Officer, M&E Officer and Project Manager layouts.
 **Bounds (out):**
-- Evaluation approval rows on the role dashboards: deferred (deferred-features register); the Project Manager "Pending your approval" list shows expenses and extension requests because no evaluation approval step exists.
+- Evaluation approval rows on the role dashboards: deferred (deferred-features register); the Project Manager "Pending your approval" list shows expenses and extension requests only. The evaluation review and sign-off step itself exists on the project's Monitor & Evaluate tab (cr-pathways-evaluation-write-path); it is not yet surfaced as a dashboard queue.
 - SADDD for an open or undefined project period: omitted, not estimated (analytics.service.ts precondition)
 - Drilldown to beneficiary records for Program Manager and Grant Manager: aggregate-only roles (rfc-pathways-auth-rbac-isolation)
 - Server-stored or shared dashboard pins and free-form dashboard widgets: not built; pins are browser-only (cr-pathways-f8-f9-f12-gate-closure)
@@ -1149,7 +1149,7 @@ flowchart LR
 | Permission | `analytics.export` |
 | Trigger | An API client or staff member requests the aggregate export |
 | Preconditions | The user holds `analytics.export` and `analytics.descriptive.read` for the same project |
-| Main flow | 1. The caller requests the export (route `/analytics/descriptive/export`). 2. The system applies the same role, period and suppression rules as the view. 3. The system returns the aggregate rows. |
+| Main flow | 1. The caller requests the export (route `/analytics/descriptive/export`). 2. The system applies the same role, period and suppression rules as the view. 3. The system returns the aggregate rows. The interface first shows the first 50 rows from `/analytics/descriptive/export/preview` (same permission and suppression; audited as `ANALYTICS_DESCRIPTIVE_VIEWED` with source `EXPORT_PREVIEW`) and downloads only on confirmation. |
 | Alternate / exception | Permission denied: 403 before any query. Open period for a role without `assessments.detail.read`: 400 and no audit row. Retrieval fault: 503. The interface button is visible. |
 | Postconditions | One `ANALYTICS_DESCRIPTIVE_EXPORTED` audit row records contract version, view and row count |
 | Gates | G-F9-4, G-F9-6, G-F9-7 |
@@ -1377,6 +1377,7 @@ stateDiagram-v2
 | G-F12-3 | Export writes an audit event without report content | Met | QAD-T72 |
 | G-F12-4 | Every report type exports as CSV, XLS, XLSX and PDF | Met | QAD-T73, QAD-T111, QAD-T119, QAD-T120 |
 | G-F12-5 | Descriptive views refuse callers without `analytics.descriptive.read` and exports refuse callers without `analytics.export` | Met | QAD-A18 |
+| G-F12-6 | An evaluation can be created, scored (computed or manual with a required note), submitted, and reviewed and signed off by a distinct Project Manager, feeding the Evaluation report | Met locally: migration 0064 applied and runtime verified on a local disposable replay (evaluations suite); not yet applied to any hosted database | cr-pathways-evaluation-write-path |
 
 #### Use Cases
 

@@ -260,7 +260,7 @@ SELECT pg_temp.reject($q$UPDATE pathways.project_evaluations SET status='REVIEWE
 
 UPDATE pathways.project_evaluations SET status='REVIEWED',reviewed_by_id=pg_temp.u(12),reviewed_at=now(),review_feedback='Reviewed synthetic evidence' WHERE id=pg_temp.u(611);
 
-SELECT pg_temp.reject($q$UPDATE pathways.project_evaluations SET status='SIGNED_OFF',signed_off_by_id=pg_temp.u(12),signed_off_at=now() WHERE id=pg_temp.u(611)$q$,'23514','Evaluation reviewer cannot sign off');
+SELECT pg_temp.reject($q$UPDATE pathways.project_evaluations SET status='SIGNED_OFF',signed_off_by_id=pg_temp.u(11),signed_off_at=now() WHERE id=pg_temp.u(611)$q$,'23514','Evaluator cannot sign off');
 
 UPDATE pathways.project_evaluations SET status='SIGNED_OFF',signed_off_by_id=pg_temp.u(13),signed_off_at=now() WHERE id=pg_temp.u(611);
 

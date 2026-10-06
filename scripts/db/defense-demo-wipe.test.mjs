@@ -4,6 +4,8 @@ import path from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 
+import { parseWipeTables } from './defense-snapshot-parse.mjs'
+
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..')
 const sql = readFileSync(
   path.join(root, 'infra/supabase/phase6/hosted-defense-demo-wipe.sql'),
@@ -23,12 +25,7 @@ const keep = [
 ]
 const code = sql.replace(/--.*$/gm, '')
 const statements = code.match(/\bTRUNCATE\s+TABLE\b[^;]*;/gi) ?? []
-const truncated = (statements[0] ?? '')
-  .replace(/^TRUNCATE\s+TABLE/i, '')
-  .replace(/RESTART\s+IDENTITY\s*;$/i, '')
-  .split(',')
-  .map((t) => t.trim())
-  .filter(Boolean)
+const truncated = parseWipeTables(sql)
 
 const migrations = path.join(root, 'apps/api/prisma/migrations')
 const created = new Set()

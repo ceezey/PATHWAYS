@@ -58,7 +58,8 @@ vi.mock('@/lib/services/core-feature-client', () => ({
     reviewExpense: (...args: unknown[]) => state.review(...args),
     replaceBudget: (...args: unknown[]) => state.replace(...args),
   },
-  downloadCoreArtifact: vi.fn(),
+  fetchCoreArtifact: vi.fn(),
+  saveCoreArtifact: vi.fn(),
 }))
 vi.mock('@/providers/authorized-query-provider', () => ({
   useAuthorizedRead: (key: string) => ({

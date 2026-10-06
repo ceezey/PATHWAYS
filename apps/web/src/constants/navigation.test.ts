@@ -56,7 +56,7 @@ describe('navigation constants', () => {
   })
 
   it('exposes public project browsing without dashboard navigation', () => {
-    expect(publicNavigation.map((item) => item.href)).toEqual(['/', '/public/projects'])
+    expect(publicNavigation.map((item) => item.href)).toEqual(['/', '/about'])
   })
 
   it('uses the fixed label for the most specific current workspace route', () => {

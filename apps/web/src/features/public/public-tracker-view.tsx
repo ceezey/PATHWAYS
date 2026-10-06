@@ -1,7 +1,6 @@
 import { ArrowLeft, ArrowRight, CalendarDays, MapPin, ShieldCheck, Wrench } from 'lucide-react'
 import Link from 'next/link'
 
-import { StatusBadge } from '@/components/pathways/status-badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardTitle } from '@/components/ui/card'
 import type { PublicProjectSnapshot } from '@/lib/services/public-projects'
@@ -16,13 +15,6 @@ const period = (project: Snapshot) => {
   const end = day(project.endDate)
   return start && end ? `${start} to ${end}` : start ? `From ${start}` : notSpecified
 }
-const latest = (projects: Snapshot[]) =>
-  projects.reduce<string | null>(
-    (value, project) =>
-      project.publishedAt && (!value || project.publishedAt > value) ? project.publishedAt : value,
-    null,
-  )
-
 const PublicNotice = ({ preview }: { preview?: boolean }) => (
   <section className="border-b border-info/25 bg-info-subtle">
     <div className="mx-auto flex w-full max-w-6xl items-start gap-3 px-4 py-3 text-sm text-info sm:items-center sm:px-6">
@@ -104,72 +96,20 @@ export const PublicTrackerCards = ({ projects }: { projects: Snapshot[] }) =>
     </ul>
   )
 
-export const PublicTrackerHome = ({ projects }: { projects: Snapshot[] }) => {
-  const sectors = new Set(projects.map((project) => project.sector).filter(Boolean)).size
-  return (
-    <div className="bg-surface-subtle">
-      <section className="border-b border-border bg-background">
-        <div className="mx-auto grid w-full max-w-6xl gap-8 px-4 py-10 sm:px-6 sm:py-14 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
-          <div className="space-y-5">
-            <StatusBadge tone="success">Approved public project information</StatusBadge>
-            <h1 className="text-4xl font-semibold tracking-tight text-foreground sm:text-5xl">
-              PATHWAYS Public Projects
-            </h1>
-            <p className="max-w-2xl text-base leading-7 text-muted-foreground">
-              Read approved summaries of HDO projects. Each page is reviewed and approved by a
-              separate staff member before it is published here.
-            </p>
-            <Button asChild>
-              <Link href="/public/projects">
-                View projects
-                <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
-              </Link>
-            </Button>
-          </div>
-          <dl className="grid gap-3 rounded-lg border border-border bg-surface-subtle p-5 sm:grid-cols-3 lg:grid-cols-1">
-            {[
-              ['Published projects', String(projects.length)],
-              ['Sectors', String(sectors)],
-              ['Last published', day(latest(projects)) ?? 'Not yet'],
-            ].map(([label, value]) => (
-              <div key={label} className="rounded-md bg-card p-4">
-                <dt className="text-xs font-semibold uppercase text-primary">{label}</dt>
-                <dd className="mt-1 text-2xl font-semibold tabular-nums text-foreground">
-                  {value}
-                </dd>
-              </div>
-            ))}
-          </dl>
-        </div>
-      </section>
-      <section className="mx-auto w-full max-w-6xl space-y-6 px-4 py-10 sm:px-6 sm:py-14">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <h2 className="text-2xl font-semibold tracking-tight text-foreground">
-              Public projects
-            </h2>
-            <p className="text-base leading-6 text-muted-foreground">
-              Cards show approved summaries only.
-            </p>
-          </div>
-          <Button asChild variant="outline">
-            <Link href="/public/projects">Browse all</Link>
-          </Button>
-        </div>
-        <PublicTrackerCards projects={projects.slice(0, 4)} />
-      </section>
-    </div>
-  )
-}
-
-export const PublicTrackerList = ({ projects }: { projects: Snapshot[] }) => (
+export const PublicTrackerList = ({
+  projects,
+  title = 'Public projects',
+  description = 'These pages share approved, non-sensitive project information for public review.',
+}: {
+  projects: Snapshot[]
+  title?: string
+  description?: string
+}) => (
   <div className="bg-surface-subtle">
     <section className="border-b border-border bg-background">
       <div className="mx-auto w-full max-w-6xl space-y-3 px-4 py-10 sm:px-6 sm:py-14">
-        <h1 className="text-4xl font-semibold tracking-tight text-foreground">Public projects</h1>
-        <p className="max-w-3xl text-base leading-7 text-muted-foreground">
-          These pages share approved, non-sensitive project information for public review.
-        </p>
+        <h1 className="text-4xl font-semibold tracking-tight text-foreground">{title}</h1>
+        <p className="max-w-3xl text-base leading-7 text-muted-foreground">{description}</p>
       </div>
     </section>
     <section className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6 sm:py-14">
