@@ -3,6 +3,7 @@ import { addDaysIso, demoProjects } from './local-demo-data'
 import {
   type EnrollmentFact,
   journeyTracks,
+  pendingSessions,
   planSessions,
   planTests,
   plannedFacts,
@@ -20,6 +21,26 @@ const stageNotes = [
   'The household asked for a follow-up visit after the session.',
   'Strong participation; the member offered to help other learners.',
 ]
+
+const firstRun = new WeakMap<DemoContext, Map<string, Map<string, string>>>()
+
+/** Latest event per enrollment before this stage first wrote anything, so a retry reproduces the same plan. */
+async function firstRunLatest(ctx: DemoContext, projectId: string) {
+  const byProject = firstRun.get(ctx) ?? new Map<string, Map<string, string>>()
+  firstRun.set(ctx, byProject)
+  const known = byProject.get(projectId)
+  if (known) return known
+  const rows = await ctx.owner.beneficiaryJourneyEvent.groupBy({
+    by: ['enrollmentId'],
+    where: { projectId },
+    _max: { eventDate: true },
+  })
+  const latest = new Map(
+    rows.map((r) => [r.enrollmentId, r._max.eventDate ? iso(r._max.eventDate) : '']),
+  )
+  byProject.set(projectId, latest)
+  return latest
+}
 
 /** Cohort members keep their registration index so rosters and sessions agree; imports follow them. */
 const cohortOrdinal = (project: Project, code: string, position: number) => {
@@ -62,15 +83,7 @@ async function recordProject(ctx: DemoContext, project: Project) {
       beneficiary: { select: { code: true } },
     },
   })
-  const latest = new Map(
-    (
-      await ctx.owner.beneficiaryJourneyEvent.groupBy({
-        by: ['enrollmentId'],
-        where: { projectId },
-        _max: { eventDate: true },
-      })
-    ).map((row) => [row.enrollmentId, row._max.eventDate ? iso(row._max.eventDate) : '']),
-  )
+  const latest = await firstRunLatest(ctx, projectId)
   const taken = new Set(
     (
       await ctx.owner.beneficiaryActivityParticipation.findMany({
@@ -90,9 +103,11 @@ async function recordProject(ctx: DemoContext, project: Project) {
       after: latest.get(enrollment.id) || undefined,
       ...plannedFacts(project.key, code, ctx.today),
     }
-    const sessions = planSessions(project.key, who, ctx.today)
-      .filter((s) => !taken.has(`${enrollment.id}|${activityIds[s.track]}|${s.date}`))
-      .sort((a, b) => a.date.localeCompare(b.date))
+    const sessions = pendingSessions(
+      planSessions(project.key, who, ctx.today),
+      taken,
+      (s) => `${enrollment.id}|${activityIds[s.track]}|${s.date}`,
+    ).sort((a, b) => a.date.localeCompare(b.date))
     for (const session of sessions) {
       const formId = formIds[session.track]
       const saved = (await step(`session ${code} ${session.date}`, () =>
@@ -158,9 +173,11 @@ async function recordProject(ctx: DemoContext, project: Project) {
 
 /** Attendance for every project that defines journey tracks, projects in parallel. */
 export async function stageJourneyRecords(ctx: DemoContext) {
-  await Promise.all(
+  const runs = await Promise.allSettled(
     demoProjects.filter((p) => journeyTracks[p.key]).map((project) => recordProject(ctx, project)),
   )
+  const failed = runs.filter((run): run is PromiseRejectedResult => run.status === 'rejected')
+  if (failed.length) throw new Error(failed.map((run) => String(run.reason)).join('; '))
 }
 
 /**
@@ -177,7 +194,14 @@ export async function stageAssessments(ctx: DemoContext) {
     const post = tracks.findIndex((track) => track.assess === 'post')
     if (pre < 0) continue
     const projectId = projectOf(ctx, project.key)
-    if ((await ctx.owner.assessmentResult.count({ where: { projectId } })) > 0) continue
+    const recorded = new Set(
+      (
+        await ctx.owner.assessmentResult.findMany({
+          where: { projectId },
+          select: { enrollmentId: true, type: true },
+        })
+      ).map((r) => `${r.enrollmentId}|${r.type}`),
+    )
     const activities = {
       pre: await activityIdFor(ctx, project, tracks[pre].activity),
       post: post >= 0 ? await activityIdFor(ctx, project, tracks[post].activity) : null,
@@ -222,6 +246,7 @@ export async function stageAssessments(ctx: DemoContext) {
         paired += 1
       }
       for (const test of planned) {
+        if (recorded.has(`${enrollment.id}|${test.type}`)) continue
         const isPre = test.type === 'PRE_TEST'
         const source = isPre ? preRows[0] : postRows ? postRows[0] : preRows[preRows.length - 1]
         await ctx.owner.assessmentResult.create({

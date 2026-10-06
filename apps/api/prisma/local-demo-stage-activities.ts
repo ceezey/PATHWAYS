@@ -8,11 +8,15 @@ import {
   demoActivities,
   demoProjects,
 } from './local-demo-data'
-import { sessionRoster } from './local-demo-journeys'
+import { plannedReach, sessionRoster } from './local-demo-journeys'
 import type { DemoContext } from './local-demo-seed'
 import { asUser, projectOf, sha256, textPdf } from './local-demo-util'
 
 const photoDir = path.join(__dirname, 'assets', 'demo-photos')
+
+/** Reach as the seeded attendance shows it; activities without attendance keep their planned figure. */
+export const reportedReach = (project: DemoProject, activity: DemoActivity, today: string) =>
+  plannedReach(project.key, activity.key, today) ?? activity.reached
 
 /** The seeded field photo that matches the project and activity. */
 export function proofPhotoName(project: DemoProject, activity: DemoActivity) {
@@ -33,15 +37,16 @@ export function attendanceSheetLines(project: DemoProject, activity: DemoActivit
   const roster = sessionRoster(project.key, activity.key, today)
   const date = roster?.date ?? addDaysIso(today, Math.min(activity.endOffset, -1))
   const venue = `${roster?.people[0]?.barangay ?? project.barangays[0]}, ${project.cityMunicipality}, ${project.province}`
-  const people = (roster?.people ?? []).slice(0, 14)
+  const everyone = roster?.people ?? []
+  const people = everyone.slice(0, 14)
   return [
     `Project: ${project.title}`,
     `Date: ${date}`,
     `Venue: ${venue}`,
     'Facilitator: Project Officer, assigned to the activity',
     people.length > 0
-      ? `Participants present (${people.length}):`
-      : `Participants: ${activity.reached ?? activity.target} signed the list on site.`,
+      ? `Participants present (${everyone.length}), first ${people.length} listed:`
+      : `Participants: ${reportedReach(project, activity, today) ?? activity.target} signed the list on site.`,
     ...people.map(
       (p, i) =>
         `${i + 1}. ${p.lastName}, ${p.firstName} ${p.middleName.charAt(0)}.  ${p.code}  signed`,
@@ -74,12 +79,7 @@ async function putSignedUpload(
 
 type ProofFile = { fileName: string; contentType: 'image/jpeg' | 'application/pdf'; bytes: Buffer }
 
-function proofFiles(
-  project: DemoProject,
-  activity: DemoActivity,
-  today: string,
-  _seed: number,
-): ProofFile[] {
+function proofFiles(project: DemoProject, activity: DemoActivity, today: string): ProofFile[] {
   return [
     {
       fileName: `${activity.key}-field-photo.jpg`,
@@ -106,13 +106,13 @@ async function submitProof(
   note: string,
   seed: number,
 ) {
-  const files = proofFiles(project, activity, ctx.today, seed)
+  const files = proofFiles(project, activity, ctx.today)
   const clientUpdateId = ctx.stable(`proof:${code}:${progress}`)
   const reserved = (await ctx.services.activities.reserveProof(officer, projectId, activityId, {
     clientUpdateId,
     progressPercent: progress,
     note,
-    beneficiariesReachedThisSession: activity.reached,
+    beneficiariesReachedThisSession: reportedReach(project, activity, ctx.today),
     files: files.map((file) => ({
       fileName: file.fileName,
       contentType: file.contentType,

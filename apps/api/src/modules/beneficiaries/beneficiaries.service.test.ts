@@ -10,6 +10,7 @@ import type { PrismaService } from '@app/prisma/prisma.service'
 import { hasAtomicPermission } from '../auth/authorization-policy'
 import type { ApplicationIdentity } from '../auth/developer-access'
 import { BeneficiariesService } from './beneficiaries.service'
+import { canReadProgress, progressPercent } from './beneficiary-progress'
 
 const readState = vi.hoisted(() => ({ tx: undefined as unknown }))
 
@@ -749,7 +750,8 @@ describe('F3 scoped read and denial gates', () => {
         stage_code: 'LIFESKILLS',
         stage_name: 'Life skills and leadership sessions',
         reached: 1,
-        total_stages: 4,
+        at_terminal: false,
+        path_length: 4,
       },
     ])
     readState.tx = { ...readTx, $queryRaw: raw }
@@ -765,7 +767,7 @@ describe('F3 scoped read and denial gates', () => {
       stage: {
         code: 'LIFESKILLS',
         name: 'Life skills and leadership sessions',
-        progressPercent: 25,
+        progressPercent: 50,
       },
     })
   })
@@ -782,12 +784,6 @@ describe('F3 scoped read and denial gates', () => {
     readState.tx = { ...readTx, $queryRaw: raw }
     const [item] = (await service.list(actor, projectId, query)).items
     expect(item.progress).toEqual({ restricted: true })
-    const aggregate = {
-      ...actor,
-      roles: ['PROGRAM_MANAGER'],
-      permissions: [...actor.permissions, 'journeys.read'],
-    }
-    await service.list(aggregate, projectId, query).catch(() => undefined)
     expect(raw).not.toHaveBeenCalled()
   })
 
@@ -801,4 +797,24 @@ describe('F3 scoped read and denial gates', () => {
       expect(readTx.beneficiary.findFirst).not.toHaveBeenCalled()
     },
   )
+})
+
+describe('directory progress rules', () => {
+  const grant = (roles: string[]) => ({ ...actor, roles, permissions: ['journeys.read'] })
+
+  it('refuses aggregate-only roles even with a claimed journeys.read grant', () => {
+    expect(canReadProgress(grant(['PROGRAM_MANAGER']))).toBe(false)
+    expect(canReadProgress(grant(['GRANT_MANAGER']))).toBe(false)
+  })
+
+  it('measures progress along the person own path and caps a terminal stage at 100', () => {
+    // Path: entry, core, one branch, final = 4 steps.
+    expect(progressPercent({ reached: 0, at_terminal: false, path_length: 4 })).toBe(25)
+    expect(progressPercent({ reached: 1, at_terminal: false, path_length: 4 })).toBe(50)
+    expect(progressPercent({ reached: 2, at_terminal: false, path_length: 4 })).toBe(75)
+    expect(progressPercent({ reached: 3, at_terminal: false, path_length: 4 })).toBe(100)
+    expect(progressPercent({ reached: 1, at_terminal: true, path_length: 4 })).toBe(100)
+    expect(progressPercent({ reached: 9, at_terminal: false, path_length: 4 })).toBe(100)
+    expect(progressPercent({ reached: 0, at_terminal: false, path_length: 0 })).toBe(0)
+  })
 })

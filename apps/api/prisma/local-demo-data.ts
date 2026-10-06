@@ -386,7 +386,7 @@ export const demoActivities: Record<ProjectKey, DemoActivity[]> = {
         'Weekly sessions on small enterprise planning and savings for girls who chose the entrepreneurship track.',
       startOffset: -30,
       endOffset: 30,
-      target: 70,
+      target: 80,
       outcome: 'PROGRESS_VERIFIED',
       officer: 'liza',
       progress: 45,
@@ -634,7 +634,7 @@ export const demoActivities: Record<ProjectKey, DemoActivity[]> = {
       description: 'Review classes before the accreditation and equivalency assessment.',
       startOffset: -60,
       endOffset: 10,
-      target: 26,
+      target: 30,
       outcome: 'PROGRESS_VERIFIED',
       officer: 'liza',
       progress: 85,
@@ -993,7 +993,6 @@ export type PlannedPerson = {
   enrollmentDate: string
 }
 
-/** Deterministic cohort for one project: same input, same people. */
 /** Day offset from the project start: three days apart, spread evenly when that would pass the cap. */
 function enrollmentOffset(index: number, cohort: DemoCohort, daysRunning: number) {
   const cap = Math.max(
@@ -1005,6 +1004,7 @@ function enrollmentOffset(index: number, cohort: DemoCohort, daysRunning: number
   return 20 + Math.floor((index * (cap - 20)) / Math.max(1, cohort.count - 1))
 }
 
+/** Deterministic cohort for one project: same input, same people. */
 export function planCohort(
   project: DemoProject,
   today: string,

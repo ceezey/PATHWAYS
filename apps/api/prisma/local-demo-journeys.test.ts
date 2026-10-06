@@ -13,13 +13,16 @@ import {
   activityWindow,
   branchOf,
   journeyTracks,
+  pendingSessions,
   planSessions,
   planTests,
   plannedFacts,
+  plannedReach,
   projectStartIso,
   sessionRoster,
 } from './local-demo-journeys'
 import { attendanceForms, journeyStages } from './local-demo-stage-forms'
+import { outcomes } from './local-demo-stage-outcomes'
 
 const today = '2026-10-06'
 const held = ['COMPLETED', 'COMPLETED_LATE', 'PROGRESS_VERIFIED', 'PENDING_REVIEW', 'RETURNED']
@@ -192,5 +195,42 @@ describe('journey records follow the product prerequisites', () => {
     expect(roster?.people.length).toBeGreaterThan(0)
     expect((roster?.people.length ?? 0) <= demoCohorts.ALS.count).toBe(true)
     expect(sessionRoster('ALS', 'mapping', today)).toBeNull()
+  })
+
+  it('skips stored sessions on a retry so nobody is rescheduled or moved back a stage', () => {
+    for (const key of keys)
+      for (const who of facts(key)) {
+        const planned = planSessions(key, who, today)
+        const stored = new Set(planned.map((s) => `${s.track}|${s.date}`))
+        expect(pendingSessions(planned, stored, (s) => `${s.track}|${s.date}`)).toEqual([])
+        // The same plan comes back for the same input, so a retry cannot reorder stages.
+        expect(planSessions(key, who, today)).toEqual(planned)
+      }
+  })
+
+  it('reports reach equal to the distinct people the seed records as attending', () => {
+    for (const key of keys)
+      for (const track of journeyTracks[key] ?? []) {
+        const reach = plannedReach(key, track.activity, today)
+        const people = facts(key).filter((who) =>
+          planSessions(key, who, today).some(
+            (s) =>
+              (journeyTracks[key] ?? [])[s.track].activity === track.activity &&
+              s.attendance !== 'ABSENT' &&
+              s.attendance !== 'EXCUSED',
+          ),
+        ).length
+        expect(reach, `${key}:${track.activity}`).toBe(people)
+        expect(reach ?? 0).toBeLessThanOrEqual(demoCohorts[key].count)
+        const target = demoActivities[key].find((a) => a.key === track.activity)?.target ?? 0
+        expect(reach ?? 0, `${key}:${track.activity} target`).toBeLessThanOrEqual(target)
+      }
+  })
+
+  it('lands every completion outcome that names a stage on a terminal stage', () => {
+    for (const outcome of outcomes.filter((o) => o.eventType === 'COMPLETION' && o.stage)) {
+      const stage = journeyStages[outcome.project]?.find((s) => s.code === outcome.stage)
+      expect(stage?.terminal, `${outcome.project}:${outcome.stage}`).toBe(true)
+    }
   })
 })

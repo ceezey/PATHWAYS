@@ -180,12 +180,12 @@ export function plannedFacts(project: ProjectKey, code: string, today: string) {
   }
 }
 
-/** The latest session of an attended activity and the cohort members the seed records at it. */
-export function sessionRoster(project: ProjectKey, activity: string, today: string) {
+/** Present or completed attendance rows of one activity across the planned cohort. */
+function attendanceRows(project: ProjectKey, activity: string, today: string) {
   const track = (journeyTracks[project] ?? []).findIndex((t) => t.activity === activity)
   const plan = demoProjects.find((p) => p.key === project)
   if (track < 0 || !plan) return null
-  const rows = planCohort(plan, today, projectStartIso(project, today)).flatMap((person, ordinal) =>
+  return planCohort(plan, today, projectStartIso(project, today)).flatMap((person, ordinal) =>
     planSessions(
       project,
       {
@@ -198,9 +198,29 @@ export function sessionRoster(project: ProjectKey, activity: string, today: stri
       .filter((s) => s.track === track && s.attendance !== 'ABSENT' && s.attendance !== 'EXCUSED')
       .map((s) => ({ date: s.date, person })),
   )
+}
+
+/** The latest session of an attended activity and the cohort members the seed records at it. */
+export function sessionRoster(project: ProjectKey, activity: string, today: string) {
+  const rows = attendanceRows(project, activity, today)
   const date = rows
-    .map((r) => r.date)
+    ?.map((r) => r.date)
     .sort()
     .pop()
-  return date ? { date, people: rows.filter((r) => r.date === date).map((r) => r.person) } : null
+  return rows && date
+    ? { date, people: rows.filter((r) => r.date === date).map((r) => r.person) }
+    : null
 }
+
+/** Distinct people the seed records as attending an activity, or null when it has no attendance. */
+export function plannedReach(project: ProjectKey, activity: string, today: string) {
+  const rows = attendanceRows(project, activity, today)
+  return rows ? new Set(rows.map((r) => r.person.code)).size : null
+}
+
+/** Sessions still to record: a retry skips sessions already stored and so never reschedules them. */
+export const pendingSessions = (
+  sessions: Session[],
+  stored: Set<string>,
+  key: (s: Session) => string,
+) => sessions.filter((s) => !stored.has(key(s)))
