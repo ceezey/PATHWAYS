@@ -280,10 +280,7 @@ type ActivityReadMetrics = {
   budgets: ReadonlyMap<string, string>
   reached: ReadonlyMap<string, number>
   /** Present only for viewers holding expenses.read; absent means not readable. */
-  logged: ReadonlyMap<
-    string,
-    { total: string; entries: number; pending: string; pendingEntries: number }
-  >
+  logged: ReadonlyMap<string, { total: string; entries: number }>
 }
 
 const emptyActivityReadMetrics: ActivityReadMetrics = {
@@ -393,8 +390,6 @@ function mapActivity(
     // Approved expenses only; null when the viewer cannot read expenses, never a fabricated 0.
     budgetLogged: metrics.logged.get(row.id)?.total ?? null,
     budgetLoggedEntries: metrics.logged.get(row.id)?.entries ?? null,
-    budgetPending: metrics.logged.get(row.id)?.pending ?? null,
-    budgetPendingEntries: metrics.logged.get(row.id)?.pendingEntries ?? null,
     overdueExplanations: row.activityOverdueExplanation_activity.map((explanation) => ({
       id: explanation.id,
       category: explanation.category,
@@ -808,10 +803,7 @@ export class ActivitiesService {
   ): Promise<ActivityReadMetrics> {
     const budgets = new Map<string, string>()
     const reached = new Map<string, number>()
-    const logged = new Map<
-      string,
-      { total: string; entries: number; pending: string; pendingEntries: number }
-    >()
+    const logged = new Map<string, { total: string; entries: number }>()
     if (activityIds.length === 0) return { budgets, reached, logged }
     if (hasAtomicPermission(actor.roles[0], actor.permissions, 'budgets.read')) {
       // Every live budget line for the activity, not just its envelope row, so the detail
@@ -846,28 +838,19 @@ export class ActivitiesService {
     // single-activity read calls this, so the loop is one aggregate query.
     if (hasAtomicPermission(actor.roles[0], actor.permissions, 'expenses.read')) {
       for (const activityId of activityIds) {
-        const scope = {
-          organizationId: actor.organizationId,
-          projectId,
-          budgetRecord: { organizationId: actor.organizationId, projectId, activityId },
-        } as const
         const row = await tx.budgetExpenseEntry.aggregate({
-          where: { ...scope, status: 'APPROVED' },
-          _sum: { amount: true },
-          _count: { _all: true },
-        })
-        // Submitted and verified money is committed but not yet spent; the ledger shows it
-        // the same way, so the activity reads the same totals as the budget tab.
-        const awaiting = await tx.budgetExpenseEntry.aggregate({
-          where: { ...scope, status: { in: ['PENDING', 'VERIFIED'] } },
+          where: {
+            organizationId: actor.organizationId,
+            projectId,
+            status: 'APPROVED',
+            budgetRecord: { organizationId: actor.organizationId, projectId, activityId },
+          },
           _sum: { amount: true },
           _count: { _all: true },
         })
         logged.set(activityId, {
           total: (row._sum.amount ?? new Prisma.Decimal(0)).toFixed(2),
           entries: row._count._all,
-          pending: (awaiting._sum.amount ?? new Prisma.Decimal(0)).toFixed(2),
-          pendingEntries: awaiting._count._all,
         })
       }
     }

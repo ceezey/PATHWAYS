@@ -179,6 +179,12 @@ export const ActivityDetailContent = ({
     }
   })
   const journeyStage = journeyStages.find((stage) => stage.id === activity.journeyStageId)
+  // Summed from the expenses listed below, so the card and the list cannot disagree.
+  const inReviewTotal = canReadExpenses
+    ? activityExpenses
+        .filter((entry) => entry.status === 'PENDING' || entry.status === 'VERIFIED')
+        .reduce((total, entry) => total + entry.amount, 0)
+    : null
 
   return (
     <div className="space-y-5 pb-1">
@@ -248,7 +254,11 @@ export const ActivityDetailContent = ({
       </PanelSection>
 
       <PanelSection id={`activity-budget-${activity.id}`} title="Activity budget">
-        <ActivityBudget activity={activity} canReadBudgets={canReadBudgets} />
+        <ActivityBudget
+          activity={activity}
+          canReadBudgets={canReadBudgets}
+          pending={inReviewTotal}
+        />
       </PanelSection>
 
       {canReadExpenses ? (

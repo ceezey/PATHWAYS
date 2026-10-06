@@ -188,9 +188,6 @@ export interface Activity {
   budgetLogged: number | null
   /** Approved expense entries behind `budgetLogged`; null when expenses are not readable. */
   budgetLoggedEntries?: number | null
-  /** Submitted and verified expenses not yet approved; null when expenses are not readable. */
-  budgetPending?: number | null
-  budgetPendingEntries?: number | null
   progress: number
 
   reviewedById?: string | null

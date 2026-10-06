@@ -144,11 +144,7 @@ describe('budget math', () => {
 
 describe('activityBudgetFigures', () => {
   it('reads allocated, spent, in-review and remaining as one consistent set', () => {
-    const figures = activityBudgetFigures({
-      budgetAllocation: 60000,
-      budgetLogged: 25800,
-      budgetPending: 9800,
-    })
+    const figures = activityBudgetFigures({ budgetAllocation: 60000, budgetLogged: 25800 }, 9800)
     expect(figures).toMatchObject({
       allocated: 60000,
       spent: 25800,
@@ -193,11 +189,7 @@ describe('activityBudgetFigures', () => {
     const [row] = buildActivityRows(budgets, expenses, [
       { id: 'a1', code: 'ACT-1', title: 'Training' },
     ])
-    const figures = activityBudgetFigures({
-      budgetAllocation: 60000,
-      budgetLogged: 25800,
-      budgetPending: 9800,
-    })
+    const figures = activityBudgetFigures({ budgetAllocation: 60000, budgetLogged: 25800 }, 9800)
     expect(row.allocated).toBe(figures.allocated)
     expect(row.used).toBe(figures.spent)
     expect(row.pending).toBe(figures.pending)

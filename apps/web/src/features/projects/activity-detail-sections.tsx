@@ -101,8 +101,9 @@ export const ActivityIndicators = ({
 export const ActivityBudget = ({
   activity,
   canReadBudgets,
-}: { activity: Activity; canReadBudgets: boolean }) => {
-  const figures = activityBudgetFigures(activity)
+  pending = null,
+}: { activity: Activity; canReadBudgets: boolean; pending?: number | null }) => {
+  const figures = activityBudgetFigures(activity, pending)
   const money = (value: number | null) =>
     value === null ? (canReadBudgets ? 'None yet' : 'Unavailable') : formatCurrency(value)
   return (

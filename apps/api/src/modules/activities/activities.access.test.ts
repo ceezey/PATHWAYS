@@ -385,38 +385,17 @@ describe('P05 activity proof authorization', () => {
     }
     state.actor = reader as ApplicationIdentity
     tx.project.findFirst.mockResolvedValueOnce({ projectActivity_project: [activity] })
-    tx.budgetExpenseEntry.aggregate
-      .mockResolvedValueOnce({
-        _sum: { amount: new Prisma.Decimal('1500.5') },
-        _count: { _all: 2 },
-      })
-      .mockResolvedValueOnce({
-        _sum: { amount: new Prisma.Decimal('980') },
-        _count: { _all: 1 },
-      })
-    const detail = await service.get(reader, projectId, activityId)
-    expect(detail).toMatchObject({
-      budgetLogged: '1500.50',
-      budgetLoggedEntries: 2,
-      // Money still in review is reported apart from approved spend, as the ledger shows it.
-      budgetPending: '980.00',
-      budgetPendingEntries: 1,
+    tx.budgetExpenseEntry.aggregate.mockResolvedValueOnce({
+      _sum: { amount: new Prisma.Decimal('1500.5') },
+      _count: { _all: 2 },
     })
+    const detail = await service.get(reader, projectId, activityId)
+    expect(detail).toMatchObject({ budgetLogged: '1500.50', budgetLoggedEntries: 2 })
     expect(tx.budgetExpenseEntry.aggregate).toHaveBeenCalledWith({
       where: {
         organizationId,
         projectId,
         status: 'APPROVED',
-        budgetRecord: { organizationId, projectId, activityId },
-      },
-      _sum: { amount: true },
-      _count: { _all: true },
-    })
-    expect(tx.budgetExpenseEntry.aggregate).toHaveBeenCalledWith({
-      where: {
-        organizationId,
-        projectId,
-        status: { in: ['PENDING', 'VERIFIED'] },
         budgetRecord: { organizationId, projectId, activityId },
       },
       _sum: { amount: true },
@@ -432,15 +411,13 @@ describe('P05 activity proof authorization', () => {
     }
     state.actor = reader as ApplicationIdentity
     tx.project.findFirst.mockResolvedValueOnce({ projectActivity_project: [activity] })
-    tx.budgetExpenseEntry.aggregate.mockResolvedValue({
+    tx.budgetExpenseEntry.aggregate.mockResolvedValueOnce({
       _sum: { amount: null },
       _count: { _all: 0 },
     })
     await expect(service.get(reader, projectId, activityId)).resolves.toMatchObject({
       budgetLogged: '0.00',
       budgetLoggedEntries: 0,
-      budgetPending: '0.00',
-      budgetPendingEntries: 0,
     })
   })
 

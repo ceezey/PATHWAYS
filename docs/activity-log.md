@@ -405,7 +405,7 @@
 
 ## 2026-10-06 One budget reading across activity, budget and evidence (feat/project-workspace-frame-ui)
 - The API had two definitions of an activity's allocation: the detail read counted only the `ACTIVITY_PROFILE_TOTAL` line, while the list read counted every budget record, and the finance ledger counted every record except the project envelope. An activity funded through a named category line therefore read as allocated P0.00 on the expense entry while the ledger showed it funded. `readMetrics` now sums every live (non-archived) line for the activity, which matches `readListMetrics` and `buildActivityRows`.
-- Activity detail also returns `budgetPending` and `budgetPendingEntries` (submitted and verified expenses awaiting approval), so money in review is visible where it is spent rather than only in the ledger.
+- Money still in review is summed on the web from the expenses the activities workspace already reads, not from a new API field: a second source for data the client already holds is the same duplication that caused the allocation drift.
 - New `activityBudgetFigures` in `budget-math.ts` is the single reading of allocated, spent (approved only), in review, remaining and utilization. The activity panel shows all five; the ledger's budget alignment adds the activity totals beside the single line it previously showed alone; the Evidence tab's activity summary gains a Budget used column from the same list metric the activity table uses.
 - Withheld and empty stay distinct: no budget access reads Unavailable, no approved entry reads None yet, and an allocation of zero leaves utilization not available rather than 0 percent.
 - Tests: the shared helper is asserted to agree with `buildActivityRows` for the same activity; the API asserts allocation sums several lines and that the query carries no category filter; the ledger fixture now builds its rows through the real aggregation so it cannot drift. Web 216 files and API 122 files pass; typecheck and biome clean on both.
@@ -427,8 +427,9 @@
 - The validator's own "Submitted expenses for validation" action list is unchanged; the new list is read-only.
 
 ## 2026-10-06 Alert queue reads horizontally, details open on click (feat/project-workspace-frame-ui)
-- The review workspace no longer splits into a narrow queue column and an always-open detail column. The queue is a responsive card grid across the full width, and the record details card sits below it.
-- Selection no longer falls back to the first queue item, so the page opens on the queue alone; clicking a card opens its details and clicking the open card closes them again. A deep link `?alert=<id>` still opens that record.
+- The review workspace no longer splits into a narrow queue column and an always-open detail column. The queue is a single full-width stack of cards; a grid was tried first but reflowed badly when a card expanded.
+- Selection no longer falls back to the first queue item, so the page opens on the queue alone. Clicking a card expands it in place: the card spans the grid and the record details render directly below its summary on the neutral card surface, not on the red alert surface. Clicking the open card closes it again.
+- A deep link `?alert=<id>` to a record outside the current queue page still renders the details in a standalone card below the queue, since there is no card to expand.
 - Card hierarchy reordered: severity and status badges first, then the title, then the project, then the measured value against its threshold. The long explanation moved out of the card and stays in the details.
 - Presentation only; no query, permission or data change.
 

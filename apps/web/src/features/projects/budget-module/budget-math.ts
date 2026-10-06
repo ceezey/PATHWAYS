@@ -174,16 +174,15 @@ export type ActivityBudgetFigures = {
 
 /**
  * One reading of an activity's money, so the activity panel, the ledger and the evidence
- * tab never disagree. Allocation counts every live budget line for the activity.
+ * tab never disagree. Allocation counts every live budget line for the activity, and the
+ * in-review total is summed from the expenses the caller already holds.
  */
-export const activityBudgetFigures = (activity: {
-  budgetAllocation?: number | null
-  budgetLogged?: number | null
-  budgetPending?: number | null
-}): ActivityBudgetFigures => {
+export const activityBudgetFigures = (
+  activity: { budgetAllocation?: number | null; budgetLogged?: number | null },
+  pending: number | null = null,
+): ActivityBudgetFigures => {
   const allocated = activity.budgetAllocation ?? null
   const spent = activity.budgetLogged ?? null
-  const pending = activity.budgetPending ?? null
   return {
     allocated,
     spent,

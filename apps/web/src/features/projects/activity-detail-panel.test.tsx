@@ -204,8 +204,12 @@ describe('ActivityDetailContent presentation', () => {
     )
     expect(screen.getByText('Logged expenses')).toBeTruthy()
     expect(screen.getByText(label)).toBeTruthy()
-    expect(screen.getByText('₱9,800.00')).toBeTruthy()
+    expect(screen.getAllByText('₱9,800.00').length).toBeGreaterThan(0)
     expect(screen.getByText(/Logged by Liza Bautista/)).toBeTruthy()
+    // Money not yet approved is summed into In review from this very list, never as spent.
+    const inReview = screen.queryByText('In review')?.parentElement?.querySelector('dd')
+    if (status === 'APPROVED') expect(inReview).toBeFalsy()
+    else expect(inReview?.textContent).toBe('₱9,800.00')
   })
 
   it('names the reviewer who has acted so far', () => {

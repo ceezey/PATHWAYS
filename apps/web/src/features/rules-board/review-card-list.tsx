@@ -46,7 +46,7 @@ type Props = {
 }
 export function ReviewCardList({ items, selectedId, onSelect, projectLabel, details }: Props) {
   return (
-    <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+    <ul className="space-y-3">
       {items.map((item) => {
         const alert = 'lifecycle' in item
         const status = alert ? item.lifecycle : item.status
@@ -54,10 +54,10 @@ export function ReviewCardList({ items, selectedId, onSelect, projectLabel, deta
         const basis = alert ? basisLine(item) : null
         const open = item.id === selectedId
         return (
-          <li className={cn(open && 'sm:col-span-2 xl:col-span-3')} key={item.id}>
+          <li key={item.id}>
             <div
               className={cn(
-                'h-full overflow-hidden rounded-md border',
+                'overflow-hidden rounded-md border',
                 alert ? 'border-danger/30' : 'border-warning/30',
                 open && 'ring-2 ring-ring',
               )}
