@@ -33,21 +33,25 @@ type Kind =
   | 'EVALUATION_REPORT'
 type Principal = Parameters<typeof principalHasAtomicPermission>[0]
 type AtomicPermission = Parameters<typeof principalHasAtomicPermission>[1]
-type KindDefinition = { label: string; permission: AtomicPermission; requires?: AtomicPermission }
+type KindDefinition = { label: string; permission: AtomicPermission; requires?: AtomicPermission[] }
 export const kinds: Record<Kind, KindDefinition> = {
   PROJECT_SUMMARY: { label: 'Project summary', permission: 'reports.project.read' },
   INDICATOR_SUMMARY: { label: 'Indicator summary', permission: 'reports.indicator.read' },
-  BENEFICIARY_SUMMARY: { label: 'Beneficiary summary', permission: 'reports.beneficiary.read' },
+  BENEFICIARY_SUMMARY: {
+    label: 'Beneficiary summary',
+    permission: 'reports.beneficiary.read',
+    requires: ['analytics.saddd.read', 'beneficiaries.aggregates.read'],
+  },
   SURVEY_FORM_RESULTS: { label: 'Survey results', permission: 'reports.project.read' },
   MONITORING_REPORT: {
     label: 'Monitoring report',
     permission: 'reports.indicator.read',
-    requires: 'monitoring.read',
+    requires: ['monitoring.read'],
   },
   EVALUATION_REPORT: {
     label: 'Evaluation report',
     permission: 'reports.project.read',
-    requires: 'monitoring.read',
+    requires: ['monitoring.read'],
   },
 }
 
@@ -56,9 +60,26 @@ export const allowedKinds = (profile: Principal) =>
   (Object.keys(kinds) as Kind[]).filter(
     (kind) =>
       principalHasAtomicPermission(profile, kinds[kind].permission) &&
-      (!kinds[kind].requires || principalHasAtomicPermission(profile, kinds[kind].requires)) &&
+      (kinds[kind].requires ?? []).every((grant) => principalHasAtomicPermission(profile, grant)) &&
       (kind !== 'SURVEY_FORM_RESULTS' || principalHasAtomicPermission(profile, 'assessments.read')),
   )
+
+/** Download name from the saved report name, stripped of characters file systems reject. */
+export const reportFileName = (name: string, reportId: string, extension: string) => {
+  const base = Array.from(name, (char) => (char < ' ' || '\\/:*?"<>|'.includes(char) ? ' ' : char))
+    .join('')
+    .replace(/\s+/g, ' ')
+    .replace(/^[\s.]+|[\s.]+$/g, '')
+    .slice(0, 150)
+  return `${base || `report-${reportId}`}.${extension}`
+}
+const day = (value: string) =>
+  new Date(value).toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    timeZone: 'Asia/Manila',
+  })
 export function LiveReportingWorkspace({
   initialKind,
   previewOnly = false,
@@ -95,12 +116,30 @@ export function LiveReportingWorkspace({
     kind === 'SURVEY_FORM_RESULTS'
       ? (currentForms?.find((form) => form.id === selectedForm)?.id ?? currentForms?.[0]?.id)
       : undefined
-  const contextReady = Boolean(id && (kind !== 'SURVEY_FORM_RESULTS' || formId))
+  const [selectedRound, setSelectedRound] = useState<string | null>(null)
+  const rounds = useAuthorizedRead(
+    'report-evaluation-rounds',
+    id,
+    kinds.EVALUATION_REPORT.permission,
+    (signal) => coreDataClient.evaluationRounds(id ?? '', signal),
+    Boolean(id && kind === 'EVALUATION_REPORT'),
+  )
+  const currentRounds = id && !rounds.isError && !rounds.isPending ? rounds.data : undefined
+  const round =
+    kind === 'EVALUATION_REPORT'
+      ? (currentRounds?.find((value) => value.id === selectedRound) ?? currentRounds?.[0])
+      : undefined
+  const evaluationId = round?.id
+  const contextReady = Boolean(
+    id &&
+      (kind !== 'SURVEY_FORM_RESULTS' || formId) &&
+      (kind !== 'EVALUATION_REPORT' || evaluationId),
+  )
   const preview = useAuthorizedRead(
-    `report-preview:${kind}:${formId ?? ''}`,
+    `report-preview:${kind}:${formId ?? ''}:${evaluationId ?? ''}`,
     id,
     kinds[kind].permission,
-    (signal) => coreDataClient.reportPreview(id ?? '', kind, signal, formId),
+    (signal) => coreDataClient.reportPreview(id ?? '', kind, signal, formId, evaluationId),
     contextReady,
   )
   const reports = useAuthorizedRead(
@@ -119,7 +158,7 @@ export function LiveReportingWorkspace({
     'report-generation',
     'reports.generate',
     id,
-    `${kind}:${formId ?? ''}`,
+    `${kind}:${formId ?? ''}:${evaluationId ?? ''}`,
     Boolean(currentPreview),
   )
   const exportOwner = useSensitiveDraftOwner(
@@ -147,15 +186,16 @@ export function LiveReportingWorkspace({
   // biome-ignore lint/correctness/useExhaustiveDependencies: Reset the selected survey when the authorized project changes.
   useEffect(() => {
     setSelectedForm(null)
+    setSelectedRound(null)
   }, [id])
-  const download = async (reportId: string, extension: string) => {
+  const download = async (reportId: string, name: string, extension: string) => {
     const captured = exportOwner
     if (!captured?.isCurrent()) return
     setStatusMessage(`Downloading report as ${extension.toUpperCase()}.`)
     try {
       await downloadCoreArtifact(
         `/projects/${id}/reports/${reportId}/export`,
-        `report-${reportId}.${extension}`,
+        reportFileName(name, reportId, extension),
         captured.isCurrent,
       )
       if (captured.isCurrent()) setStatusMessage(`Report downloaded as ${extension.toUpperCase()}.`)
@@ -171,12 +211,14 @@ export function LiveReportingWorkspace({
     if (!owner?.isCurrent() || !id || busy || !currentPreview) return
     const captured = owner
     const label = kinds[kind].label
-    const fallbackName = `${(project?.title ?? 'Project').slice(0, 199 - label.length)} ${label}`
+    const base = kind === 'EVALUATION_REPORT' && round ? round.title : (project?.title ?? 'Project')
+    const fallbackName = `${base.slice(0, 199 - label.length)} ${label}`
     const body = {
       name: currentName.trim() || fallbackName,
       kind,
       format,
       ...(formId ? { formId } : {}),
+      ...(evaluationId ? { evaluationId } : {}),
     }
     const clientRequestId = requests.forBody(`${captured.key}:${captured.generation}`, body)
     setBusy(true)
@@ -310,6 +352,37 @@ export function LiveReportingWorkspace({
               </SelectContent>
             </Select>
           </Label>
+          {kind === 'EVALUATION_REPORT' && (
+            <Label className="space-y-2">
+              <span>Round</span>
+              <Select
+                value={evaluationId ?? ''}
+                onValueChange={setSelectedRound}
+                disabled={!currentRounds?.length}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Choose a round" />
+                </SelectTrigger>
+                <SelectContent>
+                  {currentRounds?.map((value) => (
+                    <SelectItem key={value.id} value={value.id}>
+                      {`${value.title}${value.signedOffAt ? ` · Signed off ${day(value.signedOffAt)}` : ''}${value.overallScore ? ` · ${value.overallScore}` : ''}`}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {id && !rounds.isPending && !rounds.isError && !currentRounds?.length && (
+                <span className="block text-xs text-muted-foreground">
+                  No signed-off evaluation round yet
+                </span>
+              )}
+              {rounds.isError && (
+                <span className="block text-xs text-destructive">
+                  Evaluation rounds could not be verified.
+                </span>
+              )}
+            </Label>
+          )}
           <Label className="space-y-2">
             <span>Format</span>
             <Select value={format} onValueChange={(value) => setFormat(value as typeof format)}>
@@ -453,12 +526,20 @@ export function LiveReportingWorkspace({
                   <p className="text-sm text-muted-foreground">
                     {report.format ?? 'Format not set'} · <StatusBadge>{report.status}</StatusBadge>
                   </p>
+                  {report.evaluation && (
+                    <p className="text-sm text-muted-foreground">
+                      Round: {report.evaluation.title} ({report.evaluation.periodStart} to{' '}
+                      {report.evaluation.periodEnd})
+                    </p>
+                  )}
                 </div>
                 {principalHasAtomicPermission(profile, 'reports.export') && (
                   <Button
                     variant="outline"
                     disabled={report.status !== 'GENERATED' || !report.format}
-                    onClick={() => void download(report.id, report.format?.toLowerCase() ?? '')}
+                    onClick={() =>
+                      void download(report.id, report.name, report.format?.toLowerCase() ?? '')
+                    }
                   >
                     <Download className="mr-2 h-4 w-4" />
                     Download

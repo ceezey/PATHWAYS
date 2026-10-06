@@ -14,6 +14,8 @@ import {
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
+import { BACKUP_RECOVERY_UI_ENABLED } from './feature-flags'
+
 export interface DashboardNavItem extends NavItem {
   icon: LucideIcon
 }
@@ -153,12 +155,16 @@ export const createDashboardNavGroups = (): DashboardNavGroup[] => [
         description: 'Inspect significant account actions and system events.',
         icon: ScrollText,
       },
-      {
-        href: '/settings/backups',
-        label: fixedDashboardNavItemLabels.backupRecovery,
-        description: 'Review backup readiness and recovery safeguards.',
-        icon: DatabaseBackup,
-      },
+      ...(BACKUP_RECOVERY_UI_ENABLED
+        ? [
+            {
+              href: '/settings/backups',
+              label: fixedDashboardNavItemLabels.backupRecovery,
+              description: 'Review backup readiness and recovery safeguards.',
+              icon: DatabaseBackup,
+            },
+          ]
+        : []),
     ],
   },
 ]

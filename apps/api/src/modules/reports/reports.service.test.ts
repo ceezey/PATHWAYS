@@ -102,7 +102,7 @@ const tx = {
   $executeRaw: vi.fn(),
   auditLog: { create: vi.fn() },
   report: { findMany: vi.fn() },
-  projectEvaluation: { findFirst: vi.fn() },
+  projectEvaluation: { findFirst: vi.fn(), findMany: vi.fn() },
   projectEvaluationScore: { findMany: vi.fn() },
 }
 const storage = { uploadPrivateFile: vi.fn(), deleteFile: vi.fn() }
@@ -593,6 +593,143 @@ describe('report source authority, privacy and artifact recovery', () => {
       expect(preview.rows[4][6]).toBe('Manual score')
     })
 
+    it('rejects an evaluation round on other kinds and accepts it on evaluation reports', () => {
+      const evaluationId = '60000000-0000-4000-8000-000000000006'
+      expect(reportQuerySchema.safeParse({ kind: 'PROJECT_SUMMARY', evaluationId }).success).toBe(
+        false,
+      )
+      expect(reportInputSchema.safeParse({ ...body, evaluationId }).success).toBe(false)
+      expect(reportQuerySchema.safeParse({ kind: 'EVALUATION_REPORT', evaluationId }).success).toBe(
+        true,
+      )
+      expect(
+        reportInputSchema.safeParse({ ...body, kind: 'EVALUATION_REPORT', evaluationId }).success,
+      ).toBe(true)
+    })
+
+    it('lists only signed-off and archived rounds, newest first, with an allowlist', async () => {
+      grant('monitoring.read')
+      tx.projectEvaluation.findMany.mockResolvedValue([
+        { ...signedOff, signedOffAt: new Date('2026-10-07T01:00:00Z'), internal: 'x' },
+      ])
+      const rounds = await service.evaluationRounds(actor, projectId)
+      const args = tx.projectEvaluation.findMany.mock.calls[0][0]
+      expect(args.where.status).toEqual({ in: ['SIGNED_OFF', 'ARCHIVED'] })
+      expect(args.orderBy).toEqual([{ periodEnd: 'desc' }, { id: 'desc' }])
+      expect(rounds).toEqual([
+        {
+          id: signedOff.id,
+          title: 'Midterm',
+          status: 'SIGNED_OFF',
+          periodStart: '2026-01-01',
+          periodEnd: '2026-06-30',
+          signedOffAt: '2026-10-07T01:00:00.000Z',
+          overallScore: '82.5',
+        },
+      ])
+    })
+
+    it('refuses the rounds list without the evaluation report grants', async () => {
+      await expect(service.evaluationRounds(actor, projectId)).rejects.toThrow(ForbiddenException)
+      grant('monitoring.read')
+      state.actor = {
+        ...(state.actor as ApplicationIdentity),
+        permissions: ['reports.read', 'monitoring.read'],
+      }
+      await expect(service.evaluationRounds(actor, projectId)).rejects.toThrow(ForbiddenException)
+      expect(tx.projectEvaluation.findMany).not.toHaveBeenCalled()
+    })
+
+    it('previews and stores the chosen round, and yields no round for an unknown id', async () => {
+      grant('monitoring.read')
+      const evaluationId = '60000000-0000-4000-8000-000000000009'
+      tx.projectEvaluation.findFirst.mockResolvedValueOnce(null)
+      const none = await service.preview(actor, projectId, {
+        kind: 'EVALUATION_REPORT',
+        evaluationId,
+      })
+      expect(none.rows).toEqual([])
+      expect(none.unavailableReasons).toHaveLength(1)
+      tx.projectEvaluation.findFirst.mockResolvedValue({ ...signedOff, id: evaluationId })
+      await service.generate(actor, projectId, { ...body, kind: 'EVALUATION_REPORT', evaluationId })
+      const where = tx.projectEvaluation.findFirst.mock.lastCall?.[0].where
+      expect(where).toMatchObject({ id: evaluationId, status: { in: ['SIGNED_OFF', 'ARCHIVED'] } })
+      const insert = tx.$executeRaw.mock.calls.find((call) =>
+        call[0].join('').includes('INSERT INTO pathways.reports'),
+      )
+      expect(insert?.[11]).toBe(evaluationId)
+    })
+
+    it('exports an older saved report against its own stored round', async () => {
+      grant('monitoring.read')
+      const older = { ...signedOff, id: '60000000-0000-4000-8000-000000000005' }
+      tx.projectEvaluation.findFirst.mockImplementation(
+        async ({ where }: { where: { id?: string } }) =>
+          where.id ? (where.id === older.id ? older : null) : signedOff,
+      )
+      let fingerprint: unknown
+      tx.$executeRaw.mockImplementation(async (sql: TemplateStringsArray, ...values: unknown[]) => {
+        if (sql.join('').includes('INSERT INTO pathways.reports')) fingerprint = values[9]
+        return 1
+      })
+      await service.generate(actor, projectId, {
+        ...body,
+        kind: 'EVALUATION_REPORT',
+        evaluationId: older.id,
+      })
+      tx.$queryRaw.mockImplementation(
+        async (sql: { strings?: string[]; join?: (separator: string) => string }) => {
+          const text = sql.strings?.join('') ?? sql.join?.('') ?? ''
+          return text.includes('FROM pathways.reports')
+            ? [
+                {
+                  id,
+                  projectId,
+                  formId: null,
+                  evaluationId: older.id,
+                  type: 'EVALUATION_REPORT',
+                  format: 'PDF',
+                  status: 'GENERATED',
+                  sourceFingerprint: fingerprint,
+                  bucket: 'pathways-private',
+                  key: 'organizations/synthetic/report.pdf',
+                  sha: 'b'.repeat(64),
+                  bytes: 12,
+                  updatedAt: new Date(),
+                },
+              ]
+            : [{ id }]
+        },
+      )
+      const result = await service.export(actor, projectId, id)
+      expect(result.fileName).toBe(`report-${id}.pdf`)
+    })
+
+    it('adds the round label to saved evaluation reports without other ids', async () => {
+      grant('monitoring.read')
+      tx.report.findMany.mockResolvedValue([
+        {
+          id,
+          name: 'R',
+          type: 'EVALUATION_REPORT',
+          format: 'PDF',
+          status: 'GENERATED',
+          generatedAt: null,
+          evaluation: {
+            title: 'Midterm',
+            periodStart: signedOff.periodStart,
+            periodEnd: signedOff.periodEnd,
+          },
+        },
+      ])
+      const [row] = await service.list(actor, projectId)
+      expect(row.evaluation).toEqual({
+        title: 'Midterm',
+        periodStart: '2026-01-01',
+        periodEnd: '2026-06-30',
+      })
+    })
+
     it('lists the new kinds only for holders of the extra grant', async () => {
       grant('reports.indicator.read')
       tx.report.findMany.mockResolvedValue([])
@@ -625,8 +762,10 @@ describe('report source authority, privacy and artifact recovery', () => {
     const preview = await service.preview(actor, projectId, { kind: 'PROJECT_SUMMARY' })
     expect(preview.sections?.information.code).toBe('SYN')
     expect(preview.columns).toEqual(['Section', 'Item', 'Value', 'Detail'])
-    expect(preview.rows.some((row) => row[0] === 'Overview')).toBe(true)
-    expect(preview.unavailableReasons.length).toBeGreaterThan(0)
+    expect(preview.rows.some((row) => row[0] === 'Project information')).toBe(true)
+    // This actor holds none of the overview grants, so those rows and their reasons are left out.
+    expect(preview.rows.some((row) => row[0] === 'Overview')).toBe(false)
+    expect(preview.unavailableReasons).toEqual([])
     renderer.render.mockResolvedValue(Buffer.from('%PDF-designed'))
     const acknowledgement = await service.generate(actor, projectId, body).catch(() => undefined)
     expect(acknowledgement).not.toHaveProperty('pdfFallback')

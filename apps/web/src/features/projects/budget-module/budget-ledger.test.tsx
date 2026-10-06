@@ -84,7 +84,7 @@ describe('BudgetLedger filter', () => {
     expect(screen.getByText('Ron Perez')).toBeTruthy()
     expect(screen.getByText('Leah Sy')).toBeTruthy()
     expect(screen.getByText('ACT-1 - Training')).toBeTruthy()
-    expect(screen.getByText('Activity budget')).toBeTruthy()
+    expect(screen.getByText('Activity budget: Training')).toBeTruthy()
     expect(screen.queryByText('8f14e45f-ceea-467a-9a3e-9b4e1f1e1111')).toBeNull()
     expect(screen.queryByText(/ACTIVITY_PROFILE_TOTAL/)).toBeNull()
   })

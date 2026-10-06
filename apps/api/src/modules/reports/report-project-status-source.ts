@@ -1,6 +1,6 @@
 import { readApiEnv } from '@pathways/config'
 import type { MetricCell } from '@pathways/shared'
-import type { Prisma } from '@prisma/client'
+import { Prisma } from '@prisma/client'
 import { type AtomicPermission, hasAtomicPermission } from '../auth/authorization-policy'
 import type { ApplicationIdentity } from '../auth/developer-access'
 import type { DashboardsService } from '../dashboards/dashboards.service'
@@ -38,6 +38,57 @@ type ProjectRow = {
 }
 const OPEN_ALERTS = ['NEW', 'REVIEWED', 'ACTIONED'] as const
 const ALERT_CAP = 10
+const BUDGET_CAP = 50
+const LINE_LABELS: Record<string, string> = {
+  PROJECT_PROFILE_TOTAL: 'Project budget',
+  ACTIVITY_PROFILE_TOTAL: 'Activity budget',
+}
+const money = (value: Prisma.Decimal) =>
+  value.toNumber().toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+
+/** Each budget line with its approved spending, spending still in review, and what remains. */
+async function budgetRows(tx: Prisma.TransactionClient, organizationId: string, projectId: string) {
+  const lines = await tx.projectBudgetRecord.findMany({
+    where: { organizationId, projectId, archivedAt: null },
+    select: {
+      id: true,
+      category: true,
+      currency: true,
+      plannedBudget: true,
+      activity: { select: { title: true } },
+    },
+    orderBy: [{ category: 'desc' }, { id: 'asc' }],
+    take: BUDGET_CAP + 1,
+  })
+  const shown = lines.slice(0, BUDGET_CAP)
+  const sums = await tx.budgetExpenseEntry.groupBy({
+    by: ['budgetRecordId', 'status'],
+    where: {
+      organizationId,
+      projectId,
+      budgetRecordId: { in: shown.map((line) => line.id) },
+      status: { not: 'REJECTED' },
+    },
+    _sum: { amount: true },
+  })
+  const total = (id: string, approved: boolean) =>
+    sums
+      .filter((row) => row.budgetRecordId === id && (row.status === 'APPROVED') === approved)
+      .reduce((sum, row) => sum.add(row._sum.amount ?? 0), new Prisma.Decimal(0))
+  const rows = shown.map((line) => {
+    const approved = total(line.id, true)
+    const label = LINE_LABELS[line.category] ?? line.category
+    return {
+      line: clip(line.activity ? `${label}: ${line.activity.title}` : label),
+      currency: line.currency,
+      planned: money(line.plannedBudget),
+      approved: money(approved),
+      inReview: money(total(line.id, false)),
+      remaining: money(line.plannedBudget.sub(approved)),
+    }
+  })
+  return { rows, capped: lines.length > BUDGET_CAP }
+}
 const day = (value: Date | null) => value?.toISOString().slice(0, 10) ?? null
 const figure = (
   label: string,
@@ -54,7 +105,7 @@ const figure = (
   percent: bar ? metricPercent(cell) : null,
 })
 
-/** Builds the Project summary sections, reading each one only when its permission is held. */
+/** Builds the Project summary sections, reading and showing each one only when its permission is held. */
 export async function projectStatusSource(
   deps: Deps,
   tx: Prisma.TransactionClient,
@@ -97,16 +148,6 @@ export async function projectStatusSource(
         ]
       : []),
   ]
-  if (!overview.budgetUtilization)
-    unavailableReasons.push(
-      'Budget figures are not included: budget and expense access is required.',
-    )
-  if (!overview.kpiAchievement)
-    unavailableReasons.push(
-      'KPI achievement is not included: indicator and monitoring access is required.',
-    )
-  if (!overview.beneficiariesReached)
-    unavailableReasons.push('Beneficiaries reached is not included: aggregate access is required.')
 
   let milestones: ProjectSections['milestones']
   if (can('activities.read')) {
@@ -125,12 +166,10 @@ export async function projectStatusSource(
         overdue: isOverdue(item, reportDate),
       }
     })
-  } else unavailableReasons.push('Milestones are not included: activity access is required.')
+  }
 
   let indicators: ProjectSections['indicators']
-  if (!can('monitoring.read'))
-    unavailableReasons.push('Indicators are not included: monitoring access is required.')
-  else {
+  if (can('monitoring.read')) {
     const period = monitoringReportPeriod(project)
     if (!period) unavailableReasons.push('Indicators are not included: project dates are required.')
     else {
@@ -144,6 +183,13 @@ export async function projectStatusSource(
       if (data.indicators.length > INDICATOR_CAP)
         unavailableReasons.push(`Only the first ${INDICATOR_CAP} indicators are shown.`)
     }
+  }
+
+  let budget: ProjectSections['budget']
+  if (can('budgets.read') && can('expenses.read')) {
+    const read = await budgetRows(tx, actor.organizationId, projectId)
+    budget = read.rows
+    if (read.capped) unavailableReasons.push(`Only the first ${BUDGET_CAP} budget lines are shown.`)
   }
 
   let alerts: ProjectSections['alerts']
@@ -162,7 +208,13 @@ export async function projectStatusSource(
       explanation: clip(item.explanation),
       evaluatedAt: item.evaluatedAt,
     }))
-  } else unavailableReasons.push('Open alerts are not included: alert access is required.')
+  }
+  // Areas outside the actor's grants are left out entirely rather than shown as unavailable.
+  const inScope: Record<string, boolean> = {
+    Schedule: milestones !== undefined,
+    Budget: overview.budgetUtilization !== null,
+    Indicators: overview.kpiAchievement !== null,
+  }
 
   const sections: ProjectSections = {
     reportDate,
@@ -185,8 +237,9 @@ export async function projectStatusSource(
       timeline: metricPercent(overview.timeline.metric),
       budget: metricPercent(overview.budgetUtilization?.metric ?? null),
       kpi: metricPercent(overview.kpiAchievement?.metric ?? null),
-    }),
+    }).filter((row) => inScope[row.area]),
     keyFigures,
+    ...(budget ? { budget } : {}),
     ...(milestones ? { milestones } : {}),
     ...(indicators ? { indicators } : {}),
     ...(alerts ? { alerts } : {}),

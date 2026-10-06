@@ -482,3 +482,75 @@
 - `refreshExpenses` now also refetches the activity read. Approved spend and allocation come from there, so without it an approved expense left "In review" before it reached "Spent".
 - Gates stay permission-based, not person-based: every Project Officer, M&E Officer and Project Manager with the same grants and project scope sees the same thing.
 - 2026-10-06 Merged Mika PR #46 into dev with evaluation auto scoring: the evaluation workspace keeps the automatic-evaluation UI with the PR note and score-table tooltips, and the glossary gains Indicator linkage and Assessment gain.
+
+## 2026-10-06 Report kind gating and download names (fix/beneficiary-report-kind-gating)
+- The reports workspace offered Beneficiary summary on `reports.beneficiary.read` alone, while the API preview also needs `analytics.saddd.read` and `beneficiaries.aggregates.read`; Project Officers lack the first under RBAC v4, so they always hit a 403. `kinds[].requires` is now a list and the beneficiary kind requires both aggregate grants.
+- Report downloads are named after the saved report name instead of `report-<id>`, with reserved file-system characters replaced and the id name kept as the fallback.
+- The "plain layout" PDF warning locally is configuration, not code: `apps/api/.env` sets neither `PDF_CHROME_PATH` nor `WEB_ORIGIN`, so the designed renderer refuses to launch on Windows and every PDF falls back to pdfkit.
+- Project summary reports now leave out what the actor has no grant for: no "not included: access is required" reasons, no Budget, Indicators or Schedule overview row outside scope, and the status rules footer lists only the areas shown. Data-driven reasons (missing project dates, row caps) and "Fewer than 5" suppression stay. Summaries saved earlier by partially scoped users now read as stale on download and need regenerating.
+- Percent overrun labels ("(5% over budget)", "(3% past schedule)") render as a small muted note beside the capped value through `CappedPercent`; `formatCappedPercent` keeps the plain string for CSV and accessible text.
+
+## 2026-10-06 Expense dialog uses the DSD select (fix/expense-dialog-dsd-select)
+- The Log expense budget allocation picker moves from a native select to `ui/select`, matching the DSD rule that selects use `ui/select`, and shows the activity envelope as "Activity budget" through `categoryLabel` instead of `ACTIVITY_PROFILE_TOTAL`.
+
+## 2026-10-06 Designed PDF finds a local browser (fix/pdf-browser-autodetect)
+- Local Windows and macOS runs fell back to the plain pdfkit layout unless each developer set `PDF_CHROME_PATH`. With it blank, the renderer now launches the first standard Chrome or Edge install (Program Files, Program Files (x86), LocalAppData on Windows; /Applications on macOS). An explicit `PDF_CHROME_PATH` still wins, so the kill switch is unchanged, and Linux keeps the bundled Chromium.
+- Verified with `scripts/check-pdf-renderer.ts` and `PDF_CHROME_PATH` blank: report and receipt both render through Chrome. `WEB_ORIGIN` stays blank locally; the renderer already navigates to the loopback web app outside production.
+
+## 2026-10-06 Report downloads accept readable names (fix/report-download-name)
+- Saved report downloads failed with "Current artifact access is required." because `fetchCoreArtifact` still only accepted `[a-z0-9-]` file names, while the reports workspace now names downloads after the report (spaces, capitals, en dashes). The guard now allows readable names up to 200 characters and still rejects control, path and reserved characters, a leading dot, and unlisted extensions before any request.
+
+## 2026-10-07 Hide Add to Dashboard and the page-heading pencil (fix/hide-add-to-dashboard)
+- Analytics "Add to Dashboard" and the role dashboard "Monitoring charts" section are hidden for all users behind `DASHBOARD_PINS_UI_ENABLED = false`; pins already in browser storage stay untouched.
+- The disabled page-heading pencil is hidden for every role behind `PAGE_HEADING_EDITOR_UI_ENABLED = false`; other pencil edit buttons (project team, budget, activity) are unaffected. Both are registered in docs/deferred-features.md.
+
+## 2026-10-07 Dynamic project report template (docs only)
+- Drafted [dynamic project report template design](superpowers/specs/2026-10-07-dynamic-project-report-template-design.md): one template with five presets (Midterm, Evidence, Quarterly, Final, Donor brief), per-section toggles, period and filters, four block types (Fixed, Auto, Narrative, Conditional) and per-format behaviour for PDF, DOCX, XLSX and CSV.
+- Today's builder offers only project, kind and format; filters, section toggles, narratives and DOCX are target state and need a CR, a narrative migration and a DOCX writer decision before build.
+- Added docs/project-report-template.xlsx: the report template as a workbook (Cover, About, Contents with preset-driven Include and Check columns, one sheet per section and annex, Sign-off, Guide). Yellow cells are editable, blue cells are system data (fictional sample), and the rest are formulas; 189 formulas recalculated in Excel with zero errors.
+
+## 2026-10-07 Evaluation report rounds (feature/evaluation-report-rounds)
+- The Evaluation report always used the latest signed-off round, and once a newer round was signed off every older saved evaluation report failed its download re-check as stale. Reports now take an optional `evaluationId` (Evaluation report only), served from the new `GET /projects/:projectId/reports/evaluation-rounds` (signed-off and archived rounds, newest first, allowlisted fields), and downloads re-check a saved report against its stored `reports.evaluation_id`. No migration.
+- The Reports page shows a Round select for Evaluation report (default newest), names the report after the round, and labels each saved evaluation report with its round.
+
+## 2026-10-07 Enrollment date uses the business date (fix/enrollment-business-date)
+- Registering a beneficiary between midnight and 08:00 Manila failed with "enrollment_date cannot be future." because the check compared the business-date enrollment against the UTC clock. Registration and project enrollment now compare against the business date (`BUSINESS_TIME_ZONE`), as the birth-date checks already did.
+
+## 2026-10-07 Project preview tiles (fix/overview-metrics-layout)
+- Project preview and Quick Preview leave out Budget utilization when the role cannot read the budget (instead of "Unavailable"), place Beneficiaries reached / target beside KPI achievement, and show Timeline as a full-width progress bar. The Overview hides "Planned project budget" when none is recorded.
+
+## 2026-10-07 Activity proof download restored (fix/activity-proof-download)
+- Previewing a proof from the activity panel reloaded the page: the panel called the generic proof download that eef96516 had withdrawn (always 403), and every 403 re-verifies all authorized reads. The download is restored for `evidence.read` holders with project/org scope, a SHA-256 integrity check and no-store/nosniff headers; recorded as an amendment in cr-pathways-private-activity-proof-inspection.
+
+## 2026-10-07 Activity budget lines name their activity (fix/activity-budget-line-name)
+- The activity panel listed pending expenses by the raw `ACTIVITY_PROFILE_TOTAL` code and logged expenses as "Activity budget". `categoryLabel` now takes the activity title, so the panel and the budget ledger read "Activity budget: <activity title>", matching the finance workspace.
+
+## 2026-10-07 Unreadable KPI and reach tiles hidden (fix/hide-unreadable-metric-tiles)
+- Project preview and Quick Preview leave out KPI achievement and Beneficiaries reached when the role cannot read them (Project Officers lack `monitoring.read` and `analytics.saddd.read`), like Budget utilization; Timeline always shows.
+
+## 2026-10-07 Activity budget hidden without budget access (fix/hide-activity-budget-without-access)
+- The activity panel's Activity budget section (Allocated, Spent, Remaining) showed "Unavailable" to roles without `budgets.read`, such as Project Officers. It is now left out for them.
+## 2026-10-07 Maps and Backup & Recovery hidden (fix/hide-backup-and-maps)
+- The Analytics "Map" visualization is hidden for every role behind `MAPS_UI_ENABLED = false`, and Backup & Recovery is hidden behind `BACKUP_RECOVERY_UI_ENABLED = false` (sidebar entry removed, `/settings/backups` returns not found). Both are registered in docs/deferred-features.md.
+
+## 2026-10-07 Target Indicators tab layout (fix/indicators-tab-layout)
+- The project Target Indicators tab drops its intro note, hides "Use from library" and the Indicator library link behind `INDICATOR_LIBRARY_UI_ENABLED = false`, and moves Refresh indicators and Add project indicator into the Indicators card heading, right aligned. The card now also holds the loading, error and empty states, so Add stays reachable with no indicators.
+
+## 2026-10-07 System Administrator dashboard cards hidden (fix/admin-dashboard-cards)
+- The System Administrator dashboard no longer shows the Active budget alerts and Overdue activities cards or the Project monitoring card, behind `ADMIN_DASHBOARD_MONITORING_UI_ENABLED = false`; their requests are skipped too.
+
+## 2026-10-07 Analytics filter layout and SADDD for Project Officers (fix/analytics-filter-layout)
+- The Analysis and visualization card moves Export aggregates (and Add to Dashboard, while hidden) into its heading, right aligned, so the fields form one even grid for every role: Project filter, Reporting period and Analysis view, then Indicator and Visualization type.
+- Roles without `analytics.saddd.read` (Project Officers) get no SADDD Analysis card and no SADDD request instead of "Required application permission is missing."
+
+## 2026-10-07 Hosted PDF report diagnostics (fix/report-artifact-diagnostics)
+- PDF reports failed on the Vercel preview with 503 while CSV worked; no designed-PDF warning was logged, so the pdfkit fallback is the suspect (its font is read from disk next to the compiled module, and the Vercel NestJS preset builds without `nest build`, which copies `modules/reports/assets`). pdfkit now also looks for the font under the working directory, and a generation failure logs only the error name and system code.
+
+## 2026-10-07 Step-up Reset button hidden (fix/hide-step-up-reset)
+- The beneficiary access verification dialog hides its Reset button behind `STEP_UP_RESET_UI_ENABLED = false`; registered in docs/deferred-features.md.
+
+## 2026-10-07 PDF reports on Vercel (fix/pdfkit-default-font)
+- Root cause of the preview 503: `new PDFDocument()` loads pdfkit's default Helvetica through `createRequire(...)('#standard-fonts/Helvetica')`, which Vercel's file tracing does not bundle, so every pdfkit PDF threw MODULE_NOT_FOUND. Documents now start on the bundled NotoSans font, so the standard fonts are never loaded. Reproduced against the compiled CommonJS build with the standard fonts blocked: before the fix MODULE_NOT_FOUND, after it a valid PDF.
+
+## 2026-10-07 Budget section in the Project summary report (feat/report-budget-section)
+- The Project summary report gains a Budget section for actors holding both `budgets.read` and `expenses.read` (Project Managers among them): each active budget line, activity lines named by their activity, with planned amount, approved spending, spending in review (pending or verified) and remaining (planned minus approved). Rejected expenses are left out, at most 50 lines are shown, and the section appears in the designed PDF, the pdfkit PDF, CSV and XLSX. No migration; no new report type.

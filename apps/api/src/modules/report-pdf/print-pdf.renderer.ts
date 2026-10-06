@@ -1,7 +1,28 @@
+import { existsSync } from 'node:fs'
+import { win32 } from 'node:path'
 import { Injectable, type OnModuleDestroy } from '@nestjs/common'
 import { readApiEnv } from '@pathways/config'
 import type { Browser, HTTPRequest } from 'puppeteer-core'
 import { localWebOrigins } from '../../common/network/cors-origins'
+
+// First standard Chrome or Edge install off Linux, so a local run needs no PDF_CHROME_PATH.
+function installedBrowser() {
+  const candidates =
+    process.platform === 'win32'
+      ? [process.env.PROGRAMFILES, process.env['PROGRAMFILES(X86)'], process.env.LOCALAPPDATA]
+          .filter((base): base is string => Boolean(base))
+          .flatMap((base) => [
+            win32.join(base, 'Google', 'Chrome', 'Application', 'chrome.exe'),
+            win32.join(base, 'Microsoft', 'Edge', 'Application', 'msedge.exe'),
+          ])
+      : process.platform === 'darwin'
+        ? [
+            '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+            '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge',
+          ]
+        : []
+  return candidates.find((path) => existsSync(path))
+}
 
 const footer =
   '<div style="width:100%;font-size:8px;color:#6F7785;text-align:center;font-family:Arial,sans-serif">PATHWAYS · Page <span class="pageNumber"></span> of <span class="totalPages"></span></div>'
@@ -171,9 +192,10 @@ export class PrintPdfRenderer implements OnModuleDestroy {
   private async launch(): Promise<Browser> {
     const { default: puppeteer } = await import('puppeteer-core')
     const env = readApiEnv(process.env)
-    if (env.PDF_CHROME_PATH)
+    const local = env.PDF_CHROME_PATH || installedBrowser()
+    if (local)
       return puppeteer.launch({
-        executablePath: env.PDF_CHROME_PATH,
+        executablePath: local,
         headless: true,
         protocolTimeout: PROTOCOL_TIMEOUT_MS,
       })

@@ -386,6 +386,38 @@ describe('Core client request and strict response boundaries', () => {
       evaluation,
     )
   })
+  it('requests an exact evaluation round and parses the rounds list strictly', async () => {
+    const round = {
+      id: otherId,
+      title: 'Midterm',
+      status: 'SIGNED_OFF',
+      periodStart: '2026-01-01',
+      periodEnd: '2026-06-30',
+      signedOffAt: null,
+      overallScore: '82.5',
+    }
+    fetcher.mockResolvedValueOnce(json({ ...preview, kind: 'EVALUATION_REPORT', formId: null }))
+    await coreDataClient.reportPreview(
+      projectId,
+      'EVALUATION_REPORT',
+      undefined,
+      undefined,
+      otherId,
+    )
+    expect(fetcher.mock.calls[0][0]).toBe(
+      `http://127.0.0.1:4000/api/projects/${projectId}/reports/preview?kind=EVALUATION_REPORT&evaluationId=${otherId}`,
+    )
+    fetcher.mockResolvedValueOnce(json([round]))
+    await expect(coreDataClient.evaluationRounds(projectId)).resolves.toEqual([round])
+    fetcher.mockResolvedValueOnce(json([{ ...round, status: 'DRAFT' }]))
+    await expect(coreDataClient.evaluationRounds(projectId)).rejects.toThrow(
+      'could not be validated',
+    )
+    fetcher.mockResolvedValueOnce(json([{ ...round, createdById: otherId }]))
+    await expect(coreDataClient.evaluationRounds(projectId)).rejects.toThrow(
+      'could not be validated',
+    )
+  })
   it('parses a project summary preview with sections and rejects unknown section keys', async () => {
     const { sections } = sampleProjectReport
     const body = { ...preview, kind: 'PROJECT_SUMMARY', formId: null, sections }
@@ -552,6 +584,24 @@ describe('owned private artifact delivery', () => {
     await vi.runAllTimersAsync()
     expect(revoke).toHaveBeenCalledWith('blob:synthetic')
   })
+  it('saves a readable report name produced by the reporting workspace', async () => {
+    fetcher.mockResolvedValueOnce(
+      new Response('synthetic pdf bytes', { headers: { 'Content-Type': 'application/pdf' } }),
+    )
+    vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:synthetic')
+    await downloadCoreArtifact('/synthetic-artifact', 'Hygiene Kits – Guiuan Evaluation report.pdf')
+    expect(link.download).toBe('Hygiene Kits – Guiuan Evaluation report.pdf')
+    expect(click).toHaveBeenCalledOnce()
+  })
+  it.each(['../report.pdf', 'a\\b.pdf', '.hidden.pdf', 'report.exe', `${'a'.repeat(201)}.pdf`])(
+    'rejects the unsafe file name %j before fetching',
+    async (name) => {
+      await expect(downloadCoreArtifact('/synthetic-artifact', name)).rejects.toThrow(
+        'Current artifact access is required',
+      )
+      expect(fetcher).not.toHaveBeenCalled()
+    },
+  )
   it('rejects an unapproved MIME before saving', async () => {
     const response = new Response('<script>synthetic</script>', {
       headers: { 'Content-Type': 'text/html' },

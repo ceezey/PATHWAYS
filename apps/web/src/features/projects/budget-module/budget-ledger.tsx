@@ -146,6 +146,8 @@ export const BudgetLedger = ({
             const status = statusLabel[expense.status]
             const step = stepFor(expense)
             const expanded = open === expense.id
+            // Splits this expense out of the activity-wide in-review total so the row and panel agree.
+            const inReview = expense.status === 'PENDING' || expense.status === 'VERIFIED'
             const Chevron = expanded ? ChevronDown : ChevronRight
             return (
               <li className="py-3" id={`expense-${expense.id}`} key={expense.id}>
@@ -212,7 +214,9 @@ export const BudgetLedger = ({
                         </div>
                         <div>
                           <dt className="text-muted-foreground">Budget line</dt>
-                          <dd className="font-medium">{categoryLabel(budget?.category)}</dd>
+                          <dd className="font-medium">
+                            {categoryLabel(budget?.category, activity?.title)}
+                          </dd>
                         </div>
                         <div>
                           <dt className="text-muted-foreground">Allocated to this line</dt>
@@ -222,7 +226,9 @@ export const BudgetLedger = ({
                         </div>
                       </dl>
                       {/* The whole activity, the same totals its panel and the overview show. */}
-                      <dl className="mt-2 grid gap-2 border-t border-border pt-2 text-sm sm:grid-cols-4">
+                      <dl
+                        className={`mt-2 grid gap-2 border-t border-border pt-2 text-sm ${inReview ? 'sm:grid-cols-5' : 'sm:grid-cols-4'}`}
+                      >
                         <div>
                           <dt className="text-muted-foreground">Activity allocated</dt>
                           <dd className="font-medium tabular-nums">
@@ -236,11 +242,25 @@ export const BudgetLedger = ({
                           </dd>
                         </div>
                         <div>
-                          <dt className="text-muted-foreground">In review</dt>
+                          <dt className="text-muted-foreground">
+                            {inReview ? 'Other in review' : 'In review'}
+                          </dt>
                           <dd className="font-medium tabular-nums text-warning">
-                            {activityRow ? formatCurrency(activityRow.pending) : 'Not recorded'}
+                            {activityRow
+                              ? formatCurrency(
+                                  activityRow.pending - (inReview ? Number(expense.amount) : 0),
+                                )
+                              : 'Not recorded'}
                           </dd>
                         </div>
+                        {inReview ? (
+                          <div>
+                            <dt className="text-muted-foreground">This expense</dt>
+                            <dd className="font-medium tabular-nums text-warning">
+                              {formatCurrency(Number(expense.amount))}
+                            </dd>
+                          </div>
+                        ) : null}
                         <div>
                           <dt className="text-muted-foreground">Remaining</dt>
                           <dd className="font-medium tabular-nums">

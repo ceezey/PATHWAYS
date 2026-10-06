@@ -211,12 +211,9 @@ describe('P06 dedicated indicator workspace', () => {
       binding: { recipe: 'ACTIVITY_COMPLETION_PERCENTAGE' },
     })
   })
-  it('offers use-from-library only with library read and an existing entry', () => {
+  it('hides use-from-library and the library link while the library flag is off', () => {
     const props = { projectId: '79000000-0000-4000-8000-000000000003' }
     state.permissions = ['monitoring.read', 'indicators.create', 'indicators.library.read']
-    expect(renderToStaticMarkup(createElement(ProjectIndicatorsWorkspace, props))).not.toContain(
-      'Use from library',
-    )
     state.library = [
       {
         id: '79000000-0000-4000-8000-000000000020',
@@ -226,13 +223,9 @@ describe('P06 dedicated indicator workspace', () => {
       },
     ]
     const html = renderToStaticMarkup(createElement(ProjectIndicatorsWorkspace, props))
-    expect(html).toContain('Use from library')
-    expect(html).toContain('WORKSHOP_ATTENDEES')
-    expect(html).toContain('href="/indicators/library?project=')
-    state.permissions = ['monitoring.read', 'indicators.create']
-    const denied = renderToStaticMarkup(createElement(ProjectIndicatorsWorkspace, props))
-    expect(denied).not.toContain('Use from library')
-    expect(denied).not.toContain('/indicators/library')
+    expect(html).not.toContain('Use from library')
+    expect(html).not.toContain('/indicators/library')
+    expect(html).not.toContain('No automatic project-success rating')
   })
   it('hides creation for a forged grant beyond the role ceiling', () => {
     // A Project Officer never holds indicators.create; a stray grant cannot show the action.

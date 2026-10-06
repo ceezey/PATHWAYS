@@ -49,8 +49,10 @@ vi.mock('../rules/rules-source-operation', async (importOriginal) => ({
   readRuleSourceAcknowledgement: async () => null,
   bootstrapRuleSourceProject: async () => undefined,
 }))
+import { createHash } from 'node:crypto'
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
+
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ApplicationIdentity } from '@app/modules/auth/developer-access'
@@ -197,14 +199,34 @@ describe('P05 activity proof authorization', () => {
     expect(tx.evidenceMedia.findFirst).not.toHaveBeenCalled()
   })
 
-  it('uniformly denies retired generic proof capability without metadata or storage reads', async () => {
+  it('denies a proof outside the project scope without metadata or storage reads', async () => {
     tx.project.findFirst.mockResolvedValue(null)
-    await expect(
-      service.downloadProof(actor, projectId, activityId, updateId),
-    ).rejects.toBeInstanceOf(ForbiddenException)
-    expect(tx.project.findFirst).not.toHaveBeenCalled()
+    await expect(service.downloadProof(actor, projectId, activityId, updateId)).rejects.toThrow()
     expect(tx.evidenceMedia.findFirst).not.toHaveBeenCalled()
     expect(storage.downloadPrivateFile).not.toHaveBeenCalled()
+  })
+
+  it('releases a scoped proof only when its bytes match the recorded digest', async () => {
+    const bytes = Buffer.from('synthetic proof bytes')
+    const sha256 = createHash('sha256').update(bytes).digest('hex')
+    const proof = { bucket: 'b', objectKey: 'k', fileName: 'proof.jpg', contentType: 'image/jpeg' }
+    tx.evidenceMedia.findFirst.mockResolvedValueOnce({ ...proof, sha256 })
+    storage.downloadPrivateFile.mockResolvedValueOnce(bytes)
+    await expect(service.downloadProof(actor, projectId, activityId, updateId)).resolves.toEqual({
+      fileName: 'proof.jpg',
+      contentType: 'image/jpeg',
+      body: bytes,
+    })
+    expect(tx.evidenceMedia.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ organizationId: actor.organizationId, projectId }),
+      }),
+    )
+    tx.evidenceMedia.findFirst.mockResolvedValueOnce({ ...proof, sha256: '0'.repeat(64) })
+    storage.downloadPrivateFile.mockResolvedValueOnce(bytes)
+    await expect(
+      service.downloadProof(actor, projectId, activityId, updateId),
+    ).rejects.toBeInstanceOf(NotFoundException)
   })
 
   it('loads bounded activity relations through one database join query', async () => {
@@ -494,7 +516,7 @@ describe('P05 activity proof authorization', () => {
     tx.evidenceMedia.findFirst.mockResolvedValueOnce(null)
     await expect(
       service.downloadProof(actor, projectId, activityId, updateId),
-    ).rejects.toBeInstanceOf(ForbiddenException)
+    ).rejects.toBeInstanceOf(NotFoundException)
     expect(storage.downloadPrivateFile).not.toHaveBeenCalled()
   })
 

@@ -77,3 +77,7 @@ The response keeps `Content-Disposition: attachment` with a generic name and the
 - API tests: each allow-listed type returns its recorded type and extension; a signature mismatch or an unlisted type returns `application/octet-stream`; an unverified upload is still refused at admission (section 2), which is stricter; nosniff and no-store headers are present; range and HEAD behaviour is unchanged; and a denied admission still reads no body.
 - Web tests: the inspection control opens the modal, renders by type, revokes the URL on close, and downloads with a single fetch.
 - Before merge: an isolation, privacy and design review of the exact code by organization-isolation-checker, beneficiary-privacy-guardian and design-qa-agent.
+
+## Amendment 2026-10-07: generic proof download restored
+
+Developer decision (2026-10-07): the generic `GET /projects/:projectId/activities/:activityId/proof/:evidenceId` download is restored for `evidence.read` holders so the activity panel can preview submitted proofs (the withdrawn route made every panel preview fail with 403 and re-verify the whole page). It stays project-scoped and organization-scoped, releases only storage-ready update proofs, refuses bytes whose SHA-256 no longer matches the recorded digest, and responds with `Cache-Control: private, no-store`, `X-Content-Type-Options: nosniff` and a sanitized attachment name. The assigned-reviewer inspection path is unchanged.

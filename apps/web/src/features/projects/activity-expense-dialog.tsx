@@ -9,12 +9,20 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogFooter } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useOperationRequestId } from '@/lib/auth/operation-request-id'
 import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
 import { coreDataClient } from '@/lib/services/core-feature-client'
 import type { Activity } from '@/types/pathways'
+import { categoryLabel } from './budget-module/budget-math'
 
 /** A submitter-safe budget reference: the amount stays hidden, only the linkage is exposed. */
 export type ExpenseBudgetReference = {
@@ -170,22 +178,23 @@ export const ActivityExpenseDialog = ({
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2 sm:col-span-2">
                 <Label htmlFor="activity-expense-budget">Budget allocation</Label>
-                <select
-                  className="h-11 w-full rounded-md border bg-background px-3"
-                  id="activity-expense-budget"
-                  onChange={(event) =>
-                    setDraft((current) => ({ ...current, budgetRecordId: event.target.value }))
+                <Select
+                  onValueChange={(value) =>
+                    setDraft((current) => ({ ...current, budgetRecordId: value }))
                   }
-                  required
                   value={draft.budgetRecordId}
                 >
-                  <option value="">Choose a linked allocation</option>
-                  {activityReferences.map((row) => (
-                    <option key={row.id} value={row.id}>
-                      {row.category}
-                    </option>
-                  ))}
-                </select>
+                  <SelectTrigger aria-required="true" id="activity-expense-budget">
+                    <SelectValue placeholder="Choose a linked allocation" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {activityReferences.map((row) => (
+                      <SelectItem key={row.id} value={row.id}>
+                        {categoryLabel(row.category)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="activity-expense-amount">Amount (PHP)</Label>

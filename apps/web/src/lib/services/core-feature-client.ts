@@ -86,6 +86,7 @@ export const publicationSchema = z
 const publicationReceipt = publicationSchema.pick({ revision: true, state: true, updatedAt: true })
 const timestamp = z.string().datetime({ offset: true })
 const decimal = z.string().regex(/^-?\d+(?:\.\d+)?$/)
+const dateOnly = z.string().regex(/^\d{4}-\d{2}-\d{2}$/)
 export const budgetSchema = z
   .object({
     id: uuid,
@@ -156,6 +157,21 @@ const reportSchema = z
     format: reportFormat.nullable(),
     status: z.enum(['DRAFT', 'GENERATED', 'ARCHIVED']),
     generatedAt: timestamp.nullable(),
+    evaluation: z
+      .object({ title: z.string(), periodStart: dateOnly, periodEnd: dateOnly })
+      .strict()
+      .nullable(),
+  })
+  .strict()
+const evaluationRoundSchema = z
+  .object({
+    id: uuid,
+    title: z.string(),
+    status: z.enum(['SIGNED_OFF', 'ARCHIVED']),
+    periodStart: dateOnly,
+    periodEnd: dateOnly,
+    signedOffAt: timestamp.nullable(),
+    overallScore: decimal.nullable(),
   })
   .strict()
 const post = <S extends z.ZodTypeAny>(url: string, schema: S, body: unknown) =>
@@ -326,14 +342,19 @@ export const coreDataClient = {
         .max(100),
       { signal },
     ),
+  evaluationRounds: (id: string, signal?: AbortSignal) =>
+    read(`${path(id)}/reports/evaluation-rounds`, z.array(evaluationRoundSchema).max(100), {
+      signal,
+    }),
   reportPreview: (
     id: string,
     kind: z.infer<typeof reportKind>,
     signal?: AbortSignal,
     formId?: string,
+    evaluationId?: string,
   ) =>
     read(
-      `${path(id)}/reports/preview?kind=${reportKind.parse(kind)}${formId ? `&formId=${uuid.parse(formId)}` : ''}`,
+      `${path(id)}/reports/preview?kind=${reportKind.parse(kind)}${formId ? `&formId=${uuid.parse(formId)}` : ''}${evaluationId ? `&evaluationId=${uuid.parse(evaluationId)}` : ''}`,
       reportPreviewSchema.refine(
         (row) => row.projectId === id && row.kind === kind && row.formId === (formId ?? null),
       ),
@@ -351,6 +372,7 @@ export const coreDataClient = {
       kind: z.infer<typeof reportKind>
       format: z.infer<typeof reportFormat>
       formId?: string
+      evaluationId?: string
     },
   ) =>
     post(
@@ -419,7 +441,12 @@ export async function fetchCoreArtifact(
     owner !== null &&
     owner === ownerCookie() &&
     generation === sensitiveDraftGeneration()
-  if (!current() || !/^[a-z0-9-]+\.(csv|xlsx|xls|pdf|png|jpg)$/.test(fileName))
+  // Allows readable names but no control, path or reserved characters, leading dot, or long names.
+  if (
+    !current() ||
+    // biome-ignore lint/suspicious/noControlCharactersInRegex: Control characters are rejected on purpose.
+    !/^(?!\.)[^\x00-\x1f\\/:*?"<>|]{1,200}\.(csv|xlsx|xls|pdf|png|jpg)$/.test(fileName)
+  )
     throw new PathwaysClientError('Current artifact access is required.', 'unauthorized')
   const response = await requestFoundationResponse(url, { signal: AbortSignal.timeout(20000) })
   if (!current() || !response.body) {

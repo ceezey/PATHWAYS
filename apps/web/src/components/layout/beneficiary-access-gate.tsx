@@ -11,7 +11,7 @@ import { Dialog } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { OtpInput } from '@/components/ui/otp-input'
-import { STEP_UP_PIN_UI_ENABLED } from '@/constants/feature-flags'
+import { STEP_UP_PIN_UI_ENABLED, STEP_UP_RESET_UI_ENABLED } from '@/constants/feature-flags'
 import {
   BeneficiaryStepUpError,
   PIN_LOCKED_MESSAGE,
@@ -397,10 +397,12 @@ export const BeneficiaryAccessGate = ({
                   <ArrowLeft className="mr-2 h-4 w-4" aria-hidden="true" />
                   {blocking ? 'Dashboard' : 'Not now'}
                 </Button>
-                <Button type="button" variant="outline" onClick={reset}>
-                  <RotateCcw className="mr-2 h-4 w-4" aria-hidden="true" />
-                  Reset
-                </Button>
+                {STEP_UP_RESET_UI_ENABLED ? (
+                  <Button type="button" variant="outline" onClick={reset}>
+                    <RotateCcw className="mr-2 h-4 w-4" aria-hidden="true" />
+                    Reset
+                  </Button>
+                ) : null}
                 {method === 'totp' ? (
                   <Button
                     ref={verifyButtonRef}

@@ -8,6 +8,7 @@ import { PageHeader } from '@/components/layout/page-header'
 import {
   AsyncState,
   AvatarStack,
+  CappedPercent,
   EmptyState,
   FilterBar,
   FilterChoiceGroup,
@@ -20,7 +21,6 @@ import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'
-import { formatCappedPercent } from '@/lib/percent'
 import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
 import { pathwaysClient } from '@/lib/services/pathways-client'
 import { cn } from '@/lib/utils'
@@ -257,7 +257,11 @@ const ProjectTimeline = ({ timeline }: { timeline: MetricCell }) => (
       <span className="text-muted-foreground">{overviewMetricLabel(timeline, 'percent')}</span>
     )}
     <span className="font-semibold tabular-nums text-foreground">
-      {timeline.value !== null ? formatCappedPercent(timeline.value, 'past schedule') : '—'}
+      {timeline.value !== null ? (
+        <CappedPercent value={timeline.value} overLabel="past schedule" />
+      ) : (
+        '—'
+      )}
     </span>
   </div>
 )
