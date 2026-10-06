@@ -1,5 +1,10 @@
 import { Module } from '@nestjs/common'
+import { ReportPdfModule } from '../report-pdf/report-pdf.module'
 import { FinanceController } from './finance.controller'
 import { FinanceService } from './finance.service'
-@Module({ controllers: [FinanceController], providers: [FinanceService] })
+@Module({
+  imports: [ReportPdfModule],
+  controllers: [FinanceController],
+  providers: [FinanceService],
+})
 export class FinanceModule {}

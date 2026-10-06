@@ -46,12 +46,20 @@ export function Band({ title }: { title: string }) {
 
 const th = 'border border-border bg-surface-subtle px-2 py-1.5 text-left font-semibold'
 export const td = 'border border-border px-2 py-1.5 align-top'
-export const Table = ({ head, children }: { head: string[]; children: React.ReactNode }) => (
+export const Table = ({
+  head,
+  children,
+  numericLastColumn = false,
+}: { head: string[]; children: React.ReactNode; numericLastColumn?: boolean }) => (
   <table className="w-full border-collapse text-xs">
     <thead className="print-table-head">
       <tr>
-        {head.map((name) => (
-          <th key={name} className={th}>
+        {head.map((name, index) => (
+          <th
+            key={name}
+            // A money column is right-aligned, so its heading sits over the figures.
+            className={cn(th, numericLastColumn && index === head.length - 1 && 'text-right')}
+          >
             {name}
           </th>
         ))}

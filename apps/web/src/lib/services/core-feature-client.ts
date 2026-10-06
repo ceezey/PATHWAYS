@@ -112,6 +112,10 @@ export const expenseSchema = z
     updatedAt: timestamp,
     signedOffById: uuid.nullable(),
     signedOffAt: timestamp.nullable(),
+    submittedByName: z.string().max(200).nullable(),
+    verifiedByName: z.string().max(200).nullable(),
+    approvedByName: z.string().max(200).nullable(),
+    signedOffByName: z.string().max(200).nullable(),
   })
   .strict()
 export const expenseAck = z
@@ -351,7 +355,13 @@ export const coreDataClient = {
   ) =>
     post(
       `${path(id)}/reports`,
-      z.object({ id: uuid, status: z.literal('GENERATED') }).strict(),
+      z
+        .object({
+          id: uuid,
+          status: z.literal('GENERATED'),
+          pdfFallback: z.literal(true).optional(),
+        })
+        .strict(),
       body,
     ),
   evaluation: (id: string, signal?: AbortSignal) =>

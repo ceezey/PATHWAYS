@@ -13,6 +13,7 @@ import type { ProjectDetail } from '@/types/pathways'
 
 // Each tab carries the route it opens, so tab visibility equals route access.
 const createWorkspaceTabs = (labels: DisplayLabels): WorkspaceTabAccess[] => [
+  { label: 'Overview', path: '', route: 'project' },
   { label: labels.projectActivities, path: 'activities', route: 'activities' },
   { label: labels.projectIndicators, path: 'indicators', route: 'indicators' },
   { label: labels.projectEvidence, path: 'evidence', route: 'evidence' },
@@ -36,16 +37,10 @@ export const ProjectWorkspaceHeader = ({ project }: { project: ProjectDetail }) 
       aria-label={`${project.title} workspace summary`}
       className="min-w-0 max-w-full overflow-x-hidden rounded-2xl border border-border bg-card p-4 sm:p-5"
     >
-      <div className="min-w-0 space-y-3">
-        <div>
-          <h2 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
-            {project.title}
-          </h2>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
-            {project.description}
-          </p>
-        </div>
-      </div>
+      {/* The workspace frame draws the project title above; this card carries the tabs. */}
+      <p className="min-w-0 max-w-3xl text-sm leading-6 text-muted-foreground">
+        {project.description}
+      </p>
       <nav
         className="mt-5 w-full max-w-full overflow-x-auto border-b border-border"
         aria-label="Project navigation"

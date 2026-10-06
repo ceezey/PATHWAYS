@@ -8,10 +8,14 @@ import { EmptyState, ProofPreviewDialog, SectionCard, StatusBadge } from '@/comp
 import { Button } from '@/components/ui/button'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
-import { fetchCoreArtifact, saveCoreArtifact } from '@/lib/services/core-feature-client'
+import {
+  downloadCoreArtifact,
+  fetchCoreArtifact,
+  saveCoreArtifact,
+} from '@/lib/services/core-feature-client'
 
 import { formatCurrency, formatDate } from '../activity-utils'
-import { projectLevelKey } from './budget-math'
+import { categoryLabel, projectLevelKey, remaining } from './budget-math'
 import { ExpenseReviewDrawer, type ReviewAction } from './expense-review-drawer'
 import type { useBudgetModule } from './use-budget-module'
 
@@ -51,6 +55,23 @@ export const BudgetLedger = ({
   const [open, setOpen] = useState<string | null>(hashedExpenseId)
   const [preview, setPreview] = useState<Expense | null>(null)
   const [review, setReview] = useState<{ expense: Expense; action: ReviewAction } | null>(null)
+
+  const [downloading, setDownloading] = useState<string | null>(null)
+  const downloadReceipt = async (expenseId: string) => {
+    setDownloading(expenseId)
+    try {
+      await downloadCoreArtifact(
+        `/projects/${projectId}/finance/expenses/${expenseId}/official-receipt`,
+        `disbursement-receipt-${expenseId}.pdf`,
+      )
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : 'Official receipt temporarily unavailable.',
+      )
+    } finally {
+      setDownloading(null)
+    }
+  }
 
   const budgetOf = (expense: Expense) => module.budgets.find((b) => b.id === expense.budgetRecordId)
   const rows = module.expenses.filter(
@@ -119,6 +140,9 @@ export const BudgetLedger = ({
           {rows.map((expense) => {
             const budget = budgetOf(expense)
             const activity = module.activities.find((a) => a.id === budget?.activityId)
+            const activityRow = module.activityRows.find(
+              (row) => row.key === (budget?.activityId ?? projectLevelKey),
+            )
             const status = statusLabel[expense.status]
             const step = stepFor(expense)
             const expanded = open === expense.id
@@ -157,47 +181,102 @@ export const BudgetLedger = ({
                 </div>
                 {expanded ? (
                   <div className="mt-3 space-y-3 pl-7 text-sm">
-                    <dl className="grid gap-3 sm:grid-cols-3">
+                    <dl className="grid gap-3 sm:grid-cols-4">
                       <div>
                         <dt className="text-muted-foreground">Submitted by</dt>
-                        <dd className="break-all font-medium">{expense.submittedById}</dd>
+                        <dd className="font-medium">{expense.submittedByName ?? 'Unnamed user'}</dd>
                       </div>
                       <div>
                         <dt className="text-muted-foreground">Verified by</dt>
-                        <dd className="break-all font-medium">
-                          {expense.verifiedById ?? 'Not yet'}
-                        </dd>
+                        <dd className="font-medium">{expense.verifiedByName ?? 'Not yet'}</dd>
                       </div>
                       <div>
                         <dt className="text-muted-foreground">Approved by</dt>
-                        <dd className="break-all font-medium">
-                          {expense.approvedById ?? 'Not yet'}
-                        </dd>
+                        <dd className="font-medium">{expense.approvedByName ?? 'Not yet'}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-muted-foreground">Signed off by</dt>
+                        <dd className="font-medium">{expense.signedOffByName ?? 'Not yet'}</dd>
                       </div>
                     </dl>
                     <div className="rounded-md border border-border bg-surface-subtle p-3">
                       <p className="font-medium">Budget alignment</p>
-                      <p className="text-muted-foreground">
-                        {activity?.title ?? 'Project-level budget'} -{' '}
-                        {budget?.category ?? 'Unknown'}
-                        {budget
-                          ? ` - allocated ${formatCurrency(Number(budget.plannedBudget))}`
-                          : ''}
-                      </p>
+                      <dl className="mt-2 grid gap-2 text-sm sm:grid-cols-3">
+                        <div>
+                          <dt className="text-muted-foreground">Activity</dt>
+                          <dd className="font-medium">
+                            {activity
+                              ? `${activity.code ? `${activity.code} - ` : ''}${activity.title}`
+                              : 'Project-level budget'}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="text-muted-foreground">Budget line</dt>
+                          <dd className="font-medium">{categoryLabel(budget?.category)}</dd>
+                        </div>
+                        <div>
+                          <dt className="text-muted-foreground">Allocated to this line</dt>
+                          <dd className="font-medium tabular-nums">
+                            {budget ? formatCurrency(Number(budget.plannedBudget)) : 'Not recorded'}
+                          </dd>
+                        </div>
+                      </dl>
+                      {/* The whole activity, the same totals its panel and the overview show. */}
+                      <dl className="mt-2 grid gap-2 border-t border-border pt-2 text-sm sm:grid-cols-4">
+                        <div>
+                          <dt className="text-muted-foreground">Activity allocated</dt>
+                          <dd className="font-medium tabular-nums">
+                            {activityRow ? formatCurrency(activityRow.allocated) : 'Not recorded'}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="text-muted-foreground">Spent (approved)</dt>
+                          <dd className="font-medium tabular-nums text-success">
+                            {activityRow ? formatCurrency(activityRow.used) : 'Not recorded'}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="text-muted-foreground">In review</dt>
+                          <dd className="font-medium tabular-nums text-warning">
+                            {activityRow ? formatCurrency(activityRow.pending) : 'Not recorded'}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="text-muted-foreground">Remaining</dt>
+                          <dd className="font-medium tabular-nums">
+                            {activityRow
+                              ? formatCurrency(remaining(activityRow.allocated, activityRow.used))
+                              : 'Not recorded'}
+                          </dd>
+                        </div>
+                      </dl>
                     </div>
-                    {expense.receiptEvidenceId ? (
-                      can('evidence.read') ? (
-                        <Button onClick={() => setPreview(expense)} size="sm" variant="outline">
-                          Preview private receipt
-                        </Button>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {expense.receiptEvidenceId ? (
+                        can('evidence.read') ? (
+                          <Button onClick={() => setPreview(expense)} size="sm" variant="outline">
+                            Preview private receipt
+                          </Button>
+                        ) : (
+                          <p className="text-muted-foreground">Receipt attached.</p>
+                        )
                       ) : (
-                        <p className="text-muted-foreground">Receipt attached.</p>
-                      )
-                    ) : (
-                      <p className="font-medium text-warning">
-                        Receipt missing. Validation needs a private receipt.
-                      </p>
-                    )}
+                        <p className="font-medium text-warning">
+                          Receipt missing. Validation needs a private receipt.
+                        </p>
+                      )}
+                      {/* The generated disbursement record, separate from the uploaded proof. */}
+                      <Button
+                        disabled={downloading === expense.id}
+                        onClick={() => void downloadReceipt(expense.id)}
+                        size="sm"
+                        variant="outline"
+                      >
+                        {downloading === expense.id
+                          ? 'Preparing receipt'
+                          : 'Download official receipt'}
+                      </Button>
+                    </div>
                   </div>
                 ) : null}
               </li>

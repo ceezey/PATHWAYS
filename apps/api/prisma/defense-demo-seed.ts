@@ -15,6 +15,7 @@ import { ParticipantsService } from '../src/modules/participants/participants.se
 import { ProjectOverviewMetricsService } from '../src/modules/projects/project-overview-metrics.service'
 import { ProjectsService } from '../src/modules/projects/projects.service'
 import { PublicService } from '../src/modules/public/public.service'
+import type { ReceiptPdfRenderer } from '../src/modules/report-pdf/receipt-pdf.renderer'
 import type { ReportPdfRenderer } from '../src/modules/report-pdf/report-pdf.renderer'
 import { ReportsService } from '../src/modules/reports/reports.service'
 import { RulesHumanService } from '../src/modules/rules/rules-human.service'
@@ -143,7 +144,10 @@ async function seed(owner: PrismaClient, testLocal: boolean) {
         metadata: new MetadataService(runtime, participants),
         participants,
         imports: new ImportsService(runtime, storage, beneficiaries, participants),
-        finance: new FinanceService(runtime, storage),
+        finance: new FinanceService(runtime, storage, {
+          // Seeds never render a receipt document; the Chromium renderer stays off.
+          render: () => Promise.reject(new Error('Receipt renderer disabled.')),
+        } as unknown as ReceiptPdfRenderer),
         reports: new ReportsService(
           runtime,
           storage,

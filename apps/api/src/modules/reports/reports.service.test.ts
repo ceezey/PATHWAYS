@@ -320,7 +320,8 @@ describe('report source authority, privacy and artifact recovery', () => {
       /^SELECT 1::integer AS locked FROM pg_catalog\.pg_advisory_xact_lock/,
     )
     const retry = await service.generate(actor, projectId, body)
-    expect(retry).toEqual(first)
+    // pdfFallback describes the render that just ran, so a recovered report omits it.
+    expect(retry).toEqual({ id: first.id, status: first.status })
     expect(storage.uploadPrivateFile).toHaveBeenCalledOnce()
     expect(tx.auditLog.create).toHaveBeenCalledOnce()
     await expect(
@@ -369,7 +370,8 @@ describe('report source authority, privacy and artifact recovery', () => {
   })
   it('stores the designed PDF from the renderer without calling pdfkit', async () => {
     renderer.render.mockResolvedValue(Buffer.from('%PDF-designed'))
-    await service.generate(actor, projectId, body).catch(() => undefined)
+    const acknowledgement = await service.generate(actor, projectId, body).catch(() => undefined)
+    expect(acknowledgement).not.toHaveProperty('pdfFallback')
     expect(renderer.render).toHaveBeenCalledWith(
       expect.any(String),
       expect.objectContaining({ title: 'Private report', kind: 'PROJECT_SUMMARY' }),
@@ -383,7 +385,9 @@ describe('report source authority, privacy and artifact recovery', () => {
     )
   })
   it('falls back to the pdfkit artifact when the renderer fails', async () => {
-    await service.generate(actor, projectId, body).catch(() => undefined)
+    const acknowledgement = await service.generate(actor, projectId, body).catch(() => undefined)
+    // The caller is told the stored PDF is the plain layout, so it can say it will not match.
+    expect(acknowledgement).toMatchObject({ pdfFallback: true })
     expect(renderer.render).toHaveBeenCalledOnce()
     expect(state.artifact).toHaveBeenCalledOnce()
     const warning = vi.mocked(Logger.prototype.warn).mock.calls.flat().join(' ')
@@ -624,7 +628,8 @@ describe('report source authority, privacy and artifact recovery', () => {
     expect(preview.rows.some((row) => row[0] === 'Overview')).toBe(true)
     expect(preview.unavailableReasons.length).toBeGreaterThan(0)
     renderer.render.mockResolvedValue(Buffer.from('%PDF-designed'))
-    await service.generate(actor, projectId, body).catch(() => undefined)
+    const acknowledgement = await service.generate(actor, projectId, body).catch(() => undefined)
+    expect(acknowledgement).not.toHaveProperty('pdfFallback')
     expect(renderer.render).toHaveBeenCalledWith(
       expect.any(String),
       expect.objectContaining({

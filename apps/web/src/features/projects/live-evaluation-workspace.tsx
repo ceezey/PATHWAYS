@@ -1,5 +1,4 @@
 'use client'
-import { PageHeader } from '@/components/layout/page-header'
 import {
   AsyncState,
   ConfirmationDialog,
@@ -7,9 +6,11 @@ import {
   SectionCard,
   StatusBadge,
 } from '@/components/pathways'
+import { MetricTooltip } from '@/components/pathways/metric-tooltip'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
+import { metricGlossary } from '@/constants/metric-glossary'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useOperationRequestId } from '@/lib/auth/operation-request-id'
 import { useSensitiveDraftOwner } from '@/lib/auth/sensitive-drafts'
@@ -252,11 +253,11 @@ function EvaluationContent({ projectId }: { projectId: string }) {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        eyebrow="Project review"
-        title="Monitor & Evaluate"
-        description="Start an evaluation round; every OECD-DAC criterion is scored automatically from this project's data, then reviewed and signed off."
-      />
+      {/* The workspace frame draws the project title; this tab keeps only its own note. */}
+      <p className="text-sm text-muted-foreground">
+        Criteria are set up and scored automatically from project data; start a round, review it and
+        sign it off.
+      </p>
       <SectionCard
         title="Evaluations"
         description="Every round appears here with its computed scores and where each came from; the donor report accepts signed-off rounds only."
@@ -440,10 +441,22 @@ function ScoreTable({ evaluation }: { evaluation: EvaluationDetail }) {
       <table className="w-full min-w-[640px] text-sm tabular-nums">
         <thead>
           <tr className="border-b border-border">
-            <th className={headClass}>Criterion</th>
-            <th className={headClass}>Weight</th>
-            <th className={headClass}>Score</th>
-            <th className={headClass}>Source</th>
+            <th className={headClass}>
+              Criterion
+              <MetricTooltip label="Criterion">{metricGlossary.criterion}</MetricTooltip>
+            </th>
+            <th className={headClass}>
+              Weight
+              <MetricTooltip label="Weight">{metricGlossary.weight}</MetricTooltip>
+            </th>
+            <th className={headClass}>
+              Score
+              <MetricTooltip label="Score">{metricGlossary.score}</MetricTooltip>
+            </th>
+            <th className={headClass}>
+              Source
+              <MetricTooltip label="Source">{metricGlossary.scoreSource}</MetricTooltip>
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -470,7 +483,10 @@ function ScoreTable({ evaluation }: { evaluation: EvaluationDetail }) {
           ))}
           {overall !== null ? (
             <tr className="bg-surface-subtle font-semibold text-foreground">
-              <td className="px-4 py-3">Overall</td>
+              <td className="px-4 py-3">
+                Overall
+                <MetricTooltip label="Overall score">{metricGlossary.overallScore}</MetricTooltip>
+              </td>
               <td className="px-4 py-3" />
               <td className="px-4 py-3">{points(overall)} / 100</td>
               <td className="px-4 py-3 text-xs font-normal text-muted-foreground">

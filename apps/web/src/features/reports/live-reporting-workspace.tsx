@@ -11,15 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
-import { ProjectStatusSections } from '@/features/reports/print/print-report-sections'
+import { PrintReportView } from '@/features/reports/print/print-report-view'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useOperationRequestId } from '@/lib/auth/operation-request-id'
 import { useSensitiveDraftOwner } from '@/lib/auth/sensitive-drafts'
@@ -190,13 +182,18 @@ export function LiveReportingWorkspace({
     setBusy(true)
     setStatusMessage('Generating report.')
     try {
-      await coreDataClient.generateReport(id, { clientRequestId, ...body })
+      const acknowledgement = await coreDataClient.generateReport(id, { clientRequestId, ...body })
       if (captured.isCurrent()) {
         requests.acknowledge(clientRequestId)
         await reports.refetch()
         if (captured.isCurrent()) {
-          setStatusMessage('Private report generated.')
-          toast.success('Private report generated.')
+          // A fallback PDF carries the same data in a plain layout, so say it will not match.
+          const message = acknowledgement.pdfFallback
+            ? 'Private report generated in a plain layout. The designed page could not be rendered, so the PDF will not match the preview.'
+            : 'Private report generated.'
+          setStatusMessage(message)
+          if (acknowledgement.pdfFallback) toast.warning(message)
+          else toast.success(message)
         }
       }
     } catch (error) {
@@ -401,39 +398,20 @@ export function LiveReportingWorkspace({
               'Choose an authorized project with recorded report data.'
             }
           />
-        ) : currentPreview.sections ? (
-          <div className="mx-auto max-w-[180mm]">
-            {currentPreview.unavailableReasons.length > 0 && (
-              <ul className="list-disc rounded-md border border-warning bg-warning-subtle p-3 pl-7 text-sm">
-                {currentPreview.unavailableReasons.map((reason) => (
-                  <li key={reason}>{reason}</li>
-                ))}
-              </ul>
-            )}
-            <ProjectStatusSections sections={currentPreview.sections} />
-          </div>
         ) : (
+          // The same component the designed PDF renders, so the export matches this preview.
           <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  {currentPreview.columns.map((column) => (
-                    <TableHead key={column}>{column}</TableHead>
-                  ))}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {currentPreview.rows.map((row) => (
-                  <TableRow key={JSON.stringify(row)}>
-                    {row.map((cell, cellIndex) => (
-                      <TableCell key={`${cellIndex}-${currentPreview.columns[cellIndex]}`}>
-                        {cell}
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+            <PrintReportView
+              report={{
+                title: currentName || kinds[kind].label,
+                kind: currentPreview.kind,
+                columns: currentPreview.columns,
+                rows: currentPreview.rows,
+                sections: currentPreview.sections,
+                generatedAt: currentPreview.generatedAt,
+                unavailableReasons: currentPreview.unavailableReasons,
+              }}
+            />
           </div>
         )}
       </SectionCard>

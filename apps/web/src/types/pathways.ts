@@ -243,6 +243,8 @@ export interface ActivityProof {
   files?: ActivityProofFile[]
   fileNames?: string[]
   status: 'Submitted' | 'Flagged' | 'Accepted'
+  /** Why this file alone was judged insufficient; set only on a flagged file. */
+  rejectionReason?: string | null
   submittedAt: string
   submittedBy: string
   updateUpdatedAt: string

@@ -453,23 +453,6 @@ const ScopedActivityFormDialog = ({
                   }
                 }}
               />
-              <FormField
-                control={form.control}
-                name="overrideJustification"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Timeline override justification</FormLabel>
-                    <FormControl>
-                      <Input {...field} value={field.value ?? ''} />
-                    </FormControl>
-                    <FormDescription>
-                      Required only when activity dates fall outside the project timeline. The
-                      variance is retained for review.
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
               {draftRecovered ? (
                 <output
                   aria-atomic="true"
