@@ -367,3 +367,7 @@
 
 ## 2026-10-06 Zone check memo migration 0065
 - [cr-pathways-zone-check-memo](cr-pathways-zone-check-memo.md): `0065_zone_check_memo` adds `p06_zone_is_valid`, which remembers a validated timezone per transaction, and `p06_assert_scope` and `p06_home_dashboard` use it instead of reading `pg_timezone_names` on every call (0.43 s each on devV2, which timed out the 3 s analytics reads). Owner, SECURITY DEFINER and ACLs are unchanged; hosted plan, Verify-Forward and the runtime suite register 0065.
+
+## 2026-10-06 Rules sweep isolation fix and machine fault logging
+- The hourly sweep failed on hosted with 42501 because `sweep_rule_projects()` requires read committed while `RulesMachineSqlClient.phase()` ran every CAPTURE phase under RepeatableRead; only drain snapshot capture (`capture_rule_snapshot` via `install_capture_context`) needs RepeatableRead, so the sweep now runs ReadCommitted with the unchanged CAPTURE budget. All other machine routines already ran ReadCommitted as their migrations require.
+- `RulesMachineWorker.drain` and `sweep` now log one `PATHWAYS_RULES_MACHINE_FAILED` warning (purpose, failure kind, allowlisted error name, Prisma code and SQLSTATE; never messages or SQL) before the unchanged 503; `faultCause` moved to `prisma/transaction-diagnostic.ts` for reuse. No migration.
