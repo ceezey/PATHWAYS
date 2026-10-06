@@ -386,3 +386,9 @@
 - Applied: 0064 evaluation write path and 0065 zone check memo (about 11:30, ledger 40 rows), 0066 beneficiary reach and SADDD for ongoing projects (14:39, ledger 41 rows); `defense-demo --verify` 23 of 23 after each.
 - CRs updated: evaluation write path, zone check memo, defense seed snapshot (second, realistic restore), beneficiary assessment view, project status report; new `cr-pathways-beneficiary-reach-kpi-values`.
 - Rules dispatch: the drain is green after the developer set the `pathways_rules_worker` password; the sweep waits for production to run the isolation fix (PR #45).
+
+## 2026-10-06 Demo indicators linked to activities
+- Root cause: the demo seed created indicators and activities but never `activity_indicator_links`, so the Activities INDICATORS column (`indicatorCount` = link count) read 0 beside indicators with readings.
+- Seed: each demo indicator now lists its producing `activityKeys`; the indicators stage writes the links on the runtime role (the table forces RLS); `--verify` checks that no seeded indicator with readings is unlinked.
+- EHK numbers aligned: distribution reached 70 families, EHK-FAMILIES target 75 (project reach target) with readings 34 then 70; new EHK-KITS output indicator linked to procurement.
+- Web: indicator progress percent rounds to one decimal (`formatCappedPercent`, `ProgressBar`).

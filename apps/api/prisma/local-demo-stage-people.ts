@@ -3,13 +3,15 @@ import {
   type DemoProject,
   type PlannedPerson,
   addDaysIso,
+  demoActivities,
   demoCohorts,
   demoIndicators,
   demoProjects,
   planCohort,
 } from './local-demo-data'
 import type { DemoContext } from './local-demo-seed'
-import { projectOf } from './local-demo-util'
+import { activityCode } from './local-demo-stage-activities'
+import { asUser, projectOf } from './local-demo-util'
 
 /** Indicators with several successive readings, entered by the Monitoring and Evaluation Officer.
  * Every indicator of a project shares one reporting period (the project dates) so the survey
@@ -71,6 +73,31 @@ export async function stageIndicators(ctx: DemoContext) {
           previous = result.measurementId
         }
       }
+      // Links are written on the runtime role: the table forces RLS and the owner has no policy.
+      const codes = indicator.activityKeys.map((key) =>
+        activityCode(
+          project,
+          demoActivities[project.key].findIndex((a) => a.key === key),
+        ),
+      )
+      const activities = await ctx.owner.projectActivity.findMany({
+        where: { organizationId: ctx.organizationId, projectId, code: { in: codes } },
+        select: { id: true },
+      })
+      if (activities.length !== indicator.activityKeys.length)
+        throw new Error(`Indicator ${indicator.code} links unresolved activities.`)
+      await asUser(ctx, ctx.staff.me, (tx) =>
+        tx.activityIndicatorLink.createMany({
+          data: activities.map((activity) => ({
+            organizationId: ctx.organizationId,
+            projectId,
+            activityId: activity.id,
+            indicatorId,
+            createdById: ctx.staff.me.userId,
+          })),
+          skipDuplicates: true,
+        }),
+      )
     }
   }
   ctx.log(`  indicators created: ${count}`)

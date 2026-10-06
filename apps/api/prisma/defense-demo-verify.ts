@@ -116,6 +116,14 @@ export async function verifyDefenseDemo(
     types.length === 7,
     types.map((row) => row.indicatorType).join(', '),
   )
+  const unlinked = await one(owner.$queryRaw`SELECT count(*) AS n FROM pathways.project_indicators i
+    WHERE i.archived_at IS NULL AND EXISTS (SELECT 1 FROM pathways.project_indicator_measurements m WHERE m.indicator_id = i.id)
+      AND i.code ~ '^(SSG|CRL|ALS|WSH|EHK)-' AND NOT EXISTS (SELECT 1 FROM pathways.activity_indicator_links l WHERE l.indicator_id = i.id)`)
+  add(
+    'every seeded indicator with readings is linked to an activity',
+    unlinked === 0,
+    `${unlinked} unlinked`,
+  )
   const library = await scoped('me', (tx) =>
     tx.indicatorLibraryEntry.count({ where: { archivedAt: null } }),
   )
