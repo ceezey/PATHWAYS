@@ -94,17 +94,25 @@ JOIN pathways.roles r ON r.code=v.role_code;
 INSERT INTO pathways.permissions(code,name) VALUES
   ('projects.read','projects.read'),('monitoring.read','monitoring.read'),
   ('analytics.descriptive.read','analytics.descriptive.read'),
-  ('beneficiaries.aggregates.read','beneficiaries.aggregates.read'),('reports.indicator.read','reports.indicator.read')
+  ('beneficiaries.aggregates.read','beneficiaries.aggregates.read'),('reports.indicator.read','reports.indicator.read'),
+  ('analytics.saddd.read','analytics.saddd.read')
 ON CONFLICT(code) DO NOTHING;
 -- Grants follow the RBAC contract exactly, so no pair outside p09_role_allows is added.
 INSERT INTO pathways.role_permissions(role_id,permission_id)
 SELECT r.id,p.id FROM pathways.roles r JOIN pathways.permissions p ON pathways.p09_role_allows(r.code,p.code)
 WHERE r.code IN ('PROGRAM_MANAGER','GRANT_MANAGER','PROJECT_OFFICER','MONITORING_AND_EVALUATION_OFFICER')
-  AND p.code IN ('projects.read','monitoring.read','analytics.descriptive.read','beneficiaries.aggregates.read','reports.indicator.read')
+  AND p.code IN ('projects.read','monitoring.read','analytics.descriptive.read','beneficiaries.aggregates.read','reports.indicator.read','analytics.saddd.read')
 ON CONFLICT DO NOTHING;
 INSERT INTO pathways.projects(id,organization_id,code,title,start_date,end_date,created_by_id)
 SELECT pg_temp.u(300+n),pg_temp.u(CASE WHEN n=6 THEN 2 ELSE 1 END),'BRK-P'||n,'BRK project '||n,'2026-01-01','2026-12-31',pg_temp.u(101)
 FROM generate_series(1,11) n;
+-- SADDD projects use dates relative to the Manila business day: S1 ongoing with 20 individuals, S2 ongoing with 3, S3 not started.
+INSERT INTO pathways.projects(id,organization_id,code,title,start_date,end_date,created_by_id)
+SELECT pg_temp.u(v.p),pg_temp.u(1),'BRK-S'||v.p,'BRK SADDD project '||v.p,
+  (now() AT TIME ZONE 'Asia/Manila')::date+v.s,(now() AT TIME ZONE 'Asia/Manila')::date+v.e,pg_temp.u(101)
+FROM (VALUES (312,-30,60),(313,-30,60),(314,10,100)) v(p,s,e);
+INSERT INTO pathways.user_project_assignments(id,organization_id,project_id,user_id,assigned_by_id)
+SELECT gen_random_uuid(),pg_temp.u(1),pg_temp.u(p),pg_temp.u(101),pg_temp.u(101) FROM (VALUES (312),(313),(314)) v(p);
 INSERT INTO pathways.user_project_assignments(id,organization_id,project_id,user_id,assigned_by_id)
 SELECT gen_random_uuid(),pg_temp.u(1),pg_temp.u(300+v.p),pg_temp.u(100+n),pg_temp.u(101)
 FROM generate_series(1,4) n CROSS JOIN (VALUES (1),(3),(4),(5),(7),(8),(9),(10),(11)) v(p)
@@ -141,6 +149,8 @@ SELECT pg_temp.attend(307,505,5000,1,2,'2026-02-11','PRESENT','VALIDATED');
 SELECT pg_temp.enroll(308,6000,2,5);
 SELECT pg_temp.enroll(309,7000,10,0);
 SELECT pg_temp.attend(309,506,7000,1,7,'2026-02-10','PRESENT','VALIDATED');
+SELECT pg_temp.enroll(312,10000,20,0);
+SELECT pg_temp.enroll(313,11000,3,0);
 SELECT pg_temp.enroll(310,8000,8,2);
 SELECT pg_temp.attend(310,507,8000,1,6,'2026-02-10','PRESENT','VALIDATED');
 -- P11: 10 individuals and 4 groups, 5 present at the Camp on two days: individuals are hidden, attending is 5 and records are 10.
@@ -190,6 +200,12 @@ INSERT INTO brk_out SELECT 'pm_parts', pathways.p06_participation_breakdown(pg_t
 INSERT INTO brk_out SELECT 'pm_parts_feb', pathways.p06_participation_breakdown(pg_temp.u(301),'2026-02-01','2026-02-28');
 INSERT INTO brk_out SELECT 'pm_parts_a3', pathways.p06_participation_breakdown(pg_temp.u(303),NULL,NULL);
 INSERT INTO brk_out SELECT 'pm_kpi', pathways.p06_indicator_values(pg_temp.u(301),'Asia/Manila');
+INSERT INTO brk_out SELECT 'pm_sd_'||p, pathways.p06_saddd(pg_temp.u(1),ARRAY[pg_temp.u(p)],
+  (SELECT start_date FROM pathways.projects WHERE id=pg_temp.u(p)),(SELECT end_date FROM pathways.projects WHERE id=pg_temp.u(p)),'Asia/Manila')
+ FROM (VALUES (312),(313)) v(p);
+SELECT pg_temp.reject(format('SELECT pathways.p06_saddd(%L::uuid,ARRAY[%L::uuid],%L::date,%L::date,%L)',pg_temp.u(1),pg_temp.u(314),
+  ((now() AT TIME ZONE 'Asia/Manila')::date+10)::text,((now() AT TIME ZONE 'Asia/Manila')::date+100)::text,'Asia/Manila'),'22023',
+  '38 a project that has not started stays refused for SADDD');
 SELECT pg_temp.reject(format('SELECT pathways.p06_indicator_values(%L::uuid,%L)',pg_temp.u(302),'Asia/Manila'),'42501',
   '6a an unassigned project is refused for indicator values');
 SELECT pg_temp.reject(format('SELECT pathways.p06_participation_breakdown(%L::uuid,NULL,NULL)',pg_temp.u(302)),'42501',
@@ -306,10 +322,18 @@ SELECT pg_temp.ok((SELECT d#>>'{enrolledBeneficiaryRecords,value}'='10' AND d#>>
 SELECT pg_temp.ok((SELECT d#>>'{enrolledIndividuals,reason}'='COMPLEMENTARY_SUPPRESSION' AND d#>>'{attendingIndividuals,value}'='5'
   AND d#>>'{participationRecords,reason}'='COMPLEMENTARY_SUPPRESSION' FROM pg_temp.doc('pm_a11') d),
   '35 participation records are hidden whenever enrolled individuals are complement-hidden, so a released count pins nothing');
+-- SADDD for ongoing projects.
+SELECT pg_temp.ok((SELECT d->>'releaseState'='RELEASED' AND d#>>'{total,value}'='20' AND d#>>'{total,state}'='AVAILABLE'
+  FROM pg_temp.doc('pm_sd_312') d),
+  '36 an ongoing project with every marginal of 0 or 5 and more releases its counts to date');
+SELECT pg_temp.ok((SELECT d#>>'{total,state}'='SUPPRESSED' AND d#>>'{total,value}' IS NULL FROM pg_temp.doc('pm_sd_313') d),
+  '37 an ongoing project with a cell of 1-4 is suppressed as a whole');
+SELECT pg_temp.ok(NOT EXISTS(SELECT FROM pathways.sensitive_aggregate_releases WHERE project_id IN (pg_temp.u(312),pg_temp.u(313))),
+  '39 ongoing SADDD is computed live and never frozen in the release registry');
 
 DO $$ DECLARE total integer; BEGIN
  SELECT count(*) INTO total FROM brk_results;
- IF total<>37 THEN RAISE EXCEPTION '0065 beneficiary-reach-kpi-values checks expected 37 assertions, recorded %',total; END IF;
+ IF total<>41 THEN RAISE EXCEPTION '0065 beneficiary-reach-kpi-values checks expected 41 assertions, recorded %',total; END IF;
  RAISE NOTICE 'BENEFICIARY_REACH_KPI_VALUES_RUNTIME=PASS (% assertions)',total;
 END $$;
 ROLLBACK;

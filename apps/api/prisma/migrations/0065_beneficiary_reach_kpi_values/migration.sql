@@ -9,6 +9,9 @@
 -- policies, which need monitoring.read on the project. The reach release also hides participationRecords when it is
 -- 1-4 below enrolled individuals or 1-4 above attending individuals, judged only on the released people counts, and
 -- always when either people count was hidden by complementary suppression, so a released value never pins a hidden one.
+-- p06_saddd also releases an ongoing project live to date (period end = least(project end, business today)), with the
+-- same gates and suppression and no registry freeze; closed projects keep the fixed registry release; a project that
+-- has not started stays refused.
 -- No table, column, policy, role or permission grant changes (role_permissions stays 314); no DBA preprovision.
 BEGIN;
 SET LOCAL lock_timeout = '5s';
@@ -25,7 +28,9 @@ DO $$ BEGIN
    'pathways.p06_monitoring(uuid,uuid[],date,date,text)'::pg_catalog.regprocedure,
    'pathways.p06_home_dashboard(uuid,uuid[],date,date,text)'::pg_catalog.regprocedure,
    'pathways.p06_compute_monitoring(uuid,uuid[],date,date,text)'::pg_catalog.regprocedure,
-   'pathways.p06_compute_indicator_value(uuid,uuid,uuid,text)'::pg_catalog.regprocedure)
+   'pathways.p06_compute_indicator_value(uuid,uuid,uuid,text)'::pg_catalog.regprocedure,
+   'pathways.p06_saddd(uuid,uuid[],date,date,text)'::pg_catalog.regprocedure,
+   'pathways.p06_compute_saddd(uuid,uuid[],date,date,text)'::pg_catalog.regprocedure)
   AND pg_catalog.pg_get_userbyid(p.proowner)<>'prisma')
  THEN RAISE EXCEPTION '0065 requires prisma to own the p06 monitoring and indicator functions'; END IF;
  IF NOT (SELECT bool_and(relforcerowsecurity) FROM pg_catalog.pg_class WHERE oid IN (
@@ -39,6 +44,8 @@ DO $$ BEGIN
   WHERE oid='pathways.p06_monitoring(uuid,uuid[],date,date,text)'::pg_catalog.regprocedure),true);
  PERFORM pg_catalog.set_config('pathways.m0065_home_acl',(SELECT coalesce(proacl::text,'') FROM pg_catalog.pg_proc
   WHERE oid='pathways.p06_home_dashboard(uuid,uuid[],date,date,text)'::pg_catalog.regprocedure),true);
+ PERFORM pg_catalog.set_config('pathways.m0065_saddd_acl',(SELECT coalesce(proacl::text,'') FROM pg_catalog.pg_proc
+  WHERE oid='pathways.p06_saddd(uuid,uuid[],date,date,text)'::pg_catalog.regprocedure),true);
  PERFORM pg_catalog.set_config('pathways.m0065_grants',(SELECT count(*) FROM pathways.role_permissions)::text,true);
 END $$;
 SELECT pg_advisory_xact_lock(505005,1);
@@ -198,6 +205,248 @@ BEGIN
 END
 $function$;
 
+CREATE OR REPLACE FUNCTION pathways.p06_saddd(wanted_org uuid, wanted_projects uuid[], start_on date, end_on date, zone text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+DECLARE
+  wanted_project uuid;
+
+  project_start date;
+  project_end date;
+  business_today date;
+
+  computed jsonb;
+  fingerprint text;
+
+  prior pathways.sensitive_aggregate_releases%ROWTYPE;
+BEGIN
+  IF wanted_projects IS NULL
+     OR cardinality(wanted_projects) <> 1
+     OR wanted_projects[1] IS NULL
+  THEN
+    RAISE EXCEPTION
+      'SADDD V1 requires exactly one project'
+      USING ERRCODE='22023';
+  END IF;
+
+  wanted_project :=
+    wanted_projects[1];
+
+  IF wanted_org IS DISTINCT FROM
+       nullif(current_setting('app.organization_id', true), '')::uuid
+     OR NOT pathways.p06_can('analytics.saddd.read', wanted_project)
+     OR NOT pathways.p06_can('beneficiaries.aggregates.read', wanted_project)
+  THEN
+    RAISE EXCEPTION 'Monitoring scope unavailable' USING ERRCODE='42501';
+  END IF;
+
+  -- Release decisions for the same project cannot race one another.
+  PERFORM pg_advisory_xact_lock(
+    hashtextextended(wanted_org::text || ':' || wanted_project::text, 0)
+  );
+
+  SELECT
+    p.start_date,
+    p.end_date
+  INTO
+    project_start,
+    project_end
+  FROM pathways.projects p
+  WHERE p.organization_id =
+        wanted_org
+    AND p.id =
+        wanted_project
+    AND p.archived_at IS NULL;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION
+      'Monitoring scope unavailable'
+      USING ERRCODE='42501';
+  END IF;
+
+  SELECT *
+  INTO prior
+  FROM pathways.sensitive_aggregate_releases
+  WHERE organization_id =
+        wanted_org
+    AND project_id =
+        wanted_project
+  FOR UPDATE;
+
+  /*
+   * A project receives one fixed-period release identity.
+   * Changing its period later never opens a new release.
+   */
+
+  IF prior.id IS NOT NULL
+     AND (
+       prior.period_start
+         IS DISTINCT FROM project_start
+       OR prior.period_end
+         IS DISTINCT FROM project_end
+     )
+  THEN
+    UPDATE pathways.sensitive_aggregate_releases
+    SET
+      status =
+        'STALE',
+      stale_reason =
+        'PROJECT_PERIOD_CHANGED',
+      stale_at =
+        coalesce(
+          stale_at,
+          CURRENT_TIMESTAMP
+        ),
+      updated_at =
+        CURRENT_TIMESTAMP
+    WHERE id =
+          prior.id;
+
+    RETURN pathways.p06_missing_saddd(
+      'RESTATEMENT_REVIEW_REQUIRED'
+    );
+  END IF;
+
+  IF project_start IS NULL OR project_end IS NULL THEN
+    RAISE EXCEPTION 'SADDD V1 requires fixed project dates' USING ERRCODE='22023';
+  END IF;
+
+  IF project_end < project_start OR project_end > DATE '2100-12-31' THEN
+    RAISE EXCEPTION 'SADDD V1 requires a valid persisted project period' USING ERRCODE='22023';
+  END IF;
+
+  IF start_on IS DISTINCT FROM project_start
+     OR end_on IS DISTINCT FROM project_end
+  THEN
+    RAISE EXCEPTION 'SADDD V1 requires the persisted project period' USING ERRCODE='22023';
+  END IF;
+
+  PERFORM pathways.p06_assert_scope(
+    wanted_org, wanted_projects, 'analytics.saddd.read', start_on, start_on, zone
+  );
+  PERFORM pathways.p06_assert_scope(
+    wanted_org, wanted_projects, 'beneficiaries.aggregates.read', start_on, start_on, zone
+  );
+
+  -- The V1 business calendar is fixed by the deployed PATHWAYS policy.
+  -- A caller cannot advance release by choosing another valid time zone.
+  IF zone IS DISTINCT FROM 'Asia/Manila' THEN
+    RAISE EXCEPTION 'SADDD V1 business time zone unavailable' USING ERRCODE='22023';
+  END IF;
+
+  business_today := (CURRENT_TIMESTAMP AT TIME ZONE zone)::date;
+  IF project_start > business_today THEN
+    RAISE EXCEPTION 'SADDD requires a started project' USING ERRCODE='22023';
+  END IF;
+
+  -- An ongoing project is computed live to date and is never frozen in the release registry.
+  IF project_end >= business_today THEN
+    RETURN pathways.p06_compute_saddd(wanted_org, ARRAY[wanted_project], project_start, least(project_end, business_today), zone)
+      || jsonb_build_object('releaseState', 'RELEASED');
+  END IF;
+
+  IF prior.id IS NOT NULL
+     AND prior.status =
+       'STALE'
+  THEN
+    RETURN pathways.p06_missing_saddd(
+      'RESTATEMENT_REVIEW_REQUIRED'
+    );
+  END IF;
+
+  /*
+   * Private calculator remains owner-only.
+   *
+   * Fingerprint the protected payload and contributing source rows.
+   * No Beneficiary identifiers or raw demographic rows are persisted.
+   */
+
+  -- Hash the protected result AND the contributing project enrollment/profile
+  -- source. A correction inside one age band or a wholly suppressed release
+  -- still changes this fingerprint; no source row is persisted in the registry.
+  -- Calculate both within one SQL statement so both read one MVCC snapshot.
+  SELECT protected.data, encode(
+    pg_catalog.sha256(
+      pg_catalog.convert_to(
+        protected.data::text || ':' || coalesce((
+          SELECT jsonb_agg(
+            jsonb_build_array(
+              e.id, e.beneficiary_id, e.enrollment_date, e.ended_date,
+              e.status, b.subject_type, b.sex, b.birth_date,
+              b.disability_status, b.archived_at, b.is_dummy_record
+            ) ORDER BY e.id
+          )::text
+          FROM pathways.beneficiary_project_enrollments e
+          JOIN pathways.beneficiaries b
+            ON b.organization_id=e.organization_id AND b.id=e.beneficiary_id
+          WHERE e.organization_id=wanted_org AND e.project_id=wanted_project
+        ), '[]'),
+        'UTF8'
+      )
+    ),
+    'hex'
+  ) INTO computed, fingerprint
+  FROM (
+    SELECT pathways.p06_compute_saddd(
+      wanted_org,
+      ARRAY[wanted_project],
+      project_start,
+      project_end,
+      zone
+    ) AS data
+  ) protected;
+
+  IF prior.id IS NULL THEN
+    INSERT INTO pathways.sensitive_aggregate_releases (
+      organization_id,
+      project_id,
+      period_start,
+      period_end,
+      policy_version,
+      source_fingerprint,
+      status
+    )
+    VALUES (
+      wanted_org,
+      wanted_project,
+      project_start,
+      project_end,
+      'FIXED_CLOSED_PROJECT_PERIOD_V1',
+      fingerprint,
+      'RELEASED'
+    );
+
+    RETURN computed || jsonb_build_object('releaseState', 'RELEASED');
+  END IF;
+
+  IF prior.source_fingerprint
+       IS DISTINCT FROM fingerprint
+  THEN
+    UPDATE pathways.sensitive_aggregate_releases
+    SET
+      status =
+        'STALE',
+      stale_reason =
+        'SOURCE_CHANGED',
+      stale_at =
+        CURRENT_TIMESTAMP,
+      updated_at =
+        CURRENT_TIMESTAMP
+    WHERE id =
+          prior.id;
+
+    RETURN pathways.p06_missing_saddd(
+      'RESTATEMENT_REVIEW_REQUIRED'
+    );
+  END IF;
+
+  RETURN computed || jsonb_build_object('releaseState', 'RELEASED');
+END
+$function$;
+
 -- Exact participation counts by activity, month and attendance status for one project and an optional period.
 CREATE FUNCTION pathways.p06_participation_breakdown(wanted_project uuid, start_on date DEFAULT NULL, end_on date DEFAULT NULL)
  RETURNS jsonb
@@ -321,6 +570,8 @@ DO $$ DECLARE fn text; runtime oid := (SELECT oid FROM pg_catalog.pg_roles WHERE
    IS DISTINCT FROM pg_catalog.current_setting('pathways.m0065_monitoring_acl')
   OR (SELECT coalesce(proacl::text,'') FROM pg_catalog.pg_proc WHERE oid='pathways.p06_home_dashboard(uuid,uuid[],date,date,text)'::pg_catalog.regprocedure)
    IS DISTINCT FROM pg_catalog.current_setting('pathways.m0065_home_acl')
+  OR (SELECT coalesce(proacl::text,'') FROM pg_catalog.pg_proc WHERE oid='pathways.p06_saddd(uuid,uuid[],date,date,text)'::pg_catalog.regprocedure)
+   IS DISTINCT FROM pg_catalog.current_setting('pathways.m0065_saddd_acl')
  THEN RAISE EXCEPTION '0065 replaced function ACL changed'; END IF;
  FOREACH fn IN ARRAY ARRAY['pathways.p06_participation_breakdown(uuid,date,date)','pathways.p06_indicator_values(uuid,text)'] LOOP
   IF EXISTS(SELECT FROM pg_catalog.pg_proc p CROSS JOIN LATERAL pg_catalog.aclexplode(coalesce(p.proacl,pg_catalog.acldefault('f',p.proowner))) a
