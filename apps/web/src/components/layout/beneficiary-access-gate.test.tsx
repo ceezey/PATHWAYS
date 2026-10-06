@@ -99,6 +99,12 @@ describe('BeneficiaryAccessGate (server-verified step-up)', () => {
     expect(screen.queryByText('Verify beneficiary module access')).toBeNull()
   })
 
+  it('does not offer the Reset button while it is hidden', async () => {
+    render(<BeneficiaryAccessGate preflight>{content}</BeneficiaryAccessGate>)
+    expect(await screen.findByText('Verify beneficiary module access')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Reset' })).toBeNull()
+  })
+
   it('keeps details hidden until the server accepts a re-verified authenticator code', async () => {
     mocks.verify.mockRejectedValueOnce(new BeneficiaryStepUpError('no', 'rejected'))
     render(<BeneficiaryAccessGate preflight>{content}</BeneficiaryAccessGate>)
@@ -223,7 +229,10 @@ describe('BeneficiaryAccessGate PIN fallback (cr-pathways-beneficiary-step-up-pi
 
   beforeEach(async () => {
     vi.resetModules()
-    vi.doMock('@/constants/feature-flags', () => ({ STEP_UP_PIN_UI_ENABLED: true }))
+    vi.doMock('@/constants/feature-flags', () => ({
+      STEP_UP_PIN_UI_ENABLED: true,
+      STEP_UP_RESET_UI_ENABLED: false,
+    }))
     ;({ BeneficiaryAccessGate: EnabledGate } = await import('./beneficiary-access-gate'))
   })
 
