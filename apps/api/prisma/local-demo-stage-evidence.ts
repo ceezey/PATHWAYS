@@ -112,7 +112,11 @@ export async function stageAssessments(ctx: DemoContext) {
     const project = projectByKey(projectKey)
     const projectId = projectOf(ctx, projectKey)
     const enrollments = await ctx.owner.beneficiaryProjectEnrollment.findMany({
-      where: { organizationId: ctx.organizationId, projectId, status: 'ACTIVE' },
+      where: {
+        organizationId: ctx.organizationId,
+        projectId,
+        status: { in: ['ACTIVE', 'COMPLETED'] },
+      },
       orderBy: { enrollmentDate: 'asc' },
       select: { id: true },
     })

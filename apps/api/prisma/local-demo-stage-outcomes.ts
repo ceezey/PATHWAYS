@@ -8,7 +8,7 @@ import {
 import type { DemoContext } from './local-demo-seed'
 import { projectOf, step } from './local-demo-util'
 
-type Outcome = {
+export type Outcome = {
   project: ProjectKey
   /** Indexes into the project's planned cohort. */
   people: number[]
@@ -18,7 +18,7 @@ type Outcome = {
   daysAgo?: number
 }
 
-const outcomes: Outcome[] = [
+export const outcomes: Outcome[] = [
   {
     project: 'ALS',
     people: [0, 1, 2, 3, 4, 5],
@@ -47,10 +47,17 @@ const outcomes: Outcome[] = [
   },
   {
     project: 'EHK',
-    people: [0, 1, 2, 3, 4, 5, 6, 7],
+    people: Array.from({ length: 62 }, (_, i) => i),
     eventType: 'COMPLETION',
     description: 'Received the hygiene and learning kit and returned to school.',
     daysAgo: 50,
+  },
+  {
+    project: 'EHK',
+    people: Array.from({ length: 8 }, (_, i) => 62 + i),
+    eventType: 'DROPOUT',
+    description: 'The family moved away from the municipality before the kit distribution ended.',
+    daysAgo: 155,
   },
 ]
 

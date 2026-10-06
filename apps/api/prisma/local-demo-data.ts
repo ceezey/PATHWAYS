@@ -726,6 +726,8 @@ export type DemoCohort = {
   /** Repeating age pattern; the cohort cycles through it. */
   ages: number[]
   femaleShare: number
+  /** Latest enrollment offset from the project start in days, when enrollment closes early. */
+  enrollWindowDays?: number
 }
 
 export const demoCohorts: Record<ProjectKey, DemoCohort> = {
@@ -746,7 +748,12 @@ export const demoCohorts: Record<ProjectKey, DemoCohort> = {
   ECD: { count: 0, ages: [5], femaleShare: 0.5 },
   WSH: { count: 30, ages: [8, 9, 10, 11, 12, 7, 6, 41, 35, 50], femaleShare: 0.5 },
   // Every SADDD marginal (sex, age band at project end, disability) stays at 5 or more, so the closed-project release shows.
-  EHK: { count: 70, ages: [6, 11, 35, 7, 12, 8, 13, 42, 6, 10, 7, 12], femaleShare: 0.55 },
+  EHK: {
+    count: 70,
+    ages: [6, 11, 35, 7, 12, 8, 13, 42, 6, 10, 7, 12],
+    femaleShare: 0.55,
+    enrollWindowDays: 115,
+  },
 }
 
 export const femaleFirstNames = [
@@ -859,6 +866,17 @@ export type PlannedPerson = {
 }
 
 /** Deterministic cohort for one project: same input, same people. */
+/** Day offset from the project start: three days apart, spread evenly when that would pass the cap. */
+function enrollmentOffset(index: number, cohort: DemoCohort, daysRunning: number) {
+  const cap = Math.max(
+    20,
+    Math.min(daysRunning - 10, cohort.enrollWindowDays ?? Number.MAX_SAFE_INTEGER),
+  )
+  const natural = 20 + index * 3
+  if (20 + (cohort.count - 1) * 3 <= cap) return natural
+  return 20 + Math.floor((index * (cap - 20)) / Math.max(1, cohort.count - 1))
+}
+
 export function planCohort(
   project: DemoProject,
   today: string,
@@ -871,10 +889,7 @@ export function planCohort(
     const age = cohort.ages[index % cohort.ages.length]
     const female = (index * 7 + seed) % 100 < cohort.femaleShare * 100
     const firstNames = female ? femaleFirstNames : maleFirstNames
-    const enrollOffset = Math.min(
-      20 + index * 3,
-      Math.max(20, daysBetween(projectStart, today) - 10),
-    )
+    const enrollOffset = enrollmentOffset(index, cohort, daysBetween(projectStart, today))
     const enrollmentDate = addDaysIso(projectStart, enrollOffset)
     people.push({
       code: `BEN-${project.code}-${String(index + 1).padStart(3, '0')}`,

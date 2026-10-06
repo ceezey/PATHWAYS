@@ -8,6 +8,7 @@ import {
   householdProfileFields,
   planCohort,
 } from './local-demo-data'
+import { activityWindow } from './local-demo-journeys'
 import type { DemoContext } from './local-demo-seed'
 import { activityCode } from './local-demo-stage-activities'
 import { registrarFor } from './local-demo-stage-people'
@@ -25,7 +26,7 @@ type StageSpec = {
   activityKeys: string[]
 }
 
-const journeyStages: Partial<Record<ProjectKey, StageSpec[]>> = {
+export const journeyStages: Partial<Record<ProjectKey, StageSpec[]>> = {
   SSG: [
     {
       code: 'ENROLLED',
@@ -170,7 +171,7 @@ const journeyStages: Partial<Record<ProjectKey, StageSpec[]>> = {
   ],
 }
 
-const attendanceForms: Partial<
+export const attendanceForms: Partial<
   Record<ProjectKey, { code: string; name: string; activityKey: string; stageCode: string }>
 > = {
   SSG: {
@@ -204,7 +205,7 @@ async function activityId(ctx: DemoContext, project: DemoProject, key: string) {
 
 /** Creates a form as the author (Monitoring and Evaluation Officer or Project Officer), then has
  * the System Administrator publish it, because an author cannot publish their own form. */
-async function createAndPublish(
+export async function createAndPublish(
   ctx: DemoContext,
   projectId: string,
   author: DemoContext['staff']['me'],
@@ -376,9 +377,11 @@ export async function stageParticipation(ctx: DemoContext) {
       ctx.today,
       (row.startDate as Date).toISOString().slice(0, 10),
     )
+    const window = activityWindow(project.key, spec.activityKey, ctx.today)
     for (const [index, person] of people.slice(0, 14).entries()) {
       for (const session of [1, 2, 3]) {
-        const date = addDaysIso(person.enrollmentDate, session * 7)
+        const startDay = person.enrollmentDate > window.start ? person.enrollmentDate : window.start
+        const date = addDaysIso(startDay, session * 7)
         if (date >= ctx.today) continue
         const absent = (index + session) % 6 === 0
         const done = session === 3 && index % 3 === 0
