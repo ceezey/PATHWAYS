@@ -1,13 +1,11 @@
 'use client'
 
 import {
-  ArrowLeft,
   CalendarClock,
   Eye,
   LayoutGrid,
   List,
   Loader2,
-  Pencil,
   Plus,
   Search,
   UsersRound,
@@ -28,7 +26,6 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useCurrentRole } from '@/hooks/use-current-role'
-import { useDisplayLabels } from '@/hooks/use-display-labels'
 import { canAccessProjectForRole } from '@/lib/rbac/data-scope'
 import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
 import { isUiActionAvailable } from '@/lib/rbac/ui-action-availability'
@@ -39,6 +36,7 @@ import { useAuthorizedRead } from '@/providers/authorized-query-provider'
 import type { Activity, ActivityStatus, ActivitySummary, Indicator } from '@/types/pathways'
 
 import { ActivityDetailPanel } from './activity-detail-panel'
+import type { ActivityExpenseEntry } from './activity-detail-sections'
 import { ActivityEditorLoadingDialog } from './activity-editor-loading-dialog'
 import type { ExpenseBudgetReference } from './activity-expense-dialog'
 import type { PendingExpense } from './activity-expense-review-dialog'
@@ -53,8 +51,6 @@ import {
   activityStatuses,
   activitySummary,
 } from './activity-utils'
-import { ProjectArchiveDialog } from './project-archive-dialog'
-import { ProjectWorkspaceHeader } from './project-workspace-header'
 import {
   useActivityDetailRead,
   useProjectActivitiesRead,
@@ -193,7 +189,6 @@ export const ProjectActivitiesWorkspace = ({
   initialProofId?: string
   projectId: string
 }) => {
-  const { labels } = useDisplayLabels()
   const { role, assignedProjectIds, profile } = useCurrentRole()
   const inProjectScope = role ? canAccessProjectForRole(role, projectId, assignedProjectIds) : false
   // Create and edit are separate authorities (a create-only role never edits).
@@ -224,8 +219,10 @@ export const ProjectActivitiesWorkspace = ({
   const canReadExpenseReferences =
     (canLogExpense || canValidateExpense) &&
     principalHasAtomicPermission(profile, 'expenses.submit')
-  const canReadExpenses =
-    (canLogExpense || canValidateExpense) && principalHasAtomicPermission(profile, 'expenses.read')
+  // Any in-scope principal holding the grant, not only the officer who logs and the officer
+  // who verifies: the Project Manager who approves has to see the same entries.
+  const canReadExpenses = inProjectScope && principalHasAtomicPermission(profile, 'expenses.read')
+  const canReadBudgetLines = inProjectScope && principalHasAtomicPermission(profile, 'budgets.read')
 
   const [query, setQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<ActivityStatus | null>(null)
@@ -269,7 +266,14 @@ export const ProjectActivitiesWorkspace = ({
     (signal) => pathwaysClient.getAssignableProjectOfficers(projectId, signal),
     canReadOfficers && formOpen,
   )
-  const indicators = indicatorRead.data ?? []
+  const indicatorRows = indicatorRead.data ?? []
+  // Code and label only, the shape the editor and the search index expect.
+  const indicators = indicatorRows.map(({ id, projectId: scope, code, name }) => ({
+    id,
+    projectId: scope,
+    code,
+    label: name,
+  }))
   const journeyStages = journeyStageRead.data ?? []
   const officers = officerRead.data ?? []
   const editorReads = [
@@ -297,7 +301,26 @@ export const ProjectActivitiesWorkspace = ({
     (signal) => coreDataClient.expenses(projectId, signal),
     canReadExpenses,
   )
+  const budgetLinesRead = useAuthorizedRead(
+    'finance-budgets',
+    projectId,
+    'budgets.read',
+    (signal) => coreDataClient.budgets(projectId, signal),
+    canReadBudgetLines,
+  )
   const budgetReferences: ExpenseBudgetReference[] = expenseReferencesRead.data ?? []
+  /**
+   * Budget record to activity, from whichever read the principal is allowed. The reference
+   * read needs expenses.submit, so an approver reaches the same linkage through budgets.read.
+   */
+  const activityOfBudgetRecord = useMemo(() => {
+    const map = new Map<string, { activityId: string | null; category: string }>()
+    for (const line of budgetLinesRead.data ?? [])
+      map.set(line.id, { activityId: line.activityId, category: line.category })
+    for (const reference of budgetReferences)
+      map.set(reference.id, { activityId: reference.activityId, category: reference.category })
+    return map
+  }, [budgetLinesRead.data, budgetReferences])
   const pendingExpenses: PendingExpense[] = useMemo(() => {
     if (!selectedActivity) return []
     const referenceMap = new Map(budgetReferences.map((row) => [row.id, row]))
@@ -322,9 +345,40 @@ export const ProjectActivitiesWorkspace = ({
         ]
       })
   }, [expensesRead.data, budgetReferences, projectId, selectedActivity])
+  /**
+   * Every expense on this activity that has not been rejected, whatever its review step.
+   * The panel used to show only PENDING entries and only to validators, so a logged expense
+   * was invisible to its submitter and vanished from view the moment it was verified.
+   */
+  const activityExpenses: ActivityExpenseEntry[] = useMemo(() => {
+    if (!selectedActivity) return []
+    return (expensesRead.data ?? [])
+      .filter((expense) => expense.status !== 'REJECTED')
+      .flatMap((expense) => {
+        const reference = activityOfBudgetRecord.get(expense.budgetRecordId)
+        if (!reference || reference.activityId !== selectedActivity.id) return []
+        return [
+          {
+            id: expense.id,
+            amount: Number(expense.amount),
+            category: reference.category,
+            date: expense.expenseDate,
+            description: expense.description,
+            status: expense.status,
+            submittedByName: expense.submittedByName,
+            verifiedByName: expense.verifiedByName,
+            approvedByName: expense.approvedByName,
+          },
+        ]
+      })
+  }, [expensesRead.data, activityOfBudgetRecord, selectedActivity])
   const refreshExpenses = () => {
     void expensesRead.refetch()
     void expenseReferencesRead.refetch()
+    void budgetLinesRead.refetch()
+    // Approved spend and allocation come from the activity read, so it refreshes with the
+    // expense list; otherwise an approved expense leaves In review before it reaches Spent.
+    void detail.refetch()
   }
   const detailNotFound =
     detail.isError &&
@@ -521,31 +575,6 @@ export const ProjectActivitiesWorkspace = ({
 
   return (
     <>
-      <PageHeader
-        title={labels.projectActivities}
-        actions={
-          <div className="flex flex-wrap items-center gap-2">
-            <Button asChild className="gap-2" variant="outline">
-              <Link href="/projects">
-                <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-                Back to Projects
-              </Link>
-            </Button>
-            {/* Edit and archive moved here from the removed Overview tab. */}
-            {isUiActionAvailable(role, 'projects.profile.manage', profile) ? (
-              <Button asChild size="icon" variant="outline">
-                <Link aria-label="Edit project profile" href={`/projects/${project.id}/edit`}>
-                  <Pencil className="h-4 w-4" aria-hidden="true" />
-                </Link>
-              </Button>
-            ) : null}
-            {isUiActionAvailable(role, 'projects.archive', profile) ? (
-              <ProjectArchiveDialog projectId={project.id} title={project.title} />
-            ) : null}
-          </div>
-        }
-      />
-      <ProjectWorkspaceHeader project={project} />
       <FilterBar className="min-w-0 flex-wrap gap-x-3 gap-y-2 px-3 py-2">
         <ActivityStatusSummary
           activeStatus={statusFilter}
@@ -683,7 +712,10 @@ export const ProjectActivitiesWorkspace = ({
         canSubmitProof={canSubmitProof}
         canValidateExpense={canValidateExpense}
         canValidateProof={canValidateProof}
+        canOpenProof={principalHasAtomicPermission(profile, 'evidence.read')}
+        indicatorRows={indicatorRows}
         indicators={indicators}
+        projectTeam={project?.team ?? []}
         journeyStages={journeyStages}
         onActivityChanged={(activity) => upsertActivity(activity, false)}
         onEdit={openEdit}
@@ -691,6 +723,8 @@ export const ProjectActivitiesWorkspace = ({
         onOpenChange={closeDetail}
         onSubmitProof={openProof}
         open={Boolean(selectedActivityId) && !detail.isError}
+        activityExpenses={activityExpenses}
+        canReadExpenses={canReadExpenses}
         pendingExpenses={pendingExpenses}
         focusExtension={initialAction === 'extension'}
         requestedProofId={initialProofId}

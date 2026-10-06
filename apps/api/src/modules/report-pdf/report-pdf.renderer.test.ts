@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { PrintPdfRenderer } from './print-pdf.renderer'
 import { type PrintSnapshot, ReportPdfError, ReportPdfRenderer } from './report-pdf.renderer'
 
 const state = vi.hoisted(() => ({ launch: vi.fn(), executablePath: vi.fn() }))
@@ -51,7 +52,7 @@ describe('ReportPdfRenderer', () => {
   it('injects the snapshot, prints A4 with backgrounds and closes the page', async () => {
     const page = fakePage()
     state.launch.mockResolvedValue(fakeBrowser(page))
-    const bytes = await new ReportPdfRenderer().render(reportId, snapshot)
+    const bytes = await new ReportPdfRenderer(new PrintPdfRenderer()).render(reportId, snapshot)
     expect(bytes.toString()).toBe('%PDF-designed')
     expect(state.launch).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -60,7 +61,10 @@ describe('ReportPdfRenderer', () => {
         protocolTimeout: 20_000,
       }),
     )
-    expect(page.evaluateOnNewDocument).toHaveBeenCalledWith(expect.any(Function), snapshot)
+    expect(page.evaluateOnNewDocument).toHaveBeenCalledWith(expect.any(Function), {
+      name: '__PATHWAYS_REPORT__',
+      value: snapshot,
+    })
     expect(page.goto).toHaveBeenCalledWith(
       `https://web.example.test/print/reports/${reportId}`,
       expect.objectContaining({ waitUntil: 'networkidle0' }),
@@ -83,7 +87,7 @@ describe('ReportPdfRenderer', () => {
   it('aborts every request outside WEB_ORIGIN, including a login redirect', async () => {
     const page = fakePage()
     state.launch.mockResolvedValue(fakeBrowser(page))
-    await new ReportPdfRenderer().render(reportId, snapshot)
+    await new ReportPdfRenderer(new PrintPdfRenderer()).render(reportId, snapshot)
     const [handler] = page.handlers
     const request = (url: string) => ({ url: () => url, continue: vi.fn(), abort: vi.fn() })
     const own = request('https://web.example.test/_next/static/app.js')
@@ -100,10 +104,10 @@ describe('ReportPdfRenderer', () => {
   it('sends the protection bypass header only when configured', async () => {
     const page = fakePage()
     state.launch.mockResolvedValue(fakeBrowser(page))
-    await new ReportPdfRenderer().render(reportId, snapshot)
+    await new ReportPdfRenderer(new PrintPdfRenderer()).render(reportId, snapshot)
     expect(page.setExtraHTTPHeaders).not.toHaveBeenCalled()
     process.env.WEB_PROTECTION_BYPASS = 'bypass-secret'
-    await new ReportPdfRenderer().render(reportId, snapshot)
+    await new ReportPdfRenderer(new PrintPdfRenderer()).render(reportId, snapshot)
     expect(page.setExtraHTTPHeaders).toHaveBeenCalledWith({
       'x-vercel-protection-bypass': 'bypass-secret',
     })
@@ -113,7 +117,9 @@ describe('ReportPdfRenderer', () => {
     const page = fakePage()
     page.goto.mockRejectedValue(new Error('Navigation timeout'))
     state.launch.mockResolvedValue(fakeBrowser(page))
-    await expect(new ReportPdfRenderer().render(reportId, snapshot)).rejects.toMatchObject({
+    await expect(
+      new ReportPdfRenderer(new PrintPdfRenderer()).render(reportId, snapshot),
+    ).rejects.toMatchObject({
       stage: 'navigate',
     })
     expect(page.close).toHaveBeenCalledOnce()
@@ -122,24 +128,50 @@ describe('ReportPdfRenderer', () => {
   it('rejects an empty PDF', async () => {
     const page = fakePage(Buffer.alloc(0))
     state.launch.mockResolvedValue(fakeBrowser(page))
-    await expect(new ReportPdfRenderer().render(reportId, snapshot)).rejects.toMatchObject({
+    await expect(
+      new ReportPdfRenderer(new PrintPdfRenderer()).render(reportId, snapshot),
+    ).rejects.toMatchObject({
       stage: 'size',
     })
     expect(page.close).toHaveBeenCalledOnce()
   })
 
-  it('refuses without WEB_ORIGIN or with a non-UUID report id before launching', async () => {
-    const renderer = new ReportPdfRenderer()
+  it('refuses a non-UUID report id before launching', async () => {
+    const renderer = new ReportPdfRenderer(new PrintPdfRenderer())
     await expect(renderer.render('../../admin', snapshot)).rejects.toMatchObject({ stage: 'input' })
-    process.env.WEB_ORIGIN = ''
-    await expect(renderer.render(reportId, snapshot)).rejects.toMatchObject({ stage: 'config' })
     expect(state.launch).not.toHaveBeenCalled()
+  })
+
+  it('refuses in production without WEB_ORIGIN, before launching', async () => {
+    process.env.WEB_ORIGIN = ''
+    const node = process.env.NODE_ENV
+    process.env.NODE_ENV = 'production'
+    try {
+      await expect(
+        new ReportPdfRenderer(new PrintPdfRenderer()).render(reportId, snapshot),
+      ).rejects.toMatchObject({ stage: 'config' })
+      expect(state.launch).not.toHaveBeenCalled()
+    } finally {
+      process.env.NODE_ENV = node
+    }
+  })
+
+  // WEB_ORIGIN is the CORS allowlist entry and must be HTTPS, so a local run leaves it blank.
+  it('navigates to the loopback web app outside production when WEB_ORIGIN is blank', async () => {
+    process.env.WEB_ORIGIN = ''
+    const page = fakePage()
+    state.launch.mockResolvedValue(fakeBrowser(page))
+    await new ReportPdfRenderer(new PrintPdfRenderer()).render(reportId, snapshot)
+    expect(page.goto).toHaveBeenCalledWith(
+      `http://127.0.0.1:3000/print/reports/${reportId}`,
+      expect.objectContaining({ waitUntil: 'networkidle0' }),
+    )
   })
 
   it('shares one launch between simultaneous first renders', async () => {
     const page = fakePage()
     state.launch.mockResolvedValue(fakeBrowser(page))
-    const renderer = new ReportPdfRenderer()
+    const renderer = new ReportPdfRenderer(new PrintPdfRenderer())
     await Promise.all([renderer.render(reportId, snapshot), renderer.render(reportId, snapshot)])
     expect(state.launch).toHaveBeenCalledOnce()
   })
@@ -148,7 +180,7 @@ describe('ReportPdfRenderer', () => {
     const page = fakePage()
     const first = fakeBrowser(page)
     state.launch.mockResolvedValueOnce(first).mockResolvedValueOnce(fakeBrowser(page))
-    const renderer = new ReportPdfRenderer()
+    const renderer = new ReportPdfRenderer(new PrintPdfRenderer())
     await renderer.render(reportId, snapshot)
     first.connected = false
     await renderer.render(reportId, snapshot)
@@ -160,7 +192,9 @@ describe('ReportPdfRenderer', () => {
     const platform = Object.getOwnPropertyDescriptor(process, 'platform')
     Object.defineProperty(process, 'platform', { value: 'win32' })
     try {
-      await expect(new ReportPdfRenderer().render(reportId, snapshot)).rejects.toMatchObject({
+      await expect(
+        new ReportPdfRenderer(new PrintPdfRenderer()).render(reportId, snapshot),
+      ).rejects.toMatchObject({
         stage: 'launch',
       })
     } finally {
@@ -172,16 +206,18 @@ describe('ReportPdfRenderer', () => {
     const page = fakePage()
     const browser = fakeBrowser(page)
     state.launch.mockResolvedValue(browser)
-    const renderer = new ReportPdfRenderer()
-    await renderer.render(reportId, snapshot)
-    await renderer.onModuleDestroy()
+    const print = new PrintPdfRenderer()
+    await new ReportPdfRenderer(print).render(reportId, snapshot)
+    await print.onModuleDestroy()
     expect(browser.close).toHaveBeenCalledOnce()
   })
 
   it('fails at the ready stage for the empty print state without printing', async () => {
     const page = fakePage(Buffer.from('%PDF'), 'empty')
     state.launch.mockResolvedValue(fakeBrowser(page))
-    await expect(new ReportPdfRenderer().render(reportId, snapshot)).rejects.toMatchObject({
+    await expect(
+      new ReportPdfRenderer(new PrintPdfRenderer()).render(reportId, snapshot),
+    ).rejects.toMatchObject({
       stage: 'ready',
     })
     expect(page.pdf).not.toHaveBeenCalled()
@@ -191,7 +227,9 @@ describe('ReportPdfRenderer', () => {
     const page = fakePage()
     page.goto.mockRejectedValue(new TypeError('secret report content'))
     state.launch.mockResolvedValue(fakeBrowser(page))
-    const failure = await new ReportPdfRenderer().render(reportId, snapshot).catch((e) => e)
+    const failure = await new ReportPdfRenderer(new PrintPdfRenderer())
+      .render(reportId, snapshot)
+      .catch((e) => e)
     expect(failure).toBeInstanceOf(ReportPdfError)
     expect(failure.message).not.toContain('secret')
     expect(failure.causeName).toBe('TypeError')
@@ -202,7 +240,7 @@ describe('ReportPdfRenderer', () => {
     page.goto.mockRejectedValueOnce(new Error('Navigation timeout'))
     const first = fakeBrowser(page)
     state.launch.mockResolvedValueOnce(first).mockResolvedValueOnce(fakeBrowser(page))
-    const renderer = new ReportPdfRenderer()
+    const renderer = new ReportPdfRenderer(new PrintPdfRenderer())
     await expect(renderer.render(reportId, snapshot)).rejects.toBeInstanceOf(ReportPdfError)
     expect(first.close).toHaveBeenCalledOnce()
     await renderer.render(reportId, snapshot)
@@ -217,7 +255,7 @@ describe('ReportPdfRenderer', () => {
       const browser = fakeBrowser(page)
       state.launch.mockResolvedValue(browser)
       const outcome = expect(
-        new ReportPdfRenderer().render(reportId, snapshot),
+        new ReportPdfRenderer(new PrintPdfRenderer()).render(reportId, snapshot),
       ).rejects.toMatchObject({ stage: 'deadline' })
       while (!page.goto.mock.calls.length) await new Promise((resolve) => setImmediate(resolve))
       await vi.advanceTimersByTimeAsync(40_000)
@@ -235,7 +273,7 @@ describe('ReportPdfRenderer', () => {
     const platform = Object.getOwnPropertyDescriptor(process, 'platform')
     Object.defineProperty(process, 'platform', { value: 'linux' })
     try {
-      await new ReportPdfRenderer().render(reportId, snapshot)
+      await new ReportPdfRenderer(new PrintPdfRenderer()).render(reportId, snapshot)
     } finally {
       if (platform) Object.defineProperty(process, 'platform', platform)
     }

@@ -59,7 +59,10 @@ describe('"None yet" empty states versus error and permission wording', () => {
     ],
     ['features/analytics/analytics-dashboard.tsx', ': monitoringReadable'],
     ['features/analytics/analytics-dashboard.tsx', "row.mean ?? 'None yet'"],
-    ['features/projects/activity-detail-panel.tsx', "canReadBudgets ? 'None yet' : 'Unavailable'"],
+    [
+      'features/projects/activity-detail-sections.tsx',
+      "canReadBudgets ? 'None yet' : 'Unavailable'",
+    ],
   ])('uses "None yet" for a genuinely empty value in %s', (file, copy) => {
     expect(source(file)).toContain(copy)
   })

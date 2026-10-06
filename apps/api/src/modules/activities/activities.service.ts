@@ -103,7 +103,13 @@ const activitySelection = {
       reviewedBy: { select: { fullName: true } },
       evidenceMedia_update: {
         where: { storageReady: true },
-        select: { id: true, fileName: true, status: true, submittedAt: true },
+        select: {
+          id: true,
+          fileName: true,
+          status: true,
+          rejectionReason: true,
+          submittedAt: true,
+        },
         orderBy: { id: 'asc' as const },
         take: 10,
       },
@@ -341,6 +347,8 @@ function mapActivity(
         updateId: update.id,
         fileName: proof.fileName,
         status: reviewStatus[proof.status],
+        // Why this file alone was not enough, so the submitter can fix that file.
+        rejectionReason: proof.rejectionReason,
         submittedAt: proof.submittedAt.toISOString(),
         submittedBy: update.submittedBy.fullName,
         updateUpdatedAt: update.updatedAt.toISOString(),
@@ -798,20 +806,28 @@ export class ActivitiesService {
     const logged = new Map<string, { total: string; entries: number }>()
     if (activityIds.length === 0) return { budgets, reached, logged }
     if (hasAtomicPermission(actor.roles[0], actor.permissions, 'budgets.read')) {
+      // Every live budget line for the activity, not just its envelope row, so the detail
+      // allocation matches the list utilization and the finance ledger. A replaced
+      // (archived) line keeps its spend but no longer contributes a plan.
       const rows = await tx.projectBudgetRecord.findMany({
         where: {
           organizationId: actor.organizationId,
           projectId,
           activityId: { in: activityIds },
-          category: activityBudgetCategory,
           archivedAt: null,
         },
         select: { activityId: true, plannedBudget: true },
-        take: 100,
+        take: 1000,
       })
+      const planned = new Map<string, Prisma.Decimal>()
       for (const row of rows) {
-        if (row.activityId) budgets.set(row.activityId, row.plannedBudget.toFixed(2))
+        if (!row.activityId) continue
+        planned.set(
+          row.activityId,
+          (planned.get(row.activityId) ?? new Prisma.Decimal(0)).add(row.plannedBudget),
+        )
       }
+      for (const [activityId, total] of planned) budgets.set(activityId, total.toFixed(2))
     }
     for (const [id, count] of await this.readReached(tx, actor, projectId, activityIds)) {
       reached.set(id, count)

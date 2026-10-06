@@ -18,10 +18,15 @@ import { hasAtomicPermission } from '../auth/authorization-policy'
 import { projectScope } from '../auth/authorized-data.service'
 import { withAuthorizedOperation } from '../auth/authorized-operation'
 import type { ApplicationIdentity } from '../auth/developer-access'
+import { ReceiptPdfError, ReceiptPdfRenderer } from '../report-pdf/receipt-pdf.renderer'
 import { createPrivateInspectionReader } from '../storage/private-inspection-reader'
 import { StorageService } from '../storage/storage.service'
 
 const uuid = z.string().uuid()
+// Reviewer identity for a read: the display name only, never the rest of the user record.
+const personName = { select: { fullName: true } } as const
+const displayName = (person: { fullName: string } | null) =>
+  person ? person.fullName.slice(0, 200) : null
 const money = z.string().regex(/^(?:0|[1-9]\d{0,15})(?:\.\d{1,2})?$/)
 export const budgetInput = z
   .object({
@@ -66,6 +71,7 @@ export class FinanceService {
   constructor(
     @Inject(PrismaService) private readonly prisma: PrismaService,
     @Inject(StorageService) private readonly storage: StorageService,
+    @Inject(ReceiptPdfRenderer) private readonly receipts: ReceiptPdfRenderer,
   ) {}
   private async project(tx: Prisma.TransactionClient, actor: ApplicationIdentity, id: string) {
     if (
@@ -200,23 +206,31 @@ export class FinanceService {
           verifiedById: true,
           approvedById: true,
           updatedAt: true,
+          submittedBy: personName,
+          verifiedBy: personName,
+          approvedBy: personName,
         },
         orderBy: [{ expenseDate: 'desc' }, { id: 'asc' }],
         take: 101,
       })
       if (rows.length > 100) throw new BadRequestException('Select a smaller expense scope.')
       const signoffs = await tx.$queryRaw<
-        Array<{ expenseId: string; signedOffById: string; signedOffAt: Date }>
-      >`SELECT expense_id::text AS "expenseId",signed_off_by_id::text AS "signedOffById",signed_off_at AS "signedOffAt" FROM pathways.expense_signoffs WHERE organization_id=${actor.organizationId}::uuid AND project_id=${projectId}::uuid`
-      return rows.map((row) => {
+        Array<{ expenseId: string; signedOffById: string; signedOffAt: Date; fullName: string }>
+      >`SELECT s.expense_id::text AS "expenseId",s.signed_off_by_id::text AS "signedOffById",s.signed_off_at AS "signedOffAt",u.full_name AS "fullName" FROM pathways.expense_signoffs s JOIN pathways.system_users u ON u.organization_id=s.organization_id AND u.id=s.signed_off_by_id WHERE s.organization_id=${actor.organizationId}::uuid AND s.project_id=${projectId}::uuid`
+      return rows.map(({ submittedBy, verifiedBy, approvedBy, ...row }) => {
         const signoff = signoffs.find((value) => value.expenseId === row.id)
         return {
           ...row,
           amount: row.amount.toFixed(2),
           expenseDate: row.expenseDate.toISOString().slice(0, 10),
           updatedAt: row.updatedAt.toISOString(),
+          // Reviewer names, so the ledger names people instead of printing their ids.
+          submittedByName: displayName(submittedBy),
+          verifiedByName: displayName(verifiedBy),
+          approvedByName: displayName(approvedBy),
           signedOffById: signoff?.signedOffById ?? null,
           signedOffAt: signoff?.signedOffAt.toISOString() ?? null,
+          signedOffByName: signoff ? signoff.fullName.slice(0, 200) : null,
         }
       })
     })
@@ -386,6 +400,133 @@ export class FinanceService {
         })
       throw error
     }
+  }
+  /** Designed disbursement record built from the expense, its budget line and its attached proof. */
+  async officialReceipt(identity: ApplicationIdentity, projectId: string, id: string) {
+    if (!uuid.safeParse(id).success) throw new NotFoundException('Expense unavailable.')
+    const canonicalProjectId = projectId.toLowerCase()
+    const canonicalId = id.toLowerCase()
+    const snapshot = await withAuthorizedOperation(
+      this.prisma,
+      identity,
+      'expenses.read',
+      async (tx, actor) => {
+        await this.project(tx, actor, canonicalProjectId)
+        const expense = await tx.budgetExpenseEntry.findFirst({
+          where: {
+            organizationId: actor.organizationId,
+            projectId: canonicalProjectId,
+            id: canonicalId,
+          },
+          select: {
+            id: true,
+            description: true,
+            amount: true,
+            expenseDate: true,
+            status: true,
+            receiptEvidenceId: true,
+            submittedAt: true,
+            verifiedAt: true,
+            approvedAt: true,
+            submittedBy: personName,
+            verifiedBy: personName,
+            approvedBy: personName,
+            budgetRecord: {
+              select: {
+                category: true,
+                currency: true,
+                plannedBudget: true,
+                activity: { select: { code: true, title: true } },
+              },
+            },
+            project: { select: { code: true, title: true } },
+            organization: { select: { name: true } },
+          },
+        })
+        if (!expense) throw new NotFoundException('Expense unavailable.')
+        // Proof metadata only; the bytes stay on the private receipt download path.
+        const proof = expense.receiptEvidenceId
+          ? await tx.evidenceMedia.findFirst({
+              where: {
+                organizationId: actor.organizationId,
+                projectId: canonicalProjectId,
+                expenseId: canonicalId,
+                storageReady: true,
+              },
+              select: { fileName: true, sha256: true, byteSize: true },
+            })
+          : null
+        const [signoff] = await tx.$queryRaw<
+          Array<{ signedOffAt: Date; fullName: string }>
+        >`SELECT s.signed_off_at AS "signedOffAt",u.full_name AS "fullName" FROM pathways.expense_signoffs s JOIN pathways.system_users u ON u.organization_id=s.organization_id AND u.id=s.signed_off_by_id WHERE s.organization_id=${actor.organizationId}::uuid AND s.project_id=${canonicalProjectId}::uuid AND s.expense_id=${canonicalId}::uuid`
+        await tx.auditLog.create({
+          data: {
+            organizationId: actor.organizationId,
+            projectId: canonicalProjectId,
+            actorUserId: actor.userId,
+            action: 'EXPENSE_RECEIPT_GENERATED',
+            entityType: 'BudgetExpenseEntry',
+            entityId: canonicalId,
+          },
+        })
+        const activity = expense.budgetRecord.activity
+        return {
+          receiptNo: `DR-${canonicalId.slice(0, 8).toUpperCase()}`,
+          issuedAt: new Date().toISOString(),
+          organization: expense.organization.name.slice(0, 200),
+          project: { code: expense.project.code, title: expense.project.title },
+          activity: activity ? { code: activity.code, title: activity.title } : null,
+          budgetLine: expense.budgetRecord.category,
+          allocated: expense.budgetRecord.plannedBudget.toFixed(2),
+          expense: {
+            description: expense.description,
+            amount: expense.amount.toFixed(2),
+            currency: expense.budgetRecord.currency,
+            date: expense.expenseDate.toISOString().slice(0, 10),
+            status: expense.status,
+          },
+          people: {
+            submitted: {
+              name: displayName(expense.submittedBy),
+              at: expense.submittedAt?.toISOString() ?? null,
+            },
+            verified: {
+              name: displayName(expense.verifiedBy),
+              at: expense.verifiedAt?.toISOString() ?? null,
+            },
+            approved: {
+              name: displayName(expense.approvedBy),
+              at: expense.approvedAt?.toISOString() ?? null,
+            },
+            signedOff: {
+              name: signoff ? signoff.fullName.slice(0, 200) : null,
+              at: signoff?.signedOffAt.toISOString() ?? null,
+            },
+          },
+          attachment: proof
+            ? {
+                fileName: proof.fileName,
+                sha256: proof.sha256,
+                byteSize: proof.byteSize.toString(),
+              }
+            : null,
+        }
+      },
+    )
+    let bytes: Buffer
+    try {
+      bytes = await this.receipts.render(canonicalId, snapshot)
+    } catch (error) {
+      // The caller gets an outage; the failing stage is logged so a misconfigured
+      // renderer (no WEB_ORIGIN, no PDF_CHROME_PATH off Linux) is diagnosable.
+      const stage = error instanceof ReceiptPdfError ? error.stage : 'unknown'
+      const cause = error instanceof ReceiptPdfError ? error.causeName : 'Error'
+      new Logger(FinanceService.name).warn(
+        `Receipt document unavailable for expense ${canonicalId} at ${stage} (${cause}).`,
+      )
+      throw new ServiceUnavailableException('Receipt document temporarily unavailable.')
+    }
+    return { bytes, fileName: `disbursement-receipt-${snapshot.receiptNo}.pdf` }
   }
   async receipt(identity: ApplicationIdentity, projectId: string, id: string) {
     if (!uuid.safeParse(id).success) throw new NotFoundException('Receipt unavailable.')

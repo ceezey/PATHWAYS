@@ -25,7 +25,6 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogFooter } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import type { DisplayLabelKey } from '@/constants/display-labels'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'
 import { useSensitiveDraftOwner } from '@/lib/auth/sensitive-drafts'
@@ -46,7 +45,6 @@ import { PrivateProofPreview } from './private-proof-preview'
 
 import { formatDate } from './activity-utils'
 import { addIndicatorSchema } from './project-review-utils'
-import { ProjectWorkspaceHeader } from './project-workspace-header'
 
 export type PhaseFiveWorkspaceView =
   | 'evidence'
@@ -59,22 +57,6 @@ type LegacyWorkspaceView = Exclude<
   PhaseFiveWorkspaceView,
   'monitor-evaluate' | 'budget' | 'transparency'
 >
-
-const viewTitles: Record<LegacyWorkspaceView, { title: string; description: string }> = {
-  evidence: {
-    title: 'Evidence & Reports',
-    description: 'Review activity proof, attached files, and report records.',
-  },
-  indicators: {
-    title: 'Target Indicators',
-    description: 'Track baselines, targets, current values, and connected activities.',
-  },
-}
-
-const viewLabelKeys: Record<LegacyWorkspaceView, DisplayLabelKey> = {
-  evidence: 'projectEvidence',
-  indicators: 'projectIndicators',
-}
 
 const statusTone = (status: string) => {
   if (['Approved', 'Accepted', 'Met', 'Verified', 'Validated', 'On Track'].includes(status)) {
@@ -202,6 +184,16 @@ const LegacyProjectWorkspace = ({
         setProject(projectRecord)
         const requests: Promise<void>[] = []
         if (view === 'evidence') {
+          if (canReadActivities) {
+            requests.push(
+              optional(
+                'Connected activities',
+                pathwaysClient.getActivities(projectId),
+                // A missing list leaves the tab usable; the budget column reads as a dash.
+                (list) => setActivities(list ?? []),
+              ),
+            )
+          }
           if (canReadEvidence) {
             requests.push(
               optional('Evidence records', pathwaysClient.getEvidence(projectId), (list) =>
@@ -228,7 +220,8 @@ const LegacyProjectWorkspace = ({
               optional(
                 'Connected activities',
                 pathwaysClient.getActivities(projectId),
-                setActivities,
+                // A missing list leaves the tab usable; the budget column reads as a dash.
+                (list) => setActivities(list ?? []),
               ),
             )
           }
@@ -255,10 +248,6 @@ const LegacyProjectWorkspace = ({
     principalHasAtomicPermission(profile, 'evidence.review') &&
     principalHasAtomicPermission(profile, 'activities.read')
   const canAddIndicator = principalHasAtomicPermission(profile, 'indicators.create')
-  const heading = {
-    ...viewTitles[view],
-    title: labels[viewLabelKeys[view]],
-  }
 
   const addIndicator = () => {
     if (!canAddIndicator) {
@@ -314,12 +303,6 @@ const LegacyProjectWorkspace = ({
 
   return (
     <>
-      <PageHeader
-        eyebrow={labels.projectWorkspace}
-        title={heading.title}
-        description={heading.description}
-      />
-      <ProjectWorkspaceHeader project={project} />
       {unavailableSections.length > 0 ? (
         <SectionCard
           title="Some information is unavailable"
@@ -336,6 +319,7 @@ const LegacyProjectWorkspace = ({
       ) : null}
       {view === 'evidence' ? (
         <EvidenceView
+          activities={activities}
           projectId={projectId}
           canReviewEvidence={canReviewEvidence}
           evidence={evidence}
@@ -450,10 +434,19 @@ function applyEvidence(
   }
 }
 
-const EvidenceSummaryCard = ({ activities }: { activities: EvidenceActivitySummary[] }) => (
+/** Dash when there is no allocation to measure against, or no budget access. */
+const budgetUsedText = (activity: ActivitySummary | undefined) =>
+  activity?.budgetUtilization == null
+    ? '\u2014'
+    : formatCappedPercent(activity.budgetUtilization, 'over budget')
+
+const EvidenceSummaryCard = ({
+  activities,
+  budgets,
+}: { activities: EvidenceActivitySummary[]; budgets: ActivitySummary[] }) => (
   <SectionCard
     title="Activity evidence summary"
-    description="Evidence counts by activity. Submission detail stays with assigned project roles."
+    description="Evidence counts by activity, beside the same budget reading the activity and budget tabs show."
   >
     {activities.length > 0 ? (
       <div className="overflow-x-auto">
@@ -472,8 +465,11 @@ const EvidenceSummaryCard = ({ activities }: { activities: EvidenceActivitySumma
               <th className="py-2 pr-3 text-right font-medium" scope="col">
                 Approved
               </th>
-              <th className="py-2 text-right font-medium" scope="col">
+              <th className="py-2 pr-3 text-right font-medium" scope="col">
                 Returned
+              </th>
+              <th className="py-2 text-right font-medium" scope="col">
+                Budget used
               </th>
             </tr>
           </thead>
@@ -486,7 +482,10 @@ const EvidenceSummaryCard = ({ activities }: { activities: EvidenceActivitySumma
                 <td className="py-2 pr-3 text-right tabular-nums">{row.total}</td>
                 <td className="py-2 pr-3 text-right tabular-nums">{row.submitted}</td>
                 <td className="py-2 pr-3 text-right tabular-nums">{row.approved}</td>
-                <td className="py-2 text-right tabular-nums">{row.returned}</td>
+                <td className="py-2 pr-3 text-right tabular-nums">{row.returned}</td>
+                <td className="py-2 text-right tabular-nums">
+                  {budgetUsedText(budgets.find((item) => item.id === row.activityId))}
+                </td>
               </tr>
             ))}
           </tbody>
@@ -550,12 +549,14 @@ const EvidenceDownloadControl = ({
 }
 
 const EvidenceView = ({
+  activities,
   projectId,
   canReviewEvidence,
   evidence,
   evidenceSummary,
   reports,
 }: {
+  activities: ActivitySummary[]
   projectId: string
   canReviewEvidence: boolean
   evidence: EvidenceRecord[]
@@ -564,7 +565,7 @@ const EvidenceView = ({
 }) => (
   <section className="grid gap-4 xl:grid-cols-[1.4fr_0.6fr]">
     {evidenceSummary ? (
-      <EvidenceSummaryCard activities={evidenceSummary} />
+      <EvidenceSummaryCard activities={evidenceSummary} budgets={activities} />
     ) : (
       <>
         <EvidenceAttachmentsCard

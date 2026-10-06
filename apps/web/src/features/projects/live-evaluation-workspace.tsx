@@ -1,5 +1,4 @@
 'use client'
-import { PageHeader } from '@/components/layout/page-header'
 import {
   AsyncState,
   ConfirmationDialog,
@@ -8,9 +7,11 @@ import {
   SectionCard,
   StatusBadge,
 } from '@/components/pathways'
+import { MetricTooltip } from '@/components/pathways/metric-tooltip'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
+import { criterionHint, criterionLabel, metricGlossary } from '@/constants/metric-glossary'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useOperationRequestId } from '@/lib/auth/operation-request-id'
 import { useSensitiveDraftOwner } from '@/lib/auth/sensitive-drafts'
@@ -414,11 +415,11 @@ function EvaluationContent({ projectId }: { projectId: string }) {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        eyebrow="Project review"
-        title="Monitor & Evaluate"
-        description="Set up OECD-DAC style evaluation criteria, run an evaluation round, and review and sign off its results."
-      />
+      {/* The workspace frame draws the project title; this tab keeps only its own note. */}
+      <p className="text-sm text-muted-foreground">
+        Set up OECD-DAC style evaluation criteria, run an evaluation round, and review and sign off
+        its results.
+      </p>
       <SectionCard
         title="Evaluation criteria"
         description="Draft weights can be adjusted before publishing; published criteria cannot be changed in-app."
@@ -442,10 +443,21 @@ function EvaluationContent({ projectId }: { projectId: string }) {
               <table className="w-full min-w-[640px] text-sm tabular-nums">
                 <thead>
                   <tr className="border-b border-border">
-                    <th className={headClass}>Criterion</th>
+                    <th className={headClass}>
+                      Criterion
+                      <MetricTooltip label="Criterion">{metricGlossary.criterion}</MetricTooltip>
+                    </th>
                     <th className={headClass}>Status</th>
-                    <th className={headClass}>Weight (%)</th>
-                    <th className={headClass}>Maximum score</th>
+                    <th className={headClass}>
+                      Weight (%)
+                      <MetricTooltip label="Weight">{metricGlossary.weight}</MetricTooltip>
+                    </th>
+                    <th className={headClass}>
+                      Maximum score
+                      <MetricTooltip label="Maximum score">
+                        {metricGlossary.maximumScore}
+                      </MetricTooltip>
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -457,7 +469,12 @@ function EvaluationContent({ projectId }: { projectId: string }) {
                       <td className="px-4 py-3">
                         <p className="font-medium text-foreground">{row.name}</p>
                         <p className="text-xs text-muted-foreground">
-                          {row.code} · {row.type} · Version {row.version}
+                          {row.code} · {criterionLabel(row.type)} · Version {row.version}
+                          {criterionHint(row.code) ? (
+                            <MetricTooltip label={row.name}>
+                              {criterionHint(row.code) ?? ''}
+                            </MetricTooltip>
+                          ) : null}
                         </p>
                       </td>
                       <td className="px-4 py-3">
@@ -520,8 +537,16 @@ function EvaluationContent({ projectId }: { projectId: string }) {
                       <th className={headClass}>Code</th>
                       <th className={headClass}>Name</th>
                       <th className={headClass}>Type</th>
-                      <th className={headClass}>Weight (%)</th>
-                      <th className={headClass}>Maximum score</th>
+                      <th className={headClass}>
+                        Weight (%)
+                        <MetricTooltip label="Weight">{metricGlossary.weight}</MetricTooltip>
+                      </th>
+                      <th className={headClass}>
+                        Maximum score
+                        <MetricTooltip label="Maximum score">
+                          {metricGlossary.maximumScore}
+                        </MetricTooltip>
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
@@ -552,7 +577,10 @@ function EvaluationContent({ projectId }: { projectId: string }) {
                             label="Type"
                             value={row.type}
                             onValueChange={(value) => edit(index, 'type', value)}
-                            options={types.map((type) => ({ value: type, label: type }))}
+                            options={types.map((type) => ({
+                              value: type,
+                              label: criterionLabel(type),
+                            }))}
                           />
                         </td>
                         <td className="px-2 py-2">
@@ -706,10 +734,23 @@ function EvaluationContent({ projectId }: { projectId: string }) {
               <table className="w-full min-w-[720px] text-sm tabular-nums">
                 <thead>
                   <tr className="border-b border-border">
-                    <th className={headClass}>Criterion</th>
+                    <th className={headClass}>
+                      Criterion
+                      <MetricTooltip label="Criterion">{metricGlossary.criterion}</MetricTooltip>
+                    </th>
                     <th className={headClass}>Score</th>
-                    <th className={headClass}>Weighted</th>
-                    <th className={headClass}>Note / formula</th>
+                    <th className={headClass}>
+                      Weighted
+                      <MetricTooltip label="Weighted score">
+                        {metricGlossary.weightedScore}
+                      </MetricTooltip>
+                    </th>
+                    <th className={headClass}>
+                      Note / formula
+                      <MetricTooltip label="Note or formula">
+                        {metricGlossary.noteOrFormula}
+                      </MetricTooltip>
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -728,7 +769,7 @@ function EvaluationContent({ projectId }: { projectId: string }) {
                         <td className="px-4 py-3">
                           <p className="font-medium text-foreground">{row.name}</p>
                           <p className="text-xs text-muted-foreground">
-                            {row.code} · {row.type} · weight {row.weightPercentage}%
+                            {row.code} · {criterionLabel(row.type)} · weight {row.weightPercentage}%
                           </p>
                           {reason !== undefined ? (
                             <p className="text-xs text-warning">{reason}</p>
@@ -892,7 +933,10 @@ function EvaluationCard({ evaluation }: { evaluation: EvaluationDetail }) {
         </div>
         <StatusBadge tone={statusTone[evaluation.status]}>{evaluation.status}</StatusBadge>
       </div>
-      <p className="mt-2 text-sm">Overall score: {evaluation.overallScore ?? 'Not available'}</p>
+      <p className="mt-2 text-sm">
+        Overall score: {evaluation.overallScore ?? 'Not available'}
+        <MetricTooltip label="Overall score">{metricGlossary.overallScore}</MetricTooltip>
+      </p>
       <div className="mt-3 grid gap-2 text-xs text-muted-foreground sm:grid-cols-3">
         <p>Evaluated by: {named(evaluation.evaluatedBy)}</p>
         <p>Reviewed by: {named(evaluation.reviewedBy)}</p>

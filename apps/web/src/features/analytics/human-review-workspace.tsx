@@ -20,6 +20,7 @@ import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
 import { pathwaysClient } from '@/lib/services/pathways-client'
 import { rulesHumanClient } from '@/lib/services/rules-human-client'
 import { useAuthorizedRead } from '@/providers/authorized-query-provider'
+import { ArrowDownWideNarrow } from 'lucide-react'
 import Link from 'next/link'
 import { useRef, useState } from 'react'
 import { HumanReviewAction } from './human-review-action'
@@ -44,6 +45,10 @@ const permissionFor = (kind: 'alert' | 'recommendation', action: 'read' | 'revie
         ? 'recommendations.review'
         : 'recommendations.outcome.record'
 
+// Most severe first when the queue is sorted; unknown severities sort last.
+const SEVERITY_RANK: Record<string, number> = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3 }
+const severityRank = (value: string) => SEVERITY_RANK[value] ?? 4
+
 // Radix Select rejects an empty value, so the unfiltered queue uses a sentinel.
 const ALL_PROJECTS = 'all'
 
@@ -59,7 +64,9 @@ export function HumanReviewWorkspace({
   const [mode, setMode] = useState<'review' | 'outcome' | 'resolve' | 'dismiss' | null>(null)
   const [showHistory, setShowHistory] = useState(false)
   const [historyCursor, setHistoryCursor] = useState<string | null>(null)
-  const [showNotifications, setShowNotifications] = useState(false)
+  const [sortBySeverity, setSortBySeverity] = useState(false)
+  // No control opens the notifications panel yet; delivery is not wired up.
+  const [showNotifications] = useState(false)
   const [notificationCursor, setNotificationCursor] = useState<string | null>(null)
   const projects = useAuthorizedRead('review-projects', null, 'projects.read', (signal) =>
     pathwaysClient.getProjects(signal),
@@ -87,7 +94,7 @@ export function HumanReviewWorkspace({
     kind === 'recommendation',
   )
   const queue = kind === 'alert' ? alerts : recommendations
-  const selectedId = selection ?? queue.data?.items[0]?.id ?? null
+  const selectedId = selection
   const selectedProject =
     queue.data?.items.find((item) => item.id === selectedId)?.projectId ?? projectId
   const alert = useAuthorizedRead(
@@ -151,11 +158,170 @@ export function HumanReviewWorkspace({
     if (showNotifications) void notifications.refetch()
   }
   const choose = (id: string | null) => {
-    setSelection(id)
+    setSelection((current) => (current === id ? null : id))
     setMode(null)
     setShowHistory(false)
     setHistoryCursor(null)
   }
+  const items = queue.data?.items ?? []
+  // Sorting reorders the page already loaded; it does not re-query the queue.
+  const visible =
+    kind === 'alert' && sortBySeverity
+      ? [...items].sort(
+          (a, b) =>
+            severityRank('severity' in a ? a.severity : '') -
+            severityRank('severity' in b ? b.severity : ''),
+        )
+      : items
+  const inQueue = Boolean(items.some((row) => row.id === selectedId))
+  const recordDetails = (
+    <div className="space-y-4 border-t border-border bg-card p-4">
+      {detail.isError ? (
+        <AsyncState
+          status="error"
+          title="Record unavailable"
+          description="This record could not be loaded. Try again."
+          onRetry={() => void detail.refetch()}
+        />
+      ) : !item ? (
+        <AsyncState
+          status="loading"
+          title="Loading record"
+          description="Verifying the selected record."
+        />
+      ) : (
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <h2 className="text-xl font-semibold">{item.title}</h2>
+            <StatusBadge tone="neutral">
+              {statusLabel('lifecycle' in item ? item.lifecycle : item.status)}
+            </StatusBadge>
+          </div>
+          {'evidence' in item ? (
+            <AlertEvidence item={item} />
+          ) : (
+            <>
+              <p className="whitespace-pre-wrap">{item.text}</p>
+              <h3 className="font-semibold">Recommendation basis</h3>
+              <p className="whitespace-pre-wrap">{basisLabel(item.basis)}</p>
+              {principalHasAtomicPermission(profile, 'alerts.read') ? (
+                <LinkedAlertSummary alertId={item.alertId} projectId={item.projectId} />
+              ) : null}
+            </>
+          )}
+          <div className="flex flex-wrap gap-2">
+            {principalHasAtomicPermission(profile, permissionFor(kind, 'review')) &&
+            ('lifecycle' in item
+              ? item.lifecycle === 'NEW' && item.freshness === 'CURRENT'
+              : item.status === 'NEW') ? (
+              <Button onClick={() => setMode('review')} type="button">
+                Mark reviewed
+              </Button>
+            ) : null}
+            {principalHasAtomicPermission(profile, permissionFor(kind, 'outcome')) &&
+            (!('freshness' in item) || item.freshness === 'CURRENT') &&
+            !('status' in item && item.status === 'AUTO_RESOLVED') &&
+            !(
+              'lifecycle' in item &&
+              ['RESOLVED', 'DISMISSED', 'AUTO_RESOLVED'].includes(item.lifecycle)
+            ) ? (
+              <Button type="button" variant="outline" onClick={() => setMode('outcome')}>
+                Record outcome
+              </Button>
+            ) : null}
+            {kind === 'alert' &&
+            'lifecycle' in item &&
+            item.freshness === 'CURRENT' &&
+            !['RESOLVED', 'DISMISSED', 'AUTO_RESOLVED'].includes(item.lifecycle) &&
+            principalHasAtomicPermission(profile, 'alerts.outcome.record') ? (
+              <>
+                <Button type="button" variant="outline" onClick={() => setMode('resolve')}>
+                  Resolve alert
+                </Button>
+                <Button type="button" variant="outline" onClick={() => setMode('dismiss')}>
+                  Dismiss alert
+                </Button>
+              </>
+            ) : null}
+            {kind === 'alert' ? (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setShowHistory((value) => !value)}
+              >
+                {showHistory ? 'Hide history' : 'Show history'}
+              </Button>
+            ) : null}
+          </div>
+          {mode ? (
+            <HumanReviewAction
+              key={`${kind}:${item.id}:${item.revision}:${mode}`}
+              kind={kind}
+              item={item}
+              mode={mode}
+              linkedAlert={linked.data}
+              onCommitted={() => {
+                setMode(null)
+                refresh()
+              }}
+              onCancel={() => setMode(null)}
+            />
+          ) : null}
+          {kind === 'recommendation' && mode === 'outcome' && linked.isError ? (
+            <p className="text-sm">
+              Linked alert access could not be verified. Refresh the queue before accepting the
+              recommendation.
+            </p>
+          ) : null}
+          {showHistory ? (
+            <SectionCard title="Alert history">
+              {history.isError ? (
+                <AsyncState
+                  status="error"
+                  title="History unavailable"
+                  description="History could not be loaded."
+                  onRetry={() => void history.refetch()}
+                />
+              ) : !history.data ? (
+                <output>Loading history...</output>
+              ) : (
+                <>
+                  <ol className="space-y-4">
+                    {history.data.items.map((event) => (
+                      <li className="border-b border-border pb-3" key={event.id}>
+                        <p className="font-semibold">
+                          {copy(event.kind)} ({copy(event.actorKind)})
+                        </p>
+                        <p>{event.explanation}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {instant(event.occurredAt)} Asia/Manila
+                        </p>
+                        {event.outcome ? <p>{copy(event.outcome)}</p> : null}
+                        <p className="text-sm">
+                          Rule version {event.ruleVersion}
+                          {event.result ? `; result ${copy(event.result)}` : ''}
+                        </p>
+                        {event.evidence.length ? <EvidenceTable evidence={event.evidence} /> : null}
+                      </li>
+                    ))}
+                  </ol>
+                  {history.data.nextCursor ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setHistoryCursor(history.data?.nextCursor ?? null)}
+                    >
+                      Next history page
+                    </Button>
+                  ) : null}
+                </>
+              )}
+            </SectionCard>
+          ) : null}
+        </div>
+      )}
+    </div>
+  )
   if (!principalHasAtomicPermission(profile, permissionFor(kind, 'read')))
     return (
       <AsyncState
@@ -202,11 +368,15 @@ export function HumanReviewWorkspace({
         ) : null}
         {kind === 'alert' ? (
           <Button
+            aria-label={sortBySeverity ? 'Sort by newest' : 'Sort by severity'}
+            aria-pressed={sortBySeverity}
+            size="icon"
+            title={sortBySeverity ? 'Sort by newest' : 'Sort by severity'}
             type="button"
             variant="outline"
-            onClick={() => setShowNotifications((value) => !value)}
+            onClick={() => setSortBySeverity((value) => !value)}
           >
-            {showNotifications ? 'Hide notifications' : 'Notifications'}
+            <ArrowDownWideNarrow aria-hidden="true" className="h-4 w-4" />
           </Button>
         ) : null}
         {principalHasAtomicPermission(profile, 'rules.read') ? (
@@ -234,13 +404,14 @@ export function HumanReviewWorkspace({
           description="No records are available for this project selection."
         />
       ) : (
-        <div className="grid gap-6 xl:grid-cols-[minmax(260px,.7fr)_minmax(0,1.3fr)]">
+        <div className="space-y-6">
           <SectionCard title={kind === 'alert' ? 'Alert queue' : 'Recommendation queue'}>
             <ReviewCardList
-              items={queue.data?.items ?? []}
+              items={visible}
               selectedId={selectedId}
               onSelect={choose}
               projectLabel={(id) => projects.data?.find((project) => project.id === id)?.title}
+              details={inQueue ? recordDetails : null}
             />
             {!queue.data?.items.length ? (
               <p className="text-sm text-muted-foreground">No records in this queue.</p>
@@ -273,152 +444,9 @@ export function HumanReviewWorkspace({
               ) : null}
             </div>
           </SectionCard>
-          <SectionCard title="Record details">
-            {detail.isError ? (
-              <AsyncState
-                status="error"
-                title="Record unavailable"
-                description="This record could not be loaded. Try again."
-                onRetry={() => void detail.refetch()}
-              />
-            ) : !item ? (
-              <AsyncState
-                status="loading"
-                title="Loading record"
-                description="Verifying the selected record."
-              />
-            ) : (
-              <div className="space-y-4">
-                <h2 className="text-xl font-semibold">{item.title}</h2>
-                <StatusBadge tone="neutral">
-                  {statusLabel('lifecycle' in item ? item.lifecycle : item.status)}
-                </StatusBadge>
-                {'evidence' in item ? (
-                  <AlertEvidence item={item} />
-                ) : (
-                  <>
-                    <p className="whitespace-pre-wrap">{item.text}</p>
-                    <h3 className="font-semibold">Recommendation basis</h3>
-                    <p className="whitespace-pre-wrap">{basisLabel(item.basis)}</p>
-                    {principalHasAtomicPermission(profile, 'alerts.read') ? (
-                      <LinkedAlertSummary alertId={item.alertId} projectId={item.projectId} />
-                    ) : null}
-                  </>
-                )}
-                <div className="flex flex-wrap gap-2">
-                  {principalHasAtomicPermission(profile, permissionFor(kind, 'review')) &&
-                  ('lifecycle' in item
-                    ? item.lifecycle === 'NEW' && item.freshness === 'CURRENT'
-                    : item.status === 'NEW') ? (
-                    <Button onClick={() => setMode('review')} type="button">
-                      Mark reviewed
-                    </Button>
-                  ) : null}
-                  {principalHasAtomicPermission(profile, permissionFor(kind, 'outcome')) &&
-                  (!('freshness' in item) || item.freshness === 'CURRENT') &&
-                  !('status' in item && item.status === 'AUTO_RESOLVED') &&
-                  !(
-                    'lifecycle' in item &&
-                    ['RESOLVED', 'DISMISSED', 'AUTO_RESOLVED'].includes(item.lifecycle)
-                  ) ? (
-                    <Button type="button" variant="outline" onClick={() => setMode('outcome')}>
-                      Record outcome
-                    </Button>
-                  ) : null}
-                  {kind === 'alert' &&
-                  'lifecycle' in item &&
-                  item.freshness === 'CURRENT' &&
-                  !['RESOLVED', 'DISMISSED', 'AUTO_RESOLVED'].includes(item.lifecycle) &&
-                  principalHasAtomicPermission(profile, 'alerts.outcome.record') ? (
-                    <>
-                      <Button type="button" variant="outline" onClick={() => setMode('resolve')}>
-                        Resolve alert
-                      </Button>
-                      <Button type="button" variant="outline" onClick={() => setMode('dismiss')}>
-                        Dismiss alert
-                      </Button>
-                    </>
-                  ) : null}
-                  {kind === 'alert' ? (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => setShowHistory((value) => !value)}
-                    >
-                      {showHistory ? 'Hide history' : 'Show history'}
-                    </Button>
-                  ) : null}
-                </div>
-                {mode ? (
-                  <HumanReviewAction
-                    key={`${kind}:${item.id}:${item.revision}:${mode}`}
-                    kind={kind}
-                    item={item}
-                    mode={mode}
-                    linkedAlert={linked.data}
-                    onCommitted={() => {
-                      setMode(null)
-                      refresh()
-                    }}
-                    onCancel={() => setMode(null)}
-                  />
-                ) : null}
-                {kind === 'recommendation' && mode === 'outcome' && linked.isError ? (
-                  <p className="text-sm">
-                    Linked alert access could not be verified. Refresh the queue before accepting
-                    the recommendation.
-                  </p>
-                ) : null}
-                {showHistory ? (
-                  <SectionCard title="Alert history">
-                    {history.isError ? (
-                      <AsyncState
-                        status="error"
-                        title="History unavailable"
-                        description="History could not be loaded."
-                        onRetry={() => void history.refetch()}
-                      />
-                    ) : !history.data ? (
-                      <output>Loading history...</output>
-                    ) : (
-                      <>
-                        <ol className="space-y-4">
-                          {history.data.items.map((event) => (
-                            <li className="border-b border-border pb-3" key={event.id}>
-                              <p className="font-semibold">
-                                {copy(event.kind)} ({copy(event.actorKind)})
-                              </p>
-                              <p>{event.explanation}</p>
-                              <p className="text-sm text-muted-foreground">
-                                {instant(event.occurredAt)} Asia/Manila
-                              </p>
-                              {event.outcome ? <p>{copy(event.outcome)}</p> : null}
-                              <p className="text-sm">
-                                Rule version {event.ruleVersion}
-                                {event.result ? `; result ${copy(event.result)}` : ''}
-                              </p>
-                              {event.evidence.length ? (
-                                <EvidenceTable evidence={event.evidence} />
-                              ) : null}
-                            </li>
-                          ))}
-                        </ol>
-                        {history.data.nextCursor ? (
-                          <Button
-                            type="button"
-                            variant="outline"
-                            onClick={() => setHistoryCursor(history.data?.nextCursor ?? null)}
-                          >
-                            Next history page
-                          </Button>
-                        ) : null}
-                      </>
-                    )}
-                  </SectionCard>
-                ) : null}
-              </div>
-            )}
-          </SectionCard>
+          {selectedId && !inQueue ? (
+            <SectionCard title="Record details">{recordDetails}</SectionCard>
+          ) : null}
         </div>
       )}
       {showNotifications ? (

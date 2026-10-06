@@ -67,40 +67,15 @@ beforeEach(() => {
   state.notifications.mockResolvedValue({ items: [], nextCursor: null })
 })
 describe('permission-scoped alerts loading', () => {
-  it('opens notification alerts through the supported canonical selection route', async () => {
-    const alertId = '30000000-0000-4000-8000-000000000001'
-    state.notifications.mockResolvedValue({
-      items: [
-        {
-          id: '40000000-0000-4000-8000-000000000001',
-          projectId: '10000000-0000-4000-8000-000000000001',
-          alertId,
-          message: 'A recorded activity alert is available for review.',
-          createdAt: '2026-09-27T00:00:00Z',
-          readAt: '2026-09-27T00:00:00Z',
-          deliveryState: 'DELIVERED',
-        },
-      ],
-      nextCursor: null,
-    })
-    renderWorkspace()
-    await screen.findByText('No records')
-    fireEvent.click(screen.getByRole('button', { name: 'Notifications' }))
-    expect((await screen.findByRole('link', { name: 'View alert' })).getAttribute('href')).toBe(
-      `/alerts?alert=${alertId}`,
-    )
-  })
-  it('loads the PO queue without unauthorized rule or recommendation dependencies and loads notifications only on demand', async () => {
+  it('loads the PO queue without unauthorized rule, recommendation or notification dependencies', async () => {
     renderWorkspace()
     await screen.findByText('No records')
     expect(state.alerts).toHaveBeenCalledWith({}, expect.any(AbortSignal))
     expect(state.recommendations).not.toHaveBeenCalled()
     expect(state.rules).not.toHaveBeenCalled()
+    // The notifications panel has no control yet, so it never loads.
     expect(state.notifications).not.toHaveBeenCalled()
-    fireEvent.click(screen.getByRole('button', { name: 'Notifications' }))
-    await waitFor(() =>
-      expect(state.notifications).toHaveBeenCalledWith({}, expect.any(AbortSignal)),
-    )
+    expect(screen.queryByRole('button', { name: 'Notifications' })).toBeNull()
   })
   it('does not issue alert requests with a revoked grant even when the role remains PO', async () => {
     state.permissions = ['projects.read']

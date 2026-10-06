@@ -70,6 +70,7 @@
 | Role-staging build | [runbook-role-staging-build.md](runbook-role-staging-build.md) | Working |
 | Defense demo reseed | [runbook-defense-demo.md](runbook-defense-demo.md) | Working |
 | Documentation reconciliation | [runbook-doc-reconciliation.md](runbook-doc-reconciliation.md) | Working |
+| Rule creation test script | [runbook-rule-creation-test.md](runbook-rule-creation-test.md) | Working |
 
 ### 1.5 Governance Templates and Audits
 

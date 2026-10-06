@@ -36,6 +36,9 @@ vi.mock('@/lib/services/pathways-client', async (importOriginal) => ({
   pathwaysClient: api,
 }))
 vi.mock('@/hooks/use-current-role', () => ({ useCurrentRole: () => access }))
+vi.mock('@/hooks/use-display-labels', () => ({
+  useDisplayLabels: () => ({ labels: { projectWorkspace: 'Project Workspace' } }),
+}))
 vi.mock('@/components/layout/page-header', () => ({
   PageHeader: ({ title, actions }: { title: string; actions?: ReactNode }) => (
     <>
@@ -51,6 +54,7 @@ vi.mock('./project-team-editor-dialog', () => ({
 
 import { PathwaysClientError } from '@/lib/services/pathways-client'
 import { ProjectDetailView } from './project-detail-view'
+import { ProjectWorkspaceFrame } from './project-workspace-frame'
 
 const project: ProjectDetail = {
   id: projectId,
@@ -97,7 +101,10 @@ const renderView = () =>
   render(
     <QueryClientProvider client={new QueryClient()}>
       <AuthorizedQueryProvider>
-        <ProjectDetailView projectId={projectId} />
+        {/* Matches the route: Edit and Archive live on the shared workspace frame. */}
+        <ProjectWorkspaceFrame projectId={projectId}>
+          <ProjectDetailView projectId={projectId} />
+        </ProjectWorkspaceFrame>
       </AuthorizedQueryProvider>
     </QueryClientProvider>,
   )
@@ -204,7 +211,7 @@ describe('project overview metrics', () => {
 
   it('reads the project through the shared authorized query instead of an effect', async () => {
     renderView()
-    expect(await screen.findByText('Project overview')).toBeTruthy()
+    expect(await screen.findByText('Project preview')).toBeTruthy()
     expect(api.getProject).toHaveBeenCalledOnce()
     expect(api.getProject).toHaveBeenCalledWith(projectId, expect.any(AbortSignal))
     expect(api.getProjectOverviewMetrics).toHaveBeenCalledWith(projectId, expect.any(AbortSignal))

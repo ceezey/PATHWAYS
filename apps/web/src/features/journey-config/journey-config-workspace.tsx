@@ -102,7 +102,7 @@ export const JourneyConfigWorkspace = ({ project, activities, initialStages }: W
     <div className="space-y-6">
       <header className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div className="space-y-1">
-          <h1 className="text-2xl font-semibold text-foreground">Configure journey stages</h1>
+          {/* The workspace frame draws the project title; this tab keeps only its own note. */}
           <p className="text-sm text-muted-foreground">
             Define the beneficiary journey structure, branching paths, and activity mappings for
             this project.

@@ -9,6 +9,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 import { ProjectActivitiesWorkspace } from './project-activities-workspace'
 import { ProjectDetailView } from './project-detail-view'
+import { ProjectWorkspaceFrame } from './project-workspace-frame'
 
 const projectId = '4baf1a98-7285-4671-a897-64787e31fe93'
 const activityId = 'a0908103-0597-4cbb-874f-61ad0d5e3f83'
@@ -17,7 +18,7 @@ const api = vi.hoisted(() => ({
   getActivities: vi.fn(),
   getActivity: vi.fn(),
   getAssignableProjectOfficers: vi.fn(),
-  getIndicators: vi.fn(),
+  getProjectIndicators: vi.fn(),
   getJourneyStages: vi.fn(),
   getProject: vi.fn(),
   getProjectOverviewMetrics: vi.fn(),
@@ -87,6 +88,14 @@ vi.mock('@/components/ui/dropdown-menu', () => ({
       {children}
     </button>
   ),
+}))
+// A Project Manager now reads expenses and budget lines for the activity expense trail.
+vi.mock('@/lib/services/core-feature-client', () => ({
+  coreDataClient: {
+    budgetReferences: vi.fn().mockResolvedValue([]),
+    budgets: vi.fn().mockResolvedValue([]),
+    expenses: vi.fn().mockResolvedValue([]),
+  },
 }))
 vi.mock('@/hooks/use-current-role', () => ({ useCurrentRole: () => access }))
 vi.mock('@/hooks/use-display-labels', () => ({
@@ -158,7 +167,10 @@ const detail: Activity = {
 let client: QueryClient
 const wrap = (node: React.ReactNode) => (
   <QueryClientProvider client={client}>
-    <AuthorizedQueryProvider>{node}</AuthorizedQueryProvider>
+    <AuthorizedQueryProvider>
+      {/* Matches the route: the frame draws the heading and tabs around every tab. */}
+      <ProjectWorkspaceFrame projectId={projectId}>{node}</ProjectWorkspaceFrame>
+    </AuthorizedQueryProvider>
   </QueryClientProvider>
 )
 const renderWorkspace = (initialActivityId?: string) =>
@@ -212,8 +224,15 @@ describe('project activities permission-aware loading', () => {
     })
     api.getActivities.mockResolvedValue([summary])
     api.getActivity.mockResolvedValue(detail)
-    api.getIndicators.mockResolvedValue([
-      { id: indicatorId, code: 'IND-READING', label: 'Reading' },
+    api.getProjectIndicators.mockResolvedValue([
+      {
+        id: indicatorId,
+        projectId,
+        code: 'IND-READING',
+        name: 'Reading',
+        target: '500',
+        current: { state: 'AVAILABLE', value: '284', reason: null },
+      },
     ])
     api.getJourneyStages.mockResolvedValue([])
     api.getProjectOverviewMetrics.mockResolvedValue(null)
@@ -229,11 +248,11 @@ describe('project activities permission-aware loading', () => {
   it('loads the lean list and permitted lookups once, without editor dependencies, for a Project Officer', async () => {
     renderWorkspace()
 
-    expect(await screen.findByRole('heading', { name: 'Activities' })).toBeTruthy()
+    expect(await screen.findByRole('heading', { name: 'Assigned project' })).toBeTruthy()
     expect(api.getProject).toHaveBeenCalledWith(projectId, expect.any(AbortSignal))
     expect(api.getActivities).toHaveBeenCalledWith(projectId, expect.any(AbortSignal))
     await waitFor(() => expect(api.getJourneyStages).toHaveBeenCalledOnce())
-    expect(api.getIndicators).not.toHaveBeenCalled()
+    expect(api.getProjectIndicators).not.toHaveBeenCalled()
     expect(api.getActivity).not.toHaveBeenCalled()
     expect(api.getUsers).not.toHaveBeenCalled()
   })
@@ -241,14 +260,14 @@ describe('project activities permission-aware loading', () => {
   it('shows the overdue-explanation-needed badge only when the list item flags it', async () => {
     api.getActivities.mockResolvedValue([{ ...summary, overdueExplanationNeeded: true }])
     renderWorkspace()
-    await screen.findByRole('heading', { name: 'Activities' })
+    await screen.findByRole('heading', { name: 'Assigned project' })
     expect(await screen.findByText('Overdue: explanation needed')).toBeTruthy()
   })
 
   it('hides the overdue-explanation-needed badge when the list item does not flag it', async () => {
     api.getActivities.mockResolvedValue([{ ...summary, overdueExplanationNeeded: false }])
     renderWorkspace()
-    await screen.findByRole('heading', { name: 'Activities' })
+    await screen.findByRole('heading', { name: 'Assigned project' })
     await waitFor(() => expect(api.getJourneyStages).toHaveBeenCalledOnce())
     expect(screen.queryByText('Overdue: explanation needed')).toBeNull()
   })
@@ -257,8 +276,8 @@ describe('project activities permission-aware loading', () => {
     asProjectManager()
     renderWorkspace()
 
-    await screen.findByRole('heading', { name: 'Activities' })
-    await waitFor(() => expect(api.getIndicators).toHaveBeenCalledOnce())
+    await screen.findByRole('heading', { name: 'Assigned project' })
+    await waitFor(() => expect(api.getProjectIndicators).toHaveBeenCalledOnce())
     expect(api.getJourneyStages).toHaveBeenCalledOnce()
     expect(api.getAssignableProjectOfficers).not.toHaveBeenCalled()
     fireEvent.click(screen.getByRole('button', { name: 'New Activity' }))
@@ -269,7 +288,7 @@ describe('project activities permission-aware loading', () => {
       expect.any(AbortSignal),
     )
     expect(api.getUsers).not.toHaveBeenCalled()
-    expect(api.getIndicators).toHaveBeenCalledOnce()
+    expect(api.getProjectIndicators).toHaveBeenCalledOnce()
     expect(api.getJourneyStages).toHaveBeenCalledOnce()
   })
 
@@ -278,7 +297,7 @@ describe('project activities permission-aware loading', () => {
     access.profile.roles = ['PROJECT_MANAGER']
     access.profile.permissions = [...access.profile.permissions, 'activities.create']
     renderWorkspace()
-    await screen.findByRole('heading', { name: 'Activities' })
+    await screen.findByRole('heading', { name: 'Assigned project' })
     fireEvent.click(screen.getByRole('button', { name: 'New Activity' }))
     await waitFor(() => expect(api.getAssignableProjectOfficers).toHaveBeenCalledOnce())
     expect(api.getUsers).not.toHaveBeenCalled()
@@ -287,8 +306,8 @@ describe('project activities permission-aware loading', () => {
   it('searches by indicator code without opening a panel', async () => {
     asProjectManager()
     renderWorkspace()
-    await screen.findByRole('heading', { name: 'Activities' })
-    await waitFor(() => expect(api.getIndicators).toHaveBeenCalledOnce())
+    await screen.findByRole('heading', { name: 'Assigned project' })
+    await waitFor(() => expect(api.getProjectIndicators).toHaveBeenCalledOnce())
     fireEvent.change(screen.getByRole('textbox', { name: 'Search activities' }), {
       target: { value: 'ind-reading' },
     })
@@ -305,7 +324,7 @@ describe('project activities permission-aware loading', () => {
   it('opens detail by id and keeps lookups loaded across panel opens', async () => {
     asProjectManager()
     renderWorkspace()
-    await screen.findByRole('heading', { name: 'Activities' })
+    await screen.findByRole('heading', { name: 'Assigned project' })
     for (let open = 0; open < 2; open += 1) {
       fireEvent.click(screen.getByRole('link', { name: 'Synthetic outreach' }))
       expect(await screen.findByText('Detail: Synthetic outreach')).toBeTruthy()
@@ -313,7 +332,7 @@ describe('project activities permission-aware loading', () => {
     }
     expect(api.getActivity).toHaveBeenCalledTimes(2)
     expect(api.getActivity).toHaveBeenCalledWith(projectId, activityId, expect.any(AbortSignal))
-    expect(api.getIndicators).toHaveBeenCalledOnce()
+    expect(api.getProjectIndicators).toHaveBeenCalledOnce()
     expect(api.getJourneyStages).toHaveBeenCalledOnce()
     expect(api.getActivities).toHaveBeenCalledOnce()
   })
@@ -450,15 +469,15 @@ describe('project activities permission-aware loading', () => {
   it('reuses the Overview project read on the Activities tab (no duplicate project fetch)', async () => {
     asProjectManager()
     const view = render(wrap(<ProjectDetailView projectId={projectId} />))
-    await screen.findByText('Project overview')
+    await screen.findByText('Project preview')
     expect(api.getProject).toHaveBeenCalledOnce()
     view.rerender(wrap(<ProjectActivitiesWorkspace projectId={projectId} />))
-    await screen.findByRole('heading', { name: 'Activities' })
+    await screen.findByRole('heading', { name: 'Assigned project' })
     await act(async () => {})
     expect(api.getProject).toHaveBeenCalledOnce()
     expect(api.getActivities).toHaveBeenCalledOnce()
     view.rerender(wrap(<ProjectDetailView projectId={projectId} />))
-    await screen.findByText('Project overview')
+    await screen.findByText('Project preview')
     await act(async () => {})
     // Returning within the summary window reuses project and metrics.
     expect(api.getProject).toHaveBeenCalledOnce()

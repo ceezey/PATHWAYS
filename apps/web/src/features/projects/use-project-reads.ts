@@ -38,12 +38,13 @@ export const useProjectActivitiesRead = (projectId: string, enabled = true) =>
     summary,
   )
 
+/** Full indicator rows; `getIndicators` is the same request projected to code and label. */
 export const useProjectIndicatorsRead = (projectId: string, enabled = true) =>
   useAuthorizedRead(
     projectReadResources.indicators,
     projectId,
     'indicators.read',
-    (signal) => pathwaysClient.getIndicators(projectId, signal),
+    (signal) => pathwaysClient.getProjectIndicators(projectId, signal),
     enabled,
     summary,
   )

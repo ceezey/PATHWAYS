@@ -1,6 +1,5 @@
 import { type ProtectedPageProps, requireServerPage } from '@/lib/rbac/server-access'
 
-import { BackButton } from '@/components/layout/back-button'
 import { ProjectPhaseFiveWorkspace } from '@/features/projects/project-review-workspace'
 
 async function ProjectMonitorEvaluatePage({
@@ -10,12 +9,7 @@ async function ProjectMonitorEvaluatePage({
 }) {
   const { projectId } = await params
 
-  return (
-    <>
-      <BackButton fallbackHref={`/projects/${projectId}/activities`} />
-      <ProjectPhaseFiveWorkspace projectId={projectId} view="monitor-evaluate" />
-    </>
-  )
+  return <ProjectPhaseFiveWorkspace projectId={projectId} view="monitor-evaluate" />
 }
 
 export const dynamic = 'force-dynamic'

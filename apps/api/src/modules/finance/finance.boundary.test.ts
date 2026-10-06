@@ -6,6 +6,7 @@ import { SupabaseAuthGuard } from '../../common/guards/supabase-auth.guard'
 import type { PrismaService } from '../../prisma/prisma.service'
 import { hasAtomicPermission } from '../auth/authorization-policy'
 import type { ApplicationIdentity, AuthenticatedRequest } from '../auth/developer-access'
+import type { ReceiptPdfRenderer } from '../report-pdf/receipt-pdf.renderer'
 import type { StorageService } from '../storage/storage.service'
 import { FinanceController } from './finance.controller'
 import { FinanceService } from './finance.service'
@@ -28,7 +29,13 @@ const projectId = '10000000-0000-4000-8000-000000000001'
 const expenseId = '20000000-0000-4000-8000-000000000002'
 const org = '30000000-0000-4000-8000-000000000003'
 const tx = { project: { findFirst: vi.fn() }, $queryRaw: vi.fn() }
-const service = new FinanceService({} as PrismaService, {} as StorageService)
+const service = new FinanceService(
+  {} as PrismaService,
+  {} as StorageService,
+  {
+    render: () => Promise.reject(new Error('Receipt renderer disabled.')),
+  } as unknown as ReceiptPdfRenderer,
+)
 const controller = new FinanceController(service)
 let actor: ApplicationIdentity
 const identity = (role: string, permissions: string[]): ApplicationIdentity => ({

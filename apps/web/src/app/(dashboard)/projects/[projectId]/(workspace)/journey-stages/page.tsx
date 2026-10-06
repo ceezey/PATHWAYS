@@ -1,6 +1,5 @@
 import { requireServerPage } from '@/lib/rbac/server-access'
 
-import { BackButton } from '@/components/layout/back-button'
 import { JourneyStagesLoader } from '@/features/beneficiaries/journey-stages-loader'
 
 export const dynamic = 'force-dynamic'
@@ -12,10 +11,5 @@ type JourneyStagesPageProps = {
 export default async function ProtectedPage(props: JourneyStagesPageProps) {
   await requireServerPage('journey', props)
   const { projectId } = await props.params
-  return (
-    <>
-      <BackButton fallbackHref={`/projects/${projectId}/activities`} />
-      <JourneyStagesLoader projectId={projectId} />
-    </>
-  )
+  return <JourneyStagesLoader projectId={projectId} />
 }

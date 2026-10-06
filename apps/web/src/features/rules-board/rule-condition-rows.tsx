@@ -80,8 +80,7 @@ export function ApplyToFields({
   onProject: (value: string) => void
 }) {
   return (
-    <section className="space-y-3">
-      <h3 className="font-semibold">Applies To</h3>
+    <div className="space-y-3">
       <div className="space-y-2">
         <Label htmlFor="rule-scope">Rule scope</Label>
         <select
@@ -124,7 +123,7 @@ export function ApplyToFields({
           )
         })}
       </div>
-    </section>
+    </div>
   )
 }
 
@@ -154,8 +153,7 @@ export function ConditionBuilder({
   const setRow = (index: number, patch: (row: RuleCondition) => RuleCondition) =>
     setRows((current) => current.map((row, i) => (i === index ? patch(row) : row)))
   return (
-    <section className="space-y-3">
-      <h3 className="font-semibold">Condition Builder</h3>
+    <div className="space-y-3">
       {nestedRule ? (
         <div className="space-y-3">
           <RuleTreeView node={nestedRule.conditions} />
@@ -324,6 +322,6 @@ export function ConditionBuilder({
           </Button>
         </>
       )}
-    </section>
+    </div>
   )
 }

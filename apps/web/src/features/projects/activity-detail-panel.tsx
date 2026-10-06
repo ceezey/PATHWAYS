@@ -18,8 +18,24 @@ import { ProgressBar, SidePanel, StatusBadge } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import { Sheet } from '@/components/ui/sheet'
 import { pathwaysClient } from '@/lib/services/pathways-client'
-import type { Activity, ActivityProof, Indicator, JourneyStageConfig } from '@/types/pathways'
+import type {
+  Activity,
+  ActivityProof,
+  Indicator,
+  JourneyStageConfig,
+  ProjectIndicator,
+  ProjectTeamMember,
+} from '@/types/pathways'
 
+import {
+  ActivityBudget,
+  type ActivityExpenseEntry,
+  ActivityExpenses,
+  ActivityIndicators,
+  ActivityProgress,
+  ActivityTeam,
+  PanelSection,
+} from './activity-detail-sections'
 import { ActivityExpenseDialog, type ExpenseBudgetReference } from './activity-expense-dialog'
 import { ActivityExpenseReviewDialog, type PendingExpense } from './activity-expense-review-dialog'
 import { ActivityExplainDelayDialog, categoryLabels } from './activity-explain-delay-dialog'
@@ -30,9 +46,10 @@ import { ActivityProofFiles } from './activity-proof-files'
 import { ActivityProofReviewDialog } from './activity-proof-review-dialog'
 import { activityStatusTone, formatCurrency, formatDate } from './activity-utils'
 
-type ProofGroup = ActivityProof & { proofIds: string[] }
+type ProofGroup = ActivityProof & { proofIds: string[]; items: ActivityProof[] }
 
 // One card per submitted update: the API returns one proof row per uploaded file.
+// The rows are kept so each file shows its own review state and reason.
 const groupProofsByUpdate = (proofs: ActivityProof[]) => {
   const groups = new Map<string, ProofGroup>()
   for (const proof of proofs) {
@@ -41,12 +58,14 @@ const groupProofsByUpdate = (proofs: ActivityProof[]) => {
     if (group) {
       group.fileNames = [...(group.fileNames ?? []), ...names]
       group.proofIds.push(proof.id)
+      group.items.push(proof)
     } else {
       groups.set(proof.updateId, {
         ...proof,
         files: undefined,
         fileNames: names,
         proofIds: [proof.id],
+        items: [proof],
       })
     }
   }
@@ -73,6 +92,8 @@ const formatProofDate = (value: string) => {
 
 export const ActivityDetailContent = ({
   activity,
+  activityExpenses = [],
+  canReadExpenses = false,
   budgetReferences = [],
   canDecideProof,
   canDecideExtension = false,
@@ -83,8 +104,10 @@ export const ActivityDetailContent = ({
   canRecordProgress = false,
   canSubmitProof,
   canRequestExtension,
+  canOpenProof = false,
   canValidateExpense,
   canValidateProof,
+  indicatorRows = [],
   indicators,
   journeyStages,
   onActivityChanged,
@@ -92,10 +115,13 @@ export const ActivityDetailContent = ({
   onExpensesChanged = () => {},
   onSubmitProof,
   pendingExpenses = [],
+  projectTeam = [],
   requestedExpenseId,
   requestedProofId,
 }: {
   activity: Activity
+  activityExpenses?: ActivityExpenseEntry[]
+  canReadExpenses?: boolean
   budgetReferences?: ExpenseBudgetReference[]
   canDecideProof: boolean
   canDecideExtension?: boolean
@@ -106,11 +132,14 @@ export const ActivityDetailContent = ({
   canRecordProgress?: boolean
   canSubmitProof: boolean
   canRequestExtension: boolean
+  canOpenProof?: boolean
   canValidateExpense: boolean
   canValidateProof: boolean
+  indicatorRows?: ProjectIndicator[]
   indicators: Indicator[]
   journeyStages: JourneyStageConfig[]
   onActivityChanged: (activity: Activity) => void
+  projectTeam?: ProjectTeamMember[]
   onEdit: (activity: Activity) => void
   onExpensesChanged?: () => void
   onSubmitProof: (activity: Activity) => void
@@ -142,9 +171,20 @@ export const ActivityDetailContent = ({
 
   const connectedIndicators = activity.indicatorIds.map((indicatorId) => {
     const indicator = indicators.find((item) => item.id === indicatorId)
-    return indicator ?? { id: indicatorId, code: indicatorId, label: 'Linked indicator' }
+    return {
+      id: indicatorId,
+      code: indicator?.code ?? indicatorId,
+      label: indicator?.label ?? 'Linked indicator',
+      row: indicatorRows.find((item) => item.id === indicatorId),
+    }
   })
   const journeyStage = journeyStages.find((stage) => stage.id === activity.journeyStageId)
+  // Summed from the expenses listed below, so the card and the list cannot disagree.
+  const inReviewTotal = canReadExpenses
+    ? activityExpenses
+        .filter((entry) => entry.status === 'PENDING' || entry.status === 'VERIFIED')
+        .reduce((total, entry) => total + entry.amount, 0)
+    : null
 
   return (
     <div className="space-y-5 pb-1">
@@ -159,16 +199,15 @@ export const ActivityDetailContent = ({
           </StatusBadge>
         ) : null}
       </div>
-      <p className="text-sm leading-6 text-muted-foreground">{activity.description}</p>
-      {activity.status !== 'Completed' ? (
-        <ProgressBar
-          label="Activity progress"
-          tone={
-            activity.status === 'Overdue' ? 'danger' : activity.progress >= 80 ? 'success' : 'info'
-          }
-          value={activity.progress}
-        />
+      {correctionRequired && showSubmitProof ? (
+        <p className="rounded-lg border border-warning bg-warning-subtle p-3 text-sm text-warning">
+          <span className="font-semibold">Action needed: </span>A reviewer flagged a document as
+          insufficient. Review the proof submissions below and resubmit.
+        </p>
       ) : null}
+      <PanelSection id={`description-${activity.id}`} title="Description">
+        <p className="text-sm leading-6 text-muted-foreground">{activity.description}</p>
+      </PanelSection>
       <dl className="grid gap-4 rounded-xl border border-border bg-surface-subtle p-4 text-sm sm:grid-cols-2">
         <div>
           <dt className="text-muted-foreground">Dates</dt>
@@ -184,24 +223,6 @@ export const ActivityDetailContent = ({
               : 'Unavailable'}
           </dd>
         </div>
-        <div>
-          <dt className="text-muted-foreground">Allocated budget</dt>
-          <dd className="mt-1 font-medium text-foreground">
-            {formatCurrency(activity.budgetAllocation, canReadBudgets ? 'None yet' : 'Unavailable')}
-          </dd>
-        </div>
-        <div>
-          <dt className="text-muted-foreground">Logged budget</dt>
-          <dd className="mt-1 font-medium text-foreground">
-            {activity.budgetLoggedEntries === 0
-              ? 'None yet'
-              : formatCurrency(activity.budgetLogged, 'Unavailable')}
-          </dd>
-        </div>
-        <div className="sm:col-span-2">
-          <dt className="text-muted-foreground">Assigned users</dt>
-          <dd className="mt-1 font-medium text-foreground">{activity.assignedTo.join(', ')}</dd>
-        </div>
         <div className="sm:col-span-2">
           <dt className="text-muted-foreground">Journey stage reference</dt>
           <dd className="mt-1 font-medium text-foreground">
@@ -211,36 +232,40 @@ export const ActivityDetailContent = ({
           </dd>
         </div>
       </dl>
+      {activity.status === 'Completed' ? null : (
+        <PanelSection id={`progress-${activity.id}`} title="Progress">
+          <ActivityProgress activity={activity} />
+        </PanelSection>
+      )}
 
-      <section aria-labelledby={`connected-indicators-${activity.id}`}>
-        <h3
-          className="text-sm font-semibold text-foreground"
-          id={`connected-indicators-${activity.id}`}
-        >
-          Connected Indicators
-        </h3>
-        <div className="mt-3 grid gap-3">
-          {connectedIndicators.length > 0 ? (
-            connectedIndicators.map((indicator) => (
-              <article
-                className="border-l-4 border-l-primary bg-primary-subtle px-4 py-3"
-                key={indicator.id}
-              >
-                <p className="text-xs font-semibold uppercase tracking-wide text-primary">
-                  {indicator.code}
-                </p>
-                <p className="mt-1 text-sm font-medium leading-5 text-foreground">
-                  {indicator.label}
-                </p>
-              </article>
-            ))
-          ) : (
-            <p className="rounded-xl border border-dashed border-border p-4 text-sm text-muted-foreground">
-              No indicators are connected to this activity.
-            </p>
-          )}
-        </div>
-      </section>
+      <PanelSection id={`assigned-team-${activity.id}`} title="Project team">
+        <ActivityTeam
+          assignedTo={activity.assignedTo}
+          assignedUserIds={activity.assignedUserIds}
+          team={projectTeam}
+        />
+      </PanelSection>
+
+      <PanelSection
+        id={`connected-indicators-${activity.id}`}
+        title={`Connected indicators (${connectedIndicators.length})`}
+      >
+        <ActivityIndicators rows={connectedIndicators} />
+      </PanelSection>
+
+      <PanelSection id={`activity-budget-${activity.id}`} title="Activity budget">
+        <ActivityBudget
+          activity={activity}
+          canReadBudgets={canReadBudgets}
+          pending={inReviewTotal}
+        />
+      </PanelSection>
+
+      {canReadExpenses ? (
+        <PanelSection id={`activity-expenses-${activity.id}`} title="Logged expenses">
+          <ActivityExpenses expenses={activityExpenses} />
+        </PanelSection>
+      ) : null}
 
       {canValidateExpense && pendingExpenses.length ? (
         <section aria-labelledby={`expense-submissions-${activity.id}`}>
@@ -326,7 +351,12 @@ export const ActivityDetailContent = ({
                       {proof.note || 'No update note recorded.'}
                     </p>
                     <div className="mt-3">
-                      <ActivityProofFiles proof={proof} />
+                      <ActivityProofFiles
+                        activityId={activity.id}
+                        canOpen={canOpenProof}
+                        projectId={activity.projectId}
+                        proof={proof}
+                      />
                     </div>
                     {proof.status === 'Flagged' ? (
                       <div className="mt-3 rounded-xl border border-danger/25 bg-danger-subtle p-3 text-sm text-danger">
@@ -636,6 +666,8 @@ export const ActivityDetailContent = ({
 
 export const ActivityDetailPanel = ({
   activity,
+  activityExpenses = [],
+  canReadExpenses = false,
   budgetReferences = [],
   canDecideProof,
   canDecideExtension = false,
@@ -647,8 +679,10 @@ export const ActivityDetailPanel = ({
   canRecordProgress = false,
   canSubmitProof,
   canRequestExtension,
+  canOpenProof = false,
   canValidateExpense,
   canValidateProof,
+  indicatorRows = [],
   indicators,
   journeyStages,
   onActivityChanged,
@@ -658,10 +692,13 @@ export const ActivityDetailPanel = ({
   onSubmitProof,
   open,
   pendingExpenses = [],
+  projectTeam = [],
   requestedExpenseId,
   requestedProofId,
 }: {
   activity: Activity | null
+  activityExpenses?: ActivityExpenseEntry[]
+  canReadExpenses?: boolean
   budgetReferences?: ExpenseBudgetReference[]
   canDecideProof: boolean
   canDecideExtension?: boolean
@@ -673,8 +710,10 @@ export const ActivityDetailPanel = ({
   canRecordProgress?: boolean
   canSubmitProof: boolean
   canRequestExtension: boolean
+  canOpenProof?: boolean
   canValidateExpense: boolean
   canValidateProof: boolean
+  indicatorRows?: ProjectIndicator[]
   indicators: Indicator[]
   journeyStages: JourneyStageConfig[]
   onActivityChanged: (activity: Activity) => void
@@ -684,6 +723,7 @@ export const ActivityDetailPanel = ({
   onSubmitProof: (activity: Activity) => void
   open: boolean
   pendingExpenses?: PendingExpense[]
+  projectTeam?: ProjectTeamMember[]
   requestedExpenseId?: string
   requestedProofId?: string
 }) => {
@@ -719,6 +759,8 @@ export const ActivityDetailPanel = ({
         >
           <ActivityDetailContent
             activity={activity}
+            activityExpenses={activityExpenses}
+            canReadExpenses={canReadExpenses}
             budgetReferences={budgetReferences}
             canDecideProof={canDecideProof}
             canDecideExtension={canDecideExtension}
@@ -729,8 +771,10 @@ export const ActivityDetailPanel = ({
             canRecordProgress={canRecordProgress}
             canSubmitProof={canSubmitProof}
             canRequestExtension={canRequestExtension}
+            canOpenProof={canOpenProof}
             canValidateExpense={canValidateExpense}
             canValidateProof={canValidateProof}
+            indicatorRows={indicatorRows}
             indicators={indicators}
             journeyStages={journeyStages}
             onActivityChanged={onActivityChanged}
@@ -738,6 +782,7 @@ export const ActivityDetailPanel = ({
             onExpensesChanged={onExpensesChanged}
             onSubmitProof={onSubmitProof}
             pendingExpenses={pendingExpenses}
+            projectTeam={projectTeam}
             requestedExpenseId={requestedExpenseId}
             requestedProofId={requestedProofId}
           />
