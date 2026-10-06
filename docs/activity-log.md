@@ -482,3 +482,8 @@
 - `refreshExpenses` now also refetches the activity read. Approved spend and allocation come from there, so without it an approved expense left "In review" before it reached "Spent".
 - Gates stay permission-based, not person-based: every Project Officer, M&E Officer and Project Manager with the same grants and project scope sees the same thing.
 - 2026-10-06 Merged Mika PR #46 into dev with evaluation auto scoring: the evaluation workspace keeps the automatic-evaluation UI with the PR note and score-table tooltips, and the glossary gains Indicator linkage and Assessment gain.
+
+## 2026-10-06 Report kind gating and download names (fix/beneficiary-report-kind-gating)
+- The reports workspace offered Beneficiary summary on `reports.beneficiary.read` alone, while the API preview also needs `analytics.saddd.read` and `beneficiaries.aggregates.read`; Project Officers lack the first under RBAC v4, so they always hit a 403. `kinds[].requires` is now a list and the beneficiary kind requires both aggregate grants.
+- Report downloads are named after the saved report name instead of `report-<id>`, with reserved file-system characters replaced and the id name kept as the fallback.
+- The "plain layout" PDF warning locally is configuration, not code: `apps/api/.env` sets neither `PDF_CHROME_PATH` nor `WEB_ORIGIN`, so the designed renderer refuses to launch on Windows and every PDF falls back to pdfkit.
