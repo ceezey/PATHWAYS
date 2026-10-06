@@ -53,7 +53,11 @@ export const BudgetModule = ({ projectId }: { projectId: string }) => {
         <p className="text-sm text-muted-foreground">
           Allocations, approved spending and expense review for this project.
         </p>
-        <BudgetActions onDone={module.refresh} projectId={projectId} />
+        <BudgetActions
+          activities={module.activities}
+          onDone={module.refresh}
+          projectId={projectId}
+        />
       </div>
       <Tabs onValueChange={setTab} value={tab}>
         <TabsList>

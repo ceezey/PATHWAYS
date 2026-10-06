@@ -22,6 +22,10 @@ import { createPrivateInspectionReader } from '../storage/private-inspection-rea
 import { StorageService } from '../storage/storage.service'
 
 const uuid = z.string().uuid()
+// Reviewer identity for a read: the display name only, never the rest of the user record.
+const personName = { select: { fullName: true } } as const
+const displayName = (person: { fullName: string } | null) =>
+  person ? person.fullName.slice(0, 200) : null
 const money = z.string().regex(/^(?:0|[1-9]\d{0,15})(?:\.\d{1,2})?$/)
 export const budgetInput = z
   .object({
@@ -200,23 +204,31 @@ export class FinanceService {
           verifiedById: true,
           approvedById: true,
           updatedAt: true,
+          submittedBy: personName,
+          verifiedBy: personName,
+          approvedBy: personName,
         },
         orderBy: [{ expenseDate: 'desc' }, { id: 'asc' }],
         take: 101,
       })
       if (rows.length > 100) throw new BadRequestException('Select a smaller expense scope.')
       const signoffs = await tx.$queryRaw<
-        Array<{ expenseId: string; signedOffById: string; signedOffAt: Date }>
-      >`SELECT expense_id::text AS "expenseId",signed_off_by_id::text AS "signedOffById",signed_off_at AS "signedOffAt" FROM pathways.expense_signoffs WHERE organization_id=${actor.organizationId}::uuid AND project_id=${projectId}::uuid`
-      return rows.map((row) => {
+        Array<{ expenseId: string; signedOffById: string; signedOffAt: Date; fullName: string }>
+      >`SELECT s.expense_id::text AS "expenseId",s.signed_off_by_id::text AS "signedOffById",s.signed_off_at AS "signedOffAt",u.full_name AS "fullName" FROM pathways.expense_signoffs s JOIN pathways.system_users u ON u.organization_id=s.organization_id AND u.id=s.signed_off_by_id WHERE s.organization_id=${actor.organizationId}::uuid AND s.project_id=${projectId}::uuid`
+      return rows.map(({ submittedBy, verifiedBy, approvedBy, ...row }) => {
         const signoff = signoffs.find((value) => value.expenseId === row.id)
         return {
           ...row,
           amount: row.amount.toFixed(2),
           expenseDate: row.expenseDate.toISOString().slice(0, 10),
           updatedAt: row.updatedAt.toISOString(),
+          // Reviewer names, so the ledger names people instead of printing their ids.
+          submittedByName: displayName(submittedBy),
+          verifiedByName: displayName(verifiedBy),
+          approvedByName: displayName(approvedBy),
           signedOffById: signoff?.signedOffById ?? null,
           signedOffAt: signoff?.signedOffAt.toISOString() ?? null,
+          signedOffByName: signoff ? signoff.fullName.slice(0, 200) : null,
         }
       })
     })

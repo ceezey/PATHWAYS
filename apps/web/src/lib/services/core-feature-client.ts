@@ -112,6 +112,10 @@ export const expenseSchema = z
     updatedAt: timestamp,
     signedOffById: uuid.nullable(),
     signedOffAt: timestamp.nullable(),
+    submittedByName: z.string().max(200).nullable(),
+    verifiedByName: z.string().max(200).nullable(),
+    approvedByName: z.string().max(200).nullable(),
+    signedOffByName: z.string().max(200).nullable(),
   })
   .strict()
 export const expenseAck = z

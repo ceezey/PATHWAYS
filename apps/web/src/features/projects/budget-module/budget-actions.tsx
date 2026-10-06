@@ -17,6 +17,8 @@ import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
 import { coreDataClient } from '@/lib/services/core-feature-client'
 import { useAuthorizedRead } from '@/providers/authorized-query-provider'
 
+import { type ActivityLabel, categoryLabel } from './budget-math'
+
 const fail = (error: unknown, fallback: string) =>
   toast.error(error instanceof Error ? error.message : fallback)
 
@@ -115,9 +117,10 @@ const AllocationDialog = ({
 }
 
 const ExpenseDialog = ({
+  activities,
   projectId,
   onDone,
-}: { projectId: string; onDone: () => Promise<void> }) => {
+}: { activities: ActivityLabel[]; projectId: string; onDone: () => Promise<void> }) => {
   const requests = useOperationRequestId()
   const refs = useAuthorizedRead('expense-budget-references', projectId, 'expenses.submit', (s) =>
     coreDataClient.budgetReferences(projectId, s),
@@ -175,11 +178,18 @@ const ExpenseDialog = ({
                 value={reference}
               >
                 <option value="">Select a budget line</option>
-                {(refs.data ?? []).map((row) => (
-                  <option key={row.id} value={row.id}>
-                    {row.category === 'ACTIVITY_PROFILE_TOTAL' ? 'Activity budget' : row.category}
-                  </option>
-                ))}
+                {(refs.data ?? []).map((row) => {
+                  // Name the activity the line belongs to, so the submitter sees what it funds.
+                  const activity = activities.find((item) => item.id === row.activityId)
+                  const scope = activity
+                    ? `${activity.code ? `${activity.code} - ` : ''}${activity.title}`
+                    : 'Project-level'
+                  return (
+                    <option key={row.id} value={row.id}>
+                      {`${scope} - ${categoryLabel(row.category)}`}
+                    </option>
+                  )
+                })}
               </select>
             </Label>
             <Label>
@@ -223,9 +233,10 @@ const ExpenseDialog = ({
 
 /** Allocation and expense entry, shown only to roles holding the matching permission. */
 export const BudgetActions = ({
+  activities,
   projectId,
   onDone,
-}: { projectId: string; onDone: () => Promise<void> }) => {
+}: { activities: ActivityLabel[]; projectId: string; onDone: () => Promise<void> }) => {
   const { profile } = useCurrentRole()
   return (
     <div className="flex flex-wrap gap-2">
@@ -233,7 +244,7 @@ export const BudgetActions = ({
         <AllocationDialog onDone={onDone} projectId={projectId} />
       ) : null}
       {principalHasAtomicPermission(profile, 'expenses.submit') ? (
-        <ExpenseDialog onDone={onDone} projectId={projectId} />
+        <ExpenseDialog activities={activities} onDone={onDone} projectId={projectId} />
       ) : null}
     </div>
   )

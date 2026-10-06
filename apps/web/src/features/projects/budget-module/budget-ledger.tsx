@@ -11,7 +11,7 @@ import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
 import { fetchCoreArtifact, saveCoreArtifact } from '@/lib/services/core-feature-client'
 
 import { formatCurrency, formatDate } from '../activity-utils'
-import { projectLevelKey } from './budget-math'
+import { categoryLabel, projectLevelKey } from './budget-math'
 import { ExpenseReviewDrawer, type ReviewAction } from './expense-review-drawer'
 import type { useBudgetModule } from './use-budget-module'
 
@@ -157,33 +157,46 @@ export const BudgetLedger = ({
                 </div>
                 {expanded ? (
                   <div className="mt-3 space-y-3 pl-7 text-sm">
-                    <dl className="grid gap-3 sm:grid-cols-3">
+                    <dl className="grid gap-3 sm:grid-cols-4">
                       <div>
                         <dt className="text-muted-foreground">Submitted by</dt>
-                        <dd className="break-all font-medium">{expense.submittedById}</dd>
+                        <dd className="font-medium">{expense.submittedByName ?? 'Unnamed user'}</dd>
                       </div>
                       <div>
                         <dt className="text-muted-foreground">Verified by</dt>
-                        <dd className="break-all font-medium">
-                          {expense.verifiedById ?? 'Not yet'}
-                        </dd>
+                        <dd className="font-medium">{expense.verifiedByName ?? 'Not yet'}</dd>
                       </div>
                       <div>
                         <dt className="text-muted-foreground">Approved by</dt>
-                        <dd className="break-all font-medium">
-                          {expense.approvedById ?? 'Not yet'}
-                        </dd>
+                        <dd className="font-medium">{expense.approvedByName ?? 'Not yet'}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-muted-foreground">Signed off by</dt>
+                        <dd className="font-medium">{expense.signedOffByName ?? 'Not yet'}</dd>
                       </div>
                     </dl>
                     <div className="rounded-md border border-border bg-surface-subtle p-3">
                       <p className="font-medium">Budget alignment</p>
-                      <p className="text-muted-foreground">
-                        {activity?.title ?? 'Project-level budget'} -{' '}
-                        {budget?.category ?? 'Unknown'}
-                        {budget
-                          ? ` - allocated ${formatCurrency(Number(budget.plannedBudget))}`
-                          : ''}
-                      </p>
+                      <dl className="mt-2 grid gap-2 text-sm sm:grid-cols-3">
+                        <div>
+                          <dt className="text-muted-foreground">Activity</dt>
+                          <dd className="font-medium">
+                            {activity
+                              ? `${activity.code ? `${activity.code} - ` : ''}${activity.title}`
+                              : 'Project-level budget'}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="text-muted-foreground">Budget line</dt>
+                          <dd className="font-medium">{categoryLabel(budget?.category)}</dd>
+                        </div>
+                        <div>
+                          <dt className="text-muted-foreground">Allocated to this line</dt>
+                          <dd className="font-medium tabular-nums">
+                            {budget ? formatCurrency(Number(budget.plannedBudget)) : 'Not recorded'}
+                          </dd>
+                        </div>
+                      </dl>
                     </div>
                     {expense.receiptEvidenceId ? (
                       can('evidence.read') ? (

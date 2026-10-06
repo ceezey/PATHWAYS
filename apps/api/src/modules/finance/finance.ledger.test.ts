@@ -31,6 +31,7 @@ const updatedAt = new Date('2026-09-27T00:00:00.000Z')
 const tx = {
   project: { findFirst: vi.fn() },
   projectBudgetRecord: { create: vi.fn(), findFirst: vi.fn(), updateMany: vi.fn() },
+  budgetExpenseEntry: { findMany: vi.fn() },
   auditLog: { create: vi.fn() },
   $queryRaw: vi.fn(),
 }
@@ -147,6 +148,47 @@ describe('F2 budget and expense ledger gates', () => {
       BadRequestException,
     )
     expect(tx.$queryRaw).not.toHaveBeenCalled()
+  })
+
+  it('names every reviewer on the ledger read and never exposes the rest of their record', async () => {
+    const expenseId = '50000000-0000-4000-8000-000000000005'
+    state.actor = identity('PROJECT_MANAGER', ['expenses.read'])
+    tx.project.findFirst.mockResolvedValue({ id: projectId })
+    tx.budgetExpenseEntry.findMany.mockResolvedValue([
+      {
+        id: expenseId,
+        budgetRecordId: budgetId,
+        description: 'Venue',
+        amount: { toFixed: () => '250.00' },
+        expenseDate: new Date('2026-06-15T00:00:00.000Z'),
+        status: 'APPROVED',
+        receiptEvidenceId: null,
+        submittedById: org,
+        verifiedById: org,
+        approvedById: null,
+        updatedAt,
+        submittedBy: { fullName: 'Ron Perez' },
+        verifiedBy: { fullName: 'Leah Sy' },
+        approvedBy: null,
+      },
+    ])
+    tx.$queryRaw.mockResolvedValue([
+      { expenseId, signedOffById: org, signedOffAt: updatedAt, fullName: 'Jan Pascual' },
+    ])
+    const [row] = await service.expenses({} as ApplicationIdentity, projectId)
+    expect(row).toMatchObject({
+      submittedByName: 'Ron Perez',
+      verifiedByName: 'Leah Sy',
+      approvedByName: null,
+      signedOffByName: 'Jan Pascual',
+    })
+    // Only the display name crosses over; the rest of the user record never leaves the read.
+    expect(row).not.toHaveProperty('submittedBy')
+    expect(row).not.toHaveProperty('verifiedBy')
+    expect(row).not.toHaveProperty('approvedBy')
+    expect(tx.budgetExpenseEntry.findMany.mock.calls[0]?.[0].select.submittedBy).toEqual({
+      select: { fullName: true },
+    })
   })
 
   it('G-F2-18 sign-off requires the signoff permission and audits the recorded row', async () => {

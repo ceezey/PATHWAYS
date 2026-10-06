@@ -34,6 +34,13 @@ export type BudgetAlert = {
 
 export const projectLevelKey = 'project-level'
 export const projectEnvelopeCategory = 'PROJECT_PROFILE_TOTAL'
+// Stored envelope categories read as enum names, so the ledger shows these instead.
+const categoryLabels: Record<string, string> = {
+  PROJECT_PROFILE_TOTAL: 'Project budget',
+  ACTIVITY_PROFILE_TOTAL: 'Activity budget',
+}
+export const categoryLabel = (category: string | null | undefined) =>
+  category ? (categoryLabels[category] ?? category) : 'Unrecorded budget line'
 // Visual thresholds only; they never block or change any record.
 export const DANGER_PCT = 90
 export const WARN_PCT = 70
