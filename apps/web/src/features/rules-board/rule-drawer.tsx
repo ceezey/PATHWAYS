@@ -29,6 +29,7 @@ import {
   appliesTo,
   availableMetrics,
   categoryOf,
+  conditionSummary,
   previewSentence,
   suggestRuleCode,
 } from './rule-board-model'
@@ -36,7 +37,8 @@ import { ApplyToFields, ConditionBuilder, useBindingChoices } from './rule-condi
 import { RuleDrawerFooter } from './rule-drawer-footer'
 import { DEFAULT_REC, type Mode, type Rec, newRec, newRow, recordBound } from './rule-drawer-shared'
 import { LifecyclePrompt } from './rule-lifecycle-prompt'
-import { RuleOutputFields, RulePreview } from './rule-output-fields'
+import { RecommendationFields, RulePreview, SeverityField } from './rule-output-fields'
+import { RuleStepCard } from './rule-step-card'
 
 export type DrawerIntent = 'test' | 'activate' | 'deactivate'
 type Props = {
@@ -274,8 +276,11 @@ function OwnedDrawer({
         }}
       >
         <fieldset className="space-y-6" disabled={busy || locked || !canWrite}>
-          <section className="space-y-3">
-            <h3 className="font-semibold">Basic Rule Information</h3>
+          <RuleStepCard
+            step={1}
+            title="Name and scope"
+            hint="Name the rule and choose the projects it watches."
+          >
             <div className="space-y-2">
               <Label htmlFor="drawer-rule-name">Rule Name</Label>
               <Input
@@ -304,36 +309,56 @@ function OwnedDrawer({
                 {category ?? 'Derived from the first metric'}
               </p>
             </div>
-          </section>
-          <ApplyToFields
-            locked={Boolean(rule)}
-            onProject={changeProject}
-            onToggle={toggleScope}
-            projects={projects}
-            scopeProjectId={scopeProjectId}
-            scopes={scopes}
-          />
-          <ConditionBuilder
-            activities={activities}
-            indicators={indicators}
-            matchMode={matchMode}
-            metricOptions={metricOptions}
-            nestedRule={nested ? rule : undefined}
-            onAdvanced={() => setAdvanced(true)}
-            rows={rows}
-            scopeProjectId={scopeProjectId}
-            setMatchMode={setMatchMode}
-            setRows={setRows}
-          />
-          <RuleOutputFields
-            mode={mode}
-            onRecs={setRecs}
-            onSeverity={setSeverity}
-            recs={recs}
-            severity={severity}
-          />
+            <ApplyToFields
+              locked={Boolean(rule)}
+              onProject={changeProject}
+              onToggle={toggleScope}
+              projects={projects}
+              scopeProjectId={scopeProjectId}
+              scopes={scopes}
+            />
+          </RuleStepCard>
+          <RuleStepCard
+            step={2}
+            title="What are you watching?"
+            hint="Pick the metric to monitor and the threshold that flags it."
+          >
+            <ConditionBuilder
+              activities={activities}
+              indicators={indicators}
+              matchMode={matchMode}
+              metricOptions={metricOptions}
+              nestedRule={nested ? rule : undefined}
+              onAdvanced={() => setAdvanced(true)}
+              rows={rows}
+              scopeProjectId={scopeProjectId}
+              setMatchMode={setMatchMode}
+              setRows={setRows}
+            />
+          </RuleStepCard>
+          <RuleStepCard
+            step={3}
+            title="How should this read?"
+            hint="Severity sets how the output is read, from a progress milestone to an urgent risk."
+          >
+            <SeverityField mode={mode} onSeverity={setSeverity} severity={severity} />
+          </RuleStepCard>
+          <RuleStepCard
+            step={4}
+            title="What should the system recommend?"
+            hint="Write the response the system retrieves when this rule matches. It is stored, not generated."
+          >
+            <RecommendationFields onRecs={setRecs} recs={recs} />
+          </RuleStepCard>
         </fieldset>
-        <RulePreview sentence={previewSentence({ name, severity, conditions: tree })} />
+        <RulePreview
+          condition={conditionSummary(tree)}
+          mode={mode}
+          name={name}
+          recommendation={recs[0]}
+          sentence={previewSentence({ name, severity, conditions: tree })}
+          severity={severity}
+        />
       </form>
       {showTest && rule ? (
         <RuleTestWorkspace key={`${rule.id}:${rule.version}`} rule={rule} />

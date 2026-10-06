@@ -5,17 +5,101 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import type { HumanRule } from '@/features/analytics/rules-human-contract'
-import { type Rec, newRec, selectClass, severities } from './rule-drawer-shared'
+import { cn } from '@/lib/utils'
+import { type Rec, newRec, severities } from './rule-drawer-shared'
 
-type Props = {
+// Each severity carries the reading an officer should take from it, including the
+// low end used for progress and milestone insight rather than risk.
+const severityCopy: Record<HumanRule['severity'], { label: string; hint: string; tile: string }> = {
+  LOW: {
+    label: 'Low',
+    hint: 'Progress or milestone insight to carry into later planning',
+    tile: 'border-info bg-info-subtle text-foreground',
+  },
+  MEDIUM: {
+    label: 'Medium',
+    hint: 'Worth reviewing at the next check-in',
+    tile: 'border-info bg-info-subtle text-foreground',
+  },
+  HIGH: {
+    label: 'High',
+    hint: 'Needs a response this reporting period',
+    tile: 'border-warning bg-warning-subtle text-foreground',
+  },
+  CRITICAL: {
+    label: 'Critical',
+    hint: 'Needs attention before work continues',
+    tile: 'border-danger bg-danger-subtle text-foreground',
+  },
+}
+
+export function SeverityField({
+  mode,
+  severity,
+  onSeverity,
+}: {
   mode: 'alert' | 'recommendation'
   severity: HumanRule['severity']
   onSeverity: (value: HumanRule['severity']) => void
+}) {
+  return (
+    <div className="space-y-3">
+      <fieldset className="space-y-2">
+        <legend className="text-sm font-medium">
+          {mode === 'alert' ? 'Severity' : 'Triggering alert severity'}
+        </legend>
+        <div className="grid grid-cols-2 gap-2">
+          {severities.map((item) => {
+            const copy = severityCopy[item]
+            const selected = severity === item
+            return (
+              <label
+                className={cn(
+                  'cursor-pointer rounded-md border border-input bg-card p-3 text-sm',
+                  'focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2',
+                  selected && copy.tile,
+                )}
+                key={item}
+              >
+                <input
+                  checked={selected}
+                  className="sr-only"
+                  name="drawer-rule-severity"
+                  onChange={() => onSeverity(item)}
+                  type="radio"
+                  value={item}
+                />
+                <span className={cn('block font-medium', selected && 'font-semibold')}>
+                  {copy.label}
+                </span>
+                <span className="block text-xs text-muted-foreground">{copy.hint}</span>
+              </label>
+            )
+          })}
+        </div>
+      </fieldset>
+      <div className="space-y-1">
+        <p className="text-sm font-medium">Time Basis</p>
+        <p className="text-sm text-muted-foreground">
+          Evaluated when source data changes and on the scheduled sweep
+        </p>
+      </div>
+      <div className="space-y-1">
+        <p className="text-sm font-medium">Notification Recipients</p>
+        <p className="text-sm text-muted-foreground">Assigned project users holding alert access</p>
+      </div>
+    </div>
+  )
+}
+
+export function RecommendationFields({
+  recs,
+  onRecs,
+}: {
   recs: Rec[]
   onRecs: React.Dispatch<React.SetStateAction<Rec[]>>
-}
-export function RuleOutputFields({ mode, severity, onSeverity, recs, onRecs }: Props) {
-  const recsInput = (
+}) {
+  return (
     <div className="space-y-3">
       {recs.map((item, index) => (
         <div className="space-y-2 rounded-md border border-border p-3" key={item.id}>
@@ -62,58 +146,48 @@ export function RuleOutputFields({ mode, severity, onSeverity, recs, onRecs }: P
       </Button>
     </div>
   )
-  return (
-    <>
-      <section className="space-y-3">
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-2">
-            <p className="text-sm font-medium">Time Basis</p>
-            <p className="text-sm text-muted-foreground">
-              Evaluated when source data changes and on the scheduled sweep
-            </p>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="drawer-rule-severity">
-              {mode === 'alert' ? 'Severity' : 'Triggering alert severity'}
-            </Label>
-            <select
-              className={selectClass}
-              id="drawer-rule-severity"
-              value={severity}
-              onChange={(event) => onSeverity(event.target.value as HumanRule['severity'])}
-            >
-              {severities.map((item) => (
-                <option key={item} value={item}>
-                  {item.charAt(0) + item.slice(1).toLowerCase()}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-        <div className="space-y-1">
-          <p className="text-sm font-medium">Notification Recipients</p>
-          <p className="text-sm text-muted-foreground">
-            Assigned project users holding alert access
-          </p>
-        </div>
-      </section>
-      <section className="space-y-3">
-        <h3 className="font-semibold">
-          {mode === 'recommendation' ? 'Recommendation' : 'Predefined recommendations'}
-        </h3>
-        {recsInput}
-      </section>
-    </>
-  )
 }
 
-export function RulePreview({ sentence }: { sentence: string }) {
+export function RulePreview({
+  sentence,
+  name,
+  severity,
+  mode,
+  condition,
+  recommendation,
+}: {
+  sentence: string
+  name: string
+  severity: HumanRule['severity']
+  mode: 'alert' | 'recommendation'
+  condition: string
+  recommendation: Rec | undefined
+}) {
+  const copy = severityCopy[severity]
   return (
-    <section className="min-h-32 space-y-2 rounded-md border border-info/30 bg-info-subtle p-4">
-      <h3 className="font-semibold">Rule Preview</h3>
+    <section className="min-h-32 space-y-3 rounded-md border border-info/30 bg-info-subtle p-4">
+      <div className="space-y-1">
+        <h3 className="font-semibold">Rule Preview</h3>
+        <p className="text-xs text-muted-foreground">Updates as you fill in the steps</p>
+      </div>
       <p className="text-sm" data-testid="rule-preview">
         {sentence}
       </p>
+      <div className="overflow-hidden rounded-md border border-border bg-card">
+        <p className={cn('px-3 py-2 text-sm font-semibold', copy.tile)}>
+          {name.trim() || 'Untitled rule'} - {copy.label}
+        </p>
+        <p className="px-3 py-2 text-sm">
+          {mode === 'alert' ? 'Condition met' : 'Insight recorded'}:{' '}
+          {condition || 'No conditions yet'}
+        </p>
+        <p className="border-t border-border px-3 py-2 text-sm">
+          <strong>Recommendation:</strong>{' '}
+          {recommendation?.text.trim() ||
+            recommendation?.title.trim() ||
+            'Add a suggested response in the recommendation step.'}
+        </p>
+      </div>
       <p className="text-xs text-muted-foreground">
         Rule outputs are rule-based and need human review; nothing is executed automatically.
       </p>
