@@ -5,6 +5,7 @@ import { ActivitiesService } from '../src/modules/activities/activities.service'
 import type { ApplicationIdentity } from '../src/modules/auth/developer-access'
 import { BeneficiariesService } from '../src/modules/beneficiaries/beneficiaries.service'
 import { DashboardsService } from '../src/modules/dashboards/dashboards.service'
+import { EvaluationMetricsService } from '../src/modules/evaluations/evaluation-metrics'
 import { EvaluationsService } from '../src/modules/evaluations/evaluations.service'
 import { FinanceService } from '../src/modules/finance/finance.service'
 import { ImportsService } from '../src/modules/imports/imports.service'
@@ -171,7 +172,7 @@ async function main() {
     ),
     rules: new RulesHumanService(runtime),
     publication: new PublicService(runtime),
-    evaluations: new EvaluationsService(runtime),
+    evaluations: new EvaluationsService(runtime, new EvaluationMetricsService(indicators)),
   }
 
   const failures: string[] = []

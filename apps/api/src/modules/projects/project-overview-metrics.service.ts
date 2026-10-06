@@ -3,7 +3,6 @@ import { readApiEnv } from '@pathways/config'
 import {
   type MetricCell,
   PROJECT_OVERVIEW_METRICS_CONTRACT_VERSION,
-  budgetUtilization,
   businessCalendarDate,
   efficiencyRatio,
   kpiAchievement,
@@ -21,9 +20,9 @@ import { type ApplicationIdentity, UUID_PATTERN } from '../auth/developer-access
 import { DashboardsService } from '../dashboards/dashboards.service'
 import { suppressSmallCount } from '../dashboards/descriptive-analytics'
 import { IndicatorsService } from '../indicators/indicators.service'
+import { readProjectBudget } from './project-budget'
 
 type Tx = Prisma.TransactionClient
-const projectBudgetCategory = 'PROJECT_PROFILE_TOTAL'
 /** The p06_saddd V1 release accepts only this business calendar. */
 const sadddReleaseTimeZone = 'Asia/Manila'
 
@@ -42,34 +41,6 @@ export class ProjectOverviewMetricsService {
   private async kpi(tx: Tx, actor: ApplicationIdentity, projectId: string) {
     const rows = await this.indicators.readInTransaction(tx, actor, [projectId])
     return kpiAchievement(rows.map((row) => row.progress))
-  }
-
-  private async budget(tx: Tx, actor: ApplicationIdentity, projectId: string) {
-    const planned = await tx.projectBudgetRecord.findFirst({
-      where: {
-        organizationId: actor.organizationId,
-        projectId,
-        activityId: null,
-        category: projectBudgetCategory,
-        archivedAt: null,
-      },
-      select: { plannedBudget: true },
-    })
-    const spent = await tx.budgetExpenseEntry.aggregate({
-      where: { organizationId: actor.organizationId, projectId, status: 'APPROVED' },
-      _sum: { amount: true },
-    })
-    const approvedBudget = planned ? planned.plannedBudget.toFixed(2) : null
-    const countableSpending = (spent._sum.amount ?? 0).toFixed(2)
-    try {
-      return {
-        metric: budgetUtilization(approvedBudget, countableSpending),
-        approvedBudget,
-        countableSpending,
-      }
-    } catch {
-      return { metric: missingMetric('OUT_OF_RANGE'), approvedBudget, countableSpending }
-    }
   }
 
   /**
@@ -120,7 +91,9 @@ export class ProjectOverviewMetricsService {
         can('indicators.read') && can('monitoring.read') ? await this.kpi(tx, actor, row.id) : null
       // Spending totals are expense data, so both finance reads are required.
       const budget =
-        can('budgets.read') && can('expenses.read') ? await this.budget(tx, actor, row.id) : null
+        can('budgets.read') && can('expenses.read')
+          ? await readProjectBudget(tx, actor.organizationId, row.id)
+          : null
       const reached =
         can('beneficiaries.aggregates.read') && can('analytics.saddd.read')
           ? {

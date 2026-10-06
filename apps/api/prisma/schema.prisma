@@ -1987,6 +1987,7 @@ model ProjectEvaluation {
   periodEnd                         DateTime                 @map("period_end") @db.Date
   overallScore                      Decimal?                 @map("overall_score") @db.Decimal(18, 4)
   commentary                        String?
+  returnReason                      String?                  @map("return_reason")
   status                            EvaluationStatus         @default(DRAFT)
   evaluatedById                     String                   @map("evaluated_by_id") @db.Uuid
   evaluatedAt                       DateTime?                @map("evaluated_at") @db.Timestamptz(3)

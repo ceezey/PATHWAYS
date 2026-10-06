@@ -41,7 +41,7 @@ describe('RBAC matrix', () => {
     ['Project Manager', 'indicators.manage', true],
     ['Project Officer', 'indicators.manage', false],
     ['Program Manager', 'indicators.manage', false],
-    ['Project Manager', 'evaluation.approve', false],
+    ['Project Manager', 'evaluation.approve', true],
     ['Project Manager', 'evaluation.formal.submit', false],
     ['Project Manager', 'settings.users.manage', true],
     ['Program Manager', 'budget.portfolio_view', true],

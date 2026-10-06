@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { PrismaService } from '../../prisma/prisma.service'
 import { hasAtomicPermission } from '../auth/authorization-policy'
 import type { ApplicationIdentity } from '../auth/developer-access'
+import type { EvaluationMetricsService } from './evaluation-metrics'
 import {
   EvaluationsService,
   evaluationWeightsSchema,
@@ -39,12 +40,30 @@ const actor = {
 } as ApplicationIdentity
 const tx = {
   project: { findFirst: vi.fn() },
-  projectEvaluation: { findFirst: vi.fn() },
-  projectEvaluationCriterion: { findMany: vi.fn(), updateMany: vi.fn(), create: vi.fn() },
+  projectEvaluation: {
+    findFirst: vi.fn(),
+    findMany: vi.fn(),
+    count: vi.fn(),
+    create: vi.fn(),
+    updateMany: vi.fn(),
+  },
+  projectEvaluationCriterion: {
+    findMany: vi.fn(),
+    updateMany: vi.fn(),
+    create: vi.fn(),
+    count: vi.fn(),
+  },
+  projectEvaluationScore: { findMany: vi.fn(), upsert: vi.fn() },
   $queryRaw: vi.fn(),
   auditLog: { create: vi.fn(), findFirst: vi.fn() },
 }
-const service = new EvaluationsService({} as PrismaService)
+const computeMany = vi.fn()
+const service = new EvaluationsService(
+  {} as PrismaService,
+  {
+    computeMany,
+  } as unknown as EvaluationMetricsService,
+)
 const input = {
   criteria: [
     { id: criterionId, weightPercentage: 100, expectedUpdatedAt: updatedAt.toISOString() },
@@ -60,15 +79,18 @@ describe('evaluation reads and draft-only configuration', () => {
     tx.$queryRaw.mockResolvedValue([{ id: criterionId, updatedAt }])
     tx.projectEvaluationCriterion.updateMany.mockResolvedValue({ count: 1 })
     tx.projectEvaluation.findFirst.mockResolvedValue(null)
+    tx.projectEvaluation.findMany.mockResolvedValue([])
     tx.projectEvaluationCriterion.findMany.mockResolvedValue([])
+    tx.projectEvaluationScore.findMany.mockResolvedValue([])
   })
   it('returns no fabricated evaluation or score when no persisted evaluation exists', async () => {
     expect(await service.get(actor, projectId)).toEqual({
       projectId,
-      evaluation: null,
       criteria: [],
+      evaluations: [],
+      hasMore: false,
     })
-    expect(tx.projectEvaluation.findFirst.mock.calls[0][0].select).not.toHaveProperty('commentary')
+    expect(tx.projectEvaluation.findFirst).not.toHaveBeenCalled()
   })
   it('ignores caller weight permission when the current role ceiling denies it', () => {
     scope.actor = {

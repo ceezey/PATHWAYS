@@ -159,29 +159,86 @@ const criterionSchema = z
     id: uuid,
     code: z.string(),
     name: z.string(),
-    type: z.string(),
+    description: z.string().nullable(),
+    type: z.enum(['KPI', 'TIMELINE_COMPLIANCE', 'BUDGET_EFFICIENCY', 'BENEFICIARY_REACH', 'OTHER']),
     version: z.number().int(),
     weightPercentage: decimal,
     maximumScore: decimal,
-    status: z.string(),
+    status: z.enum(['DRAFT', 'PUBLISHED', 'ARCHIVED']),
     updatedAt: timestamp,
+  })
+  .strict()
+const evaluationPersonSchema = z.object({ id: uuid, name: z.string() }).strict().nullable()
+const criterionSnapshotSchema = z
+  .object({
+    id: uuid,
+    code: z.string(),
+    version: z.number().int(),
+    type: z.string(),
+    name: z.string(),
+    description: z.string().nullable(),
+    weight_percentage: z.string(),
+    maximum_score: z.string(),
+  })
+  .strict()
+const evaluationScoreSchema = z
+  .object({
+    criterionId: uuid,
+    score: decimal,
+    maximumScore: decimal,
+    weightedScore: decimal,
+    commentary: z.string().nullable(),
+    source: z.enum(['computed', 'manual']),
+    note: z.string().nullable(),
+    criterion: criterionSnapshotSchema,
+  })
+  .strict()
+export const evaluationDetailSchema = z
+  .object({
+    id: uuid,
+    title: z.string(),
+    periodLabel: z.string().nullable(),
+    periodStart: z.string(),
+    periodEnd: z.string(),
+    overallScore: decimal.nullable(),
+    commentary: z.string().nullable(),
+    returnReason: z.string().nullable(),
+    status: z.enum(['DRAFT', 'SUBMITTED', 'REVIEWED', 'SIGNED_OFF', 'ARCHIVED']),
+    updatedAt: timestamp,
+    evaluatedBy: evaluationPersonSchema,
+    evaluatedAt: timestamp.nullable(),
+    reviewedBy: evaluationPersonSchema,
+    reviewedAt: timestamp.nullable(),
+    reviewFeedback: z.string().nullable(),
+    signedOffBy: evaluationPersonSchema,
+    signedOffAt: timestamp.nullable(),
+    scores: z.array(evaluationScoreSchema).max(100),
   })
   .strict()
 export const evaluationSchema = z
   .object({
     projectId: uuid,
-    evaluation: z
-      .object({
-        id: uuid,
-        title: z.string(),
-        periodStart: z.string(),
-        periodEnd: z.string(),
-        overallScore: decimal.nullable(),
-        status: z.string(),
-      })
-      .strict()
-      .nullable(),
     criteria: z.array(criterionSchema).max(100),
+    evaluations: z.array(evaluationDetailSchema).max(20),
+    hasMore: z.boolean(),
+  })
+  .strict()
+const criteriaReceiptSchema = z
+  .object({
+    criteria: z
+      .array(
+        z
+          .object({
+            id: uuid,
+            code: z.string(),
+            version: z.literal(1),
+            status: z.literal('DRAFT'),
+            updatedAt: timestamp,
+          })
+          .strict(),
+      )
+      .min(1)
+      .max(100),
   })
   .strict()
 const auditSchema = z
@@ -311,26 +368,16 @@ export const coreDataClient = {
       { signal },
     ),
   initializeCriteria: (id: string, body: unknown) =>
+    post(`${path(id)}/evaluation/criteria/initialize`, criteriaReceiptSchema, body),
+  createCriteria: (id: string, body: unknown) =>
+    post(`${path(id)}/evaluation/criteria`, criteriaReceiptSchema, body),
+  publishCriteria: (id: string, body: unknown) =>
     post(
-      `${path(id)}/evaluation/criteria/initialize`,
+      `${path(id)}/evaluation/criteria/publish`,
       z
-        .object({
-          criteria: z
-            .array(
-              z
-                .object({
-                  id: uuid,
-                  code: z.string(),
-                  version: z.literal(1),
-                  status: z.literal('DRAFT'),
-                  updatedAt: timestamp,
-                })
-                .strict(),
-            )
-            .min(1)
-            .max(100),
-        })
-        .strict(),
+        .object({ projectId: uuid, published: z.number().int() })
+        .strict()
+        .refine((row) => row.projectId === id),
       body,
     ),
   configureWeights: (id: string, body: unknown) =>
@@ -341,6 +388,32 @@ export const coreDataClient = {
         .strict()
         .refine((row) => row.projectId === id),
       { method: 'PATCH', body: JSON.stringify(body) },
+    ),
+  createEvaluation: (id: string, body: unknown) =>
+    post(`${path(id)}/evaluation/evaluations`, evaluationDetailSchema, body),
+  saveEvaluationScores: (id: string, evaluationId: string, body: unknown) =>
+    read(
+      `${path(id)}/evaluation/evaluations/${uuid.parse(evaluationId)}/scores`,
+      evaluationDetailSchema.refine((row) => row.id === evaluationId),
+      { method: 'PATCH', body: JSON.stringify(body) },
+    ),
+  submitEvaluation: (id: string, evaluationId: string, body: unknown) =>
+    post(
+      `${path(id)}/evaluation/evaluations/${uuid.parse(evaluationId)}/submit`,
+      evaluationDetailSchema.refine((row) => row.id === evaluationId),
+      body,
+    ),
+  returnEvaluation: (id: string, evaluationId: string, body: unknown) =>
+    post(
+      `${path(id)}/evaluation/evaluations/${uuid.parse(evaluationId)}/return`,
+      evaluationDetailSchema.refine((row) => row.id === evaluationId),
+      body,
+    ),
+  signoffEvaluation: (id: string, evaluationId: string, body: unknown) =>
+    post(
+      `${path(id)}/evaluation/evaluations/${uuid.parse(evaluationId)}/signoff`,
+      evaluationDetailSchema.refine((row) => row.id === evaluationId),
+      body,
     ),
   audit: (cursor?: string, signal?: AbortSignal) =>
     read(
