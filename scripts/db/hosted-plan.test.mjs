@@ -382,7 +382,9 @@ test('planIndexForAppliedCount on a 0000-0062 ledger resumes at the rules-scope-
 test('planIndexForAppliedCount on a 0000-0063 ledger resumes at the 0064 deploy, or at the rules-scope-memo cleanup with residual owner memberships', () => {
   const plan = buildPlan()
   const applied = MIGRATIONS_IN_ORDER.indexOf('0063_rules_scope_memo') + 1
-  assert.deepEqual(plan[planIndexForAppliedCount(applied)].migrations, ['0064_evaluation_write_path'])
+  assert.deepEqual(plan[planIndexForAppliedCount(applied)].migrations, [
+    '0064_evaluation_write_path',
+  ])
   const index = planIndexForAppliedCount(applied, { residualOwnerMemberships: true })
   assert.equal(plan[index].type, 'cleanup')
   assert.equal(plan[index].name, 'rules-scope-memo')
@@ -390,5 +392,7 @@ test('planIndexForAppliedCount on a 0000-0063 ledger resumes at the 0064 deploy,
 
 test('planIndexForAppliedCount on a 0000-0064 ledger resumes at the 0065 deploy', () => {
   const applied = MIGRATIONS_IN_ORDER.indexOf('0064_evaluation_write_path') + 1
-  assert.deepEqual(buildPlan()[planIndexForAppliedCount(applied)].migrations, ['0065_zone_check_memo'])
+  assert.deepEqual(buildPlan()[planIndexForAppliedCount(applied)].migrations, [
+    '0065_zone_check_memo',
+  ])
 })
