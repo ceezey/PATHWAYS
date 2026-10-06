@@ -57,6 +57,21 @@ export class FinanceController {
     res.setHeader('X-Content-Type-Options', 'nosniff')
     return new StreamableFile(result.bytes)
   }
+  @Get('expenses/:expenseId/official-receipt')
+  @RequirePermission('expenses.read')
+  @Header('Cache-Control', 'private, no-store')
+  async officialReceipt(
+    @Req() req: AuthenticatedRequest,
+    @Param('projectId') id: string,
+    @Param('expenseId') expenseId: string,
+    @Res({ passthrough: true }) res: { setHeader: (name: string, value: string) => void },
+  ) {
+    const result = await this.service.officialReceipt(actor(req), id, expenseId)
+    res.setHeader('Content-Type', 'application/pdf')
+    res.setHeader('Content-Disposition', `attachment; filename="${result.fileName}"`)
+    res.setHeader('X-Content-Type-Options', 'nosniff')
+    return new StreamableFile(result.bytes)
+  }
   @Get('budgets')
   @RequirePermission('budgets.read')
   @Header('Cache-Control', 'private, no-store')

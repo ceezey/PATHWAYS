@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { PrismaService } from '../../prisma/prisma.service'
 import { hasAtomicPermission } from '../auth/authorization-policy'
 import type { ApplicationIdentity } from '../auth/developer-access'
+import type { ReceiptPdfRenderer } from '../report-pdf/receipt-pdf.renderer'
 import type { StorageService } from '../storage/storage.service'
 import { FinanceService } from './finance.service'
 
@@ -31,11 +32,17 @@ const updatedAt = new Date('2026-09-27T00:00:00.000Z')
 const tx = {
   project: { findFirst: vi.fn() },
   projectBudgetRecord: { create: vi.fn(), findFirst: vi.fn(), updateMany: vi.fn() },
-  budgetExpenseEntry: { findMany: vi.fn() },
+  budgetExpenseEntry: { findMany: vi.fn(), findFirst: vi.fn() },
+  evidenceMedia: { findFirst: vi.fn() },
   auditLog: { create: vi.fn() },
   $queryRaw: vi.fn(),
 }
-const service = new FinanceService({} as PrismaService, {} as StorageService)
+const receipts = { render: vi.fn() }
+const service = new FinanceService(
+  {} as PrismaService,
+  {} as StorageService,
+  receipts as unknown as ReceiptPdfRenderer,
+)
 const identity = (role: string, permissions: string[]): ApplicationIdentity => ({
   id: org,
   aal: 'aal2',
@@ -189,6 +196,66 @@ describe('F2 budget and expense ledger gates', () => {
     expect(tx.budgetExpenseEntry.findMany.mock.calls[0]?.[0].select.submittedBy).toEqual({
       select: { fullName: true },
     })
+  })
+
+  it('builds the disbursement receipt from the expense, its budget line and its proof', async () => {
+    const expenseId = '50000000-0000-4000-8000-000000000005'
+    state.actor = identity('PROJECT_MANAGER', ['expenses.read'])
+    tx.project.findFirst.mockResolvedValue({ id: projectId })
+    tx.budgetExpenseEntry.findFirst.mockResolvedValue({
+      id: expenseId,
+      description: 'Partial payment to supplier for 150 school bags',
+      amount: { toFixed: () => '96000.00' },
+      expenseDate: new Date('2026-09-20T00:00:00.000Z'),
+      status: 'APPROVED',
+      receiptEvidenceId: '60000000-0000-4000-8000-000000000006',
+      submittedAt: updatedAt,
+      verifiedAt: updatedAt,
+      approvedAt: null,
+      submittedBy: { fullName: 'Ron Perez' },
+      verifiedBy: { fullName: 'Leah Sy' },
+      approvedBy: null,
+      budgetRecord: {
+        category: 'ACTIVITY_PROFILE_TOTAL',
+        currency: 'PHP',
+        plannedBudget: { toFixed: () => '150000.00' },
+        activity: { code: 'SSG-05', title: 'School supply distribution' },
+      },
+      project: { code: 'SSG', title: 'Safe Schools for Girls' },
+      organization: { name: 'Plan International Pilipinas' },
+    })
+    tx.evidenceMedia.findFirst.mockResolvedValue({
+      fileName: 'supplier-invoice.pdf',
+      sha256: 'a'.repeat(64),
+      byteSize: 184320n,
+    })
+    tx.$queryRaw.mockResolvedValue([])
+    receipts.render.mockResolvedValue(Buffer.from('%PDF-receipt'))
+    const result = await service.officialReceipt({} as ApplicationIdentity, projectId, expenseId)
+    expect(result.bytes.toString()).toBe('%PDF-receipt')
+    const [renderedId, snapshot] = receipts.render.mock.calls[0] ?? []
+    expect(renderedId).toBe(expenseId)
+    expect(snapshot).toMatchObject({
+      organization: 'Plan International Pilipinas',
+      activity: { code: 'SSG-05', title: 'School supply distribution' },
+      allocated: '150000.00',
+      expense: { amount: '96000.00', currency: 'PHP', date: '2026-09-20' },
+      people: { submitted: { name: 'Ron Perez' }, approved: { name: null } },
+      attachment: { fileName: 'supplier-invoice.pdf', byteSize: '184320' },
+    })
+    expect(tx.auditLog.create.mock.calls[0]?.[0].data.action).toBe('EXPENSE_RECEIPT_GENERATED')
+  })
+
+  it('refuses the receipt without expenses.read and never renders a document', async () => {
+    state.actor = identity('PROJECT_OFFICER', ['budgets.read'])
+    await expect(
+      service.officialReceipt(
+        {} as ApplicationIdentity,
+        projectId,
+        '50000000-0000-4000-8000-000000000005',
+      ),
+    ).rejects.toThrow(ForbiddenException)
+    expect(receipts.render).not.toHaveBeenCalled()
   })
 
   it('G-F2-18 sign-off requires the signoff permission and audits the recorded row', async () => {

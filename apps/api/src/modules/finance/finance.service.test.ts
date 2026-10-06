@@ -9,6 +9,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { PrismaService } from '../../prisma/prisma.service'
 import { hasAtomicPermission } from '../auth/authorization-policy'
 import type { ApplicationIdentity } from '../auth/developer-access'
+import type { ReceiptPdfRenderer } from '../report-pdf/receipt-pdf.renderer'
 import type { StorageService } from '../storage/storage.service'
 import { FinanceService } from './finance.service'
 const state = vi.hoisted(() => ({
@@ -72,7 +73,13 @@ const tx = {
   $queryRaw: vi.fn(),
 }
 const storage = { uploadPrivateFile: vi.fn(), deleteFile: vi.fn() }
-const service = new FinanceService({} as PrismaService, storage as unknown as StorageService)
+const service = new FinanceService(
+  {} as PrismaService,
+  storage as unknown as StorageService,
+  {
+    render: () => Promise.reject(new Error('Receipt renderer disabled.')),
+  } as unknown as ReceiptPdfRenderer,
+)
 const bytes = Buffer.from('%PDF-private-synthetic')
 const file = { buffer: bytes, size: bytes.length, mimetype: 'application/pdf' }
 describe('financial receipt finalization recovery', () => {

@@ -8,7 +8,11 @@ import { EmptyState, ProofPreviewDialog, SectionCard, StatusBadge } from '@/comp
 import { Button } from '@/components/ui/button'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
-import { fetchCoreArtifact, saveCoreArtifact } from '@/lib/services/core-feature-client'
+import {
+  downloadCoreArtifact,
+  fetchCoreArtifact,
+  saveCoreArtifact,
+} from '@/lib/services/core-feature-client'
 
 import { formatCurrency, formatDate } from '../activity-utils'
 import { categoryLabel, projectLevelKey } from './budget-math'
@@ -51,6 +55,23 @@ export const BudgetLedger = ({
   const [open, setOpen] = useState<string | null>(hashedExpenseId)
   const [preview, setPreview] = useState<Expense | null>(null)
   const [review, setReview] = useState<{ expense: Expense; action: ReviewAction } | null>(null)
+
+  const [downloading, setDownloading] = useState<string | null>(null)
+  const downloadReceipt = async (expenseId: string) => {
+    setDownloading(expenseId)
+    try {
+      await downloadCoreArtifact(
+        `/projects/${projectId}/finance/expenses/${expenseId}/official-receipt`,
+        `disbursement-receipt-${expenseId}.pdf`,
+      )
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : 'Official receipt temporarily unavailable.',
+      )
+    } finally {
+      setDownloading(null)
+    }
+  }
 
   const budgetOf = (expense: Expense) => module.budgets.find((b) => b.id === expense.budgetRecordId)
   const rows = module.expenses.filter(
@@ -198,19 +219,32 @@ export const BudgetLedger = ({
                         </div>
                       </dl>
                     </div>
-                    {expense.receiptEvidenceId ? (
-                      can('evidence.read') ? (
-                        <Button onClick={() => setPreview(expense)} size="sm" variant="outline">
-                          Preview private receipt
-                        </Button>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {expense.receiptEvidenceId ? (
+                        can('evidence.read') ? (
+                          <Button onClick={() => setPreview(expense)} size="sm" variant="outline">
+                            Preview private receipt
+                          </Button>
+                        ) : (
+                          <p className="text-muted-foreground">Receipt attached.</p>
+                        )
                       ) : (
-                        <p className="text-muted-foreground">Receipt attached.</p>
-                      )
-                    ) : (
-                      <p className="font-medium text-warning">
-                        Receipt missing. Validation needs a private receipt.
-                      </p>
-                    )}
+                        <p className="font-medium text-warning">
+                          Receipt missing. Validation needs a private receipt.
+                        </p>
+                      )}
+                      {/* The generated disbursement record, separate from the uploaded proof. */}
+                      <Button
+                        disabled={downloading === expense.id}
+                        onClick={() => void downloadReceipt(expense.id)}
+                        size="sm"
+                        variant="outline"
+                      >
+                        {downloading === expense.id
+                          ? 'Preparing receipt'
+                          : 'Download official receipt'}
+                      </Button>
+                    </div>
                   </div>
                 ) : null}
               </li>
