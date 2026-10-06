@@ -596,6 +596,8 @@ END $$;
       Write-Output 'F9_SURVEY_PERIOD_RELEASE_RUNTIME=PASS'
       Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/activity-extension-requests-runtime.sql'))) $phase6Database
       Write-Output 'ACTIVITY_EXTENSION_REQUESTS_RUNTIME=PASS'
+      Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/zone-check-memo-runtime.sql'))) $phase6Database
+      Write-Output 'ZONE_CHECK_MEMO_RUNTIME=PASS'
     }
     Invoke-LocalSql 'ALTER ROLE pathways_runtime LOGIN;' $phase6Database
     $env:PATHWAYS_CSV_RBAC_LOCAL_TESTS = '1'
