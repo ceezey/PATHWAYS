@@ -257,9 +257,12 @@ describe.skipIf(!enabled)('report preview scope and suppression on disposable Po
               )
             }
             const summary = await preview('PROJECT_MANAGER', projectAssigned, 'PROJECT_SUMMARY')
-            expect(summary.rows[0]?.[0], 'project summary is the assigned project').toBe(
+            expect(summary.rows[0], 'project summary is the assigned project').toEqual([
+              'Project information',
+              'Code',
               'RPT-ASSIGNED',
-            )
+              '',
+            ])
             const indicator = await preview('PROJECT_MANAGER', projectAssigned, 'INDICATOR_SUMMARY')
             expect(
               indicator.rows.map((row) => row[0]),
