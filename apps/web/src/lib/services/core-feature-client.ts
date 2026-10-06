@@ -360,7 +360,9 @@ export const coreDataClient = {
   ) =>
     post(
       `${path(id)}/reports`,
-      z.object({ id: uuid, status: z.literal('GENERATED') }).strict(),
+      z
+        .object({ id: uuid, status: z.literal('GENERATED'), pdfFallback: z.literal(true).optional() })
+        .strict(),
       body,
     ),
   evaluation: (id: string, signal?: AbortSignal) =>
