@@ -14,6 +14,7 @@ import {
   surveyAggregateFromRows,
 } from '@pathways/shared'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import * as reportArtifact from '../reports/report-artifact'
 import { activityObservation } from '../rules/rule-metrics'
 import { AnalyticsController } from './analytics.controller'
 import { AnalyticsService } from './analytics.service'
@@ -181,6 +182,7 @@ function harness(
     activities?: unknown[]
     milestones?: unknown[]
     projectStatus?: string
+    projectStart?: string
     /** Overrides what the trusted SQL function returns (instead of deriving it from fixtures). */
     surveyAggregate?: unknown
     timelineAggregate?: unknown
@@ -203,7 +205,7 @@ function harness(
               ...found,
               status: options.projectStatus ?? 'ONGOING',
               archivedAt: null,
-              startDate: new Date('2026-01-01'),
+              startDate: new Date(options.projectStart ?? '2026-01-01'),
               endDate: new Date(projectEnd),
             }
           : null
@@ -398,6 +400,104 @@ describe('analytics descriptive read and export', () => {
     })
   })
 
+  it('happy: preview returns the exported table rows without an export audit record', async () => {
+    const { service, tx } = harness()
+    const identity = actor('PROJECT_MANAGER')
+    const preview = await service.exportPreview(identity, { projectId: projectA })
+    const csvLines = (await exportText(service, identity)).split('\r\n').filter(Boolean)
+    expect(preview.columns).toEqual([
+      'section',
+      'key',
+      'label',
+      'state',
+      'value',
+      'share',
+      'reason',
+    ])
+    expect(preview.totalRows).toBe(csvLines.length - 1)
+    expect(preview.rows.length).toBeLessThanOrEqual(50)
+    expect(preview.rows).toContainEqual([
+      'SADDD_SEX',
+      'FEMALE',
+      'FEMALE',
+      'AVAILABLE',
+      '18',
+      '0.6',
+      '',
+    ])
+    // The preview is audited as a view; only the file export writes the export row.
+    const calls = tx.auditLog.create.mock.calls as unknown as Array<
+      [{ data: { action: string; changes: unknown } }]
+    >
+    const actions = calls.map(([call]) => call.data.action)
+    expect(actions).toEqual(['ANALYTICS_DESCRIPTIVE_VIEWED', 'ANALYTICS_DESCRIPTIVE_EXPORTED'])
+    expect(calls[0]?.[0].data.changes).toMatchObject({
+      source: 'EXPORT_PREVIEW',
+    })
+  })
+
+  it('happy: preview caps rows at 50 and reports the full row count', async () => {
+    const group = (n: number) => ({
+      activityId: `40000000-0000-4000-8000-${String(n).padStart(12, '0')}`,
+      pairs: 20,
+      sumPre: 1000,
+      sumPost: 1400,
+      improved: 15,
+      same: 3,
+      declined: 2,
+    })
+    const { service } = harness(releasedSaddd, '2026-06-30', {
+      surveyAggregate: {
+        excludedRecords: 0,
+        groups: [
+          { ...group(0), activityId: null },
+          ...Array.from({ length: 60 }, (_, i) => group(i + 1)),
+        ],
+      },
+    })
+    const preview = await service.exportPreview(actor('PROJECT_MANAGER'), {
+      projectId: projectA,
+      periodStart: '2026-01-01',
+      periodEnd: '2026-12-31',
+      view: 'survey',
+    })
+    expect(preview.rows).toHaveLength(50)
+    expect(preview.totalRows).toBeGreaterThan(50)
+  })
+
+  it('abuse: preview keeps small-cell suppression and needs analytics.export', async () => {
+    const { service } = harness(suppressedSaddd)
+    const preview = await service.exportPreview(actor('PROGRAM_MANAGER'), { projectId: projectA })
+    const sadddRows = preview.rows.filter((row) => row[0].startsWith('SADDD_'))
+    expect(sadddRows).toHaveLength(6)
+    for (const row of sadddRows) expect(row.slice(3)).toEqual(['SUPPRESSED', '', '', 'SMALL_CELL'])
+    const readOnly = actor('PROJECT_MANAGER', {
+      permissions: rolePermissions.PROJECT_MANAGER.filter((p) => p !== 'analytics.export'),
+    })
+    await expect(service.exportPreview(readOnly, { projectId: projectA })).rejects.toMatchObject({
+      status: 403,
+    })
+  })
+
+  it('sad: a typed 503 keeps its specific message and a file render fault names the format', async () => {
+    const timeout = harness(releasedSaddd, '2026-06-30', {
+      aggregateError: { meta: { code: '57014' } },
+    })
+    await expect(
+      timeout.service.export(actor('PROGRAM_MANAGER'), { projectId: projectA, view: 'timeline' }),
+    ).rejects.toThrow(/exceeded its query limit/)
+    vi.spyOn(reportArtifact, 'createReportArtifact').mockRejectedValueOnce(
+      Object.assign(new Error('ENOENT'), { code: 'ENOENT' }),
+    )
+    const { service } = harness()
+    await expect(
+      service.export(actor('PROJECT_MANAGER'), { projectId: projectA, format: 'PDF' }),
+    ).rejects.toMatchObject({
+      status: 503,
+      message: 'The PDF file could not be generated on this server. Export CSV instead.',
+    })
+  })
+
   it('sad: rejects an unsupported export format before any transaction', async () => {
     const { service } = harness()
     await expect(
@@ -450,8 +550,18 @@ describe('analytics descriptive read and export', () => {
     expect(sex.map((row) => row.share)).toEqual([null, null])
   })
 
-  it('sad: an open project period omits SADDD instead of calling the release', async () => {
+  it('happy: an ongoing project releases SADDD live to date', async () => {
     const { service, sqlCalls } = harness(releasedSaddd, '2099-12-31')
+    const result = await descriptive(service, actor('PROJECT_MANAGER'), { projectId: projectA })
+    expect(result.sadddReleaseState).not.toBe('UNAVAILABLE')
+    expect(result.distributions.some((row) => row.section.startsWith('SADDD_'))).toBe(true)
+    expect(sqlCalls.some((sql) => sql.includes('p06_saddd'))).toBe(true)
+  })
+
+  it('sad: a not-started project omits SADDD instead of calling the release', async () => {
+    const { service, sqlCalls } = harness(releasedSaddd, '2099-12-31', {
+      projectStart: '2098-01-01',
+    })
     const result = await descriptive(service, actor('PROJECT_MANAGER'), { projectId: projectA })
     expect(result.sadddReleaseState).toBe('UNAVAILABLE')
     expect(result.distributions.some((row) => row.section.startsWith('SADDD_'))).toBe(false)

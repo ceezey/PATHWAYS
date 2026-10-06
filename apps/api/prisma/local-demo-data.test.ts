@@ -11,6 +11,7 @@ import { normalizeImportedRow } from '@pathways/imports/server'
 import type { FormFieldValidationContract, SupportedFormFieldType } from '@pathways/shared'
 import { describe, expect, it } from 'vitest'
 
+import { corrections, libraryReadings, manualLibraryTarget } from './defense-demo-stage-monitoring'
 import {
   type ProjectKey,
   addDaysIso,
@@ -376,6 +377,35 @@ describe('demo cohorts', () => {
         counts.set(key, (counts.get(key) ?? 0) + 1)
     }
     for (const n of counts.values()) expect(n).toBeGreaterThanOrEqual(5)
+  })
+
+  it('gives every project that has started a cohort of at least 30', () => {
+    for (const project of demoProjects.filter((p) => p.status !== 'PLANNED'))
+      expect(demoCohorts[project.key].count, project.key).toBeGreaterThanOrEqual(30)
+  })
+
+  it('keeps people and household counts within the project cohort', () => {
+    const peopleUnits = new Set(['girls', 'households', 'learners', 'families', 'caregivers'])
+    for (const project of demoProjects.filter((p) => p.status !== 'PLANNED')) {
+      const cohort = demoCohorts[project.key].count
+      const within = (value: string | number, label: string) =>
+        expect(Number(value), `${project.key} ${label}`).toBeLessThanOrEqual(cohort)
+      const counted = demoIndicators[project.key].filter((i) => peopleUnits.has(i.unit))
+      // Readings stay within the cohort; targets sit just above it, within the project target.
+      for (const indicator of counted) {
+        for (const value of indicator.readings) within(value, indicator.code)
+        expect(Number(indicator.target), indicator.code).toBeLessThanOrEqual(
+          project.targetBeneficiaries,
+        )
+      }
+      for (const [key, code, value] of corrections)
+        if (key === project.key && counted.some((i) => i.code === code)) within(value, code)
+      for (const activity of demoActivities[project.key])
+        within(activity.reached ?? 0, activity.key)
+    }
+    const crl = demoCohorts.CRL.count
+    for (const value of [manualLibraryTarget, ...libraryReadings['LIB-HH-VISITED']])
+      expect(Number(value)).toBeLessThanOrEqual(crl)
   })
 })
 

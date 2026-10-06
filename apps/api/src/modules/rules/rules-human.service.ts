@@ -109,34 +109,61 @@ export class RulesHumanService {
     additionalPermission?: AtomicPermission,
   ): Promise<z.output<T>> {
     const id = idInput === null ? null : parse(uuidSchema, idInput)
-    return withAuthorizedOperation(this.prisma, identity, permission, async (tx, actor) => {
-      if (
-        additionalPermission &&
-        !hasAtomicPermission(actor.roles[0], actor.permissions, additionalPermission)
-      )
-        throw new ForbiddenException('Required application permission is missing.')
-      let rows: Array<{ result: unknown }>
-      try {
-        rows = await tx.$queryRaw(operationSql(operation, id, input))
-      } catch (error) {
-        const meta = error && typeof error === 'object' && 'meta' in error ? error.meta : null
-        const code = meta && typeof meta === 'object' && 'code' in meta ? meta.code : null
-        if (code === '22023') throw new BadRequestException('Invalid typed rules request.')
-        if (code === '40001')
-          throw new ConflictException('The resource changed. Reload before retrying.')
-        if (code === '42501')
-          throw new ForbiddenException(
-            operation.startsWith('RULE_') ? configurationDenied : 'Resource access is unavailable.',
-          )
-        throw new ServiceUnavailableException('Rules processing is temporarily unavailable.')
-      }
-      if (rows.length !== 1)
-        throw new ServiceUnavailableException('Rules processing is temporarily unavailable.')
-      const checked = output.safeParse(rows[0].result)
-      if (!checked.success)
-        throw new ServiceUnavailableException('Rules processing is temporarily unavailable.')
-      return checked.data
-    })
+    return withAuthorizedOperation(this.prisma, identity, permission, (tx, actor) =>
+      this.executeInTransaction(tx, actor, operation, id, input, output, additionalPermission),
+    )
+  }
+  private async executeInTransaction<T extends z.ZodTypeAny>(
+    tx: Prisma.TransactionClient,
+    actor: ApplicationIdentity,
+    operation: Operation,
+    id: string | null,
+    input: unknown,
+    output: T,
+    additionalPermission?: AtomicPermission,
+  ): Promise<z.output<T>> {
+    if (
+      additionalPermission &&
+      !hasAtomicPermission(actor.roles[0], actor.permissions, additionalPermission)
+    )
+      throw new ForbiddenException('Required application permission is missing.')
+    let rows: Array<{ result: unknown }>
+    try {
+      rows = await tx.$queryRaw(operationSql(operation, id, input))
+    } catch (error) {
+      const meta = error && typeof error === 'object' && 'meta' in error ? error.meta : null
+      const code = meta && typeof meta === 'object' && 'code' in meta ? meta.code : null
+      if (code === '22023') throw new BadRequestException('Invalid typed rules request.')
+      if (code === '40001')
+        throw new ConflictException('The resource changed. Reload before retrying.')
+      if (code === '42501')
+        throw new ForbiddenException(
+          operation.startsWith('RULE_') ? configurationDenied : 'Resource access is unavailable.',
+        )
+      throw new ServiceUnavailableException('Rules processing is temporarily unavailable.')
+    }
+    if (rows.length !== 1)
+      throw new ServiceUnavailableException('Rules processing is temporarily unavailable.')
+    const checked = output.safeParse(rows[0].result)
+    if (!checked.success)
+      throw new ServiceUnavailableException('Rules processing is temporarily unavailable.')
+    return checked.data
+  }
+  /** Lists alerts inside an already-authorized report transaction; alerts.read is still required. */
+  listAlertsInTransaction(
+    tx: Prisma.TransactionClient,
+    actor: ApplicationIdentity,
+    query: unknown,
+  ) {
+    return this.executeInTransaction(
+      tx,
+      actor,
+      'ALERT_LIST',
+      null,
+      parse(contracts.alertListSchema, query),
+      contracts.pageSchema(contracts.alertOutputSchema),
+      'alerts.read',
+    )
   }
   listRules(identity: ApplicationIdentity, query: unknown) {
     return this.execute(

@@ -8,21 +8,24 @@ import {
 import type { DemoContext } from './local-demo-seed'
 import { projectOf, step } from './local-demo-util'
 
-type Outcome = {
+export type Outcome = {
   project: ProjectKey
   /** Indexes into the project's planned cohort. */
   people: number[]
   eventType: 'COMPLETION' | 'FOLLOW_UP' | 'DROPOUT'
   description: string
+  /** Code of the journey stage the outcome lands on, for projects that define one. */
+  stage?: string
   /** Days before the run date; defaults to the run date. */
   daysAgo?: number
 }
 
-const outcomes: Outcome[] = [
+export const outcomes: Outcome[] = [
   {
     project: 'ALS',
     people: [0, 1, 2, 3, 4, 5],
     eventType: 'COMPLETION',
+    stage: 'ASSESSED',
     description:
       'Completed the module set and is registered for the accreditation and equivalency assessment.',
   },
@@ -47,10 +50,18 @@ const outcomes: Outcome[] = [
   },
   {
     project: 'EHK',
-    people: [0, 1, 2, 3, 4, 5, 6, 7],
+    people: Array.from({ length: 62 }, (_, i) => i),
     eventType: 'COMPLETION',
+    stage: 'COMPLETED',
     description: 'Received the hygiene and learning kit and returned to school.',
     daysAgo: 50,
+  },
+  {
+    project: 'EHK',
+    people: Array.from({ length: 8 }, (_, i) => 62 + i),
+    eventType: 'DROPOUT',
+    description: 'The family moved away from the municipality before the kit distribution ended.',
+    daysAgo: 155,
   },
 ]
 
@@ -70,6 +81,14 @@ export async function stageEnrollmentOutcomes(ctx: DemoContext) {
       ctx.today,
       (row.startDate as Date).toISOString().slice(0, 10),
     )
+    const stages = outcome.stage
+      ? await ctx.services.participants.listStages(
+          ctx.staff[project.officers[0]].identity,
+          projectId,
+        )
+      : []
+    const stageId = stages.find((entry) => entry.code === outcome.stage)?.id
+    if (outcome.stage && !stageId) throw new Error(`Journey stage ${outcome.stage} is missing.`)
     for (const index of outcome.people) {
       const person = cohort[index]
       const beneficiary = await ctx.owner.beneficiary.findFirst({
@@ -101,6 +120,7 @@ export async function stageEnrollmentOutcomes(ctx: DemoContext) {
             eventType: outcome.eventType,
             eventDate: addDaysIso(ctx.today, -(outcome.daysAgo ?? 0)),
             description: outcome.description,
+            ...(stageId ? { stageId } : {}),
           },
         ),
       )

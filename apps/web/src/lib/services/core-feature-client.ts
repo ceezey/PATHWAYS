@@ -2,6 +2,7 @@ import { contextCookieName } from '@/features/auth/workspace-access'
 import { sensitiveDraftGeneration } from '@/lib/auth/sensitive-drafts'
 import { z } from 'zod'
 import { PathwaysClientError, requestFoundationResponse } from './pathways-client'
+import { reportSectionsSchema } from './report-sections'
 
 const ownerCookie = () =>
   typeof document === 'undefined'
@@ -138,6 +139,7 @@ export const reportPreviewSchema = z
     formId: uuid.nullable(),
     columns: z.array(z.string()).max(30),
     rows: z.array(z.array(z.string().max(2000)).max(30)).max(1000),
+    sections: reportSectionsSchema.optional(),
     generatedAt: timestamp,
     unavailableReasons: z.array(z.string()).max(20),
   })
@@ -159,29 +161,86 @@ const criterionSchema = z
     id: uuid,
     code: z.string(),
     name: z.string(),
-    type: z.string(),
+    description: z.string().nullable(),
+    type: z.enum(['KPI', 'TIMELINE_COMPLIANCE', 'BUDGET_EFFICIENCY', 'BENEFICIARY_REACH', 'OTHER']),
     version: z.number().int(),
     weightPercentage: decimal,
     maximumScore: decimal,
-    status: z.string(),
+    status: z.enum(['DRAFT', 'PUBLISHED', 'ARCHIVED']),
     updatedAt: timestamp,
+  })
+  .strict()
+const evaluationPersonSchema = z.object({ id: uuid, name: z.string() }).strict().nullable()
+const criterionSnapshotSchema = z
+  .object({
+    id: uuid,
+    code: z.string(),
+    version: z.number().int(),
+    type: z.string(),
+    name: z.string(),
+    description: z.string().nullable(),
+    weight_percentage: z.string(),
+    maximum_score: z.string(),
+  })
+  .strict()
+const evaluationScoreSchema = z
+  .object({
+    criterionId: uuid,
+    score: decimal,
+    maximumScore: decimal,
+    weightedScore: decimal,
+    commentary: z.string().nullable(),
+    source: z.enum(['computed', 'manual']),
+    note: z.string().nullable(),
+    criterion: criterionSnapshotSchema,
+  })
+  .strict()
+export const evaluationDetailSchema = z
+  .object({
+    id: uuid,
+    title: z.string(),
+    periodLabel: z.string().nullable(),
+    periodStart: z.string(),
+    periodEnd: z.string(),
+    overallScore: decimal.nullable(),
+    commentary: z.string().nullable(),
+    returnReason: z.string().nullable(),
+    status: z.enum(['DRAFT', 'SUBMITTED', 'REVIEWED', 'SIGNED_OFF', 'ARCHIVED']),
+    updatedAt: timestamp,
+    evaluatedBy: evaluationPersonSchema,
+    evaluatedAt: timestamp.nullable(),
+    reviewedBy: evaluationPersonSchema,
+    reviewedAt: timestamp.nullable(),
+    reviewFeedback: z.string().nullable(),
+    signedOffBy: evaluationPersonSchema,
+    signedOffAt: timestamp.nullable(),
+    scores: z.array(evaluationScoreSchema).max(100),
   })
   .strict()
 export const evaluationSchema = z
   .object({
     projectId: uuid,
-    evaluation: z
-      .object({
-        id: uuid,
-        title: z.string(),
-        periodStart: z.string(),
-        periodEnd: z.string(),
-        overallScore: decimal.nullable(),
-        status: z.string(),
-      })
-      .strict()
-      .nullable(),
     criteria: z.array(criterionSchema).max(100),
+    evaluations: z.array(evaluationDetailSchema).max(20),
+    hasMore: z.boolean(),
+  })
+  .strict()
+const criteriaReceiptSchema = z
+  .object({
+    criteria: z
+      .array(
+        z
+          .object({
+            id: uuid,
+            code: z.string(),
+            version: z.literal(1),
+            status: z.literal('DRAFT'),
+            updatedAt: timestamp,
+          })
+          .strict(),
+      )
+      .min(1)
+      .max(100),
   })
   .strict()
 const auditSchema = z
@@ -311,26 +370,16 @@ export const coreDataClient = {
       { signal },
     ),
   initializeCriteria: (id: string, body: unknown) =>
+    post(`${path(id)}/evaluation/criteria/initialize`, criteriaReceiptSchema, body),
+  createCriteria: (id: string, body: unknown) =>
+    post(`${path(id)}/evaluation/criteria`, criteriaReceiptSchema, body),
+  publishCriteria: (id: string, body: unknown) =>
     post(
-      `${path(id)}/evaluation/criteria/initialize`,
+      `${path(id)}/evaluation/criteria/publish`,
       z
-        .object({
-          criteria: z
-            .array(
-              z
-                .object({
-                  id: uuid,
-                  code: z.string(),
-                  version: z.literal(1),
-                  status: z.literal('DRAFT'),
-                  updatedAt: timestamp,
-                })
-                .strict(),
-            )
-            .min(1)
-            .max(100),
-        })
-        .strict(),
+        .object({ projectId: uuid, published: z.number().int() })
+        .strict()
+        .refine((row) => row.projectId === id),
       body,
     ),
   configureWeights: (id: string, body: unknown) =>
@@ -342,6 +391,32 @@ export const coreDataClient = {
         .refine((row) => row.projectId === id),
       { method: 'PATCH', body: JSON.stringify(body) },
     ),
+  createEvaluation: (id: string, body: unknown) =>
+    post(`${path(id)}/evaluation/evaluations`, evaluationDetailSchema, body),
+  saveEvaluationScores: (id: string, evaluationId: string, body: unknown) =>
+    read(
+      `${path(id)}/evaluation/evaluations/${uuid.parse(evaluationId)}/scores`,
+      evaluationDetailSchema.refine((row) => row.id === evaluationId),
+      { method: 'PATCH', body: JSON.stringify(body) },
+    ),
+  submitEvaluation: (id: string, evaluationId: string, body: unknown) =>
+    post(
+      `${path(id)}/evaluation/evaluations/${uuid.parse(evaluationId)}/submit`,
+      evaluationDetailSchema.refine((row) => row.id === evaluationId),
+      body,
+    ),
+  returnEvaluation: (id: string, evaluationId: string, body: unknown) =>
+    post(
+      `${path(id)}/evaluation/evaluations/${uuid.parse(evaluationId)}/return`,
+      evaluationDetailSchema.refine((row) => row.id === evaluationId),
+      body,
+    ),
+  signoffEvaluation: (id: string, evaluationId: string, body: unknown) =>
+    post(
+      `${path(id)}/evaluation/evaluations/${uuid.parse(evaluationId)}/signoff`,
+      evaluationDetailSchema.refine((row) => row.id === evaluationId),
+      body,
+    ),
   audit: (cursor?: string, signal?: AbortSignal) =>
     read(
       `/audit${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`,
@@ -350,11 +425,14 @@ export const coreDataClient = {
     ),
 }
 
-export async function downloadCoreArtifact(
+export type CoreArtifact = { blob: Blob; fileName: string }
+
+/** Fetches an artifact as a typed Blob under the same owner and size checks as a download. */
+export async function fetchCoreArtifact(
   url: string,
   fileName: string,
   isOwnerCurrent: () => boolean = () => true,
-) {
+): Promise<CoreArtifact> {
   const owner = ownerCookie()
   const generation = sensitiveDraftGeneration()
   const current = () =>
@@ -408,9 +486,6 @@ export async function downloadCoreArtifact(
     bytes.set(chunk, offset)
     offset += chunk.length
   }
-  const objectUrl = URL.createObjectURL(new Blob([bytes], { type: mime }))
-  const link = document.createElement('a')
-  link.href = objectUrl
   const extensions: Record<string, string> = {
     'text/csv': 'csv',
     'application/pdf': 'pdf',
@@ -419,16 +494,38 @@ export async function downloadCoreArtifact(
     'image/png': 'png',
     'image/jpeg': 'jpg',
   }
-  const extension = extensions[mime]
-  link.download = fileName.replace(/\.[a-z0-9]+$/, `.${extension}`)
+  return {
+    blob: new Blob([bytes], { type: mime }),
+    fileName: fileName.replace(/\.[a-z0-9]+$/, `.${extensions[mime]}`),
+  }
+}
+
+/** Saves an already fetched artifact through a short-lived object URL. */
+export function saveCoreArtifact(
+  artifact: CoreArtifact,
+  isOwnerCurrent: () => boolean = () => true,
+) {
+  const objectUrl = URL.createObjectURL(artifact.blob)
+  const link = document.createElement('a')
+  link.href = objectUrl
+  link.download = artifact.fileName
   try {
-    if (!current()) throw new PathwaysClientError('Artifact ownership changed.', 'unauthorized')
+    if (!isOwnerCurrent())
+      throw new PathwaysClientError('Artifact ownership changed.', 'unauthorized')
     document.body.append(link)
     link.click()
   } finally {
     link.remove()
     setTimeout(() => URL.revokeObjectURL(objectUrl), 1000)
   }
+}
+
+export async function downloadCoreArtifact(
+  url: string,
+  fileName: string,
+  isOwnerCurrent: () => boolean = () => true,
+) {
+  saveCoreArtifact(await fetchCoreArtifact(url, fileName, isOwnerCurrent), isOwnerCurrent)
 }
 export const coreFeatureClient = {
   publication: (id: string, signal?: AbortSignal) =>

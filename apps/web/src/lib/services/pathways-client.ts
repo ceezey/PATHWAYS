@@ -122,6 +122,7 @@ import {
   timelineAnalyticsSchema,
 } from '@pathways/shared'
 import { type ProjectOverviewMetrics, projectOverviewMetricsSchema } from '@pathways/shared'
+import { z } from 'zod'
 import { readPublicProjects } from './public-projects'
 type CreateIndicatorInput = Omit<ApiCreateIndicatorInput, 'clientMutationId'>
 type UpdateIndicatorInput = Omit<ApiUpdateIndicatorInput, 'clientMutationId'>
@@ -270,7 +271,49 @@ function parseAssessmentDetail(value: unknown): AssessmentDetail {
   }
 }
 
+export type AssessmentSummary = Omit<
+  AssessmentDetail,
+  'projectId' | 'enrollmentId' | 'beneficiary'
+> & {
+  stageId: string | null
+}
+
+function parseAssessmentSummaries(value: unknown): AssessmentSummary[] {
+  const invalid = () => new PathwaysClientError('Invalid assessment response.', 'network')
+  if (!Array.isArray(value) || value.length > 100) throw invalid()
+  return value.map((item) => {
+    const row = item as Record<string, unknown> | null
+    if (
+      !row ||
+      typeof row.id !== 'string' ||
+      !isNullableString(row.activityId) ||
+      !isNullableString(row.stageId) ||
+      !assessmentTypes.has(row.type as string) ||
+      typeof row.score !== 'string' ||
+      typeof row.maximumScore !== 'string' ||
+      typeof row.assessmentDate !== 'string' ||
+      typeof row.recordedAt !== 'string'
+    )
+      throw invalid()
+    return {
+      id: row.id,
+      type: row.type as AssessmentDetail['type'],
+      activityId: row.activityId as string | null,
+      stageId: row.stageId as string | null,
+      score: row.score,
+      maximumScore: row.maximumScore,
+      assessmentDate: row.assessmentDate,
+      recordedAt: row.recordedAt,
+    }
+  })
+}
+
 export interface PathwaysClient {
+  getBeneficiaryAssessments(
+    projectId: string,
+    enrollmentId: string,
+    signal?: AbortSignal,
+  ): Promise<AssessmentSummary[]>
   getAssessmentDetail(
     projectId: string,
     assessmentId: string,
@@ -635,6 +678,18 @@ const extensionPath = (projectId: string, activityId: string) =>
   `/projects/${encodeURIComponent(projectId)}/activities/${encodeURIComponent(activityId)}/extension-requests`
 
 class BackendReadyPathwaysClient implements PathwaysClient {
+  async getBeneficiaryAssessments(
+    projectId: string,
+    enrollmentId: string,
+    signal?: AbortSignal,
+  ): Promise<AssessmentSummary[]> {
+    return parseAssessmentSummaries(
+      await requestFoundation(
+        `/projects/${encodeURIComponent(projectId)}/evaluation/assessments?enrollmentId=${encodeURIComponent(enrollmentId)}`,
+        { signal },
+      ),
+    )
+  }
   async getAssessmentDetail(
     projectId: string,
     assessmentId: string,
@@ -2024,6 +2079,22 @@ export function descriptiveAnalyticsSearch(query: DescriptiveAnalyticsQuery): st
   return `?${params.toString()}`
 }
 
+const analyticsExportPreviewSchema = z.object({
+  title: z.string(),
+  columns: z.array(z.string()),
+  rows: z.array(z.array(z.string())),
+  totalRows: z.number().int().nonnegative(),
+})
+
+/** First rows of the aggregate table a descriptive export would contain, with suppression applied. */
+export async function getAnalyticsExportPreview(query: DescriptiveAnalyticsQuery) {
+  return analyticsExportPreviewSchema.parse(
+    await requestFoundation(
+      `/analytics/descriptive/export/preview${descriptiveAnalyticsSearch(query)}`,
+    ),
+  )
+}
+
 export const pathwaysClient: PathwaysClient = new BackendReadyPathwaysClient()
 
 const roleCodeByName: Record<PathwaysRole, string> = {
@@ -2120,6 +2191,7 @@ interface ApiBeneficiary {
     status: 'ACTIVE' | 'COMPLETED' | 'DROPPED' | 'TRANSFERRED' | 'INACTIVE'
   } | null
   consentProvenance: BeneficiaryRecord['consentProvenance']
+  progress?: BeneficiaryRecord['progress']
   updatedAt: string
 }
 
@@ -2296,7 +2368,8 @@ export async function requestFoundationResponse(
       response.status === 400 ||
       response.status === 403 ||
       response.status === 409 ||
-      response.status === 422
+      response.status === 422 ||
+      response.status === 503
     ) {
       const body = (await response.json().catch(() => null)) as {
         message?: { errors?: unknown; message?: unknown } | string | unknown[]
@@ -2538,6 +2611,7 @@ function mapBeneficiary(row: ApiBeneficiary): BeneficiaryRecord {
         ]
       : [],
     participation: [],
+    ...(row.progress ? { progress: row.progress } : {}),
     assessments: [],
     notes: [],
     updatedAt: row.updatedAt,

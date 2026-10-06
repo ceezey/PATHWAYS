@@ -1,3 +1,4 @@
+import { Logger, ServiceUnavailableException } from '@nestjs/common'
 import { describe, expect, it, vi } from 'vitest'
 import type { MachineInvocation } from './rules-machine-boundary'
 import {
@@ -137,4 +138,38 @@ describe('bounded machine orchestration', () => {
       'Rule processing is temporarily unavailable.',
     )
   })
+})
+describe('machine fault logging', () => {
+  const secret = 'postgresql://user:pw@host/db SELECT secret'
+  it.each([
+    ['DRAIN', 'calendar', new RulesSqlFailure('DENIED', 'P2010:42501')],
+    ['SWEEP', 'sweep', Object.assign(Error(secret), { code: 'P2028', meta: { code: '40001' } })],
+  ] as const)(
+    '%s logs only allowlisted fields and keeps the same 503',
+    async (purpose, method, error) => {
+      const f = fixture(purpose)
+      const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => {})
+      f.sql[method].mockRejectedValueOnce(error)
+      const run = purpose === 'DRAIN' ? f.worker.drain(f.invocation) : f.worker.sweep(f.invocation)
+      const thrown = await run.catch((e) => e)
+      expect(thrown).toBeInstanceOf(ServiceUnavailableException)
+      expect(thrown.getResponse()).toMatchObject({
+        message: 'Rule processing is temporarily unavailable.',
+      })
+      expect(warn).toHaveBeenCalledTimes(1)
+      const logged = warn.mock.calls[0]?.[0]
+      expect(logged).toEqual(
+        purpose === 'DRAIN'
+          ? {
+              event: 'PATHWAYS_RULES_MACHINE_FAILED',
+              purpose,
+              kind: 'DENIED',
+              cause: 'P2010:42501',
+            }
+          : { event: 'PATHWAYS_RULES_MACHINE_FAILED', purpose, cause: 'P2028:40001' },
+      )
+      expect(JSON.stringify(warn.mock.calls)).not.toContain('secret')
+      warn.mockRestore()
+    },
+  )
 })

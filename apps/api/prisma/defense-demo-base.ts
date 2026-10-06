@@ -36,7 +36,7 @@ export async function ensureBaseWorkspace(ctx: DemoContext) {
       'Reduce school dropout among girls aged 12–17 and establish functioning school protection committees.',
     implementationArea: 'Borongan City, Guiuan and Llorente, Eastern Samar',
     sector: 'Education',
-    targetBeneficiaries: 1200,
+    targetBeneficiaries: 160,
     programManagerId: ctx.staff.programManager.userId,
     projectManagerId: ctx.staff.projectManager.userId,
     monitoringOfficerId: ctx.staff.me.userId,

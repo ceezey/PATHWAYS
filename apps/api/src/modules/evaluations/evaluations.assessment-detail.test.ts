@@ -5,12 +5,14 @@ import { BENEFICIARY_STEP_UP_KEY } from '../../common/decorators/beneficiary-ste
 import type { PrismaService } from '../../prisma/prisma.service'
 import { hasAtomicPermission } from '../auth/authorization-policy'
 import type { ApplicationIdentity } from '../auth/developer-access'
+import type { EvaluationMetricsService } from './evaluation-metrics'
 import { EvaluationsController } from './evaluations.controller'
 import { EvaluationsService } from './evaluations.service'
 
 const scope = vi.hoisted(() => ({
   actor: undefined as unknown,
   tx: undefined as unknown,
+  bypass: false,
 }))
 vi.mock('../auth/authorized-operation', () => ({
   withAuthorizedOperation: (
@@ -20,7 +22,10 @@ vi.mock('../auth/authorized-operation', () => ({
     work: (tx: unknown, actor: unknown) => unknown,
   ) => {
     const actor = scope.actor as ApplicationIdentity
-    if (!hasAtomicPermission(actor.roles[0], actor.permissions, permission as never))
+    if (
+      !scope.bypass &&
+      !hasAtomicPermission(actor.roles[0], actor.permissions, permission as never)
+    )
       throw new ForbiddenException()
     return work(scope.tx, actor)
   },
@@ -65,7 +70,7 @@ const tx = {
   project: { findFirst: vi.fn() },
   assessmentResult: { findFirst: vi.fn() },
 }
-const service = new EvaluationsService({} as PrismaService)
+const service = new EvaluationsService({} as PrismaService, {} as EvaluationMetricsService)
 const read = (projectKey = projectId, id = assessmentId) =>
   Promise.resolve().then(() => service.getAssessmentDetail(officer, projectKey, id))
 
@@ -73,6 +78,7 @@ describe('assessment detail read', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     scope.actor = officer
+    scope.bypass = false
     scope.tx = tx
     tx.project.findFirst.mockResolvedValue({ id: projectId })
     tx.assessmentResult.findFirst.mockResolvedValue(row)
@@ -140,7 +146,8 @@ describe('assessment detail read', () => {
         roles: [role],
         permissions: ['assessments.detail.read'],
       }
-      await expect(read()).rejects.toThrow(ForbiddenException)
+      scope.bypass = true
+      await expect(read()).rejects.toThrow('Assessment detail is not available to this role.')
       expect(tx.project.findFirst).not.toHaveBeenCalled()
       expect(tx.assessmentResult.findFirst).not.toHaveBeenCalled()
     },

@@ -3,7 +3,7 @@ import type { JourneyStageConfig } from '@/types/pathways'
 
 import { childrenOf, rootStages, stageTypeStyle } from './journey-config-utils'
 
-export type StageState = 'done' | 'current' | 'upcoming'
+export type StageState = 'done' | 'current' | 'upcoming' | 'off-path'
 
 type TrackProps = {
   stages: JourneyStageConfig[]
@@ -19,6 +19,10 @@ const stateStyle: Record<StageState, { node: string; label: string }> = {
     label: 'Current',
   },
   upcoming: { node: 'border-border bg-muted text-muted-foreground', label: 'Upcoming' },
+  'off-path': {
+    node: 'border-dashed border-border bg-background text-muted-foreground opacity-60',
+    label: 'Not on path',
+  },
 }
 
 const Node = ({

@@ -8,6 +8,7 @@ import {
   householdProfileFields,
   planCohort,
 } from './local-demo-data'
+import { activityWindow } from './local-demo-journeys'
 import type { DemoContext } from './local-demo-seed'
 import { activityCode } from './local-demo-stage-activities'
 import { registrarFor } from './local-demo-stage-people'
@@ -19,11 +20,13 @@ type StageSpec = {
   order: number
   type: 'ENTRY' | 'CORE' | 'BRANCH' | 'FOLLOW_UP'
   terminal?: boolean
+  /** Code of the earlier, non-terminal stage this branch splits from. */
+  parent?: string
   description: string
   activityKeys: string[]
 }
 
-const journeyStages: Partial<Record<ProjectKey, StageSpec[]>> = {
+export const journeyStages: Partial<Record<ProjectKey, StageSpec[]>> = {
   SSG: [
     {
       code: 'ENROLLED',
@@ -42,9 +45,43 @@ const journeyStages: Partial<Record<ProjectKey, StageSpec[]>> = {
       activityKeys: ['lifeskills'],
     },
     {
+      code: 'WEBINAR',
+      name: 'Career pathway orientation webinar',
+      order: 3,
+      type: 'CORE',
+      description: 'Orientation on career pathways and the two skills tracks.',
+      activityKeys: ['webinar'],
+    },
+    {
+      code: 'ENTREP',
+      name: 'Entrepreneurship track',
+      order: 4,
+      type: 'BRANCH',
+      parent: 'WEBINAR',
+      description: 'Weekly small enterprise sessions for girls who chose this track.',
+      activityKeys: ['entrep'],
+    },
+    {
+      code: 'TECH',
+      name: 'Technology skills track',
+      order: 5,
+      type: 'BRANCH',
+      parent: 'WEBINAR',
+      description: 'Weekly computer and digital safety sessions for girls who chose this track.',
+      activityKeys: ['tech'],
+    },
+    {
+      code: 'POST-ASSESSMENT',
+      name: 'Post-assessment',
+      order: 6,
+      type: 'CORE',
+      description: 'Post-test after the track sessions.',
+      activityKeys: ['posttest'],
+    },
+    {
       code: 'PEER-EDUCATOR',
       name: 'Peer educator training',
-      order: 3,
+      order: 7,
       type: 'CORE',
       description: 'Senior high school peer educators.',
       activityKeys: ['returnedproof'],
@@ -52,7 +89,7 @@ const journeyStages: Partial<Record<ProjectKey, StageSpec[]>> = {
     {
       code: 'FOLLOW-UP',
       name: 'Follow-up and referral support',
-      order: 4,
+      order: 8,
       type: 'FOLLOW_UP',
       description: 'Girls who need additional support.',
       activityKeys: [],
@@ -60,7 +97,7 @@ const journeyStages: Partial<Record<ProjectKey, StageSpec[]>> = {
     {
       code: 'COMPLETED',
       name: 'Completed the program',
-      order: 5,
+      order: 9,
       type: 'CORE',
       terminal: true,
       description: 'Finished all sessions.',
@@ -85,13 +122,39 @@ const journeyStages: Partial<Record<ProjectKey, StageSpec[]>> = {
       activityKeys: ['reviewclass'],
     },
     {
-      code: 'ASSESSED',
-      name: 'Took the accreditation assessment',
+      code: 'WEBINAR',
+      name: 'Career pathway orientation webinar',
       order: 3,
       type: 'CORE',
+      description: 'Orientation on career pathways after accreditation.',
+      activityKeys: ['webinar'],
+    },
+    {
+      code: 'ENTREP',
+      name: 'Entrepreneurship track',
+      order: 4,
+      type: 'BRANCH',
+      parent: 'WEBINAR',
+      description: 'Weekly small business sessions for learners who chose this track.',
+      activityKeys: ['entrep'],
+    },
+    {
+      code: 'TECH',
+      name: 'Technology skills track',
+      order: 5,
+      type: 'BRANCH',
+      parent: 'WEBINAR',
+      description: 'Weekly computer skills sessions for learners who chose this track.',
+      activityKeys: ['tech'],
+    },
+    {
+      code: 'ASSESSED',
+      name: 'Took the accreditation assessment',
+      order: 6,
+      type: 'CORE',
       terminal: true,
-      description: 'Assessment completed.',
-      activityKeys: [],
+      description: 'Assessment completed after the track sessions.',
+      activityKeys: ['assessment'],
     },
   ],
   CRL: [
@@ -112,12 +175,57 @@ const journeyStages: Partial<Record<ProjectKey, StageSpec[]>> = {
       activityKeys: ['livelihood'],
     },
     {
+      code: 'WAGE-JOB',
+      name: 'Wage employment',
+      order: 3,
+      type: 'BRANCH',
+      parent: 'COACHING',
+      description: 'Placed in a local job after coaching.',
+      activityKeys: [],
+    },
+    {
+      code: 'ENTERPRISE',
+      name: 'Enterprise start-up',
+      order: 4,
+      type: 'BRANCH',
+      parent: 'COACHING',
+      description: 'Started a household enterprise after coaching.',
+      activityKeys: [],
+    },
+    {
       code: 'SAVINGS',
       name: 'Savings group member',
-      order: 3,
+      order: 5,
       type: 'FOLLOW_UP',
       terminal: true,
       description: 'Joined a savings group.',
+      activityKeys: [],
+    },
+  ],
+  EHK: [
+    {
+      code: 'ENROLLED',
+      name: 'Registered as a beneficiary family',
+      order: 1,
+      type: 'ENTRY',
+      description: 'Family registered for the hygiene and learning kit.',
+      activityKeys: [],
+    },
+    {
+      code: 'KIT-DISTRIBUTION',
+      name: 'Kit distribution',
+      order: 2,
+      type: 'CORE',
+      description: 'Received the hygiene and learning kit.',
+      activityKeys: ['distribute'],
+    },
+    {
+      code: 'COMPLETED',
+      name: 'Returned to school',
+      order: 3,
+      type: 'CORE',
+      terminal: true,
+      description: 'Learner back in school after receiving the kit.',
       activityKeys: [],
     },
   ],
@@ -150,30 +258,111 @@ const journeyStages: Partial<Record<ProjectKey, StageSpec[]>> = {
   ],
 }
 
-const attendanceForms: Partial<
-  Record<ProjectKey, { code: string; name: string; activityKey: string; stageCode: string }>
-> = {
-  SSG: {
-    code: 'lifeskills_attendance',
-    name: 'Life Skills Session Attendance',
-    activityKey: 'lifeskills',
-    stageCode: 'LIFESKILLS',
-  },
-  ALS: {
-    code: 'review_class_attendance',
-    name: 'Review Class Attendance',
-    activityKey: 'reviewclass',
-    stageCode: 'REVIEW-CLASS',
-  },
-  CRL: {
-    code: 'coaching_attendance',
-    name: 'Livelihood Coaching Attendance',
-    activityKey: 'livelihood',
-    stageCode: 'COACHING',
-  },
+export type AttendanceFormSpec = {
+  code: string
+  name: string
+  activityKey: string
+  stageCode: string
 }
 
-async function activityId(ctx: DemoContext, project: DemoProject, key: string) {
+export const attendanceForms: Partial<Record<ProjectKey, AttendanceFormSpec[]>> = {
+  SSG: [
+    {
+      code: 'lifeskills_attendance',
+      name: 'Life Skills Session Attendance',
+      activityKey: 'lifeskills',
+      stageCode: 'LIFESKILLS',
+    },
+    {
+      code: 'webinar_attendance',
+      name: 'Career Pathway Webinar Attendance',
+      activityKey: 'webinar',
+      stageCode: 'WEBINAR',
+    },
+    {
+      code: 'entrepreneurship_attendance',
+      name: 'Entrepreneurship Track Attendance',
+      activityKey: 'entrep',
+      stageCode: 'ENTREP',
+    },
+    {
+      code: 'technology_attendance',
+      name: 'Technology Skills Track Attendance',
+      activityKey: 'tech',
+      stageCode: 'TECH',
+    },
+    {
+      code: 'post_assessment_attendance',
+      name: 'Post-assessment Attendance',
+      activityKey: 'posttest',
+      stageCode: 'POST-ASSESSMENT',
+    },
+    {
+      code: 'peer_educator_attendance',
+      name: 'Peer Educator Training Attendance',
+      activityKey: 'returnedproof',
+      stageCode: 'PEER-EDUCATOR',
+    },
+  ],
+  ALS: [
+    {
+      code: 'review_class_attendance',
+      name: 'Review Class Attendance',
+      activityKey: 'reviewclass',
+      stageCode: 'REVIEW-CLASS',
+    },
+    {
+      code: 'webinar_attendance',
+      name: 'Career Pathway Webinar Attendance',
+      activityKey: 'webinar',
+      stageCode: 'WEBINAR',
+    },
+    {
+      code: 'entrepreneurship_attendance',
+      name: 'Entrepreneurship Track Attendance',
+      activityKey: 'entrep',
+      stageCode: 'ENTREP',
+    },
+    {
+      code: 'technology_attendance',
+      name: 'Technology Skills Track Attendance',
+      activityKey: 'tech',
+      stageCode: 'TECH',
+    },
+    {
+      code: 'assessment_attendance',
+      name: 'Assessment Attendance',
+      activityKey: 'assessment',
+      stageCode: 'ASSESSED',
+    },
+  ],
+  CRL: [
+    {
+      code: 'coaching_attendance',
+      name: 'Livelihood Coaching Attendance',
+      activityKey: 'livelihood',
+      stageCode: 'COACHING',
+    },
+  ],
+  WSH: [
+    {
+      code: 'hygiene_club_attendance',
+      name: 'Hygiene Club Training Attendance',
+      activityKey: 'hygiene',
+      stageCode: 'HYGIENE-CLUB',
+    },
+  ],
+  EHK: [
+    {
+      code: 'kit_distribution_attendance',
+      name: 'Kit Distribution Attendance',
+      activityKey: 'distribute',
+      stageCode: 'KIT-DISTRIBUTION',
+    },
+  ],
+}
+
+export async function activityId(ctx: DemoContext, project: DemoProject, key: string) {
   const index = demoActivities[project.key].findIndex((a) => a.key === key)
   const row = await ctx.owner.projectActivity.findFirstOrThrow({
     where: { projectId: projectOf(ctx, project.key), code: activityCode(project, index) },
@@ -184,7 +373,7 @@ async function activityId(ctx: DemoContext, project: DemoProject, key: string) {
 
 /** Creates a form as the author (Monitoring and Evaluation Officer or Project Officer), then has
  * the System Administrator publish it, because an author cannot publish their own form. */
-async function createAndPublish(
+export async function createAndPublish(
   ctx: DemoContext,
   projectId: string,
   author: DemoContext['staff']['me'],
@@ -213,12 +402,18 @@ export async function stageJourneysAndForms(ctx: DemoContext) {
     const projectId = projectOf(ctx, project.key)
     const existing = await ctx.services.participants.listStages(me.identity, projectId)
     if (existing.length === 0) {
+      // Ids are assigned up front so a branch can name its parent stage in the same save.
+      const ids = new Map(
+        specs.map((spec) => [spec.code, ctx.stable(`stage:${project.code}:${spec.code}`)]),
+      )
       const stages: Array<{
+        id: string
         code: string
         name: string
         order: number
         type: StageSpec['type']
         terminal: boolean
+        parentStageId?: string
         description: string
         mappedActivityIds: string[]
       }> = []
@@ -226,11 +421,13 @@ export async function stageJourneysAndForms(ctx: DemoContext) {
         const mapped: string[] = []
         for (const key of spec.activityKeys) mapped.push(await activityId(ctx, project, key))
         stages.push({
+          id: ids.get(spec.code) as string,
           code: spec.code,
           name: spec.name,
           order: spec.order,
           type: spec.type,
           terminal: spec.terminal ?? false,
+          parentStageId: spec.parent ? ids.get(spec.parent) : undefined,
           description: spec.description,
           mappedActivityIds: mapped,
         })
@@ -242,24 +439,24 @@ export async function stageJourneysAndForms(ctx: DemoContext) {
   }
 
   for (const project of demoProjects) {
-    const spec = attendanceForms[project.key]
-    if (!spec) continue
     const projectId = projectOf(ctx, project.key)
     const stages = await ctx.services.participants.listStages(me.identity, projectId)
-    const stage = stages.find((entry) => entry.code === spec.stageCode)
-    if (!stage) throw new Error(`Journey stage ${spec.stageCode} is missing for ${project.code}.`)
-    const boundActivityId = await activityId(ctx, project, spec.activityKey)
-    await step(`attendance form ${project.code}`, () =>
-      createAndPublish(ctx, projectId, me, {
-        code: spec.code,
-        name: spec.name,
-        description: 'Records who attended each session and how each participant is progressing.',
-        formType: 'ACTIVITY_MONITORING',
-        activityId: boundActivityId,
-        journeyStageId: stage.id,
-        fields: attendanceFields,
-      }),
-    )
+    for (const spec of attendanceForms[project.key] ?? []) {
+      const stage = stages.find((entry) => entry.code === spec.stageCode)
+      if (!stage) throw new Error(`Journey stage ${spec.stageCode} is missing for ${project.code}.`)
+      const boundActivityId = await activityId(ctx, project, spec.activityKey)
+      await step(`attendance form ${spec.code}`, () =>
+        createAndPublish(ctx, projectId, me, {
+          code: spec.code,
+          name: spec.name,
+          description: 'Records who attended each session and how each participant is progressing.',
+          formType: 'ACTIVITY_MONITORING',
+          activityId: boundActivityId,
+          journeyStageId: stage.id,
+          fields: attendanceFields,
+        }),
+      )
+    }
   }
 
   const ssg = projectOf(ctx, 'SSG')
@@ -331,7 +528,10 @@ async function submitOne(
 export async function stageParticipation(ctx: DemoContext) {
   let recorded = 0
   for (const project of demoProjects) {
-    const spec = attendanceForms[project.key]
+    // WSH and EHK attendance is recorded by the journey records stage.
+    const spec = ['SSG', 'ALS', 'CRL'].includes(project.key)
+      ? attendanceForms[project.key]?.[0]
+      : undefined
     if (!spec) continue
     const projectId = projectOf(ctx, project.key)
     const registrar = registrarFor(ctx, project)
@@ -348,9 +548,11 @@ export async function stageParticipation(ctx: DemoContext) {
       ctx.today,
       (row.startDate as Date).toISOString().slice(0, 10),
     )
+    const window = activityWindow(project.key, spec.activityKey, ctx.today)
     for (const [index, person] of people.slice(0, 14).entries()) {
       for (const session of [1, 2, 3]) {
-        const date = addDaysIso(person.enrollmentDate, session * 7)
+        const startDay = person.enrollmentDate > window.start ? person.enrollmentDate : window.start
+        const date = addDaysIso(startDay, session * 7)
         if (date >= ctx.today) continue
         const absent = (index + session) % 6 === 0
         const done = session === 3 && index % 3 === 0

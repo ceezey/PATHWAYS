@@ -3,6 +3,7 @@ import { clearSensitiveDraftStorage } from '@/lib/auth/sensitive-drafts'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { LiveReportingWorkspace, allowedKinds, kinds } from './live-reporting-workspace'
+import { sampleProjectReport } from './print/print-report-sample'
 
 const state = vi.hoisted(() => ({
   user: 'reviewer-1',
@@ -18,6 +19,7 @@ const state = vi.hoisted(() => ({
   formsError: false,
   formsPending: false,
   previewError: false,
+  sections: undefined as unknown,
   reportsError: false,
   permissions: [
     'reports.read',
@@ -70,6 +72,7 @@ vi.mock('@/providers/authorized-query-provider', () => ({
                   : 'PROJECT_SUMMARY',
                 columns: ['Title'],
                 rows: [['Private report cell']],
+                ...(state.sections ? { sections: state.sections } : {}),
                 generatedAt: '2026-09-27T00:00:00Z',
                 unavailableReasons: [],
               }
@@ -108,6 +111,7 @@ describe('report generation owned retries', () => {
     state.user = 'reviewer-1'
     state.project = '10000000-0000-4000-8000-000000000001'
     state.title = 'Recorded project'
+    state.sections = undefined
     state.refetch.mockResolvedValue(undefined)
     state.downloadArtifact.mockResolvedValue(undefined)
     state.projectsError = false
@@ -196,6 +200,13 @@ describe('report generation owned retries', () => {
     expect(state.generate.mock.calls[0][1].name.length).toBe(200)
     expect(state.generate.mock.calls[0][1].name).toMatch(/^Project title /)
     expect(state.generate.mock.calls[0][1].name.endsWith(' Project summary')).toBe(true)
+  })
+  it('renders the status layout instead of the plain table when sections are present', () => {
+    state.sections = sampleProjectReport.sections
+    render(<LiveReportingWorkspace initialKind="project-summary" />)
+    expect(screen.getByRole('heading', { name: 'Key figures' })).toBeTruthy()
+    expect(screen.getAllByText('OFF TRACK').length).toBeGreaterThan(0)
+    expect(screen.queryByText('Private report cell')).toBeNull()
   })
   it.each(['error', 'pending'] as const)(
     'hides cached parent projects and all dependent private report data on %s',

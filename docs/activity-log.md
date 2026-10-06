@@ -274,6 +274,34 @@
 - `0063_rules_scope_memo` replaces `pathways_rules_internal.human_rules_scope` (still owned by `rules_eligibility_owner`, same EXECUTE ACL, asserted in the migration) with a plpgsql version that memoizes the per-project result in a transaction-local setting keyed by `app.user_id`; semantics are unchanged.
 - It wires like 0062: hosted and forward preprovision/cleanup pairs for a temporary `rules_eligibility_owner` SET chain, plan, build, local-reset, Verify-Forward inventory and `rules-scope-memo-runtime.sql` (12 assertions: parity, actor change, forged slot, non-runtime session, transaction-local).
 
+## 2026-10-06 Rule category and linked alert naming
+- The rule drawer shows the derived Rule Category as text instead of a disabled select, since the rule contract stores no category.
+- Recommendation details name the linked alert (title, severity, status, explanation and measured value) instead of a bare "View linked alert" link, and the raw `KPI` and `COMBINED` basis values read as indicator (KPI) results and project monitoring signals.
+
+## 2026-10-06 Change password modal and profile action row
+- My Profile Change password is now a button that opens a TOTP step-up modal, then a new-password step in the same dialog; the email or phone nonce step is hidden (tracked in deferred-features) and `reauthentication_needed` shows a sign-in-again message without the uncertain lock.
+- Save profile and Reload profile share one row, Save left and Reload right.
+
+## 2026-10-06 Proof file preview modal
+- Budget receipt downloads (expense ledger and live finance workspace) now open `ProofPreviewDialog`, which fetches the blob through `fetchCoreArtifact`, previews it by its Content-Type (image, PDF, video, else an unavailable state), and downloads the same blob via `saveCoreArtifact` with no second request; the object URL is revoked on close.
+- Private activity proof inspection (`private-proof-inspection.tsx`, `EvidenceDownloadControl`) is unchanged because its Change Record forbids inline preview; the receipt endpoint already returns `application/pdf`, `image/png` or `image/jpeg`.
+
+## 2026-10-06 Proposed activity proof preview amendment
+- `cr-pathways-private-activity-proof-inspection` section 6 proposes in-modal preview for the inspecting reviewer: the recorded content type is returned only for allow-listed, verified, signature-matching proof, and the client holds the bytes as a Blob only while the modal is open; awaiting developer approval.
+
+## 2026-10-06 Activity proof in-modal preview implemented
+- `cr-pathways-private-activity-proof-inspection` section 6 approved by the developer ("I approve"); implemented on feature/activity-proof-preview, verification pending.
+- API: the inspection response carries the recorded type and matching extension only for an allow-listed, storage-ready type whose first streamed bytes pass `matchesEvidenceSignature`; otherwise `application/octet-stream` and `activity-proof.bin`. The service retains whole chunks of the released stream until at least 4112 bytes arrive (often one chunk) and re-emits them, and destroys the inner body if the returned stream is destroyed before its first read, so bounded counting, final digest withholding and destroy-on-error are unchanged.
+- Web: both inspection call sites (`PrivateProofInspection`, `EvidenceDownloadControl`) now open `ProofPreviewDialog` on Preview and Download reuses the same Blob; the dialog renders only png, jpeg, webp, pdf, mp4, quicktime and webm.
+
+## 2026-10-06 Defense seed snapshot
+- `scripts/db/defense-snapshot.mjs` (mirror, dump, restore, storage) restores a locally seeded defense workspace onto devV2 in one transaction: wipe up to its revoke, migration and identity checks, `session_replication_role = replica`, staged load with the day shift, row-count check, commit, then a storage upsert (cr-pathways-defense-seed-snapshot).
+- Restore runs as `postgres` (`HOSTED_ADMIN_URL`, session pooler) because `prisma` cannot set `session_replication_role`; RLS is bypassed by BYPASSRLS plus the wipe's temporary owner memberships, never disabled. The hosted password travels only as `PGPASSWORD`.
+- Local rehearsal passed: 77 tables (8323 rows), exact +3-day shift, tampered identities rolled back, delta-0 restore and `--verify` clean; storage copy is hosted-only. Hosted restore pending (developer).
+
+## 2026-10-06 Defense seed snapshot final fixes
+- The restore now copies storage before any hosted database connection, prints a summary and refuses a date shift or warning without `--allow-shift`, adds `--dry-run` (ROLLBACK, no storage), explains psql exit codes 3 and 2, and `mirror` fails fast on a local versus devV2 migration mismatch.
+- Pooler URLs must use port 5432, storage copy logs progress every 10 objects, and the runbook adds the `RULES_DISPATCH_ENABLED=true` step after `--verify`.
 ## 2026-10-05 Public landing redesign
 - Public home (`/`) rebuilt as the PATHWAYS landing: hero with pathway card, challenge, operational pathway, privacy, capabilities, audiences, published projects, mission, share needs, partner, footer (`public-landing.tsx`).
 - Site header restyled to the dark navy wordmark with Home, Projects, Organizations, About Us and a Share your needs link; survey, waitlist and contact CTAs point at in-page anchors (`landingLinks`) until real destinations exist.
@@ -293,3 +321,57 @@
 - Hero switched to a single column: intro copy stacks above the pathway timeline, which pins and advances on scroll on wide screens.
 - Hero walkthrough restored to the original full layout under the intro: tall steps on a progress rail beside a sticky preview panel, with icons and key points.
 - Home hero headline enlarged to match the About Us hero (text-7xl, roomier padding).
+## 2026-10-05 Demo numbers reconciled with cohorts
+- Defense seed cohorts now SSG 150, CRL 30, ALS 30, WSH 30, EHK 70 (ECD 0); people and household indicators, corrections, library readings and activity reach stay within each cohort, and targets sit just above it (SSG-GIRLS-ENR 108 of 120, EHK-FAMILIES 68 of 72, ALS-ENROLLED 30 of 30, CRL-HH-DIV 25 of 30).
+- New guard tests in `local-demo-data.test.ts` keep every started project at 30 or more people and every people count within its cohort.
+- CRL journey branches after COACHING into Wage employment and Enterprise start-up; the beneficiary journey track shows the sibling branch as "Not on path".
+- Deferred: beneficiary-linked survey and pre/post imports, and an application write path for assessment results. devV2 wipe, reseed and --verify (DR-04) stay with the developer.
+
+## 2026-10-06 Hosted defense reseed (DR-04)
+- devV2 reseeded with the PR #43 reconciled numbers through the snapshot path: local seed and `--verify` 23 of 23, dump of 77 tables (12600 rows) and 75 storage objects at 0063, hosted `--dry-run` rolled back clean, storage copy completed on rerun after a transient Storage 504, database restore committed with delta 0.
+- devV2 `--verify` passed 23 of 23, closing DR-04; `RULES_DISPATCH_ENABLED` is re-enabled by the developer after this run.
+## 2026-10-06 Evaluation write path (feat/evaluation-write-path)
+- Closes DR-08: [cr-pathways-evaluation-write-path](cr-pathways-evaluation-write-path.md) opens the evaluation write path the revised RBAC baseline left reserved. M&E Officer creates, edits and publishes criteria (sole hold of `evaluations.weights.configure`; System Administrator keeps `settings.configure` for the seed only) and scores and submits an evaluation; the Project Manager reviews and signs off in one action, or returns it for correction. Every role that already sees the Monitor & Evaluate tab keeps read-only access.
+- Scoring: KPI, Timeline compliance, Budget efficiency and Beneficiary reach are computed from project data (new `EvaluationMetricsService`, reusing `kpiAchievement`/`budgetUtilization`/`efficiencyRatio`); Other (Relevance, Coherence, Sustainability) is always a manual score with a required note, same as a computed type the project's data cannot support.
+- Migration `0064_evaluation_write_path`: RBAC grants/revoke above; `project_evaluation_criteria` INSERT also accepts `evaluations.weights.configure`; drops `p10_guard_evaluation_weight` (no longer needed once System Administrator loses the permission it gated); relaxes the `project_evaluations` CHECK so sign-off and review can be the same person (still distinct from the evaluator); adds a `SUBMITTED -> DRAFT` return transition; adds actor-binding RLS policies.
+- API: new routes for criteria create/publish and evaluation create/score/submit/return/signoff; `GET` now returns every evaluation (capped 20) with its scores, not only the latest summary.
+- Web: `live-evaluation-workspace.tsx` rebuilt with a publish action, an evaluations list, a start-evaluation form, a scoring table and submit/return/sign-off actions behind confirmation dialogs.
+- Tests: API (2180 tests) and the touched web suites pass; `pnpm typecheck` and `biome check` clean on both apps. The migration itself has not been run against any database in this session (no database credentials available); a `.local.test.ts` runtime suite and a local apply plus `--verify` are the open item before this leaves the branch. Seed, devV2 and the 2026-10-06 reseed are untouched. (superseded by the later 2026-10-06 entry)
+
+## 2026-10-06
+
+- Evaluation write path verified locally: full MigrationBaseline replay 0000-0064 green with the evaluations runtime suite (8 cases) wired in, f10-f11 and 0063 suites pass, API and web typecheck, lint and tests pass, defense rehearsal 23/23. `finance-evaluation-decisions.sql` remains a stale Phase 3 suite (fails at fixtures on the rules source-proof trigger). CR approved by the developer; not applied to devV2.
+
+## 2026-10-06 Evaluation write path final review fixes
+- Migration 0064 (still unapplied) gains `return_reason` (returns no longer overwrite the evaluator narrative; approve-only, reason required, cleared on resubmission) and a stronger postcondition. Evaluation reads return an allowlisted criterion snapshot, per-score source and note, newest 20 plus `hasMore`; saves claim the draft with a guarded update and upsert, keep rows not resupplied and return structured per-criterion errors. Beneficiary reach is an enrolled count with small-cell suppression, Budget efficiency is not computable for roles without budget access, and the efficiency ratio is now scaled to a percent (1.00 = full score). The workspace prefills manual scores, shows the return reason, blocks submit with unsaved edits.
+- Deferred (docs/deferred-features.md): closed-evaluation view, display labels, workspace split, criteria versioning, workspace UI tests. Full MigrationBaseline replay green (161 PASS, evaluations suite 8 passed); API 2222 and web 1821 tests pass.
+
+## 2026-10-06 Analytics export preview and 503 diagnosis (fix/analytics-page)
+- Export aggregates now opens a preview dialog (first 50 rows of the exact suppressed table, project, period, view) before Download; the new `GET /analytics/descriptive/export/preview` is audited as a view (source EXPORT_PREVIEW), not as an export.
+- Analytics 503s keep their specific message (timeout, contract, file render fault) and log a non-sensitive cause; the web client shows 503 reasons instead of the generic text. No migration.
+
+## 2026-10-06 Project status report (feature/project-status-report)
+- Project summary becomes a one-page status report: project information, overview (Schedule, Budget, Indicators with ON TRACK, AT RISK, OFF TRACK or NOT AVAILABLE), key figures, milestones, indicators and open alerts. Spec: docs/superpowers/specs/2026-10-06-project-status-report-design.md; CR: [cr-pathways-project-status-report](cr-pathways-project-status-report.md).
+- API: new `sections` on the report snapshot (fingerprint, generate re-check and designed PDF include it); flat columns and rows stay for pdfkit, CSV and XLSX. `ProjectOverviewMetricsService.readInTransaction` and `RulesHumanService.listAlertsInTransaction` expose the existing reads inside the report transaction. No migration, no new permission.
+- Web: shared print look for all kinds, Project summary section components, `?sample=project` fixture, in-app preview uses the same component.
+
+## 2026-10-06 Realistic demo journeys and directory progress
+- Every enrollment now carries a record that matches its status: attendance through the published attendance form of each stage-mapped activity (submission, participation, staged journey event), then completion or dropout transitions, then pre and post tests that reference the attendance submission.
+- SSG and ALS journeys branch: WEBINAR, then ENTREP or TECH (about 55 to 45), then a post-assessment step; each has a mapped activity and a published form. EHK gets stages and a kit distribution form. New stages `local-demo-stage-journeys.ts`, pure planner `local-demo-journeys.ts`, guard tests `local-demo-journeys.test.ts`.
+- Seeded proof photos are AI-generated, non-identifiable illustrative photos (no real people) (`prisma/assets/demo-photos`) and the attendance sheet PDFs list the date, venue, facilitator and attendees.
+- Beneficiary list API returns per row the latest participation and current stage (one query per page, journeys.read only, otherwise restricted); the directory shows "Restricted" instead of "No participation yet" when the caller cannot read journeys.
+- Assessment results still use the owner path (no service writes them), now tied to a validated attendance submission of the same enrollment and activity.
+
+## 2026-10-06 Fix round 1
+- Journey records survive a stage retry (first-run event snapshot, stored sessions skipped, all projects settle before failing); directory progress follows the person's own path (branch counted once, terminal stage 100) and the current stage follows the detail page rule; activity reach comes from the seeded attendance.
+
+## 2026-10-06 Zone check memo migration 0065
+- [cr-pathways-zone-check-memo](cr-pathways-zone-check-memo.md): `0065_zone_check_memo` adds `p06_zone_is_valid`, which remembers a validated timezone per transaction, and `p06_assert_scope` and `p06_home_dashboard` use it instead of reading `pg_timezone_names` on every call (0.43 s each on devV2, which timed out the 3 s analytics reads). Owner, SECURITY DEFINER and ACLs are unchanged; hosted plan, Verify-Forward and the runtime suite register 0065.
+
+## 2026-10-06 Rules sweep isolation fix and machine fault logging
+- The hourly sweep failed on hosted with 42501 because `sweep_rule_projects()` requires read committed while `RulesMachineSqlClient.phase()` ran every CAPTURE phase under RepeatableRead; only drain snapshot capture (`capture_rule_snapshot` via `install_capture_context`) needs RepeatableRead, so the sweep now runs ReadCommitted with the unchanged CAPTURE budget. All other machine routines already ran ReadCommitted as their migrations require.
+- `RulesMachineWorker.drain` and `sweep` now log one `PATHWAYS_RULES_MACHINE_FAILED` warning (purpose, failure kind, allowlisted error name, Prisma code and SQLSTATE; never messages or SQL) before the unchanged 503; `faultCause` moved to `prisma/transaction-diagnostic.ts` for reuse. No migration.
+
+## 2026-10-06 Beneficiary assessment view
+- [cr-pathways-beneficiary-assessment-view](cr-pathways-beneficiary-assessment-view.md): new enrollment-scoped assessment list read (same guards as the detail read) feeds the beneficiary detail page; "View assessment" now shows pre and post scores and the change for the selected stage. No migration.
+- Assessment view fix round 1: list read also requires `beneficiaries.records.read` and a live Beneficiary; the page pairs pre and post across stages, explains a failed read, and guard tests now fail if the denied-role or button gates are removed.

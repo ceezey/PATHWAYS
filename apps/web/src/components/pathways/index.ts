@@ -21,3 +21,4 @@ export {
   UnavailableHint,
   unavailableControlProps,
 } from './unavailable-hint'
+export { ProofPreviewDialog } from './proof-preview-dialog'

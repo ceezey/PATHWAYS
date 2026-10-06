@@ -4,6 +4,7 @@ import { createClient } from '@supabase/supabase-js'
 import { ActivitiesService } from '../src/modules/activities/activities.service'
 import { BeneficiariesService } from '../src/modules/beneficiaries/beneficiaries.service'
 import { DashboardsService } from '../src/modules/dashboards/dashboards.service'
+import { EvaluationMetricsService } from '../src/modules/evaluations/evaluation-metrics'
 import { EvaluationsService } from '../src/modules/evaluations/evaluations.service'
 import { FinanceService } from '../src/modules/finance/finance.service'
 import { ImportsService } from '../src/modules/imports/imports.service'
@@ -11,6 +12,7 @@ import { IndicatorLibraryService } from '../src/modules/indicators/indicator-lib
 import { IndicatorsService } from '../src/modules/indicators/indicators.service'
 import { MetadataService } from '../src/modules/metadata/metadata.service'
 import { ParticipantsService } from '../src/modules/participants/participants.service'
+import { ProjectOverviewMetricsService } from '../src/modules/projects/project-overview-metrics.service'
 import { ProjectsService } from '../src/modules/projects/projects.service'
 import { PublicService } from '../src/modules/public/public.service'
 import type { ReportPdfRenderer } from '../src/modules/report-pdf/report-pdf.renderer'
@@ -125,6 +127,7 @@ async function seed(owner: PrismaClient, testLocal: boolean) {
             sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
             log: (line) => console.info(line),
           }))
+    const dashboards = new DashboardsService(runtime, indicators)
     const context: DemoContext = {
       today: manilaToday(),
       organizationId,
@@ -144,15 +147,17 @@ async function seed(owner: PrismaClient, testLocal: boolean) {
         reports: new ReportsService(
           runtime,
           storage,
-          new DashboardsService(runtime, indicators),
+          dashboards,
           // Seeds keep pdfkit output deterministic by disabling the Chromium renderer.
           {
             render: () => Promise.reject(new Error('PDF renderer disabled.')),
           } as unknown as ReportPdfRenderer,
+          new ProjectOverviewMetricsService(runtime, indicators, dashboards),
+          new RulesHumanService(runtime),
         ),
         rules: new RulesHumanService(runtime),
         publication: new PublicService(runtime),
-        evaluations: new EvaluationsService(runtime),
+        evaluations: new EvaluationsService(runtime, new EvaluationMetricsService(indicators)),
       },
       staff,
       programIds: new Map(),

@@ -1,5 +1,6 @@
 import { performance } from 'node:perf_hooks'
 import { Prisma, PrismaClient } from '@prisma/client'
+import { faultCause } from '../../prisma/transaction-diagnostic'
 import { type RulesPhase, rulesPhaseBudget } from './rules-dispatch-budget'
 import type { MachineInvocation } from './rules-machine-boundary'
 import {
@@ -73,6 +74,7 @@ function failure(error: unknown): RulesSqlFailure {
         : code === '42501'
           ? 'DENIED'
           : 'UNCERTAIN',
+    faultCause(error),
   )
 }
 
@@ -133,10 +135,11 @@ export class RulesMachineSqlClient implements RulesMachineSql {
           return rows[0]?.result
         },
         {
+          // Only the drain snapshot capture needs RepeatableRead; sweep_rule_projects requires read committed.
           maxWait: Math.min(1000, duration),
           timeout: duration,
           isolationLevel:
-            phase === 'CAPTURE'
+            phase === 'CAPTURE' && invocation.purpose === 'DRAIN'
               ? Prisma.TransactionIsolationLevel.RepeatableRead
               : Prisma.TransactionIsolationLevel.ReadCommitted,
         },

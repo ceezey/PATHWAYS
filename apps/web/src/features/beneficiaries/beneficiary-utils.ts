@@ -1,5 +1,6 @@
 import type {
   ActivitySummary,
+  BeneficiaryAssessmentRecord,
   BeneficiaryParticipationRecord,
   BeneficiaryRecord,
   JourneyStageConfig,
@@ -112,6 +113,23 @@ export const progressionRate = (
   return stages.length > 0 ? Math.round((reachedStageIds.size / stages.length) * 100) : 0
 }
 
+/** One current stage and percent for list and detail: the server summary wins, the client rule is the fallback. */
+export const resolveJourneySummary = (
+  progress: BeneficiaryRecord['progress'],
+  stages: JourneyStageConfig[],
+  derivedStage: JourneyStageConfig | undefined,
+  derivedPercent: number,
+) => {
+  if (!progress || progress.restricted) return { stage: derivedStage, percent: derivedPercent }
+  const stage = progress.stage
+    ? stages.find((item) => item.code === progress.stage?.code)
+    : undefined
+  return {
+    stage: stage ?? derivedStage,
+    percent: progress.stage?.progressPercent ?? derivedPercent,
+  }
+}
+
 const beneficiaryDateFormatter = new Intl.DateTimeFormat('en-US', {
   dateStyle: 'medium',
   timeZone: 'UTC',
@@ -146,3 +164,11 @@ export const formatDate = (value: string | null | undefined) => {
 
 export const projectTitle = (projectId: string, projects: { id: string; title: string }[]) =>
   projects.find((project) => project.id === projectId)?.title ?? projectId
+
+export const assessmentTypeLabel: Record<BeneficiaryAssessmentRecord['type'], string> = {
+  PRE_TEST: 'Pre-test',
+  POST_TEST: 'Post-test',
+  OUTCOME_SURVEY: 'Outcome survey',
+  FEEDBACK_SURVEY: 'Feedback survey',
+  OTHER: 'Other',
+}

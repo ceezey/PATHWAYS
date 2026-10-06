@@ -6,7 +6,9 @@ import type { Prisma } from '@prisma/client'
 import { describe, expect, it } from 'vitest'
 import { type CanonicalRole, roleNames, rolePermissions } from '../auth/authorization-policy'
 import { DashboardsService } from '../dashboards/dashboards.service'
+import { ProjectOverviewMetricsService } from '../projects/project-overview-metrics.service'
 import type { ReportPdfRenderer } from '../report-pdf/report-pdf.renderer'
+import { RulesHumanService } from '../rules/rules-human.service'
 import type { StorageService } from '../storage/storage.service'
 import { type ReportKind, reportKinds } from './reports.dto'
 import { ReportsService } from './reports.service'
@@ -227,14 +229,18 @@ describe.skipIf(!enabled)('report preview scope and suppression on disposable Po
             Object.defineProperty(scoped, '$transaction', {
               value: (work: (inner: Prisma.TransactionClient) => Promise<unknown>) => work(tx),
             })
+            const indicators = new IndicatorsService(scoped)
+            const dashboards = new DashboardsService(scoped, indicators)
             const reports = new ReportsService(
               scoped,
               {} as StorageService,
-              new DashboardsService(scoped, new IndicatorsService(scoped)),
+              dashboards,
               // The runtime test keep pdfkit output deterministic by disabling the Chromium renderer.
               {
                 render: () => Promise.reject(new Error('PDF renderer disabled.')),
               } as unknown as ReportPdfRenderer,
+              new ProjectOverviewMetricsService(scoped, indicators, dashboards),
+              new RulesHumanService(scoped),
             )
             await tx.$executeRaw`SET LOCAL session_replication_role = origin`
             // The indicator report SQL also requires session_user to be the runtime role.
@@ -251,9 +257,12 @@ describe.skipIf(!enabled)('report preview scope and suppression on disposable Po
               )
             }
             const summary = await preview('PROJECT_MANAGER', projectAssigned, 'PROJECT_SUMMARY')
-            expect(summary.rows[0]?.[0], 'project summary is the assigned project').toBe(
+            expect(summary.rows[0], 'project summary is the assigned project').toEqual([
+              'Project information',
+              'Code',
               'RPT-ASSIGNED',
-            )
+              '',
+            ])
             const indicator = await preview('PROJECT_MANAGER', projectAssigned, 'INDICATOR_SUMMARY')
             expect(
               indicator.rows.map((row) => row[0]),
@@ -301,15 +310,15 @@ describe.skipIf(!enabled)('report preview scope and suppression on disposable Po
               projectAssigned,
               'MONITORING_REPORT',
             )
-            // The trusted monitoring aggregate withholds participation counts from every role.
+            // The monitoring aggregate releases participation counts with 1-4 suppressed.
             const participation = monitoring.rows.filter((row) => row[0] === 'Participation')
             expect(
               participation.length,
               'monitoring report lists participation rows',
             ).toBeGreaterThan(0)
             expect(
-              participation.filter((row) => /^\d+$/.test(row[2] ?? '')),
-              'monitoring report withholds every participation count',
+              participation.filter((row) => /^[1-4]$/.test(row[2] ?? '')),
+              'monitoring report shows no participation count of 1 to 4',
             ).toEqual([])
 
             // 6. No signed-off evaluation: empty rows, a reason, and only allowlisted keys.

@@ -56,49 +56,6 @@ const surveys: SurveyPlan[] = [
 
 const ratings = [5, 4, 4, 5, 3, 4, 5, 4, 3, 5, 4, 4]
 
-/** WSH pre and post tests inside its one closed indicator period, written on the owner connection
- * like the other assessment results because no application write path exists. */
-async function wshAssessments(ctx: DemoContext) {
-  const projectId = projectOf(ctx, 'WSH')
-  const done = await ctx.owner.assessmentResult.count({ where: { projectId } })
-  if (done > 0) return 0
-  const project = demoProjects.find((p) => p.key === 'WSH') as (typeof demoProjects)[number]
-  const index = demoActivities.WSH.findIndex((a) => a.key === 'hygiene')
-  const activity = await ctx.owner.projectActivity.findFirstOrThrow({
-    where: { projectId, code: activityCode(project, index) },
-    select: { id: true },
-  })
-  const enrollments = await ctx.owner.beneficiaryProjectEnrollment.findMany({
-    where: { organizationId: ctx.organizationId, projectId, status: 'ACTIVE' },
-    orderBy: { enrollmentDate: 'asc' },
-    take: wshPairs.length,
-    select: { id: true },
-  })
-  let written = 0
-  for (const [position, pair] of wshPairs.entries()) {
-    for (const [type, score, offset] of [
-      ['PRE_TEST', pair.pre, -120],
-      ['POST_TEST', pair.post, -45],
-    ] as const) {
-      await ctx.owner.assessmentResult.create({
-        data: {
-          organizationId: ctx.organizationId,
-          projectId,
-          activityId: activity.id,
-          enrollmentId: enrollments[position].id,
-          type,
-          score,
-          maximumScore: 100,
-          assessmentDate: new Date(`${addDaysIso(ctx.today, offset)}T00:00:00.000Z`),
-          recordedById: ctx.staff.me.userId,
-        },
-      })
-      written += 1
-    }
-  }
-  return written
-}
-
 /** Generates the form as the Monitoring and Evaluation Officer, then has the System Administrator
  * publish it, because an author cannot publish their own form. */
 async function publishedSurvey(ctx: DemoContext, projectId: string, plan: SurveyPlan) {
@@ -152,12 +109,11 @@ async function submitSurvey(ctx: DemoContext, projectId: string, formId: string,
 /** Survey evidence the rules and reports read: a closed WSH assessment period with small gains,
  * a survey with released aggregates and a survey that stays suppressed. */
 export async function stageSurvey(ctx: DemoContext) {
-  const pairs = await wshAssessments(ctx)
   let submissions = 0
   for (const plan of surveys) {
     const projectId = projectOf(ctx, plan.project)
     const form = await publishedSurvey(ctx, projectId, plan)
     if (form.created) submissions += await submitSurvey(ctx, projectId, form.id, plan)
   }
-  ctx.log(`  WSH assessment results: ${pairs}, survey submissions: ${submissions}`)
+  ctx.log(`  survey submissions: ${submissions}`)
 }

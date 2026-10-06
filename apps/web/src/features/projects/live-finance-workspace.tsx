@@ -1,6 +1,12 @@
 'use client'
 import { PageHeader } from '@/components/layout/page-header'
-import { AsyncState, EmptyState, SectionCard, StatusBadge } from '@/components/pathways'
+import {
+  AsyncState,
+  EmptyState,
+  ProofPreviewDialog,
+  SectionCard,
+  StatusBadge,
+} from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -12,8 +18,9 @@ import { createdSince, fingerprintOf } from '@/lib/forms/pending-create'
 import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
 import {
   coreDataClient,
-  downloadCoreArtifact,
   type expenseAck,
+  fetchCoreArtifact,
+  saveCoreArtifact,
 } from '@/lib/services/core-feature-client'
 import { pathwaysClient } from '@/lib/services/pathways-client'
 import { useAuthorizedRead } from '@/providers/authorized-query-provider'
@@ -127,20 +134,7 @@ function FinanceContent({ projectId }: { projectId: string }) {
     projectId,
     projectId,
   )
-  const download = async (expenseId: string, evidenceId: string) => {
-    const captured = downloadOwner
-    if (!captured?.isCurrent()) return
-    try {
-      await downloadCoreArtifact(
-        `/projects/${projectId}/finance/expenses/${expenseId}/receipt`,
-        `receipt-${evidenceId}.pdf`,
-        captured.isCurrent,
-      )
-    } catch (error) {
-      if (captured.isCurrent())
-        toast.error(error instanceof Error ? error.message : 'Receipt download unavailable.')
-    }
-  }
+  const [preview, setPreview] = useState<{ expenseId: string; evidenceId: string } | null>(null)
   const [category, setCategory] = useState('')
   const [planned, setPlanned] = useState('')
   const [remarks, setRemarks] = useState('')
@@ -661,9 +655,11 @@ function FinanceContent({ projectId }: { projectId: string }) {
                     {row.receiptEvidenceId && can('evidence.read') ? (
                       <Button
                         variant="outline"
-                        onClick={() => void download(row.id, row.receiptEvidenceId ?? '')}
+                        onClick={() =>
+                          setPreview({ expenseId: row.id, evidenceId: row.receiptEvidenceId ?? '' })
+                        }
                       >
-                        Inspect private receipt
+                        Preview private receipt
                       </Button>
                     ) : null}
                     {row.status === 'PENDING' &&
@@ -753,6 +749,22 @@ function FinanceContent({ projectId }: { projectId: string }) {
           )}
         </SectionCard>
       ) : null}
+      <ProofPreviewDialog
+        load={async () => {
+          const captured = downloadOwner
+          if (!captured?.isCurrent() || !preview)
+            throw new Error('Current receipt access is required.')
+          return fetchCoreArtifact(
+            `/projects/${projectId}/finance/expenses/${preview.expenseId}/receipt`,
+            `receipt-${preview.evidenceId}.pdf`,
+            captured.isCurrent,
+          )
+        }}
+        onOpenChange={(open) => !open && setPreview(null)}
+        open={preview !== null}
+        save={(artifact) => saveCoreArtifact(artifact, downloadOwner?.isCurrent)}
+        title="Private receipt"
+      />
     </div>
   )
 }

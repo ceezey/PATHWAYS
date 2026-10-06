@@ -21,6 +21,7 @@ import {
 } from '@pathways/shared'
 import { Prisma } from '@prisma/client'
 import { PrismaService } from '../../prisma/prisma.service'
+import { faultCause } from '../../prisma/transaction-diagnostic'
 import { hasAtomicPermission } from '../auth/authorization-policy'
 import { projectScope } from '../auth/authorized-data.service'
 import { withAuthorizedOperation } from '../auth/authorized-operation'
@@ -45,6 +46,7 @@ import {
 } from '../reports/report-artifact'
 
 const logger = new Logger('AnalyticsService')
+const EXPORT_PREVIEW_ROWS = 50
 
 export function parseDescriptiveQuery(value: unknown): DescriptiveAnalyticsQuery {
   const parsed = descriptiveAnalyticsQuerySchema.safeParse(value)
@@ -88,7 +90,14 @@ async function exportArtifact(
     }
   } catch (error) {
     if (error instanceof ReportArtifactInputError) throw new BadRequestException(error.message)
-    throw error
+    logger.error({
+      event: 'PATHWAYS_ANALYTICS_EXPORT_RENDER_FAILED',
+      format,
+      cause: faultCause(error),
+    })
+    throw new ServiceUnavailableException(
+      `The ${format} file could not be generated on this server. Export CSV instead.`,
+    )
   }
 }
 
@@ -100,8 +109,8 @@ export class AnalyticsService {
   ) {}
 
   /**
-   * Mirrors the p06_saddd V1 preconditions (fixed, valid, closed project period)
-   * so an open project omits SADDD instead of aborting the whole transaction.
+   * Mirrors the p06_saddd preconditions (valid dates, project started; ongoing projects
+   * release live to date) so a not-started project omits SADDD instead of aborting the transaction.
    * The database release function remains the enforcing authority.
    */
   private async sadddReleasable(
@@ -115,8 +124,8 @@ export class AnalyticsService {
       select: { startDate: true, endDate: true },
     })
     if (!project?.startDate || !project.endDate || project.endDate < project.startDate) return false
-    const end = project.endDate.toISOString().slice(0, 10)
-    return end < businessCalendarDate(new Date(), period.businessTimeZone)
+    const start = project.startDate.toISOString().slice(0, 10)
+    return start <= businessCalendarDate(new Date(), period.businessTimeZone)
   }
 
   /**
@@ -334,6 +343,7 @@ export class AnalyticsService {
     actor: ApplicationIdentity,
     projectId: string,
     query: DescriptiveAnalyticsQuery,
+    source?: 'EXPORT_PREVIEW',
   ) {
     await tx.auditLog.create({
       data: {
@@ -347,6 +357,7 @@ export class AnalyticsService {
           view: query.view ?? 'combined',
           periodStart: query.periodStart ?? null,
           periodEnd: query.periodEnd ?? null,
+          ...(source ? { source } : {}),
         },
       },
     })
@@ -380,7 +391,12 @@ export class AnalyticsService {
           error instanceof ServiceUnavailableException
             ? 'CONTRACT_OR_DATABASE_UNAVAILABLE'
             : 'UNEXPECTED_FAULT',
+        cause: faultCause(error),
+        // A typed 503 carries our own curated message, so it is safe to log.
+        ...(error instanceof ServiceUnavailableException ? { detail: error.message } : {}),
       })
+      // A typed 503 already names its cause (timeout, contract), so it is passed through.
+      if (error instanceof ServiceUnavailableException) throw error
       throw new ServiceUnavailableException('Descriptive analytics could not be retrieved.')
     }
   }
@@ -412,96 +428,85 @@ export class AnalyticsService {
     const { format, query: rawQuery } = parseExportFormat(input)
     const query = parseDescriptiveQuery(rawQuery)
     return withAuthorizedOperation(this.prisma, identity, 'analytics.export', async (tx, actor) =>
-      this.withRetrievalFaultMapping(() => this.runExport(tx, actor, query, format)),
+      this.withRetrievalFaultMapping(async () => {
+        const source = await this.exportSource(tx, actor, query)
+        await tx.auditLog.create({
+          data: {
+            organizationId: actor.organizationId,
+            projectId: source.projectId,
+            actorUserId: actor.userId,
+            action: 'ANALYTICS_DESCRIPTIVE_EXPORTED',
+            entityType: 'Project',
+            entityId: source.projectId,
+            changes: { contractVersion: source.contractVersion, format, ...source.audit },
+          },
+        })
+        return exportArtifact(format, source.title, source.table, source.fileBase)
+      }),
     )
   }
 
-  private async runExport(
+  /** The first rows of the exact table the file contains, audited as a view (source EXPORT_PREVIEW), never as an export. */
+  async exportPreview(identity: ApplicationIdentity, input: unknown) {
+    const query = parseDescriptiveQuery(input)
+    return withAuthorizedOperation(this.prisma, identity, 'analytics.export', async (tx, actor) =>
+      this.withRetrievalFaultMapping(async () => {
+        const { title, table, projectId } = await this.exportSource(tx, actor, query)
+        await this.recordViewedAudit(tx, actor, projectId, query, 'EXPORT_PREVIEW')
+        const text = (row: AnalyticsTable[number]) =>
+          row.map((cell) => (cell === null ? '' : String(cell)))
+        return {
+          title,
+          columns: text(table[0] ?? []),
+          rows: table.slice(1, EXPORT_PREVIEW_ROWS + 1).map(text),
+          totalRows: Math.max(table.length - 1, 0),
+        }
+      }),
+    )
+  }
+
+  /** Computes the view's suppressed table once, shared by the file export and its preview. */
+  private async exportSource(
     tx: Prisma.TransactionClient,
     actor: ApplicationIdentity,
     query: DescriptiveAnalyticsQuery,
-    format: ExportFormat,
   ) {
     if (!hasAtomicPermission(actor.roles[0], actor.permissions, 'analytics.descriptive.read'))
       throw new ForbiddenException('Descriptive analytics permission is required.')
     if (query.view === 'survey') {
       const data = await this.computeSurvey(tx, actor, query)
-      const table = surveyAnalyticsTable(data)
-      await tx.auditLog.create({
-        data: {
-          organizationId: actor.organizationId,
-          projectId: data.projectId,
-          actorUserId: actor.userId,
-          action: 'ANALYTICS_DESCRIPTIVE_EXPORTED',
-          entityType: 'Project',
-          entityId: data.projectId,
-          changes: {
-            contractVersion: data.contractVersion,
-            format,
-            view: 'survey',
-            period: data.period,
-            rowCount: data.byActivity.length + 1,
-          },
-        },
-      })
-      return exportArtifact(
-        format,
-        'Survey analytics',
-        table,
-        `survey-analytics-${data.projectId}-${data.period.periodEnd}`,
-      )
+      return {
+        projectId: data.projectId,
+        contractVersion: data.contractVersion,
+        title: 'Survey analytics',
+        table: surveyAnalyticsTable(data),
+        fileBase: `survey-analytics-${data.projectId}-${data.period.periodEnd}`,
+        audit: { view: 'survey', period: data.period, rowCount: data.byActivity.length + 1 },
+      }
     }
     if (query.view === 'timeline') {
       const data = await this.computeTimeline(tx, actor, query)
-      const table = timelineAnalyticsTable(data)
-      await tx.auditLog.create({
-        data: {
-          organizationId: actor.organizationId,
-          projectId: data.projectId,
-          actorUserId: actor.userId,
-          action: 'ANALYTICS_DESCRIPTIVE_EXPORTED',
-          entityType: 'Project',
-          entityId: data.projectId,
-          changes: {
-            contractVersion: data.contractVersion,
-            format,
-            view: 'timeline',
-            reportingDate: data.reportingDate,
-            rowCount: 6,
-          },
-        },
-      })
-      return exportArtifact(
-        format,
-        'Timeline analytics',
-        table,
-        `timeline-analytics-${data.projectId}-${data.reportingDate}`,
-      )
+      return {
+        projectId: data.projectId,
+        contractVersion: data.contractVersion,
+        title: 'Timeline analytics',
+        table: timelineAnalyticsTable(data),
+        fileBase: `timeline-analytics-${data.projectId}-${data.reportingDate}`,
+        audit: { view: 'timeline', reportingDate: data.reportingDate, rowCount: 6 },
+      }
     }
     const data = await this.compute(tx, actor, query)
-    const table = descriptiveAnalyticsTable(data)
-    await tx.auditLog.create({
-      data: {
-        organizationId: actor.organizationId,
-        projectId: data.projectId,
-        actorUserId: actor.userId,
-        action: 'ANALYTICS_DESCRIPTIVE_EXPORTED',
-        entityType: 'Project',
-        entityId: data.projectId,
-        changes: {
-          contractVersion: data.contractVersion,
-          format,
-          monitoringPeriod: data.monitoringPeriod,
-          sadddReleaseState: data.sadddReleaseState,
-          rowCount: data.counts.length + data.distributions.length,
-        },
+    return {
+      projectId: data.projectId,
+      contractVersion: data.contractVersion,
+      title: 'Descriptive analytics',
+      table: descriptiveAnalyticsTable(data),
+      fileBase: `descriptive-analytics-${data.projectId}-${data.monitoringPeriod.periodEnd}`,
+      audit: {
+        monitoringPeriod: data.monitoringPeriod,
+        sadddReleaseState: data.sadddReleaseState,
+        rowCount: data.counts.length + data.distributions.length,
       },
-    })
-    return exportArtifact(
-      format,
-      'Descriptive analytics',
-      table,
-      `descriptive-analytics-${data.projectId}-${data.monitoringPeriod.periodEnd}`,
-    )
+    }
   }
 }
