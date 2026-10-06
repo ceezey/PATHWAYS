@@ -713,6 +713,68 @@ export class EvaluationsService {
     )
   }
 
+  listBeneficiaryAssessments(identity: ApplicationIdentity, projectId: string, query: unknown) {
+    return withAuthorizedOperation(
+      this.prisma,
+      identity,
+      'assessments.detail.read',
+      async (tx, actor) => {
+        if (assessmentDetailDeniedRoles.has(actor.roles[0]))
+          throw new ForbiddenException('Assessment detail is not available to this role.')
+        const id = await this.requireProject(tx, actor, projectId)
+        const parsed = z.object({ enrollmentId: z.string().uuid() }).safeParse(query)
+        if (!parsed.success) throw new NotFoundException('Enrollment unavailable.')
+        const enrollment = await tx.beneficiaryProjectEnrollment.findFirst({
+          where: {
+            id: parsed.data.enrollmentId,
+            organizationId: actor.organizationId,
+            projectId: id,
+          },
+          select: { id: true },
+        })
+        if (!enrollment) throw new NotFoundException('Enrollment unavailable.')
+        const rows = await tx.assessmentResult.findMany({
+          where: {
+            organizationId: actor.organizationId,
+            projectId: id,
+            enrollmentId: enrollment.id,
+            project: projectScope(actor),
+          },
+          orderBy: [{ assessmentDate: 'asc' }, { id: 'asc' }],
+          take: 100,
+          select: {
+            id: true,
+            type: true,
+            activityId: true,
+            score: true,
+            maximumScore: true,
+            assessmentDate: true,
+            recordedAt: true,
+            activity: {
+              select: {
+                activityJourneyStageMapping_activity: {
+                  select: { stageId: true },
+                  orderBy: { sequenceOrder: 'asc' },
+                  take: 1,
+                },
+              },
+            },
+          },
+        })
+        return rows.map((row) => ({
+          id: row.id,
+          type: row.type,
+          activityId: row.activityId,
+          stageId: row.activity?.activityJourneyStageMapping_activity[0]?.stageId ?? null,
+          score: row.score.toString(),
+          maximumScore: row.maximumScore.toString(),
+          assessmentDate: row.assessmentDate.toISOString().slice(0, 10),
+          recordedAt: row.recordedAt.toISOString(),
+        }))
+      },
+    )
+  }
+
   configureWeights(identity: ApplicationIdentity, projectId: string, input: unknown) {
     const parsed = evaluationWeightsSchema.safeParse(input)
     if (!parsed.success)
