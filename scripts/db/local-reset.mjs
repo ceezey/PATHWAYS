@@ -57,12 +57,15 @@ const cleanup = {
 }
 
 function run(command, args, { input, env, label } = {}) {
-  const result = spawnSync(command, args, {
+  // The Windows shell splits unquoted arguments, so quote any that contain spaces.
+  const shell = process.platform === 'win32'
+  const quoted = shell ? args.map((arg) => (arg.includes(' ') ? `"${arg}"` : arg)) : args
+  const result = spawnSync(command, quoted, {
     cwd: root,
     stdio: input === undefined ? 'inherit' : ['pipe', 'inherit', 'inherit'],
     input,
     env: { ...process.env, MSYS_NO_PATHCONV: '1', ...env },
-    shell: process.platform === 'win32',
+    shell,
   })
   if (result.status !== 0) throw new Error(`${label ?? command} failed (exit ${result.status})`)
 }

@@ -21,7 +21,7 @@ import {
 } from '@pathways/shared'
 import { Prisma } from '@prisma/client'
 import { PrismaService } from '../../prisma/prisma.service'
-import { prismaDiagnosticCode } from '../../prisma/transaction-diagnostic'
+import { faultCause } from '../../prisma/transaction-diagnostic'
 import { hasAtomicPermission } from '../auth/authorization-policy'
 import { projectScope } from '../auth/authorized-data.service'
 import { withAuthorizedOperation } from '../auth/authorized-operation'
@@ -101,30 +101,6 @@ async function exportArtifact(
   }
 }
 
-/** Own data property read without invoking getters. */
-function ownString(value: unknown, key: string, pattern: RegExp) {
-  if (!value || typeof value !== 'object') return ''
-  const found = Object.getOwnPropertyDescriptor(value, key)?.value
-  return typeof found === 'string' && pattern.test(found) ? found : ''
-}
-
-/** Allowlisted fault label (error name, Prisma code, SQL state) for logs; never the message. */
-function faultCause(error: unknown) {
-  const meta =
-    error && typeof error === 'object'
-      ? Object.getOwnPropertyDescriptor(error, 'meta')?.value
-      : null
-  return (
-    [
-      ownString(error, 'name', /^[A-Za-z]{1,64}$/),
-      prismaDiagnosticCode(error),
-      ownString(meta, 'code', /^[0-9A-Z]{5}$/),
-    ]
-      .filter(Boolean)
-      .join(':') || 'UNKNOWN'
-  )
-}
-
 @Injectable()
 export class AnalyticsService {
   constructor(
@@ -133,8 +109,8 @@ export class AnalyticsService {
   ) {}
 
   /**
-   * Mirrors the p06_saddd V1 preconditions (fixed, valid, closed project period)
-   * so an open project omits SADDD instead of aborting the whole transaction.
+   * Mirrors the p06_saddd preconditions (valid dates, project started; ongoing projects
+   * release live to date) so a not-started project omits SADDD instead of aborting the transaction.
    * The database release function remains the enforcing authority.
    */
   private async sadddReleasable(
@@ -148,8 +124,8 @@ export class AnalyticsService {
       select: { startDate: true, endDate: true },
     })
     if (!project?.startDate || !project.endDate || project.endDate < project.startDate) return false
-    const end = project.endDate.toISOString().slice(0, 10)
-    return end < businessCalendarDate(new Date(), period.businessTimeZone)
+    const start = project.startDate.toISOString().slice(0, 10)
+    return start <= businessCalendarDate(new Date(), period.businessTimeZone)
   }
 
   /**

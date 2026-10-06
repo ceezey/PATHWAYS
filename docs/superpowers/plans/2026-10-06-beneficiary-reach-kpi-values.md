@@ -4,15 +4,15 @@
 
 **Goal:** Release beneficiary reach counts (1-4 shown as "Suppressed (fewer than 5)"), open participation insights to Program and Grant Manager, and give Program and Grant Manager KPI values only, with no new permission grants.
 
-**Architecture:** Migration `0065_beneficiary_reach_kpi_values` replaces `p06_monitoring` and `p06_home_dashboard` so the four reach counts come from `p06_compute_monitoring` with nested-count complementary suppression, and adds two prisma-owned SECURITY DEFINER release functions, `p06_participation_breakdown` and `p06_indicator_values`, each granted to `pathways_runtime` only. The API reads those functions for every role on the KPI and participation surfaces (one code path per surface); the web shows withheld and suppressed cells by label, never as "0".
+**Architecture:** Migration `0066_beneficiary_reach_kpi_values` replaces `p06_monitoring` and `p06_home_dashboard` so the four reach counts come from `p06_compute_monitoring` with nested-count complementary suppression, and adds two prisma-owned SECURITY DEFINER release functions, `p06_participation_breakdown` and `p06_indicator_values`, each granted to `pathways_runtime` only. The API reads those functions for every role on the KPI and participation surfaces (one code path per surface); the web shows withheld and suppressed cells by label, never as "0".
 
 **Tech Stack:** PostgreSQL 17/18 (Supabase), Prisma 6 raw SQL migrations, NestJS 11, zod, Next.js 15, Vitest, PowerShell replay harness, pnpm.
 
-**Spec:** `docs/superpowers/specs/2026-10-06-beneficiary-reach-kpi-values-design.md` (approved 2026-10-06). The spec names migration `0064_beneficiary_reach_kpi_values`; migration renumbered to 0065 per controller (`0064_evaluation_write_path` lands first).
+**Spec:** `docs/superpowers/specs/2026-10-06-beneficiary-reach-kpi-values-design.md` (approved 2026-10-06). The spec names migration `0064_beneficiary_reach_kpi_values`; migration renumbered to 0066 per controller (`0064_evaluation_write_path` lands first).
 
 ## Global Constraints
 
-- Migration is `0065_beneficiary_reach_kpi_values`; its precondition requires `0064_evaluation_write_path` finished. Never edit 0000-0064 (`pnpm sad:check` blocks byte changes).
+- Migration is `0066_beneficiary_reach_kpi_values`; its precondition requires `0064_evaluation_write_path` finished. Never edit 0000-0064 (`pnpm sad:check` blocks byte changes).
 - No grant change: `role_permissions` stays 314 (after 0064). Do not touch `apps/api/src/modules/auth/rbac-contract.json` or `authorization-policy.ts` grants.
 - Each release is a SECURITY DEFINER function with explicit scope checks, following the `p06_*` patterns; `SET search_path TO ''`; ACL revoked from PUBLIC, anon, authenticated, service_role; EXECUTE granted to `pathways_runtime` only.
 - Suppression: counts 1-4 are SUPPRESSED; related counts get complementary suppression so a hidden count cannot be derived by subtraction (0060 rule metrics precedent, `apps/api/prisma/migrations/0060_rules_budget_beneficiary_survey_metrics/migration.sql:413-422`).
@@ -27,7 +27,7 @@
 
 The known pitfall (`docs/deferred-features.md:61`): `p08_activity_beneficiaries_reached` is owned by `prisma`, and hosted `prisma` has no BYPASSRLS, so it reads nothing from FORCE RLS `activity_updates`. Local replay hides this because `apps/api/prisma/tests/security-adapter-local-bootstrap.sql:26` grants `prisma` BYPASSRLS.
 
-How the existing working functions read their sources, and what 0065 relies on:
+How the existing working functions read their sources, and what 0066 relies on:
 
 - `p06_compute_monitoring` (0028:95-140) and the new `p06_participation_breakdown` read `beneficiaries`, `beneficiary_project_enrollments`, `beneficiary_activity_participations`, `project_activities`, `form_submissions`, `project_milestones`. All are owned by `prisma` (for example `M:4312`, `M:4331`, `M:4661`) and are RLS-enabled but not FORCE, so the owner `prisma` reads them without BYPASSRLS.
 - `p06_compute_indicator_value` (`M:1384-1501`) reads FORCE RLS `project_indicator_bindings` (`M:4918`) and `project_indicator_measurements` (`M:4941`) through owner policies `p06_binding_owner_read` (`M:7069`) and `p06_measurement_owner_read` (`M:7081`), which are `TO prisma` and need `app.organization_id` plus `p06_can('monitoring.read', project_id)`. `project_indicators` (`M:4986`) is not FORCE.
@@ -47,7 +47,7 @@ Decision: `p06_indicator_values` is owned by `prisma` and calls `p06_compute_ind
 
 ## File Structure
 
-- Create `apps/api/prisma/migrations/0065_beneficiary_reach_kpi_values/migration.sql`: two replaced and two new release functions, three private helpers, pre and postconditions.
+- Create `apps/api/prisma/migrations/0066_beneficiary_reach_kpi_values/migration.sql`: two replaced and two new release functions, three private helpers, pre and postconditions.
 - Create `apps/api/prisma/tests/beneficiary-reach-kpi-values-runtime.sql`: role-by-role runtime suite (32 assertions).
 - Create `apps/api/src/modules/indicators/indicator-values.controller.ts`: `GET /projects/:projectId/indicator-values`.
 - Create `apps/web/src/features/dashboard/monitoring-reach-metrics.ts` (+ test): the role dashboard reach cards, pulled out of the 721-line `role-dashboard.tsx`.
@@ -56,13 +56,13 @@ Decision: `p06_indicator_values` is owned by `prisma` and calls `p06_compute_ind
 
 ---
 
-### Task 1: Migration 0065 and runtime SQL suite (+ inventories)
+### Task 1: Migration 0066 and runtime SQL suite (+ inventories)
 
 **Files:**
-- Create: `apps/api/prisma/migrations/0065_beneficiary_reach_kpi_values/migration.sql`
+- Create: `apps/api/prisma/migrations/0066_beneficiary_reach_kpi_values/migration.sql`
 - Create: `apps/api/prisma/tests/beneficiary-reach-kpi-values-runtime.sql`
 - Modify: `infra/supabase/phase6/Replay-Local.ps1:597-598` (run the new suite after the activity extension suite)
-- Modify: `infra/supabase/phase6/Verify-Forward.ps1:17-52` (`$forwardInventory`) and the tail before `} finally {` (`:987-988`, 0065 inventory block)
+- Modify: `infra/supabase/phase6/Verify-Forward.ps1:17-52` (`$forwardInventory`) and the tail before `} finally {` (`:987-988`, 0066 inventory block)
 - Modify: `scripts/db/hosted-plan.mjs:7,11-50,160-166,240-285`, `scripts/db/hosted-plan.test.mjs`, `scripts/db/hosted-build.mjs:382,386,620`, `scripts/db/hosted-build.local.test.mjs:267,381`, `apps/api/prisma/legacy-retirement.test.ts:76`
 - Modify: `apps/api/src/modules/reports/reports-runtime.local.test.ts:300-313` (run by the replay; it asserted the old withheld rows)
 
@@ -78,23 +78,23 @@ Decision: `p06_indicator_values` is owned by `prisma` and calls `p06_compute_ind
 - [ ] **Step 0: Confirm the 0064 base**
 
 Run (bash, worktree root): `ls apps/api/prisma/migrations | tail -3 && git grep -n "0064_evaluation_write_path" -- scripts infra apps/api/prisma/legacy-retirement.test.ts`
-Expected: `0064_evaluation_write_path` is the last migration directory and appears in `hosted-plan.mjs`, `Verify-Forward.ps1` and `legacy-retirement.test.ts`. If not, stop and report to the controller; this plan appends 0065 after the 0064 entries.
+Expected: `0064_evaluation_write_path` is the last migration directory and appears in `hosted-plan.mjs`, `Verify-Forward.ps1` and `legacy-retirement.test.ts`. If not, stop and report to the controller; this plan appends 0066 after the 0064 entries.
 
 - [ ] **Step 1: Write the runtime SQL suite**
 
 Create `apps/api/prisma/tests/beneficiary-reach-kpi-values-runtime.sql`:
 
 ```sql
--- cr-pathways-beneficiary-reach-kpi-values (migration 0065): runtime checks for the released reach counts,
+-- cr-pathways-beneficiary-reach-kpi-values (migration 0066): runtime checks for the released reach counts,
 -- pathways.p06_participation_breakdown and pathways.p06_indicator_values. Synthetic fixtures only; everything rolls
--- back. Run as a local superuser against a disposable pathways_phase2_* or pathways_phase4_* replay database with 0065.
+-- back. Run as a local superuser against a disposable pathways_phase2_* or pathways_phase4_* replay database with 0066.
 \set ON_ERROR_STOP on
 BEGIN;
 
 DO $$ BEGIN
  IF current_database() !~ '^pathways_phase(2|4)_[a-z0-9_]+$' OR NOT (SELECT rolsuper FROM pg_roles WHERE rolname=current_user)
  OR inet_server_addr() IS DISTINCT FROM '127.0.0.1'::inet THEN
-  RAISE EXCEPTION '0065 beneficiary-reach-kpi-values checks require a disposable local database'; END IF;
+  RAISE EXCEPTION '0066 beneficiary-reach-kpi-values checks require a disposable local database'; END IF;
 END $$;
 
 -- Hosted prisma has no BYPASSRLS, so the suite drops it for this transaction to read forced RLS as hosted does.
@@ -358,7 +358,7 @@ SELECT pg_temp.ok((SELECT d#>>'{participationRecords,reason}'='SENSITIVE_RELEASE
 
 DO $$ DECLARE total integer; BEGIN
  SELECT count(*) INTO total FROM brk_results;
- IF total<>32 THEN RAISE EXCEPTION '0065 beneficiary-reach-kpi-values checks expected 32 assertions, recorded %',total; END IF;
+ IF total<>32 THEN RAISE EXCEPTION '0066 beneficiary-reach-kpi-values checks expected 32 assertions, recorded %',total; END IF;
  RAISE NOTICE 'BENEFICIARY_REACH_KPI_VALUES_RUNTIME=PASS (% assertions)',total;
 END $$;
 ROLLBACK;
@@ -388,10 +388,10 @@ Expected: FAIL at assertion 2 with `function pathways.p06_participation_breakdow
 
 - [ ] **Step 3: Write the migration**
 
-Create `apps/api/prisma/migrations/0065_beneficiary_reach_kpi_values/migration.sql`:
+Create `apps/api/prisma/migrations/0066_beneficiary_reach_kpi_values/migration.sql`:
 
 ```sql
--- 0065 beneficiary reach and KPI values (cr-pathways-beneficiary-reach-kpi-values); forward migration.
+-- 0066 beneficiary reach and KPI values (cr-pathways-beneficiary-reach-kpi-values); forward migration.
 -- p06_monitoring and p06_home_dashboard release the four reach counts from p06_compute_monitoring with 1-4 and
 -- nested-count complementary suppression instead of SENSITIVE_RELEASE_NOT_ENABLED_V1; the home dashboard keeps the
 -- placeholder for callers without monitoring.read on every requested project, since its own gate is projects.read.
@@ -406,27 +406,27 @@ SET LOCAL statement_timeout = '60s';
 DO $$ BEGIN
  IF current_user <> 'prisma' OR NOT EXISTS(SELECT FROM public._prisma_migrations WHERE migration_name='0064_evaluation_write_path'
   AND finished_at IS NOT NULL AND rolled_back_at IS NULL)
- THEN RAISE EXCEPTION '0065 requires the verified 0064 state and migration identity'; END IF;
+ THEN RAISE EXCEPTION '0066 requires the verified 0064 state and migration identity'; END IF;
  IF (SELECT pg_catalog.pg_get_userbyid(nspowner) FROM pg_catalog.pg_namespace WHERE nspname='pathways')<>'prisma'
   OR EXISTS(SELECT FROM pg_catalog.pg_proc p JOIN pg_catalog.pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='pathways'
    AND p.proname IN ('p06_participation_breakdown','p06_indicator_values','p06_complement_cell','p06_release_reach','p06_suppress_breakdown'))
- THEN RAISE EXCEPTION '0065 requires prisma to own pathways and no earlier release functions'; END IF;
+ THEN RAISE EXCEPTION '0066 requires prisma to own pathways and no earlier release functions'; END IF;
  IF EXISTS(SELECT FROM pg_catalog.pg_proc p WHERE p.oid IN (
    'pathways.p06_monitoring(uuid,uuid[],date,date,text)'::pg_catalog.regprocedure,
    'pathways.p06_home_dashboard(uuid,uuid[],date,date,text)'::pg_catalog.regprocedure,
    'pathways.p06_compute_monitoring(uuid,uuid[],date,date,text)'::pg_catalog.regprocedure,
    'pathways.p06_compute_indicator_value(uuid,uuid,uuid,text)'::pg_catalog.regprocedure)
   AND pg_catalog.pg_get_userbyid(p.proowner)<>'prisma')
- THEN RAISE EXCEPTION '0065 requires prisma to own the p06 monitoring and indicator functions'; END IF;
+ THEN RAISE EXCEPTION '0066 requires prisma to own the p06 monitoring and indicator functions'; END IF;
  IF NOT (SELECT relforcerowsecurity FROM pg_catalog.pg_class WHERE oid='pathways.project_indicator_measurements'::pg_catalog.regclass)
   OR (SELECT count(*) FROM pg_catalog.pg_policy WHERE polname IN ('p06_binding_owner_read','p06_measurement_owner_read'))<>2
- THEN RAISE EXCEPTION '0065 requires the prisma owner read policies on indicator bindings and measurements'; END IF;
+ THEN RAISE EXCEPTION '0066 requires the prisma owner read policies on indicator bindings and measurements'; END IF;
  -- Remember both replaced ACLs and the grant count so the postcondition proves them unchanged.
- PERFORM pg_catalog.set_config('pathways.m0065_monitoring_acl',(SELECT coalesce(proacl::text,'') FROM pg_catalog.pg_proc
+ PERFORM pg_catalog.set_config('pathways.m0066_monitoring_acl',(SELECT coalesce(proacl::text,'') FROM pg_catalog.pg_proc
   WHERE oid='pathways.p06_monitoring(uuid,uuid[],date,date,text)'::pg_catalog.regprocedure),true);
- PERFORM pg_catalog.set_config('pathways.m0065_home_acl',(SELECT coalesce(proacl::text,'') FROM pg_catalog.pg_proc
+ PERFORM pg_catalog.set_config('pathways.m0066_home_acl',(SELECT coalesce(proacl::text,'') FROM pg_catalog.pg_proc
   WHERE oid='pathways.p06_home_dashboard(uuid,uuid[],date,date,text)'::pg_catalog.regprocedure),true);
- PERFORM pg_catalog.set_config('pathways.m0065_grants',(SELECT count(*) FROM pathways.role_permissions)::text,true);
+ PERFORM pg_catalog.set_config('pathways.m0066_grants',(SELECT count(*) FROM pathways.role_permissions)::text,true);
 END $$;
 SELECT pg_advisory_xact_lock(505005,1);
 
@@ -723,20 +723,20 @@ DO $$ DECLARE fn text; runtime oid := (SELECT oid FROM pg_catalog.pg_roles WHERE
   IF NOT EXISTS(SELECT FROM pg_catalog.pg_proc p WHERE p.oid=fn::pg_catalog.regprocedure
    AND pg_catalog.pg_get_userbyid(p.proowner)='prisma' AND p.prosecdef AND p.provolatile='s'
    AND p.proconfig IS NOT DISTINCT FROM ARRAY['search_path=""'])
-  THEN RAISE EXCEPTION '0065 % owner/security/search_path postcondition failed',fn; END IF;
+  THEN RAISE EXCEPTION '0066 % owner/security/search_path postcondition failed',fn; END IF;
   IF NOT has_function_privilege('pathways_runtime',fn,'EXECUTE')
    OR EXISTS(SELECT FROM (VALUES('anon'),('authenticated'),('service_role')) r(name) WHERE has_function_privilege(r.name,fn,'EXECUTE'))
-  THEN RAISE EXCEPTION '0065 % runtime ACL postcondition failed',fn; END IF;
+  THEN RAISE EXCEPTION '0066 % runtime ACL postcondition failed',fn; END IF;
  END LOOP;
  IF (SELECT coalesce(proacl::text,'') FROM pg_catalog.pg_proc WHERE oid='pathways.p06_monitoring(uuid,uuid[],date,date,text)'::pg_catalog.regprocedure)
-   IS DISTINCT FROM pg_catalog.current_setting('pathways.m0065_monitoring_acl')
+   IS DISTINCT FROM pg_catalog.current_setting('pathways.m0066_monitoring_acl')
   OR (SELECT coalesce(proacl::text,'') FROM pg_catalog.pg_proc WHERE oid='pathways.p06_home_dashboard(uuid,uuid[],date,date,text)'::pg_catalog.regprocedure)
-   IS DISTINCT FROM pg_catalog.current_setting('pathways.m0065_home_acl')
- THEN RAISE EXCEPTION '0065 replaced function ACL changed'; END IF;
+   IS DISTINCT FROM pg_catalog.current_setting('pathways.m0066_home_acl')
+ THEN RAISE EXCEPTION '0066 replaced function ACL changed'; END IF;
  FOREACH fn IN ARRAY ARRAY['pathways.p06_participation_breakdown(uuid,date,date)','pathways.p06_indicator_values(uuid,text)'] LOOP
   IF EXISTS(SELECT FROM pg_catalog.pg_proc p CROSS JOIN LATERAL pg_catalog.aclexplode(coalesce(p.proacl,pg_catalog.acldefault('f',p.proowner))) a
    WHERE p.oid=fn::pg_catalog.regprocedure AND a.grantee NOT IN (p.proowner, runtime))
-  THEN RAISE EXCEPTION '0065 % ACL postcondition failed',fn; END IF;
+  THEN RAISE EXCEPTION '0066 % ACL postcondition failed',fn; END IF;
  END LOOP;
  FOREACH fn IN ARRAY ARRAY['pathways.p06_complement_cell(jsonb,jsonb)','pathways.p06_release_reach(jsonb)',
    'pathways.p06_suppress_breakdown(jsonb,boolean)'] LOOP
@@ -745,20 +745,20 @@ DO $$ DECLARE fn text; runtime oid := (SELECT oid FROM pg_catalog.pg_roles WHERE
     AND p.proconfig IS NOT DISTINCT FROM ARRAY['search_path=""'])
    OR EXISTS(SELECT FROM pg_catalog.pg_proc p CROSS JOIN LATERAL pg_catalog.aclexplode(coalesce(p.proacl,pg_catalog.acldefault('f',p.proowner))) a
     WHERE p.oid=fn::pg_catalog.regprocedure AND a.grantee<>p.proowner)
-  THEN RAISE EXCEPTION '0065 helper % postcondition failed',fn; END IF;
+  THEN RAISE EXCEPTION '0066 helper % postcondition failed',fn; END IF;
  END LOOP;
- IF (SELECT count(*) FROM pathways.role_permissions)::text IS DISTINCT FROM pg_catalog.current_setting('pathways.m0065_grants')
- THEN RAISE EXCEPTION '0065 must not change role_permissions'; END IF;
+ IF (SELECT count(*) FROM pathways.role_permissions)::text IS DISTINCT FROM pg_catalog.current_setting('pathways.m0066_grants')
+ THEN RAISE EXCEPTION '0066 must not change role_permissions'; END IF;
 END $$;
 COMMIT;
 ```
 
-- [ ] **Step 4: Wire 0065 into the inventories**
+- [ ] **Step 4: Wire 0066 into the inventories**
 
-`infra/supabase/phase6/Verify-Forward.ps1`: append `'0065_beneficiary_reach_kpi_values'` as the last line of `$forwardInventory` (after `'0064_evaluation_write_path'`). Before the closing `} finally {` (currently `:988`), append:
+`infra/supabase/phase6/Verify-Forward.ps1`: append `'0066_beneficiary_reach_kpi_values'` as the last line of `$forwardInventory` (after `'0064_evaluation_write_path'`). Before the closing `} finally {` (currently `:988`), append:
 
 ```powershell
-  # 0065 inventory: two release functions owned by prisma with runtime-only EXECUTE; helpers stay owner-only.
+  # 0066 inventory: two release functions owned by prisma with runtime-only EXECUTE; helpers stay owner-only.
   foreach ($db in @('pathways_phase4_baseline', 'pathways_phase4_forward_restore')) {
     $reachShape = Read-ForwardSql $db @"
 SELECT (SELECT bool_and(pg_catalog.pg_get_userbyid(p.proowner)='prisma' AND p.prosecdef
@@ -769,9 +769,9 @@ SELECT (SELECT bool_and(pg_catalog.pg_get_userbyid(p.proowner)='prisma' AND p.pr
  AND NOT has_function_privilege('pathways_runtime','pathways.p06_release_reach(jsonb)','EXECUTE')
  AND (SELECT count(*) FROM pathways.role_permissions)=314)::text;
 "@
-    if ($reachShape.Trim() -cne 'true') { throw "0065 beneficiary reach inventory differs in $db." }
+    if ($reachShape.Trim() -cne 'true') { throw "0066 beneficiary reach inventory differs in $db." }
   }
-  Write-Output 'FORWARD_0065_BENEFICIARY_REACH_INVENTORY=PASS'
+  Write-Output 'FORWARD_0066_BENEFICIARY_REACH_INVENTORY=PASS'
 ```
 
 `infra/supabase/phase6/Replay-Local.ps1`: after `Write-Output 'ACTIVITY_EXTENSION_REQUESTS_RUNTIME=PASS'` (`:598`, inside `if ($MigrationBaseline)`), add:
@@ -781,39 +781,39 @@ SELECT (SELECT bool_and(pg_catalog.pg_get_userbyid(p.proowner)='prisma' AND p.pr
       Write-Output 'BENEFICIARY_REACH_KPI_VALUES_RUNTIME=PASS'
 ```
 
-`scripts/db/hosted-plan.mjs`: add `'0065_beneficiary_reach_kpi_values',` after `'0064_evaluation_write_path'` in `MIGRATIONS_IN_ORDER`, in `PRIOR_BUILD_COMPLETION_POINTS` and in `RESIDUAL_CHAIN_MIGRATIONS`; bump the ledger row count in the comment at `:7` by one and change its range text to end at 0065; insert right before `{ type: 'alter-runtime-role' },`:
+`scripts/db/hosted-plan.mjs`: add `'0066_beneficiary_reach_kpi_values',` after `'0064_evaluation_write_path'` in `MIGRATIONS_IN_ORDER`, in `PRIOR_BUILD_COMPLETION_POINTS` and in `RESIDUAL_CHAIN_MIGRATIONS`; bump the ledger row count in the comment at `:7` by one and change its range text to end at 0066; insert right before `{ type: 'alter-runtime-role' },`:
 
 ```js
-    // 0065 needs no preprovision: prisma owns every function and source table it reads.
+    // 0066 needs no preprovision: prisma owns every function and source table it reads.
     { type: 'deploy', migrations: range(65, 65) },
 ```
 
-`scripts/db/hosted-plan.test.mjs`: increase `assert.equal(MIGRATIONS_IN_ORDER.length, N)` and its comment by one; add `'deploy:0065_beneficiary_reach_kpi_values',` before `'alter-runtime-role',` in the step-order test; rename the "complete 0000-0064 ledger" test to 0065; add:
+`scripts/db/hosted-plan.test.mjs`: increase `assert.equal(MIGRATIONS_IN_ORDER.length, N)` and its comment by one; add `'deploy:0066_beneficiary_reach_kpi_values',` before `'alter-runtime-role',` in the step-order test; rename the "complete 0000-0064 ledger" test to 0066; add:
 
 ```js
-test('planIndexForAppliedCount on a 0000-0064 ledger resumes at the 0065 deploy', () => {
+test('planIndexForAppliedCount on a 0000-0064 ledger resumes at the 0066 deploy', () => {
   const plan = buildPlan()
   const index = planIndexForAppliedCount(MIGRATIONS_IN_ORDER.indexOf('0064_evaluation_write_path') + 1)
-  assert.deepEqual(plan[index].migrations, ['0065_beneficiary_reach_kpi_values'])
+  assert.deepEqual(plan[index].migrations, ['0066_beneficiary_reach_kpi_values'])
 })
 ```
 
-`scripts/db/hosted-build.mjs` and `scripts/db/hosted-build.local.test.mjs`: change every `0000-0064` to `0000-0065`. `apps/api/prisma/legacy-retirement.test.ts`: add `'0065_beneficiary_reach_kpi_values',` after `'0064_evaluation_write_path',`. Then run `git grep -n "0000-0064" -- scripts infra apps` and update any remaining current-chain hit.
+`scripts/db/hosted-build.mjs` and `scripts/db/hosted-build.local.test.mjs`: change every `0000-0064` to `0000-0066`. `apps/api/prisma/legacy-retirement.test.ts`: add `'0066_beneficiary_reach_kpi_values',` after `'0064_evaluation_write_path',`. Then run `git grep -n "0000-0064" -- scripts infra apps` and update any remaining current-chain hit.
 
 - [ ] **Step 5: Run the gates and the suite**
 
-Run (PowerShell): `./infra/supabase/phase6/Replay-Local.ps1 -MigrationBaseline -SaveTemplate` (full gate: replays 0000-0065, Verify-Forward, every runtime suite, the local vitest suites), then `./infra/supabase/phase6/Invoke-RuntimeSql.ps1 -File apps/api/prisma/tests/beneficiary-reach-kpi-values-runtime.sql`.
-Expected: replay exit 0 with `BENEFICIARY_REACH_KPI_VALUES_RUNTIME=PASS` and `FORWARD_0065_BENEFICIARY_REACH_INVENTORY=PASS` (the replay also runs the updated `reports-runtime.local.test.ts`); the runner prints `NOTICE:  BENEFICIARY_REACH_KPI_VALUES_RUNTIME=PASS (32 assertions)`.
+Run (PowerShell): `./infra/supabase/phase6/Replay-Local.ps1 -MigrationBaseline -SaveTemplate` (full gate: replays 0000-0066, Verify-Forward, every runtime suite, the local vitest suites), then `./infra/supabase/phase6/Invoke-RuntimeSql.ps1 -File apps/api/prisma/tests/beneficiary-reach-kpi-values-runtime.sql`.
+Expected: replay exit 0 with `BENEFICIARY_REACH_KPI_VALUES_RUNTIME=PASS` and `FORWARD_0066_BENEFICIARY_REACH_INVENTORY=PASS` (the replay also runs the updated `reports-runtime.local.test.ts`); the runner prints `NOTICE:  BENEFICIARY_REACH_KPI_VALUES_RUNTIME=PASS (32 assertions)`.
 Run (bash): `node --test scripts/db/hosted-plan.test.mjs && pnpm --filter @pathways/api exec vitest run prisma/legacy-retirement.test.ts && pnpm sad:check`
 Expected: all pass.
 Run (PowerShell): `./infra/supabase/phase6/Test-SchemaDrift.ps1`
-Expected: `SCHEMA_DRIFT=CLEAN` (0065 changes no table or column).
+Expected: `SCHEMA_DRIFT=CLEAN` (0066 changes no table or column).
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add apps/api/prisma/migrations/0065_beneficiary_reach_kpi_values apps/api/prisma/tests/beneficiary-reach-kpi-values-runtime.sql infra/supabase/phase6 scripts/db apps/api/prisma/legacy-retirement.test.ts apps/api/src/modules/reports/reports-runtime.local.test.ts
-git commit -m "feat(db): 0065 release reach counts, participation breakdown and KPI values with suppression
+git add apps/api/prisma/migrations/0066_beneficiary_reach_kpi_values apps/api/prisma/tests/beneficiary-reach-kpi-values-runtime.sql infra/supabase/phase6 scripts/db apps/api/prisma/legacy-retirement.test.ts apps/api/src/modules/reports/reports-runtime.local.test.ts
+git commit -m "feat(db): 0066 release reach counts, participation breakdown and KPI values with suppression
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
@@ -866,7 +866,7 @@ const manager: ApplicationIdentity = {
   permissions: ['monitoring.read', 'reports.indicator.read'],
 }
 
-describe('Released indicator values (0065)', () => {
+describe('Released indicator values (0066)', () => {
   const service = new IndicatorsService({} as PrismaService)
   beforeEach(() => {
     vi.resetAllMocks()
@@ -1695,7 +1695,7 @@ Developer decision 2026-10-06 (spec `docs/superpowers/specs/2026-10-06-beneficia
 
 ## 3. Proposed Change
 
-- Migration `0065_beneficiary_reach_kpi_values` (after `0064_evaluation_write_path`): `p06_monitoring` and `p06_home_dashboard` return the counts from `p06_compute_monitoring` with 1-4 SMALL_COHORT and nested-count COMPLEMENTARY_SUPPRESSION (records minus individuals, individuals minus attending, records minus attending of 1-4 hides the inner count). The home dashboard keeps the placeholder for callers without `monitoring.read` on every project.
+- Migration `0066_beneficiary_reach_kpi_values` (after `0064_evaluation_write_path`): `p06_monitoring` and `p06_home_dashboard` return the counts from `p06_compute_monitoring` with 1-4 SMALL_COHORT and nested-count COMPLEMENTARY_SUPPRESSION (records minus individuals, individuals minus attending, records minus attending of 1-4 hides the inner count). The home dashboard keeps the placeholder for callers without `monitoring.read` on every project.
 - `p06_participation_breakdown(project, start, end)`: needs `monitoring.read`, `analytics.descriptive.read`, `beneficiaries.aggregates.read` and project scope; hides cells of 1-4 records or 1-4 people, plus the smallest other non-zero cell when exactly one is hidden; a total of 1-4 hides everything.
 - `p06_indicator_values(project, zone)`: needs `monitoring.read`, `reports.indicator.read` and project scope; returns display fields and the current value cell from `p06_compute_indicator_value` (the same computation as `p34_compute_indicator_value`), never definitions, bindings, field IDs or measurement IDs.
 - API: the overview KPI card, monitoring dashboard indicators, descriptive indicator summaries and the monitoring report read `p06_indicator_values` for every role; new `GET /projects/:projectId/indicator-values` (`monitoring.read` and `reports.indicator.read`) gives the Analytics page reporting periods; participation reads `p06_participation_breakdown`; activity reach sums of 1-4 become null.
@@ -1726,15 +1726,15 @@ RFC SADDD privacy, QAD, deferred register rows, activity log, index.
 
 ## 6. Migration / Rollback
 
-Apply 0065 after the local replay and SAD migration review. Rollback is a forward migration restoring the baseline `p06_monitoring` and `p06_home_dashboard` bodies (`0000` migration) and dropping the five new functions; the API then falls back to withheld states.
+Apply 0066 after the local replay and SAD migration review. Rollback is a forward migration restoring the baseline `p06_monitoring` and `p06_home_dashboard` bodies (`0000` migration) and dropping the five new functions; the API then falls back to withheld states.
 
 ## 7. Verification
 
-Local replay 0000-0065 with `BENEFICIARY_REACH_KPI_VALUES_RUNTIME=PASS` and `FORWARD_0065_BENEFICIARY_REACH_INVENTORY=PASS`; `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm sad:check`, `pnpm docs:check`; devV2 apply with read-only checks; manager in-app smoke.
+Local replay 0000-0066 with `BENEFICIARY_REACH_KPI_VALUES_RUNTIME=PASS` and `FORWARD_0066_BENEFICIARY_REACH_INVENTORY=PASS`; `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm sad:check`, `pnpm docs:check`; devV2 apply with read-only checks; manager in-app smoke.
 
 ## 8. Approval
 
-Developer, 2026-10-06 (spec approved). Migration renumbered to 0065 by the controller.
+Developer, 2026-10-06 (spec approved). Migration renumbered to 0066 by the controller.
 
 ## 9. Disposition
 
@@ -1746,7 +1746,7 @@ Pending implementation. Known limit: activity reach suppression is display consi
 `docs/rfc-pathways-saddd-privacy.md`: set `**Last reconciled:** 2026-10-06` and add before `## Tests`:
 
 ```markdown
-## Release Surfaces (cr-pathways-beneficiary-reach-kpi-values, 0065)
+## Release Surfaces (cr-pathways-beneficiary-reach-kpi-values, 0066)
 
 - Monitoring reach counts (records, individuals, attending individuals, participation records): 1-4 is suppressed; when records minus individuals, individuals minus attending, or records minus attending is 1-4, the inner count is suppressed too.
 - Participation breakdowns: a cell of 1-4 records or 1-4 people is suppressed; a lone suppressed cell also hides the smallest other non-zero cell in its breakdown; a total of 1-4 hides every cell.
@@ -1779,13 +1779,13 @@ Update QAD-A39 evidence to `apps/api/prisma/tests/beneficiary-reach-kpi-values-r
 `docs/deferred-features.md`: replace line 31 with:
 
 ```markdown
-| F9 participation breakdowns for aggregate-only roles | Resolved | 2026-10-06 | Migration 0065 adds `p06_participation_breakdown` (monitoring.read, analytics.descriptive.read and beneficiaries.aggregates.read) with 1-4 and complementary suppression, so Program and Grant Manager see the participation view. | `apps/api/src/modules/analytics-insights`; migration 0065. See [cr-pathways-beneficiary-reach-kpi-values](cr-pathways-beneficiary-reach-kpi-values.md). | Not applicable. |
+| F9 participation breakdowns for aggregate-only roles | Resolved | 2026-10-06 | Migration 0066 adds `p06_participation_breakdown` (monitoring.read, analytics.descriptive.read and beneficiaries.aggregates.read) with 1-4 and complementary suppression, so Program and Grant Manager see the participation view. | `apps/api/src/modules/analytics-insights`; migration 0066. See [cr-pathways-beneficiary-reach-kpi-values](cr-pathways-beneficiary-reach-kpi-values.md). | Not applicable. |
 ```
 
 line 62 with:
 
 ```markdown
-| Derived indicator recipes other than Activity completion % | Partly resolved | 2026-10-06 | KPI surfaces (overview KPI card, monitoring dashboard indicators, descriptive summaries, monitoring report) now show derived values with suppression through `p06_indicator_values` (0065). The Indicators tab still reads `p06_indicator_value`, which keeps the SENSITIVE_RELEASE_NOT_ENABLED_V1 placeholder, and the Add project indicator form still offers only Activity completion %. | `apps/web/src/features/projects/project-indicators-workspace.tsx`; migration 0000 `p06_indicator_value`; migration 0065. | Release the remaining recipes in `p06_indicator_value` in a reviewed migration, then add them to `enabledRecipes`. |
+| Derived indicator recipes other than Activity completion % | Partly resolved | 2026-10-06 | KPI surfaces (overview KPI card, monitoring dashboard indicators, descriptive summaries, monitoring report) now show derived values with suppression through `p06_indicator_values` (0066). The Indicators tab still reads `p06_indicator_value`, which keeps the SENSITIVE_RELEASE_NOT_ENABLED_V1 placeholder, and the Add project indicator form still offers only Activity completion %. | `apps/web/src/features/projects/project-indicators-workspace.tsx`; migration 0000 `p06_indicator_value`; migration 0066. | Release the remaining recipes in `p06_indicator_value` in a reviewed migration, then add them to `enabledRecipes`. |
 ```
 
 and add before the blank line above `## Maintenance`:
@@ -1797,14 +1797,14 @@ and add before the blank line above `## Maintenance`:
 `docs/index.md` Change Log (`:142` table): add
 
 ```markdown
-| [cr-pathways-beneficiary-reach-kpi-values](cr-pathways-beneficiary-reach-kpi-values.md) | 2026-10-06 | Releases reach counts, participation breakdowns and KPI values to Program and Grant Manager with 1-4 and complementary suppression, no grant change (migration 0065) | Approved |
+| [cr-pathways-beneficiary-reach-kpi-values](cr-pathways-beneficiary-reach-kpi-values.md) | 2026-10-06 | Releases reach counts, participation breakdowns and KPI values to Program and Grant Manager with 1-4 and complementary suppression, no grant change (migration 0066) | Approved |
 ```
 
 `docs/activity-log.md`: append
 
 ```markdown
-## 2026-10-06 Beneficiary reach and KPI values migration 0065
-- `0065_beneficiary_reach_kpi_values` releases the four reach counts with 1-4 and nested complementary suppression, and adds `p06_participation_breakdown` and `p06_indicator_values` (prisma-owned definers, runtime EXECUTE only, no grant change, 314 role_permissions).
+## 2026-10-06 Beneficiary reach and KPI values migration 0066
+- `0066_beneficiary_reach_kpi_values` releases the four reach counts with 1-4 and nested complementary suppression, and adds `p06_participation_breakdown` and `p06_indicator_values` (prisma-owned definers, runtime EXECUTE only, no grant change, 314 role_permissions).
 - KPI values reuse `p06_compute_indicator_value` (same computation as the report) because `p34_compute_indicator_value` needs the `report_projection_owner` chain; the runtime suite sets prisma NOBYPASSRLS to prove hosted forced-RLS reads.
 - API and web: KPI surfaces read released values for every role, a new indicator-values route feeds Analytics periods, participation opens to the release gates, suppressed counts read "Suppressed (fewer than 5)", activity reach of 1-4 is withheld for display only.
 ```
@@ -1816,7 +1816,7 @@ Expected: exit 0.
 
 ```bash
 git add docs/cr-pathways-beneficiary-reach-kpi-values.md docs/rfc-pathways-saddd-privacy.md docs/qad-pathways.md docs/deferred-features.md docs/activity-log.md docs/index.md
-git commit -m "docs: record the beneficiary reach and KPI values release (0065)
+git commit -m "docs: record the beneficiary reach and KPI values release (0066)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
@@ -1827,10 +1827,10 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 **Files:** none (verification only; fix in the owning task if anything fails).
 
-- [ ] **Step 1: Full local replay 0000-0065**
+- [ ] **Step 1: Full local replay 0000-0066**
 
 Run (PowerShell, worktree root): `./infra/supabase/phase6/Replay-Local.ps1 -MigrationBaseline -SaveTemplate`
-Expected: exit 0; output includes `BENEFICIARY_REACH_KPI_VALUES_RUNTIME=PASS`, `FORWARD_0065_BENEFICIARY_REACH_INVENTORY=PASS`, every existing `*_RUNTIME=PASS` line (including `ACTIVITY_EXTENSION_REQUESTS_RUNTIME`, `FORWARD_0063_RULES_SCOPE_MEMO_RUNTIME`) and the local vitest suites (c8, dashboard home, reports).
+Expected: exit 0; output includes `BENEFICIARY_REACH_KPI_VALUES_RUNTIME=PASS`, `FORWARD_0066_BENEFICIARY_REACH_INVENTORY=PASS`, every existing `*_RUNTIME=PASS` line (including `ACTIVITY_EXTENSION_REQUESTS_RUNTIME`, `FORWARD_0063_RULES_SCOPE_MEMO_RUNTIME`) and the local vitest suites (c8, dashboard home, reports).
 
 - [ ] **Step 2: Existing runtime suites through the template runner**
 
@@ -1853,9 +1853,9 @@ Expected: `314`.
 
 ## Controller-only checklist (not an implementer task)
 
-- [ ] SAD migration review of 0065 through `sad-orchestrator` (migration-integrity-guardian, beneficiary-privacy-guardian, organization-isolation-checker, restraint-guardian); record the evidence in the CR.
+- [ ] SAD migration review of 0066 through `sad-orchestrator` (migration-integrity-guardian, beneficiary-privacy-guardian, organization-isolation-checker, restraint-guardian); record the evidence in the CR.
 - [ ] Confirm devV2 ledger ends at `0064_evaluation_write_path` (finished, none failed) and `SELECT count(*) FROM pathways.role_permissions` is 314.
 - [ ] Clear `.tmp/hosted-build/migrations`, then apply under the staging auto-migrate rule: `node scripts/db/hosted-build.mjs --env-file .tmp/role-staging-build.env --resume` (`docs/runbook-role-staging-build.md:137`).
-- [ ] Read-only devV2 checks: ledger finished through 0065; `p06_participation_breakdown` and `p06_indicator_values` owned by `prisma`, `prosecdef`, EXECUTE only for `pathways_runtime`; helpers owner-only; `prisma` `rolbypassrls` is false; role_permissions 314.
+- [ ] Read-only devV2 checks: ledger finished through 0066; `p06_participation_breakdown` and `p06_indicator_values` owned by `prisma`, `prosecdef`, EXECUTE only for `pathways_runtime`; helpers owner-only; `prisma` `rolbypassrls` is false; role_permissions 314.
 - [ ] In-app smoke on devV2 as Program Manager and Grant Manager (role dashboard reach cards, overview KPI card, Analytics participation and reach, no Indicators tab) and as Project Officer (unchanged, no "0" for withheld counts).
 - [ ] Set the CR to Applied with the devV2 facts, update `docs/activity-log.md`, merge to local `dev`, push `origin dev` only when the user says (dev push rule).

@@ -8,6 +8,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   Req,
 } from '@nestjs/common'
 import { RequireBeneficiaryStepUp } from '../../common/decorators/beneficiary-step-up.decorator'
@@ -57,6 +58,18 @@ export class EvaluationsController {
   get(@Req() request: AuthenticatedRequest, @Param('projectId') projectId: string) {
     if (!request.user) throw new ForbiddenException('Application profile required.')
     return this.service.get(request.user, projectId)
+  }
+  @Get('assessments')
+  @Header('Cache-Control', 'private, no-store')
+  @RequirePermission('assessments.detail.read')
+  @RequireBeneficiaryStepUp()
+  beneficiaryAssessments(
+    @Req() request: AuthenticatedRequest,
+    @Param('projectId') projectId: string,
+    @Query() query: unknown,
+  ) {
+    if (!request.user) throw new ForbiddenException('Application profile required.')
+    return this.service.listBeneficiaryAssessments(request.user, projectId, query)
   }
   @Get('assessments/:assessmentId')
   @Header('Cache-Control', 'private, no-store')

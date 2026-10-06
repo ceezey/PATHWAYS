@@ -271,7 +271,49 @@ function parseAssessmentDetail(value: unknown): AssessmentDetail {
   }
 }
 
+export type AssessmentSummary = Omit<
+  AssessmentDetail,
+  'projectId' | 'enrollmentId' | 'beneficiary'
+> & {
+  stageId: string | null
+}
+
+function parseAssessmentSummaries(value: unknown): AssessmentSummary[] {
+  const invalid = () => new PathwaysClientError('Invalid assessment response.', 'network')
+  if (!Array.isArray(value) || value.length > 100) throw invalid()
+  return value.map((item) => {
+    const row = item as Record<string, unknown> | null
+    if (
+      !row ||
+      typeof row.id !== 'string' ||
+      !isNullableString(row.activityId) ||
+      !isNullableString(row.stageId) ||
+      !assessmentTypes.has(row.type as string) ||
+      typeof row.score !== 'string' ||
+      typeof row.maximumScore !== 'string' ||
+      typeof row.assessmentDate !== 'string' ||
+      typeof row.recordedAt !== 'string'
+    )
+      throw invalid()
+    return {
+      id: row.id,
+      type: row.type as AssessmentDetail['type'],
+      activityId: row.activityId as string | null,
+      stageId: row.stageId as string | null,
+      score: row.score,
+      maximumScore: row.maximumScore,
+      assessmentDate: row.assessmentDate,
+      recordedAt: row.recordedAt,
+    }
+  })
+}
+
 export interface PathwaysClient {
+  getBeneficiaryAssessments(
+    projectId: string,
+    enrollmentId: string,
+    signal?: AbortSignal,
+  ): Promise<AssessmentSummary[]>
   getAssessmentDetail(
     projectId: string,
     assessmentId: string,
@@ -636,6 +678,18 @@ const extensionPath = (projectId: string, activityId: string) =>
   `/projects/${encodeURIComponent(projectId)}/activities/${encodeURIComponent(activityId)}/extension-requests`
 
 class BackendReadyPathwaysClient implements PathwaysClient {
+  async getBeneficiaryAssessments(
+    projectId: string,
+    enrollmentId: string,
+    signal?: AbortSignal,
+  ): Promise<AssessmentSummary[]> {
+    return parseAssessmentSummaries(
+      await requestFoundation(
+        `/projects/${encodeURIComponent(projectId)}/evaluation/assessments?enrollmentId=${encodeURIComponent(enrollmentId)}`,
+        { signal },
+      ),
+    )
+  }
   async getAssessmentDetail(
     projectId: string,
     assessmentId: string,

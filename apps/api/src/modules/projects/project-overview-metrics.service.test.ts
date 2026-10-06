@@ -64,6 +64,7 @@ function matchesScope(
 
 function harness(
   options: {
+    startDate?: string
     endDate?: string | null
     sadddTotal?: MetricCell
     plannedBudget?: string | null
@@ -75,7 +76,7 @@ function harness(
     {
       id: projectA,
       organizationId: orgA,
-      startDate: new Date('2026-01-01T00:00:00.000Z'),
+      startDate: new Date(`${options.startDate ?? '2026-01-01'}T00:00:00.000Z`),
       endDate:
         options.endDate === null
           ? null
@@ -224,16 +225,23 @@ describe('GET /projects/:projectId/overview-metrics', () => {
     expect(result.beneficiariesReached?.metric).toEqual(suppressed)
   })
 
-  it('reports reach on an open project as not yet released, without calling the release', async () => {
+  it('releases reach live to date on an ongoing project', async () => {
     const { service, sqlCalls } = harness({ endDate: '2026-12-31' })
+    const result = await service.read(actor('PROJECT_MANAGER'), projectA)
+    expect(result.beneficiariesReached?.metric).toEqual(cell('30'))
+    expect(sqlCalls.some((sql) => sql.includes('p06_saddd'))).toBe(true)
+    expect(result.timeline.metric).toEqual(cell('74.2'))
+  })
+
+  it('reports reach on a not-started project as missing, without calling the release', async () => {
+    const { service, sqlCalls } = harness({ startDate: '2026-10-01', endDate: '2026-12-31' })
     const result = await service.read(actor('PROJECT_MANAGER'), projectA)
     expect(result.beneficiariesReached?.metric).toEqual({
       state: 'MISSING',
       value: null,
-      reason: 'RELEASED_AFTER_PROJECT_CLOSE',
+      reason: 'NOT_STARTED',
     })
     expect(sqlCalls.some((sql) => sql.includes('p06_saddd'))).toBe(false)
-    expect(result.timeline.metric).toEqual(cell('74.2'))
   })
 
   it('returns budget utilization as null without budget read permission', async () => {

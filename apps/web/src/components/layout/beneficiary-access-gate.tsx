@@ -24,7 +24,10 @@ import {
   verifyBeneficiaryStepUp,
   verifyStepUpPin,
 } from '@/lib/auth/beneficiary-step-up'
-import { STEP_UP_REQUIRED_EVENT } from '@/lib/auth/beneficiary-step-up-events'
+import {
+  STEP_UP_REQUIRED_EVENT,
+  announceStepUpCompleted,
+} from '@/lib/auth/beneficiary-step-up-events'
 
 const PROMPT = 'Enter the six-digit code from your authenticator app.'
 const PIN_PROMPT = 'Enter your beneficiary access PIN.'
@@ -148,6 +151,7 @@ export const BeneficiaryAccessGate = ({
     setMessage(PROMPT)
     setOverlay(false)
     setPhase('open')
+    announceStepUpCompleted()
   }
 
   const verifyCode = async (submitted = code) => {

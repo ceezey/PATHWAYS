@@ -229,9 +229,11 @@ export interface BeneficiaryAssessmentRecord {
   beneficiaryId: string
   projectId: string
   stageId: string
+  type: 'PRE_TEST' | 'POST_TEST' | 'OUTCOME_SURVEY' | 'FEEDBACK_SURVEY' | 'OTHER'
   title: string
   assessedAt: string
   score: number
+  maximumScore: number
   source: string
   note: string
 }
