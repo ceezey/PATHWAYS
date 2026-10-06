@@ -396,3 +396,9 @@
 - `RuleOutputFields` splits into `SeverityField` and `RecommendationFields`. Severity is a radio tile group instead of a select, each tile stating the reading it carries, with Low describing progress or milestone insight so the builder is not framed as risk-only. No contract or schema change: severity stays `LOW..CRITICAL`.
 - `RulePreview` keeps the exact `previewSentence` text and adds a rendered output preview below it: severity-tinted title, the condition summary, and the first recommendation. Presentation only, built from drawer state.
 - Web typecheck and biome clean; 50 rules-board and rule-editor tests and the 33 UI copy contract tests pass.
+
+## 2026-10-06 Rule creation moves in-page beside the repository (feat/project-workspace-frame-ui)
+- `RulesBoard` wraps its body in two tabs: Rule repository (filters and both configuration cards, unchanged) and Create rule, which only renders for `rules.create`. Create Rule anywhere on the page switches tabs instead of opening the side panel; clicking an existing rule still opens the panel, so edit, test and lifecycle intents keep their current flow.
+- `RuleDrawer` takes an `inline` prop. Inline it skips the Sheet and lays the steps beside a sticky `RulePreview` column; the footer switches to a horizontal row with Cancel. The panel presentation is untouched.
+- Severity tiles map per level to the StatusBadge token vocabulary (Critical danger, High warning, Medium info, Low neutral) rather than reusing `severityTone`, which lumps High with Critical and would flatten the picker.
+- Two board tests cover the tab: Create Rule activates the Create rule tab with the builder in page and no dialog, and the tab is absent without `rules.create`. Web typecheck and biome clean; 85 tests across rules-board, rule-editor and the UI copy contract pass.

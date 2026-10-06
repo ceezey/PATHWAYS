@@ -119,6 +119,22 @@ describe('RulesBoard', () => {
     expect((await screen.findAllByText('None yet')).length).toBe(2)
     expect(screen.getAllByRole('button', { name: 'Create Rule' }).length).toBe(4)
   })
+  it('opens the builder in the Create rule tab rather than a side panel', async () => {
+    renderBoard()
+    await screen.findAllByText('Low indicator progress')
+    expect(screen.getByRole('tab', { name: 'Rule repository' })).toBeTruthy()
+    fireEvent.click(screen.getAllByRole('button', { name: 'Create Rule' })[0] as HTMLElement)
+    const tab = await screen.findByRole('tab', { name: 'Create rule' })
+    expect(tab.getAttribute('data-state')).toBe('active')
+    expect(await screen.findByLabelText('Rule Name')).toBeTruthy()
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+  it('hides the Create rule tab without rules.create', async () => {
+    state.permissions = ['rules.read', 'projects.read']
+    renderBoard()
+    await screen.findAllByText('Low indicator progress')
+    expect(screen.queryByRole('tab', { name: 'Create rule' })).toBeNull()
+  })
   it('shows an error state with retry', async () => {
     state.listRules.mockRejectedValue(new Error('down'))
     renderBoard()

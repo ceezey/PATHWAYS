@@ -47,6 +47,8 @@ type Props = {
   projectId: string | null
   projects: { id: string; title: string }[]
   intent?: DrawerIntent
+  /** Inline renders the builder in the page beside a sticky preview instead of a side panel. */
+  inline?: boolean
   onClose: () => void
   onSaved: (scopeProjectId: string | null) => void
 }
@@ -75,6 +77,12 @@ export function RuleDrawer(props: Props) {
     : props.mode === 'alert'
       ? 'Create Alert Rule'
       : 'Create Recommendation Rule'
+  if (props.inline)
+    return owner ? (
+      <OwnedDrawer key={`${owner.generation}:${owner.key}`} {...props} owner={owner} />
+    ) : (
+      <output>Current rule access is required.</output>
+    )
   return (
     <Sheet open onOpenChange={(open) => !open && props.onClose()}>
       <SidePanel
@@ -99,6 +107,8 @@ function OwnedDrawer({
   projectId,
   projects,
   intent,
+  inline,
+  onClose,
   onSaved,
   owner,
 }: Props & { owner: SensitiveDraftOwner }) {
@@ -265,7 +275,17 @@ function OwnedDrawer({
       'This operation could not be completed. Refresh the rule and verify current access.',
     )
   }
-  return (
+  const preview = (
+    <RulePreview
+      condition={conditionSummary(tree)}
+      mode={mode}
+      name={name}
+      recommendation={recs[0]}
+      sentence={previewSentence({ name, severity, conditions: tree })}
+      severity={severity}
+    />
+  )
+  const builder = (
     <div className="space-y-6">
       <form
         className="space-y-6"
@@ -351,14 +371,7 @@ function OwnedDrawer({
             <RecommendationFields onRecs={setRecs} recs={recs} />
           </RuleStepCard>
         </fieldset>
-        <RulePreview
-          condition={conditionSummary(tree)}
-          mode={mode}
-          name={name}
-          recommendation={recs[0]}
-          sentence={previewSentence({ name, severity, conditions: tree })}
-          severity={severity}
-        />
+        {inline ? null : preview}
       </form>
       {showTest && rule ? (
         <RuleTestWorkspace key={`${rule.id}:${rule.version}`} rule={rule} />
@@ -374,7 +387,9 @@ function OwnedDrawer({
         canDeactivate={canDeactivate}
         canWrite={canWrite}
         hasRule={Boolean(rule)}
+        inline={inline}
         nested={nested}
+        onCancel={inline ? onClose : undefined}
         onConfirm={setConfirm}
         onTest={() => setShowTest((value) => !value)}
         showTest={showTest}
@@ -396,6 +411,13 @@ function OwnedDrawer({
           </DialogContent>
         </Dialog>
       ) : null}
+    </div>
+  )
+  if (!inline) return builder
+  return (
+    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start">
+      {builder}
+      <div className="lg:sticky lg:top-4">{preview}</div>
     </div>
   )
 }

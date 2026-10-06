@@ -9,27 +9,28 @@ import { cn } from '@/lib/utils'
 import { type Rec, newRec, severities } from './rule-drawer-shared'
 
 // Each severity carries the reading an officer should take from it, including the
-// low end used for progress and milestone insight rather than risk.
+// low end used for progress and milestone insight rather than risk. The picker keeps
+// High and Critical apart, so it maps per level rather than reusing severityTone.
 const severityCopy: Record<HumanRule['severity'], { label: string; hint: string; tile: string }> = {
   LOW: {
     label: 'Low',
     hint: 'Progress or milestone insight to carry into later planning',
-    tile: 'border-info bg-info-subtle text-foreground',
+    tile: 'border-border bg-muted text-muted-foreground',
   },
   MEDIUM: {
     label: 'Medium',
     hint: 'Worth reviewing at the next check-in',
-    tile: 'border-info bg-info-subtle text-foreground',
+    tile: 'border-info/30 bg-info-subtle text-info',
   },
   HIGH: {
     label: 'High',
     hint: 'Needs a response this reporting period',
-    tile: 'border-warning bg-warning-subtle text-foreground',
+    tile: 'border-warning/30 bg-warning-subtle text-warning',
   },
   CRITICAL: {
     label: 'Critical',
     hint: 'Needs attention before work continues',
-    tile: 'border-danger bg-danger-subtle text-foreground',
+    tile: 'border-danger/30 bg-danger-subtle text-danger',
   },
 }
 
@@ -48,7 +49,7 @@ export function SeverityField({
         <legend className="text-sm font-medium">
           {mode === 'alert' ? 'Severity' : 'Triggering alert severity'}
         </legend>
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
           {severities.map((item) => {
             const copy = severityCopy[item]
             const selected = severity === item
