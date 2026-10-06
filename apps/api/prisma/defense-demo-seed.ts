@@ -12,6 +12,7 @@ import { IndicatorLibraryService } from '../src/modules/indicators/indicator-lib
 import { IndicatorsService } from '../src/modules/indicators/indicators.service'
 import { MetadataService } from '../src/modules/metadata/metadata.service'
 import { ParticipantsService } from '../src/modules/participants/participants.service'
+import { ProjectOverviewMetricsService } from '../src/modules/projects/project-overview-metrics.service'
 import { ProjectsService } from '../src/modules/projects/projects.service'
 import { PublicService } from '../src/modules/public/public.service'
 import type { ReportPdfRenderer } from '../src/modules/report-pdf/report-pdf.renderer'
@@ -126,6 +127,7 @@ async function seed(owner: PrismaClient, testLocal: boolean) {
             sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
             log: (line) => console.info(line),
           }))
+    const dashboards = new DashboardsService(runtime, indicators)
     const context: DemoContext = {
       today: manilaToday(),
       organizationId,
@@ -145,11 +147,13 @@ async function seed(owner: PrismaClient, testLocal: boolean) {
         reports: new ReportsService(
           runtime,
           storage,
-          new DashboardsService(runtime, indicators),
+          dashboards,
           // Seeds keep pdfkit output deterministic by disabling the Chromium renderer.
           {
             render: () => Promise.reject(new Error('PDF renderer disabled.')),
           } as unknown as ReportPdfRenderer,
+          new ProjectOverviewMetricsService(runtime, indicators, dashboards),
+          new RulesHumanService(runtime),
         ),
         rules: new RulesHumanService(runtime),
         publication: new PublicService(runtime),

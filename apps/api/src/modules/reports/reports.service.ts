@@ -21,7 +21,9 @@ import { projectScope } from '../auth/authorized-data.service'
 import { withAuthorizedOperation } from '../auth/authorized-operation'
 import type { ApplicationIdentity } from '../auth/developer-access'
 import { DashboardsService } from '../dashboards/dashboards.service'
+import { ProjectOverviewMetricsService } from '../projects/project-overview-metrics.service'
 import { ReportPdfError, ReportPdfRenderer } from '../report-pdf/report-pdf.renderer'
+import { RulesHumanService } from '../rules/rules-human.service'
 import { createPrivateInspectionReader } from '../storage/private-inspection-reader'
 import { StorageService } from '../storage/storage.service'
 import {
@@ -30,6 +32,8 @@ import {
   createReportArtifact,
   reportMime,
 } from './report-artifact'
+import { type ProjectSections, flattenSections } from './report-project-status'
+import { projectStatusSource } from './report-project-status-source'
 import {
   evaluationReportTable,
   extraKindRequires,
@@ -49,7 +53,6 @@ const kindPermission = {
 } as const
 const uuid = z.string().uuid()
 const hash = (value: string | Buffer) => createHash('sha256').update(value).digest('hex')
-const date = (value: Date | null) => value?.toISOString().slice(0, 10) ?? 'Not specified'
 const metricText = (input: unknown) => {
   const cell = metricCellSchema.parse(input)
   return { value: cell.value ?? 'Not available', state: cell.state, reason: cell.reason ?? '' }
@@ -61,6 +64,7 @@ type Preview = {
   evaluationId?: string | null
   columns: string[]
   rows: string[][]
+  sections?: ProjectSections
   generatedAt: string
   unavailableReasons: string[]
 }
@@ -73,6 +77,7 @@ const sourceFingerprint = (source: Preview) =>
       kind: source.kind,
       columns: source.columns,
       rows: source.rows,
+      ...(source.sections ? { sections: source.sections } : {}),
       unavailableReasons: source.unavailableReasons,
     }),
   )
@@ -100,6 +105,9 @@ export class ReportsService {
     @Inject(StorageService) private readonly storage: StorageService,
     @Inject(DashboardsService) private readonly dashboards: DashboardsService,
     @Inject(ReportPdfRenderer) private readonly pdf: ReportPdfRenderer,
+    @Inject(ProjectOverviewMetricsService)
+    private readonly overview: ProjectOverviewMetricsService,
+    @Inject(RulesHumanService) private readonly rules: RulesHumanService,
   ) {}
   private permissions(actor: ApplicationIdentity, kind: ReportKind) {
     if (
@@ -137,6 +145,8 @@ export class ReportsService {
         sector: true,
         startDate: true,
         endDate: true,
+        implementingPartners: true,
+        programManager: { select: { fullName: true } },
       },
     })
     if (!project) throw new NotFoundException('Project unavailable.')
@@ -150,18 +160,17 @@ export class ReportsService {
       unavailableReasons: [],
     }
     if (kind === 'PROJECT_SUMMARY') {
-      result.columns = ['Code', 'Title', 'Status', 'Area', 'Sector', 'Start date', 'End date']
-      result.rows = [
-        [
-          project.code,
-          project.title,
-          project.status,
-          project.implementationArea ?? 'Not specified',
-          project.sector ?? 'Not specified',
-          date(project.startDate),
-          date(project.endDate),
-        ],
-      ]
+      const status = await projectStatusSource(
+        { overview: this.overview, dashboards: this.dashboards, rules: this.rules },
+        tx,
+        actor,
+        projectId,
+        project,
+      )
+      Object.assign(result, flattenSections(status.sections), {
+        sections: status.sections,
+        unavailableReasons: status.unavailableReasons,
+      })
     } else if (kind === 'INDICATOR_SUMMARY') {
       const [row] = await tx.$queryRaw<
         Array<{ value: unknown }>
@@ -377,6 +386,7 @@ export class ReportsService {
           kind: source.kind,
           columns: source.columns,
           rows: source.rows,
+          ...(source.sections ? { sections: source.sections } : {}),
           generatedAt: source.generatedAt,
           unavailableReasons: source.unavailableReasons,
         }
@@ -453,6 +463,7 @@ export class ReportsService {
         kind: source.kind,
         columns: source.columns,
         rows: source.rows,
+        ...(source.sections ? { sections: source.sections } : {}),
         generatedAt: source.generatedAt,
         unavailableReasons: source.unavailableReasons,
       })
@@ -606,11 +617,13 @@ export class ReportsService {
             JSON.stringify({
               columns: current.columns,
               rows: current.rows,
+              sections: current.sections,
               unavailableReasons: current.unavailableReasons,
             }) !==
             JSON.stringify({
               columns: prepare.source.columns,
               rows: prepare.source.rows,
+              sections: prepare.source.sections,
               unavailableReasons: prepare.source.unavailableReasons,
             })
           )

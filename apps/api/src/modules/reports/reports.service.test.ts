@@ -11,7 +11,9 @@ import type { PrismaService } from '../../prisma/prisma.service'
 import { hasAtomicPermission } from '../auth/authorization-policy'
 import type { ApplicationIdentity } from '../auth/developer-access'
 import type { DashboardsService } from '../dashboards/dashboards.service'
+import type { ProjectOverviewMetricsService } from '../projects/project-overview-metrics.service'
 import { ReportPdfError, type ReportPdfRenderer } from '../report-pdf/report-pdf.renderer'
+import type { RulesHumanService } from '../rules/rules-human.service'
 import type { StorageService } from '../storage/storage.service'
 import { reportInputSchema, reportQuerySchema } from './reports.dto'
 import { ReportsService } from './reports.service'
@@ -103,11 +105,15 @@ const tx = {
 const storage = { uploadPrivateFile: vi.fn(), deleteFile: vi.fn() }
 const dashboards = { monitoringInTransaction: vi.fn() }
 const renderer = { render: vi.fn() }
+const overview = { readInTransaction: vi.fn() }
+const rules = { listAlertsInTransaction: vi.fn() }
 const service = new ReportsService(
   {} as PrismaService,
   storage as unknown as StorageService,
   dashboards as unknown as DashboardsService,
   renderer as unknown as ReportPdfRenderer,
+  overview as unknown as ProjectOverviewMetricsService,
+  rules as unknown as RulesHumanService,
 )
 const body = { clientRequestId: id, name: 'Private report', kind: 'PROJECT_SUMMARY', format: 'PDF' }
 const field = {
@@ -141,6 +147,12 @@ describe('report source authority, privacy and artifact recovery', () => {
     state.artifact.mockResolvedValue(Buffer.from('%PDF-fixture'))
     renderer.render.mockRejectedValue(new ReportPdfError('launch', 'Error'))
     tx.project.findFirst.mockResolvedValue(project)
+    overview.readInTransaction.mockResolvedValue({
+      timeline: { metric: { state: 'MISSING', value: null, reason: 'PROJECT_DATES_REQUIRED' } },
+      budgetUtilization: null,
+      kpiAchievement: null,
+      beneficiariesReached: null,
+    })
     tx.projectEvaluation.findFirst.mockResolvedValue(null)
     tx.projectEvaluationScore.findMany.mockResolvedValue([])
     tx.$queryRaw.mockResolvedValue([])
@@ -563,5 +575,20 @@ describe('report source authority, privacy and artifact recovery', () => {
     ])
     await expect(service.export(actor, projectId, id)).rejects.toThrow('Report source is stale')
     expect(state.read).not.toHaveBeenCalled()
+  })
+  it('returns sections with a flattened copy and sends them to the designed renderer', async () => {
+    const preview = await service.preview(actor, projectId, { kind: 'PROJECT_SUMMARY' })
+    expect(preview.sections?.information.code).toBe('SYN')
+    expect(preview.columns).toEqual(['Section', 'Item', 'Value', 'Detail'])
+    expect(preview.rows.some((row) => row[0] === 'Overview')).toBe(true)
+    expect(preview.unavailableReasons.length).toBeGreaterThan(0)
+    renderer.render.mockResolvedValue(Buffer.from('%PDF-designed'))
+    await service.generate(actor, projectId, body).catch(() => undefined)
+    expect(renderer.render).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        sections: expect.objectContaining({ overview: expect.any(Array) }),
+      }),
+    )
   })
 })
