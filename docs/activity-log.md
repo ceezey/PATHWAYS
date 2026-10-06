@@ -375,3 +375,9 @@
 ## 2026-10-06 Beneficiary assessment view
 - [cr-pathways-beneficiary-assessment-view](cr-pathways-beneficiary-assessment-view.md): new enrollment-scoped assessment list read (same guards as the detail read) feeds the beneficiary detail page; "View assessment" now shows pre and post scores and the change for the selected stage. No migration.
 - Assessment view fix round 1: list read also requires `beneficiaries.records.read` and a live Beneficiary; the page pairs pre and post across stages, explains a failed read, and guard tests now fail if the denied-role or button gates are removed.
+
+## 2026-10-06 Fast runtime Vitest runner
+- `Invoke-RuntimeVitest.ps1` runs one DB-backed `*.local.test.ts` against a copy of the saved replay template; both fast runners share `replay-template.ps1` for the freshness check; Fast Checks documented in `docs/runbook-local-dev.md`; CI cache deferred row added.
+
+## 2026-10-06 Replay step timing
+- `Replay-Local.ps1` prints `REPLAY_STEP <label> <seconds>s` per migration, SQL and Vitest step and writes `.tmp/replay-timing.json` (helper in `replay-timing.ps1`).

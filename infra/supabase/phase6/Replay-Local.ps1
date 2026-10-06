@@ -11,6 +11,7 @@ param(
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'replay-port.ps1')
 . (Join-Path $PSScriptRoot 'migrations-hash.ps1')
+. (Join-Path $PSScriptRoot 'replay-timing.ps1')
 # A template must come from the full baseline replay.
 if ($SaveTemplate -and -not $MigrationBaseline) { throw '-SaveTemplate requires -MigrationBaseline.' }
 if ($MigrationBaseline) { $CsvRbacRealignment = $true }
@@ -82,7 +83,7 @@ try {
   Write-Output "REPLAY_PORT=$phase6Port"
   & $phase6Tools['createdb'] -w -h 127.0.0.1 -p $phase6Port -U postgres $phase6Database
   if ($LASTEXITCODE -ne 0) { throw 'Disposable database creation failed.' }
-  Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/security-adapter-local-bootstrap.sql'))) $phase6Database
+  Measure-ReplayStep 'sql security-adapter-local-bootstrap' { Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/security-adapter-local-bootstrap.sql'))) $phase6Database }
 
   foreach ($phase6Migration in @('0001_init','0002_pathways_foundation','0003_pathways_projects_collection','0004_pathways_finance_evaluation_decisions')) {
     Copy-Item -LiteralPath (Join-Path $phase6History "$phase6Migration") -Destination $phase6Stage -Recurse
@@ -92,30 +93,30 @@ try {
   $env:DATABASE_URL = $env:DIRECT_URL
   Push-Location $phase6Root
   try {
-    pnpm --filter @pathways/api exec prisma migrate deploy --config $phase6Config
+    Measure-ReplayStep 'migrate deploy' { pnpm --filter @pathways/api exec prisma migrate deploy --config $phase6Config }
     if ($LASTEXITCODE -ne 0) { throw '0001-0004 supported replay failed.' }
     Copy-Item -LiteralPath (Join-Path $phase6History '0005_supabase_security_adapter') -Destination $phase6Stage -Recurse
     $env:DIRECT_URL = "postgresql://postgres@127.0.0.1:${phase6Port}/${phase6Database}?sslmode=disable&connection_limit=1"
     $env:DATABASE_URL = $env:DIRECT_URL
-    pnpm --filter @pathways/api exec prisma migrate deploy --config $phase6Config
+    Measure-ReplayStep 'migrate 0005_supabase_security_adapter' { pnpm --filter @pathways/api exec prisma migrate deploy --config $phase6Config }
     if ($LASTEXITCODE -ne 0) { throw '0005 administrator replay failed.' }
 
     Copy-Item -LiteralPath (Join-Path $phase6History '0006_auth_session_liveness') -Destination $phase6Stage -Recurse
     $env:DIRECT_URL = "postgresql://postgres@127.0.0.1:${phase6Port}/${phase6Database}?sslmode=disable&connection_limit=1"
     $env:DATABASE_URL = $env:DIRECT_URL
-    pnpm --filter @pathways/api exec prisma migrate deploy --config $phase6Config
+    Measure-ReplayStep 'migrate 0006_auth_session_liveness' { pnpm --filter @pathways/api exec prisma migrate deploy --config $phase6Config }
     if ($LASTEXITCODE -ne 0) { throw '0006 supported replay failed.' }
 
     Copy-Item -LiteralPath (Join-Path $phase6History '0007_core_workspace_foundation') -Destination $phase6Stage -Recurse
     $env:DIRECT_URL = "postgresql://prisma@127.0.0.1:${phase6Port}/${phase6Database}?sslmode=disable&connection_limit=1"
     $env:DATABASE_URL = $env:DIRECT_URL
-    pnpm --filter @pathways/api exec prisma migrate deploy --config $phase6Config
+    Measure-ReplayStep 'migrate 0007_core_workspace_foundation' { pnpm --filter @pathways/api exec prisma migrate deploy --config $phase6Config }
     if ($LASTEXITCODE -ne 0) { throw '0007 P01 replay failed.' }
 
     Copy-Item -LiteralPath (Join-Path $phase6History '0008_metadata_forms_direct_entry') -Destination $phase6Stage -Recurse
     $env:DIRECT_URL = "postgresql://prisma@127.0.0.1:${phase6Port}/${phase6Database}?sslmode=disable&connection_limit=1"
     $env:DATABASE_URL = $env:DIRECT_URL
-    pnpm --filter @pathways/api exec prisma migrate deploy --config $phase6Config
+    Measure-ReplayStep 'migrate 0008_metadata_forms_direct_entry' { pnpm --filter @pathways/api exec prisma migrate deploy --config $phase6Config }
     if ($LASTEXITCODE -ne 0) {
       & $phase6Tools['psql'] -X -w -q -A -t -h 127.0.0.1 -p $phase6Port -U postgres -d $phase6Database `
         -c "SELECT coalesce(logs,'') FROM public._prisma_migrations WHERE migration_name='0008_metadata_forms_direct_entry' ORDER BY started_at DESC LIMIT 1"
@@ -129,11 +130,11 @@ try {
     Copy-Item -LiteralPath (Join-Path $phase6History '0009_import_state_enums') -Destination $phase6Stage -Recurse
     $env:DIRECT_URL = "postgresql://prisma@127.0.0.1:${phase6Port}/${phase6Database}?sslmode=disable&connection_limit=1"
     $env:DATABASE_URL = $env:DIRECT_URL
-    pnpm --filter @pathways/api exec prisma migrate deploy --config $phase6Config
+    Measure-ReplayStep 'migrate 0009_import_state_enums' { pnpm --filter @pathways/api exec prisma migrate deploy --config $phase6Config }
     if ($LASTEXITCODE -ne 0) { throw '0009 P03 enum replay failed.' }
 
     Copy-Item -LiteralPath (Join-Path $phase6History '0010_secure_import_pipeline') -Destination $phase6Stage -Recurse
-    pnpm --filter @pathways/api exec prisma migrate deploy --config $phase6Config
+    Measure-ReplayStep 'migrate 0010_secure_import_pipeline' { pnpm --filter @pathways/api exec prisma migrate deploy --config $phase6Config }
     if ($LASTEXITCODE -ne 0) {
       & $phase6Tools['psql'] -X -w -q -A -t -h 127.0.0.1 -p $phase6Port -U postgres -d $phase6Database `
         -c "SELECT coalesce(logs,'') FROM public._prisma_migrations WHERE migration_name='0010_secure_import_pipeline' ORDER BY started_at DESC LIMIT 1"
@@ -143,7 +144,7 @@ try {
     }
 
     Copy-Item -LiteralPath (Join-Path $phase6History '0011_beneficiary_registration') -Destination $phase6Stage -Recurse
-    pnpm --filter @pathways/api exec prisma migrate deploy --config $phase6Config
+    Measure-ReplayStep 'migrate 0011_beneficiary_registration' { pnpm --filter @pathways/api exec prisma migrate deploy --config $phase6Config }
     if ($LASTEXITCODE -ne 0) {
       & $phase6Tools['psql'] -X -w -q -A -t -h 127.0.0.1 -p $phase6Port -U postgres -d $phase6Database `
         -c "SELECT coalesce(logs,'') FROM public._prisma_migrations WHERE migration_name='0011_beneficiary_registration' ORDER BY started_at DESC LIMIT 1"
@@ -152,14 +153,14 @@ try {
       throw '0011 P04 replay failed.'
     }
     Copy-Item -LiteralPath (Join-Path $phase6History '0012_project_activity_journeys') -Destination $phase6Stage -Recurse
-    pnpm --filter @pathways/api exec prisma migrate deploy --config $phase6Config
+    Measure-ReplayStep 'migrate 0012_project_activity_journeys' { pnpm --filter @pathways/api exec prisma migrate deploy --config $phase6Config }
     if ($LASTEXITCODE -ne 0) {
       & $phase6Tools['psql'] -X -w -q -A -t -h 127.0.0.1 -p $phase6Port -U postgres -d $phase6Database `
         -c "SELECT coalesce(logs,'') FROM public._prisma_migrations WHERE migration_name='0012_project_activity_journeys' ORDER BY started_at DESC LIMIT 1"
       throw '0012 P05 replay failed.'
     }
     Copy-Item -LiteralPath (Join-Path $phase6History '0013_project_indicators_saddd_dashboard') -Destination $phase6Stage -Recurse
-    pnpm --filter @pathways/api exec prisma migrate deploy --config $phase6Config
+    Measure-ReplayStep 'migrate 0013_project_indicators_saddd_dashboard' { pnpm --filter @pathways/api exec prisma migrate deploy --config $phase6Config }
     if ($LASTEXITCODE -ne 0) { throw '0013 P06 replay failed. Inspect the failed migration; do not reset a managed database.' }
 
     foreach ($phase7Migration in @(
@@ -172,7 +173,7 @@ try {
       '0020_fixed_sensitive_release_policy'
     )) {
       Copy-Item -LiteralPath (Join-Path $phase6History "$phase7Migration") -Destination $phase6Stage -Recurse
-      pnpm --filter @pathways/api exec prisma migrate deploy --config $phase6Config
+      Measure-ReplayStep 'migrate 0013_project_indicators_saddd_dashboard' { pnpm --filter @pathways/api exec prisma migrate deploy --config $phase6Config }
       if ($LASTEXITCODE -ne 0) {
         throw "$phase7Migration P07 forward-correction replay failed. Inspect the failed migration; do not reset a managed database."
       }
@@ -188,7 +189,7 @@ VALUES ('89000000-0000-4000-8000-000000000021','PROJECT_MANAGER','Project Manage
 '@
       Invoke-LocalSql $phase4SeedSql $phase6Database
       Copy-Item -LiteralPath (Join-Path $phase6History '0021_project_manager_indicator_access') -Destination $phase6Stage -Recurse
-      pnpm --filter @pathways/api exec prisma migrate deploy --config $phase6Config
+      Measure-ReplayStep 'migrate 0021_project_manager_indicator_access' { pnpm --filter @pathways/api exec prisma migrate deploy --config $phase6Config }
       if ($LASTEXITCODE -ne 0) { throw '0021 narrow Project Manager indicator replay failed.' }
       $phase4MappingSql = @'
 SELECT count(*)=2
@@ -215,7 +216,7 @@ WHERE id='89000000-0000-4000-8000-000000000021'::uuid
       Invoke-LocalSql $phase4RemoveSeedSql $phase6Database
 
       Copy-Item -LiteralPath (Join-Path $phase6History '0022_project_target_goal') -Destination $phase6Stage -Recurse
-      pnpm --filter @pathways/api exec prisma migrate deploy --config $phase6Config
+      Measure-ReplayStep 'migrate 0022_project_target_goal' { pnpm --filter @pathways/api exec prisma migrate deploy --config $phase6Config }
       if ($LASTEXITCODE -ne 0) { throw '0022 project target-goal replay failed.' }
 
       if ($ProjectActivityCreationRepair) {
@@ -238,7 +239,7 @@ WHERE (r.code='MONITORING_AND_EVALUATION_OFFICER' AND p.code='rules.read')
 '@
         Invoke-LocalSql $ruleAccessSeedSql $phase6Database
         Copy-Item -LiteralPath (Join-Path $phase6History '0023_rule_based_access_alignment') -Destination $phase6Stage -Recurse
-        pnpm --filter @pathways/api exec prisma migrate deploy --config $phase6Config
+        Measure-ReplayStep 'migrate 0023_rule_based_access_alignment' { pnpm --filter @pathways/api exec prisma migrate deploy --config $phase6Config }
         if ($LASTEXITCODE -ne 0) { throw '0023 rule-based access alignment replay failed.' }
 
         $ruleAccessMappingSql = @'
@@ -284,7 +285,7 @@ WHERE code IN ('PROJECT_MANAGER','MONITORING_AND_EVALUATION_OFFICER','PROJECT_OF
 
         if ($ProjectActivityCreationRepair) {
           Copy-Item -LiteralPath (Join-Path $phase6History '0024_dashboard_home_project_scope') -Destination $phase6Stage -Recurse
-          pnpm --filter @pathways/api exec prisma migrate deploy --config $phase6Config
+          Measure-ReplayStep 'migrate 0024_dashboard_home_project_scope' { pnpm --filter @pathways/api exec prisma migrate deploy --config $phase6Config }
           if ($LASTEXITCODE -ne 0) { throw '0024 dashboard-home project-scope replay failed.' }
 
           $dashboardHomePostflightSql = @'
@@ -303,7 +304,7 @@ SELECT
 
           if ($ProjectActivityCreationRepair) {
             Copy-Item -LiteralPath (Join-Path $phase6History '0025_project_activity_creation_contract') -Destination $phase6Stage -Recurse
-            pnpm --filter @pathways/api exec prisma migrate deploy --config $phase6Config
+            Measure-ReplayStep 'migrate 0025_project_activity_creation_contract' { pnpm --filter @pathways/api exec prisma migrate deploy --config $phase6Config }
             if ($LASTEXITCODE -ne 0) { throw '0025 Project/Activity creation-contract replay failed.' }
 
             $projectActivityPostflightSql = @'
@@ -336,7 +337,7 @@ SELECT
       }
     }
 
-    pnpm --filter @pathways/api exec prisma migrate status --config $phase6Config
+    Measure-ReplayStep 'migrate status' { pnpm --filter @pathways/api exec prisma migrate status --config $phase6Config }
     if ($LASTEXITCODE -ne 0) { throw 'Replay migration status failed.' }
   } finally { Pop-Location }
 
@@ -485,24 +486,24 @@ SELECT (SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamesp
   if (-not $CsvRbacRealignment -and -not $ProjectActivityCreationRepair) {
   Push-Location $phase6Root
   try {
-    pnpm --dir apps/api exec vitest run src/modules/activities/feature-read.local.test.ts
+    Measure-ReplayStep 'vitest src/modules/activities/feature-read' { pnpm --dir apps/api exec vitest run src/modules/activities/feature-read.local.test.ts }
     if ($LASTEXITCODE -ne 0) { throw 'Joined feature-read runtime test failed.' }
   } finally { Pop-Location }
   Write-Output 'FEATURE_READ_JOIN_RUNTIME=PASS'
   $env:PATHWAYS_C8_LOCAL_TESTS = '1'
   Push-Location $phase6Root
   try {
-    pnpm --dir apps/api exec vitest run src/modules/dashboards/c8-runtime.local.test.ts
+    Measure-ReplayStep 'vitest src/modules/dashboards/c8-runtime' { pnpm --dir apps/api exec vitest run src/modules/dashboards/c8-runtime.local.test.ts }
     if ($LASTEXITCODE -ne 0) { throw 'C8 API/Prisma runtime test failed.' }
   } finally { Pop-Location }
   Write-Output 'C8_API_PRISMA_RUNTIME=PASS'
   }
-  Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/core-foundation-runtime.sql'))) $phase6Database
-  Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/metadata-forms-runtime.sql'))) $phase6Database
-  Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/import-pipeline-runtime.sql'))) $phase6Database
-  Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/beneficiary-registration-runtime.sql'))) $phase6Database
-  Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/project-activity-journey-runtime.sql'))) $phase6Database
-  Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/project-target-goal-runtime.sql'))) $phase6Database
+  Measure-ReplayStep 'sql core-foundation-runtime' { Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/core-foundation-runtime.sql'))) $phase6Database }
+  Measure-ReplayStep 'sql metadata-forms-runtime' { Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/metadata-forms-runtime.sql'))) $phase6Database }
+  Measure-ReplayStep 'sql import-pipeline-runtime' { Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/import-pipeline-runtime.sql'))) $phase6Database }
+  Measure-ReplayStep 'sql beneficiary-registration-runtime' { Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/beneficiary-registration-runtime.sql'))) $phase6Database }
+  Measure-ReplayStep 'sql project-activity-journey-runtime' { Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/project-activity-journey-runtime.sql'))) $phase6Database }
+  Measure-ReplayStep 'sql project-target-goal-runtime' { Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/project-target-goal-runtime.sql'))) $phase6Database }
   Write-Output 'PHASE6_LOCAL_REPLAY=PASS'
   Write-Output 'CORE_FOUNDATION_RUNTIME=PASS'
   Write-Output 'METADATA_FORMS_RUNTIME=PASS'
@@ -512,15 +513,15 @@ SELECT (SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamesp
   Write-Output 'PROJECT_TARGET_GOAL_RUNTIME=PASS'
   $phase6IndicatorSql = [IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/project-indicator-dashboard-runtime.sql'))
   $phase6IndicatorSql = "\set PHASE4_INDICATOR_POLICY 1`n" + $phase6IndicatorSql
-  Invoke-LocalSql $phase6IndicatorSql $phase6Database
+  Measure-ReplayStep 'sql project-indicator-dashboard-runtime' { Invoke-LocalSql $phase6IndicatorSql $phase6Database }
   Write-Output 'PROJECT_INDICATOR_DASHBOARD_RUNTIME=PASS'
   if ($ProjectActivityCreationRepair) {
     # The current-schema dashboard-home vitest does not run against historical replay databases.
-    Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/dashboard-home-project-scope-runtime.sql'))) $phase6Database
+    Measure-ReplayStep 'sql dashboard-home-project-scope-runtime' { Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/dashboard-home-project-scope-runtime.sql'))) $phase6Database }
     Write-Output 'DASHBOARD_HOME_PROJECT_SCOPE_RUNTIME=PASS'
   }
   if ($ProjectActivityCreationRepair) {
-    Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/project-activity-creation-contract-runtime.sql'))) $phase6Database
+    Measure-ReplayStep 'sql project-activity-creation-contract-runtime' { Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/project-activity-creation-contract-runtime.sql'))) $phase6Database }
     Write-Output 'PROJECT_ACTIVITY_CREATION_CONTRACT_RUNTIME=PASS'
   }
   if ($ProjectActivityCreationRepair) { Write-Output 'RULE_BASED_ACCESS_ALIGNMENT_RUNTIME=PASS' }
@@ -551,14 +552,14 @@ END $$;
     foreach ($rbacDatabase in @($phase6Database, 'pathways_phase4_rbac_fresh')) {
       $env:DIRECT_URL = "postgresql://prisma@127.0.0.1:${phase6Port}/${rbacDatabase}?sslmode=disable&connection_limit=1"
       $env:DATABASE_URL = $env:DIRECT_URL
-      pnpm --filter @pathways/api exec prisma migrate deploy --config $phase6Config
+      Measure-ReplayStep 'migrate 0026_csv_rbac_realignment' { pnpm --filter @pathways/api exec prisma migrate deploy --config $phase6Config }
       if ($LASTEXITCODE -ne 0) {
         $rbacDiagnostic = [IO.File]::ReadAllText((Join-Path $phase6History '0026_csv_rbac_realignment/migration.sql')).Replace('COMMIT;', 'ROLLBACK;')
         $rbacDiagnostic | & $phase6Tools['psql'] -X -w -h 127.0.0.1 -p $phase6Port -U prisma -d $rbacDatabase -v ON_ERROR_STOP=1
         throw 'CSV RBAC forward replay failed.'
       }
-      Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/csv-rbac-runtime.sql'))) $rbacDatabase
-      pnpm --filter @pathways/api exec prisma migrate status --config $phase6Config
+      Measure-ReplayStep 'sql csv-rbac-runtime' { Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/csv-rbac-runtime.sql'))) $rbacDatabase }
+      Measure-ReplayStep 'migrate status' { pnpm --filter @pathways/api exec prisma migrate status --config $phase6Config }
       if ($LASTEXITCODE -ne 0) { throw 'CSV RBAC ledger status failed.' }
     }
     $env:DATABASE_URL = "postgresql://prisma@127.0.0.1:${phase6Port}/${phase6Database}?sslmode=disable&connection_limit=1"
@@ -582,21 +583,21 @@ END $$;
     Write-Output 'CSV_RBAC_CATALOG_PARITY=PASS'
     if ($MigrationBaseline) {
       . (Join-Path $PSScriptRoot 'Verify-Baseline.ps1')
-      Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/finance-expense-runtime.sql'))) $phase6Database
+      Measure-ReplayStep 'sql finance-expense-runtime' { Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/finance-expense-runtime.sql'))) $phase6Database }
       Write-Output 'FINANCE_EXPENSE_RUNTIME=PASS'
       # The disposable auth.users stub has no email column, which the hook suite reads.
       Invoke-LocalSql 'ALTER TABLE auth.users ADD COLUMN IF NOT EXISTS email text;' $phase6Database
-      Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/signin-password-hook-runtime.sql'))) $phase6Database
+      Measure-ReplayStep 'sql signin-password-hook-runtime' { Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/signin-password-hook-runtime.sql'))) $phase6Database }
       Write-Output 'SIGNIN_PASSWORD_HOOK_RUNTIME=PASS'
-      Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/p09-role-allows-grants-runtime.sql'))) $phase6Database
+      Measure-ReplayStep 'sql p09-role-allows-grants-runtime' { Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/p09-role-allows-grants-runtime.sql'))) $phase6Database }
       Write-Output 'P09_ROLE_ALLOWS_GRANTS_RUNTIME=PASS'
-      Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/rbac-v4-grants-runtime.sql'))) $phase6Database
+      Measure-ReplayStep 'sql rbac-v4-grants-runtime' { Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/rbac-v4-grants-runtime.sql'))) $phase6Database }
       Write-Output 'RBAC_V4_GRANTS_RUNTIME=PASS'
-      Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/f9-survey-period-release-runtime.sql'))) $phase6Database
+      Measure-ReplayStep 'sql f9-survey-period-release-runtime' { Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/f9-survey-period-release-runtime.sql'))) $phase6Database }
       Write-Output 'F9_SURVEY_PERIOD_RELEASE_RUNTIME=PASS'
-      Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/activity-extension-requests-runtime.sql'))) $phase6Database
+      Measure-ReplayStep 'sql activity-extension-requests-runtime' { Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/activity-extension-requests-runtime.sql'))) $phase6Database }
       Write-Output 'ACTIVITY_EXTENSION_REQUESTS_RUNTIME=PASS'
-      Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/zone-check-memo-runtime.sql'))) $phase6Database
+      Measure-ReplayStep 'sql zone-check-memo-runtime' { Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/zone-check-memo-runtime.sql'))) $phase6Database }
       Write-Output 'ZONE_CHECK_MEMO_RUNTIME=PASS'
       Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/beneficiary-reach-kpi-values-runtime.sql'))) $phase6Database
       Write-Output 'BENEFICIARY_REACH_KPI_VALUES_RUNTIME=PASS'
@@ -605,7 +606,7 @@ END $$;
     $env:PATHWAYS_CSV_RBAC_LOCAL_TESTS = '1'
     Push-Location $phase6Root
     try {
-      pnpm --dir apps/api exec vitest run src/modules/auth/csv-rbac.local.test.ts
+      Measure-ReplayStep 'vitest src/modules/auth/csv-rbac' { pnpm --dir apps/api exec vitest run src/modules/auth/csv-rbac.local.test.ts }
       if ($LASTEXITCODE -ne 0) { throw 'CSV RBAC API runtime checks failed.' }
     } finally { Pop-Location }
     if ($MigrationBaseline) {
@@ -621,7 +622,7 @@ END $$;
       Push-Location $phase6Root
       try {
         foreach ($currentSuite in @('activities/feature-read', 'dashboards/c8-runtime', 'dashboards/dashboard-home-runtime', 'reports/reports-runtime', 'activity-extensions/activity-extensions', 'evaluations/evaluations')) {
-          pnpm --dir apps/api exec vitest run "src/modules/$currentSuite.local.test.ts"
+          Measure-ReplayStep "vitest $currentSuite" { pnpm --dir apps/api exec vitest run "src/modules/$currentSuite.local.test.ts" }
           if ($LASTEXITCODE -ne 0) { throw "Current-schema suite $currentSuite failed." }
         }
       } finally { Pop-Location }
@@ -659,6 +660,8 @@ END $$;
   Write-Output ('PHASE6_LOCAL_REPLAY=FAILED; ' + $_.Exception.Message)
   $phase6Exit = 1
 } finally {
+  # Timing is diagnostic only, so a summary failure never skips cleanup or masks the real result.
+  try { Write-ReplaySummary (Join-Path $phase6Root '.tmp/replay-timing.json') } catch { Write-Output ('REPLAY_TIMING_SUMMARY=SKIPPED; ' + $_.Exception.Message) }
   foreach ($phase6EnvironmentName in $phase6PreviousEnvironment.Keys) {
     $phase6Previous = $phase6PreviousEnvironment[$phase6EnvironmentName]
     if ($phase6Previous.Present) {

@@ -572,55 +572,55 @@ SELECT NOT EXISTS(SELECT FROM pg_catalog.pg_auth_members m JOIN pg_catalog.pg_ro
     }
     if ($migration.Name -ceq '0038_import_smart_mapping') {
       # cr-pathways-smart-import-mapping: independent pre-0038 fault/retry clones.
-      Invoke-ForwardFaultRetryClones -Migration $migration.Name -MigrationPath $migration.FullName -Label '0038' -Token 'IMPORT' -FaultDatabase 'pathways_phase4_import_fault' -RetryDatabase 'pathways_phase4_import_retry'
+      Measure-ReplayStep 'forward fault-retry 0038' { Invoke-ForwardFaultRetryClones -Migration $migration.Name -MigrationPath $migration.FullName -Label '0038' -Token 'IMPORT' -FaultDatabase 'pathways_phase4_import_fault' -RetryDatabase 'pathways_phase4_import_retry' }
     }
     if ($migration.Name -ceq '0039_project_partner_backfill') {
       # cr-pathways-project-rbac-ui-and-partners 3.5: independent pre-0039 fault/retry clones.
-      Invoke-ForwardFaultRetryClones -Migration $migration.Name -MigrationPath $migration.FullName -Label '0039' -Token 'PARTNER' -FaultDatabase 'pathways_phase4_partner_fault' -RetryDatabase 'pathways_phase4_partner_retry'
+      Measure-ReplayStep 'forward fault-retry 0039' { Invoke-ForwardFaultRetryClones -Migration $migration.Name -MigrationPath $migration.FullName -Label '0039' -Token 'PARTNER' -FaultDatabase 'pathways_phase4_partner_fault' -RetryDatabase 'pathways_phase4_partner_retry' }
     }
     if ($migration.Name -ceq '0040_default_registration_form') {
       # cr-pathways-default-registration-form: independent pre-0040 fault/retry clones.
-      Invoke-ForwardFaultRetryClones -Migration $migration.Name -MigrationPath $migration.FullName -Label '0040' -Token 'DRF' -FaultDatabase 'pathways_phase4_drf_fault' -RetryDatabase 'pathways_phase4_drf_retry'
+      Measure-ReplayStep 'forward fault-retry 0040' { Invoke-ForwardFaultRetryClones -Migration $migration.Name -MigrationPath $migration.FullName -Label '0040' -Token 'DRF' -FaultDatabase 'pathways_phase4_drf_fault' -RetryDatabase 'pathways_phase4_drf_retry' }
     }
     if ($migration.Name -ceq '0041_activity_media_evidence') {
       # cr-pathways-activity-progress-media: independent pre-0041 fault/retry clones. The DBA
       # preprovision precedes the rollback snapshots, as it precedes 0041 when hosted.
-      Invoke-ForwardFaultRetryClones -Migration $migration.Name -MigrationPath $migration.FullName -Label '0041' -Token 'MEDIA' -FaultDatabase 'pathways_phase4_media_fault' -RetryDatabase 'pathways_phase4_media_retry' -ProvisionMedia
+      Measure-ReplayStep 'forward fault-retry 0041' { Invoke-ForwardFaultRetryClones -Migration $migration.Name -MigrationPath $migration.FullName -Label '0041' -Token 'MEDIA' -FaultDatabase 'pathways_phase4_media_fault' -RetryDatabase 'pathways_phase4_media_retry' -ProvisionMedia }
     }
     if ($migration.Name -ceq '0042_proof_session_beneficiary_count') {
       # cr-pathways-proof-session-beneficiary-count: independent pre-0042 fault/retry clones.
       # No preprovision/cleanup pair is needed; prisma already owns pathways.activity_updates
       # and pathways.p08_activity_beneficiaries_reached from the 0000 baseline.
-      Invoke-ForwardFaultRetryClones -Migration $migration.Name -MigrationPath $migration.FullName -Label '0042' -Token 'PSC' -FaultDatabase 'pathways_phase4_psc_fault' -RetryDatabase 'pathways_phase4_psc_retry'
+      Measure-ReplayStep 'forward fault-retry 0042' { Invoke-ForwardFaultRetryClones -Migration $migration.Name -MigrationPath $migration.FullName -Label '0042' -Token 'PSC' -FaultDatabase 'pathways_phase4_psc_fault' -RetryDatabase 'pathways_phase4_psc_retry' }
     }
     if ($migration.Name -ceq '0043_activity_overdue_explanation') {
       # cr-pathways-activity-overdue-explanation: independent pre-0043 fault/retry clones.
       # No preprovision/cleanup pair is needed; prisma already owns pathways.project_activities,
       # pathways.projects, pathways.organizations, pathways.system_users and
       # pathways.p05_has_project_permission from the 0000 baseline.
-      Invoke-ForwardFaultRetryClones -Migration $migration.Name -MigrationPath $migration.FullName -Label '0043' -Token 'OEX' -FaultDatabase 'pathways_phase4_oex_fault' -RetryDatabase 'pathways_phase4_oex_retry'
+      Measure-ReplayStep 'forward fault-retry 0043' { Invoke-ForwardFaultRetryClones -Migration $migration.Name -MigrationPath $migration.FullName -Label '0043' -Token 'OEX' -FaultDatabase 'pathways_phase4_oex_fault' -RetryDatabase 'pathways_phase4_oex_retry' }
     }
     if ($migration.Name -ceq '0044_activity_progress_review') {
       # Progress-only activity review: independent pre-0044 fault/retry clones. The DBA
       # preprovision (temporary SET chain to the rules owner roles) precedes the rollback
       # snapshots, as it precedes 0044 when hosted.
-      Invoke-ForwardFaultRetryClones -Migration $migration.Name -MigrationPath $migration.FullName -Label '0044' -Token 'PRV' -FaultDatabase 'pathways_phase4_prv_fault' -RetryDatabase 'pathways_phase4_prv_retry' -ProvisionReview
+      Measure-ReplayStep 'forward fault-retry 0044' { Invoke-ForwardFaultRetryClones -Migration $migration.Name -MigrationPath $migration.FullName -Label '0044' -Token 'PRV' -FaultDatabase 'pathways_phase4_prv_fault' -RetryDatabase 'pathways_phase4_prv_retry' -ProvisionReview }
     }
     if ($migration.Name -ceq '0045_f9_descriptive_aggregates') {
       # cr-pathways-f9-trusted-aggregates: independent pre-0045 fault/retry clones.
       # No preprovision/cleanup pair is needed; the migration adds two functions only and prisma
       # already owns pathways.p06_can and the source tables from the 0000 baseline.
-      Invoke-ForwardFaultRetryClones -Migration $migration.Name -MigrationPath $migration.FullName -Label '0045' -Token 'F9A' -FaultDatabase 'pathways_phase4_f9a_fault' -RetryDatabase 'pathways_phase4_f9a_retry'
+      Measure-ReplayStep 'forward fault-retry 0045' { Invoke-ForwardFaultRetryClones -Migration $migration.Name -MigrationPath $migration.FullName -Label '0045' -Token 'F9A' -FaultDatabase 'pathways_phase4_f9a_fault' -RetryDatabase 'pathways_phase4_f9a_retry' }
     }
     # 0058 (enum value only) needs no clones: no preprovision, no catalog change beyond the enum label.
     if ($migration.Name -ceq '0059_rules_recommendation_auto_resolve') {
       # PRD-F11 G-F11-5: independent pre-0059 fault/retry clones. The DBA preprovision (temporary SET
       # chain to six rules owner roles) precedes the rollback snapshots, as it precedes 0059 when hosted.
-      Invoke-ForwardFaultRetryClones -Migration $migration.Name -MigrationPath $migration.FullName -Label '0059' -Token 'RAR' -FaultDatabase 'pathways_phase4_rar_fault' -RetryDatabase 'pathways_phase4_rar_retry' -ProvisionRulesCatalog
+      Measure-ReplayStep 'forward fault-retry 0059' { Invoke-ForwardFaultRetryClones -Migration $migration.Name -MigrationPath $migration.FullName -Label '0059' -Token 'RAR' -FaultDatabase 'pathways_phase4_rar_fault' -RetryDatabase 'pathways_phase4_rar_retry' -ProvisionRulesCatalog }
     }
     if ($migration.Name -ceq '0060_rules_budget_beneficiary_survey_metrics') {
       # PRD-F10 G-F10-6: independent pre-0060 fault/retry clones, same preprovision as 0059.
-      Invoke-ForwardFaultRetryClones -Migration $migration.Name -MigrationPath $migration.FullName -Label '0060' -Token 'RMT' -FaultDatabase 'pathways_phase4_rmt_fault' -RetryDatabase 'pathways_phase4_rmt_retry' -ProvisionRulesCatalog
+      Measure-ReplayStep 'forward fault-retry 0060' { Invoke-ForwardFaultRetryClones -Migration $migration.Name -MigrationPath $migration.FullName -Label '0060' -Token 'RMT' -FaultDatabase 'pathways_phase4_rmt_fault' -RetryDatabase 'pathways_phase4_rmt_retry' -ProvisionRulesCatalog }
     }
     $forwardPin = $migration.Name -ceq '0037_step_up_pin'
     $forwardMedia = ($migration.Name -ceq '0041_activity_media_evidence') -or ($migration.Name -ceq '0056_indicator_type')
@@ -739,7 +739,7 @@ FROM pg_catalog.pg_enum e JOIN pg_catalog.pg_type t ON t.oid=e.enumtypid WHERE t
   try {
     Invoke-LocalSql 'ALTER ROLE pathways_runtime LOGIN;' 'pathways_phase4_pin_retry'
     foreach ($key in $pinRaceEnvironment.Keys) { Set-Item -LiteralPath "Env:$key" -Value $pinRaceEnvironment[$key] }
-    Invoke-ForwardBoundedNode -ScriptPath (Join-Path $phase6Root 'apps/api/prisma/tests/step-up-pin-concurrency.mjs') -ExpectedMarker 'STEP_UP_PIN_CONCURRENCY=PASS' -TimeoutMilliseconds 180000
+    Measure-ReplayStep 'node step-up-pin-concurrency' { Invoke-ForwardBoundedNode -ScriptPath (Join-Path $phase6Root 'apps/api/prisma/tests/step-up-pin-concurrency.mjs') -ExpectedMarker 'STEP_UP_PIN_CONCURRENCY=PASS' -TimeoutMilliseconds 180000 }
   } finally {
     foreach ($key in $pinRaceEnvironment.Keys) { Remove-Item -LiteralPath "Env:$key" -ErrorAction SilentlyContinue }
     if ($pinRuntimeLogin -cne 't') { Invoke-LocalSql 'ALTER ROLE pathways_runtime NOLOGIN;' 'pathways_phase4_pin_retry' }
@@ -803,7 +803,7 @@ FROM pg_catalog.pg_enum e JOIN pg_catalog.pg_type t ON t.oid=e.enumtypid WHERE t
   try {
     Invoke-LocalSql 'ALTER ROLE pathways_runtime LOGIN;' 'pathways_phase4_drf_retry'
     foreach ($key in $drfRaceEnvironment.Keys) { Set-Item -LiteralPath "Env:$key" -Value $drfRaceEnvironment[$key] }
-    Invoke-ForwardBoundedNode -ScriptPath (Join-Path $phase6Root 'apps/api/prisma/tests/default-registration-form-concurrency.mjs') -ExpectedMarker 'DEFAULT_REGISTRATION_FORM_CONCURRENCY=PASS' -TimeoutMilliseconds 180000
+    Measure-ReplayStep 'node default-registration-form-concurrency' { Invoke-ForwardBoundedNode -ScriptPath (Join-Path $phase6Root 'apps/api/prisma/tests/default-registration-form-concurrency.mjs') -ExpectedMarker 'DEFAULT_REGISTRATION_FORM_CONCURRENCY=PASS' -TimeoutMilliseconds 180000 }
   } finally {
     foreach ($key in $drfRaceEnvironment.Keys) { Remove-Item -LiteralPath "Env:$key" -ErrorAction SilentlyContinue }
     if ($drfRuntimeLogin -cne 't') { Invoke-LocalSql 'ALTER ROLE pathways_runtime NOLOGIN;' 'pathways_phase4_drf_retry' }
@@ -930,7 +930,7 @@ FROM pg_catalog.pg_enum e JOIN pg_catalog.pg_type t ON t.oid=e.enumtypid WHERE t
   try {
     Invoke-LocalSql 'ALTER ROLE pathways_runtime LOGIN;' 'pathways_phase4_f9a_retry'
     foreach ($key in $expenseRaceEnvironment.Keys) { Set-Item -LiteralPath "Env:$key" -Value $expenseRaceEnvironment[$key] }
-    Invoke-ForwardBoundedNode -ScriptPath (Join-Path $phase6Root 'apps/api/prisma/tests/finance-expense-concurrency.mjs') -ExpectedMarker 'FINANCE_EXPENSE_CONCURRENCY=PASS' -TimeoutMilliseconds 180000
+    Measure-ReplayStep 'node finance-expense-concurrency' { Invoke-ForwardBoundedNode -ScriptPath (Join-Path $phase6Root 'apps/api/prisma/tests/finance-expense-concurrency.mjs') -ExpectedMarker 'FINANCE_EXPENSE_CONCURRENCY=PASS' -TimeoutMilliseconds 180000 }
   } finally {
     foreach ($key in $expenseRaceEnvironment.Keys) { Remove-Item -LiteralPath "Env:$key" -ErrorAction SilentlyContinue }
     if ($expenseRuntimeLogin -cne 't') { Invoke-LocalSql 'ALTER ROLE pathways_runtime NOLOGIN;' 'pathways_phase4_f9a_retry' }
