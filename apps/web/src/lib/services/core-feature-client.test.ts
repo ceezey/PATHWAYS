@@ -1,3 +1,4 @@
+import { sampleProjectReport } from '@/features/reports/print/print-report-sample'
 import { clearSensitiveDraftStorage } from '@/lib/auth/sensitive-drafts'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -412,6 +413,16 @@ describe('Core client request and strict response boundaries', () => {
     fetcher.mockResolvedValueOnce(json(evaluation))
     await expect(coreDataClient.reportPreview(projectId, 'EVALUATION_REPORT')).resolves.toEqual(
       evaluation,
+    )
+  })
+  it('parses a project summary preview with sections and rejects unknown section keys', async () => {
+    const { sections } = sampleProjectReport
+    const body = { ...preview, kind: 'PROJECT_SUMMARY', formId: null, sections }
+    fetcher.mockResolvedValueOnce(json(body))
+    await expect(coreDataClient.reportPreview(projectId, 'PROJECT_SUMMARY')).resolves.toEqual(body)
+    fetcher.mockResolvedValueOnce(json({ ...body, sections: { ...sections, extra: 1 } }))
+    await expect(coreDataClient.reportPreview(projectId, 'PROJECT_SUMMARY')).rejects.toThrow(
+      'could not be validated',
     )
   })
   it('rejects a form-bearing response to a non-survey preview', async () => {

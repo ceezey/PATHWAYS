@@ -6,6 +6,7 @@ import { useMemo, useState } from 'react'
 import { BrandMark } from '@/components/pathways/brand-mark'
 import { printChartData, printChartOption } from './print-report-chart'
 import type { PrintReport } from './print-report-payload'
+import { ProjectStatusSections, StatePill } from './print-report-sections'
 
 const kindLabels: Record<string, string> = {
   PROJECT_SUMMARY: 'Project summary',
@@ -26,7 +27,7 @@ export function PrintReportView({ report }: { report: PrintReport | null }) {
         No report data.
       </main>
     )
-  const ready = !chart || chartDone
+  const ready = report.sections || !chart || chartDone
   return (
     <main
       data-report-ready={ready ? 'true' : 'false'}
@@ -53,7 +54,8 @@ export function PrintReportView({ report }: { report: PrintReport | null }) {
           </ul>
         </section>
       )}
-      {chart && (
+      {report.sections && <ProjectStatusSections sections={report.sections} />}
+      {!report.sections && chart && (
         <section className="print-avoid mt-6">
           <h2 className="text-sm font-semibold text-navy">
             {chart.group ? `Summary: ${chart.group}` : 'Summary'}
@@ -74,34 +76,40 @@ export function PrintReportView({ report }: { report: PrintReport | null }) {
           )}
         </section>
       )}
-      <table className="mt-6 w-full border-collapse text-xs">
-        <thead className="print-table-head bg-surface-subtle">
-          <tr>
-            {report.columns.map((column) => (
-              <th
-                key={column}
-                className="border-b border-border px-2 py-1.5 text-left font-semibold"
-              >
-                {column}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {report.rows.map((row, rowIndex) => (
-            // Rows have no stable id; the snapshot order is fixed for the page lifetime.
-            // biome-ignore lint/suspicious/noArrayIndexKey: immutable snapshot rows
-            <tr key={rowIndex} className="print-avoid border-b border-border">
-              {row.map((cell, cellIndex) => (
-                // biome-ignore lint/suspicious/noArrayIndexKey: immutable snapshot cells
-                <td key={cellIndex} className="px-2 py-1.5 align-top">
-                  {cell}
-                </td>
+      {!report.sections && (
+        <table className="mt-6 w-full border-collapse text-xs">
+          <thead className="print-table-head bg-surface-subtle">
+            <tr>
+              {report.columns.map((column) => (
+                <th
+                  key={column}
+                  className="border-b border-border px-2 py-1.5 text-left font-semibold"
+                >
+                  {column}
+                </th>
               ))}
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {report.rows.map((row, rowIndex) => (
+              // Rows have no stable id; the snapshot order is fixed for the page lifetime.
+              // biome-ignore lint/suspicious/noArrayIndexKey: immutable snapshot rows
+              <tr key={rowIndex} className="print-avoid border-b border-border">
+                {row.map((cell, cellIndex) => (
+                  // biome-ignore lint/suspicious/noArrayIndexKey: immutable snapshot cells
+                  <td key={cellIndex} className="px-2 py-1.5 align-top">
+                    {report.columns[cellIndex] === 'Metric state' && cell ? (
+                      <StatePill state={cell} />
+                    ) : (
+                      cell
+                    )}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
     </main>
   )
 }
