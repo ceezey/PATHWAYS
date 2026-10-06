@@ -400,5 +400,7 @@ test('planIndexForAppliedCount on a 0000-0064 ledger resumes at the 0065 deploy'
 
 test('planIndexForAppliedCount on a 0000-0065 ledger resumes at the 0066 deploy', () => {
   const applied = MIGRATIONS_IN_ORDER.indexOf('0065_zone_check_memo') + 1
-  assert.deepEqual(buildPlan()[planIndexForAppliedCount(applied)].migrations, ['0066_beneficiary_reach_kpi_values'])
+  assert.deepEqual(buildPlan()[planIndexForAppliedCount(applied)].migrations, [
+    '0066_beneficiary_reach_kpi_values',
+  ])
 })
