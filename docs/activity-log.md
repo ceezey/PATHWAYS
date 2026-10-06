@@ -370,3 +370,6 @@
 
 ## 2026-10-06 Fast runtime Vitest runner
 - `Invoke-RuntimeVitest.ps1` runs one DB-backed `*.local.test.ts` against a copy of the saved replay template; both fast runners share `replay-template.ps1` for the freshness check; Fast Checks documented in `docs/runbook-local-dev.md`; CI cache deferred row added.
+
+## 2026-10-06 Replay step timing
+- `Replay-Local.ps1` prints `REPLAY_STEP <label> <seconds>s` per migration, SQL and Vitest step and writes `.tmp/replay-timing.json` (helper in `replay-timing.ps1`).
