@@ -11,6 +11,8 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '.
 const supabase = localSupabase()
 const shell = process.platform === 'win32'
 const apiPort = process.env.PATHWAYS_LOCAL_API_PORT ?? '4000'
+// The web dev server's own port; the API needs it to reach the designed PDF print pages.
+const webOrigin = process.env.PATHWAYS_LOCAL_WEB_ORIGIN ?? 'http://127.0.0.1:3000'
 
 const shared = {
   ...process.env,
@@ -32,7 +34,9 @@ const apiEnv = {
   API_PORT: apiPort,
   DATABASE_URL: localDatabase.runtimeUrl,
   DIRECT_URL: localDatabase.prismaUrl,
-  WEB_ORIGIN: '',
+  // The local web origin, not a hosted one: blanking it disables the designed PDF renderer,
+  // which falls back to the plain pdfkit layout and refuses to render a receipt at all.
+  WEB_ORIGIN: webOrigin,
   RULES_WORKER_ENABLED: 'false',
   RULES_WORKER_DATABASE_URL: '',
   RULES_SWEEPER_DATABASE_URL: '',
