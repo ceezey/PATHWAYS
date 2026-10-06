@@ -26,6 +26,10 @@ const state = vi.hoisted(() => ({
   previewError: false,
   sections: undefined as unknown,
   reportsError: false,
+  native: false,
+  rounds: [] as unknown[],
+  savedEvaluation: null as unknown,
+  preview: vi.fn(),
   permissions: [
     'reports.read',
     'reports.project.read',
@@ -47,63 +51,108 @@ vi.mock('@/hooks/use-current-role', () => ({
   }),
 }))
 vi.mock('@/lib/services/core-feature-client', () => ({
-  coreDataClient: { generateReport: (...args: unknown[]) => state.generate(...args) },
+  coreDataClient: {
+    generateReport: (...args: unknown[]) => state.generate(...args),
+    reportPreview: (...args: unknown[]) => state.preview(...args),
+  },
   downloadCoreArtifact: (...args: unknown[]) => state.downloadArtifact(...args),
 }))
 vi.mock('@/lib/services/pathways-client', () => ({ pathwaysClient: { getProjects: vi.fn() } }))
 vi.mock('@/providers/authorized-query-provider', () => ({
-  useAuthorizedRead: (key: string) => ({
-    // Keep cached data present even on denial: the real screen must gate it.
-    data:
-      key === 'report-projects'
-        ? [{ id: state.project, title: state.title }]
-        : key === 'report-survey-forms'
-          ? [
-              {
-                id: '20000000-0000-4000-8000-000000000002',
-                name: 'Private survey title',
-                code: 'SURVEY',
-                version: 1,
-              },
-            ]
-          : key.startsWith('report-preview')
-            ? {
-                projectId: state.project,
-                formId: key.includes('SURVEY_FORM_RESULTS')
-                  ? '20000000-0000-4000-8000-000000000002'
-                  : null,
-                kind: key.includes('SURVEY_FORM_RESULTS')
-                  ? 'SURVEY_FORM_RESULTS'
-                  : 'PROJECT_SUMMARY',
-                columns: ['Title'],
-                rows: [['Private report cell']],
-                ...(state.sections ? { sections: state.sections } : {}),
-                generatedAt: '2026-09-27T00:00:00Z',
-                unavailableReasons: [],
-              }
-            : [
-                {
-                  id: '30000000-0000-4000-8000-000000000003',
-                  name: 'Private saved report',
-                  format: 'PDF',
-                  status: 'GENERATED',
-                },
-              ],
-    isPending:
-      key === 'report-projects'
-        ? state.projectsPending
-        : key === 'report-survey-forms' && state.formsPending,
-    isError:
-      key === 'report-projects'
-        ? state.projectsError
-        : key === 'report-survey-forms'
-          ? state.formsError
-          : key.startsWith('report-preview')
-            ? state.previewError
-            : state.reportsError,
-    refetch: state.refetch,
-  }),
+  useAuthorizedRead: (
+    key: string,
+    _id: unknown,
+    _permission: unknown,
+    fetcher?: (signal?: AbortSignal) => unknown,
+  ) => {
+    if (key.startsWith('report-preview')) void fetcher?.()
+    return {
+      // Keep cached data present even on denial: the real screen must gate it.
+      data:
+        key === 'report-projects'
+          ? [{ id: state.project, title: state.title }]
+          : key === 'report-evaluation-rounds'
+            ? state.rounds
+            : key === 'report-survey-forms'
+              ? [
+                  {
+                    id: '20000000-0000-4000-8000-000000000002',
+                    name: 'Private survey title',
+                    code: 'SURVEY',
+                    version: 1,
+                  },
+                ]
+              : key.startsWith('report-preview')
+                ? {
+                    projectId: state.project,
+                    formId: key.includes('SURVEY_FORM_RESULTS')
+                      ? '20000000-0000-4000-8000-000000000002'
+                      : null,
+                    kind: key.includes('SURVEY_FORM_RESULTS')
+                      ? 'SURVEY_FORM_RESULTS'
+                      : 'PROJECT_SUMMARY',
+                    columns: ['Title'],
+                    rows: [['Private report cell']],
+                    ...(state.sections ? { sections: state.sections } : {}),
+                    generatedAt: '2026-09-27T00:00:00Z',
+                    unavailableReasons: [],
+                  }
+                : [
+                    {
+                      id: '30000000-0000-4000-8000-000000000003',
+                      name: 'Private saved report',
+                      format: 'PDF',
+                      status: 'GENERATED',
+                      evaluation: state.savedEvaluation,
+                    },
+                  ],
+      isPending:
+        key === 'report-projects'
+          ? state.projectsPending
+          : key === 'report-survey-forms' && state.formsPending,
+      isError:
+        key === 'report-projects'
+          ? state.projectsError
+          : key === 'report-survey-forms'
+            ? state.formsError
+            : key.startsWith('report-preview')
+              ? state.previewError
+              : state.reportsError,
+      refetch: state.refetch,
+    }
+  },
 }))
+// Radix popups hang jsdom after a selection, so the round tests swap in native selects.
+vi.mock('@/components/ui/select', async (original) => {
+  const actual = await original<typeof import('@/components/ui/select')>()
+  const pick =
+    <P extends object>(Real: React.ComponentType<P>, Fake: React.ComponentType<P>) =>
+    (props: P) =>
+      state.native ? <Fake {...props} /> : <Real {...props} />
+  type Root = React.ComponentProps<typeof actual.Select>
+  type Item = React.ComponentProps<typeof actual.SelectItem>
+  return {
+    ...actual,
+    Select: pick<Root>(actual.Select, ({ value, onValueChange, disabled, children }) => (
+      <select
+        value={value}
+        disabled={disabled}
+        onChange={(event) => onValueChange?.(event.target.value)}
+      >
+        {children}
+      </select>
+    )),
+    SelectTrigger: pick<object>(actual.SelectTrigger as never, () => null),
+    SelectValue: pick<object>(actual.SelectValue as never, () => null),
+    SelectContent: pick<{ children?: React.ReactNode }>(
+      actual.SelectContent as never,
+      ({ children }) => <>{children}</>,
+    ),
+    SelectItem: pick<Item>(actual.SelectItem, ({ value, children }) => (
+      <option value={value}>{children}</option>
+    )),
+  }
+})
 vi.mock('sonner', () => ({
   toast: {
     success: (...args: unknown[]) => state.success(...args),
@@ -372,5 +421,98 @@ describe('beneficiary summary kind', () => {
     expect(allowedKinds(profile('MONITORING_AND_EVALUATION_OFFICER', permissions))).toContain(
       'BENEFICIARY_SUMMARY',
     )
+  })
+})
+
+describe('evaluation round selection', () => {
+  const older = '60000000-0000-4000-8000-000000000005'
+  const newer = '60000000-0000-4000-8000-000000000006'
+  const rounds = [
+    {
+      id: newer,
+      title: 'Evaluation 2025-12-10 to 2026-08-22',
+      status: 'SIGNED_OFF',
+      periodStart: '2025-12-10',
+      periodEnd: '2026-08-22',
+      signedOffAt: '2026-10-07T01:00:00.000Z',
+      overallScore: '71.08',
+    },
+    {
+      id: older,
+      title: 'Evaluation 2025-01-01 to 2025-06-30',
+      status: 'ARCHIVED',
+      periodStart: '2025-01-01',
+      periodEnd: '2025-06-30',
+      signedOffAt: null,
+      overallScore: null,
+    },
+  ]
+  const choose = (index: number, option: string | RegExp) => {
+    const native = screen.getAllByRole('combobox')[index] as HTMLSelectElement
+    const value = Array.from(native.options).find((item) => item.text.match(option))?.value
+    fireEvent.change(native, { target: { value } })
+  }
+  const openEvaluation = () => {
+    render(<LiveReportingWorkspace initialKind="project-summary" />)
+    choose(1, 'Evaluation report')
+  }
+  beforeEach(() => {
+    vi.clearAllMocks()
+    state.generate.mockResolvedValue({ id: 'report', status: 'GENERATED' })
+    state.refetch.mockResolvedValue(undefined)
+    state.native = true
+    state.rounds = rounds
+    state.permissions = [
+      'reports.read',
+      'reports.project.read',
+      'reports.generate',
+      'reports.export',
+      'monitoring.read',
+    ]
+  })
+  afterEach(() => {
+    state.native = false
+    cleanup()
+  })
+
+  it('defaults to the newest round and passes it to preview and generate', async () => {
+    openEvaluation()
+    expect(
+      screen.getByText(/Evaluation 2025-12-10 to 2026-08-22 · Signed off 7 Oct 2026 · 71.08/),
+    ).toBeTruthy()
+    expect(state.preview.mock.lastCall?.[4]).toBe(newer)
+    fireEvent.click(screen.getByRole('button', { name: 'Generate private report' }))
+    await waitFor(() => expect(state.generate).toHaveBeenCalledOnce())
+    expect(state.generate.mock.calls[0][1]).toMatchObject({
+      kind: 'EVALUATION_REPORT',
+      evaluationId: newer,
+      name: 'Evaluation 2025-12-10 to 2026-08-22 Evaluation report',
+    })
+  })
+
+  it('passes the changed round to preview and generate', async () => {
+    openEvaluation()
+    choose(2, /Evaluation 2025-01-01 to 2025-06-30/)
+    expect(state.preview.mock.lastCall?.[4]).toBe(older)
+    fireEvent.click(screen.getByRole('button', { name: 'Generate private report' }))
+    await waitFor(() => expect(state.generate).toHaveBeenCalledOnce())
+    expect(state.generate.mock.calls[0][1].evaluationId).toBe(older)
+  })
+
+  it('disables the field and generation when no round is signed off', () => {
+    state.rounds = []
+    openEvaluation()
+    expect(screen.getByText('No signed-off evaluation round yet')).toBeTruthy()
+    expect(screen.getAllByRole('combobox')[2].hasAttribute('disabled')).toBe(true)
+    expect(
+      screen.getByRole('button', { name: 'Generate private report' }).hasAttribute('disabled'),
+    ).toBe(true)
+  })
+
+  it('shows the round on a saved evaluation report', () => {
+    state.savedEvaluation = { title: 'Midterm', periodStart: '2026-01-01', periodEnd: '2026-06-30' }
+    render(<LiveReportingWorkspace initialKind="project-summary" />)
+    expect(screen.getByText('Round: Midterm (2026-01-01 to 2026-06-30)')).toBeTruthy()
+    state.savedEvaluation = null
   })
 })

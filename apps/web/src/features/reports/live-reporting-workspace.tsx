@@ -73,6 +73,13 @@ export const reportFileName = (name: string, reportId: string, extension: string
     .slice(0, 150)
   return `${base || `report-${reportId}`}.${extension}`
 }
+const day = (value: string) =>
+  new Date(value).toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    timeZone: 'Asia/Manila',
+  })
 export function LiveReportingWorkspace({
   initialKind,
   previewOnly = false,
@@ -109,12 +116,30 @@ export function LiveReportingWorkspace({
     kind === 'SURVEY_FORM_RESULTS'
       ? (currentForms?.find((form) => form.id === selectedForm)?.id ?? currentForms?.[0]?.id)
       : undefined
-  const contextReady = Boolean(id && (kind !== 'SURVEY_FORM_RESULTS' || formId))
+  const [selectedRound, setSelectedRound] = useState<string | null>(null)
+  const rounds = useAuthorizedRead(
+    'report-evaluation-rounds',
+    id,
+    kinds.EVALUATION_REPORT.permission,
+    (signal) => coreDataClient.evaluationRounds(id ?? '', signal),
+    Boolean(id && kind === 'EVALUATION_REPORT'),
+  )
+  const currentRounds = id && !rounds.isError && !rounds.isPending ? rounds.data : undefined
+  const round =
+    kind === 'EVALUATION_REPORT'
+      ? (currentRounds?.find((value) => value.id === selectedRound) ?? currentRounds?.[0])
+      : undefined
+  const evaluationId = round?.id
+  const contextReady = Boolean(
+    id &&
+      (kind !== 'SURVEY_FORM_RESULTS' || formId) &&
+      (kind !== 'EVALUATION_REPORT' || evaluationId),
+  )
   const preview = useAuthorizedRead(
-    `report-preview:${kind}:${formId ?? ''}`,
+    `report-preview:${kind}:${formId ?? ''}:${evaluationId ?? ''}`,
     id,
     kinds[kind].permission,
-    (signal) => coreDataClient.reportPreview(id ?? '', kind, signal, formId),
+    (signal) => coreDataClient.reportPreview(id ?? '', kind, signal, formId, evaluationId),
     contextReady,
   )
   const reports = useAuthorizedRead(
@@ -133,7 +158,7 @@ export function LiveReportingWorkspace({
     'report-generation',
     'reports.generate',
     id,
-    `${kind}:${formId ?? ''}`,
+    `${kind}:${formId ?? ''}:${evaluationId ?? ''}`,
     Boolean(currentPreview),
   )
   const exportOwner = useSensitiveDraftOwner(
@@ -161,6 +186,7 @@ export function LiveReportingWorkspace({
   // biome-ignore lint/correctness/useExhaustiveDependencies: Reset the selected survey when the authorized project changes.
   useEffect(() => {
     setSelectedForm(null)
+    setSelectedRound(null)
   }, [id])
   const download = async (reportId: string, name: string, extension: string) => {
     const captured = exportOwner
@@ -185,12 +211,14 @@ export function LiveReportingWorkspace({
     if (!owner?.isCurrent() || !id || busy || !currentPreview) return
     const captured = owner
     const label = kinds[kind].label
-    const fallbackName = `${(project?.title ?? 'Project').slice(0, 199 - label.length)} ${label}`
+    const base = kind === 'EVALUATION_REPORT' && round ? round.title : (project?.title ?? 'Project')
+    const fallbackName = `${base.slice(0, 199 - label.length)} ${label}`
     const body = {
       name: currentName.trim() || fallbackName,
       kind,
       format,
       ...(formId ? { formId } : {}),
+      ...(evaluationId ? { evaluationId } : {}),
     }
     const clientRequestId = requests.forBody(`${captured.key}:${captured.generation}`, body)
     setBusy(true)
@@ -324,6 +352,37 @@ export function LiveReportingWorkspace({
               </SelectContent>
             </Select>
           </Label>
+          {kind === 'EVALUATION_REPORT' && (
+            <Label className="space-y-2">
+              <span>Round</span>
+              <Select
+                value={evaluationId ?? ''}
+                onValueChange={setSelectedRound}
+                disabled={!currentRounds?.length}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Choose a round" />
+                </SelectTrigger>
+                <SelectContent>
+                  {currentRounds?.map((value) => (
+                    <SelectItem key={value.id} value={value.id}>
+                      {`${value.title}${value.signedOffAt ? ` · Signed off ${day(value.signedOffAt)}` : ''}${value.overallScore ? ` · ${value.overallScore}` : ''}`}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {id && !rounds.isPending && !rounds.isError && !currentRounds?.length && (
+                <span className="block text-xs text-muted-foreground">
+                  No signed-off evaluation round yet
+                </span>
+              )}
+              {rounds.isError && (
+                <span className="block text-xs text-destructive">
+                  Evaluation rounds could not be verified.
+                </span>
+              )}
+            </Label>
+          )}
           <Label className="space-y-2">
             <span>Format</span>
             <Select value={format} onValueChange={(value) => setFormat(value as typeof format)}>
@@ -467,6 +526,12 @@ export function LiveReportingWorkspace({
                   <p className="text-sm text-muted-foreground">
                     {report.format ?? 'Format not set'} · <StatusBadge>{report.status}</StatusBadge>
                   </p>
+                  {report.evaluation && (
+                    <p className="text-sm text-muted-foreground">
+                      Round: {report.evaluation.title} ({report.evaluation.periodStart} to{' '}
+                      {report.evaluation.periodEnd})
+                    </p>
+                  )}
                 </div>
                 {principalHasAtomicPermission(profile, 'reports.export') && (
                   <Button

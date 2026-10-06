@@ -44,6 +44,12 @@ export class ReportsController {
   surveyForms(@Req() req: AuthenticatedRequest, @Param('projectId') id: string) {
     return this.service.surveyForms(actor(req), id)
   }
+  @Get('evaluation-rounds')
+  @RequirePermission('reports.read')
+  @Header('Cache-Control', 'private, no-store')
+  evaluationRounds(@Req() req: AuthenticatedRequest, @Param('projectId') id: string) {
+    return this.service.evaluationRounds(actor(req), id)
+  }
   @Post()
   @RequirePermission('reports.generate')
   @Header('Cache-Control', 'private, no-store')

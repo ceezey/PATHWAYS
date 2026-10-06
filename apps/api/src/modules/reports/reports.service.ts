@@ -73,6 +73,7 @@ type Artifact = {
   id: string
   projectId: string
   formId: string | null
+  evaluationId: string | null
   name: string
   type: ReportKind
   format: ReportFormat
@@ -85,7 +86,7 @@ type Artifact = {
   sha: string | null
   updatedAt: Date
 }
-const artifactFields = Prisma.sql`id::text,project_id::text AS "projectId",form_id::text AS "formId",name,type::text,format::text,status::text,request_hash::text AS hash,source_fingerprint::text AS "sourceFingerprint",artifact_byte_size AS bytes,bucket,object_key AS key,sha256::text AS sha,updated_at AS "updatedAt"`
+const artifactFields = Prisma.sql`id::text,project_id::text AS "projectId",form_id::text AS "formId",name,type::text,format::text,status::text,request_hash::text AS hash,source_fingerprint::text AS "sourceFingerprint",evaluation_id::text AS "evaluationId",artifact_byte_size AS bytes,bucket,object_key AS key,sha256::text AS sha,updated_at AS "updatedAt"`
 @Injectable()
 export class ReportsService {
   constructor(
@@ -114,6 +115,7 @@ export class ReportsService {
     requestedProjectId: string,
     kind: ReportKind,
     requestedFormId?: string,
+    requestedEvaluationId?: string,
   ): Promise<Preview> {
     this.permissions(actor, kind)
     if (!uuid.safeParse(requestedProjectId).success)
@@ -122,6 +124,8 @@ export class ReportsService {
     if (requestedFormId !== undefined && !uuid.safeParse(requestedFormId).success)
       throw new NotFoundException('Form unavailable.')
     const formId = requestedFormId?.toLowerCase()
+    if (requestedEvaluationId !== undefined && !uuid.safeParse(requestedEvaluationId).success)
+      throw new NotFoundException('Evaluation unavailable.')
     const project = await tx.project.findFirst({
       where: { AND: [projectScope(actor), { id: projectId }] },
       select: {
@@ -263,7 +267,12 @@ export class ReportsService {
       })
       Object.assign(result, monitoringReportTable(data))
     } else if (kind === 'EVALUATION_REPORT') {
-      const table = await evaluationReportTable(tx, actor, projectId)
+      const table = await evaluationReportTable(
+        tx,
+        actor,
+        projectId,
+        requestedEvaluationId?.toLowerCase(),
+      )
       Object.assign(result, table)
       if (!table.evaluationId)
         result.unavailableReasons = ['No signed-off evaluation is available for this project.']
@@ -362,6 +371,22 @@ export class ReportsService {
       throw new BadRequestException('Report source exceeds supported size.')
     return result
   }
+  // A saved report is re-checked against the evaluation round it was generated from.
+  private sourceOf(
+    tx: Prisma.TransactionClient,
+    actor: ApplicationIdentity,
+    projectId: string,
+    row: Artifact,
+  ) {
+    return this.source(
+      tx,
+      actor,
+      projectId,
+      row.type,
+      row.formId ?? undefined,
+      row.type === 'EVALUATION_REPORT' ? (row.evaluationId ?? undefined) : undefined,
+    )
+  }
   preview(identity: ApplicationIdentity, projectId: string, input: unknown) {
     const parsed = reportQuerySchema.safeParse(input)
     if (!parsed.success) throw new BadRequestException('Invalid report context.')
@@ -370,7 +395,14 @@ export class ReportsService {
       identity,
       'reports.read',
       async (tx, actor) => {
-        const source = await this.source(tx, actor, projectId, parsed.data.kind, parsed.data.formId)
+        const source = await this.source(
+          tx,
+          actor,
+          projectId,
+          parsed.data.kind,
+          parsed.data.formId,
+          parsed.data.evaluationId,
+        )
         // Explicit allowlist keeps internal ids such as evaluationId out of the response.
         return {
           projectId: source.projectId,
@@ -406,6 +438,47 @@ export class ReportsService {
       return rows
     })
   }
+  evaluationRounds(identity: ApplicationIdentity, projectId: string) {
+    return withAuthorizedOperation(this.prisma, identity, 'reports.read', async (tx, actor) => {
+      this.permissions(actor, 'EVALUATION_REPORT')
+      if (
+        !uuid.safeParse(projectId).success ||
+        !(await tx.project.findFirst({
+          where: { AND: [projectScope(actor), { id: projectId }] },
+          select: { id: true },
+        }))
+      )
+        throw new NotFoundException('Project unavailable.')
+      const rows = await tx.projectEvaluation.findMany({
+        where: {
+          organizationId: actor.organizationId,
+          projectId,
+          status: { in: ['SIGNED_OFF', 'ARCHIVED'] },
+        },
+        orderBy: [{ periodEnd: 'desc' }, { id: 'desc' }],
+        select: {
+          id: true,
+          title: true,
+          status: true,
+          periodStart: true,
+          periodEnd: true,
+          signedOffAt: true,
+          overallScore: true,
+        },
+        take: 101,
+      })
+      if (rows.length > 100) throw new BadRequestException('Select a smaller evaluation scope.')
+      return rows.map((row) => ({
+        id: row.id,
+        title: row.title,
+        status: row.status,
+        periodStart: row.periodStart.toISOString().slice(0, 10),
+        periodEnd: row.periodEnd.toISOString().slice(0, 10),
+        signedOffAt: row.signedOffAt?.toISOString() ?? null,
+        overallScore: row.overallScore?.toString() ?? null,
+      }))
+    })
+  }
   list(identity: ApplicationIdentity, projectId: string) {
     return withAuthorizedOperation(this.prisma, identity, 'reports.read', async (tx, actor) => {
       if (
@@ -439,12 +512,30 @@ export class ReportsService {
           type: { in: allowed },
           archivedAt: null,
         },
-        select: { id: true, name: true, type: true, format: true, status: true, generatedAt: true },
+        select: {
+          id: true,
+          name: true,
+          type: true,
+          format: true,
+          status: true,
+          generatedAt: true,
+          evaluation: { select: { title: true, periodStart: true, periodEnd: true } },
+        },
         orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
         take: 101,
       })
       if (rows.length > 100) throw new BadRequestException('Select a smaller report scope.')
-      return rows.map((row) => ({ ...row, generatedAt: row.generatedAt?.toISOString() ?? null }))
+      return rows.map(({ evaluation, ...row }) => ({
+        ...row,
+        generatedAt: row.generatedAt?.toISOString() ?? null,
+        evaluation: evaluation
+          ? {
+              title: evaluation.title,
+              periodStart: evaluation.periodStart.toISOString().slice(0, 10),
+              periodEnd: evaluation.periodEnd.toISOString().slice(0, 10),
+            }
+          : null,
+      }))
     })
   }
   // Designed PDF through headless Chromium; null keeps the pdfkit artifact as the fallback.
@@ -478,11 +569,13 @@ export class ReportsService {
       ...parsed.data,
       clientRequestId: parsed.data.clientRequestId.toLowerCase(),
       ...(parsed.data.formId ? { formId: parsed.data.formId.toLowerCase() } : {}),
+      ...(parsed.data.evaluationId ? { evaluationId: parsed.data.evaluationId.toLowerCase() } : {}),
     }
     const requestHash = hash(
       JSON.stringify({
         projectId,
         formId: body.formId ?? null,
+        ...(body.evaluationId ? { evaluationId: body.evaluationId } : {}),
         name: body.name,
         kind: body.kind,
         format: body.format,
@@ -493,7 +586,14 @@ export class ReportsService {
       identity,
       'reports.generate',
       async (tx, actor) => {
-        const source = await this.source(tx, actor, projectId, body.kind, body.formId)
+        const source = await this.source(
+          tx,
+          actor,
+          projectId,
+          body.kind,
+          body.formId,
+          body.evaluationId,
+        )
         if (body.kind === 'SURVEY_FORM_RESULTS') {
           if (!source.rows.length)
             throw new ConflictException('Survey aggregate unavailable for generation.')
@@ -607,7 +707,14 @@ export class ReportsService {
         identity,
         'reports.generate',
         async (tx, actor) => {
-          const current = await this.source(tx, actor, projectId, body.kind, body.formId)
+          const current = await this.source(
+            tx,
+            actor,
+            projectId,
+            body.kind,
+            body.formId,
+            body.evaluationId,
+          )
           if (
             JSON.stringify(sourceContent(current)) !== JSON.stringify(sourceContent(prepare.source))
           )
@@ -670,9 +777,8 @@ export class ReportsService {
           this.permissions(actor, row.type)
           if (
             !row.sourceFingerprint ||
-            sourceFingerprint(
-              await this.source(tx, actor, projectId, row.type, row.formId ?? undefined),
-            ) !== row.sourceFingerprint
+            sourceFingerprint(await this.sourceOf(tx, actor, projectId, row)) !==
+              row.sourceFingerprint
           )
             throw new ConflictException('Report source is stale. Generate a current report.')
           if (
@@ -729,9 +835,8 @@ export class ReportsService {
         this.permissions(actor, row.type)
         if (
           !row.sourceFingerprint ||
-          sourceFingerprint(
-            await this.source(tx, actor, projectId, row.type, row.formId ?? undefined),
-          ) !== row.sourceFingerprint
+          sourceFingerprint(await this.sourceOf(tx, actor, projectId, row)) !==
+            row.sourceFingerprint
         )
           throw new ConflictException('Report source changed. Generate a current report.')
         const count = await tx.$queryRaw<

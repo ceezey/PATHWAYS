@@ -63,11 +63,12 @@ const sourceCell = (view: ReturnType<typeof classifyScoreCommentary>) =>
       ? `No data: ${view.reason}`
       : 'Manual score'
 
-/** Latest signed-off or archived evaluation with its criterion scores, or an empty table. */
+/** The chosen (default latest) signed-off or archived evaluation with its scores, or an empty table. */
 export async function evaluationReportTable(
   tx: Prisma.TransactionClient,
   actor: ApplicationIdentity,
   projectId: string,
+  evaluationId?: string,
 ) {
   const columns = [
     'Section',
@@ -82,6 +83,7 @@ export async function evaluationReportTable(
     where: {
       organizationId: actor.organizationId,
       projectId,
+      ...(evaluationId ? { id: evaluationId } : {}),
       status: { in: ['SIGNED_OFF', 'ARCHIVED'] },
     },
     orderBy: [{ periodEnd: 'desc' }, { id: 'desc' }],
