@@ -403,3 +403,7 @@
 - Bug: the beneficiary list returned 503 after 12-24 s on hosted for M&E and Project Officers; the progress query ran per-enrollment laterals under RLS with per-row permission functions (local checks had run as postgres).
 - Added `pathways.p05_beneficiary_progress` (migration 0067, change record `cr-pathways-beneficiary-progress-read`, Proposed): one scope check, then a set-based read; `loadProgress` now calls it. Local timing as the runtime role, 150 enrollments: old query 2.4-10.4 s, new 20-24 ms.
 - Not applied to devV2; the controller owns the SAD review and the apply.
+## 2026-10-06 Timeline final position (0068)
+- Bug: Analytics timeline Elapsed, Remaining days and Overdue days read Not applicable for COMPLETED and ON_HOLD projects.
+- `buildTimelineAnalytics` now reports a completed project's final position (100% elapsed, 0 remaining, overdue = days the last completed activity ended after the planned end; MISSING `NO_COMPLETION_DATE` or `NO_PROJECT_DATES`, never a fake 0) and computes ON_HOLD like ONGOING; CANCELLED and archived stay Not applicable. Rule-engine `timelineObservation` is unchanged.
+- Migration 0068 adds `activities.lastCompletedOn` to `p10_f9_timeline_aggregate` (same signature, owner and ACL); runtime SQL suite and unit tests extended. Not applied to any shared database.

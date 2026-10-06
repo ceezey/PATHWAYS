@@ -131,6 +131,7 @@ type FixtureActivity = {
   status: string
   archivedAt: Date | null
   plannedEndDate: Date | null
+  actualEndDate?: Date | null
 }
 type FixtureMilestone = {
   status: string
@@ -165,6 +166,12 @@ function timelineAggregateFromFixture(
       overdue: dated.filter((a) => days(a) > 0).length,
       missingDates: open.length - dated.length,
       maxOverdueDays: dated.length ? Math.max(0, ...dated.map(days)) : null,
+      lastCompletedOn:
+        eligible
+          .filter((a) => a.status === 'COMPLETED' && a.actualEndDate)
+          .map((a) => (a.actualEndDate as Date).toISOString().slice(0, 10))
+          .sort()
+          .at(-1) ?? null,
     },
     milestones: {
       completed: completedMilestones.length,

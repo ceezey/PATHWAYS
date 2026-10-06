@@ -428,6 +428,10 @@ SELECT pg_temp.ok((SELECT (doc->'activities'->>'eligible')::int=1 AND (doc->'act
     AND (doc->'milestones'->>'onTime')::int=0 AND (doc->'milestones'->>'rated')::int=1
     FROM f9_out WHERE name='timeline_b'),
   'org B timeline counts only org B rows');
+SELECT pg_temp.ok((SELECT doc->'activities'->>'lastCompletedOn'='2026-01-02' FROM f9_out WHERE name='timeline_pm')
+  AND (SELECT doc->'activities'->>'lastCompletedOn'='2026-01-05' FROM f9_out WHERE name='timeline_gm_a2')
+  AND (SELECT doc->'activities'->'lastCompletedOn'='null'::jsonb FROM f9_out WHERE name='timeline_b'),
+  'lastCompletedOn is the latest completed actual end date, and null when no activity completed');
 
 -- Privacy: outputs carry only the documented count/sum keys and no fixture identifier.
 SELECT pg_temp.ok((SELECT NOT EXISTS(
@@ -442,7 +446,7 @@ SELECT pg_temp.ok((SELECT NOT EXISTS(
     WHERE o.name LIKE 'timeline%' AND k NOT IN ('activities','milestones'))
   AND NOT EXISTS(
     SELECT FROM f9_out o, jsonb_object_keys(o.doc->'activities') k
-    WHERE o.name LIKE 'timeline%' AND k NOT IN ('eligible','completed','overdue','missingDates','maxOverdueDays'))
+    WHERE o.name LIKE 'timeline%' AND k NOT IN ('eligible','completed','overdue','missingDates','maxOverdueDays','lastCompletedOn'))
   AND NOT EXISTS(
     SELECT FROM f9_out o, jsonb_object_keys(o.doc->'milestones') k
     WHERE o.name LIKE 'timeline%' AND k NOT IN ('completed','rated','onTime'))),
