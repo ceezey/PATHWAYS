@@ -721,6 +721,8 @@ export class EvaluationsService {
       async (tx, actor) => {
         if (assessmentDetailDeniedRoles.has(actor.roles[0]))
           throw new ForbiddenException('Assessment detail is not available to this role.')
+        if (!hasAtomicPermission(actor.roles[0], actor.permissions, 'beneficiaries.records.read'))
+          throw new ForbiddenException('Assessment detail is not available to this role.')
         const id = await this.requireProject(tx, actor, projectId)
         const parsed = z.object({ enrollmentId: z.string().uuid() }).safeParse(query)
         if (!parsed.success) throw new NotFoundException('Enrollment unavailable.')
@@ -729,6 +731,7 @@ export class EvaluationsService {
             id: parsed.data.enrollmentId,
             organizationId: actor.organizationId,
             projectId: id,
+            beneficiary: { organizationId: actor.organizationId, archivedAt: null },
           },
           select: { id: true },
         })
@@ -754,7 +757,7 @@ export class EvaluationsService {
               select: {
                 activityJourneyStageMapping_activity: {
                   select: { stageId: true },
-                  orderBy: { sequenceOrder: 'asc' },
+                  orderBy: [{ sequenceOrder: 'asc' }, { stageId: 'asc' }],
                   take: 1,
                 },
               },

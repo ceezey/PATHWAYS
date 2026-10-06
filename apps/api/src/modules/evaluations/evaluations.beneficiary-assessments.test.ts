@@ -10,7 +10,11 @@ import type { EvaluationMetricsService } from './evaluation-metrics'
 import { EvaluationsController } from './evaluations.controller'
 import { EvaluationsService } from './evaluations.service'
 
-const scope = vi.hoisted(() => ({ actor: undefined as unknown, tx: undefined as unknown }))
+const scope = vi.hoisted(() => ({
+  actor: undefined as unknown,
+  tx: undefined as unknown,
+  bypass: false,
+}))
 vi.mock('../auth/authorized-operation', () => ({
   withAuthorizedOperation: (
     _db: unknown,
@@ -19,7 +23,11 @@ vi.mock('../auth/authorized-operation', () => ({
     work: (tx: unknown, actor: unknown) => unknown,
   ) => {
     const actor = scope.actor as ApplicationIdentity
-    if (!hasAtomicPermission(actor.roles[0], actor.permissions, permission as never))
+    // The bypass lets a test prove the service refusal, not the permission mock, stops the call.
+    if (
+      !scope.bypass &&
+      !hasAtomicPermission(actor.roles[0], actor.permissions, permission as never)
+    )
       throw new ForbiddenException()
     return work(scope.tx, actor)
   },
@@ -36,7 +44,7 @@ const officer = {
   aal: 'aal2',
   fullName: 'Fictional officer',
   roles: ['PROJECT_OFFICER'],
-  permissions: ['assessments.detail.read'],
+  permissions: ['assessments.detail.read', 'beneficiaries.records.read'],
   assignedProjectIds: [projectId],
 } as ApplicationIdentity
 const row = (n: number, type = 'PRE_TEST') => ({
@@ -64,6 +72,7 @@ describe('beneficiary assessment list', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     scope.actor = officer
+    scope.bypass = false
     scope.tx = tx
     tx.project.findFirst.mockResolvedValue({ id: projectId })
     tx.beneficiaryProjectEnrollment.findFirst.mockResolvedValue({ id: enrollmentId })
@@ -125,11 +134,27 @@ describe('beneficiary assessment list', () => {
     'denies %s before any query, even with a forged grant',
     async (role) => {
       scope.actor = { ...officer, roles: [role] }
-      await expect(list()).rejects.toThrow(ForbiddenException)
+      scope.bypass = true
+      await expect(list()).rejects.toThrow('Assessment detail is not available to this role.')
       expect(tx.project.findFirst).not.toHaveBeenCalled()
       expect(tx.assessmentResult.findMany).not.toHaveBeenCalled()
     },
   )
+
+  it('refuses a holder of only the detail grant before any query', async () => {
+    scope.actor = { ...officer, permissions: ['assessments.detail.read'] }
+    await expect(list()).rejects.toThrow(ForbiddenException)
+    expect(tx.project.findFirst).not.toHaveBeenCalled()
+    expect(tx.assessmentResult.findMany).not.toHaveBeenCalled()
+  })
+
+  it('looks up only live Beneficiaries of the organization', async () => {
+    await list()
+    expect(tx.beneficiaryProjectEnrollment.findFirst.mock.calls[0][0].where.beneficiary).toEqual({
+      organizationId,
+      archivedAt: null,
+    })
+  })
 
   it('denies a role without the permission', async () => {
     scope.actor = { ...officer, permissions: [] }

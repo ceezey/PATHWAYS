@@ -22,6 +22,7 @@ import type {
 
 import { BeneficiaryDetail } from './beneficiary-detail'
 import { mapBeneficiaryJourneyHistory } from './beneficiary-journey-adapter'
+import { assessmentTypeLabel } from './beneficiary-utils'
 
 type DetailData = {
   beneficiary: BeneficiaryRecord
@@ -30,6 +31,7 @@ type DetailData = {
   stages: JourneyStageConfig[]
   participationForms: DigitalFormDefinition[]
   projectId: string
+  assessmentsUnavailable: boolean
 }
 
 type DetailState =
@@ -39,14 +41,6 @@ type DetailState =
   | { status: 'unavailable' }
   | { status: 'error' }
 
-const assessmentTypeTitle = {
-  PRE_TEST: 'Pre-test',
-  POST_TEST: 'Post-test',
-  OUTCOME_SURVEY: 'Outcome survey',
-  FEEDBACK_SURVEY: 'Feedback survey',
-  OTHER: 'Assessment',
-} as const
-
 const toAssessmentRecord =
   (beneficiaryId: string, projectId: string) =>
   (row: AssessmentSummary): BeneficiaryAssessmentRecord => ({
@@ -55,7 +49,7 @@ const toAssessmentRecord =
     projectId,
     stageId: row.stageId ?? '',
     type: row.type,
-    title: assessmentTypeTitle[row.type],
+    title: assessmentTypeLabel[row.type],
     assessedAt: row.assessmentDate,
     score: Number(row.score),
     maximumScore: Number(row.maximumScore),
@@ -112,19 +106,24 @@ export const BeneficiaryDetailLoader = ({
         const enrollmentId = beneficiary.enrollments.find(
           (enrollment) => enrollment.projectId === scopedProjectId,
         )?.id
-        // A denied or failed assessment read leaves the page usable with no assessments.
-        const assessments =
+        let assessmentsUnavailable = false
+        // A denied or failed assessment read leaves the page usable and says so on the button.
+        const readAssessments =
           canReadAssessments && enrollmentId
-            ? await pathwaysClient
+            ? pathwaysClient
                 .getBeneficiaryAssessments(scopedProjectId, enrollmentId, controller.signal)
                 .then((rows) => rows.map(toAssessmentRecord(beneficiaryId, scopedProjectId)))
-                .catch((): BeneficiaryAssessmentRecord[] => [])
-            : []
-        const [activities, stages, history, forms] = await Promise.all([
+                .catch((): BeneficiaryAssessmentRecord[] => {
+                  assessmentsUnavailable = true
+                  return []
+                })
+            : Promise.resolve([])
+        const [activities, stages, history, forms, assessments] = await Promise.all([
           pathwaysClient.getActivities(scopedProjectId),
           pathwaysClient.getJourneyStages(scopedProjectId),
           pathwaysClient.getBeneficiaryJourneyHistory(scopedProjectId, beneficiaryId),
           canReadForms ? pathwaysClient.getDigitalForms(scopedProjectId) : Promise.resolve([]),
+          readAssessments,
         ])
         const journey = mapBeneficiaryJourneyHistory(history)
 
@@ -140,6 +139,7 @@ export const BeneficiaryDetailLoader = ({
               ),
               activities,
               stages,
+              assessmentsUnavailable,
             },
           })
         }

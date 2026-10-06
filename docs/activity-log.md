@@ -370,3 +370,4 @@
 
 ## 2026-10-06 Beneficiary assessment view
 - [cr-pathways-beneficiary-assessment-view](cr-pathways-beneficiary-assessment-view.md): new enrollment-scoped assessment list read (same guards as the detail read) feeds the beneficiary detail page; "View assessment" now shows pre and post scores and the change for the selected stage. No migration.
+- Assessment view fix round 1: list read also requires `beneficiaries.records.read` and a live Beneficiary; the page pairs pre and post across stages, explains a failed read, and guard tests now fail if the denied-role or button gates are removed.

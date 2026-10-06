@@ -1,5 +1,6 @@
 import type {
   ActivitySummary,
+  BeneficiaryAssessmentRecord,
   BeneficiaryParticipationRecord,
   BeneficiaryRecord,
   JourneyStageConfig,
@@ -163,3 +164,11 @@ export const formatDate = (value: string | null | undefined) => {
 
 export const projectTitle = (projectId: string, projects: { id: string; title: string }[]) =>
   projects.find((project) => project.id === projectId)?.title ?? projectId
+
+export const assessmentTypeLabel: Record<BeneficiaryAssessmentRecord['type'], string> = {
+  PRE_TEST: 'Pre-test',
+  POST_TEST: 'Post-test',
+  OUTCOME_SURVEY: 'Outcome survey',
+  FEEDBACK_SURVEY: 'Feedback survey',
+  OTHER: 'Other',
+}

@@ -37,6 +37,7 @@ vi.mock('./beneficiary-detail', () => ({
     beneficiary,
     participationForms,
     projectId,
+    assessmentsUnavailable,
   }: {
     beneficiary: {
       id: string
@@ -45,10 +46,12 @@ vi.mock('./beneficiary-detail', () => ({
     }
     participationForms: Array<{ id: string }>
     projectId: string
+    assessmentsUnavailable: boolean
   }) => (
     <div
       data-form-count={participationForms.length}
       data-assessment-count={beneficiary.assessments.length}
+      data-assessments-unavailable={String(assessmentsUnavailable)}
       data-participation-count={beneficiary.participation.length}
       data-project-id={projectId}
       data-testid="beneficiary-detail"
@@ -204,6 +207,7 @@ describe('BeneficiaryDetailLoader', () => {
       render(<BeneficiaryDetailLoader beneficiaryId="beneficiary-a" projectId="project-b" />)
       const detail = await screen.findByTestId('beneficiary-detail')
       expect(detail.getAttribute('data-assessment-count')).toBe('0')
+      expect(detail.getAttribute('data-assessments-unavailable')).toBe('true')
     })
 
     it('does not request assessments without the permission', async () => {
