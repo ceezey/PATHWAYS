@@ -61,6 +61,7 @@ vi.mock('./beneficiary-detail', () => ({
   ),
 }))
 
+import { STEP_UP_COMPLETED_EVENT } from '@/lib/auth/beneficiary-step-up-events'
 import { BeneficiaryDetailLoader } from './beneficiary-detail-loader'
 
 afterEach(() => {
@@ -208,6 +209,26 @@ describe('BeneficiaryDetailLoader', () => {
       const detail = await screen.findByTestId('beneficiary-detail')
       expect(detail.getAttribute('data-assessment-count')).toBe('0')
       expect(detail.getAttribute('data-assessments-unavailable')).toBe('true')
+    })
+
+    it('re-reads the assessments after a completed step-up without reloading the page', async () => {
+      setupLoad(['assessments.detail.read'])
+      client.getBeneficiaryAssessments.mockRejectedValueOnce(new Error('step-up required'))
+      client.getBeneficiaryAssessments.mockResolvedValueOnce([row])
+      render(<BeneficiaryDetailLoader beneficiaryId="beneficiary-a" projectId="project-b" />)
+      const detail = await screen.findByTestId('beneficiary-detail')
+      expect(detail.getAttribute('data-assessments-unavailable')).toBe('true')
+      window.dispatchEvent(new Event(STEP_UP_COMPLETED_EVENT))
+      await waitFor(() =>
+        expect(screen.getByTestId('beneficiary-detail').getAttribute('data-assessment-count')).toBe(
+          '1',
+        ),
+      )
+      expect(
+        screen.getByTestId('beneficiary-detail').getAttribute('data-assessments-unavailable'),
+      ).toBe('false')
+      expect(client.getBeneficiaryAssessments).toHaveBeenCalledTimes(2)
+      expect(client.getBeneficiaryJourneyHistory).toHaveBeenCalledTimes(1)
     })
 
     it('does not request assessments without the permission', async () => {

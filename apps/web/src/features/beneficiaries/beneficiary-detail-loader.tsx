@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react'
 import { AsyncState, StatusMessage } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import { useCurrentRole } from '@/hooks/use-current-role'
+import { STEP_UP_COMPLETED_EVENT } from '@/lib/auth/beneficiary-step-up-events'
 import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
 import { isUiActionAvailable } from '@/lib/rbac/ui-action-availability'
 import { type AssessmentSummary, pathwaysClient } from '@/lib/services/pathways-client'
@@ -165,6 +166,38 @@ export const BeneficiaryDetailLoader = ({
       controller.abort()
     }
   }, [beneficiaryId, loadAttempt, projectId, role, canReadForms, canReadAssessments])
+
+  // A completed step-up re-reads only the assessments, keeping the page and selected stage.
+  useEffect(() => {
+    if (state.status !== 'ready' || !state.data.assessmentsUnavailable || !canReadAssessments)
+      return
+    const { beneficiary, projectId: scoped } = state.data
+    const enrollmentId = beneficiary.enrollments.find((item) => item.projectId === scoped)?.id
+    if (!enrollmentId) return
+    const onCompleted = () =>
+      pathwaysClient
+        .getBeneficiaryAssessments(scoped, enrollmentId)
+        .then((rows) =>
+          setState((current) =>
+            current.status === 'ready'
+              ? {
+                  status: 'ready',
+                  data: {
+                    ...current.data,
+                    assessmentsUnavailable: false,
+                    beneficiary: {
+                      ...current.data.beneficiary,
+                      assessments: rows.map(toAssessmentRecord(beneficiary.id, scoped)),
+                    },
+                  },
+                }
+              : current,
+          ),
+        )
+        .catch(() => undefined)
+    window.addEventListener(STEP_UP_COMPLETED_EVENT, onCompleted)
+    return () => window.removeEventListener(STEP_UP_COMPLETED_EVENT, onCompleted)
+  }, [state, canReadAssessments])
 
   if (state.status === 'loading') {
     return (
