@@ -371,3 +371,7 @@
 ## 2026-10-06 Rules sweep isolation fix and machine fault logging
 - The hourly sweep failed on hosted with 42501 because `sweep_rule_projects()` requires read committed while `RulesMachineSqlClient.phase()` ran every CAPTURE phase under RepeatableRead; only drain snapshot capture (`capture_rule_snapshot` via `install_capture_context`) needs RepeatableRead, so the sweep now runs ReadCommitted with the unchanged CAPTURE budget. All other machine routines already ran ReadCommitted as their migrations require.
 - `RulesMachineWorker.drain` and `sweep` now log one `PATHWAYS_RULES_MACHINE_FAILED` warning (purpose, failure kind, allowlisted error name, Prisma code and SQLSTATE; never messages or SQL) before the unchanged 503; `faultCause` moved to `prisma/transaction-diagnostic.ts` for reuse. No migration.
+
+## 2026-10-06 Beneficiary assessment view
+- [cr-pathways-beneficiary-assessment-view](cr-pathways-beneficiary-assessment-view.md): new enrollment-scoped assessment list read (same guards as the detail read) feeds the beneficiary detail page; "View assessment" now shows pre and post scores and the change for the selected stage. No migration.
+- Assessment view fix round 1: list read also requires `beneficiaries.records.read` and a live Beneficiary; the page pairs pre and post across stages, explains a failed read, and guard tests now fail if the denied-role or button gates are removed.

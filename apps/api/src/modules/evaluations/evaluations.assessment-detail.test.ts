@@ -12,6 +12,7 @@ import { EvaluationsService } from './evaluations.service'
 const scope = vi.hoisted(() => ({
   actor: undefined as unknown,
   tx: undefined as unknown,
+  bypass: false,
 }))
 vi.mock('../auth/authorized-operation', () => ({
   withAuthorizedOperation: (
@@ -21,7 +22,10 @@ vi.mock('../auth/authorized-operation', () => ({
     work: (tx: unknown, actor: unknown) => unknown,
   ) => {
     const actor = scope.actor as ApplicationIdentity
-    if (!hasAtomicPermission(actor.roles[0], actor.permissions, permission as never))
+    if (
+      !scope.bypass &&
+      !hasAtomicPermission(actor.roles[0], actor.permissions, permission as never)
+    )
       throw new ForbiddenException()
     return work(scope.tx, actor)
   },
@@ -74,6 +78,7 @@ describe('assessment detail read', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     scope.actor = officer
+    scope.bypass = false
     scope.tx = tx
     tx.project.findFirst.mockResolvedValue({ id: projectId })
     tx.assessmentResult.findFirst.mockResolvedValue(row)
@@ -141,7 +146,8 @@ describe('assessment detail read', () => {
         roles: [role],
         permissions: ['assessments.detail.read'],
       }
-      await expect(read()).rejects.toThrow(ForbiddenException)
+      scope.bypass = true
+      await expect(read()).rejects.toThrow('Assessment detail is not available to this role.')
       expect(tx.project.findFirst).not.toHaveBeenCalled()
       expect(tx.assessmentResult.findFirst).not.toHaveBeenCalled()
     },

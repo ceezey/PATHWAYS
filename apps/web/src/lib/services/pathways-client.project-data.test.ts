@@ -294,3 +294,32 @@ describe('project data loading client contract', () => {
     }
   })
 })
+
+describe('beneficiary assessment list read', () => {
+  const enrollmentId = '73700000-0000-4000-8000-000000000020'
+  const item = {
+    id: '73700000-0000-4000-8000-000000000021',
+    type: 'PRE_TEST',
+    activityId: null,
+    stageId: null,
+    score: '40',
+    maximumScore: '50',
+    assessmentDate: '2026-09-01',
+    recordedAt: '2026-09-02T00:00:00.000Z',
+  }
+
+  it('requests the enrollment-scoped list and parses the rows', async () => {
+    const { fetcher } = setup([item])
+    expect(await pathwaysClient.getBeneficiaryAssessments(projectId, enrollmentId)).toEqual([item])
+    expect(String(fetcher.mock.calls[0][0])).toContain(
+      `/projects/${projectId}/evaluation/assessments?enrollmentId=${enrollmentId}`,
+    )
+  })
+
+  it('rejects a malformed row', async () => {
+    setup([{ ...item, score: 40 }])
+    await expect(pathwaysClient.getBeneficiaryAssessments(projectId, enrollmentId)).rejects.toThrow(
+      PathwaysClientError,
+    )
+  })
+})
