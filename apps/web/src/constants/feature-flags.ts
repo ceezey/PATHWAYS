@@ -13,6 +13,12 @@
 export const STEP_UP_PIN_UI_ENABLED = false
 
 /**
+ * The beneficiary step-up dialog's Reset button is hidden (2026-10-07, developer request); the code
+ * fields can still be cleared by hand. See docs/deferred-features.md.
+ */
+export const STEP_UP_RESET_UI_ENABLED = false
+
+/**
  * The analytics aggregate export (CSV) button was hidden on 2026-09-29 and is shown again
  * (2026-10-04). The GET analytics/descriptive/export endpoint, its permission and its
  * download behavior stay in place; only the UI entry point (the button and its
@@ -71,3 +77,10 @@ export const DASHBOARD_PINS_UI_ENABLED = false
  * see docs/deferred-features.md.
  */
 export const PAGE_HEADING_EDITOR_UI_ENABLED = false
+
+/**
+ * The import "Duplicate records decision" select is hidden (2026-10-07, developer request), on top
+ * of `UNFINISHED_CONTROLS_UI_ENABLED`. Imports keep the default "decide when flagged" behavior; see
+ * docs/deferred-features.md.
+ */
+export const IMPORT_DUPLICATE_DECISION_UI_ENABLED = false

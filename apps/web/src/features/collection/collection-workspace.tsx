@@ -65,7 +65,10 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { UNFINISHED_CONTROLS_UI_ENABLED } from '@/constants/feature-flags'
+import {
+  IMPORT_DUPLICATE_DECISION_UI_ENABLED,
+  UNFINISHED_CONTROLS_UI_ENABLED,
+} from '@/constants/feature-flags'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'
 import { usePendingCreate } from '@/hooks/use-pending-create'
@@ -1644,7 +1647,7 @@ const OwnedCollectionWorkspace = ({
 
       {view === 'import' ? (
         <div className="space-y-4">
-          {UNFINISHED_CONTROLS_UI_ENABLED ? (
+          {UNFINISHED_CONTROLS_UI_ENABLED && IMPORT_DUPLICATE_DECISION_UI_ENABLED ? (
             <div className="space-y-2">
               <Label htmlFor="duplicate-decision">Duplicate records decision</Label>
               <Select
