@@ -267,7 +267,7 @@ export const AnalyticsDashboard = () => {
   const surveyUnavailable = !canReadSurvey || surveyClosedPeriodRequired
   const pickerPeriods = analysisView === 'survey' ? surveyPeriods : reportingPeriods
   const pickerPeriod = analysisView === 'survey' ? surveyPeriod : selectedPeriod
-  // SADDD is withheld by policy until the project period closes; this is a notice, not an error.
+  // SADDD is released live to date once the project starts; a not-started project gets a notice, not an error.
   const sadddNotice =
     !selectedProject?.startDate || !selectedProject.endDate
       ? {
@@ -275,14 +275,15 @@ export const AnalyticsDashboard = () => {
           description:
             "Record this project's start and end dates to enable the sex, age and disability breakdown.",
         }
-      : selectedProject.endDate >= businessDateInManila()
+      : selectedProject.startDate > businessDateInManila()
         ? {
-            title: `SADDD opens after this project ends on ${formatDate(selectedProject.endDate)}`,
+            title: `SADDD opens when this project starts on ${formatDate(selectedProject.startDate)}`,
             description:
-              'Sex, age and disability breakdowns use the final counts of a closed project period, so they are not shown while the project is ongoing. Select a completed project to see them now.',
+              'Sex, age and disability breakdowns are shown once the project has started. Select a started project to see them now.',
           }
         : null
   const sadddEligible = sadddNotice === null
+  const sadddOngoing = sadddEligible && (selectedProject?.endDate ?? '') >= businessDateInManila()
   const periodRange = selectedPeriod
     ? { periodStart: selectedPeriod.start, periodEnd: selectedPeriod.end }
     : {}
@@ -1215,6 +1216,11 @@ export const AnalyticsDashboard = () => {
               ) : saddd ? (
                 <>
                   <StatusMessage>SADDD analysis loaded.</StatusMessage>
+                  {sadddOngoing ? (
+                    <p className="mb-2 text-sm text-muted-foreground">
+                      Counts to date; groups of fewer than 5 are hidden.
+                    </p>
+                  ) : null}
                   <div data-testid="saddd-chart">
                     <SadddChart dashboard={saddd} />
                   </div>
