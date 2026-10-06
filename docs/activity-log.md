@@ -382,6 +382,27 @@
 ## 2026-10-06 Replay step timing
 - `Replay-Local.ps1` prints `REPLAY_STEP <label> <seconds>s` per migration, SQL and Vitest step and writes `.tmp/replay-timing.json` (helper in `replay-timing.ps1`).
 
+## 2026-10-06 Change records for the devV2 applies
+- Applied: 0064 evaluation write path and 0065 zone check memo (about 11:30, ledger 40 rows), 0066 beneficiary reach and SADDD for ongoing projects (14:39, ledger 41 rows); `defense-demo --verify` 23 of 23 after each.
+- CRs updated: evaluation write path, zone check memo, defense seed snapshot (second, realistic restore), beneficiary assessment view, project status report; new `cr-pathways-beneficiary-reach-kpi-values`.
+- Rules dispatch: the drain is green after the developer set the `pathways_rules_worker` password; the sweep waits for production to run the isolation fix (PR #45).
+
+## 2026-10-06 Demo indicators linked to activities
+- Root cause: the demo seed created indicators and activities but never `activity_indicator_links`, so the Activities INDICATORS column (`indicatorCount` = link count) read 0 beside indicators with readings.
+- Seed: each demo indicator now lists its producing `activityKeys`; the indicators stage writes the links on the runtime role (the table forces RLS); `--verify` checks that no seeded indicator with readings is unlinked.
+- EHK numbers aligned: distribution reached 70 families, EHK-FAMILIES target 75 (project reach target) with readings 34 then 70; new EHK-KITS output indicator linked to procurement.
+- Web: indicator progress percent rounds to one decimal (`formatCappedPercent`, `ProgressBar`).
+
+## 2026-10-06 Demo data realism audit
+- EHK budget rescaled to PHP 280,000 (96 percent spent, same ratio) so 70 kits and families cost realistic unit amounts; ALS budget rescaled to PHP 620,000 (80 percent).
+- Expense dates now fall in the window of their activity (procurement, distribution, training), not the last two months; `--verify` checks expense dates against project and activity dates.
+- Indicator readings aligned with notes and milestones (WSH schools 8, clubs 8, handover 50 percent; ALS module completion 72 percent); CRL reach target 45 matches enrollments.
+- SSG cohort ages and sex mix suit a girls program; webinar targets cover their participants.
+- Limitation: audit, alert, evidence and approval timestamps are stamped by the database at seed time and cannot be backdated through supported inputs.
+## 2026-10-06 Beneficiary progress read (0067)
+- Bug: the beneficiary list returned 503 after 12-24 s on hosted for M&E and Project Officers; the progress query ran per-enrollment laterals under RLS with per-row permission functions (local checks had run as postgres).
+- Added `pathways.p05_beneficiary_progress` (migration 0067, change record `cr-pathways-beneficiary-progress-read`, Proposed): one scope check, then a set-based read; `loadProgress` now calls it. Local timing as the runtime role, 150 enrollments: old query 2.4-10.4 s, new 20-24 ms.
+- Not applied to devV2; the controller owns the SAD review and the apply.
 ## 2026-10-06 Project frame, report parity, budget receipts, activity panel, M&E hints (feat/project-workspace-frame-ui)
 - Project tabs share one frame: the tab routes move into a `(workspace)` route group (URLs unchanged, `edit` stays outside) whose `layout.tsx` renders `ProjectWorkspaceFrame` once. The frame reads the project through the existing `useProjectRead` key and draws the title with Back, Edit and Archive, then the tab strip; `ProjectWorkspaceHeader` keeps the description and tabs only. Indicators, Monitoring & Evaluation, Budget and Journey Stages had no tab strip at all, so their `BackButton` is gone. Overview returns, re-routing the orphaned `ProjectDetailView`.
 - Report preview renders `PrintReportView`, the component the print page feeds to Chromium, so preview and export match for all six kinds instead of only Project summary. `generate` returns `pdfFallback` when Chromium failed and the stored PDF is the pdfkit layout; the workspace says so rather than reporting plain success. The flag describes that render, so a recovered report omits it.

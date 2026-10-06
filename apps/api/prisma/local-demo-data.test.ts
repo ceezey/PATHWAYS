@@ -145,6 +145,23 @@ describe('demo content', () => {
       }
   })
 
+  it('links every indicator to real activities of its project', () => {
+    for (const [key, list] of Object.entries(demoIndicators))
+      for (const indicator of list) {
+        expect(indicator.activityKeys.length, indicator.code).toBeGreaterThan(0)
+        const keys = new Set(demoActivities[key as ProjectKey].map((a) => a.key))
+        for (const activityKey of indicator.activityKeys)
+          expect(keys.has(activityKey), `${indicator.code} ${activityKey}`).toBe(true)
+      }
+  })
+
+  it('explains the project reach from the linked activities and indicators', () => {
+    const ehk = demoIndicators.EHK.find((i) => i.code === 'EHK-FAMILIES')
+    const distribute = demoActivities.EHK.find((a) => a.key === 'distribute')
+    expect(Number(ehk?.readings.at(-1))).toBe(distribute?.reached)
+    expect(Number(ehk?.target)).toBe(demoProjects.find((p) => p.key === 'EHK')?.targetBeneficiaries)
+  })
+
   it('keeps the rules structured, within the metric catalog and with predefined recommendations', () => {
     expect(demoRules.some((rule) => rule.code === 'OPERATIONS_BOTTLENECK')).toBe(true)
     expect(demoRules.length).toBeGreaterThanOrEqual(4)
@@ -232,7 +249,7 @@ describe('defense dataset', () => {
     expect(rejected.some((e) => e.rejectStage === 'APPROVE')).toBe(true)
     for (const e of rejected) expect((e.reason ?? '').length).toBeGreaterThan(10)
     for (const e of demoExpenses) {
-      expect(e.daysAgo).toBeLessThanOrEqual(60)
+      expect(e.daysAgo).toBeLessThanOrEqual(300)
       if (e.activityKey)
         expect(
           demoActivities[e.project].some((a) => a.key === e.activityKey),
@@ -335,10 +352,10 @@ describe('demo cohorts', () => {
       expect(planCohort(project, today, start)).toEqual(planCohort(project, today, start))
   })
 
-  it('spans ages 5 to 70 with both sexes, every code unique and no future dates', () => {
+  it('spans ages 6 to 68 with both sexes, every code unique and no future dates', () => {
     const ages = everyone.map((person) => person.age)
-    expect(Math.min(...ages)).toBe(5)
-    expect(Math.max(...ages)).toBe(70)
+    expect(Math.min(...ages)).toBe(6)
+    expect(Math.max(...ages)).toBe(68)
     expect(new Set(everyone.map((person) => person.sex))).toEqual(new Set(['MALE', 'FEMALE']))
     expect(new Set(everyone.map((person) => person.code)).size).toBe(everyone.length)
     for (const person of everyone) {

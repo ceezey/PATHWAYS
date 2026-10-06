@@ -77,3 +77,5 @@ Developer, 2026-10-06 (spec approved).
 ## 9. Disposition
 
 Implemented and merged (origin/dev cf51de1e). Local rehearsal passed. Hosted restore done 2026-10-06 on devV2 at 0063 with PR #43 numbers: dry run rolled back clean, storage copy needed one rerun after a transient 504 (75 objects), database restore committed (77 tables, 12600 rows, delta 0), and `--verify` passed 23 of 23.
+
+Second hosted restore 2026-10-06 at about 11:45 Manila with the realistic seed (fix/realistic-demo-seed) at 0065: devV2 got 0064 and 0065 first, because `mirror` refuses a migration mismatch. The dry run was clean, then 75 storage objects were copied and the database restore committed (77 tables, 33682 rows, delta 0); `--verify` passed 23 of 23. `RULES_DISPATCH_ENABLED` was already true during this restore, against section 5 of the runbook; no sweep ran inside the single restore transaction, so there was no impact. After 0066 on 2026-10-06 (14:39), `--verify` failed once with 28P01 because the pooler cached the re-set runtime password verifier, then passed 23 of 23 a minute later.

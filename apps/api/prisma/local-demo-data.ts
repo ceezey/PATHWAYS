@@ -82,7 +82,7 @@ export const demoProjects: DemoProject[] = [
       'Increase household income diversification and establish functioning barangay disaster response teams.',
     implementationArea: 'Catarman and Lavezares, Northern Samar',
     sector: 'Livelihoods',
-    targetBeneficiaries: 36,
+    targetBeneficiaries: 45,
     projectBudget: '3200000.00',
     partners: [
       'Northern Samar Provincial Agriculture Office',
@@ -108,7 +108,7 @@ export const demoProjects: DemoProject[] = [
     implementationArea: 'Lavezares, Northern Samar',
     sector: 'Education',
     targetBeneficiaries: 36,
-    projectBudget: '1850000.00',
+    projectBudget: '620000.00',
     partners: ['Department of Education Northern Samar Division', 'Lavezares Municipal Office'],
     startOffset: -330,
     endOffset: 21,
@@ -174,7 +174,7 @@ export const demoProjects: DemoProject[] = [
     implementationArea: 'Guiuan, Eastern Samar',
     sector: 'Education',
     targetBeneficiaries: 75,
-    projectBudget: '980000.00',
+    projectBudget: '280000.00',
     partners: ['Guiuan Municipal Social Welfare and Development Office'],
     startOffset: -300,
     endOffset: -45,
@@ -370,7 +370,7 @@ export const demoActivities: Record<ProjectKey, DemoActivity[]> = {
         'Online orientation for senior girls on career pathways, scholarships and the entrepreneurship and technology skills tracks.',
       startOffset: -45,
       endOffset: 25,
-      target: 100,
+      target: 130,
       outcome: 'PROGRESS_VERIFIED',
       officer: 'liza',
       progress: 60,
@@ -661,7 +661,7 @@ export const demoActivities: Record<ProjectKey, DemoActivity[]> = {
         'Online orientation for learners on career pathways after accreditation and the two skills tracks.',
       startOffset: -35,
       endOffset: 25,
-      target: 30,
+      target: 40,
       outcome: 'PROGRESS_VERIFIED',
       officer: 'liza',
       progress: 60,
@@ -841,9 +841,9 @@ export const demoActivities: Record<ProjectKey, DemoActivity[]> = {
       outcome: 'COMPLETED',
       officer: 'liza',
       progress: 100,
-      note: 'Kits distributed to 68 families; signed acknowledgment lists submitted.',
+      note: 'Kits distributed to 70 families; signed acknowledgment lists submitted.',
       reviewNote: 'Acknowledgment lists reconciled with the beneficiary registry.',
-      reached: 68,
+      reached: 70,
     },
   ],
 }
@@ -862,9 +862,10 @@ export const demoCohorts: Record<ProjectKey, DemoCohort> = {
   SSG: {
     count: 150,
     ages: [
-      12, 14, 16, 13, 15, 17, 11, 10, 14, 16, 38, 41, 45, 52, 29, 35, 13, 15, 12, 9, 7, 5, 66, 70,
+      12, 14, 16, 13, 15, 17, 11, 10, 14, 16, 38, 13, 15, 12, 41, 11, 13, 15, 12, 16, 14, 17, 29,
+      14,
     ],
-    femaleShare: 0.75,
+    femaleShare: 0.85,
   },
   CRL: {
     count: 30,
@@ -1060,6 +1061,8 @@ export type DemoIndicator = {
   target: string
   /** Successive readings, oldest first. */
   readings: string[]
+  /** Keys of the project activities that produce this indicator. */
+  activityKeys: string[]
 }
 
 export const demoIndicators: Record<ProjectKey, DemoIndicator[]> = {
@@ -1073,6 +1076,7 @@ export const demoIndicators: Record<ProjectKey, DemoIndicator[]> = {
       baseline: '0',
       target: '120',
       readings: ['30', '62', '90', '105'],
+      activityKeys: ['baseline', 'orientation', 'lifeskills', 'returnedproof'],
     },
     {
       code: 'SSG-ATT-RATE',
@@ -1083,6 +1087,7 @@ export const demoIndicators: Record<ProjectKey, DemoIndicator[]> = {
       baseline: '68.00',
       target: '90.00',
       readings: ['70.50', '73.20', '76.80', '79.40'],
+      activityKeys: ['lifeskills', 'kits'],
     },
     {
       code: 'SSG-COMM-FUNC',
@@ -1093,6 +1098,7 @@ export const demoIndicators: Record<ProjectKey, DemoIndicator[]> = {
       baseline: '2',
       target: '14',
       readings: ['3', '5', '8'],
+      activityKeys: ['committee', 'referral'],
     },
     {
       code: 'SSG-KNOW-SCORE',
@@ -1103,6 +1109,7 @@ export const demoIndicators: Record<ProjectKey, DemoIndicator[]> = {
       baseline: '52.00',
       target: '75.00',
       readings: ['58.00', '63.50', '67.00'],
+      activityKeys: ['committee', 'posttest'],
     },
   ],
   CRL: [
@@ -1115,6 +1122,7 @@ export const demoIndicators: Record<ProjectKey, DemoIndicator[]> = {
       baseline: '6',
       target: '30',
       readings: ['12', '18', '24'],
+      activityKeys: ['livelihood', 'enterprise', 'savings'],
     },
     {
       code: 'CRL-DRR-TEAMS',
@@ -1125,6 +1133,7 @@ export const demoIndicators: Record<ProjectKey, DemoIndicator[]> = {
       baseline: '0',
       target: '10',
       readings: ['2', '5', '5'],
+      activityKeys: ['drrm', 'drill', 'hazards'],
     },
     {
       code: 'CRL-BUDGET-USE',
@@ -1135,6 +1144,7 @@ export const demoIndicators: Record<ProjectKey, DemoIndicator[]> = {
       baseline: '0.00',
       target: '100.00',
       readings: ['25.00', '48.50', '71.00'],
+      activityKeys: ['livelihood', 'monitoring'],
     },
   ],
   ALS: [
@@ -1147,6 +1157,7 @@ export const demoIndicators: Record<ProjectKey, DemoIndicator[]> = {
       baseline: '0',
       target: '30',
       readings: ['18', '26', '30'],
+      activityKeys: ['mapping', 'sessions'],
     },
     {
       code: 'ALS-COMPLETION',
@@ -1156,7 +1167,8 @@ export const demoIndicators: Record<ProjectKey, DemoIndicator[]> = {
       numericKind: 'PERCENTAGE',
       baseline: '0.00',
       target: '80.00',
-      readings: ['5.00', '12.50', '20.00'],
+      readings: ['44.00', '61.00', '72.00'],
+      activityKeys: ['reviewclass', 'results', 'assessment'],
     },
   ],
   ECD: [
@@ -1169,6 +1181,7 @@ export const demoIndicators: Record<ProjectKey, DemoIndicator[]> = {
       baseline: '0',
       target: '40',
       readings: [],
+      activityKeys: ['parenting'],
     },
   ],
   WSH: [
@@ -1180,7 +1193,8 @@ export const demoIndicators: Record<ProjectKey, DemoIndicator[]> = {
       numericKind: 'COUNT',
       baseline: '1',
       target: '12',
-      readings: ['2', '4', '5'],
+      readings: ['2', '5', '8'],
+      activityKeys: ['facility', 'rehab'],
     },
     {
       code: 'WSH-CLUBS',
@@ -1190,7 +1204,8 @@ export const demoIndicators: Record<ProjectKey, DemoIndicator[]> = {
       numericKind: 'COUNT',
       baseline: '0',
       target: '12',
-      readings: ['1', '3'],
+      readings: ['2', '5', '8'],
+      activityKeys: ['hygiene'],
     },
     {
       code: 'WSH-HANDOVER',
@@ -1200,7 +1215,8 @@ export const demoIndicators: Record<ProjectKey, DemoIndicator[]> = {
       numericKind: 'PERCENTAGE',
       baseline: '0.00',
       target: '100.00',
-      readings: ['17.00', '33.00', '42.00'],
+      readings: ['17.00', '33.00', '50.00'],
+      activityKeys: ['rehab', 'handover'],
     },
   ],
   EHK: [
@@ -1211,8 +1227,20 @@ export const demoIndicators: Record<ProjectKey, DemoIndicator[]> = {
       unit: 'families',
       numericKind: 'COUNT',
       baseline: '0',
-      target: '72',
-      readings: ['34', '68'],
+      target: '75',
+      readings: ['34', '70'],
+      activityKeys: ['distribute'],
+    },
+    {
+      code: 'EHK-KITS',
+      indicatorType: 'OUTPUT',
+      name: 'Hygiene and learning kits procured',
+      unit: 'kits',
+      numericKind: 'COUNT',
+      baseline: '0',
+      target: '70',
+      readings: ['35', '70'],
+      activityKeys: ['procure'],
     },
   ],
 }
@@ -1265,7 +1293,7 @@ export const demoExpenses: DemoExpense[] = [
     activityKey: 'baseline',
     description: 'Tablet data collection allowance for 12 enumerators, six barangays',
     amount: '42000.00',
-    daysAgo: 58,
+    daysAgo: 150,
     submitter: 'liza',
     flow: 'SIGNED_OFF',
     receipt: true,
@@ -1276,7 +1304,7 @@ export const demoExpenses: DemoExpense[] = [
     activityKey: 'orientation',
     description: 'Venue rental and snacks for six barangay orientation sessions',
     amount: '38500.00',
-    daysAgo: 52,
+    daysAgo: 115,
     submitter: 'liza',
     flow: 'APPROVED',
     receipt: true,
@@ -1287,7 +1315,7 @@ export const demoExpenses: DemoExpense[] = [
     description:
       'Printed child protection materials and snacks for follow-up orientation in Maypangdan',
     amount: '51750.00',
-    daysAgo: 47,
+    daysAgo: 108,
     submitter: 'liza',
     flow: 'APPROVED',
     receipt: true,
@@ -1348,7 +1376,8 @@ export const demoExpenses: DemoExpense[] = [
   {
     project: 'SSG',
     activityKey: 'referral',
-    description: 'Meals and transport for referral mapping meetings with municipal offices',
+    description:
+      'Meals and transport for preliminary meetings with municipal offices on referral mapping',
     amount: '9800.00',
     daysAgo: 4,
     submitter: 'liza',
@@ -1390,7 +1419,7 @@ export const demoExpenses: DemoExpense[] = [
     project: 'CRL',
     description: 'Starter grants first tranche to 20 households, Bocsol and Dalakit',
     amount: '1250000.00',
-    daysAgo: 41,
+    daysAgo: 25,
     submitter: 'emmanuel',
     flow: 'SIGNED_OFF',
     receipt: true,
@@ -1449,8 +1478,8 @@ export const demoExpenses: DemoExpense[] = [
   {
     project: 'ALS',
     description: 'Printing of learner modules for cycle 1',
-    amount: '154800.00',
-    daysAgo: 60,
+    amount: '38500.00',
+    daysAgo: 200,
     submitter: 'liza',
     flow: 'SIGNED_OFF',
     receipt: true,
@@ -1459,8 +1488,8 @@ export const demoExpenses: DemoExpense[] = [
   {
     project: 'ALS',
     description: 'Honoraria of 24 learning facilitators, final payment',
-    amount: '190000.00',
-    daysAgo: 50,
+    amount: '96000.00',
+    daysAgo: 225,
     submitter: 'liza',
     flow: 'SIGNED_OFF',
     receipt: true,
@@ -1469,8 +1498,8 @@ export const demoExpenses: DemoExpense[] = [
   {
     project: 'ALS',
     description: 'Learner modules and review materials for cycle 2',
-    amount: '640000.00',
-    daysAgo: 38,
+    amount: '148000.00',
+    daysAgo: 40,
     submitter: 'liza',
     flow: 'SIGNED_OFF',
     receipt: true,
@@ -1479,7 +1508,7 @@ export const demoExpenses: DemoExpense[] = [
   {
     project: 'ALS',
     description: 'Learning center rent, utilities and learner snacks for review classes',
-    amount: '495200.00',
+    amount: '213500.00',
     daysAgo: 22,
     submitter: 'liza',
     flow: 'APPROVED',
@@ -1498,7 +1527,7 @@ export const demoExpenses: DemoExpense[] = [
     project: 'WSH',
     description: 'Cement, hollow blocks and PVC pipes for four school sites',
     amount: '486200.00',
-    daysAgo: 60,
+    daysAgo: 300,
     submitter: 'emmanuel',
     flow: 'SIGNED_OFF',
     receipt: true,
@@ -1508,7 +1537,7 @@ export const demoExpenses: DemoExpense[] = [
     project: 'WSH',
     description: 'Plumbing fixtures and roofing sheets for six school sites',
     amount: '912300.00',
-    daysAgo: 44,
+    daysAgo: 220,
     submitter: 'emmanuel',
     flow: 'SIGNED_OFF',
     receipt: true,
@@ -1518,7 +1547,7 @@ export const demoExpenses: DemoExpense[] = [
     project: 'WSH',
     description: 'Contractor progress billing for school sites 7 to 9',
     amount: '1184000.00',
-    daysAgo: 29,
+    daysAgo: 90,
     submitter: 'emmanuel',
     flow: 'SIGNED_OFF',
     receipt: true,
@@ -1528,7 +1557,7 @@ export const demoExpenses: DemoExpense[] = [
     project: 'WSH',
     description: 'Venue, meals and materials for school hygiene club training',
     amount: '200000.00',
-    daysAgo: 10,
+    daysAgo: 60,
     submitter: 'liza',
     flow: 'SIGNED_OFF',
     receipt: true,
@@ -1536,9 +1565,9 @@ export const demoExpenses: DemoExpense[] = [
   },
   {
     project: 'EHK',
-    description: 'Procurement of 450 hygiene and learning kits',
-    amount: '520000.00',
-    daysAgo: 59,
+    description: 'Procurement of 70 hygiene and learning kits',
+    amount: '175000.00',
+    daysAgo: 255,
     submitter: 'liza',
     flow: 'SIGNED_OFF',
     receipt: true,
@@ -1547,8 +1576,8 @@ export const demoExpenses: DemoExpense[] = [
   {
     project: 'EHK',
     description: 'Hauling, packing and distribution logistics in three barangays',
-    amount: '300000.00',
-    daysAgo: 52,
+    amount: '62000.00',
+    daysAgo: 160,
     submitter: 'liza',
     flow: 'SIGNED_OFF',
     receipt: true,
@@ -1557,8 +1586,8 @@ export const demoExpenses: DemoExpense[] = [
   {
     project: 'EHK',
     description: 'Distribution monitoring, acknowledgment lists and liquidation',
-    amount: '120800.00',
-    daysAgo: 46,
+    amount: '31800.00',
+    daysAgo: 140,
     submitter: 'liza',
     flow: 'SIGNED_OFF',
     receipt: true,

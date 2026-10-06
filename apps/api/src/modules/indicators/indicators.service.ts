@@ -65,6 +65,37 @@ export function monitoringSqlError(error: unknown): never {
   throw error
 }
 
+// Released rows carry no definition text, binding or measurement provenance.
+const releasedNulls = {
+  description: null,
+  dataSource: null,
+  mode: null,
+  binding: null,
+  measurementId: null,
+  measuredAt: null,
+  measurementSource: null,
+}
+
+/** Parses one indicator row and adds its baseline-to-target progress. */
+function withProgress(row: Record<string, unknown>, failure: string): MonitoringIndicator {
+  const parsed = monitoringIndicatorSchema.safeParse({
+    ...row,
+    progress: missingMetric('NOT_YET_CALCULATED'),
+    contractVersion: P06_CONTRACT_VERSION,
+  })
+  if (!parsed.success) throw new ServiceUnavailableException(failure)
+  const indicator = parsed.data
+  const progress = indicator.direction
+    ? indicatorProgress(
+        indicator.current,
+        indicator.baseline,
+        indicator.target,
+        indicator.direction,
+      )
+    : missingMetric('LEGACY_REVIEW_REQUIRED')
+  return { ...indicator, progress }
+}
+
 @Injectable()
 export class IndicatorsService {
   constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
@@ -122,28 +153,7 @@ export class IndicatorsService {
       throw new BadRequestException(
         'More than 100 indicator definitions match; narrow the project scope.',
       )
-    return rows.map((row) => {
-      const parsed = monitoringIndicatorSchema.safeParse({
-        ...row,
-        progress: missingMetric('NOT_YET_CALCULATED'),
-        contractVersion: P06_CONTRACT_VERSION,
-      })
-      if (!parsed.success)
-        throw new ServiceUnavailableException('Stored indicator contract is unavailable.')
-      const indicator = parsed.data
-      const progress = indicator.direction
-        ? indicatorProgress(
-            indicator.current,
-            indicator.baseline,
-            indicator.target,
-            indicator.direction,
-          )
-        : missingMetric('LEGACY_REVIEW_REQUIRED')
-      return {
-        ...indicator,
-        progress,
-      }
-    })
+    return rows.map((row) => withProgress(row, 'Stored indicator contract is unavailable.'))
   }
 
   async readInTransaction(
@@ -153,6 +163,53 @@ export class IndicatorsService {
     options: { indicatorId?: string; periodStart?: string; periodEnd?: string } = {},
   ): Promise<MonitoringIndicator[]> {
     return this.readProjectIndicatorsInTransaction(tx, actor, projectIds, options)
+  }
+
+  /** KPI values from pathways.p06_indicator_values for every role holding monitoring.read and reports.indicator.read. */
+  async readReleasedInTransaction(
+    tx: Tx,
+    actor: ApplicationIdentity,
+    projectIds: string[],
+    options: { periodStart?: string; periodEnd?: string } = {},
+  ): Promise<MonitoringIndicator[]> {
+    if (projectIds.length === 0) return []
+    if (projectIds.length > 100 || projectIds.some((id) => !UUID_PATTERN.test(id)))
+      throw new BadRequestException('Narrow the monitoring project scope.')
+    const zone = readApiEnv(process.env).BUSINESS_TIME_ZONE
+    await tx.$queryRaw`SELECT set_config('statement_timeout','3000',true)`
+    let rows: Array<{ item: Record<string, unknown> }>
+    try {
+      rows = await tx.$queryRaw<Array<{ item: Record<string, unknown> }>>(Prisma.sql`
+        SELECT v.item
+        FROM unnest(ARRAY[${Prisma.join(projectIds.map((id) => Prisma.sql`${id}::uuid`))}]::uuid[]) AS p(id)
+        CROSS JOIN LATERAL jsonb_array_elements(pathways.p06_indicator_values(p.id, ${zone})) AS v(item)
+        WHERE ${options.periodStart ?? null}::text IS NULL
+          OR (v.item->>'periodStart' = ${options.periodStart ?? null}::text AND v.item->>'periodEnd' = ${options.periodEnd ?? null}::text)
+        ORDER BY v.item->>'code', v.item->>'id'
+        LIMIT 101
+      `)
+    } catch (error) {
+      monitoringSqlError(error)
+    }
+    if (rows.length > 100)
+      throw new BadRequestException(
+        'More than 100 indicator definitions match; narrow the project scope.',
+      )
+    return rows.map(({ item }) =>
+      withProgress({ ...item, ...releasedNulls }, 'Released indicator contract is unavailable.'),
+    )
+  }
+
+  listReleased(identity: ApplicationIdentity, projectId: string) {
+    return withAuthorizedOperation(
+      this.prisma,
+      identity,
+      'reports.indicator.read',
+      async (tx, actor) =>
+        this.readReleasedInTransaction(tx, actor, [
+          await this.requireProject(tx, actor, projectId),
+        ]),
+    )
   }
 
   private async readOne(

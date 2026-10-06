@@ -10,3 +10,11 @@ describe('formatCappedPercent', () => {
     expect(formatCappedPercent(112.34, 'over budget')).toBe('100% (12.3% over budget)')
   })
 })
+
+describe('percent rounding', () => {
+  it('shows at most one decimal', () => {
+    expect(formatCappedPercent('94.4444')).toBe('94.4%')
+    expect(formatCappedPercent(94.4444)).toBe('94.4%')
+    expect(formatCappedPercent('50.00')).toBe('50%')
+  })
+})

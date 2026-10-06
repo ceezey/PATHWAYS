@@ -50,6 +50,7 @@ vi.mock('../rules/rules-source-operation', async (importOriginal) => ({
   bootstrapRuleSourceProject: async () => undefined,
 }))
 import { createHash } from 'node:crypto'
+import { PERMISSION_KEY } from '@app/common/decorators/permission.decorator'
 import type { ApplicationIdentity } from '@app/modules/auth/developer-access'
 import type { PrismaService } from '@app/prisma/prisma.service'
 import {
@@ -61,6 +62,7 @@ import {
 } from '@nestjs/common'
 import type { Prisma } from '@prisma/client'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { IndicatorValuesController } from './indicator-values.controller'
 import { IndicatorsService } from './indicators.service'
 
 const boundary = vi.hoisted(() => ({ run: vi.fn() }))
@@ -482,5 +484,120 @@ describe('P06 IndicatorsService', () => {
       return []
     })
     await expect(service.list(actor, projectId)).rejects.toBeInstanceOf(ServiceUnavailableException)
+  })
+})
+
+const released = {
+  id: indicatorId,
+  projectId,
+  code: 'PEOPLE_TRAINED',
+  name: 'People trained',
+  indicatorType: 'OUTPUT',
+  unitLabel: 'people',
+  numericKind: 'COUNT',
+  direction: 'HIGHER_IS_BETTER',
+  displayPrecision: 0,
+  periodStart: '2026-01-01',
+  periodEnd: '2026-06-30',
+  baseline: '0',
+  target: '20',
+  revision: 1,
+  status: 'ACTIVE',
+  current: { state: 'AVAILABLE', value: '12', reason: null },
+}
+const manager: ApplicationIdentity = {
+  ...actor,
+  roles: ['PROGRAM_MANAGER'],
+  permissions: ['monitoring.read', 'reports.indicator.read'],
+}
+
+describe('Released indicator values (0066)', () => {
+  const service = new IndicatorsService({} as PrismaService)
+  beforeEach(() => {
+    vi.resetAllMocks()
+    boundary.run.mockImplementation(
+      async (
+        _prisma: PrismaService,
+        identity: ApplicationIdentity,
+        permission: string,
+        work: (client: Prisma.TransactionClient, current: ApplicationIdentity) => Promise<unknown>,
+      ) => {
+        if (!identity.permissions.includes(permission)) throw new ForbiddenException()
+        return work(tx as unknown as Prisma.TransactionClient, identity)
+      },
+    )
+    tx.project.findFirst.mockResolvedValue({ id: projectId })
+    tx.$queryRaw.mockImplementation(async (query: unknown) =>
+      sqlText(query).includes('p06_indicator_values') ? [{ item: { ...released } }] : [],
+    )
+  })
+
+  it('returns values with progress and nulls every definition, binding and measurement field', async () => {
+    const [row] = await service.readReleasedInTransaction(
+      tx as unknown as Prisma.TransactionClient,
+      manager,
+      [projectId],
+      { periodStart: '2026-01-01', periodEnd: '2026-06-30' },
+    )
+    expect(row).toMatchObject({
+      code: 'PEOPLE_TRAINED',
+      description: null,
+      dataSource: null,
+      mode: null,
+      binding: null,
+      measurementId: null,
+      measuredAt: null,
+      measurementSource: null,
+      progress: { state: 'AVAILABLE', value: '60' },
+    })
+    const call = tx.$queryRaw.mock.calls.find(([query]) =>
+      sqlText(query).includes('p06_indicator_values'),
+    )?.[0] as { values: unknown[] }
+    expect(call.values).toContain('2026-01-01')
+    expect(call.values).toContain(projectId)
+  })
+
+  it('maps a database scope refusal to 403', async () => {
+    tx.$queryRaw.mockImplementation(async (query: unknown) => {
+      if (sqlText(query).includes('p06_indicator_values'))
+        throw Object.assign(new Error('denied'), { code: 'P2010', meta: { code: '42501' } })
+      return []
+    })
+    await expect(
+      service.readReleasedInTransaction(tx as unknown as Prisma.TransactionClient, manager, [
+        projectId,
+      ]),
+    ).rejects.toBeInstanceOf(ForbiddenException)
+  })
+
+  it('refuses more than 100 rows with 400', async () => {
+    tx.$queryRaw.mockImplementation(async (query: unknown) =>
+      sqlText(query).includes('p06_indicator_values')
+        ? Array.from({ length: 101 }, () => ({ item: { ...released } }))
+        : [],
+    )
+    await expect(
+      service.readReleasedInTransaction(tx as unknown as Prisma.TransactionClient, manager, [
+        projectId,
+      ]),
+    ).rejects.toBeInstanceOf(BadRequestException)
+  })
+
+  it('lists released values for a Program Manager under reports.indicator.read and a scoped project', async () => {
+    await expect(service.listReleased(manager, projectId)).resolves.toHaveLength(1)
+    expect(boundary.run).toHaveBeenCalledWith(
+      expect.anything(),
+      manager,
+      'reports.indicator.read',
+      expect.any(Function),
+    )
+    tx.project.findFirst.mockResolvedValueOnce(null)
+    await expect(service.listReleased(manager, projectId)).rejects.toBeInstanceOf(NotFoundException)
+  })
+
+  it('gates the route with monitoring.read', () => {
+    expect(Reflect.getMetadata(PERMISSION_KEY, IndicatorValuesController.prototype.list)).toBe(
+      'monitoring.read',
+    )
   })
 })

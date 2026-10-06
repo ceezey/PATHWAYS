@@ -107,6 +107,19 @@ export async function verifyDefenseDemo(
     `${rejected.length} rejected`,
   )
 
+  const misdated =
+    await one(owner.$queryRaw`SELECT count(*) AS n FROM pathways.budget_expense_entries e
+    JOIN pathways.projects p ON p.id = e.project_id
+    LEFT JOIN pathways.project_budget_records b ON b.id = e.budget_record_id
+    LEFT JOIN pathways.project_activities a ON a.id = b.activity_id
+    WHERE e.expense_date < p.start_date OR (p.end_date IS NOT NULL AND e.expense_date > p.end_date AND p.status = 'COMPLETED')
+      OR e.expense_date < a.planned_start_date - 14
+      OR (a.status = 'COMPLETED' AND e.expense_date > a.planned_end_date + 45)`)
+  add(
+    'expense dates fall inside the project and after the activity planned start and not long after it ended',
+    misdated === 0,
+    `${misdated} misdated`,
+  )
   const types = await owner.projectIndicator.groupBy({
     by: ['indicatorType'],
     where: { archivedAt: null },
@@ -115,6 +128,14 @@ export async function verifyDefenseDemo(
     'every indicator type is present',
     types.length === 7,
     types.map((row) => row.indicatorType).join(', '),
+  )
+  const unlinked = await one(owner.$queryRaw`SELECT count(*) AS n FROM pathways.project_indicators i
+    WHERE i.archived_at IS NULL AND EXISTS (SELECT 1 FROM pathways.project_indicator_measurements m WHERE m.indicator_id = i.id)
+      AND i.code ~ '^(SSG|CRL|ALS|WSH|EHK)-' AND NOT EXISTS (SELECT 1 FROM pathways.activity_indicator_links l WHERE l.indicator_id = i.id)`)
+  add(
+    'every seeded indicator with readings is linked to an activity',
+    unlinked === 0,
+    `${unlinked} unlinked`,
   )
   const library = await scoped('me', (tx) =>
     tx.indicatorLibraryEntry.count({ where: { archivedAt: null } }),

@@ -243,7 +243,7 @@ async function main() {
               'Reduce school dropout among girls aged 12–17 and establish functioning school protection committees.',
             implementationArea: 'Borongan City, Guiuan and Llorente, Eastern Samar',
             sector: 'Education',
-            targetBeneficiaries: 1200,
+            targetBeneficiaries: 160,
             programManagerId: workspace.users.get('PROGRAM_MANAGER'),
             startDate: new Date('2026-03-01'),
             endDate: new Date('2027-08-31'),
