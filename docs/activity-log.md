@@ -492,3 +492,7 @@
 
 ## 2026-10-06 Expense dialog uses the DSD select (fix/expense-dialog-dsd-select)
 - The Log expense budget allocation picker moves from a native select to `ui/select`, matching the DSD rule that selects use `ui/select`, and shows the activity envelope as "Activity budget" through `categoryLabel` instead of `ACTIVITY_PROFILE_TOTAL`.
+
+## 2026-10-06 Designed PDF finds a local browser (fix/pdf-browser-autodetect)
+- Local Windows and macOS runs fell back to the plain pdfkit layout unless each developer set `PDF_CHROME_PATH`. With it blank, the renderer now launches the first standard Chrome or Edge install (Program Files, Program Files (x86), LocalAppData on Windows; /Applications on macOS). An explicit `PDF_CHROME_PATH` still wins, so the kill switch is unchanged, and Linux keeps the bundled Chromium.
+- Verified with `scripts/check-pdf-renderer.ts` and `PDF_CHROME_PATH` blank: report and receipt both render through Chrome. `WEB_ORIGIN` stays blank locally; the renderer already navigates to the loopback web app outside production.

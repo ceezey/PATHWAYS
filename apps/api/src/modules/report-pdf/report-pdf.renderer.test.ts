@@ -2,7 +2,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { PrintPdfRenderer } from './print-pdf.renderer'
 import { type PrintSnapshot, ReportPdfError, ReportPdfRenderer } from './report-pdf.renderer'
 
-const state = vi.hoisted(() => ({ launch: vi.fn(), executablePath: vi.fn() }))
+const state = vi.hoisted(() => ({
+  launch: vi.fn(),
+  executablePath: vi.fn(),
+  installed: new Set<string>(),
+}))
+vi.mock('node:fs', async (original) => ({
+  ...(await original<typeof import('node:fs')>()),
+  existsSync: (path: string) => state.installed.has(path),
+}))
 vi.mock('puppeteer-core', () => ({ default: { launch: state.launch } }))
 vi.mock('@sparticuz/chromium', () => ({
   default: { args: ['--headless'], executablePath: state.executablePath },
@@ -47,6 +55,7 @@ describe('ReportPdfRenderer', () => {
     process.env.WEB_ORIGIN = 'https://web.example.test'
     process.env.PDF_CHROME_PATH = 'C:/chrome.exe'
     process.env.WEB_PROTECTION_BYPASS = ''
+    state.installed.clear()
   })
 
   it('injects the snapshot, prints A4 with backgrounds and closes the page', async () => {
@@ -187,7 +196,7 @@ describe('ReportPdfRenderer', () => {
     expect(state.launch).toHaveBeenCalledTimes(2)
   })
 
-  it('has no executable off Linux without PDF_CHROME_PATH', async () => {
+  it('has no executable off Linux without PDF_CHROME_PATH or an installed browser', async () => {
     process.env.PDF_CHROME_PATH = ''
     const platform = Object.getOwnPropertyDescriptor(process, 'platform')
     Object.defineProperty(process, 'platform', { value: 'win32' })
@@ -200,6 +209,36 @@ describe('ReportPdfRenderer', () => {
     } finally {
       if (platform) Object.defineProperty(process, 'platform', platform)
     }
+    expect(state.launch).not.toHaveBeenCalled()
+  })
+
+  it('launches an installed Chrome off Linux without PDF_CHROME_PATH', async () => {
+    process.env.PDF_CHROME_PATH = ''
+    process.env.PROGRAMFILES = 'C:\\Program Files'
+    const chrome = 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe'
+    state.installed.add(chrome)
+    state.launch.mockResolvedValue(fakeBrowser(fakePage()))
+    const platform = Object.getOwnPropertyDescriptor(process, 'platform')
+    Object.defineProperty(process, 'platform', { value: 'win32' })
+    try {
+      await new ReportPdfRenderer(new PrintPdfRenderer()).render(reportId, snapshot)
+    } finally {
+      if (platform) Object.defineProperty(process, 'platform', platform)
+    }
+    expect(state.launch).toHaveBeenCalledWith(
+      expect.objectContaining({ executablePath: chrome, headless: true }),
+    )
+  })
+
+  it('keeps an explicit PDF_CHROME_PATH ahead of an installed browser', async () => {
+    process.env.PDF_CHROME_PATH = 'Z:/missing/chrome.exe'
+    process.env.PROGRAMFILES = 'C:\\Program Files'
+    state.installed.add('C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe')
+    state.launch.mockResolvedValue(fakeBrowser(fakePage()))
+    await new ReportPdfRenderer(new PrintPdfRenderer()).render(reportId, snapshot)
+    expect(state.launch).toHaveBeenCalledWith(
+      expect.objectContaining({ executablePath: 'Z:/missing/chrome.exe' }),
+    )
   })
 
   it('closes the shared browser on module destroy', async () => {
