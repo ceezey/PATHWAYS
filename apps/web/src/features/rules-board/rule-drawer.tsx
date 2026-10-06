@@ -52,8 +52,9 @@ type Props = {
   /** Inline renders the builder in the page beside a sticky preview instead of a side panel. */
   inline?: boolean
   onClose: () => void
-  onSaved: (scopeProjectId: string | null) => void
+  onSaved: (scopeProjectId: string | null, outcome?: RuleOutcome) => void
 }
+export type RuleOutcome = 'created' | 'drafted' | 'activated' | 'deactivated'
 /** Splits a stored tree into the flat rows the drawer edits, or null when it nests deeper. */
 const flatten = (node: RuleNode): { mode: Mode; rows: RuleCondition[] } | null =>
   node.kind === 'CONDITION'
@@ -202,7 +203,7 @@ function OwnedDrawer({
       setNotice(error.message ? `${error.message} ${fallback}` : fallback)
     } else setNotice('A response was not confirmed. Retry the same operation.')
   }
-  const run = async (task: () => Promise<unknown>, failure: string) => {
+  const run = async (task: () => Promise<unknown>, failure: string, outcome: RuleOutcome) => {
     if (!isCurrent() || inFlight.current) return
     inFlight.current = true
     setBusy(true)
@@ -212,7 +213,7 @@ function OwnedDrawer({
       await task()
       if (isCurrent()) {
         captured.current = null
-        onSaved(scopeProjectId)
+        onSaved(scopeProjectId, outcome)
       }
     } catch (error) {
       fail(error, failure)
@@ -263,6 +264,7 @@ function OwnedDrawer({
           ? rulesHumanClient.draftRule(rule.id, body)
           : rulesHumanClient.createRule(body as Parameters<typeof rulesHumanClient.createRule>[0]),
       'The rule could not be saved. Verify your access, project records, and current version before retrying.',
+      rule ? 'drafted' : 'created',
     )
   }
   const lifecycle = async (action: 'activate' | 'deactivate') => {
@@ -277,6 +279,7 @@ function OwnedDrawer({
           ? rulesHumanClient.activateRule(rule.id, body)
           : rulesHumanClient.archiveRule(rule.id, { ...body, note: note.trim() }),
       'This operation could not be completed. Refresh the rule and verify current access.',
+      action === 'activate' ? 'activated' : 'deactivated',
     )
   }
   const preview = (

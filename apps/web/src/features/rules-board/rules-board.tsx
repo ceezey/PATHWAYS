@@ -29,6 +29,7 @@ import { pathwaysClient } from '@/lib/services/pathways-client'
 import { rulesHumanClient } from '@/lib/services/rules-human-client'
 import { useAuthorizedRead } from '@/providers/authorized-query-provider'
 import { useState } from 'react'
+import { toast } from 'sonner'
 import {
   appliesTo,
   conditionSummary,
@@ -38,7 +39,7 @@ import {
   statusTone,
   titleCase,
 } from './rule-board-model'
-import { type DrawerIntent, RuleDrawer } from './rule-drawer'
+import { type DrawerIntent, RuleDrawer, type RuleOutcome } from './rule-drawer'
 
 // Radix Select rejects an empty value, so the organization scope uses a sentinel.
 const ORGANIZATION_SCOPE = 'organization'
@@ -48,6 +49,12 @@ type Tab = 'repository' | 'create'
 type Drawer = { mode: 'alert' | 'recommendation'; rule?: HumanRule; intent?: DrawerIntent }
 type View = 'alerts' | 'recommendations' | 'manage'
 const PREVIEW_ROWS = 5
+const outcomeCopy: Record<RuleOutcome, string> = {
+  created: 'Rule created as a draft. Activate it to start checking project data.',
+  drafted: 'Draft saved.',
+  activated: 'Rule activated.',
+  deactivated: 'Rule deactivated.',
+}
 const head = 'sticky top-0 z-10 bg-surface-subtle'
 const row = 'h-14 cursor-pointer'
 
@@ -212,10 +219,11 @@ export function RulesBoard() {
       setLoadingMore(false)
     }
   }
-  const saved = (scope: string | null) => {
+  const saved = (scope: string | null, outcome: RuleOutcome = 'drafted') => {
     setDrawer(null)
     setTab('repository')
-    setNotice('Rule changes saved.')
+    toast.success(outcomeCopy[outcome])
+    setNotice(outcomeCopy[outcome])
     setMore(null)
     if (scope !== projectId) changeScope(scope)
     else void list.refetch()

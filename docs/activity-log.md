@@ -425,3 +425,15 @@
 - The activity panel listed expenses only while they were `PENDING` and only to a validator, so an officer never saw the expense they had just logged, and the entry disappeared from every panel the moment it was verified. Only approved money then reappeared, as budget used.
 - New `ActivityExpenses` section lists every non-rejected expense on the activity with its review step (For review, Verified awaiting approval, Approved), its amount and who has acted so far. It is shown to any principal holding `expenses.read`, which is the same grant the budget ledger already requires, so no access widens.
 - The validator's own "Submitted expenses for validation" action list is unchanged; the new list is read-only.
+
+## 2026-10-06 Alert queue reads horizontally, details open on click (feat/project-workspace-frame-ui)
+- The review workspace no longer splits into a narrow queue column and an always-open detail column. The queue is a responsive card grid across the full width, and the record details card sits below it.
+- Selection no longer falls back to the first queue item, so the page opens on the queue alone; clicking a card opens its details and clicking the open card closes them again. A deep link `?alert=<id>` still opens that record.
+- Card hierarchy reordered: severity and status badges first, then the title, then the project, then the measured value against its threshold. The long explanation moved out of the card and stays in the details.
+- Presentation only; no query, permission or data change.
+
+## 2026-10-06 Save outcome toast, and the organization-template create defect (feat/project-workspace-frame-ui)
+- `RuleDrawer.onSaved` carries the outcome (created, drafted, activated, deactivated) so the board raises an accurate toast rather than one message for every write; `run` takes the outcome alongside its failure copy.
+- Diagnosed the save refusal reported from the Create rule tab. `pathways_rules_internal.configuration_operation` assigns the `admitted` record only when a project scope is present, then references `admitted.admitted_generation` and `admitted.admitted_watermark` inside a CASE on the `configuration_context` INSERT. PL/pgSQL binds those record fields before the CASE chooses a branch, so an organization-template write raises 55000 `record "admitted" is not assigned yet`. The handler maps 55000 to 42501, which the API returns as 403 with the authority message, hiding the real cause.
+- Verified on the local database as `pathways_runtime` with a system administrator context: RULE_CREATE with `projectId` succeeds, the same call without it fails. Both probes ran inside a rolled-back transaction; no rows were written.
+- Not fixed here: the repair is a migration over 0031 and belongs in its own change, so organization templates stay unavailable until then. Project-scoped rules are unaffected.

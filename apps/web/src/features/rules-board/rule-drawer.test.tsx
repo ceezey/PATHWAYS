@@ -140,7 +140,7 @@ describe('RuleDrawer', () => {
       title: 'Review flagged condition',
       text: 'Review the recorded evidence and decide on a response.',
     })
-    await waitFor(() => expect(onSaved).toHaveBeenCalledWith(null))
+    await waitFor(() => expect(onSaved).toHaveBeenCalledWith(null, 'created'))
   })
   it('blocks saving without a complete recommendation', async () => {
     renderDrawer()
