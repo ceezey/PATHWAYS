@@ -503,3 +503,7 @@
 ## 2026-10-07 Hide Add to Dashboard and the page-heading pencil (fix/hide-add-to-dashboard)
 - Analytics "Add to Dashboard" and the role dashboard "Monitoring charts" section are hidden for all users behind `DASHBOARD_PINS_UI_ENABLED = false`; pins already in browser storage stay untouched.
 - The disabled page-heading pencil is hidden for every role behind `PAGE_HEADING_EDITOR_UI_ENABLED = false`; other pencil edit buttons (project team, budget, activity) are unaffected. Both are registered in docs/deferred-features.md.
+
+## 2026-10-07 Dynamic project report template (docs only)
+- Drafted [dynamic project report template design](superpowers/specs/2026-10-07-dynamic-project-report-template-design.md): one template with five presets (Midterm, Evidence, Quarterly, Final, Donor brief), per-section toggles, period and filters, four block types (Fixed, Auto, Narrative, Conditional) and per-format behaviour for PDF, DOCX, XLSX and CSV.
+- Today's builder offers only project, kind and format; filters, section toggles, narratives and DOCX are target state and need a CR, a narrative migration and a DOCX writer decision before build.
