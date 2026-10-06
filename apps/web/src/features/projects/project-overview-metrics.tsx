@@ -34,22 +34,31 @@ export const ProjectOverviewMetrics = ({
   const value = (compute: (data: NonNullable<typeof metrics>) => string) =>
     metrics ? compute(metrics) : failed ? unavailable : 'Loading...'
   const target = formatNumber(targetBeneficiaries ?? 0)
-  // A budget the role cannot read is left out instead of showing "Unavailable".
+  // Before the read settles every tile holds its place; afterwards a tile the role cannot read is left out.
+  const shown = (cell: unknown) => !metrics || cell !== null
   const budget = metrics?.budgetUtilization
   const tiles = [
-    {
-      label: 'KPI achievement',
-      value: value((data) =>
-        data.kpiAchievement
-          ? overviewMetricLabel(data.kpiAchievement.metric, 'percent')
-          : unavailable,
-      ),
-    },
+    ...(shown(metrics?.kpiAchievement)
+      ? [
+          {
+            label: 'KPI achievement',
+            value: value((data) =>
+              data.kpiAchievement
+                ? overviewMetricLabel(data.kpiAchievement.metric, 'percent')
+                : unavailable,
+            ),
+          },
+        ]
+      : []),
     ...(budget ? [{ label: 'Budget utilization', value: orZero(budget.metric, 'percent') }] : []),
-    {
-      label: compact ? 'Beneficiaries' : 'Beneficiaries reached / target',
-      value: `${value((data) => (data.beneficiariesReached ? orZero(data.beneficiariesReached.metric, 'count') : unavailable))} / ${target}`,
-    },
+    ...(shown(metrics?.beneficiariesReached)
+      ? [
+          {
+            label: compact ? 'Beneficiaries' : 'Beneficiaries reached / target',
+            value: `${value((data) => (data.beneficiariesReached ? orZero(data.beneficiariesReached.metric, 'count') : unavailable))} / ${target}`,
+          },
+        ]
+      : []),
   ]
   const timeline = metrics?.timeline.metric
   const cell = compact ? 'bg-background p-3' : 'bg-surface-subtle p-4'
@@ -61,7 +70,7 @@ export const ProjectOverviewMetrics = ({
         aria-busy={!metrics && !failed}
         className={cn(
           'grid gap-px overflow-hidden rounded-sm border border-border bg-border',
-          tiles.length === 3 ? 'sm:grid-cols-3' : 'sm:grid-cols-2',
+          { 2: 'sm:grid-cols-2', 3: 'sm:grid-cols-3' }[tiles.length],
         )}
       >
         {tiles.map((tile) => (
