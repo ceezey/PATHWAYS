@@ -3,11 +3,11 @@ param([Parameter(Mandatory)][string]$File, [string]$PostgresBin)
 $ErrorActionPreference = 'Stop'
 . "$PSScriptRoot/replay-port.ps1"
 . "$PSScriptRoot/migrations-hash.ps1"
+. "$PSScriptRoot/replay-template.ps1"
 $root = (Resolve-Path "$PSScriptRoot/../../..").Path
 $template = Join-Path $root '.tmp/pathways-replay-template'
-$manifest = Get-Content (Join-Path $template 'manifest.json') -Raw | ConvertFrom-Json
-if ($manifest.migrationsHash -ne (Get-MigrationsHash $root)) { throw 'Template is stale; rerun Replay-Local.ps1 -MigrationBaseline -SaveTemplate.' }
-if (-not $PostgresBin) { $PostgresBin = if ($env:OS -eq 'Windows_NT') { 'C:\Program Files\PostgreSQL\18\bin' } else { '/usr/lib/postgresql/18/bin' } }
+$manifest = Get-TemplateManifest $root
+$PostgresBin = Get-PostgresBin $PostgresBin
 $ext = if ($env:OS -eq 'Windows_NT') { '.exe' } else { '' }
 $File = (Resolve-Path -LiteralPath $File).Path
 $run = Join-Path $root ('.tmp/pathways-runtime-' + [guid]::NewGuid().ToString('N'))
