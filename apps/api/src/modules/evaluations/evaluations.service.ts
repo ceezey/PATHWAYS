@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto'
 import {
   BadRequestException,
   ConflictException,
@@ -7,18 +6,15 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common'
-import { Prisma } from '@prisma/client'
+import type { Prisma } from '@prisma/client'
 import { z } from 'zod'
 import { PrismaService } from '../../prisma/prisma.service'
 import { hasAtomicPermission } from '../auth/authorization-policy'
 import { projectScope } from '../auth/authorized-data.service'
 import { withAuthorizedOperation } from '../auth/authorized-operation'
 import type { ApplicationIdentity } from '../auth/developer-access'
-import {
-  type ComputedCriterionType,
-  EvaluationMetricsService,
-  isComputedCriterionType,
-} from './evaluation-metrics'
+import { provisionCriteria } from './evaluation-criteria-template'
+import { EvaluationMetricsService, noDataPrefix } from './evaluation-metrics'
 
 const projectIdSchema = z.string().uuid()
 // Locked auth RFC: System Administrator is denied assessment/survey detail and
@@ -28,115 +24,6 @@ const assessmentDetailDeniedRoles = new Set([
   'PROGRAM_MANAGER',
   'GRANT_MANAGER',
 ])
-const criterionNumber = z
-  .number()
-  .finite()
-  .positive()
-  .max(1000000)
-  .refine((value) => new Prisma.Decimal(value.toString()).decimalPlaces() <= 4)
-export const initialCriteriaSchema = z
-  .object({
-    clientRequestId: z.string().uuid(),
-    criteria: z
-      .array(
-        z
-          .object({
-            code: z
-              .string()
-              .trim()
-              .min(1)
-              .max(80)
-              .regex(/^[A-Za-z0-9][A-Za-z0-9_-]*$/),
-            name: z.string().trim().min(1).max(200),
-            description: z.string().trim().max(2000).optional(),
-            type: z.enum([
-              'KPI',
-              'TIMELINE_COMPLIANCE',
-              'BUDGET_EFFICIENCY',
-              'BENEFICIARY_REACH',
-              'OTHER',
-            ]),
-            weightPercentage: criterionNumber.refine((value) => value <= 100),
-            maximumScore: criterionNumber,
-          })
-          .strict(),
-      )
-      .min(1)
-      .max(100),
-  })
-  .strict()
-  .superRefine(({ criteria }, context) => {
-    if (new Set(criteria.map((row) => row.code)).size !== criteria.length)
-      context.addIssue({ code: 'custom', message: 'Criterion codes must be unique.' })
-    if (
-      !criteria
-        .reduce((sum, row) => sum.add(row.weightPercentage.toString()), new Prisma.Decimal(0))
-        .equals(100)
-    )
-      context.addIssue({ code: 'custom', message: 'Weights must total 100 percent.' })
-  })
-const initializationReceipt = z
-  .object({
-    requestHash: z.string().regex(/^[a-f0-9]{64}$/),
-    criteria: z
-      .array(
-        z
-          .object({
-            id: z.string().uuid(),
-            code: z.string(),
-            version: z.literal(1),
-            status: z.literal('DRAFT'),
-            updatedAt: z.string().datetime({ offset: true }),
-          })
-          .strict(),
-      )
-      .min(1)
-      .max(100),
-  })
-  .strict()
-export const evaluationWeightsSchema = z
-  .object({
-    criteria: z
-      .array(
-        z
-          .object({
-            id: z.string().uuid(),
-            weightPercentage: z.number().finite().min(0).max(100).multipleOf(0.0001),
-            expectedUpdatedAt: z.string().datetime({ offset: true }),
-          })
-          .strict(),
-      )
-      .min(1)
-      .max(100),
-  })
-  .strict()
-  .superRefine(({ criteria }, context) => {
-    if (new Set(criteria.map((row) => row.id)).size !== criteria.length)
-      context.addIssue({ code: 'custom', message: 'Each criterion must appear once.' })
-    if (
-      Math.round(criteria.reduce((sum, row) => sum + row.weightPercentage, 0) * 10000) !== 1000000
-    )
-      context.addIssue({ code: 'custom', message: 'Configured weights must total 100 percent.' })
-  })
-export const publishCriteriaSchema = z
-  .object({
-    criteria: z
-      .array(
-        z
-          .object({
-            id: z.string().uuid(),
-            expectedUpdatedAt: z.string().datetime({ offset: true }),
-          })
-          .strict(),
-      )
-      .min(1)
-      .max(100),
-  })
-  .strict()
-  .superRefine(({ criteria }, context) => {
-    if (new Set(criteria.map((row) => row.id)).size !== criteria.length)
-      context.addIssue({ code: 'custom', message: 'Each criterion must appear once.' })
-  })
 const dateOnly = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/)
@@ -154,29 +41,12 @@ export const createEvaluationSchema = z
     message: 'The period end cannot be before its start.',
     path: ['periodEnd'],
   })
-const manualScoreNumber = z.number().finite().min(0).max(1000000).multipleOf(0.0001)
 export const saveScoresSchema = z
   .object({
     expectedUpdatedAt: z.string().datetime({ offset: true }),
     commentary: z.string().trim().max(4000).optional(),
-    scores: z
-      .array(
-        z
-          .object({
-            criterionId: z.string().uuid(),
-            manualScore: manualScoreNumber.optional(),
-            note: z.string().trim().max(2000).optional(),
-          })
-          .strict(),
-      )
-      .min(1)
-      .max(100),
   })
   .strict()
-  .superRefine(({ scores }, context) => {
-    if (new Set(scores.map((row) => row.criterionId)).size !== scores.length)
-      context.addIssue({ code: 'custom', message: 'Each criterion must appear once.' })
-  })
 export const submitEvaluationSchema = z
   .object({ expectedUpdatedAt: z.string().datetime({ offset: true }) })
   .strict()
@@ -200,6 +70,7 @@ const named = (value: { id: string; fullName: string } | null) =>
 const day = (value: Date) => value.toISOString().slice(0, 10)
 
 const maxEvaluations = 20
+// Marker of manual scores stored before automatic scoring; read only.
 const manualMarker = ' Manual score recorded: '
 // Allowlist for the stored criterion snapshot; numbers become strings and any other key is dropped.
 const snapshotNumber = z.union([z.string(), z.number()]).transform(String)
@@ -284,20 +155,21 @@ function mapScore(score: ScoreDetailRow) {
         weight_percentage: '0',
         maximum_score: score.maximumScore.toString(),
       }
-  const marked = score.commentary?.indexOf(manualMarker) ?? -1
-  const manual = criterion.type === 'OTHER' || marked >= 0
+  const text = score.commentary ?? ''
+  const missing = text.startsWith(noDataPrefix)
+  const marked = text.indexOf(manualMarker)
+  // Rounds closed before automatic scoring may hold a manual score with its note.
+  const manual = !missing && (criterion.type === 'OTHER' || marked >= 0)
+  const source = missing ? 'no_data' : manual ? 'manual' : 'computed'
   return {
     criterionId: score.criterionId,
     score: score.score.toString(),
     maximumScore: score.maximumScore.toString(),
     weightedScore: score.weightedScore.toString(),
-    commentary: score.commentary,
-    source: manual ? ('manual' as const) : ('computed' as const),
-    note: !manual
-      ? null
-      : marked >= 0
-        ? (score.commentary?.slice(marked + manualMarker.length) ?? null)
-        : score.commentary,
+    source: source as 'computed' | 'no_data' | 'manual',
+    evidence: source === 'computed' ? text : null,
+    reason: missing ? text.slice(noDataPrefix.length) : null,
+    note: manual ? (marked >= 0 ? text.slice(marked + manualMarker.length) : text) : null,
     criterion,
   }
 }
@@ -308,210 +180,6 @@ export class EvaluationsService {
     @Inject(PrismaService) private readonly prisma: PrismaService,
     @Inject(EvaluationMetricsService) private readonly metrics: EvaluationMetricsService,
   ) {}
-
-  // Shared by initializeCriteria (System Administrator, settings.configure; used by the
-  // seed and as a fallback) and createCriteria (Monitoring and Evaluation Officer,
-  // evaluations.weights.configure). Both insert the same first draft set under the same
-  // idempotency receipt, so either path can start a project's criteria exactly once.
-  private async insertCriteriaSet(
-    tx: Prisma.TransactionClient,
-    actor: ApplicationIdentity,
-    projectId: string,
-    body: z.infer<typeof initialCriteriaSchema>,
-  ) {
-    const hash = createHash('sha256')
-      .update(JSON.stringify({ projectId, criteria: body.criteria }))
-      .digest('hex')
-    await tx.$queryRaw`SELECT 1::integer AS locked FROM pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(${`pathways:criterion-initialize:${actor.organizationId}:${projectId}`},0))`
-    await this.requireProject(tx, actor, projectId)
-    await tx.$queryRaw`SELECT 1::integer AS locked FROM pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(${`pathways:criterion-request:${actor.organizationId}:${actor.userId}:${body.clientRequestId}`},0))`
-    const receipt = await tx.auditLog.findFirst({
-      where: {
-        organizationId: actor.organizationId,
-        actorUserId: actor.userId,
-        action: 'EVALUATION_CRITERIA_INITIALIZED',
-        entityType: 'ProjectEvaluationCriterionSet',
-        entityId: body.clientRequestId,
-      },
-      select: { projectId: true, changes: true },
-    })
-    if (receipt) {
-      const saved = initializationReceipt.safeParse(receipt.changes)
-      if (receipt.projectId !== projectId || !saved.success || saved.data.requestHash !== hash)
-        throw new ConflictException('Criterion request already used with different content.')
-      return { criteria: saved.data.criteria }
-    }
-    const existing = await tx.projectEvaluationCriterion.findMany({
-      where: { organizationId: actor.organizationId, projectId },
-      select: { id: true },
-      take: 101,
-    })
-    if (existing.length) throw new ConflictException('Project criteria already initialized.')
-    const criteria = []
-    for (const row of body.criteria) {
-      const created = await tx.projectEvaluationCriterion.create({
-        data: {
-          organizationId: actor.organizationId,
-          projectId,
-          createdById: actor.userId,
-          code: row.code,
-          name: row.name,
-          description: row.description ?? null,
-          type: row.type,
-          version: 1,
-          status: 'DRAFT',
-          weightPercentage: new Prisma.Decimal(row.weightPercentage.toString()),
-          maximumScore: new Prisma.Decimal(row.maximumScore.toString()),
-        },
-        select: { id: true, code: true, version: true, status: true, updatedAt: true },
-      })
-      criteria.push({ ...created, updatedAt: created.updatedAt.toISOString() })
-    }
-    await tx.auditLog.create({
-      data: {
-        organizationId: actor.organizationId,
-        projectId,
-        actorUserId: actor.userId,
-        action: 'EVALUATION_CRITERIA_INITIALIZED',
-        entityType: 'ProjectEvaluationCriterionSet',
-        entityId: body.clientRequestId,
-        changes: { requestHash: hash, criteria },
-      },
-    })
-    return { criteria }
-  }
-
-  initializeCriteria(identity: ApplicationIdentity, projectId: string, input: unknown) {
-    const parsed = initialCriteriaSchema.safeParse(input)
-    if (!parsed.success)
-      throw new BadRequestException(
-        'Supply unique draft criteria with positive weights totaling 100 percent.',
-      )
-    const body = {
-      ...parsed.data,
-      criteria: [...parsed.data.criteria].sort((a, b) => a.code.localeCompare(b.code, 'en')),
-    }
-    return withAuthorizedOperation(
-      this.prisma,
-      identity,
-      'settings.configure',
-      async (tx, actor) => {
-        if (
-          !hasAtomicPermission(actor.roles[0], actor.permissions, 'monitoring.read') ||
-          !hasAtomicPermission(actor.roles[0], actor.permissions, 'audit.read')
-        )
-          throw new ForbiddenException('Current criterion and audit access required.')
-        const id = await this.requireProject(tx, actor, projectId)
-        return this.insertCriteriaSet(tx, actor, id, body)
-      },
-    )
-  }
-
-  // Monitoring and Evaluation Officer starts its own project's criteria set; the seed
-  // and any legacy caller keep using initializeCriteria (settings.configure) above.
-  createCriteria(identity: ApplicationIdentity, projectId: string, input: unknown) {
-    const parsed = initialCriteriaSchema.safeParse(input)
-    if (!parsed.success)
-      throw new BadRequestException(
-        'Supply unique draft criteria with positive weights totaling 100 percent.',
-      )
-    const body = {
-      ...parsed.data,
-      criteria: [...parsed.data.criteria].sort((a, b) => a.code.localeCompare(b.code, 'en')),
-    }
-    return withAuthorizedOperation(
-      this.prisma,
-      identity,
-      'evaluations.weights.configure',
-      async (tx, actor) => {
-        const id = await this.requireProject(tx, actor, projectId)
-        return this.insertCriteriaSet(tx, actor, id, body)
-      },
-    )
-  }
-
-  // Locks and publishes the complete draft set at once, mirroring configureWeights'
-  // optimistic-concurrency shape: the client must send every current draft row.
-  publishCriteria(identity: ApplicationIdentity, projectId: string, input: unknown) {
-    const parsed = publishCriteriaSchema.safeParse(input)
-    if (!parsed.success)
-      throw new BadRequestException('Supply the complete draft criteria set to publish.')
-    return withAuthorizedOperation(
-      this.prisma,
-      identity,
-      'evaluations.weights.configure',
-      async (tx, actor) => {
-        const id = await this.requireProject(tx, actor, projectId)
-        const rows = await tx.$queryRaw<Array<{ id: string; updatedAt: Date }>>`
-        SELECT id::text AS id,updated_at AS "updatedAt" FROM pathways.project_evaluation_criteria
-        WHERE organization_id=${actor.organizationId}::uuid AND project_id=${id}::uuid AND status='DRAFT'
-          AND archived_at IS NULL ORDER BY id LIMIT 101 FOR UPDATE
-      `
-        if (rows.length === 0) throw new ConflictException('No draft criteria to publish.')
-        const wanted = new Map(parsed.data.criteria.map((row) => [row.id, row]))
-        if (
-          rows.length !== wanted.size ||
-          rows.some(
-            (row) =>
-              !wanted.has(row.id) ||
-              wanted.get(row.id)?.expectedUpdatedAt !== row.updatedAt.toISOString(),
-          )
-        )
-          throw new ConflictException(
-            'Draft criteria changed. Reload the complete draft set before publishing.',
-          )
-        const weights = await tx.projectEvaluationCriterion.findMany({
-          where: {
-            organizationId: actor.organizationId,
-            projectId: id,
-            status: 'DRAFT',
-            archivedAt: null,
-          },
-          select: { weightPercentage: true },
-        })
-        const total = weights.reduce(
-          (sum, row) => sum.add(row.weightPercentage.toString()),
-          new Prisma.Decimal(0),
-        )
-        if (!total.equals(100))
-          throw new BadRequestException(
-            'Draft criteria weights must total 100 percent before publishing.',
-          )
-        const now = new Date()
-        for (const row of rows) {
-          const changed = await tx.projectEvaluationCriterion.updateMany({
-            where: {
-              organizationId: actor.organizationId,
-              projectId: id,
-              id: row.id,
-              status: 'DRAFT',
-              updatedAt: row.updatedAt,
-            },
-            data: {
-              status: 'PUBLISHED',
-              publishedById: actor.userId,
-              publishedAt: now,
-              updatedAt: now,
-            },
-          })
-          if (changed.count !== 1)
-            throw new ConflictException('Draft criterion changed. Reload before retrying.')
-        }
-        await tx.auditLog.create({
-          data: {
-            organizationId: actor.organizationId,
-            projectId: id,
-            actorUserId: actor.userId,
-            action: 'EVALUATION_CRITERIA_PUBLISHED',
-            entityType: 'ProjectEvaluationCriterion',
-            entityId: id,
-            changes: { criterionIds: rows.map((row) => row.id) },
-          },
-        })
-        return { projectId: id, published: rows.length }
-      },
-    )
-  }
 
   private async requireProject(
     tx: Prisma.TransactionClient,
@@ -538,7 +206,14 @@ export class EvaluationsService {
     if (!parsed.success) throw new NotFoundException('Evaluation unavailable.')
     const row = await tx.projectEvaluation.findFirst({
       where: { organizationId: actor.organizationId, projectId, id: parsed.data },
-      select: { id: true, status: true, updatedAt: true, evaluatedById: true, periodEnd: true },
+      select: {
+        id: true,
+        status: true,
+        updatedAt: true,
+        evaluatedById: true,
+        periodStart: true,
+        periodEnd: true,
+      },
     })
     if (!row) throw new NotFoundException('Evaluation unavailable.')
     return row
@@ -778,72 +453,66 @@ export class EvaluationsService {
     )
   }
 
-  configureWeights(identity: ApplicationIdentity, projectId: string, input: unknown) {
-    const parsed = evaluationWeightsSchema.safeParse(input)
-    if (!parsed.success)
-      throw new BadRequestException(
-        'Supply unique valid criteria with weights totaling 100 percent.',
-      )
-    return withAuthorizedOperation(
-      this.prisma,
-      identity,
-      'evaluations.weights.configure',
-      async (tx, actor) => {
-        const id = await this.requireProject(tx, actor, projectId)
-        const rows = await tx.$queryRaw<Array<{ id: string; updatedAt: Date }>>`
-        SELECT id::text AS id,updated_at AS "updatedAt" FROM pathways.project_evaluation_criteria
-        WHERE organization_id=${actor.organizationId}::uuid AND project_id=${id}::uuid AND status='DRAFT'
-          AND archived_at IS NULL ORDER BY id LIMIT 101 FOR UPDATE
-      `
-        const wanted = new Map(parsed.data.criteria.map((row) => [row.id, row]))
-        if (
-          rows.length !== wanted.size ||
-          rows.some(
-            (row) =>
-              !wanted.has(row.id) ||
-              wanted.get(row.id)?.expectedUpdatedAt !== row.updatedAt.toISOString(),
-          )
-        )
-          throw new ConflictException(
-            'Draft criteria changed. Reload the complete draft set before configuring weights.',
-          )
-        for (const row of rows) {
-          const value = wanted.get(row.id)
-          if (!value) throw new ConflictException('Criterion unavailable.')
-          const changed = await tx.projectEvaluationCriterion.updateMany({
-            where: {
-              organizationId: actor.organizationId,
-              projectId: id,
-              id: row.id,
-              status: 'DRAFT',
-              archivedAt: null,
-              updatedAt: row.updatedAt,
-            },
-            data: { weightPercentage: new Prisma.Decimal(value.weightPercentage) },
-          })
-          if (changed.count !== 1)
-            throw new ConflictException('Draft criterion changed. Reload before retrying.')
-        }
-        await tx.auditLog.create({
-          data: {
-            organizationId: actor.organizationId,
-            projectId: id,
-            actorUserId: actor.userId,
-            action: 'EVALUATION_WEIGHTS_CONFIGURED',
-            entityType: 'ProjectEvaluationCriterion',
-            entityId: id,
-            changes: { criterionIds: rows.map((row) => row.id) },
-          },
-        })
-        return { projectId: id, configured: rows.length }
-      },
+  // Computes and stores one score per published criterion from the project's own data; the
+  // database fills the snapshot, maximum and weighted score. Shared by start, recompute and submit.
+  private async scoreRound(
+    tx: Prisma.TransactionClient,
+    actor: ApplicationIdentity,
+    projectId: string,
+    evaluationId: string,
+    period: { start: Date; end: Date },
+  ) {
+    const scope = { organizationId: actor.organizationId, projectId }
+    const project = await tx.project.findFirst({
+      where: { organizationId: actor.organizationId, id: projectId },
+      select: { id: true, targetBeneficiaries: true },
+    })
+    if (!project) throw new NotFoundException('Project unavailable.')
+    const criteria = await tx.projectEvaluationCriterion.findMany({
+      where: { ...scope, status: 'PUBLISHED' },
+      select: { id: true, type: true, maximumScore: true },
+    })
+    if (criteria.length === 0)
+      throw new ConflictException('The evaluation criteria are not ready for this project.')
+    const computed = await this.metrics.computeMany(
+      tx,
+      actor,
+      project,
+      { start: day(period.start), end: day(period.end) },
+      criteria.map((row) => ({ ...row, maximumScore: row.maximumScore.toString() })),
     )
+    for (const row of criteria) {
+      const result = computed.get(row.id)
+      if (!result) throw new BadRequestException('Criterion is unavailable.')
+      await tx.projectEvaluationScore.upsert({
+        where: {
+          organizationId_projectId_evaluationId_criterionId: {
+            ...scope,
+            evaluationId,
+            criterionId: row.id,
+          },
+        },
+        update: { score: result.score, commentary: result.commentary },
+        create: {
+          ...scope,
+          evaluationId,
+          criterionId: row.id,
+          score: result.score,
+          maximumScore: row.maximumScore,
+          weightedScore: 0,
+          criterionSnapshot: {},
+          commentary: result.commentary,
+        },
+      })
+    }
+    return criteria.length
   }
 
-  // Starts one evaluation round (Mid-term, Final or a custom label) for the project; only
-  // one evaluation may be open (DRAFT, SUBMITTED or REVIEWED) at a time, so history stays
-  // a simple sequence of closed rounds plus at most one in progress. Retrying the same start
-  // returns the round the actor already opened.
+  // Starts one evaluation round (Mid-term, Final or a custom label) for the project and scores
+  // it automatically; only one evaluation may be open (DRAFT, SUBMITTED or REVIEWED) at a time,
+  // so history stays a simple sequence of closed rounds plus at most one in progress. The first
+  // round also provisions the default criteria. Retrying the same start returns the round the
+  // actor already opened.
   createEvaluation(identity: ApplicationIdentity, projectId: string, input: unknown) {
     const parsed = createEvaluationSchema.safeParse(input)
     if (!parsed.success)
@@ -886,25 +555,23 @@ export class EvaluationsService {
           throw new ConflictException(
             `This project already has ${maxEvaluations} evaluations; no more can be started.`,
           )
-        const published = await tx.projectEvaluationCriterion.count({
-          where: { organizationId: actor.organizationId, projectId: id, status: 'PUBLISHED' },
-        })
-        if (published === 0)
-          throw new ConflictException(
-            'Publish the evaluation criteria before starting an evaluation.',
-          )
+        if (hasAtomicPermission(actor.roles[0], actor.permissions, 'evaluations.weights.configure'))
+          await provisionCriteria(tx, actor, id)
+        const periodStart = new Date(`${parsed.data.periodStart}T00:00:00.000Z`)
+        const periodEnd = new Date(`${parsed.data.periodEnd}T00:00:00.000Z`)
         const created = await tx.projectEvaluation.create({
           data: {
             organizationId: actor.organizationId,
             projectId: id,
             title: parsed.data.title,
             periodLabel: parsed.data.periodLabel ?? null,
-            periodStart: new Date(`${parsed.data.periodStart}T00:00:00.000Z`),
-            periodEnd: new Date(`${parsed.data.periodEnd}T00:00:00.000Z`),
+            periodStart,
+            periodEnd,
             evaluatedById: actor.userId,
           },
           select: { id: true },
         })
+        await this.scoreRound(tx, actor, id, created.id, { start: periodStart, end: periodEnd })
         await tx.auditLog.create({
           data: {
             organizationId: actor.organizationId,
@@ -925,11 +592,8 @@ export class EvaluationsService {
     )
   }
 
-  // Scores the published criteria: computed types (KPI, Timeline compliance, Budget efficiency,
-  // Beneficiary reach) are derived from project data unless not computable, and criterion type
-  // OTHER (Relevance, Coherence, Sustainability) always needs a manual score and a note. A
-  // computed criterion that cannot be computed falls back to the same manual requirement. Only
-  // the rows in the request change: a saved score for a row left out is kept as it is.
+  // Recomputes every score from current project data while the round is a draft and optionally
+  // saves the narrative; there are no manual scores.
   saveScores(
     identity: ApplicationIdentity,
     projectId: string,
@@ -937,19 +601,13 @@ export class EvaluationsService {
     input: unknown,
   ) {
     const parsed = saveScoresSchema.safeParse(input)
-    if (!parsed.success)
-      throw new BadRequestException('Supply valid scores for the published criteria.')
+    if (!parsed.success) throw new BadRequestException('Supply the evaluation you last loaded.')
     return withAuthorizedOperation(
       this.prisma,
       identity,
       'evaluations.submit',
       async (tx, actor) => {
         const id = await this.requireProject(tx, actor, projectId)
-        const project = await tx.project.findFirst({
-          where: { organizationId: actor.organizationId, id },
-          select: { id: true, startDate: true, endDate: true, targetBeneficiaries: true },
-        })
-        if (!project) throw new NotFoundException('Project unavailable.')
         const evaluation = await this.requireEvaluation(tx, actor, id, evaluationId)
         if (evaluation.status !== 'DRAFT')
           throw new ConflictException('Scores may change only while the evaluation is a draft.')
@@ -969,116 +627,10 @@ export class EvaluationsService {
         })
         if (claimed.count !== 1)
           throw new ConflictException('This evaluation changed; reload before retrying.')
-        const criteria = await tx.projectEvaluationCriterion.findMany({
-          where: { organizationId: actor.organizationId, projectId: id, status: 'PUBLISHED' },
-          select: { id: true, type: true, maximumScore: true },
+        const count = await this.scoreRound(tx, actor, id, evaluationId, {
+          start: evaluation.periodStart,
+          end: evaluation.periodEnd,
         })
-        if (criteria.length === 0)
-          throw new ConflictException('Publish the evaluation criteria before scoring.')
-        const saved = new Set(
-          (
-            await tx.projectEvaluationScore.findMany({
-              where: { organizationId: actor.organizationId, projectId: id, evaluationId },
-              select: { criterionId: true },
-              take: 101,
-            })
-          ).map((row) => row.criterionId),
-        )
-        const supplied = new Map(parsed.data.scores.map((row) => [row.criterionId, row]))
-        const pending = criteria.filter((row) => supplied.has(row.id) || !saved.has(row.id))
-        // Computed once for every computed criterion together, not once per criterion: KPI
-        // achievement is read from the database at most once even when both a KPI criterion and
-        // a Budget efficiency criterion (which reuses it) are present.
-        const computedScores = await this.metrics.computeMany(
-          tx,
-          actor,
-          project,
-          day(evaluation.periodEnd),
-          pending
-            .filter((row) => isComputedCriterionType(row.type))
-            .map((row) => ({
-              id: row.id,
-              type: row.type,
-              maximumScore: row.maximumScore.toString(),
-            })) as { id: string; type: ComputedCriterionType; maximumScore: string }[],
-        )
-        const writes: Array<{
-          criterionId: string
-          maximumScore: Prisma.Decimal
-          score: string
-          commentary: string
-        }> = []
-        const missing: Array<{ fieldCode: string; code: string; message: string }> = []
-        for (const criterion of pending) {
-          const manual = supplied.get(criterion.id)
-          let score: string
-          let commentary: string
-          if (isComputedCriterionType(criterion.type)) {
-            const computed = computedScores.get(criterion.id)
-            if (!computed) throw new BadRequestException('Criterion is unavailable.')
-            if (computed.score !== null) {
-              score = computed.score
-              commentary = computed.commentary
-            } else if (manual?.manualScore !== undefined && manual.note) {
-              score = manual.manualScore.toFixed(4)
-              commentary = `${computed.commentary}${manualMarker}${manual.note}`
-            } else {
-              missing.push({
-                fieldCode: criterion.id,
-                code: 'NOT_COMPUTABLE',
-                message: computed.commentary.slice(0, 300),
-              })
-              continue
-            }
-          } else {
-            if (manual?.manualScore === undefined || !manual.note) {
-              missing.push({
-                fieldCode: criterion.id,
-                code: 'MANUAL_REQUIRED',
-                message: 'Enter a score and a note explaining the judgment.',
-              })
-              continue
-            }
-            score = manual.manualScore.toFixed(4)
-            commentary = manual.note
-          }
-          if (Number(score) > Number(criterion.maximumScore))
-            throw new BadRequestException('A score cannot exceed its criterion maximum.')
-          writes.push({
-            criterionId: criterion.id,
-            maximumScore: criterion.maximumScore,
-            score,
-            commentary,
-          })
-        }
-        if (missing.length)
-          throw new BadRequestException({
-            message: 'Some criteria need a manual score and a note.',
-            errors: missing,
-          })
-        for (const row of writes)
-          await tx.projectEvaluationScore.upsert({
-            where: {
-              organizationId_projectId_evaluationId_criterionId: {
-                organizationId: actor.organizationId,
-                projectId: id,
-                evaluationId,
-                criterionId: row.criterionId,
-              },
-            },
-            update: { score: row.score, commentary: row.commentary },
-            create: {
-              organizationId: actor.organizationId,
-              projectId: id,
-              evaluationId,
-              criterionId: row.criterionId,
-              score: row.score,
-              maximumScore: row.maximumScore,
-              weightedScore: 0,
-              criterionSnapshot: {},
-              commentary: row.commentary,
-            },
-          })
         await tx.auditLog.create({
           data: {
             organizationId: actor.organizationId,
@@ -1087,7 +639,7 @@ export class EvaluationsService {
             action: 'EVALUATION_SCORES_SAVED',
             entityType: 'ProjectEvaluation',
             entityId: evaluationId,
-            changes: { criterionIds: writes.map((row) => row.criterionId) },
+            changes: { criteriaScored: count },
           },
         })
         return this.readDetail(tx, actor, id, evaluationId)
@@ -1109,6 +661,11 @@ export class EvaluationsService {
           throw new ConflictException('This evaluation changed; reload before retrying.')
         if (evaluation.updatedAt.toISOString() !== parsed.data.expectedUpdatedAt)
           throw new ConflictException('This evaluation changed; reload before retrying.')
+        // Scores are refreshed at submission so the submitted figures match the project data now.
+        await this.scoreRound(tx, actor, id, evaluationId, {
+          start: evaluation.periodStart,
+          end: evaluation.periodEnd,
+        })
         const criteriaCount = await tx.projectEvaluationCriterion.count({
           where: { organizationId: actor.organizationId, projectId: id, status: 'PUBLISHED' },
         })

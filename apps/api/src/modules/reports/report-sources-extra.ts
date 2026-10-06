@@ -66,6 +66,7 @@ export async function evaluationReportTable(
     'Score',
     'Maximum score',
     'Weighted score',
+    'Source',
   ]
   const evaluation = await tx.projectEvaluation.findFirst({
     where: {
@@ -86,7 +87,13 @@ export async function evaluationReportTable(
   if (!evaluation) return { columns, rows: [] as string[][], evaluationId: null }
   const scores = await tx.projectEvaluationScore.findMany({
     where: { organizationId: actor.organizationId, projectId, evaluationId: evaluation.id },
-    select: { score: true, maximumScore: true, weightedScore: true, criterionSnapshot: true },
+    select: {
+      score: true,
+      maximumScore: true,
+      weightedScore: true,
+      commentary: true,
+      criterionSnapshot: true,
+    },
     orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
     take: 101,
   })
@@ -100,6 +107,7 @@ export async function evaluationReportTable(
       evaluation.overallScore?.toString() ?? 'Not available',
       '',
       '',
+      '',
     ],
     ...scores.map((row, index) => {
       const meta = snapshot.safeParse(row.criterionSnapshot)
@@ -110,6 +118,7 @@ export async function evaluationReportTable(
         row.score.toString(),
         row.maximumScore.toString(),
         row.weightedScore.toString(),
+        row.commentary ?? '',
       ]
     }),
   ]

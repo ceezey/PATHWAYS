@@ -19,39 +19,6 @@ import { EvaluationsService } from './evaluations.service'
 @Controller('projects/:projectId/evaluation')
 export class EvaluationsController {
   constructor(@Inject(EvaluationsService) private readonly service: EvaluationsService) {}
-  @Post('criteria/initialize')
-  @Header('Cache-Control', 'private, no-store')
-  @RequirePermission('settings.configure')
-  initialize(
-    @Req() request: AuthenticatedRequest,
-    @Param('projectId') projectId: string,
-    @Body() input: unknown,
-  ) {
-    if (!request.user) throw new ForbiddenException('Application profile required.')
-    return this.service.initializeCriteria(request.user, projectId, input)
-  }
-  @Post('criteria')
-  @Header('Cache-Control', 'private, no-store')
-  @RequirePermission('evaluations.weights.configure')
-  createCriteria(
-    @Req() request: AuthenticatedRequest,
-    @Param('projectId') projectId: string,
-    @Body() input: unknown,
-  ) {
-    if (!request.user) throw new ForbiddenException('Application profile required.')
-    return this.service.createCriteria(request.user, projectId, input)
-  }
-  @Post('criteria/publish')
-  @Header('Cache-Control', 'private, no-store')
-  @RequirePermission('evaluations.weights.configure')
-  publishCriteria(
-    @Req() request: AuthenticatedRequest,
-    @Param('projectId') projectId: string,
-    @Body() input: unknown,
-  ) {
-    if (!request.user) throw new ForbiddenException('Application profile required.')
-    return this.service.publishCriteria(request.user, projectId, input)
-  }
   @Get()
   @Header('Cache-Control', 'private, no-store')
   @RequirePermission('monitoring.read')
@@ -82,17 +49,6 @@ export class EvaluationsController {
   ) {
     if (!request.user) throw new ForbiddenException('Application profile required.')
     return this.service.getAssessmentDetail(request.user, projectId, assessmentId)
-  }
-  @Patch('weights')
-  @Header('Cache-Control', 'private, no-store')
-  @RequirePermission('evaluations.weights.configure')
-  configure(
-    @Req() request: AuthenticatedRequest,
-    @Param('projectId') projectId: string,
-    @Body() input: unknown,
-  ) {
-    if (!request.user) throw new ForbiddenException('Application profile required.')
-    return this.service.configureWeights(request.user, projectId, input)
   }
   @Post('evaluations')
   @Header('Cache-Control', 'private, no-store')
