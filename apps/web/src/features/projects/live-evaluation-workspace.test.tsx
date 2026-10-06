@@ -1,7 +1,6 @@
 import type { evaluationDetailSchema } from '@/lib/services/core-feature-client'
 /* @vitest-environment jsdom */
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { useLayoutEffect } from 'react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { z } from 'zod'
 import { LiveEvaluationWorkspace } from './live-evaluation-workspace'
@@ -12,16 +11,7 @@ const state = vi.hoisted(() => ({
   role: 'MONITORING_AND_EVALUATION_OFFICER',
   user: 'evaluator',
   generation: 0,
-  revision: '2026-09-27T00:00:00.000Z',
-  empty: false,
-  extraSettings: false,
-  published: false,
-  criterionType: 'OTHER',
   evaluation: null as EvaluationDetail | null,
-  configure: vi.fn(),
-  initialize: vi.fn(),
-  createCriteria: vi.fn(),
-  publish: vi.fn(),
   createEvaluation: vi.fn(),
   saveScores: vi.fn(),
   submit: vi.fn(),
@@ -32,7 +22,7 @@ const state = vi.hoisted(() => ({
   error: vi.fn(),
 }))
 const projectId = '10000000-0000-4000-8000-000000000001'
-const criterionId = '20000000-0000-4000-8000-000000000002'
+const evaluationId = '30000000-0000-4000-8000-000000000003'
 vi.mock('@/hooks/use-current-role', () => ({
   useCurrentRole: () => ({
     profile: {
@@ -40,16 +30,11 @@ vi.mock('@/hooks/use-current-role', () => ({
       organizationId: 'org',
       roles: [state.role],
       permissions:
-        state.role === 'SYSTEM_ADMINISTRATOR'
-          ? ['monitoring.read', 'settings.configure']
-          : state.role === 'PROJECT_MANAGER'
-            ? ['monitoring.read', 'evaluations.approve', 'evaluations.signoff']
-            : [
-                'monitoring.read',
-                'evaluations.weights.configure',
-                'evaluations.submit',
-                ...(state.extraSettings ? ['settings.configure'] : []),
-              ],
+        state.role === 'PROJECT_MANAGER'
+          ? ['monitoring.read', 'evaluations.approve', 'evaluations.signoff']
+          : state.role === 'PROGRAM_MANAGER'
+            ? ['monitoring.read']
+            : ['monitoring.read', 'evaluations.submit'],
       assignedProjectIds: [projectId],
     },
   }),
@@ -66,26 +51,15 @@ vi.mock('@/lib/auth/sensitive-drafts', () => ({
     if (!enabled || !profile.permissions.includes(permission)) return null
     const user = state.user
     const generation = state.generation
-    const revision = state.revision
     return {
       key: `${kind}:${user}:${resource}`,
       generation,
-      isCurrent: () =>
-        user === state.user &&
-        generation === state.generation &&
-        (permission !== 'settings.configure' ||
-          state.role === 'SYSTEM_ADMINISTRATOR' ||
-          state.extraSettings) &&
-        (kind !== 'evaluation-weights' || revision === state.revision),
+      isCurrent: () => user === state.user && generation === state.generation,
     }
   },
 }))
 vi.mock('@/lib/services/core-feature-client', () => ({
   coreDataClient: {
-    configureWeights: (...args: unknown[]) => state.configure(...args),
-    initializeCriteria: (...args: unknown[]) => state.initialize(...args),
-    createCriteria: (...args: unknown[]) => state.createCriteria(...args),
-    publishCriteria: (...args: unknown[]) => state.publish(...args),
     createEvaluation: (...args: unknown[]) => state.createEvaluation(...args),
     saveEvaluationScores: (...args: unknown[]) => state.saveScores(...args),
     submitEvaluation: (...args: unknown[]) => state.submit(...args),
@@ -93,26 +67,17 @@ vi.mock('@/lib/services/core-feature-client', () => ({
     signoffEvaluation: (...args: unknown[]) => state.signoff(...args),
   },
 }))
+vi.mock('./use-project-reads', () => ({
+  useProjectRead: () => ({
+    data: { startDate: '2026-01-01', endDate: '2026-03-31' },
+    isPending: false,
+  }),
+}))
 vi.mock('@/providers/authorized-query-provider', () => ({
   useAuthorizedRead: () => ({
     data: {
       projectId,
-      criteria: state.empty
-        ? []
-        : [
-            {
-              id: criterionId,
-              name: 'Recorded criterion',
-              code: 'outcomes',
-              description: null,
-              type: state.criterionType,
-              version: 1,
-              status: state.published ? 'PUBLISHED' : 'DRAFT',
-              weightPercentage: '100',
-              maximumScore: '100',
-              updatedAt: state.revision,
-            },
-          ],
+      criteria: [],
       evaluations: state.evaluation ? [state.evaluation] : [],
       hasMore: false,
     },
@@ -127,121 +92,43 @@ vi.mock('sonner', () => ({
     error: (...args: unknown[]) => state.error(...args),
   },
 }))
-describe('evaluation editor revisions and retry identity', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    state.readError = false
-    state.role = 'MONITORING_AND_EVALUATION_OFFICER'
-    state.user = 'evaluator'
-    state.generation = 0
-    state.revision = '2026-09-27T00:00:00.000Z'
-    state.empty = false
-    state.extraSettings = false
-    state.published = false
-    state.criterionType = 'OTHER'
-    state.evaluation = null
-    state.refetch.mockResolvedValue(undefined)
-  })
-  afterEach(cleanup)
-  it('does not unlock a pending weight operation when an independent initialization owner is lost', async () => {
-    // Synthetic hook ownership seam; this does not claim a human role receives both permissions.
-    state.extraSettings = true
-    let finish: (value: unknown) => void = () => {}
-    state.configure.mockReturnValue(
-      new Promise((resolve) => {
-        finish = resolve
-      }),
-    )
-    const view = render(<LiveEvaluationWorkspace projectId={projectId} />)
-    fireEvent.click(screen.getByRole('button', { name: 'Save draft weights' }))
-    state.extraSettings = false
-    view.rerender(<LiveEvaluationWorkspace projectId={projectId} />)
-    expect(screen.getByRole('button', { name: 'Saving' }).hasAttribute('disabled')).toBe(true)
-    fireEvent.click(screen.getByRole('button', { name: 'Saving' }))
-    expect(state.configure).toHaveBeenCalledOnce()
-    await act(async () => finish({ projectId, configured: 1 }))
-    await waitFor(() => expect(state.success).toHaveBeenCalledOnce())
-  })
-  it('hides an obsolete weight draft during the first render of a new criterion revision', () => {
-    const firstRenderValues: string[] = []
-    function Observer() {
-      useLayoutEffect(() => {
-        firstRenderValues.push((screen.getByLabelText('Weight (%)') as HTMLInputElement).value)
-      })
-      return <LiveEvaluationWorkspace projectId={projectId} />
-    }
-    const view = render(<Observer />)
-    fireEvent.change(screen.getByLabelText('Weight (%)'), { target: { value: '75' } })
-    state.revision = '2026-09-27T00:00:01.000Z'
-    view.rerender(<Observer />)
-    expect(firstRenderValues.at(-1)).toBe('100')
-  })
-  it('hides cached criterion names and commands when current monitoring read is denied', () => {
-    const view = render(<LiveEvaluationWorkspace projectId={projectId} />)
-    expect(screen.getByText('Recorded criterion')).toBeTruthy()
-    state.readError = true
-    view.rerender(<LiveEvaluationWorkspace projectId={projectId} />)
-    expect(screen.queryByText('Recorded criterion')).toBeNull()
-    expect(screen.queryByRole('button', { name: 'Save draft weights' })).toBeNull()
-    expect(screen.getByText(/Current criteria access could not be verified/)).toBeTruthy()
-    expect(state.configure).not.toHaveBeenCalled()
-  })
-  it('clears busy and obsolete weights when successful refetch changes the criterion revision', async () => {
-    state.configure.mockResolvedValue({ projectId, configured: 1 })
-    const view = render(<LiveEvaluationWorkspace projectId={projectId} />)
-    state.refetch.mockImplementation(async () => {
-      state.revision = '2026-09-27T00:00:01.000Z'
-      view.rerender(<LiveEvaluationWorkspace projectId={projectId} />)
-      await Promise.resolve()
-    })
-    fireEvent.change(screen.getByLabelText('Weight (%)'), { target: { value: '75' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Save draft weights' }))
-    await waitFor(() => expect(state.refetch).toHaveBeenCalledOnce())
-    await waitFor(() =>
-      expect(
-        screen.getByRole('button', { name: 'Save draft weights' }).hasAttribute('disabled'),
-      ).toBe(false),
-    )
-    expect((screen.getByLabelText('Weight (%)') as HTMLInputElement).value).toBe('100')
-    expect(state.success).not.toHaveBeenCalled()
-  })
-  it('recovers the original initialized criterion IDs by retaining the exact request after response loss', async () => {
-    state.role = 'SYSTEM_ADMINISTRATOR'
-    state.empty = true
-    state.initialize
-      .mockRejectedValueOnce(Error('Response lost'))
-      .mockResolvedValue({ criteria: [{ id: criterionId }] })
-    render(<LiveEvaluationWorkspace projectId={projectId} />)
-    fireEvent.change(screen.getByLabelText('Code'), { target: { value: 'outcomes' } })
-    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Recorded outcomes' } })
-    fireEvent.change(screen.getByLabelText('Weight (%)'), { target: { value: '100' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Initialize draft rubric' }))
-    await waitFor(() => expect(state.error).toHaveBeenCalledOnce())
-    fireEvent.click(screen.getByRole('button', { name: 'Initialize draft rubric' }))
-    await waitFor(() => expect(state.success).toHaveBeenCalledOnce())
-    expect(state.initialize.mock.calls[1][1]).toEqual(state.initialize.mock.calls[0][1])
-  })
-})
-const evaluationId = '30000000-0000-4000-8000-000000000003'
-const savedScore = (): EvaluationDetail['scores'][number] => ({
-  criterionId,
-  score: '80',
+
+const score = (
+  code: string,
+  name: string,
+  weight: string,
+  value: string,
+  extra: Partial<EvaluationDetail['scores'][number]> = {},
+): EvaluationDetail['scores'][number] => ({
+  criterionId: `20000000-0000-4000-8000-0000000000${code.length}${weight}`,
+  score: value,
   maximumScore: '100',
-  weightedScore: '80',
-  commentary: 'Evidence note',
-  source: 'manual',
-  note: 'Evidence note',
+  weightedScore: String((Number(value) * Number(weight)) / 100),
+  source: 'computed',
+  evidence: `Evidence for ${name}`,
+  reason: null,
+  note: null,
   criterion: {
-    id: criterionId,
-    code: 'outcomes',
+    id: '20000000-0000-4000-8000-000000000002',
+    code,
     version: 1,
-    type: 'OTHER',
-    name: 'Recorded criterion',
+    type: 'KPI',
+    name,
     description: null,
-    weight_percentage: '100',
+    weight_percentage: weight,
     maximum_score: '100',
   },
+  ...extra,
 })
+const scores = [
+  score('IMPACT', 'Impact', '15', '0', {
+    source: 'no_data',
+    evidence: null,
+    reason: 'no paired pre/post assessments in the period',
+  }),
+  score('RELEVANCE', 'Relevance', '15', '82', { evidence: 'Reach 82% of target' }),
+  score('COHERENCE', 'Coherence', '85', '90', { evidence: '4 of 6 activities linked' }),
+]
 const openEvaluation: EvaluationDetail = {
   id: evaluationId,
   title: 'Mid-term 2026',
@@ -260,127 +147,108 @@ const openEvaluation: EvaluationDetail = {
   reviewFeedback: null,
   signedOffBy: null,
   signedOffAt: null,
-  scores: [],
+  scores,
 }
-describe('evaluation rounds: criteria publishing, scoring, submit and review', () => {
+
+describe('automatic evaluation workspace', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     state.readError = false
     state.role = 'MONITORING_AND_EVALUATION_OFFICER'
     state.user = 'evaluator'
     state.generation = 0
-    state.revision = '2026-09-27T00:00:00.000Z'
-    state.empty = false
-    state.extraSettings = false
-    state.published = false
-    state.criterionType = 'OTHER'
     state.evaluation = null
     state.refetch.mockResolvedValue(undefined)
   })
   afterEach(cleanup)
-  it('publishes draft criteria after confirmation', async () => {
-    state.publish.mockResolvedValue({ projectId, published: 1 })
+
+  it('offers no rubric, weights, publish or manual score controls', () => {
+    state.evaluation = { ...openEvaluation }
     render(<LiveEvaluationWorkspace projectId={projectId} />)
-    fireEvent.click(screen.getByRole('button', { name: 'Publish criteria' }))
-    const confirmButtons = screen.getAllByRole('button', { name: 'Publish criteria' })
-    fireEvent.click(confirmButtons[confirmButtons.length - 1])
-    await waitFor(() => expect(state.success).toHaveBeenCalledOnce())
-    expect(state.publish).toHaveBeenCalledWith(projectId, {
-      criteria: [{ id: criterionId, expectedUpdatedAt: state.revision }],
-    })
+    expect(screen.queryByText(/Initial draft rubric/)).toBeNull()
+    expect(screen.queryByRole('button', { name: /Publish criteria/ })).toBeNull()
+    expect(screen.queryByLabelText(/^Score for/)).toBeNull()
+    expect(screen.queryByLabelText(/^Weight/)).toBeNull()
   })
-  it('starts an evaluation once criteria are published', async () => {
-    state.published = true
+
+  it('prefills the title and period from the project dates and starts with that request', async () => {
     state.createEvaluation.mockResolvedValue({ ...openEvaluation })
     render(<LiveEvaluationWorkspace projectId={projectId} />)
-    fireEvent.change(screen.getByLabelText('Title'), { target: { value: 'Mid-term 2026' } })
-    fireEvent.change(screen.getByLabelText('Period start'), { target: { value: '2026-01-01' } })
-    fireEvent.change(screen.getByLabelText('Period end'), { target: { value: '2026-06-30' } })
+    expect((screen.getByLabelText('Period start') as HTMLInputElement).value).toBe('2026-01-01')
+    expect((screen.getByLabelText('Period end') as HTMLInputElement).value).toBe('2026-03-31')
+    expect((screen.getByLabelText('Title') as HTMLInputElement).value).toBe(
+      'Evaluation 2026-01-01 to 2026-03-31',
+    )
     fireEvent.click(screen.getByRole('button', { name: 'Start evaluation' }))
     await waitFor(() => expect(state.success).toHaveBeenCalledOnce())
-    expect(state.createEvaluation).toHaveBeenCalledOnce()
+    expect(state.createEvaluation.mock.calls[0][1]).toMatchObject({
+      title: 'Evaluation 2026-01-01 to 2026-03-31',
+      periodStart: '2026-01-01',
+      periodEnd: '2026-03-31',
+    })
   })
-  it('scores and submits an open draft evaluation', async () => {
-    state.published = true
+
+  it('shows weight, score and source per criterion with a labeled no-data row and overall', () => {
+    state.evaluation = { ...openEvaluation }
+    render(<LiveEvaluationWorkspace projectId={projectId} />)
+    expect(screen.getByText('Reach 82% of target')).toBeTruthy()
+    expect(screen.getByText('4 of 6 activities linked')).toBeTruthy()
+    expect(screen.getByText('No data')).toBeTruthy()
+    expect(screen.getByText('no paired pre/post assessments in the period')).toBeTruthy()
+    expect(screen.getByText('82 / 100')).toBeTruthy()
+    expect(screen.getByText('1 criterion had no data')).toBeTruthy()
+    // 0.15 * 82 + 0.85 * 90 = 88.8
+    expect(screen.getByText('88.8 / 100')).toBeTruthy()
+  })
+
+  it('recomputes with the narrative and submits after confirmation', async () => {
     state.evaluation = { ...openEvaluation }
     state.saveScores.mockResolvedValue({ ...openEvaluation })
     state.submit.mockResolvedValue({ ...openEvaluation, status: 'SUBMITTED' })
     render(<LiveEvaluationWorkspace projectId={projectId} />)
-    fireEvent.change(screen.getByLabelText('Score for Recorded criterion'), {
-      target: { value: '80' },
-    })
-    fireEvent.change(screen.getByLabelText('Note for Recorded criterion'), {
-      target: { value: 'Evidence note' },
-    })
-    fireEvent.click(screen.getByRole('button', { name: 'Save scores' }))
+    fireEvent.change(screen.getByLabelText('Evaluation narrative'), { target: { value: 'Notes' } })
+    expect(screen.getByRole('button', { name: 'Submit evaluation' }).hasAttribute('disabled')).toBe(
+      true,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Recompute' }))
     await waitFor(() => expect(state.saveScores).toHaveBeenCalledOnce())
-    expect(state.saveScores.mock.calls[0][2].scores[0]).toMatchObject({
-      criterionId,
-      manualScore: 80,
-      note: 'Evidence note',
+    expect(state.saveScores.mock.calls[0][2]).toEqual({
+      expectedUpdatedAt: openEvaluation.updatedAt,
+      commentary: 'Notes',
     })
     fireEvent.click(screen.getByRole('button', { name: 'Submit evaluation' }))
-    const confirmButtons = screen.getAllByRole('button', { name: 'Submit evaluation' })
-    fireEvent.click(confirmButtons[confirmButtons.length - 1])
+    const confirm = screen.getAllByRole('button', { name: 'Submit evaluation' })
+    fireEvent.click(confirm[confirm.length - 1] as HTMLElement)
     await waitFor(() => expect(state.submit).toHaveBeenCalledOnce())
   })
-  it('prefills saved manual scores and keeps the return reason out of the narrative', () => {
-    state.published = true
-    state.evaluation = {
-      ...openEvaluation,
-      returnReason: 'Recheck the scores',
-      scores: [savedScore()],
-    }
+
+  it('shows the return reason and keeps it out of the narrative', () => {
+    state.evaluation = { ...openEvaluation, returnReason: 'Recheck the scores' }
     render(<LiveEvaluationWorkspace projectId={projectId} />)
-    expect((screen.getByLabelText('Score for Recorded criterion') as HTMLInputElement).value).toBe(
-      '80',
-    )
-    expect(
-      (screen.getByLabelText('Note for Recorded criterion') as HTMLTextAreaElement).value,
-    ).toBe('Evidence note')
     expect(screen.getByText('Returned for correction: Recheck the scores')).toBeTruthy()
     expect((screen.getByLabelText('Evaluation narrative') as HTMLTextAreaElement).value).toBe('')
   })
-  it('disables submitting while there are unsaved edits', () => {
-    state.published = true
-    state.evaluation = { ...openEvaluation }
+
+  it('shows a read-only role an evaluation-not-started state instead of an error', () => {
+    state.role = 'PROGRAM_MANAGER'
     render(<LiveEvaluationWorkspace projectId={projectId} />)
-    const submit = screen.getByRole('button', { name: 'Submit evaluation' })
-    expect(submit.hasAttribute('disabled')).toBe(false)
-    fireEvent.change(screen.getByLabelText('Evaluation narrative'), { target: { value: 'Draft' } })
-    expect(submit.hasAttribute('disabled')).toBe(true)
-    expect(screen.getByText('Save before submitting.')).toBeTruthy()
+    expect(screen.getByText('Evaluation not started')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Start evaluation' })).toBeNull()
+    expect(state.error).not.toHaveBeenCalled()
   })
-  it('offers manual inputs for a computed criterion only after the server reports it', async () => {
-    state.published = true
-    state.criterionType = 'BENEFICIARY_REACH'
-    state.evaluation = { ...openEvaluation }
-    state.saveScores.mockRejectedValue(
-      Object.assign(new Error('Review the highlighted form fields.'), {
-        fieldErrors: [
-          {
-            fieldCode: criterionId,
-            code: 'NOT_COMPUTABLE',
-            message: 'Not computable: small cell.',
-          },
-        ],
-      }),
-    )
+
+  it('shows the scores of a signed-off round without any editing control', () => {
+    state.role = 'PROGRAM_MANAGER'
+    state.evaluation = { ...openEvaluation, status: 'SIGNED_OFF', overallScore: '76.3' }
     render(<LiveEvaluationWorkspace projectId={projectId} />)
-    expect(screen.queryByLabelText('Score for Recorded criterion')).toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: 'Save scores' }))
-    await waitFor(() => expect(screen.getByLabelText('Score for Recorded criterion')).toBeTruthy())
-    expect(screen.getByText('Not computable: small cell.')).toBeTruthy()
+    expect(screen.getByText('76.3 / 100')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Recompute' })).toBeNull()
   })
+
   it('lets the Project Manager return a submitted evaluation for correction', async () => {
     state.role = 'PROJECT_MANAGER'
-    state.published = true
-    state.evaluation = {
-      ...openEvaluation,
-      status: 'SUBMITTED',
-      scores: [savedScore()],
-    }
-    state.returnEvaluation.mockResolvedValue({ ...state.evaluation, status: 'DRAFT' })
+    state.evaluation = { ...openEvaluation, status: 'SUBMITTED' }
+    state.returnEvaluation.mockResolvedValue({ ...openEvaluation })
     render(<LiveEvaluationWorkspace projectId={projectId} />)
     fireEvent.click(screen.getByRole('button', { name: 'Return for correction' }))
     fireEvent.change(screen.getByLabelText('Reason for returning'), {
@@ -392,22 +260,18 @@ describe('evaluation rounds: criteria publishing, scoring, submit and review', (
       reason: 'Please recheck scores',
     })
   })
+
   it('lets the Project Manager sign off a submitted evaluation', async () => {
     state.role = 'PROJECT_MANAGER'
-    state.published = true
-    state.evaluation = {
-      ...openEvaluation,
-      status: 'SUBMITTED',
-      scores: [savedScore()],
-    }
-    state.signoff.mockResolvedValue({ ...state.evaluation, status: 'SIGNED_OFF' })
+    state.evaluation = { ...openEvaluation, status: 'SUBMITTED' }
+    state.signoff.mockResolvedValue({ ...openEvaluation, status: 'SIGNED_OFF' })
     render(<LiveEvaluationWorkspace projectId={projectId} />)
     fireEvent.click(screen.getByRole('button', { name: 'Sign off' }))
     fireEvent.change(screen.getByLabelText('Sign-off feedback'), {
       target: { value: 'Scores agree with the records.' },
     })
-    const confirmButtons = screen.getAllByRole('button', { name: 'Sign off' })
-    fireEvent.click(confirmButtons[confirmButtons.length - 1])
+    const confirm = screen.getAllByRole('button', { name: 'Sign off' })
+    fireEvent.click(confirm[confirm.length - 1] as HTMLElement)
     await waitFor(() => expect(state.signoff).toHaveBeenCalledOnce())
     expect(state.signoff.mock.calls[0][2]).toMatchObject({
       feedback: 'Scores agree with the records.',
