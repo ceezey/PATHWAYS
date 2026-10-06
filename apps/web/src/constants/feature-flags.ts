@@ -43,3 +43,10 @@ export const DASHBOARD_PINS_UI_ENABLED = false
  * see docs/deferred-features.md.
  */
 export const PAGE_HEADING_EDITOR_UI_ENABLED = false
+
+/**
+ * The import "Duplicate records decision" select is hidden (2026-10-07, developer request), on top
+ * of `UNFINISHED_CONTROLS_UI_ENABLED`. Imports keep the default "decide when flagged" behavior; see
+ * docs/deferred-features.md.
+ */
+export const IMPORT_DUPLICATE_DECISION_UI_ENABLED = false
