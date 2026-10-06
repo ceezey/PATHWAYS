@@ -757,6 +757,8 @@ describe('F3 scoped read and denial gates', () => {
     readState.tx = { ...readTx, $queryRaw: raw }
     const [item] = (await service.list(reader, projectId, query)).items
     expect(raw).toHaveBeenCalledTimes(1)
+    expect(raw.mock.calls[0][0].join('')).toContain('pathways.p05_beneficiary_progress(')
+    expect(raw.mock.calls[0].slice(1)).toEqual([organizationId, projectId, [enrollmentId]])
     expect(item.progress).toEqual({
       restricted: false,
       lastParticipation: {

@@ -399,3 +399,7 @@
 - Indicator readings aligned with notes and milestones (WSH schools 8, clubs 8, handover 50 percent; ALS module completion 72 percent); CRL reach target 45 matches enrollments.
 - SSG cohort ages and sex mix suit a girls program; webinar targets cover their participants.
 - Limitation: audit, alert, evidence and approval timestamps are stamped by the database at seed time and cannot be backdated through supported inputs.
+## 2026-10-06 Beneficiary progress read (0067)
+- Bug: the beneficiary list returned 503 after 12-24 s on hosted for M&E and Project Officers; the progress query ran per-enrollment laterals under RLS with per-row permission functions (local checks had run as postgres).
+- Added `pathways.p05_beneficiary_progress` (migration 0067, change record `cr-pathways-beneficiary-progress-read`, Proposed): one scope check, then a set-based read; `loadProgress` now calls it. Local timing as the runtime role, 150 enrollments: old query 2.4-10.4 s, new 20-24 ms.
+- Not applied to devV2; the controller owns the SAD review and the apply.

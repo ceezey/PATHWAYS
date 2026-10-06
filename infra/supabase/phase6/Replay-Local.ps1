@@ -601,6 +601,8 @@ END $$;
       Write-Output 'ZONE_CHECK_MEMO_RUNTIME=PASS'
       Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/beneficiary-reach-kpi-values-runtime.sql'))) $phase6Database
       Write-Output 'BENEFICIARY_REACH_KPI_VALUES_RUNTIME=PASS'
+      Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/beneficiary-progress-read-runtime.sql'))) $phase6Database
+      Write-Output 'BENEFICIARY_PROGRESS_READ_RUNTIME=PASS'
     }
     Invoke-LocalSql 'ALTER ROLE pathways_runtime LOGIN;' $phase6Database
     $env:PATHWAYS_CSV_RBAC_LOCAL_TESTS = '1'
