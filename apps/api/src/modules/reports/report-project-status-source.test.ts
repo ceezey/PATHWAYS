@@ -112,7 +112,7 @@ describe('project status source', () => {
     const reached = sections.keyFigures?.find((f) => f.label === 'Beneficiaries reached')
     expect(reached).toMatchObject({ state: 'SUPPRESSED', value: null })
   })
-  it('omits each section and says why when its permission is missing', async () => {
+  it('omits each section without a reason when its permission is missing', async () => {
     const { sections, unavailableReasons } = await run([])
     expect(sections.milestones).toBeUndefined()
     expect(sections.indicators).toBeUndefined()
@@ -120,20 +120,31 @@ describe('project status source', () => {
     expect(tx.projectMilestone.findMany).not.toHaveBeenCalled()
     expect(deps.dashboards.monitoringInTransaction).not.toHaveBeenCalled()
     expect(deps.rules.listAlertsInTransaction).not.toHaveBeenCalled()
-    expect(unavailableReasons.length).toBeGreaterThanOrEqual(3)
+    expect(unavailableReasons).toEqual([])
   })
-  it('marks overview rows not available when inputs are hidden', async () => {
+  it('leaves out overview rows and figures outside the actor scope', async () => {
     deps.overview.readInTransaction.mockResolvedValue({
       ...fullOverview,
       budgetUtilization: null,
       kpiAchievement: null,
       beneficiariesReached: null,
     })
-    const { sections } = await run([])
-    expect(sections.overview.map((o) => o.status)).toEqual([
-      'NOT_AVAILABLE',
-      'NOT_AVAILABLE',
-      'NOT_AVAILABLE',
+    const { sections, unavailableReasons } = await run([])
+    expect(sections.overview).toEqual([])
+    expect(sections.keyFigures.map((f) => f.label)).toEqual(['Timeline elapsed'])
+    expect(unavailableReasons).toEqual([])
+  })
+  it('keeps an in-scope overview row not available when its data is missing', async () => {
+    deps.overview.readInTransaction.mockResolvedValue({
+      ...fullOverview,
+      budgetUtilization: null,
+      kpiAchievement: null,
+      beneficiariesReached: null,
+    })
+    tx.projectMilestone.findMany.mockResolvedValue([])
+    const { sections } = await run(['activities.read'])
+    expect(sections.overview).toEqual([
+      { area: 'Schedule', status: 'NOT_AVAILABLE', comment: 'No milestone data is available.' },
     ])
   })
   it('notes missing project dates for the indicator section', async () => {
@@ -166,13 +177,13 @@ describe('project status source', () => {
     expect(unavailableReasons.join(' ')).toContain('10 highest-severity')
   })
   it.each([
-    ['activities.read', 'milestones', 'Milestones'],
-    ['monitoring.read', 'indicators', 'Indicators'],
-    ['alerts.read', 'alerts', 'Open alerts'],
-  ] as const)('drops only the section behind %s', async (permission, key, name) => {
+    ['activities.read', 'milestones'],
+    ['monitoring.read', 'indicators'],
+    ['alerts.read', 'alerts'],
+  ] as const)('drops only the section behind %s', async (permission, key) => {
     const { sections, unavailableReasons } = await run(all.filter((p) => p !== permission))
     for (const other of ['milestones', 'indicators', 'alerts'] as const)
       expect(sections[other] === undefined).toBe(other === key)
-    expect(unavailableReasons.filter((reason) => reason.startsWith(name))).toHaveLength(1)
+    expect(unavailableReasons).toEqual([])
   })
 })

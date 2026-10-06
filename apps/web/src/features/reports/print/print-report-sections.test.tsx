@@ -74,6 +74,24 @@ describe('project status layout', () => {
     expect(screen.queryByRole('heading', { name: 'Open alerts' })).toBeNull()
     expect(screen.getByRole('heading', { name: 'Overview' })).toBeTruthy()
   })
+  it('prints status rules only for the overview areas in scope', () => {
+    const overview = sections.overview.filter((row) => row.area === 'Schedule')
+    render(
+      <PrintReportView report={{ ...sampleProjectReport, sections: { ...sections, overview } }} />,
+    )
+    expect(screen.getByText(/Overdue means/)).toBeTruthy()
+    expect(screen.queryByText(/Budget: OFF TRACK/)).toBeNull()
+    expect(screen.queryByText(/Indicators: OFF TRACK/)).toBeNull()
+  })
+  it('leaves out the overview band when no area is in scope', () => {
+    render(
+      <PrintReportView
+        report={{ ...sampleProjectReport, sections: { ...sections, overview: [] } }}
+      />,
+    )
+    expect(screen.queryByRole('heading', { name: 'Overview' })).toBeNull()
+    expect(screen.queryByText(/Status rules/)).toBeNull()
+  })
   it('renders Metric state cells of other kinds as labelled pills', () => {
     render(
       <PrintReportView

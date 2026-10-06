@@ -54,7 +54,7 @@ const figure = (
   percent: bar ? metricPercent(cell) : null,
 })
 
-/** Builds the Project summary sections, reading each one only when its permission is held. */
+/** Builds the Project summary sections, reading and showing each one only when its permission is held. */
 export async function projectStatusSource(
   deps: Deps,
   tx: Prisma.TransactionClient,
@@ -97,16 +97,6 @@ export async function projectStatusSource(
         ]
       : []),
   ]
-  if (!overview.budgetUtilization)
-    unavailableReasons.push(
-      'Budget figures are not included: budget and expense access is required.',
-    )
-  if (!overview.kpiAchievement)
-    unavailableReasons.push(
-      'KPI achievement is not included: indicator and monitoring access is required.',
-    )
-  if (!overview.beneficiariesReached)
-    unavailableReasons.push('Beneficiaries reached is not included: aggregate access is required.')
 
   let milestones: ProjectSections['milestones']
   if (can('activities.read')) {
@@ -125,12 +115,10 @@ export async function projectStatusSource(
         overdue: isOverdue(item, reportDate),
       }
     })
-  } else unavailableReasons.push('Milestones are not included: activity access is required.')
+  }
 
   let indicators: ProjectSections['indicators']
-  if (!can('monitoring.read'))
-    unavailableReasons.push('Indicators are not included: monitoring access is required.')
-  else {
+  if (can('monitoring.read')) {
     const period = monitoringReportPeriod(project)
     if (!period) unavailableReasons.push('Indicators are not included: project dates are required.')
     else {
@@ -162,7 +150,13 @@ export async function projectStatusSource(
       explanation: clip(item.explanation),
       evaluatedAt: item.evaluatedAt,
     }))
-  } else unavailableReasons.push('Open alerts are not included: alert access is required.')
+  }
+  // Areas outside the actor's grants are left out entirely rather than shown as unavailable.
+  const inScope: Record<string, boolean> = {
+    Schedule: milestones !== undefined,
+    Budget: overview.budgetUtilization !== null,
+    Indicators: overview.kpiAchievement !== null,
+  }
 
   const sections: ProjectSections = {
     reportDate,
@@ -185,7 +179,7 @@ export async function projectStatusSource(
       timeline: metricPercent(overview.timeline.metric),
       budget: metricPercent(overview.budgetUtilization?.metric ?? null),
       kpi: metricPercent(overview.kpiAchievement?.metric ?? null),
-    }),
+    }).filter((row) => inScope[row.area]),
     keyFigures,
     ...(milestones ? { milestones } : {}),
     ...(indicators ? { indicators } : {}),
