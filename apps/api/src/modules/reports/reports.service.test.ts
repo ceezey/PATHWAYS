@@ -625,8 +625,10 @@ describe('report source authority, privacy and artifact recovery', () => {
     const preview = await service.preview(actor, projectId, { kind: 'PROJECT_SUMMARY' })
     expect(preview.sections?.information.code).toBe('SYN')
     expect(preview.columns).toEqual(['Section', 'Item', 'Value', 'Detail'])
-    expect(preview.rows.some((row) => row[0] === 'Overview')).toBe(true)
-    expect(preview.unavailableReasons.length).toBeGreaterThan(0)
+    expect(preview.rows.some((row) => row[0] === 'Project information')).toBe(true)
+    // This actor holds none of the overview grants, so those rows and their reasons are left out.
+    expect(preview.rows.some((row) => row[0] === 'Overview')).toBe(false)
+    expect(preview.unavailableReasons).toEqual([])
     renderer.render.mockResolvedValue(Buffer.from('%PDF-designed'))
     const acknowledgement = await service.generate(actor, projectId, body).catch(() => undefined)
     expect(acknowledgement).not.toHaveProperty('pdfFallback')

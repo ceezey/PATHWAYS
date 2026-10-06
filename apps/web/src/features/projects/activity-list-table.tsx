@@ -3,7 +3,7 @@
 import { ArrowDown, ArrowUp, Download, MoreHorizontal } from 'lucide-react'
 import { useMemo, useState } from 'react'
 
-import { SectionCard, StatusBadge } from '@/components/pathways'
+import { CappedPercent, SectionCard, StatusBadge } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import { formatCappedPercent } from '@/lib/percent'
 import { cn } from '@/lib/utils'
@@ -208,7 +208,11 @@ export const ActivityListTable = ({
                           : 'text-foreground',
                       )}
                     >
-                      {budgetText(activity)}
+                      {activity.budgetUtilization == null ? (
+                        missing
+                      ) : (
+                        <CappedPercent value={activity.budgetUtilization} overLabel="over budget" />
+                      )}
                     </td>
                   ) : null}
                   <td className="w-12 px-2 text-right">

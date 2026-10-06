@@ -2,10 +2,10 @@
 import { SourceMutationRecovery } from './source-mutation-recovery'
 
 import { AlertTriangle, Check, ChevronDown, Eye, Pencil, Plus, ReceiptText, X } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { type ReactNode, useEffect, useMemo, useState } from 'react'
 
 import { PageHeader } from '@/components/layout/page-header'
-import { SectionCard, StatusBadge } from '@/components/pathways'
+import { CappedPercent, SectionCard, StatusBadge } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -34,7 +34,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useSourceMutationContext } from '@/hooks/use-source-mutation-context'
-import { formatCappedPercent } from '@/lib/percent'
 import { isUiActionAvailable } from '@/lib/rbac/ui-action-availability'
 import { pathwaysClient } from '@/lib/services/pathways-client'
 import { isSourceReplay, sourceMutationTickets } from '@/lib/services/source-mutation'
@@ -124,6 +123,13 @@ export function ConnectedBudgetWorkspace({ projectId }: { projectId: string }) {
   const utilization = budget
     ? Math.round((budget.actualSpending / Math.max(1, budget.plannedAmount)) * 100)
     : 0
+  const efficiency = budget ? (
+    <>
+      <CappedPercent value={utilization} overLabel="over budget" /> utilized
+    </>
+  ) : (
+    'Unavailable'
+  )
 
   const openOutcome = (recommendation: RecommendationRecord, alertTitle: string) => {
     setRecommendationReview({ recommendation, alertTitle })
@@ -159,20 +165,17 @@ export function ConnectedBudgetWorkspace({ projectId }: { projectId: string }) {
           </p>
         </div>
         <dl className="grid overflow-hidden rounded-2xl border border-border bg-card sm:grid-cols-2 xl:grid-cols-4">
-          {[
-            ['Total budget', budget ? peso(budget.plannedAmount) : 'Unavailable'],
-            ['Logged expenses', budget ? peso(budget.actualSpending) : 'Unavailable'],
+          {(
             [
-              'Remaining budget',
-              budget ? peso(budget.plannedAmount - budget.actualSpending) : 'Unavailable',
-            ],
-            [
-              'Efficiency',
-              budget
-                ? `${formatCappedPercent(utilization, 'over budget')} utilized`
-                : 'Unavailable',
-            ],
-          ].map(([label, value], index) => (
+              ['Total budget', budget ? peso(budget.plannedAmount) : 'Unavailable'],
+              ['Logged expenses', budget ? peso(budget.actualSpending) : 'Unavailable'],
+              [
+                'Remaining budget',
+                budget ? peso(budget.plannedAmount - budget.actualSpending) : 'Unavailable',
+              ],
+              ['Efficiency', efficiency],
+            ] satisfies Array<[string, ReactNode]>
+          ).map(([label, value], index) => (
             <div
               className={`p-4 ${index ? 'border-t border-border sm:border-l sm:border-t-0' : ''}`}
               key={label}

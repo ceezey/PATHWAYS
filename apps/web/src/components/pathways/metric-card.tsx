@@ -1,5 +1,6 @@
 import type { LucideIcon } from 'lucide-react'
 import Link from 'next/link'
+import type { ReactNode } from 'react'
 
 import { Card, CardContent } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
@@ -15,7 +16,7 @@ export const MetricCard = ({
   href,
 }: {
   label: string
-  value: string
+  value: ReactNode
   description: string
   icon?: LucideIcon
   tone?: 'info' | 'success' | 'warning' | 'danger'

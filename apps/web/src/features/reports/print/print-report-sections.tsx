@@ -72,6 +72,16 @@ export const Table = ({
 const figureValue = (figure: NonNullable<ReportSections['keyFigures']>[number]) =>
   figure.state === 'SUPPRESSED' ? 'Fewer than 5' : (figure.value ?? 'Not available')
 
+// Each overview area's status rule, printed only for the areas the report shows.
+const statusRules: Record<string, string> = {
+  Schedule:
+    'Overdue means a milestone target date before the report date that is not completed or cancelled. Schedule: OFF TRACK when a milestone is more than 30 days overdue, AT RISK when any is overdue.',
+  Budget:
+    'Budget: OFF TRACK above 100 percent used, AT RISK when use exceeds timeline elapsed by more than 15 points.',
+  Indicators:
+    'Indicators: OFF TRACK when KPI achievement is more than 25 points below timeline elapsed, AT RISK when more than 10 below.',
+}
+
 /** One-page Project summary body, shared by the PDF print page and the in-app preview. */
 export function ProjectStatusSections({ sections }: { sections: ReportSections }) {
   const info = sections.information
@@ -97,18 +107,22 @@ export function ProjectStatusSections({ sections }: { sections: ReportSections }
           </div>
         ))}
       </dl>
-      <Band title="Overview" />
-      <Table head={['Area', 'Status', 'Comment']}>
-        {sections.overview.map((row) => (
-          <tr key={row.area} className="print-avoid">
-            <td className={cn(td, 'font-semibold')}>{row.area}</td>
-            <td className={td}>
-              <StatusPill level={row.status} />
-            </td>
-            <td className={td}>{row.comment}</td>
-          </tr>
-        ))}
-      </Table>
+      {sections.overview.length > 0 && (
+        <>
+          <Band title="Overview" />
+          <Table head={['Area', 'Status', 'Comment']}>
+            {sections.overview.map((row) => (
+              <tr key={row.area} className="print-avoid">
+                <td className={cn(td, 'font-semibold')}>{row.area}</td>
+                <td className={td}>
+                  <StatusPill level={row.status} />
+                </td>
+                <td className={td}>{row.comment}</td>
+              </tr>
+            ))}
+          </Table>
+        </>
+      )}
       {sections.keyFigures && (
         <>
           <Band title="Key figures" />
@@ -203,14 +217,16 @@ export function ProjectStatusSections({ sections }: { sections: ReportSections }
           </Table>
         </>
       )}
-      <p className="print-avoid mt-4 text-[10px] text-muted-foreground">
-        Status rules. Overdue means a milestone target date before the report date that is not
-        completed or cancelled. Schedule: OFF TRACK when a milestone is more than 30 days overdue,
-        AT RISK when any is overdue. Budget: OFF TRACK above 100 percent used, AT RISK when use
-        exceeds timeline elapsed by more than 15 points. Indicators: OFF TRACK when KPI achievement
-        is more than 25 points below timeline elapsed, AT RISK when more than 10 below. NOT
-        AVAILABLE when an input is missing.
-      </p>
+      {sections.overview.length > 0 && (
+        <p className="print-avoid mt-4 text-[10px] text-muted-foreground">
+          Status rules.{' '}
+          {sections.overview
+            .map((row) => statusRules[row.area])
+            .filter(Boolean)
+            .join(' ')}{' '}
+          NOT AVAILABLE when an input is missing.
+        </p>
+      )}
     </div>
   )
 }

@@ -16,6 +16,7 @@ import { toast } from 'sonner'
 import { PageHeader } from '@/components/layout/page-header'
 import {
   AsyncState,
+  CappedPercent,
   DialogShell,
   EmptyState,
   SectionCard,
@@ -436,9 +437,11 @@ function applyEvidence(
 
 /** Dash when there is no allocation to measure against, or no budget access. */
 const budgetUsedText = (activity: ActivitySummary | undefined) =>
-  activity?.budgetUtilization == null
-    ? '\u2014'
-    : formatCappedPercent(activity.budgetUtilization, 'over budget')
+  activity?.budgetUtilization == null ? (
+    '\u2014'
+  ) : (
+    <CappedPercent value={activity.budgetUtilization} overLabel="over budget" />
+  )
 
 const EvidenceSummaryCard = ({
   activities,

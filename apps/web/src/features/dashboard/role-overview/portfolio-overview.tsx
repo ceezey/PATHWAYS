@@ -1,9 +1,8 @@
 import type { RoleOverview } from '@pathways/shared'
 import Link from 'next/link'
 
-import { StatusBadge } from '@/components/pathways'
+import { CappedPercent, StatusBadge } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
-import { formatCappedPercent } from '@/lib/percent'
 import { cn } from '@/lib/utils'
 import { healthOf } from './health'
 import type { ProjectMetrics } from './manager-overview'
@@ -78,7 +77,7 @@ export const PortfolioOverview = ({
             <div className="flex justify-between text-sm">
               <span className="font-medium">{project.title}</span>
               <span className="tabular-nums">
-                {formatCappedPercent(budget.percent, 'over budget')}
+                <CappedPercent value={budget.percent} overLabel="over budget" />
               </span>
             </div>
             <div className="flex justify-between text-xs text-muted-foreground">
