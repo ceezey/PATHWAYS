@@ -1,4 +1,4 @@
--- 0065 beneficiary reach and KPI values (cr-pathways-beneficiary-reach-kpi-values); forward migration.
+-- 0066 beneficiary reach and KPI values (cr-pathways-beneficiary-reach-kpi-values); forward migration.
 -- p06_monitoring and p06_home_dashboard release the four reach counts from p06_compute_monitoring with 1-4 and
 -- nested-count complementary suppression instead of SENSITIVE_RELEASE_NOT_ENABLED_V1; the home dashboard keeps the
 -- placeholder for callers without monitoring.read on every requested project, since its own gate is projects.read.
@@ -19,11 +19,14 @@ SET LOCAL statement_timeout = '60s';
 DO $$ BEGIN
  IF current_user <> 'prisma' OR NOT EXISTS(SELECT FROM public._prisma_migrations WHERE migration_name='0064_evaluation_write_path'
   AND finished_at IS NOT NULL AND rolled_back_at IS NULL)
- THEN RAISE EXCEPTION '0065 requires the verified 0064 state and migration identity'; END IF;
+  OR NOT EXISTS(SELECT FROM public._prisma_migrations WHERE migration_name='0065_zone_check_memo'
+  AND finished_at IS NOT NULL AND rolled_back_at IS NULL)
+  OR to_regprocedure('pathways.p06_zone_is_valid(text)') IS NULL
+ THEN RAISE EXCEPTION '0066 requires the verified 0064 and 0065 state and migration identity'; END IF;
  IF (SELECT pg_catalog.pg_get_userbyid(nspowner) FROM pg_catalog.pg_namespace WHERE nspname='pathways')<>'prisma'
   OR EXISTS(SELECT FROM pg_catalog.pg_proc p JOIN pg_catalog.pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='pathways'
    AND p.proname IN ('p06_participation_breakdown','p06_indicator_values','p06_complement_cell','p06_release_reach'))
- THEN RAISE EXCEPTION '0065 requires prisma to own pathways and no earlier release functions'; END IF;
+ THEN RAISE EXCEPTION '0066 requires prisma to own pathways and no earlier release functions'; END IF;
  IF EXISTS(SELECT FROM pg_catalog.pg_proc p WHERE p.oid IN (
    'pathways.p06_monitoring(uuid,uuid[],date,date,text)'::pg_catalog.regprocedure,
    'pathways.p06_home_dashboard(uuid,uuid[],date,date,text)'::pg_catalog.regprocedure,
@@ -32,21 +35,21 @@ DO $$ BEGIN
    'pathways.p06_saddd(uuid,uuid[],date,date,text)'::pg_catalog.regprocedure,
    'pathways.p06_compute_saddd(uuid,uuid[],date,date,text)'::pg_catalog.regprocedure)
   AND pg_catalog.pg_get_userbyid(p.proowner)<>'prisma')
- THEN RAISE EXCEPTION '0065 requires prisma to own the p06 monitoring and indicator functions'; END IF;
+ THEN RAISE EXCEPTION '0066 requires prisma to own the p06 monitoring and indicator functions'; END IF;
  IF NOT (SELECT bool_and(relforcerowsecurity) FROM pg_catalog.pg_class WHERE oid IN (
    'pathways.project_indicator_bindings'::pg_catalog.regclass,'pathways.project_indicator_measurements'::pg_catalog.regclass))
   OR (SELECT count(*) FROM pg_catalog.pg_policy WHERE (polname,polrelid,polroles) IN (
    ('p06_binding_owner_read','pathways.project_indicator_bindings'::pg_catalog.regclass,ARRAY[(SELECT oid FROM pg_catalog.pg_roles WHERE rolname='prisma')]),
    ('p06_measurement_owner_read','pathways.project_indicator_measurements'::pg_catalog.regclass,ARRAY[(SELECT oid FROM pg_catalog.pg_roles WHERE rolname='prisma')])))<>2
- THEN RAISE EXCEPTION '0065 requires the prisma owner read policies on indicator bindings and measurements'; END IF;
+ THEN RAISE EXCEPTION '0066 requires the prisma owner read policies on indicator bindings and measurements'; END IF;
  -- Remember both replaced ACLs and the grant count so the postcondition proves them unchanged.
- PERFORM pg_catalog.set_config('pathways.m0065_monitoring_acl',(SELECT coalesce(proacl::text,'') FROM pg_catalog.pg_proc
+ PERFORM pg_catalog.set_config('pathways.m0066_monitoring_acl',(SELECT coalesce(proacl::text,'') FROM pg_catalog.pg_proc
   WHERE oid='pathways.p06_monitoring(uuid,uuid[],date,date,text)'::pg_catalog.regprocedure),true);
- PERFORM pg_catalog.set_config('pathways.m0065_home_acl',(SELECT coalesce(proacl::text,'') FROM pg_catalog.pg_proc
+ PERFORM pg_catalog.set_config('pathways.m0066_home_acl',(SELECT coalesce(proacl::text,'') FROM pg_catalog.pg_proc
   WHERE oid='pathways.p06_home_dashboard(uuid,uuid[],date,date,text)'::pg_catalog.regprocedure),true);
- PERFORM pg_catalog.set_config('pathways.m0065_saddd_acl',(SELECT coalesce(proacl::text,'') FROM pg_catalog.pg_proc
+ PERFORM pg_catalog.set_config('pathways.m0066_saddd_acl',(SELECT coalesce(proacl::text,'') FROM pg_catalog.pg_proc
   WHERE oid='pathways.p06_saddd(uuid,uuid[],date,date,text)'::pg_catalog.regprocedure),true);
- PERFORM pg_catalog.set_config('pathways.m0065_grants',(SELECT count(*) FROM pathways.role_permissions)::text,true);
+ PERFORM pg_catalog.set_config('pathways.m0066_grants',(SELECT count(*) FROM pathways.role_permissions)::text,true);
 END $$;
 SELECT pg_advisory_xact_lock(505005,1);
 
@@ -129,7 +132,7 @@ BEGIN
      OR start_on < DATE '1900-01-01' OR end_on > DATE '2100-12-31'
      OR end_on < start_on OR end_on - start_on > 365
      OR zone IS NULL OR length(zone) > 100
-     OR NOT EXISTS (SELECT FROM pg_catalog.pg_timezone_names WHERE name = zone) THEN
+     OR NOT pathways.p06_zone_is_valid(zone) THEN
     RAISE EXCEPTION 'Invalid bounded dashboard period' USING ERRCODE = '22023';
   END IF;
 
@@ -561,22 +564,22 @@ DO $$ DECLARE fn text; runtime oid := (SELECT oid FROM pg_catalog.pg_roles WHERE
   IF NOT EXISTS(SELECT FROM pg_catalog.pg_proc p WHERE p.oid=fn::pg_catalog.regprocedure
    AND pg_catalog.pg_get_userbyid(p.proowner)='prisma' AND p.prosecdef AND p.provolatile='s'
    AND p.proconfig IS NOT DISTINCT FROM ARRAY['search_path=""'])
-  THEN RAISE EXCEPTION '0065 % owner/security/search_path postcondition failed',fn; END IF;
+  THEN RAISE EXCEPTION '0066 % owner/security/search_path postcondition failed',fn; END IF;
   IF NOT has_function_privilege('pathways_runtime',fn,'EXECUTE')
    OR EXISTS(SELECT FROM (VALUES('anon'),('authenticated'),('service_role')) r(name) WHERE has_function_privilege(r.name,fn,'EXECUTE'))
-  THEN RAISE EXCEPTION '0065 % runtime ACL postcondition failed',fn; END IF;
+  THEN RAISE EXCEPTION '0066 % runtime ACL postcondition failed',fn; END IF;
  END LOOP;
  IF (SELECT coalesce(proacl::text,'') FROM pg_catalog.pg_proc WHERE oid='pathways.p06_monitoring(uuid,uuid[],date,date,text)'::pg_catalog.regprocedure)
-   IS DISTINCT FROM pg_catalog.current_setting('pathways.m0065_monitoring_acl')
+   IS DISTINCT FROM pg_catalog.current_setting('pathways.m0066_monitoring_acl')
   OR (SELECT coalesce(proacl::text,'') FROM pg_catalog.pg_proc WHERE oid='pathways.p06_home_dashboard(uuid,uuid[],date,date,text)'::pg_catalog.regprocedure)
-   IS DISTINCT FROM pg_catalog.current_setting('pathways.m0065_home_acl')
+   IS DISTINCT FROM pg_catalog.current_setting('pathways.m0066_home_acl')
   OR (SELECT coalesce(proacl::text,'') FROM pg_catalog.pg_proc WHERE oid='pathways.p06_saddd(uuid,uuid[],date,date,text)'::pg_catalog.regprocedure)
-   IS DISTINCT FROM pg_catalog.current_setting('pathways.m0065_saddd_acl')
- THEN RAISE EXCEPTION '0065 replaced function ACL changed'; END IF;
+   IS DISTINCT FROM pg_catalog.current_setting('pathways.m0066_saddd_acl')
+ THEN RAISE EXCEPTION '0066 replaced function ACL changed'; END IF;
  FOREACH fn IN ARRAY ARRAY['pathways.p06_participation_breakdown(uuid,date,date)','pathways.p06_indicator_values(uuid,text)'] LOOP
   IF EXISTS(SELECT FROM pg_catalog.pg_proc p CROSS JOIN LATERAL pg_catalog.aclexplode(coalesce(p.proacl,pg_catalog.acldefault('f',p.proowner))) a
    WHERE p.oid=fn::pg_catalog.regprocedure AND a.grantee NOT IN (p.proowner, runtime))
-  THEN RAISE EXCEPTION '0065 % ACL postcondition failed',fn; END IF;
+  THEN RAISE EXCEPTION '0066 % ACL postcondition failed',fn; END IF;
  END LOOP;
  FOREACH fn IN ARRAY ARRAY['pathways.p06_complement_cell(jsonb,jsonb)','pathways.p06_release_reach(jsonb)'] LOOP
   IF NOT EXISTS(SELECT FROM pg_catalog.pg_proc p WHERE p.oid=fn::pg_catalog.regprocedure
@@ -584,9 +587,11 @@ DO $$ DECLARE fn text; runtime oid := (SELECT oid FROM pg_catalog.pg_roles WHERE
     AND p.proconfig IS NOT DISTINCT FROM ARRAY['search_path=""'])
    OR EXISTS(SELECT FROM pg_catalog.pg_proc p CROSS JOIN LATERAL pg_catalog.aclexplode(coalesce(p.proacl,pg_catalog.acldefault('f',p.proowner))) a
     WHERE p.oid=fn::pg_catalog.regprocedure AND a.grantee<>p.proowner)
-  THEN RAISE EXCEPTION '0065 helper % postcondition failed',fn; END IF;
+  THEN RAISE EXCEPTION '0066 helper % postcondition failed',fn; END IF;
  END LOOP;
- IF (SELECT count(*) FROM pathways.role_permissions)::text IS DISTINCT FROM pg_catalog.current_setting('pathways.m0065_grants')
- THEN RAISE EXCEPTION '0065 must not change role_permissions'; END IF;
+ IF (SELECT pg_catalog.pg_get_functiondef(oid) FROM pg_catalog.pg_proc WHERE oid='pathways.p06_home_dashboard(uuid,uuid[],date,date,text)'::pg_catalog.regprocedure) LIKE '%pg_timezone_names%'
+ THEN RAISE EXCEPTION '0066 home dashboard must keep the memoized zone check'; END IF;
+ IF (SELECT count(*) FROM pathways.role_permissions)::text IS DISTINCT FROM pg_catalog.current_setting('pathways.m0066_grants')
+ THEN RAISE EXCEPTION '0066 must not change role_permissions'; END IF;
 END $$;
 COMMIT;

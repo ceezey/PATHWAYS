@@ -52,7 +52,7 @@ $forwardInventory = @(
   '0063_rules_scope_memo'
   '0064_evaluation_write_path'
   '0065_zone_check_memo'
-  '0065_beneficiary_reach_kpi_values'
+  '0066_beneficiary_reach_kpi_values'
 )
 if (($forwardMigrations.Name -join ',') -cne ($forwardInventory -join ',')) { throw 'Forward migration inventory requires renewed review.' }
 
@@ -988,7 +988,7 @@ FROM pg_catalog.pg_proc p WHERE p.oid='pathways_rules_internal.human_rules_scope
     throw 'Rules scope memo runtime suite failed in pathways_phase4_rmt_retry.'
   }
   Write-Output 'FORWARD_0063_RULES_SCOPE_MEMO_RUNTIME=PASS'
-  # 0065 inventory: two release functions owned by prisma with runtime-only EXECUTE; helpers stay owner-only.
+  # 0066 inventory: two release functions owned by prisma with runtime-only EXECUTE; helpers stay owner-only.
   foreach ($db in @('pathways_phase4_baseline', 'pathways_phase4_forward_restore')) {
     $reachShape = Read-ForwardSql $db @"
 SELECT ((SELECT bool_and(pg_catalog.pg_get_userbyid(p.proowner)='prisma' AND p.prosecdef
@@ -999,9 +999,9 @@ SELECT ((SELECT bool_and(pg_catalog.pg_get_userbyid(p.proowner)='prisma' AND p.p
  AND NOT has_function_privilege('pathways_runtime','pathways.p06_release_reach(jsonb)','EXECUTE')
  AND (SELECT count(*) FROM pathways.role_permissions)=314)::text;
 "@
-    if ($reachShape.Trim() -cne 'true') { throw "0065 beneficiary reach inventory differs in $db." }
+    if ($reachShape.Trim() -cne 'true') { throw "0066 beneficiary reach inventory differs in $db." }
   }
-  Write-Output 'FORWARD_0065_BENEFICIARY_REACH_INVENTORY=PASS'
+  Write-Output 'FORWARD_0066_BENEFICIARY_REACH_INVENTORY=PASS'
 } finally {
   foreach ($key in $forwardPriorEnvironment.Keys) { Set-Item -LiteralPath "Env:$key" -Value $forwardPriorEnvironment[$key] }
 }

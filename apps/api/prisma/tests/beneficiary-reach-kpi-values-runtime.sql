@@ -1,13 +1,13 @@
--- cr-pathways-beneficiary-reach-kpi-values (migration 0065): runtime checks for the released reach counts,
+-- cr-pathways-beneficiary-reach-kpi-values (migration 0066): runtime checks for the released reach counts,
 -- pathways.p06_participation_breakdown (exact counts) and pathways.p06_indicator_values. Synthetic fixtures only; everything rolls
--- back. Run as a local superuser against a disposable pathways_phase2_* or pathways_phase4_* replay database with 0065.
+-- back. Run as a local superuser against a disposable pathways_phase2_* or pathways_phase4_* replay database with 0066.
 \set ON_ERROR_STOP on
 BEGIN;
 
 DO $$ BEGIN
  IF current_database() !~ '^pathways_phase(2|4)_[a-z0-9_]+$' OR NOT (SELECT rolsuper FROM pg_roles WHERE rolname=current_user)
  OR inet_server_addr() IS DISTINCT FROM '127.0.0.1'::inet THEN
-  RAISE EXCEPTION '0065 beneficiary-reach-kpi-values checks require a disposable local database'; END IF;
+  RAISE EXCEPTION '0066 beneficiary-reach-kpi-values checks require a disposable local database'; END IF;
 END $$;
 
 -- Hosted prisma has no BYPASSRLS, so the suite drops it for this transaction to read forced RLS as hosted does.
@@ -333,7 +333,7 @@ SELECT pg_temp.ok(NOT EXISTS(SELECT FROM pathways.sensitive_aggregate_releases W
 
 DO $$ DECLARE total integer; BEGIN
  SELECT count(*) INTO total FROM brk_results;
- IF total<>41 THEN RAISE EXCEPTION '0065 beneficiary-reach-kpi-values checks expected 41 assertions, recorded %',total; END IF;
+ IF total<>41 THEN RAISE EXCEPTION '0066 beneficiary-reach-kpi-values checks expected 41 assertions, recorded %',total; END IF;
  RAISE NOTICE 'BENEFICIARY_REACH_KPI_VALUES_RUNTIME=PASS (% assertions)',total;
 END $$;
 ROLLBACK;

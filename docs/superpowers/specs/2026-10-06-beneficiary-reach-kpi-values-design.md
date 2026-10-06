@@ -3,7 +3,7 @@
 **Date:** 2026-10-06
 **Status:** Approved (developer, 2026-10-06)
 **CR:** `docs/cr-pathways-beneficiary-reach-kpi-values.md` (to be written with the implementation)
-**Migration:** `0065_beneficiary_reach_kpi_values`
+**Migration:** `0066_beneficiary_reach_kpi_values`
 
 ## Goal
 
@@ -26,7 +26,7 @@ Release beneficiary reach and counts with 1-4 shown as "fewer than 5", open part
 - Developer decisions 2026-10-06: the participation breakdown returns exact counts with no suppression; the reach release keeps 1-4 suppression and complements and also hides participationRecords when it is 1-4 below enrolled individuals or 1-4 above attending individuals (judged on the released people counts) and whenever either people count was complement-hidden; KPI values stay unchanged. The developer accepts the residual risk that a KPI value and a reach count could be differenced.
 - Developer decision 2026-10-06: `p06_saddd` releases an ongoing project live to date (period end = least(project end, business today)) with the same gates and suppression and no registry freeze; closed projects keep the fixed registry release; a project that has not started stays refused.
 
-## Migration 0065
+## Migration 0066
 
 1. Replace `p06_monitoring` and `p06_home_dashboard` so the four counts come from `p06_compute_monitoring` with complementary suppression; scope stays `monitoring.read` plus project scope. Signatures unchanged, so the running API keeps working.
 2. Add `p06_participation_breakdown(project_id)` returning exact counts (no suppression) by activity, month and attendance status; requires `monitoring.read`, `analytics.descriptive.read` and `beneficiaries.aggregates.read` plus project scope. Granted to `pathways_runtime` only.
@@ -54,7 +54,7 @@ Activity reach suppression is display consistency only: per-session update rows 
 
 - New runtime SQL suite `apps/api/prisma/tests/beneficiary-reach-kpi-values-runtime.sql`: per role, Program and Grant Manager get suppressed counts and KPI values; reach counts and KPI values with 1-4 and their complements are SUPPRESSED, while the participation breakdown is exact; no definition or measurement columns returned; Project Officer unchanged; cross-organization and unassigned projects denied.
 - API unit tests for the new service paths and reach suppression; web tests for the "0" fix and gating.
-- Local replay 0000-0065 and existing suites, SAD migration review, then devV2 apply per the staging auto-migrate rule.
+- Local replay 0000-0066 and existing suites, SAD migration review, then devV2 apply per the staging auto-migrate rule.
 
 ## Docs
 
