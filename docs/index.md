@@ -94,7 +94,6 @@ Workflow rule: an audit is finding and evidence, a Change Record is the approved
 | Spec | File | Date | Scope | Status |
 |---|---|---|---|---|
 | [Plan 2 cloud handoff](handoff-extensions-and-escalations.md) | handoff-extensions-and-escalations.md | 2026-10-04 | Paused state of Plan 2 Task 1 handed to the cloud session, with the SDD ledger rulings | Closed; resumed and completed |
-| [Dead code removal plan](superpowers/plans/2026-10-08-dead-code-removal.md) | 2026-10-08-dead-code-removal.md | 2026-10-08 | Parallel removal of unused files, exports and dependencies across apps, packages, scripts and infra | Executed on chore/dead-code-removal; merge to dev pending |
 
 ### 1.7 Traceability Matrix
 
