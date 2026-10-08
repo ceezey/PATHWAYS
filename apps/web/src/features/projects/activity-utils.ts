@@ -14,10 +14,6 @@ export const activityStatuses: ActivityStatus[] = [
   'Cancelled',
 ]
 
-export const activityFilters = ['All', 'Mine', 'Overdue', 'Needs Attention'] as const
-
-export type ActivityFilter = (typeof activityFilters)[number]
-
 export const activityStatusTone = (status: ActivityStatus) => {
   if (status === 'Completed') {
     return 'success'

@@ -12,8 +12,8 @@ export type MetricScope =
   | 'Budget'
   | 'Beneficiary Group'
   | 'Assessment'
-export type MetricUnit = '%' | 'days' | 'count' | 'value' | 'points'
-export type MetricCategory =
+type MetricUnit = '%' | 'days' | 'count' | 'value' | 'points'
+type MetricCategory =
   | 'Performance'
   | 'Schedule'
   | 'Delivery'
@@ -26,12 +26,12 @@ type BoardRule = Pick<
   HumanRule,
   'id' | 'name' | 'status' | 'severity' | 'conditions' | 'recommendations'
 > & { code?: string }
-export type RuleDraft = {
+type RuleDraft = {
   name: string
   severity: HumanRule['severity']
   conditions: RuleNode
 }
-export type RecommendationRow = {
+type RecommendationRow = {
   id: string
   recommendationTitle: string
   ruleName: string
@@ -47,7 +47,7 @@ const entry = (
   unit: MetricUnit,
   category: MetricCategory,
 ): MetricEntry => ({ label, scope, unit, category })
-export const METRIC_CATALOG: Record<RuleMetricKey, MetricEntry> = {
+const METRIC_CATALOG: Record<RuleMetricKey, MetricEntry> = {
   INDICATOR_CURRENT_VALUE: entry('Indicator current value', 'Indicator', 'value', 'Performance'),
   INDICATOR_PROGRESS_PERCENT: entry('Indicator progress', 'Indicator', '%', 'Performance'),
   PROJECT_TIMELINE_ELAPSED_PERCENT: entry('Project timeline elapsed', 'Project', '%', 'Schedule'),
@@ -78,7 +78,7 @@ export const SCOPES: MetricScope[] = [
   'Beneficiary Group',
   'Budget',
 ]
-export const operatorSymbols = { LT: '<', LTE: '<=', EQ: '=', GTE: '>=', GT: '>' } as const
+const operatorSymbols = { LT: '<', LTE: '<=', EQ: '=', GTE: '>=', GT: '>' } as const
 export const operatorWords = {
   LT: 'below',
   LTE: 'at most',
@@ -88,7 +88,7 @@ export const operatorWords = {
   BETWEEN: 'between',
 } as const
 
-export const scopeOf = (key: string): MetricScope =>
+const scopeOf = (key: string): MetricScope =>
   (METRIC_CATALOG as Record<string, MetricEntry | undefined>)[key]?.scope ?? 'Project'
 export const unitOf = (key: string): MetricUnit =>
   (METRIC_CATALOG as Record<string, MetricEntry | undefined>)[key]?.unit ?? 'value'
@@ -119,7 +119,7 @@ export const formatMetricValue = (value: string, unit: string) => {
   return `${value} ${unit}`
 }
 export const unitLabel = (key: string) => (unitOf(key) === 'value' ? 'Value' : unitOf(key))
-export const firstMetric = (node: RuleNode): string =>
+const firstMetric = (node: RuleNode): string =>
   node.kind === 'CONDITION' ? node.metric : firstMetric(node.children[0] as RuleNode)
 
 const leaves = (node: RuleNode): Leaf[] =>

@@ -9,7 +9,7 @@ const summary = { freshness: 'summary' } as const
  * Stable resource keys shared by every project workspace tab, so the Overview and the
  * Activities tab reuse one project read and each workspace loads indicators once.
  */
-export const projectReadResources = {
+const projectReadResources = {
   project: 'project',
   activities: 'project-activities',
   indicators: 'project-indicators',

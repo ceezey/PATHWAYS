@@ -131,7 +131,7 @@ const resolvedRoleId = (
   return selectedUserId(users, name, role) ?? undefined
 }
 
-export type ProjectTeamSingleFieldName = 'programManager' | 'projectManager' | 'monitoringOfficer'
+type ProjectTeamSingleFieldName = 'programManager' | 'projectManager' | 'monitoringOfficer'
 
 export const toProjectTeamInput = (
   values: ProjectSetupSchema,

@@ -6,7 +6,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 
-export type Option = { value: string; label: string }
+type Option = { value: string; label: string }
 
 /** Thin ui Select wrapper that keeps native form semantics (name, required) for FormData readers. */
 export function OptionSelect({

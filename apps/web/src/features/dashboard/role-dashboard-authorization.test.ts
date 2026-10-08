@@ -1,12 +1,8 @@
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, render, screen } from '@testing-library/react'
 /* @vitest-environment jsdom */
 import { createElement } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import {
-  RoleDashboard,
-  canLoadDashboardMonitoring,
-  canOpenDashboardMonitoring,
-} from './role-dashboard'
+import { RoleDashboard, canLoadDashboardMonitoring } from './role-dashboard'
 const reviewer = {
   roles: ['MONITORING_AND_EVALUATION_OFFICER'],
   permissions: ['monitoring.read', 'analytics.read'],
@@ -16,11 +12,9 @@ describe('dashboard monitoring authorization', () => {
   it('does not mount monitoring or show its action for Project Officer even with injected grants', () => {
     const profile = { ...reviewer, roles: ['PROJECT_OFFICER'] }
     expect(canLoadDashboardMonitoring('Project Officer', profile)).toBe(false)
-    expect(canOpenDashboardMonitoring('Project Officer', profile)).toBe(false)
   })
   it('preserves monitoring access for an authorized current reviewer', () => {
     expect(canLoadDashboardMonitoring('Monitoring and Evaluation Officer', reviewer)).toBe(true)
-    expect(canOpenDashboardMonitoring('Monitoring and Evaluation Officer', reviewer)).toBe(true)
   })
   it.each(['monitoring.read', 'analytics.read'])(
     'does not mount dependent reads or advertise the analytics action after current %s revocation',
@@ -30,12 +24,10 @@ describe('dashboard monitoring authorization', () => {
         permissions: reviewer.permissions.filter((value) => value !== permission),
       }
       expect(canLoadDashboardMonitoring('Monitoring and Evaluation Officer', profile)).toBe(false)
-      expect(canOpenDashboardMonitoring('Monitoring and Evaluation Officer', profile)).toBe(false)
     },
   )
   it('does not mount supporting monitoring without a current principal', () => {
     expect(canLoadDashboardMonitoring('Monitoring and Evaluation Officer', null)).toBe(false)
-    expect(canOpenDashboardMonitoring('Monitoring and Evaluation Officer', null)).toBe(false)
   })
 })
 

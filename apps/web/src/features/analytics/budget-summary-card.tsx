@@ -6,8 +6,8 @@ import { CappedPercent } from '@/components/pathways'
 import { EmptyState } from '@/components/pathways/empty-state'
 import type { BudgetSummary } from '@pathways/shared'
 
-export const NO_BUDGET_LABEL = 'No budget'
-export const UTILIZATION_CAPTION =
+const NO_BUDGET_LABEL = 'No budget'
+const UTILIZATION_CAPTION =
   'Utilization = approved expenses / planned budget; pending and verified amounts are not counted.'
 
 const money = (amount: number, currency: string) =>

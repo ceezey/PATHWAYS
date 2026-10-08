@@ -6,7 +6,7 @@ import type { PathwaysRole } from '@/types/pathways-role'
 
 export type UserStatusFilter = 'All' | UserAccountStatus
 
-export interface PathwaysRoleSummary {
+interface PathwaysRoleSummary {
   role: PathwaysRole
   description: string
 }

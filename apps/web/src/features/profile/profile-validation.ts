@@ -29,6 +29,3 @@ export const changePasswordSchema = z
     message: 'Choose a password that differs from your current password.',
     path: ['newPassword'],
   })
-
-export type ProfileValues = z.infer<typeof profileSchema>
-export type ChangePasswordValues = z.infer<typeof changePasswordSchema>

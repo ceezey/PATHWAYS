@@ -19,9 +19,7 @@ const stateStyle: Record<string, { label: string; level: StatusLevel }> = {
 }
 const pill = 'inline-block rounded border px-2 py-0.5 text-[10px] font-semibold'
 
-export const stateLabel = (state: string) => stateStyle[state]?.label ?? 'Not available'
-
-export function StatusPill({ level }: { level: StatusLevel }) {
+function StatusPill({ level }: { level: StatusLevel }) {
   const { label, className } = levelStyle[level]
   return <span className={cn(pill, className)}>{label}</span>
 }

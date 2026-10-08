@@ -47,7 +47,7 @@ const csvCell = (value: string) => {
   return `"${safe.replace(/"/g, '""')}"`
 }
 
-export const activitiesCsv = (rows: ActivitySummary[], columns: ColumnKey[]) => {
+const activitiesCsv = (rows: ActivitySummary[], columns: ColumnKey[]) => {
   const cells: Record<ColumnKey, (activity: ActivitySummary) => string> = {
     code: (a) => a.code ?? '',
     status: (a) => a.status,

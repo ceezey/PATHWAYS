@@ -16,9 +16,9 @@ if (
   throw new Error('Invalid staff portal origin configuration.')
 }
 export const localPasswordRecoveryOrigin = portalUrl.origin
-export const passwordRecoveryCallbackPath = '/auth/recovery/callback'
+const passwordRecoveryCallbackPath = '/auth/recovery/callback'
 export const passwordRecoveryCallbackUrl = `${localPasswordRecoveryOrigin}${passwordRecoveryCallbackPath}`
-export const passwordRecoveryRequestPath = '/staff/forgot-password'
+const passwordRecoveryRequestPath = '/staff/forgot-password'
 export const passwordRecoveryRequestUrl = `${localPasswordRecoveryOrigin}${passwordRecoveryRequestPath}`
 export const passwordUpdatePath = '/auth/update-password'
 export const passwordRecoveryCompletePath = '/auth/recovery/complete'
@@ -58,7 +58,7 @@ export const passwordUpdateRequestSchema = z
 export type PasswordRecoveryRequest = z.infer<typeof passwordRecoveryRequestSchema>
 export type PasswordUpdate = z.infer<typeof passwordUpdateSchema>
 
-export type PasswordCompletionUiOutcome =
+type PasswordCompletionUiOutcome =
   | { kind: 'success'; sessionClosed: boolean }
   | { kind: 'unchanged' }
   | { kind: 'unknown' }

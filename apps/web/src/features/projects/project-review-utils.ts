@@ -10,15 +10,6 @@ export const addIndicatorSchema = z.object({
   actual: z.coerce.number().min(0),
 })
 
-export const annotationSchema = z.object({
-  note: z.string().min(5, 'Enter an annotation note.'),
-})
-
-export const formalEvaluationSchema = z.object({
-  score: z.coerce.number().min(0).max(100),
-  note: z.string().min(5, 'Enter an evaluation note.'),
-})
-
 export const recommendationOutcomeSchema = z.object({
   outcome: z.enum(['Accept', 'Partially Accept', 'Decline', 'Escalate']),
   note: z.string().min(5, 'Enter an outcome note.'),
@@ -31,15 +22,8 @@ export const logExpenseSchema = z.object({
   submitter: z.string().min(2, 'Enter a submitter.'),
 })
 
-export const rejectionReasonSchema = z.object({
-  reason: z.string().min(5, 'Enter a rejection reason.'),
-})
-
 export const calculateExpenseTotal = (expenses: ExpenseRecord[]) =>
   expenses.reduce((total, expense) => total + expense.amount, 0)
 
 export const calculateRemainingBudget = (plannedAmount: number, actualSpending: number) =>
   plannedAmount - actualSpending
-
-export const calculateBudgetUtilization = (plannedAmount: number, actualSpending: number) =>
-  plannedAmount > 0 ? Math.round((actualSpending / plannedAmount) * 100) : 0

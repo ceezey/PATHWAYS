@@ -493,17 +493,3 @@ export function surveyImprovementObservation(input: unknown): MetricObservation 
     differenceSum: data.differenceSum,
   })
 }
-
-export const supportedInitialMetrics: readonly RuleMetricKey[] = [
-  'INDICATOR_CURRENT_VALUE',
-  'INDICATOR_PROGRESS_PERCENT',
-  'PROJECT_TIMELINE_ELAPSED_PERCENT',
-  'PROJECT_REMAINING_DAYS',
-  'PROJECT_OVERDUE_DAYS',
-  'ACTIVITY_COMPLETION_PERCENT',
-  'ACTIVITY_OVERDUE_COUNT',
-  'ACTIVITY_OVERDUE_DAYS',
-  'BUDGET_UTILIZATION_PERCENT',
-  'BENEFICIARY_FOLLOW_UP_PERCENT',
-  'SURVEY_MEAN_IMPROVEMENT_POINTS',
-]

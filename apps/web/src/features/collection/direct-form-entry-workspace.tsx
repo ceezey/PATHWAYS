@@ -27,12 +27,7 @@ import type {
 } from '@/types/pathways'
 
 // Mirrors the API DIRECT_ENTRY_FORM_TYPES (V4-C11).
-export const DIRECT_ENTRY_FORM_TYPES = [
-  'TRAINING_SURVEY',
-  'PRE_TEST',
-  'POST_TEST',
-  'ACTIVITY_MONITORING',
-]
+const DIRECT_ENTRY_FORM_TYPES = ['TRAINING_SURVEY', 'PRE_TEST', 'POST_TEST', 'ACTIVITY_MONITORING']
 
 function verifySurveySubject(
   submission: DirectFormSubmission,

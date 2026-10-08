@@ -72,9 +72,6 @@ export const canLoadDashboardMonitoring = (
       principalHasAtomicPermission(profile, 'analytics.read'),
   )
 
-// The current overview action opens /analytics, whose current grant is required too.
-export const canOpenDashboardMonitoring = canLoadDashboardMonitoring
-
 const severityTone = (severity?: DashboardSeverity) => {
   if (severity === 'danger') {
     return 'danger'
@@ -111,7 +108,7 @@ const actionWorkflowHref = (action: DashboardAction) => {
   return '/projects'
 }
 
-export const dashboardActivityTarget = (href?: string) => {
+const dashboardActivityTarget = (href?: string) => {
   const match = href?.match(/^\/projects\/([^/]+)\/activities\/([^/?#]+)/)
   if (!match) return null
 
@@ -129,7 +126,7 @@ export const dashboardActivityTarget = (href?: string) => {
 
 type DashboardActivityTarget = NonNullable<ReturnType<typeof dashboardActivityTarget>>
 
-export const DashboardActivityReviewPanel = ({
+const DashboardActivityReviewPanel = ({
   role,
   target,
   onActivityChanged,
@@ -559,9 +556,7 @@ export const RoleDashboard = () => {
       {ADMIN_DASHBOARD_MONITORING_UI_ENABLED && canLoadDashboardMonitoring(role, profile) ? (
         <ConnectedMonitoringSnapshot
           action={
-            !dashboard.executive &&
-            dashboard.primaryAction &&
-            canOpenDashboardMonitoring(role, profile) ? (
+            !dashboard.executive && dashboard.primaryAction ? (
               <ActionButton
                 action={dashboard.primaryAction}
                 onAction={handleAction}
