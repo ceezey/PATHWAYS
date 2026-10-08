@@ -4,7 +4,7 @@
 
 **Date:** 2026-09-28
 
-**Status:** Approved; implementation pending
+**Status:** Approved; implemented (migration 0037; verified 2026-10-08); hosted preprovision and application pending
 
 **Superseded by:** prd-pathways.md section 4 (PRD-F3) and IDEA.md section 4.5 (2026-10-01 reconciliation); citations of manuscript Objective 2.2 now read Objective 1.8, because rev-2026 Objective 2.2 is descriptive analytics
 

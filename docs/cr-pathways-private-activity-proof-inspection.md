@@ -4,7 +4,7 @@
 
 **Date:** 2026-09-27
 
-**Status:** Approved; local implementation and verification pending (amended 2026-10-06, see section 6)
+**Status:** Approved; local implementation verified (private-inspection-reader.ts; verified 2026-10-08; amended 2026-10-06, see section 6); hosted application and release excluded
 
 **Reading note:** section 6 supersedes the `application/octet-stream` response type and the "no inline preview" and "blob cache" bans in section 3 for the inspection route only. Everything else in sections 1 to 5 stays in force.
 

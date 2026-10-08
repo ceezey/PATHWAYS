@@ -2,7 +2,7 @@
 
 **ID:** `cr-pathways-beneficiary-progress-read`
 **Date:** 2026-10-06
-**Status:** Proposed
+**Status:** Implemented (migration 0067; verified 2026-10-08); hosted application not verified
 
 ## 1. Problem
 

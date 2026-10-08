@@ -4,7 +4,7 @@
 
 **Date:** 2026-09-28
 
-**Status:** Approved; implementation pending
+**Status:** Approved; implemented (migration 0038; verified 2026-10-08); hosted application pending
 
 ## 1. Trigger
 

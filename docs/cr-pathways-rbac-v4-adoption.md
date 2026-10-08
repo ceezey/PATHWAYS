@@ -2,7 +2,7 @@
 
 **ID:** `cr-pathways-rbac-v4-adoption`  
 **Date:** 2026-10-01  
-**Status:** Approved
+**Status:** Approved; applied by migration 0055 (verified 2026-10-08)
 
 ## 1. Trigger
 

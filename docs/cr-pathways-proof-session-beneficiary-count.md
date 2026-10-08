@@ -2,7 +2,7 @@
 
 **ID:** `cr-pathways-proof-session-beneficiary-count`
 **Date:** 2026-09-29
-**Status:** Approved
+**Status:** Approved; implemented (migration 0042; verified 2026-10-08)
 
 ## 1. Trigger
 

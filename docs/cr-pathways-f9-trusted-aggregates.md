@@ -2,7 +2,7 @@
 
 **ID:** `cr-pathways-f9-trusted-aggregates`
 **Date:** 2026-09-29
-**Status:** Approved (implementation pending; amended 2026-09-29, 2026-09-30 and 2026-10-04, see sections 9, 10 and 11)
+**Status:** Approved; implemented (migrations 0045 and 0057; verified 2026-10-08; amended 2026-09-29, 2026-09-30 and 2026-10-04, see sections 9, 10 and 11)
 
 **Reading note:** section 10 supersedes every earlier statement in this record that Program Manager or Grant Manager receive survey aggregates (sections 1, 3, 6 and 9). Those roles receive timeline aggregates only; the survey view is restricted for them until the deferred closed-period release freeze is built. Section 11 (2026-10-04) supersedes that deferral: those roles read survey aggregates again, for closed periods only, from a frozen release. Section 8 disposition happens when the change reaches `dev`.
 

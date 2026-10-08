@@ -4,7 +4,7 @@
 
 **Date:** 2026-09-26
 
-**Status:** Approved; implementation and verification pending
+**Status:** Approved; local implementation verified (migration 0031; verified 2026-10-08); hosted application, scheduler and release excluded
 
 **Approval:** Developer reply on 2026-09-26: "Approve this reviewed local authority proposal"
 

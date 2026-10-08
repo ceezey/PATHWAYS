@@ -4,7 +4,7 @@
 
 **Date:** 2026-09-28
 
-**Status:** Approved; implementation pending
+**Status:** Approved; implemented locally (migration 0040; verified 2026-10-08); SAD review pending
 
 ## 1. Trigger
 

@@ -2,7 +2,7 @@
 
 **ID:** `cr-pathways-evaluation-auto-scoring`
 **Date:** 2026-10-06
-**Status:** Proposed (migration 0069 and code on branch `feature/evaluation-auto-scoring`; not applied to any database)
+**Status:** Proposed (migration 0069 and code in repo; verified 2026-10-08; not applied to any database)
 
 ## 1. Trigger
 

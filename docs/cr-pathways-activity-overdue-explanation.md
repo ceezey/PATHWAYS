@@ -2,7 +2,7 @@
 
 **ID:** `cr-pathways-activity-overdue-explanation`
 **Date:** 2026-09-29
-**Status:** Approved
+**Status:** Approved; backend implemented (migration 0043; verified 2026-10-08); web phase deferred
 
 ## 1. Trigger
 
