@@ -2,7 +2,7 @@
 
 **ID:** `cr-pathways-codebase-modularization`  
 **Date:** 2026-10-09  
-**Status:** Proposed
+**Status:** Approved
 
 ## 1. Trigger
 
@@ -191,7 +191,7 @@ Developer decisions, 2026-10-08 and 2026-10-09:
 - Sharing: policy, roles and full API contracts through `packages/shared`, as zod schemas.
 - Approach: foundations, then domain slices, then wrap-up.
 - Conventions (section 3.1 to 3.5) approved; roadmap approved with historical infra deleted; validation wording may change.
-- Written record: pending developer review of this document.
+- Written record: approved by the developer 2026-10-09.
 
 ## 9. Disposition
 

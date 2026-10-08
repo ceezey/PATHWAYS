@@ -575,4 +575,4 @@
 
 ## 2026-10-09 Codebase modularization design (docs/codebase-modularization)
 - Read-only audit of the repository recorded in audit-pathways-codebase-modularity-20261009 (MOD-01 to MOD-21 plus two out-of-scope behavior findings, MOD-B1 age filter drift and MOD-B2 middleware matcher).
-- Design recorded in cr-pathways-codebase-modularization (Proposed): layout conventions, dependency direction, zod contracts in packages/shared, and a 13 sub-project roadmap under full release gates. No code changed.
+- Design recorded in cr-pathways-codebase-modularization (Approved 2026-10-09): layout conventions, dependency direction, zod contracts in packages/shared, and a 13 sub-project roadmap under full release gates. No code changed.
