@@ -95,6 +95,7 @@ Workflow rule: an audit is finding and evidence, a Change Record is the approved
 | Spec | File | Date | Scope | Status |
 |---|---|---|---|---|
 | [Plan 2 cloud handoff](handoff-extensions-and-escalations.md) | handoff-extensions-and-escalations.md | 2026-10-04 | Paused state of Plan 2 Task 1 handed to the cloud session, with the SDD ledger rulings | Closed; resumed and completed |
+| [F1 dead code plan](superpowers/plans/2026-10-09-modularization-f1-dead-code.md) | 2026-10-09-modularization-f1-dead-code.md | 2026-10-09 | F1 of the codebase modularization | Executed; remove after merge |
 
 ### 1.7 Traceability Matrix
 
@@ -130,7 +131,7 @@ Newest first. Core P1 supporting contract reconciliation is approved for local i
 
 | CR ID | Date | Summary | Status |
 |---|---|---|---|
-| [cr-pathways-codebase-modularization](cr-pathways-codebase-modularization.md) | 2026-10-09 | Behavior-preserving restructure in 13 sub-projects (F1 to F4, S1 to S8, W1): layout conventions, one-way dependency direction, zod API contracts in `packages/shared`, shared rbac and rules code, dead code removal; no migration | Approved; F1 next |
+| [cr-pathways-codebase-modularization](cr-pathways-codebase-modularization.md) | 2026-10-09 | Behavior-preserving restructure in 13 sub-projects (F1 to F4, S1 to S8, W1): layout conventions, one-way dependency direction, zod API contracts in `packages/shared`, shared rbac and rules code, dead code removal; no migration | Approved; F1 applied, F2 next |
 | [cr-pathways-defense-seed-snapshot](cr-pathways-defense-seed-snapshot.md) | 2026-10-06 | Defense demo snapshot restore: local service seed with mirrored devV2 identities, data-only dump of the wipe tables, one-transaction restore on devV2 with triggers skipped (replica role), staged day shift and storage upsert; no migration | Approved; local rehearsal passed, hosted restore pending |
 | [cr-pathways-report-pdf-renderer](cr-pathways-report-pdf-renderer.md) | 2026-10-05 | PRD-F12 UC-F12-1: PDF reports rendered by headless Chromium from `/print/reports/[id]` with an injected snapshot, pdfkit fallback, env keys `WEB_PROTECTION_BYPASS` and `PDF_CHROME_PATH`, no migration | Applied locally; hosted verification pending |
 | [cr-pathways-f8-f9-f12-gate-closure](cr-pathways-f8-f9-f12-gate-closure.md) | 2026-10-04 | Closes G-F9-9, G-F9-10 and G-F12-4: analytics insights API (participation, indicator trends, approved-only budget), closed-period survey release for aggregate-only roles (migration 0057), monitoring and evaluation report kinds with bare `text/csv`, export button, Participation option and browser-stored Add to Dashboard pins | Applied; 0057 applied on PATHWAYS-devV2 |

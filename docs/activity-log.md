@@ -576,3 +576,14 @@
 ## 2026-10-09 Codebase modularization design (docs/codebase-modularization)
 - Read-only audit of the repository recorded in audit-pathways-codebase-modularity-20261009 (MOD-01 to MOD-21 plus two out-of-scope behavior findings, MOD-B1 age filter drift and MOD-B2 middleware matcher).
 - Design recorded in cr-pathways-codebase-modularization (Approved 2026-10-09): layout conventions, dependency direction, zod contracts in packages/shared, and a 13 sub-project roadmap under full release gates. No code changed.
+
+## 2026-10-09 Modularization F1 dead code and hygiene (refactor/f1-dead-code)
+- Ignored `.worktrees`, `.superpowers` and Supabase scratch folders in git and biome; deleted the root `Dockerfile` and `tsconfig.json`; the RFC hosting reference now points at `apps/api/Dockerfile`.
+- Deleted `packages/ui` and its 7 wiring lines (web `package.json`, `next.config`, vitest alias, two tsconfig path pairs) and the lockfile entry.
+- Removed `RolesGuard`, `@Roles` and `ROLES_KEY` (no uses, global guard always passed) and the shared `AppRole`, `APP_ROLES`, health schema, `PlaceholderModuleState` and `AppUserProfile`; SDD 2.3 now names `SupabaseAuthGuard` as the `@RequirePermission` enforcer. Tests: api 2356, shared 107.
+- Added `app-module-wiring.test.ts` (fails on a provider class registered in two modules); `RulesHumanService` and `ProjectOverviewMetricsService` now have one owning module each and a redundant `StorageModule` import was dropped. Tests: api 2357.
+- Removed 28 dead pathways client methods (14 throw-only stubs, 8 uncalled, 6 test-only) and 16 dead types; kept the `not_configured` error code because `requestFoundation` still throws it. Tests: web 1962.
+- Removed `live-finance-workspace`, `budget-editor-dialog`, `finance-budget-summary` and `budget-form-validation` with their tests. Tests: web 1940.
+- Deleted `lib/demo-state` and `mocks`, moved 7 live fixtures to `apps/web/src/test/fixtures`, and removed 25 unused fixture types and 9 dead types in `types/pathways.ts`. Tests: web 1901.
+- Deleted 100 historical infra files (phase5, phase7, pre-supporting, rule-based-access-alignment, session-liveness, migration-reconciliation except `baseline-data-inventory.sql`, 23 security-adapter deployment and recovery files, 4 phase6 rehearsal files) and `session-liveness-local.mjs`, about 20.4k lines; updated the phase6 and security-adapter READMEs.
+- Deferred: source-mutation proof options (S2), `mapPublicSnapshot` (S8), `ImportSummary` move (F2), infra Pester and runtime-output tests (W1).
