@@ -37,8 +37,7 @@ only as a deferred review artifact under `../legacy-retirement/`; it must not be
 staged or executed. A future retirement requires a new data decision, new
 migration number and separate review.
 
-PATHWAYS-dev session-liveness deployment and rollback use only the separate
-guarded runner documented in `../session-liveness/README.md`.
+Session liveness ships as migration-managed SQL; its historical deployment runner was removed on 2026-10-09 and remains in git history.
 
 ## Replay through Project/Activity creation-contract migration 0025
 
