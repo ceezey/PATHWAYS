@@ -100,15 +100,8 @@ export function saveProject(input: CreateProjectInput, id?: string) {
     return record
   })
 }
-export function archiveProject(id: string, archived: boolean) {
-  return transactDemo('projects.archive', id, id, (state) => {
-    const project = state.projects.find((p) => p.id === id)
-    if (!project) throw new Error('Project not found.')
-    project.archived = archived
-  })
-}
 
-export type ProjectTeamAssignment = {
+type ProjectTeamAssignment = {
   programManager: string
   projectManager: string
   monitoringOfficer: string
@@ -174,31 +167,6 @@ export function reassignProjectTeam(projectId: string, assignment: ProjectTeamAs
 
     return project
   })
-}
-export function validateActivity(state: DemoState, activity: Activity) {
-  const project = state.projects.find((p) => p.id === activity.projectId)
-  if (!project || project.archived) throw new Error('Select an active project.')
-  if (
-    !activity.title.trim() ||
-    !activity.startDate ||
-    !activity.dueDate ||
-    !activity.description.trim()
-  )
-    throw new Error('Complete required activity fields.')
-  if (
-    !Number.isFinite(Date.parse(activity.startDate)) ||
-    !Number.isFinite(Date.parse(activity.dueDate)) ||
-    activity.dueDate < activity.startDate
-  )
-    throw new Error('Choose valid activity dates.')
-  if (
-    ((project.startDate && activity.startDate < project.startDate) ||
-      (project.endDate && activity.dueDate > project.endDate)) &&
-    !activity.overrideJustification?.trim()
-  )
-    throw new Error(
-      'Dates fall outside the project timeline. Provide an override justification to continue.',
-    )
 }
 
 const proofProgress = (activity: Activity, proof: ActivityProof) =>
@@ -337,39 +305,6 @@ export function validateActivityProof(activityId: string, proofId: string) {
       )
     }
 
-    return structuredClone(record)
-  })
-}
-
-export function flagActivityProof(activityId: string, proofId: string) {
-  const activity = getDemoState().activities.find((record) => record.id === activityId)
-  return transactDemo('proof.validate', activity?.projectId, proofId, (state, actor) => {
-    const record = state.activities.find((candidate) => candidate.id === activityId)
-    if (!record) throw new Error('Activity not found.')
-    const proof = record.submittedProof.find((candidate) => candidate.id === proofId)
-    if (!proof) throw new Error('Proof log not found.')
-    if (latestProof(record)?.id !== proof.id)
-      throw new Error('This proof version is stale. Review the latest submission instead.')
-    if (proof.status !== 'Submitted') throw new Error('Only a submitted proof log can be flagged.')
-
-    proof.status = 'Flagged'
-    proof.validatedAt = demoTime(state)
-    proof.validatedBy = actor.id
-    proof.returnReason = 'M&E marked this submission as insufficient. Submit a corrected proof.'
-    record.progressApproval = 'For Correction'
-    record.correctionReason = proof.returnReason
-    record.status = proof.priorActivityStatus ?? incompleteStatus(state, record, record.progress)
-
-    const submitter = proof.submittedBy
-      ? state.accounts.find((account) => account.id === proof.submittedBy)
-      : undefined
-    if (submitter)
-      notifyLocally(
-        state,
-        submitter,
-        `${record.title}: proof version ${proof.version ?? record.submittedProof.length} was flagged as insufficient by M&E.`,
-        `/projects/${record.projectId}/activities/${record.id}?proof=${proof.id}&action=correct`,
-      )
     return structuredClone(record)
   })
 }
@@ -562,113 +497,6 @@ export function reviewExpense(id: string, verified: boolean, reason = '') {
     },
   )
 }
-
-export type ExpenseDecision = 'Approve' | 'Reject' | 'Partial' | 'Escalate'
-
-const countApprovedExpense = (state: DemoState, expense: DemoExpense, approvedAmount: number) => {
-  if (expense.counted) throw new Error('This expense decision has already updated the budget.')
-  const budget = state.budgets.find((record) => record.projectId === expense.projectId)
-  if (!budget || approvedAmount > budget.plannedAmount - budget.actualSpending)
-    throw new Error('Available budget changed. Review the expense before deciding again.')
-
-  budget.actualSpending += approvedAmount
-  expense.counted = true
-  expense.approvedAmount = approvedAmount
-  expense.rejectedAmount = expense.amount - approvedAmount
-
-  const project = state.projects.find((record) => record.id === expense.projectId)
-  if (!project) throw new Error('Linked project is unavailable.')
-  project.budgetUtilization = Math.round((budget.actualSpending / budget.plannedAmount) * 100)
-
-  const activity = state.activities.find((record) => record.id === expense.activityId)
-  if (activity) activity.budgetLogged += approvedAmount
-}
-
-export function decideExpense(
-  id: string,
-  decision: ExpenseDecision,
-  options: { approvedAmount?: number; reason?: string } = {},
-) {
-  const snapshot = getDemoState().expenses.find((expense) => expense.id === id)
-  const action = snapshot?.status === 'Escalated' ? 'expenses.escalation_decide' : 'expenses.review'
-
-  return transactDemo(action, snapshot?.projectId, id, (state, actor) => {
-    const expense = state.expenses.find((record) => record.id === id)
-    if (!expense) throw new Error('Expense not found.')
-    const isEscalationDecision = expense.status === 'Escalated'
-
-    if (isEscalationDecision) {
-      if (actor.role !== 'Program Manager')
-        throw new Error('Only the Program Manager can decide an escalated expense.')
-      if (decision === 'Escalate') throw new Error('An escalated expense needs a final decision.')
-    } else {
-      if (expense.status !== 'Pending Review')
-        throw new Error('Only pending expenses can be reviewed.')
-      if (actor.role !== 'Project Manager')
-        throw new Error('Only the Project Manager can review a submitted expense.')
-    }
-
-    if (expense.submittedBy === actor.id) throw new Error('You cannot review your own expense.')
-
-    const reason = options.reason?.trim() ?? ''
-    if (decision !== 'Approve' && !reason) throw new Error(`${decision} requires a reason.`)
-
-    if (decision === 'Partial') {
-      const approvedAmount = options.approvedAmount
-      if (
-        approvedAmount === undefined ||
-        !Number.isFinite(approvedAmount) ||
-        approvedAmount <= 0 ||
-        approvedAmount >= expense.amount
-      )
-        throw new Error(
-          'Partial approval must be greater than zero and less than the submitted amount.',
-        )
-      countApprovedExpense(state, expense, approvedAmount)
-      expense.status = 'Partially Approved'
-    } else if (decision === 'Approve') {
-      countApprovedExpense(state, expense, expense.amount)
-      expense.status = 'Approved'
-    } else if (decision === 'Reject') {
-      expense.approvedAmount = 0
-      expense.rejectedAmount = expense.amount
-      expense.status = 'Rejected'
-    } else {
-      expense.approvedAmount = 0
-      expense.rejectedAmount = expense.amount
-      expense.status = 'Escalated'
-    }
-
-    expense.reason = reason
-    expense.reviewedBy = actor.id
-    expense.reviewedAt = demoTime(state)
-
-    if (decision === 'Escalate') {
-      const programManager = state.accounts.find(
-        (account) =>
-          account.role === 'Program Manager' && account.projectIds.includes(expense.projectId),
-      )
-      if (programManager)
-        notifyLocally(
-          state,
-          programManager,
-          `Expense ${expense.id} was escalated for your decision. ${reason}`,
-          `/projects/${expense.projectId}/budget`,
-        )
-    }
-
-    const submitter = state.accounts.find((account) => account.id === expense.submittedBy)
-    if (submitter)
-      notifyLocally(
-        state,
-        submitter,
-        `Expense ${expense.id}: ${expense.status}.${reason ? ` ${reason}` : ''}`,
-        `/projects/${expense.projectId}/activities/${expense.activityId}`,
-      )
-
-    return structuredClone(expense)
-  })
-}
 export function approveProgress(id: string, approved: boolean, reason = '') {
   const activity = getDemoState().activities.find((a) => a.id === id)
   return transactDemo(
@@ -708,7 +536,7 @@ export function saveIndicator(input: Omit<Indicator, 'id'>, id?: string) {
     return record
   })
 }
-export type MultiProjectIndicatorInput = Pick<
+type MultiProjectIndicatorInput = Pick<
   Indicator,
   'label' | 'description' | 'unit' | 'disaggregation' | 'dataSource' | 'target'
 >
@@ -787,22 +615,5 @@ export function saveIndicatorForProjects(
     })
 
     return structuredClone(saved)
-  })
-}
-export function reuseIndicator(id: string, projectId: string) {
-  return transactDemo('indicators.manage', projectId, id, (state, actor) => {
-    const source = state.indicators.find((i) => i.id === id)
-    if (!source) throw new Error('Indicator not found.')
-    assertAction(actor, 'indicators.manage', source.projectId)
-    if (state.projectIndicators.some((i) => i.code === source.code && i.projectId === projectId))
-      throw new Error('This indicator is already linked to the project.')
-    state.projectIndicators.push({
-      ...source,
-      id: nextId(state, 'project-indicator'),
-      projectId,
-      baseline: 0,
-      status: 'On Track',
-      connectedActivityIds: [],
-    })
   })
 }

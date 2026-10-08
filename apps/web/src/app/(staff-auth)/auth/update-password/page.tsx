@@ -6,7 +6,7 @@ import { SkipLink } from '@/components/layout/skip-link'
 import { Button } from '@/components/ui/button'
 import { PasswordUpdateForm } from '@/features/auth/password-update-form'
 import { StaffAuthFrame } from '@/features/auth/staff-auth-frame'
-import { webEnv, webSupabasePublishableKey } from '@/lib/env'
+import { webSupabasePublishableKey } from '@/lib/env'
 import { createClient } from '@/lib/server'
 import {
   getRecoveryIdentityFromVerifiedClaims,

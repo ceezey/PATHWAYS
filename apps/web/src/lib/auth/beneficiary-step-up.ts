@@ -4,7 +4,7 @@ import { getBrowserSupabaseClient } from '@/lib/supabase/client'
 
 export type StepUpPinState = 'NONE' | 'SET' | 'LOCKED'
 
-export interface BeneficiaryStepUpStatus {
+interface BeneficiaryStepUpStatus {
   fresh: boolean
   expiresAt: string | null
   /** How the current step-up was satisfied, if it is fresh. */

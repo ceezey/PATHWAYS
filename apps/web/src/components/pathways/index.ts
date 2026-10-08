@@ -6,7 +6,7 @@ export { EmptyState } from './empty-state'
 export { FilterBar } from './filter-bar'
 export { FilterChoiceGroup } from './filter-choice-group'
 export { LoadingSkeleton } from './loading-skeleton'
-export { LockedField, lockedFieldMessage } from './locked-field'
+export { LockedField } from './locked-field'
 export { AvatarStack } from './avatar-stack'
 export { CappedPercent } from './capped-percent'
 export { MetricCard } from './metric-card'
@@ -17,9 +17,5 @@ export { SectionCard } from './section-card'
 export { SidePanel } from './side-panel'
 export { StatusBadge } from './status-badge'
 export { StatusMessage } from './status-message'
-export {
-  UNAVAILABLE_HINT_MESSAGE,
-  UnavailableHint,
-  unavailableControlProps,
-} from './unavailable-hint'
+export { UnavailableHint } from './unavailable-hint'
 export { ProofPreviewDialog } from './proof-preview-dialog'

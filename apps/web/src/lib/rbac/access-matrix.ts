@@ -9,14 +9,10 @@ import {
 } from '../../../../api/src/modules/auth/authorization-policy'
 import type { DataScopeCode, PermissionCode } from './permissions'
 
-export type AccessLevel = 'none' | 'view' | 'aggregate' | 'scoped' | 'full' | 'configure'
-export type ProjectAccessScope = 'organization' | 'portfolio' | 'assigned-projects'
-export type BeneficiaryDataAccess = 'all-records' | 'assigned-project-records' | 'aggregate-only'
-export type ProjectAssignmentScope =
-  | 'all-projects'
-  | 'portfolio-projects'
-  | 'assigned-projects'
-  | 'none'
+type AccessLevel = 'none' | 'view' | 'aggregate' | 'scoped' | 'full' | 'configure'
+type ProjectAccessScope = 'organization' | 'portfolio' | 'assigned-projects'
+type BeneficiaryDataAccess = 'all-records' | 'assigned-project-records' | 'aggregate-only'
+type ProjectAssignmentScope = 'all-projects' | 'portfolio-projects' | 'assigned-projects' | 'none'
 
 export const projectAssignableRoles = [
   'Program Manager',
@@ -28,13 +24,13 @@ export const projectAssignableRoles = [
 
 export type ProjectAssignableRole = (typeof projectAssignableRoles)[number]
 
-export interface UserAdministrationCapabilities {
+interface UserAdministrationCapabilities {
   createAndAuthorizeRoles: readonly PathwaysRole[]
   projectAssignmentRoles: readonly ProjectAssignableRole[]
   projectAssignmentScope: ProjectAssignmentScope
 }
 
-export interface RoleAccessProfile {
+interface RoleAccessProfile {
   role: PathwaysRole
   permissions: readonly PermissionCode[]
   dataScopes: readonly DataScopeCode[]
@@ -53,7 +49,7 @@ export interface RoleAccessProfile {
   }
 }
 
-export const legacyAtomicPermissions: Record<PermissionCode, readonly AtomicPermission[]> = {
+const legacyAtomicPermissions: Record<PermissionCode, readonly AtomicPermission[]> = {
   'projects.view': ['projects.detail.read'],
   'projects.create': ['projects.create'],
   'activities.view': ['activities.read'],

@@ -13,7 +13,6 @@
   mockRules,
   mockSurveyForms,
 } from '@/mocks/pathways'
-import type { PathwaysRole } from '@/types/pathways-role'
 import { type DemoAction, type DemoActor, assertAction } from './permissions'
 import { publicPrototypeAccounts } from './prototype-accounts'
 
@@ -29,7 +28,7 @@ export const demoPolicy = {
   failedLoginLimit: 5,
 } as const
 
-export const demoScenarios = [
+const demoScenarios = [
   'baseline',
   'login-unavailable',
   'retrieval-failure',
@@ -47,7 +46,7 @@ export const demoScenarios = [
   'public-maintenance',
   'public-empty',
 ] as const
-export type DemoScenario = (typeof demoScenarios)[number]
+type DemoScenario = (typeof demoScenarios)[number]
 
 export interface DemoAccount extends DemoActor {
   name: string
@@ -58,7 +57,7 @@ export interface DemoAccount extends DemoActor {
   failedAttempts: number
   locked: boolean
 }
-export interface AuditEvent {
+interface AuditEvent {
   id: string
   at: string
   actorId: string
@@ -71,7 +70,7 @@ export interface AuditEvent {
   outcome: 'Success' | 'Denied' | 'Failure'
   details: string
 }
-export interface DemoNotice {
+interface DemoNotice {
   id: string
   at: string
   recipientId: string
@@ -80,7 +79,7 @@ export interface DemoNotice {
   status: 'Delivered' | 'Delivery failed'
   href?: string
 }
-export interface ResetToken {
+interface ResetToken {
   id: string
   accountId: string
   expiresAt: number
@@ -153,14 +152,14 @@ export interface DemoExpense {
   reviewedAt?: string
   reviewedBy?: string
 }
-export interface Publication {
+interface Publication {
   projectId: string
   revision: number
   approvedRevision: number | null
   draft: (typeof mockPublicProjects)[number]
   published: (typeof mockPublicProjects)[number] | null
 }
-export interface DecisionHistory {
+interface DecisionHistory {
   id: string
   at: string
   actor: string
@@ -264,7 +263,6 @@ export type DemoState = ReturnType<typeof createDemoBaseline>
 const listeners = new Set<() => void>()
 let cached: DemoState | undefined
 let cachedRaw: string | null | undefined
-let storageError: string | null = null
 const serverBaseline = createDemoBaseline()
 
 export function validateDemoState(value: unknown): value is DemoState {
@@ -298,10 +296,8 @@ export function getDemoState(): DemoState {
         )
       cached = parsed
     } else cached = createDemoBaseline()
-    storageError = null
     return cached
-  } catch (error) {
-    storageError = error instanceof Error ? error.message : 'Changes could not be saved. Try again.'
+  } catch {
     return cached ?? serverBaseline
   }
 }
@@ -430,9 +426,6 @@ export function migrateDemoState(value: unknown): unknown {
   }
   return value
 }
-
-export const getDemoStorageError = () => storageError
-export const getServerDemoState = () => serverBaseline
 export function subscribeDemo(listener: () => void) {
   listeners.add(listener)
   const storage = (event: StorageEvent) => {
@@ -452,7 +445,6 @@ export function commitDemo(next: DemoState) {
   localStorage.setItem(DEMO_KEY, raw)
   cachedRaw = raw
   cached = next
-  storageError = null
   for (const listener of listeners) listener()
 }
 export const nextId = (state: DemoState, prefix: string) => `${prefix}-${++state.sequence}`
@@ -619,14 +611,4 @@ export function advanceDemoClock(minutes: number) {
   if (!Number.isFinite(minutes) || minutes < 0)
     throw new Error('Enter a positive number of minutes.')
   commitDemo({ ...getDemoState(), clock: getDemoState().clock + minutes * 60_000 })
-}
-export const visibleDemoProjects = (state = getDemoState()) => {
-  const actor = currentAccount(state)
-  return state.projects.filter((project) => actor?.projectIds.includes(project.id))
-}
-export const actorForRole = (role: PathwaysRole, state = getDemoState()) => {
-  const current = currentAccount(state)
-  return current?.role === role
-    ? current
-    : state.accounts.find((a) => a.role === role && a.status === 'Active')
 }

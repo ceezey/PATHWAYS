@@ -14,7 +14,7 @@ import {
   transactDemo,
 } from './store'
 
-export const passwordError = (password: string) =>
+const passwordError = (password: string) =>
   password.length < demoPolicy.passwordMin ||
   password.length > demoPolicy.passwordMax ||
   !/[A-Z]/.test(password) ||
@@ -69,7 +69,7 @@ export function loginDemo(identifier: string, password: string) {
   return valid
 }
 
-export const recoveryResponse =
+const recoveryResponse =
   'If an active account matches that address, recovery instructions are available in the recovery inbox.'
 export function requestDemoReset(email: string) {
   const state = structuredClone(getDemoState())
@@ -168,15 +168,6 @@ export function updateDemoProfile(input: Pick<DemoAccount, 'name' | 'email' | 'c
       name: input.name.trim(),
       email: input.email.trim().toLowerCase(),
     })
-  })
-}
-export function changeDemoPassword(current: string, password: string, confirmation: string) {
-  return transactDemo('profile.edit', undefined, currentAccount()?.id, (_state, actor) => {
-    if (actor.password !== current) throw new Error('Current password is incorrect.')
-    const issue = passwordError(password)
-    if (issue) throw new Error(issue)
-    if (password !== confirmation) throw new Error('Passwords must match.')
-    actor.password = password
   })
 }
 export function managedDemoAccounts(state = getDemoState()) {

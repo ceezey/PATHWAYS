@@ -1,11 +1,7 @@
 import type { PublicProjectRecord } from './legacy-types'
 import {
   type DemoState,
-  appendAudit,
-  commitDemo,
-  currentAccount,
   demoTime,
-  getDemoState,
   migrateDemoState,
   nextId,
   transactDemo,
@@ -40,17 +36,6 @@ export function createBackup() {
   })
 }
 
-export function downloadBackup(payload: string, name: string) {
-  const url = URL.createObjectURL(new Blob([payload], { type: 'application/json' }))
-  const anchor = document.createElement('a')
-  anchor.href = url
-  anchor.download = name
-  document.body.append(anchor)
-  anchor.click()
-  anchor.remove()
-  window.setTimeout(() => URL.revokeObjectURL(url), 1000)
-}
-
 export function restoreBackup(id: string) {
   return transactDemo('backup.restore', undefined, id, (state) => {
     if (state.scenario === 'restore-failure')
@@ -70,37 +55,6 @@ export function restoreBackup(id: string) {
       scenario: 'baseline',
     })
   })
-}
-
-export function importBackupFile(payload: string, name: string) {
-  const candidate = migrateDemoState(JSON.parse(payload))
-  if (!validateDemoState(candidate))
-    throw new Error('Selected file is not a compatible PATHWAYS backup.')
-  const next = structuredClone(getDemoState())
-  const actor = currentAccount(next)
-  if (!actor || actor.role !== 'System Administrator')
-    throw new Error('Only System Administrator can add a recovery file.')
-  const backup = {
-    id: nextId(next, 'backup'),
-    at: demoTime(next),
-    name,
-    payload,
-    checksum: checksum(payload),
-  }
-  next.backups.unshift(backup)
-  appendAudit(
-    next,
-    {
-      action: 'backup.create',
-      module: 'backup',
-      entityId: backup.id,
-      outcome: 'Success',
-      details: 'Recovery file validated and added.',
-    },
-    actor,
-  )
-  commitDemo(next)
-  return backup
 }
 
 const completePublicContent = (record: PublicProjectRecord) =>

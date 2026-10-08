@@ -32,13 +32,13 @@ export type EditablePageHeadingKey =
   | 'moduleAlertsRepository'
   | 'moduleUserManagement'
 
-export interface DisplayLabelDefinition {
+interface DisplayLabelDefinition {
   key: DisplayLabelKey
   label: string
   helperText: string
 }
 
-export interface DisplayLabelGroup {
+interface DisplayLabelGroup {
   id: string
   title: string
   description: string

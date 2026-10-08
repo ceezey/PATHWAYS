@@ -1,13 +1,6 @@
 import { toWorkbookBytes } from '@pathways/imports'
-import { demoPolicy, transactDemo } from './store'
 
-export type ExportFormat = 'csv' | 'xlsx' | 'xls' | 'pdf'
-export const exportMime: Record<ExportFormat, string> = {
-  csv: 'text/csv;charset=utf-8',
-  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  xls: 'application/vnd.ms-excel',
-  pdf: 'application/pdf',
-}
+type ExportFormat = 'csv' | 'xlsx' | 'xls' | 'pdf'
 const safeCell = (value: string) => (/^[=+@-]/.test(value) ? `'${value}` : value)
 const ascii = (value: string) =>
   value
@@ -16,7 +9,7 @@ const ascii = (value: string) =>
     .replace(/[\\()]/g, '\\$&')
 
 /** Small standards-compliant paginated PDF writer using the built-in Helvetica font. */
-export function toPdfBytes(title: string, rows: string[][]): Uint8Array {
+function toPdfBytes(title: string, rows: string[][]): Uint8Array {
   const lines = [
     title,
     'PATHWAYS',
@@ -67,42 +60,4 @@ export function artifactBytes(title: string, rows: string[][], format: ExportFor
       `\ufeff${cells.map((r) => r.map((c) => `"${c.replaceAll('"', '""')}"`).join(',')).join('\r\n')}`,
     )
   return toWorkbookBytes(cells, format)
-}
-export function downloadBytes(bytes: Uint8Array, filename: string, mime: string) {
-  const buffer = new ArrayBuffer(bytes.byteLength)
-  new Uint8Array(buffer).set(bytes)
-  const url = URL.createObjectURL(new Blob([buffer], { type: mime }))
-  const anchor = document.createElement('a')
-  anchor.href = url
-  anchor.download = filename
-  document.body.append(anchor)
-  anchor.click()
-  anchor.remove()
-  window.setTimeout(() => URL.revokeObjectURL(url), 1000)
-}
-export function exportDemoArtifact(
-  title: string,
-  rows: string[][],
-  format: ExportFormat,
-  projectId?: string,
-  form = false,
-) {
-  const bytes = transactDemo(
-    form ? 'forms.export' : 'exports.download',
-    projectId,
-    title,
-    (state) => {
-      if (state.scenario === 'export-failure')
-        throw new Error('Export generation failed. Clear the review scenario and retry.')
-      const result = artifactBytes(title, rows, format)
-      if (state.scenario === 'export-too-large' || result.byteLength > demoPolicy.exportMaxBytes)
-        throw new Error('Export exceeds the 5 MiB limit. Narrow the selected scope.')
-      return result
-    },
-  )
-  downloadBytes(
-    bytes,
-    `${title.replace(/[^a-z0-9-]/gi, '-').slice(0, 80)}.${format}`,
-    exportMime[format],
-  )
 }

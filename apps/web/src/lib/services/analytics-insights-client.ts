@@ -12,7 +12,7 @@ import {
 import { requestFoundation } from './pathways-client'
 
 /** Validated query string: one project and an optional complete period. */
-export function analyticsInsightsSearch(query: AnalyticsInsightsQuery): string {
+function analyticsInsightsSearch(query: AnalyticsInsightsQuery): string {
   const parsed = analyticsInsightsQuerySchema.parse(query)
   const params = new URLSearchParams({ projectId: parsed.projectId })
   if (parsed.periodStart && parsed.periodEnd) {

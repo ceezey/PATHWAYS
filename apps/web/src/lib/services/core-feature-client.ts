@@ -60,7 +60,7 @@ async function read<S extends z.ZodTypeAny>(
 }
 const uuid = z.string().uuid()
 const path = (id: string) => `/projects/${uuid.parse(id)}`
-export const publicationSchema = z
+const publicationSchema = z
   .object({
     revision: z.number().int().positive(),
     state: z.enum(['FOR_REVIEW', 'APPROVED', 'PUBLISHED']),
@@ -87,7 +87,7 @@ const publicationReceipt = publicationSchema.pick({ revision: true, state: true,
 const timestamp = z.string().datetime({ offset: true })
 const decimal = z.string().regex(/^-?\d+(?:\.\d+)?$/)
 const dateOnly = z.string().regex(/^\d{4}-\d{2}-\d{2}$/)
-export const budgetSchema = z
+const budgetSchema = z
   .object({
     id: uuid,
     activityId: uuid.nullable(),
@@ -98,7 +98,7 @@ export const budgetSchema = z
     updatedAt: timestamp,
   })
   .strict()
-export const expenseSchema = z
+const expenseSchema = z
   .object({
     id: uuid,
     budgetRecordId: uuid,
@@ -137,7 +137,7 @@ const reportKind = z.enum([
   'EVALUATION_REPORT',
 ])
 const reportFormat = z.enum(['CSV', 'XLSX', 'XLS', 'PDF'])
-export const reportPreviewSchema = z
+const reportPreviewSchema = z
   .object({
     projectId: uuid,
     kind: reportKind,
@@ -246,7 +246,7 @@ export const evaluationDetailSchema = z
     scores: z.array(evaluationScoreSchema).max(100),
   })
   .strict()
-export const evaluationSchema = z
+const evaluationSchema = z
   .object({
     projectId: uuid,
     criteria: z.array(criterionSchema).max(100),

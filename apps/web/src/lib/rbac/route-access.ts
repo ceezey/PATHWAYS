@@ -338,7 +338,7 @@ export function routeAllowed(
 }
 export const isAggregateOnly = (principal: RoutePrincipal) =>
   principal.roles.length === 1 && ['PROGRAM_MANAGER', 'GRANT_MANAGER'].includes(principal.roles[0])
-export type RouteAccessResult = {
+type RouteAccessResult = {
   allowed: boolean
   moduleName: string
   requiresBeneficiaryStepUp?: boolean
@@ -531,7 +531,7 @@ export type RouteDecision = {
   authorization: 'database-verified'
   beneficiaryAccess: 'aggregate-only' | 'records-or-none'
 }
-export type RouteCheckFailure =
+type RouteCheckFailure =
   | 'rejected'
   | 'configuration'
   | 'http'

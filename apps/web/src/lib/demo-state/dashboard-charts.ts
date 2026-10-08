@@ -9,17 +9,10 @@ import {
   transactDemo,
 } from './store'
 
-export interface DashboardChartRow {
+interface DashboardChartRow {
   id: string
   label: string
   value: number
-}
-
-export const dashboardChartMeta: Record<DashboardChartAnalysis, { title: string; unit: string }> = {
-  kpi: { title: 'KPI / indicator performance', unit: '%' },
-  participation: { title: 'Participation patterns', unit: 'people' },
-  survey: { title: 'Survey improvement', unit: 'points' },
-  timeline: { title: 'Project / activity timeline adherence', unit: '%' },
 }
 
 type NewDashboardChart = {

@@ -1,5 +1,4 @@
 import type { AlertLifecycleStatus, RecommendationOutcome, RuleDefinition } from './legacy-types'
-import { hasAction } from './permissions'
 import {
   type DemoState,
   currentAccount,
@@ -53,7 +52,7 @@ export function saveRule(
     return rule
   })
 }
-export function evaluateRules(state: DemoState) {
+function evaluateRules(state: DemoState) {
   for (const project of state.projects.filter((p) => !p.archived)) {
     for (const rule of state.rules.filter((r) => r.status === 'Active')) {
       let value: number | undefined
@@ -213,7 +212,7 @@ export function reviewRecommendation(id: string) {
     }
   })
 }
-export const outcomeRecipients = (projectId: string, state = getDemoState()) =>
+const outcomeRecipients = (projectId: string, state = getDemoState()) =>
   state.accounts.filter(
     (a) =>
       a.status === 'Active' &&
@@ -225,38 +224,6 @@ export const outcomeRecipients = (projectId: string, state = getDemoState()) =>
         'Project Officer',
       ].includes(a.role),
   )
-export function decideAlert(id: string, outcome: RecommendationOutcome, note: string) {
-  const record = getDemoState().alerts.find((a) => a.id === id)
-  return transactDemo('outcomes.log', record?.projectId, id, (state, actor) => {
-    if (!note.trim()) throw new Error('Enter an outcome note before confirming.')
-    const alert = state.alerts.find((a) => a.id === id)
-    if (!alert) throw new Error('Alert not found.')
-    const statuses: AlertLifecycleStatus[] =
-      outcome === 'Decline'
-        ? ['Dismissed']
-        : outcome === 'Escalate'
-          ? ['Actioned']
-          : ['Actioned', 'Resolved']
-    for (const status of statuses) {
-      alert.lifecycleStatus = status
-      history(state, id, status, note, actor)
-    }
-    alert.actionNote = note
-    for (const recipient of outcomeRecipients(alert.projectId, state))
-      notifyLocally(
-        state,
-        recipient,
-        `${alert.title}: ${outcome}. ${note}`,
-        `/alerts?alert=${alert.id}`,
-      )
-    const recommendation = state.recommendations.find((r) => r.alertId === id)
-    if (recommendation) {
-      recommendation.outcome = outcome
-      recommendation.outcomeNote = note
-      recommendation.reviewStatus = 'Actioned'
-    }
-  })
-}
 export function decideRecommendation(id: string, outcome: RecommendationOutcome, note: string) {
   const recommendation = getDemoState().recommendations.find((r) => r.id === id)
   if (!recommendation) throw new Error('Recommendation not found.')
@@ -293,8 +260,4 @@ export function decideRecommendation(id: string, outcome: RecommendationOutcome,
         `/alerts?alert=${linked.id}`,
       )
   })
-}
-export const canOutcome = () => {
-  const actor = currentAccount()
-  return Boolean(actor && hasAction(actor.role, 'outcomes.log'))
 }

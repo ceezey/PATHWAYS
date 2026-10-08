@@ -7,7 +7,7 @@ import {
   rolePermissions,
 } from '../../../../api/src/modules/auth/authorization-policy'
 
-export type UiAction =
+type UiAction =
   | 'activities.status.edit'
   | 'activities.edit'
   | 'activities.progress.record'
