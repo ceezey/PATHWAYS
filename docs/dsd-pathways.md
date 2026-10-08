@@ -306,7 +306,7 @@ When sources conflict:
 4. User workflow context beats decorative consistency.
 5. If a required value is missing or ambiguous, do not invent it; flag it for human review.
 
-The original foundations are kept for reference in `docs/ui-ux-pathways-reference/`; this DSD is authoritative.
+This DSD is the design authority.
 
 Do not invent new colors, spacing values, radii or component conventions. Before producing a screen, determine user, task, context, required information, primary action and safety or access constraints, then pick the established PATHWAYS pattern. Optimize for clarity, continuity, accessibility, traceability, low cognitive effort, minimum unnecessary interaction and human control; not for visual novelty, maximum density, minimum clicks at the expense of safety, dashboard aesthetics over workflow usability, or autonomous-looking behavior.
 
@@ -1012,7 +1012,7 @@ The Figma board `fQee5ydlhJPLFhj8yUx8pA` (page Branding, canvas `1344:2`, frame 
 | Records and workspace activity | `1344:505` | Activity table (`features/projects/activity-list-table.tsx`): code, linked title, tint-only status pill, sortable due date, beneficiaries reached / target, indicator count, budget % (amber from 90%, em dash when unreadable), sticky header, 56px rows, overflow menu without Delete, Columns toggle and client-side CSV Export; the list toolbar is a slim card (36px controls) holding status chips, search, view toggles and New Activity; evidence rows (tinted icon tile by type, file name, size, uploader, date, status pill, View) in an Evidence & attachments card beside an Audit metadata timeline built from evidence submit and review timestamps (`features/projects/evidence-panels.tsx`) | `components/ui/table.tsx`; `evidence-panels.tsx` | Scan level; Connected Information |
 | Feedback, overlays and system states | `1344:646` | Detail drawer, confirmation modal, empty, error and loading states, toast and inline notice | `pathways/side-panel.tsx`, `confirmation-dialog.tsx`, `empty-state.tsx`, `async-state.tsx`, `loading-skeleton.tsx`, `status-message.tsx`, `components/ui/sonner.tsx` | Context Over Navigation; Safety by Design |
 
-The board's UI foundations (`1344:913`) and color palette (`1344:1487`) mirror the tracked images in `docs/ui-ux-pathways-reference/`; the tracked foundations win on any difference.
+The board's UI foundations (`1344:913`) and color palette (`1344:1487`) mirror the foundations in this DSD; the DSD wins on any difference.
 
 **Not adopted from the board:**
 
