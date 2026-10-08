@@ -19,9 +19,7 @@
       "@pathways/config": ["../../packages/config/src/index.ts"],
       "@pathways/config/*": ["../../packages/config/src/*"],
       "@pathways/imports": ["../../packages/imports/src/index.ts"],
-      "@pathways/imports/*": ["../../packages/imports/src/*"],
-      "@pathways/ui": ["../../packages/ui/src/index.ts"],
-      "@pathways/ui/*": ["../../packages/ui/src/*"]
+      "@pathways/imports/*": ["../../packages/imports/src/*"]
     }
   },
   "include": [

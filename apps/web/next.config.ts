@@ -44,12 +44,7 @@ export default function createNextConfig(phase: string): NextConfig {
         ignore: sensitiveIncomingRequestPaths,
       },
     },
-    transpilePackages: [
-      '@pathways/config',
-      '@pathways/imports',
-      '@pathways/shared',
-      '@pathways/ui',
-    ],
+    transpilePackages: ['@pathways/config', '@pathways/imports', '@pathways/shared'],
     async headers() {
       return privateAuthSurfacePaths.map((source) => ({
         source,

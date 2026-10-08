@@ -10,7 +10,6 @@ export default defineConfig({
       '@pathways/config': path.resolve(__dirname, '../../packages/config/src/index.ts'),
       '@pathways/imports': path.resolve(__dirname, '../../packages/imports/src/index.ts'),
       '@pathways/shared': path.resolve(__dirname, '../../packages/shared/src/index.ts'),
-      '@pathways/ui': path.resolve(__dirname, '../../packages/ui/src/index.ts'),
     },
   },
   test: {
