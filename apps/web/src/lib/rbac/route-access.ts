@@ -336,6 +336,8 @@ export function routeAllowed(
     return false
   return true
 }
+export const isAggregateOnly = (principal: RoutePrincipal) =>
+  principal.roles.length === 1 && ['PROGRAM_MANAGER', 'GRANT_MANAGER'].includes(principal.roles[0])
 type RouteAccessResult = {
   allowed: boolean
   moduleName: string
