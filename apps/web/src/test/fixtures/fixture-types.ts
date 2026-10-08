@@ -194,12 +194,6 @@ export interface BeneficiaryRecord extends Beneficiary {
   notes: BeneficiaryNoteRecord[]
 }
 
-type SurveyFormFieldType = 'Single select' | 'Numeric score'
-
-type PublicDashboardSectionId = 'overview' | 'media' | 'progress' | 'indicators' | 'milestones'
-
-type PublicDashboardLayoutPreset = 'story-led' | 'balanced' | 'compact'
-
 export interface UserRecord {
   id: string
   name: string

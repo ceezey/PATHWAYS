@@ -232,7 +232,7 @@ describe('PATHWAYS frontend data boundary', () => {
     vi.restoreAllMocks()
   })
 
-  it('returns no beneficiary records for aggregate-only roles', async () => {
+  it('returns no beneficiary records without a project scope', async () => {
     await expect(pathwaysClient.getBeneficiaryRecordsForRole('Program Manager')).resolves.toEqual(
       [],
     )
