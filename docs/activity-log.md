@@ -555,6 +555,9 @@
 ## 2026-10-07 Budget section in the Project summary report (feat/report-budget-section)
 - The Project summary report gains a Budget section for actors holding both `budgets.read` and `expenses.read` (Project Managers among them): each active budget line, activity lines named by their activity, with planned amount, approved spending, spending in review (pending or verified) and remaining (planned minus approved). Rejected expenses are left out, at most 50 lines are shown, and the section appears in the designed PDF, the pdfkit PDF, CSV and XLSX. No migration; no new report type.
 
+## 2026-10-08 Readable analytics chart labels (dev)
+- Analytics charts wrap long indicator names on the descriptive bar chart and Indicator progress chart, center the "% of target" axis name, round bar labels to one decimal, and grow the progress chart height with row count.
+
 ## 2026-10-08 Dead-code removal (chore/dead-code-removal)
 - Removed unreachable code across the repo: 202 files changed, about 7100 lines deleted, covering 28 deleted files (19 in apps/web, 7 in infra/supabase, 1 in apps/api, 1 root Playwright config) plus unused exports, types and test cases in apps/api, apps/web and packages.
 - Removed the unused `cmdk` and `@sentry/nextjs` dependencies from apps/web and refreshed `pnpm-lock.yaml`; no source, config or convention file loaded either.
