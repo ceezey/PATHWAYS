@@ -11,7 +11,11 @@
       ".pnpm-store",
       "playwright-report",
       "test-results",
-      ".tmp"
+      ".tmp",
+      ".worktrees",
+      ".superpowers",
+      "supabase/.temp",
+      "supabase/.branches"
     ]
   },
   "formatter": {

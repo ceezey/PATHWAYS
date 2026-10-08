@@ -47,7 +47,7 @@ The current deployment, trust boundaries and stack are in `docs/sdd-pathways.md`
 | Staff provisioning through the provider admin API | `apps/api/src/modules/users/auth-directory.service.ts` | Directory adapter for Cognito admin calls or the provider API |
 | Storage through supabase-js and raw storage REST with a service role; signed multipart upload | `apps/api/src/modules/storage/storage.service.ts`, `apps/api/src/modules/storage/private-inspection-reader.ts` | Storage adapter over S3 presigned URLs; web upload origin made configurable |
 | Seeds and bootstrap call Auth and Storage admin APIs and `auth.*` tables | `apps/api/prisma/authorization-bootstrap-runner.ts`, `apps/api/prisma/developer-bootstrap.ts`, `apps/api/prisma/seed.ts` | Route through the same adapters |
-| Loopback-only listeners | `apps/api/src/common/network/local-listener.ts`, `apps/api/src/main.ts`, `Dockerfile` | Configurable bind address; container binds all interfaces behind the load balancer |
+| Loopback-only listeners | `apps/api/src/common/network/local-listener.ts`, `apps/api/src/main.ts`, `apps/api/Dockerfile` | Configurable bind address; container binds all interfaces behind the load balancer |
 | Hardcoded bucket name `pathways-private` | `apps/api/src/modules/finance/finance.service.ts`, `apps/api/src/modules/reports/reports.service.test.ts` | Bucket name from configuration, including SQL checks that name it |
 
 ### 4.2 Soft Couplings

@@ -22,3 +22,7 @@ apps/api/prisma/dev.db-journal
 .env.production.local
 .tmp
 __pycache__/
+.worktrees/
+.superpowers/
+supabase/.temp/
+supabase/.branches/
