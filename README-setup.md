@@ -1,228 +1,132 @@
-# PATHWAYS
-A Digital Integrated Program Monitoring and Dashboard System with a Metadata-Driven Mechanism.
+# PATHWAYS Setup
 
-PATHWAYS is a web-based monitoring platform designed to improve how organizations manage, organize, visualize, and report program monitoring data. The system is built around a metadata-driven workflow so that monitoring datasets collected from field tools such as KOBO can be imported, interpreted, organized, and prepared for dashboarding and reporting more consistently.
+How to get PATHWAYS running on your machine. For what the product is, read [README.md](README.md); for day-to-day rules and the fast test runners, read [docs/runbook-local-dev.md](docs/runbook-local-dev.md).
 
-The platform is intended to support program-level monitoring by centralizing participant records, imported datasets, dashboard parameters, demographic breakdowns, and report-ready outputs inside one structured system.
+## What Is In This Repo
 
-## System Overview
-PATHWAYS is a development-ready monorepo for a web app and API that work together with Supabase. Think of it like one big project box with a few smaller boxes inside: the website lives in one box, the API lives in another box, and the shared code sits in the middle so both can reuse it.
+PATHWAYS is a pnpm monorepo: one repository holding the web app, the API and the code they share.
 
-## Purpose
-The purpose of PATHWAYS is to reduce fragmented post-collection workflows by providing a centralized system for:
+- `apps/web`: the Next.js workspace staff open in the browser
+- `apps/api`: the NestJS API that talks to PostgreSQL (through Prisma) and Supabase Storage
+- `packages/shared`: shared types, enums, constants and Zod schemas
+- `packages/config`: environment readers and config helpers
+- `packages/imports`: CSV, XLSX and PDF import and export helpers
+- `packages/ui`: shared UI package (the web app keeps its own primitives in `apps/web/src/components/ui`)
+- `supabase`: the local Supabase stack configuration
+- `scripts`: local database, docs and SAD review scripts
+- `infra`: environment notes, Docker, and the Supabase migration and replay harnesses
+- `docs`: the document suite; start at [docs/index.md](docs/index.md)
 
-- organizing participant records
-- managing imported monitoring datasets
-- supporting metadata-driven bulk upload
-- visualizing project indicators and performance metrics
-- supporting Sex, Age, and Disability Disaggregated Data (SADDD) analysis
-- generating automated monitoring reports
-- preparing data in formats aligned with higher-level reporting requirements
+## 1. Install The Tools
 
-The system is being developed as a web-based platform with separate frontend, backend, and shared packages to support maintainability and long-term extensibility.
-
-## Features
-This repository is being prepared to support development of the following core capabilities:
-
-- centralized participant and monitoring database
-- metadata-compatible import and export workflow
-- participant profile management
-- dashboard visualization
-- reporting and data export
-- role-based access control
-- file storage for uploads and reports
-- development-ready testing, formatting, and CI workflows
-
-## Tech Stack
-- Frontend: Next.js, React, TypeScript, Tailwind CSS, shadcn-style UI primitives
-- Backend: NestJS, TypeScript, Prisma
-- Platform: Supabase Postgres, Supabase Auth, Supabase Storage
-- Shared workspace packages: `@pathways/shared`, `@pathways/config`, `@pathways/imports`, `@pathways/ui`
-- Tooling: pnpm, Biome, Husky, lint-staged
-- Testing: Vitest, Playwright
-- Ops: Docker, GitHub Actions, Sentry placeholders
-
-## What Is In This Repo?
-A monorepo simply means one repository that holds more than one project.
-
-Important folders:
-- `apps/web`: the Next.js website devs will open in the browser
-- `apps/api`: the NestJS backend that talks to the database and storage
-- `packages/shared`: shared types, enums, constants, and schema helpers
-- `packages/config`: shared environment readers and config helpers
-- `packages/imports`: import and export helpers for CSV and XLSX work
-- `packages/ui`: optional shared UI package
-- `infra`: helper docs for environment setup, Docker, and Supabase notes
-
-## Recommended VS Code Extensions
-Install these before you start coding so the editor helps instead of getting in your way.
-
-- `Biome`: formats and lint-checks files so the code stays neat
-- `Prisma`: makes the Prisma schema easier to read and edit
-- `Tailwind CSS IntelliSense`: helps you understand Tailwind classes while typing
-- `ES7+ React/TypeScript snippets`: gives helpful shortcuts when writing React or TypeScript
-- `GitLens`: makes Git history easier to understand
-- `Playwright Test for VS Code`: helps when running end-to-end tests later
-- `DotENV`: colors and explains environment variable files
-- `Docker`: helps if your team uses Docker during development
-
-## Step-By-Step Setup
-These steps are written in a simple do-this-then-do-that way so nobody has to guess.
-
-### 1. Install the tools you need first
-Make sure these are installed on your computer:
 - Git
-- Node.js LTS
-- pnpm
-- VS Code
-- Docker Desktop
+- Node.js 22 or newer
+- pnpm 11 (`corepack enable` installs the version pinned in `package.json`)
+- Docker Desktop (needed for the local Supabase stack)
+- VS Code, with the Biome, Prisma, Tailwind CSS IntelliSense and Playwright Test extensions
 
 Quick checks:
+
 ```powershell
 node -v
-git --version
 pnpm -v
+git --version
 docker --version
-docker compose version
 ```
 
-### 2. Clone the project from GitHub
-This copies the project from GitHub to your computer.
+## 2. Clone And Install
 
 ```powershell
 git clone https://github.com/ceezey/PATHWAYS.git
 cd PATHWAYS
+pnpm install
+pnpm --filter @pathways/api prisma:generate
 ```
 
-### 3. Open the project in VS Code
-```powershell
-code .
-```
-If `code .` does not work, open VS Code manually and choose the `PATHWAYS` folder.
+Run `prisma:generate` again whenever `apps/api/prisma/schema.prisma` changes, including after a pull or rebase; a stale client fails with misleading 403 errors.
 
-### 4. Create your local environment files
-These files hold the secret keys and local settings for your own machine.
+## 3. Create Your Environment Files
 
-Recommended local file names:
-- `.env`
-- `apps/web/.env`
-- `apps/api/.env`
-
-PowerShell copy commands:
 ```powershell
 Copy-Item .env.example .env
 Copy-Item apps/web/.env.example apps/web/.env
 Copy-Item apps/api/.env.example apps/api/.env
 ```
 
-Important note:
-- If your team prefers `.env` instead of `.env`, that also works in this repo.
-- Do not commit real secrets to Git.
+These files are ignored by Git. Never commit real keys or full connection URLs. `infra/environment.md` lists which variable belongs to the root, web and API files.
 
-### 5. Paste your real Supabase and database values
-Open those env files and paste the values from your Supabase project.
+The local stack in step 4 does not read these files. You only fill them in to run against the hosted development database (step 5).
 
-Shared values you will usually need:
-- `NEXT_PUBLIC_SUPABASE_URL`
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-- `SUPABASE_URL`
-- `SUPABASE_SERVICE_ROLE_KEY`
-- `DATABASE_URL`
-- `DIRECT_URL`
-- `SHADOW_DATABASE_URL` for a disposable local PostgreSQL shadow database only
+## 4. Run Against The Local Stack (Recommended)
 
-`DATABASE_URL` belongs to the NestJS runtime identity. `DIRECT_URL` belongs to the Prisma migration owner. For PATHWAYS-dev, both approved connections use the Supavisor Session Pooler on port `5432`, but they must not share the same PostgreSQL role. Never use PATHWAYS-dev or production as the shadow database, and never commit complete connection URLs.
-
-Helpful docs:
-- See `infra/environment.md` for which variables belong to root, web, and api
-- See `infra/supabase/HUMAN_SETUP.md` for the human-only Supabase steps
-
-### 6. Install the project dependencies
-This downloads the packages the repo needs.
+This uses synthetic data only and never touches the hosted databases. Docker must be running.
 
 ```powershell
-pnpm install
+pnpm db:local:start   # start the local Supabase containers
+pnpm db:local:reset   # recreate the local database, replay migrations, seed one account per role
+pnpm db:local:demo    # optional: add a fictional demonstration workspace
+pnpm dev:local        # build and run the API and web against the local stack
 ```
 
-### 7. Generate the Prisma client
-This teaches Prisma how to talk to your database schema.
+Then:
+
+- Open `http://127.0.0.1:3000/staff/login` in a private window.
+- Passwords for the seeded accounts are written only to the ignored `.tmp/local-seed/` folder.
+- Each account enrolls an authenticator app (TOTP) on first sign-in.
+- Local email, such as password recovery, appears in Mailpit at `http://127.0.0.1:54324`.
+
+Stop the containers with `pnpm db:local:stop`.
+
+## 5. Run Against The Hosted Development Database
+
+`pnpm dev` starts the web app and the API together. The API uses the runtime database role from `apps/api/.env` (the hosted development project) and deliberately ignores migration credentials.
+
+1. Ask the developer for the development values: `NEXT_PUBLIC_SUPABASE_URL`, the Supabase publishable or anon key, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` and the runtime `DATABASE_URL`.
+2. Paste them into your env files.
+3. Run `pnpm dev`.
+
+`DATABASE_URL` is the API runtime identity and `DIRECT_URL` is the migration owner; they must never share a PostgreSQL role. You do not need `DIRECT_URL` to run the app.
+
+## 6. Check It Works
+
+- Web: `http://127.0.0.1:3000`
+- API health: `http://127.0.0.1:4000/api/health` returns `status: ok`
+- API docs: `http://127.0.0.1:4000/api/docs`, only when `ENABLE_SWAGGER=true` in `apps/api/.env`
+
+Both servers listen on 127.0.0.1 only. The web port is fixed at 3000, so stop any other server holding it first. The API port comes from `API_PORT` (default 4000).
+
+## Everyday Commands
 
 ```powershell
-pnpm --filter @pathways/api prisma:generate
+pnpm lint          # Biome lint and format check
+pnpm format        # Biome format, writes changes
+pnpm typecheck     # TypeScript in every workspace
+pnpm test          # Vitest in every workspace
+pnpm build         # build every workspace
+pnpm dev:web       # web only
+pnpm dev:api       # API only
+pnpm docs:check    # validate the document suite
+pnpm --filter @pathways/web e2e   # Playwright end-to-end tests
 ```
 
-### 8. Follow the controlled database workflow
-Do not run a migration as a generic setup shortcut. Follow the migration guardrails in `AGENTS.md` and `docs/runbook-backup-restore.md`, and execute only explicitly authorized database work. Never use `prisma migrate reset` or `prisma db push` in this workflow.
+## Database Safety
 
-### 9. Do not bootstrap users through the legacy seed
-The legacy seed is intentionally disabled. Canonical roles and permissions are introduced only in DBAdmin Phase 5, and Supabase Auth credentials are never created by Prisma seed code.
-
-### 10. Start both apps together
-This starts the website and the API at the same time.
-
-```powershell
-pnpm dev
-```
-
-### 11. Open the important local URLs
-Once the dev servers are running, open these:
-- `http://localhost:3000`
-- `http://localhost:4000/api/health`
-- `http://localhost:4000/api/docs`
-
-What you should see:
-- the homepage loads
-- the health endpoint returns a JSON response with `status: ok`
-- the Swagger docs page loads
-
-### 12. If a port is already busy
-Sometimes another app is already using `3000` or `4000`. If that happens, you can use temporary ports for one session.
-
-```powershell
-$env:PORT='3100'
-$env:API_PORT='4100'
-pnpm dev
-```
-
-Then open:
-- `http://localhost:3100`
-- `http://localhost:4100/api/health`
-
-### 13. Helpful commands you will use a lot
-```powershell
-pnpm lint
-pnpm format
-pnpm typecheck
-pnpm test
-pnpm build
-pnpm dev:web
-pnpm dev:api
-```
-
-### 14. Tiny success checklist
-If all of these are true, your local setup is probably good:
-- dependencies installed without errors
-- Prisma client generated
-- Prisma schema validated
-- the currently authorized DBAdmin phase, if any, completed with a `PASS` report
-- homepage opens
-- login page opens
-- API health route responds
-- API docs route responds
-
-## Environment Notes
-- The web app accepts Supabase client keys from `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, or `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-- The frontend reserves `/auth/callback` for Supabase redirect handling
-- The API uses `SUPABASE_SERVICE_ROLE_KEY` for backend-only storage and admin actions
-- Real secrets must stay in local env files only
+- Never run `prisma migrate reset` or `prisma db push`.
+- Never point a destructive command at the hosted development or production databases.
+- Migrations follow the guardrails in [AGENTS.md](AGENTS.md) and the runbooks in `docs/` (`runbook-migration-baseline.md`, `runbook-backup-restore.md`); run only database work you were explicitly authorized to run.
 
 ## Troubleshooting
-- If `pnpm install` fails, check your Node.js version and make sure pnpm is installed
-- If Prisma runtime startup fails, check the runtime `DATABASE_URL`. If a migration command fails, check the separately provisioned `DIRECT_URL`. For history diffs, confirm `SHADOW_DATABASE_URL` is disposable and local.
-- If auth fails, double-check your Supabase URL, anon key, redirect URL, and enabled auth provider
-- If storage fails, make sure the buckets exist and the bucket names match the env values
-- If `localhost:3000` or `localhost:4000` is busy, use the temporary port steps above
+
+- `pnpm install` fails: check `node -v` is 22 or newer and run `corepack enable`.
+- Sign-in says the credentials are wrong: any 4xx from the auth endpoint shows that message. Check that the web and API point at the same Supabase project, and that `WEB_ORIGIN` matches the web URL when running against a deployed preview.
+- The API fails with 403 on every request after a pull: regenerate the Prisma client (step 2).
+- The API cannot reach the database: check the runtime `DATABASE_URL`, or for the local stack check that Docker is running and `pnpm db:local:start` succeeded.
+- Storage fails: make sure the buckets exist and their names match the env values.
+- A port is busy: stop the other dev server; `pnpm dev:local --api-only` with `PATHWAYS_LOCAL_API_PORT` runs only the API on another port.
 
 ## Useful Documents
+
+- [docs/runbook-local-dev.md](docs/runbook-local-dev.md): local stack, fast test runners and session rules
 - `infra/environment.md`: environment variable guide
-- `infra/supabase/HUMAN_SETUP.md`: Supabase setup notes
+- `infra/supabase/HUMAN_SETUP.md`: human-only Supabase project setup
+- `infra/supabase/developer-mfa.md`: authenticator (TOTP) setup for developers

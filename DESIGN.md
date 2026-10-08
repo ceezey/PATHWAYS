@@ -157,7 +157,7 @@ Charts primarily use the blue and cyan families; semantic colors only when the c
 
 Prohibited: inventing brand colors, decorative semantic colors, color-only status, saturated brand-color operational surfaces, low-contrast "soft" text, treating blue and cyan as interchangeable, gradients replacing functional tokens.
 
-**Authentication gradient exception.** Current auth surfaces use a light-blue/white gradient such as `#C8EAF9 -> #F5FBFE -> #FFFFFF -> #DCEFFC`. It is an access-surface exception, not a staff-workspace background.
+**Authentication background.** Auth surfaces use the `canvas` page ground (`#F4F1EC`, the `background` token) behind a `paper` card; the earlier light-blue gradient exception is retired.
 
 **Gap table: current versus target.** Current values are the `globals.css` HSL triplets with approximate hex; Target values are the foundation tokens above.
 
@@ -570,6 +570,12 @@ Horizontal overflow container, tabular numerals, ~44px rows/headers, subtle head
 ### Dialogs
 Navy 45% overlay, centered bounded surface, scroll containment, visible 44px close control, stacked small-screen footer actions.
 
+#### Role dashboard KPI card (implemented)
+Bordered `bg-card` card, `rounded-xl`, 4px left accent in the semantic tone (danger, warning, primary for info, success); uppercase `text-xs` label, `text-3xl` tabular value in the tone, muted sub-line, optional one text action (44px target).
+
+#### Project health label (implemented)
+Derived only from open rule-based alerts: Critical (open CRITICAL alert), At risk (open HIGH or MEDIUM alert), On track (no open alert above LOW), Planned (project status). It is not a success rating and its caption says so. Evaluation scores show the stored number without a quality label.
+
 ### Figma component patterns (2026-10-03)
 Figma 1344:342 (content and decision support): metric cards show an uppercase muted label, a top-right tinted icon tile and a large value (danger tone colors the value), with no top border; project cards are flat white with title, area, period, status chips, a timeline bar and a footer action row. Figma 1344:505 (records): tables keep a subtle header surface and 52-64px rows; evidence and audit rows follow the existing list patterns. Figma 1344:179 (actions and inputs): buttons, underline tabs, dot-plus-text status badges and inputs already match; sizes stay 36/44/52. Figma 1344:646 (feedback): the detail sheet is 480px wide, confirmation dialogs lead with a tinted icon circle, empty states use an icon circle, error states use a red-tinted border with an outline retry, skeletons use 6px radius and toasts tint on success and error. Conflicts resolved to the DSD: tokens and the 8px card radius are kept; saturated sidebars, activity Delete and UCD/UCR chips are not adopted.
 
@@ -583,7 +589,7 @@ Use truthful loading, empty, unavailable, error, and retry states. Do not inject
 
 Pending-submit button: while a create is submitting, or confirming an earlier submit after a reload (`usePendingCreate`), the submit button is disabled, shows the Loader2 spinner and the same progressive label (for example "Creating..."), and an unconfirmed outcome shows the inline notice "We couldn't confirm the earlier submission. Check the list before submitting again."
 
-A genuinely empty value or list reads "None yet". Load failures and permission states keep their error wording, such as "Unavailable" or "could not be loaded", with a retry where one helps. Missing data is never shown as 0; a real zero from the server is shown as 0. Exception: the Project overview Budget utilization and Beneficiaries reached tiles show 0 when their source has no data ([cr-pathways-overview-zero-display](cr-pathways-overview-zero-display.md)).
+A genuinely empty value or list reads "None yet". Load failures and permission states keep their error wording, such as "Unavailable" or "could not be loaded", with a retry where one helps. Missing data is never shown as 0; a real zero from the server is shown as 0. Exceptions: the Project overview Budget utilization and Beneficiaries reached tiles, the dashboard Project monitoring cards and the indicators list show 0 when their source has no data yet ([cr-pathways-overview-zero-display](cr-pathways-overview-zero-display.md)).
 
 **Data fetching.** Protected reads go through `useAuthorizedRead` (TanStack Query). Reads are live by default. Lists and summaries may opt in to the 30-second summary window. Beneficiary, step-up and import batch-status reads are never cached. Workspace tabs share stable resource keys, such as one project read for the Overview and Activities tabs.
 
@@ -611,7 +617,7 @@ The board's UI foundations (`1344:913`) and color palette (`1344:1487`) mirror t
 - the flat six-item sidebar; grouped navigation in `apps/web/src/constants/navigation.ts` stays;
 - the `UCD` and `UCR` role labels and the "National scope" chip; show the six system role names and organization scope;
 - "Delete" on activities; activities are cancelled through status, never deleted;
-- the Project Manager "Budget approvals restricted" chip and "expenses + evaluations" approvals; the expense chain is verify, approve, sign-off and no role holds evaluation approval stages;
+- the Project Manager "Budget approvals restricted" chip and "expenses + evaluations" approvals; the expense chain is verify, approve, sign-off, and the evaluation chain is submit (Monitoring and Evaluation Officer), then review and sign-off together (Project Manager), not the board's wording;
 - the notification inbox; registered as deferred;
 - all sample names, places, codes and amounts.
 
@@ -643,7 +649,7 @@ Page Header
 
 **Budget module.** Budget is a monitoring surface, not an accounting system: no ledger, payables, payroll, autonomous approval or fund movement. The opening budget is captured in project setup, so there is no separate top-level create-budget flow. Expenses are recorded inside the project or activity context and stay linked to it; the project expense list on `/projects/:projectId/budget` aggregates those records and never holds a second copy. The overview summarizes before detail: approved budget, countable spending, remaining balance and utilization, with pending amounts shown separately and the counted basis labelled. Logged, submitted, verified, approved and countable spending are distinct terms and are never used interchangeably. Review actions follow the current chain (Monitoring and Evaluation Officer verifies, Project Manager approves, Program or Grant Manager signs off). Budget conditions and thresholds come from configured rules once budget metrics are admitted (MA-09), never from fixed cutoffs. Show KPI achievement and budget utilization side by side. User-approved deviation (2026-10-03): the Budget tab also shows an Efficiency ratio card (KPI achievement percent over budget utilization percent), labelled as an indicator and never as a score or ranking. Budget recommendations use advisory wording such as "Review whether an approved budget adjustment may be necessary", never an instruction to move funds. The public tracker shows only approved high-level budget figures, never expense entries, receipts, review remarks or internal alerts.
 
-**Budget tab layout (implemented).** Underline tabs: Overview, Expense ledger and Transparency (the last only with `budgets.update`). Overview has four white stat cards in a row, each with an uppercase label, a compact peso or ratio value and one qualifier line: Total budget ("Approved allocation"), Total logged ("N% utilized" plus a utilization bar without text), Remaining ("N% of budget") and Efficiency ratio ("KPI N% ÷ Budget N%", computed by the overview-metrics API). Alerts are tinted danger or warning rows (condition and activity code, one consequence sentence, Mark reviewed and Dismiss that are local only); recommendations are separate warning-tinted rows that state the source signal, use advisory wording and offer "Review plan". The activity breakdown is a table with sticky header and 56px rows (code, activity, allocated, used, pending, utilization bar without text, View expenses). The ledger uses expandable rows (title, meta line, status pill, Review) with a detail grid, budget alignment box and receipt download or missing-receipt warning; review runs in a side drawer and rejection asks for confirmation naming the expense. The 90 and 70 percent thresholds are visual only (Budget conditions come from rules, MA-09).
+**Budget tab layout (implemented).** Underline tabs: Overview, Expense ledger and Transparency (the last only with `budgets.update`). Overview has four white stat cards in a row, each with an uppercase label, a compact peso or ratio value and one qualifier line: Total budget ("Approved allocation"), Total logged ("N% utilized" plus a utilization bar without text), Remaining ("N% of budget") and Efficiency ratio ("KPI N% ÷ Budget N%", computed by the overview-metrics API). Alerts are tinted danger or warning rows (condition and activity code, one consequence sentence, Mark reviewed and Dismiss that are local only); recommendations are separate warning-tinted rows that state the source signal, use advisory wording and offer "Review plan". The activity breakdown is a table with sticky header and 56px rows (code, activity, allocated, used, pending, utilization bar without text, View expenses). The ledger uses expandable rows (title, meta line, status pill, Review) with a detail grid, budget alignment box and receipt preview (a modal that previews the file by its real type with Download inside) or missing-receipt warning; review runs in a side drawer and rejection asks for confirmation naming the expense. The 90 and 70 percent thresholds are visual only (Budget conditions come from rules, MA-09).
 
 **Alert and recommendation queue.** Rule forms keep applies-to scope, metric, operator and threshold as separate, plainly named fields; the unit comes from the selected metric and the word "parameter" is not shown. Metrics come only from the typed metric list, never free-text formulas. Severity labels alerts only; predefined recommendations carry a title and text, never a severity. Every alert on `/alerts` shows its title, message, severity, affected project or record and its basis (current metric value against the threshold). Alert states read New, Reviewed, Actioned, Resolved, Dismissed and Auto-resolved; alerts are never shown as Accepted or Rejected. The queue renders each alert as a danger-subtle card (alert icon, title and affected project, basis line, severity and status pills, outline Review) and each recommendation as a warning-subtle card (lightbulb icon, title, source signal, Review plan). Recommendation states read New, Reviewed, Resolved, Dismissed and Auto-resolved; Auto-resolved means the linked alert cleared before any outcome and accepts no further action. Budget, Beneficiary and survey alerts appear only to users who can read that source. Accepting a recommendation on `/recommendations` records a human decision and executes nothing. Rule tests never create live alerts, recommendations or notices. One open alert exists per rule and affected record; resolved and dismissed alerts stay in history. A referenced record does not become visible to a user who lacks access to it.
 
@@ -664,6 +670,16 @@ Libraries: ECharts, MapLibre GL.
 - pinned charts on the role dashboard are compact cards that re-fetch live and show the restricted state when permission is lost;
 - apply SADDD suppression before visualization/export;
 - do not expose sensitive Beneficiary coordinates without explicit authorization.
+
+### Printed report
+
+The PDF report route `/print/reports/[id]` is the printed form of a report.
+
+- Header: brand mark, `PATHWAYS` overline in navy, report name in the heading font, report type and generated time in muted text, 4px navy bottom rule.
+- Unavailable or withheld data: warning-subtle callout listing each reason in text.
+- Chart: one bar chart per report, one group only (Total rows excluded, label from the column before `Value`, heading `Summary: <group>`) of numeric `Value` cells (at most 20), `chartPalette[0]`, value labels on top, animation off, SVG renderer; suppressed or unavailable rows are counted in a caption, never charted as zero.
+- Table: surface-subtle header repeated on each page, divider row rules, rows never split across pages.
+- Print classes: `.print-avoid` (no split), `.print-break-before` (new page), `.print-table-head` (repeating header); A4 with 20mm top and bottom and 15mm side margins and a centered page-number footer.
 ## 5. Motion & Micro-interactions
 
 - normal transitions: approximately `150ms`;

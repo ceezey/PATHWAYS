@@ -92,10 +92,10 @@ Domain modules live in `apps/api/src/modules`. The browser reaches domain data o
 |---|---|
 | Runtime and tooling | Node 22, pnpm 11, TypeScript 5 |
 | Web | Next.js 15 (App Router), React 19, Tailwind CSS 3, TanStack Query, ECharts |
-| API | NestJS 10, Zod, nestjs-pino, helmet, pdfkit |
+| API | NestJS 10, Zod, nestjs-pino, helmet; PDF reports through headless Chromium (puppeteer-core) with a pdfkit fallback |
 | Data | PostgreSQL 17 with row-level security, Prisma 6 |
 | Identity and files | Supabase Auth (including TOTP) and Supabase Storage |
-| Hosting and monitoring | Vercel, Sentry |
+| Hosting and monitoring | Vercel; Sentry on the API |
 | Tests | Vitest, Playwright |
 
 Exact versions are in `docs/sdd-pathways.md` section 2.4 and the `package.json` files.
@@ -103,6 +103,7 @@ Exact versions are in `docs/sdd-pathways.md` section 2.4 and the `package.json` 
 ## Quick Start
 
 - Environment setup: [README-setup.md](README-setup.md)
+- Run locally on synthetic data (Docker required): `pnpm install`, then `pnpm db:local:start`, `pnpm db:local:reset` and `pnpm dev:local`; sign in at `http://127.0.0.1:3000/staff/login`.
 - Local development commands and rules: [docs/runbook-local-dev.md](docs/runbook-local-dev.md)
 - Validate documentation: `pnpm docs:check`; regenerate `AGENTS.md`, `BRAND.md` and `DESIGN.md` with `pnpm docs:materialize` (never hand-edit them).
 

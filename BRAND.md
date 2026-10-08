@@ -94,7 +94,6 @@ Project Information Management
 Current public context:
 
 ```text
-HDO Public Portal
 PATHWAYS
 ```
 
@@ -549,7 +548,7 @@ Charts primarily use the blue and cyan families; semantic colors only when the c
 
 Prohibited: inventing brand colors, decorative semantic colors, color-only status, saturated brand-color operational surfaces, low-contrast "soft" text, treating blue and cyan as interchangeable, gradients replacing functional tokens.
 
-**Authentication gradient exception.** Current auth surfaces use a light-blue/white gradient such as `#C8EAF9 -> #F5FBFE -> #FFFFFF -> #DCEFFC`. It is an access-surface exception, not a staff-workspace background.
+**Authentication background.** Auth surfaces use the `canvas` page ground (`#F4F1EC`, the `background` token) behind a `paper` card; the earlier light-blue gradient exception is retired.
 
 **Gap table: current versus target.** Current values are the `globals.css` HSL triplets with approximate hex; Target values are the foundation tokens above.
 
