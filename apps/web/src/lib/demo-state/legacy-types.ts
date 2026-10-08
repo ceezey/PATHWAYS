@@ -1,13 +1,11 @@
 ﻿import type { PrototypeRole } from './legacy-prototype-role'
 
 export type ProjectStatus = 'Active' | 'Needs Attention' | 'Planned' | 'Completed'
-export type HealthStatus = 'On Track' | 'At Risk' | 'Critical'
+type HealthStatus = 'On Track' | 'At Risk' | 'Critical'
 export type ActivityStatus = 'Planned' | 'In Progress' | 'For Review' | 'Overdue' | 'Completed'
 export type BeneficiaryEnrollmentStatus = 'Active' | 'Pending Review' | 'Completed' | 'Exited'
-export type DashboardSeverity = 'neutral' | 'info' | 'success' | 'warning' | 'danger'
-export type DashboardActionKind = 'dialog' | 'navigate' | 'toast'
 
-export interface ProjectSummary {
+interface ProjectSummary {
   targetGoal: string | null
   id: string
   title: string
@@ -37,26 +35,6 @@ export interface ProjectDetail extends ProjectSummary {
   startDate?: string
   endDate?: string
   createdInPrototype?: boolean
-}
-
-export type AnalyticsCoverageStatus = 'Strong' | 'Growing' | 'Limited' | 'Planned'
-
-export interface AnalyticsLocationProjectSummary {
-  projectId: string
-  beneficiariesReached: number
-  deliverySites: number
-  activitiesDelivered: number
-  coverageStatus: AnalyticsCoverageStatus
-}
-
-export interface AnalyticsLocationRecord {
-  id: string
-  name: string
-  region: string
-  latitude: number
-  longitude: number
-  coordinatePrecision: 'Approximate city centroid'
-  projectSummaries: AnalyticsLocationProjectSummary[]
 }
 
 export interface CreateProjectInput {
@@ -147,28 +125,6 @@ export interface ActivityUpdateNote {
   submittedAt: string
 }
 
-export interface CreateActivityInput {
-  overrideJustification?: string
-  projectId: string
-  title: string
-  description: string
-  startDate: string
-  dueDate: string
-  targetBeneficiaries: number
-  budgetAllocation: number
-  assignedTo: string[]
-  indicatorIds: string[]
-  journeyStageId: string
-}
-
-export interface UpdateActivityInput extends CreateActivityInput {
-  id: string
-  status: ActivityStatus
-  progress: number
-  beneficiariesReached: number
-  budgetLogged: number
-}
-
 export interface SubmitActivityProofInput {
   activityId: string
   beneficiariesReachedThisSession?: number
@@ -179,7 +135,7 @@ export interface SubmitActivityProofInput {
   files?: ActivityProofFile[]
 }
 
-export interface Beneficiary {
+interface Beneficiary {
   id: string
   code: string
   displayName: string
@@ -249,29 +205,6 @@ export interface BeneficiaryNoteRecord {
   note: string
 }
 
-export type BeneficiaryMediaType = 'Photo' | 'Video'
-export type BeneficiaryMediaReviewStatus = 'For Review' | 'Accepted' | 'Needs Clarification'
-
-export interface BeneficiaryMediaProofRecord {
-  id: string
-  beneficiaryId: string
-  projectId: string
-  activityId?: string
-  mediaType: BeneficiaryMediaType
-  fileName: string
-  mimeType: string
-  fileSizeBytes: number
-  capturedAt: string
-  addedAt: string
-  addedBy: string
-  note?: string
-  tags: string[]
-  reviewStatus: BeneficiaryMediaReviewStatus
-  reviewNote?: string
-  durationSeconds?: number
-  source: 'Mock media' | 'Local preview'
-}
-
 export interface BeneficiaryRecord extends Beneficiary {
   firstName: string
   middleName?: string
@@ -291,14 +224,6 @@ export interface BeneficiaryRecord extends Beneficiary {
   notes: BeneficiaryNoteRecord[]
 }
 
-export interface BeneficiarySadddAggregate {
-  projectId: string
-  sex: Beneficiary['sex']
-  ageGroup: Beneficiary['ageGroup']
-  disabilityStatus: Beneficiary['disabilityStatus']
-  count: number
-}
-
 export interface Indicator {
   description?: string
   unit?: string
@@ -310,20 +235,6 @@ export interface Indicator {
   label: string
   target: number
   actual: number
-}
-
-export type EvidenceReviewStatus = 'Submitted' | 'Validated' | 'Flagged' | 'Approved' | 'Returned'
-
-export interface EvidenceRecord {
-  id: string
-  projectId: string
-  activityId: string
-  fileName: string
-  reportTitle: string
-  status: EvidenceReviewStatus
-  submitter: string
-  submittedDate: string
-  previewSummary: string
 }
 
 export type IndicatorStatus = 'On Track' | 'Needs Review' | 'Met'
@@ -340,38 +251,6 @@ export interface ProjectIndicator {
   connectedActivityIds: string[]
 }
 
-export interface EvaluationWeight {
-  id: string
-  label: string
-  value: number
-}
-
-export interface EvaluationAnnotation {
-  id: string
-  author: string
-  note: string
-  createdAt: string
-}
-
-export interface EvaluationHistoryEntry {
-  id: string
-  score: number
-  reviewer: string
-  reviewedAt: string
-  note: string
-}
-
-export interface EvaluationRecord {
-  projectId: string
-  currentScore: number
-  journeyProgression: number
-  indicatorAchievement: number
-  supportingEvidence: number
-  components: EvaluationWeight[]
-  annotations: EvaluationAnnotation[]
-  history: EvaluationHistoryEntry[]
-}
-
 export interface BudgetRecord {
   id: string
   projectId: string
@@ -379,20 +258,7 @@ export interface BudgetRecord {
   actualSpending: number
 }
 
-export interface UpdateBudgetAllocationInput {
-  projectId: string
-  plannedAmount: number
-}
-
 export type RecommendationOutcome = 'Accept' | 'Partially Accept' | 'Decline' | 'Escalate'
-
-export interface RecommendationOutcomeRecord {
-  id: string
-  recommendationId: string
-  outcome: RecommendationOutcome
-  note: string
-  loggedAt: string
-}
 
 export type LiquidationStatus = 'Pending' | 'Verified' | 'Approved' | 'Rejected'
 
@@ -475,25 +341,7 @@ export interface RuleDefinition {
   lastTriggeredAt?: string
 }
 
-export type TransparencyApprovalState = 'Draft' | 'Pending Review' | 'Approved'
-
-export interface TransparencySection {
-  id: string
-  projectId: string
-  title: string
-  summary: string
-  visible: boolean
-  approvalState: TransparencyApprovalState
-}
-
-export interface ReportRecord {
-  id: string
-  title: string
-  projectId: string
-  reportingPeriod: string
-}
-
-export type SurveyFormFieldType = 'Single select' | 'Numeric score'
+type SurveyFormFieldType = 'Single select' | 'Numeric score'
 
 export interface SurveyFormFieldDefinition {
   id: string
@@ -518,67 +366,11 @@ export interface SurveyFormDefinition {
   source: 'Metadata-driven Collection prototype'
 }
 
-export interface SurveyAggregateCount {
-  label: string
-  count: number
-}
-
-export interface SurveyCategoricalAggregate {
-  fieldId: string
-  kind: 'Categorical distribution'
-  responseCount: number
-  values: SurveyAggregateCount[]
-}
-
-export interface SurveyNumericAggregate {
-  fieldId: string
-  kind: 'Numeric summary'
-  responseCount: number
-  average: number
-  minimum: number
-  maximum: number
-  scaleLabel: string
-}
-
-export type SurveyQuestionAggregate = SurveyCategoricalAggregate | SurveyNumericAggregate
-
-export interface SurveyDemographicAggregate {
-  dimension: 'Sex' | 'Age group' | 'Disability status'
-  values: SurveyAggregateCount[]
-}
-
-export interface SurveyAggregateResultSet {
-  id: string
-  formId: string
-  projectId: string
-  location: string
-  responseDate: string
-  reportingPeriod: string
-  responseCount: number
-  questionResults: SurveyQuestionAggregate[]
-  demographicBreakdowns: SurveyDemographicAggregate[]
-  source: 'Synthetic aggregate mock'
-}
-
-export interface SurveyAggregateFilters {
-  formId?: string
-  projectId?: string
-  location?: string
-  responseDate?: string
-  reportingPeriod?: string
-}
-
 export type ReportKind =
   | 'project-summary'
   | 'indicator-summary'
   | 'beneficiary-summary'
   | 'survey-results'
-
-export interface ReportColumnConfig {
-  id: string
-  label: string
-  enabledByDefault: boolean
-}
 
 export interface PublicIndicator {
   id: string
@@ -596,14 +388,9 @@ export interface PublicMilestone {
   status: 'Completed' | 'In Progress' | 'Planned'
 }
 
-export type PublicDashboardSectionId =
-  | 'overview'
-  | 'media'
-  | 'progress'
-  | 'indicators'
-  | 'milestones'
+type PublicDashboardSectionId = 'overview' | 'media' | 'progress' | 'indicators' | 'milestones'
 
-export type PublicDashboardLayoutPreset = 'story-led' | 'balanced' | 'compact'
+type PublicDashboardLayoutPreset = 'story-led' | 'balanced' | 'compact'
 
 export interface PublicDashboardPresentation {
   eyebrow: string
@@ -671,97 +458,3 @@ export interface UserRecord {
 }
 
 export type UserAccountStatus = 'Active' | 'Invited' | 'Deactivated'
-
-export interface BeneficiaryFilters {
-  projectId?: string
-  location?: string
-  sex?: Beneficiary['sex']
-  ageGroup?: Beneficiary['ageGroup']
-  disabilityStatus?: Beneficiary['disabilityStatus']
-  enrollmentStatus?: BeneficiaryEnrollmentStatus
-}
-
-export interface DashboardMetric {
-  id: string
-  label: string
-  value: string | number
-  helperText: string
-  severity?: DashboardSeverity
-  href?: string
-}
-
-export interface DashboardAction {
-  id: string
-  label: string
-  kind: DashboardActionKind
-  href?: string
-  dialogTitle?: string
-  dialogDescription?: string
-  toastTitle?: string
-  toastDescription?: string
-}
-
-export interface DashboardItem {
-  id: string
-  title: string
-  description: string
-  meta?: string
-  status?: string
-  severity?: DashboardSeverity
-  progress?: number
-  href?: string
-  primaryAction?: DashboardAction
-  secondaryAction?: DashboardAction
-}
-
-export interface DashboardSection {
-  id: string
-  title: string
-  description?: string
-  emptyText?: string
-  viewAllHref?: string
-  viewAllLabel?: string
-  items: DashboardItem[]
-}
-
-export type ExecutiveDeliveryStatus = 'On Track' | 'At Risk' | 'Behind Schedule'
-export type ExecutiveGoalOutlook =
-  | 'Achievable'
-  | 'Achievable with intervention'
-  | 'Needs recovery plan'
-
-export interface ExecutiveDashboardContext {
-  id: string
-  selectorLabel: string
-  projectId?: string
-  title: string
-  scopeLabel: string
-  deliveryStatus: ExecutiveDeliveryStatus
-  deliverySummary: string
-  goalAchievement: number
-  goalOutlook: ExecutiveGoalOutlook
-  milestonesCompleted: number
-  milestonesTotal: number
-  nextMilestone: string
-  budgetUtilization: number
-  scheduleProgress: number
-  riskLabel: string
-  riskSummary: string
-  riskSeverity: DashboardSeverity
-}
-
-export interface ExecutiveDashboardViewModel {
-  defaultContextId: string
-  contexts: ExecutiveDashboardContext[]
-}
-
-export interface RoleDashboardViewModel {
-  role: PrototypeRole
-  greetingName: string
-  heading: string
-  summary: string
-  primaryAction?: DashboardAction
-  executive?: ExecutiveDashboardViewModel
-  metrics: DashboardMetric[]
-  sections: DashboardSection[]
-}

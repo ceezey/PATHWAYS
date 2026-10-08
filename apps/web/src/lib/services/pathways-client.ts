@@ -10,7 +10,6 @@ import {
   type SourceMutationContext,
   SourceMutationRecoveryError,
   type SourceMutationResult,
-  parseSourceMutationResult,
   sourceMutationTickets,
 } from './source-mutation'
 
@@ -308,7 +307,7 @@ function parseAssessmentSummaries(value: unknown): AssessmentSummary[] {
   })
 }
 
-export interface PathwaysClient {
+interface PathwaysClient {
   getBeneficiaryAssessments(
     projectId: string,
     enrollmentId: string,
@@ -2315,7 +2314,7 @@ export type DuplicateProfile = {
   updatedAt: string
 }
 export type DuplicateCandidatePair = { left: DuplicateProfile; right: DuplicateProfile }
-export type ResolveDuplicateInput = {
+type ResolveDuplicateInput = {
   leftId: string
   rightId: string
   decision: 'KEEP_DISTINCT' | 'LINK'

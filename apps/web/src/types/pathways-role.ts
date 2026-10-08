@@ -9,7 +9,7 @@ export const pathwaysRoles = [
 
 export type PathwaysRole = (typeof pathwaysRoles)[number]
 
-export const pathwaysRoleDisplayNames: Record<PathwaysRole, string> = {
+const pathwaysRoleDisplayNames: Record<PathwaysRole, string> = {
   'Program Manager': 'Program Manager',
   'Grant Manager': 'Grant Manager',
   'Project Manager': 'Project Manager',
@@ -19,6 +19,3 @@ export const pathwaysRoleDisplayNames: Record<PathwaysRole, string> = {
 }
 
 export const getPathwaysRoleDisplayName = (role: PathwaysRole) => pathwaysRoleDisplayNames[role]
-
-export const isPathwaysRole = (value: unknown): value is PathwaysRole =>
-  typeof value === 'string' && (pathwaysRoles as readonly string[]).includes(value)

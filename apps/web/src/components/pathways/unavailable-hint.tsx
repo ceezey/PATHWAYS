@@ -13,7 +13,7 @@ import type { KeyboardEvent, MouseEvent } from 'react'
  * mouse users a tooltip, and a visually hidden description linked via
  * `aria-describedby` gives the same explanation to assistive technology.
  */
-export const UNAVAILABLE_HINT_MESSAGE = 'Not available yet'
+const UNAVAILABLE_HINT_MESSAGE = 'Not available yet'
 
 export const UnavailableHint = ({
   id,

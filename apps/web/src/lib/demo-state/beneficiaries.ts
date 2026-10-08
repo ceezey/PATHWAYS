@@ -3,12 +3,11 @@ import type {
   BeneficiaryNoteRecord,
   BeneficiaryParticipationRecord,
   BeneficiaryRecord,
-  JourneyStageConfig,
 } from './legacy-types'
 
-import { currentAccount, demoTime, getDemoState, nextId, transactDemo } from './store'
+import { demoTime, getDemoState, nextId, transactDemo } from './store'
 
-export type BeneficiaryInput = Pick<
+type BeneficiaryInput = Pick<
   BeneficiaryRecord,
   | 'code'
   | 'firstName'
@@ -27,7 +26,7 @@ export type BeneficiaryInput = Pick<
   | 'guardianConsent'
 > & { projectId: string }
 
-export const possibleDuplicates = (
+const possibleDuplicates = (
   input: Pick<BeneficiaryInput, 'code' | 'firstName' | 'lastName' | 'birthDate'>,
   state = getDemoState(),
 ) =>
@@ -178,59 +177,4 @@ export function setBeneficiaryStatus(beneficiaryId: string, status: BeneficiaryE
     beneficiary.enrollmentStatus = status
     beneficiary.enrollments = beneficiary.enrollments.map((row) => ({ ...row, status }))
   })
-}
-
-export function saveJourneyStages(projectId: string, stages: JourneyStageConfig[]) {
-  return transactDemo('journeys.review', projectId, projectId, (state) => {
-    if (
-      !stages.length ||
-      stages.some((stage) => !stage.code.trim() || !stage.name.trim() || stage.order < 1)
-    )
-      throw new Error('Each journey stage needs a code, name, and positive order.')
-    if (new Set(stages.map((stage) => stage.code.toLowerCase())).size !== stages.length)
-      throw new Error('Journey stage codes must be unique within the project.')
-    if (
-      stages.some(
-        (stage) =>
-          stage.parentStageId && !stages.some((parent) => parent.id === stage.parentStageId),
-      )
-    )
-      throw new Error('A branch references a missing parent stage.')
-    state.journeys = [
-      ...state.journeys.filter((stage) => stage.projectId !== projectId),
-      ...structuredClone(stages),
-    ]
-  })
-}
-
-export function resolveDuplicate(leftId: string, rightId: string, decision: 'link' | 'distinct') {
-  const left = getDemoState().beneficiaries.find((row) => row.id === leftId)
-  return transactDemo(
-    'beneficiaries.merge',
-    left?.projectIds[0],
-    `${leftId}:${rightId}`,
-    (state) => {
-      const a = state.beneficiaries.find((row) => row.id === leftId)
-      const b = state.beneficiaries.find((row) => row.id === rightId)
-      if (!a || !b) throw new Error('Both beneficiary profiles must exist.')
-      if (decision === 'distinct') {
-        const decisions = state.decisionHistory[leftId] ?? []
-        decisions.push({
-          id: nextId(state, 'duplicate'),
-          at: demoTime(state),
-          actor: currentAccount(state)?.name ?? 'Unknown',
-          state: 'Distinct',
-          note: `${rightId} reviewed and retained as a separate person.`,
-        })
-        state.decisionHistory[leftId] = decisions
-        return
-      }
-      a.projectIds = Array.from(new Set([...a.projectIds, ...b.projectIds]))
-      a.enrollments.push(...b.enrollments)
-      a.participation.push(...b.participation)
-      a.assessments.push(...b.assessments)
-      a.notes.push(...b.notes)
-      state.beneficiaries = state.beneficiaries.filter((row) => row.id !== rightId)
-    },
-  )
 }

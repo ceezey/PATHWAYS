@@ -7,11 +7,6 @@ export const getAccessProfile = (role: PathwaysRole) => roleAccessProfiles[role]
 export const can = (role: PathwaysRole, permission: PermissionCode) =>
   getAccessProfile(role).permissions.includes(permission)
 
-export const canAny = (role: PathwaysRole, permissions: PermissionCode[]) =>
-  permissions.some((permission) => can(role, permission))
-
-export const cannot = (role: PathwaysRole, permission: PermissionCode) => !can(role, permission)
-
 export const canCreateOrAuthorizeRole = (actorRole: PathwaysRole, targetRole: PathwaysRole) =>
   getAccessProfile(actorRole).userAdministration.createAndAuthorizeRoles.includes(targetRole)
 

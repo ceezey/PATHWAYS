@@ -49,10 +49,10 @@ const privateKey = ['pathways-private'] as const
  * organization, user, role, permissions, assignments and project. `live` reads always
  * re-verify. `live` is the default.
  */
-export type AuthorizedReadFreshness = 'summary' | 'live'
+type AuthorizedReadFreshness = 'summary' | 'live'
 export const SUMMARY_READ_STALE_MS = 30_000
 /** Beneficiary detail, step-up protected and import batch-status reads are never cached. */
-export const LIVE_ONLY_RESOURCE = /^(beneficiar|step-up|import-batch)/
+const LIVE_ONLY_RESOURCE = /^(beneficiar|step-up|import-batch)/
 
 export function authorizedReadPolicy(resource: string, freshness: AuthorizedReadFreshness) {
   return freshness === 'summary' && !LIVE_ONLY_RESOURCE.test(resource)

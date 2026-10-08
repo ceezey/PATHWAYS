@@ -27,7 +27,7 @@ export const testActivities: Activity[] = mockActivities.map((activity) => ({
   updatedAt: '2026-09-01T00:00:00.000Z',
 }))
 
-export const toTestBeneficiary = (beneficiary: LegacyBeneficiaryRecord): BeneficiaryRecord => ({
+const toTestBeneficiary = (beneficiary: LegacyBeneficiaryRecord): BeneficiaryRecord => ({
   ...beneficiary,
   subjectType: 'INDIVIDUAL',
   disabilityStatus:

@@ -5,7 +5,6 @@ import {
   type DemoForm,
   type DemoState,
   demoTime,
-  getDemoState,
   nextId,
   transactDemo,
 } from './store'
@@ -52,7 +51,7 @@ export function saveForm(input: Omit<DemoForm, 'id' | 'responseCount'>, id?: str
     return form
   })
 }
-export function validateEntry(state: DemoState, input: Omit<DemoEntry, 'id'>): string[] {
+function validateEntry(state: DemoState, input: Omit<DemoEntry, 'id'>): string[] {
   const errors: string[] = []
   if (!state.projects.some((p) => p.id === input.projectId && !p.archived))
     errors.push('Link the record to an available project.')
@@ -95,7 +94,7 @@ export function validateEntry(state: DemoState, input: Omit<DemoEntry, 'id'>): s
     }
   return errors
 }
-export function duplicateEntry(state: DemoState, input: Omit<DemoEntry, 'id'>, id?: string) {
+function duplicateEntry(state: DemoState, input: Omit<DemoEntry, 'id'>, id?: string) {
   return state.entries.some(
     (e) =>
       e.id !== id &&

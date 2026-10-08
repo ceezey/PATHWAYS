@@ -1,6 +1,6 @@
 ﻿import type { PrototypeRole } from './legacy-prototype-role'
 
-export interface PrototypeAccount {
+interface PrototypeAccount {
   id: string
   displayName: string
   role: PrototypeRole
@@ -8,7 +8,7 @@ export interface PrototypeAccount {
   email: string
 }
 
-export type PrototypeAccountPublic = PrototypeAccount
+type PrototypeAccountPublic = PrototypeAccount
 
 export const publicPrototypeAccounts: PrototypeAccountPublic[] = [
   {

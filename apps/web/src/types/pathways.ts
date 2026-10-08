@@ -11,7 +11,7 @@ export type ActivityStatus =
   | 'Overdue'
   | 'Completed'
   | 'Cancelled'
-export type BeneficiaryEnrollmentStatus =
+type BeneficiaryEnrollmentStatus =
   | 'Active'
   | 'Pending Review'
   | 'Completed'
@@ -65,7 +65,7 @@ export interface ProjectDetail extends ProjectSummary {
   budgetCode: string
 }
 
-export type AnalyticsCoverageStatus = 'Strong' | 'Growing' | 'Limited' | 'Planned'
+type AnalyticsCoverageStatus = 'Strong' | 'Growing' | 'Limited' | 'Planned'
 
 export interface AnalyticsLocationProjectSummary {
   projectId: string
@@ -393,7 +393,7 @@ export interface UpdateMilestoneInput extends SaveMilestoneInput {
   expectedUpdatedAt: string
 }
 
-export interface Beneficiary {
+interface Beneficiary {
   id: string
   code: string
   displayName: string
@@ -422,7 +422,7 @@ export interface JourneyStageConfig {
   updatedAt?: string
 }
 
-export type JourneyEventType =
+type JourneyEventType =
   | 'ENROLLMENT'
   | 'PARTICIPATION'
   | 'PROGRESS_UPDATE'
@@ -521,29 +521,6 @@ export interface BeneficiaryNoteRecord {
   visibility: 'Internal' | 'Project team'
   note: string
   journeyNote?: string
-}
-
-export type BeneficiaryMediaType = 'Photo' | 'Video'
-export type BeneficiaryMediaReviewStatus = 'For Review' | 'Accepted' | 'Needs Clarification'
-
-export interface BeneficiaryMediaProofRecord {
-  id: string
-  beneficiaryId: string
-  projectId: string
-  activityId?: string
-  mediaType: BeneficiaryMediaType
-  fileName: string
-  mimeType: string
-  fileSizeBytes: number
-  capturedAt: string
-  addedAt: string
-  addedBy: string
-  note?: string
-  tags: string[]
-  reviewStatus: BeneficiaryMediaReviewStatus
-  reviewNote?: string
-  durationSeconds?: number
-  source: 'Stored media' | 'Local preview'
 }
 
 export interface BeneficiaryMediaItem {
@@ -677,8 +654,6 @@ export interface EvidenceActivitySummary {
 export type EvidenceList =
   | { scope: 'detail'; records: EvidenceRecord[] }
   | { scope: 'aggregate'; activities: EvidenceActivitySummary[] }
-
-export type IndicatorStatus = SharedProjectIndicator['status']
 export type ProjectIndicator = SharedProjectIndicator
 
 export interface EvaluationWeight {
@@ -829,7 +804,7 @@ export interface ReportRecord {
   reportingPeriod: string
 }
 
-export type SurveyFormFieldType = 'Single select' | 'Numeric score'
+type SurveyFormFieldType = 'Single select' | 'Numeric score'
 
 export interface SurveyFormFieldDefinition {
   id: string
@@ -1060,7 +1035,7 @@ export interface ImportMappingInput {
   valueMap?: Array<{ from: string; to: string }>
 }
 
-export interface SurveyAggregateCount {
+interface SurveyAggregateCount {
   label: string
   count: number
 }
