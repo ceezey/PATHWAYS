@@ -53,9 +53,8 @@ import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'
 import { usePendingCreate } from '@/hooks/use-pending-create'
 import { createdSince, fingerprintOf } from '@/lib/forms/pending-create'
-import type { ProjectAssignableRole } from '@/lib/rbac/access-matrix'
 import { pathwaysClient } from '@/lib/services/pathways-client'
-import type { ProjectSummary, UserAccountStatus, UserRecord } from '@/types/pathways'
+import type { ProjectSummary, UserRecord } from '@/types/pathways'
 import { type PathwaysRole, getPathwaysRoleDisplayName } from '@/types/pathways-role'
 import {
   type UserStatusFilter,
@@ -63,7 +62,6 @@ import {
   filterUserRecords,
   getAssignableProjects,
   getManageableUserRoles,
-  getProjectAccessLabels,
   getUserAdministrationSummary,
   getUserInitials,
   isProjectAssignableRole,

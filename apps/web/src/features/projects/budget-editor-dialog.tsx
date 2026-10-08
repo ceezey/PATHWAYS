@@ -4,7 +4,6 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { Loader2, PencilLine } from 'lucide-react'
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
-import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -26,7 +25,6 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
-import { pathwaysClient } from '@/lib/services/pathways-client'
 import type { BudgetRecord } from '@/types/pathways'
 
 import { formatCurrency } from './activity-utils'

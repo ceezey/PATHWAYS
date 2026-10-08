@@ -40,7 +40,6 @@ import { isUiActionAvailable } from '@/lib/rbac/ui-action-availability'
 import { pathwaysClient } from '@/lib/services/pathways-client'
 import type {
   ActivitySummary,
-  BeneficiaryAssessmentRecord,
   BeneficiaryNoteRecord,
   BeneficiaryParticipationRecord,
   BeneficiaryRecord,

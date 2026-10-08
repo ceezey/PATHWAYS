@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { type RuleNode, metricCellSchema, parseRuleTree } from './rules-validation'
+import { metricCellSchema, parseRuleTree } from './rules-validation'
 const condition = (id = 'a') => ({
   kind: 'CONDITION',
   id,

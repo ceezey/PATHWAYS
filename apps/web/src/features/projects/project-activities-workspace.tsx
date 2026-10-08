@@ -1,15 +1,6 @@
 'use client'
 
-import {
-  CalendarClock,
-  Eye,
-  LayoutGrid,
-  List,
-  Loader2,
-  Plus,
-  Search,
-  UsersRound,
-} from 'lucide-react'
+import { CalendarClock, Eye, LayoutGrid, List, Plus, Search, UsersRound } from 'lucide-react'
 import Link from 'next/link'
 import { useEffect, useMemo, useRef, useState } from 'react'
 

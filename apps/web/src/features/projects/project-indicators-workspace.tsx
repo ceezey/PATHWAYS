@@ -46,7 +46,6 @@ import {
   type numericKinds,
 } from '@pathways/shared'
 import { Loader2, MoreHorizontal, Plus, Target } from 'lucide-react'
-import Link from 'next/link'
 import { type FormEvent, Fragment, useCallback, useEffect, useRef, useState } from 'react'
 
 const text = (form: FormData, name: string) => String(form.get(name) ?? '').trim()
