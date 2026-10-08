@@ -554,3 +554,12 @@
 
 ## 2026-10-07 Budget section in the Project summary report (feat/report-budget-section)
 - The Project summary report gains a Budget section for actors holding both `budgets.read` and `expenses.read` (Project Managers among them): each active budget line, activity lines named by their activity, with planned amount, approved spending, spending in review (pending or verified) and remaining (planned minus approved). Rejected expenses are left out, at most 50 lines are shown, and the section appears in the designed PDF, the pdfkit PDF, CSV and XLSX. No migration; no new report type.
+
+## 2026-10-08 Dead-code removal (chore/dead-code-removal)
+- Removed unreachable code across the repo: 200 files changed, about 7100 lines deleted, covering 28 deleted files (19 in apps/web, 7 in infra/supabase, 1 in apps/api, 1 root Playwright config) plus unused exports, types and test cases in apps/api, apps/web and packages.
+- Removed the unused `cmdk` and `@sentry/nextjs` dependencies from apps/web and refreshed `pnpm-lock.yaml`; no source, config or convention file loaded either.
+- Dropped the duplicate `projectIndicatorSchema` alias in favor of `monitoringIndicatorSchema` and the test that asserted they were identical.
+- Removed the "Old rule configuration workspace" row and two deleted paths from `docs/deferred-features.md`.
+- Kept `pino-pretty` (loaded by name as a pino transport in `apps/api/src/app.module.ts`), root `husky` (run through `scripts/setup-husky.mjs`) and `@pathways/ui` (listed in `transpilePackages`, tsconfig paths and the Vitest alias).
+- Kept hidden and deferred features, sha256-pinned infra files, scripts named by docs, the DSD primitives in `components/ui` (button, select, table), seed data in `apps/api/prisma/local-demo-data.ts`, the NestJS `Roles` decorator, `FeatureDirectory` (string-built e2e import), the declaration-emit types `AutomaticMappingReceipt` and `GroupEvidence`, and `apps/api/scripts/check-pdf-renderer.ts` (manual diagnostic).
+- Verification: `pnpm typecheck` clean, `pnpm test` passed (shared 108, imports 91, config 19, api 2358, web 1969), `pnpm --filter @pathways/web build` succeeded, and `pnpm lint` flags only untracked scratch JSON under `.superpowers/`.
