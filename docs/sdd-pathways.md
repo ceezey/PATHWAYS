@@ -123,7 +123,7 @@ flowchart LR
 | 1 | Browser to API | `Authorization: Bearer` access token; `SupabaseAuthGuard` is global and only `@Public()` routes skip it |
 | 2 | Token to actor | Claims are verified with Supabase, then mapped to a `system_users` row; lifecycle must be active; email and user metadata never grant a role |
 | 3 | Actor to workspace | One organization per auth user; `X-Pathways-Organization-Id` is checked against the actor's workspace, never trusted alone |
-| 4 | Role to permission | `RolesGuard` and `@RequirePermission` check the canonical RBAC contract; project routes add assignment scope before any query |
+| 4 | Role to permission | `SupabaseAuthGuard` enforces `@RequirePermission` against the canonical RBAC contract; project routes add assignment scope before any query |
 | 5 | Step-up | Beneficiary detail routes marked `RequireBeneficiaryStepUp` need a TOTP `amr` claim within 15 minutes or a live session-bound PIN grant |
 | 6 | API to database | Each request runs in a transaction that sets the transaction-local organization and user context; RLS policies on `pathways_runtime` repeat the tenant check |
 | 7 | Evidence upload | The API reserves rows and issues signed upload URLs; the browser uploads straight to storage; finalize verifies size, leading-byte signature and SHA-256 before the commit |
