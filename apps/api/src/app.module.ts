@@ -7,7 +7,6 @@ import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core'
 import { readApiEnv } from '@pathways/config'
 import { LoggerModule } from 'nestjs-pino'
 
-import { RolesGuard } from './common/guards/roles.guard'
 import { SupabaseAuthGuard } from './common/guards/supabase-auth.guard'
 import { SentryInterceptor } from './common/interceptors/sentry.interceptor'
 import { ActivitiesModule } from './modules/activities/activities.module'
@@ -200,10 +199,6 @@ export function createPathwaysPinoHttpOptions(environment = process.env.NODE_ENV
     {
       provide: APP_GUARD,
       useClass: SupabaseAuthGuard,
-    },
-    {
-      provide: APP_GUARD,
-      useClass: RolesGuard,
     },
     {
       provide: APP_INTERCEPTOR,

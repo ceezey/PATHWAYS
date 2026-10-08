@@ -8,7 +8,6 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { AUTH_BOUNDARY_KEY } from '../../common/decorators/auth-boundary.decorator'
 import { PERMISSION_KEY } from '../../common/decorators/permission.decorator'
 import { IS_PUBLIC_KEY } from '../../common/decorators/public.decorator'
-import { ROLES_KEY } from '../../common/decorators/roles.decorator'
 import { machineBudgetMiddleware } from '../../common/network/machine-request-budget'
 import {
   MACHINE_PURPOSE,
@@ -228,7 +227,7 @@ describe('exact machine boundary proposal', () => {
       expect(() => f.boundary.enter(f.context)).toThrow(ForbiddenException)
     },
   )
-  it.each([IS_PUBLIC_KEY, AUTH_BOUNDARY_KEY, PERMISSION_KEY, ROLES_KEY])(
+  it.each([IS_PUBLIC_KEY, AUTH_BOUNDARY_KEY, PERMISSION_KEY])(
     'rejects mixed human metadata on the controller %s',
     (key) => {
       const f = fixture()
@@ -289,7 +288,6 @@ describe('exact machine boundary proposal', () => {
     IS_PUBLIC_KEY,
     AUTH_BOUNDARY_KEY,
     PERMISSION_KEY,
-    ROLES_KEY,
     'class-purpose',
     'unregistered',
   ] as const)('rejects mixed or misplaced metadata %s', (key) => {
