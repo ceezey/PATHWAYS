@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { testUsers as mockUsers } from '@/mocks/pathways/real-api-fixtures'
+import { testUsers as mockUsers } from '@/test/fixtures/api-view-fixtures'
 
 import {
   getEligibleTeamUsers,

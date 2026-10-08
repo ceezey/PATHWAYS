@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { testActivities as mockActivities } from '@/mocks/pathways/real-api-fixtures'
+import { testActivities as mockActivities } from '@/test/fixtures/api-view-fixtures'
 
 import {
   activityDueLabel,

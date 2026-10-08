@@ -1,4 +1,4 @@
-import type { ProjectDetail } from '@/lib/demo-state/legacy-types'
+import type { ProjectDetail } from './fixture-types'
 
 export const mockProjects: ProjectDetail[] = [
   {

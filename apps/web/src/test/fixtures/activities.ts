@@ -1,4 +1,4 @@
-import type { Activity } from '@/lib/demo-state/legacy-types'
+import type { Activity } from './fixture-types'
 
 export const mockActivities: Activity[] = [
   {

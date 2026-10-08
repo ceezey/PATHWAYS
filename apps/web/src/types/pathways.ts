@@ -65,8 +65,6 @@ export interface ProjectDetail extends ProjectSummary {
   budgetCode: string
 }
 
-type AnalyticsCoverageStatus = 'Strong' | 'Growing' | 'Limited' | 'Planned'
-
 export interface CreateProjectInput {
   code?: string
   title: string
@@ -286,15 +284,6 @@ export interface RecordActivityProgressInput {
   clientUpdateId: string
   progress: number
   note: string
-}
-
-export interface SubmitActivityProofInput {
-  projectId: string
-  activityId: string
-  clientUpdateId: string
-  progress: number
-  note: string
-  files: File[]
 }
 
 // --- Direct-upload activity proof (cr-pathways-activity-progress-media) ---
@@ -619,8 +608,6 @@ export interface BudgetRecord {
   actualSpending: number
 }
 
-export type RecommendationOutcome = 'Accept' | 'Partially Accept' | 'Decline' | 'Escalate'
-
 export type LiquidationStatus = 'Pending' | 'Verified' | 'Approved' | 'Rejected'
 
 export interface ExpenseRecord {
@@ -661,46 +648,6 @@ export type AlertLifecycleStatus =
   | 'Resolved'
   | 'Dismissed'
   | 'Auto-resolved'
-
-export interface RecommendationRecord {
-  id: string
-  alertId: string
-  ruleId: string
-  alertBasis: string
-  ruleExplanation: string
-  text: string
-  reviewStatus: 'New' | 'Reviewed' | 'Actioned'
-  outcome?: RecommendationOutcome
-  outcomeNote?: string
-}
-
-export type RuleCategory =
-  | 'KPI / Indicator'
-  | 'Activity Timeline'
-  | 'Budget'
-  | 'Beneficiary Progress'
-  | 'Assessment'
-  | 'Project Health'
-
-export type RuleOperator = 'below' | 'above' | 'between' | 'equals'
-export type RuleSeverity = 'Low' | 'Medium' | 'High' | 'Critical'
-export type RuleStatus = 'Active' | 'Inactive'
-
-export interface RuleDefinition {
-  id: string
-  name: string
-  category: RuleCategory
-  parameter: string
-  operator: RuleOperator
-  threshold: number
-  upperThreshold?: number
-  severity: RuleSeverity
-  status: RuleStatus
-  suggestedAction: string
-  description: string
-  triggeredCount: number
-  lastTriggeredAt?: string
-}
 
 export interface ReportRecord {
   id: string

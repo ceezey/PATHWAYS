@@ -1,4 +1,4 @@
-import type { UserRecord } from '@/lib/demo-state/legacy-types'
+import type { UserRecord } from './fixture-types'
 
 export const mockUsers: UserRecord[] = [
   {

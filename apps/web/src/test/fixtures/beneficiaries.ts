@@ -1,4 +1,4 @@
-import type { BeneficiaryRecord, JourneyStageConfig } from '@/lib/demo-state/legacy-types'
+import type { BeneficiaryRecord, JourneyStageConfig } from './fixture-types'
 
 const makeEnrollment = (
   id: string,
