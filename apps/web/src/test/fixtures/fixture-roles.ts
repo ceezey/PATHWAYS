@@ -1,4 +1,4 @@
-﻿export const prototypeRoles = [
+export const prototypeRoles = [
   'Program Manager',
   'Grant Manager',
   'Project Manager',

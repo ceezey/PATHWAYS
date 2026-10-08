@@ -585,5 +585,6 @@
 - Removed 28 dead pathways client methods (14 throw-only stubs, 8 uncalled, 6 test-only) and 16 dead types; kept the `not_configured` error code because `requestFoundation` still throws it. Tests: web 1962.
 - Removed `live-finance-workspace`, `budget-editor-dialog`, `finance-budget-summary` and `budget-form-validation` with their tests. Tests: web 1940.
 - Deleted `lib/demo-state` and `mocks`, moved 7 live fixtures to `apps/web/src/test/fixtures`, and removed 25 unused fixture types and 9 dead types in `types/pathways.ts`. Tests: web 1901.
-- Deleted 100 historical infra files (phase5, phase7, pre-supporting, rule-based-access-alignment, session-liveness, migration-reconciliation except `baseline-data-inventory.sql`, 23 security-adapter deployment and recovery files, 4 phase6 rehearsal files) and `session-liveness-local.mjs`, about 20.4k lines; updated the phase6 and security-adapter READMEs.
+- Deleted 99 historical infra files (phase5, phase7, pre-supporting, rule-based-access-alignment, session-liveness, migration-reconciliation except `baseline-data-inventory.sql`, 23 security-adapter deployment and recovery files, 4 phase6 rehearsal files) and `session-liveness-local.mjs`, about 20.4k lines; updated the phase6 and security-adapter READMEs.
+- `rules:dispatch` now passes `--tsconfig apps/api/tsconfig.json` so tsx resolves workspace packages from source after the root tsconfig.json removal.
 - Deferred: source-mutation proof options (S2), `mapPublicSnapshot` (S8), `ImportSummary` move (F2), infra Pester and runtime-output tests (W1).

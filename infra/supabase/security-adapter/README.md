@@ -20,9 +20,9 @@ RLS requires an active organization, active role, and active unarchived profile 
 
 Approved administrator file: `%LOCALAPPDATA%\PATHWAYS\secrets\dev-db-admin.credential.xml`. First-provisioned runtime file: `dev-db-runtime.credential.xml` in the same protected directory. DPAPI files are Windows-user/machine-bound, not portable plaintext configuration. Never open, print, paste or commit their contents. Use an approved secret-manager backup procedure; copying the file to another computer does not make it decryptable there.
 
-The provisioning helper refuses an existing runtime credential or password. It creates a new dedicated credential, not a password rotation. Put no password or full URL in terminal arguments/history. Do not rerun provisioning after partial failure: preserve evidence and inspect first.
+Put no password or full URL in terminal arguments/history.
 
-After deployment and credential checks pass, run from the repository root:
+After the credential checks pass, run from the repository root:
 
 ```powershell
 .\infra\supabase\security-adapter\Start-DevRuntime.ps1 -Action Check

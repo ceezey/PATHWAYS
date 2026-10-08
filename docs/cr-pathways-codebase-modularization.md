@@ -203,7 +203,7 @@ F1 applied 2026-10-09 on refactor/f1-dead-code:
 - Web client: 28 dead pathways client methods and 16 dead types removed; the `not_configured` error code was kept because `requestFoundation` still throws it.
 - Web finance: four unreferenced finance files removed with their tests.
 - Web fixtures: `lib/demo-state` and `mocks` deleted, 7 live fixtures moved to `apps/web/src/test/fixtures`, 34 unused types removed.
-- Infra: 100 historical files and one session-liveness script deleted (about 20.4k lines).
+- Infra: 99 historical files and one session-liveness script deleted (about 20.4k lines).
 
 Deferred to later sub-projects: source-mutation proof `files` option and `proofSnapshot` (S2), `mapPublicSnapshot` in `public-projects.ts`, which is production-dead and used as a test fixture builder (S8), `ImportSummary` move (F2), infra phase6 Pester tests and security-adapter runtime-output test wiring (W1).
 

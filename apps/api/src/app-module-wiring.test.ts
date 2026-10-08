@@ -5,33 +5,40 @@ import { describe, expect, it } from 'vitest'
 import { AppModule } from './app.module'
 
 type ModuleRef = { name: string }
+type DynamicModule = { module: ModuleRef; providers?: unknown[]; imports?: unknown[] }
 
-// Walks static and dynamic module imports reachable from the root module.
-function reachableModules(root: ModuleRef, seen = new Set<ModuleRef>()): Set<ModuleRef> {
-  if (seen.has(root)) return seen
+// Walks static and dynamic module imports, recording each module's provider classes.
+function collectProviders(
+  root: ModuleRef,
+  owners = new Map<unknown, Set<string>>(),
+  seen = new Set<ModuleRef>(),
+) {
+  if (seen.has(root)) return owners
   seen.add(root)
-  const imports: unknown[] = Reflect.getMetadata('imports', root) ?? []
-  for (const entry of imports) {
-    if (typeof entry === 'function') reachableModules(entry as ModuleRef, seen)
-    else if (entry && typeof entry === 'object' && 'module' in entry)
-      reachableModules((entry as { module: ModuleRef }).module, seen)
+  const add = (providers: unknown[], name: string) => {
+    for (const provider of providers)
+      if (typeof provider === 'function')
+        owners.set(provider, (owners.get(provider) ?? new Set<string>()).add(name))
   }
-  return seen
+  add(Reflect.getMetadata('providers', root) ?? [], root.name)
+  for (const entry of (Reflect.getMetadata('imports', root) ?? []) as unknown[]) {
+    if (typeof entry === 'function') collectProviders(entry as ModuleRef, owners, seen)
+    else if (entry && typeof entry === 'object' && 'module' in entry) {
+      const dynamic = entry as DynamicModule
+      collectProviders(dynamic.module, owners, seen)
+      add(dynamic.providers ?? [], dynamic.module.name)
+      for (const nested of dynamic.imports ?? [])
+        collectProviders(nested as ModuleRef, owners, seen)
+    }
+  }
+  return owners
 }
 
 describe('application module wiring', () => {
-  it('registers each provider class in exactly one module', () => {
-    const owners = new Map<unknown, string[]>()
-    for (const module of reachableModules(AppModule)) {
-      const providers: unknown[] = Reflect.getMetadata('providers', module) ?? []
-      for (const provider of providers) {
-        if (typeof provider !== 'function') continue
-        owners.set(provider, [...(owners.get(provider) ?? []), module.name])
-      }
-    }
-    const duplicates = [...owners]
-      .filter(([, modules]) => modules.length > 1)
-      .map(([provider, modules]) => `${(provider as ModuleRef).name}: ${modules.join(', ')}`)
+  it('registers each provider class in at most one module', () => {
+    const duplicates = [...collectProviders(AppModule)]
+      .filter(([, modules]) => modules.size > 1)
+      .map(([provider, modules]) => `${(provider as ModuleRef).name}: ${[...modules].join(', ')}`)
     expect(duplicates).toEqual([])
   })
 })

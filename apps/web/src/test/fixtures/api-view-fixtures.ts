@@ -1,5 +1,5 @@
-import type { Activity, BeneficiaryRecord, UserRecord } from '@/types/pathways'
 /** Test fixtures converted to current API view types. */
+import type { Activity, BeneficiaryRecord, UserRecord } from '@/types/pathways'
 import type { BeneficiaryRecord as LegacyBeneficiaryRecord } from './fixture-types'
 
 import { mockActivities } from './activities'

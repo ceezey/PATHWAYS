@@ -1,4 +1,4 @@
-﻿import type { PrototypeRole } from './fixture-roles'
+import type { PrototypeRole } from './fixture-roles'
 
 export type ProjectStatus = 'Active' | 'Needs Attention' | 'Planned' | 'Completed'
 type HealthStatus = 'On Track' | 'At Risk' | 'Critical'
