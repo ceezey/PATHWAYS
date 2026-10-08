@@ -1,0 +1,65 @@
+# Audit: Codebase modularity and readability
+
+**Date:** 2026-10-09  
+**Scope:** `apps/api/src`, `apps/api/prisma/*.ts`, `apps/web/src`, `packages/*`, `scripts/`, `infra/`, root tooling at dev `d272ee18`  
+**Type:** Findings / evidence only
+
+An audit records what was found. It does not become implementation authority by itself.
+
+## 1. Baseline
+
+- Tracked source: about 125k non-test lines (web 70k, api 31k, infra 14k, scripts 5k, packages 4k) and about 85k test lines.
+- Non-test TypeScript files over 300, 500 and 1000 lines: 81, 49 and 13.
+- Largest files: `apps/web/src/lib/services/pathways-client.ts` (3196), `apps/web/src/features/collection/collection-workspace.tsx` (3182), `apps/api/src/modules/activities/activities.service.ts` (2527), `apps/api/src/modules/imports/imports.service.ts` (2165), `apps/api/prisma/local-demo-data.ts` (1999), `apps/web/src/features/analytics/analytics-dashboard.tsx` (1741).
+- Method: line counts and import graphs by script, then four read-only area reviews (API, web features, web platform code, packages/scripts/infra); headline counts re-verified by grep before writing.
+
+## 2. Findings
+
+| ID | Severity | Finding | Evidence | Contract affected | Recommended disposition |
+|---|---|---|---|---|---|
+| MOD-01 | High | Rules contract and metrics are duplicated between api and web | `apps/web/src/features/analytics/rules-validation.ts` vs `apps/api/src/modules/rules/rule-contract.ts` differ by 3 lines; `rule-test-metrics.ts` vs `rule-metrics.ts` differ by 78; `rules-human-contract.ts` exists in both; about 1.4k lines, no parity test | SDD 2.1 rule engine | Move to `packages/shared/src/rules` (F2) |
+| MOD-02 | High | Web imports API source by relative path | 5 web files import `apps/api/src/modules/auth/authorization-policy` | SDD 2.1 package boundaries | Move policy to `packages/shared/src/rbac` (F2) |
+| MOD-03 | High | Role code and label maps exist in six places | `authorization-policy.ts` `roleNames`, `features/auth/auth-access.ts` `canonicalRoles`, `pathways-client.ts` `roleCodeByName`, `lib/rbac/access-matrix.ts` `roleCodesByName`, `types/pathways-role.ts`, `lib/demo-state/legacy-prototype-role.ts`; shared `APP_ROLES` unused by web | RBAC v4 | One role catalog in shared (F2) |
+| MOD-04 | High | API services carry several responsibilities each | `activities.service.ts` 2527 (mappers, evidence helpers, scope, metrics, reads, writes, progress, proofs, milestones); `imports.service.ts` 2165; `beneficiaries.service.ts` 1492; `metadata.service.ts` 1365; `reports.service.ts` 877; `evaluations.service.ts` 846 | None | Split per responsibility in slices S1 to S7 |
+| MOD-05 | High | Web client is one 3196-line file | `pathways-client.ts`: 350-line interface restating one implementation, about 115 methods across 15 domains, fetch core, mappers; 14 methods only `throw backendNotConfigured`, about 29 interface methods with no production caller | None | `lib/api/core` plus domain modules (F4, slices) |
+| MOD-06 | High | Oversized feature components | `collection-workspace.tsx` 3182 (37 `useState`, 19 direct client calls, 11 inline sub-components); `analytics-dashboard.tsx` 1741; `beneficiary-form.tsx` 1388; `public-project-detail.tsx` 1172; `beneficiary-detail.tsx` 1172; `reporting-workspace.tsx` 1132; `import-workspace.tsx` 1130 | None | Split into `components/` and `hooks/` per slice |
+| MOD-07 | Medium | Import flow implemented twice in web | `collection-workspace.tsx` and `import-workspace.tsx` both drive upload, automatic mapping, save mapping, validate and process | F6 | One `use-import-batch` hook (S5) |
+| MOD-08 | Medium | `requireProject` copied across API services | 11 private definitions (activities, beneficiaries, identity-review, imports, indicators, metadata, participants, evaluations, analytics, public, finance); reports inlines it | Org isolation | One `requireScopedProject` in `common/authz` (F3) |
+| MOD-09 | Medium | Audit-log writes hand-built | 66 inline `auditLog.create` calls plus three identical private `audit()` helpers | Audit trail | One `writeAuditLog` (F3) |
+| MOD-10 | Medium | Inverted dependencies | `common/guards/supabase-auth.guard.ts` imports five `modules/auth` and `modules/rules` files; 17 web imports from `lib/`, `hooks/` and `providers/` into `features/auth`; `lib/services/rules-human-client.ts` imports `features/analytics` | SDD 2.1 | Move kernel down, add lint rule (F3, F4) |
+| MOD-11 | Medium | Two API validation styles | class-validator DTOs in 13 modules (global ValidationPipe, whitelist, forbidNonWhitelisted, transform) and zod in 19 files; web re-declares response shapes by hand | API contracts | Zod contracts in `packages/shared/src/contracts` |
+| MOD-12 | Medium | Dead authorization path | `RolesGuard` registered globally (`app.module.ts`) but `@Roles(` has 0 uses; `ROLES_KEY` still read in `rules-machine-boundary.ts`; shared `AppRole` only feeds it | RBAC | Delete (F1) |
+| MOD-13 | Medium | Duplicate Nest providers | `RulesHumanService` provided in `dashboards.module.ts` and `rules-human.module.ts`; `ProjectOverviewMetricsService` in `projects.module.ts` and `project-map.module.ts`; storage reader factories called directly in four modules | None | Import exporting modules, inject factories (F1, F3) |
+| MOD-14 | Medium | Test-only and dead web code in production tree | `lib/demo-state/*` and `mocks/` (about 4k lines) imported only by tests; `legacy-types.ts` redeclares about 40 types; `features/projects/live-finance-workspace.tsx` (770) imported only by its test | None | Delete or move to `test/fixtures` (F1) |
+| MOD-15 | Medium | Feature cross-coupling | analytics and rules-board import each other; analytics imported 28 times by other features; dashboard reaches into `../projects/` internals | None | `features/rules`, public `index.ts` per feature (S7, F4) |
+| MOD-16 | Medium | Web helper duplication | 10 `statusTone` definitions, 5 `formatDate`, 3 `plural`, 6 table header class constants, 6 local `can`/`has` permission wrappers, duplicated read resource keys (`finance-budgets`, `rule-binding-*`, others) | None | `lib/format`, `usePermission`, `<domain>.reads.ts` (F4, slices) |
+| MOD-17 | Low | Inconsistent layout and naming | API: missing `*.dto.ts` in six modules, several controllers per file in four, phase-coded names (`p07-w10-finalization-fault.ts`, `*.f5-gates.test.ts`, `c8-runtime.local.test.ts`), `developer-access.ts` holding identity types; web: six helper suffixes, `Owned*`/`Scoped*` prefixes, `ProjectPhaseFiveWorkspace`, 100 flat files in `features/projects` | None | Conventions in the modularization Change Record |
+| MOD-18 | Low | Dead package and stale root files | `packages/ui` exports one unused placeholder and is wired in five configs; root `Dockerfile` sets env keys nothing reads; root `tsconfig.json` is empty; `apps/api/.tmp` is orphaned | None | Delete (F1) |
+| MOD-19 | Low | Historical infra mixed with live tooling | Unreferenced: `infra/supabase/{phase5,phase7,pre-supporting,rule-based-access-alignment}`, most of `migration-reconciliation/`, deployment and recovery runners in `security-adapter/` and `session-liveness/`; the live replay gate sits in `phase6/` whose README lists 6 of 69 migrations | Replay runbooks | Delete historical (F1), rename `phase6` (W1) |
+| MOD-20 | Low | Tests not run by any gate | `scripts/db/*.test.mjs`, infra `*.test.mjs`, `scripts/migrations/test_*.py` (`test_catalogs.py` hard-codes 27 migrations) | QAD | Wire into CI or retire (W1) |
+| MOD-21 | Low | Seed scripts flat beside the schema | About 50 scripts in `apps/api/prisma/`; `local-demo-data.ts` is 1999 lines of fixtures; `hosted-realistic-seed.ts` has a 526-line `main()` and duplicated name lists | None | `prisma/seeds/{local,defense,hosted}` with per-domain data (W1) |
+
+Out of scope for the modularization (behavior, not structure):
+
+| ID | Severity | Finding | Evidence | Contract affected | Recommended disposition |
+|---|---|---|---|---|---|
+| MOD-B1 | Medium | Beneficiary age filter value drift | `features/beneficiaries/beneficiary-directory.tsx:103,403` offers `'5-9'`; API and shared accept `'0-9'` (`beneficiaries.service.ts:353`, `metric-contract.ts:13`) | SADDD | Separate fix |
+| MOD-B2 | Medium | Middleware matcher omits two staff routes | `apps/web/src/middleware.ts` matcher has no `/indicators` or `/transparency` though both route folders exist under `(dashboard)` | Route access (API still enforces) | Separate security review |
+
+## 3. Non-Findings / Verified Controls
+
+- Route `page.tsx` files are thin (32 lines or fewer); only `(staff-auth)/auth/update-password/page.tsx` (80) holds server logic.
+- `components/ui` is clean shadcn; `components/pathways` is generic shared UI apart from `proof-preview-dialog.tsx`.
+- API tests sit beside their sources; activities and imports tests are already split by concern.
+- Other web clients reuse the `requestFoundation` fetch core instead of re-implementing it.
+- `packages/config` and the `defense-snapshot-*` script family are already well split.
+- `src/prisma` and `src/types` in the API are clean.
+
+## 4. Required Closure Path
+
+All MOD-01 to MOD-21 findings are dispositioned by [cr-pathways-codebase-modularization](cr-pathways-codebase-modularization.md). MOD-B1 and MOD-B2 stay open for separate Change Records.
+
+## 5. Summary
+
+- High: 6 (MOD-01 to MOD-06). Medium: 10 (MOD-07 to MOD-16). Low: 5 (MOD-17 to MOD-21). Out of scope: 2 (MOD-B1, MOD-B2).
+- Highest-risk open items: the unchecked api/web rules duplication (MOD-01), the web-to-api source import (MOD-02) and the multi-responsibility API services (MOD-04).
