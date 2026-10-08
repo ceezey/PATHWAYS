@@ -21,7 +21,7 @@
     "sad:test": "vitest run --config scripts/sad/vitest.config.ts",
     "sad:typecheck": "tsc -p scripts/sad/tsconfig.json",
     "prepare": "node scripts/setup-husky.mjs",
-    "rules:dispatch": "tsx apps/api/src/rules-dispatcher.ts",
+    "rules:dispatch": "tsx --tsconfig apps/api/tsconfig.json apps/api/src/rules-dispatcher.ts",
     "db:local:start": "supabase start",
     "db:local:stop": "supabase stop",
     "db:local:reset": "node scripts/db/local-reset.mjs",
