@@ -11,7 +11,6 @@ PATHWAYS is a pnpm monorepo: one repository holding the web app, the API and the
 - `packages/shared`: shared types, enums, constants and Zod schemas
 - `packages/config`: environment readers and config helpers
 - `packages/imports`: CSV, XLSX and PDF import and export helpers
-- `packages/ui`: shared UI package (the web app keeps its own primitives in `apps/web/src/components/ui`)
 - `supabase`: the local Supabase stack configuration
 - `scripts`: local database, docs and SAD review scripts
 - `infra`: environment notes, Docker, and the Supabase migration and replay harnesses
