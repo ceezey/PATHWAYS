@@ -17,12 +17,7 @@ import { RoleOverviewService } from './role-overview.service'
     ActionCountsController,
     RoleOverviewController,
   ],
-  providers: [
-    DashboardsService,
-    AnalyticsService,
-    ActionCountsService,
-    RoleOverviewService,
-  ],
+  providers: [DashboardsService, AnalyticsService, ActionCountsService, RoleOverviewService],
   exports: [DashboardsService],
 })
 export class DashboardsModule {}
