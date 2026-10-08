@@ -20,7 +20,6 @@
 | Brand reference | [BRAND.md](../BRAND.md) | Working | Materialized from the DSD |
 | Design reference | [DESIGN.md](../DESIGN.md) | Working | Materialized from the DSD |
 | Setup guide | [README-setup.md](../README-setup.md) | Working | Local environment setup |
-| Design QA record | [design-qa.md](../design-qa.md) | Historical | 2026-09-08 staff-shell QA; describes a since-removed prototype mode |
 | Project instructions | [CLAUDE.md](../CLAUDE.md) | Control | Repository guidance for the AI assistant |
 
 ### 1.2 Suite
@@ -107,6 +106,7 @@ Workflow rule: an audit is finding and evidence, a Change Record is the approved
 | [Plan 2 cloud handoff](handoff-extensions-and-escalations.md) | handoff-extensions-and-escalations.md | 2026-10-04 | Paused state of Plan 2 Task 1 handed to the cloud session, with the SDD ledger rulings | Closed; resumed and completed |
 | [Defense seed snapshot design](superpowers/specs/2026-10-06-defense-seed-snapshot-design.md) | 2026-10-06-defense-seed-snapshot-design.md | 2026-10-06 | Local service seed with mirrored devV2 identities, restored onto devV2 in one transaction with triggers skipped and dates shifted | Approved |
 | [Defense seed snapshot plan](superpowers/plans/2026-10-06-defense-seed-snapshot.md) | 2026-10-06-defense-seed-snapshot.md | 2026-10-06 | Parsers, SQL builders, storage copy, CLI, local rehearsal and docs for the snapshot restore | Executed on feature branch; hosted restore pending |
+| [Dead code removal plan](superpowers/plans/2026-10-08-dead-code-removal.md) | 2026-10-08-dead-code-removal.md | 2026-10-08 | Parallel removal of unused files, exports and dependencies across apps, packages, scripts and infra | Executed on chore/dead-code-removal; merge to dev pending |
 
 ### 1.7 Traceability Matrix
 

@@ -9,7 +9,7 @@
 
 > Make durable design changes here first, then re-run `pnpm docs:materialize`. This document carries the Pathways brand, color and UI foundations as the target design. The implemented UI (`apps/web/src/app/globals.css`) is the current baseline; the gap between them is tracked in section 2.1 and is not yet shipped.
 
-**Verified source basis (2026-09-26):** `apps/web/src/app/globals.css`, `apps/web/tailwind.config.ts`, `apps/web/src/app/layout.tsx`, `apps/web/components.json`, `apps/web/src/components/ui/*`, `apps/web/src/components/pathways/*`, `apps/web/src/components/layout/*`, `apps/web/src/features/*`, `apps/web/src/constants/navigation.ts`, `apps/web/src/constants/display-labels.ts`, `apps/web/public/brand/pathways-mark.png`, and the historical `design-qa.md`.
+**Verified source basis (2026-09-26):** `apps/web/src/app/globals.css`, `apps/web/tailwind.config.ts`, `apps/web/src/app/layout.tsx`, `apps/web/components.json`, `apps/web/src/components/ui/*`, `apps/web/src/components/pathways/*`, `apps/web/src/components/layout/*`, `apps/web/src/features/*`, `apps/web/src/constants/navigation.ts`, `apps/web/src/constants/display-labels.ts`, and `apps/web/public/brand/pathways-mark.png`.
 
 ## 0. Brand Stance
 
@@ -1111,8 +1111,6 @@ Preserve existing direction:
 - mobile overflow containment
 - status text plus color
 - labelled modal/sheet controls
-
-The historical `design-qa.md` records a fixed mobile navigation close-control contrast issue and scoped focus/target-size evidence.
 
 Do not claim full WCAG conformance without a complete audit. Final-gate additions: measured contrast, 200% zoom/reflow, forced-colors, screen-reader sampling, chart/map alternatives.
 

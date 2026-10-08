@@ -691,8 +691,6 @@ Preserve existing direction:
 - status text plus color
 - labelled modal/sheet controls
 
-The historical `design-qa.md` records a fixed mobile navigation close-control contrast issue and scoped focus/target-size evidence.
-
 Do not claim full WCAG conformance without a complete audit. Final-gate additions: measured contrast, 200% zoom/reflow, forced-colors, screen-reader sampling, chart/map alternatives.
 ## 7. Design Review Settings
 
