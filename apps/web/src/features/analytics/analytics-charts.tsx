@@ -110,6 +110,7 @@ export const IndicatorProgressChart = ({ rows }: { rows: DescriptiveAnalysisRow[
   />
 )
 
+// Shared bucket chart with a plain-language fallback and a screen-reader table, so SadddChart and SurveyImprovementChart cannot drift.
 const AggregateBucketChart = ({
   buckets,
   label,
