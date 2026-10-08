@@ -554,3 +554,6 @@
 
 ## 2026-10-07 Budget section in the Project summary report (feat/report-budget-section)
 - The Project summary report gains a Budget section for actors holding both `budgets.read` and `expenses.read` (Project Managers among them): each active budget line, activity lines named by their activity, with planned amount, approved spending, spending in review (pending or verified) and remaining (planned minus approved). Rejected expenses are left out, at most 50 lines are shown, and the section appears in the designed PDF, the pdfkit PDF, CSV and XLSX. No migration; no new report type.
+
+## 2026-10-08 Readable analytics chart labels (dev)
+- Analytics charts wrap long indicator names on the descriptive bar chart and Indicator progress chart, center the "% of target" axis name, round bar labels to one decimal, and grow the progress chart height with row count.

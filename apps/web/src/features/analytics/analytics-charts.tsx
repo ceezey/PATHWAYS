@@ -1,7 +1,7 @@
 'use client'
 
 import { chartPalette, chartSignal } from '@/lib/chart-palette'
-import { formatCappedPercent } from '@/lib/percent'
+import { formatCappedPercent, roundPercent } from '@/lib/percent'
 import { type SadddDashboard, type SurveyGroup, formatMetricCell } from '@pathways/shared'
 import ReactECharts from 'echarts-for-react'
 
@@ -47,8 +47,12 @@ export const DescriptiveAnalysisChart = ({
         trigger: 'axis',
         valueFormatter: (value: number) => `${value.toLocaleString()} ${unit}`,
       },
-      grid,
-      xAxis: { type: 'category', data: rows.map((row) => row.label) },
+      grid: { ...grid, bottom: 8 },
+      xAxis: {
+        type: 'category',
+        data: rows.map((row) => row.label),
+        axisLabel: { ...wrappedLabel, interval: 0, width: 140 },
+      },
       yAxis: { type: 'value', min: 0, name: unit },
       series: [
         {
@@ -65,9 +69,13 @@ export const DescriptiveAnalysisChart = ({
 
 const grid = { left: 16, right: 16, top: 28, bottom: 18, containLabel: true }
 
+// Long indicator names wrap onto extra lines instead of being clipped or skipped.
+const wrappedLabel = { overflow: 'break' as const, lineHeight: 16 }
+
 export const IndicatorProgressChart = ({ rows }: { rows: DescriptiveAnalysisRow[] }) => (
   <ReactECharts
-    className="h-[320px] w-full"
+    className="w-full"
+    style={{ height: Math.max(320, rows.length * 64 + 60) }}
     option={{
       animation: false,
       aria: {
@@ -82,14 +90,21 @@ export const IndicatorProgressChart = ({ rows }: { rows: DescriptiveAnalysisRow[
             .map((item) => `${item.name}: ${formatCappedPercent(rows[item.dataIndex]?.value ?? 0)}`)
             .join('<br/>'),
       },
-      grid: { ...grid, left: 8, right: 48 },
+      grid: { ...grid, left: 8, right: 56, bottom: 36 },
       xAxis: {
         type: 'value',
         min: 0,
         max: 100,
         name: '% of target',
+        nameLocation: 'middle',
+        nameGap: 28,
       },
-      yAxis: { type: 'category', inverse: true, data: rows.map((row) => row.label) },
+      yAxis: {
+        type: 'category',
+        inverse: true,
+        data: rows.map((row) => row.label),
+        axisLabel: { ...wrappedLabel, width: 220 },
+      },
       series: [
         {
           name: 'Progress',
@@ -103,7 +118,7 @@ export const IndicatorProgressChart = ({ rows }: { rows: DescriptiveAnalysisRow[
             show: true,
             position: 'right',
             formatter: ({ dataIndex }: { dataIndex: number }) =>
-              (rows[dataIndex]?.value ?? 0) > 100 ? '100%+' : `${rows[dataIndex]?.value ?? 0}%`,
+              (rows[dataIndex]?.value ?? 0) > 100 ? '100%+' : `${roundPercent(rows[dataIndex]?.value ?? 0)}%`,
           },
         },
       ],
