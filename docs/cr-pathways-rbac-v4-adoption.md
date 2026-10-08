@@ -6,7 +6,7 @@
 
 ## 1. Trigger
 
-The rev-2026 manuscript carries a revised access matrix, `PATHWAYS - RBAC-v4.csv` (SHA-256 `c5bc22d33ce13c4fbad440173c25d4becf422c65e0152bfa93cb61553a69e3cc`). The repository contract still encodes the earlier `PATHWAYS - RBAC (revised).csv` (SHA-256 `ef1339d951a61d6d8f10c3463a91af696569c304b34614b077e8e485b0ebaafd`) plus amendments 0035, 0047, 0048 and 0051. The developer approved adopting v4 in the docs now and changing code in a separate follow-up (design spec `docs/superpowers/specs/2026-10-01-rbac-v4-figma-reconciliation-design.md`).
+The rev-2026 manuscript carries a revised access matrix, `PATHWAYS - RBAC-v4.csv` (SHA-256 `c5bc22d33ce13c4fbad440173c25d4becf422c65e0152bfa93cb61553a69e3cc`). The repository contract still encodes the earlier `PATHWAYS - RBAC (revised).csv` (SHA-256 `ef1339d951a61d6d8f10c3463a91af696569c304b34614b077e8e485b0ebaafd`) plus amendments 0035, 0047, 0048 and 0051. The developer approved adopting v4 in the docs now and changing code in a separate follow-up.
 
 ## 2. Current Contract
 

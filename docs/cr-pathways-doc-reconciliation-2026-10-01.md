@@ -6,7 +6,7 @@
 
 ## 1. Trigger
 
-The documentation suite had drifted from the running system, the rev-2026 capstone manuscript and the new Pathways brand, color and UI foundations. Before feature development resumes, the suite was rebuilt from a document-suite template skeleton into one reconciled baseline. The developer approved decisions D1 to D16 on 2026-10-01 (design spec `docs/superpowers/specs/2026-10-01-docs-canonical-reconciliation-design.md`).
+The documentation suite had drifted from the running system, the rev-2026 capstone manuscript and the new Pathways brand, color and UI foundations. Before feature development resumes, the suite was rebuilt from a document-suite template skeleton into one reconciled baseline. The developer approved decisions D1 to D16 on 2026-10-01.
 
 ## 2. Current Contract
 

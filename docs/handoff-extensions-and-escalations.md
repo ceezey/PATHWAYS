@@ -4,7 +4,6 @@ Paused 2026-10-04 23:55 (UTC+8) to move work to a cloud session.
 
 ## Where things are
 - Branch: `feature/session-sprint-20261004`, plan commit `78331349`.
-- Plan: `docs/superpowers/plans/2026-10-04-extensions-and-escalations.md` (Tasks 1-8).
 - Status: Task 1 in progress, Tasks 2-8 not started. The WIP checkpoint commit holds all Task 1 changes.
 
 ## Task 1 state (migration 0061)

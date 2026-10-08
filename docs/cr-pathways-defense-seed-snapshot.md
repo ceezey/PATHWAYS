@@ -6,7 +6,7 @@
 
 ## 1. Trigger
 
-The hosted devV2 reseed (`runbook-defense-demo.md` section 4) drives every service over the network for a long time and pauses twice for manual rules drains. Developer decision 2026-10-06 (`docs/superpowers/specs/2026-10-06-defense-seed-snapshot-design.md`): seed locally through the real services once and restore that data onto devV2.
+The hosted devV2 reseed (`runbook-defense-demo.md` section 4) drives every service over the network for a long time and pauses twice for manual rules drains. Developer decision 2026-10-06: seed locally through the real services once and restore that data onto devV2.
 
 ## 2. Current Contract
 

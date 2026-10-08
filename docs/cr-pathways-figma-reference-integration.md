@@ -6,7 +6,7 @@
 
 ## 1. Trigger
 
-The developer asked to integrate the PATHWAYS Figma component board into the docs so UI work can reuse its patterns, and decided the board is sample UI and reference only. The same wave folds the still-valid guidance of two local-only module references into DSD (design spec `docs/superpowers/specs/2026-10-01-rbac-v4-figma-reconciliation-design.md`, decisions E5 to E8).
+The developer asked to integrate the PATHWAYS Figma component board into the docs so UI work can reuse its patterns, and decided the board is sample UI and reference only. The same wave folds the still-valid guidance of two local-only module references into DSD (decisions E5 to E8).
 
 ## 2. Current Contract
 

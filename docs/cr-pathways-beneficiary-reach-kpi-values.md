@@ -3,7 +3,6 @@
 **ID:** `cr-pathways-beneficiary-reach-kpi-values`
 **Date:** 2026-10-06
 **Status:** Applied (2026-10-06; 0066 on PATHWAYS-devV2, 41-row ledger; fast slice on origin/dev, PR #45)
-**Spec:** `docs/superpowers/specs/2026-10-06-beneficiary-reach-kpi-values-design.md`
 
 ## 1. Change
 

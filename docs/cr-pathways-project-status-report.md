@@ -1,6 +1,6 @@
 # CR: Project status report
 
-Status: implemented (2026-10-06; merged to master in PR #44, no migration). Spec: docs/superpowers/specs/2026-10-06-project-status-report-design.md.
+Status: implemented (2026-10-06; merged to master in PR #44, no migration).
 
 ## Scope
 

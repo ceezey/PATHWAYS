@@ -93,19 +93,7 @@ Workflow rule: an audit is finding and evidence, a Change Record is the approved
 
 | Spec | File | Date | Scope | Status |
 |---|---|---|---|---|
-| [Docs canonical reconciliation](superpowers/specs/2026-10-01-docs-canonical-reconciliation-design.md) | 2026-10-01-docs-canonical-reconciliation-design.md | 2026-10-01 | Rebuild and reconcile the documentation suite into a canonical baseline | Draft; developer review pending |
-| [Docs canonical reconciliation plan](superpowers/plans/2026-10-01-docs-canonical-reconciliation.md) | 2026-10-01-docs-canonical-reconciliation.md | 2026-10-01 | Task-by-task implementation plan for the reconciliation spec | Approved; in progress |
-| [Core gap closure plan](superpowers/plans/2026-10-01-core-gap-closure.md) | 2026-10-01-core-gap-closure.md | 2026-10-01 | Close the six gaps left after the core-feature integration | Executed; integrated into dev |
-| [Replay harness modernization plan](superpowers/plans/2026-10-01-replay-harness-modernization.md) | 2026-10-01-replay-harness-modernization.md | 2026-10-01 | Parallel-safe, faster local migration replays with drift detection | Written; not started |
-| [RBAC v4 and Figma reference reconciliation](superpowers/specs/2026-10-01-rbac-v4-figma-reconciliation-design.md) | 2026-10-01-rbac-v4-figma-reconciliation-design.md | 2026-10-01 | Adopt manuscript RBAC v4 in docs; add a non-authoritative Figma reference section to DSD | Approved |
-| [RBAC v4 and Figma reference reconciliation plan](superpowers/plans/2026-10-01-rbac-v4-figma-reconciliation.md) | 2026-10-01-rbac-v4-figma-reconciliation.md | 2026-10-01 | Task-by-task plan for the RBAC v4 and Figma reference spec | Executed; merged into dev |
-| [Role dashboards plan](superpowers/plans/2026-10-04-role-dashboards.md) | 2026-10-04-role-dashboards.md | 2026-10-04 | Role-specific dashboards from one read-only overview endpoint | Executed; integrated into dev pending |
-| [Extension requests and escalated alerts plan](superpowers/plans/2026-10-04-extensions-and-escalations.md) | 2026-10-04-extensions-and-escalations.md | 2026-10-04 | Activity extension requests (0061) and the read-only escalated-alerts queue (0062) on the role dashboards | Executed; on dev and applied to devV2 |
-| [Designed PDF reports design](superpowers/specs/2026-10-05-f12-puppeteer-pdf-design.md) | 2026-10-05-f12-puppeteer-pdf-design.md | 2026-10-05 | Puppeteer-rendered designed PDF reports from a print route with the pdfkit fallback | Executed on feature branch; hosted verification pending |
-| [Designed PDF reports plan](superpowers/plans/2026-10-05-f12-puppeteer-pdf.md) | 2026-10-05-f12-puppeteer-pdf.md | 2026-10-05 | Renderer module, generate wiring, print route, docs and local check | Executed on feature branch; hosted verification pending |
 | [Plan 2 cloud handoff](handoff-extensions-and-escalations.md) | handoff-extensions-and-escalations.md | 2026-10-04 | Paused state of Plan 2 Task 1 handed to the cloud session, with the SDD ledger rulings | Closed; resumed and completed |
-| [Defense seed snapshot design](superpowers/specs/2026-10-06-defense-seed-snapshot-design.md) | 2026-10-06-defense-seed-snapshot-design.md | 2026-10-06 | Local service seed with mirrored devV2 identities, restored onto devV2 in one transaction with triggers skipped and dates shifted | Approved |
-| [Defense seed snapshot plan](superpowers/plans/2026-10-06-defense-seed-snapshot.md) | 2026-10-06-defense-seed-snapshot.md | 2026-10-06 | Parsers, SQL builders, storage copy, CLI, local rehearsal and docs for the snapshot restore | Executed on feature branch; hosted restore pending |
 | [Dead code removal plan](superpowers/plans/2026-10-08-dead-code-removal.md) | 2026-10-08-dead-code-removal.md | 2026-10-08 | Parallel removal of unused files, exports and dependencies across apps, packages, scripts and infra | Executed on chore/dead-code-removal; merge to dev pending |
 
 ### 1.7 Traceability Matrix
