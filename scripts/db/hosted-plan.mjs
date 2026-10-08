@@ -273,7 +273,7 @@ const PRIOR_BUILD_COMPLETION_POINTS = [
 
 // The migrations whose completion is ambiguous with a residual temporary owner chain, and the
 // cleanup step that revokes it.
-export const RESIDUAL_CHAIN_CLEANUPS = Object.freeze({
+const RESIDUAL_CHAIN_CLEANUPS = Object.freeze({
   '0041_activity_media_evidence': 'activity-media',
   '0044_activity_progress_review': 'activity-review',
   '0053_expense_submit_race': 'expense-submit',
