@@ -4,7 +4,7 @@ Updated: 2026-10-01. Registry and statuses live in `index.md`.
 
 ## Milestone
 
-The suite is reconciled to one canonical baseline under [the documentation reconciliation Change Record](cr-pathways-doc-reconciliation-2026-10-01.md) (Applied): repository, then rev-2026 manuscript, then the new design foundations as target only. The UI migration to those foundations, the AWS strategy and every Not met gate are registered in [deferred-features](deferred-features.md). Production release is gated by the [manuscript alignment audit](audit-pathways-manuscript-alignment-20261001.md).
+The suite is reconciled to one canonical baseline under the [doc reconciliation runbook](runbook-doc-reconciliation.md): repository, then rev-2026 manuscript, then the new design foundations as target only. The UI migration to those foundations, the AWS strategy and every Not met gate are registered in [deferred-features](deferred-features.md). Production release is gated by the [manuscript alignment audit](audit-pathways-manuscript-alignment-20261001.md).
 
 The earlier [revised RBAC and migration baseline Change Record](cr-pathways-revised-rbac-baseline.md) is Applied and remains the authorization baseline.
 

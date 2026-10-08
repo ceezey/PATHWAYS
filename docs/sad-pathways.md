@@ -207,6 +207,7 @@ Agent definitions live in `.claude/agents/` and are read by Claude Code. They de
 - Changing a role, trigger glob or model is a SAD change and must update `scripts/sad/check.ts` and `.claude/agents/` together.
 - Keep review reports and manifests outside tracked files.
 - Run `pnpm sad:test` and `pnpm sad:typecheck` after any checker change.
+- Historical records cite pre-2026-10-01 SAD numbers: old 1 is now 3.1, old 2 is 3.2, old 3 is 4.1, old 3.1 is 4.2, old 4 is 4.3 and old 5 is 4.4.
 
 ## Self-Check
 
