@@ -1,10 +1,10 @@
 // Approved step-up contract: cr-pathways-beneficiary-step-up (Option A).
 // Freshness is derived only from the verified signed `amr` TOTP timestamp.
 export const STEP_UP_WINDOW_SECONDS = 15 * 60
-export const STEP_UP_CLOCK_SKEW_SECONDS = 30
+const STEP_UP_CLOCK_SKEW_SECONDS = 30
 export const STEP_UP_REQUIRED_CODE = 'STEP_UP_REQUIRED'
 
-export type BeneficiaryStepUpState =
+type BeneficiaryStepUpState =
   | { fresh: true; verifiedAt: number; expiresAt: number }
   | { fresh: false; reason: 'MISSING' | 'STALE' }
 

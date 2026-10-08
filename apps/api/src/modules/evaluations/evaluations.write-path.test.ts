@@ -1,4 +1,4 @@
-import { type BadRequestException, ForbiddenException } from '@nestjs/common'
+import { ForbiddenException } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { PrismaService } from '../../prisma/prisma.service'

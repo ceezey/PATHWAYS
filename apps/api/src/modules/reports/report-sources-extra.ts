@@ -5,7 +5,7 @@ import { z } from 'zod'
 import type { ApplicationIdentity } from '../auth/developer-access'
 import { classifyScoreCommentary } from '../evaluations/evaluation-metrics'
 
-export type ExtraReportKind = 'MONITORING_REPORT' | 'EVALUATION_REPORT'
+type ExtraReportKind = 'MONITORING_REPORT' | 'EVALUATION_REPORT'
 export const isExtraReportKind = (kind: string): kind is ExtraReportKind =>
   kind === 'MONITORING_REPORT' || kind === 'EVALUATION_REPORT'
 // Both extra kinds read monitoring data, so they also need monitoring.read on top of the kind grant.

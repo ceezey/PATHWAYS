@@ -21,7 +21,7 @@ export const operations = [
   'INDICATOR_ARCHIVE',
   'INDICATOR_MEASUREMENT',
 ] as const
-export type SourceOperation = (typeof operations)[number]
+type SourceOperation = (typeof operations)[number]
 export type SourceRequestKey =
   | { kind: 'CLIENT_MUTATION'; id: string }
   | { kind: 'CLIENT_MEASUREMENT'; id: string }
@@ -41,10 +41,7 @@ const day = z.string().refine(isCalendarDate)
 const ack = z
   .object({ requestId: uuid, committed: z.literal(true), replayed: z.boolean() })
   .strict()
-export type MutationAcknowledgement = z.infer<typeof ack>
-export type SourceMutationResult<T> =
-  | (T & { sourceAcknowledgement: MutationAcknowledgement })
-  | MutationAcknowledgement
+type MutationAcknowledgement = z.infer<typeof ack>
 const generated = z
   .object({
     timestamp: instant,
@@ -65,7 +62,7 @@ const measurementGenerated = generated
     requestHash: z.string().regex(/^[a-f0-9]{64}$/),
   })
   .strict()
-export type SourceOperationStart =
+type SourceOperationStart =
   | { kind: 'REPLAY'; acknowledgement: MutationAcknowledgement }
   | {
       kind: 'NEW'
@@ -330,7 +327,7 @@ export async function finishRuleSourceOperation(
   return parsed.data
 }
 
-export type SourceAbandonment = MutationAcknowledgement | { requestId: string; abandoned: true }
+type SourceAbandonment = MutationAcknowledgement | { requestId: string; abandoned: true }
 export async function abandonRuleSourceOperation(
   tx: Prisma.TransactionClient,
   operation: SourceOperation,

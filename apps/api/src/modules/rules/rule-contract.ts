@@ -7,7 +7,7 @@ import {
 import { z } from 'zod'
 
 export const RULE_CONTRACT_VERSION = 'f10.v1' as const
-export const MAX_GROUP_DEPTH = 4
+const MAX_GROUP_DEPTH = 4
 export const MAX_CONDITIONS = 32
 export const ruleMetrics = [
   'INDICATOR_CURRENT_VALUE',
@@ -53,7 +53,7 @@ export type RuleCondition = {
 export type RuleGroup = { kind: 'GROUP'; mode: 'AND' | 'OR'; children: RuleNode[] }
 export type RuleNode = RuleCondition | RuleGroup
 
-export function validateMetricDomain(metric: RuleMetricKey, value: string) {
+function validateMetricDomain(metric: RuleMetricKey, value: string) {
   if (['ACTIVITY_COMPLETION_PERCENT', 'BENEFICIARY_FOLLOW_UP_PERCENT'].includes(metric))
     normalizeMetricDecimal(value, 'PERCENTAGE')
   if (metric === 'SURVEY_MEAN_IMPROVEMENT_POINTS') {

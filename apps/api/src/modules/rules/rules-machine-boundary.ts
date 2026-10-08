@@ -12,7 +12,7 @@ import { machineRequestEntry } from '../../common/network/machine-request-budget
 export const MACHINE_PURPOSE = 'pathways:rules-machine-purpose'
 export type Purpose = 'DRAIN' | 'SWEEP'
 export type MachineConfig = Readonly<{ enabled: boolean; drainToken: string; sweepToken: string }>
-export type Binding = Readonly<{
+type Binding = Readonly<{
   controller: Type<object>
   handler: (...args: never[]) => unknown
   purpose: Purpose

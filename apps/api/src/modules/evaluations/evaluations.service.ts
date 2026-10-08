@@ -28,7 +28,7 @@ const dateOnly = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/)
   .refine((value) => !Number.isNaN(new Date(`${value}T00:00:00.000Z`).valueOf()))
-export const createEvaluationSchema = z
+const createEvaluationSchema = z
   .object({
     clientRequestId: z.string().uuid(),
     title: z.string().trim().min(1).max(200),
@@ -47,23 +47,22 @@ export const saveScoresSchema = z
     commentary: z.string().trim().max(4000).optional(),
   })
   .strict()
-export const submitEvaluationSchema = z
+const submitEvaluationSchema = z
   .object({ expectedUpdatedAt: z.string().datetime({ offset: true }) })
   .strict()
-export const returnEvaluationSchema = z
+const returnEvaluationSchema = z
   .object({
     expectedUpdatedAt: z.string().datetime({ offset: true }),
     reason: z.string().trim().min(1).max(2000),
   })
   .strict()
-export const signoffEvaluationSchema = z
+const signoffEvaluationSchema = z
   .object({
     expectedUpdatedAt: z.string().datetime({ offset: true }),
     feedback: z.string().trim().min(1).max(2000),
   })
   .strict()
 
-type Tx = Prisma.TransactionClient
 const person = { select: { id: true, fullName: true } } as const
 const named = (value: { id: string; fullName: string } | null) =>
   value ? { id: value.id, name: value.fullName.slice(0, 200) } : null

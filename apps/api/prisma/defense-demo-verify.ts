@@ -5,10 +5,10 @@ import { addDaysIso } from './local-demo-data'
 import { type StaffKey, manilaToday } from './local-demo-seed'
 import type { RuntimeTx } from './local-demo-util'
 
-export type Check = { check: string; ok: boolean; detail: string; skipped?: true }
+type Check = { check: string; ok: boolean; detail: string; skipped?: true }
 
 /** Runs a read as one staff member; tables with forced row level security hide rows from the owner. */
-export type Scoped = <T>(as: StaffKey, run: (tx: RuntimeTx) => Promise<T>) => Promise<T>
+type Scoped = <T>(as: StaffKey, run: (tx: RuntimeTx) => Promise<T>) => Promise<T>
 
 /** Read-only checks that the defense dataset has everything the walkthrough needs. */
 export async function verifyDefenseDemo(

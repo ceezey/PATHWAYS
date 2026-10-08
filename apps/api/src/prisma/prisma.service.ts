@@ -21,7 +21,7 @@ export interface VerifiedDatabaseContext {
   sessionId?: string
 }
 
-export interface VerifiedTransactionOptions {
+interface VerifiedTransactionOptions {
   timeoutMs?: number
   /** Internal aggregate/report callers only; never derived from an HTTP payload. */
   isolationLevel?: 'RepeatableRead'

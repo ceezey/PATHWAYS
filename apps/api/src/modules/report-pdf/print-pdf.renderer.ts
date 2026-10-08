@@ -62,7 +62,7 @@ const RENDER_DEADLINE_MS = 40_000
 const PROTOCOL_TIMEOUT_MS = 20_000
 type Shared = { browser: Browser; pending: Promise<Browser> }
 
-export type PrintPdfRequest = {
+type PrintPdfRequest = {
   /** Path on the web origin, already encoded, such as `/print/reports/<id>`. */
   path: string
   /** Global the page reads its authorized snapshot from before navigation. */

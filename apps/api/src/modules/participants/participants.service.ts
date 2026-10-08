@@ -20,14 +20,14 @@ type Tx = Prisma.TransactionClient
 const attendanceValues = ['PRESENT', 'ABSENT', 'COMPLETED', 'NOT_COMPLETED', 'EXCUSED'] as const
 const progressValues = ['NOT_STARTED', 'IN_PROGRESS', 'COMPLETED', 'NEEDS_FOLLOW_UP'] as const
 
-export interface ParticipationFormContract {
+interface ParticipationFormContract {
   id: string
   version: number
   activityId: string | null
   journeyStageId: string | null
 }
 
-export interface ParticipationPromotionInput {
+interface ParticipationPromotionInput {
   projectId: string
   form: ParticipationFormContract
   submissionId: string

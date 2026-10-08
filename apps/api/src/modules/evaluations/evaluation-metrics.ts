@@ -20,8 +20,8 @@ export type CriterionType = (typeof criterionTypes)[number]
 
 // A stored score is always a number; a criterion without data scores 0 and its commentary starts
 // with the marker below so the reason survives a refetch.
-export type ComputedScoreResult = { score: string; commentary: string }
-export const noDataPrefix = 'No data: '
+type ComputedScoreResult = { score: string; commentary: string }
+const noDataPrefix = 'No data: '
 
 // Clamps an uncapped percentage to the 0-100 range a criterion score can represent.
 const clampPercent = (value: string) => Math.max(0, Math.min(100, Number(value)))

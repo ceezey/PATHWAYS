@@ -1,9 +1,8 @@
-import { type ProjectKey, addDaysIso, demoActivities, demoProjects } from './local-demo-data'
+import { type ProjectKey, addDaysIso } from './local-demo-data'
 import type { DemoContext } from './local-demo-seed'
-import { activityCode } from './local-demo-stage-activities'
 import { projectOf, step } from './local-demo-util'
 
-export type Pair = { pre: number; post: number }
+type Pair = { pre: number; post: number }
 
 /** Hygiene knowledge check of eight learners: every learner improves a little, so the mean gain
  * stays under 20 points and improved, same and declined counts are each zero or at least five. */

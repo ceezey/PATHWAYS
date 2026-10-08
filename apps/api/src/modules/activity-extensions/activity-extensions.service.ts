@@ -57,7 +57,7 @@ const day = (value: Date | null) => (value ? value.toISOString().slice(0, 10) : 
 const named = (value: { id: string; fullName: string } | null) =>
   value ? { id: value.id, name: value.fullName.slice(0, 200) } : null
 
-export function mapExtension(row: ExtensionRow): ActivityExtension {
+function mapExtension(row: ExtensionRow): ActivityExtension {
   return {
     id: row.id,
     projectId: row.projectId,

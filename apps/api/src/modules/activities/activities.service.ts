@@ -28,7 +28,6 @@ import { projectScope } from '../auth/authorized-data.service'
 import { withAuthorizedOperation } from '../auth/authorized-operation'
 import { type ApplicationIdentity, UUID_PATTERN } from '../auth/developer-access'
 import {
-  PrivateInspectionReadError,
   type UploadVerification,
   createPrivateUploadVerifier,
 } from '../storage/private-inspection-reader'
@@ -411,7 +410,7 @@ function hasExplanationSinceDue(explanations: { recordedAt: Date }[], plannedEnd
 }
 
 /** A plain object, so server-computed per-item fields can be added without a detail read. */
-export function mapActivityListItem(row: ActivityListRow, businessDate: string) {
+function mapActivityListItem(row: ActivityListRow, businessDate: string) {
   const presentation = activityPresentationStatus(row.status, row.plannedEndDate, businessDate)
   return {
     id: row.id,
@@ -461,7 +460,7 @@ export function activityEvidenceType(contentType: ActivityEvidenceContentType) {
       : ('DOCUMENT' as const)
 }
 
-export function activityEvidenceLimits(maxFileBytes: number) {
+function activityEvidenceLimits(maxFileBytes: number) {
   return {
     maxFiles: MAX_ACTIVITY_EVIDENCE_FILES,
     maxFileBytes,

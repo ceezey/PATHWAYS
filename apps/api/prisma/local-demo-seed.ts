@@ -117,12 +117,6 @@ export function identityFor(
   }
 }
 
-export function requireId(map: Map<ProjectKey, string>, key: ProjectKey) {
-  const id = map.get(key)
-  if (!id) throw new Error(`Project ${key} is not available.`)
-  return id
-}
-
 /** The report service uploads CSV reports as "text/csv; charset=utf-8", which the private bucket's
  * allow list ("text/csv") rejects with a 503 on the local storage server. Only this local bucket
  * is widened, so a CSV report can also be generated live during a demonstration. */

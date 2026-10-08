@@ -258,7 +258,7 @@ export const journeyStages: Partial<Record<ProjectKey, StageSpec[]>> = {
   ],
 }
 
-export type AttendanceFormSpec = {
+type AttendanceFormSpec = {
   code: string
   name: string
   activityKey: string
@@ -373,7 +373,7 @@ export async function activityId(ctx: DemoContext, project: DemoProject, key: st
 
 /** Creates a form as the author (Monitoring and Evaluation Officer or Project Officer), then has
  * the System Administrator publish it, because an author cannot publish their own form. */
-export async function createAndPublish(
+async function createAndPublish(
   ctx: DemoContext,
   projectId: string,
   author: DemoContext['staff']['me'],

@@ -8,7 +8,7 @@ import {
 import type { DemoContext } from './local-demo-seed'
 import { projectOf, step } from './local-demo-util'
 
-export type Outcome = {
+type Outcome = {
   project: ProjectKey
   /** Indexes into the project's planned cohort. */
   people: number[]

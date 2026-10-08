@@ -2,7 +2,7 @@ import { type ProjectKey, addDaysIso } from './local-demo-data'
 import type { DemoContext } from './local-demo-seed'
 import { projectOf, step } from './local-demo-util'
 
-export const registrationHeaders = [
+const registrationHeaders = [
   'Registration operation',
   'Beneficiary code',
   'Subject type',
@@ -22,7 +22,7 @@ export const registrationHeaders = [
   'Enrollment date',
 ]
 
-export type HistoricRow = {
+type HistoricRow = {
   code: string
   first: string
   middle: string

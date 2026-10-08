@@ -52,7 +52,7 @@ type OverviewInput = {
 const DAY_MS = 86_400_000
 const SEVERITY = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW']
 const closed = new Set(['COMPLETED', 'CANCELLED'])
-export const statusLabel: Record<StatusLevel, string> = {
+const statusLabel: Record<StatusLevel, string> = {
   ON_TRACK: 'ON TRACK',
   AT_RISK: 'AT RISK',
   OFF_TRACK: 'OFF TRACK',

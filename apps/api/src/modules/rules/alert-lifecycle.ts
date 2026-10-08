@@ -8,9 +8,9 @@ export const alertStatuses = [
   'DISMISSED',
   'AUTO_RESOLVED',
 ] as const
-export type AlertStatus = (typeof alertStatuses)[number]
+type AlertStatus = (typeof alertStatuses)[number]
 export const decisionOutcomes = ['ACCEPT', 'PARTIALLY_ACCEPT', 'DECLINE', 'ESCALATE'] as const
-export type DecisionOutcome = (typeof decisionOutcomes)[number]
+type DecisionOutcome = (typeof decisionOutcomes)[number]
 const terminal = new Set<AlertStatus>(['RESOLVED', 'DISMISSED', 'AUTO_RESOLVED'])
 const sequenceSchema = z.string().regex(/^(?:0|[1-9]\d{0,18})$/)
 const cursorSchema = z
@@ -37,7 +37,7 @@ const cursorSchema = z
         message: 'Episode latch and lifecycle state are inconsistent.',
       })
   })
-export type EpisodeCursor = z.infer<typeof cursorSchema>
+type EpisodeCursor = z.infer<typeof cursorSchema>
 export const initialEpisodeCursor = (): EpisodeCursor => ({
   lastSequence: '0',
   latched: false,
@@ -86,13 +86,12 @@ export function supersedeEpisode(input: unknown): EpisodeCursor {
 }
 
 const note = z.string().trim().min(1).max(2000)
-export const humanActionSchema = z.discriminatedUnion('kind', [
+const humanActionSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('REVIEW') }).strict(),
   z.object({ kind: z.literal('OUTCOME'), outcome: z.enum(decisionOutcomes), note }).strict(),
   z.object({ kind: z.literal('RESOLVE'), note }).strict(),
   z.object({ kind: z.literal('DISMISS'), note }).strict(),
 ])
-export type HumanAction = z.infer<typeof humanActionSchema>
 
 /** Pure transition only: the future service must authorize each written resource separately. */
 export function applyHumanAction(
@@ -126,10 +125,6 @@ export function applyHumanAction(
     outcome: null,
     note: action.note,
   }
-}
-
-export function isOpenAlert(status: AlertStatus) {
-  return !terminal.has(status)
 }
 
 /** A recommendation auto-resolves only while it is NEW or REVIEWED and has no recorded decision. */

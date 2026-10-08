@@ -14,7 +14,7 @@ export type PrintSnapshot = {
 }
 const reportIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
-export type ReportPdfStage = PrintPdfStage
+type ReportPdfStage = PrintPdfStage
 
 /** Every render failure carries a fixed message, the failing stage and the original error name only. */
 export class ReportPdfError extends Error {

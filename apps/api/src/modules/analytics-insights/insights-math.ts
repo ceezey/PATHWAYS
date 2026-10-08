@@ -1,8 +1,8 @@
 import type { Prisma } from '@prisma/client'
 
-export const SMALL_CELL_MAX = 4
+const SMALL_CELL_MAX = 4
 
-export type SuppressedCell = { count: number | null; suppressed: boolean }
+type SuppressedCell = { count: number | null; suppressed: boolean }
 
 const isSmall = (n: number) => n >= 1 && n <= SMALL_CELL_MAX
 
@@ -32,7 +32,7 @@ export function suppressBreakdown<T extends { count: number }>(total: number, it
   }
 }
 
-export type MeasurementRow = {
+type MeasurementRow = {
   id: string
   indicatorId: string
   periodStart: Date

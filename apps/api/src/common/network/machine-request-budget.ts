@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { performance } from 'node:perf_hooks'
 
-export interface MachineRequestEntry {
+interface MachineRequestEntry {
   readonly enteredAt: number
   readonly deadlineAt: number
   readonly signal: AbortSignal

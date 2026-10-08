@@ -202,7 +202,7 @@ export class RecordActivityProgressDto {
   note!: string
 }
 
-export const overdueExplanationCategories = [
+const overdueExplanationCategories = [
   'WEATHER',
   'SECURITY',
   'FUNDING',
@@ -210,7 +210,7 @@ export const overdueExplanationCategories = [
   'LOGISTICS',
   'OTHER',
 ] as const
-export type OverdueExplanationCategory = (typeof overdueExplanationCategories)[number]
+type OverdueExplanationCategory = (typeof overdueExplanationCategories)[number]
 
 export class RecordOverdueExplanationDto {
   @IsUUID()
