@@ -117,7 +117,9 @@ export const IndicatorProgressChart = ({ rows }: { rows: DescriptiveAnalysisRow[
             show: true,
             position: 'right',
             formatter: ({ dataIndex }: { dataIndex: number }) =>
-              (rows[dataIndex]?.value ?? 0) > 100 ? '100%+' : `${roundPercent(rows[dataIndex]?.value ?? 0)}%`,
+              (rows[dataIndex]?.value ?? 0) > 100
+                ? '100%+'
+                : `${roundPercent(rows[dataIndex]?.value ?? 0)}%`,
           },
         },
       ],
