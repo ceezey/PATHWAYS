@@ -572,3 +572,7 @@
 - Rewrote `README-setup.md` for the current workflow (local stack through `pnpm dev:local`, hosted development through `pnpm dev`, real ports and Swagger gating), refreshed the `README.md` stack table and quick start, and re-materialized `BRAND.md` and `DESIGN.md`, which had drifted behind `docs/dsd-pathways.md`.
 - Removed the finished defense-sprint `CRISIS_PLAN.md` and the demo workbook `docs/project-report-template.xlsx`.
 - Removed `docs/ui-ux-pathways-reference/` (the brand, color and UI foundation sources and images the DSD transcribed); `docs/dsd-pathways.md` is the sole design authority, and `BRAND.md` and `DESIGN.md` were re-materialized.
+
+## 2026-10-09 Codebase modularization design (docs/codebase-modularization)
+- Read-only audit of the repository recorded in audit-pathways-codebase-modularity-20261009 (MOD-01 to MOD-21 plus two out-of-scope behavior findings, MOD-B1 age filter drift and MOD-B2 middleware matcher).
+- Design recorded in cr-pathways-codebase-modularization (Approved 2026-10-09): layout conventions, dependency direction, zod contracts in packages/shared, and a 13 sub-project roadmap under full release gates. No code changed.
