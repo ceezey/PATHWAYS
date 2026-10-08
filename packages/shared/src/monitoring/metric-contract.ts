@@ -290,9 +290,8 @@ export const monitoringIndicatorSchema = z
   .strict()
 export type MonitoringIndicator = z.infer<typeof monitoringIndicatorSchema>
 export const monitoringIndicatorListSchema = z.array(monitoringIndicatorSchema).max(100)
-export const projectIndicatorSchema = monitoringIndicatorSchema
-export type ProjectIndicator = z.infer<typeof projectIndicatorSchema>
-export const projectIndicatorListSchema = z.array(projectIndicatorSchema).max(100)
+export type ProjectIndicator = z.infer<typeof monitoringIndicatorSchema>
+export const projectIndicatorListSchema = z.array(monitoringIndicatorSchema).max(100)
 
 export const dashboardQuerySchema = z
   .object({

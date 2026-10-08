@@ -112,8 +112,8 @@ import {
   descriptiveAnalyticsSchema,
   formatMetricCell,
   monitoringDashboardSchema,
+  monitoringIndicatorSchema,
   projectIndicatorListSchema,
-  projectIndicatorSchema,
   roleOverviewSchema,
   sadddDashboardSchema,
   sadddQuerySchema,
@@ -1170,7 +1170,7 @@ class BackendReadyPathwaysClient implements PathwaysClient {
   }
 
   async getProjectIndicator(projectId: string, indicatorId: string): Promise<ProjectIndicator> {
-    return projectIndicatorSchema.parse(
+    return monitoringIndicatorSchema.parse(
       await requestFoundation(
         `/projects/${encodeURIComponent(projectId)}/indicators/${encodeURIComponent(indicatorId)}`,
       ),
@@ -1187,7 +1187,7 @@ class BackendReadyPathwaysClient implements PathwaysClient {
       'POST',
       input,
       context,
-      (value) => projectIndicatorSchema.parse(value),
+      (value) => monitoringIndicatorSchema.parse(value),
     )
   }
 
@@ -1201,7 +1201,7 @@ class BackendReadyPathwaysClient implements PathwaysClient {
       'POST',
       input,
       context,
-      (value) => projectIndicatorSchema.parse(value),
+      (value) => monitoringIndicatorSchema.parse(value),
     )
   }
 
@@ -1216,7 +1216,7 @@ class BackendReadyPathwaysClient implements PathwaysClient {
       'PATCH',
       input,
       context,
-      (value) => projectIndicatorSchema.parse(value),
+      (value) => monitoringIndicatorSchema.parse(value),
     )
   }
 
@@ -1240,7 +1240,7 @@ class BackendReadyPathwaysClient implements PathwaysClient {
           { method: 'POST', body: JSON.stringify(captured) },
           context.isCurrent,
         ),
-      (value) => projectIndicatorSchema.parse(value),
+      (value) => monitoringIndicatorSchema.parse(value),
       { requestId: clientMeasurementId, keyField: 'clientMeasurementId', allowLegacy: true },
     )
   }
@@ -1256,7 +1256,7 @@ class BackendReadyPathwaysClient implements PathwaysClient {
       'POST',
       { expectedRevision },
       context,
-      (value) => projectIndicatorSchema.parse(value),
+      (value) => monitoringIndicatorSchema.parse(value),
     )
   }
 

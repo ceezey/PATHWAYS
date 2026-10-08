@@ -11,7 +11,6 @@ import {
   monitoringIndicatorSchema,
   normalizeMetricDecimal,
   numericMetric,
-  projectIndicatorSchema,
   sadddAgeBands,
   validateMetricPeriod,
 } from './metric-contract'
@@ -243,15 +242,16 @@ describe('retired project benchmark contract', () => {
     contractVersion: 'p06.v1',
   }
   it('uses one strict active project/monitoring schema and rejects a retired comparison', () => {
-    expect(projectIndicatorSchema).toBe(monitoringIndicatorSchema)
-    expect(projectIndicatorSchema.safeParse(indicator).success).toBe(true)
+    expect(monitoringIndicatorSchema.safeParse(indicator).success).toBe(true)
     expect(
-      projectIndicatorSchema.safeParse({
+      monitoringIndicatorSchema.safeParse({
         ...indicator,
         projectGoalComparison: { state: 'AT_TARGET', reason: null },
       }).success,
     ).toBe(false)
-    expect(projectIndicatorSchema.safeParse({ ...indicator, targetGoal: '50' }).success).toBe(false)
+    expect(monitoringIndicatorSchema.safeParse({ ...indicator, targetGoal: '50' }).success).toBe(
+      false,
+    )
   })
   it('keeps own baseline-target progress and unavailable denominators unchanged', () => {
     expect(indicatorProgress(numericMetric('20'), '10', '30', 'HIGHER_IS_BETTER')).toMatchObject({
