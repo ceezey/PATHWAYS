@@ -49,4 +49,3 @@ export const formTemplates = {
 } as const satisfies Record<string, TemplateDefinition>
 
 export type FormTemplateKey = keyof typeof formTemplates
-export const formTemplateKeys = Object.keys(formTemplates) as FormTemplateKey[]

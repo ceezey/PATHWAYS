@@ -61,10 +61,6 @@ export const createRuleSchema = z
 export const draftRuleSchema = z
   .object({ ...content, expectedVersion: version, clientOperationId: uuidSchema })
   .strict()
-export const activateRuleSchema = z
-  .object({ expectedVersion: version, clientOperationId: uuidSchema })
-  .strict()
-export const archiveRuleSchema = activateRuleSchema.extend({ note }).strict()
 export const reviewSchema = z
   .object({ expectedRevision: revisionSchema, note, clientOperationId: uuidSchema })
   .strict()
@@ -125,7 +121,7 @@ export const historyListSchema = z
 // Every output is an explicit allowlist. Notes and note-presence metadata are
 // excluded even for Admin and committed retries, matching the approved CR.
 const instant = z.string().datetime({ offset: true })
-export const alertEvidenceSchema = z
+const alertEvidenceSchema = z
   .object({
     conditionId: z.string().regex(/^[A-Za-z][A-Za-z0-9_-]{0,63}$/),
     metric: z.enum(ruleMetrics),

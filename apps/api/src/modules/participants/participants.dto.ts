@@ -1,16 +1,5 @@
 import { Transform } from 'class-transformer'
-import { IsDateString, IsIn, IsObject, IsOptional, IsString, IsUUID, Length } from 'class-validator'
-
-export class RecordParticipationDto {
-  @IsUUID()
-  formId!: string
-
-  @IsUUID()
-  clientSubmissionId!: string
-
-  @IsObject()
-  values!: Record<string, unknown>
-}
+import { IsDateString, IsIn, IsOptional, IsString, IsUUID, Length } from 'class-validator'
 
 export class EnrollmentJourneyEventDto {
   @IsIn(['COMPLETION', 'FOLLOW_UP', 'DROPOUT', 'TRANSFER'])
