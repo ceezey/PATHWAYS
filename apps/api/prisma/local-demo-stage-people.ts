@@ -103,7 +103,7 @@ export async function stageIndicators(ctx: DemoContext) {
   ctx.log(`  indicators created: ${count}`)
 }
 
-export function registrationValues(person: PlannedPerson, project: DemoProject) {
+function registrationValues(person: PlannedPerson, project: DemoProject) {
   const minor = person.age < 18
   return {
     registration_operation: 'CREATE',

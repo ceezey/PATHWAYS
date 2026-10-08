@@ -38,7 +38,7 @@ export function localWorkerDrain(env: NodeJS.ProcessEnv) {
   }
 }
 
-export type SchedulerDeps = {
+type SchedulerDeps = {
   snapshot: () => Promise<string>
   isTty: boolean
   prompt: () => Promise<void>

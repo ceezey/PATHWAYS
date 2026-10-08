@@ -1,12 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import {
-  type ProjectKey,
-  addDaysIso,
-  demoActivities,
-  demoCohorts,
-  demoProjects,
-} from './local-demo-data'
+import { type ProjectKey, addDaysIso, demoActivities, demoCohorts } from './local-demo-data'
 import {
   type EnrollmentFact,
   activityWindow,

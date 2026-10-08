@@ -9,7 +9,7 @@ import { catarmanBatch, lavezaresBatch } from './local-demo-stage-imports'
 import { outcomes } from './local-demo-stage-outcomes'
 
 /** One activity people attend, recorded through its published attendance form inside its planned window. */
-export type Track = {
+type Track = {
   activity: string
   /** Journey stage the activity maps to; the attendance form is bound to both. */
   stage: string
@@ -56,7 +56,7 @@ export type EnrollmentFact = {
   after?: string
 }
 
-export type Session = {
+type Session = {
   track: number
   date: string
   attendance: 'PRESENT' | 'ABSENT' | 'EXCUSED' | 'COMPLETED'
@@ -76,7 +76,7 @@ const sessionNotes = [
 export const stageNoteMarkers = [absentNote, ...sessionNotes.slice(0, 3)]
 
 /** Deterministic spread so every run seeds the same attendance. */
-export const mix = (...parts: number[]) =>
+const mix = (...parts: number[]) =>
   Math.abs(parts.reduce((sum, part) => Math.imul(sum ^ (part + 0x9e3779b9), 0x85ebca6b) >>> 0, 17))
 
 const minIso = (a: string, b: string) => (a < b ? a : b)
@@ -133,7 +133,7 @@ export function planSessions(project: ProjectKey, who: EnrollmentFact, today: st
   return sessions
 }
 
-export type PlannedTest = { type: 'PRE_TEST' | 'POST_TEST'; date: string; score: number }
+type PlannedTest = { type: 'PRE_TEST' | 'POST_TEST'; date: string; score: number }
 
 /** Pre-test at the first pre-track session, post-test at the post track (or a completer's last pre-track session). */
 export function planTests(
@@ -154,7 +154,7 @@ export function planTests(
 }
 
 /** Project start as seeded: the base project SSG starts on a fixed date, the rest relative to the run day. */
-export function projectStartIso(project: ProjectKey, today: string) {
+function projectStartIso(project: ProjectKey, today: string) {
   if (project === 'SSG') return '2026-03-03'
   const plan = demoProjects.find((p) => p.key === project)
   return addDaysIso(today, plan?.startOffset ?? 0)
@@ -176,7 +176,7 @@ export function plannedFacts(project: ProjectKey, code: string, today: string) {
   }
 }
 
-export type JourneyPerson = {
+type JourneyPerson = {
   code: string
   firstName: string
   middleName: string

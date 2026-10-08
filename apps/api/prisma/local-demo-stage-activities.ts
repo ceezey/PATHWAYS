@@ -15,11 +15,11 @@ import { asUser, projectOf, sha256, textPdf } from './local-demo-util'
 const photoDir = path.join(__dirname, 'assets', 'demo-photos')
 
 /** Reach as the seeded attendance shows it; activities without attendance keep their planned figure. */
-export const reportedReach = (project: DemoProject, activity: DemoActivity, today: string) =>
+const reportedReach = (project: DemoProject, activity: DemoActivity, today: string) =>
   plannedReach(project.key, activity.key, today) ?? activity.reached
 
 /** The seeded field photo that matches the project and activity. */
-export function proofPhotoName(project: DemoProject, activity: DemoActivity) {
+function proofPhotoName(project: DemoProject, activity: DemoActivity) {
   if (/follow-up|home visit|referral/i.test(`${activity.title} ${activity.description}`))
     return 'household-follow-up'
   return {
@@ -33,7 +33,7 @@ export function proofPhotoName(project: DemoProject, activity: DemoActivity) {
 }
 
 /** Attendance sheet lines: title, date, venue, facilitator and the people the seed records at the session. */
-export function attendanceSheetLines(project: DemoProject, activity: DemoActivity, today: string) {
+function attendanceSheetLines(project: DemoProject, activity: DemoActivity, today: string) {
   const roster = sessionRoster(project.key, activity.key, today)
   const date = roster?.date ?? addDaysIso(today, Math.min(activity.endOffset, -1))
   const venue = `${roster?.people[0]?.barangay ?? project.barangays[0]}, ${project.cityMunicipality}, ${project.province}`

@@ -1,5 +1,5 @@
 import { wshPairs } from './defense-demo-stage-survey'
-import { addDaysIso, demoProjects } from './local-demo-data'
+import { demoProjects } from './local-demo-data'
 import {
   type EnrollmentFact,
   cohortPeople,
@@ -12,7 +12,6 @@ import {
 } from './local-demo-journeys'
 import type { DemoContext } from './local-demo-seed'
 import { activityId as activityIdFor, attendanceForms } from './local-demo-stage-forms'
-import { outcomes } from './local-demo-stage-outcomes'
 import { projectOf, step } from './local-demo-util'
 
 type Project = (typeof demoProjects)[number]

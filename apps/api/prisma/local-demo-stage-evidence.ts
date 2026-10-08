@@ -1,16 +1,6 @@
-import {
-  type DemoProject,
-  type ProjectKey,
-  addDaysIso,
-  demoActivities,
-  demoMilestones,
-  demoProjects,
-} from './local-demo-data'
+import { addDaysIso, demoMilestones } from './local-demo-data'
 import type { DemoContext } from './local-demo-seed'
-import { activityCode } from './local-demo-stage-activities'
 import { projectOf } from './local-demo-util'
-
-const projectByKey = (key: ProjectKey) => demoProjects.find((p) => p.key === key) as DemoProject
 
 /** Milestones have no application write path yet (no role holds milestones.manage), so they are
  * written on the owner connection with their creation audit row, like programs. */

@@ -480,12 +480,6 @@ function pick<T>(items: readonly T[], index: number) {
   return items[index % items.length]
 }
 
-function isoDate(year: number, month: number, day: number) {
-  const mm = String(month).padStart(2, '0')
-  const dd = String(day).padStart(2, '0')
-  return `${year}-${mm}-${dd}`
-}
-
 function addDaysIso(iso: string, days: number) {
   const date = new Date(`${iso}T00:00:00.000Z`)
   date.setUTCDate(date.getUTCDate() + days)
@@ -724,11 +718,6 @@ async function main() {
       authIdOf(projectManagerStaff),
       workspace.organizationId,
       userIdOf(projectManagerStaff),
-    )
-    const administratorIdentity = identityFor(
-      adminAuthId,
-      workspace.organizationId,
-      workspace.adminUserId,
     )
 
     const programCodesByProjectIndex = ['CPE-2026', 'CPE-2026', 'RES-2026']

@@ -49,12 +49,7 @@ vi.mock('./rules/rules-source-operation', async (importOriginal) => ({
   readRuleSourceAcknowledgement: async () => null,
   bootstrapRuleSourceProject: async () => undefined,
 }))
-import {
-  BadRequestException,
-  ConflictException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common'
+import { ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common'
 import type { Prisma } from '@prisma/client'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 

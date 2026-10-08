@@ -8,7 +8,6 @@ import {
   IsString,
   IsUUID,
   Length,
-  Matches,
   Max,
   Min,
 } from 'class-validator'
@@ -132,8 +131,8 @@ export class EnrollBeneficiaryDto {
   enrollmentDate!: string
 }
 
-export const registrationCodePattern = /^[A-Z0-9][A-Z0-9_-]{1,39}$/
-export const externalIdentifierTypePattern = /^[A-Z][A-Z0-9_]{1,31}$/
+const registrationCodePattern = /^[A-Z0-9][A-Z0-9_-]{1,39}$/
+const externalIdentifierTypePattern = /^[A-Z][A-Z0-9_]{1,31}$/
 
 export function canonicalCode(value: unknown) {
   if (typeof value !== 'string') return null
