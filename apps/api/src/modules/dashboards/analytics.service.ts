@@ -48,7 +48,7 @@ import {
 const logger = new Logger('AnalyticsService')
 const EXPORT_PREVIEW_ROWS = 50
 
-export function parseDescriptiveQuery(value: unknown): DescriptiveAnalyticsQuery {
+function parseDescriptiveQuery(value: unknown): DescriptiveAnalyticsQuery {
   const parsed = descriptiveAnalyticsQuerySchema.safeParse(value)
   if (!parsed.success)
     throw new BadRequestException(
@@ -61,7 +61,7 @@ const exportFormats = ['CSV', 'XLSX', 'XLS', 'PDF'] as const
 type ExportFormat = (typeof exportFormats)[number]
 
 /** Splits the optional file format off before the strict analytics query parse. */
-export function parseExportFormat(input: unknown): { format: ExportFormat; query: unknown } {
+function parseExportFormat(input: unknown): { format: ExportFormat; query: unknown } {
   if (!input || typeof input !== 'object') return { format: 'CSV', query: input }
   const { format = 'CSV', ...query } = input as Record<string, unknown>
   if (!exportFormats.includes(format as ExportFormat))

@@ -19,7 +19,7 @@ import {
 } from './authorized-operation-timing'
 import type { ApplicationIdentity } from './developer-access'
 
-export interface AuthorizedOperationOptions {
+interface AuthorizedOperationOptions {
   transactionTimeoutMs?: number
   isolationLevel?: 'RepeatableRead'
   // Extra permissions that also satisfy the check.

@@ -25,9 +25,9 @@ export const beneficiaryMediaContentTypes: readonly string[] = activityEvidenceC
   (type) => type !== 'application/pdf',
 )
 export const MAX_BENEFICIARY_MEDIA_FILES = MAX_ACTIVITY_EVIDENCE_FILES
-export const MAX_BENEFICIARY_MEDIA_NOTE = 500
+const MAX_BENEFICIARY_MEDIA_NOTE = 500
 
-export class BeneficiaryMediaFileDto {
+class BeneficiaryMediaFileDto {
   @IsString()
   @Length(1, 128)
   @Matches(/^[^\/]+$/)

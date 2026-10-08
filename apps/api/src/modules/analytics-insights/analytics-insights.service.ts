@@ -35,7 +35,7 @@ const participationPermissions: AtomicPermission[] = [
 ]
 const participationAnyOf: AtomicPermission[] = ['submissions.write', 'assessments.detail.read']
 
-export function parseInsightsQuery(value: unknown): AnalyticsInsightsQuery {
+function parseInsightsQuery(value: unknown): AnalyticsInsightsQuery {
   const parsed = analyticsInsightsQuerySchema.safeParse(value)
   if (!parsed.success)
     throw new BadRequestException(

@@ -11,8 +11,8 @@ import {
   ruleDefinitionSchema,
 } from './rule-contract'
 
-export type EvaluationResult = 'TRUE' | 'FALSE' | 'UNAVAILABLE'
-export type ConditionEvidence = {
+type EvaluationResult = 'TRUE' | 'FALSE' | 'UNAVAILABLE'
+type ConditionEvidence = {
   condition: RuleCondition
   observation: MetricObservation | null
   result: EvaluationResult
@@ -24,8 +24,8 @@ export type GroupEvidence = {
   result: EvaluationResult
   children: EvaluationEvidence[]
 }
-export type EvaluationEvidence = ConditionEvidence | GroupEvidence
-export type RuleEvaluation = {
+type EvaluationEvidence = ConditionEvidence | GroupEvidence
+type RuleEvaluation = {
   contractVersion: typeof RULE_CONTRACT_VERSION
   rule: RuleDefinition
   asOf: string

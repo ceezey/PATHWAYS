@@ -2,7 +2,7 @@ import { Inject, Injectable } from '@nestjs/common'
 import { PrintPdfError, PrintPdfRenderer } from './print-pdf.renderer'
 
 /** Allowlisted disbursement record fields; nothing else about the expense reaches the page. */
-export type ReceiptSnapshot = {
+type ReceiptSnapshot = {
   receiptNo: string
   issuedAt: string
   organization: string
@@ -27,7 +27,7 @@ export type ReceiptSnapshot = {
 }
 
 const expenseIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-export const RECEIPT_MAX_BYTES = 4 * 1024 * 1024
+const RECEIPT_MAX_BYTES = 4 * 1024 * 1024
 
 export class ReceiptPdfError extends Error {
   constructor(

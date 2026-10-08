@@ -11,11 +11,11 @@ import { createClient } from '@supabase/supabase-js'
 import { isApprovedServiceProtocol } from '@pathways/config'
 import { PrismaService } from '../../prisma/prisma.service'
 
-export const SIGN_IN_LOCKED_CODE = 'SIGN_IN_LOCKED'
+const SIGN_IN_LOCKED_CODE = 'SIGN_IN_LOCKED'
 const INVALID_MESSAGE = 'Could not sign in. Check your credentials and try again.'
 
 /** Same response for known and unknown accounts, so lockout never reveals existence. */
-export const signInLocked = (seconds: number) =>
+const signInLocked = (seconds: number) =>
   new HttpException(
     {
       statusCode: HttpStatus.TOO_MANY_REQUESTS,

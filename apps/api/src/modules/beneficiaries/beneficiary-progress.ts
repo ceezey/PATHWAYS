@@ -3,7 +3,7 @@ import type { Prisma } from '@prisma/client'
 import { aggregateOnlyRoles, hasAtomicPermission } from '../auth/authorization-policy'
 import type { ApplicationIdentity } from '../auth/developer-access'
 
-export type BeneficiaryProgress =
+type BeneficiaryProgress =
   | { restricted: true }
   | {
       restricted: false

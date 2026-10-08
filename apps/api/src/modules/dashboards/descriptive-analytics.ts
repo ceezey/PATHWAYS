@@ -23,7 +23,7 @@ type Distribution = DescriptiveAnalytics['distributions'][number]
 const visible = (cell: MetricCell) => cell.state === 'AVAILABLE' || cell.state === 'ZERO'
 
 /** Locked SADDD RFC G4 threshold: 1-4 is suppressed; 0 and 5 or more stay visible. */
-export const SMALL_CELL_THRESHOLD = 5
+const SMALL_CELL_THRESHOLD = 5
 
 export function suppressSmallCount(metric: MetricCell): MetricCell {
   if (metric.state !== 'AVAILABLE' || metric.value === null) return metric
@@ -34,7 +34,7 @@ export function suppressSmallCount(metric: MetricCell): MetricCell {
 }
 
 /** Four-decimal fixed output without trailing zeros; inputs are already bounded decimals. */
-export function formatDescriptiveDecimal(value: number): string {
+function formatDescriptiveDecimal(value: number): string {
   const fixed = (Math.round(value * 10_000) / 10_000).toFixed(4)
   const trimmed = fixed.replace(/\.?0+$/, '')
   return trimmed === '-0' ? '0' : trimmed
@@ -215,7 +215,7 @@ export const timelineAggregateSchema = z
     milestones: milestoneCountsSchema,
   })
   .strict()
-export type TimelineAggregate = z.infer<typeof timelineAggregateSchema>
+type TimelineAggregate = z.infer<typeof timelineAggregateSchema>
 
 /**
  * Builds the timeline adherence view (analytics.descriptive.timeline.v1). Project

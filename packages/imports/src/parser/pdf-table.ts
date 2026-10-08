@@ -23,7 +23,7 @@ export interface PdfTableLimits {
   maxCells: number
 }
 
-export type PdfTableErrorCode =
+type PdfTableErrorCode =
   | 'PDF_NO_TEXT_LAYER'
   | 'PDF_TABLE_UNRECOGNIZED'
   | 'PDF_TEXT_LIMIT'

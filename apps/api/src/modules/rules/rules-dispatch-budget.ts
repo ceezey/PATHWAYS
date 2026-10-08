@@ -18,8 +18,8 @@ const caps: Readonly<Record<RulesPhase, number>> = Object.freeze({
   RELEASE: 1000,
   RESPONSE: 2000,
 })
-export const MAX_DRAIN_PROJECTS = 20
-export const MAX_SWEEP_ANCHORS = 100
+const MAX_DRAIN_PROJECTS = 20
+const MAX_SWEEP_ANCHORS = 100
 export class RulesBudgetUnavailable extends Error {
   constructor() {
     super('Rule processing is unavailable.')

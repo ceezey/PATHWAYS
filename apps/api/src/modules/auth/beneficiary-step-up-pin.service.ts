@@ -55,9 +55,9 @@ const PIN_RULE =
 // Runtime shape check as well as the DTO: a JSON number must never reach the database.
 const isPinShape = (value: unknown): value is string =>
   typeof value === 'string' && STEP_UP_PIN_PATTERN.test(value)
-export const incorrectPin = () =>
+const incorrectPin = () =>
   denial(HttpStatus.FORBIDDEN, STEP_UP_PIN_CODES.incorrect, 'Incorrect PIN')
-export const lockedPin = () =>
+const lockedPin = () =>
   denial(
     HttpStatus.CONFLICT,
     STEP_UP_PIN_CODES.locked,

@@ -2,7 +2,7 @@ import { performance } from 'node:perf_hooks'
 import { setTimeout as delay } from 'node:timers/promises'
 import type { RulesDispatcherEnv } from '@pathways/config'
 
-export type DispatchPurpose = 'DRAIN' | 'SWEEP'
+type DispatchPurpose = 'DRAIN' | 'SWEEP'
 const DRAIN_INTERVAL_MS = 300_000
 const SWEEP_INTERVAL_MS = 3_600_000
 const REQUEST_TIMEOUT_MS = 30_000
@@ -67,7 +67,7 @@ export async function dispatchRulesOnce(
 
 // The production cadence is fixed. Injected clock/transport are trusted test
 // adapters; neither HTTP requests nor environment values select timing budgets.
-export interface DispatcherRuntime {
+interface DispatcherRuntime {
   now(): number
   sleep(ms: number, signal: AbortSignal): Promise<void>
   dispatch(

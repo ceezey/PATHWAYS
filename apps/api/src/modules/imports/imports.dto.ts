@@ -39,7 +39,7 @@ export const IMPORT_DATA_TYPES = [
 // No control characters, and no leading formula trigger (= + @ or a minus that is not a number).
 const SAFE_MAP_TEXT = /^(?![=+@\t\r]|-(?!\d))\P{Cc}*$/u
 
-export class ImportValueMapEntryDto {
+class ImportValueMapEntryDto {
   @IsString()
   @Length(1, IMPORT_VALUE_MAP_LIMITS.maxTextLength)
   @Matches(SAFE_MAP_TEXT, { message: 'Control characters and formula prefixes are not allowed.' })

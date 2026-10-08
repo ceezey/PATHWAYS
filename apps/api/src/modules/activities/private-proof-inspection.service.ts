@@ -85,7 +85,7 @@ const revisionKeys = [
   'expectedUpdateUpdatedAt',
   'expectedEvidenceUpdatedAt',
 ] as const
-export type InspectionRevisions = Record<(typeof revisionKeys)[number], string>
+type InspectionRevisions = Record<(typeof revisionKeys)[number], string>
 const isoMilliseconds = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/
 export function inspectionRevisions(query: unknown): InspectionRevisions {
   if (!query || typeof query !== 'object' || Array.isArray(query))
