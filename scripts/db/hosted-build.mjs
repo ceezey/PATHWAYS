@@ -64,12 +64,12 @@ function checkTimeout(result, label, timeoutMs) {
 // Pure filesystem helpers for the small captured-value receipt. Kept separate from
 // createLiveIO (which is real-process/real-connection only) so they can also be
 // exercised directly against a real, disposable path in tests.
-export function writeCapturedReceipt(captured, filePath = receiptPath) {
+function writeCapturedReceipt(captured, filePath = receiptPath) {
   mkdirSync(path.dirname(filePath), { recursive: true })
   writeFileSync(filePath, `${JSON.stringify(captured, null, 2)}\n`, { mode: 0o600 })
 }
 
-export function readCapturedReceipt(filePath = receiptPath) {
+function readCapturedReceipt(filePath = receiptPath) {
   if (!existsSync(filePath)) return null
   try {
     return JSON.parse(readFileSync(filePath, 'utf8'))
@@ -227,13 +227,13 @@ export function createLiveIO({ ref }) {
 // ---------------------------------------------------------------------------
 // Staging helpers (pure filesystem, no network) mirroring local-reset.mjs.
 // ---------------------------------------------------------------------------
-export function stageMigrations(names) {
+function stageMigrations(names) {
   for (const name of names) {
     cpSync(path.join(migrationsDir, name), path.join(stageDir, name), { recursive: true })
   }
 }
 
-export function resetStage() {
+function resetStage() {
   rmSync(stageDir, { recursive: true, force: true })
   mkdirSync(stageDir, { recursive: true })
   cpSync(
@@ -348,7 +348,7 @@ export async function resumePreflight(io, config) {
   return { appliedCount, residualOwnerMemberships }
 }
 
-export async function readLedger(io, adminUrl) {
+async function readLedger(io, adminUrl) {
   // A fresh project has no ledger until Prisma registers the baseline.
   const exists = io.psqlQuery(
     adminUrl,
@@ -598,7 +598,7 @@ REVOKE TEMPORARY ON DATABASE postgres FROM PUBLIC;`,
 // ---------------------------------------------------------------------------
 // CLI
 // ---------------------------------------------------------------------------
-export function printDryRunPlan(log = console.log) {
+function printDryRunPlan(log = console.log) {
   log('Hosted build dry run: no connection will be made. Ordered plan:')
   const plan = buildPlan()
   plan.forEach((step, index) => {

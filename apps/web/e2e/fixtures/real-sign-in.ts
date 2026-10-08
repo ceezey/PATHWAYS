@@ -53,7 +53,7 @@ export const ownerQuery = (sql: string) =>
   ).trim()
 
 // RFC 6238 SHA-1 code for a base32 secret; the secret never leaves this process.
-export const totpCode = (secret: string, offsetSteps = 0) => {
+const totpCode = (secret: string, offsetSteps = 0) => {
   const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'
   let bits = ''
   for (const ch of secret.replace(/=+$/, '').toUpperCase()) {

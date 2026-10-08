@@ -25,7 +25,7 @@ import { cleanEnvironment, pgBin, requireCheck, root, sha256, verifySources } fr
 import { assertSnapshot } from './runner.mjs'
 
 const currentFile = fileURLToPath(import.meta.url)
-export const rootCauseRetryPort = 55453
+const rootCauseRetryPort = 55453
 const retryBootstrap = 'backup-restore-local-retry-bootstrap.sql'
 const supplement = 'backup-restore-default-acl-supplement.sql'
 const controlledInventory = 'backup-data-inventory-utc.sql'
@@ -234,7 +234,7 @@ export function buildRootCauseDiagnostics({
   })
 }
 
-export async function run(args) {
+async function run(args) {
   let mode = 'rejected'
   let stage = 'authorization'
   let failureCode = null

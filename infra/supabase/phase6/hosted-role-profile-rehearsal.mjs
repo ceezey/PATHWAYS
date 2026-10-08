@@ -55,7 +55,7 @@ async function assertPortFree() {
   )
 }
 
-export async function rehearse(args) {
+async function rehearse(args) {
   const bin = validateArguments(args)
   await assertPortFree()
   const owned = path.join(repository, '.tmp', `hosted-role-profile-${randomUUID()}`)
