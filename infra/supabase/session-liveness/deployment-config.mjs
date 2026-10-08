@@ -10,14 +10,12 @@ export const root = path.resolve(directory, '../../..')
 export const deployAuthorization = 'PATHWAYS_DEV_SESSION_LIVENESS_0006_ONLY'
 export const rollbackAuthorization = 'PATHWAYS_DEV_SESSION_LIVENESS_0006_ROLLBACK_ONLY'
 export const recoveryAuthorization = 'PATHWAYS_DEV_SESSION_LIVENESS_0006_RECOVERY_READ_ONLY'
-export const evidenceVersion = 2
-export const canonicalObjectCount = 1193
-export const canonicalVectorSha256 =
-  '36d404835e94e8fd4bf94afd4688d15b5292eba451ef237ae6229309cf989777'
-export const expectedDataTables = 54
-export const preparedDirtyEntries = 116
-export const migrationLockSha256 =
-  '74a9137885ce73d3ff088d79d658f8066e05e680fb51c0800a290c91c0c01d48'
+const evidenceVersion = 2
+const canonicalObjectCount = 1193
+const canonicalVectorSha256 = '36d404835e94e8fd4bf94afd4688d15b5292eba451ef237ae6229309cf989777'
+const expectedDataTables = 54
+const preparedDirtyEntries = 116
+const migrationLockSha256 = '74a9137885ce73d3ff088d79d658f8066e05e680fb51c0800a290c91c0c01d48'
 export const migrations = Object.freeze(
   [
     ['0001_init', '8b4e25d97b493e6042287373bda015db8e1f1e6a1daf0e49b142484762e248ab'],

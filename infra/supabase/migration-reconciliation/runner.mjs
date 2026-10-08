@@ -78,7 +78,7 @@ function execute(file, args, env, input, expectedStatus = 0) {
   return result.stdout?.trim() ?? ''
 }
 
-export async function run(mode) {
+async function run(mode) {
   requireCheck(['--local', '--compare-dev'].includes(mode), 'MODE')
   verifySources()
   let stage = 'local-preflight'

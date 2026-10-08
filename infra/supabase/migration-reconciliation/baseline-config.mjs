@@ -7,7 +7,7 @@ export const baselineAuthorization = 'PATHWAYS_DEV_BASELINE_0002_0005_ONLY'
 export const baselineRecoveryAuthorization = 'PATHWAYS_DEV_BASELINE_RECOVERY_READ_ONLY'
 export const baselineLocalPort = 55456
 export const baselineLocalDatabase = 'pathways_baseline_local'
-export const baselineMigrations = Object.freeze(migrations.slice(1, 5))
+const baselineMigrations = Object.freeze(migrations.slice(1, 5))
 export const canonicalObjectCount = 1193
 export const canonicalVectorSha256 =
   '36d404835e94e8fd4bf94afd4688d15b5292eba451ef237ae6229309cf989777'
@@ -16,7 +16,7 @@ export const baselineDirectory = path.join(root, 'infra/supabase/migration-recon
 
 // Filled only with reviewed, non-secret source fingerprints. This object is
 // deliberately outside the files it fingerprints so there is no hash cycle.
-export const baselineSourceHashes = Object.freeze({
+const baselineSourceHashes = Object.freeze({
   'baseline-data-inventory.sql': '962507c1907ed6ab0786d6efed8b4b0ecfa6b678ed830ec96e307d01af868fcb',
   'prisma.baseline.config.ts': '0d092aa934c0031688fde628cf8591073b2a415ca2669251cf05c99dbbef0336',
   'Read-DevBaseline.ps1': 'cd72f26e4317190aa7ca7b6cfd3bbda236f4386c49fb093182620dde955492d7',
@@ -38,7 +38,7 @@ export function verifyBaselineSources() {
   }
 }
 
-export function expectedBaselineMigration(prefixLength) {
+function expectedBaselineMigration(prefixLength) {
   requireCheck(
     Number.isInteger(prefixLength) && prefixLength >= 1 && prefixLength <= 4,
     'BASELINE_LEDGER_PREFIX',
