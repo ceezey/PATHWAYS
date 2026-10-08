@@ -110,36 +110,6 @@ describe('PATHWAYS frontend data boundary', () => {
     })
     expect(sourceMutationTickets.pendingRecovery(mutationContext, key)).not.toBeNull()
   })
-  it('clears retained multipart note/files immediately through the existing logout lifecycle and never enables generic proof abandonment', async () => {
-    setupSourceBrowser()
-    const projectId = '73600000-0000-4000-8000-000000000004'
-    const activityId = '73600000-0000-4000-8000-000000000005'
-    const file = new File(['Synthetic'], 'synthetic.txt', { type: 'text/plain' })
-    const fetcher = vi.fn().mockRejectedValue(Error('response lost'))
-    vi.stubGlobal('fetch', fetcher)
-    await expect(
-      pathwaysClient.submitActivityProof(
-        {
-          projectId,
-          activityId,
-          clientUpdateId: mutationId,
-          progress: 20,
-          note: 'Synthetic',
-          files: [file],
-        },
-        mutationContext,
-      ),
-    ).rejects.toThrow()
-    const key = `POST:/projects/${projectId}/activities/${activityId}/updates`
-    expect(sourceMutationTickets.proofSnapshot(mutationContext, key)?.files[0]).toBe(file)
-    await expect(recoverSourceMutation(mutationContext, key)).rejects.toThrow(
-      'does not support recovery',
-    )
-    expect(fetcher).toHaveBeenCalledOnce()
-    clearSensitiveDraftStorage()
-    expect(sourceMutationTickets.proofSnapshot(mutationContext, key)).toBeNull()
-    expect(sourceMutationTickets.pendingRecovery(mutationContext, key)).toBeNull()
-  })
   it('checks the captured live mutation owner again after asynchronous token acquisition before dispatching private input', async () => {
     const { authUserId } = setupSourceBrowser()
     let live = true
@@ -262,30 +232,7 @@ describe('PATHWAYS frontend data boundary', () => {
     vi.restoreAllMocks()
   })
 
-  it('does not fabricate collection records while remaining domain endpoints are unavailable', async () => {
-    // Published projects are read over the network; keep a locally running API out of this test.
-    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(Error('network unavailable')))
-    const collections = await Promise.allSettled([
-      pathwaysClient.getExpenses('project-id'),
-      pathwaysClient.getRecommendationOutcomes('project-id'),
-      pathwaysClient.getTransparencySections('project-id'),
-      pathwaysClient.getBudgets(),
-      pathwaysClient.getAlerts(),
-      pathwaysClient.getRecommendations(),
-      pathwaysClient.getRules(),
-      pathwaysClient.getReports(),
-      pathwaysClient.getSurveyForms(),
-      pathwaysClient.getSurveyAggregateResults(),
-      pathwaysClient.getAnalyticsLocations(),
-      pathwaysClient.getPublicProjects(),
-    ])
-
-    expect(collections.every((result) => result.status === 'rejected')).toBe(true)
-    expect(
-      collections.every(
-        (result) => result.status === 'rejected' && result.reason instanceof PathwaysClientError,
-      ),
-    ).toBe(true)
+  it('returns no beneficiary records for aggregate-only roles', async () => {
     await expect(pathwaysClient.getBeneficiaryRecordsForRole('Program Manager')).resolves.toEqual(
       [],
     )
@@ -627,10 +574,7 @@ describe('PATHWAYS frontend data boundary', () => {
     expect(fetcher.mock.calls[1]?.[0]).toBe(`http://127.0.0.1:4000/api/projects/${projectId}`)
   })
 
-  it('reports unfinished record reads as explicitly not configured', async () => {
-    await expect(pathwaysClient.getPublicProject('project-id')).rejects.toBeInstanceOf(
-      PathwaysClientError,
-    )
+  it('rejects dashboard reads without a session', async () => {
     await expect(pathwaysClient.getDashboard('Program Manager')).rejects.toMatchObject({
       code: 'unauthorized',
     })
@@ -811,7 +755,7 @@ describe('PATHWAYS frontend data boundary', () => {
     })
   })
 
-  it('uses the scoped paginated draft-list and persisted-submission routes', async () => {
+  it('reads one persisted submission through the scoped route', async () => {
     const authUserId = '74100000-0000-4000-8000-000000000001'
     const organizationId = '74100000-0000-4000-8000-000000000002'
     const userId = '74100000-0000-4000-8000-000000000003'
@@ -826,36 +770,24 @@ describe('PATHWAYS frontend data boundary', () => {
       data: { session: { access_token: 'synthetic-access-token', user: { id: authUserId } } },
       error: null,
     })
-    const fetcher = vi
-      .fn()
-      .mockResolvedValueOnce(
-        new Response(JSON.stringify({ offset: 5, limit: 5, total: 6, items: [] }), {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
+    const fetcher = vi.fn().mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          id: submissionId,
+          status: 'DRAFT',
+          formId,
+          formVersion: 1,
+          updatedAt: '2026-09-23T00:00:00.000Z',
+          values: { score: 42 },
         }),
-      )
-      .mockResolvedValueOnce(
-        new Response(
-          JSON.stringify({
-            id: submissionId,
-            status: 'DRAFT',
-            formId,
-            formVersion: 1,
-            updatedAt: '2026-09-23T00:00:00.000Z',
-            values: { score: 42 },
-          }),
-          { status: 200, headers: { 'Content-Type': 'application/json' } },
-        ),
-      )
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      ),
+    )
     vi.stubGlobal('fetch', fetcher)
 
-    await pathwaysClient.listDirectSubmissions(projectId, formId, 5, 5)
     await pathwaysClient.getDirectSubmission(projectId, formId, submissionId)
 
     expect(fetcher.mock.calls[0]?.[0]).toBe(
-      `http://127.0.0.1:4000/api/metadata/projects/${projectId}/forms/${formId}/submissions?offset=5&limit=5`,
-    )
-    expect(fetcher.mock.calls[1]?.[0]).toBe(
       `http://127.0.0.1:4000/api/metadata/projects/${projectId}/forms/${formId}/submissions/${submissionId}`,
     )
   })

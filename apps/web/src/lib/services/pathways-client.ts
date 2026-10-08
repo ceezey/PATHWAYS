@@ -27,8 +27,6 @@ import type {
   ActivityProofReservedFile,
   ActivityProofUploadLimits,
   ActivitySummary,
-  AlertRecord,
-  AnalyticsLocationRecord,
   AssignableProjectOfficer,
   AuthorizeExistingUserInput,
   BeneficiaryFilters,
@@ -38,19 +36,14 @@ import type {
   BeneficiaryMediaReservedFile,
   BeneficiaryRecord,
   BeneficiaryRegistrationContext,
-  BeneficiarySadddAggregate,
-  BudgetRecord,
   CorrectJourneyEventInput,
   CreateActivityInput,
   CreateProjectInput,
   DigitalFormDefinition,
   DirectFormSubmission,
-  DirectFormSubmissionPage,
   EnrollmentJourneyEventInput,
-  EvaluationRecord,
   EvidenceList,
   EvidenceRecord,
-  ExpenseRecord,
   FormValidationError,
   FormValidationResult,
   ImportBatchDefinition,
@@ -60,31 +53,18 @@ import type {
   JourneyStageConfig,
   ProjectDetail,
   ProjectIndicator,
-  ProjectMilestone,
   ProjectStatus,
   ProjectSummary,
   ProjectTeamMember,
-  PublicProjectRecord,
-  RecommendationOutcomeRecord,
-  RecommendationRecord,
   RecordActivityProgressInput,
   RecordOverdueExplanationInput,
   RegisterBeneficiaryInput,
-  ReportRecord,
   ReserveActivityProofUploadInput,
   RoleDashboardViewModel,
-  RuleDefinition,
   SaveDigitalFormInput,
-  SaveMilestoneInput,
-  SubmitActivityProofInput,
-  SurveyAggregateFilters,
-  SurveyAggregateResultSet,
-  SurveyFormDefinition,
-  TransparencySection,
   UpdateActivityInput,
   UpdateAuthorizedUserInput,
   UpdateBeneficiaryInput,
-  UpdateMilestoneInput,
   UpdateProjectInput,
   UserRecord,
 } from '@/types/pathways'
@@ -122,7 +102,6 @@ import {
 } from '@pathways/shared'
 import { type ProjectOverviewMetrics, projectOverviewMetricsSchema } from '@pathways/shared'
 import { z } from 'zod'
-import { readPublicProjects } from './public-projects'
 type CreateIndicatorInput = Omit<ApiCreateIndicatorInput, 'clientMutationId'>
 type UpdateIndicatorInput = Omit<ApiUpdateIndicatorInput, 'clientMutationId'>
 type UseLibraryEntryDraft = Omit<UseLibraryEntryInput, 'clientMutationId'>
@@ -234,42 +213,6 @@ const assessmentTypes = new Set([
 ])
 const isNullableString = (value: unknown) => value === null || typeof value === 'string'
 
-function parseAssessmentDetail(value: unknown): AssessmentDetail {
-  const row = value as Record<string, unknown> | null
-  const beneficiary = row?.beneficiary as Record<string, unknown> | null | undefined
-  if (
-    !row ||
-    typeof row.id !== 'string' ||
-    typeof row.projectId !== 'string' ||
-    !isNullableString(row.activityId) ||
-    !isNullableString(row.enrollmentId) ||
-    !assessmentTypes.has(row.type as string) ||
-    typeof row.score !== 'string' ||
-    typeof row.maximumScore !== 'string' ||
-    typeof row.assessmentDate !== 'string' ||
-    typeof row.recordedAt !== 'string' ||
-    (beneficiary !== null &&
-      (typeof beneficiary !== 'object' ||
-        typeof beneficiary.id !== 'string' ||
-        typeof beneficiary.code !== 'string'))
-  )
-    throw new PathwaysClientError('Invalid assessment response.', 'network')
-  return {
-    id: row.id,
-    projectId: row.projectId,
-    activityId: row.activityId as string | null,
-    enrollmentId: row.enrollmentId as string | null,
-    type: row.type as AssessmentDetail['type'],
-    score: row.score,
-    maximumScore: row.maximumScore,
-    assessmentDate: row.assessmentDate,
-    recordedAt: row.recordedAt,
-    beneficiary: beneficiary
-      ? { id: beneficiary.id as string, code: beneficiary.code as string }
-      : null,
-  }
-}
-
 export type AssessmentSummary = Omit<
   AssessmentDetail,
   'projectId' | 'enrollmentId' | 'beneficiary'
@@ -313,11 +256,6 @@ interface PathwaysClient {
     enrollmentId: string,
     signal?: AbortSignal,
   ): Promise<AssessmentSummary[]>
-  getAssessmentDetail(
-    projectId: string,
-    assessmentId: string,
-    signal?: AbortSignal,
-  ): Promise<AssessmentDetail>
   getProjects(signal?: AbortSignal): Promise<ProjectSummary[]>
   getProjectsForRole(role: PathwaysRole): Promise<ProjectSummary[]>
   getProject(id: string, signal?: AbortSignal): Promise<ProjectDetail>
@@ -328,11 +266,6 @@ interface PathwaysClient {
     context?: SourceMutationContext,
   ): Promise<SourceMutationResult<ProjectDetail>>
   archiveProject(id: string): Promise<{ id: string; archivedAt: string }>
-  updateProjectPeriod(
-    id: string,
-    endDate: string,
-    context?: SourceMutationContext,
-  ): Promise<SourceMutationResult<ProjectDetail>>
   getActivityContext(
     projectId: string,
     signal?: AbortSignal,
@@ -362,10 +295,6 @@ interface PathwaysClient {
     status: 'IN_PROGRESS' | 'CANCELLED',
     expectedUpdatedAt: string,
     reason?: string,
-    context?: SourceMutationContext,
-  ): Promise<SourceMutationResult<Activity>>
-  submitActivityProof(
-    input: SubmitActivityProofInput,
     context?: SourceMutationContext,
   ): Promise<SourceMutationResult<Activity>>
   recordActivityProgress(input: RecordActivityProgressInput): Promise<Activity>
@@ -404,17 +333,9 @@ interface PathwaysClient {
     context?: SourceMutationContext,
   ): Promise<SourceMutationResult<Activity>>
   downloadActivityProof(projectId: string, activityId: string, evidenceId: string): Promise<Blob>
-  getMilestones(projectId: string): Promise<ProjectMilestone[]>
-  createMilestone(projectId: string, input: SaveMilestoneInput): Promise<ProjectMilestone>
-  updateMilestone(
-    projectId: string,
-    milestoneId: string,
-    input: UpdateMilestoneInput,
-  ): Promise<ProjectMilestone>
   getEvidence(projectId: string): Promise<EvidenceList>
   getProjectIndicators(projectId: string, signal?: AbortSignal): Promise<ProjectIndicator[]>
   getProjectIndicatorValues(projectId: string, signal?: AbortSignal): Promise<ProjectIndicator[]>
-  getProjectIndicator(projectId: string, indicatorId: string): Promise<ProjectIndicator>
   createProjectIndicator(
     projectId: string,
     input: CreateIndicatorInput,
@@ -450,10 +371,6 @@ interface PathwaysClient {
   getDescriptiveAnalytics(query: DescriptiveAnalyticsQuery): Promise<DescriptiveAnalytics>
   getSurveyAnalytics(query: DescriptiveAnalyticsQuery): Promise<SurveyAnalytics>
   getTimelineAnalytics(query: DescriptiveAnalyticsQuery): Promise<TimelineAnalytics>
-  getEvaluation(projectId: string): Promise<EvaluationRecord>
-  getExpenses(projectId: string): Promise<ExpenseRecord[]>
-  getRecommendationOutcomes(projectId: string): Promise<RecommendationOutcomeRecord[]>
-  getTransparencySections(projectId: string): Promise<TransparencySection[]>
   getBeneficiaryRecordsForRole(
     role: PathwaysRole,
     projectId?: string,
@@ -482,11 +399,6 @@ interface PathwaysClient {
     beneficiaryId: string,
     input: UpdateBeneficiaryInput,
   ): Promise<BeneficiaryRecord>
-  archiveBeneficiary(
-    projectId: string,
-    beneficiaryId: string,
-    expectedUpdatedAt: string,
-  ): Promise<{ id: string; status: 'ARCHIVED'; archivedAt: string }>
   getDuplicateCandidates(projectId: string): Promise<DuplicateCandidatePair[]>
   resolveDuplicate(projectId: string, input: ResolveDuplicateInput): Promise<void>
   listBeneficiaryMedia(projectId: string, beneficiaryId: string): Promise<BeneficiaryMediaItem[]>
@@ -501,10 +413,6 @@ interface PathwaysClient {
   ): Promise<BeneficiaryMediaReservedFile[]>
   finalizeBeneficiaryMedia(projectId: string, beneficiaryId: string, mediaId: string): Promise<void>
   getBeneficiaryMediaBlob(projectId: string, beneficiaryId: string, mediaId: string): Promise<Blob>
-  getBeneficiarySadddAggregatesForRole(
-    role: PathwaysRole,
-    query: SadddQuery,
-  ): Promise<BeneficiarySadddAggregate>
   getJourneyStages(projectId: string, signal?: AbortSignal): Promise<JourneyStageConfig[]>
   saveJourneyStages(projectId: string, stages: JourneyStageConfig[]): Promise<JourneyStageConfig[]>
   getBeneficiaryJourneyHistory(
@@ -523,15 +431,6 @@ interface PathwaysClient {
     input: CorrectJourneyEventInput,
   ): Promise<{ id: string }>
   getIndicators(projectId?: string, signal?: AbortSignal): Promise<Indicator[]>
-  getBudgets(projectId?: string): Promise<BudgetRecord[]>
-  getAlerts(projectId?: string): Promise<AlertRecord[]>
-  getAlertsForRole(role: PathwaysRole, projectId?: string): Promise<AlertRecord[]>
-  getAnalyticsLocations(): Promise<AnalyticsLocationRecord[]>
-  getRecommendations(): Promise<RecommendationRecord[]>
-  getRecommendationsForRole(role: PathwaysRole): Promise<RecommendationRecord[]>
-  getRules(): Promise<RuleDefinition[]>
-  getReports(projectId?: string): Promise<ReportRecord[]>
-  getSurveyForms(projectId?: string): Promise<SurveyFormDefinition[]>
   getBeneficiaryRegistrationContext(projectId: string): Promise<BeneficiaryRegistrationContext>
   // cr-pathways-default-registration-form: provision the system default registration form.
   ensureDefaultRegistrationForm(projectId: string): Promise<BeneficiaryRegistrationContext>
@@ -544,11 +443,6 @@ interface PathwaysClient {
     input: SaveDigitalFormInput & { expectedUpdatedAt: string },
   ): Promise<DigitalFormDefinition>
   publishDigitalForm(
-    projectId: string,
-    formId: string,
-    expectedUpdatedAt: string,
-  ): Promise<DigitalFormDefinition>
-  archiveDigitalForm(
     projectId: string,
     formId: string,
     expectedUpdatedAt: string,
@@ -570,12 +464,6 @@ interface PathwaysClient {
     values: Record<string, unknown>,
     beneficiaryId?: string,
   ): Promise<DirectFormSubmission>
-  listDirectSubmissions(
-    projectId: string,
-    formId: string,
-    offset?: number,
-    limit?: number,
-  ): Promise<DirectFormSubmissionPage>
   getDirectSubmission(
     projectId: string,
     formId: string,
@@ -593,11 +481,6 @@ interface PathwaysClient {
     expectedUpdatedAt: string,
     values: Record<string, unknown>,
   ): Promise<DirectFormSubmission>
-  validateDirectSubmission(
-    projectId: string,
-    formId: string,
-    submissionId: string,
-  ): Promise<FormValidationResult>
   submitDirectSubmission(
     projectId: string,
     formId: string,
@@ -635,9 +518,6 @@ interface PathwaysClient {
     batchId: string,
     expectedValidationRevision: number,
   ): Promise<ImportBatchDefinition>
-  getSurveyAggregateResults(filters?: SurveyAggregateFilters): Promise<SurveyAggregateResultSet[]>
-  getPublicProjects(): Promise<PublicProjectRecord[]>
-  getPublicProject(id: string): Promise<PublicProjectRecord>
   getUsers(signal?: AbortSignal): Promise<UserRecord[]>
   authorizeExistingUser(input: AuthorizeExistingUserInput): Promise<UserRecord>
   updateAuthorizedUser(id: string, input: UpdateAuthorizedUserInput): Promise<UserRecord>
@@ -661,19 +541,6 @@ interface PathwaysClient {
 const beneficiaryMediaPath = (projectId: string, beneficiaryId: string) =>
   `/beneficiaries/projects/${encodeURIComponent(projectId)}/${encodeURIComponent(beneficiaryId)}/media`
 
-const backendNotConfigured = (operation: string) =>
-  new PathwaysClientError(
-    `${operation} is not available because its backend integration is not configured.`,
-    'not_configured',
-  )
-
-/**
- * Frontend integration boundary used while domain API endpoints are still being implemented.
- *
- * List reads deliberately contain no records. Record reads and mutations reject explicitly so a
- * caller cannot mistake browser state for persisted data. Replace methods here only when the
- * corresponding real endpoint exists.
- */
 const extensionPath = (projectId: string, activityId: string) =>
   `/projects/${encodeURIComponent(projectId)}/activities/${encodeURIComponent(activityId)}/extension-requests`
 
@@ -686,18 +553,6 @@ class BackendReadyPathwaysClient implements PathwaysClient {
     return parseAssessmentSummaries(
       await requestFoundation(
         `/projects/${encodeURIComponent(projectId)}/evaluation/assessments?enrollmentId=${encodeURIComponent(enrollmentId)}`,
-        { signal },
-      ),
-    )
-  }
-  async getAssessmentDetail(
-    projectId: string,
-    assessmentId: string,
-    signal?: AbortSignal,
-  ): Promise<AssessmentDetail> {
-    return parseAssessmentDetail(
-      await requestFoundation(
-        `/projects/${encodeURIComponent(projectId)}/evaluation/assessments/${encodeURIComponent(assessmentId)}`,
         { signal },
       ),
     )
@@ -744,33 +599,6 @@ class BackendReadyPathwaysClient implements PathwaysClient {
     return (await requestFoundation(`/projects/${encodeURIComponent(id)}/archive`, {
       method: 'POST',
     })) as { id: string; archivedAt: string }
-  }
-
-  async updateProjectPeriod(
-    id: string,
-    endDate: string,
-    context?: SourceMutationContext,
-  ): Promise<SourceMutationResult<ProjectDetail>> {
-    const path = `/projects/${encodeURIComponent(id)}`
-    const current = (await requestFoundation(path)) as ApiProject
-    return requestSourceMutation(
-      path,
-      'PATCH',
-      {
-        code: current.code,
-        title: current.title,
-        description: current.description ?? undefined,
-        objectives: current.objectives ?? undefined,
-        implementationArea: current.implementationArea ?? undefined,
-        startDate: current.startDate,
-        endDate,
-        status: current.status,
-        programId: current.programId ?? undefined,
-        expectedUpdatedAt: current.updatedAt,
-      },
-      context,
-      (value) => mapProject(value as ApiProject),
-    )
   }
 
   async getActivityContext(
@@ -1002,37 +830,7 @@ class BackendReadyPathwaysClient implements PathwaysClient {
     )
   }
 
-  async submitActivityProof(
-    input: SubmitActivityProofInput,
-    context?: SourceMutationContext,
-  ): Promise<SourceMutationResult<Activity>> {
-    if (!context?.isCurrent())
-      throw new PathwaysClientError('Current proof ownership is required.', 'unauthorized')
-    const path = `/projects/${encodeURIComponent(input.projectId)}/activities/${encodeURIComponent(input.activityId)}/updates`
-    return sourceTickets.execute(
-      context,
-      `POST:${path}`,
-      { progressPercent: input.progress, note: input.note },
-      (captured) => {
-        const body = new FormData()
-        body.set('clientUpdateId', String(captured.clientUpdateId))
-        body.set('progressPercent', String(captured.progressPercent))
-        body.set('note', String(captured.note))
-        for (const file of input.files) body.append('files', file, file.name)
-        return requestFoundation(path, { method: 'POST', body }, context.isCurrent)
-      },
-      parseActivity,
-      {
-        requestId: input.clientUpdateId,
-        keyField: 'clientUpdateId',
-        allowLegacy: true,
-        files: input.files,
-      },
-    )
-  }
-
-  // --- Direct-upload activity proof (cr-pathways-activity-progress-media). New section: kept
-  // separate from the retired multipart path above; do not reformat surrounding code. ---
+  // Proof uploads use the reserve, signed upload and finalize routes below.
 
   async getActivityProofUploadLimits(projectId: string): Promise<ActivityProofUploadLimits> {
     return requestFoundation(
@@ -1117,34 +915,6 @@ class BackendReadyPathwaysClient implements PathwaysClient {
     return response.blob()
   }
 
-  async getMilestones(projectId: string): Promise<ProjectMilestone[]> {
-    return parseMilestones(
-      await requestFoundation(`/projects/${encodeURIComponent(projectId)}/milestones`),
-    )
-  }
-
-  async createMilestone(projectId: string, input: SaveMilestoneInput): Promise<ProjectMilestone> {
-    return parseMilestone(
-      await requestFoundation(`/projects/${encodeURIComponent(projectId)}/milestones`, {
-        method: 'POST',
-        body: JSON.stringify(input),
-      }),
-    )
-  }
-
-  async updateMilestone(
-    projectId: string,
-    milestoneId: string,
-    input: UpdateMilestoneInput,
-  ): Promise<ProjectMilestone> {
-    return parseMilestone(
-      await requestFoundation(
-        `/projects/${encodeURIComponent(projectId)}/milestones/${encodeURIComponent(milestoneId)}`,
-        { method: 'PATCH', body: JSON.stringify(input) },
-      ),
-    )
-  }
-
   async getEvidence(projectId: string): Promise<EvidenceList> {
     return parseEvidenceList(
       await requestFoundation(`/projects/${encodeURIComponent(projectId)}/evidence`),
@@ -1166,14 +936,6 @@ class BackendReadyPathwaysClient implements PathwaysClient {
       await requestFoundation(`/projects/${encodeURIComponent(projectId)}/indicator-values`, {
         signal,
       }),
-    )
-  }
-
-  async getProjectIndicator(projectId: string, indicatorId: string): Promise<ProjectIndicator> {
-    return monitoringIndicatorSchema.parse(
-      await requestFoundation(
-        `/projects/${encodeURIComponent(projectId)}/indicators/${encodeURIComponent(indicatorId)}`,
-      ),
     )
   }
 
@@ -1301,22 +1063,6 @@ class BackendReadyPathwaysClient implements PathwaysClient {
         `/analytics/descriptive${descriptiveAnalyticsSearch({ ...query, view: 'timeline' })}`,
       ),
     )
-  }
-
-  async getEvaluation(_projectId: string): Promise<EvaluationRecord> {
-    throw backendNotConfigured('Project evaluation')
-  }
-
-  async getExpenses(_projectId: string): Promise<ExpenseRecord[]> {
-    throw backendNotConfigured('Expense records')
-  }
-
-  async getRecommendationOutcomes(_projectId: string): Promise<RecommendationOutcomeRecord[]> {
-    throw backendNotConfigured('Recommendation outcomes')
-  }
-
-  async getTransparencySections(_projectId: string): Promise<TransparencySection[]> {
-    throw backendNotConfigured('Transparency sections')
   }
 
   async getBeneficiaryRecordsForRole(
@@ -1483,13 +1229,6 @@ class BackendReadyPathwaysClient implements PathwaysClient {
     )
   }
 
-  async archiveBeneficiary(projectId: string, beneficiaryId: string, expectedUpdatedAt: string) {
-    return requestFoundation(
-      `/beneficiaries/projects/${encodeURIComponent(projectId)}/${encodeURIComponent(beneficiaryId)}/archive`,
-      { method: 'POST', body: JSON.stringify({ expectedUpdatedAt }) },
-    ) as Promise<{ id: string; status: 'ARCHIVED'; archivedAt: string }>
-  }
-
   async getDuplicateCandidates(projectId: string): Promise<DuplicateCandidatePair[]> {
     return (await requestFoundation(
       `/beneficiaries/projects/${encodeURIComponent(projectId)}/duplicate-candidates`,
@@ -1559,14 +1298,6 @@ class BackendReadyPathwaysClient implements PathwaysClient {
       `${beneficiaryMediaPath(projectId, beneficiaryId)}/${encodeURIComponent(mediaId)}/content`,
     )
     return response.blob()
-  }
-
-  async getBeneficiarySadddAggregatesForRole(
-    _role: PathwaysRole,
-    query: SadddQuery,
-  ): Promise<BeneficiarySadddAggregate> {
-    // Compatibility entry point only: the role is never transmitted or trusted.
-    return this.getSadddDashboard(query)
   }
 
   async getJourneyStages(projectId: string, signal?: AbortSignal): Promise<JourneyStageConfig[]> {
@@ -1661,42 +1392,6 @@ class BackendReadyPathwaysClient implements PathwaysClient {
     )
   }
 
-  async getBudgets(_projectId?: string): Promise<BudgetRecord[]> {
-    throw backendNotConfigured('Budget records')
-  }
-
-  async getAlerts(_projectId?: string): Promise<AlertRecord[]> {
-    throw backendNotConfigured('Alert records')
-  }
-
-  async getAlertsForRole(_role: PathwaysRole, _projectId?: string): Promise<AlertRecord[]> {
-    throw backendNotConfigured('Alert records')
-  }
-
-  async getAnalyticsLocations(): Promise<AnalyticsLocationRecord[]> {
-    throw backendNotConfigured('Analytics locations')
-  }
-
-  async getRecommendations(): Promise<RecommendationRecord[]> {
-    throw backendNotConfigured('Recommendations')
-  }
-
-  async getRecommendationsForRole(_role: PathwaysRole): Promise<RecommendationRecord[]> {
-    throw backendNotConfigured('Recommendations')
-  }
-
-  async getRules(): Promise<RuleDefinition[]> {
-    throw backendNotConfigured('Monitoring rules')
-  }
-
-  async getReports(_projectId?: string): Promise<ReportRecord[]> {
-    throw backendNotConfigured('Report records')
-  }
-
-  async getSurveyForms(_projectId?: string): Promise<SurveyFormDefinition[]> {
-    throw backendNotConfigured('Survey forms')
-  }
-
   async getBeneficiaryRegistrationContext(
     projectId: string,
   ): Promise<BeneficiaryRegistrationContext> {
@@ -1770,13 +1465,6 @@ class BackendReadyPathwaysClient implements PathwaysClient {
     ) as Promise<DigitalFormDefinition>
   }
 
-  async archiveDigitalForm(projectId: string, formId: string, expectedUpdatedAt: string) {
-    return requestFoundation(
-      `/metadata/projects/${encodeURIComponent(projectId)}/forms/${encodeURIComponent(formId)}/archive`,
-      { method: 'POST', body: JSON.stringify({ expectedUpdatedAt }) },
-    ) as Promise<DigitalFormDefinition>
-  }
-
   async createDigitalFormVersion(projectId: string, formId: string) {
     return requestFoundation(
       `/metadata/projects/${encodeURIComponent(projectId)}/forms/${encodeURIComponent(formId)}/versions`,
@@ -1825,12 +1513,6 @@ class BackendReadyPathwaysClient implements PathwaysClient {
     ) as Promise<DirectFormSubmission>
   }
 
-  async listDirectSubmissions(projectId: string, formId: string, offset = 0, limit = 10) {
-    return requestFoundation(
-      `/metadata/projects/${encodeURIComponent(projectId)}/forms/${encodeURIComponent(formId)}/submissions?offset=${encodeURIComponent(offset)}&limit=${encodeURIComponent(limit)}`,
-    ) as Promise<DirectFormSubmissionPage>
-  }
-
   async getDirectSubmission(projectId: string, formId: string, submissionId: string) {
     return requestFoundation(
       `/metadata/projects/${encodeURIComponent(projectId)}/forms/${encodeURIComponent(formId)}/submissions/${encodeURIComponent(submissionId)}`,
@@ -1858,13 +1540,6 @@ class BackendReadyPathwaysClient implements PathwaysClient {
       `/metadata/projects/${encodeURIComponent(projectId)}/forms/${encodeURIComponent(formId)}/submissions/${encodeURIComponent(submissionId)}`,
       { method: 'PATCH', body: JSON.stringify({ expectedUpdatedAt, values }) },
     ) as Promise<DirectFormSubmission>
-  }
-
-  async validateDirectSubmission(projectId: string, formId: string, submissionId: string) {
-    return requestFoundation(
-      `/metadata/projects/${encodeURIComponent(projectId)}/forms/${encodeURIComponent(formId)}/submissions/${encodeURIComponent(submissionId)}/validate`,
-      { method: 'POST' },
-    ) as Promise<FormValidationResult>
   }
 
   async submitDirectSubmission(
@@ -1958,33 +1633,6 @@ class BackendReadyPathwaysClient implements PathwaysClient {
       `/imports/projects/${encodeURIComponent(projectId)}/batches/${encodeURIComponent(batchId)}/process`,
       { method: 'POST', body: JSON.stringify({ expectedValidationRevision }) },
     ) as Promise<ImportBatchDefinition>
-  }
-
-  async getSurveyAggregateResults(
-    _filters?: SurveyAggregateFilters,
-  ): Promise<SurveyAggregateResultSet[]> {
-    throw backendNotConfigured('Survey aggregate results')
-  }
-
-  async getPublicProjects(): Promise<PublicProjectRecord[]> {
-    try {
-      return await readPublicProjects()
-    } catch {
-      throw new PathwaysClientError('Published projects are temporarily unavailable.', 'network')
-    }
-  }
-
-  async getPublicProject(id: string): Promise<PublicProjectRecord> {
-    try {
-      const [project] = await readPublicProjects(id)
-      if (!project) throw new Error('PUBLIC_NOT_FOUND')
-      return project
-    } catch (error) {
-      throw new PathwaysClientError(
-        'Published project unavailable.',
-        error instanceof Error && error.message === 'PUBLIC_NOT_FOUND' ? 'not_found' : 'network',
-      )
-    }
   }
 
   async getUsers(signal?: AbortSignal): Promise<UserRecord[]> {
@@ -3052,48 +2700,6 @@ function parseActivitySummaries(value: unknown): ActivitySummary[] {
     throw new PathwaysClientError('Invalid activity response.', 'network')
   }
   return value.map(parseActivitySummary)
-}
-
-function dateOnly(value: unknown): string {
-  if (value === null || value === undefined || value === '') return ''
-  if (typeof value !== 'string') throw new PathwaysClientError('Invalid date response.', 'network')
-  return value.slice(0, 10)
-}
-
-function parseMilestone(value: unknown): ProjectMilestone {
-  const row = value as Partial<ProjectMilestone> & {
-    targetDate?: unknown
-    completionDate?: unknown
-    description?: unknown
-  }
-  if (
-    !row ||
-    typeof row !== 'object' ||
-    typeof row.id !== 'string' ||
-    typeof row.projectId !== 'string' ||
-    typeof row.title !== 'string' ||
-    !['PENDING', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'].includes(String(row.status)) ||
-    typeof row.updatedAt !== 'string'
-  ) {
-    throw new PathwaysClientError('Invalid milestone response.', 'network')
-  }
-  return {
-    id: row.id,
-    projectId: row.projectId,
-    title: row.title,
-    description: typeof row.description === 'string' ? row.description : '',
-    targetDate: dateOnly(row.targetDate),
-    completionDate: dateOnly(row.completionDate),
-    status: row.status as ProjectMilestone['status'],
-    updatedAt: row.updatedAt,
-  }
-}
-
-function parseMilestones(value: unknown): ProjectMilestone[] {
-  if (!Array.isArray(value) || value.length > 100) {
-    throw new PathwaysClientError('Invalid milestone response.', 'network')
-  }
-  return value.map(parseMilestone)
 }
 
 function parseJourneyStage(value: unknown): JourneyStageConfig {
