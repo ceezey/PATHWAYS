@@ -2,7 +2,7 @@
 
 **ID:** `cr-pathways-evaluation-auto-scoring`
 **Date:** 2026-10-06
-**Status:** Proposed (migration 0069 and code in repo; verified 2026-10-08; not applied to any database)
+**Status:** Applied (developer-approved 2026-10-06; migration 0069 applied to devV2 2026-10-06 and shipped to master in PR #47)
 
 ## 1. Trigger
 
