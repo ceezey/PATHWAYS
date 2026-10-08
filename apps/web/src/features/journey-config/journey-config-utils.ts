@@ -30,7 +30,7 @@ export const stageTypeStyle: Record<
   },
 }
 
-export type StageRow = { stage: JourneyStageConfig; parent?: JourneyStageConfig }
+type StageRow = { stage: JourneyStageConfig; parent?: JourneyStageConfig }
 
 const byOrder = (a: JourneyStageConfig, b: JourneyStageConfig) => a.order - b.order
 

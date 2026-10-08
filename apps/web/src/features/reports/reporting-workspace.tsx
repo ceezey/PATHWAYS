@@ -108,7 +108,6 @@ type ReportingWorkspaceProps = {
   surveyResults: SurveyAggregateResultSet[]
 }
 
-const allValue = 'all'
 const emptyBeneficiaryRecords: BeneficiaryRecord[] = []
 
 const reportTypes: { kind: ReportKind; label: string }[] = [
@@ -321,10 +320,6 @@ export const ReportingWorkspace = ({
   const scopedJourneyStages = useMemo(
     () => journeyStages.filter((stage) => scopedProjectIds.has(stage.projectId)),
     [journeyStages, scopedProjectIds],
-  )
-  const scopedReports = useMemo(
-    () => reports.filter((report) => scopedProjectIds.has(report.projectId)),
-    [reports, scopedProjectIds],
   )
   const scopedSurveyForms = useMemo(
     () => surveyForms.filter((form) => scopedProjectIds.has(form.projectId)),

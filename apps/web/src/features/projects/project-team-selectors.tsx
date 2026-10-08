@@ -1,6 +1,6 @@
 'use client'
 
-import { ChevronDown, Loader2, RefreshCw, X } from 'lucide-react'
+import { ChevronDown, RefreshCw, X } from 'lucide-react'
 import type { Control } from 'react-hook-form'
 
 import { AsyncState } from '@/components/pathways'

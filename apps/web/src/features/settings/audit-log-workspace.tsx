@@ -1,6 +1,6 @@
 'use client'
 
-import { CalendarDays, FilterX, ScrollText, Search } from 'lucide-react'
+import { FilterX, ScrollText, Search } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
 import { PageHeader } from '@/components/layout/page-header'

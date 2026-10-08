@@ -14,7 +14,7 @@ import {
 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 
-import { ProgressBar, SidePanel, StatusBadge } from '@/components/pathways'
+import { SidePanel, StatusBadge } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import { Sheet } from '@/components/ui/sheet'
 import { pathwaysClient } from '@/lib/services/pathways-client'

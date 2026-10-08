@@ -1,6 +1,6 @@
 import type { ProjectIndicator, ProjectSummary } from '@/types/pathways'
 
-export interface AnalyticsReportingPeriod {
+interface AnalyticsReportingPeriod {
   value: string
   label: string
   start: string

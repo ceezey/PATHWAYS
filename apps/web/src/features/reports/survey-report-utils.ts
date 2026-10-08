@@ -10,7 +10,7 @@ export type SurveyReportSelection = {
   responseDate: string
 }
 
-export type SurveyReportRow = {
+type SurveyReportRow = {
   question: string
   resultType: SurveyQuestionAggregate['kind']
   summary: string

@@ -1,7 +1,6 @@
 'use client'
 import { Download, FileText } from 'lucide-react'
 import { useState } from 'react'
-import { toast } from 'sonner'
 
 import { ProofPreviewDialog } from '@/components/pathways'
 import { saveCoreArtifact } from '@/lib/services/core-feature-client'

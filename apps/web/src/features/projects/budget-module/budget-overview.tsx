@@ -3,13 +3,7 @@
 import { AlertTriangle, CheckCircle2, Lightbulb, Wallet } from 'lucide-react'
 import { type ReactNode, useState } from 'react'
 
-import {
-  EmptyState,
-  MetricCard,
-  ProgressBar,
-  SectionCard,
-  StatusBadge,
-} from '@/components/pathways'
+import { EmptyState, ProgressBar, SectionCard, StatusBadge } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import { formatCappedPercent } from '@/lib/percent'
 import { cn } from '@/lib/utils'

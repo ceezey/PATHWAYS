@@ -1,4 +1,4 @@
-export type BudgetRow = {
+type BudgetRow = {
   id: string
   activityId: string | null
   category: string
@@ -12,9 +12,9 @@ export type ExpenseRow = {
   receiptEvidenceId: string | null
 }
 export type ActivityLabel = { id: string; code?: string | null; title: string }
-export type Tone = 'info' | 'success' | 'warning' | 'danger'
+type Tone = 'info' | 'success' | 'warning' | 'danger'
 
-export type ActivityBudgetRow = {
+type ActivityBudgetRow = {
   key: string
   activityId: string | null
   code: string
@@ -33,7 +33,7 @@ export type BudgetAlert = {
 }
 
 export const projectLevelKey = 'project-level'
-export const projectEnvelopeCategory = 'PROJECT_PROFILE_TOTAL'
+const projectEnvelopeCategory = 'PROJECT_PROFILE_TOTAL'
 // Stored envelope categories read as enum names, so the ledger shows these instead.
 const categoryLabels: Record<string, string> = {
   PROJECT_PROFILE_TOTAL: 'Project budget',
@@ -47,9 +47,9 @@ export const categoryLabel = (category: string | null | undefined, activityTitle
       ? (categoryLabels[category] ?? category)
       : 'Unrecorded budget line'
 // Visual thresholds only; they never block or change any record.
-export const DANGER_PCT = 90
-export const WARN_PCT = 70
-export const LOW_REMAINING_PCT = 15
+const DANGER_PCT = 90
+const WARN_PCT = 70
+const LOW_REMAINING_PCT = 15
 
 export const toNumber = (value: string | null | undefined) => {
   const parsed = Number(value)
@@ -165,7 +165,7 @@ export const deriveRecommendations = (rows: ActivityBudgetRow[]) =>
       suggestion: `Consider reviewing the plan or allocation for ${row.title}.`,
     }))
 
-export type ActivityBudgetFigures = {
+type ActivityBudgetFigures = {
   /** Null means the viewer cannot read budgets, which is different from nothing allocated. */
   allocated: number | null
   /** Approved spending only, the same rule the ledger and the overview metric use. */

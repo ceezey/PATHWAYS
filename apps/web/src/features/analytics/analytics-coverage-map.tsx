@@ -46,7 +46,7 @@ type AnalyticsCoverageMapProps = Readonly<{
 
 type MapStatus = 'loading' | 'ready' | 'error'
 
-export type MapPoint = Readonly<{
+type MapPoint = Readonly<{
   id: string
   label: string
   coordinates: readonly [longitude: number, latitude: number]

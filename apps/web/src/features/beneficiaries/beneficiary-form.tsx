@@ -16,7 +16,6 @@ import type { FormEvent } from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
-import { StatusBadge } from '@/components/pathways/status-badge'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -58,7 +57,7 @@ const calendarDay = (value: string | null) => {
   return Number.isFinite(day.valueOf()) && day.toISOString().slice(0, 10) === value ? day : null
 }
 
-export type RegistrationAge = { age: number | null; error: string | null }
+type RegistrationAge = { age: number | null; error: string | null }
 
 /**
  * Age in completed years at the reference date (the enrollment date; for a new registration the

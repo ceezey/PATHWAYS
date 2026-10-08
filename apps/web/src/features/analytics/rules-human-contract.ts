@@ -1,5 +1,5 @@
 import { z } from 'zod'
-export const alertStatuses = [
+const alertStatuses = [
   'NEW',
   'REVIEWED',
   'ACTIONED',
@@ -18,7 +18,7 @@ import {
   uuidSchema,
 } from './rules-validation'
 
-export const revisionSchema = z
+const revisionSchema = z
   .string()
   .regex(/^[1-9][0-9]{0,18}$/)
   .refine((value) => {
@@ -122,7 +122,6 @@ export const ruleListSchema = z
 export const alertListSchema = z
   .object({ ...listFields, status: z.enum(alertStatuses).optional() })
   .strict()
-export const escalatedAlertListSchema = z.object(listFields).strict()
 export const recommendationListSchema = z
   .object({ ...listFields, alertId: uuidSchema.optional() })
   .strict()
@@ -133,7 +132,7 @@ export const historyListSchema = z
 // Every output is an explicit allowlist. Notes and note-presence metadata are
 // excluded even for Admin and committed retries, matching the approved CR.
 const instant = z.string().datetime({ offset: true })
-export const alertEvidenceSchema = z
+const alertEvidenceSchema = z
   .object({
     conditionId: z.string().regex(/^[A-Za-z][A-Za-z0-9_-]{0,63}$/),
     metric: z.enum(ruleMetrics),
@@ -180,10 +179,6 @@ export const alertOutputSchema = z
     predefinedRecommendations: z.array(recommendationSchema).min(1).max(10),
     linkedRecommendationIds: z.array(uuidSchema).max(10),
   })
-  .strict()
-// Escalation records only an outcome; the queue adds when the latest ESCALATE was recorded.
-export const escalatedAlertOutputSchema = alertOutputSchema
-  .extend({ escalatedAt: instant })
   .strict()
 export const recommendationOutputSchema = z
   .object({

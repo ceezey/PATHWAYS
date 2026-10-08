@@ -3,7 +3,7 @@ import type { JourneyStageConfig } from '@/types/pathways'
 
 import { childrenOf, rootStages, stageTypeStyle } from './journey-config-utils'
 
-export type StageState = 'done' | 'current' | 'upcoming' | 'off-path'
+type StageState = 'done' | 'current' | 'upcoming' | 'off-path'
 
 type TrackProps = {
   stages: JourneyStageConfig[]

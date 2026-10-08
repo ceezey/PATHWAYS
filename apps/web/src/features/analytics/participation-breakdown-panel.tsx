@@ -5,7 +5,7 @@ import ReactECharts from 'echarts-for-react'
 import { chartPalette } from '@/lib/chart-palette'
 import type { ParticipationBreakdown } from '@pathways/shared'
 
-export const SUPPRESSED_LABEL = 'Suppressed'
+const SUPPRESSED_LABEL = 'Suppressed'
 
 interface Row {
   key: string

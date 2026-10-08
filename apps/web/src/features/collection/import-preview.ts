@@ -5,7 +5,6 @@ import {
   parseImportPreviewRequest,
 } from './import-preview-parse'
 
-export type { ImportPreviewResult } from './import-preview-parse'
 export { parseImportPreviewRequest } from './import-preview-parse'
 
 /**

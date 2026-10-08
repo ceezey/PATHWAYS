@@ -211,19 +211,6 @@ const kpiCard = () =>
     .map((node) => node.parentElement?.parentElement?.textContent ?? '')
     .join(' | ')
 
-// The MetricCard description only renders inside its info tooltip on hover/focus, so
-// permission-gating assertions read the always-visible label + value text instead.
-// "Budget utilization" also labels the ChartPanel further down; only the MetricCard
-// label sits two ancestors above its value, matching kpiCard's structure.
-const budgetUtilizationCard = () =>
-  screen
-    .getAllByText('Budget utilization')
-    .map((node) => node.parentElement?.parentElement?.textContent ?? '')
-    .filter(
-      (text) => text.includes('%') || text.includes('Unavailable') || text.includes('No budget'),
-    )
-    .join(' | ')
-
 const monitoring = {
   indicators: [],
   participationRecords: { value: null, state: 'MISSING', reason: 'MISSING' },

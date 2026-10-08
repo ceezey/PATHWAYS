@@ -44,10 +44,9 @@ import type {
 } from '@/types/pathways'
 import { PrivateProofPreview } from './private-proof-preview'
 
-import { formatDate } from './activity-utils'
 import { addIndicatorSchema } from './project-review-utils'
 
-export type PhaseFiveWorkspaceView =
+type PhaseFiveWorkspaceView =
   | 'evidence'
   | 'indicators'
   | 'monitor-evaluate'

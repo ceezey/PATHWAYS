@@ -58,7 +58,7 @@ type RuleTemplateSpec = {
     recommendations: { id: string; title: string; text: string }[]
   }
 }
-export const ruleTemplates: RuleTemplateSpec[] = [
+const ruleTemplates: RuleTemplateSpec[] = [
   {
     key: 'OPERATIONS_BOTTLENECK',
     name: 'Operations Bottleneck',

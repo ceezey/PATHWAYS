@@ -1,4 +1,4 @@
-export type ProjectCoverageScope = Readonly<{
+type ProjectCoverageScope = Readonly<{
   id: string
   title: string
 }>

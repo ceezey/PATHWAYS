@@ -8,7 +8,6 @@ import ReactECharts from 'echarts-for-react'
 import type { ActivitySummary, AlertRecord, BudgetRecord, ProjectDetail } from '@/types/pathways'
 
 import { type AggregateChartBucket, aggregateChartOption } from './aggregate-chart-options'
-import { buildLegendAriaDescription, createAdaptiveLegendLayout } from './analytics-legend-options'
 
 type ChartProps = {
   projects: ProjectDetail[]
@@ -17,7 +16,7 @@ type ChartProps = {
   alerts: AlertRecord[]
 }
 
-export interface DescriptiveAnalysisRow {
+interface DescriptiveAnalysisRow {
   id: string
   label: string
   value: number
@@ -111,63 +110,6 @@ export const IndicatorProgressChart = ({ rows }: { rows: DescriptiveAnalysisRow[
   />
 )
 
-export const BudgetUtilizationChart = ({
-  projects,
-  budgets,
-}: Pick<ChartProps, 'projects' | 'budgets'>) => {
-  const legendLabels = ['Planned allocation', 'Actual spending']
-  const legendLayout = createAdaptiveLegendLayout(legendLabels)
-
-  return (
-    <ReactECharts
-      className="h-[280px] w-full"
-      option={{
-        animation: false,
-        aria: {
-          enabled: true,
-          description: buildLegendAriaDescription(
-            'Planned allocation and actual spending by project.',
-            legendLabels,
-          ),
-        },
-        color: chartPalette.slice(0, 2),
-        tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
-        ...legendLayout,
-        xAxis: { type: 'value' },
-        yAxis: {
-          type: 'category',
-          data: projects.map((project) => project.title.replace(' - ', '\n')),
-        },
-        series: [
-          {
-            name: 'Planned allocation',
-            type: 'bar',
-            data: projects.map(
-              (project) =>
-                budgets.find((budget) => budget.projectId === project.id)?.plannedAmount ?? 0,
-            ),
-          },
-          {
-            name: 'Actual spending',
-            type: 'bar',
-            data: projects.map(
-              (project) =>
-                budgets.find((budget) => budget.projectId === project.id)?.actualSpending ?? 0,
-            ),
-          },
-        ],
-      }}
-    />
-  )
-}
-
-/**
- * Shared bucket-chart-or-fallback pattern: a chart when at least one bucket has a
- * releasable value, otherwise a plain-language fallback, plus a screen-reader-only
- * accessible table of every bucket (including suppressed/missing ones, which never
- * plot as a fabricated 0). Used by SadddChart and SurveyImprovementChart so the two
- * views cannot drift.
- */
 const AggregateBucketChart = ({
   buckets,
   label,
@@ -242,36 +184,6 @@ export const ActivityCompletionChart = ({ activities }: Pick<ChartProps, 'activi
               name: status,
               value: activities.filter((activity) => activity.status === status).length,
             })),
-          },
-        ],
-      }}
-    />
-  )
-}
-
-export const AlertCountsChart = ({ alerts }: Pick<ChartProps, 'alerts'>) => {
-  const severities: AlertRecord['severity'][] = ['Critical', 'Warning', 'Information']
-
-  return (
-    <ReactECharts
-      className="h-[260px] w-full"
-      option={{
-        animation: false,
-        aria: {
-          enabled: true,
-          description: 'Rule-Based Alert totals grouped by severity.',
-        },
-        color: [chartSignal.danger, chartSignal.warning, chartSignal.info],
-        tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
-        grid,
-        xAxis: { type: 'category', data: severities },
-        yAxis: { type: 'value', minInterval: 1 },
-        series: [
-          {
-            type: 'bar',
-            data: severities.map(
-              (severity) => alerts.filter((alert) => alert.severity === severity).length,
-            ),
           },
         ],
       }}

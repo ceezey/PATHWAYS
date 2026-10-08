@@ -37,7 +37,6 @@ import {
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'
 import { useSafeProjectSelection } from '@/hooks/use-safe-project-selection'
-import { getAccessProfile } from '@/lib/rbac/can'
 import { scopeBeneficiariesForRole, scopeProjectsForRole } from '@/lib/rbac/data-scope'
 import { isUiActionAvailable } from '@/lib/rbac/ui-action-availability'
 import type {
@@ -77,7 +76,6 @@ export const BeneficiaryDirectory = ({
   const { role, profile, assignedProjectIds } = useCurrentRole()
   const searchParams = useSearchParams()
   const readParam = (name: string) => searchParams?.get(name) ?? null
-  const projectAccess = role ? getAccessProfile(role).projectAccess : 'assigned-projects'
   const scopedProjects = useMemo(
     () => (role ? scopeProjectsForRole(projects, role, assignedProjectIds) : []),
     [projects, role, assignedProjectIds],

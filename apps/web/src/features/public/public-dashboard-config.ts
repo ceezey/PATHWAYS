@@ -4,11 +4,6 @@ import type {
   PublicDashboardSectionId,
 } from '@/types/pathways'
 
-export const PUBLIC_DASHBOARD_STORAGE_KEY = 'pathways.publicDashboardCustomization'
-
-export const getPublicDashboardStorageKey = (projectId: string) =>
-  `${PUBLIC_DASHBOARD_STORAGE_KEY}.${projectId}`
-
 export const publicDashboardSections: ReadonlyArray<{
   id: PublicDashboardSectionId
   label: string

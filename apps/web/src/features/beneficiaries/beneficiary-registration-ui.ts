@@ -1,8 +1,8 @@
 import type { DigitalFormFieldDefinition } from '@/types/pathways'
 
-export type RegistrationSubjectType = 'INDIVIDUAL' | 'GROUP' | 'COMMUNITY'
+type RegistrationSubjectType = 'INDIVIDUAL' | 'GROUP' | 'COMMUNITY'
 
-export const registrationProfileFieldLabels = {
+const registrationProfileFieldLabels = {
   display_name: 'Display name',
   first_name: 'First name',
   middle_name: 'Middle name',

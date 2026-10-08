@@ -23,15 +23,13 @@ const tileTone: Record<Tone, string> = {
   neutral: 'bg-primary-subtle text-primary',
 }
 
-export const formatBytes = (bytes: number) => {
+const formatBytes = (bytes: number) => {
   if (bytes < 1024) return `${bytes} B`
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
-export const evidenceIcon = (
-  record: Pick<EvidenceRecord, 'contentType' | 'isIdentifying' | 'status'>,
-) =>
+const evidenceIcon = (record: Pick<EvidenceRecord, 'contentType' | 'isIdentifying' | 'status'>) =>
   record.isIdentifying
     ? Lock
     : record.contentType.startsWith('image/')
@@ -115,7 +113,7 @@ interface AuditEvent {
 }
 
 /** Builds the trail only from timestamps and names already on evidence records. */
-export const auditEvents = (records: EvidenceRecord[], limit = 6): AuditEvent[] =>
+const auditEvents = (records: EvidenceRecord[], limit = 6): AuditEvent[] =>
   records
     .flatMap((record): AuditEvent[] => {
       const events: AuditEvent[] = [

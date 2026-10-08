@@ -112,7 +112,6 @@ const projectsSchema = z
     z.object({ id: z.string().uuid(), code: z.string(), title: z.string(), status: z.string() }),
   )
   .max(100)
-export type AuthorizedProject = z.infer<typeof projectsSchema>[number]
 
 export async function requestAuthorizedProjects(
   baseUrl: string,
