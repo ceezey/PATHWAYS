@@ -14,3 +14,5 @@ export * from './monitoring/project-map'
 export * from './monitoring/action-counts'
 export * from './monitoring/role-overview'
 export * from './monitoring/activity-extension'
+
+export * from './rbac/authorization-policy'

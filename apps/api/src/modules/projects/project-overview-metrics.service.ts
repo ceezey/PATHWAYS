@@ -1,10 +1,12 @@
 import { Inject, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common'
 import { readApiEnv } from '@pathways/config'
 import {
+  type AtomicPermission,
   type MetricCell,
   PROJECT_OVERVIEW_METRICS_CONTRACT_VERSION,
   businessCalendarDate,
   efficiencyRatio,
+  hasAtomicPermission,
   kpiAchievement,
   missingMetric,
   projectOverviewMetricsSchema,
@@ -13,7 +15,6 @@ import {
 import type { Prisma } from '@prisma/client'
 
 import { PrismaService } from '../../prisma/prisma.service'
-import { type AtomicPermission, hasAtomicPermission } from '../auth/authorization-policy'
 import { projectScope } from '../auth/authorized-data.service'
 import { withAuthorizedOperation } from '../auth/authorized-operation'
 import { type ApplicationIdentity, UUID_PATTERN } from '../auth/developer-access'

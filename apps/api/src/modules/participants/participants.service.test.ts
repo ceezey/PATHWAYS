@@ -6,10 +6,10 @@ import { plainToInstance } from 'class-transformer'
 import { validate } from 'class-validator'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { hasAtomicPermission, rolePermissions } from '@app/modules/auth/authorization-policy'
 import { withAuthorizedOperation } from '@app/modules/auth/authorized-operation'
 import type { ApplicationIdentity } from '@app/modules/auth/developer-access'
 import type { PrismaService } from '@app/prisma/prisma.service'
+import { hasAtomicPermission, rolePermissions } from '@pathways/shared'
 import { CorrectJourneyEventDto } from './participants.dto'
 import { ParticipantsService } from './participants.service'
 

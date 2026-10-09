@@ -7,7 +7,7 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { PrismaService } from '@app/prisma/prisma.service'
-import { hasAtomicPermission } from '../auth/authorization-policy'
+import { hasAtomicPermission } from '@pathways/shared'
 import type { ApplicationIdentity } from '../auth/developer-access'
 import { BeneficiariesService } from './beneficiaries.service'
 import { canReadProgress, progressPercent } from './beneficiary-progress'

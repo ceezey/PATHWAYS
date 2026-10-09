@@ -1,8 +1,8 @@
 import { BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { hasAtomicPermission } from '@pathways/shared'
 import type { PrismaService } from '../../prisma/prisma.service'
-import { hasAtomicPermission } from '../auth/authorization-policy'
 import type { ApplicationIdentity } from '../auth/developer-access'
 import type { ReceiptPdfRenderer } from '../report-pdf/receipt-pdf.renderer'
 import type { StorageService } from '../storage/storage.service'

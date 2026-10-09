@@ -1,14 +1,18 @@
 import 'reflect-metadata'
 
 import { PERMISSION_KEY } from '@app/common/decorators/permission.decorator'
-import { hasAtomicPermission, rolePermissions } from '@app/modules/auth/authorization-policy'
 import { withAuthorizedOperation } from '@app/modules/auth/authorized-operation'
 import type { ApplicationIdentity, AuthenticatedRequest } from '@app/modules/auth/developer-access'
 import { DashboardsService } from '@app/modules/dashboards/dashboards.service'
 import type { IndicatorsService } from '@app/modules/indicators/indicators.service'
 import type { PrismaService } from '@app/prisma/prisma.service'
 import { ForbiddenException, NotFoundException } from '@nestjs/common'
-import { type MetricCell, projectOverviewMetricsSchema } from '@pathways/shared'
+import {
+  type MetricCell,
+  hasAtomicPermission,
+  projectOverviewMetricsSchema,
+  rolePermissions,
+} from '@pathways/shared'
 import { Prisma } from '@prisma/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 

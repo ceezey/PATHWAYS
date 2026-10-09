@@ -1,5 +1,5 @@
 import { SetMetadata } from '@nestjs/common'
-import type { AtomicPermission } from '../../modules/auth/authorization-policy'
+import type { AtomicPermission } from '@pathways/shared'
 
 export const PERMISSION_KEY = 'pathways:atomic-permission'
 /** Required on every reviewed business handler, in addition to scoped queries. */

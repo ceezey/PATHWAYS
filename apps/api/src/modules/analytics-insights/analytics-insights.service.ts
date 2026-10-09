@@ -10,14 +10,15 @@ import {
 import {
   ANALYTICS_INSIGHTS_ATTENDANCE_STATUSES,
   type AnalyticsInsightsQuery,
+  type AtomicPermission,
   type BudgetSummary,
   type IndicatorTrends,
   type ParticipationBreakdown,
   analyticsInsightsQuerySchema,
+  hasAtomicPermission,
 } from '@pathways/shared'
 import type { Prisma } from '@prisma/client'
 import { PrismaService } from '../../prisma/prisma.service'
-import { type AtomicPermission, hasAtomicPermission } from '../auth/authorization-policy'
 import { projectScope } from '../auth/authorized-data.service'
 import { withAuthorizedOperation } from '../auth/authorized-operation'
 import type { ApplicationIdentity } from '../auth/developer-access'

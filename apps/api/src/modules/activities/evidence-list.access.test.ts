@@ -5,10 +5,10 @@ import type { Prisma } from '@prisma/client'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { PERMISSION_KEY } from '@app/common/decorators/permission.decorator'
-import { hasAtomicPermission } from '@app/modules/auth/authorization-policy'
 import type { ApplicationIdentity } from '@app/modules/auth/developer-access'
 import type { StorageService } from '@app/modules/storage/storage.service'
 import type { PrismaService } from '@app/prisma/prisma.service'
+import { hasAtomicPermission } from '@pathways/shared'
 
 const state = vi.hoisted(() => ({
   actor: undefined as ApplicationIdentity | undefined,

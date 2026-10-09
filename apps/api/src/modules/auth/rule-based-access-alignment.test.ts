@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
+import { hasAtomicPermission, rolePermissions } from '@pathways/shared'
 import { describe, expect, it } from 'vitest'
-import { hasAtomicPermission, rolePermissions } from './authorization-policy'
 import { projectScope } from './authorized-data.service'
 import type { ApplicationIdentity } from './developer-access'
 

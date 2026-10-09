@@ -1,12 +1,12 @@
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
-import { describe, expect, it } from 'vitest'
 import {
   canAssignRole,
   hasAtomicPermission,
   permissionCodes,
   rolePermissions,
-} from './authorization-policy'
+} from '@pathways/shared'
+import { describe, expect, it } from 'vitest'
 import contract from './rbac-contract.json'
 
 describe('approved CSV RBAC contract', () => {

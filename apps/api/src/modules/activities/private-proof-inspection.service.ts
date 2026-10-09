@@ -9,11 +9,11 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common'
 import { readApiEnv } from '@pathways/config'
+import { hasAtomicPermission } from '@pathways/shared'
 import type { Prisma } from '@prisma/client'
 import { inspectionIdentityContext } from '../../common/network/inspection-request-budget'
 import { PrismaService } from '../../prisma/prisma.service'
 import { readApplicationProfile } from '../auth/application-profile.service'
-import { hasAtomicPermission } from '../auth/authorization-policy'
 import { projectScope } from '../auth/authorized-data.service'
 import { withAuthorizedOperation } from '../auth/authorized-operation'
 import { type ApplicationIdentity, UUID_PATTERN } from '../auth/developer-access'

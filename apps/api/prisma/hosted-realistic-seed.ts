@@ -4,12 +4,12 @@ import path from 'node:path'
 import { PrismaClient } from '@prisma/client'
 import { createClient } from '@supabase/supabase-js'
 
+import type { CanonicalRole } from '@pathways/shared'
 import type {
   CreateActivityDto,
   TransitionActivityDto,
 } from '../src/modules/activities/activities.dto'
 import { ActivitiesService } from '../src/modules/activities/activities.service'
-import type { CanonicalRole } from '../src/modules/auth/authorization-policy'
 import type { ApplicationIdentity } from '../src/modules/auth/developer-access'
 import type { RegisterBeneficiaryDto } from '../src/modules/beneficiaries/beneficiaries.dto'
 import { BeneficiariesService } from '../src/modules/beneficiaries/beneficiaries.service'

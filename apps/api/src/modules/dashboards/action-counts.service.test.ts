@@ -1,12 +1,11 @@
 import 'reflect-metadata'
 
 import { PERMISSION_KEY } from '@app/common/decorators/permission.decorator'
-import { rolePermissions } from '@app/modules/auth/authorization-policy'
 import { withAuthorizedOperation } from '@app/modules/auth/authorized-operation'
 import type { ApplicationIdentity } from '@app/modules/auth/developer-access'
 import type { RulesHumanService } from '@app/modules/rules/rules-human.service'
 import type { PrismaService } from '@app/prisma/prisma.service'
-import { dashboardActionCountsSchema } from '@pathways/shared'
+import { dashboardActionCountsSchema, rolePermissions } from '@pathways/shared'
 import type { Prisma } from '@prisma/client'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ActionCountsController } from './action-counts.controller'

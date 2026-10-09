@@ -1,9 +1,9 @@
 import { randomBytes } from 'node:crypto'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
+import type { CanonicalRole } from '@pathways/shared'
 import { PrismaClient } from '@prisma/client'
 import { createClient } from '@supabase/supabase-js'
-import type { CanonicalRole } from '../src/modules/auth/authorization-policy'
 import { seedCanonicalReferenceData } from './canonical-seed'
 import { approvedOrganization } from './developer-bootstrap'
 

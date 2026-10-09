@@ -2,7 +2,7 @@ import { ForbiddenException } from '@nestjs/common'
 import { describe, expect, it, vi } from 'vitest'
 
 import { PERMISSION_KEY } from '@app/common/decorators/permission.decorator'
-import { hasAtomicPermission, rolePermissions } from '../auth/authorization-policy'
+import { hasAtomicPermission, rolePermissions } from '@pathways/shared'
 import { ImportsController } from './imports.controller'
 import { ImportsService } from './imports.service'
 

@@ -13,6 +13,7 @@ import {
 import { readApiEnv } from '@pathways/config'
 import type { Prisma } from '@prisma/client'
 
+import { aggregateOnlyRoles } from '@pathways/shared'
 import { PrismaService } from '../../prisma/prisma.service'
 import { PROOF_STORAGE_DEADLINE_MS } from '../activities/activities.dto'
 import {
@@ -20,7 +21,6 @@ import {
   evidenceExtension,
   proofDeclarations,
 } from '../activities/activities.service'
-import { aggregateOnlyRoles } from '../auth/authorization-policy'
 import { projectScope } from '../auth/authorized-data.service'
 import { withAuthorizedOperation } from '../auth/authorized-operation'
 import { type ApplicationIdentity, UUID_PATTERN } from '../auth/developer-access'

@@ -13,10 +13,10 @@ import {
   type FormValidationMode,
   activityMonitoringDefinitionErrors,
   beneficiaryRegistrationDefinitionErrors,
+  hasAtomicPermission,
   validateAndNormalizeFormData,
 } from '@pathways/shared'
 import { PrismaService } from '../../prisma/prisma.service'
-import { hasAtomicPermission } from '../auth/authorization-policy'
 import { projectScope } from '../auth/authorized-data.service'
 import { withAuthorizedOperation } from '../auth/authorized-operation'
 import { type ApplicationIdentity, UUID_PATTERN } from '../auth/developer-access'

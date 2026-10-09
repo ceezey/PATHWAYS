@@ -29,10 +29,7 @@ import {
 import type { UserRecord } from '@/types/pathways'
 import type { PathwaysRole } from '@/types/pathways-role'
 
-import {
-  type CanonicalRole,
-  canAssignRole,
-} from '../../../../api/src/modules/auth/authorization-policy'
+import { type CanonicalRole, canAssignRole } from '@pathways/shared'
 
 import type { ProjectSetupSchema } from './project-form-validation'
 

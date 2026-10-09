@@ -1,6 +1,5 @@
-import { type MetricCell, numericMetric } from '@pathways/shared'
+import { type MetricCell, numericMetric, rolePermissions } from '@pathways/shared'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { rolePermissions } from '../auth/authorization-policy'
 import type { ApplicationIdentity } from '../auth/developer-access'
 import type { IndicatorsService } from '../indicators/indicators.service'
 import {

@@ -1,5 +1,4 @@
 import { PERMISSION_KEY } from '@app/common/decorators/permission.decorator'
-import { hasAtomicPermission, rolePermissions } from '@app/modules/auth/authorization-policy'
 import { withAuthorizedOperation } from '@app/modules/auth/authorized-operation'
 import type { ApplicationIdentity } from '@app/modules/auth/developer-access'
 import type { PrismaService } from '@app/prisma/prisma.service'
@@ -9,6 +8,7 @@ import {
   NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common'
+import { hasAtomicPermission, rolePermissions } from '@pathways/shared'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AnalyticsInsightsController } from './analytics-insights.controller'
 import { AnalyticsInsightsService } from './analytics-insights.service'

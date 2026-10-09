@@ -8,16 +8,17 @@ import {
 } from '@nestjs/common'
 import { readApiEnv } from '@pathways/config'
 import {
+  type AtomicPermission,
   type DashboardQuery,
   P06_CONTRACT_VERSION,
   businessCalendarDate,
+  hasAtomicPermission,
   monitoringDashboardSchema,
   sadddDashboardSchema,
   validateMetricPeriod,
 } from '@pathways/shared'
 import { Prisma } from '@prisma/client'
 import { PrismaService } from '../../prisma/prisma.service'
-import { type AtomicPermission, hasAtomicPermission } from '../auth/authorization-policy'
 import { projectScope } from '../auth/authorized-data.service'
 import { withAuthorizedOperation } from '../auth/authorized-operation'
 import type { ApplicationIdentity } from '../auth/developer-access'

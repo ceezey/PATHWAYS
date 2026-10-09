@@ -6,7 +6,7 @@ import {
   canAuthorizeRole,
   roleNames,
   rolePermissions,
-} from '../../../../api/src/modules/auth/authorization-policy'
+} from '@pathways/shared'
 import type { DataScopeCode, PermissionCode } from './permissions'
 
 type AccessLevel = 'none' | 'view' | 'aggregate' | 'scoped' | 'full' | 'configure'

@@ -7,7 +7,14 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common'
-import { projectCodeBase, uniqueProjectCode } from '@pathways/shared'
+import {
+  type CanonicalRole,
+  canAssignRole,
+  hasAtomicPermission,
+  isCanonicalRole,
+  projectCodeBase,
+  uniqueProjectCode,
+} from '@pathways/shared'
 import { Prisma } from '@prisma/client'
 import {
   beginRuleSourceOperation,
@@ -16,12 +23,6 @@ import {
 } from '../rules/rules-source-operation'
 
 import { PrismaService } from '../../prisma/prisma.service'
-import {
-  type CanonicalRole,
-  canAssignRole,
-  hasAtomicPermission,
-  isCanonicalRole,
-} from '../auth/authorization-policy'
 import { projectScope } from '../auth/authorized-data.service'
 import { withAuthorizedOperation } from '../auth/authorized-operation'
 import { type ApplicationIdentity, UUID_PATTERN } from '../auth/developer-access'

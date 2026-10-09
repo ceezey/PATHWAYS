@@ -8,7 +8,7 @@ import { Prisma } from '@prisma/client'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { PrismaService } from '@app/prisma/prisma.service'
-import { rolePermissions } from '../auth/authorization-policy'
+import { rolePermissions } from '@pathways/shared'
 import type { ApplicationIdentity } from '../auth/developer-access'
 import { DIRECT_ENTRY_FORM_TYPES, MetadataService } from './metadata.service'
 

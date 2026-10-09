@@ -5,7 +5,7 @@ import {
   hasAtomicPermission,
   roleNames,
   rolePermissions,
-} from '../../../../api/src/modules/auth/authorization-policy'
+} from '@pathways/shared'
 
 type UiAction =
   | 'activities.status.edit'

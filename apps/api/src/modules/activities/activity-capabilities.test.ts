@@ -10,15 +10,15 @@ import type { Prisma } from '@prisma/client'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { PERMISSION_KEY } from '@app/common/decorators/permission.decorator'
+import type { ApplicationIdentity } from '@app/modules/auth/developer-access'
+import type { StorageService } from '@app/modules/storage/storage.service'
+import type { PrismaService } from '@app/prisma/prisma.service'
 import {
   type AtomicPermission,
   type CanonicalRole,
   hasAtomicPermission,
   rolePermissions,
-} from '@app/modules/auth/authorization-policy'
-import type { ApplicationIdentity } from '@app/modules/auth/developer-access'
-import type { StorageService } from '@app/modules/storage/storage.service'
-import type { PrismaService } from '@app/prisma/prisma.service'
+} from '@pathways/shared'
 
 const state = vi.hoisted(() => ({
   actor: undefined as ApplicationIdentity | undefined,
@@ -28,7 +28,7 @@ const state = vi.hoisted(() => ({
 // The operation boundary re-checks the named permission against the synthetic actor under
 // the role ceiling, as the real boundary does against the freshly read profile.
 vi.mock('@app/modules/auth/authorized-operation', async () => {
-  const policy = await import('@app/modules/auth/authorization-policy')
+  const policy = await import('@pathways/shared')
   return {
     withAuthorizedOperation: vi.fn(async (_prisma, _identity, permission, work) => {
       const actor = state.actor

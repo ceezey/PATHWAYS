@@ -1,11 +1,10 @@
 import 'reflect-metadata'
 
-import { rolePermissions } from '@app/modules/auth/authorization-policy'
 import { withAuthorizedOperation } from '@app/modules/auth/authorized-operation'
 import type { ApplicationIdentity } from '@app/modules/auth/developer-access'
 import type { RulesHumanService } from '@app/modules/rules/rules-human.service'
 import type { PrismaService } from '@app/prisma/prisma.service'
-import { roleOverviewSchema } from '@pathways/shared'
+import { roleOverviewSchema, rolePermissions } from '@pathways/shared'
 import type { Prisma } from '@prisma/client'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { RoleOverviewService } from './role-overview.service'

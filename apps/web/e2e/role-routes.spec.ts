@@ -1,10 +1,7 @@
 import { createRequire } from 'node:module'
 import path from 'node:path'
+import { type CanonicalRole, rolePermissions } from '@pathways/shared'
 import { type Page, expect, test } from '@playwright/test'
-import {
-  type CanonicalRole,
-  rolePermissions,
-} from '../../api/src/modules/auth/authorization-policy'
 const requireTool = createRequire(require.resolve('tsx'))
 const { build } = requireTool('esbuild')
 let component: string

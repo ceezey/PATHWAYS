@@ -4,7 +4,7 @@ import {
   hasAtomicPermission,
   roleNames,
   rolePermissions,
-} from '../../../../api/src/modules/auth/authorization-policy'
+} from '@pathways/shared'
 import { approvedApiBaseUrl } from '../api-base-url'
 // Route decisions are a UI ceiling; the API remains identity authority.
 export type RoutePrincipal = {

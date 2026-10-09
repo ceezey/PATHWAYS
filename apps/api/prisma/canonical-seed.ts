@@ -1,10 +1,5 @@
+import { isCanonicalRole, permissionCodes, roleNames, rolePermissions } from '@pathways/shared'
 import type { Prisma } from '@prisma/client'
-import {
-  isCanonicalRole,
-  permissionCodes,
-  roleNames,
-  rolePermissions,
-} from '../src/modules/auth/authorization-policy'
 
 /** Internal implementation; caller must guard target and open a transaction.
  * Existing exact data is untouched, including IDs/timestamps. Drift fails closed.

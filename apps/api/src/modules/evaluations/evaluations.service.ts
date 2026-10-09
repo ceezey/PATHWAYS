@@ -6,10 +6,10 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common'
+import { hasAtomicPermission } from '@pathways/shared'
 import type { Prisma } from '@prisma/client'
 import { z } from 'zod'
 import { PrismaService } from '../../prisma/prisma.service'
-import { hasAtomicPermission } from '../auth/authorization-policy'
 import { projectScope } from '../auth/authorized-data.service'
 import { withAuthorizedOperation } from '../auth/authorized-operation'
 import type { ApplicationIdentity } from '../auth/developer-access'
