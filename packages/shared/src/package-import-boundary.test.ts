@@ -13,7 +13,10 @@ function specifiers(source: string): string[] {
 
 // True when a specifier in a package file names an app alias or leaves that package's src.
 function leavesPackage(file: string, root: string, specifier: string): boolean {
-  if (specifier.startsWith('@/') || specifier.startsWith('@app/')) return true
+  if (
+    ['@/', '@app/', '@pathways/web', '@pathways/api'].some((alias) => specifier.startsWith(alias))
+  )
+    return true
   if (!specifier.startsWith('.')) return false
   const resolved = path.resolve(path.dirname(file), specifier)
   return resolved !== root && !resolved.startsWith(`${root}${path.sep}`)
@@ -37,15 +40,18 @@ describe('package import boundary', () => {
         '@/lib/rbac/policy',
         '@app/common/authz/application-identity',
         '../../../../apps/web/src/lib/env',
+        '@pathways/web',
+        '@pathways/api',
         './role-catalog',
         '../rules/rule-contract',
         'zod',
         '@pathways/imports',
       ].map((specifier) => leavesPackage(file, root, specifier)),
-    ).toEqual([true, true, true, false, false, false, false])
+    ).toEqual([true, true, true, true, true, false, false, false, false])
   })
 
   it('keeps shared, imports and config free of app imports', () => {
+    expect(sources.flatMap(sourceFiles).length).toBeGreaterThan(40)
     const violations = sources.flatMap((root) =>
       sourceFiles(root).flatMap((file) =>
         specifiers(readFileSync(file, 'utf8'))

@@ -86,13 +86,17 @@ describe('api common import boundary', () => {
 describe('api to web boundary', () => {
   it('detects a relative import that reaches apps/web', () => {
     const file = path.join(src, 'modules', 'auth', 'example.ts')
+    // The control path is built at runtime so the scanned source holds no literal web import.
+    const webImport = ['..', '..', '..', '..', 'web', 'src', 'lib', 'rbac', 'route-access'].join(
+      '/',
+    )
     const source = [
-      "import { a } from '../../../../web/src/lib/rbac/route-access'",
+      `import { a } from '${webImport}'`,
       "import { b } from '../../common/authz/b'",
       "import { c } from '@pathways/shared'",
     ].join('\n')
     expect(specifiers(source).filter((specifier) => reachesWeb(file, specifier))).toEqual([
-      '../../../../web/src/lib/rbac/route-access',
+      webImport,
     ])
   })
 

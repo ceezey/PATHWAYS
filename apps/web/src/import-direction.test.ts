@@ -23,7 +23,14 @@ function specifiers(source: string): string[] {
 }
 
 // The top folder of a src-relative path, or '.' for a file directly under src.
-const layer = (relative: string) => (relative.includes('/') ? relative.split('/')[0] : '.')
+const layer = (relative: string) => {
+  const first = relative.split('/')[0]
+  return relative.includes('/') ||
+    first === 'app' ||
+    (first !== '.' && Object.hasOwn(forbidden, first))
+    ? first
+    : '.'
+}
 
 const relativeToSrc = (file: string) => path.relative(src, file).split(path.sep).join('/')
 
@@ -64,6 +71,8 @@ describe('web import direction', () => {
       "import { f } from '@/lib/utils'",
       "import { g } from '@pathways/shared'",
       "import { h } from './policy'",
+      "import { i } from '@/features'",
+      "import { j } from '../../app'",
     ].join('\n')
     expect(specifiers(source).map((specifier) => violation(file, specifier))).toEqual([
       'lib must not import features',
@@ -74,6 +83,8 @@ describe('web import direction', () => {
       null,
       null,
       null,
+      'lib must not import features',
+      'lib must not import app',
     ])
   })
 

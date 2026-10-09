@@ -27,6 +27,10 @@ describe('route policy', () => {
     })
   })
 
+  it('matches the first route in order so the literal create path wins over the project id', () => {
+    expect(matchRoute('/projects/new')).toEqual({ route: 'projectCreate' })
+  })
+
   it('parses only known routes with valid ids and no extra keys', () => {
     expect(parseRouteSelection({ route: 'project', projectId })).toEqual({
       route: 'project',
