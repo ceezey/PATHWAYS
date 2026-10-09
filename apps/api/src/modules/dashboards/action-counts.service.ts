@@ -1,24 +1,21 @@
-import { Inject, Injectable, ServiceUnavailableException } from '@nestjs/common'
-import { readApiEnv } from '@pathways/config'
+import { Inject, Injectable } from '@nestjs/common'
 import {
   type AtomicPermission,
   DASHBOARD_ACTION_COUNTS_CONTRACT_VERSION,
   type DashboardActionCounts,
-  businessCalendarDate,
   hasAtomicPermission,
 } from '@pathways/shared'
-import type { Prisma } from '@prisma/client'
+import type { ApplicationIdentity } from '../../common/authz/application-identity'
+import { projectScope } from '../../common/authz/project-scope'
+import type { Tx } from '../../common/prisma/transaction'
+import { currentBusinessDate } from '../../common/time/business-date'
 import { PrismaService } from '../../prisma/prisma.service'
-import { projectScope } from '../auth/authorized-data.service'
 import { withAuthorizedOperation } from '../auth/authorized-operation'
-import type { ApplicationIdentity } from '../auth/developer-access'
 import { RulesHumanService } from '../rules/rules-human.service'
 
 const alertPageLimit = 100
 const alertMaxPages = 10
 const dayMs = 86_400_000
-
-type Tx = Prisma.TransactionClient
 
 /** KPI counts for the dashboard header; each runs only when the viewer holds its permission. */
 @Injectable()
@@ -27,14 +24,6 @@ export class ActionCountsService {
     @Inject(PrismaService) private readonly prisma: PrismaService,
     @Inject(RulesHumanService) private readonly rules: RulesHumanService,
   ) {}
-
-  private businessDate() {
-    try {
-      return businessCalendarDate(new Date(), readApiEnv(process.env).BUSINESS_TIME_ZONE)
-    } catch {
-      throw new ServiceUnavailableException('The configured business time zone is invalid.')
-    }
-  }
 
   private pendingApprovals(
     tx: Tx,
@@ -122,7 +111,7 @@ export class ActionCountsService {
   }
 
   async read(identity: ApplicationIdentity): Promise<DashboardActionCounts> {
-    const businessDate = this.businessDate()
+    const businessDate = currentBusinessDate()
     const db = await withAuthorizedOperation(
       this.prisma,
       identity,

@@ -1,7 +1,7 @@
 import { Controller, ForbiddenException, Get, Inject, Param, Req } from '@nestjs/common'
 
+import type { AuthenticatedRequest } from '../../common/authz/application-identity'
 import { RequirePermission } from '../../common/decorators/permission.decorator'
-import type { AuthenticatedRequest } from '../auth/developer-access'
 import { ProjectOverviewMetricsService } from './project-overview-metrics.service'
 
 @Controller('projects/:projectId/overview-metrics')

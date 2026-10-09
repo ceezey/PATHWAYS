@@ -1,8 +1,8 @@
 import { PrismaClient } from '@prisma/client'
 import { type SupabaseClient, createClient } from '@supabase/supabase-js'
 
+import type { ApplicationIdentity } from '../src/common/authz/application-identity'
 import { ActivitiesService } from '../src/modules/activities/activities.service'
-import type { ApplicationIdentity } from '../src/modules/auth/developer-access'
 import { BeneficiariesService } from '../src/modules/beneficiaries/beneficiaries.service'
 import { DashboardsService } from '../src/modules/dashboards/dashboards.service'
 import { EvaluationMetricsService } from '../src/modules/evaluations/evaluation-metrics'

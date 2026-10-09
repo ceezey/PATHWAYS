@@ -13,34 +13,33 @@ import {
 import { APP_GUARD, Reflector } from '@nestjs/core'
 import { Test } from '@nestjs/testing'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import { RulesMachineBoundary } from '../../modules/rules/rules-machine-boundary'
+import { RulesMachineBoundary } from '../../rules/rules-machine-boundary'
 
-import { ApplicationProfileService } from '../../modules/auth/application-profile.service'
-import { AuthController } from '../../modules/auth/auth.controller'
-import { AuthService } from '../../modules/auth/auth.service'
-import { reportAuthorizedOperationTiming } from '../../modules/auth/authorized-operation-timing'
-import { BeneficiaryStepUpPinService } from '../../modules/auth/beneficiary-step-up-pin.service'
-import { BeneficiaryStepUpService } from '../../modules/auth/beneficiary-step-up.service'
-import {
-  type ApplicationIdentity,
-  type AuthenticatedRequest,
-  DEVELOPER_AUTH_UUID,
-  DEVELOPER_SUPABASE_URL,
-} from '../../modules/auth/developer-access'
-import { RouteAccessController } from '../../modules/auth/route-access.controller'
-import { RouteAccessService } from '../../modules/auth/route-access.service'
-import { SignInLockoutService } from '../../modules/auth/signin-lockout.service'
-import { TokenAuthService, type VerifiedAuthSession } from '../../modules/auth/token-auth.service'
-import { WorkspaceResolutionService } from '../../modules/auth/workspace-resolution.service'
+import type {
+  ApplicationIdentity,
+  AuthenticatedRequest,
+} from '../../../common/authz/application-identity'
+import { RequireBeneficiaryStepUp } from '../../../common/decorators/beneficiary-step-up.decorator'
+import { RequirePermission } from '../../../common/decorators/permission.decorator'
+import { Public } from '../../../common/decorators/public.decorator'
 import {
   InactiveVerifiedSessionError,
   PrismaService,
   type VerifiedDatabaseContext,
   type VerifiedTransactionTiming,
-} from '../../prisma/prisma.service'
-import { RequireBeneficiaryStepUp } from '../decorators/beneficiary-step-up.decorator'
-import { RequirePermission } from '../decorators/permission.decorator'
-import { Public } from '../decorators/public.decorator'
+} from '../../../prisma/prisma.service'
+import { ApplicationProfileService } from '../application-profile.service'
+import { AuthController } from '../auth.controller'
+import { AuthService } from '../auth.service'
+import { reportAuthorizedOperationTiming } from '../authorized-operation-timing'
+import { BeneficiaryStepUpPinService } from '../beneficiary-step-up-pin.service'
+import { BeneficiaryStepUpService } from '../beneficiary-step-up.service'
+import { DEVELOPER_AUTH_UUID, DEVELOPER_SUPABASE_URL } from '../developer-bootstrap-identity'
+import { RouteAccessController } from '../route-access.controller'
+import { RouteAccessService } from '../route-access.service'
+import { SignInLockoutService } from '../signin-lockout.service'
+import { TokenAuthService, type VerifiedAuthSession } from '../token-auth.service'
+import { WorkspaceResolutionService } from '../workspace-resolution.service'
 import { SupabaseAuthGuard } from './supabase-auth.guard'
 
 const beneficiaryHandler = vi.fn()

@@ -10,10 +10,10 @@ import {
 } from '@pathways/shared'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import { BENEFICIARY_STEP_UP_KEY } from '../../common/decorators/beneficiary-step-up.decorator'
 import { PERMISSION_KEY } from '../../common/decorators/permission.decorator'
 import type { PrismaService } from '../../prisma/prisma.service'
-import type { ApplicationIdentity } from '../auth/developer-access'
 import { BeneficiariesController } from './beneficiaries.controller'
 import { BeneficiariesService } from './beneficiaries.service'
 

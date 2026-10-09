@@ -18,10 +18,11 @@ import {
   hasAtomicPermission,
 } from '@pathways/shared'
 import type { Prisma } from '@prisma/client'
+import { writeAuditLog } from '../../common/audit/write-audit-log'
+import type { ApplicationIdentity } from '../../common/authz/application-identity'
+import { projectScope } from '../../common/authz/project-scope'
 import { PrismaService } from '../../prisma/prisma.service'
-import { projectScope } from '../auth/authorized-data.service'
 import { withAuthorizedOperation } from '../auth/authorized-operation'
-import type { ApplicationIdentity } from '../auth/developer-access'
 import { currentMeasurements, summarizeBudget, suppressBreakdown } from './insights-math'
 
 const logger = new Logger('AnalyticsInsightsService')
@@ -94,19 +95,15 @@ export class AnalyticsInsightsService {
           })
           if (!project) throw new NotFoundException('Project unavailable.')
           const data = await compute(tx, actor, query)
-          await tx.auditLog.create({
-            data: {
-              organizationId: actor.organizationId,
-              projectId: query.projectId,
-              actorUserId: actor.userId,
-              action: 'ANALYTICS_DESCRIPTIVE_VIEWED',
-              entityType: 'Project',
-              entityId: query.projectId,
-              changes: {
-                view,
-                periodStart: query.periodStart ?? null,
-                periodEnd: query.periodEnd ?? null,
-              },
+          await writeAuditLog(tx, actor, {
+            projectId: query.projectId,
+            action: 'ANALYTICS_DESCRIPTIVE_VIEWED',
+            entityType: 'Project',
+            entityId: query.projectId,
+            changes: {
+              view,
+              periodStart: query.periodStart ?? null,
+              periodEnd: query.periodEnd ?? null,
             },
           })
           return data

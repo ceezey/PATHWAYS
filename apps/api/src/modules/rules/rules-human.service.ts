@@ -34,9 +34,9 @@ import {
 } from '@pathways/shared'
 import { Prisma } from '@prisma/client'
 import type { z } from 'zod'
+import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import { PrismaService } from '../../prisma/prisma.service'
 import { withAuthorizedOperation } from '../auth/authorized-operation'
-import type { ApplicationIdentity } from '../auth/developer-access'
 import { evaluateRule } from './rule-engine'
 
 type Operation =

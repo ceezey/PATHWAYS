@@ -9,8 +9,8 @@ import {
   Post,
   Req,
 } from '@nestjs/common'
+import type { AuthenticatedRequest } from '../../common/authz/application-identity'
 import { RequirePermission } from '../../common/decorators/permission.decorator'
-import type { AuthenticatedRequest } from '../auth/developer-access'
 import { IndicatorLibraryService } from './indicator-library.service'
 
 function identity(request: AuthenticatedRequest) {

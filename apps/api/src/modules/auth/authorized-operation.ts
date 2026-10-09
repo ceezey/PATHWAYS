@@ -10,6 +10,7 @@ import {
 import type { Prisma } from '@prisma/client'
 
 import { type AtomicPermission, hasAtomicPermission } from '@pathways/shared'
+import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import type { PrismaService } from '../../prisma/prisma.service'
 import { prismaDiagnosticCode, transactionDiagnostic } from '../../prisma/transaction-diagnostic'
 import { readApplicationProfile } from './application-profile.service'
@@ -17,7 +18,6 @@ import {
   boundedOperationDuration,
   reportAuthorizedOperationTiming,
 } from './authorized-operation-timing'
-import type { ApplicationIdentity } from './developer-access'
 
 interface AuthorizedOperationOptions {
   transactionTimeoutMs?: number

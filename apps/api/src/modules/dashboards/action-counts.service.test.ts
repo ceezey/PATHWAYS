@@ -1,17 +1,19 @@
 import 'reflect-metadata'
 
+import type { ApplicationIdentity } from '@app/common/authz/application-identity'
 import { PERMISSION_KEY } from '@app/common/decorators/permission.decorator'
 import { withAuthorizedOperation } from '@app/modules/auth/authorized-operation'
-import type { ApplicationIdentity } from '@app/modules/auth/developer-access'
 import type { RulesHumanService } from '@app/modules/rules/rules-human.service'
 import type { PrismaService } from '@app/prisma/prisma.service'
+import { ServiceUnavailableException } from '@nestjs/common'
 import { dashboardActionCountsSchema, rolePermissions } from '@pathways/shared'
 import type { Prisma } from '@prisma/client'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ActionCountsController } from './action-counts.controller'
 import { ActionCountsService } from './action-counts.service'
 
-vi.mock('@pathways/config', () => ({ readApiEnv: () => ({ BUSINESS_TIME_ZONE: 'Asia/Manila' }) }))
+const env = vi.hoisted(() => ({ zone: 'Asia/Manila' }))
+vi.mock('@pathways/config', () => ({ readApiEnv: () => ({ BUSINESS_TIME_ZONE: env.zone }) }))
 vi.mock('@app/modules/auth/authorized-operation', () => ({ withAuthorizedOperation: vi.fn() }))
 
 const org = '10000000-0000-4000-8000-00000000000a'
@@ -54,7 +56,10 @@ function setup() {
 }
 
 describe('ActionCountsService', () => {
-  beforeEach(() => vi.clearAllMocks())
+  beforeEach(() => {
+    vi.clearAllMocks()
+    env.zone = 'Asia/Manila'
+  })
 
   it('scopes every count to the organization and the actor project scope', async () => {
     const { tx, service } = setup()
@@ -109,6 +114,14 @@ describe('ActionCountsService', () => {
       'NEW',
       'REVIEWED',
     ])
+  })
+
+  it('answers 503 when the business time zone is invalid', async () => {
+    const { service } = setup()
+    env.zone = 'Not/AZone'
+    const error = await service.read(actor('PROJECT_MANAGER')).catch((caught) => caught)
+    expect(error).toBeInstanceOf(ServiceUnavailableException)
+    expect(error.message).toBe('The configured business time zone is invalid.')
   })
 
   it('guards the route with projects.read', () => {

@@ -9,10 +9,12 @@ import {
 } from '@nestjs/common'
 import type { Prisma } from '@prisma/client'
 
+import { writeAuditLog } from '../../common/audit/write-audit-log'
+import { type ApplicationIdentity, UUID_PATTERN } from '../../common/authz/application-identity'
+import { projectScope } from '../../common/authz/project-scope'
+import type { Tx } from '../../common/prisma/transaction'
 import { PrismaService } from '../../prisma/prisma.service'
-import { projectScope } from '../auth/authorized-data.service'
 import { withAuthorizedOperation } from '../auth/authorized-operation'
-import { type ApplicationIdentity, UUID_PATTERN } from '../auth/developer-access'
 import {
   ReportArtifactInputError,
   createReportArtifact,
@@ -24,8 +26,6 @@ import {
   formDefinitionExportRows,
   parseFormDefinitionExportFormat,
 } from './form-definition-export'
-
-type Tx = Prisma.TransactionClient
 
 const exportSelection = {
   id: true,
@@ -132,16 +132,12 @@ export class FormDefinitionExportService {
       if (current.updatedAt.getTime() !== form.updatedAt.getTime()) {
         throw new ConflictException('The form changed during export. Retry the download.')
       }
-      await tx.auditLog.create({
-        data: {
-          organizationId: actor.organizationId,
-          actorUserId: actor.userId,
-          projectId: current.projectId,
-          action: 'FORM_DEFINITION_EXPORTED',
-          entityType: 'DigitalForm',
-          entityId: current.id,
-          changes: { formId: current.id, version: current.version, format: wanted },
-        },
+      await writeAuditLog(tx, actor, {
+        projectId: current.projectId,
+        action: 'FORM_DEFINITION_EXPORTED',
+        entityType: 'DigitalForm',
+        entityId: current.id,
+        changes: { formId: current.id, version: current.version, format: wanted },
       })
     })
     return {

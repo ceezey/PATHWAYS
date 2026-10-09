@@ -15,10 +15,11 @@ import { readApiEnv } from '@pathways/config'
 import { type ReportKindCode, hasAtomicPermission, metricCellSchema } from '@pathways/shared'
 import { Prisma } from '@prisma/client'
 import { z } from 'zod'
+import { writeAuditLog } from '../../common/audit/write-audit-log'
+import type { ApplicationIdentity } from '../../common/authz/application-identity'
+import { projectScope } from '../../common/authz/project-scope'
 import { PrismaService } from '../../prisma/prisma.service'
-import { projectScope } from '../auth/authorized-data.service'
 import { withAuthorizedOperation } from '../auth/authorized-operation'
-import type { ApplicationIdentity } from '../auth/developer-access'
 import { DashboardsService } from '../dashboards/dashboards.service'
 import { ProjectOverviewMetricsService } from '../projects/project-overview-metrics.service'
 import { ReportPdfError, ReportPdfRenderer } from '../report-pdf/report-pdf.renderer'
@@ -736,15 +737,11 @@ export class ReportsService {
           const count =
             await tx.$executeRaw`UPDATE pathways.reports SET status='GENERATED',bucket='pathways-private',object_key=${key},sha256=${sha},artifact_byte_size=${bytes.length},generated_by_id=${actor.userId}::uuid,generated_at=clock_timestamp(),updated_at=clock_timestamp() WHERE organization_id=${actor.organizationId}::uuid AND project_id=${projectId}::uuid AND id=${prepare.id}::uuid AND created_by_id=${actor.userId}::uuid AND client_request_id=${body.clientRequestId}::uuid AND request_hash=${requestHash} AND source_fingerprint=${sourceFingerprint(current)} AND status='DRAFT'`
           if (count !== 1) throw new ConflictException('Report already finalized or changed.')
-          await tx.auditLog.create({
-            data: {
-              organizationId: actor.organizationId,
-              projectId,
-              actorUserId: actor.userId,
-              action: 'REPORT_GENERATED',
-              entityType: 'Report',
-              entityId: prepare.id,
-            },
+          await writeAuditLog(tx, actor, {
+            projectId,
+            action: 'REPORT_GENERATED',
+            entityType: 'Report',
+            entityId: prepare.id,
           })
           return { id: prepare.id, status: 'GENERATED' as const }
         },
@@ -854,15 +851,11 @@ export class ReportsService {
           }))
         )
           throw new NotFoundException('Report unavailable.')
-        await tx.auditLog.create({
-          data: {
-            organizationId: actor.organizationId,
-            projectId,
-            actorUserId: actor.userId,
-            action: 'REPORT_EXPORTED',
-            entityType: 'Report',
-            entityId: id,
-          },
+        await writeAuditLog(tx, actor, {
+          projectId,
+          action: 'REPORT_EXPORTED',
+          entityType: 'Report',
+          entityId: id,
         })
       },
       { isolationLevel: 'RepeatableRead' },

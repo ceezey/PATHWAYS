@@ -9,7 +9,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { PrismaService } from '@app/prisma/prisma.service'
 import { DIRECT_ENTRY_FORM_TYPES, rolePermissions } from '@pathways/shared'
-import type { ApplicationIdentity } from '../auth/developer-access'
+import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import { MetadataService } from './metadata.service'
 
 const state = vi.hoisted(() => ({

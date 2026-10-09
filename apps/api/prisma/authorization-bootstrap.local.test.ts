@@ -3,7 +3,7 @@ import type { Prisma } from '@prisma/client'
 import { describe, expect, it } from 'vitest'
 import { ApplicationProfileService } from '../src/modules/auth/application-profile.service'
 import { AuthorizedDataService } from '../src/modules/auth/authorized-data.service'
-import { DEVELOPER_AUTH_UUID } from '../src/modules/auth/developer-access'
+import { DEVELOPER_AUTH_UUID } from '../src/modules/auth/developer-bootstrap-identity'
 import { PrismaService } from '../src/prisma/prisma.service'
 import { assertCanonicalReferenceData, seedCanonicalReferenceData } from './canonical-seed'
 import {

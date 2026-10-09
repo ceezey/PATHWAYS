@@ -15,10 +15,11 @@ import {
   isCanonicalRole,
   roleNames,
 } from '@pathways/shared'
+import { writeAuditLog } from '../../common/audit/write-audit-log'
+import { type ApplicationIdentity, UUID_PATTERN } from '../../common/authz/application-identity'
+import { projectScope } from '../../common/authz/project-scope'
 import { PrismaService } from '../../prisma/prisma.service'
-import { projectScope } from '../auth/authorized-data.service'
 import { withAuthorizedOperation } from '../auth/authorized-operation'
-import { type ApplicationIdentity, UUID_PATTERN } from '../auth/developer-access'
 import { AuthDirectoryService } from './auth-directory.service'
 import type { AuthorizeExistingUserDto, UpdateAuthorizedUserDto } from './users.dto'
 
@@ -182,15 +183,11 @@ export class UsersService {
             })),
           })
         }
-        await tx.auditLog.create({
-          data: {
-            organizationId: actor.organizationId,
-            actorUserId: actor.userId,
-            action: 'USER_AUTHORIZED',
-            entityType: 'SystemUser',
-            entityId: created.id,
-            changes: { role: input.role, projectCount: projectIds.length },
-          },
+        await writeAuditLog(tx, actor, {
+          action: 'USER_AUTHORIZED',
+          entityType: 'SystemUser',
+          entityId: created.id,
+          changes: { role: input.role, projectCount: projectIds.length },
         })
         const result = await tx.systemUser.findUniqueOrThrow({
           where: { id: created.id },
@@ -366,19 +363,15 @@ export class UsersService {
         if (input.accountStatus === 'DEACTIVATED') {
           await updateProfile()
         }
-        await tx.auditLog.create({
-          data: {
-            organizationId: actor.organizationId,
-            actorUserId: actor.userId,
-            action: 'USER_AUTHORIZATION_UPDATED',
-            entityType: 'SystemUser',
-            entityId: target.id,
-            changes: {
-              role: input.role,
-              accountStatus: input.accountStatus,
-              projectCount: projectIds.length,
-              nameChanged: Boolean(input.fullName),
-            },
+        await writeAuditLog(tx, actor, {
+          action: 'USER_AUTHORIZATION_UPDATED',
+          entityType: 'SystemUser',
+          entityId: target.id,
+          changes: {
+            role: input.role,
+            accountStatus: input.accountStatus,
+            projectCount: projectIds.length,
+            nameChanged: Boolean(input.fullName),
           },
         })
         const result = await tx.systemUser.findUniqueOrThrow({

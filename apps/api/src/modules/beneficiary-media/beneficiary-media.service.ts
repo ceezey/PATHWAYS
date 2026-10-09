@@ -14,6 +14,10 @@ import { readApiEnv } from '@pathways/config'
 import type { Prisma } from '@prisma/client'
 
 import { aggregateOnlyRoles } from '@pathways/shared'
+import { writeAuditLog } from '../../common/audit/write-audit-log'
+import { type ApplicationIdentity, UUID_PATTERN } from '../../common/authz/application-identity'
+import { projectScope } from '../../common/authz/project-scope'
+import type { Tx } from '../../common/prisma/transaction'
 import { PrismaService } from '../../prisma/prisma.service'
 import { PROOF_STORAGE_DEADLINE_MS } from '../activities/activities.dto'
 import {
@@ -21,9 +25,7 @@ import {
   evidenceExtension,
   proofDeclarations,
 } from '../activities/activities.service'
-import { projectScope } from '../auth/authorized-data.service'
 import { withAuthorizedOperation } from '../auth/authorized-operation'
-import { type ApplicationIdentity, UUID_PATTERN } from '../auth/developer-access'
 import {
   createPrivateObjectStreamer,
   createPrivateUploadVerifier,
@@ -35,7 +37,6 @@ import {
   beneficiaryMediaContentTypes,
 } from './beneficiary-media.dto'
 
-type Tx = Prisma.TransactionClient
 const MAX_LISTED_MEDIA = 100
 const unavailable = () => new NotFoundException('Beneficiary media unavailable.')
 const rejection = (code: string, message: string) =>
@@ -214,16 +215,12 @@ export class BeneficiaryMediaService {
             submittedById: actor.userId,
           })),
         })
-        await tx.auditLog.create({
-          data: {
-            organizationId: actor.organizationId,
-            actorUserId: actor.userId,
-            projectId: scope.projectId,
-            action: 'BENEFICIARY_MEDIA_RESERVED',
-            entityType: 'BeneficiaryProjectEnrollment',
-            entityId: scope.enrollmentId,
-            changes: { mediaIds: created.map((row) => row.id), fileCount: created.length },
-          },
+        await writeAuditLog(tx, actor, {
+          projectId: scope.projectId,
+          action: 'BENEFICIARY_MEDIA_RESERVED',
+          entityType: 'BeneficiaryProjectEnrollment',
+          entityId: scope.enrollmentId,
+          changes: { mediaIds: created.map((row) => row.id), fileCount: created.length },
         })
         return created
       },
@@ -337,16 +334,12 @@ export class BeneficiaryMediaService {
         })
         if (marked.count !== 1)
           throw new ConflictException('Media changed. Retry finalizing this file.')
-        await tx.auditLog.create({
-          data: {
-            organizationId: actor.organizationId,
-            actorUserId: actor.userId,
-            projectId: current.scope.projectId,
-            action: 'BENEFICIARY_MEDIA_FINALIZED',
-            entityType: 'EvidenceMedia',
-            entityId: row.id,
-            changes: { enrollmentId: current.scope.enrollmentId },
-          },
+        await writeAuditLog(tx, actor, {
+          projectId: current.scope.projectId,
+          action: 'BENEFICIARY_MEDIA_FINALIZED',
+          entityType: 'EvidenceMedia',
+          entityId: row.id,
+          changes: { enrollmentId: current.scope.enrollmentId },
         })
         return { mediaId: row.id, storageReady: true as const }
       },

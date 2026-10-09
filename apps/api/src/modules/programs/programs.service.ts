@@ -1,8 +1,9 @@
 import { BadRequestException, ForbiddenException, Inject, Injectable } from '@nestjs/common'
 
+import { writeAuditLog } from '../../common/audit/write-audit-log'
+import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import { PrismaService } from '../../prisma/prisma.service'
 import { withAuthorizedOperation } from '../auth/authorized-operation'
-import type { ApplicationIdentity } from '../auth/developer-access'
 import type { CreateProgramDto } from './programs.dto'
 
 @Injectable()
@@ -71,15 +72,11 @@ export class ProgramsService {
           status: true,
         },
       })
-      await tx.auditLog.create({
-        data: {
-          organizationId: actor.organizationId,
-          actorUserId: actor.userId,
-          action: 'PROGRAM_CREATED',
-          entityType: 'Program',
-          entityId: row.id,
-          changes: { code: input.code, status: input.status },
-        },
+      await writeAuditLog(tx, actor, {
+        action: 'PROGRAM_CREATED',
+        entityType: 'Program',
+        entityId: row.id,
+        changes: { code: input.code, status: input.status },
       })
       return row
     })

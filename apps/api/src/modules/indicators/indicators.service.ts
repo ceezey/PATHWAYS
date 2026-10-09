@@ -22,10 +22,12 @@ import {
   normalizeMetricDecimal,
 } from '@pathways/shared'
 import { Prisma } from '@prisma/client'
+import { writeAuditLog } from '../../common/audit/write-audit-log'
+import { type ApplicationIdentity, UUID_PATTERN } from '../../common/authz/application-identity'
+import { requireScopedProject } from '../../common/authz/scoped-project'
+import type { Tx } from '../../common/prisma/transaction'
 import { PrismaService } from '../../prisma/prisma.service'
-import { projectScope } from '../auth/authorized-data.service'
 import { withAuthorizedOperation } from '../auth/authorized-operation'
-import { type ApplicationIdentity, UUID_PATTERN } from '../auth/developer-access'
 import {
   beginRuleSourceOperation,
   bootstrapRuleSourceProject,
@@ -40,7 +42,6 @@ import {
   updateIndicatorSchema,
 } from './indicators.dto'
 
-type Tx = Prisma.TransactionClient
 type DefinitionRow = Omit<MonitoringIndicator, 'progress' | 'contractVersion'>
 
 export function monitoringSqlError(error: unknown): never {
@@ -100,15 +101,6 @@ function withProgress(row: Record<string, unknown>, failure: string): Monitoring
 export class IndicatorsService {
   constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
-  private async requireProject(tx: Tx, actor: ApplicationIdentity, projectId: string) {
-    if (!UUID_PATTERN.test(projectId)) throw new NotFoundException('Project unavailable.')
-    const project = await tx.project.findFirst({
-      where: { AND: [projectScope(actor), { id: projectId.toLowerCase() }] },
-      select: { id: true },
-    })
-    if (!project) throw new NotFoundException('Project unavailable.')
-    return project.id
-  }
   private indicatorId(input: string) {
     if (!UUID_PATTERN.test(input)) throw new NotFoundException('Indicator unavailable.')
     return input.toLowerCase()
@@ -207,7 +199,7 @@ export class IndicatorsService {
       'reports.indicator.read',
       async (tx, actor) =>
         this.readReleasedInTransaction(tx, actor, [
-          await this.requireProject(tx, actor, projectId),
+          await requireScopedProject(tx, actor, projectId),
         ]),
     )
   }
@@ -227,7 +219,7 @@ export class IndicatorsService {
   list(identity: ApplicationIdentity, projectId: string) {
     return withAuthorizedOperation(this.prisma, identity, 'indicators.read', async (tx, actor) =>
       this.readProjectIndicatorsInTransaction(tx, actor, [
-        await this.requireProject(tx, actor, projectId),
+        await requireScopedProject(tx, actor, projectId),
       ]),
     )
   }
@@ -236,30 +228,10 @@ export class IndicatorsService {
       this.readOne(
         tx,
         actor,
-        await this.requireProject(tx, actor, projectId),
+        await requireScopedProject(tx, actor, projectId),
         this.indicatorId(indicatorId),
       ),
     )
-  }
-  private audit(
-    tx: Tx,
-    actor: ApplicationIdentity,
-    projectId: string,
-    action: string,
-    entityId: string,
-    changes: Prisma.InputJsonObject,
-  ) {
-    return tx.auditLog.create({
-      data: {
-        organizationId: actor.organizationId,
-        actorUserId: actor.userId,
-        projectId,
-        action,
-        entityType: 'ProjectIndicator',
-        entityId,
-        changes,
-      },
-    })
   }
   private async validateBinding(
     tx: Tx,
@@ -324,7 +296,7 @@ export class IndicatorsService {
           sourceMutationBody(input),
         )
         if (source.kind === 'REPLAY') return source.acknowledgement
-        const id = await this.requireProject(tx, actor, projectId)
+        const id = await requireScopedProject(tx, actor, projectId)
         await tx.$queryRaw`SELECT id FROM pathways.projects WHERE organization_id=${actor.organizationId}::uuid AND id=${id}::uuid FOR UPDATE`
         await this.validateBinding(tx, actor, id, input)
         const [size] = await tx.$queryRaw<
@@ -359,11 +331,17 @@ export class IndicatorsService {
             VALUES (${actor.organizationId}::uuid,${id}::uuid,${indicatorId}::uuid,${b.recipe},${b.activityId ?? null}::uuid,${b.formId ?? null}::uuid,${b.formVersion ?? null},${b.fieldId ?? null}::uuid,${actor.userId}::uuid)
           `
           }
-          await this.audit(tx, actor, id, 'PROJECT_INDICATOR_CREATED', indicatorId, {
-            mode: input.mode,
-            numericKind: input.numericKind,
-            recipe: input.binding?.recipe ?? null,
-            contractVersion: P06_CONTRACT_VERSION,
+          await writeAuditLog(tx, actor, {
+            projectId: id,
+            action: 'PROJECT_INDICATOR_CREATED',
+            entityType: 'ProjectIndicator',
+            entityId: indicatorId,
+            changes: {
+              mode: input.mode,
+              numericKind: input.numericKind,
+              recipe: input.binding?.recipe ?? null,
+              contractVersion: P06_CONTRACT_VERSION,
+            },
           })
         } catch (error) {
           monitoringSqlError(error)
@@ -398,7 +376,7 @@ export class IndicatorsService {
           sourceMutationBody(input),
         )
         if (source.kind === 'REPLAY') return source.acknowledgement
-        const id = await this.requireProject(tx, actor, projectId)
+        const id = await requireScopedProject(tx, actor, projectId)
         const selected = this.indicatorId(indicatorId)
         try {
           const count =
@@ -407,8 +385,12 @@ export class IndicatorsService {
             throw new ConflictException(
               'Indicator changed or is unavailable. Reload before editing.',
             )
-          await this.audit(tx, actor, id, 'PROJECT_INDICATOR_LABEL_UPDATED', selected, {
-            revision: input.expectedRevision + 1,
+          await writeAuditLog(tx, actor, {
+            projectId: id,
+            action: 'PROJECT_INDICATOR_LABEL_UPDATED',
+            entityType: 'ProjectIndicator',
+            entityId: selected,
+            changes: { revision: input.expectedRevision + 1 },
           })
         } catch (error) {
           monitoringSqlError(error)
@@ -442,7 +424,7 @@ export class IndicatorsService {
           sourceMutationBody(input),
         )
         if (source.kind === 'REPLAY') return source.acknowledgement
-        const id = await this.requireProject(tx, actor, projectId)
+        const id = await requireScopedProject(tx, actor, projectId)
         const selected = this.indicatorId(indicatorId)
         try {
           const count =
@@ -451,8 +433,12 @@ export class IndicatorsService {
             throw new ConflictException(
               'Indicator changed or is unavailable. Reload before archiving.',
             )
-          await this.audit(tx, actor, id, 'PROJECT_INDICATOR_ARCHIVED', selected, {
-            revision: input.expectedRevision + 1,
+          await writeAuditLog(tx, actor, {
+            projectId: id,
+            action: 'PROJECT_INDICATOR_ARCHIVED',
+            entityType: 'ProjectIndicator',
+            entityId: selected,
+            changes: { revision: input.expectedRevision + 1 },
           })
         } catch (error) {
           monitoringSqlError(error)
@@ -490,7 +476,7 @@ export class IndicatorsService {
         )
         if (acknowledgement) return acknowledgement
         await bootstrapRuleSourceProject(tx, projectId, 'INDICATOR_MEASUREMENT')
-        const id = await this.requireProject(tx, actor, projectId)
+        const id = await requireScopedProject(tx, actor, projectId)
         const selected = this.indicatorId(indicatorId)
         let definition = await this.readOne(tx, actor, id, selected)
         if (definition.mode !== 'MANUAL' || !definition.numericKind)
@@ -564,16 +550,15 @@ export class IndicatorsService {
           INSERT INTO pathways.project_indicator_measurements(id,organization_id,project_id,indicator_id,period_start,period_end,value,source,note,client_measurement_id,request_hash,corrects_measurement_id,correction_reason,recorded_by_id)
           VALUES (${measurementId}::uuid,${actor.organizationId}::uuid,${id}::uuid,${selected}::uuid,${input.periodStart}::date,${input.periodEnd}::date,${exact}::numeric,${input.source},${input.note ?? null},${input.clientMeasurementId}::uuid,${source.generatedValues.requestHash},${input.correctsMeasurementId?.toLowerCase() ?? null}::uuid,${input.correctionReason ?? null},${actor.userId}::uuid)
         `
-          await this.audit(
-            tx,
-            actor,
-            id,
-            input.correctsMeasurementId
+          await writeAuditLog(tx, actor, {
+            projectId: id,
+            action: input.correctsMeasurementId
               ? 'INDICATOR_MEASUREMENT_CORRECTED'
               : 'INDICATOR_MEASUREMENT_RECORDED',
-            selected,
-            { measurementId, correctsMeasurementId: input.correctsMeasurementId ?? null },
-          )
+            entityType: 'ProjectIndicator',
+            entityId: selected,
+            changes: { measurementId, correctsMeasurementId: input.correctsMeasurementId ?? null },
+          })
         } catch (error) {
           monitoringSqlError(error)
         }

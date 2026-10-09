@@ -9,14 +9,15 @@ import {
 import type { Prisma } from '@prisma/client'
 
 import { aggregateOnlyRoles, hasAtomicPermission } from '@pathways/shared'
+import { writeAuditLog } from '../../common/audit/write-audit-log'
+import { type ApplicationIdentity, UUID_PATTERN } from '../../common/authz/application-identity'
+import { requireScopedProject } from '../../common/authz/scoped-project'
+import type { Tx } from '../../common/prisma/transaction'
 import { PrismaService } from '../../prisma/prisma.service'
-import { projectScope } from '../auth/authorized-data.service'
 import { withAuthorizedOperation } from '../auth/authorized-operation'
-import { type ApplicationIdentity, UUID_PATTERN } from '../auth/developer-access'
 import type { CorrectJourneyEventDto, EnrollmentJourneyEventDto } from './participants.dto'
 import { normalizedCode, normalizedText } from './participants.dto'
 
-type Tx = Prisma.TransactionClient
 const attendanceValues = ['PRESENT', 'ABSENT', 'COMPLETED', 'NOT_COMPLETED', 'EXCUSED'] as const
 const progressValues = ['NOT_STARTED', 'IN_PROGRESS', 'COMPLETED', 'NEEDS_FOLLOW_UP'] as const
 
@@ -77,23 +78,13 @@ function mapStage(stage: Prisma.JourneyStageGetPayload<{ select: typeof stageSel
 export class ParticipantsService {
   constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
-  private async requireProject(tx: Tx, actor: ApplicationIdentity, projectId: string) {
-    if (!UUID_PATTERN.test(projectId)) throw new NotFoundException('Project unavailable.')
-    const project = await tx.project.findFirst({
-      where: { AND: [projectScope(actor), { id: projectId.toLowerCase() }] },
-      select: { id: true },
-    })
-    if (!project) throw new NotFoundException('Project unavailable.')
-    return project.id
-  }
-
   listStages(identity: ApplicationIdentity, projectId: string) {
     return withAuthorizedOperation(
       this.prisma,
       identity,
       'journeys.read',
       async (tx, actor) => {
-        const id = await this.requireProject(tx, actor, projectId)
+        const id = await requireScopedProject(tx, actor, projectId)
         const stages = await tx.journeyStage.findMany({
           where: { organizationId: actor.organizationId, projectId: id, archivedAt: null },
           select: stageSelection,
@@ -129,7 +120,7 @@ export class ParticipantsService {
       identity,
       'journeys.manage',
       async (tx, actor) => {
-        const id = await this.requireProject(tx, actor, projectId)
+        const id = await requireScopedProject(tx, actor, projectId)
         await tx.$queryRaw`SELECT id FROM pathways.projects WHERE id=${id}::uuid AND organization_id=${actor.organizationId}::uuid FOR UPDATE`
         const current = await tx.journeyStage.findMany({
           where: { organizationId: actor.organizationId, projectId: id, archivedAt: null },
@@ -323,16 +314,12 @@ export class ParticipantsService {
           })),
         )
         if (mappings.length) await tx.activityJourneyStageMapping.createMany({ data: mappings })
-        await tx.auditLog.create({
-          data: {
-            organizationId: actor.organizationId,
-            actorUserId: actor.userId,
-            projectId: id,
-            action: 'JOURNEY_CONFIGURATION_SAVED',
-            entityType: 'Project',
-            entityId: id,
-            changes: { stageCount: input.stages.length, mappingCount: mappings.length },
-          },
+        await writeAuditLog(tx, actor, {
+          projectId: id,
+          action: 'JOURNEY_CONFIGURATION_SAVED',
+          entityType: 'Project',
+          entityId: id,
+          changes: { stageCount: input.stages.length, mappingCount: mappings.length },
         })
         const result = await tx.journeyStage.findMany({
           where: { organizationId: actor.organizationId, projectId: id, archivedAt: null },
@@ -472,16 +459,12 @@ export class ParticipantsService {
         validatedAt: now,
       },
     })
-    await tx.auditLog.create({
-      data: {
-        organizationId: actor.organizationId,
-        actorUserId: actor.userId,
-        projectId: input.projectId,
-        action: 'PARTICIPATION_RECORDED',
-        entityType: 'BeneficiaryActivityParticipation',
-        entityId: participation.id,
-        changes: { submissionId: input.submissionId, activityId: activity.id },
-      },
+    await writeAuditLog(tx, actor, {
+      projectId: input.projectId,
+      action: 'PARTICIPATION_RECORDED',
+      entityType: 'BeneficiaryActivityParticipation',
+      entityId: participation.id,
+      changes: { submissionId: input.submissionId, activityId: activity.id },
     })
     return { participationId: participation.id, enrollmentId: enrollment.id }
   }
@@ -490,7 +473,7 @@ export class ParticipantsService {
     return withAuthorizedOperation(this.prisma, identity, 'journeys.read', async (tx, actor) => {
       if (aggregateOnlyRoles.includes(actor.roles[0]))
         throw new ForbiddenException('Aggregate access only.')
-      const id = await this.requireProject(tx, actor, projectId)
+      const id = await requireScopedProject(tx, actor, projectId)
       if (!UUID_PATTERN.test(beneficiaryId))
         throw new NotFoundException('Beneficiary history unavailable.')
       const enrollment = await tx.beneficiaryProjectEnrollment.findFirst({
@@ -554,7 +537,7 @@ export class ParticipantsService {
       async (tx, actor) => {
         if (aggregateOnlyRoles.includes(actor.roles[0]))
           throw new ForbiddenException('Aggregate access only.')
-        const id = await this.requireProject(tx, actor, projectId)
+        const id = await requireScopedProject(tx, actor, projectId)
         if (!UUID_PATTERN.test(beneficiaryId))
           throw new NotFoundException('Enrollment unavailable.')
         const enrollment = await tx.beneficiaryProjectEnrollment.findFirst({
@@ -594,7 +577,7 @@ export class ParticipantsService {
         if (input.eventType === 'TRANSFER') {
           if (!input.destinationProjectId || input.destinationProjectId.toLowerCase() === id)
             throw new ConflictException('A different destination project is required.')
-          const destinationId = await this.requireProject(tx, actor, input.destinationProjectId)
+          const destinationId = await requireScopedProject(tx, actor, input.destinationProjectId)
           const destination = await tx.beneficiaryProjectEnrollment.findFirst({
             where: {
               organizationId: actor.organizationId,
@@ -636,20 +619,16 @@ export class ParticipantsService {
               endReason: input.description.trim(),
             },
           })
-        await tx.auditLog.create({
-          data: {
-            organizationId: actor.organizationId,
-            actorUserId: actor.userId,
-            projectId: id,
-            action: `ENROLLMENT_${input.eventType}`,
-            entityType: 'BeneficiaryProjectEnrollment',
-            entityId: enrollment.id,
-            changes: {
-              ...(input.eventType === 'TRANSFER'
-                ? { destinationProjectId: input.destinationProjectId }
-                : {}),
-              noteAttached: Boolean(input.note),
-            },
+        await writeAuditLog(tx, actor, {
+          projectId: id,
+          action: `ENROLLMENT_${input.eventType}`,
+          entityType: 'BeneficiaryProjectEnrollment',
+          entityId: enrollment.id,
+          changes: {
+            ...(input.eventType === 'TRANSFER'
+              ? { destinationProjectId: input.destinationProjectId }
+              : {}),
+            noteAttached: Boolean(input.note),
           },
         })
         return {
@@ -675,7 +654,7 @@ export class ParticipantsService {
       async (tx, actor) => {
         if (aggregateOnlyRoles.includes(actor.roles[0]))
           throw new ForbiddenException('Aggregate access only.')
-        const id = await this.requireProject(tx, actor, projectId)
+        const id = await requireScopedProject(tx, actor, projectId)
         if (!UUID_PATTERN.test(beneficiaryId) || !UUID_PATTERN.test(eventId))
           throw new NotFoundException('Journey event unavailable.')
         const original = await tx.beneficiaryJourneyEvent.findFirst({
@@ -706,19 +685,15 @@ export class ParticipantsService {
           },
           select: { id: true },
         })
-        await tx.auditLog.create({
-          data: {
-            organizationId: actor.organizationId,
-            actorUserId: actor.userId,
-            projectId: id,
-            action: 'JOURNEY_EVENT_CORRECTED',
-            entityType: 'BeneficiaryJourneyEvent',
-            entityId: correction.id,
-            changes: {
-              correctsEventId: original.id,
-              reason: input.reason.trim(),
-              noteAttached: Boolean(input.note),
-            },
+        await writeAuditLog(tx, actor, {
+          projectId: id,
+          action: 'JOURNEY_EVENT_CORRECTED',
+          entityType: 'BeneficiaryJourneyEvent',
+          entityId: correction.id,
+          changes: {
+            correctsEventId: original.id,
+            reason: input.reason.trim(),
+            noteAttached: Boolean(input.note),
           },
         })
         return { id: correction.id }

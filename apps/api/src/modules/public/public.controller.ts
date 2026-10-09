@@ -10,9 +10,9 @@ import {
   Query,
   Req,
 } from '@nestjs/common'
+import type { AuthenticatedRequest } from '../../common/authz/application-identity'
 import { RequirePermission } from '../../common/decorators/permission.decorator'
 import { Public } from '../../common/decorators/public.decorator'
-import type { AuthenticatedRequest } from '../auth/developer-access'
 import { PublicService } from './public.service'
 
 @Controller('public/projects')

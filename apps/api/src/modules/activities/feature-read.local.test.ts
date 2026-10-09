@@ -1,8 +1,8 @@
 import type { Prisma } from '@prisma/client'
 import { describe, expect, it } from 'vitest'
 
+import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import { PrismaService } from '../../prisma/prisma.service'
-import type { ApplicationIdentity } from '../auth/developer-access'
 import { ProjectsService } from '../projects/projects.service'
 import type { StorageService } from '../storage/storage.service'
 import { ActivitiesService } from './activities.service'

@@ -1,6 +1,6 @@
 import { type MetricCell, numericMetric, rolePermissions } from '@pathways/shared'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { ApplicationIdentity } from '../auth/developer-access'
+import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import type { IndicatorsService } from '../indicators/indicators.service'
 import {
   type CriterionType,

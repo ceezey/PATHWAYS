@@ -50,8 +50,8 @@ vi.mock('../rules/rules-source-operation', async (importOriginal) => ({
   bootstrapRuleSourceProject: async () => undefined,
 }))
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import type { PrismaService } from '../../prisma/prisma.service'
-import type { ApplicationIdentity } from '../auth/developer-access'
 import type { StorageService } from '../storage/storage.service'
 const state = vi.hoisted(() => ({
   actor: null as unknown as ApplicationIdentity,

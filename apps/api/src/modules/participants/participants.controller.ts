@@ -10,11 +10,11 @@ import {
   Req,
 } from '@nestjs/common'
 
+import type { AuthenticatedRequest } from '../../common/authz/application-identity'
 import { RequireBeneficiaryStepUp } from '../../common/decorators/beneficiary-step-up.decorator'
 import { RequirePermission } from '../../common/decorators/permission.decorator'
 // biome-ignore lint/style/useImportType: Nest validation needs the DTO constructor at runtime.
 import { SaveJourneyConfigurationDto } from '../activities/activities.dto'
-import type { AuthenticatedRequest } from '../auth/developer-access'
 // biome-ignore lint/style/useImportType: Nest validation needs the DTO constructors at runtime.
 import { CorrectJourneyEventDto, EnrollmentJourneyEventDto } from './participants.dto'
 import { ParticipantsService } from './participants.service'

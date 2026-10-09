@@ -5,12 +5,12 @@ import { PrismaClient } from '@prisma/client'
 import { createClient } from '@supabase/supabase-js'
 
 import type { CanonicalRole } from '@pathways/shared'
+import type { ApplicationIdentity } from '../src/common/authz/application-identity'
 import type {
   CreateActivityDto,
   TransitionActivityDto,
 } from '../src/modules/activities/activities.dto'
 import { ActivitiesService } from '../src/modules/activities/activities.service'
-import type { ApplicationIdentity } from '../src/modules/auth/developer-access'
 import type { RegisterBeneficiaryDto } from '../src/modules/beneficiaries/beneficiaries.dto'
 import { BeneficiariesService } from '../src/modules/beneficiaries/beneficiaries.service'
 import { IndicatorsService } from '../src/modules/indicators/indicators.service'

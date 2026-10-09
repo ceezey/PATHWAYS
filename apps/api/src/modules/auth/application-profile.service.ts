@@ -9,13 +9,13 @@ import {
 import type { Prisma } from '@prisma/client'
 
 import { hasAtomicPermission, isCanonicalRole } from '@pathways/shared'
+import { type ApplicationIdentity, UUID_PATTERN } from '../../common/authz/application-identity'
 import {
   InactiveVerifiedSessionError,
   PrismaService,
   type VerifiedTransactionTiming,
 } from '../../prisma/prisma.service'
 import { prismaDiagnosticCode, transactionDiagnostic } from '../../prisma/transaction-diagnostic'
-import { type ApplicationIdentity, UUID_PATTERN } from './developer-access'
 
 import type { InspectionRequestBudget } from '../../common/network/inspection-request-budget'
 

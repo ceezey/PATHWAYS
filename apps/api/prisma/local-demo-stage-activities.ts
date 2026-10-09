@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
-import type { ApplicationIdentity } from '../src/modules/auth/developer-access'
+import type { ApplicationIdentity } from '../src/common/authz/application-identity'
 import {
   type DemoActivity,
   type DemoProject,

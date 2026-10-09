@@ -9,26 +9,26 @@ import {
 } from '@nestjs/common'
 import { Reflector } from '@nestjs/core'
 
-import { RulesMachineBoundary } from '../../modules/rules/rules-machine-boundary'
+import { RulesMachineBoundary } from '../../rules/rules-machine-boundary'
 
 import { hasAtomicPermission } from '@pathways/shared'
-import {
-  type AuthorizedOperationTiming,
-  registerAuthorizedOperationTiming,
-} from '../../modules/auth/authorized-operation-timing'
-import { BeneficiaryStepUpService } from '../../modules/auth/beneficiary-step-up.service'
-import type { AuthenticatedRequest } from '../../modules/auth/developer-access'
-import { TokenAuthService, type VerifiedAuthSession } from '../../modules/auth/token-auth.service'
-import { WorkspaceResolutionService } from '../../modules/auth/workspace-resolution.service'
-import type { VerifiedTransactionTiming } from '../../prisma/prisma.service'
-import { AUTH_BOUNDARY_KEY } from '../decorators/auth-boundary.decorator'
-import { BENEFICIARY_STEP_UP_KEY } from '../decorators/beneficiary-step-up.decorator'
-import { PERMISSION_KEY } from '../decorators/permission.decorator'
-import { IS_PUBLIC_KEY } from '../decorators/public.decorator'
+import type { AuthenticatedRequest } from '../../../common/authz/application-identity'
+import { AUTH_BOUNDARY_KEY } from '../../../common/decorators/auth-boundary.decorator'
+import { BENEFICIARY_STEP_UP_KEY } from '../../../common/decorators/beneficiary-step-up.decorator'
+import { PERMISSION_KEY } from '../../../common/decorators/permission.decorator'
+import { IS_PUBLIC_KEY } from '../../../common/decorators/public.decorator'
 import {
   bindInspectionIdentity,
   inspectionRequestBudget,
-} from '../network/inspection-request-budget'
+} from '../../../common/network/inspection-request-budget'
+import type { VerifiedTransactionTiming } from '../../../prisma/prisma.service'
+import {
+  type AuthorizedOperationTiming,
+  registerAuthorizedOperationTiming,
+} from '../authorized-operation-timing'
+import { BeneficiaryStepUpService } from '../beneficiary-step-up.service'
+import { TokenAuthService, type VerifiedAuthSession } from '../token-auth.service'
+import { WorkspaceResolutionService } from '../workspace-resolution.service'
 
 const MAX_REPORTED_STAGE_MS = 30_000
 const stageDuration = (startedAt: number) =>

@@ -1,4 +1,4 @@
-import type { ApplicationIdentity } from '@app/modules/auth/developer-access'
+import type { ApplicationIdentity } from '@app/common/authz/application-identity'
 import type { PrismaService } from '@app/prisma/prisma.service'
 import {
   BadRequestException,

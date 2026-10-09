@@ -21,11 +21,13 @@ import {
   timelineAnalyticsSchema,
 } from '@pathways/shared'
 import { Prisma } from '@prisma/client'
+import { writeAuditLog } from '../../common/audit/write-audit-log'
+import type { ApplicationIdentity } from '../../common/authz/application-identity'
+import { projectScope } from '../../common/authz/project-scope'
+import { requireScopedProjectRow } from '../../common/authz/scoped-project'
 import { PrismaService } from '../../prisma/prisma.service'
 import { faultCause } from '../../prisma/transaction-diagnostic'
-import { projectScope } from '../auth/authorized-data.service'
 import { withAuthorizedOperation } from '../auth/authorized-operation'
-import type { ApplicationIdentity } from '../auth/developer-access'
 import { monitoringSqlError } from '../indicators/indicators.service'
 import { DashboardsService } from './dashboards.service'
 import {
@@ -100,6 +102,15 @@ async function exportArtifact(
     )
   }
 }
+
+// Project fields the survey and timeline views read after the scope check.
+const timelineProjectFields = {
+  id: true,
+  status: true,
+  archivedAt: true,
+  startDate: true,
+  endDate: true,
+} as const
 
 @Injectable()
 export class AnalyticsService {
@@ -193,26 +204,6 @@ export class AnalyticsService {
     })
   }
 
-  /** Confirms the requested project is in the actor's scope before any query runs. */
-  private async requireProject(
-    tx: Prisma.TransactionClient,
-    actor: ApplicationIdentity,
-    projectId: string,
-  ) {
-    const project = await tx.project.findFirst({
-      where: { AND: [projectScope(actor), { id: projectId }] },
-      select: {
-        id: true,
-        status: true,
-        archivedAt: true,
-        startDate: true,
-        endDate: true,
-      },
-    })
-    if (!project) throw new NotFoundException('Project unavailable.')
-    return project
-  }
-
   /**
    * Calls one trusted F9 aggregate function inside the caller's authorized transaction.
    * The function enforces org, permission and project scope itself (42501 -> 403) and
@@ -272,7 +263,7 @@ export class AnalyticsService {
       throw new BadRequestException(
         'Survey results for your role are released once the reporting period has closed.',
       )
-    const project = await this.requireProject(tx, actor, query.projectId)
+    const project = await requireScopedProjectRow(tx, actor, query.projectId, timelineProjectFields)
     const fn = frozen ? Prisma.raw('p10_f9_survey_release') : Prisma.raw('p10_f9_survey_aggregate')
     const raw = await this.callAggregate(
       tx,
@@ -309,7 +300,7 @@ export class AnalyticsService {
     query: DescriptiveAnalyticsQuery,
   ): Promise<TimelineAnalytics> {
     this.requireMonitoringRead(actor)
-    const project = await this.requireProject(tx, actor, query.projectId)
+    const project = await requireScopedProjectRow(tx, actor, query.projectId, timelineProjectFields)
     const zone = readApiEnv(process.env).BUSINESS_TIME_ZONE
     const generatedAt = new Date().toISOString()
     const reportingDate = businessCalendarDate(new Date(), zone)
@@ -365,20 +356,16 @@ export class AnalyticsService {
     query: DescriptiveAnalyticsQuery,
     source?: 'EXPORT_PREVIEW',
   ) {
-    await tx.auditLog.create({
-      data: {
-        organizationId: actor.organizationId,
-        projectId,
-        actorUserId: actor.userId,
-        action: 'ANALYTICS_DESCRIPTIVE_VIEWED',
-        entityType: 'Project',
-        entityId: projectId,
-        changes: {
-          view: query.view ?? 'combined',
-          periodStart: query.periodStart ?? null,
-          periodEnd: query.periodEnd ?? null,
-          ...(source ? { source } : {}),
-        },
+    await writeAuditLog(tx, actor, {
+      projectId,
+      action: 'ANALYTICS_DESCRIPTIVE_VIEWED',
+      entityType: 'Project',
+      entityId: projectId,
+      changes: {
+        view: query.view ?? 'combined',
+        periodStart: query.periodStart ?? null,
+        periodEnd: query.periodEnd ?? null,
+        ...(source ? { source } : {}),
       },
     })
   }
@@ -450,16 +437,12 @@ export class AnalyticsService {
     return withAuthorizedOperation(this.prisma, identity, 'analytics.export', async (tx, actor) =>
       this.withRetrievalFaultMapping(async () => {
         const source = await this.exportSource(tx, actor, query)
-        await tx.auditLog.create({
-          data: {
-            organizationId: actor.organizationId,
-            projectId: source.projectId,
-            actorUserId: actor.userId,
-            action: 'ANALYTICS_DESCRIPTIVE_EXPORTED',
-            entityType: 'Project',
-            entityId: source.projectId,
-            changes: { contractVersion: source.contractVersion, format, ...source.audit },
-          },
+        await writeAuditLog(tx, actor, {
+          projectId: source.projectId,
+          action: 'ANALYTICS_DESCRIPTIVE_EXPORTED',
+          entityType: 'Project',
+          entityId: source.projectId,
+          changes: { contractVersion: source.contractVersion, format, ...source.audit },
         })
         return exportArtifact(format, source.title, source.table, source.fileBase)
       }),

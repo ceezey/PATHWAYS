@@ -1,6 +1,6 @@
 import { Controller, ForbiddenException, Get, Header, Inject, Query, Req } from '@nestjs/common'
+import type { AuthenticatedRequest } from '../../common/authz/application-identity'
 import { RequirePermission } from '../../common/decorators/permission.decorator'
-import type { AuthenticatedRequest } from '../auth/developer-access'
 import { DashboardsService } from './dashboards.service'
 function identity(request: AuthenticatedRequest) {
   if (!request.user) throw new ForbiddenException('Application profile is required.')

@@ -13,10 +13,10 @@ import {
   parseRouteSelection,
   routeAllowed,
 } from '../../../../web/src/lib/rbac/route-access'
+import { type ApplicationIdentity, UUID_PATTERN } from '../../common/authz/application-identity'
+import { projectScope } from '../../common/authz/project-scope'
 import { PrismaService } from '../../prisma/prisma.service'
 import { prismaDiagnosticCode, transactionDiagnostic } from '../../prisma/transaction-diagnostic'
-import { projectScope } from './authorized-data.service'
-import { type ApplicationIdentity, UUID_PATTERN } from './developer-access'
 
 type VerificationStage =
   | 'CONTEXT_OR_TRANSACTION'

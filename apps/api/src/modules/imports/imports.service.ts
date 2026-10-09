@@ -30,10 +30,12 @@ import {
   smartMatchColumns,
 } from '@pathways/imports/server'
 import type { FormFieldValidationContract } from '@pathways/shared'
+import { writeAuditLog } from '../../common/audit/write-audit-log'
+import { type ApplicationIdentity, UUID_PATTERN } from '../../common/authz/application-identity'
+import { requireScopedProject } from '../../common/authz/scoped-project'
+import type { Tx } from '../../common/prisma/transaction'
 import { PrismaService } from '../../prisma/prisma.service'
-import { projectScope } from '../auth/authorized-data.service'
 import { withAuthorizedOperation } from '../auth/authorized-operation'
-import { type ApplicationIdentity, UUID_PATTERN } from '../auth/developer-access'
 import {
   BeneficiariesService,
   type RegistrationImportForm,
@@ -50,8 +52,6 @@ import type {
   ValidateImportDto,
 } from './imports.dto'
 import { W10FinalizationFault } from './p07-w10-finalization-fault'
-
-type Tx = Prisma.TransactionClient
 
 export interface UploadedImportFile {
   buffer: Buffer
@@ -342,7 +342,7 @@ export class ImportsService {
 
   listBatches(identity: ApplicationIdentity, projectId: string) {
     return withAuthorizedOperation(this.prisma, identity, 'imports.read', async (tx, actor) => {
-      const scopedProjectId = await this.requireProject(tx, actor, projectId)
+      const scopedProjectId = await requireScopedProject(tx, actor, projectId)
       const batches = await tx.dataImportBatch.findMany({
         where: { organizationId: actor.organizationId, projectId: scopedProjectId },
         select: batchSelection,
@@ -811,20 +811,16 @@ export class ImportsService {
           failureCode: null,
         },
       })
-      await tx.auditLog.create({
-        data: {
-          organizationId: actor.organizationId,
-          actorUserId: actor.userId,
-          projectId: batch.projectId,
-          action: 'IMPORT_MAPPING_REVISED',
-          entityType: 'DataImportBatch',
-          entityId: batch.id,
-          changes: {
-            revision,
-            mapped: targets.size,
-            ignored: sourceColumnKeys.length - targets.size,
-            valueMapped: input.mappings.filter((item) => item.valueMap).length,
-          },
+      await writeAuditLog(tx, actor, {
+        projectId: batch.projectId,
+        action: 'IMPORT_MAPPING_REVISED',
+        entityType: 'DataImportBatch',
+        entityId: batch.id,
+        changes: {
+          revision,
+          mapped: targets.size,
+          ignored: sourceColumnKeys.length - targets.size,
+          valueMapped: input.mappings.filter((item) => item.valueMap).length,
         },
       })
       return this.mapStoredBatch(tx, actor, batch.projectId, batch.id)
@@ -996,21 +992,17 @@ export class ImportsService {
           failureCode: null,
         },
       })
-      await tx.auditLog.create({
-        data: {
-          organizationId: actor.organizationId,
-          actorUserId: actor.userId,
-          projectId: batch.projectId,
-          action: 'IMPORT_VALIDATED',
-          entityType: 'DataImportBatch',
-          entityId: batch.id,
-          changes: {
-            mappingRevision: batch.mappingRevision,
-            validationRevision,
-            total: rows.length,
-            valid,
-            invalid,
-          },
+      await writeAuditLog(tx, actor, {
+        projectId: batch.projectId,
+        action: 'IMPORT_VALIDATED',
+        entityType: 'DataImportBatch',
+        entityId: batch.id,
+        changes: {
+          mappingRevision: batch.mappingRevision,
+          validationRevision,
+          total: rows.length,
+          valid,
+          invalid,
         },
       })
       return this.mapStoredBatch(tx, actor, batch.projectId, batch.id)
@@ -1122,7 +1114,7 @@ export class ImportsService {
       identity,
       'imports.process',
       async (tx, actor) => {
-        const scopedProjectId = await this.requireProject(tx, actor, projectId)
+        const scopedProjectId = await requireScopedProject(tx, actor, projectId)
         const current = await tx.dataImportBatch.findFirst({
           where: {
             id: context.batch.id,
@@ -1244,7 +1236,7 @@ export class ImportsService {
     metadata: ReturnType<typeof fileMetadata>,
   ) {
     return withAuthorizedOperation(this.prisma, identity, 'imports.upload', async (tx, actor) => {
-      const scopedProjectId = await this.requireProject(tx, actor, projectId)
+      const scopedProjectId = await requireScopedProject(tx, actor, projectId)
       if (!UUID_PATTERN.test(input.formId))
         throw new NotFoundException('Published form unavailable.')
       const form = await tx.digitalForm.findFirst({
@@ -1315,16 +1307,12 @@ export class ImportsService {
           status: 'UPLOADING',
         },
       })
-      await tx.auditLog.create({
-        data: {
-          organizationId: actor.organizationId,
-          actorUserId: actor.userId,
-          projectId: scopedProjectId,
-          action: 'IMPORT_UPLOAD_RESERVED',
-          entityType: 'DataImportBatch',
-          entityId: id,
-          changes: { fileType: metadata.type, byteLength: metadata.byteLength },
-        },
+      await writeAuditLog(tx, actor, {
+        projectId: scopedProjectId,
+        action: 'IMPORT_UPLOAD_RESERVED',
+        entityType: 'DataImportBatch',
+        entityId: id,
+        changes: { fileType: metadata.type, byteLength: metadata.byteLength },
       })
       return { batchId: id, storageBucket, storageObjectKey, requiresFinalization: true }
     })
@@ -1389,20 +1377,16 @@ export class ImportsService {
             failureCode: null,
           },
         })
-        await tx.auditLog.create({
-          data: {
-            organizationId: actor.organizationId,
-            actorUserId: actor.userId,
-            projectId: batch.projectId,
-            action: 'IMPORT_UPLOAD_STAGED',
-            entityType: 'DataImportBatch',
-            entityId: batch.id,
-            changes: {
-              fileType: batch.fileType,
-              rows: parsed.rows.length,
-              columns: parsed.sourceColumns.length,
-              sheets: parsed.sheetNames.length,
-            },
+        await writeAuditLog(tx, actor, {
+          projectId: batch.projectId,
+          action: 'IMPORT_UPLOAD_STAGED',
+          entityType: 'DataImportBatch',
+          entityId: batch.id,
+          changes: {
+            fileType: batch.fileType,
+            rows: parsed.rows.length,
+            columns: parsed.sourceColumns.length,
+            sheets: parsed.sheetNames.length,
           },
         })
         return this.mapStoredBatch(tx, actor, batch.projectId, batch.id)
@@ -1648,19 +1632,15 @@ export class ImportsService {
           processingClaimedAt: null,
         },
       })
-      await tx.auditLog.create({
-        data: {
-          organizationId: actor.organizationId,
-          actorUserId: actor.userId,
-          projectId: batch.projectId,
-          action: 'IMPORT_REGISTRATION_REVIEW_REQUIRED',
-          entityType: 'DataImportRow',
-          entityId: row.id,
-          changes: {
-            importBatchId: batch.id,
-            sourceRowNumber: row.rowNumber,
-            code: outcome.code,
-          },
+      await writeAuditLog(tx, actor, {
+        projectId: batch.projectId,
+        action: 'IMPORT_REGISTRATION_REVIEW_REQUIRED',
+        entityType: 'DataImportRow',
+        entityId: row.id,
+        changes: {
+          importBatchId: batch.id,
+          sourceRowNumber: row.rowNumber,
+          code: outcome.code,
         },
       })
       return
@@ -1675,21 +1655,17 @@ export class ImportsService {
         processingClaimedAt: null,
       },
     })
-    await tx.auditLog.create({
-      data: {
-        organizationId: actor.organizationId,
-        actorUserId: actor.userId,
-        projectId: batch.projectId,
-        action: 'IMPORT_REGISTRATION_ROW_COMMITTED',
-        entityType: 'DataImportRow',
-        entityId: row.id,
-        changes: {
-          importBatchId: batch.id,
-          sourceRowNumber: row.rowNumber,
-          beneficiaryId: outcome.beneficiaryId,
-          enrollmentId: outcome.enrollmentId,
-          submissionId: outcome.submissionId,
-        },
+    await writeAuditLog(tx, actor, {
+      projectId: batch.projectId,
+      action: 'IMPORT_REGISTRATION_ROW_COMMITTED',
+      entityType: 'DataImportRow',
+      entityId: row.id,
+      changes: {
+        importBatchId: batch.id,
+        sourceRowNumber: row.rowNumber,
+        beneficiaryId: outcome.beneficiaryId,
+        enrollmentId: outcome.enrollmentId,
+        submissionId: outcome.submissionId,
       },
     })
   }
@@ -1826,21 +1802,17 @@ export class ImportsService {
         processingClaimedAt: null,
       },
     })
-    await tx.auditLog.create({
-      data: {
-        organizationId: actor.organizationId,
-        actorUserId: actor.userId,
-        projectId: batch.projectId,
-        action: 'IMPORT_PARTICIPATION_ROW_COMMITTED',
-        entityType: 'DataImportRow',
-        entityId: row.id,
-        changes: {
-          importBatchId: batch.id,
-          sourceRowNumber: row.rowNumber,
-          participationId: outcome.participationId,
-          enrollmentId: outcome.enrollmentId,
-          submissionId: submission.id,
-        },
+    await writeAuditLog(tx, actor, {
+      projectId: batch.projectId,
+      action: 'IMPORT_PARTICIPATION_ROW_COMMITTED',
+      entityType: 'DataImportRow',
+      entityId: row.id,
+      changes: {
+        importBatchId: batch.id,
+        sourceRowNumber: row.rowNumber,
+        participationId: outcome.participationId,
+        enrollmentId: outcome.enrollmentId,
+        submissionId: submission.id,
       },
     })
   }
@@ -1965,21 +1937,17 @@ export class ImportsService {
         processingErrorCode: null,
       },
     })
-    await tx.auditLog.create({
-      data: {
-        organizationId: actor.organizationId,
-        actorUserId: actor.userId,
-        projectId: batch.projectId,
-        action: 'IMPORT_ROW_PROMOTED',
-        entityType: 'FormSubmission',
-        entityId: submission.id,
-        changes: {
-          importBatchId: batch.id,
-          importRowId: row.id,
-          sourceRowNumber: row.rowNumber,
-          formVersion: batch.formVersion,
-          validationRevision: batch.validationRevision,
-        },
+    await writeAuditLog(tx, actor, {
+      projectId: batch.projectId,
+      action: 'IMPORT_ROW_PROMOTED',
+      entityType: 'FormSubmission',
+      entityId: submission.id,
+      changes: {
+        importBatchId: batch.id,
+        importRowId: row.id,
+        sourceRowNumber: row.rowNumber,
+        formVersion: batch.formVersion,
+        validationRevision: batch.validationRevision,
       },
     })
   }
@@ -2039,16 +2007,12 @@ export class ImportsService {
       // remain populated; clearing them in a separate UPDATE creates a transient
       // invalid row and fails the checkpoint before reconciliation can run.
       await this.reconcileBatch(tx, batch.id)
-      await tx.auditLog.create({
-        data: {
-          organizationId: actor.organizationId,
-          actorUserId: actor.userId,
-          projectId: batch.projectId,
-          action: 'IMPORT_PROCESSING_CHECKPOINT',
-          entityType: 'DataImportBatch',
-          entityId: batch.id,
-          changes: { processingRevision: batch.processingRevision },
-        },
+      await writeAuditLog(tx, actor, {
+        projectId: batch.projectId,
+        action: 'IMPORT_PROCESSING_CHECKPOINT',
+        entityType: 'DataImportBatch',
+        entityId: batch.id,
+        changes: { processingRevision: batch.processingRevision },
       })
       return this.mapStoredBatch(tx, actor, batch.projectId, batch.id)
     })
@@ -2111,23 +2075,13 @@ export class ImportsService {
     if (rows.length !== 1) throw new NotFoundException('Import batch unavailable.')
   }
 
-  private async requireProject(tx: Tx, actor: ApplicationIdentity, projectId: string) {
-    if (!UUID_PATTERN.test(projectId)) throw new NotFoundException('Project unavailable.')
-    const project = await tx.project.findFirst({
-      where: { AND: [projectScope(actor), { id: projectId.toLowerCase() }] },
-      select: { id: true },
-    })
-    if (!project) throw new NotFoundException('Project unavailable.')
-    return project.id
-  }
-
   private async requireBatch(
     tx: Tx,
     actor: ApplicationIdentity,
     projectId: string,
     batchId: string,
   ) {
-    const scopedProjectId = await this.requireProject(tx, actor, projectId)
+    const scopedProjectId = await requireScopedProject(tx, actor, projectId)
     if (!UUID_PATTERN.test(batchId)) throw new NotFoundException('Import batch unavailable.')
     const batch = await tx.dataImportBatch.findFirst({
       where: {

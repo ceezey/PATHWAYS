@@ -1,7 +1,7 @@
 import { Body, Controller, ForbiddenException, Get, Inject, Post, Req } from '@nestjs/common'
 
+import type { AuthenticatedRequest } from '../../common/authz/application-identity'
 import { RequirePermission } from '../../common/decorators/permission.decorator'
-import type { AuthenticatedRequest } from '../auth/developer-access'
 // biome-ignore lint/style/useImportType: Nest validation needs the DTO constructor at runtime.
 import { CreateProgramDto } from './programs.dto'
 import { ProgramsService } from './programs.service'

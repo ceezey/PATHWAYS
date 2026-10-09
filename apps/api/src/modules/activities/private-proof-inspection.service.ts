@@ -11,12 +11,13 @@ import {
 import { readApiEnv } from '@pathways/config'
 import { hasAtomicPermission } from '@pathways/shared'
 import type { Prisma } from '@prisma/client'
+import { writeAuditLog } from '../../common/audit/write-audit-log'
+import { type ApplicationIdentity, UUID_PATTERN } from '../../common/authz/application-identity'
+import { projectScope } from '../../common/authz/project-scope'
 import { inspectionIdentityContext } from '../../common/network/inspection-request-budget'
 import { PrismaService } from '../../prisma/prisma.service'
 import { readApplicationProfile } from '../auth/application-profile.service'
-import { projectScope } from '../auth/authorized-data.service'
 import { withAuthorizedOperation } from '../auth/authorized-operation'
-import { type ApplicationIdentity, UUID_PATTERN } from '../auth/developer-access'
 import {
   createPrivateObjectStreamer,
   matchesEvidenceSignature,
@@ -355,20 +356,16 @@ export class PrivateProofInspectionService {
       )
         throw stale()
       budget.check()
-      await tx.auditLog.create({
-        data: {
-          organizationId: actor.organizationId,
-          actorUserId: actor.userId,
-          projectId: scope.projectId,
-          action: 'EVIDENCE_PRIVATE_INSPECTION_AUTHORIZED',
-          entityType: 'EvidenceMedia',
-          entityId: evidenceId,
-          changes: {
-            purpose: 'EVIDENCE_VERIFICATION',
-            activityId: scope.activityId,
-            updateId: scope.updateId,
-            ...revisions,
-          },
+      await writeAuditLog(tx, actor, {
+        projectId: scope.projectId,
+        action: 'EVIDENCE_PRIVATE_INSPECTION_AUTHORIZED',
+        entityType: 'EvidenceMedia',
+        entityId: evidenceId,
+        changes: {
+          purpose: 'EVIDENCE_VERIFICATION',
+          activityId: scope.activityId,
+          updateId: scope.updateId,
+          ...revisions,
         },
       })
       budget.check()

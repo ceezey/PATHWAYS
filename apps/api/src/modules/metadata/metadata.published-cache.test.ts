@@ -1,8 +1,8 @@
 import { ForbiddenException, NotFoundException } from '@nestjs/common'
 import type { Prisma } from '@prisma/client'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import type { PrismaService } from '../../prisma/prisma.service'
-import type { ApplicationIdentity } from '../auth/developer-access'
 import type { ParticipantsService } from '../participants/participants.service'
 const state = vi.hoisted(() => ({
   actor: undefined as ApplicationIdentity | undefined,

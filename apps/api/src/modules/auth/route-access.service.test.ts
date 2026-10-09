@@ -6,8 +6,8 @@ import {
   type RouteSelection,
   routePolicy,
 } from '../../../../web/src/lib/rbac/route-access'
+import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import type { PrismaService } from '../../prisma/prisma.service'
-import type { ApplicationIdentity } from './developer-access'
 import { RouteAccessService } from './route-access.service'
 
 const id = '10000000-0000-4000-8000-000000000001'

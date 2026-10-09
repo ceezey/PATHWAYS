@@ -11,17 +11,17 @@ import {
   type AtomicPermission,
   type DashboardQuery,
   P06_CONTRACT_VERSION,
-  businessCalendarDate,
   hasAtomicPermission,
   monitoringDashboardSchema,
   sadddDashboardSchema,
   validateMetricPeriod,
 } from '@pathways/shared'
 import { Prisma } from '@prisma/client'
+import type { ApplicationIdentity } from '../../common/authz/application-identity'
+import { projectScope } from '../../common/authz/project-scope'
+import { currentBusinessDate } from '../../common/time/business-date'
 import { PrismaService } from '../../prisma/prisma.service'
-import { projectScope } from '../auth/authorized-data.service'
 import { withAuthorizedOperation } from '../auth/authorized-operation'
-import type { ApplicationIdentity } from '../auth/developer-access'
 import { IndicatorsService, monitoringSqlError } from '../indicators/indicators.service'
 import { parseDashboardQuery, parseSadddQuery } from './dashboards.dto'
 
@@ -33,12 +33,7 @@ export class DashboardsService {
   ) {}
   private period(query: DashboardQuery) {
     const zone = readApiEnv(process.env).BUSINESS_TIME_ZONE
-    let today: string
-    try {
-      today = businessCalendarDate(new Date(), zone)
-    } catch {
-      throw new ServiceUnavailableException('The configured business time zone is invalid.')
-    }
+    const today = currentBusinessDate()
     const periodEnd = query.periodEnd ?? today
     const periodStart = query.periodStart ?? `${periodEnd.slice(0, 7)}-01`
     try {

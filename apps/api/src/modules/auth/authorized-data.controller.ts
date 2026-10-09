@@ -1,8 +1,8 @@
 import { Controller, ForbiddenException, Get, Header, Inject, Param, Req } from '@nestjs/common'
+import type { AuthenticatedRequest } from '../../common/authz/application-identity'
 import { RequireBeneficiaryStepUp } from '../../common/decorators/beneficiary-step-up.decorator'
 import { RequirePermission } from '../../common/decorators/permission.decorator'
 import { AuthorizedDataService } from './authorized-data.service'
-import type { AuthenticatedRequest } from './developer-access'
 
 function verifiedProfile(request: AuthenticatedRequest) {
   if (!request.user) throw new ForbiddenException('Application profile is required.')

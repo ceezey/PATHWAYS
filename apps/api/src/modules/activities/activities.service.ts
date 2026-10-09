@@ -21,12 +21,15 @@ import {
 import { Prisma } from '@prisma/client'
 
 import { readApiEnv } from '@pathways/config'
-import { aggregateOnlyRoles, hasAtomicPermission } from '@pathways/shared'
+import { aggregateOnlyRoles, businessCalendarDate, hasAtomicPermission } from '@pathways/shared'
+import { writeAuditLog } from '../../common/audit/write-audit-log'
+import { type ApplicationIdentity, UUID_PATTERN } from '../../common/authz/application-identity'
+import { projectScope } from '../../common/authz/project-scope'
+import { projectDateFields, requireScopedProjectRow } from '../../common/authz/scoped-project'
+import type { Tx } from '../../common/prisma/transaction'
 import { PrismaService } from '../../prisma/prisma.service'
 import { readApplicationProfile } from '../auth/application-profile.service'
-import { projectScope } from '../auth/authorized-data.service'
 import { withAuthorizedOperation } from '../auth/authorized-operation'
-import { type ApplicationIdentity, UUID_PATTERN } from '../auth/developer-access'
 import {
   type UploadVerification,
   createPrivateUploadVerifier,
@@ -52,7 +55,6 @@ import {
 // Create and update write assignments, links, budget and rule sources in one transaction; 5s is too short on the pooled remote DB.
 const ACTIVITY_SAVE_TRANSACTION_TIMEOUT_MS = 20_000
 
-type Tx = Prisma.TransactionClient
 const activityBudgetCategory = 'ACTIVITY_PROFILE_TOTAL'
 
 const activitySelection = {
@@ -226,7 +228,7 @@ export function activityCapabilities(
     canSubmitProof: can('activities.proof.submit') && assigned,
     // Project-scoped, not the personal activity assignment `assigned` reflects: any row
     // reaching this function was already resolved through projectScope(actor) (see
-    // requireProject), which is the same project-assignment-or-org-wide rule
+    // requireScopedProjectRow), which is the same project-assignment-or-org-wide rule
     // pathways.p05_has_project_permission('monitoring.review', ...) applies at the RLS layer.
     canExplainOverdue: can('monitoring.review'),
   }
@@ -528,29 +530,8 @@ export class ActivitiesService {
     @Inject(StorageService) private readonly storage: StorageService,
   ) {}
 
-  private businessDate(now = new Date()) {
-    const parts = new Intl.DateTimeFormat('en-CA', {
-      timeZone: this.env.BUSINESS_TIME_ZONE,
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-    }).formatToParts(now)
-    const values = Object.fromEntries(parts.map((part) => [part.type, part.value]))
-    return `${values.year}-${values.month}-${values.day}`
-  }
-
-  private async requireProject(tx: Tx, actor: ApplicationIdentity, projectId: string) {
-    if (!UUID_PATTERN.test(projectId)) throw new NotFoundException('Project unavailable.')
-    const project = await tx.project.findFirst({
-      where: { AND: [projectScope(actor), { id: projectId.toLowerCase() }] },
-      select: { id: true, startDate: true, endDate: true },
-    })
-    if (!project) throw new NotFoundException('Project unavailable.')
-    return project
-  }
-
   /**
-   * Reads one activity of a project already verified by `requireProject` in this same
+   * Reads one activity of a project already verified by `requireScopedProjectRow` in this same
    * transaction. Post-write read-backs use it so project scope is not resolved twice.
    */
   private async readScopedActivity(
@@ -580,7 +561,7 @@ export class ActivitiesService {
     projectId: string,
     activityId: string,
   ) {
-    const project = await this.requireProject(tx, actor, projectId)
+    const project = await requireScopedProjectRow(tx, actor, projectId, projectDateFields)
     const activity = await this.readScopedActivity(tx, actor, project.id, activityId)
     return { project, activity }
   }
@@ -944,7 +925,12 @@ export class ActivitiesService {
   ) {
     const metrics = await this.readMetrics(tx, actor, row.projectId, [row.id])
     return {
-      ...mapActivity(row, this.businessDate(), metrics, actor.userId),
+      ...mapActivity(
+        row,
+        businessCalendarDate(new Date(), this.env.BUSINESS_TIME_ZONE),
+        metrics,
+        actor.userId,
+      ),
       capabilities: activityCapabilities(
         actor,
         row.status,
@@ -1011,7 +997,7 @@ export class ActivitiesService {
         !hasAtomicPermission(actor.roles[0], actor.permissions, 'activities.update')
       )
         throw new ForbiddenException('Required application permission is missing.')
-      const project = await this.requireProject(tx, actor, projectId)
+      const project = await requireScopedProjectRow(tx, actor, projectId, projectDateFields)
       const rows = await tx.userProjectAssignment.findMany({
         where: {
           organizationId: actor.organizationId,
@@ -1049,7 +1035,7 @@ export class ActivitiesService {
         },
       })
       if (!project) throw new NotFoundException('Project unavailable.')
-      const today = this.businessDate()
+      const today = businessCalendarDate(new Date(), this.env.BUSINESS_TIME_ZONE)
       const metrics = await this.readListMetrics(
         tx,
         actor,
@@ -1234,7 +1220,7 @@ export class ActivitiesService {
           sourceMutationBody(input),
         )
         if (source.kind === 'REPLAY') return source.acknowledgement
-        const project = await this.requireProject(tx, actor, projectId)
+        const project = await requireScopedProjectRow(tx, actor, projectId, projectDateFields)
         const timelineOverrideJustification = this.validateDates(
           input.plannedStartDate,
           input.plannedEndDate,
@@ -1302,16 +1288,12 @@ export class ActivitiesService {
           input.budgetAllocation,
           'create',
         )
-        await tx.auditLog.create({
-          data: {
-            organizationId: actor.organizationId,
-            actorUserId: actor.userId,
-            projectId: project.id,
-            action: 'ACTIVITY_CREATED',
-            entityType: 'ProjectActivity',
-            entityId: activityId,
-            changes: { code: input.code ?? 'SERVER_GENERATED', assigneeCount: assignments.length },
-          },
+        await writeAuditLog(tx, actor, {
+          projectId: project.id,
+          action: 'ACTIVITY_CREATED',
+          entityType: 'ProjectActivity',
+          entityId: activityId,
+          changes: { code: input.code ?? 'SERVER_GENERATED', assigneeCount: assignments.length },
         })
         const sourceAcknowledgement = await finishRuleSourceOperation(
           tx,
@@ -1442,16 +1424,12 @@ export class ActivitiesService {
           input.budgetAllocation,
           'update',
         )
-        await tx.auditLog.create({
-          data: {
-            organizationId: actor.organizationId,
-            actorUserId: actor.userId,
-            projectId: project.id,
-            action: 'ACTIVITY_UPDATED',
-            entityType: 'ProjectActivity',
-            entityId: current.id,
-            changes: { assigneeCount: assignments.length },
-          },
+        await writeAuditLog(tx, actor, {
+          projectId: project.id,
+          action: 'ACTIVITY_UPDATED',
+          entityType: 'ProjectActivity',
+          entityId: current.id,
+          changes: { assigneeCount: assignments.length },
         })
         const sourceAcknowledgement = await finishRuleSourceOperation(
           tx,
@@ -1519,16 +1497,12 @@ export class ActivitiesService {
         })
         if (changed.count !== 1)
           throw new ConflictException('Activity changed; reload before saving.')
-        await tx.auditLog.create({
-          data: {
-            organizationId: actor.organizationId,
-            actorUserId: actor.userId,
-            projectId: current.projectId,
-            action: `ACTIVITY_${input.status}`,
-            entityType: 'ProjectActivity',
-            entityId: current.id,
-            changes: input.status === 'CANCELLED' ? { reason: input.reason?.trim() } : {},
-          },
+        await writeAuditLog(tx, actor, {
+          projectId: current.projectId,
+          action: `ACTIVITY_${input.status}`,
+          entityType: 'ProjectActivity',
+          entityId: current.id,
+          changes: input.status === 'CANCELLED' ? { reason: input.reason?.trim() } : {},
         })
         const sourceAcknowledgement = await finishRuleSourceOperation(
           tx,
@@ -1623,16 +1597,12 @@ export class ActivitiesService {
             submittedById: actor.userId,
           },
         })
-        await tx.auditLog.create({
-          data: {
-            organizationId: actor.organizationId,
-            actorUserId: actor.userId,
-            projectId: activity.projectId,
-            action: 'ACTIVITY_PROGRESS_RECORDED',
-            entityType: 'ActivityUpdate',
-            entityId: updateId,
-            changes: { activityId: activity.id, progressPercent: input.progressPercent },
-          },
+        await writeAuditLog(tx, actor, {
+          projectId: activity.projectId,
+          action: 'ACTIVITY_PROGRESS_RECORDED',
+          entityType: 'ActivityUpdate',
+          entityId: updateId,
+          changes: { activityId: activity.id, progressPercent: input.progressPercent },
         })
         return this.mapWithMetrics(
           tx,
@@ -1684,7 +1654,7 @@ export class ActivitiesService {
       async (tx, actor) => {
         // M&E officers are assigned to the PROJECT, not to individual activities, so this
         // uses the project-scope rule requireActivity already applies (projectScope(actor)
-        // inside requireProject), not the personal-activity requireActiveAssignment used by
+        // inside requireScopedProjectRow), not the personal-activity requireActiveAssignment used by
         // recordProgress/reserveProof. This mirrors pathways.p05_has_project_permission
         // ('monitoring.review', project_id) in migration 0043's RLS INSERT policy:
         // SYSTEM_ADMINISTRATOR is org-wide, PROGRAM_MANAGER also via a managed program, and
@@ -1713,7 +1683,7 @@ export class ActivitiesService {
         const presentation = activityPresentationStatus(
           activity.status,
           activity.plannedEndDate,
-          this.businessDate(),
+          businessCalendarDate(new Date(), this.env.BUSINESS_TIME_ZONE),
         )
         if (!presentation.overdue)
           throw new ConflictException('An overdue explanation can be recorded only while overdue.')
@@ -1730,16 +1700,12 @@ export class ActivitiesService {
             clientMutationId,
           },
         })
-        await tx.auditLog.create({
-          data: {
-            organizationId: actor.organizationId,
-            actorUserId: actor.userId,
-            projectId: activity.projectId,
-            action: 'ACTIVITY_OVERDUE_EXPLANATION_RECORDED',
-            entityType: 'ActivityOverdueExplanation',
-            entityId: explanationId,
-            changes: { activityId: activity.id, category: input.category },
-          },
+        await writeAuditLog(tx, actor, {
+          projectId: activity.projectId,
+          action: 'ACTIVITY_OVERDUE_EXPLANATION_RECORDED',
+          entityType: 'ActivityOverdueExplanation',
+          entityId: explanationId,
+          changes: { activityId: activity.id, category: input.category },
         })
         return this.mapWithMetrics(
           tx,
@@ -2169,16 +2135,12 @@ export class ActivitiesService {
             updatedAt: new Date(source.generatedValues.timestamp),
           },
         })
-        await tx.auditLog.create({
-          data: {
-            organizationId: actor.organizationId,
-            actorUserId: actor.userId,
-            projectId: activity.projectId,
-            action: 'ACTIVITY_UPDATE_SUBMITTED',
-            entityType: 'ActivityUpdate',
-            entityId: update.id,
-            changes: { progressPercent: update.progressPercent, proofCount: files.length },
-          },
+        await writeAuditLog(tx, actor, {
+          projectId: activity.projectId,
+          action: 'ACTIVITY_UPDATE_SUBMITTED',
+          entityType: 'ActivityUpdate',
+          entityId: update.id,
+          changes: { progressPercent: update.progressPercent, proofCount: files.length },
         })
         const internalAcknowledgement = await finishRuleSourceOperation(
           tx,
@@ -2345,20 +2307,16 @@ export class ActivitiesService {
               }
             : { status: 'IN_PROGRESS', progressPercent: update.progressPercent, updatedAt: now },
       })
-      await tx.auditLog.create({
-        data: {
-          organizationId: reviewer.organizationId,
-          actorUserId: reviewer.userId,
-          projectId: activity.projectId,
-          action:
-            input.decision === 'APPROVE' ? 'ACTIVITY_UPDATE_APPROVED' : 'ACTIVITY_UPDATE_RETURNED',
-          entityType: 'ActivityUpdate',
-          entityId: update.id,
-          changes: {
-            reason: input.reason.trim(),
-            kind: progressOnly ? 'PROGRESS' : 'PROOF',
-            progressPercent: update.progressPercent,
-          },
+      await writeAuditLog(tx, reviewer, {
+        projectId: activity.projectId,
+        action:
+          input.decision === 'APPROVE' ? 'ACTIVITY_UPDATE_APPROVED' : 'ACTIVITY_UPDATE_RETURNED',
+        entityType: 'ActivityUpdate',
+        entityId: update.id,
+        changes: {
+          reason: input.reason.trim(),
+          kind: progressOnly ? 'PROGRESS' : 'PROOF',
+          progressPercent: update.progressPercent,
         },
       })
       const sourceAcknowledgement = await finishRuleSourceOperation(
@@ -2386,7 +2344,7 @@ export class ActivitiesService {
       identity,
       'evidence.read',
       async (tx, actor) => {
-        const project = await this.requireProject(tx, actor, projectId)
+        const project = await requireScopedProjectRow(tx, actor, projectId, projectDateFields)
         if (!UUID_PATTERN.test(activityId) || !UUID_PATTERN.test(evidenceId))
           throw new NotFoundException('Proof unavailable.')
         const proof = await tx.evidenceMedia.findFirst({
@@ -2419,7 +2377,7 @@ export class ActivitiesService {
 
   listMilestones(identity: ApplicationIdentity, projectId: string) {
     return withAuthorizedOperation(this.prisma, identity, 'activities.read', async (tx, actor) => {
-      const project = await this.requireProject(tx, actor, projectId)
+      const project = await requireScopedProjectRow(tx, actor, projectId, projectDateFields)
       return tx.projectMilestone.findMany({
         where: { organizationId: actor.organizationId, projectId: project.id, archivedAt: null },
         orderBy: [{ targetDate: 'asc' }, { id: 'asc' }],
@@ -2434,7 +2392,7 @@ export class ActivitiesService {
       identity,
       'milestones.manage',
       async (tx, actor) => {
-        const project = await this.requireProject(tx, actor, projectId)
+        const project = await requireScopedProjectRow(tx, actor, projectId, projectDateFields)
         if (input.targetDate) {
           this.validateDates(input.targetDate, input.targetDate, project)
         }
@@ -2447,15 +2405,11 @@ export class ActivitiesService {
             targetDate: input.targetDate ? new Date(`${input.targetDate}T00:00:00.000Z`) : null,
           },
         })
-        await tx.auditLog.create({
-          data: {
-            organizationId: actor.organizationId,
-            actorUserId: actor.userId,
-            projectId: project.id,
-            action: 'MILESTONE_CREATED',
-            entityType: 'ProjectMilestone',
-            entityId: row.id,
-          },
+        await writeAuditLog(tx, actor, {
+          projectId: project.id,
+          action: 'MILESTONE_CREATED',
+          entityType: 'ProjectMilestone',
+          entityId: row.id,
         })
         return row
       },
@@ -2473,7 +2427,7 @@ export class ActivitiesService {
       identity,
       'milestones.manage',
       async (tx, actor) => {
-        const project = await this.requireProject(tx, actor, projectId)
+        const project = await requireScopedProjectRow(tx, actor, projectId, projectDateFields)
         if (!UUID_PATTERN.test(milestoneId)) throw new NotFoundException('Milestone unavailable.')
         if (input.targetDate) {
           this.validateDates(input.targetDate, input.targetDate, project)
@@ -2509,16 +2463,12 @@ export class ActivitiesService {
         const row = await tx.projectMilestone.findUniqueOrThrow({
           where: { id: milestoneId.toLowerCase() },
         })
-        await tx.auditLog.create({
-          data: {
-            organizationId: actor.organizationId,
-            actorUserId: actor.userId,
-            projectId: project.id,
-            action: 'MILESTONE_UPDATED',
-            entityType: 'ProjectMilestone',
-            entityId: row.id,
-            changes: { status: row.status },
-          },
+        await writeAuditLog(tx, actor, {
+          projectId: project.id,
+          action: 'MILESTONE_UPDATED',
+          entityType: 'ProjectMilestone',
+          entityId: row.id,
+          changes: { status: row.status },
         })
         return row
       },

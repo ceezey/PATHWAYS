@@ -14,6 +14,11 @@ import {
 } from '@pathways/shared'
 import type { Prisma } from '@prisma/client'
 
+import {
+  type ApplicationIdentity,
+  UUID_PATTERN,
+  type VerifiedAuthIdentity,
+} from '../../common/authz/application-identity'
 import { InactiveVerifiedSessionError, PrismaService } from '../../prisma/prisma.service'
 import {
   STEP_UP_PIN_CODES,
@@ -21,11 +26,6 @@ import {
   type StepUpMethod,
   evaluateBeneficiaryStepUp,
 } from './beneficiary-step-up'
-import {
-  type ApplicationIdentity,
-  UUID_PATTERN,
-  type VerifiedAuthIdentity,
-} from './developer-access'
 
 // cr-pathways-beneficiary-step-up-pin. The PIN travels only as a bound query parameter into
 // the 0037 SECURITY DEFINER functions; it is never logged, audited, echoed or cached. Every

@@ -20,10 +20,12 @@ import {
   minimumBeneficiaryAge,
   validateAndNormalizeFormData,
 } from '@pathways/shared'
+import { writeAuditLog } from '../../common/audit/write-audit-log'
+import { type ApplicationIdentity, UUID_PATTERN } from '../../common/authz/application-identity'
+import { projectDateFields, requireScopedProjectRow } from '../../common/authz/scoped-project'
+import type { Tx } from '../../common/prisma/transaction'
 import { PrismaService } from '../../prisma/prisma.service'
-import { projectScope } from '../auth/authorized-data.service'
 import { withAuthorizedOperation } from '../auth/authorized-operation'
-import { type ApplicationIdentity, UUID_PATTERN } from '../auth/developer-access'
 import {
   type ArchiveBeneficiaryDto,
   type BeneficiaryListQueryDto,
@@ -36,8 +38,6 @@ import {
   canonicalIdentifierValue,
 } from './beneficiaries.dto'
 import { canReadProgress, loadProgress } from './beneficiary-progress'
-
-type Tx = Prisma.TransactionClient
 
 /** The one system template key the 0040 guard and check constraint admit. */
 const DEFAULT_REGISTRATION_TEMPLATE_KEY = 'SYSTEM_DEFAULT_REGISTRATION_V1'
@@ -440,7 +440,7 @@ export class BeneficiariesService {
       identity,
       'beneficiaries.records.read',
       async (tx, actor) => {
-        const project = await this.requireProject(tx, actor, projectId)
+        const project = await requireScopedProjectRow(tx, actor, projectId, projectDateFields)
         const scopedProjectId = project.id
         const search = query.search?.trim()
         const ageReference = project.endDate
@@ -531,7 +531,7 @@ export class BeneficiariesService {
       identity,
       'beneficiaries.records.register',
       async (tx, actor) => {
-        const project = await this.requireProject(tx, actor, projectId)
+        const project = await requireScopedProjectRow(tx, actor, projectId, projectDateFields)
         return this.loadRegistrationContext(tx, actor, project.id)
       },
     )
@@ -554,7 +554,7 @@ export class BeneficiariesService {
       identity,
       'beneficiaries.records.register',
       async (tx, actor) => {
-        const project = await this.requireProject(tx, actor, projectId)
+        const project = await requireScopedProjectRow(tx, actor, projectId, projectDateFields)
         const [provisioned] = await tx.$queryRaw<Array<{ outcome: unknown }>>`
           SELECT outcome FROM pathways.ensure_default_registration_form(${project.id}::uuid)
         `
@@ -571,7 +571,7 @@ export class BeneficiariesService {
     )
   }
 
-  /** Caller has already scoped projectId through requireProject. */
+  /** Caller has already scoped projectId through requireScopedProjectRow. */
   private async loadRegistrationContext(
     tx: Tx,
     actor: ApplicationIdentity,
@@ -689,7 +689,7 @@ export class BeneficiariesService {
       identity,
       'beneficiaries.records.read',
       async (tx, actor) => {
-        const project = await this.requireProject(tx, actor, projectId)
+        const project = await requireScopedProjectRow(tx, actor, projectId, projectDateFields)
         const row = await this.requireBeneficiary(tx, actor, project.id, beneficiaryId)
         const enrollmentId = row.beneficiaryProjectEnrollment_beneficiary[0]?.id
         const progress =
@@ -711,7 +711,7 @@ export class BeneficiariesService {
       identity,
       'beneficiaries.records.register',
       async (tx, actor) => {
-        const project = await this.requireProject(tx, actor, projectId)
+        const project = await requireScopedProjectRow(tx, actor, projectId, projectDateFields)
         const outcome = await this.promoteRegistration(tx, actor, {
           projectId: project.id,
           formId: input.formId,
@@ -1093,23 +1093,18 @@ export class BeneficiariesService {
         recordedAt: submittedAt,
       })),
     })
-    await tx.auditLog.create({
-      data: {
-        organizationId: actor.organizationId,
-        actorUserId: actor.userId,
-        projectId: input.projectId,
-        action: 'BENEFICIARY_REGISTRATION_PROMOTED',
-        entityType: 'Beneficiary',
-        entityId: beneficiaryId,
-        changes: {
-          operation: registration.operation,
-          source: input.source,
-          enrollmentId: enrollment.id,
-          submissionId: submission.id,
-          consentKinds,
-          profileFieldsChanged:
-            registration.operation === 'UPDATE' ? registration.updateFields : [],
-        },
+    await writeAuditLog(tx, actor, {
+      projectId: input.projectId,
+      action: 'BENEFICIARY_REGISTRATION_PROMOTED',
+      entityType: 'Beneficiary',
+      entityId: beneficiaryId,
+      changes: {
+        operation: registration.operation,
+        source: input.source,
+        enrollmentId: enrollment.id,
+        submissionId: submission.id,
+        consentKinds,
+        profileFieldsChanged: registration.operation === 'UPDATE' ? registration.updateFields : [],
       },
     })
     return {
@@ -1131,7 +1126,7 @@ export class BeneficiariesService {
       identity,
       'beneficiaries.profiles.update',
       async (tx, actor) => {
-        const project = await this.requireProject(tx, actor, projectId)
+        const project = await requireScopedProjectRow(tx, actor, projectId, projectDateFields)
         const current = await this.requireBeneficiary(tx, actor, project.id, beneficiaryId)
         await this.assertAllEnrollmentScope(tx, actor, current.id)
         this.assertSubjectProfile(input, current)
@@ -1159,16 +1154,12 @@ export class BeneficiariesService {
         })
         if (changed.count !== 1)
           throw new ConflictException('Beneficiary changed; reload before saving.')
-        await tx.auditLog.create({
-          data: {
-            organizationId: actor.organizationId,
-            actorUserId: actor.userId,
-            projectId: project.id,
-            action: 'BENEFICIARY_PROFILE_UPDATED',
-            entityType: 'Beneficiary',
-            entityId: current.id,
-            changes: { fields: Object.keys(input).filter((key) => key !== 'expectedUpdatedAt') },
-          },
+        await writeAuditLog(tx, actor, {
+          projectId: project.id,
+          action: 'BENEFICIARY_PROFILE_UPDATED',
+          entityType: 'Beneficiary',
+          entityId: current.id,
+          changes: { fields: Object.keys(input).filter((key) => key !== 'expectedUpdatedAt') },
         })
         return this.mapBeneficiary(
           await this.requireBeneficiary(tx, actor, project.id, current.id),
@@ -1189,7 +1180,7 @@ export class BeneficiariesService {
       identity,
       'beneficiaries.records.archive',
       async (tx, actor) => {
-        const project = await this.requireProject(tx, actor, projectId)
+        const project = await requireScopedProjectRow(tx, actor, projectId, projectDateFields)
         const current = await this.requireBeneficiary(tx, actor, project.id, beneficiaryId)
         await this.assertAllEnrollmentScope(tx, actor, current.id)
         const now = new Date()
@@ -1204,16 +1195,12 @@ export class BeneficiariesService {
         })
         if (changed.count !== 1)
           throw new ConflictException('Beneficiary changed; reload before archiving.')
-        await tx.auditLog.create({
-          data: {
-            organizationId: actor.organizationId,
-            actorUserId: actor.userId,
-            projectId: project.id,
-            action: 'BENEFICIARY_ARCHIVED',
-            entityType: 'Beneficiary',
-            entityId: current.id,
-            changes: { archivedAt: now.toISOString() },
-          },
+        await writeAuditLog(tx, actor, {
+          projectId: project.id,
+          action: 'BENEFICIARY_ARCHIVED',
+          entityType: 'Beneficiary',
+          entityId: current.id,
+          changes: { archivedAt: now.toISOString() },
         })
         return { id: current.id, status: 'ARCHIVED', archivedAt: now.toISOString() }
       },
@@ -1231,7 +1218,7 @@ export class BeneficiariesService {
       identity,
       'beneficiaries.enrollments.manage',
       async (tx, actor) => {
-        const project = await this.requireProject(tx, actor, projectId)
+        const project = await requireScopedProjectRow(tx, actor, projectId, projectDateFields)
         if (!UUID_PATTERN.test(beneficiaryId))
           throw new NotFoundException('Beneficiary unavailable.')
         const date = exactDate(input.enrollmentDate, 'enrollmentDate')
@@ -1248,16 +1235,12 @@ export class BeneficiariesService {
           enrollmentDate: result.enrollment_date,
           status: result.status,
         }
-        await tx.auditLog.create({
-          data: {
-            organizationId: actor.organizationId,
-            actorUserId: actor.userId,
-            projectId: project.id,
-            action: 'BENEFICIARY_ENROLLMENT_ENSURED',
-            entityType: 'BeneficiaryProjectEnrollment',
-            entityId: enrollment.id,
-            changes: { beneficiaryId: beneficiaryId.toLowerCase() },
-          },
+        await writeAuditLog(tx, actor, {
+          projectId: project.id,
+          action: 'BENEFICIARY_ENROLLMENT_ENSURED',
+          entityType: 'BeneficiaryProjectEnrollment',
+          entityId: enrollment.id,
+          changes: { beneficiaryId: beneficiaryId.toLowerCase() },
         })
         return {
           id: enrollment.id,
@@ -1383,20 +1366,6 @@ export class BeneficiariesService {
         'Shared profile update requires access to every enrolled project.',
       )
     }
-  }
-
-  private async requireProject(tx: Tx, actor: ApplicationIdentity, projectId: string) {
-    if (!UUID_PATTERN.test(projectId)) throw new NotFoundException('Project unavailable.')
-    const project = await tx.project.findFirst({
-      where: { AND: [projectScope(actor), { id: projectId.toLowerCase() }] },
-      select: {
-        id: true,
-        startDate: true,
-        endDate: true,
-      },
-    })
-    if (!project) throw new NotFoundException('Project unavailable.')
-    return project
   }
 
   private scopedIncludes(organizationId: string, projectId: string) {

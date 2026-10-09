@@ -3,8 +3,8 @@ import { join } from 'node:path'
 import { BadRequestException, ForbiddenException } from '@nestjs/common'
 import { hasAtomicPermission } from '@pathways/shared'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import type { PrismaService } from '../../prisma/prisma.service'
-import type { ApplicationIdentity } from '../auth/developer-access'
 import { AuditService } from './audit.service'
 
 const state = vi.hoisted(() => ({ actor: undefined as unknown, tx: undefined as unknown }))

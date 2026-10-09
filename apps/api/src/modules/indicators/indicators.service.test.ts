@@ -50,8 +50,8 @@ vi.mock('../rules/rules-source-operation', async (importOriginal) => ({
   bootstrapRuleSourceProject: async () => undefined,
 }))
 import { createHash } from 'node:crypto'
+import type { ApplicationIdentity } from '@app/common/authz/application-identity'
 import { PERMISSION_KEY } from '@app/common/decorators/permission.decorator'
-import type { ApplicationIdentity } from '@app/modules/auth/developer-access'
 import type { PrismaService } from '@app/prisma/prisma.service'
 import {
   BadRequestException,

@@ -2,8 +2,8 @@ import 'reflect-metadata'
 import { BadRequestException, ConflictException, ValidationPipe } from '@nestjs/common'
 import { describe, expect, it, vi } from 'vitest'
 
+import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import type { PrismaService } from '../../prisma/prisma.service'
-import type { ApplicationIdentity } from '../auth/developer-access'
 import { UpdateOwnProfileDto } from './profile.dto'
 import { ProfileService } from './profile.service'
 
