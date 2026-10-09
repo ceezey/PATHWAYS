@@ -95,6 +95,7 @@ Workflow rule: an audit is finding and evidence, a Change Record is the approved
 | Spec | File | Date | Scope | Status |
 |---|---|---|---|---|
 | [Plan 2 cloud handoff](handoff-extensions-and-escalations.md) | handoff-extensions-and-escalations.md | 2026-10-04 | Paused state of Plan 2 Task 1 handed to the cloud session, with the SDD ledger rulings | Closed; resumed and completed |
+| [F4 web platform plan](superpowers/plans/2026-10-10-modularization-f4-web-platform.md) | 2026-10-10-modularization-f4-web-platform.md | 2026-10-10 | F4 of the codebase modularization: F4a shared route policy, lib/rbac split, lib/auth, import direction tests and usePermission; F4b outline | In progress |
 
 ### 1.7 Traceability Matrix
 
