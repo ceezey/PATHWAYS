@@ -183,6 +183,7 @@ describe('ZodPipe', () => {
     })
   })
 
+  // Guards pipe order: the global ValidationPipe must not reject a zod-typed body before ZodPipe runs.
   it('is not preempted by the global ValidationPipe on a zod-typed body', async () => {
     // Same options as main.ts; a zod-inferred parameter type emits Object as its design type.
     const globalPipe = new ValidationPipe({
@@ -698,6 +699,9 @@ Expected: `60`; `24`; the three files `apps/api/src/modules/auth/authorized-data
 
 - [ ] **Step 2: Move readApplicationProfile to common/authz**
 
+Also update `apps/api/src/modules/auth/rule-based-access-alignment.test.ts` (about line 62): it reads the source text of `application-profile.service.ts` and asserts four SQL substrings that live inside `readApplicationProfile`; point that file read at `../../common/authz/application-profile.ts` in this same commit so the test keeps asserting the moved SQL.
+
+
 Create `apps/api/src/common/authz/application-profile.ts`. Its body is the `ProfileRow` type and the `readApplicationProfile` function with its doc comment, cut verbatim from `apps/api/src/modules/auth/application-profile.service.ts` (from `type ProfileRow = {` through the function's closing `}` before `@Injectable()`), under these imports:
 
 ```ts
@@ -1042,6 +1046,8 @@ export class StorageModule {}
 Run: `pnpm --filter @pathways/api exec vitest run src/modules/storage/storage.module.test.ts src/app-module-wiring.test.ts`
 Expected: PASS (the wiring test now also sees `Symbol(PRIVATE_STORAGE_FACTORIES)` with one owner).
 
+Pin it: in `apps/api/src/app-module-wiring.test.ts`, inside the existing test that walks `AppModule`, add one assertion that the `PRIVATE_STORAGE_FACTORIES` token has exactly one owner, `StorageModule` (use the test file's own provider-collection helper and owner representation). This adds an assertion, not a test, so the api count is unchanged.
+
 - [ ] **Step 3: Inject into the five services**
 
 In each service, the factories import below replaces the factory names from `../storage/private-inspection-reader`:
@@ -1165,7 +1171,9 @@ for (const file of files) {
 console.log(`total: ${total}`)
 ```
 
-- [ ] **Step 5: Pass the production factories at the 25 plain construction sites**
+- [ ] **Step 5: Pass the production factories at the 26 plain construction sites**
+
+After the script runs, review `git diff` of every one of the 29 sites by eye: the script mishandles a constructor whose last argument line ends in a `//` comment or holds parentheses inside a string, so fix any such site by hand and list the 29 sites in your report.
 
 ```bash
 M=apps/api/src/modules
