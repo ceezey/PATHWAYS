@@ -23,7 +23,13 @@ vi.mock('../env', () => ({
     NEXT_PUBLIC_SUPABASE_URL: 'https://pdqwsknbzkdtiwjjibqt.supabase.co',
   },
 }))
-import { rolePermissions } from '@pathways/shared'
+import {
+  matchRoute,
+  parseRouteSelection,
+  rolePermissions,
+  routeAllowed,
+  routePolicy,
+} from '@pathways/shared'
 import type { ApplicationProfile } from '../../features/auth/auth-access'
 import { testAuthUserId, testSupabaseUrl } from '../../features/auth/auth-access.test-fixtures'
 const developerAuthUserId = testAuthUserId
@@ -33,11 +39,7 @@ import {
   canonicalFeatures,
   filterWorkspaceTabs,
   getVerifiedRouteAccess,
-  matchRoute,
-  parseRouteSelection,
   requestRouteCheck,
-  routeAllowed,
-  routePolicy,
   visibleFeatures,
 } from './route-access'
 import { requireServerPage, requireServerRoute } from './server-access'

@@ -39,7 +39,7 @@ import {
 } from '@/constants/feature-flags'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { can } from '@/lib/rbac/can'
-import { type RoutePrincipal, principalHasAtomicPermission } from '@/lib/rbac/route-access'
+import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
 import { pathwaysClient } from '@/lib/services/pathways-client'
 import type {
   Activity,
@@ -50,7 +50,7 @@ import type {
   RoleDashboardViewModel,
 } from '@/types/pathways'
 import type { PathwaysRole } from '@/types/pathways-role'
-import { businessCalendarDate } from '@pathways/shared'
+import { type RoutePrincipal, businessCalendarDate } from '@pathways/shared'
 
 import { ActivityDetailPanel } from '../projects/activity-detail-panel'
 import { ActivityProofDialog } from '../projects/activity-proof-dialog'

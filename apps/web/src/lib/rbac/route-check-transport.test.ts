@@ -1,9 +1,10 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { type Server, createServer } from 'node:http'
 import { createRequire } from 'node:module'
+import type { RouteDecision } from '@pathways/shared'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { recordNavigationDenial } from './navigation-diagnostic'
-import { RouteCheckError, type RouteDecision, requestRouteCheck } from './route-access'
+import { RouteCheckError, requestRouteCheck } from './route-access'
 
 const context = {
   userId: '10000000-0000-4000-8000-000000000001',

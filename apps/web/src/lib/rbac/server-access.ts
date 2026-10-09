@@ -1,4 +1,5 @@
 import 'server-only'
+import { type RouteKey, type RouteSelection, parseRouteSelection } from '@pathways/shared'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { contextCookieName, decodeWorkspaceContext } from '../../features/auth/workspace-access'
@@ -6,14 +7,7 @@ import { webEnv } from '../env'
 import { createClient } from '../server'
 import { ACCESS_UNAVAILABLE_PATH, providerFailureStatus } from './access-recovery'
 import { type NavigationStage, recordNavigationDenial } from './navigation-diagnostic'
-import {
-  RouteCheckError,
-  type RouteKey,
-  type RouteSelection,
-  displayQueryKeys,
-  parseRouteSelection,
-  requestRouteCheck,
-} from './route-access'
+import { RouteCheckError, displayQueryKeys, requestRouteCheck } from './route-access'
 
 export type ProtectedPageProps = {
   params?: Promise<Record<string, string>>

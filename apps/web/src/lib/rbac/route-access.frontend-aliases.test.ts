@@ -1,10 +1,6 @@
+import { matchRoute, routePolicy } from '@pathways/shared'
 import { describe, expect, it } from 'vitest'
-import {
-  authorizationPathForUiPath,
-  getVerifiedRouteAccess,
-  matchRoute,
-  routePolicy,
-} from './route-access'
+import { authorizationPathForUiPath, getVerifiedRouteAccess } from './route-access'
 
 const projectId = '72000000-0000-4000-8000-000000000004'
 const beneficiaryId = '72000000-0000-4000-8000-000000000006'

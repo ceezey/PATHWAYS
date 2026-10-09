@@ -1,11 +1,12 @@
 import { Logger } from '@nestjs/common'
-import { type CanonicalRole, rolePermissions } from '@pathways/shared'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  type CanonicalRole,
   type RouteKey,
   type RouteSelection,
+  rolePermissions,
   routePolicy,
-} from '../../../../web/src/lib/rbac/route-access'
+} from '@pathways/shared'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import type { PrismaService } from '../../prisma/prisma.service'
 import { RouteAccessService } from './route-access.service'

@@ -71,7 +71,6 @@ vi.mock('@/lib/rbac/route-access', () => {
     RouteCheckError: RouteCheckErrorMock,
     authorizationPathForUiPath: () => '/beneficiaries',
     getVerifiedRouteAccess: () => ({ allowed: true }),
-    matchRoute: () => ({ route: 'beneficiaries' }),
     requestRouteCheck,
   }
 })

@@ -19,6 +19,7 @@ export * from './monitoring/activity-extension'
 export * from './rbac/role-catalog'
 export * from './rbac/authorization-policy'
 export * from './rbac/beneficiary-step-up'
+export * from './rbac/route-policy'
 
 export * from './rules/rule-contract'
 export * from './rules/rule-metrics'

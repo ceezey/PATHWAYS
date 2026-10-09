@@ -6,12 +6,11 @@ import { useSession } from '@/hooks/use-session'
 import { webEnv } from '@/lib/env'
 import {
   RouteCheckError,
-  type RouteDecision,
   authorizationPathForUiPath,
   getVerifiedRouteAccess,
-  matchRoute,
   requestRouteCheck,
 } from '@/lib/rbac/route-access'
+import { type RouteDecision, matchRoute } from '@pathways/shared'
 import { usePathname, useSearchParams } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { BeneficiaryAccessGate } from './beneficiary-access-gate'
