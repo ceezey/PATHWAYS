@@ -623,3 +623,4 @@
 - Other packages unchanged: config 19, imports 91, web 1895.
 - F3b decisions are recorded in the change record section 9, because the plan file is removed after merge.
 - Deferred: the three `importOriginal` private-inspection-reader mocks to S2; other routes' class-validator DTOs to their slices.
+- Gates: lint, typecheck and builds pass; tests config 19, shared 178, imports 91, api 2337 (21 skipped), web 1895, sad 50; `Replay-Local.ps1 -MigrationBaseline` 0 FAIL; demo seed first run and compiled API boot clean, with `ZodPipe` wired on the validate route and an `Object` body design type; e2e auth-navigation 27/27; e2e main 39 pass with the same 9 failures as dev; web middleware 102 kB; SAD sign-off 182/182 PASS at `c07ab1c0`. Merged to local dev as `40d47963`; plan removed.
