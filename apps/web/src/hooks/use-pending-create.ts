@@ -1,5 +1,5 @@
 'use client'
-import type { ApplicationProfile } from '@/features/auth/auth-access'
+import type { ApplicationProfile } from '@/lib/auth/auth-access'
 import {
   type PendingCreateMarker,
   clearPendingCreate,

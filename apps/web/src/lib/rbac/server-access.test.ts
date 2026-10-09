@@ -30,11 +30,11 @@ import {
   routeAllowed,
   routePolicy,
 } from '@pathways/shared'
-import type { ApplicationProfile } from '../../features/auth/auth-access'
-import { testAuthUserId, testSupabaseUrl } from '../../features/auth/auth-access.test-fixtures'
+import type { ApplicationProfile } from '../auth/auth-access'
+import { testAuthUserId, testSupabaseUrl } from '../auth/auth-access.test-fixtures'
 const developerAuthUserId = testAuthUserId
 const developerSupabaseUrl = testSupabaseUrl
-import { encodeWorkspaceContext } from '../../features/auth/workspace-access'
+import { encodeWorkspaceContext } from '../auth/workspace-access'
 import { canonicalFeatures, filterWorkspaceTabs, visibleFeatures } from './nav'
 import { getVerifiedRouteAccess } from './policy'
 import { requireServerPage, requireServerRoute } from './server-access'

@@ -3,8 +3,8 @@
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { ApplicationProfile } from '@/features/auth/auth-access'
-import type { WorkspaceVerification } from '@/features/auth/workspace-verification'
+import type { ApplicationProfile } from '@/lib/auth/auth-access'
+import type { WorkspaceVerification } from '@/lib/auth/workspace-verification'
 
 const verify = vi.hoisted(() => ({ fn: vi.fn() }))
 
@@ -15,7 +15,7 @@ vi.mock('@/hooks/use-session', () => ({
   useSession: () => ({ session, status: 'authenticated' }),
 }))
 
-vi.mock('@/features/auth/workspace-verification', async (importOriginal) => {
+vi.mock('@/lib/auth/workspace-verification', async (importOriginal) => {
   const original = await importOriginal<object>()
   return {
     ...original,

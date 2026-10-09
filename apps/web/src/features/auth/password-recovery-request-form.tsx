@@ -15,7 +15,6 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
-import { getBrowserSupabaseClient } from '@/lib/supabase/client'
 import {
   type PasswordRecoveryRequest,
   isApprovedPasswordRecoveryOrigin,
@@ -23,7 +22,8 @@ import {
   passwordRecoveryRequestSchema,
   passwordRecoveryRequestUrl,
   requestPasswordRecoveryEmail,
-} from './password-recovery'
+} from '@/lib/auth/password-recovery'
+import { getBrowserSupabaseClient } from '@/lib/supabase/client'
 import { StaffAuthFrame } from './staff-auth-frame'
 
 export const PasswordRecoveryRequestForm = () => {

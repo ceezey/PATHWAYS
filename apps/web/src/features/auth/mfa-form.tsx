@@ -11,11 +11,21 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { OtpInput } from '@/components/ui/otp-input'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useSession } from '@/hooks/use-session'
+import {
+  AuthAccessError,
+  type MfaStatus,
+  parseMfaStatus,
+  requestAuthJson,
+} from '@/lib/auth/auth-access'
+import {
+  getQrImageSource,
+  getVerifiedTotpFactors,
+  isTotpCode,
+  verifyTotpCode,
+} from '@/lib/auth/mfa-flow'
 import { webEnv } from '@/lib/env'
 import { landingPath } from '@/lib/rbac/policy'
 import { getBrowserSupabaseClient } from '@/lib/supabase/client'
-import { AuthAccessError, type MfaStatus, parseMfaStatus, requestAuthJson } from './auth-access'
-import { getQrImageSource, getVerifiedTotpFactors, isTotpCode, verifyTotpCode } from './mfa-flow'
 
 interface FactorChoice {
   id: string

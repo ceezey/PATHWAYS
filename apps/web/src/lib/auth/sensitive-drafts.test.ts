@@ -1,8 +1,8 @@
-import type { ApplicationProfile } from '@/features/auth/auth-access'
 // @vitest-environment jsdom
 import { cleanup, render, screen } from '@testing-library/react'
 import { createElement } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import type { ApplicationProfile } from './auth-access'
 import {
   clearSensitiveDraftStorage,
   readSensitiveDraft,

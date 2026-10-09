@@ -1,4 +1,4 @@
-import type { ApplicationProfile } from '@/features/auth/auth-access'
+import type { ApplicationProfile } from '@/lib/auth/auth-access'
 import { clearSensitiveDraftStorage } from '@/lib/auth/sensitive-drafts'
 // @vitest-environment jsdom
 import { act, cleanup, renderHook } from '@testing-library/react'

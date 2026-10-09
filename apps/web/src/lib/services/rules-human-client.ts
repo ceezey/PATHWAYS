@@ -1,5 +1,5 @@
-import { contextCookieName } from '@/features/auth/workspace-access'
 import { sensitiveDraftGeneration } from '@/lib/auth/sensitive-drafts'
+import { contextCookieName } from '@/lib/auth/workspace-access'
 import { PathwaysClientError, requestFoundationResponse } from '@/lib/services/pathways-client'
 import {
   activateRuleSchema,

@@ -3,8 +3,8 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 
-import type { ApplicationProfile } from '@/features/auth/auth-access'
 import { useCurrentRole } from '@/hooks/use-current-role'
+import type { ApplicationProfile } from '@/lib/auth/auth-access'
 import { sensitiveDraftGeneration, useSensitiveDraftOwner } from '@/lib/auth/sensitive-drafts'
 import { canAccessProjectForRole } from '@/lib/rbac/data-scope'
 import { principalHasAtomicPermission } from '@/lib/rbac/policy'

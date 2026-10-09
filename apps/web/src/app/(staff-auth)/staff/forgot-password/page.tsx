@@ -3,11 +3,11 @@ import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 
 import { SkipLink } from '@/components/layout/skip-link'
+import { PasswordRecoveryRequestForm } from '@/features/auth/password-recovery-request-form'
 import {
   localPasswordRecoveryOrigin,
   passwordRecoveryRequestUrl,
-} from '@/features/auth/password-recovery'
-import { PasswordRecoveryRequestForm } from '@/features/auth/password-recovery-request-form'
+} from '@/lib/auth/password-recovery'
 
 export const dynamic = 'force-dynamic'
 

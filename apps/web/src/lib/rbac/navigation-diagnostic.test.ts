@@ -1,7 +1,7 @@
 import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { AuthAccessError } from '../../features/auth/auth-access'
+import { AuthAccessError } from '../auth/auth-access'
 import { recordNavigationDenial } from './navigation-diagnostic'
 import { RouteCheckError } from './transport'
 
@@ -25,7 +25,7 @@ describe('development-only server navigation diagnostics', () => {
     const bundle = buildSync({
       stdin: {
         contents: `export { recordNavigationDenial } from './navigation-diagnostic';
-          export { AuthAccessError } from '../../features/auth/auth-access';`,
+          export { AuthAccessError } from '../auth/auth-access';`,
         resolveDir: fileURLToPath(new URL('.', import.meta.url)),
         loader: 'ts',
       },
