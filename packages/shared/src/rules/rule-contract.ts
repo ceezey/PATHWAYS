@@ -75,7 +75,7 @@ function validateMetricDomain(metric: RuleMetricKey, value: string) {
   }
 }
 
-const conditionSchema: z.ZodType<RuleCondition> = z
+export const conditionSchema: z.ZodType<RuleCondition> = z
   .object({
     kind: z.literal('CONDITION'),
     id: conditionIdSchema,

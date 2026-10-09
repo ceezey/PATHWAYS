@@ -1,9 +1,14 @@
 import { z } from 'zod'
 import {
+  MAX_CONDITIONS,
+  RULE_CONTRACT_VERSION,
+  conditionSchema,
   decimalSchema,
+  metricObservationSchema,
   operators,
   parseRuleTree,
   recommendationSchema,
+  ruleDefinitionSchema,
   ruleMetricCellSchema,
   ruleMetrics,
   uuidSchema,
@@ -70,6 +75,10 @@ export const createRuleSchema = z
 export const draftRuleSchema = z
   .object({ ...content, expectedVersion: version, clientOperationId: uuidSchema })
   .strict()
+export const activateRuleSchema = z
+  .object({ expectedVersion: version, clientOperationId: uuidSchema })
+  .strict()
+export const archiveRuleSchema = activateRuleSchema.extend({ note }).strict()
 export const reviewSchema = z
   .object({ expectedRevision: revisionSchema, note, clientOperationId: uuidSchema })
   .strict()
@@ -271,3 +280,104 @@ export const pageSchema = <T extends z.ZodTypeAny>(item: T) =>
       nextCursor: z.string().max(512).nullable(),
     })
     .strict()
+
+export type HumanAlert = z.infer<typeof alertOutputSchema>
+export type HumanRecommendation = z.infer<typeof recommendationOutputSchema>
+export type HumanRule = z.infer<typeof ruleOutputSchema>
+export type OutcomePreview = z.infer<typeof previewOutputSchema>
+export type HumanNotification = z.infer<typeof notificationOutputSchema>
+export type DecisionOutcome = (typeof decisionOutcomes)[number]
+
+export const dryRunInputSchema = z
+  .object({
+    rule: ruleDefinitionSchema,
+    asOf: instant,
+    observations: z.array(metricObservationSchema).max(MAX_CONDITIONS),
+  })
+  .strict()
+const dryResult = z.enum(['TRUE', 'FALSE', 'UNAVAILABLE'])
+export type DryEvidence =
+  | {
+      condition: z.infer<typeof conditionSchema>
+      observation: z.infer<typeof metricObservationSchema> | null
+      result: z.infer<typeof dryResult>
+      reason: 'NO_OBSERVATION' | null
+    }
+  | {
+      kind: 'GROUP'
+      mode: 'AND' | 'OR'
+      result: z.infer<typeof dryResult>
+      children: DryEvidence[]
+    }
+const dryEvidenceSchema: z.ZodType<DryEvidence> = z.lazy(() =>
+  z.union([
+    z
+      .object({
+        condition: conditionSchema,
+        observation: metricObservationSchema.nullable(),
+        result: dryResult,
+        reason: z.literal('NO_OBSERVATION').nullable(),
+      })
+      .strict(),
+    z
+      .object({
+        kind: z.literal('GROUP'),
+        mode: z.enum(['AND', 'OR']),
+        result: dryResult,
+        children: z.array(dryEvidenceSchema).max(MAX_CONDITIONS),
+      })
+      .strict(),
+  ]),
+)
+function boundDryEvidence(input: unknown) {
+  const pending = [{ node: input, depth: 0 }]
+  let leaves = 0
+  let nodes = 0
+  const seen = new WeakSet<object>()
+  while (pending.length) {
+    const item = pending.pop()
+    if (
+      !item ||
+      ++nodes > 160 ||
+      !item.node ||
+      typeof item.node !== 'object' ||
+      Array.isArray(item.node) ||
+      seen.has(item.node)
+    )
+      return false
+    seen.add(item.node)
+    const node = item.node as Record<string, unknown>
+    if (node.kind === 'GROUP') {
+      if (
+        item.depth >= 4 ||
+        !Array.isArray(node.children) ||
+        !node.children.length ||
+        node.children.length > 32
+      )
+        return false
+      for (const child of node.children) pending.push({ node: child, depth: item.depth + 1 })
+    } else if (++leaves > 32) return false
+  }
+  return true
+}
+const boundedDryEvidenceSchema = z.unknown().transform((input, ctx): DryEvidence => {
+  if (!boundDryEvidence(input)) {
+    ctx.addIssue({ code: 'custom', message: 'Invalid bounded test evidence.' })
+    return z.NEVER
+  }
+  const parsed = dryEvidenceSchema.safeParse(input)
+  if (!parsed.success) {
+    ctx.addIssue({ code: 'custom', message: 'Invalid test evidence.' })
+    return z.NEVER
+  }
+  return parsed.data
+})
+export const dryRunOutputSchema = z
+  .object({
+    contractVersion: z.literal(RULE_CONTRACT_VERSION),
+    rule: ruleDefinitionSchema,
+    asOf: instant,
+    result: dryResult,
+    evidence: boundedDryEvidenceSchema,
+  })
+  .strict()

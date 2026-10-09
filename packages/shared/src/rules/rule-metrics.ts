@@ -198,7 +198,7 @@ const timelineInputSchema = z
   })
   .strict()
 
-/** reportingDate is the server-derived business calendar date at asOf, not machine-local time. */
+/** reportingDate is the business calendar date at asOf: server-derived for evaluation, entered for browser rule tests. */
 export function timelineObservation(input: unknown): MetricObservation {
   const {
     scope,
