@@ -1,8 +1,8 @@
 import {
   type AtomicPermission,
-  type CanonicalRole,
+  type RoleName,
   hasAtomicPermission,
-  roleNames,
+  roleCodeFor,
   rolePermissions,
 } from '@pathways/shared'
 import { approvedApiBaseUrl } from '../api-base-url'
@@ -12,7 +12,6 @@ export type RoutePrincipal = {
   permissions: readonly string[]
   assignedProjectIds: readonly string[]
 }
-type DisplayRole = (typeof roleNames)[CanonicalRole]
 type Scope = 'workspace' | 'project' | 'activity' | 'beneficiary'
 const entry = (
   path: string,
@@ -465,14 +464,12 @@ export const visibleFeatures = (profile: RoutePrincipal) =>
           routePolicy[feature.route].permissions,
         )),
   )
-const roleKey = (role: DisplayRole) =>
-  (Object.keys(roleNames) as CanonicalRole[]).find((k) => roleNames[k] === role)
 export function getRouteAccess(
-  role: DisplayRole,
+  role: RoleName,
   path: string,
   assignedProjectIds: readonly string[] = [],
 ) {
-  const key = roleKey(role)
+  const key = roleCodeFor(role)
   return getVerifiedRouteAccess(
     { roles: key ? [key] : [], permissions: key ? rolePermissions[key] : [], assignedProjectIds },
     path,
@@ -480,7 +477,7 @@ export function getRouteAccess(
 }
 export function filterDashboardNavGroups<T extends { items: { href: string }[] }>(
   groups: T[],
-  role: DisplayRole | null,
+  role: RoleName | null,
   profile?: RoutePrincipal,
 ): T[] {
   return groups
@@ -506,7 +503,7 @@ export interface WorkspaceTabAccess {
 }
 export const filterWorkspaceTabs = <T extends WorkspaceTabAccess>(
   tabs: T[],
-  role: DisplayRole,
+  role: RoleName,
   profile?: RoutePrincipal,
   projectId?: string,
 ) => {
@@ -516,7 +513,7 @@ export const filterWorkspaceTabs = <T extends WorkspaceTabAccess>(
         !!projectId &&
         getVerifiedRouteAccess(profile, `/projects/${projectId}/${tab.path}`).allowed,
     )
-  const key = roleKey(role)
+  const key = roleCodeFor(role)
   return tabs.filter(
     (tab) =>
       !!key &&

@@ -4,6 +4,7 @@ import {
   type CanonicalRole,
   canAssignRole,
   canAuthorizeRole,
+  roleCodeByName,
   roleNames,
   rolePermissions,
 } from '@pathways/shared'
@@ -93,10 +94,6 @@ const legacyAtomicPermissions: Record<PermissionCode, readonly AtomicPermission[
 }
 
 const entries = Object.entries(roleNames) as Array<[CanonicalRole, PathwaysRole]>
-const roleCodesByName = Object.fromEntries(entries.map(([code, name]) => [name, code])) as Record<
-  PathwaysRole,
-  CanonicalRole
->
 export const roleAccessProfiles = Object.fromEntries(
   entries.map(([code, role]) => {
     const permissions = rolePermissions[code]
@@ -126,10 +123,10 @@ export const roleAccessProfiles = Object.fromEntries(
           : 'assigned-project-records',
       userAdministration: {
         createAndAuthorizeRoles: managesUsers
-          ? pathwaysRoles.filter((name) => canAuthorizeRole(code, roleCodesByName[name]))
+          ? pathwaysRoles.filter((name) => canAuthorizeRole(code, roleCodeByName[name]))
           : [],
         projectAssignmentRoles: managesUsers
-          ? projectAssignableRoles.filter((name) => canAssignRole(code, roleCodesByName[name]))
+          ? projectAssignableRoles.filter((name) => canAssignRole(code, roleCodeByName[name]))
           : [],
         projectAssignmentScope: !managesUsers
           ? 'none'

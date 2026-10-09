@@ -1,13 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import {
-  type CanonicalRole,
   canAssignRole,
   canAuthorizeRole,
   hasAtomicPermission,
   permissionCodes,
-  roleNames,
   rolePermissions,
 } from './authorization-policy'
+import { type CanonicalRole, roleNames } from './role-catalog'
 
 describe('canonical least-privilege policy ceiling', () => {
   it('has exactly six distinct roles, atomic codes, and duplicate-free explicit mappings', () => {

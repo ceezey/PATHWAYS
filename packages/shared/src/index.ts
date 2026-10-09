@@ -15,4 +15,5 @@ export * from './monitoring/action-counts'
 export * from './monitoring/role-overview'
 export * from './monitoring/activity-extension'
 
+export * from './rbac/role-catalog'
 export * from './rbac/authorization-policy'

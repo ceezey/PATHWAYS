@@ -94,6 +94,7 @@ import {
   monitoringDashboardSchema,
   monitoringIndicatorSchema,
   projectIndicatorListSchema,
+  roleCodeByName,
   roleOverviewSchema,
   sadddDashboardSchema,
   sadddQuerySchema,
@@ -1756,15 +1757,6 @@ export async function getAnalyticsExportPreview(query: DescriptiveAnalyticsQuery
 }
 
 export const pathwaysClient: PathwaysClient = new BackendReadyPathwaysClient()
-
-const roleCodeByName: Record<PathwaysRole, string> = {
-  'System Administrator': 'SYSTEM_ADMINISTRATOR',
-  'Program Manager': 'PROGRAM_MANAGER',
-  'Grant Manager': 'GRANT_MANAGER',
-  'Project Manager': 'PROJECT_MANAGER',
-  'Monitoring and Evaluation Officer': 'MONITORING_AND_EVALUATION_OFFICER',
-  'Project Officer': 'PROJECT_OFFICER',
-}
 
 interface ApiProject {
   id: string
