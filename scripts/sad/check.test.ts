@@ -90,6 +90,14 @@ describe('routing and digest', () => {
     const routed = routing(files.map((file) => change(file, 'new', 'old')))
     expect(routed['organization-isolation-checker']).toEqual(files)
   })
+  it('routes request contracts and the zod pipe to the beneficiary privacy guardian', () => {
+    const files = [
+      'apps/api/src/common/validation/zod-pipe.ts',
+      'packages/shared/src/contracts/imports/import-requests.ts',
+    ]
+    const routed = routing(files.map((file) => change(file, 'new', 'old')))
+    expect(routed['beneficiary-privacy-guardian']).toEqual(files)
+  })
   it('routes the rules dispatch workflow to design-qa-agent', () => {
     const file = '.github/workflows/rules-dispatch.yml'
     expect(routing([change(file, 'new', 'old')])['design-qa-agent']).toContain(file)
