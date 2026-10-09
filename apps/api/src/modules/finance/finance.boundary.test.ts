@@ -7,8 +7,8 @@ import type {
   ApplicationIdentity,
   AuthenticatedRequest,
 } from '../../common/authz/application-identity'
-import { SupabaseAuthGuard } from '../../common/guards/supabase-auth.guard'
 import type { PrismaService } from '../../prisma/prisma.service'
+import { SupabaseAuthGuard } from '../auth/guards/supabase-auth.guard'
 import type { ReceiptPdfRenderer } from '../report-pdf/receipt-pdf.renderer'
 import type { StorageService } from '../storage/storage.service'
 import { FinanceController } from './finance.controller'
