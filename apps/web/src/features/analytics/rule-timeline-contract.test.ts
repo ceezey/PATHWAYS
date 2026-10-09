@@ -1,5 +1,5 @@
+import { metricObservationSchema as serverObservationSchema } from '@pathways/shared'
 import { describe, expect, it } from 'vitest'
-import { metricObservationSchema as serverObservationSchema } from '../../../../api/src/modules/rules/rule-contract'
 import { evaluateRule } from '../../../../api/src/modules/rules/rule-engine'
 import { timelineObservation } from './rule-test-metrics'
 import { dryRunInputSchema, dryRunOutputSchema } from './rules-human-contract'

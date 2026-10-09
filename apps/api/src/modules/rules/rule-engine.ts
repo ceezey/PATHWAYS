@@ -1,5 +1,3 @@
-import { scaledDecimal } from '@pathways/shared'
-import { z } from 'zod'
 import {
   MAX_CONDITIONS,
   type MetricObservation,
@@ -9,7 +7,9 @@ import {
   type RuleNode,
   metricObservationSchema,
   ruleDefinitionSchema,
-} from './rule-contract'
+  scaledDecimal,
+} from '@pathways/shared'
+import { z } from 'zod'
 
 type EvaluationResult = 'TRUE' | 'FALSE' | 'UNAVAILABLE'
 type ConditionEvidence = {

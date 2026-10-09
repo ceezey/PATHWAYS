@@ -8,14 +8,15 @@ import {
   type SurveyAnalytics,
   TIMELINE_ANALYTICS_CONTRACT_VERSION,
   type TimelineAnalytics,
+  activityAggregateCells,
   isCalendarDate,
   milestoneCountsSchema,
   milestoneOnTimeFromCounts,
   missingMetric,
   numericMetric,
+  timelineObservation,
 } from '@pathways/shared'
 import { z } from 'zod'
-import { activityAggregateCells, timelineObservation } from '../rules/rule-metrics'
 
 type Bucket = { key: string; label: string; metric: MetricCell }
 type Distribution = DescriptiveAnalytics['distributions'][number]

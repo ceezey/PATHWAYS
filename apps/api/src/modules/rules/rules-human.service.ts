@@ -6,15 +6,14 @@ import {
   Injectable,
   ServiceUnavailableException,
 } from '@nestjs/common'
-import { type AtomicPermission, hasAtomicPermission } from '@pathways/shared'
+import { type AtomicPermission, hasAtomicPermission, uuidSchema } from '@pathways/shared'
+import * as contracts from '@pathways/shared'
 import { Prisma } from '@prisma/client'
 import type { z } from 'zod'
 import { PrismaService } from '../../prisma/prisma.service'
 import { withAuthorizedOperation } from '../auth/authorized-operation'
 import type { ApplicationIdentity } from '../auth/developer-access'
-import { uuidSchema } from './rule-contract'
 import { evaluateRule } from './rule-engine'
-import * as contracts from './rules-human-contract'
 
 type Operation =
   | 'RULE_LIST'

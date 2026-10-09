@@ -1,14 +1,23 @@
 import { z } from 'zod'
-import { alertStatuses, decisionOutcomes } from './alert-lifecycle'
 import {
   decimalSchema,
-  metricCellSchema,
   operators,
   parseRuleTree,
   recommendationSchema,
+  ruleMetricCellSchema,
   ruleMetrics,
   uuidSchema,
 } from './rule-contract'
+
+export const alertStatuses = [
+  'NEW',
+  'REVIEWED',
+  'ACTIONED',
+  'RESOLVED',
+  'DISMISSED',
+  'AUTO_RESOLVED',
+] as const
+export const decisionOutcomes = ['ACCEPT', 'PARTIALLY_ACCEPT', 'DECLINE', 'ESCALATE'] as const
 
 export const revisionSchema = z
   .string()
@@ -128,7 +137,7 @@ const alertEvidenceSchema = z
     operator: z.enum(operators),
     threshold: decimalSchema,
     thresholdMaximum: decimalSchema.nullable(),
-    cell: metricCellSchema,
+    cell: ruleMetricCellSchema,
     unit: z.string().min(1).max(80),
     result: z.enum(['TRUE', 'FALSE', 'UNAVAILABLE']),
   })
