@@ -25,7 +25,7 @@ Controller rulings for F3 (2026-10-09). Each was checked against the code at `re
    The other inline scope lookups (reports six, activities four, projects two, project-overview-metrics, beneficiary-media, form-definition-export, analytics export source, analytics-insights, private-proof-inspection, beneficiary-step-up, route-access) select other fields, use other messages or read several ids; they stay for their slices.
 5. **`writeAuditLog` replaces 66 writes: 63 inline plus the 3 private `audit()` helpers.** The audit counted "66 inline plus three helpers"; the 66 already include the three helper bodies. The helper takes the caller's `tx`, spreads only the given columns (an omitted `changes` or `projectId` stays NULL, `changes: {}` stays `{}`), and returns the same `create` promise. The seed file `apps/api/prisma/local-demo-stage-evidence.ts` keeps its direct write (W1).
 6. **The business date helper is `currentBusinessDate()`, not `businessDate()`.** `businessDate` is a local variable in six api files and would shadow an imported function. It replaces the four copies that map an invalid zone to 503 (`action-counts`, `role-overview`, dashboards `period`, `project-overview-metrics`). The hand-rolled `Intl` copy in `activities.service.ts` has no 503 mapping, so it becomes shared `businessCalendarDate(new Date(), this.env.BUSINESS_TIME_ZONE)` (same output, same error path). Direct `businessCalendarDate` calls without a 503 mapping (beneficiaries, analytics, rules) stay.
-7. **`Tx` lives in `common/prisma/transaction.ts`** and replaces the 15 local `type Tx = Prisma.TransactionClient` aliases. The 140 direct `Prisma.TransactionClient` annotations are left for the slices. `apps/api/src/prisma` (PrismaService) stays where it is (audit non-finding).
+7. **`Tx` lives in `common/prisma/transaction.ts`** and replaces the 15 local `type Tx = Prisma.TransactionClient` aliases. The roughly 133 remaining direct `Prisma.TransactionClient` annotations are left for the slices. `apps/api/src/prisma` (PrismaService) stays where it is (audit non-finding).
 8. **SAD routing:** `apps/api/src/common/authz/**/*.ts`, `apps/api/src/common/audit/**/*.ts` and `apps/api/src/modules/auth/guards/**/*.ts` route to organization-isolation-checker, because scope and audit code leaves `*.service.ts` files.
 
 ## Global Constraints
@@ -55,7 +55,7 @@ Controller rulings for F3 (2026-10-09). Each was checked against the code at `re
 
 - F3b (outline at the end): `ZodPipe` and the first contract with its parity test (F2 ruling 2), contract naming convention for generic barrel names (F2 final review), `"sideEffects": false` in `packages/shared/package.json` (F2 final review), `withAuthorizedOperation`, its timing module and `readApplicationProfile` into `common/authz`, storage factory injection in activities, beneficiary-media, finance and reports, and the app-module-wiring test for `{ provide, useFactory }` providers (F1 deferral).
 - Inline project-scope lookups listed in ruling 4: their slices (S1 to S7).
-- The 140 direct `Prisma.TransactionClient` annotations: their slices.
+- The roughly 133 remaining direct `Prisma.TransactionClient` annotations: their slices.
 - `apps/api/prisma/local-demo-stage-evidence.ts` direct audit write: W1.
 
 ---
@@ -222,6 +222,9 @@ for (const file of files) {
 Usage: `node .tmp/f3/add-import.mjs "<names>" <target path without extension> <files...>`.
 
 - [ ] **Step 5: Replace the four 503 business-date copies**
+
+Before editing, add one caller-level characterization test (Review Focus 4) to `apps/api/src/modules/dashboards/action-counts.service.test.ts`: make the environment the service reads return an invalid `BUSINESS_TIME_ZONE` (for example `'Not/AZone'`), following that file's existing env setup or `readApiEnv` mock pattern and restoring it afterwards, then assert that the read which computes the business date rejects with `ServiceUnavailableException` and the message `The configured business time zone is invalid.`. Run it: it must pass before the edits below and still pass after them. The api count target for this task rises by 1.
+
 
 `apps/api/src/modules/dashboards/action-counts.service.ts`:
 - Delete the whole `private businessDate() { ... }` method (7 lines, from `private businessDate() {` to its closing `  }`) and the blank line after it.
@@ -705,12 +708,12 @@ node .tmp/f3/remove-method.mjs requireProject apps/api/src/modules/activities/ac
 
 Expected: three `removed` lines (analytics includes its one-line doc comment).
 
-In `apps/api/src/modules/activities/activities.service.ts` and `apps/api/src/modules/beneficiaries/beneficiaries.service.ts`, insert directly above the `@Injectable()` line:
+Append to `apps/api/src/common/authz/scoped-project.ts` (one definition shared by activities and beneficiaries):
 
 ```ts
-// Project fields the writes in this service validate their dates against.
-const projectDateFields = { id: true, startDate: true, endDate: true } as const
 
+// Project fields that dated writes validate their dates against.
+export const projectDateFields = { id: true, startDate: true, endDate: true } as const
 ```
 
 In `apps/api/src/modules/dashboards/analytics.service.ts`, insert directly above the `@Injectable()` line:
@@ -730,7 +733,8 @@ const timelineProjectFields = {
 ```bash
 sed -i 's/this\.requireProject(tx, actor, projectId)/requireScopedProjectRow(tx, actor, projectId, projectDateFields)/g' apps/api/src/modules/activities/activities.service.ts apps/api/src/modules/beneficiaries/beneficiaries.service.ts
 sed -i 's/this\.requireProject(tx, actor, query\.projectId)/requireScopedProjectRow(tx, actor, query.projectId, timelineProjectFields)/g' apps/api/src/modules/dashboards/analytics.service.ts
-node .tmp/f3/add-import.mjs "{ requireScopedProjectRow }" apps/api/src/common/authz/scoped-project apps/api/src/modules/activities/activities.service.ts apps/api/src/modules/beneficiaries/beneficiaries.service.ts apps/api/src/modules/dashboards/analytics.service.ts
+node .tmp/f3/add-import.mjs "{ projectDateFields, requireScopedProjectRow }" apps/api/src/common/authz/scoped-project apps/api/src/modules/activities/activities.service.ts apps/api/src/modules/beneficiaries/beneficiaries.service.ts
+node .tmp/f3/add-import.mjs "{ requireScopedProjectRow }" apps/api/src/common/authz/scoped-project apps/api/src/modules/dashboards/analytics.service.ts
 sed -i 's/\brequireProject\b/requireScopedProjectRow/g' apps/api/src/modules/activities/activities.service.ts apps/api/src/modules/beneficiaries/beneficiaries.service.ts
 git grep -n "requireProject\b\|this\.project(" -- apps/api/src ':!*.test.ts'
 git grep -c "requireScopedProjectRow(tx" -- apps/api/src/modules
@@ -968,7 +972,7 @@ node .tmp/f3/remove-method.mjs audit \
   apps/api/src/modules/indicators/indicators.service.ts
 ```
 
-Expected: three `removed audit` lines. Then replace the ten call sites exactly (each `old` text is unique in its file).
+Expected: three `removed audit` lines. Then replace the nine call sites exactly (each `old` text is unique in its file).
 
 `apps/api/src/modules/activity-extensions/activity-extensions.service.ts` (entity type `ActivityExtensionRequest`):
 
@@ -1231,7 +1235,7 @@ import { readFileSync, readdirSync } from 'node:fs'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 
-const src = path.resolve(process.cwd(), 'src')
+const src = path.resolve(__dirname, '..')
 const common = path.join(src, 'common')
 const modules = path.join(src, 'modules')
 
@@ -1280,7 +1284,9 @@ describe('api common import boundary', () => {
   })
 
   it('keeps common free of imports from modules', () => {
-    const violations = sourceFiles(common).flatMap((file) =>
+    const files = sourceFiles(common)
+    expect(files.length).toBeGreaterThan(5)
+    const violations = files.flatMap((file) =>
       specifiers(readFileSync(file, 'utf8'))
         .filter((specifier) => reachesModules(file, specifier))
         .map((specifier) => `${path.relative(src, file).split(path.sep).join('/')} -> ${specifier}`),
@@ -1473,7 +1479,7 @@ Add to `docs/activity-log.md`:
 ## 2026-10-09 Modularization F3a api kernel (refactor/f3a-api-core)
 ```
 
-with one bullet per Task 1 to Task 5 stating what moved or was replaced and the api test count recorded at the end of that task, a bullet naming the eight F3 rulings in `docs/superpowers/plans/2026-10-09-modularization-f3-api-core.md`, and a bullet listing the F3b scope. Task 7 Step 5 appends the gate results.
+with one bullet per Task 1 to Task 5 stating what moved or was replaced and the api test count recorded at the end of that task, a bullet saying the F3a decisions are recorded in the change record section 9 (the plan file is removed after merge, so record rulings 2, 4, 5 and 6 there in one sentence each), and a bullet listing the F3b scope. Task 7 Step 5 appends the gate results.
 
 - [ ] **Step 6: Check and commit**
 
@@ -1486,7 +1492,7 @@ git commit -m "docs: record modularization F3a and route the api kernel to the i
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
 
-Expected: docs check shows no failures beyond the Task 0 baseline count.
+Expected: docs check prints exactly 6 failures (the Task 0 baseline; the plan row this task adds clears the untracked-plan failure).
 
 ---
 
