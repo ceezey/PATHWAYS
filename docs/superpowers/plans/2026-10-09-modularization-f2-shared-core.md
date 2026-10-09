@@ -39,7 +39,9 @@ Binding controller rulings, copied verbatim from the F2 rulings note (2026-10-09
 - When an import is repointed to `@pathways/shared` in a file that already imports from `@pathways/shared`, merge the names into the existing statement (keep `import type` statements type-only, or use inline `type` modifiers).
 - Commit messages end with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
 - Work in `C:\PATHWAYS` on branch `refactor/f2-shared-core`; no new worktree. All paths are relative to `C:\PATHWAYS`. Do not push.
-- Do not touch migrations, `.env` files, `.tmp/` or review evidence.
+- Do not touch migrations, `.env` files or review evidence; `.tmp/` is used only for gate and build logs.
+- A web build counts only when it prints `web build exit=0`; the grep output alone proves nothing.
+- After repointing imports in any task, run the Task 2 Step 3 duplicate-import detection loop and merge any second `@pathways/shared` statement into the first.
 
 ## Review Focus
 
@@ -80,7 +82,8 @@ Expected: clean status, the F1 merge commit (`5de68b0a` or later) and `F1 tree p
 ```bash
 pnpm --filter @pathways/shared build
 pnpm typecheck && pnpm test 2>&1 | grep -E "Tests +[0-9]+"
-pnpm --filter @pathways/web build 2>&1 | grep -iE "middleware|error"
+pnpm --filter @pathways/web build > .tmp/f2-web-build.log 2>&1; echo "web build exit=$?"
+grep -iE "middleware|error" .tmp/f2-web-build.log
 pnpm docs:check 2>&1 | tail -3
 git checkout -- apps/web/next-env.d.ts
 ```
@@ -281,6 +284,7 @@ In `apps/web/src/features/projects/project-team-editor-dialog.tsx` line 28 repla
 - [ ] **Step 4: Format and check**
 
 ```bash
+git add -N packages/shared/src apps/api/src apps/web/src
 pnpm exec biome check --write $(git diff --name-only --diff-filter=AMR HEAD -- '*.ts' '*.tsx')
 pnpm --filter @pathways/shared build
 pnpm --filter @pathways/shared typecheck && pnpm typecheck && pnpm lint
@@ -301,7 +305,8 @@ Expected: pass. Shared count = baseline + the policy test's cases; api count = b
 ```bash
 pnpm --filter @pathways/api build
 (cd apps/api && node -e "const s=require('@pathways/shared'); const r=require('./dist/apps/web/src/lib/rbac/route-access.js'); if (!s.rolePermissions.SYSTEM_ADMINISTRATOR.length || typeof s.hasAtomicPermission !== 'function' || typeof r.matchRoute !== 'function') process.exit(1); console.log('dist ok')")
-pnpm --filter @pathways/web build 2>&1 | grep -iE "middleware|error"
+pnpm --filter @pathways/web build > .tmp/f2-web-build.log 2>&1; echo "web build exit=$?"
+grep -iE "middleware|error" .tmp/f2-web-build.log
 npx playwright test --config playwright.auth-navigation.config.ts
 git checkout -- apps/web/next-env.d.ts
 ```
@@ -545,6 +550,7 @@ In `apps/web/src/test/fixtures/fixture-types.ts` replace line 1 with `import typ
 - [ ] **Step 7: Verify**
 
 ```bash
+git add -N packages/shared/src apps/api/src apps/web/src
 pnpm exec biome check --write $(git diff --name-only --diff-filter=AMR HEAD -- '*.ts' '*.tsx')
 pnpm typecheck && pnpm lint
 pnpm --filter @pathways/api test && pnpm --filter @pathways/web test
@@ -577,7 +583,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 - Move: `apps/api/src/modules/rules/rules-human-contract.test.ts` -> `packages/shared/src/rules/rules-human-contract.test.ts`
 - Move: `apps/web/src/features/analytics/rules-validation.test.ts` -> `packages/shared/src/rules/rule-contract.test.ts`
 - Modify: `packages/shared/src/index.ts`
-- Modify: `apps/api/src/modules/rules/alert-lifecycle.ts:3-13`, `apps/api/src/modules/rules/alert-lifecycle.test.ts:2-10`
+- Modify: `apps/api/src/modules/rules/alert-lifecycle.ts:1-13`, `apps/api/src/modules/rules/alert-lifecycle.test.ts:2-10`
 - Modify (imports): `apps/api/src/modules/rules/rule-engine.ts`, `apps/api/src/modules/rules/rule-engine.test.ts`, `apps/api/src/modules/rules/rules-human-escalated.test.ts`, `apps/api/src/modules/rules/rules-human.service.ts`, `apps/api/src/modules/dashboards/descriptive-analytics.ts`, `apps/api/src/modules/dashboards/analytics.service.test.ts`, `apps/web/src/features/analytics/rule-timeline-contract.test.ts:2`
 
 **Interfaces:**
@@ -731,6 +737,7 @@ Expected: only the web copies (`apps/web/src/features/analytics/rule-test-metric
 - [ ] **Step 6: Typecheck and test**
 
 ```bash
+git add -N packages/shared/src apps/api/src apps/web/src
 pnpm exec biome check --write $(git diff --name-only --diff-filter=AMR HEAD -- '*.ts' '*.tsx')
 pnpm --filter @pathways/shared typecheck && pnpm --filter @pathways/shared build
 pnpm typecheck && pnpm lint
@@ -1240,7 +1247,6 @@ Replace its import block (lines 1-5) with:
 import {
   dryRunInputSchema,
   dryRunOutputSchema,
-  metricObservationSchema as serverObservationSchema,
   timelineObservation,
 } from '@pathways/shared'
 import { describe, expect, it } from 'vitest'
@@ -1254,6 +1260,8 @@ git commit -m "test(api): move the timeline evaluation contract test beside the 
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
+
+Before committing, delete the `serverObservationSchema.safeParse` assertion (true by construction now that both sides are the shared schema), rename any describe or test title that says "browser and server" to describe the timeline evaluation contract, then run `pnpm exec biome check --write apps/api/src/modules/rules/rule-timeline-contract.test.ts` and `pnpm lint`.
 
 Expected: 2 tests pass. This removes the last web test importing api source.
 
@@ -1270,16 +1278,19 @@ Expected: the last command prints nothing.
 Merge duplicate `@pathways/shared` statements:
 - `rule-editor.tsx`: its three statements (from the old `rules-human-contract` and two old `rules-validation` imports) become one, with `type` modifiers for `HumanRule`, `RuleCondition`, `RuleNode`.
 - `rule-test-workspace.tsx`: fold the old `rules-human-contract`, `rules-validation` and `rule-test-metrics` names into its existing `@pathways/shared` import.
+- `apps/api/src/modules/rules/alert-lifecycle.ts`: delete its local `type DecisionOutcome` (and `type AlertStatus` if shared now exports one) and import the shared type instead, so the barrel type is the only definition.
 - `rule-drawer.tsx`, `rule-board-model.ts`, `rule-drawer-shared.ts`, `rule-condition-rows.tsx`: fold their two statements into one.
 - `apps/web/src/lib/services/rules-human-client.ts`: keep `import * as contract from '@pathways/shared'` and `import { uuidSchema } from '@pathways/shared'` as two statements (a namespace import cannot be merged).
 
 - [ ] **Step 8: Verify**
 
 ```bash
+git add -N packages/shared/src apps/api/src apps/web/src
 pnpm exec biome check --write $(git diff --name-only --diff-filter=AMR HEAD -- '*.ts' '*.tsx')
 pnpm typecheck && pnpm lint
 pnpm --filter @pathways/shared test && pnpm --filter @pathways/api test && pnpm --filter @pathways/web test
-pnpm --filter @pathways/web build 2>&1 | grep -iE "middleware|error"
+pnpm --filter @pathways/web build > .tmp/f2-web-build.log 2>&1; echo "web build exit=$?"
+grep -iE "middleware|error" .tmp/f2-web-build.log
 git grep -n "api/src/" -- apps/web/src
 git checkout -- apps/web/next-env.d.ts
 ```
@@ -1435,7 +1446,7 @@ Expected: PASS, including the 3 new cases.
 - Replace every `PIN_RULE_MESSAGE` with `STEP_UP_PIN_RULE_MESSAGE` (gate: 2 uses; form: 3 uses including the `error.message ===` check).
 
 `apps/web/src/lib/auth/beneficiary-step-up-events.ts`: delete `export const STEP_UP_REQUIRED_CODE = 'STEP_UP_REQUIRED'`.
-`apps/web/src/lib/services/pathways-client.ts`: remove `STEP_UP_REQUIRED_CODE` from the `@/lib/auth/beneficiary-step-up-events` import and add it to an existing `@pathways/shared` import.
+`apps/web/src/lib/services/pathways-client.ts`: remove `STEP_UP_REQUIRED_CODE` from the `@/lib/auth/beneficiary-step-up-events` import and add it to the multi-line `@pathways/shared` import that ends near line 102 (not the single-line one after it).
 `apps/web/e2e/fixtures/role-routes.tsx`: delete `export const PIN_RULE_MESSAGE = 'PIN rule.'` and `export const isAcceptableStepUpPin = () => false` (no component reads them from the aliased module any more).
 
 ```bash
@@ -1453,15 +1464,15 @@ API:
 - `reports.dto.ts`: delete the local `reportKinds` (lines 2-9) and `export type ReportKind = ...` (last line); add `import { reportKinds } from '@pathways/shared'`.
 - `reports.service.ts`: drop `type ReportKind` from the `./reports.dto` import, add `type ReportKindCode` to its `@pathways/shared` import, then `sed -i 's/\bReportKind\b/ReportKindCode/g' apps/api/src/modules/reports/reports.service.ts` (`isExtraReportKind` is untouched because the match needs a word boundary).
 - `reports-runtime.local.test.ts`: replace `import { type ReportKind, reportKinds } from './reports.dto'` with the names `type ReportKindCode, reportKinds` in its `@pathways/shared` import, and rename the one `ReportKind` use to `ReportKindCode`.
-- `report-project-status.ts`: delete `const SEVERITY = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW']`; change the type import to `import { type MetricCell, type MonitoringIndicator, alertSeverities } from '@pathways/shared'`; in `topAlerts` replace `SEVERITY.indexOf(a.severity) - SEVERITY.indexOf(b.severity)` with `(alertSeverities as readonly string[]).indexOf(a.severity) - (alertSeverities as readonly string[]).indexOf(b.severity)`.
+- `report-project-status.ts`: delete `const SEVERITY = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW']`; change the type import to `import { type MetricCell, type MonitoringIndicator, alertSeverities } from '@pathways/shared'`; in `topAlerts` replace `SEVERITY.indexOf(a.severity) - SEVERITY.indexOf(b.severity)` with `severityOrder.indexOf(a.severity) - severityOrder.indexOf(b.severity)`, declaring once at module level `const severityOrder: readonly string[] = alertSeverities`.
 
 Web:
 - `direct-form-entry-workspace.tsx`: delete lines 29-30 (`// Mirrors the API ...` and the local constant); add `import { DIRECT_ENTRY_FORM_TYPES } from '@pathways/shared'`; replace `!DIRECT_ENTRY_FORM_TYPES.includes(form.formType)` with `!(DIRECT_ENTRY_FORM_TYPES as readonly string[]).includes(form.formType)`.
-- `pathways-client.ts`: replace the local `const overdueExplanationCategories = new Set<string>([...] satisfies ...)` (lines 2353-2360) with `const knownOverdueCategories = new Set<string>(overdueExplanationCategories)`, change `!overdueExplanationCategories.has(row.category)` to `!knownOverdueCategories.has(row.category)`, and add `overdueExplanationCategories` to an existing `@pathways/shared` import.
+- `pathways-client.ts`: replace the local `const overdueExplanationCategories = new Set<string>([...] satisfies ...)` (lines 2353-2360) with `const knownOverdueCategories = new Set<string>(overdueExplanationCategories)`, change `!overdueExplanationCategories.has(row.category)` to `!knownOverdueCategories.has(row.category)`, and add `overdueExplanationCategories` to the multi-line `@pathways/shared` import that ends near line 102.
 - `types/pathways.ts`: delete the local `OverdueExplanationCategory` union (lines 113-119) and add `type OverdueExplanationCategory` to the line-2 `@pathways/shared` type import.
 - `activity-explain-delay-dialog.tsx`: `import type { Activity } from '@/types/pathways'` and `import type { OverdueExplanationCategory } from '@pathways/shared'`.
 - `core-feature-client.ts`: replace the `const reportKind = z.enum([...])` literal list with `const reportKind = z.enum(reportKinds)` and add `import { reportKinds } from '@pathways/shared'`.
-- `live-reporting-workspace.tsx`: replace the six-line `type Kind = | ...` union with `type Kind = ReportKindCode` and add `import type { ReportKindCode } from '@pathways/shared'`.
+- `live-reporting-workspace.tsx`: delete the six-line `type Kind = | ...` union, add `import type { ReportKindCode } from '@pathways/shared'`, and replace every remaining `Kind` type reference in the file with `ReportKindCode` (no alias).
 
 ```bash
 git grep -n "'WEATHER',\|'TRAINING_SURVEY',$\|'INDICATOR_SUMMARY',$\|const SEVERITY" -- apps/api/src apps/web/src | grep -v "\.test\."
@@ -1472,6 +1483,7 @@ Expected: prints nothing (only the shared file holds the lists).
 - [ ] **Step 6: Verify**
 
 ```bash
+git add -N packages/shared/src apps/api/src apps/web/src
 pnpm exec biome check --write $(git diff --name-only --diff-filter=AMR HEAD -- '*.ts' '*.tsx')
 pnpm --filter @pathways/shared build
 pnpm typecheck && pnpm lint
@@ -1512,12 +1524,12 @@ In `scripts/sad/check.test.ts`, test `routes rules engine and rule editor change
 ```ts
     const routed = routing([
       change('apps/api/src/modules/rules/rule-engine.ts', 'new', 'old'),
-      change('apps/web/src/features/analytics/rules-validation.ts', 'new', 'old'),
+      change('apps/web/src/features/analytics/rule-editor.tsx', 'new', 'old'),
       change('packages/shared/src/rules/rule-contract.ts', 'new', 'old'),
     ])
     expect(routed['rule-engine-determinism-checker']).toEqual([
       'apps/api/src/modules/rules/rule-engine.ts',
-      'apps/web/src/features/analytics/rules-validation.ts',
+      'apps/web/src/features/analytics/rule-editor.tsx',
       'packages/shared/src/rules/rule-contract.ts',
     ])
 ```
