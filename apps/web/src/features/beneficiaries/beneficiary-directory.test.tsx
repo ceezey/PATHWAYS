@@ -3,10 +3,10 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { mockJourneyStages } from '@/mocks/pathways/beneficiaries'
-import { mockProjects } from '@/mocks/pathways/projects'
-import { testActivities, testBeneficiaries } from '@/mocks/pathways/real-api-fixtures'
 import { DisplayLabelsProvider } from '@/providers/display-labels-provider'
+import { testActivities, testBeneficiaries } from '@/test/fixtures/api-view-fixtures'
+import { mockJourneyStages } from '@/test/fixtures/beneficiaries'
+import { mockProjects } from '@/test/fixtures/projects'
 
 import { BeneficiaryDirectory } from './beneficiary-directory'
 

@@ -1,14 +1,13 @@
 import { Module } from '@nestjs/common'
 
 import { DashboardsModule } from '../dashboards/dashboards.module'
-import { IndicatorsModule } from '../indicators/indicators.module'
-import { ProjectOverviewMetricsService } from '../projects/project-overview-metrics.service'
+import { ProjectsModule } from '../projects/projects.module'
 import { ProjectMapController } from './project-map.controller'
 import { ProjectMapService } from './project-map.service'
 
 @Module({
-  imports: [DashboardsModule, IndicatorsModule],
+  imports: [DashboardsModule, ProjectsModule],
   controllers: [ProjectMapController],
-  providers: [ProjectMapService, ProjectOverviewMetricsService],
+  providers: [ProjectMapService],
 })
 export class ProjectMapModule {}

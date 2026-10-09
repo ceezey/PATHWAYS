@@ -65,26 +65,6 @@ export interface ProjectDetail extends ProjectSummary {
   budgetCode: string
 }
 
-type AnalyticsCoverageStatus = 'Strong' | 'Growing' | 'Limited' | 'Planned'
-
-export interface AnalyticsLocationProjectSummary {
-  projectId: string
-  beneficiariesReached: number
-  deliverySites: number
-  activitiesDelivered: number
-  coverageStatus: AnalyticsCoverageStatus
-}
-
-export interface AnalyticsLocationRecord {
-  id: string
-  name: string
-  region: string
-  latitude: number
-  longitude: number
-  coordinatePrecision: 'Approximate city centroid'
-  projectSummaries: AnalyticsLocationProjectSummary[]
-}
-
 export interface CreateProjectInput {
   code?: string
   title: string
@@ -306,15 +286,6 @@ export interface RecordActivityProgressInput {
   note: string
 }
 
-export interface SubmitActivityProofInput {
-  projectId: string
-  activityId: string
-  clientUpdateId: string
-  progress: number
-  note: string
-  files: File[]
-}
-
 // --- Direct-upload activity proof (cr-pathways-activity-progress-media) ---
 
 export interface ActivityProofUploadLimits {
@@ -369,29 +340,6 @@ export type ActivityProofFinalizeResult =
   | { status: 'COMMITTED'; acknowledgement: unknown }
   | { status: 'COMMITTED'; activity: Activity & { sourceAcknowledgement: unknown } }
   | { status: 'UPLOADING'; updateId: string; remaining: number }
-
-export interface ProjectMilestone {
-  id: string
-  projectId: string
-  title: string
-  description: string
-  targetDate: string
-  completionDate: string
-  status: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED'
-  updatedAt: string
-}
-
-export interface SaveMilestoneInput {
-  title: string
-  description?: string
-  targetDate?: string
-}
-
-export interface UpdateMilestoneInput extends SaveMilestoneInput {
-  status: ProjectMilestone['status']
-  completionDate?: string
-  expectedUpdatedAt: string
-}
 
 interface Beneficiary {
   id: string
@@ -609,9 +557,6 @@ export interface UpdateBeneficiaryInput {
   expectedUpdatedAt: string
 }
 
-/** P06 aggregate-only server response. No raw demographic cross-product contract. */
-export type BeneficiarySadddAggregate = SadddDashboard
-
 /** Activity links need definition identity only, not a second numeric authority. */
 export interface Indicator {
   id: string
@@ -656,53 +601,11 @@ export type EvidenceList =
   | { scope: 'aggregate'; activities: EvidenceActivitySummary[] }
 export type ProjectIndicator = SharedProjectIndicator
 
-export interface EvaluationWeight {
-  id: string
-  label: string
-  value: number
-}
-
-export interface EvaluationAnnotation {
-  id: string
-  author: string
-  note: string
-  createdAt: string
-}
-
-export interface EvaluationHistoryEntry {
-  id: string
-  score: number
-  reviewer: string
-  reviewedAt: string
-  note: string
-}
-
-export interface EvaluationRecord {
-  projectId: string
-  currentScore: number
-  journeyProgression: number
-  indicatorAchievement: number
-  supportingEvidence: number
-  components: EvaluationWeight[]
-  annotations: EvaluationAnnotation[]
-  history: EvaluationHistoryEntry[]
-}
-
 export interface BudgetRecord {
   id: string
   projectId: string
   plannedAmount: number
   actualSpending: number
-}
-
-export type RecommendationOutcome = 'Accept' | 'Partially Accept' | 'Decline' | 'Escalate'
-
-export interface RecommendationOutcomeRecord {
-  id: string
-  recommendationId: string
-  outcome: RecommendationOutcome
-  note: string
-  loggedAt: string
 }
 
 export type LiquidationStatus = 'Pending' | 'Verified' | 'Approved' | 'Rejected'
@@ -745,57 +648,6 @@ export type AlertLifecycleStatus =
   | 'Resolved'
   | 'Dismissed'
   | 'Auto-resolved'
-
-export interface RecommendationRecord {
-  id: string
-  alertId: string
-  ruleId: string
-  alertBasis: string
-  ruleExplanation: string
-  text: string
-  reviewStatus: 'New' | 'Reviewed' | 'Actioned'
-  outcome?: RecommendationOutcome
-  outcomeNote?: string
-}
-
-export type RuleCategory =
-  | 'KPI / Indicator'
-  | 'Activity Timeline'
-  | 'Budget'
-  | 'Beneficiary Progress'
-  | 'Assessment'
-  | 'Project Health'
-
-export type RuleOperator = 'below' | 'above' | 'between' | 'equals'
-export type RuleSeverity = 'Low' | 'Medium' | 'High' | 'Critical'
-export type RuleStatus = 'Active' | 'Inactive'
-
-export interface RuleDefinition {
-  id: string
-  name: string
-  category: RuleCategory
-  parameter: string
-  operator: RuleOperator
-  threshold: number
-  upperThreshold?: number
-  severity: RuleSeverity
-  status: RuleStatus
-  suggestedAction: string
-  description: string
-  triggeredCount: number
-  lastTriggeredAt?: string
-}
-
-export type TransparencyApprovalState = 'Draft' | 'Pending Review' | 'Approved'
-
-export interface TransparencySection {
-  id: string
-  projectId: string
-  title: string
-  summary: string
-  visible: boolean
-  approvalState: TransparencyApprovalState
-}
 
 export interface ReportRecord {
   id: string
@@ -916,21 +768,6 @@ export interface DirectFormSubmission {
   submittedAt?: string
   updatedAt: string
   values: Record<string, string | number | boolean | string[] | null>
-}
-
-export interface DirectFormSubmissionSummary {
-  id: string
-  status: 'DRAFT' | 'VALIDATED' | 'PROCESSED' | 'REJECTED'
-  formVersion: number
-  submittedAt?: string
-  updatedAt: string
-}
-
-export interface DirectFormSubmissionPage {
-  offset: number
-  limit: number
-  total: number
-  items: DirectFormSubmissionSummary[]
 }
 
 export type ImportBatchStatus =
@@ -1075,14 +912,6 @@ export interface SurveyAggregateResultSet {
   questionResults: SurveyQuestionAggregate[]
   demographicBreakdowns: SurveyDemographicAggregate[]
   source?: string
-}
-
-export interface SurveyAggregateFilters {
-  formId?: string
-  projectId?: string
-  location?: string
-  responseDate?: string
-  reportingPeriod?: string
 }
 
 export type ReportKind =

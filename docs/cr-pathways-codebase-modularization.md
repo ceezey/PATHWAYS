@@ -195,4 +195,16 @@ Developer decisions, 2026-10-08 and 2026-10-09:
 
 ## 9. Disposition
 
-Pending. Out of scope and left open: MOD-B1 (age filter drift) and MOD-B2 (middleware matcher) from the audit.
+F1 applied 2026-10-09 on refactor/f1-dead-code:
+- Hygiene: `.worktrees`, `.superpowers` and Supabase scratch folders ignored; root `Dockerfile` and `tsconfig.json` deleted.
+- Dead package: `packages/ui` deleted with its seven wiring lines and lockfile entry.
+- RBAC: `RolesGuard`, `@Roles` and `ROLES_KEY` removed, plus the unused shared `AppRole`, health schema and placeholder types; `SupabaseAuthGuard` is the named enforcer of `@RequirePermission`.
+- Providers: a test now fails when a provider class is registered in two modules; `RulesHumanService` and `ProjectOverviewMetricsService` each have one owner.
+- Web client: 28 dead pathways client methods and 16 dead types removed; the `not_configured` error code was kept because `requestFoundation` still throws it.
+- Web finance: four unreferenced finance files removed with their tests.
+- Web fixtures: `lib/demo-state` and `mocks` deleted, 7 live fixtures moved to `apps/web/src/test/fixtures`, 34 unused types removed.
+- Infra: 99 historical files and one session-liveness script deleted (about 20.4k lines).
+
+Deferred to later sub-projects: source-mutation proof `files` option and `proofSnapshot` (S2), `mapPublicSnapshot` in `public-projects.ts`, which is production-dead and used as a test fixture builder (S8), `ImportSummary` move (F2), infra phase6 Pester tests and security-adapter runtime-output test wiring (W1).
+
+Out of scope and left open: MOD-B1 (age filter drift) and MOD-B2 (middleware matcher) from the audit.

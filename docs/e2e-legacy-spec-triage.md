@@ -2,7 +2,7 @@
 
 Scope: Playwright specs in `apps/web/e2e` that relied on the retired demo switcher (`/review/demo-controls`, `pathways.demo.v1`), prototype session keys or `/login`. Live-feature checks used `apps/web/src/app` routes and `docs/cr-pathways-rbac-v4-adoption.md`. Deleted specs stay recoverable from git history (the parent of the triage commit).
 
-demo-state check: `apps/web/src/lib/demo-state` is not imported by any app route or component. Only `src/mocks/pathways/*`, its own files and unit tests import it; `mocks/pathways` is itself imported only by unit tests and `demo-state/store.ts`. The switcher and prototype session keys are gone from app source, so all demo-seeded e2e data (`futuremakers-ncr`, `ben-001`, `act-fm-02`) must be replaced by rows from `apps/api/prisma/local-demo-seed.ts`.
+demo-state check: the prototype demo state (`apps/web/src/lib/demo-state` and `src/mocks`) was removed on 2026-10-09 and test fixtures live in `apps/web/src/test/fixtures`. The switcher and prototype session keys are gone from app source, so all demo-seeded e2e data (`futuremakers-ncr`, `ben-001`, `act-fm-02`) must be replaced by rows from `apps/api/prisma/local-demo-seed.ts`.
 
 Verdict key: Task 3 = role smoke (`smoke.spec.ts`), Task 4 = collection/activities workflows (`workflows.spec.ts`), Task 5 = `beneficiary-access.spec.ts`. "verify" = feature or v4 role grant not confirmed. A deleted spec has its live assertions listed below; "keep" means the spec stays until its replacement lands.
 

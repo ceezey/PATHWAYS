@@ -83,7 +83,3 @@ export async function readPublicSnapshots(projectId?: string): Promise<PublicPro
   const value: unknown = JSON.parse(text)
   return projectId ? [snapshot.parse(value)] : z.array(snapshot).max(100).parse(value)
 }
-
-export async function readPublicProjects(projectId?: string): Promise<PublicProjectRecord[]> {
-  return (await readPublicSnapshots(projectId)).map(mapPublicSnapshot)
-}

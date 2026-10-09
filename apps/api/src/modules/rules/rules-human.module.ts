@@ -14,5 +14,6 @@ import { RulesHumanService } from './rules-human.service'
     NotificationsController,
   ],
   providers: [RulesHumanService],
+  exports: [RulesHumanService],
 })
 export class RulesHumanModule {}

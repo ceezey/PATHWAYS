@@ -5,8 +5,8 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import type { ChangeEvent, ReactNode } from 'react'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { mockProjects } from '@/mocks/pathways/projects'
-import { testBeneficiaries } from '@/mocks/pathways/real-api-fixtures'
+import { testBeneficiaries } from '@/test/fixtures/api-view-fixtures'
+import { mockProjects } from '@/test/fixtures/projects'
 
 import { sensitiveDraftKey } from '@/lib/auth/sensitive-drafts'
 import {
