@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ApplicationIdentity } from '@app/common/authz/application-identity'
 import type { StorageService } from '@app/modules/storage/storage.service'
 import type { PrismaService } from '@app/prisma/prisma.service'
+import { privateStorageFactories } from '../storage/private-storage-factories'
 
 const state = vi.hoisted(() => ({
   actor: undefined as ApplicationIdentity | undefined,
@@ -217,7 +218,11 @@ const storage = {
   ),
   deleteFile: vi.fn(),
 }
-const service = new ActivitiesService({} as PrismaService, storage as unknown as StorageService)
+const service = new ActivitiesService(
+  {} as PrismaService,
+  storage as unknown as StorageService,
+  privateStorageFactories,
+)
 
 const as = <T>(actor: ApplicationIdentity, run: () => Promise<T>) => {
   state.actor = actor

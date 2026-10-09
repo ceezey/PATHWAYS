@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import { PrismaService } from '../../prisma/prisma.service'
 import { ProjectsService } from '../projects/projects.service'
+import { privateStorageFactories } from '../storage/private-storage-factories'
 import type { StorageService } from '../storage/storage.service'
 import { ActivitiesService } from './activities.service'
 
@@ -165,7 +166,11 @@ describe.skipIf(!enabled)('joined feature reads on disposable PostgreSQL', () =>
                 work(transaction),
             })
             const projects = new ProjectsService(scoped)
-            const activities = new ActivitiesService(scoped, {} as StorageService)
+            const activities = new ActivitiesService(
+              scoped,
+              {} as StorageService,
+              privateStorageFactories,
+            )
             await transaction.$executeRaw`SET LOCAL session_replication_role = origin`
             await transaction.$executeRaw`SET LOCAL ROLE pathways_runtime`
 

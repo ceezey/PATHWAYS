@@ -16,6 +16,7 @@ import { BeneficiariesService } from '../src/modules/beneficiaries/beneficiaries
 import { IndicatorsService } from '../src/modules/indicators/indicators.service'
 import type { CreateProjectDto } from '../src/modules/projects/projects.dto'
 import { ProjectsService } from '../src/modules/projects/projects.service'
+import { privateStorageFactories } from '../src/modules/storage/private-storage-factories'
 import { StorageService } from '../src/modules/storage/storage.service'
 import { PrismaService } from '../src/prisma/prisma.service'
 import { seedCanonicalReferenceData } from './canonical-seed'
@@ -501,7 +502,7 @@ async function main() {
   const runtime = new PrismaService({ datasources: { db: { url: runtimeUrl } } })
   const storage = new StorageService()
   const projectsService = new ProjectsService(runtime)
-  const activitiesService = new ActivitiesService(runtime, storage)
+  const activitiesService = new ActivitiesService(runtime, storage, privateStorageFactories)
   const indicatorsService = new IndicatorsService(runtime)
   const beneficiariesService = new BeneficiariesService(runtime)
 

@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ApplicationIdentity } from '@app/common/authz/application-identity'
 import type { StorageService } from '@app/modules/storage/storage.service'
 import type { PrismaService } from '@app/prisma/prisma.service'
+import type { PrivateStorageFactories } from '../storage/private-storage-factories'
 
 const state = vi.hoisted(() => ({ actor: undefined as ApplicationIdentity | undefined }))
 const reader = vi.hoisted(() => ({ verify: vi.fn(), release: vi.fn() }))
@@ -29,10 +30,6 @@ vi.mock('@app/common/authz/authorized-operation', () => ({
       throw new ForbiddenException('Permission denied.')
     return work(tx, state.actor)
   }),
-}))
-vi.mock('@app/modules/storage/private-inspection-reader', () => ({
-  createPrivateUploadVerifier: () => reader.verify,
-  createPrivateObjectStreamer: () => ({ release: reader.release }),
 }))
 
 import { BeneficiaryMediaService } from './beneficiary-media.service'
@@ -62,9 +59,14 @@ const storage = {
   createPrivateUploadUrls: vi.fn(),
   deleteFile: vi.fn(),
 }
+const storageFactories = {
+  createPrivateUploadVerifier: () => reader.verify,
+  createPrivateObjectStreamer: () => ({ release: reader.release }),
+} as unknown as PrivateStorageFactories
 const service = new BeneficiaryMediaService(
   {} as PrismaService,
   storage as unknown as StorageService,
+  storageFactories,
 )
 
 const sha = 'a'.repeat(64)

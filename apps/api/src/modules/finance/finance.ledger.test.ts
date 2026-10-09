@@ -5,6 +5,7 @@ import { hasAtomicPermission } from '@pathways/shared'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import type { PrismaService } from '../../prisma/prisma.service'
 import type { ReceiptPdfRenderer } from '../report-pdf/receipt-pdf.renderer'
+import { privateStorageFactories } from '../storage/private-storage-factories'
 import type { StorageService } from '../storage/storage.service'
 import { FinanceService } from './finance.service'
 
@@ -42,6 +43,7 @@ const service = new FinanceService(
   {} as PrismaService,
   {} as StorageService,
   receipts as unknown as ReceiptPdfRenderer,
+  privateStorageFactories,
 )
 const identity = (role: string, permissions: string[]): ApplicationIdentity => ({
   id: org,

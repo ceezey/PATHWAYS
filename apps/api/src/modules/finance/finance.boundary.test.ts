@@ -10,6 +10,7 @@ import type {
 import type { PrismaService } from '../../prisma/prisma.service'
 import { SupabaseAuthGuard } from '../auth/guards/supabase-auth.guard'
 import type { ReceiptPdfRenderer } from '../report-pdf/receipt-pdf.renderer'
+import { privateStorageFactories } from '../storage/private-storage-factories'
 import type { StorageService } from '../storage/storage.service'
 import { FinanceController } from './finance.controller'
 import { FinanceService } from './finance.service'
@@ -38,6 +39,7 @@ const service = new FinanceService(
   {
     render: () => Promise.reject(new Error('Receipt renderer disabled.')),
   } as unknown as ReceiptPdfRenderer,
+  privateStorageFactories,
 )
 const controller = new FinanceController(service)
 let actor: ApplicationIdentity

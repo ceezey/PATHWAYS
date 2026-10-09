@@ -18,10 +18,11 @@ import { withAuthorizedOperation } from '../../common/authz/authorized-operation
 import { projectScope } from '../../common/authz/project-scope'
 import { inspectionIdentityContext } from '../../common/network/inspection-request-budget'
 import { PrismaService } from '../../prisma/prisma.service'
+import { matchesEvidenceSignature } from '../storage/private-inspection-reader'
 import {
-  createPrivateObjectStreamer,
-  matchesEvidenceSignature,
-} from '../storage/private-inspection-reader'
+  PRIVATE_STORAGE_FACTORIES,
+  type PrivateStorageFactories,
+} from '../storage/private-storage-factories'
 import { PROOF_STORAGE_DEADLINE_MS, activityEvidenceContentTypes } from './activities.dto'
 
 // cr-pathways-activity-progress-media 3.5: at most ten proofs per update, discovery bounded to
@@ -143,7 +144,10 @@ type Admission = Scope & {
 export class PrivateProofInspectionService {
   private readonly env = readApiEnv(process.env)
 
-  constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
+  constructor(
+    @Inject(PrismaService) private readonly prisma: PrismaService,
+    @Inject(PRIVATE_STORAGE_FACTORIES) private readonly storageFactories: PrivateStorageFactories,
+  ) {}
 
   private validateScope(scope: Scope, evidenceId?: string) {
     if (
@@ -294,7 +298,7 @@ export class PrivateProofInspectionService {
         return { admission, proof: find(admission) }
       },
     )
-    let storage: ReturnType<typeof createPrivateObjectStreamer>
+    let storage: ReturnType<PrivateStorageFactories['createPrivateObjectStreamer']>
     const object = {
       organizationId: initial.admission.organizationId,
       ...scope,
@@ -308,7 +312,7 @@ export class PrivateProofInspectionService {
     }
     // First pass: counted size and digest over the whole object; nothing is retained.
     try {
-      storage = createPrivateObjectStreamer({
+      storage = this.storageFactories.createPrivateObjectStreamer({
         serviceOrigin: this.env.SUPABASE_URL ?? '',
         serviceRoleKey: this.env.SUPABASE_SERVICE_ROLE_KEY ?? '',
         evidenceBucket: this.env.EVIDENCE_BUCKET,

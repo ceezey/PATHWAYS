@@ -19,6 +19,7 @@ import {
   hasAtomicPermission,
   rolePermissions,
 } from '@pathways/shared'
+import { privateStorageFactories } from '../storage/private-storage-factories'
 
 const state = vi.hoisted(() => ({
   actor: undefined as ApplicationIdentity | undefined,
@@ -111,7 +112,11 @@ const tx = {
   auditLog: { create: vi.fn() },
 }
 
-const service = new ActivitiesService({} as PrismaService, {} as StorageService)
+const service = new ActivitiesService(
+  {} as PrismaService,
+  {} as StorageService,
+  privateStorageFactories,
+)
 
 beforeEach(() => {
   vi.clearAllMocks()

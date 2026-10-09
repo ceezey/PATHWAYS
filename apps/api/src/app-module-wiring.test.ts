@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest'
 
 import { AppModule } from './app.module'
 import { RULES_MACHINE_SQL } from './modules/rules/rules-machine-worker'
+import { PRIVATE_STORAGE_FACTORIES } from './modules/storage/private-storage-factories'
 
 type ModuleRef = { name: string }
 type DynamicModule = { module: ModuleRef; providers?: unknown[]; imports?: unknown[] }
@@ -62,7 +63,9 @@ function duplicateProviders(root: ModuleRef): string[] {
 
 describe('application module wiring', () => {
   it('registers each provider token in at most one module', () => {
-    expect(collectProviders(AppModule).has(RULES_MACHINE_SQL)).toBe(true)
+    const owners = collectProviders(AppModule)
+    expect(owners.has(RULES_MACHINE_SQL)).toBe(true)
+    expect([...(owners.get(PRIVATE_STORAGE_FACTORIES) ?? [])]).toEqual(['StorageModule'])
     expect(duplicateProviders(AppModule)).toEqual([])
   })
 

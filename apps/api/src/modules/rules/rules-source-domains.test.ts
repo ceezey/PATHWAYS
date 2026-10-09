@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import type { PrismaService } from '../../prisma/prisma.service'
+import { privateStorageFactories } from '../storage/private-storage-factories'
 import type { StorageService } from '../storage/storage.service'
 
 const boundary = vi.hoisted(() => ({
@@ -41,7 +42,11 @@ const request = '30000000-0000-4000-8000-000000000003'
 const revision = '2026-09-27T00:00:00.000Z'
 const acknowledgement = { requestId: request, committed: true as const, replayed: true }
 const projects = new ProjectsService({} as PrismaService)
-const activities = new ActivitiesService({} as PrismaService, {} as StorageService)
+const activities = new ActivitiesService(
+  {} as PrismaService,
+  {} as StorageService,
+  privateStorageFactories,
+)
 const indicators = new IndicatorsService({} as PrismaService)
 const activityBody = {
   clientMutationId: request,
@@ -240,7 +245,11 @@ describe('current source handler immutable receipts precede mutable state and so
   it('recovers finalized proof before external storage even after activity became terminal', async () => {
     const hash = createHash('sha256').update('synthetic-proof').digest('hex')
     const storage = { createPrivateUploadUrls: vi.fn(), deleteFile: vi.fn() }
-    const service = new ActivitiesService({} as PrismaService, storage as unknown as StorageService)
+    const service = new ActivitiesService(
+      {} as PrismaService,
+      storage as unknown as StorageService,
+      privateStorageFactories,
+    )
     boundary.tx = {
       project: { findFirst: vi.fn(async () => ({ id: project, startDate: null, endDate: null })) },
       projectActivity: {
@@ -299,7 +308,11 @@ describe('current source handler immutable receipts precede mutable state and so
       }))
       .reverse()
     const storage = { createPrivateUploadUrls: vi.fn(), deleteFile: vi.fn() }
-    const service = new ActivitiesService({} as PrismaService, storage as unknown as StorageService)
+    const service = new ActivitiesService(
+      {} as PrismaService,
+      storage as unknown as StorageService,
+      privateStorageFactories,
+    )
     boundary.begin.mockResolvedValueOnce({
       kind: 'REPLAY',
       acknowledgement: { ...acknowledgement, requestId: reservation },
@@ -350,7 +363,11 @@ describe('current source handler immutable receipts precede mutable state and so
   it('rejects altered retry proof MIME/size before any receipt lookup or external storage', async () => {
     const hash = createHash('sha256').update('synthetic-proof').digest('hex')
     const storage = { createPrivateUploadUrls: vi.fn(), deleteFile: vi.fn() }
-    const service = new ActivitiesService({} as PrismaService, storage as unknown as StorageService)
+    const service = new ActivitiesService(
+      {} as PrismaService,
+      storage as unknown as StorageService,
+      privateStorageFactories,
+    )
     boundary.tx = {
       project: { findFirst: vi.fn(async () => ({ id: project, startDate: null, endDate: null })) },
       projectActivity: {

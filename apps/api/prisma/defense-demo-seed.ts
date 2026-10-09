@@ -19,6 +19,7 @@ import type { ReceiptPdfRenderer } from '../src/modules/report-pdf/receipt-pdf.r
 import type { ReportPdfRenderer } from '../src/modules/report-pdf/report-pdf.renderer'
 import { ReportsService } from '../src/modules/reports/reports.service'
 import { RulesHumanService } from '../src/modules/rules/rules-human.service'
+import { privateStorageFactories } from '../src/modules/storage/private-storage-factories'
 import { StorageService } from '../src/modules/storage/storage.service'
 import { PrismaService } from '../src/prisma/prisma.service'
 import { ensureBaseWorkspace } from './defense-demo-base'
@@ -137,17 +138,22 @@ async function seed(owner: PrismaClient, testLocal: boolean) {
       supabase,
       services: {
         projects: new ProjectsService(runtime),
-        activities: new ActivitiesService(runtime, storage),
+        activities: new ActivitiesService(runtime, storage, privateStorageFactories),
         indicators,
         library: new IndicatorLibraryService(runtime, indicators),
         beneficiaries,
         metadata: new MetadataService(runtime, participants),
         participants,
         imports: new ImportsService(runtime, storage, beneficiaries, participants),
-        finance: new FinanceService(runtime, storage, {
-          // Seeds never render a receipt document; the Chromium renderer stays off.
-          render: () => Promise.reject(new Error('Receipt renderer disabled.')),
-        } as unknown as ReceiptPdfRenderer),
+        finance: new FinanceService(
+          runtime,
+          storage,
+          {
+            // Seeds never render a receipt document; the Chromium renderer stays off.
+            render: () => Promise.reject(new Error('Receipt renderer disabled.')),
+          } as unknown as ReceiptPdfRenderer,
+          privateStorageFactories,
+        ),
         reports: new ReportsService(
           runtime,
           storage,
@@ -158,6 +164,7 @@ async function seed(owner: PrismaClient, testLocal: boolean) {
           } as unknown as ReportPdfRenderer,
           new ProjectOverviewMetricsService(runtime, indicators, dashboards),
           new RulesHumanService(runtime),
+          privateStorageFactories,
         ),
         rules: new RulesHumanService(runtime),
         publication: new PublicService(runtime),

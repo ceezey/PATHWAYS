@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import { bindInspectionIdentity } from '../../common/network/inspection-request-budget'
 import type { PrismaService } from '../../prisma/prisma.service'
+import { privateStorageFactories } from '../storage/private-storage-factories'
 
 const state = vi.hoisted(() => ({
   actor: null as unknown as ApplicationIdentity,
@@ -90,7 +91,7 @@ const tx = {
   evidenceMedia: { findMany: vi.fn() },
   auditLog: { create: vi.fn() },
 }
-const service = new PrivateProofInspectionService({} as PrismaService)
+const service = new PrivateProofInspectionService({} as PrismaService, privateStorageFactories)
 const context = () => service.context(actor, ids.projectId, ids.activityId, ids.updateId)
 const inspect = () =>
   service.inspect(actor, ids.projectId, ids.activityId, ids.updateId, ids.evidenceId, revisions)

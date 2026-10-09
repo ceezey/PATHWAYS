@@ -21,7 +21,7 @@ export class PrivateInspectionReadError extends Error {
   }
 }
 
-interface PrivateInspectionStorageConfig {
+export interface PrivateInspectionStorageConfig {
   serviceOrigin: string
   serviceRoleKey: string
   evidenceBucket: string
@@ -34,7 +34,7 @@ interface PrivateInspectionStorageConfig {
 }
 
 // Every field is internal authorized context, never an HTTP path/choice/DTO.
-interface AuthorizedPrivateInspectionObject {
+export interface AuthorizedPrivateInspectionObject {
   organizationId: string
   projectId: string
   evidenceId: string

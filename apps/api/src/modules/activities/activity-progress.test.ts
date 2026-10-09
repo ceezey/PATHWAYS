@@ -15,6 +15,7 @@ import type { ApplicationIdentity } from '@app/common/authz/application-identity
 import { PERMISSION_KEY } from '@app/common/decorators/permission.decorator'
 import type { StorageService } from '@app/modules/storage/storage.service'
 import type { PrismaService } from '@app/prisma/prisma.service'
+import { privateStorageFactories } from '../storage/private-storage-factories'
 
 const state = vi.hoisted(() => ({
   actor: undefined as ApplicationIdentity | undefined,
@@ -92,7 +93,11 @@ const tx = {
 const input = { clientUpdateId, progressPercent: 45, note: '  Halfway through sessions.  ' }
 
 describe('Activity progress update (activities.progress.update)', () => {
-  const service = new ActivitiesService({} as PrismaService, {} as StorageService)
+  const service = new ActivitiesService(
+    {} as PrismaService,
+    {} as StorageService,
+    privateStorageFactories,
+  )
 
   beforeEach(() => {
     vi.clearAllMocks()

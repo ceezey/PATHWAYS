@@ -24,7 +24,10 @@ import { DashboardsService } from '../dashboards/dashboards.service'
 import { ProjectOverviewMetricsService } from '../projects/project-overview-metrics.service'
 import { ReportPdfError, ReportPdfRenderer } from '../report-pdf/report-pdf.renderer'
 import { RulesHumanService } from '../rules/rules-human.service'
-import { createPrivateInspectionReader } from '../storage/private-inspection-reader'
+import {
+  PRIVATE_STORAGE_FACTORIES,
+  type PrivateStorageFactories,
+} from '../storage/private-storage-factories'
 import { StorageService } from '../storage/storage.service'
 import {
   ReportArtifactInputError,
@@ -97,6 +100,7 @@ export class ReportsService {
     @Inject(ProjectOverviewMetricsService)
     private readonly overview: ProjectOverviewMetricsService,
     @Inject(RulesHumanService) private readonly rules: RulesHumanService,
+    @Inject(PRIVATE_STORAGE_FACTORIES) private readonly storageFactories: PrivateStorageFactories,
   ) {}
   private permissions(actor: ApplicationIdentity, kind: ReportKindCode) {
     if (
@@ -686,7 +690,7 @@ export class ReportsService {
       if (!env.SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY)
         throw new ServiceUnavailableException('Private report storage unavailable.')
       try {
-        const read = createPrivateInspectionReader({
+        const read = this.storageFactories.createPrivateInspectionReader({
           serviceOrigin: env.SUPABASE_URL,
           serviceRoleKey: env.SUPABASE_SERVICE_ROLE_KEY,
           evidenceBucket: 'pathways-private',
@@ -808,7 +812,7 @@ export class ReportsService {
       throw new ServiceUnavailableException('Private report artifact unavailable.')
     let bytes: Buffer
     try {
-      const read = createPrivateInspectionReader({
+      const read = this.storageFactories.createPrivateInspectionReader({
         serviceOrigin: env.SUPABASE_URL,
         serviceRoleKey: env.SUPABASE_SERVICE_ROLE_KEY,
         evidenceBucket: 'pathways-private',

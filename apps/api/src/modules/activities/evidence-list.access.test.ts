@@ -9,6 +9,7 @@ import { PERMISSION_KEY } from '@app/common/decorators/permission.decorator'
 import type { StorageService } from '@app/modules/storage/storage.service'
 import type { PrismaService } from '@app/prisma/prisma.service'
 import { hasAtomicPermission } from '@pathways/shared'
+import { privateStorageFactories } from '../storage/private-storage-factories'
 
 const state = vi.hoisted(() => ({
   actor: undefined as ApplicationIdentity | undefined,
@@ -85,7 +86,11 @@ const groups = (pending: number, approved: number, rejected: number, verified: n
 ]
 
 const tx = { project: { findFirst: vi.fn() }, evidenceMedia: { groupBy: vi.fn() } }
-const service = new ActivitiesService({} as PrismaService, {} as StorageService)
+const service = new ActivitiesService(
+  {} as PrismaService,
+  {} as StorageService,
+  privateStorageFactories,
+)
 
 function collectKeys(value: unknown, keys = new Set<string>()) {
   if (Array.isArray(value)) for (const item of value) collectKeys(item, keys)
