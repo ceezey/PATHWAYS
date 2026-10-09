@@ -22,6 +22,7 @@ import {
   sourceMutationBody,
 } from '../rules/rules-source-operation'
 
+import { writeAuditLog } from '../../common/audit/write-audit-log'
 import { type ApplicationIdentity, UUID_PATTERN } from '../../common/authz/application-identity'
 import { projectScope } from '../../common/authz/project-scope'
 import { PrismaService } from '../../prisma/prisma.service'
@@ -476,18 +477,14 @@ export class ProjectsService {
       if (input.implementingPartnerNames !== undefined)
         await tx.$queryRaw`
         SELECT pathways.p10_replace_project_partners(${created.id}::uuid, ${input.implementingPartnerNames}::text[])::text`
-      await tx.auditLog.create({
-        data: {
-          organizationId: actor.organizationId,
-          actorUserId: actor.userId,
-          projectId: created.id,
-          action: 'PROJECT_CREATED',
-          entityType: 'Project',
-          entityId: created.id,
-          changes: {
-            code,
-            status: input.status,
-          },
+      await writeAuditLog(tx, actor, {
+        projectId: created.id,
+        action: 'PROJECT_CREATED',
+        entityType: 'Project',
+        entityId: created.id,
+        changes: {
+          code,
+          status: input.status,
         },
       })
       const result = await tx.project.findUniqueOrThrow({
@@ -542,18 +539,14 @@ export class ProjectsService {
       if (input.implementingPartnerNames !== undefined)
         await tx.$queryRaw`
         SELECT pathways.p10_replace_project_partners(${current.id}::uuid, ${input.implementingPartnerNames}::text[])::text`
-      await tx.auditLog.create({
-        data: {
-          organizationId: actor.organizationId,
-          actorUserId: actor.userId,
-          projectId: current.id,
-          action: 'PROJECT_UPDATED',
-          entityType: 'Project',
-          entityId: current.id,
-          changes: {
-            code: data.code,
-            status: input.status,
-          },
+      await writeAuditLog(tx, actor, {
+        projectId: current.id,
+        action: 'PROJECT_UPDATED',
+        entityType: 'Project',
+        entityId: current.id,
+        changes: {
+          code: data.code,
+          status: input.status,
         },
       })
       const sourceAcknowledgement = await finishRuleSourceOperation(
@@ -591,16 +584,12 @@ export class ProjectsService {
       })
       if (changed.count !== 1)
         throw new ConflictException('Project changed; reload before archiving.')
-      await tx.auditLog.create({
-        data: {
-          organizationId: actor.organizationId,
-          actorUserId: actor.userId,
-          projectId: current.id,
-          action: 'PROJECT_ARCHIVED',
-          entityType: 'Project',
-          entityId: current.id,
-          changes: { archivedAt: archivedAt.toISOString() },
-        },
+      await writeAuditLog(tx, actor, {
+        projectId: current.id,
+        action: 'PROJECT_ARCHIVED',
+        entityType: 'Project',
+        entityId: current.id,
+        changes: { archivedAt: archivedAt.toISOString() },
       })
       return { id: current.id, archivedAt: archivedAt.toISOString() }
     })

@@ -9,6 +9,7 @@ import {
 import { hasAtomicPermission } from '@pathways/shared'
 import type { Prisma } from '@prisma/client'
 import { z } from 'zod'
+import { writeAuditLog } from '../../common/audit/write-audit-log'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import { projectScope } from '../../common/authz/project-scope'
 import { requireScopedProject } from '../../common/authz/scoped-project'
@@ -547,19 +548,15 @@ export class EvaluationsService {
           select: { id: true },
         })
         await this.scoreRound(tx, actor, id, created.id, { start: periodStart, end: periodEnd })
-        await tx.auditLog.create({
-          data: {
-            organizationId: actor.organizationId,
-            projectId: id,
-            actorUserId: actor.userId,
-            action: 'EVALUATION_CREATED',
-            entityType: 'ProjectEvaluation',
-            entityId: created.id,
-            changes: {
-              title: parsed.data.title,
-              periodStart: parsed.data.periodStart,
-              periodEnd: parsed.data.periodEnd,
-            },
+        await writeAuditLog(tx, actor, {
+          projectId: id,
+          action: 'EVALUATION_CREATED',
+          entityType: 'ProjectEvaluation',
+          entityId: created.id,
+          changes: {
+            title: parsed.data.title,
+            periodStart: parsed.data.periodStart,
+            periodEnd: parsed.data.periodEnd,
           },
         })
         return this.readDetail(tx, actor, id, created.id)
@@ -606,16 +603,12 @@ export class EvaluationsService {
           start: evaluation.periodStart,
           end: evaluation.periodEnd,
         })
-        await tx.auditLog.create({
-          data: {
-            organizationId: actor.organizationId,
-            projectId: id,
-            actorUserId: actor.userId,
-            action: 'EVALUATION_SCORES_SAVED',
-            entityType: 'ProjectEvaluation',
-            entityId: evaluationId,
-            changes: { criteriaScored: count },
-          },
+        await writeAuditLog(tx, actor, {
+          projectId: id,
+          action: 'EVALUATION_SCORES_SAVED',
+          entityType: 'ProjectEvaluation',
+          entityId: evaluationId,
+          changes: { criteriaScored: count },
         })
         return this.readDetail(tx, actor, id, evaluationId)
       },
@@ -669,16 +662,12 @@ export class EvaluationsService {
         })
         if (changed.count !== 1)
           throw new ConflictException('This evaluation changed; reload before retrying.')
-        await tx.auditLog.create({
-          data: {
-            organizationId: actor.organizationId,
-            projectId: id,
-            actorUserId: actor.userId,
-            action: 'EVALUATION_SUBMITTED',
-            entityType: 'ProjectEvaluation',
-            entityId: evaluationId,
-            changes: {},
-          },
+        await writeAuditLog(tx, actor, {
+          projectId: id,
+          action: 'EVALUATION_SUBMITTED',
+          entityType: 'ProjectEvaluation',
+          entityId: evaluationId,
+          changes: {},
         })
         return this.readDetail(tx, actor, id, evaluationId)
       },
@@ -727,16 +716,12 @@ export class EvaluationsService {
         })
         if (changed.count !== 1)
           throw new ConflictException('This evaluation changed; reload before retrying.')
-        await tx.auditLog.create({
-          data: {
-            organizationId: actor.organizationId,
-            projectId: id,
-            actorUserId: actor.userId,
-            action: 'EVALUATION_RETURNED',
-            entityType: 'ProjectEvaluation',
-            entityId: evaluationId,
-            changes: { reason: parsed.data.reason },
-          },
+        await writeAuditLog(tx, actor, {
+          projectId: id,
+          action: 'EVALUATION_RETURNED',
+          entityType: 'ProjectEvaluation',
+          entityId: evaluationId,
+          changes: { reason: parsed.data.reason },
         })
         return this.readDetail(tx, actor, id, evaluationId)
       },
@@ -803,27 +788,19 @@ export class EvaluationsService {
         })
         if (signed.count !== 1)
           throw new ConflictException('This evaluation changed; reload before retrying.')
-        await tx.auditLog.create({
-          data: {
-            organizationId: actor.organizationId,
-            projectId: id,
-            actorUserId: actor.userId,
-            action: 'EVALUATION_REVIEWED',
-            entityType: 'ProjectEvaluation',
-            entityId: evaluationId,
-            changes: { feedback: parsed.data.feedback },
-          },
+        await writeAuditLog(tx, actor, {
+          projectId: id,
+          action: 'EVALUATION_REVIEWED',
+          entityType: 'ProjectEvaluation',
+          entityId: evaluationId,
+          changes: { feedback: parsed.data.feedback },
         })
-        await tx.auditLog.create({
-          data: {
-            organizationId: actor.organizationId,
-            projectId: id,
-            actorUserId: actor.userId,
-            action: 'EVALUATION_SIGNED_OFF',
-            entityType: 'ProjectEvaluation',
-            entityId: evaluationId,
-            changes: {},
-          },
+        await writeAuditLog(tx, actor, {
+          projectId: id,
+          action: 'EVALUATION_SIGNED_OFF',
+          entityType: 'ProjectEvaluation',
+          entityId: evaluationId,
+          changes: {},
         })
         return this.readDetail(tx, actor, id, evaluationId)
       },

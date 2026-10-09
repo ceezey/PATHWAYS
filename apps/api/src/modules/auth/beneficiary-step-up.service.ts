@@ -9,6 +9,7 @@ import {
 
 import { STEP_UP_REQUIRED_CODE } from '@pathways/shared'
 
+import { writeAuditLog } from '../../common/audit/write-audit-log'
 import {
   type ApplicationIdentity,
   UUID_PATTERN,
@@ -108,20 +109,16 @@ export class BeneficiaryStepUpService {
             userId: profile.userId,
           },
           (tx) =>
-            tx.auditLog.create({
-              data: {
-                organizationId: profile.organizationId,
-                actorUserId: profile.userId,
-                action,
-                entityType: 'BeneficiaryStepUp',
-                changes: {
-                  operation,
-                  ...(method ? { method } : {}),
-                  factorVerifiedAt,
-                  ...(grantExpiry ? { grantExpiresAt: grantExpiry } : {}),
-                  windowSeconds: STEP_UP_WINDOW_SECONDS,
-                  ...(method || state.fresh ? {} : { reason: state.reason }),
-                },
+            writeAuditLog(tx, profile, {
+              action,
+              entityType: 'BeneficiaryStepUp',
+              changes: {
+                operation,
+                ...(method ? { method } : {}),
+                factorVerifiedAt,
+                ...(grantExpiry ? { grantExpiresAt: grantExpiry } : {}),
+                windowSeconds: STEP_UP_WINDOW_SECONDS,
+                ...(method || state.fresh ? {} : { reason: state.reason }),
               },
             }),
         )

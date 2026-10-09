@@ -1,6 +1,7 @@
 import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common'
 import type { CreateLibraryEntryInput, LibraryEntry, MetricRecipe } from '@pathways/shared'
 import type { IndicatorLibraryEntry, Prisma } from '@prisma/client'
+import { writeAuditLog } from '../../common/audit/write-audit-log'
 import { type ApplicationIdentity, UUID_PATTERN } from '../../common/authz/application-identity'
 import { PrismaService } from '../../prisma/prisma.service'
 import { withAuthorizedOperation } from '../auth/authorized-operation'
@@ -109,8 +110,11 @@ export class IndicatorLibraryService {
               createdById: actor.userId,
             },
           })
-          await this.audit(tx, actor, 'INDICATOR_LIBRARY_ENTRY_CREATED', row.id, {
-            code: row.code,
+          await writeAuditLog(tx, actor, {
+            action: 'INDICATOR_LIBRARY_ENTRY_CREATED',
+            entityType: 'IndicatorLibraryEntry',
+            entityId: row.id,
+            changes: { code: row.code },
           })
           return toEntry(row)
         } catch (error) {
@@ -133,7 +137,12 @@ export class IndicatorLibraryService {
           data: { archivedAt: new Date() },
         })
         if (count !== 1) throw new NotFoundException('Library entry unavailable.')
-        await this.audit(tx, actor, 'INDICATOR_LIBRARY_ENTRY_ARCHIVED', id, {})
+        await writeAuditLog(tx, actor, {
+          action: 'INDICATOR_LIBRARY_ENTRY_ARCHIVED',
+          entityType: 'IndicatorLibraryEntry',
+          entityId: id,
+          changes: {},
+        })
         return { id, archived: true }
       },
     )
@@ -161,25 +170,6 @@ export class IndicatorLibraryService {
       direction: entry.direction,
       displayPrecision: entry.displayPrecision,
       binding: entry.recipe ? { recipe: entry.recipe } : undefined,
-    })
-  }
-
-  private audit(
-    tx: Prisma.TransactionClient,
-    actor: ApplicationIdentity,
-    action: string,
-    entityId: string,
-    changes: Prisma.InputJsonObject,
-  ) {
-    return tx.auditLog.create({
-      data: {
-        organizationId: actor.organizationId,
-        actorUserId: actor.userId,
-        action,
-        entityType: 'IndicatorLibraryEntry',
-        entityId,
-        changes,
-      },
     })
   }
 }

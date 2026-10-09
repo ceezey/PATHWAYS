@@ -9,6 +9,7 @@ import {
 import type { Prisma } from '@prisma/client'
 
 import { aggregateOnlyRoles, hasAtomicPermission } from '@pathways/shared'
+import { writeAuditLog } from '../../common/audit/write-audit-log'
 import { type ApplicationIdentity, UUID_PATTERN } from '../../common/authz/application-identity'
 import { requireScopedProject } from '../../common/authz/scoped-project'
 import type { Tx } from '../../common/prisma/transaction'
@@ -313,16 +314,12 @@ export class ParticipantsService {
           })),
         )
         if (mappings.length) await tx.activityJourneyStageMapping.createMany({ data: mappings })
-        await tx.auditLog.create({
-          data: {
-            organizationId: actor.organizationId,
-            actorUserId: actor.userId,
-            projectId: id,
-            action: 'JOURNEY_CONFIGURATION_SAVED',
-            entityType: 'Project',
-            entityId: id,
-            changes: { stageCount: input.stages.length, mappingCount: mappings.length },
-          },
+        await writeAuditLog(tx, actor, {
+          projectId: id,
+          action: 'JOURNEY_CONFIGURATION_SAVED',
+          entityType: 'Project',
+          entityId: id,
+          changes: { stageCount: input.stages.length, mappingCount: mappings.length },
         })
         const result = await tx.journeyStage.findMany({
           where: { organizationId: actor.organizationId, projectId: id, archivedAt: null },
@@ -462,16 +459,12 @@ export class ParticipantsService {
         validatedAt: now,
       },
     })
-    await tx.auditLog.create({
-      data: {
-        organizationId: actor.organizationId,
-        actorUserId: actor.userId,
-        projectId: input.projectId,
-        action: 'PARTICIPATION_RECORDED',
-        entityType: 'BeneficiaryActivityParticipation',
-        entityId: participation.id,
-        changes: { submissionId: input.submissionId, activityId: activity.id },
-      },
+    await writeAuditLog(tx, actor, {
+      projectId: input.projectId,
+      action: 'PARTICIPATION_RECORDED',
+      entityType: 'BeneficiaryActivityParticipation',
+      entityId: participation.id,
+      changes: { submissionId: input.submissionId, activityId: activity.id },
     })
     return { participationId: participation.id, enrollmentId: enrollment.id }
   }
@@ -626,20 +619,16 @@ export class ParticipantsService {
               endReason: input.description.trim(),
             },
           })
-        await tx.auditLog.create({
-          data: {
-            organizationId: actor.organizationId,
-            actorUserId: actor.userId,
-            projectId: id,
-            action: `ENROLLMENT_${input.eventType}`,
-            entityType: 'BeneficiaryProjectEnrollment',
-            entityId: enrollment.id,
-            changes: {
-              ...(input.eventType === 'TRANSFER'
-                ? { destinationProjectId: input.destinationProjectId }
-                : {}),
-              noteAttached: Boolean(input.note),
-            },
+        await writeAuditLog(tx, actor, {
+          projectId: id,
+          action: `ENROLLMENT_${input.eventType}`,
+          entityType: 'BeneficiaryProjectEnrollment',
+          entityId: enrollment.id,
+          changes: {
+            ...(input.eventType === 'TRANSFER'
+              ? { destinationProjectId: input.destinationProjectId }
+              : {}),
+            noteAttached: Boolean(input.note),
           },
         })
         return {
@@ -696,19 +685,15 @@ export class ParticipantsService {
           },
           select: { id: true },
         })
-        await tx.auditLog.create({
-          data: {
-            organizationId: actor.organizationId,
-            actorUserId: actor.userId,
-            projectId: id,
-            action: 'JOURNEY_EVENT_CORRECTED',
-            entityType: 'BeneficiaryJourneyEvent',
-            entityId: correction.id,
-            changes: {
-              correctsEventId: original.id,
-              reason: input.reason.trim(),
-              noteAttached: Boolean(input.note),
-            },
+        await writeAuditLog(tx, actor, {
+          projectId: id,
+          action: 'JOURNEY_EVENT_CORRECTED',
+          entityType: 'BeneficiaryJourneyEvent',
+          entityId: correction.id,
+          changes: {
+            correctsEventId: original.id,
+            reason: input.reason.trim(),
+            noteAttached: Boolean(input.note),
           },
         })
         return { id: correction.id }

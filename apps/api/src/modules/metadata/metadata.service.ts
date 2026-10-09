@@ -17,6 +17,7 @@ import {
   hasAtomicPermission,
   validateAndNormalizeFormData,
 } from '@pathways/shared'
+import { writeAuditLog } from '../../common/audit/write-audit-log'
 import { type ApplicationIdentity, UUID_PATTERN } from '../../common/authz/application-identity'
 import { requireScopedProject } from '../../common/authz/scoped-project'
 import type { Tx } from '../../common/prisma/transaction'
@@ -365,16 +366,12 @@ export class MetadataService {
     await tx.formField.createMany({
       data: fieldData(actor.organizationId, scopedProjectId, created.id, input.fields),
     })
-    await tx.auditLog.create({
-      data: {
-        organizationId: actor.organizationId,
-        actorUserId: actor.userId,
-        projectId: scopedProjectId,
-        action,
-        entityType: 'DigitalForm',
-        entityId: created.id,
-        changes: { code: input.code, version: 1, fieldCount: input.fields.length, ...origin },
-      },
+    await writeAuditLog(tx, actor, {
+      projectId: scopedProjectId,
+      action,
+      entityType: 'DigitalForm',
+      entityId: created.id,
+      changes: { code: input.code, version: 1, fieldCount: input.fields.length, ...origin },
     })
     return mapForm(await this.findForm(tx, actor, scopedProjectId, created.id), actor)
   }
@@ -422,16 +419,12 @@ export class MetadataService {
       await tx.formField.createMany({
         data: fieldData(actor.organizationId, current.projectId, current.id, input.fields),
       })
-      await tx.auditLog.create({
-        data: {
-          organizationId: actor.organizationId,
-          actorUserId: actor.userId,
-          projectId: current.projectId,
-          action: 'FORM_DRAFT_UPDATED',
-          entityType: 'DigitalForm',
-          entityId: current.id,
-          changes: { version: current.version, fieldCount: input.fields.length },
-        },
+      await writeAuditLog(tx, actor, {
+        projectId: current.projectId,
+        action: 'FORM_DRAFT_UPDATED',
+        entityType: 'DigitalForm',
+        entityId: current.id,
+        changes: { version: current.version, fieldCount: input.fields.length },
       })
       return mapForm(await this.findForm(tx, actor, current.projectId, current.id), actor)
     })
@@ -524,16 +517,12 @@ export class MetadataService {
       })
       if (changed.count !== 1)
         throw new ConflictException('Form changed; reload before publishing.')
-      await tx.auditLog.create({
-        data: {
-          organizationId: actor.organizationId,
-          actorUserId: actor.userId,
-          projectId: current.projectId,
-          action: 'FORM_PUBLISHED',
-          entityType: 'DigitalForm',
-          entityId: current.id,
-          changes: { code: current.code, version: current.version },
-        },
+      await writeAuditLog(tx, actor, {
+        projectId: current.projectId,
+        action: 'FORM_PUBLISHED',
+        entityType: 'DigitalForm',
+        entityId: current.id,
+        changes: { code: current.code, version: current.version },
       })
       return mapForm(await this.findForm(tx, actor, current.projectId, current.id), actor)
     })
@@ -561,16 +550,12 @@ export class MetadataService {
         data: { status: 'ARCHIVED', archivedAt: new Date() },
       })
       if (changed.count !== 1) throw new ConflictException('Form changed; reload before archiving.')
-      await tx.auditLog.create({
-        data: {
-          organizationId: actor.organizationId,
-          actorUserId: actor.userId,
-          projectId: current.projectId,
-          action: 'FORM_ARCHIVED',
-          entityType: 'DigitalForm',
-          entityId: current.id,
-          changes: { code: current.code, version: current.version },
-        },
+      await writeAuditLog(tx, actor, {
+        projectId: current.projectId,
+        action: 'FORM_ARCHIVED',
+        entityType: 'DigitalForm',
+        entityId: current.id,
+        changes: { code: current.code, version: current.version },
       })
       return mapForm(await this.findForm(tx, actor, current.projectId, current.id), actor)
     })
@@ -685,19 +670,15 @@ export class MetadataService {
           throw caught
         }
         await this.replaceResponses(tx, actor, form, created.id, validation.values)
-        await tx.auditLog.create({
-          data: {
-            organizationId: actor.organizationId,
-            actorUserId: actor.userId,
-            projectId: form.projectId,
-            action: 'FORM_SUBMISSION_DRAFT_SAVED',
-            entityType: 'FormSubmission',
-            entityId: created.id,
-            changes: {
-              formId: form.id,
-              formVersion: form.version,
-              fieldCount: form.formField_form.length,
-            },
+        await writeAuditLog(tx, actor, {
+          projectId: form.projectId,
+          action: 'FORM_SUBMISSION_DRAFT_SAVED',
+          entityType: 'FormSubmission',
+          entityId: created.id,
+          changes: {
+            formId: form.id,
+            formVersion: form.version,
+            fieldCount: form.formField_form.length,
           },
         })
         return this.findSubmission(tx, actor, form, created.id)
@@ -801,19 +782,15 @@ export class MetadataService {
         })
         if (changed.count !== 1) throw new ConflictException('Draft changed; reload before saving.')
         await this.replaceResponses(tx, actor, form, submission.id, validation.values)
-        await tx.auditLog.create({
-          data: {
-            organizationId: actor.organizationId,
-            actorUserId: actor.userId,
-            projectId: form.projectId,
-            action: 'FORM_SUBMISSION_DRAFT_SAVED',
-            entityType: 'FormSubmission',
-            entityId: submission.id,
-            changes: {
-              formId: form.id,
-              formVersion: form.version,
-              fieldCount: form.formField_form.length,
-            },
+        await writeAuditLog(tx, actor, {
+          projectId: form.projectId,
+          action: 'FORM_SUBMISSION_DRAFT_SAVED',
+          entityType: 'FormSubmission',
+          entityId: submission.id,
+          changes: {
+            formId: form.id,
+            formVersion: form.version,
+            fieldCount: form.formField_form.length,
           },
         })
         return this.findSubmission(tx, actor, form, submission.id)
@@ -962,19 +939,15 @@ export class MetadataService {
           if (current.status === 'VALIDATED') return current
           throw new ConflictException('Draft changed; reload before submitting.')
         }
-        await tx.auditLog.create({
-          data: {
-            organizationId: actor.organizationId,
-            actorUserId: actor.userId,
-            projectId: form.projectId,
-            action: 'FORM_SUBMISSION_VALIDATED',
-            entityType: 'FormSubmission',
-            entityId: submission.id,
-            changes: {
-              formId: form.id,
-              formVersion: form.version,
-              fieldCount: form.formField_form.length,
-            },
+        await writeAuditLog(tx, actor, {
+          projectId: form.projectId,
+          action: 'FORM_SUBMISSION_VALIDATED',
+          entityType: 'FormSubmission',
+          entityId: submission.id,
+          changes: {
+            formId: form.id,
+            formVersion: form.version,
+            fieldCount: form.formField_form.length,
           },
         })
         return this.findSubmission(tx, actor, form, submission.id)
@@ -1177,20 +1150,16 @@ export class MetadataService {
     await tx.formField.createMany({
       data: fieldData(actor.organizationId, source.projectId, created.id, fields),
     })
-    await tx.auditLog.create({
-      data: {
-        organizationId: actor.organizationId,
-        actorUserId: actor.userId,
-        projectId: source.projectId,
-        action: 'FORM_VERSION_CREATED',
-        entityType: 'DigitalForm',
-        entityId: created.id,
-        changes: {
-          code: source.code,
-          fromVersion: source.version,
-          version,
-          fieldCount: fields.length,
-        },
+    await writeAuditLog(tx, actor, {
+      projectId: source.projectId,
+      action: 'FORM_VERSION_CREATED',
+      entityType: 'DigitalForm',
+      entityId: created.id,
+      changes: {
+        code: source.code,
+        fromVersion: source.version,
+        version,
+        fieldCount: fields.length,
       },
     })
     return mapForm(await this.findForm(tx, actor, source.projectId, created.id), actor)

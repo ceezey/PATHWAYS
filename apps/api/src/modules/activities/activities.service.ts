@@ -22,6 +22,7 @@ import { Prisma } from '@prisma/client'
 
 import { readApiEnv } from '@pathways/config'
 import { aggregateOnlyRoles, businessCalendarDate, hasAtomicPermission } from '@pathways/shared'
+import { writeAuditLog } from '../../common/audit/write-audit-log'
 import { type ApplicationIdentity, UUID_PATTERN } from '../../common/authz/application-identity'
 import { projectScope } from '../../common/authz/project-scope'
 import { projectDateFields, requireScopedProjectRow } from '../../common/authz/scoped-project'
@@ -1287,16 +1288,12 @@ export class ActivitiesService {
           input.budgetAllocation,
           'create',
         )
-        await tx.auditLog.create({
-          data: {
-            organizationId: actor.organizationId,
-            actorUserId: actor.userId,
-            projectId: project.id,
-            action: 'ACTIVITY_CREATED',
-            entityType: 'ProjectActivity',
-            entityId: activityId,
-            changes: { code: input.code ?? 'SERVER_GENERATED', assigneeCount: assignments.length },
-          },
+        await writeAuditLog(tx, actor, {
+          projectId: project.id,
+          action: 'ACTIVITY_CREATED',
+          entityType: 'ProjectActivity',
+          entityId: activityId,
+          changes: { code: input.code ?? 'SERVER_GENERATED', assigneeCount: assignments.length },
         })
         const sourceAcknowledgement = await finishRuleSourceOperation(
           tx,
@@ -1427,16 +1424,12 @@ export class ActivitiesService {
           input.budgetAllocation,
           'update',
         )
-        await tx.auditLog.create({
-          data: {
-            organizationId: actor.organizationId,
-            actorUserId: actor.userId,
-            projectId: project.id,
-            action: 'ACTIVITY_UPDATED',
-            entityType: 'ProjectActivity',
-            entityId: current.id,
-            changes: { assigneeCount: assignments.length },
-          },
+        await writeAuditLog(tx, actor, {
+          projectId: project.id,
+          action: 'ACTIVITY_UPDATED',
+          entityType: 'ProjectActivity',
+          entityId: current.id,
+          changes: { assigneeCount: assignments.length },
         })
         const sourceAcknowledgement = await finishRuleSourceOperation(
           tx,
@@ -1504,16 +1497,12 @@ export class ActivitiesService {
         })
         if (changed.count !== 1)
           throw new ConflictException('Activity changed; reload before saving.')
-        await tx.auditLog.create({
-          data: {
-            organizationId: actor.organizationId,
-            actorUserId: actor.userId,
-            projectId: current.projectId,
-            action: `ACTIVITY_${input.status}`,
-            entityType: 'ProjectActivity',
-            entityId: current.id,
-            changes: input.status === 'CANCELLED' ? { reason: input.reason?.trim() } : {},
-          },
+        await writeAuditLog(tx, actor, {
+          projectId: current.projectId,
+          action: `ACTIVITY_${input.status}`,
+          entityType: 'ProjectActivity',
+          entityId: current.id,
+          changes: input.status === 'CANCELLED' ? { reason: input.reason?.trim() } : {},
         })
         const sourceAcknowledgement = await finishRuleSourceOperation(
           tx,
@@ -1608,16 +1597,12 @@ export class ActivitiesService {
             submittedById: actor.userId,
           },
         })
-        await tx.auditLog.create({
-          data: {
-            organizationId: actor.organizationId,
-            actorUserId: actor.userId,
-            projectId: activity.projectId,
-            action: 'ACTIVITY_PROGRESS_RECORDED',
-            entityType: 'ActivityUpdate',
-            entityId: updateId,
-            changes: { activityId: activity.id, progressPercent: input.progressPercent },
-          },
+        await writeAuditLog(tx, actor, {
+          projectId: activity.projectId,
+          action: 'ACTIVITY_PROGRESS_RECORDED',
+          entityType: 'ActivityUpdate',
+          entityId: updateId,
+          changes: { activityId: activity.id, progressPercent: input.progressPercent },
         })
         return this.mapWithMetrics(
           tx,
@@ -1715,16 +1700,12 @@ export class ActivitiesService {
             clientMutationId,
           },
         })
-        await tx.auditLog.create({
-          data: {
-            organizationId: actor.organizationId,
-            actorUserId: actor.userId,
-            projectId: activity.projectId,
-            action: 'ACTIVITY_OVERDUE_EXPLANATION_RECORDED',
-            entityType: 'ActivityOverdueExplanation',
-            entityId: explanationId,
-            changes: { activityId: activity.id, category: input.category },
-          },
+        await writeAuditLog(tx, actor, {
+          projectId: activity.projectId,
+          action: 'ACTIVITY_OVERDUE_EXPLANATION_RECORDED',
+          entityType: 'ActivityOverdueExplanation',
+          entityId: explanationId,
+          changes: { activityId: activity.id, category: input.category },
         })
         return this.mapWithMetrics(
           tx,
@@ -2154,16 +2135,12 @@ export class ActivitiesService {
             updatedAt: new Date(source.generatedValues.timestamp),
           },
         })
-        await tx.auditLog.create({
-          data: {
-            organizationId: actor.organizationId,
-            actorUserId: actor.userId,
-            projectId: activity.projectId,
-            action: 'ACTIVITY_UPDATE_SUBMITTED',
-            entityType: 'ActivityUpdate',
-            entityId: update.id,
-            changes: { progressPercent: update.progressPercent, proofCount: files.length },
-          },
+        await writeAuditLog(tx, actor, {
+          projectId: activity.projectId,
+          action: 'ACTIVITY_UPDATE_SUBMITTED',
+          entityType: 'ActivityUpdate',
+          entityId: update.id,
+          changes: { progressPercent: update.progressPercent, proofCount: files.length },
         })
         const internalAcknowledgement = await finishRuleSourceOperation(
           tx,
@@ -2330,20 +2307,16 @@ export class ActivitiesService {
               }
             : { status: 'IN_PROGRESS', progressPercent: update.progressPercent, updatedAt: now },
       })
-      await tx.auditLog.create({
-        data: {
-          organizationId: reviewer.organizationId,
-          actorUserId: reviewer.userId,
-          projectId: activity.projectId,
-          action:
-            input.decision === 'APPROVE' ? 'ACTIVITY_UPDATE_APPROVED' : 'ACTIVITY_UPDATE_RETURNED',
-          entityType: 'ActivityUpdate',
-          entityId: update.id,
-          changes: {
-            reason: input.reason.trim(),
-            kind: progressOnly ? 'PROGRESS' : 'PROOF',
-            progressPercent: update.progressPercent,
-          },
+      await writeAuditLog(tx, reviewer, {
+        projectId: activity.projectId,
+        action:
+          input.decision === 'APPROVE' ? 'ACTIVITY_UPDATE_APPROVED' : 'ACTIVITY_UPDATE_RETURNED',
+        entityType: 'ActivityUpdate',
+        entityId: update.id,
+        changes: {
+          reason: input.reason.trim(),
+          kind: progressOnly ? 'PROGRESS' : 'PROOF',
+          progressPercent: update.progressPercent,
         },
       })
       const sourceAcknowledgement = await finishRuleSourceOperation(
@@ -2432,15 +2405,11 @@ export class ActivitiesService {
             targetDate: input.targetDate ? new Date(`${input.targetDate}T00:00:00.000Z`) : null,
           },
         })
-        await tx.auditLog.create({
-          data: {
-            organizationId: actor.organizationId,
-            actorUserId: actor.userId,
-            projectId: project.id,
-            action: 'MILESTONE_CREATED',
-            entityType: 'ProjectMilestone',
-            entityId: row.id,
-          },
+        await writeAuditLog(tx, actor, {
+          projectId: project.id,
+          action: 'MILESTONE_CREATED',
+          entityType: 'ProjectMilestone',
+          entityId: row.id,
         })
         return row
       },
@@ -2494,16 +2463,12 @@ export class ActivitiesService {
         const row = await tx.projectMilestone.findUniqueOrThrow({
           where: { id: milestoneId.toLowerCase() },
         })
-        await tx.auditLog.create({
-          data: {
-            organizationId: actor.organizationId,
-            actorUserId: actor.userId,
-            projectId: project.id,
-            action: 'MILESTONE_UPDATED',
-            entityType: 'ProjectMilestone',
-            entityId: row.id,
-            changes: { status: row.status },
-          },
+        await writeAuditLog(tx, actor, {
+          projectId: project.id,
+          action: 'MILESTONE_UPDATED',
+          entityType: 'ProjectMilestone',
+          entityId: row.id,
+          changes: { status: row.status },
         })
         return row
       },

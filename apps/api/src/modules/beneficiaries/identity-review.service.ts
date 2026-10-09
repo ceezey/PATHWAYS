@@ -1,5 +1,6 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common'
 
+import { writeAuditLog } from '../../common/audit/write-audit-log'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import { requireScopedProject } from '../../common/authz/scoped-project'
 import type { Tx } from '../../common/prisma/transaction'
@@ -106,19 +107,15 @@ export class IdentityReviewService {
         ) {
           throw new BadRequestException('This pair was already reviewed.')
         }
-        await tx.auditLog.create({
-          data: {
-            organizationId: actor.organizationId,
-            actorUserId: actor.userId,
-            projectId: id,
-            action:
-              input.decision === 'LINK'
-                ? 'BENEFICIARY_IDENTITY_LINKED'
-                : 'BENEFICIARY_IDENTITY_KEPT_DISTINCT',
-            entityType: 'Beneficiary',
-            entityId: leftId,
-            changes: { otherBeneficiaryId: rightId, decision: input.decision },
-          },
+        await writeAuditLog(tx, actor, {
+          projectId: id,
+          action:
+            input.decision === 'LINK'
+              ? 'BENEFICIARY_IDENTITY_LINKED'
+              : 'BENEFICIARY_IDENTITY_KEPT_DISTINCT',
+          entityType: 'Beneficiary',
+          entityId: leftId,
+          changes: { otherBeneficiaryId: rightId, decision: input.decision },
         })
         return { leftId, rightId, decision: input.decision }
       },

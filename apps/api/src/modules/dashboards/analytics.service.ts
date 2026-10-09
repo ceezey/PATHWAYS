@@ -39,6 +39,7 @@ import {
   timelineAnalyticsTable,
 } from './descriptive-analytics'
 
+import { writeAuditLog } from '../../common/audit/write-audit-log'
 import { requireScopedProjectRow } from '../../common/authz/scoped-project'
 import {
   ReportArtifactInputError,
@@ -355,20 +356,16 @@ export class AnalyticsService {
     query: DescriptiveAnalyticsQuery,
     source?: 'EXPORT_PREVIEW',
   ) {
-    await tx.auditLog.create({
-      data: {
-        organizationId: actor.organizationId,
-        projectId,
-        actorUserId: actor.userId,
-        action: 'ANALYTICS_DESCRIPTIVE_VIEWED',
-        entityType: 'Project',
-        entityId: projectId,
-        changes: {
-          view: query.view ?? 'combined',
-          periodStart: query.periodStart ?? null,
-          periodEnd: query.periodEnd ?? null,
-          ...(source ? { source } : {}),
-        },
+    await writeAuditLog(tx, actor, {
+      projectId,
+      action: 'ANALYTICS_DESCRIPTIVE_VIEWED',
+      entityType: 'Project',
+      entityId: projectId,
+      changes: {
+        view: query.view ?? 'combined',
+        periodStart: query.periodStart ?? null,
+        periodEnd: query.periodEnd ?? null,
+        ...(source ? { source } : {}),
       },
     })
   }
@@ -440,16 +437,12 @@ export class AnalyticsService {
     return withAuthorizedOperation(this.prisma, identity, 'analytics.export', async (tx, actor) =>
       this.withRetrievalFaultMapping(async () => {
         const source = await this.exportSource(tx, actor, query)
-        await tx.auditLog.create({
-          data: {
-            organizationId: actor.organizationId,
-            projectId: source.projectId,
-            actorUserId: actor.userId,
-            action: 'ANALYTICS_DESCRIPTIVE_EXPORTED',
-            entityType: 'Project',
-            entityId: source.projectId,
-            changes: { contractVersion: source.contractVersion, format, ...source.audit },
-          },
+        await writeAuditLog(tx, actor, {
+          projectId: source.projectId,
+          action: 'ANALYTICS_DESCRIPTIVE_EXPORTED',
+          entityType: 'Project',
+          entityId: source.projectId,
+          changes: { contractVersion: source.contractVersion, format, ...source.audit },
         })
         return exportArtifact(format, source.title, source.table, source.fileBase)
       }),

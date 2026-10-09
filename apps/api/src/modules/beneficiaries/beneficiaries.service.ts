@@ -20,6 +20,7 @@ import {
   minimumBeneficiaryAge,
   validateAndNormalizeFormData,
 } from '@pathways/shared'
+import { writeAuditLog } from '../../common/audit/write-audit-log'
 import { type ApplicationIdentity, UUID_PATTERN } from '../../common/authz/application-identity'
 import { projectDateFields, requireScopedProjectRow } from '../../common/authz/scoped-project'
 import type { Tx } from '../../common/prisma/transaction'
@@ -1092,23 +1093,18 @@ export class BeneficiariesService {
         recordedAt: submittedAt,
       })),
     })
-    await tx.auditLog.create({
-      data: {
-        organizationId: actor.organizationId,
-        actorUserId: actor.userId,
-        projectId: input.projectId,
-        action: 'BENEFICIARY_REGISTRATION_PROMOTED',
-        entityType: 'Beneficiary',
-        entityId: beneficiaryId,
-        changes: {
-          operation: registration.operation,
-          source: input.source,
-          enrollmentId: enrollment.id,
-          submissionId: submission.id,
-          consentKinds,
-          profileFieldsChanged:
-            registration.operation === 'UPDATE' ? registration.updateFields : [],
-        },
+    await writeAuditLog(tx, actor, {
+      projectId: input.projectId,
+      action: 'BENEFICIARY_REGISTRATION_PROMOTED',
+      entityType: 'Beneficiary',
+      entityId: beneficiaryId,
+      changes: {
+        operation: registration.operation,
+        source: input.source,
+        enrollmentId: enrollment.id,
+        submissionId: submission.id,
+        consentKinds,
+        profileFieldsChanged: registration.operation === 'UPDATE' ? registration.updateFields : [],
       },
     })
     return {
@@ -1158,16 +1154,12 @@ export class BeneficiariesService {
         })
         if (changed.count !== 1)
           throw new ConflictException('Beneficiary changed; reload before saving.')
-        await tx.auditLog.create({
-          data: {
-            organizationId: actor.organizationId,
-            actorUserId: actor.userId,
-            projectId: project.id,
-            action: 'BENEFICIARY_PROFILE_UPDATED',
-            entityType: 'Beneficiary',
-            entityId: current.id,
-            changes: { fields: Object.keys(input).filter((key) => key !== 'expectedUpdatedAt') },
-          },
+        await writeAuditLog(tx, actor, {
+          projectId: project.id,
+          action: 'BENEFICIARY_PROFILE_UPDATED',
+          entityType: 'Beneficiary',
+          entityId: current.id,
+          changes: { fields: Object.keys(input).filter((key) => key !== 'expectedUpdatedAt') },
         })
         return this.mapBeneficiary(
           await this.requireBeneficiary(tx, actor, project.id, current.id),
@@ -1203,16 +1195,12 @@ export class BeneficiariesService {
         })
         if (changed.count !== 1)
           throw new ConflictException('Beneficiary changed; reload before archiving.')
-        await tx.auditLog.create({
-          data: {
-            organizationId: actor.organizationId,
-            actorUserId: actor.userId,
-            projectId: project.id,
-            action: 'BENEFICIARY_ARCHIVED',
-            entityType: 'Beneficiary',
-            entityId: current.id,
-            changes: { archivedAt: now.toISOString() },
-          },
+        await writeAuditLog(tx, actor, {
+          projectId: project.id,
+          action: 'BENEFICIARY_ARCHIVED',
+          entityType: 'Beneficiary',
+          entityId: current.id,
+          changes: { archivedAt: now.toISOString() },
         })
         return { id: current.id, status: 'ARCHIVED', archivedAt: now.toISOString() }
       },
@@ -1247,16 +1235,12 @@ export class BeneficiariesService {
           enrollmentDate: result.enrollment_date,
           status: result.status,
         }
-        await tx.auditLog.create({
-          data: {
-            organizationId: actor.organizationId,
-            actorUserId: actor.userId,
-            projectId: project.id,
-            action: 'BENEFICIARY_ENROLLMENT_ENSURED',
-            entityType: 'BeneficiaryProjectEnrollment',
-            entityId: enrollment.id,
-            changes: { beneficiaryId: beneficiaryId.toLowerCase() },
-          },
+        await writeAuditLog(tx, actor, {
+          projectId: project.id,
+          action: 'BENEFICIARY_ENROLLMENT_ENSURED',
+          entityType: 'BeneficiaryProjectEnrollment',
+          entityId: enrollment.id,
+          changes: { beneficiaryId: beneficiaryId.toLowerCase() },
         })
         return {
           id: enrollment.id,

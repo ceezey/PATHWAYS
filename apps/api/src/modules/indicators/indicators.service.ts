@@ -22,6 +22,7 @@ import {
   normalizeMetricDecimal,
 } from '@pathways/shared'
 import { Prisma } from '@prisma/client'
+import { writeAuditLog } from '../../common/audit/write-audit-log'
 import { type ApplicationIdentity, UUID_PATTERN } from '../../common/authz/application-identity'
 import { requireScopedProject } from '../../common/authz/scoped-project'
 import type { Tx } from '../../common/prisma/transaction'
@@ -232,26 +233,6 @@ export class IndicatorsService {
       ),
     )
   }
-  private audit(
-    tx: Tx,
-    actor: ApplicationIdentity,
-    projectId: string,
-    action: string,
-    entityId: string,
-    changes: Prisma.InputJsonObject,
-  ) {
-    return tx.auditLog.create({
-      data: {
-        organizationId: actor.organizationId,
-        actorUserId: actor.userId,
-        projectId,
-        action,
-        entityType: 'ProjectIndicator',
-        entityId,
-        changes,
-      },
-    })
-  }
   private async validateBinding(
     tx: Tx,
     actor: ApplicationIdentity,
@@ -350,11 +331,17 @@ export class IndicatorsService {
             VALUES (${actor.organizationId}::uuid,${id}::uuid,${indicatorId}::uuid,${b.recipe},${b.activityId ?? null}::uuid,${b.formId ?? null}::uuid,${b.formVersion ?? null},${b.fieldId ?? null}::uuid,${actor.userId}::uuid)
           `
           }
-          await this.audit(tx, actor, id, 'PROJECT_INDICATOR_CREATED', indicatorId, {
-            mode: input.mode,
-            numericKind: input.numericKind,
-            recipe: input.binding?.recipe ?? null,
-            contractVersion: P06_CONTRACT_VERSION,
+          await writeAuditLog(tx, actor, {
+            projectId: id,
+            action: 'PROJECT_INDICATOR_CREATED',
+            entityType: 'ProjectIndicator',
+            entityId: indicatorId,
+            changes: {
+              mode: input.mode,
+              numericKind: input.numericKind,
+              recipe: input.binding?.recipe ?? null,
+              contractVersion: P06_CONTRACT_VERSION,
+            },
           })
         } catch (error) {
           monitoringSqlError(error)
@@ -398,8 +385,12 @@ export class IndicatorsService {
             throw new ConflictException(
               'Indicator changed or is unavailable. Reload before editing.',
             )
-          await this.audit(tx, actor, id, 'PROJECT_INDICATOR_LABEL_UPDATED', selected, {
-            revision: input.expectedRevision + 1,
+          await writeAuditLog(tx, actor, {
+            projectId: id,
+            action: 'PROJECT_INDICATOR_LABEL_UPDATED',
+            entityType: 'ProjectIndicator',
+            entityId: selected,
+            changes: { revision: input.expectedRevision + 1 },
           })
         } catch (error) {
           monitoringSqlError(error)
@@ -442,8 +433,12 @@ export class IndicatorsService {
             throw new ConflictException(
               'Indicator changed or is unavailable. Reload before archiving.',
             )
-          await this.audit(tx, actor, id, 'PROJECT_INDICATOR_ARCHIVED', selected, {
-            revision: input.expectedRevision + 1,
+          await writeAuditLog(tx, actor, {
+            projectId: id,
+            action: 'PROJECT_INDICATOR_ARCHIVED',
+            entityType: 'ProjectIndicator',
+            entityId: selected,
+            changes: { revision: input.expectedRevision + 1 },
           })
         } catch (error) {
           monitoringSqlError(error)
@@ -555,16 +550,15 @@ export class IndicatorsService {
           INSERT INTO pathways.project_indicator_measurements(id,organization_id,project_id,indicator_id,period_start,period_end,value,source,note,client_measurement_id,request_hash,corrects_measurement_id,correction_reason,recorded_by_id)
           VALUES (${measurementId}::uuid,${actor.organizationId}::uuid,${id}::uuid,${selected}::uuid,${input.periodStart}::date,${input.periodEnd}::date,${exact}::numeric,${input.source},${input.note ?? null},${input.clientMeasurementId}::uuid,${source.generatedValues.requestHash},${input.correctsMeasurementId?.toLowerCase() ?? null}::uuid,${input.correctionReason ?? null},${actor.userId}::uuid)
         `
-          await this.audit(
-            tx,
-            actor,
-            id,
-            input.correctsMeasurementId
+          await writeAuditLog(tx, actor, {
+            projectId: id,
+            action: input.correctsMeasurementId
               ? 'INDICATOR_MEASUREMENT_CORRECTED'
               : 'INDICATOR_MEASUREMENT_RECORDED',
-            selected,
-            { measurementId, correctsMeasurementId: input.correctsMeasurementId ?? null },
-          )
+            entityType: 'ProjectIndicator',
+            entityId: selected,
+            changes: { measurementId, correctsMeasurementId: input.correctsMeasurementId ?? null },
+          })
         } catch (error) {
           monitoringSqlError(error)
         }

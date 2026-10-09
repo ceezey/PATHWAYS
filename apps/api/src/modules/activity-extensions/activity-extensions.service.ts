@@ -9,6 +9,7 @@ import {
 import { type ActivityExtension, hasAtomicPermission } from '@pathways/shared'
 import type { Prisma } from '@prisma/client'
 
+import { writeAuditLog } from '../../common/audit/write-audit-log'
 import { type ApplicationIdentity, UUID_PATTERN } from '../../common/authz/application-identity'
 import { projectScope } from '../../common/authz/project-scope'
 import type { Tx } from '../../common/prisma/transaction'
@@ -173,27 +174,6 @@ export class ActivityExtensionsService {
       .then(mapExtension)
   }
 
-  private audit(
-    tx: Tx,
-    actor: ApplicationIdentity,
-    projectId: string,
-    action: string,
-    entityId: string,
-    changes: Prisma.InputJsonObject,
-  ) {
-    return tx.auditLog.create({
-      data: {
-        organizationId: actor.organizationId,
-        actorUserId: actor.userId,
-        projectId,
-        action,
-        entityType: 'ActivityExtensionRequest',
-        entityId,
-        changes,
-      },
-    })
-  }
-
   list(identity: ApplicationIdentity, projectId: string, activityId: string) {
     return withAuthorizedOperation(this.prisma, identity, 'activities.read', async (tx, actor) => {
       const activity = await this.requireActivity(tx, actor, projectId, activityId)
@@ -284,18 +264,13 @@ export class ActivityExtensionsService {
             select: { id: true },
           })
           .catch(writeError)
-        await this.audit(
-          tx,
-          actor,
-          activity.projectId,
-          'ACTIVITY_EXTENSION_REQUESTED',
-          created.id,
-          {
-            activityId: activity.id,
-            from: currentEnd,
-            to: input.requestedEndDate,
-          },
-        )
+        await writeAuditLog(tx, actor, {
+          projectId: activity.projectId,
+          action: 'ACTIVITY_EXTENSION_REQUESTED',
+          entityType: 'ActivityExtensionRequest',
+          entityId: created.id,
+          changes: { activityId: activity.id, from: currentEnd, to: input.requestedEndDate },
+        })
         return this.readBack(tx, actor, created.id)
       },
     )
@@ -338,8 +313,12 @@ export class ActivityExtensionsService {
         .catch(writeError)
       if (changed.count !== 1)
         throw new ConflictException('This request changed; reload before deciding.')
-      await this.audit(tx, actor, activity.projectId, `ACTIVITY_EXTENSION_${status}`, row.id, {
-        activityId: activity.id,
+      await writeAuditLog(tx, actor, {
+        projectId: activity.projectId,
+        action: `ACTIVITY_EXTENSION_${status}`,
+        entityType: 'ActivityExtensionRequest',
+        entityId: row.id,
+        changes: { activityId: activity.id },
       })
       return this.readBack(tx, actor, row.id)
     })
@@ -390,16 +369,20 @@ export class ActivityExtensionsService {
           .catch(writeError)
         if (changed.count !== 1)
           throw new ConflictException('This request changed; reload before deciding.')
-        await this.audit(
-          tx,
-          actor,
-          activity.projectId,
-          input.decision === 'APPROVE'
-            ? 'ACTIVITY_EXTENSION_APPROVED'
-            : 'ACTIVITY_EXTENSION_DECLINED',
-          row.id,
-          { activityId: activity.id, from: day(activity.plannedEndDate), to: requestedEnd },
-        )
+        await writeAuditLog(tx, actor, {
+          projectId: activity.projectId,
+          action:
+            input.decision === 'APPROVE'
+              ? 'ACTIVITY_EXTENSION_APPROVED'
+              : 'ACTIVITY_EXTENSION_DECLINED',
+          entityType: 'ActivityExtensionRequest',
+          entityId: row.id,
+          changes: {
+            activityId: activity.id,
+            from: day(activity.plannedEndDate),
+            to: requestedEnd,
+          },
+        })
         return this.readBack(tx, actor, row.id)
       },
       { transactionTimeoutMs: 20_000 },

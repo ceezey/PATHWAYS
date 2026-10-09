@@ -14,6 +14,7 @@ import { readApiEnv } from '@pathways/config'
 import { hasAtomicPermission } from '@pathways/shared'
 import { Prisma } from '@prisma/client'
 import { z } from 'zod'
+import { writeAuditLog } from '../../common/audit/write-audit-log'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import { requireScopedProject } from '../../common/authz/scoped-project'
 import { PrismaService } from '../../prisma/prisma.service'
@@ -113,15 +114,11 @@ export class FinanceService {
         },
         select: { id: true, updatedAt: true },
       })
-      await tx.auditLog.create({
-        data: {
-          organizationId: actor.organizationId,
-          projectId,
-          actorUserId: actor.userId,
-          action: 'BUDGET_CREATED',
-          entityType: 'ProjectBudgetRecord',
-          entityId: row.id,
-        },
+      await writeAuditLog(tx, actor, {
+        projectId,
+        action: 'BUDGET_CREATED',
+        entityType: 'ProjectBudgetRecord',
+        entityId: row.id,
       })
       return { id: row.id, updatedAt: row.updatedAt.toISOString() }
     })
@@ -165,16 +162,12 @@ export class FinanceService {
         },
         select: { id: true, updatedAt: true },
       })
-      await tx.auditLog.create({
-        data: {
-          organizationId: actor.organizationId,
-          projectId,
-          actorUserId: actor.userId,
-          action: 'BUDGET_REPLACED',
-          entityType: 'ProjectBudgetRecord',
-          entityId: row.id,
-          changes: { previousId: id },
-        },
+      await writeAuditLog(tx, actor, {
+        projectId,
+        action: 'BUDGET_REPLACED',
+        entityType: 'ProjectBudgetRecord',
+        entityId: row.id,
+        changes: { previousId: id },
       })
       return { id: row.id, updatedAt: row.updatedAt.toISOString() }
     })
@@ -449,15 +442,11 @@ export class FinanceService {
         const [signoff] = await tx.$queryRaw<
           Array<{ signedOffAt: Date; fullName: string }>
         >`SELECT s.signed_off_at AS "signedOffAt",u.full_name AS "fullName" FROM pathways.expense_signoffs s JOIN pathways.system_users u ON u.organization_id=s.organization_id AND u.id=s.signed_off_by_id WHERE s.organization_id=${actor.organizationId}::uuid AND s.project_id=${canonicalProjectId}::uuid AND s.expense_id=${canonicalId}::uuid`
-        await tx.auditLog.create({
-          data: {
-            organizationId: actor.organizationId,
-            projectId: canonicalProjectId,
-            actorUserId: actor.userId,
-            action: 'EXPENSE_RECEIPT_GENERATED',
-            entityType: 'BudgetExpenseEntry',
-            entityId: canonicalId,
-          },
+        await writeAuditLog(tx, actor, {
+          projectId: canonicalProjectId,
+          action: 'EXPENSE_RECEIPT_GENERATED',
+          entityType: 'BudgetExpenseEntry',
+          entityId: canonicalId,
         })
         const activity = expense.budgetRecord.activity
         return {
@@ -605,15 +594,11 @@ export class FinanceService {
         Array<{ id: string }>
       >`SELECT e.id::text FROM pathways.budget_expense_entries e JOIN pathways.evidence_media p ON p.organization_id=e.organization_id AND p.project_id=e.project_id AND p.id=e.receipt_evidence_id WHERE e.organization_id=${actor.organizationId}::uuid AND e.project_id=${canonicalProjectId}::uuid AND e.id=${canonicalId}::uuid AND e.updated_at=${initial.expense.updatedAt} AND p.id=${proof.id}::uuid AND p.updated_at=${proof.updatedAt} AND p.expense_id=e.id AND p.activity_update_id IS NULL AND p.enrollment_id IS NULL AND p.source_submission_id IS NULL AND p.public_visibility_status='PRIVATE' AND p.storage_ready AND p.object_key=${proof.objectKey} AND p.sha256=${proof.sha256} AND p.byte_size=${proof.byteSize}`
       if (!row) throw new NotFoundException('Receipt changed or access unavailable.')
-      await tx.auditLog.create({
-        data: {
-          organizationId: actor.organizationId,
-          projectId: canonicalProjectId,
-          actorUserId: actor.userId,
-          action: 'EXPENSE_RECEIPT_READ',
-          entityType: 'BudgetExpenseEntry',
-          entityId: canonicalId,
-        },
+      await writeAuditLog(tx, actor, {
+        projectId: canonicalProjectId,
+        action: 'EXPENSE_RECEIPT_READ',
+        entityType: 'BudgetExpenseEntry',
+        entityId: canonicalId,
       })
     })
     return {
@@ -630,15 +615,11 @@ export class FinanceService {
         Array<{ expenseId: string; signedOffById: string; signedOffAt: Date }>
       >`INSERT INTO pathways.expense_signoffs(organization_id,project_id,expense_id,signed_off_by_id) VALUES(${actor.organizationId}::uuid,${projectId}::uuid,${id}::uuid,${actor.userId}::uuid) RETURNING expense_id::text AS "expenseId",signed_off_by_id::text AS "signedOffById",signed_off_at AS "signedOffAt"`
       if (!row) throw new ConflictException('Expense signoff unavailable.')
-      await tx.auditLog.create({
-        data: {
-          organizationId: actor.organizationId,
-          projectId,
-          actorUserId: actor.userId,
-          action: 'EXPENSE_SIGNED_OFF',
-          entityType: 'BudgetExpenseEntry',
-          entityId: id,
-        },
+      await writeAuditLog(tx, actor, {
+        projectId,
+        action: 'EXPENSE_SIGNED_OFF',
+        entityType: 'BudgetExpenseEntry',
+        entityId: id,
       })
       return { ...row, signedOffAt: row.signedOffAt.toISOString() }
     })
