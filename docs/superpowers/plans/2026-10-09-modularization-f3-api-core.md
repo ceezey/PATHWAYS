@@ -25,7 +25,7 @@ Controller rulings for F3 (2026-10-09). Each was checked against the code at `re
    The other inline scope lookups (reports six, activities four, projects two, project-overview-metrics, beneficiary-media, form-definition-export, analytics export source, analytics-insights, private-proof-inspection, beneficiary-step-up, route-access) select other fields, use other messages or read several ids; they stay for their slices.
 5. **`writeAuditLog` replaces 66 writes: 63 inline plus the 3 private `audit()` helpers.** The audit counted "66 inline plus three helpers"; the 66 already include the three helper bodies. The helper takes the caller's `tx`, spreads only the given columns (an omitted `changes` or `projectId` stays NULL, `changes: {}` stays `{}`), and returns the same `create` promise. The seed file `apps/api/prisma/local-demo-stage-evidence.ts` keeps its direct write (W1).
 6. **The business date helper is `currentBusinessDate()`, not `businessDate()`.** `businessDate` is a local variable in six api files and would shadow an imported function. It replaces the four copies that map an invalid zone to 503 (`action-counts`, `role-overview`, dashboards `period`, `project-overview-metrics`). The hand-rolled `Intl` copy in `activities.service.ts` has no 503 mapping, so it becomes shared `businessCalendarDate(new Date(), this.env.BUSINESS_TIME_ZONE)` (same output, same error path). Direct `businessCalendarDate` calls without a 503 mapping (beneficiaries, analytics, rules) stay.
-7. **`Tx` lives in `common/prisma/transaction.ts`** and replaces the 15 local `type Tx = Prisma.TransactionClient` aliases. The roughly 133 remaining direct `Prisma.TransactionClient` annotations are left for the slices. `apps/api/src/prisma` (PrismaService) stays where it is (audit non-finding).
+7. **`Tx` lives in `common/prisma/transaction.ts`** and replaces the 15 local `type Tx = Prisma.TransactionClient` aliases. The 47 direct `Prisma.TransactionClient` annotations in api production code (128 across apps/api including tests) are left for the slices. `apps/api/src/prisma` (PrismaService) stays where it is (audit non-finding).
 8. **SAD routing:** `apps/api/src/common/authz/**/*.ts`, `apps/api/src/common/audit/**/*.ts` and `apps/api/src/modules/auth/guards/**/*.ts` route to organization-isolation-checker, because scope and audit code leaves `*.service.ts` files.
 
 ## Global Constraints
@@ -55,7 +55,7 @@ Controller rulings for F3 (2026-10-09). Each was checked against the code at `re
 
 - F3b (outline at the end): `ZodPipe` and the first contract with its parity test (F2 ruling 2), contract naming convention for generic barrel names (F2 final review), `"sideEffects": false` in `packages/shared/package.json` (F2 final review), `withAuthorizedOperation`, its timing module and `readApplicationProfile` into `common/authz`, storage factory injection in activities, beneficiary-media, finance and reports, and the app-module-wiring test for `{ provide, useFactory }` providers (F1 deferral).
 - Inline project-scope lookups listed in ruling 4: their slices (S1 to S7).
-- The roughly 133 remaining direct `Prisma.TransactionClient` annotations: their slices.
+- The 47 direct `Prisma.TransactionClient` annotations in api production code (128 across apps/api including tests): their slices.
 - `apps/api/prisma/local-demo-stage-evidence.ts` direct audit write: W1.
 
 ---

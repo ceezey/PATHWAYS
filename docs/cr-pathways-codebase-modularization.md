@@ -17,7 +17,7 @@ Developer request to modularize the whole repository for readability, after the 
 
 ## 3. Proposed Change
 
-Behavior-preserving restructure in 13 sub-projects. Scope: split large files, remove duplication, delete dead code, unify naming and patterns. Renamed files and folders are named for the purpose of their code.
+Behavior-preserving restructure in 14 sub-projects. Scope: split large files, remove duplication, delete dead code, unify naming and patterns. Renamed files and folders are named for the purpose of their code.
 
 ### 3.1 Dependency direction
 
@@ -27,7 +27,7 @@ api:  modules/ -> common/ -> @pathways/shared        (common never imports modul
 shared, imports, config: never import apps
 ```
 
-Enforced for the API by `apps/api/src/common/import-boundary.test.ts`, because Biome 1.9 `noRestrictedImports` matches exact specifiers only and cannot express a folder rule (amended 2026-10-09 for F3a). The API `supabase-auth.guard` lives in `modules/auth/guards/`.
+Enforced for the API by `apps/api/src/common/import-boundary.test.ts`, because Biome 1.9 `noRestrictedImports` matches exact specifiers only and cannot express a folder rule (amended 2026-10-09 for F3a). Web and package import direction is enforced in F4, with the tool chosen there (Biome 1.9.4 cannot express path globs). The API `supabase-auth.guard` lives in `modules/auth/guards/`.
 
 ### 3.2 API module layout (`apps/api/src/modules/<domain>/`)
 
@@ -228,4 +228,4 @@ F3a applied 2026-10-09 on refactor/f3a-api-core:
 - Boundary: `SupabaseAuthGuard` and its tests moved to `modules/auth/guards`; `common/import-boundary.test.ts` fails when a non-test file under `common` imports `modules`; SAD organization isolation routing covers `common/authz`, `common/audit` and `modules/auth/guards`.
 - Decisions: the boundary is a Vitest test because Biome 1.9.4 cannot express folder globs (ruling 2); twelve copies, not eleven, were replaced, with four behavior-neutral differences: analytics skips the UUID check its zod query already enforces, evaluations, public and finance use zod `.uuid()` with the same acceptance, metadata returned the lowercased input equal to the stored id, and three services return a row instead of the id (ruling 4); the 66 audit writes are 63 inline plus the 3 helper bodies, not 66 plus three (ruling 5); the helper is `currentBusinessDate`, not `businessDate`, which is a local variable in six files, and the activities `Intl` copy became shared `businessCalendarDate` with the same output and error path (ruling 6).
 
-Deferred to F3b: zod pipe and the first contract, contract naming convention, `"sideEffects": false` for `packages/shared`, `withAuthorizedOperation` in `common/authz`, storage factory injection, wiring test for object providers. Left for the slices: the inline project-scope lookups (reports, activities, projects, project overview, beneficiary media, form export, analytics export, analytics insights, private proof inspection, step-up, route access) and the roughly 133 remaining direct `Prisma.TransactionClient` annotations; the seed audit write in `apps/api/prisma/local-demo-stage-evidence.ts` to W1. The boundary scanner does not cover `require()` or `vi.mock` forms; none is used under `common`.
+Deferred to F3b: zod pipe and the first contract, contract naming convention, `"sideEffects": false` for `packages/shared`, `withAuthorizedOperation` in `common/authz`, storage factory injection, wiring test for object providers. Left for the slices: the inline project-scope lookups (reports, activities, projects, project overview, beneficiary media, form export, analytics export, analytics insights, private proof inspection, step-up, route access) and the 47 direct `Prisma.TransactionClient` annotations in api production code (128 across apps/api including tests); the seed audit write in `apps/api/prisma/local-demo-stage-evidence.ts` to W1. The boundary scanner does not cover `require()` or `vi.mock` forms; none is used under `common`.
