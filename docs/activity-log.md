@@ -601,3 +601,13 @@
 - Deferred: the api to web `route-access` import (`route-access.service.ts`, `dashboard-home-authorization-parity.test.ts`) to F4; the literal NUL key separator in `rule-output-fields.tsx` to S7; remaining near-duplicate code lists (seed literal unions in `local-demo-data.ts` and `local-demo-stage-reports.ts` to W1; api `descriptive-analytics.ts`, `form-templates.ts`, `metadata.dto.ts`; web `human-review-workspace` `SEVERITY_RANK`, `form-builder-session-draft.ts`) to their slices.
 - F2 decisions are recorded in the change record section 9.
 - Gates: lint, typecheck and builds pass; tests config 19, shared 170, imports 91, api 2307 (21 skipped), web 1895, the Task 0 baseline plus 7 intended tests; `Replay-Local.ps1 -MigrationBaseline` 0 FAIL; demo seed (second run; the first hit post-replay timeouts) and compiled API boot clean; e2e auth-navigation 27/27; e2e main 39 pass with the same 9 failures as dev; web middleware 112 kB (was 102 kB); SAD sign-off 223/223 PASS at `607ececa`. Merged to local dev as `b6945ad1`; plan removed.
+
+## 2026-10-09 Modularization F3a api kernel (refactor/f3a-api-core)
+- Task 1 (888b88c3): `Tx` in `common/prisma/transaction.ts` replaced 15 local aliases; `currentBusinessDate` in `common/time` replaced four 503 copies, with a characterization test for the 503; api 2310.
+- Task 2 (9c4217fe, 87885f41): identity types moved to `common/authz/application-identity.ts`, `projectScope` to `common/authz/project-scope.ts`, bootstrap constants to `modules/auth/developer-bootstrap-identity.ts`; api 2310.
+- Task 3 (25b36939): `requireScopedProject` and `requireScopedProjectRow` replaced 12 copies, `projectDateFields` in `scoped-project.ts`; api 2319.
+- Task 4 (cf71f46f): `writeAuditLog` replaced 66 writes in 22 files, 3 private `audit()` helpers removed, 9 call sites inlined; api 2322.
+- Task 5 (637b5193, 87fb4a7e): `SupabaseAuthGuard` moved to `modules/auth/guards`, `common/import-boundary.test.ts` added; api 2324.
+- Other packages unchanged: config 19, shared 170, imports 91, web 1895.
+- F3a decisions (rulings 2, 4, 5 and 6) are recorded in the change record section 9, because the plan file is removed after merge.
+- Deferred to F3b: zod pipe and first contract, contract naming convention, `"sideEffects": false` for `packages/shared`, `withAuthorizedOperation` in `common/authz`, storage factory injection, wiring test for object providers.

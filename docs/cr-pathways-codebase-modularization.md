@@ -27,7 +27,7 @@ api:  modules/ -> common/ -> @pathways/shared        (common never imports modul
 shared, imports, config: never import apps
 ```
 
-Enforced by Biome import restrictions. The API `supabase-auth.guard` moves to `modules/auth/guards/`.
+Enforced for the API by `apps/api/src/common/import-boundary.test.ts`, because Biome 1.9 `noRestrictedImports` matches exact specifiers only and cannot express a folder rule (amended 2026-10-09 for F3a). The API `supabase-auth.guard` lives in `modules/auth/guards/`.
 
 ### 3.2 API module layout (`apps/api/src/modules/<domain>/`)
 
@@ -39,7 +39,7 @@ Enforced by Biome import restrictions. The API `supabase-auth.guard` moves to `m
 | `<domain>.mapper.ts` | Database row to contract mapping, pure |
 | `<domain>.helpers.ts` | Pure domain logic, no DI, no Prisma |
 
-No `*.dto.ts`; inputs come from the contracts in `packages/shared/src/contracts/<domain>`, imported through `@pathways/shared`. `common/` holds `authz/` (identity, project scope, `withAuthorizedOperation`, `requireScopedProject`), `audit/` (`writeAuditLog`), `validation/` (zod pipe), `time/` (`businessDate`) and `prisma/` (`Tx`).
+No `*.dto.ts`; inputs come from the contracts in `packages/shared/src/contracts/<domain>`, imported through `@pathways/shared`. `common/` holds `authz/` (application identity, project scope, `requireScopedProject`, and from F3b `withAuthorizedOperation`), `audit/` (`writeAuditLog`), `validation/` (zod pipe, F3b), `time/` (`currentBusinessDate`) and `prisma/` (`Tx`).
 
 ### 3.3 Web layout
 
@@ -91,7 +91,8 @@ Foundations:
 |---|---|---|---|
 | F1 | Dead code and hygiene | Delete `packages/ui` and its wiring, root `Dockerfile`, root `tsconfig.json`, `live-finance-workspace`, the 14 stub client methods and uncalled ones, `RolesGuard`, `@Roles`, `ROLES_KEY`, `AppRole`, duplicate Nest providers, dead shared types, and the historical infra folders; move test-only `demo-state` and `mocks` into `test/fixtures`; ignore `.worktrees` and `.superpowers` in `.gitignore` and Biome | MOD-12, 13, 14, 18, 19 |
 | F2 | Shared core | `rbac/` (one role catalog, policy), `rules/` (contract, metrics), shared enums and constants, barrel exports verified by production build | MOD-01, 02, 03 |
-| F3 | API core | contract pattern with one example (moved from F2), `common/{authz,audit,validation,time,prisma}`, zod pipe, guard moved to `auth/guards`, shared `requireScopedProject`, `writeAuditLog`, `businessDate`, `Tx`, lint rule for `common` | MOD-08, 09, 10, 11 |
+| F3a | API kernel | `common/{prisma,time,authz,audit}`, `Tx`, `currentBusinessDate`, application identity and project scope in `common/authz`, shared `requireScopedProject`, `writeAuditLog`, guard moved to `auth/guards`, import boundary test for `common` | MOD-08, 09, 10 |
+| F3b | API validation and wiring | contract pattern with one example (moved from F2), zod pipe, contract naming convention, `withAuthorizedOperation` in `common/authz`, storage factory injection, wiring test for object providers | MOD-11, 13 |
 | F4 | Web platform | `lib/api/core` with one owned-read helper, `lib/auth` absorbing `features/auth/workspace-access`, `lib/rbac` split, `lib/format`, `usePermission`, shared table head and dialog, thinner providers, lint rule for import direction | MOD-05, 10, 16 |
 
 Domain slices, each covering contracts, API split, web client and feature components:
@@ -218,3 +219,13 @@ F2 applied 2026-10-09 on refactor/f2-shared-core:
 
 - Decisions: the browser rule tester's timeline input no longer defaults `projectStatus` and `projectArchived` (its only caller passes both, pinned by a shared test); `parseAutomaticMappingReceipt`, `proofExtensions`, `exportFormats` order, UI `projectStatuses` and the reverse-order severity enums stay per app because the copies differ.
 Deferred: contract pattern and example (F3), calendar-date regex unification (slices), `descriptive-analytics` split (S7), avatar-stack "And" label (S8). Left open: `apps/api/src/modules/auth/route-access.service.ts` and `dashboard-home-authorization-parity.test.ts` import `apps/web/src/lib/rbac/route-access.ts` (api to web), proposed for F4; a literal NUL key separator in `apps/web/src/features/rules-board/rule-output-fields.tsx` (S7); remaining near-duplicate code lists in api `descriptive-analytics.ts`, `form-templates.ts` and `metadata.dto.ts`, the seed literal unions `apps/api/prisma/local-demo-data.ts:219` (overdue categories) and `apps/api/prisma/local-demo-stage-reports.ts:8` (report kinds) deferred to W1, and in web `human-review-workspace` (`SEVERITY_RANK`) and `form-builder-session-draft.ts`, each left to its slice.
+
+F3a applied 2026-10-09 on refactor/f3a-api-core:
+- Kernel: `common/prisma/transaction.ts` (`Tx`, replacing 15 local aliases) and `common/time/business-date.ts` (`currentBusinessDate`, replacing the four copies that answer 503; activities uses the shared calendar date).
+- Authz: `developer-access.ts` became `common/authz/application-identity.ts` (159 importers repointed); the developer bootstrap constants moved to `modules/auth/developer-bootstrap-identity.ts`; `projectScope` moved to `common/authz/project-scope.ts`.
+- Scope: `requireScopedProject` and `requireScopedProjectRow` in `common/authz/scoped-project.ts` replace eleven private `requireProject` methods and the finance project check; every copy kept its select and its 404.
+- Audit: `writeAuditLog` in `common/audit/write-audit-log.ts` replaces 63 inline `auditLog.create` calls and three private `audit()` helpers, with the caller's transaction and the same columns.
+- Boundary: `SupabaseAuthGuard` and its tests moved to `modules/auth/guards`; `common/import-boundary.test.ts` fails when a non-test file under `common` imports `modules`; SAD organization isolation routing covers `common/authz`, `common/audit` and `modules/auth/guards`.
+- Decisions: the boundary is a Vitest test because Biome 1.9.4 cannot express folder globs (ruling 2); twelve copies, not eleven, were replaced, with four behavior-neutral differences: analytics skips the UUID check its zod query already enforces, evaluations, public and finance use zod `.uuid()` with the same acceptance, metadata returned the lowercased input equal to the stored id, and three services return a row instead of the id (ruling 4); the 66 audit writes are 63 inline plus the 3 helper bodies, not 66 plus three (ruling 5); the helper is `currentBusinessDate`, not `businessDate`, which is a local variable in six files, and the activities `Intl` copy became shared `businessCalendarDate` with the same output and error path (ruling 6).
+
+Deferred to F3b: zod pipe and the first contract, contract naming convention, `"sideEffects": false` for `packages/shared`, `withAuthorizedOperation` in `common/authz`, storage factory injection, wiring test for object providers. Left for the slices: the inline project-scope lookups (reports, activities, projects, project overview, beneficiary media, form export, analytics export, analytics insights, private proof inspection, step-up, route access) and the roughly 133 remaining direct `Prisma.TransactionClient` annotations; the seed audit write in `apps/api/prisma/local-demo-stage-evidence.ts` to W1. The boundary scanner does not cover `require()` or `vi.mock` forms; none is used under `common`.

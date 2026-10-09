@@ -21,6 +21,9 @@ export const roles = {
     globs: [
       'apps/api/src/**/*.service.ts',
       'packages/shared/src/rbac/**/*.ts',
+      'apps/api/src/common/authz/**/*.ts',
+      'apps/api/src/common/audit/**/*.ts',
+      'apps/api/src/modules/auth/guards/**/*.ts',
       'apps/api/prisma/schema.prisma',
       'infra/supabase/**/*.sql',
       'apps/api/prisma/migrations/**/*.sql',

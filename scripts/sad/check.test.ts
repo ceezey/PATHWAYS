@@ -81,6 +81,15 @@ describe('routing and digest', () => {
     const file = 'packages/shared/src/rbac/authorization-policy.ts'
     expect(routing([change(file, 'new', 'old')])['organization-isolation-checker']).toEqual([file])
   })
+  it('routes api authz, audit and guard changes to the organization isolation checker', () => {
+    const files = [
+      'apps/api/src/common/audit/write-audit-log.ts',
+      'apps/api/src/common/authz/scoped-project.ts',
+      'apps/api/src/modules/auth/guards/supabase-auth.guard.ts',
+    ]
+    const routed = routing(files.map((file) => change(file, 'new', 'old')))
+    expect(routed['organization-isolation-checker']).toEqual(files)
+  })
   it('routes the rules dispatch workflow to design-qa-agent', () => {
     const file = '.github/workflows/rules-dispatch.yml'
     expect(routing([change(file, 'new', 'old')])['design-qa-agent']).toContain(file)
