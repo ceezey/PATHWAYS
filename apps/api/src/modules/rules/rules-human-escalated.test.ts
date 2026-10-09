@@ -1,8 +1,8 @@
 import 'reflect-metadata'
 
+import type { ApplicationIdentity } from '@app/common/authz/application-identity'
 import { PERMISSION_KEY } from '@app/common/decorators/permission.decorator'
 import { withAuthorizedOperation } from '@app/modules/auth/authorized-operation'
-import type { ApplicationIdentity } from '@app/modules/auth/developer-access'
 import type { PrismaService } from '@app/prisma/prisma.service'
 import { escalatedAlertOutputSchema, rolePermissions } from '@pathways/shared'
 import type { Prisma } from '@prisma/client'

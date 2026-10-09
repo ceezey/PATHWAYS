@@ -8,8 +8,8 @@ import {
 import { createClient } from '@supabase/supabase-js'
 
 import { isApprovedServiceProtocol } from '@pathways/config'
+import { UUID_PATTERN, type VerifiedAuthIdentity } from '../../common/authz/application-identity'
 import type { InspectionRequestBudget } from '../../common/network/inspection-request-budget'
-import { UUID_PATTERN, type VerifiedAuthIdentity } from './developer-access'
 import { SessionLivenessService } from './session-liveness.service'
 
 const MAX_REPORTED_AUTH_STAGE_MS = 30_000

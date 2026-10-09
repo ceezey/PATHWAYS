@@ -2,7 +2,7 @@ import { BadRequestException } from '@nestjs/common'
 import { type MonitoringDashboard, metricCellSchema } from '@pathways/shared'
 import type { Prisma } from '@prisma/client'
 import { z } from 'zod'
-import type { ApplicationIdentity } from '../auth/developer-access'
+import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import { classifyScoreCommentary } from '../evaluations/evaluation-metrics'
 
 type ExtraReportKind = 'MONITORING_REPORT' | 'EVALUATION_REPORT'

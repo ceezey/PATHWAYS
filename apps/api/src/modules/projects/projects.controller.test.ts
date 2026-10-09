@@ -4,8 +4,11 @@ import { validate } from 'class-validator'
 import { describe, expect, it, vi } from 'vitest'
 
 import { hasAtomicPermission } from '@pathways/shared'
+import type {
+  ApplicationIdentity,
+  AuthenticatedRequest,
+} from '../../common/authz/application-identity'
 import { PERMISSION_KEY } from '../../common/decorators/permission.decorator'
-import type { ApplicationIdentity, AuthenticatedRequest } from '../auth/developer-access'
 import { ProjectsController } from './projects.controller'
 import { CreateProjectDto, UpdateProjectDto } from './projects.dto'
 import type { ProjectsService } from './projects.service'

@@ -1,8 +1,8 @@
 import { BadRequestException, ForbiddenException, Inject, Injectable } from '@nestjs/common'
 
+import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import { PrismaService } from '../../prisma/prisma.service'
 import { withAuthorizedOperation } from '../auth/authorized-operation'
-import type { ApplicationIdentity } from '../auth/developer-access'
 import type { CreateProgramDto } from './programs.dto'
 
 @Injectable()

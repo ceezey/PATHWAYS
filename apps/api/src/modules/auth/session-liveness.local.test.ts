@@ -8,11 +8,14 @@ import { Test } from '@nestjs/testing'
 import { PrismaClient } from '@prisma/client'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import {
+  DEVELOPER_AUTH_UUID,
+  DEVELOPER_SUPABASE_URL,
+} from '../../common/authz/application-identity'
 import { RequirePermission } from '../../common/decorators/permission.decorator'
 import { Public } from '../../common/decorators/public.decorator'
 import { SupabaseAuthGuard } from '../../common/guards/supabase-auth.guard'
 import { PrismaService } from '../../prisma/prisma.service'
-import { DEVELOPER_AUTH_UUID, DEVELOPER_SUPABASE_URL } from './developer-access'
 import { SessionLivenessService } from './session-liveness.service'
 import { TokenAuthService } from './token-auth.service'
 import { WorkspaceResolutionService } from './workspace-resolution.service'

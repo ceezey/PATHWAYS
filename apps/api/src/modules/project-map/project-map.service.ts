@@ -1,10 +1,10 @@
 import { Inject, Injectable, Logger } from '@nestjs/common'
 import { PROJECT_MAP_CONTRACT_VERSION, type ProjectMap, projectMapSchema } from '@pathways/shared'
 
+import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import { PrismaService } from '../../prisma/prisma.service'
 import { projectScope } from '../auth/authorized-data.service'
 import { withAuthorizedOperation } from '../auth/authorized-operation'
-import type { ApplicationIdentity } from '../auth/developer-access'
 import { DashboardsService } from '../dashboards/dashboards.service'
 import { ProjectOverviewMetricsService } from '../projects/project-overview-metrics.service'
 import { resolvePlaces } from './ph-places'

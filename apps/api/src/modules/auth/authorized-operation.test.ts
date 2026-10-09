@@ -8,9 +8,9 @@ import type { Prisma } from '@prisma/client'
 import { describe, expect, it, vi } from 'vitest'
 
 import type { PrismaService } from '@app/prisma/prisma.service'
+import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import { withAuthorizedOperation } from './authorized-operation'
 import { registerAuthorizedOperationTiming } from './authorized-operation-timing'
-import type { ApplicationIdentity } from './developer-access'
 
 vi.mock('./application-profile.service', () => ({
   readApplicationProfile: vi.fn(async () => identity),

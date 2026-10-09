@@ -12,12 +12,12 @@ import {
   timelineProgress,
 } from '@pathways/shared'
 
+import { type ApplicationIdentity, UUID_PATTERN } from '../../common/authz/application-identity'
 import type { Tx } from '../../common/prisma/transaction'
 import { currentBusinessDate } from '../../common/time/business-date'
 import { PrismaService } from '../../prisma/prisma.service'
 import { projectScope } from '../auth/authorized-data.service'
 import { withAuthorizedOperation } from '../auth/authorized-operation'
-import { type ApplicationIdentity, UUID_PATTERN } from '../auth/developer-access'
 import { DashboardsService } from '../dashboards/dashboards.service'
 import { suppressSmallCount } from '../dashboards/descriptive-analytics'
 import { IndicatorsService } from '../indicators/indicators.service'

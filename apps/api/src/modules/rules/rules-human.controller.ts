@@ -10,8 +10,8 @@ import {
   Query,
   Req,
 } from '@nestjs/common'
+import type { AuthenticatedRequest } from '../../common/authz/application-identity'
 import { RequirePermission } from '../../common/decorators/permission.decorator'
-import type { AuthenticatedRequest } from '../auth/developer-access'
 import { RulesHumanService } from './rules-human.service'
 function actor(request: AuthenticatedRequest) {
   if (!request.user) throw new ForbiddenException('Application profile is required.')

@@ -15,8 +15,8 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express'
 
 import { IMPORT_ENGINEERING_LIMITS } from '@pathways/imports'
+import type { AuthenticatedRequest } from '../../common/authz/application-identity'
 import { RequirePermission } from '../../common/decorators/permission.decorator'
-import type { AuthenticatedRequest } from '../auth/developer-access'
 // biome-ignore lint/style/useImportType: Nest validation needs the DTO constructors at runtime.
 import {
   AutomaticImportMappingDto,

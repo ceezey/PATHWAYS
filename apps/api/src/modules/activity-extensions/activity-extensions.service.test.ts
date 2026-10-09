@@ -1,7 +1,7 @@
 import 'reflect-metadata'
 
+import type { ApplicationIdentity } from '@app/common/authz/application-identity'
 import { withAuthorizedOperation } from '@app/modules/auth/authorized-operation'
-import type { ApplicationIdentity } from '@app/modules/auth/developer-access'
 import {
   beginRuleSourceOperation,
   finishRuleSourceOperation,

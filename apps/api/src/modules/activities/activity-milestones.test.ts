@@ -3,8 +3,8 @@ import 'reflect-metadata'
 import { BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { ApplicationIdentity } from '@app/common/authz/application-identity'
 import { PERMISSION_KEY } from '@app/common/decorators/permission.decorator'
-import type { ApplicationIdentity } from '@app/modules/auth/developer-access'
 import type { StorageService } from '@app/modules/storage/storage.service'
 import type { PrismaService } from '@app/prisma/prisma.service'
 

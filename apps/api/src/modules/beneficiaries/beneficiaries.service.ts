@@ -20,11 +20,11 @@ import {
   minimumBeneficiaryAge,
   validateAndNormalizeFormData,
 } from '@pathways/shared'
+import { type ApplicationIdentity, UUID_PATTERN } from '../../common/authz/application-identity'
 import type { Tx } from '../../common/prisma/transaction'
 import { PrismaService } from '../../prisma/prisma.service'
 import { projectScope } from '../auth/authorized-data.service'
 import { withAuthorizedOperation } from '../auth/authorized-operation'
-import { type ApplicationIdentity, UUID_PATTERN } from '../auth/developer-access'
 import {
   type ArchiveBeneficiaryDto,
   type BeneficiaryListQueryDto,

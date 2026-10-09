@@ -8,7 +8,7 @@ import {
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { PrismaService } from '@app/prisma/prisma.service'
-import type { ApplicationIdentity } from '../auth/developer-access'
+import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import type { BeneficiariesService } from '../beneficiaries/beneficiaries.service'
 import type { StorageService } from '../storage/storage.service'
 import { ImportsService, type UploadedImportFile } from './imports.service'

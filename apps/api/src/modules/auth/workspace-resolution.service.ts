@@ -7,13 +7,13 @@ import {
 } from '@nestjs/common'
 
 import { hasAtomicPermission } from '@pathways/shared'
-import { PrismaService, type VerifiedTransactionTiming } from '../../prisma/prisma.service'
-import { ApplicationProfileService } from './application-profile.service'
 import {
   type ApplicationIdentity,
   UUID_PATTERN,
   type VerifiedAuthIdentity,
-} from './developer-access'
+} from '../../common/authz/application-identity'
+import { PrismaService, type VerifiedTransactionTiming } from '../../prisma/prisma.service'
+import { ApplicationProfileService } from './application-profile.service'
 
 import type { InspectionRequestBudget } from '../../common/network/inspection-request-budget'
 

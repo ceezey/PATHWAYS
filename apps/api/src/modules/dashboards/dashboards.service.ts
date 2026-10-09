@@ -17,11 +17,11 @@ import {
   validateMetricPeriod,
 } from '@pathways/shared'
 import { Prisma } from '@prisma/client'
+import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import { currentBusinessDate } from '../../common/time/business-date'
 import { PrismaService } from '../../prisma/prisma.service'
 import { projectScope } from '../auth/authorized-data.service'
 import { withAuthorizedOperation } from '../auth/authorized-operation'
-import type { ApplicationIdentity } from '../auth/developer-access'
 import { IndicatorsService, monitoringSqlError } from '../indicators/indicators.service'
 import { parseDashboardQuery, parseSadddQuery } from './dashboards.dto'
 

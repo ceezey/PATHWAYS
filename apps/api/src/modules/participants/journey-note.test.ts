@@ -5,7 +5,7 @@ import { plainToInstance } from 'class-transformer'
 import { validate } from 'class-validator'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { ApplicationIdentity } from '@app/modules/auth/developer-access'
+import type { ApplicationIdentity } from '@app/common/authz/application-identity'
 import type { PrismaService } from '@app/prisma/prisma.service'
 
 const state = vi.hoisted(() => ({

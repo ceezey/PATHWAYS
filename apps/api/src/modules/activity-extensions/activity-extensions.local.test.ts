@@ -1,4 +1,4 @@
-import type { ApplicationIdentity } from '@app/modules/auth/developer-access'
+import type { ApplicationIdentity } from '@app/common/authz/application-identity'
 import { PrismaService } from '@app/prisma/prisma.service'
 import { ConflictException } from '@nestjs/common'
 import type { Prisma } from '@prisma/client'

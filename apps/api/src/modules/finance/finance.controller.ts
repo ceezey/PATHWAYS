@@ -15,8 +15,8 @@ import {
   UseInterceptors,
 } from '@nestjs/common'
 import { FileInterceptor } from '@nestjs/platform-express'
+import type { AuthenticatedRequest } from '../../common/authz/application-identity'
 import { RequirePermission } from '../../common/decorators/permission.decorator'
-import type { AuthenticatedRequest } from '../auth/developer-access'
 import { FinanceService } from './finance.service'
 function actor(request: AuthenticatedRequest) {
   if (!request.user) throw new ForbiddenException('Application profile required.')

@@ -1,8 +1,8 @@
 import { Prisma } from '@prisma/client'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import type { PrismaService } from '../../prisma/prisma.service'
-import type { ApplicationIdentity } from '../auth/developer-access'
 import { FormDefinitionExportService } from './form-definition-export.service'
 
 const state = vi.hoisted(() => ({ actor: undefined as unknown as ApplicationIdentity }))

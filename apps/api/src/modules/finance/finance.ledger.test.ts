@@ -2,8 +2,8 @@ import { BadRequestException, ConflictException, ForbiddenException } from '@nes
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { hasAtomicPermission } from '@pathways/shared'
+import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import type { PrismaService } from '../../prisma/prisma.service'
-import type { ApplicationIdentity } from '../auth/developer-access'
 import type { ReceiptPdfRenderer } from '../report-pdf/receipt-pdf.renderer'
 import type { StorageService } from '../storage/storage.service'
 import { FinanceService } from './finance.service'

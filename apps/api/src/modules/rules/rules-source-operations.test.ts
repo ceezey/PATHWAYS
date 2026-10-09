@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type {
+  ApplicationIdentity,
+  AuthenticatedRequest,
+} from '../../common/authz/application-identity'
 import type { PrismaService } from '../../prisma/prisma.service'
-import type { ApplicationIdentity, AuthenticatedRequest } from '../auth/developer-access'
 const state = vi.hoisted(() => ({
   permission: undefined as string | undefined,
   tx: { $queryRaw: vi.fn() },

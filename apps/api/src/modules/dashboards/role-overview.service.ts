@@ -8,12 +8,12 @@ import {
   hasAtomicPermission,
   roleOverviewSchema,
 } from '@pathways/shared'
+import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import type { Tx } from '../../common/prisma/transaction'
 import { currentBusinessDate } from '../../common/time/business-date'
 import { PrismaService } from '../../prisma/prisma.service'
 import { projectScope } from '../auth/authorized-data.service'
 import { withAuthorizedOperation } from '../auth/authorized-operation'
-import type { ApplicationIdentity } from '../auth/developer-access'
 import { RulesHumanService } from '../rules/rules-human.service'
 
 const rows = 5

@@ -9,6 +9,11 @@ import {
 
 import { STEP_UP_REQUIRED_CODE } from '@pathways/shared'
 
+import {
+  type ApplicationIdentity,
+  UUID_PATTERN,
+  type VerifiedAuthIdentity,
+} from '../../common/authz/application-identity'
 import { InactiveVerifiedSessionError, PrismaService } from '../../prisma/prisma.service'
 import { projectScope } from './authorized-data.service'
 import {
@@ -17,11 +22,6 @@ import {
   evaluateBeneficiaryStepUp,
 } from './beneficiary-step-up'
 import { readStepUpPinStatus } from './beneficiary-step-up-pin.service'
-import {
-  type ApplicationIdentity,
-  UUID_PATTERN,
-  type VerifiedAuthIdentity,
-} from './developer-access'
 
 // Best-effort per-instance dedupe so one verified factor or denial reason is
 // audited once rather than on every request. Duplicates across instances are

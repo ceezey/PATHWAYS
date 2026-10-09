@@ -53,8 +53,8 @@ import { ConflictException, ForbiddenException, NotFoundException } from '@nestj
 import type { Prisma } from '@prisma/client'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { ApplicationIdentity } from '../common/authz/application-identity'
 import type { PrismaService } from '../prisma/prisma.service'
-import type { ApplicationIdentity } from './auth/developer-access'
 import { ProgramsService } from './programs/programs.service'
 import { ProjectsService } from './projects/projects.service'
 import type { AuthDirectoryService } from './users/auth-directory.service'

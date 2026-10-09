@@ -14,8 +14,8 @@ import {
   StreamableFile,
 } from '@nestjs/common'
 
+import type { AuthenticatedRequest } from '../../common/authz/application-identity'
 import { RequirePermission } from '../../common/decorators/permission.decorator'
-import type { AuthenticatedRequest } from '../auth/developer-access'
 import { FormDefinitionExportService } from './form-definition-export.service'
 // biome-ignore lint/style/useImportType: Nest validation needs the DTO constructors at runtime.
 import {

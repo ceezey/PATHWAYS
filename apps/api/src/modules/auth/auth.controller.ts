@@ -14,13 +14,13 @@ import {
 } from '@nestjs/common'
 import { ApiOkResponse, ApiTags } from '@nestjs/swagger'
 
+import type { AuthenticatedRequest } from '../../common/authz/application-identity'
 import { AuthBoundary } from '../../common/decorators/auth-boundary.decorator'
 import { Public } from '../../common/decorators/public.decorator'
 import { AuthService } from './auth.service'
 // biome-ignore lint/style/useImportType: Nest needs the DTO constructors for validation.
 import { ChangeStepUpPinDto, VerifyStepUpPinDto } from './beneficiary-step-up-pin.dto'
 import { BeneficiaryStepUpPinService, type StepUpPinActor } from './beneficiary-step-up-pin.service'
-import type { AuthenticatedRequest } from './developer-access'
 // biome-ignore lint/style/useImportType: Nest needs the DTO constructor for validation.
 import { SignInDto } from './signin-lockout.dto'
 import { SignInLockoutService } from './signin-lockout.service'

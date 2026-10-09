@@ -1,4 +1,4 @@
-import type { ApplicationIdentity } from '@app/modules/auth/developer-access'
+import type { ApplicationIdentity } from '@app/common/authz/application-identity'
 import type { BeneficiaryListQueryDto } from '@app/modules/beneficiaries/beneficiaries.dto'
 import { BeneficiariesService } from '@app/modules/beneficiaries/beneficiaries.service'
 import type { IndicatorsService } from '@app/modules/indicators/indicators.service'

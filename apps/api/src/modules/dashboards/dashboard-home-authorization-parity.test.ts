@@ -1,6 +1,9 @@
+import type {
+  ApplicationIdentity,
+  AuthenticatedRequest,
+} from '@app/common/authz/application-identity'
 import { PERMISSION_KEY } from '@app/common/decorators/permission.decorator'
 import { withAuthorizedOperation } from '@app/modules/auth/authorized-operation'
-import type { ApplicationIdentity, AuthenticatedRequest } from '@app/modules/auth/developer-access'
 import type { IndicatorsService } from '@app/modules/indicators/indicators.service'
 import type { PrismaService } from '@app/prisma/prisma.service'
 import { ForbiddenException } from '@nestjs/common'

@@ -1,7 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common'
 import { kpiAchievement, numericMetric } from '@pathways/shared'
+import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import type { Tx } from '../../common/prisma/transaction'
-import type { ApplicationIdentity } from '../auth/developer-access'
 import { suppressSmallCount } from '../dashboards/descriptive-analytics'
 import { IndicatorsService } from '../indicators/indicators.service'
 

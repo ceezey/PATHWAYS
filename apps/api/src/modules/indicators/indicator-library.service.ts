@@ -1,9 +1,9 @@
 import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common'
 import type { CreateLibraryEntryInput, LibraryEntry, MetricRecipe } from '@pathways/shared'
 import type { IndicatorLibraryEntry, Prisma } from '@prisma/client'
+import { type ApplicationIdentity, UUID_PATTERN } from '../../common/authz/application-identity'
 import { PrismaService } from '../../prisma/prisma.service'
 import { withAuthorizedOperation } from '../auth/authorized-operation'
-import { type ApplicationIdentity, UUID_PATTERN } from '../auth/developer-access'
 import {
   createLibraryEntrySchema,
   parseIndicatorInput,

@@ -1,8 +1,8 @@
 import { Body, Controller, ForbiddenException, Get, Inject, Param, Post, Req } from '@nestjs/common'
 
+import type { AuthenticatedRequest } from '../../common/authz/application-identity'
 import { RequireBeneficiaryStepUp } from '../../common/decorators/beneficiary-step-up.decorator'
 import { RequirePermission } from '../../common/decorators/permission.decorator'
-import type { AuthenticatedRequest } from '../auth/developer-access'
 // biome-ignore lint/style/useImportType: Nest validation needs the DTO constructor at runtime.
 import { ResolveDuplicateDto } from './beneficiaries.dto'
 import { IdentityReviewService } from './identity-review.service'

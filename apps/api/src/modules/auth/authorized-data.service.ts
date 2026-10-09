@@ -1,9 +1,9 @@
 import { ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common'
 import { aggregateOnlyRoles } from '@pathways/shared'
 import type { Prisma } from '@prisma/client'
+import { type ApplicationIdentity, UUID_PATTERN } from '../../common/authz/application-identity'
 import { PrismaService } from '../../prisma/prisma.service'
 import { withAuthorizedOperation } from './authorized-operation'
-import { type ApplicationIdentity, UUID_PATTERN } from './developer-access'
 
 /** Organization predicates are always present, even for administrators.
  * Portfolio scope is backed by managed programs or explicit active assignments,

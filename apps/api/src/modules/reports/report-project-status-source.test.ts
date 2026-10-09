@@ -1,6 +1,6 @@
 import { Prisma } from '@prisma/client'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { ApplicationIdentity } from '../auth/developer-access'
+import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import { projectStatusSource } from './report-project-status-source'
 
 const projectId = 'abcdefab-0000-4000-8000-000000000001'

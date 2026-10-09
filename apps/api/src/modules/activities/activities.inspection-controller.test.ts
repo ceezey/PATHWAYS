@@ -1,7 +1,7 @@
 import { Readable } from 'node:stream'
 import { BadRequestException, type StreamableFile } from '@nestjs/common'
 import { describe, expect, it, vi } from 'vitest'
-import type { AuthenticatedRequest } from '../auth/developer-access'
+import type { AuthenticatedRequest } from '../../common/authz/application-identity'
 import { ActivitiesController } from './activities.controller'
 import type { ActivitiesService } from './activities.service'
 import type { PrivateProofInspectionService } from './private-proof-inspection.service'

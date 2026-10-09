@@ -1,6 +1,6 @@
 import { Controller, ForbiddenException, Get, Header, Inject, Req } from '@nestjs/common'
+import type { AuthenticatedRequest } from '../../common/authz/application-identity'
 import { RequirePermission } from '../../common/decorators/permission.decorator'
-import type { AuthenticatedRequest } from '../auth/developer-access'
 import { ActionCountsService } from './action-counts.service'
 
 @Controller('dashboards')

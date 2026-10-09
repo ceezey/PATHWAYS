@@ -17,10 +17,10 @@ import {
   registerAuthorizedOperationTiming,
 } from '../../modules/auth/authorized-operation-timing'
 import { BeneficiaryStepUpService } from '../../modules/auth/beneficiary-step-up.service'
-import type { AuthenticatedRequest } from '../../modules/auth/developer-access'
 import { TokenAuthService, type VerifiedAuthSession } from '../../modules/auth/token-auth.service'
 import { WorkspaceResolutionService } from '../../modules/auth/workspace-resolution.service'
 import type { VerifiedTransactionTiming } from '../../prisma/prisma.service'
+import type { AuthenticatedRequest } from '../authz/application-identity'
 import { AUTH_BOUNDARY_KEY } from '../decorators/auth-boundary.decorator'
 import { BENEFICIARY_STEP_UP_KEY } from '../decorators/beneficiary-step-up.decorator'
 import { PERMISSION_KEY } from '../decorators/permission.decorator'

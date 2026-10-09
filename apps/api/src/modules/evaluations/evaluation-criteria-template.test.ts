@@ -1,6 +1,6 @@
 import { Prisma } from '@prisma/client'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { ApplicationIdentity } from '../auth/developer-access'
+import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import { defaultCriteria, provisionCriteria } from './evaluation-criteria-template'
 
 const actor = {

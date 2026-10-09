@@ -1,9 +1,9 @@
 import { Readable } from 'node:stream'
 import { ForbiddenException } from '@nestjs/common'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import { bindInspectionIdentity } from '../../common/network/inspection-request-budget'
 import type { PrismaService } from '../../prisma/prisma.service'
-import type { ApplicationIdentity } from '../auth/developer-access'
 
 const state = vi.hoisted(() => ({
   actor: null as unknown as ApplicationIdentity,

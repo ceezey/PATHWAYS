@@ -3,9 +3,12 @@ import { type ExecutionContext, ForbiddenException } from '@nestjs/common'
 import { Reflector } from '@nestjs/core'
 import { hasAtomicPermission } from '@pathways/shared'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type {
+  ApplicationIdentity,
+  AuthenticatedRequest,
+} from '../../common/authz/application-identity'
 import { SupabaseAuthGuard } from '../../common/guards/supabase-auth.guard'
 import type { PrismaService } from '../../prisma/prisma.service'
-import type { ApplicationIdentity, AuthenticatedRequest } from '../auth/developer-access'
 import type { ReceiptPdfRenderer } from '../report-pdf/receipt-pdf.renderer'
 import type { StorageService } from '../storage/storage.service'
 import { FinanceController } from './finance.controller'

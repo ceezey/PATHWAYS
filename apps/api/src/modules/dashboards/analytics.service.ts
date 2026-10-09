@@ -21,11 +21,11 @@ import {
   timelineAnalyticsSchema,
 } from '@pathways/shared'
 import { Prisma } from '@prisma/client'
+import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import { PrismaService } from '../../prisma/prisma.service'
 import { faultCause } from '../../prisma/transaction-diagnostic'
 import { projectScope } from '../auth/authorized-data.service'
 import { withAuthorizedOperation } from '../auth/authorized-operation'
-import type { ApplicationIdentity } from '../auth/developer-access'
 import { monitoringSqlError } from '../indicators/indicators.service'
 import { DashboardsService } from './dashboards.service'
 import {

@@ -8,7 +8,7 @@ import {
   Post,
   Req,
 } from '@nestjs/common'
-import type { AuthenticatedRequest } from '../auth/developer-access'
+import type { AuthenticatedRequest } from '../../common/authz/application-identity'
 import { RulesSourceOperationsService } from './rules-source-operations.service'
 
 @Controller('projects/:projectId/source-operations')

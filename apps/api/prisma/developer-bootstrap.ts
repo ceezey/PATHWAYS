@@ -1,5 +1,5 @@
 import type { Prisma } from '@prisma/client'
-import { DEVELOPER_AUTH_UUID } from '../src/modules/auth/developer-access'
+import { DEVELOPER_AUTH_UUID } from '../src/common/authz/application-identity'
 import { assertCanonicalReferenceData } from './canonical-seed'
 
 export const approvedOrganization = {

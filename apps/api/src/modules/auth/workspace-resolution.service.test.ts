@@ -2,10 +2,13 @@ import { ForbiddenException, ServiceUnavailableException } from '@nestjs/common'
 import { rolePermissions } from '@pathways/shared'
 import type { Prisma } from '@prisma/client'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  type ApplicationIdentity,
+  DEVELOPER_AUTH_UUID,
+} from '../../common/authz/application-identity'
 import type { PrismaService } from '../../prisma/prisma.service'
 import type { ApplicationProfileService } from './application-profile.service'
 import { AuthorizedDataService } from './authorized-data.service'
-import { type ApplicationIdentity, DEVELOPER_AUTH_UUID } from './developer-access'
 import { WorkspaceResolutionService } from './workspace-resolution.service'
 
 const organizationId = '30000000-0000-4000-8000-000000000003'
