@@ -23,7 +23,7 @@ vi.mock('../env', () => ({
     NEXT_PUBLIC_SUPABASE_URL: 'https://pdqwsknbzkdtiwjjibqt.supabase.co',
   },
 }))
-import { rolePermissions } from '../../../../api/src/modules/auth/authorization-policy'
+import { rolePermissions } from '@pathways/shared'
 import type { ApplicationProfile } from '../../features/auth/auth-access'
 import { testAuthUserId, testSupabaseUrl } from '../../features/auth/auth-access.test-fixtures'
 const developerAuthUserId = testAuthUserId

@@ -10,6 +10,11 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
+import { useCurrentRole } from '@/hooks/use-current-role'
+import { type SensitiveDraftOwner, useSensitiveDraftOwner } from '@/lib/auth/sensitive-drafts'
+import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
+import { PathwaysClientError } from '@/lib/services/pathways-client'
+import { rulesHumanClient } from '@/lib/services/rules-human-client'
 import {
   type DecisionOutcome,
   type HumanAlert,
@@ -17,12 +22,7 @@ import {
   type OutcomePreview,
   decisionOutcomes,
   reviewSchema,
-} from '@/features/analytics/rules-human-contract'
-import { useCurrentRole } from '@/hooks/use-current-role'
-import { type SensitiveDraftOwner, useSensitiveDraftOwner } from '@/lib/auth/sensitive-drafts'
-import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
-import { PathwaysClientError } from '@/lib/services/pathways-client'
-import { rulesHumanClient } from '@/lib/services/rules-human-client'
+} from '@pathways/shared'
 import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 

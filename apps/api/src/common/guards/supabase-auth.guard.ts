@@ -11,7 +11,7 @@ import { Reflector } from '@nestjs/core'
 
 import { RulesMachineBoundary } from '../../modules/rules/rules-machine-boundary'
 
-import { hasAtomicPermission } from '../../modules/auth/authorization-policy'
+import { hasAtomicPermission } from '@pathways/shared'
 import {
   type AuthorizedOperationTiming,
   registerAuthorizedOperationTiming,

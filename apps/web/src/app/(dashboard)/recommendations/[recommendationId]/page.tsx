@@ -1,6 +1,6 @@
 import { RecommendationsWorkspace } from '@/features/analytics/recommendations-workspace'
-import { uuidSchema } from '@/features/analytics/rules-validation'
 import { type ProtectedPageProps, requireServerPage } from '@/lib/rbac/server-access'
+import { uuidSchema } from '@pathways/shared'
 import { notFound } from 'next/navigation'
 
 export const dynamic = 'force-dynamic'

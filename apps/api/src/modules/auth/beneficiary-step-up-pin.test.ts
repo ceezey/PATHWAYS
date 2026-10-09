@@ -2,8 +2,8 @@ import 'reflect-metadata'
 import { BadRequestException, ValidationPipe } from '@nestjs/common'
 import { describe, expect, it } from 'vitest'
 
+import { isAcceptableStepUpPin } from '@pathways/shared'
 import { redactSentryRequest } from '../../common/sentry'
-import { isAcceptableStepUpPin } from './beneficiary-step-up'
 import { ChangeStepUpPinDto, VerifyStepUpPinDto } from './beneficiary-step-up-pin.dto'
 
 // Same options as main.ts. Vitest does not emit decorator metadata, so the DTO is explicit.

@@ -1,6 +1,6 @@
 import { StatusBadge } from '@/components/pathways'
-import type { HumanAlert, HumanRecommendation } from '@/features/analytics/rules-human-contract'
 import { cn } from '@/lib/utils'
+import type { HumanAlert, HumanRecommendation } from '@pathways/shared'
 import { Lightbulb, TriangleAlert } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { formatMetricValue, metricLabel, severityTone, titleCase } from './rule-board-model'

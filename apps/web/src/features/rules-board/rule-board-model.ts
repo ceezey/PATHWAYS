@@ -1,9 +1,4 @@
-import type { HumanRule } from '@/features/analytics/rules-human-contract'
-import {
-  type RuleMetricKey,
-  type RuleNode,
-  ruleMetrics,
-} from '@/features/analytics/rules-validation'
+import { type HumanRule, type RuleMetricKey, type RuleNode, ruleMetrics } from '@pathways/shared'
 
 export type MetricScope =
   | 'Project'

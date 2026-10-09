@@ -1,4 +1,4 @@
-import type { MetricCell, MonitoringIndicator } from '@pathways/shared'
+import { type MetricCell, type MonitoringIndicator, alertSeverities } from '@pathways/shared'
 
 export type StatusLevel = 'ON_TRACK' | 'AT_RISK' | 'OFF_TRACK' | 'NOT_AVAILABLE'
 export type Figure = {
@@ -50,7 +50,7 @@ type OverviewInput = {
   kpi: number | null
 }
 const DAY_MS = 86_400_000
-const SEVERITY = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW']
+const severityOrder: readonly string[] = alertSeverities
 const closed = new Set(['COMPLETED', 'CANCELLED'])
 const statusLabel: Record<StatusLevel, string> = {
   ON_TRACK: 'ON TRACK',
@@ -127,7 +127,7 @@ export function overviewRows(input: OverviewInput) {
 /** Alerts by highest severity first, capped at 10. */
 export const topAlerts = <T extends { severity: string }>(alerts: T[]) =>
   [...alerts]
-    .sort((a, b) => SEVERITY.indexOf(a.severity) - SEVERITY.indexOf(b.severity))
+    .sort((a, b) => severityOrder.indexOf(a.severity) - severityOrder.indexOf(b.severity))
     .slice(0, 10)
 
 const cellText = (cell: MetricCell, suffix = '') =>

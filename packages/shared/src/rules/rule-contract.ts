@@ -1,10 +1,10 @@
+import { z } from 'zod'
 import {
   isCalendarDate,
   normalizeMetricDecimal,
   numericKinds,
   scaledDecimal,
-} from '@pathways/shared'
-import { z } from 'zod'
+} from '../monitoring/metric-math'
 
 export const RULE_CONTRACT_VERSION = 'f10.v1' as const
 const MAX_GROUP_DEPTH = 4
@@ -75,7 +75,7 @@ function validateMetricDomain(metric: RuleMetricKey, value: string) {
   }
 }
 
-const conditionSchema: z.ZodType<RuleCondition> = z
+export const conditionSchema: z.ZodType<RuleCondition> = z
   .object({
     kind: z.literal('CONDITION'),
     id: conditionIdSchema,
@@ -210,7 +210,7 @@ export const metricReasons = [
   'BASELINE_TARGET_DIRECTION_REQUIRED',
   'DIRECTION_CONFLICT',
 ] as const
-export const metricCellSchema = z
+export const ruleMetricCellSchema = z
   .object({
     state: z.enum(['AVAILABLE', 'ZERO', 'MISSING', 'NOT_APPLICABLE', 'SUPPRESSED']),
     value: decimalSchema.nullable(),
@@ -307,7 +307,7 @@ export const metricObservationSchema = z
     indicatorId: uuidSchema.optional(),
     activityId: uuidSchema.optional(),
     asOf: z.string().datetime({ offset: true }),
-    cell: metricCellSchema,
+    cell: ruleMetricCellSchema,
     calculation: calculationSchema.nullable(),
     source: z
       .object({

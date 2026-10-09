@@ -1,17 +1,10 @@
+import { type CanonicalRole, roleNames } from '@pathways/shared'
 import { z } from 'zod'
 
 import { approvedApiBaseUrl } from '@/lib/api-base-url'
 import type { PathwaysRole } from '@/types/pathways-role'
 
 const uuid = z.string().uuid()
-const canonicalRoles = {
-  SYSTEM_ADMINISTRATOR: 'System Administrator',
-  PROGRAM_MANAGER: 'Program Manager',
-  GRANT_MANAGER: 'Grant Manager',
-  PROJECT_MANAGER: 'Project Manager',
-  MONITORING_AND_EVALUATION_OFFICER: 'Monitoring and Evaluation Officer',
-  PROJECT_OFFICER: 'Project Officer',
-} as const satisfies Record<string, PathwaysRole>
 
 const mfaStatusSchema = z.object({
   authUserId: uuid,
@@ -26,7 +19,7 @@ const profileSchema = z.object({
     userId: uuid,
     organizationId: uuid,
     fullName: z.string().min(1),
-    roles: z.array(z.enum(Object.keys(canonicalRoles) as [keyof typeof canonicalRoles])).length(1),
+    roles: z.array(z.enum(Object.keys(roleNames) as [CanonicalRole])).length(1),
     permissions: z.array(z.string().min(1)),
     assignedProjectIds: z.array(uuid),
     aal: z.literal('aal2'),
@@ -62,7 +55,7 @@ export class AuthAccessError extends Error {
 }
 
 export const getProfileRole = (profile: ApplicationProfile): PathwaysRole =>
-  canonicalRoles[profile.roles[0]]
+  roleNames[profile.roles[0]]
 
 export const parseMfaStatus = (value: unknown): MfaStatus => mfaStatusSchema.parse(value)
 export const parseApplicationProfile = (value: unknown): ApplicationProfile =>

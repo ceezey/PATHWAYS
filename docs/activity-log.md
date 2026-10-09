@@ -589,3 +589,14 @@
 - `rules:dispatch` now passes `--tsconfig apps/api/tsconfig.json` so tsx resolves workspace packages from source after the root tsconfig.json removal.
 - Deferred: source-mutation proof options (S2), `mapPublicSnapshot` (S8), `ImportSummary` move (F2), infra Pester and runtime-output tests (W1).
 - Gates: lint, typecheck, tests and builds pass; `Replay-Local.ps1 -MigrationBaseline` 0 FAIL; demo seed and `dev:local` boot clean; e2e auth-navigation 27/27; e2e main 39 pass, 9 fail, 22 not run, the same 9 failing on dev `8e9f1274` (MFA Verify helper, password-login harness, workflows seed end date before start); SAD sign-off 154/154 PASS at `13c6f174`. Merged to local dev as `5de68b0a`; plan removed.
+
+## 2026-10-09 Modularization F2 shared core (refactor/f2-shared-core)
+- Hygiene: moved `ImportSummary` to `packages/imports`; shared 107, imports 91 (unchanged baseline).
+- Policy move: `authorization-policy.ts` and its test moved to `packages/shared/src/rbac`; 77 importers repointed to `@pathways/shared`, 18 imports merged, Edge middleware chain and role-routes e2e spec included; shared 117, api 2347 passed 21 skipped, web 1901.
+- Role catalog: one catalog in `rbac/role-catalog.ts`; removed the web `canonicalRoles`, `roleCodeByName`, `roleCodesByName`, two identity label maps and the fixture role list; shared 119.
+- Rules move: `rule-contract`, `rule-metrics` and `rules-human-contract` moved to `packages/shared/src/rules`; shared 165, api 2305, web 1897.
+- Web rules merge: the shared rules are the union of the api and web copies, a parity test (42 cases) ran before the web copies were deleted, the timeline contract test moved beside the rule engine, and web source no longer imports api source; shared 165, api 2307, web 1895.
+- Shared constants: step-up denial code, PIN rule, message and check, direct-entry form types, overdue explanation categories and report kind codes are shared; shared 168, api 2307, web 1895, web Middleware 108 kB (was 102 kB).
+- SAD routing: `packages/shared/src/rules/**` routes to the determinism checker and `packages/shared/src/rbac/**/*.ts` to the organization isolation checker, with tests; living doc paths and the local-dev API bullet updated.
+- Deferred: the api to web `route-access` import (`route-access.service.ts`, `dashboard-home-authorization-parity.test.ts`) to F4; the literal NUL key separator in `rule-output-fields.tsx` to S7; remaining near-duplicate code lists (seed literal unions in `local-demo-data.ts` and `local-demo-stage-reports.ts` to W1; api `descriptive-analytics.ts`, `form-templates.ts`, `metadata.dto.ts`; web `human-review-workspace` `SEVERITY_RANK`, `form-builder-session-draft.ts`) to their slices.
+- The ten F2 rulings are recorded in the rulings note of `docs/superpowers/plans/2026-10-09-modularization-f2-shared-core.md`.

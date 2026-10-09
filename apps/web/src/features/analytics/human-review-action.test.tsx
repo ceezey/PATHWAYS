@@ -1,9 +1,9 @@
 import { clearSensitiveDraftStorage } from '@/lib/auth/sensitive-drafts'
+import type { HumanAlert, HumanRecommendation } from '@pathways/shared'
 /* @vitest-environment jsdom */
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { HumanReviewAction } from './human-review-action'
-import type { HumanAlert, HumanRecommendation } from './rules-human-contract'
 const toastSuccess = vi.hoisted(() => vi.fn())
 vi.mock('sonner', () => ({ toast: { success: toastSuccess } }))
 const state = vi.hoisted(() => ({

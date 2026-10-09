@@ -1,19 +1,21 @@
 import { describe, expect, it } from 'vitest'
 import {
-  businessCalendarDate,
   createIndicatorDraftSchema,
   createIndicatorSchema,
   dashboardQuerySchema,
-  indicatorProgress,
-  isCalendarDate,
   manualMeasurementSchema,
   metricCellSchema,
   monitoringIndicatorSchema,
+  sadddAgeBands,
+} from './metric-contract'
+import {
+  businessCalendarDate,
+  indicatorProgress,
+  isCalendarDate,
   normalizeMetricDecimal,
   numericMetric,
-  sadddAgeBands,
   validateMetricPeriod,
-} from './metric-contract'
+} from './metric-math'
 
 const definition = {
   clientMutationId: '77000000-0000-4000-8000-000000000009',

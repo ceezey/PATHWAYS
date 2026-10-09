@@ -49,7 +49,7 @@ import type {
   Indicator,
   RoleDashboardViewModel,
 } from '@/types/pathways'
-import { type PathwaysRole, getPathwaysRoleDisplayName } from '@/types/pathways-role'
+import type { PathwaysRole } from '@/types/pathways-role'
 import { businessCalendarDate } from '@pathways/shared'
 
 import { ActivityDetailPanel } from '../projects/activity-detail-panel'
@@ -454,7 +454,7 @@ const DashboardListItem = ({
 export const RoleDashboard = () => {
   const router = useRouter()
   const { role, profile } = useCurrentRole()
-  const roleLabel = role ? getPathwaysRoleDisplayName(role) : 'Staff'
+  const roleLabel = role || 'Staff'
   const [dashboard, setDashboard] = useState<RoleDashboardViewModel | null>(null)
   const [activityReviewTarget, setActivityReviewTarget] = useState<DashboardActivityTarget | null>(
     null,

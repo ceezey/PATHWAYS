@@ -1,6 +1,6 @@
 import type { Prisma } from '@prisma/client'
 
-import { aggregateOnlyRoles, hasAtomicPermission } from '../auth/authorization-policy'
+import { aggregateOnlyRoles, hasAtomicPermission } from '@pathways/shared'
 import type { ApplicationIdentity } from '../auth/developer-access'
 
 type BeneficiaryProgress =

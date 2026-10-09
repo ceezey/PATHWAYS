@@ -14,7 +14,7 @@ import {
   hasAtomicPermission,
   roleNames,
   rolePermissions,
-} from '../../../../api/src/modules/auth/authorization-policy'
+} from '@pathways/shared'
 
 import { ProjectActivitiesWorkspace } from './project-activities-workspace'
 

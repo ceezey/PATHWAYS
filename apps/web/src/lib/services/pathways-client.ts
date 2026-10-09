@@ -80,6 +80,7 @@ import {
   type ManualMeasurementInput,
   type MonitoringDashboard,
   type RoleOverview,
+  STEP_UP_REQUIRED_CODE,
   type SadddDashboard,
   type SadddQuery,
   type SurveyAnalytics,
@@ -93,7 +94,9 @@ import {
   formatMetricCell,
   monitoringDashboardSchema,
   monitoringIndicatorSchema,
+  overdueExplanationCategories,
   projectIndicatorListSchema,
+  roleCodeByName,
   roleOverviewSchema,
   sadddDashboardSchema,
   sadddQuerySchema,
@@ -105,10 +108,7 @@ import { z } from 'zod'
 type CreateIndicatorInput = Omit<ApiCreateIndicatorInput, 'clientMutationId'>
 type UpdateIndicatorInput = Omit<ApiUpdateIndicatorInput, 'clientMutationId'>
 type UseLibraryEntryDraft = Omit<UseLibraryEntryInput, 'clientMutationId'>
-import {
-  STEP_UP_REQUIRED_CODE,
-  announceStepUpRequired,
-} from '@/lib/auth/beneficiary-step-up-events'
+import { announceStepUpRequired } from '@/lib/auth/beneficiary-step-up-events'
 import { announceAuthorizationDenied, announceWriteCommitted } from './authorized-read-events'
 import { parseRegistrationContext } from './registration-context'
 
@@ -1757,15 +1757,6 @@ export async function getAnalyticsExportPreview(query: DescriptiveAnalyticsQuery
 
 export const pathwaysClient: PathwaysClient = new BackendReadyPathwaysClient()
 
-const roleCodeByName: Record<PathwaysRole, string> = {
-  'System Administrator': 'SYSTEM_ADMINISTRATOR',
-  'Program Manager': 'PROGRAM_MANAGER',
-  'Grant Manager': 'GRANT_MANAGER',
-  'Project Manager': 'PROJECT_MANAGER',
-  'Monitoring and Evaluation Officer': 'MONITORING_AND_EVALUATION_OFFICER',
-  'Project Officer': 'PROJECT_OFFICER',
-}
-
 interface ApiProject {
   id: string
   code: string
@@ -2350,14 +2341,7 @@ function parseActivityCapabilities(value: unknown): ActivityCapabilities {
   }
 }
 
-const overdueExplanationCategories = new Set<string>([
-  'WEATHER',
-  'SECURITY',
-  'FUNDING',
-  'COMMUNITY',
-  'LOGISTICS',
-  'OTHER',
-] satisfies ActivityOverdueExplanation['category'][])
+const knownOverdueCategories = new Set<string>(overdueExplanationCategories)
 
 function parseOverdueExplanation(value: unknown): ActivityOverdueExplanation {
   const row = value as Partial<Record<keyof ActivityOverdueExplanation, unknown>> | null
@@ -2367,7 +2351,7 @@ function parseOverdueExplanation(value: unknown): ActivityOverdueExplanation {
     Object.keys(row).length !== 5 ||
     typeof row.id !== 'string' ||
     typeof row.category !== 'string' ||
-    !overdueExplanationCategories.has(row.category) ||
+    !knownOverdueCategories.has(row.category) ||
     typeof row.explanation !== 'string' ||
     row.explanation.length < 10 ||
     row.explanation.length > 2000 ||

@@ -1,5 +1,6 @@
 import { contextCookieName } from '@/features/auth/workspace-access'
 import { sensitiveDraftGeneration } from '@/lib/auth/sensitive-drafts'
+import { reportKinds } from '@pathways/shared'
 import { z } from 'zod'
 import { PathwaysClientError, requestFoundationResponse } from './pathways-client'
 import { reportSectionsSchema } from './report-sections'
@@ -128,14 +129,7 @@ export const expenseAck = z
     receiptEvidenceId: uuid.nullable(),
   })
   .strict()
-const reportKind = z.enum([
-  'PROJECT_SUMMARY',
-  'INDICATOR_SUMMARY',
-  'BENEFICIARY_SUMMARY',
-  'SURVEY_FORM_RESULTS',
-  'MONITORING_REPORT',
-  'EVALUATION_REPORT',
-])
+const reportKind = z.enum(reportKinds)
 const reportFormat = z.enum(['CSV', 'XLSX', 'XLS', 'PDF'])
 const reportPreviewSchema = z
   .object({

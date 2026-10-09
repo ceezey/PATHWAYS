@@ -1,7 +1,7 @@
 import { ForbiddenException } from '@nestjs/common'
+import { hasAtomicPermission } from '@pathways/shared'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { PrismaService } from '../../prisma/prisma.service'
-import { hasAtomicPermission } from '../auth/authorization-policy'
 import type { ApplicationIdentity } from '../auth/developer-access'
 import type { EvaluationMetricsService } from './evaluation-metrics'
 import { EvaluationsService, saveScoresSchema } from './evaluations.service'

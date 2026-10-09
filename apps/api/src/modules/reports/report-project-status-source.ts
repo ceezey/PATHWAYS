@@ -1,7 +1,6 @@
 import { readApiEnv } from '@pathways/config'
-import type { MetricCell } from '@pathways/shared'
+import { type AtomicPermission, type MetricCell, hasAtomicPermission } from '@pathways/shared'
 import { Prisma } from '@prisma/client'
-import { type AtomicPermission, hasAtomicPermission } from '../auth/authorization-policy'
 import type { ApplicationIdentity } from '../auth/developer-access'
 import type { DashboardsService } from '../dashboards/dashboards.service'
 import type { ProjectOverviewMetricsService } from '../projects/project-overview-metrics.service'

@@ -7,9 +7,9 @@ import {
 import { Prisma } from '@prisma/client'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { hasAtomicPermission, rolePermissions } from '@pathways/shared'
 import { PERMISSION_KEY } from '../../common/decorators/permission.decorator'
 import type { PrismaService } from '../../prisma/prisma.service'
-import { hasAtomicPermission, rolePermissions } from '../auth/authorization-policy'
 import type { ApplicationIdentity } from '../auth/developer-access'
 import { MetadataController } from './metadata.controller'
 import { MetadataService } from './metadata.service'

@@ -55,7 +55,7 @@ import { usePendingCreate } from '@/hooks/use-pending-create'
 import { createdSince, fingerprintOf } from '@/lib/forms/pending-create'
 import { pathwaysClient } from '@/lib/services/pathways-client'
 import type { ProjectSummary, UserRecord } from '@/types/pathways'
-import { type PathwaysRole, getPathwaysRoleDisplayName } from '@/types/pathways-role'
+import type { PathwaysRole } from '@/types/pathways-role'
 import {
   type UserStatusFilter,
   canManageUserRecord,
@@ -493,7 +493,7 @@ export const UserManagementWorkspace = ({
                   >
                     <div className="flex items-start justify-between gap-3">
                       <p className="text-sm font-semibold leading-5 text-foreground">
-                        {getPathwaysRoleDisplayName(summary.role)}
+                        {summary.role}
                       </p>
                       <span className="shrink-0 text-xs font-medium text-muted-foreground">
                         {count} {count === 1 ? 'user' : 'users'}
@@ -617,7 +617,7 @@ const UserAccountRow = ({
         </div>
         <p className="mt-1 break-all text-sm text-muted-foreground">{user.email}</p>
         <p className="mt-2 text-xs leading-5 text-muted-foreground">
-          {getPathwaysRoleDisplayName(user.role)} · {user.projectAccess.join(', ')}
+          {user.role} · {user.projectAccess.join(', ')}
         </p>
       </div>
     </div>
@@ -760,7 +760,7 @@ const UserEditorDialog = ({
               <SelectContent>
                 {manageableRoles.map((role) => (
                   <SelectItem key={role} value={role}>
-                    {getPathwaysRoleDisplayName(role)}
+                    {role}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -839,8 +839,8 @@ const UserEditorDialog = ({
             </fieldset>
           ) : (
             <div className="rounded-sm border border-border bg-surface-subtle p-3 text-sm leading-6 text-muted-foreground">
-              {getPathwaysRoleDisplayName(editor.role)} uses its fixed organization or portfolio
-              scope and does not receive individual project assignments.
+              {editor.role} uses its fixed organization or portfolio scope and does not receive
+              individual project assignments.
             </div>
           )}
         </div>
@@ -895,11 +895,7 @@ const UserDetailDialog = ({ onClose, user }: { onClose: () => void; user?: UserR
           </div>
         </div>
         <dl className="grid gap-3 sm:grid-cols-2">
-          <DetailItem
-            icon={ShieldCheck}
-            label="Role"
-            value={getPathwaysRoleDisplayName(user.role)}
-          />
+          <DetailItem icon={ShieldCheck} label="Role" value={user.role} />
           <DetailItem icon={KeyRound} label="Sign-in method" value={user.signInMethod} />
           <DetailItem
             icon={Building2}

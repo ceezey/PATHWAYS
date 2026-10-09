@@ -1,10 +1,10 @@
-import { describe, expect, it } from 'vitest'
 import {
   type RuleCondition,
   metricObservationSchema,
   parseRuleTree,
   ruleDefinitionSchema,
-} from './rule-contract'
+} from '@pathways/shared'
+import { describe, expect, it } from 'vitest'
 import { evaluateRule } from './rule-engine'
 
 const org = '10000000-0000-4000-8000-000000000001'

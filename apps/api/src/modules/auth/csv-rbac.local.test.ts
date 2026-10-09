@@ -1,8 +1,8 @@
 import { ForbiddenException } from '@nestjs/common'
+import { rolePermissions } from '@pathways/shared'
 import { describe, expect, it } from 'vitest'
 import { PrismaService } from '../../prisma/prisma.service'
 import { ProjectsService } from '../projects/projects.service'
-import { rolePermissions } from './authorization-policy'
 import type { ApplicationIdentity } from './developer-access'
 
 const enabled = process.env.PATHWAYS_CSV_RBAC_LOCAL_TESTS === '1'

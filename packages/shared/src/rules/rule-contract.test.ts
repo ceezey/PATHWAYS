@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { metricCellSchema, parseRuleTree } from './rules-validation'
+import { parseRuleTree, ruleMetricCellSchema } from './rule-contract'
 const condition = (id = 'a') => ({
   kind: 'CONDITION',
   id,
@@ -17,16 +17,16 @@ describe('bounded typed rules authoring', () => {
         threshold: '9007199254740.0001',
       }),
     ).toMatchObject({ threshold: '9007199254740.0001' })
-    expect(metricCellSchema.parse({ state: 'ZERO', value: '0', reason: null })).toEqual({
+    expect(ruleMetricCellSchema.parse({ state: 'ZERO', value: '0', reason: null })).toEqual({
       state: 'ZERO',
       value: '0',
       reason: null,
     })
     expect(
-      metricCellSchema.parse({ state: 'MISSING', value: null, reason: 'NO_MEASUREMENT' }).value,
+      ruleMetricCellSchema.parse({ state: 'MISSING', value: null, reason: 'NO_MEASUREMENT' }).value,
     ).toBeNull()
     expect(
-      metricCellSchema.safeParse({ state: 'MISSING', value: '0', reason: 'NO_MEASUREMENT' })
+      ruleMetricCellSchema.safeParse({ state: 'MISSING', value: '0', reason: 'NO_MEASUREMENT' })
         .success,
     ).toBe(false)
   })

@@ -6,9 +6,9 @@ import {
   UnauthorizedException,
 } from '@nestjs/common'
 
+import { hasAtomicPermission } from '@pathways/shared'
 import { PrismaService, type VerifiedTransactionTiming } from '../../prisma/prisma.service'
 import { ApplicationProfileService } from './application-profile.service'
-import { hasAtomicPermission } from './authorization-policy'
 import {
   type ApplicationIdentity,
   UUID_PATTERN,

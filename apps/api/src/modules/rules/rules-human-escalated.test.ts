@@ -1,13 +1,12 @@
 import 'reflect-metadata'
 
 import { PERMISSION_KEY } from '@app/common/decorators/permission.decorator'
-import { rolePermissions } from '@app/modules/auth/authorization-policy'
 import { withAuthorizedOperation } from '@app/modules/auth/authorized-operation'
 import type { ApplicationIdentity } from '@app/modules/auth/developer-access'
 import type { PrismaService } from '@app/prisma/prisma.service'
+import { escalatedAlertOutputSchema, rolePermissions } from '@pathways/shared'
 import type { Prisma } from '@prisma/client'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { escalatedAlertOutputSchema } from './rules-human-contract'
 import { AlertsController } from './rules-human.controller'
 import { RulesHumanService } from './rules-human.service'
 

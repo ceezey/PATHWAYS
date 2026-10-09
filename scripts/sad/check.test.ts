@@ -68,12 +68,18 @@ describe('routing and digest', () => {
   it('routes rules engine and rule editor changes to the determinism checker', () => {
     const routed = routing([
       change('apps/api/src/modules/rules/rule-engine.ts', 'new', 'old'),
-      change('apps/web/src/features/analytics/rules-validation.ts', 'new', 'old'),
+      change('apps/web/src/features/analytics/rule-editor.tsx', 'new', 'old'),
+      change('packages/shared/src/rules/rule-contract.ts', 'new', 'old'),
     ])
     expect(routed['rule-engine-determinism-checker']).toEqual([
       'apps/api/src/modules/rules/rule-engine.ts',
-      'apps/web/src/features/analytics/rules-validation.ts',
+      'apps/web/src/features/analytics/rule-editor.tsx',
+      'packages/shared/src/rules/rule-contract.ts',
     ])
+  })
+  it('routes shared rbac policy changes to the organization isolation checker', () => {
+    const file = 'packages/shared/src/rbac/authorization-policy.ts'
+    expect(routing([change(file, 'new', 'old')])['organization-isolation-checker']).toEqual([file])
   })
   it('routes the rules dispatch workflow to design-qa-agent', () => {
     const file = '.github/workflows/rules-dispatch.yml'

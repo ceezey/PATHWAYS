@@ -6,17 +6,20 @@ import {
   ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common'
+import {
+  STEP_UP_PIN_PATTERN,
+  STEP_UP_PIN_RULE_MESSAGE,
+  type StepUpPinState,
+  isAcceptableStepUpPin,
+} from '@pathways/shared'
 import type { Prisma } from '@prisma/client'
 
 import { InactiveVerifiedSessionError, PrismaService } from '../../prisma/prisma.service'
 import {
   STEP_UP_PIN_CODES,
-  STEP_UP_PIN_PATTERN,
   STEP_UP_WINDOW_SECONDS,
   type StepUpMethod,
-  type StepUpPinState,
   evaluateBeneficiaryStepUp,
-  isAcceptableStepUpPin,
 } from './beneficiary-step-up'
 import {
   type ApplicationIdentity,
@@ -50,8 +53,6 @@ const denial = (status: HttpStatus, code: string, message: string) =>
     status,
   )
 
-const PIN_RULE =
-  'Use 6 to 12 digits. Repeated digits and simple ascending or descending sequences are not accepted.'
 // Runtime shape check as well as the DTO: a JSON number must never reach the database.
 const isPinShape = (value: unknown): value is string =>
   typeof value === 'string' && STEP_UP_PIN_PATTERN.test(value)
@@ -192,7 +193,7 @@ export class BeneficiaryStepUpPinService {
 
   private assertAcceptable(pin: unknown): asserts pin is string {
     if (!isAcceptableStepUpPin(pin)) {
-      throw denial(HttpStatus.BAD_REQUEST, STEP_UP_PIN_CODES.invalid, PIN_RULE)
+      throw denial(HttpStatus.BAD_REQUEST, STEP_UP_PIN_CODES.invalid, STEP_UP_PIN_RULE_MESSAGE)
     }
   }
 

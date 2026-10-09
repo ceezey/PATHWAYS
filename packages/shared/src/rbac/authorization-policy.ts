@@ -2,15 +2,7 @@
  * this ceiling can only narrow them. No wildcard or administrator bypass.
  * See docs/rfc-pathways-auth-rbac-isolation.md for source precedence and scope.
  */
-export const roleNames = {
-  SYSTEM_ADMINISTRATOR: 'System Administrator',
-  PROGRAM_MANAGER: 'Program Manager',
-  GRANT_MANAGER: 'Grant Manager',
-  PROJECT_MANAGER: 'Project Manager',
-  MONITORING_AND_EVALUATION_OFFICER: 'Monitoring and Evaluation Officer',
-  PROJECT_OFFICER: 'Project Officer',
-} as const
-export type CanonicalRole = keyof typeof roleNames
+import { type CanonicalRole, isCanonicalRole } from './role-catalog'
 
 // Retired atomic codes remain recognized for migration history, with no grants.
 export const permissionCodes = [
@@ -446,10 +438,6 @@ export const rolePermissions: Record<CanonicalRole, readonly AtomicPermission[]>
     'analytics.descriptive.read',
     'analytics.saddd.read',
   ],
-}
-
-export function isCanonicalRole(role: string): role is CanonicalRole {
-  return Object.hasOwn(roleNames, role)
 }
 
 export function hasAtomicPermission(role: string, granted: readonly string[], permission: string) {

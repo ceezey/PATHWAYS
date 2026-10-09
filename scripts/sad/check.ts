@@ -20,6 +20,7 @@ export const roles = {
     pillars: ['Security'],
     globs: [
       'apps/api/src/**/*.service.ts',
+      'packages/shared/src/rbac/**/*.ts',
       'apps/api/prisma/schema.prisma',
       'infra/supabase/**/*.sql',
       'apps/api/prisma/migrations/**/*.sql',
@@ -56,6 +57,7 @@ export const roles = {
     pillars: ['Performance Efficiency'],
     globs: [
       'packages/shared/src/monitoring/**/*.ts',
+      'packages/shared/src/rules/**',
       'apps/api/src/modules/indicators/**/*.ts',
       'apps/api/src/modules/rules/**/*.ts',
       'apps/web/src/features/analytics/rule*.ts',

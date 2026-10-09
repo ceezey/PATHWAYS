@@ -1,7 +1,7 @@
+import { type CanonicalRole, rolePermissions } from '@pathways/shared'
 import type { Prisma } from '@prisma/client'
 import { describe, expect, it } from 'vitest'
 import { ApplicationProfileService } from '../src/modules/auth/application-profile.service'
-import { type CanonicalRole, rolePermissions } from '../src/modules/auth/authorization-policy'
 import { AuthorizedDataService } from '../src/modules/auth/authorized-data.service'
 import { DEVELOPER_AUTH_UUID } from '../src/modules/auth/developer-access'
 import { PrismaService } from '../src/prisma/prisma.service'

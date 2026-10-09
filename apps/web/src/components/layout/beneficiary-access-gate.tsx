@@ -15,10 +15,7 @@ import { STEP_UP_PIN_UI_ENABLED, STEP_UP_RESET_UI_ENABLED } from '@/constants/fe
 import {
   BeneficiaryStepUpError,
   PIN_LOCKED_MESSAGE,
-  PIN_RULE_MESSAGE,
-  type StepUpPinState,
   getBeneficiaryStepUpStatus,
-  isAcceptableStepUpPin,
   setStepUpPin,
   unlockStepUpPin,
   verifyBeneficiaryStepUp,
@@ -28,6 +25,11 @@ import {
   STEP_UP_REQUIRED_EVENT,
   announceStepUpCompleted,
 } from '@/lib/auth/beneficiary-step-up-events'
+import {
+  STEP_UP_PIN_RULE_MESSAGE,
+  type StepUpPinState,
+  isAcceptableStepUpPin,
+} from '@pathways/shared'
 
 const PROMPT = 'Enter the six-digit code from your authenticator app.'
 const PIN_PROMPT = 'Enter your beneficiary access PIN.'
@@ -225,7 +227,7 @@ export const BeneficiaryAccessGate = ({
     setPinConfirm('')
     if (!isAcceptableStepUpPin(submitted)) {
       setStatus('error')
-      setMessage(PIN_RULE_MESSAGE)
+      setMessage(STEP_UP_PIN_RULE_MESSAGE)
       pinInputRef.current?.focus()
       return
     }
@@ -369,7 +371,7 @@ export const BeneficiaryAccessGate = ({
                 pinConfirm,
                 setPinConfirm,
               )}
-              <p className="text-sm text-muted-foreground">{PIN_RULE_MESSAGE}</p>
+              <p className="text-sm text-muted-foreground">{STEP_UP_PIN_RULE_MESSAGE}</p>
             </>
           )}
           <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">

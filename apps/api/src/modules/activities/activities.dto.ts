@@ -1,3 +1,4 @@
+import { type OverdueExplanationCategory, overdueExplanationCategories } from '@pathways/shared'
 import { Transform, Type } from 'class-transformer'
 import {
   ArrayMaxSize,
@@ -201,16 +202,6 @@ export class RecordActivityProgressDto {
   @Length(1, 4000)
   note!: string
 }
-
-const overdueExplanationCategories = [
-  'WEATHER',
-  'SECURITY',
-  'FUNDING',
-  'COMMUNITY',
-  'LOGISTICS',
-  'OTHER',
-] as const
-type OverdueExplanationCategory = (typeof overdueExplanationCategories)[number]
 
 export class RecordOverdueExplanationDto {
   @IsUUID()

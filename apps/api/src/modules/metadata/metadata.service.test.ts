@@ -8,9 +8,9 @@ import { Prisma } from '@prisma/client'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { PrismaService } from '@app/prisma/prisma.service'
-import { rolePermissions } from '../auth/authorization-policy'
+import { DIRECT_ENTRY_FORM_TYPES, rolePermissions } from '@pathways/shared'
 import type { ApplicationIdentity } from '../auth/developer-access'
-import { DIRECT_ENTRY_FORM_TYPES, MetadataService } from './metadata.service'
+import { MetadataService } from './metadata.service'
 
 const state = vi.hoisted(() => ({
   actor: undefined as ApplicationIdentity | undefined,

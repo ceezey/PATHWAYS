@@ -3,6 +3,7 @@
 import { FormDefinitionEntryField as EntryField } from './form-definition-entry-field'
 import { SurveySubjectPicker } from './survey-subject-picker'
 
+import { DIRECT_ENTRY_FORM_TYPES } from '@pathways/shared'
 import { CheckCircle2, Save, Send, TriangleAlert } from 'lucide-react'
 import Link from 'next/link'
 import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
@@ -25,9 +26,6 @@ import type {
   DirectFormSubmission,
   FormValidationError,
 } from '@/types/pathways'
-
-// Mirrors the API DIRECT_ENTRY_FORM_TYPES (V4-C11).
-const DIRECT_ENTRY_FORM_TYPES = ['TRAINING_SURVEY', 'PRE_TEST', 'POST_TEST', 'ACTIVITY_MONITORING']
 
 function verifySurveySubject(
   submission: DirectFormSubmission,
@@ -470,7 +468,7 @@ function OwnedDirectFormEntryWorkspace({
   }
 
   if (
-    !DIRECT_ENTRY_FORM_TYPES.includes(form.formType) &&
+    !(DIRECT_ENTRY_FORM_TYPES as readonly string[]).includes(form.formType) &&
     form.formType !== 'BENEFICIARY_REGISTRATION'
   ) {
     return (

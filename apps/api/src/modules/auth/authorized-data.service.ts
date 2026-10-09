@@ -1,7 +1,7 @@
 import { ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common'
+import { aggregateOnlyRoles } from '@pathways/shared'
 import type { Prisma } from '@prisma/client'
 import { PrismaService } from '../../prisma/prisma.service'
-import { aggregateOnlyRoles } from './authorization-policy'
 import { withAuthorizedOperation } from './authorized-operation'
 import { type ApplicationIdentity, UUID_PATTERN } from './developer-access'
 

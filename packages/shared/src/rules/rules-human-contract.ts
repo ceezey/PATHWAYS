@@ -1,5 +1,20 @@
 import { z } from 'zod'
-const alertStatuses = [
+import {
+  MAX_CONDITIONS,
+  RULE_CONTRACT_VERSION,
+  conditionSchema,
+  decimalSchema,
+  metricObservationSchema,
+  operators,
+  parseRuleTree,
+  recommendationSchema,
+  ruleDefinitionSchema,
+  ruleMetricCellSchema,
+  ruleMetrics,
+  uuidSchema,
+} from './rule-contract'
+
+export const alertStatuses = [
   'NEW',
   'REVIEWED',
   'ACTIONED',
@@ -8,17 +23,8 @@ const alertStatuses = [
   'AUTO_RESOLVED',
 ] as const
 export const decisionOutcomes = ['ACCEPT', 'PARTIALLY_ACCEPT', 'DECLINE', 'ESCALATE'] as const
-import {
-  decimalSchema,
-  metricCellSchema,
-  operators,
-  parseRuleTree,
-  recommendationSchema,
-  ruleMetrics,
-  uuidSchema,
-} from './rules-validation'
 
-const revisionSchema = z
+export const revisionSchema = z
   .string()
   .regex(/^[1-9][0-9]{0,18}$/)
   .refine((value) => {
@@ -122,6 +128,7 @@ export const ruleListSchema = z
 export const alertListSchema = z
   .object({ ...listFields, status: z.enum(alertStatuses).optional() })
   .strict()
+export const escalatedAlertListSchema = z.object(listFields).strict()
 export const recommendationListSchema = z
   .object({ ...listFields, alertId: uuidSchema.optional() })
   .strict()
@@ -139,7 +146,7 @@ const alertEvidenceSchema = z
     operator: z.enum(operators),
     threshold: decimalSchema,
     thresholdMaximum: decimalSchema.nullable(),
-    cell: metricCellSchema,
+    cell: ruleMetricCellSchema,
     unit: z.string().min(1).max(80),
     result: z.enum(['TRUE', 'FALSE', 'UNAVAILABLE']),
   })
@@ -179,6 +186,10 @@ export const alertOutputSchema = z
     predefinedRecommendations: z.array(recommendationSchema).min(1).max(10),
     linkedRecommendationIds: z.array(uuidSchema).max(10),
   })
+  .strict()
+// Escalation records only an outcome; the queue adds when the latest ESCALATE was recorded.
+export const escalatedAlertOutputSchema = alertOutputSchema
+  .extend({ escalatedAt: instant })
   .strict()
 export const recommendationOutputSchema = z
   .object({
@@ -277,13 +288,6 @@ export type OutcomePreview = z.infer<typeof previewOutputSchema>
 export type HumanNotification = z.infer<typeof notificationOutputSchema>
 export type DecisionOutcome = (typeof decisionOutcomes)[number]
 
-import {
-  MAX_CONDITIONS,
-  RULE_CONTRACT_VERSION,
-  conditionSchema,
-  metricObservationSchema,
-  ruleDefinitionSchema,
-} from './rules-validation'
 export const dryRunInputSchema = z
   .object({
     rule: ruleDefinitionSchema,

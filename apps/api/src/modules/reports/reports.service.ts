@@ -12,11 +12,10 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common'
 import { readApiEnv } from '@pathways/config'
-import { metricCellSchema } from '@pathways/shared'
+import { type ReportKindCode, hasAtomicPermission, metricCellSchema } from '@pathways/shared'
 import { Prisma } from '@prisma/client'
 import { z } from 'zod'
 import { PrismaService } from '../../prisma/prisma.service'
-import { hasAtomicPermission } from '../auth/authorization-policy'
 import { projectScope } from '../auth/authorized-data.service'
 import { withAuthorizedOperation } from '../auth/authorized-operation'
 import type { ApplicationIdentity } from '../auth/developer-access'
@@ -42,7 +41,7 @@ import {
   monitoringReportPeriod,
   monitoringReportTable,
 } from './report-sources-extra'
-import { type ReportKind, reportInputSchema, reportQuerySchema } from './reports.dto'
+import { reportInputSchema, reportQuerySchema } from './reports.dto'
 
 const kindPermission = {
   PROJECT_SUMMARY: 'reports.project.read',
@@ -61,7 +60,7 @@ const metricText = (input: unknown) => {
 type Preview = {
   projectId: string
   formId: string | null
-  kind: ReportKind
+  kind: ReportKindCode
   evaluationId?: string | null
   columns: string[]
   rows: string[][]
@@ -75,7 +74,7 @@ type Artifact = {
   formId: string | null
   evaluationId: string | null
   name: string
-  type: ReportKind
+  type: ReportKindCode
   format: ReportFormat
   status: string
   hash: string
@@ -98,7 +97,7 @@ export class ReportsService {
     private readonly overview: ProjectOverviewMetricsService,
     @Inject(RulesHumanService) private readonly rules: RulesHumanService,
   ) {}
-  private permissions(actor: ApplicationIdentity, kind: ReportKind) {
+  private permissions(actor: ApplicationIdentity, kind: ReportKindCode) {
     if (
       !hasAtomicPermission(actor.roles[0], actor.permissions, 'reports.read') ||
       !hasAtomicPermission(actor.roles[0], actor.permissions, kindPermission[kind]) ||
@@ -113,7 +112,7 @@ export class ReportsService {
     tx: Prisma.TransactionClient,
     actor: ApplicationIdentity,
     requestedProjectId: string,
-    kind: ReportKind,
+    kind: ReportKindCode,
     requestedFormId?: string,
     requestedEvaluationId?: string,
   ): Promise<Preview> {
@@ -489,7 +488,7 @@ export class ReportsService {
         }))
       )
         throw new NotFoundException('Project unavailable.')
-      const allowed = (Object.keys(kindPermission) as ReportKind[]).filter(
+      const allowed = (Object.keys(kindPermission) as ReportKindCode[]).filter(
         (kind) =>
           hasAtomicPermission(actor.roles[0], actor.permissions, kindPermission[kind]) &&
           (kind !== 'BENEFICIARY_SUMMARY' ||

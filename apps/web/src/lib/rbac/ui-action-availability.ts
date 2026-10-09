@@ -1,11 +1,10 @@
 import type { PathwaysRole } from '@/types/pathways-role'
 import {
   type AtomicPermission,
-  type CanonicalRole,
   hasAtomicPermission,
-  roleNames,
+  roleCodeFor,
   rolePermissions,
-} from '../../../../api/src/modules/auth/authorization-policy'
+} from '@pathways/shared'
 
 type UiAction =
   | 'activities.status.edit'
@@ -62,9 +61,7 @@ export const isUiActionAvailable = (
   if (!role) return false
   const permission = supportedActionPermission[action]
   if (!permission) return false
-  const roleCode = (Object.keys(roleNames) as CanonicalRole[]).find(
-    (code) => roleNames[code] === role,
-  )
+  const roleCode = roleCodeFor(role)
   if (!roleCode) return false
   // Role-only use describes the ceiling. Mounted controls pass the current profile.
   if (principal !== undefined) {

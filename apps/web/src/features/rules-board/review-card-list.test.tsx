@@ -1,5 +1,5 @@
 /* @vitest-environment jsdom */
-import type { HumanAlert, HumanRecommendation } from '@/features/analytics/rules-human-contract'
+import type { HumanAlert, HumanRecommendation } from '@pathways/shared'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ReviewCardList, statusLabel } from './review-card-list'

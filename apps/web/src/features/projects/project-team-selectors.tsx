@@ -29,10 +29,7 @@ import {
 import type { UserRecord } from '@/types/pathways'
 import type { PathwaysRole } from '@/types/pathways-role'
 
-import {
-  type CanonicalRole,
-  canAssignRole,
-} from '../../../../api/src/modules/auth/authorization-policy'
+import { type CanonicalRole, canAssignRole } from '@pathways/shared'
 
 import type { ProjectSetupSchema } from './project-form-validation'
 
@@ -47,15 +44,6 @@ const teamRoles: Record<TeamFieldName, PathwaysRole> = {
   projectManager: 'Project Manager',
   monitoringOfficer: 'Monitoring and Evaluation Officer',
   projectOfficers: 'Project Officer',
-}
-
-const roleLabels: Record<PathwaysRole, string> = {
-  'Program Manager': 'Program Manager',
-  'Grant Manager': 'Grant Manager',
-  'Project Manager': 'Project Manager',
-  'Monitoring and Evaluation Officer': 'Monitoring and Evaluation Officer',
-  'Project Officer': 'Project Officer',
-  'System Administrator': 'System Administrator',
 }
 
 const hideableTargets: Record<TeamFieldName, CanonicalRole | null> = {
@@ -113,7 +101,7 @@ export const validateProjectTeamSelections = (
       errors[fieldName] =
         fieldName === 'projectOfficers'
           ? 'Select at least one active Project Officer from the list.'
-          : `Select an active ${roleLabels[role]} from the list.`
+          : `Select an active ${role} from the list.`
     }
   }
 
@@ -127,7 +115,7 @@ const optionPlaceholder = (
   optionCount: number,
 ) => {
   if (loading) {
-    return `Loading ${roleLabels[role]} options...`
+    return `Loading ${role} options...`
   }
 
   if (loadError) {
@@ -135,10 +123,10 @@ const optionPlaceholder = (
   }
 
   if (optionCount === 0) {
-    return `No active ${roleLabels[role]} available`
+    return `No active ${role} available`
   }
 
-  return `Select ${roleLabels[role]}`
+  return `Select ${role}`
 }
 
 const noneOptionValue = '__none__'
@@ -255,7 +243,7 @@ const SingleTeamSelector = ({
               <FormDescription>
                 {field.value
                   ? 'The current assignment remains unchanged.'
-                  : `No active ${roleLabels[role]} account is available.`}
+                  : `No active ${role} account is available.`}
               </FormDescription>
             ) : null}
             <FormMessage />

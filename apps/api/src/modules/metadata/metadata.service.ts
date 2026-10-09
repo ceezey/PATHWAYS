@@ -9,14 +9,15 @@ import {
 import { Prisma } from '@prisma/client'
 
 import {
+  DIRECT_ENTRY_FORM_TYPES,
   type FormFieldValidationContract,
   type FormValidationMode,
   activityMonitoringDefinitionErrors,
   beneficiaryRegistrationDefinitionErrors,
+  hasAtomicPermission,
   validateAndNormalizeFormData,
 } from '@pathways/shared'
 import { PrismaService } from '../../prisma/prisma.service'
-import { hasAtomicPermission } from '../auth/authorization-policy'
 import { projectScope } from '../auth/authorized-data.service'
 import { withAuthorizedOperation } from '../auth/authorized-operation'
 import { type ApplicationIdentity, UUID_PATTERN } from '../auth/developer-access'
@@ -35,14 +36,6 @@ import type {
 import { PublishedDefinitionCache } from './published-definition-cache'
 
 type Tx = Prisma.TransactionClient
-
-// V4-C11: direct entry stays only for survey, test and activity-monitoring forms.
-export const DIRECT_ENTRY_FORM_TYPES = [
-  'TRAINING_SURVEY',
-  'PRE_TEST',
-  'POST_TEST',
-  'ACTIVITY_MONITORING',
-] as const
 
 const fieldSelection = {
   id: true,

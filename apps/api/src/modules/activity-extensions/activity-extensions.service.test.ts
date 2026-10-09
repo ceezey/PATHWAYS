@@ -1,6 +1,5 @@
 import 'reflect-metadata'
 
-import { rolePermissions } from '@app/modules/auth/authorization-policy'
 import { withAuthorizedOperation } from '@app/modules/auth/authorized-operation'
 import type { ApplicationIdentity } from '@app/modules/auth/developer-access'
 import {
@@ -8,7 +7,7 @@ import {
   finishRuleSourceOperation,
 } from '@app/modules/rules/rules-source-operation'
 import type { PrismaService } from '@app/prisma/prisma.service'
-import { activityExtensionSchema } from '@pathways/shared'
+import { activityExtensionSchema, rolePermissions } from '@pathways/shared'
 import type { Prisma } from '@prisma/client'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ActivityExtensionsService } from './activity-extensions.service'

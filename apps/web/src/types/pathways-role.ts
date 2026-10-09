@@ -1,3 +1,6 @@
+import type { RoleName } from '@pathways/shared'
+
+// Role names in UI display order, System Administrator last; codes live in the shared role catalog.
 export const pathwaysRoles = [
   'Program Manager',
   'Grant Manager',
@@ -5,17 +8,6 @@ export const pathwaysRoles = [
   'Monitoring and Evaluation Officer',
   'Project Officer',
   'System Administrator',
-] as const
+] as const satisfies readonly RoleName[]
 
-export type PathwaysRole = (typeof pathwaysRoles)[number]
-
-const pathwaysRoleDisplayNames: Record<PathwaysRole, string> = {
-  'Program Manager': 'Program Manager',
-  'Grant Manager': 'Grant Manager',
-  'Project Manager': 'Project Manager',
-  'Monitoring and Evaluation Officer': 'Monitoring and Evaluation Officer',
-  'Project Officer': 'Project Officer',
-  'System Administrator': 'System Administrator',
-}
-
-export const getPathwaysRoleDisplayName = (role: PathwaysRole) => pathwaysRoleDisplayNames[role]
+export type PathwaysRole = RoleName

@@ -20,13 +20,13 @@ import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
 import { pathwaysClient } from '@/lib/services/pathways-client'
 import { rulesHumanClient } from '@/lib/services/rules-human-client'
 import { useAuthorizedRead } from '@/providers/authorized-query-provider'
+import type { HumanAlert, HumanNotification } from '@pathways/shared'
 import { ArrowDownWideNarrow } from 'lucide-react'
 import Link from 'next/link'
 import { useRef, useState } from 'react'
 import { HumanReviewAction } from './human-review-action'
 import { LinkedAlertSummary } from './linked-alert-summary'
 import { RuleTreeView, comparisonCopy } from './rule-condition-editor'
-import type { HumanAlert, HumanNotification } from './rules-human-contract'
 
 const copy = (value: string) =>
   value === 'AUTO_RESOLVED' ? 'Auto-resolved' : value.replaceAll('_', ' ').toLowerCase()

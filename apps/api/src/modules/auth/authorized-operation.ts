@@ -9,10 +9,10 @@ import {
 } from '@nestjs/common'
 import type { Prisma } from '@prisma/client'
 
+import { type AtomicPermission, hasAtomicPermission } from '@pathways/shared'
 import type { PrismaService } from '../../prisma/prisma.service'
 import { prismaDiagnosticCode, transactionDiagnostic } from '../../prisma/transaction-diagnostic'
 import { readApplicationProfile } from './application-profile.service'
-import { type AtomicPermission, hasAtomicPermission } from './authorization-policy'
 import {
   boundedOperationDuration,
   reportAuthorizedOperationTiming,

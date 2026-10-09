@@ -1,5 +1,9 @@
 import type { PathwaysRole } from '@/types/pathways-role'
-import type { SadddDashboard, ProjectIndicator as SharedProjectIndicator } from '@pathways/shared'
+import type {
+  OverdueExplanationCategory,
+  SadddDashboard,
+  ProjectIndicator as SharedProjectIndicator,
+} from '@pathways/shared'
 
 export type ProjectStatus = 'Active' | 'Needs Attention' | 'Planned' | 'Completed'
 export type StoredProjectStatus = 'PLANNED' | 'ONGOING' | 'COMPLETED' | 'ON_HOLD' | 'CANCELLED'
@@ -109,14 +113,6 @@ export interface ActivityCapabilities {
   canSubmitProof: boolean
   canExplainOverdue: boolean
 }
-
-export type OverdueExplanationCategory =
-  | 'WEATHER'
-  | 'SECURITY'
-  | 'FUNDING'
-  | 'COMMUNITY'
-  | 'LOGISTICS'
-  | 'OTHER'
 
 /** One append-only entry from `activityOverdueExplanations` (cr-pathways-activity-overdue-explanation). */
 export interface ActivityOverdueExplanation {

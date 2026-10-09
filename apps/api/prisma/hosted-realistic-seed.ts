@@ -4,12 +4,12 @@ import path from 'node:path'
 import { PrismaClient } from '@prisma/client'
 import { createClient } from '@supabase/supabase-js'
 
+import type { CanonicalRole } from '@pathways/shared'
 import type {
   CreateActivityDto,
   TransitionActivityDto,
 } from '../src/modules/activities/activities.dto'
 import { ActivitiesService } from '../src/modules/activities/activities.service'
-import type { CanonicalRole } from '../src/modules/auth/authorization-policy'
 import type { ApplicationIdentity } from '../src/modules/auth/developer-access'
 import type { RegisterBeneficiaryDto } from '../src/modules/beneficiaries/beneficiaries.dto'
 import { BeneficiariesService } from '../src/modules/beneficiaries/beneficiaries.service'
@@ -638,7 +638,7 @@ async function main() {
     // @RequirePermission('programs.create') controller and its own internal
     // SYSTEM_ADMINISTRATOR-only check), but no canonical role is ever granted that
     // permission: it is absent from SYSTEM_ADMINISTRATOR's grant list in
-    // authorization-policy.ts, and rbac-contract.json lists zero roles for it too. Calling
+    // packages/shared/src/rbac/authorization-policy.ts, and rbac-contract.json lists zero roles for it too. Calling
     // programsService.create() here throws ForbiddenException('Required application
     // permission is missing.') for every identity, including a real System Administrator —
     // this is a pre-existing RBAC gap in the product, not something this seed can safely

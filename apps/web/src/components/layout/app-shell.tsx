@@ -32,7 +32,6 @@ import { useSession } from '@/hooks/use-session'
 import { getAccessScopeLabel } from '@/lib/auth/access-context'
 import { getVerifiedRouteAccess } from '@/lib/rbac/route-access'
 import { cn } from '@/lib/utils'
-import { getPathwaysRoleDisplayName } from '@/types/pathways-role'
 
 export const AppShell = ({
   children,
@@ -46,7 +45,7 @@ export const AppShell = ({
   const [mobileOpen, setMobileOpen] = useState(false)
   const { email, signOut } = useSession()
   const { role, profile, assignedProjectIds } = useCurrentRole()
-  const roleLabel = role ? getPathwaysRoleDisplayName(role) : 'Access pending'
+  const roleLabel = role || 'Access pending'
   const workspaceLabel = getDashboardNavigationLabel(pathname)
   const scopeLabel = getAccessScopeLabel(role, assignedProjectIds)
   const canOpenProfile = Boolean(

@@ -1,3 +1,5 @@
+import { z } from 'zod'
+import { metricCellSchema as sharedCellSchema } from '../monitoring/metric-contract'
 import {
   decimalString,
   indicatorProgress,
@@ -5,18 +7,16 @@ import {
   normalizeMetricDecimal,
   numericKinds,
   scaledDecimal,
-  metricCellSchema as sharedCellSchema,
   numericMetric as sharedNumericMetric,
-} from '@pathways/shared'
-import { z } from 'zod'
+} from '../monitoring/metric-math'
 import {
   type MetricObservation,
   type RuleMetricKey,
   conditionIdSchema,
   decimalSchema,
-  metricCellSchema,
   metricObservationSchema,
   metricReasons,
+  ruleMetricCellSchema,
   uuidSchema,
 } from './rule-contract'
 
@@ -25,7 +25,7 @@ const instant = z.string().datetime({ offset: true })
 const revision = z.string().regex(/^[A-Za-z0-9_.:-]{1,80}$/)
 type Cell = MetricObservation['cell']
 function numericMetric(value: string): Cell {
-  return metricCellSchema.parse(sharedNumericMetric(value))
+  return ruleMetricCellSchema.parse(sharedNumericMetric(value))
 }
 const unavailable = (reason: Cell['reason'], state: Cell['state'] = 'MISSING'): Cell => ({
   state,
@@ -198,7 +198,7 @@ const timelineInputSchema = z
   })
   .strict()
 
-/** reportingDate is the server-derived business calendar date at asOf, not machine-local time. */
+/** reportingDate is the business calendar date at asOf: server-derived for evaluation, entered for browser rule tests. */
 export function timelineObservation(input: unknown): MetricObservation {
   const {
     scope,

@@ -1,16 +1,7 @@
+import { type DecisionOutcome, alertStatuses, decisionOutcomes } from '@pathways/shared'
 import { z } from 'zod'
 
-export const alertStatuses = [
-  'NEW',
-  'REVIEWED',
-  'ACTIONED',
-  'RESOLVED',
-  'DISMISSED',
-  'AUTO_RESOLVED',
-] as const
 type AlertStatus = (typeof alertStatuses)[number]
-export const decisionOutcomes = ['ACCEPT', 'PARTIALLY_ACCEPT', 'DECLINE', 'ESCALATE'] as const
-type DecisionOutcome = (typeof decisionOutcomes)[number]
 const terminal = new Set<AlertStatus>(['RESOLVED', 'DISMISSED', 'AUTO_RESOLVED'])
 const sequenceSchema = z.string().regex(/^(?:0|[1-9]\d{0,18})$/)
 const cursorSchema = z

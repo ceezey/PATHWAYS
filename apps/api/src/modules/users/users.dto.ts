@@ -1,7 +1,7 @@
 import { Transform } from 'class-transformer'
 import { ArrayMaxSize, IsArray, IsIn, IsOptional, IsString, IsUUID, Length } from 'class-validator'
 
-import { roleNames } from '../auth/authorization-policy'
+import { roleNames } from '@pathways/shared'
 
 const roleCodes = Object.keys(roleNames)
 

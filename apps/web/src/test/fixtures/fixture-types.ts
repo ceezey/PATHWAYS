@@ -1,4 +1,4 @@
-import type { PrototypeRole } from './fixture-roles'
+import type { PathwaysRole } from '@/types/pathways-role'
 
 export type ProjectStatus = 'Active' | 'Needs Attention' | 'Planned' | 'Completed'
 type HealthStatus = 'On Track' | 'At Risk' | 'Critical'
@@ -198,7 +198,7 @@ export interface UserRecord {
   id: string
   name: string
   email: string
-  role: PrototypeRole
+  role: PathwaysRole
   accountStatus: UserAccountStatus
   signInMethod: 'Prototype password' | 'SSO placeholder'
   projectIds: string[]

@@ -1,8 +1,6 @@
+import { dryRunInputSchema, dryRunOutputSchema, timelineObservation } from '@pathways/shared'
 import { describe, expect, it } from 'vitest'
-import { metricObservationSchema as serverObservationSchema } from '../../../../api/src/modules/rules/rule-contract'
-import { evaluateRule } from '../../../../api/src/modules/rules/rule-engine'
-import { timelineObservation } from './rule-test-metrics'
-import { dryRunInputSchema, dryRunOutputSchema } from './rules-human-contract'
+import { evaluateRule } from './rule-engine'
 
 const scope = {
   organizationId: '10000000-0000-4000-8000-000000000001',
@@ -17,9 +15,9 @@ const condition = {
   threshold: '0',
 }
 
-describe('browser and server timeline evaluation contract', () => {
+describe('timeline evaluation contract', () => {
   it.each(['PLANNED', 'COMPLETED'] as const)(
-    'accepts browser-generated %s observations on the server and server evidence in the browser',
+    'evaluates %s timeline observations into evidence the dry run output schema accepts',
     (projectStatus) => {
       const observation = timelineObservation({
         scope,
@@ -33,7 +31,6 @@ describe('browser and server timeline evaluation contract', () => {
         startDate: '2026-09-01',
         endDate: '2026-09-25',
       })
-      expect(serverObservationSchema.safeParse(observation).success).toBe(true)
       const input = dryRunInputSchema.parse({
         rule: {
           ...scope,

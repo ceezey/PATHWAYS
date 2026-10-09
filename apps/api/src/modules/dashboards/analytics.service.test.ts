@@ -1,21 +1,22 @@
 import { PERMISSION_KEY } from '@app/common/decorators/permission.decorator'
-import { hasAtomicPermission, rolePermissions } from '@app/modules/auth/authorization-policy'
 import { withAuthorizedOperation } from '@app/modules/auth/authorized-operation'
 import type { ApplicationIdentity } from '@app/modules/auth/developer-access'
+import {
+  type DescriptiveAnalytics,
+  type MetricCell,
+  activityObservation,
+  businessCalendarDate,
+  descriptiveAnalyticsSchema,
+  hasAtomicPermission,
+  rolePermissions,
+  surveyAggregateFromRows,
+} from '@pathways/shared'
 type CanonicalRole = keyof typeof rolePermissions
 import type { IndicatorsService } from '@app/modules/indicators/indicators.service'
 import type { PrismaService } from '@app/prisma/prisma.service'
 import { ForbiddenException } from '@nestjs/common'
-import {
-  type DescriptiveAnalytics,
-  type MetricCell,
-  businessCalendarDate,
-  descriptiveAnalyticsSchema,
-  surveyAggregateFromRows,
-} from '@pathways/shared'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import * as reportArtifact from '../reports/report-artifact'
-import { activityObservation } from '../rules/rule-metrics'
 import { AnalyticsController } from './analytics.controller'
 import { AnalyticsService } from './analytics.service'
 import { DashboardsService } from './dashboards.service'

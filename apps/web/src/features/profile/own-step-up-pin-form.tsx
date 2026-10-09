@@ -6,14 +6,16 @@ import { useCurrentRole } from '@/hooks/use-current-role'
 import { useSession } from '@/hooks/use-session'
 import {
   BeneficiaryStepUpError,
-  PIN_RULE_MESSAGE,
-  type StepUpPinState,
   changeStepUpPin,
   getBeneficiaryStepUpStatus,
-  isAcceptableStepUpPin,
   setStepUpPin,
   verifyBeneficiaryStepUp,
 } from '@/lib/auth/beneficiary-step-up'
+import {
+  STEP_UP_PIN_RULE_MESSAGE,
+  type StepUpPinState,
+  isAcceptableStepUpPin,
+} from '@pathways/shared'
 import { useEffect, useRef, useState } from 'react'
 import { currentContinuation } from './own-password-operation'
 
@@ -117,7 +119,7 @@ export function OwnStepUpPinForm() {
     // Client checks send nothing; only the fields that must be re-entered are cleared.
     if (!isAcceptableStepUpPin(newPin)) {
       clear(form, ['newPin', 'confirmPin'])
-      flag('newPin', PIN_RULE_MESSAGE)
+      flag('newPin', STEP_UP_PIN_RULE_MESSAGE)
       return
     }
     if (newPin !== confirmPin) {
@@ -155,7 +157,7 @@ export function OwnStepUpPinForm() {
         flag('authenticatorCode', error.message)
       } else if (error.message === 'Incorrect PIN' && !usesAuthenticator) {
         flag('currentPin', error.message)
-      } else if (error.message === PIN_RULE_MESSAGE) {
+      } else if (error.message === STEP_UP_PIN_RULE_MESSAGE) {
         flag('newPin', error.message)
       } else if (usesAuthenticator) {
         flag('authenticatorCode', error.message)
@@ -260,7 +262,7 @@ export function OwnStepUpPinForm() {
             {pinField('newPin', 'New PIN')}
             {pinField('confirmPin', 'Confirm new PIN')}
             <p className="text-sm text-muted-foreground" id="own-pin-rule">
-              {PIN_RULE_MESSAGE}
+              {STEP_UP_PIN_RULE_MESSAGE}
             </p>
             <Button disabled={busy} type="submit">
               {busy ? 'Saving PIN...' : pinState === 'NONE' ? 'Set PIN' : 'Change PIN'}

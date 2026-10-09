@@ -11,6 +11,15 @@ import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
 import { PathwaysClientError, pathwaysClient } from '@/lib/services/pathways-client'
 import { rulesHumanClient } from '@/lib/services/rules-human-client'
 import { useAuthorizedRead } from '@/providers/authorized-query-provider'
+import {
+  type HumanRule,
+  type RuleCondition,
+  type RuleNode,
+  createRuleSchema,
+  draftRuleSchema,
+  parseRuleTree,
+  ruleMetrics,
+} from '@pathways/shared'
 import { useEffect, useId, useRef, useState } from 'react'
 import {
   RuleConditionEditor,
@@ -18,9 +27,6 @@ import {
   leafCount,
   newCondition,
 } from './rule-condition-editor'
-import { type HumanRule, createRuleSchema, draftRuleSchema } from './rules-human-contract'
-import { parseRuleTree, ruleMetrics } from './rules-validation'
-import type { RuleCondition, RuleNode } from './rules-validation'
 
 type Props = {
   projectId: string | null

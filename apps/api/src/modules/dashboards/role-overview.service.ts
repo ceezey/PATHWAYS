@@ -2,15 +2,16 @@ import { Inject, Injectable, ServiceUnavailableException } from '@nestjs/common'
 import { readApiEnv } from '@pathways/config'
 import {
   type AlertSeverity,
+  type AtomicPermission,
   ROLE_OVERVIEW_CONTRACT_VERSION,
   type RoleOverview,
   alertSeverities,
   businessCalendarDate,
+  hasAtomicPermission,
   roleOverviewSchema,
 } from '@pathways/shared'
 import type { Prisma } from '@prisma/client'
 import { PrismaService } from '../../prisma/prisma.service'
-import { type AtomicPermission, hasAtomicPermission } from '../auth/authorization-policy'
 import { projectScope } from '../auth/authorized-data.service'
 import { withAuthorizedOperation } from '../auth/authorized-operation'
 import type { ApplicationIdentity } from '../auth/developer-access'

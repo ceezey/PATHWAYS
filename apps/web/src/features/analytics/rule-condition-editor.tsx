@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { metricLabel } from '@/features/rules-board/rule-board-model'
-import { type RuleNode, operators, ruleMetrics } from './rules-validation'
+import { type RuleNode, operators, ruleMetrics } from '@pathways/shared'
 export const comparisonCopy = {
   LT: 'Below (<)',
   LTE: 'At most (<=)',
