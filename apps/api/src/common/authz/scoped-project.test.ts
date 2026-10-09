@@ -42,9 +42,9 @@ describe('requireScopedProject', () => {
     'answers 404 for %j before any query',
     async (value) => {
       const { tx, findFirst } = txReturning({ id: project })
-      await expect(requireScopedProject(tx, actor, value)).rejects.toThrow(
-        new NotFoundException('Project unavailable.'),
-      )
+      const error = await requireScopedProject(tx, actor, value).catch((caught) => caught)
+      expect(error).toBeInstanceOf(NotFoundException)
+      expect(error.message).toBe('Project unavailable.')
       expect(findFirst).not.toHaveBeenCalled()
     },
   )

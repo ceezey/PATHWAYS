@@ -20,8 +20,16 @@ describe('currentBusinessDate', () => {
 
   it('answers 503 when the business time zone is unusable', () => {
     vi.stubEnv('BUSINESS_TIME_ZONE', 'Not/AZone')
-    expect(() => currentBusinessDate()).toThrow(
-      new ServiceUnavailableException('The configured business time zone is invalid.'),
+    const error = (() => {
+      try {
+        return currentBusinessDate()
+      } catch (caught) {
+        return caught as ServiceUnavailableException
+      }
+    })()
+    expect(error).toBeInstanceOf(ServiceUnavailableException)
+    expect((error as ServiceUnavailableException).message).toBe(
+      'The configured business time zone is invalid.',
     )
   })
 })

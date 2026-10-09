@@ -5,6 +5,7 @@ import { projectScope } from '../../common/authz/project-scope'
 import { requireScopedProject } from '../../common/authz/scoped-project'
 import { PrismaService } from '../../prisma/prisma.service'
 import { withAuthorizedOperation } from './authorized-operation'
+
 @Injectable()
 export class AuthorizedDataService {
   constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}

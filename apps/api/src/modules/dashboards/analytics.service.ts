@@ -21,8 +21,10 @@ import {
   timelineAnalyticsSchema,
 } from '@pathways/shared'
 import { Prisma } from '@prisma/client'
+import { writeAuditLog } from '../../common/audit/write-audit-log'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import { projectScope } from '../../common/authz/project-scope'
+import { requireScopedProjectRow } from '../../common/authz/scoped-project'
 import { PrismaService } from '../../prisma/prisma.service'
 import { faultCause } from '../../prisma/transaction-diagnostic'
 import { withAuthorizedOperation } from '../auth/authorized-operation'
@@ -39,8 +41,6 @@ import {
   timelineAnalyticsTable,
 } from './descriptive-analytics'
 
-import { writeAuditLog } from '../../common/audit/write-audit-log'
-import { requireScopedProjectRow } from '../../common/authz/scoped-project'
 import {
   ReportArtifactInputError,
   createReportArtifact,

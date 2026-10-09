@@ -119,9 +119,9 @@ describe('ActionCountsService', () => {
   it('answers 503 when the business time zone is invalid', async () => {
     const { service } = setup()
     env.zone = 'Not/AZone'
-    await expect(service.read(actor('PROJECT_MANAGER'))).rejects.toThrow(
-      new ServiceUnavailableException('The configured business time zone is invalid.'),
-    )
+    const error = await service.read(actor('PROJECT_MANAGER')).catch((caught) => caught)
+    expect(error).toBeInstanceOf(ServiceUnavailableException)
+    expect(error.message).toBe('The configured business time zone is invalid.')
   })
 
   it('guards the route with projects.read', () => {
