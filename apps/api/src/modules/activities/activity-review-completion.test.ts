@@ -62,7 +62,7 @@ vi.mock('../auth/authorized-operation', () => ({
     work(state.tx, state.actor),
   ),
 }))
-vi.mock('../auth/application-profile.service', () => ({
+vi.mock('../../common/authz/application-profile', () => ({
   readApplicationProfile: vi.fn(async () => state.actor),
 }))
 import { ActivitiesService } from './activities.service'

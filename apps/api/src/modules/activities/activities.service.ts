@@ -24,11 +24,11 @@ import { readApiEnv } from '@pathways/config'
 import { aggregateOnlyRoles, businessCalendarDate, hasAtomicPermission } from '@pathways/shared'
 import { writeAuditLog } from '../../common/audit/write-audit-log'
 import { type ApplicationIdentity, UUID_PATTERN } from '../../common/authz/application-identity'
+import { readApplicationProfile } from '../../common/authz/application-profile'
 import { projectScope } from '../../common/authz/project-scope'
 import { projectDateFields, requireScopedProjectRow } from '../../common/authz/scoped-project'
 import type { Tx } from '../../common/prisma/transaction'
 import { PrismaService } from '../../prisma/prisma.service'
-import { readApplicationProfile } from '../auth/application-profile.service'
 import { withAuthorizedOperation } from '../auth/authorized-operation'
 import {
   type UploadVerification,

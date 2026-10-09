@@ -13,10 +13,10 @@ import { hasAtomicPermission } from '@pathways/shared'
 import type { Prisma } from '@prisma/client'
 import { writeAuditLog } from '../../common/audit/write-audit-log'
 import { type ApplicationIdentity, UUID_PATTERN } from '../../common/authz/application-identity'
+import { readApplicationProfile } from '../../common/authz/application-profile'
 import { projectScope } from '../../common/authz/project-scope'
 import { inspectionIdentityContext } from '../../common/network/inspection-request-budget'
 import { PrismaService } from '../../prisma/prisma.service'
-import { readApplicationProfile } from '../auth/application-profile.service'
 import { withAuthorizedOperation } from '../auth/authorized-operation'
 import {
   createPrivateObjectStreamer,

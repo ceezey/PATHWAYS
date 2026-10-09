@@ -12,7 +12,7 @@ import type { ApplicationIdentity } from '../../common/authz/application-identit
 import { withAuthorizedOperation } from './authorized-operation'
 import { registerAuthorizedOperationTiming } from './authorized-operation-timing'
 
-vi.mock('./application-profile.service', () => ({
+vi.mock('../../common/authz/application-profile', () => ({
   readApplicationProfile: vi.fn(async () => identity),
 }))
 

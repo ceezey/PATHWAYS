@@ -11,9 +11,9 @@ import type { Prisma } from '@prisma/client'
 
 import { type AtomicPermission, hasAtomicPermission } from '@pathways/shared'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
+import { readApplicationProfile } from '../../common/authz/application-profile'
 import type { PrismaService } from '../../prisma/prisma.service'
 import { prismaDiagnosticCode, transactionDiagnostic } from '../../prisma/transaction-diagnostic'
-import { readApplicationProfile } from './application-profile.service'
 import {
   boundedOperationDuration,
   reportAuthorizedOperationTiming,

@@ -59,7 +59,10 @@ describe('rule-based access alignment contract', () => {
   )
 
   it('retains active, non-ended, same-organization assignment resolution', () => {
-    const source = readFileSync(path.join(__dirname, 'application-profile.service.ts'), 'utf8')
+    const source = readFileSync(
+      path.join(__dirname, '../../common/authz/application-profile.ts'),
+      'utf8',
+    )
     expect(source).toContain("a.status = 'ACTIVE' AND a.ended_at IS NULL")
     expect(source).toContain('a.organization_id = u.organization_id AND a.user_id = u.id')
     expect(source).toContain('project.archived_at IS NULL')

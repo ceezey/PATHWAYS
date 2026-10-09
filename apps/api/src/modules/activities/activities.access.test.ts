@@ -64,7 +64,7 @@ const state = vi.hoisted(() => ({
   tx: undefined as Prisma.TransactionClient | undefined,
 }))
 
-vi.mock('@app/modules/auth/application-profile.service', () => ({
+vi.mock('@app/common/authz/application-profile', () => ({
   readApplicationProfile: vi.fn(async () => state.actor),
 }))
 vi.mock('@app/modules/auth/authorized-operation', () => ({

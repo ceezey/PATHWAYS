@@ -12,7 +12,7 @@ const state = vi.hoisted(() => ({
   release: vi.fn(),
   order: [] as string[],
 }))
-vi.mock('../auth/application-profile.service', () => ({
+vi.mock('../../common/authz/application-profile', () => ({
   readApplicationProfile: vi.fn(async () => state.actor),
 }))
 vi.mock('../auth/authorized-operation', () => ({

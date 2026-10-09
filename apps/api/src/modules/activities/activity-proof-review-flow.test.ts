@@ -24,7 +24,7 @@ vi.mock('@app/modules/auth/authorized-operation', () => ({
     return work(state.tx, state.actor)
   }),
 }))
-vi.mock('@app/modules/auth/application-profile.service', () => ({
+vi.mock('@app/common/authz/application-profile', () => ({
   readApplicationProfile: vi.fn(async () => state.actor),
 }))
 vi.mock('@app/modules/storage/private-inspection-reader', async (importOriginal) => ({
