@@ -80,7 +80,7 @@ export type ActivityResponse = z.infer<typeof activityResponse>
 
 - API validates with `@Body(new ZodPipe(schema))`; `.strict()` keeps `forbidNonWhitelisted`; queries use `z.coerce` in place of `transform: true`.
 - `ZodPipe` lives in `apps/api/src/common/validation/zod-pipe.ts` and runs after the global `ValidationPipe`, which passes a parameter whose design type is `Object` (any zod-inferred type) through unchanged. The global pipe has `transform: true` without implicit conversion, so numeric strings were already rejected on DTO routes and stay rejected.
-- `.strict()` also rejects own `__proto__` and `constructor` body keys, which the class-validator pipe silently dropped; parity tests record these two inputs as the only accepted difference (amended 2026-10-10 for F3b).
+- `.strict()` also rejects own `__proto__` and `constructor` body keys, which the class-validator pipe silently dropped; the contract test in `packages/shared/src/contracts/imports/import-requests.test.ts` pins both as rejected, the only accepted difference from the old pipe (amended 2026-10-10 for F3b).
 - Response schemas are types only, never parsed at runtime.
 - The pipe keeps `400 { statusCode, message: string[], error: 'Bad Request' }`. Message wording on former class-validator routes may become zod wording; a slice adds a message override wherever the web displays or branches on the text. Existing zod routes keep their custom messages through the same override.
 - Web `lib/api/<domain>.ts` uses the inferred types; hand-written `Api*` types and `types/pathways.ts` shrink to view models the contracts do not cover.
@@ -234,9 +234,9 @@ Deferred to F3b: zod pipe and the first contract, contract naming convention, `"
 
 F3b applied 2026-10-10 on refactor/f3b-validation-wiring:
 - Validation: `ZodPipe` in `common/validation/zod-pipe.ts` answers 400 `{ statusCode, message: string[], error: 'Bad Request' }` with one `<path> <zod message>` entry per issue.
-- First contract: `validateImportRequest` and `ValidateImportRequest` in `packages/shared/src/contracts/imports/import-requests.ts` replaced `ValidateImportDto` on `POST imports/projects/:projectId/batches/:batchId/validate`; a parity test ran both through the configured pipes over 22 JSON bodies before the DTO was deleted.
+- First contract: `validateImportRequest` and `ValidateImportRequest` in `packages/shared/src/contracts/imports/import-requests.ts` replaced `ValidateImportDto` on `POST imports/projects/:projectId/batches/:batchId/validate`; a parity test ran both through the configured pipes over 22 JSON bodies before the DTO was deleted; exact parity held for 20 of the 22 bodies, and the other two, own `__proto__` and `constructor` keys, are now rejected.
 - Package: `packages/shared/package.json` declares `"sideEffects": false`; no shared module has a top-level side effect; web Middleware went from 112 kB to 102 kB.
-- Authz: `readApplicationProfile` moved to `common/authz/application-profile.ts` (six test mocks followed it), then `withAuthorizedOperation`, its timing module and its test moved to `common/authz` (87 importers repointed, 55 test mocks moved with their import); `ApplicationProfileService` stays in `modules/auth`.
+- Authz: `readApplicationProfile` moved to `common/authz/application-profile.ts` (six test mocks followed it), then `withAuthorizedOperation`, its timing module and its test moved to `common/authz` (87 files repointed, 55 test mocks moved with their import); `ApplicationProfileService` stays in `modules/auth`.
 - Storage: `StorageModule` provides `PRIVATE_STORAGE_FACTORIES` (`modules/storage/private-storage-factories.ts`); the activities, private proof inspection, beneficiary media, finance and reports services inject it, and every factory call stays in its `try` block, so a configuration fault still answers 503.
 - Wiring: `app-module-wiring.test.ts` keys providers by token, including `{ provide, useClass | useValue | useFactory }`, and exempts the Nest `APP_*` enhancer tokens.
 - SAD: beneficiary privacy routing covers `packages/shared/src/contracts/**/*.ts` and `apps/api/src/common/validation/**/*.ts`.

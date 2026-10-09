@@ -614,7 +614,6 @@
 - Gates: lint, typecheck and builds pass; tests config 19, shared 170, imports 91, api 2324 (21 skipped; the baseline plus 17 intended tests), web 1895, sad 49; `Replay-Local.ps1 -MigrationBaseline` 0 FAIL; demo seed first run and compiled API boot clean; e2e auth-navigation 27/27; e2e main 39 pass with the same 9 failures as dev; web middleware 112 kB; SAD sign-off 273/273 PASS at `42b52932`. Merged to local dev as `2391ca44`.
 
 ## 2026-10-10 Modularization F3b api validation and wiring (refactor/f3b-validation-wiring)
-
 - Task 1 (101a7caa): `ZodPipe` added in `common/validation/zod-pipe.ts` with 400 bodies shaped like the global pipe; api 2329.
 - Task 2 (f0ff6330, a5076bd0): `validateImportRequest` contract added in `packages/shared/src/contracts/imports`, the validate route switched to `ZodPipe` after a parity test, `ValidateImportDto` deleted; api 2334, shared 176.
 - Task 3 (e69881bf): `packages/shared/package.json` declares `"sideEffects": false`; web Middleware went from 112 kB to 102 kB.
