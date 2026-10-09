@@ -50,6 +50,7 @@ The core design QA role evaluates every modified or added application/package fi
 - Require structural tenant and assignment scope before retrieving multi-tenant data. Explicit `organizationId`/`projectId` predicates, verified shared predicates, relation filters, compound keys, and tenant-bound creation data are valid patterns. Never retrieve broadly and filter sensitive records in memory.
 - Review unsafe raw-query calls for parameterization; reject dynamic SQL assembled from untrusted inputs. A lexical match is a review flag, not proof that a parameterized call violates isolation.
 - RLS compares stored scope with trusted authenticated identity/claims natively where applicable. JWT metadata does not replace the verified identity, linked user, account state, organization, role, permissions, and assignment chain in the Locked auth RFC.
+- Web route gating in `apps/web/src/lib/rbac`, `apps/web/src/lib/auth` and the middleware files must decide from the shared route policy in `packages/shared/src/rbac` and fail closed on unknown routes, a missing profile or failed context resolution.
 
 #### migration-integrity-guardian
 

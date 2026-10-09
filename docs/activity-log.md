@@ -628,10 +628,10 @@
 ## 2026-10-10 Modularization F4a web boundaries (refactor/f4a-web-boundaries)
 - Task 1 (b5f48b2a): route policy moved from `apps/web/src/lib/rbac/route-access.ts` into `packages/shared/src/rbac/route-policy.ts`; api imports `@pathways/shared` instead of web, with an api to web case in `common/import-boundary.test.ts`; shared 183, api 2339.
 - Task 2 (5db064b9): `lib/rbac` split into `policy`, `routes`, `nav` and `transport` (54 importers repointed); web 1895.
-- Task 3 (9d01d3d0): seven auth platform modules and their tests (16 files) moved from `features/auth` to `lib/auth` (42 specifiers in 31 files); web 1895.
+- Task 3 (9d01d3d0): six auth platform modules (`auth-access`, `mfa-flow`, `password-recovery`, `verification-flight`, `workspace-access`, `workspace-verification`) plus their tests and fixtures (16 files) moved from `features/auth` to `lib/auth` (42 specifiers in 31 files); web 1895.
 - Task 4 (d1520d4f): web import-direction and shared package boundary tests added; the own profile response schema moved into its client; web 1897, shared 185.
 - Task 5 (0a74066d): `usePermission` and `permissionChecker` replace six local permission wrappers; web 1899.
 - Task 6: SAD organization isolation routing covers web `lib/auth`, `lib/rbac` and both middleware files; change record, audit, living docs and index updated.
-- Middleware stayed at 102 kB at every task. Other packages unchanged: config 19, imports 91.
+- Middleware stayed at 102 kB at Tasks 1 to 3. Other packages unchanged: config 19, imports 91.
 - F4a decisions are recorded in the change record section 9, because the plan file stays until F4b is planned (it holds the F4b outline).
 - Deferred to F4b: `lib/api/core` with the owned-read helper, `lib/format`, the shared table head and dialog check, thinner providers.
