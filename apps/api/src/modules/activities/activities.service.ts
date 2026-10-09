@@ -24,6 +24,7 @@ import { readApiEnv } from '@pathways/config'
 import { aggregateOnlyRoles, businessCalendarDate, hasAtomicPermission } from '@pathways/shared'
 import { type ApplicationIdentity, UUID_PATTERN } from '../../common/authz/application-identity'
 import { projectScope } from '../../common/authz/project-scope'
+import { projectDateFields, requireScopedProjectRow } from '../../common/authz/scoped-project'
 import type { Tx } from '../../common/prisma/transaction'
 import { PrismaService } from '../../prisma/prisma.service'
 import { readApplicationProfile } from '../auth/application-profile.service'
@@ -226,7 +227,7 @@ export function activityCapabilities(
     canSubmitProof: can('activities.proof.submit') && assigned,
     // Project-scoped, not the personal activity assignment `assigned` reflects: any row
     // reaching this function was already resolved through projectScope(actor) (see
-    // requireProject), which is the same project-assignment-or-org-wide rule
+    // requireScopedProjectRow), which is the same project-assignment-or-org-wide rule
     // pathways.p05_has_project_permission('monitoring.review', ...) applies at the RLS layer.
     canExplainOverdue: can('monitoring.review'),
   }
@@ -528,18 +529,8 @@ export class ActivitiesService {
     @Inject(StorageService) private readonly storage: StorageService,
   ) {}
 
-  private async requireProject(tx: Tx, actor: ApplicationIdentity, projectId: string) {
-    if (!UUID_PATTERN.test(projectId)) throw new NotFoundException('Project unavailable.')
-    const project = await tx.project.findFirst({
-      where: { AND: [projectScope(actor), { id: projectId.toLowerCase() }] },
-      select: { id: true, startDate: true, endDate: true },
-    })
-    if (!project) throw new NotFoundException('Project unavailable.')
-    return project
-  }
-
   /**
-   * Reads one activity of a project already verified by `requireProject` in this same
+   * Reads one activity of a project already verified by `requireScopedProjectRow` in this same
    * transaction. Post-write read-backs use it so project scope is not resolved twice.
    */
   private async readScopedActivity(
@@ -569,7 +560,7 @@ export class ActivitiesService {
     projectId: string,
     activityId: string,
   ) {
-    const project = await this.requireProject(tx, actor, projectId)
+    const project = await requireScopedProjectRow(tx, actor, projectId, projectDateFields)
     const activity = await this.readScopedActivity(tx, actor, project.id, activityId)
     return { project, activity }
   }
@@ -1005,7 +996,7 @@ export class ActivitiesService {
         !hasAtomicPermission(actor.roles[0], actor.permissions, 'activities.update')
       )
         throw new ForbiddenException('Required application permission is missing.')
-      const project = await this.requireProject(tx, actor, projectId)
+      const project = await requireScopedProjectRow(tx, actor, projectId, projectDateFields)
       const rows = await tx.userProjectAssignment.findMany({
         where: {
           organizationId: actor.organizationId,
@@ -1228,7 +1219,7 @@ export class ActivitiesService {
           sourceMutationBody(input),
         )
         if (source.kind === 'REPLAY') return source.acknowledgement
-        const project = await this.requireProject(tx, actor, projectId)
+        const project = await requireScopedProjectRow(tx, actor, projectId, projectDateFields)
         const timelineOverrideJustification = this.validateDates(
           input.plannedStartDate,
           input.plannedEndDate,
@@ -1678,7 +1669,7 @@ export class ActivitiesService {
       async (tx, actor) => {
         // M&E officers are assigned to the PROJECT, not to individual activities, so this
         // uses the project-scope rule requireActivity already applies (projectScope(actor)
-        // inside requireProject), not the personal-activity requireActiveAssignment used by
+        // inside requireScopedProjectRow), not the personal-activity requireActiveAssignment used by
         // recordProgress/reserveProof. This mirrors pathways.p05_has_project_permission
         // ('monitoring.review', project_id) in migration 0043's RLS INSERT policy:
         // SYSTEM_ADMINISTRATOR is org-wide, PROGRAM_MANAGER also via a managed program, and
@@ -2380,7 +2371,7 @@ export class ActivitiesService {
       identity,
       'evidence.read',
       async (tx, actor) => {
-        const project = await this.requireProject(tx, actor, projectId)
+        const project = await requireScopedProjectRow(tx, actor, projectId, projectDateFields)
         if (!UUID_PATTERN.test(activityId) || !UUID_PATTERN.test(evidenceId))
           throw new NotFoundException('Proof unavailable.')
         const proof = await tx.evidenceMedia.findFirst({
@@ -2413,7 +2404,7 @@ export class ActivitiesService {
 
   listMilestones(identity: ApplicationIdentity, projectId: string) {
     return withAuthorizedOperation(this.prisma, identity, 'activities.read', async (tx, actor) => {
-      const project = await this.requireProject(tx, actor, projectId)
+      const project = await requireScopedProjectRow(tx, actor, projectId, projectDateFields)
       return tx.projectMilestone.findMany({
         where: { organizationId: actor.organizationId, projectId: project.id, archivedAt: null },
         orderBy: [{ targetDate: 'asc' }, { id: 'asc' }],
@@ -2428,7 +2419,7 @@ export class ActivitiesService {
       identity,
       'milestones.manage',
       async (tx, actor) => {
-        const project = await this.requireProject(tx, actor, projectId)
+        const project = await requireScopedProjectRow(tx, actor, projectId, projectDateFields)
         if (input.targetDate) {
           this.validateDates(input.targetDate, input.targetDate, project)
         }
@@ -2467,7 +2458,7 @@ export class ActivitiesService {
       identity,
       'milestones.manage',
       async (tx, actor) => {
-        const project = await this.requireProject(tx, actor, projectId)
+        const project = await requireScopedProjectRow(tx, actor, projectId, projectDateFields)
         if (!UUID_PATTERN.test(milestoneId)) throw new NotFoundException('Milestone unavailable.')
         if (input.targetDate) {
           this.validateDates(input.targetDate, input.targetDate, project)

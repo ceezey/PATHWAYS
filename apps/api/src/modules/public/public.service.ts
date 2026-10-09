@@ -10,7 +10,7 @@ import {
 import { Prisma } from '@prisma/client'
 import { z } from 'zod'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
-import { projectScope } from '../../common/authz/project-scope'
+import { requireScopedProject } from '../../common/authz/scoped-project'
 import { PrismaService } from '../../prisma/prisma.service'
 import { withAuthorizedOperation } from '../auth/authorized-operation'
 import {
@@ -66,24 +66,9 @@ export class PublicService {
     return projectId ? projects[0] : projects
   }
 
-  private async requireProject(
-    tx: Prisma.TransactionClient,
-    actor: ApplicationIdentity,
-    projectId: string,
-  ) {
-    if (!z.string().uuid().safeParse(projectId).success)
-      throw new NotFoundException('Project unavailable.')
-    const project = await tx.project.findFirst({
-      where: { AND: [projectScope(actor), { id: projectId }] },
-      select: { id: true },
-    })
-    if (!project) throw new NotFoundException('Project unavailable.')
-    return project.id
-  }
-
   get(identity: ApplicationIdentity, projectId: string) {
     return withAuthorizedOperation(this.prisma, identity, 'public.preview', async (tx, actor) => {
-      const canonicalProjectId = await this.requireProject(tx, actor, projectId)
+      const canonicalProjectId = await requireScopedProject(tx, actor, projectId)
       const [row] = await tx.$queryRaw<
         PublicationRow[]
       >(Prisma.sql`SELECT ${rowSelection} FROM pathways.project_publications
@@ -107,7 +92,7 @@ export class PublicService {
       identity,
       permissions[operation],
       async (tx, actor) => {
-        const projectId = await this.requireProject(tx, actor, requestedProjectId)
+        const projectId = await requireScopedProject(tx, actor, requestedProjectId)
         const hash = createHash('sha256')
           .update(
             JSON.stringify({

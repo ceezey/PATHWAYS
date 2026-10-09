@@ -18,7 +18,7 @@ import {
   validateAndNormalizeFormData,
 } from '@pathways/shared'
 import { type ApplicationIdentity, UUID_PATTERN } from '../../common/authz/application-identity'
-import { projectScope } from '../../common/authz/project-scope'
+import { requireScopedProject } from '../../common/authz/scoped-project'
 import type { Tx } from '../../common/prisma/transaction'
 import { PrismaService } from '../../prisma/prisma.service'
 import { withAuthorizedOperation } from '../auth/authorized-operation'
@@ -210,7 +210,7 @@ export class MetadataService {
 
   listForms(identity: ApplicationIdentity, projectId: string) {
     return withAuthorizedOperation(this.prisma, identity, 'forms.read', async (tx, actor) => {
-      const id = await this.requireProject(tx, actor, projectId)
+      const id = await requireScopedProject(tx, actor, projectId)
       const rows = await tx.digitalForm.findMany({
         where: { organizationId: actor.organizationId, projectId: id },
         select: formSelection,
@@ -223,7 +223,7 @@ export class MetadataService {
 
   getForm(identity: ApplicationIdentity, projectId: string, formId: string) {
     return withAuthorizedOperation(this.prisma, identity, 'forms.read', async (tx, actor) => {
-      const scopedProjectId = await this.requireProject(tx, actor, projectId)
+      const scopedProjectId = await requireScopedProject(tx, actor, projectId)
       if (!UUID_PATTERN.test(formId)) throw new NotFoundException('Form unavailable.')
       const id = formId.toLowerCase()
       const key = JSON.stringify([
@@ -272,7 +272,7 @@ export class MetadataService {
   createForm(identity: ApplicationIdentity, projectId: string, input: CreateFormDto) {
     assertDefinition(input)
     return withAuthorizedOperation(this.prisma, identity, 'forms.manage', async (tx, actor) => {
-      const scopedProjectId = await this.requireProject(tx, actor, projectId)
+      const scopedProjectId = await requireScopedProject(tx, actor, projectId)
       return this.insertDraft(tx, actor, scopedProjectId, input, 'FORM_DRAFT_CREATED', {})
     })
   }
@@ -289,7 +289,7 @@ export class MetadataService {
     if (hasTemplate && !Object.hasOwn(formTemplates, input.templateKey as string))
       throw new BadRequestException('Unknown form template.')
     return withAuthorizedOperation(this.prisma, identity, 'forms.generate', async (tx, actor) => {
-      const scopedProjectId = await this.requireProject(tx, actor, projectId)
+      const scopedProjectId = await requireScopedProject(tx, actor, projectId)
       let definition: CreateFormDto
       let origin: Prisma.InputJsonObject
       if (hasTemplate) {
@@ -1050,19 +1050,8 @@ export class MetadataService {
     return rows[0] ?? null
   }
 
-  private async requireProject(tx: Tx, actor: ApplicationIdentity, projectId: string) {
-    if (!UUID_PATTERN.test(projectId)) throw new NotFoundException('Project unavailable.')
-    const id = projectId.toLowerCase()
-    const project = await tx.project.findFirst({
-      where: { AND: [projectScope(actor), { id }] },
-      select: { id: true },
-    })
-    if (!project) throw new NotFoundException('Project unavailable.')
-    return id
-  }
-
   private async requireForm(tx: Tx, actor: ApplicationIdentity, projectId: string, formId: string) {
-    const scopedProjectId = await this.requireProject(tx, actor, projectId)
+    const scopedProjectId = await requireScopedProject(tx, actor, projectId)
     if (!UUID_PATTERN.test(formId)) throw new NotFoundException('Form unavailable.')
     return this.findForm(tx, actor, scopedProjectId, formId.toLowerCase())
   }

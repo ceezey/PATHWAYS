@@ -39,6 +39,7 @@ import {
   timelineAnalyticsTable,
 } from './descriptive-analytics'
 
+import { requireScopedProjectRow } from '../../common/authz/scoped-project'
 import {
   ReportArtifactInputError,
   createReportArtifact,
@@ -100,6 +101,15 @@ async function exportArtifact(
     )
   }
 }
+
+// Project fields the survey and timeline views read after the scope check.
+const timelineProjectFields = {
+  id: true,
+  status: true,
+  archivedAt: true,
+  startDate: true,
+  endDate: true,
+} as const
 
 @Injectable()
 export class AnalyticsService {
@@ -193,26 +203,6 @@ export class AnalyticsService {
     })
   }
 
-  /** Confirms the requested project is in the actor's scope before any query runs. */
-  private async requireProject(
-    tx: Prisma.TransactionClient,
-    actor: ApplicationIdentity,
-    projectId: string,
-  ) {
-    const project = await tx.project.findFirst({
-      where: { AND: [projectScope(actor), { id: projectId }] },
-      select: {
-        id: true,
-        status: true,
-        archivedAt: true,
-        startDate: true,
-        endDate: true,
-      },
-    })
-    if (!project) throw new NotFoundException('Project unavailable.')
-    return project
-  }
-
   /**
    * Calls one trusted F9 aggregate function inside the caller's authorized transaction.
    * The function enforces org, permission and project scope itself (42501 -> 403) and
@@ -272,7 +262,7 @@ export class AnalyticsService {
       throw new BadRequestException(
         'Survey results for your role are released once the reporting period has closed.',
       )
-    const project = await this.requireProject(tx, actor, query.projectId)
+    const project = await requireScopedProjectRow(tx, actor, query.projectId, timelineProjectFields)
     const fn = frozen ? Prisma.raw('p10_f9_survey_release') : Prisma.raw('p10_f9_survey_aggregate')
     const raw = await this.callAggregate(
       tx,
@@ -309,7 +299,7 @@ export class AnalyticsService {
     query: DescriptiveAnalyticsQuery,
   ): Promise<TimelineAnalytics> {
     this.requireMonitoringRead(actor)
-    const project = await this.requireProject(tx, actor, query.projectId)
+    const project = await requireScopedProjectRow(tx, actor, query.projectId, timelineProjectFields)
     const zone = readApiEnv(process.env).BUSINESS_TIME_ZONE
     const generatedAt = new Date().toISOString()
     const reportingDate = businessCalendarDate(new Date(), zone)

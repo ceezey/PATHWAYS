@@ -10,7 +10,7 @@ import type { Prisma } from '@prisma/client'
 
 import { aggregateOnlyRoles, hasAtomicPermission } from '@pathways/shared'
 import { type ApplicationIdentity, UUID_PATTERN } from '../../common/authz/application-identity'
-import { projectScope } from '../../common/authz/project-scope'
+import { requireScopedProject } from '../../common/authz/scoped-project'
 import type { Tx } from '../../common/prisma/transaction'
 import { PrismaService } from '../../prisma/prisma.service'
 import { withAuthorizedOperation } from '../auth/authorized-operation'
@@ -77,23 +77,13 @@ function mapStage(stage: Prisma.JourneyStageGetPayload<{ select: typeof stageSel
 export class ParticipantsService {
   constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
-  private async requireProject(tx: Tx, actor: ApplicationIdentity, projectId: string) {
-    if (!UUID_PATTERN.test(projectId)) throw new NotFoundException('Project unavailable.')
-    const project = await tx.project.findFirst({
-      where: { AND: [projectScope(actor), { id: projectId.toLowerCase() }] },
-      select: { id: true },
-    })
-    if (!project) throw new NotFoundException('Project unavailable.')
-    return project.id
-  }
-
   listStages(identity: ApplicationIdentity, projectId: string) {
     return withAuthorizedOperation(
       this.prisma,
       identity,
       'journeys.read',
       async (tx, actor) => {
-        const id = await this.requireProject(tx, actor, projectId)
+        const id = await requireScopedProject(tx, actor, projectId)
         const stages = await tx.journeyStage.findMany({
           where: { organizationId: actor.organizationId, projectId: id, archivedAt: null },
           select: stageSelection,
@@ -129,7 +119,7 @@ export class ParticipantsService {
       identity,
       'journeys.manage',
       async (tx, actor) => {
-        const id = await this.requireProject(tx, actor, projectId)
+        const id = await requireScopedProject(tx, actor, projectId)
         await tx.$queryRaw`SELECT id FROM pathways.projects WHERE id=${id}::uuid AND organization_id=${actor.organizationId}::uuid FOR UPDATE`
         const current = await tx.journeyStage.findMany({
           where: { organizationId: actor.organizationId, projectId: id, archivedAt: null },
@@ -490,7 +480,7 @@ export class ParticipantsService {
     return withAuthorizedOperation(this.prisma, identity, 'journeys.read', async (tx, actor) => {
       if (aggregateOnlyRoles.includes(actor.roles[0]))
         throw new ForbiddenException('Aggregate access only.')
-      const id = await this.requireProject(tx, actor, projectId)
+      const id = await requireScopedProject(tx, actor, projectId)
       if (!UUID_PATTERN.test(beneficiaryId))
         throw new NotFoundException('Beneficiary history unavailable.')
       const enrollment = await tx.beneficiaryProjectEnrollment.findFirst({
@@ -554,7 +544,7 @@ export class ParticipantsService {
       async (tx, actor) => {
         if (aggregateOnlyRoles.includes(actor.roles[0]))
           throw new ForbiddenException('Aggregate access only.')
-        const id = await this.requireProject(tx, actor, projectId)
+        const id = await requireScopedProject(tx, actor, projectId)
         if (!UUID_PATTERN.test(beneficiaryId))
           throw new NotFoundException('Enrollment unavailable.')
         const enrollment = await tx.beneficiaryProjectEnrollment.findFirst({
@@ -594,7 +584,7 @@ export class ParticipantsService {
         if (input.eventType === 'TRANSFER') {
           if (!input.destinationProjectId || input.destinationProjectId.toLowerCase() === id)
             throw new ConflictException('A different destination project is required.')
-          const destinationId = await this.requireProject(tx, actor, input.destinationProjectId)
+          const destinationId = await requireScopedProject(tx, actor, input.destinationProjectId)
           const destination = await tx.beneficiaryProjectEnrollment.findFirst({
             where: {
               organizationId: actor.organizationId,
@@ -675,7 +665,7 @@ export class ParticipantsService {
       async (tx, actor) => {
         if (aggregateOnlyRoles.includes(actor.roles[0]))
           throw new ForbiddenException('Aggregate access only.')
-        const id = await this.requireProject(tx, actor, projectId)
+        const id = await requireScopedProject(tx, actor, projectId)
         if (!UUID_PATTERN.test(beneficiaryId) || !UUID_PATTERN.test(eventId))
           throw new NotFoundException('Journey event unavailable.')
         const original = await tx.beneficiaryJourneyEvent.findFirst({

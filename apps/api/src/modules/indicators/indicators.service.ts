@@ -23,7 +23,7 @@ import {
 } from '@pathways/shared'
 import { Prisma } from '@prisma/client'
 import { type ApplicationIdentity, UUID_PATTERN } from '../../common/authz/application-identity'
-import { projectScope } from '../../common/authz/project-scope'
+import { requireScopedProject } from '../../common/authz/scoped-project'
 import type { Tx } from '../../common/prisma/transaction'
 import { PrismaService } from '../../prisma/prisma.service'
 import { withAuthorizedOperation } from '../auth/authorized-operation'
@@ -100,15 +100,6 @@ function withProgress(row: Record<string, unknown>, failure: string): Monitoring
 export class IndicatorsService {
   constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
-  private async requireProject(tx: Tx, actor: ApplicationIdentity, projectId: string) {
-    if (!UUID_PATTERN.test(projectId)) throw new NotFoundException('Project unavailable.')
-    const project = await tx.project.findFirst({
-      where: { AND: [projectScope(actor), { id: projectId.toLowerCase() }] },
-      select: { id: true },
-    })
-    if (!project) throw new NotFoundException('Project unavailable.')
-    return project.id
-  }
   private indicatorId(input: string) {
     if (!UUID_PATTERN.test(input)) throw new NotFoundException('Indicator unavailable.')
     return input.toLowerCase()
@@ -207,7 +198,7 @@ export class IndicatorsService {
       'reports.indicator.read',
       async (tx, actor) =>
         this.readReleasedInTransaction(tx, actor, [
-          await this.requireProject(tx, actor, projectId),
+          await requireScopedProject(tx, actor, projectId),
         ]),
     )
   }
@@ -227,7 +218,7 @@ export class IndicatorsService {
   list(identity: ApplicationIdentity, projectId: string) {
     return withAuthorizedOperation(this.prisma, identity, 'indicators.read', async (tx, actor) =>
       this.readProjectIndicatorsInTransaction(tx, actor, [
-        await this.requireProject(tx, actor, projectId),
+        await requireScopedProject(tx, actor, projectId),
       ]),
     )
   }
@@ -236,7 +227,7 @@ export class IndicatorsService {
       this.readOne(
         tx,
         actor,
-        await this.requireProject(tx, actor, projectId),
+        await requireScopedProject(tx, actor, projectId),
         this.indicatorId(indicatorId),
       ),
     )
@@ -324,7 +315,7 @@ export class IndicatorsService {
           sourceMutationBody(input),
         )
         if (source.kind === 'REPLAY') return source.acknowledgement
-        const id = await this.requireProject(tx, actor, projectId)
+        const id = await requireScopedProject(tx, actor, projectId)
         await tx.$queryRaw`SELECT id FROM pathways.projects WHERE organization_id=${actor.organizationId}::uuid AND id=${id}::uuid FOR UPDATE`
         await this.validateBinding(tx, actor, id, input)
         const [size] = await tx.$queryRaw<
@@ -398,7 +389,7 @@ export class IndicatorsService {
           sourceMutationBody(input),
         )
         if (source.kind === 'REPLAY') return source.acknowledgement
-        const id = await this.requireProject(tx, actor, projectId)
+        const id = await requireScopedProject(tx, actor, projectId)
         const selected = this.indicatorId(indicatorId)
         try {
           const count =
@@ -442,7 +433,7 @@ export class IndicatorsService {
           sourceMutationBody(input),
         )
         if (source.kind === 'REPLAY') return source.acknowledgement
-        const id = await this.requireProject(tx, actor, projectId)
+        const id = await requireScopedProject(tx, actor, projectId)
         const selected = this.indicatorId(indicatorId)
         try {
           const count =
@@ -490,7 +481,7 @@ export class IndicatorsService {
         )
         if (acknowledgement) return acknowledgement
         await bootstrapRuleSourceProject(tx, projectId, 'INDICATOR_MEASUREMENT')
-        const id = await this.requireProject(tx, actor, projectId)
+        const id = await requireScopedProject(tx, actor, projectId)
         const selected = this.indicatorId(indicatorId)
         let definition = await this.readOne(tx, actor, id, selected)
         if (definition.mode !== 'MANUAL' || !definition.numericKind)

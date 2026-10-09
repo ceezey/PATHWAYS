@@ -15,7 +15,7 @@ import { hasAtomicPermission } from '@pathways/shared'
 import { Prisma } from '@prisma/client'
 import { z } from 'zod'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
-import { projectScope } from '../../common/authz/project-scope'
+import { requireScopedProject } from '../../common/authz/scoped-project'
 import { PrismaService } from '../../prisma/prisma.service'
 import { withAuthorizedOperation } from '../auth/authorized-operation'
 import { ReceiptPdfError, ReceiptPdfRenderer } from '../report-pdf/receipt-pdf.renderer'
@@ -73,19 +73,9 @@ export class FinanceService {
     @Inject(StorageService) private readonly storage: StorageService,
     @Inject(ReceiptPdfRenderer) private readonly receipts: ReceiptPdfRenderer,
   ) {}
-  private async project(tx: Prisma.TransactionClient, actor: ApplicationIdentity, id: string) {
-    if (
-      !uuid.safeParse(id).success ||
-      !(await tx.project.findFirst({
-        where: { AND: [projectScope(actor), { id }] },
-        select: { id: true },
-      }))
-    )
-      throw new NotFoundException('Project unavailable.')
-  }
   budgets(identity: ApplicationIdentity, projectId: string) {
     return withAuthorizedOperation(this.prisma, identity, 'budgets.read', async (tx, actor) => {
-      await this.project(tx, actor, projectId)
+      await requireScopedProject(tx, actor, projectId)
       const rows = await tx.projectBudgetRecord.findMany({
         where: { organizationId: actor.organizationId, projectId, archivedAt: null },
         select: {
@@ -112,7 +102,7 @@ export class FinanceService {
     const parsed = budgetInput.safeParse(input)
     if (!parsed.success) throw new BadRequestException('Invalid budget record.')
     return withAuthorizedOperation(this.prisma, identity, 'budgets.create', async (tx, actor) => {
-      await this.project(tx, actor, projectId)
+      await requireScopedProject(tx, actor, projectId)
       const row = await tx.projectBudgetRecord.create({
         data: {
           organizationId: actor.organizationId,
@@ -143,7 +133,7 @@ export class FinanceService {
     if (!parsed.success || !uuid.safeParse(id).success)
       throw new BadRequestException('Invalid budget replacement.')
     return withAuthorizedOperation(this.prisma, identity, 'budgets.update', async (tx, actor) => {
-      await this.project(tx, actor, projectId)
+      await requireScopedProject(tx, actor, projectId)
       const previous = await tx.projectBudgetRecord.findFirst({
         where: { organizationId: actor.organizationId, projectId, id, archivedAt: null },
         select: { id: true, updatedAt: true },
@@ -191,7 +181,7 @@ export class FinanceService {
   }
   expenses(identity: ApplicationIdentity, projectId: string) {
     return withAuthorizedOperation(this.prisma, identity, 'expenses.read', async (tx, actor) => {
-      await this.project(tx, actor, projectId)
+      await requireScopedProject(tx, actor, projectId)
       const rows = await tx.budgetExpenseEntry.findMany({
         where: { organizationId: actor.organizationId, projectId },
         select: {
@@ -237,7 +227,7 @@ export class FinanceService {
   }
   references(identity: ApplicationIdentity, projectId: string) {
     return withAuthorizedOperation(this.prisma, identity, 'expenses.submit', async (tx, actor) => {
-      await this.project(tx, actor, projectId)
+      await requireScopedProject(tx, actor, projectId)
       const [row] = await tx.$queryRaw<
         Array<{ value: unknown }>
       >`SELECT pathways.p34_expense_budget_references(${projectId}::uuid) AS value`
@@ -249,7 +239,7 @@ export class FinanceService {
     if (!parsed.success) throw new BadRequestException('Invalid expense submission.')
     const body = parsed.data
     return withAuthorizedOperation(this.prisma, identity, 'expenses.submit', async (tx, actor) => {
-      await this.project(tx, actor, projectId)
+      await requireScopedProject(tx, actor, projectId)
       const [row] = await tx.$queryRaw<
         Array<{ value: unknown }>
       >`SELECT pathways.p34_submit_expense(${projectId}::uuid,${body.clientRequestId}::uuid,${body.budgetRecordId}::uuid,${body.description},${body.amount}::numeric,${body.expenseDate}::date) AS value`
@@ -266,7 +256,7 @@ export class FinanceService {
       identity,
       body.stage === 'VERIFY' ? 'expenses.verify' : 'expenses.approve',
       async (tx, actor) => {
-        await this.project(tx, actor, projectId)
+        await requireScopedProject(tx, actor, projectId)
         const [row] = await tx.$queryRaw<
           Array<{ value: unknown }>
         >`SELECT pathways.p34_review_expense(${projectId}::uuid,${id}::uuid,${new Date(body.expectedUpdatedAt)},${body.decision},${body.reason ?? null}) AS value`
@@ -313,7 +303,7 @@ export class FinanceService {
       identity,
       'expenses.evidence.submit',
       async (tx, actor) => {
-        await this.project(tx, actor, canonicalProjectId)
+        await requireScopedProject(tx, actor, canonicalProjectId)
         const [row] = await tx.$queryRaw<
           Array<{ value: unknown }>
         >`SELECT pathways.p34_own_expense(${canonicalProjectId}::uuid,${canonicalId}::uuid) AS value`
@@ -381,7 +371,7 @@ export class FinanceService {
         identity,
         'expenses.evidence.submit',
         async (tx, actor) => {
-          await this.project(tx, actor, canonicalProjectId)
+          await requireScopedProject(tx, actor, canonicalProjectId)
           if (actor.organizationId !== initial.organizationId || actor.userId !== initial.userId)
             throw new ForbiddenException('Receipt ownership changed.')
           const [row] = await tx.$queryRaw<
@@ -411,7 +401,7 @@ export class FinanceService {
       identity,
       'expenses.read',
       async (tx, actor) => {
-        await this.project(tx, actor, canonicalProjectId)
+        await requireScopedProject(tx, actor, canonicalProjectId)
         const expense = await tx.budgetExpenseEntry.findFirst({
           where: {
             organizationId: actor.organizationId,
@@ -536,7 +526,7 @@ export class FinanceService {
       withAuthorizedOperation(this.prisma, identity, 'expenses.read', async (tx, actor) => {
         if (!hasAtomicPermission(actor.roles[0], actor.permissions, 'evidence.read'))
           throw new ForbiddenException('Current financial evidence permission required.')
-        await this.project(tx, actor, canonicalProjectId)
+        await requireScopedProject(tx, actor, canonicalProjectId)
         const expense = await tx.budgetExpenseEntry.findFirst({
           where: {
             organizationId: actor.organizationId,
@@ -610,7 +600,7 @@ export class FinanceService {
     await withAuthorizedOperation(this.prisma, identity, 'expenses.read', async (tx, actor) => {
       if (!hasAtomicPermission(actor.roles[0], actor.permissions, 'evidence.read'))
         throw new ForbiddenException('Current financial evidence permission required.')
-      await this.project(tx, actor, canonicalProjectId)
+      await requireScopedProject(tx, actor, canonicalProjectId)
       const [row] = await tx.$queryRaw<
         Array<{ id: string }>
       >`SELECT e.id::text FROM pathways.budget_expense_entries e JOIN pathways.evidence_media p ON p.organization_id=e.organization_id AND p.project_id=e.project_id AND p.id=e.receipt_evidence_id WHERE e.organization_id=${actor.organizationId}::uuid AND e.project_id=${canonicalProjectId}::uuid AND e.id=${canonicalId}::uuid AND e.updated_at=${initial.expense.updatedAt} AND p.id=${proof.id}::uuid AND p.updated_at=${proof.updatedAt} AND p.expense_id=e.id AND p.activity_update_id IS NULL AND p.enrollment_id IS NULL AND p.source_submission_id IS NULL AND p.public_visibility_status='PRIVATE' AND p.storage_ready AND p.object_key=${proof.objectKey} AND p.sha256=${proof.sha256} AND p.byte_size=${proof.byteSize}`
@@ -635,7 +625,7 @@ export class FinanceService {
   signoff(identity: ApplicationIdentity, projectId: string, id: string) {
     if (!uuid.safeParse(id).success) throw new NotFoundException('Expense unavailable.')
     return withAuthorizedOperation(this.prisma, identity, 'expenses.signoff', async (tx, actor) => {
-      await this.project(tx, actor, projectId)
+      await requireScopedProject(tx, actor, projectId)
       const [row] = await tx.$queryRaw<
         Array<{ expenseId: string; signedOffById: string; signedOffAt: Date }>
       >`INSERT INTO pathways.expense_signoffs(organization_id,project_id,expense_id,signed_off_by_id) VALUES(${actor.organizationId}::uuid,${projectId}::uuid,${id}::uuid,${actor.userId}::uuid) RETURNING expense_id::text AS "expenseId",signed_off_by_id::text AS "signedOffById",signed_off_at AS "signedOffAt"`

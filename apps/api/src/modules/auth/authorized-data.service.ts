@@ -1,8 +1,8 @@
-import { ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common'
+import { ForbiddenException, Inject, Injectable } from '@nestjs/common'
 import { aggregateOnlyRoles } from '@pathways/shared'
-import type { Prisma } from '@prisma/client'
-import { type ApplicationIdentity, UUID_PATTERN } from '../../common/authz/application-identity'
+import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import { projectScope } from '../../common/authz/project-scope'
+import { requireScopedProject } from '../../common/authz/scoped-project'
 import { PrismaService } from '../../prisma/prisma.service'
 import { withAuthorizedOperation } from './authorized-operation'
 @Injectable()
@@ -20,20 +20,6 @@ export class AuthorizedDataService {
     )
   }
 
-  private async requireProject(
-    tx: Prisma.TransactionClient,
-    profile: ApplicationIdentity,
-    projectId: string,
-  ) {
-    if (!UUID_PATTERN.test(projectId)) throw new NotFoundException('Project unavailable.')
-    const project = await tx.project.findFirst({
-      where: { AND: [projectScope(profile), { id: projectId.toLowerCase() }] },
-      select: { id: true },
-    })
-    if (!project) throw new NotFoundException('Project unavailable.')
-    return project.id
-  }
-
   beneficiaries(identity: ApplicationIdentity, projectId: string) {
     return withAuthorizedOperation(
       this.prisma,
@@ -42,7 +28,7 @@ export class AuthorizedDataService {
       async (tx, profile) => {
         if (aggregateOnlyRoles.includes(profile.roles[0]))
           throw new ForbiddenException('Aggregate access only.')
-        const id = await this.requireProject(tx, profile, projectId)
+        const id = await requireScopedProject(tx, profile, projectId)
         return tx.beneficiaryProjectEnrollment.findMany({
           where: {
             organizationId: profile.organizationId,
@@ -68,7 +54,7 @@ export class AuthorizedDataService {
       identity,
       'beneficiaries.aggregates.read',
       async (tx, profile) => {
-        const id = await this.requireProject(tx, profile, projectId)
+        const id = await requireScopedProject(tx, profile, projectId)
         // SQL COUNT in the database: no names, IDs, rows or raw records are fetched
         // then hidden in JavaScript. No client-supplied filters/dimensions.
         const enrollmentCount = await tx.beneficiaryProjectEnrollment.count({

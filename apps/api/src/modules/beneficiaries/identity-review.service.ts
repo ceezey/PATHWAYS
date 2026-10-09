@@ -1,7 +1,7 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common'
 
-import { type ApplicationIdentity, UUID_PATTERN } from '../../common/authz/application-identity'
-import { projectScope } from '../../common/authz/project-scope'
+import type { ApplicationIdentity } from '../../common/authz/application-identity'
+import { requireScopedProject } from '../../common/authz/scoped-project'
 import type { Tx } from '../../common/prisma/transaction'
 import { PrismaService } from '../../prisma/prisma.service'
 import { withAuthorizedOperation } from '../auth/authorized-operation'
@@ -24,7 +24,7 @@ export class IdentityReviewService {
       identity,
       'beneficiaries.identities.review',
       async (tx, actor) => {
-        const id = await this.requireProject(tx, actor, projectId)
+        const id = await requireScopedProject(tx, actor, projectId)
         const rows = await tx.beneficiary.findMany({
           where: {
             organizationId: actor.organizationId,
@@ -87,7 +87,7 @@ export class IdentityReviewService {
       identity,
       'beneficiaries.identities.review',
       async (tx, actor) => {
-        const id = await this.requireProject(tx, actor, projectId)
+        const id = await requireScopedProject(tx, actor, projectId)
         const [leftId, rightId] = [input.leftId.toLowerCase(), input.rightId.toLowerCase()]
         if (leftId === rightId) throw new BadRequestException('Choose two different profiles.')
         const enrolled = await tx.beneficiary.count({
@@ -137,15 +137,5 @@ export class IdentityReviewService {
         return event.entityId && other ? [pairKey(event.entityId, other)] : []
       }),
     )
-  }
-
-  private async requireProject(tx: Tx, actor: ApplicationIdentity, projectId: string) {
-    if (!UUID_PATTERN.test(projectId)) throw new NotFoundException('Project unavailable.')
-    const project = await tx.project.findFirst({
-      where: { AND: [projectScope(actor), { id: projectId.toLowerCase() }] },
-      select: { id: true },
-    })
-    if (!project) throw new NotFoundException('Project unavailable.')
-    return project.id
   }
 }

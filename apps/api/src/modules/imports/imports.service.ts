@@ -31,7 +31,7 @@ import {
 } from '@pathways/imports/server'
 import type { FormFieldValidationContract } from '@pathways/shared'
 import { type ApplicationIdentity, UUID_PATTERN } from '../../common/authz/application-identity'
-import { projectScope } from '../../common/authz/project-scope'
+import { requireScopedProject } from '../../common/authz/scoped-project'
 import type { Tx } from '../../common/prisma/transaction'
 import { PrismaService } from '../../prisma/prisma.service'
 import { withAuthorizedOperation } from '../auth/authorized-operation'
@@ -341,7 +341,7 @@ export class ImportsService {
 
   listBatches(identity: ApplicationIdentity, projectId: string) {
     return withAuthorizedOperation(this.prisma, identity, 'imports.read', async (tx, actor) => {
-      const scopedProjectId = await this.requireProject(tx, actor, projectId)
+      const scopedProjectId = await requireScopedProject(tx, actor, projectId)
       const batches = await tx.dataImportBatch.findMany({
         where: { organizationId: actor.organizationId, projectId: scopedProjectId },
         select: batchSelection,
@@ -1121,7 +1121,7 @@ export class ImportsService {
       identity,
       'imports.process',
       async (tx, actor) => {
-        const scopedProjectId = await this.requireProject(tx, actor, projectId)
+        const scopedProjectId = await requireScopedProject(tx, actor, projectId)
         const current = await tx.dataImportBatch.findFirst({
           where: {
             id: context.batch.id,
@@ -1243,7 +1243,7 @@ export class ImportsService {
     metadata: ReturnType<typeof fileMetadata>,
   ) {
     return withAuthorizedOperation(this.prisma, identity, 'imports.upload', async (tx, actor) => {
-      const scopedProjectId = await this.requireProject(tx, actor, projectId)
+      const scopedProjectId = await requireScopedProject(tx, actor, projectId)
       if (!UUID_PATTERN.test(input.formId))
         throw new NotFoundException('Published form unavailable.')
       const form = await tx.digitalForm.findFirst({
@@ -2110,23 +2110,13 @@ export class ImportsService {
     if (rows.length !== 1) throw new NotFoundException('Import batch unavailable.')
   }
 
-  private async requireProject(tx: Tx, actor: ApplicationIdentity, projectId: string) {
-    if (!UUID_PATTERN.test(projectId)) throw new NotFoundException('Project unavailable.')
-    const project = await tx.project.findFirst({
-      where: { AND: [projectScope(actor), { id: projectId.toLowerCase() }] },
-      select: { id: true },
-    })
-    if (!project) throw new NotFoundException('Project unavailable.')
-    return project.id
-  }
-
   private async requireBatch(
     tx: Tx,
     actor: ApplicationIdentity,
     projectId: string,
     batchId: string,
   ) {
-    const scopedProjectId = await this.requireProject(tx, actor, projectId)
+    const scopedProjectId = await requireScopedProject(tx, actor, projectId)
     if (!UUID_PATTERN.test(batchId)) throw new NotFoundException('Import batch unavailable.')
     const batch = await tx.dataImportBatch.findFirst({
       where: {

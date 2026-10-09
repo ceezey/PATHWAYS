@@ -11,6 +11,7 @@ import type { Prisma } from '@prisma/client'
 import { z } from 'zod'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import { projectScope } from '../../common/authz/project-scope'
+import { requireScopedProject } from '../../common/authz/scoped-project'
 import { PrismaService } from '../../prisma/prisma.service'
 import { withAuthorizedOperation } from '../auth/authorized-operation'
 import { provisionCriteria } from './evaluation-criteria-template'
@@ -170,21 +171,6 @@ export class EvaluationsService {
     @Inject(EvaluationMetricsService) private readonly metrics: EvaluationMetricsService,
   ) {}
 
-  private async requireProject(
-    tx: Prisma.TransactionClient,
-    actor: ApplicationIdentity,
-    input: string,
-  ) {
-    const parsed = projectIdSchema.safeParse(input)
-    if (!parsed.success) throw new NotFoundException('Project unavailable.')
-    const project = await tx.project.findFirst({
-      where: { AND: [projectScope(actor), { id: parsed.data }] },
-      select: { id: true },
-    })
-    if (!project) throw new NotFoundException('Project unavailable.')
-    return project.id
-  }
-
   private async requireEvaluation(
     tx: Prisma.TransactionClient,
     actor: ApplicationIdentity,
@@ -251,7 +237,7 @@ export class EvaluationsService {
 
   get(identity: ApplicationIdentity, projectId: string) {
     return withAuthorizedOperation(this.prisma, identity, 'monitoring.read', async (tx, actor) => {
-      const id = await this.requireProject(tx, actor, projectId)
+      const id = await requireScopedProject(tx, actor, projectId)
       const [criteria, evaluations] = await Promise.all([
         tx.projectEvaluationCriterion.findMany({
           where: { organizationId: actor.organizationId, projectId: id, archivedAt: null },
@@ -307,7 +293,7 @@ export class EvaluationsService {
       async (tx, actor) => {
         if (assessmentDetailDeniedRoles.has(actor.roles[0]))
           throw new ForbiddenException('Assessment detail is not available to this role.')
-        const id = await this.requireProject(tx, actor, projectId)
+        const id = await requireScopedProject(tx, actor, projectId)
         const parsed = projectIdSchema.safeParse(assessmentId)
         if (!parsed.success) throw new NotFoundException('Assessment unavailable.')
         const includeBeneficiary = hasAtomicPermission(
@@ -387,7 +373,7 @@ export class EvaluationsService {
           throw new ForbiddenException('Assessment detail is not available to this role.')
         if (!hasAtomicPermission(actor.roles[0], actor.permissions, 'beneficiaries.records.read'))
           throw new ForbiddenException('Assessment detail is not available to this role.')
-        const id = await this.requireProject(tx, actor, projectId)
+        const id = await requireScopedProject(tx, actor, projectId)
         const parsed = z.object({ enrollmentId: z.string().uuid() }).safeParse(query)
         if (!parsed.success) throw new NotFoundException('Enrollment unavailable.')
         const enrollment = await tx.beneficiaryProjectEnrollment.findFirst({
@@ -511,7 +497,7 @@ export class EvaluationsService {
       identity,
       'evaluations.submit',
       async (tx, actor) => {
-        const id = await this.requireProject(tx, actor, projectId)
+        const id = await requireScopedProject(tx, actor, projectId)
         await tx.$queryRaw`SELECT 1::integer AS locked FROM pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(${`pathways:evaluation-create:${actor.organizationId}:${id}`},0))`
         const open = await tx.projectEvaluation.findFirst({
           where: {
@@ -596,7 +582,7 @@ export class EvaluationsService {
       identity,
       'evaluations.submit',
       async (tx, actor) => {
-        const id = await this.requireProject(tx, actor, projectId)
+        const id = await requireScopedProject(tx, actor, projectId)
         const evaluation = await this.requireEvaluation(tx, actor, id, evaluationId)
         if (evaluation.status !== 'DRAFT')
           throw new ConflictException('Scores may change only while the evaluation is a draft.')
@@ -644,7 +630,7 @@ export class EvaluationsService {
       identity,
       'evaluations.submit',
       async (tx, actor) => {
-        const id = await this.requireProject(tx, actor, projectId)
+        const id = await requireScopedProject(tx, actor, projectId)
         const evaluation = await this.requireEvaluation(tx, actor, id, evaluationId)
         if (evaluation.status !== 'DRAFT')
           throw new ConflictException('This evaluation changed; reload before retrying.')
@@ -716,7 +702,7 @@ export class EvaluationsService {
       identity,
       'evaluations.approve',
       async (tx, actor) => {
-        const id = await this.requireProject(tx, actor, projectId)
+        const id = await requireScopedProject(tx, actor, projectId)
         const evaluation = await this.requireEvaluation(tx, actor, id, evaluationId)
         if (evaluation.status !== 'SUBMITTED')
           throw new ConflictException('This evaluation changed; reload before retrying.')
@@ -772,7 +758,7 @@ export class EvaluationsService {
       async (tx, actor) => {
         if (!hasAtomicPermission(actor.roles[0], actor.permissions, 'evaluations.signoff'))
           throw new ForbiddenException('Sign-off is unavailable for your role.')
-        const id = await this.requireProject(tx, actor, projectId)
+        const id = await requireScopedProject(tx, actor, projectId)
         const evaluation = await this.requireEvaluation(tx, actor, id, evaluationId)
         if (evaluation.status !== 'SUBMITTED')
           throw new ConflictException('This evaluation changed; reload before retrying.')

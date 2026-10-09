@@ -21,7 +21,7 @@ import {
   validateAndNormalizeFormData,
 } from '@pathways/shared'
 import { type ApplicationIdentity, UUID_PATTERN } from '../../common/authz/application-identity'
-import { projectScope } from '../../common/authz/project-scope'
+import { projectDateFields, requireScopedProjectRow } from '../../common/authz/scoped-project'
 import type { Tx } from '../../common/prisma/transaction'
 import { PrismaService } from '../../prisma/prisma.service'
 import { withAuthorizedOperation } from '../auth/authorized-operation'
@@ -439,7 +439,7 @@ export class BeneficiariesService {
       identity,
       'beneficiaries.records.read',
       async (tx, actor) => {
-        const project = await this.requireProject(tx, actor, projectId)
+        const project = await requireScopedProjectRow(tx, actor, projectId, projectDateFields)
         const scopedProjectId = project.id
         const search = query.search?.trim()
         const ageReference = project.endDate
@@ -530,7 +530,7 @@ export class BeneficiariesService {
       identity,
       'beneficiaries.records.register',
       async (tx, actor) => {
-        const project = await this.requireProject(tx, actor, projectId)
+        const project = await requireScopedProjectRow(tx, actor, projectId, projectDateFields)
         return this.loadRegistrationContext(tx, actor, project.id)
       },
     )
@@ -553,7 +553,7 @@ export class BeneficiariesService {
       identity,
       'beneficiaries.records.register',
       async (tx, actor) => {
-        const project = await this.requireProject(tx, actor, projectId)
+        const project = await requireScopedProjectRow(tx, actor, projectId, projectDateFields)
         const [provisioned] = await tx.$queryRaw<Array<{ outcome: unknown }>>`
           SELECT outcome FROM pathways.ensure_default_registration_form(${project.id}::uuid)
         `
@@ -570,7 +570,7 @@ export class BeneficiariesService {
     )
   }
 
-  /** Caller has already scoped projectId through requireProject. */
+  /** Caller has already scoped projectId through requireScopedProjectRow. */
   private async loadRegistrationContext(
     tx: Tx,
     actor: ApplicationIdentity,
@@ -688,7 +688,7 @@ export class BeneficiariesService {
       identity,
       'beneficiaries.records.read',
       async (tx, actor) => {
-        const project = await this.requireProject(tx, actor, projectId)
+        const project = await requireScopedProjectRow(tx, actor, projectId, projectDateFields)
         const row = await this.requireBeneficiary(tx, actor, project.id, beneficiaryId)
         const enrollmentId = row.beneficiaryProjectEnrollment_beneficiary[0]?.id
         const progress =
@@ -710,7 +710,7 @@ export class BeneficiariesService {
       identity,
       'beneficiaries.records.register',
       async (tx, actor) => {
-        const project = await this.requireProject(tx, actor, projectId)
+        const project = await requireScopedProjectRow(tx, actor, projectId, projectDateFields)
         const outcome = await this.promoteRegistration(tx, actor, {
           projectId: project.id,
           formId: input.formId,
@@ -1130,7 +1130,7 @@ export class BeneficiariesService {
       identity,
       'beneficiaries.profiles.update',
       async (tx, actor) => {
-        const project = await this.requireProject(tx, actor, projectId)
+        const project = await requireScopedProjectRow(tx, actor, projectId, projectDateFields)
         const current = await this.requireBeneficiary(tx, actor, project.id, beneficiaryId)
         await this.assertAllEnrollmentScope(tx, actor, current.id)
         this.assertSubjectProfile(input, current)
@@ -1188,7 +1188,7 @@ export class BeneficiariesService {
       identity,
       'beneficiaries.records.archive',
       async (tx, actor) => {
-        const project = await this.requireProject(tx, actor, projectId)
+        const project = await requireScopedProjectRow(tx, actor, projectId, projectDateFields)
         const current = await this.requireBeneficiary(tx, actor, project.id, beneficiaryId)
         await this.assertAllEnrollmentScope(tx, actor, current.id)
         const now = new Date()
@@ -1230,7 +1230,7 @@ export class BeneficiariesService {
       identity,
       'beneficiaries.enrollments.manage',
       async (tx, actor) => {
-        const project = await this.requireProject(tx, actor, projectId)
+        const project = await requireScopedProjectRow(tx, actor, projectId, projectDateFields)
         if (!UUID_PATTERN.test(beneficiaryId))
           throw new NotFoundException('Beneficiary unavailable.')
         const date = exactDate(input.enrollmentDate, 'enrollmentDate')
@@ -1382,20 +1382,6 @@ export class BeneficiariesService {
         'Shared profile update requires access to every enrolled project.',
       )
     }
-  }
-
-  private async requireProject(tx: Tx, actor: ApplicationIdentity, projectId: string) {
-    if (!UUID_PATTERN.test(projectId)) throw new NotFoundException('Project unavailable.')
-    const project = await tx.project.findFirst({
-      where: { AND: [projectScope(actor), { id: projectId.toLowerCase() }] },
-      select: {
-        id: true,
-        startDate: true,
-        endDate: true,
-      },
-    })
-    if (!project) throw new NotFoundException('Project unavailable.')
-    return project
   }
 
   private scopedIncludes(organizationId: string, projectId: string) {
