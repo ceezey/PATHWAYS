@@ -95,12 +95,6 @@ export class SaveImportMappingDto {
   mappings!: ImportMappingItemDto[]
 }
 
-export class ValidateImportDto {
-  @IsInt()
-  @Min(1)
-  expectedMappingRevision!: number
-}
-
 export class ProcessImportDto {
   @IsInt()
   @Min(1)

@@ -29,7 +29,7 @@ import {
   parseSecureImport,
   smartMatchColumns,
 } from '@pathways/imports/server'
-import type { FormFieldValidationContract } from '@pathways/shared'
+import type { FormFieldValidationContract, ValidateImportRequest } from '@pathways/shared'
 import { writeAuditLog } from '../../common/audit/write-audit-log'
 import { type ApplicationIdentity, UUID_PATTERN } from '../../common/authz/application-identity'
 import { requireScopedProject } from '../../common/authz/scoped-project'
@@ -49,7 +49,6 @@ import type {
   ProcessImportDto,
   SaveImportMappingDto,
   UploadImportDto,
-  ValidateImportDto,
 } from './imports.dto'
 import { W10FinalizationFault } from './p07-w10-finalization-fault'
 
@@ -831,7 +830,7 @@ export class ImportsService {
     identity: ApplicationIdentity,
     projectId: string,
     batchId: string,
-    input: ValidateImportDto,
+    input: ValidateImportRequest,
   ) {
     return withAuthorizedOperation(this.prisma, identity, 'imports.validate', async (tx, actor) => {
       await this.lockBatch(tx, actor, projectId, batchId)
