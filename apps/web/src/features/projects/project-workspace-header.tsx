@@ -7,7 +7,7 @@ import { useRef } from 'react'
 import type { DisplayLabels } from '@/constants/display-labels'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'
-import { type WorkspaceTabAccess, filterWorkspaceTabs } from '@/lib/rbac/route-access'
+import { type WorkspaceTabAccess, filterWorkspaceTabs } from '@/lib/rbac/nav'
 import { cn } from '@/lib/utils'
 import type { ProjectDetail } from '@/types/pathways'
 

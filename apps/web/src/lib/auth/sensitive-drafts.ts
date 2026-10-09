@@ -1,7 +1,7 @@
 'use client'
 
 import type { ApplicationProfile } from '@/features/auth/auth-access'
-import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
+import { principalHasAtomicPermission } from '@/lib/rbac/policy'
 import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from 'react'
 type AtomicPermission = Parameters<typeof principalHasAtomicPermission>[1]
 

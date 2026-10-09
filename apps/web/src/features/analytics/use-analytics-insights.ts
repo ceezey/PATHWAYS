@@ -1,6 +1,6 @@
 'use client'
 
-import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
+import { principalHasAtomicPermission } from '@/lib/rbac/policy'
 import { analyticsInsightsClient } from '@/lib/services/analytics-insights-client'
 import { useAuthorizedRead } from '@/providers/authorized-query-provider'
 

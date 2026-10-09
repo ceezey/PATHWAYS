@@ -7,7 +7,8 @@ import { webEnv } from '../env'
 import { createClient } from '../server'
 import { ACCESS_UNAVAILABLE_PATH, providerFailureStatus } from './access-recovery'
 import { type NavigationStage, recordNavigationDenial } from './navigation-diagnostic'
-import { RouteCheckError, displayQueryKeys, requestRouteCheck } from './route-access'
+import { displayQueryKeys } from './routes'
+import { RouteCheckError, requestRouteCheck } from './transport'
 
 export type ProtectedPageProps = {
   params?: Promise<Record<string, string>>

@@ -7,7 +7,7 @@ import type { ApplicationProfile } from '@/features/auth/auth-access'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { sensitiveDraftGeneration, useSensitiveDraftOwner } from '@/lib/auth/sensitive-drafts'
 import { canAccessProjectForRole } from '@/lib/rbac/data-scope'
-import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
+import { principalHasAtomicPermission } from '@/lib/rbac/policy'
 import {
   AUTHORIZATION_DENIED_EVENT,
   WRITE_COMMITTED_EVENT,

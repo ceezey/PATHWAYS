@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AuthAccessError } from '../../features/auth/auth-access'
 import { recordNavigationDenial } from './navigation-diagnostic'
-import { RouteCheckError } from './route-access'
+import { RouteCheckError } from './transport'
 
 const privateContent = 'SYNTHETIC_PRIVATE_ERROR_CONTENT_MUST_NOT_APPEAR'
 let output: ReturnType<typeof vi.spyOn>

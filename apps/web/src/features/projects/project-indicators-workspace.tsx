@@ -24,7 +24,7 @@ import { usePendingCreate } from '@/hooks/use-pending-create'
 import { useSourceMutationContext } from '@/hooks/use-source-mutation-context'
 import { fingerprintOf } from '@/lib/forms/pending-create'
 import { formatCappedPercent } from '@/lib/percent'
-import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
+import { principalHasAtomicPermission } from '@/lib/rbac/policy'
 import { indicatorLibraryClient } from '@/lib/services/indicator-library-client'
 import { PathwaysClientError, pathwaysClient } from '@/lib/services/pathways-client'
 import {

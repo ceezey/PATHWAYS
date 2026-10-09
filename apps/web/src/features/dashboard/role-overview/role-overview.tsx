@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation'
 
 import { AsyncState } from '@/components/pathways'
 import { useCurrentRole } from '@/hooks/use-current-role'
-import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
+import { principalHasAtomicPermission } from '@/lib/rbac/policy'
 import { pathwaysClient } from '@/lib/services/pathways-client'
 import { useAuthorizedRead } from '@/providers/authorized-query-provider'
 import type { PathwaysRole } from '@/types/pathways-role'

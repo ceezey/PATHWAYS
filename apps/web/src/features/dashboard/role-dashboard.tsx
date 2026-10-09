@@ -39,7 +39,7 @@ import {
 } from '@/constants/feature-flags'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { can } from '@/lib/rbac/can'
-import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
+import { principalHasAtomicPermission } from '@/lib/rbac/policy'
 import { pathwaysClient } from '@/lib/services/pathways-client'
 import type {
   Activity,

@@ -66,14 +66,9 @@ vi.mock('@/hooks/use-current-role', () => ({
   }),
 }))
 vi.mock('@/lib/env', () => ({ webEnv: { NEXT_PUBLIC_API_BASE_URL: 'http://127.0.0.1:4000' } }))
-vi.mock('@/lib/rbac/route-access', () => {
-  return {
-    RouteCheckError: RouteCheckErrorMock,
-    authorizationPathForUiPath: () => '/beneficiaries',
-    getVerifiedRouteAccess: () => ({ allowed: true }),
-    requestRouteCheck,
-  }
-})
+vi.mock('@/lib/rbac/transport', () => ({ RouteCheckError: RouteCheckErrorMock, requestRouteCheck }))
+vi.mock('@/lib/rbac/routes', () => ({ authorizationPathForUiPath: () => '/beneficiaries' }))
+vi.mock('@/lib/rbac/policy', () => ({ getVerifiedRouteAccess: () => ({ allowed: true }) }))
 vi.mock('./beneficiary-access-gate', () => ({
   BeneficiaryAccessGate: ({ children, preflight }: { children: ReactNode; preflight: boolean }) => (
     <div data-testid="beneficiary-step-up-gate" data-preflight={String(preflight)}>

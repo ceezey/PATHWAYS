@@ -13,7 +13,7 @@ import { useCurrentRole } from '@/hooks/use-current-role'
 import { usePendingCreate } from '@/hooks/use-pending-create'
 import { useOperationRequestId } from '@/lib/auth/operation-request-id'
 import { createdSince, fingerprintOf } from '@/lib/forms/pending-create'
-import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
+import { principalHasAtomicPermission } from '@/lib/rbac/policy'
 import { coreDataClient } from '@/lib/services/core-feature-client'
 import { useAuthorizedRead } from '@/providers/authorized-query-provider'
 

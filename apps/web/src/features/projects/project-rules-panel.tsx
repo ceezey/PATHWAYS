@@ -3,7 +3,7 @@
 import { SectionCard, StatusBadge } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import { useCurrentRole } from '@/hooks/use-current-role'
-import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
+import { principalHasAtomicPermission } from '@/lib/rbac/policy'
 import { rulesHumanClient } from '@/lib/services/rules-human-client'
 import { useAuthorizedRead } from '@/providers/authorized-query-provider'
 import Link from 'next/link'

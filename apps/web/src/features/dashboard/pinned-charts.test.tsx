@@ -13,7 +13,7 @@ const access = vi.hoisted(() => ({
 const insight = vi.hoisted(() => ({ result: {} as Record<string, unknown> }))
 
 vi.mock('@/hooks/use-current-role', () => ({ useCurrentRole: () => access }))
-vi.mock('@/lib/rbac/route-access', () => ({
+vi.mock('@/lib/rbac/policy', () => ({
   principalHasAtomicPermission: (profile: { permissions: string[] }, permission: string) =>
     profile.permissions.includes(permission),
 }))

@@ -7,7 +7,7 @@ import { toast } from 'sonner'
 import { EmptyState, ProofPreviewDialog, SectionCard, StatusBadge } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import { useCurrentRole } from '@/hooks/use-current-role'
-import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
+import { principalHasAtomicPermission } from '@/lib/rbac/policy'
 import {
   downloadCoreArtifact,
   fetchCoreArtifact,

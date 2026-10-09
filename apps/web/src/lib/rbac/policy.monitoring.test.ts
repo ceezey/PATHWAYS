@@ -1,6 +1,6 @@
 import { routeAllowed } from '@pathways/shared'
 import { describe, expect, it } from 'vitest'
-import { getVerifiedRouteAccess } from './route-access'
+import { getVerifiedRouteAccess } from './policy'
 
 const projectId = '10000000-0000-4000-8000-000000000001'
 const route = `/projects/${projectId}/indicators`

@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react'
 import { AsyncState } from '@/components/pathways'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useCurrentRole } from '@/hooks/use-current-role'
-import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
+import { principalHasAtomicPermission } from '@/lib/rbac/policy'
 
 import { BudgetActions } from './budget-actions'
 import { BudgetLedger, hashedExpenseId } from './budget-ledger'

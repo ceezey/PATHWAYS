@@ -7,7 +7,7 @@ import { AuthorizedQueryProvider } from '@/providers/authorized-query-provider'
 import type { Activity, ActivityCapabilities } from '@/types/pathways'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
-import { getVerifiedRouteAccess } from '@/lib/rbac/route-access'
+import { getVerifiedRouteAccess } from '@/lib/rbac/policy'
 import {
   type AtomicPermission,
   type CanonicalRole,

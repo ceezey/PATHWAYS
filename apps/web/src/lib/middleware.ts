@@ -5,7 +5,8 @@ import { contextCookieName, decodeWorkspaceContext } from '@/features/auth/works
 import { webEnv, webSupabasePublishableKey } from '@/lib/env'
 import { ACCESS_UNAVAILABLE_PATH, providerFailureStatus } from '@/lib/rbac/access-recovery'
 import { type NavigationStage, recordNavigationDenial } from '@/lib/rbac/navigation-diagnostic'
-import { RouteCheckError, authorizationPathForUiPath, isPublicPath } from '@/lib/rbac/route-access'
+import { authorizationPathForUiPath, isPublicPath } from '@/lib/rbac/routes'
+import { RouteCheckError } from '@/lib/rbac/transport'
 import { matchRoute } from '@pathways/shared'
 
 /** Optimistic navigation gate only. Every protected data page and API keeps

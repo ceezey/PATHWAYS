@@ -19,7 +19,7 @@ import {
 import { Textarea } from '@/components/ui/textarea'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useOperationRequestId } from '@/lib/auth/operation-request-id'
-import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
+import { principalHasAtomicPermission } from '@/lib/rbac/policy'
 import { coreDataClient } from '@/lib/services/core-feature-client'
 import type { Activity } from '@/types/pathways'
 import { categoryLabel } from './budget-module/budget-math'

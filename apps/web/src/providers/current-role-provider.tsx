@@ -21,7 +21,7 @@ import {
 } from '@/features/auth/workspace-verification'
 import { useSession } from '@/hooks/use-session'
 import { webEnv } from '@/lib/env'
-import { isInternalPath } from '@/lib/rbac/route-access'
+import { isInternalPath } from '@/lib/rbac/routes'
 import type { PathwaysRole } from '@/types/pathways-role'
 import { usePathname } from 'next/navigation'
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
