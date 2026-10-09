@@ -130,6 +130,11 @@ Expected: docs check failure count equals the Step 2 baseline.
 
 ### Task 1: Move the route policy into packages/shared
 
+**Pre-flight amendments (controller, binding):**
+- After Step 5, merge any second `from '@pathways/shared'` statement into the first by hand (Biome 1.9.4 does not merge them); check role-dashboard.tsx, server-access.test.ts and the two api tests at least.
+- Out of F4a: `apps/web/src/lib/services/source-mutation.ts:63` holds a UUID regex identical to `routeUuidPattern`; leave it (S8) and do not import across.
+- Give the new api-to-web boundary test a positive control like its sibling tests (a fixture specifier that must be detected, and an assertion that files were scanned) so it cannot pass vacuously.
+
 **Files:**
 - Create: `packages/shared/src/rbac/route-policy.ts`
 - Test: `packages/shared/src/rbac/route-policy.test.ts`
@@ -479,6 +484,9 @@ Expected: exit 0 and a `Middleware` size equal to or smaller than `M0`. Replace 
 
 ### Task 2: Split lib/rbac route access by purpose
 
+**Pre-flight amendments (controller, binding):**
+- Where this task replaces the guard mock, replace the whole `vi.mock('@/lib/rbac/route-access', ...)` call (Biome may have reflowed it after Task 1), not an exact quoted string.
+
 **Files:**
 - Create: `apps/web/src/lib/rbac/policy.ts`, `apps/web/src/lib/rbac/routes.ts`, `apps/web/src/lib/rbac/nav.ts`, `apps/web/src/lib/rbac/transport.ts`
 - Delete: `apps/web/src/lib/rbac/route-access.ts`
@@ -714,6 +722,9 @@ Expected: all pass; web = Task 1 web count; `git status` shows at least the thre
 ---
 
 ### Task 3: Move the auth platform modules to lib/auth
+
+**Pre-flight amendments (controller, binding):**
+- At Step 4 also run the web build (`pnpm --filter @pathways/web build`, exit 0) and record the Middleware line, because this task rewrites `lib/middleware.ts` imports.
 
 **Files:**
 - Move (16 files) from `apps/web/src/features/auth/` to `apps/web/src/lib/auth/`: `auth-access.ts`, `auth-access.test.ts`, `auth-access.edge.test.ts`, `auth-access.test-fixtures.ts`, `mfa-flow.ts`, `mfa-flow.test.ts`, `password-recovery.ts`, `password-recovery.test.ts`, `password-recovery-routes.test.ts`, `verification-flight.ts`, `verification-flight.test.ts`, `workspace-access.ts`, `workspace-access.test.ts`, `workspace-resolution.test.ts`, `workspace-verification.ts`, `workspace-verification.test.ts`
@@ -1128,6 +1139,9 @@ Expected: both direction tests and the profile tests pass; web = `B_web + 2`, sh
 
 ### Task 5: usePermission
 
+**Pre-flight amendments (controller, binding):**
+- Rename test 1 so its title says the permission is absent from the grant list (PROJECT_MANAGER holds `activities.create` by policy), not that the role policy denies it.
+
 **Files:**
 - Modify: `apps/web/src/lib/rbac/policy.ts` (add `permissionChecker`)
 - Create: `apps/web/src/hooks/use-permission.ts`
@@ -1264,6 +1278,11 @@ Expected: all pass; web = `B_web + 4`.
 ---
 
 ### Task 6: Records and SAD routing
+
+**Pre-flight amendments (controller, binding):**
+- Also in the CR: update the section 3.7 F4 row to name F4a and F4b, replace the stale section 9 'Left open ... proposed for F4' sentence about the api to web route-access import with its closure by F4a, and add providers, constants and types to the section 3.1 web dependency diagram where the plan's rule covers them.
+- Add to the section 9 F4a Deferred line: the duplicated `['PROGRAM_MANAGER','GRANT_MANAGER']` literal versus shared `aggregateOnlyRoles`, and the `source-mutation.ts` UUID regex (S8).
+- In the audit MOD-10 cell, replace the words 'web side F4.' with 'web side closed by F4a.' rather than appending (avoid 'F4.;').
 
 **Files:**
 - Modify: `scripts/sad/check.ts` (organization isolation globs), `scripts/sad/check.test.ts`, `docs/sad-pathways.md:36`
