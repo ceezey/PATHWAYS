@@ -9,6 +9,7 @@ import { clearRecordBindings } from '@/features/analytics/rule-condition-editor'
 import { RuleEditor } from '@/features/analytics/rule-editor'
 import { RuleTestWorkspace } from '@/features/analytics/rule-test-workspace'
 import { useCurrentRole } from '@/hooks/use-current-role'
+import { usePermission } from '@/hooks/use-permission'
 import { type SensitiveDraftOwner, useSensitiveDraftOwner } from '@/lib/auth/sensitive-drafts'
 import { principalHasAtomicPermission } from '@/lib/rbac/policy'
 import { PathwaysClientError } from '@/lib/services/pathways-client'
@@ -115,8 +116,7 @@ function OwnedDrawer({
   owner,
 }: Props & { owner: SensitiveDraftOwner }) {
   const { profile, access } = useCurrentRole()
-  const has = (permission: Parameters<typeof principalHasAtomicPermission>[1]) =>
-    principalHasAtomicPermission(profile, permission)
+  const has = usePermission()
   const initial = rule ? flatten(rule.conditions) : { mode: 'AND' as Mode, rows: [] }
   const [scopeProjectId, setScopeProjectId] = useState<string | null>(
     rule ? rule.projectId : projectId,

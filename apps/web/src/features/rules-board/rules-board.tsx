@@ -23,6 +23,7 @@ import {
 } from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useCurrentRole } from '@/hooks/use-current-role'
+import { usePermission } from '@/hooks/use-permission'
 import { principalHasAtomicPermission } from '@/lib/rbac/policy'
 import { pathwaysClient } from '@/lib/services/pathways-client'
 import { rulesHumanClient } from '@/lib/services/rules-human-client'
@@ -426,9 +427,7 @@ function ManageTable({
   onAction: (rule: HumanRule, mode: Drawer['mode'], intent?: DrawerIntent) => void
   canCreate: boolean
 }) {
-  const { profile } = useCurrentRole()
-  const can = (permission: Parameters<typeof principalHasAtomicPermission>[1]) =>
-    principalHasAtomicPermission(profile, permission)
+  const can = usePermission()
   if (!rules.length)
     return (
       <EmptyState

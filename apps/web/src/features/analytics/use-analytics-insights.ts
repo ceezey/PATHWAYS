@@ -1,6 +1,6 @@
 'use client'
 
-import { principalHasAtomicPermission } from '@/lib/rbac/policy'
+import { permissionChecker, type principalHasAtomicPermission } from '@/lib/rbac/policy'
 import { analyticsInsightsClient } from '@/lib/services/analytics-insights-client'
 import { useAuthorizedRead } from '@/providers/authorized-query-provider'
 
@@ -27,7 +27,7 @@ const required: Record<string, readonly Permission[]> = {
 
 /** Participation also needs a submission or assessment-detail grant; aggregate-only roles lack it. */
 export function canReadInsight(profile: Principal, kind: 'trends' | 'budget' | 'participation') {
-  const has = (permission: Permission) => principalHasAtomicPermission(profile, permission)
+  const has = permissionChecker(profile)
   return (
     required[kind].every(has) &&
     (kind !== 'participation' || has('submissions.write') || has('assessments.detail.read'))

@@ -5,8 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { RuleTreeView, clearRecordBindings } from '@/features/analytics/rule-condition-editor'
-import { useCurrentRole } from '@/hooks/use-current-role'
-import { principalHasAtomicPermission } from '@/lib/rbac/policy'
+import { usePermission } from '@/hooks/use-permission'
 import { pathwaysClient } from '@/lib/services/pathways-client'
 import { cn } from '@/lib/utils'
 import { useAuthorizedRead } from '@/providers/authorized-query-provider'
@@ -25,9 +24,7 @@ type Choice = { id: string; name: string }
 
 /** Loads the project records that indicator and activity metrics bind to. */
 export function useBindingChoices(scopeProjectId: string | null, rows: RuleCondition[]) {
-  const { profile } = useCurrentRole()
-  const has = (permission: Parameters<typeof principalHasAtomicPermission>[1]) =>
-    principalHasAtomicPermission(profile, permission)
+  const has = usePermission()
   const needs = (test: (metric: string) => boolean) =>
     rows.some((row) => test(row.metric)) && scopeProjectId !== null
   const canReadActivities = has('activities.read')

@@ -50,6 +50,12 @@ export const principalHasAtomicPermission = (
     principal?.roles.length === 1 &&
       hasAtomicPermission(principal.roles[0], principal.permissions, permission),
   )
+
+// One principal's atomic permission check, for code that tests several grants.
+export const permissionChecker =
+  (principal: RoutePrincipal | null | undefined) => (permission: AtomicPermission) =>
+    principalHasAtomicPermission(principal, permission)
+
 export function getRouteAccess(
   role: RoleName,
   path: string,

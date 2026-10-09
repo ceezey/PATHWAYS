@@ -7,7 +7,7 @@ import { toast } from 'sonner'
 import { EmptyState, ProofPreviewDialog, SectionCard, StatusBadge } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import { useCurrentRole } from '@/hooks/use-current-role'
-import { principalHasAtomicPermission } from '@/lib/rbac/policy'
+import { usePermission } from '@/hooks/use-permission'
 import {
   downloadCoreArtifact,
   fetchCoreArtifact,
@@ -49,8 +49,7 @@ export const BudgetLedger = ({
   onClearFilter: () => void
 }) => {
   const { profile } = useCurrentRole()
-  const can = (permission: Parameters<typeof principalHasAtomicPermission>[1]) =>
-    principalHasAtomicPermission(profile, permission)
+  const can = usePermission()
   const me = profile?.userId ?? ''
   const [open, setOpen] = useState<string | null>(hashedExpenseId)
   const [preview, setPreview] = useState<Expense | null>(null)
