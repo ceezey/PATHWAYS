@@ -1,4 +1,5 @@
 export * from './constants/app'
+export * from './constants/domain-codes'
 export * from './types/common'
 export * from './validation/beneficiary-registration'
 export * from './validation/activity-monitoring'
@@ -17,6 +18,7 @@ export * from './monitoring/activity-extension'
 
 export * from './rbac/role-catalog'
 export * from './rbac/authorization-policy'
+export * from './rbac/beneficiary-step-up'
 
 export * from './rules/rule-contract'
 export * from './rules/rule-metrics'

@@ -1,12 +1,5 @@
+import { reportKinds } from '@pathways/shared'
 import { z } from 'zod'
-export const reportKinds = [
-  'PROJECT_SUMMARY',
-  'INDICATOR_SUMMARY',
-  'BENEFICIARY_SUMMARY',
-  'SURVEY_FORM_RESULTS',
-  'MONITORING_REPORT',
-  'EVALUATION_REPORT',
-] as const
 const reportContext = z
   .object({
     kind: z.enum(reportKinds),
@@ -30,4 +23,3 @@ export const reportInputSchema = reportContext
   .strict()
   .refine(validForm, 'Survey reports require a form; other reports do not accept one.')
   .refine(validRound, roundMessage)
-export type ReportKind = (typeof reportKinds)[number]

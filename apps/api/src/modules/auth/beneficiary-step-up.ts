@@ -2,7 +2,6 @@
 // Freshness is derived only from the verified signed `amr` TOTP timestamp.
 export const STEP_UP_WINDOW_SECONDS = 15 * 60
 const STEP_UP_CLOCK_SKEW_SECONDS = 30
-export const STEP_UP_REQUIRED_CODE = 'STEP_UP_REQUIRED'
 
 type BeneficiaryStepUpState =
   | { fresh: true; verifiedAt: number; expiresAt: number }
@@ -27,11 +26,7 @@ export function evaluateBeneficiaryStepUp(
   }
 }
 
-// Approved PIN fallback: cr-pathways-beneficiary-step-up-pin. TOTP stays primary; a PIN
-// grant is bound to user, organization and verified session and expires 15 minutes after
-// verification. These rules mirror pathways.step_up_pin_acceptable (migration 0037).
-export const STEP_UP_PIN_PATTERN = /^[0-9]{6,12}$/
-export type StepUpPinState = 'NONE' | 'SET' | 'LOCKED'
+// PIN fallback codes (cr-pathways-beneficiary-step-up-pin); the PIN rule itself lives in @pathways/shared.
 export type StepUpMethod = 'TOTP' | 'PIN'
 
 export const STEP_UP_PIN_CODES = {
@@ -43,12 +38,3 @@ export const STEP_UP_PIN_CODES = {
   totpRequired: 'STEP_UP_TOTP_REQUIRED',
   throttled: 'STEP_UP_PIN_THROTTLED',
 } as const
-
-/** 6-12 ASCII digits, rejecting all-identical digits and strictly ascending/descending runs. */
-export function isAcceptableStepUpPin(candidate: unknown): candidate is string {
-  if (typeof candidate !== 'string' || !STEP_UP_PIN_PATTERN.test(candidate)) return false
-  const steps = [...candidate.slice(1)].map(
-    (digit, index) => digit.charCodeAt(0) - candidate.charCodeAt(index),
-  )
-  return ![0, 1, -1].some((run) => steps.every((step) => step === run))
-}

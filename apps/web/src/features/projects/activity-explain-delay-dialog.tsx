@@ -17,7 +17,8 @@ import {
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { pathwaysClient } from '@/lib/services/pathways-client'
-import type { Activity, OverdueExplanationCategory } from '@/types/pathways'
+import type { Activity } from '@/types/pathways'
+import type { OverdueExplanationCategory } from '@pathways/shared'
 
 import { definitiveRejection } from './activity-progress-dialog'
 

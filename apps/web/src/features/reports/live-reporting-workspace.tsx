@@ -20,21 +20,15 @@ import { coreDataClient, downloadCoreArtifact } from '@/lib/services/core-featur
 import { pathwaysClient } from '@/lib/services/pathways-client'
 import { useAuthorizedRead } from '@/providers/authorized-query-provider'
 import type { ReportKind } from '@/types/pathways'
+import type { ReportKindCode } from '@pathways/shared'
 import { Download, FileSpreadsheet, Save } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 
-type Kind =
-  | 'PROJECT_SUMMARY'
-  | 'INDICATOR_SUMMARY'
-  | 'BENEFICIARY_SUMMARY'
-  | 'SURVEY_FORM_RESULTS'
-  | 'MONITORING_REPORT'
-  | 'EVALUATION_REPORT'
 type Principal = Parameters<typeof principalHasAtomicPermission>[0]
 type AtomicPermission = Parameters<typeof principalHasAtomicPermission>[1]
 type KindDefinition = { label: string; permission: AtomicPermission; requires?: AtomicPermission[] }
-export const kinds: Record<Kind, KindDefinition> = {
+export const kinds: Record<ReportKindCode, KindDefinition> = {
   PROJECT_SUMMARY: { label: 'Project summary', permission: 'reports.project.read' },
   INDICATOR_SUMMARY: { label: 'Indicator summary', permission: 'reports.indicator.read' },
   BENEFICIARY_SUMMARY: {
@@ -57,7 +51,7 @@ export const kinds: Record<Kind, KindDefinition> = {
 
 /** Kinds the principal may open: the kind grant plus any extra grant the API also requires. */
 export const allowedKinds = (profile: Principal) =>
-  (Object.keys(kinds) as Kind[]).filter(
+  (Object.keys(kinds) as ReportKindCode[]).filter(
     (kind) =>
       principalHasAtomicPermission(profile, kinds[kind].permission) &&
       (kinds[kind].requires ?? []).every((grant) => principalHasAtomicPermission(profile, grant)) &&
@@ -86,7 +80,7 @@ export function LiveReportingWorkspace({
 }: { initialKind: ReportKind; previewOnly?: boolean }) {
   const { profile } = useCurrentRole()
   const [selection, setSelection] = useState<string | null>(null)
-  const [selectedKind, setKind] = useState<Kind>(
+  const [selectedKind, setKind] = useState<ReportKindCode>(
     initialKind === 'indicator-summary'
       ? 'INDICATOR_SUMMARY'
       : initialKind === 'beneficiary-summary'
@@ -339,7 +333,7 @@ export function LiveReportingWorkspace({
           </Label>
           <Label className="space-y-2">
             <span>Report type</span>
-            <Select value={kind} onValueChange={(value) => setKind(value as Kind)}>
+            <Select value={kind} onValueChange={(value) => setKind(value as ReportKindCode)}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>

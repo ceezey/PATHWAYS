@@ -9,6 +9,7 @@ import {
 import { Prisma } from '@prisma/client'
 
 import {
+  DIRECT_ENTRY_FORM_TYPES,
   type FormFieldValidationContract,
   type FormValidationMode,
   activityMonitoringDefinitionErrors,
@@ -35,14 +36,6 @@ import type {
 import { PublishedDefinitionCache } from './published-definition-cache'
 
 type Tx = Prisma.TransactionClient
-
-// V4-C11: direct entry stays only for survey, test and activity-monitoring forms.
-export const DIRECT_ENTRY_FORM_TYPES = [
-  'TRAINING_SURVEY',
-  'PRE_TEST',
-  'POST_TEST',
-  'ACTIVITY_MONITORING',
-] as const
 
 const fieldSelection = {
   id: true,

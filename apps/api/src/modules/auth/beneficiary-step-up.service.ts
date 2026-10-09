@@ -7,10 +7,11 @@ import {
   UnauthorizedException,
 } from '@nestjs/common'
 
+import { STEP_UP_REQUIRED_CODE } from '@pathways/shared'
+
 import { InactiveVerifiedSessionError, PrismaService } from '../../prisma/prisma.service'
 import { projectScope } from './authorized-data.service'
 import {
-  STEP_UP_REQUIRED_CODE,
   STEP_UP_WINDOW_SECONDS,
   type StepUpMethod,
   evaluateBeneficiaryStepUp,

@@ -2,7 +2,13 @@ import type { ApplicationIdentity } from '@app/modules/auth/developer-access'
 import { IndicatorsService } from '@app/modules/indicators/indicators.service'
 import { PrismaService } from '@app/prisma/prisma.service'
 import { ForbiddenException, NotFoundException } from '@nestjs/common'
-import { type CanonicalRole, roleNames, rolePermissions } from '@pathways/shared'
+import {
+  type CanonicalRole,
+  type ReportKindCode,
+  reportKinds,
+  roleNames,
+  rolePermissions,
+} from '@pathways/shared'
 import type { Prisma } from '@prisma/client'
 import { describe, expect, it } from 'vitest'
 import { DashboardsService } from '../dashboards/dashboards.service'
@@ -10,7 +16,6 @@ import { ProjectOverviewMetricsService } from '../projects/project-overview-metr
 import type { ReportPdfRenderer } from '../report-pdf/report-pdf.renderer'
 import { RulesHumanService } from '../rules/rules-human.service'
 import type { StorageService } from '../storage/storage.service'
-import { type ReportKind, reportKinds } from './reports.dto'
 import { ReportsService } from './reports.service'
 
 // Explicit opt-in only. Gate G-F12-1: report output respects role scope and suppression.
@@ -245,7 +250,7 @@ describe.skipIf(!enabled)('report preview scope and suppression on disposable Po
             await tx.$executeRaw`SET LOCAL session_replication_role = origin`
             // The indicator report SQL also requires session_user to be the runtime role.
             await tx.$executeRaw`SET LOCAL SESSION AUTHORIZATION pathways_runtime`
-            const preview = (role: CanonicalRole, projectId: string, kind: ReportKind) =>
+            const preview = (role: CanonicalRole, projectId: string, kind: ReportKindCode) =>
               reports.preview(identityOf(role), projectId, { kind })
 
             // 1. Assigned Project Manager receives rows for every non-survey kind but evaluation.
