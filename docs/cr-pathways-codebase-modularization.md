@@ -22,12 +22,12 @@ Behavior-preserving restructure in 14 sub-projects. Scope: split large files, re
 ### 3.1 Dependency direction
 
 ```
-web:  app/ -> features/ -> components/, hooks/, lib/ -> @pathways/shared
+web:  app/ -> features/ -> components/, constants/, hooks/, lib/, providers/, types/ -> @pathways/shared
 api:  modules/ -> common/ -> @pathways/shared        (common never imports modules)
 shared, imports, config: never import apps
 ```
 
-Enforced for the API by `apps/api/src/common/import-boundary.test.ts`, because Biome 1.9 `noRestrictedImports` matches exact specifiers only and cannot express a folder rule (amended 2026-10-09 for F3a). Web and package import direction is enforced in F4, with the tool chosen there (Biome 1.9.4 cannot express path globs). The API `supabase-auth.guard` lives in `modules/auth/guards/`.
+Enforced for the API by `apps/api/src/common/import-boundary.test.ts`, because Biome 1.9 `noRestrictedImports` matches exact specifiers only and cannot express a folder rule (amended 2026-10-09 for F3a). The web direction is enforced by `apps/web/src/import-direction.test.ts` (non-test files under `components/`, `constants/`, `hooks/`, `lib/`, `providers/`, `types/` and directly under `src/` import neither `features/` nor `app/`, `features/` does not import `app/`, and no file leaves `apps/web/src`), the package direction by `packages/shared/src/package-import-boundary.test.ts`, and the api to web direction by a case in `apps/api/src/common/import-boundary.test.ts`; all three are Vitest tests for the same Biome limit (amended 2026-10-10 for F4a). The API `supabase-auth.guard` lives in `modules/auth/guards/`.
 
 ### 3.2 API module layout (`apps/api/src/modules/<domain>/`)
 
@@ -57,6 +57,8 @@ Feature folder `apps/web/src/features/<domain>/`:
 Features above about 30 files use subfolders (for example `projects/{activities,indicators,team,budget}`). `Owned*` and `Scoped*` prefixes are replaced by purpose names.
 
 Outside features: `lib/api/{core,<domain>}`, `lib/auth`, `lib/rbac/{policy,routes,nav,transport}`, `lib/platform/{env,supabase,sentry}`, `lib/format/{date,percent,plural,tone}`, `components/{ui,common,layout}`, `test/fixtures` (replaces `mocks/` and test-only `demo-state/`).
+
+`lib/rbac/{policy,routes,nav,transport}` are files; the route table and the decisions the API also makes (`routePolicy`, `matchRoute`, `parseRouteSelection`, `routeAllowed`, `isAggregateOnly`) live in `packages/shared/src/rbac/route-policy.ts`. `lib/auth` holds the auth platform modules (`auth-access`, `workspace-access`, `workspace-verification`, `verification-flight`, `mfa-flow`, `password-recovery`); `features/auth` keeps the sign-in, MFA and recovery screens. Components read permissions through `usePermission` (amended 2026-10-10 for F4a).
 
 ### 3.4 Shared package layout (`packages/shared/src/`)
 
@@ -95,7 +97,7 @@ Foundations:
 | F2 | Shared core | `rbac/` (one role catalog, policy), `rules/` (contract, metrics), shared enums and constants, barrel exports verified by production build | MOD-01, 02, 03 |
 | F3a | API kernel | `common/{prisma,time,authz,audit}`, `Tx`, `currentBusinessDate`, application identity and project scope in `common/authz`, shared `requireScopedProject`, `writeAuditLog`, guard moved to `auth/guards`, import boundary test for `common` | MOD-08, 09, 10 |
 | F3b | API validation and wiring | contract pattern with one example (moved from F2), zod pipe, contract naming convention, `withAuthorizedOperation` in `common/authz`, storage factory injection, wiring test for object providers | MOD-11, 13 |
-| F4 | Web platform | `lib/api/core` with one owned-read helper, `lib/auth` absorbing `features/auth/workspace-access`, `lib/rbac` split, `lib/format`, `usePermission`, shared table head and dialog, thinner providers, lint rule for import direction | MOD-05, 10, 16 |
+| F4a, F4b | Web platform | F4a: shared route policy, `lib/rbac` split, `lib/auth`, import direction tests, `usePermission`. F4b: `lib/api/core` with one owned-read helper, `lib/format`, shared table head and dialog, thinner providers | MOD-05, 10, 16 |
 
 Domain slices, each covering contracts, API split, web client and feature components:
 
@@ -220,7 +222,7 @@ F2 applied 2026-10-09 on refactor/f2-shared-core:
 - Package: exports stay on the barrel (section 3.4 amended); `metric-math` is exported directly; `ImportSummary` moved to `packages/imports`; the api `dev` and `dev:watch` scripts build workspace packages first; SAD rule-engine routing covers `packages/shared/src/rules/**` and organization-isolation routing covers `packages/shared/src/rbac/**/*.ts`.
 
 - Decisions: the browser rule tester's timeline input no longer defaults `projectStatus` and `projectArchived` (its only caller passes both, pinned by a shared test); `parseAutomaticMappingReceipt`, `proofExtensions`, `exportFormats` order, UI `projectStatuses` and the reverse-order severity enums stay per app because the copies differ.
-Deferred: contract pattern and example (F3), calendar-date regex unification (slices), `descriptive-analytics` split (S7), avatar-stack "And" label (S8). Left open: `apps/api/src/modules/auth/route-access.service.ts` and `dashboard-home-authorization-parity.test.ts` import `apps/web/src/lib/rbac/route-access.ts` (api to web), proposed for F4; a literal NUL key separator in `apps/web/src/features/rules-board/rule-output-fields.tsx` (S7); remaining near-duplicate code lists in api `descriptive-analytics.ts`, `form-templates.ts` and `metadata.dto.ts`, the seed literal unions `apps/api/prisma/local-demo-data.ts:219` (overdue categories) and `apps/api/prisma/local-demo-stage-reports.ts:8` (report kinds) deferred to W1, and in web `human-review-workspace` (`SEVERITY_RANK`) and `form-builder-session-draft.ts`, each left to its slice.
+Deferred: contract pattern and example (F3), calendar-date regex unification (slices), `descriptive-analytics` split (S7), avatar-stack "And" label (S8). Left open (closed by F4a): the api to web route-access import in `route-access.service.ts` and `dashboard-home-authorization-parity.test.ts`; a literal NUL key separator in `apps/web/src/features/rules-board/rule-output-fields.tsx` (S7); remaining near-duplicate code lists in api `descriptive-analytics.ts`, `form-templates.ts` and `metadata.dto.ts`, the seed literal unions `apps/api/prisma/local-demo-data.ts:219` (overdue categories) and `apps/api/prisma/local-demo-stage-reports.ts:8` (report kinds) deferred to W1, and in web `human-review-workspace` (`SEVERITY_RANK`) and `form-builder-session-draft.ts`, each left to its slice.
 
 F3a applied 2026-10-09 on refactor/f3a-api-core:
 - Kernel: `common/prisma/transaction.ts` (`Tx`, replacing 15 local aliases) and `common/time/business-date.ts` (`currentBusinessDate`, replacing the four copies that answer 503; activities uses the shared calendar date).
@@ -243,3 +245,16 @@ F3b applied 2026-10-10 on refactor/f3b-validation-wiring:
 - Decisions: exact parity held for 20 bodies, and own `__proto__` and `constructor` keys are now rejected (ruling 3); Vitest emits no decorator metadata, so the old DTO route could only be characterized by a parity test that passes the metatype explicitly, and the compiled API is probed in the gates; the seven generic rules names stay because a barrel collision is a compile error (ruling 5); `readApplicationProfile` moved before the kernel so `common` never imported `modules` at any commit (ruling 7); the factories are a required constructor parameter, and the three tests that mocked only part of the reader module now inject fakes (ruling 9); two storage types were exported (type-only) to satisfy TS4023.
 
 Deferred: the remaining class-validator DTO routes (their slices); the three `importOriginal` private-inspection-reader mocks in activities tests (S2); web `validateImport` typing from the contract (S5).
+
+F4a applied 2026-10-10 on refactor/f4a-web-boundaries:
+- Route policy: the route table, `matchRoute`, `parseRouteSelection`, `routeAllowed`, `isAggregateOnly`, `hasRoutePermission`, `routeUuidPattern` and the route types moved verbatim from `apps/web/src/lib/rbac/route-access.ts` to `packages/shared/src/rbac/route-policy.ts`; `route-access.service.ts` and its two tests import `@pathways/shared`, so no api file imports web source.
+- RBAC: the rest of `route-access.ts` split verbatim into `lib/rbac/policy.ts`, `routes.ts`, `nav.ts` and `transport.ts` (54 importers and 2 test mocks repointed).
+- Auth: `auth-access`, `workspace-access`, `workspace-verification`, `verification-flight`, `mfa-flow` and `password-recovery` moved with their tests and fixtures from `features/auth` to `lib/auth` (42 specifiers in 31 files, 2 test mocks).
+- Profile: the own profile response schema moved into `lib/services/own-profile-client.ts`.
+- Direction: `apps/web/src/import-direction.test.ts`, `packages/shared/src/package-import-boundary.test.ts` and an api to web case in `apps/api/src/common/import-boundary.test.ts`.
+- Permissions: `usePermission` (`hooks/use-permission.ts`) and `permissionChecker` (`lib/rbac/policy.ts`) replace six local wrappers.
+- SAD: organization isolation routing covers `apps/web/src/lib/auth/**/*.ts`, `apps/web/src/lib/rbac/**/*.ts` and both middleware files.
+- Middleware: web Middleware went from 102 kB to 102 kB.
+- Decisions: F4 split into F4a and F4b (ruling 1); three api files, not two, imported the web route table (ruling 2); `lib/auth` absorbed seven modules because `lib`, `hooks` and `providers` imported all of them (ruling 4); `usePermission` reads `@/hooks/use-current-role` so the 60 existing mocks of that module keep applying (ruling 7); test files stay exempt from the direction tests (ruling 6); `rules-human-client.ts` no longer imported `features/analytics` at F4 start, and the 17 lower-layer imports were 16 into `features/auth` and 1 into `features/profile` (ruling 11).
+
+Deferred to F4b: `lib/api/core` with the owned-read helper (MOD-05 core part), `lib/format/{date,percent,plural,tone}`, the shared table head and dialog check, thinner providers. Left to later sub-projects: the duplicated `['PROGRAM_MANAGER','GRANT_MANAGER']` literal versus shared `aggregateOnlyRoles`, and the `source-mutation.ts` UUID regex (S8).

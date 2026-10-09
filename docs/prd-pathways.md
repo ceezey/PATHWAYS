@@ -1536,7 +1536,7 @@ Kept deviations, no pending change: the expense chain stays verify, approve, sig
 
 ### 5.1 Screen Inventory
 
-One row per web route in `apps/web/src/app`. Roles come from `apps/web/src/lib/rbac/route-access.ts`, resolved against the atomic grants in `packages/shared/src/rbac/authorization-policy.ts`. The route decision is a UI ceiling; the API remains the authority. Alias routes reuse the verified route named in their Screen cell. Program Manager and Grant Manager never reach beneficiary-scoped routes.
+One row per web route in `apps/web/src/app`. Roles come from `packages/shared/src/rbac/route-policy.ts`, resolved against the atomic grants in `packages/shared/src/rbac/authorization-policy.ts`. The route decision is a UI ceiling; the API remains the authority. Alias routes reuse the verified route named in their Screen cell. Program Manager and Grant Manager never reach beneficiary-scoped routes.
 
 | Route | Screen | Roles | Feature |
 |---|---|---|---|
