@@ -24,10 +24,10 @@ import {
 import { Prisma } from '@prisma/client'
 import { writeAuditLog } from '../../common/audit/write-audit-log'
 import { type ApplicationIdentity, UUID_PATTERN } from '../../common/authz/application-identity'
+import { withAuthorizedOperation } from '../../common/authz/authorized-operation'
 import { requireScopedProject } from '../../common/authz/scoped-project'
 import type { Tx } from '../../common/prisma/transaction'
 import { PrismaService } from '../../prisma/prisma.service'
-import { withAuthorizedOperation } from '../auth/authorized-operation'
 import {
   beginRuleSourceOperation,
   bootstrapRuleSourceProject,

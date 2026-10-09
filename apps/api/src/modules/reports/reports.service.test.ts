@@ -26,7 +26,7 @@ const state = vi.hoisted(() => ({
   read: vi.fn(),
   artifact: vi.fn(),
 }))
-vi.mock('../auth/authorized-operation', () => ({
+vi.mock('../../common/authz/authorized-operation', () => ({
   withAuthorizedOperation: async (
     _db: unknown,
     _identity: unknown,

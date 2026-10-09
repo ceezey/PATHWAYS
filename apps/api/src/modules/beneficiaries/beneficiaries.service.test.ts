@@ -15,7 +15,7 @@ import { canReadProgress, progressPercent } from './beneficiary-progress'
 const readState = vi.hoisted(() => ({ tx: undefined as unknown }))
 
 // The operation boundary is replaced with the real permission policy against the synthetic actor.
-vi.mock('../auth/authorized-operation', () => ({
+vi.mock('../../common/authz/authorized-operation', () => ({
   withAuthorizedOperation: vi.fn(async (_prisma, identity, permission: string, work) => {
     if (!hasAtomicPermission(identity.roles[0], identity.permissions, permission))
       throw new ForbiddenException('Permission denied.')

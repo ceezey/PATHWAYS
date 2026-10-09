@@ -8,8 +8,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { PrismaService } from '@app/prisma/prisma.service'
 import { rolePermissions } from '@pathways/shared'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
+import { withAuthorizedOperation } from '../../common/authz/authorized-operation'
 import { PERMISSION_KEY } from '../../common/decorators/permission.decorator'
-import { withAuthorizedOperation } from '../auth/authorized-operation'
 import { formTemplates } from './form-templates'
 import { MetadataController } from './metadata.controller'
 import { GenerateFormDto } from './metadata.dto'
@@ -19,7 +19,7 @@ const state = vi.hoisted(() => ({
   actor: undefined as ApplicationIdentity | undefined,
   tx: undefined as Prisma.TransactionClient | undefined,
 }))
-vi.mock('../auth/authorized-operation', () => ({
+vi.mock('../../common/authz/authorized-operation', () => ({
   withAuthorizedOperation: vi.fn(async (_prisma, _identity, _permission, work) =>
     work(state.tx, state.actor),
   ),

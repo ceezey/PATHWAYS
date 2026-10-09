@@ -22,7 +22,7 @@ const state = vi.hoisted(() => ({
   operationCalls: [] as Array<{ permission: string; options: unknown }>,
 }))
 
-vi.mock('../auth/authorized-operation', () => ({
+vi.mock('../../common/authz/authorized-operation', () => ({
   withAuthorizedOperation: vi.fn(async (_prisma, _identity, permission, work, options) => {
     state.operationCalls.push({ permission, options })
     return work(state.tx, state.actor)

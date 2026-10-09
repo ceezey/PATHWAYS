@@ -15,7 +15,7 @@ const state = vi.hoisted(() => ({
 vi.mock('../../common/authz/application-profile', () => ({
   readApplicationProfile: vi.fn(async () => state.actor),
 }))
-vi.mock('../auth/authorized-operation', () => ({
+vi.mock('../../common/authz/authorized-operation', () => ({
   withAuthorizedOperation: vi.fn(async (_prisma, _identity, _permission, work) =>
     work(state.tx, state.actor),
   ),

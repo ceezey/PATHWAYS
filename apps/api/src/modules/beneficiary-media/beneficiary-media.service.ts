@@ -16,6 +16,7 @@ import type { Prisma } from '@prisma/client'
 import { aggregateOnlyRoles } from '@pathways/shared'
 import { writeAuditLog } from '../../common/audit/write-audit-log'
 import { type ApplicationIdentity, UUID_PATTERN } from '../../common/authz/application-identity'
+import { withAuthorizedOperation } from '../../common/authz/authorized-operation'
 import { projectScope } from '../../common/authz/project-scope'
 import type { Tx } from '../../common/prisma/transaction'
 import { PrismaService } from '../../prisma/prisma.service'
@@ -25,7 +26,6 @@ import {
   evidenceExtension,
   proofDeclarations,
 } from '../activities/activities.service'
-import { withAuthorizedOperation } from '../auth/authorized-operation'
 import {
   createPrivateObjectStreamer,
   createPrivateUploadVerifier,

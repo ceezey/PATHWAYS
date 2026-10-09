@@ -11,7 +11,7 @@ const boundary = vi.hoisted(() => ({
   ack: vi.fn(),
   finish: vi.fn(),
 }))
-vi.mock('../auth/authorized-operation', () => ({
+vi.mock('../../common/authz/authorized-operation', () => ({
   withAuthorizedOperation: async (
     _prisma: unknown,
     _identity: unknown,

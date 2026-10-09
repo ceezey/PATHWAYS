@@ -1,6 +1,6 @@
 import type { ApplicationIdentity } from '@app/common/authz/application-identity'
+import { withAuthorizedOperation } from '@app/common/authz/authorized-operation'
 import { PERMISSION_KEY } from '@app/common/decorators/permission.decorator'
-import { withAuthorizedOperation } from '@app/modules/auth/authorized-operation'
 import {
   type DescriptiveAnalytics,
   type MetricCell,
@@ -30,7 +30,7 @@ import {
 vi.mock('@pathways/config', () => ({
   readApiEnv: () => ({ BUSINESS_TIME_ZONE: 'Asia/Manila' }),
 }))
-vi.mock('@app/modules/auth/authorized-operation', () => ({ withAuthorizedOperation: vi.fn() }))
+vi.mock('@app/common/authz/authorized-operation', () => ({ withAuthorizedOperation: vi.fn() }))
 
 const orgA = '10000000-0000-4000-8000-00000000000a'
 const orgB = '10000000-0000-4000-8000-00000000000b'

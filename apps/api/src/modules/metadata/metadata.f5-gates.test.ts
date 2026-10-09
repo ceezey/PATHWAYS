@@ -19,7 +19,7 @@ const state = vi.hoisted(() => ({
   permissions: [] as string[],
 }))
 
-vi.mock('../auth/authorized-operation', async () => {
+vi.mock('../../common/authz/authorized-operation', async () => {
   const { ForbiddenException: Forbidden } = await import('@nestjs/common')
   return {
     withAuthorizedOperation: vi.fn(async (_prisma, _identity, permission, work) => {

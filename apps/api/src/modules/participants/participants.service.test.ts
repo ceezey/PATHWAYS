@@ -7,7 +7,7 @@ import { validate } from 'class-validator'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ApplicationIdentity } from '@app/common/authz/application-identity'
-import { withAuthorizedOperation } from '@app/modules/auth/authorized-operation'
+import { withAuthorizedOperation } from '@app/common/authz/authorized-operation'
 import type { PrismaService } from '@app/prisma/prisma.service'
 import { hasAtomicPermission, rolePermissions } from '@pathways/shared'
 import { CorrectJourneyEventDto } from './participants.dto'
@@ -23,7 +23,7 @@ const txOps = vi.hoisted(() => ({
 }))
 
 // The operation boundary is replaced with a permission check against the synthetic actor.
-vi.mock('@app/modules/auth/authorized-operation', () => ({
+vi.mock('@app/common/authz/authorized-operation', () => ({
   withAuthorizedOperation: vi.fn(async (_prisma, _identity, permission: string, work) => {
     if (!state.actor?.permissions.includes(permission))
       throw new ForbiddenException('Permission denied.')

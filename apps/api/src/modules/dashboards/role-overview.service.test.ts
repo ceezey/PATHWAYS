@@ -1,7 +1,7 @@
 import 'reflect-metadata'
 
 import type { ApplicationIdentity } from '@app/common/authz/application-identity'
-import { withAuthorizedOperation } from '@app/modules/auth/authorized-operation'
+import { withAuthorizedOperation } from '@app/common/authz/authorized-operation'
 import type { RulesHumanService } from '@app/modules/rules/rules-human.service'
 import type { PrismaService } from '@app/prisma/prisma.service'
 import { roleOverviewSchema, rolePermissions } from '@pathways/shared'
@@ -10,7 +10,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { RoleOverviewService } from './role-overview.service'
 
 vi.mock('@pathways/config', () => ({ readApiEnv: () => ({ BUSINESS_TIME_ZONE: 'Asia/Manila' }) }))
-vi.mock('@app/modules/auth/authorized-operation', () => ({ withAuthorizedOperation: vi.fn() }))
+vi.mock('@app/common/authz/authorized-operation', () => ({ withAuthorizedOperation: vi.fn() }))
 
 const org = '10000000-0000-4000-8000-00000000000a'
 const project = '20000000-0000-4000-8000-00000000000a'

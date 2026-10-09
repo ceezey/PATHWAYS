@@ -14,7 +14,7 @@ const state = vi.hoisted(() => ({
   tx: undefined as Prisma.TransactionClient | undefined,
 }))
 
-vi.mock('@app/modules/auth/authorized-operation', () => ({
+vi.mock('@app/common/authz/authorized-operation', () => ({
   withAuthorizedOperation: vi.fn(async (_prisma, _identity, permission, work) => {
     const actor = state.actor as ApplicationIdentity
     if (!hasAtomicPermission(actor.roles[0], actor.permissions, permission))

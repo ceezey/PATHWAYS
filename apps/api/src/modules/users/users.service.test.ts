@@ -9,7 +9,7 @@ import { UsersService } from './users.service'
 const state = vi.hoisted(() => ({ tx: {} as Record<string, unknown>, roles: ['PROGRAM_MANAGER'] }))
 
 // The verified-transaction wrapper is replaced so the role checks run against a mocked tx.
-vi.mock('../auth/authorized-operation', () => ({
+vi.mock('../../common/authz/authorized-operation', () => ({
   withAuthorizedOperation: (
     _prisma: unknown,
     identity: ApplicationIdentity,

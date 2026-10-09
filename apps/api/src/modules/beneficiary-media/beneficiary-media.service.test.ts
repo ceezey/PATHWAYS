@@ -23,7 +23,7 @@ const tx = vi.hoisted(() => ({
 }))
 
 // The operation boundary is replaced with a permission check against the synthetic actor.
-vi.mock('@app/modules/auth/authorized-operation', () => ({
+vi.mock('@app/common/authz/authorized-operation', () => ({
   withAuthorizedOperation: vi.fn(async (_prisma, _identity, permission: string, work) => {
     if (!state.actor?.permissions.includes(permission))
       throw new ForbiddenException('Permission denied.')

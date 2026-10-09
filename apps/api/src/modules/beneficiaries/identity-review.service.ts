@@ -2,10 +2,10 @@ import { BadRequestException, Inject, Injectable, NotFoundException } from '@nes
 
 import { writeAuditLog } from '../../common/audit/write-audit-log'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
+import { withAuthorizedOperation } from '../../common/authz/authorized-operation'
 import { requireScopedProject } from '../../common/authz/scoped-project'
 import type { Tx } from '../../common/prisma/transaction'
 import { PrismaService } from '../../prisma/prisma.service'
-import { withAuthorizedOperation } from '../auth/authorized-operation'
 import type { ResolveDuplicateDto } from './beneficiaries.dto'
 
 const RESOLVED_ACTIONS = ['BENEFICIARY_IDENTITY_KEPT_DISTINCT', 'BENEFICIARY_IDENTITY_LINKED']

@@ -17,7 +17,7 @@ const state = vi.hoisted(() => ({
   ack: vi.fn(),
 }))
 
-vi.mock('@app/modules/auth/authorized-operation', () => ({
+vi.mock('@app/common/authz/authorized-operation', () => ({
   withAuthorizedOperation: vi.fn(async (_prisma, _identity, permission: string, work) => {
     if (!state.actor?.permissions.includes(permission))
       throw new ForbiddenException('Permission denied.')

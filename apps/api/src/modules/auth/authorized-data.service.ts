@@ -1,10 +1,10 @@
 import { ForbiddenException, Inject, Injectable } from '@nestjs/common'
 import { aggregateOnlyRoles } from '@pathways/shared'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
+import { withAuthorizedOperation } from '../../common/authz/authorized-operation'
 import { projectScope } from '../../common/authz/project-scope'
 import { requireScopedProject } from '../../common/authz/scoped-project'
 import { PrismaService } from '../../prisma/prisma.service'
-import { withAuthorizedOperation } from './authorized-operation'
 
 @Injectable()
 export class AuthorizedDataService {

@@ -1,8 +1,8 @@
 import 'reflect-metadata'
 
 import type { ApplicationIdentity } from '@app/common/authz/application-identity'
+import { withAuthorizedOperation } from '@app/common/authz/authorized-operation'
 import { PERMISSION_KEY } from '@app/common/decorators/permission.decorator'
-import { withAuthorizedOperation } from '@app/modules/auth/authorized-operation'
 import type { RulesHumanService } from '@app/modules/rules/rules-human.service'
 import type { PrismaService } from '@app/prisma/prisma.service'
 import { ServiceUnavailableException } from '@nestjs/common'
@@ -14,7 +14,7 @@ import { ActionCountsService } from './action-counts.service'
 
 const env = vi.hoisted(() => ({ zone: 'Asia/Manila' }))
 vi.mock('@pathways/config', () => ({ readApiEnv: () => ({ BUSINESS_TIME_ZONE: env.zone }) }))
-vi.mock('@app/modules/auth/authorized-operation', () => ({ withAuthorizedOperation: vi.fn() }))
+vi.mock('@app/common/authz/authorized-operation', () => ({ withAuthorizedOperation: vi.fn() }))
 
 const org = '10000000-0000-4000-8000-00000000000a'
 const project = '20000000-0000-4000-8000-00000000000a'

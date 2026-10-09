@@ -57,7 +57,7 @@ const state = vi.hoisted(() => ({
   actor: null as unknown as ApplicationIdentity,
   tx: null as unknown as Record<string, unknown>,
 }))
-vi.mock('../auth/authorized-operation', () => ({
+vi.mock('../../common/authz/authorized-operation', () => ({
   withAuthorizedOperation: vi.fn(async (_prisma, _identity, _permission, work) =>
     work(state.tx, state.actor),
   ),

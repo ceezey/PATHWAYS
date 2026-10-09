@@ -1,4 +1,4 @@
-import type { ApplicationIdentity } from '../../common/authz/application-identity'
+import type { ApplicationIdentity } from './application-identity'
 
 const MAX_REPORTED_STAGE_MS = 30_000
 

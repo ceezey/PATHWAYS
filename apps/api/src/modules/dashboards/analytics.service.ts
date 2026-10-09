@@ -23,11 +23,11 @@ import {
 import { Prisma } from '@prisma/client'
 import { writeAuditLog } from '../../common/audit/write-audit-log'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
+import { withAuthorizedOperation } from '../../common/authz/authorized-operation'
 import { projectScope } from '../../common/authz/project-scope'
 import { requireScopedProjectRow } from '../../common/authz/scoped-project'
 import { PrismaService } from '../../prisma/prisma.service'
 import { faultCause } from '../../prisma/transaction-diagnostic'
-import { withAuthorizedOperation } from '../auth/authorized-operation'
 import { monitoringSqlError } from '../indicators/indicators.service'
 import { DashboardsService } from './dashboards.service'
 import {

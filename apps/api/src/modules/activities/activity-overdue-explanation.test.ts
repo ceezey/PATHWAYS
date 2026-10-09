@@ -18,7 +18,7 @@ const state = vi.hoisted(() => ({
 
 // The operation boundary is replaced with a permission check against the synthetic actor,
 // so a missing grant denies before any scoped read runs.
-vi.mock('@app/modules/auth/authorized-operation', () => ({
+vi.mock('@app/common/authz/authorized-operation', () => ({
   withAuthorizedOperation: vi.fn(async (_prisma, _identity, permission: string, work) => {
     if (!state.actor?.permissions.includes(permission))
       throw new ForbiddenException('Permission denied.')

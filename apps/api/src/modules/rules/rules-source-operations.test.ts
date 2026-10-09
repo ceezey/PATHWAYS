@@ -9,7 +9,7 @@ const state = vi.hoisted(() => ({
   tx: { $queryRaw: vi.fn() },
   current: undefined as ApplicationIdentity | undefined,
 }))
-vi.mock('../auth/authorized-operation', () => ({
+vi.mock('../../common/authz/authorized-operation', () => ({
   withAuthorizedOperation: async (
     _prisma: unknown,
     _identity: unknown,

@@ -85,7 +85,7 @@ const fields = [
 ]
 
 const wrapper = vi.hoisted(() => ({ run: vi.fn() }))
-vi.mock('../auth/authorized-operation', () => ({ withAuthorizedOperation: wrapper.run }))
+vi.mock('../../common/authz/authorized-operation', () => ({ withAuthorizedOperation: wrapper.run }))
 vi.mock('@pathways/config', () => ({ readApiEnv: () => ({ BUSINESS_TIME_ZONE: 'Asia/Manila' }) }))
 const tx = { project: { findFirst: vi.fn() }, digitalForm: { groupBy: vi.fn(), findMany: vi.fn() } }
 const definition = () => ({

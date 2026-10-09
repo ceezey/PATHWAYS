@@ -66,7 +66,7 @@ import { IndicatorValuesController } from './indicator-values.controller'
 import { IndicatorsService } from './indicators.service'
 
 const boundary = vi.hoisted(() => ({ run: vi.fn() }))
-vi.mock('@app/modules/auth/authorized-operation', () => ({ withAuthorizedOperation: boundary.run }))
+vi.mock('@app/common/authz/authorized-operation', () => ({ withAuthorizedOperation: boundary.run }))
 vi.mock('@pathways/config', () => ({ readApiEnv: () => ({ BUSINESS_TIME_ZONE: 'Asia/Manila' }) }))
 
 const organizationId = '77000000-0000-4000-8000-000000000001'
