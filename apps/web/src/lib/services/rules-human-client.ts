@@ -1,8 +1,8 @@
-import * as contract from '@/features/analytics/rules-human-contract'
-import { uuidSchema } from '@/features/analytics/rules-validation'
 import { contextCookieName } from '@/features/auth/workspace-access'
 import { sensitiveDraftGeneration } from '@/lib/auth/sensitive-drafts'
 import { PathwaysClientError, requestFoundationResponse } from '@/lib/services/pathways-client'
+import * as contract from '@pathways/shared'
+import { uuidSchema } from '@pathways/shared'
 import type { z } from 'zod'
 
 const ownerCookie = () =>

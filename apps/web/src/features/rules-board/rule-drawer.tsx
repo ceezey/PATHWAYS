@@ -8,21 +8,19 @@ import { Sheet } from '@/components/ui/sheet'
 import { clearRecordBindings } from '@/features/analytics/rule-condition-editor'
 import { RuleEditor } from '@/features/analytics/rule-editor'
 import { RuleTestWorkspace } from '@/features/analytics/rule-test-workspace'
-import {
-  type HumanRule,
-  createRuleSchema,
-  draftRuleSchema,
-} from '@/features/analytics/rules-human-contract'
-import {
-  type RuleCondition,
-  type RuleNode,
-  parseRuleTree,
-} from '@/features/analytics/rules-validation'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { type SensitiveDraftOwner, useSensitiveDraftOwner } from '@/lib/auth/sensitive-drafts'
 import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
 import { PathwaysClientError } from '@/lib/services/pathways-client'
 import { rulesHumanClient } from '@/lib/services/rules-human-client'
+import {
+  type HumanRule,
+  type RuleCondition,
+  type RuleNode,
+  createRuleSchema,
+  draftRuleSchema,
+  parseRuleTree,
+} from '@pathways/shared'
 import { useEffect, useRef, useState } from 'react'
 import {
   type MetricScope,

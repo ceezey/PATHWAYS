@@ -1,5 +1,5 @@
-import type { HumanRule } from '@/features/analytics/rules-human-contract'
 import { clearSensitiveDraftStorage } from '@/lib/auth/sensitive-drafts'
+import type { HumanRule } from '@pathways/shared'
 /* @vitest-environment jsdom */
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'

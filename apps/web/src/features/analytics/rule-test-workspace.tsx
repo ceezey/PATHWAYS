@@ -3,36 +3,33 @@ import { StatusBadge } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import {
-  type DryEvidence,
-  type HumanRule,
-  dryRunInputSchema,
-} from '@/features/analytics/rules-human-contract'
-import type { RuleCondition, RuleNode } from '@/features/analytics/rules-validation'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { type SensitiveDraftOwner, useSensitiveDraftOwner } from '@/lib/auth/sensitive-drafts'
 import { rulesHumanClient } from '@/lib/services/rules-human-client'
 import { cn } from '@/lib/utils'
 import {
+  type DryEvidence,
+  type HumanRule,
   type MetricDirection,
   type NumericKind,
+  type RuleCondition,
+  type RuleNode,
+  activityObservation,
+  beneficiaryFollowUpObservation,
+  budgetObservation,
   businessCalendarDate,
   decimalString,
+  dryRunInputSchema,
+  indicatorObservation,
   numericKinds,
   numericMetric,
   scaledDecimal,
+  surveyImprovementObservation,
+  timelineObservation,
 } from '@pathways/shared'
 import { useEffect, useRef, useState } from 'react'
 import { conditionSentence, titleCase, unitOf } from '../rules-board/rule-board-model'
 import { selectClass } from '../rules-board/rule-drawer-shared'
-import {
-  activityObservation,
-  beneficiaryFollowUpObservation,
-  budgetObservation,
-  indicatorObservation,
-  surveyImprovementObservation,
-  timelineObservation,
-} from './rule-test-metrics'
 type IndicatorInput = {
   current: string
   baseline: string

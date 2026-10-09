@@ -1,4 +1,4 @@
-import type { RuleNode } from '@/features/analytics/rules-validation'
+import type { RuleNode } from '@pathways/shared'
 import { describe, expect, it } from 'vitest'
 import {
   appliesTo,

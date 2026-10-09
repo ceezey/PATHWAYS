@@ -5,13 +5,12 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { RuleTreeView, clearRecordBindings } from '@/features/analytics/rule-condition-editor'
-import type { HumanRule } from '@/features/analytics/rules-human-contract'
-import { type RuleCondition, operators } from '@/features/analytics/rules-validation'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
 import { pathwaysClient } from '@/lib/services/pathways-client'
 import { cn } from '@/lib/utils'
 import { useAuthorizedRead } from '@/providers/authorized-query-provider'
+import { type HumanRule, type RuleCondition, operators } from '@pathways/shared'
 import {
   type MetricScope,
   SCOPES,

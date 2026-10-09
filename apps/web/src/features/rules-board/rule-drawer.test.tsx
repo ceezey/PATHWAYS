@@ -1,6 +1,6 @@
-/* @vitest-environment jsdom */
-import type { HumanRule } from '@/features/analytics/rules-human-contract'
 import { AuthorizedQueryProvider } from '@/providers/authorized-query-provider'
+/* @vitest-environment jsdom */
+import type { HumanRule } from '@pathways/shared'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
