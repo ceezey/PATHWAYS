@@ -10,8 +10,8 @@ import {
 import { Prisma } from '@prisma/client'
 import { z } from 'zod'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
+import { projectScope } from '../../common/authz/project-scope'
 import { PrismaService } from '../../prisma/prisma.service'
-import { projectScope } from '../auth/authorized-data.service'
 import { withAuthorizedOperation } from '../auth/authorized-operation'
 import {
   type PublicationOperation,

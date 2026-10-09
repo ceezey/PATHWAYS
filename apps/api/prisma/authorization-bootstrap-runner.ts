@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 import { Prisma, PrismaClient } from '@prisma/client'
-import { DEVELOPER_AUTH_UUID } from '../src/common/authz/application-identity'
+import { DEVELOPER_AUTH_UUID } from '../src/modules/auth/developer-bootstrap-identity'
 import { seedCanonicalReferenceData } from './canonical-seed'
 import {
   bootstrapDeveloperAdministrator,

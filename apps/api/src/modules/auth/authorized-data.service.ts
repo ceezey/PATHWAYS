@@ -2,36 +2,9 @@ import { ForbiddenException, Inject, Injectable, NotFoundException } from '@nest
 import { aggregateOnlyRoles } from '@pathways/shared'
 import type { Prisma } from '@prisma/client'
 import { type ApplicationIdentity, UUID_PATTERN } from '../../common/authz/application-identity'
+import { projectScope } from '../../common/authz/project-scope'
 import { PrismaService } from '../../prisma/prisma.service'
 import { withAuthorizedOperation } from './authorized-operation'
-
-/** Organization predicates are always present, even for administrators.
- * Portfolio scope is backed by managed programs or explicit active assignments,
- * never a browser-supplied project list or all organizations.
- */
-export function projectScope(profile: ApplicationIdentity): Prisma.ProjectWhereInput {
-  const base = { organizationId: profile.organizationId, archivedAt: null }
-  if (profile.roles[0] === 'SYSTEM_ADMINISTRATOR') return base
-  if (profile.roles[0] === 'PROGRAM_MANAGER') {
-    return {
-      ...base,
-      OR: [
-        { id: { in: profile.assignedProjectIds } },
-        {
-          program: {
-            organizationId: profile.organizationId,
-            managerUserId: profile.userId,
-            archivedAt: null,
-          },
-        },
-      ],
-    }
-  }
-  // No grant-portfolio membership model exists. Explicit active assignments are
-  // the conservative ceiling for Grant Manager until separately governed.
-  return { ...base, id: { in: profile.assignedProjectIds } }
-}
-
 @Injectable()
 export class AuthorizedDataService {
   constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}

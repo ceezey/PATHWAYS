@@ -16,8 +16,8 @@ import {
   roleNames,
 } from '@pathways/shared'
 import { type ApplicationIdentity, UUID_PATTERN } from '../../common/authz/application-identity'
+import { projectScope } from '../../common/authz/project-scope'
 import { PrismaService } from '../../prisma/prisma.service'
-import { projectScope } from '../auth/authorized-data.service'
 import { withAuthorizedOperation } from '../auth/authorized-operation'
 import { AuthDirectoryService } from './auth-directory.service'
 import type { AuthorizeExistingUserDto, UpdateAuthorizedUserDto } from './users.dto'

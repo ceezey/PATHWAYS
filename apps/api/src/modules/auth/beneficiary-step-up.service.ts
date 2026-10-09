@@ -14,8 +14,8 @@ import {
   UUID_PATTERN,
   type VerifiedAuthIdentity,
 } from '../../common/authz/application-identity'
+import { projectScope } from '../../common/authz/project-scope'
 import { InactiveVerifiedSessionError, PrismaService } from '../../prisma/prisma.service'
-import { projectScope } from './authorized-data.service'
 import {
   STEP_UP_WINDOW_SECONDS,
   type StepUpMethod,

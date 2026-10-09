@@ -21,6 +21,10 @@ import { AuthService } from '../../modules/auth/auth.service'
 import { reportAuthorizedOperationTiming } from '../../modules/auth/authorized-operation-timing'
 import { BeneficiaryStepUpPinService } from '../../modules/auth/beneficiary-step-up-pin.service'
 import { BeneficiaryStepUpService } from '../../modules/auth/beneficiary-step-up.service'
+import {
+  DEVELOPER_AUTH_UUID,
+  DEVELOPER_SUPABASE_URL,
+} from '../../modules/auth/developer-bootstrap-identity'
 import { RouteAccessController } from '../../modules/auth/route-access.controller'
 import { RouteAccessService } from '../../modules/auth/route-access.service'
 import { SignInLockoutService } from '../../modules/auth/signin-lockout.service'
@@ -32,12 +36,7 @@ import {
   type VerifiedDatabaseContext,
   type VerifiedTransactionTiming,
 } from '../../prisma/prisma.service'
-import {
-  type ApplicationIdentity,
-  type AuthenticatedRequest,
-  DEVELOPER_AUTH_UUID,
-  DEVELOPER_SUPABASE_URL,
-} from '../authz/application-identity'
+import type { ApplicationIdentity, AuthenticatedRequest } from '../authz/application-identity'
 import { RequireBeneficiaryStepUp } from '../decorators/beneficiary-step-up.decorator'
 import { RequirePermission } from '../decorators/permission.decorator'
 import { Public } from '../decorators/public.decorator'
