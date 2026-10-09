@@ -95,7 +95,7 @@ Workflow rule: an audit is finding and evidence, a Change Record is the approved
 | Spec | File | Date | Scope | Status |
 |---|---|---|---|---|
 | [Plan 2 cloud handoff](handoff-extensions-and-escalations.md) | handoff-extensions-and-escalations.md | 2026-10-04 | Paused state of Plan 2 Task 1 handed to the cloud session, with the SDD ledger rulings | Closed; resumed and completed |
-| [F3 api core plan](superpowers/plans/2026-10-09-modularization-f3-api-core.md) | 2026-10-09-modularization-f3-api-core.md | 2026-10-09 | F3a of the codebase modularization, F3b outline | Executed (F3a); remove after merge |
+| [F3b api validation and wiring plan](superpowers/plans/2026-10-10-modularization-f3b-validation-wiring.md) | 2026-10-10-modularization-f3b-validation-wiring.md | 2026-10-10 | F3b of the codebase modularization: zod pipe and first contract, authorized operation kernel, storage factory injection, object provider wiring test | In progress |
 
 ### 1.7 Traceability Matrix
 
