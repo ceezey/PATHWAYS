@@ -9,7 +9,7 @@ pnpm dev
 ```
 
 - Web: http://localhost:3000 (`next dev`; changes hot-reload instantly).
-- API: http://localhost:4000/api (`nest start`; builds once and keeps running, so code changes apply only after you restart `pnpm dev`). Use `pnpm --filter @pathways/api dev:watch` for automatic reloads.
+- API: http://localhost:4000/api (`nest start`; builds `packages/shared`, `packages/imports` and `packages/config` first, then builds once and keeps running, so code changes apply only after you restart `pnpm dev`). Use `pnpm --filter @pathways/api dev:watch` for automatic reloads.
 - Health check: http://localhost:4000/api/health.
 
 ## How it connects

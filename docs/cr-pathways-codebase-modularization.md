@@ -39,7 +39,7 @@ Enforced by Biome import restrictions. The API `supabase-auth.guard` moves to `m
 | `<domain>.mapper.ts` | Database row to contract mapping, pure |
 | `<domain>.helpers.ts` | Pure domain logic, no DI, no Prisma |
 
-No `*.dto.ts`; inputs come from `@pathways/shared/contracts/<domain>`. `common/` holds `authz/` (identity, project scope, `withAuthorizedOperation`, `requireScopedProject`), `audit/` (`writeAuditLog`), `validation/` (zod pipe), `time/` (`businessDate`) and `prisma/` (`Tx`).
+No `*.dto.ts`; inputs come from the contracts in `packages/shared/src/contracts/<domain>`, imported through `@pathways/shared`. `common/` holds `authz/` (identity, project scope, `withAuthorizedOperation`, `requireScopedProject`), `audit/` (`writeAuditLog`), `validation/` (zod pipe), `time/` (`businessDate`) and `prisma/` (`Tx`).
 
 ### 3.3 Web layout
 
@@ -60,7 +60,7 @@ Outside features: `lib/api/{core,<domain>}`, `lib/auth`, `lib/rbac/{policy,route
 
 ### 3.4 Shared package layout (`packages/shared/src/`)
 
-`contracts/<domain>/` (zod request and response schemas with inferred types), `rbac/` (role catalog, permissions, authorization policy), `rules/` (contract, metrics), `metrics/`, `validation/`, `time/`. Imported by subpath, for example `@pathways/shared/contracts/projects`, through a package `exports` map.
+`contracts/<domain>/` (zod request and response schemas with inferred types), `rbac/` (role catalog, permissions, authorization policy), `rules/` (contract, metrics), `metrics/`, `validation/`, `time/`. Everything is exported through the `packages/shared/src/index.ts` barrel and imported as `@pathways/shared`, with no subpath `exports` map, so exported names stay unique across folders (amended 2026-10-09 for F2: the built API resolves `dist/index.js` and the Vitest aliases match the package root only).
 
 ### 3.5 Naming and size rules
 
@@ -90,8 +90,8 @@ Foundations:
 | ID | Sub-project | Contents | Findings |
 |---|---|---|---|
 | F1 | Dead code and hygiene | Delete `packages/ui` and its wiring, root `Dockerfile`, root `tsconfig.json`, `live-finance-workspace`, the 14 stub client methods and uncalled ones, `RolesGuard`, `@Roles`, `ROLES_KEY`, `AppRole`, duplicate Nest providers, dead shared types, and the historical infra folders; move test-only `demo-state` and `mocks` into `test/fixtures`; ignore `.worktrees` and `.superpowers` in `.gitignore` and Biome | MOD-12, 13, 14, 18, 19 |
-| F2 | Shared core | `rbac/` (one role catalog, policy), `rules/` (contract, metrics), shared enums and calendar-date schema, contract pattern with one example, package `exports` verified by production build | MOD-01, 02, 03 |
-| F3 | API core | `common/{authz,audit,validation,time,prisma}`, zod pipe, guard moved to `auth/guards`, shared `requireScopedProject`, `writeAuditLog`, `businessDate`, `Tx`, lint rule for `common` | MOD-08, 09, 10, 11 |
+| F2 | Shared core | `rbac/` (one role catalog, policy), `rules/` (contract, metrics), shared enums and constants, barrel exports verified by production build | MOD-01, 02, 03 |
+| F3 | API core | contract pattern with one example (moved from F2), `common/{authz,audit,validation,time,prisma}`, zod pipe, guard moved to `auth/guards`, shared `requireScopedProject`, `writeAuditLog`, `businessDate`, `Tx`, lint rule for `common` | MOD-08, 09, 10, 11 |
 | F4 | Web platform | `lib/api/core` with one owned-read helper, `lib/auth` absorbing `features/auth/workspace-access`, `lib/rbac` split, `lib/format`, `usePermission`, shared table head and dialog, thinner providers, lint rule for import direction | MOD-05, 10, 16 |
 
 Domain slices, each covering contracts, API split, web client and feature components:
@@ -174,7 +174,7 @@ Risk checks:
 
 | Risk | Check |
 |---|---|
-| Subpath imports fail in the built API | F2 production build and run of `dist` |
+| Shared barrel exports missing from the built API | F2 production build and run of `dist` |
 | Zod contract accepts or rejects differently from the DTO | Parity test per contract before DTO deletion |
 | Module wiring breaks after moves | Nest boot in gates 5 and 6 |
 | Service splits change transaction boundaries | Split services take the caller's `tx`; none opens its own transaction |
@@ -208,3 +208,12 @@ F1 applied 2026-10-09 on refactor/f1-dead-code:
 Deferred to later sub-projects: source-mutation proof `files` option and `proofSnapshot` (S2), `mapPublicSnapshot` in `public-projects.ts`, which is production-dead and used as a test fixture builder (S8), `ImportSummary` move (F2), infra phase6 Pester tests and security-adapter runtime-output test wiring (W1).
 
 Out of scope and left open: MOD-B1 (age filter drift) and MOD-B2 (middleware matcher) from the audit.
+
+F2 applied 2026-10-09 on refactor/f2-shared-core:
+- RBAC: `authorization-policy.ts` and its test moved to `packages/shared/src/rbac`; every api and web importer, the Edge middleware chain and the role-routes e2e spec import `@pathways/shared`, and web source no longer imports api source.
+- Roles: one catalog in `rbac/role-catalog.ts` (`roleNames`, `roleCodeByName`, `roleCodeFor`, `isCanonicalRole`); the web `canonicalRoles`, `roleCodeByName`, `roleCodesByName`, two identity label maps and the fixture role list were removed; `pathwaysRoles` keeps the UI order, typed against the catalog.
+- Rules: `rule-contract`, `rule-metrics` and `rules-human-contract` live in `packages/shared/src/rules` as the union of the api and web copies; a parity test ran both against the same inputs before the web copies were deleted; the strict cell schema is `ruleMetricCellSchema`; the web rule tester adopts the api timeline schema without its two defaults; the timeline contract test moved beside the rule engine.
+- Constants: the step-up denial code, PIN rule, PIN message and PIN check, direct-entry form types, overdue explanation categories and report kind codes are shared; report status sorting uses `alertSeverities`.
+- Package: exports stay on the barrel (section 3.4 amended); `metric-math` is exported directly; `ImportSummary` moved to `packages/imports`; the api `dev` and `dev:watch` scripts build workspace packages first; SAD rule-engine routing covers `packages/shared/src/rules/**` and organization-isolation routing covers `packages/shared/src/rbac/**/*.ts`.
+
+Deferred: contract pattern and example (F3), calendar-date regex unification (slices), `descriptive-analytics` split (S7), avatar-stack "And" label (S8). Left open: `apps/api/src/modules/auth/route-access.service.ts` and `dashboard-home-authorization-parity.test.ts` import `apps/web/src/lib/rbac/route-access.ts` (api to web), proposed for F4; a literal NUL key separator in `apps/web/src/features/rules-board/rule-output-fields.tsx` (S7); remaining near-duplicate code lists in api `descriptive-analytics.ts`, `form-templates.ts` and `metadata.dto.ts` and in web `human-review-workspace` (`SEVERITY_RANK`) and `form-builder-session-draft.ts`, each left to its slice.

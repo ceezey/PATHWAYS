@@ -638,7 +638,7 @@ async function main() {
     // @RequirePermission('programs.create') controller and its own internal
     // SYSTEM_ADMINISTRATOR-only check), but no canonical role is ever granted that
     // permission: it is absent from SYSTEM_ADMINISTRATOR's grant list in
-    // authorization-policy.ts, and rbac-contract.json lists zero roles for it too. Calling
+    // packages/shared/src/rbac/authorization-policy.ts, and rbac-contract.json lists zero roles for it too. Calling
     // programsService.create() here throws ForbiddenException('Required application
     // permission is missing.') for every identity, including a real System Administrator —
     // this is a pre-existing RBAC gap in the product, not something this seed can safely
