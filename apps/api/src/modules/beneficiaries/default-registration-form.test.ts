@@ -38,7 +38,7 @@ const registrar: ApplicationIdentity = {
 }
 
 const profile = vi.hoisted(() => ({ current: undefined as unknown }))
-vi.mock('../auth/application-profile.service', () => ({
+vi.mock('../../common/authz/application-profile', () => ({
   readApplicationProfile: vi.fn(async () => profile.current),
 }))
 vi.mock('@pathways/config', () => ({ readApiEnv: () => ({ BUSINESS_TIME_ZONE: 'Asia/Manila' }) }))

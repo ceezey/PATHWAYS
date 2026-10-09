@@ -8,7 +8,7 @@ import type { PrismaService } from '../../prisma/prisma.service'
 import { AuditService } from './audit.service'
 
 const state = vi.hoisted(() => ({ actor: undefined as unknown, tx: undefined as unknown }))
-vi.mock('../auth/authorized-operation', () => ({
+vi.mock('../../common/authz/authorized-operation', () => ({
   withAuthorizedOperation: async (
     _db: unknown,
     _caller: unknown,

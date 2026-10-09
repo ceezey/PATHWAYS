@@ -13,6 +13,10 @@ import { RulesMachineBoundary } from '../../rules/rules-machine-boundary'
 
 import { hasAtomicPermission } from '@pathways/shared'
 import type { AuthenticatedRequest } from '../../../common/authz/application-identity'
+import {
+  type AuthorizedOperationTiming,
+  registerAuthorizedOperationTiming,
+} from '../../../common/authz/authorized-operation-timing'
 import { AUTH_BOUNDARY_KEY } from '../../../common/decorators/auth-boundary.decorator'
 import { BENEFICIARY_STEP_UP_KEY } from '../../../common/decorators/beneficiary-step-up.decorator'
 import { PERMISSION_KEY } from '../../../common/decorators/permission.decorator'
@@ -22,10 +26,6 @@ import {
   inspectionRequestBudget,
 } from '../../../common/network/inspection-request-budget'
 import type { VerifiedTransactionTiming } from '../../../prisma/prisma.service'
-import {
-  type AuthorizedOperationTiming,
-  registerAuthorizedOperationTiming,
-} from '../authorized-operation-timing'
 import { BeneficiaryStepUpService } from '../beneficiary-step-up.service'
 import { TokenAuthService, type VerifiedAuthSession } from '../token-auth.service'
 import { WorkspaceResolutionService } from '../workspace-resolution.service'

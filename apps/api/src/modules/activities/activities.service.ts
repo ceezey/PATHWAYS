@@ -24,16 +24,17 @@ import { readApiEnv } from '@pathways/config'
 import { aggregateOnlyRoles, businessCalendarDate, hasAtomicPermission } from '@pathways/shared'
 import { writeAuditLog } from '../../common/audit/write-audit-log'
 import { type ApplicationIdentity, UUID_PATTERN } from '../../common/authz/application-identity'
+import { readApplicationProfile } from '../../common/authz/application-profile'
+import { withAuthorizedOperation } from '../../common/authz/authorized-operation'
 import { projectScope } from '../../common/authz/project-scope'
 import { projectDateFields, requireScopedProjectRow } from '../../common/authz/scoped-project'
 import type { Tx } from '../../common/prisma/transaction'
 import { PrismaService } from '../../prisma/prisma.service'
-import { readApplicationProfile } from '../auth/application-profile.service'
-import { withAuthorizedOperation } from '../auth/authorized-operation'
+import type { UploadVerification } from '../storage/private-inspection-reader'
 import {
-  type UploadVerification,
-  createPrivateUploadVerifier,
-} from '../storage/private-inspection-reader'
+  PRIVATE_STORAGE_FACTORIES,
+  type PrivateStorageFactories,
+} from '../storage/private-storage-factories'
 import { StorageService } from '../storage/storage.service'
 import {
   type ActivityEvidenceContentType,
@@ -528,6 +529,7 @@ export class ActivitiesService {
   constructor(
     @Inject(PrismaService) private readonly prisma: PrismaService,
     @Inject(StorageService) private readonly storage: StorageService,
+    @Inject(PRIVATE_STORAGE_FACTORIES) private readonly storageFactories: PrivateStorageFactories,
   ) {}
 
   /**
@@ -2000,7 +2002,7 @@ export class ActivitiesService {
         })
       let outcome: UploadVerification
       try {
-        const verify = createPrivateUploadVerifier({
+        const verify = this.storageFactories.createPrivateUploadVerifier({
           serviceOrigin: this.env.SUPABASE_URL ?? '',
           serviceRoleKey: this.env.SUPABASE_SERVICE_ROLE_KEY ?? '',
           evidenceBucket: this.env.EVIDENCE_BUCKET,

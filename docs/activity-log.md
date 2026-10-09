@@ -612,3 +612,14 @@
 - F3a decisions (rulings 2, 4, 5 and 6) are recorded in the change record section 9, because the plan file is removed after merge.
 - Deferred to F3b: zod pipe and first contract, contract naming convention, `"sideEffects": false` for `packages/shared`, `withAuthorizedOperation` in `common/authz`, storage factory injection, wiring test for object providers.
 - Gates: lint, typecheck and builds pass; tests config 19, shared 170, imports 91, api 2324 (21 skipped; the baseline plus 17 intended tests), web 1895, sad 49; `Replay-Local.ps1 -MigrationBaseline` 0 FAIL; demo seed first run and compiled API boot clean; e2e auth-navigation 27/27; e2e main 39 pass with the same 9 failures as dev; web middleware 112 kB; SAD sign-off 273/273 PASS at `42b52932`. Merged to local dev as `2391ca44`.
+
+## 2026-10-10 Modularization F3b api validation and wiring (refactor/f3b-validation-wiring)
+- Task 1 (101a7caa): `ZodPipe` added in `common/validation/zod-pipe.ts` with 400 bodies shaped like the global pipe; api 2329.
+- Task 2 (f0ff6330, a5076bd0): `validateImportRequest` contract added in `packages/shared/src/contracts/imports`, the validate route switched to `ZodPipe` after a parity test, `ValidateImportDto` deleted; api 2334, shared 176.
+- Task 3 (e69881bf): `packages/shared/package.json` declares `"sideEffects": false`; web Middleware went from 112 kB to 102 kB.
+- Task 4 (eb2bedf5, 0f4ec789): `readApplicationProfile`, then `withAuthorizedOperation` with its timing module and test, moved to `common/authz`; 87 files repointed and 55 test mocks moved with their import; api 2334.
+- Task 5 (5dc1d74d): `app-module-wiring.test.ts` keys providers by token and exempts the `APP_*` enhancer tokens; api 2335.
+- Task 6 (e9fd63a0): `PRIVATE_STORAGE_FACTORIES` provided by `StorageModule` and injected into five services at 29 construction sites, with a finance factory-fault test; api 2337.
+- Other packages unchanged: config 19, imports 91, web 1895.
+- F3b decisions are recorded in the change record section 9, because the plan file is removed after merge.
+- Deferred: the three `importOriginal` private-inspection-reader mocks to S2; other routes' class-validator DTOs to their slices.

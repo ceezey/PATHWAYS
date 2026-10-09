@@ -50,6 +50,8 @@ export const roles = {
       '**/schemas/*.zod.ts',
       'apps/web/src/lib/services/**/*.ts',
       'packages/shared/src/validation/**/*.ts',
+      'packages/shared/src/contracts/**/*.ts',
+      'apps/api/src/common/validation/**/*.ts',
     ],
   },
   'metadata-import-validator': {

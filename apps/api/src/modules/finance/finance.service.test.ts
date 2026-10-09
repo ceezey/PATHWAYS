@@ -10,6 +10,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import type { PrismaService } from '../../prisma/prisma.service'
 import type { ReceiptPdfRenderer } from '../report-pdf/receipt-pdf.renderer'
+import type { PrivateStorageFactories } from '../storage/private-storage-factories'
 import type { StorageService } from '../storage/storage.service'
 import { FinanceService } from './finance.service'
 const state = vi.hoisted(() => ({
@@ -19,7 +20,7 @@ const state = vi.hoisted(() => ({
   operations: 0,
   reader: vi.fn(),
 }))
-vi.mock('../auth/authorized-operation', () => ({
+vi.mock('../../common/authz/authorized-operation', () => ({
   withAuthorizedOperation: async (
     _db: unknown,
     _identity: unknown,
@@ -41,9 +42,6 @@ vi.mock('@pathways/config', async (original) => ({
     SUPABASE_URL: 'https://synthetic.invalid',
     SUPABASE_SERVICE_ROLE_KEY: 'synthetic-not-a-credential',
   }),
-}))
-vi.mock('../storage/private-inspection-reader', () => ({
-  createPrivateInspectionReader: () => state.reader,
 }))
 const projectId = '10000000-0000-4000-8000-000000000001'
 const id = '20000000-0000-4000-8000-000000000002'
@@ -73,12 +71,17 @@ const tx = {
   $queryRaw: vi.fn(),
 }
 const storage = { uploadPrivateFile: vi.fn(), deleteFile: vi.fn() }
+const createReader = vi.fn(() => state.reader)
+const storageFactories = {
+  createPrivateInspectionReader: createReader,
+} as unknown as PrivateStorageFactories
 const service = new FinanceService(
   {} as PrismaService,
   storage as unknown as StorageService,
   {
     render: () => Promise.reject(new Error('Receipt renderer disabled.')),
   } as unknown as ReceiptPdfRenderer,
+  storageFactories,
 )
 const bytes = Buffer.from('%PDF-private-synthetic')
 const file = { buffer: bytes, size: bytes.length, mimetype: 'application/pdf' }
@@ -320,6 +323,24 @@ describe('financial receipt reads', () => {
     const failure = service.receipt(scopedActor, projectId, id)
     await expect(failure).rejects.toBeInstanceOf(ServiceUnavailableException)
     await expect(failure).rejects.toThrow('Private receipt storage unavailable')
+    expect(tx.auditLog.create).not.toHaveBeenCalled()
+  })
+  it('reports a reader factory configuration fault as unavailable without audit or bytes', async () => {
+    const scopedActor: ApplicationIdentity = {
+      ...actor,
+      roles: ['PROJECT_MANAGER'],
+      permissions: ['expenses.read', 'evidence.read'],
+      assignedProjectIds: [projectId],
+    }
+    state.actor = scopedActor
+    createReader.mockImplementationOnce(() => {
+      throw new Error('Invalid private storage configuration.')
+    })
+    const failure = service.receipt(scopedActor, projectId, id)
+    await expect(failure).rejects.toBeInstanceOf(ServiceUnavailableException)
+    await expect(failure).rejects.toThrow('Private receipt storage unavailable')
+    expect(createReader).toHaveBeenCalledTimes(1)
+    expect(state.reader).not.toHaveBeenCalled()
     expect(tx.auditLog.create).not.toHaveBeenCalled()
   })
   it('withholds bytes when evidence permission is absent', async () => {

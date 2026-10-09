@@ -1,7 +1,7 @@
 import 'reflect-metadata'
 
 import type { ApplicationIdentity } from '@app/common/authz/application-identity'
-import { withAuthorizedOperation } from '@app/modules/auth/authorized-operation'
+import { withAuthorizedOperation } from '@app/common/authz/authorized-operation'
 import {
   beginRuleSourceOperation,
   finishRuleSourceOperation,
@@ -12,7 +12,7 @@ import type { Prisma } from '@prisma/client'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ActivityExtensionsService } from './activity-extensions.service'
 
-vi.mock('@app/modules/auth/authorized-operation', () => ({ withAuthorizedOperation: vi.fn() }))
+vi.mock('@app/common/authz/authorized-operation', () => ({ withAuthorizedOperation: vi.fn() }))
 vi.mock('@app/modules/rules/rules-source-operation', async (original) => ({
   ...(await original<typeof import('@app/modules/rules/rules-source-operation')>()),
   beginRuleSourceOperation: vi.fn(),

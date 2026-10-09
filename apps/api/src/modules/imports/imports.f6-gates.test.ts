@@ -48,7 +48,7 @@ interface Store {
   submissions: Array<{ id: string; importRowId: string }>
 }
 
-vi.mock('../auth/authorized-operation', () => ({
+vi.mock('../../common/authz/authorized-operation', () => ({
   withAuthorizedOperation: vi.fn(
     async (_prisma, _identity, permission, work: (tx: unknown, actor: unknown) => unknown) => {
       if (!state.actor.permissions.includes(permission)) {

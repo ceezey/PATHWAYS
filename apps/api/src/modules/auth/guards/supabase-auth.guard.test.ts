@@ -19,6 +19,7 @@ import type {
   ApplicationIdentity,
   AuthenticatedRequest,
 } from '../../../common/authz/application-identity'
+import { reportAuthorizedOperationTiming } from '../../../common/authz/authorized-operation-timing'
 import { RequireBeneficiaryStepUp } from '../../../common/decorators/beneficiary-step-up.decorator'
 import { RequirePermission } from '../../../common/decorators/permission.decorator'
 import { Public } from '../../../common/decorators/public.decorator'
@@ -31,7 +32,6 @@ import {
 import { ApplicationProfileService } from '../application-profile.service'
 import { AuthController } from '../auth.controller'
 import { AuthService } from '../auth.service'
-import { reportAuthorizedOperationTiming } from '../authorized-operation-timing'
 import { BeneficiaryStepUpPinService } from '../beneficiary-step-up-pin.service'
 import { BeneficiaryStepUpService } from '../beneficiary-step-up.service'
 import { DEVELOPER_AUTH_UUID, DEVELOPER_SUPABASE_URL } from '../developer-bootstrap-identity'

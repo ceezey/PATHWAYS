@@ -39,7 +39,7 @@ Enforced for the API by `apps/api/src/common/import-boundary.test.ts`, because B
 | `<domain>.mapper.ts` | Database row to contract mapping, pure |
 | `<domain>.helpers.ts` | Pure domain logic, no DI, no Prisma |
 
-No `*.dto.ts`; inputs come from the contracts in `packages/shared/src/contracts/<domain>`, imported through `@pathways/shared`. `common/` holds `authz/` (application identity, project scope, `requireScopedProject`, and from F3b `withAuthorizedOperation`), `audit/` (`writeAuditLog`), `validation/` (zod pipe, F3b), `time/` (`currentBusinessDate`) and `prisma/` (`Tx`).
+No `*.dto.ts`; inputs come from the contracts in `packages/shared/src/contracts/<domain>`, imported through `@pathways/shared`. `common/` holds `authz/` (application identity, project scope, `requireScopedProject`, `withAuthorizedOperation`, `readApplicationProfile`), `audit/` (`writeAuditLog`), `validation/` (`ZodPipe`), `time/` (`currentBusinessDate`) and `prisma/` (`Tx`).
 
 ### 3.3 Web layout
 
@@ -60,7 +60,7 @@ Outside features: `lib/api/{core,<domain>}`, `lib/auth`, `lib/rbac/{policy,route
 
 ### 3.4 Shared package layout (`packages/shared/src/`)
 
-`contracts/<domain>/` (zod request and response schemas with inferred types), `rbac/` (role catalog, permissions, authorization policy), `rules/` (contract, metrics), `metrics/`, `validation/`, `time/`. Everything is exported through the `packages/shared/src/index.ts` barrel and imported as `@pathways/shared`, with no subpath `exports` map, so exported names stay unique across folders (amended 2026-10-09 for F2: the built API resolves `dist/index.js` and the Vitest aliases match the package root only).
+`contracts/<domain>/` (zod request and response schemas with inferred types), `rbac/` (role catalog, permissions, authorization policy), `rules/` (contract, metrics), `metrics/`, `validation/`, `time/`. Everything is exported through the `packages/shared/src/index.ts` barrel and imported as `@pathways/shared`, with no subpath `exports` map, so exported names stay unique across folders (amended 2026-10-09 for F2: the built API resolves `dist/index.js` and the Vitest aliases match the package root only). A duplicate `export *` name is TypeScript error TS2308 in the barrel, so a collision fails `pnpm typecheck`. Contract exports carry their domain through the section 3.6 names. The generic names exported by `rules/` (`uuidSchema`, `decimalSchema`, `operators`, `reviewSchema`, `pageSchema`, `emptyBodySchema`, `confirmOutcomeSchema`) stay until a new export would collide with one; that change renames the rules export with a `rule` prefix (amended 2026-10-10 for F3b).
 
 ### 3.5 Naming and size rules
 
@@ -79,6 +79,8 @@ export type ActivityResponse = z.infer<typeof activityResponse>
 ```
 
 - API validates with `@Body(new ZodPipe(schema))`; `.strict()` keeps `forbidNonWhitelisted`; queries use `z.coerce` in place of `transform: true`.
+- `ZodPipe` lives in `apps/api/src/common/validation/zod-pipe.ts` and runs after the global `ValidationPipe`, which passes a parameter whose design type is `Object` (any zod-inferred type) through unchanged. The global pipe has `transform: true` without implicit conversion, so numeric strings were already rejected on DTO routes and stay rejected.
+- `.strict()` also rejects own `__proto__` and `constructor` body keys, which the class-validator pipe silently dropped; the contract test in `packages/shared/src/contracts/imports/import-requests.test.ts` pins both as rejected, the only accepted difference from the old pipe (amended 2026-10-10 for F3b).
 - Response schemas are types only, never parsed at runtime.
 - The pipe keeps `400 { statusCode, message: string[], error: 'Bad Request' }`. Message wording on former class-validator routes may become zod wording; a slice adds a message override wherever the web displays or branches on the text. Existing zod routes keep their custom messages through the same override.
 - Web `lib/api/<domain>.ts` uses the inferred types; hand-written `Api*` types and `types/pathways.ts` shrink to view models the contracts do not cover.
@@ -229,3 +231,15 @@ F3a applied 2026-10-09 on refactor/f3a-api-core:
 - Decisions: the boundary is a Vitest test because Biome 1.9.4 cannot express folder globs (ruling 2); twelve copies, not eleven, were replaced, with four behavior-neutral differences: analytics skips the UUID check its zod query already enforces, evaluations, public and finance use zod `.uuid()` with the same acceptance, metadata returned the lowercased input equal to the stored id, and three services return a row instead of the id (ruling 4); the 66 audit writes are 63 inline plus the 3 helper bodies, not 66 plus three (ruling 5); the helper is `currentBusinessDate`, not `businessDate`, which is a local variable in six files, and the activities `Intl` copy became shared `businessCalendarDate` with the same output and error path (ruling 6).
 
 Deferred to F3b: zod pipe and the first contract, contract naming convention, `"sideEffects": false` for `packages/shared`, `withAuthorizedOperation` in `common/authz`, storage factory injection, wiring test for object providers. Left for the slices: the inline project-scope lookups (reports, activities, projects, project overview, beneficiary media, form export, analytics export, analytics insights, private proof inspection, step-up, route access) and the 47 direct `Prisma.TransactionClient` annotations in api production code (128 across apps/api including tests); the seed audit write in `apps/api/prisma/local-demo-stage-evidence.ts` to W1. The boundary scanner does not cover `require()` or `vi.mock` forms; none is used under `common`.
+
+F3b applied 2026-10-10 on refactor/f3b-validation-wiring:
+- Validation: `ZodPipe` in `common/validation/zod-pipe.ts` answers 400 `{ statusCode, message: string[], error: 'Bad Request' }` with one `<path> <zod message>` entry per issue.
+- First contract: `validateImportRequest` and `ValidateImportRequest` in `packages/shared/src/contracts/imports/import-requests.ts` replaced `ValidateImportDto` on `POST imports/projects/:projectId/batches/:batchId/validate`; a parity test ran both through the configured pipes over 22 JSON bodies before the DTO was deleted; exact parity held for 20 of the 22 bodies, and the other two, own `__proto__` and `constructor` keys, are now rejected.
+- Package: `packages/shared/package.json` declares `"sideEffects": false`; no shared module has a top-level side effect; web Middleware went from 112 kB to 102 kB.
+- Authz: `readApplicationProfile` moved to `common/authz/application-profile.ts` (six test mocks followed it), then `withAuthorizedOperation`, its timing module and its test moved to `common/authz` (87 files repointed, 55 test mocks moved with their import); `ApplicationProfileService` stays in `modules/auth`.
+- Storage: `StorageModule` provides `PRIVATE_STORAGE_FACTORIES` (`modules/storage/private-storage-factories.ts`); the activities, private proof inspection, beneficiary media, finance and reports services inject it, and every factory call stays in its `try` block, so a configuration fault still answers 503.
+- Wiring: `app-module-wiring.test.ts` keys providers by token, including `{ provide, useClass | useValue | useFactory }`, and exempts the Nest `APP_*` enhancer tokens.
+- SAD: beneficiary privacy routing covers `packages/shared/src/contracts/**/*.ts` and `apps/api/src/common/validation/**/*.ts`.
+- Decisions: exact parity held for 20 bodies, and own `__proto__` and `constructor` keys are now rejected (ruling 3); Vitest emits no decorator metadata, so the old DTO route could only be characterized by a parity test that passes the metatype explicitly, and the compiled API is probed in the gates; the seven generic rules names stay because a barrel collision is a compile error (ruling 5); `readApplicationProfile` moved before the kernel so `common` never imported `modules` at any commit (ruling 7); the factories are a required constructor parameter, and the three tests that mocked only part of the reader module now inject fakes (ruling 9); two storage types were exported (type-only) to satisfy TS4023.
+
+Deferred: the remaining class-validator DTO routes (their slices); the three `importOriginal` private-inspection-reader mocks in activities tests (S2); web `validateImport` typing from the contract (S5).

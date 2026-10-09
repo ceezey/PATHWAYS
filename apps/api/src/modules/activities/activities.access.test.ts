@@ -58,16 +58,17 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ApplicationIdentity } from '@app/common/authz/application-identity'
 import type { StorageService } from '@app/modules/storage/storage.service'
 import type { PrismaService } from '@app/prisma/prisma.service'
+import { privateStorageFactories } from '../storage/private-storage-factories'
 
 const state = vi.hoisted(() => ({
   actor: undefined as ApplicationIdentity | undefined,
   tx: undefined as Prisma.TransactionClient | undefined,
 }))
 
-vi.mock('@app/modules/auth/application-profile.service', () => ({
+vi.mock('@app/common/authz/application-profile', () => ({
   readApplicationProfile: vi.fn(async () => state.actor),
 }))
-vi.mock('@app/modules/auth/authorized-operation', () => ({
+vi.mock('@app/common/authz/authorized-operation', () => ({
   withAuthorizedOperation: vi.fn(async (_prisma, _identity, _permission, work) =>
     work(state.tx, state.actor),
   ),
@@ -151,7 +152,11 @@ const listMetricKeys = [
 const storage = { downloadPrivateFile: vi.fn() }
 
 describe('P05 activity proof authorization', () => {
-  const service = new ActivitiesService({} as PrismaService, storage as unknown as StorageService)
+  const service = new ActivitiesService(
+    {} as PrismaService,
+    storage as unknown as StorageService,
+    privateStorageFactories,
+  )
 
   beforeEach(() => {
     vi.clearAllMocks()
@@ -573,7 +578,11 @@ describe('Activity creation contract authorization', () => {
     activityOverdueExplanation_activity: [],
     activityJourneyStageMapping_activity: [{ stageId }],
   }
-  const service = new ActivitiesService({} as PrismaService, storage as unknown as StorageService)
+  const service = new ActivitiesService(
+    {} as PrismaService,
+    storage as unknown as StorageService,
+    privateStorageFactories,
+  )
 
   beforeEach(() => {
     vi.clearAllMocks()

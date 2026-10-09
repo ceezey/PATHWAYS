@@ -7,7 +7,7 @@ import { FormDefinitionExportService } from './form-definition-export.service'
 
 const state = vi.hoisted(() => ({ actor: undefined as unknown as ApplicationIdentity }))
 
-vi.mock('../auth/authorized-operation', () => ({
+vi.mock('../../common/authz/authorized-operation', () => ({
   withAuthorizedOperation: vi.fn(async (_prisma, _identity, _permission, work) =>
     work(tx, state.actor),
   ),

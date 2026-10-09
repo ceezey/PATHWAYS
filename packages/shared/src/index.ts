@@ -23,3 +23,5 @@ export * from './rbac/beneficiary-step-up'
 export * from './rules/rule-contract'
 export * from './rules/rule-metrics'
 export * from './rules/rules-human-contract'
+
+export * from './contracts/imports/import-requests'

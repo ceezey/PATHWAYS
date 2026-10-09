@@ -20,9 +20,9 @@ import {
 import type { Prisma } from '@prisma/client'
 import { writeAuditLog } from '../../common/audit/write-audit-log'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
+import { withAuthorizedOperation } from '../../common/authz/authorized-operation'
 import { projectScope } from '../../common/authz/project-scope'
 import { PrismaService } from '../../prisma/prisma.service'
-import { withAuthorizedOperation } from '../auth/authorized-operation'
 import { currentMeasurements, summarizeBudget, suppressBreakdown } from './insights-math'
 
 const logger = new Logger('AnalyticsInsightsService')

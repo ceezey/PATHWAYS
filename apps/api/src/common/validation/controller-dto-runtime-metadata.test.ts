@@ -42,13 +42,7 @@ const cases: ControllerCase[] = [
   },
   {
     file: 'src/modules/imports/imports.controller.ts',
-    dtoNames: [
-      'ImportRowsQueryDto',
-      'ProcessImportDto',
-      'SaveImportMappingDto',
-      'UploadImportDto',
-      'ValidateImportDto',
-    ],
+    dtoNames: ['ImportRowsQueryDto', 'ProcessImportDto', 'SaveImportMappingDto', 'UploadImportDto'],
   },
   {
     file: 'src/modules/metadata/metadata.controller.ts',

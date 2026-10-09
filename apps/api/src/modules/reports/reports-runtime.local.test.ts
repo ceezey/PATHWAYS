@@ -15,6 +15,7 @@ import { DashboardsService } from '../dashboards/dashboards.service'
 import { ProjectOverviewMetricsService } from '../projects/project-overview-metrics.service'
 import type { ReportPdfRenderer } from '../report-pdf/report-pdf.renderer'
 import { RulesHumanService } from '../rules/rules-human.service'
+import { privateStorageFactories } from '../storage/private-storage-factories'
 import type { StorageService } from '../storage/storage.service'
 import { ReportsService } from './reports.service'
 
@@ -246,6 +247,7 @@ describe.skipIf(!enabled)('report preview scope and suppression on disposable Po
               } as unknown as ReportPdfRenderer,
               new ProjectOverviewMetricsService(scoped, indicators, dashboards),
               new RulesHumanService(scoped),
+              privateStorageFactories,
             )
             await tx.$executeRaw`SET LOCAL session_replication_role = origin`
             // The indicator report SQL also requires session_user to be the runtime role.

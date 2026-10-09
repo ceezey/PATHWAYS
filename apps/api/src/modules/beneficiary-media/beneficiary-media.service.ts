@@ -16,6 +16,7 @@ import type { Prisma } from '@prisma/client'
 import { aggregateOnlyRoles } from '@pathways/shared'
 import { writeAuditLog } from '../../common/audit/write-audit-log'
 import { type ApplicationIdentity, UUID_PATTERN } from '../../common/authz/application-identity'
+import { withAuthorizedOperation } from '../../common/authz/authorized-operation'
 import { projectScope } from '../../common/authz/project-scope'
 import type { Tx } from '../../common/prisma/transaction'
 import { PrismaService } from '../../prisma/prisma.service'
@@ -25,11 +26,10 @@ import {
   evidenceExtension,
   proofDeclarations,
 } from '../activities/activities.service'
-import { withAuthorizedOperation } from '../auth/authorized-operation'
 import {
-  createPrivateObjectStreamer,
-  createPrivateUploadVerifier,
-} from '../storage/private-inspection-reader'
+  PRIVATE_STORAGE_FACTORIES,
+  type PrivateStorageFactories,
+} from '../storage/private-storage-factories'
 import { StorageService } from '../storage/storage.service'
 import {
   MAX_BENEFICIARY_MEDIA_FILES,
@@ -54,6 +54,7 @@ export class BeneficiaryMediaService {
   constructor(
     @Inject(PrismaService) private readonly prisma: PrismaService,
     @Inject(StorageService) private readonly storage: StorageService,
+    @Inject(PRIVATE_STORAGE_FACTORIES) private readonly storageFactories: PrivateStorageFactories,
   ) {}
 
   limits() {
@@ -276,9 +277,11 @@ export class BeneficiaryMediaService {
     const byteSize = Number(row.byteSize)
     if (!Number.isSafeInteger(byteSize) || byteSize > this.env.EVIDENCE_MAX_FILE_BYTES)
       throw rejection('PROOF_FILE_TOO_LARGE', 'The media file exceeds the current per-file limit.')
-    let outcome: Awaited<ReturnType<ReturnType<typeof createPrivateUploadVerifier>>>
+    let outcome: Awaited<
+      ReturnType<ReturnType<PrivateStorageFactories['createPrivateUploadVerifier']>>
+    >
     try {
-      const verify = createPrivateUploadVerifier({
+      const verify = this.storageFactories.createPrivateUploadVerifier({
         serviceOrigin: this.env.SUPABASE_URL ?? '',
         serviceRoleKey: this.env.SUPABASE_SERVICE_ROLE_KEY ?? '',
         evidenceBucket: this.env.EVIDENCE_BUCKET,
@@ -365,7 +368,7 @@ export class BeneficiaryMediaService {
     )
     const { row } = target
     try {
-      const streamer = createPrivateObjectStreamer({
+      const streamer = this.storageFactories.createPrivateObjectStreamer({
         serviceOrigin: this.env.SUPABASE_URL ?? '',
         serviceRoleKey: this.env.SUPABASE_SERVICE_ROLE_KEY ?? '',
         evidenceBucket: this.env.EVIDENCE_BUCKET,

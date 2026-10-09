@@ -52,17 +52,18 @@ vi.mock('../rules/rules-source-operation', async (importOriginal) => ({
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import type { PrismaService } from '../../prisma/prisma.service'
+import { privateStorageFactories } from '../storage/private-storage-factories'
 import type { StorageService } from '../storage/storage.service'
 const state = vi.hoisted(() => ({
   actor: null as unknown as ApplicationIdentity,
   tx: null as unknown as Record<string, unknown>,
 }))
-vi.mock('../auth/authorized-operation', () => ({
+vi.mock('../../common/authz/authorized-operation', () => ({
   withAuthorizedOperation: vi.fn(async (_prisma, _identity, _permission, work) =>
     work(state.tx, state.actor),
   ),
 }))
-vi.mock('../auth/application-profile.service', () => ({
+vi.mock('../../common/authz/application-profile', () => ({
   readApplicationProfile: vi.fn(async () => state.actor),
 }))
 import { ActivitiesService } from './activities.service'
@@ -124,7 +125,11 @@ const tx = {
   evidenceMedia: { updateMany: vi.fn() },
   auditLog: { create: vi.fn() },
 }
-const service = new ActivitiesService({} as PrismaService, {} as StorageService)
+const service = new ActivitiesService(
+  {} as PrismaService,
+  {} as StorageService,
+  privateStorageFactories,
+)
 const review = (decision: 'APPROVE' | 'RETURN' = 'APPROVE') =>
   service.reviewUpdate(actor, projectId, activityId, updateId, {
     clientMutationId: 'e0000000-0000-4000-8000-000000000001',

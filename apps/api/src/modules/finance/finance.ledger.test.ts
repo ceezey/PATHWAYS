@@ -5,11 +5,12 @@ import { hasAtomicPermission } from '@pathways/shared'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import type { PrismaService } from '../../prisma/prisma.service'
 import type { ReceiptPdfRenderer } from '../report-pdf/receipt-pdf.renderer'
+import { privateStorageFactories } from '../storage/private-storage-factories'
 import type { StorageService } from '../storage/storage.service'
 import { FinanceService } from './finance.service'
 
 const state = vi.hoisted(() => ({ actor: undefined as unknown, tx: undefined as unknown }))
-vi.mock('../auth/authorized-operation', () => ({
+vi.mock('../../common/authz/authorized-operation', () => ({
   withAuthorizedOperation: (
     _db: unknown,
     _identity: unknown,
@@ -42,6 +43,7 @@ const service = new FinanceService(
   {} as PrismaService,
   {} as StorageService,
   receipts as unknown as ReceiptPdfRenderer,
+  privateStorageFactories,
 )
 const identity = (role: string, permissions: string[]): ApplicationIdentity => ({
   id: org,

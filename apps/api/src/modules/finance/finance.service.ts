@@ -16,11 +16,14 @@ import { Prisma } from '@prisma/client'
 import { z } from 'zod'
 import { writeAuditLog } from '../../common/audit/write-audit-log'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
+import { withAuthorizedOperation } from '../../common/authz/authorized-operation'
 import { requireScopedProject } from '../../common/authz/scoped-project'
 import { PrismaService } from '../../prisma/prisma.service'
-import { withAuthorizedOperation } from '../auth/authorized-operation'
 import { ReceiptPdfError, ReceiptPdfRenderer } from '../report-pdf/receipt-pdf.renderer'
-import { createPrivateInspectionReader } from '../storage/private-inspection-reader'
+import {
+  PRIVATE_STORAGE_FACTORIES,
+  type PrivateStorageFactories,
+} from '../storage/private-storage-factories'
 import { StorageService } from '../storage/storage.service'
 
 const uuid = z.string().uuid()
@@ -73,6 +76,7 @@ export class FinanceService {
     @Inject(PrismaService) private readonly prisma: PrismaService,
     @Inject(StorageService) private readonly storage: StorageService,
     @Inject(ReceiptPdfRenderer) private readonly receipts: ReceiptPdfRenderer,
+    @Inject(PRIVATE_STORAGE_FACTORIES) private readonly storageFactories: PrivateStorageFactories,
   ) {}
   budgets(identity: ApplicationIdentity, projectId: string) {
     return withAuthorizedOperation(this.prisma, identity, 'budgets.read', async (tx, actor) => {
@@ -339,7 +343,7 @@ export class FinanceService {
       if (!env.SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY)
         throw new ServiceUnavailableException('Private receipt storage unavailable.')
       try {
-        const read = createPrivateInspectionReader({
+        const read = this.storageFactories.createPrivateInspectionReader({
           serviceOrigin: env.SUPABASE_URL,
           serviceRoleKey: env.SUPABASE_SERVICE_ROLE_KEY,
           evidenceBucket: 'pathways-private',
@@ -566,7 +570,7 @@ export class FinanceService {
     const proof = initial.proof
     let bytes: Buffer
     try {
-      const read = createPrivateInspectionReader({
+      const read = this.storageFactories.createPrivateInspectionReader({
         serviceOrigin: env.SUPABASE_URL,
         serviceRoleKey: env.SUPABASE_SERVICE_ROLE_KEY,
         evidenceBucket: 'pathways-private',

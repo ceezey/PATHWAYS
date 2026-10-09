@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ApplicationIdentity } from '@app/common/authz/application-identity'
 import type { StorageService } from '@app/modules/storage/storage.service'
 import type { PrismaService } from '@app/prisma/prisma.service'
+import { privateStorageFactories } from '../storage/private-storage-factories'
 
 const state = vi.hoisted(() => ({
   actor: undefined as ApplicationIdentity | undefined,
@@ -17,14 +18,14 @@ const state = vi.hoisted(() => ({
   ack: vi.fn(),
 }))
 
-vi.mock('@app/modules/auth/authorized-operation', () => ({
+vi.mock('@app/common/authz/authorized-operation', () => ({
   withAuthorizedOperation: vi.fn(async (_prisma, _identity, permission: string, work) => {
     if (!state.actor?.permissions.includes(permission))
       throw new ForbiddenException('Permission denied.')
     return work(state.tx, state.actor)
   }),
 }))
-vi.mock('@app/modules/auth/application-profile.service', () => ({
+vi.mock('@app/common/authz/application-profile', () => ({
   readApplicationProfile: vi.fn(async () => state.actor),
 }))
 vi.mock('@app/modules/storage/private-inspection-reader', async (importOriginal) => ({
@@ -217,7 +218,11 @@ const storage = {
   ),
   deleteFile: vi.fn(),
 }
-const service = new ActivitiesService({} as PrismaService, storage as unknown as StorageService)
+const service = new ActivitiesService(
+  {} as PrismaService,
+  storage as unknown as StorageService,
+  privateStorageFactories,
+)
 
 const as = <T>(actor: ApplicationIdentity, run: () => Promise<T>) => {
   state.actor = actor

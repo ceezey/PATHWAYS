@@ -15,7 +15,7 @@ const scope = vi.hoisted(() => ({
   tx: undefined as unknown,
   bypass: false,
 }))
-vi.mock('../auth/authorized-operation', () => ({
+vi.mock('../../common/authz/authorized-operation', () => ({
   withAuthorizedOperation: (
     _db: unknown,
     _identity: unknown,

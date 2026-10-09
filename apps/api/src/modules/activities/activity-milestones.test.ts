@@ -7,11 +7,12 @@ import type { ApplicationIdentity } from '@app/common/authz/application-identity
 import { PERMISSION_KEY } from '@app/common/decorators/permission.decorator'
 import type { StorageService } from '@app/modules/storage/storage.service'
 import type { PrismaService } from '@app/prisma/prisma.service'
+import { privateStorageFactories } from '../storage/private-storage-factories'
 
 const state = vi.hoisted(() => ({ actor: undefined as ApplicationIdentity | undefined }))
 
 // The operation boundary is replaced with a permission check against the synthetic actor.
-vi.mock('@app/modules/auth/authorized-operation', () => ({
+vi.mock('@app/common/authz/authorized-operation', () => ({
   withAuthorizedOperation: vi.fn(async (_prisma, _identity, permission: string, work) => {
     if (!state.actor?.permissions.includes(permission))
       throw new ForbiddenException('Permission denied.')
@@ -55,7 +56,11 @@ const update = {
 }
 
 describe('G-F2-10 milestones require milestones.manage', () => {
-  const service = new ActivitiesService({} as PrismaService, {} as StorageService)
+  const service = new ActivitiesService(
+    {} as PrismaService,
+    {} as StorageService,
+    privateStorageFactories,
+  )
 
   beforeEach(() => {
     vi.clearAllMocks()

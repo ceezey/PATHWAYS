@@ -15,8 +15,10 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express'
 
 import { IMPORT_ENGINEERING_LIMITS } from '@pathways/imports'
+import { type ValidateImportRequest, validateImportRequest } from '@pathways/shared'
 import type { AuthenticatedRequest } from '../../common/authz/application-identity'
 import { RequirePermission } from '../../common/decorators/permission.decorator'
+import { ZodPipe } from '../../common/validation/zod-pipe'
 // biome-ignore lint/style/useImportType: Nest validation needs the DTO constructors at runtime.
 import {
   AutomaticImportMappingDto,
@@ -24,7 +26,6 @@ import {
   ProcessImportDto,
   SaveImportMappingDto,
   UploadImportDto,
-  ValidateImportDto,
 } from './imports.dto'
 import { ImportsService, type UploadedImportFile } from './imports.service'
 
@@ -125,7 +126,7 @@ export class ImportsController {
     @Req() request: AuthenticatedRequest,
     @Param('projectId') projectId: string,
     @Param('batchId') batchId: string,
-    @Body() body: ValidateImportDto,
+    @Body(new ZodPipe(validateImportRequest)) body: ValidateImportRequest,
   ) {
     return this.imports.validate(profile(request), projectId, batchId, body)
   }

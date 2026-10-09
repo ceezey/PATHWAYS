@@ -11,7 +11,7 @@ import { hasAtomicPermission } from '@pathways/shared'
 
 const state = vi.hoisted(() => ({ tx: undefined as Prisma.TransactionClient | undefined }))
 
-vi.mock('@app/modules/auth/authorized-operation', () => ({
+vi.mock('@app/common/authz/authorized-operation', () => ({
   withAuthorizedOperation: vi.fn(async (_prisma, identity, permission, work, options) => {
     const allowed = [permission, ...(options?.alsoAllow ?? [])]
     if (!allowed.some((code) => hasAtomicPermission(identity.roles[0], identity.permissions, code)))

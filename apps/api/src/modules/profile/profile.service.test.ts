@@ -10,7 +10,7 @@ import { ProfileService } from './profile.service'
 const state = vi.hoisted(() => ({ tx: {} as Record<string, unknown>, permission: '' }))
 
 // The verified-transaction wrapper is replaced so the service runs against a mocked tx.
-vi.mock('../auth/authorized-operation', () => ({
+vi.mock('../../common/authz/authorized-operation', () => ({
   withAuthorizedOperation: (
     _prisma: unknown,
     identity: ApplicationIdentity,

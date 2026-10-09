@@ -9,13 +9,13 @@ const state = vi.hoisted(() => ({
   tx: undefined as Prisma.TransactionClient | undefined,
   denied: false,
 }))
-vi.mock('../auth/authorized-operation', () => ({
+vi.mock('../../common/authz/authorized-operation', () => ({
   withAuthorizedOperation: vi.fn(async (_p, _i, _permission, work) => {
     if (state.denied) throw new ForbiddenException('Unavailable')
     return work(state.tx, state.actor)
   }),
 }))
-import { withAuthorizedOperation } from '../auth/authorized-operation'
+import { withAuthorizedOperation } from '../../common/authz/authorized-operation'
 import { MetadataService } from './metadata.service'
 const org = '10000000-0000-4000-8000-000000000001'
 const user = '20000000-0000-4000-8000-000000000002'

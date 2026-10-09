@@ -49,7 +49,7 @@ interface FakeStore {
   audits: Array<{ action: string; entityId: string }>
 }
 
-vi.mock('../auth/authorized-operation', async () => {
+vi.mock('../../common/authz/authorized-operation', async () => {
   const { ForbiddenException: Forbidden, HttpException: Http } = await import('@nestjs/common')
   return {
     withAuthorizedOperation: vi.fn(async (_prisma, _identity, permission, work, options) => {

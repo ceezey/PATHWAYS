@@ -10,10 +10,10 @@ import {
 import type { Prisma } from '@prisma/client'
 
 import { type AtomicPermission, hasAtomicPermission } from '@pathways/shared'
-import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import type { PrismaService } from '../../prisma/prisma.service'
 import { prismaDiagnosticCode, transactionDiagnostic } from '../../prisma/transaction-diagnostic'
-import { readApplicationProfile } from './application-profile.service'
+import type { ApplicationIdentity } from './application-identity'
+import { readApplicationProfile } from './application-profile'
 import {
   boundedOperationDuration,
   reportAuthorizedOperationTiming,
@@ -29,7 +29,7 @@ interface AuthorizedOperationOptions {
 import {
   inspectionIdentityContext,
   setInspectionTransactionBudget,
-} from '../../common/network/inspection-request-budget'
+} from '../network/inspection-request-budget'
 
 const logger = new Logger('AuthorizedOperation')
 

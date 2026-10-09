@@ -9,13 +9,14 @@ import { PERMISSION_KEY } from '@app/common/decorators/permission.decorator'
 import type { StorageService } from '@app/modules/storage/storage.service'
 import type { PrismaService } from '@app/prisma/prisma.service'
 import { hasAtomicPermission } from '@pathways/shared'
+import { privateStorageFactories } from '../storage/private-storage-factories'
 
 const state = vi.hoisted(() => ({
   actor: undefined as ApplicationIdentity | undefined,
   tx: undefined as Prisma.TransactionClient | undefined,
 }))
 
-vi.mock('@app/modules/auth/authorized-operation', () => ({
+vi.mock('@app/common/authz/authorized-operation', () => ({
   withAuthorizedOperation: vi.fn(async (_prisma, _identity, permission, work) => {
     const actor = state.actor as ApplicationIdentity
     if (!hasAtomicPermission(actor.roles[0], actor.permissions, permission))
@@ -85,7 +86,11 @@ const groups = (pending: number, approved: number, rejected: number, verified: n
 ]
 
 const tx = { project: { findFirst: vi.fn() }, evidenceMedia: { groupBy: vi.fn() } }
-const service = new ActivitiesService({} as PrismaService, {} as StorageService)
+const service = new ActivitiesService(
+  {} as PrismaService,
+  {} as StorageService,
+  privateStorageFactories,
+)
 
 function collectKeys(value: unknown, keys = new Set<string>()) {
   if (Array.isArray(value)) for (const item of value) collectKeys(item, keys)

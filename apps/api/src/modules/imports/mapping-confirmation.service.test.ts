@@ -9,7 +9,7 @@ import { ImportsService } from './imports.service'
 // Confirming an AUTO_SMART_V2 suggestion is an ordinary manual revision: it goes through
 // saveMapping, which the route and the verified operation both bind to imports.review.
 const state = vi.hoisted(() => ({ tx: undefined as unknown }))
-vi.mock('../auth/authorized-operation', () => ({
+vi.mock('../../common/authz/authorized-operation', () => ({
   withAuthorizedOperation: async (
     _prisma: unknown,
     identity: { roles: string[]; permissions: string[] },

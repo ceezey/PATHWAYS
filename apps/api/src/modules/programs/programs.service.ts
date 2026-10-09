@@ -2,8 +2,8 @@ import { BadRequestException, ForbiddenException, Inject, Injectable } from '@ne
 
 import { writeAuditLog } from '../../common/audit/write-audit-log'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
+import { withAuthorizedOperation } from '../../common/authz/authorized-operation'
 import { PrismaService } from '../../prisma/prisma.service'
-import { withAuthorizedOperation } from '../auth/authorized-operation'
 import type { CreateProgramDto } from './programs.dto'
 
 @Injectable()

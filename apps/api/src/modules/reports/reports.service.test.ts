@@ -14,6 +14,7 @@ import type { DashboardsService } from '../dashboards/dashboards.service'
 import type { ProjectOverviewMetricsService } from '../projects/project-overview-metrics.service'
 import { ReportPdfError, type ReportPdfRenderer } from '../report-pdf/report-pdf.renderer'
 import type { RulesHumanService } from '../rules/rules-human.service'
+import type { PrivateStorageFactories } from '../storage/private-storage-factories'
 import type { StorageService } from '../storage/storage.service'
 import { sourceFingerprint } from './report-fingerprint'
 import { reportInputSchema, reportQuerySchema } from './reports.dto'
@@ -26,7 +27,7 @@ const state = vi.hoisted(() => ({
   read: vi.fn(),
   artifact: vi.fn(),
 }))
-vi.mock('../auth/authorized-operation', () => ({
+vi.mock('../../common/authz/authorized-operation', () => ({
   withAuthorizedOperation: async (
     _db: unknown,
     _identity: unknown,
@@ -49,9 +50,6 @@ vi.mock('@pathways/config', async (original) => ({
     SUPABASE_URL: 'https://synthetic.invalid',
     SUPABASE_SERVICE_ROLE_KEY: 'synthetic-not-a-credential',
   }),
-}))
-vi.mock('../storage/private-inspection-reader', () => ({
-  createPrivateInspectionReader: () => state.read,
 }))
 vi.mock('./report-artifact', () => ({
   ReportArtifactInputError: class ReportArtifactInputError extends Error {},
@@ -110,6 +108,9 @@ const dashboards = { monitoringInTransaction: vi.fn() }
 const renderer = { render: vi.fn() }
 const overview = { readInTransaction: vi.fn() }
 const rules = { listAlertsInTransaction: vi.fn() }
+const storageFactories = {
+  createPrivateInspectionReader: () => state.read,
+} as unknown as PrivateStorageFactories
 const service = new ReportsService(
   {} as PrismaService,
   storage as unknown as StorageService,
@@ -117,6 +118,7 @@ const service = new ReportsService(
   renderer as unknown as ReportPdfRenderer,
   overview as unknown as ProjectOverviewMetricsService,
   rules as unknown as RulesHumanService,
+  storageFactories,
 )
 const body = { clientRequestId: id, name: 'Private report', kind: 'PROJECT_SUMMARY', format: 'PDF' }
 const field = {

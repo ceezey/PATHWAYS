@@ -17,9 +17,9 @@ import {
 } from '@pathways/shared'
 import { writeAuditLog } from '../../common/audit/write-audit-log'
 import { type ApplicationIdentity, UUID_PATTERN } from '../../common/authz/application-identity'
+import { withAuthorizedOperation } from '../../common/authz/authorized-operation'
 import { projectScope } from '../../common/authz/project-scope'
 import { PrismaService } from '../../prisma/prisma.service'
-import { withAuthorizedOperation } from '../auth/authorized-operation'
 import { AuthDirectoryService } from './auth-directory.service'
 import type { AuthorizeExistingUserDto, UpdateAuthorizedUserDto } from './users.dto'
 

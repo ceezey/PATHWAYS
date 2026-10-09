@@ -19,6 +19,7 @@ import {
   hasAtomicPermission,
   rolePermissions,
 } from '@pathways/shared'
+import { privateStorageFactories } from '../storage/private-storage-factories'
 
 const state = vi.hoisted(() => ({
   actor: undefined as ApplicationIdentity | undefined,
@@ -27,7 +28,7 @@ const state = vi.hoisted(() => ({
 
 // The operation boundary re-checks the named permission against the synthetic actor under
 // the role ceiling, as the real boundary does against the freshly read profile.
-vi.mock('@app/modules/auth/authorized-operation', async () => {
+vi.mock('@app/common/authz/authorized-operation', async () => {
   const policy = await import('@pathways/shared')
   return {
     withAuthorizedOperation: vi.fn(async (_prisma, _identity, permission, work) => {
@@ -111,7 +112,11 @@ const tx = {
   auditLog: { create: vi.fn() },
 }
 
-const service = new ActivitiesService({} as PrismaService, {} as StorageService)
+const service = new ActivitiesService(
+  {} as PrismaService,
+  {} as StorageService,
+  privateStorageFactories,
+)
 
 beforeEach(() => {
   vi.clearAllMocks()

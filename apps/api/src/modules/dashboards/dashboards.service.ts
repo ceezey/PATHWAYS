@@ -18,10 +18,10 @@ import {
 } from '@pathways/shared'
 import { Prisma } from '@prisma/client'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
+import { withAuthorizedOperation } from '../../common/authz/authorized-operation'
 import { projectScope } from '../../common/authz/project-scope'
 import { currentBusinessDate } from '../../common/time/business-date'
 import { PrismaService } from '../../prisma/prisma.service'
-import { withAuthorizedOperation } from '../auth/authorized-operation'
 import { IndicatorsService, monitoringSqlError } from '../indicators/indicators.service'
 import { parseDashboardQuery, parseSadddQuery } from './dashboards.dto'
 

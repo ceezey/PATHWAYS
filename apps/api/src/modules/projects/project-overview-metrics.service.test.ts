@@ -4,8 +4,8 @@ import type {
   ApplicationIdentity,
   AuthenticatedRequest,
 } from '@app/common/authz/application-identity'
+import { withAuthorizedOperation } from '@app/common/authz/authorized-operation'
 import { PERMISSION_KEY } from '@app/common/decorators/permission.decorator'
-import { withAuthorizedOperation } from '@app/modules/auth/authorized-operation'
 import { DashboardsService } from '@app/modules/dashboards/dashboards.service'
 import type { IndicatorsService } from '@app/modules/indicators/indicators.service'
 import type { PrismaService } from '@app/prisma/prisma.service'
@@ -25,7 +25,7 @@ import { ProjectOverviewMetricsService } from './project-overview-metrics.servic
 vi.mock('@pathways/config', () => ({
   readApiEnv: () => ({ BUSINESS_TIME_ZONE: 'Asia/Manila' }),
 }))
-vi.mock('@app/modules/auth/authorized-operation', () => ({ withAuthorizedOperation: vi.fn() }))
+vi.mock('@app/common/authz/authorized-operation', () => ({ withAuthorizedOperation: vi.fn() }))
 
 type CanonicalRole = keyof typeof rolePermissions
 const orgA = '10000000-0000-4000-8000-00000000000a'
