@@ -8,10 +8,10 @@ import { STEP_UP_PIN_UI_ENABLED } from '@/constants/feature-flags'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useSession } from '@/hooks/use-session'
 import { type SensitiveDraftOwner, useSensitiveDraftOwner } from '@/lib/auth/sensitive-drafts'
-import { ownProfileClient } from '@/lib/services/own-profile-client'
+import { type OwnProfileRecord, ownProfileClient } from '@/lib/services/own-profile-client'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { OwnPasswordForm } from './own-password-form'
-import { type OwnProfileRecord, ownProfileSchema } from './own-profile-contract'
+import { ownProfileSchema } from './own-profile-contract'
 import { OwnStepUpPinForm } from './own-step-up-pin-form'
 
 export const OwnProfileWorkspace = () => {
