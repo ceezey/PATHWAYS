@@ -1,8 +1,34 @@
 import { contextCookieName } from '@/features/auth/workspace-access'
 import { sensitiveDraftGeneration } from '@/lib/auth/sensitive-drafts'
 import { PathwaysClientError, requestFoundationResponse } from '@/lib/services/pathways-client'
-import * as contract from '@pathways/shared'
-import { uuidSchema } from '@pathways/shared'
+import {
+  activateRuleSchema,
+  alertListSchema,
+  alertOutputSchema,
+  alertPreviewSchema,
+  archiveRuleSchema,
+  confirmOutcomeSchema,
+  confirmationOutputSchema,
+  createRuleSchema,
+  dispositionSchema,
+  draftRuleSchema,
+  dryRunInputSchema,
+  dryRunOutputSchema,
+  emptyBodySchema,
+  historyListSchema,
+  historyOutputSchema,
+  notificationListSchema,
+  notificationOutputSchema,
+  pageSchema,
+  previewOutputSchema,
+  recommendationListSchema,
+  recommendationOutputSchema,
+  recommendationPreviewSchema,
+  reviewSchema,
+  ruleListSchema,
+  ruleOutputSchema,
+  uuidSchema,
+} from '@pathways/shared'
 import type { z } from 'zod'
 
 const ownerCookie = () =>
@@ -63,173 +89,104 @@ const post = <I extends z.ZodTypeAny, O extends z.ZodTypeAny>(
 ) => read(path, output, { method: 'POST', body: JSON.stringify(schema.parse(body)), signal })
 
 export const rulesHumanClient = {
-  dryRun: (body: z.input<typeof contract.dryRunInputSchema>, signal?: AbortSignal) =>
-    post('/rules/dry-run', contract.dryRunInputSchema, contract.dryRunOutputSchema, body, signal),
-  listAlerts: (input: z.input<typeof contract.alertListSchema> = {}, signal?: AbortSignal) =>
-    read(
-      `/alerts${query(contract.alertListSchema, input)}`,
-      contract.pageSchema(contract.alertOutputSchema),
-      { signal },
-    ),
+  dryRun: (body: z.input<typeof dryRunInputSchema>, signal?: AbortSignal) =>
+    post('/rules/dry-run', dryRunInputSchema, dryRunOutputSchema, body, signal),
+  listAlerts: (input: z.input<typeof alertListSchema> = {}, signal?: AbortSignal) =>
+    read(`/alerts${query(alertListSchema, input)}`, pageSchema(alertOutputSchema), { signal }),
   getAlert: (id: string, signal?: AbortSignal) =>
-    readRecord(id, idPath('alerts', id), contract.alertOutputSchema, { signal }),
-  alertHistory: (
-    id: string,
-    input: z.input<typeof contract.historyListSchema> = {},
-    signal?: AbortSignal,
-  ) =>
+    readRecord(id, idPath('alerts', id), alertOutputSchema, { signal }),
+  alertHistory: (id: string, input: z.input<typeof historyListSchema> = {}, signal?: AbortSignal) =>
     read(
-      `${idPath('alerts', id)}/history${query(contract.historyListSchema, input)}`,
-      contract.pageSchema(contract.historyOutputSchema),
+      `${idPath('alerts', id)}/history${query(historyListSchema, input)}`,
+      pageSchema(historyOutputSchema),
       { signal },
     ),
-  reviewAlert: (id: string, body: z.input<typeof contract.reviewSchema>, signal?: AbortSignal) =>
-    post(
-      `${idPath('alerts', id)}/review`,
-      contract.reviewSchema,
-      contract.alertOutputSchema,
-      body,
-      signal,
-    ),
-  dispositionAlert: (
-    id: string,
-    body: z.input<typeof contract.dispositionSchema>,
-    signal?: AbortSignal,
-  ) =>
-    post(
-      `${idPath('alerts', id)}/disposition`,
-      contract.dispositionSchema,
-      contract.alertOutputSchema,
-      body,
-      signal,
-    ),
-  previewAlert: (
-    id: string,
-    body: z.input<typeof contract.alertPreviewSchema>,
-    signal?: AbortSignal,
-  ) =>
+  reviewAlert: (id: string, body: z.input<typeof reviewSchema>, signal?: AbortSignal) =>
+    post(`${idPath('alerts', id)}/review`, reviewSchema, alertOutputSchema, body, signal),
+  dispositionAlert: (id: string, body: z.input<typeof dispositionSchema>, signal?: AbortSignal) =>
+    post(`${idPath('alerts', id)}/disposition`, dispositionSchema, alertOutputSchema, body, signal),
+  previewAlert: (id: string, body: z.input<typeof alertPreviewSchema>, signal?: AbortSignal) =>
     post(
       `${idPath('alerts', id)}/outcome-preview`,
-      contract.alertPreviewSchema,
-      contract.previewOutputSchema,
+      alertPreviewSchema,
+      previewOutputSchema,
       body,
       signal,
     ),
-  confirmAlert: (
-    id: string,
-    body: z.input<typeof contract.confirmOutcomeSchema>,
-    signal?: AbortSignal,
-  ) =>
+  confirmAlert: (id: string, body: z.input<typeof confirmOutcomeSchema>, signal?: AbortSignal) =>
     post(
       `${idPath('alerts', id)}/outcomes`,
-      contract.confirmOutcomeSchema,
-      contract.confirmationOutputSchema,
+      confirmOutcomeSchema,
+      confirmationOutputSchema,
       body,
       signal,
     ),
   listRecommendations: (
-    input: z.input<typeof contract.recommendationListSchema> = {},
+    input: z.input<typeof recommendationListSchema> = {},
     signal?: AbortSignal,
   ) =>
     read(
-      `/recommendations${query(contract.recommendationListSchema, input)}`,
-      contract.pageSchema(contract.recommendationOutputSchema),
+      `/recommendations${query(recommendationListSchema, input)}`,
+      pageSchema(recommendationOutputSchema),
       { signal },
     ),
   getRecommendation: (id: string, signal?: AbortSignal) =>
-    readRecord(id, idPath('recommendations', id), contract.recommendationOutputSchema, { signal }),
-  reviewRecommendation: (
-    id: string,
-    body: z.input<typeof contract.reviewSchema>,
-    signal?: AbortSignal,
-  ) =>
+    readRecord(id, idPath('recommendations', id), recommendationOutputSchema, { signal }),
+  reviewRecommendation: (id: string, body: z.input<typeof reviewSchema>, signal?: AbortSignal) =>
     post(
       `${idPath('recommendations', id)}/review`,
-      contract.reviewSchema,
-      contract.recommendationOutputSchema,
+      reviewSchema,
+      recommendationOutputSchema,
       body,
       signal,
     ),
   previewRecommendation: (
     id: string,
-    body: z.input<typeof contract.recommendationPreviewSchema>,
+    body: z.input<typeof recommendationPreviewSchema>,
     signal?: AbortSignal,
   ) =>
     post(
       `${idPath('recommendations', id)}/outcome-preview`,
-      contract.recommendationPreviewSchema,
-      contract.previewOutputSchema,
+      recommendationPreviewSchema,
+      previewOutputSchema,
       body,
       signal,
     ),
   confirmRecommendation: (
     id: string,
-    body: z.input<typeof contract.confirmOutcomeSchema>,
+    body: z.input<typeof confirmOutcomeSchema>,
     signal?: AbortSignal,
   ) =>
     post(
       `${idPath('recommendations', id)}/outcomes`,
-      contract.confirmOutcomeSchema,
-      contract.confirmationOutputSchema,
+      confirmOutcomeSchema,
+      confirmationOutputSchema,
       body,
       signal,
     ),
-  listRules: (input: z.input<typeof contract.ruleListSchema> = {}, signal?: AbortSignal) =>
-    read(
-      `/rules${query(contract.ruleListSchema, input)}`,
-      contract.pageSchema(contract.ruleOutputSchema),
-      { signal },
-    ),
+  listRules: (input: z.input<typeof ruleListSchema> = {}, signal?: AbortSignal) =>
+    read(`/rules${query(ruleListSchema, input)}`, pageSchema(ruleOutputSchema), { signal }),
   getRule: (id: string, signal?: AbortSignal) =>
-    readRecord(id, idPath('rules', id), contract.ruleOutputSchema, { signal }),
-  createRule: (body: z.input<typeof contract.createRuleSchema>, signal?: AbortSignal) =>
-    post('/rules', contract.createRuleSchema, contract.ruleOutputSchema, body, signal),
-  draftRule: (id: string, body: z.input<typeof contract.draftRuleSchema>, signal?: AbortSignal) =>
-    post(
-      `${idPath('rules', id)}/drafts`,
-      contract.draftRuleSchema,
-      contract.ruleOutputSchema,
-      body,
-      signal,
-    ),
-  activateRule: (
-    id: string,
-    body: z.input<typeof contract.activateRuleSchema>,
-    signal?: AbortSignal,
-  ) =>
-    post(
-      `${idPath('rules', id)}/activate`,
-      contract.activateRuleSchema,
-      contract.ruleOutputSchema,
-      body,
-      signal,
-    ),
-  archiveRule: (
-    id: string,
-    body: z.input<typeof contract.archiveRuleSchema>,
-    signal?: AbortSignal,
-  ) =>
-    post(
-      `${idPath('rules', id)}/archive`,
-      contract.archiveRuleSchema,
-      contract.ruleOutputSchema,
-      body,
-      signal,
-    ),
-  listNotifications: (
-    input: z.input<typeof contract.notificationListSchema> = {},
-    signal?: AbortSignal,
-  ) =>
+    readRecord(id, idPath('rules', id), ruleOutputSchema, { signal }),
+  createRule: (body: z.input<typeof createRuleSchema>, signal?: AbortSignal) =>
+    post('/rules', createRuleSchema, ruleOutputSchema, body, signal),
+  draftRule: (id: string, body: z.input<typeof draftRuleSchema>, signal?: AbortSignal) =>
+    post(`${idPath('rules', id)}/drafts`, draftRuleSchema, ruleOutputSchema, body, signal),
+  activateRule: (id: string, body: z.input<typeof activateRuleSchema>, signal?: AbortSignal) =>
+    post(`${idPath('rules', id)}/activate`, activateRuleSchema, ruleOutputSchema, body, signal),
+  archiveRule: (id: string, body: z.input<typeof archiveRuleSchema>, signal?: AbortSignal) =>
+    post(`${idPath('rules', id)}/archive`, archiveRuleSchema, ruleOutputSchema, body, signal),
+  listNotifications: (input: z.input<typeof notificationListSchema> = {}, signal?: AbortSignal) =>
     read(
-      `/notifications${query(contract.notificationListSchema, input)}`,
-      contract.pageSchema(contract.notificationOutputSchema),
+      `/notifications${query(notificationListSchema, input)}`,
+      pageSchema(notificationOutputSchema),
       { signal },
     ),
   markNotificationRead: (id: string, signal?: AbortSignal) =>
     post(
       `${idPath('notifications', id)}/read`,
-      contract.emptyBodySchema,
-      contract.notificationOutputSchema,
+      emptyBodySchema,
+      notificationOutputSchema,
       {},
       signal,
     ),

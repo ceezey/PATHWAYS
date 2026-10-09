@@ -25,7 +25,7 @@ import { Form } from '@/components/ui/form'
 import { pathwaysClient } from '@/lib/services/pathways-client'
 import type { ProjectDetail, UserRecord } from '@/types/pathways'
 
-// Mirrors the server-side gate (packages/shared/src/rbac/authorization-policy.ts,
+// Uses the shared server-side gate (packages/shared/src/rbac/authorization-policy.ts,
 // canAssignRole/canAuthorizeRole) so the dialog disables fields the actor
 // cannot save, instead of letting a rejected PATCH be the only feedback.
 import { type CanonicalRole, canAssignRole } from '@pathways/shared'

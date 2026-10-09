@@ -233,6 +233,20 @@ describe('business calendar timeline metrics', () => {
     }
     expect(() => observeTimeline({ ...base, metric: 'PROJECT_OVERDUE_DAYS' })).toThrow()
   })
+  it.each(['projectStatus', 'projectArchived'])('rejects a timeline input missing %s', (field) => {
+    const input: Record<string, unknown> = {
+      ...context,
+      metric: 'PROJECT_OVERDUE_DAYS',
+      reportingDate: '2026-09-26',
+      startDate: '2026-09-20',
+      endDate: '2026-09-25',
+      revision: '1',
+      projectStatus: 'ONGOING',
+      projectArchived: false,
+    }
+    delete input[field]
+    expect(() => observeTimeline(input)).toThrow()
+  })
   it.each([
     ['2026-09-19', '0', '11', '0'],
     ['2026-09-20', '0', '10', '0'],
