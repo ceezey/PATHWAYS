@@ -339,6 +339,7 @@ describe('financial receipt reads', () => {
     const failure = service.receipt(scopedActor, projectId, id)
     await expect(failure).rejects.toBeInstanceOf(ServiceUnavailableException)
     await expect(failure).rejects.toThrow('Private receipt storage unavailable')
+    expect(createReader).toHaveBeenCalledTimes(1)
     expect(state.reader).not.toHaveBeenCalled()
     expect(tx.auditLog.create).not.toHaveBeenCalled()
   })

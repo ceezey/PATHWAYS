@@ -14,6 +14,8 @@ describe('validateImportRequest', () => {
     { expectedMappingRevision: '2' },
     {},
     { expectedMappingRevision: 1, extra: true },
+    JSON.parse('{"expectedMappingRevision":1,"__proto__":{"x":1}}'),
+    { expectedMappingRevision: 1, constructor: { x: 1 } },
   ])('rejects %j', (body) => {
     expect(validateImportRequest.safeParse(body).success).toBe(false)
   })

@@ -74,19 +74,21 @@ describe('application module wiring', () => {
     class FirstModule {}
     class SecondModule {}
     class RootModule {}
+    class Dup {}
     Module({
-      providers: [
-        { provide: TOKEN, useValue: 1 },
-        { provide: APP_GUARD, useValue: {} },
-      ],
+      providers: [{ provide: TOKEN, useValue: 1 }, Dup, { provide: APP_GUARD, useValue: {} }],
     })(FirstModule)
     Module({
       providers: [
         { provide: TOKEN, useFactory: () => 2 },
+        Dup,
         { provide: APP_GUARD, useValue: {} },
       ],
     })(SecondModule)
     Module({ imports: [FirstModule, SecondModule] })(RootModule)
-    expect(duplicateProviders(RootModule)).toEqual(['Symbol(TOKEN): FirstModule, SecondModule'])
+    expect(duplicateProviders(RootModule)).toEqual([
+      'Symbol(TOKEN): FirstModule, SecondModule',
+      'Dup: FirstModule, SecondModule',
+    ])
   })
 })
