@@ -611,3 +611,4 @@
 - Other packages unchanged: config 19, shared 170, imports 91, web 1895.
 - F3a decisions (rulings 2, 4, 5 and 6) are recorded in the change record section 9, because the plan file is removed after merge.
 - Deferred to F3b: zod pipe and first contract, contract naming convention, `"sideEffects": false` for `packages/shared`, `withAuthorizedOperation` in `common/authz`, storage factory injection, wiring test for object providers.
+- Gates: lint, typecheck and builds pass; tests config 19, shared 170, imports 91, api 2324 (21 skipped; the baseline plus 17 intended tests), web 1895, sad 49; `Replay-Local.ps1 -MigrationBaseline` 0 FAIL; demo seed first run and compiled API boot clean; e2e auth-navigation 27/27; e2e main 39 pass with the same 9 failures as dev; web middleware 112 kB; SAD sign-off 273/273 PASS at `42b52932`. Merged to local dev as `2391ca44`.
