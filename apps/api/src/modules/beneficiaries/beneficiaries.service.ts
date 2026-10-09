@@ -20,6 +20,7 @@ import {
   minimumBeneficiaryAge,
   validateAndNormalizeFormData,
 } from '@pathways/shared'
+import type { Tx } from '../../common/prisma/transaction'
 import { PrismaService } from '../../prisma/prisma.service'
 import { projectScope } from '../auth/authorized-data.service'
 import { withAuthorizedOperation } from '../auth/authorized-operation'
@@ -36,8 +37,6 @@ import {
   canonicalIdentifierValue,
 } from './beneficiaries.dto'
 import { canReadProgress, loadProgress } from './beneficiary-progress'
-
-type Tx = Prisma.TransactionClient
 
 /** The one system template key the 0040 guard and check constraint admit. */
 const DEFAULT_REGISTRATION_TEMPLATE_KEY = 'SYSTEM_DEFAULT_REGISTRATION_V1'

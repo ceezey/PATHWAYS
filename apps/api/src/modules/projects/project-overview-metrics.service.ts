@@ -4,7 +4,6 @@ import {
   type AtomicPermission,
   type MetricCell,
   PROJECT_OVERVIEW_METRICS_CONTRACT_VERSION,
-  businessCalendarDate,
   efficiencyRatio,
   hasAtomicPermission,
   kpiAchievement,
@@ -12,8 +11,9 @@ import {
   projectOverviewMetricsSchema,
   timelineProgress,
 } from '@pathways/shared'
-import type { Prisma } from '@prisma/client'
 
+import type { Tx } from '../../common/prisma/transaction'
+import { currentBusinessDate } from '../../common/time/business-date'
 import { PrismaService } from '../../prisma/prisma.service'
 import { projectScope } from '../auth/authorized-data.service'
 import { withAuthorizedOperation } from '../auth/authorized-operation'
@@ -23,7 +23,6 @@ import { suppressSmallCount } from '../dashboards/descriptive-analytics'
 import { IndicatorsService } from '../indicators/indicators.service'
 import { readProjectBudget } from './project-budget'
 
-type Tx = Prisma.TransactionClient
 /** The p06_saddd V1 release accepts only this business calendar. */
 const sadddReleaseTimeZone = 'Asia/Manila'
 
@@ -84,12 +83,7 @@ export class ProjectOverviewMetricsService {
     const can = (permission: AtomicPermission) =>
       hasAtomicPermission(actor.roles[0], actor.permissions, permission)
     const zone = readApiEnv(process.env).BUSINESS_TIME_ZONE
-    let businessDate: string
-    try {
-      businessDate = businessCalendarDate(new Date(), zone)
-    } catch {
-      throw new ServiceUnavailableException('The configured business time zone is invalid.')
-    }
+    const businessDate = currentBusinessDate()
     const project = {
       id: row.id,
       startDate: row.startDate?.toISOString().slice(0, 10) ?? null,

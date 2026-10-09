@@ -1,11 +1,9 @@
 import { Inject, Injectable } from '@nestjs/common'
 import { kpiAchievement, numericMetric } from '@pathways/shared'
-import type { Prisma } from '@prisma/client'
+import type { Tx } from '../../common/prisma/transaction'
 import type { ApplicationIdentity } from '../auth/developer-access'
 import { suppressSmallCount } from '../dashboards/descriptive-analytics'
 import { IndicatorsService } from '../indicators/indicators.service'
-
-type Tx = Prisma.TransactionClient
 
 export const criterionTypes = [
   'KPI',

@@ -1,8 +1,7 @@
 import { Prisma } from '@prisma/client'
+import type { Tx } from '../../common/prisma/transaction'
 import type { ApplicationIdentity } from '../auth/developer-access'
 import type { CriterionType } from './evaluation-metrics'
-
-type Tx = Prisma.TransactionClient
 
 /** Fixed default OECD-DAC set every project is evaluated against; weights total 100. */
 export const defaultCriteria: ReadonlyArray<{

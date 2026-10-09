@@ -14,6 +14,7 @@ import { readApiEnv } from '@pathways/config'
 import type { Prisma } from '@prisma/client'
 
 import { aggregateOnlyRoles } from '@pathways/shared'
+import type { Tx } from '../../common/prisma/transaction'
 import { PrismaService } from '../../prisma/prisma.service'
 import { PROOF_STORAGE_DEADLINE_MS } from '../activities/activities.dto'
 import {
@@ -35,7 +36,6 @@ import {
   beneficiaryMediaContentTypes,
 } from './beneficiary-media.dto'
 
-type Tx = Prisma.TransactionClient
 const MAX_LISTED_MEDIA = 100
 const unavailable = () => new NotFoundException('Beneficiary media unavailable.')
 const rejection = (code: string, message: string) =>

@@ -21,7 +21,8 @@ import {
 import { Prisma } from '@prisma/client'
 
 import { readApiEnv } from '@pathways/config'
-import { aggregateOnlyRoles, hasAtomicPermission } from '@pathways/shared'
+import { aggregateOnlyRoles, businessCalendarDate, hasAtomicPermission } from '@pathways/shared'
+import type { Tx } from '../../common/prisma/transaction'
 import { PrismaService } from '../../prisma/prisma.service'
 import { readApplicationProfile } from '../auth/application-profile.service'
 import { projectScope } from '../auth/authorized-data.service'
@@ -52,7 +53,6 @@ import {
 // Create and update write assignments, links, budget and rule sources in one transaction; 5s is too short on the pooled remote DB.
 const ACTIVITY_SAVE_TRANSACTION_TIMEOUT_MS = 20_000
 
-type Tx = Prisma.TransactionClient
 const activityBudgetCategory = 'ACTIVITY_PROFILE_TOTAL'
 
 const activitySelection = {
@@ -528,17 +528,6 @@ export class ActivitiesService {
     @Inject(StorageService) private readonly storage: StorageService,
   ) {}
 
-  private businessDate(now = new Date()) {
-    const parts = new Intl.DateTimeFormat('en-CA', {
-      timeZone: this.env.BUSINESS_TIME_ZONE,
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-    }).formatToParts(now)
-    const values = Object.fromEntries(parts.map((part) => [part.type, part.value]))
-    return `${values.year}-${values.month}-${values.day}`
-  }
-
   private async requireProject(tx: Tx, actor: ApplicationIdentity, projectId: string) {
     if (!UUID_PATTERN.test(projectId)) throw new NotFoundException('Project unavailable.')
     const project = await tx.project.findFirst({
@@ -944,7 +933,12 @@ export class ActivitiesService {
   ) {
     const metrics = await this.readMetrics(tx, actor, row.projectId, [row.id])
     return {
-      ...mapActivity(row, this.businessDate(), metrics, actor.userId),
+      ...mapActivity(
+        row,
+        businessCalendarDate(new Date(), this.env.BUSINESS_TIME_ZONE),
+        metrics,
+        actor.userId,
+      ),
       capabilities: activityCapabilities(
         actor,
         row.status,
@@ -1049,7 +1043,7 @@ export class ActivitiesService {
         },
       })
       if (!project) throw new NotFoundException('Project unavailable.')
-      const today = this.businessDate()
+      const today = businessCalendarDate(new Date(), this.env.BUSINESS_TIME_ZONE)
       const metrics = await this.readListMetrics(
         tx,
         actor,
@@ -1713,7 +1707,7 @@ export class ActivitiesService {
         const presentation = activityPresentationStatus(
           activity.status,
           activity.plannedEndDate,
-          this.businessDate(),
+          businessCalendarDate(new Date(), this.env.BUSINESS_TIME_ZONE),
         )
         if (!presentation.overdue)
           throw new ConflictException('An overdue explanation can be recorded only while overdue.')

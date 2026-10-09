@@ -17,6 +17,7 @@ import {
   hasAtomicPermission,
   validateAndNormalizeFormData,
 } from '@pathways/shared'
+import type { Tx } from '../../common/prisma/transaction'
 import { PrismaService } from '../../prisma/prisma.service'
 import { projectScope } from '../auth/authorized-data.service'
 import { withAuthorizedOperation } from '../auth/authorized-operation'
@@ -34,8 +35,6 @@ import type {
   UpdateSubmissionDto,
 } from './metadata.dto'
 import { PublishedDefinitionCache } from './published-definition-cache'
-
-type Tx = Prisma.TransactionClient
 
 const fieldSelection = {
   id: true,

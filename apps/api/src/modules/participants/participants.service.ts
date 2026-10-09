@@ -9,6 +9,7 @@ import {
 import type { Prisma } from '@prisma/client'
 
 import { aggregateOnlyRoles, hasAtomicPermission } from '@pathways/shared'
+import type { Tx } from '../../common/prisma/transaction'
 import { PrismaService } from '../../prisma/prisma.service'
 import { projectScope } from '../auth/authorized-data.service'
 import { withAuthorizedOperation } from '../auth/authorized-operation'
@@ -16,7 +17,6 @@ import { type ApplicationIdentity, UUID_PATTERN } from '../auth/developer-access
 import type { CorrectJourneyEventDto, EnrollmentJourneyEventDto } from './participants.dto'
 import { normalizedCode, normalizedText } from './participants.dto'
 
-type Tx = Prisma.TransactionClient
 const attendanceValues = ['PRESENT', 'ABSENT', 'COMPLETED', 'NOT_COMPLETED', 'EXCUSED'] as const
 const progressValues = ['NOT_STARTED', 'IN_PROGRESS', 'COMPLETED', 'NEEDS_FOLLOW_UP'] as const
 

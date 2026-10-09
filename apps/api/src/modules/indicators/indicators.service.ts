@@ -22,6 +22,7 @@ import {
   normalizeMetricDecimal,
 } from '@pathways/shared'
 import { Prisma } from '@prisma/client'
+import type { Tx } from '../../common/prisma/transaction'
 import { PrismaService } from '../../prisma/prisma.service'
 import { projectScope } from '../auth/authorized-data.service'
 import { withAuthorizedOperation } from '../auth/authorized-operation'
@@ -40,7 +41,6 @@ import {
   updateIndicatorSchema,
 } from './indicators.dto'
 
-type Tx = Prisma.TransactionClient
 type DefinitionRow = Omit<MonitoringIndicator, 'progress' | 'contractVersion'>
 
 export function monitoringSqlError(error: unknown): never {

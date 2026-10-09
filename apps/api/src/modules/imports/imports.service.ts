@@ -30,6 +30,7 @@ import {
   smartMatchColumns,
 } from '@pathways/imports/server'
 import type { FormFieldValidationContract } from '@pathways/shared'
+import type { Tx } from '../../common/prisma/transaction'
 import { PrismaService } from '../../prisma/prisma.service'
 import { projectScope } from '../auth/authorized-data.service'
 import { withAuthorizedOperation } from '../auth/authorized-operation'
@@ -50,8 +51,6 @@ import type {
   ValidateImportDto,
 } from './imports.dto'
 import { W10FinalizationFault } from './p07-w10-finalization-fault'
-
-type Tx = Prisma.TransactionClient
 
 export interface UploadedImportFile {
   buffer: Buffer
