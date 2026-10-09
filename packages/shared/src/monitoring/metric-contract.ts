@@ -7,7 +7,6 @@ import {
   numericKinds,
   validateMetricPeriod,
 } from './metric-math'
-export * from './metric-math'
 
 export const P06_CONTRACT_VERSION = 'p06.v1' as const
 export const sadddAgeBands = ['0-9', '10-14', '15-17', '18-24', '25+', 'Unknown'] as const

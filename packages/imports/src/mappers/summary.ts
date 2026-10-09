@@ -1,4 +1,11 @@
-import type { ImportSummary } from '@pathways/shared'
+export interface ImportSummary {
+  fileName: string
+  fileType: 'csv' | 'xlsx' | 'xls'
+  totalRows: number
+  totalColumns: number
+  headers: string[]
+  warnings: string[]
+}
 
 export const createFileSummary = (
   fileName: string,

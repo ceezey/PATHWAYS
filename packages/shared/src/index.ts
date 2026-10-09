@@ -5,6 +5,7 @@ export * from './validation/activity-monitoring'
 export * from './validation/form-data'
 export * from './validation/project-code'
 
+export * from './monitoring/metric-math'
 export * from './monitoring/metric-contract'
 export * from './monitoring/descriptive-analytics'
 export * from './monitoring/analytics-insights'

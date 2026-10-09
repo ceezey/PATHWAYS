@@ -10,12 +10,3 @@ export interface HealthStatus {
   timestamp: string
   version: string
 }
-
-export interface ImportSummary {
-  fileName: string
-  fileType: 'csv' | 'xlsx' | 'xls'
-  totalRows: number
-  totalColumns: number
-  headers: string[]
-  warnings: string[]
-}
