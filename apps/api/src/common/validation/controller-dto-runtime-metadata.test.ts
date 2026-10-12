@@ -10,19 +10,6 @@ type ControllerCase = {
 
 const cases: ControllerCase[] = [
   {
-    file: 'src/modules/activities/activities.controller.ts',
-    dtoNames: [
-      'CreateActivityDto',
-      'ReviewActivityUpdateDto',
-      'SaveMilestoneDto',
-      'RecordActivityProgressDto',
-      'ReserveActivityProofDto',
-      'TransitionActivityDto',
-      'UpdateActivityDto',
-      'UpdateMilestoneDto',
-    ],
-  },
-  {
     file: 'src/modules/auth/auth.controller.ts',
     dtoNames: ['ChangeStepUpPinDto', 'VerifyStepUpPinDto'],
   },

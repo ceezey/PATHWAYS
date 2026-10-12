@@ -1,3 +1,8 @@
+import {
+  type ActivityEvidenceContentType,
+  MAX_ACTIVITY_EVIDENCE_FILES,
+  activityEvidenceContentTypes,
+} from '@pathways/shared'
 import { Type } from 'class-transformer'
 import {
   ArrayMaxSize,
@@ -14,11 +19,6 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator'
-import {
-  type ActivityEvidenceContentType,
-  MAX_ACTIVITY_EVIDENCE_FILES,
-  activityEvidenceContentTypes,
-} from '../activities/activities.dto'
 
 /** Beneficiary media allows the activity-proof types except documents. */
 export const beneficiaryMediaContentTypes: readonly string[] = activityEvidenceContentTypes.filter(

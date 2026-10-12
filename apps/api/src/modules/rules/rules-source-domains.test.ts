@@ -33,7 +33,10 @@ vi.mock('@pathways/config', () => ({
     EVIDENCE_MAX_FILE_BYTES: 52_428_800,
   }),
 }))
-import { ActivitiesService } from '../activities/activities.service'
+import { ActivityLifecycleService } from '../activities/activity-lifecycle.service'
+import { ActivityProofFinalizeService } from '../activities/activity-proof-finalize.service'
+import { ActivityProofsService } from '../activities/activity-proofs.service'
+import { ActivityReviewService } from '../activities/activity-review.service'
 import { IndicatorsService } from '../indicators/indicators.service'
 import { ProjectsService } from '../projects/projects.service'
 const project = '10000000-0000-4000-8000-000000000001'
@@ -42,11 +45,8 @@ const request = '30000000-0000-4000-8000-000000000003'
 const revision = '2026-09-27T00:00:00.000Z'
 const acknowledgement = { requestId: request, committed: true as const, replayed: true }
 const projects = new ProjectsService({} as PrismaService)
-const activities = new ActivitiesService(
-  {} as PrismaService,
-  {} as StorageService,
-  privateStorageFactories,
-)
+const lifecycleService = new ActivityLifecycleService({} as PrismaService)
+const reviewService = new ActivityReviewService({} as PrismaService)
 const indicators = new IndicatorsService({} as PrismaService)
 const activityBody = {
   clientMutationId: request,
@@ -81,11 +81,11 @@ const operations = [
         expectedUpdatedAt: revision,
       }),
   ],
-  ['ACTIVITY_CREATE', () => activities.create(boundary.actor, project, activityBody)],
+  ['ACTIVITY_CREATE', () => lifecycleService.create(boundary.actor, project, activityBody)],
   [
     'ACTIVITY_UPDATE',
     () =>
-      activities.update(boundary.actor, project, source, {
+      lifecycleService.update(boundary.actor, project, source, {
         ...activityBody,
         expectedUpdatedAt: revision,
       }),
@@ -93,7 +93,7 @@ const operations = [
   [
     'ACTIVITY_START',
     () =>
-      activities.transition(boundary.actor, project, source, {
+      lifecycleService.transition(boundary.actor, project, source, {
         clientMutationId: request,
         status: 'IN_PROGRESS',
         expectedUpdatedAt: revision,
@@ -102,7 +102,7 @@ const operations = [
   [
     'ACTIVITY_CANCEL',
     () =>
-      activities.transition(boundary.actor, project, source, {
+      lifecycleService.transition(boundary.actor, project, source, {
         clientMutationId: request,
         status: 'CANCELLED',
         reason: 'Synthetic cancellation',
@@ -112,7 +112,7 @@ const operations = [
   [
     'ACTIVITY_REVIEW',
     () =>
-      activities.reviewUpdate(boundary.actor, project, source, source, {
+      reviewService.reviewUpdate(boundary.actor, project, source, source, {
         clientMutationId: request,
         decision: 'APPROVE',
         reason: 'Synthetic review',
@@ -245,10 +245,9 @@ describe('current source handler immutable receipts precede mutable state and so
   it('recovers finalized proof before external storage even after activity became terminal', async () => {
     const hash = createHash('sha256').update('synthetic-proof').digest('hex')
     const storage = { createPrivateUploadUrls: vi.fn(), deleteFile: vi.fn() }
-    const service = new ActivitiesService(
+    const proofsService = new ActivityProofsService(
       {} as PrismaService,
       storage as unknown as StorageService,
-      privateStorageFactories,
     )
     boundary.tx = {
       project: { findFirst: vi.fn(async () => ({ id: project, startDate: null, endDate: null })) },
@@ -280,7 +279,7 @@ describe('current source handler immutable receipts precede mutable state and so
       },
     }
     expect(
-      await service.reserveProof(boundary.actor, project, source, {
+      await proofsService.reserveProof(boundary.actor, project, source, {
         clientUpdateId: request,
         progressPercent: 100,
         note: 'Synthetic proof',
@@ -308,7 +307,7 @@ describe('current source handler immutable receipts precede mutable state and so
       }))
       .reverse()
     const storage = { createPrivateUploadUrls: vi.fn(), deleteFile: vi.fn() }
-    const service = new ActivitiesService(
+    const finalizeService = new ActivityProofFinalizeService(
       {} as PrismaService,
       storage as unknown as StorageService,
       privateStorageFactories,
@@ -343,7 +342,13 @@ describe('current source handler immutable receipts precede mutable state and so
       },
     }
     expect(
-      await service.finalizeProofFile(boundary.actor, project, source, reservation, evidence[0].id),
+      await finalizeService.finalizeProofFile(
+        boundary.actor,
+        project,
+        source,
+        reservation,
+        evidence[0].id,
+      ),
     ).toEqual({ status: 'COMMITTED', acknowledgement })
     expect(boundary.begin.mock.calls[0]?.[4]).toEqual({
       kind: 'PROOF_FINALIZE',
@@ -363,10 +368,9 @@ describe('current source handler immutable receipts precede mutable state and so
   it('rejects altered retry proof MIME/size before any receipt lookup or external storage', async () => {
     const hash = createHash('sha256').update('synthetic-proof').digest('hex')
     const storage = { createPrivateUploadUrls: vi.fn(), deleteFile: vi.fn() }
-    const service = new ActivitiesService(
+    const proofsService = new ActivityProofsService(
       {} as PrismaService,
       storage as unknown as StorageService,
-      privateStorageFactories,
     )
     boundary.tx = {
       project: { findFirst: vi.fn(async () => ({ id: project, startDate: null, endDate: null })) },
@@ -398,7 +402,7 @@ describe('current source handler immutable receipts precede mutable state and so
       },
     }
     await expect(
-      service.reserveProof(boundary.actor, project, source, {
+      proofsService.reserveProof(boundary.actor, project, source, {
         clientUpdateId: request,
         progressPercent: 50,
         note: 'Synthetic proof',

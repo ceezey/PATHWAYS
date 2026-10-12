@@ -1,9 +1,11 @@
 import { z } from 'zod'
 
 import {
+  countInput,
   hasUniqueItems,
   isoDateString,
   lengthString,
+  pesoAmountInput,
   strictIsoDateString,
   trimmedInput,
   uuidString,
@@ -21,7 +23,6 @@ export const storedProjectStatuses = [
 export type StoredProjectStatus = (typeof storedProjectStatuses)[number]
 
 const recordCodePattern = /^[A-Za-z0-9][A-Za-z0-9_-]*$/
-const pesoAmountPattern = /^(0|[1-9][0-9]{0,15})(\.[0-9]{1,2})?$/
 
 // A project or program code: trimmed and upper-cased, then 2 to 40 letters, digits, hyphens or underscores.
 export const recordCodeInput = z.preprocess(
@@ -44,17 +45,8 @@ const projectFields = {
     .refine(hasUniqueItems, 'must not repeat a partner')
     .nullish(),
   sector: lengthString(0, 160).nullish(),
-  targetBeneficiaries: z
-    .preprocess(
-      (value) => (value === '' || value === null ? value : Number(value)),
-      z.number().int().min(0).max(2_147_483_647),
-    )
-    .nullish(),
-  projectBudget: trimmedInput(
-    z
-      .string()
-      .regex(pesoAmountPattern, 'must be a non-negative PHP amount with at most 2 decimal places.'),
-  ).optional(),
+  targetBeneficiaries: countInput(2_147_483_647).nullish(),
+  projectBudget: pesoAmountInput.optional(),
   programManagerId: uuidString.nullish(),
   projectManagerId: uuidString.nullish(),
   monitoringOfficerId: uuidString.nullish(),

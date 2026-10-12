@@ -1,29 +1,18 @@
-import {
-  Body,
-  Controller,
-  ForbiddenException,
-  Get,
-  Header,
-  Inject,
-  Param,
-  Post,
-  Req,
-} from '@nestjs/common'
+import { Body, Controller, Get, Header, Inject, Param, Post, Req } from '@nestjs/common'
 
+import {
+  type CreateActivityExtensionRequest,
+  type DecideActivityExtensionRequest,
+  type VerifyActivityExtensionRequest,
+  createActivityExtensionRequest,
+  decideActivityExtensionRequest,
+  verifyActivityExtensionRequest,
+} from '@pathways/shared'
 import type { AuthenticatedRequest } from '../../common/authz/application-identity'
+import { requestIdentity } from '../../common/authz/request-identity'
 import { RequirePermission } from '../../common/decorators/permission.decorator'
-// biome-ignore lint/style/useImportType: Nest validation needs the DTO constructors at runtime.
-import {
-  DecideActivityExtensionDto,
-  RequestActivityExtensionDto,
-  VerifyActivityExtensionDto,
-} from './activity-extensions.dto'
+import { ZodPipe } from '../../common/validation/zod-pipe'
 import { ActivityExtensionsService } from './activity-extensions.service'
-
-function profile(request: AuthenticatedRequest) {
-  if (!request.user) throw new ForbiddenException('Application profile is required.')
-  return request.user
-}
 
 @Controller('projects/:projectId/activities/:activityId/extension-requests')
 export class ActivityExtensionsController {
@@ -39,7 +28,7 @@ export class ActivityExtensionsController {
     @Param('projectId') projectId: string,
     @Param('activityId') activityId: string,
   ) {
-    return this.service.list(profile(request), projectId, activityId)
+    return this.service.list(requestIdentity(request), projectId, activityId)
   }
 
   @Post()
@@ -49,9 +38,9 @@ export class ActivityExtensionsController {
     @Req() request: AuthenticatedRequest,
     @Param('projectId') projectId: string,
     @Param('activityId') activityId: string,
-    @Body() body: RequestActivityExtensionDto,
+    @Body(new ZodPipe(createActivityExtensionRequest)) body: CreateActivityExtensionRequest,
   ) {
-    return this.service.request(profile(request), projectId, activityId, body)
+    return this.service.request(requestIdentity(request), projectId, activityId, body)
   }
 
   @Post(':requestId/verify')
@@ -62,9 +51,9 @@ export class ActivityExtensionsController {
     @Param('projectId') projectId: string,
     @Param('activityId') activityId: string,
     @Param('requestId') requestId: string,
-    @Body() body: VerifyActivityExtensionDto,
+    @Body(new ZodPipe(verifyActivityExtensionRequest)) body: VerifyActivityExtensionRequest,
   ) {
-    return this.service.verify(profile(request), projectId, activityId, requestId, body)
+    return this.service.verify(requestIdentity(request), projectId, activityId, requestId, body)
   }
 
   @Post(':requestId/decide')
@@ -75,8 +64,8 @@ export class ActivityExtensionsController {
     @Param('projectId') projectId: string,
     @Param('activityId') activityId: string,
     @Param('requestId') requestId: string,
-    @Body() body: DecideActivityExtensionDto,
+    @Body(new ZodPipe(decideActivityExtensionRequest)) body: DecideActivityExtensionRequest,
   ) {
-    return this.service.decide(profile(request), projectId, activityId, requestId, body)
+    return this.service.decide(requestIdentity(request), projectId, activityId, requestId, body)
   }
 }

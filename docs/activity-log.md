@@ -665,3 +665,19 @@
 - S1a decisions are recorded in the change record section 9; the plan stays until S1b is planned, because it holds the S1b outline.
 - Deferred to S1b: `lib/api/projects` and the project methods of `pathways-client.ts`, `requestSourceMutation` in `lib/api/core`, the `features/projects` layout and public `index.ts`, the oversized project components, the project map fetcher and the web project types.
 - Gates: lint, typecheck and builds pass; tests config 19, shared 225, imports 91, api 2413 (21 skipped), web 1921, sad 53; `Replay-Local.ps1 -MigrationBaseline` 171 PASS, 0 FAIL; demo seed exit 0 on the third run (the first two hit P2028 on the survey report shortly after the replay; dev passed at the same time and the unchanged branch passed later); compiled API boot and health ok; e2e auth-navigation 27/27; e2e main 39 pass with the same 9 failures as dev; web middleware 102 kB; SAD sign-off 57/57 PASS at `1ae10dcd`. Merged to local dev as `ffcb023d`; plan kept for S1b.
+
+## 2026-10-12 Modularization S2a activities api (refactor/s2a-activities)
+- Task 1 (935a9e46): the activity, milestone, proof and reservation request contracts added in `contracts/activities/` with a DTO parity test; `countInput` and `pesoAmountInput` added to the field schemas; shared 269, api 2698.
+- Task 2 (17752ba0): the activity and milestone routes switched to the shared contracts and their DTO classes and parity test deleted; an HTTP test pins the 400 shape; shared 269, api 2410.
+- Task 3 (37ac7356): the extension routes switched to the shared contracts and the extension DTOs deleted; the extension service moved its row mapper and pure helpers into their own files; shared 273, api 2416.
+- Task 4 (d21ce4a0): `activities.controller.ts` split into five controllers by purpose, with a route table test and an HTTP routing test over the 20 routes; shared 273, api 2424.
+- Task 5 (d1cf1645): the activity row mapper and pure helpers moved into `activities.mapper.ts`, `activities.helpers.ts` and `activity-proof.helpers.ts` with shared response types; shared 273, api 2428.
+- Task 6 (83f9aee0): scope, metrics, link and budget helpers moved into four function modules that take `tx`; `requireScopedProjectRow` and `requireActiveAssignment` adopted; shared 273, api 2428.
+- Task 7 (d56a8637): milestones, evidence, review and progress split out of `ActivitiesService` into four injectable services; shared 273, api 2428.
+- Task 8 (6584c9e2): lifecycle and proofs split out into `ActivityLifecycleService`, `ActivityProofsService` and `ActivityProofFinalizeService`, with an ordering test for `finalizeProofFile`; shared 273, api 2429.
+- Task 9 (10be17ae): the three `importOriginal` mocks of `private-inspection-reader` became injected storage factories and the inspection service takes `Tx`; shared 273, api 2429 (21 skipped).
+- Final sizes: `activities.service.ts` 182 lines, `activity-lifecycle.service.ts` 356, `activity-proofs.service.ts` 240, `activity-proof-finalize.service.ts` 282, `activity-extensions.service.ts` about 370.
+- Parity: 285 activity and milestone checks and 47 extension checks agree between the DTO and contract routes; the accepted differences are the prototype keys and the two null bodies of ruling 4.
+- Middleware stayed at 102 kB. S2a touched no web code.
+- S2a decisions are recorded in the change record section 9; the plan stays until S2b is planned, because it holds the S2b outline.
+- Deferred to S2b: `lib/api/activities` and the activity, extension, evidence and proof methods of `pathways-client.ts`, `private-proof-client.ts`, the `features/projects` activity folder layout, the four oversized components, the hand-written web activity types, the place of `activityExtensionSchema`, and the dead `files` option and `proofSnapshot` of `source-mutation.ts`.

@@ -150,7 +150,7 @@ describe('ActivityExtensionsService.request', () => {
     tx.projectActivityAssignment.findFirst.mockResolvedValue(null)
     await expect(
       service.request(actor('PROJECT_OFFICER', officer), project, activityId, requestBody),
-    ).rejects.toMatchObject({ status: 403 })
+    ).rejects.toThrow('An active activity assignment is required.')
     expect(tx.activityExtensionRequest.create).not.toHaveBeenCalled()
   })
 

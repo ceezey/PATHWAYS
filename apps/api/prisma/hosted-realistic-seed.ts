@@ -4,19 +4,18 @@ import path from 'node:path'
 import { PrismaClient } from '@prisma/client'
 import { createClient } from '@supabase/supabase-js'
 
-import type { CanonicalRole } from '@pathways/shared'
+import type {
+  CanonicalRole,
+  CreateActivityRequest,
+  TransitionActivityRequest,
+} from '@pathways/shared'
 import type { CreateProjectRequest } from '@pathways/shared'
 import type { ApplicationIdentity } from '../src/common/authz/application-identity'
-import type {
-  CreateActivityDto,
-  TransitionActivityDto,
-} from '../src/modules/activities/activities.dto'
-import { ActivitiesService } from '../src/modules/activities/activities.service'
+import { ActivityLifecycleService } from '../src/modules/activities/activity-lifecycle.service'
 import type { RegisterBeneficiaryDto } from '../src/modules/beneficiaries/beneficiaries.dto'
 import { BeneficiariesService } from '../src/modules/beneficiaries/beneficiaries.service'
 import { IndicatorsService } from '../src/modules/indicators/indicators.service'
 import { ProjectsService } from '../src/modules/projects/projects.service'
-import { privateStorageFactories } from '../src/modules/storage/private-storage-factories'
 import { StorageService } from '../src/modules/storage/storage.service'
 import { PrismaService } from '../src/prisma/prisma.service'
 import { seedCanonicalReferenceData } from './canonical-seed'
@@ -502,7 +501,7 @@ async function main() {
   const runtime = new PrismaService({ datasources: { db: { url: runtimeUrl } } })
   const storage = new StorageService()
   const projectsService = new ProjectsService(runtime)
-  const activitiesService = new ActivitiesService(runtime, storage, privateStorageFactories)
+  const activityLifecycleService = new ActivityLifecycleService(runtime)
   const indicatorsService = new IndicatorsService(runtime)
   const beneficiariesService = new BeneficiariesService(runtime)
 
@@ -793,9 +792,10 @@ async function main() {
         const clientMutationId = stableUuid(`activity-create:${plan.code}:${i}`)
         const plannedStart = addDaysIso(plan.startDate, i * 21)
         const plannedEnd = addDaysIso(plannedStart, template.days)
-        const createDto: CreateActivityDto = {
+        const code = `ACT-${plan.code}-${String(i + 1).padStart(2, '0')}`
+        const createDto: CreateActivityRequest = {
           clientMutationId,
-          code: `ACT-${plan.code}-${String(i + 1).padStart(2, '0')}`,
+          code,
           title: template.title,
           description: `${template.title} for ${plan.title}.`,
           activityType: template.type,
@@ -806,15 +806,15 @@ async function main() {
           assignedUserIds: [userIdOf(projectOfficerStaff[i % projectOfficerStaff.length])],
         }
         const existingActivity = await prisma.projectActivity.findFirst({
-          where: { organizationId: workspace.organizationId, projectId, code: createDto.code },
+          where: { organizationId: workspace.organizationId, projectId, code },
         })
         if (!existingActivity) {
-          await activitiesService.create(projectManagerIdentity, projectId, createDto)
+          await activityLifecycleService.create(projectManagerIdentity, projectId, createDto)
         }
         // Re-read from the database rather than trust the service's mapped return shape, so
         // the status/updatedAt used for the transition decision below is always accurate.
         const activity = await prisma.projectActivity.findFirstOrThrow({
-          where: { organizationId: workspace.organizationId, projectId, code: createDto.code },
+          where: { organizationId: workspace.organizationId, projectId, code },
         })
 
         // Mixed statuses: leave roughly a third PLANNED, move a third IN_PROGRESS, cancel one.
@@ -823,13 +823,13 @@ async function main() {
             const fresh = await prisma.projectActivity.findUniqueOrThrow({
               where: { id: activity.id },
             })
-            const transitionDto: TransitionActivityDto = {
+            const transitionDto: TransitionActivityRequest = {
               clientMutationId: stableUuid(`activity-cancel:${plan.code}:${i}`),
               status: 'CANCELLED',
               reason: 'Superseded by a merged follow-up activity.',
               expectedUpdatedAt: fresh.updatedAt.toISOString(),
             }
-            await activitiesService.transition(
+            await activityLifecycleService.transition(
               projectManagerIdentity,
               projectId,
               activity.id,
@@ -839,12 +839,12 @@ async function main() {
             const fresh = await prisma.projectActivity.findUniqueOrThrow({
               where: { id: activity.id },
             })
-            const transitionDto: TransitionActivityDto = {
+            const transitionDto: TransitionActivityRequest = {
               clientMutationId: stableUuid(`activity-start:${plan.code}:${i}`),
               status: 'IN_PROGRESS',
               expectedUpdatedAt: fresh.updatedAt.toISOString(),
             }
-            await activitiesService.transition(
+            await activityLifecycleService.transition(
               projectManagerIdentity,
               projectId,
               activity.id,

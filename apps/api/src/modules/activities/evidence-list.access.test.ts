@@ -9,7 +9,6 @@ import { PERMISSION_KEY } from '@app/common/decorators/permission.decorator'
 import type { StorageService } from '@app/modules/storage/storage.service'
 import type { PrismaService } from '@app/prisma/prisma.service'
 import { hasAtomicPermission } from '@pathways/shared'
-import { privateStorageFactories } from '../storage/private-storage-factories'
 
 const state = vi.hoisted(() => ({
   actor: undefined as ApplicationIdentity | undefined,
@@ -25,8 +24,8 @@ vi.mock('@app/common/authz/authorized-operation', () => ({
   }),
 }))
 
-import { EvidenceController } from './activities.controller'
-import { ActivitiesService } from './activities.service'
+import { EvidenceController } from './activity-evidence.controller'
+import { ActivityEvidenceService } from './activity-evidence.service'
 
 const organizationId = '10000000-0000-4000-8000-000000000001'
 const projectId = '20000000-0000-4000-8000-000000000002'
@@ -86,11 +85,7 @@ const groups = (pending: number, approved: number, rejected: number, verified: n
 ]
 
 const tx = { project: { findFirst: vi.fn() }, evidenceMedia: { groupBy: vi.fn() } }
-const service = new ActivitiesService(
-  {} as PrismaService,
-  {} as StorageService,
-  privateStorageFactories,
-)
+const evidenceService = new ActivityEvidenceService({} as PrismaService, {} as StorageService)
 
 function collectKeys(value: unknown, keys = new Set<string>()) {
   if (Array.isArray(value)) for (const item of value) collectKeys(item, keys)
@@ -117,7 +112,7 @@ describe('A-01 evidence list under evidence.read', () => {
   it('returns the scoped evidence list to a project role, scoping before retrieval', async () => {
     state.actor = identity('MONITORING_AND_EVALUATION_OFFICER', ['evidence.read'])
     tx.project.findFirst.mockResolvedValue({ projectActivity_project: [detailRow] })
-    await expect(service.listEvidence(state.actor, projectId)).resolves.toEqual({
+    await expect(evidenceService.listEvidence(state.actor, projectId)).resolves.toEqual({
       scope: 'detail',
       records: [
         {
@@ -155,7 +150,7 @@ describe('A-01 evidence list under evidence.read', () => {
       state.actor = identity(role, ['evidence.read'])
       tx.project.findFirst.mockResolvedValue({ projectActivity_project: [aggregateRow] })
       tx.evidenceMedia.groupBy.mockResolvedValue(groups(1, 1, 1, 1))
-      await expect(service.listEvidence(state.actor, projectId)).resolves.toEqual({
+      await expect(evidenceService.listEvidence(state.actor, projectId)).resolves.toEqual({
         scope: 'aggregate',
         activities: [
           {
@@ -175,7 +170,7 @@ describe('A-01 evidence list under evidence.read', () => {
     state.actor = identity('PROGRAM_MANAGER', ['evidence.read'])
     tx.project.findFirst.mockResolvedValue({ projectActivity_project: [aggregateRow] })
     tx.evidenceMedia.groupBy.mockResolvedValue(groups(1, 1, 1, 1))
-    await service.listEvidence(state.actor, projectId)
+    await evidenceService.listEvidence(state.actor, projectId)
     expect(tx.evidenceMedia.groupBy).toHaveBeenCalledWith({
       by: ['activityId', 'status'],
       where: {
@@ -193,7 +188,7 @@ describe('A-01 evidence list under evidence.read', () => {
     state.actor = identity('PROGRAM_MANAGER', ['evidence.read'])
     tx.project.findFirst.mockResolvedValue({ projectActivity_project: [aggregateRow] })
     tx.evidenceMedia.groupBy.mockResolvedValue(groups(640, 900, 25, 100))
-    const result = await service.listEvidence(state.actor, projectId)
+    const result = await evidenceService.listEvidence(state.actor, projectId)
     expect(result).toEqual({
       scope: 'aggregate',
       activities: [
@@ -214,7 +209,7 @@ describe('A-01 evidence list under evidence.read', () => {
   it('skips the count query when the project has no activities', async () => {
     state.actor = identity('GRANT_MANAGER', ['evidence.read'])
     tx.project.findFirst.mockResolvedValue({ projectActivity_project: [] })
-    await expect(service.listEvidence(state.actor, projectId)).resolves.toEqual({
+    await expect(evidenceService.listEvidence(state.actor, projectId)).resolves.toEqual({
       scope: 'aggregate',
       activities: [],
     })
@@ -223,7 +218,7 @@ describe('A-01 evidence list under evidence.read', () => {
 
   it('denies an actor without evidence.read before any query', async () => {
     state.actor = identity('PROJECT_OFFICER', ['activities.read'])
-    await expect(service.listEvidence(state.actor, projectId)).rejects.toBeInstanceOf(
+    await expect(evidenceService.listEvidence(state.actor, projectId)).rejects.toBeInstanceOf(
       ForbiddenException,
     )
     expect(tx.project.findFirst).not.toHaveBeenCalled()
@@ -233,13 +228,13 @@ describe('A-01 evidence list under evidence.read', () => {
   it('returns not found for a cross-organization or unassigned project', async () => {
     state.actor = identity('MONITORING_AND_EVALUATION_OFFICER', ['evidence.read'])
     tx.project.findFirst.mockResolvedValue(null)
-    await expect(service.listEvidence(state.actor, otherProjectId)).rejects.toBeInstanceOf(
+    await expect(evidenceService.listEvidence(state.actor, otherProjectId)).rejects.toBeInstanceOf(
       NotFoundException,
     )
     expect(tx.evidenceMedia.groupBy).not.toHaveBeenCalled()
     const request = tx.project.findFirst.mock.calls[0][0]
     expect(request.where.AND[0].organizationId).toBe(organizationId)
-    await expect(service.listEvidence(state.actor, 'not-a-uuid')).rejects.toBeInstanceOf(
+    await expect(evidenceService.listEvidence(state.actor, 'not-a-uuid')).rejects.toBeInstanceOf(
       NotFoundException,
     )
   })
@@ -263,7 +258,7 @@ describe('A-01 evidence list under evidence.read', () => {
           },
         ],
       })
-      const result = await service.listEvidence(state.actor, projectId)
+      const result = await evidenceService.listEvidence(state.actor, projectId)
       const returned = collectKeys(result)
       for (const key of [
         'fileName',

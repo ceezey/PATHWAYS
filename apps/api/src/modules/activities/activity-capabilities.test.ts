@@ -19,7 +19,6 @@ import {
   hasAtomicPermission,
   rolePermissions,
 } from '@pathways/shared'
-import { privateStorageFactories } from '../storage/private-storage-factories'
 
 const state = vi.hoisted(() => ({
   actor: undefined as ApplicationIdentity | undefined,
@@ -50,7 +49,11 @@ vi.mock('../rules/rules-source-operation', async (importOriginal) => ({
 }))
 
 import { ActivitiesController } from './activities.controller'
-import { ActivitiesService, activityCapabilities } from './activities.service'
+import { activityCapabilities } from './activities.helpers'
+import { ActivitiesService } from './activities.service'
+import { ActivityLifecycleService } from './activity-lifecycle.service'
+import { ActivityProgressService } from './activity-progress.service'
+import { ActivityProofsService } from './activity-proofs.service'
 
 const organizationId = '10000000-0000-4000-8000-000000000001'
 const projectId = '20000000-0000-4000-8000-000000000002'
@@ -112,11 +115,10 @@ const tx = {
   auditLog: { create: vi.fn() },
 }
 
-const service = new ActivitiesService(
-  {} as PrismaService,
-  {} as StorageService,
-  privateStorageFactories,
-)
+const service = new ActivitiesService({} as PrismaService)
+const lifecycleService = new ActivityLifecycleService({} as PrismaService)
+const proofsService = new ActivityProofsService({} as PrismaService, {} as StorageService)
+const progressService = new ActivityProgressService({} as PrismaService)
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -276,7 +278,7 @@ describe('each role sees exactly the actions the API accepts', () => {
     tx.projectActivityAssignment.findFirst.mockResolvedValue(assigned ? { id: 'assignment' } : null)
 
     // Edit: a stale expectedUpdatedAt is the only remaining failure once authority passes.
-    const edit = service
+    const edit = lifecycleService
       .update(actor, projectId, activityId, {
         clientMutationId: 'c0000000-0000-4000-8000-00000000000c',
         title: 'Synthetic activity',
@@ -300,7 +302,7 @@ describe('each role sees exactly the actions the API accepts', () => {
     }
 
     // Record progress: 100% is refused as a proof-only completion after authority passes.
-    const progressError = await service
+    const progressError = await progressService
       .recordProgress(actor, projectId, activityId, {
         clientUpdateId: 'a0000000-0000-4000-8000-00000000000a',
         progressPercent: 100,
@@ -322,7 +324,7 @@ describe('each role sees exactly the actions the API accepts', () => {
       note: 'Other',
       evidenceMedia_update: [],
     })
-    const proofError = await service
+    const proofError = await proofsService
       .reserveProof(actor, projectId, activityId, {
         clientUpdateId: 'b0000000-0000-4000-8000-00000000000b',
         progressPercent: 100,
@@ -356,6 +358,7 @@ describe('GET projects/:projectId/activities/assignable-officers', () => {
     ).toBe('activities.read')
     const controller = new ActivitiesController(
       { assignableOfficers: vi.fn() } as unknown as ActivitiesService,
+      {} as never,
       {} as never,
     )
     expect(() =>

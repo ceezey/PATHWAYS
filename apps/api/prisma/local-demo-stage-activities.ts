@@ -108,7 +108,7 @@ async function submitProof(
 ) {
   const files = proofFiles(project, activity, ctx.today)
   const clientUpdateId = ctx.stable(`proof:${code}:${progress}`)
-  const reserved = (await ctx.services.activities.reserveProof(officer, projectId, activityId, {
+  const reserved = (await ctx.services.activityProofs.reserveProof(officer, projectId, activityId, {
     clientUpdateId,
     progressPercent: progress,
     note,
@@ -127,7 +127,7 @@ async function submitProof(
     const file = files.find((candidate) => candidate.fileName === entry.fileName)
     if (!file) throw new Error('Reserved file is unknown.')
     if (entry.uploadUrl) await putSignedUpload(ctx, entry.uploadUrl, file.bytes, file.contentType)
-    await ctx.services.activities.finalizeProofFile(
+    await ctx.services.activityProofFinalize.finalizeProofFile(
       officer,
       projectId,
       activityId,
@@ -149,7 +149,7 @@ async function review(
   const row = await asUser(ctx, ctx.staff.me, (tx) =>
     tx.activityUpdate.findUniqueOrThrow({ where: { id: updateId }, select: { updatedAt: true } }),
   )
-  await ctx.services.activities.reviewUpdate(
+  await ctx.services.activityReview.reviewUpdate(
     ctx.staff.me.identity,
     projectId,
     activityId,
@@ -173,7 +173,7 @@ async function startActivity(
     where: { id: activityId },
     select: { updatedAt: true },
   })
-  await ctx.services.activities.transition(
+  await ctx.services.activityLifecycle.transition(
     ctx.staff.projectManager.identity,
     projectId,
     activityId,
@@ -192,7 +192,7 @@ async function explainOverdue(
   projectId: string,
   activityId: string,
 ) {
-  await ctx.services.activities.recordOverdueExplanation(
+  await ctx.services.activityProgress.recordOverdueExplanation(
     ctx.staff.me.identity,
     projectId,
     activityId,
@@ -258,7 +258,7 @@ export async function applyOutcome(
         where: { id: activityId },
         select: { updatedAt: true },
       })
-      await ctx.services.activities.transition(pm, projectId, activityId, {
+      await ctx.services.activityLifecycle.transition(pm, projectId, activityId, {
         clientMutationId: ctx.stable(`cancel:${code}`),
         status: 'CANCELLED',
         reason: activity.reason,
@@ -275,7 +275,7 @@ export async function applyOutcome(
       return
     case 'PROGRESS_VERIFIED': {
       await startActivity(ctx, projectId, activityId, code)
-      await ctx.services.activities.recordProgress(officer, projectId, activityId, {
+      await ctx.services.activityProgress.recordProgress(officer, projectId, activityId, {
         clientUpdateId: ctx.stable(`progress:${code}`),
         progressPercent: activity.progress ?? 50,
         note: activity.note ?? 'Progress recorded after the monitoring visit.',
@@ -371,7 +371,7 @@ export async function stageActivities(ctx: DemoContext) {
       const outside =
         (projectRow.startDate && plannedStart < projectRow.startDate.toISOString().slice(0, 10)) ||
         (projectRow.endDate && plannedEnd > projectRow.endDate.toISOString().slice(0, 10))
-      const result = (await ctx.services.activities.create(pm, projectId, {
+      const result = (await ctx.services.activityLifecycle.create(pm, projectId, {
         clientMutationId: ctx.stable(`activity:${code}`),
         code,
         title: activity.title,

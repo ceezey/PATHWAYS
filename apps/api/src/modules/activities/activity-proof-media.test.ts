@@ -10,8 +10,6 @@ import {
 } from '@nestjs/common'
 import { PATH_METADATA } from '@nestjs/common/constants'
 import type { Prisma } from '@prisma/client'
-import { plainToInstance } from 'class-transformer'
-import { validate } from 'class-validator'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ApplicationIdentity } from '@app/common/authz/application-identity'
@@ -38,10 +36,6 @@ vi.mock('@app/common/authz/authorized-operation', () => ({
     return work(state.tx, state.actor)
   }),
 }))
-vi.mock('@app/modules/storage/private-inspection-reader', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@app/modules/storage/private-inspection-reader')>()),
-  createPrivateUploadVerifier: () => state.verify,
-}))
 vi.mock('@app/modules/rules/rules-source-operation', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@app/modules/rules/rules-source-operation')>()),
   beginRuleSourceOperation: state.begin,
@@ -49,10 +43,14 @@ vi.mock('@app/modules/rules/rules-source-operation', async (importOriginal) => (
   readRuleSourceAcknowledgement: state.ack,
 }))
 
+import { withAuthorizedOperation } from '@app/common/authz/authorized-operation'
 import { PrivateInspectionReadError } from '@app/modules/storage/private-inspection-reader'
+import type { ReserveActivityProofRequest } from '@pathways/shared'
 import { ActivitiesController } from './activities.controller'
-import { ReserveActivityProofDto } from './activities.dto'
-import { ActivitiesService, activityEvidenceType, proofDeclarations } from './activities.service'
+import { ActivityProofFinalizeService } from './activity-proof-finalize.service'
+import { activityEvidenceType, proofDeclarations } from './activity-proof.helpers'
+import { ActivityProofsService } from './activity-proofs.service'
+import { ActivityUpdatesController } from './activity-updates.controller'
 
 const organizationId = '10000000-0000-4000-8000-000000000001'
 const projectId = '20000000-0000-4000-8000-000000000002'
@@ -116,7 +114,7 @@ const files = types.map(([contentType, fileName], index) => ({
   byteSize: (index + 1) * MiB,
   sha256: sha(index + 1),
 }))
-const reserveInput = (extra: Partial<ReserveActivityProofDto> = {}) => ({
+const reserveInput = (extra: Partial<ReserveActivityProofRequest> = {}) => ({
   clientUpdateId,
   progressPercent: 60,
   note: '  Sessions held with evidence.  ',
@@ -148,10 +146,15 @@ const tx = {
   auditLog: { create: vi.fn() },
 }
 const storage = { createPrivateUploadUrls: vi.fn(), deleteFile: vi.fn() }
-const service = new ActivitiesService(
+const proofsService = new ActivityProofsService(
   {} as PrismaService,
   storage as unknown as StorageService,
-  privateStorageFactories,
+)
+// The upload verifier is injected, so the real storage reader module is never mocked.
+const finalizeService = new ActivityProofFinalizeService(
+  {} as PrismaService,
+  storage as unknown as StorageService,
+  { ...privateStorageFactories, createPrivateUploadVerifier: () => state.verify },
 )
 const acknowledgement = { requestId: updateId, committed: true as const, replayed: true }
 
@@ -176,24 +179,29 @@ beforeEach(() => {
 
 describe('evidence routes', () => {
   it('gate reserve, finalize and limits with the proof permission; the multipart route is retired', () => {
-    for (const method of ['reserveProof', 'finalizeProofFile', 'proofUploadLimits'] as const)
-      expect(Reflect.getMetadata(PERMISSION_KEY, ActivitiesController.prototype[method])).toBe(
+    for (const method of ['reserveProof', 'finalizeProofFile'] as const)
+      expect(Reflect.getMetadata(PERMISSION_KEY, ActivityUpdatesController.prototype[method])).toBe(
         'activities.proof.submit',
       )
-    const paths = Object.getOwnPropertyNames(ActivitiesController.prototype).map((name) =>
-      Reflect.getMetadata(
-        PATH_METADATA,
-        (ActivitiesController.prototype as unknown as Record<string, object>)[name],
+    expect(
+      Reflect.getMetadata(PERMISSION_KEY, ActivitiesController.prototype.proofUploadLimits),
+    ).toBe('activities.proof.submit')
+    const paths = [ActivitiesController, ActivityUpdatesController].flatMap((controller) =>
+      Object.getOwnPropertyNames(controller.prototype).map((name) =>
+        Reflect.getMetadata(
+          PATH_METADATA,
+          (controller.prototype as unknown as Record<string, object>)[name],
+        ),
       ),
     )
     expect(paths).toContain(':activityId/updates/reservations')
     expect(paths).toContain(':activityId/updates/:updateId/files/:evidenceId/finalize')
     expect(paths).not.toContain(':activityId/updates')
-    expect('submitUpdate' in ActivitiesController.prototype).toBe(false)
+    expect('submitUpdate' in ActivityUpdatesController.prototype).toBe(false)
   })
 
   it('publishes the effective limits from configuration', () => {
-    expect(service.proofUploadLimits(projectId)).toEqual({
+    expect(proofsService.proofUploadLimits(projectId)).toEqual({
       maxFiles: 10,
       maxFileBytes: 52_428_800,
       maxTotalBytes: 262_144_000,
@@ -204,7 +212,7 @@ describe('evidence routes', () => {
 
 describe('reserve (activities.proof.submit)', () => {
   it('reserves one update and a batched evidence insert typed PHOTO/VIDEO/DOCUMENT per file', async () => {
-    const result = await service.reserveProof(officer, projectId, activityId, reserveInput())
+    const result = await proofsService.reserveProof(officer, projectId, activityId, reserveInput())
     expect(tx.activityUpdate.create).toHaveBeenCalledOnce()
     expect(tx.evidenceMedia.createMany).toHaveBeenCalledOnce()
     const rows = tx.evidenceMedia.createMany.mock.calls[0][0].data as Array<Record<string, unknown>>
@@ -245,7 +253,7 @@ describe('reserve (activities.proof.submit)', () => {
         uploadUrl: index === 0 ? null : `https://storage.invalid/upload/${path}?token=t`,
       })),
     )
-    const result = await service.reserveProof(officer, projectId, activityId, reserveInput())
+    const result = await proofsService.reserveProof(officer, projectId, activityId, reserveInput())
     if (!('files' in result) || !result.files) throw new Error('Expected a reservation')
     expect(result.status).toBe('UPLOADING')
     expect(result.files[0].uploadUrl).toBeNull()
@@ -256,17 +264,13 @@ describe('reserve (activities.proof.submit)', () => {
     expect(activityEvidenceType(contentType)).toBe(type)
   })
 
-  it('rejects an eleventh file at the DTO and in the service before any read', async () => {
+  it('rejects an eleventh file in the service before any read', async () => {
     const eleven = Array.from({ length: 11 }, (_, index) => ({
       ...files[0],
       sha256: sha(index + 20),
     }))
-    const errors = await validate(
-      plainToInstance(ReserveActivityProofDto, reserveInput({ files: eleven })),
-    )
-    expect(errors.map((error) => error.property)).toContain('files')
     await expect(
-      service.reserveProof(officer, projectId, activityId, reserveInput({ files: eleven })),
+      proofsService.reserveProof(officer, projectId, activityId, reserveInput({ files: eleven })),
     ).rejects.toMatchObject({ response: { code: 'PROOF_FILE_COUNT' } })
     expect(tx.project.findFirst).not.toHaveBeenCalled()
   })
@@ -289,7 +293,7 @@ describe('reserve (activities.proof.submit)', () => {
       proofDeclarations([files[0], { ...files[1], sha256: files[0].sha256 }], 50 * MiB),
     ).toThrow(/twice/)
     await expect(
-      service.reserveProof(
+      proofsService.reserveProof(
         officer,
         projectId,
         activityId,
@@ -298,26 +302,6 @@ describe('reserve (activities.proof.submit)', () => {
     ).rejects.toMatchObject({ response: { code: 'PROOF_FILE_TOO_LARGE' } })
     expect(tx.project.findFirst).not.toHaveBeenCalled()
     expect(storage.createPrivateUploadUrls).not.toHaveBeenCalled()
-  })
-
-  it('rejects unsupported types, names and digests at the DTO boundary', async () => {
-    for (const file of [
-      { ...files[0], contentType: 'text/html' },
-      { ...files[0], contentType: 'image/gif' },
-      { ...files[0], fileName: '../escape.pdf' },
-      { ...files[0], fileName: 'a\\b.pdf' },
-      { ...files[0], sha256: 'F'.repeat(64) },
-      { ...files[0], byteSize: 0 },
-      { ...files[0], byteSize: 104_857_601 },
-      { ...files[0], unexpected: true },
-    ]) {
-      const errors = await validate(
-        plainToInstance(ReserveActivityProofDto, reserveInput({ files: [file as never] })),
-        { whitelist: true, forbidNonWhitelisted: true },
-      )
-      expect(errors.length).toBeGreaterThan(0)
-    }
-    expect(await validate(plainToInstance(ReserveActivityProofDto, reserveInput()))).toEqual([])
   })
 
   it('an identical retry returns the same reservation with fresh URLs for unverified files only', async () => {
@@ -339,7 +323,7 @@ describe('reserve (activities.proof.submit)', () => {
       status: 'PENDING',
       evidenceMedia_update: [verified, pending],
     })
-    const result = await service.reserveProof(
+    const result = await proofsService.reserveProof(
       officer,
       projectId,
       activityId,
@@ -365,7 +349,7 @@ describe('reserve (activities.proof.submit)', () => {
   })
 
   it('persists an optional beneficiariesReachedThisSession and returns it unchanged', async () => {
-    await service.reserveProof(
+    await proofsService.reserveProof(
       officer,
       projectId,
       activityId,
@@ -379,26 +363,13 @@ describe('reserve (activities.proof.submit)', () => {
   })
 
   it('defaults beneficiariesReachedThisSession to null when omitted', async () => {
-    await service.reserveProof(officer, projectId, activityId, reserveInput())
+    await proofsService.reserveProof(officer, projectId, activityId, reserveInput())
     expect(tx.activityUpdate.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ beneficiariesReachedThisSession: null }),
       }),
     )
   })
-
-  it.each([-1, 1.5, 100001])(
-    'rejects an invalid beneficiariesReachedThisSession value %s at the DTO boundary',
-    async (value) => {
-      const errors = await validate(
-        plainToInstance(
-          ReserveActivityProofDto,
-          reserveInput({ beneficiariesReachedThisSession: value }),
-        ),
-      )
-      expect(errors.map((error) => error.property)).toContain('beneficiariesReachedThisSession')
-    },
-  )
 
   it('a retry with a changed beneficiariesReachedThisSession conflicts before any storage call', async () => {
     tx.activityUpdate.findFirst.mockResolvedValue({
@@ -422,7 +393,7 @@ describe('reserve (activities.proof.submit)', () => {
       ),
     })
     await expect(
-      service.reserveProof(
+      proofsService.reserveProof(
         officer,
         projectId,
         activityId,
@@ -435,7 +406,7 @@ describe('reserve (activities.proof.submit)', () => {
   it('hides a cross-project reservation attempt carrying a session count before any read', async () => {
     tx.project.findFirst.mockResolvedValue(null)
     await expect(
-      service.reserveProof(
+      proofsService.reserveProof(
         officer,
         '20000000-0000-4000-8000-00000000000f',
         activityId,
@@ -456,7 +427,7 @@ describe('reserve (activities.proof.submit)', () => {
       evidenceMedia_update: [storedRow()],
     })
     await expect(
-      service.reserveProof(officer, projectId, activityId, reserveInput()),
+      proofsService.reserveProof(officer, projectId, activityId, reserveInput()),
     ).rejects.toBeInstanceOf(ConflictException)
     expect(state.ack).not.toHaveBeenCalled()
     expect(storage.createPrivateUploadUrls).not.toHaveBeenCalled()
@@ -468,7 +439,7 @@ describe('reserve (activities.proof.submit)', () => {
   ])('denies %s without proof authority before any read', async (role, permissions) => {
     state.actor = { ...officer, roles: [role], permissions }
     await expect(
-      service.reserveProof(state.actor, projectId, activityId, reserveInput()),
+      proofsService.reserveProof(state.actor, projectId, activityId, reserveInput()),
     ).rejects.toBeInstanceOf(ForbiddenException)
     expect(tx.project.findFirst).not.toHaveBeenCalled()
     expect(storage.createPrivateUploadUrls).not.toHaveBeenCalled()
@@ -477,7 +448,7 @@ describe('reserve (activities.proof.submit)', () => {
   it('denies a non-assigned officer before reading or writing any update', async () => {
     tx.projectActivityAssignment.findFirst.mockResolvedValue(null)
     await expect(
-      service.reserveProof(officer, projectId, activityId, reserveInput()),
+      proofsService.reserveProof(officer, projectId, activityId, reserveInput()),
     ).rejects.toBeInstanceOf(ForbiddenException)
     expect(tx.projectActivityAssignment.findFirst.mock.calls[0][0].where).toMatchObject({
       organizationId,
@@ -492,7 +463,7 @@ describe('reserve (activities.proof.submit)', () => {
   it('hides a cross-project or cross-organization activity before activity retrieval', async () => {
     tx.project.findFirst.mockResolvedValue(null)
     await expect(
-      service.reserveProof(
+      proofsService.reserveProof(
         officer,
         '20000000-0000-4000-8000-00000000000f',
         activityId,
@@ -507,14 +478,14 @@ describe('reserve (activities.proof.submit)', () => {
   it('fails closed without tokens when signing fails', async () => {
     storage.createPrivateUploadUrls.mockRejectedValue(new Error('provider detail'))
     await expect(
-      service.reserveProof(officer, projectId, activityId, reserveInput()),
+      proofsService.reserveProof(officer, projectId, activityId, reserveInput()),
     ).rejects.toBeInstanceOf(ServiceUnavailableException)
   })
 })
 
 describe('per-file finalize', () => {
   const finalize = (id = evidenceId) =>
-    service.finalizeProofFile(officer, projectId, activityId, updateId, id)
+    finalizeService.finalizeProofFile(officer, projectId, activityId, updateId, id)
   const target = (overrides: Record<string, unknown> = {}) => ({
     ...storedRow(overrides),
     activityUpdate: { status: 'PENDING' },
@@ -556,6 +527,18 @@ describe('per-file finalize', () => {
     expect(tx.activityUpdate.findFirst.mock.invocationCallOrder[0]).toBeGreaterThan(
       tx.$queryRaw.mock.invocationCallOrder[lock],
     )
+  })
+
+  it('reads the file, verifies the stored object, then commits in a second operation', async () => {
+    await finalize()
+    const operations = vi.mocked(withAuthorizedOperation).mock.invocationCallOrder
+    const reads = tx.evidenceMedia.findFirst.mock.invocationCallOrder
+    const verified = state.verify.mock.invocationCallOrder[0]
+    expect(operations).toHaveLength(2)
+    expect(reads).toHaveLength(2)
+    expect(reads[0]).toBeLessThan(verified)
+    expect(verified).toBeLessThan(reads[1])
+    expect(state.begin.mock.invocationCallOrder[0]).toBeGreaterThan(verified)
   })
 
   it('verifies the exact server-derived object, marks it ready and commits the last file for review', async () => {
@@ -687,7 +670,7 @@ describe('per-file finalize', () => {
       permissions: ['evidence.read', 'evidence.review'],
     }
     await expect(
-      service.finalizeProofFile(state.actor, projectId, activityId, updateId, evidenceId),
+      finalizeService.finalizeProofFile(state.actor, projectId, activityId, updateId, evidenceId),
     ).rejects.toBeInstanceOf(ForbiddenException)
     expect(tx.project.findFirst).not.toHaveBeenCalled()
     expect(state.verify).not.toHaveBeenCalled()
@@ -701,7 +684,7 @@ describe('per-file finalize', () => {
     await expect(finalize()).rejects.toBeInstanceOf(NotFoundException)
     expect(state.verify).not.toHaveBeenCalled()
     await expect(
-      service.finalizeProofFile(officer, projectId, activityId, updateId, 'not-a-uuid'),
+      finalizeService.finalizeProofFile(officer, projectId, activityId, updateId, 'not-a-uuid'),
     ).rejects.toBeInstanceOf(NotFoundException)
   })
 })
