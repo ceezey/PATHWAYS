@@ -36,10 +36,6 @@ vi.mock('@app/common/authz/authorized-operation', () => ({
     return work(state.tx, state.actor)
   }),
 }))
-vi.mock('@app/modules/storage/private-inspection-reader', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@app/modules/storage/private-inspection-reader')>()),
-  createPrivateUploadVerifier: () => state.verify,
-}))
 vi.mock('@app/modules/rules/rules-source-operation', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@app/modules/rules/rules-source-operation')>()),
   beginRuleSourceOperation: state.begin,
@@ -154,10 +150,11 @@ const proofsService = new ActivityProofsService(
   {} as PrismaService,
   storage as unknown as StorageService,
 )
+// The upload verifier is injected, so the real storage reader module is never mocked.
 const finalizeService = new ActivityProofFinalizeService(
   {} as PrismaService,
   storage as unknown as StorageService,
-  privateStorageFactories,
+  { ...privateStorageFactories, createPrivateUploadVerifier: () => state.verify },
 )
 const acknowledgement = { requestId: updateId, committed: true as const, replayed: true }
 

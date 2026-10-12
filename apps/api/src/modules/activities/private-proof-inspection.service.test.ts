@@ -21,11 +21,6 @@ vi.mock('../../common/authz/authorized-operation', () => ({
     work(state.tx, state.actor),
   ),
 }))
-// `read` is the verification pass; `release` is the streamed pass after final audit.
-vi.mock('../storage/private-inspection-reader', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../storage/private-inspection-reader')>()),
-  createPrivateObjectStreamer: () => ({ verify: state.read, release: state.release }),
-}))
 vi.mock('@pathways/config', () => ({
   readApiEnv: () => ({
     SUPABASE_URL: 'https://synthetic.invalid',
@@ -91,7 +86,11 @@ const tx = {
   evidenceMedia: { findMany: vi.fn() },
   auditLog: { create: vi.fn() },
 }
-const service = new PrivateProofInspectionService({} as PrismaService, privateStorageFactories)
+// `read` is the verification pass and `release` is the streamed pass after final audit.
+const service = new PrivateProofInspectionService({} as PrismaService, {
+  ...privateStorageFactories,
+  createPrivateObjectStreamer: () => ({ verify: state.read, release: state.release }),
+})
 const context = () => service.context(actor, ids.projectId, ids.activityId, ids.updateId)
 const inspect = () =>
   service.inspect(actor, ids.projectId, ids.activityId, ids.updateId, ids.evidenceId, revisions)

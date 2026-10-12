@@ -9,7 +9,11 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common'
 import { readApiEnv } from '@pathways/config'
-import { activityEvidenceContentTypes, hasAtomicPermission } from '@pathways/shared'
+import {
+  type ActivityEvidenceContentType,
+  activityEvidenceContentTypes,
+  hasAtomicPermission,
+} from '@pathways/shared'
 import type { Prisma } from '@prisma/client'
 import { writeAuditLog } from '../../common/audit/write-audit-log'
 import { type ApplicationIdentity, UUID_PATTERN } from '../../common/authz/application-identity'
@@ -17,13 +21,14 @@ import { readApplicationProfile } from '../../common/authz/application-profile'
 import { withAuthorizedOperation } from '../../common/authz/authorized-operation'
 import { projectScope } from '../../common/authz/project-scope'
 import { inspectionIdentityContext } from '../../common/network/inspection-request-budget'
+import type { Tx } from '../../common/prisma/transaction'
 import { PrismaService } from '../../prisma/prisma.service'
 import { matchesEvidenceSignature } from '../storage/private-inspection-reader'
 import {
   PRIVATE_STORAGE_FACTORIES,
   type PrivateStorageFactories,
 } from '../storage/private-storage-factories'
-import { PROOF_STORAGE_DEADLINE_MS } from './activity-proof.helpers'
+import { PROOF_STORAGE_DEADLINE_MS, evidenceExtension } from './activity-proof.helpers'
 
 // cr-pathways-activity-progress-media 3.5: at most ten proofs per update, discovery bounded to
 // eleven, every activity-update evidence type, and the configured per-file byte bound.
@@ -32,16 +37,6 @@ const activityProofTypes = ['PROGRESS_PROOF', 'COMPLETION_PROOF', 'PHOTO', 'VIDE
 
 // Enough leading bytes for the longest signature check (4096 byte ISO box plus its brand).
 const PEEK_BYTES = 4096 + 16
-const proofExtensions: Record<string, string> = {
-  'application/pdf': 'pdf',
-  'image/jpeg': 'jpg',
-  'image/png': 'png',
-  'image/webp': 'webp',
-  'video/mp4': 'mp4',
-  'video/quicktime': 'mov',
-  'video/webm': 'webm',
-}
-
 // Reads only the first chunks of the released stream and re-emits them ahead of the rest.
 async function peekLeading(body: Readable) {
   const source = body[Symbol.asyncIterator]()
@@ -158,11 +153,7 @@ export class PrivateProofInspectionService {
       throw new BadRequestException('Invalid inspection identifiers.')
   }
 
-  private async admission(
-    tx: Prisma.TransactionClient,
-    actor: ApplicationIdentity,
-    scope: Scope,
-  ): Promise<Admission> {
+  private async admission(tx: Tx, actor: ApplicationIdentity, scope: Scope): Promise<Admission> {
     if (
       actor.roles.length !== 1 ||
       actor.roles[0] !== 'MONITORING_AND_EVALUATION_OFFICER' ||
@@ -389,7 +380,7 @@ export class PrivateProofInspectionService {
         body: peeked.stream,
         byteSize: object.expectedBytes,
         contentType: typed ? contentType : 'application/octet-stream',
-        fileName: `activity-proof.${typed ? proofExtensions[contentType] : 'bin'}`,
+        fileName: `activity-proof.${typed ? evidenceExtension[contentType as ActivityEvidenceContentType].slice(1) : 'bin'}`,
       }
     } catch {
       throw new ServiceUnavailableException('Private inspection is temporarily unavailable.')
