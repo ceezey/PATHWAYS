@@ -1,9 +1,10 @@
 import { Body, Controller, ForbiddenException, Get, Inject, Post, Req } from '@nestjs/common'
 
+import { type CreateProgramRequest, createProgramRequest } from '@pathways/shared'
+
 import type { AuthenticatedRequest } from '../../common/authz/application-identity'
 import { RequirePermission } from '../../common/decorators/permission.decorator'
-// biome-ignore lint/style/useImportType: Nest validation needs the DTO constructor at runtime.
-import { CreateProgramDto } from './programs.dto'
+import { ZodPipe } from '../../common/validation/zod-pipe'
 import { ProgramsService } from './programs.service'
 
 function profile(request: AuthenticatedRequest) {
@@ -23,7 +24,10 @@ export class ProgramsController {
 
   @Post()
   @RequirePermission('programs.create')
-  create(@Req() request: AuthenticatedRequest, @Body() body: CreateProgramDto) {
+  create(
+    @Req() request: AuthenticatedRequest,
+    @Body(new ZodPipe(createProgramRequest)) body: CreateProgramRequest,
+  ) {
     return this.programs.create(profile(request), body)
   }
 }

@@ -1,10 +1,10 @@
 import { BadRequestException, ForbiddenException, Inject, Injectable } from '@nestjs/common'
+import type { CreateProgramRequest } from '@pathways/shared'
 
 import { writeAuditLog } from '../../common/audit/write-audit-log'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import { withAuthorizedOperation } from '../../common/authz/authorized-operation'
 import { PrismaService } from '../../prisma/prisma.service'
-import type { CreateProgramDto } from './programs.dto'
 
 @Injectable()
 export class ProgramsService {
@@ -44,7 +44,7 @@ export class ProgramsService {
     )
   }
 
-  create(identity: ApplicationIdentity, input: CreateProgramDto) {
+  create(identity: ApplicationIdentity, input: CreateProgramRequest) {
     return withAuthorizedOperation(this.prisma, identity, 'programs.create', async (tx, actor) => {
       if (actor.roles[0] !== 'SYSTEM_ADMINISTRATOR') {
         throw new ForbiddenException('Program creation requires System Administrator authority.')
