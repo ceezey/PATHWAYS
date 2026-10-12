@@ -4,7 +4,7 @@ import Link from 'next/link'
 
 import { StatusBadge } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
-import { formatCappedPercent } from '@/lib/percent'
+import { formatCappedPercent } from '@/lib/format/percent'
 import { cn } from '@/lib/utils'
 import { healthOf } from './health'
 import {

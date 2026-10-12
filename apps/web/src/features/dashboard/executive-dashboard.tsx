@@ -15,7 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { formatCappedPercent } from '@/lib/percent'
+import { formatCappedPercent } from '@/lib/format/percent'
 import { cn } from '@/lib/utils'
 import type {
   DashboardAction,

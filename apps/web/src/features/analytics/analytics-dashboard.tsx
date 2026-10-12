@@ -42,7 +42,7 @@ import { metricUnavailableLabel, overviewMetricLabel } from '@/features/projects
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'
 import { addPin } from '@/lib/dashboard-pins'
-import { formatCappedPercent } from '@/lib/percent'
+import { formatCappedPercent } from '@/lib/format/percent'
 import { can } from '@/lib/rbac/can'
 import { principalHasAtomicPermission } from '@/lib/rbac/policy'
 import { downloadCoreArtifact } from '@/lib/services/core-feature-client'

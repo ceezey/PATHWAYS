@@ -1,4 +1,4 @@
-import { formatCappedPercent, roundPercent } from '@/lib/percent'
+import { formatCappedPercent, roundPercent } from '@/lib/format/percent'
 import { cn } from '@/lib/utils'
 
 export const ProgressBar = ({

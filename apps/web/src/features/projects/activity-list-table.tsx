@@ -5,7 +5,7 @@ import { useMemo, useState } from 'react'
 
 import { CappedPercent, SectionCard, StatusBadge } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
-import { formatCappedPercent } from '@/lib/percent'
+import { formatCappedPercent } from '@/lib/format/percent'
 import { cn } from '@/lib/utils'
 import type { ActivitySummary } from '@/types/pathways'
 
