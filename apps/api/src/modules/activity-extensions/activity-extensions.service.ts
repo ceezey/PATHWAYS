@@ -6,8 +6,11 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common'
-import { type ActivityExtension, hasAtomicPermission } from '@pathways/shared'
-import type { Prisma } from '@prisma/client'
+import type {
+  CreateActivityExtensionRequest,
+  DecideActivityExtensionRequest,
+  VerifyActivityExtensionRequest,
+} from '@pathways/shared'
 
 import { writeAuditLog } from '../../common/audit/write-audit-log'
 import { type ApplicationIdentity, UUID_PATTERN } from '../../common/authz/application-identity'
@@ -20,92 +23,13 @@ import {
   finishRuleSourceOperation,
   sourceMutationBody,
 } from '../rules/rules-source-operation'
-import type {
-  DecideActivityExtensionDto,
-  RequestActivityExtensionDto,
-  VerifyActivityExtensionDto,
-} from './activity-extensions.dto'
-
-const person = { select: { id: true, fullName: true } } as const
-const extensionSelection = {
-  id: true,
-  projectId: true,
-  activityId: true,
-  currentEndDate: true,
-  requestedEndDate: true,
-  reason: true,
-  status: true,
-  requestedById: true,
-  requestedAt: true,
-  verifiedById: true,
-  verifiedAt: true,
-  verificationNote: true,
-  decidedAt: true,
-  decisionNote: true,
-  clientMutationId: true,
-  updatedAt: true,
-  requestedBy: person,
-  verifiedBy: person,
-  decidedBy: person,
-} as const
-type ExtensionRow = Prisma.ActivityExtensionRequestGetPayload<{
-  select: typeof extensionSelection
-}>
-
-const day = (value: Date | null) => (value ? value.toISOString().slice(0, 10) : null)
-const named = (value: { id: string; fullName: string } | null) =>
-  value ? { id: value.id, name: value.fullName.slice(0, 200) } : null
-
-function mapExtension(row: ExtensionRow): ActivityExtension {
-  return {
-    id: row.id,
-    projectId: row.projectId,
-    activityId: row.activityId,
-    currentEndDate: day(row.currentEndDate),
-    requestedEndDate: day(row.requestedEndDate) as string,
-    reason: row.reason,
-    status: row.status as ActivityExtension['status'],
-    requestedBy: named(row.requestedBy) as { id: string; name: string },
-    requestedAt: row.requestedAt.toISOString(),
-    verifiedBy: named(row.verifiedBy),
-    verifiedAt: row.verifiedAt?.toISOString() ?? null,
-    verificationNote: row.verificationNote,
-    decidedBy: named(row.decidedBy),
-    decidedAt: row.decidedAt?.toISOString() ?? null,
-    decisionNote: row.decisionNote,
-    updatedAt: row.updatedAt.toISOString(),
-  }
-}
-
-// Maps database refusals raised by RLS, CHECKs and unique keys to the documented HTTP codes.
-function writeError(error: unknown): never {
-  if (error instanceof Error && 'getStatus' in error) throw error
-  const record = error && typeof error === 'object' ? (error as Record<string, unknown>) : {}
-  const meta = (record.meta ?? {}) as Record<string, unknown>
-  const code = String(meta.code ?? record.code ?? '')
-  if (code === '42501')
-    throw new ForbiddenException('The extension request is unavailable under your access.')
-  if (['P2002', '23505', '40001'].includes(code))
-    throw new ConflictException('This request changed; reload before deciding.')
-  if (['22023', '23514'].includes(code)) throw new BadRequestException('Invalid extension request.')
-  throw error
-}
-
-function soleRole(actor: ApplicationIdentity, role: string, permission: string) {
-  if (
-    actor.roles.length !== 1 ||
-    actor.roles[0] !== role ||
-    !hasAtomicPermission(actor.roles[0], actor.permissions, permission)
-  )
-    throw new ForbiddenException('This extension step is unavailable for your role.')
-}
-
-function sameInstant(expected: string, actual: Date) {
-  const parsed = new Date(expected)
-  if (Number.isNaN(parsed.valueOf()) || parsed.valueOf() !== actual.valueOf())
-    throw new ConflictException('This request changed; reload before deciding.')
-  return parsed
-}
+import { sameInstant, soleRole, writeError } from './activity-extensions.helpers'
+import {
+  type ExtensionRow,
+  day,
+  extensionSelection,
+  mapExtension,
+} from './activity-extensions.mapper'
 
 @Injectable()
 export class ActivityExtensionsService {
@@ -195,7 +119,7 @@ export class ActivityExtensionsService {
     identity: ApplicationIdentity,
     projectId: string,
     activityId: string,
-    input: RequestActivityExtensionDto,
+    input: CreateActivityExtensionRequest,
   ) {
     return withAuthorizedOperation(
       this.prisma,
@@ -281,7 +205,7 @@ export class ActivityExtensionsService {
     projectId: string,
     activityId: string,
     requestId: string,
-    input: VerifyActivityExtensionDto,
+    input: VerifyActivityExtensionRequest,
   ) {
     return withAuthorizedOperation(this.prisma, identity, 'evidence.review', async (tx, actor) => {
       soleRole(actor, 'MONITORING_AND_EVALUATION_OFFICER', 'evidence.review')
@@ -329,7 +253,7 @@ export class ActivityExtensionsService {
     projectId: string,
     activityId: string,
     requestId: string,
-    input: DecideActivityExtensionDto,
+    input: DecideActivityExtensionRequest,
   ) {
     return withAuthorizedOperation(
       this.prisma,
@@ -395,7 +319,7 @@ export class ActivityExtensionsService {
     actor: ApplicationIdentity,
     activity: Awaited<ReturnType<ActivityExtensionsService['requireActivity']>>,
     row: ExtensionRow,
-    input: DecideActivityExtensionDto,
+    input: DecideActivityExtensionRequest,
   ) {
     if (['COMPLETED', 'CANCELLED'].includes(activity.status))
       throw new ConflictException('A finished activity cannot be extended.')
