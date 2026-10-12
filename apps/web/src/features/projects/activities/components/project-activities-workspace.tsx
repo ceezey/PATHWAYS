@@ -1,18 +1,16 @@
 'use client'
 
-import { CalendarClock, Eye, LayoutGrid, List, Plus, Search, UsersRound } from 'lucide-react'
+import { LayoutGrid, List, Plus, Search } from 'lucide-react'
 import Link from 'next/link'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import { PageHeader } from '@/components/layout/page-header'
 import {
   AsyncState,
   EmptyState,
   FilterBar,
-  ProgressBar,
   ResultsAnnouncement,
   SectionCard,
-  StatusBadge,
 } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -23,11 +21,8 @@ import { PathwaysClientError } from '@/lib/api/core/request'
 import { canAccessProjectForRole } from '@/lib/rbac/data-scope'
 import { principalHasAtomicPermission } from '@/lib/rbac/policy'
 import { isUiActionAvailable } from '@/lib/rbac/ui-action-availability'
-import { coreDataClient } from '@/lib/services/core-feature-client'
-import type { Activity, ActivityStatus, ActivitySummary, Indicator } from '@/types/pathways'
+import type { Activity, ActivitySummary } from '@/types/pathways'
 
-import type { ExpenseBudgetReference } from '../../activity-expense-dialog'
-import type { PendingExpense } from '../../activity-expense-review-dialog'
 import {
   useActivityDetailRead,
   useProjectActivitiesRead,
@@ -35,139 +30,22 @@ import {
   useProjectJourneyStagesRead,
   useProjectRead,
 } from '../../projects.reads'
-import {
-  activityDueLabel,
-  activityNextStep,
-  activityProgressTone,
-  activityStatusTone,
-  activityStatuses,
-  activitySummary,
-} from '../activities.utils'
+import { activitySummary } from '../activities.utils'
+import { useActivityExpenses } from '../hooks/use-activity-expenses'
+import { useActivityFilters } from '../hooks/use-activity-filters'
+import { ActivityCard } from './activity-card'
 import { ActivityDetailPanel } from './activity-detail-panel'
-import type { ActivityExpenseEntry } from './activity-detail-sections'
 import { ActivityEditorLoadingDialog } from './activity-editor-loading-dialog'
 import { ActivityFormDialog } from './activity-form-dialog'
 import { ActivityListTable } from './activity-list-table'
 import { ActivityProofDialog } from './activity-proof-dialog'
-
-const indicatorSummary = (activity: ActivitySummary, indicators: Indicator[]) =>
-  activity.indicatorIds
-    .map(
-      (indicatorId) =>
-        indicators.find((indicator) => indicator.id === indicatorId)?.code ?? indicatorId,
-    )
-    .join(', ')
+import { ActivityStatusSummary } from './activity-status-summary'
 
 // A saved activity keeps the list-only metrics the save response does not carry.
 const pickMetrics = (previous: ActivitySummary | undefined) => ({
   beneficiariesReached: previous?.beneficiariesReached,
   budgetUtilization: previous?.budgetUtilization,
 })
-
-const ActivityCard = ({
-  activity,
-  onOpen,
-}: {
-  activity: ActivitySummary
-  onOpen: (activity: ActivitySummary) => void
-}) => (
-  <article
-    aria-label={`Activity: ${activity.title}`}
-    className="flex min-w-0 flex-col rounded-xl border border-border bg-background p-4"
-  >
-    <div className="flex items-start justify-between gap-3">
-      <h3 className="min-w-0 break-words text-base font-semibold leading-6 text-foreground">
-        {activity.title}
-      </h3>
-      <StatusBadge tone={activityStatusTone(activity.status)}>{activity.status}</StatusBadge>
-    </div>
-    {activity.overdueExplanationNeeded ? (
-      <div className="mt-2">
-        <StatusBadge tone="warning">Overdue: explanation needed</StatusBadge>
-      </div>
-    ) : null}
-    <p
-      className={`mt-3 flex items-center gap-2 text-sm font-medium ${
-        activity.status === 'Overdue' ? 'text-danger' : 'text-muted-foreground'
-      }`}
-    >
-      <CalendarClock className="h-4 w-4 shrink-0" aria-hidden="true" />
-      {activityDueLabel(activity.status, activity.dueDate)}
-    </p>
-    {activity.status !== 'Completed' ? (
-      <div className="mt-4">
-        <ProgressBar
-          label="Activity progress"
-          tone={activityProgressTone(activity.status, activity.progress)}
-          value={activity.progress}
-        />
-      </div>
-    ) : null}
-    <dl className="mt-4 border-t border-border pt-3 text-sm">
-      <div className="flex min-w-0 items-start gap-2">
-        <UsersRound className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-        <div className="min-w-0">
-          <dt className="text-muted-foreground">
-            {activity.assignedTo.length === 1 ? 'Owner' : 'Owners'}
-          </dt>
-          <dd className="mt-1 break-words font-medium text-foreground">
-            {activity.assignedTo.join(', ')}
-          </dd>
-        </div>
-      </div>
-    </dl>
-    <div className="mt-4 border-t border-border pt-3">
-      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Next step</p>
-      <p className="mt-1 text-sm font-medium leading-5 text-foreground">
-        {activityNextStep(activity.status)}
-      </p>
-      <Button
-        className="mt-3 w-full gap-2 sm:w-auto"
-        onClick={() => onOpen(activity)}
-        size="sm"
-        type="button"
-        variant="outline"
-      >
-        <Eye className="h-4 w-4" aria-hidden="true" />
-        View details
-      </Button>
-    </div>
-  </article>
-)
-
-const ActivityStatusSummary = ({
-  activeStatus,
-  counts,
-  onStatusChange,
-}: {
-  activeStatus: ActivityStatus | null
-  counts: Record<ActivityStatus, number>
-  onStatusChange: (status: ActivityStatus | null) => void
-}) => (
-  <section aria-label="Activity status filters">
-    <div className="flex flex-wrap gap-2">
-      {activityStatuses.map((status) => {
-        const selected = activeStatus === status
-        return (
-          <button
-            aria-label={`Filter activities by ${status} status, ${counts[status]} ${counts[status] === 1 ? 'activity' : 'activities'}`}
-            aria-pressed={selected}
-            className={`min-h-9 rounded-full transition-shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
-              selected ? 'ring-2 ring-primary' : 'hover:ring-2 hover:ring-primary/30'
-            }`}
-            key={status}
-            onClick={() => onStatusChange(selected ? null : status)}
-            type="button"
-          >
-            <StatusBadge tone={activityStatusTone(status)}>
-              {status} {counts[status]}
-            </StatusBadge>
-          </button>
-        )
-      })}
-    </div>
-  </section>
-)
 
 export const ProjectActivitiesWorkspace = ({
   initialAction,
@@ -215,9 +93,6 @@ export const ProjectActivitiesWorkspace = ({
   const canReadExpenses = inProjectScope && principalHasAtomicPermission(profile, 'expenses.read')
   const canReadBudgetLines = inProjectScope && principalHasAtomicPermission(profile, 'budgets.read')
 
-  const [query, setQuery] = useState('')
-  const [statusFilter, setStatusFilter] = useState<ActivityStatus | null>(null)
-  const [viewMode, setViewMode] = useState<'board' | 'list'>('list')
   // The detail route opens by id through GET /activities/:id; the list is never searched.
   const [selectedActivityId, setSelectedActivityId] = useState<string | null>(
     initialActivityId ?? null,
@@ -276,165 +151,31 @@ export const ProjectActivitiesWorkspace = ({
   const editorFailed = editorReads.some((read) => read.isError)
   const detail = useActivityDetailRead(projectId, selectedActivityId)
   const selectedActivity = detail.data ?? null
-  // Fetched once per workspace visit rather than per activity: the panel filters the
-  // project-scoped rows down to the currently open activity.
-  const expenseReferencesRead = useAuthorizedRead(
-    'activity-expense-references',
-    projectId,
-    'expenses.submit',
-    (signal) => coreDataClient.budgetReferences(projectId, signal),
-    canReadExpenseReferences,
-  )
-  const expensesRead = useAuthorizedRead(
-    'activity-expenses',
-    projectId,
-    'expenses.read',
-    (signal) => coreDataClient.expenses(projectId, signal),
-    canReadExpenses,
-  )
-  const budgetLinesRead = useAuthorizedRead(
-    'finance-budgets',
-    projectId,
-    'budgets.read',
-    (signal) => coreDataClient.budgets(projectId, signal),
-    canReadBudgetLines,
-  )
-  const budgetReferences: ExpenseBudgetReference[] = expenseReferencesRead.data ?? []
-  /**
-   * Budget record to activity, from whichever read the principal is allowed. The reference
-   * read needs expenses.submit, so an approver reaches the same linkage through budgets.read.
-   */
-  const activityOfBudgetRecord = useMemo(() => {
-    const map = new Map<string, { activityId: string | null; category: string }>()
-    for (const line of budgetLinesRead.data ?? [])
-      map.set(line.id, { activityId: line.activityId, category: line.category })
-    for (const reference of budgetReferences)
-      map.set(reference.id, { activityId: reference.activityId, category: reference.category })
-    return map
-  }, [budgetLinesRead.data, budgetReferences])
-  const pendingExpenses: PendingExpense[] = useMemo(() => {
-    if (!selectedActivity) return []
-    const referenceMap = new Map(budgetReferences.map((row) => [row.id, row]))
-    return (expensesRead.data ?? [])
-      .filter((expense) => expense.status === 'PENDING')
-      .flatMap((expense) => {
-        const reference = referenceMap.get(expense.budgetRecordId)
-        if (!reference || reference.activityId !== selectedActivity.id) return []
-        return [
-          {
-            id: expense.id,
-            activityId: selectedActivity.id,
-            projectId,
-            amount: Number(expense.amount),
-            category: reference.category,
-            date: expense.expenseDate,
-            description: expense.description,
-            status: 'For Verification' as const,
-            updatedAt: expense.updatedAt,
-            receiptEvidenceId: expense.receiptEvidenceId,
-          },
-        ]
-      })
-  }, [expensesRead.data, budgetReferences, projectId, selectedActivity])
-  /**
-   * Every expense on this activity that has not been rejected, whatever its review step.
-   * The panel used to show only PENDING entries and only to validators, so a logged expense
-   * was invisible to its submitter and vanished from view the moment it was verified.
-   */
-  const activityExpenses: ActivityExpenseEntry[] = useMemo(() => {
-    if (!selectedActivity) return []
-    return (expensesRead.data ?? [])
-      .filter((expense) => expense.status !== 'REJECTED')
-      .flatMap((expense) => {
-        const reference = activityOfBudgetRecord.get(expense.budgetRecordId)
-        if (!reference || reference.activityId !== selectedActivity.id) return []
-        return [
-          {
-            id: expense.id,
-            amount: Number(expense.amount),
-            category: reference.category,
-            date: expense.expenseDate,
-            description: expense.description,
-            status: expense.status,
-            submittedByName: expense.submittedByName,
-            verifiedByName: expense.verifiedByName,
-            approvedByName: expense.approvedByName,
-          },
-        ]
-      })
-  }, [expensesRead.data, activityOfBudgetRecord, selectedActivity])
-  const refreshExpenses = () => {
-    void expensesRead.refetch()
-    void expenseReferencesRead.refetch()
-    void budgetLinesRead.refetch()
-    // Approved spend and allocation come from the activity read, so it refreshes with the
-    // expense list; otherwise an approved expense leaves In review before it reaches Spent.
-    void detail.refetch()
-  }
+  const { activityExpenses, budgetReferences, pendingExpenses, refreshExpenses } =
+    useActivityExpenses({
+      canReadBudgetLines,
+      canReadExpenseReferences,
+      canReadExpenses,
+      projectId,
+      refetchDetail: () => detail.refetch(),
+      selectedActivity,
+    })
   const detailNotFound =
     detail.isError &&
     detail.error instanceof PathwaysClientError &&
     ['not_found', 'forbidden'].includes(detail.error.code)
 
-  const filteredActivities = useMemo(() => {
-    const normalizedQuery = query.trim().toLowerCase()
-
-    return activities.filter((activity) => {
-      const matchesQuery = normalizedQuery
-        ? [
-            activity.title,
-            activity.description,
-            activity.assignedTo.join(' '),
-            indicatorSummary(activity, indicators),
-          ]
-            .join(' ')
-            .toLowerCase()
-            .includes(normalizedQuery)
-        : true
-
-      const matchesStatus = statusFilter ? activity.status === statusFilter : true
-      return matchesQuery && matchesStatus
-    })
-  }, [activities, indicators, query, statusFilter])
-
-  const activityStatusCounts = useMemo(() => {
-    const counts: Record<ActivityStatus, number> = {
-      Planned: 0,
-      'In Progress': 0,
-      'For Review': 0,
-      Overdue: 0,
-      Completed: 0,
-      Cancelled: 0,
-    }
-
-    for (const activity of activities) {
-      counts[activity.status] += 1
-    }
-
-    return counts
-  }, [activities])
-
-  const filteredActivityStatusCounts = useMemo(() => {
-    const counts: Record<ActivityStatus, number> = {
-      Planned: 0,
-      'In Progress': 0,
-      'For Review': 0,
-      Overdue: 0,
-      Completed: 0,
-      Cancelled: 0,
-    }
-
-    for (const activity of filteredActivities) {
-      counts[activity.status] += 1
-    }
-
-    return counts
-  }, [filteredActivities])
-
-  const visibleActivityStatuses = useMemo(
-    () => activityStatuses.filter((status) => filteredActivityStatusCounts[status] > 0),
-    [filteredActivityStatusCounts],
-  )
+  const {
+    activityStatusCounts,
+    filteredActivities,
+    query,
+    setQuery,
+    setStatusFilter,
+    setViewMode,
+    statusFilter,
+    viewMode,
+    visibleActivityStatuses,
+  } = useActivityFilters(activities, indicators)
 
   const upsertActivity = (activity: Activity, selectActivity = true) => {
     if (!project) return

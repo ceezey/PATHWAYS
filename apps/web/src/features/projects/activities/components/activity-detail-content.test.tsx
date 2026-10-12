@@ -25,7 +25,7 @@ vi.mock('./activity-extension-dialog', () => ({
 }))
 vi.mock('./activity-proof-review-dialog', () => ({ ActivityProofReviewDialog: () => null }))
 
-import { ActivityDetailContent } from './activity-detail-panel'
+import { ActivityDetailContent } from './activity-detail-content'
 
 const activity: Activity = {
   id: 'a0908103-0597-4cbb-874f-61ad0d5e3f83',
