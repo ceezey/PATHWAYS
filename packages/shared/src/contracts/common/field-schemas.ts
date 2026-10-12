@@ -65,3 +65,20 @@ export const trimmedInput = <T extends z.ZodTypeAny>(schema: T) =>
 // ArrayUnique: no item appears twice.
 export const hasUniqueItems = (values: readonly unknown[]) =>
   values.every((value, index) => values.indexOf(value) === index)
+
+// Accepts a count sent as a number or numeric text, and blank text or null reach the number rule unchanged and fail it.
+export const countInput = (max: number) =>
+  z.preprocess(
+    (value) => (value === '' || value === null ? value : Number(value)),
+    z.number().int().min(0).max(max),
+  )
+
+// A non-negative PHP amount with at most 2 decimal places, trimmed first.
+export const pesoAmountInput = trimmedInput(
+  z
+    .string()
+    .regex(
+      /^(0|[1-9][0-9]{0,15})(\.[0-9]{1,2})?$/,
+      'must be a non-negative PHP amount with at most 2 decimal places.',
+    ),
+)

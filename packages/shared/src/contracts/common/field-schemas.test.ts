@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  countInput,
   hasUniqueItems,
   isoDateString,
   lengthString,
+  pesoAmountInput,
   strictIsoDateString,
   trimmedInput,
   uuidString,
@@ -60,5 +62,25 @@ describe('class-validator field schemas', () => {
     expect(hasUniqueItems(['a', 'b'])).toBe(true)
     expect(hasUniqueItems(['a', 'a'])).toBe(false)
     expect(hasUniqueItems(['a', 'A'])).toBe(true)
+  })
+
+  it('turns numeric text into a count and rejects blanks and out-of-range numbers', () => {
+    expect(countInput(100).parse('50')).toBe(50)
+    expect(countInput(100).parse(true)).toBe(1)
+    expect(countInput(100).parse([5])).toBe(5)
+    expect(accepts(countInput(100), '')).toBe(false)
+    expect(accepts(countInput(100), null)).toBe(false)
+    expect(accepts(countInput(100), -1)).toBe(false)
+    expect(accepts(countInput(100), 1.5)).toBe(false)
+    expect(accepts(countInput(100), 101)).toBe(false)
+    expect(accepts(countInput(100).nullish(), null)).toBe(true)
+  })
+
+  it('trims a PHP amount and allows at most two decimals', () => {
+    expect(pesoAmountInput.parse(' 125000.50 ')).toBe('125000.50')
+    for (const value of ['0', '10', '0.5', '9999999999999999.99'])
+      expect(accepts(pesoAmountInput, value)).toBe(true)
+    for (const value of ['-1', '1.001', '1e3', '01', '', 10])
+      expect(accepts(pesoAmountInput, value)).toBe(false)
   })
 })
