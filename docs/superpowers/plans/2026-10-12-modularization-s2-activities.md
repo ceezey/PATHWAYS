@@ -23,13 +23,14 @@ Controller rulings for S2 (2026-10-12). Each was checked against local dev `4a58
 7. **Evidence constants live in shared; the storage deadline stays in the api.** `activityEvidenceContentTypes`, `ActivityEvidenceContentType` and `MAX_ACTIVITY_EVIDENCE_FILES` are exported from `packages/shared/src/contracts/activities/activity-evidence.ts`, the path the S4 plan consumes. `PROOF_STORAGE_DEADLINE_MS` is an api timing constant and moves to `activity-proof.helpers.ts` with `evidenceExtension`, `activityEvidenceType` and `proofDeclarations`. `activities.dto.ts` keeps only `JourneyStageInputDto` and `SaveJourneyConfigurationDto`, which slice S4 converts; Task 0 of S4 checks for them.
 8. **Response contracts are types only and annotate the code.** `activity-responses.ts` types the mapper (`mapActivity` returns `ActivityRecordResponse`, `mapActivityListItem` returns `ActivityListItemRecordResponse`) and every public service method that returns a mapped shape, so a drift fails `pnpm typecheck`; nothing parses them at runtime (CR 3.6). The overdue category is `z.string()` because the column is text. There is no milestone response contract: the routes return raw Prisma rows, no web code calls them, and a schema that nothing checks would document a shape that can drift. `activityExtensionSchema` stays in `packages/shared/src/monitoring/activity-extension.ts`: the web parses it at runtime, and S2b decides its place.
 9. **`sourceMutationAcknowledgement` joins `contracts/common`.** Create, update, transition, review and finalize answer either the new record with a receipt or the receipt alone on a replay; the receipt shape was written by hand in the web (`SourceReplayAcknowledgement`). `contracts/common/source-mutation-acknowledgement.ts` exports the schema and `SourceMutationAcknowledgement`; S2b, S3 and S6 consume it.
-10. **Kernel adoption, bounded by behavior.** `requestIdentity` replaces the guard copy in the five controllers of the two modules. `requireScopedProjectRow` replaces the inline project lookup in `context` and in both branches of `listEvidence` (same `where`, same select, no join strategy, same 404 text). `list` and `get` keep their inline lookups because they load with `relationLoadStrategy: 'join'`, which the helper does not pass; `private-proof-inspection.service.ts` keeps its lookup because it answers its own `unavailable()` error; the extension `requireActivity` keeps its activity-level scope. The assignment check was copied three times (`requireActiveAssignment`, an inline copy in `recordProgress`, an inline copy in the extension `request`); the two inline copies now call the shared function, after Task 6 Step 1 pins their 403 text. The one `Prisma.TransactionClient` annotation in the two modules becomes `Tx`.
+10. **Kernel adoption, bounded by behavior.** `requestIdentity` replaces the guard copy in the six controllers of the two modules. `requireScopedProjectRow` replaces the inline project lookup in `context` and in both branches of `listEvidence` (same `where`, same select, no join strategy, same 404 text). `list` and `get` keep their inline lookups because they load with `relationLoadStrategy: 'join'`, which the helper does not pass; `private-proof-inspection.service.ts` keeps its lookup because it answers its own `unavailable()` error; the extension `requireActivity` keeps its activity-level scope. The assignment check was copied three times (`requireActiveAssignment`, an inline copy in `recordProgress`, an inline copy in the extension `request`); the two inline copies now call the shared function, after Task 6 Step 1 pins their 403 text. The one `Prisma.TransactionClient` annotation in the two modules becomes `Tx`.
 11. **Test seams.** The DTO validation tests (`plainToInstance` plus `validate`) become contract tests with the same inputs; the three `importOriginal` mocks of `private-inspection-reader` that F3b left (two activities tests and the inspection service test) become injected fake factories; `activities.service.test.ts`, which after the DTO tests left held only pure helper tests, becomes `activities.helpers.test.ts`. The inspection file extension table is derived from `evidenceExtension` (the existing seven-type test pins it).
 12. **One logic-shaped edit.** The typed reservation union needs a value test: `if ('acknowledgement' in reservation)` becomes `if (reservation.acknowledgement)` in `activity-proofs.service.ts`. The two are equivalent because only the replay branch carries the key, and its value is always an object. Every other moved line is verbatim; `.tmp/s2/same-lines.mjs` proves it before Biome formats.
 13. **SAD routing needs no edit.** The new `*.service.ts`, `*.controller.ts` and `*.mapper.ts` files fall under the existing globs (the mapper glob is S1a's); Task 11 reads the manifest to confirm.
 14. **Spec facts corrected by the baseline:** the audit's 2527 lines for `activities.service.ts` are 2479 at `4a5806d0`; `activities.dto.ts` holds twelve classes (ten become contracts, two stay for S4) and `activity-extensions.dto.ts` three; milestones have no web screen, so only the API tests and the replay cover them; the extension module is a separate Nest module and stays one (its service shrinks to 378 lines by moving the row mapper and three pure helpers out); `lib/services/pathways-client.ts` is 2596 lines after F4b.
 15. Cross-plan: S2 runs before S3 and depends on none of S3's names (no `IndicatorResponse`, `indicatorResponse`, `monitoring/metric-cell` or `metric-fields` appears here); S3's codemod renames by import, so any S2 file that imports an old indicator name is rewritten there. Cost if wrong: an S2 file naming an S3 export fails typecheck until S3 merges.
 16. Cross-plan: S2b's only web input from S1b is `requestSourceMutation<T>(path, method: 'POST' | 'PATCH', body: Record<string, unknown>, context: SourceMutationContext | undefined, parse: (value: unknown) => T): Promise<SourceMutationResult<T>>` exported by S1b Task 1 from `lib/api/core/source-mutation-request.ts`; the web `SourceReplayAcknowledgement` (`replayed: true`) stays a subtype of the new `SourceMutationAcknowledgement` (`replayed: boolean`). S2 appends only `countInput` and `pesoAmountInput` to the S1 `field-schemas.ts`; S5 appends two more. Cost if wrong: S2b Task 0 stops, or the barrel carries a duplicate helper.
+17. Pre-flight (2026-10-12): Task 0 grep expects the 18 existing api hits, case rows use a hex-letter UUID, prose counts corrected, semicolon comments rewritten, the Task 6 progress test strengthens the existing one (counts from Task 6 on minus 1).
 
 ## Interfaces assumed from earlier slices
 
@@ -79,7 +80,7 @@ S2b assumes these web exports (names from the F4b disposition and the S1b outlin
 ## Out of S2a (recorded for later sub-projects)
 
 - Web client, feature folder, hand-written web types and the dead proof upload code (MOD-05, MOD-06, MOD-15, MOD-16 and MOD-17 for activities): S2b, outlined at the end.
-- The 19 controllers elsewhere that still repeat the request identity guard and the 40 direct `Prisma.TransactionClient` annotations left in api production code: their slices.
+- The 18 controllers elsewhere that still repeat the request identity guard and the 40 direct `Prisma.TransactionClient` annotations left in api production code: their slices.
 - `apps/api/src/modules/activities/activities.dto.ts` (the two journey classes), the `class-validator` dependency and `field-schemas-parity.test.ts`: S4 deletes the classes, S8 the dependency.
 - `private-proof-inspection.service.ts` keeps its 398 lines: it is one responsibility under the 500-line flag, and the audit does not name it.
 - Calendar-date regex unification (the F2 deferral): the extension contract's single `YYYY-MM-DD` shape rule is the DTO's `Matches` rule kept verbatim, so S2a adds no new date pattern and leaves the unification to W1.
@@ -126,11 +127,12 @@ git grep -c "^export class" -- apps/api/src/modules/activities/activities.dto.ts
 git grep -n "Prisma.TransactionClient" -- apps/api/src/modules/activities apps/api/src/modules/activity-extensions ':!*.test.ts' | wc -l
 git grep -lE "Application profile is required\.'" -- apps/api/src/modules/activities apps/api/src/modules/activity-extensions | wc -l
 git grep -nwE "createActivityRequest|activityEvidenceFile|activityEvidenceContentTypes|MAX_ACTIVITY_EVIDENCE_FILES|activityResponse|ActivityRecordResponse|sourceMutationAcknowledgement|countInput|pesoAmountInput|createActivityExtensionRequest" -- packages apps/api | wc -l
+git grep -nwE "createActivityRequest|activityEvidenceFile|activityEvidenceContentTypes|MAX_ACTIVITY_EVIDENCE_FILES|activityResponse|ActivityRecordResponse|sourceMutationAcknowledgement|countInput|pesoAmountInput|createActivityExtensionRequest" -- packages | wc -l
 wc -l apps/api/src/modules/activities/activities.service.ts apps/api/src/modules/activity-extensions/activity-extensions.service.ts apps/api/src/modules/activities/private-proof-inspection.service.ts
 git checkout -- apps/web/next-env.d.ts
 ```
 
-Expected: typecheck clean; write down each package's passing and skipped test counts (config, shared, imports, api, web), the sad count, the docs check failure count, the web build exit code (0) and the `Middleware` size (F4b recorded 102 kB). Later tasks compare against these (`B_shared`, `B_api`, `B_web`, `B_sad`, `M0`). The hashes print, in order: `ecb69df4ddd5004b564ea7758d326c8e1e02e2f2`, `25a1bc9a6fab3559d37566e63010dc0e526a12d3`, `927be24e7bb94f0712f89be91471480a02341187`, `10bb8405a11c3532b2f7816c7f96abf975c778e2`, `d7218fdd30b9ba8d102dde125c4cfb596c469142`, `0398e24caea98c97d91189b98f8ef4d6ebc7ad21`, `ce9f116503c62c41fb7832fb0350e6139b297398`, `d0837658d81a020e0d6807c1b62badee0b506218`, `274f043c37fb1b18239709c5d8e05d0bafe89cf0`, `0e16e2c805e62f06279bd16b1277997a236d7bfc`, `dd01d93182bc0fbb73d2b6bfd55dcbbc1a1d1f3b`; the counts print `18`, then `12` and `3` on two lines, `1`, `2`, `0`; the line counts print `2479`, `454` and `398`. If any differs, stop and report: the anchors and counts below were taken at `4a5806d0`, and S1a changes none of these files.
+Expected: typecheck clean; write down each package's passing and skipped test counts (config, shared, imports, api, web), the sad count, the docs check failure count, the web build exit code (0) and the `Middleware` size (F4b recorded 102 kB). Later tasks compare against these (`B_shared`, `B_api`, `B_web`, `B_sad`, `M0`). The hashes print, in order: `ecb69df4ddd5004b564ea7758d326c8e1e02e2f2`, `25a1bc9a6fab3559d37566e63010dc0e526a12d3`, `927be24e7bb94f0712f89be91471480a02341187`, `10bb8405a11c3532b2f7816c7f96abf975c778e2`, `d7218fdd30b9ba8d102dde125c4cfb596c469142`, `0398e24caea98c97d91189b98f8ef4d6ebc7ad21`, `ce9f116503c62c41fb7832fb0350e6139b297398`, `d0837658d81a020e0d6807c1b62badee0b506218`, `274f043c37fb1b18239709c5d8e05d0bafe89cf0`, `0e16e2c805e62f06279bd16b1277997a236d7bfc`, `dd01d93182bc0fbb73d2b6bfd55dcbbc1a1d1f3b`; the counts print `18`, then `12` and `3` on two lines, `1`, `2`, `18`, `0`; the `18` are existing api definitions or uses that S2a moves (`activityEvidenceContentTypes` and `MAX_ACTIVITY_EVIDENCE_FILES` in `activities.dto.ts`, `activities.service.ts`, `private-proof-inspection.service.ts` and `beneficiary-media.dto.ts`) and the `0` is the packages-only grep; the line counts print `2479`, `454` and `398`. If any differs, stop and report: the anchors and counts below were taken at `4a5806d0`, and S1a changes none of these files.
 
 - [ ] **Step 3: Add the plan and commit**
 
@@ -886,7 +888,7 @@ Expected: FAIL, cannot resolve `./activity-requests` and `countInput` is not exp
 Append to `packages/shared/src/contracts/common/field-schemas.ts`:
 
 ```ts
-// A count sent as a number or numeric text; blank text and null reach the number rule unchanged and fail it.
+// Accepts a count sent as a number or numeric text, and blank text or null reach the number rule unchanged and fail it.
 export const countInput = (max: number) =>
   z.preprocess(
     (value) => (value === '' || value === null ? value : Number(value)),
@@ -960,7 +962,7 @@ export const activityEvidenceContentTypes = [
 export type ActivityEvidenceContentType = (typeof activityEvidenceContentTypes)[number]
 export const MAX_ACTIVITY_EVIDENCE_FILES = 10
 
-// One evidence file declared before upload; the service enforces the configured per-file byte limit.
+// Declares one evidence file before upload, with the configured per-file byte limit enforced by the service.
 export const activityEvidenceFile = z
   .object({
     fileName: lengthString(1, 128).refine(
@@ -1193,6 +1195,7 @@ const badRequestShape = {
   },
 }
 const uuid = '10000000-0000-4000-8000-000000000001'
+const upperId = 'ABCDEFAB-CDEF-4ABC-8ABC-ABCDEFABCDEF'
 const instant = '2026-09-24T00:00:00.000Z'
 const grin = String.fromCodePoint(0x1f600)
 const sha = (n: number) => n.toString(16).padStart(64, '0')
@@ -1248,7 +1251,7 @@ const createCases = {
     { budgetAllocation: ' 10 ' },
     { budgetAllocation: '0' },
     { assignedUserIds: [uuid] },
-    { assignedUserIds: [uuid.toUpperCase()] },
+    { assignedUserIds: [upperId] },
     { assignedUserIds: ids(50) },
     { indicatorIds: [] },
     { indicatorIds: ids(100) },
@@ -1577,7 +1580,7 @@ const replayCases = [
       code: ' act-01 ',
       targetBeneficiaries: '5',
       description: null,
-      assignedUserIds: [uuid.toUpperCase()],
+      assignedUserIds: [upperId],
     },
   ],
   [
@@ -1589,7 +1592,7 @@ const replayCases = [
       expectedUpdatedAt: instant,
       code: ' act-01 ',
       budgetAllocation: ' 10 ',
-      indicatorIds: [uuid.toUpperCase()],
+      indicatorIds: [upperId],
     },
   ],
   [
@@ -1719,7 +1722,7 @@ beforeAll(async () => {
     ],
   }).compile()
   app = module.createNestApplication({ logger: false })
-  // Stands in for the identity the auth guard attaches; the guard is not under test here.
+  // Stands in for the identity the auth guard attaches, since the guard is not under test here.
   app.use((request: { user?: unknown }, _response: unknown, next: () => void) => {
     request.user = actor
     next()
@@ -2140,7 +2143,7 @@ The activity DTO classes and their parity test are removed; the routes keep the 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
 
-Expected: the 11 HTTP tests pass; typecheck (which also checks the hosted seed) and lint pass; api = `B_api - 3` (the 285 parity tests leave, 14 DTO validation tests leave, 11 HTTP tests arrive), shared unchanged from Task 1.
+Expected: the 11 HTTP tests pass; typecheck (which also checks the hosted seed) and lint pass; api = `B_api - 3` (the 285 parity tests leave, 13 DTO validation tests and 1 runtime-metadata case leave, 11 HTTP tests arrive), shared unchanged from Task 1.
 
 ---
 
@@ -2356,6 +2359,7 @@ const badRequestShape = {
   },
 }
 const uuid = '10000000-0000-4000-8000-000000000001'
+const upperId = 'ABCDEFAB-CDEF-4ABC-8ABC-ABCDEFABCDEF'
 const instant = '2026-09-24T00:00:00.000Z'
 const note = 'A note of ten or more characters.'
 
@@ -2370,7 +2374,7 @@ const cases = [
       { requestedEndDate: '2024-02-29' },
       { reason: 'x'.repeat(10) },
       { reason: 'x'.repeat(2000) },
-      { clientMutationId: uuid.toUpperCase() },
+      { clientMutationId: upperId },
     ],
     rejected: [
       { requestedEndDate: '2026-02-30' },
@@ -2516,7 +2520,7 @@ beforeAll(async () => {
     providers: [{ provide: ActivityExtensionsService, useValue: service }],
   }).compile()
   app = module.createNestApplication({ logger: false })
-  // Stands in for the identity the auth guard attaches; the guard is not under test here.
+  // Stands in for the identity the auth guard attaches, since the guard is not under test here.
   app.use((request: { user?: unknown }, _response: unknown, next: () => void) => {
     request.user = actor
     next()
@@ -2923,7 +2927,7 @@ beforeAll(async () => {
     providers: providers.map((provider) => ({ provide: provider, useValue: fake() })),
   }).compile()
   app = module.createNestApplication({ logger: false })
-  // Stands in for the identity the auth guard attaches; the guard is not under test here.
+  // Stands in for the identity the auth guard attaches, since the guard is not under test here.
   app.use((request: { user?: unknown }, _response: unknown, next: () => void) => {
     request.user = actor
     next()
@@ -3273,7 +3277,7 @@ import { z } from 'zod'
 import { sourceMutationAcknowledgement } from '../common/source-mutation-acknowledgement'
 import { activityEvidenceContentTypes } from './activity-evidence'
 
-// Response shapes of the activity routes; types only, never parsed at runtime.
+// Types the response shapes of the activity routes, which are never parsed at runtime.
 
 const storedStatus = z.enum(['NOT_STARTED', 'IN_PROGRESS', 'FOR_REVIEW', 'COMPLETED', 'CANCELLED'])
 const presentedStatus = z.enum([
@@ -3286,7 +3290,7 @@ const presentedStatus = z.enum([
 ])
 const reviewLabel = z.enum(['Submitted', 'Accepted', 'Flagged'])
 
-// Advisory per-activity flags for the calling user; every mutation re-checks its own authority.
+// Holds advisory per-activity flags for the calling user, while every mutation re-checks its own authority.
 export const activityCapabilitiesResponse = z.object({
   canEdit: z.boolean(),
   canRecordProgress: z.boolean(),
@@ -3878,7 +3882,7 @@ Expected: typecheck passes, so `mapActivity` and `mapActivityListItem` return ex
 
 - [ ] **Step 1: Pin the assignment check before it is shared**
 
-`recordProgress` and the extension `request` each carry an inline copy of `requireActiveAssignment`. Pin their 403 text first. Create `.tmp/s2/assignment-tests.mjs`:
+`recordProgress` and the extension `request` each carry an inline copy of `requireActiveAssignment`. Pin their 403 text first, by strengthening the existing test `denies an actor without an active assignment on the activity (abuse)` in `activity-progress.test.ts` (it already pins the 403 class and the query `where`) with the message text, instead of adding a duplicate test. Create `.tmp/s2/assignment-tests.mjs`:
 
 ```js
 const dir = 'apps/api/src/modules'
@@ -3887,17 +3891,13 @@ export default [
     file: `${dir}/activities/activity-progress.test.ts`,
     edits: [
       [
-        "  it('rejects progress on an activity that is not in progress (sad)', async () => {",
-        `  it('refuses a caller without an active activity assignment before any update is read or written', async () => {
-    tx.projectActivityAssignment.findFirst.mockResolvedValueOnce(null)
+        `    ).rejects.toBeInstanceOf(ForbiddenException)
+    expect(tx.projectActivityAssignment.findFirst.mock.calls[0][0].where).toMatchObject({`,
+        `    ).rejects.toBeInstanceOf(ForbiddenException)
     await expect(service.recordProgress(actor, projectId, activityId, input)).rejects.toThrow(
       'An active activity assignment is required.',
     )
-    expect(tx.activityUpdate.findFirst).not.toHaveBeenCalled()
-    expect(tx.activityUpdate.create).not.toHaveBeenCalled()
-  })
-
-  it('rejects progress on an activity that is not in progress (sad)', async () => {`,
+    expect(tx.projectActivityAssignment.findFirst.mock.calls[0][0].where).toMatchObject({`,
         1,
       ],
     ],
@@ -3923,7 +3923,7 @@ pnpm exec biome check --write apps/api/src/modules/activities/activity-progress.
 pnpm --filter @pathways/api exec vitest run src/modules/activities/activity-progress.test.ts src/modules/activity-extensions
 ```
 
-Expected: `activity-progress.test.ts: 1 edits` and `activity-extensions.service.test.ts: 1 edits`; PASS against the inline copies (the progress file gains one test, the extension assertion is tightened from the status to the message).
+Expected: `activity-progress.test.ts: 1 edits` and `activity-extensions.service.test.ts: 1 edits`; PASS against the inline copies (the progress test gains the message assertion and no test is added; the extension assertion is tightened from the status to the message).
 
 - [ ] **Step 2: Create the option files**
 
@@ -4231,7 +4231,7 @@ The two inline assignment checks and the inline project lookups of context and l
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
 
-Expected: typecheck passes; api = `B_api + 16` (the new progress test). `activities.service.ts` is about 1500 lines.
+Expected: typecheck passes; api = `B_api + 15` (unchanged from Task 5, because Step 1 strengthens an existing test). `activities.service.ts` is about 1500 lines.
 
 ---
 
@@ -4542,7 +4542,7 @@ git commit -m "refactor(api): split milestones, evidence, review and progress ou
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
 
-Expected: typecheck passes, so every public method returns exactly its response type; the api count is unchanged from Task 6 (`B_api + 16`), because no test was added or removed. `activities.service.ts` is about 970 lines.
+Expected: typecheck passes, so every public method returns exactly its response type; the api count is unchanged from Task 6 (`B_api + 15`), because no test was added or removed. `activities.service.ts` is about 970 lines.
 
 ---
 
@@ -4948,7 +4948,7 @@ ActivitiesService now holds the four reads; finalizeProofFile keeps its storage 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
 
-Expected: typecheck passes (it also checks the four seeds); api = `B_api + 17`. No service file is over 400 lines.
+Expected: typecheck passes (it also checks the four seeds); api = `B_api + 16`. No service file is over 400 lines.
 
 ---
 
@@ -5037,7 +5037,7 @@ export default [
     edits: [
       [
         'const service = new PrivateProofInspectionService({} as PrismaService, privateStorageFactories)',
-        `// \`read\` is the verification pass; \`release\` is the streamed pass after final audit.
+        `// \`read\` is the verification pass and \`release\` is the streamed pass after final audit.
 const service = new PrivateProofInspectionService({} as PrismaService, {
   ...privateStorageFactories,
   createPrivateObjectStreamer: () => ({ verify: state.read, release: state.release }),
@@ -5100,7 +5100,7 @@ git commit -m "refactor(api): inject storage factories in the proof tests and ti
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
 
-Expected: the `git grep` prints nothing; api = `B_api + 17` (unchanged by this task).
+Expected: the `git grep` prints nothing; api = `B_api + 16` (unchanged by this task).
 
 ---
 
@@ -5143,14 +5143,14 @@ Section 9, append (replace `<date>` with the merge date):
 
 ```markdown
 S2a applied <date> on refactor/s2a-activities:
-- Contracts: `createActivityRequest`, `updateActivityRequest`, `transitionActivityRequest`, `recordActivityProgressRequest`, `reserveActivityProofRequest`, `recordOverdueExplanationRequest`, `reviewActivityUpdateRequest`, `saveMilestoneRequest`, `updateMilestoneRequest` (`contracts/activities/activity-requests.ts`) and `createActivityExtensionRequest`, `verifyActivityExtensionRequest`, `decideActivityExtensionRequest` replaced twelve class-validator DTOs; parity tests ran each DTO and contract through the configured pipes (285 checks for the activity and milestone DTOs, 47 for the extension DTOs) before the classes were deleted; `activities.dto.ts` keeps `JourneyStageInputDto` and `SaveJourneyConfigurationDto` for S4. `countInput` and `pesoAmountInput` joined `field-schemas.ts` and `project-requests.ts` uses them; the evidence constants live in `contracts/activities/activity-evidence.ts`; `activity-responses.ts` and `sourceMutationAcknowledgement` type the mapper and every public service method that returns a mapped shape.
+- Contracts: `createActivityRequest`, `updateActivityRequest`, `transitionActivityRequest`, `recordActivityProgressRequest`, `reserveActivityProofRequest`, `recordOverdueExplanationRequest`, `reviewActivityUpdateRequest`, `saveMilestoneRequest`, `updateMilestoneRequest` (`contracts/activities/activity-requests.ts`) and `createActivityExtensionRequest`, `verifyActivityExtensionRequest`, `decideActivityExtensionRequest` replaced thirteen class-validator DTO classes; parity tests ran each DTO and contract through the configured pipes (285 checks for the activity and milestone DTOs, 47 for the extension DTOs) before the classes were deleted; `activities.dto.ts` keeps `JourneyStageInputDto` and `SaveJourneyConfigurationDto` for S4. `countInput` and `pesoAmountInput` joined `field-schemas.ts` and `project-requests.ts` uses them; the evidence constants live in `contracts/activities/activity-evidence.ts`; `activity-responses.ts` and `sourceMutationAcknowledgement` type the mapper and every public service method that returns a mapped shape.
 - Controllers: `activities.controller.ts` (three controllers) became five files by purpose (`activities`, `activity-updates`, `activity-proofs`, `activity-milestones`, `activity-evidence`); a module route table test and an HTTP routing test pin the 20 routes, their permissions and the order of the fixed GET segments.
-- Services: the 2479-line `activities.service.ts` became eight injectable services (`ActivitiesService` 181 lines for the reads, `ActivityLifecycleService`, `ActivityProgressService`, `ActivityEvidenceService`, `ActivityProofsService`, `ActivityProofFinalizeService`, `ActivityReviewService`, `ActivityMilestonesService`, each under 360 lines), four function modules that take the caller's `tx`, `activities.mapper.ts`, `activities.helpers.ts` and `activity-proof.helpers.ts`; the extension service moved its row mapper and three pure helpers out (454 to 378 lines). Public method names and bodies are unchanged and the moves were proven verbatim line by line.
-- Kernel: `requestIdentity` replaced the guard copy in five controllers; `requireScopedProjectRow` replaced three inline project lookups; the two inline copies of the active assignment check call `requireActiveAssignment`; the inspection service takes `Tx` and derives its file extensions from `evidenceExtension`.
+- Services: the 2479-line `activities.service.ts` became eight injectable services (`ActivitiesService` about 180 lines for the reads, `ActivityLifecycleService`, `ActivityProgressService`, `ActivityEvidenceService`, `ActivityProofsService`, `ActivityProofFinalizeService`, `ActivityReviewService`, `ActivityMilestonesService`, each under 360 lines), four function modules that take the caller's `tx`, `activities.mapper.ts`, `activities.helpers.ts` and `activity-proof.helpers.ts`; the extension service moved its row mapper and three pure helpers out (454 to about 370 lines). Public method names and bodies are unchanged and the moves were proven verbatim line by line.
+- Kernel: `requestIdentity` replaced the guard copy in six controllers; `requireScopedProjectRow` replaced three inline project lookups; the two inline copies of the active assignment check call `requireActiveAssignment`; the inspection service takes `Tx` and derives its file extensions from `evidenceExtension`.
 - Tests: the DTO validation cases became contract tests; the three `importOriginal` mocks of `private-inspection-reader` that F3b left became injected fake factories; eleven test files and four seed files build the split services (`retarget-service.mjs` and `seed-services.mjs`).
 - Decisions: S2 split into S2a and S2b (ruling 1); eight injectable services and four function modules (ruling 2); controllers split with the fixed GET segments first (ruling 3); optional DTO fields became `.nullish()`, and `null` for `budgetAllocation` (400 or 403 inside the service) and `indicatorIds` (a 500) now answers 400 at the pipe, beside the F3b prototype keys (ruling 4); `title` and `description` stay untrimmed before the length rule, as the DTOs had them (ruling 5); no milestone response contract (ruling 8); `list`, `get` and the inspection lookup keep their inline project lookups (ruling 10); `if ('acknowledgement' in reservation)` became `if (reservation.acknowledgement)` (ruling 12).
 
-Deferred to S2b: `lib/api/activities` and the activity, extension, evidence and proof methods of `pathways-client.ts`, `private-proof-client.ts`, the `features/projects` activity folder layout, the four oversized components, the hand-written web activity types, the place of `activityExtensionSchema`, and the dead `files` option and `proofSnapshot` of `source-mutation.ts` (F1 deferral). Left to later slices: 19 controllers that still repeat the request identity check and 40 direct `Prisma.TransactionClient` annotations in api production code.
+Deferred to S2b: `lib/api/activities` and the activity, extension, evidence and proof methods of `pathways-client.ts`, `private-proof-client.ts`, the `features/projects` activity folder layout, the four oversized components, the hand-written web activity types, the place of `activityExtensionSchema`, and the dead `files` option and `proofSnapshot` of `source-mutation.ts` (F1 deferral). Left to later slices: 18 controllers that still repeat the request identity check and 40 direct `Prisma.TransactionClient` annotations in api production code.
 ```
 
 - [ ] **Step 2: Update the audit, the index and the living docs**
@@ -5175,7 +5175,7 @@ Add to `docs/activity-log.md`:
 ## <date> Modularization S2a activities api (refactor/s2a-activities)
 ```
 
-with one bullet per Task 1 to Task 9 stating what was added, switched, split or adopted, with its commit hash and the shared and api test counts at the end of that task (`B_shared + 44` and `B_api + 285` after Task 1 down to `B_shared + 48` and `B_api + 17` after Task 9); a bullet with the parity results (285 activity and milestone checks and 47 extension checks agree; the accepted differences are the prototype keys and the two null bodies of ruling 4); a bullet saying the S2a decisions are recorded in the change record section 9 (the plan stays until S2b is planned, because it holds the S2b outline); and a bullet listing the S2b deferrals. Task 11 Step 5 appends the gate results.
+with one bullet per Task 1 to Task 9 stating what was added, switched, split or adopted, with its commit hash and the shared and api test counts at the end of that task (`B_shared + 44` and `B_api + 285` after Task 1 down to `B_shared + 48` and `B_api + 16` after Task 9); a bullet with the parity results (285 activity and milestone checks and 47 extension checks agree; the accepted differences are the prototype keys and the two null bodies of ruling 4); a bullet saying the S2a decisions are recorded in the change record section 9 (the plan stays until S2b is planned, because it holds the S2b outline); and a bullet listing the S2b deferrals. Task 11 Step 5 appends the gate results.
 
 - [ ] **Step 4: Check and commit**
 
@@ -5205,7 +5205,7 @@ grep -E "Middleware" .tmp/s2/web-build-gates.log
 git checkout -- apps/web/next-env.d.ts
 ```
 
-Expected: all pass and `dist layout ok` (nest `deleteOutDir` removes the old extension DTO output; `activities.dto.js` stays for the two journey classes); web build exit 0 with Middleware at most `M0` (the barrel grows, and `"sideEffects": false` must keep the new contracts out of the Edge bundle). Versus Task 0: shared = `B_shared + 48` (field helpers 2, activity requests 42, extension requests 4), api = `B_api + 17` (HTTP validation 11 and 6, route table 3, routing 5, date validation 4, assignment check 1, finalize order 1, minus 14 DTO validation tests), sad unchanged, config, imports and web unchanged.
+Expected: all pass and `dist layout ok` (nest `deleteOutDir` removes the old extension DTO output; `activities.dto.js` stays for the two journey classes); web build exit 0 with Middleware at most `M0` (the barrel grows, and `"sideEffects": false` must keep the new contracts out of the Edge bundle). Versus Task 0: shared = `B_shared + 48` (field helpers 2, activity requests 42, extension requests 4), api = `B_api + 16` (HTTP validation 11 and 6, route table 3, routing 5, date validation 4, finalize order 1, minus 13 DTO validation tests and 1 runtime-metadata case), sad unchanged, config, imports and web unchanged.
 
 - [ ] **Step 2: Local DB replay**
 
