@@ -5,6 +5,7 @@ import { PrismaClient } from '@prisma/client'
 import { createClient } from '@supabase/supabase-js'
 
 import type { CanonicalRole } from '@pathways/shared'
+import type { CreateProjectRequest } from '@pathways/shared'
 import type { ApplicationIdentity } from '../src/common/authz/application-identity'
 import type {
   CreateActivityDto,
@@ -14,7 +15,6 @@ import { ActivitiesService } from '../src/modules/activities/activities.service'
 import type { RegisterBeneficiaryDto } from '../src/modules/beneficiaries/beneficiaries.dto'
 import { BeneficiariesService } from '../src/modules/beneficiaries/beneficiaries.service'
 import { IndicatorsService } from '../src/modules/indicators/indicators.service'
-import type { CreateProjectDto } from '../src/modules/projects/projects.dto'
 import { ProjectsService } from '../src/modules/projects/projects.service'
 import { privateStorageFactories } from '../src/modules/storage/private-storage-factories'
 import { StorageService } from '../src/modules/storage/storage.service'
@@ -743,7 +743,7 @@ async function main() {
       if (existingProject) {
         projectId = existingProject.id
       } else {
-        const createProjectDto: CreateProjectDto = {
+        const createProjectDto: CreateProjectRequest = {
           code: plan.code,
           title: plan.title,
           description: plan.description,

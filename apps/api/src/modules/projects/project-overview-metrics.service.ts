@@ -1,4 +1,4 @@
-import { Inject, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common'
+import { Inject, Injectable, ServiceUnavailableException } from '@nestjs/common'
 import { readApiEnv } from '@pathways/config'
 import {
   type AtomicPermission,
@@ -12,16 +12,16 @@ import {
   timelineProgress,
 } from '@pathways/shared'
 
-import { type ApplicationIdentity, UUID_PATTERN } from '../../common/authz/application-identity'
+import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import { withAuthorizedOperation } from '../../common/authz/authorized-operation'
-import { projectScope } from '../../common/authz/project-scope'
+import { requireScopedProjectRow } from '../../common/authz/scoped-project'
 import type { Tx } from '../../common/prisma/transaction'
 import { currentBusinessDate } from '../../common/time/business-date'
 import { PrismaService } from '../../prisma/prisma.service'
 import { DashboardsService } from '../dashboards/dashboards.service'
 import { suppressSmallCount } from '../dashboards/descriptive-analytics'
 import { IndicatorsService } from '../indicators/indicators.service'
-import { readProjectBudget } from './project-budget'
+import { readProjectBudget } from './project-budget.service'
 
 /** The p06_saddd V1 release accepts only this business calendar. */
 const sadddReleaseTimeZone = 'Asia/Manila'
@@ -74,12 +74,12 @@ export class ProjectOverviewMetricsService {
 
   /** Reads the overview inside an already-authorized transaction; each field keeps its own gate. */
   async readInTransaction(tx: Tx, actor: ApplicationIdentity, projectId: string) {
-    if (!UUID_PATTERN.test(projectId)) throw new NotFoundException('Project unavailable.')
-    const row = await tx.project.findFirst({
-      where: { AND: [projectScope(actor), { id: projectId.toLowerCase() }] },
-      select: { id: true, startDate: true, endDate: true, targetBeneficiaries: true },
+    const row = await requireScopedProjectRow(tx, actor, projectId, {
+      id: true,
+      startDate: true,
+      endDate: true,
+      targetBeneficiaries: true,
     })
-    if (!row) throw new NotFoundException('Project unavailable.')
     const can = (permission: AtomicPermission) =>
       hasAtomicPermission(actor.roles[0], actor.permissions, permission)
     const zone = readApiEnv(process.env).BUSINESS_TIME_ZONE

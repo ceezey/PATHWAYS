@@ -65,11 +65,6 @@ const cases: ControllerCase[] = [
       'EnrollmentJourneyEventDto',
     ],
   },
-  { file: 'src/modules/programs/programs.controller.ts', dtoNames: ['CreateProgramDto'] },
-  {
-    file: 'src/modules/projects/projects.controller.ts',
-    dtoNames: ['CreateProjectDto', 'UpdateProjectDto'],
-  },
   {
     file: 'src/modules/users/users.controller.ts',
     dtoNames: ['AuthorizeExistingUserDto', 'UpdateAuthorizedUserDto'],

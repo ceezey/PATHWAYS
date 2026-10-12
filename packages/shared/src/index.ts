@@ -26,3 +26,7 @@ export * from './rules/rule-metrics'
 export * from './rules/rules-human-contract'
 
 export * from './contracts/imports/import-requests'
+export * from './contracts/common/field-schemas'
+export * from './contracts/projects/project-requests'
+export * from './contracts/projects/project-responses'
+export * from './contracts/programs/program-requests'

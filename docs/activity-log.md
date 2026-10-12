@@ -650,3 +650,17 @@
 - F4b decisions are recorded in the change record section 9, because the plan file is removed after merge.
 - Deferred: `lib/services/*` rename to `lib/api/<domain>` and duplicated read resource keys (slices); other date and tone helpers and `DashboardSeverity` (S7); the two non-sticky header classes (S5); raw dialogs onto shared dialogs (slices); the three workspace cookie reads (S8).
 - Gates: lint, typecheck and builds pass; tests config 19, shared 186, imports 91, api 2339 (21 skipped), web 1921, sad 52; `Replay-Local.ps1 -MigrationBaseline` 171 PASS, 0 FAIL; demo seed exit 0 on the first run; compiled API boot and health ok; e2e auth-navigation 27/27; e2e main 39 pass with the same 9 failures as dev; web middleware 102 kB; SAD sign-off 162/162 PASS at `e0d8ab4e`. Merged to local dev as `418ebc08`; plan removed.
+
+## 2026-10-12 Modularization S1a projects core (refactor/s1a-projects-core)
+- Task 1 (0034b8b0): `contracts/common/field-schemas.ts` added with a class-validator parity test over 56 strings; shared 205, api 2396.
+- Task 2 (adcdf437): `createProjectRequest` and `updateProjectRequest` contracts added with a DTO parity test; shared 218, api 2508.
+- Task 3 (2f608dc1): the projects create and update routes switched to the shared contracts and the project DTOs were deleted; shared 218, api 2403.
+- Task 4 (7580b508, c5ac13a6): `createProgramRequest` contract added with its parity test, then the programs create route switched and its DTO deleted; shared 225, api 2407.
+- Task 5 (4c407ba1): the project row mapper moved into `projects.mapper.ts` with a shared `ProjectResponse` type; shared 225, api 2407.
+- Task 6 (d2d729ad, 790157df): `project-budget` renamed to `project-budget.service`, then team and budget writes split out of `ProjectsService`; shared 225, api 2407.
+- Task 7 (57a79e17): `requireScopedProjectRow` and `requestIdentity` adopted in the projects, programs, overview metrics and project map modules; shared 225, api 2413.
+- Parity: 107 project and 20 program bodies agree between the DTO and contract routes; four project and two program bodies are accepted differences.
+- Task 8: SAD beneficiary privacy routing covers `apps/api/src/**/*.mapper.ts`; sad 53.
+- Middleware stayed at 102 kB. S1a touched no web code.
+- S1a decisions are recorded in the change record section 9; the plan stays until S1b is planned, because it holds the S1b outline.
+- Deferred to S1b: `lib/api/projects` and the project methods of `pathways-client.ts`, `requestSourceMutation` in `lib/api/core`, the `features/projects` layout and public `index.ts`, the oversized project components, the project map fetcher and the web project types.

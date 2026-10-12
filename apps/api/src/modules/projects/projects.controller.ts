@@ -1,26 +1,16 @@
+import { Body, Controller, Get, HttpCode, Inject, Param, Patch, Post, Req } from '@nestjs/common'
 import {
-  Body,
-  Controller,
-  ForbiddenException,
-  Get,
-  HttpCode,
-  Inject,
-  Param,
-  Patch,
-  Post,
-  Req,
-} from '@nestjs/common'
+  type CreateProjectRequest,
+  type UpdateProjectRequest,
+  createProjectRequest,
+  updateProjectRequest,
+} from '@pathways/shared'
 
 import type { AuthenticatedRequest } from '../../common/authz/application-identity'
+import { requestIdentity } from '../../common/authz/request-identity'
 import { RequirePermission } from '../../common/decorators/permission.decorator'
-// biome-ignore lint/style/useImportType: Nest validation needs the DTO constructors at runtime.
-import { CreateProjectDto, UpdateProjectDto } from './projects.dto'
+import { ZodPipe } from '../../common/validation/zod-pipe'
 import { ProjectsService } from './projects.service'
-
-function profile(request: AuthenticatedRequest) {
-  if (!request.user) throw new ForbiddenException('Application profile is required.')
-  return request.user
-}
 
 @Controller('projects')
 export class ProjectsController {
@@ -29,19 +19,22 @@ export class ProjectsController {
   @Get()
   @RequirePermission('projects.read')
   list(@Req() request: AuthenticatedRequest) {
-    return this.projects.list(profile(request))
+    return this.projects.list(requestIdentity(request))
   }
 
   @Get(':projectId')
   @RequirePermission('projects.detail.read')
   get(@Req() request: AuthenticatedRequest, @Param('projectId') projectId: string) {
-    return this.projects.get(profile(request), projectId)
+    return this.projects.get(requestIdentity(request), projectId)
   }
 
   @Post()
   @RequirePermission('projects.create')
-  create(@Req() request: AuthenticatedRequest, @Body() body: CreateProjectDto) {
-    return this.projects.create(profile(request), body)
+  create(
+    @Req() request: AuthenticatedRequest,
+    @Body(new ZodPipe(createProjectRequest)) body: CreateProjectRequest,
+  ) {
+    return this.projects.create(requestIdentity(request), body)
   }
 
   @Patch(':projectId')
@@ -49,15 +42,15 @@ export class ProjectsController {
   update(
     @Req() request: AuthenticatedRequest,
     @Param('projectId') projectId: string,
-    @Body() body: UpdateProjectDto,
+    @Body(new ZodPipe(updateProjectRequest)) body: UpdateProjectRequest,
   ) {
-    return this.projects.update(profile(request), projectId, body)
+    return this.projects.update(requestIdentity(request), projectId, body)
   }
 
   @Post(':projectId/archive')
   @HttpCode(200)
   @RequirePermission('projects.archive')
   archive(@Req() request: AuthenticatedRequest, @Param('projectId') projectId: string) {
-    return this.projects.archive(profile(request), projectId)
+    return this.projects.archive(requestIdentity(request), projectId)
   }
 }
