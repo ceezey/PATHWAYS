@@ -29,6 +29,7 @@ import {
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'
 import { type SensitiveDraftOwner, useSensitiveDraftOwner } from '@/lib/auth/sensitive-drafts'
+import { plural } from '@/lib/format/plural'
 import { getVerifiedRouteAccess, principalHasAtomicPermission } from '@/lib/rbac/policy'
 import { pathwaysClient } from '@/lib/services/pathways-client'
 import { cn } from '@/lib/utils'
@@ -92,8 +93,6 @@ function automaticMatchReason(stored: StoredMapping | undefined) {
   }
   return stored.validationMessage.startsWith('AUTO_CODE_LABEL_V1:') ? 'exact name' : null
 }
-
-const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? '' : 's'}`
 
 function displayValue(value: unknown) {
   const text = Array.isArray(value) ? JSON.stringify(value) : String(value ?? '')

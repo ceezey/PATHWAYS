@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { StatusBadge } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import { formatCappedPercent } from '@/lib/format/percent'
+import { plural } from '@/lib/format/plural'
 import { cn } from '@/lib/utils'
 import { healthOf } from './health'
 import {
@@ -37,7 +38,6 @@ const longDate = (day: string) =>
     timeZone: 'UTC',
   })
 const budgetHref = (projectId: string) => `/projects/${projectId}/budget`
-const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`
 
 /** Project Manager home: project health from alerts, expense approvals and budget alerts. */
 export const ManagerOverview = ({

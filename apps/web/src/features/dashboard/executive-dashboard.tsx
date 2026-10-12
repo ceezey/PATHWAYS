@@ -16,6 +16,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { formatCappedPercent } from '@/lib/format/percent'
+import type { SignalTone } from '@/lib/format/tone'
 import { cn } from '@/lib/utils'
 import type {
   DashboardAction,
@@ -179,7 +180,7 @@ const ExecutiveSignal = ({
   value: string
   helperText: string
   progress?: number
-  tone: 'info' | 'success' | 'warning' | 'danger'
+  tone: SignalTone
 }) => (
   <article className="min-w-0 bg-card p-5">
     <div className="flex items-start justify-between gap-3">
