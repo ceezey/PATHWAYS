@@ -1,3 +1,5 @@
+import { subscribeSensitiveDraftInvalidation } from '@/lib/auth/sensitive-drafts'
+
 export type SourceReplayAcknowledgement = { requestId: string; committed: true; replayed: true }
 export type SourceMutationResult<T> = T | SourceReplayAcknowledgement
 export type SourceMutationContext = { principalKey: string; isCurrent: () => boolean }
@@ -345,3 +347,10 @@ export class SourceMutationTickets {
 }
 
 export const sourceMutationTickets = new SourceMutationTickets()
+
+let sourceInvalidationSubscribed = false
+export function ensureSourceInvalidationSubscription() {
+  if (typeof window === 'undefined' || sourceInvalidationSubscribed) return
+  subscribeSensitiveDraftInvalidation(() => sourceMutationTickets.clear())
+  sourceInvalidationSubscribed = true
+}

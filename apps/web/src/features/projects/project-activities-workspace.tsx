@@ -17,12 +17,12 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useCurrentRole } from '@/hooks/use-current-role'
+import { PathwaysClientError } from '@/lib/api/core/request'
 import { canAccessProjectForRole } from '@/lib/rbac/data-scope'
 import { principalHasAtomicPermission } from '@/lib/rbac/policy'
 import { isUiActionAvailable } from '@/lib/rbac/ui-action-availability'
 import { coreDataClient } from '@/lib/services/core-feature-client'
 import { pathwaysClient } from '@/lib/services/pathways-client'
-import { PathwaysClientError } from '@/lib/services/pathways-client'
 import { useAuthorizedRead } from '@/providers/authorized-query-provider'
 import type { Activity, ActivityStatus, ActivitySummary, Indicator } from '@/types/pathways'
 

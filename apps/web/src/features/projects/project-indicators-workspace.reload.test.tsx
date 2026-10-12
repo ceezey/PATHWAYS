@@ -69,9 +69,9 @@ vi.mock('@/providers/authorized-query-provider', () => ({
   useAuthorizedRead: () => ({ data: undefined, isError: false }),
 }))
 vi.mock('@/lib/services/pathways-client', () => ({
-  PathwaysClientError: class extends Error {},
   pathwaysClient: api,
 }))
+vi.mock('@/lib/api/core/request', () => ({ PathwaysClientError: class extends Error {} }))
 vi.mock('@/lib/services/source-mutation', () => ({
   isSourceReplay: () => tickets.replay,
   sourceMutationTickets: { finishAcknowledgement: tickets.finishAcknowledgement },

@@ -7,11 +7,11 @@ import { useEffect, useState } from 'react'
 import { AsyncState, StatusMessage } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import { useCurrentRole } from '@/hooks/use-current-role'
+import { PathwaysClientError } from '@/lib/api/core/request'
 import { STEP_UP_COMPLETED_EVENT } from '@/lib/auth/beneficiary-step-up-events'
 import { principalHasAtomicPermission } from '@/lib/rbac/policy'
 import { isUiActionAvailable } from '@/lib/rbac/ui-action-availability'
 import { type AssessmentSummary, pathwaysClient } from '@/lib/services/pathways-client'
-import { PathwaysClientError } from '@/lib/services/pathways-client'
 import type {
   ActivitySummary,
   BeneficiaryAssessmentRecord,

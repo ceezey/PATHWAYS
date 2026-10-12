@@ -31,7 +31,7 @@ vi.mock('@/hooks/use-current-role', () => ({
 vi.mock('@/lib/services/rules-human-client', () => ({
   rulesHumanClient: { listAlerts: state.alerts, listRecommendations: state.recommendations },
 }))
-vi.mock('@/lib/services/pathways-client', () => ({ PathwaysClientError: class extends Error {} }))
+vi.mock('@/lib/api/core/request', () => ({ PathwaysClientError: class extends Error {} }))
 const alert = {
   id: '20000000-0000-4000-8000-000000000001',
   projectId,

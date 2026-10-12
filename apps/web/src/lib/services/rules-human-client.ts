@@ -1,6 +1,6 @@
+import { PathwaysClientError, requestFoundationResponse } from '@/lib/api/core/request'
 import { sensitiveDraftGeneration } from '@/lib/auth/sensitive-drafts'
 import { contextCookieName } from '@/lib/auth/workspace-access'
-import { PathwaysClientError, requestFoundationResponse } from '@/lib/services/pathways-client'
 import {
   activateRuleSchema,
   alertListSchema,

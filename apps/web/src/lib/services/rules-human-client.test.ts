@@ -3,7 +3,7 @@ import { clearSensitiveDraftStorage } from '@/lib/auth/sensitive-drafts'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { rulesHumanClient } from './rules-human-client'
 const transport = vi.hoisted(() => vi.fn())
-vi.mock('@/lib/services/pathways-client', () => ({
+vi.mock('@/lib/api/core/request', () => ({
   requestFoundationResponse: transport,
   PathwaysClientError: class extends Error {
     constructor(

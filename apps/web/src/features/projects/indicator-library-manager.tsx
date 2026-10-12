@@ -21,10 +21,10 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { usePendingCreate } from '@/hooks/use-pending-create'
+import { PathwaysClientError } from '@/lib/api/core/request'
 import { fingerprintOf } from '@/lib/forms/pending-create'
 import { principalHasAtomicPermission } from '@/lib/rbac/policy'
 import { indicatorLibraryClient } from '@/lib/services/indicator-library-client'
-import { PathwaysClientError } from '@/lib/services/pathways-client'
 import { useAuthorizedRead } from '@/providers/authorized-query-provider'
 import {
   type CreateLibraryEntryInput,

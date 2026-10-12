@@ -9,7 +9,8 @@ vi.mock('@/lib/supabase/client', () => ({
   getBrowserSupabaseClient: () => ({ auth: { getSession: browser.getSession } }),
 }))
 
-import { PathwaysClientError, pathwaysClient } from './pathways-client'
+import { PathwaysClientError } from '@/lib/api/core/request'
+import { pathwaysClient } from './pathways-client'
 import { isSourceReplay, sourceMutationTickets } from './source-mutation'
 
 // The exact JSON ActivitiesService.reviewUpdate returns today: the mapped activity detail

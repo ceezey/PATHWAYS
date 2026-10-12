@@ -1,4 +1,4 @@
-import { PathwaysClientError, requestFoundation } from '@/lib/services/pathways-client'
+import { PathwaysClientError, requestFoundation } from '@/lib/api/core/request'
 import { getBrowserSupabaseClient } from '@/lib/supabase/client'
 import {
   STEP_UP_PIN_RULE_MESSAGE,

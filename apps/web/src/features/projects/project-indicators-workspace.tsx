@@ -23,11 +23,12 @@ import { useMonitoringRead } from '@/features/analytics/use-monitoring-read'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { usePendingCreate } from '@/hooks/use-pending-create'
 import { useSourceMutationContext } from '@/hooks/use-source-mutation-context'
+import { PathwaysClientError } from '@/lib/api/core/request'
 import { formatCappedPercent } from '@/lib/format/percent'
 import { fingerprintOf } from '@/lib/forms/pending-create'
 import { principalHasAtomicPermission } from '@/lib/rbac/policy'
 import { indicatorLibraryClient } from '@/lib/services/indicator-library-client'
-import { PathwaysClientError, pathwaysClient } from '@/lib/services/pathways-client'
+import { pathwaysClient } from '@/lib/services/pathways-client'
 import {
   type SourceMutationResult,
   isSourceReplay,

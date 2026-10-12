@@ -52,7 +52,7 @@ vi.mock('./project-team-editor-dialog', () => ({
   ProjectTeamEditorDialog: () => <button type="button">Edit team</button>,
 }))
 
-import { PathwaysClientError } from '@/lib/services/pathways-client'
+import { PathwaysClientError } from '@/lib/api/core/request'
 import { ProjectDetailView } from './project-detail-view'
 import { ProjectWorkspaceFrame } from './project-workspace-frame'
 

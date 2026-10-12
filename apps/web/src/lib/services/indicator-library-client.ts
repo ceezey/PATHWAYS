@@ -1,9 +1,9 @@
+import { requestFoundation } from '@/lib/api/core/request'
 import {
   type CreateLibraryEntryInput,
   type LibraryEntry,
   libraryEntrySchema,
 } from '@pathways/shared'
-import { requestFoundation } from './pathways-client'
 
 export const indicatorLibraryClient = {
   async list(): Promise<LibraryEntry[]> {

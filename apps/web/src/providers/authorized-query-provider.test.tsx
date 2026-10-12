@@ -22,7 +22,7 @@ vi.mock('@/hooks/use-current-role', () => ({
     profile: state.profile,
   }),
 }))
-vi.mock('@/lib/services/pathways-client', () => ({ PathwaysClientError: class extends Error {} }))
+vi.mock('@/lib/api/core/request', () => ({ PathwaysClientError: class extends Error {} }))
 const deferred = () => {
   let resolve: (value: string) => void = () => {}
   const promise = new Promise<string>((done) => {

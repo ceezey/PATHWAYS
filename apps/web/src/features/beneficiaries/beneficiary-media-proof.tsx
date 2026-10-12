@@ -28,8 +28,9 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { PathwaysClientError } from '@/lib/api/core/request'
 import { sha256Hex } from '@/lib/files/proof-file-hash'
-import { PathwaysClientError, pathwaysClient } from '@/lib/services/pathways-client'
+import { pathwaysClient } from '@/lib/services/pathways-client'
 import type {
   ActivityProofFileDeclaration,
   BeneficiaryMediaItem,

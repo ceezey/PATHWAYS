@@ -32,7 +32,7 @@ vi.mock('@/hooks/use-current-role', () => ({
     profile: state.profile,
   }),
 }))
-vi.mock('@/lib/services/pathways-client', () => ({
+vi.mock('@/lib/api/core/request', () => ({
   PathwaysClientError: class extends Error {
     constructor(
       message: string,
@@ -45,7 +45,7 @@ vi.mock('@/lib/services/pathways-client', () => ({
   },
 }))
 
-const { PathwaysClientError } = await import('@/lib/services/pathways-client')
+const { PathwaysClientError } = await import('@/lib/api/core/request')
 
 type Read = (signal: AbortSignal) => Promise<string>
 const Reader = ({

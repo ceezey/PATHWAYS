@@ -24,7 +24,7 @@ vi.mock('@/components/ui/dialog', () => ({
   DialogFooter: ({ children }: { children: ReactNode }) => <div>{children}</div>,
 }))
 
-import { PathwaysClientError } from '@/lib/services/pathways-client'
+import { PathwaysClientError } from '@/lib/api/core/request'
 import { ActivityProgressDialog } from './activity-progress-dialog'
 
 const activity = {

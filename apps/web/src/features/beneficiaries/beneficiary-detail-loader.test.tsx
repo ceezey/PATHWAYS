@@ -24,6 +24,8 @@ vi.mock('@/hooks/use-current-role', () => ({
 }))
 vi.mock('@/lib/services/pathways-client', () => ({
   pathwaysClient: client,
+}))
+vi.mock('@/lib/api/core/request', () => ({
   PathwaysClientError: class PathwaysClientError extends Error {
     code: string
     constructor(message: string, code: string) {

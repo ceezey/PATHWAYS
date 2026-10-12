@@ -45,6 +45,8 @@ const access = vi.hoisted(() => ({
 
 vi.mock('@/lib/services/pathways-client', () => ({
   pathwaysClient: api,
+}))
+vi.mock('@/lib/api/core/request', () => ({
   PathwaysClientError: class extends Error {
     constructor(
       message: string,

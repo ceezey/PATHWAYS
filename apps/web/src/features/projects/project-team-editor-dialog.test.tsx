@@ -25,8 +25,8 @@ let access: {
 
 vi.mock('@/lib/services/pathways-client', () => ({
   pathwaysClient: api,
-  PathwaysClientError: class extends Error {},
 }))
+vi.mock('@/lib/api/core/request', () => ({ PathwaysClientError: class extends Error {} }))
 vi.mock('@/hooks/use-current-role', () => ({ useCurrentRole: () => access }))
 vi.mock('@/hooks/use-source-mutation-context', () => ({
   useSourceMutationContext: () => ({

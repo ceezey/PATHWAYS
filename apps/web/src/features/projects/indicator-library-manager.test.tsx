@@ -28,7 +28,7 @@ vi.mock('@/hooks/use-current-role', () => ({
 vi.mock('@/providers/authorized-query-provider', () => ({
   useAuthorizedRead: () => ({ data: state.data, error: state.error, refetch: vi.fn() }),
 }))
-vi.mock('@/lib/services/pathways-client', () => ({ PathwaysClientError: class extends Error {} }))
+vi.mock('@/lib/api/core/request', () => ({ PathwaysClientError: class extends Error {} }))
 vi.mock('@/lib/services/indicator-library-client', () => ({ indicatorLibraryClient: {} }))
 
 const entry = {

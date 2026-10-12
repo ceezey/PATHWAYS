@@ -13,6 +13,7 @@ import { AsyncState, EmptyState, LoadingSkeleton, StatusBadge } from '@/componen
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { useCurrentRole } from '@/hooks/use-current-role'
+import { PathwaysClientError } from '@/lib/api/core/request'
 import {
   type SensitiveDraftOwner,
   readSensitiveDraft,
@@ -20,7 +21,7 @@ import {
   useSensitiveDraftOwner,
   writeSensitiveDraft,
 } from '@/lib/auth/sensitive-drafts'
-import { PathwaysClientError, pathwaysClient } from '@/lib/services/pathways-client'
+import { pathwaysClient } from '@/lib/services/pathways-client'
 import type {
   DigitalFormDefinition,
   DirectFormSubmission,

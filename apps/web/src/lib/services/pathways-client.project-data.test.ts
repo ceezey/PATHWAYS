@@ -9,7 +9,8 @@ vi.mock('@/lib/supabase/client', () => ({
   getBrowserSupabaseClient: () => ({ auth: { getSession: browser.getSession } }),
 }))
 
-import { PathwaysClientError, pathwaysClient, requestFoundationResponse } from './pathways-client'
+import { PathwaysClientError, requestFoundationResponse } from '@/lib/api/core/request'
+import { pathwaysClient } from './pathways-client'
 
 const authUserId = '73700000-0000-4000-8000-000000000001'
 const projectId = '73700000-0000-4000-8000-000000000004'

@@ -1,8 +1,8 @@
+import { PathwaysClientError, requestFoundationResponse } from '@/lib/api/core/request'
 import { sensitiveDraftGeneration } from '@/lib/auth/sensitive-drafts'
 import { contextCookieName } from '@/lib/auth/workspace-access'
 import { reportKinds } from '@pathways/shared'
 import { z } from 'zod'
-import { PathwaysClientError, requestFoundationResponse } from './pathways-client'
 import { reportSectionsSchema } from './report-sections'
 
 const ownerCookie = () =>

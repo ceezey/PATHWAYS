@@ -15,7 +15,7 @@ vi.mock('@/lib/services/pathways-client', async (importOriginal) => ({
 }))
 vi.mock('sonner', () => ({ toast: { success: vi.fn() } }))
 
-import { PathwaysClientError } from '@/lib/services/pathways-client'
+import { PathwaysClientError } from '@/lib/api/core/request'
 import { ActivityExtensionPanel } from './activity-extension-panel'
 
 const activity = {
