@@ -1,3 +1,4 @@
+import { formatDateOrUnavailable } from '@/lib/format/date'
 import type {
   ActivitySummary,
   BeneficiaryAssessmentRecord,
@@ -130,37 +131,7 @@ export const resolveJourneySummary = (
   }
 }
 
-const beneficiaryDateFormatter = new Intl.DateTimeFormat('en-US', {
-  dateStyle: 'medium',
-  timeZone: 'UTC',
-})
-
-export const formatDate = (value: string | null | undefined) => {
-  const normalizedValue = value?.trim()
-
-  if (!normalizedValue) {
-    return 'Date unavailable'
-  }
-
-  const dateOnlyMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(normalizedValue)
-  const date = dateOnlyMatch
-    ? new Date(
-        Date.UTC(Number(dateOnlyMatch[1]), Number(dateOnlyMatch[2]) - 1, Number(dateOnlyMatch[3])),
-      )
-    : new Date(normalizedValue)
-
-  const isInvalidDateOnly =
-    dateOnlyMatch &&
-    (date.getUTCFullYear() !== Number(dateOnlyMatch[1]) ||
-      date.getUTCMonth() !== Number(dateOnlyMatch[2]) - 1 ||
-      date.getUTCDate() !== Number(dateOnlyMatch[3]))
-
-  if (Number.isNaN(date.getTime()) || isInvalidDateOnly) {
-    return 'Date unavailable'
-  }
-
-  return beneficiaryDateFormatter.format(date)
-}
+export const formatDate = (value: string | null | undefined) => formatDateOrUnavailable(value)
 
 export const projectTitle = (projectId: string, projects: { id: string; title: string }[]) =>
   projects.find((project) => project.id === projectId)?.title ?? projectId

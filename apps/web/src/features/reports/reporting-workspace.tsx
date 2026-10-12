@@ -64,6 +64,7 @@ import {
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'
 import { useSafeProjectSelection } from '@/hooks/use-safe-project-selection'
+import { formatCalendarDay } from '@/lib/format/date'
 import { can } from '@/lib/rbac/can'
 import { canAccessProjectForRole } from '@/lib/rbac/data-scope'
 import { principalHasAtomicPermission, reportKindPermissions } from '@/lib/rbac/policy'
@@ -172,16 +173,7 @@ const defaultVisibleColumns = Object.fromEntries(
   ]),
 ) as Record<ReportKind, string[]>
 
-const formatDate = (value?: string) => {
-  if (!value) {
-    return 'Date unavailable'
-  }
-
-  return new Intl.DateTimeFormat('en-US', {
-    dateStyle: 'medium',
-    timeZone: 'UTC',
-  }).format(new Date(`${value}T00:00:00.000Z`))
-}
+const formatDate = (value?: string) => (value ? formatCalendarDay(value) : 'Date unavailable')
 
 const splitPeriod = (period: string) => {
   const [startDate, endDate] = period.split(' - ')

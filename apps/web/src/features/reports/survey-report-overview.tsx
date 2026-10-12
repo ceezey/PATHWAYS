@@ -1,3 +1,4 @@
+import { formatCalendarDay } from '@/lib/format/date'
 import type {
   Activity,
   JourneyStageConfig,
@@ -14,12 +15,6 @@ type SurveyReportOverviewProps = {
   project?: ProjectDetail
   result: SurveyAggregateResultSet
 }
-
-const formatDate = (value: string) =>
-  new Intl.DateTimeFormat('en-US', {
-    dateStyle: 'medium',
-    timeZone: 'UTC',
-  }).format(new Date(`${value}T00:00:00.000Z`))
 
 const formatBreakdown = (count: number, total: number) => {
   const percentage = total > 0 ? Math.round((count / total) * 100) : 0
@@ -59,7 +54,7 @@ export const SurveyReportOverview = ({
       <ContextItem label="Project" value={project?.title ?? 'Project not mapped'} />
       <ContextItem label="Form type" value={form.formType} />
       <ContextItem label="Location" value={result.location} />
-      <ContextItem label="Exact response date" value={formatDate(result.responseDate)} />
+      <ContextItem label="Exact response date" value={formatCalendarDay(result.responseDate)} />
       <ContextItem label="Reporting period" value={result.reportingPeriod} />
       <ContextItem
         label="Journey stage"

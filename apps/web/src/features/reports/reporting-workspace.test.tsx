@@ -103,3 +103,25 @@ describe('report-type dependency loading', () => {
     expect(api.getProjectIndicators).not.toHaveBeenCalled()
   })
 })
+
+describe('project summary dates', () => {
+  afterEach(cleanup)
+
+  it('shows the project start and end dates as medium UTC calendar days', async () => {
+    render(
+      <ReportingWorkspace
+        activities={[]}
+        indicators={[]}
+        initialKind="project-summary"
+        journeyStages={[]}
+        projects={[{ ...project, startDate: '2026-01-05', endDate: '2026-12-31' }]}
+        reports={[]}
+        surveyForms={[]}
+        surveyResults={[]}
+      />,
+    )
+
+    expect(await screen.findByText('Jan 5, 2026')).toBeTruthy()
+    expect(screen.getByText('Dec 31, 2026')).toBeTruthy()
+  })
+})

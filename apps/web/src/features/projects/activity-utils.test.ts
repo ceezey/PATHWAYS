@@ -46,6 +46,13 @@ describe('activity card presentation helpers', () => {
     expect(activityDueLabel('In Progress', '')).toBe('Due date unavailable')
   })
 
+  it('pads one-digit days, trims whitespace and formats timestamps by their UTC day', () => {
+    expect(formatDate('2026-01-05')).toBe('Jan 05, 2026')
+    expect(formatDate(' 2026-06-18 ')).toBe('Jun 18, 2026')
+    expect(formatDate('2026-06-18T23:30:00-08:00')).toBe('Jun 19, 2026')
+    expect(formatDate('   ')).toBe('Date unavailable')
+  })
+
   it('builds a versioned core activity edit without prototype-only fields', () => {
     const activity = mockActivities[1]
     if (!activity) {

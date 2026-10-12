@@ -42,6 +42,7 @@ import { metricUnavailableLabel, overviewMetricLabel } from '@/features/projects
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'
 import { addPin } from '@/lib/dashboard-pins'
+import { formatCalendarDay } from '@/lib/format/date'
 import { formatCappedPercent } from '@/lib/format/percent'
 import { can } from '@/lib/rbac/can'
 import { principalHasAtomicPermission } from '@/lib/rbac/policy'
@@ -81,7 +82,6 @@ import {
   deriveAnalyticsReportingPeriods,
   nonOverlappingAnalyticsPeriods,
 } from './analytics-reporting-periods'
-import { formatDate } from './analytics-utils'
 import { BudgetSummaryCard } from './budget-summary-card'
 import { IndicatorTrendChart } from './indicator-trend-chart'
 import { InsightStatus } from './insight-status'
@@ -286,7 +286,7 @@ export const AnalyticsDashboard = () => {
         }
       : selectedProject.startDate > businessDateInManila()
         ? {
-            title: `SADDD opens when this project starts on ${formatDate(selectedProject.startDate)}`,
+            title: `SADDD opens when this project starts on ${formatCalendarDay(selectedProject.startDate)}`,
             description:
               'Sex, age and disability breakdowns are shown once the project has started. Select a started project to see them now.',
           }
