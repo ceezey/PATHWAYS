@@ -208,6 +208,9 @@ describe('Activity progress update (activities.progress.update)', () => {
     await expect(
       service.recordProgress(actor, projectId, activityId, input),
     ).rejects.toBeInstanceOf(ForbiddenException)
+    await expect(service.recordProgress(actor, projectId, activityId, input)).rejects.toThrow(
+      'An active activity assignment is required.',
+    )
     expect(tx.projectActivityAssignment.findFirst.mock.calls[0][0].where).toMatchObject({
       organizationId,
       projectAssignment: { userId: actor.userId, status: 'ACTIVE' },

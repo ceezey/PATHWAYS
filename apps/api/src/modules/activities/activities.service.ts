@@ -18,7 +18,6 @@ import {
   ServiceUnavailableException,
   UnprocessableEntityException,
 } from '@nestjs/common'
-import { Prisma } from '@prisma/client'
 
 import { readApiEnv } from '@pathways/config'
 import {
@@ -59,14 +58,25 @@ import {
   validateActivityDates,
 } from './activities.helpers'
 import {
-  type ActivityReadMetrics,
-  type ActivityRow,
   activityListSelection,
   activitySelection,
-  mapActivity,
   mapActivityListItem,
   personalAssignmentCount,
 } from './activities.mapper'
+import {
+  readScopedActivity,
+  requireActiveAssignment,
+  requireActivity,
+  requireProjectActivity,
+} from './activity-access.service'
+import { saveActivityBudget } from './activity-budget.service'
+import {
+  replaceActivityLinks,
+  resolveAssignments,
+  resolveIndicators,
+  resolveJourneyStage,
+} from './activity-links.service'
+import { mapWithMetrics, readListMetrics } from './activity-metrics.service'
 import {
   PROOF_STORAGE_DEADLINE_MS,
   activityEvidenceLimits,
@@ -81,8 +91,6 @@ import {
 // Create and update write assignments, links, budget and rule sources in one transaction; 5s is too short on the pooled remote DB.
 const ACTIVITY_SAVE_TRANSACTION_TIMEOUT_MS = 20_000
 
-const activityBudgetCategory = 'ACTIVITY_PROFILE_TOTAL'
-
 @Injectable()
 export class ActivitiesService {
   private readonly env = readApiEnv(process.env)
@@ -93,422 +101,29 @@ export class ActivitiesService {
     @Inject(PRIVATE_STORAGE_FACTORIES) private readonly storageFactories: PrivateStorageFactories,
   ) {}
 
-  /**
-   * Reads one activity of a project already verified by `requireScopedProjectRow` in this same
-   * transaction. Post-write read-backs use it so project scope is not resolved twice.
-   */
-  private async readScopedActivity(
-    tx: Tx,
-    actor: ApplicationIdentity,
-    verifiedProjectId: string,
-    activityId: string,
-  ) {
-    if (!UUID_PATTERN.test(activityId)) throw new NotFoundException('Activity unavailable.')
-    const activity = await tx.projectActivity.findFirst({
-      relationLoadStrategy: 'join',
-      where: {
-        id: activityId.toLowerCase(),
-        organizationId: actor.organizationId,
-        projectId: verifiedProjectId,
-        archivedAt: null,
-      },
-      select: { ...activitySelection, ...personalAssignmentCount(actor) },
-    })
-    if (!activity) throw new NotFoundException('Activity unavailable.')
-    return activity
-  }
-
-  private async requireProjectActivity(
-    tx: Tx,
-    actor: ApplicationIdentity,
-    projectId: string,
-    activityId: string,
-  ) {
-    const project = await requireScopedProjectRow(tx, actor, projectId, projectDateFields)
-    const activity = await this.readScopedActivity(tx, actor, project.id, activityId)
-    return { project, activity }
-  }
-
-  private async requireActivity(
-    tx: Tx,
-    actor: ApplicationIdentity,
-    projectId: string,
-    activityId: string,
-  ) {
-    return (await this.requireProjectActivity(tx, actor, projectId, activityId)).activity
-  }
-
-  private async resolveAssignments(
-    tx: Tx,
-    actor: ApplicationIdentity,
-    projectId: string,
-    userIds: string[],
-  ) {
-    const ids = userIds.map((id) => id.toLowerCase())
-    const assignments = await tx.userProjectAssignment.findMany({
-      where: {
-        organizationId: actor.organizationId,
-        projectId,
-        userId: { in: ids },
-        status: 'ACTIVE',
-        endedAt: null,
-        user: {
-          accountStatus: 'ACTIVE',
-          archivedAt: null,
-          role: { code: 'PROJECT_OFFICER', isActive: true },
-        },
-      },
-      select: { id: true, userId: true },
-      take: 50,
-    })
-    if (
-      assignments.length !== ids.length ||
-      new Set(assignments.map((row) => row.userId)).size !== ids.length
-    ) {
-      throw new BadRequestException(
-        'Every activity assignee must be an active Project Officer assigned to this project.',
-      )
-    }
-    return assignments
-  }
-
-  private async resolveIndicators(
-    tx: Tx,
-    actor: ApplicationIdentity,
-    projectId: string,
-    indicatorIds: string[] | undefined,
-  ) {
-    if (indicatorIds === undefined) return undefined
-    const ids = indicatorIds.map((id) => id.toLowerCase())
-    if (ids.length === 0) return []
-    if (!hasAtomicPermission(actor.roles[0], actor.permissions, 'indicators.update')) {
-      throw new ForbiddenException('Indicator-link authority is missing.')
-    }
-    const rows = await tx.projectIndicator.findMany({
-      where: {
-        id: { in: ids },
-        organizationId: actor.organizationId,
-        projectId,
-        archivedAt: null,
-      },
-      select: { id: true },
-      take: 101,
-    })
-    if (rows.length !== ids.length || new Set(rows.map((row) => row.id)).size !== ids.length) {
-      throw new BadRequestException('Every connected indicator must belong to this project.')
-    }
-    return ids
-  }
-
-  private async resolveJourneyStage(
-    tx: Tx,
-    actor: ApplicationIdentity,
-    projectId: string,
-    journeyStageId: string | null | undefined,
-  ) {
-    if (journeyStageId === undefined || journeyStageId === null) return journeyStageId
-    if (!hasAtomicPermission(actor.roles[0], actor.permissions, 'journeys.read')) {
-      throw new ForbiddenException('Journey-stage link authority is missing.')
-    }
-    const id = journeyStageId.toLowerCase()
-    const stage = await tx.journeyStage.findFirst({
-      where: { id, organizationId: actor.organizationId, projectId, archivedAt: null },
-      select: { id: true },
-    })
-    if (!stage)
-      throw new BadRequestException('The selected journey stage must belong to this project.')
-    return stage.id
-  }
-
-  private async replaceActivityLinks(
-    tx: Tx,
-    actor: ApplicationIdentity,
-    projectId: string,
-    activityId: string,
-    indicatorIds: string[] | undefined,
-    journeyStageId: string | null | undefined,
-  ) {
-    if (indicatorIds !== undefined) {
-      await tx.activityIndicatorLink.deleteMany({
-        where: { organizationId: actor.organizationId, projectId, activityId },
-      })
-      if (indicatorIds.length) {
-        await tx.activityIndicatorLink.createMany({
-          data: indicatorIds.map((indicatorId) => ({
-            organizationId: actor.organizationId,
-            projectId,
-            activityId,
-            indicatorId,
-            createdById: actor.userId,
-          })),
-        })
-      }
-    }
-    if (journeyStageId !== undefined) {
-      await tx.activityJourneyStageMapping.deleteMany({
-        where: { organizationId: actor.organizationId, projectId, activityId },
-      })
-      if (journeyStageId) {
-        await tx.activityJourneyStageMapping.create({
-          data: {
-            organizationId: actor.organizationId,
-            projectId,
-            activityId,
-            stageId: journeyStageId,
-            sequenceOrder: 1,
-            createdById: actor.userId,
-          },
-        })
-      }
-    }
-  }
-
-  private activityBudgetValue(value: string) {
-    try {
-      return new Prisma.Decimal(value)
-    } catch {
-      throw new BadRequestException('Activity budget must be a valid non-negative PHP amount.')
-    }
-  }
-
-  private async saveActivityBudget(
-    tx: Tx,
-    actor: ApplicationIdentity,
-    projectId: string,
-    activityId: string,
-    value: string | undefined,
-    operation: 'create' | 'update',
-  ) {
-    if (value === undefined) return
-    const canCreate = hasAtomicPermission(actor.roles[0], actor.permissions, 'budgets.create')
-    const canUpdate = hasAtomicPermission(actor.roles[0], actor.permissions, 'budgets.update')
-    if (!canCreate || (operation === 'update' && !canUpdate)) {
-      throw new ForbiddenException('Activity budget authority is missing.')
-    }
-    const plannedBudget = this.activityBudgetValue(value)
-    const current = await tx.projectBudgetRecord.findFirst({
-      where: {
-        organizationId: actor.organizationId,
-        projectId,
-        activityId,
-        category: activityBudgetCategory,
-        archivedAt: null,
-      },
-      select: { id: true, plannedBudget: true },
-    })
-    if (current?.plannedBudget.equals(plannedBudget)) return
-    if (current) {
-      await tx.projectBudgetRecord.update({
-        where: { id: current.id },
-        data: { archivedAt: new Date() },
-      })
-    }
-    await tx.projectBudgetRecord.create({
-      data: {
-        organizationId: actor.organizationId,
-        projectId,
-        activityId,
-        category: activityBudgetCategory,
-        currency: 'PHP',
-        plannedBudget,
-        remarks: 'Activity profile planned budget.',
-        recordedById: actor.userId,
-      },
-    })
-  }
-
-  private async readMetrics(
-    tx: Tx,
-    actor: ApplicationIdentity,
-    projectId: string,
-    activityIds: string[],
-  ): Promise<ActivityReadMetrics> {
-    const budgets = new Map<string, string>()
-    const reached = new Map<string, number>()
-    const logged = new Map<string, { total: string; entries: number }>()
-    if (activityIds.length === 0) return { budgets, reached, logged }
-    if (hasAtomicPermission(actor.roles[0], actor.permissions, 'budgets.read')) {
-      // Every live budget line for the activity, not just its envelope row, so the detail
-      // allocation matches the list utilization and the finance ledger. A replaced
-      // (archived) line keeps its spend but no longer contributes a plan.
-      const rows = await tx.projectBudgetRecord.findMany({
-        where: {
-          organizationId: actor.organizationId,
-          projectId,
-          activityId: { in: activityIds },
-          archivedAt: null,
-        },
-        select: { activityId: true, plannedBudget: true },
-        take: 1000,
-      })
-      const planned = new Map<string, Prisma.Decimal>()
-      for (const row of rows) {
-        if (!row.activityId) continue
-        planned.set(
-          row.activityId,
-          (planned.get(row.activityId) ?? new Prisma.Decimal(0)).add(row.plannedBudget),
-        )
-      }
-      for (const [activityId, total] of planned) budgets.set(activityId, total.toFixed(2))
-    }
-    for (const [id, count] of await this.readReached(tx, actor, projectId, activityIds)) {
-      reached.set(id, count)
-    }
-    // Same grant as GET /expenses; the expense SELECT policy also requires it per project.
-    // Logged means APPROVED, as in the finance ledger and the overview budget metric.
-    // Expenses on an archived (replaced) activity budget record still count. Only the
-    // single-activity read calls this, so the loop is one aggregate query.
-    if (hasAtomicPermission(actor.roles[0], actor.permissions, 'expenses.read')) {
-      for (const activityId of activityIds) {
-        const row = await tx.budgetExpenseEntry.aggregate({
-          where: {
-            organizationId: actor.organizationId,
-            projectId,
-            status: 'APPROVED',
-            budgetRecord: { organizationId: actor.organizationId, projectId, activityId },
-          },
-          _sum: { amount: true },
-          _count: { _all: true },
-        })
-        logged.set(activityId, {
-          total: (row._sum.amount ?? new Prisma.Decimal(0)).toFixed(2),
-          entries: row._count._all,
-        })
-      }
-    }
-    return { budgets, reached, logged }
-  }
-
-  /** APPROVED beneficiaries reached per activity; empty without beneficiaries.aggregates.read. */
-  private async readReached(
-    tx: Tx,
-    actor: ApplicationIdentity,
-    projectId: string,
-    activityIds: string[],
-  ) {
-    const reached = new Map<string, number>()
-    if (!hasAtomicPermission(actor.roles[0], actor.permissions, 'beneficiaries.aggregates.read')) {
-      return reached
-    }
-    // Authorized callers see 0, not null, for activities with no approved sessions yet.
-    for (const id of activityIds) reached.set(id, 0)
-    // Sums APPROVED session counts; p08_activity_beneficiaries_reached runs as the owner, which
-    // forced RLS on activity_updates hides, so it always returned 0.
-    const rows = await tx.activityUpdate.groupBy({
-      by: ['activityId'],
-      where: {
-        organizationId: actor.organizationId,
-        projectId,
-        activityId: { in: activityIds },
-        status: 'APPROVED',
-        activity: { status: { not: 'CANCELLED' }, archivedAt: null },
-      },
-      _sum: { beneficiariesReachedThisSession: true },
-    })
-    for (const row of rows)
-      reached.set(row.activityId, row._sum.beneficiariesReachedThisSession ?? 0)
-    return reached
-  }
-
-  /**
-   * Batched list metrics: reached needs beneficiaries.aggregates.read; budget utilization
-   * needs budgets.read AND expenses.read (approved spend over planned), else null.
-   */
-  private async readListMetrics(
-    tx: Tx,
-    actor: ApplicationIdentity,
-    projectId: string,
-    activityIds: string[],
-  ) {
-    const budgetUtilization = new Map<string, number | null>()
-    if (activityIds.length === 0) return { reached: new Map<string, number>(), budgetUtilization }
-    const reached = await this.readReached(tx, actor, projectId, activityIds)
-    const can = (permission: 'budgets.read' | 'expenses.read') =>
-      hasAtomicPermission(actor.roles[0], actor.permissions, permission)
-    if (can('budgets.read') && can('expenses.read')) {
-      const records = await tx.projectBudgetRecord.findMany({
-        where: { organizationId: actor.organizationId, projectId, activityId: { in: activityIds } },
-        select: { id: true, activityId: true, plannedBudget: true, archivedAt: true },
-        take: 1000,
-      })
-      const spend = await tx.budgetExpenseEntry.groupBy({
-        by: ['budgetRecordId'],
-        where: {
-          organizationId: actor.organizationId,
-          projectId,
-          status: 'APPROVED',
-          budgetRecordId: { in: records.map((record) => record.id) },
-        },
-        _sum: { amount: true },
-      })
-      const spendByRecord = new Map(
-        spend.map((row) => [row.budgetRecordId, Number(row._sum.amount ?? 0)]),
-      )
-      const totals = new Map<string, { planned: number; used: number }>()
-      for (const record of records) {
-        if (!record.activityId) continue
-        const total = totals.get(record.activityId) ?? { planned: 0, used: 0 }
-        // Spend on an archived (replaced) record still counts, its plan does not.
-        if (!record.archivedAt) total.planned += Number(record.plannedBudget)
-        total.used += spendByRecord.get(record.id) ?? 0
-        totals.set(record.activityId, total)
-      }
-      for (const [id, { planned, used }] of totals) {
-        budgetUtilization.set(id, planned > 0 ? Math.round((used / planned) * 100) : null)
-      }
-    }
-    return { reached, budgetUtilization }
-  }
-
-  private async mapWithMetrics(
-    tx: Tx,
-    actor: ApplicationIdentity,
-    row: ActivityRow & { _count?: { projectActivityAssignment_activity: number } },
-  ) {
-    const metrics = await this.readMetrics(tx, actor, row.projectId, [row.id])
-    return {
-      ...mapActivity(
-        row,
-        businessCalendarDate(new Date(), this.env.BUSINESS_TIME_ZONE),
-        metrics,
-        actor.userId,
-      ),
-      capabilities: activityCapabilities(
-        actor,
-        row.status,
-        row._count?.projectActivityAssignment_activity,
-      ),
-    }
-  }
-
   context(identity: ApplicationIdentity, projectId: string) {
     return withAuthorizedOperation(
       this.prisma,
       identity,
       'activities.context.read',
       async (tx, actor) => {
-        if (!UUID_PATTERN.test(projectId)) throw new NotFoundException('Project unavailable.')
-        const project = await tx.project.findFirst({
-          where: { AND: [projectScope(actor), { id: projectId.toLowerCase() }] },
-          select: {
-            projectActivity_project: {
-              where: { organizationId: actor.organizationId, archivedAt: null },
-              select: {
-                id: true,
-                title: true,
-                status: true,
-                activityJourneyStageMapping_activity: {
-                  select: { stageId: true },
-                  orderBy: { sequenceOrder: 'asc' },
-                  take: 100,
-                },
+        const project = await requireScopedProjectRow(tx, actor, projectId, {
+          projectActivity_project: {
+            where: { organizationId: actor.organizationId, archivedAt: null },
+            select: {
+              id: true,
+              title: true,
+              status: true,
+              activityJourneyStageMapping_activity: {
+                select: { stageId: true },
+                orderBy: { sequenceOrder: 'asc' },
+                take: 100,
               },
-              orderBy: [{ title: 'asc' }, { id: 'asc' }],
-              take: 100,
             },
+            orderBy: [{ title: 'asc' }, { id: 'asc' }],
+            take: 100,
           },
         })
-        if (!project) throw new NotFoundException('Project unavailable.')
         return project.projectActivity_project.map((row) => ({
           id: row.id,
           title: row.title,
@@ -578,7 +193,7 @@ export class ActivitiesService {
       })
       if (!project) throw new NotFoundException('Project unavailable.')
       const today = businessCalendarDate(new Date(), this.env.BUSINESS_TIME_ZONE)
-      const metrics = await this.readListMetrics(
+      const metrics = await readListMetrics(
         tx,
         actor,
         projectId.toLowerCase(),
@@ -603,22 +218,16 @@ export class ActivitiesService {
    * counts selected without file names, submitters, notes, or storage references. */
   listEvidence(identity: ApplicationIdentity, projectId: string) {
     return withAuthorizedOperation(this.prisma, identity, 'evidence.read', async (tx, actor) => {
-      if (!UUID_PATTERN.test(projectId)) throw new NotFoundException('Project unavailable.')
-      const where = { AND: [projectScope(actor), { id: projectId.toLowerCase() }] }
       const activityWhere = { organizationId: actor.organizationId, archivedAt: null }
       if (aggregateOnlyRoles.includes(actor.roles[0])) {
-        const project = await tx.project.findFirst({
-          where,
-          select: {
-            projectActivity_project: {
-              where: activityWhere,
-              select: { id: true, title: true },
-              orderBy: [{ plannedEndDate: 'asc' }, { id: 'asc' }],
-              take: 100,
-            },
+        const project = await requireScopedProjectRow(tx, actor, projectId, {
+          projectActivity_project: {
+            where: activityWhere,
+            select: { id: true, title: true },
+            orderBy: [{ plannedEndDate: 'asc' }, { id: 'asc' }],
+            take: 100,
           },
         })
-        if (!project) throw new NotFoundException('Project unavailable.')
         const activityIds = project.projectActivity_project.map((row) => row.id)
         // Counts come from the database, so they are exact rather than capped by row limits.
         const groups = activityIds.length
@@ -651,40 +260,35 @@ export class ActivitiesService {
           }),
         }
       }
-      const project = await tx.project.findFirst({
-        where,
-        select: {
-          projectActivity_project: {
-            where: activityWhere,
-            select: {
-              id: true,
-              projectId: true,
-              title: true,
-              // Detail keeps the same bounded page as the activity list (100 activities,
-              // 100 updates, 10 proofs per update); counts for totals use the aggregate path.
-              activityUpdate_activity: {
-                ...activitySelection.activityUpdate_activity,
-                select: {
-                  ...activitySelection.activityUpdate_activity.select,
-                  evidenceMedia_update: {
-                    ...activitySelection.activityUpdate_activity.select.evidenceMedia_update,
-                    select: {
-                      ...activitySelection.activityUpdate_activity.select.evidenceMedia_update
-                        .select,
-                      contentType: true,
-                      byteSize: true,
-                      isIdentifying: true,
-                    },
+      const project = await requireScopedProjectRow(tx, actor, projectId, {
+        projectActivity_project: {
+          where: activityWhere,
+          select: {
+            id: true,
+            projectId: true,
+            title: true,
+            // Detail keeps the same bounded page as the activity list (100 activities,
+            // 100 updates, 10 proofs per update); counts for totals use the aggregate path.
+            activityUpdate_activity: {
+              ...activitySelection.activityUpdate_activity,
+              select: {
+                ...activitySelection.activityUpdate_activity.select,
+                evidenceMedia_update: {
+                  ...activitySelection.activityUpdate_activity.select.evidenceMedia_update,
+                  select: {
+                    ...activitySelection.activityUpdate_activity.select.evidenceMedia_update.select,
+                    contentType: true,
+                    byteSize: true,
+                    isIdentifying: true,
                   },
                 },
               },
             },
-            orderBy: [{ plannedEndDate: 'asc' }, { id: 'asc' }],
-            take: 100,
           },
+          orderBy: [{ plannedEndDate: 'asc' }, { id: 'asc' }],
+          take: 100,
         },
       })
-      if (!project) throw new NotFoundException('Project unavailable.')
       return {
         scope: 'detail' as const,
         records: project.projectActivity_project.flatMap((row) =>
@@ -743,7 +347,7 @@ export class ActivitiesService {
       })
       const activity = project?.projectActivity_project[0]
       if (!activity) throw new NotFoundException('Activity unavailable.')
-      return this.mapWithMetrics(tx, actor, activity)
+      return mapWithMetrics(tx, actor, activity, this.env.BUSINESS_TIME_ZONE)
     })
   }
 
@@ -769,14 +373,9 @@ export class ActivitiesService {
           project,
           input.timelineOverrideJustification,
         )
-        const assignments = await this.resolveAssignments(
-          tx,
-          actor,
-          project.id,
-          input.assignedUserIds,
-        )
-        const indicatorIds = await this.resolveIndicators(tx, actor, project.id, input.indicatorIds)
-        const journeyStageId = await this.resolveJourneyStage(
+        const assignments = await resolveAssignments(tx, actor, project.id, input.assignedUserIds)
+        const indicatorIds = await resolveIndicators(tx, actor, project.id, input.indicatorIds)
+        const journeyStageId = await resolveJourneyStage(
           tx,
           actor,
           project.id,
@@ -814,7 +413,7 @@ export class ActivitiesService {
             })),
           })
         }
-        await this.replaceActivityLinks(
+        await replaceActivityLinks(
           tx,
           actor,
           project.id,
@@ -822,7 +421,7 @@ export class ActivitiesService {
           indicatorIds ?? [],
           journeyStageId === undefined ? null : journeyStageId,
         )
-        await this.saveActivityBudget(
+        await saveActivityBudget(
           tx,
           actor,
           project.id,
@@ -842,10 +441,11 @@ export class ActivitiesService {
           source.operationHandle,
           input.clientMutationId,
         )
-        const result = await this.mapWithMetrics(
+        const result = await mapWithMetrics(
           tx,
           actor,
-          await this.readScopedActivity(tx, actor, project.id, activityId),
+          await readScopedActivity(tx, actor, project.id, activityId),
+          this.env.BUSINESS_TIME_ZONE,
         )
         return { ...result, sourceAcknowledgement }
       },
@@ -873,7 +473,7 @@ export class ActivitiesService {
           sourceMutationBody(input),
         )
         if (source.kind === 'REPLAY') return source.acknowledgement
-        const { project, activity: current } = await this.requireProjectActivity(
+        const { project, activity: current } = await requireProjectActivity(
           tx,
           actor,
           projectId,
@@ -895,14 +495,9 @@ export class ActivitiesService {
         ) {
           throw new ConflictException('Activity changed; reload before saving.')
         }
-        const assignments = await this.resolveAssignments(
-          tx,
-          actor,
-          project.id,
-          input.assignedUserIds,
-        )
-        const indicatorIds = await this.resolveIndicators(tx, actor, project.id, input.indicatorIds)
-        const journeyStageId = await this.resolveJourneyStage(
+        const assignments = await resolveAssignments(tx, actor, project.id, input.assignedUserIds)
+        const indicatorIds = await resolveIndicators(tx, actor, project.id, input.indicatorIds)
+        const journeyStageId = await resolveJourneyStage(
           tx,
           actor,
           project.id,
@@ -950,15 +545,8 @@ export class ActivitiesService {
             })),
           })
         }
-        await this.replaceActivityLinks(
-          tx,
-          actor,
-          project.id,
-          current.id,
-          indicatorIds,
-          journeyStageId,
-        )
-        await this.saveActivityBudget(
+        await replaceActivityLinks(tx, actor, project.id, current.id, indicatorIds, journeyStageId)
+        await saveActivityBudget(
           tx,
           actor,
           project.id,
@@ -978,10 +566,11 @@ export class ActivitiesService {
           source.operationHandle,
           input.clientMutationId,
         )
-        const result = await this.mapWithMetrics(
+        const result = await mapWithMetrics(
           tx,
           actor,
-          await this.readScopedActivity(tx, actor, project.id, current.id),
+          await readScopedActivity(tx, actor, project.id, current.id),
+          this.env.BUSINESS_TIME_ZONE,
         )
         return { ...result, sourceAcknowledgement }
       },
@@ -1010,7 +599,7 @@ export class ActivitiesService {
           sourceMutationBody(input),
         )
         if (source.kind === 'REPLAY') return source.acknowledgement
-        const current = await this.requireActivity(tx, actor, projectId, activityId)
+        const current = await requireActivity(tx, actor, projectId, activityId)
         const expected = new Date(input.expectedUpdatedAt)
         if (expected.valueOf() !== current.updatedAt.valueOf())
           throw new ConflictException('Activity changed; reload before saving.')
@@ -1051,10 +640,11 @@ export class ActivitiesService {
           source.operationHandle,
           input.clientMutationId,
         )
-        const result = await this.mapWithMetrics(
+        const result = await mapWithMetrics(
           tx,
           actor,
-          await this.readScopedActivity(tx, actor, current.projectId, current.id),
+          await readScopedActivity(tx, actor, current.projectId, current.id),
+          this.env.BUSINESS_TIME_ZONE,
         )
         return { ...result, sourceAcknowledgement }
       },
@@ -1077,19 +667,8 @@ export class ActivitiesService {
       identity,
       'activities.progress.update',
       async (tx, actor) => {
-        const activity = await this.requireActivity(tx, actor, projectId, activityId)
-        const assigned = await tx.projectActivityAssignment.findFirst({
-          where: {
-            organizationId: actor.organizationId,
-            projectId: activity.projectId,
-            activityId: activity.id,
-            status: 'ACTIVE',
-            endedAt: null,
-            projectAssignment: { userId: actor.userId, status: 'ACTIVE', endedAt: null },
-          },
-          select: { id: true },
-        })
-        if (!assigned) throw new ForbiddenException('An active activity assignment is required.')
+        const activity = await requireActivity(tx, actor, projectId, activityId)
+        await requireActiveAssignment(tx, actor, activity)
         const clientUpdateId = input.clientUpdateId.toLowerCase()
         const note = input.note.trim()
         if (!note) throw new BadRequestException('A progress note is required.')
@@ -1109,7 +688,7 @@ export class ActivitiesService {
             existing.note !== note
           )
             throw new ConflictException('The activity update id was reused with different input.')
-          return this.mapWithMetrics(tx, actor, activity)
+          return mapWithMetrics(tx, actor, activity, this.env.BUSINESS_TIME_ZONE)
         }
         if (activity.status !== 'IN_PROGRESS')
           throw new ConflictException('Progress can be recorded only for an in-progress activity.')
@@ -1146,32 +725,14 @@ export class ActivitiesService {
           entityId: updateId,
           changes: { activityId: activity.id, progressPercent: input.progressPercent },
         })
-        return this.mapWithMetrics(
+        return mapWithMetrics(
           tx,
           actor,
-          await this.readScopedActivity(tx, actor, activity.projectId, activity.id),
+          await readScopedActivity(tx, actor, activity.projectId, activity.id),
+          this.env.BUSINESS_TIME_ZONE,
         )
       },
     )
-  }
-
-  private async requireActiveAssignment(
-    tx: Tx,
-    actor: ApplicationIdentity,
-    activity: { id: string; projectId: string },
-  ) {
-    const assigned = await tx.projectActivityAssignment.findFirst({
-      where: {
-        organizationId: actor.organizationId,
-        projectId: activity.projectId,
-        activityId: activity.id,
-        status: 'ACTIVE',
-        endedAt: null,
-        projectAssignment: { userId: actor.userId, status: 'ACTIVE', endedAt: null },
-      },
-      select: { id: true },
-    })
-    if (!assigned) throw new ForbiddenException('An active activity assignment is required.')
   }
 
   /**
@@ -1201,7 +762,7 @@ export class ActivitiesService {
         // ('monitoring.review', project_id) in migration 0043's RLS INSERT policy:
         // SYSTEM_ADMINISTRATOR is org-wide, PROGRAM_MANAGER also via a managed program, and
         // every other role (including GRANT_MANAGER) needs an active project assignment.
-        const activity = await this.requireActivity(tx, actor, projectId, activityId)
+        const activity = await requireActivity(tx, actor, projectId, activityId)
         const clientMutationId = input.clientMutationId.toLowerCase()
         const explanation = input.explanation.trim()
         if (explanation.length < 10 || explanation.length > 2000)
@@ -1220,7 +781,7 @@ export class ActivitiesService {
             throw new ConflictException(
               'The overdue explanation id was reused with different input.',
             )
-          return this.mapWithMetrics(tx, actor, activity)
+          return mapWithMetrics(tx, actor, activity, this.env.BUSINESS_TIME_ZONE)
         }
         const presentation = activityPresentationStatus(
           activity.status,
@@ -1249,10 +810,11 @@ export class ActivitiesService {
           entityId: explanationId,
           changes: { activityId: activity.id, category: input.category },
         })
-        return this.mapWithMetrics(
+        return mapWithMetrics(
           tx,
           actor,
-          await this.readScopedActivity(tx, actor, activity.projectId, activity.id),
+          await readScopedActivity(tx, actor, activity.projectId, activity.id),
+          this.env.BUSINESS_TIME_ZONE,
         )
       },
     )
@@ -1286,8 +848,8 @@ export class ActivitiesService {
       identity,
       'activities.proof.submit',
       async (tx, actor) => {
-        const activity = await this.requireActivity(tx, actor, projectId, activityId)
-        await this.requireActiveAssignment(tx, actor, activity)
+        const activity = await requireActivity(tx, actor, projectId, activityId)
+        await requireActiveAssignment(tx, actor, activity)
         const existing = await tx.activityUpdate.findFirst({
           where: {
             organizationId: actor.organizationId,
@@ -1470,8 +1032,8 @@ export class ActivitiesService {
       throw new NotFoundException('Activity evidence unavailable.')
     const scope = { updateId: updateId.toLowerCase(), evidenceId: evidenceId.toLowerCase() }
     const readTarget = async (tx: Tx, actor: ApplicationIdentity) => {
-      const activity = await this.requireActivity(tx, actor, projectId, activityId)
-      await this.requireActiveAssignment(tx, actor, activity)
+      const activity = await requireActivity(tx, actor, projectId, activityId)
+      await requireActiveAssignment(tx, actor, activity)
       const row = await tx.evidenceMedia.findFirst({
         where: {
           id: scope.evidenceId,
@@ -1642,7 +1204,7 @@ export class ActivitiesService {
           body,
         )
         if (source.kind === 'REPLAY') return committed(source.acknowledgement)
-        const current = await this.requireActivity(tx, actor, activity.projectId, activity.id)
+        const current = await requireActivity(tx, actor, activity.projectId, activity.id)
         if (current.status !== 'IN_PROGRESS' && current.status !== 'FOR_REVIEW')
           throw new ConflictException('The activity can no longer enter review.')
         await tx.projectActivity.update({
@@ -1670,10 +1232,11 @@ export class ActivitiesService {
           update.id,
           update.clientUpdateId,
         )
-        const result = await this.mapWithMetrics(
+        const result = await mapWithMetrics(
           tx,
           actor,
-          await this.readScopedActivity(tx, actor, activity.projectId, activity.id),
+          await readScopedActivity(tx, actor, activity.projectId, activity.id),
+          this.env.BUSINESS_TIME_ZONE,
         )
         return { status: 'COMMITTED' as const, activity: { ...result, sourceAcknowledgement } }
       },
@@ -1729,7 +1292,7 @@ export class ActivitiesService {
         !hasAtomicPermission(reviewer.roles[0], reviewer.permissions, 'evidence.review')
       )
         throw new ForbiddenException('Activity review is unavailable.')
-      const activity = await this.requireActivity(tx, reviewer, projectId, activityId)
+      const activity = await requireActivity(tx, reviewer, projectId, activityId)
       const update = await tx.activityUpdate.findFirst({
         where: {
           id: updateId.toLowerCase(),
@@ -1842,10 +1405,11 @@ export class ActivitiesService {
         source.operationHandle,
         input.clientMutationId,
       )
-      const result = await this.mapWithMetrics(
+      const result = await mapWithMetrics(
         tx,
         reviewer,
-        await this.requireActivity(tx, reviewer, activity.projectId, activity.id),
+        await requireActivity(tx, reviewer, activity.projectId, activity.id),
+        this.env.BUSINESS_TIME_ZONE,
       )
       return { ...result, sourceAcknowledgement }
     })

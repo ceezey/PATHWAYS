@@ -18,6 +18,7 @@ import { withAuthorizedOperation } from '../../common/authz/authorized-operation
 import { projectScope } from '../../common/authz/project-scope'
 import type { Tx } from '../../common/prisma/transaction'
 import { PrismaService } from '../../prisma/prisma.service'
+import { requireActiveAssignment } from '../activities/activity-access.service'
 import {
   beginRuleSourceOperation,
   finishRuleSourceOperation,
@@ -147,18 +148,7 @@ export class ActivityExtensionsService {
         }
         if (['COMPLETED', 'CANCELLED'].includes(activity.status))
           throw new ConflictException('A finished activity cannot be extended.')
-        const assigned = await tx.projectActivityAssignment.findFirst({
-          where: {
-            organizationId: actor.organizationId,
-            projectId: activity.projectId,
-            activityId: activity.id,
-            status: 'ACTIVE',
-            endedAt: null,
-            projectAssignment: { userId: actor.userId, status: 'ACTIVE', endedAt: null },
-          },
-          select: { id: true },
-        })
-        if (!assigned) throw new ForbiddenException('An active activity assignment is required.')
+        await requireActiveAssignment(tx, actor, activity)
         const currentEnd = day(activity.plannedEndDate)
         if (currentEnd && input.requestedEndDate <= currentEnd)
           throw new BadRequestException('The new end date must be later than the current one.')
