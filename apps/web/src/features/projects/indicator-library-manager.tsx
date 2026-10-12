@@ -14,6 +14,7 @@ import {
   SectionCard,
   StatusBadge,
 } from '@/components/pathways'
+import { stickyTableHeadClass } from '@/components/pathways/sticky-table-head'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogTrigger } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
@@ -41,8 +42,6 @@ const offeredRecipes = libraryRecipes.filter(
 import { InlineNotice, OptionSelect } from './option-select'
 
 const field = (form: FormData, name: string) => String(form.get(name) ?? '').trim()
-const headClass =
-  'sticky top-0 z-10 h-10 bg-surface-subtle px-4 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground'
 
 function EntryForm({
   busy,
@@ -326,11 +325,11 @@ export function IndicatorLibraryManager() {
             <table className="w-full min-w-[760px] text-sm tabular-nums">
               <thead>
                 <tr className="border-b border-border">
-                  <th className={headClass}>Code</th>
-                  <th className={headClass}>Entry</th>
-                  <th className={headClass}>Authority</th>
-                  <th className={headClass}>Domain and direction</th>
-                  <th className={headClass}>
+                  <th className={stickyTableHeadClass}>Code</th>
+                  <th className={stickyTableHeadClass}>Entry</th>
+                  <th className={stickyTableHeadClass}>Authority</th>
+                  <th className={stickyTableHeadClass}>Domain and direction</th>
+                  <th className={stickyTableHeadClass}>
                     <span className="sr-only">Actions</span>
                   </th>
                 </tr>

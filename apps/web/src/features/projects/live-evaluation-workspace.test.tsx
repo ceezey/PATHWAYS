@@ -201,6 +201,16 @@ describe('automatic evaluation workspace', () => {
     expect(screen.getByText('88.8 / 100')).toBeTruthy()
   })
 
+  it('renders the score table headers with the sticky table head classes', () => {
+    state.evaluation = { ...openEvaluation }
+    render(<LiveEvaluationWorkspace projectId={projectId} />)
+    expect(screen.getAllByRole('columnheader').map((cell) => cell.className)).toEqual(
+      Array(4).fill(
+        'sticky top-0 z-10 h-10 bg-surface-subtle px-4 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground',
+      ),
+    )
+  })
+
   it('shows a manual row without a note as a manual score with no note', () => {
     state.evaluation = {
       ...openEvaluation,

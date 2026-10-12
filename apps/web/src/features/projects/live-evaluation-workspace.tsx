@@ -7,6 +7,7 @@ import {
   StatusBadge,
 } from '@/components/pathways'
 import { MetricTooltip } from '@/components/pathways/metric-tooltip'
+import { stickyTableHeadClass } from '@/components/pathways/sticky-table-head'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -27,8 +28,6 @@ import { useProjectRead } from './use-project-reads'
 type EvaluationDetail = z.infer<typeof evaluationDetailSchema>
 type SavedScore = EvaluationDetail['scores'][number]
 
-const headClass =
-  'sticky top-0 z-10 h-10 bg-surface-subtle px-4 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground'
 const statusTone = {
   DRAFT: 'neutral',
   SUBMITTED: 'info',
@@ -441,19 +440,19 @@ function ScoreTable({ evaluation }: { evaluation: EvaluationDetail }) {
       <table className="w-full min-w-[640px] text-sm tabular-nums">
         <thead>
           <tr className="border-b border-border">
-            <th className={headClass}>
+            <th className={stickyTableHeadClass}>
               Criterion
               <MetricTooltip label="Criterion">{metricGlossary.criterion}</MetricTooltip>
             </th>
-            <th className={headClass}>
+            <th className={stickyTableHeadClass}>
               Weight
               <MetricTooltip label="Weight">{metricGlossary.weight}</MetricTooltip>
             </th>
-            <th className={headClass}>
+            <th className={stickyTableHeadClass}>
               Score
               <MetricTooltip label="Score">{metricGlossary.score}</MetricTooltip>
             </th>
-            <th className={headClass}>
+            <th className={stickyTableHeadClass}>
               Source
               <MetricTooltip label="Source">{metricGlossary.scoreSource}</MetricTooltip>
             </th>
