@@ -4,7 +4,6 @@ import {
 } from './automatic-mapping-receipt'
 import {
   type SourceMutationContext,
-  SourceMutationRecoveryError,
   type SourceMutationResult,
   ensureSourceInvalidationSubscription,
   sourceMutationTickets,
@@ -15,6 +14,7 @@ import {
   requestFoundation,
   requestFoundationResponse,
 } from '@/lib/api/core/request'
+import { requestSourceMutation } from '@/lib/api/core/source-mutation-request'
 import { webEnv } from '@/lib/env'
 import type {
   Activity,
@@ -1878,30 +1878,6 @@ export async function recoverSourceMutation(context: SourceMutationContext, oper
       context.isCurrent,
     )
   })
-}
-async function requestSourceMutation<T>(
-  path: string,
-  method: 'POST' | 'PATCH',
-  body: Record<string, unknown>,
-  context: SourceMutationContext | undefined,
-  parse: (value: unknown) => T,
-): Promise<SourceMutationResult<T>> {
-  if (!context)
-    throw new PathwaysClientError('Current mutation ownership is required.', 'unauthorized')
-  try {
-    return await sourceTickets.execute(
-      context,
-      `${method}:${path}`,
-      body,
-      (captured) =>
-        requestFoundation(path, { method, body: JSON.stringify(captured) }, context.isCurrent),
-      parse,
-    )
-  } catch (error) {
-    if (error instanceof SourceMutationRecoveryError)
-      throw new PathwaysClientError(error.message, 'invalid')
-    throw error
-  }
 }
 
 export type DuplicateProfile = {
