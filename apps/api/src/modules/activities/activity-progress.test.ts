@@ -7,8 +7,6 @@ import {
   NotFoundException,
 } from '@nestjs/common'
 import type { Prisma } from '@prisma/client'
-import { plainToInstance } from 'class-transformer'
-import { validate } from 'class-validator'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ApplicationIdentity } from '@app/common/authz/application-identity'
@@ -33,7 +31,6 @@ vi.mock('@app/common/authz/authorized-operation', () => ({
 }))
 
 import { ActivitiesController } from './activities.controller'
-import { RecordActivityProgressDto } from './activities.dto'
 import { ActivitiesService } from './activities.service'
 
 const organizationId = '10000000-0000-4000-8000-000000000001'
@@ -184,21 +181,6 @@ describe('Activity progress update (activities.progress.update)', () => {
     ).rejects.toBeInstanceOf(ForbiddenException)
     expect(tx.project.findFirst).not.toHaveBeenCalled()
     expect(tx.activityUpdate.create).not.toHaveBeenCalled()
-  })
-
-  it('rejects invalid input at the DTO boundary (sad)', async () => {
-    for (const body of [
-      { ...input, progressPercent: 101 },
-      { ...input, progressPercent: -1 },
-      { ...input, progressPercent: '50' },
-      { ...input, clientUpdateId: 'not-a-uuid' },
-      { ...input, note: '' },
-      { clientUpdateId, progressPercent: 10 },
-    ]) {
-      const errors = await validate(plainToInstance(RecordActivityProgressDto, body))
-      expect(errors.length).toBeGreaterThan(0)
-    }
-    expect(await validate(plainToInstance(RecordActivityProgressDto, input))).toEqual([])
   })
 
   it('rejects progress on an activity that is not in progress (sad)', async () => {

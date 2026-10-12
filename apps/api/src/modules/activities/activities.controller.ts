@@ -14,21 +14,30 @@ import {
   StreamableFile,
 } from '@nestjs/common'
 
+import {
+  type CreateActivityRequest,
+  type RecordActivityProgressRequest,
+  type RecordOverdueExplanationRequest,
+  type ReserveActivityProofRequest,
+  type ReviewActivityUpdateRequest,
+  type SaveMilestoneRequest,
+  type TransitionActivityRequest,
+  type UpdateActivityRequest,
+  type UpdateMilestoneRequest,
+  createActivityRequest,
+  recordActivityProgressRequest,
+  recordOverdueExplanationRequest,
+  reserveActivityProofRequest,
+  reviewActivityUpdateRequest,
+  saveMilestoneRequest,
+  transitionActivityRequest,
+  updateActivityRequest,
+  updateMilestoneRequest,
+} from '@pathways/shared'
 import type { AuthenticatedRequest } from '../../common/authz/application-identity'
 import { RequirePermission } from '../../common/decorators/permission.decorator'
 import { inspectionRequestBudget } from '../../common/network/inspection-request-budget'
-// biome-ignore lint/style/useImportType: Nest validation needs the DTO constructors at runtime.
-import {
-  CreateActivityDto,
-  RecordActivityProgressDto,
-  RecordOverdueExplanationDto,
-  ReserveActivityProofDto,
-  ReviewActivityUpdateDto,
-  SaveMilestoneDto,
-  TransitionActivityDto,
-  UpdateActivityDto,
-  UpdateMilestoneDto,
-} from './activities.dto'
+import { ZodPipe } from '../../common/validation/zod-pipe'
 import { ActivitiesService } from './activities.service'
 import {
   PrivateProofInspectionService,
@@ -85,7 +94,7 @@ export class ActivitiesController {
   create(
     @Req() request: AuthenticatedRequest,
     @Param('projectId') projectId: string,
-    @Body() body: CreateActivityDto,
+    @Body(new ZodPipe(createActivityRequest)) body: CreateActivityRequest,
   ) {
     return this.activities.create(profile(request), projectId, body)
   }
@@ -106,7 +115,7 @@ export class ActivitiesController {
     @Req() request: AuthenticatedRequest,
     @Param('projectId') projectId: string,
     @Param('activityId') activityId: string,
-    @Body() body: UpdateActivityDto,
+    @Body(new ZodPipe(updateActivityRequest)) body: UpdateActivityRequest,
   ) {
     return this.activities.update(profile(request), projectId, activityId, body)
   }
@@ -117,7 +126,7 @@ export class ActivitiesController {
     @Req() request: AuthenticatedRequest,
     @Param('projectId') projectId: string,
     @Param('activityId') activityId: string,
-    @Body() body: TransitionActivityDto,
+    @Body(new ZodPipe(transitionActivityRequest)) body: TransitionActivityRequest,
   ) {
     return this.activities.transition(profile(request), projectId, activityId, body)
   }
@@ -128,7 +137,7 @@ export class ActivitiesController {
     @Req() request: AuthenticatedRequest,
     @Param('projectId') projectId: string,
     @Param('activityId') activityId: string,
-    @Body() body: RecordActivityProgressDto,
+    @Body(new ZodPipe(recordActivityProgressRequest)) body: RecordActivityProgressRequest,
   ) {
     return this.activities.recordProgress(profile(request), projectId, activityId, body)
   }
@@ -139,7 +148,7 @@ export class ActivitiesController {
     @Req() request: AuthenticatedRequest,
     @Param('projectId') projectId: string,
     @Param('activityId') activityId: string,
-    @Body() body: RecordOverdueExplanationDto,
+    @Body(new ZodPipe(recordOverdueExplanationRequest)) body: RecordOverdueExplanationRequest,
   ) {
     return this.activities.recordOverdueExplanation(profile(request), projectId, activityId, body)
   }
@@ -152,7 +161,7 @@ export class ActivitiesController {
     @Req() request: AuthenticatedRequest,
     @Param('projectId') projectId: string,
     @Param('activityId') activityId: string,
-    @Body() body: ReserveActivityProofDto,
+    @Body(new ZodPipe(reserveActivityProofRequest)) body: ReserveActivityProofRequest,
   ) {
     return this.activities.reserveProof(profile(request), projectId, activityId, body)
   }
@@ -182,7 +191,7 @@ export class ActivitiesController {
     @Param('projectId') projectId: string,
     @Param('activityId') activityId: string,
     @Param('updateId') updateId: string,
-    @Body() body: ReviewActivityUpdateDto,
+    @Body(new ZodPipe(reviewActivityUpdateRequest)) body: ReviewActivityUpdateRequest,
   ) {
     return this.activities.reviewUpdate(profile(request), projectId, activityId, updateId, body)
   }
@@ -281,7 +290,7 @@ export class MilestonesController {
   create(
     @Req() request: AuthenticatedRequest,
     @Param('projectId') projectId: string,
-    @Body() body: SaveMilestoneDto,
+    @Body(new ZodPipe(saveMilestoneRequest)) body: SaveMilestoneRequest,
   ) {
     return this.activities.createMilestone(profile(request), projectId, body)
   }
@@ -292,7 +301,7 @@ export class MilestonesController {
     @Req() request: AuthenticatedRequest,
     @Param('projectId') projectId: string,
     @Param('milestoneId') milestoneId: string,
-    @Body() body: UpdateMilestoneDto,
+    @Body(new ZodPipe(updateMilestoneRequest)) body: UpdateMilestoneRequest,
   ) {
     return this.activities.updateMilestone(profile(request), projectId, milestoneId, body)
   }

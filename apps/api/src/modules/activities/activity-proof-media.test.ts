@@ -10,8 +10,6 @@ import {
 } from '@nestjs/common'
 import { PATH_METADATA } from '@nestjs/common/constants'
 import type { Prisma } from '@prisma/client'
-import { plainToInstance } from 'class-transformer'
-import { validate } from 'class-validator'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ApplicationIdentity } from '@app/common/authz/application-identity'
@@ -50,8 +48,8 @@ vi.mock('@app/modules/rules/rules-source-operation', async (importOriginal) => (
 }))
 
 import { PrivateInspectionReadError } from '@app/modules/storage/private-inspection-reader'
+import type { ReserveActivityProofRequest } from '@pathways/shared'
 import { ActivitiesController } from './activities.controller'
-import { ReserveActivityProofDto } from './activities.dto'
 import { ActivitiesService, activityEvidenceType, proofDeclarations } from './activities.service'
 
 const organizationId = '10000000-0000-4000-8000-000000000001'
@@ -116,7 +114,7 @@ const files = types.map(([contentType, fileName], index) => ({
   byteSize: (index + 1) * MiB,
   sha256: sha(index + 1),
 }))
-const reserveInput = (extra: Partial<ReserveActivityProofDto> = {}) => ({
+const reserveInput = (extra: Partial<ReserveActivityProofRequest> = {}) => ({
   clientUpdateId,
   progressPercent: 60,
   note: '  Sessions held with evidence.  ',
@@ -256,15 +254,11 @@ describe('reserve (activities.proof.submit)', () => {
     expect(activityEvidenceType(contentType)).toBe(type)
   })
 
-  it('rejects an eleventh file at the DTO and in the service before any read', async () => {
+  it('rejects an eleventh file in the service before any read', async () => {
     const eleven = Array.from({ length: 11 }, (_, index) => ({
       ...files[0],
       sha256: sha(index + 20),
     }))
-    const errors = await validate(
-      plainToInstance(ReserveActivityProofDto, reserveInput({ files: eleven })),
-    )
-    expect(errors.map((error) => error.property)).toContain('files')
     await expect(
       service.reserveProof(officer, projectId, activityId, reserveInput({ files: eleven })),
     ).rejects.toMatchObject({ response: { code: 'PROOF_FILE_COUNT' } })
@@ -298,26 +292,6 @@ describe('reserve (activities.proof.submit)', () => {
     ).rejects.toMatchObject({ response: { code: 'PROOF_FILE_TOO_LARGE' } })
     expect(tx.project.findFirst).not.toHaveBeenCalled()
     expect(storage.createPrivateUploadUrls).not.toHaveBeenCalled()
-  })
-
-  it('rejects unsupported types, names and digests at the DTO boundary', async () => {
-    for (const file of [
-      { ...files[0], contentType: 'text/html' },
-      { ...files[0], contentType: 'image/gif' },
-      { ...files[0], fileName: '../escape.pdf' },
-      { ...files[0], fileName: 'a\\b.pdf' },
-      { ...files[0], sha256: 'F'.repeat(64) },
-      { ...files[0], byteSize: 0 },
-      { ...files[0], byteSize: 104_857_601 },
-      { ...files[0], unexpected: true },
-    ]) {
-      const errors = await validate(
-        plainToInstance(ReserveActivityProofDto, reserveInput({ files: [file as never] })),
-        { whitelist: true, forbidNonWhitelisted: true },
-      )
-      expect(errors.length).toBeGreaterThan(0)
-    }
-    expect(await validate(plainToInstance(ReserveActivityProofDto, reserveInput()))).toEqual([])
   })
 
   it('an identical retry returns the same reservation with fresh URLs for unverified files only', async () => {
@@ -386,19 +360,6 @@ describe('reserve (activities.proof.submit)', () => {
       }),
     )
   })
-
-  it.each([-1, 1.5, 100001])(
-    'rejects an invalid beneficiariesReachedThisSession value %s at the DTO boundary',
-    async (value) => {
-      const errors = await validate(
-        plainToInstance(
-          ReserveActivityProofDto,
-          reserveInput({ beneficiariesReachedThisSession: value }),
-        ),
-      )
-      expect(errors.map((error) => error.property)).toContain('beneficiariesReachedThisSession')
-    },
-  )
 
   it('a retry with a changed beneficiariesReachedThisSession conflicts before any storage call', async () => {
     tx.activityUpdate.findFirst.mockResolvedValue({

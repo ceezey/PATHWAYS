@@ -9,7 +9,7 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common'
 import { readApiEnv } from '@pathways/config'
-import { hasAtomicPermission } from '@pathways/shared'
+import { activityEvidenceContentTypes, hasAtomicPermission } from '@pathways/shared'
 import type { Prisma } from '@prisma/client'
 import { writeAuditLog } from '../../common/audit/write-audit-log'
 import { type ApplicationIdentity, UUID_PATTERN } from '../../common/authz/application-identity'
@@ -23,7 +23,7 @@ import {
   PRIVATE_STORAGE_FACTORIES,
   type PrivateStorageFactories,
 } from '../storage/private-storage-factories'
-import { PROOF_STORAGE_DEADLINE_MS, activityEvidenceContentTypes } from './activities.dto'
+import { PROOF_STORAGE_DEADLINE_MS } from './activity-proof.helpers'
 
 // cr-pathways-activity-progress-media 3.5: at most ten proofs per update, discovery bounded to
 // eleven, every activity-update evidence type, and the configured per-file byte bound.

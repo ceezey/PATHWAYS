@@ -2,8 +2,6 @@ import 'reflect-metadata'
 
 import { ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common'
 import type { Prisma } from '@prisma/client'
-import { plainToInstance } from 'class-transformer'
-import { validate } from 'class-validator'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ApplicationIdentity } from '@app/common/authz/application-identity'
@@ -28,7 +26,6 @@ vi.mock('@app/common/authz/authorized-operation', () => ({
 }))
 
 import { ActivitiesController } from './activities.controller'
-import { RecordOverdueExplanationDto } from './activities.dto'
 import { ActivitiesService } from './activities.service'
 
 const organizationId = '10000000-0000-4000-8000-000000000001'
@@ -153,20 +150,6 @@ describe('Activity overdue explanation (monitoring.review)', () => {
       service.recordOverdueExplanation(actor, projectId, activityId, input),
     ).rejects.toBeInstanceOf(ConflictException)
     expect(tx.activityOverdueExplanation.create).not.toHaveBeenCalled()
-  })
-
-  it('rejects invalid category or explanation length at the DTO boundary (sad)', async () => {
-    for (const body of [
-      { ...input, category: 'HURRICANE' },
-      { ...input, explanation: 'too short' },
-      { ...input, explanation: 'x'.repeat(2001) },
-      { ...input, clientMutationId: 'not-a-uuid' },
-      { category: 'WEATHER', explanation: 'Valid enough explanation text here.' },
-    ]) {
-      const errors = await validate(plainToInstance(RecordOverdueExplanationDto, body))
-      expect(errors.length).toBeGreaterThan(0)
-    }
-    expect(await validate(plainToInstance(RecordOverdueExplanationDto, input))).toEqual([])
   })
 
   it('replays the same client mutation id without a second write (idempotent)', async () => {

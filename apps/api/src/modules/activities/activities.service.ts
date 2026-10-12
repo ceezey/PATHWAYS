@@ -21,7 +21,24 @@ import {
 import { Prisma } from '@prisma/client'
 
 import { readApiEnv } from '@pathways/config'
-import { aggregateOnlyRoles, businessCalendarDate, hasAtomicPermission } from '@pathways/shared'
+import {
+  type ActivityEvidenceContentType,
+  type ActivityEvidenceFile,
+  type CreateActivityRequest,
+  MAX_ACTIVITY_EVIDENCE_FILES,
+  type RecordActivityProgressRequest,
+  type RecordOverdueExplanationRequest,
+  type ReserveActivityProofRequest,
+  type ReviewActivityUpdateRequest,
+  type SaveMilestoneRequest,
+  type TransitionActivityRequest,
+  type UpdateActivityRequest,
+  type UpdateMilestoneRequest,
+  activityEvidenceContentTypes,
+  aggregateOnlyRoles,
+  businessCalendarDate,
+  hasAtomicPermission,
+} from '@pathways/shared'
 import { writeAuditLog } from '../../common/audit/write-audit-log'
 import { type ApplicationIdentity, UUID_PATTERN } from '../../common/authz/application-identity'
 import { readApplicationProfile } from '../../common/authz/application-profile'
@@ -36,22 +53,7 @@ import {
   type PrivateStorageFactories,
 } from '../storage/private-storage-factories'
 import { StorageService } from '../storage/storage.service'
-import {
-  type ActivityEvidenceContentType,
-  type ActivityEvidenceFileDto,
-  type CreateActivityDto,
-  MAX_ACTIVITY_EVIDENCE_FILES,
-  PROOF_STORAGE_DEADLINE_MS,
-  type RecordActivityProgressDto,
-  type RecordOverdueExplanationDto,
-  type ReserveActivityProofDto,
-  type ReviewActivityUpdateDto,
-  type SaveMilestoneDto,
-  type TransitionActivityDto,
-  type UpdateActivityDto,
-  type UpdateMilestoneDto,
-  activityEvidenceContentTypes,
-} from './activities.dto'
+import { PROOF_STORAGE_DEADLINE_MS } from './activity-proof.helpers'
 
 // Create and update write assignments, links, budget and rule sources in one transaction; 5s is too short on the pooled remote DB.
 const ACTIVITY_SAVE_TRANSACTION_TIMEOUT_MS = 20_000
@@ -476,7 +478,7 @@ const proofRejection = (code: string, message: string) =>
   new BadRequestException({ statusCode: 400, error: 'Bad Request', code, message })
 
 /** Bounded, normalized proof declarations. Checked before any database or storage work. */
-export function proofDeclarations(files: ActivityEvidenceFileDto[], maxFileBytes: number) {
+export function proofDeclarations(files: ActivityEvidenceFile[], maxFileBytes: number) {
   const limits = activityEvidenceLimits(maxFileBytes)
   if (!Array.isArray(files) || files.length < 1 || files.length > limits.maxFiles)
     throw proofRejection('PROOF_FILE_COUNT', 'Attach between one and ten evidence files.')
@@ -581,7 +583,7 @@ export class ActivitiesService {
     start: string,
     end: string,
     project: { startDate: Date | null; endDate: Date | null },
-    timelineOverrideJustification?: string,
+    timelineOverrideJustification?: string | null,
   ) {
     if (end < start)
       throw new BadRequestException('Activity end date must not precede its start date.')
@@ -1207,7 +1209,7 @@ export class ActivitiesService {
     })
   }
 
-  create(identity: ApplicationIdentity, projectId: string, input: CreateActivityDto) {
+  create(identity: ApplicationIdentity, projectId: string, input: CreateActivityRequest) {
     return withAuthorizedOperation(
       this.prisma,
       identity,
@@ -1317,7 +1319,7 @@ export class ActivitiesService {
     identity: ApplicationIdentity,
     projectId: string,
     activityId: string,
-    input: UpdateActivityDto,
+    input: UpdateActivityRequest,
   ) {
     return withAuthorizedOperation(
       this.prisma,
@@ -1453,7 +1455,7 @@ export class ActivitiesService {
     identity: ApplicationIdentity,
     projectId: string,
     activityId: string,
-    input: TransitionActivityDto,
+    input: TransitionActivityRequest,
   ) {
     return withAuthorizedOperation(
       this.prisma,
@@ -1530,7 +1532,7 @@ export class ActivitiesService {
     identity: ApplicationIdentity,
     projectId: string,
     activityId: string,
-    input: RecordActivityProgressDto,
+    input: RecordActivityProgressRequest,
   ) {
     return withAuthorizedOperation(
       this.prisma,
@@ -1647,7 +1649,7 @@ export class ActivitiesService {
     identity: ApplicationIdentity,
     projectId: string,
     activityId: string,
-    input: RecordOverdueExplanationDto,
+    input: RecordOverdueExplanationRequest,
   ) {
     return withAuthorizedOperation(
       this.prisma,
@@ -1759,7 +1761,7 @@ export class ActivitiesService {
     identity: ApplicationIdentity,
     projectId: string,
     activityId: string,
-    input: ReserveActivityProofDto,
+    input: ReserveActivityProofRequest,
   ) {
     const declared = proofDeclarations(input.files, this.env.EVIDENCE_MAX_FILE_BYTES)
     const note = input.note.trim()
@@ -2169,7 +2171,7 @@ export class ActivitiesService {
     projectId: string,
     activityId: string,
     updateId: string,
-    input: ReviewActivityUpdateDto,
+    input: ReviewActivityUpdateRequest,
   ) {
     return withAuthorizedOperation(this.prisma, identity, 'evidence.review', async (tx, actor) => {
       if (
@@ -2388,7 +2390,7 @@ export class ActivitiesService {
     })
   }
 
-  createMilestone(identity: ApplicationIdentity, projectId: string, input: SaveMilestoneDto) {
+  createMilestone(identity: ApplicationIdentity, projectId: string, input: SaveMilestoneRequest) {
     return withAuthorizedOperation(
       this.prisma,
       identity,
@@ -2422,7 +2424,7 @@ export class ActivitiesService {
     identity: ApplicationIdentity,
     projectId: string,
     milestoneId: string,
-    input: UpdateMilestoneDto,
+    input: UpdateMilestoneRequest,
   ) {
     return withAuthorizedOperation(
       this.prisma,

@@ -4,13 +4,13 @@ import path from 'node:path'
 import { PrismaClient } from '@prisma/client'
 import { createClient } from '@supabase/supabase-js'
 
-import type { CanonicalRole } from '@pathways/shared'
+import type {
+  CanonicalRole,
+  CreateActivityRequest,
+  TransitionActivityRequest,
+} from '@pathways/shared'
 import type { CreateProjectRequest } from '@pathways/shared'
 import type { ApplicationIdentity } from '../src/common/authz/application-identity'
-import type {
-  CreateActivityDto,
-  TransitionActivityDto,
-} from '../src/modules/activities/activities.dto'
 import { ActivitiesService } from '../src/modules/activities/activities.service'
 import type { RegisterBeneficiaryDto } from '../src/modules/beneficiaries/beneficiaries.dto'
 import { BeneficiariesService } from '../src/modules/beneficiaries/beneficiaries.service'
@@ -793,9 +793,10 @@ async function main() {
         const clientMutationId = stableUuid(`activity-create:${plan.code}:${i}`)
         const plannedStart = addDaysIso(plan.startDate, i * 21)
         const plannedEnd = addDaysIso(plannedStart, template.days)
-        const createDto: CreateActivityDto = {
+        const code = `ACT-${plan.code}-${String(i + 1).padStart(2, '0')}`
+        const createDto: CreateActivityRequest = {
           clientMutationId,
-          code: `ACT-${plan.code}-${String(i + 1).padStart(2, '0')}`,
+          code,
           title: template.title,
           description: `${template.title} for ${plan.title}.`,
           activityType: template.type,
@@ -806,7 +807,7 @@ async function main() {
           assignedUserIds: [userIdOf(projectOfficerStaff[i % projectOfficerStaff.length])],
         }
         const existingActivity = await prisma.projectActivity.findFirst({
-          where: { organizationId: workspace.organizationId, projectId, code: createDto.code },
+          where: { organizationId: workspace.organizationId, projectId, code },
         })
         if (!existingActivity) {
           await activitiesService.create(projectManagerIdentity, projectId, createDto)
@@ -814,7 +815,7 @@ async function main() {
         // Re-read from the database rather than trust the service's mapped return shape, so
         // the status/updatedAt used for the transition decision below is always accurate.
         const activity = await prisma.projectActivity.findFirstOrThrow({
-          where: { organizationId: workspace.organizationId, projectId, code: createDto.code },
+          where: { organizationId: workspace.organizationId, projectId, code },
         })
 
         // Mixed statuses: leave roughly a third PLANNED, move a third IN_PROGRESS, cancel one.
@@ -823,7 +824,7 @@ async function main() {
             const fresh = await prisma.projectActivity.findUniqueOrThrow({
               where: { id: activity.id },
             })
-            const transitionDto: TransitionActivityDto = {
+            const transitionDto: TransitionActivityRequest = {
               clientMutationId: stableUuid(`activity-cancel:${plan.code}:${i}`),
               status: 'CANCELLED',
               reason: 'Superseded by a merged follow-up activity.',
@@ -839,7 +840,7 @@ async function main() {
             const fresh = await prisma.projectActivity.findUniqueOrThrow({
               where: { id: activity.id },
             })
-            const transitionDto: TransitionActivityDto = {
+            const transitionDto: TransitionActivityRequest = {
               clientMutationId: stableUuid(`activity-start:${plan.code}:${i}`),
               status: 'IN_PROGRESS',
               expectedUpdatedAt: fresh.updatedAt.toISOString(),
