@@ -682,3 +682,17 @@
 - S2a decisions are recorded in the change record section 9; the plan stays until S2b is planned, because it holds the S2b outline.
 - Deferred to S2b: `lib/api/activities` and the activity, extension, evidence and proof methods of `pathways-client.ts`, `private-proof-client.ts`, the `features/projects` activity folder layout, the four oversized components, the hand-written web activity types, the place of `activityExtensionSchema`, and the dead `files` option and `proofSnapshot` of `source-mutation.ts`.
 - Gates: lint, typecheck and builds pass; tests config 19, shared 273, imports 91, api 2429 (21 skipped), web 1921, sad 53; `Replay-Local.ps1 -MigrationBaseline` 171 PASS, 0 FAIL; demo seed exit 0 on the first run after a five minute settle following the replay; compiled API boot and health ok; e2e auth-navigation 27/27; e2e main 39 pass with the same 9 failures as dev; web middleware 102 kB; SAD sign-off 97/97 PASS at `7d6077fe` after removing three imports that only comments referenced. Merged to local dev as `0d8624a4`; plan kept for S2b.
+
+## 2026-10-12 Modularization S1b projects web (refactor/s1b-projects-web)
+
+- Task 1 (1b6faeb8): `requestSourceMutation` moved to `lib/api/core/source-mutation-request.ts` with replay and unconfirmed-save tests; web 1926.
+- Task 2 (84892615): `lib/api/projects.ts` added with `projectsClient`, the project mapper and wire types, typed from the shared responses; web 1945.
+- Task 3 (604a066f): the seven project methods and `getProjectMap` left `pathways-client.ts`; 24 files, 43 calls and the test mocks follow `@/lib/api/projects`; web 1945.
+- Task 4 (e9b1a3c1): the unreachable review views (`indicators`, `transparency`), the Add Indicator dialog and `project-review-utils.ts` removed, `view` narrowed to three values; web 1940.
+- Task 5 (89c190cd): 25 files moved with `git mv` into `components/`, `team/` and renamed helpers, 59 specifiers and 14 contract paths updated, `ProjectPhaseFiveWorkspace` renamed `ProjectReviewWorkspace`; web 1940.
+- Task 6 (f43fc1ba): `features/projects/index.ts`, `indexedFeatures` and `surfaceViolation` in `import-direction.test.ts`, and `optimizePackageImports` in `next.config.ts`; web 1943.
+- Task 7 (87884179): setup fields, evidence view and team selection rules split out verbatim, `Owned` and `Scoped` prefixes dropped; web 1943.
+- Unreachable views: deleted because a route scan showed only the budget, evidence and monitor-evaluate pages render the workspace, the narrowed `view` type proves no page passes the removed values, and four exports had no other user.
+- Route bundles: a plain barrel grew every `/projects` route to 397 kB, `/print/receipts/[expenseId]` from 133 kB and `/analytics` and `/dashboard` by about 80 kB; with `optimizePackageImports` Task 6 changed 0 routes and Middleware stayed at 102 kB. Against the Task 0 baseline, Tasks 1 to 5 shrank the three review routes 3 kB, `/alerts`, `/recommendations/[id]` and `/reports*` 13 kB, `/transparency` 12 kB and `entries/new` 1 kB, and grew `/projects*`, `/beneficiaries*`, `/collection*`, `/analytics`, `/dashboard` and `/settings/users` by 1 to 2 kB.
+- Decisions: the S1b decisions are recorded in the change record section 9 because the plan file is removed after merge.
+- Deferred: the six project list read keys stay with S6, S7 and S8; the `ExpenseRecord` type in `types/pathways.ts` is now unused (S6); `lib/services/*` renames.
