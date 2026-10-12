@@ -22,8 +22,6 @@ import { Prisma } from '@prisma/client'
 
 import { readApiEnv } from '@pathways/config'
 import {
-  type ActivityEvidenceContentType,
-  type ActivityEvidenceFile,
   type CreateActivityRequest,
   MAX_ACTIVITY_EVIDENCE_FILES,
   type RecordActivityProgressRequest,
@@ -34,7 +32,6 @@ import {
   type TransitionActivityRequest,
   type UpdateActivityRequest,
   type UpdateMilestoneRequest,
-  activityEvidenceContentTypes,
   aggregateOnlyRoles,
   businessCalendarDate,
   hasAtomicPermission,
@@ -53,476 +50,38 @@ import {
   type PrivateStorageFactories,
 } from '../storage/private-storage-factories'
 import { StorageService } from '../storage/storage.service'
-import { PROOF_STORAGE_DEADLINE_MS } from './activity-proof.helpers'
+import {
+  activityCapabilities,
+  activityPresentationStatus,
+  activityTransitionAllowed,
+  assignableOfficerLimit,
+  reviewStatus,
+  validateActivityDates,
+} from './activities.helpers'
+import {
+  type ActivityReadMetrics,
+  type ActivityRow,
+  activityListSelection,
+  activitySelection,
+  mapActivity,
+  mapActivityListItem,
+  personalAssignmentCount,
+} from './activities.mapper'
+import {
+  PROOF_STORAGE_DEADLINE_MS,
+  activityEvidenceLimits,
+  activityEvidenceType,
+  declarationKey,
+  evidenceExtension,
+  proofDeclarations,
+  proofFinalizeBody,
+  verificationFailure,
+} from './activity-proof.helpers'
 
 // Create and update write assignments, links, budget and rule sources in one transaction; 5s is too short on the pooled remote DB.
 const ACTIVITY_SAVE_TRANSACTION_TIMEOUT_MS = 20_000
 
 const activityBudgetCategory = 'ACTIVITY_PROFILE_TOTAL'
-
-const activitySelection = {
-  id: true,
-  projectId: true,
-  code: true,
-  title: true,
-  description: true,
-  activityType: true,
-  timelineOverrideJustification: true,
-  targetBeneficiaries: true,
-  plannedStartDate: true,
-  plannedEndDate: true,
-  actualStartDate: true,
-  actualEndDate: true,
-  status: true,
-  progressPercent: true,
-  reviewedById: true,
-  reviewedAt: true,
-  cancelledAt: true,
-  cancellationReason: true,
-  updatedAt: true,
-  projectActivityAssignment_activity: {
-    where: { status: 'ACTIVE' as const, endedAt: null },
-    select: {
-      projectAssignment: {
-        select: { userId: true, user: { select: { fullName: true, email: true } } },
-      },
-    },
-    orderBy: { id: 'asc' as const },
-    take: 50,
-  },
-  activityUpdate_activity: {
-    select: {
-      id: true,
-      progressPercent: true,
-      note: true,
-      status: true,
-      clientUpdateId: true,
-      submittedById: true,
-      beneficiariesReachedThisSession: true,
-      submittedAt: true,
-      reviewedAt: true,
-      reviewReason: true,
-      updatedAt: true,
-      submittedBy: { select: { fullName: true } },
-      reviewedBy: { select: { fullName: true } },
-      evidenceMedia_update: {
-        where: { storageReady: true },
-        select: {
-          id: true,
-          fileName: true,
-          status: true,
-          rejectionReason: true,
-          submittedAt: true,
-        },
-        orderBy: { id: 'asc' as const },
-        take: 10,
-      },
-      // Proof submissions always carry at least one evidence row; a zero count marks a
-      // progress-only note recorded under activities.progress.update.
-      _count: { select: { evidenceMedia_update: true } },
-    },
-    orderBy: { submittedAt: 'asc' as const },
-    take: 100,
-  },
-  activityJourneyStageMapping_activity: {
-    select: { stageId: true },
-    orderBy: { sequenceOrder: 'asc' as const },
-    take: 100,
-  },
-  activityIndicatorLink_activity: {
-    select: { indicatorId: true },
-    orderBy: { indicatorId: 'asc' as const },
-    take: 100,
-  },
-  activityOverdueExplanation_activity: {
-    select: {
-      id: true,
-      category: true,
-      explanation: true,
-      recordedAt: true,
-      recordedBy: { select: { fullName: true } },
-    },
-    orderBy: { recordedAt: 'desc' as const },
-    take: 100,
-  },
-} satisfies Prisma.ProjectActivitySelect
-
-type ActivityRow = Prisma.ProjectActivityGetPayload<{ select: typeof activitySelection }>
-
-/**
- * List projection: only what the activity list, board, search and pickers render.
- * Update history, proof metadata, assignee emails and read metrics come only from `get`.
- */
-const activityListSelection = {
-  id: true,
-  projectId: true,
-  code: true,
-  title: true,
-  description: true,
-  targetBeneficiaries: true,
-  plannedStartDate: true,
-  plannedEndDate: true,
-  status: true,
-  progressPercent: true,
-  updatedAt: true,
-  projectActivityAssignment_activity: {
-    where: activitySelection.projectActivityAssignment_activity.where,
-    select: {
-      projectAssignment: { select: { userId: true, user: { select: { fullName: true } } } },
-    },
-    orderBy: activitySelection.projectActivityAssignment_activity.orderBy,
-    take: activitySelection.projectActivityAssignment_activity.take,
-  },
-  activityJourneyStageMapping_activity: activitySelection.activityJourneyStageMapping_activity,
-  activityIndicatorLink_activity: activitySelection.activityIndicatorLink_activity,
-  // Lean projection for overdueExplanationNeeded only: no category/explanation/actor text,
-  // those are detail-only (see activitySelection.activityOverdueExplanation_activity).
-  activityOverdueExplanation_activity: {
-    select: { recordedAt: true },
-    orderBy: { recordedAt: 'desc' as const },
-    take: 100,
-  },
-} satisfies Prisma.ProjectActivitySelect
-
-type ActivityListRow = Prisma.ProjectActivityGetPayload<{ select: typeof activityListSelection }>
-
-/**
- * Capability input read in the same scoped activity query: the caller's own active
- * assignment on the activity, matching the recordProgress and submitUpdate checks.
- */
-function personalAssignmentCount(actor: ApplicationIdentity) {
-  return {
-    _count: {
-      select: {
-        projectActivityAssignment_activity: {
-          where: {
-            organizationId: actor.organizationId,
-            status: 'ACTIVE' as const,
-            endedAt: null,
-            projectAssignment: { userId: actor.userId, status: 'ACTIVE' as const, endedAt: null },
-          },
-        },
-      },
-    },
-  } satisfies Prisma.ProjectActivitySelect
-}
-
-/**
- * Advisory per-activity flags for the calling user. Every mutation re-checks its own
- * authority, so a forged or stale flag changes nothing. Scope is already applied: only
- * activities of projects inside `projectScope(actor)` reach this function.
- */
-export function activityCapabilities(
-  actor: ApplicationIdentity,
-  status: keyof typeof storedStatus,
-  personalAssignments: number | undefined,
-) {
-  const can = (
-    permission:
-      | 'activities.update'
-      | 'activities.progress.update'
-      | 'activities.proof.submit'
-      | 'monitoring.review',
-  ) => hasAtomicPermission(actor.roles[0], actor.permissions, permission)
-  const assigned = (personalAssignments ?? 0) > 0
-  return {
-    canEdit: can('activities.update') && !['COMPLETED', 'CANCELLED'].includes(status),
-    canRecordProgress: can('activities.progress.update') && assigned,
-    canSubmitProof: can('activities.proof.submit') && assigned,
-    // Project-scoped, not the personal activity assignment `assigned` reflects: any row
-    // reaching this function was already resolved through projectScope(actor) (see
-    // requireScopedProjectRow), which is the same project-assignment-or-org-wide rule
-    // pathways.p05_has_project_permission('monitoring.review', ...) applies at the RLS layer.
-    canExplainOverdue: can('monitoring.review'),
-  }
-}
-
-/** Exactly the users `resolveAssignments` accepts; the assignee bound is 50. */
-const assignableOfficerLimit = 50
-
-const storedStatus = {
-  NOT_STARTED: 'Planned',
-  IN_PROGRESS: 'In Progress',
-  FOR_REVIEW: 'For Review',
-  COMPLETED: 'Completed',
-  CANCELLED: 'Cancelled',
-} as const
-
-const reviewStatus = {
-  PENDING: 'Submitted',
-  VERIFIED: 'Accepted',
-  APPROVED: 'Accepted',
-  REJECTED: 'Flagged',
-} as const
-
-function calendarDate(date: Date | null) {
-  return date?.toISOString().slice(0, 10) ?? ''
-}
-
-export function activityPresentationStatus(
-  status: keyof typeof storedStatus,
-  plannedEndDate: Date | null,
-  businessDate: string,
-) {
-  const overdue =
-    Boolean(plannedEndDate) &&
-    calendarDate(plannedEndDate) < businessDate &&
-    !['COMPLETED', 'CANCELLED'].includes(status)
-  return { overdue, status: overdue ? ('Overdue' as const) : storedStatus[status] }
-}
-
-export function activityTransitionAllowed(
-  current: keyof typeof storedStatus,
-  requested: 'IN_PROGRESS' | 'CANCELLED',
-) {
-  return requested === 'IN_PROGRESS'
-    ? current === 'NOT_STARTED'
-    : ['NOT_STARTED', 'IN_PROGRESS'].includes(current)
-}
-
-type ActivityReadMetrics = {
-  budgets: ReadonlyMap<string, string>
-  reached: ReadonlyMap<string, number>
-  /** Present only for viewers holding expenses.read; absent means not readable. */
-  logged: ReadonlyMap<string, { total: string; entries: number }>
-}
-
-const emptyActivityReadMetrics: ActivityReadMetrics = {
-  budgets: new Map(),
-  reached: new Map(),
-  logged: new Map(),
-}
-
-function updateKind(update: {
-  _count?: { evidenceMedia_update: number }
-  evidenceMedia_update: unknown[]
-}): 'proof' | 'progress' {
-  return (update._count?.evidenceMedia_update ?? update.evidenceMedia_update.length) > 0
-    ? 'proof'
-    : 'progress'
-}
-
-function mapActivity(
-  row: ActivityRow,
-  businessDate: string,
-  metrics: ActivityReadMetrics = emptyActivityReadMetrics,
-  viewerId?: string,
-) {
-  const presentation = activityPresentationStatus(row.status, row.plannedEndDate, businessDate)
-  const updates = row.activityUpdate_activity
-  return {
-    id: row.id,
-    projectId: row.projectId,
-    code: row.code,
-    title: row.title,
-    description: row.description ?? '',
-    activityType: row.activityType,
-    timelineOverrideJustification: row.timelineOverrideJustification,
-    storedStatus: row.status,
-    status: presentation.status,
-    overdue: presentation.overdue,
-    startDate: calendarDate(row.plannedStartDate),
-    dueDate: calendarDate(row.plannedEndDate),
-    actualStartDate: calendarDate(row.actualStartDate) || null,
-    actualEndDate: calendarDate(row.actualEndDate) || null,
-    assignedUserIds: row.projectActivityAssignment_activity.map(
-      (assignment) => assignment.projectAssignment.userId,
-    ),
-    assignedTo: row.projectActivityAssignment_activity.map(
-      (assignment) => assignment.projectAssignment.user.fullName,
-    ),
-    assignedEmails: row.projectActivityAssignment_activity.map(
-      (assignment) => assignment.projectAssignment.user.email,
-    ),
-    journeyStageIds: row.activityJourneyStageMapping_activity.map((mapping) => mapping.stageId),
-    journeyStageId: row.activityJourneyStageMapping_activity[0]?.stageId ?? '',
-    indicatorIds: row.activityIndicatorLink_activity.map((link) => link.indicatorId),
-    targetBeneficiaries: row.targetBeneficiaries ?? 0,
-    beneficiariesReached: metrics.reached.get(row.id) ?? 0,
-    budgetAllocation: metrics.budgets.get(row.id) ?? null,
-    progress: row.progressPercent,
-
-    reviewedById: row.reviewedById,
-    reviewedAt: row.reviewedAt?.toISOString() ?? null,
-    cancellationReason: row.cancellationReason,
-    submittedProof: updates.flatMap((update) =>
-      update.evidenceMedia_update.map((proof) => ({
-        id: proof.id,
-        updateId: update.id,
-        fileName: proof.fileName,
-        status: reviewStatus[proof.status],
-        // Why this file alone was not enough, so the submitter can fix that file.
-        rejectionReason: proof.rejectionReason,
-        submittedAt: proof.submittedAt.toISOString(),
-        submittedBy: update.submittedBy.fullName,
-        updateUpdatedAt: update.updatedAt.toISOString(),
-        note: update.note,
-      })),
-    ),
-    updateNotes: updates.map((update) => {
-      // A PENDING proof whose files are not all verified in storage yet (the read above lists
-      // only verified files). Only its submitter receives the id needed to resume it.
-      // It is also incomplete when every file is verified but the update never committed (the
-      // activity is not FOR_REVIEW): the submitter must be able to resume it to send the finalize.
-      const evidenceCount =
-        update._count?.evidenceMedia_update ?? update.evidenceMedia_update.length
-      const proofIncomplete =
-        update.status === 'PENDING' &&
-        (evidenceCount > update.evidenceMedia_update.length ||
-          (evidenceCount > 0 && row.status !== 'FOR_REVIEW'))
-      return {
-        id: update.id,
-        proofIncomplete,
-        resumeClientUpdateId:
-          proofIncomplete && viewerId && update.submittedById === viewerId
-            ? update.clientUpdateId
-            : null,
-        kind: updateKind(update),
-        note: update.note,
-        progress: update.progressPercent,
-        beneficiariesReachedThisSession: update.beneficiariesReachedThisSession ?? null,
-        status: reviewStatus[update.status],
-        submittedBy: update.submittedBy.fullName,
-        submittedAt: update.submittedAt.toISOString(),
-        reviewedBy: update.reviewedBy?.fullName ?? null,
-        reviewedAt: update.reviewedAt?.toISOString() ?? null,
-        reviewReason: update.reviewReason,
-        updatedAt: update.updatedAt.toISOString(),
-      }
-    }),
-    updatedAt: row.updatedAt.toISOString(),
-    // Approved expenses only; null when the viewer cannot read expenses, never a fabricated 0.
-    budgetLogged: metrics.logged.get(row.id)?.total ?? null,
-    budgetLoggedEntries: metrics.logged.get(row.id)?.entries ?? null,
-    overdueExplanations: row.activityOverdueExplanation_activity.map((explanation) => ({
-      id: explanation.id,
-      category: explanation.category,
-      explanation: explanation.explanation,
-      actorName: explanation.recordedBy.fullName,
-      recordedAt: explanation.recordedAt.toISOString(),
-    })),
-    overdueExplanationNeeded:
-      presentation.overdue &&
-      !hasExplanationSinceDue(row.activityOverdueExplanation_activity, row.plannedEndDate),
-  }
-}
-
-/** True when an overdue explanation was recorded on or after the planned end date. */
-function hasExplanationSinceDue(explanations: { recordedAt: Date }[], plannedEndDate: Date | null) {
-  return explanations.some(
-    (explanation) => calendarDate(explanation.recordedAt) >= calendarDate(plannedEndDate),
-  )
-}
-
-/** A plain object, so server-computed per-item fields can be added without a detail read. */
-function mapActivityListItem(row: ActivityListRow, businessDate: string) {
-  const presentation = activityPresentationStatus(row.status, row.plannedEndDate, businessDate)
-  return {
-    id: row.id,
-    projectId: row.projectId,
-    code: row.code,
-    title: row.title,
-    description: row.description ?? '',
-    storedStatus: row.status,
-    status: presentation.status,
-    overdue: presentation.overdue,
-    startDate: calendarDate(row.plannedStartDate),
-    dueDate: calendarDate(row.plannedEndDate),
-    assignedUserIds: row.projectActivityAssignment_activity.map(
-      (assignment) => assignment.projectAssignment.userId,
-    ),
-    assignedTo: row.projectActivityAssignment_activity.map(
-      (assignment) => assignment.projectAssignment.user.fullName,
-    ),
-    journeyStageIds: row.activityJourneyStageMapping_activity.map((mapping) => mapping.stageId),
-    journeyStageId: row.activityJourneyStageMapping_activity[0]?.stageId ?? '',
-    indicatorIds: row.activityIndicatorLink_activity.map((link) => link.indicatorId),
-    targetBeneficiaries: row.targetBeneficiaries ?? 0,
-    progress: row.progressPercent,
-    updatedAt: row.updatedAt.toISOString(),
-    overdueExplanationNeeded:
-      presentation.overdue &&
-      !hasExplanationSinceDue(row.activityOverdueExplanation_activity, row.plannedEndDate),
-  }
-}
-
-export const evidenceExtension: Record<ActivityEvidenceContentType, string> = {
-  'application/pdf': '.pdf',
-  'image/jpeg': '.jpg',
-  'image/png': '.png',
-  'image/webp': '.webp',
-  'video/mp4': '.mp4',
-  'video/quicktime': '.mov',
-  'video/webm': '.webm',
-}
-
-/** Activity-update evidence is typed from its verified content type (0041). */
-export function activityEvidenceType(contentType: ActivityEvidenceContentType) {
-  return contentType.startsWith('image/')
-    ? ('PHOTO' as const)
-    : contentType.startsWith('video/')
-      ? ('VIDEO' as const)
-      : ('DOCUMENT' as const)
-}
-
-function activityEvidenceLimits(maxFileBytes: number) {
-  return {
-    maxFiles: MAX_ACTIVITY_EVIDENCE_FILES,
-    maxFileBytes,
-    maxTotalBytes: maxFileBytes * 5,
-    contentTypes: [...activityEvidenceContentTypes],
-  }
-}
-
-const proofRejection = (code: string, message: string) =>
-  new BadRequestException({ statusCode: 400, error: 'Bad Request', code, message })
-
-/** Bounded, normalized proof declarations. Checked before any database or storage work. */
-export function proofDeclarations(files: ActivityEvidenceFile[], maxFileBytes: number) {
-  const limits = activityEvidenceLimits(maxFileBytes)
-  if (!Array.isArray(files) || files.length < 1 || files.length > limits.maxFiles)
-    throw proofRejection('PROOF_FILE_COUNT', 'Attach between one and ten evidence files.')
-  const declared = files.map((file) => {
-    const fileName = typeof file.fileName === 'string' ? file.fileName.trim() : ''
-    if (
-      !fileName ||
-      fileName.length > 128 ||
-      /[\/]/.test(fileName) ||
-      !activityEvidenceContentTypes.includes(file.contentType) ||
-      !/^[0-9a-f]{64}$/.test(file.sha256) ||
-      !Number.isSafeInteger(file.byteSize) ||
-      file.byteSize < 1
-    )
-      throw proofRejection('PROOF_FILE_INVALID', 'An evidence file has an invalid name or type.')
-    if (file.byteSize > limits.maxFileBytes)
-      throw proofRejection('PROOF_FILE_TOO_LARGE', 'An evidence file exceeds the per-file limit.')
-    return {
-      fileName,
-      contentType: file.contentType,
-      byteSize: file.byteSize,
-      sha256: file.sha256,
-    }
-  })
-  if (new Set(declared.map((file) => file.sha256)).size !== declared.length)
-    throw proofRejection('PROOF_FILE_DUPLICATE', 'The same evidence file was attached twice.')
-  if (declared.reduce((total, file) => total + file.byteSize, 0) > limits.maxTotalBytes)
-    throw proofRejection('PROOF_TOTAL_TOO_LARGE', 'The evidence files exceed the total limit.')
-  return declared
-}
-
-const declarationKey = (file: {
-  fileName: string
-  sha256: string
-  contentType: string | null
-  byteSize: number | bigint | null
-}) => JSON.stringify([file.fileName, file.sha256, file.contentType, String(file.byteSize)])
-
-const verificationFailure: Record<Exclude<UploadVerification, 'VERIFIED'>, string> = {
-  OBJECT_MISSING: 'The evidence file was not uploaded. Upload it, then finalize again.',
-  SIZE_MISMATCH: 'The uploaded evidence file size does not match its declaration.',
-  TYPE_MISMATCH: 'The uploaded evidence file content does not match its declared type.',
-  DIGEST_MISMATCH: 'The uploaded evidence file content does not match its declared digest.',
-}
 
 @Injectable()
 export class ActivitiesService {
@@ -577,27 +136,6 @@ export class ActivitiesService {
     activityId: string,
   ) {
     return (await this.requireProjectActivity(tx, actor, projectId, activityId)).activity
-  }
-
-  private validateDates(
-    start: string,
-    end: string,
-    project: { startDate: Date | null; endDate: Date | null },
-    timelineOverrideJustification?: string | null,
-  ) {
-    if (end < start)
-      throw new BadRequestException('Activity end date must not precede its start date.')
-    const projectStart = calendarDate(project.startDate)
-    const projectEnd = calendarDate(project.endDate)
-    const outsideProject =
-      (projectStart && start < projectStart) || (projectEnd && end > projectEnd)
-    const justification = timelineOverrideJustification?.trim() || null
-    if (outsideProject && !justification) {
-      throw new BadRequestException(
-        'A timeline override justification is required outside the project dates.',
-      )
-    }
-    return justification
   }
 
   private async resolveAssignments(
@@ -1225,7 +763,7 @@ export class ActivitiesService {
         )
         if (source.kind === 'REPLAY') return source.acknowledgement
         const project = await requireScopedProjectRow(tx, actor, projectId, projectDateFields)
-        const timelineOverrideJustification = this.validateDates(
+        const timelineOverrideJustification = validateActivityDates(
           input.plannedStartDate,
           input.plannedEndDate,
           project,
@@ -1344,7 +882,7 @@ export class ActivitiesService {
         if (['COMPLETED', 'CANCELLED'].includes(current.status)) {
           throw new ConflictException('Terminal activity history cannot be edited.')
         }
-        const timelineOverrideJustification = this.validateDates(
+        const timelineOverrideJustification = validateActivityDates(
           input.plannedStartDate,
           input.plannedEndDate,
           project,
@@ -1726,30 +1264,6 @@ export class ActivitiesService {
     return activityEvidenceLimits(this.env.EVIDENCE_MAX_FILE_BYTES)
   }
 
-  private finalizeBody(
-    updateId: string,
-    progressPercent: number,
-    note: string,
-    files: Array<{
-      fileName: string
-      sha256: string
-      contentType: string | null
-      byteSize: number | bigint | null
-    }>,
-  ) {
-    return sourceMutationBody({
-      updateId,
-      progressPercent,
-      note,
-      files: files.map((file) => ({
-        fileName: file.fileName,
-        sha256: file.sha256,
-        contentType: file.contentType,
-        byteSize: Number(file.byteSize),
-      })),
-    })
-  }
-
   /**
    * Reserves an activity update with 1-10 private evidence rows and returns one signed upload
    * URL per unverified row, each scoped to its server-derived object key. Authority is the
@@ -1823,7 +1337,7 @@ export class ActivitiesService {
             activity.projectId,
             activity.id,
             { kind: 'PROOF_FINALIZE', id: existing.id, phase: 'FINALIZE' },
-            this.finalizeBody(existing.id, existing.progressPercent, note, declared),
+            proofFinalizeBody(existing.id, existing.progressPercent, note, declared),
           )
           if (acknowledgement)
             return {
@@ -2083,7 +1597,7 @@ export class ActivitiesService {
         })
         if (!update) throw new NotFoundException('Activity evidence unavailable.')
         const files = update.evidenceMedia_update
-        const body = this.finalizeBody(update.id, update.progressPercent, update.note ?? '', files)
+        const body = proofFinalizeBody(update.id, update.progressPercent, update.note ?? '', files)
         const committed = (value: unknown) => ({
           status: 'COMMITTED' as const,
           acknowledgement: proofClientAcknowledgement(value, update.id, update.clientUpdateId),
@@ -2398,7 +1912,7 @@ export class ActivitiesService {
       async (tx, actor) => {
         const project = await requireScopedProjectRow(tx, actor, projectId, projectDateFields)
         if (input.targetDate) {
-          this.validateDates(input.targetDate, input.targetDate, project)
+          validateActivityDates(input.targetDate, input.targetDate, project)
         }
         const row = await tx.projectMilestone.create({
           data: {
@@ -2434,13 +1948,13 @@ export class ActivitiesService {
         const project = await requireScopedProjectRow(tx, actor, projectId, projectDateFields)
         if (!UUID_PATTERN.test(milestoneId)) throw new NotFoundException('Milestone unavailable.')
         if (input.targetDate) {
-          this.validateDates(input.targetDate, input.targetDate, project)
+          validateActivityDates(input.targetDate, input.targetDate, project)
         }
         if (input.status === 'COMPLETED' && !input.completionDate) {
           throw new BadRequestException('A completed milestone requires its completion date.')
         }
         if (input.completionDate) {
-          this.validateDates(input.completionDate, input.completionDate, project)
+          validateActivityDates(input.completionDate, input.completionDate, project)
         }
         const expected = new Date(input.expectedUpdatedAt)
         const changed = await tx.projectMilestone.updateMany({

@@ -21,11 +21,11 @@ import { projectScope } from '../../common/authz/project-scope'
 import type { Tx } from '../../common/prisma/transaction'
 import { PrismaService } from '../../prisma/prisma.service'
 import {
+  PROOF_STORAGE_DEADLINE_MS,
   activityEvidenceType,
   evidenceExtension,
   proofDeclarations,
-} from '../activities/activities.service'
-import { PROOF_STORAGE_DEADLINE_MS } from '../activities/activity-proof.helpers'
+} from '../activities/activity-proof.helpers'
 import {
   PRIVATE_STORAGE_FACTORIES,
   type PrivateStorageFactories,

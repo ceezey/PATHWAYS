@@ -50,7 +50,8 @@ vi.mock('../rules/rules-source-operation', async (importOriginal) => ({
 }))
 
 import { ActivitiesController } from './activities.controller'
-import { ActivitiesService, activityCapabilities } from './activities.service'
+import { activityCapabilities } from './activities.helpers'
+import { ActivitiesService } from './activities.service'
 
 const organizationId = '10000000-0000-4000-8000-000000000001'
 const projectId = '20000000-0000-4000-8000-000000000002'

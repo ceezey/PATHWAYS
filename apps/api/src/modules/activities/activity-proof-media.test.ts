@@ -50,7 +50,8 @@ vi.mock('@app/modules/rules/rules-source-operation', async (importOriginal) => (
 import { PrivateInspectionReadError } from '@app/modules/storage/private-inspection-reader'
 import type { ReserveActivityProofRequest } from '@pathways/shared'
 import { ActivitiesController } from './activities.controller'
-import { ActivitiesService, activityEvidenceType, proofDeclarations } from './activities.service'
+import { ActivitiesService } from './activities.service'
+import { activityEvidenceType, proofDeclarations } from './activity-proof.helpers'
 import { ActivityUpdatesController } from './activity-updates.controller'
 
 const organizationId = '10000000-0000-4000-8000-000000000001'
