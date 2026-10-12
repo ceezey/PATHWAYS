@@ -40,6 +40,8 @@ vi.mock('@app/modules/rules/rules-source-operation', async (importOriginal) => (
 }))
 
 import { ActivitiesService } from './activities.service'
+import { ActivityProgressService } from './activity-progress.service'
+import { ActivityReviewService } from './activity-review.service'
 
 // End-to-end lifecycle of one activity through the real service, against an in-memory store that
 // applies each Prisma write the service makes. It covers what the developer reported: a Project
@@ -223,6 +225,8 @@ const service = new ActivitiesService(
   storage as unknown as StorageService,
   privateStorageFactories,
 )
+const progressService = new ActivityProgressService({} as PrismaService)
+const reviewService = new ActivityReviewService({} as PrismaService)
 
 const as = <T>(actor: ApplicationIdentity, run: () => Promise<T>) => {
   state.actor = actor
@@ -256,7 +260,7 @@ const finalize = (updateId: string, evidenceId: string) =>
   ) as Promise<Loose>
 const review = (updateId: string, decision: 'APPROVE' | 'RETURN', expectedUpdatedAt: string) =>
   as(reviewer, () =>
-    service.reviewUpdate(reviewer, projectId, activityId, updateId, {
+    reviewService.reviewUpdate(reviewer, projectId, activityId, updateId, {
       clientMutationId: 'e0000000-0000-4000-8000-0000000000e1',
       decision,
       reason: 'Synthetic scoped review',
@@ -382,7 +386,7 @@ describe('proof submit, reviewer visibility and review', () => {
 
   it('a pending progress note blocks proof submission until M&E reviews it, then the proof goes through', async () => {
     await as(officer, () =>
-      service.recordProgress(officer, projectId, activityId, {
+      progressService.recordProgress(officer, projectId, activityId, {
         clientUpdateId: 'b0000000-0000-4000-8000-00000000000b',
         progressPercent: 35,
         note: 'Halfway through the sessions.',
@@ -410,7 +414,7 @@ describe('proof submit, reviewer visibility and review', () => {
 
   it('returning a progress note leaves the activity progress unchanged and unblocks proof', async () => {
     await as(officer, () =>
-      service.recordProgress(officer, projectId, activityId, {
+      progressService.recordProgress(officer, projectId, activityId, {
         clientUpdateId: 'b0000000-0000-4000-8000-00000000000b',
         progressPercent: 35,
         note: 'Halfway through the sessions.',
@@ -434,7 +438,7 @@ describe('proof submit, reviewer visibility and review', () => {
   it('the submitter cannot review their own update', async () => {
     const ownReviewer: ApplicationIdentity = { ...reviewer, userId: officer.userId }
     await as(officer, () =>
-      service.recordProgress(officer, projectId, activityId, {
+      progressService.recordProgress(officer, projectId, activityId, {
         clientUpdateId: 'b0000000-0000-4000-8000-00000000000b',
         progressPercent: 35,
         note: 'Halfway through the sessions.',
@@ -443,7 +447,7 @@ describe('proof submit, reviewer visibility and review', () => {
     const note = (await detail()).updateNotes[0]
     state.actor = ownReviewer
     await expect(
-      service.reviewUpdate(ownReviewer, projectId, activityId, note.id, {
+      reviewService.reviewUpdate(ownReviewer, projectId, activityId, note.id, {
         clientMutationId: 'e0000000-0000-4000-8000-0000000000e1',
         decision: 'APPROVE',
         reason: 'Self review',

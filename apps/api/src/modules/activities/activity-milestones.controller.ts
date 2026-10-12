@@ -10,16 +10,18 @@ import type { AuthenticatedRequest } from '../../common/authz/application-identi
 import { requestIdentity } from '../../common/authz/request-identity'
 import { RequirePermission } from '../../common/decorators/permission.decorator'
 import { ZodPipe } from '../../common/validation/zod-pipe'
-import { ActivitiesService } from './activities.service'
+import { ActivityMilestonesService } from './activity-milestones.service'
 
 @Controller('projects/:projectId/milestones')
 export class MilestonesController {
-  constructor(@Inject(ActivitiesService) private readonly activities: ActivitiesService) {}
+  constructor(
+    @Inject(ActivityMilestonesService) private readonly milestones: ActivityMilestonesService,
+  ) {}
 
   @Get()
   @RequirePermission('activities.read')
   list(@Req() request: AuthenticatedRequest, @Param('projectId') projectId: string) {
-    return this.activities.listMilestones(requestIdentity(request), projectId)
+    return this.milestones.listMilestones(requestIdentity(request), projectId)
   }
 
   @Post()
@@ -29,7 +31,7 @@ export class MilestonesController {
     @Param('projectId') projectId: string,
     @Body(new ZodPipe(saveMilestoneRequest)) body: SaveMilestoneRequest,
   ) {
-    return this.activities.createMilestone(requestIdentity(request), projectId, body)
+    return this.milestones.createMilestone(requestIdentity(request), projectId, body)
   }
 
   @Patch(':milestoneId')
@@ -40,6 +42,6 @@ export class MilestonesController {
     @Param('milestoneId') milestoneId: string,
     @Body(new ZodPipe(updateMilestoneRequest)) body: UpdateMilestoneRequest,
   ) {
-    return this.activities.updateMilestone(requestIdentity(request), projectId, milestoneId, body)
+    return this.milestones.updateMilestone(requestIdentity(request), projectId, milestoneId, body)
   }
 }

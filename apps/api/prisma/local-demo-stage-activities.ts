@@ -149,7 +149,7 @@ async function review(
   const row = await asUser(ctx, ctx.staff.me, (tx) =>
     tx.activityUpdate.findUniqueOrThrow({ where: { id: updateId }, select: { updatedAt: true } }),
   )
-  await ctx.services.activities.reviewUpdate(
+  await ctx.services.activityReview.reviewUpdate(
     ctx.staff.me.identity,
     projectId,
     activityId,
@@ -192,7 +192,7 @@ async function explainOverdue(
   projectId: string,
   activityId: string,
 ) {
-  await ctx.services.activities.recordOverdueExplanation(
+  await ctx.services.activityProgress.recordOverdueExplanation(
     ctx.staff.me.identity,
     projectId,
     activityId,
@@ -275,7 +275,7 @@ export async function applyOutcome(
       return
     case 'PROGRESS_VERIFIED': {
       await startActivity(ctx, projectId, activityId, code)
-      await ctx.services.activities.recordProgress(officer, projectId, activityId, {
+      await ctx.services.activityProgress.recordProgress(officer, projectId, activityId, {
         clientUpdateId: ctx.stable(`progress:${code}`),
         progressPercent: activity.progress ?? 50,
         note: activity.note ?? 'Progress recorded after the monitoring visit.',

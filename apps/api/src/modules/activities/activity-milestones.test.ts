@@ -5,9 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ApplicationIdentity } from '@app/common/authz/application-identity'
 import { PERMISSION_KEY } from '@app/common/decorators/permission.decorator'
-import type { StorageService } from '@app/modules/storage/storage.service'
 import type { PrismaService } from '@app/prisma/prisma.service'
-import { privateStorageFactories } from '../storage/private-storage-factories'
 
 const state = vi.hoisted(() => ({ actor: undefined as ApplicationIdentity | undefined }))
 
@@ -20,8 +18,8 @@ vi.mock('@app/common/authz/authorized-operation', () => ({
   }),
 }))
 
-import { ActivitiesService } from './activities.service'
 import { MilestonesController } from './activity-milestones.controller'
+import { ActivityMilestonesService } from './activity-milestones.service'
 
 const organizationId = '10000000-0000-4000-8000-000000000001'
 const projectId = '20000000-0000-4000-8000-000000000002'
@@ -56,11 +54,7 @@ const update = {
 }
 
 describe('G-F2-10 milestones require milestones.manage', () => {
-  const service = new ActivitiesService(
-    {} as PrismaService,
-    {} as StorageService,
-    privateStorageFactories,
-  )
+  const milestonesService = new ActivityMilestonesService({} as PrismaService)
 
   beforeEach(() => {
     vi.clearAllMocks()
@@ -84,11 +78,11 @@ describe('G-F2-10 milestones require milestones.manage', () => {
 
   it('denies create and update before any read when the grant is absent', async () => {
     state.actor = { ...manager, permissions: ['activities.read'] }
-    await expect(service.createMilestone(manager, projectId, save)).rejects.toBeInstanceOf(
-      ForbiddenException,
-    )
     await expect(
-      service.updateMilestone(manager, projectId, milestoneId, update),
+      milestonesService.createMilestone(manager, projectId, save),
+    ).rejects.toBeInstanceOf(ForbiddenException)
+    await expect(
+      milestonesService.updateMilestone(manager, projectId, milestoneId, update),
     ).rejects.toBeInstanceOf(ForbiddenException)
     expect(tx.project.findFirst).not.toHaveBeenCalled()
     expect(tx.projectMilestone.create).not.toHaveBeenCalled()
@@ -96,7 +90,7 @@ describe('G-F2-10 milestones require milestones.manage', () => {
   })
 
   it('creates a scoped milestone with an audit entry', async () => {
-    await service.createMilestone(manager, projectId, save)
+    await milestonesService.createMilestone(manager, projectId, save)
     expect(tx.projectMilestone.create.mock.calls[0]?.[0].data).toMatchObject({
       organizationId,
       projectId,
@@ -106,7 +100,7 @@ describe('G-F2-10 milestones require milestones.manage', () => {
   })
 
   it('updates with the loaded revision and audits the new status', async () => {
-    await service.updateMilestone(manager, projectId, milestoneId, update)
+    await milestonesService.updateMilestone(manager, projectId, milestoneId, update)
     expect(tx.projectMilestone.updateMany.mock.calls[0]?.[0].where).toMatchObject({
       updatedAt: new Date(update.expectedUpdatedAt),
     })
@@ -119,11 +113,14 @@ describe('G-F2-10 milestones require milestones.manage', () => {
   it('rejects a stale revision and a completion without its date', async () => {
     tx.projectMilestone.updateMany.mockResolvedValue({ count: 0 })
     await expect(
-      service.updateMilestone(manager, projectId, milestoneId, update),
+      milestonesService.updateMilestone(manager, projectId, milestoneId, update),
     ).rejects.toBeInstanceOf(ConflictException)
     expect(tx.auditLog.create).not.toHaveBeenCalled()
     await expect(
-      service.updateMilestone(manager, projectId, milestoneId, { ...update, status: 'COMPLETED' }),
+      milestonesService.updateMilestone(manager, projectId, milestoneId, {
+        ...update,
+        status: 'COMPLETED',
+      }),
     ).rejects.toBeInstanceOf(BadRequestException)
   })
 })

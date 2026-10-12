@@ -2,7 +2,7 @@ import { Readable } from 'node:stream'
 import { BadRequestException, type StreamableFile } from '@nestjs/common'
 import { describe, expect, it, vi } from 'vitest'
 import type { AuthenticatedRequest } from '../../common/authz/application-identity'
-import type { ActivitiesService } from './activities.service'
+import type { ActivityEvidenceService } from './activity-evidence.service'
 import { ActivityProofsController } from './activity-proofs.controller'
 import type { PrivateProofInspectionService } from './private-proof-inspection.service'
 
@@ -16,7 +16,7 @@ const query = {
 const build = (released: object) => {
   const inspect = vi.fn(async () => released)
   const controller = new ActivityProofsController(
-    {} as ActivitiesService,
+    {} as ActivityEvidenceService,
     {
       inspect,
     } as unknown as PrivateProofInspectionService,

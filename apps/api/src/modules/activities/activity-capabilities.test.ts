@@ -52,6 +52,7 @@ vi.mock('../rules/rules-source-operation', async (importOriginal) => ({
 import { ActivitiesController } from './activities.controller'
 import { activityCapabilities } from './activities.helpers'
 import { ActivitiesService } from './activities.service'
+import { ActivityProgressService } from './activity-progress.service'
 
 const organizationId = '10000000-0000-4000-8000-000000000001'
 const projectId = '20000000-0000-4000-8000-000000000002'
@@ -118,6 +119,7 @@ const service = new ActivitiesService(
   {} as StorageService,
   privateStorageFactories,
 )
+const progressService = new ActivityProgressService({} as PrismaService)
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -301,7 +303,7 @@ describe('each role sees exactly the actions the API accepts', () => {
     }
 
     // Record progress: 100% is refused as a proof-only completion after authority passes.
-    const progressError = await service
+    const progressError = await progressService
       .recordProgress(actor, projectId, activityId, {
         clientUpdateId: 'a0000000-0000-4000-8000-00000000000a',
         progressPercent: 100,

@@ -52,8 +52,6 @@ vi.mock('../rules/rules-source-operation', async (importOriginal) => ({
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import type { PrismaService } from '../../prisma/prisma.service'
-import { privateStorageFactories } from '../storage/private-storage-factories'
-import type { StorageService } from '../storage/storage.service'
 const state = vi.hoisted(() => ({
   actor: null as unknown as ApplicationIdentity,
   tx: null as unknown as Record<string, unknown>,
@@ -66,7 +64,7 @@ vi.mock('../../common/authz/authorized-operation', () => ({
 vi.mock('../../common/authz/application-profile', () => ({
   readApplicationProfile: vi.fn(async () => state.actor),
 }))
-import { ActivitiesService } from './activities.service'
+import { ActivityReviewService } from './activity-review.service'
 const projectId = '20000000-0000-4000-8000-000000000002'
 const activityId = '30000000-0000-4000-8000-000000000003'
 const updateId = '40000000-0000-4000-8000-000000000004'
@@ -125,13 +123,9 @@ const tx = {
   evidenceMedia: { updateMany: vi.fn() },
   auditLog: { create: vi.fn() },
 }
-const service = new ActivitiesService(
-  {} as PrismaService,
-  {} as StorageService,
-  privateStorageFactories,
-)
+const reviewService = new ActivityReviewService({} as PrismaService)
 const review = (decision: 'APPROVE' | 'RETURN' = 'APPROVE') =>
-  service.reviewUpdate(actor, projectId, activityId, updateId, {
+  reviewService.reviewUpdate(actor, projectId, activityId, updateId, {
     clientMutationId: 'e0000000-0000-4000-8000-000000000001',
     decision,
     reason: 'Synthetic scoped review',

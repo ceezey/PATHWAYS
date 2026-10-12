@@ -11,9 +11,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ApplicationIdentity } from '@app/common/authz/application-identity'
 import { PERMISSION_KEY } from '@app/common/decorators/permission.decorator'
-import type { StorageService } from '@app/modules/storage/storage.service'
 import type { PrismaService } from '@app/prisma/prisma.service'
-import { privateStorageFactories } from '../storage/private-storage-factories'
 
 const state = vi.hoisted(() => ({
   actor: undefined as ApplicationIdentity | undefined,
@@ -30,7 +28,7 @@ vi.mock('@app/common/authz/authorized-operation', () => ({
   }),
 }))
 
-import { ActivitiesService } from './activities.service'
+import { ActivityProgressService } from './activity-progress.service'
 import { ActivityUpdatesController } from './activity-updates.controller'
 
 const organizationId = '10000000-0000-4000-8000-000000000001'
@@ -90,11 +88,7 @@ const tx = {
 const input = { clientUpdateId, progressPercent: 45, note: '  Halfway through sessions.  ' }
 
 describe('Activity progress update (activities.progress.update)', () => {
-  const service = new ActivitiesService(
-    {} as PrismaService,
-    {} as StorageService,
-    privateStorageFactories,
-  )
+  const progressService = new ActivityProgressService({} as PrismaService)
 
   beforeEach(() => {
     vi.clearAllMocks()
@@ -114,7 +108,7 @@ describe('Activity progress update (activities.progress.update)', () => {
   })
 
   it('records a scoped pending update with an audit entry (happy path)', async () => {
-    const result = await service.recordProgress(actor, projectId, activityId, input)
+    const result = await progressService.recordProgress(actor, projectId, activityId, input)
     expect(result.id).toBe(activityId)
     const scoped = tx.project.findFirst.mock.calls[0][0]
     expect(scoped.where.AND[0]).toMatchObject({ organizationId, archivedAt: null })
@@ -141,7 +135,7 @@ describe('Activity progress update (activities.progress.update)', () => {
   })
 
   it('resolves project scope once and reads the activity back without a second scope query', async () => {
-    await service.recordProgress(actor, projectId, activityId, input)
+    await progressService.recordProgress(actor, projectId, activityId, input)
     expect(tx.project.findFirst).toHaveBeenCalledOnce()
     expect(tx.projectActivity.findFirst).toHaveBeenCalledTimes(2)
     const readBack = tx.projectActivity.findFirst.mock.calls[1][0]
@@ -156,7 +150,7 @@ describe('Activity progress update (activities.progress.update)', () => {
   it('still denies a project outside scope before any activity read or write', async () => {
     tx.project.findFirst.mockResolvedValueOnce(null)
     await expect(
-      service.recordProgress(actor, projectId, activityId, input),
+      progressService.recordProgress(actor, projectId, activityId, input),
     ).rejects.toBeInstanceOf(NotFoundException)
     expect(tx.projectActivity.findFirst).not.toHaveBeenCalled()
     expect(tx.activityUpdate.create).not.toHaveBeenCalled()
@@ -169,7 +163,7 @@ describe('Activity progress update (activities.progress.update)', () => {
       progressPercent: 45,
       note: 'Halfway through sessions.',
     })
-    await service.recordProgress(actor, projectId, activityId, input)
+    await progressService.recordProgress(actor, projectId, activityId, input)
     expect(tx.activityUpdate.create).not.toHaveBeenCalled()
     expect(tx.auditLog.create).not.toHaveBeenCalled()
   })
@@ -177,7 +171,7 @@ describe('Activity progress update (activities.progress.update)', () => {
   it('denies an actor without the permission before any read (sad)', async () => {
     state.actor = { ...actor, permissions: ['activities.read'] }
     await expect(
-      service.recordProgress(state.actor, projectId, activityId, input),
+      progressService.recordProgress(state.actor, projectId, activityId, input),
     ).rejects.toBeInstanceOf(ForbiddenException)
     expect(tx.project.findFirst).not.toHaveBeenCalled()
     expect(tx.activityUpdate.create).not.toHaveBeenCalled()
@@ -186,7 +180,7 @@ describe('Activity progress update (activities.progress.update)', () => {
   it('rejects progress on an activity that is not in progress (sad)', async () => {
     tx.projectActivity.findFirst.mockResolvedValue({ ...activity, status: 'FOR_REVIEW' })
     await expect(
-      service.recordProgress(actor, projectId, activityId, input),
+      progressService.recordProgress(actor, projectId, activityId, input),
     ).rejects.toBeInstanceOf(ConflictException)
     expect(tx.activityUpdate.create).not.toHaveBeenCalled()
   })
@@ -194,7 +188,7 @@ describe('Activity progress update (activities.progress.update)', () => {
   it('hides a cross-organization or unassigned project before activity retrieval (abuse)', async () => {
     tx.project.findFirst.mockResolvedValue(null)
     await expect(
-      service.recordProgress(actor, otherProjectId, activityId, input),
+      progressService.recordProgress(actor, otherProjectId, activityId, input),
     ).rejects.toBeInstanceOf(NotFoundException)
     const scoped = tx.project.findFirst.mock.calls[0][0]
     expect(scoped.where.AND[0]).toMatchObject({ organizationId })
@@ -206,11 +200,11 @@ describe('Activity progress update (activities.progress.update)', () => {
   it('denies an actor without an active assignment on the activity (abuse)', async () => {
     tx.projectActivityAssignment.findFirst.mockResolvedValue(null)
     await expect(
-      service.recordProgress(actor, projectId, activityId, input),
+      progressService.recordProgress(actor, projectId, activityId, input),
     ).rejects.toBeInstanceOf(ForbiddenException)
-    await expect(service.recordProgress(actor, projectId, activityId, input)).rejects.toThrow(
-      'An active activity assignment is required.',
-    )
+    await expect(
+      progressService.recordProgress(actor, projectId, activityId, input),
+    ).rejects.toThrow('An active activity assignment is required.')
     expect(tx.projectActivityAssignment.findFirst.mock.calls[0][0].where).toMatchObject({
       organizationId,
       projectAssignment: { userId: actor.userId, status: 'ACTIVE' },
@@ -226,7 +220,7 @@ describe('Activity progress update (activities.progress.update)', () => {
       note: 'Different',
     })
     await expect(
-      service.recordProgress(actor, projectId, activityId, input),
+      progressService.recordProgress(actor, projectId, activityId, input),
     ).rejects.toBeInstanceOf(ConflictException)
     expect(tx.activityUpdate.create).not.toHaveBeenCalled()
   })
@@ -234,7 +228,7 @@ describe('Activity progress update (activities.progress.update)', () => {
   it('rejects a new progress update while one is pending for the activity (409)', async () => {
     tx.activityUpdate.findFirst.mockResolvedValueOnce(null).mockResolvedValueOnce({ id: 'pending' })
     await expect(
-      service.recordProgress(actor, projectId, activityId, input),
+      progressService.recordProgress(actor, projectId, activityId, input),
     ).rejects.toBeInstanceOf(ConflictException)
     expect(tx.activityUpdate.findFirst.mock.calls[1][0].where).toMatchObject({
       organizationId,
@@ -247,7 +241,10 @@ describe('Activity progress update (activities.progress.update)', () => {
 
   it('requires proof submission for 100% completion', async () => {
     await expect(
-      service.recordProgress(actor, projectId, activityId, { ...input, progressPercent: 100 }),
+      progressService.recordProgress(actor, projectId, activityId, {
+        ...input,
+        progressPercent: 100,
+      }),
     ).rejects.toBeInstanceOf(BadRequestException)
     expect(tx.activityUpdate.create).not.toHaveBeenCalled()
   })

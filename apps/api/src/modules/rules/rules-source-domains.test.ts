@@ -34,6 +34,7 @@ vi.mock('@pathways/config', () => ({
   }),
 }))
 import { ActivitiesService } from '../activities/activities.service'
+import { ActivityReviewService } from '../activities/activity-review.service'
 import { IndicatorsService } from '../indicators/indicators.service'
 import { ProjectsService } from '../projects/projects.service'
 const project = '10000000-0000-4000-8000-000000000001'
@@ -47,6 +48,7 @@ const activities = new ActivitiesService(
   {} as StorageService,
   privateStorageFactories,
 )
+const reviewService = new ActivityReviewService({} as PrismaService)
 const indicators = new IndicatorsService({} as PrismaService)
 const activityBody = {
   clientMutationId: request,
@@ -112,7 +114,7 @@ const operations = [
   [
     'ACTIVITY_REVIEW',
     () =>
-      activities.reviewUpdate(boundary.actor, project, source, source, {
+      reviewService.reviewUpdate(boundary.actor, project, source, source, {
         clientMutationId: request,
         decision: 'APPROVE',
         reason: 'Synthetic review',

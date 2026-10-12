@@ -14,7 +14,7 @@ import type { AuthenticatedRequest } from '../../common/authz/application-identi
 import { requestIdentity } from '../../common/authz/request-identity'
 import { RequirePermission } from '../../common/decorators/permission.decorator'
 import { inspectionRequestBudget } from '../../common/network/inspection-request-budget'
-import { ActivitiesService } from './activities.service'
+import { ActivityEvidenceService } from './activity-evidence.service'
 import {
   PrivateProofInspectionService,
   inspectionRevisions,
@@ -24,7 +24,7 @@ import {
 @Controller('projects/:projectId/activities')
 export class ActivityProofsController {
   constructor(
-    @Inject(ActivitiesService) private readonly activities: ActivitiesService,
+    @Inject(ActivityEvidenceService) private readonly evidence: ActivityEvidenceService,
     @Inject(PrivateProofInspectionService)
     private readonly inspection: PrivateProofInspectionService,
   ) {}
@@ -93,7 +93,7 @@ export class ActivityProofsController {
     @Param('evidenceId') evidenceId: string,
     @Res({ passthrough: true }) response: { setHeader(name: string, value: string): void },
   ) {
-    const proof = await this.activities.downloadProof(
+    const proof = await this.evidence.downloadProof(
       requestIdentity(request),
       projectId,
       activityId,

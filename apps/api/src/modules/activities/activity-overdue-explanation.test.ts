@@ -26,6 +26,7 @@ vi.mock('@app/common/authz/authorized-operation', () => ({
 }))
 
 import { ActivitiesService } from './activities.service'
+import { ActivityProgressService } from './activity-progress.service'
 import { ActivityUpdatesController } from './activity-updates.controller'
 
 const organizationId = '10000000-0000-4000-8000-000000000001'
@@ -102,6 +103,7 @@ describe('Activity overdue explanation (monitoring.review)', () => {
     {} as StorageService,
     privateStorageFactories,
   )
+  const progressService = new ActivityProgressService({} as PrismaService)
 
   beforeEach(() => {
     vi.clearAllMocks()
@@ -124,7 +126,12 @@ describe('Activity overdue explanation (monitoring.review)', () => {
   })
 
   it('records a scoped explanation with an audit entry (happy path)', async () => {
-    const result = await service.recordOverdueExplanation(actor, projectId, activityId, input)
+    const result = await progressService.recordOverdueExplanation(
+      actor,
+      projectId,
+      activityId,
+      input,
+    )
     expect(result.id).toBe(activityId)
     expect(tx.activityOverdueExplanation.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
@@ -150,7 +157,7 @@ describe('Activity overdue explanation (monitoring.review)', () => {
   it('rejects when the activity is not currently overdue (409)', async () => {
     tx.projectActivity.findFirst.mockResolvedValue(notOverdueActivity)
     await expect(
-      service.recordOverdueExplanation(actor, projectId, activityId, input),
+      progressService.recordOverdueExplanation(actor, projectId, activityId, input),
     ).rejects.toBeInstanceOf(ConflictException)
     expect(tx.activityOverdueExplanation.create).not.toHaveBeenCalled()
   })
@@ -162,7 +169,7 @@ describe('Activity overdue explanation (monitoring.review)', () => {
       category: 'WEATHER',
       explanation: input.explanation,
     })
-    await service.recordOverdueExplanation(actor, projectId, activityId, input)
+    await progressService.recordOverdueExplanation(actor, projectId, activityId, input)
     expect(tx.activityOverdueExplanation.create).not.toHaveBeenCalled()
     expect(tx.auditLog.create).not.toHaveBeenCalled()
   })
@@ -175,7 +182,7 @@ describe('Activity overdue explanation (monitoring.review)', () => {
       explanation: 'A different recorded explanation entirely.',
     })
     await expect(
-      service.recordOverdueExplanation(actor, projectId, activityId, input),
+      progressService.recordOverdueExplanation(actor, projectId, activityId, input),
     ).rejects.toBeInstanceOf(ConflictException)
     expect(tx.activityOverdueExplanation.create).not.toHaveBeenCalled()
   })
@@ -183,7 +190,7 @@ describe('Activity overdue explanation (monitoring.review)', () => {
   it('denies an actor without the permission before any read (403)', async () => {
     state.actor = { ...actor, permissions: ['activities.read'] }
     await expect(
-      service.recordOverdueExplanation(state.actor, projectId, activityId, input),
+      progressService.recordOverdueExplanation(state.actor, projectId, activityId, input),
     ).rejects.toBeInstanceOf(ForbiddenException)
     expect(tx.project.findFirst).not.toHaveBeenCalled()
     expect(tx.activityOverdueExplanation.create).not.toHaveBeenCalled()
@@ -194,7 +201,12 @@ describe('Activity overdue explanation (monitoring.review)', () => {
     // to the project (actor.assignedProjectIds includes projectId) but never individually
     // assigned to this specific activity (no ProjectActivityAssignment row) still succeeds.
     tx.projectActivityAssignment.findFirst.mockResolvedValue(null)
-    const result = await service.recordOverdueExplanation(actor, projectId, activityId, input)
+    const result = await progressService.recordOverdueExplanation(
+      actor,
+      projectId,
+      activityId,
+      input,
+    )
     expect(result.id).toBe(activityId)
     expect(tx.activityOverdueExplanation.create).toHaveBeenCalled()
   })
@@ -207,7 +219,7 @@ describe('Activity overdue explanation (monitoring.review)', () => {
     tx.project.findFirst.mockResolvedValue(null)
     const unassignedActor = { ...actor, assignedProjectIds: [] }
     await expect(
-      service.recordOverdueExplanation(unassignedActor, projectId, activityId, input),
+      progressService.recordOverdueExplanation(unassignedActor, projectId, activityId, input),
     ).rejects.toBeInstanceOf(NotFoundException)
     expect(tx.activityOverdueExplanation.create).not.toHaveBeenCalled()
   })
@@ -226,7 +238,12 @@ describe('Activity overdue explanation (monitoring.review)', () => {
     ]) {
       tx.project.findFirst.mockResolvedValue({ id: projectId, startDate: null, endDate: null })
       const roleActor = { ...actor, roles: [...roles], assignedProjectIds: [] }
-      const result = await service.recordOverdueExplanation(roleActor, projectId, activityId, input)
+      const result = await progressService.recordOverdueExplanation(
+        roleActor,
+        projectId,
+        activityId,
+        input,
+      )
       expect(result.id).toBe(activityId)
     }
   })
@@ -234,7 +251,7 @@ describe('Activity overdue explanation (monitoring.review)', () => {
   it('hides a cross-organization or unassigned project before activity retrieval (abuse)', async () => {
     tx.project.findFirst.mockResolvedValue(null)
     await expect(
-      service.recordOverdueExplanation(actor, otherProjectId, activityId, input),
+      progressService.recordOverdueExplanation(actor, otherProjectId, activityId, input),
     ).rejects.toBeInstanceOf(NotFoundException)
     const scoped = tx.project.findFirst.mock.calls[0][0]
     expect(scoped.where.AND[0]).toMatchObject({ organizationId })
@@ -246,7 +263,7 @@ describe('Activity overdue explanation (monitoring.review)', () => {
   it('denies a cross-project activity id even inside the caller organization (abuse)', async () => {
     tx.projectActivity.findFirst.mockResolvedValue(null)
     await expect(
-      service.recordOverdueExplanation(actor, projectId, activityId, input),
+      progressService.recordOverdueExplanation(actor, projectId, activityId, input),
     ).rejects.toBeInstanceOf(NotFoundException)
     expect(tx.activityOverdueExplanation.create).not.toHaveBeenCalled()
   })

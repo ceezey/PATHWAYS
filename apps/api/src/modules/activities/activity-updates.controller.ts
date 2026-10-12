@@ -15,11 +15,17 @@ import { requestIdentity } from '../../common/authz/request-identity'
 import { RequirePermission } from '../../common/decorators/permission.decorator'
 import { ZodPipe } from '../../common/validation/zod-pipe'
 import { ActivitiesService } from './activities.service'
+import { ActivityProgressService } from './activity-progress.service'
+import { ActivityReviewService } from './activity-review.service'
 
 // Progress notes, overdue explanations and the proof reserve, finalize and review steps of one activity.
 @Controller('projects/:projectId/activities')
 export class ActivityUpdatesController {
-  constructor(@Inject(ActivitiesService) private readonly activities: ActivitiesService) {}
+  constructor(
+    @Inject(ActivitiesService) private readonly activities: ActivitiesService,
+    @Inject(ActivityProgressService) private readonly progress: ActivityProgressService,
+    @Inject(ActivityReviewService) private readonly review: ActivityReviewService,
+  ) {}
 
   @Post(':activityId/progress')
   @RequirePermission('activities.progress.update')
@@ -29,7 +35,7 @@ export class ActivityUpdatesController {
     @Param('activityId') activityId: string,
     @Body(new ZodPipe(recordActivityProgressRequest)) body: RecordActivityProgressRequest,
   ) {
-    return this.activities.recordProgress(requestIdentity(request), projectId, activityId, body)
+    return this.progress.recordProgress(requestIdentity(request), projectId, activityId, body)
   }
 
   @Post(':activityId/overdue-explanations')
@@ -40,7 +46,7 @@ export class ActivityUpdatesController {
     @Param('activityId') activityId: string,
     @Body(new ZodPipe(recordOverdueExplanationRequest)) body: RecordOverdueExplanationRequest,
   ) {
-    return this.activities.recordOverdueExplanation(
+    return this.progress.recordOverdueExplanation(
       requestIdentity(request),
       projectId,
       activityId,
@@ -88,12 +94,6 @@ export class ActivityUpdatesController {
     @Param('updateId') updateId: string,
     @Body(new ZodPipe(reviewActivityUpdateRequest)) body: ReviewActivityUpdateRequest,
   ) {
-    return this.activities.reviewUpdate(
-      requestIdentity(request),
-      projectId,
-      activityId,
-      updateId,
-      body,
-    )
+    return this.review.reviewUpdate(requestIdentity(request), projectId, activityId, updateId, body)
   }
 }

@@ -75,6 +75,8 @@ vi.mock('@app/common/authz/authorized-operation', () => ({
 }))
 
 import { ActivitiesService } from './activities.service'
+import { ActivityEvidenceService } from './activity-evidence.service'
+import { ActivityReviewService } from './activity-review.service'
 
 const organizationId = '10000000-0000-4000-8000-000000000001'
 const projectId = '20000000-0000-4000-8000-000000000002'
@@ -157,6 +159,11 @@ describe('P05 activity proof authorization', () => {
     storage as unknown as StorageService,
     privateStorageFactories,
   )
+  const evidenceService = new ActivityEvidenceService(
+    {} as PrismaService,
+    storage as unknown as StorageService,
+  )
+  const reviewService = new ActivityReviewService({} as PrismaService)
 
   beforeEach(() => {
     vi.clearAllMocks()
@@ -206,7 +213,9 @@ describe('P05 activity proof authorization', () => {
 
   it('denies a proof outside the project scope without metadata or storage reads', async () => {
     tx.project.findFirst.mockResolvedValue(null)
-    await expect(service.downloadProof(actor, projectId, activityId, updateId)).rejects.toThrow()
+    await expect(
+      evidenceService.downloadProof(actor, projectId, activityId, updateId),
+    ).rejects.toThrow()
     expect(tx.evidenceMedia.findFirst).not.toHaveBeenCalled()
     expect(storage.downloadPrivateFile).not.toHaveBeenCalled()
   })
@@ -217,7 +226,9 @@ describe('P05 activity proof authorization', () => {
     const proof = { bucket: 'b', objectKey: 'k', fileName: 'proof.jpg', contentType: 'image/jpeg' }
     tx.evidenceMedia.findFirst.mockResolvedValueOnce({ ...proof, sha256 })
     storage.downloadPrivateFile.mockResolvedValueOnce(bytes)
-    await expect(service.downloadProof(actor, projectId, activityId, updateId)).resolves.toEqual({
+    await expect(
+      evidenceService.downloadProof(actor, projectId, activityId, updateId),
+    ).resolves.toEqual({
       fileName: 'proof.jpg',
       contentType: 'image/jpeg',
       body: bytes,
@@ -230,7 +241,7 @@ describe('P05 activity proof authorization', () => {
     tx.evidenceMedia.findFirst.mockResolvedValueOnce({ ...proof, sha256: '0'.repeat(64) })
     storage.downloadPrivateFile.mockResolvedValueOnce(bytes)
     await expect(
-      service.downloadProof(actor, projectId, activityId, updateId),
+      evidenceService.downloadProof(actor, projectId, activityId, updateId),
     ).rejects.toBeInstanceOf(NotFoundException)
   })
 
@@ -520,7 +531,7 @@ describe('P05 activity proof authorization', () => {
   it('does not disclose a guessed proof identifier outside the scoped activity', async () => {
     tx.evidenceMedia.findFirst.mockResolvedValueOnce(null)
     await expect(
-      service.downloadProof(actor, projectId, activityId, updateId),
+      evidenceService.downloadProof(actor, projectId, activityId, updateId),
     ).rejects.toBeInstanceOf(NotFoundException)
     expect(storage.downloadPrivateFile).not.toHaveBeenCalled()
   })
@@ -535,7 +546,7 @@ describe('P05 activity proof authorization', () => {
       evidenceMedia_update: [{ id: 'proof', storageReady: true, status: 'PENDING' }],
     })
     await expect(
-      service.reviewUpdate(actor, projectId, activityId, updateId, {
+      reviewService.reviewUpdate(actor, projectId, activityId, updateId, {
         decision: 'APPROVE',
         reason: 'Not allowed',
         clientMutationId: 'e0000000-0000-4000-8000-000000000001',
