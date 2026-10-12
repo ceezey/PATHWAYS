@@ -11,7 +11,6 @@ const api = vi.hoisted(() => ({
   getActivities: vi.fn(),
   getEvidence: vi.fn(),
   getProject: vi.fn(),
-  getProjectIndicators: vi.fn(),
 }))
 const proofClient = vi.hoisted(() => ({
   context: vi.fn(),
@@ -64,11 +63,6 @@ vi.mock('./live-evaluation-workspace', () => ({
 vi.mock('./project-rules-panel', () => ({
   ProjectRulesPanel: ({ projectId }: { projectId: string }) => <div>Rules for {projectId}</div>,
 }))
-vi.mock('@/features/public/publication-queue-workspace', () => ({
-  PublicationQueueWorkspace: ({ initialProjectId }: { initialProjectId: string }) => (
-    <div>Publication for {initialProjectId}</div>
-  ),
-}))
 vi.mock('@/hooks/use-current-role', () => ({
   useCurrentRole: () => access,
 }))
@@ -110,7 +104,6 @@ describe('shared project workspace optional loading', () => {
     })
     api.getEvidence.mockRejectedValue(new Error('not_configured'))
     coreApi.reports.mockResolvedValue([])
-    api.getProjectIndicators.mockResolvedValue([])
     proofClient.context.mockReset()
     proofClient.inspect.mockReset()
   })
@@ -139,8 +132,6 @@ describe('shared project workspace optional loading', () => {
     )
     expect(screen.getByText(`Evaluation for ${projectId}`)).toBeTruthy()
     evaluation.unmount()
-    render(<ProjectPhaseFiveWorkspace projectId={projectId} view="transparency" />)
-    expect(screen.getByText(`Publication for ${projectId}`)).toBeTruthy()
     expect(api.getProject).not.toHaveBeenCalled()
   })
   it.each([false, undefined])(
@@ -176,25 +167,6 @@ describe('shared project workspace optional loading', () => {
     expect(api.getEvidence).not.toHaveBeenCalled()
     expect(coreApi.reports).not.toHaveBeenCalled()
   })
-  it.each(['indicators'] as const)(
-    'loads existing authorized %s content without metric availability',
-    async (view) => {
-      access.profile.permissions = ['projects.read', 'monitoring.read']
-      api.getProject.mockResolvedValue({
-        id: projectId,
-        title: 'Project Alpha',
-        metricsAvailable: false,
-      })
-      render(<ProjectPhaseFiveWorkspace projectId={projectId} view={view} />)
-      expect(
-        await screen.findByRole('heading', {
-          name: 'Indicator cards',
-        }),
-      ).toBeTruthy()
-      await waitFor(() => expect(api.getProjectIndicators).toHaveBeenCalledWith(projectId))
-      expect(screen.queryByRole('heading', { name: 'Workspace unavailable' })).toBeNull()
-    },
-  )
   const proofId = '72000000-0000-4000-8000-000000000005'
   const activityId = '72000000-0000-4000-8000-000000000006'
   const updateId = '72000000-0000-4000-8000-000000000007'

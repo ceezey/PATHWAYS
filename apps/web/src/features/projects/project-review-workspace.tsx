@@ -1,36 +1,22 @@
 'use client'
 
-import { PublicationQueueWorkspace } from '@/features/public/publication-queue-workspace'
 import { coreDataClient } from '@/lib/services/core-feature-client'
-import { formatMetricCell } from '@pathways/shared'
 import { BudgetModule } from './budget-module/budget-module'
 import { AuditMetadataCard, EvidenceAttachmentsCard } from './evidence-panels'
 import { LiveEvaluationWorkspace } from './live-evaluation-workspace'
 import { ProjectRulesPanel } from './project-rules-panel'
 
-import { FileText, Plus, Save } from 'lucide-react'
+import { FileText } from 'lucide-react'
 import Link from 'next/link'
-import { type ReactNode, useEffect, useState } from 'react'
-import { toast } from 'sonner'
+import { useEffect, useState } from 'react'
 
 import { PageHeader } from '@/components/layout/page-header'
-import {
-  AsyncState,
-  CappedPercent,
-  DialogShell,
-  EmptyState,
-  SectionCard,
-  StatusBadge,
-} from '@/components/pathways'
+import { AsyncState, CappedPercent, EmptyState, SectionCard } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
-import { Dialog, DialogFooter } from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'
 import { projectsClient } from '@/lib/api/projects'
 import { useSensitiveDraftOwner } from '@/lib/auth/sensitive-drafts'
-import { formatCappedPercent } from '@/lib/format/percent'
 import { canAccessProjectForRole } from '@/lib/rbac/data-scope'
 import { principalHasAtomicPermission } from '@/lib/rbac/policy'
 import { pathwaysClient } from '@/lib/services/pathways-client'
@@ -41,79 +27,16 @@ import type {
   EvidenceList,
   EvidenceRecord,
   ProjectDetail,
-  ProjectIndicator,
 } from '@/types/pathways'
 import { PrivateProofPreview } from './private-proof-preview'
 
-import { addIndicatorSchema } from './project-review-utils'
-
-type PhaseFiveWorkspaceView =
-  | 'evidence'
-  | 'indicators'
-  | 'monitor-evaluate'
-  | 'budget'
-  | 'transparency'
-
-type LegacyWorkspaceView = Exclude<
-  PhaseFiveWorkspaceView,
-  'monitor-evaluate' | 'budget' | 'transparency'
->
-
-const statusTone = (status: string) => {
-  if (['Approved', 'Accepted', 'Met', 'Verified', 'Validated', 'On Track'].includes(status)) {
-    return 'success'
-  }
-
-  if (['Flagged', 'Rejected', 'Critical', 'Needs Review', 'Returned'].includes(status)) {
-    return 'danger'
-  }
-
-  if (['Pending', 'Pending Review', 'Warning', 'Submitted'].includes(status)) {
-    return 'warning'
-  }
-
-  if (['Draft', 'Information'].includes(status)) {
-    return 'info'
-  }
-
-  return 'neutral'
-}
-
-const fieldError = (message: string) =>
-  toast.error('Check the form fields.', {
-    description: message,
-  })
-
-const backendNotConfigured = (action: string) =>
-  toast.error(`${action} is not configured.`, {
-    description: 'Connect the corresponding backend service before saving this change.',
-  })
-
-const SimpleDialog = ({
-  children,
-  description,
-  open,
-  title,
-  onOpenChange,
-}: {
-  children: ReactNode
-  description: string
-  open: boolean
-  title: string
-  onOpenChange: (open: boolean) => void
-}) => (
-  <Dialog onOpenChange={onOpenChange} open={open}>
-    <DialogShell title={title} description={description}>
-      {children}
-    </DialogShell>
-  </Dialog>
-)
+type ProjectReviewView = 'evidence' | 'monitor-evaluate' | 'budget'
 
 type ScopedReport = Awaited<ReturnType<typeof coreDataClient.reports>>[number]
 export const ProjectPhaseFiveWorkspace = ({
   projectId,
   view,
-}: { projectId: string; view: PhaseFiveWorkspaceView }) => {
+}: { projectId: string; view: ProjectReviewView }) => {
   if (view === 'monitor-evaluate') return <LiveEvaluationWorkspace projectId={projectId} />
   if (view === 'budget')
     return (
@@ -122,29 +45,19 @@ export const ProjectPhaseFiveWorkspace = ({
         <ProjectRulesPanel projectId={projectId} />
       </div>
     )
-  if (view === 'transparency') return <PublicationQueueWorkspace initialProjectId={projectId} />
-  return <LegacyProjectWorkspace projectId={projectId} view={view} />
+  return <EvidenceWorkspace projectId={projectId} />
 }
-const LegacyProjectWorkspace = ({
-  projectId,
-  view,
-}: {
-  projectId: string
-  view: LegacyWorkspaceView
-}) => {
+const EvidenceWorkspace = ({ projectId }: { projectId: string }) => {
   const { labels } = useDisplayLabels()
   const { role, profile } = useCurrentRole()
   const [project, setProject] = useState<ProjectDetail | null>(null)
   const [activities, setActivities] = useState<ActivitySummary[]>([])
   const [evidence, setEvidence] = useState<EvidenceRecord[]>([])
   const [evidenceSummary, setEvidenceSummary] = useState<EvidenceActivitySummary[] | null>(null)
-  const [indicators, setIndicators] = useState<ProjectIndicator[]>([])
   const [reports, setReports] = useState<ScopedReport[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
   const [unavailableSections, setUnavailableSections] = useState<string[]>([])
-  const [addIndicatorOpen, setAddIndicatorOpen] = useState(false)
-  const [formState, setFormState] = useState<Record<string, string>>({})
 
   useEffect(() => {
     let mounted = true
@@ -154,7 +67,6 @@ const LegacyProjectWorkspace = ({
     setActivities([])
     setEvidence([])
     setEvidenceSummary(null)
-    setIndicators([])
     setReports([])
 
     if (!role || !profile) {
@@ -184,48 +96,27 @@ const LegacyProjectWorkspace = ({
         if (!mounted) return
         setProject(projectRecord)
         const requests: Promise<void>[] = []
-        if (view === 'evidence') {
-          if (canReadActivities) {
-            requests.push(
-              optional(
-                'Connected activities',
-                pathwaysClient.getActivities(projectId),
-                // A missing list leaves the tab usable; the budget column reads as a dash.
-                (list) => setActivities(list ?? []),
-              ),
-            )
-          }
-          if (canReadEvidence) {
-            requests.push(
-              optional('Evidence records', pathwaysClient.getEvidence(projectId), (list) =>
-                applyEvidence(list, setEvidence, setEvidenceSummary),
-              ),
-            )
-          } else {
-            unavailable.push('Evidence records are not available for this role')
-          }
-          if (canReadReports) {
-            requests.push(optional('Report records', coreDataClient.reports(projectId), setReports))
-          }
-        }
-        if (view === 'indicators') {
+        if (canReadActivities) {
           requests.push(
             optional(
-              'Indicator records',
-              pathwaysClient.getProjectIndicators(projectId),
-              setIndicators,
+              'Connected activities',
+              pathwaysClient.getActivities(projectId),
+              // A missing list leaves the tab usable; the budget column reads as a dash.
+              (list) => setActivities(list ?? []),
             ),
           )
-          if (canReadActivities) {
-            requests.push(
-              optional(
-                'Connected activities',
-                pathwaysClient.getActivities(projectId),
-                // A missing list leaves the tab usable; the budget column reads as a dash.
-                (list) => setActivities(list ?? []),
-              ),
-            )
-          }
+        }
+        if (canReadEvidence) {
+          requests.push(
+            optional('Evidence records', pathwaysClient.getEvidence(projectId), (list) =>
+              applyEvidence(list, setEvidence, setEvidenceSummary),
+            ),
+          )
+        } else {
+          unavailable.push('Evidence records are not available for this role')
+        }
+        if (canReadReports) {
+          requests.push(optional('Report records', coreDataClient.reports(projectId), setReports))
         }
         await Promise.all(requests)
         if (mounted) setUnavailableSections([...new Set(unavailable)])
@@ -240,7 +131,7 @@ const LegacyProjectWorkspace = ({
     return () => {
       mounted = false
     }
-  }, [profile, projectId, role, view])
+  }, [profile, projectId, role])
 
   const canReviewEvidence =
     role === 'Monitoring and Evaluation Officer' &&
@@ -248,24 +139,6 @@ const LegacyProjectWorkspace = ({
     principalHasAtomicPermission(profile, 'evidence.read') &&
     principalHasAtomicPermission(profile, 'evidence.review') &&
     principalHasAtomicPermission(profile, 'activities.read')
-  const canAddIndicator = principalHasAtomicPermission(profile, 'indicators.create')
-
-  const addIndicator = () => {
-    if (!canAddIndicator) {
-      toast.error('Indicator configuration is not available for this role.')
-      return
-    }
-
-    const result = addIndicatorSchema.safeParse(formState)
-
-    if (!result.success) {
-      fieldError(result.error.issues[0]?.message ?? 'Invalid indicator.')
-      return
-    }
-
-    backendNotConfigured('Indicator creation')
-  }
-
   if (loading) {
     return (
       <AsyncState
@@ -318,108 +191,17 @@ const LegacyProjectWorkspace = ({
           </output>
         </SectionCard>
       ) : null}
-      {view === 'evidence' ? (
-        <EvidenceView
-          activities={activities}
-          projectId={projectId}
-          canReviewEvidence={canReviewEvidence}
-          evidence={evidence}
-          evidenceSummary={evidenceSummary}
-          reports={reports}
-        />
-      ) : null}
-      {view === 'indicators' ? (
-        <IndicatorsView
-          activities={activities}
-          canAddIndicator={canAddIndicator}
-          indicators={indicators}
-          onAdd={() => {
-            setFormState({})
-            setAddIndicatorOpen(true)
-          }}
-        />
-      ) : null}
-
-      <SimpleDialog
-        description="Define an indicator for this project. Saving requires backend configuration."
-        onOpenChange={setAddIndicatorOpen}
-        open={addIndicatorOpen}
-        title="Add Indicator"
-      >
-        <div className="grid gap-4">
-          <LabeledInput label="Code" name="code" value={formState.code} onChange={setFormState} />
-          <LabeledInput
-            label="Label"
-            name="label"
-            value={formState.label}
-            onChange={setFormState}
-          />
-          <div className="grid gap-4 sm:grid-cols-3">
-            <LabeledInput
-              label="Baseline"
-              name="baseline"
-              type="number"
-              value={formState.baseline}
-              onChange={setFormState}
-            />
-            <LabeledInput
-              label="Target"
-              name="target"
-              type="number"
-              value={formState.target}
-              onChange={setFormState}
-            />
-            <LabeledInput
-              label="Actual/current value"
-              name="actual"
-              type="number"
-              value={formState.actual}
-              onChange={setFormState}
-            />
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setAddIndicatorOpen(false)} type="button">
-              Cancel
-            </Button>
-            <Button className="gap-2" onClick={addIndicator} type="button">
-              <Save className="h-4 w-4" aria-hidden="true" />
-              Add Indicator
-            </Button>
-          </DialogFooter>
-        </div>
-      </SimpleDialog>
+      <EvidenceView
+        activities={activities}
+        projectId={projectId}
+        canReviewEvidence={canReviewEvidence}
+        evidence={evidence}
+        evidenceSummary={evidenceSummary}
+        reports={reports}
+      />
     </>
   )
 }
-
-const LabeledInput = ({
-  label,
-  name,
-  onChange,
-  type = 'text',
-  value,
-}: {
-  label: string
-  name: string
-  onChange: (value: (current: Record<string, string>) => Record<string, string>) => void
-  type?: string
-  value?: string
-}) => (
-  <div className="space-y-2">
-    <Label htmlFor={name}>{label}</Label>
-    <Input
-      id={name}
-      onChange={(event) =>
-        onChange((current) => ({
-          ...current,
-          [name]: event.target.value,
-        }))
-      }
-      type={type}
-      value={value ?? ''}
-    />
-  </div>
-)
 
 function applyEvidence(
   list: EvidenceList,
@@ -627,91 +409,4 @@ const EvidenceView = ({
       </div>
     </SectionCard>
   </section>
-)
-
-const IndicatorsView = ({
-  activities,
-  canAddIndicator,
-  indicators,
-  onAdd,
-}: {
-  activities: ActivitySummary[]
-  canAddIndicator: boolean
-  indicators: ProjectIndicator[]
-  onAdd: () => void
-}) => (
-  <SectionCard
-    title="Indicator cards"
-    description="Baseline, target, actual, progress, status, and connected activity context."
-    actions={
-      canAddIndicator ? (
-        <Button className="gap-2" onClick={onAdd} type="button">
-          <Plus className="h-4 w-4" aria-hidden="true" />
-          Add Indicator
-        </Button>
-      ) : null
-    }
-  >
-    <div className="grid gap-4 xl:grid-cols-2">
-      {indicators.length > 0 ? (
-        indicators.map((indicator) => (
-          <div key={indicator.id} className="rounded-xl border border-border bg-background p-4">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-              <div className="min-w-0">
-                <p className="text-sm font-medium text-primary">{indicator.code}</p>
-                <h2 className="mt-1 break-words text-lg font-semibold text-foreground">
-                  {indicator.name}
-                </h2>
-              </div>
-              <StatusBadge tone={statusTone(indicator.status)}>{indicator.status}</StatusBadge>
-            </div>
-            <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-3">
-              <div>
-                <dt className="text-muted-foreground">Baseline</dt>
-                <dd className="mt-1 font-medium text-foreground">
-                  {indicator.baseline ?? 'Not set'}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-muted-foreground">Target</dt>
-                <dd className="mt-1 font-medium text-foreground">
-                  {indicator.target ?? 'Not set'}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-muted-foreground">Actual/current value</dt>
-                <dd className="mt-1 font-medium text-foreground">
-                  {formatMetricCell(indicator.current)}
-                </dd>
-              </div>
-            </dl>
-            <div className="mt-4">
-              <p>
-                Progress toward configured change:{' '}
-                {indicator.progress.value !== null
-                  ? formatCappedPercent(indicator.progress.value)
-                  : formatMetricCell(indicator.progress)}
-              </p>
-            </div>
-            <div className="mt-4 text-sm text-muted-foreground">
-              Connected activities:{' '}
-              <span className="font-medium text-foreground">
-                {(indicator.binding?.activityId ? [indicator.binding.activityId] : [])
-                  .map(
-                    (activityId) =>
-                      activities.find((activity) => activity.id === activityId)?.title ??
-                      activityId,
-                  )
-                  .join(', ') || 'None linked yet'}
-              </span>
-            </div>
-          </div>
-        ))
-      ) : (
-        <p className="rounded-2xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground xl:col-span-2">
-          No indicator records are available for this project.
-        </p>
-      )}
-    </div>
-  </SectionCard>
 )
