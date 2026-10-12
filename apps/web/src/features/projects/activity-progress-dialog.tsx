@@ -10,7 +10,8 @@ import { Dialog, DialogFooter } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { PathwaysClientError, pathwaysClient } from '@/lib/services/pathways-client'
+import { PathwaysClientError } from '@/lib/api/core/request'
+import { pathwaysClient } from '@/lib/services/pathways-client'
 import type { Activity } from '@/types/pathways'
 
 /** A 4xx other than 408/429 means the server decided; the same payload will not succeed. */

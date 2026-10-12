@@ -98,6 +98,8 @@ vi.mock('@/lib/services/pathways-client', () => ({
     authorizeExistingUser: (...args: unknown[]) => authorizeExistingUser(...args),
     updateAuthorizedUser: (...args: unknown[]) => updateAuthorizedUser(...args),
   },
+}))
+vi.mock('@/lib/api/core/request', () => ({
   PathwaysClientError: class PathwaysClientError extends Error {
     code: string
     fieldErrors: unknown[]

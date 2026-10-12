@@ -2,8 +2,8 @@
 
 import { useMemo } from 'react'
 
+import { useAuthorizedRead } from '@/hooks/use-authorized-read'
 import { coreDataClient } from '@/lib/services/core-feature-client'
-import { useAuthorizedRead } from '@/providers/authorized-query-provider'
 
 import { useProjectActivitiesRead, useProjectOverviewMetricsRead } from '../use-project-reads'
 import {

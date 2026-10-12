@@ -19,12 +19,12 @@ import {
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { useAuthorizedRead } from '@/hooks/use-authorized-read'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'
 import { principalHasAtomicPermission } from '@/lib/rbac/policy'
 import { pathwaysClient } from '@/lib/services/pathways-client'
 import { cn } from '@/lib/utils'
-import { useAuthorizedRead } from '@/providers/authorized-query-provider'
 import type { ProjectStatus, ProjectSummary } from '@/types/pathways'
 import { type MetricCell, businessCalendarDate, timelineProgress } from '@pathways/shared'
 

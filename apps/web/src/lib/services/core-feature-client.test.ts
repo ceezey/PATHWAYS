@@ -446,6 +446,15 @@ describe('Core client request and strict response boundaries', () => {
     )
     expect(fetcher).not.toHaveBeenCalled()
   })
+  it('refuses reads and downloads without a workspace cookie before dispatch', async () => {
+    document.cookie = ''
+    await expect(coreDataClient.evaluation(projectId)).rejects.toThrow('Current workspace access')
+    await expect(
+      downloadCoreArtifact('/synthetic-artifact', 'report-synthetic.pdf'),
+    ).rejects.toThrow('Current artifact access')
+    expect(fetcher).not.toHaveBeenCalled()
+  })
+
   it('cancels a JSON response arriving after ownership invalidation before reading its body', async () => {
     const response = json({ projectId, evaluations: [], criteria: [] })
     if (!response.body) throw new Error('Test response requires a stream')

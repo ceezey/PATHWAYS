@@ -4,8 +4,9 @@ import { ArrowDown, ArrowUp, Download, MoreHorizontal } from 'lucide-react'
 import { useMemo, useState } from 'react'
 
 import { CappedPercent, SectionCard, StatusBadge } from '@/components/pathways'
+import { stickyTableHeadClass } from '@/components/pathways/sticky-table-head'
 import { Button } from '@/components/ui/button'
-import { formatCappedPercent } from '@/lib/percent'
+import { formatCappedPercent } from '@/lib/format/percent'
 import { cn } from '@/lib/utils'
 import type { ActivitySummary } from '@/types/pathways'
 
@@ -70,9 +71,6 @@ const downloadCsv = (text: string) => {
   URL.revokeObjectURL(url)
 }
 
-const headClass =
-  'sticky top-0 z-10 h-10 bg-surface-subtle px-4 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground'
-
 export const ActivityListTable = ({
   activities,
   canReadBudget,
@@ -113,11 +111,14 @@ export const ActivityListTable = ({
         <table className="w-full min-w-[720px] text-sm tabular-nums">
           <thead>
             <tr className="border-b border-border">
-              {columns.includes('code') ? <th className={headClass}>Code</th> : null}
-              <th className={headClass}>Activity</th>
-              {columns.includes('status') ? <th className={headClass}>Status</th> : null}
+              {columns.includes('code') ? <th className={stickyTableHeadClass}>Code</th> : null}
+              <th className={stickyTableHeadClass}>Activity</th>
+              {columns.includes('status') ? <th className={stickyTableHeadClass}>Status</th> : null}
               {columns.includes('dueDate') ? (
-                <th aria-sort={descending ? 'descending' : 'ascending'} className={headClass}>
+                <th
+                  aria-sort={descending ? 'descending' : 'ascending'}
+                  className={stickyTableHeadClass}
+                >
                   <button
                     className="inline-flex items-center gap-1 uppercase tracking-wide"
                     onClick={() => setDescending((value) => !value)}
@@ -133,15 +134,15 @@ export const ActivityListTable = ({
                 </th>
               ) : null}
               {columns.includes('beneficiaries') ? (
-                <th className={headClass}>Beneficiaries</th>
+                <th className={stickyTableHeadClass}>Beneficiaries</th>
               ) : null}
               {columns.includes('indicators') ? (
-                <th className={cn(headClass, 'text-center')}>Indicators</th>
+                <th className={cn(stickyTableHeadClass, 'text-center')}>Indicators</th>
               ) : null}
               {columns.includes('budget') ? (
-                <th className={cn(headClass, 'text-right')}>Budget</th>
+                <th className={cn(stickyTableHeadClass, 'text-right')}>Budget</th>
               ) : null}
-              <th className={headClass}>
+              <th className={stickyTableHeadClass}>
                 <span className="sr-only">Actions</span>
               </th>
             </tr>

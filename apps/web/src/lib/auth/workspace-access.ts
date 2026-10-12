@@ -75,6 +75,18 @@ export const clearWorkspaceContext = () => {
   document.cookie = `${contextCookieName}=; Path=/; SameSite=Strict; Max-Age=0`
 }
 
+// The workspace context cookie value, found by splitting document.cookie on '; '.
+export const readWorkspaceContextCookie = () =>
+  document.cookie
+    .split('; ')
+    .find((part) => part.startsWith(`${contextCookieName}=`))
+    ?.slice(contextCookieName.length + 1)
+
+// Stores the verified workspace selection; Secure is added on HTTPS pages.
+export const writeWorkspaceContext = (profile: ApplicationProfile) => {
+  document.cookie = `${contextCookieName}=${encodeWorkspaceContext(profile)}; Path=/; SameSite=Strict${location.protocol === 'https:' ? '; Secure' : ''}`
+}
+
 /** Non-secret selectors only. A forged cookie confers no authority: /auth/me
  * verifies the UUID relationship, lifecycle, role and permissions afresh.
  */

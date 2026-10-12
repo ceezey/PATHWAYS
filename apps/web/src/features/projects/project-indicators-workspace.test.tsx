@@ -44,7 +44,7 @@ vi.mock('@/features/analytics/use-monitoring-read', () => ({
     authorityKey: 'synthetic',
   }),
 }))
-vi.mock('@/providers/authorized-query-provider', () => ({
+vi.mock('@/hooks/use-authorized-read', () => ({
   useAuthorizedRead: (
     resource: string,
     _project: unknown,
@@ -57,9 +57,9 @@ vi.mock('@/providers/authorized-query-provider', () => ({
   }),
 }))
 vi.mock('@/lib/services/pathways-client', () => ({
-  PathwaysClientError: class extends Error {},
   pathwaysClient: {},
 }))
+vi.mock('@/lib/api/core/request', () => ({ PathwaysClientError: class extends Error {} }))
 
 function form(overrides: Record<string, string> = {}) {
   const result = new FormData()

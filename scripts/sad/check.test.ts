@@ -108,6 +108,14 @@ describe('routing and digest', () => {
     const routed = routing(files.map((file) => change(file, 'new', 'old')))
     expect(routed['beneficiary-privacy-guardian']).toEqual(files)
   })
+  it('routes the web api core to the beneficiary privacy guardian', () => {
+    const files = [
+      'apps/web/src/lib/api/core/request-owner.ts',
+      'apps/web/src/lib/api/core/request.ts',
+    ]
+    const routed = routing(files.map((file) => change(file, 'new', 'old')))
+    expect(routed['beneficiary-privacy-guardian']).toEqual(files)
+  })
   it('routes the rules dispatch workflow to design-qa-agent', () => {
     const file = '.github/workflows/rules-dispatch.yml'
     expect(routing([change(file, 'new', 'old')])['design-qa-agent']).toContain(file)

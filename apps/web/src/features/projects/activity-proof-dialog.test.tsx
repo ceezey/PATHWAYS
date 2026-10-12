@@ -39,7 +39,7 @@ vi.mock('@/lib/services/pathways-client', async (importOriginal) => ({
   pathwaysClient: api,
 }))
 
-import { PathwaysClientError } from '@/lib/services/pathways-client'
+import { PathwaysClientError } from '@/lib/api/core/request'
 import { toast } from 'sonner'
 import { ActivityProofDialog } from './activity-proof-dialog'
 

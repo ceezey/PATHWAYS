@@ -4,9 +4,9 @@ import { AlertTriangle, ClipboardList, Clock, FileCheck, type LucideIcon } from 
 import Link from 'next/link'
 
 import { AsyncState } from '@/components/pathways'
+import { useAuthorizedRead } from '@/hooks/use-authorized-read'
 import { pathwaysClient } from '@/lib/services/pathways-client'
 import { cn } from '@/lib/utils'
-import { useAuthorizedRead } from '@/providers/authorized-query-provider'
 import type { DashboardActionCounts } from '@pathways/shared'
 
 const tones = {

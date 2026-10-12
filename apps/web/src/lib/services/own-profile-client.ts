@@ -1,5 +1,5 @@
+import { requestFoundation } from '@/lib/api/core/request'
 import { z } from 'zod'
-import { requestFoundation } from './pathways-client'
 
 const ownProfileResponseSchema = z
   .object({

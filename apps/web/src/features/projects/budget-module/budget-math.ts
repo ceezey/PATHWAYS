@@ -1,3 +1,5 @@
+import type { SignalTone } from '@/lib/format/tone'
+
 type BudgetRow = {
   id: string
   activityId: string | null
@@ -12,7 +14,6 @@ export type ExpenseRow = {
   receiptEvidenceId: string | null
 }
 export type ActivityLabel = { id: string; code?: string | null; title: string }
-type Tone = 'info' | 'success' | 'warning' | 'danger'
 
 type ActivityBudgetRow = {
   key: string
@@ -61,7 +62,7 @@ export const utilization = (used: number, allocated: number) =>
 
 export const remaining = (allocated: number, used: number) => allocated - used
 
-export const toneFor = (pct: number | null): Tone =>
+export const toneFor = (pct: number | null): SignalTone =>
   pct === null ? 'info' : pct >= DANGER_PCT ? 'danger' : pct >= WARN_PCT ? 'warning' : 'success'
 
 /**

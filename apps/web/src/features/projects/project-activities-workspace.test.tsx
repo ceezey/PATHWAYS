@@ -46,6 +46,8 @@ const access = vi.hoisted(() => ({
 
 vi.mock('@/lib/services/pathways-client', () => ({
   pathwaysClient: api,
+}))
+vi.mock('@/lib/api/core/request', () => ({
   PathwaysClientError: class extends Error {
     constructor(
       message: string,
@@ -130,7 +132,7 @@ vi.mock('./activity-detail-panel', () => ({
 vi.mock('./activity-form-dialog', () => ({ ActivityFormDialog: () => null }))
 vi.mock('./activity-proof-dialog', () => ({ ActivityProofDialog: () => null }))
 
-const { PathwaysClientError } = await import('@/lib/services/pathways-client')
+const { PathwaysClientError } = await import('@/lib/api/core/request')
 
 const summary: ActivitySummary = {
   id: activityId,

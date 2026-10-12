@@ -10,9 +10,9 @@ import { RuleEditor } from '@/features/analytics/rule-editor'
 import { RuleTestWorkspace } from '@/features/analytics/rule-test-workspace'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { usePermission } from '@/hooks/use-permission'
+import { PathwaysClientError } from '@/lib/api/core/request'
 import { type SensitiveDraftOwner, useSensitiveDraftOwner } from '@/lib/auth/sensitive-drafts'
 import { principalHasAtomicPermission } from '@/lib/rbac/policy'
-import { PathwaysClientError } from '@/lib/services/pathways-client'
 import { rulesHumanClient } from '@/lib/services/rules-human-client'
 import {
   type HumanRule,

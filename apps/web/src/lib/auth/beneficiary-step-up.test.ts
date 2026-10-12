@@ -8,10 +8,9 @@ const mocks = vi.hoisted(() => ({
   verify: vi.fn(),
 }))
 
-vi.mock('@/lib/services/pathways-client', async () => {
-  const actual = await vi.importActual<typeof import('@/lib/services/pathways-client')>(
-    '@/lib/services/pathways-client',
-  )
+vi.mock('@/lib/api/core/request', async () => {
+  const actual =
+    await vi.importActual<typeof import('@/lib/api/core/request')>('@/lib/api/core/request')
   return { ...actual, requestFoundation: mocks.requestFoundation }
 })
 vi.mock('@/lib/supabase/client', () => ({
@@ -23,7 +22,7 @@ vi.mock('@/lib/supabase/client', () => ({
   }),
 }))
 
-import { PathwaysClientError } from '@/lib/services/pathways-client'
+import { PathwaysClientError } from '@/lib/api/core/request'
 import {
   BeneficiaryStepUpError,
   changeStepUpPin,

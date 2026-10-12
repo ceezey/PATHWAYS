@@ -1,9 +1,10 @@
+import { useAuthorizedRead } from '@/hooks/use-authorized-read'
 import { clearSensitiveDraftStorage } from '@/lib/auth/sensitive-drafts'
 /* @vitest-environment jsdom */
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { AuthorizedQueryProvider, useAuthorizedRead } from './authorized-query-provider'
+import { AuthorizedQueryProvider } from './authorized-query-provider'
 const state = vi.hoisted(() => ({
   profile: {
     id: 'subject-a',
@@ -22,7 +23,7 @@ vi.mock('@/hooks/use-current-role', () => ({
     profile: state.profile,
   }),
 }))
-vi.mock('@/lib/services/pathways-client', () => ({ PathwaysClientError: class extends Error {} }))
+vi.mock('@/lib/api/core/request', () => ({ PathwaysClientError: class extends Error {} }))
 const deferred = () => {
   let resolve: (value: string) => void = () => {}
   const promise = new Promise<string>((done) => {

@@ -39,10 +39,12 @@ import {
   MAPS_UI_ENABLED,
 } from '@/constants/feature-flags'
 import { metricUnavailableLabel, overviewMetricLabel } from '@/features/projects/project-utils'
+import { useAuthorizedRead } from '@/hooks/use-authorized-read'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'
 import { addPin } from '@/lib/dashboard-pins'
-import { formatCappedPercent } from '@/lib/percent'
+import { formatCalendarDay } from '@/lib/format/date'
+import { formatCappedPercent } from '@/lib/format/percent'
 import { can } from '@/lib/rbac/can'
 import { principalHasAtomicPermission } from '@/lib/rbac/policy'
 import { downloadCoreArtifact } from '@/lib/services/core-feature-client'
@@ -52,7 +54,6 @@ import {
   pathwaysClient,
 } from '@/lib/services/pathways-client'
 import { rulesHumanClient } from '@/lib/services/rules-human-client'
-import { useAuthorizedRead } from '@/providers/authorized-query-provider'
 import type { ActivitySummary, ProjectIndicator, ProjectSummary } from '@/types/pathways'
 import {
   type DescriptiveAnalytics,
@@ -81,7 +82,6 @@ import {
   deriveAnalyticsReportingPeriods,
   nonOverlappingAnalyticsPeriods,
 } from './analytics-reporting-periods'
-import { formatDate } from './analytics-utils'
 import { BudgetSummaryCard } from './budget-summary-card'
 import { IndicatorTrendChart } from './indicator-trend-chart'
 import { InsightStatus } from './insight-status'
@@ -286,7 +286,7 @@ export const AnalyticsDashboard = () => {
         }
       : selectedProject.startDate > businessDateInManila()
         ? {
-            title: `SADDD opens when this project starts on ${formatDate(selectedProject.startDate)}`,
+            title: `SADDD opens when this project starts on ${formatCalendarDay(selectedProject.startDate)}`,
             description:
               'Sex, age and disability breakdowns are shown once the project has started. Select a started project to see them now.',
           }

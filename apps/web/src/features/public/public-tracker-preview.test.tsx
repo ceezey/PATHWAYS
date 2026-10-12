@@ -8,9 +8,7 @@ const projectId = '10000000-0000-4000-8000-000000000002'
 const read = vi.hoisted(() => ({ result: {} as Record<string, unknown> }))
 
 vi.mock('@/lib/services/core-feature-client', () => ({ coreFeatureClient: {} }))
-vi.mock('@/providers/authorized-query-provider', () => ({
-  useAuthorizedRead: () => read.result,
-}))
+vi.mock('@/hooks/use-authorized-read', () => ({ useAuthorizedRead: () => read.result }))
 
 describe('public tracker staff preview', () => {
   afterEach(cleanup)

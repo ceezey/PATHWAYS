@@ -26,11 +26,13 @@ const api = vi.hoisted(() => ({
 }))
 vi.mock('@/hooks/use-current-role', () => ({ useCurrentRole: () => state }))
 vi.mock('@/lib/services/pathways-client', () => ({
+  pathwaysClient: api,
+}))
+vi.mock('@/lib/api/core/request', () => ({
   PathwaysClientError: class extends Error {
     code = 'not_found'
     fieldErrors = []
   },
-  pathwaysClient: api,
 }))
 const projectId = '30000000-0000-4000-8000-000000000003'
 const formId = '40000000-0000-4000-8000-000000000004'
@@ -236,7 +238,7 @@ describe('direct entry scoped retry and continuation ownership', () => {
       Object.assign(Error('Missing'), { code: 'not_found' }),
     )
     // Use the same exported boundary error class the component checks.
-    const { PathwaysClientError } = await import('@/lib/services/pathways-client')
+    const { PathwaysClientError } = await import('@/lib/api/core/request')
     api.getDirectSubmissionByClientId.mockRejectedValue(
       new PathwaysClientError('Missing', 'not_found'),
     )

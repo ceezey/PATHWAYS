@@ -1,3 +1,4 @@
+import type { StatusTone } from '@/lib/format/tone'
 import { cn } from '@/lib/utils'
 
 export const StatusBadge = ({
@@ -6,7 +7,7 @@ export const StatusBadge = ({
   dot = true,
 }: {
   children: React.ReactNode
-  tone?: 'info' | 'success' | 'warning' | 'danger' | 'neutral'
+  tone?: StatusTone
   dot?: boolean
 }) => (
   <span

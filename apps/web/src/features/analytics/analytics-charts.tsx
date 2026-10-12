@@ -1,7 +1,7 @@
 'use client'
 
 import { chartPalette, chartSignal } from '@/lib/chart-palette'
-import { formatCappedPercent, roundPercent } from '@/lib/percent'
+import { formatCappedPercent, roundPercent } from '@/lib/format/percent'
 import { type SadddDashboard, type SurveyGroup, formatMetricCell } from '@pathways/shared'
 import ReactECharts from 'echarts-for-react'
 

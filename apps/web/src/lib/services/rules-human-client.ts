@@ -1,6 +1,5 @@
-import { sensitiveDraftGeneration } from '@/lib/auth/sensitive-drafts'
-import { contextCookieName } from '@/lib/auth/workspace-access'
-import { PathwaysClientError, requestFoundationResponse } from '@/lib/services/pathways-client'
+import { PathwaysClientError, requestFoundationResponse } from '@/lib/api/core/request'
+import { captureRequestOwner } from '@/lib/api/core/request-owner'
 import {
   activateRuleSchema,
   alertListSchema,
@@ -31,23 +30,13 @@ import {
 } from '@pathways/shared'
 import type { z } from 'zod'
 
-const ownerCookie = () =>
-  typeof document === 'undefined'
-    ? null
-    : (document.cookie
-        .split(';')
-        .map((value) => value.trim())
-        .find((value) => value.startsWith(`${contextCookieName}=`)) ?? null)
 async function read<S extends z.ZodTypeAny>(
   path: string,
   schema: S,
   init: RequestInit = {},
 ): Promise<z.output<S>> {
-  const cookie = ownerCookie()
-  const generation = sensitiveDraftGeneration()
-  const current = () =>
-    !init.signal?.aborted && generation === sensitiveDraftGeneration() && cookie === ownerCookie()
-  if (!cookie || !current())
+  const current = captureRequestOwner(init.signal)
+  if (!current())
     throw new PathwaysClientError('Current workspace access is required.', 'unauthorized')
   const response = await requestFoundationResponse(path, init)
   if (!current()) throw new PathwaysClientError('Request ownership changed.', 'unauthorized')

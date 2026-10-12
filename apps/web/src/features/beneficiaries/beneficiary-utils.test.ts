@@ -39,6 +39,13 @@ describe('beneficiary date formatting', () => {
     expect(formatDate('not-a-date')).toBe('Date unavailable')
     expect(formatDate('2026-02-31')).toBe('Date unavailable')
   })
+
+  it('keeps one-digit days, trims whitespace and formats timestamps by their UTC day', () => {
+    expect(formatDate('2026-01-05')).toBe('Jan 5, 2026')
+    expect(formatDate(' 2026-06-18 ')).toBe('Jun 18, 2026')
+    expect(formatDate('2026-06-18T23:30:00-08:00')).toBe('Jun 19, 2026')
+    expect(formatDate('   ')).toBe('Date unavailable')
+  })
 })
 
 describe('journey summary shared by list and detail', () => {

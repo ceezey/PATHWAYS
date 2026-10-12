@@ -55,7 +55,7 @@ vi.mock('@/components/ui/select', () => ({
   SelectValue: () => null,
 }))
 
-import { PathwaysClientError } from '@/lib/services/pathways-client'
+import { PathwaysClientError } from '@/lib/api/core/request'
 import { ActivityExplainDelayDialog } from './activity-explain-delay-dialog'
 
 const activity = {

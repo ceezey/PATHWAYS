@@ -10,9 +10,7 @@ vi.mock('./use-project-extras', () => ({ useProjectExtras: () => [] }))
 vi.mock('./project-metrics-reads', () => ({
   useProjectMetrics: () => ({ metrics: {}, reads: null }),
 }))
-vi.mock('@/providers/authorized-query-provider', () => ({
-  useAuthorizedRead: () => ({ data: null }),
-}))
+vi.mock('@/hooks/use-authorized-read', () => ({ useAuthorizedRead: () => ({ data: null }) }))
 vi.mock('@/hooks/use-current-role', () => ({ useCurrentRole: () => ({ profile: null }) }))
 vi.mock('@/lib/services/pathways-client', () => ({ pathwaysClient: {} }))
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }))

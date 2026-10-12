@@ -3,7 +3,7 @@ import { clearSensitiveDraftStorage } from '@/lib/auth/sensitive-drafts'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { rulesHumanClient } from './rules-human-client'
 const transport = vi.hoisted(() => vi.fn())
-vi.mock('@/lib/services/pathways-client', () => ({
+vi.mock('@/lib/api/core/request', () => ({
   requestFoundationResponse: transport,
   PathwaysClientError: class extends Error {
     constructor(
@@ -79,6 +79,20 @@ describe('strict human rules transport', () => {
     finish(response(record))
     await expect(pending).rejects.toThrow('ownership changed')
   })
+  it('refuses a read without a workspace cookie or with an aborted signal before dispatch', async () => {
+    document.cookie = 'pathways-context=; Path=/; Max-Age=0'
+    await expect(rulesHumanClient.getRecommendation(id)).rejects.toThrow(
+      'Current workspace access is required.',
+    )
+    document.cookie = 'pathways-context=owner-a; Path=/'
+    const controller = new AbortController()
+    controller.abort()
+    await expect(rulesHumanClient.getRecommendation(id, controller.signal)).rejects.toThrow(
+      'Current workspace access is required.',
+    )
+    expect(transport).not.toHaveBeenCalled()
+  })
+
   it('rejects unknown query selectors and malformed optimistic revisions before dispatch', async () => {
     expect(() =>
       rulesHumanClient.listRecommendations({ unknownSelector: 'all' } as never),

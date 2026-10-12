@@ -4,15 +4,15 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
-  AUTHORIZATION_DENIED_EVENT,
-  WRITE_COMMITTED_EVENT,
-} from '@/lib/services/authorized-read-events'
-import {
-  AuthorizedQueryProvider,
   SUMMARY_READ_STALE_MS,
   authorizedReadPolicy,
   useAuthorizedRead,
-} from './authorized-query-provider'
+} from '@/hooks/use-authorized-read'
+import {
+  AUTHORIZATION_DENIED_EVENT,
+  WRITE_COMMITTED_EVENT,
+} from '@/lib/services/authorized-read-events'
+import { AuthorizedQueryProvider } from './authorized-query-provider'
 
 const state = vi.hoisted(() => ({
   profile: {
@@ -32,7 +32,7 @@ vi.mock('@/hooks/use-current-role', () => ({
     profile: state.profile,
   }),
 }))
-vi.mock('@/lib/services/pathways-client', () => ({
+vi.mock('@/lib/api/core/request', () => ({
   PathwaysClientError: class extends Error {
     constructor(
       message: string,
@@ -45,7 +45,7 @@ vi.mock('@/lib/services/pathways-client', () => ({
   },
 }))
 
-const { PathwaysClientError } = await import('@/lib/services/pathways-client')
+const { PathwaysClientError } = await import('@/lib/api/core/request')
 
 type Read = (signal: AbortSignal) => Promise<string>
 const Reader = ({

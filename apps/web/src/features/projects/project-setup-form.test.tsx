@@ -19,13 +19,15 @@ const testState = vi.hoisted(() => ({
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: testState.routerPush }) }))
 vi.mock('sonner', () => ({ toast: { success: vi.fn() } }))
 vi.mock('@/lib/services/pathways-client', () => ({
-  PathwaysClientError: class PathwaysClientError extends Error {},
   pathwaysClient: {
     createProject: testState.createProject,
     getProject: testState.getProject,
     getUsers: testState.getUsers,
     updateProject: testState.updateProject,
   },
+}))
+vi.mock('@/lib/api/core/request', () => ({
+  PathwaysClientError: class PathwaysClientError extends Error {},
 }))
 
 const profileState = {

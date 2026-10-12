@@ -1,29 +1,15 @@
-import { sensitiveDraftGeneration } from '@/lib/auth/sensitive-drafts'
-import { contextCookieName } from '@/lib/auth/workspace-access'
+import { PathwaysClientError, requestFoundationResponse } from '@/lib/api/core/request'
+import { captureRequestOwner } from '@/lib/api/core/request-owner'
 import { reportKinds } from '@pathways/shared'
 import { z } from 'zod'
-import { PathwaysClientError, requestFoundationResponse } from './pathways-client'
 import { reportSectionsSchema } from './report-sections'
 
-const ownerCookie = () =>
-  typeof document === 'undefined'
-    ? null
-    : (document.cookie
-        .split(';')
-        .map((value) => value.trim())
-        .find((value) => value.startsWith(`${contextCookieName}=`)) ?? null)
 async function read<S extends z.ZodTypeAny>(
   path: string,
   schema: S,
   init: RequestInit = {},
 ): Promise<z.output<S>> {
-  const owner = ownerCookie()
-  const generation = sensitiveDraftGeneration()
-  const current = () =>
-    owner !== null &&
-    owner === ownerCookie() &&
-    generation === sensitiveDraftGeneration() &&
-    !init.signal?.aborted
+  const current = captureRequestOwner(init.signal)
   if (!current())
     throw new PathwaysClientError('Current workspace access is required.', 'unauthorized')
   const response = await requestFoundationResponse(path, init)
@@ -428,13 +414,8 @@ export async function fetchCoreArtifact(
   fileName: string,
   isOwnerCurrent: () => boolean = () => true,
 ): Promise<CoreArtifact> {
-  const owner = ownerCookie()
-  const generation = sensitiveDraftGeneration()
-  const current = () =>
-    isOwnerCurrent() &&
-    owner !== null &&
-    owner === ownerCookie() &&
-    generation === sensitiveDraftGeneration()
+  const owned = captureRequestOwner()
+  const current = () => isOwnerCurrent() && owned()
   // Allows readable names but no control, path or reserved characters, leading dot, or long names.
   if (
     !current() ||

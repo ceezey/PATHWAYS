@@ -46,6 +46,8 @@ vi.mock('@/lib/services/pathways-client', () => ({
     getActivityContext: state.activityContext,
     getProjectIndicators: state.indicators,
   },
+}))
+vi.mock('@/lib/api/core/request', () => ({
   PathwaysClientError: class PathwaysClientError extends Error {
     status?: number
     constructor(message: string, status?: number) {

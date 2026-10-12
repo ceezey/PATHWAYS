@@ -18,11 +18,10 @@ vi.mock('@/lib/supabase/client', () => ({
 
 import {
   PathwaysClientError,
-  pathwaysClient,
-  recoverSourceMutation,
   requestFoundation,
   requestFoundationResponse,
-} from './pathways-client'
+} from '@/lib/api/core/request'
+import { pathwaysClient, recoverSourceMutation } from './pathways-client'
 
 describe('PATHWAYS frontend data boundary', () => {
   const setupSourceBrowser = () => {

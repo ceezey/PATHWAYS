@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const request = vi.hoisted(() => vi.fn())
-vi.mock('./pathways-client', () => ({
+vi.mock('@/lib/api/core/request', () => ({
   PathwaysClientError: class extends Error {
     constructor(
       message: string,

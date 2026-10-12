@@ -1,4 +1,5 @@
-import { formatCappedPercent, roundPercent } from '@/lib/percent'
+import { formatCappedPercent, roundPercent } from '@/lib/format/percent'
+import type { SignalTone } from '@/lib/format/tone'
 import { cn } from '@/lib/utils'
 
 export const ProgressBar = ({
@@ -11,7 +12,7 @@ export const ProgressBar = ({
   label?: string
   /** Keeps the label for assistive technology but hides the visible label and percent. */
   hideText?: boolean
-  tone?: 'info' | 'success' | 'warning' | 'danger'
+  tone?: SignalTone
 }) => {
   const safeValue = Math.min(100, Math.max(0, value))
   const accessibleLabel = label ?? 'Progress'

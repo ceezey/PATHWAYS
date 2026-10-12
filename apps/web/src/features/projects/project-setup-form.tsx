@@ -33,6 +33,7 @@ import {
 import { Textarea } from '@/components/ui/textarea'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { usePendingCreate } from '@/hooks/use-pending-create'
+import { PathwaysClientError } from '@/lib/api/core/request'
 import {
   type SensitiveDraftOwner,
   readSensitiveDraft,
@@ -42,7 +43,7 @@ import {
 } from '@/lib/auth/sensitive-drafts'
 import { createdSince, fingerprintOf } from '@/lib/forms/pending-create'
 import { principalHasAtomicPermission } from '@/lib/rbac/policy'
-import { PathwaysClientError, pathwaysClient } from '@/lib/services/pathways-client'
+import { pathwaysClient } from '@/lib/services/pathways-client'
 import type { ProjectDetail, ProjectStatus, ProjectSummary, UserRecord } from '@/types/pathways'
 
 import {

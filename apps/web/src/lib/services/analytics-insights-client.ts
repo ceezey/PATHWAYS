@@ -9,7 +9,7 @@ import {
   participationBreakdownSchema,
 } from '@pathways/shared'
 
-import { requestFoundation } from './pathways-client'
+import { requestFoundation } from '@/lib/api/core/request'
 
 /** Validated query string: one project and an optional complete period. */
 function analyticsInsightsSearch(query: AnalyticsInsightsQuery): string {

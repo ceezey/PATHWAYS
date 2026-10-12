@@ -53,6 +53,7 @@ export const roles = {
       'apps/web/src/api/**/*.ts',
       '**/schemas/*.zod.ts',
       'apps/web/src/lib/services/**/*.ts',
+      'apps/web/src/lib/api/**/*.ts',
       'packages/shared/src/validation/**/*.ts',
       'packages/shared/src/contracts/**/*.ts',
       'apps/api/src/common/validation/**/*.ts',

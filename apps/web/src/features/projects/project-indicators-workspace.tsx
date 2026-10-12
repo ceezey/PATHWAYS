@@ -12,6 +12,7 @@ import { MetricTooltip } from '@/components/pathways/metric-tooltip'
 import { ProgressBar } from '@/components/pathways/progress-bar'
 import { SectionCard } from '@/components/pathways/section-card'
 import { StatusBadge } from '@/components/pathways/status-badge'
+import { stickyTableHeadClass } from '@/components/pathways/sticky-table-head'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogTrigger } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
@@ -19,20 +20,21 @@ import { Textarea } from '@/components/ui/textarea'
 import { INDICATOR_LIBRARY_UI_ENABLED } from '@/constants/feature-flags'
 import { metricGlossary } from '@/constants/metric-glossary'
 import { useMonitoringRead } from '@/features/analytics/use-monitoring-read'
+import { useAuthorizedRead } from '@/hooks/use-authorized-read'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { usePendingCreate } from '@/hooks/use-pending-create'
 import { useSourceMutationContext } from '@/hooks/use-source-mutation-context'
+import { PathwaysClientError } from '@/lib/api/core/request'
+import { formatCappedPercent } from '@/lib/format/percent'
 import { fingerprintOf } from '@/lib/forms/pending-create'
-import { formatCappedPercent } from '@/lib/percent'
 import { principalHasAtomicPermission } from '@/lib/rbac/policy'
 import { indicatorLibraryClient } from '@/lib/services/indicator-library-client'
-import { PathwaysClientError, pathwaysClient } from '@/lib/services/pathways-client'
+import { pathwaysClient } from '@/lib/services/pathways-client'
 import {
   type SourceMutationResult,
   isSourceReplay,
   sourceMutationTickets,
 } from '@/lib/services/source-mutation'
-import { useAuthorizedRead } from '@/providers/authorized-query-provider'
 import type { Activity, DigitalFormDefinition } from '@/types/pathways'
 import {
   type CreateIndicatorDraftInput as CreateIndicatorInput,
@@ -51,8 +53,6 @@ import { type FormEvent, Fragment, useCallback, useEffect, useRef, useState } fr
 const text = (form: FormData, name: string) => String(form.get(name) ?? '').trim()
 const optional = (form: FormData, name: string) => text(form, name) || undefined
 const allActivities = 'ALL'
-const headClass =
-  'sticky top-0 z-10 h-10 bg-surface-subtle px-4 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground'
 const codeSkipWords = new Set([
   'a',
   'an',
@@ -810,21 +810,21 @@ export function ProjectIndicatorsWorkspace({ projectId }: { projectId: string })
             <table className="w-full min-w-[880px] text-sm tabular-nums">
               <thead>
                 <tr className="border-b border-border">
-                  <th className={`${headClass} w-32`}>Code</th>
-                  <th className={`${headClass} w-[40%]`}>Indicator</th>
-                  <th className={`${headClass} text-center`}>
+                  <th className={`${stickyTableHeadClass} w-32`}>Code</th>
+                  <th className={`${stickyTableHeadClass} w-[40%]`}>Indicator</th>
+                  <th className={`${stickyTableHeadClass} text-center`}>
                     Target
                     <MetricTooltip label="Target">{metricGlossary.target}</MetricTooltip>
                   </th>
-                  <th className={`${headClass} text-center`}>
+                  <th className={`${stickyTableHeadClass} text-center`}>
                     Actual
                     <MetricTooltip label="Actual">{metricGlossary.actual}</MetricTooltip>
                   </th>
-                  <th className={`${headClass} text-center`}>
+                  <th className={`${stickyTableHeadClass} text-center`}>
                     Status
                     <MetricTooltip label="Status">{metricGlossary.indicatorStatus}</MetricTooltip>
                   </th>
-                  <th className={headClass}>
+                  <th className={stickyTableHeadClass}>
                     <span className="sr-only">Actions</span>
                   </th>
                 </tr>

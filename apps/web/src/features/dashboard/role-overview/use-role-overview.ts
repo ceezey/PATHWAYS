@@ -1,7 +1,7 @@
 'use client'
 
+import { useAuthorizedRead } from '@/hooks/use-authorized-read'
 import { pathwaysClient } from '@/lib/services/pathways-client'
-import { useAuthorizedRead } from '@/providers/authorized-query-provider'
 
 /** Reads the role dashboard payload with the same grant gate as the action counts. */
 export const useRoleOverview = () =>

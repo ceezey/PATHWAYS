@@ -1,9 +1,9 @@
-import { z } from 'zod'
 import {
   PathwaysClientError,
   requestFoundation,
   requestFoundationResponse,
-} from './pathways-client'
+} from '@/lib/api/core/request'
+import { z } from 'zod'
 
 const revision = z.string().datetime({ precision: 3 })
 const contextSchema = z

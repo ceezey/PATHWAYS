@@ -3,6 +3,7 @@ import Link from 'next/link'
 
 import { CappedPercent, StatusBadge } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
+import { plural } from '@/lib/format/plural'
 import { cn } from '@/lib/utils'
 import { healthOf } from './health'
 import type { ProjectMetrics } from './manager-overview'
@@ -24,7 +25,6 @@ const peso = (amount: string) =>
   `PHP ${Number(amount).toLocaleString('en-PH', { maximumFractionDigits: 0 })}`
 const shortDate = (iso: string) =>
   new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`
 
 /** Program and Grant Manager portfolio; Grant Manager is read-only with no decision buttons. */
 export const PortfolioOverview = ({
