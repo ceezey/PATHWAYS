@@ -3,7 +3,7 @@ import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 const read = vi.hoisted(() => vi.fn())
-vi.mock('@/features/projects/projects.reads', () => ({ useProjectOverviewMetricsRead: read }))
+vi.mock('@/features/projects', () => ({ useProjectOverviewMetricsRead: read }))
 
 import type { PathwaysRole } from '@/types/pathways-role'
 import { useProjectMetrics } from './project-metrics-reads'

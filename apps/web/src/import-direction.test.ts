@@ -1,6 +1,9 @@
 import { readFileSync, readdirSync } from 'node:fs'
 import path from 'node:path'
+import { PHASE_PRODUCTION_BUILD } from 'next/constants'
 import { describe, expect, it } from 'vitest'
+
+import createNextConfig from '../next.config'
 
 const src = __dirname
 
@@ -48,6 +51,21 @@ function violation(file: string, specifier: string): string | null {
   if (to.startsWith('../')) return 'outside apps/web/src'
   const from = layer(relativeToSrc(file))
   return forbidden[from]?.includes(layer(to)) ? `${from} must not import ${layer(to)}` : null
+}
+
+// Features whose index.ts is their only surface for files outside them (CR section 3.3).
+const indexedFeatures: readonly string[] = ['projects']
+
+// The rule an import of an indexed feature breaks, or null when it names the feature index.
+function surfaceViolation(file: string, specifier: string): string | null {
+  const to = target(file, specifier)
+  if (to === null || !to.startsWith('features/')) return null
+  const [, feature, ...rest] = to.split('/')
+  if (!indexedFeatures.includes(feature) || relativeToSrc(file).startsWith(`features/${feature}/`))
+    return null
+  return rest.length === 0 || rest.join('/') === 'index'
+    ? null
+    : `import features/${feature} only through its index`
 }
 
 // Non-test TypeScript files under a folder; tests may import fixtures across layers.
@@ -98,5 +116,53 @@ describe('web import direction', () => {
       }),
     )
     expect(violations).toEqual([])
+  })
+})
+
+describe('feature public surfaces', () => {
+  it('detects an import that bypasses an indexed feature', () => {
+    const file = path.join(src, 'features', 'analytics', 'example.tsx')
+    const source = [
+      "import { a } from '@/features/projects/components/project-directory'",
+      "import { b } from '../projects/projects.utils'",
+      "const c = await import('@/features/projects/team/project-team-selectors')",
+      "import { d } from '@/features/projects'",
+      "import { e } from '@/features/projects/index'",
+      "import { f } from '@/features/reports/reporting-workspace'",
+      "import { g } from './analytics-utils'",
+    ].join('\n')
+    expect(specifiers(source).map((specifier) => surfaceViolation(file, specifier))).toEqual([
+      'import features/projects only through its index',
+      'import features/projects only through its index',
+      'import features/projects only through its index',
+      null,
+      null,
+      null,
+      null,
+    ])
+    const page = path.join(src, 'app', '(dashboard)', 'projects', 'page.tsx')
+    expect(surfaceViolation(page, '@/features/projects/components/project-directory')).toBe(
+      'import features/projects only through its index',
+    )
+    expect(surfaceViolation(page, '@/features/projects')).toBeNull()
+    const inside = path.join(src, 'features', 'projects', 'components', 'example.tsx')
+    expect(surfaceViolation(inside, '../projects.utils')).toBeNull()
+  })
+
+  it('keeps every other file on the index of each indexed feature', () => {
+    const violations = sourceFiles(src).flatMap((file) =>
+      specifiers(readFileSync(file, 'utf8')).flatMap((specifier) => {
+        const rule = surfaceViolation(file, specifier)
+        return rule ? [`${relativeToSrc(file)} -> ${specifier} (${rule})`] : []
+      }),
+    )
+    expect(violations).toEqual([])
+  })
+
+  it('has Next optimize the barrel of each indexed feature so route bundles keep their size', () => {
+    const optimized = createNextConfig(PHASE_PRODUCTION_BUILD).experimental?.optimizePackageImports
+    expect(optimized).toEqual(
+      expect.arrayContaining(indexedFeatures.map((feature) => `@/features/${feature}`)),
+    )
   })
 })

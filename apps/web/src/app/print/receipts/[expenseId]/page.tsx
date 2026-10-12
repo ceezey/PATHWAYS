@@ -1,4 +1,4 @@
-import { PrintReceiptPage } from '@/features/projects/budget-module/print/print-receipt-page'
+import { PrintReceiptPage } from '@/features/projects'
 
 export default function PrintReceiptRoute() {
   return <PrintReceiptPage />

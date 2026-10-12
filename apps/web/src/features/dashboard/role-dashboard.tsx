@@ -53,8 +53,7 @@ import type {
 import type { PathwaysRole } from '@/types/pathways-role'
 import { type RoutePrincipal, businessCalendarDate } from '@pathways/shared'
 
-import { ActivityDetailPanel } from '../projects/activity-detail-panel'
-import { ActivityProofDialog } from '../projects/activity-proof-dialog'
+import { ActivityDetailPanel, ActivityProofDialog } from '@/features/projects'
 import { ActionKpiRow } from './action-kpi-row'
 import { ExecutiveDashboard } from './executive-dashboard'
 import { monitoringReachMetrics } from './monitoring-reach-metrics'

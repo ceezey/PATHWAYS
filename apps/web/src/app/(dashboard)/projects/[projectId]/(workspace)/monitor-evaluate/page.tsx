@@ -1,6 +1,6 @@
 import { type ProtectedPageProps, requireServerPage } from '@/lib/rbac/server-access'
 
-import { ProjectReviewWorkspace } from '@/features/projects/components/project-review-workspace'
+import { ProjectReviewWorkspace } from '@/features/projects'
 
 async function ProjectMonitorEvaluatePage({
   params,

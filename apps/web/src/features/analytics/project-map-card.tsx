@@ -5,7 +5,7 @@ import { X } from 'lucide-react'
 import Link from 'next/link'
 
 import { Button } from '@/components/ui/button'
-import { overviewMetricLabel } from '@/features/projects/projects.utils'
+import { overviewMetricLabel } from '@/features/projects'
 
 const restricted = 'Not available for your role'
 

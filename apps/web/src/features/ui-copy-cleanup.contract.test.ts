@@ -90,7 +90,7 @@ describe('"None yet" empty states versus error and permission wording', () => {
   it('derives the participation empty-chart title from the shared metric-unavailable helper, not an unconditional "None yet"', () => {
     const analytics = source('features/analytics/analytics-dashboard.tsx')
     expect(analytics).toContain(
-      "import { metricUnavailableLabel, overviewMetricLabel } from '@/features/projects/projects.utils'",
+      "import { metricUnavailableLabel, overviewMetricLabel } from '@/features/projects'",
     )
     // Participation now renders its own breakdown panel, so no unconditional "None yet" title remains.
     expect(analytics).toContain('ParticipationBreakdownPanel')
