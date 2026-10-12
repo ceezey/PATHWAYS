@@ -9,6 +9,7 @@ vi.mock('@/lib/supabase/client', () => ({
   getBrowserSupabaseClient: () => ({ auth: { getSession: browser.getSession } }),
 }))
 
+import { activitiesClient } from '@/lib/api/activities'
 import type { JourneyStageConfig } from '@/types/pathways'
 import { pathwaysClient } from './pathways-client'
 import { sourceMutationTickets } from './source-mutation'
@@ -109,7 +110,7 @@ describe('PATHWAYS C2/C4 browser client', () => {
       )
     vi.stubGlobal('fetch', fetcher)
 
-    await pathwaysClient.transitionActivity(
+    await activitiesClient.transitionActivity(
       projectId,
       activityId,
       'IN_PROGRESS',
@@ -117,7 +118,7 @@ describe('PATHWAYS C2/C4 browser client', () => {
       undefined,
       mutationContext,
     )
-    await pathwaysClient.reviewActivityUpdate(
+    await activitiesClient.reviewActivityUpdate(
       projectId,
       activityId,
       updateId,

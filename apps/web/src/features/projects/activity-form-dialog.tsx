@@ -31,6 +31,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { usePendingCreate } from '@/hooks/use-pending-create'
 import { useSourceMutationContext } from '@/hooks/use-source-mutation-context'
+import { activitiesClient } from '@/lib/api/activities'
 import {
   type SensitiveDraftOwner,
   readSensitiveDraft,
@@ -41,7 +42,6 @@ import {
 import { createdSince, fingerprintOf } from '@/lib/forms/pending-create'
 import { principalHasAtomicPermission } from '@/lib/rbac/policy'
 import { isUiActionAvailable } from '@/lib/rbac/ui-action-availability'
-import { pathwaysClient } from '@/lib/services/pathways-client'
 import { isSourceReplay, sourceMutationTickets } from '@/lib/services/source-mutation'
 import type {
   Activity,
@@ -138,11 +138,11 @@ const ScopedActivityFormDialog = ({
     projectId,
     successMessage: 'Activity created',
     findCreated: async (fingerprint, startedAt) => {
-      const found = (await pathwaysClient.getActivities(projectId)).find(
+      const found = (await activitiesClient.getActivities(projectId)).find(
         (item) =>
           fingerprintOf(item.title) === fingerprint && createdSince(item.updatedAt, startedAt),
       )
-      return found ? pathwaysClient.getActivity(projectId, found.id) : null
+      return found ? activitiesClient.getActivity(projectId, found.id) : null
     },
     onConfirmed: (record) => {
       removeSensitiveDraft(draftStorageKey)
@@ -342,17 +342,17 @@ const ScopedActivityFormDialog = ({
       const first =
         savedPhase.current?.activity ??
         (activity
-          ? await pathwaysClient.updateActivity(
+          ? await activitiesClient.updateActivity(
               { ...input, id: activity.id, expectedUpdatedAt: activity.updatedAt },
               mutationContext,
             )
           : await pendingCreate.submit(fingerprintOf(input.title), () =>
-              pathwaysClient.createActivity(input, mutationContext),
+              activitiesClient.createActivity(input, mutationContext),
             ))
       if (!first) return
       if (!scope.isCurrent() || !mutationContext.isCurrent()) return
       if (isSourceReplay(first)) {
-        await pathwaysClient.getActivities(projectId)
+        await activitiesClient.getActivities(projectId)
         if (!scope.isCurrent() || !mutationContext.isCurrent()) return
         sourceMutationTickets.finishAcknowledgement(mutationContext, first.requestId)
         removeSensitiveDraft(draftStorageKey)
@@ -369,7 +369,7 @@ const ScopedActivityFormDialog = ({
         if (!transitionContext?.isCurrent())
           throw new Error('Current activity transition access is required.')
         setRecoveringPhase(true)
-        const transition = await pathwaysClient.transitionActivity(
+        const transition = await activitiesClient.transitionActivity(
           projectId,
           savedActivity.id,
           'IN_PROGRESS',
@@ -379,7 +379,7 @@ const ScopedActivityFormDialog = ({
         )
         if (!scope.isCurrent() || !transitionContext.isCurrent()) return
         savedActivity = isSourceReplay(transition)
-          ? await pathwaysClient.getActivity(projectId, savedActivity.id)
+          ? await activitiesClient.getActivity(projectId, savedActivity.id)
           : transition
         if (!scope.isCurrent() || !transitionContext.isCurrent()) return
         if (isSourceReplay(transition))
@@ -443,7 +443,7 @@ const ScopedActivityFormDialog = ({
                       : `/projects/${projectId}/activities`
                 }
                 onRecovered={async () => {
-                  await pathwaysClient.getActivities(projectId)
+                  await activitiesClient.getActivities(projectId)
                   return () => {
                     savedPhase.current = null
                     setRecoveringPhase(false)

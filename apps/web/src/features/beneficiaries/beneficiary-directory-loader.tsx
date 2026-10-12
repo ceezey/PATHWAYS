@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react'
 
 import { AsyncState } from '@/components/pathways'
 import { useCurrentRole } from '@/hooks/use-current-role'
+import { activitiesClient } from '@/lib/api/activities'
 import { projectsClient } from '@/lib/api/projects'
 import { pathwaysClient } from '@/lib/services/pathways-client'
 import type {
@@ -55,7 +56,7 @@ export const BeneficiaryDirectoryLoader = () => {
               pathwaysClient.getBeneficiaryRecordsForRole(verifiedRole, project.id),
             ),
           ),
-          Promise.all(projects.map((project) => pathwaysClient.getActivities(project.id))),
+          Promise.all(projects.map((project) => activitiesClient.getActivities(project.id))),
           Promise.all(projects.map((project) => pathwaysClient.getJourneyStages(project.id))),
         ])
 

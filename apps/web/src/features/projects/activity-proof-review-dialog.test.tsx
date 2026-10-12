@@ -23,6 +23,7 @@ vi.mock('@/hooks/use-session', () => ({
   useSession: () => ({ session: { user: { id: access.profile.id } } }),
 }))
 vi.mock('@/lib/services/pathways-client', () => ({ pathwaysClient: api }))
+vi.mock('@/lib/api/activities', () => ({ activitiesClient: api }))
 vi.mock('./private-proof-inspection', () => ({
   PrivateProofInspection: () => <div>Private verification controls</div>,
 }))

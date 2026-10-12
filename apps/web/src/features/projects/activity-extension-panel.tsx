@@ -9,8 +9,8 @@ import { StatusBadge } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { activityExtensionsClient } from '@/lib/api/activity-extensions'
 import { PathwaysClientError } from '@/lib/api/core/request'
-import { pathwaysClient } from '@/lib/services/pathways-client'
 import type { Activity } from '@/types/pathways'
 
 import { formatDate } from './activity-utils'
@@ -66,7 +66,10 @@ export const ActivityExtensionPanel = ({
 
   const load = useCallback(async () => {
     try {
-      const rows = await pathwaysClient.listActivityExtensions(activity.projectId, activity.id)
+      const rows = await activityExtensionsClient.listActivityExtensions(
+        activity.projectId,
+        activity.id,
+      )
       setLatest(rows[0] ?? null)
     } catch {
       setLatest(null)
@@ -114,19 +117,29 @@ export const ActivityExtensionPanel = ({
     setError('')
     try {
       if (decision === 'VERIFY' || decision === 'RETURN') {
-        await pathwaysClient.verifyActivityExtension(activity.projectId, activity.id, latest.id, {
-          decision,
-          note: trimmed,
-          expectedUpdatedAt: latest.updatedAt,
-        })
+        await activityExtensionsClient.verifyActivityExtension(
+          activity.projectId,
+          activity.id,
+          latest.id,
+          {
+            decision,
+            note: trimmed,
+            expectedUpdatedAt: latest.updatedAt,
+          },
+        )
       } else {
-        await pathwaysClient.decideActivityExtension(activity.projectId, activity.id, latest.id, {
-          decision,
-          note: trimmed,
-          expectedUpdatedAt: latest.updatedAt,
-          activityExpectedUpdatedAt: activity.updatedAt,
-          clientMutationId,
-        })
+        await activityExtensionsClient.decideActivityExtension(
+          activity.projectId,
+          activity.id,
+          latest.id,
+          {
+            decision,
+            note: trimmed,
+            expectedUpdatedAt: latest.updatedAt,
+            activityExpectedUpdatedAt: activity.updatedAt,
+            clientMutationId,
+          },
+        )
       }
       toast.success(`Extension ${decisionPast[decision]}.`)
       setNote('')

@@ -10,7 +10,7 @@ import { Dialog, DialogFooter } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { pathwaysClient } from '@/lib/services/pathways-client'
+import { activityExtensionsClient } from '@/lib/api/activity-extensions'
 import type { Activity } from '@/types/pathways'
 
 import { definitiveRejection } from './activity-progress-dialog'
@@ -71,7 +71,7 @@ export const ActivityExtensionDialog = ({
     setSubmitting(true)
     setError('')
     try {
-      await pathwaysClient.requestActivityExtension(activity.projectId, activity.id, {
+      await activityExtensionsClient.requestActivityExtension(activity.projectId, activity.id, {
         requestedEndDate,
         reason: reason.trim(),
         clientMutationId: mutationId,

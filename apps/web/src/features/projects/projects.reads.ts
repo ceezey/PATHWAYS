@@ -1,6 +1,7 @@
 'use client'
 
 import { useAuthorizedRead } from '@/hooks/use-authorized-read'
+import { activitiesClient } from '@/lib/api/activities'
 import { projectsClient } from '@/lib/api/projects'
 import { pathwaysClient } from '@/lib/services/pathways-client'
 
@@ -34,7 +35,7 @@ export const useProjectActivitiesRead = (projectId: string, enabled = true) =>
     projectReadResources.activities,
     projectId,
     'activities.read',
-    (signal) => pathwaysClient.getActivities(projectId, signal),
+    (signal) => activitiesClient.getActivities(projectId, signal),
     enabled,
     summary,
   )
@@ -76,6 +77,6 @@ export const useActivityDetailRead = (projectId: string, activityId: string | nu
     projectReadResources.activityDetail(activityId ?? 'none'),
     projectId,
     'activities.read',
-    (signal) => pathwaysClient.getActivity(projectId, activityId ?? '', signal),
+    (signal) => activitiesClient.getActivity(projectId, activityId ?? '', signal),
     Boolean(activityId),
   )

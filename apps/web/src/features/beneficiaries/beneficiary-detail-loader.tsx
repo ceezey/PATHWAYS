@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react'
 import { AsyncState, StatusMessage } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import { useCurrentRole } from '@/hooks/use-current-role'
+import { activitiesClient } from '@/lib/api/activities'
 import { PathwaysClientError } from '@/lib/api/core/request'
 import { projectsClient } from '@/lib/api/projects'
 import { STEP_UP_COMPLETED_EVENT } from '@/lib/auth/beneficiary-step-up-events'
@@ -121,7 +122,7 @@ export const BeneficiaryDetailLoader = ({
                 })
             : Promise.resolve([])
         const [activities, stages, history, forms, assessments] = await Promise.all([
-          pathwaysClient.getActivities(scopedProjectId),
+          activitiesClient.getActivities(scopedProjectId),
           pathwaysClient.getJourneyStages(scopedProjectId),
           pathwaysClient.getBeneficiaryJourneyHistory(scopedProjectId, beneficiaryId),
           canReadForms ? pathwaysClient.getDigitalForms(scopedProjectId) : Promise.resolve([]),

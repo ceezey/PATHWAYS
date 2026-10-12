@@ -10,7 +10,6 @@ vi.mock('@/lib/api/core/request', async (importOriginal) => ({
   requestFoundation,
 }))
 
-import { pathwaysClient } from '@/lib/services/pathways-client'
 import { activityExtensionsClient } from './activity-extensions'
 
 const projectId = '75200000-0000-4000-8000-000000000001'
@@ -37,13 +36,9 @@ const extension = {
   updatedAt: '2026-09-28T00:00:00.000Z',
 }
 
-// The same cases run against the PathwaysClient methods until Task 2 removes them.
-const clients: Array<[string, typeof activityExtensionsClient]> = [
-  ['pathwaysClient', pathwaysClient],
-  ['activityExtensionsClient', activityExtensionsClient],
-]
+const client = activityExtensionsClient
 
-describe.each(clients)('%s extension requests', (_name, client) => {
+describe('activityExtensionsClient extension requests', () => {
   beforeEach(() => requestFoundation.mockReset())
 
   it('lists the extensions of an activity and parses each row', async () => {

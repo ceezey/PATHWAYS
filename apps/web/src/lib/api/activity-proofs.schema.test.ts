@@ -22,7 +22,7 @@ vi.mock('@/lib/supabase/client', () => ({
   }),
 }))
 
-import { pathwaysClient } from './pathways-client'
+import { activitiesClient } from '@/lib/api/activities'
 
 const reservationWith = (uploadUrl: string) => ({
   clientUpdateId: 'client-1',
@@ -55,7 +55,7 @@ const respond = (body: unknown) => {
 }
 
 const reserve = () =>
-  pathwaysClient.reserveActivityProofUpload({
+  activitiesClient.reserveActivityProofUpload({
     projectId: 'project-a',
     activityId: 'activity-a',
     clientUpdateId: 'client-1',

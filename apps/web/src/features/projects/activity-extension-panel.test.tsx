@@ -13,6 +13,7 @@ vi.mock('@/lib/services/pathways-client', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/services/pathways-client')>()),
   pathwaysClient: api,
 }))
+vi.mock('@/lib/api/activity-extensions', () => ({ activityExtensionsClient: api }))
 vi.mock('sonner', () => ({ toast: { success: vi.fn() } }))
 
 import { PathwaysClientError } from '@/lib/api/core/request'

@@ -16,8 +16,8 @@ import { Textarea } from '@/components/ui/textarea'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useSession } from '@/hooks/use-session'
 import { useSourceMutationContext } from '@/hooks/use-source-mutation-context'
+import { activitiesClient } from '@/lib/api/activities'
 import { type SensitiveDraftOwner, useSensitiveDraftOwner } from '@/lib/auth/sensitive-drafts'
-import { pathwaysClient } from '@/lib/services/pathways-client'
 import {
   SourceMutationRecoveryError,
   isSourceReplay,
@@ -133,7 +133,7 @@ function OwnedReview({
     setBusy(true)
     setNotice('')
     try {
-      const updated = await pathwaysClient.reviewActivityUpdate(
+      const updated = await activitiesClient.reviewActivityUpdate(
         activity.projectId,
         activity.id,
         proof.updateId,
@@ -144,7 +144,7 @@ function OwnedReview({
       )
       if (!current() || !mutationContext.isCurrent()) return
       const record = isSourceReplay(updated)
-        ? await pathwaysClient.getActivity(activity.projectId, activity.id)
+        ? await activitiesClient.getActivity(activity.projectId, activity.id)
         : updated
       if (!current() || !mutationContext.isCurrent()) return
       if (isSourceReplay(updated))
@@ -173,7 +173,7 @@ function OwnedReview({
           context={mutationContext}
           prefix={`/projects/${activity.projectId}/activities/${activity.id}/updates/${proof.updateId}/review`}
           onRecovered={async () => {
-            const record = await pathwaysClient.getActivity(activity.projectId, activity.id)
+            const record = await activitiesClient.getActivity(activity.projectId, activity.id)
             return () => {
               onUpdated(record)
               onOpenChange(false)

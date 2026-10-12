@@ -9,9 +9,9 @@ vi.mock('@/lib/supabase/client', () => ({
   getBrowserSupabaseClient: () => ({ auth: { getSession: browser.getSession } }),
 }))
 
+import { activitiesClient } from '@/lib/api/activities'
 import { PathwaysClientError } from '@/lib/api/core/request'
-import { pathwaysClient } from './pathways-client'
-import { isSourceReplay, sourceMutationTickets } from './source-mutation'
+import { isSourceReplay, sourceMutationTickets } from '../services/source-mutation'
 
 // The exact JSON ActivitiesService.reviewUpdate returns today: the mapped activity detail
 // (migrations 0042 and 0043 included) with the source acknowledgement alongside it.
@@ -126,7 +126,7 @@ const setup = (respond: (init: RequestInit) => Response) => {
 const context = { principalKey, isCurrent: () => true }
 const review = (decision: 'APPROVE' | 'RETURN') => {
   sourceMutationTickets.clear()
-  return pathwaysClient.reviewActivityUpdate(
+  return activitiesClient.reviewActivityUpdate(
     projectId,
     activityId,
     updateId,

@@ -17,7 +17,7 @@ import { useEffect, useRef, useState } from 'react'
 import { SidePanel, StatusBadge } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import { Sheet } from '@/components/ui/sheet'
-import { pathwaysClient } from '@/lib/services/pathways-client'
+import { activitiesClient } from '@/lib/api/activities'
 import type {
   Activity,
   ActivityProof,
@@ -604,7 +604,7 @@ export const ActivityDetailContent = ({
         canVerify={canValidateProof}
         focus={focusExtension}
         onDecided={() => {
-          void pathwaysClient
+          void activitiesClient
             .getActivity(activity.projectId, activity.id)
             .then(onActivityChanged)
             .catch(() => {})

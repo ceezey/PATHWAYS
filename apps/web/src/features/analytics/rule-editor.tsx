@@ -7,6 +7,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { UNFINISHED_CONTROLS_UI_ENABLED } from '@/constants/feature-flags'
 import { useAuthorizedRead } from '@/hooks/use-authorized-read'
 import { useCurrentRole } from '@/hooks/use-current-role'
+import { activitiesClient } from '@/lib/api/activities'
 import { PathwaysClientError } from '@/lib/api/core/request'
 import { projectsClient } from '@/lib/api/projects'
 import { type SensitiveDraftOwner, useSensitiveDraftOwner } from '@/lib/auth/sensitive-drafts'
@@ -225,14 +226,14 @@ function OwnedRuleEditor({
     'rule-binding-activities',
     scopeProjectId,
     'activities.read',
-    (signal) => pathwaysClient.getActivities(scopeProjectId ?? '', signal),
+    (signal) => activitiesClient.getActivities(scopeProjectId ?? '', signal),
     Boolean(scopeProjectId && requires(conditions, 'ACTIVITY_OVERDUE_DAYS') && canReadActivities),
   )
   const activitiesContext = useAuthorizedRead(
     'rule-binding-activities-context',
     scopeProjectId,
     'activities.context.read',
-    (signal) => pathwaysClient.getActivityContext(scopeProjectId ?? '', signal),
+    (signal) => activitiesClient.getActivityContext(scopeProjectId ?? '', signal),
     Boolean(
       scopeProjectId &&
         requires(conditions, 'ACTIVITY_OVERDUE_DAYS') &&

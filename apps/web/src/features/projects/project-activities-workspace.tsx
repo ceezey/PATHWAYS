@@ -18,12 +18,12 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useAuthorizedRead } from '@/hooks/use-authorized-read'
 import { useCurrentRole } from '@/hooks/use-current-role'
+import { activitiesClient } from '@/lib/api/activities'
 import { PathwaysClientError } from '@/lib/api/core/request'
 import { canAccessProjectForRole } from '@/lib/rbac/data-scope'
 import { principalHasAtomicPermission } from '@/lib/rbac/policy'
 import { isUiActionAvailable } from '@/lib/rbac/ui-action-availability'
 import { coreDataClient } from '@/lib/services/core-feature-client'
-import { pathwaysClient } from '@/lib/services/pathways-client'
 import type { Activity, ActivityStatus, ActivitySummary, Indicator } from '@/types/pathways'
 
 import { ActivityDetailPanel } from './activity-detail-panel'
@@ -254,7 +254,7 @@ export const ProjectActivitiesWorkspace = ({
     'activity-assignable-officers',
     projectId,
     canCreate ? 'activities.create' : 'activities.update',
-    (signal) => pathwaysClient.getAssignableProjectOfficers(projectId, signal),
+    (signal) => activitiesClient.getAssignableProjectOfficers(projectId, signal),
     canReadOfficers && formOpen,
   )
   const indicatorRows = indicatorRead.data ?? []

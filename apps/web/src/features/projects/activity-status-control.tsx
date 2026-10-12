@@ -21,7 +21,7 @@ import {
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
-import { pathwaysClient } from '@/lib/services/pathways-client'
+import { activitiesClient } from '@/lib/api/activities'
 import { cn } from '@/lib/utils'
 import type { Activity, ActivityStatus } from '@/types/pathways'
 
@@ -79,7 +79,7 @@ export const ActivityStatusControl = ({
       }
       if (status === 'Cancelled' && (!reason?.trim() || reason.trim().length > 1000))
         throw new Error('Enter a cancellation reason of 1 to 1,000 characters.')
-      const updated = await pathwaysClient.transitionActivity(
+      const updated = await activitiesClient.transitionActivity(
         activity.projectId,
         activity.id,
         status === 'Cancelled' ? 'CANCELLED' : 'IN_PROGRESS',
@@ -89,7 +89,7 @@ export const ActivityStatusControl = ({
       )
       if (!owner.isCurrent()) return
       const record = isSourceReplay(updated)
-        ? await pathwaysClient.getActivity(activity.projectId, activity.id)
+        ? await activitiesClient.getActivity(activity.projectId, activity.id)
         : updated
       if (!owner.isCurrent()) return
       if (isSourceReplay(updated))
@@ -121,7 +121,7 @@ export const ActivityStatusControl = ({
         context={mutationContext}
         prefix={`/projects/${activity.projectId}/activities/${activity.id}/transition`}
         onRecovered={async () => {
-          const current = await pathwaysClient.getActivity(activity.projectId, activity.id)
+          const current = await activitiesClient.getActivity(activity.projectId, activity.id)
           return () => {
             onUpdated(current)
             setError(null)

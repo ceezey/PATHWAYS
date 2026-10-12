@@ -2,8 +2,8 @@
 import { Button } from '@/components/ui/button'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { PathwaysClientError } from '@/lib/api/core/request'
+import { type PrivateProofContext, privateProofClient } from '@/lib/api/proof-inspection'
 import { type SensitiveDraftOwner, useSensitiveDraftOwner } from '@/lib/auth/sensitive-drafts'
-import { type PrivateProofContext, privateProofClient } from '@/lib/services/private-proof-client'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { PrivateProofPreview } from './private-proof-preview'
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { parseEvidenceList } from './pathways-client'
+import { parseEvidenceList } from '@/lib/api/activities.schema'
 
 describe('evidence list transport', () => {
   it('keeps only count fields for the aggregate scope', () => {

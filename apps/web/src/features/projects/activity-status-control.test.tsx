@@ -8,9 +8,9 @@ vi.mock('@/hooks/use-source-mutation-context', () => ({
   useSourceMutationContext: () =>
     state.permitted ? { principalKey: 'synthetic', isCurrent: () => state.permitted } : null,
 }))
-vi.mock('@/lib/services/pathways-client', () => ({
-  pathwaysClient: { transitionActivity: state.transition },
-  recoverSourceMutation: vi.fn(),
+vi.mock('@/lib/services/pathways-client', () => ({ recoverSourceMutation: vi.fn() }))
+vi.mock('@/lib/api/activities', () => ({
+  activitiesClient: { transitionActivity: state.transition },
 }))
 vi.mock('@/components/ui/select', () => ({
   Select: ({ onValueChange }: { onValueChange: (value: string) => void }) => (

@@ -26,6 +26,7 @@ vi.mock('@/lib/services/pathways-client', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/services/pathways-client')>()),
   pathwaysClient: api,
 }))
+vi.mock('@/lib/api/activities', () => ({ activitiesClient: api }))
 
 import { BeneficiaryMediaProof } from './beneficiary-media-proof'
 

@@ -40,11 +40,10 @@ vi.mock('@/hooks/use-current-role', () => ({
   }),
 }))
 vi.mock('@/lib/services/pathways-client', () => ({
-  pathwaysClient: {
-    getActivities: state.activities,
-    getActivityContext: state.activityContext,
-    getProjectIndicators: state.indicators,
-  },
+  pathwaysClient: { getProjectIndicators: state.indicators },
+}))
+vi.mock('@/lib/api/activities', () => ({
+  activitiesClient: { getActivities: state.activities, getActivityContext: state.activityContext },
 }))
 vi.mock('@/lib/api/projects', () => ({ projectsClient: { getProjects: state.projects } }))
 vi.mock('@/lib/api/core/request', () => ({

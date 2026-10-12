@@ -19,7 +19,7 @@ const context = {
 }
 const client = vi.hoisted(() => ({ context: vi.fn(), inspect: vi.fn() }))
 const save = vi.hoisted(() => vi.fn())
-vi.mock('@/lib/services/private-proof-client', () => ({ privateProofClient: client }))
+vi.mock('@/lib/api/proof-inspection', () => ({ privateProofClient: client }))
 vi.mock('@/lib/services/core-feature-client', () => ({ saveCoreArtifact: save }))
 vi.mock('@/lib/api/core/request', () => ({
   PathwaysClientError: class extends Error {

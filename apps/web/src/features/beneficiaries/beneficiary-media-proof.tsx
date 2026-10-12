@@ -28,6 +28,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { activitiesClient } from '@/lib/api/activities'
 import { PathwaysClientError } from '@/lib/api/core/request'
 import { sha256Hex } from '@/lib/files/proof-file-hash'
 import { pathwaysClient } from '@/lib/services/pathways-client'
@@ -333,7 +334,7 @@ const AddMediaDialog = ({
     try {
       if (item.uploadUrl && !uploadedKeys.current.has(item.key)) {
         patch(item.key, { status: 'uploading', error: undefined })
-        await pathwaysClient.uploadActivityProofFile(item.uploadUrl, item.file)
+        await activitiesClient.uploadActivityProofFile(item.uploadUrl, item.file)
         uploadedKeys.current.add(item.key)
       }
       await pathwaysClient.finalizeBeneficiaryMedia(projectId, beneficiaryId, item.mediaId)

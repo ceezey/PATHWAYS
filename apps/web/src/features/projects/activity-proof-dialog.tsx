@@ -11,10 +11,10 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { useCurrentRole } from '@/hooks/use-current-role'
+import { activitiesClient } from '@/lib/api/activities'
 import { PathwaysClientError } from '@/lib/api/core/request'
 import { type SensitiveDraftOwner, useSensitiveDraftOwner } from '@/lib/auth/sensitive-drafts'
 import { sha256Hex } from '@/lib/files/proof-file-hash'
-import { pathwaysClient } from '@/lib/services/pathways-client'
 import type {
   Activity,
   ActivityProofFileDeclaration,
@@ -202,7 +202,7 @@ const ScopedActivityProofDialog = ({
     finishing.current = false
     uploadedKeys.current = new Set()
     let cancelled = false
-    pathwaysClient
+    activitiesClient
       .getActivityProofUploadLimits(activity.projectId)
       .then((value) => {
         if (!cancelled && scope.isCurrent()) setLimits(value)
@@ -285,7 +285,7 @@ const ScopedActivityProofDialog = ({
     committed.current = true
     try {
       const record =
-        committedActivity ?? (await pathwaysClient.getActivity(activity.projectId, activity.id))
+        committedActivity ?? (await activitiesClient.getActivity(activity.projectId, activity.id))
       if (!scope.isCurrent()) return
       toast.success('Progress update submitted.', {
         description: `${files.length} proof file${files.length === 1 ? '' : 's'} submitted for review.`,
@@ -311,7 +311,7 @@ const ScopedActivityProofDialog = ({
     if (item.uploadUrl && !uploadedKeys.current.has(item.key)) {
       setFileState(item.key, { status: 'uploading', error: undefined })
       try {
-        await pathwaysClient.uploadActivityProofFile(item.uploadUrl, item.file)
+        await activitiesClient.uploadActivityProofFile(item.uploadUrl, item.file)
         uploadedKeys.current.add(item.key)
       } catch (caught) {
         if (!scope.isCurrent()) return false
@@ -327,7 +327,7 @@ const ScopedActivityProofDialog = ({
     }
     if (!scope.isCurrent()) return false
     try {
-      const result = await pathwaysClient.finalizeActivityProofFile(
+      const result = await activitiesClient.finalizeActivityProofFile(
         activity.projectId,
         activity.id,
         reservation.current.updateId,
@@ -423,7 +423,7 @@ const ScopedActivityProofDialog = ({
         files.forEach((item, index) => {
           setFileState(item.key, { sha256: declarations[index].sha256 })
         })
-        const reserved = await pathwaysClient.reserveActivityProofUpload({
+        const reserved = await activitiesClient.reserveActivityProofUpload({
           projectId: activity.projectId,
           activityId: activity.id,
           clientUpdateId,

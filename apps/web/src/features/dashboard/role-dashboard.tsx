@@ -38,6 +38,7 @@ import {
   DASHBOARD_PINS_UI_ENABLED,
 } from '@/constants/feature-flags'
 import { useCurrentRole } from '@/hooks/use-current-role'
+import { activitiesClient } from '@/lib/api/activities'
 import { projectsClient } from '@/lib/api/projects'
 import { can } from '@/lib/rbac/can'
 import { principalHasAtomicPermission } from '@/lib/rbac/policy'
@@ -157,7 +158,7 @@ const DashboardActivityReviewPanel = ({
     setStatus('loading')
 
     Promise.all([
-      pathwaysClient.getActivity(target.projectId, target.activityId),
+      activitiesClient.getActivity(target.projectId, target.activityId),
       pathwaysClient.getIndicators(target.projectId),
     ])
       .then(([activityRecord, indicatorRecords]) => {

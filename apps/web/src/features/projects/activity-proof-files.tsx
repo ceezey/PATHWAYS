@@ -3,8 +3,8 @@ import { Download, FileText } from 'lucide-react'
 import { useState } from 'react'
 
 import { ProofPreviewDialog } from '@/components/pathways'
+import { activitiesClient } from '@/lib/api/activities'
 import { saveCoreArtifact } from '@/lib/services/core-feature-client'
-import { pathwaysClient } from '@/lib/services/pathways-client'
 import type { ActivityProof } from '@/types/pathways'
 
 import { ProofStatusBadge } from './activity-detail-sections'
@@ -91,7 +91,7 @@ export function ActivityProofFiles({
       {openable ? (
         <ProofPreviewDialog
           load={async () => ({
-            blob: await pathwaysClient.downloadActivityProof(
+            blob: await activitiesClient.downloadActivityProof(
               projectId ?? '',
               activityId ?? '',
               opened?.id ?? '',

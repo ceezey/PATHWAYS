@@ -15,7 +15,6 @@ vi.mock('@/lib/api/core/request', async (importOriginal) => ({
 }))
 
 import { PathwaysClientError } from '@/lib/api/core/request'
-import { pathwaysClient } from '@/lib/services/pathways-client'
 import { sourceMutationTickets } from '@/lib/services/source-mutation'
 import { activitiesClient } from './activities'
 
@@ -61,13 +60,9 @@ const acknowledge = (replayed: boolean) => async (_path: string, init: RequestIn
   return replayed ? receipt : { ...detail, sourceAcknowledgement: receipt }
 }
 
-// The same cases run against the PathwaysClient methods until Task 2 removes them.
-const clients: Array<[string, typeof activitiesClient]> = [
-  ['pathwaysClient', pathwaysClient],
-  ['activitiesClient', activitiesClient],
-]
+const client = activitiesClient
 
-describe.each(clients)('%s activity requests', (_name, client) => {
+describe('activitiesClient activity requests', () => {
   beforeEach(() => {
     sourceMutationTickets.clear()
     request.requestFoundation.mockReset()

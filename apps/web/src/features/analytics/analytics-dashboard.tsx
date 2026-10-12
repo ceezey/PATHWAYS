@@ -42,6 +42,7 @@ import { metricUnavailableLabel, overviewMetricLabel } from '@/features/projects
 import { useAuthorizedRead } from '@/hooks/use-authorized-read'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'
+import { activitiesClient } from '@/lib/api/activities'
 import { projectsClient } from '@/lib/api/projects'
 import { addPin } from '@/lib/dashboard-pins'
 import { formatCalendarDay } from '@/lib/format/date'
@@ -363,7 +364,7 @@ export const AnalyticsDashboard = () => {
     setMonitoringError('')
     Promise.all([
       canReadActivities
-        ? pathwaysClient.getActivities(projectId)
+        ? activitiesClient.getActivities(projectId)
         : Promise.resolve<ActivitySummary[]>([]),
       canReadIndicatorDefinitions
         ? pathwaysClient.getProjectIndicators(projectId)

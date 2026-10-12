@@ -37,8 +37,8 @@ vi.mock('@/hooks/use-current-role', () => ({
     profile: state.profile,
   }),
 }))
-vi.mock('@/lib/services/pathways-client', () => ({
-  pathwaysClient: {
+vi.mock('@/lib/api/activities', () => ({
+  activitiesClient: {
     createActivity: state.createActivity,
     updateActivity: vi.fn(),
     transitionActivity: state.transitionActivity,

@@ -13,7 +13,7 @@ vi.mock('@/lib/api/core/request', () => ({
   requestFoundation: vi.fn(),
   requestFoundationResponse: request,
 }))
-import { privateProofClient } from './private-proof-client'
+import { privateProofClient } from './proof-inspection'
 
 const iso = '2026-09-27T00:00:00.000Z'
 const id = '50000000-0000-4000-8000-000000000005'

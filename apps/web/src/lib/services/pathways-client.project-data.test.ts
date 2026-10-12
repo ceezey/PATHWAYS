@@ -9,6 +9,7 @@ vi.mock('@/lib/supabase/client', () => ({
   getBrowserSupabaseClient: () => ({ auth: { getSession: browser.getSession } }),
 }))
 
+import { activitiesClient } from '@/lib/api/activities'
 import { PathwaysClientError, requestFoundationResponse } from '@/lib/api/core/request'
 import { projectsClient } from '@/lib/api/projects'
 import { pathwaysClient } from './pathways-client'
@@ -73,7 +74,7 @@ afterEach(() => vi.unstubAllGlobals())
 describe('project data loading client contract', () => {
   it('parses the lean activity list without requiring or inventing detail-only fields', async () => {
     setup([listItem])
-    const [item] = await pathwaysClient.getActivities(projectId)
+    const [item] = await activitiesClient.getActivities(projectId)
     expect(item).toEqual(listItem)
     for (const key of ['updateNotes', 'submittedProof', 'assignedEmails', 'budgetAllocation'])
       expect(item).not.toHaveProperty(key)
@@ -91,14 +92,14 @@ describe('project data loading client contract', () => {
     { description: undefined },
   ])('rejects a malformed list item %j', async (malformed) => {
     setup([{ ...listItem, ...malformed }])
-    await expect(pathwaysClient.getActivities(projectId)).rejects.toBeInstanceOf(
+    await expect(activitiesClient.getActivities(projectId)).rejects.toBeInstanceOf(
       PathwaysClientError,
     )
   })
 
   it('accepts a list item without a code', async () => {
     setup([{ ...listItem, code: null }])
-    await expect(pathwaysClient.getActivities(projectId)).resolves.toHaveLength(1)
+    await expect(activitiesClient.getActivities(projectId)).resolves.toHaveLength(1)
   })
 
   it('reads one activity by id and forwards cancellation', async () => {
@@ -114,7 +115,7 @@ describe('project data loading client contract', () => {
     })
     const controller = new AbortController()
     await expect(
-      pathwaysClient.getActivity(projectId, listItem.id, controller.signal),
+      activitiesClient.getActivity(projectId, listItem.id, controller.signal),
     ).resolves.toMatchObject({ id: listItem.id, updateNotes: [] })
     expect(fetcher).toHaveBeenCalledWith(
       `http://127.0.0.1:4000/api/projects/${projectId}/activities/${listItem.id}`,
@@ -165,7 +166,7 @@ describe('project data loading client contract', () => {
       updateNotes: [],
       overdueExplanations: [entry],
     })
-    await expect(pathwaysClient.getActivity(projectId, listItem.id)).rejects.toBeInstanceOf(
+    await expect(activitiesClient.getActivity(projectId, listItem.id)).rejects.toBeInstanceOf(
       PathwaysClientError,
     )
   })
@@ -194,7 +195,9 @@ describe('project data loading client contract', () => {
       overdueExplanations: [],
       ...logged,
     })
-    await expect(pathwaysClient.getActivity(projectId, listItem.id)).resolves.toMatchObject(parsed)
+    await expect(activitiesClient.getActivity(projectId, listItem.id)).resolves.toMatchObject(
+      parsed,
+    )
   })
 
   it('treats a legacy fixed 0 without an entry count as withheld, never as ₱0', async () => {
@@ -208,7 +211,7 @@ describe('project data loading client contract', () => {
       updateNotes: [],
       overdueExplanations: [],
     })
-    await expect(pathwaysClient.getActivity(projectId, listItem.id)).resolves.toMatchObject({
+    await expect(activitiesClient.getActivity(projectId, listItem.id)).resolves.toMatchObject({
       budgetLogged: null,
       budgetLoggedEntries: null,
     })
@@ -229,7 +232,7 @@ describe('project data loading client contract', () => {
       overdueExplanations: [],
       ...logged,
     })
-    await expect(pathwaysClient.getActivity(projectId, listItem.id)).rejects.toBeInstanceOf(
+    await expect(activitiesClient.getActivity(projectId, listItem.id)).rejects.toBeInstanceOf(
       PathwaysClientError,
     )
   })
