@@ -18,20 +18,20 @@ Controller rulings for S2b (2026-10-12). Each was checked on an exported copy of
 2. **Two client objects, two schema files, one guard.** `activitiesClient` (16 methods) in `lib/api/activities.ts` and `activityExtensionsClient` (4 methods) in `lib/api/activity-extensions.ts` keep the `PathwaysClient` method names, parameters and results. The hand-written parsers move verbatim into `lib/api/activities.schema.ts` (evidence list, activity detail and list, officers) and `lib/api/activity-proofs.schema.ts` (upload limits, reservation, finalize result); `.schema` is the nearest allowed suffix for runtime shape checks of untrusted JSON (CR 3.5). `isFiniteNonNegative` is shared with the beneficiary media limits read that stays in `pathways-client.ts`, so it moves to `lib/api/core/guards.ts` and both import it. Cost if wrong: a rename of two files.
 3. **Parsers stay and keep the web view-model types; two types become contract types.** The S2 outline asked for the S2a response types "wherever the shapes match exactly". A type-level probe on the dry-run copy found exactly two exact matches: `ActivityCapabilities` equals `ActivityCapabilitiesResponse` and `AssignableProjectOfficer` equals `AssignableOfficerResponse`; they become one-line aliases in `types/pathways.ts` (Task 6), so no importer changes. The other ten differ and are reported, not cast: the web `Activity` carries `budgetAllocation` and `budgetLogged` as numbers where the response has strings, `ActivityProofUploadLimits.contentTypes` and `ActivityProofFileDeclaration.contentType` are `string` where the contract has the content type enum, `ActivityProofReservation` and `ActivityProofFinalizeResult` type the receipt as `unknown` where the contract has `SourceMutationAcknowledgement`, `ActivityProofReservedFile.contentType` is `string` where the response allows null, `EvidenceList` has two more review states and a non-null content type, `ActivityOverdueExplanation.category` is narrower than the response string, and `ActivitySummary` and the context row differ in optional and missing fields. Task 9 records the list. Cost if wrong: a later cleanup replaces a view model; nothing runs differently.
 4. **Wire bodies are checked with `satisfies`, inputs keep their view-model names.** The S2 outline typed inputs as `Omit<CreateActivityRequest, 'clientMutationId'>` plus view fields, but the forms send `startDate` and `dueDate` and the client maps them to `plannedStartDate` and `plannedEndDate`, so those input types cannot be the contract types. Instead each mapped body is annotated `satisfies Omit<XRequest, 'clientMutationId'>` (create, update, transition, review) or `satisfies XRequest` (progress, overdue explanation), which fails `pnpm typecheck` on drift without changing a value, and the three extension methods take `CreateActivityExtensionRequest`, `VerifyActivityExtensionRequest` and `DecideActivityExtensionRequest` directly (their inline literal types were identical). The reservation body stays untyped because the web declaration carries `contentType: string`. Cost if wrong: remove the annotations.
-5. **Characterization before removal: both clients run the same cases.** Task 1 writes `lib/api/activities.test.ts` and `activity-extensions.test.ts` as `describe.each` tables over `pathwaysClient` and the new client (36 and 8 test runs), so the cases are proven against the code being replaced before it goes; Task 2 drops the `pathwaysClient` row. The cases pin paths, encoded ids, abort signals, request bodies (planned date names, `progressPercent`, the optional session count present for `0` and absent for `undefined`), the replay receipt coming back as the receipt, the refusal without a mutation context before any request, the bodyless finalize, and the credential-free signed PUT.
+5. **Characterization before removal: both clients run the same cases.** Task 1 writes `lib/api/activities.test.ts` and `activity-extensions.test.ts` as `describe.each` tables over `pathwaysClient` and the new client (52 and 8 test runs), so the cases are proven against the code being replaced before it goes; Task 2 drops the `pathwaysClient` row. The cases pin paths, encoded ids, abort signals, request bodies (planned date names, `progressPercent`, the optional session count present for `0` and absent for `undefined`), the replay receipt coming back as the receipt, the refusal without a mutation context before any request, the bodyless finalize, and the credential-free signed PUT.
 6. **Mocks are repointed by script, with exact counts, and the old mock stays when it serves other methods.** 42 test files mock `@/lib/services/pathways-client`; 5 factories name an activity method inline and the others pass a shared object. `split-client-mocks.mjs` gives every such factory the matching `vi.mock('@/lib/api/activities', ...)` and `vi.mock('@/lib/api/activity-extensions', ...)` (16 and 2 new mocks in 18 files), splits or renames the inline ones, and leaves a shared-object factory in place because the object also serves other methods. Cost if wrong: a component under test sees `undefined` for a method; the Task 2 scan (`factories 40, naming 0`) and the suite catch it.
 7. **`privateProofClient` moves to `lib/api/proof-inspection.ts`, and four client tests move with their code.** The 99-line client keeps its export name (7 specifiers follow by the move script). `pathways-client.evidence`, `.capabilities`, `.activity-review` and `.local-upload` tests exercise only moved code, so they move to `lib/api/` as `activities.schema.test.ts`, `activities.capabilities.test.ts`, `activities.review.test.ts` and `activity-proofs.schema.test.ts`. `pathways-client.test.ts`, `.c2-c4.test.ts` and `.project-data.test.ts` mix domains and stay.
 8. **Layout.** `features/projects/activities/` holds `components/` (31 files: the activity components and tests, `evidence-panels`, `private-proof-*`), `hooks/` (4 files from the splits), `activities.reads.ts` (Task 6), `activities.utils.ts` (was `activity-utils.ts`), `activity-form.utils.ts` (was `activity-form-validation.ts`), `activity-proof.utils.ts`, `activity-proof-upload.utils.ts` and `activities.copy.ts`. The four activity expense files stay at the feature root for S6b (the S6 note of the executed S2a plan). Existing multi-export files (`activity-detail-sections.tsx`, `evidence-panels.tsx`) move as they are; the one-component-per-file rule is applied to the files the splits create. Cost if wrong: later slices repoint by path.
 9. **No sub-index for `activities/`; the feature index lists the leaf paths.** The S2 outline and the S1b cross-plan ruling had `activities/index.ts` as an internal sub-index that `features/projects/index.ts` re-exports from. Measured on production builds, that shape grows `/dashboard` from 673 to 696 kB (the dashboard imports `ActivityDetailPanel` and `ActivityProofDialog` through the index) while leaf-path export lines move four routes by 1 kB after Task 3 and keep every route within 2 kB of that baseline at the end of the plan, because Next's `optimizePackageImports` follows a barrel one level. So the four activity export lines stay in `features/projects/index.ts` and point at `./activities/components/*`; the surface rule and the optimizer entry are unchanged. S3b and S6b must do the same (cross-plan list in the summary). Cost if wrong: a 23 kB bigger dashboard route.
 10. **Stale `.next` breaks the barrel optimizer after a file move.** After the Task 3 moves, a production build that reuses `apps/web/.next` fails with `Module not found: Can't resolve './activity-detail-panel'` from `features/projects/index.ts` (the optimizer cache holds the old leaf paths). Every production build in this plan runs after `rm -rf apps/web/.next`. Cost if wrong: a misleading build failure.
 11. **Route baselines are re-measured right before the layout task.** Tasks 1 and 2 change 16 routes already (15 shrink by 1 to 3 kB because the activity parsers leave the shared client chunk, one grows by 1 kB), so Task 3 Step 1 builds a new baseline `routes-pre-layout.txt` and compares against it; Task 0 keeps `routes-baseline.txt` for the record. Pass criteria: Middleware equals `M0`, and no route grows more than 2 kB against `routes-pre-layout.txt`.
-12. **Splits are verbatim except for props, calls and signatures, and are proven line by line.** `same-lines.mjs` (trimmed lines, so indentation changes do not count) must print `lost 0` before Biome formats; the added lines are the signatures, props and hook calls it lists. Sizes after the splits: form dialog 846 to 419 lines (+ fields 387, draft hook 126), proof dialog 773 to 336 (+ upload hook 482, utils 50), detail panel 800 to 155 (+ content 361, history 242, actions 97, proof utils 45), workspace 750 to 490 (+ card 83, status summary 38, expenses hook 123, filters hook 91). The setter props `setReviewTarget`, `setExpenseOpen`, `setExplainDelayOpen`, `setExtensionOpen` and `setProgressOpen` are passed down by name so the moved JSX is unchanged. `ScopedActivityFormDialog`, `ScopedActivityProofDialog`, `OwnedReview` and `OwnedInspection` become `ActivityFormDialogContent`, `ActivityProofDialogContent`, `ActivityProofReviewDialogContent` and `PrivateProofInspectionContent` (CR 3.3). `activity-detail-panel.test.tsx`, which tests the content only, becomes `activity-detail-content.test.tsx`. Cost if wrong: review time.
+12. **Splits are verbatim except for props, calls and signatures, and are proven line by line.** `same-lines.mjs` (trimmed lines, so indentation changes do not count) must print `lost 0` before Biome formats; the added lines are the signatures, props and hook calls it lists. Sizes after the splits: form dialog 846 to 419 lines (+ fields 387, draft hook 126), proof dialog 773 to 336 (+ upload hook 482, utils 50), detail panel 800 to 155 (+ content 361, history 242, actions 97, proof utils 45), workspace 750 to 491 (+ card 83, status summary 38, expenses hook 123, filters hook 91). The setter props `setReviewTarget`, `setExpenseOpen`, `setExplainDelayOpen`, `setExtensionOpen` and `setProgressOpen` are passed down by name so the moved JSX is unchanged. `ScopedActivityFormDialog`, `ScopedActivityProofDialog`, `OwnedReview` and `OwnedInspection` become `ActivityFormDialogContent`, `ActivityProofDialogContent`, `ActivityProofReviewDialogContent` and `PrivateProofInspectionContent` (CR 3.3). `activity-detail-panel.test.tsx`, which tests the content only, becomes `activity-detail-content.test.tsx`. Cost if wrong: review time.
 13. **Reads: three hooks move, finance reads stay.** `activities.reads.ts` takes `useProjectActivitiesRead` and `useActivityDetailRead` (with the `project-activities` and `activity-detail:<id>` keys) out of `projects.reads.ts` and adds `useAssignableOfficersRead` for the officer read of the workspace; `activities.reads.test.ts` pins every resource key, permission, enabled flag and freshness. The S2 outline's `activity-update-review` key is a sensitive-draft owner kind, not a read key, and stays. The `activity-expenses`, `activity-expense-references` and `finance-budgets` reads move verbatim into `use-activity-expenses.ts`; S6b decides whether `finance-budgets` shares a key with the budget module. `getActivities`, `getActivityContext` and `getEvidence` calls in analytics, rules, collection and beneficiaries keep their own keys (their slices own them). Cost if wrong: one cache entry more or less.
 14. **`categoryLabels` moves to `activities.copy.ts`.** It was exported from a dialog and imported by the detail panel; the content test's mock of the dialog drops its copy of the labels and now asserts the real ones. `definitiveRejection` and `nextDay` stay where they are (no finding names them).
 15. **`activityExtensionSchema` becomes `activityExtensionResponse` in `contracts/activities/activity-extension-response.ts`.** Statuses, the `ActivityExtension` type and `activityExtensionStatuses` keep their names; the file's one relative import now reaches `../../monitoring/metric-math`. Users: `lib/api/activity-extensions.ts` (5 mentions) and the api service test (2). A shared test pins the strict shape (the web parses it at runtime). SAD routing needs no edit: `packages/shared/src/contracts/**` already routes to the privacy guardian and the file leaves the `monitoring/**` determinism glob; Task 10 reads the manifest. S7 Task 5 expects this move (its cross-plan ruling 18).
 16. **Dead multipart code is removed, the key options stay.** Production never passes `options.files` (the one `execute` call with options passes `requestId`, `keyField: 'clientMeasurementId'` and `allowLegacy`), so the `files` option, its three bound checks, the `Ticket.files` field and `proofSnapshot` go (`source-mutation.ts` 356 to 315 lines). The multipart test goes and a new test pins what it also covered: the caller request id under the configured key field and the legacy record accepted only when allowed. The first line, the last line and the single `uuid.test(` of the file are unchanged, which S8 Task 0 checks.
 17. **Not done in S2b (recorded in CR section 9):** the activity read keys of analytics, rules board, collection, beneficiary loaders and the review workspace (their slices); the `finance-*` read keys (S6); `definitiveRejection` and `nextDay`; splitting `activity-detail-sections.tsx` and `evidence-panels.tsx` into one component per file; the dialog restyle (F4b found no raw `DialogContent` to replace); `recoverSourceMutation`, which keeps its activity branches in `pathways-client.ts`.
-18. **Spec facts corrected by the baseline:** `pathways-client.ts` is 2395 lines after S1b (not 2596); 49 files mention the 20 methods (25 production), with 87 `pathwaysClient.<method>` calls in 29 files (23 production); there are 42 `pathways-client` mock factories (not 49) and 18 test files need the new mocks; the activity files in `features/projects` are 35 (94 tracked files in the whole folder tree).
+18. **Spec facts corrected by the baseline:** `pathways-client.ts` is 2394 lines (`wc -l`) after S1b (not 2596); 49 files mention the 20 methods (25 production), with 87 `pathwaysClient.<method>` calls in 29 files (23 production); there are 42 `pathways-client` mock factories (not 49) and 18 test files need the new mocks; the activity files in `features/projects` are 35 (94 tracked files in the whole folder tree).
 19. Cross-plan: the names later slices consume are listed under Produces. Later plan lines that must change before those slices run: S3 (outline Task 2: the indicators `index.ts` that the feature index re-exports becomes leaf export lines in `features/projects/index.ts`, ruling 9; Task 0 expected counts: `activity-detail-panel.tsx:3` becomes `activities/components/activity-detail-content.tsx:2` plus `activity-detail-panel.tsx:2`, and `activity-detail-sections.tsx:3` moves to `activities/components/`; Task 4: the web `ProjectIndicator` importers are seven files, not six; Task 1 mock list: `project-activities-rbac` and `project-activities-workspace` tests live in `features/projects/activities/components/`); S4 (outline Task 2: `beneficiary-media-proof.tsx` calls `activitiesClient.uploadActivityProofFile`, a signed upload `PUT` with no activity data, and `getBeneficiaryMediaLimits` needs `isFiniteNonNegative` from `@/lib/api/core/guards`); S6 (Interfaces and outline Task 5: `activity-detail-content.tsx` imports the expense dialogs and `activities/hooks/use-activity-expenses.ts` holds the `finance-budgets` read that sat in the workspace, the budget module imports `../activities/activities.utils` and `../activities/activities.reads`, and `budget/` gets no sub-index); S7 (outline Task 5: the extension schema move is S2b Task 7, not Task 4); S8 (ruling 17: `source-mutation.ts` is edited by S2b Task 8, not Task 5, and the `project-activities-rbac` and `project-activities-workspace` tests are under `features/projects/activities/components/`); `.tmp/handoff/s-plans/cross-plan-review.md` (check 8 and Fix 11: Task 5 becomes Task 8). Cost if wrong: a later Task 0 stops on a missing path or count, or a route grows 23 kB.
 
 ## Interfaces assumed from earlier sub-projects
@@ -81,7 +81,7 @@ Controller rulings for S2b (2026-10-12). Each was checked on an exported copy of
 | `apps/web/src/lib/api/activities.schema.ts`, `activity-proofs.schema.ts` | hand-written response parsers (new, Task 1) |
 | `apps/web/src/lib/api/core/guards.ts` | `isFiniteNonNegative` (new, Task 1) |
 | `apps/web/src/lib/api/proof-inspection.ts` | `privateProofClient` (moved, Task 2) |
-| `apps/web/src/lib/services/pathways-client.ts` | loses the 20 methods and the activity parsers (2395 to 1521 lines, Task 2) |
+| `apps/web/src/lib/services/pathways-client.ts` | loses the 20 methods and the activity parsers (2394 to 1521 lines, Task 2) |
 | `apps/web/src/features/projects/activities/` | components, hooks, reads, utils, copy (Tasks 3 to 6) |
 | `packages/shared/src/contracts/activities/activity-extension-response.ts` | moved from `monitoring/activity-extension.ts` (Task 7) |
 | `apps/web/src/lib/services/source-mutation.ts` | dead multipart option removed (Task 8) |
@@ -137,7 +137,7 @@ git grep -c "activityExtensionSchema" -- apps packages
 git checkout -- apps/web/next-env.d.ts
 ```
 
-Expected: typecheck clean; write down each package's passing counts and the web `Test Files` and `Tests`: config 19, shared 273 (23 files), imports 91, api 2429 with 21 skipped, web 216 files and 1943 tests (`B_web`), sad 53 (`B_sad`); the docs check failure count (6 failures and 1 warning on the dry-run copy); the web build exit code 0, `Middleware` 102 kB (`M0`) . `.tmp/s2b/routes-baseline.txt` is the table Task 10 compares against for the record. The hashes print, in order: `5e92413e33e2e3fa1f0c03bf5c74a0f8a7918227`, `0ae800ce6981ba3b33e92eace0cfc5a2237638bd`, `cd722d05d0b4cc057e5ab88a69657a04a3482c70`, `11fea8419168fd5455604593b320243bc4a283f5`, `e58fe9faa002698e78deeaf4384550249ed03f96`, `6760b711b97baa3f1f71230dd7c7f4628dd6c917`, `202419d09ee7e779e7058e8b8ca171e45b434540`, `bc1d202772b17c55fbc7d61986ccf5dec9cf809c`, `6e1cab4069753062e364f3ef1ab8c05f65874752`, `ce2ad8442794ed752b2543b7974bfb40ce33af3e`, `791d5cf42376ec207c0eb6a308bffe47185dd5e8`, `09299a3a460e333df36651993217c9ec14bace7c`, `2a23f48755ef4866ce8bd21e517ad8640d111f11`; the counts print `2395`, `49`, `42`, `39` (35 activity files and the 4 expense files), `94`, and three `activityExtensionSchema` lines (the api service test `:2`, `pathways-client.ts:5` and the shared file `:2`). If any hash or count differs, stop and report: the anchors, scripts and counts below were taken at `919e6641`.
+Expected: typecheck clean; write down each package's passing counts and the web `Test Files` and `Tests`: config 19, shared 273 (23 files), imports 91, api 2429 with 21 skipped, web 216 files and 1943 tests (`B_web`), sad 53 (`B_sad`); the docs check failure count (6 failures and 1 warning on the dry-run copy); the web build exit code 0, `Middleware` 102 kB (`M0`) . `.tmp/s2b/routes-baseline.txt` is the table Task 10 compares against for the record. The hashes print, in order: `5e92413e33e2e3fa1f0c03bf5c74a0f8a7918227`, `0ae800ce6981ba3b33e92eace0cfc5a2237638bd`, `cd722d05d0b4cc057e5ab88a69657a04a3482c70`, `11fea8419168fd5455604593b320243bc4a283f5`, `e58fe9faa002698e78deeaf4384550249ed03f96`, `6760b711b97baa3f1f71230dd7c7f4628dd6c917`, `202419d09ee7e779e7058e8b8ca171e45b434540`, `bc1d202772b17c55fbc7d61986ccf5dec9cf809c`, `6e1cab4069753062e364f3ef1ab8c05f65874752`, `ce2ad8442794ed752b2543b7974bfb40ce33af3e`, `791d5cf42376ec207c0eb6a308bffe47185dd5e8`, `09299a3a460e333df36651993217c9ec14bace7c`, `2a23f48755ef4866ce8bd21e517ad8640d111f11`; the counts print `2394`, `49`, `42`, `39` (35 activity files and the 4 expense files), `94`, and three `activityExtensionSchema` lines (the api service test `:2`, `pathways-client.ts:5` and the shared file `:2`). If any hash or count differs, stop and report: the anchors, scripts and counts below were taken at `919e6641`.
 
 - [ ] **Step 3: Replace the S2 plan with this one and commit**
 
@@ -595,7 +595,7 @@ Create `apps/web/src/lib/api/activities.test.ts`. It mocks only `requestFoundati
 
 ```ts
 // @vitest-environment jsdom
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const request = vi.hoisted(() => ({
   requestFoundation: vi.fn(),
@@ -669,6 +669,8 @@ describe.each(clients)('%s activity requests', (_name, client) => {
     request.requestFoundation.mockReset()
     request.requestFoundationResponse.mockReset()
   })
+
+  afterEach(() => vi.unstubAllGlobals())
 
   it('reads the context rows with the abort signal and keeps only id, title and stage', async () => {
     const signal = new AbortController().signal
@@ -850,6 +852,64 @@ describe.each(clients)('%s activity requests', (_name, client) => {
     })
   })
 
+  // Every mutation returns a replay receipt as it is and refuses without a context before any request.
+  const mutations: Array<
+    [string, (client: typeof activitiesClient, ctx?: typeof context) => Promise<unknown>]
+  > = [
+    [
+      'createActivity',
+      (client, ctx) =>
+        client.createActivity(
+          {
+            projectId,
+            title: 'New',
+            description: 'Described',
+            startDate: '2026-03-01',
+            dueDate: '2026-04-01',
+            assignedUserIds: [],
+          },
+          ctx,
+        ),
+    ],
+    [
+      'updateActivity',
+      (client, ctx) =>
+        client.updateActivity(
+          {
+            projectId,
+            id: activityId,
+            title: 'Edited',
+            description: 'Described',
+            startDate: '2026-03-01',
+            dueDate: '2026-04-01',
+            assignedUserIds: [],
+            expectedUpdatedAt: detail.updatedAt,
+          },
+          ctx,
+        ),
+    ],
+    [
+      'transitionActivity',
+      (client, ctx) =>
+        client.transitionActivity(projectId, activityId, 'CANCELLED', detail.updatedAt, 'No longer needed', ctx),
+    ],
+    [
+      'reviewActivityUpdate',
+      (client, ctx) =>
+        client.reviewActivityUpdate(projectId, activityId, updateId, 'RETURN', 'Needs a clearer photo', detail.updatedAt, ctx),
+    ],
+  ]
+
+  it.each(mutations)('%s returns a replay receipt as it is', async (_label, call) => {
+    request.requestFoundation.mockImplementation(acknowledge(true))
+    await expect(call(client, context)).resolves.toMatchObject({ committed: true, replayed: true })
+  })
+
+  it.each(mutations)('%s refuses without a context before any request', async (_label, call) => {
+    await expect(call(client)).rejects.toMatchObject({ code: 'unauthorized' })
+    expect(request.requestFoundation).not.toHaveBeenCalled()
+  })
+
   it('records progress under the progressPercent name', async () => {
     request.requestFoundation.mockResolvedValue(detail)
     await client.recordActivityProgress({
@@ -972,7 +1032,6 @@ describe.each(clients)('%s activity requests', (_name, client) => {
     await expect(
       client.uploadActivityProofFile('http://localhost:54321/upload', file),
     ).resolves.toBeUndefined()
-    vi.unstubAllGlobals()
   })
 })
 ```
@@ -1113,7 +1172,7 @@ pnpm --filter @pathways/web exec tsc --noEmit --noUnusedLocals
 pnpm --filter @pathways/web test 2>&1 | grep -E "Test Files|Tests "
 ```
 
-Expected: `typed 6 activity bodies and 3 extension inputs`; typecheck lists only the two lines that exist on dev (`collection-workspace.tsx` `indicators` and `types/pathways.ts` `SadddDashboard`), which proves every web input satisfies its contract; web = `B_web` files + 2 and tests + 44 (218 files, 1987 tests at `919e6641`: 36 runs of the activity cases and 8 of the extension cases, each over both clients).
+Expected: `typed 6 activity bodies and 3 extension inputs`; typecheck lists only the two lines that exist on dev (`collection-workspace.tsx` `indicators` and `types/pathways.ts` `SadddDashboard`), which proves every web input satisfies its contract; web = `B_web` files + 2 and tests + 60 (218 files, 2003 tests at `919e6641`: 52 runs of the activity cases and 8 of the extension cases, each over both clients).
 
 - [ ] **Step 6: Commit**
 
@@ -1613,7 +1672,7 @@ wc -l apps/web/src/lib/services/pathways-client.ts
 pnpm --filter @pathways/web test 2>&1 | grep -E "Test Files|Tests "
 ```
 
-Expected: Biome fixes about 31 files (import order after the rewrite); typecheck lists only the two dev lines; the three scans print `factories 40, naming 0`, `factories 16, naming 0` and `factories 2, naming 0`; the grep prints nothing; `pathways-client.ts` is 1521 lines; web = Task 1 minus the 22 duplicated runs (218 files, 1965 tests).
+Expected: Biome fixes about 31 files (import order after the rewrite); typecheck lists only the two dev lines; the three scans print `factories 40, naming 0`, `factories 16, naming 0` and `factories 2, naming 0`; the grep prints nothing; `pathways-client.ts` is 1521 lines; web = Task 1 minus the 30 duplicated runs (218 files, 1973 tests).
 
 - [ ] **Step 7: Commit**
 
@@ -1793,7 +1852,7 @@ pnpm --filter @pathways/web exec tsc --noEmit --noUnusedLocals
 pnpm --filter @pathways/web test 2>&1 | grep -E "Test Files|Tests "
 ```
 
-Expected: Biome fixes about 7 files (import order after the rewrite); typecheck lists only the two dev lines; web unchanged from Task 2 (218 files, 1965 tests). The import-direction test passes: every file outside the feature still imports it through the index.
+Expected: Biome fixes about 7 files (import order after the rewrite); typecheck lists only the two dev lines; web unchanged from Task 2 (218 files, 1973 tests). The import-direction test passes: every file outside the feature still imports it through the index.
 
 - [ ] **Step 5: Compare the production route bundles**
 
@@ -2308,7 +2367,7 @@ wc -l $D/components/activity-form-dialog.tsx $D/components/activity-form-fields.
 pnpm --filter @pathways/web test 2>&1 | grep -E "Test Files|Tests "
 ```
 
-Expected: typecheck lists only the two dev lines; the sizes are 419, 387, 126, 336, 482 and 50 lines (none above 500); web = Task 3 plus the new test file (219 files, 1969 tests).
+Expected: typecheck lists only the two dev lines; the sizes are 419, 387, 126, 336, 482 and 50 lines (none above 500); web = Task 3 plus the new test file (219 files, 1977 tests).
 
 - [ ] **Step 5: Commit**
 
@@ -2328,7 +2387,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 - Create (gitignored): `.tmp/s2b/split-detail-panel.mjs`, `split-workspace.mjs`
 - Create: `activities/components/activity-detail-content.tsx`, `activity-history.tsx`, `activity-detail-actions.tsx`, `activity-card.tsx`, `activity-status-summary.tsx`; `activities/activity-proof.utils.ts`; `activities/hooks/use-activity-expenses.ts`, `use-activity-filters.ts`
 - Test: `activities/components/project-activities-workspace.expenses.test.tsx`
-- Modify: `activities/components/activity-detail-panel.tsx` (800 to 155 lines), `project-activities-workspace.tsx` (750 to 490 lines)
+- Modify: `activities/components/activity-detail-panel.tsx` (800 to 155 lines), `project-activities-workspace.tsx` (750 to 491 lines)
 - Move: `activities/components/activity-detail-panel.test.tsx` to `activity-detail-content.test.tsx`
 
 (`activities/` below is `apps/web/src/features/projects/activities/`.)
@@ -2393,7 +2452,9 @@ const access = vi.hoisted(() => ({
   },
 }))
 
-vi.mock('@/lib/services/pathways-client', () => ({ pathwaysClient: api }))
+vi.mock('@/lib/services/pathways-client', () => ({
+  pathwaysClient: { getProjectIndicators: api.getProjectIndicators, getJourneyStages: api.getJourneyStages },
+}))
 vi.mock('@/lib/api/activities', () => ({ activitiesClient: api }))
 vi.mock('@/lib/api/projects', () => ({ projectsClient: api }))
 vi.mock('@/lib/services/core-feature-client', () => ({ coreDataClient: core }))
@@ -3044,7 +3105,7 @@ wc -l $D/components/activity-detail-content.tsx $D/components/activity-detail-pa
 pnpm --filter @pathways/web test 2>&1 | grep -E "Test Files|Tests "
 ```
 
-Expected: typecheck lists only the two dev lines; the sizes are 361, 155, 242, 97, 45, 490, 83, 38, 123 and 91 lines (none above 500); web = Task 4 plus the new test file (220 files, 1972 tests).
+Expected: typecheck lists only the two dev lines; the sizes are 361, 155, 242, 97, 45, 491, 83, 38, 123 and 91 lines (none above 500); web = Task 4 plus the new test file (220 files, 1980 tests).
 
 - [ ] **Step 5: Commit**
 
@@ -3155,7 +3216,7 @@ describe('activity authorized reads', () => {
 ```
 
 Run: `pnpm --filter @pathways/web exec vitest run src/features/projects/activities/activities.reads.test.ts`
-Expected: FAIL with `Failed to resolve import "./activities.reads"`.
+Expected: FAIL with `Cannot find module './activities.reads'`.
 
 - [ ] **Step 2: Create the scripts**
 
@@ -3373,7 +3434,7 @@ git grep -n "project-activities'\|activity-detail:" -- apps/web/src
 pnpm --filter @pathways/web test 2>&1 | grep -E "Test Files|Tests "
 ```
 
-Expected: `written: activities.reads.ts; edited projects.reads.ts, the workspace and use-budget-module.ts`; the first trim removes `activitiesClient` from `projects.reads.ts` and `useAuthorizedRead, activitiesClient` from the workspace; `written: activities.copy.ts; edited the dialog, the history, the content test and types/pathways.ts`; the second trim removes nothing; typecheck lists only the two dev lines (line numbers may move); the grep prints `activities.reads.ts` (the two keys now live there once), its test, and one policy example in `providers/authorized-query-cache.test.tsx`; web = Task 5 plus the reads test file (221 files, 1975 tests). In `types/pathways.ts` the two interfaces are now one-line aliases, so the `ActivityCapabilities` and `AssignableProjectOfficer` importers (the parsers, the form, the fields and the tests) are untouched.
+Expected: `written: activities.reads.ts; edited projects.reads.ts, the workspace and use-budget-module.ts`; the first trim removes `activitiesClient` from `projects.reads.ts` and `useAuthorizedRead, activitiesClient` from the workspace; `written: activities.copy.ts; edited the dialog, the history, the content test and types/pathways.ts`; the second trim removes nothing; typecheck lists only the two dev lines (line numbers may move); the grep prints only `providers/authorized-query-cache.test.tsx` (the new `activities.reads.ts` and its test are untracked until the commit, and `projects.reads.ts` no longer holds either key); web = Task 5 plus the reads test file (221 files, 1983 tests). In `types/pathways.ts` the two interfaces are now one-line aliases, so the `ActivityCapabilities` and `AssignableProjectOfficer` importers (the parsers, the form, the fields and the tests) are untouched.
 
 - [ ] **Step 4: Commit**
 
@@ -3543,7 +3604,7 @@ pnpm --filter @pathways/api exec vitest run src/modules/activity-extensions 2>&1
 pnpm --filter @pathways/web test 2>&1 | grep -E "Test Files|Tests "
 ```
 
-Expected: shared = `B_shared` + 1 file and 8 tests (24 files, 281 tests); `dist ok` (the shared build does not delete old output, so a stale `dist/monitoring/activity-extension.js` may remain locally; it is not tracked); typecheck clean for all packages; the four extension test files in the api run 3 files passed and 1 skipped (23 tests passed, 1 skipped; the skipped file is the local-database one); web unchanged (221 files, 1975 tests).
+Expected: shared = `B_shared` + 1 file and 8 tests (24 files, 281 tests); `dist ok` (the shared build does not delete old output, so a stale `dist/monitoring/activity-extension.js` may remain locally; it is not tracked); typecheck clean for all packages; the four extension test files in the api run 3 files passed and 1 skipped (23 tests passed, 1 skipped; the skipped file is the local-database one); web unchanged (221 files, 1983 tests).
 
 - [ ] **Step 4: Commit**
 
@@ -3662,7 +3723,7 @@ pnpm --filter @pathways/web exec tsc --noEmit --noUnusedLocals
 pnpm --filter @pathways/web test 2>&1 | grep -E "Test Files|Tests "
 ```
 
-Expected: `removed the files option, file bounds and proofSnapshot; replaced the multipart test`; 315 lines; the first and last lines are identical before and after (`import { subscribeSensitiveDraftInvalidation } from '@/lib/auth/sensitive-drafts'` and `  sourceInvalidationSubscribed = true` then `}`); `uuid.test(` count `1`; the `files` grep prints nothing; the file's tests are 20 passed (one removed, one added); typecheck lists only the two dev lines; web unchanged (221 files, 1975 tests).
+Expected: `removed the files option, file bounds and proofSnapshot; replaced the multipart test`; 315 lines; the first and last lines are identical before and after (`import { subscribeSensitiveDraftInvalidation } from '@/lib/auth/sensitive-drafts'` and `  sourceInvalidationSubscribed = true` then `}`); `uuid.test(` count `1`; the `files` grep prints nothing; the file's tests are 20 passed (one removed, one added); typecheck lists only the two dev lines; web unchanged (221 files, 1983 tests).
 
 - [ ] **Step 3: Commit**
 
@@ -3680,7 +3741,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 **Files:**
 - Create (gitignored): `.tmp/s2b/doc-paths.mjs`
-- Modify: living docs that name moved files (`docs/qad-pathways.md`, `docs/dsd-pathways.md`, `docs/deferred-features.md`), `docs/cr-pathways-codebase-modularization.md` (sections 3.3 and 9), `docs/audit-pathways-codebase-modularity-20261009.md` (MOD-05, MOD-06, MOD-15, MOD-16, MOD-17 rows), `docs/index.md` (CR row status), `docs/activity-log.md`
+- Modify: living docs that name moved files (`docs/qad-pathways.md`, `docs/dsd-pathways.md`, `DESIGN.md`, `docs/deferred-features.md`), `docs/cr-pathways-codebase-modularization.md` (sections 3.3 and 9), `docs/audit-pathways-codebase-modularity-20261009.md` (MOD-05, MOD-06, MOD-15, MOD-16, MOD-17 rows), `docs/index.md` (CR row status), `docs/activity-log.md`
 
 No SAD routing change is needed (rulings 2 and 15): the manifest of Task 10 shows the roles the changed paths already route to.
 
@@ -3719,11 +3780,11 @@ console.log(`total: ${total}`)
 ```
 
 ```bash
-git grep -nE "(features/projects|lib/services)/[A-Za-z0-9._/-]*(activity-[a-z-]+|evidence-panels|private-proof-[a-z]+|project-activities-[a-z]+|pathways-client\.(evidence|capabilities|activity-review|local-upload))" -- docs ':!docs/activity-log.md' ':!docs/superpowers' ':!docs/audit-*' ':!docs/cr-*'
-node .tmp/s2b/doc-paths.mjs .tmp/s2b/activity-map.json .tmp/s2b/client-map.json docs/qad-pathways.md docs/dsd-pathways.md
+git grep -nE "features/projects/(activity-|evidence-panels|private-proof-|project-activities-)|lib/services/(private-proof-client|pathways-client\.(evidence|capabilities|activity-review|local-upload))" -- DESIGN.md docs ':!docs/activity-log.md' ':!docs/superpowers' ':!docs/audit-*' ':!docs/cr-*'
+node .tmp/s2b/doc-paths.mjs .tmp/s2b/activity-map.json .tmp/s2b/client-map.json docs/qad-pathways.md docs/dsd-pathways.md DESIGN.md
 ```
 
-Expected: the grep lists the lines of `docs/qad-pathways.md` (79, 80, 82, 187, 198 and 210), `docs/dsd-pathways.md` (1012) and `docs/deferred-features.md` (37); the script prints `docs/qad-pathways.md: 7`, `docs/dsd-pathways.md: 2` and `total: 9`. The change records (`docs/cr-pathways-*.md`) describe past states and keep their paths. If the grep lists another living doc that names a moved file, add it to the command.
+Expected: the grep lists the lines of `docs/qad-pathways.md` (79, 80, 82, 187, 198 and 210), `docs/dsd-pathways.md` (1012), `DESIGN.md` (609) and `docs/deferred-features.md` (37); the script prints `docs/qad-pathways.md: 7`, `docs/dsd-pathways.md: 2`, `DESIGN.md: 1` and `total: 10`. The change records (`docs/cr-pathways-*.md`) describe past states and keep their paths. If the grep lists another living doc that names a moved file, add it to the command.
 
 In `docs/deferred-features.md` row "Unfinished-control UI hidden for demo", replace `Request an extension in \`apps/web/src/features/projects/activity-detail-panel.tsx\`` with `Request an extension in \`apps/web/src/features/projects/activities/components/activity-detail-actions.tsx\``: the button moved with the action bar (the script is not run on this file because it would name the panel).
 
@@ -3739,10 +3800,10 @@ Section 9, append (replace `<date>` with the merge date and the counts with the 
 
 ```markdown
 S2b applied <date> on refactor/s2b-activities-web:
-- Client: `lib/api/activities.ts` holds `activitiesClient` (16 methods) and `lib/api/activity-extensions.ts` `activityExtensionsClient` (4), with the hand-written parsers in `activities.schema.ts` and `activity-proofs.schema.ts`, `isFiniteNonNegative` in `lib/api/core/guards.ts` and `privateProofClient` in `lib/api/proof-inspection.ts`; 23 production files, 6 client tests and 18 mock files follow, four client tests moved beside their code, and `pathways-client.ts` went from 2395 to 1521 lines. The wire bodies are checked against the S2a request contracts with `satisfies`, and the extension methods take the three extension request types.
+- Client: `lib/api/activities.ts` holds `activitiesClient` (16 methods) and `lib/api/activity-extensions.ts` `activityExtensionsClient` (4), with the hand-written parsers in `activities.schema.ts` and `activity-proofs.schema.ts`, `isFiniteNonNegative` in `lib/api/core/guards.ts` and `privateProofClient` in `lib/api/proof-inspection.ts`; 23 production files, 6 client tests and 18 mock files follow, four client tests moved beside their code, and `pathways-client.ts` went from 2394 to 1521 lines. The wire bodies are checked against the S2a request contracts with `satisfies`, and the extension methods take the three extension request types.
 - Types: of twelve probed pairs only `ActivityCapabilities` and `AssignableProjectOfficer` equal a S2a response type and became aliases; the web `Activity` (numeric budgets), the proof limits, declaration, reservation and finalize types (string content types, receipt typed `unknown`), `EvidenceList` (two more review states), `ActivityOverdueExplanation`, `ActivitySummary` and the context row differ from the response schemas and stay view models.
 - Layout: the 35 activity files moved to `features/projects/activities/{components,hooks}` with `activities.{reads,utils,copy}.ts`; the feature index lists the four activity exports by leaf path (a sub-index grew `/dashboard` from 673 to 696 kB); `ScopedActivityFormDialog`, `ScopedActivityProofDialog`, `OwnedReview` and `OwnedInspection` became `*Content` names; the four activity expense files stay for S6.
-- Components: the form dialog went from 846 to 419 lines (fields and draft hook), the proof dialog from 773 to 336 (upload hook and utils), the detail panel from 800 to 155 (content, history, actions, proof utils) and the workspace from 750 to 490 (card, status summary, expenses and filters hooks); every split was proven line by line, and new tests pin the form draft effects and the expense rows before they moved.
+- Components: the form dialog went from 846 to 419 lines (fields and draft hook), the proof dialog from 773 to 336 (upload hook and utils), the detail panel from 800 to 155 (content, history, actions, proof utils) and the workspace from 750 to 491 (card, status summary, expenses and filters hooks); every split was proven line by line, and new tests pin the form draft effects and the expense rows before they moved.
 - Contracts: `activityExtensionSchema` became `activityExtensionResponse` in `contracts/activities/activity-extension-response.ts` with a strict-shape test; the web `categoryLabels` moved to `activities.copy.ts`; `activities.reads.ts` holds the activity list, detail and officers reads with a test that pins their keys, permissions and freshness.
 - Cleanup: the multipart `files` option, its bound checks and `proofSnapshot` left `source-mutation.ts` (356 to 315 lines; F1 deferral).
 - Routes: Middleware stayed at 102 kB; against the Task 3 baseline <routes result>.
@@ -3757,7 +3818,7 @@ Deferred: the activity read keys of analytics, rules board, collection, benefici
 - `docs/index.md`: in the CR row status change `F1 to F4b, S1a, S1b and S2a applied, S2b next` to `F1 to F4b, S1a, S1b, S2a and S2b applied, S3 next`.
 
 ```bash
-git grep -nE "(features/projects|lib/services)/[A-Za-z0-9._/-]*(activity-[a-z-]+|evidence-panels|private-proof-[a-z]+|project-activities-[a-z]+|pathways-client\.(evidence|capabilities|activity-review|local-upload))|activityExtensionSchema" -- docs ':!docs/activity-log.md' ':!docs/superpowers' ':!docs/audit-*' ':!docs/cr-*'
+git grep -nE "features/projects/(activity-|evidence-panels|private-proof-|project-activities-)|lib/services/(private-proof-client|pathways-client\.(evidence|capabilities|activity-review|local-upload))|activityExtensionSchema" -- DESIGN.md docs ':!docs/activity-log.md' ':!docs/superpowers' ':!docs/audit-*' ':!docs/cr-*'
 ```
 
 Expected: prints nothing (no living doc names a moved path or the old schema name).
@@ -3770,7 +3831,7 @@ Add to `docs/activity-log.md`:
 ## <date> Modularization S2b activities web (refactor/s2b-activities-web)
 ```
 
-with one bullet per Task 1 to Task 8: what moved or changed, its commit hash, and the test counts at the end of that task (web files and tests: 218 and 1987, 218 and 1965, 218 and 1965, 219 and 1969, 220 and 1972, 221 and 1975, 221 and 1975, 221 and 1975 at `919e6641`; shared 24 files and 281 tests after Task 7); a bullet with the type probe result (two equal pairs, ten that differ, and why they stay); a bullet with the route measurements (Tasks 1 and 2 shrank 15 routes and grew one, the sub-index result of 696 kB and the leaf-path result, the stale `.next` failure); a bullet saying the S2b decisions are recorded in the change record section 9 because the plan file is removed after merge; and a bullet listing the deferrals above. Task 10 Step 6 appends the gate results.
+with one bullet per Task 1 to Task 8: what moved or changed, its commit hash, and the test counts at the end of that task (web files and tests: 218 and 2003, 218 and 1973, 218 and 1973, 219 and 1977, 220 and 1980, 221 and 1983, 221 and 1983, 221 and 1983 at `919e6641`; shared 24 files and 281 tests after Task 7); a bullet with the type probe result (two equal pairs, ten that differ, and why they stay); a bullet with the route measurements (Tasks 1 and 2 shrank 15 routes and grew one, the sub-index result of 696 kB and the leaf-path result, the stale `.next` failure); a bullet saying the S2b decisions are recorded in the change record section 9 because the plan file is removed after merge; and a bullet listing the deferrals above. Task 10 Step 6 appends the gate results.
 
 - [ ] **Step 5: Check and commit**
 
@@ -3803,7 +3864,7 @@ grep -E "Middleware" .tmp/s2b/routes-gates.txt
 test -f packages/shared/dist/contracts/activities/activity-extension-response.js && test -f packages/shared/dist/contracts/activities/activity-responses.js && echo "dist layout ok"
 ```
 
-Expected: all pass; versus Task 0: config 19, shared = `B_shared` + 1 file and 8 tests (24 files, 281 tests), imports 91, api 2429 passed and 21 skipped (unchanged), web = `B_web` files + 5 and tests + 32 (221 files, 1975 tests at `919e6641`: 44 runs added in Task 1, 22 duplicated runs removed in Task 2, 4 draft, 3 expenses and 3 reads tests added), sad `B_sad`; the build exits 0; against the Task 3 baseline 17 routes differ from `routes-pre-layout.txt` (`routes 72, different 17`) and none grows by more than 2 kB: `/projects/[projectId]/activities`, `/budget`, `/evidence` and `/monitor-evaluate` are 2 kB bigger, `/projects/[projectId]/activities/[activityId]`, `/dashboard` and the five `/collection` routes 1 kB bigger, and six routes (`/analytics`, `/beneficiaries/evaluation-center`, `/projects`, `/projects/[projectId]`, `/transparency`, `/transparency/[projectId]/preview`) 1 to 4 kB smaller; against the Task 0 baseline `routes 72, different 23`; `Middleware` equals `M0`; `dist layout ok`. A route more than 2 kB bigger than in `routes-pre-layout.txt`: stop and report the figures. A build that fails with a `Module not found` for an old activity path ran on a stale cache (ruling 10).
+Expected: all pass; versus Task 0: config 19, shared = `B_shared` + 1 file and 8 tests (24 files, 281 tests), imports 91, api 2429 passed and 21 skipped (unchanged), web = `B_web` files + 5 and tests + 40 (221 files, 1983 tests at `919e6641`: 60 runs added in Task 1, 30 duplicated runs removed in Task 2, 4 draft, 3 expenses and 3 reads tests added), sad `B_sad`; the build exits 0; against the Task 3 baseline 17 routes differ from `routes-pre-layout.txt` (`routes 72, different 17`) and none grows by more than 2 kB; for example `/projects/[projectId]/activities`, `/budget`, `/evidence` and `/monitor-evaluate` are 2 kB bigger, `/projects/[projectId]/activities/[activityId]`, `/dashboard` and the five `/collection` routes 1 kB bigger, and six routes (`/analytics`, `/beneficiaries/evaluation-center`, `/projects`, `/projects/[projectId]`, `/transparency`, `/transparency/[projectId]/preview`) 1 to 4 kB smaller; against the Task 0 baseline `routes 72, different 23`; `Middleware` equals `M0`; `dist layout ok`. A route more than 2 kB bigger than in `routes-pre-layout.txt`: stop and report the figures. A build that fails with a `Module not found` for an old activity path ran on a stale cache (ruling 10).
 
 - [ ] **Step 2: Local DB replay**
 
@@ -3846,7 +3907,7 @@ The barrel optimization exists only in the production build, so repeat items 3 a
 pnpm sad:check --base dev --head HEAD --output .tmp/sad/s2b/manifest.json
 ```
 
-Expected roles at `919e6641`: `design-qa-agent` (145 files), `beneficiary-privacy-guardian` (27 files: the new `lib/api` modules and their tests, the edited `lib/services` files and the new shared contract with its test) and `rule-engine-determinism-checker` (3 files: `rule-editor.tsx` and its test, whose import and mock changed, and the removed `packages/shared/src/monitoring/activity-extension.ts`; the moved file falls under `contracts/**`, which routes to the privacy guardian). Dispatch every role the manifest requires with the section 4.2 handoff packet from `docs/sad-pathways.md`, save their section 4.4 envelopes to `.tmp/sad/s2b/reviews.json`, then:
+Expected roles at `919e6641`: `design-qa-agent` (145 files), `beneficiary-privacy-guardian` (27 files: the new `lib/api` modules and their tests, the edited `lib/services` files and the new shared contract with its test) and `rule-engine-determinism-checker` (3 files: `rule-editor.tsx` and its test, whose import and mock changed, and the removed `packages/shared/src/monitoring/activity-extension.ts`; the moved file falls under `contracts/**`, which routes to the privacy guardian), plus any role the manifest adds. Dispatch every role the manifest requires with the section 4.2 handoff packet from `docs/sad-pathways.md`, save their section 4.4 envelopes to `.tmp/sad/s2b/reviews.json`, then:
 
 ```bash
 pnpm sad:signoff -- --base dev --head HEAD --reviews .tmp/sad/s2b/reviews.json
