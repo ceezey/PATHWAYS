@@ -24,6 +24,7 @@ import { writeAuditLog } from '../../common/audit/write-audit-log'
 import { type ApplicationIdentity, UUID_PATTERN } from '../../common/authz/application-identity'
 import { withAuthorizedOperation } from '../../common/authz/authorized-operation'
 import { projectScope } from '../../common/authz/project-scope'
+import { requireScopedProjectRow } from '../../common/authz/scoped-project'
 import type { Tx } from '../../common/prisma/transaction'
 import { PrismaService } from '../../prisma/prisma.service'
 import { readProjectBudgets, saveProjectBudget } from './project-budget.service'
@@ -191,11 +192,11 @@ export class ProjectsService {
         sourceMutationBody(input),
       )
       if (source.kind === 'REPLAY') return source.acknowledgement
-      const current = await tx.project.findFirst({
-        where: { AND: [projectScope(actor), { id: projectId.toLowerCase() }] },
-        select: { id: true, code: true, updatedAt: true },
+      const current = await requireScopedProjectRow(tx, actor, projectId, {
+        id: true,
+        code: true,
+        updatedAt: true,
       })
-      if (!current) throw new NotFoundException('Project unavailable.')
       const expected = new Date(input.expectedUpdatedAt)
       if (Number.isNaN(expected.valueOf()) || current.updatedAt.valueOf() !== expected.valueOf()) {
         throw new ConflictException('Project changed; reload before saving.')

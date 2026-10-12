@@ -1,6 +1,7 @@
-import { Controller, ForbiddenException, Get, Inject, Param, Req } from '@nestjs/common'
+import { Controller, Get, Inject, Param, Req } from '@nestjs/common'
 
 import type { AuthenticatedRequest } from '../../common/authz/application-identity'
+import { requestIdentity } from '../../common/authz/request-identity'
 import { RequirePermission } from '../../common/decorators/permission.decorator'
 import { ProjectOverviewMetricsService } from './project-overview-metrics.service'
 
@@ -14,7 +15,6 @@ export class ProjectOverviewMetricsController {
   @Get()
   @RequirePermission('projects.read')
   read(@Req() request: AuthenticatedRequest, @Param('projectId') projectId: string) {
-    if (!request.user) throw new ForbiddenException('Application profile is required.')
-    return this.metrics.read(request.user, projectId)
+    return this.metrics.read(requestIdentity(request), projectId)
   }
 }
