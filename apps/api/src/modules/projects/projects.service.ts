@@ -9,6 +9,8 @@ import {
 } from '@nestjs/common'
 import {
   type CanonicalRole,
+  type CreateProjectRequest,
+  type UpdateProjectRequest,
   canAssignRole,
   hasAtomicPermission,
   isCanonicalRole,
@@ -27,7 +29,6 @@ import { type ApplicationIdentity, UUID_PATTERN } from '../../common/authz/appli
 import { withAuthorizedOperation } from '../../common/authz/authorized-operation'
 import { projectScope } from '../../common/authz/project-scope'
 import { PrismaService } from '../../prisma/prisma.service'
-import type { CreateProjectDto, UpdateProjectDto } from './projects.dto'
 
 const projectSelection = {
   id: true,
@@ -127,7 +128,7 @@ function projectBudgetValue(value: string) {
   }
 }
 
-function projectData(input: CreateProjectDto | UpdateProjectDto, code: string) {
+function projectData(input: CreateProjectRequest | UpdateProjectRequest, code: string) {
   if (input.startDate && input.endDate && input.endDate < input.startDate) {
     throw new BadRequestException('End date must not precede start date.')
   }
@@ -264,7 +265,7 @@ export class ProjectsService {
     tx: Prisma.TransactionClient,
     actor: ApplicationIdentity,
     projectId: string,
-    input: CreateProjectDto | UpdateProjectDto,
+    input: CreateProjectRequest | UpdateProjectRequest,
     creating: boolean,
   ) {
     const actorRole = actor.roles[0]
@@ -429,7 +430,7 @@ export class ProjectsService {
   private async generateProjectCode(
     tx: Prisma.TransactionClient,
     organizationId: string,
-    input: CreateProjectDto,
+    input: CreateProjectRequest,
   ) {
     const base = projectCodeBase({
       title: input.title,
@@ -447,7 +448,7 @@ export class ProjectsService {
     )
   }
 
-  create(identity: ApplicationIdentity, input: CreateProjectDto) {
+  create(identity: ApplicationIdentity, input: CreateProjectRequest) {
     return withAuthorizedOperation(this.prisma, identity, 'projects.create', async (tx, actor) => {
       if (actor.roles[0] !== 'PROJECT_MANAGER') {
         throw new ForbiddenException('Project creation is outside your authority.')
@@ -497,7 +498,7 @@ export class ProjectsService {
     })
   }
 
-  update(identity: ApplicationIdentity, projectId: string, input: UpdateProjectDto) {
+  update(identity: ApplicationIdentity, projectId: string, input: UpdateProjectRequest) {
     return withAuthorizedOperation(this.prisma, identity, 'projects.update', async (tx, actor) => {
       if (!UUID_PATTERN.test(projectId)) throw new NotFoundException('Project unavailable.')
       const source = await beginRuleSourceOperation(

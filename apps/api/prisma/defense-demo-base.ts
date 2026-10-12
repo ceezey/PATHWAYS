@@ -1,4 +1,4 @@
-import type { CreateProjectDto } from '../src/modules/projects/projects.dto'
+import type { CreateProjectRequest } from '@pathways/shared'
 import { addDaysIso, demoPrograms } from './local-demo-data'
 import type { DemoContext } from './local-demo-seed'
 
@@ -45,5 +45,5 @@ export async function ensureBaseWorkspace(ctx: DemoContext) {
     endDate: addDaysIso(ctx.today, 331),
     status: 'ONGOING',
     programId: program.id,
-  } as CreateProjectDto)
+  } as CreateProjectRequest)
 }

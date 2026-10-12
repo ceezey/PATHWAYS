@@ -10,11 +10,16 @@ import {
   Post,
   Req,
 } from '@nestjs/common'
+import {
+  type CreateProjectRequest,
+  type UpdateProjectRequest,
+  createProjectRequest,
+  updateProjectRequest,
+} from '@pathways/shared'
 
 import type { AuthenticatedRequest } from '../../common/authz/application-identity'
 import { RequirePermission } from '../../common/decorators/permission.decorator'
-// biome-ignore lint/style/useImportType: Nest validation needs the DTO constructors at runtime.
-import { CreateProjectDto, UpdateProjectDto } from './projects.dto'
+import { ZodPipe } from '../../common/validation/zod-pipe'
 import { ProjectsService } from './projects.service'
 
 function profile(request: AuthenticatedRequest) {
@@ -40,7 +45,10 @@ export class ProjectsController {
 
   @Post()
   @RequirePermission('projects.create')
-  create(@Req() request: AuthenticatedRequest, @Body() body: CreateProjectDto) {
+  create(
+    @Req() request: AuthenticatedRequest,
+    @Body(new ZodPipe(createProjectRequest)) body: CreateProjectRequest,
+  ) {
     return this.projects.create(profile(request), body)
   }
 
@@ -49,7 +57,7 @@ export class ProjectsController {
   update(
     @Req() request: AuthenticatedRequest,
     @Param('projectId') projectId: string,
-    @Body() body: UpdateProjectDto,
+    @Body(new ZodPipe(updateProjectRequest)) body: UpdateProjectRequest,
   ) {
     return this.projects.update(profile(request), projectId, body)
   }

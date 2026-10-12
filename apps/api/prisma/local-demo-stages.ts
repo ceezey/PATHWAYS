@@ -1,4 +1,4 @@
-import type { CreateProjectDto } from '../src/modules/projects/projects.dto'
+import type { CreateProjectRequest } from '@pathways/shared'
 import { stageAutoResolve } from './defense-demo-stage-autoresolve'
 import { stageBackdate } from './defense-demo-stage-backdate'
 import { stageProjectEvaluation } from './defense-demo-stage-evaluation'
@@ -52,7 +52,7 @@ async function stagePrograms(ctx: DemoContext) {
   ctx.programIds.set('EDU-2026', base.id)
 }
 
-function projectDto(ctx: DemoContext, plan: DemoProject): CreateProjectDto {
+function projectDto(ctx: DemoContext, plan: DemoProject): CreateProjectRequest {
   const officers = plan.officers.map((name) => ctx.staff[name].userId)
   return {
     code: plan.code,
@@ -72,7 +72,7 @@ function projectDto(ctx: DemoContext, plan: DemoProject): CreateProjectDto {
     endDate: addDaysIso(ctx.today, plan.endOffset),
     status: plan.status,
     programId: ctx.programIds.get(plan.programCode),
-  } as CreateProjectDto
+  } as CreateProjectRequest
 }
 
 async function stageProjects(ctx: DemoContext) {
