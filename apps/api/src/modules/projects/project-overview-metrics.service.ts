@@ -21,7 +21,7 @@ import { PrismaService } from '../../prisma/prisma.service'
 import { DashboardsService } from '../dashboards/dashboards.service'
 import { suppressSmallCount } from '../dashboards/descriptive-analytics'
 import { IndicatorsService } from '../indicators/indicators.service'
-import { readProjectBudget } from './project-budget'
+import { readProjectBudget } from './project-budget.service'
 
 /** The p06_saddd V1 release accepts only this business calendar. */
 const sadddReleaseTimeZone = 'Asia/Manila'
