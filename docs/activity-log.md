@@ -649,3 +649,4 @@
 - Task 7: SAD beneficiary privacy routing covers `apps/web/src/lib/api/**/*.ts`; sad 52.
 - F4b decisions are recorded in the change record section 9, because the plan file is removed after merge.
 - Deferred: `lib/services/*` rename to `lib/api/<domain>` and duplicated read resource keys (slices); other date and tone helpers and `DashboardSeverity` (S7); the two non-sticky header classes (S5); raw dialogs onto shared dialogs (slices); the three workspace cookie reads (S8).
+- Gates: lint, typecheck and builds pass; tests config 19, shared 186, imports 91, api 2339 (21 skipped), web 1921, sad 52; `Replay-Local.ps1 -MigrationBaseline` 171 PASS, 0 FAIL; demo seed exit 0 on the first run; compiled API boot and health ok; e2e auth-navigation 27/27; e2e main 39 pass with the same 9 failures as dev; web middleware 102 kB; SAD sign-off 162/162 PASS at `e0d8ab4e`. Merged to local dev as `418ebc08`; plan removed.
