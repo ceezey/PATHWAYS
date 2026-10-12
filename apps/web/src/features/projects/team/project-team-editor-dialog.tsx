@@ -37,12 +37,12 @@ import {
   toProjectTeamInput,
   toUpdateProjectInput,
 } from '../project-form.utils'
+import { ProjectTeamSelectors } from './project-team-selectors'
 import {
-  ProjectTeamSelectors,
   type TeamFieldName,
   hiddenTeamFields,
   validateProjectTeamSelections,
-} from './project-team-selectors'
+} from './team-selection.utils'
 
 // Which project-role field a given assignment field maps to, for the
 // canAssignRole check. Program Manager is not a field in this dialog; it is assigned through User Management.

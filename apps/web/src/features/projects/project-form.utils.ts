@@ -3,6 +3,7 @@ import { z } from 'zod'
 import type {
   CreateProjectInput,
   ProjectDetail,
+  ProjectStatus,
   UpdateProjectInput,
   UserRecord,
 } from '@/types/pathways'
@@ -45,6 +46,13 @@ const projectSetupBaseSchema = z.object({
   monitoringOfficer: z.string(),
   projectOfficers: z.string(),
 })
+
+export const projectStatuses: ProjectStatus[] = [
+  'Active',
+  'Needs Attention',
+  'Planned',
+  'Completed',
+]
 
 export const projectSetupSchema = projectSetupBaseSchema.refine(
   (value) => new Date(value.endDate) >= new Date(value.startDate),
