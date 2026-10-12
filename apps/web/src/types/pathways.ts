@@ -1,5 +1,7 @@
 import type { PathwaysRole } from '@/types/pathways-role'
 import type {
+  ActivityCapabilitiesResponse,
+  AssignableOfficerResponse,
   OverdueExplanationCategory,
   SadddDashboard,
   ProjectIndicator as SharedProjectIndicator,
@@ -107,12 +109,7 @@ export type StoredActivityStatus =
  * Server-computed, advisory flags for the calling user. The API re-checks every mutation,
  * so these only decide which controls are shown. A missing flag set means none are shown.
  */
-export interface ActivityCapabilities {
-  canEdit: boolean
-  canRecordProgress: boolean
-  canSubmitProof: boolean
-  canExplainOverdue: boolean
-}
+export type ActivityCapabilities = ActivityCapabilitiesResponse
 
 /** One append-only entry from `activityOverdueExplanations` (cr-pathways-activity-overdue-explanation). */
 export interface ActivityOverdueExplanation {
@@ -132,10 +129,7 @@ export interface RecordOverdueExplanationInput {
 }
 
 /** Minimal projection from `GET /projects/:id/activities/assignable-officers`. */
-export interface AssignableProjectOfficer {
-  userId: string
-  displayName: string
-}
+export type AssignableProjectOfficer = AssignableOfficerResponse
 
 export interface Activity {
   id: string

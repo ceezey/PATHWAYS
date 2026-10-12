@@ -9,14 +9,6 @@ vi.mock('../../activity-expense-dialog', () => ({ ActivityExpenseDialog: () => n
 vi.mock('../../activity-expense-review-dialog', () => ({ ActivityExpenseReviewDialog: () => null }))
 vi.mock('./activity-explain-delay-dialog', () => ({
   ActivityExplainDelayDialog: () => <div>Explain delay dialog</div>,
-  categoryLabels: {
-    WEATHER: 'Weather',
-    SECURITY: 'Security',
-    FUNDING: 'Funding',
-    COMMUNITY: 'Community',
-    LOGISTICS: 'Logistics',
-    OTHER: 'Other',
-  },
 }))
 vi.mock('./activity-proof-files', () => ({ ActivityProofFiles: () => null }))
 vi.mock('./activity-extension-panel', () => ({ ActivityExtensionPanel: () => null }))

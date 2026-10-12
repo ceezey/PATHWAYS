@@ -1,7 +1,6 @@
 'use client'
 
 import { useAuthorizedRead } from '@/hooks/use-authorized-read'
-import { activitiesClient } from '@/lib/api/activities'
 import { projectsClient } from '@/lib/api/projects'
 import { pathwaysClient } from '@/lib/services/pathways-client'
 
@@ -13,11 +12,9 @@ const summary = { freshness: 'summary' } as const
  */
 const projectReadResources = {
   project: 'project',
-  activities: 'project-activities',
   indicators: 'project-indicators',
   journeyStages: 'project-journey-stages',
   overviewMetrics: 'project-overview-metrics',
-  activityDetail: (activityId: string) => `activity-detail:${activityId}`,
 } as const
 
 export const useProjectRead = (projectId: string, enabled = true) =>
@@ -26,16 +23,6 @@ export const useProjectRead = (projectId: string, enabled = true) =>
     projectId,
     'projects.detail.read',
     (signal) => projectsClient.getProject(projectId, signal),
-    enabled,
-    summary,
-  )
-
-export const useProjectActivitiesRead = (projectId: string, enabled = true) =>
-  useAuthorizedRead(
-    projectReadResources.activities,
-    projectId,
-    'activities.read',
-    (signal) => activitiesClient.getActivities(projectId, signal),
     enabled,
     summary,
   )
@@ -69,14 +56,4 @@ export const useProjectOverviewMetricsRead = (projectId: string) =>
     (signal) => projectsClient.getProjectOverviewMetrics(projectId, signal),
     true,
     summary,
-  )
-
-/** Activity detail carries proof and update history, so it always re-verifies. */
-export const useActivityDetailRead = (projectId: string, activityId: string | null) =>
-  useAuthorizedRead(
-    projectReadResources.activityDetail(activityId ?? 'none'),
-    projectId,
-    'activities.read',
-    (signal) => activitiesClient.getActivity(projectId, activityId ?? '', signal),
-    Boolean(activityId),
   )

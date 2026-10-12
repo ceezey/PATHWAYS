@@ -14,9 +14,7 @@ import {
 } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { useAuthorizedRead } from '@/hooks/use-authorized-read'
 import { useCurrentRole } from '@/hooks/use-current-role'
-import { activitiesClient } from '@/lib/api/activities'
 import { PathwaysClientError } from '@/lib/api/core/request'
 import { canAccessProjectForRole } from '@/lib/rbac/data-scope'
 import { principalHasAtomicPermission } from '@/lib/rbac/policy'
@@ -24,12 +22,15 @@ import { isUiActionAvailable } from '@/lib/rbac/ui-action-availability'
 import type { Activity, ActivitySummary } from '@/types/pathways'
 
 import {
-  useActivityDetailRead,
-  useProjectActivitiesRead,
   useProjectIndicatorsRead,
   useProjectJourneyStagesRead,
   useProjectRead,
 } from '../../projects.reads'
+import {
+  useActivityDetailRead,
+  useAssignableOfficersRead,
+  useProjectActivitiesRead,
+} from '../activities.reads'
 import { activitySummary } from '../activities.utils'
 import { useActivityExpenses } from '../hooks/use-activity-expenses'
 import { useActivityFilters } from '../hooks/use-activity-filters'
@@ -125,11 +126,9 @@ export const ProjectActivitiesWorkspace = ({
   const indicatorRead = useProjectIndicatorsRead(projectId, canReadIndicators)
   const journeyStageRead = useProjectJourneyStagesRead(projectId, canReadJourneyStages)
   // Project-scoped assignable officers (userId and displayName only), not GET /users.
-  const officerRead = useAuthorizedRead(
-    'activity-assignable-officers',
+  const officerRead = useAssignableOfficersRead(
     projectId,
     canCreate ? 'activities.create' : 'activities.update',
-    (signal) => activitiesClient.getAssignableProjectOfficers(projectId, signal),
     canReadOfficers && formOpen,
   )
   const indicatorRows = indicatorRead.data ?? []

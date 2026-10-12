@@ -4,9 +4,9 @@ import { StatusBadge } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import type { Activity, ActivityProof } from '@/types/pathways'
 
+import { categoryLabels } from '../activities.copy'
 import { formatDate } from '../activities.utils'
 import { formatProofDate, groupProofsByUpdate, proofTone } from '../activity-proof.utils'
-import { categoryLabels } from './activity-explain-delay-dialog'
 import { ActivityProofFiles } from './activity-proof-files'
 
 export const ActivityHistory = ({

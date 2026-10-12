@@ -20,16 +20,8 @@ import { activitiesClient } from '@/lib/api/activities'
 import type { Activity } from '@/types/pathways'
 import type { OverdueExplanationCategory } from '@pathways/shared'
 
+import { categoryLabels } from '../activities.copy'
 import { definitiveRejection } from './activity-progress-dialog'
-
-export const categoryLabels: Record<OverdueExplanationCategory, string> = {
-  WEATHER: 'Weather',
-  SECURITY: 'Security',
-  FUNDING: 'Funding',
-  COMMUNITY: 'Community',
-  LOGISTICS: 'Logistics',
-  OTHER: 'Other',
-}
 
 const categoryOptions = Object.keys(categoryLabels) as OverdueExplanationCategory[]
 
