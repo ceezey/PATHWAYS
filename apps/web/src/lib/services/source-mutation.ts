@@ -72,7 +72,6 @@ type Ticket = {
   body: string
   createdAt: number
   pending: boolean
-  files?: readonly File[]
   resolution?: 'ABANDONED' | 'COMMITTED'
 }
 function canonical(value: unknown, depth = 0): unknown {
@@ -228,20 +227,6 @@ export class SourceMutationTickets {
       ? { requestId: ticket.id, expired: this.now() - ticket.createdAt >= RECOVERY_AFTER_MS }
       : null
   }
-  proofSnapshot(context: SourceMutationContext, operation: string) {
-    const ticket =
-      context.isCurrent() && this.principalKey === context.principalKey
-        ? this.tickets.get(operation)
-        : undefined
-    return ticket?.files
-      ? {
-          requestId: ticket.id,
-          body: JSON.parse(ticket.body) as { progressPercent: number; note: string },
-          files: [...ticket.files],
-          committed: ticket.resolution === 'COMMITTED',
-        }
-      : null
-  }
   async execute<T>(
     context: SourceMutationContext,
     operation: string,
@@ -252,7 +237,6 @@ export class SourceMutationTickets {
       requestId?: string
       keyField?: 'clientMutationId' | 'clientMeasurementId' | 'clientUpdateId'
       allowLegacy?: boolean
-      files?: readonly File[]
     } = {},
   ): Promise<SourceMutationResult<T>> {
     if (!context.isCurrent() || !context.principalKey)
@@ -273,41 +257,16 @@ export class SourceMutationTickets {
       throw new SourceMutationRecoveryError(
         'The earlier save outcome is unresolved. Retry the unchanged input before changing it.',
       )
-    if (
-      ticket &&
-      (ticket.files?.length !== options.files?.length ||
-        ticket.files?.some((file, index) => file !== options.files?.[index]))
-    )
-      throw new SourceMutationRecoveryError(
-        'The earlier proof outcome is unresolved. Retry its identical files.',
-      )
     if (!ticket) {
       if (this.tickets.size >= MAX_PENDING)
         throw new SourceMutationRecoveryError(
           'Resolve an earlier save before starting another operation.',
-        )
-      if (
-        options.files &&
-        (options.files.length < 1 ||
-          options.files.length > 5 ||
-          options.files.some((file) => file.size > 10 * 1024 * 1024) ||
-          options.files.reduce((sum, file) => sum + file.size, 0) > 25 * 1024 * 1024 ||
-          [...this.tickets.values()].reduce(
-            (sum, entry) => sum + (entry.files?.reduce((size, file) => size + file.size, 0) ?? 0),
-            0,
-          ) +
-            options.files.reduce((sum, file) => sum + file.size, 0) >
-            100 * 1024 * 1024)
-      )
-        throw new SourceMutationRecoveryError(
-          'Resolve an earlier proof or reduce its files before starting another upload.',
         )
       ticket = {
         id: options.requestId ?? this.newId(),
         body: serialized,
         createdAt: this.now(),
         pending: false,
-        ...(options.files ? { files: [...options.files] } : {}),
       }
       if (!uuid.test(ticket.id))
         throw new SourceMutationRecoveryError('A valid request identifier is unavailable.')
