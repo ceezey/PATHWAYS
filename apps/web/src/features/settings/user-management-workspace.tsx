@@ -52,6 +52,7 @@ import {
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'
 import { usePendingCreate } from '@/hooks/use-pending-create'
+import { projectsClient } from '@/lib/api/projects'
 import { createdSince, fingerprintOf } from '@/lib/forms/pending-create'
 import { pathwaysClient } from '@/lib/services/pathways-client'
 import type { ProjectSummary, UserRecord } from '@/types/pathways'
@@ -121,7 +122,7 @@ export const UserManagementWorkspace = ({
     void loadAttempt
     let active = true
     setLoadState('loading')
-    void Promise.all([pathwaysClient.getUsers(), pathwaysClient.getProjects()])
+    void Promise.all([pathwaysClient.getUsers(), projectsClient.getProjects()])
       .then(([nextUsers, nextProjects]) => {
         if (!active) return
         setUsers(nextUsers)

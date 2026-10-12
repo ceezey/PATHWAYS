@@ -22,8 +22,8 @@ import { Input } from '@/components/ui/input'
 import { useAuthorizedRead } from '@/hooks/use-authorized-read'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'
+import { projectsClient } from '@/lib/api/projects'
 import { principalHasAtomicPermission } from '@/lib/rbac/policy'
-import { pathwaysClient } from '@/lib/services/pathways-client'
 import { cn } from '@/lib/utils'
 import type { ProjectStatus, ProjectSummary } from '@/types/pathways'
 import { type MetricCell, businessCalendarDate, timelineProgress } from '@pathways/shared'
@@ -55,7 +55,7 @@ export const ProjectDirectory = () => {
     'projects',
     null,
     'projects.read',
-    (signal) => pathwaysClient.getProjects(signal),
+    (signal) => projectsClient.getProjects(signal),
     true,
     { freshness: 'summary' },
   )

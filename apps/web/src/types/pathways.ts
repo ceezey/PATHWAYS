@@ -3,10 +3,10 @@ import type {
   OverdueExplanationCategory,
   SadddDashboard,
   ProjectIndicator as SharedProjectIndicator,
+  StoredProjectStatus,
 } from '@pathways/shared'
 
 export type ProjectStatus = 'Active' | 'Needs Attention' | 'Planned' | 'Completed'
-export type StoredProjectStatus = 'PLANNED' | 'ONGOING' | 'COMPLETED' | 'ON_HOLD' | 'CANCELLED'
 export type HealthStatus = 'On Track' | 'At Risk' | 'Critical'
 export type ActivityStatus =
   | 'Planned'

@@ -9,10 +9,10 @@ import { Textarea } from '@/components/ui/textarea'
 import { useAuthorizedRead } from '@/hooks/use-authorized-read'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { usePermission } from '@/hooks/use-permission'
+import { projectsClient } from '@/lib/api/projects'
 import { useOperationRequestId } from '@/lib/auth/operation-request-id'
 import { useSensitiveDraftOwner } from '@/lib/auth/sensitive-drafts'
 import { coreFeatureClient } from '@/lib/services/core-feature-client'
-import { pathwaysClient } from '@/lib/services/pathways-client'
 import { Eye, Save, Search, Send, ShieldCheck, Undo2 } from 'lucide-react'
 import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
@@ -34,7 +34,7 @@ export const PublicationQueueWorkspace = ({
   const [busy, setBusy] = useState(false)
   const activeOperation = useRef<{ isCurrent: () => boolean } | null>(null)
   const projects = useAuthorizedRead('publication-projects', null, 'public.preview', (signal) =>
-    pathwaysClient.getProjects(signal),
+    projectsClient.getProjects(signal),
   )
   const currentProjects = !projects.isError && !projects.isPending ? projects.data : undefined
   const selected =

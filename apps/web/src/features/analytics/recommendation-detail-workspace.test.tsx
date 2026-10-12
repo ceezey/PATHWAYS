@@ -36,9 +36,7 @@ vi.mock('@/hooks/use-display-labels', () => ({
 vi.mock('@/components/layout/page-header', () => ({
   PageHeader: ({ title }: { title: string }) => <h1>{title}</h1>,
 }))
-vi.mock('@/lib/services/pathways-client', () => ({
-  pathwaysClient: { getProjects: state.projects },
-}))
+vi.mock('@/lib/api/projects', () => ({ projectsClient: { getProjects: state.projects } }))
 vi.mock('@/lib/api/core/request', () => ({ PathwaysClientError: class extends Error {} }))
 vi.mock('@/lib/services/rules-human-client', () => ({
   rulesHumanClient: {

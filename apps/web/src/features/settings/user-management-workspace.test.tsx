@@ -94,10 +94,12 @@ const updateAuthorizedUser = vi.fn()
 vi.mock('@/lib/services/pathways-client', () => ({
   pathwaysClient: {
     getUsers: (...args: unknown[]) => getUsers(...args),
-    getProjects: (...args: unknown[]) => getProjects(...args),
     authorizeExistingUser: (...args: unknown[]) => authorizeExistingUser(...args),
     updateAuthorizedUser: (...args: unknown[]) => updateAuthorizedUser(...args),
   },
+}))
+vi.mock('@/lib/api/projects', () => ({
+  projectsClient: { getProjects: (...args: unknown[]) => getProjects(...args) },
 }))
 vi.mock('@/lib/api/core/request', () => ({
   PathwaysClientError: class PathwaysClientError extends Error {

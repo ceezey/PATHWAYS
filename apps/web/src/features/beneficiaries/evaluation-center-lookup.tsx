@@ -4,6 +4,7 @@ import { EmptyState, SectionCard, StatusBadge } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useCurrentRole } from '@/hooks/use-current-role'
+import { projectsClient } from '@/lib/api/projects'
 import { pathwaysClient } from '@/lib/services/pathways-client'
 import type { BeneficiaryRecord } from '@/types/pathways'
 import { useState } from 'react'
@@ -19,7 +20,7 @@ export function EvaluationCenterLookup() {
     setSearched(false)
     setError('')
     try {
-      const projects = await pathwaysClient.getProjectsForRole(role)
+      const projects = await projectsClient.getProjectsForRole(role)
       const records = await Promise.all(
         projects.map((project) =>
           pathwaysClient.getBeneficiaryRecordsForRole(role, project.id, { search: code.trim() }),

@@ -16,9 +16,9 @@ import { formatMetricValue } from '@/features/rules-board/rule-board-model'
 import { useAuthorizedRead } from '@/hooks/use-authorized-read'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'
+import { projectsClient } from '@/lib/api/projects'
 import { useSensitiveDraftOwner } from '@/lib/auth/sensitive-drafts'
 import { principalHasAtomicPermission } from '@/lib/rbac/policy'
-import { pathwaysClient } from '@/lib/services/pathways-client'
 import { rulesHumanClient } from '@/lib/services/rules-human-client'
 import type { HumanAlert, HumanNotification } from '@pathways/shared'
 import { ArrowDownWideNarrow } from 'lucide-react'
@@ -69,7 +69,7 @@ export function HumanReviewWorkspace({
   const [showNotifications] = useState(false)
   const [notificationCursor, setNotificationCursor] = useState<string | null>(null)
   const projects = useAuthorizedRead('review-projects', null, 'projects.read', (signal) =>
-    pathwaysClient.getProjects(signal),
+    projectsClient.getProjects(signal),
   )
   const alerts = useAuthorizedRead(
     `alert-queue:${cursor ?? 'first'}`,

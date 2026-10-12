@@ -19,6 +19,7 @@ import {
 } from '@/components/ui/select'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useSafeProjectSelection } from '@/hooks/use-safe-project-selection'
+import { projectsClient } from '@/lib/api/projects'
 import { isUiActionAvailable } from '@/lib/rbac/ui-action-availability'
 import {
   type DuplicateCandidatePair,
@@ -47,7 +48,7 @@ export const DuplicateResolutionWorkspace = () => {
   useEffect(() => {
     if (!role) return
     let active = true
-    pathwaysClient
+    projectsClient
       .getProjectsForRole(role)
       .then((rows) => active && setProjects(rows))
       .catch(() => active && setStatus('failed'))

@@ -8,6 +8,7 @@ import { AsyncState, StatusMessage } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { PathwaysClientError } from '@/lib/api/core/request'
+import { projectsClient } from '@/lib/api/projects'
 import { pathwaysClient } from '@/lib/services/pathways-client'
 import type { BeneficiaryRecord, ProjectSummary } from '@/types/pathways'
 
@@ -37,7 +38,7 @@ export const BeneficiaryFormLoader = ({
     setBeneficiary(undefined)
     setLoadState('loading')
 
-    void pathwaysClient
+    void projectsClient
       .getProjectsForRole(verifiedRole)
       .then(async (nextProjects) => {
         if (!beneficiaryId) return { nextProjects, nextBeneficiary: undefined }

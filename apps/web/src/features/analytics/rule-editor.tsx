@@ -8,6 +8,7 @@ import { UNFINISHED_CONTROLS_UI_ENABLED } from '@/constants/feature-flags'
 import { useAuthorizedRead } from '@/hooks/use-authorized-read'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { PathwaysClientError } from '@/lib/api/core/request'
+import { projectsClient } from '@/lib/api/projects'
 import { type SensitiveDraftOwner, useSensitiveDraftOwner } from '@/lib/auth/sensitive-drafts'
 import { principalHasAtomicPermission } from '@/lib/rbac/policy'
 import { pathwaysClient } from '@/lib/services/pathways-client'
@@ -211,7 +212,7 @@ function OwnedRuleEditor({
   const canReadActivities = principalHasAtomicPermission(profile, 'activities.read')
   const canReadActivityContext = principalHasAtomicPermission(profile, 'activities.context.read')
   const projects = useAuthorizedRead('rules-editor-projects', null, 'projects.read', (signal) =>
-    pathwaysClient.getProjects(signal),
+    projectsClient.getProjects(signal),
   )
   const indicators = useAuthorizedRead(
     'rule-binding-indicators',

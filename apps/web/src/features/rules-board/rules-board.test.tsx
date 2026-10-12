@@ -31,9 +31,7 @@ vi.mock('@/components/layout/page-header', () => ({
     </header>
   ),
 }))
-vi.mock('@/lib/services/pathways-client', () => ({
-  pathwaysClient: { getProjects: state.projects },
-}))
+vi.mock('@/lib/api/projects', () => ({ projectsClient: { getProjects: state.projects } }))
 vi.mock('@/lib/api/core/request', () => ({ PathwaysClientError: class extends Error {} }))
 vi.mock('@/lib/services/rules-human-client', () => ({
   rulesHumanClient: { listRules: state.listRules },

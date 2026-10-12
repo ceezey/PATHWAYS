@@ -34,6 +34,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { usePendingCreate } from '@/hooks/use-pending-create'
 import { PathwaysClientError } from '@/lib/api/core/request'
+import { projectsClient } from '@/lib/api/projects'
 import {
   type SensitiveDraftOwner,
   readSensitiveDraft,
@@ -136,7 +137,7 @@ const ScopedProjectSetupForm = ({
     projectId: projectId ?? null,
     successMessage: 'Project created',
     findCreated: async (fingerprint, startedAt) =>
-      (await pathwaysClient.getProjects()).find(
+      (await projectsClient.getProjects()).find(
         (item) =>
           fingerprintOf(item.title) === fingerprint && createdSince(item.updatedAt, startedAt),
       ),
@@ -154,7 +155,7 @@ const ScopedProjectSetupForm = ({
 
   useEffect(() => {
     if (projectId) {
-      void pathwaysClient
+      void projectsClient
         .getProject(projectId)
         .then((project) => {
           if (!scope.isCurrent()) return
@@ -274,7 +275,7 @@ const ScopedProjectSetupForm = ({
     try {
       const budget = canEditBudget ? {} : { projectBudget: undefined }
       const project = existingProject
-        ? await pathwaysClient.updateProject(
+        ? await projectsClient.updateProject(
             projectId ?? existingProject.id,
             {
               ...toUpdateProjectInput(values, existingProject),
@@ -284,7 +285,7 @@ const ScopedProjectSetupForm = ({
             mutationContext ?? undefined,
           )
         : await pendingCreate.submit(fingerprintOf(values.title), () =>
-            pathwaysClient.createProject({
+            projectsClient.createProject({
               ...toCreateProjectInput(values),
               ...toProjectTeamInput(values, users),
               ...budget,
@@ -296,7 +297,7 @@ const ScopedProjectSetupForm = ({
       toast.success(existingProject ? 'Project profile updated.' : 'Project profile created.')
       if (isSourceReplay(project)) {
         if (!projectId || !mutationContext?.isCurrent()) return
-        await pathwaysClient.getProject(projectId)
+        await projectsClient.getProject(projectId)
         if (!scope.isCurrent() || !mutationContext.isCurrent()) return
         sourceMutationTickets.finishAcknowledgement(mutationContext, project.requestId)
       }

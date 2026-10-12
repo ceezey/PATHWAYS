@@ -56,7 +56,7 @@ vi.mock('@/lib/services/core-feature-client', () => ({
     transitionPublication: (...args: unknown[]) => state.transition(...args),
   },
 }))
-vi.mock('@/lib/services/pathways-client', () => ({ pathwaysClient: { getProjects: vi.fn() } }))
+vi.mock('@/lib/api/projects', () => ({ projectsClient: { getProjects: vi.fn() } }))
 vi.mock('@/hooks/use-authorized-read', () => ({
   useAuthorizedRead: (key: string) => ({
     // Retain the old authorized data while reporting failure to stress the renderer gate.

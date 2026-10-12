@@ -28,6 +28,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'
+import { projectsClient } from '@/lib/api/projects'
 import { useSensitiveDraftOwner } from '@/lib/auth/sensitive-drafts'
 import { formatCappedPercent } from '@/lib/format/percent'
 import { canAccessProjectForRole } from '@/lib/rbac/data-scope'
@@ -179,7 +180,7 @@ const LegacyProjectWorkspace = ({
 
     const load = async () => {
       try {
-        const projectRecord = await pathwaysClient.getProject(projectId)
+        const projectRecord = await projectsClient.getProject(projectId)
         if (!mounted) return
         setProject(projectRecord)
         const requests: Promise<void>[] = []

@@ -8,6 +8,7 @@ import { AsyncState, StatusMessage } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { PathwaysClientError } from '@/lib/api/core/request'
+import { projectsClient } from '@/lib/api/projects'
 import { STEP_UP_COMPLETED_EVENT } from '@/lib/auth/beneficiary-step-up-events'
 import { principalHasAtomicPermission } from '@/lib/rbac/policy'
 import { isUiActionAvailable } from '@/lib/rbac/ui-action-availability'
@@ -82,7 +83,7 @@ export const BeneficiaryDetailLoader = ({
       setState({ status: 'loading' })
 
       try {
-        const projects = await pathwaysClient.getProjectsForRole(verifiedRole)
+        const projects = await projectsClient.getProjectsForRole(verifiedRole)
         let beneficiary: BeneficiaryRecord | undefined
         const candidateProjects = projectId
           ? projects.filter((project) => project.id === projectId)

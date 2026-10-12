@@ -28,6 +28,7 @@ import {
 } from '@/components/ui/table'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'
+import { projectsClient } from '@/lib/api/projects'
 import { type SensitiveDraftOwner, useSensitiveDraftOwner } from '@/lib/auth/sensitive-drafts'
 import { plural } from '@/lib/format/plural'
 import { getVerifiedRouteAccess, principalHasAtomicPermission } from '@/lib/rbac/policy'
@@ -203,7 +204,7 @@ function OwnedImportWorkspace({ scope }: { scope: SensitiveDraftOwner }) {
   // biome-ignore lint/correctness/useExhaustiveDependencies: loadAttempt restarts the project load on Retry.
   useEffect(() => {
     let mounted = true
-    pathwaysClient
+    projectsClient
       .getProjects()
       .then((value) => {
         if (!mounted || !scope.isCurrent()) return

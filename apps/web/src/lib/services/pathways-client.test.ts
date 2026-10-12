@@ -21,6 +21,7 @@ import {
   requestFoundation,
   requestFoundationResponse,
 } from '@/lib/api/core/request'
+import { projectsClient } from '@/lib/api/projects'
 import { pathwaysClient, recoverSourceMutation } from './pathways-client'
 
 describe('PATHWAYS frontend data boundary', () => {
@@ -214,10 +215,10 @@ describe('PATHWAYS frontend data boundary', () => {
     vi.stubGlobal('fetch', fetcher)
     const controller = new AbortController()
     expect(
-      (await pathwaysClient.getProject(projectId, controller.signal)).targetBeneficiaries,
+      (await projectsClient.getProject(projectId, controller.signal)).targetBeneficiaries,
     ).toBeUndefined()
     expect(
-      (await pathwaysClient.getProject(projectId, controller.signal)).targetBeneficiaries,
+      (await projectsClient.getProject(projectId, controller.signal)).targetBeneficiaries,
     ).toBe(0)
     expect(fetcher.mock.calls.every((call) => call[1].signal === controller.signal)).toBe(true)
   })
@@ -346,10 +347,10 @@ describe('PATHWAYS frontend data boundary', () => {
   })
 
   it('requires a verified browser session for implemented foundation reads', async () => {
-    await expect(pathwaysClient.getProject('project-id')).rejects.toMatchObject({
+    await expect(projectsClient.getProject('project-id')).rejects.toMatchObject({
       code: 'unauthorized',
     })
-    await expect(pathwaysClient.getProjects()).rejects.toMatchObject({ code: 'unauthorized' })
+    await expect(projectsClient.getProjects()).rejects.toMatchObject({ code: 'unauthorized' })
     await expect(pathwaysClient.getUsers()).rejects.toMatchObject({ code: 'unauthorized' })
   })
 
@@ -398,7 +399,7 @@ describe('PATHWAYS frontend data boundary', () => {
     )
     vi.stubGlobal('fetch', fetcher)
 
-    const projects = await pathwaysClient.getProjects()
+    const projects = await projectsClient.getProjects()
     // Metrics come only from the overview endpoint; the profile never fabricates zeros.
     for (const project of projects)
       for (const key of [
@@ -503,7 +504,7 @@ describe('PATHWAYS frontend data boundary', () => {
     vi.stubGlobal('fetch', fetcher)
 
     await expect(
-      pathwaysClient.createProject({
+      projectsClient.createProject({
         title: project.title,
         description: project.description,
         objectives: project.objectives,
@@ -523,7 +524,7 @@ describe('PATHWAYS frontend data boundary', () => {
       storedStatus: 'PLANNED',
     })
     await expect(
-      pathwaysClient.updateProject(
+      projectsClient.updateProject(
         projectId,
         {
           code: project.code,
@@ -658,7 +659,7 @@ describe('PATHWAYS frontend data boundary', () => {
       ),
     )
 
-    await expect(pathwaysClient.getProject(projectId)).rejects.toMatchObject({
+    await expect(projectsClient.getProject(projectId)).rejects.toMatchObject({
       code: 'forbidden',
       message: 'A Project Manager cannot remove their own project authority.',
     })
@@ -693,7 +694,7 @@ describe('PATHWAYS frontend data boundary', () => {
       ),
     )
 
-    await expect(pathwaysClient.getProject(projectId)).rejects.toMatchObject({
+    await expect(projectsClient.getProject(projectId)).rejects.toMatchObject({
       code: 'invalid',
       message: 'startDate must be a valid ISO 8601 date string',
     })
@@ -724,7 +725,7 @@ describe('PATHWAYS frontend data boundary', () => {
       ),
     )
 
-    await expect(pathwaysClient.getProject(projectId)).rejects.toMatchObject({
+    await expect(projectsClient.getProject(projectId)).rejects.toMatchObject({
       code: 'network',
       message: 'The requested operation could not be completed.',
     })
@@ -931,7 +932,7 @@ describe('project client retired output omission', () => {
         ),
       ),
     )
-    const read = await pathwaysClient.getProject(projectId)
+    const read = await projectsClient.getProject(projectId)
     expect(read).not.toHaveProperty('targetGoal')
     expect(read.targetBeneficiaries).toBe(45)
   })
@@ -993,7 +994,7 @@ describe('workspace ownership during asynchronous token acquisition', () => {
     })
     const fetcher = vi.fn().mockResolvedValue({ ok: true, json: async () => [] })
     vi.stubGlobal('fetch', fetcher)
-    await expect(pathwaysClient.getProjects()).resolves.toEqual([])
+    await expect(projectsClient.getProjects()).resolves.toEqual([])
     expect(fetcher).toHaveBeenCalledOnce()
     expect(fetcher.mock.calls[0][1].headers.Authorization).toBe('Bearer synthetic-new-token')
     expect(fetcher.mock.calls[0][1].headers['X-Pathways-Organization-Id']).toBe(organizationId)

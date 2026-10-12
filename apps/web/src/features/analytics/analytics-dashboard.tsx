@@ -42,6 +42,7 @@ import { metricUnavailableLabel, overviewMetricLabel } from '@/features/projects
 import { useAuthorizedRead } from '@/hooks/use-authorized-read'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'
+import { projectsClient } from '@/lib/api/projects'
 import { addPin } from '@/lib/dashboard-pins'
 import { formatCalendarDay } from '@/lib/format/date'
 import { formatCappedPercent } from '@/lib/format/percent'
@@ -321,7 +322,7 @@ export const AnalyticsDashboard = () => {
     let active = true
     setProjectsLoading(true)
     setProjectsError('')
-    pathwaysClient
+    projectsClient
       .getProjectsForRole(role)
       .then((records) => {
         if (!active) return
