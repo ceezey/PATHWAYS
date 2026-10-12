@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { isCalendarDate } from './metric-math'
+import { isCalendarDate } from '../../monitoring/metric-math'
 
 export const activityExtensionStatuses = [
   'PENDING',
@@ -16,7 +16,7 @@ const instant = z.string().datetime()
 const note = z.string().max(2000)
 const person = z.object({ id, name: z.string().max(200) }).strict()
 
-export const activityExtensionSchema = z
+export const activityExtensionResponse = z
   .object({
     id,
     projectId: id,
@@ -36,4 +36,4 @@ export const activityExtensionSchema = z
     updatedAt: instant,
   })
   .strict()
-export type ActivityExtension = z.infer<typeof activityExtensionSchema>
+export type ActivityExtension = z.infer<typeof activityExtensionResponse>

@@ -7,7 +7,7 @@ import {
   finishRuleSourceOperation,
 } from '@app/modules/rules/rules-source-operation'
 import type { PrismaService } from '@app/prisma/prisma.service'
-import { activityExtensionSchema, rolePermissions } from '@pathways/shared'
+import { activityExtensionResponse, rolePermissions } from '@pathways/shared'
 import type { Prisma } from '@prisma/client'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ActivityExtensionsService } from './activity-extensions.service'
@@ -173,7 +173,7 @@ describe('ActivityExtensionsService.request', () => {
       activityId,
       requestBody,
     )
-    expect(activityExtensionSchema.parse(result).id).toBe(requestId)
+    expect(activityExtensionResponse.parse(result).id).toBe(requestId)
     expect(tx.activityExtensionRequest.create).not.toHaveBeenCalled()
   })
 

@@ -2,7 +2,7 @@ import {
   type CreateActivityExtensionRequest,
   type DecideActivityExtensionRequest,
   type VerifyActivityExtensionRequest,
-  activityExtensionSchema,
+  activityExtensionResponse,
 } from '@pathways/shared'
 
 import { requestFoundation } from '@/lib/api/core/request'
@@ -12,7 +12,7 @@ const extensionPath = (projectId: string, activityId: string) =>
 
 export const activityExtensionsClient = {
   async listActivityExtensions(projectId: string, activityId: string) {
-    return activityExtensionSchema
+    return activityExtensionResponse
       .array()
       .parse(await requestFoundation(extensionPath(projectId, activityId)))
   },
@@ -22,7 +22,7 @@ export const activityExtensionsClient = {
     activityId: string,
     input: CreateActivityExtensionRequest,
   ) {
-    return activityExtensionSchema.parse(
+    return activityExtensionResponse.parse(
       await requestFoundation(extensionPath(projectId, activityId), {
         method: 'POST',
         body: JSON.stringify(input),
@@ -36,7 +36,7 @@ export const activityExtensionsClient = {
     requestId: string,
     input: VerifyActivityExtensionRequest,
   ) {
-    return activityExtensionSchema.parse(
+    return activityExtensionResponse.parse(
       await requestFoundation(
         `${extensionPath(projectId, activityId)}/${encodeURIComponent(requestId)}/verify`,
         {
@@ -53,7 +53,7 @@ export const activityExtensionsClient = {
     requestId: string,
     input: DecideActivityExtensionRequest,
   ) {
-    return activityExtensionSchema.parse(
+    return activityExtensionResponse.parse(
       await requestFoundation(
         `${extensionPath(projectId, activityId)}/${encodeURIComponent(requestId)}/decide`,
         {
