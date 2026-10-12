@@ -644,7 +644,7 @@
 - Task 4 (ddfe80f9): `PathwaysClientError`, `requestFoundationResponse` and `requestFoundation` moved to `lib/api/core/request.ts` (37 importers, 24 test mocks) and the source ticket subscription moved to `source-mutation.ts`; web 1913.
 - Task 5 (4a5a79d1): `captureRequestOwner` added in `lib/api/core/request-owner.ts` and used at three owner capture sites; web 1919.
 - Task 6 (d99d2410, 0ec26164): `useAuthorizedRead` moved to `hooks/use-authorized-read.ts` (27 importers, 12 test mocks) and the role provider's workspace cookie read and write moved to `lib/auth/workspace-access.ts`; web 1921.
-- Middleware: web Middleware went from 102 kB to 102 kB.
+- Middleware: web Middleware stayed at 102 kB.
 - Dialog check: no raw `DialogContent` renders the same markup as `DialogShell` or `ConfirmationDialog`, so nothing was consolidated.
 - Task 7: SAD beneficiary privacy routing covers `apps/web/src/lib/api/**/*.ts`; sad 52.
 - F4b decisions are recorded in the change record section 9, because the plan file is removed after merge.
