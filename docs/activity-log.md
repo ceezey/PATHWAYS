@@ -635,3 +635,4 @@
 - Middleware stayed at 102 kB at Tasks 1 to 3. Other packages unchanged: config 19, imports 91.
 - F4a decisions are recorded in the change record section 9, because the plan file stays until F4b is planned (it holds the F4b outline).
 - Deferred to F4b: `lib/api/core` with the owned-read helper, `lib/format`, the shared table head and dialog check, thinner providers.
+- Gates: lint, typecheck and builds pass; tests config 19, shared 186, imports 91, api 2339 (21 skipped), web 1899, sad 51; `Replay-Local.ps1 -MigrationBaseline` 171 PASS, 0 FAIL; demo seed exit 0 on the fifth run (earlier runs hit P2028 timeouts under machine load or lost Docker mid-run); e2e auth-navigation 27/27; e2e main 39 pass with the same 9 failures as dev; web middleware 102 kB; SAD sign-off 181/181 PASS at `a101ad7c`. Merged to local dev as `7d866db2`; plan kept for F4b.
