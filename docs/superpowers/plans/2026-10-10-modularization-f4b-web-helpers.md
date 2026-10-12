@@ -24,7 +24,7 @@ Controller rulings for F4b (2026-10-10). Each was checked against `refactor/f4a-
 8. **Specifiers: sibling or alias.** A moved name is imported as `./name` from a sibling and through `@/` otherwise, so the `lib/services` clients that used `'./pathways-client'` import `'@/lib/api/core/request'` (the cross-folder style already used in `lib`).
 9. **Mocks follow the export.** The 23 plain factories move their `PathwaysClientError` and `requestFoundation*` entries into a `vi.mock('@/lib/api/core/request', ...)` placed directly after them: 16 split, and 7 whose every entry moved are renamed. `beneficiary-step-up.test.ts` swaps all three `pathways-client` references in its `importActual` factory. The 3 `await import(...)` destructurings point at the request module. Without this, a component's `instanceof PathwaysClientError` would test the real class against a mocked error and silently take another branch.
 10. **The owned-read helper captures ownership; it covers three sites.** `ownerCookie()` is identical in `core-feature-client.ts` and `rules-human-client.ts`. `captureRequestOwner(signal?)` in `lib/api/core/request-owner.ts` returns the check `owner !== null && owner === ownerCookie() && generation === sensitiveDraftGeneration() && !signal?.aborted`. It replaces the capture in both `read()` functions and in `fetchCoreArtifact` (the outline named only the two reads). The rules read's `!cookie || !current()` becomes `!current()`: the cookie is never an empty string and a null cookie already fails the check. Response handling stays per client (2 MB stream versus `response.json()`, different error text).
-11. **Providers lose their hook and their cookie code.** `useAuthorizedRead`, `authorizedReadPolicy`, `SUMMARY_READ_STALE_MS` and their private types move verbatim to `hooks/use-authorized-read.ts` (no `'use client'`, like the other hooks). The provider exports `AuthorizedQueryContext`, `privateKey` and `isAuthorizationFailure`, which both files use. `current-role-provider.tsx` moves its context cookie read and write into `lib/auth/workspace-access.ts` as `readWorkspaceContextCookie()` and `writeWorkspaceContext(profile)`, keeping its `'; '` split; `pathways-client`'s `readContextCookie` and `request-owner`'s `ownerCookie` split on `';'` and trim, so the three reads stay separate (S8).
+11. **Providers lose their hook and their cookie code.** `useAuthorizedRead`, `authorizedReadPolicy`, `SUMMARY_READ_STALE_MS` and their private types move verbatim to `hooks/use-authorized-read.ts` (no `'use client'`, like `use-current-role` and `use-permission`; all importers are client modules). The provider exports `AuthorizedQueryContext`, `privateKey` and `isAuthorizationFailure`, which both files use. `current-role-provider.tsx` moves its context cookie read and write into `lib/auth/workspace-access.ts` as `readWorkspaceContextCookie()` and `writeWorkspaceContext(profile)`, keeping its `'; '` split; `pathways-client`'s `readContextCookie` and `request-owner`'s `ownerCookie` split on `';'` and trim, so the three reads stay separate (S8).
 12. **SAD routing:** `apps/web/src/lib/api/**/*.ts` routes to beneficiary-privacy-guardian beside `apps/web/src/lib/services/**/*.ts`. A dry run of `sad:check` over the whole F4b diff required all five roles: organization-isolation-checker (`lib/auth`), beneficiary-privacy-guardian, rule-engine-determinism-checker (`rule-editor.tsx`), restraint-guardian (`scripts/sad`) and design-qa-agent.
 13. **Middleware must not grow.** `lib/middleware.ts` imports `lib/auth/workspace-access.ts`, which Task 6 extends. Tasks 0, 6 and 8 run `next build` and compare the `Middleware` line (F4a recorded 102 kB); growth stops the task and is reported.
 
@@ -50,7 +50,7 @@ Controller rulings for F4b (2026-10-10). Each was checked against `refactor/f4a-
 
 1. A test mock that still defines `PathwaysClientError` on `@/lib/services/pathways-client` while the component imports it from `@/lib/api/core/request` makes `instanceof` compare a mocked error with the real class, so a 403 branch silently stops running. Task 4 Step 4 requires `factories 49, naming 0` for `pathways-client` and `factories 24, naming 24` for the request module, from `factories 57, naming 24` before.
 2. Signing out or switching workspace (a sensitive draft invalidation) must still clear pending source mutation tickets once the subscription lives in `source-mutation.ts`, and the first request must still start it. Task 4 Step 1 pins both in `request.test.ts`.
-3. A read with no workspace cookie, a changed cookie, a new draft generation or an aborted signal must still be refused before dispatch, in the core client, the rules client and an artifact download. Task 5 Step 1 adds the missing-cookie and aborted cases to both client tests and pins each condition in `request-owner.test.ts`.
+3. A read with no workspace cookie, a changed cookie, a new draft generation or an aborted signal must still be refused before dispatch, in the core client, the rules client and an artifact download. Task 5 Step 1 adds the missing-cookie case to both client tests and the aborted case to the rules test, and pins each condition in `request-owner.test.ts`.
 4. A timestamp late in the evening west of UTC must show its UTC day; `2026-02-31` must still show `Date unavailable` on beneficiary and activity screens and still roll to `Mar 3, 2026` where a calendar day is formatted; a blank value must show `Date unavailable`. Task 2 Step 1 pins all of them.
 5. A component test that mocks `useAuthorizedRead` must keep receiving the mock after the hook moves; a mock left on the provider path stops applying and the real hook throws `AuthorizedQueryProvider is required.`. Task 6 Step 2 requires `factories 0` on the provider path and `factories 12, naming 12` on the hook path.
 
@@ -263,7 +263,7 @@ Expected: docs check failure count equals the Step 3 baseline.
 
 **Interfaces:**
 - Produces: `@/lib/format/percent` (`roundPercent`, `cappedPercentParts`, `formatCappedPercent`, definitions unchanged); `plural(count: number, word: string): string` from `@/lib/format/plural`; `type StatusTone = 'info' | 'success' | 'warning' | 'danger' | 'neutral'` and `type SignalTone = Exclude<StatusTone, 'neutral'>` from `@/lib/format/tone`.
-- Produces for later tasks: `.tmp/f4b/repoint.mjs` and `.tmp/f4b/edit-declarations.mjs`.
+- Produces for later tasks: `.tmp/f4b/edit-declarations.mjs`.
 
 - [ ] **Step 1: Create the repoint script**
 
@@ -352,6 +352,8 @@ total: 11
 - [ ] **Step 3: Test and commit the move**
 
 ```bash
+git add -N apps/web
+pnpm exec biome check --write $(git diff --name-only --diff-filter=AMR HEAD -- '*.ts' '*.tsx')
 pnpm --filter @pathways/web exec vitest run src/lib/format src/components/pathways src/features/dashboard
 pnpm typecheck && pnpm lint
 git checkout -- apps/web/next-env.d.ts
@@ -806,7 +808,7 @@ The first grep prints nothing; the second prints only `apps/web/src/lib/format/d
 ```bash
 git add -N apps/web
 pnpm exec biome check --write $(git diff --name-only --diff-filter=AMR HEAD -- '*.ts' '*.tsx')
-pnpm --filter @pathways/web exec vitest run src/lib/format src/features/beneficiaries src/features/projects/activity src/features/reports src/features/analytics/analytics-dashboard.test.tsx src/features/projects/budget-module src/features/projects/evidence
+pnpm --filter @pathways/web exec vitest run src/lib/format src/features/beneficiaries src/features/projects/activity src/features/reports src/features/analytics/analytics-dashboard.test.tsx src/features/projects/budget-module
 pnpm typecheck && pnpm lint
 pnpm --filter @pathways/web test 2>&1 | grep -E "Tests +[0-9]+"
 git checkout -- apps/web/next-env.d.ts
@@ -969,7 +971,7 @@ Expected: all pass (dry run: 46 files, 388 tests for the first two paths); web =
 - Test: `apps/web/src/lib/api/core/request.test.ts`
 - Modify: `apps/web/src/lib/services/pathways-client.ts` (moved lines removed, imports replaced), `apps/web/src/lib/services/source-mutation.ts` (subscription appended)
 - Modify (import split, 37 files): listed by the script in Step 4
-- Modify (mock move, 24 files): listed by the script in Step 4, plus `apps/web/src/lib/auth/beneficiary-step-up.test.ts`
+- Modify (mock move, 24 files): the 23 listed by the script in Step 4 plus `apps/web/src/lib/auth/beneficiary-step-up.test.ts` (manual)
 - Modify (dynamic import, 3 files): `apps/web/src/features/collection/direct-entry-ownership.test.tsx`, `apps/web/src/features/projects/project-activities-workspace.test.tsx`, `apps/web/src/providers/authorized-query-cache.test.tsx`
 
 **Interfaces:**
@@ -1465,7 +1467,7 @@ In `apps/web/src/lib/services/core-feature-client.test.ts`, add directly before 
   })
 ```
 
-The cookie-change, invalidation and aborted-signal cases are already pinned by both files.
+The cookie-change and invalidation cases are already pinned by both files; the aborted case already by the core file.
 
 Run: `pnpm --filter @pathways/web exec vitest run src/lib/services/rules-human-client.test.ts src/lib/services/core-feature-client.test.ts`
 Expected: PASS on the current code.
@@ -1718,7 +1720,7 @@ sed -i -e 's/^const AuthorizedQueryContext = /export const AuthorizedQueryContex
 node .tmp/f4b/same-lines.mjs .tmp/f4b/authorized-query-provider.before.tsx $Q apps/web/src/hooks/use-authorized-read.ts
 ```
 
-Expected: the hash is `097c6a1d9eda421559368623648a7bd2b50ffc0f` (Task 0's file with only Task 4's import change, `PathwaysClientError` from `@/lib/api/core/request`); `apps/web/src/providers/authorized-query-provider.tsx: 176 lines`, `apps/web/src/hooks/use-authorized-read.ts: 135 lines`, `same lines: 306` with exit 0. Any other output: stop, the split is not verbatim.
+Expected: the hash is `097c6a1d9eda421559368623648a7bd2b50ffc0f` (Task 0's file with Task 4's import change, `PathwaysClientError` from `@/lib/api/core/request`, sorted by Biome below `use-current-role`); `apps/web/src/providers/authorized-query-provider.tsx: 176 lines`, `apps/web/src/hooks/use-authorized-read.ts: 135 lines`, `same lines: 306` with exit 0. Any other output: stop, the split is not verbatim.
 
 - [ ] **Step 2: Repoint importers and mocks**
 
@@ -1861,7 +1863,7 @@ describe('CurrentRoleProvider workspace context cookie', () => {
 })
 ```
 
-The `theme` cookie sits before the context cookie, so the hint test also pins the `'; '` split.
+The `theme` cookie sits before the context cookie, so the hint test also pins that the split tolerates the space after each `;`.
 
 Run: `pnpm --filter @pathways/web exec vitest run src/providers/current-role-provider.test.tsx`
 Expected: PASS on the current code, 3 tests.
@@ -1871,7 +1873,7 @@ Expected: PASS on the current code, 3 tests.
 In `apps/web/src/lib/auth/workspace-access.ts`, add directly after the `clearWorkspaceContext` declaration (its closing `}` line), with a blank line before:
 
 ```ts
-// The workspace context cookie value, read the way the role provider has always split document.cookie.
+// The workspace context cookie value, found by splitting document.cookie on '; '.
 export const readWorkspaceContextCookie = () =>
   document.cookie
     .split('; ')
@@ -2002,7 +2004,7 @@ F4b applied 2026-10-10 on refactor/f4b-web-helpers:
 - Providers: `useAuthorizedRead`, `authorizedReadPolicy` and `SUMMARY_READ_STALE_MS` moved to `hooks/use-authorized-read.ts` (27 importers, 12 test mocks); the role provider's workspace cookie read and write moved to `lib/auth/workspace-access.ts`.
 - SAD: beneficiary privacy routing covers `apps/web/src/lib/api/**/*.ts`.
 - Middleware: <Task 6 sizes sentence>.
-- Decisions: tone types are shared but no `statusTone` is annotated, because the executive dashboard passes its tone to a signal without neutral (ruling 3); `formatCalendarDay` keeps Intl's rollover and `RangeError` (ruling 4); the shared header is a class string, not a component, because call sites merge it with `cn` and template strings (ruling 5); `pathways-client.ts` re-exports nothing, so every importer and mock moved (rulings 7 and 9); the owned-read helper covers three sites, not two (ruling 10); the three workspace cookie reads stay separate because they split the cookie differently (ruling 11); `DialogShell` and `ConfirmationDialog` are rendered by 17 and 8 files, not 19 and 10 (ruling 2).
+- Decisions: tone types are shared but no `statusTone` is annotated, because the executive dashboard passes its tone to a signal without neutral (ruling 3); `formatCalendarDay` keeps Intl's rollover and `RangeError` (ruling 4); the shared header is a class string, not a component, because call sites merge it with `cn` and template strings (ruling 5); `pathways-client.ts` re-exports nothing, so every importer and mock moved (rulings 7 and 9); the owned-read helper covers three sites, not two (ruling 10); the three workspace cookie reads stay separate because they split the cookie differently (ruling 11); `lib/api/core/request` still imports `lib/services` until the slices rename it (ruling 7); `DialogShell` and `ConfirmationDialog` are rendered by 17 and 8 files, not 19 and 10 (ruling 2).
 
 Deferred: `lib/services/*` renamed to `lib/api/<domain>` and duplicated read resource keys (slices); the other date and tone helpers and `DashboardSeverity` (S7); the two non-sticky header classes (S5); raw dialogs restyled onto shared dialogs (slices, with a design review); the three workspace cookie reads (S8).
 ```
