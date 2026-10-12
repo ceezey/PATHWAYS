@@ -73,7 +73,7 @@ vi.mock('./use-project-reads', () => ({
     isPending: false,
   }),
 }))
-vi.mock('@/providers/authorized-query-provider', () => ({
+vi.mock('@/hooks/use-authorized-read', () => ({
   useAuthorizedRead: () => ({
     data: {
       projectId,

@@ -1,9 +1,10 @@
+import { useAuthorizedRead } from '@/hooks/use-authorized-read'
 import { clearSensitiveDraftStorage } from '@/lib/auth/sensitive-drafts'
 /* @vitest-environment jsdom */
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { AuthorizedQueryProvider, useAuthorizedRead } from './authorized-query-provider'
+import { AuthorizedQueryProvider } from './authorized-query-provider'
 const state = vi.hoisted(() => ({
   profile: {
     id: 'subject-a',

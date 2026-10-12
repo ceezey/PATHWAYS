@@ -5,8 +5,8 @@ import Link from 'next/link'
 
 import { AsyncState, EmptyState } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
+import { useAuthorizedRead } from '@/hooks/use-authorized-read'
 import { coreFeatureClient } from '@/lib/services/core-feature-client'
-import { useAuthorizedRead } from '@/providers/authorized-query-provider'
 
 import { PublicTrackerDetail } from './public-tracker-view'
 

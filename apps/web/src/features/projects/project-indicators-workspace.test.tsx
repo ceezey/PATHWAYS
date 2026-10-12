@@ -44,7 +44,7 @@ vi.mock('@/features/analytics/use-monitoring-read', () => ({
     authorityKey: 'synthetic',
   }),
 }))
-vi.mock('@/providers/authorized-query-provider', () => ({
+vi.mock('@/hooks/use-authorized-read', () => ({
   useAuthorizedRead: (
     resource: string,
     _project: unknown,

@@ -65,7 +65,7 @@ vi.mock('@/features/analytics/use-monitoring-read', () => ({
     authorityKey: 'synthetic',
   }),
 }))
-vi.mock('@/providers/authorized-query-provider', () => ({
+vi.mock('@/hooks/use-authorized-read', () => ({
   useAuthorizedRead: () => ({ data: undefined, isError: false }),
 }))
 vi.mock('@/lib/services/pathways-client', () => ({

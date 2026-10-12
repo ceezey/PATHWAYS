@@ -89,9 +89,7 @@ vi.mock('@/lib/rbac/can', () => ({ can: () => false }))
 vi.mock('@/components/layout/page-header', () => ({
   PageHeader: ({ title }: { title: string }) => <h1>{title}</h1>,
 }))
-vi.mock('@/providers/authorized-query-provider', () => ({
-  useAuthorizedRead: () => alertHook.result,
-}))
+vi.mock('@/hooks/use-authorized-read', () => ({ useAuthorizedRead: () => alertHook.result }))
 vi.mock('@/lib/services/rules-human-client', () => ({ rulesHumanClient: { listAlerts: vi.fn() } }))
 vi.mock('./analytics-charts', () => ({
   ActivityCompletionChart: () => <div>Activity chart</div>,

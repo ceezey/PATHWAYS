@@ -20,6 +20,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { INDICATOR_LIBRARY_UI_ENABLED } from '@/constants/feature-flags'
 import { metricGlossary } from '@/constants/metric-glossary'
 import { useMonitoringRead } from '@/features/analytics/use-monitoring-read'
+import { useAuthorizedRead } from '@/hooks/use-authorized-read'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { usePendingCreate } from '@/hooks/use-pending-create'
 import { useSourceMutationContext } from '@/hooks/use-source-mutation-context'
@@ -34,7 +35,6 @@ import {
   isSourceReplay,
   sourceMutationTickets,
 } from '@/lib/services/source-mutation'
-import { useAuthorizedRead } from '@/providers/authorized-query-provider'
 import type { Activity, DigitalFormDefinition } from '@/types/pathways'
 import {
   type CreateIndicatorDraftInput as CreateIndicatorInput,

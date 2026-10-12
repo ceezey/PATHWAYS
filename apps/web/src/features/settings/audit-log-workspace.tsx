@@ -22,10 +22,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { useAuthorizedRead } from '@/hooks/use-authorized-read'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useSensitiveDraftOwner } from '@/lib/auth/sensitive-drafts'
 import { coreDataClient } from '@/lib/services/core-feature-client'
-import { useAuthorizedRead } from '@/providers/authorized-query-provider'
 
 type AuditEvent = {
   id: string

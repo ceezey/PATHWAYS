@@ -1,7 +1,7 @@
 'use client'
 
+import { useAuthorizedRead } from '@/hooks/use-authorized-read'
 import { pathwaysClient } from '@/lib/services/pathways-client'
-import { useAuthorizedRead } from '@/providers/authorized-query-provider'
 
 const summary = { freshness: 'summary' } as const
 

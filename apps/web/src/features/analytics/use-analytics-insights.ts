@@ -1,8 +1,8 @@
 'use client'
 
+import { useAuthorizedRead } from '@/hooks/use-authorized-read'
 import { permissionChecker, type principalHasAtomicPermission } from '@/lib/rbac/policy'
 import { analyticsInsightsClient } from '@/lib/services/analytics-insights-client'
-import { useAuthorizedRead } from '@/providers/authorized-query-provider'
 
 export interface InsightsSelection {
   projectId: string | null

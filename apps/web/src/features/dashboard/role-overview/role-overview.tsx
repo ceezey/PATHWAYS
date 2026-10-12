@@ -3,10 +3,10 @@
 import { useRouter } from 'next/navigation'
 
 import { AsyncState } from '@/components/pathways'
+import { useAuthorizedRead } from '@/hooks/use-authorized-read'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { principalHasAtomicPermission } from '@/lib/rbac/policy'
 import { pathwaysClient } from '@/lib/services/pathways-client'
-import { useAuthorizedRead } from '@/providers/authorized-query-provider'
 import type { PathwaysRole } from '@/types/pathways-role'
 import { ManagerOverview } from './manager-overview'
 import { MeOverview } from './me-overview'

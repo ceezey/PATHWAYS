@@ -15,11 +15,11 @@ import {
   useParticipationBreakdown,
 } from '@/features/analytics/use-analytics-insights'
 import { overviewMetricLabel } from '@/features/projects/project-utils'
+import { useAuthorizedRead } from '@/hooks/use-authorized-read'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { type DashboardPin, type PinView, readPins, removePin } from '@/lib/dashboard-pins'
 import { principalHasAtomicPermission } from '@/lib/rbac/policy'
 import { pathwaysClient } from '@/lib/services/pathways-client'
-import { useAuthorizedRead } from '@/providers/authorized-query-provider'
 
 const viewLabels: Record<PinView, string> = {
   kpi: 'KPI / indicator performance',

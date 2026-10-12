@@ -18,9 +18,7 @@ vi.mock('@/lib/rbac/policy', () => ({
     profile.permissions.includes(permission),
 }))
 vi.mock('@/lib/services/pathways-client', () => ({ pathwaysClient: {} }))
-vi.mock('@/providers/authorized-query-provider', () => ({
-  useAuthorizedRead: () => insight.result,
-}))
+vi.mock('@/hooks/use-authorized-read', () => ({ useAuthorizedRead: () => insight.result }))
 vi.mock('@/features/analytics/use-analytics-insights', () => ({
   canReadInsight: (profile: { permissions: string[] }, kind: string) =>
     profile.permissions.includes(kind),

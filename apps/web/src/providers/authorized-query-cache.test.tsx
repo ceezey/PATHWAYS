@@ -4,15 +4,15 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
-  AUTHORIZATION_DENIED_EVENT,
-  WRITE_COMMITTED_EVENT,
-} from '@/lib/services/authorized-read-events'
-import {
-  AuthorizedQueryProvider,
   SUMMARY_READ_STALE_MS,
   authorizedReadPolicy,
   useAuthorizedRead,
-} from './authorized-query-provider'
+} from '@/hooks/use-authorized-read'
+import {
+  AUTHORIZATION_DENIED_EVENT,
+  WRITE_COMMITTED_EVENT,
+} from '@/lib/services/authorized-read-events'
+import { AuthorizedQueryProvider } from './authorized-query-provider'
 
 const state = vi.hoisted(() => ({
   profile: {

@@ -5,10 +5,10 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { RuleTreeView, clearRecordBindings } from '@/features/analytics/rule-condition-editor'
+import { useAuthorizedRead } from '@/hooks/use-authorized-read'
 import { usePermission } from '@/hooks/use-permission'
 import { pathwaysClient } from '@/lib/services/pathways-client'
 import { cn } from '@/lib/utils'
-import { useAuthorizedRead } from '@/providers/authorized-query-provider'
 import { type HumanRule, type RuleCondition, operators } from '@pathways/shared'
 import {
   type MetricScope,

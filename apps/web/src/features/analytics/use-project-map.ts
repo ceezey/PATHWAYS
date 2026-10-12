@@ -2,8 +2,8 @@
 
 import { type ProjectMap, projectMapSchema } from '@pathways/shared'
 
+import { useAuthorizedRead } from '@/hooks/use-authorized-read'
 import { requestFoundation } from '@/lib/api/core/request'
-import { useAuthorizedRead } from '@/providers/authorized-query-provider'
 
 import type { SafeMapFeatureCollection } from './analytics-location-utils'
 

@@ -3,8 +3,8 @@
 import { StatusBadge } from '@/components/pathways'
 import { basisLine, statusLabel } from '@/features/rules-board/review-card-list'
 import { severityTone, titleCase } from '@/features/rules-board/rule-board-model'
+import { useAuthorizedRead } from '@/hooks/use-authorized-read'
 import { rulesHumanClient } from '@/lib/services/rules-human-client'
-import { useAuthorizedRead } from '@/providers/authorized-query-provider'
 import Link from 'next/link'
 
 /** Names the alert a recommendation came from, with its severity, status and measured value. */
