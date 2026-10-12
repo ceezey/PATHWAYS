@@ -47,11 +47,13 @@ vi.mock('@app/modules/rules/rules-source-operation', async (importOriginal) => (
   readRuleSourceAcknowledgement: state.ack,
 }))
 
+import { withAuthorizedOperation } from '@app/common/authz/authorized-operation'
 import { PrivateInspectionReadError } from '@app/modules/storage/private-inspection-reader'
 import type { ReserveActivityProofRequest } from '@pathways/shared'
 import { ActivitiesController } from './activities.controller'
-import { ActivitiesService } from './activities.service'
+import { ActivityProofFinalizeService } from './activity-proof-finalize.service'
 import { activityEvidenceType, proofDeclarations } from './activity-proof.helpers'
+import { ActivityProofsService } from './activity-proofs.service'
 import { ActivityUpdatesController } from './activity-updates.controller'
 
 const organizationId = '10000000-0000-4000-8000-000000000001'
@@ -148,7 +150,11 @@ const tx = {
   auditLog: { create: vi.fn() },
 }
 const storage = { createPrivateUploadUrls: vi.fn(), deleteFile: vi.fn() }
-const service = new ActivitiesService(
+const proofsService = new ActivityProofsService(
+  {} as PrismaService,
+  storage as unknown as StorageService,
+)
+const finalizeService = new ActivityProofFinalizeService(
   {} as PrismaService,
   storage as unknown as StorageService,
   privateStorageFactories,
@@ -198,7 +204,7 @@ describe('evidence routes', () => {
   })
 
   it('publishes the effective limits from configuration', () => {
-    expect(service.proofUploadLimits(projectId)).toEqual({
+    expect(proofsService.proofUploadLimits(projectId)).toEqual({
       maxFiles: 10,
       maxFileBytes: 52_428_800,
       maxTotalBytes: 262_144_000,
@@ -209,7 +215,7 @@ describe('evidence routes', () => {
 
 describe('reserve (activities.proof.submit)', () => {
   it('reserves one update and a batched evidence insert typed PHOTO/VIDEO/DOCUMENT per file', async () => {
-    const result = await service.reserveProof(officer, projectId, activityId, reserveInput())
+    const result = await proofsService.reserveProof(officer, projectId, activityId, reserveInput())
     expect(tx.activityUpdate.create).toHaveBeenCalledOnce()
     expect(tx.evidenceMedia.createMany).toHaveBeenCalledOnce()
     const rows = tx.evidenceMedia.createMany.mock.calls[0][0].data as Array<Record<string, unknown>>
@@ -250,7 +256,7 @@ describe('reserve (activities.proof.submit)', () => {
         uploadUrl: index === 0 ? null : `https://storage.invalid/upload/${path}?token=t`,
       })),
     )
-    const result = await service.reserveProof(officer, projectId, activityId, reserveInput())
+    const result = await proofsService.reserveProof(officer, projectId, activityId, reserveInput())
     if (!('files' in result) || !result.files) throw new Error('Expected a reservation')
     expect(result.status).toBe('UPLOADING')
     expect(result.files[0].uploadUrl).toBeNull()
@@ -267,7 +273,7 @@ describe('reserve (activities.proof.submit)', () => {
       sha256: sha(index + 20),
     }))
     await expect(
-      service.reserveProof(officer, projectId, activityId, reserveInput({ files: eleven })),
+      proofsService.reserveProof(officer, projectId, activityId, reserveInput({ files: eleven })),
     ).rejects.toMatchObject({ response: { code: 'PROOF_FILE_COUNT' } })
     expect(tx.project.findFirst).not.toHaveBeenCalled()
   })
@@ -290,7 +296,7 @@ describe('reserve (activities.proof.submit)', () => {
       proofDeclarations([files[0], { ...files[1], sha256: files[0].sha256 }], 50 * MiB),
     ).toThrow(/twice/)
     await expect(
-      service.reserveProof(
+      proofsService.reserveProof(
         officer,
         projectId,
         activityId,
@@ -320,7 +326,7 @@ describe('reserve (activities.proof.submit)', () => {
       status: 'PENDING',
       evidenceMedia_update: [verified, pending],
     })
-    const result = await service.reserveProof(
+    const result = await proofsService.reserveProof(
       officer,
       projectId,
       activityId,
@@ -346,7 +352,7 @@ describe('reserve (activities.proof.submit)', () => {
   })
 
   it('persists an optional beneficiariesReachedThisSession and returns it unchanged', async () => {
-    await service.reserveProof(
+    await proofsService.reserveProof(
       officer,
       projectId,
       activityId,
@@ -360,7 +366,7 @@ describe('reserve (activities.proof.submit)', () => {
   })
 
   it('defaults beneficiariesReachedThisSession to null when omitted', async () => {
-    await service.reserveProof(officer, projectId, activityId, reserveInput())
+    await proofsService.reserveProof(officer, projectId, activityId, reserveInput())
     expect(tx.activityUpdate.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ beneficiariesReachedThisSession: null }),
@@ -390,7 +396,7 @@ describe('reserve (activities.proof.submit)', () => {
       ),
     })
     await expect(
-      service.reserveProof(
+      proofsService.reserveProof(
         officer,
         projectId,
         activityId,
@@ -403,7 +409,7 @@ describe('reserve (activities.proof.submit)', () => {
   it('hides a cross-project reservation attempt carrying a session count before any read', async () => {
     tx.project.findFirst.mockResolvedValue(null)
     await expect(
-      service.reserveProof(
+      proofsService.reserveProof(
         officer,
         '20000000-0000-4000-8000-00000000000f',
         activityId,
@@ -424,7 +430,7 @@ describe('reserve (activities.proof.submit)', () => {
       evidenceMedia_update: [storedRow()],
     })
     await expect(
-      service.reserveProof(officer, projectId, activityId, reserveInput()),
+      proofsService.reserveProof(officer, projectId, activityId, reserveInput()),
     ).rejects.toBeInstanceOf(ConflictException)
     expect(state.ack).not.toHaveBeenCalled()
     expect(storage.createPrivateUploadUrls).not.toHaveBeenCalled()
@@ -436,7 +442,7 @@ describe('reserve (activities.proof.submit)', () => {
   ])('denies %s without proof authority before any read', async (role, permissions) => {
     state.actor = { ...officer, roles: [role], permissions }
     await expect(
-      service.reserveProof(state.actor, projectId, activityId, reserveInput()),
+      proofsService.reserveProof(state.actor, projectId, activityId, reserveInput()),
     ).rejects.toBeInstanceOf(ForbiddenException)
     expect(tx.project.findFirst).not.toHaveBeenCalled()
     expect(storage.createPrivateUploadUrls).not.toHaveBeenCalled()
@@ -445,7 +451,7 @@ describe('reserve (activities.proof.submit)', () => {
   it('denies a non-assigned officer before reading or writing any update', async () => {
     tx.projectActivityAssignment.findFirst.mockResolvedValue(null)
     await expect(
-      service.reserveProof(officer, projectId, activityId, reserveInput()),
+      proofsService.reserveProof(officer, projectId, activityId, reserveInput()),
     ).rejects.toBeInstanceOf(ForbiddenException)
     expect(tx.projectActivityAssignment.findFirst.mock.calls[0][0].where).toMatchObject({
       organizationId,
@@ -460,7 +466,7 @@ describe('reserve (activities.proof.submit)', () => {
   it('hides a cross-project or cross-organization activity before activity retrieval', async () => {
     tx.project.findFirst.mockResolvedValue(null)
     await expect(
-      service.reserveProof(
+      proofsService.reserveProof(
         officer,
         '20000000-0000-4000-8000-00000000000f',
         activityId,
@@ -475,14 +481,14 @@ describe('reserve (activities.proof.submit)', () => {
   it('fails closed without tokens when signing fails', async () => {
     storage.createPrivateUploadUrls.mockRejectedValue(new Error('provider detail'))
     await expect(
-      service.reserveProof(officer, projectId, activityId, reserveInput()),
+      proofsService.reserveProof(officer, projectId, activityId, reserveInput()),
     ).rejects.toBeInstanceOf(ServiceUnavailableException)
   })
 })
 
 describe('per-file finalize', () => {
   const finalize = (id = evidenceId) =>
-    service.finalizeProofFile(officer, projectId, activityId, updateId, id)
+    finalizeService.finalizeProofFile(officer, projectId, activityId, updateId, id)
   const target = (overrides: Record<string, unknown> = {}) => ({
     ...storedRow(overrides),
     activityUpdate: { status: 'PENDING' },
@@ -524,6 +530,18 @@ describe('per-file finalize', () => {
     expect(tx.activityUpdate.findFirst.mock.invocationCallOrder[0]).toBeGreaterThan(
       tx.$queryRaw.mock.invocationCallOrder[lock],
     )
+  })
+
+  it('reads the file, verifies the stored object, then commits in a second operation', async () => {
+    await finalize()
+    const operations = vi.mocked(withAuthorizedOperation).mock.invocationCallOrder
+    const reads = tx.evidenceMedia.findFirst.mock.invocationCallOrder
+    const verified = state.verify.mock.invocationCallOrder[0]
+    expect(operations).toHaveLength(2)
+    expect(reads).toHaveLength(2)
+    expect(reads[0]).toBeLessThan(verified)
+    expect(verified).toBeLessThan(reads[1])
+    expect(state.begin.mock.invocationCallOrder[0]).toBeGreaterThan(verified)
   })
 
   it('verifies the exact server-derived object, marks it ready and commits the last file for review', async () => {
@@ -655,7 +673,7 @@ describe('per-file finalize', () => {
       permissions: ['evidence.read', 'evidence.review'],
     }
     await expect(
-      service.finalizeProofFile(state.actor, projectId, activityId, updateId, evidenceId),
+      finalizeService.finalizeProofFile(state.actor, projectId, activityId, updateId, evidenceId),
     ).rejects.toBeInstanceOf(ForbiddenException)
     expect(tx.project.findFirst).not.toHaveBeenCalled()
     expect(state.verify).not.toHaveBeenCalled()
@@ -669,7 +687,7 @@ describe('per-file finalize', () => {
     await expect(finalize()).rejects.toBeInstanceOf(NotFoundException)
     expect(state.verify).not.toHaveBeenCalled()
     await expect(
-      service.finalizeProofFile(officer, projectId, activityId, updateId, 'not-a-uuid'),
+      finalizeService.finalizeProofFile(officer, projectId, activityId, updateId, 'not-a-uuid'),
     ).rejects.toBeInstanceOf(NotFoundException)
   })
 })

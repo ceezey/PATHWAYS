@@ -3,7 +3,10 @@ import { type SupabaseClient, createClient } from '@supabase/supabase-js'
 
 import type { ApplicationIdentity } from '../src/common/authz/application-identity'
 import { ActivitiesService } from '../src/modules/activities/activities.service'
+import { ActivityLifecycleService } from '../src/modules/activities/activity-lifecycle.service'
 import { ActivityProgressService } from '../src/modules/activities/activity-progress.service'
+import { ActivityProofFinalizeService } from '../src/modules/activities/activity-proof-finalize.service'
+import { ActivityProofsService } from '../src/modules/activities/activity-proofs.service'
 import { ActivityReviewService } from '../src/modules/activities/activity-review.service'
 import { BeneficiariesService } from '../src/modules/beneficiaries/beneficiaries.service'
 import { DashboardsService } from '../src/modules/dashboards/dashboards.service'
@@ -66,6 +69,9 @@ export type DemoContext = {
   services: {
     projects: ProjectsService
     activities: ActivitiesService
+    activityProofFinalize: ActivityProofFinalizeService
+    activityProofs: ActivityProofsService
+    activityLifecycle: ActivityLifecycleService
     activityReview: ActivityReviewService
     activityProgress: ActivityProgressService
     indicators: IndicatorsService
@@ -155,7 +161,14 @@ async function main() {
   const dashboards = new DashboardsService(runtime, indicators)
   const services = {
     projects: new ProjectsService(runtime),
-    activities: new ActivitiesService(runtime, storage, privateStorageFactories),
+    activities: new ActivitiesService(runtime),
+    activityProofFinalize: new ActivityProofFinalizeService(
+      runtime,
+      storage,
+      privateStorageFactories,
+    ),
+    activityProofs: new ActivityProofsService(runtime, storage),
+    activityLifecycle: new ActivityLifecycleService(runtime),
     activityReview: new ActivityReviewService(runtime),
     activityProgress: new ActivityProgressService(runtime),
     indicators,

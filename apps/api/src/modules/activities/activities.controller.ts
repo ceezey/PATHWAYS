@@ -24,10 +24,16 @@ import { requestIdentity } from '../../common/authz/request-identity'
 import { RequirePermission } from '../../common/decorators/permission.decorator'
 import { ZodPipe } from '../../common/validation/zod-pipe'
 import { ActivitiesService } from './activities.service'
+import { ActivityLifecycleService } from './activity-lifecycle.service'
+import { ActivityProofsService } from './activity-proofs.service'
 
 @Controller('projects/:projectId/activities')
 export class ActivitiesController {
-  constructor(@Inject(ActivitiesService) private readonly activities: ActivitiesService) {}
+  constructor(
+    @Inject(ActivitiesService) private readonly activities: ActivitiesService,
+    @Inject(ActivityLifecycleService) private readonly lifecycle: ActivityLifecycleService,
+    @Inject(ActivityProofsService) private readonly proofs: ActivityProofsService,
+  ) {}
 
   @Get()
   @RequirePermission('activities.read')
@@ -39,7 +45,7 @@ export class ActivitiesController {
   @Get('proof-upload-limits')
   @RequirePermission('activities.proof.submit')
   proofUploadLimits(@Param('projectId') projectId: string) {
-    return this.activities.proofUploadLimits(projectId)
+    return this.proofs.proofUploadLimits(projectId)
   }
 
   @Get('context')
@@ -68,7 +74,7 @@ export class ActivitiesController {
     @Param('projectId') projectId: string,
     @Body(new ZodPipe(createActivityRequest)) body: CreateActivityRequest,
   ) {
-    return this.activities.create(requestIdentity(request), projectId, body)
+    return this.lifecycle.create(requestIdentity(request), projectId, body)
   }
 
   @Get(':activityId')
@@ -89,7 +95,7 @@ export class ActivitiesController {
     @Param('activityId') activityId: string,
     @Body(new ZodPipe(updateActivityRequest)) body: UpdateActivityRequest,
   ) {
-    return this.activities.update(requestIdentity(request), projectId, activityId, body)
+    return this.lifecycle.update(requestIdentity(request), projectId, activityId, body)
   }
 
   @Post(':activityId/transition')
@@ -100,6 +106,6 @@ export class ActivitiesController {
     @Param('activityId') activityId: string,
     @Body(new ZodPipe(transitionActivityRequest)) body: TransitionActivityRequest,
   ) {
-    return this.activities.transition(requestIdentity(request), projectId, activityId, body)
+    return this.lifecycle.transition(requestIdentity(request), projectId, activityId, body)
   }
 }

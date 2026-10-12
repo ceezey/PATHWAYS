@@ -14,16 +14,18 @@ import type { AuthenticatedRequest } from '../../common/authz/application-identi
 import { requestIdentity } from '../../common/authz/request-identity'
 import { RequirePermission } from '../../common/decorators/permission.decorator'
 import { ZodPipe } from '../../common/validation/zod-pipe'
-import { ActivitiesService } from './activities.service'
 import { ActivityProgressService } from './activity-progress.service'
+import { ActivityProofFinalizeService } from './activity-proof-finalize.service'
+import { ActivityProofsService } from './activity-proofs.service'
 import { ActivityReviewService } from './activity-review.service'
 
 // Progress notes, overdue explanations and the proof reserve, finalize and review steps of one activity.
 @Controller('projects/:projectId/activities')
 export class ActivityUpdatesController {
   constructor(
-    @Inject(ActivitiesService) private readonly activities: ActivitiesService,
     @Inject(ActivityProgressService) private readonly progress: ActivityProgressService,
+    @Inject(ActivityProofsService) private readonly proofs: ActivityProofsService,
+    @Inject(ActivityProofFinalizeService) private readonly finalize: ActivityProofFinalizeService,
     @Inject(ActivityReviewService) private readonly review: ActivityReviewService,
   ) {}
 
@@ -64,7 +66,7 @@ export class ActivityUpdatesController {
     @Param('activityId') activityId: string,
     @Body(new ZodPipe(reserveActivityProofRequest)) body: ReserveActivityProofRequest,
   ) {
-    return this.activities.reserveProof(requestIdentity(request), projectId, activityId, body)
+    return this.proofs.reserveProof(requestIdentity(request), projectId, activityId, body)
   }
 
   @Post(':activityId/updates/:updateId/files/:evidenceId/finalize')
@@ -76,7 +78,7 @@ export class ActivityUpdatesController {
     @Param('updateId') updateId: string,
     @Param('evidenceId') evidenceId: string,
   ) {
-    return this.activities.finalizeProofFile(
+    return this.finalize.finalizeProofFile(
       requestIdentity(request),
       projectId,
       activityId,

@@ -41,6 +41,8 @@ vi.mock('@app/modules/rules/rules-source-operation', async (importOriginal) => (
 
 import { ActivitiesService } from './activities.service'
 import { ActivityProgressService } from './activity-progress.service'
+import { ActivityProofFinalizeService } from './activity-proof-finalize.service'
+import { ActivityProofsService } from './activity-proofs.service'
 import { ActivityReviewService } from './activity-review.service'
 
 // End-to-end lifecycle of one activity through the real service, against an in-memory store that
@@ -220,7 +222,12 @@ const storage = {
   ),
   deleteFile: vi.fn(),
 }
-const service = new ActivitiesService(
+const service = new ActivitiesService({} as PrismaService)
+const proofsService = new ActivityProofsService(
+  {} as PrismaService,
+  storage as unknown as StorageService,
+)
+const finalizeService = new ActivityProofFinalizeService(
   {} as PrismaService,
   storage as unknown as StorageService,
   privateStorageFactories,
@@ -247,7 +254,7 @@ const files = [
 ]
 const reserve = (clientUpdateId: string) =>
   as(officer, () =>
-    service.reserveProof(officer, projectId, activityId, {
+    proofsService.reserveProof(officer, projectId, activityId, {
       clientUpdateId,
       progressPercent: 60,
       note: 'Sessions held with evidence.',
@@ -256,7 +263,7 @@ const reserve = (clientUpdateId: string) =>
   ) as Promise<Loose>
 const finalize = (updateId: string, evidenceId: string) =>
   as(officer, () =>
-    service.finalizeProofFile(officer, projectId, activityId, updateId, evidenceId),
+    finalizeService.finalizeProofFile(officer, projectId, activityId, updateId, evidenceId),
   ) as Promise<Loose>
 const review = (updateId: string, decision: 'APPROVE' | 'RETURN', expectedUpdatedAt: string) =>
   as(reviewer, () =>

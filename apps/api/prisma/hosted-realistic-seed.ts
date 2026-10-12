@@ -11,12 +11,11 @@ import type {
 } from '@pathways/shared'
 import type { CreateProjectRequest } from '@pathways/shared'
 import type { ApplicationIdentity } from '../src/common/authz/application-identity'
-import { ActivitiesService } from '../src/modules/activities/activities.service'
+import { ActivityLifecycleService } from '../src/modules/activities/activity-lifecycle.service'
 import type { RegisterBeneficiaryDto } from '../src/modules/beneficiaries/beneficiaries.dto'
 import { BeneficiariesService } from '../src/modules/beneficiaries/beneficiaries.service'
 import { IndicatorsService } from '../src/modules/indicators/indicators.service'
 import { ProjectsService } from '../src/modules/projects/projects.service'
-import { privateStorageFactories } from '../src/modules/storage/private-storage-factories'
 import { StorageService } from '../src/modules/storage/storage.service'
 import { PrismaService } from '../src/prisma/prisma.service'
 import { seedCanonicalReferenceData } from './canonical-seed'
@@ -502,7 +501,7 @@ async function main() {
   const runtime = new PrismaService({ datasources: { db: { url: runtimeUrl } } })
   const storage = new StorageService()
   const projectsService = new ProjectsService(runtime)
-  const activitiesService = new ActivitiesService(runtime, storage, privateStorageFactories)
+  const activityLifecycleService = new ActivityLifecycleService(runtime)
   const indicatorsService = new IndicatorsService(runtime)
   const beneficiariesService = new BeneficiariesService(runtime)
 
@@ -810,7 +809,7 @@ async function main() {
           where: { organizationId: workspace.organizationId, projectId, code },
         })
         if (!existingActivity) {
-          await activitiesService.create(projectManagerIdentity, projectId, createDto)
+          await activityLifecycleService.create(projectManagerIdentity, projectId, createDto)
         }
         // Re-read from the database rather than trust the service's mapped return shape, so
         // the status/updatedAt used for the transition decision below is always accurate.
@@ -830,7 +829,7 @@ async function main() {
               reason: 'Superseded by a merged follow-up activity.',
               expectedUpdatedAt: fresh.updatedAt.toISOString(),
             }
-            await activitiesService.transition(
+            await activityLifecycleService.transition(
               projectManagerIdentity,
               projectId,
               activity.id,
@@ -845,7 +844,7 @@ async function main() {
               status: 'IN_PROGRESS',
               expectedUpdatedAt: fresh.updatedAt.toISOString(),
             }
-            await activitiesService.transition(
+            await activityLifecycleService.transition(
               projectManagerIdentity,
               projectId,
               activity.id,
