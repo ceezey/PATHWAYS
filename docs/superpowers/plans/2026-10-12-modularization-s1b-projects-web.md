@@ -27,6 +27,7 @@ Controller rulings for S1b (2026-10-12). Each was checked on an exported copy of
 11. **No SAD routing, api, shared, seed or migration change.** `apps/web/src/lib/api/**/*.ts` already routes to the beneficiary privacy guardian (F4b) and `lib/services` keeps its routing; Task 9 reads the manifest. Web Middleware stays at 102 kB.
 12. **Write scripts with the Write tool, not a shell heredoc.** A shell heredoc in this environment can eat the backslashes of regular expressions; every `.tmp/s1b/` script below is created with the Write tool.
 13. Cross-plan: names produced by S1b and consumed later. `requestSourceMutation` (ruling 4); `projectsClient` and `projectsClient.getProjectMap` (rulings 2 and 6); `features/projects/index.ts` with `indexedFeatures` and `surfaceViolation` (ruling 9); the layout of ruling 8. Later plan lines that must change: S2 outline Task 2 (route pages and `role-dashboard.tsx` already import through the index and the surface rule already covers `activities`; S2b only repoints the index export lines to `./activities` and adds no rule) and Task 4 (`use-project-reads.ts` is `projects.reads.ts`); S3 outline Task 2 and S6 outline (same repointing of index export lines; S6 Interfaces says `components/, hooks/, team/`, there is no `hooks/`); S5 outline Task 5 and S7 Task 6 and Task 10 (add the feature to `indexedFeatures` and `@/features/<name>` to `optimizePackageImports` in `apps/web/next.config.ts` instead of writing a second rule; the new test fails otherwise); S7 outline names (`projectsClient.getProjectMap`, `projects.utils`, `projects.reads`, the review workspace at `features/projects/components/project-review-workspace.tsx`, importing `../project-rules-panel`). Cost if wrong: a later slice writes a duplicate surface rule or a route grows 100 kB.
+14. Pre-flight (2026-10-12): replay test asserts parse is not called, two comments made one sentence, comment-only canAssignRole import dropped, two unprefixed doc paths hand-edited, route shrink stated as 3 to 4 kB, renamed test comment updated.
 
 ## Interfaces assumed from earlier sub-projects
 
@@ -174,7 +175,7 @@ import { PathwaysClientError } from './request'
 import { requestSourceMutation } from './source-mutation-request'
 
 const context = { principalKey: 'synthetic-owner-a', isCurrent: () => true }
-const parse = (value: unknown) => value as { id: string }
+const parse = vi.fn((value: unknown) => value as { id: string })
 
 // Answers like the API: the acknowledgement echoes the request id the client sent.
 const acknowledge = (replayed: boolean) => async (_path: string, init: RequestInit) => {
@@ -195,6 +196,7 @@ describe('requestSourceMutation', () => {
   beforeEach(() => {
     sourceMutationTickets.clear()
     requestFoundation.mockReset()
+    parse.mockClear()
   })
 
   it('refuses to send without a mutation context', async () => {
@@ -217,6 +219,7 @@ describe('requestSourceMutation', () => {
       parse,
     )
     expect(result).toEqual({ id: 'record-1' })
+    expect(parse).toHaveBeenCalledTimes(1)
     const [path, init, isCurrent] = requestFoundation.mock.calls[0]
     expect(path).toBe('/projects/p-2')
     expect(init.method).toBe('PATCH')
@@ -229,6 +232,7 @@ describe('requestSourceMutation', () => {
     requestFoundation.mockImplementation(acknowledge(true))
     const result = await requestSourceMutation('/projects/p-3', 'POST', { a: 1 }, context, parse)
     expect(result).toMatchObject({ committed: true, replayed: true })
+    expect(parse).not.toHaveBeenCalled()
   })
 
   it('maps an unconfirmed outcome to an invalid client error', async () => {
@@ -720,7 +724,7 @@ function mapProject(project: ProjectResponse): ProjectDetail {
   }
 }
 
-// A reader without projects.detail.read gets summary rows; the mapper defaults the missing fields.
+// Summary rows from a reader without projects.detail.read go through the same mapper.
 function parseProjects(value: unknown) {
   if (!Array.isArray(value) || value.length > 100)
     throw new PathwaysClientError('Invalid project response.', 'network')
@@ -1540,6 +1544,10 @@ for f in $(git grep -l "ProjectPhaseFiveWorkspace" -- apps); do sed -i 's/Projec
 git grep -c "ProjectPhaseFive" -- apps | wc -l
 ```
 
+```bash
+sed -i 's/project-form-validation\.test\.ts/project-form.utils.test.ts/' apps/web/src/features/projects/team/project-team-editor-dialog.test.tsx
+```
+
 Expected: the loop touches `budget/page.tsx`, `evidence/page.tsx`, `monitor-evaluate/page.tsx`, `components/project-review-workspace.tsx` and its test; the count prints `0`.
 
 - [ ] **Step 4: Format and verify**
@@ -1579,7 +1587,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 Create `apps/web/src/features/projects/index.ts`:
 
 ```ts
-// Public surface of the projects feature; files outside it import only from here.
+// Public surface of the projects feature for files outside it.
 export { ProjectDetailView } from './components/project-detail-view'
 export { ProjectDirectory } from './components/project-directory'
 export { ProjectReviewWorkspace } from './components/project-review-workspace'
@@ -1981,6 +1989,7 @@ const end = selectors.indexOf('const optionPlaceholder = (')
 if (start < 0 || end < 0) throw new Error('missing the rule block anchors')
 const rules = selectors.slice(start, end).replace('const teamRoles:', 'export const teamRoles:')
 selectors = selectors.slice(0, start) + selectors.slice(end)
+selectors = selectors.replace("import { type CanonicalRole, canAssignRole } from '@pathways/shared'\n", '')
 selectors = selectors.replace(
   "import type { ProjectSetupSchema } from '../project-form.utils'\n",
   "import type { ProjectSetupSchema } from '../project-form.utils'\nimport {\n  type TeamFieldName,\n  getEligibleTeamUsers,\n  parseProjectOfficerNames,\n  teamRoles,\n} from './team-selection.utils'\n",
@@ -2080,7 +2089,7 @@ node .tmp/s1b/split-evidence-view.mjs
 node .tmp/s1b/trim-imports.mjs apps/web/src/features/projects/components/project-setup-form.tsx apps/web/src/features/projects/team/project-team-selectors.tsx apps/web/src/features/projects/components/project-review-workspace.tsx
 ```
 
-Expected: the trim prints `removed projectCodeBase, UseFormReturn, useWatch, LockedField, FormControl, FormField, FormItem, FormLabel, FormMessage, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Textarea, ProjectStatus` for the form, `removed CanonicalRole` for the selectors, and `removed AuditMetadataCard, EvidenceAttachmentsCard, CappedPercent, useSensitiveDraftOwner, privateProofClient` for the workspace.
+Expected: the trim prints `removed projectCodeBase, UseFormReturn, useWatch, LockedField, FormControl, FormField, FormItem, FormLabel, FormMessage, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Textarea, ProjectStatus` for the form, `removed nothing` for the selectors (the split script already dropped their `@pathways/shared` import), and `removed AuditMetadataCard, EvidenceAttachmentsCard, CappedPercent, useSensitiveDraftOwner, privateProofClient` for the workspace.
 
 - [ ] **Step 3: Format, check the verbatim moves and test**
 
@@ -2127,7 +2136,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 **Files:**
 - Create (gitignored): `.tmp/s1b/doc-paths.mjs`
-- Modify: living docs that name moved files (`docs/deferred-features.md`, `docs/qad-pathways.md`), `docs/cr-pathways-codebase-modularization.md` (sections 3.3 and 9), `docs/audit-pathways-codebase-modularity-20261009.md` (MOD-05, MOD-06, MOD-15, MOD-16, MOD-17 rows), `docs/index.md` (CR row status), `docs/activity-log.md`
+- Modify: living docs that name moved files (`docs/deferred-features.md`, `docs/qad-pathways.md`; `docs/dsd-pathways.md` and `DESIGN.md` by hand), `docs/cr-pathways-codebase-modularization.md` (sections 3.3 and 9), `docs/audit-pathways-codebase-modularity-20261009.md` (MOD-05, MOD-06, MOD-15, MOD-16, MOD-17 rows), `docs/index.md` (CR row status), `docs/activity-log.md`
 
 No SAD routing change is needed (ruling 11): the manifest of Task 9 shows the roles the changed paths already route to.
 
@@ -2173,6 +2182,8 @@ git diff --stat docs
 
 Expected: the grep lists the docs that mention feature paths (the activity, indicator and budget paths in them belong to later slices and stay); the script prints `docs/deferred-features.md: 2`, `docs/qad-pathways.md: 6` and `total: 8` at `703fde72`. In the "Project card quick preview" row of `docs/deferred-features.md` the `deleted ...project-preview-dialog.tsx` path and the `git show 98a9004:...` path keep their old location. If the grep lists another doc that names a moved file, add it to the command.
 
+Two mentions have no `apps/web/src/` prefix, so the script leaves them: edit `features/projects/project-directory.tsx` to `features/projects/components/project-directory.tsx` by hand in `docs/dsd-pathways.md` (line 1009) and in `DESIGN.md` (line 606).
+
 - [ ] **Step 2: Amend the Change Record**
 
 `docs/cr-pathways-codebase-modularization.md`, section 3.3, directly after the paragraph that ends `(amended 2026-10-10 for F4b)`, add:
@@ -2189,7 +2200,7 @@ S1b applied <date> on refactor/s1b-projects-web:
 - Layout: `features/projects/components/`, `team/`, `projects.reads.ts`, `projects.utils.ts`, `project-form.utils.ts` and an `index.ts`; the activity, indicator, budget, evaluation and rules-panel files stay at the feature root until S2, S3, S6 and S7 move them; `ProjectPhaseFiveWorkspace` is `ProjectReviewWorkspace`.
 - Surface: every file outside the feature, route pages included, imports it through the index; `indexedFeatures` and `surfaceViolation` in `import-direction.test.ts` enforce it and `experimental.optimizePackageImports` keeps route bundles the same size (a plain barrel grew every `/projects` route to 397 kB, `/print/receipts/[expenseId]` from 133 kB and `/analytics` and `/dashboard` by about 80 kB).
 - Components: the review workspace lost its `indicators` and `transparency` views, the Add Indicator dialog and `project-review-utils.ts`, which no route rendered, and went from 716 to 213 lines with `evidence-view.tsx` at 210; the setup form went from 588 to 409 lines with `project-setup-fields.tsx` at 198; the selectors went from 474 to 405 lines with `team-selection.utils.ts` at 80; the file-private `ScopedProjectSetupForm`, `ScopedReport` and `OwnedSourceMutationRecovery` became `ProjectSetupFormContent`, `ProjectReportRecord` and `SourceMutationRecoveryContent`.
-- Middleware stayed at 102 kB; the three review routes shrank 4 kB.
+- Middleware stayed at 102 kB; the three review routes shrank 3 to 4 kB.
 - Decisions: one plan of ten tasks (ruling 1); `getProjectsForRole` kept (ruling 3); mocks split or doubled, not rewritten (ruling 5); unreachable views deleted (ruling 7); index plus `optimizePackageImports` (ruling 9).
 
 Deferred: the six project list read keys (`projects`, `review-projects`, `rules-editor-projects`, `rules-project-choices`, `publication-projects`, `report-projects`; the three `projects.read` readers with default freshness could share one key) stay with S6, S7 and S8, whose files own them; the `ExpenseRecord` type in `types/pathways.ts` is now unused (S6); `lib/services/*` renames. Later plans add their feature to `indexedFeatures` and `optimizePackageImports` instead of writing another rule.
@@ -2245,7 +2256,7 @@ grep -E "Middleware" .tmp/s1b/routes-gates.txt
 git checkout -- apps/web/next-env.d.ts
 ```
 
-Expected: all pass; web = `B_web` files + 1 and tests + 22 (216 files, 1943 tests at `703fde72`); config, shared, imports, api and sad equal Task 0; the build exits 0; the route comparison lists only the three review routes, each 4 kB smaller, `routes 72, different 3`; `Middleware` equals `M0`.
+Expected: all pass; web = `B_web` files + 1 and tests + 22 (216 files, 1943 tests at `703fde72`); config, shared, imports, api and sad equal Task 0; the build exits 0; the route comparison lists only the three review routes, each 3 to 4 kB smaller, `routes 72, different 3`; `Middleware` equals `M0`.
 
 - [ ] **Step 2: Local DB replay**
 
@@ -2287,7 +2298,7 @@ Expected: `"status":"ok"`; auth-navigation 27/27; main suite 39 pass, 9 fail, 22
 pnpm sad:check --base dev --head HEAD --output .tmp/sad/s1b/manifest.json
 ```
 
-Expected roles at `703fde72`: `design-qa-agent` (132 files), `beneficiary-privacy-guardian` (7 files under `lib/api` and `lib/services`) and `rule-engine-determinism-checker` (2 files, `rule-editor.tsx` and its test, whose import and mock changed). Dispatch every role the manifest requires with the section 4.2 handoff packet from `docs/sad-pathways.md`, save their section 4.4 envelopes to `.tmp/sad/s1b/reviews.json`, then:
+Expected roles at `703fde72`: `design-qa-agent` (132 files), `beneficiary-privacy-guardian` (7 files under `lib/api` and `lib/services`) and `rule-engine-determinism-checker` (2 files, `rule-editor.tsx` and its test, whose import and mock changed), plus `restraint-guardian` if `sad:check` requires it. Dispatch every role the manifest requires with the section 4.2 handoff packet from `docs/sad-pathways.md`, save their section 4.4 envelopes to `.tmp/sad/s1b/reviews.json`, then:
 
 ```bash
 pnpm sad:signoff -- --base dev --head HEAD --reviews .tmp/sad/s1b/reviews.json
