@@ -51,6 +51,7 @@ import { PrivateInspectionReadError } from '@app/modules/storage/private-inspect
 import type { ReserveActivityProofRequest } from '@pathways/shared'
 import { ActivitiesController } from './activities.controller'
 import { ActivitiesService, activityEvidenceType, proofDeclarations } from './activities.service'
+import { ActivityUpdatesController } from './activity-updates.controller'
 
 const organizationId = '10000000-0000-4000-8000-000000000001'
 const projectId = '20000000-0000-4000-8000-000000000002'
@@ -174,20 +175,25 @@ beforeEach(() => {
 
 describe('evidence routes', () => {
   it('gate reserve, finalize and limits with the proof permission; the multipart route is retired', () => {
-    for (const method of ['reserveProof', 'finalizeProofFile', 'proofUploadLimits'] as const)
-      expect(Reflect.getMetadata(PERMISSION_KEY, ActivitiesController.prototype[method])).toBe(
+    for (const method of ['reserveProof', 'finalizeProofFile'] as const)
+      expect(Reflect.getMetadata(PERMISSION_KEY, ActivityUpdatesController.prototype[method])).toBe(
         'activities.proof.submit',
       )
-    const paths = Object.getOwnPropertyNames(ActivitiesController.prototype).map((name) =>
-      Reflect.getMetadata(
-        PATH_METADATA,
-        (ActivitiesController.prototype as unknown as Record<string, object>)[name],
+    expect(
+      Reflect.getMetadata(PERMISSION_KEY, ActivitiesController.prototype.proofUploadLimits),
+    ).toBe('activities.proof.submit')
+    const paths = [ActivitiesController, ActivityUpdatesController].flatMap((controller) =>
+      Object.getOwnPropertyNames(controller.prototype).map((name) =>
+        Reflect.getMetadata(
+          PATH_METADATA,
+          (controller.prototype as unknown as Record<string, object>)[name],
+        ),
       ),
     )
     expect(paths).toContain(':activityId/updates/reservations')
     expect(paths).toContain(':activityId/updates/:updateId/files/:evidenceId/finalize')
     expect(paths).not.toContain(':activityId/updates')
-    expect('submitUpdate' in ActivitiesController.prototype).toBe(false)
+    expect('submitUpdate' in ActivityUpdatesController.prototype).toBe(false)
   })
 
   it('publishes the effective limits from configuration', () => {

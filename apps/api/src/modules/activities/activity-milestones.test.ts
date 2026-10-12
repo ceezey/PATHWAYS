@@ -20,8 +20,8 @@ vi.mock('@app/common/authz/authorized-operation', () => ({
   }),
 }))
 
-import { MilestonesController } from './activities.controller'
 import { ActivitiesService } from './activities.service'
+import { MilestonesController } from './activity-milestones.controller'
 
 const organizationId = '10000000-0000-4000-8000-000000000001'
 const projectId = '20000000-0000-4000-8000-000000000002'

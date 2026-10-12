@@ -5,8 +5,10 @@ import { type INestApplication, ValidationPipe } from '@nestjs/common'
 import { Test } from '@nestjs/testing'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { ActivitiesController, MilestonesController } from './activities.controller'
+import { ActivitiesController } from './activities.controller'
 import { ActivitiesService } from './activities.service'
+import { MilestonesController } from './activity-milestones.controller'
+import { ActivityUpdatesController } from './activity-updates.controller'
 import { PrivateProofInspectionService } from './private-proof-inspection.service'
 
 const projectId = '10000000-0000-4000-8000-000000000001'
@@ -35,7 +37,7 @@ let base: string
 
 beforeAll(async () => {
   const module = await Test.createTestingModule({
-    controllers: [ActivitiesController, MilestonesController],
+    controllers: [ActivitiesController, ActivityUpdatesController, MilestonesController],
     providers: [
       { provide: ActivitiesService, useValue: activities },
       { provide: PrivateProofInspectionService, useValue: {} },

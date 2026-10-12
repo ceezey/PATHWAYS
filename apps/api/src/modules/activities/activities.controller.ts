@@ -2,7 +2,6 @@ import {
   BadRequestException,
   Body,
   Controller,
-  ForbiddenException,
   Get,
   Inject,
   Param,
@@ -10,57 +9,30 @@ import {
   Post,
   Query,
   Req,
-  Res,
-  StreamableFile,
 } from '@nestjs/common'
 
 import {
   type CreateActivityRequest,
-  type RecordActivityProgressRequest,
-  type RecordOverdueExplanationRequest,
-  type ReserveActivityProofRequest,
-  type ReviewActivityUpdateRequest,
-  type SaveMilestoneRequest,
   type TransitionActivityRequest,
   type UpdateActivityRequest,
-  type UpdateMilestoneRequest,
   createActivityRequest,
-  recordActivityProgressRequest,
-  recordOverdueExplanationRequest,
-  reserveActivityProofRequest,
-  reviewActivityUpdateRequest,
-  saveMilestoneRequest,
   transitionActivityRequest,
   updateActivityRequest,
-  updateMilestoneRequest,
 } from '@pathways/shared'
 import type { AuthenticatedRequest } from '../../common/authz/application-identity'
+import { requestIdentity } from '../../common/authz/request-identity'
 import { RequirePermission } from '../../common/decorators/permission.decorator'
-import { inspectionRequestBudget } from '../../common/network/inspection-request-budget'
 import { ZodPipe } from '../../common/validation/zod-pipe'
 import { ActivitiesService } from './activities.service'
-import {
-  PrivateProofInspectionService,
-  inspectionRevisions,
-} from './private-proof-inspection.service'
-
-function profile(request: AuthenticatedRequest) {
-  if (!request.user) throw new ForbiddenException('Application profile is required.')
-  return request.user
-}
 
 @Controller('projects/:projectId/activities')
 export class ActivitiesController {
-  constructor(
-    @Inject(ActivitiesService) private readonly activities: ActivitiesService,
-    @Inject(PrivateProofInspectionService)
-    private readonly inspection: PrivateProofInspectionService,
-  ) {}
+  constructor(@Inject(ActivitiesService) private readonly activities: ActivitiesService) {}
 
   @Get()
   @RequirePermission('activities.read')
   list(@Req() request: AuthenticatedRequest, @Param('projectId') projectId: string) {
-    return this.activities.list(profile(request), projectId)
+    return this.activities.list(requestIdentity(request), projectId)
   }
 
   // Declared before ':activityId' so the fixed segment is not captured as an identifier.
@@ -73,7 +45,7 @@ export class ActivitiesController {
   @Get('context')
   @RequirePermission('activities.context.read')
   context(@Req() request: AuthenticatedRequest, @Param('projectId') projectId: string) {
-    return this.activities.context(profile(request), projectId)
+    return this.activities.context(requestIdentity(request), projectId)
   }
 
   // The guard admits activity readers; the service then requires activities.create or
@@ -86,7 +58,7 @@ export class ActivitiesController {
     @Query() query: Record<string, unknown>,
   ) {
     if (Object.keys(query).length) throw new BadRequestException('Invalid officer query.')
-    return this.activities.assignableOfficers(profile(request), projectId)
+    return this.activities.assignableOfficers(requestIdentity(request), projectId)
   }
 
   @Post()
@@ -96,7 +68,7 @@ export class ActivitiesController {
     @Param('projectId') projectId: string,
     @Body(new ZodPipe(createActivityRequest)) body: CreateActivityRequest,
   ) {
-    return this.activities.create(profile(request), projectId, body)
+    return this.activities.create(requestIdentity(request), projectId, body)
   }
 
   @Get(':activityId')
@@ -106,7 +78,7 @@ export class ActivitiesController {
     @Param('projectId') projectId: string,
     @Param('activityId') activityId: string,
   ) {
-    return this.activities.get(profile(request), projectId, activityId)
+    return this.activities.get(requestIdentity(request), projectId, activityId)
   }
 
   @Patch(':activityId')
@@ -117,7 +89,7 @@ export class ActivitiesController {
     @Param('activityId') activityId: string,
     @Body(new ZodPipe(updateActivityRequest)) body: UpdateActivityRequest,
   ) {
-    return this.activities.update(profile(request), projectId, activityId, body)
+    return this.activities.update(requestIdentity(request), projectId, activityId, body)
   }
 
   @Post(':activityId/transition')
@@ -128,192 +100,6 @@ export class ActivitiesController {
     @Param('activityId') activityId: string,
     @Body(new ZodPipe(transitionActivityRequest)) body: TransitionActivityRequest,
   ) {
-    return this.activities.transition(profile(request), projectId, activityId, body)
-  }
-
-  @Post(':activityId/progress')
-  @RequirePermission('activities.progress.update')
-  recordProgress(
-    @Req() request: AuthenticatedRequest,
-    @Param('projectId') projectId: string,
-    @Param('activityId') activityId: string,
-    @Body(new ZodPipe(recordActivityProgressRequest)) body: RecordActivityProgressRequest,
-  ) {
-    return this.activities.recordProgress(profile(request), projectId, activityId, body)
-  }
-
-  @Post(':activityId/overdue-explanations')
-  @RequirePermission('monitoring.review')
-  recordOverdueExplanation(
-    @Req() request: AuthenticatedRequest,
-    @Param('projectId') projectId: string,
-    @Param('activityId') activityId: string,
-    @Body(new ZodPipe(recordOverdueExplanationRequest)) body: RecordOverdueExplanationRequest,
-  ) {
-    return this.activities.recordOverdueExplanation(profile(request), projectId, activityId, body)
-  }
-
-  // The multipart proof route (POST :activityId/updates) is retired: evidence is reserved
-  // here, uploaded directly to private storage and verified per file below.
-  @Post(':activityId/updates/reservations')
-  @RequirePermission('activities.proof.submit')
-  reserveProof(
-    @Req() request: AuthenticatedRequest,
-    @Param('projectId') projectId: string,
-    @Param('activityId') activityId: string,
-    @Body(new ZodPipe(reserveActivityProofRequest)) body: ReserveActivityProofRequest,
-  ) {
-    return this.activities.reserveProof(profile(request), projectId, activityId, body)
-  }
-
-  @Post(':activityId/updates/:updateId/files/:evidenceId/finalize')
-  @RequirePermission('activities.proof.submit')
-  finalizeProofFile(
-    @Req() request: AuthenticatedRequest,
-    @Param('projectId') projectId: string,
-    @Param('activityId') activityId: string,
-    @Param('updateId') updateId: string,
-    @Param('evidenceId') evidenceId: string,
-  ) {
-    return this.activities.finalizeProofFile(
-      profile(request),
-      projectId,
-      activityId,
-      updateId,
-      evidenceId,
-    )
-  }
-
-  @Post(':activityId/updates/:updateId/review')
-  @RequirePermission('evidence.review')
-  reviewUpdate(
-    @Req() request: AuthenticatedRequest,
-    @Param('projectId') projectId: string,
-    @Param('activityId') activityId: string,
-    @Param('updateId') updateId: string,
-    @Body(new ZodPipe(reviewActivityUpdateRequest)) body: ReviewActivityUpdateRequest,
-  ) {
-    return this.activities.reviewUpdate(profile(request), projectId, activityId, updateId, body)
-  }
-
-  @Get(':activityId/updates/:updateId/inspection-context')
-  @RequirePermission('evidence.review')
-  inspectionContext(
-    @Req() request: AuthenticatedRequest,
-    @Param('projectId') projectId: string,
-    @Param('activityId') activityId: string,
-    @Param('updateId') updateId: string,
-    @Query() query: Record<string, unknown>,
-  ) {
-    if (Object.keys(query).length)
-      throw new BadRequestException('Invalid inspection context query.')
-    return this.inspection.context(profile(request), projectId, activityId, updateId)
-  }
-
-  @Get(':activityId/updates/:updateId/proof/:evidenceId/inspection')
-  @RequirePermission('evidence.review')
-  async inspectProof(
-    @Req() request: AuthenticatedRequest,
-    @Param('projectId') projectId: string,
-    @Param('activityId') activityId: string,
-    @Param('updateId') updateId: string,
-    @Param('evidenceId') evidenceId: string,
-    @Query() query: Record<string, unknown>,
-    @Res({ passthrough: true }) response: { setHeader(name: string, value: string): void },
-  ) {
-    if (request.headers.range !== undefined)
-      throw new BadRequestException('Partial inspection is unavailable.')
-    const released = await this.inspection.inspect(
-      profile(request),
-      projectId,
-      activityId,
-      updateId,
-      evidenceId,
-      inspectionRevisions(query),
-    )
-    try {
-      inspectionRequestBudget(request)?.check()
-    } catch (error) {
-      released.body.destroy()
-      throw error
-    }
-    response.setHeader('Cache-Control', 'private, no-store')
-    response.setHeader('X-Content-Type-Options', 'nosniff')
-    // Streamed after final authorization and audit. A failed integrity check destroys the
-    // connection, so the client never receives a complete unverified attachment.
-    return new StreamableFile(released.body, {
-      type: released.contentType,
-      disposition: `attachment; filename="${released.fileName}"`,
-      length: released.byteSize,
-    }).setErrorHandler((_error, destination) => {
-      // The Express response is a destroyable socket-backed stream.
-      ;(destination as unknown as { destroy(): void }).destroy()
-    })
-  }
-
-  @Get(':activityId/proof/:evidenceId')
-  @RequirePermission('evidence.read')
-  async proof(
-    @Req() request: AuthenticatedRequest,
-    @Param('projectId') projectId: string,
-    @Param('activityId') activityId: string,
-    @Param('evidenceId') evidenceId: string,
-    @Res({ passthrough: true }) response: { setHeader(name: string, value: string): void },
-  ) {
-    const proof = await this.activities.downloadProof(
-      profile(request),
-      projectId,
-      activityId,
-      evidenceId,
-    )
-    response.setHeader('Cache-Control', 'private, no-store')
-    response.setHeader('X-Content-Type-Options', 'nosniff')
-    return new StreamableFile(proof.body, {
-      type: proof.contentType,
-      disposition: `attachment; filename="${proof.fileName.replace(/[^\w.-]/g, '_')}"`,
-    })
-  }
-}
-
-@Controller('projects/:projectId/milestones')
-export class MilestonesController {
-  constructor(@Inject(ActivitiesService) private readonly activities: ActivitiesService) {}
-
-  @Get()
-  @RequirePermission('activities.read')
-  list(@Req() request: AuthenticatedRequest, @Param('projectId') projectId: string) {
-    return this.activities.listMilestones(profile(request), projectId)
-  }
-
-  @Post()
-  @RequirePermission('milestones.manage')
-  create(
-    @Req() request: AuthenticatedRequest,
-    @Param('projectId') projectId: string,
-    @Body(new ZodPipe(saveMilestoneRequest)) body: SaveMilestoneRequest,
-  ) {
-    return this.activities.createMilestone(profile(request), projectId, body)
-  }
-
-  @Patch(':milestoneId')
-  @RequirePermission('milestones.manage')
-  update(
-    @Req() request: AuthenticatedRequest,
-    @Param('projectId') projectId: string,
-    @Param('milestoneId') milestoneId: string,
-    @Body(new ZodPipe(updateMilestoneRequest)) body: UpdateMilestoneRequest,
-  ) {
-    return this.activities.updateMilestone(profile(request), projectId, milestoneId, body)
-  }
-}
-
-@Controller('projects/:projectId/evidence')
-export class EvidenceController {
-  constructor(@Inject(ActivitiesService) private readonly activities: ActivitiesService) {}
-
-  @Get()
-  @RequirePermission('evidence.read')
-  list(@Req() request: AuthenticatedRequest, @Param('projectId') projectId: string) {
-    return this.activities.listEvidence(profile(request), projectId)
+    return this.activities.transition(requestIdentity(request), projectId, activityId, body)
   }
 }

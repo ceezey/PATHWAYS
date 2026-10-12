@@ -30,8 +30,8 @@ vi.mock('@app/common/authz/authorized-operation', () => ({
   }),
 }))
 
-import { ActivitiesController } from './activities.controller'
 import { ActivitiesService } from './activities.service'
+import { ActivityUpdatesController } from './activity-updates.controller'
 
 const organizationId = '10000000-0000-4000-8000-000000000001'
 const projectId = '20000000-0000-4000-8000-000000000002'
@@ -108,9 +108,9 @@ describe('Activity progress update (activities.progress.update)', () => {
   })
 
   it('gates the endpoint with the progress permission', () => {
-    expect(Reflect.getMetadata(PERMISSION_KEY, ActivitiesController.prototype.recordProgress)).toBe(
-      'activities.progress.update',
-    )
+    expect(
+      Reflect.getMetadata(PERMISSION_KEY, ActivityUpdatesController.prototype.recordProgress),
+    ).toBe('activities.progress.update')
   })
 
   it('records a scoped pending update with an audit entry (happy path)', async () => {

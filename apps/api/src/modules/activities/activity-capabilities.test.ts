@@ -354,10 +354,9 @@ describe('GET projects/:projectId/activities/assignable-officers', () => {
     expect(
       Reflect.getMetadata(PERMISSION_KEY, ActivitiesController.prototype.assignableOfficers),
     ).toBe('activities.read')
-    const controller = new ActivitiesController(
-      { assignableOfficers: vi.fn() } as unknown as ActivitiesService,
-      {} as never,
-    )
+    const controller = new ActivitiesController({
+      assignableOfficers: vi.fn(),
+    } as unknown as ActivitiesService)
     expect(() =>
       controller.assignableOfficers({ user: actorFor('PROJECT_MANAGER') } as never, projectId, {
         include: 'email',
