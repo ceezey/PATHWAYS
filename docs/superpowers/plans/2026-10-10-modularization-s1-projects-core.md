@@ -29,6 +29,7 @@ Controller rulings for S1 (2026-10-10). Each was checked against `refactor/f4a-w
 13. Cross-plan: validation convention. A route that had a class-validator DTO validates with `ZodPipe` on the controller (S1, S2, S4, S5 and the S8 users and auth routes). A module that already parsed `unknown` in its service keeps that (S3 ruling 6, S6 ruling 3, S7 ruling 13, S8 ruling 6) because its 400 body is a fixed string or an `issues` object that the `ZodPipe` string-array body would change (CR 4) and because seeds call its services directly; S3 Task 7 records the exception in CR 3.6. Cost if wrong: a slice either changes a 400 body shape or leaves a former DTO route unvalidated.
 14. Cross-plan: `contracts/common/field-schemas.ts` is created only by S1a Task 1. Later slices only append: S2 adds `countInput` and `pesoAmountInput`, S5 adds `trimmedLowercaseInput` and `queryInteger`; no other slice edits or recreates it, and S3 and S6 deliberately do not use it. Cost if wrong: a second creation conflicts at merge, or a repeated name fails the barrel with TS2308.
 15. Cross-plan: F4b facts for S1b, checked at `4a5806d0`: `readContextCookie` is private to `request.ts` (S8 removes it), `captureRequestOwner(signal?: AbortSignal | null)`, `pathways-client.ts` has 2596 lines, `features/projects` 78 files and 49 files mocking `pathways-client`; S1b Task 1 alone exports `requestSourceMutation` (signature in the outline). Cost if wrong: S1b Task 0 stops on a stale name, or a later slice moves the function a second time.
+16. Pre-flight (2026-10-12): api counts corrected for the lost metadata cases, case tests use hex-letter UUIDs, HTTP scaffold copies deferred to W1, prose notes fixed.
 
 ## Interfaces assumed from earlier sub-projects
 
@@ -78,6 +79,7 @@ S1b assumes these F4b exports (checked against local dev `4a5806d0` by the cross
 
 - Web client, feature folder and project map fetcher (MOD-05, MOD-06, MOD-15, MOD-16 and MOD-17 for projects): S1b, outlined at the end.
 - The 20 other controllers that repeat the request identity guard, and the 41 `Prisma.TransactionClient` annotations left in api production code: their slices.
+- The Nest HTTP test scaffold is copied in the Task 3 and Task 4 tests (a third copy after F3b): a shared test helper is W1 work.
 - `apps/api/src/common/validation/field-schemas-parity.test.ts` and the class-validator dependency: removed by the slice that deletes the last DTO (S8).
 - The overview metrics and project map schemas in `packages/shared/src/monitoring` (ruling 6) and the copies of the stored project status union in `role-overview.ts`, `rule-contract.ts`, `rule-metrics.ts` and `descriptive-analytics.ts`: S7 may switch them to `storedProjectStatuses`.
 
@@ -686,7 +688,7 @@ const badRequestShape = {
 }
 const createPipe = new ZodPipe(createProjectRequest)
 const updatePipe = new ZodPipe(updateProjectRequest)
-const uuid = '10000000-0000-4000-8000-000000000001'
+const uuid = 'ab000000-0000-4000-8000-00000000000a'
 const grin = String.fromCodePoint(0x1f600)
 const base = { title: 'Synthetic project', status: 'PLANNED' }
 const create = (extra: Record<string, unknown>) => JSON.stringify({ ...base, ...extra })
@@ -827,7 +829,7 @@ describe('CreateProjectDto and createProjectRequest parity', () => {
     expect(await viaZod(json, createPipe)).toEqual(badRequestShape)
   })
 
-  // Ruling 3: the DTO route let these through; the contract rejects them.
+  // The DTO route let these bodies through and the contract rejects them.
   it.each([
     create({ projectBudget: null }),
     create({ projectOfficerIds: null }),
@@ -851,7 +853,7 @@ describe('UpdateProjectDto and updateProjectRequest parity', () => {
     expect(await viaZod(json, updatePipe)).toEqual(badRequestShape)
   })
 
-  // Review Focus 5: a retry across the deploy must replay against the same stored body.
+  // A retry across the deploy replays against the same stored body.
   it('produces the same source mutation body as the DTO route', async () => {
     const json = update({
       code: ' ab ',
@@ -934,7 +936,7 @@ beforeAll(async () => {
     providers: [{ provide: ProjectsService, useValue: projects }],
   }).compile()
   app = module.createNestApplication({ logger: false })
-  // Stands in for the identity the auth guard attaches; the guard is not under test here.
+  // Attaches the identity the auth guard would attach.
   app.use((request: { user?: unknown }, _response: unknown, next: () => void) => {
     request.user = actor
     next()
@@ -1315,7 +1317,7 @@ CreateProjectDto, UpdateProjectDto and their parity test are removed; the routes
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
 
-Expected: the 7 HTTP tests and the 20 controller tests pass; typecheck (which also checks the three seeds) and lint pass; api = `B_api + 65` (the 112 parity tests leave, 7 HTTP tests and 1 controller test arrive).
+Expected: the 7 HTTP tests and the 20 controller tests pass; typecheck (which also checks the three seeds) and lint pass; api = `B_api + 64` (the 112 parity tests and 1 controller-dto-runtime-metadata case leave, 7 HTTP tests and 1 controller test arrive).
 
 ---
 
@@ -1500,7 +1502,7 @@ describe('CreateProgramDto and createProgramRequest parity', () => {
     expect(await viaZod(json)).toEqual(badRequestShape)
   })
 
-  // Ruling 3: the DTO route dropped these keys; the contract rejects them.
+  // The DTO route dropped these keys and the contract rejects them.
   it.each([
     '{"code":"PRG","name":"Synthetic program","status":"ONGOING","__proto__":{"a":1}}',
     '{"code":"PRG","name":"Synthetic program","status":"ONGOING","constructor":{"a":1}}',
@@ -1527,7 +1529,7 @@ git commit -m "feat(shared): add the program request contract with its DTO parit
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
 
-Expected: shared = `B_shared + 39`, api = `B_api + 87`.
+Expected: shared = `B_shared + 39`, api = `B_api + 86` (one controller-dto-runtime-metadata case is lost for the programs route).
 
 - [ ] **Step 5: Write the HTTP test**
 
@@ -1555,7 +1557,7 @@ beforeAll(async () => {
     providers: [{ provide: ProgramsService, useValue: programs }],
   }).compile()
   app = module.createNestApplication({ logger: false })
-  // Stands in for the identity the auth guard attaches; the guard is not under test here.
+  // Attaches the identity the auth guard would attach.
   app.use((request: { user?: unknown }, _response: unknown, next: () => void) => {
     request.user = actor
     next()
@@ -1678,7 +1680,7 @@ CreateProgramDto and its parity test are removed; the route keeps the 400 shape.
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
 
-Expected: the 5 HTTP tests pass; api = `B_api + 70`.
+Expected: the 5 HTTP tests pass; api = `B_api + 68` (the programs parity tests leave; Tasks 3 and 4 each lose one metadata case).
 
 ---
 
@@ -1884,7 +1886,7 @@ import { z } from 'zod'
 
 import { storedProjectStatuses } from './project-requests'
 
-// Response shapes of the projects routes; types only, never parsed at runtime.
+// Response shapes of the projects routes, used as types and never parsed at runtime.
 
 const projectTeamMemberResponse = z.object({
   userId: z.string(),
@@ -1946,9 +1948,9 @@ export * from './contracts/projects/project-responses'
 
 ```bash
 S=apps/api/src/modules/projects/projects.service.ts
-git show HEAD:$S > .tmp/s1a/projects.service.task4.ts
+git show HEAD:$S > .tmp/s1a/projects.service.task5.ts
 node .tmp/s1a/cut-blocks.mjs $S .tmp/s1a/mapper-cut.json
-node .tmp/s1a/same-lines.mjs .tmp/s1a/projects.service.task4.ts -- $S apps/api/src/modules/projects/projects.mapper.ts "): ProjectResponse {=) {"
+node .tmp/s1a/same-lines.mjs .tmp/s1a/projects.service.task5.ts -- $S apps/api/src/modules/projects/projects.mapper.ts "): ProjectResponse {=) {"
 ```
 
 Expected (dry run on `a101ad7c` after Tasks 3 and 4):
@@ -2349,8 +2351,8 @@ Create `.tmp/s1a/split-cut.json`:
 
 ```bash
 P=apps/api/src/modules/projects
-git show HEAD:$P/projects.service.ts > .tmp/s1a/projects.service.task5.ts
-git show HEAD:$P/project-budget.service.ts > .tmp/s1a/project-budget.task5.ts
+git show HEAD:$P/projects.service.ts > .tmp/s1a/projects.service.task6.ts
+git show HEAD:$P/project-budget.service.ts > .tmp/s1a/project-budget.task6.ts
 node .tmp/s1a/cut-blocks.mjs $P/projects.service.ts .tmp/s1a/split-cut.json
 ```
 
@@ -2371,7 +2373,7 @@ apps/api/src/modules/projects/projects.service.ts: 288 lines
 
 ```bash
 P=apps/api/src/modules/projects
-node .tmp/s1a/same-lines.mjs .tmp/s1a/projects.service.task5.ts .tmp/s1a/project-budget.task5.ts -- $P/projects.service.ts $P/project-budget.service.ts $P/project-team.service.ts $P/projects.helpers.ts "export async function =private async " "tx: Tx,=tx: Prisma.TransactionClient," "await readProjectBudgets(=await this.readProjectBudgets(" "await saveProjectBudget(=await this.saveProjectBudget(" "await replaceTeamAssignments(=await this.replaceTeamAssignments("; echo "exit $?"
+node .tmp/s1a/same-lines.mjs .tmp/s1a/projects.service.task6.ts .tmp/s1a/project-budget.task6.ts -- $P/projects.service.ts $P/project-budget.service.ts $P/project-team.service.ts $P/projects.helpers.ts "export async function =private async " "tx: Tx,=tx: Prisma.TransactionClient," "await readProjectBudgets(=await this.readProjectBudgets(" "await saveProjectBudget(=await this.saveProjectBudget(" "await replaceTeamAssignments(=await this.replaceTeamAssignments("; echo "exit $?"
 git grep -n "Prisma.TransactionClient" -- $P ':!*.test.ts'
 ```
 
@@ -2395,7 +2397,7 @@ The moved functions take the caller's transaction; the duplicated budget categor
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
 
-Expected: all pass; api count equals Task 4 (`B_api + 70`); after formatting `projects.service.ts` is about 280 lines and no new file exceeds 300.
+Expected: all pass; api count equals Task 4 (`B_api + 68`); after formatting `projects.service.ts` is about 280 lines and no new file exceeds 300.
 
 ---
 
@@ -2456,10 +2458,11 @@ describe('Project update scope', () => {
   })
 
   it('reads the current row inside the actor scope by its lowercased id', async () => {
-    await service.update(manager, projectId.toUpperCase(), input)
+    const lowerId = 'ab000000-0000-4000-8000-00000000000a'
+    await service.update(manager, lowerId.toUpperCase(), input)
     expect(tx.project.findFirst).toHaveBeenCalledWith({
       where: {
-        AND: [expect.objectContaining({ organizationId, archivedAt: null }), { id: projectId }],
+        AND: [expect.objectContaining({ organizationId, archivedAt: null }), { id: lowerId }],
       },
       select: { id: true, code: true, updatedAt: true },
     })
@@ -2657,7 +2660,7 @@ git commit -m "refactor(api): use requireScopedProjectRow and requestIdentity in
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
 
-Expected: all pass, including the 21 overview metrics tests (its malformed-id and cross-organization cases now run through the kernel helper) and both boundary tests; api = `B_api + 76`.
+Expected: all pass, including the 21 overview metrics tests (its malformed-id and cross-organization cases now run through the kernel helper) and both boundary tests; api = `B_api + 74` (minus the 2 lost metadata cases).
 
 ---
 
@@ -2747,7 +2750,7 @@ Replace `<date>` with the merge date.
 
 - [ ] **Step 3: Update the audit and the index**
 
-- Audit: append to the disposition cell of MOD-04 `; projects service split by S1a.` and of MOD-11 `; projects and programs DTOs replaced by S1a.`
+- Audit: append to the disposition cell of MOD-04 `; projects service split by S1a.` and, for MOD-11, replace the final period of the cell with `; projects and programs DTOs replaced by S1a.`
 - `docs/index.md`: the CR row status becomes `Approved; F1 to F4b and S1a applied, S1b next`.
 
 ```bash
@@ -2794,7 +2797,7 @@ grep -E "Middleware" .tmp/s1a/web-build-gates.log
 git checkout -- apps/web/next-env.d.ts
 ```
 
-Expected: all pass and `dist layout ok` (nest `deleteOutDir` removes the old DTO output); web build exit 0 with Middleware at most `M0` (the barrel grows, and `"sideEffects": false` must keep the new contracts out of the Edge bundle). Versus Task 0: shared = `B_shared + 39` (field schemas 19, project requests 13, program requests 7), api = `B_api + 76` (field parity 57, projects HTTP 7, projects controller 1, programs HTTP 5, update scope 4, request identity 2), sad = `B_sad + 1`, config, imports and web unchanged.
+Expected: all pass and `dist layout ok` (nest `deleteOutDir` removes the old DTO output); web build exit 0 with Middleware at most `M0` (the barrel grows, and `"sideEffects": false` must keep the new contracts out of the Edge bundle). Versus Task 0: shared = `B_shared + 39` (field schemas 19, project requests 13, program requests 7), api = `B_api + 74` (field parity 57, projects HTTP 7, projects controller 1, programs HTTP 5, update scope 4, request identity 2, minus 2 controller-dto-runtime-metadata cases), sad = `B_sad + 1`, config, imports and web unchanged.
 
 - [ ] **Step 2: Local DB replay**
 
