@@ -41,12 +41,12 @@ vi.mock('@/hooks/use-current-role', () => ({
 }))
 vi.mock('@/lib/services/pathways-client', () => ({
   pathwaysClient: {
-    getProjects: state.projects,
     getActivities: state.activities,
     getActivityContext: state.activityContext,
     getProjectIndicators: state.indicators,
   },
 }))
+vi.mock('@/lib/api/projects', () => ({ projectsClient: { getProjects: state.projects } }))
 vi.mock('@/lib/api/core/request', () => ({
   PathwaysClientError: class PathwaysClientError extends Error {
     status?: number

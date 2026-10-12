@@ -1,9 +1,9 @@
 'use client'
+import { InlineNotice, OptionSelect } from './components/option-select'
+import { SourceMutationRecovery } from './components/source-mutation-recovery'
 import { recipeNames } from './indicator-recipes'
-import { InlineNotice, OptionSelect } from './option-select'
-import { SourceMutationRecovery } from './source-mutation-recovery'
+import { useProjectRead } from './projects.reads'
 import { UseFromLibrary } from './use-from-library'
-import { useProjectRead } from './use-project-reads'
 
 import { AsyncState } from '@/components/pathways/async-state'
 import { DialogShell } from '@/components/pathways/dialog-shell'

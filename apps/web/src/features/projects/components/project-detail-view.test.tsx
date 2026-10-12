@@ -31,10 +31,7 @@ const access = vi.hoisted(() => ({
   },
 }))
 
-vi.mock('@/lib/services/pathways-client', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/services/pathways-client')>()),
-  pathwaysClient: api,
-}))
+vi.mock('@/lib/api/projects', () => ({ projectsClient: api }))
 vi.mock('@/hooks/use-current-role', () => ({ useCurrentRole: () => access }))
 vi.mock('@/hooks/use-display-labels', () => ({
   useDisplayLabels: () => ({ labels: { projectWorkspace: 'Project Workspace' } }),
@@ -48,7 +45,7 @@ vi.mock('@/components/layout/page-header', () => ({
   ),
 }))
 vi.mock('./project-workspace-header', () => ({ ProjectWorkspaceHeader: () => <nav>Tabs</nav> }))
-vi.mock('./project-team-editor-dialog', () => ({
+vi.mock('../team/project-team-editor-dialog', () => ({
   ProjectTeamEditorDialog: () => <button type="button">Edit team</button>,
 }))
 

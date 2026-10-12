@@ -26,6 +26,7 @@ vi.mock('@/hooks/use-current-role', () => ({
 }))
 vi.mock('sonner', () => ({ toast }))
 vi.mock('@/lib/services/pathways-client', () => ({ pathwaysClient: client }))
+vi.mock('@/lib/api/projects', () => ({ projectsClient: client }))
 
 import { DuplicateResolutionWorkspace } from './duplicate-resolution-workspace'
 

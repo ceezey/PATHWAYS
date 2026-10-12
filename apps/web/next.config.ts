@@ -44,6 +44,8 @@ export default function createNextConfig(phase: string): NextConfig {
         ignore: sensitiveIncomingRequestPaths,
       },
     },
+    // Barrel imports of an indexed feature otherwise pull every client component of it into the route bundle.
+    experimental: { optimizePackageImports: ['@/features/projects'] },
     transpilePackages: ['@pathways/config', '@pathways/imports', '@pathways/shared'],
     async headers() {
       return privateAuthSurfacePaths.map((source) => ({

@@ -1,6 +1,6 @@
 import { type ProtectedPageProps, requireServerPage } from '@/lib/rbac/server-access'
 
-import { ProjectActivitiesWorkspace } from '@/features/projects/project-activities-workspace'
+import { ProjectActivitiesWorkspace } from '@/features/projects'
 
 async function ProjectActivitiesPage({
   params,

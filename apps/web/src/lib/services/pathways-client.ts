@@ -4,7 +4,6 @@ import {
 } from './automatic-mapping-receipt'
 import {
   type SourceMutationContext,
-  SourceMutationRecoveryError,
   type SourceMutationResult,
   ensureSourceInvalidationSubscription,
   sourceMutationTickets,
@@ -15,6 +14,7 @@ import {
   requestFoundation,
   requestFoundationResponse,
 } from '@/lib/api/core/request'
+import { requestSourceMutation } from '@/lib/api/core/source-mutation-request'
 import { webEnv } from '@/lib/env'
 import type {
   Activity,
@@ -37,7 +37,6 @@ import type {
   BeneficiaryRegistrationContext,
   CorrectJourneyEventInput,
   CreateActivityInput,
-  CreateProjectInput,
   DigitalFormDefinition,
   DirectFormSubmission,
   EnrollmentJourneyEventInput,
@@ -49,11 +48,7 @@ import type {
   ImportRowsPage,
   Indicator,
   JourneyStageConfig,
-  ProjectDetail,
   ProjectIndicator,
-  ProjectStatus,
-  ProjectSummary,
-  ProjectTeamMember,
   RecordActivityProgressInput,
   RecordOverdueExplanationInput,
   RegisterBeneficiaryInput,
@@ -63,7 +58,6 @@ import type {
   UpdateActivityInput,
   UpdateAuthorizedUserInput,
   UpdateBeneficiaryInput,
-  UpdateProjectInput,
   UserRecord,
 } from '@/types/pathways'
 import type { PathwaysRole } from '@/types/pathways-role'
@@ -100,7 +94,6 @@ import {
   surveyAnalyticsSchema,
   timelineAnalyticsSchema,
 } from '@pathways/shared'
-import { type ProjectOverviewMetrics, projectOverviewMetricsSchema } from '@pathways/shared'
 import { z } from 'zod'
 type CreateIndicatorInput = Omit<ApiCreateIndicatorInput, 'clientMutationId'>
 type UpdateIndicatorInput = Omit<ApiUpdateIndicatorInput, 'clientMutationId'>
@@ -231,16 +224,6 @@ interface PathwaysClient {
     enrollmentId: string,
     signal?: AbortSignal,
   ): Promise<AssessmentSummary[]>
-  getProjects(signal?: AbortSignal): Promise<ProjectSummary[]>
-  getProjectsForRole(role: PathwaysRole): Promise<ProjectSummary[]>
-  getProject(id: string, signal?: AbortSignal): Promise<ProjectDetail>
-  createProject(input: CreateProjectInput): Promise<ProjectDetail>
-  updateProject(
-    id: string,
-    input: UpdateProjectInput,
-    context?: SourceMutationContext,
-  ): Promise<SourceMutationResult<ProjectDetail>>
-  archiveProject(id: string): Promise<{ id: string; archivedAt: string }>
   getActivityContext(
     projectId: string,
     signal?: AbortSignal,
@@ -252,10 +235,6 @@ interface PathwaysClient {
     projectId: string,
     signal?: AbortSignal,
   ): Promise<AssignableProjectOfficer[]>
-  getProjectOverviewMetrics(
-    projectId: string,
-    signal?: AbortSignal,
-  ): Promise<ProjectOverviewMetrics>
   createActivity(
     input: CreateActivityInput,
     context?: SourceMutationContext,
@@ -532,50 +511,6 @@ class BackendReadyPathwaysClient implements PathwaysClient {
       ),
     )
   }
-  async getProjects(signal?: AbortSignal): Promise<ProjectSummary[]> {
-    return requestFoundation('/projects', { signal }).then(parseProjects)
-  }
-
-  async getProjectsForRole(_role: PathwaysRole): Promise<ProjectSummary[]> {
-    return this.getProjects()
-  }
-
-  async getProject(id: string, signal?: AbortSignal): Promise<ProjectDetail> {
-    return mapProject(
-      (await requestFoundation(`/projects/${encodeURIComponent(id)}`, { signal })) as ApiProject,
-    )
-  }
-
-  async createProject(input: CreateProjectInput): Promise<ProjectDetail> {
-    const status = apiProjectStatus(input.status)
-    return mapProject(
-      (await requestFoundation('/projects', {
-        method: 'POST',
-        body: JSON.stringify({ ...input, status }),
-      })) as ApiProject,
-    )
-  }
-
-  async updateProject(
-    id: string,
-    input: UpdateProjectInput,
-    context?: SourceMutationContext,
-  ): Promise<SourceMutationResult<ProjectDetail>> {
-    return requestSourceMutation(
-      `/projects/${encodeURIComponent(id)}`,
-      'PATCH',
-      { ...input, status: apiProjectStatus(input.status) },
-      context,
-      (value) => mapProject(value as ApiProject),
-    )
-  }
-
-  async archiveProject(id: string): Promise<{ id: string; archivedAt: string }> {
-    return (await requestFoundation(`/projects/${encodeURIComponent(id)}/archive`, {
-      method: 'POST',
-    })) as { id: string; archivedAt: string }
-  }
-
   async getActivityContext(
     projectId: string,
     signal?: AbortSignal,
@@ -631,21 +566,6 @@ class BackendReadyPathwaysClient implements PathwaysClient {
         { signal },
       ),
     )
-  }
-
-  // Project Overview metrics (feature/project-data-loading).
-  async getProjectOverviewMetrics(
-    projectId: string,
-    signal?: AbortSignal,
-  ): Promise<ProjectOverviewMetrics> {
-    const parsed = projectOverviewMetricsSchema.safeParse(
-      await requestFoundation(`/projects/${encodeURIComponent(projectId)}/overview-metrics`, {
-        signal,
-      }),
-    )
-    if (!parsed.success)
-      throw new PathwaysClientError('Invalid project overview response.', 'network')
-    return parsed.data
   }
 
   async createActivity(
@@ -1732,50 +1652,6 @@ export async function getAnalyticsExportPreview(query: DescriptiveAnalyticsQuery
 
 export const pathwaysClient: PathwaysClient = new BackendReadyPathwaysClient()
 
-interface ApiProject {
-  id: string
-  code: string
-  title: string
-  description: string | null
-  objectives: string | null
-  implementationArea: string | null
-  implementingPartners: string | null
-  implementingPartnerRecords?: { id: string; name: string }[]
-  sector: string | null
-  targetBeneficiaries: number | null
-  projectBudget: string | null
-
-  startDate?: string | null
-  endDate?: string | null
-  status: 'PLANNED' | 'ONGOING' | 'COMPLETED' | 'ON_HOLD' | 'CANCELLED'
-  programId: string | null
-  projectManager: string | null
-  programManagerId: string | null
-  programManager: string | null
-  projectManagerId: string | null
-  team?: ProjectTeamMember[]
-  monitoringOfficerId: string | null
-  monitoringOfficer: string | null
-  projectOfficerIds: string[]
-  projectOfficers: string[]
-  updatedAt: string
-}
-
-function apiProjectStatus(status: ProjectStatus | ApiProject['status']): ApiProject['status'] {
-  switch (status) {
-    case 'Active':
-      return 'ONGOING'
-    case 'Needs Attention':
-      return 'ON_HOLD'
-    case 'Planned':
-      return 'PLANNED'
-    case 'Completed':
-      return 'COMPLETED'
-    default:
-      return status
-  }
-}
-
 interface ApiUser {
   id: string
   authUserId: string | null
@@ -1879,30 +1755,6 @@ export async function recoverSourceMutation(context: SourceMutationContext, oper
     )
   })
 }
-async function requestSourceMutation<T>(
-  path: string,
-  method: 'POST' | 'PATCH',
-  body: Record<string, unknown>,
-  context: SourceMutationContext | undefined,
-  parse: (value: unknown) => T,
-): Promise<SourceMutationResult<T>> {
-  if (!context)
-    throw new PathwaysClientError('Current mutation ownership is required.', 'unauthorized')
-  try {
-    return await sourceTickets.execute(
-      context,
-      `${method}:${path}`,
-      body,
-      (captured) =>
-        requestFoundation(path, { method, body: JSON.stringify(captured) }, context.isCurrent),
-      parse,
-    )
-  } catch (error) {
-    if (error instanceof SourceMutationRecoveryError)
-      throw new PathwaysClientError(error.message, 'invalid')
-    throw error
-  }
-}
 
 export type DuplicateProfile = {
   id: string
@@ -1917,54 +1769,6 @@ type ResolveDuplicateInput = {
   leftId: string
   rightId: string
   decision: 'KEEP_DISTINCT' | 'LINK'
-}
-
-function mapProject(project: ApiProject): ProjectDetail {
-  const status: ProjectStatus =
-    project.status === 'ONGOING'
-      ? 'Active'
-      : project.status === 'COMPLETED'
-        ? 'Completed'
-        : project.status === 'PLANNED'
-          ? 'Planned'
-          : 'Needs Attention'
-  const period =
-    [project.startDate, project.endDate].filter(Boolean).join(' to ') || 'Dates not recorded'
-  return {
-    id: project.id,
-    code: project.code,
-    title: project.title,
-    description: project.description ?? '',
-    objectives: project.objectives ?? '',
-    implementingPartners: project.implementingPartners,
-    implementingPartnerRecords: (project.implementingPartnerRecords ?? []).map(({ id, name }) => ({
-      id,
-      name,
-    })),
-    projectBudget: project.projectBudget,
-
-    area: project.implementationArea ?? 'Area not recorded',
-    sector: project.sector ?? 'Sector not recorded',
-    status,
-    storedStatus: project.status,
-    health: status === 'Needs Attention' ? 'At Risk' : 'On Track',
-    period,
-    projectManager: project.projectManager ?? 'Not assigned',
-    programManager: project.programManager ?? 'Not assigned',
-    programManagerId: project.programManagerId,
-    projectManagerId: project.projectManagerId,
-    team: project.team,
-    monitoringOfficer: project.monitoringOfficer ?? 'Not assigned',
-    monitoringOfficerId: project.monitoringOfficerId,
-    projectOfficers: project.projectOfficers ?? [],
-    projectOfficerIds: project.projectOfficerIds ?? [],
-    targetBeneficiaries: project.targetBeneficiaries ?? undefined,
-    budgetCode: 'Not recorded',
-    startDate: project.startDate,
-    endDate: project.endDate,
-    updatedAt: project.updatedAt,
-    programId: project.programId,
-  }
 }
 
 // Whole years from a YYYY-MM-DD birth date to the enrollment date, or today without one.
@@ -2078,12 +1882,6 @@ function mapBeneficiary(row: ApiBeneficiary): BeneficiaryRecord {
     updatedAt: row.updatedAt,
     consentProvenance: row.consentProvenance,
   }
-}
-
-function parseProjects(value: unknown) {
-  if (!Array.isArray(value) || value.length > 100)
-    throw new PathwaysClientError('Invalid project response.', 'network')
-  return value.map((row) => mapProject(row as ApiProject))
 }
 
 const activityResponseKeys = [

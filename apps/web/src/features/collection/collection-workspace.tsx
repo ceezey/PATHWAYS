@@ -72,6 +72,7 @@ import {
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'
 import { usePendingCreate } from '@/hooks/use-pending-create'
+import { projectsClient } from '@/lib/api/projects'
 import { sensitiveDraftGeneration } from '@/lib/auth/sensitive-drafts'
 import { createdSince, fingerprintOf } from '@/lib/forms/pending-create'
 import { getVerifiedRouteAccess, principalHasAtomicPermission } from '@/lib/rbac/policy'
@@ -664,7 +665,7 @@ const OwnedCollectionWorkspace = ({
       const generation = sensitiveDraftGeneration()
       const retry = () => active && isCurrentOwner() && attempt < maxAttempts
       try {
-        const records = await pathwaysClient.getProjectsForRole(role)
+        const records = await projectsClient.getProjectsForRole(role)
         if (!active || !isCurrentOwner()) return
         if (generation !== sensitiveDraftGeneration()) {
           if (retry()) return load(attempt + 1)

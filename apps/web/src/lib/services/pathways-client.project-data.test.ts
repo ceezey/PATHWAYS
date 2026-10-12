@@ -10,6 +10,7 @@ vi.mock('@/lib/supabase/client', () => ({
 }))
 
 import { PathwaysClientError, requestFoundationResponse } from '@/lib/api/core/request'
+import { projectsClient } from '@/lib/api/projects'
 import { pathwaysClient } from './pathways-client'
 
 const authUserId = '73700000-0000-4000-8000-000000000001'
@@ -252,7 +253,7 @@ describe('project data loading client contract', () => {
       },
     }
     const { fetcher } = setup(metrics)
-    await expect(pathwaysClient.getProjectOverviewMetrics(projectId)).resolves.toEqual(metrics)
+    await expect(projectsClient.getProjectOverviewMetrics(projectId)).resolves.toEqual(metrics)
     expect(fetcher.mock.calls[0]?.[0]).toBe(
       `http://127.0.0.1:4000/api/projects/${projectId}/overview-metrics`,
     )
@@ -263,7 +264,7 @@ describe('project data loading client contract', () => {
         target: 10,
       },
     })
-    await expect(pathwaysClient.getProjectOverviewMetrics(projectId)).rejects.toMatchObject({
+    await expect(projectsClient.getProjectOverviewMetrics(projectId)).rejects.toMatchObject({
       code: 'network',
     })
   })

@@ -38,6 +38,7 @@ import {
   DASHBOARD_PINS_UI_ENABLED,
 } from '@/constants/feature-flags'
 import { useCurrentRole } from '@/hooks/use-current-role'
+import { projectsClient } from '@/lib/api/projects'
 import { can } from '@/lib/rbac/can'
 import { principalHasAtomicPermission } from '@/lib/rbac/policy'
 import { pathwaysClient } from '@/lib/services/pathways-client'
@@ -52,8 +53,7 @@ import type {
 import type { PathwaysRole } from '@/types/pathways-role'
 import { type RoutePrincipal, businessCalendarDate } from '@pathways/shared'
 
-import { ActivityDetailPanel } from '../projects/activity-detail-panel'
-import { ActivityProofDialog } from '../projects/activity-proof-dialog'
+import { ActivityDetailPanel, ActivityProofDialog } from '@/features/projects'
 import { ActionKpiRow } from './action-kpi-row'
 import { ExecutiveDashboard } from './executive-dashboard'
 import { monitoringReachMetrics } from './monitoring-reach-metrics'
@@ -268,7 +268,7 @@ const ConnectedMonitoringSnapshot = ({
   useEffect(() => {
     if (!role) return
     let active = true
-    pathwaysClient
+    projectsClient
       .getProjectsForRole(role)
       .then((records) => {
         if (!active) return

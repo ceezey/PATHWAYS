@@ -1,6 +1,7 @@
 'use client'
 
 import { useAuthorizedRead } from '@/hooks/use-authorized-read'
+import { projectsClient } from '@/lib/api/projects'
 import { pathwaysClient } from '@/lib/services/pathways-client'
 
 const summary = { freshness: 'summary' } as const
@@ -23,7 +24,7 @@ export const useProjectRead = (projectId: string, enabled = true) =>
     projectReadResources.project,
     projectId,
     'projects.detail.read',
-    (signal) => pathwaysClient.getProject(projectId, signal),
+    (signal) => projectsClient.getProject(projectId, signal),
     enabled,
     summary,
   )
@@ -64,7 +65,7 @@ export const useProjectOverviewMetricsRead = (projectId: string) =>
     projectReadResources.overviewMetrics,
     projectId,
     'projects.read',
-    (signal) => pathwaysClient.getProjectOverviewMetrics(projectId, signal),
+    (signal) => projectsClient.getProjectOverviewMetrics(projectId, signal),
     true,
     summary,
   )

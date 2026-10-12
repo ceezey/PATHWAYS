@@ -57,7 +57,7 @@ vi.mock('@/lib/services/core-feature-client', () => ({
   },
   downloadCoreArtifact: (...args: unknown[]) => state.downloadArtifact(...args),
 }))
-vi.mock('@/lib/services/pathways-client', () => ({ pathwaysClient: { getProjects: vi.fn() } }))
+vi.mock('@/lib/api/projects', () => ({ projectsClient: { getProjects: vi.fn() } }))
 vi.mock('@/hooks/use-authorized-read', () => ({
   useAuthorizedRead: (
     key: string,

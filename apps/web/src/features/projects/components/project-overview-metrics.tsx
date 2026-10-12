@@ -4,8 +4,8 @@ import { CappedPercent, ProgressBar } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
-import { formatNumber, overviewMetricLabel } from './project-utils'
-import { useProjectOverviewMetricsRead } from './use-project-reads'
+import { useProjectOverviewMetricsRead } from '../projects.reads'
+import { formatNumber, overviewMetricLabel } from '../projects.utils'
 
 const unavailable = 'Unavailable'
 

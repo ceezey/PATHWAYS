@@ -1,6 +1,6 @@
 import { type ProtectedPageProps, requireServerPage } from '@/lib/rbac/server-access'
 
-import { ProjectPhaseFiveWorkspace } from '@/features/projects/project-review-workspace'
+import { ProjectReviewWorkspace } from '@/features/projects'
 
 async function ProjectEvidencePage({
   params,
@@ -9,7 +9,7 @@ async function ProjectEvidencePage({
 }) {
   const { projectId } = await params
 
-  return <ProjectPhaseFiveWorkspace projectId={projectId} view="evidence" />
+  return <ProjectReviewWorkspace projectId={projectId} view="evidence" />
 }
 
 export const dynamic = 'force-dynamic'

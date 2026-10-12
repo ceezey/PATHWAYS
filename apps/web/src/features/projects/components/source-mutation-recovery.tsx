@@ -6,7 +6,7 @@ import { type SourceMutationContext, sourceMutationTickets } from '@/lib/service
 import { useEffect, useRef, useState } from 'react'
 
 /** No body, actor or request identity is rendered. Recovery always reauthorizes on the API. */
-function OwnedSourceMutationRecovery({
+function SourceMutationRecoveryContent({
   context,
   prefix,
   onRecovered,
@@ -94,7 +94,7 @@ function OwnedSourceMutationRecovery({
   )
 }
 
-export function SourceMutationRecovery(props: Parameters<typeof OwnedSourceMutationRecovery>[0]) {
+export function SourceMutationRecovery(props: Parameters<typeof SourceMutationRecoveryContent>[0]) {
   const current = useRef({ context: props.context, prefix: props.prefix, revision: 0 })
   if (current.current.context !== props.context || current.current.prefix !== props.prefix)
     current.current = {
@@ -102,5 +102,5 @@ export function SourceMutationRecovery(props: Parameters<typeof OwnedSourceMutat
       prefix: props.prefix,
       revision: current.current.revision + 1,
     }
-  return <OwnedSourceMutationRecovery key={current.current.revision} {...props} />
+  return <SourceMutationRecoveryContent key={current.current.revision} {...props} />
 }

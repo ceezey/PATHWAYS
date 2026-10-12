@@ -6,7 +6,7 @@ import {
   toCreateProjectInput,
   toProjectTeamInput,
   toUpdateProjectInput,
-} from './project-form-validation'
+} from './project-form.utils'
 
 const validValues = {
   projectBudget: '',

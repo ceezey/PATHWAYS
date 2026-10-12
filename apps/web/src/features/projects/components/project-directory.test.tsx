@@ -25,7 +25,7 @@ vi.mock('@/hooks/use-current-role', () => ({
 vi.mock('@/hooks/use-display-labels', () => ({
   useDisplayLabels: () => ({ labels: { moduleProjects: 'Projects' } }),
 }))
-vi.mock('@/lib/services/pathways-client', () => ({ pathwaysClient: { getProjects: vi.fn() } }))
+vi.mock('@/lib/api/projects', () => ({ projectsClient: { getProjects: vi.fn() } }))
 vi.mock('@/hooks/use-authorized-read', () => ({
   useAuthorizedRead: () => ({
     data: [
@@ -47,7 +47,7 @@ vi.mock('@/hooks/use-authorized-read', () => ({
     refetch: vi.fn(),
   }),
 }))
-vi.mock('./use-project-reads', () => ({ useProjectRead: () => state.preview }))
+vi.mock('../projects.reads', () => ({ useProjectRead: () => state.preview }))
 vi.mock('./project-overview-metrics', () => ({
   ProjectOverviewMetrics: () => <div>Overview metrics</div>,
 }))

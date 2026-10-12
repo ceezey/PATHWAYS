@@ -25,8 +25,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useAuthorizedRead } from '@/hooks/use-authorized-read'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { usePermission } from '@/hooks/use-permission'
+import { projectsClient } from '@/lib/api/projects'
 import { principalHasAtomicPermission } from '@/lib/rbac/policy'
-import { pathwaysClient } from '@/lib/services/pathways-client'
 import { rulesHumanClient } from '@/lib/services/rules-human-client'
 import type { HumanRule } from '@pathways/shared'
 import { useState } from 'react'
@@ -179,7 +179,7 @@ export function RulesBoard() {
   const [notice, setNotice] = useState('')
   const canCreate = principalHasAtomicPermission(profile, 'rules.create')
   const projects = useAuthorizedRead('rules-project-choices', null, 'projects.read', (signal) =>
-    pathwaysClient.getProjects(signal),
+    projectsClient.getProjects(signal),
   )
   const list = useAuthorizedRead('rules-board-list', projectId, 'rules.read', (signal) =>
     rulesHumanClient.listRules(

@@ -3,37 +3,21 @@ import { useSourceMutationContext } from '@/hooks/use-source-mutation-context'
 import { isSourceReplay, sourceMutationTickets } from '@/lib/services/source-mutation'
 
 import { zodResolver } from '@hookform/resolvers/zod'
-import { projectCodeBase } from '@pathways/shared'
 import { ArrowLeft, Loader2, Save } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
-import { type UseFormReturn, useForm, useWatch } from 'react-hook-form'
+import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 
 import { PageHeader } from '@/components/layout/page-header'
-import { AsyncState, LockedField, SectionCard } from '@/components/pathways'
+import { AsyncState, SectionCard } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from '@/components/ui/form'
-import { Input } from '@/components/ui/input'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import { Textarea } from '@/components/ui/textarea'
+import { Form } from '@/components/ui/form'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { usePendingCreate } from '@/hooks/use-pending-create'
 import { PathwaysClientError } from '@/lib/api/core/request'
+import { projectsClient } from '@/lib/api/projects'
 import {
   type SensitiveDraftOwner,
   readSensitiveDraft,
@@ -44,18 +28,20 @@ import {
 import { createdSince, fingerprintOf } from '@/lib/forms/pending-create'
 import { principalHasAtomicPermission } from '@/lib/rbac/policy'
 import { pathwaysClient } from '@/lib/services/pathways-client'
-import type { ProjectDetail, ProjectStatus, ProjectSummary, UserRecord } from '@/types/pathways'
+import type { ProjectDetail, ProjectSummary, UserRecord } from '@/types/pathways'
 
 import {
   type ProjectSetupSchema,
   projectSetupSchema,
+  projectStatuses,
   toCreateProjectInput,
   toProjectTeamInput,
   toUpdateProjectInput,
-} from './project-form-validation'
-import { ProjectTeamSelectors, hiddenTeamFields } from './project-team-selectors'
+} from '../project-form.utils'
+import { ProjectTeamSelectors } from '../team/project-team-selectors'
+import { hiddenTeamFields } from '../team/team-selection.utils'
+import { ProjectSetupFields } from './project-setup-fields'
 
-const projectStatuses: ProjectStatus[] = ['Active', 'Needs Attention', 'Planned', 'Completed']
 const projectDraftFields = [
   'partnerOrganizations',
   'projectBudget',
@@ -100,9 +86,9 @@ export const ProjectSetupForm = (props: { projectId?: string }) => {
     props.projectId ?? null,
   )
   if (!scope) return <output>Current project access is required.</output>
-  return <ScopedProjectSetupForm key={scope.key + scope.generation} {...props} scope={scope} />
+  return <ProjectSetupFormContent key={scope.key + scope.generation} {...props} scope={scope} />
 }
-const ScopedProjectSetupForm = ({
+const ProjectSetupFormContent = ({
   projectId,
   scope,
 }: { projectId?: string; scope: SensitiveDraftOwner }) => {
@@ -136,7 +122,7 @@ const ScopedProjectSetupForm = ({
     projectId: projectId ?? null,
     successMessage: 'Project created',
     findCreated: async (fingerprint, startedAt) =>
-      (await pathwaysClient.getProjects()).find(
+      (await projectsClient.getProjects()).find(
         (item) =>
           fingerprintOf(item.title) === fingerprint && createdSince(item.updatedAt, startedAt),
       ),
@@ -154,7 +140,7 @@ const ScopedProjectSetupForm = ({
 
   useEffect(() => {
     if (projectId) {
-      void pathwaysClient
+      void projectsClient
         .getProject(projectId)
         .then((project) => {
           if (!scope.isCurrent()) return
@@ -274,7 +260,7 @@ const ScopedProjectSetupForm = ({
     try {
       const budget = canEditBudget ? {} : { projectBudget: undefined }
       const project = existingProject
-        ? await pathwaysClient.updateProject(
+        ? await projectsClient.updateProject(
             projectId ?? existingProject.id,
             {
               ...toUpdateProjectInput(values, existingProject),
@@ -284,7 +270,7 @@ const ScopedProjectSetupForm = ({
             mutationContext ?? undefined,
           )
         : await pendingCreate.submit(fingerprintOf(values.title), () =>
-            pathwaysClient.createProject({
+            projectsClient.createProject({
               ...toCreateProjectInput(values),
               ...toProjectTeamInput(values, users),
               ...budget,
@@ -296,7 +282,7 @@ const ScopedProjectSetupForm = ({
       toast.success(existingProject ? 'Project profile updated.' : 'Project profile created.')
       if (isSourceReplay(project)) {
         if (!projectId || !mutationContext?.isCurrent()) return
-        await pathwaysClient.getProject(projectId)
+        await projectsClient.getProject(projectId)
         if (!scope.isCurrent() || !mutationContext.isCurrent()) return
         sourceMutationTickets.finishAcknowledgement(mutationContext, project.requestId)
       }
@@ -367,164 +353,13 @@ const ScopedProjectSetupForm = ({
                 {saveError}
               </p>
             ) : null}
-            <div className="grid gap-5 lg:grid-cols-2">
-              <FormField
-                control={form.control}
-                name="title"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel required>Project title</FormLabel>
-                    <FormControl aria-required="true">
-                      <Input placeholder="Community Resilience Project" {...field} />
-                    </FormControl>
-                    {projectId ? null : <ProjectCodePreview form={form} />}
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="partnerOrganizations"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Implementing partners</FormLabel>
-                    <FormControl>
-                      <Textarea {...field} placeholder="One organization per line" />
-                    </FormControl>
-                    <p className="text-sm text-muted-foreground">
-                      Each organization receives a stable identifier when saved.
-                    </p>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              {canEditBudget ? (
-                <FormField
-                  control={form.control}
-                  name="projectBudget"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Project budget (PHP)</FormLabel>
-                      <FormControl>
-                        <Input min="0" step="0.01" type="number" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              ) : canReadBudget ? (
-                <LockedField
-                  label="Project budget (PHP)"
-                  value={existingProject?.projectBudget ?? ''}
-                />
-              ) : null}
-              <FormField
-                control={form.control}
-                name="targetBeneficiaries"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Target beneficiaries</FormLabel>
-                    <FormControl>
-                      <Input min="0" type="number" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="sector"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Sector</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Education and Skills" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="area"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel required>Implementation area</FormLabel>
-                    <FormControl aria-required="true">
-                      <Input placeholder="Metro Manila" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="startDate"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel required>Start date</FormLabel>
-                    <FormControl aria-required="true">
-                      <Input type="date" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="endDate"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel required>End date</FormLabel>
-                    <FormControl aria-required="true">
-                      <Input type="date" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="status"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel required>Project status</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
-                      <FormControl aria-required="true">
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {projectStatuses.map((status) => (
-                          <SelectItem key={status} value={status}>
-                            {status}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="description"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel required>Description</FormLabel>
-                    <FormControl aria-required="true">
-                      <Input
-                        placeholder="Short project purpose and implementation scope"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
+            <ProjectSetupFields
+              canEditBudget={canEditBudget}
+              canReadBudget={canReadBudget}
+              existingBudget={existingProject?.projectBudget ?? ''}
+              form={form}
+              projectId={projectId}
+            />
             <div className="space-y-4 rounded-xl border border-border bg-surface-subtle p-4">
               <div>
                 <h2 className="text-lg font-semibold text-foreground">Project team</h2>
@@ -570,19 +405,5 @@ const ScopedProjectSetupForm = ({
         </Form>
       </SectionCard>
     </>
-  )
-}
-
-// Shows the code the API will generate; a numeric suffix is added on save if it is taken.
-const ProjectCodePreview = ({ form }: { form: UseFormReturn<ProjectSetupSchema> }) => {
-  const [title, area, startDate] = useWatch({
-    control: form.control,
-    name: ['title', 'area', 'startDate'],
-  })
-  if (!title?.trim()) return null
-  return (
-    <p className="text-xs text-muted-foreground">
-      Project code: {projectCodeBase({ title, area, startDate })}
-    </p>
   )
 }

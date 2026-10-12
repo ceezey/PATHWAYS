@@ -1,4 +1,4 @@
-import { overviewMetricLabel } from '@/features/projects/project-utils'
+import { overviewMetricLabel } from '@/features/projects'
 import type { DashboardMetric } from '@/types/pathways'
 import type { MonitoringDashboard } from '@pathways/shared'
 

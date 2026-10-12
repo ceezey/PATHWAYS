@@ -37,9 +37,7 @@ vi.mock('@/hooks/use-display-labels', () => ({
 vi.mock('@/components/layout/page-header', () => ({
   PageHeader: ({ title }: { title: string }) => <h1>{title}</h1>,
 }))
-vi.mock('@/lib/services/pathways-client', () => ({
-  pathwaysClient: { getProjects: state.project },
-}))
+vi.mock('@/lib/api/projects', () => ({ projectsClient: { getProjects: state.project } }))
 vi.mock('@/lib/services/rules-human-client', () => ({
   rulesHumanClient: {
     listAlerts: state.alerts,

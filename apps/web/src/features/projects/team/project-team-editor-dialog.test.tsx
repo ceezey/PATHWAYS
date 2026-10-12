@@ -26,6 +26,7 @@ let access: {
 vi.mock('@/lib/services/pathways-client', () => ({
   pathwaysClient: api,
 }))
+vi.mock('@/lib/api/projects', () => ({ projectsClient: api }))
 vi.mock('@/lib/api/core/request', () => ({ PathwaysClientError: class extends Error {} }))
 vi.mock('@/hooks/use-current-role', () => ({ useCurrentRole: () => access }))
 vi.mock('@/hooks/use-source-mutation-context', () => ({
@@ -34,7 +35,7 @@ vi.mock('@/hooks/use-source-mutation-context', () => ({
     context: {},
   }),
 }))
-vi.mock('./source-mutation-recovery', () => ({ SourceMutationRecovery: () => null }))
+vi.mock('../components/source-mutation-recovery', () => ({ SourceMutationRecovery: () => null }))
 
 const projectManagerUser: UserRecord = {
   id: '60000000-0000-4000-8000-000000000010',
@@ -159,7 +160,7 @@ describe('ProjectTeamEditorDialog', () => {
 
   // "Explicitly choosing None sends null, and only for the touched field" is
   // covered at the toProjectTeamInput unit level in
-  // project-form-validation.test.ts ("with dirtyFields, only nulls a blank
+  // project-form.utils.test.ts ("with dirtyFields, only nulls a blank
   // role the actor actually touched"). Driving that same save through a
   // real, opened Radix <Select> in this jsdom suite reproducibly hangs
   // during unmount/cleanup — unrelated to this fix — so it is intentionally

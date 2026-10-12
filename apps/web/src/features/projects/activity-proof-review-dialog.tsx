@@ -1,5 +1,5 @@
 'use client'
-import { SourceMutationRecovery } from './source-mutation-recovery'
+import { SourceMutationRecovery } from './components/source-mutation-recovery'
 
 import { DialogShell, StatusBadge } from '@/components/pathways'
 import { Button } from '@/components/ui/button'

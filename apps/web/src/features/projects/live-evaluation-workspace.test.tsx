@@ -67,7 +67,7 @@ vi.mock('@/lib/services/core-feature-client', () => ({
     signoffEvaluation: (...args: unknown[]) => state.signoff(...args),
   },
 }))
-vi.mock('./use-project-reads', () => ({
+vi.mock('./projects.reads', () => ({
   useProjectRead: () => ({
     data: { startDate: '2026-01-01', endDate: '2026-03-31' },
     isPending: false,

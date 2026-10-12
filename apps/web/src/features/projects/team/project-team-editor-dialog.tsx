@@ -1,5 +1,5 @@
 'use client'
-import { SourceMutationRecovery } from './source-mutation-recovery'
+import { SourceMutationRecovery } from '../components/source-mutation-recovery'
 
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useSourceMutationContext } from '@/hooks/use-source-mutation-context'
@@ -22,6 +22,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog'
 import { Form } from '@/components/ui/form'
+import { projectsClient } from '@/lib/api/projects'
 import { pathwaysClient } from '@/lib/services/pathways-client'
 import type { ProjectDetail, UserRecord } from '@/types/pathways'
 
@@ -35,13 +36,13 @@ import {
   projectTeamEditSchema,
   toProjectTeamInput,
   toUpdateProjectInput,
-} from './project-form-validation'
+} from '../project-form.utils'
+import { ProjectTeamSelectors } from './project-team-selectors'
 import {
-  ProjectTeamSelectors,
   type TeamFieldName,
   hiddenTeamFields,
   validateProjectTeamSelections,
-} from './project-team-selectors'
+} from './team-selection.utils'
 
 // Which project-role field a given assignment field maps to, for the
 // canAssignRole check. Program Manager is not a field in this dialog; it is assigned through User Management.
@@ -161,7 +162,7 @@ export const ProjectTeamEditorDialog = ({
     }
 
     try {
-      const updated = await pathwaysClient.updateProject(
+      const updated = await projectsClient.updateProject(
         project.id,
         {
           ...toUpdateProjectInput(values, project),
@@ -182,7 +183,7 @@ export const ProjectTeamEditorDialog = ({
         mutationContext,
       )
       if (!mutationContext.isCurrent()) return
-      const record = isSourceReplay(updated) ? await pathwaysClient.getProject(project.id) : updated
+      const record = isSourceReplay(updated) ? await projectsClient.getProject(project.id) : updated
       if (!mutationContext.isCurrent()) return
       if (isSourceReplay(updated))
         sourceMutationTickets.finishAcknowledgement(mutationContext, updated.requestId)
@@ -219,7 +220,7 @@ export const ProjectTeamEditorDialog = ({
               context={mutationContext}
               prefix={`/projects/${project.id}`}
               onRecovered={async () => {
-                const current = await pathwaysClient.getProject(project.id)
+                const current = await projectsClient.getProject(project.id)
                 return () => {
                   onUpdated(current)
                   setOpen(false)

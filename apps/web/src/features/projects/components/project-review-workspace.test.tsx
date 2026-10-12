@@ -3,7 +3,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { ProjectPhaseFiveWorkspace } from './project-review-workspace'
+import { ProjectReviewWorkspace } from './project-review-workspace'
 
 const projectId = '72000000-0000-4000-8000-000000000004'
 const coreApi = vi.hoisted(() => ({ reports: vi.fn(), save: vi.fn() }))
@@ -11,7 +11,6 @@ const api = vi.hoisted(() => ({
   getActivities: vi.fn(),
   getEvidence: vi.fn(),
   getProject: vi.fn(),
-  getProjectIndicators: vi.fn(),
 }))
 const proofClient = vi.hoisted(() => ({
   context: vi.fn(),
@@ -46,27 +45,23 @@ const { MockPathwaysClientError } = vi.hoisted(() => {
 vi.mock('@/lib/services/pathways-client', () => ({
   pathwaysClient: api,
 }))
+vi.mock('@/lib/api/projects', () => ({ projectsClient: api }))
 vi.mock('@/lib/api/core/request', () => ({ PathwaysClientError: MockPathwaysClientError }))
 vi.mock('@/lib/services/private-proof-client', () => ({ privateProofClient: proofClient }))
 vi.mock('@/lib/services/core-feature-client', () => ({
   coreDataClient: coreApi,
   saveCoreArtifact: coreApi.save,
 }))
-vi.mock('./budget-module/budget-module', () => ({
+vi.mock('../budget-module/budget-module', () => ({
   BudgetModule: ({ projectId }: { projectId: string }) => <div>Finance for {projectId}</div>,
 }))
-vi.mock('./live-evaluation-workspace', () => ({
+vi.mock('../live-evaluation-workspace', () => ({
   LiveEvaluationWorkspace: ({ projectId }: { projectId: string }) => (
     <div>Evaluation for {projectId}</div>
   ),
 }))
-vi.mock('./project-rules-panel', () => ({
+vi.mock('../project-rules-panel', () => ({
   ProjectRulesPanel: ({ projectId }: { projectId: string }) => <div>Rules for {projectId}</div>,
-}))
-vi.mock('@/features/public/publication-queue-workspace', () => ({
-  PublicationQueueWorkspace: ({ initialProjectId }: { initialProjectId: string }) => (
-    <div>Publication for {initialProjectId}</div>
-  ),
 }))
 vi.mock('@/hooks/use-current-role', () => ({
   useCurrentRole: () => access,
@@ -109,7 +104,6 @@ describe('shared project workspace optional loading', () => {
     })
     api.getEvidence.mockRejectedValue(new Error('not_configured'))
     coreApi.reports.mockResolvedValue([])
-    api.getProjectIndicators.mockResolvedValue([])
     proofClient.context.mockReset()
     proofClient.inspect.mockReset()
   })
@@ -120,7 +114,7 @@ describe('shared project workspace optional loading', () => {
   })
 
   it('keeps an authorized view usable when one optional service is unavailable', async () => {
-    render(<ProjectPhaseFiveWorkspace projectId={projectId} view="evidence" />)
+    render(<ProjectReviewWorkspace projectId={projectId} view="evidence" />)
 
     expect(await screen.findByRole('heading', { name: 'Report records' })).toBeTruthy()
     expect(await screen.findByText('Some information is unavailable')).toBeTruthy()
@@ -129,17 +123,15 @@ describe('shared project workspace optional loading', () => {
     await waitFor(() => expect(coreApi.reports).toHaveBeenCalledWith(projectId))
   })
   it('dispatches each live workspace with the exact project ID', () => {
-    const finance = render(<ProjectPhaseFiveWorkspace projectId={projectId} view="budget" />)
+    const finance = render(<ProjectReviewWorkspace projectId={projectId} view="budget" />)
     expect(screen.getByText(`Finance for ${projectId}`)).toBeTruthy()
     expect(screen.getByText(`Rules for ${projectId}`)).toBeTruthy()
     finance.unmount()
     const evaluation = render(
-      <ProjectPhaseFiveWorkspace projectId={projectId} view="monitor-evaluate" />,
+      <ProjectReviewWorkspace projectId={projectId} view="monitor-evaluate" />,
     )
     expect(screen.getByText(`Evaluation for ${projectId}`)).toBeTruthy()
     evaluation.unmount()
-    render(<ProjectPhaseFiveWorkspace projectId={projectId} view="transparency" />)
-    expect(screen.getByText(`Publication for ${projectId}`)).toBeTruthy()
     expect(api.getProject).not.toHaveBeenCalled()
   })
   it.each([false, undefined])(
@@ -147,7 +139,7 @@ describe('shared project workspace optional loading', () => {
     async (metricsAvailable) => {
       api.getProject.mockResolvedValue({ id: projectId, title: 'Project Alpha', metricsAvailable })
       api.getEvidence.mockResolvedValue({ scope: 'detail', records: [] })
-      render(<ProjectPhaseFiveWorkspace projectId={projectId} view="evidence" />)
+      render(<ProjectReviewWorkspace projectId={projectId} view="evidence" />)
       expect(await screen.findByRole('heading', { name: 'Report records' })).toBeTruthy()
       expect(
         await screen.findByText('No evidence records are available for this project.'),
@@ -164,36 +156,17 @@ describe('shared project workspace optional loading', () => {
       metricsAvailable: false,
     })
     api.getEvidence.mockResolvedValue({ scope: 'detail', records: [] })
-    render(<ProjectPhaseFiveWorkspace projectId={projectId} view="evidence" />)
+    render(<ProjectReviewWorkspace projectId={projectId} view="evidence" />)
     expect(await screen.findByRole('heading', { name: 'Report records' })).toBeTruthy()
     expect(coreApi.reports).not.toHaveBeenCalled()
   })
   it('keeps failed project authorization authoritative and does not read children', async () => {
     api.getProject.mockRejectedValue(new Error('Project unavailable.'))
-    render(<ProjectPhaseFiveWorkspace projectId={projectId} view="evidence" />)
+    render(<ProjectReviewWorkspace projectId={projectId} view="evidence" />)
     expect(await screen.findByRole('heading', { name: 'Workspace unavailable' })).toBeTruthy()
     expect(api.getEvidence).not.toHaveBeenCalled()
     expect(coreApi.reports).not.toHaveBeenCalled()
   })
-  it.each(['indicators'] as const)(
-    'loads existing authorized %s content without metric availability',
-    async (view) => {
-      access.profile.permissions = ['projects.read', 'monitoring.read']
-      api.getProject.mockResolvedValue({
-        id: projectId,
-        title: 'Project Alpha',
-        metricsAvailable: false,
-      })
-      render(<ProjectPhaseFiveWorkspace projectId={projectId} view={view} />)
-      expect(
-        await screen.findByRole('heading', {
-          name: 'Indicator cards',
-        }),
-      ).toBeTruthy()
-      await waitFor(() => expect(api.getProjectIndicators).toHaveBeenCalledWith(projectId))
-      expect(screen.queryByRole('heading', { name: 'Workspace unavailable' })).toBeNull()
-    },
-  )
   const proofId = '72000000-0000-4000-8000-000000000005'
   const activityId = '72000000-0000-4000-8000-000000000006'
   const updateId = '72000000-0000-4000-8000-000000000007'
@@ -236,7 +209,7 @@ describe('shared project workspace optional loading', () => {
   it('routes the eligible assigned reviewer to the real activity proof workflow instead of dead status controls', async () => {
     access.profile.permissions = reviewerPermissions
     api.getEvidence.mockResolvedValue({ scope: 'detail', records: [proof] })
-    render(<ProjectPhaseFiveWorkspace projectId={projectId} view="evidence" />)
+    render(<ProjectReviewWorkspace projectId={projectId} view="evidence" />)
     const link = await screen.findByRole('link', { name: 'Review proof' })
     expect(link.getAttribute('href')).toBe(
       `/projects/${projectId}/activities/${activityId}?review=${proofId}`,
@@ -264,7 +237,7 @@ describe('shared project workspace optional loading', () => {
         { ...proof, id: 'lock', fileName: 'private.pdf', isIdentifying: true, status: 'Returned' },
       ],
     })
-    render(<ProjectPhaseFiveWorkspace projectId={projectId} view="evidence" />)
+    render(<ProjectReviewWorkspace projectId={projectId} view="evidence" />)
     expect(await screen.findByText('Evidence & attachments')).toBeTruthy()
     expect(screen.getByText('synthetic.pdf')).toBeTruthy()
     expect(screen.getAllByText(/2\.3 MB · Uploaded by Synthetic staff/)).toHaveLength(2)
@@ -283,7 +256,7 @@ describe('shared project workspace optional loading', () => {
   it('shows the audit empty state without evidence records', async () => {
     access.profile.permissions = reviewerPermissions
     api.getEvidence.mockResolvedValue({ scope: 'detail', records: [] })
-    render(<ProjectPhaseFiveWorkspace projectId={projectId} view="evidence" />)
+    render(<ProjectReviewWorkspace projectId={projectId} view="evidence" />)
     expect(await screen.findByText('No audit events')).toBeTruthy()
     expect(screen.getByText('No evidence records')).toBeTruthy()
   })
@@ -294,7 +267,7 @@ describe('shared project workspace optional loading', () => {
       access.profile.roles = [role === 'Project Officer' ? 'PROJECT_OFFICER' : 'PROJECT_MANAGER']
       access.profile.permissions = reviewerPermissions
       api.getEvidence.mockResolvedValue({ scope: 'detail', records: [proof] })
-      render(<ProjectPhaseFiveWorkspace projectId={projectId} view="evidence" />)
+      render(<ProjectReviewWorkspace projectId={projectId} view="evidence" />)
       expect(await screen.findByRole('button', { name: 'Not available yet' })).toBeTruthy()
       expect(screen.queryByRole('button', { name: 'Preview for review' })).toBeNull()
       expect(screen.queryByRole('link', { name: 'Review proof' })).toBeNull()
@@ -304,7 +277,7 @@ describe('shared project workspace optional loading', () => {
   it('does not advertise a review workflow after current evidence.review revocation', async () => {
     access.profile.permissions = reviewerPermissions.filter((value) => value !== 'evidence.review')
     api.getEvidence.mockResolvedValue({ scope: 'detail', records: [proof] })
-    render(<ProjectPhaseFiveWorkspace projectId={projectId} view="evidence" />)
+    render(<ProjectReviewWorkspace projectId={projectId} view="evidence" />)
     expect(await screen.findByRole('button', { name: 'Not available yet' })).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Preview for review' })).toBeNull()
     expect(screen.queryByRole('link', { name: 'Review proof' })).toBeNull()
@@ -312,7 +285,7 @@ describe('shared project workspace optional loading', () => {
   it('fetches evidence with evidence.read alone but keeps download disabled without activities.read', async () => {
     access.profile.permissions = reviewerPermissions.filter((value) => value !== 'activities.read')
     api.getEvidence.mockResolvedValue({ scope: 'detail', records: [proof] })
-    render(<ProjectPhaseFiveWorkspace projectId={projectId} view="evidence" />)
+    render(<ProjectReviewWorkspace projectId={projectId} view="evidence" />)
     expect(await screen.findByRole('button', { name: 'Not available yet' })).toBeTruthy()
     expect(api.getEvidence).toHaveBeenCalledWith(projectId)
   })
@@ -336,7 +309,7 @@ describe('shared project workspace optional loading', () => {
         },
       ],
     })
-    render(<ProjectPhaseFiveWorkspace projectId={projectId} view="evidence" />)
+    render(<ProjectReviewWorkspace projectId={projectId} view="evidence" />)
     expect(await screen.findByText('Activity evidence summary')).toBeTruthy()
     expect(screen.getByRole('rowheader', { name: 'Synthetic activity' })).toBeTruthy()
     expect(screen.queryByText('Activity evidence list')).toBeNull()
@@ -348,7 +321,7 @@ describe('shared project workspace optional loading', () => {
   it('does not fetch or offer download for evidence after current evidence.read revocation', async () => {
     access.profile.permissions = reviewerPermissions.filter((value) => value !== 'evidence.read')
     api.getEvidence.mockResolvedValue({ scope: 'detail', records: [proof] })
-    render(<ProjectPhaseFiveWorkspace projectId={projectId} view="evidence" />)
+    render(<ProjectReviewWorkspace projectId={projectId} view="evidence" />)
     expect(await screen.findByRole('heading', { name: 'Report records' })).toBeTruthy()
     expect(api.getEvidence).not.toHaveBeenCalled()
     expect(screen.queryByRole('button', { name: 'Preview for review' })).toBeNull()
@@ -372,7 +345,7 @@ describe('shared project workspace optional loading', () => {
           },
         ],
       })
-      render(<ProjectPhaseFiveWorkspace projectId={projectId} view="evidence" />)
+      render(<ProjectReviewWorkspace projectId={projectId} view="evidence" />)
       expect(await screen.findByRole('button', { name: 'Not available yet' })).toBeTruthy()
       expect(screen.queryByRole('button', { name: 'Preview for review' })).toBeNull()
       expect(screen.queryByRole('link', { name: 'Review proof' })).toBeNull()
@@ -395,7 +368,7 @@ describe('shared project workspace optional loading', () => {
       URL.createObjectURL = vi.fn().mockReturnValue('blob:synthetic')
       URL.revokeObjectURL = vi.fn()
       try {
-        render(<ProjectPhaseFiveWorkspace projectId={projectId} view="evidence" />)
+        render(<ProjectReviewWorkspace projectId={projectId} view="evidence" />)
         const button = await screen.findByRole('button', { name: 'Preview for review' })
         expect(proofClient.inspect).not.toHaveBeenCalled()
         fireEvent.click(button)
@@ -417,7 +390,7 @@ describe('shared project workspace optional loading', () => {
       access.profile.permissions = reviewerPermissions.filter(
         (value) => value !== 'evidence.review',
       )
-      render(<ProjectPhaseFiveWorkspace projectId={projectId} view="evidence" />)
+      render(<ProjectReviewWorkspace projectId={projectId} view="evidence" />)
       const button = await screen.findByRole('button', { name: 'Not available yet' })
       expect(button).toBeTruthy()
       expect(button.hasAttribute('disabled')).toBe(true)
@@ -433,7 +406,7 @@ describe('shared project workspace optional loading', () => {
       const originalCreate = URL.createObjectURL
       URL.createObjectURL = createObjectURL
       try {
-        render(<ProjectPhaseFiveWorkspace projectId={projectId} view="evidence" />)
+        render(<ProjectReviewWorkspace projectId={projectId} view="evidence" />)
         const button = await screen.findByRole('button', { name: 'Preview for review' })
         fireEvent.click(button)
         expect(await screen.findByText('Private inspection is not authorized.')).toBeTruthy()

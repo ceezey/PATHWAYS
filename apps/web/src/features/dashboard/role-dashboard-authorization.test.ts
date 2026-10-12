@@ -48,6 +48,7 @@ vi.mock('@/hooks/use-current-role', () => ({
   }),
 }))
 vi.mock('@/lib/services/pathways-client', () => ({ pathwaysClient: api }))
+vi.mock('@/lib/api/projects', () => ({ projectsClient: api }))
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }))
 vi.mock('./action-kpi-row', () => ({ ActionKpiRow: () => null }))
 describe('overview supporting requests use current grants', () => {

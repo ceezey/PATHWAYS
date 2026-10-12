@@ -1,14 +1,14 @@
 'use client'
 
-import { type ProjectMap, projectMapSchema } from '@pathways/shared'
+import type { ProjectMap } from '@pathways/shared'
 
 import { useAuthorizedRead } from '@/hooks/use-authorized-read'
-import { requestFoundation } from '@/lib/api/core/request'
+import { projectsClient } from '@/lib/api/projects'
 
 import type { SafeMapFeatureCollection } from './analytics-location-utils'
 
-const readProjectMap = async (signal: AbortSignal): Promise<ProjectMap> =>
-  projectMapSchema.parse(await requestFoundation('/analytics/project-map', { signal }))
+const readProjectMap = (signal: AbortSignal): Promise<ProjectMap> =>
+  projectsClient.getProjectMap(signal)
 
 /** Scoped projects placed at bundled PH centroids, each with its overview aggregates. */
 export const useProjectMap = (enabled = true) =>

@@ -14,7 +14,7 @@ import {
   canReadInsight,
   useParticipationBreakdown,
 } from '@/features/analytics/use-analytics-insights'
-import { overviewMetricLabel } from '@/features/projects/project-utils'
+import { overviewMetricLabel } from '@/features/projects'
 import { useAuthorizedRead } from '@/hooks/use-authorized-read'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { type DashboardPin, type PinView, readPins, removePin } from '@/lib/dashboard-pins'

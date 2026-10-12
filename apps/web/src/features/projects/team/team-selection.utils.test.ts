@@ -6,7 +6,7 @@ import {
   getEligibleTeamUsers,
   parseProjectOfficerNames,
   validateProjectTeamSelections,
-} from './project-team-selectors'
+} from './team-selection.utils'
 
 describe('Project Team selector rules', () => {
   it('uses only active users with the exact eligible role', () => {

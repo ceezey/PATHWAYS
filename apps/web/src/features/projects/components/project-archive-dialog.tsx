@@ -15,7 +15,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
-import { pathwaysClient } from '@/lib/services/pathways-client'
+import { projectsClient } from '@/lib/api/projects'
 
 export const ProjectArchiveDialog = ({
   projectId,
@@ -31,7 +31,7 @@ export const ProjectArchiveDialog = ({
   const confirm = async () => {
     setBusy(true)
     try {
-      await pathwaysClient.archiveProject(projectId)
+      await projectsClient.archiveProject(projectId)
       toast.success('Project archived.')
       setOpen(false)
       router.push('/projects')

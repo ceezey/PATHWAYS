@@ -14,11 +14,11 @@ import {
 import { PrintReportView } from '@/features/reports/print/print-report-view'
 import { useAuthorizedRead } from '@/hooks/use-authorized-read'
 import { useCurrentRole } from '@/hooks/use-current-role'
+import { projectsClient } from '@/lib/api/projects'
 import { useOperationRequestId } from '@/lib/auth/operation-request-id'
 import { useSensitiveDraftOwner } from '@/lib/auth/sensitive-drafts'
 import { principalHasAtomicPermission } from '@/lib/rbac/policy'
 import { coreDataClient, downloadCoreArtifact } from '@/lib/services/core-feature-client'
-import { pathwaysClient } from '@/lib/services/pathways-client'
 import type { ReportKind } from '@/types/pathways'
 import type { ReportKindCode } from '@pathways/shared'
 import { Download, FileSpreadsheet, Save } from 'lucide-react'
@@ -92,7 +92,7 @@ export function LiveReportingWorkspace({
   const allowed = allowedKinds(profile)
   const kind = allowed.includes(selectedKind) ? selectedKind : (allowed[0] ?? 'PROJECT_SUMMARY')
   const projects = useAuthorizedRead('report-projects', null, 'reports.read', (signal) =>
-    pathwaysClient.getProjects(signal),
+    projectsClient.getProjects(signal),
   )
   const currentProjects = !projects.isError && !projects.isPending ? projects.data : undefined
   const project = currentProjects?.find((value) => value.id === selection) ?? currentProjects?.[0]

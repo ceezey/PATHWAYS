@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 
-import { IndicatorLibraryManager } from '@/features/projects/indicator-library-manager'
+import { IndicatorLibraryManager } from '@/features/projects'
 import { type ProtectedPageProps, requireServerPage } from '@/lib/rbac/server-access'
 
 export const metadata: Metadata = { title: 'Indicator library' }
