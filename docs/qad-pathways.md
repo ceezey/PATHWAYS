@@ -47,7 +47,7 @@ Every implemented feature requires:
 | QAD ID | Scenario | Path | ISO/IEC 25010 | PRD | Gate | UC | Evidence |
 |---|---|---|---|---|---|---|---|
 | QAD-T01 | active user resolves trusted org/role/permission/project scope | Happy | Security | PRD-F1 | G-F1-1 | UC-F1-1 | `apps/api/src/modules/auth/workspace-resolution.service.test.ts` |
-| QAD-T02 | authorized project/activity workflow persists | Happy | Functional Suitability | PRD-F2 | G-F2-5, G-F2-6 | UC-F2-2 | `apps/api/src/modules/activities/activities.service.test.ts`; `apps/api/src/modules/projects/projects.service.test.ts` |
+| QAD-T02 | authorized project/activity workflow persists | Happy | Functional Suitability | PRD-F2 | G-F2-5, G-F2-6 | UC-F2-2 | `apps/api/src/modules/activities/activities.helpers.test.ts`; `apps/api/src/modules/projects/projects.service.test.ts` |
 | QAD-T03 | authorized Beneficiary create/search in scope | Happy | Functional Suitability | PRD-F3 | G-F3-1 | UC-F3-1 | `apps/api/src/modules/beneficiaries/beneficiaries.service.test.ts` |
 | QAD-T04 | journey/participation history persists chronologically | Happy | Functional Suitability | PRD-F4 | G-F4-2 | UC-F4-2 | `apps/api/src/modules/participants/participants.service.test.ts` |
 | QAD-T05 | valid form/direct entry persists validated data | Happy | Functional Suitability | PRD-F5 | G-F5-1, G-F5-2 | UC-F5-2 | `apps/api/src/modules/metadata/metadata.service.test.ts`; `apps/api/src/modules/metadata/metadata.f5-gates.test.ts`; `apps/web/src/features/collection/direct-form-entry-workspace.test.tsx`; `apps/web/src/features/collection/direct-entry-ownership.test.tsx` |
