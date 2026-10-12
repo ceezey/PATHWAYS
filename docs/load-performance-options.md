@@ -8,7 +8,7 @@ Status: On hold since 2026-10-03, post-defense. Nothing here is implemented.
   - The journey stages loader calls getProject, getActivityContext or getActivities, and getJourneyStages.
   - The project review and delivery workspaces each make about 6 client calls.
   - The activities workspace adds officers, budget references and expenses.
-- Authorized reads default to `live` freshness in `authorized-query-provider.tsx`: `staleTime: 0`, `gcTime: 0` and `refetchOnMount: 'always'`. Every tab switch refetches everything, and nothing is reused between tabs.
+- Authorized reads default to `live` freshness in `hooks/use-authorized-read.ts`: `staleTime: 0`, `gcTime: 0` and `refetchOnMount: 'always'`. Every tab switch refetches everything, and nothing is reused between tabs.
 - Many legacy components fetch with raw `pathwaysClient` calls in `useEffect`, outside react-query. The same project is fetched again by each tab.
 - Each API call re-runs auth, permission resolution and `withAuthorizedOperation` (one transaction with RLS context), so per-call overhead adds up.
 

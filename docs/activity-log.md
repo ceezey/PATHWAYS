@@ -636,3 +636,16 @@
 - F4a decisions are recorded in the change record section 9, because the plan file stays until F4b is planned (it holds the F4b outline).
 - Deferred to F4b: `lib/api/core` with the owned-read helper, `lib/format`, the shared table head and dialog check, thinner providers.
 - Gates: lint, typecheck and builds pass; tests config 19, shared 186, imports 91, api 2339 (21 skipped), web 1899, sad 51; `Replay-Local.ps1 -MigrationBaseline` 171 PASS, 0 FAIL; demo seed exit 0 on the fifth run (earlier runs hit P2028 timeouts under machine load or lost Docker mid-run); e2e auth-navigation 27/27; e2e main 39 pass with the same 9 failures as dev; web middleware 102 kB; SAD sign-off 181/181 PASS at `a101ad7c`. Merged to local dev as `7d866db2`; plan kept for F4b.
+
+## 2026-10-10 Modularization F4b web helpers (refactor/f4b-web-helpers)
+- Task 1 (10dbb82c, fe5c6d74): `lib/percent.ts` moved to `lib/format/percent.ts` with its importers; `lib/format/plural.ts` and `lib/format/tone.ts` added and the local copies replaced; web 1900.
+- Task 2 (b8d41836): `lib/format/date.ts` added (`formatCalendarDay`, `formatDateOrUnavailable`) and five local `formatDate` copies replaced; web 1908.
+- Task 3 (dec7c6f4): `stickyTableHeadClass` added in `components/pathways/sticky-table-head.ts` and four identical header constants replaced; web 1911.
+- Task 4 (ddfe80f9): `PathwaysClientError`, `requestFoundationResponse` and `requestFoundation` moved to `lib/api/core/request.ts` (37 importers, 24 test mocks) and the source ticket subscription moved to `source-mutation.ts`; web 1913.
+- Task 5 (4a5a79d1): `captureRequestOwner` added in `lib/api/core/request-owner.ts` and used at three owner capture sites; web 1919.
+- Task 6 (d99d2410, 0ec26164): `useAuthorizedRead` moved to `hooks/use-authorized-read.ts` (27 importers, 12 test mocks) and the role provider's workspace cookie read and write moved to `lib/auth/workspace-access.ts`; web 1921.
+- Middleware: web Middleware went from 102 kB to 102 kB.
+- Dialog check: no raw `DialogContent` renders the same markup as `DialogShell` or `ConfirmationDialog`, so nothing was consolidated.
+- Task 7: SAD beneficiary privacy routing covers `apps/web/src/lib/api/**/*.ts`; sad 52.
+- F4b decisions are recorded in the change record section 9, because the plan file is removed after merge.
+- Deferred: `lib/services/*` rename to `lib/api/<domain>` and duplicated read resource keys (slices); other date and tone helpers and `DashboardSeverity` (S7); the two non-sticky header classes (S5); raw dialogs onto shared dialogs (slices); the three workspace cookie reads (S8).
