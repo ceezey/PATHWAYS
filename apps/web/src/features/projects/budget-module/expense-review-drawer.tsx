@@ -11,7 +11,7 @@ import { Sheet } from '@/components/ui/sheet'
 import { Textarea } from '@/components/ui/textarea'
 import { coreDataClient } from '@/lib/services/core-feature-client'
 
-import { formatCurrency } from '../activity-utils'
+import { formatCurrency } from '../activities/activities.utils'
 
 type Expense = Awaited<ReturnType<typeof coreDataClient.expenses>>[number]
 export type ReviewAction = 'VERIFY' | 'APPROVE' | 'SIGNOFF'

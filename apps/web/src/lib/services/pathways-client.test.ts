@@ -16,6 +16,7 @@ vi.mock('@/lib/supabase/client', () => ({
   getBrowserSupabaseClient: () => ({ auth: { getSession: browser.getSession } }),
 }))
 
+import { activitiesClient } from '@/lib/api/activities'
 import {
   PathwaysClientError,
   requestFoundation,
@@ -60,8 +61,8 @@ describe('PATHWAYS frontend data boundary', () => {
         new Response(JSON.stringify({ requestId: mutationId, committed: true, replayed: true })),
       )
     vi.stubGlobal('fetch', fetcher)
-    await expect(pathwaysClient.createActivity(input, mutationContext)).rejects.toThrow()
-    const replay = await pathwaysClient.createActivity(input, mutationContext)
+    await expect(activitiesClient.createActivity(input, mutationContext)).rejects.toThrow()
+    const replay = await activitiesClient.createActivity(input, mutationContext)
     expect(replay).toEqual({ requestId: mutationId, committed: true, replayed: true })
     expect(replay).not.toHaveProperty('id')
     expect(fetcher.mock.calls[0][1].body).toBe(fetcher.mock.calls[1][1].body)
@@ -85,7 +86,7 @@ describe('PATHWAYS frontend data boundary', () => {
       )
     vi.stubGlobal('fetch', fetcher)
     await expect(
-      pathwaysClient.reviewActivityUpdate(
+      activitiesClient.reviewActivityUpdate(
         projectId,
         activityId,
         updateId,
@@ -122,7 +123,7 @@ describe('PATHWAYS frontend data boundary', () => {
     )
     const fetcher = vi.fn()
     vi.stubGlobal('fetch', fetcher)
-    const request = pathwaysClient.createActivity(
+    const request = activitiesClient.createActivity(
       {
         projectId: '73600000-0000-4000-8000-000000000004',
         title: 'Synthetic private title',
@@ -305,12 +306,12 @@ describe('PATHWAYS frontend data boundary', () => {
       )
     vi.stubGlobal('fetch', fetcher)
 
-    const [loaded] = await pathwaysClient.getActivities(projectId)
+    const [loaded] = await activitiesClient.getActivities(projectId)
     expect(loaded).toMatchObject({ id: activity.id, indicatorIds: [], journeyStageId: '' })
     expect(loaded).not.toHaveProperty('targetGoal')
     expect(loaded).not.toHaveProperty('projectGoalComparison')
     expect(loaded).not.toHaveProperty('internalAuditSalt')
-    await pathwaysClient.createActivity(
+    await activitiesClient.createActivity(
       {
         projectId,
         title: activity.title,
@@ -1082,9 +1083,9 @@ describe('Activity proof response parsing', () => {
       contentTypes: ['application/pdf'],
     }
     stubResponse(limits)
-    await expect(pathwaysClient.getActivityProofUploadLimits(projectId)).resolves.toEqual(limits)
+    await expect(activitiesClient.getActivityProofUploadLimits(projectId)).resolves.toEqual(limits)
     stubResponse({ ...limits, extra: true })
-    await expect(pathwaysClient.getActivityProofUploadLimits(projectId)).rejects.toMatchObject({
+    await expect(activitiesClient.getActivityProofUploadLimits(projectId)).rejects.toMatchObject({
       code: 'network',
     })
   })
@@ -1096,7 +1097,7 @@ describe('Activity proof response parsing', () => {
       maxTotalBytes: 1,
       contentTypes: Array.from({ length: 11 }, (_, index) => `type/${index}`),
     })
-    await expect(pathwaysClient.getActivityProofUploadLimits(projectId)).rejects.toMatchObject({
+    await expect(activitiesClient.getActivityProofUploadLimits(projectId)).rejects.toMatchObject({
       code: 'network',
     })
   })
@@ -1120,7 +1121,7 @@ describe('Activity proof response parsing', () => {
     }
     stubResponse(reservation)
     await expect(
-      pathwaysClient.reserveActivityProofUpload({
+      activitiesClient.reserveActivityProofUpload({
         projectId,
         activityId,
         clientUpdateId: 'client-1',
@@ -1149,7 +1150,7 @@ describe('Activity proof response parsing', () => {
       ],
     })
     await expect(
-      pathwaysClient.reserveActivityProofUpload({
+      activitiesClient.reserveActivityProofUpload({
         projectId,
         activityId,
         clientUpdateId: 'client-1',
@@ -1178,7 +1179,7 @@ describe('Activity proof response parsing', () => {
       ],
     })
     await expect(
-      pathwaysClient.reserveActivityProofUpload({
+      activitiesClient.reserveActivityProofUpload({
         projectId,
         activityId,
         clientUpdateId: 'client-1',
@@ -1207,7 +1208,7 @@ describe('Activity proof response parsing', () => {
       ],
     })
     await expect(
-      pathwaysClient.reserveActivityProofUpload({
+      activitiesClient.reserveActivityProofUpload({
         projectId,
         activityId,
         clientUpdateId: 'client-1',
@@ -1234,7 +1235,7 @@ describe('Activity proof response parsing', () => {
       })),
     })
     await expect(
-      pathwaysClient.reserveActivityProofUpload({
+      activitiesClient.reserveActivityProofUpload({
         projectId,
         activityId,
         clientUpdateId: 'client-1',
@@ -1248,7 +1249,7 @@ describe('Activity proof response parsing', () => {
   it('accepts a COMMITTED reservation and a COMMITTED finalize result', async () => {
     stubResponse({ clientUpdateId: 'client-1', status: 'COMMITTED', acknowledgement: { ok: true } })
     await expect(
-      pathwaysClient.reserveActivityProofUpload({
+      activitiesClient.reserveActivityProofUpload({
         projectId,
         activityId,
         clientUpdateId: 'client-1',
@@ -1263,7 +1264,7 @@ describe('Activity proof response parsing', () => {
     })
     stubResponse({ status: 'COMMITTED', acknowledgement: { ok: true } })
     await expect(
-      pathwaysClient.finalizeActivityProofFile(projectId, activityId, 'update-1', 'evidence-1'),
+      activitiesClient.finalizeActivityProofFile(projectId, activityId, 'update-1', 'evidence-1'),
     ).resolves.toEqual({ status: 'COMMITTED', acknowledgement: { ok: true } })
   })
 
@@ -1299,7 +1300,7 @@ describe('Activity proof response parsing', () => {
     }
     stubResponse({ status: 'COMMITTED', activity: committedActivity })
     await expect(
-      pathwaysClient.finalizeActivityProofFile(projectId, activityId, 'update-1', 'evidence-1'),
+      activitiesClient.finalizeActivityProofFile(projectId, activityId, 'update-1', 'evidence-1'),
     ).resolves.toEqual({
       status: 'COMMITTED',
       activity: {
@@ -1323,24 +1324,24 @@ describe('Activity proof response parsing', () => {
       acknowledgement: { ok: true },
     })
     await expect(
-      pathwaysClient.finalizeActivityProofFile(projectId, activityId, 'update-1', 'evidence-1'),
+      activitiesClient.finalizeActivityProofFile(projectId, activityId, 'update-1', 'evidence-1'),
     ).rejects.toMatchObject({ code: 'network' })
     // An `activity` payload missing sourceAcknowledgement is rejected.
     const { sourceAcknowledgement: _drop, ...withoutAcknowledgement } = committedActivity
     stubResponse({ status: 'COMMITTED', activity: withoutAcknowledgement })
     await expect(
-      pathwaysClient.finalizeActivityProofFile(projectId, activityId, 'update-1', 'evidence-1'),
+      activitiesClient.finalizeActivityProofFile(projectId, activityId, 'update-1', 'evidence-1'),
     ).rejects.toMatchObject({ code: 'network' })
   })
 
   it('rejects a finalize response with an out-of-range remaining count and a wrong-typed field', async () => {
     stubResponse({ status: 'UPLOADING', updateId: 'update-1', remaining: -1 })
     await expect(
-      pathwaysClient.finalizeActivityProofFile(projectId, activityId, 'update-1', 'evidence-1'),
+      activitiesClient.finalizeActivityProofFile(projectId, activityId, 'update-1', 'evidence-1'),
     ).rejects.toMatchObject({ code: 'network' })
     stubResponse({ status: 'UPLOADING', updateId: 42, remaining: 1 })
     await expect(
-      pathwaysClient.finalizeActivityProofFile(projectId, activityId, 'update-1', 'evidence-1'),
+      activitiesClient.finalizeActivityProofFile(projectId, activityId, 'update-1', 'evidence-1'),
     ).rejects.toMatchObject({ code: 'network' })
   })
 })

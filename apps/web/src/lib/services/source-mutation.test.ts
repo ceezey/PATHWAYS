@@ -286,49 +286,20 @@ describe('owned source mutation recovery', () => {
     await expect(pending).rejects.toThrow('ownership changed')
     expect(tickets.pendingRecovery(next, 'PATCH:project')?.requestId).toBe(id)
   })
-  it('preserves exact multipart handles and id across navigation, forbids changed files, and clears sensitive handles on owner loss', async () => {
-    const file = new File(['synthetic'], 'synthetic.txt', { type: 'text/plain' })
-    const tickets = new SourceMutationTickets(() => id)
-    const body = { progressPercent: 20, note: 'Synthetic proof' }
-    const send = vi.fn().mockRejectedValueOnce(Error('uncertain')).mockResolvedValueOnce(ack())
+  it('sends the caller request id under the configured key field and takes a legacy record only when allowed', async () => {
+    const tickets = new SourceMutationTickets(() => 'unused')
+    const send = vi.fn().mockResolvedValue({ id: 'record' })
+    const options = { requestId: id, keyField: 'clientMeasurementId' } as const
     await expect(
-      tickets.execute(context, 'POST:proof', body, send, parse, {
-        files: [file],
-        keyField: 'clientUpdateId',
+      tickets.execute(context, 'POST:measurement', { value: 1 }, send, parse, {
+        ...options,
         allowLegacy: true,
       }),
-    ).rejects.toThrow()
-    expect(tickets.proofSnapshot(context, 'POST:proof')?.files[0]).toBe(file)
+    ).resolves.toEqual({ id: 'record' })
+    expect(send).toHaveBeenCalledWith({ value: 1, clientMeasurementId: id })
     await expect(
-      tickets.execute(context, 'POST:proof', body, send, parse, {
-        files: [new File(['synthetic'], 'synthetic.txt')],
-        keyField: 'clientUpdateId',
-      }),
-    ).rejects.toThrow('identical files')
-    expect(
-      await tickets.execute(context, 'POST:proof', body, send, parse, {
-        files: [file],
-        keyField: 'clientUpdateId',
-        allowLegacy: true,
-      }),
-    ).toEqual(ack())
-    expect(send.mock.calls[0][0]).toEqual(send.mock.calls[1][0])
-    expect(send.mock.calls[1][0].clientUpdateId).toBe(id)
-    tickets.finishAcknowledgement(context, id)
-    await expect(
-      tickets.execute(
-        context,
-        'POST:proof',
-        body,
-        async () => {
-          throw Error('uncertain')
-        },
-        parse,
-        { files: [file] },
-      ),
-    ).rejects.toThrow()
-    tickets.synchronizePrincipal('B')
-    expect(tickets.proofSnapshot(context, 'POST:proof')).toBeNull()
+      tickets.execute(context, 'POST:measurement', { value: 2 }, send, parse, options),
+    ).rejects.toThrow('could not be confirmed')
   })
   it('accepts legacy proof/measurement DTO only on their explicitly permitted path and checks new receipts against the original key', () => {
     expect(parseSourceMutationResult({ id: 'record' }, id, parse, true)).toEqual({ id: 'record' })

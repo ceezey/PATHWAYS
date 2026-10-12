@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { formatCappedPercent } from '@/lib/format/percent'
 import { cn } from '@/lib/utils'
 
-import { formatCurrency } from '../activity-utils'
+import { formatCurrency } from '../activities/activities.utils'
 import { type BudgetAlert, toneFor } from './budget-math'
 import type { useBudgetModule } from './use-budget-module'
 

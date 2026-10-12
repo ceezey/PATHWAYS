@@ -1,0 +1,122 @@
+import { describe, expect, it } from 'vitest'
+
+import { activityFormSchema, createActivityFormSchema } from './activity-form.utils'
+
+describe('activity form validation', () => {
+  it('requires activity setup fields', () => {
+    const result = activityFormSchema.safeParse({
+      title: '',
+      description: '',
+      startDate: '',
+      dueDate: '',
+      targetBeneficiaries: 0,
+      budgetAllocation: 0,
+      assignedOfficers: [],
+      connectedIndicators: [],
+      journeyStageId: '',
+    })
+
+    expect(result.success).toBe(false)
+  })
+
+  it('allows an activity to be created before indicators or journey stages are connected', () => {
+    const result = activityFormSchema.safeParse({
+      title: 'Community workshop',
+      description: 'A valid activity description for the selected project.',
+      startDate: '2026-09-01',
+      dueDate: '2026-09-10',
+      targetBeneficiaries: 30,
+      budgetAllocation: 10000,
+      assignedOfficers: ['Project Officer A'],
+      connectedIndicators: [],
+      journeyStageId: '',
+    })
+
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.connectedIndicators).toEqual([])
+      expect(result.data.journeyStageId).toBe('')
+    }
+  })
+
+  it('rejects a due date before the start date', () => {
+    const result = activityFormSchema.safeParse({
+      title: 'Community workshop',
+      description: 'A valid activity description for the selected project.',
+      startDate: '2026-09-10',
+      dueDate: '2026-09-01',
+      targetBeneficiaries: 30,
+      budgetAllocation: 10000,
+      assignedOfficers: ['officer-a'],
+      connectedIndicators: ['ind-fm-01'],
+      journeyStageId: 'stage-entry',
+    })
+
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects invalid target and budget values before submission', () => {
+    const validInput = {
+      title: 'Community workshop',
+      description: 'A valid activity description for the selected project.',
+      startDate: '2026-09-01',
+      dueDate: '2026-09-10',
+      targetBeneficiaries: 30,
+      budgetAllocation: 10000,
+      assignedOfficers: ['Project Officer A'],
+      connectedIndicators: [],
+      journeyStageId: '',
+    }
+
+    expect(
+      activityFormSchema.safeParse({ ...validInput, targetBeneficiaries: 2_147_483_648 }).success,
+    ).toBe(false)
+    expect(activityFormSchema.safeParse({ ...validInput, budgetAllocation: 100.001 }).success).toBe(
+      false,
+    )
+  })
+
+  it('rejects relationships outside the visible project-scoped options', () => {
+    const schema = createActivityFormSchema({
+      indicatorIds: ['ind-fm-01'],
+      journeyStageIds: ['stage-entry'],
+      officerIds: ['officer-a'],
+    })
+    const validInput = {
+      title: 'Prototype activity',
+      description: 'A valid prototype activity description.',
+      startDate: '2026-09-01',
+      dueDate: '2026-09-10',
+      targetBeneficiaries: 30,
+      budgetAllocation: 10000,
+      assignedOfficers: ['officer-a'],
+      connectedIndicators: ['ind-fm-01'],
+      journeyStageId: 'stage-entry',
+    }
+
+    expect(schema.safeParse(validInput).success).toBe(true)
+    expect(
+      schema.safeParse({
+        ...validInput,
+        assignedOfficers: ['officer-outside-scope'],
+        connectedIndicators: ['ind-outside-scope'],
+        journeyStageId: 'stage-outside-scope',
+      }).success,
+    ).toBe(false)
+  })
+
+  it('keeps an unreadable logged budget null instead of coercing it to 0', () => {
+    const result = activityFormSchema.safeParse({
+      title: 'Community workshop',
+      description: 'A valid activity description for the selected project.',
+      startDate: '2026-09-01',
+      dueDate: '2026-09-10',
+      targetBeneficiaries: 30,
+      budgetAllocation: '',
+      assignedOfficers: ['officer-a'],
+      budgetLogged: null,
+    })
+    expect(result.success).toBe(true)
+    if (result.success) expect(result.data.budgetLogged).toBeNull()
+  })
+})

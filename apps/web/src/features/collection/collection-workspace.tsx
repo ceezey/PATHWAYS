@@ -72,6 +72,7 @@ import {
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'
 import { usePendingCreate } from '@/hooks/use-pending-create'
+import { activitiesClient } from '@/lib/api/activities'
 import { projectsClient } from '@/lib/api/projects'
 import { sensitiveDraftGeneration } from '@/lib/auth/sensitive-drafts'
 import { createdSince, fingerprintOf } from '@/lib/forms/pending-create'
@@ -744,7 +745,7 @@ const OwnedCollectionWorkspace = ({
     if (view === 'builder' && canReadActivities && eligible('activities.read', projectId)) {
       requests.push(
         load(
-          pathwaysClient.getActivities(projectId),
+          activitiesClient.getActivities(projectId),
           setActivities,
           'Activities',
           'activities.read',

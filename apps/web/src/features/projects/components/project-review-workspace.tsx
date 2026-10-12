@@ -14,10 +14,10 @@ import { AsyncState, EmptyState, SectionCard } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'
+import { activitiesClient } from '@/lib/api/activities'
 import { projectsClient } from '@/lib/api/projects'
 import { canAccessProjectForRole } from '@/lib/rbac/data-scope'
 import { principalHasAtomicPermission } from '@/lib/rbac/policy'
-import { pathwaysClient } from '@/lib/services/pathways-client'
 import type {
   ActivitySummary,
   EvidenceActivitySummary,
@@ -96,7 +96,7 @@ const EvidenceWorkspace = ({ projectId }: { projectId: string }) => {
           requests.push(
             optional(
               'Connected activities',
-              pathwaysClient.getActivities(projectId),
+              activitiesClient.getActivities(projectId),
               // A missing list leaves the tab usable; the budget column reads as a dash.
               (list) => setActivities(list ?? []),
             ),
@@ -104,7 +104,7 @@ const EvidenceWorkspace = ({ projectId }: { projectId: string }) => {
         }
         if (canReadEvidence) {
           requests.push(
-            optional('Evidence records', pathwaysClient.getEvidence(projectId), (list) =>
+            optional('Evidence records', activitiesClient.getEvidence(projectId), (list) =>
               applyEvidence(list, setEvidence, setEvidenceSummary),
             ),
           )

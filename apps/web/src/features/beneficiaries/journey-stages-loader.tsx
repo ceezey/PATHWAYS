@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react'
 import { AsyncState } from '@/components/pathways/async-state'
 import { EmptyState } from '@/components/pathways/empty-state'
 import { Button } from '@/components/ui/button'
+import { activitiesClient } from '@/lib/api/activities'
 import { PathwaysClientError } from '@/lib/api/core/request'
 import { projectsClient } from '@/lib/api/projects'
 import { pathwaysClient } from '@/lib/services/pathways-client'
@@ -36,9 +37,9 @@ export const JourneyStagesLoader = ({ projectId }: { projectId: string }) => {
     Promise.all([
       projectsClient.getProject(projectId),
       contextOnly
-        ? pathwaysClient.getActivityContext(projectId)
+        ? activitiesClient.getActivityContext(projectId)
         : canReadActivities
-          ? pathwaysClient.getActivities(projectId)
+          ? activitiesClient.getActivities(projectId)
           : Promise.resolve([]),
       pathwaysClient.getJourneyStages(projectId),
     ])

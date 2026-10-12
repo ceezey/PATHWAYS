@@ -697,3 +697,18 @@
 - Decisions: the S1b decisions are recorded in the change record section 9 because the plan file is removed after merge.
 - Deferred: the six project list read keys stay with S6, S7 and S8; the `ExpenseRecord` type in `types/pathways.ts` is now unused (S6); `lib/services/*` renames.
 - Gates: lint, typecheck and builds pass; tests config 19, shared 273, imports 91, api 2429 (21 skipped), web 1943, sad 53 (the first gate run hit the known ZodPipe timeout under reviewer load and passed on rerun); route sizes before and after Task 6 differ on 0 routes; `Replay-Local.ps1 -MigrationBaseline` 171 PASS, 0 FAIL; demo seed completed every stage except the survey feedback report, whose SQL report function exceeded the transaction timeout on both runs (pre-existing and intermittent; S1b changes no api code); compiled API boot and health ok; e2e auth-navigation 27/27; e2e main 39 pass with the same 9 failures as dev; web middleware 102 kB; SAD sign-off 141/141 PASS at `3a9922da`. Merged to local dev as `e91f3ad1`; plan removed.
+
+## 2026-10-12 Modularization S2b activities web (refactor/s2b-activities-web)
+
+- Task 1 (3b7e9876): `lib/api/activities.ts`, `activity-extensions.ts`, the two parser files, `guards.ts` and `proof-inspection.ts` added beside the pathways client with characterization tests on the replay receipt and the refusal without a mutation context; web 218 files and 2003 tests.
+- Task 2 (7c146842): 29 files and 87 calls switched to the new clients and the activity methods left `pathways-client.ts` (2394 to 1521 lines); mock factories now name the new modules; web 218 and 1973.
+- Task 3 (f740ad84): 35 activity files moved with `git mv` into `features/projects/activities/{components,hooks}` with 41 specifiers and 3 contract paths updated; web 218 and 1973.
+- Task 4 (dfc9b4fb): the form dialog and the proof dialog split by component and hook, after a draft test pinned the form effects on the unsplit dialog; web 219 and 1977.
+- Task 5 (bdd3da8e): the detail panel and the workspace split, after an expenses test pinned the expense rows on the unsplit workspace; web 220 and 1980.
+- Task 6 (9e3d0174): `activities.reads.ts` and `activities.copy.ts` added and two types aliased to the contracts; web 221 and 1983.
+- Task 7 (1b8438e6): `activityExtensionSchema` moved to `contracts/activities/activity-extension-response.ts` as `activityExtensionResponse` with a strict-shape test; shared 24 files and 281 tests; web 221 and 1983.
+- Task 8 (9ded889a): the unused multipart `files` option and `proofSnapshot` removed from `source-mutation.ts` (356 to 315 lines); web 221 and 1983.
+- Type probe: of twelve pairs two equal a S2a response type (`ActivityCapabilities`, `AssignableProjectOfficer`) and became aliases; ten differ in shape or strictness and stay view models.
+- Route measurements: Tasks 1 and 2 shrank 18 routes (up to 4 kB) and grew `/alerts/repository` by 1 kB; the layout move grew three routes by 1 kB; a sub-index grew `/dashboard` from 673 to 696 kB so the feature index lists leaf paths; a stale `apps/web/.next` after the moves failed the build with a misleading Module not found.
+- Decisions: the S2b decisions are recorded in the change record section 9 because the plan file is removed after merge.
+- Deferred: the activity read keys of analytics, rules board, collection, beneficiary loaders and the review workspace; the `finance-*` read keys and the activity expense files (S6); `definitiveRejection` and `nextDay`; one component per file in `activity-detail-sections.tsx` and `evidence-panels.tsx`.

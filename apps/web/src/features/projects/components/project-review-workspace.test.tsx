@@ -45,9 +45,10 @@ const { MockPathwaysClientError } = vi.hoisted(() => {
 vi.mock('@/lib/services/pathways-client', () => ({
   pathwaysClient: api,
 }))
+vi.mock('@/lib/api/activities', () => ({ activitiesClient: api }))
 vi.mock('@/lib/api/projects', () => ({ projectsClient: api }))
 vi.mock('@/lib/api/core/request', () => ({ PathwaysClientError: MockPathwaysClientError }))
-vi.mock('@/lib/services/private-proof-client', () => ({ privateProofClient: proofClient }))
+vi.mock('@/lib/api/proof-inspection', () => ({ privateProofClient: proofClient }))
 vi.mock('@/lib/services/core-feature-client', () => ({
   coreDataClient: coreApi,
   saveCoreArtifact: coreApi.save,

@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label'
 import { RuleTreeView, clearRecordBindings } from '@/features/analytics/rule-condition-editor'
 import { useAuthorizedRead } from '@/hooks/use-authorized-read'
 import { usePermission } from '@/hooks/use-permission'
+import { activitiesClient } from '@/lib/api/activities'
 import { pathwaysClient } from '@/lib/services/pathways-client'
 import { cn } from '@/lib/utils'
 import { type HumanRule, type RuleCondition, operators } from '@pathways/shared'
@@ -39,14 +40,14 @@ export function useBindingChoices(scopeProjectId: string | null, rows: RuleCondi
     'rule-binding-activities',
     scopeProjectId,
     'activities.read',
-    (signal) => pathwaysClient.getActivities(scopeProjectId ?? '', signal),
+    (signal) => activitiesClient.getActivities(scopeProjectId ?? '', signal),
     needs((metric) => metric === 'ACTIVITY_OVERDUE_DAYS') && canReadActivities,
   )
   const activitiesContext = useAuthorizedRead(
     'rule-binding-activities-context',
     scopeProjectId,
     'activities.context.read',
-    (signal) => pathwaysClient.getActivityContext(scopeProjectId ?? '', signal),
+    (signal) => activitiesClient.getActivityContext(scopeProjectId ?? '', signal),
     needs((metric) => metric === 'ACTIVITY_OVERDUE_DAYS') &&
       !canReadActivities &&
       has('activities.context.read'),

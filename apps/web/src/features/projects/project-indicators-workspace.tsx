@@ -24,6 +24,7 @@ import { useAuthorizedRead } from '@/hooks/use-authorized-read'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { usePendingCreate } from '@/hooks/use-pending-create'
 import { useSourceMutationContext } from '@/hooks/use-source-mutation-context'
+import { activitiesClient } from '@/lib/api/activities'
 import { PathwaysClientError } from '@/lib/api/core/request'
 import { formatCappedPercent } from '@/lib/format/percent'
 import { fingerprintOf } from '@/lib/forms/pending-create'
@@ -631,9 +632,9 @@ export function ProjectIndicatorsWorkspace({ projectId }: { projectId: string })
           ? pathwaysClient.getDigitalForms(projectId)
           : Promise.resolve<DigitalFormDefinition[]>([]),
         canReadActivityContext
-          ? pathwaysClient.getActivityContext(projectId)
+          ? activitiesClient.getActivityContext(projectId)
           : canReadActivities
-            ? pathwaysClient.getActivities(projectId, signal)
+            ? activitiesClient.getActivities(projectId, signal)
             : Promise.resolve([]),
       ])
       return {

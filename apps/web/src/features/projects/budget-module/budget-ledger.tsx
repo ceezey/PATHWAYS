@@ -14,7 +14,7 @@ import {
   saveCoreArtifact,
 } from '@/lib/services/core-feature-client'
 
-import { formatCurrency, formatDate } from '../activity-utils'
+import { formatCurrency, formatDate } from '../activities/activities.utils'
 import { categoryLabel, projectLevelKey, remaining } from './budget-math'
 import { ExpenseReviewDrawer, type ReviewAction } from './expense-review-drawer'
 import type { useBudgetModule } from './use-budget-module'

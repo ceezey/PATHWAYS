@@ -68,6 +68,7 @@ vi.mock('@/lib/services/pathways-client', () => ({
   descriptiveAnalyticsSearch: (query: Record<string, string>) =>
     `?${new URLSearchParams(query).toString()}`,
 }))
+vi.mock('@/lib/api/activities', () => ({ activitiesClient: api }))
 vi.mock('@/lib/api/projects', () => ({ projectsClient: api }))
 vi.mock('@/lib/services/core-feature-client', () => ({
   downloadCoreArtifact: download,
