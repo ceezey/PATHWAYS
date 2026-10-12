@@ -20,7 +20,7 @@ const removedDescriptions = [
   ['features/projects/components/project-detail-view.tsx', 'Assigned project team members.'],
   ['features/projects/components/project-detail-view.tsx', 'Project implementation window.'],
   [
-    'features/projects/project-activities-workspace.tsx',
+    'features/projects/activities/components/project-activities-workspace.tsx',
     'Scan all filtered activities in one view.',
   ],
   ['features/settings/user-management-workspace.tsx', 'Related configuration.'],
@@ -57,7 +57,7 @@ describe('"None yet" empty states versus error and permission wording', () => {
     ['features/analytics/analytics-dashboard.tsx', ': monitoringReadable'],
     ['features/analytics/analytics-dashboard.tsx', "row.mean ?? 'None yet'"],
     [
-      'features/projects/activity-detail-sections.tsx',
+      'features/projects/activities/components/activity-detail-sections.tsx',
       "canReadBudgets ? 'None yet' : 'Unavailable'",
     ],
   ])('uses "None yet" for a genuinely empty value in %s', (file, copy) => {
@@ -67,7 +67,10 @@ describe('"None yet" empty states versus error and permission wording', () => {
   it.each([
     ['features/projects/components/project-detail-view.tsx', 'title="Project data unavailable"'],
     ['features/projects/components/project-directory.tsx', 'title="Project data unavailable"'],
-    ['features/projects/project-activities-workspace.tsx', 'title="Activities unavailable"'],
+    [
+      'features/projects/activities/components/project-activities-workspace.tsx',
+      'title="Activities unavailable"',
+    ],
     [
       'features/projects/components/project-review-workspace.tsx',
       'title="Some information is unavailable"',

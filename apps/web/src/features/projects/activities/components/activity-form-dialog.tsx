@@ -1,5 +1,5 @@
 'use client'
-import { SourceMutationRecovery } from './components/source-mutation-recovery'
+import { SourceMutationRecovery } from '../../components/source-mutation-recovery'
 
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Loader2, Save } from 'lucide-react'
@@ -50,8 +50,8 @@ import type {
   JourneyStageConfig,
 } from '@/types/pathways'
 
-import { type ActivityFormSchema, createActivityFormSchema } from './activity-form-validation'
-import { activityStatuses, formatCurrency } from './activity-utils'
+import { activityStatuses, formatCurrency } from '../activities.utils'
+import { type ActivityFormSchema, createActivityFormSchema } from '../activity-form.utils'
 
 const defaultValues: ActivityFormSchema = {
   overrideJustification: '',
@@ -92,9 +92,9 @@ export const ActivityFormDialog = (props: {
     props.open,
   )
   if (!scope || (props.activity && props.activity.projectId !== props.projectId)) return null
-  return <ScopedActivityFormDialog key={scope.key + scope.generation} {...props} scope={scope} />
+  return <ActivityFormDialogContent key={scope.key + scope.generation} {...props} scope={scope} />
 }
-const ScopedActivityFormDialog = ({
+const ActivityFormDialogContent = ({
   activity,
   scope,
   indicators,

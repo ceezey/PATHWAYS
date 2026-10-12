@@ -13,7 +13,7 @@ import { activityExtensionsClient } from '@/lib/api/activity-extensions'
 import { PathwaysClientError } from '@/lib/api/core/request'
 import type { Activity } from '@/types/pathways'
 
-import { formatDate } from './activity-utils'
+import { formatDate } from '../activities.utils'
 
 const statusLabel: Record<ActivityExtensionStatus, string> = {
   PENDING: 'Awaiting verification',

@@ -27,6 +27,13 @@ import type {
   ProjectTeamMember,
 } from '@/types/pathways'
 
+import { ActivityExpenseDialog, type ExpenseBudgetReference } from '../../activity-expense-dialog'
+import {
+  ActivityExpenseReviewDialog,
+  type PendingExpense,
+} from '../../activity-expense-review-dialog'
+import { categoryLabel } from '../../budget-module/budget-math'
+import { activityStatusTone, formatCurrency, formatDate } from '../activities.utils'
 import {
   ActivityBudget,
   type ActivityExpenseEntry,
@@ -36,16 +43,12 @@ import {
   ActivityTeam,
   PanelSection,
 } from './activity-detail-sections'
-import { ActivityExpenseDialog, type ExpenseBudgetReference } from './activity-expense-dialog'
-import { ActivityExpenseReviewDialog, type PendingExpense } from './activity-expense-review-dialog'
 import { ActivityExplainDelayDialog, categoryLabels } from './activity-explain-delay-dialog'
 import { ActivityExtensionDialog } from './activity-extension-dialog'
 import { ActivityExtensionPanel } from './activity-extension-panel'
 import { ActivityProgressDialog } from './activity-progress-dialog'
 import { ActivityProofFiles } from './activity-proof-files'
 import { ActivityProofReviewDialog } from './activity-proof-review-dialog'
-import { activityStatusTone, formatCurrency, formatDate } from './activity-utils'
-import { categoryLabel } from './budget-module/budget-math'
 
 type ProofGroup = ActivityProof & { proofIds: string[]; items: ActivityProof[] }
 

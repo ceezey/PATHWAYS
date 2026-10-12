@@ -3,8 +3,8 @@
 import { ProgressBar, StatusBadge } from '@/components/pathways'
 import type { Activity, ProjectIndicator, ProjectTeamMember } from '@/types/pathways'
 
-import { formatCurrency, formatDate } from './activity-utils'
-import { activityBudgetFigures, categoryLabel, toneFor } from './budget-module/budget-math'
+import { activityBudgetFigures, categoryLabel, toneFor } from '../../budget-module/budget-math'
+import { formatCurrency, formatDate } from '../activities.utils'
 
 const sectionHeading = 'text-xs font-semibold uppercase tracking-wide text-muted-foreground'
 

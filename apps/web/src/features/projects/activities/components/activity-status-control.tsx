@@ -1,5 +1,5 @@
 'use client'
-import { SourceMutationRecovery } from './components/source-mutation-recovery'
+import { SourceMutationRecovery } from '../../components/source-mutation-recovery'
 
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useSourceMutationContext } from '@/hooks/use-source-mutation-context'
@@ -25,7 +25,7 @@ import { activitiesClient } from '@/lib/api/activities'
 import { cn } from '@/lib/utils'
 import type { Activity, ActivityStatus } from '@/types/pathways'
 
-import { activityStatusTone, activityStatuses } from './activity-utils'
+import { activityStatusTone, activityStatuses } from '../activities.utils'
 
 const statusToneClasses: Record<ReturnType<typeof activityStatusTone>, string> = {
   danger: 'border-danger/30 bg-danger/10 text-danger',

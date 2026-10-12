@@ -1,5 +1,5 @@
 'use client'
-import { SourceMutationRecovery } from './components/source-mutation-recovery'
+import { SourceMutationRecovery } from '../../components/source-mutation-recovery'
 
 import { DialogShell, StatusBadge } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
@@ -78,7 +78,7 @@ export function ActivityProofReviewDialog(props: Props) {
     enabled,
   )
   return owner && props.proof ? (
-    <OwnedReview
+    <ActivityProofReviewDialogContent
       key={`${owner.generation}:${owner.key}`}
       {...props}
       owner={owner}
@@ -86,7 +86,7 @@ export function ActivityProofReviewDialog(props: Props) {
     />
   ) : null
 }
-function OwnedReview({
+function ActivityProofReviewDialogContent({
   activity,
   open,
   proof,

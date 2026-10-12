@@ -10,8 +10,11 @@ import { useSensitiveDraftOwner } from '@/lib/auth/sensitive-drafts'
 import { principalHasAtomicPermission } from '@/lib/rbac/policy'
 import type { coreDataClient } from '@/lib/services/core-feature-client'
 import type { ActivitySummary, EvidenceActivitySummary, EvidenceRecord } from '@/types/pathways'
-import { AuditMetadataCard, EvidenceAttachmentsCard } from '../evidence-panels'
-import { PrivateProofPreview } from '../private-proof-preview'
+import {
+  AuditMetadataCard,
+  EvidenceAttachmentsCard,
+} from '../activities/components/evidence-panels'
+import { PrivateProofPreview } from '../activities/components/private-proof-preview'
 
 export type ProjectReportRecord = Awaited<ReturnType<typeof coreDataClient.reports>>[number]
 

@@ -8,7 +8,7 @@ import {
   activityProgressTone,
   buildActivityStatusUpdate,
   formatDate,
-} from './activity-utils'
+} from './activities.utils'
 
 describe('activity card presentation helpers', () => {
   it('provides a clear next step for every activity status', () => {

@@ -26,14 +26,15 @@ import { isUiActionAvailable } from '@/lib/rbac/ui-action-availability'
 import { coreDataClient } from '@/lib/services/core-feature-client'
 import type { Activity, ActivityStatus, ActivitySummary, Indicator } from '@/types/pathways'
 
-import { ActivityDetailPanel } from './activity-detail-panel'
-import type { ActivityExpenseEntry } from './activity-detail-sections'
-import { ActivityEditorLoadingDialog } from './activity-editor-loading-dialog'
-import type { ExpenseBudgetReference } from './activity-expense-dialog'
-import type { PendingExpense } from './activity-expense-review-dialog'
-import { ActivityFormDialog } from './activity-form-dialog'
-import { ActivityListTable } from './activity-list-table'
-import { ActivityProofDialog } from './activity-proof-dialog'
+import type { ExpenseBudgetReference } from '../../activity-expense-dialog'
+import type { PendingExpense } from '../../activity-expense-review-dialog'
+import {
+  useActivityDetailRead,
+  useProjectActivitiesRead,
+  useProjectIndicatorsRead,
+  useProjectJourneyStagesRead,
+  useProjectRead,
+} from '../../projects.reads'
 import {
   activityDueLabel,
   activityNextStep,
@@ -41,14 +42,13 @@ import {
   activityStatusTone,
   activityStatuses,
   activitySummary,
-} from './activity-utils'
-import {
-  useActivityDetailRead,
-  useProjectActivitiesRead,
-  useProjectIndicatorsRead,
-  useProjectJourneyStagesRead,
-  useProjectRead,
-} from './projects.reads'
+} from '../activities.utils'
+import { ActivityDetailPanel } from './activity-detail-panel'
+import type { ActivityExpenseEntry } from './activity-detail-sections'
+import { ActivityEditorLoadingDialog } from './activity-editor-loading-dialog'
+import { ActivityFormDialog } from './activity-form-dialog'
+import { ActivityListTable } from './activity-list-table'
+import { ActivityProofDialog } from './activity-proof-dialog'
 
 const indicatorSummary = (activity: ActivitySummary, indicators: Indicator[]) =>
   activity.indicatorIds

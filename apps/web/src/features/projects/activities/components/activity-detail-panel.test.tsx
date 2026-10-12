@@ -5,8 +5,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { Activity } from '@/types/pathways'
 
-vi.mock('./activity-expense-dialog', () => ({ ActivityExpenseDialog: () => null }))
-vi.mock('./activity-expense-review-dialog', () => ({ ActivityExpenseReviewDialog: () => null }))
+vi.mock('../../activity-expense-dialog', () => ({ ActivityExpenseDialog: () => null }))
+vi.mock('../../activity-expense-review-dialog', () => ({ ActivityExpenseReviewDialog: () => null }))
 vi.mock('./activity-explain-delay-dialog', () => ({
   ActivityExplainDelayDialog: () => <div>Explain delay dialog</div>,
   categoryLabels: {

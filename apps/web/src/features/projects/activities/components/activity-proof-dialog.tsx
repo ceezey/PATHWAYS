@@ -86,10 +86,10 @@ export const ActivityProofDialog = (props: {
     props.open && Boolean(props.activity),
   )
   if (!scope || !props.activity || !props.open) return null
-  return <ScopedActivityProofDialog key={scope.key + scope.generation} {...props} scope={scope} />
+  return <ActivityProofDialogContent key={scope.key + scope.generation} {...props} scope={scope} />
 }
 
-const ScopedActivityProofDialog = ({
+const ActivityProofDialogContent = ({
   activity,
   open,
   onOpenChange,

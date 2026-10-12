@@ -7,8 +7,8 @@ import { AuthorizedQueryProvider } from '@/providers/authorized-query-provider'
 import type { Activity, ActivitySummary } from '@/types/pathways'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
-import { ProjectDetailView } from './components/project-detail-view'
-import { ProjectWorkspaceFrame } from './components/project-workspace-frame'
+import { ProjectDetailView } from '../../components/project-detail-view'
+import { ProjectWorkspaceFrame } from '../../components/project-workspace-frame'
 import { ProjectActivitiesWorkspace } from './project-activities-workspace'
 
 const projectId = '4baf1a98-7285-4671-a897-64787e31fe93'
@@ -108,8 +108,8 @@ vi.mock('@/hooks/use-display-labels', () => ({
 vi.mock('@/components/layout/page-header', () => ({
   PageHeader: ({ title }: { title: string }) => <h1>{title}</h1>,
 }))
-vi.mock('./components/project-workspace-header', () => ({ ProjectWorkspaceHeader: () => null }))
-vi.mock('./team/project-team-editor-dialog', () => ({ ProjectTeamEditorDialog: () => null }))
+vi.mock('../../components/project-workspace-header', () => ({ ProjectWorkspaceHeader: () => null }))
+vi.mock('../../team/project-team-editor-dialog', () => ({ ProjectTeamEditorDialog: () => null }))
 vi.mock('./activity-detail-panel', () => ({
   ActivityDetailPanel: ({
     activity,

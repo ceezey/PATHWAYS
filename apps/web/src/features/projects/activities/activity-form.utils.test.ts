@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { activityFormSchema, createActivityFormSchema } from './activity-form-validation'
+import { activityFormSchema, createActivityFormSchema } from './activity-form.utils'
 
 describe('activity form validation', () => {
   it('requires activity setup fields', () => {

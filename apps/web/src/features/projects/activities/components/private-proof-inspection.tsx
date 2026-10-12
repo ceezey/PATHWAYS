@@ -30,7 +30,7 @@ export function PrivateProofInspection({
     enabled,
   )
   return owner ? (
-    <OwnedInspection
+    <PrivateProofInspectionContent
       key={`${owner.generation}:${owner.key}`}
       owner={owner}
       projectId={projectId}
@@ -39,7 +39,7 @@ export function PrivateProofInspection({
     />
   ) : null
 }
-function OwnedInspection({
+function PrivateProofInspectionContent({
   owner,
   projectId,
   activityId,

@@ -4,7 +4,7 @@ import type { ReactNode } from 'react'
 import { EmptyState, SectionCard, StatusBadge } from '@/components/pathways'
 import { cn } from '@/lib/utils'
 import type { EvidenceRecord } from '@/types/pathways'
-import { formatDate } from './activity-utils'
+import { formatDate } from '../activities.utils'
 
 type Tone = 'success' | 'warning' | 'danger' | 'neutral'
 
