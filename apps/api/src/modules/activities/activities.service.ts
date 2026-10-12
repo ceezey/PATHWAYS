@@ -21,7 +21,6 @@ import {
   mapActivityListItem,
   personalAssignmentCount,
 } from './activities.mapper'
-import { resolveAssignments } from './activity-links.service'
 import { mapWithMetrics, readListMetrics } from './activity-metrics.service'
 
 // Reads the activities of one project: list, detail, editor context and assignable officers.
