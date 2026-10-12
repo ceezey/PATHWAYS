@@ -3,7 +3,7 @@ import { createHash, randomBytes, timingSafeEqual } from 'node:crypto'
 import { type CookieOptions, createServerClient } from '@supabase/ssr'
 import type { NextRequest, NextResponse } from 'next/server'
 
-import { localPasswordRecoveryOrigin } from '@/features/auth/password-recovery'
+import { localPasswordRecoveryOrigin } from '@/lib/auth/password-recovery'
 import { webEnv, webSupabasePublishableKey } from '@/lib/env'
 
 export const passwordRecoveryIntentCookie = 'pathways-local-password-recovery'

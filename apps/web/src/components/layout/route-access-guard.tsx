@@ -4,14 +4,10 @@ import { LoadingSkeleton } from '@/components/pathways/loading-skeleton'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useSession } from '@/hooks/use-session'
 import { webEnv } from '@/lib/env'
-import {
-  RouteCheckError,
-  type RouteDecision,
-  authorizationPathForUiPath,
-  getVerifiedRouteAccess,
-  matchRoute,
-  requestRouteCheck,
-} from '@/lib/rbac/route-access'
+import { getVerifiedRouteAccess } from '@/lib/rbac/policy'
+import { authorizationPathForUiPath } from '@/lib/rbac/routes'
+import { RouteCheckError, requestRouteCheck } from '@/lib/rbac/transport'
+import { type RouteDecision, matchRoute } from '@pathways/shared'
 import { usePathname, useSearchParams } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { BeneficiaryAccessGate } from './beneficiary-access-gate'

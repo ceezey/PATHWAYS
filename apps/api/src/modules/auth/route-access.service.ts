@@ -12,7 +12,7 @@ import {
   isAggregateOnly,
   parseRouteSelection,
   routeAllowed,
-} from '../../../../web/src/lib/rbac/route-access'
+} from '@pathways/shared'
 import { type ApplicationIdentity, UUID_PATTERN } from '../../common/authz/application-identity'
 import { projectScope } from '../../common/authz/project-scope'
 import { PrismaService } from '../../prisma/prisma.service'

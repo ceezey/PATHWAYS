@@ -44,7 +44,7 @@ import { useDisplayLabels } from '@/hooks/use-display-labels'
 import { addPin } from '@/lib/dashboard-pins'
 import { formatCappedPercent } from '@/lib/percent'
 import { can } from '@/lib/rbac/can'
-import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
+import { principalHasAtomicPermission } from '@/lib/rbac/policy'
 import { downloadCoreArtifact } from '@/lib/services/core-feature-client'
 import {
   descriptiveAnalyticsSearch,

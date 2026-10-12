@@ -29,7 +29,7 @@ import {
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'
 import { type SensitiveDraftOwner, useSensitiveDraftOwner } from '@/lib/auth/sensitive-drafts'
-import { getVerifiedRouteAccess, principalHasAtomicPermission } from '@/lib/rbac/route-access'
+import { getVerifiedRouteAccess, principalHasAtomicPermission } from '@/lib/rbac/policy'
 import { pathwaysClient } from '@/lib/services/pathways-client'
 import { cn } from '@/lib/utils'
 import type {

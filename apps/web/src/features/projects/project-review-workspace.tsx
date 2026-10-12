@@ -31,7 +31,7 @@ import { useDisplayLabels } from '@/hooks/use-display-labels'
 import { useSensitiveDraftOwner } from '@/lib/auth/sensitive-drafts'
 import { formatCappedPercent } from '@/lib/percent'
 import { canAccessProjectForRole } from '@/lib/rbac/data-scope'
-import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
+import { principalHasAtomicPermission } from '@/lib/rbac/policy'
 import { pathwaysClient } from '@/lib/services/pathways-client'
 import { privateProofClient } from '@/lib/services/private-proof-client'
 import type {

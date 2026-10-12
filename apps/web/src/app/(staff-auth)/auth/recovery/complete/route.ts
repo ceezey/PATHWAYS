@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server'
 
-import { passwordUpdateRequestSchema } from '@/features/auth/password-recovery'
+import { passwordUpdateRequestSchema } from '@/lib/auth/password-recovery'
 import {
   applyPendingAuthCookies,
   clearPasswordRecoveryIntent,

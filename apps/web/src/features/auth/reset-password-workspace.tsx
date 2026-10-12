@@ -17,8 +17,11 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import {
+  classifyPasswordCompletionResult,
+  passwordRecoveryCompletePath,
+} from '@/lib/auth/password-recovery'
 import { type ResetPasswordValues, resetPasswordSchema } from './account-access-validation'
-import { classifyPasswordCompletionResult, passwordRecoveryCompletePath } from './password-recovery'
 import { StaffAuthFrame } from './staff-auth-frame'
 
 export const ResetPasswordWorkspace = () => {

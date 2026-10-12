@@ -17,7 +17,7 @@ import {
 import { overviewMetricLabel } from '@/features/projects/project-utils'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { type DashboardPin, type PinView, readPins, removePin } from '@/lib/dashboard-pins'
-import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
+import { principalHasAtomicPermission } from '@/lib/rbac/policy'
 import { pathwaysClient } from '@/lib/services/pathways-client'
 import { useAuthorizedRead } from '@/providers/authorized-query-provider'
 

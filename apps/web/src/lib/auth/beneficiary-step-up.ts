@@ -1,4 +1,3 @@
-import { getVerifiedTotpFactors, isTotpCode, verifyTotpCode } from '@/features/auth/mfa-flow'
 import { PathwaysClientError, requestFoundation } from '@/lib/services/pathways-client'
 import { getBrowserSupabaseClient } from '@/lib/supabase/client'
 import {
@@ -6,6 +5,7 @@ import {
   type StepUpPinState,
   isAcceptableStepUpPin,
 } from '@pathways/shared'
+import { getVerifiedTotpFactors, isTotpCode, verifyTotpCode } from './mfa-flow'
 
 interface BeneficiaryStepUpStatus {
   fresh: boolean

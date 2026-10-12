@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useSession } from '@/hooks/use-session'
-import { visibleFeatures } from '@/lib/rbac/route-access'
+import { visibleFeatures } from '@/lib/rbac/nav'
 import { RouteAccessGuard } from './route-access-guard'
 
 export function FeatureDirectory() {

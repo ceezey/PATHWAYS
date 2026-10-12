@@ -33,7 +33,7 @@ Paths are repository-relative globs normalized to forward slashes. `**` includes
 
 | Specialist | Trigger globs | ISO 25010 pillars | Model |
 |---|---|---|---|
-| organization-isolation-checker | `apps/api/src/**/*.service.ts`, `packages/shared/src/rbac/**/*.ts`, `apps/api/src/common/authz/**/*.ts`, `apps/api/src/common/audit/**/*.ts`, `apps/api/src/modules/auth/guards/**/*.ts`, `apps/api/prisma/schema.prisma`, `infra/supabase/**/*.sql`, `apps/api/prisma/migrations/**/*.sql`, `infra/supabase/phase6/*.ps1` | Security: confidentiality and accountability | sonnet |
+| organization-isolation-checker | `apps/api/src/**/*.service.ts`, `packages/shared/src/rbac/**/*.ts`, `apps/api/src/common/authz/**/*.ts`, `apps/api/src/common/audit/**/*.ts`, `apps/api/src/modules/auth/guards/**/*.ts`, `apps/web/src/lib/auth/**/*.ts`, `apps/web/src/lib/rbac/**/*.ts`, `apps/web/src/lib/middleware.ts`, `apps/web/src/middleware.ts`, `apps/api/prisma/schema.prisma`, `infra/supabase/**/*.sql`, `apps/api/prisma/migrations/**/*.sql`, `infra/supabase/phase6/*.ps1` | Security: confidentiality and accountability | sonnet |
 | migration-integrity-guardian | `apps/api/prisma/migrations/**/*.sql`, `apps/api/prisma/schema.prisma`, `apps/api/prisma/history/**`, `infra/supabase/**/*.sql`, `infra/supabase/phase6/*.ps1`, `scripts/migrations/**`, `.github/workflows/ci.yml` | Reliability: fault tolerance and recoverability | opus |
 | beneficiary-privacy-guardian | `apps/api/src/**/*.controller.ts`, `apps/web/src/api/**/*.ts`, `**/schemas/*.zod.ts`, `apps/web/src/lib/services/**/*.ts`, `packages/shared/src/validation/**/*.ts`, `packages/shared/src/contracts/**/*.ts`, `apps/api/src/common/validation/**/*.ts` | Compatibility: interoperability; Security: data protection | opus |
 | metadata-import-validator | `packages/imports/src/**/*.ts`, `apps/api/src/modules/imports/**/*.ts` | Functional Suitability: correctness and appropriateness | sonnet |
@@ -50,6 +50,7 @@ The core design QA role evaluates every modified or added application/package fi
 - Require structural tenant and assignment scope before retrieving multi-tenant data. Explicit `organizationId`/`projectId` predicates, verified shared predicates, relation filters, compound keys, and tenant-bound creation data are valid patterns. Never retrieve broadly and filter sensitive records in memory.
 - Review unsafe raw-query calls for parameterization; reject dynamic SQL assembled from untrusted inputs. A lexical match is a review flag, not proof that a parameterized call violates isolation.
 - RLS compares stored scope with trusted authenticated identity/claims natively where applicable. JWT metadata does not replace the verified identity, linked user, account state, organization, role, permissions, and assignment chain in the Locked auth RFC.
+- Web route gating in `apps/web/src/lib/rbac`, `apps/web/src/lib/auth` and the middleware files must decide from the shared route policy in `packages/shared/src/rbac` and fail closed on unknown routes, a missing profile or failed context resolution.
 
 #### migration-integrity-guardian
 

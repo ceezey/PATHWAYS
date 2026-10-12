@@ -1,5 +1,5 @@
-import { contextCookieName } from '@/features/auth/workspace-access'
 import { sensitiveDraftGeneration } from '@/lib/auth/sensitive-drafts'
+import { contextCookieName } from '@/lib/auth/workspace-access'
 import { reportKinds } from '@pathways/shared'
 import { z } from 'zod'
 import { PathwaysClientError, requestFoundationResponse } from './pathways-client'

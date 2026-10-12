@@ -23,24 +23,22 @@ vi.mock('../env', () => ({
     NEXT_PUBLIC_SUPABASE_URL: 'https://pdqwsknbzkdtiwjjibqt.supabase.co',
   },
 }))
-import { rolePermissions } from '@pathways/shared'
-import type { ApplicationProfile } from '../../features/auth/auth-access'
-import { testAuthUserId, testSupabaseUrl } from '../../features/auth/auth-access.test-fixtures'
-const developerAuthUserId = testAuthUserId
-const developerSupabaseUrl = testSupabaseUrl
-import { encodeWorkspaceContext } from '../../features/auth/workspace-access'
 import {
-  canonicalFeatures,
-  filterWorkspaceTabs,
-  getVerifiedRouteAccess,
   matchRoute,
   parseRouteSelection,
-  requestRouteCheck,
+  rolePermissions,
   routeAllowed,
   routePolicy,
-  visibleFeatures,
-} from './route-access'
+} from '@pathways/shared'
+import type { ApplicationProfile } from '../auth/auth-access'
+import { testAuthUserId, testSupabaseUrl } from '../auth/auth-access.test-fixtures'
+const developerAuthUserId = testAuthUserId
+const developerSupabaseUrl = testSupabaseUrl
+import { encodeWorkspaceContext } from '../auth/workspace-access'
+import { canonicalFeatures, filterWorkspaceTabs, visibleFeatures } from './nav'
+import { getVerifiedRouteAccess } from './policy'
 import { requireServerPage, requireServerRoute } from './server-access'
+import { requestRouteCheck } from './transport'
 const id = '10000000-0000-4000-8000-000000000001'
 const profile: ApplicationProfile = {
   id: developerAuthUserId,

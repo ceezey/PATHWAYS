@@ -54,7 +54,7 @@ vi.mock('@/hooks/use-current-role', () => ({
 }))
 vi.mock('@/lib/env', () => ({ webEnv: { NEXT_PUBLIC_API_BASE_URL: 'http://127.0.0.1:4000/api' } }))
 vi.mock('@/lib/supabase/client', () => ({ getBrowserSupabaseClient: () => client }))
-vi.mock('./auth-access', async (original) => ({
+vi.mock('@/lib/auth/auth-access', async (original) => ({
   ...(await original<object>()),
   requestAuthJson: vi.fn(async () => mfaStatus),
 }))

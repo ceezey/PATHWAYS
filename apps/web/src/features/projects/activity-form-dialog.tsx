@@ -39,7 +39,7 @@ import {
   writeSensitiveDraft,
 } from '@/lib/auth/sensitive-drafts'
 import { createdSince, fingerprintOf } from '@/lib/forms/pending-create'
-import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
+import { principalHasAtomicPermission } from '@/lib/rbac/policy'
 import { isUiActionAvailable } from '@/lib/rbac/ui-action-availability'
 import { pathwaysClient } from '@/lib/services/pathways-client'
 import { isSourceReplay, sourceMutationTickets } from '@/lib/services/source-mutation'

@@ -1,7 +1,7 @@
 'use client'
-import type { ApplicationProfile } from '@/features/auth/auth-access'
+import type { ApplicationProfile } from '@/lib/auth/auth-access'
 import { sensitiveDraftGeneration, useSensitiveDraftOwner } from '@/lib/auth/sensitive-drafts'
-import type { principalHasAtomicPermission } from '@/lib/rbac/route-access'
+import type { principalHasAtomicPermission } from '@/lib/rbac/policy'
 import { type SourceMutationContext, sourceMutationTickets } from '@/lib/services/source-mutation'
 import { useEffect, useMemo, useRef } from 'react'
 type Permission = Parameters<typeof principalHasAtomicPermission>[1]

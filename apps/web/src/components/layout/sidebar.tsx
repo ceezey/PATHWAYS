@@ -8,7 +8,7 @@ import { BrandMark } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import { createDashboardNavGroups } from '@/constants/navigation'
 import { useCurrentRole } from '@/hooks/use-current-role'
-import { filterDashboardNavGroups } from '@/lib/rbac/route-access'
+import { filterDashboardNavGroups } from '@/lib/rbac/nav'
 import { cn } from '@/lib/utils'
 
 export const Sidebar = ({

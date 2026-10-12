@@ -11,7 +11,7 @@ import { PathwaysClientError, pathwaysClient } from '@/lib/services/pathways-cli
 import type { Activity, JourneyStageConfig, ProjectDetail } from '@/types/pathways'
 
 import { useCurrentRole } from '@/hooks/use-current-role'
-import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
+import { principalHasAtomicPermission } from '@/lib/rbac/policy'
 
 import { JourneyConfigWorkspace } from '@/features/journey-config/journey-config-workspace'
 

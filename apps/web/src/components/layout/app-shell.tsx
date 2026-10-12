@@ -30,7 +30,7 @@ import { getDashboardNavigationLabel } from '@/constants/navigation'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useSession } from '@/hooks/use-session'
 import { getAccessScopeLabel } from '@/lib/auth/access-context'
-import { getVerifiedRouteAccess } from '@/lib/rbac/route-access'
+import { getVerifiedRouteAccess } from '@/lib/rbac/policy'
 import { cn } from '@/lib/utils'
 
 export const AppShell = ({

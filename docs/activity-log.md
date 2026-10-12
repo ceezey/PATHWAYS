@@ -624,3 +624,14 @@
 - F3b decisions are recorded in the change record section 9, because the plan file is removed after merge.
 - Deferred: the three `importOriginal` private-inspection-reader mocks to S2; other routes' class-validator DTOs to their slices.
 - Gates: lint, typecheck and builds pass; tests config 19, shared 178, imports 91, api 2337 (21 skipped), web 1895, sad 50; `Replay-Local.ps1 -MigrationBaseline` 0 FAIL; demo seed first run and compiled API boot clean, with `ZodPipe` wired on the validate route and an `Object` body design type; e2e auth-navigation 27/27; e2e main 39 pass with the same 9 failures as dev; web middleware 102 kB; SAD sign-off 182/182 PASS at `c07ab1c0`. Merged to local dev as `40d47963`; plan removed.
+
+## 2026-10-10 Modularization F4a web boundaries (refactor/f4a-web-boundaries)
+- Task 1 (b5f48b2a): route policy moved from `apps/web/src/lib/rbac/route-access.ts` into `packages/shared/src/rbac/route-policy.ts`; api imports `@pathways/shared` instead of web, with an api to web case in `common/import-boundary.test.ts`; shared 183, api 2339.
+- Task 2 (5db064b9): `lib/rbac` split into `policy`, `routes`, `nav` and `transport` (54 importers repointed); web 1895.
+- Task 3 (9d01d3d0): six auth platform modules (`auth-access`, `mfa-flow`, `password-recovery`, `verification-flight`, `workspace-access`, `workspace-verification`) plus their tests and fixtures (16 files) moved from `features/auth` to `lib/auth` (42 specifiers in 31 files); web 1895.
+- Task 4 (d1520d4f): web import-direction and shared package boundary tests added; the own profile response schema moved into its client; web 1897, shared 185.
+- Task 5 (0a74066d): `usePermission` and `permissionChecker` replace six local permission wrappers; web 1899.
+- Task 6: SAD organization isolation routing covers web `lib/auth`, `lib/rbac` and both middleware files; change record, audit, living docs and index updated.
+- Middleware stayed at 102 kB at Tasks 1 to 3. Other packages unchanged: config 19, imports 91.
+- F4a decisions are recorded in the change record section 9, because the plan file stays until F4b is planned (it holds the F4b outline).
+- Deferred to F4b: `lib/api/core` with the owned-read helper, `lib/format`, the shared table head and dialog check, thinner providers.

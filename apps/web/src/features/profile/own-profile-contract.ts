@@ -12,14 +12,6 @@ export const ownProfileSchema = z.object({
       'Enter a valid contact number.',
     ),
 })
-export const ownProfileResponseSchema = z
-  .object({
-    fullName: z.string(),
-    contactNumber: z.string().nullable(),
-    updatedAt: z.string().datetime(),
-  })
-  .strict()
-export type OwnProfileRecord = z.infer<typeof ownProfileResponseSchema>
 export const ownPasswordSchema = z
   .object({
     password: strongPasswordSchema,

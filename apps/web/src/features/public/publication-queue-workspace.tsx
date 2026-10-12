@@ -7,9 +7,9 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { useCurrentRole } from '@/hooks/use-current-role'
+import { usePermission } from '@/hooks/use-permission'
 import { useOperationRequestId } from '@/lib/auth/operation-request-id'
 import { useSensitiveDraftOwner } from '@/lib/auth/sensitive-drafts'
-import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
 import { coreFeatureClient } from '@/lib/services/core-feature-client'
 import { pathwaysClient } from '@/lib/services/pathways-client'
 import { useAuthorizedRead } from '@/providers/authorized-query-provider'
@@ -84,8 +84,7 @@ export const PublicationQueueWorkspace = ({
     draft.revision === revision
       ? draft.summary
       : (current?.summary ?? '')
-  const permitted = (permission: 'public.preview' | 'public.approve' | 'public.publish') =>
-    principalHasAtomicPermission(profile, permission)
+  const permitted = usePermission()
   // biome-ignore lint/correctness/useExhaustiveDependencies: Clear transient state when its authorization ownership changes.
   useEffect(() => {
     setDraft(null)

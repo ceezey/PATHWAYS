@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { pathwaysRoles } from '@/types/pathways-role'
-import { getRouteAccess } from './route-access'
+import { getRouteAccess } from './policy'
 
 describe('own-profile route access', () => {
   it('permits each role to manage its own profile', () => {

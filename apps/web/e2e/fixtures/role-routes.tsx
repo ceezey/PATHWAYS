@@ -1,5 +1,5 @@
 import { type AnchorHTMLAttributes, useSyncExternalStore } from 'react'
-import type { ApplicationProfile } from '../../src/features/auth/auth-access'
+import type { ApplicationProfile } from '../../src/lib/auth/auth-access'
 
 // Synthetic, intercepted browser fixture. Not reachable from application routes.
 type State = {

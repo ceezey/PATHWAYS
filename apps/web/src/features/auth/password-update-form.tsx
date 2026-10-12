@@ -22,7 +22,7 @@ import {
   classifyPasswordCompletionResult,
   passwordRecoveryCompletePath,
   passwordUpdateSchema,
-} from './password-recovery'
+} from '@/lib/auth/password-recovery'
 import { StaffAuthFrame } from './staff-auth-frame'
 
 export const PasswordUpdateForm = () => {

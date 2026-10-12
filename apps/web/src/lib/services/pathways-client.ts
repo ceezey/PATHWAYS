@@ -13,8 +13,8 @@ import {
   sourceMutationTickets,
 } from './source-mutation'
 
-import { contextCookieName, decodeWorkspaceContext } from '@/features/auth/workspace-access'
 import { approvedApiBaseUrl } from '@/lib/api-base-url'
+import { contextCookieName, decodeWorkspaceContext } from '@/lib/auth/workspace-access'
 import { webEnv } from '@/lib/env'
 import { getBrowserSupabaseClient } from '@/lib/supabase/client'
 import type {

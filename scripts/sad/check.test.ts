@@ -90,6 +90,16 @@ describe('routing and digest', () => {
     const routed = routing(files.map((file) => change(file, 'new', 'old')))
     expect(routed['organization-isolation-checker']).toEqual(files)
   })
+  it('routes web auth, rbac and middleware changes to the organization isolation checker', () => {
+    const files = [
+      'apps/web/src/lib/auth/workspace-access.ts',
+      'apps/web/src/lib/middleware.ts',
+      'apps/web/src/lib/rbac/policy.ts',
+      'apps/web/src/middleware.ts',
+    ]
+    const routed = routing(files.map((file) => change(file, 'new', 'old')))
+    expect(routed['organization-isolation-checker']).toEqual(files)
+  })
   it('routes request contracts and the zod pipe to the beneficiary privacy guardian', () => {
     const files = [
       'apps/api/src/common/validation/zod-pipe.ts',

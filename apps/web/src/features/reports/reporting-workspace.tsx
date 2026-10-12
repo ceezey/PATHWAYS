@@ -66,7 +66,7 @@ import { useDisplayLabels } from '@/hooks/use-display-labels'
 import { useSafeProjectSelection } from '@/hooks/use-safe-project-selection'
 import { can } from '@/lib/rbac/can'
 import { canAccessProjectForRole } from '@/lib/rbac/data-scope'
-import { principalHasAtomicPermission, reportKindPermissions } from '@/lib/rbac/route-access'
+import { principalHasAtomicPermission, reportKindPermissions } from '@/lib/rbac/policy'
 import { pathwaysClient } from '@/lib/services/pathways-client'
 import type {
   Activity,
