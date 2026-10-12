@@ -48,7 +48,7 @@ import {
   useProjectIndicatorsRead,
   useProjectJourneyStagesRead,
   useProjectRead,
-} from './use-project-reads'
+} from './projects.reads'
 
 const indicatorSummary = (activity: ActivitySummary, indicators: Indicator[]) =>
   activity.indicatorIds

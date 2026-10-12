@@ -5,7 +5,7 @@ import { useMemo } from 'react'
 import { useAuthorizedRead } from '@/hooks/use-authorized-read'
 import { coreDataClient } from '@/lib/services/core-feature-client'
 
-import { useProjectActivitiesRead, useProjectOverviewMetricsRead } from '../use-project-reads'
+import { useProjectActivitiesRead, useProjectOverviewMetricsRead } from '../projects.reads'
 import {
   buildActivityRows,
   deriveAlerts,

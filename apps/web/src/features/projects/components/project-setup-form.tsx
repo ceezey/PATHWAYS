@@ -53,8 +53,8 @@ import {
   toCreateProjectInput,
   toProjectTeamInput,
   toUpdateProjectInput,
-} from './project-form-validation'
-import { ProjectTeamSelectors, hiddenTeamFields } from './project-team-selectors'
+} from '../project-form.utils'
+import { ProjectTeamSelectors, hiddenTeamFields } from '../team/project-team-selectors'
 
 const projectStatuses: ProjectStatus[] = ['Active', 'Needs Attention', 'Planned', 'Completed']
 const projectDraftFields = [

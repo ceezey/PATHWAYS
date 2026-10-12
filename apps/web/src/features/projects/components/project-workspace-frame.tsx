@@ -10,9 +10,9 @@ import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'
 import { isUiActionAvailable } from '@/lib/rbac/ui-action-availability'
 
+import { useProjectRead } from '../projects.reads'
 import { ProjectArchiveDialog } from './project-archive-dialog'
 import { ProjectWorkspaceHeader } from './project-workspace-header'
-import { useProjectRead } from './use-project-reads'
 
 /**
  * Draws the project heading and tab strip once for every tab, so switching tabs swaps

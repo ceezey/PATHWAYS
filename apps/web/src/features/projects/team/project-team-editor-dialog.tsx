@@ -1,5 +1,5 @@
 'use client'
-import { SourceMutationRecovery } from './source-mutation-recovery'
+import { SourceMutationRecovery } from '../components/source-mutation-recovery'
 
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useSourceMutationContext } from '@/hooks/use-source-mutation-context'
@@ -36,7 +36,7 @@ import {
   projectTeamEditSchema,
   toProjectTeamInput,
   toUpdateProjectInput,
-} from './project-form-validation'
+} from '../project-form.utils'
 import {
   ProjectTeamSelectors,
   type TeamFieldName,

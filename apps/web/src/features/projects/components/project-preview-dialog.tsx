@@ -10,8 +10,8 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogClose } from '@/components/ui/dialog'
 import type { ProjectDetail } from '@/types/pathways'
 
+import { projectHealthTone, projectStatusTone } from '../projects.utils'
 import { ProjectOverviewMetrics } from './project-overview-metrics'
-import { projectHealthTone, projectStatusTone } from './project-utils'
 
 export const ProjectPreviewDialog = ({
   project,

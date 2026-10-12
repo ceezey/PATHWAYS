@@ -28,15 +28,15 @@ import { cn } from '@/lib/utils'
 import type { ProjectStatus, ProjectSummary } from '@/types/pathways'
 import { type MetricCell, businessCalendarDate, timelineProgress } from '@pathways/shared'
 
-import { ProjectPreviewDialog } from './project-preview-dialog'
+import { useProjectRead } from '../projects.reads'
 import {
   type ProjectStatusFilter,
   overviewMetricLabel,
   projectHealthTone,
   projectStatusFilters,
   projectStatusTone,
-} from './project-utils'
-import { useProjectRead } from './use-project-reads'
+} from '../projects.utils'
+import { ProjectPreviewDialog } from './project-preview-dialog'
 
 const directoryDescription = {
   'Program Manager': 'Projects across the assigned portfolio.',

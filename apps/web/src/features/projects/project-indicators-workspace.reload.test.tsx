@@ -76,7 +76,7 @@ vi.mock('@/lib/services/source-mutation', () => ({
   isSourceReplay: () => tickets.replay,
   sourceMutationTickets: { finishAcknowledgement: tickets.finishAcknowledgement },
 }))
-vi.mock('./source-mutation-recovery', () => ({
+vi.mock('./components/source-mutation-recovery', () => ({
   SourceMutationRecovery: ({ onRecovered }: { onRecovered: () => Promise<() => void> }) => {
     recovery.onRecovered = onRecovered
     return null

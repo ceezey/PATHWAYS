@@ -64,7 +64,7 @@ vi.mock('@/hooks/use-display-labels', () => ({
 vi.mock('@/components/layout/page-header', () => ({
   PageHeader: ({ title }: { title: string }) => <h1>{title}</h1>,
 }))
-vi.mock('./project-workspace-header', () => ({ ProjectWorkspaceHeader: () => null }))
+vi.mock('./components/project-workspace-header', () => ({ ProjectWorkspaceHeader: () => null }))
 vi.mock('./activity-form-dialog', () => ({ ActivityFormDialog: () => null }))
 vi.mock('./activity-proof-dialog', () => ({ ActivityProofDialog: () => null }))
 vi.mock('./activity-progress-dialog', () => ({ ActivityProgressDialog: () => null }))

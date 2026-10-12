@@ -22,8 +22,8 @@ import type { evaluationDetailSchema } from '@/lib/services/core-feature-client'
 import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import type { z } from 'zod'
-import { InlineNotice } from './option-select'
-import { useProjectRead } from './use-project-reads'
+import { InlineNotice } from './components/option-select'
+import { useProjectRead } from './projects.reads'
 
 type EvaluationDetail = z.infer<typeof evaluationDetailSchema>
 type SavedScore = EvaluationDetail['scores'][number]

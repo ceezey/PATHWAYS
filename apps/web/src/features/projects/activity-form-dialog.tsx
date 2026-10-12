@@ -1,5 +1,5 @@
 'use client'
-import { SourceMutationRecovery } from './source-mutation-recovery'
+import { SourceMutationRecovery } from './components/source-mutation-recovery'
 
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Loader2, Save } from 'lucide-react'

@@ -45,7 +45,7 @@ vi.mock('@/components/layout/page-header', () => ({
   ),
 }))
 vi.mock('./project-workspace-header', () => ({ ProjectWorkspaceHeader: () => <nav>Tabs</nav> }))
-vi.mock('./project-team-editor-dialog', () => ({
+vi.mock('../team/project-team-editor-dialog', () => ({
   ProjectTeamEditorDialog: () => <button type="button">Edit team</button>,
 }))
 

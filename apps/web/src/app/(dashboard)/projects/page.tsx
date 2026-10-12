@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 
-import { ProjectDirectory } from '@/features/projects/project-directory'
+import { ProjectDirectory } from '@/features/projects/components/project-directory'
 import { type ProtectedPageProps, requireServerPage } from '@/lib/rbac/server-access'
 
 export const metadata: Metadata = { title: 'Project Directory' }

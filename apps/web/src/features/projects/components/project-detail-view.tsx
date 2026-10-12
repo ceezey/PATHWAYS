@@ -10,10 +10,10 @@ import { useCurrentRole } from '@/hooks/use-current-role'
 import { PathwaysClientError } from '@/lib/api/core/request'
 import { isUiActionAvailable } from '@/lib/rbac/ui-action-availability'
 
+import { useProjectRead } from '../projects.reads'
+import { formatNumber, projectHealthTone, projectStatusTone } from '../projects.utils'
+import { ProjectTeamEditorDialog } from '../team/project-team-editor-dialog'
 import { ProjectOverviewMetrics } from './project-overview-metrics'
-import { ProjectTeamEditorDialog } from './project-team-editor-dialog'
-import { formatNumber, projectHealthTone, projectStatusTone } from './project-utils'
-import { useProjectRead } from './use-project-reads'
 
 export const ProjectDetailView = ({ projectId }: { projectId: string }) => {
   const { role, profile, access } = useCurrentRole()

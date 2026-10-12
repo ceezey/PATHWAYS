@@ -47,7 +47,7 @@ vi.mock('@/hooks/use-authorized-read', () => ({
     refetch: vi.fn(),
   }),
 }))
-vi.mock('./use-project-reads', () => ({ useProjectRead: () => state.preview }))
+vi.mock('../projects.reads', () => ({ useProjectRead: () => state.preview }))
 vi.mock('./project-overview-metrics', () => ({
   ProjectOverviewMetrics: () => <div>Overview metrics</div>,
 }))

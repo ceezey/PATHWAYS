@@ -17,33 +17,33 @@ const removedDescriptions = [
     'features/collection/collection-workspace.tsx',
     'Build and publish project forms, encode data, and import validated CSV, XLS, or XLSX datasets.',
   ],
-  ['features/projects/project-detail-view.tsx', 'Assigned project team members.'],
-  ['features/projects/project-detail-view.tsx', 'Project implementation window.'],
+  ['features/projects/components/project-detail-view.tsx', 'Assigned project team members.'],
+  ['features/projects/components/project-detail-view.tsx', 'Project implementation window.'],
   [
     'features/projects/project-activities-workspace.tsx',
     'Scan all filtered activities in one view.',
   ],
   ['features/settings/user-management-workspace.tsx', 'Related configuration.'],
   [
-    'features/projects/project-review-workspace.tsx',
+    'features/projects/components/project-review-workspace.tsx',
     'Generated report references for the project.',
   ],
-  ['features/projects/project-review-workspace.tsx', 'Human review notes.'],
-  ['features/projects/project-review-workspace.tsx', 'Formal review entries.'],
+  ['features/projects/components/project-review-workspace.tsx', 'Human review notes.'],
+  ['features/projects/components/project-review-workspace.tsx', 'Formal review entries.'],
 ] as const
 
 describe('"None yet" empty states versus error and permission wording', () => {
   it('replaces the hardcoded project metric fallback with endpoint-driven tiles', () => {
     for (const file of [
-      'features/projects/project-detail-view.tsx',
-      'features/projects/project-directory.tsx',
+      'features/projects/components/project-detail-view.tsx',
+      'features/projects/components/project-directory.tsx',
       'lib/services/pathways-client.ts',
     ]) {
       expect(source(file)).not.toContain('metricsAvailable')
       expect(source(file)).not.toContain(': `Unavailable / ')
     }
-    expect(source('features/projects/project-utils.ts')).toContain("return 'None yet'")
-    expect(source('features/projects/project-overview-metrics.tsx')).toContain(
+    expect(source('features/projects/projects.utils.ts')).toContain("return 'None yet'")
+    expect(source('features/projects/components/project-overview-metrics.tsx')).toContain(
       'Project metrics could not be loaded.',
     )
   })
@@ -65,15 +65,18 @@ describe('"None yet" empty states versus error and permission wording', () => {
   })
 
   it.each([
-    ['features/projects/project-detail-view.tsx', 'title="Project data unavailable"'],
-    ['features/projects/project-directory.tsx', 'title="Project data unavailable"'],
+    ['features/projects/components/project-detail-view.tsx', 'title="Project data unavailable"'],
+    ['features/projects/components/project-directory.tsx', 'title="Project data unavailable"'],
     ['features/projects/project-activities-workspace.tsx', 'title="Activities unavailable"'],
-    ['features/projects/project-review-workspace.tsx', 'title="Some information is unavailable"'],
+    [
+      'features/projects/components/project-review-workspace.tsx',
+      'title="Some information is unavailable"',
+    ],
     [
       'features/projects/project-rules-panel.tsx',
       'Project alerts are unavailable for your current access.',
     ],
-    ['features/projects/project-utils.ts', '// Unknown reasons are not assumed to be empty.'],
+    ['features/projects/projects.utils.ts', '// Unknown reasons are not assumed to be empty.'],
   ])('keeps load-failure, permission and capability wording in %s', (file, copy) => {
     expect(source(file)).toContain(copy)
   })
@@ -87,14 +90,14 @@ describe('"None yet" empty states versus error and permission wording', () => {
   it('derives the participation empty-chart title from the shared metric-unavailable helper, not an unconditional "None yet"', () => {
     const analytics = source('features/analytics/analytics-dashboard.tsx')
     expect(analytics).toContain(
-      "import { metricUnavailableLabel, overviewMetricLabel } from '@/features/projects/project-utils'",
+      "import { metricUnavailableLabel, overviewMetricLabel } from '@/features/projects/projects.utils'",
     )
     // Participation now renders its own breakdown panel, so no unconditional "None yet" title remains.
     expect(analytics).toContain('ParticipationBreakdownPanel')
     expect(analytics.replace(/\s+/g, ' ')).not.toContain(
       "analysisView === 'participation' ? 'None yet'",
     )
-    const projectUtils = source('features/projects/project-utils.ts')
+    const projectUtils = source('features/projects/projects.utils.ts')
     expect(projectUtils).toContain('export const metricUnavailableLabel')
     expect(projectUtils).toContain('return metricUnavailableLabel(cell)')
   })

@@ -1,10 +1,10 @@
 'use client'
 
 import { coreDataClient } from '@/lib/services/core-feature-client'
-import { BudgetModule } from './budget-module/budget-module'
-import { AuditMetadataCard, EvidenceAttachmentsCard } from './evidence-panels'
-import { LiveEvaluationWorkspace } from './live-evaluation-workspace'
-import { ProjectRulesPanel } from './project-rules-panel'
+import { BudgetModule } from '../budget-module/budget-module'
+import { AuditMetadataCard, EvidenceAttachmentsCard } from '../evidence-panels'
+import { LiveEvaluationWorkspace } from '../live-evaluation-workspace'
+import { ProjectRulesPanel } from '../project-rules-panel'
 
 import { FileText } from 'lucide-react'
 import Link from 'next/link'
@@ -28,12 +28,12 @@ import type {
   EvidenceRecord,
   ProjectDetail,
 } from '@/types/pathways'
-import { PrivateProofPreview } from './private-proof-preview'
+import { PrivateProofPreview } from '../private-proof-preview'
 
 type ProjectReviewView = 'evidence' | 'monitor-evaluate' | 'budget'
 
 type ScopedReport = Awaited<ReturnType<typeof coreDataClient.reports>>[number]
-export const ProjectPhaseFiveWorkspace = ({
+export const ProjectReviewWorkspace = ({
   projectId,
   view,
 }: { projectId: string; view: ProjectReviewView }) => {

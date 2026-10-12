@@ -38,7 +38,7 @@ import {
   DASHBOARD_PINS_UI_ENABLED,
   MAPS_UI_ENABLED,
 } from '@/constants/feature-flags'
-import { metricUnavailableLabel, overviewMetricLabel } from '@/features/projects/project-utils'
+import { metricUnavailableLabel, overviewMetricLabel } from '@/features/projects/projects.utils'
 import { useAuthorizedRead } from '@/hooks/use-authorized-read'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'

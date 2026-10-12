@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 
-import { ProjectDetailView } from '@/features/projects/project-detail-view'
+import { ProjectDetailView } from '@/features/projects/components/project-detail-view'
 import { type ProtectedPageProps, requireServerPage } from '@/lib/rbac/server-access'
 
 export const metadata: Metadata = { title: 'Project Overview' }

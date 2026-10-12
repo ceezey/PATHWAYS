@@ -39,7 +39,7 @@ import { recipeNames } from './indicator-recipes'
 const offeredRecipes = libraryRecipes.filter(
   (recipe) => recipe === 'ACTIVITY_COMPLETION_PERCENTAGE',
 )
-import { InlineNotice, OptionSelect } from './option-select'
+import { InlineNotice, OptionSelect } from './components/option-select'
 
 const field = (form: FormData, name: string) => String(form.get(name) ?? '').trim()
 

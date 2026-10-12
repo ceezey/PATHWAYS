@@ -31,7 +31,7 @@ import type { PathwaysRole } from '@/types/pathways-role'
 
 import { type CanonicalRole, canAssignRole } from '@pathways/shared'
 
-import type { ProjectSetupSchema } from './project-form-validation'
+import type { ProjectSetupSchema } from '../project-form.utils'
 
 export type TeamFieldName =
   | 'programManager'
