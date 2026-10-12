@@ -50,6 +50,7 @@ export const roles = {
     pillars: ['Compatibility', 'Security'],
     globs: [
       'apps/api/src/**/*.controller.ts',
+      'apps/api/src/**/*.mapper.ts',
       'apps/web/src/api/**/*.ts',
       '**/schemas/*.zod.ts',
       'apps/web/src/lib/services/**/*.ts',

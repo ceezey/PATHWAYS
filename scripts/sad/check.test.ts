@@ -116,6 +116,14 @@ describe('routing and digest', () => {
     const routed = routing(files.map((file) => change(file, 'new', 'old')))
     expect(routed['beneficiary-privacy-guardian']).toEqual(files)
   })
+  it('routes api mappers to the privacy guardian and split services to the isolation checker', () => {
+    const mapper = 'apps/api/src/modules/projects/projects.mapper.ts'
+    const service = 'apps/api/src/modules/projects/project-team.service.ts'
+    const routed = routing([change(mapper, 'new', 'old'), change(service, 'new', 'old')])
+    expect(routed['beneficiary-privacy-guardian']).toEqual([mapper])
+    expect(routed['organization-isolation-checker']).toEqual([service])
+  })
+
   it('routes the rules dispatch workflow to design-qa-agent', () => {
     const file = '.github/workflows/rules-dispatch.yml'
     expect(routing([change(file, 'new', 'old')])['design-qa-agent']).toContain(file)
