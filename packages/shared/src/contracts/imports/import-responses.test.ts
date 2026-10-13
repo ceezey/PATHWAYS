@@ -73,10 +73,35 @@ describe('import response contracts', () => {
     ).toBe(true)
   })
 
-  it('reject a batch with an unknown status, a missing total or a detail without columns', () => {
-    expect(importBatchResponse.safeParse({ ...batch, status: 'VALIDATING' }).success).toBe(false)
+  it('accept the JSON and OTHER file types and a batch with both timestamps', () => {
+    for (const fileType of ['JSON', 'OTHER']) {
+      expect(importBatchResponse.safeParse({ ...batch, fileType }).success).toBe(true)
+    }
+    const stamped = { ...batch, validatedAt: '2026-10-13', processedAt: '2026-10-14' }
+    expect(importBatchResponse.parse(stamped)).toEqual(stamped)
+  })
+
+  it('reject an object that is missing required members', () => {
     expect(importBatchResponse.safeParse({ ...batch, totals: { rows: 3 } }).success).toBe(false)
     expect(importBatchDetailResponse.safeParse(batch).success).toBe(false)
+  })
+
+  it('reject a batch that differs from a valid one by a single property', () => {
+    const { failed: _failed, ...fewerTotals } = batch.totals
+    expect(importBatchResponse.safeParse({ ...batch, status: 'VALIDATING' }).success).toBe(false)
+    expect(importBatchResponse.safeParse({ ...batch, totals: fewerTotals }).success).toBe(false)
+    expect(
+      importBatchResponse.safeParse({ ...batch, totals: { ...batch.totals, valid: '2' } }).success,
+    ).toBe(false)
+  })
+
+  it('reject a detail that lacks one of the source headers, source columns or mappings', () => {
+    const { sourceHeaders: _headers, ...noHeaders } = detail
+    const { sourceColumns: _columns, ...noColumns } = detail
+    const { mappings: _mappings, ...noMappings } = detail
+    for (const broken of [noHeaders, noColumns, noMappings]) {
+      expect(importBatchDetailResponse.safeParse(broken).success).toBe(false)
+    }
   })
 
   it('reject a mapping with a value map entry that has no target text', () => {
