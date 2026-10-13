@@ -57,7 +57,10 @@ describe('journey response contracts', () => {
     }
     expect(beneficiaryJourneyResponse.safeParse(history).success).toBe(true)
     expect(
-      beneficiaryJourneyResponse.safeParse({ ...history, events: [{ id: uuid }] }).success,
+      beneficiaryJourneyResponse.safeParse({
+        ...history,
+        events: [{ ...event, eventType: 'UNKNOWN' }],
+      }).success,
     ).toBe(false)
   })
 })

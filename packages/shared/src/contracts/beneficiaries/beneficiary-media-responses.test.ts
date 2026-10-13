@@ -36,7 +36,17 @@ describe('beneficiary media response contracts', () => {
   })
 
   it('rejects a file type outside the stored evidence types', () => {
-    const item = { id: uuid, type: 'AUDIO' }
+    const item = {
+      id: uuid,
+      type: 'AUDIO',
+      fileName: 'photo.jpg',
+      contentType: 'image/jpeg',
+      byteSize: 1024,
+      description: null,
+      submittedAt: '2026-09-01T00:00:00.000Z',
+      submittedBy: 'Fictional Officer',
+      storageReady: true,
+    }
     expect(beneficiaryMediaItemResponse.safeParse(item).success).toBe(false)
   })
 })

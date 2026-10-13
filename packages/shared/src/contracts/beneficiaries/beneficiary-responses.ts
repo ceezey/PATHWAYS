@@ -96,6 +96,7 @@ export const duplicateCandidatePairResponse = z.object({
 })
 export type DuplicateCandidatePairResponse = z.infer<typeof duplicateCandidatePairResponse>
 
+// Supporting output allowlist, independently authorized from collection/form access.
 // A plain type, not a schema: the web parser checks bounds, the business date and the definition rules that no schema here expresses.
 export interface RegistrationContextResponse {
   projectId: string
