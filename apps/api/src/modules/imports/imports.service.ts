@@ -51,7 +51,7 @@ import {
 import { ParticipantsService } from '../participants/participants.service'
 import { StorageService } from '../storage/storage.service'
 import { parseAutomaticMappingReceipt } from './automatic-mapping-receipt'
-import { W10FinalizationFault } from './p07-w10-finalization-fault'
+import { W10FinalizationFault } from './upload-finalization-fault'
 
 export interface UploadedImportFile {
   buffer: Buffer

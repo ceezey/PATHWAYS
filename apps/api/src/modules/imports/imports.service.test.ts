@@ -14,7 +14,7 @@ import type { ApplicationIdentity } from '../../common/authz/application-identit
 import type { BeneficiaryRegistrationService } from '../beneficiaries/beneficiary-registration.service'
 import type { StorageService } from '../storage/storage.service'
 import { ImportsService, type UploadedImportFile } from './imports.service'
-import { W10_CLIENT_IMPORT_ID, W10_SOURCE_SHA256 } from './p07-w10-finalization-fault'
+import { W10_CLIENT_IMPORT_ID, W10_SOURCE_SHA256 } from './upload-finalization-fault'
 
 const state = vi.hoisted(() => ({
   actor: undefined as ApplicationIdentity | undefined,

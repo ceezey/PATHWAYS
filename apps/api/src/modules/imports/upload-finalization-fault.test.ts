@@ -4,7 +4,7 @@ import {
   W10FinalizationFault,
   W10_CLIENT_IMPORT_ID,
   W10_SOURCE_SHA256,
-} from './p07-w10-finalization-fault'
+} from './upload-finalization-fault'
 
 const candidate: W10FinalizationCandidate = {
   organizationId: '7541cfc6-541d-4057-9229-03d89d361d34',
