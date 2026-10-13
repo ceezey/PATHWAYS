@@ -557,3 +557,13 @@ Ruling: S4c Task 5 matched (5 replacements in 2 files, 3 audit tails, docs check
 Ruling: S4c Task 4 review PASS (media and directory bodies byte for byte, only export openers, imports and the briefed hook plumbing changed); the two nits (two imports from media.utils, return the memo directly) stay as is because the plan moves code verbatim, cost if wrong: none.
 
 Ruling: S4c final review PASS (no unpinned row: it titles and the 316-line expect multiset equal across the range; route figure and records match); the two CR lows are fixed docs-only (seven of eleven detail sections take a Pick and four plain props; all five files above 300 lines named), the medium is met by writing the real route figure and the pending local runs in the gate bullet, the use-beneficiary-columns.tsx name stays because the hook returns JSX column cells, and the docs/cr-pathways-default-registration-form.md lines 17 and 25 stay as dated audit evidence, cost if wrong: a slightly stale doc line.
+
+## S5b
+
+Ruling: the S6b planner split S6 web again into S6b (Tasks 0 to 6, full plan replayed from fc2ff1c with 8 plan defects fixed) and an S6c outline; S6c joins the run order after S6b, and the S6b plan gets its pre-flight against the S5b tip because its dry run lacks S4c and S5b, cost if wrong: one extra slice cycle.
+
+Ruling: the S7b planner starts now on its own tree (the S6b replay plus an S7a replay run from the pre-flighted S7a plan) instead of waiting for the real S7a, because S4c and S5b touch only beneficiary and collection web files; its S7a replay doubles as an early S7a pre-flight, and the real S7a and S7b each still get a pre-flight against the real base, cost if wrong: extra pre-flight fixes.
+
+Ruling: the S5b planner split S5 web into S5b (Tasks 0 to 9: forms and imports clients, type-only response contracts, the shared useImportBatch hook, collection-workspace.tsx from 3186 to 1640 lines and its test split) and an S5c outline; S5c joins the run order after S5b, and S5b gets one combined pre-flight and fix agent against the real S4c tip 796ddcd5, cost if wrong: one extra slice cycle.
+
+Ruling: apply the S5b pre-flight fixes (2 must-fix: baselines from the real S4c tip with shared 665, api 2610, web 2015 and Middleware 103 kB, and an add-only Task 0 plan-copy step; 9 should-fix: one pull request wording, the S4b gate bullet format, the activity-log branch, 424 lines not 440, a stacking check and base-sha wording in Task 0, routes judged by ruling 12 and M0, stale base wording, a prefixed import-boundary path, the S5c outline wording), cost if wrong: an S5b Task 0 stop.
