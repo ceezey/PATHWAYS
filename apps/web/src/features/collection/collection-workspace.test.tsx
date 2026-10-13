@@ -1279,6 +1279,39 @@ describe('collection operation ownership', () => {
     expect(within(dialog).getByRole('button', { name: 'Resume processing' })).toBeTruthy()
     expect(within(dialog).queryByRole('button', { name: 'Proceed' })).toBeNull()
   })
+  it('stops after the in-flight processing call and resumes from the same batch', async () => {
+    api.uploadImport.mockResolvedValue({ id: 'batch-owned', mappingRevision: 0 })
+    const partial = (processed: number) => ({
+      id: 'batch-owned',
+      status: processed >= 250 ? 'PROCESSED' : 'PARTIALLY_PROCESSED',
+      totals: { rows: 250, valid: 250, invalid: 0, processed, unprocessed: 0, failed: 0 },
+    })
+    const first = deferred<ReturnType<typeof partial>>()
+    api.processImport
+      .mockReturnValueOnce(first.promise)
+      .mockResolvedValueOnce(partial(200))
+      .mockResolvedValueOnce(partial(250))
+    const { submit } = await ownedDataset()
+    fireEvent.click(submit)
+
+    const dialog = screen.getByRole('dialog')
+    fireEvent.click(await within(dialog).findByRole('button', { name: 'Stop processing' }))
+    await act(async () => first.resolve(partial(100)))
+    await waitFor(() =>
+      expect(within(dialog).getByRole('status').textContent).toContain(
+        'Processing stopped: 100 of 250 rows handled',
+      ),
+    )
+    expect(api.processImport).toHaveBeenCalledOnce()
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Resume processing' }))
+    await waitFor(() =>
+      expect(toasts.success).toHaveBeenCalledWith(
+        'Server import batch-owned: 250 processed, 0 failed.',
+      ),
+    )
+    expect(api.processImport).toHaveBeenCalledTimes(3)
+  })
   it('keeps one upload ticket and immutable inputs across duplicate clicks and a same-scope refresh', async () => {
     const pending = deferred<{ id: string; mappingRevision: number }>()
     api.uploadImport.mockReturnValue(pending.promise)
