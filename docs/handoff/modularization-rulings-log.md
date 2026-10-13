@@ -501,3 +501,9 @@ Ruling: S6a final review PASS (independent archive run matches the activity log,
 Ruling: S6a static gates passed at 02b272f4 (config 19, shared 657, imports 94, api 2602 with 21 skipped, web 224 files and 1998 tests, sad 57, Middleware 103 kB, dist layout ok, docs check 6 and 1 at baseline); the container replay stops at initdb as root, so the final PR's CI is the replay gate; the renderer check fails at navigate with no browser and at launch with the Playwright Chromium (root sandbox), so it joins the pending local runs, cost if wrong: a renderer wiring fault would surface only in Cian's local run or the final PR CI.
 
 Ruling: the tests-only fix 5bd2ae40 adds 8 api cases (four finance refusals assert no authorized operation ran, 0.01 reaches SQL, trimmed periodLabel and report name reach the write, three findFirst argument checks and two 403-before-lookup cases), each shown to fail on a temporary production break; its commit message was amended from a Sonnet co-author line to the Opus line before any push; api is now B_api+95 (2610), cost if wrong: none.
+
+Ruling: S6a SAD sign-off re-run PASS at bde243e2 after the scoped design-qa re-review of the four test files changed by 5bd2ae40 (84 entries, no block), and the branch is pushed; S6a is complete with no pull request of its own, cost if wrong: none.
+
+## S4b
+
+Ruling: apply the S4b pre-flight fixes (6 must-fix: the Task 5 index anchor, the shared index check by git diff, baselines and cumulative counts from the S6a tip, branch and markers, no dev merge, SAD base with the S6a records; 5 should-fix: S4 plan copy removal moved to the controller after the final merge, stale 51d3139e text, the plans listing, the activity-log header branch, the CR roadmap row), with api 2610 from 5bd2ae40 and no pull request of its own per Cian's one-PR rule, cost if wrong: an S4b Task 0 stop.

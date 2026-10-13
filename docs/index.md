@@ -101,6 +101,7 @@ Workflow rule: an audit is finding and evidence, a Change Record is the approved
 | [S3b indicators web plan](handoff/modularization-s3b-indicators-web.md) | modularization-s3b-indicators-web.md | 2026-10-13 | Full S3b plan: indicator web client, feature folder, workspace split and reads; dry run green | Active |
 | [S3b plan summary](handoff/s3b-summary.md) | s3b-summary.md | 2026-10-13 | S3b dry run figures, routes, SAD roles and cross-plan edits | Active |
 | [S4 beneficiaries plan](handoff/modularization-s4-beneficiaries.md) | modularization-s4-beneficiaries.md | 2026-10-13 | Full plan for modularization slice S4 | Active |
+| [S4b beneficiaries web plan](handoff/modularization-s4b-beneficiaries-web.md) | modularization-s4b-beneficiaries-web.md | 2026-10-13 | Full plan for modularization slice S4b | Active |
 | [S5 collection plan](handoff/modularization-s5-collection.md) | modularization-s5-collection.md | 2026-10-13 | Full plan for modularization slice S5 | Active |
 | [S6 finance and reports plan](handoff/modularization-s6-finance-reports.md) | modularization-s6-finance-reports.md | 2026-10-13 | Full plan for modularization slice S6 | Active |
 | [S7 analytics and rules plan](handoff/modularization-s7-analytics-rules.md) | modularization-s7-analytics-rules.md | 2026-10-13 | Full plan for modularization slice S7 | Active |
