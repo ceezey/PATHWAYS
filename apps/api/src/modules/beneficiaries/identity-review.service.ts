@@ -1,6 +1,6 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common'
 
-import type { ResolveDuplicateRequest } from '@pathways/shared'
+import type { DuplicateCandidatePairResponse, ResolveDuplicateRequest } from '@pathways/shared'
 import { writeAuditLog } from '../../common/audit/write-audit-log'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import { withAuthorizedOperation } from '../../common/authz/authorized-operation'
@@ -67,7 +67,7 @@ export class IdentityReviewService {
           location: [row.locationBarangay, row.locationCityMunicipality].filter(Boolean).join(', '),
           updatedAt: row.updatedAt.toISOString(),
         })
-        const pairs = []
+        const pairs: DuplicateCandidatePairResponse[] = []
         for (const group of groups.values()) {
           for (let i = 0; i < group.length; i++) {
             for (let j = i + 1; j < group.length; j++) {

@@ -1,14 +1,10 @@
-import { aggregateOnlyRoles, hasAtomicPermission } from '@pathways/shared'
+import {
+  type BeneficiaryProgressResponse,
+  aggregateOnlyRoles,
+  hasAtomicPermission,
+} from '@pathways/shared'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import type { Tx } from '../../common/prisma/transaction'
-
-type BeneficiaryProgress =
-  | { restricted: true }
-  | {
-      restricted: false
-      lastParticipation: { activityId: string; title: string; date: string } | null
-      stage: { code: string; name: string; progressPercent: number } | null
-    }
 
 type ProgressRow = {
   enrollment_id: string
@@ -41,7 +37,7 @@ export async function loadProgress(
   projectId: string,
   enrollmentIds: string[],
 ) {
-  const progress = new Map<string, BeneficiaryProgress>()
+  const progress = new Map<string, BeneficiaryProgressResponse>()
   if (enrollmentIds.length === 0) return progress
   const rows = await tx.$queryRaw<ProgressRow[]>`
     SELECT * FROM pathways.p05_beneficiary_progress(

@@ -1,6 +1,6 @@
 import type { Prisma } from '@prisma/client'
 
-import type { FormFieldValidationContract } from '@pathways/shared'
+import type { BeneficiaryResponse, FormFieldValidationContract } from '@pathways/shared'
 
 export const fieldSelection = {
   id: true,
@@ -71,7 +71,7 @@ export type BeneficiaryRow = Prisma.BeneficiaryGetPayload<{
   include: ReturnType<typeof scopedIncludes>
 }>
 
-export function mapBeneficiary(row: BeneficiaryRow, projectId: string) {
+export function mapBeneficiary(row: BeneficiaryRow, projectId: string): BeneficiaryResponse {
   const enrollment = row.beneficiaryProjectEnrollment_beneficiary[0]
   return {
     id: row.id,

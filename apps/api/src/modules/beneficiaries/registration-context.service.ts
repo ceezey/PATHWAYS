@@ -3,6 +3,7 @@ import { readApiEnv } from '@pathways/config'
 import type { Prisma } from '@prisma/client'
 
 import {
+  type RegistrationContextResponse,
   beneficiaryRegistrationDefinitionErrors,
   businessCalendarDate,
   validateAndNormalizeFormData,
@@ -10,26 +11,6 @@ import {
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import type { Tx } from '../../common/prisma/transaction'
 import { contract, fieldSelection } from './beneficiaries.mapper'
-
-// Supporting output allowlist, independently authorized from collection/form access.
-export interface RegistrationContext {
-  projectId: string
-  businessDate: string
-  definitions: {
-    id: string
-    code: string
-    version: number
-    name: string
-    formType: 'BENEFICIARY_REGISTRATION'
-    status: 'PUBLISHED'
-    fields: (import('@pathways/shared').FormFieldValidationContract & {
-      id: string
-      metadataKey: boolean
-      sadddField: boolean
-      sequence: number
-    })[]
-  }[]
-}
 
 /** The one system template key the 0040 guard and check constraint admit. */
 const DEFAULT_REGISTRATION_TEMPLATE_KEY = 'SYSTEM_DEFAULT_REGISTRATION_V1'
@@ -39,7 +20,7 @@ export async function loadRegistrationContext(
   tx: Tx,
   actor: ApplicationIdentity,
   projectId: string,
-): Promise<RegistrationContext> {
+): Promise<RegistrationContextResponse> {
   const eligible = {
     organizationId: actor.organizationId,
     projectId,
