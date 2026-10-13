@@ -638,38 +638,6 @@ export type AlertLifecycleStatus =
   | 'Dismissed'
   | 'Auto-resolved'
 
-export interface ReportRecord {
-  id: string
-  title: string
-  projectId: string
-  reportingPeriod: string
-}
-
-type SurveyFormFieldType = 'Single select' | 'Numeric score'
-
-export interface SurveyFormFieldDefinition {
-  id: string
-  label: string
-  responseType: SurveyFormFieldType
-  metadataKey: string
-  required: boolean
-  options?: string[]
-  minimum?: number
-  maximum?: number
-}
-
-export interface SurveyFormDefinition {
-  id: string
-  title: string
-  formType: 'Training Survey' | 'Pre/Post Assessment' | 'Feedback Form'
-  programName: string
-  projectId: string
-  journeyStageId?: string
-  activityId?: string
-  fields: SurveyFormFieldDefinition[]
-  source?: string
-}
-
 export type FormFieldDataType =
   | 'TEXT'
   | 'LONG_TEXT'
@@ -765,59 +733,11 @@ export interface ImportMappingInput {
   valueMap?: Array<{ from: string; to: string }>
 }
 
-interface SurveyAggregateCount {
-  label: string
-  count: number
-}
-
-export interface SurveyCategoricalAggregate {
-  fieldId: string
-  kind: 'Categorical distribution'
-  responseCount: number
-  values: SurveyAggregateCount[]
-}
-
-export interface SurveyNumericAggregate {
-  fieldId: string
-  kind: 'Numeric summary'
-  responseCount: number
-  average: number
-  minimum: number
-  maximum: number
-  scaleLabel: string
-}
-
-export type SurveyQuestionAggregate = SurveyCategoricalAggregate | SurveyNumericAggregate
-
-export interface SurveyDemographicAggregate {
-  dimension: 'Sex' | 'Age group' | 'Disability status'
-  values: SurveyAggregateCount[]
-}
-
-export interface SurveyAggregateResultSet {
-  id: string
-  formId: string
-  projectId: string
-  location: string
-  responseDate: string
-  reportingPeriod: string
-  responseCount: number
-  questionResults: SurveyQuestionAggregate[]
-  demographicBreakdowns: SurveyDemographicAggregate[]
-  source?: string
-}
-
 export type ReportKind =
   | 'project-summary'
   | 'indicator-summary'
   | 'beneficiary-summary'
   | 'survey-results'
-
-export interface ReportColumnConfig {
-  id: string
-  label: string
-  enabledByDefault: boolean
-}
 
 export interface PublicIndicator {
   id: string
