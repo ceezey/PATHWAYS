@@ -14,19 +14,6 @@ const cases: ControllerCase[] = [
     dtoNames: ['ChangeStepUpPinDto', 'VerifyStepUpPinDto'],
   },
   {
-    file: 'src/modules/metadata/metadata.controller.ts',
-    dtoNames: [
-      'CreateFormDto',
-      'ExpectedVersionDto',
-      'ListSubmissionsQueryDto',
-      'SaveSubmissionDto',
-      'SubmitSubmissionDto',
-      'UpdateFormDto',
-      'UpdateSubmissionDto',
-      'ValidateValuesDto',
-    ],
-  },
-  {
     file: 'src/modules/users/users.controller.ts',
     dtoNames: ['AuthorizeExistingUserDto', 'UpdateAuthorizedUserDto'],
   },

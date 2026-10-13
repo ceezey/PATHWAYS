@@ -9,9 +9,17 @@ import {
 import { Prisma } from '@prisma/client'
 
 import {
+  type CreateFormRequest,
   DIRECT_ENTRY_FORM_TYPES,
   type FormFieldValidationContract,
   type FormValidationMode,
+  type FormVersionRequest,
+  type GenerateFormRequest,
+  type ListSubmissionsQuery,
+  type SaveSubmissionRequest,
+  type SubmitSubmissionRequest,
+  type UpdateFormRequest,
+  type UpdateSubmissionRequest,
   activityMonitoringDefinitionErrors,
   beneficiaryRegistrationDefinitionErrors,
   hasAtomicPermission,
@@ -25,16 +33,6 @@ import type { Tx } from '../../common/prisma/transaction'
 import { PrismaService } from '../../prisma/prisma.service'
 import { ParticipantsService } from '../participants/participants.service'
 import { type FormTemplateKey, formTemplates } from './form-templates'
-import type {
-  CreateFormDto,
-  ExpectedVersionDto,
-  GenerateFormDto,
-  ListSubmissionsQueryDto,
-  SaveSubmissionDto,
-  SubmitSubmissionDto,
-  UpdateFormDto,
-  UpdateSubmissionDto,
-} from './metadata.dto'
 import { PublishedDefinitionCache } from './published-definition-cache'
 
 const fieldSelection = {
@@ -133,7 +131,7 @@ function mapForm(form: FormRow, actor: ApplicationIdentity) {
   }
 }
 
-function fieldInput(field: FormRow['formField_form'][number]): CreateFormDto['fields'][number] {
+function fieldInput(field: FormRow['formField_form'][number]): CreateFormRequest['fields'][number] {
   return {
     code: field.code,
     label: field.label,
@@ -151,7 +149,7 @@ function fieldInput(field: FormRow['formField_form'][number]): CreateFormDto['fi
   }
 }
 
-function assertDefinition(input: CreateFormDto) {
+function assertDefinition(input: CreateFormRequest) {
   const result = validateAndNormalizeFormData(
     input.fields.map((field) => ({ ...field, required: field.required })),
     {},
@@ -166,7 +164,7 @@ function fieldData(
   organizationId: string,
   projectId: string,
   formId: string,
-  fields: CreateFormDto['fields'],
+  fields: CreateFormRequest['fields'],
 ): Prisma.FormFieldCreateManyInput[] {
   return fields.map((field, index) => ({
     organizationId,
@@ -270,7 +268,7 @@ export class MetadataService {
     })
   }
 
-  createForm(identity: ApplicationIdentity, projectId: string, input: CreateFormDto) {
+  createForm(identity: ApplicationIdentity, projectId: string, input: CreateFormRequest) {
     assertDefinition(input)
     return withAuthorizedOperation(this.prisma, identity, 'forms.manage', async (tx, actor) => {
       const scopedProjectId = await requireScopedProject(tx, actor, projectId)
@@ -282,7 +280,7 @@ export class MetadataService {
    * `forms.generate`: new version-1 draft from a server-owned template or an
    * existing form in the same scoped project. Exactly one source is allowed.
    */
-  async generateForm(identity: ApplicationIdentity, projectId: string, input: GenerateFormDto) {
+  async generateForm(identity: ApplicationIdentity, projectId: string, input: GenerateFormRequest) {
     const hasTemplate = input.templateKey !== undefined
     const hasSource = input.sourceFormId !== undefined
     if (hasTemplate === hasSource)
@@ -291,7 +289,7 @@ export class MetadataService {
       throw new BadRequestException('Unknown form template.')
     return withAuthorizedOperation(this.prisma, identity, 'forms.generate', async (tx, actor) => {
       const scopedProjectId = await requireScopedProject(tx, actor, projectId)
-      let definition: CreateFormDto
+      let definition: CreateFormRequest
       let origin: Prisma.InputJsonObject
       if (hasTemplate) {
         const key = input.templateKey as FormTemplateKey
@@ -334,7 +332,7 @@ export class MetadataService {
     tx: Tx,
     actor: ApplicationIdentity,
     scopedProjectId: string,
-    input: CreateFormDto,
+    input: CreateFormRequest,
     action: 'FORM_DRAFT_CREATED' | 'FORM_GENERATED',
     origin: Prisma.InputJsonObject,
   ) {
@@ -380,7 +378,7 @@ export class MetadataService {
     identity: ApplicationIdentity,
     projectId: string,
     formId: string,
-    input: UpdateFormDto,
+    input: UpdateFormRequest,
   ) {
     assertDefinition(input)
     return withAuthorizedOperation(this.prisma, identity, 'forms.manage', async (tx, actor) => {
@@ -434,7 +432,7 @@ export class MetadataService {
     identity: ApplicationIdentity,
     projectId: string,
     formId: string,
-    input: ExpectedVersionDto,
+    input: FormVersionRequest,
   ) {
     return withAuthorizedOperation(this.prisma, identity, 'forms.publish', async (tx, actor) => {
       const current = await this.requireForm(tx, actor, projectId, formId)
@@ -532,7 +530,7 @@ export class MetadataService {
     identity: ApplicationIdentity,
     projectId: string,
     formId: string,
-    input: ExpectedVersionDto,
+    input: FormVersionRequest,
   ) {
     return withAuthorizedOperation(this.prisma, identity, 'forms.archive', async (tx, actor) => {
       const current = await this.requireForm(tx, actor, projectId, formId)
@@ -595,7 +593,7 @@ export class MetadataService {
     identity: ApplicationIdentity,
     projectId: string,
     formId: string,
-    input: SaveSubmissionDto,
+    input: SaveSubmissionRequest,
   ) {
     return withAuthorizedOperation(
       this.prisma,
@@ -690,7 +688,7 @@ export class MetadataService {
     identity: ApplicationIdentity,
     projectId: string,
     formId: string,
-    query: ListSubmissionsQueryDto,
+    query: ListSubmissionsQuery,
   ) {
     return withAuthorizedOperation(
       this.prisma,
@@ -752,7 +750,7 @@ export class MetadataService {
     projectId: string,
     formId: string,
     submissionId: string,
-    input: UpdateSubmissionDto,
+    input: UpdateSubmissionRequest,
   ) {
     return withAuthorizedOperation(
       this.prisma,
@@ -877,7 +875,7 @@ export class MetadataService {
     projectId: string,
     formId: string,
     submissionId: string,
-    input: SubmitSubmissionDto,
+    input: SubmitSubmissionRequest,
   ) {
     return withAuthorizedOperation(
       this.prisma,
@@ -1046,8 +1044,8 @@ export class MetadataService {
     tx: Tx,
     actor: ApplicationIdentity,
     projectId: string,
-    activityId?: string,
-    journeyStageId?: string,
+    activityId?: string | null,
+    journeyStageId?: string | null,
   ) {
     if (activityId) {
       const activity = await tx.projectActivity.findFirst({
@@ -1079,7 +1077,7 @@ export class MetadataService {
     tx: Tx,
     actor: ApplicationIdentity,
     sourceForm: FormRow,
-    override?: UpdateFormDto,
+    override?: UpdateFormRequest,
   ) {
     await tx.$queryRaw`
       SELECT id FROM pathways.digital_forms

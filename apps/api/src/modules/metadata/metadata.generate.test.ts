@@ -1,18 +1,15 @@
 import 'reflect-metadata'
 import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common'
 import type { Prisma } from '@prisma/client'
-import { plainToInstance } from 'class-transformer'
-import { validateSync } from 'class-validator'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { PrismaService } from '@app/prisma/prisma.service'
-import { rolePermissions } from '@pathways/shared'
+import { generateFormRequest, rolePermissions } from '@pathways/shared'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import { withAuthorizedOperation } from '../../common/authz/authorized-operation'
 import { PERMISSION_KEY } from '../../common/decorators/permission.decorator'
 import { formTemplates } from './form-templates'
 import { MetadataController } from './metadata.controller'
-import { GenerateFormDto } from './metadata.dto'
 import { MetadataService } from './metadata.service'
 
 const state = vi.hoisted(() => ({
@@ -232,7 +229,7 @@ describe('forms.generate', () => {
 
   it('validates the request payload shape', () => {
     const errors = (value: unknown) =>
-      validateSync(plainToInstance(GenerateFormDto, value)).map((error) => error.property)
+      (generateFormRequest.safeParse(value).error?.issues ?? []).map((issue) => issue.path[0])
     expect(errors({ templateKey: 'training_survey', code: 'ok_code', name: 'Okay' })).toEqual([])
     expect(errors({ sourceFormId: 'not-a-uuid', code: 'ok_code', name: 'Okay' })).toContain(
       'sourceFormId',
