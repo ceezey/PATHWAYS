@@ -7,22 +7,16 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common'
-import { readApiEnv } from '@pathways/config'
 import { Prisma } from '@prisma/client'
 
 import {
   type ArchiveBeneficiaryRequest,
   type BeneficiaryListQuery,
   type EnrollBeneficiaryRequest,
-  type FormFieldValidationContract,
   type RegisterBeneficiaryRequest,
   type UpdateBeneficiaryRequest,
-  beneficiaryAgeRuleMessages,
   beneficiaryRegistrationDefinitionErrors,
-  businessCalendarDate,
-  completedYearsAt,
   hasAtomicPermission,
-  minimumBeneficiaryAge,
   updateBeneficiaryRequest,
   validateAndNormalizeFormData,
 } from '@pathways/shared'
@@ -32,39 +26,24 @@ import { withAuthorizedOperation } from '../../common/authz/authorized-operation
 import { projectDateFields, requireScopedProjectRow } from '../../common/authz/scoped-project'
 import type { Tx } from '../../common/prisma/transaction'
 import { PrismaService } from '../../prisma/prisma.service'
-import {
-  type RegistrationContextDto,
-  canonicalCode,
-  canonicalIdentifierType,
-  canonicalIdentifierValue,
-} from './beneficiaries.dto'
+import { ageBandWhere, assertSubjectProfile } from './beneficiaries.helpers'
+import { contract, fieldSelection, mapBeneficiary, scopedIncludes } from './beneficiaries.mapper'
 import { canReadProgress, loadProgress } from './beneficiary-progress'
+import {
+  type NormalizedValue,
+  type RegistrationProfile,
+  businessToday,
+  exactDate,
+  normalizeIdentifier,
+  parseRegistration,
+  stableValues,
+} from './beneficiary-registration.helpers'
+import { type RegistrationContext, loadRegistrationContext } from './registration-context.service'
 
-/** The one system template key the 0040 guard and check constraint admit. */
-const DEFAULT_REGISTRATION_TEMPLATE_KEY = 'SYSTEM_DEFAULT_REGISTRATION_V1'
-type NormalizedValue = string | number | boolean | string[] | null
 // The compiled update DTO carried every declared field, so the profile update audit lists all of them.
 const auditedProfileFields = Object.keys(updateBeneficiaryRequest.shape).filter(
   (key) => key !== 'expectedUpdatedAt',
 )
-
-const fieldSelection = {
-  id: true,
-  code: true,
-  label: true,
-  dataType: true,
-  isRequired: true,
-  allowedValues: true,
-  minimumValue: true,
-  maximumValue: true,
-  minimumDate: true,
-  maximumDate: true,
-  minimumLength: true,
-  maximumLength: true,
-  sequenceNo: true,
-} satisfies Prisma.FormFieldSelect
-
-type FieldRow = Prisma.FormFieldGetPayload<{ select: typeof fieldSelection }>
 
 const registrationFormSelection = {
   id: true,
@@ -76,364 +55,6 @@ const registrationFormSelection = {
 export type RegistrationImportForm = Prisma.DigitalFormGetPayload<{
   select: typeof registrationFormSelection
 }>
-
-const writableProfileFields = new Set([
-  'display_name',
-  'first_name',
-  'middle_name',
-  'last_name',
-  'sex',
-  'birth_date',
-  'age_at_registration',
-  'disability_status',
-  'location_barangay',
-  'location_city_municipality',
-  'location_province',
-])
-
-function jsonStrings(value: Prisma.JsonValue | null) {
-  return Array.isArray(value) && value.every((item) => typeof item === 'string')
-    ? (value as string[])
-    : null
-}
-
-function contract(field: FieldRow): FormFieldValidationContract {
-  return {
-    code: field.code,
-    label: field.label,
-    dataType: field.dataType,
-    required: field.isRequired,
-    allowedValues: jsonStrings(field.allowedValues),
-    minimumValue: field.minimumValue?.toString(),
-    maximumValue: field.maximumValue?.toString(),
-    minimumDate: field.minimumDate?.toISOString().slice(0, 10),
-    maximumDate: field.maximumDate?.toISOString().slice(0, 10),
-    minimumLength: field.minimumLength,
-    maximumLength: field.maximumLength,
-  }
-}
-
-function exactDate(value: NormalizedValue | undefined, field: string) {
-  if (value === null || value === undefined) return null
-  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-    throw new BadRequestException(`${field} must be a calendar date in YYYY-MM-DD format.`)
-  }
-  const date = new Date(`${value}T00:00:00.000Z`)
-  if (Number.isNaN(date.valueOf()) || date.toISOString().slice(0, 10) !== value) {
-    throw new BadRequestException(`${field} is not a real calendar date.`)
-  }
-  return date
-}
-
-function text(value: NormalizedValue | undefined) {
-  return typeof value === 'string' && value.trim() ? value.trim() : null
-}
-
-function enumValue<T extends string>(
-  value: NormalizedValue | undefined,
-  allowed: readonly T[],
-  field: string,
-): T {
-  if (typeof value !== 'string' || !allowed.includes(value as T)) {
-    throw new BadRequestException(`${field} is invalid.`)
-  }
-  return value as T
-}
-
-const yearsAt = completedYearsAt
-
-/** The configured business calendar date as a UTC-midnight date, the same clock as registration context. */
-function businessToday() {
-  return new Date(
-    `${businessCalendarDate(new Date(), readApiEnv(process.env).BUSINESS_TIME_ZONE)}T00:00:00.000Z`,
-  )
-}
-
-/**
- * Minimum-age and future-birth-date rule shared by registration (direct and imported) and
- * profile edits. Existing under-age records stay valid; the caller decides when it applies.
- */
-function assertRegistrationAge(birthDate: Date | null, age: number | null, today: Date) {
-  if (birthDate && birthDate > today) {
-    throw new BadRequestException(beneficiaryAgeRuleMessages.futureBirthDate)
-  }
-  if (age !== null && age < minimumBeneficiaryAge) {
-    throw new BadRequestException(beneficiaryAgeRuleMessages.belowMinimumAge)
-  }
-}
-
-function stableValues(value: Record<string, NormalizedValue>) {
-  return JSON.stringify(
-    Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b))),
-  )
-}
-
-function normalizeIdentifier(value: string) {
-  return value.normalize('NFKC').trim()
-}
-
-type RegistrationProfile = {
-  operation: 'CREATE' | 'LINK' | 'UPDATE'
-  code: string
-  subjectType: 'INDIVIDUAL' | 'GROUP' | 'COMMUNITY'
-  displayName: string
-  firstName: string | null
-  middleName: string | null
-  lastName: string | null
-  sex: 'MALE' | 'FEMALE' | 'OTHER' | 'PREFER_NOT_TO_SAY' | 'NOT_SPECIFIED'
-  birthDate: Date | null
-  ageAtRegistration: number | null
-  disabilityStatus: 'WITH_DISABILITY' | 'WITHOUT_DISABILITY' | 'NOT_SPECIFIED'
-  locationBarangay: string | null
-  locationCityMunicipality: string | null
-  locationProvince: string | null
-  consentRecorded: true
-  dataProcessingConsentRecorded: true
-  isMinor: boolean
-  guardianConsentRecorded: boolean
-  enrollmentDate: Date
-  externalIdentifier: { type: string; value: string } | null
-  updateFields: string[]
-}
-
-function parseRegistration(
-  values: Record<string, NormalizedValue>,
-  today: Date = businessToday(),
-): RegistrationProfile {
-  const operation = enumValue(
-    values.registration_operation,
-    ['CREATE', 'LINK', 'UPDATE'] as const,
-    'registration_operation',
-  )
-  const code = canonicalCode(values.beneficiary_code)
-  if (!code) throw new BadRequestException('beneficiary_code is invalid.')
-  const subjectType = enumValue(
-    values.subject_type,
-    ['INDIVIDUAL', 'GROUP', 'COMMUNITY'] as const,
-    'subject_type',
-  )
-  const enrollmentDate = exactDate(values.enrollment_date, 'enrollment_date')
-  if (!enrollmentDate) throw new BadRequestException('enrollment_date is required.')
-  if (enrollmentDate > today) throw new BadRequestException('enrollment_date cannot be future.')
-
-  const participationConsent = values.consent_recorded
-  const dataConsent = values.data_processing_consent_recorded
-  if (participationConsent !== true || dataConsent !== true) {
-    throw new BadRequestException(
-      'Participation and data-processing consent must be explicitly recorded.',
-    )
-  }
-  const isMinor = values.is_minor === true
-  const guardianConsent = values.guardian_consent_recorded === true
-  const birthDate = exactDate(values.birth_date, 'birth_date')
-  const age = values.age_at_registration
-  if (
-    age !== null &&
-    age !== undefined &&
-    (!Number.isInteger(age) || Number(age) < 0 || Number(age) > 130)
-  ) {
-    throw new BadRequestException('age_at_registration must be an integer from 0 through 130.')
-  }
-  const ageAtRegistration = typeof age === 'number' ? age : null
-
-  const firstName = text(values.first_name)
-  const middleName = text(values.middle_name)
-  const lastName = text(values.last_name)
-  const explicitDisplayName = text(values.display_name)
-  if (subjectType === 'INDIVIDUAL') {
-    if (!firstName || !lastName) {
-      throw new BadRequestException('Individual registrations require first_name and last_name.')
-    }
-    if (!birthDate && ageAtRegistration === null) {
-      throw new BadRequestException(
-        'Individual registrations require birth_date or age_at_registration.',
-      )
-    }
-    if (birthDate && birthDate > today) {
-      throw new BadRequestException(beneficiaryAgeRuleMessages.futureBirthDate)
-    }
-    if (birthDate && birthDate > enrollmentDate) {
-      throw new BadRequestException('birth_date cannot be after enrollment_date.')
-    }
-    if (
-      birthDate &&
-      ageAtRegistration !== null &&
-      yearsAt(birthDate, enrollmentDate) !== ageAtRegistration
-    ) {
-      throw new BadRequestException('birth_date and age_at_registration are inconsistent.')
-    }
-    const derivedAge = birthDate ? yearsAt(birthDate, enrollmentDate) : ageAtRegistration
-    assertRegistrationAge(birthDate, derivedAge, today)
-    if ((derivedAge !== null && derivedAge < 18) !== isMinor) {
-      throw new BadRequestException('is_minor must agree with the supplied birth date or age.')
-    }
-    if (isMinor !== guardianConsent) {
-      throw new BadRequestException(
-        'Guardian consent is required only for an explicitly identified minor.',
-      )
-    }
-  } else {
-    if (!explicitDisplayName)
-      throw new BadRequestException('Group/community records require display_name.')
-    if (
-      firstName ||
-      middleName ||
-      lastName ||
-      birthDate ||
-      ageAtRegistration !== null ||
-      isMinor ||
-      guardianConsent ||
-      (values.sex != null && values.sex !== 'NOT_SPECIFIED')
-    ) {
-      throw new BadRequestException(
-        'Person-only name, age, birth and guardian fields do not apply to groups or communities.',
-      )
-    }
-  }
-
-  const identifierTypeValue = values.external_identifier_type
-  const identifierValueValue = values.external_identifier_value
-  const identifierType = canonicalIdentifierType(identifierTypeValue)
-  const identifierValue = canonicalIdentifierValue(identifierValueValue)
-  if (
-    (identifierTypeValue != null || identifierValueValue != null) &&
-    (!identifierType || !identifierValue)
-  ) {
-    throw new BadRequestException(
-      'External identifier type and value must be supplied together and use a stable non-demographic namespace.',
-    )
-  }
-
-  const updateFieldsValue = values.profile_update_fields
-  const updateFields = Array.isArray(updateFieldsValue)
-    ? updateFieldsValue.filter((item): item is string => typeof item === 'string')
-    : []
-  if (operation === 'UPDATE') {
-    if (
-      updateFields.length === 0 ||
-      updateFields.some((field) => !writableProfileFields.has(field))
-    ) {
-      throw new BadRequestException(
-        'UPDATE requires an explicit allowlisted profile_update_fields selection.',
-      )
-    }
-  } else if (updateFields.length > 0) {
-    throw new BadRequestException('profile_update_fields is only valid for UPDATE.')
-  }
-
-  return {
-    operation,
-    code,
-    subjectType,
-    displayName: explicitDisplayName ?? [firstName, middleName, lastName].filter(Boolean).join(' '),
-    firstName,
-    middleName,
-    lastName,
-    sex: enumValue(
-      values.sex ?? 'NOT_SPECIFIED',
-      ['MALE', 'FEMALE', 'OTHER', 'PREFER_NOT_TO_SAY', 'NOT_SPECIFIED'] as const,
-      'sex',
-    ),
-    birthDate,
-    ageAtRegistration,
-    disabilityStatus: enumValue(
-      values.disability_status ?? 'NOT_SPECIFIED',
-      ['WITH_DISABILITY', 'WITHOUT_DISABILITY', 'NOT_SPECIFIED'] as const,
-      'disability_status',
-    ),
-    locationBarangay: text(values.location_barangay),
-    locationCityMunicipality: text(values.location_city_municipality),
-    locationProvince: text(values.location_province),
-    consentRecorded: true,
-    dataProcessingConsentRecorded: true,
-    isMinor,
-    guardianConsentRecorded: guardianConsent,
-    enrollmentDate,
-    externalIdentifier:
-      identifierType && identifierValue ? { type: identifierType, value: identifierValue } : null,
-    updateFields,
-  }
-}
-
-type SadddAgeBand = '0-9' | '10-14' | '15-17' | '18-24' | '25+' | 'Unknown'
-
-function calendarDateParts(value: Date) {
-  return {
-    year: value.getUTCFullYear(),
-    month: value.getUTCMonth() + 1,
-    day: value.getUTCDate(),
-  }
-}
-
-function calendarDate(year: number, month: number, day: number) {
-  const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate()
-  return new Date(Date.UTC(year, month - 1, Math.min(day, lastDay)))
-}
-
-function yearsBefore(reference: Date, years: number) {
-  const parts = calendarDateParts(reference)
-  return calendarDate(parts.year - years, parts.month, parts.day)
-}
-
-function ageBandWhere(referenceDate: Date, band?: SadddAgeBand): Prisma.BeneficiaryWhereInput {
-  if (!band) return {}
-
-  if (band === 'Unknown') {
-    return {
-      subjectType: 'INDIVIDUAL',
-      birthDate: null,
-    }
-  }
-
-  if (band === '0-9') {
-    const today = businessToday()
-    return {
-      subjectType: 'INDIVIDUAL',
-      birthDate: {
-        gt: yearsBefore(referenceDate, 10),
-        lte: referenceDate < today ? referenceDate : today,
-      },
-    }
-  }
-
-  if (band === '10-14') {
-    return {
-      subjectType: 'INDIVIDUAL',
-      birthDate: {
-        gt: yearsBefore(referenceDate, 15),
-        lte: yearsBefore(referenceDate, 10),
-      },
-    }
-  }
-
-  if (band === '15-17') {
-    return {
-      subjectType: 'INDIVIDUAL',
-      birthDate: {
-        gt: yearsBefore(referenceDate, 18),
-        lte: yearsBefore(referenceDate, 15),
-      },
-    }
-  }
-
-  if (band === '18-24') {
-    return {
-      subjectType: 'INDIVIDUAL',
-      birthDate: {
-        gt: yearsBefore(referenceDate, 25),
-        lte: yearsBefore(referenceDate, 18),
-      },
-    }
-  }
-
-  return {
-    subjectType: 'INDIVIDUAL',
-    birthDate: {
-      gte: new Date(Date.UTC(1900, 0, 1)),
-      lte: yearsBefore(referenceDate, 25),
-    },
-  }
-}
 
 @Injectable()
 export class BeneficiariesService {
@@ -492,7 +113,7 @@ export class BeneficiariesService {
 
         const rows = await tx.beneficiary.findMany({
           where: beneficiaryWhere,
-          include: this.scopedIncludes(actor.organizationId, scopedProjectId),
+          include: scopedIncludes(actor.organizationId, scopedProjectId),
           orderBy: { id: 'asc' },
           take: query.limit + 1,
         })
@@ -510,7 +131,7 @@ export class BeneficiariesService {
           : null
         return {
           items: page.map((row) => ({
-            ...this.mapBeneficiary(row, scopedProjectId),
+            ...mapBeneficiary(row, scopedProjectId),
             progress: progress
               ? (progress.get(row.beneficiaryProjectEnrollment_beneficiary[0]?.id ?? '') ?? {
                   restricted: false as const,
@@ -528,7 +149,7 @@ export class BeneficiariesService {
   registrationContext(
     identity: ApplicationIdentity,
     projectId: string,
-  ): Promise<RegistrationContextDto> {
+  ): Promise<RegistrationContext> {
     if (!UUID_PATTERN.test(projectId))
       throw new BadRequestException('Project identifier is invalid.')
     return withAuthorizedOperation(
@@ -537,7 +158,7 @@ export class BeneficiariesService {
       'beneficiaries.records.register',
       async (tx, actor) => {
         const project = await requireScopedProjectRow(tx, actor, projectId, projectDateFields)
-        return this.loadRegistrationContext(tx, actor, project.id)
+        return loadRegistrationContext(tx, actor, project.id)
       },
     )
   }
@@ -551,7 +172,7 @@ export class BeneficiariesService {
   ensureDefaultRegistrationForm(
     identity: ApplicationIdentity,
     projectId: string,
-  ): Promise<RegistrationContextDto> {
+  ): Promise<RegistrationContext> {
     if (!UUID_PATTERN.test(projectId))
       throw new BadRequestException('Project identifier is invalid.')
     return withAuthorizedOperation(
@@ -571,121 +192,9 @@ export class BeneficiariesService {
         if (provisioned?.outcome !== 'PROVISIONED' && provisioned?.outcome !== 'EXISTING') {
           throw new Error('Default registration form provisioning is unavailable.')
         }
-        return this.loadRegistrationContext(tx, actor, project.id)
+        return loadRegistrationContext(tx, actor, project.id)
       },
     )
-  }
-
-  /** Caller has already scoped projectId through requireScopedProjectRow. */
-  private async loadRegistrationContext(
-    tx: Tx,
-    actor: ApplicationIdentity,
-    projectId: string,
-  ): Promise<RegistrationContextDto> {
-    const eligible = {
-      organizationId: actor.organizationId,
-      projectId,
-      formType: 'BENEFICIARY_REGISTRATION' as const,
-      status: 'PUBLISHED' as const,
-      archivedAt: null,
-    }
-    const businessDate = businessCalendarDate(
-      new Date(),
-      readApiEnv(process.env).BUSINESS_TIME_ZONE,
-    )
-    // Bound code discovery before loading any definitions, rather than broad reads filtered in memory.
-    // The system default template is offered only when no project-authored form is eligible.
-    const discover = (where: Prisma.DigitalFormWhereInput) =>
-      tx.digitalForm.groupBy({
-        by: ['code'],
-        where,
-        _max: { version: true },
-        orderBy: { code: 'asc' },
-        take: 101,
-      })
-    let where: Prisma.DigitalFormWhereInput = { ...eligible, systemTemplateKey: null }
-    let codes = await discover(where)
-    if (codes.length === 0) {
-      where = { ...eligible, systemTemplateKey: DEFAULT_REGISTRATION_TEMPLATE_KEY }
-      codes = await discover(where)
-    }
-    if (codes.length > 100)
-      throw new ConflictException('Registration definitions exceed supported bounds.')
-    if (codes.length === 0) return { projectId, businessDate, definitions: [] }
-    if (codes.some((item) => item._max.version === null))
-      throw new ConflictException('Registration definitions are invalid.')
-    const rows = await tx.digitalForm.findMany({
-      where: {
-        ...where,
-        OR: codes.map((item) => ({ code: item.code, version: item._max.version as number })),
-      },
-      orderBy: [{ code: 'asc' }, { id: 'asc' }],
-      take: 101,
-      select: {
-        id: true,
-        code: true,
-        version: true,
-        name: true,
-        formType: true,
-        status: true,
-        formField_form: {
-          where: { organizationId: actor.organizationId, projectId },
-          take: 101,
-          orderBy: [{ sequenceNo: 'asc' }, { id: 'asc' }],
-          select: { ...fieldSelection, isMetadataKey: true, isSadddField: true },
-        },
-      },
-    })
-    if (rows.length !== codes.length)
-      throw new ConflictException('Registration definitions changed. Reload before continuing.')
-    const definitions = rows.map((form) => {
-      if (
-        !/^[a-z][a-z0-9_]{1,63}$/.test(form.code) ||
-        form.name.trim().length < 3 ||
-        form.name.length > 160 ||
-        form.formField_form.length > 100 ||
-        form.formField_form.some(
-          (field) =>
-            field.code.length > 64 ||
-            field.label.length > 160 ||
-            !Number.isSafeInteger(field.sequenceNo) ||
-            field.sequenceNo < 1 ||
-            (field.allowedValues !== null &&
-              (!Array.isArray(field.allowedValues) ||
-                field.allowedValues.length > 100 ||
-                field.allowedValues.some(
-                  (value) => typeof value !== 'string' || value.length > 120,
-                ))),
-        )
-      ) {
-        throw new ConflictException('Registration definitions are invalid.')
-      }
-      const fields = form.formField_form.map((field) => ({
-        ...contract(field),
-        id: field.id,
-        metadataKey: field.isMetadataKey,
-        sadddField: field.isSadddField,
-        sequence: field.sequenceNo,
-      }))
-      if (
-        beneficiaryRegistrationDefinitionErrors(fields).length ||
-        validateAndNormalizeFormData(fields, {}, 'draft').errors.some(
-          (error) => error.code === 'invalid_definition',
-        )
-      ) {
-        throw new ConflictException('Registration definitions are invalid.')
-      }
-      return {
-        id: form.id,
-        code: form.code,
-        version: form.version,
-        name: form.name,
-        formType: 'BENEFICIARY_REGISTRATION' as const,
-        status: 'PUBLISHED' as const,
-        fields,
-      }
-    })
-    return { projectId, businessDate, definitions }
   }
 
   get(identity: ApplicationIdentity, projectId: string, beneficiaryId: string) {
@@ -705,7 +214,7 @@ export class BeneficiariesService {
                 stage: null,
               })
             : { restricted: true as const }
-        return { ...this.mapBeneficiary(row, project.id), progress }
+        return { ...mapBeneficiary(row, project.id), progress }
       },
     )
   }
@@ -732,7 +241,7 @@ export class BeneficiariesService {
           })
         }
         const row = await this.requireBeneficiary(tx, actor, project.id, outcome.beneficiaryId)
-        return this.mapBeneficiary(row, project.id)
+        return mapBeneficiary(row, project.id)
       },
     )
   }
@@ -1134,7 +643,7 @@ export class BeneficiariesService {
         const project = await requireScopedProjectRow(tx, actor, projectId, projectDateFields)
         const current = await this.requireBeneficiary(tx, actor, project.id, beneficiaryId)
         await this.assertAllEnrollmentScope(tx, actor, current.id)
-        this.assertSubjectProfile(input, current)
+        assertSubjectProfile(input, current)
         const changed = await tx.beneficiary.updateMany({
           where: {
             id: current.id,
@@ -1166,7 +675,7 @@ export class BeneficiariesService {
           entityId: current.id,
           changes: { fields: auditedProfileFields },
         })
-        return this.mapBeneficiary(
+        return mapBeneficiary(
           await this.requireBeneficiary(tx, actor, project.id, current.id),
           project.id,
         )
@@ -1289,68 +798,6 @@ export class BeneficiariesService {
     ) as Prisma.BeneficiaryUpdateManyMutationInput
   }
 
-  private assertSubjectProfile(
-    input: UpdateBeneficiaryRequest,
-    current: Awaited<ReturnType<BeneficiariesService['requireBeneficiary']>>,
-  ) {
-    if (input.subjectType === 'INDIVIDUAL') {
-      if (!input.firstName?.trim() || !input.lastName?.trim()) {
-        throw new BadRequestException('Individual profiles require first and last names.')
-      }
-      const birthDate = input.birthDate ? exactDate(input.birthDate, 'birthDate') : null
-      const enrollmentDate = current.beneficiaryProjectEnrollment_beneficiary[0]?.enrollmentDate
-      if (!birthDate && input.ageAtRegistration === undefined) {
-        throw new BadRequestException(
-          'Individual profiles require a birth date or age at registration.',
-        )
-      }
-      // The minimum-age and future-date rules apply only when the birth date or the recorded
-      // age changes, so other edits of existing under-age records stay valid.
-      const birthDateChanged =
-        (input.birthDate ?? null) !== (current.birthDate?.toISOString().slice(0, 10) ?? null)
-      const ageChanged =
-        input.ageAtRegistration !== undefined &&
-        input.ageAtRegistration !== current.ageAtRegistration
-      const today = businessToday()
-      if (birthDateChanged && birthDate && birthDate > today) {
-        throw new BadRequestException(beneficiaryAgeRuleMessages.futureBirthDate)
-      }
-      if (birthDate && enrollmentDate && birthDate > enrollmentDate) {
-        throw new BadRequestException('Birth date cannot be after enrollment date.')
-      }
-      if (
-        birthDate &&
-        enrollmentDate &&
-        input.ageAtRegistration !== undefined &&
-        yearsAt(birthDate, enrollmentDate) !== input.ageAtRegistration
-      ) {
-        throw new BadRequestException('Birth date and age at registration are inconsistent.')
-      }
-      const age =
-        birthDate && enrollmentDate
-          ? yearsAt(birthDate, enrollmentDate)
-          : (input.ageAtRegistration ?? null)
-      if (birthDateChanged || ageChanged) assertRegistrationAge(birthDate, age, today)
-      if (age !== null && age < 18 !== current.isMinor) {
-        throw new BadRequestException(
-          'Age changes cannot contradict recorded minor/guardian consent facts.',
-        )
-      }
-    } else if (
-      !input.displayName?.trim() ||
-      input.firstName ||
-      input.middleName ||
-      input.lastName ||
-      input.birthDate ||
-      input.ageAtRegistration !== undefined ||
-      input.sex !== 'NOT_SPECIFIED'
-    ) {
-      throw new BadRequestException(
-        'Group/community profiles require a display name and cannot use person-only fields.',
-      )
-    }
-  }
-
   private async assertAllEnrollmentScope(
     tx: Tx,
     actor: ApplicationIdentity,
@@ -1373,30 +820,6 @@ export class BeneficiariesService {
     }
   }
 
-  private scopedIncludes(organizationId: string, projectId: string) {
-    return {
-      beneficiaryProjectEnrollment_beneficiary: {
-        where: { organizationId, projectId },
-        select: {
-          id: true,
-          projectId: true,
-          enrollmentDate: true,
-          status: true,
-          endedDate: true,
-          endReason: true,
-          updatedAt: true,
-        },
-        take: 1,
-      },
-      beneficiaryConsentRecord_beneficiary: {
-        where: { organizationId, projectId },
-        select: { kind: true, source: true, recordedAt: true },
-        orderBy: { recordedAt: 'desc' as const },
-        take: 10,
-      },
-    } satisfies Prisma.BeneficiaryInclude
-  }
-
   private async requireBeneficiary(
     tx: Tx,
     actor: ApplicationIdentity,
@@ -1412,55 +835,9 @@ export class BeneficiariesService {
           some: { organizationId: actor.organizationId, projectId },
         },
       },
-      include: this.scopedIncludes(actor.organizationId, projectId),
+      include: scopedIncludes(actor.organizationId, projectId),
     })
     if (!row) throw new NotFoundException('Beneficiary unavailable.')
     return row
-  }
-
-  private mapBeneficiary(
-    row: Awaited<ReturnType<BeneficiariesService['requireBeneficiary']>>,
-    projectId: string,
-  ) {
-    const enrollment = row.beneficiaryProjectEnrollment_beneficiary[0]
-    return {
-      id: row.id,
-      code: row.code,
-      subjectType: row.subjectType,
-      displayName: row.displayName ?? row.code,
-      firstName: row.firstName,
-      middleName: row.middleName,
-      lastName: row.lastName,
-      sex: row.sex,
-      birthDate: row.birthDate?.toISOString().slice(0, 10),
-      ageAtRegistration: row.ageAtRegistration,
-      disabilityStatus: row.disabilityStatus,
-      locationBarangay: row.locationBarangay,
-      locationCityMunicipality: row.locationCityMunicipality,
-      locationProvince: row.locationProvince,
-      status: row.status,
-      consentRecorded: row.consentRecorded,
-      dataProcessingConsentRecorded: row.dataProcessingConsentRecorded,
-      isMinor: row.isMinor,
-      guardianConsentRecorded: row.guardianConsentRecorded,
-      projectId,
-      enrollment: enrollment
-        ? {
-            id: enrollment.id,
-            projectId,
-            enrollmentDate: enrollment.enrollmentDate.toISOString().slice(0, 10),
-            status: enrollment.status,
-            endedDate: enrollment.endedDate?.toISOString().slice(0, 10),
-            endReason: enrollment.endReason,
-            updatedAt: enrollment.updatedAt.toISOString(),
-          }
-        : null,
-      consentProvenance: row.beneficiaryConsentRecord_beneficiary.map((entry) => ({
-        kind: entry.kind,
-        source: entry.source,
-        recordedAt: entry.recordedAt.toISOString(),
-      })),
-      updatedAt: row.updatedAt.toISOString(),
-    }
   }
 }

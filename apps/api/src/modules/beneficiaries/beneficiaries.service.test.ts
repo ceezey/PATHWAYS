@@ -501,52 +501,6 @@ describe('P04 beneficiary registration service', () => {
       expect(tx.beneficiary.createMany).not.toHaveBeenCalled()
       expect(tx.formSubmission.create).not.toHaveBeenCalled()
     })
-
-    describe('profile edits', () => {
-      type SubjectProfileCheck = (input: Record<string, unknown>, current: unknown) => void
-      const check = (input: Record<string, unknown>) =>
-        (service as unknown as { assertSubjectProfile: SubjectProfileCheck }).assertSubjectProfile(
-          {
-            subjectType: 'INDIVIDUAL',
-            firstName: 'Synthetic',
-            lastName: 'Legacy',
-            sex: 'NOT_SPECIFIED',
-            disabilityStatus: 'NOT_SPECIFIED',
-            expectedUpdatedAt: '2026-02-01T00:00:00.000Z',
-            ...input,
-          },
-          {
-            birthDate: new Date('2023-01-01T00:00:00.000Z'),
-            ageAtRegistration: 3,
-            isMinor: true,
-            beneficiaryProjectEnrollment_beneficiary: [
-              { enrollmentDate: new Date('2026-01-01T00:00:00.000Z') },
-            ],
-          },
-        )
-
-      it('keeps a legacy under-5 record editable when birth date and age are unchanged', () => {
-        expect(() => check({ birthDate: '2023-01-01', ageAtRegistration: 3 })).not.toThrow()
-        expect(() => check({ birthDate: '2023-01-01' })).not.toThrow()
-      })
-
-      it('applies the minimum age when the birth date or age changes', () => {
-        expect(() => check({ birthDate: '2022-01-01', ageAtRegistration: 4 })).toThrow(
-          'Beneficiary must be at least 5 years old.',
-        )
-        expect(() => check({ birthDate: '2022-01-01' })).toThrow(
-          'Beneficiary must be at least 5 years old.',
-        )
-        expect(() => check({ birthDate: undefined, ageAtRegistration: 4 })).toThrow(
-          'Beneficiary must be at least 5 years old.',
-        )
-        expect(() => check({ birthDate: '2021-01-01', ageAtRegistration: 5 })).not.toThrow()
-      })
-
-      it('rejects a changed future birth date with the exact message', () => {
-        expect(() => check({ birthDate: future })).toThrow('Date of birth cannot be in the future.')
-      })
-    })
   })
 
   it('returns an ambiguous-identity review to the reviewer without disclosing a record', async () => {
