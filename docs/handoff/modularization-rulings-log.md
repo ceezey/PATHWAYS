@@ -327,3 +327,21 @@ Ruling: reword the CR section 9 seed sentence in the post-merge gates commit, no
 Ruling: accept the S3b plan; its open questions are already ruled (Biome reformat accepted at Task 1, trailer Opus 5.5, browser smoke replaced by e2e as in S1b and S2b), cost if wrong: none.
 
 Ruling: merge S3a and push dev with the demo seed stopped after its monitoring stage passed, the defense seed and e2e not run, and a compiled API boot (health ok, no Nest dependency errors) in their place; the developer stopped the gates to move to the cloud, cost if wrong: an e2e regression from S3a surfaces on the next local e2e run instead of before the merge.
+
+## S3b
+
+Ruling: record CI run 38345761871 (dev 79ad8bbb, first CI over F1 to S3a); attempt 1 failed in Install dependencies on a cdn.sheetjs.com timeout before any code step ran, the developer was told, and on "do all remaining tasks automatically" the failed job was re-run; the result is recorded below once it finishes, cost if wrong: none, no code ran.
+
+Ruling: in the cloud container xlsx is installed from npm 0.18.5 with packages/imports/package.json and pnpm-lock.yaml reverted, and every pnpm run sets pnpm_config_verify_deps_before_run=false, because cdn.sheetjs.com is unreachable here; the local baseline matched the handoff (config 19, shared 281, imports 91, api 2445 with 21 skipped, web 221 files and 1983 tests, sad 54, docs check 6 failures and 1 warning), cost if wrong: an xlsx 0.20.3 difference goes unseen here, CI installs the real tarball.
+
+Ruling: the environment allows pushes only to claude/modularization-s3b-9ept8o, so that branch replaces refactor/s3b-indicators-web, and S4 to S8 stack on it while S3b waits for the developer's merge (one pull request into dev, updated per slice), cost if wrong: one larger pull request to review.
+
+Ruling: commits keep the Co-Authored-By Claude Opus 5.5 line and add the environment's Claude-Session line, as the handoff says to follow the environment, cost if wrong: one trailer line.
+
+Ruling: builds read apps/web/.env.local, a gitignored copy of apps/web/.env.example, matching the dry run's .env.example builds, cost if wrong: route sizes shift by about 1 kB against the plan figures, which the plan already tolerates.
+
+Ruling: the superpowers implementer and reviewer templates are not in this container, so cloud copies of the common briefs carry the contract in the SDD workspace, cost if wrong: weaker reports, caught by the paired reviews.
+
+Ruling: apply the S3b pre-flight must-fixes (alias count excludes types/pathways.ts so it prints 6; Task 6 greps exclude docs/handoff; Task 0 Step 1 fetches origin/dev and points a local dev ref at it; Task 7 Steps 6 and 7 become a pull request and a post-merge plan removal whose sed matches only the superpowers row) and should-fixes (bash replay with CI as fallback, e2e and smoke recorded as pending local run without Docker, leftover-call grep includes createProjectIndicatorFromLibrary, Task 0 copies the plan, attribution wording, base 79ad8bbb, summary plan path); note 16's 366 against 370 workspace lines is Biome's rewrap and Task 4 checks it with Biome present, cost if wrong: a Task 0 or Task 6 stop.
+
+Ruling: the scan's other notes need no edit (hashes, counts, anchors and cumulative test counts all matched origin/dev 79ad8bbb), cost if wrong: none.

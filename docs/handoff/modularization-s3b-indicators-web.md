@@ -12,7 +12,7 @@
 
 ## Rulings
 
-Controller rulings for S3b. Each was checked on an exported copy of local dev `bf8ef5e6` after S3a; Task 0 recounts them.
+Controller rulings for S3b. Each was checked on an exported copy of local dev `bf8ef5e6` after S3a and re-scanned on origin/dev `79ad8bbb` (S3a merged); Task 0 recounts them.
 
 1. **One plan, eight tasks (0 to 7), no S3b1/S3b2 split.** The client half (Tasks 1 and 2) and the layout, split and reads half (Tasks 3 to 5) each end green, so a reviewer can stop at the Task 2 or Task 4 boundary. Cost if wrong: executor fatigue; run Tasks 5 to 7 as S3b2.
 2. **One client module with two objects, no `.schema` file.** `indicatorsClient` (8 methods) and `indicatorLibraryClient` (3 methods, merged from `lib/services/indicator-library-client.ts`, which is deleted) live in `lib/api/indicators.ts` with the same method names, parameters and results as before. The S2b `.schema.ts` files hold hand-written parsers; the indicator responses are parsed by the shared zod schemas (`indicatorResponse`, `indicatorListResponse`, `indicatorLibraryEntryResponse`, S3a ruling 8), so no parser moves. Cost if wrong: a rename.
@@ -58,8 +58,8 @@ Controller rulings for S3b. Each was checked on an exported copy of local dev `b
 - Write the scripts and test files with the Write tool, not a shell heredoc: a heredoc in this environment eats the backslashes of regular expressions and template escapes. One-off scripts live in `.tmp/s3b/` (gitignored) and are never committed; build logs go there too.
 - Expected test counts are cumulative from Task 0 and are stated at the end of each task.
 - If a known flake fails (the ZodPipe 5 s timeout, web `beneficiary-detail-loader.test.tsx`), rerun it alone before treating it as real.
-- Commit messages end with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
-- Work in `C:\PATHWAYS` on branch `refactor/s3b-indicators-web`; no new worktree. All paths are relative to `C:\PATHWAYS`. Do not push. Do not touch `apps/api`, `packages/shared`, migrations, seeds, `.env` files or review evidence.
+- Commit messages end with the running environment's attribution lines (the `Co-Authored-By` line shown in the examples below, plus a `Claude-Session` line when the environment gives one).
+- Work in the repository root on the slice branch (`refactor/s3b-indicators-web`, or the branch name the environment assigns); no new worktree. All paths are relative to the repository root. Only the controller pushes the slice branch, at task-pair boundaries; nobody pushes `dev` or `master`. Do not touch `apps/api`, `packages/shared`, migrations, seeds, `.env` files or review evidence.
 
 ## Review Focus
 
@@ -93,21 +93,22 @@ Controller rulings for S3b. Each was checked on an exported copy of local dev `b
 - [ ] **Step 1: Confirm local dev contains S3a, and create the branch**
 
 ```bash
-cd /c/PATHWAYS
+cd "$(git rev-parse --show-toplevel)"
 git status --short
-git checkout dev
+git fetch origin dev
+git branch -f dev origin/dev
 git log --oneline dev | grep -m1 "Merge refactor/s3a-indicators-api into dev"
 test "$(git log --oneline dev | grep -cE 'Merge refactor/s(1a|1b|2a|2b|3a)-')" -ge 5 && echo "S1 to S3a merged"
 test -f packages/shared/src/contracts/indicators/indicator-responses.ts && test -f apps/web/src/lib/api/core/source-mutation-request.ts && test -f apps/web/src/lib/api/activities.ts && test -f apps/web/src/features/projects/index.ts && echo "S1b, S2b and S3a outputs present"
 grep -c "indexedFeatures\|surfaceViolation" apps/web/src/import-direction.test.ts
 grep -c "optimizePackageImports" apps/web/next.config.ts
 ls docs/superpowers/plans/
-git checkout -b refactor/s3b-indicators-web
+git checkout -B refactor/s3b-indicators-web dev
 pnpm install --frozen-lockfile
 mkdir -p .tmp/s3b/before .tmp/s3b/files
 ```
 
-Expected: clean status, the S3a merge commit, `S1 to S3a merged`, `S1b, S2b and S3a outputs present`, a count of at least `3` for the first grep and `1` for the second, `ls` lists the S3 plan (and this one once saved), install succeeds. If a merge commit or an output is missing, stop and report: S3b builds on S1b, S2b and S3a. If `ls` lists another S-plan, leave it.
+Expected: clean status, the S3a merge commit, `S1 to S3a merged`, `S1b, S2b and S3a outputs present`, a count of at least `3` for the first grep and `1` for the second, `ls` lists the S3 plan (and this one once saved), install succeeds. `git branch -f dev origin/dev` only moves the local ref so `--base dev` works; when the environment assigns the branch name, the controller creates that branch from `dev` instead of `refactor/s3b-indicators-web`. If a merge commit or an output is missing, stop and report: S3b builds on S1b, S2b and S3a. If `ls` lists another S-plan, leave it.
 
 - [ ] **Step 2: Create the baseline scripts**
 
@@ -233,16 +234,16 @@ git grep -nE "pathwaysClient\s*\.($M)\b" -- apps/web/src | grep -v "\.test\." | 
 git grep -lE "pathwaysClient\s*\.($M)\b" -- apps/web/src | grep -v "\.test\." | wc -l
 git grep -lE "\b($M)\b" -- apps/web/src | grep "\.test\." | wc -l
 node .tmp/s3b/mock-scan.mjs lib/services/pathways-client getProjectIndicators getProjectIndicatorValues createProjectIndicator createProjectIndicatorFromLibrary updateProjectIndicator recordIndicatorMeasurement archiveProjectIndicator getIndicators
-git grep -lw "ProjectIndicator" -- apps/web/src | grep -v "pathways-client.ts" | wc -l
+git grep -lw "ProjectIndicator" -- apps/web/src | grep -v "pathways-client.ts\|types/pathways.ts" | wc -l
 git grep -n "indicator-library-client" -- apps/web/src | wc -l
 git checkout -- apps/web/next-env.d.ts
 ```
 
-Expected: typecheck clean; write down each package's passing counts and the web `Test Files` and `Tests`: config 19, shared 281 (24 files), imports 91, api 2445 passed and 21 skipped, web 221 files and 1983 tests (`B_web`), sad 54 (`B_sad`); the docs check failure count (6 failures and 1 warning on the dry-run copy); the web build exit 0 and `Middleware` 102 kB (`M0`); `.tmp/s3b/routes-baseline.txt` holds 73 route rows. The five hashes print, in order: `d1c4fce6c953404d6bbdc9ceea111bb0ea4f5156`, `738d445d3b07d13bcb6cf51bec62e809ffd0d0ca`, `20c0e8c531fceba89b4fadc964aac8c5260c6246`, `060b6f0d7e7212e8a88f76da394a56a8422f10d5`, `9a2bf874a64b2b3f7857ca706dbc63a6fff20fab` (files S3a does not touch). The line counts print `1521`, `26`, `952`, `401`, `124`, `11`, `368`, `133`, `102` (the first four, the web files S3a's rename codemod rewrote, have hashes `6c9e7e5cc1bec767d1253f2a00d1227798229ce0` for the client, `8b7c8c9137029a8b6d04804cbb8d5d2fc1365d64` for the workspace and `69f6d8c5fe3cb6b330b0611158555e40fafa7dc1` for the manager in the dry run; a different hash with the same counts is only a formatting difference). The call counts print `17` (calls), `8` (files) and `11` (test files naming a method); the scan prints `factories 41, naming 3` and its three lines (`rule-editor.test.tsx:42`, `collection-workspace.test.tsx:68`, `project-activities-workspace.expenses.test.tsx:52`); the alias count prints `6` (the six importers of ruling 10) and the library client count `3`. If any hash or count differs, stop and report: the anchors, scripts and counts below were taken after S3a on `bf8ef5e6`.
+Expected: typecheck clean; write down each package's passing counts and the web `Test Files` and `Tests`: config 19, shared 281 (24 files), imports 91, api 2445 passed and 21 skipped, web 221 files and 1983 tests (`B_web`), sad 54 (`B_sad`); the docs check failure count (6 failures and 1 warning on the dry-run copy); the web build exit 0 and `Middleware` 102 kB (`M0`); `.tmp/s3b/routes-baseline.txt` holds 73 route rows. The five hashes print, in order: `d1c4fce6c953404d6bbdc9ceea111bb0ea4f5156`, `738d445d3b07d13bcb6cf51bec62e809ffd0d0ca`, `20c0e8c531fceba89b4fadc964aac8c5260c6246`, `060b6f0d7e7212e8a88f76da394a56a8422f10d5`, `9a2bf874a64b2b3f7857ca706dbc63a6fff20fab` (files S3a does not touch). The line counts print `1521`, `26`, `952`, `401`, `124`, `11`, `368`, `133`, `102` (the first four, the web files S3a's rename codemod rewrote, have hashes `6c9e7e5cc1bec767d1253f2a00d1227798229ce0` for the client, `8b7c8c9137029a8b6d04804cbb8d5d2fc1365d64` for the workspace and `69f6d8c5fe3cb6b330b0611158555e40fafa7dc1` for the manager in the dry run; a different hash with the same counts is only a formatting difference). The call counts print `17` (calls), `8` (files) and `11` (test files naming a method); the scan prints `factories 41, naming 3` and its three lines (`rule-editor.test.tsx:42`, `collection-workspace.test.tsx:68`, `project-activities-workspace.expenses.test.tsx:52`); the alias count prints `6` (the six importers of ruling 10) and the library client count `3`. If any hash or count differs, stop and report: the anchors, scripts and counts below were taken after S3a on `bf8ef5e6` and re-checked on origin/dev `79ad8bbb`.
 
 - [ ] **Step 4: Replace the S3 plan with this one and commit**
 
-The controller has saved this plan as `docs/superpowers/plans/<date>-modularization-s3b-indicators-web.md`.
+Copy this plan: `cp docs/handoff/modularization-s3b-indicators-web.md docs/superpowers/plans/$(date +%F)-modularization-s3b-indicators-web.md`. The handoff copy and its index rows stay.
 
 In `docs/index.md` section 1.6, delete the S3 plan row and add as the last row of the table:
 
@@ -1393,7 +1394,7 @@ pnpm --filter @pathways/web exec tsc --noEmit --noUnusedLocals
 N="getProjectIndicators getProjectIndicatorValues createProjectIndicator createProjectIndicatorFromLibrary updateProjectIndicator recordIndicatorMeasurement archiveProjectIndicator getIndicators"
 node .tmp/s3b/mock-scan.mjs lib/services/pathways-client $N | tail -1
 node .tmp/s3b/mock-scan.mjs lib/api/indicators | tail -1
-git grep -nE "pathwaysClient\s*\.(getProjectIndicators|getProjectIndicatorValues|createProjectIndicator|updateProjectIndicator|recordIndicatorMeasurement|archiveProjectIndicator|getIndicators)\b" -- apps/web/src
+git grep -nE "pathwaysClient\s*\.(getProjectIndicators|getProjectIndicatorValues|createProjectIndicator|createProjectIndicatorFromLibrary|updateProjectIndicator|recordIndicatorMeasurement|archiveProjectIndicator|getIndicators)\b" -- apps/web/src
 wc -l apps/web/src/lib/services/pathways-client.ts
 pnpm --filter @pathways/web test 2>&1 | sed 's/\x1b\[[0-9;]*m//g' | grep -E "Test Files|Tests "
 ```
@@ -2163,7 +2164,7 @@ Create `.tmp/s3b/doc-paths.json`:
 ```
 
 ```bash
-git grep -nE "features/projects/(project-indicators-workspace|indicator-library-manager|use-from-library|indicator-recipes)|indicator-library-client" -- docs ':!docs/activity-log.md' ':!docs/superpowers' ':!docs/audit-*' ':!docs/cr-*'
+git grep -nE "features/projects/(project-indicators-workspace|indicator-library-manager|use-from-library|indicator-recipes)|indicator-library-client" -- docs ':!docs/activity-log.md' ':!docs/superpowers' ':!docs/handoff' ':!docs/audit-*' ':!docs/cr-*'
 node .tmp/s3b/doc-paths.mjs .tmp/s3b/doc-paths.json docs/qad-pathways.md docs/deferred-features.md
 ```
 
@@ -2200,7 +2201,7 @@ sed -i -e 's#activities client by S2b\. |#activities client by S2b; indicator cl
 grep -c "by S3b" $A
 sed -i 's#S1a, S1b, S2a, S2b and S3a applied, S3b next#S1a, S1b, S2a, S2b, S3a and S3b applied, S4 next#' docs/index.md
 grep -c "S3a and S3b applied, S4 next" docs/index.md
-git grep -nE "features/projects/(project-indicators-workspace|indicator-library-manager|use-from-library|indicator-recipes)|indicator-library-client" -- docs ':!docs/activity-log.md' ':!docs/superpowers' ':!docs/audit-*' ':!docs/cr-*'
+git grep -nE "features/projects/(project-indicators-workspace|indicator-library-manager|use-from-library|indicator-recipes)|indicator-library-client" -- docs ':!docs/activity-log.md' ':!docs/superpowers' ':!docs/handoff' ':!docs/audit-*' ':!docs/cr-*'
 ```
 
 Expected: `4` (one S3b mention in each of the MOD-05, MOD-06, MOD-15 and MOD-16 rows; `grep -c` counts lines), `1`, and the last grep prints nothing (no living doc names a moved path or the deleted library client; the block ends with exit 1, which `git grep` returns when it finds no match).
@@ -2247,15 +2248,17 @@ Expected: all pass; versus Task 0: config 19, shared 281, imports 91, api 2445 p
 
 - [ ] **Step 2: Local DB replay**
 
-```powershell
-./infra/supabase/phase6/Replay-Local.ps1 -MigrationBaseline
+```bash
+pwsh ./infra/supabase/phase6/Replay-Local.ps1 -MigrationBaseline
 ```
+
+If PostgreSQL 18 is not installed at `/usr/lib/postgresql/18/bin`, the pull request CI replay is the gate; record which one ran.
 
 Expected: exit 0 (171 PASS, 0 FAIL at the latest gate). S3b changes no SQL; the replay is kept as the standing release gate.
 
 - [ ] **Step 3: Local stack, compiled API boot, e2e and smoke**
 
-Stop anything on ports 3000 and 4000 first.
+If `supabase` or Docker is missing, record Step 3 as pending local run in the activity log and list it for the developer; do not skip Steps 1, 2 or 4. Stop anything on ports 3000 and 4000 first.
 
 ```bash
 pnpm db:local:start && pnpm db:local:reset && pnpm db:local:demo
@@ -2285,7 +2288,7 @@ The barrel optimization exists only in the production build, so repeat items 1, 
 pnpm sad:check --base dev --head HEAD --output .tmp/sad/s3b/manifest.json
 ```
 
-Expected roles at `bf8ef5e6` plus S3a (docs changes route nowhere): `design-qa-agent` (49 files), `beneficiary-privacy-guardian` (6 files: `lib/api/indicators.ts`, `indicators.test.ts`, `indicators.read.test.ts`, the edited `pathways-client.ts` and its monitoring test, and the deleted `lib/services/indicator-library-client.ts`) and `rule-engine-determinism-checker` (2 files: `rule-editor.tsx` and `rule-editor.test.tsx`). The manifest decides: dispatch every role it names, and any role it adds, with the section 4.2 handoff packet from `docs/sad-pathways.md`, save their section 4.4 envelopes to `.tmp/sad/s3b/reviews.json`, then:
+Expected roles at origin/dev `79ad8bbb` (docs changes route nowhere): `design-qa-agent` (49 files), `beneficiary-privacy-guardian` (6 files: `lib/api/indicators.ts`, `indicators.test.ts`, `indicators.read.test.ts`, the edited `pathways-client.ts` and its monitoring test, and the deleted `lib/services/indicator-library-client.ts`) and `rule-engine-determinism-checker` (2 files: `rule-editor.tsx` and `rule-editor.test.tsx`). The manifest decides: dispatch every role it names, and any role it adds, with the section 4.2 handoff packet from `docs/sad-pathways.md`, save their section 4.4 envelopes to `.tmp/sad/s3b/reviews.json`, then:
 
 ```bash
 pnpm sad:signoff -- --base dev --head HEAD --reviews .tmp/sad/s3b/reviews.json
@@ -2304,22 +2307,17 @@ git commit -m "docs: record modularization S3b release gate results
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
 
-- [ ] **Step 6: Merge into local dev**
+- [ ] **Step 6: Pull request into dev**
 
-```bash
-git checkout dev
-git merge --no-ff refactor/s3b-indicators-web -m "Merge refactor/s3b-indicators-web into dev
+Push the slice branch and open one pull request into `dev`; wait for CI (replay, lint, typecheck, test, build, SAD checks) and record the result in the activity log gate line. Ask the developer to merge. Do not merge or push `dev`.
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
-```
+- [ ] **Step 7: Remove the executed plan (after the developer merges)**
 
-- [ ] **Step 7: Remove the executed plan**
-
-The decisions live in the change record section 9, so the plan goes with the merge. Delete `docs/superpowers/plans/<date>-modularization-s3b-indicators-web.md` and its row in `docs/index.md` section 1.6, then:
+The decisions live in the change record section 9, so the plan goes once the merge lands. Delete `docs/superpowers/plans/<date>-modularization-s3b-indicators-web.md` and its row in `docs/index.md` section 1.6, then:
 
 ```bash
 git rm docs/superpowers/plans/*-modularization-s3b-indicators-web.md
-sed -i '/-modularization-s3b-indicators-web.md/d' docs/index.md
+sed -i '/superpowers\/plans\/[0-9-]*-modularization-s3b-indicators-web.md/d' docs/index.md
 pnpm docs:check 2>&1 | tail -3
 git add docs/index.md
 git commit -m "docs: remove the executed S3b plan
@@ -2327,4 +2325,4 @@ git commit -m "docs: remove the executed S3b plan
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
 
-Expected: docs check failure count equals the Task 0 baseline. Do not push `origin dev` until the developer says so.
+Expected: docs check failure count equals the Task 0 baseline.
