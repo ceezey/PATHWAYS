@@ -14,6 +14,7 @@ import { archiveIndicatorRequest } from '@pathways/shared'
 import type { AuthenticatedRequest } from '../../common/authz/application-identity'
 import { RequirePermission } from '../../common/decorators/permission.decorator'
 import { IndicatorLibraryService } from './indicator-library.service'
+import { IndicatorMeasurementsService } from './indicator-measurements.service'
 import { parseIndicatorRequest } from './indicators.helpers'
 import { IndicatorsService } from './indicators.service'
 function identity(request: AuthenticatedRequest) {
@@ -25,6 +26,8 @@ export class IndicatorsController {
   constructor(
     @Inject(IndicatorsService) private readonly service: IndicatorsService,
     @Inject(IndicatorLibraryService) private readonly library: IndicatorLibraryService,
+    @Inject(IndicatorMeasurementsService)
+    private readonly measurements: IndicatorMeasurementsService,
   ) {}
   @Get()
   @Header('Cache-Control', 'private, no-store')
@@ -82,7 +85,7 @@ export class IndicatorsController {
     @Param('indicatorId') indicatorId: string,
     @Body() body: unknown,
   ) {
-    return this.service.measure(identity(request), projectId, indicatorId, body)
+    return this.measurements.measure(identity(request), projectId, indicatorId, body)
   }
   @Post(':indicatorId/archive')
   @Header('Cache-Control', 'private, no-store')

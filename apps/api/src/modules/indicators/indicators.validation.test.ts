@@ -9,6 +9,7 @@ import { BadRequestException, ForbiddenException, NotFoundException } from '@nes
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { IndicatorLibraryController } from './indicator-library.controller'
 import { IndicatorLibraryService } from './indicator-library.service'
+import { IndicatorMeasurementsService } from './indicator-measurements.service'
 import { IndicatorValuesController } from './indicator-values.controller'
 import { IndicatorsController } from './indicators.controller'
 import { IndicatorsService } from './indicators.service'
@@ -59,7 +60,8 @@ const definition = {
 }
 const indicators = new IndicatorsService({} as PrismaService)
 const library = new IndicatorLibraryService({} as PrismaService, indicators)
-const controller = new IndicatorsController(indicators, library)
+const measurements = new IndicatorMeasurementsService({} as PrismaService, indicators)
+const controller = new IndicatorsController(indicators, library, measurements)
 const signedIn: AuthenticatedRequest = { headers: {}, user: actor }
 const anonymous: AuthenticatedRequest = { headers: {} }
 const issue = (field: string, message: string) => ({ field, message })
@@ -130,7 +132,7 @@ describe('indicator request validation', () => {
     })
     expect(
       await invalid(() =>
-        indicators.measure(actor, projectId, indicatorId, {
+        measurements.measure(actor, projectId, indicatorId, {
           clientMeasurementId: requestKey,
           periodStart: '2026-01-01',
           periodEnd: '2026-06-30',

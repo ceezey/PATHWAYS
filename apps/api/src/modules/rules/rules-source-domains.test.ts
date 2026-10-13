@@ -37,6 +37,7 @@ import { ActivityLifecycleService } from '../activities/activity-lifecycle.servi
 import { ActivityProofFinalizeService } from '../activities/activity-proof-finalize.service'
 import { ActivityProofsService } from '../activities/activity-proofs.service'
 import { ActivityReviewService } from '../activities/activity-review.service'
+import { IndicatorMeasurementsService } from '../indicators/indicator-measurements.service'
 import { IndicatorsService } from '../indicators/indicators.service'
 import { ProjectsService } from '../projects/projects.service'
 const project = '10000000-0000-4000-8000-000000000001'
@@ -48,6 +49,7 @@ const projects = new ProjectsService({} as PrismaService)
 const lifecycleService = new ActivityLifecycleService({} as PrismaService)
 const reviewService = new ActivityReviewService({} as PrismaService)
 const indicators = new IndicatorsService({} as PrismaService)
+const measurements = new IndicatorMeasurementsService({} as PrismaService, indicators)
 const activityBody = {
   clientMutationId: request,
   title: 'Synthetic activity',
@@ -230,7 +232,7 @@ describe('current source handler immutable receipts precede mutable state and so
   )
   it('recovers committed measurement before definition archive, bootstrap or correction changes', async () => {
     expect(
-      await indicators.measure(boundary.actor, project, source, {
+      await measurements.measure(boundary.actor, project, source, {
         clientMeasurementId: request,
         periodStart: '2026-01-01',
         periodEnd: '2026-12-31',

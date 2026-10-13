@@ -14,6 +14,7 @@ import type { ApplicationIdentity } from '../src/common/authz/application-identi
 import { ActivityLifecycleService } from '../src/modules/activities/activity-lifecycle.service'
 import type { RegisterBeneficiaryDto } from '../src/modules/beneficiaries/beneficiaries.dto'
 import { BeneficiariesService } from '../src/modules/beneficiaries/beneficiaries.service'
+import { IndicatorMeasurementsService } from '../src/modules/indicators/indicator-measurements.service'
 import { IndicatorsService } from '../src/modules/indicators/indicators.service'
 import { ProjectsService } from '../src/modules/projects/projects.service'
 import { StorageService } from '../src/modules/storage/storage.service'
@@ -503,6 +504,7 @@ async function main() {
   const projectsService = new ProjectsService(runtime)
   const activityLifecycleService = new ActivityLifecycleService(runtime)
   const indicatorsService = new IndicatorsService(runtime)
+  const indicatorMeasurementsService = new IndicatorMeasurementsService(runtime, indicatorsService)
   const beneficiariesService = new BeneficiariesService(runtime)
 
   try {
@@ -925,7 +927,7 @@ async function main() {
             : template.numericKind === 'PERCENTAGE'
               ? (55 + (i + reading) * 10).toFixed(2)
               : (6 + (i + reading) * 0.5).toFixed(1)
-        const firstMeasure = (await indicatorsService.measure(
+        const firstMeasure = (await indicatorMeasurementsService.measure(
           projectManagerIdentity,
           projectId,
           indicatorId,
@@ -938,15 +940,20 @@ async function main() {
           },
         )) as unknown as { measurementId: string | null }
         if (firstMeasure.measurementId) {
-          await indicatorsService.measure(projectManagerIdentity, projectId, indicatorId, {
-            clientMeasurementId: stableUuid(`indicator-measure:${plan.code}:${template.code}:1`),
-            periodStart,
-            periodEnd,
-            value: readingValue(1),
-            source: 'Field monitoring report',
-            correctsMeasurementId: firstMeasure.measurementId,
-            correctionReason: 'Updated with the latest monitoring visit reading.',
-          })
+          await indicatorMeasurementsService.measure(
+            projectManagerIdentity,
+            projectId,
+            indicatorId,
+            {
+              clientMeasurementId: stableUuid(`indicator-measure:${plan.code}:${template.code}:1`),
+              periodStart,
+              periodEnd,
+              value: readingValue(1),
+              source: 'Field monitoring report',
+              correctsMeasurementId: firstMeasure.measurementId,
+              correctionReason: 'Updated with the latest monitoring visit reading.',
+            },
+          )
         }
       }
 

@@ -2,11 +2,13 @@ import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
+  NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common'
 import type { CreateIndicatorLibraryEntryRequest } from '@pathways/shared'
 import type { IndicatorLibraryEntry } from '@prisma/client'
 import type { z } from 'zod'
+import { UUID_PATTERN } from '../../common/authz/application-identity'
 
 /** Service-side parse, so seeds and the library copy path are validated like the routes. */
 export function parseIndicatorRequest<T>(schema: z.ZodType<T>, input: unknown): T {
@@ -61,4 +63,10 @@ export function sameLibraryDefinition(
     row.displayPrecision === input.displayPrecision &&
     row.recipe === (input.recipe ?? null)
   )
+}
+
+// The lowercase indicator id, or 404 when the path segment is not a UUID.
+export function indicatorIdOrNotFound(input: string) {
+  if (!UUID_PATTERN.test(input)) throw new NotFoundException('Indicator unavailable.')
+  return input.toLowerCase()
 }

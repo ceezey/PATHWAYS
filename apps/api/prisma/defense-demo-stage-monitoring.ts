@@ -101,7 +101,7 @@ export async function stageMonitoring(ctx: DemoContext) {
     )) as unknown as { id: string }
     let previous: string | null = null
     for (const [index, value] of (libraryReadings[code] ?? []).entries()) {
-      const result = (await ctx.services.indicators.measure(me, projectId, created.id, {
+      const result = (await ctx.services.indicatorMeasurements.measure(me, projectId, created.id, {
         clientMeasurementId: ctx.stable(`measure:${code}:${index}`),
         periodStart,
         periodEnd,
@@ -125,7 +125,7 @@ export async function stageMonitoring(ctx: DemoContext) {
     const row = (await listIndicators(ctx, projectId)).find((entry) => entry.code === code)
     if (!row?.measurementId || row.measurementSource === correctionSource) continue
     await step(`correction ${code}`, () =>
-      ctx.services.indicators.measure(me, projectId, row.id, {
+      ctx.services.indicatorMeasurements.measure(me, projectId, row.id, {
         clientMeasurementId: ctx.stable(`correction:${code}`),
         periodStart: row.periodStart,
         periodEnd: row.periodEnd,
