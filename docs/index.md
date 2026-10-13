@@ -95,6 +95,7 @@ Workflow rule: an audit is finding and evidence, a Change Record is the approved
 | Spec | File | Date | Scope | Status |
 |---|---|---|---|---|
 | [Plan 2 cloud handoff](handoff-extensions-and-escalations.md) | handoff-extensions-and-escalations.md | 2026-10-04 | Paused state of Plan 2 Task 1 handed to the cloud session, with the SDD ledger rulings | Closed; resumed and completed |
+| [S3 indicators plan](superpowers/plans/2026-10-13-modularization-s3-indicators.md) | 2026-10-13-modularization-s3-indicators.md | 2026-10-13 | S3 of the codebase modularization: S3a indicator contracts, API mapper, helpers, measurement service and request identity; S3b web outline | In progress |
 
 ### 1.7 Traceability Matrix
 
