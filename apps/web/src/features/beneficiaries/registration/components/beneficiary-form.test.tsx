@@ -9,11 +9,8 @@ import { testBeneficiaries } from '@/test/fixtures/api-view-fixtures'
 import { mockProjects } from '@/test/fixtures/projects'
 
 import { sensitiveDraftKey } from '@/lib/auth/sensitive-drafts'
-import {
-  BeneficiaryForm,
-  projectRegistrationValues,
-  registrationAgeAtDate,
-} from './beneficiary-form'
+import { projectRegistrationValues, registrationAgeAtDate } from '../registration.utils'
+import { BeneficiaryForm } from './beneficiary-form'
 
 const { client, routerPush, toastError, toastSuccess } = vi.hoisted(() => ({
   client: {
