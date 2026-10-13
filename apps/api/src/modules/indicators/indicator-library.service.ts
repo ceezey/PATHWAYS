@@ -1,20 +1,24 @@
 import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common'
-import type { CreateLibraryEntryInput, LibraryEntry, MetricRecipe } from '@pathways/shared'
+import type {
+  CreateIndicatorLibraryEntryRequest,
+  IndicatorLibraryEntryResponse,
+  MetricRecipe,
+} from '@pathways/shared'
 import type { IndicatorLibraryEntry, Prisma } from '@prisma/client'
 import { writeAuditLog } from '../../common/audit/write-audit-log'
 import { type ApplicationIdentity, UUID_PATTERN } from '../../common/authz/application-identity'
 import { withAuthorizedOperation } from '../../common/authz/authorized-operation'
 import { PrismaService } from '../../prisma/prisma.service'
 import {
-  createLibraryEntrySchema,
+  createIndicatorFromLibraryRequest,
+  createIndicatorLibraryEntryRequest,
   parseIndicatorInput,
-  useLibraryEntrySchema,
 } from './indicators.dto'
 import { IndicatorsService, monitoringSqlError } from './indicators.service'
 
 const MAX_ACTIVE_ENTRIES = 200
 
-function toEntry(row: IndicatorLibraryEntry): LibraryEntry {
+function toEntry(row: IndicatorLibraryEntry): IndicatorLibraryEntryResponse {
   return {
     id: row.id,
     code: row.code,
@@ -22,9 +26,9 @@ function toEntry(row: IndicatorLibraryEntry): LibraryEntry {
     description: row.description,
     unitLabel: row.unitLabel,
     dataSource: row.dataSource,
-    mode: row.measurementMode as LibraryEntry['mode'],
-    numericKind: row.numericKind as LibraryEntry['numericKind'],
-    direction: row.direction as LibraryEntry['direction'],
+    mode: row.measurementMode as IndicatorLibraryEntryResponse['mode'],
+    numericKind: row.numericKind as IndicatorLibraryEntryResponse['numericKind'],
+    direction: row.direction as IndicatorLibraryEntryResponse['direction'],
     displayPrecision: row.displayPrecision,
     recipe: row.recipe as MetricRecipe | null,
     createdAt: row.createdAt.toISOString(),
@@ -32,7 +36,7 @@ function toEntry(row: IndicatorLibraryEntry): LibraryEntry {
 }
 
 /** Same key with the same definition replays; the same key with another definition conflicts. */
-function sameDefinition(row: IndicatorLibraryEntry, input: CreateLibraryEntryInput) {
+function sameDefinition(row: IndicatorLibraryEntry, input: CreateIndicatorLibraryEntryRequest) {
   return (
     row.code === input.code &&
     row.name === input.name &&
@@ -72,7 +76,7 @@ export class IndicatorLibraryService {
   }
 
   async create(identity: ApplicationIdentity, value: unknown) {
-    const input = parseIndicatorInput(createLibraryEntrySchema, value)
+    const input = parseIndicatorInput(createIndicatorLibraryEntryRequest, value)
     return withAuthorizedOperation(
       this.prisma,
       identity,
@@ -150,7 +154,10 @@ export class IndicatorLibraryService {
 
   /** Copies the definition into a project indicator; later library changes never touch it. */
   async createProjectIndicator(identity: ApplicationIdentity, projectId: string, value: unknown) {
-    const { libraryEntryId, ...projectValues } = parseIndicatorInput(useLibraryEntrySchema, value)
+    const { libraryEntryId, ...projectValues } = parseIndicatorInput(
+      createIndicatorFromLibraryRequest,
+      value,
+    )
     const [entry] = await withAuthorizedOperation(
       this.prisma,
       identity,

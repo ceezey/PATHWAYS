@@ -1,11 +1,11 @@
 import { BadRequestException } from '@nestjs/common'
 import {
-  archiveIndicatorSchema,
-  createIndicatorSchema,
-  createLibraryEntrySchema,
-  manualMeasurementSchema,
-  updateIndicatorSchema,
-  useLibraryEntrySchema,
+  archiveIndicatorRequest,
+  createIndicatorFromLibraryRequest,
+  createIndicatorLibraryEntryRequest,
+  createIndicatorRequest,
+  recordIndicatorMeasurementRequest,
+  updateIndicatorRequest,
 } from '@pathways/shared'
 import type { z } from 'zod'
 
@@ -23,10 +23,10 @@ export function parseIndicatorInput<T>(schema: z.ZodType<T>, input: unknown): T 
   return result.data
 }
 export {
-  archiveIndicatorSchema,
-  createIndicatorSchema,
-  createLibraryEntrySchema,
-  manualMeasurementSchema,
-  updateIndicatorSchema,
-  useLibraryEntrySchema,
+  archiveIndicatorRequest,
+  createIndicatorRequest,
+  createIndicatorLibraryEntryRequest,
+  recordIndicatorMeasurementRequest,
+  updateIndicatorRequest,
+  createIndicatorFromLibraryRequest,
 }

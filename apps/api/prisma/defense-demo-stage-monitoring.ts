@@ -1,4 +1,4 @@
-import type { CreateLibraryEntryInput } from '@pathways/shared'
+import type { CreateIndicatorLibraryEntryRequest } from '@pathways/shared'
 import type { ProjectKey } from './local-demo-data'
 import type { DemoContext } from './local-demo-seed'
 import { projectOf, step } from './local-demo-util'
@@ -14,7 +14,10 @@ type IndicatorRow = {
 
 const correctionSource = 'Data quality review'
 
-type LibraryPlan = { entry: Omit<CreateLibraryEntryInput, 'clientMutationId'>; project: ProjectKey }
+type LibraryPlan = {
+  entry: Omit<CreateIndicatorLibraryEntryRequest, 'clientMutationId'>
+  project: ProjectKey
+}
 
 const libraryPlans: LibraryPlan[] = [
   {

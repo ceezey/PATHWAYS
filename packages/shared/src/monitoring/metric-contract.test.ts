@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import {
-  createIndicatorDraftSchema,
-  createIndicatorSchema,
-  manualMeasurementSchema,
+  createIndicatorDraftRequest,
+  createIndicatorRequest,
+  recordIndicatorMeasurementRequest,
 } from '../contracts/indicators/indicator-requests'
-import { monitoringIndicatorSchema } from '../contracts/indicators/indicator-responses'
+import { indicatorResponse } from '../contracts/indicators/indicator-responses'
 import { metricCellSchema } from './metric-cell'
 import { dashboardQuerySchema, sadddAgeBands } from './metric-contract'
 import {
@@ -35,13 +35,15 @@ const definition = {
 describe('P06 exact numeric and missing-value contracts', () => {
   it('validates a strict semantic draft without weakening API request UUID admission', () => {
     const { clientMutationId, ...draft } = definition
-    expect(createIndicatorDraftSchema.safeParse(draft).success).toBe(true)
-    expect(createIndicatorSchema.safeParse(draft).success).toBe(false)
-    expect(createIndicatorSchema.safeParse({ ...draft, clientMutationId }).success).toBe(true)
-    expect(createIndicatorDraftSchema.safeParse({ ...draft, clientMutationId }).success).toBe(false)
-    expect(createIndicatorDraftSchema.safeParse({ ...draft, target: '-1' }).success).toBe(false)
+    expect(createIndicatorDraftRequest.safeParse(draft).success).toBe(true)
+    expect(createIndicatorRequest.safeParse(draft).success).toBe(false)
+    expect(createIndicatorRequest.safeParse({ ...draft, clientMutationId }).success).toBe(true)
+    expect(createIndicatorDraftRequest.safeParse({ ...draft, clientMutationId }).success).toBe(
+      false,
+    )
+    expect(createIndicatorDraftRequest.safeParse({ ...draft, target: '-1' }).success).toBe(false)
     expect(
-      createIndicatorSchema.safeParse({ ...draft, clientMutationId, target: '-1' }).success,
+      createIndicatorRequest.safeParse({ ...draft, clientMutationId, target: '-1' }).success,
     ).toBe(false)
   })
 
@@ -111,23 +113,23 @@ describe('P06 exact numeric and missing-value contracts', () => {
 
 describe('P06 definition and filter allowlists', () => {
   it('requires one value authority and a valid recipe-domain pair', () => {
-    expect(createIndicatorSchema.safeParse(definition).success).toBe(true)
-    expect(createIndicatorSchema.safeParse({ ...definition, mode: 'DERIVED' }).success).toBe(false)
+    expect(createIndicatorRequest.safeParse(definition).success).toBe(true)
+    expect(createIndicatorRequest.safeParse({ ...definition, mode: 'DERIVED' }).success).toBe(false)
     expect(
-      createIndicatorSchema.safeParse({
+      createIndicatorRequest.safeParse({
         ...definition,
         binding: { recipe: 'PARTICIPATION_RECORD_COUNT' },
       }).success,
     ).toBe(false)
     expect(
-      createIndicatorSchema.safeParse({
+      createIndicatorRequest.safeParse({
         ...definition,
         mode: 'DERIVED',
         binding: { recipe: 'ATTENDANCE_RECORDS_PER_INDIVIDUAL' },
       }).success,
     ).toBe(false)
     expect(
-      createIndicatorSchema.safeParse({
+      createIndicatorRequest.safeParse({
         ...definition,
         mode: 'DERIVED',
         numericKind: 'RATIO',
@@ -145,9 +147,9 @@ describe('P06 definition and filter allowlists', () => {
       'actualValue',
       'currentValue',
     ]) {
-      expect(createIndicatorSchema.safeParse({ ...definition, [key]: 'not-allowed' }).success).toBe(
-        false,
-      )
+      expect(
+        createIndicatorRequest.safeParse({ ...definition, [key]: 'not-allowed' }).success,
+      ).toBe(false)
     }
     for (const key of [
       'sex',
@@ -172,9 +174,9 @@ describe('P06 definition and filter allowlists', () => {
         fieldId: '77000000-0000-4000-8000-000000000002',
       },
     }
-    expect(createIndicatorSchema.safeParse(derived).success).toBe(false)
+    expect(createIndicatorRequest.safeParse(derived).success).toBe(false)
     expect(
-      createIndicatorSchema.safeParse({
+      createIndicatorRequest.safeParse({
         ...derived,
         binding: { ...derived.binding, formVersion: 2 },
       }).success,
@@ -188,9 +190,9 @@ describe('P06 definition and filter allowlists', () => {
       value: '2',
       source: 'Verified source',
     }
-    expect(manualMeasurementSchema.safeParse(value).success).toBe(true)
+    expect(recordIndicatorMeasurementRequest.safeParse(value).success).toBe(true)
     expect(
-      manualMeasurementSchema.safeParse({
+      recordIndicatorMeasurementRequest.safeParse({
         ...value,
         correctsMeasurementId: '77000000-0000-4000-8000-000000000002',
       }).success,
@@ -243,16 +245,14 @@ describe('retired project benchmark contract', () => {
     contractVersion: 'p06.v1',
   }
   it('uses one strict active project/monitoring schema and rejects a retired comparison', () => {
-    expect(monitoringIndicatorSchema.safeParse(indicator).success).toBe(true)
+    expect(indicatorResponse.safeParse(indicator).success).toBe(true)
     expect(
-      monitoringIndicatorSchema.safeParse({
+      indicatorResponse.safeParse({
         ...indicator,
         projectGoalComparison: { state: 'AT_TARGET', reason: null },
       }).success,
     ).toBe(false)
-    expect(monitoringIndicatorSchema.safeParse({ ...indicator, targetGoal: '50' }).success).toBe(
-      false,
-    )
+    expect(indicatorResponse.safeParse({ ...indicator, targetGoal: '50' }).success).toBe(false)
   })
   it('keeps own baseline-target progress and unavailable denominators unchanged', () => {
     expect(indicatorProgress(numericMetric('20'), '10', '30', 'HIGHER_IS_BETTER')).toMatchObject({

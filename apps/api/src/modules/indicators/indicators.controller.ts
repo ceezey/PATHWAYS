@@ -13,7 +13,7 @@ import {
 import type { AuthenticatedRequest } from '../../common/authz/application-identity'
 import { RequirePermission } from '../../common/decorators/permission.decorator'
 import { IndicatorLibraryService } from './indicator-library.service'
-import { archiveIndicatorSchema, parseIndicatorInput } from './indicators.dto'
+import { archiveIndicatorRequest, parseIndicatorInput } from './indicators.dto'
 import { IndicatorsService } from './indicators.service'
 function identity(request: AuthenticatedRequest) {
   if (!request.user) throw new ForbiddenException('Application profile is required.')
@@ -92,7 +92,7 @@ export class IndicatorsController {
     @Param('indicatorId') indicatorId: string,
     @Body() body: unknown,
   ) {
-    const input = parseIndicatorInput(archiveIndicatorSchema, body)
+    const input = parseIndicatorInput(archiveIndicatorRequest, body)
     return this.service.archive(identity(request), projectId, indicatorId, input)
   }
 }

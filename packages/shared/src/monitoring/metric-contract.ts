@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { monitoringIndicatorListSchema } from '../contracts/indicators/indicator-responses'
+import { indicatorListResponse } from '../contracts/indicators/indicator-responses'
 import { P06_CONTRACT_VERSION, metricCellSchema } from './metric-cell'
 import { date, uuid } from './metric-fields'
 import { validateMetricPeriod } from './metric-math'
@@ -91,7 +91,7 @@ export const monitoringDashboardSchema = z
     attendingIndividuals: metricCellSchema,
     enrolledBeneficiaryRecords: metricCellSchema,
     enrolledIndividuals: metricCellSchema,
-    indicators: monitoringIndicatorListSchema,
+    indicators: indicatorListResponse,
     indicatorNote: z.string().max(300),
   })
   .strict()

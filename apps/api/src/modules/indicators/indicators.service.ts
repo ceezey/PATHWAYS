@@ -10,15 +10,15 @@ import {
 } from '@nestjs/common'
 import { readApiEnv } from '@pathways/config'
 import {
-  type CreateIndicatorInput,
-  type ManualMeasurementInput,
-  type MonitoringIndicator,
+  type ArchiveIndicatorRequest,
+  type CreateIndicatorRequest,
+  type IndicatorResponse,
   P06_CONTRACT_VERSION,
-  type ProjectIndicator,
-  type UpdateIndicatorInput,
+  type RecordIndicatorMeasurementRequest,
+  type UpdateIndicatorRequest,
   indicatorProgress,
+  indicatorResponse,
   missingMetric,
-  monitoringIndicatorSchema,
   normalizeMetricDecimal,
 } from '@pathways/shared'
 import { Prisma } from '@prisma/client'
@@ -36,13 +36,13 @@ import {
   sourceMutationBody,
 } from '../rules/rules-source-operation'
 import {
-  createIndicatorSchema,
-  manualMeasurementSchema,
+  createIndicatorRequest,
   parseIndicatorInput,
-  updateIndicatorSchema,
+  recordIndicatorMeasurementRequest,
+  updateIndicatorRequest,
 } from './indicators.dto'
 
-type DefinitionRow = Omit<MonitoringIndicator, 'progress' | 'contractVersion'>
+type DefinitionRow = Omit<IndicatorResponse, 'progress' | 'contractVersion'>
 
 export function monitoringSqlError(error: unknown): never {
   const code = error && typeof error === 'object' && 'code' in error ? error.code : null
@@ -78,8 +78,8 @@ const releasedNulls = {
 }
 
 /** Parses one indicator row and adds its baseline-to-target progress. */
-function withProgress(row: Record<string, unknown>, failure: string): MonitoringIndicator {
-  const parsed = monitoringIndicatorSchema.safeParse({
+function withProgress(row: Record<string, unknown>, failure: string): IndicatorResponse {
+  const parsed = indicatorResponse.safeParse({
     ...row,
     progress: missingMetric('NOT_YET_CALCULATED'),
     contractVersion: P06_CONTRACT_VERSION,
@@ -112,7 +112,7 @@ export class IndicatorsService {
     actor: ApplicationIdentity,
     projectIds: string[],
     options: { indicatorId?: string; periodStart?: string; periodEnd?: string } = {},
-  ): Promise<ProjectIndicator[]> {
+  ): Promise<IndicatorResponse[]> {
     if (projectIds.length === 0) return []
     if (projectIds.length > 100 || projectIds.some((id) => !UUID_PATTERN.test(id)))
       throw new BadRequestException('Narrow the monitoring project scope.')
@@ -153,7 +153,7 @@ export class IndicatorsService {
     actor: ApplicationIdentity,
     projectIds: string[],
     options: { indicatorId?: string; periodStart?: string; periodEnd?: string } = {},
-  ): Promise<MonitoringIndicator[]> {
+  ): Promise<IndicatorResponse[]> {
     return this.readProjectIndicatorsInTransaction(tx, actor, projectIds, options)
   }
 
@@ -163,7 +163,7 @@ export class IndicatorsService {
     actor: ApplicationIdentity,
     projectIds: string[],
     options: { periodStart?: string; periodEnd?: string } = {},
-  ): Promise<MonitoringIndicator[]> {
+  ): Promise<IndicatorResponse[]> {
     if (projectIds.length === 0) return []
     if (projectIds.length > 100 || projectIds.some((id) => !UUID_PATTERN.test(id)))
       throw new BadRequestException('Narrow the monitoring project scope.')
@@ -237,7 +237,7 @@ export class IndicatorsService {
     tx: Tx,
     actor: ApplicationIdentity,
     projectId: string,
-    input: CreateIndicatorInput,
+    input: CreateIndicatorRequest,
   ) {
     const binding = input.binding
     if (!binding) return
@@ -281,7 +281,7 @@ export class IndicatorsService {
     }
   }
   async create(identity: ApplicationIdentity, projectId: string, value: unknown) {
-    const input: CreateIndicatorInput = parseIndicatorInput(createIndicatorSchema, value)
+    const input: CreateIndicatorRequest = parseIndicatorInput(createIndicatorRequest, value)
     return withAuthorizedOperation(
       this.prisma,
       identity,
@@ -361,7 +361,7 @@ export class IndicatorsService {
     indicatorId: string,
     value: unknown,
   ) {
-    const input: UpdateIndicatorInput = parseIndicatorInput(updateIndicatorSchema, value)
+    const input: UpdateIndicatorRequest = parseIndicatorInput(updateIndicatorRequest, value)
     return withAuthorizedOperation(
       this.prisma,
       identity,
@@ -408,7 +408,7 @@ export class IndicatorsService {
     identity: ApplicationIdentity,
     projectId: string,
     indicatorId: string,
-    input: { clientMutationId: string; expectedRevision: number },
+    input: ArchiveIndicatorRequest,
   ) {
     return withAuthorizedOperation(
       this.prisma,
@@ -458,7 +458,10 @@ export class IndicatorsService {
     indicatorId: string,
     value: unknown,
   ) {
-    const input: ManualMeasurementInput = parseIndicatorInput(manualMeasurementSchema, value)
+    const input: RecordIndicatorMeasurementRequest = parseIndicatorInput(
+      recordIndicatorMeasurementRequest,
+      value,
+    )
     return withAuthorizedOperation(
       this.prisma,
       identity,

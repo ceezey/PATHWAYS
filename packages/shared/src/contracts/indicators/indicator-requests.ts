@@ -113,18 +113,18 @@ const validateIndicatorDefinition = (
     })
   }
 }
-export const createIndicatorDraftSchema = draftDefinitionSchema.superRefine(
+export const createIndicatorDraftRequest = draftDefinitionSchema.superRefine(
   validateIndicatorDefinition,
 )
-export type CreateIndicatorDraftInput = z.infer<typeof createIndicatorDraftSchema>
-export const createIndicatorSchema = z
+export type CreateIndicatorDraftRequest = z.infer<typeof createIndicatorDraftRequest>
+export const createIndicatorRequest = z
   .object({ ...definitionFields, clientMutationId: uuid })
   .strict()
   .superRefine(validateIndicatorDefinition)
-export type CreateIndicatorInput = z.infer<typeof createIndicatorSchema>
+export type CreateIndicatorRequest = z.infer<typeof createIndicatorRequest>
 /** Library entries are definition templates: no period, targets or project, activity or form IDs. */
 export const libraryRecipes = metricRecipes.filter((recipe) => !recipe.startsWith('FORM_'))
-export const createLibraryEntrySchema = z
+export const createIndicatorLibraryEntryRequest = z
   .object({
     code: definitionFields.code,
     name: definitionFields.name,
@@ -152,9 +152,9 @@ export const createLibraryEntrySchema = z
       ctx,
     ),
   )
-export type CreateLibraryEntryInput = z.infer<typeof createLibraryEntrySchema>
+export type CreateIndicatorLibraryEntryRequest = z.infer<typeof createIndicatorLibraryEntryRequest>
 /** Project-specific values supplied when a library definition is copied into a project. */
-export const useLibraryEntrySchema = z
+export const createIndicatorFromLibraryRequest = z
   .object({
     libraryEntryId: uuid,
     clientMutationId: uuid,
@@ -164,9 +164,9 @@ export const useLibraryEntrySchema = z
     target: decimal.nullable(),
   })
   .strict()
-export type UseLibraryEntryInput = z.infer<typeof useLibraryEntrySchema>
+export type CreateIndicatorFromLibraryRequest = z.infer<typeof createIndicatorFromLibraryRequest>
 /** Semantic fields are immutable: create a new code/definition for a different metric or period. */
-export const updateIndicatorSchema = z
+export const updateIndicatorRequest = z
   .object({
     clientMutationId: uuid,
     name: definitionFields.name,
@@ -174,11 +174,12 @@ export const updateIndicatorSchema = z
     expectedRevision: z.number().int().min(1),
   })
   .strict()
-export type UpdateIndicatorInput = z.infer<typeof updateIndicatorSchema>
-export const archiveIndicatorSchema = z
+export type UpdateIndicatorRequest = z.infer<typeof updateIndicatorRequest>
+export const archiveIndicatorRequest = z
   .object({ clientMutationId: uuid, expectedRevision: z.number().int().min(1) })
   .strict()
-export const manualMeasurementSchema = z
+export type ArchiveIndicatorRequest = z.infer<typeof archiveIndicatorRequest>
+export const recordIndicatorMeasurementRequest = z
   .object({
     clientMeasurementId: uuid,
     periodStart: date,
@@ -202,4 +203,4 @@ export const manualMeasurementSchema = z
         message: 'A correction requires the previous measurement ID and a reason.',
       })
   })
-export type ManualMeasurementInput = z.infer<typeof manualMeasurementSchema>
+export type RecordIndicatorMeasurementRequest = z.infer<typeof recordIndicatorMeasurementRequest>

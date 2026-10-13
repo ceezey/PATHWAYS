@@ -4,7 +4,7 @@ import { date, decimal, uuid } from '../../monitoring/metric-fields'
 import { numericKinds } from '../../monitoring/metric-math'
 import { indicatorBindingSchema, indicatorTypes } from './indicator-requests'
 
-export const libraryEntrySchema = z
+export const indicatorLibraryEntryResponse = z
   .object({
     id: uuid,
     code: z.string(),
@@ -20,9 +20,9 @@ export const libraryEntrySchema = z
     createdAt: z.string(),
   })
   .strict()
-export type LibraryEntry = z.infer<typeof libraryEntrySchema>
+export type IndicatorLibraryEntryResponse = z.infer<typeof indicatorLibraryEntryResponse>
 
-export const monitoringIndicatorSchema = z
+export const indicatorResponse = z
   .object({
     id: uuid,
     projectId: uuid,
@@ -51,7 +51,5 @@ export const monitoringIndicatorSchema = z
     contractVersion: z.literal(P06_CONTRACT_VERSION),
   })
   .strict()
-export type MonitoringIndicator = z.infer<typeof monitoringIndicatorSchema>
-export const monitoringIndicatorListSchema = z.array(monitoringIndicatorSchema).max(100)
-export type ProjectIndicator = z.infer<typeof monitoringIndicatorSchema>
-export const projectIndicatorListSchema = z.array(monitoringIndicatorSchema).max(100)
+export type IndicatorResponse = z.infer<typeof indicatorResponse>
+export const indicatorListResponse = z.array(indicatorResponse).max(100)
