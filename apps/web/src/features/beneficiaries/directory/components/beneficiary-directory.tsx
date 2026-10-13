@@ -53,7 +53,7 @@ import {
   matchesBeneficiarySearch,
   progressionRate,
   projectTitle,
-} from './beneficiary-utils'
+} from '../../beneficiaries.utils'
 
 const allValue = 'all'
 const safeFilterValue = (value: string | null, allowed: string[]) =>

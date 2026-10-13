@@ -5,7 +5,7 @@ import {
   profileUpdateFieldsForForm,
   registrationFieldCodes,
   registrationSubjectDefinitionErrors,
-} from './beneficiary-registration-ui'
+} from './registration.utils'
 
 const fields = (...codes: string[]) => codes.map((code) => ({ code }))
 

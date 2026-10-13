@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { JourneyStageConfig, ProjectDetail } from '@/types/pathways'
 
-import { branchSummary, moveStage, nextStageCode, removeStage } from './journey-config-utils'
+import { branchSummary, moveStage, nextStageCode, removeStage } from '../journey.utils'
 import { JourneyConfigWorkspace } from './journey-config-workspace'
 
 const access = vi.hoisted(() => ({

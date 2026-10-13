@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 
-import { BeneficiaryFormLoader } from '@/features/beneficiaries/beneficiary-form-loader'
+import { BeneficiaryFormLoader } from '@/features/beneficiaries'
 import { type ProtectedPageProps, requireServerPage } from '@/lib/rbac/server-access'
 
 export const metadata: Metadata = { title: 'Edit Beneficiary Profile' }

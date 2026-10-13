@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import type { JourneyStageConfig } from '@/types/pathways'
 
-import { validateStages } from './journey-config-utils'
+import { validateStages } from './journey.utils'
 
 const stage = (code: string) =>
   ({ id: code, code, name: 'Stage', type: 'Core' }) as JourneyStageConfig

@@ -27,7 +27,7 @@ import {
   stageTypeStyle,
   stageTypes,
   validateStages,
-} from './journey-config-utils'
+} from '../journey.utils'
 import { JourneyStageDetails } from './journey-stage-details'
 import { JourneyStageList } from './journey-stage-list'
 import { JourneyTrack } from './journey-track'

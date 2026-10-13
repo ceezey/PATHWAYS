@@ -25,9 +25,9 @@ import type {
   ProjectSummary,
 } from '@/types/pathways'
 
+import { assessmentTypeLabel } from '../../beneficiaries.utils'
+import { mapBeneficiaryJourneyHistory } from '../profile.utils'
 import { BeneficiaryDetail } from './beneficiary-detail'
-import { mapBeneficiaryJourneyHistory } from './beneficiary-journey-adapter'
-import { assessmentTypeLabel } from './beneficiary-utils'
 
 type DetailData = {
   beneficiary: BeneficiaryRecord

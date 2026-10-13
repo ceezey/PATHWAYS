@@ -13,7 +13,7 @@ import {
 import { Textarea } from '@/components/ui/textarea'
 import type { Activity, JourneyStageConfig, JourneyStageType } from '@/types/pathways'
 
-import { stageTypes } from './journey-config-utils'
+import { stageTypes } from '../journey.utils'
 
 type DetailsProps = {
   stage: JourneyStageConfig

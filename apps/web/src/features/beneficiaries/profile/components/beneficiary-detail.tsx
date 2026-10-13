@@ -51,9 +51,9 @@ import type {
   ProjectSummary,
 } from '@/types/pathways'
 
-import { JourneyTrack } from '@/features/journey-config/journey-track'
-import { mapBeneficiaryJourneyHistory } from './beneficiary-journey-adapter'
-import { BeneficiaryMediaProof } from './beneficiary-media-proof'
+import { JourneyTrack } from '@/features/beneficiaries/journey/components/journey-track'
+import { BeneficiaryMediaProof } from '../../media/components/beneficiary-media-proof'
+import { mapBeneficiaryJourneyHistory } from '../profile.utils'
 
 import {
   assessmentTypeLabel,
@@ -65,7 +65,7 @@ import {
   resolveJourneySummary,
   stageForActivity,
   stageTypeTone,
-} from './beneficiary-utils'
+} from '../../beneficiaries.utils'
 
 const journeyEventTypeLabel: Record<EnrollmentJourneyEventInput['eventType'], string> = {
   COMPLETION: 'Complete enrollment',

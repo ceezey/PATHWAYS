@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import type { BeneficiaryJourneyHistory } from '@/types/pathways'
 
-import { mapBeneficiaryJourneyHistory } from './beneficiary-journey-adapter'
+import { mapBeneficiaryJourneyHistory } from './profile.utils'
 
 describe('beneficiary journey history adapter', () => {
   it('keeps participation and corrections in deterministic chronological order', () => {

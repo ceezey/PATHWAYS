@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { formatMediaFileSize } from './beneficiary-media-utils'
+import { formatMediaFileSize } from './media.utils'
 
 describe('Beneficiary media proof helpers', () => {
   it('formats media file sizes for non-technical review', () => {

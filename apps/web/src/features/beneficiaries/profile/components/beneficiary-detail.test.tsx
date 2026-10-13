@@ -35,7 +35,7 @@ vi.mock('@/lib/api/journeys', () => ({ journeysClient: client }))
 vi.mock('sonner', () => ({
   toast: { error: toastError, success: toastSuccess },
 }))
-vi.mock('./beneficiary-media-proof', () => ({
+vi.mock('../../media/components/beneficiary-media-proof', () => ({
   BeneficiaryMediaProof: () => <p>Media unavailable</p>,
 }))
 

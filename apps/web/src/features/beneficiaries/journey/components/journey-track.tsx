@@ -1,7 +1,7 @@
 import { cn } from '@/lib/utils'
 import type { JourneyStageConfig } from '@/types/pathways'
 
-import { childrenOf, rootStages, stageTypeStyle } from './journey-config-utils'
+import { childrenOf, rootStages, stageTypeStyle } from '../journey.utils'
 
 type StageState = 'done' | 'current' | 'upcoming' | 'off-path'
 

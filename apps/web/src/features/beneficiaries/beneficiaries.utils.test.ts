@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import type { JourneyStageConfig } from '@/types/pathways'
-import { formatDate, matchesBeneficiarySearch, resolveJourneySummary } from './beneficiary-utils'
+import { formatDate, matchesBeneficiarySearch, resolveJourneySummary } from './beneficiaries.utils'
 
 const beneficiary = {
   code: 'BEN-NCR-001',

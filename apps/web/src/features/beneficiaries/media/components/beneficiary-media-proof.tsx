@@ -38,8 +38,8 @@ import type {
   BeneficiaryMediaLimits,
 } from '@/types/pathways'
 
-import { formatMediaFileSize } from './beneficiary-media-utils'
-import { formatDate } from './beneficiary-utils'
+import { formatDate } from '../../beneficiaries.utils'
+import { formatMediaFileSize } from '../media.utils'
 
 type MediaFilter = 'All' | 'PHOTO' | 'VIDEO'
 type FileStatus = 'waiting' | 'uploading' | 'uploaded' | 'failed'

@@ -16,7 +16,7 @@ import type { Activity, JourneyStageConfig, ProjectDetail } from '@/types/pathwa
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { principalHasAtomicPermission } from '@/lib/rbac/policy'
 
-import { JourneyConfigWorkspace } from '@/features/journey-config/journey-config-workspace'
+import { JourneyConfigWorkspace } from '@/features/beneficiaries/journey/components/journey-config-workspace'
 
 export const JourneyStagesLoader = ({ projectId }: { projectId: string }) => {
   const { profile } = useCurrentRole()

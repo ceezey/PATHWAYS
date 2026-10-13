@@ -6,8 +6,8 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import type { JourneyStageConfig } from '@/types/pathways'
 
-import { stageTypeTone } from '../beneficiaries/beneficiary-utils'
-import { flattenStages, stageTypeStyle } from './journey-config-utils'
+import { stageTypeTone } from '../../beneficiaries.utils'
+import { flattenStages, stageTypeStyle } from '../journey.utils'
 
 type ListProps = {
   stages: JourneyStageConfig[]
