@@ -135,6 +135,7 @@ describe('finance request validation', () => {
     expect(await rejection(() => service.replaceBudget(actor, projectId, budgetId, body))).toBe(
       'Invalid budget replacement.',
     )
+    expect(state.permissions).toEqual([])
   })
 
   it('submits a trimmed expense with its values in order', async () => {
@@ -147,6 +148,11 @@ describe('finance request validation', () => {
       '250.00',
       '2026-06-15',
     ])
+  })
+
+  it('passes the smallest positive amount to the database unchanged', async () => {
+    await service.submit(actor, projectId, { ...expense, amount: '0.01' })
+    expect(tx.$queryRaw.mock.calls[0]?.slice(1)).toContain('0.01')
   })
 
   it.each([
@@ -164,6 +170,7 @@ describe('finance request validation', () => {
     expect(await rejection(() => service.submit(actor, projectId, body))).toBe(
       'Invalid expense submission.',
     )
+    expect(state.permissions).toEqual([])
   })
 
   // These amounts made the old Prisma.Decimal refinement throw, which answered 500.
@@ -206,6 +213,7 @@ describe('finance request validation', () => {
         service.review(actor, projectId, budgetId, { expectedUpdatedAt: updatedAt, ...body }),
       ),
     ).toBe('Invalid expense review.')
+    expect(state.permissions).toEqual([])
   })
 
   it('passes a receipt body that holds only the expected revision', async () => {
@@ -226,5 +234,6 @@ describe('finance request validation', () => {
     expect(
       await rejection(() => service.uploadReceipt(actor, projectId, budgetId, body, file)),
     ).toBe('Invalid private receipt upload.')
+    expect(state.permissions).toEqual([])
   })
 })

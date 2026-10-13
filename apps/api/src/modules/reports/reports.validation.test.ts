@@ -10,12 +10,22 @@ import type { StorageService } from '../storage/storage.service'
 import type { ReportPdfRenderer } from './report-pdf.renderer'
 import { ReportsService } from './reports.service'
 
-const state = vi.hoisted(() => ({ permissions: [] as string[] }))
+const state = vi.hoisted(() => ({ permissions: [] as string[], run: false, reserve: vi.fn() }))
 vi.mock('../../common/authz/authorized-operation', () => ({
-  withAuthorizedOperation: async (_db: unknown, _identity: unknown, permission: string) => {
+  withAuthorizedOperation: async (
+    _db: unknown,
+    identity: unknown,
+    permission: string,
+    work: (tx: unknown, actor: unknown) => unknown,
+  ) => {
     state.permissions.push(permission)
+    if (state.run) return work({}, identity)
     throw new Error('accepted')
   },
+}))
+vi.mock('./report-generation.service', async (original) => ({
+  ...(await original<object>()),
+  reserveReport: state.reserve,
 }))
 
 const projectId = '10000000-0000-4000-8000-000000000001'
@@ -52,6 +62,8 @@ async function outcome(call: () => Promise<unknown>): Promise<string> {
 describe('report request validation', () => {
   beforeEach(() => {
     state.permissions = []
+    state.run = false
+    state.reserve.mockReset()
   })
 
   it.each([
@@ -78,6 +90,17 @@ describe('report request validation', () => {
     [{ ...request, extra: true }, 'Invalid report request.'],
   ])('generates %j as %s', async (body, expected) => {
     expect(await outcome(() => service.generate(actor, projectId, body))).toBe(expected)
+  })
+
+  it('reserves the report under the trimmed name, not the raw body', async () => {
+    state.run = true
+    state.reserve.mockRejectedValue(new Error('reserved'))
+    expect(
+      await outcome(() =>
+        service.generate(actor, projectId, { ...request, name: ' Padded name ' }),
+      ),
+    ).toBe('reserved')
+    expect(state.reserve.mock.calls[0]?.[4].name).toBe('Padded name')
   })
 
   it('refuses a malformed project id before reading the body', async () => {

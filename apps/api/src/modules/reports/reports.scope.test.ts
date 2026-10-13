@@ -1,6 +1,7 @@
-import { NotFoundException } from '@nestjs/common'
+import { ForbiddenException, NotFoundException } from '@nestjs/common'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
+import { projectScope } from '../../common/authz/project-scope'
 import type { PrismaService } from '../../prisma/prisma.service'
 import type { DashboardsService } from '../dashboards/dashboards.service'
 import type { ProjectOverviewMetricsService } from '../projects/project-overview-metrics.service'
@@ -54,9 +55,9 @@ const service = new ReportsService(
   {} as PrivateStorageFactories,
 )
 const reads = {
-  surveyForms: (id: string) => service.surveyForms(actor, id),
-  evaluationRounds: (id: string) => service.evaluationRounds(actor, id),
-  list: (id: string) => service.list(actor, id),
+  surveyForms: (id: string, who = actor) => service.surveyForms(who, id),
+  evaluationRounds: (id: string, who = actor) => service.evaluationRounds(who, id),
+  list: (id: string, who = actor) => service.list(who, id),
 }
 
 describe('report read routes project scope', () => {
@@ -95,4 +96,25 @@ describe('report read routes project scope', () => {
     expect(tx.projectEvaluation.findMany.mock.calls[0]?.[0].where.projectId).toBe(upper)
     expect(tx.report.findMany.mock.calls[0]?.[0].where.projectId).toBe(upper)
   })
+
+  it.each(Object.entries(reads))(
+    '%s looks the project up by organization scope and lowercase id',
+    async (_name, read) => {
+      await read(upper)
+      expect(tx.project.findFirst).toHaveBeenCalledWith({
+        where: { AND: [projectScope(actor), { id: projectId }] },
+        select: { id: true },
+      })
+    },
+  )
+
+  it.each([['surveyForms'], ['evaluationRounds']] as const)(
+    '%s answers 403 for a caller without the grants before any lookup',
+    async (name) => {
+      await expect(reads[name](projectId, { ...actor, permissions: [] })).rejects.toThrow(
+        ForbiddenException,
+      )
+      expect(tx.project.findFirst).not.toHaveBeenCalled()
+    },
+  )
 })

@@ -5,11 +5,16 @@ import type { PrismaService } from '../../prisma/prisma.service'
 import type { EvaluationMetricsService } from './evaluation-metrics.service'
 import { EvaluationsService } from './evaluations.service'
 
-const state = vi.hoisted(() => ({ permissions: [] as string[] }))
+const state = vi.hoisted(() => ({ permissions: [] as string[], tx: undefined as unknown }))
 vi.mock('../../common/authz/authorized-operation', () => ({
-  withAuthorizedOperation: async (_db: unknown, _identity: unknown, permission: string) => {
+  withAuthorizedOperation: async (
+    _db: unknown,
+    identity: unknown,
+    permission: string,
+    work: (tx: unknown, actor: unknown) => unknown,
+  ) => {
     state.permissions.push(permission)
-    return 'accepted'
+    return state.tx ? work(state.tx, identity) : 'accepted'
   },
 }))
 
@@ -38,6 +43,7 @@ async function outcome(call: () => Promise<unknown>): Promise<string> {
 describe('evaluation request validation', () => {
   beforeEach(() => {
     state.permissions = []
+    state.tx = undefined
   })
 
   it.each([
@@ -57,6 +63,23 @@ describe('evaluation request validation', () => {
     [{ ...start, extra: 1 }, 'Supply a title and a valid period for the evaluation.'],
   ])('starts %j as %s', async (body, expected) => {
     expect(await outcome(() => service.createEvaluation(actor, projectId, body))).toBe(expected)
+  })
+
+  it('writes the trimmed period label, not the raw body', async () => {
+    const create = vi.fn().mockRejectedValue(new Error('stop'))
+    state.tx = {
+      project: { findFirst: vi.fn().mockResolvedValue({ id: projectId }) },
+      $queryRaw: vi.fn(),
+      projectEvaluation: {
+        findFirst: vi.fn().mockResolvedValue(null),
+        count: vi.fn().mockResolvedValue(0),
+        create,
+      },
+    }
+    await expect(
+      service.createEvaluation(actor, projectId, { ...start, periodLabel: ' Final ' }),
+    ).rejects.toThrow('stop')
+    expect(create.mock.calls[0]?.[0].data.periodLabel).toBe('Final')
   })
 
   it.each([
