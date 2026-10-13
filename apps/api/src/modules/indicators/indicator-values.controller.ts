@@ -1,5 +1,6 @@
-import { Controller, ForbiddenException, Get, Header, Inject, Param, Req } from '@nestjs/common'
+import { Controller, Get, Header, Inject, Param, Req } from '@nestjs/common'
 import type { AuthenticatedRequest } from '../../common/authz/application-identity'
+import { requestIdentity } from '../../common/authz/request-identity'
 import { RequirePermission } from '../../common/decorators/permission.decorator'
 import { IndicatorsService } from './indicators.service'
 
@@ -12,7 +13,6 @@ export class IndicatorValuesController {
   @Header('Cache-Control', 'private, no-store')
   @RequirePermission('monitoring.read')
   list(@Req() request: AuthenticatedRequest, @Param('projectId') projectId: string) {
-    if (!request.user) throw new ForbiddenException('Application profile is required.')
-    return this.service.listReleased(request.user, projectId)
+    return this.service.listReleased(requestIdentity(request), projectId)
   }
 }
