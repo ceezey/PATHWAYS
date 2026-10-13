@@ -11,8 +11,14 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common'
 import { readApiEnv } from '@pathways/config'
-import { hasAtomicPermission } from '@pathways/shared'
-import { Prisma } from '@prisma/client'
+import {
+  createBudgetRequest,
+  hasAtomicPermission,
+  replaceBudgetRequest,
+  reviewExpenseRequest,
+  submitExpenseRequest,
+  uploadExpenseReceiptRequest,
+} from '@pathways/shared'
 import { z } from 'zod'
 import { writeAuditLog } from '../../common/audit/write-audit-log'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
@@ -31,45 +37,6 @@ const uuid = z.string().uuid()
 const personName = { select: { fullName: true } } as const
 const displayName = (person: { fullName: string } | null) =>
   person ? person.fullName.slice(0, 200) : null
-const money = z.string().regex(/^(?:0|[1-9]\d{0,15})(?:\.\d{1,2})?$/)
-const budgetInput = z
-  .object({
-    category: z.string().trim().min(1).max(200),
-    plannedBudget: money,
-    activityId: uuid.nullable().optional(),
-    remarks: z.string().trim().max(2000).nullable().optional(),
-  })
-  .strict()
-const expenseInput = z
-  .object({
-    clientRequestId: uuid,
-    budgetRecordId: uuid,
-    description: z.string().trim().min(1).max(2000),
-    amount: money.refine((value) => new Prisma.Decimal(value).greaterThan(0)),
-    expenseDate: z
-      .string()
-      .regex(/^\d{4}-\d{2}-\d{2}$/)
-      .refine(
-        (value) =>
-          Number.isFinite(Date.parse(value)) &&
-          new Date(value).toISOString().slice(0, 10) === value,
-      ),
-  })
-  .strict()
-const reviewInput = z
-  .object({
-    expectedUpdatedAt: z.string().datetime({ offset: true }),
-    decision: z.enum(['VERIFY', 'APPROVE', 'REJECT']),
-    stage: z.enum(['VERIFY', 'APPROVE']),
-    reason: z.string().trim().min(1).max(2000).optional(),
-  })
-  .strict()
-  .refine((value) =>
-    value.decision !== 'REJECT'
-      ? value.decision === value.stage && value.reason === undefined
-      : value.reason !== undefined,
-  )
-
 @Injectable()
 export class FinanceService {
   constructor(
@@ -104,7 +71,7 @@ export class FinanceService {
     })
   }
   createBudget(identity: ApplicationIdentity, projectId: string, input: unknown) {
-    const parsed = budgetInput.safeParse(input)
+    const parsed = createBudgetRequest.safeParse(input)
     if (!parsed.success) throw new BadRequestException('Invalid budget record.')
     return withAuthorizedOperation(this.prisma, identity, 'budgets.create', async (tx, actor) => {
       await requireScopedProject(tx, actor, projectId)
@@ -128,9 +95,7 @@ export class FinanceService {
     })
   }
   replaceBudget(identity: ApplicationIdentity, projectId: string, id: string, input: unknown) {
-    const parsed = budgetInput
-      .extend({ expectedUpdatedAt: z.string().datetime({ offset: true }) })
-      .safeParse(input)
+    const parsed = replaceBudgetRequest.safeParse(input)
     if (!parsed.success || !uuid.safeParse(id).success)
       throw new BadRequestException('Invalid budget replacement.')
     return withAuthorizedOperation(this.prisma, identity, 'budgets.update', async (tx, actor) => {
@@ -232,7 +197,7 @@ export class FinanceService {
     })
   }
   submit(identity: ApplicationIdentity, projectId: string, input: unknown) {
-    const parsed = expenseInput.safeParse(input)
+    const parsed = submitExpenseRequest.safeParse(input)
     if (!parsed.success) throw new BadRequestException('Invalid expense submission.')
     const body = parsed.data
     return withAuthorizedOperation(this.prisma, identity, 'expenses.submit', async (tx, actor) => {
@@ -244,7 +209,7 @@ export class FinanceService {
     })
   }
   review(identity: ApplicationIdentity, projectId: string, id: string, input: unknown) {
-    const parsed = reviewInput.safeParse(input)
+    const parsed = reviewExpenseRequest.safeParse(input)
     if (!parsed.success || !uuid.safeParse(id).success)
       throw new BadRequestException('Invalid expense review.')
     const body = parsed.data
@@ -268,10 +233,7 @@ export class FinanceService {
     input: unknown,
     file: { buffer: Buffer; size: number; mimetype: string } | undefined,
   ) {
-    const parsed = z
-      .object({ expectedUpdatedAt: z.string().datetime({ offset: true }) })
-      .strict()
-      .safeParse(input)
+    const parsed = uploadExpenseReceiptRequest.safeParse(input)
     if (
       !parsed.success ||
       !uuid.safeParse(id).success ||

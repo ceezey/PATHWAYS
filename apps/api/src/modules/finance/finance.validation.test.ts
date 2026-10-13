@@ -166,10 +166,10 @@ describe('finance request validation', () => {
     )
   })
 
-  // The Prisma.Decimal refinement throws on text it cannot parse, which the api answers with 500.
-  it.each([['abc'], [''], [' 1']])('throws a decimal error for amount %j', (amount) => {
-    expect(() => service.submit(actor, projectId, { ...expense, amount })).toThrow(
-      '[DecimalError] Invalid argument',
+  // These amounts made the old Prisma.Decimal refinement throw, which answered 500.
+  it.each([['abc'], [''], [' 1']])('refuses amount %j with the fixed message', async (amount) => {
+    expect(await rejection(() => service.submit(actor, projectId, { ...expense, amount }))).toBe(
+      'Invalid expense submission.',
     )
   })
 
