@@ -10,9 +10,9 @@ import type {
   ActivityProof,
   Indicator,
   JourneyStageConfig,
-  ProjectIndicator,
   ProjectTeamMember,
 } from '@/types/pathways'
+import type { IndicatorResponse } from '@pathways/shared'
 
 import { ActivityExpenseDialog, type ExpenseBudgetReference } from '../../activity-expense-dialog'
 import {
@@ -85,7 +85,7 @@ export const ActivityDetailContent = ({
   canOpenProof?: boolean
   canValidateExpense: boolean
   canValidateProof: boolean
-  indicatorRows?: ProjectIndicator[]
+  indicatorRows?: IndicatorResponse[]
   indicators: Indicator[]
   journeyStages: JourneyStageConfig[]
   onActivityChanged: (activity: Activity) => void

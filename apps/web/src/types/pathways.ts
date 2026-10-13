@@ -4,7 +4,6 @@ import type {
   AssignableOfficerResponse,
   OverdueExplanationCategory,
   SadddDashboard,
-  IndicatorResponse as SharedProjectIndicator,
   StoredProjectStatus,
 } from '@pathways/shared'
 
@@ -589,7 +588,6 @@ export interface EvidenceActivitySummary {
 export type EvidenceList =
   | { scope: 'detail'; records: EvidenceRecord[] }
   | { scope: 'aggregate'; activities: EvidenceActivitySummary[] }
-export type ProjectIndicator = SharedProjectIndicator
 
 export interface BudgetRecord {
   id: string

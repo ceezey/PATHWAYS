@@ -1,7 +1,7 @@
 'use client'
 
 type ExportFormat = 'csv' | 'xlsx' | 'xls' | 'pdf'
-import { formatMetricCell } from '@pathways/shared'
+import { type IndicatorResponse, formatMetricCell } from '@pathways/shared'
 import {
   type ColumnDef,
   flexRender,
@@ -74,7 +74,6 @@ import type {
   BeneficiaryRecord,
   JourneyStageConfig,
   ProjectDetail,
-  ProjectIndicator,
   ReportColumnConfig,
   ReportKind,
   ReportRecord,
@@ -103,7 +102,7 @@ type ReportingWorkspaceProps = {
   journeyStages: JourneyStageConfig[]
   previewOnly?: boolean
   projects: ProjectDetail[]
-  indicators: ProjectIndicator[]
+  indicators: IndicatorResponse[]
   reports: ReportRecord[]
   surveyForms: SurveyFormDefinition[]
   surveyResults: SurveyAggregateResultSet[]

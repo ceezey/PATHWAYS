@@ -15,7 +15,6 @@ import {
 } from '@/components/pathways'
 import { stickyTableHeadClass } from '@/components/pathways/sticky-table-head'
 import { Button } from '@/components/ui/button'
-import { useAuthorizedRead } from '@/hooks/use-authorized-read'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { usePendingCreate } from '@/hooks/use-pending-create'
 import { PathwaysClientError } from '@/lib/api/core/request'
@@ -25,6 +24,7 @@ import { principalHasAtomicPermission } from '@/lib/rbac/policy'
 import type { IndicatorLibraryEntryResponse } from '@pathways/shared'
 import { InlineNotice } from '../../components/option-select'
 import { recipeNames } from '../indicators.copy'
+import { useIndicatorLibraryRead } from '../indicators.reads'
 import { NewEntry } from './library-entry-form'
 
 export function IndicatorLibraryManager() {
@@ -37,9 +37,7 @@ export function IndicatorLibraryManager() {
       : '/indicators'
   const canCreate = principalHasAtomicPermission(profile, 'indicators.library.create')
   const canArchive = principalHasAtomicPermission(profile, 'indicators.library.archive')
-  const read = useAuthorizedRead('indicator-library', null, 'indicators.library.read', () =>
-    indicatorLibraryClient.list(),
-  )
+  const read = useIndicatorLibraryRead()
   const [message, setMessage] = useState<string | null>(null)
   const [archiving, setArchiving] = useState<IndicatorLibraryEntryResponse | null>(null)
   const [busy, setBusy] = useState(false)

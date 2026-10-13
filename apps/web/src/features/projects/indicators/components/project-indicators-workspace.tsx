@@ -23,7 +23,7 @@ import { usePendingCreate } from '@/hooks/use-pending-create'
 import { useSourceMutationContext } from '@/hooks/use-source-mutation-context'
 import { activitiesClient } from '@/lib/api/activities'
 import { PathwaysClientError } from '@/lib/api/core/request'
-import { indicatorLibraryClient, indicatorsClient } from '@/lib/api/indicators'
+import { indicatorsClient } from '@/lib/api/indicators'
 import { formatCappedPercent } from '@/lib/format/percent'
 import { fingerprintOf } from '@/lib/forms/pending-create'
 import { principalHasAtomicPermission } from '@/lib/rbac/policy'
@@ -38,6 +38,7 @@ import { type IndicatorResponse, formatMetricCell } from '@pathways/shared'
 import { MoreHorizontal, Target } from 'lucide-react'
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
 import { typeLabel } from '../indicators.copy'
+import { useIndicatorLibraryRead } from '../indicators.reads'
 import { indicatorPeriod } from '../indicators.utils'
 import { IndicatorEditor } from './indicator-editor'
 import { NewIndicator } from './indicator-form'
@@ -68,14 +69,7 @@ export function ProjectIndicatorsWorkspace({ projectId }: { projectId: string })
   const currentKey = useRef(activeKey)
   currentKey.current = activeKey
   const canReadLibrary = principalHasAtomicPermission(profile, 'indicators.library.read')
-  const libraryRead = useAuthorizedRead(
-    'indicator-library',
-    null,
-    'indicators.library.read',
-    () => indicatorLibraryClient.list(),
-    canCreate && canReadLibrary,
-    { freshness: 'summary' },
-  )
+  const libraryRead = useIndicatorLibraryRead(canCreate && canReadLibrary, { freshness: 'summary' })
   const canReadForms = principalHasAtomicPermission(profile, 'forms.read')
   const canReadActivityContext = principalHasAtomicPermission(profile, 'activities.context.read')
   const canReadActivities = principalHasAtomicPermission(profile, 'activities.read')

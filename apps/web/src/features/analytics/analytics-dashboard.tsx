@@ -57,9 +57,10 @@ import {
   pathwaysClient,
 } from '@/lib/services/pathways-client'
 import { rulesHumanClient } from '@/lib/services/rules-human-client'
-import type { ActivitySummary, ProjectIndicator, ProjectSummary } from '@/types/pathways'
+import type { ActivitySummary, ProjectSummary } from '@/types/pathways'
 import {
   type DescriptiveAnalytics,
+  type IndicatorResponse,
   type MetricCell,
   type MonitoringDashboard,
   type SadddDashboard,
@@ -212,7 +213,7 @@ export const AnalyticsDashboard = () => {
   const [analysisView, setAnalysisView] = useState<AnalysisView>('kpi')
   const [visualizationType, setVisualizationType] = useState<VisualizationType>('bar')
   const [indicatorId, setIndicatorId] = useState('all')
-  const [indicatorDefinitions, setIndicatorDefinitions] = useState<ProjectIndicator[]>([])
+  const [indicatorDefinitions, setIndicatorDefinitions] = useState<IndicatorResponse[]>([])
   const [monitoring, setMonitoring] = useState<MonitoringDashboard | null>(null)
   const [saddd, setSaddd] = useState<SadddDashboard | null>(null)
   const [activities, setActivities] = useState<ActivitySummary[]>([])
@@ -371,7 +372,7 @@ export const AnalyticsDashboard = () => {
         ? indicatorsClient.getProjectIndicators(projectId)
         : canReadIndicatorValues
           ? indicatorsClient.getProjectIndicatorValues(projectId)
-          : Promise.resolve<ProjectIndicator[]>([]),
+          : Promise.resolve<IndicatorResponse[]>([]),
     ])
       .then(([nextActivities, nextIndicators]) => {
         if (!active) return

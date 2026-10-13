@@ -1,4 +1,5 @@
-import type { ProjectIndicator, ProjectSummary } from '@/types/pathways'
+import type { ProjectSummary } from '@/types/pathways'
+import type { IndicatorResponse } from '@pathways/shared'
 
 interface AnalyticsReportingPeriod {
   value: string
@@ -68,7 +69,7 @@ export const nonOverlappingAnalyticsPeriods = (
 
 export const deriveAnalyticsReportingPeriods = (
   project: Pick<ProjectSummary, 'startDate' | 'endDate'> | undefined,
-  indicators: Pick<ProjectIndicator, 'status' | 'periodStart' | 'periodEnd'>[],
+  indicators: Pick<IndicatorResponse, 'status' | 'periodStart' | 'periodEnd'>[],
 ): AnalyticsReportingPeriod[] => {
   const hasProjectBounds = Boolean(project?.startDate && project.endDate)
   if (
