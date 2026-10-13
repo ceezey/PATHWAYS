@@ -14,10 +14,6 @@ const cases: ControllerCase[] = [
     dtoNames: ['ChangeStepUpPinDto', 'VerifyStepUpPinDto'],
   },
   {
-    file: 'src/modules/beneficiary-media/beneficiary-media.controller.ts',
-    dtoNames: ['ReserveBeneficiaryMediaDto'],
-  },
-  {
     file: 'src/modules/imports/imports.controller.ts',
     dtoNames: ['ImportRowsQueryDto', 'ProcessImportDto', 'SaveImportMappingDto', 'UploadImportDto'],
   },
