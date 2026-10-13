@@ -75,6 +75,18 @@ describe.each(clients)('%s journey requests', (_name, client) => {
     )
   })
 
+  it('keeps a string parent stage and refuses any other parent stage value', async () => {
+    const child = { ...stage, parentStageId: stageId }
+    request.requestFoundation.mockResolvedValue([child])
+    await expect(client.getJourneyStages(projectId)).resolves.toEqual([child])
+    for (const parentStageId of [null, 7, {}]) {
+      request.requestFoundation.mockResolvedValue([{ ...stage, parentStageId }])
+      await expect(client.getJourneyStages(projectId)).rejects.toThrow(
+        'Invalid journey-stage parent response.',
+      )
+    }
+  })
+
   it('saves the stages with the stored type codes and the revision the editor read', async () => {
     request.requestFoundation.mockResolvedValue([stage])
     await client.saveJourneyStages(projectId, [stage])
@@ -105,6 +117,33 @@ describe.each(clients)('%s journey requests', (_name, client) => {
     )
     expect(request.requestFoundation).toHaveBeenCalledWith(journeyPath)
     request.requestFoundation.mockResolvedValue({ ...history, events: 'none' })
+    await expect(client.getBeneficiaryJourneyHistory(projectId, beneficiaryId)).rejects.toThrow(
+      'Invalid journey-history response.',
+    )
+  })
+
+  it('checks every event of the history and returns the events as sent', async () => {
+    const [event] = history.events
+    const extended = { ...history, events: [{ ...event, note: 'kept' }, event] }
+    request.requestFoundation.mockResolvedValue(extended)
+    await expect(client.getBeneficiaryJourneyHistory(projectId, beneficiaryId)).resolves.toEqual(
+      extended,
+    )
+    const bad = [
+      ...(['id', 'eventType', 'eventDate', 'recordedAt', 'recordedBy'] as const).map((key) => ({
+        ...event,
+        [key]: 1,
+      })),
+      null,
+      'event',
+    ]
+    for (const item of bad) {
+      request.requestFoundation.mockResolvedValue({ ...history, events: [event, item] })
+      await expect(client.getBeneficiaryJourneyHistory(projectId, beneficiaryId)).rejects.toThrow(
+        'Invalid journey-history response.',
+      )
+    }
+    request.requestFoundation.mockResolvedValue({ ...history, events: Array(501).fill(event) })
     await expect(client.getBeneficiaryJourneyHistory(projectId, beneficiaryId)).rejects.toThrow(
       'Invalid journey-history response.',
     )

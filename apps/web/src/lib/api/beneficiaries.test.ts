@@ -34,9 +34,9 @@ const row = {
   birthDate: '2000-01-01',
   ageAtRegistration: 26,
   disabilityStatus: 'NOT_SPECIFIED',
-  locationBarangay: null,
-  locationCityMunicipality: null,
-  locationProvince: null,
+  locationBarangay: 'Fictional Barangay',
+  locationCityMunicipality: 'Fictional City',
+  locationProvince: 'Fictional Province',
   status: 'ACTIVE',
   consentRecorded: true,
   dataProcessingConsentRecorded: true,
@@ -44,7 +44,9 @@ const row = {
   guardianConsentRecorded: false,
   projectId,
   enrollment: { id: formId, projectId, enrollmentDate: '2026-06-01', status: 'ACTIVE' },
-  consentProvenance: [],
+  consentProvenance: [
+    { kind: 'PARTICIPATION', source: 'DIRECT_ENTRY', recordedAt: '2026-06-01T00:00:00.000Z' },
+  ],
   updatedAt: '2026-06-01T00:00:00.000Z',
 }
 const contributor = {
@@ -100,8 +102,45 @@ describe.each(clients)('%s beneficiary requests', (_name, client) => {
     expect(request.requestFoundation).toHaveBeenCalledWith(
       `${base}?search=BEN&sex=FEMALE&ageBand=25%2B&disabilityStatus=NOT_SPECIFIED&enrollmentStatus=ACTIVE&limit=50`,
     )
-    expect(records).toEqual([
-      expect.objectContaining({ id: beneficiaryId, ageGroup: '25+', projectIds: [projectId] }),
+    expect(records).toStrictEqual([
+      {
+        id: beneficiaryId,
+        code: 'BEN-S4B-001',
+        subjectType: 'INDIVIDUAL',
+        displayName: 'Fictional Person',
+        projectIds: [projectId],
+        location: 'Fictional Barangay, Fictional City, Fictional Province',
+        sex: 'Not specified',
+        ageGroup: '25+',
+        disabilityStatus: 'Not specified',
+        enrollmentStatus: 'Active',
+        firstName: 'Fictional',
+        middleName: undefined,
+        lastName: 'Person',
+        birthDate: '2000-01-01',
+        age: 26,
+        province: 'Fictional Province',
+        city: 'Fictional City',
+        barangay: 'Fictional Barangay',
+        consentToParticipate: true,
+        consentToStoreData: true,
+        isMinor: false,
+        guardianConsent: false,
+        enrollments: [
+          {
+            id: formId,
+            projectId,
+            status: 'Active',
+            enrolledAt: '2026-06-01',
+            followUpStatus: 'Not recorded',
+          },
+        ],
+        participation: [],
+        assessments: [],
+        notes: [],
+        updatedAt: '2026-06-01T00:00:00.000Z',
+        consentProvenance: row.consentProvenance,
+      },
     ])
   })
 
