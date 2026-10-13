@@ -1,8 +1,8 @@
 'use client'
 
 import { useAuthorizedRead } from '@/hooks/use-authorized-read'
+import { journeysClient } from '@/lib/api/journeys'
 import { projectsClient } from '@/lib/api/projects'
-import { pathwaysClient } from '@/lib/services/pathways-client'
 
 const summary = { freshness: 'summary' } as const
 
@@ -31,7 +31,7 @@ export const useProjectJourneyStagesRead = (projectId: string, enabled = true) =
     projectReadResources.journeyStages,
     projectId,
     'journeys.read',
-    (signal) => pathwaysClient.getJourneyStages(projectId, signal),
+    (signal) => journeysClient.getJourneyStages(projectId, signal),
     enabled,
     summary,
   )

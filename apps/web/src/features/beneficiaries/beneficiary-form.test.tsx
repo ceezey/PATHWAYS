@@ -29,6 +29,7 @@ const { client, routerPush, toastError, toastSuccess } = vi.hoisted(() => ({
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: routerPush }) }))
 vi.mock('@/lib/services/pathways-client', () => ({ pathwaysClient: client }))
+vi.mock('@/lib/api/beneficiaries', () => ({ beneficiariesClient: client }))
 vi.mock('sonner', () => ({ toast: { error: toastError, success: toastSuccess } }))
 vi.mock('@/components/ui/select', async () => {
   const { Children, createElement, isValidElement } = await import('react')

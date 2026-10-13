@@ -10,7 +10,6 @@ vi.mock('@/lib/api/core/request', async (importOriginal) => ({
   requestFoundation: request.requestFoundation,
 }))
 
-import { pathwaysClient } from '@/lib/services/pathways-client'
 import { beneficiaryRegistrationFieldRules } from '@pathways/shared'
 import { beneficiariesClient } from './beneficiaries'
 
@@ -79,26 +78,26 @@ const context = {
   ],
 }
 
-// The same cases run against the PathwaysClient methods until Task 3 removes them.
-const clients = [
-  ['pathwaysClient', pathwaysClient],
-  ['beneficiariesClient', beneficiariesClient],
-] as const
-
-describe.each(clients)('%s beneficiary requests', (_name, client) => {
+describe('beneficiariesClient beneficiary requests', () => {
   beforeEach(() => request.requestFoundation.mockReset())
 
   it('returns no records without a project and sends the filters of the first page', async () => {
-    await expect(client.getBeneficiaryRecordsForRole('Project Officer')).resolves.toEqual([])
+    await expect(
+      beneficiariesClient.getBeneficiaryRecordsForRole('Project Officer'),
+    ).resolves.toEqual([])
     expect(request.requestFoundation).not.toHaveBeenCalled()
     request.requestFoundation.mockResolvedValue({ items: [row], nextCursor: null })
-    const records = await client.getBeneficiaryRecordsForRole('Project Officer', projectId, {
-      search: ' BEN ',
-      sex: 'FEMALE',
-      ageBand: '25+',
-      disabilityStatus: 'NOT_SPECIFIED',
-      enrollmentStatus: 'ACTIVE',
-    })
+    const records = await beneficiariesClient.getBeneficiaryRecordsForRole(
+      'Project Officer',
+      projectId,
+      {
+        search: ' BEN ',
+        sex: 'FEMALE',
+        ageBand: '25+',
+        disabilityStatus: 'NOT_SPECIFIED',
+        enrollmentStatus: 'ACTIVE',
+      },
+    )
     expect(request.requestFoundation).toHaveBeenCalledWith(
       `${base}?search=BEN&sex=FEMALE&ageBand=25%2B&disabilityStatus=NOT_SPECIFIED&enrollmentStatus=ACTIVE&limit=50`,
     )
@@ -149,7 +148,7 @@ describe.each(clients)('%s beneficiary requests', (_name, client) => {
       .mockResolvedValueOnce({ items: [row], nextCursor: cursor })
       .mockResolvedValueOnce({ items: [], nextCursor: null })
     await expect(
-      client.getBeneficiaryRecordsForRole('Project Officer', projectId),
+      beneficiariesClient.getBeneficiaryRecordsForRole('Project Officer', projectId),
     ).resolves.toHaveLength(1)
     expect(request.requestFoundation.mock.calls.map(([path]) => path)).toEqual([
       `${base}?limit=50`,
@@ -157,41 +156,41 @@ describe.each(clients)('%s beneficiary requests', (_name, client) => {
     ])
     request.requestFoundation.mockReset()
     request.requestFoundation.mockResolvedValue({ items: [], nextCursor: cursor })
-    await expect(client.getBeneficiaryRecordsForRole('Project Officer', projectId)).rejects.toThrow(
-      'Invalid beneficiary pagination.',
-    )
+    await expect(
+      beneficiariesClient.getBeneficiaryRecordsForRole('Project Officer', projectId),
+    ).rejects.toThrow('Invalid beneficiary pagination.')
   })
 
   it('refuses a page that is not a list of at most 50 rows', async () => {
     request.requestFoundation.mockResolvedValue({ items: 'rows', nextCursor: null })
-    await expect(client.getBeneficiaryRecordsForRole('Project Officer', projectId)).rejects.toThrow(
-      'Invalid beneficiary response.',
-    )
+    await expect(
+      beneficiariesClient.getBeneficiaryRecordsForRole('Project Officer', projectId),
+    ).rejects.toThrow('Invalid beneficiary response.')
     request.requestFoundation.mockResolvedValue({
       items: Array(51).fill(row),
       nextCursor: null,
     })
-    await expect(client.getBeneficiaryRecordsForRole('Project Officer', projectId)).rejects.toThrow(
-      'Invalid beneficiary response.',
-    )
+    await expect(
+      beneficiariesClient.getBeneficiaryRecordsForRole('Project Officer', projectId),
+    ).rejects.toThrow('Invalid beneficiary response.')
   })
 
   it('reads one record, registers and updates at encoded project scoped paths', async () => {
     await expect(
-      client.getBeneficiaryRecordForRole('Project Officer', '', beneficiaryId),
+      beneficiariesClient.getBeneficiaryRecordForRole('Project Officer', '', beneficiaryId),
     ).rejects.toThrow('Project scope is required.')
     expect(request.requestFoundation).not.toHaveBeenCalled()
     request.requestFoundation.mockResolvedValue(row)
-    await client.getBeneficiaryRecordForRole('Project Officer', projectId, 'a b')
+    await beneficiariesClient.getBeneficiaryRecordForRole('Project Officer', projectId, 'a b')
     const registration = { formId, clientRegistrationId: registrationId, values: { code: 'x' } }
-    await client.registerBeneficiary(projectId, registration)
+    await beneficiariesClient.registerBeneficiary(projectId, registration)
     const update = {
       subjectType: 'INDIVIDUAL',
       sex: 'NOT_SPECIFIED',
       disabilityStatus: 'NOT_SPECIFIED',
       expectedUpdatedAt: row.updatedAt,
     } as const
-    await client.updateBeneficiary(projectId, beneficiaryId, update)
+    await beneficiariesClient.updateBeneficiary(projectId, beneficiaryId, update)
     expect(request.requestFoundation.mock.calls).toEqual([
       [`${base}/a%20b`],
       [`${base}/registrations`, { method: 'POST', body: JSON.stringify(registration) }],
@@ -203,7 +202,7 @@ describe.each(clients)('%s beneficiary requests', (_name, client) => {
     request.requestFoundation.mockResolvedValue({ items: [contributor], nextCursor: otherId })
     const signal = new AbortController().signal
     await expect(
-      client.getSurveySubjectPage(projectId, ' Fictional ', otherId, signal),
+      beneficiariesClient.getSurveySubjectPage(projectId, ' Fictional ', otherId, signal),
     ).resolves.toEqual({
       items: [{ id: beneficiaryId, code: 'BEN-S4B-001', displayName: 'Fictional Person' }],
       nextCursor: otherId,
@@ -213,16 +212,18 @@ describe.each(clients)('%s beneficiary requests', (_name, client) => {
       { signal },
     )
     request.requestFoundation.mockClear()
-    await expect(client.getSurveySubjectPage('bad')).rejects.toThrow('Invalid contributor search.')
+    await expect(beneficiariesClient.getSurveySubjectPage('bad')).rejects.toThrow(
+      'Invalid contributor search.',
+    )
     expect(request.requestFoundation).not.toHaveBeenCalled()
   })
 
   it('lists duplicate candidates as sent and posts the decision', async () => {
     const pair = { left: { id: beneficiaryId }, right: { id: otherId } }
     request.requestFoundation.mockResolvedValue([pair])
-    await expect(client.getDuplicateCandidates(projectId)).resolves.toEqual([pair])
+    await expect(beneficiariesClient.getDuplicateCandidates(projectId)).resolves.toEqual([pair])
     const decision = { leftId: beneficiaryId, rightId: otherId, decision: 'LINK' } as const
-    await client.resolveDuplicate(projectId, decision)
+    await beneficiariesClient.resolveDuplicate(projectId, decision)
     expect(request.requestFoundation.mock.calls).toEqual([
       [`${base}/duplicate-candidates`],
       [`${base}/duplicate-candidates/resolve`, { method: 'POST', body: JSON.stringify(decision) }],
@@ -230,25 +231,29 @@ describe.each(clients)('%s beneficiary requests', (_name, client) => {
   })
 
   it('reads the registration context, provisions the default form and refuses a bad context', async () => {
-    await expect(client.getBeneficiaryRegistrationContext('')).rejects.toThrow(
+    await expect(beneficiariesClient.getBeneficiaryRegistrationContext('')).rejects.toThrow(
       'Project scope is required.',
     )
-    await expect(client.ensureDefaultRegistrationForm('')).rejects.toThrow(
+    await expect(beneficiariesClient.ensureDefaultRegistrationForm('')).rejects.toThrow(
       'Project scope is required.',
     )
     expect(request.requestFoundation).not.toHaveBeenCalled()
     request.requestFoundation.mockResolvedValue(context)
-    await expect(client.getBeneficiaryRegistrationContext(projectId)).resolves.toMatchObject({
+    await expect(
+      beneficiariesClient.getBeneficiaryRegistrationContext(projectId),
+    ).resolves.toMatchObject({
       projectId,
       businessDate: '2026-09-27',
     })
-    await client.ensureDefaultRegistrationForm(projectId)
+    await beneficiariesClient.ensureDefaultRegistrationForm(projectId)
     expect(request.requestFoundation.mock.calls).toEqual([
       [`${base}/registration-context`],
       [`${base}/registration-context/default-form`, { method: 'POST' }],
     ])
     request.requestFoundation.mockResolvedValue({ ...context, actorId: 'private' })
-    await expect(client.getBeneficiaryRegistrationContext(projectId)).rejects.toMatchObject({
+    await expect(
+      beneficiariesClient.getBeneficiaryRegistrationContext(projectId),
+    ).rejects.toMatchObject({
       message: 'Invalid registration context response.',
       code: 'network',
     })

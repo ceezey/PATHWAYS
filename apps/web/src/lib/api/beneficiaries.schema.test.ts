@@ -1,6 +1,6 @@
 import { beneficiaryRegistrationFieldRules } from '@pathways/shared'
 import { describe, expect, it } from 'vitest'
-import { parseRegistrationContext } from './registration-context'
+import { parseRegistrationContext } from './beneficiaries.schema'
 const projectId = '30000000-0000-4000-8000-000000000003'
 const fixture = () => ({
   projectId,

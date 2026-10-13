@@ -7,9 +7,9 @@ import { useEffect, useState } from 'react'
 import { AsyncState, StatusMessage } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import { useCurrentRole } from '@/hooks/use-current-role'
+import { beneficiariesClient } from '@/lib/api/beneficiaries'
 import { PathwaysClientError } from '@/lib/api/core/request'
 import { projectsClient } from '@/lib/api/projects'
-import { pathwaysClient } from '@/lib/services/pathways-client'
 import type { BeneficiaryRecord, ProjectSummary } from '@/types/pathways'
 
 import { BeneficiaryForm } from './beneficiary-form'
@@ -47,7 +47,7 @@ export const BeneficiaryFormLoader = ({
           : nextProjects
         for (const project of candidateProjects) {
           try {
-            const nextBeneficiary = await pathwaysClient.getBeneficiaryRecordForRole(
+            const nextBeneficiary = await beneficiariesClient.getBeneficiaryRecordForRole(
               verifiedRole,
               project.id,
               beneficiaryId,

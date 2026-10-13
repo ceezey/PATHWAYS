@@ -9,8 +9,8 @@ import { EmptyState } from '@/components/pathways/empty-state'
 import { Button } from '@/components/ui/button'
 import { activitiesClient } from '@/lib/api/activities'
 import { PathwaysClientError } from '@/lib/api/core/request'
+import { journeysClient } from '@/lib/api/journeys'
 import { projectsClient } from '@/lib/api/projects'
-import { pathwaysClient } from '@/lib/services/pathways-client'
 import type { Activity, JourneyStageConfig, ProjectDetail } from '@/types/pathways'
 
 import { useCurrentRole } from '@/hooks/use-current-role'
@@ -41,7 +41,7 @@ export const JourneyStagesLoader = ({ projectId }: { projectId: string }) => {
         : canReadActivities
           ? activitiesClient.getActivities(projectId)
           : Promise.resolve([]),
-      pathwaysClient.getJourneyStages(projectId),
+      journeysClient.getJourneyStages(projectId),
     ])
       .then(([projectRecord, activityRecords, stageRecords]) => {
         if (!active) return

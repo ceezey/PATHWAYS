@@ -18,9 +18,8 @@ vi.mock('@/hooks/use-current-role', () => ({ useCurrentRole: () => access }))
 vi.mock('@/lib/rbac/ui-action-availability', () => ({
   isUiActionAvailable: () => access.canManage,
 }))
-vi.mock('@/lib/services/pathways-client', () => ({
-  pathwaysClient: { saveJourneyStages: vi.fn() },
-}))
+vi.mock('@/lib/services/pathways-client', () => ({ pathwaysClient: {} }))
+vi.mock('@/lib/api/journeys', () => ({ journeysClient: { saveJourneyStages: vi.fn() } }))
 vi.mock('sonner', () => ({ toast: { error: vi.fn(), success: vi.fn() } }))
 
 const stage = (over: Partial<JourneyStageConfig>): JourneyStageConfig => ({

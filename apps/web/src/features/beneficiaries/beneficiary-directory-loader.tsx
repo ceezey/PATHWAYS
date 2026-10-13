@@ -6,8 +6,9 @@ import { useEffect, useState } from 'react'
 import { AsyncState } from '@/components/pathways'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { activitiesClient } from '@/lib/api/activities'
+import { beneficiariesClient } from '@/lib/api/beneficiaries'
+import { journeysClient } from '@/lib/api/journeys'
 import { projectsClient } from '@/lib/api/projects'
-import { pathwaysClient } from '@/lib/services/pathways-client'
 import type {
   ActivitySummary,
   BeneficiaryRecord,
@@ -53,11 +54,11 @@ export const BeneficiaryDirectoryLoader = () => {
         const [beneficiaryGroups, activityGroups, stageGroups] = await Promise.all([
           Promise.all(
             projects.map((project) =>
-              pathwaysClient.getBeneficiaryRecordsForRole(verifiedRole, project.id),
+              beneficiariesClient.getBeneficiaryRecordsForRole(verifiedRole, project.id),
             ),
           ),
           Promise.all(projects.map((project) => activitiesClient.getActivities(project.id))),
-          Promise.all(projects.map((project) => pathwaysClient.getJourneyStages(project.id))),
+          Promise.all(projects.map((project) => journeysClient.getJourneyStages(project.id))),
         ])
 
         if (active) {

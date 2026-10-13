@@ -36,6 +36,7 @@ import {
 } from '@/components/ui/select'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { usePendingCreate } from '@/hooks/use-pending-create'
+import { beneficiariesClient } from '@/lib/api/beneficiaries'
 import {
   type SensitiveDraftOwner,
   readSensitiveDraft,
@@ -44,7 +45,6 @@ import {
   writeSensitiveDraft,
 } from '@/lib/auth/sensitive-drafts'
 import { createdSince, hashFingerprint } from '@/lib/forms/pending-create'
-import { pathwaysClient } from '@/lib/services/pathways-client'
 import type {
   BeneficiaryRecord,
   BeneficiaryRegistrationContext,
@@ -289,7 +289,10 @@ const ScopedBeneficiaryForm = ({
     successMessage: 'Beneficiary registered',
     findCreated: async (fingerprint, startedAt) => {
       if (!role) return null
-      const records = await pathwaysClient.getBeneficiaryRecordsForRole(role, selectedProjectId)
+      const records = await beneficiariesClient.getBeneficiaryRecordsForRole(
+        role,
+        selectedProjectId,
+      )
       for (const record of records) {
         if (!createdSince(record.updatedAt, startedAt)) continue
         const hash = await hashFingerprint(
@@ -340,13 +343,13 @@ const ScopedBeneficiaryForm = ({
     setDefinitionErrors([])
     setConfirmOpen(false)
     setContextState('loading')
-    void pathwaysClient
+    void beneficiariesClient
       .getBeneficiaryRegistrationContext(selectedProjectId)
       // Without an eligible published form, provision the fixed system default form once; the
       // server rechecks registration scope and returns the refreshed blank context.
       .then((context) =>
         context.definitions.length === 0 && active && scope.isCurrent()
-          ? pathwaysClient.ensureDefaultRegistrationForm(selectedProjectId)
+          ? beneficiariesClient.ensureDefaultRegistrationForm(selectedProjectId)
           : context,
       )
       .then((context) => {
@@ -689,7 +692,7 @@ const ScopedBeneficiaryForm = ({
             'This editor supports individual beneficiary profiles. Group and community corrections remain unavailable.',
           )
         }
-        const saved = await pathwaysClient.updateBeneficiary(draft.projectId, beneficiary.id, {
+        const saved = await beneficiariesClient.updateBeneficiary(draft.projectId, beneficiary.id, {
           subjectType: beneficiary.subjectType,
           displayName: [
             supportsCode('first_name') ? draft.firstName : '',
@@ -735,7 +738,7 @@ const ScopedBeneficiaryForm = ({
       const saved = await pendingCreate.submit(
         await hashFingerprint(draft.firstName, draft.lastName, draft.birthDate),
         () =>
-          pathwaysClient.registerBeneficiary(draft.projectId, {
+          beneficiariesClient.registerBeneficiary(draft.projectId, {
             formId: registrationForm.id,
             clientRegistrationId: registrationId,
             values: result.values,

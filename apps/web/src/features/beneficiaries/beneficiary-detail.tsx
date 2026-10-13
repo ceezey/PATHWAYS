@@ -36,6 +36,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import { useCurrentRole } from '@/hooks/use-current-role'
+import { journeysClient } from '@/lib/api/journeys'
 import { isUiActionAvailable } from '@/lib/rbac/ui-action-availability'
 import { pathwaysClient } from '@/lib/services/pathways-client'
 import type {
@@ -335,7 +336,7 @@ export const BeneficiaryDetail = ({
       if (saved.status === 'DRAFT') {
         await pathwaysClient.submitDirectSubmission(projectId, form.id, saved.id, saved.updatedAt)
       }
-      const history = await pathwaysClient.getBeneficiaryJourneyHistory(projectId, beneficiary.id)
+      const history = await journeysClient.getBeneficiaryJourneyHistory(projectId, beneficiary.id)
       const nextJourney = mapBeneficiaryJourneyHistory(history)
       setParticipation(nextJourney.participation)
       setNotes(nextJourney.notes)
@@ -351,7 +352,7 @@ export const BeneficiaryDetail = ({
   }
 
   const refreshJourneyHistory = async () => {
-    const history = await pathwaysClient.getBeneficiaryJourneyHistory(projectId, beneficiary.id)
+    const history = await journeysClient.getBeneficiaryJourneyHistory(projectId, beneficiary.id)
     const nextJourney = mapBeneficiaryJourneyHistory(history)
     setParticipation(nextJourney.participation)
     setNotes(nextJourney.notes)
@@ -378,7 +379,7 @@ export const BeneficiaryDetail = ({
           ? { destinationProjectId: journeyDraft.destinationProjectId }
           : {}),
       }
-      await pathwaysClient.transitionBeneficiaryJourney(projectId, beneficiary.id, input)
+      await journeysClient.transitionBeneficiaryJourney(projectId, beneficiary.id, input)
       await refreshJourneyHistory()
       setJourneyOpen(false)
       toast.success('Enrollment status updated and reloaded from the project history.')
@@ -409,7 +410,7 @@ export const BeneficiaryDetail = ({
         ...(noteDraft.note.trim() ? { note: noteDraft.note.trim() } : {}),
         ...(selectedStage ? { stageId: selectedStage.id } : {}),
       }
-      await pathwaysClient.correctBeneficiaryJourneyEvent(
+      await journeysClient.correctBeneficiaryJourneyEvent(
         projectId,
         beneficiary.id,
         noteDraft.eventId,

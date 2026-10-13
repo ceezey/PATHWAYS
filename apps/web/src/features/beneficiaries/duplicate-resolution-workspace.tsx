@@ -1,5 +1,6 @@
 'use client'
 
+import type { DuplicateCandidatePairResponse, DuplicateProfileResponse } from '@pathways/shared'
 import { ArrowLeft, Link2, SearchCheck, UsersRound } from 'lucide-react'
 import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -19,18 +20,14 @@ import {
 } from '@/components/ui/select'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useSafeProjectSelection } from '@/hooks/use-safe-project-selection'
+import { beneficiariesClient } from '@/lib/api/beneficiaries'
 import { projectsClient } from '@/lib/api/projects'
 import { isUiActionAvailable } from '@/lib/rbac/ui-action-availability'
-import {
-  type DuplicateCandidatePair,
-  type DuplicateProfile,
-  pathwaysClient,
-} from '@/lib/services/pathways-client'
 import type { ProjectSummary } from '@/types/pathways'
 
 type Decision = 'KEEP_DISTINCT' | 'LINK'
 
-const pairId = (pair: DuplicateCandidatePair) => `${pair.left.code} / ${pair.right.code}`
+const pairId = (pair: DuplicateCandidatePairResponse) => `${pair.left.code} / ${pair.right.code}`
 const failure = 'Duplicate candidates could not be loaded. Try again.'
 
 export const DuplicateResolutionWorkspace = () => {
@@ -38,7 +35,7 @@ export const DuplicateResolutionWorkspace = () => {
   const canReview = isUiActionAvailable(role, 'beneficiaries.merge', profile)
   const [projects, setProjects] = useState<ProjectSummary[]>([])
   const [projectId, setProjectId] = useSafeProjectSelection(projects.map((project) => project.id))
-  const [pairs, setPairs] = useState<DuplicateCandidatePair[]>([])
+  const [pairs, setPairs] = useState<DuplicateCandidatePairResponse[]>([])
   const [status, setStatus] = useState<'loading' | 'ready' | 'failed'>('loading')
   const [query, setQuery] = useState('')
   const [selectedKey, setSelectedKey] = useState('')
@@ -61,7 +58,7 @@ export const DuplicateResolutionWorkspace = () => {
     if (!projectId) return
     setStatus('loading')
     try {
-      setPairs(await pathwaysClient.getDuplicateCandidates(projectId))
+      setPairs(await beneficiariesClient.getDuplicateCandidates(projectId))
       setStatus('ready')
     } catch {
       setStatus('failed')
@@ -88,7 +85,7 @@ export const DuplicateResolutionWorkspace = () => {
     if (!selected || !decision) return
     setBusy(true)
     try {
-      await pathwaysClient.resolveDuplicate(projectId, {
+      await beneficiariesClient.resolveDuplicate(projectId, {
         leftId: selected.left.id,
         rightId: selected.right.id,
         decision,
@@ -253,7 +250,7 @@ const PersonCard = ({
   person,
 }: {
   label: string
-  person: DuplicateProfile
+  person: DuplicateProfileResponse
 }) => (
   <section className="rounded-lg border bg-card p-5" aria-label={label}>
     <p className="text-xs font-semibold uppercase tracking-wide text-primary">{label}</p>

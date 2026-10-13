@@ -74,6 +74,7 @@ import { useDisplayLabels } from '@/hooks/use-display-labels'
 import { usePendingCreate } from '@/hooks/use-pending-create'
 import { activitiesClient } from '@/lib/api/activities'
 import { indicatorsClient } from '@/lib/api/indicators'
+import { journeysClient } from '@/lib/api/journeys'
 import { projectsClient } from '@/lib/api/projects'
 import { sensitiveDraftGeneration } from '@/lib/auth/sensitive-drafts'
 import { createdSince, fingerprintOf } from '@/lib/forms/pending-create'
@@ -2374,7 +2375,7 @@ const JourneyStageSelector = ({
     setStages([])
     setUnavailable(false)
     if (projectId && canRead) {
-      void pathwaysClient.getJourneyStages(projectId).then(
+      void journeysClient.getJourneyStages(projectId).then(
         (records) => {
           if (active) setStages(records)
         },

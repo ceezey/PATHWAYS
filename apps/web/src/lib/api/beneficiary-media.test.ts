@@ -14,7 +14,6 @@ vi.mock('@/lib/api/core/request', async (importOriginal) => ({
   requestFoundationResponse: request.requestFoundationResponse,
 }))
 
-import { pathwaysClient } from '@/lib/services/pathways-client'
 import { beneficiaryMediaClient } from './beneficiary-media'
 
 const projectId = '79600000-0000-4000-8000-000000000001'
@@ -28,13 +27,7 @@ const file = {
   sha256: 'a'.repeat(64),
 }
 
-// The same cases run against the PathwaysClient methods until Task 3 removes them.
-const clients = [
-  ['pathwaysClient', pathwaysClient],
-  ['beneficiaryMediaClient', beneficiaryMediaClient],
-] as const
-
-describe.each(clients)('%s beneficiary media requests', (_name, client) => {
+describe('beneficiaryMediaClient beneficiary media requests', () => {
   beforeEach(() => {
     request.requestFoundation.mockReset()
     request.requestFoundationResponse.mockReset()
@@ -42,28 +35,28 @@ describe.each(clients)('%s beneficiary media requests', (_name, client) => {
 
   it('lists the media and refuses an answer that is not a list', async () => {
     request.requestFoundation.mockResolvedValue([{ id: mediaId }])
-    await expect(client.listBeneficiaryMedia(projectId, beneficiaryId)).resolves.toEqual([
-      { id: mediaId },
-    ])
+    await expect(
+      beneficiaryMediaClient.listBeneficiaryMedia(projectId, beneficiaryId),
+    ).resolves.toEqual([{ id: mediaId }])
     expect(request.requestFoundation).toHaveBeenCalledWith(path)
     request.requestFoundation.mockResolvedValue({})
-    await expect(client.listBeneficiaryMedia(projectId, beneficiaryId)).rejects.toThrow(
-      'Invalid beneficiary media response.',
-    )
+    await expect(
+      beneficiaryMediaClient.listBeneficiaryMedia(projectId, beneficiaryId),
+    ).rejects.toThrow('Invalid beneficiary media response.')
   })
 
   it('reads the limits and refuses a negative or missing number', async () => {
     const limits = { maxFiles: 10, maxFileBytes: 5_242_880, contentTypes: ['image/jpeg'] }
     request.requestFoundation.mockResolvedValue(limits)
-    await expect(client.getBeneficiaryMediaLimits(projectId, beneficiaryId)).resolves.toEqual(
-      limits,
-    )
+    await expect(
+      beneficiaryMediaClient.getBeneficiaryMediaLimits(projectId, beneficiaryId),
+    ).resolves.toEqual(limits)
     expect(request.requestFoundation).toHaveBeenCalledWith(`${path}/limits`)
     for (const bad of [{ ...limits, maxFiles: -1 }, { maxFileBytes: 1 }, null]) {
       request.requestFoundation.mockResolvedValue(bad)
-      await expect(client.getBeneficiaryMediaLimits(projectId, beneficiaryId)).rejects.toThrow(
-        'Invalid beneficiary media limits response.',
-      )
+      await expect(
+        beneficiaryMediaClient.getBeneficiaryMediaLimits(projectId, beneficiaryId),
+      ).rejects.toThrow('Invalid beneficiary media limits response.')
     }
   })
 
@@ -71,30 +64,30 @@ describe.each(clients)('%s beneficiary media requests', (_name, client) => {
     const reserved = [{ mediaId, ...file, uploadUrl: null }]
     request.requestFoundation.mockResolvedValue({ files: reserved })
     const input = { files: [file], note: 'Workshop' }
-    await expect(client.reserveBeneficiaryMedia(projectId, beneficiaryId, input)).resolves.toEqual(
-      reserved,
-    )
+    await expect(
+      beneficiaryMediaClient.reserveBeneficiaryMedia(projectId, beneficiaryId, input),
+    ).resolves.toEqual(reserved)
     expect(request.requestFoundation).toHaveBeenCalledWith(`${path}/reservations`, {
       method: 'POST',
       body: JSON.stringify(input),
     })
     request.requestFoundation.mockResolvedValue({})
-    await expect(client.reserveBeneficiaryMedia(projectId, beneficiaryId, input)).rejects.toThrow(
-      'Invalid beneficiary media reservation response.',
-    )
+    await expect(
+      beneficiaryMediaClient.reserveBeneficiaryMedia(projectId, beneficiaryId, input),
+    ).rejects.toThrow('Invalid beneficiary media reservation response.')
   })
 
   it('finalizes by an encoded id and downloads the content as a blob', async () => {
     request.requestFoundation.mockResolvedValue(undefined)
-    await client.finalizeBeneficiaryMedia(projectId, beneficiaryId, 'a b')
+    await beneficiaryMediaClient.finalizeBeneficiaryMedia(projectId, beneficiaryId, 'a b')
     expect(request.requestFoundation).toHaveBeenCalledWith(`${path}/a%20b/finalize`, {
       method: 'POST',
     })
     const blob = new Blob(['bytes'])
     request.requestFoundationResponse.mockResolvedValue({ blob: async () => blob })
-    await expect(client.getBeneficiaryMediaBlob(projectId, beneficiaryId, mediaId)).resolves.toBe(
-      blob,
-    )
+    await expect(
+      beneficiaryMediaClient.getBeneficiaryMediaBlob(projectId, beneficiaryId, mediaId),
+    ).resolves.toBe(blob)
     expect(request.requestFoundationResponse).toHaveBeenCalledWith(`${path}/${mediaId}/content`)
   })
 })

@@ -25,6 +25,8 @@ vi.mock('@/hooks/use-current-role', () => ({
 vi.mock('@/lib/services/pathways-client', () => ({
   pathwaysClient: client,
 }))
+vi.mock('@/lib/api/beneficiaries', () => ({ beneficiariesClient: client }))
+vi.mock('@/lib/api/journeys', () => ({ journeysClient: client }))
 vi.mock('@/lib/api/activities', () => ({ activitiesClient: client }))
 vi.mock('@/lib/api/projects', () => ({ projectsClient: client }))
 vi.mock('@/lib/api/core/request', () => ({

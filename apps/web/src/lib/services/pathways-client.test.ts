@@ -17,6 +17,7 @@ vi.mock('@/lib/supabase/client', () => ({
 }))
 
 import { activitiesClient } from '@/lib/api/activities'
+import { beneficiariesClient } from '@/lib/api/beneficiaries'
 import {
   PathwaysClientError,
   requestFoundation,
@@ -234,9 +235,9 @@ describe('PATHWAYS frontend data boundary', () => {
   })
 
   it('returns no beneficiary records without a project scope', async () => {
-    await expect(pathwaysClient.getBeneficiaryRecordsForRole('Program Manager')).resolves.toEqual(
-      [],
-    )
+    await expect(
+      beneficiariesClient.getBeneficiaryRecordsForRole('Program Manager'),
+    ).resolves.toEqual([])
   })
 
   it('loads and creates activities through the scoped API without requiring relationship links', async () => {
@@ -965,7 +966,7 @@ describe('workspace ownership during asynchronous token acquisition', () => {
       )
       const fetcher = vi.fn()
       vi.stubGlobal('fetch', fetcher)
-      const request = pathwaysClient.registerBeneficiary(projectId, {
+      const request = beneficiariesClient.registerBeneficiary(projectId, {
         formId: '72000000-0000-4000-8000-000000000005',
         clientRegistrationId: '72000000-0000-4000-8000-000000000006',
         values: { display_name: 'Actor A entered data' },

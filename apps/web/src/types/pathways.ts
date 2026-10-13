@@ -524,12 +524,6 @@ export interface BeneficiaryRecord extends Beneficiary {
   }>
 }
 
-export interface RegisterBeneficiaryInput {
-  formId: string
-  clientRegistrationId: string
-  values: Record<string, unknown>
-}
-
 export interface UpdateBeneficiaryInput {
   subjectType: 'INDIVIDUAL' | 'GROUP' | 'COMMUNITY'
   displayName?: string

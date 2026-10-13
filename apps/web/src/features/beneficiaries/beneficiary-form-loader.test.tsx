@@ -18,9 +18,8 @@ vi.mock('@/hooks/use-current-role', () => ({
   useCurrentRole: () => ({ role: 'Monitoring and Evaluation Officer' }),
 }))
 
-vi.mock('@/lib/services/pathways-client', () => ({
-  pathwaysClient: { getBeneficiaryRecordForRole },
-}))
+vi.mock('@/lib/services/pathways-client', () => ({ pathwaysClient: {} }))
+vi.mock('@/lib/api/beneficiaries', () => ({ beneficiariesClient: { getBeneficiaryRecordForRole } }))
 vi.mock('@/lib/api/projects', () => ({ projectsClient: { getProjectsForRole } }))
 vi.mock('@/lib/api/core/request', () => ({
   PathwaysClientError: class PathwaysClientError extends Error {

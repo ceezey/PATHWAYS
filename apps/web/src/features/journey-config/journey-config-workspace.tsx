@@ -14,8 +14,8 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { useCurrentRole } from '@/hooks/use-current-role'
+import { journeysClient } from '@/lib/api/journeys'
 import { isUiActionAvailable } from '@/lib/rbac/ui-action-availability'
-import { pathwaysClient } from '@/lib/services/pathways-client'
 import type { Activity, JourneyStageConfig, ProjectDetail } from '@/types/pathways'
 
 import {
@@ -89,7 +89,7 @@ export const JourneyConfigWorkspace = ({ project, activities, initialStages }: W
     if (problem) return toast.error(problem)
     setSaving(true)
     try {
-      setStages(await pathwaysClient.saveJourneyStages(project.id, stages))
+      setStages(await journeysClient.saveJourneyStages(project.id, stages))
       toast.success('Journey-stage configuration saved.')
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Journey stages could not be saved.')

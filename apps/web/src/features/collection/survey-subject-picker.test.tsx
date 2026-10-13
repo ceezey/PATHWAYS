@@ -16,10 +16,9 @@ vi.mock('@/hooks/use-current-role', () => ({
     },
   }),
 }))
-vi.mock('@/lib/services/pathways-client', () => ({
-  pathwaysClient: {
-    getSurveySubjectPage: (...args: unknown[]) => state.page(...args),
-  },
+vi.mock('@/lib/services/pathways-client', () => ({ pathwaysClient: {} }))
+vi.mock('@/lib/api/beneficiaries', () => ({
+  beneficiariesClient: { getSurveySubjectPage: (...args: unknown[]) => state.page(...args) },
 }))
 const projectId = '10000000-0000-4000-8000-000000000001'
 const formId = '20000000-0000-4000-8000-000000000002'

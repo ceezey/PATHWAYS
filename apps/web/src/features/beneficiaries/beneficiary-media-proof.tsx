@@ -29,9 +29,9 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { activitiesClient } from '@/lib/api/activities'
+import { beneficiaryMediaClient } from '@/lib/api/beneficiary-media'
 import { PathwaysClientError } from '@/lib/api/core/request'
 import { sha256Hex } from '@/lib/files/proof-file-hash'
-import { pathwaysClient } from '@/lib/services/pathways-client'
 import type {
   ActivityProofFileDeclaration,
   BeneficiaryMediaItem,
@@ -96,7 +96,7 @@ export const BeneficiaryMediaProof = ({
   const load = useCallback(async () => {
     setLoadState('loading')
     try {
-      setItems(await pathwaysClient.listBeneficiaryMedia(projectId, beneficiaryId))
+      setItems(await beneficiaryMediaClient.listBeneficiaryMedia(projectId, beneficiaryId))
       setLoadState('ready')
     } catch {
       setLoadState('error')
@@ -291,7 +291,7 @@ const AddMediaDialog = ({
 
   useEffect(() => {
     let cancelled = false
-    pathwaysClient
+    beneficiaryMediaClient
       .getBeneficiaryMediaLimits(projectId, beneficiaryId)
       .then((value) => !cancelled && setLimits(value))
       .catch(() => undefined)
@@ -337,7 +337,7 @@ const AddMediaDialog = ({
         await activitiesClient.uploadActivityProofFile(item.uploadUrl, item.file)
         uploadedKeys.current.add(item.key)
       }
-      await pathwaysClient.finalizeBeneficiaryMedia(projectId, beneficiaryId, item.mediaId)
+      await beneficiaryMediaClient.finalizeBeneficiaryMedia(projectId, beneficiaryId, item.mediaId)
       patch(item.key, { status: 'uploaded', error: undefined })
       return true
     } catch (caught) {
@@ -381,10 +381,14 @@ const AddMediaDialog = ({
           byteSize: item.file.size,
           sha256: await sha256Hex(item.file),
         })
-      const reserved = await pathwaysClient.reserveBeneficiaryMedia(projectId, beneficiaryId, {
-        files: declarations,
-        ...(note.trim() ? { note: note.trim() } : {}),
-      })
+      const reserved = await beneficiaryMediaClient.reserveBeneficiaryMedia(
+        projectId,
+        beneficiaryId,
+        {
+          files: declarations,
+          ...(note.trim() ? { note: note.trim() } : {}),
+        },
+      )
       setLocked(true)
       // Each file is matched to its reservation by name and digest, never by position.
       const working = files.map((item, index) => {
@@ -572,7 +576,7 @@ const MediaViewer = ({
     let objectUrl: string | null = null
     setState('loading')
     setUrl(null)
-    pathwaysClient
+    beneficiaryMediaClient
       .getBeneficiaryMediaBlob(projectId, beneficiaryId, item.id)
       .then((blob) => {
         if (cancelled) return

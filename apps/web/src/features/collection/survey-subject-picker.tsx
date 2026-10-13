@@ -4,8 +4,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useCurrentRole } from '@/hooks/use-current-role'
+import { beneficiariesClient } from '@/lib/api/beneficiaries'
 import { useSensitiveDraftOwner } from '@/lib/auth/sensitive-drafts'
-import { pathwaysClient } from '@/lib/services/pathways-client'
 import { useEffect, useState } from 'react'
 
 type Props = {
@@ -66,7 +66,7 @@ function OwnedSurveySubjectPicker({
     let active = true
     setPage(null)
     setState('loading')
-    pathwaysClient
+    beneficiariesClient
       .getSurveySubjectPage(projectId, query, cursor, controller.signal)
       .then((result) => {
         if (active && isCurrent()) {

@@ -8,7 +8,9 @@ import { AsyncState, StatusMessage } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { activitiesClient } from '@/lib/api/activities'
+import { beneficiariesClient } from '@/lib/api/beneficiaries'
 import { PathwaysClientError } from '@/lib/api/core/request'
+import { journeysClient } from '@/lib/api/journeys'
 import { projectsClient } from '@/lib/api/projects'
 import { STEP_UP_COMPLETED_EVENT } from '@/lib/auth/beneficiary-step-up-events'
 import { principalHasAtomicPermission } from '@/lib/rbac/policy'
@@ -92,7 +94,7 @@ export const BeneficiaryDetailLoader = ({
         let scopedProjectId: string | undefined
         for (const project of candidateProjects) {
           try {
-            beneficiary = await pathwaysClient.getBeneficiaryRecordForRole(
+            beneficiary = await beneficiariesClient.getBeneficiaryRecordForRole(
               verifiedRole,
               project.id,
               beneficiaryId,
@@ -123,8 +125,8 @@ export const BeneficiaryDetailLoader = ({
             : Promise.resolve([])
         const [activities, stages, history, forms, assessments] = await Promise.all([
           activitiesClient.getActivities(scopedProjectId),
-          pathwaysClient.getJourneyStages(scopedProjectId),
-          pathwaysClient.getBeneficiaryJourneyHistory(scopedProjectId, beneficiaryId),
+          journeysClient.getJourneyStages(scopedProjectId),
+          journeysClient.getBeneficiaryJourneyHistory(scopedProjectId, beneficiaryId),
           canReadForms ? pathwaysClient.getDigitalForms(scopedProjectId) : Promise.resolve([]),
           readAssessments,
         ])
