@@ -439,3 +439,17 @@ Ruling: the tests-only fix f8c69415 adds 14 api HTTP cases (update, archive, edi
 Ruling: S5a Task 6 matched (same-function checks same body, split foreign lines only the four expected in import-promotion.service.ts, line counts after Biome, api plan value plus 14), cost if wrong: none.
 
 Ruling: apply the S8 pre-flight fixes (13 must-fix, 13 should-fix, blocks B1 to B10: cloud Task 0, S7b present expectations with an S7b-absent sentence, the users, guard and public test fixes, docs/handoff grep exclusions, SAD base sha and role counts with recount wording, pull request in place of the dev merge, Claude-Session trailers, rm -rf .next before builds, lost strict rows); the CR status example names S7b, and baseline and role counts from the simulated tree are recounted at S8 Task 0, cost if wrong: an S8 Task 0 stop. Committed with the next docs commit after Task 7.
+
+Ruling: S5a Task 7 matched (split lines 170/168/162/156 with foreign 0, post-Biome 169/175/161/168, smart-match.test.ts unchanged, imports B_imports+3), cost if wrong: none.
+
+Ruling: S5a Task 7 review PASS (42 declarations token-equal, comments identical, exports as briefed, no cycle); the low on PreparedName exported but file-local stays as the brief mandates it, cost if wrong: one wider export.
+
+Ruling: S5a Tasks 5 and 6 and fix f8c69415 paired review PASS (moves token-equal apart from the briefed renames, withAuthorizedOperation 16 and 18 unchanged, both review-3-4 mediums resolved); the lows stay (DTO wording in contract test names, the top-level-only method-key filter with no observable effect, three exports used only in their own files), cost if wrong: wording and wider exports only.
+
+Ruling: S5a Task 8 matched (SAD routing test fail-first then sad 56, docs check at baseline, docs grep empty); the Task 5 activity bullet gives the plan's api 2500 and the fix bullet carries the 14 extra api cases, cost if wrong: none.
+
+Ruling: S5a final review PASS with one medium (Review Focus 5 eviction half unpinned: no test runs updateForm, publishForm or archiveForm then getForm, so a second cache instance or a lost evictForm stays green); a tests-only fix adds that test and moves the activity-log fix bullet after Task 8 so the counts read in order; the other lows stay (dated records citing old test names are point-in-time, a commit cannot name its own hash, DTO wording in test names, three file-local exports), cost if wrong: a stale cache after a form edit goes unnoticed until the smoke.
+
+Ruling: S5a static gates passed at 6c0ed266 (config 19, shared 570, imports 94, api 2514 with 21 skipped, web 224 files and 1998 tests, sad 56, Middleware 103 kB, dist layout ok, compiled pipe probe all Object as expected); replay is the pull request CI gate, and the local stack, boot, e2e and smoke are pending local run, cost if wrong: none beyond a CI cycle.
+
+Ruling: S5a SAD sign-off PASS at ede08092 over 2cfa0454 (146 entries: design-qa-agent 61, metadata-import-validator 55, organization-isolation-checker 17, beneficiary-privacy-guardian 11, restraint-guardian 2, no block), with ede08092 re-reviewed by design-qa and the import validator on a scoped packet, cost if wrong: a later SAD finding on the S5a range that pull request CI does not catch.
