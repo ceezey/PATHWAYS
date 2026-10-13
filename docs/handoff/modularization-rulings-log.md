@@ -533,3 +533,27 @@ Ruling: apply the S4c pre-flight fixes (2 must-fix: baselines from the real S4b 
 Ruling: the S4c plan (Tasks 0 to 6, replayed from the S4b dry-run tip with lost 0 on all four splits and 50 rows and 177 expect kept in the two split tests) gets one combined pre-flight and fix agent against the real S4b tip 7442e2fe, and the S5b planner starts now on the S4c replay tree b85a0f8, cost if wrong: a fix less independently checked, caught by the task reviews.
 
 Ruling: the two mutation gaps the S4c planner found (a stored draft of another project and the minor age boundary are untested before and after the split) are recorded, not closed in S4c, because they predate the refactor and S4c changes no behavior, cost if wrong: two untested behaviors stay untested.
+
+Ruling: S4c Task 0 matched every anchor at 1a6919b4 (nine line counts total 5463, 50 it, 6 describe, 177 expect, nine hash prefixes) with baselines shared 665, imports 94, api 2610 (21 skipped), web 227 files and 2015 tests, sad 57, M0 103 kB; plan copy and index row in fd0dd7f0, cost if wrong: none.
+
+Ruling: S4c Task 1 matched (14 cuts, lost 0 added 255 over 1365 lines, ScopedBeneficiaryForm 0, hook mutations fail 1, 3 and 1 tests and restore byte for byte, web 227 files and 2015 tests, 15 files 1715/1367) in ff73a876, cost if wrong: none.
+
+Ruling: S4c Task 1 review PASS (lost 0 of real content; 11 lines Biome reflowed in JSX render the same; the only logic change is the stable setConfirmOpen setter in the context effect dependency array per ruling 2; mutations re-run), no fix, cost if wrong: none.
+
+Ruling: S4c Task 2 matched (14 cuts, lost 0 added 145 over 1069 lines, history reload and stage order mutations fail 3 and 1 named tests, web 227 files and 2015 tests, 14 files 1576/1108) in 5019688d; one known beneficiary-detail-loader flake passed alone and on rerun, cost if wrong: none.
+
+Ruling: S4c Task 2 review PASS (lost 0 of real content, 8 Biome-reflowed lines render the same, useSearchParams now runs inside the view hook after the state hooks as the brief prescribes, which is harmless because hook order stays fixed across renders and it holds no state), no fix, cost if wrong: none.
+
+Ruling: S4c Task 3 matched (50 it and 177 expect before and after, describe 6 to 10, form proof loses only the select mock opener, detail lost 0, web 232 files and 2015 tests, 10 files 1457/1149) in 79c9e14c, cost if wrong: none.
+
+Ruling: S4c Task 3 review PASS (it and expect multisets equal 50 and 177, setup blocks byte-identical per test family, select mock opener only reformatted); the two nits (fixtures import block placement, exported mutable profileState isolated per file) stay as is, cost if wrong: none.
+
+Ruling: S4c Task 4 route compare printed 0 different routes instead of 3 bigger by 1 kB, accepted, because this container's Task 0 baseline already shows 300, 280 and 280 kB first load for the three beneficiary routes (the plan measured 299, 279 and 279 on a lower base) and they stay there; only the detail page size moved from 13.6 to 14.3 kB, cost if wrong: a 1 kB route growth unrecorded.
+
+Ruling: S4c Task 4 otherwise matched (media lost 0 added 0, directory lost 0 added 12, web 232 files and 2015 tests, Middleware 103 kB) in 17d2d93a and 814dc049, cost if wrong: none.
+
+Ruling: S4c Task 5 matched (5 replacements in 2 files, 3 audit tails, docs check at baseline) in 5801f1fc with the real route figure (first load 280, 300 and 280 kB unchanged, detail page 13.6 to 14.3 kB) in place of the plan's 1 kB growth, cost if wrong: none.
+
+Ruling: S4c Task 4 review PASS (media and directory bodies byte for byte, only export openers, imports and the briefed hook plumbing changed); the two nits (two imports from media.utils, return the memo directly) stay as is because the plan moves code verbatim, cost if wrong: none.
+
+Ruling: S4c final review PASS (no unpinned row: it titles and the 316-line expect multiset equal across the range; route figure and records match); the two CR lows are fixed docs-only (seven of eleven detail sections take a Pick and four plain props; all five files above 300 lines named), the medium is met by writing the real route figure and the pending local runs in the gate bullet, the use-beneficiary-columns.tsx name stays because the hook returns JSX column cells, and the docs/cr-pathways-default-registration-form.md lines 17 and 25 stay as dated audit evidence, cost if wrong: a slightly stale doc line.
