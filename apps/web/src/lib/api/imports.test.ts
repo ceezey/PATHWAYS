@@ -10,6 +10,7 @@ vi.mock('@/lib/api/core/request', async (importOriginal) => ({
   requestFoundation: request.requestFoundation,
 }))
 
+import { PathwaysClientError } from '@/lib/api/core/request'
 import { pathwaysClient } from '@/lib/services/pathways-client'
 import { importsClient } from './imports'
 
@@ -27,18 +28,35 @@ const clients = [
 ] as const
 
 describe.each(clients)('%s import requests', (_name, client) => {
-  beforeEach(() => request.requestFoundation.mockReset())
+  beforeEach(() => {
+    request.requestFoundation.mockReset()
+  })
 
   it('lists the batches and refuses an answer that is not a list or holds over 100 batches', async () => {
     request.requestFoundation.mockResolvedValue([{ id: batchId }])
     await expect(client.getImportBatches(projectId)).resolves.toEqual([{ id: batchId }])
     expect(request.requestFoundation).toHaveBeenCalledWith(batchesPath)
-    for (const bad of [{}, Array.from({ length: 101 }, () => ({}))]) {
+  })
+
+  it('accepts exactly 100 batches and refuses 101, null and a string with a network error', async () => {
+    const full = Array.from({ length: 100 }, () => ({}))
+    request.requestFoundation.mockResolvedValue(full)
+    await expect(client.getImportBatches(projectId)).resolves.toBe(full)
+    for (const bad of [{}, Array.from({ length: 101 }, () => ({})), null, 'batches']) {
       request.requestFoundation.mockResolvedValue(bad)
-      await expect(client.getImportBatches(projectId)).rejects.toThrow(
-        'Invalid import batch response.',
-      )
+      await expect(client.getImportBatches(projectId)).rejects.toMatchObject({
+        name: 'PathwaysClientError',
+        code: 'network',
+        message: 'Invalid import batch response.',
+      })
     }
+  })
+
+  it('lets a request failure through as the same error before any parse', async () => {
+    const failure = new PathwaysClientError('x', 'forbidden')
+    request.requestFoundation.mockRejectedValue(failure)
+    await expect(client.getImportBatches(projectId)).rejects.toBe(failure)
+    await expect(client.automaticImportMapping(projectId, batchId, 0)).rejects.toBe(failure)
   })
 
   it('reads one batch and the first 100 rows by their encoded ids', async () => {
@@ -59,6 +77,7 @@ describe.each(clients)('%s import requests', (_name, client) => {
     expect(path).toBe(`${batchesPath}/upload`)
     expect(init.method).toBe('POST')
     expect(init.body).toBeInstanceOf(FormData)
+    expect(init).toEqual({ method: 'POST', body: expect.any(FormData) })
     expect([...init.body.keys()]).toEqual(['formId', 'clientImportId', 'file'])
     expect(init.body.get('formId')).toBe(formId)
     expect(init.body.get('clientImportId')).toBe(clientImportId)
@@ -88,11 +107,18 @@ describe.each(clients)('%s import requests', (_name, client) => {
       method: 'POST',
       body: JSON.stringify({ expectedMappingRevision: 0 }),
     })
+    await client.automaticImportMapping(projectId, batchId, 1)
+    expect(request.requestFoundation).toHaveBeenLastCalledWith(`${batchPath}/automatic-mapping`, {
+      method: 'POST',
+      body: JSON.stringify({ expectedMappingRevision: 1 }),
+    })
     for (const bad of [{ ...receipt, batchId: clientImportId }, { ...receipt, mapped: -1 }, null]) {
       request.requestFoundation.mockResolvedValue(bad)
-      await expect(client.automaticImportMapping(projectId, batchId, 1)).rejects.toThrow(
-        'Invalid automatic mapping receipt.',
-      )
+      await expect(client.automaticImportMapping(projectId, batchId, 1)).rejects.toMatchObject({
+        name: 'PathwaysClientError',
+        code: 'network',
+        message: 'Invalid automatic mapping receipt.',
+      })
     }
   })
 
@@ -128,5 +154,87 @@ describe.each(clients)('%s import requests', (_name, client) => {
       method: 'POST',
       body: JSON.stringify({ expectedValidationRevision: 4 }),
     })
+  })
+
+  // Every id is 'a b' so each encodeURIComponent shows in the path; init says whether the call carries a second argument.
+  const odd = 'a b'
+  const batches = '/imports/projects/a%20b/batches'
+  const sentinel = { marker: 'response' }
+  const upload = new File(['name\nSample'], 'rows.csv', { type: 'text/csv' })
+  const calls = [
+    {
+      name: 'getImportBatches',
+      run: () => client.getImportBatches(odd),
+      path: batches,
+      init: false,
+      list: true,
+    },
+    {
+      name: 'getImportBatch',
+      run: () => client.getImportBatch(odd, odd),
+      path: `${batches}/a%20b`,
+      init: false,
+    },
+    {
+      name: 'getImportRows',
+      run: () => client.getImportRows(odd, odd),
+      path: `${batches}/a%20b/rows?offset=0&take=100`,
+      init: false,
+    },
+    {
+      name: 'uploadImport',
+      run: () => client.uploadImport(odd, odd, odd, upload),
+      path: `${batches}/upload`,
+      init: true,
+    },
+    {
+      name: 'resumeImportUpload',
+      run: () => client.resumeImportUpload(odd, odd),
+      path: `${batches}/a%20b/resume`,
+      init: true,
+    },
+    {
+      name: 'automaticImportMapping',
+      run: () => client.automaticImportMapping(odd, odd, 0),
+      path: `${batches}/a%20b/automatic-mapping`,
+      init: true,
+      list: true,
+    },
+    {
+      name: 'saveImportMapping',
+      run: () => client.saveImportMapping(odd, odd, 2, []),
+      path: `${batches}/a%20b/mapping`,
+      init: true,
+    },
+    {
+      name: 'validateImport',
+      run: () => client.validateImport(odd, odd, 3),
+      path: `${batches}/a%20b/validate`,
+      init: true,
+    },
+    {
+      name: 'processImport',
+      run: () => client.processImport(odd, odd, 4),
+      path: `${batches}/a%20b/process`,
+      init: true,
+    },
+  ]
+
+  it('encodes every id into the exact path and passes no argument besides the init', async () => {
+    for (const { name, run, path, init } of calls) {
+      request.requestFoundation.mockReset()
+      request.requestFoundation.mockResolvedValue(sentinel)
+      await run().catch(() => undefined)
+      const [call] = request.requestFoundation.mock.calls
+      expect(call[0], name).toBe(path)
+      expect(call, name).toHaveLength(init ? 2 : 1)
+    }
+  })
+
+  it('returns the response object untouched', async () => {
+    request.requestFoundation.mockResolvedValue(sentinel)
+    for (const { name, run, list } of calls) {
+      if (!list) await expect(run(), name).resolves.toBe(sentinel)
+    }
   })
 })

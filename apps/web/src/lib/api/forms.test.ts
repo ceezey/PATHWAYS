@@ -10,6 +10,7 @@ vi.mock('@/lib/api/core/request', async (importOriginal) => ({
   requestFoundation: request.requestFoundation,
 }))
 
+import { PathwaysClientError } from '@/lib/api/core/request'
 import { pathwaysClient } from '@/lib/services/pathways-client'
 import type { SaveDigitalFormInput } from '@/types/pathways'
 import { formsClient } from './forms'
@@ -46,16 +47,34 @@ const clients = [
 ] as const
 
 describe.each(clients)('%s form and direct entry requests', (_name, client) => {
-  beforeEach(() => request.requestFoundation.mockReset())
+  beforeEach(() => {
+    request.requestFoundation.mockReset()
+  })
 
   it('lists the forms and refuses an answer that is not a list or holds over 100 forms', async () => {
     request.requestFoundation.mockResolvedValue([{ id: formId }])
     await expect(client.getDigitalForms(projectId)).resolves.toEqual([{ id: formId }])
     expect(request.requestFoundation).toHaveBeenCalledWith(formsPath)
-    for (const bad of [{}, Array.from({ length: 101 }, () => ({}))]) {
+  })
+
+  it('accepts exactly 100 forms and refuses 101, null and a string with a network error', async () => {
+    const full = Array.from({ length: 100 }, () => ({}))
+    request.requestFoundation.mockResolvedValue(full)
+    await expect(client.getDigitalForms(projectId)).resolves.toBe(full)
+    for (const bad of [{}, Array.from({ length: 101 }, () => ({})), null, 'forms']) {
       request.requestFoundation.mockResolvedValue(bad)
-      await expect(client.getDigitalForms(projectId)).rejects.toThrow('Invalid form response.')
+      await expect(client.getDigitalForms(projectId)).rejects.toMatchObject({
+        name: 'PathwaysClientError',
+        code: 'network',
+        message: 'Invalid form response.',
+      })
     }
+  })
+
+  it('lets a request failure through as the same error', async () => {
+    const failure = new PathwaysClientError('x', 'forbidden')
+    request.requestFoundation.mockRejectedValue(failure)
+    await expect(client.getDigitalForms(projectId)).rejects.toBe(failure)
   })
 
   it('reads one form by its encoded id', async () => {
@@ -120,6 +139,11 @@ describe.each(clients)('%s form and direct entry requests', (_name, client) => {
       method: 'POST',
       body: JSON.stringify({ clientSubmissionId: clientId, values: { score: '7' }, beneficiaryId }),
     })
+    await client.saveDirectSubmission(projectId, formId, clientId, { score: '7' }, '')
+    expect(request.requestFoundation).toHaveBeenLastCalledWith(submissionsPath, {
+      method: 'POST',
+      body: JSON.stringify({ clientSubmissionId: clientId, values: { score: '7' } }),
+    })
   })
 
   it('reads a submission by its id and by its client id', async () => {
@@ -145,5 +169,111 @@ describe.each(clients)('%s form and direct entry requests', (_name, client) => {
       `${submissionsPath}/${submissionId}/submit`,
       { method: 'POST', body: JSON.stringify({ expectedUpdatedAt: stamp }) },
     )
+  })
+
+  // Every id is 'a b' so each encodeURIComponent shows in the path; init says whether the call carries a second argument.
+  const odd = 'a b'
+  const formsBase = '/metadata/projects/a%20b/forms'
+  const submissions = `${formsBase}/a%20b/submissions`
+  const sentinel = { marker: 'response' }
+  const calls = [
+    {
+      name: 'getDigitalForms',
+      run: () => client.getDigitalForms(odd),
+      path: formsBase,
+      init: false,
+      list: true,
+    },
+    {
+      name: 'getDigitalForm',
+      run: () => client.getDigitalForm(odd, odd),
+      path: `${formsBase}/a%20b`,
+      init: false,
+    },
+    {
+      name: 'createDigitalForm',
+      run: () => client.createDigitalForm(odd, input),
+      path: formsBase,
+      init: true,
+    },
+    {
+      name: 'updateDigitalForm',
+      run: () => client.updateDigitalForm(odd, odd, { ...input, expectedUpdatedAt: stamp }),
+      path: `${formsBase}/a%20b`,
+      init: true,
+    },
+    {
+      name: 'publishDigitalForm',
+      run: () => client.publishDigitalForm(odd, odd, stamp),
+      path: `${formsBase}/a%20b/publish`,
+      init: true,
+    },
+    {
+      name: 'createDigitalFormVersion',
+      run: () => client.createDigitalFormVersion(odd, odd),
+      path: `${formsBase}/a%20b/versions`,
+      init: true,
+    },
+    {
+      name: 'generateDigitalForm',
+      run: () =>
+        client.generateDigitalForm(odd, { code: 'post_test_copy', name: 'Post test (copy)' }),
+      path: `${formsBase}/generate`,
+      init: true,
+    },
+    {
+      name: 'validateDigitalFormValues',
+      run: () => client.validateDigitalFormValues(odd, odd, {}),
+      path: `${formsBase}/a%20b/validate`,
+      init: true,
+    },
+    {
+      name: 'saveDirectSubmission',
+      run: () => client.saveDirectSubmission(odd, odd, odd, {}),
+      path: submissions,
+      init: true,
+    },
+    {
+      name: 'getDirectSubmission',
+      run: () => client.getDirectSubmission(odd, odd, odd),
+      path: `${submissions}/a%20b`,
+      init: false,
+    },
+    {
+      name: 'getDirectSubmissionByClientId',
+      run: () => client.getDirectSubmissionByClientId(odd, odd, odd),
+      path: `${submissions}/by-client/a%20b`,
+      init: false,
+    },
+    {
+      name: 'updateDirectSubmission',
+      run: () => client.updateDirectSubmission(odd, odd, odd, stamp, {}),
+      path: `${submissions}/a%20b`,
+      init: true,
+    },
+    {
+      name: 'submitDirectSubmission',
+      run: () => client.submitDirectSubmission(odd, odd, odd, stamp),
+      path: `${submissions}/a%20b/submit`,
+      init: true,
+    },
+  ]
+
+  it('encodes every id into the exact path and passes no argument besides the init', async () => {
+    for (const { name, run, path, init } of calls) {
+      request.requestFoundation.mockReset()
+      request.requestFoundation.mockResolvedValue(sentinel)
+      await run().catch(() => undefined)
+      const [call] = request.requestFoundation.mock.calls
+      expect(call[0], name).toBe(path)
+      expect(call, name).toHaveLength(init ? 2 : 1)
+    }
+  })
+
+  it('returns the response object untouched', async () => {
+    request.requestFoundation.mockResolvedValue(sentinel)
+    for (const { name, run, list } of calls) {
+      if (!list) await expect(run(), name).resolves.toBe(sentinel)
+    }
   })
 })
