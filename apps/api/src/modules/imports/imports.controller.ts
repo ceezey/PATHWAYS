@@ -1,7 +1,6 @@
 import {
   Body,
   Controller,
-  ForbiddenException,
   Get,
   Inject,
   Param,
@@ -15,24 +14,25 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express'
 
 import { IMPORT_ENGINEERING_LIMITS } from '@pathways/imports'
-import { type ValidateImportRequest, validateImportRequest } from '@pathways/shared'
+import {
+  type AutomaticImportMappingRequest,
+  type ImportRowsQuery,
+  type ProcessImportRequest,
+  type SaveImportMappingRequest,
+  type UploadImportRequest,
+  type ValidateImportRequest,
+  automaticImportMappingRequest,
+  importRowsQuery,
+  processImportRequest,
+  saveImportMappingRequest,
+  uploadImportRequest,
+  validateImportRequest,
+} from '@pathways/shared'
 import type { AuthenticatedRequest } from '../../common/authz/application-identity'
+import { requestIdentity } from '../../common/authz/request-identity'
 import { RequirePermission } from '../../common/decorators/permission.decorator'
 import { ZodPipe } from '../../common/validation/zod-pipe'
-// biome-ignore lint/style/useImportType: Nest validation needs the DTO constructors at runtime.
-import {
-  AutomaticImportMappingDto,
-  ImportRowsQueryDto,
-  ProcessImportDto,
-  SaveImportMappingDto,
-  UploadImportDto,
-} from './imports.dto'
 import { ImportsService, type UploadedImportFile } from './imports.service'
-
-function profile(request: AuthenticatedRequest) {
-  if (!request.user) throw new ForbiddenException('Application profile is required.')
-  return request.user
-}
 
 @Controller('imports/projects/:projectId/batches')
 export class ImportsController {
@@ -41,7 +41,7 @@ export class ImportsController {
   @Get()
   @RequirePermission('imports.read')
   list(@Req() request: AuthenticatedRequest, @Param('projectId') projectId: string) {
-    return this.imports.listBatches(profile(request), projectId)
+    return this.imports.listBatches(requestIdentity(request), projectId)
   }
 
   @Post('upload')
@@ -61,10 +61,10 @@ export class ImportsController {
   upload(
     @Req() request: AuthenticatedRequest,
     @Param('projectId') projectId: string,
-    @Body() body: UploadImportDto,
+    @Body(new ZodPipe(uploadImportRequest)) body: UploadImportRequest,
     @UploadedFile() file?: UploadedImportFile,
   ) {
-    return this.imports.upload(profile(request), projectId, body, file)
+    return this.imports.upload(requestIdentity(request), projectId, body, file)
   }
 
   @Get(':batchId')
@@ -74,7 +74,7 @@ export class ImportsController {
     @Param('projectId') projectId: string,
     @Param('batchId') batchId: string,
   ) {
-    return this.imports.getBatch(profile(request), projectId, batchId)
+    return this.imports.getBatch(requestIdentity(request), projectId, batchId)
   }
 
   @Post(':batchId/resume')
@@ -84,7 +84,7 @@ export class ImportsController {
     @Param('projectId') projectId: string,
     @Param('batchId') batchId: string,
   ) {
-    return this.imports.resumeUpload(profile(request), projectId, batchId)
+    return this.imports.resumeUpload(requestIdentity(request), projectId, batchId)
   }
 
   @Get(':batchId/rows')
@@ -93,9 +93,9 @@ export class ImportsController {
     @Req() request: AuthenticatedRequest,
     @Param('projectId') projectId: string,
     @Param('batchId') batchId: string,
-    @Query() query: ImportRowsQueryDto,
+    @Query(new ZodPipe(importRowsQuery)) query: ImportRowsQuery,
   ) {
-    return this.imports.listRows(profile(request), projectId, batchId, query)
+    return this.imports.listRows(requestIdentity(request), projectId, batchId, query)
   }
 
   @Post(':batchId/automatic-mapping')
@@ -104,9 +104,9 @@ export class ImportsController {
     @Req() request: AuthenticatedRequest,
     @Param('projectId') projectId: string,
     @Param('batchId') batchId: string,
-    @Body() body: AutomaticImportMappingDto,
+    @Body(new ZodPipe(automaticImportMappingRequest)) body: AutomaticImportMappingRequest,
   ) {
-    return this.imports.automaticMapping(profile(request), projectId, batchId, body)
+    return this.imports.automaticMapping(requestIdentity(request), projectId, batchId, body)
   }
 
   @Patch(':batchId/mapping')
@@ -115,9 +115,9 @@ export class ImportsController {
     @Req() request: AuthenticatedRequest,
     @Param('projectId') projectId: string,
     @Param('batchId') batchId: string,
-    @Body() body: SaveImportMappingDto,
+    @Body(new ZodPipe(saveImportMappingRequest)) body: SaveImportMappingRequest,
   ) {
-    return this.imports.saveMapping(profile(request), projectId, batchId, body)
+    return this.imports.saveMapping(requestIdentity(request), projectId, batchId, body)
   }
 
   @Post(':batchId/validate')
@@ -128,7 +128,7 @@ export class ImportsController {
     @Param('batchId') batchId: string,
     @Body(new ZodPipe(validateImportRequest)) body: ValidateImportRequest,
   ) {
-    return this.imports.validate(profile(request), projectId, batchId, body)
+    return this.imports.validate(requestIdentity(request), projectId, batchId, body)
   }
 
   @Post(':batchId/process')
@@ -137,8 +137,8 @@ export class ImportsController {
     @Req() request: AuthenticatedRequest,
     @Param('projectId') projectId: string,
     @Param('batchId') batchId: string,
-    @Body() body: ProcessImportDto,
+    @Body(new ZodPipe(processImportRequest)) body: ProcessImportRequest,
   ) {
-    return this.imports.process(profile(request), projectId, batchId, body)
+    return this.imports.process(requestIdentity(request), projectId, batchId, body)
   }
 }

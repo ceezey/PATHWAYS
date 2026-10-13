@@ -5,10 +5,8 @@ import {
   NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common'
-import { plainToInstance } from 'class-transformer'
-import { validate } from 'class-validator'
+import { automaticImportMappingRequest } from '@pathways/shared'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { AutomaticImportMappingDto } from './imports.dto'
 import { ImportsService } from './imports.service'
 const state = vi.hoisted(() => ({
   permission: '',
@@ -292,11 +290,13 @@ describe('automatic mapping API authority boundary', () => {
       expect(String(error)).not.toContain('private')
     }
   })
-  it('DTO validation rejects extra fields under the actual whitelist settings', async () => {
-    const errors = await validate(
-      plainToInstance(AutomaticImportMappingDto, { expectedMappingRevision: 0, target: 'private' }),
-      { whitelist: true, forbidNonWhitelisted: true },
-    )
-    expect(errors.some((error) => error.property === 'target')).toBe(true)
+  it('the request contract rejects extra fields', () => {
+    const result = automaticImportMappingRequest.safeParse({
+      expectedMappingRevision: 0,
+      target: 'private',
+    })
+    expect(result.error?.issues).toEqual([
+      expect.objectContaining({ code: 'unrecognized_keys', keys: ['target'] }),
+    ])
   })
 })

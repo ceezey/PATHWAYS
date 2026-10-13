@@ -29,7 +29,15 @@ import {
   parseSecureImport,
   smartMatchColumns,
 } from '@pathways/imports/server'
-import type { FormFieldValidationContract, ValidateImportRequest } from '@pathways/shared'
+import type {
+  AutomaticImportMappingRequest,
+  FormFieldValidationContract,
+  ImportRowsQuery,
+  ProcessImportRequest,
+  SaveImportMappingRequest,
+  UploadImportRequest,
+  ValidateImportRequest,
+} from '@pathways/shared'
 import { writeAuditLog } from '../../common/audit/write-audit-log'
 import { type ApplicationIdentity, UUID_PATTERN } from '../../common/authz/application-identity'
 import { withAuthorizedOperation } from '../../common/authz/authorized-operation'
@@ -43,13 +51,6 @@ import {
 import { ParticipantsService } from '../participants/participants.service'
 import { StorageService } from '../storage/storage.service'
 import { parseAutomaticMappingReceipt } from './automatic-mapping-receipt'
-import type {
-  AutomaticImportMappingDto,
-  ImportRowsQueryDto,
-  ProcessImportDto,
-  SaveImportMappingDto,
-  UploadImportDto,
-} from './imports.dto'
 import { W10FinalizationFault } from './p07-w10-finalization-fault'
 
 export interface UploadedImportFile {
@@ -391,7 +392,7 @@ export class ImportsService {
     identity: ApplicationIdentity,
     projectId: string,
     batchId: string,
-    input: AutomaticImportMappingDto,
+    input: AutomaticImportMappingRequest,
   ) {
     if (
       !UUID_PATTERN.test(projectId) ||
@@ -528,7 +529,7 @@ export class ImportsService {
     identity: ApplicationIdentity,
     projectId: string,
     batchId: string,
-    query: ImportRowsQueryDto,
+    query: ImportRowsQuery,
   ) {
     return withAuthorizedOperation(this.prisma, identity, 'imports.read', async (tx, actor) => {
       const batch = await this.requireBatch(tx, actor, projectId, batchId)
@@ -566,7 +567,7 @@ export class ImportsService {
   async upload(
     identity: ApplicationIdentity,
     projectId: string,
-    input: UploadImportDto,
+    input: UploadImportRequest,
     file?: UploadedImportFile,
   ) {
     if (!file) throw new BadRequestException('A source file is required.')
@@ -684,7 +685,7 @@ export class ImportsService {
     identity: ApplicationIdentity,
     projectId: string,
     batchId: string,
-    input: SaveImportMappingDto,
+    input: SaveImportMappingRequest,
   ) {
     return withAuthorizedOperation(this.prisma, identity, 'imports.review', async (tx, actor) => {
       await this.lockBatch(tx, actor, projectId, batchId)
@@ -1013,7 +1014,7 @@ export class ImportsService {
     identity: ApplicationIdentity,
     projectId: string,
     batchId: string,
-    input: ProcessImportDto,
+    input: ProcessImportRequest,
   ) {
     const claim = await this.claimRows(identity, projectId, batchId, input)
     if (claim.complete) return this.getBatch(identity, projectId, batchId)
@@ -1053,7 +1054,7 @@ export class ImportsService {
     batchId: string,
     claim: ProcessingClaim,
     rowIds: string[],
-    input: ProcessImportDto,
+    input: ProcessImportRequest,
   ) {
     for (const rowId of rowIds) {
       try {
@@ -1232,7 +1233,7 @@ export class ImportsService {
   private reserveUpload(
     identity: ApplicationIdentity,
     projectId: string,
-    input: UploadImportDto,
+    input: UploadImportRequest,
     metadata: ReturnType<typeof fileMetadata>,
   ) {
     return withAuthorizedOperation(this.prisma, identity, 'imports.upload', async (tx, actor) => {
@@ -1434,7 +1435,7 @@ export class ImportsService {
     identity: ApplicationIdentity,
     projectId: string,
     batchId: string,
-    input: ProcessImportDto,
+    input: ProcessImportRequest,
   ): Promise<ProcessingClaim> {
     return withAuthorizedOperation(this.prisma, identity, 'imports.process', async (tx, actor) => {
       await this.lockBatch(tx, actor, projectId, batchId)
