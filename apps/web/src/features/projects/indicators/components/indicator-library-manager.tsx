@@ -33,13 +33,13 @@ import {
   libraryRecipes,
   numericKinds,
 } from '@pathways/shared'
-import { recipeNames } from './indicator-recipes'
+import { recipeNames } from '../indicators.copy'
 
 // Only recipes the database computes today (see deferred-features.md), matching the add form.
 const offeredRecipes = libraryRecipes.filter(
   (recipe) => recipe === 'ACTIVITY_COMPLETION_PERCENTAGE',
 )
-import { InlineNotice, OptionSelect } from './components/option-select'
+import { InlineNotice, OptionSelect } from '../../components/option-select'
 
 const field = (form: FormData, name: string) => String(form.get(name) ?? '').trim()
 

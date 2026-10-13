@@ -10,7 +10,7 @@ import {
   type IndicatorLibraryEntryResponse,
   createIndicatorFromLibraryRequest,
 } from '@pathways/shared'
-import { recipeNames } from './indicator-recipes'
+import { recipeNames } from '../indicators.copy'
 
 type Draft = Omit<CreateIndicatorFromLibraryRequest, 'clientMutationId'>
 const draftSchema = createIndicatorFromLibraryRequest.omit({ clientMutationId: true })
