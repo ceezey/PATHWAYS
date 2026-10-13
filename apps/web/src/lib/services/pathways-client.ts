@@ -4,7 +4,6 @@ import {
 } from './automatic-mapping-receipt'
 import {
   type SourceMutationContext,
-  type SourceMutationResult,
   ensureSourceInvalidationSubscription,
   sourceMutationTickets,
 } from './source-mutation'
@@ -15,7 +14,6 @@ import {
   requestFoundation,
   requestFoundationResponse,
 } from '@/lib/api/core/request'
-import { requestSourceMutation } from '@/lib/api/core/source-mutation-request'
 import type {
   ActivityProofFileDeclaration,
   AuthorizeExistingUserInput,
@@ -34,9 +32,7 @@ import type {
   ImportBatchDefinition,
   ImportMappingInput,
   ImportRowsPage,
-  Indicator,
   JourneyStageConfig,
-  ProjectIndicator,
   RegisterBeneficiaryInput,
   RoleDashboardViewModel,
   SaveDigitalFormInput,
@@ -46,15 +42,11 @@ import type {
 } from '@/types/pathways'
 import type { PathwaysRole } from '@/types/pathways-role'
 import {
-  type CreateIndicatorRequest as ApiCreateIndicatorInput,
-  type UpdateIndicatorRequest as ApiUpdateIndicatorInput,
-  type CreateIndicatorFromLibraryRequest,
   type DashboardActionCounts,
   type DashboardQuery,
   type DescriptiveAnalytics,
   type DescriptiveAnalyticsQuery,
   type MonitoringDashboard,
-  type RecordIndicatorMeasurementRequest,
   type RoleOverview,
   type SadddDashboard,
   type SadddQuery,
@@ -65,8 +57,6 @@ import {
   descriptiveAnalyticsQuerySchema,
   descriptiveAnalyticsSchema,
   formatMetricCell,
-  indicatorListResponse,
-  indicatorResponse,
   monitoringDashboardSchema,
   roleCodeByName,
   roleOverviewSchema,
@@ -76,9 +66,6 @@ import {
   timelineAnalyticsSchema,
 } from '@pathways/shared'
 import { z } from 'zod'
-type CreateIndicatorInput = Omit<ApiCreateIndicatorInput, 'clientMutationId'>
-type UpdateIndicatorInput = Omit<ApiUpdateIndicatorInput, 'clientMutationId'>
-type UseLibraryEntryDraft = Omit<CreateIndicatorFromLibraryRequest, 'clientMutationId'>
 import { parseRegistrationContext } from './registration-context'
 
 export interface AssessmentDetail {
@@ -146,36 +133,6 @@ interface PathwaysClient {
     enrollmentId: string,
     signal?: AbortSignal,
   ): Promise<AssessmentSummary[]>
-  getProjectIndicators(projectId: string, signal?: AbortSignal): Promise<ProjectIndicator[]>
-  getProjectIndicatorValues(projectId: string, signal?: AbortSignal): Promise<ProjectIndicator[]>
-  createProjectIndicator(
-    projectId: string,
-    input: CreateIndicatorInput,
-    context?: SourceMutationContext,
-  ): Promise<SourceMutationResult<ProjectIndicator>>
-  createProjectIndicatorFromLibrary(
-    projectId: string,
-    input: UseLibraryEntryDraft,
-    context?: SourceMutationContext,
-  ): Promise<SourceMutationResult<ProjectIndicator>>
-  updateProjectIndicator(
-    projectId: string,
-    indicatorId: string,
-    input: UpdateIndicatorInput,
-    context?: SourceMutationContext,
-  ): Promise<SourceMutationResult<ProjectIndicator>>
-  recordIndicatorMeasurement(
-    projectId: string,
-    indicatorId: string,
-    input: RecordIndicatorMeasurementRequest,
-    context?: SourceMutationContext,
-  ): Promise<SourceMutationResult<ProjectIndicator>>
-  archiveProjectIndicator(
-    projectId: string,
-    indicatorId: string,
-    expectedRevision: number,
-    context?: SourceMutationContext,
-  ): Promise<SourceMutationResult<ProjectIndicator>>
   getMonitoringDashboard(query?: DashboardQuery): Promise<MonitoringDashboard>
   getDashboardActionCounts(): Promise<DashboardActionCounts>
   getRoleOverview(): Promise<RoleOverview>
@@ -242,7 +199,6 @@ interface PathwaysClient {
     eventId: string,
     input: CorrectJourneyEventInput,
   ): Promise<{ id: string }>
-  getIndicators(projectId?: string, signal?: AbortSignal): Promise<Indicator[]>
   getBeneficiaryRegistrationContext(projectId: string): Promise<BeneficiaryRegistrationContext>
   // cr-pathways-default-registration-form: provision the system default registration form.
   ensureDefaultRegistrationForm(projectId: string): Promise<BeneficiaryRegistrationContext>
@@ -350,107 +306,6 @@ class BackendReadyPathwaysClient implements PathwaysClient {
         `/projects/${encodeURIComponent(projectId)}/evaluation/assessments?enrollmentId=${encodeURIComponent(enrollmentId)}`,
         { signal },
       ),
-    )
-  }
-
-  async getProjectIndicators(projectId: string, signal?: AbortSignal): Promise<ProjectIndicator[]> {
-    return indicatorListResponse.parse(
-      await requestFoundation(`/projects/${encodeURIComponent(projectId)}/indicators`, { signal }),
-    )
-  }
-
-  // KPI values for monitoring.read and reports.indicator.read holders without indicators.read; definitions stay closed.
-  async getProjectIndicatorValues(
-    projectId: string,
-    signal?: AbortSignal,
-  ): Promise<ProjectIndicator[]> {
-    return indicatorListResponse.parse(
-      await requestFoundation(`/projects/${encodeURIComponent(projectId)}/indicator-values`, {
-        signal,
-      }),
-    )
-  }
-
-  async createProjectIndicator(
-    projectId: string,
-    input: CreateIndicatorInput,
-    context?: SourceMutationContext,
-  ): Promise<SourceMutationResult<ProjectIndicator>> {
-    return requestSourceMutation(
-      `/projects/${encodeURIComponent(projectId)}/indicators`,
-      'POST',
-      input,
-      context,
-      (value) => indicatorResponse.parse(value),
-    )
-  }
-
-  async createProjectIndicatorFromLibrary(
-    projectId: string,
-    input: UseLibraryEntryDraft,
-    context?: SourceMutationContext,
-  ): Promise<SourceMutationResult<ProjectIndicator>> {
-    return requestSourceMutation(
-      `/projects/${encodeURIComponent(projectId)}/indicators/from-library`,
-      'POST',
-      input,
-      context,
-      (value) => indicatorResponse.parse(value),
-    )
-  }
-
-  async updateProjectIndicator(
-    projectId: string,
-    indicatorId: string,
-    input: UpdateIndicatorInput,
-    context?: SourceMutationContext,
-  ): Promise<SourceMutationResult<ProjectIndicator>> {
-    return requestSourceMutation(
-      `/projects/${encodeURIComponent(projectId)}/indicators/${encodeURIComponent(indicatorId)}`,
-      'PATCH',
-      input,
-      context,
-      (value) => indicatorResponse.parse(value),
-    )
-  }
-
-  async recordIndicatorMeasurement(
-    projectId: string,
-    indicatorId: string,
-    input: RecordIndicatorMeasurementRequest,
-    context?: SourceMutationContext,
-  ): Promise<SourceMutationResult<ProjectIndicator>> {
-    if (!context?.isCurrent())
-      throw new PathwaysClientError('Current measurement ownership is required.', 'unauthorized')
-    const { clientMeasurementId, ...body } = input
-    const path = `/projects/${encodeURIComponent(projectId)}/indicators/${encodeURIComponent(indicatorId)}/measurements`
-    return sourceTickets.execute(
-      context,
-      `POST:${path}`,
-      body,
-      (captured) =>
-        requestFoundation(
-          path,
-          { method: 'POST', body: JSON.stringify(captured) },
-          context.isCurrent,
-        ),
-      (value) => indicatorResponse.parse(value),
-      { requestId: clientMeasurementId, keyField: 'clientMeasurementId', allowLegacy: true },
-    )
-  }
-
-  async archiveProjectIndicator(
-    projectId: string,
-    indicatorId: string,
-    expectedRevision: number,
-    context?: SourceMutationContext,
-  ): Promise<SourceMutationResult<ProjectIndicator>> {
-    return requestSourceMutation(
-      `/projects/${encodeURIComponent(projectId)}/indicators/${encodeURIComponent(indicatorId)}/archive`,
-      'POST',
-      { expectedRevision },
-      context,
-      (value) => indicatorResponse.parse(value),
     )
   }
 
@@ -807,21 +662,6 @@ class BackendReadyPathwaysClient implements PathwaysClient {
       `/beneficiaries/projects/${encodeURIComponent(projectId)}/${encodeURIComponent(beneficiaryId)}/journey/events/${encodeURIComponent(eventId)}/corrections`,
       { method: 'POST', body: JSON.stringify(input) },
     ) as Promise<{ id: string }>
-  }
-
-  async getIndicators(projectId?: string, signal?: AbortSignal): Promise<Indicator[]> {
-    if (!projectId) {
-      throw new PathwaysClientError('Project scope is required.', 'invalid')
-    }
-
-    return (await this.getProjectIndicators(projectId, signal)).map(
-      ({ id, projectId: scope, code, name }) => ({
-        id,
-        projectId: scope,
-        code,
-        label: name,
-      }),
-    )
   }
 
   async getBeneficiaryRegistrationContext(

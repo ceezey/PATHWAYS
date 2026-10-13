@@ -50,10 +50,10 @@ const access = vi.hoisted(() => ({
 }))
 
 vi.mock('@/lib/services/pathways-client', () => ({
-  pathwaysClient: {
-    getProjectIndicators: api.getProjectIndicators,
-    getJourneyStages: api.getJourneyStages,
-  },
+  pathwaysClient: { getJourneyStages: api.getJourneyStages },
+}))
+vi.mock('@/lib/api/indicators', () => ({
+  indicatorsClient: { getProjectIndicators: api.getProjectIndicators },
 }))
 vi.mock('@/lib/api/activities', () => ({ activitiesClient: api }))
 vi.mock('@/lib/api/projects', () => ({ projectsClient: api }))

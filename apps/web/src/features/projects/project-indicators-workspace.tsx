@@ -26,10 +26,10 @@ import { usePendingCreate } from '@/hooks/use-pending-create'
 import { useSourceMutationContext } from '@/hooks/use-source-mutation-context'
 import { activitiesClient } from '@/lib/api/activities'
 import { PathwaysClientError } from '@/lib/api/core/request'
+import { indicatorLibraryClient, indicatorsClient } from '@/lib/api/indicators'
 import { formatCappedPercent } from '@/lib/format/percent'
 import { fingerprintOf } from '@/lib/forms/pending-create'
 import { principalHasAtomicPermission } from '@/lib/rbac/policy'
-import { indicatorLibraryClient } from '@/lib/services/indicator-library-client'
 import { pathwaysClient } from '@/lib/services/pathways-client'
 import {
   type SourceMutationResult,
@@ -592,7 +592,7 @@ export function ProjectIndicatorsWorkspace({ projectId }: { projectId: string })
   // Atomic checks under the role ceiling, never the raw grant list.
   const canCreate = principalHasAtomicPermission(profile, 'indicators.create')
   const canUpdate = principalHasAtomicPermission(profile, 'indicators.update')
-  const load = useCallback(() => pathwaysClient.getProjectIndicators(projectId), [projectId])
+  const load = useCallback(() => indicatorsClient.getProjectIndicators(projectId), [projectId])
   const { data, error, loading, reload, replaceData, authorityKey } = useMonitoringRead(
     projectId,
     load,
@@ -655,7 +655,7 @@ export function ProjectIndicatorsWorkspace({ projectId }: { projectId: string })
     projectId,
     successMessage: 'Indicator created',
     findCreated: async (fingerprint) =>
-      (await pathwaysClient.getProjectIndicators(projectId)).find(
+      (await indicatorsClient.getProjectIndicators(projectId)).find(
         (item) => fingerprintOf(item.code) === fingerprint,
       ),
     onConfirmed: () => reload(),
@@ -678,7 +678,7 @@ export function ProjectIndicatorsWorkspace({ projectId }: { projectId: string })
       if (!owner?.isCurrent()) return false
       if (isSourceReplay(result)) {
         // The authorized reload that confirms the replay is also the displayed state.
-        const persisted = await pathwaysClient.getProjectIndicators(projectId)
+        const persisted = await indicatorsClient.getProjectIndicators(projectId)
         if (!owner.isCurrent()) return false
         sourceMutationTickets.finishAcknowledgement(owner, result.requestId)
         if (currentKey.current === startedKey) {
@@ -736,7 +736,11 @@ export function ProjectIndicatorsWorkspace({ projectId }: { projectId: string })
           onSave={(input) =>
             mutate(
               () =>
-                pathwaysClient.createProjectIndicator(projectId, input, createContext ?? undefined),
+                indicatorsClient.createProjectIndicator(
+                  projectId,
+                  input,
+                  createContext ?? undefined,
+                ),
               fingerprintOf(input.code),
             )
           }
@@ -750,7 +754,7 @@ export function ProjectIndicatorsWorkspace({ projectId }: { projectId: string })
         context={updateContext ?? createContext ?? archiveContext}
         prefix={`/projects/${projectId}/indicators`}
         onRecovered={async () => {
-          const persisted = await pathwaysClient.getProjectIndicators(projectId)
+          const persisted = await indicatorsClient.getProjectIndicators(projectId)
           return () => {
             setRecoveryGeneration((value) => value + 1)
             replaceData(persisted)
@@ -766,7 +770,7 @@ export function ProjectIndicatorsWorkspace({ projectId }: { projectId: string })
           onUse={(input) =>
             mutate(
               () =>
-                pathwaysClient.createProjectIndicatorFromLibrary(
+                indicatorsClient.createProjectIndicatorFromLibrary(
                   projectId,
                   input,
                   createContext ?? undefined,
@@ -910,7 +914,7 @@ export function ProjectIndicatorsWorkspace({ projectId }: { projectId: string })
               busy={busy}
               onSave={(input) =>
                 mutate(() =>
-                  pathwaysClient.recordIndicatorMeasurement(
+                  indicatorsClient.recordIndicatorMeasurement(
                     projectId,
                     managed.id,
                     input,
@@ -920,7 +924,7 @@ export function ProjectIndicatorsWorkspace({ projectId }: { projectId: string })
               }
               onUpdate={(name, description) =>
                 mutate(() =>
-                  pathwaysClient.updateProjectIndicator(
+                  indicatorsClient.updateProjectIndicator(
                     projectId,
                     managed.id,
                     {
@@ -935,7 +939,7 @@ export function ProjectIndicatorsWorkspace({ projectId }: { projectId: string })
               canArchive={principalHasAtomicPermission(profile, 'indicators.archive')}
               onArchive={() =>
                 mutate(() =>
-                  pathwaysClient.archiveProjectIndicator(
+                  indicatorsClient.archiveProjectIndicator(
                     projectId,
                     managed.id,
                     managed.revision,

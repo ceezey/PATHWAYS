@@ -43,6 +43,7 @@ import { useAuthorizedRead } from '@/hooks/use-authorized-read'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'
 import { activitiesClient } from '@/lib/api/activities'
+import { indicatorsClient } from '@/lib/api/indicators'
 import { projectsClient } from '@/lib/api/projects'
 import { addPin } from '@/lib/dashboard-pins'
 import { formatCalendarDay } from '@/lib/format/date'
@@ -367,9 +368,9 @@ export const AnalyticsDashboard = () => {
         ? activitiesClient.getActivities(projectId)
         : Promise.resolve<ActivitySummary[]>([]),
       canReadIndicatorDefinitions
-        ? pathwaysClient.getProjectIndicators(projectId)
+        ? indicatorsClient.getProjectIndicators(projectId)
         : canReadIndicatorValues
-          ? pathwaysClient.getProjectIndicatorValues(projectId)
+          ? indicatorsClient.getProjectIndicatorValues(projectId)
           : Promise.resolve<ProjectIndicator[]>([]),
     ])
       .then(([nextActivities, nextIndicators]) => {

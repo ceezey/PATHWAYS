@@ -1,6 +1,7 @@
 'use client'
 
 import { useAuthorizedRead } from '@/hooks/use-authorized-read'
+import { indicatorsClient } from '@/lib/api/indicators'
 import { projectsClient } from '@/lib/api/projects'
 import { pathwaysClient } from '@/lib/services/pathways-client'
 
@@ -33,7 +34,7 @@ export const useProjectIndicatorsRead = (projectId: string, enabled = true) =>
     projectReadResources.indicators,
     projectId,
     'indicators.read',
-    (signal) => pathwaysClient.getProjectIndicators(projectId, signal),
+    (signal) => indicatorsClient.getProjectIndicators(projectId, signal),
     enabled,
     summary,
   )

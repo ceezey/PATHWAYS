@@ -71,6 +71,7 @@ vi.mock('@/hooks/use-authorized-read', () => ({
 vi.mock('@/lib/services/pathways-client', () => ({
   pathwaysClient: api,
 }))
+vi.mock('@/lib/api/indicators', () => ({ indicatorsClient: api }))
 vi.mock('@/lib/api/core/request', () => ({ PathwaysClientError: class extends Error {} }))
 vi.mock('@/lib/services/source-mutation', () => ({
   isSourceReplay: () => tickets.replay,

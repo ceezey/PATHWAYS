@@ -64,11 +64,11 @@ import {
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'
 import { useSafeProjectSelection } from '@/hooks/use-safe-project-selection'
+import { indicatorsClient } from '@/lib/api/indicators'
 import { formatCalendarDay } from '@/lib/format/date'
 import { can } from '@/lib/rbac/can'
 import { canAccessProjectForRole } from '@/lib/rbac/data-scope'
 import { principalHasAtomicPermission, reportKindPermissions } from '@/lib/rbac/policy'
-import { pathwaysClient } from '@/lib/services/pathways-client'
 import type {
   Activity,
   BeneficiaryRecord,
@@ -286,7 +286,7 @@ export const ReportingWorkspace = ({
     }
     let active = true
     setIndicatorLoadState('loading')
-    Promise.all(scopedProjects.map((project) => pathwaysClient.getProjectIndicators(project.id)))
+    Promise.all(scopedProjects.map((project) => indicatorsClient.getProjectIndicators(project.id)))
       .then((groups) => {
         if (!active) return
         setIndicators(groups.flat())

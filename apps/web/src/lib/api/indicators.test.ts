@@ -10,8 +10,6 @@ vi.mock('@/lib/api/core/request', async (importOriginal) => ({
   requestFoundation: request.requestFoundation,
 }))
 
-import { indicatorLibraryClient as pathwaysLibraryClient } from '@/lib/services/indicator-library-client'
-import { pathwaysClient } from '@/lib/services/pathways-client'
 import { SourceMutationRecoveryError, sourceMutationTickets } from '@/lib/services/source-mutation'
 import { indicatorLibraryClient, indicatorsClient } from './indicators'
 
@@ -78,17 +76,10 @@ const acknowledge =
     return replayed ? receipt : { ...indicator, sourceAcknowledgement: receipt }
   }
 
-// The same cases run against the PathwaysClient methods until Task 2 removes them.
-const clients: Array<[string, typeof indicatorsClient]> = [
-  ['pathwaysClient', pathwaysClient],
-  ['indicatorsClient', indicatorsClient],
-]
-const libraries: Array<[string, typeof indicatorLibraryClient]> = [
-  ['old library client', pathwaysLibraryClient],
-  ['indicatorLibraryClient', indicatorLibraryClient],
-]
+const client = indicatorsClient
+const library = indicatorLibraryClient
 
-describe.each(clients)('%s indicator requests', (_name, client) => {
+describe('indicatorsClient indicator requests', () => {
   beforeEach(() => {
     sourceMutationTickets.clear()
     request.requestFoundation.mockReset()
@@ -250,7 +241,7 @@ describe.each(clients)('%s indicator requests', (_name, client) => {
   })
 })
 
-describe.each(libraries)('%s', (_name, library) => {
+describe('indicatorLibraryClient', () => {
   beforeEach(() => request.requestFoundation.mockReset())
 
   it('lists the entries and refuses an unknown key', async () => {

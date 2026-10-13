@@ -46,6 +46,7 @@ const access = vi.hoisted(() => ({
 vi.mock('@/lib/services/pathways-client', () => ({
   pathwaysClient: api,
 }))
+vi.mock('@/lib/api/indicators', () => ({ indicatorsClient: api }))
 vi.mock('@/lib/api/activities', () => ({ activitiesClient: api }))
 vi.mock('@/lib/api/projects', () => ({ projectsClient: api }))
 vi.mock('@/lib/api/core/request', () => ({

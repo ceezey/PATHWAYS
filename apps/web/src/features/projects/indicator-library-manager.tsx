@@ -23,9 +23,9 @@ import { useAuthorizedRead } from '@/hooks/use-authorized-read'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { usePendingCreate } from '@/hooks/use-pending-create'
 import { PathwaysClientError } from '@/lib/api/core/request'
+import { indicatorLibraryClient } from '@/lib/api/indicators'
 import { fingerprintOf } from '@/lib/forms/pending-create'
 import { principalHasAtomicPermission } from '@/lib/rbac/policy'
-import { indicatorLibraryClient } from '@/lib/services/indicator-library-client'
 import {
   type CreateIndicatorLibraryEntryRequest,
   type IndicatorLibraryEntryResponse,

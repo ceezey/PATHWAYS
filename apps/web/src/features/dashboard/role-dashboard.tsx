@@ -39,6 +39,7 @@ import {
 } from '@/constants/feature-flags'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { activitiesClient } from '@/lib/api/activities'
+import { indicatorsClient } from '@/lib/api/indicators'
 import { projectsClient } from '@/lib/api/projects'
 import { can } from '@/lib/rbac/can'
 import { principalHasAtomicPermission } from '@/lib/rbac/policy'
@@ -159,7 +160,7 @@ const DashboardActivityReviewPanel = ({
 
     Promise.all([
       activitiesClient.getActivity(target.projectId, target.activityId),
-      pathwaysClient.getIndicators(target.projectId),
+      indicatorsClient.getIndicators(target.projectId),
     ])
       .then(([activityRecord, indicatorRecords]) => {
         if (!mounted) return

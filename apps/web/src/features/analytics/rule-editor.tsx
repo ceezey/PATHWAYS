@@ -9,10 +9,10 @@ import { useAuthorizedRead } from '@/hooks/use-authorized-read'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { activitiesClient } from '@/lib/api/activities'
 import { PathwaysClientError } from '@/lib/api/core/request'
+import { indicatorsClient } from '@/lib/api/indicators'
 import { projectsClient } from '@/lib/api/projects'
 import { type SensitiveDraftOwner, useSensitiveDraftOwner } from '@/lib/auth/sensitive-drafts'
 import { principalHasAtomicPermission } from '@/lib/rbac/policy'
-import { pathwaysClient } from '@/lib/services/pathways-client'
 import { rulesHumanClient } from '@/lib/services/rules-human-client'
 import {
   type HumanRule,
@@ -219,7 +219,7 @@ function OwnedRuleEditor({
     'rule-binding-indicators',
     scopeProjectId,
     'indicators.read',
-    (signal) => pathwaysClient.getProjectIndicators(scopeProjectId ?? '', signal),
+    (signal) => indicatorsClient.getProjectIndicators(scopeProjectId ?? '', signal),
     Boolean(scopeProjectId && requires(conditions, 'INDICATOR_')),
   )
   const activitiesFull = useAuthorizedRead(

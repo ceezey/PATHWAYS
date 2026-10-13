@@ -29,7 +29,7 @@ vi.mock('@/hooks/use-authorized-read', () => ({
   useAuthorizedRead: () => ({ data: state.data, error: state.error, refetch: vi.fn() }),
 }))
 vi.mock('@/lib/api/core/request', () => ({ PathwaysClientError: class extends Error {} }))
-vi.mock('@/lib/services/indicator-library-client', () => ({ indicatorLibraryClient: {} }))
+vi.mock('@/lib/api/indicators', () => ({ indicatorLibraryClient: {} }))
 
 const entry = {
   id: '79100000-0000-4000-8000-000000000001',
