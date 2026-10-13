@@ -5,6 +5,7 @@ import type { ApplicationIdentity } from '../../common/authz/application-identit
 import type { DashboardsService } from '../dashboards/dashboards.service'
 import type { ProjectOverviewMetricsService } from '../projects/project-overview-metrics.service'
 import type { RulesHumanService } from '../rules/rules-human.service'
+import { monitoringReportPeriod } from './report-monitoring-evaluation-source'
 import {
   type Figure,
   INDICATOR_CAP,
@@ -17,7 +18,6 @@ import {
   overviewRows,
   topAlerts,
 } from './report-project-status'
-import { monitoringReportPeriod } from './report-sources-extra'
 
 type Deps = {
   overview: Pick<ProjectOverviewMetricsService, 'readInTransaction'>

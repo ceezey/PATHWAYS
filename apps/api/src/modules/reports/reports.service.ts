@@ -41,16 +41,16 @@ import {
   reportMime,
 } from './report-artifact'
 import { sourceContent, sourceFingerprint } from './report-fingerprint'
-import { ReportPdfError, ReportPdfRenderer } from './report-pdf.renderer'
-import { type ProjectSections, flattenSections } from './report-project-status'
-import { projectStatusSource } from './report-project-status-source'
 import {
   evaluationReportTable,
   extraKindRequires,
   isExtraReportKind,
   monitoringReportPeriod,
   monitoringReportTable,
-} from './report-sources-extra'
+} from './report-monitoring-evaluation-source'
+import { ReportPdfError, ReportPdfRenderer } from './report-pdf.renderer'
+import { type ProjectSections, flattenSections } from './report-project-status'
+import { projectStatusSource } from './report-project-status-source'
 
 const kindPermission = {
   PROJECT_SUMMARY: 'reports.project.read',
