@@ -114,6 +114,7 @@ import {
   type FormDefinitionExportFormat,
   formDefinitionExportRequest,
 } from './form-definition-export'
+import { useImportBatch } from './hooks/use-import-batch'
 import {
   type ImportProcessingOutcome,
   type ImportProcessingProgress,
@@ -473,7 +474,7 @@ const OwnedCollectionWorkspace = ({
     progress: ImportProcessingProgress
     note?: string
   } | null>(null)
-  const processingStopRequested = useRef(false)
+  const importBatch = useImportBatch()
   const current = useRef({
     profile,
     projectId,
@@ -610,7 +611,7 @@ const OwnedCollectionWorkspace = ({
     intent.current++
     parsing.current++
     lastSelectedFileRef.current = null
-    uploadIdentity.current = null
+    importBatch.forgetUpload()
     setParsedImport(null)
     setCorrectionPage(0)
     setImportStatus('idle')
@@ -640,14 +641,6 @@ const OwnedCollectionWorkspace = ({
       setter(value)
     }
   const lastSelectedFileRef = useRef<File | null>(null)
-  const uploadIdentity = useRef<{
-    file: File
-    projectId: string
-    formId: string
-    version: number
-    generation: number
-    id: string
-  } | null>(null)
 
   const editingReady =
     !editingFormId ||
@@ -786,7 +779,7 @@ const OwnedCollectionWorkspace = ({
     intent.current++
     parsing.current++
     lastSelectedFileRef.current = null
-    uploadIdentity.current = null
+    importBatch.forgetUpload()
     setParsedImport(null)
     setCorrectionPage(0)
     setMappingRows([])
@@ -1154,7 +1147,7 @@ const OwnedCollectionWorkspace = ({
     },
   ) => {
     let latest = target.progress
-    processingStopRequested.current = false
+    importBatch.stopRequested.current = false
     setProcessingRun({ ...target, state: 'running' })
     const outcome: ImportProcessingOutcome = await runImportProcessing({
       process: () =>
@@ -1166,7 +1159,7 @@ const OwnedCollectionWorkspace = ({
             run?.batchId === target.batchId ? { ...run, progress: latest } : run,
           )
       },
-      shouldStop: () => processingStopRequested.current || !ticket.valid('imports.process'),
+      shouldStop: () => importBatch.stopRequested.current || !ticket.valid('imports.process'),
     })
     if (!ticket.valid('imports.process')) {
       // Access or ownership changed; the server keeps its state and nothing stale is shown.
@@ -1213,7 +1206,7 @@ const OwnedCollectionWorkspace = ({
   }
 
   const stopServerProcessing = () => {
-    processingStopRequested.current = true
+    importBatch.stopRequested.current = true
     setProcessingRun((run) => (run?.state === 'running' ? { ...run, state: 'stopping' } : run))
   }
 
@@ -1306,25 +1299,13 @@ const OwnedCollectionWorkspace = ({
       const file = lastSelectedFileRef.current
       if (!file) throw new Error('Select the source file again before upload.')
       const generation = sensitiveDraftGeneration()
-      const priorUpload = uploadIdentity.current
-      const uploadAttempt =
-        priorUpload &&
-        priorUpload.file === file &&
-        priorUpload.projectId === projectId &&
-        priorUpload.formId === selectedForm.id &&
-        priorUpload.version === selectedForm.version &&
-        priorUpload.generation === generation
-          ? priorUpload
-          : {
-              file,
-              projectId,
-              formId: selectedForm.id,
-              version: selectedForm.version,
-              generation,
-              id: crypto.randomUUID(),
-            }
-      uploadIdentity.current = uploadAttempt
-      const clientImportId = uploadAttempt.id
+      const clientImportId = importBatch.uploadId([
+        file,
+        projectId,
+        selectedForm.id,
+        selectedForm.version,
+        generation,
+      ])
       const uploaded = await importsClient.uploadImport(
         projectId,
         selectedForm.id,
@@ -1332,12 +1313,9 @@ const OwnedCollectionWorkspace = ({
         file,
       )
       if (!ticket.valid('imports.upload')) return
-      let automaticRevision: number | undefined
-      if (uploaded.mappingRevision === 0 && uploaded.storageStatus === 'STORED') {
-        const automatic = await importsClient.automaticImportMapping(projectId, uploaded.id, 0)
-        if (!ticket.valid('imports.read')) return
-        automaticRevision = automatic.mappingRevision
-      }
+      const automatic = await importBatch.mapAutomatically(projectId, uploaded)
+      if (automatic && !ticket.valid('imports.read')) return
+      const automaticRevision = automatic?.mappingRevision
       if (!ticket.valid('imports.read')) return
       if (
         !mappingReadiness.canProceed ||

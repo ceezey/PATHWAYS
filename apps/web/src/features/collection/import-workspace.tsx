@@ -44,6 +44,7 @@ import type {
   ProjectSummary,
 } from '@/types/pathways'
 
+import { useImportBatch } from './hooks/use-import-batch'
 import {
   type ImportProcessingProgress,
   importProcessingComplete,
@@ -147,17 +148,11 @@ function OwnedImportWorkspace({ scope }: { scope: SensitiveDraftOwner }) {
     progress: ImportProcessingProgress
     note?: string
   } | null>(null)
-  const stopRequested = useRef(false)
+  const importBatch = useImportBatch()
   const mounted = useRef(true)
   const mutation = useRef<object | null>(null)
   const latest = useRef({ projectId, formId, file, batch, profile })
   latest.current = { projectId, formId, file, batch, profile }
-  const uploadIdentity = useRef<{
-    file: File
-    projectId: string
-    formId: string
-    id: string
-  } | null>(null)
   useEffect(() => {
     mounted.current = true
     return () => {
@@ -378,32 +373,22 @@ function OwnedImportWorkspace({ scope }: { scope: SensitiveDraftOwner }) {
     }
     const ticket = begin('imports.upload')
     if (!ticket) return
-    if (
-      !uploadIdentity.current ||
-      uploadIdentity.current.file !== file ||
-      uploadIdentity.current.projectId !== projectId ||
-      uploadIdentity.current.formId !== formId
-    ) {
-      uploadIdentity.current = { file, projectId, formId, id: crypto.randomUUID() }
-    }
     try {
       const created = await importsClient.uploadImport(
         projectId,
         formId,
-        uploadIdentity.current.id,
+        importBatch.uploadId([file, projectId, formId]),
         file,
       )
       if (!ticket.valid('imports.upload')) return
-      if (created.mappingRevision === 0 && created.storageStatus === 'STORED') {
-        await importsClient.automaticImportMapping(projectId, created.id, 0)
-        if (!ticket.valid('imports.read')) return
-      }
+      if ((await importBatch.mapAutomatically(projectId, created)) && !ticket.valid('imports.read'))
+        return
       await refreshBatches(ticket)
       if (!ticket.valid('imports.read')) return
       await loadBatch(created.id, ticket)
       if (!ticket.valid()) return
       setFile(null)
-      uploadIdentity.current = null
+      importBatch.forgetUpload()
       toast.success(
         'The private upload was staged. Unresolved mappings require an authorized reviewer.',
       )
@@ -528,7 +513,7 @@ function OwnedImportWorkspace({ scope }: { scope: SensitiveDraftOwner }) {
     if (!ticket) return
     const target = batch
     let latest = importProcessingProgress(target)
-    stopRequested.current = false
+    importBatch.stopRequested.current = false
     setProcessing({ batchId: target.id, state: 'running', progress: latest })
     try {
       const outcome = await runImportProcessing({
@@ -540,7 +525,7 @@ function OwnedImportWorkspace({ scope }: { scope: SensitiveDraftOwner }) {
               current?.batchId === target.id ? { ...current, progress: latest } : current,
             )
         },
-        shouldStop: () => stopRequested.current || !ticket.valid('imports.process'),
+        shouldStop: () => importBatch.stopRequested.current || !ticket.valid('imports.process'),
       })
       if (!ticket.valid('imports.read')) {
         // Access or ownership changed; the server keeps its state and nothing stale is shown.
@@ -579,7 +564,7 @@ function OwnedImportWorkspace({ scope }: { scope: SensitiveDraftOwner }) {
   }
 
   const stopProcessing = () => {
-    stopRequested.current = true
+    importBatch.stopRequested.current = true
     setProcessing((current) =>
       current?.state === 'running' ? { ...current, state: 'stopping' } : current,
     )
@@ -594,10 +579,8 @@ function OwnedImportWorkspace({ scope }: { scope: SensitiveDraftOwner }) {
       if (!ticket.valid('imports.upload')) return
       const stored = await importsClient.getImportBatch(projectId, batch.id)
       if (!ticket.valid('imports.upload')) return
-      if (stored.mappingRevision === 0 && stored.storageStatus === 'STORED') {
-        await importsClient.automaticImportMapping(projectId, batch.id, 0)
-        if (!ticket.valid('imports.read')) return
-      }
+      if ((await importBatch.mapAutomatically(projectId, stored)) && !ticket.valid('imports.read'))
+        return
       if (!ticket.valid('imports.read')) return
       await loadBatch(batch.id, ticket)
       if (!ticket.valid()) return
