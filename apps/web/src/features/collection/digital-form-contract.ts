@@ -130,7 +130,9 @@ export function toDigitalFormInput(input: {
   }
 }
 
-export function fromDigitalForm(form: DigitalFormDefinition): BuilderFormField[] {
+export function fromDigitalForm(
+  form: Omit<DigitalFormDefinition, 'fields'> & { fields: DigitalFormFieldDefinition[] },
+): BuilderFormField[] {
   return form.fields.map((field, index) => ({
     id: field.id ?? `${form.id}-${field.code}`,
     label: field.label,

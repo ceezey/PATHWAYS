@@ -73,6 +73,8 @@ import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'
 import { usePendingCreate } from '@/hooks/use-pending-create'
 import { activitiesClient } from '@/lib/api/activities'
+import { formsClient } from '@/lib/api/forms'
+import { importsClient } from '@/lib/api/imports'
 import { indicatorsClient } from '@/lib/api/indicators'
 import { journeysClient } from '@/lib/api/journeys'
 import { projectsClient } from '@/lib/api/projects'
@@ -80,7 +82,6 @@ import { sensitiveDraftGeneration } from '@/lib/auth/sensitive-drafts'
 import { createdSince, fingerprintOf } from '@/lib/forms/pending-create'
 import { getVerifiedRouteAccess, principalHasAtomicPermission } from '@/lib/rbac/policy'
 import { downloadCoreArtifact } from '@/lib/services/core-feature-client'
-import { pathwaysClient } from '@/lib/services/pathways-client'
 import { cn } from '@/lib/utils'
 import type {
   ActivitySummary,
@@ -453,7 +454,7 @@ const OwnedCollectionWorkspace = ({
     projectId: projectId || null,
     successMessage: 'Draft form created',
     findCreated: async (fingerprint, startedAt) =>
-      (await pathwaysClient.getDigitalForms(projectId)).find(
+      (await formsClient.getDigitalForms(projectId)).find(
         (form) =>
           fingerprintOf(form.code) === fingerprint && createdSince(form.updatedAt, startedAt),
       ),
@@ -734,11 +735,9 @@ const OwnedCollectionWorkspace = ({
     }
     if (canReadForms && eligible('forms.read', projectId)) {
       requests.push(
-        load(pathwaysClient.getDigitalForms(projectId), setForms, 'Forms', 'forms.read').then(
-          () => {
-            if (active) setFormsLoaded(true)
-          },
-        ),
+        load(formsClient.getDigitalForms(projectId), setForms, 'Forms', 'forms.read').then(() => {
+          if (active) setFormsLoaded(true)
+        }),
       )
     } else {
       setForms([])
@@ -1089,12 +1088,12 @@ const OwnedCollectionWorkspace = ({
         return
       }
       const saved = existing
-        ? await pathwaysClient.updateDigitalForm(projectId, existing.id, {
+        ? await formsClient.updateDigitalForm(projectId, existing.id, {
             ...input,
             expectedUpdatedAt: editingBaseUpdatedAt ?? existing.updatedAt,
           })
         : await formCreate.submit(fingerprintOf(input.code), () =>
-            pathwaysClient.createDigitalForm(projectId, input),
+            formsClient.createDigitalForm(projectId, input),
           )
       if (!saved || !ticket.valid()) return
       setForms((current) => [...current.filter((form) => form.id !== saved.id), saved])
@@ -1124,7 +1123,7 @@ const OwnedCollectionWorkspace = ({
     const ticket = beginOperation('forms.publish')
     if (!ticket) return
     try {
-      const published = await pathwaysClient.publishDigitalForm(
+      const published = await formsClient.publishDigitalForm(
         existing.projectId,
         existing.id,
         existing.updatedAt,
@@ -1159,7 +1158,7 @@ const OwnedCollectionWorkspace = ({
     setProcessingRun({ ...target, state: 'running' })
     const outcome: ImportProcessingOutcome = await runImportProcessing({
       process: () =>
-        pathwaysClient.processImport(target.projectId, target.batchId, target.validationRevision),
+        importsClient.processImport(target.projectId, target.batchId, target.validationRevision),
       onProgress: (next) => {
         latest = importProcessingProgress(next)
         if (ticket.valid('imports.process'))
@@ -1264,7 +1263,7 @@ const OwnedCollectionWorkspace = ({
           fields: importedFields,
         })
         const created = await formCreate.submit(fingerprintOf(importedInput.code), () =>
-          pathwaysClient.createDigitalForm(projectId, importedInput),
+          formsClient.createDigitalForm(projectId, importedInput),
         )
         if (!created || !ticket.valid()) return
         setForms((current) => [...current, created])
@@ -1326,7 +1325,7 @@ const OwnedCollectionWorkspace = ({
             }
       uploadIdentity.current = uploadAttempt
       const clientImportId = uploadAttempt.id
-      const uploaded = await pathwaysClient.uploadImport(
+      const uploaded = await importsClient.uploadImport(
         projectId,
         selectedForm.id,
         clientImportId,
@@ -1335,7 +1334,7 @@ const OwnedCollectionWorkspace = ({
       if (!ticket.valid('imports.upload')) return
       let automaticRevision: number | undefined
       if (uploaded.mappingRevision === 0 && uploaded.storageStatus === 'STORED') {
-        const automatic = await pathwaysClient.automaticImportMapping(projectId, uploaded.id, 0)
+        const automatic = await importsClient.automaticImportMapping(projectId, uploaded.id, 0)
         if (!ticket.valid('imports.read')) return
         automaticRevision = automatic.mappingRevision
       }
@@ -1352,7 +1351,7 @@ const OwnedCollectionWorkspace = ({
         setProceedDialogOpen(false)
         return
       }
-      const detail = await pathwaysClient.getImportBatch(projectId, uploaded.id)
+      const detail = await importsClient.getImportBatch(projectId, uploaded.id)
       if (!ticket.valid('imports.review')) return
       const sourceColumns = detail.sourceColumns
       if (!sourceColumns || sourceColumns.length !== decisions.length) {
@@ -1367,14 +1366,14 @@ const OwnedCollectionWorkspace = ({
         }
         return { ...decision, sourceFieldName: column.key }
       })
-      const mapped = await pathwaysClient.saveImportMapping(
+      const mapped = await importsClient.saveImportMapping(
         projectId,
         uploaded.id,
         detail.mappingRevision ?? automaticRevision ?? uploaded.mappingRevision,
         mappings,
       )
       if (!ticket.valid('imports.validate')) return
-      const validated = await pathwaysClient.validateImport(
+      const validated = await importsClient.validateImport(
         projectId,
         mapped.id,
         mapped.mappingRevision,
@@ -1520,10 +1519,7 @@ const OwnedCollectionWorkspace = ({
               if (!ticket) return
               setCreatingVersion(true)
               try {
-                const created = await pathwaysClient.createDigitalFormVersion(
-                  projectId,
-                  editingFormId,
-                )
+                const created = await formsClient.createDigitalFormVersion(projectId, editingFormId)
                 if (!ticket.valid()) return
                 setForms((current) => [
                   ...current.filter((form) => form.id !== created.id),
@@ -1570,7 +1566,7 @@ const OwnedCollectionWorkspace = ({
               setCreatingVersion(true)
               try {
                 const suffix = `_copy_${Date.now().toString(36)}`
-                const created = await pathwaysClient.generateDigitalForm(projectId, {
+                const created = await formsClient.generateDigitalForm(projectId, {
                   sourceFormId: source.id,
                   code: `${source.code.slice(0, 64 - suffix.length)}${suffix}`,
                   name: `${source.name.slice(0, 150)} (copy)`,

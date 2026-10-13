@@ -28,11 +28,12 @@ import {
 } from '@/components/ui/table'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'
+import { formsClient } from '@/lib/api/forms'
+import { importsClient } from '@/lib/api/imports'
 import { projectsClient } from '@/lib/api/projects'
 import { type SensitiveDraftOwner, useSensitiveDraftOwner } from '@/lib/auth/sensitive-drafts'
 import { plural } from '@/lib/format/plural'
 import { getVerifiedRouteAccess, principalHasAtomicPermission } from '@/lib/rbac/policy'
-import { pathwaysClient } from '@/lib/services/pathways-client'
 import { cn } from '@/lib/utils'
 import type {
   DigitalFormDefinition,
@@ -230,10 +231,7 @@ function OwnedImportWorkspace({ scope }: { scope: SensitiveDraftOwner }) {
     setRows([])
     setMapping({})
     setRules({})
-    Promise.all([
-      pathwaysClient.getDigitalForms(projectId),
-      pathwaysClient.getImportBatches(projectId),
-    ])
+    Promise.all([formsClient.getDigitalForms(projectId), importsClient.getImportBatches(projectId)])
       .then(([formRecords, batchRecords]) => {
         if (!mounted || !scope.isCurrent() || latest.current.projectId !== projectId) return
         const published = formRecords.filter((item) => item.status === 'PUBLISHED')
@@ -288,13 +286,13 @@ function OwnedImportWorkspace({ scope }: { scope: SensitiveDraftOwner }) {
     if (!ticket || !ticket.valid('imports.read')) return
     try {
       const [detail, page] = await Promise.all([
-        pathwaysClient.getImportBatch(projectId, batchId),
-        pathwaysClient.getImportRows(projectId, batchId),
+        importsClient.getImportBatch(projectId, batchId),
+        importsClient.getImportRows(projectId, batchId),
       ])
       if (!ticket.valid('forms.read')) return
       const definition =
         forms.find((item) => item.id === detail.formId) ??
-        (await pathwaysClient.getDigitalForm(projectId, detail.formId))
+        (await formsClient.getDigitalForm(projectId, detail.formId))
       if (!ticket.valid('imports.read')) return
       setForms((current) =>
         current.some((item) => item.id === definition.id) ? current : [...current, definition],
@@ -348,7 +346,7 @@ function OwnedImportWorkspace({ scope }: { scope: SensitiveDraftOwner }) {
     const ticket = parentTicket ?? begin('imports.read')
     if (!ticket || !ticket.valid('imports.read')) return
     try {
-      const records = await pathwaysClient.getImportBatches(projectId)
+      const records = await importsClient.getImportBatches(projectId)
       if (!ticket.valid('imports.read')) return
       setBatches(records)
       if (batch) await loadBatch(batch.id, ticket)
@@ -389,7 +387,7 @@ function OwnedImportWorkspace({ scope }: { scope: SensitiveDraftOwner }) {
       uploadIdentity.current = { file, projectId, formId, id: crypto.randomUUID() }
     }
     try {
-      const created = await pathwaysClient.uploadImport(
+      const created = await importsClient.uploadImport(
         projectId,
         formId,
         uploadIdentity.current.id,
@@ -397,7 +395,7 @@ function OwnedImportWorkspace({ scope }: { scope: SensitiveDraftOwner }) {
       )
       if (!ticket.valid('imports.upload')) return
       if (created.mappingRevision === 0 && created.storageStatus === 'STORED') {
-        await pathwaysClient.automaticImportMapping(projectId, created.id, 0)
+        await importsClient.automaticImportMapping(projectId, created.id, 0)
         if (!ticket.valid('imports.read')) return
       }
       await refreshBatches(ticket)
@@ -443,7 +441,7 @@ function OwnedImportWorkspace({ scope }: { scope: SensitiveDraftOwner }) {
     const ticket = begin('imports.review')
     if (!ticket) return
     try {
-      await pathwaysClient.saveImportMapping(projectId, batch.id, batch.mappingRevision, mappings)
+      await importsClient.saveImportMapping(projectId, batch.id, batch.mappingRevision, mappings)
       if (!ticket.valid('imports.read')) return
       await loadBatch(batch.id, ticket)
       if (!ticket.valid()) return
@@ -510,7 +508,7 @@ function OwnedImportWorkspace({ scope }: { scope: SensitiveDraftOwner }) {
     const ticket = begin('imports.validate')
     if (!ticket) return
     try {
-      await pathwaysClient.validateImport(projectId, batch.id, batch.mappingRevision)
+      await importsClient.validateImport(projectId, batch.id, batch.mappingRevision)
       if (!ticket.valid('imports.read')) return
       await loadBatch(batch.id, ticket)
       if (!ticket.valid()) return
@@ -534,8 +532,7 @@ function OwnedImportWorkspace({ scope }: { scope: SensitiveDraftOwner }) {
     setProcessing({ batchId: target.id, state: 'running', progress: latest })
     try {
       const outcome = await runImportProcessing({
-        process: () =>
-          pathwaysClient.processImport(projectId, target.id, target.validationRevision),
+        process: () => importsClient.processImport(projectId, target.id, target.validationRevision),
         onProgress: (next) => {
           latest = importProcessingProgress(next)
           if (ticket.valid('imports.read'))
@@ -593,12 +590,12 @@ function OwnedImportWorkspace({ scope }: { scope: SensitiveDraftOwner }) {
     const ticket = begin('imports.upload')
     if (!ticket) return
     try {
-      await pathwaysClient.resumeImportUpload(projectId, batch.id)
+      await importsClient.resumeImportUpload(projectId, batch.id)
       if (!ticket.valid('imports.upload')) return
-      const stored = await pathwaysClient.getImportBatch(projectId, batch.id)
+      const stored = await importsClient.getImportBatch(projectId, batch.id)
       if (!ticket.valid('imports.upload')) return
       if (stored.mappingRevision === 0 && stored.storageStatus === 'STORED') {
-        await pathwaysClient.automaticImportMapping(projectId, batch.id, 0)
+        await importsClient.automaticImportMapping(projectId, batch.id, 0)
         if (!ticket.valid('imports.read')) return
       }
       if (!ticket.valid('imports.read')) return

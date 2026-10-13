@@ -65,21 +65,26 @@ vi.mock('@/lib/services/core-feature-client', async (importOriginal) => ({
   downloadCoreArtifact: core.downloadCoreArtifact,
 }))
 
-vi.mock('@/lib/services/pathways-client', () => ({
-  pathwaysClient: {
+vi.mock('@/lib/services/pathways-client', () => ({ pathwaysClient: {} }))
+vi.mock('@/lib/api/forms', () => ({
+  formsClient: {
     getDigitalForms: api.getDigitalForms,
     createDigitalForm: api.createDigitalForm,
     createDigitalFormVersion: api.createDigitalFormVersion,
     generateDigitalForm: api.generateDigitalForm,
     publishDigitalForm: api.publishDigitalForm,
     updateDigitalForm: api.updateDigitalForm,
+    getDigitalForm: api.getDigitalForm,
+  },
+}))
+vi.mock('@/lib/api/imports', () => ({
+  importsClient: {
     uploadImport: api.uploadImport,
     automaticImportMapping: api.automaticImportMapping,
     getImportBatch: api.getImportBatch,
     saveImportMapping: api.saveImportMapping,
     validateImport: api.validateImport,
     processImport: api.processImport,
-    getDigitalForm: api.getDigitalForm,
   },
 }))
 vi.mock('@/lib/api/indicators', () => ({ indicatorsClient: { getIndicators: api.getIndicators } }))

@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { PathwaysClientError } from '@/lib/api/core/request'
+import { formsClient } from '@/lib/api/forms'
 import {
   type SensitiveDraftOwner,
   readSensitiveDraft,
@@ -21,7 +22,6 @@ import {
   useSensitiveDraftOwner,
   writeSensitiveDraft,
 } from '@/lib/auth/sensitive-drafts'
-import { pathwaysClient } from '@/lib/services/pathways-client'
 import type {
   DigitalFormDefinition,
   DirectFormSubmission,
@@ -169,7 +169,7 @@ function OwnedDirectFormEntryWorkspace({
   useEffect(() => {
     let active = true
     const epoch = loadEpoch.current
-    pathwaysClient
+    formsClient
       .getDigitalForm(projectId, formId)
       .then(async (definition) => {
         if (!active || epoch !== loadEpoch.current || !scope.isCurrent()) return
@@ -186,7 +186,7 @@ function OwnedDirectFormEntryWorkspace({
         try {
           let persisted: DirectFormSubmission
           if (initialSubmissionId) {
-            persisted = await pathwaysClient.getDirectSubmission(
+            persisted = await formsClient.getDirectSubmission(
               projectId,
               formId,
               initialSubmissionId,
@@ -208,11 +208,7 @@ function OwnedDirectFormEntryWorkspace({
               scope.generation,
             )
             clientSubmissionId.current = retryId
-            persisted = await pathwaysClient.getDirectSubmissionByClientId(
-              projectId,
-              formId,
-              retryId,
-            )
+            persisted = await formsClient.getDirectSubmissionByClientId(projectId, formId, retryId)
           }
           if (!active || epoch !== loadEpoch.current || !scope.isCurrent()) return
           verifySurveySubject(persisted, definition)
@@ -302,14 +298,14 @@ function OwnedDirectFormEntryWorkspace({
     try {
       if (!submission) setSubjectLocked(true)
       const result = submission
-        ? await pathwaysClient.updateDirectSubmission(
+        ? await formsClient.updateDirectSubmission(
             projectId,
             formId,
             submission.id,
             submission.updatedAt,
             values,
           )
-        : await pathwaysClient.saveDirectSubmission(
+        : await formsClient.saveDirectSubmission(
             projectId,
             formId,
             clientSubmissionId.current,
@@ -340,7 +336,7 @@ function OwnedDirectFormEntryWorkspace({
     const ticket = begin('validate')
     if (!ticket) return
     try {
-      const result = await pathwaysClient.validateDigitalFormValues(projectId, formId, values)
+      const result = await formsClient.validateDigitalFormValues(projectId, formId, values)
       if (!ticket.valid()) return
       setErrors(result.errors)
       setNotice({
@@ -368,14 +364,14 @@ function OwnedDirectFormEntryWorkspace({
     try {
       if (!submission) setSubjectLocked(true)
       const draft = submission
-        ? await pathwaysClient.updateDirectSubmission(
+        ? await formsClient.updateDirectSubmission(
             projectId,
             formId,
             submission.id,
             submission.updatedAt,
             values,
           )
-        : await pathwaysClient.saveDirectSubmission(
+        : await formsClient.saveDirectSubmission(
             projectId,
             formId,
             clientSubmissionId.current,
@@ -384,7 +380,7 @@ function OwnedDirectFormEntryWorkspace({
           )
       if (!ticket.valid()) return
       verifySurveySubject(draft, form, beneficiaryId || null)
-      const result = await pathwaysClient.submitDirectSubmission(
+      const result = await formsClient.submitDirectSubmission(
         projectId,
         formId,
         draft.id,

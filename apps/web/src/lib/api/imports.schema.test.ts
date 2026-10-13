@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parseAutomaticMappingReceipt } from './automatic-mapping-receipt'
+import { parseAutomaticMappingReceipt } from './imports.schema'
 const batchId = '50000000-0000-4000-8000-000000000005'
 const receipt = {
   batchId,

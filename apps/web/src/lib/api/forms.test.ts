@@ -11,7 +11,6 @@ vi.mock('@/lib/api/core/request', async (importOriginal) => ({
 }))
 
 import { PathwaysClientError } from '@/lib/api/core/request'
-import { pathwaysClient } from '@/lib/services/pathways-client'
 import type { SaveDigitalFormInput } from '@/types/pathways'
 import { formsClient } from './forms'
 
@@ -40,30 +39,24 @@ const input: SaveDigitalFormInput = {
   ],
 }
 
-// The same cases run against the method still on pathwaysClient and against its copy in formsClient.
-const clients = [
-  ['pathwaysClient', pathwaysClient],
-  ['formsClient', formsClient],
-] as const
-
-describe.each(clients)('%s form and direct entry requests', (_name, client) => {
+describe('formsClient form and direct entry requests', () => {
   beforeEach(() => {
     request.requestFoundation.mockReset()
   })
 
   it('lists the forms and refuses an answer that is not a list or holds over 100 forms', async () => {
     request.requestFoundation.mockResolvedValue([{ id: formId }])
-    await expect(client.getDigitalForms(projectId)).resolves.toEqual([{ id: formId }])
+    await expect(formsClient.getDigitalForms(projectId)).resolves.toEqual([{ id: formId }])
     expect(request.requestFoundation).toHaveBeenCalledWith(formsPath)
   })
 
   it('accepts exactly 100 forms and refuses 101, null and a string with a network error', async () => {
     const full = Array.from({ length: 100 }, () => ({}))
     request.requestFoundation.mockResolvedValue(full)
-    await expect(client.getDigitalForms(projectId)).resolves.toBe(full)
+    await expect(formsClient.getDigitalForms(projectId)).resolves.toBe(full)
     for (const bad of [{}, Array.from({ length: 101 }, () => ({})), null, 'forms']) {
       request.requestFoundation.mockResolvedValue(bad)
-      await expect(client.getDigitalForms(projectId)).rejects.toMatchObject({
+      await expect(formsClient.getDigitalForms(projectId)).rejects.toMatchObject({
         name: 'PathwaysClientError',
         code: 'network',
         message: 'Invalid form response.',
@@ -74,23 +67,23 @@ describe.each(clients)('%s form and direct entry requests', (_name, client) => {
   it('lets a request failure through as the same error', async () => {
     const failure = new PathwaysClientError('x', 'forbidden')
     request.requestFoundation.mockRejectedValue(failure)
-    await expect(client.getDigitalForms(projectId)).rejects.toBe(failure)
+    await expect(formsClient.getDigitalForms(projectId)).rejects.toBe(failure)
   })
 
   it('reads one form by its encoded id', async () => {
     request.requestFoundation.mockResolvedValue({ id: formId })
-    await expect(client.getDigitalForm(projectId, 'a b')).resolves.toEqual({ id: formId })
+    await expect(formsClient.getDigitalForm(projectId, 'a b')).resolves.toEqual({ id: formId })
     expect(request.requestFoundation).toHaveBeenCalledWith(`${formsPath}/a%20b`)
   })
 
   it('creates and updates a form with the exact definition and the update stamp', async () => {
     request.requestFoundation.mockResolvedValue({ id: formId })
-    await client.createDigitalForm(projectId, input)
+    await formsClient.createDigitalForm(projectId, input)
     expect(request.requestFoundation).toHaveBeenLastCalledWith(formsPath, {
       method: 'POST',
       body: JSON.stringify(input),
     })
-    await client.updateDigitalForm(projectId, formId, { ...input, expectedUpdatedAt: stamp })
+    await formsClient.updateDigitalForm(projectId, formId, { ...input, expectedUpdatedAt: stamp })
     expect(request.requestFoundation).toHaveBeenLastCalledWith(formPath, {
       method: 'PATCH',
       body: JSON.stringify({ ...input, expectedUpdatedAt: stamp }),
@@ -99,17 +92,17 @@ describe.each(clients)('%s form and direct entry requests', (_name, client) => {
 
   it('publishes with the update stamp, opens a version with no body and generates a copy', async () => {
     request.requestFoundation.mockResolvedValue({ id: formId })
-    await client.publishDigitalForm(projectId, formId, stamp)
+    await formsClient.publishDigitalForm(projectId, formId, stamp)
     expect(request.requestFoundation).toHaveBeenLastCalledWith(`${formPath}/publish`, {
       method: 'POST',
       body: JSON.stringify({ expectedUpdatedAt: stamp }),
     })
-    await client.createDigitalFormVersion(projectId, formId)
+    await formsClient.createDigitalFormVersion(projectId, formId)
     expect(request.requestFoundation).toHaveBeenLastCalledWith(`${formPath}/versions`, {
       method: 'POST',
     })
     const copy = { sourceFormId: formId, code: 'post_test_copy', name: 'Post test (copy)' }
-    await client.generateDigitalForm(projectId, copy)
+    await formsClient.generateDigitalForm(projectId, copy)
     expect(request.requestFoundation).toHaveBeenLastCalledWith(`${formsPath}/generate`, {
       method: 'POST',
       body: JSON.stringify(copy),
@@ -119,7 +112,7 @@ describe.each(clients)('%s form and direct entry requests', (_name, client) => {
   it('validates answers without saving them', async () => {
     request.requestFoundation.mockResolvedValue({ valid: true, values: {}, errors: [] })
     await expect(
-      client.validateDigitalFormValues(projectId, formId, { score: '7' }),
+      formsClient.validateDigitalFormValues(projectId, formId, { score: '7' }),
     ).resolves.toEqual({ valid: true, values: {}, errors: [] })
     expect(request.requestFoundation).toHaveBeenCalledWith(`${formPath}/validate`, {
       method: 'POST',
@@ -129,17 +122,23 @@ describe.each(clients)('%s form and direct entry requests', (_name, client) => {
 
   it('saves a submission with the contributor only when one is given', async () => {
     request.requestFoundation.mockResolvedValue({ id: submissionId })
-    await client.saveDirectSubmission(projectId, formId, clientId, { score: '7' })
+    await formsClient.saveDirectSubmission(projectId, formId, clientId, { score: '7' })
     expect(request.requestFoundation).toHaveBeenLastCalledWith(submissionsPath, {
       method: 'POST',
       body: JSON.stringify({ clientSubmissionId: clientId, values: { score: '7' } }),
     })
-    await client.saveDirectSubmission(projectId, formId, clientId, { score: '7' }, beneficiaryId)
+    await formsClient.saveDirectSubmission(
+      projectId,
+      formId,
+      clientId,
+      { score: '7' },
+      beneficiaryId,
+    )
     expect(request.requestFoundation).toHaveBeenLastCalledWith(submissionsPath, {
       method: 'POST',
       body: JSON.stringify({ clientSubmissionId: clientId, values: { score: '7' }, beneficiaryId }),
     })
-    await client.saveDirectSubmission(projectId, formId, clientId, { score: '7' }, '')
+    await formsClient.saveDirectSubmission(projectId, formId, clientId, { score: '7' }, '')
     expect(request.requestFoundation).toHaveBeenLastCalledWith(submissionsPath, {
       method: 'POST',
       body: JSON.stringify({ clientSubmissionId: clientId, values: { score: '7' } }),
@@ -148,15 +147,15 @@ describe.each(clients)('%s form and direct entry requests', (_name, client) => {
 
   it('reads a submission by its id and by its client id', async () => {
     request.requestFoundation.mockResolvedValue({ id: submissionId })
-    await client.getDirectSubmission(projectId, formId, submissionId)
+    await formsClient.getDirectSubmission(projectId, formId, submissionId)
     expect(request.requestFoundation).toHaveBeenLastCalledWith(`${submissionsPath}/${submissionId}`)
-    await client.getDirectSubmissionByClientId(projectId, formId, 'a b')
+    await formsClient.getDirectSubmissionByClientId(projectId, formId, 'a b')
     expect(request.requestFoundation).toHaveBeenLastCalledWith(`${submissionsPath}/by-client/a%20b`)
   })
 
   it('updates and submits a submission with the update stamp', async () => {
     request.requestFoundation.mockResolvedValue({ id: submissionId })
-    await client.updateDirectSubmission(projectId, formId, submissionId, stamp, { score: '8' })
+    await formsClient.updateDirectSubmission(projectId, formId, submissionId, stamp, { score: '8' })
     expect(request.requestFoundation).toHaveBeenLastCalledWith(
       `${submissionsPath}/${submissionId}`,
       {
@@ -164,7 +163,7 @@ describe.each(clients)('%s form and direct entry requests', (_name, client) => {
         body: JSON.stringify({ expectedUpdatedAt: stamp, values: { score: '8' } }),
       },
     )
-    await client.submitDirectSubmission(projectId, formId, submissionId, stamp)
+    await formsClient.submitDirectSubmission(projectId, formId, submissionId, stamp)
     expect(request.requestFoundation).toHaveBeenLastCalledWith(
       `${submissionsPath}/${submissionId}/submit`,
       { method: 'POST', body: JSON.stringify({ expectedUpdatedAt: stamp }) },
@@ -179,81 +178,81 @@ describe.each(clients)('%s form and direct entry requests', (_name, client) => {
   const calls = [
     {
       name: 'getDigitalForms',
-      run: () => client.getDigitalForms(odd),
+      run: () => formsClient.getDigitalForms(odd),
       path: formsBase,
       init: false,
       list: true,
     },
     {
       name: 'getDigitalForm',
-      run: () => client.getDigitalForm(odd, odd),
+      run: () => formsClient.getDigitalForm(odd, odd),
       path: `${formsBase}/a%20b`,
       init: false,
     },
     {
       name: 'createDigitalForm',
-      run: () => client.createDigitalForm(odd, input),
+      run: () => formsClient.createDigitalForm(odd, input),
       path: formsBase,
       init: true,
     },
     {
       name: 'updateDigitalForm',
-      run: () => client.updateDigitalForm(odd, odd, { ...input, expectedUpdatedAt: stamp }),
+      run: () => formsClient.updateDigitalForm(odd, odd, { ...input, expectedUpdatedAt: stamp }),
       path: `${formsBase}/a%20b`,
       init: true,
     },
     {
       name: 'publishDigitalForm',
-      run: () => client.publishDigitalForm(odd, odd, stamp),
+      run: () => formsClient.publishDigitalForm(odd, odd, stamp),
       path: `${formsBase}/a%20b/publish`,
       init: true,
     },
     {
       name: 'createDigitalFormVersion',
-      run: () => client.createDigitalFormVersion(odd, odd),
+      run: () => formsClient.createDigitalFormVersion(odd, odd),
       path: `${formsBase}/a%20b/versions`,
       init: true,
     },
     {
       name: 'generateDigitalForm',
       run: () =>
-        client.generateDigitalForm(odd, { code: 'post_test_copy', name: 'Post test (copy)' }),
+        formsClient.generateDigitalForm(odd, { code: 'post_test_copy', name: 'Post test (copy)' }),
       path: `${formsBase}/generate`,
       init: true,
     },
     {
       name: 'validateDigitalFormValues',
-      run: () => client.validateDigitalFormValues(odd, odd, {}),
+      run: () => formsClient.validateDigitalFormValues(odd, odd, {}),
       path: `${formsBase}/a%20b/validate`,
       init: true,
     },
     {
       name: 'saveDirectSubmission',
-      run: () => client.saveDirectSubmission(odd, odd, odd, {}),
+      run: () => formsClient.saveDirectSubmission(odd, odd, odd, {}),
       path: submissions,
       init: true,
     },
     {
       name: 'getDirectSubmission',
-      run: () => client.getDirectSubmission(odd, odd, odd),
+      run: () => formsClient.getDirectSubmission(odd, odd, odd),
       path: `${submissions}/a%20b`,
       init: false,
     },
     {
       name: 'getDirectSubmissionByClientId',
-      run: () => client.getDirectSubmissionByClientId(odd, odd, odd),
+      run: () => formsClient.getDirectSubmissionByClientId(odd, odd, odd),
       path: `${submissions}/by-client/a%20b`,
       init: false,
     },
     {
       name: 'updateDirectSubmission',
-      run: () => client.updateDirectSubmission(odd, odd, odd, stamp, {}),
+      run: () => formsClient.updateDirectSubmission(odd, odd, odd, stamp, {}),
       path: `${submissions}/a%20b`,
       init: true,
     },
     {
       name: 'submitDirectSubmission',
-      run: () => client.submitDirectSubmission(odd, odd, odd, stamp),
+      run: () => formsClient.submitDirectSubmission(odd, odd, odd, stamp),
       path: `${submissions}/a%20b/submit`,
       init: true,
     },

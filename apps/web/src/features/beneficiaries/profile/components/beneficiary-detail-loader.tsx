@@ -10,6 +10,7 @@ import { useCurrentRole } from '@/hooks/use-current-role'
 import { activitiesClient } from '@/lib/api/activities'
 import { beneficiariesClient } from '@/lib/api/beneficiaries'
 import { PathwaysClientError } from '@/lib/api/core/request'
+import { formsClient } from '@/lib/api/forms'
 import { journeysClient } from '@/lib/api/journeys'
 import { projectsClient } from '@/lib/api/projects'
 import { STEP_UP_COMPLETED_EVENT } from '@/lib/auth/beneficiary-step-up-events'
@@ -127,7 +128,7 @@ export const BeneficiaryDetailLoader = ({
           activitiesClient.getActivities(scopedProjectId),
           journeysClient.getJourneyStages(scopedProjectId),
           journeysClient.getBeneficiaryJourneyHistory(scopedProjectId, beneficiaryId),
-          canReadForms ? pathwaysClient.getDigitalForms(scopedProjectId) : Promise.resolve([]),
+          canReadForms ? formsClient.getDigitalForms(scopedProjectId) : Promise.resolve([]),
           readAssessments,
         ])
         const journey = mapBeneficiaryJourneyHistory(history)

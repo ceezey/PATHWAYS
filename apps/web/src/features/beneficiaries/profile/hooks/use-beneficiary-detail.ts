@@ -2,9 +2,9 @@ import { useRef, useState } from 'react'
 import { toast } from 'sonner'
 
 import { useCurrentRole } from '@/hooks/use-current-role'
+import { formsClient } from '@/lib/api/forms'
 import { journeysClient } from '@/lib/api/journeys'
 import { isUiActionAvailable } from '@/lib/rbac/ui-action-availability'
-import { pathwaysClient } from '@/lib/services/pathways-client'
 import type {
   ActivitySummary,
   BeneficiaryRecord,
@@ -180,7 +180,7 @@ export const useBeneficiaryDetail = ({
     setSavingParticipation(true)
     try {
       participationClientId.current ??= crypto.randomUUID()
-      const saved = await pathwaysClient.saveDirectSubmission(
+      const saved = await formsClient.saveDirectSubmission(
         projectId,
         form.id,
         participationClientId.current,
@@ -193,7 +193,7 @@ export const useBeneficiaryDetail = ({
         },
       )
       if (saved.status === 'DRAFT') {
-        await pathwaysClient.submitDirectSubmission(projectId, form.id, saved.id, saved.updatedAt)
+        await formsClient.submitDirectSubmission(projectId, form.id, saved.id, saved.updatedAt)
       }
       const history = await journeysClient.getBeneficiaryJourneyHistory(projectId, beneficiary.id)
       const nextJourney = mapBeneficiaryJourneyHistory(history)

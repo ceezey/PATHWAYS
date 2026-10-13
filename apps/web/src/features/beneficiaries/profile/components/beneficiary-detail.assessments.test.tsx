@@ -32,6 +32,7 @@ vi.mock('@/hooks/use-current-role', () => ({
 }))
 vi.mock('next/navigation', () => ({ useSearchParams: () => new URLSearchParams() }))
 vi.mock('@/lib/services/pathways-client', () => ({ pathwaysClient: client }))
+vi.mock('@/lib/api/forms', () => ({ formsClient: client }))
 vi.mock('@/lib/api/journeys', () => ({ journeysClient: client }))
 vi.mock('sonner', () => ({
   toast: { error: toastError, success: toastSuccess },
