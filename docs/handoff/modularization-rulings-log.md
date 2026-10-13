@@ -369,3 +369,13 @@ Ruling: accept Task 5's route result (against the Task 3 baseline five routes mo
 Ruling: Task 5 review PASS; the low finding (a second summary freshness constant in indicators.reads.ts) is the brief's text and stays, cost if wrong: none.
 
 Ruling: Task 6 records use the measured figures where they differ from the brief (eleven routes moved by 1 kB or less in Tasks 1 and 2, five in Task 5, Middleware 103 kB in the container); the docs check's seventh failure was a double hyphen in this log, now reworded, cost if wrong: none.
+
+Ruling: the container replay cannot run because initdb refuses root (PHASE6_LOCAL_REPLAY=FAILED before any migration step), so the pull request CI replay is the replay gate for every slice, as the plan allows, cost if wrong: none, CI runs the same script on PostgreSQL 18.
+
+Ruling: accept the S3b gate figures that differ from the plan only by container rounding (against the Task 3 baseline different 5, not 6; against Task 0 different 9, not 12, with /collection/import 1 kB bigger and nothing else growing; Middleware 103 kB), cost if wrong: a 1 kB growth goes unseen.
+
+Ruling: S3b SAD sign-off PASS at e293bec8 (57 of 57 lines PASS across design-qa-agent, beneficiary-privacy-guardian and rule-engine-determinism-checker) and the final review PASS; its medium finding (the S4 Task 0 Middleware figure) is fixed to 103 kB with the gates record, the stale S3 path in sad-packet-example.md stays because the file is a layout example, and the S5 mock note is recounted in S5 Task 0 per its ruling 21, cost if wrong: an S4 or S5 Task 0 stop.
+
+Ruling: apply the S5 pre-flight fixes (6 must-fix, 16 should-fix and replacement blocks B1 to B4, including the hex project id that makes the Task 5 Step 6 characterization test meaningful and the post-S4 imports.service.ts count of 2119) and record that the S3b cross-plan lines for S5, S6 and S7 were already in those plans, cost if wrong: an S5 Task 0 stop.
+
+Ruling: record the S3b gates in a post-sign-off docs commit with the plan fixes, as S3a did, so the SAD digest stays bound to e293bec8 and docs changes route nowhere, cost if wrong: none.
