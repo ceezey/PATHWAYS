@@ -19,7 +19,7 @@ vi.mock('@app/common/authz/authorized-operation', () => ({
   ),
 }))
 
-import { ParticipantsService } from './participants.service'
+import { BeneficiaryJourneyService } from './beneficiary-journey.service'
 
 const organizationId = '10000000-0000-4000-8000-000000000001'
 const projectId = '20000000-0000-4000-8000-000000000002'
@@ -52,7 +52,7 @@ const check = (schema: z.ZodTypeAny, body: Record<string, unknown>) =>
   schema.safeParse(body).error?.issues ?? []
 
 describe('G-F4-6 journey note', () => {
-  const service = new ParticipantsService({} as PrismaService)
+  const service = new BeneficiaryJourneyService({} as PrismaService)
 
   beforeEach(() => {
     vi.clearAllMocks()

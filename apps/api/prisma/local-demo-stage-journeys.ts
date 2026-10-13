@@ -154,7 +154,7 @@ async function recordProject(ctx: DemoContext, project: Project) {
         (await ctx.owner.beneficiaryJourneyEvent.count({ where: { correctsEventId: event.id } }))
       if (event && !corrected) {
         await step(`journey note ${code}`, () =>
-          ctx.services.participants.correctEvent(
+          ctx.services.beneficiaryJourney.correctEvent(
             officer,
             projectId,
             enrollment.beneficiaryId,

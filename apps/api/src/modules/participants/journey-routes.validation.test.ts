@@ -5,8 +5,10 @@ import { type INestApplication, ValidationPipe } from '@nestjs/common'
 import { Test } from '@nestjs/testing'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { BeneficiaryJourneyController, JourneyStagesController } from './participants.controller'
-import { ParticipantsService } from './participants.service'
+import { BeneficiaryJourneyController } from './beneficiary-journey.controller'
+import { BeneficiaryJourneyService } from './beneficiary-journey.service'
+import { JourneyStagesController } from './journey-stages.controller'
+import { JourneyStagesService } from './journey-stages.service'
 
 const projectId = '10000000-0000-4000-8000-000000000001'
 const beneficiaryId = '20000000-0000-4000-8000-000000000002'
@@ -20,7 +22,10 @@ let port: number
 beforeAll(async () => {
   const module = await Test.createTestingModule({
     controllers: [JourneyStagesController, BeneficiaryJourneyController],
-    providers: [{ provide: ParticipantsService, useValue: participants }],
+    providers: [
+      { provide: JourneyStagesService, useValue: participants },
+      { provide: BeneficiaryJourneyService, useValue: participants },
+    ],
   }).compile()
   app = module.createNestApplication({ logger: false })
   // Stands in for the identity the auth guard attaches; the guard is not under test here.

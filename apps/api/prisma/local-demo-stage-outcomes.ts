@@ -82,7 +82,7 @@ export async function stageEnrollmentOutcomes(ctx: DemoContext) {
       (row.startDate as Date).toISOString().slice(0, 10),
     )
     const stages = outcome.stage
-      ? await ctx.services.participants.listStages(
+      ? await ctx.services.journeyStages.listStages(
           ctx.staff[project.officers[0]].identity,
           projectId,
         )
@@ -112,7 +112,7 @@ export async function stageEnrollmentOutcomes(ctx: DemoContext) {
       })
       if (already) continue
       await step(`enrollment outcome ${person.code}`, () =>
-        ctx.services.participants.transitionEnrollment(
+        ctx.services.beneficiaryJourney.transitionEnrollment(
           ctx.staff[project.officers[0]].identity,
           projectId,
           beneficiary.id,

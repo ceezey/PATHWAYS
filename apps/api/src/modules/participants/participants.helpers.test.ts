@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { canonicalCode } from '../beneficiaries/beneficiary-registration.helpers'
-import { normalizedCode, normalizedText } from './participants.dto'
+import { normalizedText } from './participants.helpers'
 
 const grin = String.fromCodePoint(0x1f600)
 
@@ -22,7 +22,6 @@ describe('participation beneficiary code', () => {
     [42, null],
   ])('reads %j as %j with the registration code rule', (value, expected) => {
     expect(canonicalCode(value)).toBe(expected)
-    expect(normalizedCode(value)).toBe(expected)
   })
 })
 

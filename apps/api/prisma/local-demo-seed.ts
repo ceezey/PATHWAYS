@@ -19,6 +19,8 @@ import { IndicatorLibraryService } from '../src/modules/indicators/indicator-lib
 import { IndicatorMeasurementsService } from '../src/modules/indicators/indicator-measurements.service'
 import { IndicatorsService } from '../src/modules/indicators/indicators.service'
 import { MetadataService } from '../src/modules/metadata/metadata.service'
+import { BeneficiaryJourneyService } from '../src/modules/participants/beneficiary-journey.service'
+import { JourneyStagesService } from '../src/modules/participants/journey-stages.service'
 import { ParticipantsService } from '../src/modules/participants/participants.service'
 import { ProjectOverviewMetricsService } from '../src/modules/projects/project-overview-metrics.service'
 import { ProjectsService } from '../src/modules/projects/projects.service'
@@ -81,7 +83,8 @@ export type DemoContext = {
     library: IndicatorLibraryService
     beneficiaries: BeneficiariesService
     metadata: MetadataService
-    participants: ParticipantsService
+    journeyStages: JourneyStagesService
+    beneficiaryJourney: BeneficiaryJourneyService
     imports: ImportsService
     finance: FinanceService
     reports: ReportsService
@@ -180,7 +183,8 @@ async function main() {
     library: new IndicatorLibraryService(runtime, indicators),
     beneficiaries,
     metadata: new MetadataService(runtime, participants),
-    participants,
+    journeyStages: new JourneyStagesService(runtime),
+    beneficiaryJourney: new BeneficiaryJourneyService(runtime),
     imports: new ImportsService(runtime, storage, registration, participants),
     finance: new FinanceService(
       runtime,
