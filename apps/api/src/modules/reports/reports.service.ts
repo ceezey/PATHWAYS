@@ -12,7 +12,13 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common'
 import { readApiEnv } from '@pathways/config'
-import { type ReportKindCode, hasAtomicPermission, metricCellSchema } from '@pathways/shared'
+import {
+  type ReportKindCode,
+  generateReportRequest,
+  hasAtomicPermission,
+  metricCellSchema,
+  reportPreviewQuery,
+} from '@pathways/shared'
 import { Prisma } from '@prisma/client'
 import { z } from 'zod'
 import { writeAuditLog } from '../../common/audit/write-audit-log'
@@ -45,7 +51,6 @@ import {
   monitoringReportPeriod,
   monitoringReportTable,
 } from './report-sources-extra'
-import { reportInputSchema, reportQuerySchema } from './reports.dto'
 
 const kindPermission = {
   PROJECT_SUMMARY: 'reports.project.read',
@@ -392,7 +397,7 @@ export class ReportsService {
     )
   }
   preview(identity: ApplicationIdentity, projectId: string, input: unknown) {
-    const parsed = reportQuerySchema.safeParse(input)
+    const parsed = reportPreviewQuery.safeParse(input)
     if (!parsed.success) throw new BadRequestException('Invalid report context.')
     return withAuthorizedOperation(
       this.prisma,
@@ -567,7 +572,7 @@ export class ReportsService {
     if (!uuid.safeParse(requestedProjectId).success)
       throw new NotFoundException('Project unavailable.')
     const projectId = requestedProjectId.toLowerCase()
-    const parsed = reportInputSchema.safeParse(input)
+    const parsed = generateReportRequest.safeParse(input)
     if (!parsed.success) throw new BadRequestException('Invalid report request.')
     const body = {
       ...parsed.data,

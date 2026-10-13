@@ -6,7 +6,15 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common'
-import { hasAtomicPermission } from '@pathways/shared'
+import {
+  createEvaluationRequest,
+  enrollmentAssessmentsQuery,
+  hasAtomicPermission,
+  returnEvaluationRequest,
+  saveEvaluationScoresRequest,
+  signOffEvaluationRequest,
+  submitEvaluationRequest,
+} from '@pathways/shared'
 import type { Prisma } from '@prisma/client'
 import { z } from 'zod'
 import { writeAuditLog } from '../../common/audit/write-audit-log'
@@ -26,45 +34,6 @@ const assessmentDetailDeniedRoles = new Set([
   'PROGRAM_MANAGER',
   'GRANT_MANAGER',
 ])
-const dateOnly = z
-  .string()
-  .regex(/^\d{4}-\d{2}-\d{2}$/)
-  .refine((value) => !Number.isNaN(new Date(`${value}T00:00:00.000Z`).valueOf()))
-const createEvaluationSchema = z
-  .object({
-    clientRequestId: z.string().uuid(),
-    title: z.string().trim().min(1).max(200),
-    periodLabel: z.string().trim().min(1).max(80).optional(),
-    periodStart: dateOnly,
-    periodEnd: dateOnly,
-  })
-  .strict()
-  .refine((value) => value.periodEnd >= value.periodStart, {
-    message: 'The period end cannot be before its start.',
-    path: ['periodEnd'],
-  })
-export const saveScoresSchema = z
-  .object({
-    expectedUpdatedAt: z.string().datetime({ offset: true }),
-    commentary: z.string().trim().max(4000).optional(),
-  })
-  .strict()
-const submitEvaluationSchema = z
-  .object({ expectedUpdatedAt: z.string().datetime({ offset: true }) })
-  .strict()
-const returnEvaluationSchema = z
-  .object({
-    expectedUpdatedAt: z.string().datetime({ offset: true }),
-    reason: z.string().trim().min(1).max(2000),
-  })
-  .strict()
-const signoffEvaluationSchema = z
-  .object({
-    expectedUpdatedAt: z.string().datetime({ offset: true }),
-    feedback: z.string().trim().min(1).max(2000),
-  })
-  .strict()
-
 const person = { select: { id: true, fullName: true } } as const
 const named = (value: { id: string; fullName: string } | null) =>
   value ? { id: value.id, name: value.fullName.slice(0, 200) } : null
@@ -375,7 +344,7 @@ export class EvaluationsService {
         if (!hasAtomicPermission(actor.roles[0], actor.permissions, 'beneficiaries.records.read'))
           throw new ForbiddenException('Assessment detail is not available to this role.')
         const id = await requireScopedProject(tx, actor, projectId)
-        const parsed = z.object({ enrollmentId: z.string().uuid() }).safeParse(query)
+        const parsed = enrollmentAssessmentsQuery.safeParse(query)
         if (!parsed.success) throw new NotFoundException('Enrollment unavailable.')
         const enrollment = await tx.beneficiaryProjectEnrollment.findFirst({
           where: {
@@ -490,7 +459,7 @@ export class EvaluationsService {
   // round also provisions the default criteria. Retrying the same start returns the round the
   // actor already opened.
   createEvaluation(identity: ApplicationIdentity, projectId: string, input: unknown) {
-    const parsed = createEvaluationSchema.safeParse(input)
+    const parsed = createEvaluationRequest.safeParse(input)
     if (!parsed.success)
       throw new BadRequestException('Supply a title and a valid period for the evaluation.')
     return withAuthorizedOperation(
@@ -572,7 +541,7 @@ export class EvaluationsService {
     evaluationId: string,
     input: unknown,
   ) {
-    const parsed = saveScoresSchema.safeParse(input)
+    const parsed = saveEvaluationScoresRequest.safeParse(input)
     if (!parsed.success) throw new BadRequestException('Supply the evaluation you last loaded.')
     return withAuthorizedOperation(
       this.prisma,
@@ -616,7 +585,7 @@ export class EvaluationsService {
   }
 
   submit(identity: ApplicationIdentity, projectId: string, evaluationId: string, input: unknown) {
-    const parsed = submitEvaluationSchema.safeParse(input)
+    const parsed = submitEvaluationRequest.safeParse(input)
     if (!parsed.success) throw new BadRequestException('Supply the evaluation you last loaded.')
     return withAuthorizedOperation(
       this.prisma,
@@ -683,7 +652,7 @@ export class EvaluationsService {
     evaluationId: string,
     input: unknown,
   ) {
-    const parsed = returnEvaluationSchema.safeParse(input)
+    const parsed = returnEvaluationRequest.safeParse(input)
     if (!parsed.success)
       throw new BadRequestException('Supply a reason for returning this evaluation.')
     return withAuthorizedOperation(
@@ -733,7 +702,7 @@ export class EvaluationsService {
   // The evaluator cannot sign off their own evaluation even though the two roles never
   // overlap today (one role per user), kept as a direct, defense-in-depth check.
   signoff(identity: ApplicationIdentity, projectId: string, evaluationId: string, input: unknown) {
-    const parsed = signoffEvaluationSchema.safeParse(input)
+    const parsed = signOffEvaluationRequest.safeParse(input)
     if (!parsed.success)
       throw new BadRequestException('Supply sign-off feedback for this evaluation.')
     return withAuthorizedOperation(

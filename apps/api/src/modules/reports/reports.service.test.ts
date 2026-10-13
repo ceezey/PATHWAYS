@@ -6,7 +6,7 @@ import {
   ServiceUnavailableException,
   UnprocessableEntityException,
 } from '@nestjs/common'
-import { hasAtomicPermission } from '@pathways/shared'
+import { generateReportRequest, hasAtomicPermission, reportPreviewQuery } from '@pathways/shared'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import type { PrismaService } from '../../prisma/prisma.service'
@@ -17,7 +17,6 @@ import type { PrivateStorageFactories } from '../storage/private-storage-factori
 import type { StorageService } from '../storage/storage.service'
 import { sourceFingerprint } from './report-fingerprint'
 import { ReportPdfError, type ReportPdfRenderer } from './report-pdf.renderer'
-import { reportInputSchema, reportQuerySchema } from './reports.dto'
 import { ReportsService } from './reports.service'
 const state = vi.hoisted(() => ({
   actor: undefined as unknown,
@@ -168,17 +167,17 @@ describe('report source authority, privacy and artifact recovery', () => {
     vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => {})
   })
   it('requires exact survey-only form context and rejects caller filter dimensions', () => {
-    expect(reportQuerySchema.safeParse({ kind: 'SURVEY_FORM_RESULTS' }).success).toBe(false)
-    expect(reportQuerySchema.safeParse({ kind: 'PROJECT_SUMMARY', formId }).success).toBe(false)
+    expect(reportPreviewQuery.safeParse({ kind: 'SURVEY_FORM_RESULTS' }).success).toBe(false)
+    expect(reportPreviewQuery.safeParse({ kind: 'PROJECT_SUMMARY', formId }).success).toBe(false)
     expect(
-      reportQuerySchema.safeParse({
+      reportPreviewQuery.safeParse({
         kind: 'SURVEY_FORM_RESULTS',
         formId,
         periodStart: '2026-01-01',
       }).success,
     ).toBe(false)
     expect(
-      reportInputSchema.safeParse({ ...body, kind: 'SURVEY_FORM_RESULTS', formId }).success,
+      generateReportRequest.safeParse({ ...body, kind: 'SURVEY_FORM_RESULTS', formId }).success,
     ).toBe(true)
   })
   it('does not trust a caller grant revoked in the current profile', async () => {
@@ -597,15 +596,16 @@ describe('report source authority, privacy and artifact recovery', () => {
 
     it('rejects an evaluation round on other kinds and accepts it on evaluation reports', () => {
       const evaluationId = '60000000-0000-4000-8000-000000000006'
-      expect(reportQuerySchema.safeParse({ kind: 'PROJECT_SUMMARY', evaluationId }).success).toBe(
+      expect(reportPreviewQuery.safeParse({ kind: 'PROJECT_SUMMARY', evaluationId }).success).toBe(
         false,
       )
-      expect(reportInputSchema.safeParse({ ...body, evaluationId }).success).toBe(false)
-      expect(reportQuerySchema.safeParse({ kind: 'EVALUATION_REPORT', evaluationId }).success).toBe(
-        true,
-      )
+      expect(generateReportRequest.safeParse({ ...body, evaluationId }).success).toBe(false)
       expect(
-        reportInputSchema.safeParse({ ...body, kind: 'EVALUATION_REPORT', evaluationId }).success,
+        reportPreviewQuery.safeParse({ kind: 'EVALUATION_REPORT', evaluationId }).success,
+      ).toBe(true)
+      expect(
+        generateReportRequest.safeParse({ ...body, kind: 'EVALUATION_REPORT', evaluationId })
+          .success,
       ).toBe(true)
     })
 
