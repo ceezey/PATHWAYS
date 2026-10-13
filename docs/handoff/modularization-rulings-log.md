@@ -453,3 +453,51 @@ Ruling: S5a final review PASS with one medium (Review Focus 5 eviction half unpi
 Ruling: S5a static gates passed at 6c0ed266 (config 19, shared 570, imports 94, api 2514 with 21 skipped, web 224 files and 1998 tests, sad 56, Middleware 103 kB, dist layout ok, compiled pipe probe all Object as expected); replay is the pull request CI gate, and the local stack, boot, e2e and smoke are pending local run, cost if wrong: none beyond a CI cycle.
 
 Ruling: S5a SAD sign-off PASS at ede08092 over 2cfa0454 (146 entries: design-qa-agent 61, metadata-import-validator 55, organization-isolation-checker 17, beneficiary-privacy-guardian 11, restraint-guardian 2, no block), with ede08092 re-reviewed by design-qa and the import validator on a scoped packet, cost if wrong: a later SAD finding on the S5a range that pull request CI does not catch.
+
+## S6a
+
+Ruling: run S6a before S4b because S6a's plan is full and pre-flighted while the S4b planner is still dry-running, and S6a touches no web file (its Task 0 says S4b and S5b are not required); the 16 Task 0 hashes match at 3b167867, cost if wrong: the pull requests merge in a different order from the roadmap, with no code overlap.
+
+Ruling: Cian's 07:28Z message (merge once all slice is ready) is read as one batch merge of every slice PR into dev in stack order after the last slice is green, not a merge per PR, cost if wrong: dev receives the slices later than he wanted.
+
+Ruling: S6a Task 0 matched every anchor at 3b167867 (16 hashes, module pairs dashboards-reports and report-pdf-reports, greps 9, 0, 1, 0) with baselines B_shared 570, B_imports 94, B_api 2515 (21 skipped), B_sad 56, M0 103 kB; plan copy and index row committed in 00288947, cost if wrong: none, every later count is a delta from these.
+
+Ruling: S6a Task 1 matched (report-pdf grep empty, ratchet fail-first with the three expected pairs, then only dashboards-reports, api B_api+2, noUnusedLocals grep empty) in 1dc1b9c5 and 3428acc2, cost if wrong: none.
+
+Ruling: S5a pull request #51 CI run 38362232295 is green at 3b167867 (validate with the replay, and the automated SAD checks), so the PR is marked ready and waits for the batch merge Cian asked for, cost if wrong: none.
+
+Ruling: S6a Task 1 review PASS (five git renames, other moved and repointed files differ only on import lines, module pairs recomputed as dashboards-reports only); the two lows are accepted (the finance.module.ts layout is verbatim from the brief, and the activity log entry is Task 7's), cost if wrong: none.
+
+Ruling: S6a Task 2 matched (39 characterization tests green on the unchanged service, contract test fail-first then 20, cut 38 lines, finance suite 4 files 71 tests, shared B_shared+20, api B_api+41) in 1c0367c5 and ca2650d0, cost if wrong: none.
+
+Ruling: S6a Task 2 review PASS (five parse calls swapped, the decimal refine equivalent apart from ruling 4, all 39 characterization rows kept); the low on unpinned bounds (max lengths 200 and 2000, the 17-digit integer part, the +08:00 offset on expectedUpdatedAt) gets a tests-only fix in the shared finance contract test after Task 3, because earlier slices' SAD reviews blocked on exactly such rows; the missing blank line before @Injectable stays, cost if wrong: a few extra test rows.
+
+Ruling: S6a Task 3 matched (characterization 22 and 17 green on the unchanged services, contract tests fail-first then 8 and 7, cut 38 lines, shared B_shared+35, api B_api+80, old-name grep empty) in 88758587 and a50fc1d9, cost if wrong: none.
+
+Ruling: S6a Task 3 review PASS (verbatim moves, controllers unchanged, safeParse order kept, no row removed); its 14 low unpinned-bound findings join the Task 2 lows in one tests-only fix after Task 4, in the shared contract tests only, cost if wrong: a few extra test rows.
+
+Ruling: S6a Task 4 matched (13 repointed files, 13 move-lines counts, evaluations plus reports 199 passed and 10 skipped, api unchanged at B_api+80, service 337 lines) in b8f7971c and 2cd28fbf, cost if wrong: none.
+
+Ruling: the tests-only fix 3834e092 adds 52 shared rows (finance 11, evaluations 20, reports 21), each shown to fail on a loosened schema; periodEnd 2026-02-30 is pinned as accepted because that is today's behavior on V8 (CI runs the same engine); every later shared expectation in the S6a briefs reads as plan value plus 277 (B_shared plus 52 more), cost if wrong: one engine-dependent row to revisit if Node changes date parsing.
+
+Ruling: S6a Task 4 review PASS (AST token proof over every moved declaration, ruling 7 holds, withAuthorizedOperation 9 calls unchanged, tests moved byte-identical); the two infos are left to Task 5 (report-sources-extra.ts annotation) and Task 7 (docs naming evaluation-metrics.ts), cost if wrong: none.
+
+Ruling: S6a Task 5 matched (scope test 7 green against the inline lookups, api B_api+87, split lengths 50/303/144/469/59/134/249, reports.service.ts 456 split lines, TransactionClient grep empty) in ada6832c, 347eaab2, e9ba4766 and 24c92014, cost if wrong: none.
+
+Ruling: S6a Task 6 matched (split lengths 10/200/440, finance suite 4 files 71 tests, api B_api+87, noUnusedLocals grep empty) in 9466f463, cost if wrong: none.
+
+Ruling: S6a Task 6 review PASS (token proof with comments counted, 13 withAuthorizedOperation calls unchanged, 503 texts byte-equal, no wiring change); the two infos (function module named .service.ts as briefed, helpers glob arriving in Task 7) need nothing, cost if wrong: none.
+
+Ruling: S6a Task 7 matched (helpers routing test fail-first then sad B_sad+1, CR, audit, QAD and deferred rows, docs check at baseline) in 02b272f4; the TransactionClient sentence sits on the Task 4 and 5 bullets where those edits landed, not Task 6 as the brief says, cost if wrong: none.
+
+Ruling: S6a Task 5 review PASS (AST token proofs, requireScopedProject equal to the inline lookup apart from ruling 9, same 404 text for every bad id, zod uuid and UUID_PATTERN agree on a 300k fuzz, 8 withAuthorizedOperation calls unchanged); the three lows stay unless the final review or SAD asks (the predicate is pinned by scoped-project.test.ts, the 403 order is unchanged code, the return shape is the brief's), cost if wrong: a reordering of the permission check before the lookup would go unnoticed by the report tests.
+
+Ruling: S6a SAD sign-off PASS at 02b272f4 over 3b167867 (84 entries: design-qa-agent 61 in two packets of 31 and 30 because the role passed 60 paths, organization-isolation-checker 14, beneficiary-privacy-guardian 7, restraint-guardian 2, no block), cost if wrong: a later SAD finding on the S6a range that pull request CI does not catch.
+
+Ruling: Cian's 08:21Z message (one PR once all slices are implemented) replaces per-slice pull requests: S6a and later slices get no PR of their own, slices keep stacking and the branch is pushed at task-pair boundaries for backup, and after W1 one PR from the last branch goes into dev while #49, #50 and #51 are closed as superseded, cost if wrong: the open slice PRs would need reopening, which is reversible.
+
+Ruling: S6a final review PASS (independent archive run matches the activity log, no removed test line left unpinned, DI probe resolves one PrintPdfRenderer); the medium (finance refusal tests other than createBudget do not assert that no operation ran) and the lows on the trimmed value reaching the database, '0.01' at service level and the findFirst arguments get one tests-only fix; the exported-but-local helpers and the missing Task 7 hash stay, cost if wrong: a few extra test assertions.
+
+Ruling: S6a static gates passed at 02b272f4 (config 19, shared 657, imports 94, api 2602 with 21 skipped, web 224 files and 1998 tests, sad 57, Middleware 103 kB, dist layout ok, docs check 6 and 1 at baseline); the container replay stops at initdb as root, so the final PR's CI is the replay gate; the renderer check fails at navigate with no browser and at launch with the Playwright Chromium (root sandbox), so it joins the pending local runs, cost if wrong: a renderer wiring fault would surface only in Cian's local run or the final PR CI.
+
+Ruling: the tests-only fix 5bd2ae40 adds 8 api cases (four finance refusals assert no authorized operation ran, 0.01 reaches SQL, trimmed periodLabel and report name reach the write, three findFirst argument checks and two 403-before-lookup cases), each shown to fail on a temporary production break; its commit message was amended from a Sonnet co-author line to the Opus line before any push; api is now B_api+95 (2610), cost if wrong: none.
