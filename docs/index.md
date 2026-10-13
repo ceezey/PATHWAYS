@@ -111,6 +111,7 @@ Workflow rule: an audit is finding and evidence, a Change Record is the approved
 | [SAD packet example](handoff/sad-packet-example.md) | sad-packet-example.md | 2026-10-13 | S3a SAD section 4.2 handoff packet used as the layout for later slices | Active |
 | [S3b indicators web plan](superpowers/plans/2026-10-13-modularization-s3b-indicators-web.md) | 2026-10-13-modularization-s3b-indicators-web.md | 2026-10-13 | S3b of the codebase modularization: indicator and indicator library clients, indicators feature folder, workspace and library manager split, indicator read keys, web alias removed | In progress |
 | [S4 beneficiaries plan](superpowers/plans/2026-10-13-modularization-s4-beneficiaries.md) | 2026-10-13-modularization-s4-beneficiaries.md | 2026-10-13 | S4 of the codebase modularization: S4a beneficiary, journey and media request contracts, beneficiaries and participants services split, registration service for imports; S4b outline | In progress |
+| [S5 collection plan](superpowers/plans/2026-10-13-modularization-s5-collection.md) | 2026-10-13-modularization-s5-collection.md | 2026-10-13 | S5 of the codebase modularization: S5a imports and metadata contracts, imports and metadata service splits and the smart-match split; S5b outline | In progress |
 
 ### 1.7 Traceability Matrix
 
