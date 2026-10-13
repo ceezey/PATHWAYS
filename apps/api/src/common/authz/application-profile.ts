@@ -20,7 +20,7 @@ export async function readApplicationProfile(
   organizationId: string,
   userId: string,
 ): Promise<ApplicationIdentity> {
-  const assignmentCutoff = new Date()
+  // Compare assigned_at with the database clock that stamps it, not the host clock.
   // The default Prisma relation strategy performs several sequential reads here.
   // Join the same active profile/organization/role/grants/assignments in one
   // parameterized SELECT, on the SAME runtime transaction and under the SAME
@@ -44,7 +44,7 @@ export async function readApplicationProfile(
             ON project.id = a.project_id AND project.organization_id = a.organization_id
           WHERE a.organization_id = u.organization_id AND a.user_id = u.id
             AND a.status = 'ACTIVE' AND a.ended_at IS NULL
-            AND a.assigned_at <= ${assignmentCutoff}
+            AND a.assigned_at <= clock_timestamp()
             AND project.archived_at IS NULL
         ) scoped
       ), '[]'::jsonb) AS "assignedProjectIds"
