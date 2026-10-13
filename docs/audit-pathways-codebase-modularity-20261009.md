@@ -43,7 +43,7 @@ Out of scope for the modularization (behavior, not structure):
 
 | ID | Severity | Finding | Evidence | Contract affected | Recommended disposition |
 |---|---|---|---|---|---|
-| MOD-B1 | Medium | Beneficiary age filter value drift | `features/beneficiaries/beneficiary-directory.tsx:103,403` offers `'5-9'`; API and shared accept `'0-9'` (`beneficiaries.service.ts:353`, `metric-contract.ts:13`) | SADDD | Separate fix |
+| MOD-B1 | Medium | Beneficiary age filter value drift | `features/beneficiaries/directory/components/beneficiary-directory.tsx:103,403` offers `'5-9'`; API and shared accept `'0-9'` (`beneficiaries.service.ts:353`, `metric-contract.ts:13`) | SADDD | Separate fix |
 | MOD-B2 | Medium | Middleware matcher omits two staff routes | `apps/web/src/middleware.ts` matcher has no `/indicators` or `/transparency` though both route folders exist under `(dashboard)` | Route access (API still enforces) | Separate security review |
 
 ## 3. Non-Findings / Verified Controls
