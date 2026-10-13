@@ -22,7 +22,6 @@ import { projectScope } from '../../common/authz/project-scope'
 import { PrismaService } from '../../prisma/prisma.service'
 import { DashboardsService } from '../dashboards/dashboards.service'
 import { ProjectOverviewMetricsService } from '../projects/project-overview-metrics.service'
-import { ReportPdfError, ReportPdfRenderer } from '../report-pdf/report-pdf.renderer'
 import { RulesHumanService } from '../rules/rules-human.service'
 import {
   PRIVATE_STORAGE_FACTORIES,
@@ -36,6 +35,7 @@ import {
   reportMime,
 } from './report-artifact'
 import { sourceContent, sourceFingerprint } from './report-fingerprint'
+import { ReportPdfError, ReportPdfRenderer } from './report-pdf.renderer'
 import { type ProjectSections, flattenSections } from './report-project-status'
 import { projectStatusSource } from './report-project-status-source'
 import {

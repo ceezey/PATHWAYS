@@ -12,11 +12,11 @@ import type { ApplicationIdentity } from '../../common/authz/application-identit
 import type { PrismaService } from '../../prisma/prisma.service'
 import type { DashboardsService } from '../dashboards/dashboards.service'
 import type { ProjectOverviewMetricsService } from '../projects/project-overview-metrics.service'
-import { ReportPdfError, type ReportPdfRenderer } from '../report-pdf/report-pdf.renderer'
 import type { RulesHumanService } from '../rules/rules-human.service'
 import type { PrivateStorageFactories } from '../storage/private-storage-factories'
 import type { StorageService } from '../storage/storage.service'
 import { sourceFingerprint } from './report-fingerprint'
+import { ReportPdfError, type ReportPdfRenderer } from './report-pdf.renderer'
 import { reportInputSchema, reportQuerySchema } from './reports.dto'
 import { ReportsService } from './reports.service'
 const state = vi.hoisted(() => ({

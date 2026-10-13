@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common'
-import { PrintPdfError, PrintPdfRenderer } from './print-pdf.renderer'
+import { PrintPdfError, PrintPdfRenderer } from '../print-pdf/print-pdf.renderer'
 
 /** Allowlisted disbursement record fields; nothing else about the expense reaches the page. */
 type ReceiptSnapshot = {

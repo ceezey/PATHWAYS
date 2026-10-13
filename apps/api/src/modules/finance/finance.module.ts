@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common'
-import { ReportPdfModule } from '../report-pdf/report-pdf.module'
+import { ReportPdfModule } from '../print-pdf/print-pdf.module'
 import { FinanceController } from './finance.controller'
 import { FinanceService } from './finance.service'
 @Module({

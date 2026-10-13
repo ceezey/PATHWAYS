@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { PrintPdfRenderer } from './print-pdf.renderer'
+import { PrintPdfRenderer } from '../print-pdf/print-pdf.renderer'
 import { type PrintSnapshot, ReportPdfError, ReportPdfRenderer } from './report-pdf.renderer'
 
 const state = vi.hoisted(() => ({

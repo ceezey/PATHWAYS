@@ -9,11 +9,11 @@ import type {
 } from '../../common/authz/application-identity'
 import type { PrismaService } from '../../prisma/prisma.service'
 import { SupabaseAuthGuard } from '../auth/guards/supabase-auth.guard'
-import type { ReceiptPdfRenderer } from '../report-pdf/receipt-pdf.renderer'
 import { privateStorageFactories } from '../storage/private-storage-factories'
 import type { StorageService } from '../storage/storage.service'
 import { FinanceController } from './finance.controller'
 import { FinanceService } from './finance.service'
+import type { ReceiptPdfRenderer } from './receipt-pdf.renderer'
 
 const state = vi.hoisted(() => ({ actor: undefined as unknown, tx: undefined as unknown }))
 vi.mock('../../common/authz/authorized-operation', () => ({

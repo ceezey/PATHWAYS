@@ -19,12 +19,12 @@ import type { ApplicationIdentity } from '../../common/authz/application-identit
 import { withAuthorizedOperation } from '../../common/authz/authorized-operation'
 import { requireScopedProject } from '../../common/authz/scoped-project'
 import { PrismaService } from '../../prisma/prisma.service'
-import { ReceiptPdfError, ReceiptPdfRenderer } from '../report-pdf/receipt-pdf.renderer'
 import {
   PRIVATE_STORAGE_FACTORIES,
   type PrivateStorageFactories,
 } from '../storage/private-storage-factories'
 import { StorageService } from '../storage/storage.service'
+import { ReceiptPdfError, ReceiptPdfRenderer } from './receipt-pdf.renderer'
 
 const uuid = z.string().uuid()
 // Reviewer identity for a read: the display name only, never the rest of the user record.

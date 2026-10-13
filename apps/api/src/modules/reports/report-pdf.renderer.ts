@@ -1,7 +1,11 @@
 import { Inject, Injectable } from '@nestjs/common'
-import { REPORT_MAX_BYTES, validatedReportRows } from '../reports/report-artifact'
-import type { ProjectSections } from '../reports/report-project-status'
-import { PrintPdfError, PrintPdfRenderer, type PrintPdfStage } from './print-pdf.renderer'
+import {
+  PrintPdfError,
+  PrintPdfRenderer,
+  type PrintPdfStage,
+} from '../print-pdf/print-pdf.renderer'
+import { REPORT_MAX_BYTES, validatedReportRows } from './report-artifact'
+import type { ProjectSections } from './report-project-status'
 
 export type PrintSnapshot = {
   title: string
