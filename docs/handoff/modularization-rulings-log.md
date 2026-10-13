@@ -525,3 +525,11 @@ Ruling: the fix 8fa5a147 pins that a media item without submittedBy and a histor
 Ruling: S4b Task 5 matched (6 replacements in 4 files, 4 audit tails, docs check at baseline) in 8c4811da with the real counts, the 27-route figure and a bullet for the three tests-only commits; stat 31/8 instead of 29/8 from those lines, cost if wrong: none.
 Ruling: S4b final review PASS (Review Focus 1 to 6 hold, drift proof re-run, no removed assertion left unpinned, route figures confirmed); the three lows get a docs-only fix with the gate bullet: the CR Routes bullet names 103 kB instead of the M0 placeholder, and the MOD-B1 audit row and the default registration form CR point at the moved directory and form files (line numbers unchanged by the verbatim moves); the S5 plan's old paths are left to its S5b pre-flight, cost if wrong: none.
 Ruling: the S4b final-review lows are fixed docs-only (CR Routes bullet says 103 kB, audit MOD-B1 and the default registration form CR cite the new feature paths) with the gate bullet and the three tests-only commits recorded in the activity log, cost if wrong: a stale path in a doc.
+
+## S4c
+
+Ruling: apply the S4c pre-flight fixes (2 must-fix: baselines from the real S4b tip with shared 665, api 2610, web 2015 and Middleware 103 kB, and no S4b plan-copy removal in Task 0; 7 should-fix: one pull request wording, the S4b gate bullet format, the activity-log branch, the narrowed ScopedBeneficiaryForm claim, 50 rows, the stale base wording and a fifth Task 5 edit for the MOD-B1 audit lines 89 and 295), cost if wrong: an S4c Task 0 stop.
+
+Ruling: the S4c plan (Tasks 0 to 6, replayed from the S4b dry-run tip with lost 0 on all four splits and 50 rows and 177 expect kept in the two split tests) gets one combined pre-flight and fix agent against the real S4b tip 7442e2fe, and the S5b planner starts now on the S4c replay tree b85a0f8, cost if wrong: a fix less independently checked, caught by the task reviews.
+
+Ruling: the two mutation gaps the S4c planner found (a stored draft of another project and the minor age boundary are untested before and after the split) are recorded, not closed in S4c, because they predate the refactor and S4c changes no behavior, cost if wrong: two untested behaviors stay untested.
