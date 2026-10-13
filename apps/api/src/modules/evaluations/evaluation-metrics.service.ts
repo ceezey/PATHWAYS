@@ -4,23 +4,10 @@ import type { ApplicationIdentity } from '../../common/authz/application-identit
 import type { Tx } from '../../common/prisma/transaction'
 import { suppressSmallCount } from '../dashboards/descriptive-analytics'
 import { IndicatorsService } from '../indicators/indicators.service'
+import { type CriterionType, noDataPrefix } from './evaluations.helpers'
 
-export const criterionTypes = [
-  'KPI',
-  'TIMELINE_COMPLIANCE',
-  'BUDGET_EFFICIENCY',
-  'BENEFICIARY_REACH',
-  'INDICATOR_LINKAGE',
-  'ASSESSMENT_GAIN',
-  'OTHER',
-] as const
-export type CriterionType = (typeof criterionTypes)[number]
-
-// A stored score is always a number; a criterion without data scores 0 and its commentary starts
-// with the marker below so the reason survives a refetch.
+// A stored score is always a number; a criterion without data scores 0 with a no-data commentary.
 type ComputedScoreResult = { score: string; commentary: string }
-const noDataPrefix = 'No data: '
-
 // Clamps an uncapped percentage to the 0-100 range a criterion score can represent.
 const clampPercent = (value: string) => Math.max(0, Math.min(100, Number(value)))
 const cappedNote = (value: string) => (Number(value) > 100 ? ', capped at 100%' : '')
@@ -44,28 +31,6 @@ const smallCell = (count: number) =>
   suppressSmallCount(numericMetric(String(count))).state === 'SUPPRESSED'
 const smallCellReason = (count: string) =>
   `the ${count} count is below the small-cell reporting threshold (fewer than 5)`
-
-const manualMarker = ' Manual score recorded: '
-// Splits stored commentary into the source, evidence, reason and manual note shown to readers.
-export function classifyScoreCommentary(commentary: string | null, criterionType: string) {
-  const text = commentary ?? ''
-  const missing = text.startsWith(noDataPrefix)
-  const marked = text.indexOf(manualMarker)
-  const blank = text.trim() === ''
-  // Rounds closed before automatic scoring, and scores written without commentary, are manual.
-  const manual = !missing && (blank || criterionType === 'OTHER' || marked >= 0)
-  const source = missing
-    ? ('no_data' as const)
-    : manual
-      ? ('manual' as const)
-      : ('computed' as const)
-  return {
-    source,
-    evidence: source === 'computed' ? text : null,
-    reason: missing ? text.slice(noDataPrefix.length) : null,
-    note: manual && !blank ? (marked >= 0 ? text.slice(marked + manualMarker.length) : text) : null,
-  }
-}
 
 type EvaluationProject = { id: string; targetBeneficiaries: number | null }
 type Period = { start: string; end: string }
