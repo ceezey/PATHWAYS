@@ -81,15 +81,12 @@ import {
   type FormDefinitionExportFormat,
   formDefinitionExportRequest,
 } from './form-definition-export'
+import { useFormFields } from './hooks/use-form-fields'
 import { useImportBatch } from './hooks/use-import-batch'
-import {
-  type ImportProcessingOutcome,
-  type ImportProcessingProgress,
-  importProcessingProgress,
-  runImportProcessing,
-} from './import-auto-continue'
+import { useServerProcessing } from './hooks/use-server-processing'
+import { importProcessingProgress } from './import-auto-continue'
 import { parseImportPreview } from './import-preview'
-import { ImportProcessingPanel, type ImportProcessingState } from './import-processing-panel'
+import { ImportProcessingPanel } from './import-processing-panel'
 
 type ExportFormat = FormDefinitionExportFormat
 /** The editable correction table paginates instead of capping, so every row stays correctable. */
@@ -304,12 +301,9 @@ const OwnedCollectionWorkspace = ({
   const [projectId, setProjectId] = useState(initialProjectId ?? '')
   const [journeyStage, setJourneyStage] = useState('')
   const [linkedActivityId, setLinkedActivityId] = useState('')
-  const [fields, setFields] = useState<FormField[]>(initialFields)
-  const [selectedFieldId, setSelectedFieldId] = useState(initialFields[0]?.id ?? '')
   const [saveDialogOpen, setSaveDialogOpen] = useState(false)
   const [proceedDialogOpen, setProceedDialogOpen] = useState(false)
   const [creatingVersion, setCreatingVersion] = useState(false)
-  const [pendingDeleteField, setPendingDeleteField] = useState<FormField | null>(null)
   const [savedNotice, setSavedNotice] = useState('')
   const [loadError, setLoadError] = useState('')
   // Success notices show as a toast pop-up instead of an inline banner.
@@ -330,6 +324,19 @@ const OwnedCollectionWorkspace = ({
   const intent = useRef(0)
   const parsing = useRef(0)
   const mutation = useRef<object | null>(null)
+  const {
+    fields,
+    setFields,
+    selectedFieldId,
+    setSelectedFieldId,
+    pendingDeleteField,
+    setPendingDeleteField,
+    updateField,
+    addField,
+    requestDeleteField,
+    confirmDeleteField,
+    moveField,
+  } = useFormFields(initialFields, { mutation, intent, mounted, isCurrentOwner })
   const [operationPending, setOperationPending] = useState(false)
   const formCreate = usePendingCreate<DigitalFormDefinition>({
     profile,
@@ -348,14 +355,6 @@ const OwnedCollectionWorkspace = ({
     },
   })
   const createPending = formCreate.confirming
-  const [processingRun, setProcessingRun] = useState<{
-    projectId: string
-    batchId: string
-    validationRevision: number
-    state: ImportProcessingState
-    progress: ImportProcessingProgress
-    note?: string
-  } | null>(null)
   const importBatch = useImportBatch()
   const current = useRef({
     profile,
@@ -704,7 +703,7 @@ const OwnedCollectionWorkspace = ({
     setJourneyStage(form.journeyStageId ?? '')
     setFields(fromDigitalForm(form))
     setSelectedFieldId(fromDigitalForm(form)[0]?.id ?? '')
-  }, [initialFormId, forms])
+  }, [initialFormId, forms, setFields, setSelectedFieldId])
   const selectedProject = projects.find((project) => project.id === projectId)
   const projectActivities = activities.filter((activity) => activity.projectId === projectId)
   const selectedField = fields.find((field) => field.id === selectedFieldId) ?? fields[0]
@@ -743,91 +742,6 @@ const OwnedCollectionWorkspace = ({
     if (item.id === 'import') return canOpenImport
     return canUseExtend
   })
-
-  const updateField = (fieldId: string, patch: Partial<FormField>) => {
-    if (mutation.current) return
-    intent.current++
-    setFields((currentFields) =>
-      currentFields.map((field) => (field.id === fieldId ? { ...field, ...patch } : field)),
-    )
-  }
-
-  const addField = () => {
-    if (mutation.current) return
-    intent.current++
-    const nextNumber = fields.length + 1
-    const field: FormField = {
-      id: `field-${Date.now()}`,
-      label: `New field ${nextNumber}`,
-      code: `new_field_${nextNumber}`,
-      type: 'text',
-      required: false,
-      metadataKey: false,
-      sadddField: false,
-      allowedValues: [],
-      minimumValue: '',
-      maximumValue: '',
-      minimumLength: '',
-      maximumLength: '',
-      mappingStatus: 'unmapped',
-    }
-
-    setFields((currentFields) => [...currentFields, field])
-    setSelectedFieldId(field.id)
-  }
-
-  const requestDeleteField = (fieldId: string) => {
-    if (mutation.current) return
-    intent.current++
-    setPendingDeleteField(fields.find((field) => field.id === fieldId) ?? null)
-  }
-
-  const confirmDeleteField = () => {
-    if (mutation.current) return
-    intent.current++
-    if (!pendingDeleteField) {
-      return
-    }
-
-    const deletedIndex = fields.findIndex((field) => field.id === pendingDeleteField.id)
-    const nextFields = fields.filter((field) => field.id !== pendingDeleteField.id)
-    const nextSelectedFieldId =
-      selectedFieldId === pendingDeleteField.id
-        ? (nextFields[Math.min(deletedIndex, nextFields.length - 1)]?.id ?? '')
-        : selectedFieldId
-
-    setFields(nextFields)
-    setSelectedFieldId(nextSelectedFieldId)
-    setPendingDeleteField(null)
-    toast.success(`${pendingDeleteField.label} deleted from this form.`)
-    const focusGeneration = sensitiveDraftGeneration()
-    window.setTimeout(() => {
-      if (!isCurrentOwner() || !mounted.current || focusGeneration !== sensitiveDraftGeneration())
-        return
-      const focusTargetId = nextSelectedFieldId
-        ? `collection-field-choice-${nextSelectedFieldId}`
-        : 'collection-add-field'
-      document.getElementById(focusTargetId)?.focus()
-    }, 0)
-  }
-
-  const moveField = (fieldId: string, direction: 'up' | 'down') => {
-    if (mutation.current) return
-    intent.current++
-    setFields((currentFields) => {
-      const currentIndex = currentFields.findIndex((field) => field.id === fieldId)
-      const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1
-
-      if (currentIndex < 0 || targetIndex < 0 || targetIndex >= currentFields.length) {
-        return currentFields
-      }
-
-      const nextFields = [...currentFields]
-      const [field] = nextFields.splice(currentIndex, 1)
-      nextFields.splice(targetIndex, 0, field)
-      return nextFields
-    })
-  }
 
   const openBuilder = (nextMode: CollectionMode) => {
     if (mutation.current) return
@@ -1015,82 +929,20 @@ const OwnedCollectionWorkspace = ({
       ticket.finish()
     }
   }
-  type OperationTicket = NonNullable<ReturnType<typeof beginOperation>>
-
-  // Calls process until the batch is done, a call fails, or Stop is pressed. Each call
-  // is a separate authorized request; progress comes from each server response.
-  const continueServerProcessing = async (
-    ticket: OperationTicket,
-    target: {
-      projectId: string
-      batchId: string
-      validationRevision: number
-      progress: ImportProcessingProgress
-    },
-  ) => {
-    let latest = target.progress
-    importBatch.stopRequested.current = false
-    setProcessingRun({ ...target, state: 'running' })
-    const outcome: ImportProcessingOutcome = await runImportProcessing({
-      process: () =>
-        importsClient.processImport(target.projectId, target.batchId, target.validationRevision),
-      onProgress: (next) => {
-        latest = importProcessingProgress(next)
-        if (ticket.valid('imports.process'))
-          setProcessingRun((run) =>
-            run?.batchId === target.batchId ? { ...run, progress: latest } : run,
-          )
-      },
-      shouldStop: () => importBatch.stopRequested.current || !ticket.valid('imports.process'),
-    })
-    if (!ticket.valid('imports.process')) {
-      // Access or ownership changed; the server keeps its state and nothing stale is shown.
-      setProcessingRun(null)
-      return
-    }
-    if (outcome.kind === 'complete') {
-      setProcessingRun(null)
-      setSavedNotice(
-        `Server import ${outcome.batch.id}: ${outcome.batch.totals.processed} processed, ${outcome.batch.totals.failed} failed.`,
-      )
-      setProceedDialogOpen(false)
-      return
-    }
-    setProcessingRun({
-      ...target,
-      progress: latest,
-      state: outcome.kind === 'stopped' ? 'stopped' : 'failed',
-      note:
-        outcome.kind === 'failed'
-          ? outcome.error instanceof Error
-            ? outcome.error.message
-            : 'Processing could not be completed.'
-          : outcome.kind === 'stalled'
-            ? 'The remaining rows could not be processed. Review failed rows in the Import workspace.'
-            : undefined,
-    })
-  }
-
-  const resumeServerProcessing = async () => {
-    const run = processingRun
-    if (!run || (run.state !== 'stopped' && run.state !== 'failed')) return
-    if (run.projectId !== projectId) return
-    const ticket = beginOperation('imports.process')
-    if (!ticket) return
-    try {
-      await continueServerProcessing(ticket, run)
-    } catch (error) {
-      if (ticket.valid('imports.process'))
-        setImportMessage(error instanceof Error ? error.message : 'Import failed.')
-    } finally {
-      ticket.finish()
-    }
-  }
-
-  const stopServerProcessing = () => {
-    importBatch.stopRequested.current = true
-    setProcessingRun((run) => (run?.state === 'running' ? { ...run, state: 'stopping' } : run))
-  }
+  const {
+    processingRun,
+    setProcessingRun,
+    continueServerProcessing,
+    resumeServerProcessing,
+    stopServerProcessing,
+  } = useServerProcessing({
+    projectId,
+    beginOperation,
+    importBatch,
+    setSavedNotice,
+    setProceedDialogOpen,
+    setImportMessage,
+  })
 
   const closeProceedDialog = () => {
     if (mutation.current) return
