@@ -1,7 +1,6 @@
 'use client'
 
 import {
-  type ColumnDef,
   flexRender,
   getCoreRowModel,
   getPaginationRowModel,
@@ -13,19 +12,11 @@ import { useSearchParams } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 
 import { PageHeader } from '@/components/layout/page-header'
-import { ProgressBar } from '@/components/pathways/progress-bar'
 import { ResultsAnnouncement } from '@/components/pathways/results-announcement'
-import { StatusBadge } from '@/components/pathways/status-badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { SelectItem } from '@/components/ui/select'
 import {
   Table,
   TableBody,
@@ -46,14 +37,9 @@ import type {
   ProjectSummary,
 } from '@/types/pathways'
 
-import {
-  deriveCurrentStage,
-  enrollmentTone,
-  formatDate,
-  matchesBeneficiarySearch,
-  progressionRate,
-  projectTitle,
-} from '../../beneficiaries.utils'
+import { matchesBeneficiarySearch } from '../../beneficiaries.utils'
+import { useBeneficiaryColumns } from '../hooks/use-beneficiary-columns'
+import { FilterSelect } from './filter-select'
 
 const allValue = 'all'
 const safeFilterValue = (value: string | null, allowed: string[]) =>
@@ -167,101 +153,7 @@ export const BeneficiaryDirectory = ({
     ],
   )
 
-  const columns = useMemo<ColumnDef<BeneficiaryRecord>[]>(
-    () => [
-      {
-        header: 'Beneficiary',
-        accessorKey: 'displayName',
-        cell: ({ row }) => (
-          <div className="space-y-1">
-            <p className="font-semibold text-foreground">{row.original.displayName}</p>
-            <p className="text-xs text-muted-foreground">{row.original.code}</p>
-          </div>
-        ),
-      },
-      {
-        header: 'Enrolled project',
-        cell: ({ row }) => (
-          <div className="max-w-[240px] text-sm">
-            {row.original.projectIds.map((id) => projectTitle(id, scopedProjects)).join(', ')}
-          </div>
-        ),
-      },
-      {
-        header: 'Current stage',
-        cell: ({ row }) => {
-          const projectStages = stages.filter((stage) =>
-            row.original.projectIds.includes(stage.projectId),
-          )
-          const projectActivities = activities.filter((activity) =>
-            row.original.projectIds.includes(activity.projectId),
-          )
-          const currentStage = deriveCurrentStage(
-            row.original.participation,
-            projectStages,
-            projectActivities,
-          )
-          const summary = row.original.progress
-          if (summary?.restricted)
-            return <span className="text-sm text-muted-foreground">Restricted</span>
-          const stage = summary ? summary.stage : currentStage
-          const progress = summary
-            ? (summary.stage?.progressPercent ?? 0)
-            : progressionRate(row.original.participation, projectStages, projectActivities)
-
-          return (
-            <div className="min-w-[180px] space-y-2">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="font-medium">{stage?.code ?? 'No stage'}</span>
-                <span className="text-muted-foreground">{stage?.name ?? 'Unmapped'}</span>
-              </div>
-              <ProgressBar value={progress} tone={progress >= 60 ? 'success' : 'info'} />
-            </div>
-          )
-        },
-      },
-      {
-        header: 'Last activity',
-        cell: ({ row }) => {
-          const summary = row.original.progress
-          if (summary?.restricted)
-            return <span className="text-sm text-muted-foreground">Restricted</span>
-          if (summary?.lastParticipation)
-            return (
-              <div className="space-y-1 text-sm">
-                <p className="font-medium">{summary.lastParticipation.title}</p>
-                <p className="text-xs text-muted-foreground">
-                  {formatDate(summary.lastParticipation.date)}
-                </p>
-              </div>
-            )
-          const latest = [...row.original.participation].sort((first, second) =>
-            second.participatedAt.localeCompare(first.participatedAt),
-          )[0]
-          const activity = activities.find((item) => item.id === latest?.activityId)
-
-          return latest ? (
-            <div className="space-y-1 text-sm">
-              <p className="font-medium">{activity?.title ?? latest.activityId}</p>
-              <p className="text-xs text-muted-foreground">{formatDate(latest.participatedAt)}</p>
-            </div>
-          ) : (
-            <span className="text-sm text-muted-foreground">No participation yet</span>
-          )
-        },
-      },
-      {
-        header: 'Status',
-        accessorKey: 'enrollmentStatus',
-        cell: ({ row }) => (
-          <StatusBadge tone={enrollmentTone(row.original.enrollmentStatus)}>
-            {row.original.enrollmentStatus}
-          </StatusBadge>
-        ),
-      },
-    ],
-    [activities, scopedProjects, stages],
-  )
+  const columns = useBeneficiaryColumns({ activities, scopedProjects, stages })
   const requestedPageIndex = Math.max(0, Number(readParam('page') ?? 1) - 1)
   const safeInitialPageIndex = Math.min(
     requestedPageIndex,
@@ -541,25 +433,3 @@ export const BeneficiaryDirectory = ({
     </div>
   )
 }
-
-const FilterSelect = ({
-  label,
-  value,
-  onValueChange,
-  children,
-}: {
-  label: string
-  value: string
-  onValueChange: (value: string) => void
-  children: React.ReactNode
-}) => (
-  <div className="space-y-2">
-    <span className="text-sm font-medium">{label}</span>
-    <Select value={value} onValueChange={onValueChange}>
-      <SelectTrigger aria-label={label}>
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>{children}</SelectContent>
-    </Select>
-  </div>
-)
