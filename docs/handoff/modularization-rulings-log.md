@@ -567,3 +567,43 @@ Ruling: the S7b planner starts now on its own tree (the S6b replay plus an S7a r
 Ruling: the S5b planner split S5 web into S5b (Tasks 0 to 9: forms and imports clients, type-only response contracts, the shared useImportBatch hook, collection-workspace.tsx from 3186 to 1640 lines and its test split) and an S5c outline; S5c joins the run order after S5b, and S5b gets one combined pre-flight and fix agent against the real S4c tip 796ddcd5, cost if wrong: one extra slice cycle.
 
 Ruling: apply the S5b pre-flight fixes (2 must-fix: baselines from the real S4c tip with shared 665, api 2610, web 2015 and Middleware 103 kB, and an add-only Task 0 plan-copy step; 9 should-fix: one pull request wording, the S4b gate bullet format, the activity-log branch, 424 lines not 440, a stacking check and base-sha wording in Task 0, routes judged by ruling 12 and M0, stale base wording, a prefixed import-boundary path, the S5c outline wording), cost if wrong: an S5b Task 0 stop.
+
+Ruling: S5b Task 0 matched every anchor at c9503aab (8476 lines, 37 collection files, 13 hash prefixes) with baselines shared 665, imports 94, api 2610 (21 skipped), web 232 files and 2015 tests, sad 57, M0 103 kB; plan copy and index row in 26c06a06, cost if wrong: none.
+
+Ruling: S5b Task 1 matched (13 replacements in 5 files, shared 37 files and 672 tests, api 2610, bite proof TS2322 at imports.mapper.ts:69 then clean) in 0d006da9, cost if wrong: none.
+
+Ruling: S5b Task 2 matched (23 blocks, lost 0 added 0 over 222 lines, 30 characterization runs, one-line mutation in each client fails exactly the 2 named cases) in 0d9c96d8; Task 3 waits for the Task 2 review because it removes the old methods the characterization tests compare against, cost if wrong: some wall clock.
+
+Ruling: S5b Task 1 review PASS (contracts equal Prisma enums and mapper keys, type-only, two extra bites confirmed); the two weak rejection rows (totals with one member, a batch detail missing three members) get a tests-only fix to fail on one property each with separate incomplete-object rows kept, and positive rows for the JSON and OTHER file types, combined with any Task 2 review pins before Task 3, cost if wrong: two rows that pass for the wrong reason.
+
+Ruling: S5b Task 2 review PASS, but 18 of 19 extra mutations survived; before Task 3 removes the old methods, a tests-only commit adds the eight "Pin before Task 3" cases from review-2.md to the characterization tests so each runs on the old and the new client, each shown to fail on a temporary break, together with the Task 1 contract row fixes; Task 3 then carries the higher counts, cost if wrong: Task 3 count drift to explain.
+
+Ruling: the tests-only commits 0f558215 (import response rows fail on one property, shared 675) and 381abebf (eight client pins run on both clients and bite on the new one; a beforeEach arrow that returned the mock and leaked a rejection is now a block body; web 234 files and 2061) land before Task 3, whose web total becomes 2038 and count-it it 23, describe 2, expect 51 instead of the brief's 2030 and 15, 2, 37, cost if wrong: none.
+
+Ruling: S5b Task 3 matched (45 calls in 7 files, 12 mock files, 22 methods removed, pathways-client.ts 424 lines, receipt test 3 rows kept) in 06708a61 with the predicted counts (it 23, describe 2, expect 51; web 234 files and 2038); the brief's git rm ran unwrapped after a safety check refused a bash -c wrapper, cost if wrong: none.
+
+Ruling: S5b Task 4 matched (characterization 66029bb7 with two one-line mutations failing exactly 3 rows; shared hook 64c1ae8e with 16 replacements in 2 files and a bite failing 4 rows; web 236 files and 2051) cost if wrong: none.
+
+Ruling: S5b Task 3 review PASS (45 calls identical, mocks keep every method, the real clients are reached only by their own tests, 8 pins kept); the five web aliases now follow the api contract (PROCESSED and REJECTED, JSON and OTHER, required beneficiaryId and field id), which is the type-only ruling 3 trade-off that typecheck covers, and the unused VALIDATING member of the web ImportBatchStatus is left to S5c, cost if wrong: a web type that is wider or stricter than its old copy.
+
+Ruling: S5b Task 5 matched (16 files, lost 0 added 0 over 2942 lines, screen 1788 lines, collection folder 23 files and 179 tests) in cc3fc518, cost if wrong: none.
+
+Ruling: S5b Task 4 review PASS (the two old copies differ only in identity parts and the kept mapping revision, both carried by the hook parameters); resume now maps with stored.id where the old code used batch.id, accepted because stored is fetched with getImportBatch(projectId, batch.id) so the ids are equal; the identity target wiring (generation, form version, import formId), unpinned before and after the refactor, gets a tests-only pin with bite proofs after Task 6, cost if wrong: a dropped identity part goes unnoticed.
+
+Ruling: S5b Task 6 matched (use-form-fields 123 and use-server-processing 127 lines, screen 1788 to 1640, lost 5 as listed, stopped-state bite fails the named row, 10 new hook rows each bitten by one of 7 mutations, collection folder 24 files and 189 tests) in 2962748d and d71e4cc6; the identity pins go in after Task 7 so its hash-pinned test cut still matches, cost if wrong: none.
+
+Ruling: S5b Task 5 review PASS (lost 0, each of the 14 view bodies an exact substring of the old file, one signature reflow, client boundary correct, full web 236 files and 2051), no fix, cost if wrong: none.
+
+Ruling: S5b Task 7 matched (five files, 50 test names identical, it 35 before and after, expect 194 to 195 from the copied ownedDataset helper, web 241 files and 2061) in 29e53b7b, cost if wrong: none.
+
+Ruling: S5b Task 6 review PASS (hook order kept, 7 mutations plus 2 more each fail one row, full web 237 files and 2061); its three lows on the new hook test (intent counter unasserted, sensitiveDraftGeneration branch untested, fake timers restored after the assertions) get a tests-only commit after the identity pins, cost if wrong: a hook test that misses two branches.
+
+Ruling: S5b Task 7 review PASS (35 titles equal, 195 expects with one from the copied helper, setup lines 1 to 140 byte-identical in all five files, helpers identical), no fix, cost if wrong: none.
+
+Ruling: the tests-only commits 5c083d55 (each upload identity part pinned: collection file, version and generation, import file, project and form, each bitten by dropping it; collection projectId and form id are redundant because changeProject and openSavedForm call forgetUpload first, so no row; a native select mock in the new identity file because the Radix select stalls jsdom) and 6765d867 (intent counter, sensitiveDraftGeneration branch, timers reset in afterEach) bring web to 242 files and 2071, cost if wrong: none.
+
+Ruling: S5b Task 8 matched (five replacements, three audit tails, docs check at baseline) in 436a73df with the real hashes and counts and one bullet for the four tests-only commits; the route sentence is confirmed or corrected after the gates, cost if wrong: none.
+
+Ruling: S5b final review PASS (nothing left unpinned; Task 3 dropped only the old-client half of each describe.each); records fixed docs-only: pathways-client.ts is 407 lines, not 424 (Biome compacted it after Task 3 measured), and the plan-copy line says the controller removes it after the final merge; the Task 6 entry keeps 10 rows (the count at that commit) and the tests-only bullet gives 12; the Ticket type duplicate and the unused pathwaysClient mock go to S5c, cost if wrong: a stale line count.
+
+Ruling: the S5b route sentence written from the plan said 10 routes smaller with /collection/import 3 kB; the gate build measured 12 smaller (/collection/import 4 kB, six other routes 1 kB) and none bigger, so the change record carries the measured figure, cost if wrong: none.
