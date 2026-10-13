@@ -50,11 +50,13 @@ vi.mock('@/hooks/use-current-role', () => ({
     },
   }),
 }))
-vi.mock('@/lib/services/core-feature-client', () => ({
-  coreDataClient: {
+vi.mock('@/lib/api/reports', () => ({
+  reportsClient: {
     generateReport: (...args: unknown[]) => state.generate(...args),
     reportPreview: (...args: unknown[]) => state.preview(...args),
   },
+}))
+vi.mock('@/lib/services/core-feature-client', () => ({
   downloadCoreArtifact: (...args: unknown[]) => state.downloadArtifact(...args),
 }))
 vi.mock('@/lib/api/projects', () => ({ projectsClient: { getProjects: vi.fn() } }))

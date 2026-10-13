@@ -16,8 +16,6 @@ vi.mock('@/lib/supabase/client', () => ({
 }))
 
 import { PathwaysClientError } from '@/lib/api/core/request'
-import { coreDataClient } from '@/lib/services/core-feature-client'
-import { pathwaysClient } from '@/lib/services/pathways-client'
 import { evaluationsClient } from './evaluations'
 
 const authUserId = '78100000-0000-4000-8000-000000000001'
@@ -26,6 +24,7 @@ const userId = '78100000-0000-4000-8000-000000000003'
 const projectId = '78100000-0000-4000-8000-000000000004'
 const evaluationId = '78100000-0000-4000-8000-000000000008'
 const otherId = '78100000-0000-4000-8000-000000000006'
+const expenseId = '78100000-0000-4000-8000-000000000005'
 const enrollmentId = '78100000-0000-4000-8000-000000000020'
 const updatedAt = '2026-09-27T00:00:00.000Z'
 const detail = {
@@ -86,12 +85,7 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
-// The same cases run against the old coreDataClient and the new evaluationsClient.
-const clients = [
-  ['coreDataClient', coreDataClient],
-  ['evaluationsClient', evaluationsClient],
-] as const
-type Client = (typeof clients)[number][1]
+type Client = typeof evaluationsClient
 type Call = (client: Client, id: string, signal?: AbortSignal) => unknown
 
 const requests: readonly (readonly [string, Call, string, string, unknown, unknown, boolean])[] = [
@@ -151,13 +145,13 @@ const requests: readonly (readonly [string, Call, string, string, unknown, unkno
   ],
 ]
 
-describe.each(clients)('%s requests', (_name, client) => {
+describe('evaluationsClient requests', () => {
   it.each(requests)(
     '%s sends the request unchanged and returns the parsed response',
     async (_member, call, suffix, method, body, response, readsSignal) => {
       const controller = new AbortController()
       fetcher.mockResolvedValueOnce(json(response))
-      await expect(call(client, projectId, controller.signal)).resolves.toEqual(response)
+      await expect(call(evaluationsClient, projectId, controller.signal)).resolves.toEqual(response)
       const [url, init] = fetcher.mock.calls[0]
       expect(String(url)).toBe(`http://127.0.0.1:4000/api/projects/${projectId}${suffix}`)
       expect(init?.method ?? 'GET').toBe(method)
@@ -169,11 +163,11 @@ describe.each(clients)('%s requests', (_name, client) => {
     '%s rejects a response with an unknown key',
     async (_member, call, _suffix, _method, _body, response) => {
       fetcher.mockResolvedValueOnce(json({ ...(response as object), extra: 'x' }))
-      await expect(call(client, projectId)).rejects.toThrow('could not be validated')
+      await expect(call(evaluationsClient, projectId)).rejects.toThrow('could not be validated')
     },
   )
   it.each(requests)('%s refuses a malformed project id before any request', (_member, call) => {
-    expect(() => call(client, '../other')).toThrow()
+    expect(() => call(evaluationsClient, '../other')).toThrow()
     expect(fetcher).not.toHaveBeenCalled()
   })
   it.each([
@@ -184,7 +178,7 @@ describe.each(clients)('%s requests', (_name, client) => {
   ] as readonly (readonly [string, Call])[])(
     '%s refuses a malformed evaluation id before any request',
     (_member, call) => {
-      expect(() => call(client, projectId)).toThrow()
+      expect(() => call(evaluationsClient, projectId)).toThrow()
       expect(fetcher).not.toHaveBeenCalled()
     },
   )
@@ -197,7 +191,7 @@ describe.each(clients)('%s requests', (_name, client) => {
     '%s rejects a response for another evaluation',
     async (_member, call) => {
       fetcher.mockResolvedValueOnce(json({ ...detail, id: otherId }))
-      await expect(call(client, projectId)).rejects.toThrow('could not be validated')
+      await expect(call(evaluationsClient, projectId)).rejects.toThrow('could not be validated')
     },
   )
   const criterion = {
@@ -241,7 +235,7 @@ describe.each(clients)('%s requests', (_name, client) => {
   }
   it('parses a populated evaluation read', async () => {
     fetcher.mockResolvedValueOnce(json(populated))
-    await expect(client.evaluation(projectId)).resolves.toEqual(populated)
+    await expect(evaluationsClient.evaluation(projectId)).resolves.toEqual(populated)
   })
   it.each([
     [
@@ -287,7 +281,7 @@ describe.each(clients)('%s requests', (_name, client) => {
     ['a response without hasMore', { projectId, criteria: [], evaluations: [] }],
   ])('rejects %s', async (_name, response) => {
     fetcher.mockResolvedValueOnce(json(response))
-    await expect(client.evaluation(projectId)).rejects.toThrow('could not be validated')
+    await expect(evaluationsClient.evaluation(projectId)).rejects.toThrow('could not be validated')
   })
 })
 
@@ -301,17 +295,12 @@ const assessment = {
   assessmentDate: '2026-09-01',
   recordedAt: '2026-09-02T00:00:00.000Z',
 }
-const assessmentClients = [
-  ['pathwaysClient', pathwaysClient],
-  ['evaluationsClient', evaluationsClient],
-] as const
-
-describe.each(assessmentClients)('%s beneficiary assessment list read', (_name, client) => {
+describe('evaluationsClient beneficiary assessment list read', () => {
   it('requests the enrollment-scoped list with the signal and parses the rows', async () => {
     const controller = new AbortController()
     fetcher.mockResolvedValueOnce(json([assessment]))
     await expect(
-      client.getBeneficiaryAssessments(projectId, enrollmentId, controller.signal),
+      evaluationsClient.getBeneficiaryAssessments(projectId, enrollmentId, controller.signal),
     ).resolves.toEqual([assessment])
     const [url, init] = fetcher.mock.calls[0]
     expect(String(url)).toBe(
@@ -321,22 +310,22 @@ describe.each(assessmentClients)('%s beneficiary assessment list read', (_name, 
   })
   it('rejects a malformed row', async () => {
     fetcher.mockResolvedValueOnce(json([{ ...assessment, score: 40 }]))
-    await expect(client.getBeneficiaryAssessments(projectId, enrollmentId)).rejects.toThrow(
-      PathwaysClientError,
-    )
+    await expect(
+      evaluationsClient.getBeneficiaryAssessments(projectId, enrollmentId),
+    ).rejects.toThrow(PathwaysClientError)
   })
   it('encodes both ids in the request', async () => {
     fetcher.mockResolvedValueOnce(json([]))
-    await client.getBeneficiaryAssessments('a/b c', 'd&e=f')
+    await evaluationsClient.getBeneficiaryAssessments('a/b c', 'd&e=f')
     expect(String(fetcher.mock.calls[0][0])).toBe(
       'http://127.0.0.1:4000/api/projects/a%2Fb%20c/evaluation/assessments?enrollmentId=d%26e%3Df',
     )
   })
   it('keeps only the known keys of a row with a stage id', async () => {
     fetcher.mockResolvedValueOnce(json([{ ...assessment, stageId: otherId, extra: 'x' }]))
-    await expect(client.getBeneficiaryAssessments(projectId, enrollmentId)).resolves.toEqual([
-      { ...assessment, stageId: otherId },
-    ])
+    await expect(
+      evaluationsClient.getBeneficiaryAssessments(projectId, enrollmentId),
+    ).resolves.toEqual([{ ...assessment, stageId: otherId }])
   })
   it.each([
     ['more than 100 rows', Array.from({ length: 101 }, () => assessment)],
@@ -350,8 +339,176 @@ describe.each(assessmentClients)('%s beneficiary assessment list read', (_name, 
     ['a numeric recorded time', [{ ...assessment, recordedAt: 1 }]],
   ])('rejects %s', async (_name, response) => {
     fetcher.mockResolvedValueOnce(json(response))
-    await expect(client.getBeneficiaryAssessments(projectId, enrollmentId)).rejects.toThrow(
-      PathwaysClientError,
+    await expect(
+      evaluationsClient.getBeneficiaryAssessments(projectId, enrollmentId),
+    ).rejects.toThrow(PathwaysClientError)
+  })
+})
+
+describe('evaluationsClient response boundaries', () => {
+  it('binds the evaluation read response to its project', async () => {
+    fetcher.mockResolvedValueOnce(
+      json({ projectId: otherId, evaluations: [], criteria: [], hasMore: false }),
     )
+    await expect(evaluationsClient.evaluation(projectId)).rejects.toThrow('could not be validated')
+  })
+  describe('evaluation mutations', () => {
+    const evaluationId = '78000000-0000-4000-8000-000000000008'
+    const detail = {
+      id: evaluationId,
+      title: 'Mid-term',
+      periodLabel: null,
+      periodStart: '2026-01-01',
+      periodEnd: '2026-06-30',
+      overallScore: null,
+      commentary: null,
+      returnReason: null,
+      status: 'DRAFT',
+      updatedAt,
+      evaluatedBy: null,
+      evaluatedAt: null,
+      reviewedBy: null,
+      reviewedAt: null,
+      reviewFeedback: null,
+      signedOffBy: null,
+      signedOffAt: null,
+      scores: [],
+    }
+    const body = { synthetic: 'body' }
+    const base = `/projects/${projectId}/evaluation`
+    const cases = [
+      [
+        'createEvaluation',
+        (b: unknown) => evaluationsClient.createEvaluation(projectId, b as CreateEvaluationRequest),
+        `${base}/evaluations`,
+        'POST',
+        detail,
+        null,
+      ],
+      [
+        'saveEvaluationScores',
+        (b: unknown) =>
+          evaluationsClient.saveEvaluationScores(
+            projectId,
+            evaluationId,
+            b as SaveEvaluationScoresRequest,
+          ),
+        `${base}/evaluations/${evaluationId}/scores`,
+        'PATCH',
+        detail,
+        { ...detail, id: otherId },
+      ],
+      [
+        'submitEvaluation',
+        (b: unknown) =>
+          evaluationsClient.submitEvaluation(projectId, evaluationId, b as SubmitEvaluationRequest),
+        `${base}/evaluations/${evaluationId}/submit`,
+        'POST',
+        detail,
+        { ...detail, id: otherId },
+      ],
+      [
+        'returnEvaluation',
+        (b: unknown) =>
+          evaluationsClient.returnEvaluation(projectId, evaluationId, b as ReturnEvaluationRequest),
+        `${base}/evaluations/${evaluationId}/return`,
+        'POST',
+        detail,
+        { ...detail, id: otherId },
+      ],
+      [
+        'signoffEvaluation',
+        (b: unknown) =>
+          evaluationsClient.signoffEvaluation(
+            projectId,
+            evaluationId,
+            b as SignOffEvaluationRequest,
+          ),
+        `${base}/evaluations/${evaluationId}/signoff`,
+        'POST',
+        detail,
+        { ...detail, id: otherId },
+      ],
+    ] as const
+    it.each(cases)(
+      '%s sends the request unchanged and binds the response',
+      async (_name, call, url, method, ok, mismatched) => {
+        fetcher.mockResolvedValueOnce(json(ok))
+        await expect(call(body)).resolves.toEqual(ok)
+        const [calledUrl, init] = fetcher.mock.calls[0]
+        expect(String(calledUrl).endsWith(`/api${url}`)).toBe(true)
+        expect(init?.method).toBe(method)
+        expect(init?.body).toBe(JSON.stringify(body))
+        if (mismatched) {
+          fetcher.mockResolvedValueOnce(json(mismatched))
+          await expect(call(body)).rejects.toThrow('could not be validated')
+        }
+      },
+    )
+    it.each(cases.filter((row) => row[4] === detail))(
+      '%s rejects a detail without returnReason or with an extra key',
+      async (_name, call) => {
+        const { returnReason: _omitted, ...missing } = detail
+        fetcher.mockResolvedValueOnce(json(missing))
+        await expect(call(body)).rejects.toThrow('could not be validated')
+        fetcher.mockResolvedValueOnce(json({ ...detail, extra: 'x' }))
+        await expect(call(body)).rejects.toThrow('could not be validated')
+      },
+    )
+  })
+  it('parses a populated evaluation response and rejects an extra snapshot key', async () => {
+    const criterion = {
+      id: otherId,
+      code: 'REL',
+      version: 1,
+      type: 'OTHER',
+      name: 'Relevance',
+      description: null,
+      weight_percentage: '60',
+      maximum_score: '100',
+    }
+    const evaluation = {
+      id: expenseId,
+      title: 'Mid-term',
+      periodLabel: null,
+      periodStart: '2026-01-01',
+      periodEnd: '2026-06-30',
+      overallScore: '80',
+      commentary: null,
+      returnReason: null,
+      status: 'SUBMITTED',
+      updatedAt,
+      evaluatedBy: { id: userId, name: 'Evaluator' },
+      evaluatedAt: updatedAt,
+      reviewedBy: null,
+      reviewedAt: null,
+      reviewFeedback: null,
+      signedOffBy: null,
+      signedOffAt: null,
+      scores: [
+        {
+          criterionId: otherId,
+          score: '80',
+          maximumScore: '100',
+          weightedScore: '48',
+          source: 'no_data',
+          evidence: null,
+          reason: 'no paired pre/post assessments in the period',
+          note: null,
+          criterion,
+        },
+      ],
+    }
+    const body = { projectId, criteria: [], evaluations: [evaluation], hasMore: false }
+    fetcher.mockResolvedValueOnce(json(body))
+    await expect(evaluationsClient.evaluation(projectId)).resolves.toEqual(body)
+    const leaking = structuredClone(body)
+    Object.assign(leaking.evaluations[0].scores[0].criterion, { beneficiaryId: otherId })
+    fetcher.mockResolvedValueOnce(json(leaking))
+    await expect(evaluationsClient.evaluation(projectId)).rejects.toThrow('could not be validated')
+  })
+  it('rejects malformed project paths before fetching', () => {
+    expect(() => evaluationsClient.evaluation('../other')).toThrow()
+    expect(fetcher).not.toHaveBeenCalled()
   })
 })

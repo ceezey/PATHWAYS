@@ -20,8 +20,8 @@ vi.mock('@/hooks/use-current-role', () => ({
     profile: state.profile,
   }),
 }))
-vi.mock('@/lib/services/core-feature-client', () => ({
-  coreDataClient: { reviewExpense: state.reviewExpense },
+vi.mock('@/lib/api/finance', () => ({
+  financeClient: { reviewExpense: state.reviewExpense },
 }))
 vi.mock('@/components/pathways', () => ({
   DialogShell: ({ children, title }: { children: ReactNode; title: string }) => (

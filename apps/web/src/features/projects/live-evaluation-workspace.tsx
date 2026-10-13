@@ -14,11 +14,10 @@ import { Textarea } from '@/components/ui/textarea'
 import { metricGlossary } from '@/constants/metric-glossary'
 import { useAuthorizedRead } from '@/hooks/use-authorized-read'
 import { useCurrentRole } from '@/hooks/use-current-role'
+import { type evaluationDetailSchema, evaluationsClient } from '@/lib/api/evaluations'
 import { useOperationRequestId } from '@/lib/auth/operation-request-id'
 import { useSensitiveDraftOwner } from '@/lib/auth/sensitive-drafts'
 import { principalHasAtomicPermission } from '@/lib/rbac/policy'
-import { coreDataClient } from '@/lib/services/core-feature-client'
-import type { evaluationDetailSchema } from '@/lib/services/core-feature-client'
 import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import type { z } from 'zod'
@@ -71,7 +70,7 @@ export function LiveEvaluationWorkspace({ projectId }: { projectId: string }) {
 function EvaluationContent({ projectId }: { projectId: string }) {
   const { profile } = useCurrentRole()
   const read = useAuthorizedRead('project-evaluation', projectId, 'monitoring.read', (signal) =>
-    coreDataClient.evaluation(projectId, signal),
+    evaluationsClient.evaluation(projectId, signal),
   )
   const current = !read.isError && !read.isPending ? read.data : undefined
   const openEvaluation = current?.evaluations.find((row) => openStatuses.has(row.status)) ?? null
@@ -165,7 +164,7 @@ function EvaluationContent({ projectId }: { projectId: string }) {
         `${createEvalOwner?.key}:${createEvalOwner?.generation}`,
         body,
       )
-      await coreDataClient.createEvaluation(projectId, { clientRequestId, ...body })
+      await evaluationsClient.createEvaluation(projectId, { clientRequestId, ...body })
       if (createEvalOwner?.isCurrent()) {
         requests.acknowledge(clientRequestId)
         setEdits({})
@@ -182,7 +181,7 @@ function EvaluationContent({ projectId }: { projectId: string }) {
   const recompute = () =>
     run(scoreOwner, async () => {
       if (!openEvaluation) return
-      await coreDataClient.saveEvaluationScores(projectId, openEvaluation.id, {
+      await evaluationsClient.saveEvaluationScores(projectId, openEvaluation.id, {
         expectedUpdatedAt: openEvaluation.updatedAt,
         commentary: narrative,
       })
@@ -199,7 +198,7 @@ function EvaluationContent({ projectId }: { projectId: string }) {
   const submitEvaluation = () =>
     run(scoreOwner, async () => {
       if (!openEvaluation) return
-      await coreDataClient.submitEvaluation(projectId, openEvaluation.id, {
+      await evaluationsClient.submitEvaluation(projectId, openEvaluation.id, {
         expectedUpdatedAt: openEvaluation.updatedAt,
       })
       if (scoreOwner?.isCurrent()) {
@@ -215,7 +214,7 @@ function EvaluationContent({ projectId }: { projectId: string }) {
   const returnEvaluation = () =>
     run(reviewOwner, async () => {
       if (!openEvaluation) return
-      await coreDataClient.returnEvaluation(projectId, openEvaluation.id, {
+      await evaluationsClient.returnEvaluation(projectId, openEvaluation.id, {
         expectedUpdatedAt: openEvaluation.updatedAt,
         reason: returnReason.trim(),
       })
@@ -235,7 +234,7 @@ function EvaluationContent({ projectId }: { projectId: string }) {
   const signoff = () =>
     run(reviewOwner, async () => {
       if (!openEvaluation) return
-      await coreDataClient.signoffEvaluation(projectId, openEvaluation.id, {
+      await evaluationsClient.signoffEvaluation(projectId, openEvaluation.id, {
         expectedUpdatedAt: openEvaluation.updatedAt,
         feedback: signoffFeedback.trim(),
       })

@@ -10,13 +10,14 @@ import { useCurrentRole } from '@/hooks/use-current-role'
 import { activitiesClient } from '@/lib/api/activities'
 import { beneficiariesClient } from '@/lib/api/beneficiaries'
 import { PathwaysClientError } from '@/lib/api/core/request'
+import { evaluationsClient } from '@/lib/api/evaluations'
+import type { AssessmentSummary } from '@/lib/api/evaluations.schema'
 import { formsClient } from '@/lib/api/forms'
 import { journeysClient } from '@/lib/api/journeys'
 import { projectsClient } from '@/lib/api/projects'
 import { STEP_UP_COMPLETED_EVENT } from '@/lib/auth/beneficiary-step-up-events'
 import { principalHasAtomicPermission } from '@/lib/rbac/policy'
 import { isUiActionAvailable } from '@/lib/rbac/ui-action-availability'
-import { type AssessmentSummary, pathwaysClient } from '@/lib/services/pathways-client'
 import type {
   ActivitySummary,
   BeneficiaryAssessmentRecord,
@@ -116,7 +117,7 @@ export const BeneficiaryDetailLoader = ({
         // A denied or failed assessment read leaves the page usable and says so on the button.
         const readAssessments =
           canReadAssessments && enrollmentId
-            ? pathwaysClient
+            ? evaluationsClient
                 .getBeneficiaryAssessments(scopedProjectId, enrollmentId, controller.signal)
                 .then((rows) => rows.map(toAssessmentRecord(beneficiaryId, scopedProjectId)))
                 .catch((): BeneficiaryAssessmentRecord[] => {
@@ -180,7 +181,7 @@ export const BeneficiaryDetailLoader = ({
     const enrollmentId = beneficiary.enrollments.find((item) => item.projectId === scoped)?.id
     if (!enrollmentId) return
     const onCompleted = () =>
-      pathwaysClient
+      evaluationsClient
         .getBeneficiaryAssessments(scoped, enrollmentId)
         .then((rows) =>
           setState((current) =>

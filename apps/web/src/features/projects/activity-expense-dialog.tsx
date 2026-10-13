@@ -18,9 +18,9 @@ import {
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { useCurrentRole } from '@/hooks/use-current-role'
+import { financeClient } from '@/lib/api/finance'
 import { useOperationRequestId } from '@/lib/auth/operation-request-id'
 import { principalHasAtomicPermission } from '@/lib/rbac/policy'
-import { coreDataClient } from '@/lib/services/core-feature-client'
 import type { Activity } from '@/types/pathways'
 import { categoryLabel } from './budget-module/budget-math'
 
@@ -112,14 +112,14 @@ export const ActivityExpenseDialog = ({
     }
     const clientRequestId = requests.forBody(`activity-expense:${activity.id}`, body)
     try {
-      const ack = await coreDataClient.submitExpense(activity.projectId, {
+      const ack = await financeClient.submitExpense(activity.projectId, {
         clientRequestId,
         ...body,
       })
       requests.acknowledge(clientRequestId)
       setDraft(emptyDraft)
       try {
-        await coreDataClient.uploadReceipt(activity.projectId, ack.id, ack.updatedAt, receiptFile)
+        await financeClient.uploadReceipt(activity.projectId, ack.id, ack.updatedAt, receiptFile)
       } catch {
         // The expense is already saved; keep the dialog open so the message is read.
         setReceiptFile(null)

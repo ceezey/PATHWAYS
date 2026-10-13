@@ -22,8 +22,8 @@ const state = vi.hoisted(() => ({
 vi.mock('@/hooks/use-current-role', () => ({
   useCurrentRole: () => ({ role: 'Project Officer', profile: state.profile }),
 }))
-vi.mock('@/lib/services/core-feature-client', () => ({
-  coreDataClient: { submitExpense: state.submitExpense, uploadReceipt: state.uploadReceipt },
+vi.mock('@/lib/api/finance', () => ({
+  financeClient: { submitExpense: state.submitExpense, uploadReceipt: state.uploadReceipt },
 }))
 vi.mock('sonner', () => ({
   toast: { success: state.toastSuccess, warning: state.toastWarning },

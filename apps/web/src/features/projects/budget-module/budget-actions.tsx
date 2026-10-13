@@ -12,10 +12,10 @@ import { Label } from '@/components/ui/label'
 import { useAuthorizedRead } from '@/hooks/use-authorized-read'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { usePendingCreate } from '@/hooks/use-pending-create'
+import { financeClient } from '@/lib/api/finance'
 import { useOperationRequestId } from '@/lib/auth/operation-request-id'
 import { createdSince, fingerprintOf } from '@/lib/forms/pending-create'
 import { principalHasAtomicPermission } from '@/lib/rbac/policy'
-import { coreDataClient } from '@/lib/services/core-feature-client'
 
 import { type ActivityLabel, categoryLabel } from './budget-math'
 
@@ -35,7 +35,7 @@ const AllocationDialog = ({
     projectId,
     successMessage: 'Budget allocation recorded.',
     findCreated: async (fingerprint, startedAt) =>
-      (await coreDataClient.budgets(projectId)).find(
+      (await financeClient.budgets(projectId)).find(
         (row) =>
           fingerprintOf(row.category) === fingerprint && createdSince(row.updatedAt, startedAt),
       ),
@@ -48,7 +48,7 @@ const AllocationDialog = ({
     setBusy(true)
     try {
       const created = await pendingCreate.submit(fingerprintOf(category), () =>
-        coreDataClient.createBudget(projectId, {
+        financeClient.createBudget(projectId, {
           category: category.trim(),
           plannedBudget: planned.trim(),
           remarks: remarks.trim() || null,
@@ -123,7 +123,7 @@ const ExpenseDialog = ({
 }: { activities: ActivityLabel[]; projectId: string; onDone: () => Promise<void> }) => {
   const requests = useOperationRequestId()
   const refs = useAuthorizedRead('expense-budget-references', projectId, 'expenses.submit', (s) =>
-    coreDataClient.budgetReferences(projectId, s),
+    financeClient.budgetReferences(projectId, s),
   )
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -142,9 +142,9 @@ const ExpenseDialog = ({
         expenseDate: date,
       }
       const clientRequestId = requests.forBody(projectId, body)
-      const ack = await coreDataClient.submitExpense(projectId, { clientRequestId, ...body })
+      const ack = await financeClient.submitExpense(projectId, { clientRequestId, ...body })
       requests.acknowledge(clientRequestId)
-      if (receipt) await coreDataClient.uploadReceipt(projectId, ack.id, ack.updatedAt, receipt)
+      if (receipt) await financeClient.uploadReceipt(projectId, ack.id, ack.updatedAt, receipt)
       toast.success(
         receipt ? 'Expense submitted with receipt.' : 'Expense submitted without a receipt.',
       )

@@ -1,52 +1,9 @@
+import { ownedJsonRead, projectPath } from '@/lib/api/core/owned-json-read'
 import { PathwaysClientError, requestFoundationResponse } from '@/lib/api/core/request'
 import { captureRequestOwner } from '@/lib/api/core/request-owner'
-import { reportKinds } from '@pathways/shared'
 import { z } from 'zod'
-import { reportSectionsSchema } from './report-sections'
 
-async function read<S extends z.ZodTypeAny>(
-  path: string,
-  schema: S,
-  init: RequestInit = {},
-): Promise<z.output<S>> {
-  const current = captureRequestOwner(init.signal)
-  if (!current())
-    throw new PathwaysClientError('Current workspace access is required.', 'unauthorized')
-  const response = await requestFoundationResponse(path, init)
-  if (!current() || !response.headers.get('Content-Type')?.startsWith('application/json')) {
-    await response.body?.cancel().catch(() => undefined)
-    throw new PathwaysClientError('Response ownership or format changed.', 'unauthorized')
-  }
-  if (!response.body) throw new PathwaysClientError('Response unavailable.', 'network')
-  const reader = response.body.getReader()
-  const chunks: Uint8Array[] = []
-  let size = 0
-  try {
-    while (true) {
-      const part = await reader.read()
-      if (part.done) break
-      size += part.value.length
-      if (size > 2_000_000 || !current())
-        throw new PathwaysClientError('Response unavailable.', 'network')
-      chunks.push(part.value)
-    }
-  } finally {
-    await reader.cancel().catch(() => undefined)
-    reader.releaseLock()
-  }
-  const bytes = new Uint8Array(size)
-  let offset = 0
-  for (const chunk of chunks) {
-    bytes.set(chunk, offset)
-    offset += chunk.length
-  }
-  if (!current()) throw new PathwaysClientError('Request ownership changed.', 'unauthorized')
-  const parsed = schema.safeParse(JSON.parse(new TextDecoder().decode(bytes)))
-  if (!parsed.success) throw new PathwaysClientError('Response could not be validated.', 'network')
-  return parsed.data
-}
 const uuid = z.string().uuid()
-const path = (id: string) => `/projects/${uuid.parse(id)}`
 const publicationSchema = z
   .object({
     revision: z.number().int().positive(),
@@ -72,168 +29,6 @@ const publicationSchema = z
   .strict()
 const publicationReceipt = publicationSchema.pick({ revision: true, state: true, updatedAt: true })
 const timestamp = z.string().datetime({ offset: true })
-const decimal = z.string().regex(/^-?\d+(?:\.\d+)?$/)
-const dateOnly = z.string().regex(/^\d{4}-\d{2}-\d{2}$/)
-const budgetSchema = z
-  .object({
-    id: uuid,
-    activityId: uuid.nullable(),
-    category: z.string(),
-    currency: z.literal('PHP'),
-    plannedBudget: decimal,
-    remarks: z.string().nullable(),
-    updatedAt: timestamp,
-  })
-  .strict()
-const expenseSchema = z
-  .object({
-    id: uuid,
-    budgetRecordId: uuid,
-    description: z.string(),
-    amount: decimal,
-    expenseDate: z.string(),
-    status: z.enum(['PENDING', 'VERIFIED', 'APPROVED', 'REJECTED']),
-    receiptEvidenceId: uuid.nullable(),
-    submittedById: uuid,
-    verifiedById: uuid.nullable(),
-    approvedById: uuid.nullable(),
-    updatedAt: timestamp,
-    signedOffById: uuid.nullable(),
-    signedOffAt: timestamp.nullable(),
-    submittedByName: z.string().max(200).nullable(),
-    verifiedByName: z.string().max(200).nullable(),
-    approvedByName: z.string().max(200).nullable(),
-    signedOffByName: z.string().max(200).nullable(),
-  })
-  .strict()
-export const expenseAck = z
-  .object({
-    id: uuid,
-    projectId: uuid,
-    status: z.enum(['PENDING', 'VERIFIED', 'APPROVED', 'REJECTED']),
-    updatedAt: timestamp,
-    receiptEvidenceId: uuid.nullable(),
-  })
-  .strict()
-const reportKind = z.enum(reportKinds)
-const reportFormat = z.enum(['CSV', 'XLSX', 'XLS', 'PDF'])
-const reportPreviewSchema = z
-  .object({
-    projectId: uuid,
-    kind: reportKind,
-    formId: uuid.nullable(),
-    columns: z.array(z.string()).max(30),
-    rows: z.array(z.array(z.string().max(2000)).max(30)).max(1000),
-    sections: reportSectionsSchema.optional(),
-    generatedAt: timestamp,
-    unavailableReasons: z.array(z.string()).max(20),
-  })
-  .strict()
-const reportSchema = z
-  .object({
-    id: uuid,
-    name: z.string(),
-    type: reportKind,
-    format: reportFormat.nullable(),
-    status: z.enum(['DRAFT', 'GENERATED', 'ARCHIVED']),
-    generatedAt: timestamp.nullable(),
-    evaluation: z
-      .object({ title: z.string(), periodStart: dateOnly, periodEnd: dateOnly })
-      .strict()
-      .nullable(),
-  })
-  .strict()
-const evaluationRoundSchema = z
-  .object({
-    id: uuid,
-    title: z.string(),
-    status: z.enum(['SIGNED_OFF', 'ARCHIVED']),
-    periodStart: dateOnly,
-    periodEnd: dateOnly,
-    signedOffAt: timestamp.nullable(),
-    overallScore: decimal.nullable(),
-  })
-  .strict()
-const post = <S extends z.ZodTypeAny>(url: string, schema: S, body: unknown) =>
-  read(url, schema, { method: 'POST', body: JSON.stringify(body) })
-const criterionSchema = z
-  .object({
-    id: uuid,
-    code: z.string(),
-    name: z.string(),
-    description: z.string().nullable(),
-    type: z.enum([
-      'KPI',
-      'TIMELINE_COMPLIANCE',
-      'BUDGET_EFFICIENCY',
-      'BENEFICIARY_REACH',
-      'INDICATOR_LINKAGE',
-      'ASSESSMENT_GAIN',
-      'OTHER',
-    ]),
-    version: z.number().int(),
-    weightPercentage: decimal,
-    maximumScore: decimal,
-    status: z.enum(['DRAFT', 'PUBLISHED', 'ARCHIVED']),
-    updatedAt: timestamp,
-  })
-  .strict()
-const evaluationPersonSchema = z.object({ id: uuid, name: z.string() }).strict().nullable()
-const criterionSnapshotSchema = z
-  .object({
-    id: uuid,
-    code: z.string(),
-    version: z.number().int(),
-    type: z.string(),
-    name: z.string(),
-    description: z.string().nullable(),
-    weight_percentage: z.string(),
-    maximum_score: z.string(),
-  })
-  .strict()
-const evaluationScoreSchema = z
-  .object({
-    criterionId: uuid,
-    score: decimal,
-    maximumScore: decimal,
-    weightedScore: decimal,
-    source: z.enum(['computed', 'no_data', 'manual']),
-    evidence: z.string().nullable(),
-    reason: z.string().nullable(),
-    note: z.string().nullable(),
-    criterion: criterionSnapshotSchema,
-  })
-  .strict()
-export const evaluationDetailSchema = z
-  .object({
-    id: uuid,
-    title: z.string(),
-    periodLabel: z.string().nullable(),
-    periodStart: z.string(),
-    periodEnd: z.string(),
-    overallScore: decimal.nullable(),
-    commentary: z.string().nullable(),
-    returnReason: z.string().nullable(),
-    status: z.enum(['DRAFT', 'SUBMITTED', 'REVIEWED', 'SIGNED_OFF', 'ARCHIVED']),
-    updatedAt: timestamp,
-    evaluatedBy: evaluationPersonSchema,
-    evaluatedAt: timestamp.nullable(),
-    reviewedBy: evaluationPersonSchema,
-    reviewedAt: timestamp.nullable(),
-    reviewFeedback: z.string().nullable(),
-    signedOffBy: evaluationPersonSchema,
-    signedOffAt: timestamp.nullable(),
-    scores: z.array(evaluationScoreSchema).max(100),
-  })
-  .strict()
-const evaluationSchema = z
-  .object({
-    projectId: uuid,
-    criteria: z.array(criterionSchema).max(100),
-    evaluations: z.array(evaluationDetailSchema).max(20),
-    hasMore: z.boolean(),
-  })
-  .strict()
 const auditSchema = z
   .object({
     id: uuid,
@@ -247,159 +42,8 @@ const auditSchema = z
   })
   .strict()
 export const coreDataClient = {
-  budgets: (id: string, signal?: AbortSignal) =>
-    read(`${path(id)}/finance/budgets`, z.array(budgetSchema).max(100), { signal }),
-  createBudget: (id: string, body: unknown) =>
-    post(
-      `${path(id)}/finance/budgets`,
-      z.object({ id: uuid, updatedAt: timestamp }).strict(),
-      body,
-    ),
-  replaceBudget: (id: string, budgetId: string, body: unknown) =>
-    read(
-      `${path(id)}/finance/budgets/${uuid.parse(budgetId)}`,
-      z.object({ id: uuid, updatedAt: timestamp }).strict(),
-      { method: 'PATCH', body: JSON.stringify(body) },
-    ),
-  expenses: (id: string, signal?: AbortSignal) =>
-    read(`${path(id)}/finance/expenses`, z.array(expenseSchema).max(100), { signal }),
-  budgetReferences: (id: string, signal?: AbortSignal) =>
-    read(
-      `${path(id)}/finance/expense-budget-references`,
-      z
-        .array(z.object({ id: uuid, category: z.string(), activityId: uuid.nullable() }).strict())
-        .max(100),
-      { signal },
-    ),
-  submitExpense: (id: string, body: unknown) =>
-    post(
-      `${path(id)}/finance/expenses`,
-      expenseAck.refine((row) => row.projectId === id),
-      body,
-    ),
-  reviewExpense: (id: string, expenseId: string, body: unknown) =>
-    post(
-      `${path(id)}/finance/expenses/${uuid.parse(expenseId)}/review`,
-      expenseAck.refine((row) => row.projectId === id && row.id === expenseId),
-      body,
-    ),
-  signoffExpense: (id: string, expenseId: string) =>
-    post(
-      `${path(id)}/finance/expenses/${uuid.parse(expenseId)}/signoff`,
-      z
-        .object({ expenseId: uuid, signedOffById: uuid, signedOffAt: timestamp })
-        .strict()
-        .refine((row) => row.expenseId === expenseId),
-      {},
-    ),
-  uploadReceipt: (id: string, expenseId: string, updatedAt: string, file: File) => {
-    const data = new FormData()
-    data.append('expectedUpdatedAt', timestamp.parse(updatedAt))
-    data.append('file', file)
-    return read(
-      `${path(id)}/finance/expenses/${uuid.parse(expenseId)}/receipt`,
-      expenseAck.refine((row) => row.projectId === id && row.id === expenseId),
-      {
-        method: 'POST',
-        body: data,
-      },
-    )
-  },
-  surveyForms: (id: string, signal?: AbortSignal) =>
-    read(
-      `${path(id)}/reports/survey-forms`,
-      z
-        .array(
-          z
-            .object({
-              id: uuid,
-              name: z.string(),
-              code: z.string(),
-              version: z.number().int().positive(),
-            })
-            .strict(),
-        )
-        .max(100),
-      { signal },
-    ),
-  evaluationRounds: (id: string, signal?: AbortSignal) =>
-    read(`${path(id)}/reports/evaluation-rounds`, z.array(evaluationRoundSchema).max(100), {
-      signal,
-    }),
-  reportPreview: (
-    id: string,
-    kind: z.infer<typeof reportKind>,
-    signal?: AbortSignal,
-    formId?: string,
-    evaluationId?: string,
-  ) =>
-    read(
-      `${path(id)}/reports/preview?kind=${reportKind.parse(kind)}${formId ? `&formId=${uuid.parse(formId)}` : ''}${evaluationId ? `&evaluationId=${uuid.parse(evaluationId)}` : ''}`,
-      reportPreviewSchema.refine(
-        (row) => row.projectId === id && row.kind === kind && row.formId === (formId ?? null),
-      ),
-      {
-        signal,
-      },
-    ),
-  reports: (id: string, signal?: AbortSignal) =>
-    read(`${path(id)}/reports`, z.array(reportSchema).max(100), { signal }),
-  generateReport: (
-    id: string,
-    body: {
-      clientRequestId: string
-      name: string
-      kind: z.infer<typeof reportKind>
-      format: z.infer<typeof reportFormat>
-      formId?: string
-      evaluationId?: string
-    },
-  ) =>
-    post(
-      `${path(id)}/reports`,
-      z
-        .object({
-          id: uuid,
-          status: z.literal('GENERATED'),
-          pdfFallback: z.literal(true).optional(),
-        })
-        .strict(),
-      body,
-    ),
-  evaluation: (id: string, signal?: AbortSignal) =>
-    read(
-      `${path(id)}/evaluation`,
-      evaluationSchema.refine((row) => row.projectId === id),
-      { signal },
-    ),
-  createEvaluation: (id: string, body: unknown) =>
-    post(`${path(id)}/evaluation/evaluations`, evaluationDetailSchema, body),
-  saveEvaluationScores: (id: string, evaluationId: string, body: unknown) =>
-    read(
-      `${path(id)}/evaluation/evaluations/${uuid.parse(evaluationId)}/scores`,
-      evaluationDetailSchema.refine((row) => row.id === evaluationId),
-      { method: 'PATCH', body: JSON.stringify(body) },
-    ),
-  submitEvaluation: (id: string, evaluationId: string, body: unknown) =>
-    post(
-      `${path(id)}/evaluation/evaluations/${uuid.parse(evaluationId)}/submit`,
-      evaluationDetailSchema.refine((row) => row.id === evaluationId),
-      body,
-    ),
-  returnEvaluation: (id: string, evaluationId: string, body: unknown) =>
-    post(
-      `${path(id)}/evaluation/evaluations/${uuid.parse(evaluationId)}/return`,
-      evaluationDetailSchema.refine((row) => row.id === evaluationId),
-      body,
-    ),
-  signoffEvaluation: (id: string, evaluationId: string, body: unknown) =>
-    post(
-      `${path(id)}/evaluation/evaluations/${uuid.parse(evaluationId)}/signoff`,
-      evaluationDetailSchema.refine((row) => row.id === evaluationId),
-      body,
-    ),
   audit: (cursor?: string, signal?: AbortSignal) =>
-    read(
+    ownedJsonRead(
       `/audit${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`,
       z.object({ rows: z.array(auditSchema).max(100), nextCursor: z.string().nullable() }).strict(),
       { signal },
@@ -510,8 +154,8 @@ export async function downloadCoreArtifact(
 }
 export const coreFeatureClient = {
   publication: (id: string, signal?: AbortSignal) =>
-    read(
-      `${path(id)}/publication`,
+    ownedJsonRead(
+      `${projectPath(id)}/publication`,
       publicationSchema.refine((row) => row.snapshot.id === id).nullable(),
       { signal },
     ),
@@ -521,7 +165,7 @@ export const coreFeatureClient = {
     body: { clientRequestId: string; expectedRevision: number; summary?: string },
     signal?: AbortSignal,
   ) =>
-    read(`${path(id)}/publication/${operation}`, publicationReceipt, {
+    ownedJsonRead(`${projectPath(id)}/publication/${operation}`, publicationReceipt, {
       method: 'POST',
       body: JSON.stringify(body),
       signal,

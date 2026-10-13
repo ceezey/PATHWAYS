@@ -26,6 +26,7 @@ vi.mock('@/lib/services/pathways-client', () => ({
   pathwaysClient: client,
 }))
 vi.mock('@/lib/api/forms', () => ({ formsClient: client }))
+vi.mock('@/lib/api/evaluations', () => ({ evaluationsClient: client }))
 vi.mock('@/lib/api/beneficiaries', () => ({ beneficiariesClient: client }))
 vi.mock('@/lib/api/journeys', () => ({ journeysClient: client }))
 vi.mock('@/lib/api/activities', () => ({ activitiesClient: client }))

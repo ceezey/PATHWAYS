@@ -15,10 +15,11 @@ import { PrintReportView } from '@/features/reports/print/print-report-view'
 import { useAuthorizedRead } from '@/hooks/use-authorized-read'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { projectsClient } from '@/lib/api/projects'
+import { reportsClient } from '@/lib/api/reports'
 import { useOperationRequestId } from '@/lib/auth/operation-request-id'
 import { useSensitiveDraftOwner } from '@/lib/auth/sensitive-drafts'
 import { principalHasAtomicPermission } from '@/lib/rbac/policy'
-import { coreDataClient, downloadCoreArtifact } from '@/lib/services/core-feature-client'
+import { downloadCoreArtifact } from '@/lib/services/core-feature-client'
 import type { ReportKind } from '@/types/pathways'
 import type { ReportKindCode } from '@pathways/shared'
 import { Download, FileSpreadsheet, Save } from 'lucide-react'
@@ -102,7 +103,7 @@ export function LiveReportingWorkspace({
     'report-survey-forms',
     id,
     'forms.read',
-    (signal) => coreDataClient.surveyForms(id ?? '', signal),
+    (signal) => reportsClient.surveyForms(id ?? '', signal),
     Boolean(id && kind === 'SURVEY_FORM_RESULTS'),
   )
   const currentForms = id && !forms.isError && !forms.isPending ? forms.data : undefined
@@ -115,7 +116,7 @@ export function LiveReportingWorkspace({
     'report-evaluation-rounds',
     id,
     kinds.EVALUATION_REPORT.permission,
-    (signal) => coreDataClient.evaluationRounds(id ?? '', signal),
+    (signal) => reportsClient.evaluationRounds(id ?? '', signal),
     Boolean(id && kind === 'EVALUATION_REPORT'),
   )
   const currentRounds = id && !rounds.isError && !rounds.isPending ? rounds.data : undefined
@@ -133,14 +134,14 @@ export function LiveReportingWorkspace({
     `report-preview:${kind}:${formId ?? ''}:${evaluationId ?? ''}`,
     id,
     kinds[kind].permission,
-    (signal) => coreDataClient.reportPreview(id ?? '', kind, signal, formId, evaluationId),
+    (signal) => reportsClient.reportPreview(id ?? '', kind, signal, formId, evaluationId),
     contextReady,
   )
   const reports = useAuthorizedRead(
     'report-artifacts',
     id,
     'reports.read',
-    (signal) => coreDataClient.reports(id ?? '', signal),
+    (signal) => reportsClient.reports(id ?? '', signal),
     contextReady,
   )
   const currentPreview =
@@ -218,7 +219,7 @@ export function LiveReportingWorkspace({
     setBusy(true)
     setStatusMessage('Generating report.')
     try {
-      const acknowledgement = await coreDataClient.generateReport(id, { clientRequestId, ...body })
+      const acknowledgement = await reportsClient.generateReport(id, { clientRequestId, ...body })
       if (captured.isCurrent()) {
         requests.acknowledge(clientRequestId)
         await reports.refetch()

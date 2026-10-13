@@ -9,11 +9,11 @@ import { Dialog, DialogFooter } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Sheet } from '@/components/ui/sheet'
 import { Textarea } from '@/components/ui/textarea'
-import { coreDataClient } from '@/lib/services/core-feature-client'
+import { financeClient } from '@/lib/api/finance'
 
 import { formatCurrency } from '../activities/activities.utils'
 
-type Expense = Awaited<ReturnType<typeof coreDataClient.expenses>>[number]
+type Expense = Awaited<ReturnType<typeof financeClient.expenses>>[number]
 export type ReviewAction = 'VERIFY' | 'APPROVE' | 'SIGNOFF'
 
 const labels: Record<ReviewAction, string> = {
@@ -44,9 +44,9 @@ export const ExpenseReviewDrawer = ({
     if (!expense || !action || busy) return
     setBusy(true)
     try {
-      if (action === 'SIGNOFF') await coreDataClient.signoffExpense(projectId, expense.id)
+      if (action === 'SIGNOFF') await financeClient.signoffExpense(projectId, expense.id)
       else
-        await coreDataClient.reviewExpense(projectId, expense.id, {
+        await financeClient.reviewExpense(projectId, expense.id, {
           expectedUpdatedAt: expense.updatedAt,
           stage: action,
           decision: decision === 'REJECT' ? 'REJECT' : action,

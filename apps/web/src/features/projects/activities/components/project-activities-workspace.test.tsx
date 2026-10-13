@@ -96,8 +96,8 @@ vi.mock('@/components/ui/dropdown-menu', () => ({
   ),
 }))
 // A Project Manager now reads expenses and budget lines for the activity expense trail.
-vi.mock('@/lib/services/core-feature-client', () => ({
-  coreDataClient: {
+vi.mock('@/lib/api/finance', () => ({
+  financeClient: {
     budgetReferences: vi.fn().mockResolvedValue([]),
     budgets: vi.fn().mockResolvedValue([]),
     expenses: vi.fn().mockResolvedValue([]),

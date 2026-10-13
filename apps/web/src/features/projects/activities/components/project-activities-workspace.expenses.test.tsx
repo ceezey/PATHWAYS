@@ -58,7 +58,7 @@ vi.mock('@/lib/api/indicators', () => ({
 }))
 vi.mock('@/lib/api/activities', () => ({ activitiesClient: api }))
 vi.mock('@/lib/api/projects', () => ({ projectsClient: api }))
-vi.mock('@/lib/services/core-feature-client', () => ({ coreDataClient: core }))
+vi.mock('@/lib/api/finance', () => ({ financeClient: core }))
 vi.mock('@/hooks/use-current-role', () => ({ useCurrentRole: () => access }))
 vi.mock('@/hooks/use-display-labels', () => ({
   useDisplayLabels: () => ({ labels: { projectActivities: 'Activities' } }),

@@ -9,8 +9,8 @@ import { Dialog, DialogFooter } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { useCurrentRole } from '@/hooks/use-current-role'
+import { financeClient } from '@/lib/api/finance'
 import { principalHasAtomicPermission } from '@/lib/rbac/policy'
-import { coreDataClient } from '@/lib/services/core-feature-client'
 
 export type PendingExpense = {
   id: string
@@ -79,7 +79,7 @@ export function ActivityExpenseReviewDialog({
     setSubmitting(true)
     setError('')
     try {
-      await coreDataClient.reviewExpense(expense.projectId, expense.id, {
+      await financeClient.reviewExpense(expense.projectId, expense.id, {
         expectedUpdatedAt: expense.updatedAt,
         stage: 'VERIFY',
         decision: verified ? 'VERIFY' : 'REJECT',

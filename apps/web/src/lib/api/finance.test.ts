@@ -14,7 +14,6 @@ vi.mock('@/lib/supabase/client', () => ({
   getBrowserSupabaseClient: () => ({ auth: { getSession: browser.getSession } }),
 }))
 
-import { coreDataClient } from '@/lib/services/core-feature-client'
 import { financeClient } from './finance'
 
 const authUserId = '78000000-0000-4000-8000-000000000001'
@@ -96,12 +95,7 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
-// The same cases run against the old coreDataClient and the new financeClient.
-const clients = [
-  ['coreDataClient', coreDataClient],
-  ['financeClient', financeClient],
-] as const
-type Client = (typeof clients)[number][1]
+type Client = typeof financeClient
 type Call = (client: Client, id: string, signal?: AbortSignal) => unknown
 
 const requests: readonly (readonly [string, Call, string, string, unknown, unknown, boolean])[] = [
@@ -188,13 +182,13 @@ const requests: readonly (readonly [string, Call, string, string, unknown, unkno
   ],
 ]
 
-describe.each(clients)('%s requests', (_name, client) => {
+describe('financeClient requests', () => {
   it.each(requests)(
     '%s sends the request unchanged and returns the parsed response',
     async (_member, call, suffix, method, body, response, readsSignal) => {
       const controller = new AbortController()
       fetcher.mockResolvedValueOnce(json(response))
-      await expect(call(client, projectId, controller.signal)).resolves.toEqual(response)
+      await expect(call(financeClient, projectId, controller.signal)).resolves.toEqual(response)
       const [url, init] = fetcher.mock.calls[0]
       expect(String(url)).toBe(`http://127.0.0.1:4000/api/projects/${projectId}${suffix}`)
       expect(init?.method ?? 'GET').toBe(method)
@@ -212,16 +206,16 @@ describe.each(clients)('%s requests', (_name, client) => {
             : { ...(response as object), extra: 'x' },
         ),
       )
-      await expect(call(client, projectId)).rejects.toThrow('could not be validated')
+      await expect(call(financeClient, projectId)).rejects.toThrow('could not be validated')
     },
   )
   it.each(requests)('%s refuses a malformed project id before any request', (_member, call) => {
-    expect(() => call(client, '../other')).toThrow()
+    expect(() => call(financeClient, '../other')).toThrow()
     expect(fetcher).not.toHaveBeenCalled()
   })
   it('sends a receipt as a multipart form without a JSON content type', async () => {
     fetcher.mockResolvedValueOnce(json(acknowledgement))
-    await client.uploadReceipt(
+    await financeClient.uploadReceipt(
       projectId,
       expenseId,
       updatedAt,
@@ -250,7 +244,7 @@ describe.each(clients)('%s requests', (_name, client) => {
   ] as readonly (readonly [string, Call])[])(
     '%s refuses a malformed record id or time before any request',
     (_member, call) => {
-      expect(() => call(client, projectId)).toThrow()
+      expect(() => call(financeClient, projectId)).toThrow()
       expect(fetcher).not.toHaveBeenCalled()
     },
   )
@@ -345,14 +339,94 @@ describe.each(clients)('%s requests', (_name, client) => {
     'rejects %s',
     async (_name, call, response) => {
       fetcher.mockResolvedValueOnce(json(response))
-      await expect(call(client, projectId)).rejects.toThrow('could not be validated')
+      await expect(call(financeClient, projectId)).rejects.toThrow('could not be validated')
     },
   )
   it('accepts a rejected expense and exactly 100 budgets', async () => {
     const rejectedExpense = { ...expense, status: 'REJECTED' }
     fetcher.mockResolvedValueOnce(json([rejectedExpense]))
-    await expect(client.expenses(projectId)).resolves.toEqual([rejectedExpense])
+    await expect(financeClient.expenses(projectId)).resolves.toEqual([rejectedExpense])
     fetcher.mockResolvedValueOnce(json(Array.from({ length: 100 }, () => budget)))
-    await expect(client.budgets(projectId)).resolves.toHaveLength(100)
+    await expect(financeClient.budgets(projectId)).resolves.toHaveLength(100)
+  })
+})
+
+describe('financeClient response boundaries', () => {
+  it('uses authenticated scoped headers and preserves a valid expense acknowledgement', async () => {
+    fetcher.mockResolvedValueOnce(json(acknowledgement))
+    const body = submitBody
+    await expect(financeClient.submitExpense(projectId, body)).resolves.toEqual(acknowledgement)
+    expect(fetcher).toHaveBeenCalledWith(
+      `http://127.0.0.1:4000/api/projects/${projectId}/finance/expenses`,
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify(body),
+        credentials: 'omit',
+        redirect: 'error',
+        cache: 'no-store',
+        headers: expect.objectContaining({
+          Authorization: 'Bearer synthetic-test-token',
+          'X-Pathways-Organization-Id': organizationId,
+          'X-Pathways-User-Id': userId,
+        }),
+      }),
+    )
+  })
+  it('rejects a validly shaped submission acknowledgement for another project', async () => {
+    fetcher.mockResolvedValueOnce(json({ ...acknowledgement, projectId: otherId }))
+    await expect(financeClient.submitExpense(projectId, submitBody)).rejects.toThrow(
+      'could not be validated',
+    )
+  })
+  it('accepts a distinct replacement allocation ID while preserving the scoped request', async () => {
+    fetcher.mockResolvedValueOnce(json({ id: otherId, updatedAt }))
+    await expect(financeClient.replaceBudget(projectId, expenseId, replaceBody)).resolves.toEqual({
+      id: otherId,
+      updatedAt,
+    })
+    expect(fetcher.mock.calls[0][0]).toBe(
+      `http://127.0.0.1:4000/api/projects/${projectId}/finance/budgets/${expenseId}`,
+    )
+    expect(fetcher.mock.calls[0][1]?.method).toBe('PATCH')
+  })
+  it.each([
+    { id: 'malformed', updatedAt },
+    { id: otherId, updatedAt, privateNotes: 'Unexpected' },
+  ])('rejects an invalid replacement allocation acknowledgement: %j', async (receipt) => {
+    fetcher.mockResolvedValueOnce(json(receipt))
+    await expect(financeClient.replaceBudget(projectId, expenseId, replaceBody)).rejects.toThrow(
+      'could not be validated',
+    )
+  })
+  it.each([{ projectId: otherId }, { id: otherId }])(
+    'rejects a review acknowledgement outside the requested record: %j',
+    async (replacement) => {
+      fetcher.mockResolvedValueOnce(json({ ...acknowledgement, ...replacement }))
+      await expect(financeClient.reviewExpense(projectId, expenseId, reviewBody)).rejects.toThrow(
+        'could not be validated',
+      )
+    },
+  )
+  it('rejects a receipt upload acknowledgement for another expense', async () => {
+    fetcher.mockResolvedValueOnce(json({ ...acknowledgement, id: otherId }))
+    await expect(
+      financeClient.uploadReceipt(
+        projectId,
+        expenseId,
+        updatedAt,
+        new File(['synthetic'], 'receipt.pdf'),
+      ),
+    ).rejects.toThrow('could not be validated')
+    const request = fetcher.mock.calls[0][1]
+    expect(request?.body).toBeInstanceOf(FormData)
+    expect(request?.headers).not.toHaveProperty('Content-Type')
+  })
+  it('rejects another expense final sign-off', async () => {
+    fetcher.mockResolvedValueOnce(
+      json({ expenseId: otherId, signedOffById: userId, signedOffAt: updatedAt }),
+    )
+    await expect(financeClient.signoffExpense(projectId, expenseId)).rejects.toThrow(
+      'could not be validated',
+    )
   })
 })

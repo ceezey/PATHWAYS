@@ -49,10 +49,8 @@ vi.mock('@/lib/api/activities', () => ({ activitiesClient: api }))
 vi.mock('@/lib/api/projects', () => ({ projectsClient: api }))
 vi.mock('@/lib/api/core/request', () => ({ PathwaysClientError: MockPathwaysClientError }))
 vi.mock('@/lib/api/proof-inspection', () => ({ privateProofClient: proofClient }))
-vi.mock('@/lib/services/core-feature-client', () => ({
-  coreDataClient: coreApi,
-  saveCoreArtifact: coreApi.save,
-}))
+vi.mock('@/lib/api/reports', () => ({ reportsClient: coreApi }))
+vi.mock('@/lib/services/core-feature-client', () => ({ saveCoreArtifact: coreApi.save }))
 vi.mock('../budget-module/budget-module', () => ({
   BudgetModule: ({ projectId }: { projectId: string }) => <div>Finance for {projectId}</div>,
 }))

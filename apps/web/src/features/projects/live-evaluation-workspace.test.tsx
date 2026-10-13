@@ -1,4 +1,4 @@
-import type { evaluationDetailSchema } from '@/lib/services/core-feature-client'
+import type { evaluationDetailSchema } from '@/lib/api/evaluations'
 /* @vitest-environment jsdom */
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -58,8 +58,8 @@ vi.mock('@/lib/auth/sensitive-drafts', () => ({
     }
   },
 }))
-vi.mock('@/lib/services/core-feature-client', () => ({
-  coreDataClient: {
+vi.mock('@/lib/api/evaluations', () => ({
+  evaluationsClient: {
     createEvaluation: (...args: unknown[]) => state.createEvaluation(...args),
     saveEvaluationScores: (...args: unknown[]) => state.saveScores(...args),
     submitEvaluation: (...args: unknown[]) => state.submit(...args),

@@ -1,3 +1,4 @@
+import { sampleProjectReport } from '@/features/reports/print/print-report-sample'
 import type { GenerateReportRequest } from '@pathways/shared'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -9,7 +10,6 @@ vi.mock('@/lib/supabase/client', () => ({
   getBrowserSupabaseClient: () => ({ auth: { getSession: browser.getSession } }),
 }))
 
-import { coreDataClient } from '@/lib/services/core-feature-client'
 import { reportsClient } from './reports'
 
 const authUserId = '78200000-0000-4000-8000-000000000001'
@@ -18,7 +18,17 @@ const userId = '78200000-0000-4000-8000-000000000003'
 const projectId = '78200000-0000-4000-8000-000000000004'
 const reportId = '78200000-0000-4000-8000-000000000005'
 const otherId = '78200000-0000-4000-8000-000000000006'
+const formId = '78200000-0000-4000-8000-000000000007'
 const updatedAt = '2026-09-27T00:00:00.000Z'
+const preview = {
+  projectId,
+  kind: 'SURVEY_FORM_RESULTS',
+  formId,
+  columns: ['Answer', 'Count'],
+  rows: [['Recorded answer', 'Suppressed']],
+  generatedAt: updatedAt,
+  unavailableReasons: ['Small cells suppressed.'],
+}
 const form = { id: otherId, name: 'Fictional form', code: 'SYNTHETIC-1', version: 1 }
 const round = {
   id: otherId,
@@ -75,12 +85,7 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
-// The same cases run against the old coreDataClient and the new reportsClient.
-const clients = [
-  ['coreDataClient', coreDataClient],
-  ['reportsClient', reportsClient],
-] as const
-type Client = (typeof clients)[number][1]
+type Client = typeof reportsClient
 type Call = (client: Client, id: string, signal?: AbortSignal) => unknown
 
 const requests: readonly (readonly [string, Call, string, string, unknown, unknown, boolean])[] = [
@@ -131,13 +136,13 @@ const requests: readonly (readonly [string, Call, string, string, unknown, unkno
   ],
 ]
 
-describe.each(clients)('%s requests', (_name, client) => {
+describe('reportsClient requests', () => {
   it.each(requests)(
     '%s sends the request unchanged and returns the parsed response',
     async (_member, call, suffix, method, body, response, readsSignal) => {
       const controller = new AbortController()
       fetcher.mockResolvedValueOnce(json(response))
-      await expect(call(client, projectId, controller.signal)).resolves.toEqual(response)
+      await expect(call(reportsClient, projectId, controller.signal)).resolves.toEqual(response)
       const [url, init] = fetcher.mock.calls[0]
       expect(String(url)).toBe(`http://127.0.0.1:4000/api/projects/${projectId}${suffix}`)
       expect(init?.method ?? 'GET').toBe(method)
@@ -155,15 +160,15 @@ describe.each(clients)('%s requests', (_name, client) => {
             : { ...(response as object), extra: 'x' },
         ),
       )
-      await expect(call(client, projectId)).rejects.toThrow('could not be validated')
+      await expect(call(reportsClient, projectId)).rejects.toThrow('could not be validated')
     },
   )
   it.each(requests)('%s refuses a malformed project id before any request', (_member, call) => {
-    expect(() => call(client, '../other')).toThrow()
+    expect(() => call(reportsClient, '../other')).toThrow()
     expect(fetcher).not.toHaveBeenCalled()
   })
   it('refuses a report kind outside the catalog before any request', () => {
-    expect(() => client.reportPreview(projectId, 'OTHER' as 'PROJECT_SUMMARY')).toThrow()
+    expect(() => reportsClient.reportPreview(projectId, 'OTHER' as 'PROJECT_SUMMARY')).toThrow()
     expect(fetcher).not.toHaveBeenCalled()
   })
   it.each([
@@ -175,7 +180,7 @@ describe.each(clients)('%s requests', (_name, client) => {
   ] as readonly (readonly [string, Call])[])(
     'refuses a malformed %s id before any request',
     (_name, call) => {
-      expect(() => call(client, projectId)).toThrow()
+      expect(() => call(reportsClient, projectId)).toThrow()
       expect(fetcher).not.toHaveBeenCalled()
     },
   )
@@ -183,7 +188,7 @@ describe.each(clients)('%s requests', (_name, client) => {
     fetcher.mockResolvedValueOnce(
       json({ ...summaryPreview, kind: 'EVALUATION_REPORT', formId: otherId }),
     )
-    await client.reportPreview(projectId, 'EVALUATION_REPORT', undefined, otherId, reportId)
+    await reportsClient.reportPreview(projectId, 'EVALUATION_REPORT', undefined, otherId, reportId)
     expect(String(fetcher.mock.calls[0][0])).toBe(
       `http://127.0.0.1:4000/api/projects/${projectId}/reports/preview?kind=EVALUATION_REPORT&formId=${otherId}&evaluationId=${reportId}`,
     )
@@ -296,7 +301,7 @@ describe.each(clients)('%s requests', (_name, client) => {
     'rejects %s',
     async (_name, call, response) => {
       fetcher.mockResolvedValueOnce(json(response))
-      await expect(call(client, projectId)).rejects.toThrow('could not be validated')
+      await expect(call(reportsClient, projectId)).rejects.toThrow('could not be validated')
     },
   )
   it.each([
@@ -329,7 +334,82 @@ describe.each(clients)('%s requests', (_name, client) => {
     'accepts %s',
     async (_name, call, response) => {
       fetcher.mockResolvedValueOnce(json(response))
-      await expect(call(client, projectId)).resolves.toEqual(response)
+      await expect(call(reportsClient, projectId)).resolves.toEqual(response)
     },
   )
+})
+
+describe('reportsClient response boundaries', () => {
+  it.each([
+    { projectId: otherId },
+    { kind: 'PROJECT_SUMMARY' },
+    { formId: otherId },
+    { formId: null },
+  ])('rejects a mismatched survey preview context: %j', async (replacement) => {
+    fetcher.mockResolvedValueOnce(json({ ...preview, ...replacement }))
+    await expect(
+      reportsClient.reportPreview(projectId, 'SURVEY_FORM_RESULTS', undefined, formId),
+    ).rejects.toThrow('could not be validated')
+  })
+  it('requests the exact logical form and retains suppression rather than inventing zero', async () => {
+    fetcher.mockResolvedValueOnce(json(preview))
+    await expect(
+      reportsClient.reportPreview(projectId, 'SURVEY_FORM_RESULTS', undefined, formId),
+    ).resolves.toEqual(preview)
+    expect(fetcher.mock.calls[0][0]).toBe(
+      `http://127.0.0.1:4000/api/projects/${projectId}/reports/preview?kind=SURVEY_FORM_RESULTS&formId=${formId}`,
+    )
+  })
+  it.each([
+    { rows: [['Criterion', 'C1 Relevance', '50']], unavailableReasons: [] },
+    { rows: [], unavailableReasons: ['No signed-off evaluation.'] },
+  ])('parses an evaluation report preview: %j', async (body) => {
+    const evaluation = { ...preview, kind: 'EVALUATION_REPORT', formId: null, ...body }
+    fetcher.mockResolvedValueOnce(json(evaluation))
+    await expect(reportsClient.reportPreview(projectId, 'EVALUATION_REPORT')).resolves.toEqual(
+      evaluation,
+    )
+  })
+  it('requests an exact evaluation round and parses the rounds list strictly', async () => {
+    const round = {
+      id: otherId,
+      title: 'Midterm',
+      status: 'SIGNED_OFF',
+      periodStart: '2026-01-01',
+      periodEnd: '2026-06-30',
+      signedOffAt: null,
+      overallScore: '82.5',
+    }
+    fetcher.mockResolvedValueOnce(json({ ...preview, kind: 'EVALUATION_REPORT', formId: null }))
+    await reportsClient.reportPreview(projectId, 'EVALUATION_REPORT', undefined, undefined, otherId)
+    expect(fetcher.mock.calls[0][0]).toBe(
+      `http://127.0.0.1:4000/api/projects/${projectId}/reports/preview?kind=EVALUATION_REPORT&evaluationId=${otherId}`,
+    )
+    fetcher.mockResolvedValueOnce(json([round]))
+    await expect(reportsClient.evaluationRounds(projectId)).resolves.toEqual([round])
+    fetcher.mockResolvedValueOnce(json([{ ...round, status: 'DRAFT' }]))
+    await expect(reportsClient.evaluationRounds(projectId)).rejects.toThrow(
+      'could not be validated',
+    )
+    fetcher.mockResolvedValueOnce(json([{ ...round, createdById: otherId }]))
+    await expect(reportsClient.evaluationRounds(projectId)).rejects.toThrow(
+      'could not be validated',
+    )
+  })
+  it('parses a project summary preview with sections and rejects unknown section keys', async () => {
+    const { sections } = sampleProjectReport
+    const body = { ...preview, kind: 'PROJECT_SUMMARY', formId: null, sections }
+    fetcher.mockResolvedValueOnce(json(body))
+    await expect(reportsClient.reportPreview(projectId, 'PROJECT_SUMMARY')).resolves.toEqual(body)
+    fetcher.mockResolvedValueOnce(json({ ...body, sections: { ...sections, extra: 1 } }))
+    await expect(reportsClient.reportPreview(projectId, 'PROJECT_SUMMARY')).rejects.toThrow(
+      'could not be validated',
+    )
+  })
+  it('rejects a form-bearing response to a non-survey preview', async () => {
+    fetcher.mockResolvedValueOnce(json({ ...preview, kind: 'PROJECT_SUMMARY' }))
+    await expect(reportsClient.reportPreview(projectId, 'PROJECT_SUMMARY')).rejects.toThrow(
+      'could not be validated',
+    )
+  })
 })

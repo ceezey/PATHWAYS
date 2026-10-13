@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 
 import { useAuthorizedRead } from '@/hooks/use-authorized-read'
-import { coreDataClient } from '@/lib/services/core-feature-client'
+import { financeClient } from '@/lib/api/finance'
 import type { Activity } from '@/types/pathways'
 
 import type { ExpenseBudgetReference } from '../../activity-expense-dialog'
@@ -29,21 +29,21 @@ export const useActivityExpenses = ({
     'activity-expense-references',
     projectId,
     'expenses.submit',
-    (signal) => coreDataClient.budgetReferences(projectId, signal),
+    (signal) => financeClient.budgetReferences(projectId, signal),
     canReadExpenseReferences,
   )
   const expensesRead = useAuthorizedRead(
     'activity-expenses',
     projectId,
     'expenses.read',
-    (signal) => coreDataClient.expenses(projectId, signal),
+    (signal) => financeClient.expenses(projectId, signal),
     canReadExpenses,
   )
   const budgetLinesRead = useAuthorizedRead(
     'finance-budgets',
     projectId,
     'budgets.read',
-    (signal) => coreDataClient.budgets(projectId, signal),
+    (signal) => financeClient.budgets(projectId, signal),
     canReadBudgetLines,
   )
   const budgetReferences: ExpenseBudgetReference[] = expenseReferencesRead.data ?? []

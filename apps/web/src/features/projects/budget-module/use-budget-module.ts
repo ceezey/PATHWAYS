@@ -3,7 +3,7 @@
 import { useMemo } from 'react'
 
 import { useAuthorizedRead } from '@/hooks/use-authorized-read'
-import { coreDataClient } from '@/lib/services/core-feature-client'
+import { financeClient } from '@/lib/api/finance'
 
 import { useProjectActivitiesRead } from '../activities/activities.reads'
 import { useProjectOverviewMetricsRead } from '../projects.reads'
@@ -19,10 +19,10 @@ import {
 /** Reads budgets, expenses and overview metrics, and derives totals, rows and alerts. */
 export const useBudgetModule = (projectId: string) => {
   const budgets = useAuthorizedRead('finance-budgets', projectId, 'budgets.read', (signal) =>
-    coreDataClient.budgets(projectId, signal),
+    financeClient.budgets(projectId, signal),
   )
   const expenses = useAuthorizedRead('finance-expenses', projectId, 'expenses.read', (signal) =>
-    coreDataClient.expenses(projectId, signal),
+    financeClient.expenses(projectId, signal),
   )
   const metrics = useProjectOverviewMetricsRead(projectId)
   const activities = useProjectActivitiesRead(projectId)
