@@ -49,4 +49,20 @@ describe('beneficiary media response contracts', () => {
     }
     expect(beneficiaryMediaItemResponse.safeParse(item).success).toBe(false)
   })
+
+  it('rejects a file that lacks a required field', () => {
+    const item = {
+      id: uuid,
+      type: 'PHOTO',
+      fileName: 'photo.jpg',
+      contentType: 'image/jpeg',
+      byteSize: 1024,
+      description: null,
+      submittedAt: '2026-09-01T00:00:00.000Z',
+      submittedBy: 'Fictional Officer',
+      storageReady: true,
+    }
+    const { submittedBy, ...incomplete } = item
+    expect(beneficiaryMediaItemResponse.safeParse(incomplete).success).toBe(false)
+  })
 })

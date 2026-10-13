@@ -62,5 +62,9 @@ describe('journey response contracts', () => {
         events: [{ ...event, eventType: 'UNKNOWN' }],
       }).success,
     ).toBe(false)
+    const { recordedBy, ...incomplete } = event
+    expect(beneficiaryJourneyResponse.safeParse({ ...history, events: [incomplete] }).success).toBe(
+      false,
+    )
   })
 })
