@@ -1,17 +1,17 @@
 import { requestFoundation } from '@/lib/api/core/request'
 import {
-  type CreateLibraryEntryInput,
-  type LibraryEntry,
-  libraryEntrySchema,
+  type CreateIndicatorLibraryEntryRequest,
+  type IndicatorLibraryEntryResponse,
+  indicatorLibraryEntryResponse,
 } from '@pathways/shared'
 
 export const indicatorLibraryClient = {
-  async list(): Promise<LibraryEntry[]> {
+  async list(): Promise<IndicatorLibraryEntryResponse[]> {
     const rows = await requestFoundation('/indicator-library')
-    return libraryEntrySchema.array().parse(rows)
+    return indicatorLibraryEntryResponse.array().parse(rows)
   },
-  async create(input: CreateLibraryEntryInput): Promise<LibraryEntry> {
-    return libraryEntrySchema.parse(
+  async create(input: CreateIndicatorLibraryEntryRequest): Promise<IndicatorLibraryEntryResponse> {
+    return indicatorLibraryEntryResponse.parse(
       await requestFoundation('/indicator-library', {
         method: 'POST',
         body: JSON.stringify(input),

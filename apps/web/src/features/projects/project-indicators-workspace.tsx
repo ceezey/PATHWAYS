@@ -38,15 +38,15 @@ import {
 } from '@/lib/services/source-mutation'
 import type { Activity, DigitalFormDefinition } from '@/types/pathways'
 import {
-  type CreateIndicatorDraftInput as CreateIndicatorInput,
-  type ManualMeasurementInput,
-  type ProjectIndicator,
-  createIndicatorDraftSchema,
+  type CreateIndicatorDraftRequest as CreateIndicatorInput,
+  type IndicatorResponse,
+  type RecordIndicatorMeasurementRequest,
+  createIndicatorDraftRequest,
   formatMetricCell,
   indicatorTypes,
-  manualMeasurementSchema,
   type metricRecipes,
   type numericKinds,
+  recordIndicatorMeasurementRequest,
 } from '@pathways/shared'
 import { Loader2, MoreHorizontal, Plus, Target } from 'lucide-react'
 import { type FormEvent, Fragment, useCallback, useEffect, useRef, useState } from 'react'
@@ -109,7 +109,7 @@ export function indicatorInputFromForm(
   const recipe = text(form, 'recipe')
   const selectedForm = forms.find((item) => item.id === text(form, 'formId'))
   const formRecipe = recipe === 'FORM_NUMERIC_SUM' || recipe === 'FORM_NUMERIC_AVERAGE'
-  return createIndicatorDraftSchema.parse({
+  return createIndicatorDraftRequest.parse({
     code: text(form, 'code'),
     name: text(form, 'name'),
     description: optional(form, 'description'),
@@ -420,9 +420,9 @@ function IndicatorEditor({
   onArchive,
   canArchive,
 }: {
-  indicator: ProjectIndicator
+  indicator: IndicatorResponse
   busy: boolean
-  onSave: (input: ManualMeasurementInput) => Promise<boolean>
+  onSave: (input: RecordIndicatorMeasurementRequest) => Promise<boolean>
   onUpdate: (name: string, description: string) => Promise<boolean>
   canArchive: boolean
   onArchive: () => Promise<boolean>
@@ -451,7 +451,7 @@ function IndicatorEditor({
           'The earlier measurement outcome is unresolved. Retry its unchanged values before changing them.',
         )
       const attempt = retry.current ?? { signature, id: crypto.randomUUID() }
-      const parsed = manualMeasurementSchema.parse({
+      const parsed = recordIndicatorMeasurementRequest.parse({
         ...payload,
         clientMeasurementId: attempt.id,
       })
@@ -649,7 +649,7 @@ export function ProjectIndicatorsWorkspace({ projectId }: { projectId: string })
     canCreate,
     { freshness: 'summary' },
   )
-  const pendingCreate = usePendingCreate<ProjectIndicator>({
+  const pendingCreate = usePendingCreate<IndicatorResponse>({
     profile,
     kind: 'project-indicator',
     projectId,
@@ -662,7 +662,7 @@ export function ProjectIndicatorsWorkspace({ projectId }: { projectId: string })
   })
   const creating = busy || pendingCreate.pending
   const mutate = async (
-    action: () => Promise<SourceMutationResult<ProjectIndicator>>,
+    action: () => Promise<SourceMutationResult<IndicatorResponse>>,
     createFingerprint?: string,
   ) => {
     if (busy) return false

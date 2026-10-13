@@ -1,4 +1,4 @@
-import { type MetricCell, type MonitoringIndicator, alertSeverities } from '@pathways/shared'
+import { type IndicatorResponse, type MetricCell, alertSeverities } from '@pathways/shared'
 
 export type StatusLevel = 'ON_TRACK' | 'AT_RISK' | 'OFF_TRACK' | 'NOT_AVAILABLE'
 export type Figure = {
@@ -140,7 +140,7 @@ const figureText = (f: Figure) =>
   f.state === 'SUPPRESSED' ? 'Fewer than 5' : (f.value ?? 'Not available')
 
 export const INDICATOR_CAP = 50
-export const indicatorRows = (items: MonitoringIndicator[]) =>
+export const indicatorRows = (items: IndicatorResponse[]) =>
   items.slice(0, INDICATOR_CAP).map((i) => ({
     code: i.code,
     name: i.name,

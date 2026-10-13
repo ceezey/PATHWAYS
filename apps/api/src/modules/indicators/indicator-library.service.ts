@@ -1,51 +1,22 @@
 import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common'
-import type { CreateLibraryEntryInput, LibraryEntry, MetricRecipe } from '@pathways/shared'
-import type { IndicatorLibraryEntry, Prisma } from '@prisma/client'
+import {
+  createIndicatorFromLibraryRequest,
+  createIndicatorLibraryEntryRequest,
+} from '@pathways/shared'
 import { writeAuditLog } from '../../common/audit/write-audit-log'
 import { type ApplicationIdentity, UUID_PATTERN } from '../../common/authz/application-identity'
 import { withAuthorizedOperation } from '../../common/authz/authorized-operation'
+import type { Tx } from '../../common/prisma/transaction'
 import { PrismaService } from '../../prisma/prisma.service'
 import {
-  createLibraryEntrySchema,
-  parseIndicatorInput,
-  useLibraryEntrySchema,
-} from './indicators.dto'
-import { IndicatorsService, monitoringSqlError } from './indicators.service'
+  monitoringSqlError,
+  parseIndicatorRequest,
+  sameLibraryDefinition,
+} from './indicators.helpers'
+import { toLibraryEntryResponse } from './indicators.mapper'
+import { IndicatorsService } from './indicators.service'
 
 const MAX_ACTIVE_ENTRIES = 200
-
-function toEntry(row: IndicatorLibraryEntry): LibraryEntry {
-  return {
-    id: row.id,
-    code: row.code,
-    name: row.name,
-    description: row.description,
-    unitLabel: row.unitLabel,
-    dataSource: row.dataSource,
-    mode: row.measurementMode as LibraryEntry['mode'],
-    numericKind: row.numericKind as LibraryEntry['numericKind'],
-    direction: row.direction as LibraryEntry['direction'],
-    displayPrecision: row.displayPrecision,
-    recipe: row.recipe as MetricRecipe | null,
-    createdAt: row.createdAt.toISOString(),
-  }
-}
-
-/** Same key with the same definition replays; the same key with another definition conflicts. */
-function sameDefinition(row: IndicatorLibraryEntry, input: CreateLibraryEntryInput) {
-  return (
-    row.code === input.code &&
-    row.name === input.name &&
-    row.description === (input.description ?? null) &&
-    row.unitLabel === input.unitLabel &&
-    row.dataSource === input.dataSource &&
-    row.measurementMode === input.mode &&
-    row.numericKind === input.numericKind &&
-    row.direction === input.direction &&
-    row.displayPrecision === input.displayPrecision &&
-    row.recipe === (input.recipe ?? null)
-  )
-}
 
 @Injectable()
 export class IndicatorLibraryService {
@@ -54,7 +25,7 @@ export class IndicatorLibraryService {
     @Inject(IndicatorsService) private readonly indicators: IndicatorsService,
   ) {}
 
-  private readActive(tx: Prisma.TransactionClient, organizationId: string, id?: string) {
+  private readActive(tx: Tx, organizationId: string, id?: string) {
     return tx.indicatorLibraryEntry.findMany({
       where: { organizationId, archivedAt: null, ...(id ? { id } : {}) },
       orderBy: [{ code: 'asc' }, { id: 'asc' }],
@@ -67,12 +38,13 @@ export class IndicatorLibraryService {
       this.prisma,
       identity,
       'indicators.library.read',
-      async (tx, actor) => (await this.readActive(tx, actor.organizationId)).map(toEntry),
+      async (tx, actor) =>
+        (await this.readActive(tx, actor.organizationId)).map(toLibraryEntryResponse),
     )
   }
 
   async create(identity: ApplicationIdentity, value: unknown) {
-    const input = parseIndicatorInput(createLibraryEntrySchema, value)
+    const input = parseIndicatorRequest(createIndicatorLibraryEntryRequest, value)
     return withAuthorizedOperation(
       this.prisma,
       identity,
@@ -83,9 +55,9 @@ export class IndicatorLibraryService {
           where: { ...where, clientMutationId: input.clientMutationId },
         })
         if (retry) {
-          if (!sameDefinition(retry, input))
+          if (!sameLibraryDefinition(retry, input))
             throw new ConflictException('The request key was already used for a different entry.')
-          return toEntry(retry)
+          return toLibraryEntryResponse(retry)
         }
         const active = await tx.indicatorLibraryEntry.count({
           where: { ...where, archivedAt: null },
@@ -116,7 +88,7 @@ export class IndicatorLibraryService {
             entityId: row.id,
             changes: { code: row.code },
           })
-          return toEntry(row)
+          return toLibraryEntryResponse(row)
         } catch (error) {
           return monitoringSqlError(error)
         }
@@ -150,7 +122,10 @@ export class IndicatorLibraryService {
 
   /** Copies the definition into a project indicator; later library changes never touch it. */
   async createProjectIndicator(identity: ApplicationIdentity, projectId: string, value: unknown) {
-    const { libraryEntryId, ...projectValues } = parseIndicatorInput(useLibraryEntrySchema, value)
+    const { libraryEntryId, ...projectValues } = parseIndicatorRequest(
+      createIndicatorFromLibraryRequest,
+      value,
+    )
     const [entry] = await withAuthorizedOperation(
       this.prisma,
       identity,

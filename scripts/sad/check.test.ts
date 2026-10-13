@@ -77,6 +77,13 @@ describe('routing and digest', () => {
       'packages/shared/src/rules/rule-contract.ts',
     ])
   })
+  it('routes indicator contracts to the determinism checker and the privacy guardian', () => {
+    const file = 'packages/shared/src/contracts/indicators/indicator-requests.ts'
+    const routed = routing([change(file, 'new', 'old')])
+    expect(routed['rule-engine-determinism-checker']).toEqual([file])
+    expect(routed['beneficiary-privacy-guardian']).toEqual([file])
+  })
+
   it('routes shared rbac policy changes to the organization isolation checker', () => {
     const file = 'packages/shared/src/rbac/authorization-policy.ts'
     expect(routing([change(file, 'new', 'old')])['organization-isolation-checker']).toEqual([file])

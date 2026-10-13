@@ -57,19 +57,24 @@ export async function stageIndicators(ctx: DemoContext) {
         count += 1
         let previous: string | null = null
         for (const [index, value] of indicator.readings.entries()) {
-          const result = (await ctx.services.indicators.measure(me, projectId, indicatorId, {
-            clientMeasurementId: ctx.stable(`measure:${indicator.code}:${index}`),
-            periodStart,
-            periodEnd,
-            value,
-            source: 'Field monitoring report',
-            ...(previous
-              ? {
-                  correctsMeasurementId: previous,
-                  correctionReason: 'Updated with the latest monitoring visit reading.',
-                }
-              : {}),
-          })) as unknown as { measurementId: string | null }
+          const result = (await ctx.services.indicatorMeasurements.measure(
+            me,
+            projectId,
+            indicatorId,
+            {
+              clientMeasurementId: ctx.stable(`measure:${indicator.code}:${index}`),
+              periodStart,
+              periodEnd,
+              value,
+              source: 'Field monitoring report',
+              ...(previous
+                ? {
+                    correctsMeasurementId: previous,
+                    correctionReason: 'Updated with the latest monitoring visit reading.',
+                  }
+                : {}),
+            },
+          )) as unknown as { measurementId: string | null }
           previous = result.measurementId
         }
       }

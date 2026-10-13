@@ -6,14 +6,14 @@ import { type FormEvent, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
-  type LibraryEntry,
-  type UseLibraryEntryInput,
-  useLibraryEntrySchema,
+  type CreateIndicatorFromLibraryRequest,
+  type IndicatorLibraryEntryResponse,
+  createIndicatorFromLibraryRequest,
 } from '@pathways/shared'
 import { recipeNames } from './indicator-recipes'
 
-type Draft = Omit<UseLibraryEntryInput, 'clientMutationId'>
-const draftSchema = useLibraryEntrySchema.omit({ clientMutationId: true })
+type Draft = Omit<CreateIndicatorFromLibraryRequest, 'clientMutationId'>
+const draftSchema = createIndicatorFromLibraryRequest.omit({ clientMutationId: true })
 const field = (form: FormData, name: string) => String(form.get(name) ?? '').trim()
 
 /** Copies a library definition into this project; only the project-specific values are typed here. */
@@ -22,7 +22,7 @@ export function UseFromLibrary({
   busy,
   onUse,
 }: {
-  entries: LibraryEntry[]
+  entries: IndicatorLibraryEntryResponse[]
   busy: boolean
   onUse: (input: Draft) => Promise<boolean>
 }) {

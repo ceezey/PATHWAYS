@@ -14,6 +14,7 @@ import { EvaluationsService } from '../src/modules/evaluations/evaluations.servi
 import { FinanceService } from '../src/modules/finance/finance.service'
 import { ImportsService } from '../src/modules/imports/imports.service'
 import { IndicatorLibraryService } from '../src/modules/indicators/indicator-library.service'
+import { IndicatorMeasurementsService } from '../src/modules/indicators/indicator-measurements.service'
 import { IndicatorsService } from '../src/modules/indicators/indicators.service'
 import { MetadataService } from '../src/modules/metadata/metadata.service'
 import { ParticipantsService } from '../src/modules/participants/participants.service'
@@ -154,6 +155,7 @@ async function seed(owner: PrismaClient, testLocal: boolean) {
         activityReview: new ActivityReviewService(runtime),
         activityProgress: new ActivityProgressService(runtime),
         indicators,
+        indicatorMeasurements: new IndicatorMeasurementsService(runtime, indicators),
         library: new IndicatorLibraryService(runtime, indicators),
         beneficiaries,
         metadata: new MetadataService(runtime, participants),

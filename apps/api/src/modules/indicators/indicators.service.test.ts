@@ -62,6 +62,7 @@ import {
 } from '@nestjs/common'
 import type { Prisma } from '@prisma/client'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { IndicatorMeasurementsService } from './indicator-measurements.service'
 import { IndicatorValuesController } from './indicator-values.controller'
 import { IndicatorsService } from './indicators.service'
 
@@ -140,6 +141,7 @@ function sqlText(query: unknown) {
 /** These are service boundary tests with a mocked transaction, not PostgreSQL/RLS evidence. */
 describe('P06 IndicatorsService', () => {
   const service = new IndicatorsService({} as PrismaService)
+  const measurements = new IndicatorMeasurementsService({} as PrismaService, service)
   beforeEach(() => {
     vi.resetAllMocks()
     boundary.run.mockImplementation(
@@ -348,10 +350,10 @@ describe('P06 IndicatorsService', () => {
       if (sql.includes('computed.payload')) return [{ ...row }]
       return []
     })
-    await service.measure(actor, projectId, indicatorId, measurement)
+    await measurements.measure(actor, projectId, indicatorId, measurement)
     expect(tx.$executeRaw).not.toHaveBeenCalled()
     await expect(
-      service.measure(actor, projectId, indicatorId, { ...measurement, value: '-2' }),
+      measurements.measure(actor, projectId, indicatorId, { ...measurement, value: '-2' }),
     ).rejects.toBeInstanceOf(ConflictException)
   })
   it('requires correction of the current leaf and rejects a different reporting period', async () => {
@@ -365,10 +367,13 @@ describe('P06 IndicatorsService', () => {
       correctionReason: 'A corrected source entry',
     }
     await expect(
-      service.measure(actor, projectId, indicatorId, measurement),
+      measurements.measure(actor, projectId, indicatorId, measurement),
     ).rejects.toBeInstanceOf(ConflictException)
     await expect(
-      service.measure(actor, projectId, indicatorId, { ...measurement, periodEnd: '2026-06-29' }),
+      measurements.measure(actor, projectId, indicatorId, {
+        ...measurement,
+        periodEnd: '2026-06-29',
+      }),
     ).rejects.toBeInstanceOf(ConflictException)
     expect(tx.$executeRaw).not.toHaveBeenCalled()
   })
@@ -388,7 +393,7 @@ describe('P06 IndicatorsService', () => {
       NotFoundException,
     )
     await expect(
-      service.measure(actor, projectId, indicatorId, measurement),
+      measurements.measure(actor, projectId, indicatorId, measurement),
     ).rejects.toBeInstanceOf(NotFoundException)
     expect(tx.$executeRaw).not.toHaveBeenCalled()
     expect(tx.auditLog.create).not.toHaveBeenCalled()
@@ -440,7 +445,7 @@ describe('P06 IndicatorsService', () => {
   })
   it('refuses a measurement without the update permission and writes nothing', async () => {
     await expect(
-      service.measure({ ...actor, permissions: ['indicators.read'] }, projectId, indicatorId, {
+      measurements.measure({ ...actor, permissions: ['indicators.read'] }, projectId, indicatorId, {
         clientMeasurementId: '77000000-0000-4000-8000-000000000010',
         periodStart: row.periodStart,
         periodEnd: row.periodEnd,
@@ -461,13 +466,13 @@ describe('P06 IndicatorsService', () => {
     }
     tx.$queryRaw.mockResolvedValue([])
     await expect(
-      service.measure(actor, projectId, '77000000-0000-4000-8000-0000000000ff', measurement),
+      measurements.measure(actor, projectId, '77000000-0000-4000-8000-0000000000ff', measurement),
     ).rejects.toBeInstanceOf(NotFoundException)
     tx.$queryRaw.mockImplementation(async (query: unknown) =>
       sqlText(query).includes('computed.payload') ? [{ ...row }] : [],
     )
     await expect(
-      service.measure(actor, projectId, indicatorId, { ...measurement, value: 'abc' }),
+      measurements.measure(actor, projectId, indicatorId, { ...measurement, value: 'abc' }),
     ).rejects.toBeInstanceOf(BadRequestException)
     expect(tx.$executeRaw).not.toHaveBeenCalled()
   })

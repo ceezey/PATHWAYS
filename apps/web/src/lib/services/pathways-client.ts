@@ -46,28 +46,28 @@ import type {
 } from '@/types/pathways'
 import type { PathwaysRole } from '@/types/pathways-role'
 import {
-  type CreateIndicatorInput as ApiCreateIndicatorInput,
-  type UpdateIndicatorInput as ApiUpdateIndicatorInput,
+  type CreateIndicatorRequest as ApiCreateIndicatorInput,
+  type UpdateIndicatorRequest as ApiUpdateIndicatorInput,
+  type CreateIndicatorFromLibraryRequest,
   type DashboardActionCounts,
   type DashboardQuery,
   type DescriptiveAnalytics,
   type DescriptiveAnalyticsQuery,
-  type ManualMeasurementInput,
   type MonitoringDashboard,
+  type RecordIndicatorMeasurementRequest,
   type RoleOverview,
   type SadddDashboard,
   type SadddQuery,
   type SurveyAnalytics,
   type TimelineAnalytics,
-  type UseLibraryEntryInput,
   dashboardActionCountsSchema,
   dashboardQuerySchema,
   descriptiveAnalyticsQuerySchema,
   descriptiveAnalyticsSchema,
   formatMetricCell,
+  indicatorListResponse,
+  indicatorResponse,
   monitoringDashboardSchema,
-  monitoringIndicatorSchema,
-  projectIndicatorListSchema,
   roleCodeByName,
   roleOverviewSchema,
   sadddDashboardSchema,
@@ -78,7 +78,7 @@ import {
 import { z } from 'zod'
 type CreateIndicatorInput = Omit<ApiCreateIndicatorInput, 'clientMutationId'>
 type UpdateIndicatorInput = Omit<ApiUpdateIndicatorInput, 'clientMutationId'>
-type UseLibraryEntryDraft = Omit<UseLibraryEntryInput, 'clientMutationId'>
+type UseLibraryEntryDraft = Omit<CreateIndicatorFromLibraryRequest, 'clientMutationId'>
 import { parseRegistrationContext } from './registration-context'
 
 export interface AssessmentDetail {
@@ -167,7 +167,7 @@ interface PathwaysClient {
   recordIndicatorMeasurement(
     projectId: string,
     indicatorId: string,
-    input: ManualMeasurementInput,
+    input: RecordIndicatorMeasurementRequest,
     context?: SourceMutationContext,
   ): Promise<SourceMutationResult<ProjectIndicator>>
   archiveProjectIndicator(
@@ -354,7 +354,7 @@ class BackendReadyPathwaysClient implements PathwaysClient {
   }
 
   async getProjectIndicators(projectId: string, signal?: AbortSignal): Promise<ProjectIndicator[]> {
-    return projectIndicatorListSchema.parse(
+    return indicatorListResponse.parse(
       await requestFoundation(`/projects/${encodeURIComponent(projectId)}/indicators`, { signal }),
     )
   }
@@ -364,7 +364,7 @@ class BackendReadyPathwaysClient implements PathwaysClient {
     projectId: string,
     signal?: AbortSignal,
   ): Promise<ProjectIndicator[]> {
-    return projectIndicatorListSchema.parse(
+    return indicatorListResponse.parse(
       await requestFoundation(`/projects/${encodeURIComponent(projectId)}/indicator-values`, {
         signal,
       }),
@@ -381,7 +381,7 @@ class BackendReadyPathwaysClient implements PathwaysClient {
       'POST',
       input,
       context,
-      (value) => monitoringIndicatorSchema.parse(value),
+      (value) => indicatorResponse.parse(value),
     )
   }
 
@@ -395,7 +395,7 @@ class BackendReadyPathwaysClient implements PathwaysClient {
       'POST',
       input,
       context,
-      (value) => monitoringIndicatorSchema.parse(value),
+      (value) => indicatorResponse.parse(value),
     )
   }
 
@@ -410,14 +410,14 @@ class BackendReadyPathwaysClient implements PathwaysClient {
       'PATCH',
       input,
       context,
-      (value) => monitoringIndicatorSchema.parse(value),
+      (value) => indicatorResponse.parse(value),
     )
   }
 
   async recordIndicatorMeasurement(
     projectId: string,
     indicatorId: string,
-    input: ManualMeasurementInput,
+    input: RecordIndicatorMeasurementRequest,
     context?: SourceMutationContext,
   ): Promise<SourceMutationResult<ProjectIndicator>> {
     if (!context?.isCurrent())
@@ -434,7 +434,7 @@ class BackendReadyPathwaysClient implements PathwaysClient {
           { method: 'POST', body: JSON.stringify(captured) },
           context.isCurrent,
         ),
-      (value) => monitoringIndicatorSchema.parse(value),
+      (value) => indicatorResponse.parse(value),
       { requestId: clientMeasurementId, keyField: 'clientMeasurementId', allowLegacy: true },
     )
   }
@@ -450,7 +450,7 @@ class BackendReadyPathwaysClient implements PathwaysClient {
       'POST',
       { expectedRevision },
       context,
-      (value) => monitoringIndicatorSchema.parse(value),
+      (value) => indicatorResponse.parse(value),
     )
   }
 

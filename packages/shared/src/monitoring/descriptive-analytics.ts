@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { metricCellSchema } from './metric-contract'
+import { metricCellSchema } from './metric-cell'
 import { type MetricCell, isCalendarDate, missingMetric, numericMetric } from './metric-math'
 
 export const DESCRIPTIVE_ANALYTICS_CONTRACT_VERSION = 'analytics.descriptive.v1' as const

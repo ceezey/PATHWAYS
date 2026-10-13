@@ -4,7 +4,7 @@ import type {
   AssignableOfficerResponse,
   OverdueExplanationCategory,
   SadddDashboard,
-  ProjectIndicator as SharedProjectIndicator,
+  IndicatorResponse as SharedProjectIndicator,
   StoredProjectStatus,
 } from '@pathways/shared'
 

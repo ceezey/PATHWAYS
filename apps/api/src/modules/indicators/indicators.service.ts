@@ -1,8 +1,6 @@
-import { createHash } from 'node:crypto'
 import {
   BadRequestException,
   ConflictException,
-  ForbiddenException,
   Inject,
   Injectable,
   NotFoundException,
@@ -10,16 +8,14 @@ import {
 } from '@nestjs/common'
 import { readApiEnv } from '@pathways/config'
 import {
-  type CreateIndicatorInput,
-  type ManualMeasurementInput,
-  type MonitoringIndicator,
+  type ArchiveIndicatorRequest,
+  type CreateIndicatorRequest,
+  type IndicatorResponse,
   P06_CONTRACT_VERSION,
-  type ProjectIndicator,
-  type UpdateIndicatorInput,
-  indicatorProgress,
-  missingMetric,
-  monitoringIndicatorSchema,
+  type UpdateIndicatorRequest,
+  createIndicatorRequest,
   normalizeMetricDecimal,
+  updateIndicatorRequest,
 } from '@pathways/shared'
 import { Prisma } from '@prisma/client'
 import { writeAuditLog } from '../../common/audit/write-audit-log'
@@ -30,81 +26,21 @@ import type { Tx } from '../../common/prisma/transaction'
 import { PrismaService } from '../../prisma/prisma.service'
 import {
   beginRuleSourceOperation,
-  bootstrapRuleSourceProject,
   finishRuleSourceOperation,
-  readRuleSourceAcknowledgement,
   sourceMutationBody,
 } from '../rules/rules-source-operation'
 import {
-  createIndicatorSchema,
-  manualMeasurementSchema,
-  parseIndicatorInput,
-  updateIndicatorSchema,
-} from './indicators.dto'
+  indicatorIdOrNotFound,
+  monitoringSqlError,
+  parseIndicatorRequest,
+} from './indicators.helpers'
+import { releasedNulls, toIndicatorResponse } from './indicators.mapper'
 
-type DefinitionRow = Omit<MonitoringIndicator, 'progress' | 'contractVersion'>
-
-export function monitoringSqlError(error: unknown): never {
-  const code = error && typeof error === 'object' && 'code' in error ? error.code : null
-  const meta = error && typeof error === 'object' && 'meta' in error ? error.meta : null
-  const sqlCode = meta && typeof meta === 'object' && 'code' in meta ? meta.code : null
-  if (
-    code === 'P2002' ||
-    code === 'P2034' ||
-    ['23505', '23514', '40001', '40P01'].includes(String(sqlCode))
-  ) {
-    throw new ConflictException(
-      'The indicator or measurement changed, conflicts, or violates its contract. Reload before retrying.',
-    )
-  }
-  if (sqlCode === '42501') throw new ForbiddenException('Monitoring scope is unavailable.')
-  if (code === 'P2028' || ['57014', '42P01', '42703', '42883', '22023'].includes(String(sqlCode))) {
-    throw new ServiceUnavailableException(
-      'Monitoring verification is unavailable or exceeded its query limit.',
-    )
-  }
-  throw error
-}
-
-// Released rows carry no definition text, binding or measurement provenance.
-const releasedNulls = {
-  description: null,
-  dataSource: null,
-  mode: null,
-  binding: null,
-  measurementId: null,
-  measuredAt: null,
-  measurementSource: null,
-}
-
-/** Parses one indicator row and adds its baseline-to-target progress. */
-function withProgress(row: Record<string, unknown>, failure: string): MonitoringIndicator {
-  const parsed = monitoringIndicatorSchema.safeParse({
-    ...row,
-    progress: missingMetric('NOT_YET_CALCULATED'),
-    contractVersion: P06_CONTRACT_VERSION,
-  })
-  if (!parsed.success) throw new ServiceUnavailableException(failure)
-  const indicator = parsed.data
-  const progress = indicator.direction
-    ? indicatorProgress(
-        indicator.current,
-        indicator.baseline,
-        indicator.target,
-        indicator.direction,
-      )
-    : missingMetric('LEGACY_REVIEW_REQUIRED')
-  return { ...indicator, progress }
-}
+type DefinitionRow = Omit<IndicatorResponse, 'progress' | 'contractVersion'>
 
 @Injectable()
 export class IndicatorsService {
   constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
-
-  private indicatorId(input: string) {
-    if (!UUID_PATTERN.test(input)) throw new NotFoundException('Indicator unavailable.')
-    return input.toLowerCase()
-  }
 
   /** Called only inside a current authorized transaction with server-derived scope. */
   private async readProjectIndicatorsInTransaction(
@@ -112,7 +48,7 @@ export class IndicatorsService {
     actor: ApplicationIdentity,
     projectIds: string[],
     options: { indicatorId?: string; periodStart?: string; periodEnd?: string } = {},
-  ): Promise<ProjectIndicator[]> {
+  ): Promise<IndicatorResponse[]> {
     if (projectIds.length === 0) return []
     if (projectIds.length > 100 || projectIds.some((id) => !UUID_PATTERN.test(id)))
       throw new BadRequestException('Narrow the monitoring project scope.')
@@ -145,7 +81,7 @@ export class IndicatorsService {
       throw new BadRequestException(
         'More than 100 indicator definitions match; narrow the project scope.',
       )
-    return rows.map((row) => withProgress(row, 'Stored indicator contract is unavailable.'))
+    return rows.map((row) => toIndicatorResponse(row, 'Stored indicator contract is unavailable.'))
   }
 
   async readInTransaction(
@@ -153,7 +89,7 @@ export class IndicatorsService {
     actor: ApplicationIdentity,
     projectIds: string[],
     options: { indicatorId?: string; periodStart?: string; periodEnd?: string } = {},
-  ): Promise<MonitoringIndicator[]> {
+  ): Promise<IndicatorResponse[]> {
     return this.readProjectIndicatorsInTransaction(tx, actor, projectIds, options)
   }
 
@@ -163,7 +99,7 @@ export class IndicatorsService {
     actor: ApplicationIdentity,
     projectIds: string[],
     options: { periodStart?: string; periodEnd?: string } = {},
-  ): Promise<MonitoringIndicator[]> {
+  ): Promise<IndicatorResponse[]> {
     if (projectIds.length === 0) return []
     if (projectIds.length > 100 || projectIds.some((id) => !UUID_PATTERN.test(id)))
       throw new BadRequestException('Narrow the monitoring project scope.')
@@ -188,7 +124,10 @@ export class IndicatorsService {
         'More than 100 indicator definitions match; narrow the project scope.',
       )
     return rows.map(({ item }) =>
-      withProgress({ ...item, ...releasedNulls }, 'Released indicator contract is unavailable.'),
+      toIndicatorResponse(
+        { ...item, ...releasedNulls },
+        'Released indicator contract is unavailable.',
+      ),
     )
   }
 
@@ -204,12 +143,8 @@ export class IndicatorsService {
     )
   }
 
-  private async readOne(
-    tx: Tx,
-    actor: ApplicationIdentity,
-    projectId: string,
-    indicatorId: string,
-  ) {
+  /** Reads one indicator inside the caller's authorized transaction. */
+  async readOne(tx: Tx, actor: ApplicationIdentity, projectId: string, indicatorId: string) {
     const [row] = await this.readProjectIndicatorsInTransaction(tx, actor, [projectId], {
       indicatorId,
     })
@@ -229,7 +164,7 @@ export class IndicatorsService {
         tx,
         actor,
         await requireScopedProject(tx, actor, projectId),
-        this.indicatorId(indicatorId),
+        indicatorIdOrNotFound(indicatorId),
       ),
     )
   }
@@ -237,7 +172,7 @@ export class IndicatorsService {
     tx: Tx,
     actor: ApplicationIdentity,
     projectId: string,
-    input: CreateIndicatorInput,
+    input: CreateIndicatorRequest,
   ) {
     const binding = input.binding
     if (!binding) return
@@ -281,7 +216,7 @@ export class IndicatorsService {
     }
   }
   async create(identity: ApplicationIdentity, projectId: string, value: unknown) {
-    const input: CreateIndicatorInput = parseIndicatorInput(createIndicatorSchema, value)
+    const input: CreateIndicatorRequest = parseIndicatorRequest(createIndicatorRequest, value)
     return withAuthorizedOperation(
       this.prisma,
       identity,
@@ -361,7 +296,7 @@ export class IndicatorsService {
     indicatorId: string,
     value: unknown,
   ) {
-    const input: UpdateIndicatorInput = parseIndicatorInput(updateIndicatorSchema, value)
+    const input: UpdateIndicatorRequest = parseIndicatorRequest(updateIndicatorRequest, value)
     return withAuthorizedOperation(
       this.prisma,
       identity,
@@ -377,7 +312,7 @@ export class IndicatorsService {
         )
         if (source.kind === 'REPLAY') return source.acknowledgement
         const id = await requireScopedProject(tx, actor, projectId)
-        const selected = this.indicatorId(indicatorId)
+        const selected = indicatorIdOrNotFound(indicatorId)
         try {
           const count =
             await tx.$executeRaw`UPDATE pathways.project_indicators SET name=${input.name},description=${input.description ?? null},revision=revision+1,updated_at=${source.generatedValues.timestamp}::timestamptz WHERE organization_id=${actor.organizationId}::uuid AND project_id=${id}::uuid AND id=${selected}::uuid AND revision=${input.expectedRevision} AND archived_at IS NULL`
@@ -408,7 +343,7 @@ export class IndicatorsService {
     identity: ApplicationIdentity,
     projectId: string,
     indicatorId: string,
-    input: { clientMutationId: string; expectedRevision: number },
+    input: ArchiveIndicatorRequest,
   ) {
     return withAuthorizedOperation(
       this.prisma,
@@ -425,7 +360,7 @@ export class IndicatorsService {
         )
         if (source.kind === 'REPLAY') return source.acknowledgement
         const id = await requireScopedProject(tx, actor, projectId)
-        const selected = this.indicatorId(indicatorId)
+        const selected = indicatorIdOrNotFound(indicatorId)
         try {
           const count =
             await tx.$executeRaw`UPDATE pathways.project_indicators SET archived_at=${source.generatedValues.timestamp}::timestamptz,revision=revision+1,updated_at=${source.generatedValues.timestamp}::timestamptz WHERE organization_id=${actor.organizationId}::uuid AND project_id=${id}::uuid AND id=${selected}::uuid AND revision=${input.expectedRevision} AND archived_at IS NULL`
@@ -447,125 +382,6 @@ export class IndicatorsService {
           tx,
           source.operationHandle,
           input.clientMutationId,
-        )
-        return { ...(await this.readOne(tx, actor, id, selected)), sourceAcknowledgement }
-      },
-    )
-  }
-  async measure(
-    identity: ApplicationIdentity,
-    projectId: string,
-    indicatorId: string,
-    value: unknown,
-  ) {
-    const input: ManualMeasurementInput = parseIndicatorInput(manualMeasurementSchema, value)
-    return withAuthorizedOperation(
-      this.prisma,
-      identity,
-      'indicators.update',
-      async (tx, actor) => {
-        const body = sourceMutationBody(input)
-        const key = { kind: 'CLIENT_MEASUREMENT' as const, id: input.clientMeasurementId }
-        const acknowledgement = await readRuleSourceAcknowledgement(
-          tx,
-          'INDICATOR_MEASUREMENT',
-          projectId,
-          indicatorId,
-          key,
-          body,
-        )
-        if (acknowledgement) return acknowledgement
-        await bootstrapRuleSourceProject(tx, projectId, 'INDICATOR_MEASUREMENT')
-        const id = await requireScopedProject(tx, actor, projectId)
-        const selected = this.indicatorId(indicatorId)
-        let definition = await this.readOne(tx, actor, id, selected)
-        if (definition.mode !== 'MANUAL' || !definition.numericKind)
-          throw new ConflictException('Manual measurements require a reviewed manual definition.')
-        if (
-          definition.periodStart !== input.periodStart ||
-          definition.periodEnd !== input.periodEnd
-        )
-          throw new ConflictException('The measurement must use its definition reporting period.')
-        let exact: string
-        try {
-          exact = normalizeMetricDecimal(input.value, definition.numericKind)
-        } catch {
-          throw new BadRequestException('Measurement does not match the indicator numeric domain.')
-        }
-        const requestHash = createHash('sha256')
-          .update(
-            JSON.stringify({
-              projectId: id,
-              indicatorId: selected,
-              periodStart: input.periodStart,
-              periodEnd: input.periodEnd,
-              value: exact,
-              source: input.source,
-              note: input.note ?? null,
-              correctsMeasurementId: input.correctsMeasurementId ?? null,
-              correctionReason: input.correctionReason ?? null,
-            }),
-          )
-          .digest('hex')
-        const [retry] = await tx.$queryRaw<
-          Array<{ hash: string }>
-        >`SELECT request_hash AS hash FROM pathways.project_indicator_measurements WHERE organization_id=${actor.organizationId}::uuid AND recorded_by_id=${actor.userId}::uuid AND client_measurement_id=${input.clientMeasurementId}::uuid`
-        if (retry) {
-          if (retry.hash !== requestHash)
-            throw new ConflictException('The idempotency key was already used for different input.')
-          return definition
-        }
-        const source = await beginRuleSourceOperation(
-          tx,
-          'INDICATOR_MEASUREMENT',
-          id,
-          selected,
-          key,
-          body,
-        )
-        if (source.kind === 'REPLAY') return source.acknowledgement
-        await tx.$queryRaw`SELECT id FROM pathways.project_indicators WHERE organization_id=${actor.organizationId}::uuid AND project_id=${id}::uuid AND id=${selected}::uuid FOR UPDATE`
-        definition = await this.readOne(tx, actor, id, selected)
-        if (
-          !source.generatedValues.normalizedValue ||
-          !source.generatedValues.requestHash ||
-          normalizeMetricDecimal(
-            source.generatedValues.normalizedValue,
-            definition.numericKind ?? 'SIGNED_CHANGE',
-          ) !== source.generatedValues.normalizedValue
-        )
-          throw new ServiceUnavailableException('Measurement verification could not be confirmed.')
-        exact = source.generatedValues.normalizedValue
-        if (definition.status === 'ARCHIVED')
-          throw new ConflictException('Archived indicators do not accept measurements.')
-        if (definition.measurementId !== (input.correctsMeasurementId?.toLowerCase() ?? null))
-          throw new ConflictException(
-            'Correct the latest measurement with a reason, or reload before creating the first value.',
-          )
-        const measurementId = source.reservedRecordId
-        if (!measurementId)
-          throw new ServiceUnavailableException('Measurement creation could not be confirmed.')
-        try {
-          await tx.$executeRaw`
-          INSERT INTO pathways.project_indicator_measurements(id,organization_id,project_id,indicator_id,period_start,period_end,value,source,note,client_measurement_id,request_hash,corrects_measurement_id,correction_reason,recorded_by_id)
-          VALUES (${measurementId}::uuid,${actor.organizationId}::uuid,${id}::uuid,${selected}::uuid,${input.periodStart}::date,${input.periodEnd}::date,${exact}::numeric,${input.source},${input.note ?? null},${input.clientMeasurementId}::uuid,${source.generatedValues.requestHash},${input.correctsMeasurementId?.toLowerCase() ?? null}::uuid,${input.correctionReason ?? null},${actor.userId}::uuid)
-        `
-          await writeAuditLog(tx, actor, {
-            projectId: id,
-            action: input.correctsMeasurementId
-              ? 'INDICATOR_MEASUREMENT_CORRECTED'
-              : 'INDICATOR_MEASUREMENT_RECORDED',
-            entityType: 'ProjectIndicator',
-            entityId: selected,
-            changes: { measurementId, correctsMeasurementId: input.correctsMeasurementId ?? null },
-          })
-        } catch (error) {
-          monitoringSqlError(error)
-        }
-        const sourceAcknowledgement = await finishRuleSourceOperation(
-          tx,
-          source.operationHandle,
-          input.clientMeasurementId,
         )
         return { ...(await this.readOne(tx, actor, id, selected)), sourceAcknowledgement }
       },

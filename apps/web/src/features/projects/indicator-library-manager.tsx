@@ -27,9 +27,9 @@ import { fingerprintOf } from '@/lib/forms/pending-create'
 import { principalHasAtomicPermission } from '@/lib/rbac/policy'
 import { indicatorLibraryClient } from '@/lib/services/indicator-library-client'
 import {
-  type CreateLibraryEntryInput,
-  type LibraryEntry,
-  createLibraryEntrySchema,
+  type CreateIndicatorLibraryEntryRequest,
+  type IndicatorLibraryEntryResponse,
+  createIndicatorLibraryEntryRequest,
   libraryRecipes,
   numericKinds,
 } from '@pathways/shared'
@@ -51,7 +51,7 @@ function EntryForm({
 }: {
   busy: boolean
   message: string | null
-  onCreate: (input: CreateLibraryEntryInput) => Promise<boolean>
+  onCreate: (input: CreateIndicatorLibraryEntryRequest) => Promise<boolean>
   onDone: () => void
 }) {
   const [mode, setMode] = useState('MANUAL')
@@ -79,7 +79,10 @@ function EntryForm({
       retry.current?.signature === signature
         ? retry.current
         : { signature, id: crypto.randomUUID() }
-    const parsed = createLibraryEntrySchema.safeParse({ ...draft, clientMutationId: attempt.id })
+    const parsed = createIndicatorLibraryEntryRequest.safeParse({
+      ...draft,
+      clientMutationId: attempt.id,
+    })
     if (!parsed.success) {
       setValidation(
         'Check the code (capital letters, digits, - or _), the numeric domain and direction. Counts use precision 0; derived entries need a calculation.',
@@ -231,9 +234,9 @@ export function IndicatorLibraryManager() {
     indicatorLibraryClient.list(),
   )
   const [message, setMessage] = useState<string | null>(null)
-  const [archiving, setArchiving] = useState<LibraryEntry | null>(null)
+  const [archiving, setArchiving] = useState<IndicatorLibraryEntryResponse | null>(null)
   const [busy, setBusy] = useState(false)
-  const pendingCreate = usePendingCreate<LibraryEntry>({
+  const pendingCreate = usePendingCreate<IndicatorLibraryEntryResponse>({
     profile,
     kind: 'indicator-library-entry',
     successMessage: 'Library entry saved',
