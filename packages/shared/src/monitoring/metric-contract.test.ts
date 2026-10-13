@@ -2,12 +2,11 @@ import { describe, expect, it } from 'vitest'
 import {
   createIndicatorDraftSchema,
   createIndicatorSchema,
-  dashboardQuerySchema,
   manualMeasurementSchema,
-  metricCellSchema,
-  monitoringIndicatorSchema,
-  sadddAgeBands,
-} from './metric-contract'
+} from '../contracts/indicators/indicator-requests'
+import { monitoringIndicatorSchema } from '../contracts/indicators/indicator-responses'
+import { metricCellSchema } from './metric-cell'
+import { dashboardQuerySchema, sadddAgeBands } from './metric-contract'
 import {
   businessCalendarDate,
   indicatorProgress,

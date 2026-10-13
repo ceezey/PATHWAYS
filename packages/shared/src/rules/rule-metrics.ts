@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { metricCellSchema as sharedCellSchema } from '../monitoring/metric-contract'
+import { metricCellSchema as sharedCellSchema } from '../monitoring/metric-cell'
 import {
   decimalString,
   indicatorProgress,
