@@ -51,6 +51,9 @@ export const roles = {
     globs: [
       'apps/api/src/**/*.controller.ts',
       'apps/api/src/**/*.mapper.ts',
+      'apps/api/src/modules/beneficiaries/**/*.ts',
+      'apps/api/src/modules/beneficiary-media/**/*.ts',
+      'apps/api/src/modules/participants/**/*.ts',
       'apps/web/src/api/**/*.ts',
       '**/schemas/*.zod.ts',
       'apps/web/src/lib/services/**/*.ts',
