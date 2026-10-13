@@ -56,7 +56,18 @@ describe('beneficiary request contracts', () => {
   })
 
   it('keeps null on optional profile fields and lists the audited fields in order', () => {
-    const body = { ...person, firstName: null, birthDate: null, ageAtRegistration: null }
+    const body = {
+      ...person,
+      displayName: null,
+      firstName: null,
+      middleName: null,
+      lastName: null,
+      birthDate: null,
+      ageAtRegistration: null,
+      locationBarangay: null,
+      locationCityMunicipality: null,
+      locationProvince: null,
+    }
     expect(updateBeneficiaryRequest.parse(body)).toEqual(body)
     expect(Object.keys(updateBeneficiaryRequest.shape)).toEqual([
       'subjectType',
