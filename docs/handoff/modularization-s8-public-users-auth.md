@@ -4,7 +4,7 @@
 
 **Goal:** Replace the last class-validator DTOs of the auth, users and profile modules with shared zod contracts that accept exactly the same bodies, move the public contracts into `packages/shared`, give the users, own profile and public snapshot web clients their `lib/api` modules, close the duplicates earlier sub-projects left to S8 (aggregate-only role lists, the mutation ticket UUID regex, the three workspace cookie reads), and delete the production-dead public microsite detail, with no change to any route, status code, response body, permission decision, rendered text or SQL.
 
-**Architecture:** S8 is split (ruling 1). This plan gives S8a in full (eleven tasks including baseline, records and gates) and S8b as an outline at the end. S8a writes each request contract test first, runs the old DTO and the new contract through the configured pipes over the same JSON bodies (explicit metatype, because Vitest emits no decorator metadata), commits that evidence, then switches the route to `ZodPipe` and deletes the DTO in a second commit with an HTTP test of the switched route. Exact acceptance comes from the S1 field schemas (`uuidString`, `lengthString`, `trimmedInput`, `strictIsoDateString` in `packages/shared/src/contracts/common/field-schemas.ts`), plus the class-validator `isEmail` function on the API side, because zod's email rule differs and S1 ports no email rule (ruling 3). S8a also adopts the S1 `requestIdentity` kernel helper in its two controllers that repeat the application profile check, and, as the slice that deletes the last class-validator DTO, removes the S1 field schema parity test and the controller metadata test. Mechanical rewrites use one-off Node scripts under `.tmp/s8a/` (gitignored, never committed) whose content is given in full; each was dry-run on an archive copy of `a101ad7c` and the expected outputs below come from those runs.
+**Architecture:** S8 is split (ruling 1). This plan gives S8a in full (eleven tasks including baseline, records and gates) and S8b as an outline at the end. S8a writes each request contract test first, runs the old DTO and the new contract through the configured pipes over the same JSON bodies (explicit metatype, because Vitest emits no decorator metadata), commits that evidence, then switches the route to `ZodPipe` and deletes the DTO in a second commit with an HTTP test of the switched route. Exact acceptance comes from the S1 field schemas (`uuidString`, `lengthString`, `trimmedInput`, `strictIsoDateString` in `packages/shared/src/contracts/common/field-schemas.ts`), plus the class-validator `isEmail` function on the API side, because zod's email rule differs and S1 ports no email rule (ruling 3). S8a also adopts the S1 `requestIdentity` kernel helper in its two controllers that repeat the application profile check, and, as the slice that deletes the last class-validator DTO, removes the S1 field schema parity test and the controller metadata test. Mechanical rewrites use one-off Node scripts under `.tmp/s8a/` (gitignored, never committed) whose content is given in full; each was dry-run on an archive copy of `a101ad7c` and replayed on the stacked S3b to S7a tree, and the expected outputs below come from those runs.
 
 **Tech Stack:** pnpm 11 workspace, TypeScript 5.9, NestJS 10.4.22, class-validator 0.14.4 (validator 13.15.26), class-transformer 0.5.1, zod 3.25.76, Prisma 6.19, Next 15.5.14, React 19, Vitest 3, Biome 1.9.4, Playwright.
 
@@ -14,7 +14,7 @@
 
 Controller rulings for S8 (2026-10-10). Each was checked against `refactor/f4a-web-boundaries` `a101ad7c` (F4a complete) and assumes the F4b and S1 to S7 outputs named in "Interfaces assumed from earlier slices". Task 0 recounts every number on the branch.
 
-1. **Split into S8a and S8b.** The S8 row covers four API modules, their contracts, four web clients and four feature folders; with baseline, records and gates that is about seventeen tasks. S8a (this plan, branch `refactor/s8a-public-users-auth`) takes the contracts, the API switches, the deferred duplicates, the web clients and the dead code. S8b (outline below, branch `refactor/s8b-public-users-auth-web`) takes the publication and audit clients (which wait on the S6 shape of `core-feature-client.ts`), the component splits and the feature layout. Both names replace `refactor/s8-public-users-auth`; SAD evidence goes to `.tmp/sad/s8a` and `.tmp/sad/s8b`.
+1. **Split into S8a and S8b.** The S8 row covers four API modules, their contracts, four web clients and four feature folders; with baseline, records and gates that is about seventeen tasks. S8a (this plan, on the slice branch the environment assigns) takes the contracts, the API switches, the deferred duplicates, the web clients and the dead code. S8b (outline below, its own slice branch) takes the publication and audit clients (which wait on the S6 shape of `core-feature-client.ts`), the component splits and the feature layout. SAD evidence goes to `.tmp/sad/s8a` and `.tmp/sad/s8b`.
 2. **The public microsite detail is deleted, not split.** MOD-06 lists `public-project-detail.tsx` (1172 lines), but nothing imports it except its own test; its closure `public-project-charts.tsx` and `public-dashboard-config.ts` are imported only by it, `mapPublicSnapshot` only by its test, and the seven `Public*` view models in `types/pathways.ts` only by those files. `features/profile/profile-validation.ts` is imported only by its test (the live form schemas are in `own-profile-contract.ts`). Seven files (1569 lines) and 77 lines of types go, with the two `docs/deferred-features.md` rows that name the detail file updated and a row added for the removed feature.
 3. **Exact acceptance parity, on the S1 field schemas.** A probe of the configured pipes found zod `.uuid()` looser than `IsUUID()`, zod string lengths counted in UTF-16 units where class-validator counts an astral character or a variation sequence once, zod `.email()` differing from `IsEmail()` on 9 of 32 addresses in both directions, and zod `.datetime()` differing from `IsISO8601({ strict: true })`. S1 already ports the first, second and fourth (`uuidString`, `lengthString`, `trimmedInput`, `strictIsoDateString`, checked against class-validator by S1's `field-schemas-parity.test.ts`), so S8a adds no rule of its own to shared: `@Length`, `@MinLength` and `@MaxLength` become `lengthString(min, max)` (`MaxLength(n)` is `lengthString(0, n)`), `@IsUUID()` becomes `uuidString`, the trim `@Transform` becomes `trimmedInput(...)`, and `@IsISO8601({ strict: true })` becomes `strictIsoDateString`. Only the email rule stays on the API side: `auth.helpers.ts` refines the shared sign-in contract with the class-validator `isEmail` function (porting validator's email check into shared would copy about 150 lines for one route). `class-validator` stays an API dependency (the global `ValidationPipe` loads it at runtime); the shared package stays zod-only. A probe with the S1 definitions copied verbatim ran 83 JSON bodies through both pipes and 82 agreed exactly (accept or reject, and the accepted value); the 83rd is ruling 4. An earlier draft of this plan defined `boundedText` and `requestUuid` in a `request-rules.ts`; they duplicated S1 and are dropped.
 4. **One accepted difference: a null `projectIds` on `POST users/authorize-existing`.** `@IsOptional()` let `null` through; `UsersService.requireProjects` then threw a TypeError inside the transaction, which `withAuthorizedOperation` answered 403 `Application scope could not be verified.` after an identity directory lookup. The contract answers 400 before any lookup. The web always sends an array. The parity test pins it as the only exception and CR 3.6 records it beside the prototype keys.
@@ -27,7 +27,7 @@ Controller rulings for S8 (2026-10-10). Each was checked against `refactor/f4a-w
 11. **The step-up and route-access project lookups stay inline.** F3a left them to the slices. `BeneficiaryStepUpService` turns its lookup into a boolean inside a `try` whose `catch` answers 503 `Project scope could not be verified.`, and `RouteAccessService` answers 404 `Route unavailable.` at its `PROJECT_READ` stage; `requireScopedProject` throws 404 `Project unavailable.`, which would become a 503 in the first and change the message in the second. Both keep `projectScope`, the shared scope rule.
 12. **SAD routing:** `packages/shared/src/contracts/auth/**/*.ts` and `packages/shared/src/contracts/users/**/*.ts` route to organization-isolation-checker (they define the sign-in, PIN and authorization inputs), beside the existing beneficiary-privacy-guardian route for all contracts.
 13. **`requestIdentity` in the two S8 controllers that repeat the check.** S1 ruling 9 left 20 controllers to their slices; S8's are `users.controller.ts` (local `profile()`) and `auth/authorized-data.controller.ts` (local `verifiedProfile()`), both throwing `ForbiddenException('Application profile is required.')` exactly as `requestIdentity` does. `profile.controller.ts` and `auth.controller.ts` (`Verified profile required.`) and the publication controller (`Application profile required.`) use other wording and keep it, since `requestIdentity` would change the 403 text (S1 ruling 9); `route-access.controller.ts` has no such check. A characterization test per controller is written first.
-14. **S8a deletes the last class-validator DTO, so it removes the two tests that existed only for DTOs.** Every other DTO belongs to S1 to S7 (Task 0 confirms only the five S8 DTO files remain). After Task 3, `controller-dto-runtime-metadata.test.ts` has no case left and `field-schemas-parity.test.ts` guards a parity nothing depends on any more; S1 hands both to "the slice that deletes the last DTO (S8)". Both are deleted in Task 3, guarded by a check that no `class-validator` decorator DTO remains. The `class-validator` dependency stays, against S1's note, because Nest's `ValidationPipe` loads it at runtime and `auth.helpers.ts` uses `isEmail`; CR section 9 records this.
+14. **S8a deletes the last class-validator DTO, so it removes the two tests that existed only for DTOs.** Every other DTO belongs to S1 to S7 (Task 0 confirms that only the five S8 DTO files remain, plus its zod helper `dashboards.dto.ts` when S7b is absent). After Task 3, `controller-dto-runtime-metadata.test.ts` has no case left and `field-schemas-parity.test.ts` guards a parity nothing depends on any more; S1 hands both to "the slice that deletes the last DTO (S8)". Both are deleted in Task 3, guarded by a check that no `class-validator` decorator DTO remains. The `class-validator` dependency stays, against S1's note, because Nest's `ValidationPipe` loads it at runtime and `auth.helpers.ts` uses `isEmail`; CR section 9 records this.
 15. **Import style in `lib/api`.** F4b ruling 8: a sibling is imported as `./name`, anything else through `@/`. The new `lib/api/users.ts` and the moved `lib/api/profile.ts` import `@/lib/api/core/request`, and `users.test.ts` mocks that specifier.
 16. **One workspace context cookie read.** F4b left three reads of the `pathways-context` cookie to S8: `readWorkspaceContextCookie()` in `lib/auth/workspace-access.ts` (the role provider's `split('; ')`, returns the value), the private `readContextCookie()` in `lib/api/core/request.ts` (`split(';')` then `trim`, returns the value) and `ownerCookie()` in `lib/api/core/request-owner.ts` (`split(';')` then `trim`, returns the whole `name=value` entry or `null`, with a `typeof document` guard). Browsers and jsdom both serialize `document.cookie` as `name=value` entries joined by `'; '` with no other surrounding whitespace (a jsdom probe printed `"a=1; pathways-context-old=x; pathways-context="`), so both splits yield the same entries; every test that sets the cookie does so through the `document.cookie` setter. `readWorkspaceContextCookie` takes the `split(';')` and `trim` form, `request.ts` calls it, and `ownerCookie` becomes `typeof document === 'undefined' ? null : (readWorkspaceContextCookie() ?? null)`: comparing values instead of whole entries gives the same answer because every entry starts with the same name, and an empty value (`''`) still counts as present, as the entry `pathways-context=` did. The guard stays only where it was, so `request.ts` still runs after its own `typeof window` check.
 17. Cross-plan: S2b Task 8 edits `lib/services/source-mutation.ts` and its test (dead multipart option) and S1b/S2b/S3b/S5b add importers of that file, so Task 0's `uuid.test(` count and the `source-mutation.ts` first and last line anchors are rechecked after them; S7b adopts `requestIdentity` in the dashboards and analytics controllers, leaving only `users.controller.ts` and `auth/authorized-data.controller.ts` for S8 as ruling 13 expects; the publication service parse is the S3 criterion recorded in the S1 plan. Cost if wrong: Task 0 stops on an anchor, which is its purpose.
@@ -46,12 +46,11 @@ Controller rulings for S8 (2026-10-10). Each was checked against `refactor/f4a-w
 - `pnpm typecheck` and `next build` rewrite `apps/web/next-env.d.ts`; run `git checkout -- apps/web/next-env.d.ts` before every commit.
 - After removing code, delete any import name left with no use (Biome 1.9 recommended rules do not flag unused imports).
 - Do not type `\u` escapes for characters into source; build them with `String.fromCharCode` or `String.fromCodePoint` (S1 ruling 2).
-- `git ls-files` with `':!*.test.ts'` pathspecs returns nothing in this Git for Windows setup; filter with `grep -v` as written. `git grep` pathspecs work.
-- Web build: `pnpm --filter @pathways/web build > .tmp/s8a/<name>.log 2>&1; echo "exit $?"`, then `grep -E "Middleware" .tmp/s8a/<name>.log`.
+- Web build: `rm -rf apps/web/.next && pnpm --filter @pathways/web build > .tmp/s8a/<name>.log 2>&1; echo "exit $?"`, then `grep -E "Middleware" .tmp/s8a/<name>.log`.
 - One-off scripts live in `.tmp/s8a/` (gitignored) and are never committed; `.tmp/` also holds logs.
 - No new dependencies. No customer personal data or credentials; test identities are synthetic (`example.org`, `example.invalid`, fixed UUIDs).
-- Commit messages end with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
-- Work in `C:\PATHWAYS` on branch `refactor/s8a-public-users-auth`; no new worktree. All paths are relative to `C:\PATHWAYS`. Do not push.
+- Commit messages end with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>` and, on the next line, `Claude-Session: https://claude.ai/code/session_015GXgWsghnfykNXQ8sJ5BRx`.
+- Work in the repository root on the slice branch the environment assigns (stacked on the S7 branch); no new worktree. All paths are relative to the repository root. Only the controller pushes the slice branch, at task-pair boundaries; nobody pushes `dev` or `master`.
 - Do not touch migrations, `.env` files, review evidence or `apps/api/prisma`.
 
 ## Review Focus
@@ -69,7 +68,7 @@ The PIN change bodies (an absent `currentPin` must reach the service as `undefin
 - **F4b** (lands before S8): `apps/web/src/lib/api/core/request.ts` exports `class PathwaysClientError extends Error` (constructor `(message: string, code: 'not_configured' | 'network' | 'unauthorized' | 'forbidden' | 'not_found' | 'invalid', fieldErrors?: FormValidationError[], status?: number, stepUpRequired?: boolean)`), `requestFoundation(path: string, init?: RequestInit, isCurrent?: () => boolean): Promise<any>` and `requestFoundationResponse(...)`, with `readContextCookie()` (private in the F4b plan; S8 does not use it); `apps/web/src/lib/api/core/request-owner.ts` exports `captureRequestOwner(signal?: AbortSignal | null): () => boolean`; `apps/web/src/hooks/use-authorized-read.ts` exports `useAuthorizedRead`; `apps/web/src/lib/format/{date,percent,plural,tone}.ts` exist; `lib/services/source-mutation.ts` starts with `import { subscribeSensitiveDraftInvalidation } from '@/lib/auth/sensitive-drafts'` and ends with `ensureSourceInvalidationSubscription`; `lib/services/own-profile-client.ts` imports `requestFoundation` from `@/lib/api/core/request`; the `pathways-client` mock factories that held `PathwaysClientError` were split into a `vi.mock('@/lib/api/core/request', ...)`. For the cookie reads (ruling 16), F4b leaves these three declarations, each with the comment line shown (the first in `apps/web/src/lib/auth/workspace-access.ts` directly after `clearWorkspaceContext`, the second private in `request.ts` and called twice in `requestFoundationResponse`, the third private in `request-owner.ts`); `request.ts` imports `contextCookieName` and `decodeWorkspaceContext` from `@/lib/auth/workspace-access`, `request-owner.ts` imports `contextCookieName` from there, and `apps/web/src/lib/api/core/request-owner.test.ts` exists (jsdom, with an `afterEach` that expires `pathways-context`):
 
 ```ts
-// The workspace context cookie value, read the way the role provider has always split document.cookie.
+// The workspace context cookie value, found by splitting document.cookie on '; '.
 export const readWorkspaceContextCookie = () =>
   document.cookie
     .split('; ')
@@ -118,21 +117,23 @@ S8a uses `requestFoundation`, `PathwaysClientError` and those three cookie reads
 - Create: `docs/superpowers/plans/<date>-modularization-s8-public-users-auth.md` (this plan, `<date>` from `date +%F`)
 - Modify: `docs/index.md` (section 1.6 plan row)
 
-- [ ] **Step 1: Confirm local dev contains F4b and S7 and create the branch**
+- [ ] **Step 1: Confirm the stacked branch holds S3b to S7a**
 
 ```bash
-cd /c/PATHWAYS
+cd "$(git rev-parse --show-toplevel)"
 git status --short
-git checkout dev
-git log --oneline dev | grep -m1 "Merge refactor/s7"
-test -f apps/web/src/lib/api/core/request.ts && test -f apps/web/src/lib/api/core/request-owner.ts && test -f apps/web/src/hooks/use-authorized-read.ts && test -f apps/web/src/lib/format/date.ts && echo "F4b tree present"
-ls docs/superpowers/plans | grep -E "modularization-(f4|s[1-7])"
-git checkout -b refactor/s8a-public-users-auth
-pnpm install --frozen-lockfile
+test -f apps/web/src/lib/api/indicators.ts && echo "S3b present"
+test -f apps/api/src/modules/beneficiaries/beneficiary-registration.service.ts && echo "S4a present"
+test -f apps/api/src/modules/metadata/form-definitions.service.ts && echo "S5a present"
+test -d apps/api/src/modules/print-pdf && echo "S6a present"
+test -f apps/web/src/lib/api/rules.ts && echo "S7a present"
+test -f apps/web/src/lib/api/core/request.ts && test -f apps/web/src/lib/api/core/request-owner.ts && test -f apps/web/src/hooks/use-authorized-read.ts && test -f apps/web/src/lib/format/date.ts && test -f apps/api/src/common/authz/request-identity.ts && echo "F4b and S1 kernel present"
+ls docs/superpowers/plans/
 mkdir -p .tmp/s8a
+git rev-parse HEAD > .tmp/s8a/base-sha
 ```
 
-Expected: clean status, the S7 merge commit and `F4b tree present` printed, the plan listing prints nothing, install succeeds. If the merge or the F4b tree is missing, or an earlier modularization plan is still listed, stop and report: S8a builds on the S7 tree and each earlier slice removes its own plan.
+Expected: clean status; `S3b present`, `S4a present`, `S5a present`, `S6a present`, `S7a present` and `F4b and S1 kernel present` printed. The branch is the one the environment assigned (stacked on S7 while the pull requests are open); do not create refactor/s8a-public-users-auth. The roadmap runs S8a after S7b, so S4b, S5b, S6b and S7b (the web slices and the S7b api controllers) are normally present; none is required, and Task 0 Step 2 gives the figure to expect where S7b being absent changes it. `.tmp/s8a/base-sha` holds the S8a base (the SAD base of Task 10 Step 4). Dependencies are already installed in the cloud container; do not run pnpm install (the rulings log records the S3b install workaround). If a marker is missing, stop and report: S8a builds on the S3b, S4a, S5a, S6a and S7a tree. Write down the listed modularization plans; an executed plan that is still listed is reported, not removed here (the S4, S5 and S6 plans hold the S4b, S5b and S6b outlines).
 
 - [ ] **Step 2: Record the baseline**
 
@@ -141,7 +142,7 @@ pnpm --filter @pathways/shared build
 pnpm typecheck && pnpm test 2>&1 | grep -E "Tests +[0-9]+"
 pnpm sad:test 2>&1 | grep -E "Tests +[0-9]+"
 pnpm docs:check 2>&1 | tail -3
-pnpm --filter @pathways/web build > .tmp/s8a/web-build-baseline.log 2>&1; echo "exit $?"
+rm -rf apps/web/.next && pnpm --filter @pathways/web build > .tmp/s8a/web-build-baseline.log 2>&1; echo "exit $?"
 grep -E "Middleware" .tmp/s8a/web-build-baseline.log
 git ls-files 'apps/api/src/*.dto.ts'
 git grep -c "Prisma.TransactionClient" -- apps/api/src/modules/auth apps/api/src/modules/users apps/api/src/modules/profile apps/api/src/modules/public ':!*.test.ts'
@@ -164,37 +165,38 @@ git grep -c "document.cookie" -- apps/web/src/lib/auth/workspace-access.ts apps/
 git checkout -- apps/web/next-env.d.ts
 ```
 
-Expected: typecheck clean; write down each package's passing and skipped test counts (config, shared, imports, api, web), the sad count, the docs check failure count, the web build exit code (0) and the `Middleware` size; later tasks compare against these (`B_shared`, `B_api`, `B_web`, `B_sad`, `M0`). The greps print, in order:
-- exactly the five S8 DTO files `apps/api/src/modules/auth/beneficiary-step-up-pin.dto.ts`, `apps/api/src/modules/auth/signin-lockout.dto.ts`, `apps/api/src/modules/profile/profile.dto.ts`, `apps/api/src/modules/public/public.dto.ts`, `apps/api/src/modules/users/users.dto.ts` (at `a101ad7c` seventeen DTO files are listed; S1 to S7 remove the other twelve, and any still listed stops the task, because ruling 14 needs S8a to remove the last one);
+Expected: typecheck clean; config 19, shared 412, imports 94, api 2588 passed and 21 skipped, web 2002 tests (these are the S3b tip numbers plus S4a to S7a as replayed, so recount at Task 0: the latest gate line in `docs/activity-log.md` wins if it differs, and S4b to S7b may move the web and shared figures), the sad count and the docs check failure count (6 failures and 1 warning) from that line, web build exit 0 and `Middleware` 103 kB in this container (102 kB on Windows). Write down `B_config`, `B_shared`, `B_imports`, `B_api`, `B_web`, `B_sad`, the docs check failure count and `M0`; later tasks compare against these. The greps print, in order:
+- exactly the five S8 DTO files `apps/api/src/modules/auth/beneficiary-step-up-pin.dto.ts`, `apps/api/src/modules/auth/signin-lockout.dto.ts`, `apps/api/src/modules/profile/profile.dto.ts`, `apps/api/src/modules/public/public.dto.ts`, `apps/api/src/modules/users/users.dto.ts` (at `a101ad7c` seventeen DTO files are listed; S1 to S7 remove the other twelve, and any still listed stops the task, because ruling 14 needs S8a to remove the last one; with S7b absent, `apps/api/src/modules/dashboards/dashboards.dto.ts` is also listed, a zod helper and not a class-validator DTO, and is allowed; Task 3 Step 6 proves by the `class-validator` grep that no decorator DTO survives);
 - `application-profile.service.ts:1`, `beneficiary-step-up-pin.service.ts:2`, `users.service.ts:1` (with their paths);
 - `8`;
 - five component tests (`project-activities-rbac` and `project-activities-workspace` under `features/projects/activities/components/` after S2b, `project-setup-form`, `project-team-editor-dialog`, `user-management-workspace`, under `features/projects` or the S1 subfolder, and `features/settings`) plus the test that holds `pathwaysClient.getUsers()` (at `a101ad7c` `lib/services/pathways-client.test.ts`);
 - `11`; `1569`; `packages/shared/src/rbac/route-policy.ts:2`; `apps/web/src/lib/services/source-mutation.ts:1`;
 - `file: 'src/modules/auth/auth.controller.ts'` and `file: 'src/modules/users/users.controller.ts'` only (at `a101ad7c` ten cases are listed; S1 to S7 remove theirs);
 - `4`; `2`;
-- `apps/api/src/modules/auth/authorized-data.controller.ts` and `apps/api/src/modules/users/users.controller.ts` only (at `a101ad7c` 24 files; S1 to S7 adopt `requestIdentity` in the other 22);
+- `apps/api/src/modules/auth/authorized-data.controller.ts` and `apps/api/src/modules/users/users.controller.ts` only (at `a101ad7c` 24 files; S1 to S7 adopt `requestIdentity` in the other 22; with S7b absent, `apps/api/src/modules/analytics-insights/analytics-insights.controller.ts` and the `action-counts`, `analytics`, `dashboards` and `role-overview` controllers under `apps/api/src/modules/dashboards/` are also listed, because S7b adopts `requestIdentity` there (ruling 17), and are allowed; any other file stops the task);
 - `S1 kernel present`; the field schema parity test count (57 per the S1 plan); write it down as `P_fs`;
 - one line in `apps/api/src/modules/evaluations/evaluation-assessments.service.ts` (at `a101ad7c` `evaluations.service.ts:24`); write the path down as `EVAL`;
 - `1`;
 - three lines: `lib/auth/workspace-access.ts` (`readWorkspaceContextCookie = `), `lib/api/core/request.ts` (`function readContextCookie(`) and `lib/api/core/request-owner.ts` (`const ownerCookie = `);
-- `workspace-access.ts:3` (the reader, `clearWorkspaceContext` and F4b's `writeWorkspaceContext`), `request.ts:1`, `request-owner.ts:1`.
+- `workspace-access.ts:4` (the reader comment, the reader, `clearWorkspaceContext` and F4b's `writeWorkspaceContext`), `request.ts:1`, `request-owner.ts:1` (recount at Task 0: the first figure follows the comment text F4b actually wrote, and the Interfaces block above quotes it).
 
 If any other number differs, stop and report: the edit lists below were counted at `a101ad7c` plus the stated assumptions.
 
 - [ ] **Step 3: Add the plan and commit**
 
-The controller has saved this plan as `docs/superpowers/plans/<date>-modularization-s8-public-users-auth.md`. In `docs/index.md` section 1.6, add as the last row of the table, with the same `<date>`:
+Copy this plan: `cp docs/handoff/modularization-s8-public-users-auth.md docs/superpowers/plans/$(date +%F)-modularization-s8-public-users-auth.md`. The handoff copy and its index row stay. In `docs/index.md` section 1.6, add as the last row of the table, with `<date>` from `date +%F`:
 
 ```markdown
 | [S8 public, users, profile and auth plan](superpowers/plans/<date>-modularization-s8-public-users-auth.md) | <date>-modularization-s8-public-users-auth.md | <date> | S8 of the codebase modularization: S8a auth, users, profile and public contracts, web clients and dead code; S8b outline | In progress |
 ```
 
 ```bash
-git add docs/superpowers/plans docs/index.md
+git add docs/superpowers/plans/*-modularization-s8-public-users-auth.md docs/index.md
 pnpm docs:check 2>&1 | tail -3
 git commit -m "docs: add the S8 public, users, profile and auth plan
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015GXgWsghnfykNXQ8sJ5BRx"
 ```
 
 Expected: docs check failure count equals the Step 2 baseline.
@@ -209,7 +211,7 @@ Expected: docs check failure count equals the Step 2 baseline.
 - Modify: `packages/shared/src/index.ts` (one barrel line)
 - Create then delete: `apps/api/src/modules/users/user-authorization-parity.test.ts`
 - Test: `apps/api/src/modules/users/users.controller.validation.test.ts`
-- Modify: `apps/api/src/modules/users/users.controller.ts`, `apps/api/src/modules/users/users.service.ts`, `apps/api/src/common/validation/controller-dto-runtime-metadata.test.ts`
+- Modify: `apps/api/src/modules/users/users.controller.ts`, `apps/api/src/modules/users/users.service.ts`, `apps/api/src/modules/users/users.service.test.ts`, `apps/api/src/common/validation/controller-dto-runtime-metadata.test.ts`
 - Delete: `apps/api/src/modules/users/users.dto.ts`, `apps/api/src/modules/users/users.validation.test.ts`
 
 **Interfaces:**
@@ -257,6 +259,11 @@ describe('user authorization contracts', () => {
       updateAuthorizedUserRequest.safeParse({ ...body, accountStatus: 'SUSPENDED', projectIds: [] })
         .success,
     ).toBe(false)
+    for (const extra of [{ organizationId: authUserId }, { authUserId }]) {
+      expect(
+        updateAuthorizedUserRequest.safeParse({ ...body, projectIds: [], ...extra }).success,
+      ).toBe(false)
+    }
   })
 })
 ```
@@ -501,7 +508,8 @@ git checkout -- apps/web/next-env.d.ts
 git add packages/shared/src/contracts packages/shared/src/index.ts apps/api/src/modules/users/user-authorization-parity.test.ts
 git commit -m "feat(shared): add the users contracts with their DTO parity test
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015GXgWsghnfykNXQ8sJ5BRx"
 ```
 
 Expected: shared = `B_shared + 8`.
@@ -652,6 +660,24 @@ import {
 - In the `@pathways/shared` import add `type AuthorizeExistingUserRequest,` and `type UpdateAuthorizedUserRequest,`.
 - Replace `input: AuthorizeExistingUserDto` with `input: AuthorizeExistingUserRequest` and `input: UpdateAuthorizedUserDto` with `input: UpdateAuthorizedUserRequest`.
 
+`apps/api/src/modules/users/users.service.test.ts`: add `import type { CanonicalRole } from '@pathways/shared'` below the `vitest` import (Biome sorts it) and replace the two helpers `update` and `authorize` (they pass a plain `string` role, which no longer matches the contract type) with:
+
+```ts
+const update = (userId: string, role: string) =>
+  service.update(identity, userId, {
+    role: role as CanonicalRole,
+    accountStatus: 'ACTIVE',
+    projectIds: [projectId],
+  })
+const authorize = (role: string) =>
+  service.authorizeExisting(identity, {
+    authUserId: id(7),
+    fullName: 'Synthetic User',
+    role: role as CanonicalRole,
+    projectIds: [projectId],
+  })
+```
+
 `apps/api/src/common/validation/controller-dto-runtime-metadata.test.ts`: delete the case object whose `file` is `'src/modules/users/users.controller.ts'` (four lines including its braces).
 
 ```bash
@@ -675,7 +701,8 @@ git commit -m "refactor(api): validate the users bodies with the shared zod cont
 
 The users DTOs, their parity test and the compiled-metadata test are removed; an HTTP test covers both routes.
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015GXgWsghnfykNXQ8sJ5BRx"
 ```
 
 Expected: all pass; api = `B_api - 7` (users validation 11 and one metadata case removed, HTTP 5 added).
@@ -723,6 +750,7 @@ describe('own profile contracts', () => {
     { ...body, contactNumber: 'not a phone' },
     { ...body, expectedUpdatedAt: '2026-02-30' },
     { fullName: 'Synthetic User', expectedUpdatedAt: body.expectedUpdatedAt },
+    { ...body, email: 'a@example.invalid' },
   ])('rejects %j', (input) => {
     expect(updateOwnProfileRequest.safeParse(input).success).toBe(false)
   })
@@ -895,7 +923,8 @@ git checkout -- apps/web/next-env.d.ts
 git add packages/shared/src/contracts packages/shared/src/index.ts apps/api/src/modules/profile/own-profile-parity.test.ts
 git commit -m "feat(shared): add the own profile contracts with their DTO parity test
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015GXgWsghnfykNXQ8sJ5BRx"
 ```
 
 - [ ] **Step 5: Write the HTTP test**
@@ -1043,7 +1072,8 @@ git checkout -- apps/web/next-env.d.ts
 git add -A apps/api/src/modules/profile
 git commit -m "refactor(api): validate the own profile body with the shared zod contract
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015GXgWsghnfykNXQ8sJ5BRx"
 ```
 
 Expected: the existing `profile.service.test.ts` cases pass unchanged through the zod path; api = Task 1 count + 4.
@@ -1056,7 +1086,7 @@ Expected: the existing `profile.service.test.ts` cases pass unchanged through th
 - Create: `packages/shared/src/contracts/auth/auth-requests.ts`, `apps/api/src/modules/auth/auth.helpers.ts`
 - Test: `packages/shared/src/contracts/auth/auth-requests.test.ts`, `apps/api/src/modules/auth/auth.controller.validation.test.ts`
 - Create then delete: `apps/api/src/modules/auth/auth-requests-parity.test.ts`
-- Modify: `packages/shared/src/index.ts`, `apps/api/src/modules/auth/auth.controller.ts`, `apps/api/src/modules/auth/signin-lockout.test.ts`, `apps/api/src/modules/auth/beneficiary-step-up-pin.test.ts`
+- Modify: `packages/shared/src/index.ts`, `apps/api/src/modules/auth/auth.controller.ts`, `apps/api/src/modules/auth/signin-lockout.test.ts`, `apps/api/src/modules/auth/beneficiary-step-up-pin.test.ts`, `apps/api/src/modules/auth/guards/supabase-auth.guard.test.ts`
 - Delete: `apps/api/src/modules/auth/signin-lockout.dto.ts`, `apps/api/src/modules/auth/beneficiary-step-up-pin.dto.ts`, `apps/api/src/common/validation/controller-dto-runtime-metadata.test.ts`, `apps/api/src/common/validation/field-schemas-parity.test.ts` (ruling 14)
 
 **Interfaces:**
@@ -1286,7 +1316,8 @@ git checkout -- apps/web/next-env.d.ts
 git add packages/shared/src/contracts packages/shared/src/index.ts apps/api/src/modules/auth/auth.helpers.ts apps/api/src/modules/auth/auth-requests-parity.test.ts
 git commit -m "feat(shared): add the sign-in and step-up PIN contracts with their DTO parity test
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015GXgWsghnfykNXQ8sJ5BRx"
 ```
 
 - [ ] **Step 5: Write the HTTP test (Review Focus 1, 3 and 4)**
@@ -1459,21 +1490,45 @@ const validate = async (schema: z.ZodTypeAny, value: unknown) =>
 
 - In the test bodies replace every `VerifyStepUpPinDto` with `verifyStepUpPinRequest` and every `ChangeStepUpPinDto` with `changeStepUpPinRequest` (two calls and six table rows); rename the table callback parameter `metatype` to `schema`.
 
+`apps/api/src/modules/auth/guards/supabase-auth.guard.test.ts`, in the test `accepts the PIN only in the JSON body and rejects extra or malformed fields`, replace the last block
+
+```ts
+      // A body session value never replaces the verified session claim.
+      queryRaw.mockResolvedValue([{ outcome: 'INCORRECT', expiresAt: null }])
+      const forged = '99000000-0000-4000-8000-000000000099'
+      await post('/auth/step-up/pin', { pin: '736150', sessionId: forged })
+      expect(pinCalls('step_up_pin_verify')[0]?.slice(1)).toEqual(['736150', sessionId])
+```
+
+with
+
+```ts
+      // A body session value is refused before the service, so only the verified session claim is used.
+      const forged = '99000000-0000-4000-8000-000000000099'
+      expect((await post('/auth/step-up/pin', { pin: '736150', sessionId: forged })).status).toBe(400)
+      expect(queryRaw).not.toHaveBeenCalled()
+      queryRaw.mockResolvedValue([{ outcome: 'INCORRECT', expiresAt: null }])
+      await post('/auth/step-up/pin', { pin: '736150' })
+      expect(pinCalls('step_up_pin_verify')[0]?.slice(1)).toEqual(['736150', sessionId])
+```
+
+The old DTO already refused the extra key in production (`forbidNonWhitelisted`); Vitest emits no decorator metadata, so only the zod pipe makes the test harness refuse it.
+
 `apps/api/src/common/validation/controller-dto-runtime-metadata.test.ts` now holds only the auth controller case (Task 1 removed the users case), which compiles the controller to prove the DTO metadata survived; it goes below with the DTOs. Remove the auth DTOs and confirm no class-validator DTO is left (ruling 14):
 
 ```bash
 git rm apps/api/src/modules/auth/signin-lockout.dto.ts apps/api/src/modules/auth/beneficiary-step-up-pin.dto.ts apps/api/src/modules/auth/auth-requests-parity.test.ts
-git grep -nE "SignInDto|VerifyStepUpPinDto|ChangeStepUpPinDto|signin-lockout\.dto|beneficiary-step-up-pin\.dto" -- apps packages
+git grep -nE "SignInDto|VerifyStepUpPinDto|ChangeStepUpPinDto|signin-lockout\.dto|beneficiary-step-up-pin\.dto" -- apps packages ':!apps/api/src/common/validation/controller-dto-runtime-metadata.test.ts'
 git ls-files 'apps/api/src/*.dto.ts'
 git grep -l "from 'class-validator'" -- apps/api/src
 grep -o "file: 'src/modules/[a-z-]*/[a-z-]*\.controller\.ts'" apps/api/src/common/validation/controller-dto-runtime-metadata.test.ts
 ```
 
-Expected: the first grep prints nothing; `ls-files` prints only `apps/api/src/modules/public/public.dto.ts` (zod schemas, moved in Task 4); the `class-validator` grep prints only `apps/api/src/common/validation/field-schemas-parity.test.ts` and `apps/api/src/modules/auth/auth.helpers.ts`; the metadata grep prints only `file: 'src/modules/auth/auth.controller.ts'`. Anything else means a class-validator DTO survives: stop and report. Otherwise delete the two tests that existed only for DTOs:
+Expected: the first grep prints nothing; `ls-files` prints only `apps/api/src/modules/public/public.dto.ts` (zod schemas, moved in Task 4) and, with S7b absent, `apps/api/src/modules/dashboards/dashboards.dto.ts` (also zod); the `class-validator` grep prints only `apps/api/src/common/validation/field-schemas-parity.test.ts` and `apps/api/src/modules/auth/auth.helpers.ts`; the metadata grep prints only `file: 'src/modules/auth/auth.controller.ts'`. Anything else means a class-validator DTO survives: stop and report. Otherwise delete the two tests that existed only for DTOs:
 
 ```bash
 git rm apps/api/src/common/validation/controller-dto-runtime-metadata.test.ts apps/api/src/common/validation/field-schemas-parity.test.ts
-git grep -nE "controller-dto-runtime-metadata|field-schemas-parity" -- apps packages scripts docs ':!docs/activity-log.md' ':!docs/superpowers/*' ':!docs/cr-*'
+git grep -nE "controller-dto-runtime-metadata|field-schemas-parity" -- apps packages scripts docs ':!docs/activity-log.md' ':!docs/superpowers/*' ':!docs/cr-*' ':!docs/handoff'
 ```
 
 Expected: the grep prints nothing (change records are history; Task 9 records the removal in the modularization CR).
@@ -1492,7 +1547,8 @@ git commit -m "refactor(api): validate the sign-in and step-up PIN bodies with t
 
 The last class-validator DTOs are gone, so the controller metadata test and the field schema parity test go with them.
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015GXgWsghnfykNXQ8sJ5BRx"
 ```
 
 Expected: the existing no-echo cases in `signin-lockout.test.ts` and `beneficiary-step-up-pin.test.ts` pass through the zod path; api = Task 2 count + 6 - `P_fs` (HTTP 7 added, the last metadata case and the field schema parity test removed).
@@ -1504,7 +1560,7 @@ Expected: the existing no-echo cases in `signin-lockout.test.ts` and `beneficiar
 **Files:**
 - Create: `packages/shared/src/contracts/public/public-projects.ts`
 - Test: `packages/shared/src/contracts/public/public-projects.test.ts`
-- Modify: `packages/shared/src/index.ts`, `apps/api/src/modules/public/public.service.ts`, `apps/api/src/modules/public/public.module.ts`
+- Modify: `packages/shared/src/index.ts`, `apps/api/src/modules/public/public.service.ts`, `apps/api/src/modules/public/public.module.ts`, `apps/api/src/modules/public/public.service.test.ts`
 - Delete: `apps/api/src/modules/public/public.dto.ts`
 - Move: `apps/api/src/modules/public/public.controller.ts` to `apps/api/src/modules/public/publication.controller.ts`
 - Create: `apps/api/src/modules/public/public-projects.controller.ts`
@@ -1639,7 +1695,8 @@ git checkout -- apps/web/next-env.d.ts
 git add -A packages/shared/src apps/api/src/modules/public
 git commit -m "refactor(shared): move the public project and publication schemas into packages/shared
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015GXgWsghnfykNXQ8sJ5BRx"
 ```
 
 - [ ] **Step 4: Create the line check script**
@@ -1733,6 +1790,8 @@ import { PublicProjectsController } from './public-projects.controller'
 import { PublicationController } from './publication.controller'
 ```
 
+In `apps/api/src/modules/public/public.service.test.ts`, replace `import { PublicProjectsController } from './public.controller'` with `import { PublicProjectsController } from './public-projects.controller'`.
+
 ```bash
 node .tmp/s8a/same-lines.mjs .tmp/s8a/public.controller.orig.ts apps/api/src/modules/public/public-projects.controller.ts apps/api/src/modules/public/publication.controller.ts
 git grep -n "public\.controller'" -- apps
@@ -1752,7 +1811,8 @@ git checkout -- apps/web/next-env.d.ts
 git add -A apps/api/src/modules/public
 git commit -m "refactor(api): give the public projects and publication controllers their own files
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015GXgWsghnfykNXQ8sJ5BRx"
 ```
 
 Expected: all pass; api = Task 3 count; shared = `B_shared + 30` (users 8, profile 7, auth 7, public 8).
@@ -1786,7 +1846,8 @@ git checkout -- apps/web/next-env.d.ts
 git add apps/api/src/modules/auth apps/api/src/modules/users
 git commit -m "refactor(api): annotate the auth and users transaction helpers with Tx
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015GXgWsghnfykNXQ8sJ5BRx"
 ```
 
 Expected: the grep prints nothing; tests pass.
@@ -1914,7 +1975,8 @@ git checkout -- apps/web/next-env.d.ts
 git add apps/api/src/modules/users apps/api/src/modules/auth/authorized-data.controller.ts apps/api/src/modules/auth/authorized-data.controller.test.ts
 git commit -m "refactor(api): use requestIdentity in the users and authorized data controllers
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015GXgWsghnfykNXQ8sJ5BRx"
 ```
 
 Expected: the grep prints nothing; the 4 new tests pass unchanged; api = Task 4 count + 4.
@@ -1999,9 +2061,10 @@ const assessmentDetailDeniedRoles = new Set([
 with
 
 ```ts
-// System administrators and the aggregate-only roles never read individual assessment detail.
 const assessmentDetailDeniedRoles = new Set(['SYSTEM_ADMINISTRATOR', ...aggregateOnlyRoles])
 ```
+
+The existing two-line comment above the declaration stays.
 
 `apps/web/src/lib/services/source-mutation.ts`: add `import { routeUuidPattern } from '@pathways/shared'` directly below the `sensitive-drafts` import that F4b placed on the first line (if that import is absent, add it as the first line followed by a blank line); delete the line `const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i`; replace `if (!uuid.test(ticket.id))` with `if (!routeUuidPattern.test(ticket.id))`.
 
@@ -2021,7 +2084,8 @@ git checkout -- apps/web/next-env.d.ts
 git add packages/shared/src/rbac apps/web/src/lib/rbac/access-matrix.ts apps/web/src/lib/services/source-mutation.ts apps/web/src/lib/services/source-mutation.test.ts "$EVAL"
 git commit -m "refactor: use aggregateOnlyRoles for the aggregate-only role lists and routeUuidPattern for mutation tickets
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015GXgWsghnfykNXQ8sJ5BRx"
 ```
 
 Expected: the first grep prints only `packages/shared/src/rbac/authorization-policy.ts` (the `aggregateOnlyRoles` declaration); the second prints the one-line set; the third prints nothing; all tests pass.
@@ -2099,13 +2163,14 @@ git grep -l "keeps the exact workspace across a same-subject token refresh" -- a
 pnpm --filter @pathways/web exec vitest run src/lib/auth src/lib/api src/lib/services src/providers
 pnpm typecheck && pnpm lint
 pnpm --filter @pathways/web test 2>&1 | grep -E "Tests +[0-9]+"
-pnpm --filter @pathways/web build > .tmp/s8a/web-build-task6.log 2>&1; echo "exit $?"
+rm -rf apps/web/.next && pnpm --filter @pathways/web build > .tmp/s8a/web-build-task6.log 2>&1; echo "exit $?"
 grep -E "Middleware" .tmp/s8a/web-build-task6.log
 git checkout -- apps/web/next-env.d.ts
 git add apps/web/src/lib/auth apps/web/src/lib/api/core
 git commit -m "refactor(web): read the workspace context cookie in one place
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015GXgWsghnfykNXQ8sJ5BRx"
 ```
 
 Expected: the first grep prints only three lines, all in `lib/auth/workspace-access.ts` (the reader, `clearWorkspaceContext`, `writeWorkspaceContext`); the second prints only `lib/auth/workspace-access.ts`, `lib/middleware.ts` and `lib/rbac/server-access.ts` lines (the last two read the cookie server-side through Next cookie stores, which parse the header themselves, and stay), none in `request.ts`, `request-owner.ts`, `pathways-client.ts`, `core-feature-client.ts`, `rules-human-client.ts` or the providers (if another file prints, it holds a fourth browser read: stop and report); the token refresh grep names a file under the folders the vitest line runs, and that test and the `does not dispatch an entered beneficiary payload after %s change` cases pass; web build exit 0 with Middleware at most `M0` (growth stops the task and is reported). Counts: shared = Task 4 count + 1; api = Task 5 count (no api test added in this task); web = `B_web + 9` (mutation ids 3, cookie reader 5, owner 1).
@@ -2181,7 +2246,7 @@ pnpm exec biome check --write apps/web/src/lib/services/public-projects.ts apps/
 pnpm --filter @pathways/web exec vitest run src/features/public src/features/profile
 pnpm typecheck && pnpm lint
 pnpm --filter @pathways/web test 2>&1 | grep -E "Tests +[0-9]+"
-pnpm --filter @pathways/web build > .tmp/s8a/web-build-task6.log 2>&1; echo "exit $?"
+rm -rf apps/web/.next && pnpm --filter @pathways/web build > .tmp/s8a/web-build-task7.log 2>&1; echo "exit $?"
 pnpm docs:check 2>&1 | tail -3
 git checkout -- apps/web/next-env.d.ts
 git add -A apps/web/src docs/deferred-features.md
@@ -2189,7 +2254,8 @@ git commit -m "refactor(web): delete the dead public microsite detail and profil
 
 Seven files (1569 lines), mapPublicSnapshot and seven public view models had no production importer.
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015GXgWsghnfykNXQ8sJ5BRx"
 ```
 
 Expected: all pass; web = Task 6 web count - 6 (detail 1, dashboard config 3, profile validation 2); build exit 0; docs check failure count equals the Task 0 baseline.
@@ -2433,12 +2499,12 @@ node .tmp/s8a/users-calls.mjs
 git grep -nE "\bpathwaysClient\b" -- apps/web/src ':!*.test.ts' ':!*.test.tsx' | grep -E "\.(getUsers|authorizeExistingUser|updateAuthorizedUser)\b"
 ```
 
-Expected output (the dry run on `a101ad7c` printed exactly this; S1 may have moved the two project files into a subfolder and removed their other `pathwaysClient` calls, which adds `, pathwaysClient import removed` to their lines):
+Expected output (replayed on the stacked tree; S1b moved the project files under `features/projects/` and removed every other `pathwaysClient` call from all three files, so each line ends `, pathwaysClient import removed`; the paths follow S1b's layout, so recount at Task 0 if the layout landed differently, the totals stay):
 
 ```text
-apps/web/src/features/projects/project-setup-form.tsx: 1
-apps/web/src/features/projects/project-team-editor-dialog.tsx: 1
-apps/web/src/features/settings/user-management-workspace.tsx: 6
+apps/web/src/features/projects/components/project-setup-form.tsx: 1, pathwaysClient import removed
+apps/web/src/features/projects/team/project-team-editor-dialog.tsx: 1, pathwaysClient import removed
+apps/web/src/features/settings/user-management-workspace.tsx: 6, pathwaysClient import removed
 total: 8
 ```
 
@@ -2497,7 +2563,8 @@ git checkout -- apps/web/next-env.d.ts
 git add -A apps/web/src
 git commit -m "refactor(web): move the users client to lib/api/users with the shared response type
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015GXgWsghnfykNXQ8sJ5BRx"
 ```
 
 Expected: all pass; web = Task 7 web count + 5.
@@ -2606,7 +2673,8 @@ git add -A apps/web/src
 git status --short apps/web/src | grep -c "^R"
 git commit -m "refactor(web): move the own profile and public snapshot clients to lib/api
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015GXgWsghnfykNXQ8sJ5BRx"
 ```
 
 Expected: the grep prints nothing; tests pass; `2` renames.
@@ -2645,12 +2713,13 @@ pnpm exec biome check --write apps/web/src/lib/api apps/web/src/features/public 
 pnpm --filter @pathways/web exec vitest run src/lib/api src/features/public src/features/profile
 pnpm typecheck && pnpm lint
 pnpm --filter @pathways/web test 2>&1 | grep -E "Tests +[0-9]+"
-pnpm --filter @pathways/web build > .tmp/s8a/web-build-task7.log 2>&1; echo "exit $?"
+rm -rf apps/web/.next && pnpm --filter @pathways/web build > .tmp/s8a/web-build-task8.log 2>&1; echo "exit $?"
 git checkout -- apps/web/next-env.d.ts
 git add -A apps/web/src
 git commit -m "refactor(web): parse public snapshots and the own profile with the shared contracts
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015GXgWsghnfykNXQ8sJ5BRx"
 ```
 
 Expected: the grep prints nothing; all pass; web = Step 5 count + 1; build exit 0.
@@ -2702,10 +2771,9 @@ Expected: PASS; sad = `B_sad + 1`.
 
 `docs/cr-pathways-codebase-modularization.md`:
 
-Section 3.6, replace the bullet `- Response schemas are types only, never parsed at runtime.` with:
+Section 3.6, keep the bullet `- Response schemas are types only, never parsed at runtime.` unchanged and extend the S3a bullet two lines below it: replace `the indicator response and list schemas are parsed by the api mapper and the web client (amended for S3a).` with `the indicator response and list schemas are parsed by the api mapper and the web client (amended for S3a), the public project snapshot is parsed by the API as the anonymous allowlist and by the web, and the own profile response is parsed by the web (amended for S8a).` Then add this bullet directly below the S3a bullet:
 
 ```markdown
-- Response schemas are types only, never parsed at runtime, except the public project snapshot (parsed by the API and the web as the anonymous allowlist) and the own profile response (parsed by the web), which were parsed before this change (amended for S8a).
 - Where a class-validator rule has no port in `contracts/common/field-schemas.ts` (only `IsEmail`), the API refines the shared contract with the class-validator function in `<domain>.helpers.ts` (`auth.helpers.ts` for sign-in). A `null` `projectIds` on `POST users/authorize-existing` is now rejected with 400; the DTO let it through to a 403 after an identity directory lookup (amended for S8a).
 ```
 
@@ -2714,40 +2782,50 @@ Section 3.7, in the S8 row replace `| S8 | Public, users, profile, auth and MFA 
 Section 9, append (with `<date>` from `date +%F`):
 
 ```markdown
-S8a applied <date> on refactor/s8a-public-users-auth:
+S8a applied <date> on the S8a slice branch:
 - Contracts: the users (`contracts/users/user-authorization.ts`), own profile (`contracts/profile/own-profile.ts`), sign-in and step-up PIN (`contracts/auth/auth-requests.ts`) and public project and publication (`contracts/public/public-projects.ts`) contracts, built on the S1 field schemas; the API refines sign-in with `isEmail` (`auth.helpers.ts`).
 - Validation: the users, own profile, sign-in and three PIN routes use `ZodPipe`; parity tests ran each DTO and its contract through the configured pipes over 83 JSON bodies before the five DTO classes were deleted, and 82 agreed exactly; an HTTP test covers each switched controller. No class-validator DTO remains in the API, so `controller-dto-runtime-metadata.test.ts` and `field-schemas-parity.test.ts` were deleted; the `class-validator` dependency stays because the global `ValidationPipe` loads it and `auth.helpers.ts` uses `isEmail`.
 - Public: `public.dto.ts` moved to shared; `public-projects.controller.ts` and `publication.controller.ts` hold one controller each; publication bodies are still parsed in `PublicService`.
 - Web: `usersClient` (`lib/api/users.ts`), `ownProfileClient` (`lib/api/profile.ts`) and `readPublicSnapshots` (`lib/api/public.ts`); 8 user calls and 5 test mocks repointed; the web `ApiUser`, public snapshot and own profile schemas replaced by the shared contracts.
 - Dead code: `public-project-detail.tsx`, `public-project-charts.tsx`, `public-dashboard-config.ts`, their tests, `profile-validation.ts` and its test (1569 lines), `mapPublicSnapshot` and seven `Public*` view models deleted; `docs/deferred-features.md` records the removed microsite detail.
-- Kernel and deferred items closed: `requestIdentity` replaces the local application profile checks in the users and authorized data controllers (the last two), `aggregateOnlyRoles` replaces the two route policy literals, the access matrix role test and the two aggregate-only entries of `assessmentDetailDeniedRoles`, `routeUuidPattern` replaces the mutation ticket regex, `Tx` replaces four transaction client annotations, and `readWorkspaceContextCookie` is the one browser read of the workspace context cookie (`request.ts` and `request-owner.ts` call it).
+- Kernel and deferred items closed: `requestIdentity` replaces the local application profile checks in the users and authorized data controllers, `aggregateOnlyRoles` replaces the two route policy literals, the access matrix role test and the two aggregate-only entries of `assessmentDetailDeniedRoles`, `routeUuidPattern` replaces the mutation ticket regex, `Tx` replaces four transaction client annotations, and `readWorkspaceContextCookie` is the one browser read of the workspace context cookie (`request.ts` and `request-owner.ts` call it).
 - SAD: organization isolation routing covers `packages/shared/src/contracts/auth/**/*.ts` and `packages/shared/src/contracts/users/**/*.ts`.
-- Middleware: <Task 6 sizes sentence>.
+- Middleware: web Middleware went from <M0> kB to <M1> kB (Task 0 and Task 6 builds).
 - Decisions: S8 split into S8a and S8b (ruling 1); the microsite detail was deleted, not split, because nothing imported it (ruling 2); exact acceptance came from the S1 field schemas plus the class-validator `isEmail` function, because zod differs on emails and S1 ports no email rule (ruling 3); the DTO-only metadata and field schema parity tests went with the last DTO while `class-validator` stays (ruling 14); a null `projectIds` is the one accepted difference (ruling 4); `authUserId must be a UUID` is the one reachable message kept (ruling 5); the avatar stack keeps its derived "And" label as a display decision for the developer (ruling 10); the step-up and route-access project lookups stay inline because `requireScopedProject` would change their 503 and 404 answers (ruling 11); the three workspace cookie reads became one with the `split(';')` and `trim` form, which reads browser and jsdom cookie strings exactly as the `'; '` split did (ruling 16); the assessment detail denial reads `aggregateOnlyRoles` plus the system administrator, the same three roles (ruling 10).
 
 Deferred to S8b: the publication and audit clients, the user management and MFA component splits, and the feature layout for auth, profile, public and settings.
 ```
 
-Replace `<Task 6 sizes sentence>` with `web Middleware went from <M0> kB to <M1> kB` using the Task 0 and Task 6 measurements.
-
 - [ ] **Step 3: Update the audit, living docs and index**
 
-- Audit: append to the disposition cell of MOD-05 `; users, own profile and public snapshot clients moved to lib/api by S8a.`, of MOD-06 `; public-project-detail.tsx deleted as dead code by S8a.`, of MOD-11 `; auth, users, profile and public DTOs closed by S8a.`, of MOD-16 `; the three workspace cookie reads made one by S8a.` and of MOD-17 `; public controllers split one per file by S8a.`
-- `docs/qad-pathways.md` QAD-A05 row: replace `` `apps/api/src/modules/users/users.validation.test.ts` `` with `` `apps/api/src/modules/users/users.controller.validation.test.ts` ``.
-- `docs/index.md`: in the CR row status keep the applied list and end it with `S8a applied, S8b next`.
+- Audit (all in `docs/audit-pathways-codebase-modularity-20261009.md`, replacing the final period of each row):
 
 ```bash
-git grep -nE "users\.validation\.test|lib/services/(own-profile-client|public-projects)|public\.dto|users\.dto|profile\.dto|signin-lockout\.dto|beneficiary-step-up-pin\.dto|modules/public/public\.controller" -- docs scripts AGENTS.md README.md ':!docs/activity-log.md' ':!docs/audit-*' ':!docs/cr-*' ':!docs/superpowers/*'
+sed -i -e '/^| MOD-05 /s/\. |$/; users, own profile and public snapshot clients moved to lib\/api by S8a. |/' \
+  -e '/^| MOD-06 /s/\. |$/; public-project-detail.tsx deleted as dead code by S8a. |/' \
+  -e '/^| MOD-11 /s/\. |$/; auth, users, profile and public DTOs closed by S8a. |/' \
+  -e '/^| MOD-16 /s/\. |$/; the three workspace cookie reads made one by S8a. |/' \
+  -e '/^| MOD-17 /s/\. |$/; public controllers split one per file by S8a. |/' \
+  docs/audit-pathways-codebase-modularity-20261009.md
+git diff --stat docs/audit-pathways-codebase-modularity-20261009.md
 ```
 
-Expected: prints nothing (no living doc names an old path).
+Expected: `1 file changed, 5 insertions(+), 5 deletions(-)`; each row ends `... by S3b; users, own profile and public snapshot clients moved to lib/api by S8a. |` (the text before the `;` is whatever the earlier slices left).
+- `docs/qad-pathways.md` QAD-A05 row: replace `` `apps/api/src/modules/users/users.validation.test.ts` `` with `` `apps/api/src/modules/users/users.controller.validation.test.ts` ``.
+- `docs/index.md`: in the CR row (the one linking `cr-pathways-codebase-modularization.md`) read the status as the previous slice left it, add S8a to the applied list and end with `S8b next`, for example `Approved; F1 to F4b, S1a to S7b and S8a applied, S8b next`; keep any earlier slice part that is still open.
+
+```bash
+git grep -nE "users\.validation\.test|lib/services/(own-profile-client|public-projects)|public\.dto|users\.dto|profile\.dto|signin-lockout\.dto|beneficiary-step-up-pin\.dto|modules/public/public\.controller" -- docs scripts AGENTS.md README.md ':!docs/activity-log.md' ':!docs/audit-*' ':!docs/cr-*' ':!docs/superpowers/*' ':!docs/handoff'
+```
+
+Expected: prints only the new Public project microsite detail row of `docs/deferred-features.md`, which names the removed `lib/services/public-projects.ts` on purpose (no other living doc names an old path).
 
 - [ ] **Step 4: Activity log**
 
 Add to `docs/activity-log.md`:
 
 ```markdown
-## <date> Modularization S8a public, users, profile and auth (refactor/s8a-public-users-auth)
+## <date> Modularization S8a public, users, profile and auth
 ```
 
 with one bullet per Task 1 to Task 8 stating what was added, switched, moved or deleted, with its commit hashes (name the Task 7 deletion commit explicitly, the deferred features register points to it) and the shared, api and web test counts at the end of that task; a bullet with the Middleware sizes; a bullet saying the S8a decisions are recorded in the change record section 9 (the plan stays until S8b is planned, because it holds the S8b outline); and a bullet listing the S8b deferrals. Task 10 Step 5 appends the gate results.
@@ -2757,10 +2835,11 @@ with one bullet per Task 1 to Task 8 stating what was added, switched, moved or 
 ```bash
 pnpm docs:check 2>&1 | tail -3
 pnpm lint
-git add docs scripts/sad
+git add docs/cr-pathways-codebase-modularization.md docs/audit-pathways-codebase-modularity-20261009.md docs/qad-pathways.md docs/sad-pathways.md docs/index.md docs/activity-log.md scripts/sad/check.ts scripts/sad/check.test.ts
 git commit -m "docs: record modularization S8a and route auth and users contracts to the isolation checker
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015GXgWsghnfykNXQ8sJ5BRx"
 ```
 
 Expected: docs check failure count equals the Task 0 baseline.
@@ -2772,27 +2851,27 @@ Expected: docs check failure count equals the Task 0 baseline.
 - [ ] **Step 1: Static gates and dist layout**
 
 ```bash
-pnpm install --frozen-lockfile && pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm sad:test
+pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm sad:test
 git checkout -- apps/web/next-env.d.ts
 test -f packages/shared/dist/contracts/users/user-authorization.js && test -f packages/shared/dist/contracts/auth/auth-requests.js && test -f apps/api/dist/apps/api/src/modules/public/publication.controller.js && test -f apps/api/dist/apps/api/src/modules/public/public-projects.controller.js && test -f apps/api/dist/apps/api/src/modules/auth/auth.helpers.js && test ! -e apps/api/dist/apps/api/src/modules/users/users.dto.js && test ! -e apps/api/dist/apps/api/src/modules/auth/signin-lockout.dto.js && test ! -e apps/api/dist/apps/api/src/modules/public/public.controller.js && echo "dist layout ok"
-pnpm --filter @pathways/web build > .tmp/s8a/web-build-gates.log 2>&1; echo "exit $?"
+rm -rf apps/web/.next && pnpm --filter @pathways/web build > .tmp/s8a/web-build-gates.log 2>&1; echo "exit $?"
 grep -E "Middleware" .tmp/s8a/web-build-gates.log
 git checkout -- apps/web/next-env.d.ts
 ```
 
-Expected: all pass, `dist layout ok`, web build exit 0 with Middleware at most `M0`. Versus Task 0: shared = `B_shared + 31` (contracts 30, route policy 1), api = `B_api + 7 - P_fs` (users -7, profile +4, auth +6 - `P_fs`, request identity +4), web = `B_web + 9` (mutation ids 3, cookie reads 6, dead tests -6, users client 5, public area 1), sad = `B_sad + 1`, config and imports unchanged.
+Expected: all pass, `dist layout ok`, web build exit 0 with Middleware at most `M0`. Install is skipped (dependencies are already present in the cloud container). Versus Task 0: shared = `B_shared + 31` (contracts 30, route policy 1), api = `B_api + 7 - P_fs` (users -7, profile +4, auth +6 - `P_fs`, request identity +4), web = `B_web + 9` (mutation ids 3, cookie reads 6, dead tests -6, users client 5, public area 1), sad = `B_sad + 1`, config and imports unchanged.
 
 - [ ] **Step 2: Local DB replay**
 
-```powershell
-./infra/supabase/phase6/Replay-Local.ps1 -MigrationBaseline
+```bash
+pwsh ./infra/supabase/phase6/Replay-Local.ps1 -MigrationBaseline
 ```
 
-Expected: exit 0.
+Expected: exit 0. If PostgreSQL 18 is not installed at /usr/lib/postgresql/18/bin, the pull request CI replay is the gate (expect 171 PASS, 0 FAIL); record which one ran.
 
 - [ ] **Step 3: Local stack, compiled API probes, e2e and smoke**
 
-Stop anything on ports 3000 and 4000 first.
+If supabase or Docker is missing, record Step 3 (seeds, `pnpm dev:local` boot and the curl probes, both Playwright configs and the browser smoke) as pending local run in the activity log gate line and list it for the developer; do not skip Steps 1, 2 or 4. Stop anything on ports 3000 and 4000 first.
 
 ```bash
 pnpm db:local:start && pnpm db:local:reset && pnpm db:local:demo
@@ -2810,66 +2889,64 @@ npx playwright test --config playwright.config.ts
 npx playwright test --config playwright.auth-navigation.config.ts
 ```
 
-Expected: `"status":"ok"`; the first sign-in probe answers `{"statusCode":400,"message":["email must be an email"],"error":"Bad Request"}` (key order may differ) and `400`, the second answers 400 with `Unrecognized key(s) in object: 'remember'`, neither body contains `pppp` (Review Focus 1 and 3); the public list answers `200`; a module-resolution or Nest dependency error in the `pnpm dev:local` output fails the gate; auth-navigation passes in full; the main suite shows the same pass and fail set as the S7 gate run recorded in `docs/activity-log.md`. Browser smoke, each step as a demo user whose role allows it: sign in with password and TOTP (sign-in route) and land on `/workspace`; as System Administrator open `/settings/users`, create a Program Manager (no project needed) with the Auth user ID `71000000-0000-0000-8000-000000000001` and confirm the editor shows `authUserId must be a UUID` (Review Focus 2), then edit a user's role and project access and deactivate and reactivate a test account (users routes, `usersClient`); open a project's team editor and the project setup form and confirm the user lists load (`usersClient.getUsers`); open My Profile, change the contact number and save, and save again with the same values (own profile route, `ownProfileClient`); open `/public/projects`, a public project page and an organization page signed out (`readPublicSnapshots`); open the transparency queue and a staff preview and submit a summary for review (publication controller, shared publication schema); reload a project page with the browser network panel open and confirm its API requests carry `X-Pathways-Organization-Id`, then sign out and back in and confirm the workspace loads (the single cookie read). Every step must behave as on dev. The step-up PIN UI is hidden (`STEP_UP_PIN_UI_ENABLED = false`), so its routes rest on the Task 3 HTTP test and parity table.
+Expected: `"status":"ok"`; the first sign-in probe answers `{"statusCode":400,"message":["email must be an email"],"error":"Bad Request"}` (key order may differ) and `400`, the second answers 400 with `Unrecognized key(s) in object: 'remember'`, neither body contains `pppp` (Review Focus 1 and 3); the public list answers `200`; a module-resolution or Nest dependency error in the `pnpm dev:local` output fails the gate; auth-navigation passes in full; the main suite shows the pass, fail and not run counts of the latest gate line in `docs/activity-log.md` (the S7a line read 39 pass, 9 fail, 22 not run; a later S7b gate line wins). Browser smoke, each step as a demo user whose role allows it: sign in with password and TOTP (sign-in route) and land on `/workspace`; as System Administrator open `/settings/users`, create a Program Manager (no project needed) with the Auth user ID `71000000-0000-0000-8000-000000000001` and confirm the editor shows `authUserId must be a UUID` (Review Focus 2), then edit a user's role and project access and deactivate and reactivate a test account (users routes, `usersClient`); open a project's team editor and the project setup form and confirm the user lists load (`usersClient.getUsers`); open My Profile, change the contact number and save, and save again with the same values (own profile route, `ownProfileClient`); open `/public/projects`, a public project page and an organization page signed out (`readPublicSnapshots`); open the transparency queue and a staff preview and submit a summary for review (publication controller, shared publication schema); reload a project page with the browser network panel open and confirm its API requests carry `X-Pathways-Organization-Id`, then sign out and back in and confirm the workspace loads (the single cookie read). Every step must behave as on dev. The step-up PIN UI is hidden (`STEP_UP_PIN_UI_ENABLED = false`), so its routes rest on the Task 3 HTTP test and parity table.
 
 - [ ] **Step 4: SAD review**
 
 ```bash
-pnpm sad:check --base dev --head HEAD --output .tmp/sad/s8a/manifest.json
+pnpm sad:check --base "$(cat .tmp/s8a/base-sha)" --head HEAD --output .tmp/sad/s8a/manifest.json
 ```
 
-Dispatch every role the manifest requires (expect `design-qa-agent`, `restraint-guardian`, `organization-isolation-checker` and `beneficiary-privacy-guardian`) with the section 4.2 handoff packet from `docs/sad-pathways.md`, save their section 4.4 envelopes to `.tmp/sad/s8a/reviews.json`, then:
+Dispatch every role the manifest requires (expect `design-qa-agent` 89 paths, `beneficiary-privacy-guardian` 30, `organization-isolation-checker` 16 and `restraint-guardian` 2, and no determinism checker) with the section 4.2 handoff packet from `docs/sad-pathways.md` (layout in `docs/handoff/sad-packet-example.md`; split a role above 60 paths, which `design-qa-agent` (89 paths) needs), transcribe each reply into `.tmp/sad/s8a/reply-<role>.txt`, copy `docs/handoff/sad-assemble.mjs` to `.tmp/sad/s8a/assemble.mjs`, run `node .tmp/sad/s8a/assemble.mjs` (it writes `reviews.json`), then:
 
 ```bash
-pnpm sad:signoff -- --base dev --head HEAD --reviews .tmp/sad/s8a/reviews.json
+pnpm sad:signoff -- --base "$(cat .tmp/s8a/base-sha)" --head HEAD --reviews .tmp/sad/s8a/reviews.json
 ```
 
-Expected: sign-off. Any finding is fixed on this branch and the affected gates rerun.
+Expected: sign-off against the stack base; once the developer has merged the earlier slices, a rerun against `dev` shows fewer paths. Any finding is fixed on this branch and the affected gates rerun.
 
 - [ ] **Step 5: Record the gate results**
 
-Append a final bullet to the Task 9 activity-log section with the gate results (per-package counts, Middleware size, replay exit code, compiled API probe results, e2e pass counts, smoke result, SAD sign-off), then:
+Append a final bullet to the Task 9 activity-log section with the gate results (per-package counts, Middleware size, replay exit code or CI result, seed results, compiled API probe results, e2e pass counts and smoke result or pending local run, SAD sign-off), then:
 
 ```bash
 git add docs/activity-log.md
 git commit -m "docs: record modularization S8a release gate results
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015GXgWsghnfykNXQ8sJ5BRx"
 ```
 
-- [ ] **Step 6: Merge into local dev**
+- [ ] **Step 6: Pull request into dev**
+
+Push the slice branch and open one pull request into `dev` (or add S8a to the open pull request of the stack, as the rulings log says); wait for CI (replay, lint, typecheck, test, build, SAD checks) and record the result in the activity log gate line. Ask the developer to merge. Do not merge or push `dev`.
+
+- [ ] **Step 7: Keep the plan for S8b (after the developer merges)**
+
+The plan holds the S8b outline, so the `docs/superpowers/plans` copy stays after the merge (the `docs/handoff` copy stays too). In `docs/index.md` section 1.6 change the status of the `superpowers/plans` S8 row only (not the `handoff/` row) to `S8a executed; holds the S8b outline`, then:
 
 ```bash
-git checkout dev
-git merge --no-ff refactor/s8a-public-users-auth -m "Merge refactor/s8a-public-users-auth into dev
-
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
-```
-
-- [ ] **Step 7: Keep the plan for S8b**
-
-The plan holds the S8b outline, so it stays on dev (as the F4 plan did for F4b). In `docs/index.md` section 1.6 change the S8 plan row status to `S8a executed; holds the S8b outline`, then:
-
-```bash
+sed -i '/(superpowers\/plans\/.*modularization-s8-public-users-auth/s/| In progress |$/| S8a executed; holds the S8b outline |/' docs/index.md
 pnpm docs:check 2>&1 | tail -3
 git add docs/index.md
 git commit -m "docs: mark S8a executed in the plan index
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015GXgWsghnfykNXQ8sJ5BRx"
 ```
 
-Expected: docs check failure count equals the Task 0 baseline. Do not push `origin dev` until the developer says so.
+Expected: docs check failure count equals the Task 0 baseline.
 
 ---
 
-## S8b outline (web components and feature layout, branch `refactor/s8b-public-users-auth-web`)
+## S8b outline (web components and feature layout, its own slice branch)
 
-To be written as its own plan from dev after S8a merges; that plan's Task 0 removes this file and its index row. Counts were taken at `a101ad7c` and must be recounted in S8b Task 0.
+To be written as its own plan after S8a; that plan's Task 0 removes the `docs/superpowers/plans` copy of this plan and its index row (the `docs/handoff` copy stays). Counts were taken at `a101ad7c` and must be recounted in S8b Task 0.
 
-- **Task 0, baseline:** recount; confirm the S6 assumption (the `core-feature-client.ts` exports left after S6); record web Middleware.
-- **Task 1, publication and audit clients:** `coreFeatureClient.publication` and `transitionPublication` move to `lib/api/publication.ts` as `publicationClient`, keeping their `captureRequestOwner` (F4b) ownership check and their own response handling (F4b ruling 10); the publication snapshot schema becomes `publicProjectResponse.omit({ publishedAt: true })` (identical fields and bounds today) and the transition body type `PublicationTransitionRequest`; `coreDataClient.audit` moves to `lib/api/audit.ts` as `auditClient`; `lib/services/core-feature-client.ts` is deleted once empty. Callers: `public-tracker-preview.tsx`, `publication-queue-workspace.tsx`, `audit-log-workspace.tsx`; mocks: their three tests (counted before and after) and `core-feature-client.test.ts` cases for the moved members.
+- **Task 0, baseline:** recount after S4b to S7b (line counts, `useState` counts, importers); confirm the S6 assumption (the `core-feature-client.ts` exports left after S6); record web Middleware.
+- **Task 1, publication and audit clients:** `coreFeatureClient.publication` and `transitionPublication` move to `lib/api/publication.ts` as `publicationClient`, keeping their `captureRequestOwner` (F4b) ownership check and their own response handling (F4b ruling 10); the publication snapshot schema becomes `publicProjectResponse.omit({ publishedAt: true })` (identical fields and bounds today) and the transition body type `PublicationTransitionRequest`; `coreDataClient.audit` moves to `lib/api/audit.ts` as `auditClient`; `lib/services/core-feature-client.ts` is deleted once empty. Callers: `public-tracker-preview.tsx`, `publication-queue-workspace.tsx`, `audit-log-workspace.tsx`; mocks: their three tests (counted before and after) and `core-feature-client.test.ts` cases for the moved members. The publication client reads through `lib/api/core/owned-json-read.ts` (S6b moved it there) when S6b has landed.
 - **Task 2, user management split:** `user-management-workspace.tsx` (937 lines, 11 `useState`) splits verbatim into `features/settings/components/{account-metric,user-account-row,user-editor-dialog,user-detail-dialog}.tsx` and a `hooks/use-user-directory.ts` for the load, refresh and pending-create state; `formatAccountDate` and `emptyEditor` go to `user-management-utils.ts`; `AUTH_USER_ID_PATTERN` stays (a client hint, the API decides). The existing workspace test runs unchanged.
 - **Task 3, MFA form split:** `mfa-form.tsx` (717 lines, 12 `useState`, one exported component) splits by step (enrollment, challenge, recovery) into `features/auth/components/` with the flow state in `hooks/use-mfa-flow-state.ts`; `mfa-form.test.tsx` (280 lines) runs unchanged; `lib/auth/mfa-flow.ts` keeps the transport.
-- **Task 4, feature surfaces:** `components/`, `hooks/` and `index.ts` for `features/auth`, `features/profile`, `features/public` and `features/settings`; app routes and other features import only from `index.ts` (today `projects/project-review-workspace.tsx` imports `features/public/publication-queue-workspace` and two profile files import `features/auth/account-access-validation`); `strongPasswordSchema` is exported from the auth surface; `own-profile-contract.ts` is renamed `own-profile.schema.ts` (CR 3.5 suffix).
+- **Task 4, feature surfaces:** `components/`, `hooks/` and `index.ts` for `features/auth`, `features/profile`, `features/public` and `features/settings`; app routes and other features import only from `index.ts` (today `projects/components/project-review-workspace.tsx` imports `features/public/publication-queue-workspace` and two profile files import `features/auth/account-access-validation`); `strongPasswordSchema` is exported from the auth surface; `own-profile-contract.ts` is renamed `own-profile.schema.ts` (CR 3.5 suffix). Add `'auth'`, `'profile'`, `'public'` and `'settings'` to `indexedFeatures` in `apps/web/src/import-direction.test.ts` and `'@/features/<name>'` for each to `optimizePackageImports` in `apps/web/next.config.ts`, as S5b to S7b do.
 - **Task 5, records:** CR section 9 S8b disposition and the end of the slice roadmap, audit MOD-06 (`user-management-workspace.tsx`, `mfa-form.tsx`), MOD-15 (S8 feature surfaces), index, activity log.
-- **Task 6, gates and merge:** as S8a Task 10, with a smoke over MFA enrollment and challenge, recovery, user management, the audit log, the public site and the transparency queue. After merge, remove this plan and its index row.
+- **Task 6, gates and merge:** as S8a Task 10, with a smoke over MFA enrollment and challenge, recovery, user management, the audit log, the public site and the transparency queue. After merge, remove the `docs/superpowers/plans` copy and its index row (the `docs/handoff` copy stays).

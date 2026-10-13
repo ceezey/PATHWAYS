@@ -405,3 +405,37 @@ Ruling: S4a Tasks 5 and 6 paired review PASS; the low findings stay (canonical h
 Ruling: S4a Task 7 review PASS; the low findings stay (the unread prisma parameter is plan ruling 8, removal in S5; canonicalCode tested from participants.helpers.test.ts; stage-save cases cut by describe; no provider-resolution test beyond app-module-wiring) and the dated manuscript-alignment audit keeps its participants.dto.ts mention as a point-in-time record, cost if wrong: a stale path in an old audit.
 
 Ruling: apply the S7 pre-flight fixes (10 must-fix, 13 should-fix and blocks B1 to B8: cloud Task 0 with a base sha and no plan copy removal, SAD base sha, pull request in place of the dev merge, the Task 3 count of 10, docs/handoff grep exclusion, exact audit append strings, the next.config.ts indexedFeatures edit, whole route table comparison, Claude-Session trailers); the S7b split branch names and the B_web plus 6 or plus 4 expectation stay for S7 Task 0 to settle, cost if wrong: an S7 Task 0 stop.
+
+Ruling: S4a final review PASS with one medium finding (coercion, null and strict rows unpinned after the parity tests were deleted); taken together the three low findings leave the plan's Review Focus unenforced, so a tests-only fix adds those rows to the shared contract tests and the SAD replies for the changed test files are re-run, cost if wrong: a few redundant test rows. The other lows stay: the dated audit keeps beneficiaries.service.ts:353 as a point-in-time citation, a commit cannot name its own hash in the activity log, ruling 8 keeps the unread prisma parameter, and provider resolution is covered by app-module-wiring and the pending local boot.
+
+Ruling: S4a static gates passed at 51d3139e (config 19, shared 316, imports 91, api 2484 with 21 skipped, web 224 files and 1998 tests, sad 55, dist layout ok, Middleware 103 kB); no web route comparison because S4a changes no web file; replay is the pull request CI gate because initdb refuses root in the container, cost if wrong: none beyond a CI cycle.
+
+Ruling: S4a SAD sign-off PASS 116 of 116 at a887445b after two scoped re-reviews of the three shared contract test files (design-qa blocked line 59 once for missing null rows, fixed in a887445b); unchanged files keep their first-pass PASS lines under the new digest, cost if wrong: a stale PASS line on a file the fix did not touch. S4a opened as PR #50 into dev, stacked on #49.
+
+Ruling: PR #50 CI run 38355369564 green at 2cfa0454 (validate with replay, lint, typecheck, test, build; automated SAD checks); the CI result goes into the activity log with the post-merge records step rather than a new commit, so the green head is not re-run, cost if wrong: the gate line names the CI run one step later.
+
+## S5a
+
+Ruling: S5a Task 0 matched every anchor at 2cfa0454 (14 hashes, 4-file diff list, filtered diff 0, line counts 2119/1315/626, grep counts) with baselines B_shared 348, B_imports 91, B_api 2484 (21 skipped), B_sad 55, M0 103 kB; plan copy and index row committed in 4107b215, cost if wrong: none, every later count is a delta from these.
+
+Ruling: S5a Task 1 matched its expected deltas (shared +23, imports +1, api +88 with the parity test) with fail-first runs for both new contract tests; limits and parity tests pass first time by design, cost if wrong: none, the paired review checks the parity rows.
+
+Ruling: S5a Task 2 matched (fail-first 11 failed and 5 passed, api B_api+8, six edited lines, DTO grep empty); Biome formatting only, cost if wrong: none.
+
+Ruling: S5a Tasks 1 and 2 paired review PASS with one medium (row page caps offset 50000 and take 100 pinned nowhere after the parity test deletion, and an uncapped take reaches findMany); following the S4a lesson, a tests-only fix after Task 3 pins those caps plus the mapping-body rules the lows list (mappings 1 to 500, sourceFieldName length, targetFieldCode rejections, strict mapping body, item and value-map entry); comments naming removed DTOs and the missing fail-first log files stay, cost if wrong: a few redundant rows.
+
+Ruling: S5a Task 3 matched (shared B_shared+29, api B_api+139 with the 131-row parity test, fail-first on the contract test); the implementer wrote two files by quoted heredoc instead of the Write tool, identical content, cost if wrong: none. Before Task 4 deletes the form parity test, the same tests-only fix pins the form request rows it alone holds, so the S4a gap does not recur.
+
+Ruling: the tests-only fix 7bc603a6 adds 185 shared rows (imports 74, forms 111; strength check 9 failures without strict and with moved bounds); every later shared expectation in the S5a briefs reads as plan value plus 185 (B_shared stays 348 for the plan deltas), cost if wrong: an implementer stops on a shared count that is explained here.
+
+Ruling: S5a Task 4 matched (fail-first 6 of 6, nine edited lines, renames 15 and 5, api B_api+13, DTO greps empty), cost if wrong: none.
+
+Ruling: S5a Tasks 3 and 4 and fix 7bc603a6 review PASS with two mediums (PATCH update, archive, edit submission and submit routes have no HTTP test after the runtime-metadata guard went; save and edit values rows not pinned, Review Focus 3 only on validate); after Task 5 a tests-only fix adds HTTP rows for those four routes and the repeated query key, the save and edit nested-constructor and toString rows, and extra-key rows for update, edit and submit; the nested method-key drop difference stays (no observable effect today) and the DTO wording in test names stays, cost if wrong: a later pipe swap on one of those routes goes unnoticed until the smoke.
+
+Ruling: S5a Task 5 matched (split script lines 137/76/165/216/266/201/93 with the 2 expected foreign lines, post-Biome counts, mapper fail-first, Step 6 characterization fails without toLowerCase, api B_api+16); the plan has no same-lines step for this split, the split script's foreign-line output is the proof, cost if wrong: a hidden edit in a moved block, which the paired review checks per declaration.
+
+Ruling: the tests-only fix f8c69415 adds 14 api HTTP cases (update, archive, edit, submit routes and the repeated offset key) and 8 shared rows (save and edit values, extra keys); each route's swapped pipe fails its valid-body case; later expectations read shared as plan value plus 193 and api as plan value plus 14, cost if wrong: an implementer stop explained here.
+
+Ruling: S5a Task 6 matched (same-function checks same body, split foreign lines only the four expected in import-promotion.service.ts, line counts after Biome, api plan value plus 14), cost if wrong: none.
+
+Ruling: apply the S8 pre-flight fixes (13 must-fix, 13 should-fix, blocks B1 to B10: cloud Task 0, S7b present expectations with an S7b-absent sentence, the users, guard and public test fixes, docs/handoff grep exclusions, SAD base sha and role counts with recount wording, pull request in place of the dev merge, Claude-Session trailers, rm -rf .next before builds, lost strict rows); the CR status example names S7b, and baseline and role counts from the simulated tree are recounted at S8 Task 0, cost if wrong: an S8 Task 0 stop. Committed with the next docs commit after Task 7.
