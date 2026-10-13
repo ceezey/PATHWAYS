@@ -12,11 +12,11 @@
 
 ## Rulings
 
-Controller rulings for S7 (2026-10-11, revised 2026-10-12). Each was checked against `a101ad7c` and again against dev `675a0b58`, whose source is identical (only `docs/activity-log.md` changed). F4b and S1 to S6 land before S7a; Task 0 recounts every figure and stops on a difference it cannot explain by those slices.
+Controller rulings for S7 (2026-10-11, revised 2026-10-12). Each was checked against `a101ad7c` and again against dev `675a0b58`, whose source is identical (only `docs/activity-log.md` changed). F4b and S1 to S6 land before S7a; Task 0 recounts every figure and stops on a difference it cannot explain by those slices. Re-scanned on the S3b tip with the S4a, S5a and S6a api effects: the Task 0 counts, the printed outputs of Tasks 1 to 6 and the four-entry surface scan are unchanged.
 
-1. **Split into S7a and S7b, by domain.** The slice spans api `modules/dashboards` (19 files, 4747 lines), `modules/rules` (31 files, 4842 lines) and `modules/analytics-insights` (5 files, 756 lines), web `features/analytics` (37 files, 9463 lines), `features/rules-board` (14 files, 2644 lines) and `features/dashboard` (27 files, 3790 lines), shared `monitoring/` (14 files, 3192 lines; 7 sources, 1534 lines) and the analytics and dashboard methods of `pathways-client.ts`: about twenty tasks. The rules part is self-contained (its api has no DTO and its contracts already live in `packages/shared/src/rules`) and is the roadmap's reason for the slice's position, so S7a (this plan, branch `refactor/s7a-rules`) takes rules end to end in nine tasks. S7b (outline, branch `refactor/s7b-analytics-dashboards`) takes analytics and dashboards: api, the shared `monitoring` folder and web. The outline counts about twelve S7b tasks in two parts (api and shared, then web); when the S7b plan is written and passes ten tasks, it splits along that line into S7b and S7c, as F4 split. Both names replace `refactor/s7-analytics-rules`; SAD evidence goes to `.tmp/sad/s7a/` and `.tmp/sad/s7b/`.
+1. **Split into S7a and S7b, by domain.** The slice spans api `modules/dashboards` (19 files, 4747 lines), `modules/rules` (31 files, 4842 lines) and `modules/analytics-insights` (5 files, 756 lines), web `features/analytics` (37 files, 9463 lines), `features/rules-board` (14 files, 2644 lines) and `features/dashboard` (27 files, 3790 lines), shared `monitoring/` (14 files, 3192 lines; 7 sources, 1534 lines) and the analytics and dashboard methods of `pathways-client.ts`: about twenty tasks. The rules part is self-contained (its api has no DTO and its contracts already live in `packages/shared/src/rules`) and is the roadmap's reason for the slice's position, so S7a (this plan, on the slice branch the environment assigns) takes rules end to end in nine tasks. S7b (outline, its own slice branch) takes analytics and dashboards: api, the shared `monitoring` folder and web. The outline counts about twelve S7b tasks in two parts (api and shared, then web); when the S7b plan is written and passes ten tasks, it splits along that line into S7b and S7c, as F4 split. SAD evidence goes to `.tmp/sad/s7a/` and `.tmp/sad/s7b/`.
 2. **`features/rules` takes 30 files.** The 14 `features/rules-board` files, 13 rules files from `features/analytics` (8 sources: `alerts-workspace`, `human-review-action`, `human-review-workspace`, `linked-alert-summary`, `recommendations-workspace`, `rule-condition-editor`, `rule-editor`, `rule-test-workspace`; 5 tests), `features/projects/project-rules-panel.tsx` with its test (S1b's outline leaves the rules panel to S7), and the new `recommendation-fields.test.tsx` of Task 2. Sources go under `components/`; four files are renamed for what they hold: `rule-board-model.ts` to `rules.utils.ts` (and its test), `rule-condition-rows.tsx` to `components/condition-builder.tsx`, `recommendation-detail-workspace.test.tsx` to `components/human-review-workspace.recommendations.test.tsx` (CR 3.5 concern name). After the move no analytics file imports a rules file and no rules file imports an analytics file (MOD-15 "analytics and rules-board import each other" closed).
-3. **Route pages and other features import `features/rules` through its index, as S1b, S5 and S6 do.** CR 3.3 says other features import a feature only through `index.ts`, and the S1b outline extends `apps/web/src/import-direction.test.ts` so that any non-test file outside `features/projects`, route pages included, imports it only through its index; S5 and S6 route their pages the same way. `features/rules/index.ts` therefore exports exactly the four components used outside the feature: `AlertsWorkspace`, `RulesBoard`, `RecommendationsWorkspace` (the three route pages) and `ProjectRulesPanel` (the project review workspace). A barrel can pull every re-exported client module into a route's client bundle, so Task 0 records the First Load JS of `/alerts`, `/alerts/repository`, `/recommendations/[recommendationId]` and `/projects/[projectId]/monitor-evaluate` and Task 6 compares them after the switch; any growth stops the task and is reported, as F4a ruling 9 did for Middleware. If CR section 9 already records an S1b decision that route pages keep component imports, Task 6 follows that decision instead (Task 0 Step 2 reads it).
+3. **Route pages and other features import `features/rules` through its index, as S1b, S5 and S6 do.** CR 3.3 says other features import a feature only through `index.ts`, and the S1b outline extends `apps/web/src/import-direction.test.ts` so that any non-test file outside `features/projects`, route pages included, imports it only through its index; S5 and S6 route their pages the same way. `features/rules/index.ts` therefore exports exactly the four components used outside the feature: `AlertsWorkspace`, `RulesBoard`, `RecommendationsWorkspace` (the three route pages) and `ProjectRulesPanel` (the project review workspace). A barrel can pull every re-exported client module into a route's client bundle, so Task 0 saves the route table of a clean build and Task 6 compares it after the switch (the four rules routes, and `/projects/[projectId]/budget` and `/evidence`, which render the project review workspace); any growth beyond 1 kB stops the task and is reported, as F4a ruling 9 did for Middleware. If CR section 9 already records an S1b decision that route pages keep component imports, Task 6 follows that decision instead (Task 0 Step 2 reads it).
 4. **One exported component per file (CR 3.3), verbatim.** Task 3 moves exported helpers into `rules.utils.ts`, labels into `rules.copy.ts`, the `useBindingChoices` hook into `hooks/`, and the second and third exported components of a file into their own files: `RuleTreeView`, `ApplyToFields`, `SeverityField`, `RecommendationFields`, `RulePreview`; `rule-drawer-shared.ts` and `rule-output-fields.tsx` are emptied and deleted. Private sub-components stay with their screen, except the three in `human-review-workspace.tsx` (`AlertEvidence`, `EvidenceTable`, `NotificationRow`, 646 to 493 lines), and the rule template data leaves `rule-editor.tsx` for `rule-templates.ts` (709 to 635 lines). Three files stay above the CR 3.5 flag of 500 lines: `rule-editor.tsx` (631 after Task 4), `rule-test-workspace.tsx` (603) and `rules-board.tsx` (503); each is one stateful form or board body whose private parts share its module constants, so a further split lifts state into props, a logic edit outside this slice. They are recorded in CR section 9, not hidden.
 5. **Names by purpose.** `OwnedDrawer`, `OwnedRuleEditor`, `OwnedRuleTest` and `OwnedAction` become `RuleDrawerForm`, `RuleEditorForm`, `RuleTestForm` and `HumanReviewActionForm` (CR 3.3 replaces `Owned*`). The private `copy` and `instant` helpers of `human-review-workspace.tsx` become exported `codeLabel` and `manilaTime` once they move to `rules.utils.ts`; a longer name pushed a JSX text line past 100 columns in an earlier trial and Biome re-wrapped it. The private `label(value) => metricLabel(value)` wrapper in `rule-condition-editor.tsx` is removed and its three calls read `metricLabel`, because `RuleTreeView` leaves that file and an exported `label` would name nothing.
 6. **`rules.reads.ts` holds the read hooks.** The three `rule-binding-*` reads are written twice with the same key, scope, permission and fetcher (`rule-condition-rows.tsx` and `rule-editor.tsx`, MOD-16). They become `useRuleBindingIndicators`, `useRuleBindingActivities` and `useRuleBindingActivityContext(scopeProjectId, enabled)`; each caller passes its own enabled expression, so both call sites send the same five arguments as before and hook order is unchanged. `binding-reads.mjs` writes the hooks from the fetchers it finds and stops if the two copies differ, so S2 or S3b moving `getProjectIndicators`, `getActivities` or `getActivityContext` to `lib/api` needs no edit here. CR 3.3's `.reads.ts` row is amended to include the hooks, as S3b's `useProjectIndicatorsRead` does. The three `getProjects` reads (`rules-editor-projects`, `rules-project-choices`, `review-projects`) keep their keys: merging them would make three cache entries one.
@@ -56,10 +56,9 @@ Controller rulings for S7 (2026-10-11, revised 2026-10-12). Each was checked aga
 - `pnpm typecheck` rewrites `apps/web/next-env.d.ts`; run `git checkout -- apps/web/next-env.d.ts` before every commit.
 - After removing code, delete any import name left with no use (Biome 1.9 does not flag unused imports); the codemods below prune for you.
 - Create every `.tmp/s7a` file with the Write tool, exactly as printed (ruling 15). Patterns passed to commands never start with `@/`.
-- `git ls-files` with `':!*.test.ts'` pathspecs returns nothing in this Git for Windows setup; filter with `grep -v` as written. `git grep` pathspecs work.
 - One-off scripts live in `.tmp/s7a/` (gitignored) and are never committed; `.tmp/` also holds logs.
-- Commit messages end with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
-- Work in `C:\PATHWAYS` on branch `refactor/s7a-rules`; no new worktree. All paths are relative to `C:\PATHWAYS`. Do not push.
+- Commit messages end with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>` and, on the next line, `Claude-Session: https://claude.ai/code/session_015GXgWsghnfykNXQ8sJ5BRx`.
+- Work in the repository root on the slice branch the environment assigns (stacked on the S6 branch); no new worktree. All paths are relative to the repository root. Only the controller pushes the slice branch, at task-pair boundaries; nobody pushes `dev` or `master`.
 - Do not touch migrations, `.env` files, review evidence, `apps/api/prisma` or `packages/shared`.
 
 ## Review Focus
@@ -78,9 +77,9 @@ Controller rulings for S7 (2026-10-11, revised 2026-10-12). Each was checked aga
 
 ## Risks
 
-- A barrel import can grow a route's client bundle (ruling 3). Task 6 measures four routes against the Task 0 build and stops on growth; the fallback (pages keep component imports, the rule exempts `app/` for `rules`) is the controller's call, because it would differ from S1b.
+- A barrel import can grow a route's client bundle (ruling 3). Task 6 compares the route table against the Task 0 build and stops on growth; the fallback (pages keep component imports, the rule exempts `app/` for `rules`) is the controller's call, because it would differ from S1b.
 - S1b's surface rule is only outlined, so its exact shape is unknown. Task 6 Step 1 adapts to it; if S1b wrote no rule, Task 6 adds one that S1b's convention would accept (any non-test file outside the feature, route pages included).
-- S8a Task 0 finds S7 by `grep -m1 "Merge refactor/s7"`, which an S7a merge alone satisfies. S8a must not start before S7b merges: its DTO and identity check counts would then fail. Task 7 records this in the activity log for the controller.
+- S8a Task 0 finds S7 by a `Merge refactor/s7` line or, under the pull request flow, by the S7a markers, which an S7a merge alone satisfies. S8a must not start before S7b merges: its DTO and identity check counts would then fail. Task 7 records this in the activity log for the controller.
 - Earlier slices may change lines the codemods read (F4b import lines in `rule-drawer.tsx`, `rule-editor.tsx`, `human-review-action.tsx` and the rules client; S2 or S3b fetchers). Each script resolves by path and declaration name and stops on an unexpected shape (`mocks ...`, `fetchers differ`, `does not declare`), never guessing.
 
 ---
@@ -88,31 +87,79 @@ Controller rulings for S7 (2026-10-11, revised 2026-10-12). Each was checked aga
 ### Task 0: Branch setup and baseline
 
 **Files:**
-- Create: `docs/superpowers/plans/2026-10-12-modularization-s7-analytics-rules.md` (this plan)
+- Create: `docs/superpowers/plans/<date>-modularization-s7-analytics-rules.md` (this plan; `<date>` from `date +%F`)
 - Modify: `docs/index.md` (section 1.6 plan row)
 
-- [ ] **Step 1: Confirm local dev contains S6 and create the branch**
+- [ ] **Step 1: Confirm the stacked branch holds S3b, S4a, S5a and S6a**
 
 ```bash
-cd /c/PATHWAYS
+cd "$(git rev-parse --show-toplevel)"
 git status --short
-git checkout dev
-git log --oneline dev | grep -m1 -E "Merge refactor/s6[a-z]?-.* into dev"
-test -f apps/api/src/common/authz/request-identity.ts && test -f apps/web/src/hooks/use-authorized-read.ts && test -f apps/web/src/lib/api/core/request.ts && echo "S1 and F4b present"
+test -f apps/web/src/lib/api/indicators.ts && echo "S3b present"
+test -f apps/api/src/modules/beneficiaries/beneficiary-registration.service.ts && echo "S4a present"
+test -f apps/api/src/modules/metadata/form-definitions.service.ts && echo "S5a present"
+test -d apps/api/src/modules/print-pdf && echo "S6a present"
+test -f apps/web/src/hooks/use-authorized-read.ts && test -f apps/api/src/common/authz/request-identity.ts && echo "F4b and S1 kernel present"
+grep -c "indexedFeatures" apps/web/src/import-direction.test.ts
 ls docs/superpowers/plans/
-git checkout -b refactor/s7a-rules
-pnpm install --frozen-lockfile
 mkdir -p .tmp/s7a
+git rev-parse HEAD > .tmp/s7a/base-sha
 ```
 
-Expected: clean status, the last S6 merge commit, `S1 and F4b present`, install succeeds. If the merge or either file is missing, stop and report: S7a builds on them. If `ls` lists an earlier modularization plan, that slice's removal step did not run; Step 3 removes it and its `docs/index.md` row too.
+Expected: clean status; `S3b present`, `S4a present`, `S5a present`, `S6a present` and `F4b and S1 kernel present` printed; a number of at least 3 from the `indexedFeatures` count (S1b's surface rule). The branch is the one the environment assigned (stacked on S6 while the pull requests are open); do not create refactor/s7a-rules. S4b, S5b and S6b (web slices) are not required: S7a reads none of their files. `.tmp/s7a/base-sha` holds the S7a base (the SAD base of Task 8 Step 4). Dependencies are already installed in the cloud container; do not run pnpm install (the rulings log records the S3b install workaround). If a marker is missing, stop and report: S7a builds on the S3b, S4a, S5a and S6a tree. Write down the listed modularization plans; an executed plan that is still listed is reported, not removed here.
 
 - [ ] **Step 2: Record the baseline**
 
+Create the two route scripts with the Write tool exactly as printed (ruling 15). `.tmp/s7a/build-routes.sh` builds the web app from a clean `.next` and saves the route table:
+
+```bash
+#!/bin/bash
+# Usage: build-routes.sh <name>; builds the web app from a clean .next and saves the route table as .tmp/s7a/routes-<name>.txt.
+rm -rf apps/web/.next
+pnpm --filter @pathways/web build > .tmp/s7a/web-build-$1.log 2>&1
+echo "exit $?"
+sed 's/\x1b\[[0-9;]*m//g' .tmp/s7a/web-build-$1.log | sed 's/^apps\/web build: //' | sed -n '/Route (app)/,$p' > .tmp/s7a/routes-$1.txt
+grep Middleware .tmp/s7a/routes-$1.txt
+```
+
+`.tmp/s7a/compare-routes.mjs` prints the routes whose First Load JS differs between two saved route tables:
+
+```js
+// Prints the routes whose First Load JS differs between two saved next build route tables.
+import { readFileSync } from 'node:fs'
+
+const [before, after] = process.argv.slice(2)
+const row = /^[\u250c\u251c\u2514] [\u0192\u25cb] (\S+)\s+\S+ \S+\s+([\d.]+) kB$/
+const table = (file) =>
+  new Map(
+    readFileSync(file, 'utf8')
+      .split('\n')
+      .flatMap((line) => {
+        const match = row.exec(line.trim())
+        return match ? [[match[1], Number(match[2])]] : []
+      }),
+  )
+const was = table(before)
+const now = table(after)
+let different = 0
+for (const [route, kb] of now) {
+  const old = was.get(route)
+  if (old === undefined) console.log(`${route}: new at ${kb} kB`)
+  else if (old !== kb) {
+    different++
+    console.log(`${route}: ${old} kB -> ${kb} kB (${kb > old ? '+' : ''}${(kb - old).toFixed(1)})`)
+  }
+}
+for (const route of was.keys()) if (!now.has(route)) console.log(`${route}: removed`)
+console.log(`routes ${now.size}, different ${different}`)
+```
+
+Then record the baseline:
+
 ```bash
 pnpm --filter @pathways/shared build
-pnpm typecheck && pnpm test 2>&1 | grep -E "Tests +[0-9]+"
-pnpm sad:test 2>&1 | grep -E "Tests +[0-9]+"
+pnpm typecheck && pnpm test 2>&1 | sed 's/\x1b\[[0-9;]*m//g' | grep -E "Test Files|Tests +[0-9]+"
+pnpm sad:test 2>&1 | sed 's/\x1b\[[0-9;]*m//g' | grep -E "Tests +[0-9]+"
 pnpm docs:check 2>&1 | tail -3
 git ls-files apps/web/src/features/rules-board | wc -l
 git ls-files apps/web/src/features/rules | wc -l
@@ -129,33 +176,54 @@ git grep -n "^type Choice = { id: string; name: string }" -- apps/web/src/featur
 git grep -nw "firstMetric" -- apps/web/src | wc -l
 git grep -n "'rule-binding-" -- apps/web/src | wc -l
 git grep -n -A3 "'rule-binding-" -- apps/web/src | grep "(signal) =>"
+git hash-object apps/api/src/modules/rules/rules-human.controller.ts apps/api/src/modules/rules/rules-human.service.ts apps/api/src/modules/rules/rules-source-operations.controller.ts apps/web/src/features/rules-board/rule-output-fields.tsx apps/web/src/features/rules-board/rule-condition-rows.tsx apps/web/src/features/rules-board/rule-drawer-shared.ts apps/web/src/features/rules-board/rule-board-model.ts apps/web/src/features/analytics/rule-editor.tsx apps/web/src/features/analytics/human-review-workspace.tsx apps/web/src/features/analytics/rule-condition-editor.tsx apps/web/src/features/projects/project-rules-panel.tsx apps/web/src/lib/services/rules-human-client.ts | cut -c1-8
 git grep -n "project-rules-panel" -- apps/web/src
 grep -n "indexedFeatures\|index.ts\|surface\|'projects'" apps/web/src/import-direction.test.ts
 grep -n "route page\|Route page" docs/cr-pathways-codebase-modularization.md
 git checkout -- apps/web/next-env.d.ts
-pnpm --filter @pathways/web build > .tmp/s7a/web-build-baseline.log 2>&1; echo "exit $?"
-grep -E "Middleware|/alerts|/recommendations/|/projects/\[projectId\]/monitor-evaluate" .tmp/s7a/web-build-baseline.log
+chmod +x .tmp/s7a/build-routes.sh
+.tmp/s7a/build-routes.sh baseline
+cp .tmp/s7a/routes-baseline.txt .tmp/s7a/routes-M0.txt
+grep -E "/alerts|/recommendations/|/projects/\[projectId\]/(monitor-evaluate|budget|evidence)" .tmp/s7a/routes-baseline.txt
 git checkout -- apps/web/next-env.d.ts
 ```
 
-Expected: typecheck clean; write down each package's passing and skipped test counts (`B_config`, `B_shared`, `B_imports`, `B_api`, `B_web`) and the sad count (`B_sad`); write down the docs check failure count; web build exit 0, and write down the `Middleware` size (`M0`) and the First Load JS of `/alerts`, `/alerts/repository`, `/recommendations/[recommendationId]` and `/projects/[projectId]/monitor-evaluate` (`R0`, four numbers). At `a101ad7c` the greps print, in order: `14`, `0`, `2`, `20`, `19`, `9`, `4`, `22`, `7`, `9`, `2`, `2`, `2`, `6`; then six fetcher lines (three per file, the same three in `rule-condition-rows.tsx` and `rule-editor.tsx`; at `a101ad7c` they call `pathwaysClient.getProjectIndicators`, `getActivities` and `getActivityContext`, and S2 or S3b may have changed the client, which is fine as long as both files match); then the four `project-rules-panel` lines (the panel, its test, the project review workspace and its test mock, at whatever path S1b gave them); then the direction test grep, which at `a101ad7c` prints nothing and after S1b prints the lines of its feature surface rule (write down the name of its feature list; Task 6 Step 1 adds `'rules'` to it); then the CR grep, which at `a101ad7c` prints nothing: if it prints a section 9 decision that route pages keep importing component files, Task 6 follows it (ruling 3). Any other difference: stop and report, because the counts below were taken at `a101ad7c`.
+Expected: typecheck clean; config 19, shared 380, imports 94, api 2587 passed and 21 skipped, sad 57, docs check 6 failures and 1 warning, web 224 files and 1998 tests before S4b, S5b and S6b (take their gate lines from `docs/activity-log.md` for the web figure), web build exit 0 and `Middleware` 103 kB in this container (102 kB on Windows). These are the S3b summary numbers plus S4a, S5a and S6a as counted by the earlier pre-flights, so the latest gate line in `docs/activity-log.md` wins if it differs. Write down `B_config`, `B_shared`, `B_imports`, `B_api`, `B_web`, `B_sad`, the docs check failure count and `M0`; the route table of `.tmp/s7a/routes-baseline.txt` replaces `R0`. The baseline build can take ten minutes; if it exits non-zero, copy `apps/web/.env.example` to `apps/web/.env.local` and retry (the S3b pre-flight found this). At `a101ad7c` and at the S3b tip the greps print, in order: `14`, `0`, `2`, `20`, `19`, `9`, `4`, `22`, `7`, `9`, `2`, `2`, `2`, `6`; then six fetcher lines (three per file, the same three in `rule-condition-rows.tsx` and `rule-editor.tsx`; at `a101ad7c` they call `pathwaysClient.getProjectIndicators`, `getActivities` and `getActivityContext`, and S2 or S3b may have changed the client, which is fine as long as both files match); then the 12 hash prefixes listed after this paragraph; then the four `project-rules-panel` lines (the project review workspace import and its test mock under `features/projects/components/`, the panel's own test import, and the path string in `ui-copy-cleanup.contract.test.ts`); then the direction test grep, which prints S1b's surface rule (`indexedFeatures`, currently `['projects']` plus whatever S4b, S5b and S6b appended; Task 6 Step 1 appends `'rules'` to it); then the CR grep, which prints CR 3.3 and the S1b section 9 line (both say route pages import a feature through its index, which ruling 3 follows); only a line saying route pages keep importing component files changes Task 6 (ruling 3). Any other difference: stop and report, because the counts below were taken at `a101ad7c`.
+
+The hashes print these prefixes, in the order of the files in the command (a CRLF checkout would differ; the cloud container is LF); any other hash means a later slice edited that file: stop and report.
+
+```text
+3fb1a2b6 rules-human.controller.ts
+bb1f236e rules-human.service.ts
+86e13390 rules-source-operations.controller.ts
+35952fd0 rule-output-fields.tsx
+de5f0abb rule-condition-rows.tsx
+4ffb4e3a rule-drawer-shared.ts
+85afa644 rule-board-model.ts
+a1800e54 rule-editor.tsx
+4ef98e74 human-review-workspace.tsx
+522365c4 rule-condition-editor.tsx
+af8bfc5d project-rules-panel.tsx
+56a60d8c rules-human-client.ts
+```
 
 - [ ] **Step 3: Add the plan and commit**
 
-The controller has saved this plan as `docs/superpowers/plans/2026-10-12-modularization-s7-analytics-rules.md`.
+Copy this plan: `cp docs/handoff/modularization-s7-analytics-rules.md docs/superpowers/plans/$(date +%F)-modularization-s7-analytics-rules.md`. The handoff copy and its index row stay.
 
-In `docs/index.md` section 1.6, add as the last row of the table (and delete any earlier modularization plan row found in Step 1, with `git rm` of that plan):
+In `docs/index.md` section 1.6, add as the last row of the table (the `handoff/` rows and the other slices' rows stay):
 
 ```markdown
-| [S7 analytics, dashboards and rules plan](superpowers/plans/2026-10-12-modularization-s7-analytics-rules.md) | 2026-10-12-modularization-s7-analytics-rules.md | 2026-10-12 | S7 of the codebase modularization: S7a features/rules, lib/api/rules, rule-binding reads and one rules controller per file; S7b outline | In progress |
+| [S7 analytics, dashboards and rules plan](superpowers/plans/<date>-modularization-s7-analytics-rules.md) | <date>-modularization-s7-analytics-rules.md | <date> | S7 of the codebase modularization: S7a features/rules, lib/api/rules, rule-binding reads and one rules controller per file; S7b outline | In progress |
 ```
 
 ```bash
-git add docs/superpowers/plans/2026-10-12-modularization-s7-analytics-rules.md docs/index.md
+git add docs/superpowers/plans docs/index.md
 pnpm docs:check 2>&1 | tail -3
 git commit -m "docs: add the S7 analytics, dashboards and rules plan
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015GXgWsghnfykNXQ8sJ5BRx"
 ```
 
 Expected: docs check failure count equals the Step 2 baseline.
@@ -301,7 +369,8 @@ git checkout -- apps/web/next-env.d.ts
 git add apps/api/src/modules/rules
 git commit -m "refactor(api): use requestIdentity and Tx in the rules module
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015GXgWsghnfykNXQ8sJ5BRx"
 ```
 
 Expected: all pass, including both route tests.
@@ -499,7 +568,8 @@ git add -A apps/api/src/modules/rules
 git status --short apps/api/src/modules/rules
 git commit -m "refactor(api): one controller per file in the rules module
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015GXgWsghnfykNXQ8sJ5BRx"
 ```
 
 Expected: all pass; api = `B_api + 2`. If `src/app-module-wiring.test.ts` is not at that path, run `git ls-files apps/api/src | grep wiring` and pass the listed file.
@@ -581,7 +651,8 @@ git commit -m "refactor(web): write the rule recommendation key separator as an 
 
 The two literal NUL characters become the same string written as an escape, so git stops treating the file as binary.
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015GXgWsghnfykNXQ8sJ5BRx"
 git grep -I -l "" -- $F
 ```
 
@@ -750,7 +821,8 @@ git commit -m "refactor(web): move the rules board, rule and review screens into
 
 Thirty files move unchanged; 26 specifiers follow, including one route page test mock and the project review workspace mock.
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015GXgWsghnfykNXQ8sJ5BRx"
 ```
 
 Expected: all pass (Biome reorders the rewritten import lines in about seven files); `30` renames.
@@ -783,7 +855,7 @@ git grep -nwE "Owned[A-Za-z]+|label|instant" -- $C/rule-condition-editor.tsx $C/
 node .tmp/s7a/same-lines.mjs $C/rule-condition-editor.tsx $C/human-review-workspace.tsx $C/rule-drawer.tsx $C/rule-editor.tsx $C/rule-test-workspace.tsx $C/human-review-action.tsx label=metricLabel copy=codeLabel instant=manilaTime OwnedDrawer=RuleDrawerForm OwnedRuleEditor=RuleEditorForm OwnedRuleTest=RuleTestForm OwnedAction=HumanReviewActionForm
 ```
 
-Expected: `12`; the grep prints nothing; `same-lines.mjs` prints exactly one line, `before 1x, after 0x: const metricLabel = (value: string) => metricLabel(value)` (the deleted wrapper, renamed by the check itself), and exits 1. Any other line: stop.
+Expected: `10`; the grep prints nothing; `same-lines.mjs` prints exactly one line, `before 1x, after 0x: const metricLabel = (value: string) => metricLabel(value)` (the deleted wrapper, renamed by the check itself), and exits 1. Any other line: stop.
 
 ```bash
 pnpm exec biome check --write $C
@@ -795,7 +867,8 @@ git commit -m "refactor(web): name the rules screens and helpers for their purpo
 
 Owned* screens become *Form, copy and instant become codeLabel and manilaTime, and the label wrapper gives way to metricLabel.
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015GXgWsghnfykNXQ8sJ5BRx"
 ```
 
 Expected: all pass.
@@ -1180,7 +1253,8 @@ git commit -m "refactor(web): split the rules files into utils, copy, hooks and 
 
 Declarations move verbatim; rule-drawer-shared.ts and rule-output-fields.tsx are emptied and removed.
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015GXgWsghnfykNXQ8sJ5BRx"
 ```
 
 Expected: all pass (Biome fixes about 16 files' import order and wraps); web = `B_web + 1` (the Task 2 test). `wc -l` in the dry run: `rules.utils.ts` 248, `human-review-workspace.tsx` 493, `rule-editor.tsx` 635, every new file under 140.
@@ -1277,8 +1351,6 @@ describe('rule binding reads', () => {
 })
 ```
 
-The mock path is F4b's home of `useAuthorizedRead`; the dry run (before F4b) mocked `@/providers/authorized-query-provider`. If Step 4 shows `rules.reads.ts` importing `useAuthorizedRead` from elsewhere, mock that path.
-
 Run: `pnpm --filter @pathways/web exec vitest run src/features/rules/rules.utils.test.ts src/features/rules/rules.reads.test.ts`
 Expected: FAIL: `alertSeverityRank` is not exported and `./rules.reads` cannot be resolved.
 
@@ -1315,7 +1387,7 @@ const severityRank = (value: string) => SEVERITY_RANK[value] ?? 4
 git grep -n "SEVERITY_RANK\|severityRank\|firstMetric\|^type Choice" -- apps/web/src/features/rules
 ```
 
-Expected: only the two `alertSeverityRank(` calls, its declaration, its test lines and `export type Choice` in `rules.utils.ts`.
+Expected: nothing (the pattern is case sensitive, so `alertSeverityRank` and `export type Choice` do not match); `git grep -n "alertSeverityRank" -- apps/web/src/features/rules` prints the import, the two calls, the declaration and the test lines.
 
 - [ ] **Step 4: Move the rule-binding reads into rules.reads.ts**
 
@@ -1388,7 +1460,7 @@ git grep -n "'rule-binding-" -- apps/web/src
 cat apps/web/src/features/rules/rules.reads.ts
 ```
 
-Expected: `hooks/use-binding-choices.ts: 3 reads replaced`, `components/rule-editor.tsx: 3 reads replaced`, then the three fetchers (dry run: `(signal) => pathwaysClient.getProjectIndicators(scopeProjectId ?? '', signal)`, `(signal) => pathwaysClient.getActivities(scopeProjectId ?? '', signal)`, `(signal) => pathwaysClient.getActivityContext(scopeProjectId ?? '', signal)`; after S2b the last two are `activitiesClient.getActivities(...)` and `activitiesClient.getActivityContext(...)`, and after S3b the first is `(signal) => indicatorsClient.getProjectIndicators(scopeProjectId ?? '', signal)` from `@/lib/api/indicators`, and `rule-editor.test.tsx` mocks that module plus an empty `pathwaysClient` factory instead of `pathwaysClient.getProjectIndicators`). The grep prints three lines, all in `rules.reads.ts`. The file holds two imports (the client of each fetcher and `useAuthorizedRead`, both from the paths `use-binding-choices.ts` used) and the three hooks, each passing `enabled` as the fifth argument. If the script stops with `fetchers differ`, the two copies were not duplicates any more: stop and report. In the callers each enabled expression stays where it was, so `use-binding-choices.ts` still passes `needs(...)` and `rule-editor.tsx` its `Boolean(...)` expressions.
+Expected: `hooks/use-binding-choices.ts: 3 reads replaced`, `components/rule-editor.tsx: 3 reads replaced`, then the three fetchers (dry run: `(signal) => pathwaysClient.getProjectIndicators(scopeProjectId ?? '', signal)`, `(signal) => pathwaysClient.getActivities(scopeProjectId ?? '', signal)`, `(signal) => pathwaysClient.getActivityContext(scopeProjectId ?? '', signal)`; after S2b the last two are `activitiesClient.getActivities(...)` and `activitiesClient.getActivityContext(...)`, and after S3b the first is `(signal) => indicatorsClient.getProjectIndicators(scopeProjectId ?? '', signal)` from `@/lib/api/indicators`, and `rule-editor.test.tsx` mocks that module plus an empty `pathwaysClient` factory instead of `pathwaysClient.getProjectIndicators`). The grep prints three lines, all in `rules.reads.ts`. The file holds three imports (`useAuthorizedRead`, `activitiesClient` and `indicatorsClient`, from the paths `use-binding-choices.ts` used) and the three hooks, each passing `enabled` as the fifth argument. If the script stops with `fetchers differ`, the two copies were not duplicates any more: stop and report. In the callers each enabled expression stays where it was, so `use-binding-choices.ts` still passes `needs(...)` and `rule-editor.tsx` its `Boolean(...)` expressions.
 
 - [ ] **Step 5: Run the tests and commit**
 
@@ -1404,7 +1476,8 @@ git commit -m "refactor(web): share the rule-binding reads and the alert severit
 
 The two copies of the three rule-binding reads become rules.reads hooks with the same keys, scopes, permissions and enabled flags; the queue rank reads shared alertSeverities; a duplicate type and a dead helper go.
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015GXgWsghnfykNXQ8sJ5BRx"
 ```
 
 Expected: all pass, including the unchanged `rule-drawer.test.tsx` and `rule-editor.test.tsx` cases (Review Focus 5); web = `B_web + 4`.
@@ -1483,7 +1556,8 @@ git commit -m "refactor(web): move the rules client to lib/api/rules
 
 Twenty-two specifiers in 21 files follow, nine of them test mocks.
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015GXgWsghnfykNXQ8sJ5BRx"
 ```
 
 Expected: all pass (Biome reorders about ten import blocks); two `R` renames.
@@ -1495,6 +1569,7 @@ Expected: all pass (Biome reorders about ten import blocks); two `R` renames.
 **Files:**
 - Create: `apps/web/src/features/rules/index.ts`
 - Test: `apps/web/src/import-direction.test.ts` (feature surface rule)
+- Modify: `apps/web/next.config.ts` (`optimizePackageImports`)
 - Modify (specifier and mock path only): `apps/web/src/app/(dashboard)/alerts/page.tsx`, `apps/web/src/app/(dashboard)/alerts/repository/page.tsx`, `apps/web/src/app/(dashboard)/recommendations/[recommendationId]/page.tsx`, `apps/web/src/app/(dashboard)/recommendations/[recommendationId]/page.test.tsx`, the project review workspace and its test
 
 **Interfaces:**
@@ -1503,7 +1578,17 @@ Expected: all pass (Biome reorders about ten import blocks); two `R` renames.
 
 - [ ] **Step 1: Write the failing surface rule**
 
-If Task 0 Step 2 printed a feature surface rule that S1b added, add `'rules'` to its feature list, skip the code below, and expect the same four failures in the run (its message text may differ). S1b's test also requires every indexed feature in `experimental.optimizePackageImports` in `apps/web/next.config.ts`, so add `'@/features/rules'` to that list in this task and measure the four rules routes against Task 0. Otherwise, in `apps/web/src/import-direction.test.ts`, add directly above the comment `// Non-test TypeScript files under a folder; tests may import fixtures across layers.`:
+S1b's surface rule exists (Task 0 Step 2 printed it), so skip the code further below and run:
+
+```bash
+sed -i "s#\(const indexedFeatures: readonly string\[\] = \[[^]]*\)\]#\1, 'rules']#" apps/web/src/import-direction.test.ts
+sed -i "s#optimizePackageImports: \[\([^]]*\)\]#optimizePackageImports: [\1, '@/features/rules']#" apps/web/next.config.ts
+git grep -n "const indexedFeatures\|optimizePackageImports" -- apps/web/src/import-direction.test.ts apps/web/next.config.ts
+```
+
+Expected: the first line reads `const indexedFeatures: readonly string[] = ['projects', 'rules']` (plus any feature S4b, S5b and S6b appended) and the second `optimizePackageImports: ['@/features/projects', '@/features/rules']`. Then run the command under Run below, after these two edits and before the index exists: the detection and optimize tests pass and the scan fails with exactly the four entries listed there.
+
+If S1b's rule is absent instead, in `apps/web/src/import-direction.test.ts`, add directly above the comment `// Non-test TypeScript files under a folder; tests may import fixtures across layers.`:
 
 ```ts
 // Features whose index.ts is their only surface for files outside them (CR section 3.3).
@@ -1576,7 +1661,7 @@ Expected: the detection test passes; the scan FAILS with exactly these four entr
 app/(dashboard)/alerts/page.tsx -> @/features/rules/components/alerts-workspace (import features/rules only through its index)
 app/(dashboard)/alerts/repository/page.tsx -> @/features/rules/components/rules-board (import features/rules only through its index)
 app/(dashboard)/recommendations/[recommendationId]/page.tsx -> @/features/rules/components/recommendations-workspace (import features/rules only through its index)
-features/projects/project-review-workspace.tsx -> @/features/rules/components/project-rules-panel (import features/rules only through its index)
+features/projects/components/project-review-workspace.tsx -> @/features/rules/components/project-rules-panel (import features/rules only through its index)
 ```
 
 - [ ] **Step 2: Add the index and repoint the four importers**
@@ -1605,27 +1690,27 @@ apps/web/src/app/(dashboard)/alerts/page.tsx:3:import { AlertsWorkspace } from '
 apps/web/src/app/(dashboard)/alerts/repository/page.tsx:1:import { RulesBoard } from '@/features/rules'
 apps/web/src/app/(dashboard)/recommendations/[recommendationId]/page.test.tsx:6:vi.mock('@/features/rules', () => ({
 apps/web/src/app/(dashboard)/recommendations/[recommendationId]/page.tsx:1:import { RecommendationsWorkspace } from '@/features/rules'
-apps/web/src/features/projects/project-review-workspace.test.tsx:63:vi.mock('@/features/rules', () => ({
-apps/web/src/features/projects/project-review-workspace.tsx:4:import { ProjectRulesPanel } from '@/features/rules'
+apps/web/src/features/projects/components/project-review-workspace.test.tsx:64:vi.mock('@/features/rules', () => ({
+apps/web/src/features/projects/components/project-review-workspace.tsx:6:import { ProjectRulesPanel } from '@/features/rules'
 ```
 
-then one line, `apps/web/src/features/ui-copy-cleanup.contract.test.ts:73:      'features/rules/components/project-rules-panel.tsx',` (a file path string the copy contract reads, not an import). Each of the two mock factories returns the one name its subject imports from the index (`RecommendationsWorkspace`, `ProjectRulesPanel`), so both mocks still apply (Review Focus 1).
+then one line, `apps/web/src/features/ui-copy-cleanup.contract.test.ts:79:      'features/rules/components/project-rules-panel.tsx',` (a file path string the copy contract reads, not an import). Each of the two mock factories returns the one name its subject imports from the index (`RecommendationsWorkspace`, `ProjectRulesPanel`), so both mocks still apply (Review Focus 1). Line numbers shift with earlier slices; the files and import names are what to compare.
 
 - [ ] **Step 3: Run the tests and compare the route bundles**
 
 ```bash
 git add -A apps/web
-pnpm exec biome check --write apps/web/src/import-direction.test.ts apps/web/src/features/rules/index.ts $(git diff --cached --name-only --diff-filter=AMR -- apps/web/src/app apps/web/src/features/projects)
+pnpm exec biome check --write apps/web/src/import-direction.test.ts apps/web/next.config.ts apps/web/src/features/rules/index.ts $(git diff --cached --name-only --diff-filter=AMR -- apps/web/src/app apps/web/src/features/projects)
 pnpm --filter @pathways/web exec vitest run src/import-direction.test.ts src/features/projects src/features/rules "src/app/(dashboard)/recommendations"
 pnpm typecheck && pnpm lint
 pnpm --filter @pathways/web test 2>&1 | grep -E "Tests +[0-9]+"
 git checkout -- apps/web/next-env.d.ts
-pnpm --filter @pathways/web build > .tmp/s7a/web-build-task6.log 2>&1; echo "exit $?"
-grep -E "Middleware|/alerts|/recommendations/|/projects/\[projectId\]/monitor-evaluate" .tmp/s7a/web-build-task6.log
+.tmp/s7a/build-routes.sh task6
+node .tmp/s7a/compare-routes.mjs .tmp/s7a/routes-baseline.txt .tmp/s7a/routes-task6.txt
 git checkout -- apps/web/next-env.d.ts
 ```
 
-Expected: all pass; web = `B_web + 6` (with S1b's rule extended instead, `B_web + 4`); build exit 0; `Middleware` equals `M0` and each of the four First Load JS figures is at most its `R0` value. If any route grows, stop without committing and report the four before and after figures: ruling 3 leaves that trade to the controller.
+Expected: all pass; web = `B_web + 6` (with S1b's rule extended instead, `B_web + 4`); build exit 0; `Middleware` equals `M0`; the comparison lists no route that grew by more than 1 kB (the four named routes, `/projects/[projectId]/budget` and `/evidence` included). If any route grows more, stop without committing and report the before and after figures: ruling 3 leaves that trade to the controller.
 
 - [ ] **Step 4: Commit**
 
@@ -1633,7 +1718,8 @@ Expected: all pass; web = `B_web + 6` (with S1b's rule extended instead, `B_web 
 git add -A apps/web
 git commit -m "refactor(web): give features/rules a public index and route its importers through it
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015GXgWsghnfykNXQ8sJ5BRx"
 ```
 
 ---
@@ -1680,18 +1766,20 @@ Expected: PASS; sad = `B_sad` (one test changed, none added).
 
 `docs/cr-pathways-codebase-modularization.md`:
 
-Section 3.3 table, replace the row `| <domain>.reads.ts | Authorized-read resource keys and fetchers |` (written with backticks around the file name) with `` | `<domain>.reads.ts` | Authorized-read resource keys, fetchers and the hooks that call them | `` (if S3b already amended that row the same way, leave it). Then run `grep -n "index.ts" docs/cr-pathways-codebase-modularization.md`: if no sentence in section 3.3 yet says that route pages import a feature through its index and which test enforces it (S1b may have added one), add after the paragraph starting `` `lib/rbac/{policy,routes,nav,transport}` are files ``:
+Section 3.3 table and section 3.7 row:
 
-```text
-Route pages under `app/` import a feature through its `index.ts`, like other features; the features listed in the surface rule of `apps/web/src/import-direction.test.ts` are enforced (amended 2026-10-12 for S7a).
+```bash
+sed -i 's#^| `<domain>.reads.ts` | Authorized-read resource keys and fetchers |$#| `<domain>.reads.ts` | Authorized-read resource keys, fetchers and the hooks that call them |#' docs/cr-pathways-codebase-modularization.md
+sed -i 's#^\(| S7 | Analytics, dashboards, rules | Merges rules-board and analytics rule files into `features/rules`\) |$#\1; split into S7a (rules) and S7b (analytics and dashboards) |#' docs/cr-pathways-codebase-modularization.md
+git diff --stat docs/cr-pathways-codebase-modularization.md
 ```
 
-Section 3.7, replace the S7 row reason cell `` Merges rules-board and analytics rule files into `features/rules` `` with `` Merges rules-board and analytics rule files into `features/rules`; split into S7a (rules) and S7b (analytics and dashboards) ``.
+Expected: each sed changes exactly one row. The route-page sentence already exists in section 3.3 (S1b added it), so add none.
 
 Section 9, append:
 
 ```markdown
-S7a applied <date> on refactor/s7a-rules:
+S7a applied <date> on the S7a slice branch:
 - Feature: 30 files from `features/rules-board`, the analytics rule and review screens and `features/projects/project-rules-panel.tsx` moved to `features/rules` (`components/`, `hooks/`, `rules.utils.ts`, `rules.copy.ts`, `rules.reads.ts`, `rule-templates.ts`, `index.ts`); analytics and rules no longer import each other.
 - Split: one exported component per file; `rule-drawer-shared.ts` and `rule-output-fields.tsx` were emptied and removed; `Owned*` screens became `*Form`; declarations moved verbatim (`same lines: <n>`).
 - Duplicates: the two copies of the three `rule-binding-*` reads became `rules.reads` hooks with the same keys, scopes, permissions and enabled flags; `SEVERITY_RANK` became `alertSeverityRank` over shared `alertSeverities`; a duplicate `Choice` type and the dead `firstMetric` were removed; the literal NUL key separator became an escape.
@@ -1699,47 +1787,58 @@ S7a applied <date> on refactor/s7a-rules:
 - Surface: `features/rules/index.ts` exports `AlertsWorkspace`, `RulesBoard`, `RecommendationsWorkspace` and `ProjectRulesPanel`; the three route pages and the project review workspace import it; `import-direction.test.ts` lists `rules` among the indexed features; route First Load JS unchanged (`<sizes>`).
 - Api: four controllers in `rules-human.controller.ts` became one per file; the five rules controllers use `requestIdentity`; seven `Prisma.TransactionClient` annotations became `Tx`; `rules.routes.test.ts` pins 23 routes and the 403 without identity.
 - SAD: rule-engine determinism routing covers `apps/web/src/features/rules/**`.
-- Decisions: split into S7a and S7b by domain (ruling 1); route pages import `features/rules` through its index, as S1b does (ruling 3); three rules files stay above 500 lines, `rule-editor.tsx` (631), `rule-test-workspace.tsx` (603) and `rules-board.tsx` (503), because each is one stateful body (ruling 4); the client keeps the name `rulesHumanClient` (ruling 9); no contract or DTO work, because the rules api has no DTO (ruling 13).
+- Decisions: split into S7a and S7b by domain (ruling 1); route pages import `features/rules` through its index, as S1b does (ruling 3); three rules files stay above 500 lines, `rule-editor.tsx` (<n1>), `rule-test-workspace.tsx` (<n2>) and `rules-board.tsx` (<n3>), because each is one stateful body (ruling 4); the client keeps the name `rulesHumanClient` (ruling 9); no contract or DTO work, because the rules api has no DTO (ruling 13).
 
 Deferred to S7b: analytics and dashboards api, web and the shared `monitoring` folder, including `dashboards.dto.ts`, the `descriptive-analytics` and `role-overview` splits, `requestIdentity` and `Tx` in the five analytics and dashboards controllers and their services, the stored project status union copies (three of them in `packages/shared/src/rules`), the `dashboards <-> reports` module pair, `analytics-dashboard.tsx`, `DashboardSeverity` and the analytics and dashboard indexes.
 ```
 
-Replace `<date>` with today's date, `<n>` with the Task 3 Step 3 count and `<sizes>` with the four Task 6 figures.
+Replace `<date>` with today's date, `<n>` with the Task 3 Step 3 count and `<sizes>` with the `routes <n>, different <n>` line of the Task 6 comparison. `<n1>`, `<n2>` and `<n3>` are the `wc -l` figures of those three files after Task 5.
 
 - [ ] **Step 3: Update the audit, living docs and index**
 
-- Audit: append to the disposition cell of MOD-15 `; rules part closed by S7a (features/rules, index).`, of MOD-16 `; rule-binding read keys closed by S7a.`, and of MOD-17 `; rules controllers and Owned* rules screens closed by S7a.`
+- Audit: in `docs/audit-pathways-codebase-modularity-20261009.md`, replace the final period of each disposition cell:
+
+```bash
+sed -i -e '/^| MOD-15 /s/\. |$/; rules part closed by S7a (features\/rules, index). |/' \
+  -e '/^| MOD-16 /s/\. |$/; rule-binding read keys closed by S7a. |/' \
+  -e '/^| MOD-17 /s/\. |$/; rules controllers and Owned* rules screens closed by S7a. |/' \
+  docs/audit-pathways-codebase-modularity-20261009.md
+git diff --stat docs/audit-pathways-codebase-modularity-20261009.md
+```
+
+Expected: `1 file changed, 3 insertions(+), 3 deletions(-)`; each of the three rows now ends `... by S3b; rules part closed by S7a (features/rules, index). |`, `... by S3b; rule-binding read keys closed by S7a. |` and `... by S2b; rules controllers and Owned* rules screens closed by S7a. |` (the text before the `;` is whatever the earlier slices left; the sed replaces only the final period).
 - `docs/qad-pathways.md` and `docs/deferred-features.md`:
 
 ```bash
 sed -i -e 's#apps/web/src/features/analytics/recommendation-detail-workspace\.test\.tsx#apps/web/src/features/rules/components/human-review-workspace.recommendations.test.tsx#g' -e 's#apps/web/src/features/analytics/human-review-action\.test\.tsx#apps/web/src/features/rules/components/human-review-action.test.tsx#g' docs/qad-pathways.md
 sed -i '37s#apps/web/src/features/analytics/rule-editor\.tsx#apps/web/src/features/rules/components/rule-editor.tsx#' docs/deferred-features.md
-git grep -nE "features/rules-board|features/analytics/(rule-|human-review|alerts-workspace|recommendations-workspace|linked-alert|recommendation-detail)|projects/project-rules-panel|rules-human-client|rules-human\.controller" -- docs ':!docs/activity-log.md' ':!docs/audit-*' ':!docs/cr-*' ':!docs/superpowers/*'
+git grep -nE "features/rules-board|features/analytics/(rule-|human-review|alerts-workspace|recommendations-workspace|linked-alert|recommendation-detail)|projects/project-rules-panel|rules-human-client|rules-human\.controller" -- docs ':!docs/activity-log.md' ':!docs/audit-*' ':!docs/cr-*' ':!docs/superpowers/*' ':!docs/handoff'
 ```
 
 Expected: the grep prints only `docs/deferred-features.md:20`, a historical removal record whose restore instructions name the paths at commit `98a9004`, kept on purpose. Check line 37 still names `UNFINISHED_CONTROLS_UI_ENABLED`, which `rule-editor.tsx` still reads.
 
-- `docs/index.md`: in the CR row status keep the applied list the previous slice wrote, add S7a to it and end with `S7b next`.
+- `docs/index.md`: in the CR row (the one linking `cr-pathways-codebase-modularization.md`) read the status after S6b, add S7a to the applied list and end with `S7b next`, for example `Approved; F1 to F4b, S1a, S1b, S2a, S2b, S3a, S3b, S4a, S4b, S5a, S5b, S6a, S6b and S7a applied, S7b next`; keep any earlier slice part that is still open.
 
 - [ ] **Step 4: Activity log**
 
 Add to `docs/activity-log.md`:
 
 ```markdown
-## <date> Modularization S7a rules (refactor/s7a-rules)
+## <date> Modularization S7a rules (<slice branch>)
 ```
 
-with one bullet per Task 1 to Task 6 stating what moved, split or was added, with its commit hash and the api and web test counts at the end of that task; a bullet saying the S7a decisions are recorded in the change record section 9 (the plan stays until S7b is planned, because it holds the S7b outline); a bullet listing the S7b deferrals; and a bullet for the controller: S8a must start only after S7b merges, because its Task 0 merge grep `Merge refactor/s7` is already satisfied by S7a (Risks). Task 8 Step 5 appends the gate results.
+`<date>` is the day Task 7 runs (`date +%F`). Under it, one bullet per Task 1 to Task 6 stating what moved, split or was added, with its commit hash and the api and web test counts at the end of that task; a bullet saying the S7a decisions are recorded in the change record section 9 (the plan stays until S7b is planned, because it holds the S7b outline); a bullet listing the S7b deferrals; and a bullet for the controller: S8a must start only after S7b merges, because its Task 0 merge check (a `Merge refactor/s7` line, or the S7a markers under the pull request flow) is already satisfied by S7a (Risks). Task 8 Step 5 appends the gate results.
 
 - [ ] **Step 5: Check and commit**
 
 ```bash
 pnpm docs:check 2>&1 | tail -3
 pnpm lint
-git add docs scripts/sad
+git add docs/sad-pathways.md docs/cr-pathways-codebase-modularization.md docs/audit-pathways-codebase-modularity-20261009.md docs/qad-pathways.md docs/deferred-features.md docs/index.md docs/activity-log.md scripts/sad
 git commit -m "docs: record modularization S7a and route features/rules to the determinism checker
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015GXgWsghnfykNXQ8sJ5BRx"
 ```
 
 Expected: docs check failure count equals the Task 0 baseline.
@@ -1751,26 +1850,28 @@ Expected: docs check failure count equals the Task 0 baseline.
 - [ ] **Step 1: Static gates**
 
 ```bash
-pnpm install --frozen-lockfile && pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm sad:test
+pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm sad:test
 git checkout -- apps/web/next-env.d.ts
-pnpm --filter @pathways/web build > .tmp/s7a/web-build-gates.log 2>&1; echo "exit $?"
-grep -E "Middleware|/alerts|/recommendations/|/projects/\[projectId\]/monitor-evaluate" .tmp/s7a/web-build-gates.log
+.tmp/s7a/build-routes.sh gates
+node .tmp/s7a/compare-routes.mjs .tmp/s7a/routes-baseline.txt .tmp/s7a/routes-gates.txt
 git checkout -- apps/web/next-env.d.ts
 ```
 
-Expected: all pass; web build exit 0, `Middleware` equal to `M0` and the four route First Load JS figures at most `R0` (Task 6 checked them; Task 7 changes no web source). Versus Task 0: api = `B_api + 2`, web = `B_web + 6` (or `+ 4`, Task 6), sad = `B_sad`, config, shared and imports unchanged.
+Install: (skip in the cloud container; deps are installed), as in Task 0 Step 1.
+
+Expected: all pass; web build exit 0, `Middleware` equal to `M0` (the script prints it) and the comparison lists no route that grew by more than 1 kB (Task 6 checked it; Task 7 changes no web source). Versus Task 0: api = `B_api + 2`, web = `B_web + 6` (or `+ 4`, Task 6), sad = `B_sad`, config, shared and imports unchanged.
 
 - [ ] **Step 2: Local DB replay**
 
-```powershell
-./infra/supabase/phase6/Replay-Local.ps1 -MigrationBaseline
+```bash
+pwsh ./infra/supabase/phase6/Replay-Local.ps1 -MigrationBaseline
 ```
 
-Expected: exit 0. (After W1 the folder is `replay/`; S7a runs before W1.)
+Expected: exit 0. If PostgreSQL 18 is not installed at /usr/lib/postgresql/18/bin, the pull request CI replay is the gate (expect 171 PASS, 0 FAIL); record which one ran. (After W1 the folder is `replay/`; S7a runs before W1.)
 
 - [ ] **Step 3: Local stack, compiled API boot, e2e and smoke**
 
-Stop anything on ports 3000 and 4000 first.
+If supabase or Docker is missing, record Step 3 (seeds, pnpm dev:local boot and the route curls, both Playwright configs and the browser smoke) as pending local run in the activity log gate line and list it for the developer; do not skip Steps 1, 2 or 4. Stop anything on ports 3000 and 4000 first.
 
 ```bash
 pnpm db:local:start && pnpm db:local:reset && pnpm db:local:demo
@@ -1791,56 +1892,54 @@ Expected: `"status":"ok"`; each rules path answers 401 (registered and guarded),
 - [ ] **Step 4: SAD review**
 
 ```bash
-pnpm sad:check --base dev --head HEAD --output .tmp/sad/s7a/manifest.json
+pnpm sad:check --base "$(cat .tmp/s7a/base-sha)" --head HEAD --output .tmp/sad/s7a/manifest.json
 ```
 
-Dispatch every role the manifest requires (expect `design-qa-agent`, `restraint-guardian` for `scripts/sad`, `organization-isolation-checker` for `rules-human.service.ts` and `rules-source-operations.service.ts` reach, `beneficiary-privacy-guardian` for the controllers and `lib/api/rules.ts`, and `rule-engine-determinism-checker` for `modules/rules` and `features/rules`) with the section 4.2 handoff packet from `docs/sad-pathways.md`, save their section 4.4 envelopes to `.tmp/sad/s7a/reviews.json`, then:
+Dispatch every role the manifest requires (expect `design-qa-agent`, `restraint-guardian` for `scripts/sad`, `organization-isolation-checker` for `rules-human.service.ts`, `beneficiary-privacy-guardian` for the controllers and `lib/api/rules.ts`, and `rule-engine-determinism-checker` for `modules/rules` and `features/rules`) with the section 4.2 handoff packet from `docs/sad-pathways.md` (layout in `docs/handoff/sad-packet-example.md`; split a role above 60 paths, and `design-qa-agent` and `rule-engine-determinism-checker` will need it), transcribe each reply into `.tmp/sad/s7a/reply-<role>.txt`, copy `docs/handoff/sad-assemble.mjs` to `.tmp/sad/s7a/assemble.mjs`, run `node .tmp/sad/s7a/assemble.mjs` (it writes `reviews.json`), then:
 
 ```bash
-pnpm sad:signoff -- --base dev --head HEAD --reviews .tmp/sad/s7a/reviews.json
+pnpm sad:signoff -- --base "$(cat .tmp/s7a/base-sha)" --head HEAD --reviews .tmp/sad/s7a/reviews.json
 ```
 
 Expected: sign-off. Any finding is fixed on this branch and the affected gates rerun.
 
 - [ ] **Step 5: Record the gate results**
 
-Append a final bullet to the Task 7 activity-log section with the gate results (per-package counts, Middleware size, replay exit code, e2e pass counts, smoke result, SAD sign-off), then:
+Append a final bullet to the Task 7 activity-log section with the gate results (per-package counts, Middleware size, replay exit code or CI result, seed results, e2e pass counts and smoke result or pending local run, SAD sign-off), then:
 
 ```bash
 git add docs/activity-log.md
 git commit -m "docs: record modularization S7a release gate results
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015GXgWsghnfykNXQ8sJ5BRx"
 ```
 
-- [ ] **Step 6: Merge into local dev**
+- [ ] **Step 6: Pull request into dev**
+
+Push the slice branch and open one pull request into `dev` (or add S7a to the open pull request of the stack, as the rulings log says); wait for CI (replay, lint, typecheck, test, build, SAD checks) and record the result in the activity log gate line. Ask the developer to merge. Do not merge or push `dev`.
+
+- [ ] **Step 7: Keep the plan for S7b (after the developer merges)**
+
+The plan holds the S7b outline, so the `docs/superpowers/plans` copy stays after the merge (the `docs/handoff` copy stays too). In `docs/index.md` section 1.6 change the status of the `superpowers/plans` S7 row only (not the `handoff/` row) to `S7a executed; holds the S7b outline`, then:
 
 ```bash
-git checkout dev
-git merge --no-ff refactor/s7a-rules -m "Merge refactor/s7a-rules into dev
-
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
-```
-
-- [ ] **Step 7: Keep the plan for S7b**
-
-The plan holds the S7b outline, so it stays on dev (as the F4 plan did for F4b). In `docs/index.md` section 1.6 change the S7 plan row status to `S7a executed; holds the S7b outline`, then:
-
-```bash
+sed -i '/(superpowers\/plans\/.*modularization-s7-analytics-rules/s/| In progress |$/| S7a executed; holds the S7b outline |/' docs/index.md
 pnpm docs:check 2>&1 | tail -3
 git add docs/index.md
 git commit -m "docs: mark S7a executed in the plan index
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015GXgWsghnfykNXQ8sJ5BRx"
 ```
 
-Expected: docs check failure count equals the Task 0 baseline. Do not push `origin dev` until the developer says so.
+Expected: docs check failure count equals the Task 0 baseline.
 
 ---
 
-## S7b outline (analytics and dashboards, branch `refactor/s7b-analytics-dashboards`)
+## S7b outline (analytics and dashboards, its own slice branch)
 
-To be written as its own plan from dev after S7a merges; that plan's Task 0 removes this file and its index row. It holds about twelve tasks in two parts. If the written plan passes ten tasks, part 1 becomes S7b (`refactor/s7b-analytics-api`, evidence `.tmp/sad/s7b/`) and part 2 becomes S7c (`refactor/s7c-analytics-web`, evidence `.tmp/sad/s7c/`), each with its own records and gates task, and CR 3.7 and the S8 plan's merge grep are updated to name the last one. Counts below were taken at `a101ad7c` (source identical to dev `675a0b58`) and must be recounted in Task 0, because S1, S2, S3, S6 and F4b change files listed here.
+To be written as its own plan from dev after S7a merges; that plan's Task 0 removes the docs/superpowers/plans copy and its index row; the docs/handoff copy stays. It holds about twelve tasks in two parts. If the written plan passes ten tasks, part 1 becomes S7b (`refactor/s7b-analytics-api`, evidence `.tmp/sad/s7b/`) and part 2 becomes S7c (`refactor/s7c-analytics-web`, evidence `.tmp/sad/s7c/`), each with its own records and gates task, and CR 3.7 and the S8 plan's merge grep are updated to name the last one. Counts below were taken at `a101ad7c`; at the S3b tip with the S4a to S6a api effects `modules/dashboards` is 19 files and 4749 lines, `modules/rules` 31 and 4848, `features/analytics` 36 files and 9465 lines, `packages/shared/src/monitoring` 15 files and 2911 lines, `analytics-dashboard.tsx` 1745 lines and `*.dto.ts` files in the api 6; recount everything in Task 0.
 
 Interfaces assumed: S1 `requestIdentity` (`apps/api/src/common/authz/request-identity.ts`), `storedProjectStatuses` and `StoredProjectStatus` (`packages/shared/src/contracts/projects/project-requests.ts`), the projects index and its surface rule, and S1b's `projectsClient.getProjectMap` in `lib/api/projects.ts`; S3 `metricCellSchema` in `packages/shared/src/monitoring/metric-cell.ts`, `date` and `uuid` field schemas in `monitoring/metric-fields.ts` (outside the barrel), the dashboard and SADDD remainder of `metric-contract.ts`, and `monitoringSqlError` in `apps/api/src/modules/indicators/indicators.helpers.ts`; S6 the pair list `['dashboards <-> reports']` in `apps/api/src/common/import-boundary.test.ts` and `modules/reports/report-artifact.ts` staying in reports; F4b `useAuthorizedRead`, `lib/format` and `DashboardSeverity` left in `types/pathways.ts`; S7a `.tmp/s7a/{split-module,same-lines,move-modules,split-declarations}.mjs` (copy them from this plan), the `rules.routes.test.ts` pattern and the surface rule feature list.
 
@@ -1851,7 +1950,7 @@ Interfaces assumed: S1 `requestIdentity` (`apps/api/src/common/authz/request-ide
 - **Task 2, `modules/analytics` and the S6 pair:** `dashboards.dto.ts` is a zod parse helper (CR 3.2: no `*.dto.ts`); `parseSadddQuery` and `parseDashboardQuery` move verbatim to `dashboards.helpers.ts`, joined by `suppressSmallCount` and `SMALL_CELL_THRESHOLD` from `descriptive-analytics.ts` (pure, no DI), so `evaluations/evaluation-metrics.ts` and `projects/project-overview-metrics.service.ts` repoint to `../dashboards/dashboards.helpers`. `AnalyticsController`, `AnalyticsService`, `descriptive-analytics.ts` and their tests move out of `modules/dashboards`, and `modules/analytics-insights` merges in, as one `AnalyticsModule` in `modules/analytics/` importing `DashboardsModule` (which exports `DashboardsService`); `app.module.ts` lists `AnalyticsModule` in place of `AnalyticsInsightsModule`; `insights-math.ts` becomes `analytics-insights.helpers.ts`; `c8-runtime.local.test.ts` is renamed for what it tests, keeping `PATHWAYS_C8_LOCAL_TESTS` because scripts set it. Effect: `modules/dashboards` then imports only `indicators` and `rules`, so the `dashboards <-> reports` pair and the longer cycles through `dashboards` disappear without moving `report-artifact.ts` (S6 ruling 2), and the recorded pair list in `import-boundary.test.ts` becomes `[]`. The wiring test and the compiled API boot in the gates cover the module change.
 - **Task 3, `descriptive-analytics` split (F2 deferral):** the api file (435 lines) splits verbatim into `descriptive-analytics.helpers.ts` (the builder, about lines 21 to 189), `timeline-analytics.helpers.ts` (about 191 to 305) and `analytics-export.helpers.ts` (the CSV and table builders, about 307 to 435, plus `exportFormats`, `parseExportFormat` and `exportArtifact` from `analytics.service.ts`, which falls from 515 to about 460 lines; the moved logger keeps the context `AnalyticsService`). The three identical export header literals become one constant only after `descriptive-analytics.test.ts` pins each table's header.
 - **Task 4, `role-overview.service.ts` (545 lines):** the eight transaction readers (`projects`, `myActivities`, `flaggedProof`, `submissions`, `proofQueue`, `approvalQueue`, `myExtensions`, `extensionQueue`, none uses `this`) become exported functions taking `tx` in `role-overview-work.service.ts` and `role-overview-queues.service.ts` (S1 ruling 7 pattern); the class keeps `alerts` and `read`.
-- **Task 5, shared folder and status unions:** `monitoring/` has no place in CR 3.4. Move by `git mv`, names unchanged (everything goes through the barrel): the dashboard and SADDD remainder of `metric-contract.ts`, `action-counts.ts` and `role-overview.ts` (with `alertSeverities`) to `contracts/dashboards/`; `analytics-insights.ts` and `descriptive-analytics.ts` to `contracts/analytics/`, splitting the 558-line file verbatim into `descriptive-analytics.ts` (query and response, about lines 1 to 95), `survey-analytics.ts` (about 96 to 486) and `timeline-analytics.ts` (about 487 to 558) with `same-lines.mjs`; `overview-metrics.ts` and `project-map.ts` to `contracts/projects/` (S1 ruling 6); `metric-math.ts`, `metric-cell.ts` and `metric-fields.ts` to `metrics/` (`metric-fields.ts` stays out of the barrel, S3 ruling 3); `activity-extension.ts` to `contracts/activities/` unless S2b moved it (S2b Task 7 does, as `activityExtensionResponse`). After the `git mv`, repoint the relative imports that S3 and S4 left in `contracts/indicators/*` (`../../monitoring/metric-fields`, `../../monitoring/metric-cell`) and `contracts/beneficiaries/*` (`../../monitoring/metric-contract` for `sadddAgeBands`), and every remaining `monitoring/` relative import, with a typecheck of shared before the commit. The five copies of the stored project status union (`role-overview.ts:23`, `rules/rule-contract.ts:249`, `rules/rule-metrics.ts:188` and `:416`, api `descriptive-analytics.ts:238`) switch to `storedProjectStatuses` and `StoredProjectStatus`, after a test pins each schema's accepted values and its enum error text. SAD: the determinism checker's `packages/shared/src/monitoring/**/*.ts` glob follows to `contracts/analytics/**`, `contracts/dashboards/**`, `contracts/projects/project-map.ts`, `contracts/projects/overview-metrics.ts` and `metrics/**`, or the role silently stops reviewing them. Section 3.6 renames (`dashboardQuerySchema` to `dashboardQuery` and so on) are decided in the S7b plan, with a string-safe codemod like S3's and importer counts first.
+- **Task 5, shared folder and status unions:** `monitoring/` has no place in CR 3.4. Move by `git mv`, names unchanged (everything goes through the barrel): the dashboard and SADDD remainder of `metric-contract.ts`, `action-counts.ts` and `role-overview.ts` (with `alertSeverities`) to `contracts/dashboards/`; `analytics-insights.ts` and `descriptive-analytics.ts` to `contracts/analytics/`, splitting the 558-line file verbatim into `descriptive-analytics.ts` (query and response, about lines 1 to 95), `survey-analytics.ts` (about 96 to 486) and `timeline-analytics.ts` (about 487 to 558) with `same-lines.mjs`; `overview-metrics.ts` and `project-map.ts` to `contracts/projects/` (S1 ruling 6); `metric-math.ts`, `metric-cell.ts` and `metric-fields.ts` to `metrics/` (`metric-fields.ts` stays out of the barrel, S3 ruling 3); `activity-extension.ts` to `contracts/activities/` unless S2b moved it (S2b Task 7 does, as `activityExtensionResponse`). After the `git mv`, repoint the relative imports that S3 and S4 left in `contracts/activities/activity-extension-response.ts` (`../../monitoring/metric-math`), `contracts/indicators/*` (`../../monitoring/metric-fields`, `../../monitoring/metric-cell`) and `contracts/beneficiaries/*` (`../../monitoring/metric-contract` for `sadddAgeBands`), and every remaining `monitoring/` relative import, with a typecheck of shared before the commit. The five copies of the stored project status union (`role-overview.ts:23`, `rules/rule-contract.ts:249`, `rules/rule-metrics.ts:188` and `:416`, api `descriptive-analytics.ts:238`) switch to `storedProjectStatuses` and `StoredProjectStatus`, after a test pins each schema's accepted values and its enum error text. SAD: the determinism checker's `packages/shared/src/monitoring/**/*.ts` glob follows to `contracts/analytics/**`, `contracts/dashboards/**`, `contracts/projects/project-map.ts`, `contracts/projects/overview-metrics.ts` and `metrics/**`, or the role silently stops reviewing them. Section 3.6 renames (`dashboardQuerySchema` to `dashboardQuery` and so on) are decided in the S7b plan, with a string-safe codemod like S3's and importer counts first.
 
 ### Part 2: web
 
@@ -1860,4 +1959,4 @@ Interfaces assumed: S1 `requestIdentity` (`apps/api/src/common/authz/request-ide
 - **Task 8, `analytics-dashboard.tsx` (1741 lines, MOD-06):** first move the private panels verbatim (`SurveyAnalyticsPanel` 138, `TimelineAnalyticsPanel` 88, `DescriptiveStatisticsTable` 71, `ChartPanel`, `UnavailableChart`) to `components/` and the constants (`analysisViews`, `visualizationTypes`, survey messages, `exportFormats`) to `analytics.copy.ts`; then extract the reads and state of the 1207-line `AnalyticsDashboard` into hooks, with characterization tests over `analytics-dashboard.test.tsx` (1690 lines, split by concern above 600) before any line moves.
 - **Task 9, `features/dashboard`:** `role-dashboard.tsx` (691 lines) split the same way; its imports of `activity-detail-panel`, `activity-proof-dialog`, `project-utils` and `use-project-reads` go through the projects index (MOD-15 "dashboard reaches into `../projects/` internals"); `project-utils` and `use-project-reads` are `projects.utils` and `projects.reads` after S1b and the dashboard already imports them through the index; S7 may share the three `projects.read` list keys only where fetcher, permission and freshness match.
 - **Task 10, surfaces and duplicates:** `features/analytics/index.ts` and `features/dashboard/index.ts`; add `'analytics'` and `'dashboard'` to `indexedFeatures` and `'@/features/analytics'` and `'@/features/dashboard'` to `optimizePackageImports` in `apps/web/next.config.ts`; the `/analytics` and `/dashboard` pages, `pinned-charts.tsx` (5 analytics imports) and `features/projects/indicators/components/project-indicators-workspace.tsx` (`use-monitoring-read`, left by S3) import through the indexes, with route First Load JS compared to Task 0 as in S7a Task 6. MOD-16: analytics and dashboard read keys used twice; `DashboardSeverity` in `types/pathways.ts` (F4b deferral); `statusTone` in `executive-dashboard.tsx` kept per vocabulary (F4b ruling 3).
-- **Task 11, records** and **Task 12, gates** as S7a Tasks 7 and 8, with a smoke of `/dashboard` for each role, `/analytics` (every view and every export format), the pinned charts, the SADDD panel and the project map, and a check that `git ls-files 'apps/api/src/*.dto.ts'` lists only the five S8 DTO files and only `authorized-data.controller.ts` and `users.controller.ts` still hold `Application profile is required.'`. After merge, remove this plan and its index row.
+- **Task 11, records** and **Task 12, gates** as S7a Tasks 7 and 8, with a smoke of `/dashboard` for each role, `/analytics` (every view and every export format), the pinned charts, the SADDD panel and the project map, and a check that `git ls-files 'apps/api/src/*.dto.ts'` lists only the five S8 DTO files and only `authorized-data.controller.ts` and `users.controller.ts` still hold `Application profile is required.'`. After merge, remove the docs/superpowers/plans copy and its index row (the docs/handoff copy stays).

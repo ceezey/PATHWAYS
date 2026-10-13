@@ -389,3 +389,19 @@ Ruling: S4a Task 0 matched every anchor at ef6c4025 (14 hashes, counts, baseline
 Ruling: S4a Tasks 1 and 2 paired review PASS; the low findings stay (the coercion and strict rows lived in the deleted parity test by plan design; a third shared type import in the seed is formatting only), cost if wrong: a later coercion change in the contract is caught only by the controller HTTP tests.
 
 Ruling: apply the S6 pre-flight fixes (6 must-fix, 12 should-fix and blocks B1 to B5: cloud Task 0 with a base sha, plan copy and one index row, SAD base sha, pull request in place of the dev merge, docs/handoff grep exclusion, exact audit append strings, Claude-Session trailers, known baselines and a Task 0 web build), cost if wrong: an S6 Task 0 stop.
+
+Ruling: S4a Task 4 matched every expected value (shared 316, api 2460 with 21 skipped, parity 40, fail-first 4 failed and 1 passed); Biome wrapped the controller shared import, formatting only, cost if wrong: none beyond a style diff.
+
+Ruling: S4a Tasks 3 and 4 paired review PASS; the three low findings stay (strict and null rows for journeys and media lived in the deleted parity tests by plan design, same as the Tasks 1 and 2 ruling), cost if wrong: dropping .strict() from a journey contract later would turn an unknown-key 400 into a 200 without a failing test.
+
+Ruling: S4a Task 5 matched every expected value (same lines 1406, 26 moved and 843 left, api 2462 with 21 skipped, shared 316); no fail-first run because the brief has none for a pure move proven by same-lines.mjs, cost if wrong: none, the move is line-identical.
+
+Ruling: S4a Task 6 matched every expected value (same lines 785, line counts 409/457/282/636, api 2462 with 21 skipped); the compiled API import smoke is left for the local run with the other boot gates, cost if wrong: a circular import between the registration and beneficiaries services shows only at boot.
+
+Ruling: S4a Task 7 matched every expected value (same lines 741, api 2484 with 21 skipped); ParticipantsService keeps its now-unread prisma constructor parameter as the brief says (noUnusedLocals is not enforced, and removing it would change three construction sites in seeds and a test), cost if wrong: one dead constructor parameter until a later slice removes it.
+
+Ruling: S4a Tasks 5 and 6 paired review PASS; the low findings stay (canonical helpers exported but file-local, three age bands unpinned, registration-context.service.ts holding only a function, all as the plan names them), cost if wrong: an unpinned age band regresses unnoticed until the browser smoke.
+
+Ruling: S4a Task 7 review PASS; the low findings stay (the unread prisma parameter is plan ruling 8, removal in S5; canonicalCode tested from participants.helpers.test.ts; stage-save cases cut by describe; no provider-resolution test beyond app-module-wiring) and the dated manuscript-alignment audit keeps its participants.dto.ts mention as a point-in-time record, cost if wrong: a stale path in an old audit.
+
+Ruling: apply the S7 pre-flight fixes (10 must-fix, 13 should-fix and blocks B1 to B8: cloud Task 0 with a base sha and no plan copy removal, SAD base sha, pull request in place of the dev merge, the Task 3 count of 10, docs/handoff grep exclusion, exact audit append strings, the next.config.ts indexedFeatures edit, whole route table comparison, Claude-Session trailers); the S7b split branch names and the B_web plus 6 or plus 4 expectation stay for S7 Task 0 to settle, cost if wrong: an S7 Task 0 stop.
