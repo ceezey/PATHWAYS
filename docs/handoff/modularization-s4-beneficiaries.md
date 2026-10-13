@@ -4,7 +4,7 @@
 
 **Goal:** Give the beneficiaries, journey and beneficiary media API its shared zod request contracts, split the beneficiaries and participants services by responsibility, and hand the import slice one injectable registration service and the unchanged participation promotion, with no change to any route, status code, response body, audit row, permission decision, transaction boundary or SQL statement.
 
-**Architecture:** S4 is split (ruling 1). This plan gives S4a in full (ten tasks including baseline and gates) and S4b, the web client and feature components, as an outline at the end. S4a converts the ten class-validator DTO classes of the slice (beneficiaries, identity review, journey events, journey stages, media reservation) into contracts after parity tests that run the old DTO and the new contract through the configured pipes, then moves the beneficiaries and participants code verbatim into purpose-named modules with an AST script, proves each move with a line-multiset check, and rewires Nest, the seeds and the tests. Mechanical edits use one-off Node scripts under `.tmp/s4a/` (gitignored, never committed) whose content is given in full. Every step below was replayed in order on an exported copy of `a101ad7c` (F4a complete) with S1's `field-schemas.ts` and `request-identity.ts` added as the S1 plan writes them and an S2 stand-in exporting the activity evidence constants from `@pathways/shared`: after every task the copy typechecked (`tsc` over `apps/api/src` and `apps/api/prisma`), Biome reported no fixes over `apps/api` and `packages/shared`, and the slice's Vitest suites passed; at the end the full api suite passed apart from the two `imports.service.test.ts` cases that fail only in that copy's module resolution harness, and the full shared suite passed. The expected outputs quoted below come from that replay.
+**Architecture:** S4 is split (ruling 1). This plan gives S4a in full (ten tasks including baseline and gates) and S4b, the web client and feature components, as an outline at the end. S4a converts the eleven class-validator DTO classes of the slice (beneficiaries, identity review, journey events, journey stages, media reservation) into contracts after parity tests that run the old DTO and the new contract through the configured pipes, then moves the beneficiaries and participants code verbatim into purpose-named modules with an AST script, proves each move with a line-multiset check, and rewires Nest, the seeds and the tests. Mechanical edits use one-off Node scripts under `.tmp/s4a/` (gitignored, never committed) whose content is given in full. Every step below was replayed in order on an exported copy of `a101ad7c` (F4a complete) with S1's `field-schemas.ts` and `request-identity.ts` added as the S1 plan writes them and an S2 stand-in exporting the activity evidence constants from `@pathways/shared`: after every task the copy typechecked (`tsc` over `apps/api/src` and `apps/api/prisma`), Biome reported no fixes over `apps/api` and `packages/shared`, and the slice's Vitest suites passed; at the end the full api suite passed apart from the two `imports.service.test.ts` cases that fail only in that copy's module resolution harness, and the full shared suite passed. The expected outputs quoted below come from that replay.
 
 **Tech Stack:** pnpm 11 workspace, TypeScript 5.9, NestJS 10.4.22, class-validator 0.14.4 on validator 13.15.26, class-transformer 0.5.1, zod 3.25.76, Prisma 6.19, Vitest 3.2, Biome 1.9.4, Next 15.5.14, Playwright.
 
@@ -12,9 +12,9 @@
 
 ## Rulings
 
-Controller rulings for S4 (2026-10-11). Each was checked against `refactor/f4a-web-boundaries` `a101ad7c`. S1 to S3 land before S4; their plans touch none of the S4 api files except where the "Interfaces assumed" section says so, and Task 0 recounts every number below.
+Controller rulings for S4 (2026-10-11). Each was checked against `refactor/f4a-web-boundaries` `a101ad7c` and re-scanned on origin/dev `79ad8bbb` (S1 to S3a merged); S3b is web-only and moves no S4a anchor. S1 to S3 land before S4; their plans touch none of the S4 api files except where the "Interfaces assumed" section says so, and Task 0 recounts every number below.
 
-1. **Split into S4a and S4b.** The S4 row covers contracts, the api split, the web client and the feature components. The api half alone is ten DTO classes in three modules, a 1461-line `beneficiaries.service.ts` and a 703-line `participants.service.ts`; the web half moves 19 beneficiary, media and journey methods out of `pathways-client.ts` (27 web files reference them, 13 of them production files, and 11 of the 56 `pathways-client` mock factories define one) and splits four oversized components (`beneficiary-form.tsx` 1388, `beneficiary-detail.tsx` 1172, `beneficiary-media-proof.tsx` 662, `beneficiary-directory.tsx` 565). Together that is about eighteen tasks. S4a (this plan, branch `refactor/s4a-beneficiaries-api`) takes the contracts and the api; S4b (outline below, branch `refactor/s4b-beneficiaries-web`) takes the web. Both names replace `refactor/s4-beneficiaries`.
+1. **Split into S4a and S4b.** The S4 row covers contracts, the api split, the web client and the feature components. The api half alone is eleven DTO classes in three modules, a 1461-line `beneficiaries.service.ts` and a 703-line `participants.service.ts`; the web half moves 19 beneficiary, media and journey methods out of `pathways-client.ts` (28 web files besides the client reference them, 13 of them production files, and 41 `pathways-client` mock factories exist, 4 naming one inline; recount in S4b Task 0) and splits four oversized components (`beneficiary-form.tsx` 1388, `beneficiary-detail.tsx` 1172, `beneficiary-media-proof.tsx` 664, `beneficiary-directory.tsx` 565). Together that is about eighteen tasks. S4a (this plan, branch `refactor/s4a-beneficiaries-api`) takes the contracts and the api; S4b (outline below, branch `refactor/s4b-beneficiaries-web`) takes the web. Both names replace `refactor/s4-beneficiaries`.
 2. **The journey stage configuration contract belongs to S4.** `SaveJourneyConfigurationDto` and `JourneyStageInputDto` sit in `apps/api/src/modules/activities/activities.dto.ts`, but their only route is `PUT projects/:projectId/journey-stages` in the participants module, so S4a converts them and deletes them from the activities DTO file together with `journey-stage-code.test.ts`, whose eight cases move into the shared contract test. This assumes S2 leaves both classes in place (see "Interfaces assumed"); the cross-plan check must confirm it.
 3. **Parity holds except for prototype keys.** 109 beneficiary, 82 journey and 38 media bodies agree on accept or reject and on the accepted value (JSON `null` on every optional field included). The differences are all prototype keys, the class F3b ruling 3 accepted: own top-level `__proto__` and `constructor` keys, and the same keys inside a journey stage or a media file, were dropped by the DTO route and are rejected by `.strict()`; and a `constructor` key anywhere inside registration `values` made class-transformer throw a `TypeError` (a 500), while the contract forwards it and the service answers 400 `Registration values are invalid.` because `constructor` is not a form field. No client sends these keys. The parity tests pin each difference.
 4. **The profile update audit keeps listing every field.** `apps/api/tsconfig.json` targets ES2022, so `useDefineForClassFields` is on and the compiled `UpdateBeneficiaryDto` instance owns all 13 declared fields, `undefined` when absent; `BeneficiariesService.update` audits `Object.keys(input)` without `expectedUpdatedAt`, so production audit rows always list the same 12 names. A zod output owns only the keys that were sent. The service therefore audits `auditedProfileFields`, the contract's shape keys without `expectedUpdatedAt`, which equal the DTO's declaration order; the parity test pins the DTO instance keys against the contract shape and a service test pins the audited list. No other S4 service reads key presence (`in`, `Object.keys` or spreading of an input).
@@ -23,14 +23,15 @@ Controller rulings for S4 (2026-10-11). Each was checked against `refactor/f4a-w
 7. **The registration promotion becomes one injectable service.** `readRegistrationForm`, `promoteRegistration` and `registrationUpdateData` (413 lines with the form selection) move verbatim into `BeneficiaryRegistrationService` (`beneficiary-registration.service.ts`). It stays an injectable class, not a function module (S1 ruling 7), because `ImportsService` receives it by constructor injection and three imports test files pass a positional fake for it; only its type and token change there. It has no constructor dependency, because both methods take the caller's `tx`. `BeneficiariesService` takes it as a second constructor parameter for `register`, and `BeneficiariesModule` exports only the registration service, since nothing outside the module uses `BeneficiariesService`. The pure parsing and identifier rules move to `beneficiary-registration.helpers.ts`, the age band filter and profile edit rule to `beneficiaries.helpers.ts`, the row selections and mapping to `beneficiaries.mapper.ts`, and `loadRegistrationContext` to `registration-context.service.ts` as a function taking `tx`. `BeneficiariesService` lands at 409 lines and the registration service at 457, both under the CR 3.5 review flag of 500.
 8. **ParticipantsService keeps participation promotion.** `promoteParticipation` is what imports and metadata inject, so it stays in `ParticipantsService` (166 lines); the stage configuration moves to `JourneyStagesService` and the history, transitions and corrections to `BeneficiaryJourneyService`, each with its own controller file (CR 3.2, one controller per file). `ParticipantsService` keeps its now unused `PrismaService` parameter, so the ten constructions in imports and metadata tests and the two seeds stay as they are; S5 may drop it with those sites.
 9. **One beneficiary code rule.** `normalizedCode` in `participants.dto.ts` is `canonicalCode` in `beneficiaries.dto.ts` line for line. A characterization test runs both over 13 inputs before `normalizedCode` is deleted and promotion uses `canonicalCode`.
-10. **Kernel adoption and what stays local.** `requestIdentity` replaces the local `profile()` helper in the four controller files of the slice (S1 ruling 9). `beneficiary-progress.ts` takes `Tx` (48 to 47 direct `Prisma.TransactionClient` annotations in api production code at `a101ad7c`; S1 to S3 remove others). The beneficiary media enrollment lookup keeps its inline project scope, because `requireScopedProject` would answer `Project unavailable.` where the route answers `Beneficiary media unavailable.`. `businessToday` keeps its own clock, because `currentBusinessDate` answers 503 on a bad time zone where these routes answer 500.
+10. **Kernel adoption and what stays local.** `requestIdentity` replaces the local `profile()` helper in the four controller files of the slice (S1 ruling 9). `beneficiary-progress.ts` takes `Tx` (39 to 38 direct `Prisma.TransactionClient` annotations in api production code at 79ad8bbb). The beneficiary media enrollment lookup keeps its inline project scope, because `requireScopedProject` would answer `Project unavailable.` where the route answers `Beneficiary media unavailable.`. `businessToday` keeps its own clock, because `currentBusinessDate` answers 503 on a bad time zone where these routes answer 500.
 11. **Response contracts wait for S4b.** S1a typed its mapper with response contracts; S4a moves no response shape into shared, because the web client that would consume them moves in S4b. `RegistrationContextDto` leaves the DTO file as `RegistrationContext`, beside `loadRegistrationContext`. S4b adds the response contracts and annotates the two mappers.
 12. **Tests follow their code.** `beneficiaries.service.test.ts` (871 lines) splits by the service split: the registration cases go to `beneficiary-registration.service.test.ts` (636 lines, kept as one file because every case shares one transaction fake) and the profile edit cases to `beneficiaries.helpers.test.ts`. The participants tests split into `participants.service.test.ts` (promotion) and `beneficiary-journey.service.test.ts` (the G-F4 gate cases, whose two stage-save cases use `JourneyStagesService`).
 13. **SAD routing:** `apps/api/src/modules/beneficiaries/**/*.ts`, `apps/api/src/modules/beneficiary-media/**/*.ts` and `apps/api/src/modules/participants/**/*.ts` route to beneficiary-privacy-guardian, because the helpers decide which identity and profile fields are normalized and stored and the services decide which leave the api; CR section 7 requires that reviewer when beneficiary code moves. The split services keep organization isolation routing through their `.service.ts` names.
 14. **Seeds.** `local-demo-seed.ts`, `defense-demo-seed.ts` and `hosted-realistic-seed.ts` construct the split services, and four stage files call the journey methods through `ctx.services.participants` (8 call sites), which now read `ctx.services.journeyStages` and `ctx.services.beneficiaryJourney`; `hosted-realistic-seed.ts` and `local-demo-stage-people.ts` type their registration input as `RegisterBeneficiaryRequest`. These are the only `apps/api/prisma` edits; the seeded rows do not change.
-15. **Spec facts corrected by the baseline:** the audit's 1492 lines for `beneficiaries.service.ts` are 1461 at `a101ad7c`; `participants.service.ts` (703) is not in the audit table but is over the review flag; the DTO classes number ten (six in `beneficiaries.dto.ts`, two in `participants.dto.ts`, one exported and one nested in `beneficiary-media.dto.ts`, plus the two journey stage classes in `activities.dto.ts`). MOD-B1 (`'5-9'` age band in the web directory) stays open; the contract keeps the API's `sadddAgeBands`, and a parity row pins `'5-9'` as rejected on both routes.
+15. **Spec facts corrected by the baseline:** the audit's 1492 lines for `beneficiaries.service.ts` are 1461 at `a101ad7c`; `participants.service.ts` (703) is not in the audit table but is over the review flag; the DTO classes number eleven (twelve with the nested media file class) (six in `beneficiaries.dto.ts`, two in `participants.dto.ts`, one exported and one nested in `beneficiary-media.dto.ts`, plus the two journey stage classes in `activities.dto.ts`). MOD-B1 (`'5-9'` age band in the web directory) stays open; the contract keeps the API's `sadddAgeBands`, and a parity row pins `'5-9'` as rejected on both routes.
 16. Cross-plan: S4 consumes only produced names: S2's `contracts/activities/activity-evidence.ts` (`activityEvidenceContentTypes`, `ActivityEvidenceContentType`, `MAX_ACTIVITY_EVIDENCE_FILES`) and its two journey DTO classes in `activities.dto.ts`, S3's `sadddAgeBands` in `monitoring/metric-contract.ts`, and S1's `field-schemas.ts` and `requestIdentity`; nothing from S5 to S8. The inline `limit` preprocess in `beneficiaryListQuery` mirrors the DTO's own `@Transform` (absent is 25, `Number(['10'])` is 10) and is not S5's `queryInteger`, which mirrors `@Type(() => Number)` and rejects arrays, so the two stay separate. Cost if wrong: one list query parses a repeated `limit` differently from before.
 17. Cross-plan (S2b): S2b created `activitiesClient` (`lib/api/activities.ts`) and `isFiniteNonNegative` (`lib/api/core/guards.ts`); `getBeneficiaryMediaLimits` in `lib/api/beneficiary-media.ts` imports the guard instead of a local copy, and `beneficiary-media-proof.tsx` keeps calling `activitiesClient.uploadActivityProofFile` unless a media-owned `PUT` is added. Cost if wrong: a duplicated guard, or an `undefined` method in a mocked test.
+18. Cross-plan (cloud pre-flight): S2 left `activities.dto.ts` with an unused `canonical` helper once the two journey classes go, so Task 3 deletes the file; the media DTO hash differs from the dry run for the same reason (S2 repointed its evidence import). Cost if wrong: one dead file or one re-hashed anchor.
 
 ## Interfaces assumed from earlier slices
 
@@ -61,13 +62,13 @@ S4a assumes these, and Task 0 verifies each:
 - Format touched files with `pnpm exec biome check --write <files>`; `pnpm lint` must pass before every commit. New untracked files need `git add -N` before `git diff --name-only` lists them.
 - `pnpm typecheck` rewrites `apps/web/next-env.d.ts`; run `git checkout -- apps/web/next-env.d.ts` before every commit.
 - After removing code, delete any import name left with no use (Biome 1.9 recommended rules do not flag unused imports); `move-declarations.mjs` with `"prune": true` does it for the files it is given.
+- No import may be kept alive only by a comment or JSDoc mention; `prune` counts comment text as use, so scan the touched files for an imported name that appears nowhere outside comments before each commit (`pnpm --filter @pathways/api exec tsc --noEmit --noUnusedLocals` must list nothing new).
 - Do not type `\u` escapes for characters into source; build them with `String.fromCharCode` or `String.fromCodePoint`.
-- `same-lines.mjs` arguments may start with `//`; run it with `MSYS_NO_PATHCONV=1` as written, or Git for Windows rewrites them.
-- `git ls-files` with `':!*.test.ts'` pathspecs returns nothing in this Git for Windows setup; `git grep` pathspecs work.
+- `same-lines.mjs` arguments may start with `//`; the `MSYS_NO_PATHCONV=1` prefix in the commands is only needed on Git for Windows and is harmless here.
 - One-off scripts live in `.tmp/s4a/` (gitignored) and are never committed; `.tmp/` also holds logs.
 - A `replace-exact.mjs` or `move-declarations.mjs` run that stops on a count or a missing name means an earlier slice changed the anchor: stop and report, do not loosen the anchor.
-- Commit messages end with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
-- Work in `C:\PATHWAYS` on branch `refactor/s4a-beneficiaries-api`; no new worktree. All paths are relative to `C:\PATHWAYS`. Do not push.
+- Commit messages end with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>` and, on the next line, `Claude-Session: https://claude.ai/code/session_015GXgWsghnfykNXQ8sJ5BRx`.
+- Work in the repository root on the slice branch the environment assigns (S3b's, stacked); no new worktree. All paths are relative to the repository root. Only the controller pushes the slice branch, at task-pair boundaries; nobody pushes `dev` or `master`.
 - Do not touch migrations, `.env` files, review evidence or `apps/web`; under `apps/api/prisma` only the seed edits of ruling 14 are allowed.
 
 ## Review Focus
@@ -90,36 +91,40 @@ S4a assumes these, and Task 0 verifies each:
 ### Task 0: Branch setup and baseline
 
 **Files:**
-- Create: `docs/superpowers/plans/2026-10-11-modularization-s4-beneficiaries.md` (this plan)
+- Create: `docs/superpowers/plans/<date>-modularization-s4-beneficiaries.md` (this plan; `<date>` from `date +%F`)
 - Modify: `docs/index.md` (section 1.6 plan row)
 
-- [ ] **Step 1: Confirm local dev contains S1 to S3 and create the branch**
+- [ ] **Step 1: Confirm S1 to S3 are present and record the base**
 
 ```bash
-cd /c/PATHWAYS
+cd "$(git rev-parse --show-toplevel)"
 git status --short
-git checkout dev
+git fetch origin dev
+git branch -f dev origin/dev
 git log --oneline dev | grep -m1 "Merge refactor/s3a-indicators-api into dev"
+test -f apps/web/src/lib/api/indicators.ts && test ! -e apps/web/src/lib/services/indicator-library-client.ts && echo "S3b present"
 test -f packages/shared/src/contracts/common/field-schemas.ts && test -f apps/api/src/common/authz/request-identity.ts && echo "S1 kernel present"
 grep -c "'apps/api/src/\*\*/\*\.mapper\.ts'," scripts/sad/check.ts
 git grep -lE "export const (activityEvidenceContentTypes|MAX_ACTIVITY_EVIDENCE_FILES)|export type ActivityEvidenceContentType" -- packages/shared/src
 git grep -cE "^export class (SaveJourneyConfigurationDto|JourneyStageInputDto)" -- apps/api/src/modules/activities/activities.dto.ts
 ls docs/superpowers/plans/
-git checkout -b refactor/s4a-beneficiaries-api
-pnpm install --frozen-lockfile
+pnpm install --frozen-lockfile # (skip in the cloud container; deps are installed)
 mkdir -p .tmp/s4a
+git rev-parse HEAD > .tmp/s4a/base-sha
 ```
 
-Expected: clean status; the S3a merge commit; `S1 kernel present`; `1`; exactly one shared file path for the evidence constants (write it down as `E`, for example `packages/shared/src/contracts/activities/activity-evidence.ts`); `apps/api/src/modules/activities/activities.dto.ts:2`; install succeeds. If S1's kernel or mapper glob is missing, or `E` is not exactly one file, stop and report (see "Interfaces assumed"). If the journey DTO count is 0, S2 already converted the journey stage DTOs: stop and report, because ruling 2 assigns that contract to S4a. If `ls` lists an S3 plan whose removal step did not run, Step 3 removes it and its `docs/index.md` row too.
+Expected: clean status; the S3a merge commit; `S3b present`; `S1 kernel present`; `1`; exactly one shared file path for the evidence constants (write it down as `E`, for example `packages/shared/src/contracts/activities/activity-evidence.ts`); `apps/api/src/modules/activities/activities.dto.ts:2`; install succeeds. If S3b, S1's kernel or the mapper glob is missing, or `E` is not exactly one file, stop and report (see "Interfaces assumed"). If the journey DTO count is 0, S2 already converted the journey stage DTOs: stop and report, because ruling 2 assigns that contract to S4a. `ls` lists the S3b plan (S3b Task 7 removes it after the developer merges); leave it. The branch is the one the environment assigned (S3b's, while its pull request is open); do not create refactor/s4a-beneficiaries-api. `git branch -f dev origin/dev` only moves the local ref. `base-sha` is the S3b tip that the SAD runs of Task 9 use as `--base`.
+
+In the cloud container install as the rulings log records for S3b (xlsx from npm 0.18.5, packages/imports/package.json and pnpm-lock.yaml reverted before every commit, pnpm_config_verify_deps_before_run=false); if the S3b branch already holds node_modules and apps/web/.env.local, skip the install.
 
 - [ ] **Step 2: Record the baseline**
 
 ```bash
 pnpm --filter @pathways/shared build
-pnpm typecheck && pnpm test 2>&1 | grep -E "Tests +[0-9]+"
-pnpm sad:test 2>&1 | grep -E "Tests +[0-9]+"
+pnpm typecheck && pnpm test 2>&1 | sed 's/\x1b\[[0-9;]*m//g' | grep -E "Test Files|Tests +[0-9]+"
+pnpm sad:test 2>&1 | sed 's/\x1b\[[0-9;]*m//g' | grep -E "Test Files|Tests +[0-9]+"
 pnpm docs:check 2>&1 | tail -3
-pnpm --filter @pathways/web build > .tmp/s4a/web-build-baseline.log 2>&1; echo "exit $?"
+rm -rf apps/web/.next && pnpm --filter @pathways/web build > .tmp/s4a/web-build-baseline.log 2>&1; echo "exit $?"
 grep -E "Middleware" .tmp/s4a/web-build-baseline.log
 B=apps/api/src/modules/beneficiaries; P=apps/api/src/modules/participants; M=apps/api/src/modules/beneficiary-media
 git hash-object $B/beneficiaries.service.ts $B/beneficiaries.dto.ts $B/beneficiaries.controller.ts $B/identity-review.controller.ts $B/identity-review.service.ts $B/beneficiaries.service.test.ts $B/beneficiary-progress.ts $P/participants.service.ts $P/participants.controller.ts $P/participants.dto.ts $P/participants.service.test.ts $P/journey-note.test.ts $M/beneficiary-media.controller.ts $M/beneficiary-media.dto.ts
@@ -135,24 +140,25 @@ git grep -nwE "beneficiaryListQuery|BeneficiaryListQuery|registerBeneficiaryRequ
 git checkout -- apps/web/next-env.d.ts
 ```
 
-Expected: typecheck clean; write down each package's passing and skipped test counts (config, shared, imports, api, web), the sad count, the docs check failure count, the web build exit code (0) and the `Middleware` size (F4a recorded 102 kB). Later tasks compare against these (`B_shared`, `B_api`, `B_web`, `B_sad`, `M0`). The hashes print, in order: `eb11986d54541775a1e405002ef598b36584e5c5`, `3da670cddd055f5e8118003abbb3de3d5697aa04`, `8327445dbec9493df4b13b5232318151e86596da`, `51f49208906a5444178857c0be5ab23d7a57b5f7`, `bdbfd97c3a9c30dcb5f3e790f04cbc38386b1ab5`, `02f31d85848ba909471a8bd7afb874d5317cdb86`, `5cbb4d1bcdec35cf786abdf16352cbf51e6aa1f4`, `36b50b08e33c72500475ab478e107fe14015a345`, `66fac6f38e745c0fea33d66afcb22282244e13b3`, `a26871666e54491fd372fd9910a4c6e95e72cd47`, `720b88de478973713f4d5daf30a939c16c58633b`, `43ec008aecf68a4cb65ec4de784179af1fc2e848`, `12d40fd582b80a331ec03ec65c59ef91a1fa1eda`, `710868f3c59855f96269e54886f72e83e25c904b`; the line counts are 1461, 703 and 871; the greps print `15`, `8`, `4`, a case count (10 at `a101ad7c`; S1 and S2 removed theirs, so expect 7, and write it down as `MC`), `3`, `1`, a production count (48 at `a101ad7c`, fewer after S1 to S3; write it down as `TX`) and `0`. If a hash or any fixed count differs, stop and report: the anchors and counts below were taken at `a101ad7c`. `beneficiary-media.service.ts` is not in the hash list because S2 may have repointed its activities imports; Task 4 edits only lines S2 does not own.
+Expected: typecheck clean; config 19, shared 281 (24 files), imports 91, api 2445 passed and 21 skipped, web 224 files and 1998 tests (after S3b; `B_web`), sad 54, docs check 6 failures and 1 warning, the web build exit code (0) and the `Middleware` size (102 kB after S3b). If a number differs, stop and report. Later tasks compare against these (`B_shared`, `B_api`, `B_web`, `B_sad`, `M0`). The hashes print, in order: `eb11986d54541775a1e405002ef598b36584e5c5`, `3da670cddd055f5e8118003abbb3de3d5697aa04`, `8327445dbec9493df4b13b5232318151e86596da`, `51f49208906a5444178857c0be5ab23d7a57b5f7`, `bdbfd97c3a9c30dcb5f3e790f04cbc38386b1ab5`, `02f31d85848ba909471a8bd7afb874d5317cdb86`, `5cbb4d1bcdec35cf786abdf16352cbf51e6aa1f4`, `36b50b08e33c72500475ab478e107fe14015a345`, `66fac6f38e745c0fea33d66afcb22282244e13b3`, `a26871666e54491fd372fd9910a4c6e95e72cd47`, `720b88de478973713f4d5daf30a939c16c58633b`, `43ec008aecf68a4cb65ec4de784179af1fc2e848`, `12d40fd582b80a331ec03ec65c59ef91a1fa1eda`, `f1f49c131e60aa0730a21c487feddadb259ac478`; the line counts are 1461, 703 and 871; the greps print `15`, `8`, `4`, a case count (10 at `a101ad7c`; S1 and S2 removed theirs, so expect 7, and write it down as `MC`), `3`, `1`, a production count (48 at `a101ad7c`, fewer after S1 to S3; write it down as `TX`) and `0`. If a hash or any fixed count differs, stop and report (the media DTO hash is the S2 one, re-checked at 79ad8bbb): the anchors and counts below were taken at `a101ad7c`. `beneficiary-media.service.ts` is not in the hash list because S2 may have repointed its activities imports; Task 4 edits only lines S2 does not own.
 
 - [ ] **Step 3: Add the plan and commit**
 
-The controller has saved this plan as `docs/superpowers/plans/2026-10-11-modularization-s4-beneficiaries.md`.
+Copy this plan: `cp docs/handoff/modularization-s4-beneficiaries.md docs/superpowers/plans/$(date +%F)-modularization-s4-beneficiaries.md`. The handoff copy and its index rows stay. Use the same `date +%F` day for `<date>` in the row below.
 
-In `docs/index.md` section 1.6, add as the last row of the table (and delete any S3 plan row found in Step 1, with `git rm` of that plan file):
+In `docs/index.md` section 1.6, add as the last row of the table:
 
 ```markdown
-| [S4 beneficiaries plan](superpowers/plans/2026-10-11-modularization-s4-beneficiaries.md) | 2026-10-11-modularization-s4-beneficiaries.md | 2026-10-11 | S4 of the codebase modularization: S4a beneficiary, journey and media request contracts, beneficiaries and participants services split, registration service for imports; S4b outline | In progress |
+| [S4 beneficiaries plan](superpowers/plans/<date>-modularization-s4-beneficiaries.md) | <date>-modularization-s4-beneficiaries.md | <date> | S4 of the codebase modularization: S4a beneficiary, journey and media request contracts, beneficiaries and participants services split, registration service for imports; S4b outline | In progress |
 ```
 
 ```bash
-git add docs/superpowers/plans/2026-10-11-modularization-s4-beneficiaries.md docs/index.md
+git add docs/superpowers/plans docs/index.md
 pnpm docs:check 2>&1 | tail -3
 git commit -m "docs: add the S4 beneficiaries plan
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015GXgWsghnfykNXQ8sJ5BRx"
 ```
 
 Expected: docs check failure count equals the Step 2 baseline.
@@ -693,7 +699,8 @@ git checkout -- apps/web/next-env.d.ts
 git add packages/shared/src/contracts/beneficiaries packages/shared/src/index.ts apps/api/src/modules/beneficiaries/beneficiary-request-parity.test.ts
 git commit -m "feat(shared): add the beneficiary request contracts with their DTO parity test
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015GXgWsghnfykNXQ8sJ5BRx"
 ```
 
 Expected: shared = `B_shared + 15`, api = `B_api + 113`.
@@ -1405,7 +1412,8 @@ git checkout -- apps/web/next-env.d.ts
 git add -A apps/api/src/modules/beneficiaries apps/api/src/modules/dashboards/c8-runtime.local.test.ts apps/api/prisma/hosted-realistic-seed.ts apps/api/prisma/local-demo-stage-people.ts apps/api/src/common/validation
 git commit -m "refactor(api): validate beneficiary and identity review requests with the shared contracts
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015GXgWsghnfykNXQ8sJ5BRx"
 ```
 
 Expected: the beneficiaries and common suites pass; api = `B_api + 13` (113 parity removed, 13 HTTP and 1 audit added, 1 metadata case removed).
@@ -1421,9 +1429,9 @@ Expected: the beneficiaries and common suites pass; api = `B_api + 13` (113 pari
 - Create then delete: `apps/api/src/modules/participants/journey-request-parity.test.ts`
 - Test: `apps/api/src/modules/participants/journey-routes.validation.test.ts`
 - Replace: `apps/api/src/modules/participants/participants.controller.ts`
-- Modify: `apps/api/src/modules/participants/participants.service.ts`, `apps/api/src/modules/participants/participants.dto.ts` (DTO classes removed; `normalizedCode` and `normalizedText` stay until Task 7), `apps/api/src/modules/activities/activities.dto.ts` (the two journey stage classes removed, ruling 2)
+- Modify: `apps/api/src/modules/participants/participants.service.ts`, `apps/api/src/modules/participants/participants.dto.ts` (DTO classes removed; `normalizedCode` and `normalizedText` stay until Task 7)
 - Modify: `apps/api/src/modules/participants/journey-note.test.ts`, `apps/api/src/modules/participants/participants.service.test.ts`, `apps/api/src/common/validation/controller-dto-runtime-metadata.test.ts` (participants case)
-- Delete: `apps/api/src/modules/activities/journey-stage-code.test.ts` (its eight codes are in the contract test)
+- Delete: `apps/api/src/modules/activities/journey-stage-code.test.ts` (its eight codes are in the contract test), `apps/api/src/modules/activities/activities.dto.ts` (file deleted with the two classes)
 - Create (not committed): `.tmp/s4a/task3-edits.json`, `.tmp/s4a/participants-dto-classes.json`, `.tmp/s4a/activities-journey-dto.json`
 
 **Interfaces:**
@@ -1825,7 +1833,8 @@ git checkout -- apps/web/next-env.d.ts
 git add packages/shared/src/contracts/journeys packages/shared/src/index.ts apps/api/src/modules/participants/journey-request-parity.test.ts
 git commit -m "feat(shared): add the journey request contracts with their DTO parity test
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015GXgWsghnfykNXQ8sJ5BRx"
 ```
 
 Expected: PASS, 85 tests (24 recorded event, 12 correction and 46 stage configuration rows, 1 terminal default, 2 prototype key cases); stop and report any failing row. Shared = `B_shared + 29`, api = `B_api + 98`.
@@ -2197,16 +2206,16 @@ P=apps/api/src/modules/participants
 node .tmp/s4a/replace-exact.mjs .tmp/s4a/task3-edits.json
 node .tmp/s4a/move-declarations.mjs $P/participants.dto.ts .tmp/s4a/participants-dto-classes.json
 node .tmp/s4a/move-declarations.mjs apps/api/src/modules/activities/activities.dto.ts .tmp/s4a/activities-journey-dto.json
-git rm -q $P/journey-request-parity.test.ts apps/api/src/modules/activities/journey-stage-code.test.ts
+git rm -qf $P/journey-request-parity.test.ts apps/api/src/modules/activities/journey-stage-code.test.ts apps/api/src/modules/activities/activities.dto.ts
 git grep -nE "EnrollmentJourneyEventDto|CorrectJourneyEventDto|SaveJourneyConfigurationDto|JourneyStageInputDto" -- apps packages
 ```
 
-Expected: `16 replacements in 4 files`; `participants.dto.ts: 2 moved, 13 lines left`; `activities.dto.ts: 2 moved, <n> lines left` (240 at `a101ad7c`; S2 changes that file, so only the `2 moved` is fixed, and `IsBoolean`, used only by `terminal`, is pruned from the class-validator import if nothing else uses it); the grep prints nothing. If the activities file reports `0 lines left`, S2 left nothing else in it: `git rm` it.
+Expected: `16 replacements in 4 files`; `participants.dto.ts: 2 moved, 13 lines left`; `activities.dto.ts: 2 moved, 3 lines left` (only the unused `canonical` helper survives after S2; the `git rm` deletes the file and nothing imports it); the grep prints nothing.
 
 - [ ] **Step 6: Run the tests and commit**
 
 ```bash
-pnpm exec biome check --write apps/api/src/modules/participants apps/api/src/modules/activities/activities.dto.ts apps/api/src/common/validation
+pnpm exec biome check --write apps/api/src/modules/participants apps/api/src/common/validation
 pnpm --filter @pathways/api exec vitest run src/modules/participants src/modules/activities src/common
 pnpm typecheck && pnpm lint
 pnpm --filter @pathways/shared test 2>&1 | grep -E "Tests +[0-9]+"
@@ -2215,7 +2224,8 @@ git checkout -- apps/web/next-env.d.ts
 git add -A apps/api/src/modules/participants apps/api/src/modules/activities apps/api/src/common/validation
 git commit -m "refactor(api): validate journey stage and event requests with the shared contracts
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015GXgWsghnfykNXQ8sJ5BRx"
 ```
 
 Expected: all pass; shared = `B_shared + 29`, api = `B_api + 11` (85 parity and 8 stage code tests removed, 7 HTTP tests added, 1 metadata case removed).
@@ -2501,7 +2511,8 @@ git checkout -- apps/web/next-env.d.ts
 git add packages/shared/src/contracts/beneficiaries packages/shared/src/index.ts apps/api/src/modules/beneficiary-media/beneficiary-media-request-parity.test.ts
 git commit -m "feat(shared): add the beneficiary media request contract with its DTO parity test
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015GXgWsghnfykNXQ8sJ5BRx"
 ```
 
 Expected: PASS, 40 tests (14 accepted and 24 rejected bodies, 2 prototype key cases); stop and report any failing row. Shared = `B_shared + 35`, api = `B_api + 51`.
@@ -2715,7 +2726,8 @@ git checkout -- apps/web/next-env.d.ts
 git add -A apps/api/src/modules/beneficiary-media apps/api/src/common/validation
 git commit -m "refactor(api): validate beneficiary media reservations with the shared contract
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015GXgWsghnfykNXQ8sJ5BRx"
 ```
 
 Expected: all pass; api = `B_api + 15` (40 parity removed, 5 HTTP added, 1 metadata case removed); the metadata test now holds `MC - 3` cases.
@@ -3155,7 +3167,8 @@ git checkout -- apps/web/next-env.d.ts
 git add -A $B
 git commit -m "refactor(api): move beneficiary helpers, mapper and registration context out of BeneficiariesService
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015GXgWsghnfykNXQ8sJ5BRx"
 ```
 
 Expected: line counts 843, 291, 152, 115 and 144; all pass; api = `B_api + 17` (5 helper tests added, 3 moved out of the service test).
@@ -3511,7 +3524,8 @@ git checkout -- apps/web/next-env.d.ts
 git add -A $B apps/api/src/modules/imports apps/api/src/modules/dashboards/c8-runtime.local.test.ts apps/api/prisma/local-demo-seed.ts apps/api/prisma/defense-demo-seed.ts apps/api/prisma/hosted-realistic-seed.ts
 git commit -m "refactor(api): move registration promotion into BeneficiaryRegistrationService
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015GXgWsghnfykNXQ8sJ5BRx"
 ```
 
 Expected: line counts 409, 457, 282 and 636; all pass (the registration describe has 37 tests, the service file 14); api = `B_api + 17`. `app-module-wiring.test.ts` passes, so `BeneficiaryRegistrationService` is provided once.
@@ -3594,7 +3608,8 @@ pnpm exec biome check --write apps/api/src/modules/participants/participants.hel
 git add apps/api/src/modules/participants/participants.helpers.test.ts
 git commit -m "test(api): pin the participation code and note rules
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015GXgWsghnfykNXQ8sJ5BRx"
 ```
 
 Expected: PASS, 22 tests; api = `B_api + 39`.
@@ -3948,7 +3963,8 @@ git checkout -- apps/web/next-env.d.ts
 git add -A $P apps/api/src/modules/auth/beneficiary-step-up.test.ts apps/api/prisma
 git commit -m "refactor(api): split the participants module into journey stages, beneficiary journey and participation
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015GXgWsghnfykNXQ8sJ5BRx"
 ```
 
 Expected: `participants.service.ts` 166, `journey-stages.service.ts` 255, `beneficiary-journey.service.ts` 256, `journey-stages.mapper.ts` 39, the controllers 28 and 65, `participants.helpers.ts` 6; all pass (`beneficiary-journey.service.test.ts` 13 tests, `participants.service.test.ts` 6); api = `B_api + 39`. `git diff --stat HEAD~1 -- apps/api/prisma` lists only the six seed files of this task.
@@ -4026,8 +4042,8 @@ with
 Section 9, append:
 
 ```markdown
-S4a applied <date> on refactor/s4a-beneficiaries-api:
-- Contracts: `beneficiaryListQuery`, `registerBeneficiaryRequest`, `updateBeneficiaryRequest`, `archiveBeneficiaryRequest`, `enrollBeneficiaryRequest` and `resolveDuplicateRequest` (`contracts/beneficiaries/beneficiary-requests.ts`), `journeyStageInput`, `saveJourneyStagesRequest`, `recordJourneyEventRequest` and `correctJourneyEventRequest` (`contracts/journeys/journey-requests.ts`) and `reserveBeneficiaryMediaRequest` (`contracts/beneficiaries/beneficiary-media-requests.ts`) replaced the DTO classes of the beneficiaries, participants and beneficiary media modules and the two journey stage classes of `activities.dto.ts`; parity tests ran each DTO and contract through the configured pipes over 109 beneficiary, 82 journey and 38 media bodies before the DTOs were deleted.
+S4a applied <date> on the S4a slice branch:
+- Contracts: `beneficiaryListQuery`, `registerBeneficiaryRequest`, `updateBeneficiaryRequest`, `archiveBeneficiaryRequest`, `enrollBeneficiaryRequest` and `resolveDuplicateRequest` (`contracts/beneficiaries/beneficiary-requests.ts`), `journeyStageInput`, `saveJourneyStagesRequest`, `recordJourneyEventRequest` and `correctJourneyEventRequest` (`contracts/journeys/journey-requests.ts`) and `reserveBeneficiaryMediaRequest` (`contracts/beneficiaries/beneficiary-media-requests.ts`) replaced the DTO classes of the beneficiaries, participants and beneficiary media modules and the two journey stage classes of `activities.dto.ts`, which is deleted; parity tests ran each DTO and contract through the configured pipes over 109 beneficiary, 82 journey and 38 media bodies before the DTOs were deleted.
 - Services: `beneficiaries.service.ts` (1461 lines) split into `beneficiaries.service.ts`, `beneficiary-registration.service.ts` (`BeneficiaryRegistrationService`, which `ImportsService` now injects), `beneficiary-registration.helpers.ts`, `beneficiaries.helpers.ts`, `beneficiaries.mapper.ts` and `registration-context.service.ts`; `participants.service.ts` (703 lines) split into `participants.service.ts` (participation promotion), `journey-stages.service.ts`, `beneficiary-journey.service.ts` and `journey-stages.mapper.ts`, with one controller per file; every move was checked line for line.
 - Duplicates: the participation `normalizedCode` was removed for the identical `canonicalCode` after a characterization test.
 - Kernel: `requestIdentity` in the beneficiaries, identity review, journey and media controllers; `beneficiary-progress.ts` takes `Tx`.
@@ -4037,11 +4053,11 @@ S4a applied <date> on refactor/s4a-beneficiaries-api:
 Deferred to S4b: the 19 beneficiary, journey and media client methods of `pathways-client.ts` in `lib/api`, the beneficiary and journey response contracts, the `features/beneficiaries` layout and public `index.ts`, the four oversized components and the `ScopedBeneficiaryForm` name. Left to S5: the unused `PrismaService` parameter of `ParticipantsService` and the `beneficiaries` field name in `ImportsService`.
 ```
 
-Replace `<date>` (twice) with the merge date.
+Replace `<date>` (twice) with the day Task 8 runs (`date +%F`); the activity log heading uses the same day.
 
 - [ ] **Step 3: Update the audit, the QAD evidence paths and the index**
 
-- Audit: append to the disposition cell of MOD-04 `; beneficiaries and participants services split by S4a.` and of MOD-11 `; beneficiary, journey and media DTOs replaced by S4a.`
+- Audit (`docs/audit-pathways-codebase-modularity-20261009.md`), two exact replacements: in the MOD-04 row replace `indicators service split by S3a. |` with `indicators service split by S3a; beneficiaries and participants services split by S4a. |`; in the MOD-11 row replace `indicator contracts moved to contracts/indicators by S3a. |` with `indicator contracts moved to contracts/indicators by S3a; beneficiary, journey and media DTOs replaced by S4a. |`.
 
 Create `.tmp/s4a/task8-qad.json`:
 
@@ -4070,19 +4086,19 @@ Create `.tmp/s4a/task8-qad.json`:
 
 ```bash
 node .tmp/s4a/replace-exact.mjs .tmp/s4a/task8-qad.json
-git grep -nE "beneficiaries\.dto|participants\.dto|beneficiary-media\.dto|participants\.controller|participants\.service\.test|journey-stage-code" -- docs ':!docs/activity-log.md' ':!docs/audit-*' ':!docs/cr-*' ':!docs/superpowers/*'
+git grep -nE "beneficiaries\.dto|participants\.dto|beneficiary-media\.dto|participants\.controller|participants\.service\.test|journey-stage-code" -- docs ':!docs/activity-log.md' ':!docs/audit-*' ':!docs/cr-*' ':!docs/superpowers/*' ':!docs/handoff'
 ```
 
 Expected: `3 replacements in 1 files`; the grep prints nothing (QAD-T04 and T49 to T51 now cite the journey gate tests, QAD-T03 both the scoped read and the registration tests, QAD-A23 the registration tests).
 
-- `docs/index.md`: in the CR row status, record S4a as applied and S4b as next, keeping any earlier slice part that is still open named (for example `Approved; F1 to F4b, S1 to S3 and S4a applied, S4b next`).
+- `docs/index.md`: in the CR row status, record S4a as applied and S4b as next, keeping any earlier slice part that is still open named (for example `Approved; F1 to F4b, S1a, S1b, S2a, S2b, S3a, S3b and S4a applied, S4b next`; read the row after S3b and extend it).
 
 - [ ] **Step 4: Activity log**
 
 Add to `docs/activity-log.md`:
 
 ```markdown
-## <date> Modularization S4a beneficiaries api (refactor/s4a-beneficiaries-api)
+## <date> Modularization S4a beneficiaries api (<slice branch>)
 ```
 
 with one bullet per Task 1 to Task 7 stating what moved, split or was added, with its commit hash and the shared and api test counts at the end of that task; a bullet saying the S4a decisions are recorded in the change record section 9 (the plan stays until S4b is planned, because it holds the S4b outline); and a bullet listing the S4b and S5 deferrals. Task 9 Step 5 appends the gate results.
@@ -4095,7 +4111,8 @@ pnpm lint
 git add docs scripts/sad
 git commit -m "docs: record modularization S4a and route the beneficiary modules to the privacy guardian
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015GXgWsghnfykNXQ8sJ5BRx"
 ```
 
 Expected: docs check failure count equals the Task 0 baseline.
@@ -4109,25 +4126,27 @@ Expected: docs check failure count equals the Task 0 baseline.
 ```bash
 pnpm install --frozen-lockfile && pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm sad:test
 git checkout -- apps/web/next-env.d.ts
-test -f packages/shared/dist/contracts/beneficiaries/beneficiary-requests.js && test -f packages/shared/dist/contracts/journeys/journey-requests.js && test -f packages/shared/dist/contracts/beneficiaries/beneficiary-media-requests.js && test -f apps/api/dist/apps/api/src/modules/beneficiaries/beneficiary-registration.service.js && test -f apps/api/dist/apps/api/src/modules/participants/journey-stages.controller.js && test -f apps/api/dist/apps/api/src/modules/participants/beneficiary-journey.controller.js && test ! -e apps/api/dist/apps/api/src/modules/beneficiaries/beneficiaries.dto.js && test ! -e apps/api/dist/apps/api/src/modules/participants/participants.dto.js && test ! -e apps/api/dist/apps/api/src/modules/participants/participants.controller.js && test ! -e apps/api/dist/apps/api/src/modules/beneficiary-media/beneficiary-media.dto.js && echo "dist layout ok"
-pnpm --filter @pathways/web build > .tmp/s4a/web-build-gates.log 2>&1; echo "exit $?"
+test -f packages/shared/dist/contracts/beneficiaries/beneficiary-requests.js && test -f packages/shared/dist/contracts/journeys/journey-requests.js && test -f packages/shared/dist/contracts/beneficiaries/beneficiary-media-requests.js && test -f apps/api/dist/apps/api/src/modules/beneficiaries/beneficiary-registration.service.js && test -f apps/api/dist/apps/api/src/modules/participants/journey-stages.controller.js && test -f apps/api/dist/apps/api/src/modules/participants/beneficiary-journey.controller.js && test ! -e apps/api/dist/apps/api/src/modules/beneficiaries/beneficiaries.dto.js && test ! -e apps/api/dist/apps/api/src/modules/participants/participants.dto.js && test ! -e apps/api/dist/apps/api/src/modules/participants/participants.controller.js && test ! -e apps/api/dist/apps/api/src/modules/beneficiary-media/beneficiary-media.dto.js && test ! -e apps/api/dist/apps/api/src/modules/activities/activities.dto.js && echo "dist layout ok"
+rm -rf apps/web/.next && pnpm --filter @pathways/web build > .tmp/s4a/web-build-gates.log 2>&1; echo "exit $?"
 grep -E "Middleware" .tmp/s4a/web-build-gates.log
 git checkout -- apps/web/next-env.d.ts
 ```
+
+Install as in Task 0 Step 1 (skip the install in the cloud container; deps are installed).
 
 Expected: all pass and `dist layout ok` (nest `deleteOutDir` removes the old output); web build exit 0 with Middleware at most `M0` (`"sideEffects": false` keeps the new contracts out of the Edge bundle). Versus Task 0: shared = `B_shared + 35` (beneficiary requests 15, journey requests 14, media request 6), api = `B_api + 39` (HTTP 13, 7 and 5, audit 1, helpers 5, participation rules 22; 8 stage code tests and 3 metadata cases removed, 3 profile edit cases moved), sad = `B_sad + 1`, config, imports and web unchanged.
 
 - [ ] **Step 2: Local DB replay**
 
-```powershell
-./infra/supabase/phase6/Replay-Local.ps1 -MigrationBaseline
+```bash
+pwsh ./infra/supabase/phase6/Replay-Local.ps1 -MigrationBaseline
 ```
 
-Expected: exit 0.
+Expected: exit 0. If PostgreSQL 18 is not installed at /usr/lib/postgresql/18/bin, the pull request CI replay is the gate; record which one ran. S4a has no migration, so the replay is a no-regression gate.
 
 - [ ] **Step 3: Local stack, compiled API boot, e2e and smoke**
 
-Stop anything on ports 3000 and 4000 first.
+If `supabase` or Docker is missing (the cloud container), record Step 3 (seed, `pnpm dev:local` boot, both Playwright configs and the browser smoke) as pending local run in the activity log gate line and list it for the developer; do not skip Steps 1, 2 or 4. Stop anything on ports 3000 and 4000 first.
 
 ```bash
 pnpm db:local:start && pnpm db:local:reset && pnpm db:local:demo
@@ -4147,63 +4166,61 @@ Expected: `"status":"ok"`; a module-resolution error, a Nest `UnknownDependencie
 - [ ] **Step 4: SAD review**
 
 ```bash
-pnpm sad:check --base dev --head HEAD --output .tmp/sad/s4a/manifest.json
+pnpm sad:check --base "$(cat .tmp/s4a/base-sha)" --head HEAD --output .tmp/sad/s4a/manifest.json
 ```
 
-Dispatch every role the manifest requires (expect `design-qa-agent`, `restraint-guardian`, `organization-isolation-checker`, `beneficiary-privacy-guardian` and `metadata-import-validator`, the last because the imports service and three imports tests changed) with the section 4.2 handoff packet from `docs/sad-pathways.md`, save their section 4.4 envelopes to `.tmp/sad/s4a/reviews.json`, then:
+Dispatch every role the manifest requires (expect `design-qa-agent`, `restraint-guardian`, `organization-isolation-checker`, `beneficiary-privacy-guardian` and `metadata-import-validator`, the last because the imports service and three imports tests changed) with the section 4.2 handoff packet from `docs/sad-pathways.md` (layout in `docs/handoff/sad-packet-example.md`; split a role above 60 paths), transcribe each reply into `.tmp/sad/s4a/reply-<role>.txt`, copy `docs/handoff/sad-assemble.mjs` to `.tmp/sad/s4a/assemble.mjs`, run `node .tmp/sad/s4a/assemble.mjs` (it writes `reviews.json`), then:
 
 ```bash
-pnpm sad:signoff -- --base dev --head HEAD --reviews .tmp/sad/s4a/reviews.json
+pnpm sad:signoff -- --base "$(cat .tmp/s4a/base-sha)" --head HEAD --reviews .tmp/sad/s4a/reviews.json
 ```
 
 Expected: sign-off. Any finding is fixed on this branch and the affected gates rerun.
 
 - [ ] **Step 5: Record the gate results**
 
-Append a final bullet to the Task 8 activity-log section with the gate results (per-package counts, Middleware size, replay exit code, seed result, e2e pass counts, smoke result, SAD sign-off), then:
+Append a final bullet to the Task 8 activity-log section with the gate results (per-package counts, Middleware size, replay exit code, seed result, e2e pass counts, smoke result, SAD sign-off) (or `pending local run` for the seed, e2e and smoke), then:
 
 ```bash
 git add docs/activity-log.md
 git commit -m "docs: record modularization S4a release gate results
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015GXgWsghnfykNXQ8sJ5BRx"
 ```
 
-- [ ] **Step 6: Merge into local dev**
+- [ ] **Step 6: Pull request into dev**
+
+Push the slice branch and open one pull request into `dev` (or add S4a to the open S3b pull request, as the rulings log says); wait for CI (replay, lint, typecheck, test, build, SAD checks) and record the result in the activity log gate line. Ask the developer to merge. Do not merge or push `dev`.
+
+- [ ] **Step 7: Keep the plan for S4b (after the developer merges)**
+
+The plan holds the S4b outline, so the `docs/superpowers/plans` copy stays once merged (the `docs/handoff` copy stays too). In `docs/index.md` section 1.6 change the status of the `superpowers/plans` S4 row to `S4a executed; holds the S4b outline` with a sed that matches only that row, then:
 
 ```bash
-git checkout dev
-git merge --no-ff refactor/s4a-beneficiaries-api -m "Merge refactor/s4a-beneficiaries-api into dev
-
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
-```
-
-- [ ] **Step 7: Keep the plan for S4b**
-
-The plan holds the S4b outline, so it stays on dev. In `docs/index.md` section 1.6 change the S4 plan row status to `S4a executed; holds the S4b outline`, then:
-
-```bash
+sed -i '/(superpowers\/plans\/.*modularization-s4-beneficiaries/s/| In progress |$/| S4a executed; holds the S4b outline |/' docs/index.md
 pnpm docs:check 2>&1 | tail -3
 git add docs/index.md
 git commit -m "docs: mark S4a executed in the plan index
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015GXgWsghnfykNXQ8sJ5BRx"
 ```
 
-Expected: docs check failure count equals the Task 0 baseline. Do not push `origin dev` until the developer says so.
+Expected: docs check failure count equals the Task 0 baseline.
 
 ---
 
 ## S4b outline (beneficiaries web, branch `refactor/s4b-beneficiaries-web`)
 
-To be written as its own plan from dev after S4a merges; that plan's Task 0 removes this file and its index row. Counts below were taken at `a101ad7c` and must be recounted in S4b Task 0 (F4b moves `requestFoundation` and `PathwaysClientError` into `lib/api/core/request.ts` and edits `beneficiary-utils.ts` for `lib/format`; S1b to S3b move other `pathways-client.ts` methods).
+To be written as its own plan from dev after S4a merges; that plan's Task 0 removes the `docs/superpowers/plans` copy and its index row with a sed that matches only that row (the `docs/handoff` copy and its rows stay). Counts below were taken at `a101ad7c` and must be recounted in S4b Task 0 (F4b moves `requestFoundation` and `PathwaysClientError` into `lib/api/core/request.ts` and edits `beneficiary-utils.ts` for `lib/format`; S1b to S3b move other `pathways-client.ts` methods).
 
 - **Task 0, baseline:** recount every number below; record web Middleware; confirm F4b's `lib/api/core/request.ts`, `lib/api/core/request-owner.ts`, `hooks/use-authorized-read.ts` and `lib/format/*` exist.
 - **Task 1, response contracts:** add `beneficiaryResponse` (the `mapBeneficiary` shape with its `progress` union), `registrationContextResponse` (moving `RegistrationContext` out of the api; its fields reuse `FormFieldValidationContract`, so decide in the plan between a zod schema and a plain shared type), `journeyStageResponse` (`mapStage`), `beneficiaryJourneyResponse` (`history`), `duplicateCandidatePairResponse`, `beneficiaryMediaItemResponse`, `beneficiaryMediaLimitsResponse` and the archive and enroll results in `packages/shared/src/contracts/{beneficiaries,journeys}`; annotate `mapBeneficiary`, `mapStage` and the service returns so a drift fails `pnpm typecheck` (CR 3.6, types only).
-- **Task 2, `lib/api/beneficiaries.ts`, `lib/api/journeys.ts`, `lib/api/beneficiary-media.ts`:** move the 19 methods (`getBeneficiaryRecordsForRole`, `getSurveySubjectPage`, `getBeneficiaryRecordForRole`, `registerBeneficiary`, `updateBeneficiary`, `getDuplicateCandidates`, `resolveDuplicate`, `getBeneficiaryRegistrationContext`, `ensureDefaultRegistrationForm`; `getJourneyStages`, `saveJourneyStages`, `getBeneficiaryJourneyHistory`, `transitionBeneficiaryJourney`, `correctBeneficiaryJourneyEvent`; `listBeneficiaryMedia`, `getBeneficiaryMediaLimits`, `reserveBeneficiaryMedia`, `finalizeBeneficiaryMedia`, `getBeneficiaryMediaBlob`) and `lib/services/registration-context.ts` (81 lines) out of `pathways-client.ts` (2786 lines) with unchanged signatures. 27 web files reference them (13 production, among them `collection-workspace.tsx`, `use-project-reads.ts` and `evaluation-center-lookup.tsx`); 11 of the 56 `vi.mock('@/lib/services/pathways-client', ...)` factories define one and must split into the new module mock in the same commit, counted before and after. `RegisterBeneficiaryInput`, `UpdateBeneficiaryInput`, `EnrollmentJourneyEventInput`, `CorrectJourneyEventInput` and `ResolveDuplicateInput` in `types/pathways.ts` give way to the S4a request types where they are equal; view models whose labels differ from the API (`JourneyStageConfig` uses `Entry` where the API sends `ENTRY`, `BeneficiaryRecord`, `BeneficiaryFilters`) stay. `getBeneficiaryAssessments` belongs to evaluations (S6). After S2b, `beneficiary-media-proof.tsx` calls `activitiesClient.uploadActivityProofFile` (keep that call or add a media-owned `PUT`), the media limits read needs `isFiniteNonNegative` from `@/lib/api/core/guards`, and the beneficiary loaders call `activitiesClient.getActivities` and `getActivityContext`.
+- **Task 2, `lib/api/beneficiaries.ts`, `lib/api/journeys.ts`, `lib/api/beneficiary-media.ts`:** move the 19 methods (`getBeneficiaryRecordsForRole`, `getSurveySubjectPage`, `getBeneficiaryRecordForRole`, `registerBeneficiary`, `updateBeneficiary`, `getDuplicateCandidates`, `resolveDuplicate`, `getBeneficiaryRegistrationContext`, `ensureDefaultRegistrationForm`; `getJourneyStages`, `saveJourneyStages`, `getBeneficiaryJourneyHistory`, `transitionBeneficiaryJourney`, `correctBeneficiaryJourneyEvent`; `listBeneficiaryMedia`, `getBeneficiaryMediaLimits`, `reserveBeneficiaryMedia`, `finalizeBeneficiaryMedia`, `getBeneficiaryMediaBlob`) and `lib/services/registration-context.ts` (81 lines) out of `pathways-client.ts` (1361 lines after S3b) with unchanged signatures. 27 web files reference them (13 production, among them `collection-workspace.tsx`, `projects.reads.ts` and `evaluation-center-lookup.tsx`); 41 `vi.mock('@/lib/services/pathways-client', ...)` factories exist and 4 name one inline, the others pass shared objects and must split into the new module mock in the same commit, counted before and after. `RegisterBeneficiaryInput`, `UpdateBeneficiaryInput`, `EnrollmentJourneyEventInput`, `CorrectJourneyEventInput` and `ResolveDuplicateInput` in `types/pathways.ts` give way to the S4a request types where they are equal; view models whose labels differ from the API (`JourneyStageConfig` uses `Entry` where the API sends `ENTRY`, `BeneficiaryRecord`, `BeneficiaryFilters`) stay. `getBeneficiaryAssessments` belongs to evaluations (S6). After S2b, `beneficiary-media-proof.tsx` calls `activitiesClient.uploadActivityProofFile` (keep that call or add a media-owned `PUT`), the media limits read needs `isFiniteNonNegative` from `@/lib/api/core/guards`, and the beneficiary loaders call `activitiesClient.getActivities` and `getActivityContext`.
 - **Task 3, feature layout:** `features/beneficiaries` (25 files) and `features/journey-config` (8 files) are 33 files, over the CR 3.3 threshold, so they become `features/beneficiaries/{directory,registration,profile,media,identity-review,journey}` with one `index.ts` exporting what the seven route pages import (`app/(dashboard)/beneficiaries/**` and `projects/[projectId]/(workspace)/journey-stages`); no other feature imports either folder. The loaders call the client in effects and none uses `useAuthorizedRead`, so there is no read key to deduplicate; moving them onto `useAuthorizedRead` would change caching and is out of scope.
 - **Task 4, `beneficiary-form.tsx` (1388 lines):** `ScopedBeneficiaryForm` (about 1020 lines) gets a purpose name (MOD-17) and splits into hooks (registration context, draft state) and components (`Field`, `ToggleField`, `PreviewRow`); `registrationAgeAtDate`, `projectRegistrationValues` and `draftFromBeneficiary` move to a `.utils.ts`. `beneficiary-form.test.tsx` (869 lines) splits by concern.
 - **Task 5, `beneficiary-detail.tsx` (1172 lines):** `BeneficiaryDetail` (about 950 lines) splits into summary, enrollment actions, journey timeline, notes and media entry components with a detail hook; `SummaryRow`, `RecordList`, `StageActivityList` and `JourneyNoteList` move to `components/`. `beneficiary-detail.test.tsx` (635 lines) splits by concern.
-- **Task 6, `beneficiary-media-proof.tsx` (662 lines) and `beneficiary-directory.tsx` (565 lines):** `AddMediaDialog`, `MediaViewer` and `MediaKpi`, and the directory's `FilterSelect`, move to `components/`. The directory's `'5-9'` age band option stays as it is (MOD-B1, behavior).
+- **Task 6, `beneficiary-media-proof.tsx` (664 lines) and `beneficiary-directory.tsx` (565 lines):** `AddMediaDialog`, `MediaViewer` and `MediaKpi`, and the directory's `FilterSelect`, move to `components/`. The directory's `'5-9'` age band option stays as it is (MOD-B1, behavior).
 - **Task 7, records:** CR section 9 S4b disposition, audit MOD-05, MOD-06, MOD-16 and MOD-17, index, activity log; SAD routing for the new `lib/api` files is already covered by F4b's `apps/web/src/lib/api/**/*.ts` route to beneficiary-privacy-guardian.
-- **Task 8, gates and merge:** as S4a Task 9, with a smoke over every beneficiary, journey, media and duplicate screen and the collection and evaluation lookups that read beneficiaries. After merge, remove this plan and its index row.
+- **Task 8, gates and merge:** as S4a Task 9, with a smoke over every beneficiary, journey, media and duplicate screen and the collection and evaluation lookups that read beneficiaries. After the developer merges, remove the `docs/superpowers/plans` copy and its index row with a sed that matches only that row.
