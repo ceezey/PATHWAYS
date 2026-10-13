@@ -1,18 +1,9 @@
 import { BadRequestException } from '@nestjs/common'
 import { type MonitoringDashboard, metricCellSchema } from '@pathways/shared'
-import type { Prisma } from '@prisma/client'
 import { z } from 'zod'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
+import type { Tx } from '../../common/prisma/transaction'
 import { classifyScoreCommentary } from '../evaluations/evaluations.helpers'
-
-type ExtraReportKind = 'MONITORING_REPORT' | 'EVALUATION_REPORT'
-export const isExtraReportKind = (kind: string): kind is ExtraReportKind =>
-  kind === 'MONITORING_REPORT' || kind === 'EVALUATION_REPORT'
-// Both extra kinds read monitoring data, so they also need monitoring.read on top of the kind grant.
-export const extraKindRequires = {
-  MONITORING_REPORT: 'monitoring.read',
-  EVALUATION_REPORT: 'monitoring.read',
-} as const
 
 const day = (value: Date) => value.toISOString().slice(0, 10)
 const MAX_SPAN_MS = 365 * 86_400_000
@@ -65,7 +56,7 @@ const sourceCell = (view: ReturnType<typeof classifyScoreCommentary>) =>
 
 /** The chosen (default latest) signed-off or archived evaluation with its scores, or an empty table. */
 export async function evaluationReportTable(
-  tx: Prisma.TransactionClient,
+  tx: Tx,
   actor: ApplicationIdentity,
   projectId: string,
   evaluationId?: string,
