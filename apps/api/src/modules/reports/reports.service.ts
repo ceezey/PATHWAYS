@@ -18,6 +18,7 @@ import { writeAuditLog } from '../../common/audit/write-audit-log'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import { withAuthorizedOperation } from '../../common/authz/authorized-operation'
 import { projectScope } from '../../common/authz/project-scope'
+import { requireScopedProject } from '../../common/authz/scoped-project'
 import type { Tx } from '../../common/prisma/transaction'
 import { PrismaService } from '../../prisma/prisma.service'
 import { DashboardsService } from '../dashboards/dashboards.service'
@@ -112,14 +113,7 @@ export class ReportsService {
       assertReportPermission(actor, 'SURVEY_FORM_RESULTS')
       if (!hasAtomicPermission(actor.roles[0], actor.permissions, 'forms.read'))
         throw new ForbiddenException('Current form permission required.')
-      if (
-        !uuid.safeParse(projectId).success ||
-        !(await tx.project.findFirst({
-          where: { AND: [projectScope(actor), { id: projectId }] },
-          select: { id: true },
-        }))
-      )
-        throw new NotFoundException('Project unavailable.')
+      await requireScopedProject(tx, actor, projectId)
       const rows = await tx.$queryRaw<
         Array<{ id: string; name: string; code: string; version: number }>
       >`SELECT f.id::text,f.name,f.code,f.version FROM pathways.digital_forms f WHERE f.organization_id=${actor.organizationId}::uuid AND f.project_id=${projectId}::uuid AND f.form_type='TRAINING_SURVEY' AND f.status='PUBLISHED' AND NOT EXISTS(SELECT FROM pathways.digital_forms newer WHERE newer.organization_id=f.organization_id AND newer.project_id=f.project_id AND newer.code=f.code AND newer.status='PUBLISHED' AND newer.version>f.version) ORDER BY f.code,f.id LIMIT 101`
@@ -130,14 +124,7 @@ export class ReportsService {
   evaluationRounds(identity: ApplicationIdentity, projectId: string) {
     return withAuthorizedOperation(this.prisma, identity, 'reports.read', async (tx, actor) => {
       assertReportPermission(actor, 'EVALUATION_REPORT')
-      if (
-        !uuid.safeParse(projectId).success ||
-        !(await tx.project.findFirst({
-          where: { AND: [projectScope(actor), { id: projectId }] },
-          select: { id: true },
-        }))
-      )
-        throw new NotFoundException('Project unavailable.')
+      await requireScopedProject(tx, actor, projectId)
       const rows = await tx.projectEvaluation.findMany({
         where: {
           organizationId: actor.organizationId,
@@ -170,14 +157,7 @@ export class ReportsService {
   }
   list(identity: ApplicationIdentity, projectId: string) {
     return withAuthorizedOperation(this.prisma, identity, 'reports.read', async (tx, actor) => {
-      if (
-        !uuid.safeParse(projectId).success ||
-        !(await tx.project.findFirst({
-          where: { AND: [projectScope(actor), { id: projectId }] },
-          select: { id: true },
-        }))
-      )
-        throw new NotFoundException('Project unavailable.')
+      await requireScopedProject(tx, actor, projectId)
       const allowed = readableReportKinds(actor)
       if (!allowed.length) return []
       const rows = await tx.report.findMany({
