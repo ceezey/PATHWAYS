@@ -2,7 +2,6 @@ import { createHash } from 'node:crypto'
 import {
   BadRequestException,
   ConflictException,
-  ForbiddenException,
   Inject,
   Injectable,
   NotFoundException,
@@ -16,10 +15,10 @@ import {
   P06_CONTRACT_VERSION,
   type RecordIndicatorMeasurementRequest,
   type UpdateIndicatorRequest,
-  indicatorProgress,
-  indicatorResponse,
-  missingMetric,
+  createIndicatorRequest,
   normalizeMetricDecimal,
+  recordIndicatorMeasurementRequest,
+  updateIndicatorRequest,
 } from '@pathways/shared'
 import { Prisma } from '@prisma/client'
 import { writeAuditLog } from '../../common/audit/write-audit-log'
@@ -35,67 +34,10 @@ import {
   readRuleSourceAcknowledgement,
   sourceMutationBody,
 } from '../rules/rules-source-operation'
-import {
-  createIndicatorRequest,
-  parseIndicatorInput,
-  recordIndicatorMeasurementRequest,
-  updateIndicatorRequest,
-} from './indicators.dto'
+import { monitoringSqlError, parseIndicatorRequest } from './indicators.helpers'
+import { releasedNulls, toIndicatorResponse } from './indicators.mapper'
 
 type DefinitionRow = Omit<IndicatorResponse, 'progress' | 'contractVersion'>
-
-export function monitoringSqlError(error: unknown): never {
-  const code = error && typeof error === 'object' && 'code' in error ? error.code : null
-  const meta = error && typeof error === 'object' && 'meta' in error ? error.meta : null
-  const sqlCode = meta && typeof meta === 'object' && 'code' in meta ? meta.code : null
-  if (
-    code === 'P2002' ||
-    code === 'P2034' ||
-    ['23505', '23514', '40001', '40P01'].includes(String(sqlCode))
-  ) {
-    throw new ConflictException(
-      'The indicator or measurement changed, conflicts, or violates its contract. Reload before retrying.',
-    )
-  }
-  if (sqlCode === '42501') throw new ForbiddenException('Monitoring scope is unavailable.')
-  if (code === 'P2028' || ['57014', '42P01', '42703', '42883', '22023'].includes(String(sqlCode))) {
-    throw new ServiceUnavailableException(
-      'Monitoring verification is unavailable or exceeded its query limit.',
-    )
-  }
-  throw error
-}
-
-// Released rows carry no definition text, binding or measurement provenance.
-const releasedNulls = {
-  description: null,
-  dataSource: null,
-  mode: null,
-  binding: null,
-  measurementId: null,
-  measuredAt: null,
-  measurementSource: null,
-}
-
-/** Parses one indicator row and adds its baseline-to-target progress. */
-function withProgress(row: Record<string, unknown>, failure: string): IndicatorResponse {
-  const parsed = indicatorResponse.safeParse({
-    ...row,
-    progress: missingMetric('NOT_YET_CALCULATED'),
-    contractVersion: P06_CONTRACT_VERSION,
-  })
-  if (!parsed.success) throw new ServiceUnavailableException(failure)
-  const indicator = parsed.data
-  const progress = indicator.direction
-    ? indicatorProgress(
-        indicator.current,
-        indicator.baseline,
-        indicator.target,
-        indicator.direction,
-      )
-    : missingMetric('LEGACY_REVIEW_REQUIRED')
-  return { ...indicator, progress }
-}
 
 @Injectable()
 export class IndicatorsService {
@@ -145,7 +87,7 @@ export class IndicatorsService {
       throw new BadRequestException(
         'More than 100 indicator definitions match; narrow the project scope.',
       )
-    return rows.map((row) => withProgress(row, 'Stored indicator contract is unavailable.'))
+    return rows.map((row) => toIndicatorResponse(row, 'Stored indicator contract is unavailable.'))
   }
 
   async readInTransaction(
@@ -188,7 +130,10 @@ export class IndicatorsService {
         'More than 100 indicator definitions match; narrow the project scope.',
       )
     return rows.map(({ item }) =>
-      withProgress({ ...item, ...releasedNulls }, 'Released indicator contract is unavailable.'),
+      toIndicatorResponse(
+        { ...item, ...releasedNulls },
+        'Released indicator contract is unavailable.',
+      ),
     )
   }
 
@@ -281,7 +226,7 @@ export class IndicatorsService {
     }
   }
   async create(identity: ApplicationIdentity, projectId: string, value: unknown) {
-    const input: CreateIndicatorRequest = parseIndicatorInput(createIndicatorRequest, value)
+    const input: CreateIndicatorRequest = parseIndicatorRequest(createIndicatorRequest, value)
     return withAuthorizedOperation(
       this.prisma,
       identity,
@@ -361,7 +306,7 @@ export class IndicatorsService {
     indicatorId: string,
     value: unknown,
   ) {
-    const input: UpdateIndicatorRequest = parseIndicatorInput(updateIndicatorRequest, value)
+    const input: UpdateIndicatorRequest = parseIndicatorRequest(updateIndicatorRequest, value)
     return withAuthorizedOperation(
       this.prisma,
       identity,
@@ -458,7 +403,7 @@ export class IndicatorsService {
     indicatorId: string,
     value: unknown,
   ) {
-    const input: RecordIndicatorMeasurementRequest = parseIndicatorInput(
+    const input: RecordIndicatorMeasurementRequest = parseIndicatorRequest(
       recordIndicatorMeasurementRequest,
       value,
     )

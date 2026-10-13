@@ -10,10 +10,11 @@ import {
   Post,
   Req,
 } from '@nestjs/common'
+import { archiveIndicatorRequest } from '@pathways/shared'
 import type { AuthenticatedRequest } from '../../common/authz/application-identity'
 import { RequirePermission } from '../../common/decorators/permission.decorator'
 import { IndicatorLibraryService } from './indicator-library.service'
-import { archiveIndicatorRequest, parseIndicatorInput } from './indicators.dto'
+import { parseIndicatorRequest } from './indicators.helpers'
 import { IndicatorsService } from './indicators.service'
 function identity(request: AuthenticatedRequest) {
   if (!request.user) throw new ForbiddenException('Application profile is required.')
@@ -92,7 +93,7 @@ export class IndicatorsController {
     @Param('indicatorId') indicatorId: string,
     @Body() body: unknown,
   ) {
-    const input = parseIndicatorInput(archiveIndicatorRequest, body)
+    const input = parseIndicatorRequest(archiveIndicatorRequest, body)
     return this.service.archive(identity(request), projectId, indicatorId, input)
   }
 }
