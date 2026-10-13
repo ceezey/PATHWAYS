@@ -1,16 +1,12 @@
-import { Body, Controller, ForbiddenException, Get, Inject, Param, Post, Req } from '@nestjs/common'
+import { Body, Controller, Get, Inject, Param, Post, Req } from '@nestjs/common'
 
+import { type ResolveDuplicateRequest, resolveDuplicateRequest } from '@pathways/shared'
 import type { AuthenticatedRequest } from '../../common/authz/application-identity'
+import { requestIdentity } from '../../common/authz/request-identity'
 import { RequireBeneficiaryStepUp } from '../../common/decorators/beneficiary-step-up.decorator'
 import { RequirePermission } from '../../common/decorators/permission.decorator'
-// biome-ignore lint/style/useImportType: Nest validation needs the DTO constructor at runtime.
-import { ResolveDuplicateDto } from './beneficiaries.dto'
+import { ZodPipe } from '../../common/validation/zod-pipe'
 import { IdentityReviewService } from './identity-review.service'
-
-function profile(request: AuthenticatedRequest) {
-  if (!request.user) throw new ForbiddenException('Application profile is required.')
-  return request.user
-}
 
 // Declared before BeneficiariesController so its fixed paths win over ':beneficiaryId'.
 @Controller('beneficiaries/projects/:projectId/duplicate-candidates')
@@ -21,7 +17,7 @@ export class IdentityReviewController {
   @RequirePermission('beneficiaries.identities.review')
   @RequireBeneficiaryStepUp()
   list(@Req() request: AuthenticatedRequest, @Param('projectId') projectId: string) {
-    return this.review.candidates(profile(request), projectId)
+    return this.review.candidates(requestIdentity(request), projectId)
   }
 
   @Post('resolve')
@@ -30,8 +26,8 @@ export class IdentityReviewController {
   resolve(
     @Req() request: AuthenticatedRequest,
     @Param('projectId') projectId: string,
-    @Body() body: ResolveDuplicateDto,
+    @Body(new ZodPipe(resolveDuplicateRequest)) body: ResolveDuplicateRequest,
   ) {
-    return this.review.resolve(profile(request), projectId, body)
+    return this.review.resolve(requestIdentity(request), projectId, body)
   }
 }

@@ -11,13 +11,19 @@ import { readApiEnv } from '@pathways/config'
 import { Prisma } from '@prisma/client'
 
 import {
+  type ArchiveBeneficiaryRequest,
+  type BeneficiaryListQuery,
+  type EnrollBeneficiaryRequest,
   type FormFieldValidationContract,
+  type RegisterBeneficiaryRequest,
+  type UpdateBeneficiaryRequest,
   beneficiaryAgeRuleMessages,
   beneficiaryRegistrationDefinitionErrors,
   businessCalendarDate,
   completedYearsAt,
   hasAtomicPermission,
   minimumBeneficiaryAge,
+  updateBeneficiaryRequest,
   validateAndNormalizeFormData,
 } from '@pathways/shared'
 import { writeAuditLog } from '../../common/audit/write-audit-log'
@@ -27,12 +33,7 @@ import { projectDateFields, requireScopedProjectRow } from '../../common/authz/s
 import type { Tx } from '../../common/prisma/transaction'
 import { PrismaService } from '../../prisma/prisma.service'
 import {
-  type ArchiveBeneficiaryDto,
-  type BeneficiaryListQueryDto,
-  type EnrollBeneficiaryDto,
-  type RegisterBeneficiaryDto,
   type RegistrationContextDto,
-  type UpdateBeneficiaryDto,
   canonicalCode,
   canonicalIdentifierType,
   canonicalIdentifierValue,
@@ -42,6 +43,10 @@ import { canReadProgress, loadProgress } from './beneficiary-progress'
 /** The one system template key the 0040 guard and check constraint admit. */
 const DEFAULT_REGISTRATION_TEMPLATE_KEY = 'SYSTEM_DEFAULT_REGISTRATION_V1'
 type NormalizedValue = string | number | boolean | string[] | null
+// The compiled update DTO carried every declared field, so the profile update audit lists all of them.
+const auditedProfileFields = Object.keys(updateBeneficiaryRequest.shape).filter(
+  (key) => key !== 'expectedUpdatedAt',
+)
 
 const fieldSelection = {
   id: true,
@@ -434,7 +439,7 @@ function ageBandWhere(referenceDate: Date, band?: SadddAgeBand): Prisma.Benefici
 export class BeneficiariesService {
   constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
-  list(identity: ApplicationIdentity, projectId: string, query: BeneficiaryListQueryDto) {
+  list(identity: ApplicationIdentity, projectId: string, query: BeneficiaryListQuery) {
     return withAuthorizedOperation(
       this.prisma,
       identity,
@@ -705,7 +710,7 @@ export class BeneficiariesService {
     )
   }
 
-  register(identity: ApplicationIdentity, projectId: string, input: RegisterBeneficiaryDto) {
+  register(identity: ApplicationIdentity, projectId: string, input: RegisterBeneficiaryRequest) {
     return withAuthorizedOperation(
       this.prisma,
       identity,
@@ -1119,7 +1124,7 @@ export class BeneficiariesService {
     identity: ApplicationIdentity,
     projectId: string,
     beneficiaryId: string,
-    input: UpdateBeneficiaryDto,
+    input: UpdateBeneficiaryRequest,
   ) {
     return withAuthorizedOperation(
       this.prisma,
@@ -1159,7 +1164,7 @@ export class BeneficiariesService {
           action: 'BENEFICIARY_PROFILE_UPDATED',
           entityType: 'Beneficiary',
           entityId: current.id,
-          changes: { fields: Object.keys(input).filter((key) => key !== 'expectedUpdatedAt') },
+          changes: { fields: auditedProfileFields },
         })
         return this.mapBeneficiary(
           await this.requireBeneficiary(tx, actor, project.id, current.id),
@@ -1173,7 +1178,7 @@ export class BeneficiariesService {
     identity: ApplicationIdentity,
     projectId: string,
     beneficiaryId: string,
-    input: ArchiveBeneficiaryDto,
+    input: ArchiveBeneficiaryRequest,
   ) {
     return withAuthorizedOperation(
       this.prisma,
@@ -1211,7 +1216,7 @@ export class BeneficiariesService {
     identity: ApplicationIdentity,
     projectId: string,
     beneficiaryId: string,
-    input: EnrollBeneficiaryDto,
+    input: EnrollBeneficiaryRequest,
   ) {
     return withAuthorizedOperation(
       this.prisma,
@@ -1285,7 +1290,7 @@ export class BeneficiariesService {
   }
 
   private assertSubjectProfile(
-    input: UpdateBeneficiaryDto,
+    input: UpdateBeneficiaryRequest,
     current: Awaited<ReturnType<BeneficiariesService['requireBeneficiary']>>,
   ) {
     if (input.subjectType === 'INDIVIDUAL') {

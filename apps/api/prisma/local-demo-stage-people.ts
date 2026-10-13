@@ -1,4 +1,4 @@
-import type { RegisterBeneficiaryDto } from '../src/modules/beneficiaries/beneficiaries.dto'
+import type { RegisterBeneficiaryRequest } from '@pathways/shared'
 import {
   type DemoProject,
   type PlannedPerson,
@@ -153,7 +153,7 @@ export async function stageBeneficiaries(ctx: DemoContext) {
     const projectStart = (row.startDate as Date).toISOString().slice(0, 10)
     const people = planCohort(project, ctx.today, projectStart)
     for (const person of people) {
-      const dto: RegisterBeneficiaryDto = {
+      const dto: RegisterBeneficiaryRequest = {
         formId,
         clientRegistrationId: ctx.stable(`register:${project.code}:${person.code}`),
         values: registrationValues(person, project),

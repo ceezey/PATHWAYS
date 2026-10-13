@@ -14,16 +14,6 @@ const cases: ControllerCase[] = [
     dtoNames: ['ChangeStepUpPinDto', 'VerifyStepUpPinDto'],
   },
   {
-    file: 'src/modules/beneficiaries/beneficiaries.controller.ts',
-    dtoNames: [
-      'ArchiveBeneficiaryDto',
-      'BeneficiaryListQueryDto',
-      'EnrollBeneficiaryDto',
-      'RegisterBeneficiaryDto',
-      'UpdateBeneficiaryDto',
-    ],
-  },
-  {
     file: 'src/modules/beneficiary-media/beneficiary-media.controller.ts',
     dtoNames: ['ReserveBeneficiaryMediaDto'],
   },

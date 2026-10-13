@@ -869,3 +869,69 @@ describe('directory progress rules', () => {
     expect(progressPercent({ reached: 0, at_terminal: false, path_length: 0 })).toBe(0)
   })
 })
+
+describe('profile update audit', () => {
+  const at = new Date('2026-01-01T00:00:00.000Z')
+  const row = {
+    id: beneficiaryId,
+    code: 'GRP-001',
+    subjectType: 'GROUP',
+    displayName: 'Synthetic Group',
+    status: 'ACTIVE',
+    birthDate: null,
+    ageAtRegistration: null,
+    isMinor: false,
+    updatedAt: at,
+    beneficiaryProjectEnrollment_beneficiary: [
+      { id: enrollmentId, enrollmentDate: at, status: 'ACTIVE', updatedAt: at },
+    ],
+    beneficiaryConsentRecord_beneficiary: [],
+  }
+  const writeTx = {
+    project: { findFirst: vi.fn() },
+    beneficiary: { findFirst: vi.fn(), updateMany: vi.fn() },
+    beneficiaryProjectEnrollment: { findFirst: vi.fn() },
+    auditLog: { create: vi.fn() },
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    readState.tx = writeTx
+    writeTx.project.findFirst.mockResolvedValue({ id: projectId, startDate: at, endDate: null })
+    writeTx.beneficiary.findFirst.mockResolvedValue(row)
+    writeTx.beneficiary.updateMany.mockResolvedValue({ count: 1 })
+    writeTx.beneficiaryProjectEnrollment.findFirst.mockResolvedValue(null)
+  })
+
+  it('lists every profile field whatever the body holds, as the compiled DTO did', async () => {
+    const service = new BeneficiariesService({} as PrismaService)
+    await service.update(actor, projectId, beneficiaryId, {
+      subjectType: 'GROUP',
+      displayName: 'Synthetic Group',
+      sex: 'NOT_SPECIFIED',
+      disabilityStatus: 'NOT_SPECIFIED',
+      expectedUpdatedAt: at.toISOString(),
+    })
+    expect(writeTx.auditLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        action: 'BENEFICIARY_PROFILE_UPDATED',
+        changes: {
+          fields: [
+            'subjectType',
+            'displayName',
+            'firstName',
+            'middleName',
+            'lastName',
+            'sex',
+            'birthDate',
+            'ageAtRegistration',
+            'disabilityStatus',
+            'locationBarangay',
+            'locationCityMunicipality',
+            'locationProvince',
+          ],
+        },
+      }),
+    })
+  })
+})

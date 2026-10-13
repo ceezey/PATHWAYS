@@ -10,9 +10,9 @@ import type {
   TransitionActivityRequest,
 } from '@pathways/shared'
 import type { CreateProjectRequest } from '@pathways/shared'
+import type { RegisterBeneficiaryRequest } from '@pathways/shared'
 import type { ApplicationIdentity } from '../src/common/authz/application-identity'
 import { ActivityLifecycleService } from '../src/modules/activities/activity-lifecycle.service'
-import type { RegisterBeneficiaryDto } from '../src/modules/beneficiaries/beneficiaries.dto'
 import { BeneficiariesService } from '../src/modules/beneficiaries/beneficiaries.service'
 import { IndicatorMeasurementsService } from '../src/modules/indicators/indicator-measurements.service'
 import { IndicatorsService } from '../src/modules/indicators/indicators.service'
@@ -1048,7 +1048,7 @@ function planBeneficiaryRegistration(
   const disabilityStatus = index % 9 === 0 ? 'WITH_DISABILITY' : 'NOT_SPECIFIED'
   const barangay = pick(plan.barangays, index)
   const clientRegistrationId = stableUuid(`beneficiary-register:${plan.code}:${code}`)
-  const registerDto: RegisterBeneficiaryDto = {
+  const registerDto: RegisterBeneficiaryRequest = {
     formId,
     clientRegistrationId,
     values: {
