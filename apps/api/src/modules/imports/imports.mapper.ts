@@ -1,3 +1,4 @@
+import type { ImportBatchResponse } from '@pathways/shared'
 import type { Prisma } from '@prisma/client'
 
 export const batchSelection = {
@@ -53,7 +54,7 @@ export const fieldSelection = {
 
 export type FieldRow = Prisma.FormFieldGetPayload<{ select: typeof fieldSelection }>
 
-export function mapBatch(batch: BatchRow) {
+export function mapBatch(batch: BatchRow): ImportBatchResponse {
   return {
     id: batch.id,
     projectId: batch.projectId,
