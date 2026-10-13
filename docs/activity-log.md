@@ -719,3 +719,13 @@
 - Fix (40f23e2d): the query compares `a.assigned_at <= clock_timestamp()`, so both sides use the database clock; future-dated assignments stay excluded.
 - Tests: `application-profile.service.test.ts` now asserts the `clock_timestamp()` cutoff and that no host `Date` is bound; api 2429 (21 skipped).
 - Gates: lint, typecheck and api build pass; api 2429 (21 skipped), sad 53; `Replay-Local.ps1 -MigrationBaseline` 171 PASS, 0 FAIL with `csv-rbac.local.test.ts` green; `application-profile.local.test.ts` not run (it needs the retired phase 4 replay database on port 55439); seed and e2e skipped because the replay runs the changed query against Postgres; SAD sign-off 3/3 PASS at `71a56c20`. Merged to local dev as `65e094a2`.
+
+## 2026-10-13 Modularization S3a indicators api (refactor/s3a-indicators-api)
+- Task 1 (e0e39bd4): `indicators.validation.test.ts` pinned the indicator 400 body, the 403 on the controller routes and the archive parse order on unchanged code, including the non-UUID 404; api 2437 (21 skipped), shared 281.
+- Task 2 (7e077014): the indicator schemas moved verbatim into `contracts/indicators/`, with the metric cell and shared field schemas in their own `monitoring` modules; shared 281, api 2437.
+- Task 3 (7ec88401): the indicator contracts renamed to request and response names, with `MonitoringIndicator` and `ProjectIndicator` merged into `IndicatorResponse` and callers in api and web updated; shared 281, api 2437.
+- Task 4 (5f43b9b7): `indicators.helpers.ts` and `indicators.mapper.ts` split out of the services and `indicators.dto.ts` deleted, after a helpers test; `indicators.service.ts` 522 lines; shared 281, api 2443 (21 skipped).
+- Task 5 (dea3989a): `measure` moved into `IndicatorMeasurementsService` with five seeds and three tests repointed; `indicators.service.ts` 390 lines, the new service 166 lines; shared 281, api 2445.
+- Task 6 (2714ca3e): the three indicator controllers use `requestIdentity`; shared 281, api 2445 (21 skipped).
+- Decisions: the S3a decisions are recorded in the change record section 9; the plan stays until S3b is planned because it holds the S3b outline.
+- Deferred to S3b: `lib/api/indicators.ts`, `features/projects/indicators/`, the workspace split, `indicators.reads.ts` and the web aliases `ProjectIndicator`, `CreateIndicatorInput` and `UpdateIndicatorInput`.

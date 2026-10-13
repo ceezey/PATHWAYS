@@ -69,6 +69,7 @@ export const roles = {
     globs: [
       'packages/shared/src/monitoring/**/*.ts',
       'packages/shared/src/rules/**',
+      'packages/shared/src/contracts/indicators/**/*.ts',
       'apps/api/src/modules/indicators/**/*.ts',
       'apps/api/src/modules/rules/**/*.ts',
       'apps/web/src/features/analytics/rule*.ts',
