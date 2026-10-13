@@ -623,3 +623,43 @@ Ruling: run order after S5b becomes S6b, S5c, S6c, S7a, S7b, S7c, S8a, S8b, W1: 
 Ruling: the S8b plan (Tasks 0 to 7: publication and audit clients, core-feature-client.ts deleted with its artifact helpers moved to lib/api/core, auth, profile, public and settings layouts and indexes, user management workspace 938 to 342 lines and MFA form 717 to 213 split after 21 characterization cases each) is accepted as one slice; its dry run caught the cut scripts dropping 'use client' from two shells, now restored and printed by the plan, cost if wrong: a production build break caught by the gates.
 
 Ruling: apply the S6b pre-flight fixes (4 must-fix: the S5b marker tests features/collection/hooks, no plan-copy removal anywhere in the slice, Expected values from the real S5b tip with shared 675, web 2071 and pathways-client.ts 407 lines, Opus trailers in all 9 commits; should-fix: Task 0 branch, handoff and ancestor checks, characterization cases added so all 87 mutants of the new modules die on both clients before the old code goes with 146 cases and 292 runs, the gate bullet from commands, one wording for no pull request, 1 kB route criteria, the Task 5 branch heading), cost if wrong: an S6b Task 0 stop.
+
+Ruling: S6b Task 0 matched every anchor at d6c9c6d3 (baselines, 18 reports files, 15 budget-module files, 10 hash prefixes, 32 production calls in 12 files, 34 test calls in 2 files, 20 members, 19 mock factories with 5 naming a moved member); plan copy and index row in e4d59ec2, cost if wrong: none.
+
+Ruling: S6b Task 1 committed 659d691d (6 dead reporting files deleted, 11 types and reportKindPermissions cut, web 239 files and 2053 tests, 18 expected titles lost); the first full web run died without a summary and the rerun passed, read as the known load flake, cost if wrong: a real web failure caught by later full runs and CI.
+
+Ruling: S6b Task 1 review PASS on both; the two lows stay as is (the Task 5 records write the activity-log entry, and historical audit and CR mentions of reporting-workspace.tsx describe the past), cost if wrong: a stale doc line fixed later.
+
+Ruling: accept S6b Task 2 at d4536e5b although its stat says 1527 insertions, not the brief's 1097; the 430 extra lines are the characterization cases the pre-flight added (146 cases, 292 runs, all matching) and the brief's stat line was not updated with them, cost if wrong: none, since every file, test count, lost-0 proof and mutation result matched.
+
+Ruling: S6b Task 3 committed f0e1309d and b557359d with every Expected matching (0 callers left, core-feature-client.ts 173 lines, pathways-client.ts 330, web 242 files and 2197 tests, titles lost 0), cost if wrong: none.
+
+Ruling: S6b Task 3 review PASS on both; the now-dead pathways-client mock factory in beneficiary-detail-loader.test.tsx joins the W1 deferrals (it mocks a module the loader no longer imports, so it changes nothing, and that file is a known load flake best left alone mid-slice), and the copied expenseId name in evaluations.test.ts stays, cost if wrong: one dead mock lives until W1.
+
+Ruling: S6b review 2 spec FAIL (about 20 response schema rules of the new clients unpinned, enforced nowhere since Task 3 removed the old clients); fix with a tests-only commit after Task 4 that pins each rule with a mutation proof (fix-2-brief.md), and leave the AssessmentDetail export as is since it moved verbatim, cost if wrong: a later schema edit could loosen a response bound unseen.
+
+Ruling: S6b Task 4 committed 99c59297 with every scripted Expected matching; the route lists differ from the brief within ruling 9 (pre-layout 19 routes smaller by 1 to 5 kB rather than the brief's 21 mixed lines, layout step 1 route at -1 kB rather than /dashboard +1, none grew, Middleware 103 kB), and the records use the measured figures, cost if wrong: none, since route sizes only shrank.
+
+Ruling: S6b Task 4 review PASS on both; the two lows stay (the self-alias import predates the move, and the reports index shape is what the brief requires), cost if wrong: none.
+
+Ruling: fix 2 committed 33234e5d (31 schema pins, each killed its mutation; web 243 files and 2228 tests); the pins follow the real schema where the review guessed (expenseDate is plain string, pdfFallback false is rejected, a row holds at most 30 cells), and later Expected web counts move up by 31, cost if wrong: none.
+
+Ruling: S6b Task 5 committed 6ee4e6db with the four controller corrections (review-fix bullet, final web 2228, measured route sentence, Task 2 wording), so the section is 10 lines and the commit 41 insertions instead of 9 and 40, cost if wrong: none.
+
+Ruling: S6b static gates at 6ee4e6db pass (lint, typecheck, config 19, shared 675, imports 94, api 2610 and 21 skipped, web 243 files and 2228, sad 57, build with Middleware 103 kB, 19 routes smaller and none bigger, docs 6 and 1); the replay stops at initdb as root so the final pull request CI is the gate, and seeds, dev servers, both e2e suites and the browser smoke are pending local run, cost if wrong: a runtime break the container cannot see, caught by CI or Cian's local run.
+
+Ruling: S6b final review PASS; fix its record lows in the gate commit (two UI copy contract entries, not three; the 18 dead tests are counted by file; the route sentence now says the layout move took 1 kB more off one of the 19 routes), leave budget-ledger.tsx (327) and activity-expense-dialog.tsx (304) as verbatim moves for S6c to judge, and hand its F4 list of response rules still unpinned (finance status members, assessment types, report-sections schema, owned-read boundaries, .strict() on 12 of 15 objects, all also unpinned before S6b) to the S6c pre-flight, since S6c adds the response contracts, cost if wrong: a loosened response rule unseen until S6c.
+
+Ruling: S6b SAD sign-off PASS at 46f6ffd3 (design-qa-agent 104 in two packets, beneficiary-privacy-guardian 14, organization-isolation-checker 1, 119 entries, no block); gate results in 46f6ffd3; branch pushed, cost if wrong: none.
+
+## S5c
+
+Ruling: the S5c plan (Tasks 0 to 8: collection-workspace 1640 to 359 lines, import-workspace 1110 to 134, direct-form-entry 654 to 74, every cut lost 0, 66 mutants killed) is accepted as one slice with no S5d, and its route criterion is no route more than 2 kB bigger because the dry run measured the five collection routes 2 kB bigger, cost if wrong: a 2 kB route growth the gates accept.
+
+Ruling: the S5c plan's cross-plan notes go to the pre-flights that own them (S6c and S8b markers must not test features/collection/index.ts before S5c, the S6c noUnusedLocals indicators baseline path follows the S5c hook move), cost if wrong: a Task 0 stop in S6c or S8b.
+
+Ruling: the S7c plan (Tasks 0 to 9: dashboards and analytics clients with characterization tables, the analytics test split, feature layout, five hooks and four sections out of analytics-dashboard.tsx, 1745 to 898 lines, 99 mutants killed) is accepted, and its S7d outline (features/dashboard, role-dashboard.tsx, the analytics filter bar, analysis panel and scope state) becomes its own slice S7d, making 17 slices, cost if wrong: one more slice of planning and gates.
+
+Ruling: plan S7d on the S7c dry-run tree and W1 on the S6b tip now, in parallel with S5c, so neither waits at the end; W1's Task 0 recounts every figure later slices move, cost if wrong: a W1 pre-flight with more fixes.
+
+Ruling: apply the S5c pre-flight fixes (6 must-fix: index-lists.mjs reads the multi-line next.config entries and counts four indexed features, the Task 0 ancestor check tries local refs and checks the handoff copy, baselines and anchors from the real S6b tip with web 243 files and 2228 tests and Middleware 103 kB, the Task 7 audit anchors, the 38-mutation Expected block, routes judged at no more than 3 kB bigger because /collection/import prints +3 kB; 5 should-fix: the Task 7 record totals, the gate bullet from commands, the SAD text with 166 paths in three packets, exact formTypeLabels and import batch status rows pinned before the old code goes, and a note that commit hashes in Expected blocks differ), cost if wrong: an S5c Task 0 stop.
