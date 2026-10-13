@@ -97,6 +97,14 @@ describe('routing and digest', () => {
     const routed = routing(files.map((file) => change(file, 'new', 'old')))
     expect(routed['organization-isolation-checker']).toEqual(files)
   })
+  it('routes api domain helpers to the organization isolation checker', () => {
+    const files = [
+      'apps/api/src/modules/finance/finance.helpers.ts',
+      'apps/api/src/modules/reports/reports.helpers.ts',
+    ]
+    const routed = routing(files.map((file) => change(file, 'new', 'old')))
+    expect(routed['organization-isolation-checker']).toEqual(files)
+  })
   it('routes web auth, rbac and middleware changes to the organization isolation checker', () => {
     const files = [
       'apps/web/src/lib/auth/workspace-access.ts',

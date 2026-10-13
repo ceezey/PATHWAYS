@@ -20,6 +20,7 @@ export const roles = {
     pillars: ['Security'],
     globs: [
       'apps/api/src/**/*.service.ts',
+      'apps/api/src/**/*.helpers.ts',
       'packages/shared/src/rbac/**/*.ts',
       'apps/api/src/common/authz/**/*.ts',
       'apps/api/src/common/audit/**/*.ts',
