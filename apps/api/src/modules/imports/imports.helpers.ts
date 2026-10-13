@@ -1,0 +1,128 @@
+import { createHash } from 'node:crypto'
+import { extname } from 'node:path'
+import { BadRequestException, ConflictException } from '@nestjs/common'
+import {
+  IMPORT_ENGINEERING_LIMITS,
+  type ImportSourceColumn,
+  type SupportedImportFileType,
+} from '@pathways/imports/server'
+import type { Prisma } from '@prisma/client'
+
+export interface UploadedImportFile {
+  buffer: Buffer
+  originalname: string
+  mimetype: string
+  size: number
+}
+
+const fileTypes: Record<
+  string,
+  { type: SupportedImportFileType; contentTypes: readonly string[] }
+> = {
+  '.csv': { type: 'CSV', contentTypes: ['text/csv', 'application/csv', 'text/plain'] },
+  '.xlsx': {
+    type: 'XLSX',
+    contentTypes: ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
+  },
+  '.xls': { type: 'XLS', contentTypes: ['application/vnd.ms-excel'] },
+  '.pdf': { type: 'PDF', contentTypes: ['application/pdf'] },
+}
+
+export function storedValueMap(value: Prisma.JsonValue): { from: string; to: string }[] {
+  if (!Array.isArray(value)) return []
+  return value.flatMap((entry) =>
+    entry &&
+    typeof entry === 'object' &&
+    !Array.isArray(entry) &&
+    typeof entry.from === 'string' &&
+    typeof entry.to === 'string'
+      ? [{ from: entry.from, to: entry.to }]
+      : [],
+  )
+}
+
+export function checksum(input: Buffer | string) {
+  return createHash('sha256').update(input).digest('hex')
+}
+
+export function stableJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(stableJson).join(',')}]`
+  if (value && typeof value === 'object') {
+    return `{${Object.entries(value as Record<string, unknown>)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, item]) => `${JSON.stringify(key)}:${stableJson(item)}`)
+      .join(',')}}`
+  }
+  return JSON.stringify(value)
+}
+
+export function fileMetadata(file?: UploadedImportFile) {
+  if (!file?.buffer || !Buffer.isBuffer(file.buffer)) {
+    throw new BadRequestException('A source file is required.')
+  }
+  const name = file.originalname.trim()
+  if (
+    !name ||
+    name.length > 128 ||
+    name !== name.split(/[\\/]/).at(-1) ||
+    Array.from(name).some((character) => {
+      const code = character.charCodeAt(0)
+      return code < 32 || code === 127
+    })
+  ) {
+    throw new BadRequestException('The source filename is invalid.')
+  }
+  if (file.size !== file.buffer.length || file.size > IMPORT_ENGINEERING_LIMITS.maxBytes) {
+    throw new BadRequestException('The source file exceeds the byte limit.')
+  }
+  const definition = fileTypes[extname(name).toLowerCase()]
+  if (!definition || !definition.contentTypes.includes(file.mimetype.toLowerCase())) {
+    throw new BadRequestException('The source extension and content type are not supported.')
+  }
+  return { name, ...definition, checksum: checksum(file.buffer), byteLength: file.size }
+}
+
+function sourceColumnKey(columnIndex: number) {
+  return `column_${String(columnIndex).padStart(4, '0')}`
+}
+
+export function safeSourceColumns(value: Prisma.JsonValue): ImportSourceColumn[] {
+  if (!Array.isArray(value) || value.length > IMPORT_ENGINEERING_LIMITS.maxSourceColumns) {
+    throw new ConflictException('Stored import source columns are invalid.')
+  }
+  const columns = value.map((item, index): ImportSourceColumn => {
+    if (typeof item === 'string') {
+      return { key: item, header: item, columnIndex: index + 1 }
+    }
+    if (!item || Array.isArray(item) || typeof item !== 'object') {
+      throw new ConflictException('Stored import source columns are invalid.')
+    }
+    const record = item as Record<string, unknown>
+    const columnIndex = index + 1
+    if (
+      record.key !== sourceColumnKey(columnIndex) ||
+      typeof record.header !== 'string' ||
+      record.header.length < 1 ||
+      record.header.length > IMPORT_ENGINEERING_LIMITS.maxHeaderCharacters ||
+      record.columnIndex !== columnIndex
+    ) {
+      throw new ConflictException('Stored import source columns are invalid.')
+    }
+    return {
+      key: record.key,
+      header: record.header,
+      columnIndex: record.columnIndex,
+    }
+  })
+  if (new Set(columns.map((column) => column.key)).size !== columns.length) {
+    throw new ConflictException('Stored import source columns are invalid.')
+  }
+  return columns
+}
+
+export function safeRawData(value: Prisma.JsonValue): Record<string, unknown> {
+  if (!value || Array.isArray(value) || typeof value !== 'object') {
+    throw new ConflictException('Stored raw import data is invalid.')
+  }
+  return value as Record<string, unknown>
+}
