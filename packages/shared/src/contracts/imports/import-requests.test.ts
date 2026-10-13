@@ -112,3 +112,141 @@ describe('import request contracts', () => {
     expect(accepts(schema, body)).toBe(expected)
   })
 })
+
+describe('row page caps', () => {
+  it.each([
+    [{ offset: '0', take: '1' }, true],
+    [{ offset: '50000', take: '100' }, true],
+    [{ offset: '', take: '7' }, true],
+    [{ offset: '1e3' }, true],
+    [{ offset: '-1' }, false],
+    [{ offset: '50001' }, false],
+    [{ take: '0' }, false],
+    [{ take: '101' }, false],
+    [{ offset: '1.5' }, false],
+    [{ offset: 'abc' }, false],
+    [{ offset: { a: '5' } }, false],
+    [{ foo: '1' }, false],
+  ])('query %j is accepted: %s', (query, expected) => {
+    expect(accepts(importRowsQuery, query)).toBe(expected)
+  })
+
+  it('reads an empty offset as zero', () => {
+    expect(importRowsQuery.parse({ offset: '', take: '7' })).toEqual({ offset: 0, take: 7 })
+  })
+})
+
+describe('save mapping body rules', () => {
+  const column = (extra: Record<string, unknown> = {}) => ({
+    sourceFieldName: 'column_0001',
+    targetFieldCode: 'sex',
+    ignored: false,
+    ...extra,
+  })
+  const body = (mappings: unknown, expectedMappingRevision: unknown = 0) => ({
+    expectedMappingRevision,
+    mappings,
+  })
+  const entries = (count: number) =>
+    Array.from({ length: count }, (_, index) => ({ from: `k${index}`, to: 'v' }))
+  const withMap = (valueMap: unknown) => body([column({ valueMap })])
+  const bell = String.fromCharCode(7)
+
+  it.each([
+    ['one mapping', body([column()]), true],
+    ['500 mappings', body(Array.from({ length: 500 }, () => column())), true],
+    ['revision 7', body([column()], 7), true],
+    ['source name of 100', body([column({ sourceFieldName: 'x'.repeat(100) })]), true],
+    ['target code of 64', body([column({ targetFieldCode: `a${'b'.repeat(63)}` })]), true],
+    ['ignored without a target', body([{ sourceFieldName: 'column_0001', ignored: true }]), true],
+    ['null data type and map', body([column({ dataType: null, valueMap: null })]), true],
+    ['50 map entries', withMap(entries(50)), true],
+    ['negative number as map text', withMap([{ from: 'M', to: '-5' }]), true],
+    ['empty map target', withMap([{ from: 'M', to: '' }]), true],
+    ['map text of 100', withMap([{ from: 'M', to: 'x'.repeat(100) }]), true],
+    ['no mappings', body([]), false],
+    ['501 mappings', body(Array.from({ length: 501 }, () => column())), false],
+    ['object in place of the list', body({ 0: column() }), false],
+    ['null mapping', body([null]), false],
+    ['string mapping', body(['column_0001']), false],
+    ['revision -1', body([column()], -1), false],
+    ['revision 1.5', body([column()], 1.5), false],
+    ['revision as string', body([column()], '1'), false],
+    ['no revision', { mappings: [column()] }, false],
+    ['no mappings key', { expectedMappingRevision: 0 }, false],
+    ['blank source name', body([column({ sourceFieldName: '   ' })]), false],
+    ['source name of 101', body([column({ sourceFieldName: 'x'.repeat(101) })]), false],
+    ['numeric source name', body([column({ sourceFieldName: 7 })]), false],
+    ['empty target code', body([column({ targetFieldCode: '' })]), false],
+    ['target code with a leading digit', body([column({ targetFieldCode: '1sex' })]), false],
+    ['target code of 65', body([column({ targetFieldCode: `a${'b'.repeat(64)}` })]), false],
+    ['numeric target code', body([column({ targetFieldCode: 5 })]), false],
+    ['ignored as string', body([column({ ignored: 'false' })]), false],
+    ['no ignored flag', body([{ sourceFieldName: 'column_0001', targetFieldCode: 'sex' }]), false],
+    ['unknown data type', body([column({ dataType: 'JSON' })]), false],
+    ['empty value map', withMap([]), false],
+    ['51 map entries', withMap(entries(51)), false],
+    ['object in place of the map', withMap({ from: 'M', to: 'Male' }), false],
+    ['null map entry', withMap([null]), false],
+    ['blank map source', withMap([{ from: '  ', to: 'v' }]), false],
+    ['map target of 101', withMap([{ from: 'M', to: 'x'.repeat(101) }]), false],
+    ['map entry without target', withMap([{ from: 'M' }]), false],
+    ['plus prefix on map source', withMap([{ from: '+1', to: 'v' }]), false],
+    ['control character in map target', withMap([{ from: 'M', to: `a${bell}b` }]), false],
+    ['unknown key on the body', { ...body([column()]), extra: 1 }, false],
+    ['unknown key on a mapping', body([column({ extra: 1 })]), false],
+    ['unknown key on a map entry', withMap([{ from: 'M', to: 'Male', note: 'x' }]), false],
+  ])('%s is accepted: %s', (_name, value, expected) => {
+    expect(accepts(saveImportMappingRequest, value)).toBe(expected)
+  })
+
+  it.each([
+    [
+      'body',
+      '{"expectedMappingRevision":0,"mappings":[{"sourceFieldName":"a","ignored":true}],"__proto__":{"a":1}}',
+    ],
+    [
+      'mapping',
+      '{"expectedMappingRevision":0,"mappings":[{"sourceFieldName":"a","ignored":true,"constructor":{"a":1}}]}',
+    ],
+    ['array body', '[]'],
+  ])('rejects the %s %s', (_name, json) => {
+    expect(accepts(saveImportMappingRequest, JSON.parse(json))).toBe(false)
+  })
+
+  it('rejects an array entry in the list and in the map', () => {
+    expect(accepts(saveImportMappingRequest, body([[]]))).toBe(false)
+    expect(accepts(saveImportMappingRequest, withMap([[]]))).toBe(false)
+  })
+})
+
+describe('other import bodies', () => {
+  it.each([
+    ['upload', uploadImportRequest, { formId: uuid }, false],
+    ['upload', uploadImportRequest, { formId: 'not-a-uuid', clientImportId: uuid }, false],
+    ['upload', uploadImportRequest, { formId: [uuid, uuid], clientImportId: uuid }, false],
+    [
+      'upload',
+      uploadImportRequest,
+      { formId: '10000000-0000-0000-8000-000000000001', clientImportId: uuid },
+      false,
+    ],
+    ['upload', uploadImportRequest, { formId: uuid, clientImportId: uuid.toUpperCase() }, true],
+    ['automatic', automaticImportMappingRequest, { expectedMappingRevision: 0 }, true],
+    ['automatic', automaticImportMappingRequest, { expectedMappingRevision: -0 }, true],
+    ['automatic', automaticImportMappingRequest, { expectedMappingRevision: '0' }, false],
+    ['automatic', automaticImportMappingRequest, { expectedMappingRevision: null }, false],
+    ['automatic', automaticImportMappingRequest, {}, false],
+    [
+      'automatic',
+      automaticImportMappingRequest,
+      { expectedMappingRevision: 0, target: 'private' },
+      false,
+    ],
+    ['process', processImportRequest, { expectedValidationRevision: 2 ** 53 }, true],
+    ['process', processImportRequest, { expectedValidationRevision: '1' }, false],
+    ['process', processImportRequest, { expectedValidationRevision: 1, extra: true }, false],
+  ] as const)('%s row %#: accepted %s', (_route, schema, body, expected) => {
+    expect(accepts(schema, body)).toBe(expected)
+  })
+})
