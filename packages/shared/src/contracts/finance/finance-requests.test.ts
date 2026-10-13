@@ -74,4 +74,63 @@ describe('finance request contracts', () => {
       uploadExpenseReceiptRequest.safeParse({ expectedUpdatedAt: revision, file: 'x' }).success,
     ).toBe(false)
   })
+
+  const budget = { category: 'Training', plannedBudget: '10' }
+
+  it.each([
+    ['category', 200],
+    ['remarks', 2000],
+  ])('bounds the budget %s at %i characters', (field, max) => {
+    const parse = (length: number) =>
+      createBudgetRequest.safeParse({ ...budget, [field]: 'x'.repeat(length) }).success
+    expect(parse(max)).toBe(true)
+    expect(parse(max + 1)).toBe(false)
+  })
+
+  it('rejects a whitespace-only budget category', () => {
+    expect(createBudgetRequest.safeParse({ ...budget, category: '   ' }).success).toBe(false)
+  })
+
+  it.each([
+    ['description', expense, submitExpenseRequest],
+    [
+      'reason',
+      { expectedUpdatedAt: revision, decision: 'REJECT', stage: 'VERIFY' },
+      reviewExpenseRequest,
+    ],
+  ])('bounds the expense %s at 2000 characters', (field, base, schema) => {
+    const parse = (length: number) =>
+      schema.safeParse({ ...base, [field]: 'x'.repeat(length) }).success
+    expect(parse(2000)).toBe(true)
+    expect(parse(2001)).toBe(false)
+  })
+
+  it('rejects an amount with a 17 digit integer part', () => {
+    expect(
+      submitExpenseRequest.safeParse({ ...expense, amount: '10000000000000000' }).success,
+    ).toBe(false)
+  })
+
+  it.each([
+    ['replace a budget', replaceBudgetRequest, budget],
+    ['review an expense', reviewExpenseRequest, { decision: 'VERIFY', stage: 'VERIFY' }],
+    ['upload a receipt', uploadExpenseReceiptRequest, {}],
+  ])('takes a revision with an offset to %s but not one without', (_name, schema, body) => {
+    const parse = (expectedUpdatedAt: string) =>
+      schema.safeParse({ ...body, expectedUpdatedAt }).success
+    expect(parse('2026-09-27T00:00:00+08:00')).toBe(true)
+    expect(parse('2026-09-27T00:00:00')).toBe(false)
+  })
+
+  it.each([
+    ['expense submission', submitExpenseRequest, expense],
+    [
+      'expense review',
+      reviewExpenseRequest,
+      { expectedUpdatedAt: revision, decision: 'VERIFY', stage: 'VERIFY' },
+    ],
+  ])('rejects an unknown key on an %s', (_name, schema, body) => {
+    expect(schema.safeParse(body).success).toBe(true)
+    expect(schema.safeParse({ ...body, extra: 1 }).success).toBe(false)
+  })
 })
