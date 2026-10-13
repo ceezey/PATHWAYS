@@ -1,28 +1,19 @@
-import {
-  Body,
-  Controller,
-  ForbiddenException,
-  Get,
-  Inject,
-  Param,
-  Post,
-  Put,
-  Req,
-} from '@nestjs/common'
+import { Body, Controller, Get, Inject, Param, Post, Put, Req } from '@nestjs/common'
 
+import {
+  type CorrectJourneyEventRequest,
+  type RecordJourneyEventRequest,
+  type SaveJourneyStagesRequest,
+  correctJourneyEventRequest,
+  recordJourneyEventRequest,
+  saveJourneyStagesRequest,
+} from '@pathways/shared'
 import type { AuthenticatedRequest } from '../../common/authz/application-identity'
+import { requestIdentity } from '../../common/authz/request-identity'
 import { RequireBeneficiaryStepUp } from '../../common/decorators/beneficiary-step-up.decorator'
 import { RequirePermission } from '../../common/decorators/permission.decorator'
-// biome-ignore lint/style/useImportType: Nest validation needs the DTO constructor at runtime.
-import { SaveJourneyConfigurationDto } from '../activities/activities.dto'
-// biome-ignore lint/style/useImportType: Nest validation needs the DTO constructors at runtime.
-import { CorrectJourneyEventDto, EnrollmentJourneyEventDto } from './participants.dto'
+import { ZodPipe } from '../../common/validation/zod-pipe'
 import { ParticipantsService } from './participants.service'
-
-function profile(request: AuthenticatedRequest) {
-  if (!request.user) throw new ForbiddenException('Application profile is required.')
-  return request.user
-}
 
 @Controller('projects/:projectId/journey-stages')
 export class JourneyStagesController {
@@ -31,16 +22,16 @@ export class JourneyStagesController {
   @Get()
   @RequirePermission('journeys.read', 'journeys.manage')
   list(@Req() request: AuthenticatedRequest, @Param('projectId') projectId: string) {
-    return this.participants.listStages(profile(request), projectId)
+    return this.participants.listStages(requestIdentity(request), projectId)
   }
   @Put()
   @RequirePermission('journeys.manage')
   save(
     @Req() request: AuthenticatedRequest,
     @Param('projectId') projectId: string,
-    @Body() body: SaveJourneyConfigurationDto,
+    @Body(new ZodPipe(saveJourneyStagesRequest)) body: SaveJourneyStagesRequest,
   ) {
-    return this.participants.saveStages(profile(request), projectId, body)
+    return this.participants.saveStages(requestIdentity(request), projectId, body)
   }
 }
 
@@ -55,7 +46,7 @@ export class BeneficiaryJourneyController {
     @Param('projectId') projectId: string,
     @Param('beneficiaryId') beneficiaryId: string,
   ) {
-    return this.participants.history(profile(request), projectId, beneficiaryId)
+    return this.participants.history(requestIdentity(request), projectId, beneficiaryId)
   }
   @Post('events')
   @RequirePermission('beneficiaries.enrollments.manage')
@@ -64,9 +55,14 @@ export class BeneficiaryJourneyController {
     @Req() request: AuthenticatedRequest,
     @Param('projectId') projectId: string,
     @Param('beneficiaryId') beneficiaryId: string,
-    @Body() body: EnrollmentJourneyEventDto,
+    @Body(new ZodPipe(recordJourneyEventRequest)) body: RecordJourneyEventRequest,
   ) {
-    return this.participants.transitionEnrollment(profile(request), projectId, beneficiaryId, body)
+    return this.participants.transitionEnrollment(
+      requestIdentity(request),
+      projectId,
+      beneficiaryId,
+      body,
+    )
   }
   @Post('events/:eventId/corrections')
   @RequirePermission('participation.record')
@@ -76,8 +72,14 @@ export class BeneficiaryJourneyController {
     @Param('projectId') projectId: string,
     @Param('beneficiaryId') beneficiaryId: string,
     @Param('eventId') eventId: string,
-    @Body() body: CorrectJourneyEventDto,
+    @Body(new ZodPipe(correctJourneyEventRequest)) body: CorrectJourneyEventRequest,
   ) {
-    return this.participants.correctEvent(profile(request), projectId, beneficiaryId, eventId, body)
+    return this.participants.correctEvent(
+      requestIdentity(request),
+      projectId,
+      beneficiaryId,
+      eventId,
+      body,
+    )
   }
 }

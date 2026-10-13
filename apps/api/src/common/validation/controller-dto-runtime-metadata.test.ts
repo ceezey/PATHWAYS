@@ -35,14 +35,6 @@ const cases: ControllerCase[] = [
     ],
   },
   {
-    file: 'src/modules/participants/participants.controller.ts',
-    dtoNames: [
-      'SaveJourneyConfigurationDto',
-      'CorrectJourneyEventDto',
-      'EnrollmentJourneyEventDto',
-    ],
-  },
-  {
     file: 'src/modules/users/users.controller.ts',
     dtoNames: ['AuthorizeExistingUserDto', 'UpdateAuthorizedUserDto'],
   },

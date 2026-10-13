@@ -2,15 +2,12 @@ import 'reflect-metadata'
 
 import { ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common'
 import type { Prisma } from '@prisma/client'
-import { plainToInstance } from 'class-transformer'
-import { validate } from 'class-validator'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ApplicationIdentity } from '@app/common/authz/application-identity'
 import { withAuthorizedOperation } from '@app/common/authz/authorized-operation'
 import type { PrismaService } from '@app/prisma/prisma.service'
-import { hasAtomicPermission, rolePermissions } from '@pathways/shared'
-import { CorrectJourneyEventDto } from './participants.dto'
+import { correctJourneyEventRequest, hasAtomicPermission, rolePermissions } from '@pathways/shared'
 import { ParticipantsService } from './participants.service'
 
 const state = vi.hoisted(() => ({ actor: undefined as ApplicationIdentity | undefined }))
@@ -316,13 +313,13 @@ describe('F4 journey stage, enrollment closure and correction gates', () => {
     expect(txOps.beneficiaryJourneyEvent.create).not.toHaveBeenCalled()
   })
 
-  it('G-F4-4 requires a non-empty reason at the request boundary', async () => {
-    const dto = plainToInstance(CorrectJourneyEventDto, {
+  it('G-F4-4 requires a non-empty reason at the request boundary', () => {
+    const parsed = correctJourneyEventRequest.safeParse({
       eventDate: '2026-06-16',
       description: 'Fix',
       reason: '',
     })
-    expect((await validate(dto)).map((error) => error.property)).toContain('reason')
+    expect(parsed.error?.issues.map((issue) => issue.path[0])).toContain('reason')
   })
 })
 

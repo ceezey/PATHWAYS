@@ -8,14 +8,19 @@ import {
 } from '@nestjs/common'
 import type { Prisma } from '@prisma/client'
 
-import { aggregateOnlyRoles, hasAtomicPermission } from '@pathways/shared'
+import {
+  type CorrectJourneyEventRequest,
+  type RecordJourneyEventRequest,
+  type SaveJourneyStagesRequest,
+  aggregateOnlyRoles,
+  hasAtomicPermission,
+} from '@pathways/shared'
 import { writeAuditLog } from '../../common/audit/write-audit-log'
 import { type ApplicationIdentity, UUID_PATTERN } from '../../common/authz/application-identity'
 import { withAuthorizedOperation } from '../../common/authz/authorized-operation'
 import { requireScopedProject } from '../../common/authz/scoped-project'
 import type { Tx } from '../../common/prisma/transaction'
 import { PrismaService } from '../../prisma/prisma.service'
-import type { CorrectJourneyEventDto, EnrollmentJourneyEventDto } from './participants.dto'
 import { normalizedCode, normalizedText } from './participants.dto'
 
 const attendanceValues = ['PRESENT', 'ABSENT', 'COMPLETED', 'NOT_COMPLETED', 'EXCUSED'] as const
@@ -97,24 +102,7 @@ export class ParticipantsService {
     )
   }
 
-  saveStages(
-    identity: ApplicationIdentity,
-    projectId: string,
-    input: {
-      stages: Array<{
-        id?: string
-        code: string
-        name: string
-        order: number
-        type: 'ENTRY' | 'CORE' | 'BRANCH' | 'FOLLOW_UP'
-        parentStageId?: string
-        terminal?: boolean
-        description?: string
-        mappedActivityIds: string[]
-        expectedUpdatedAt?: string
-      }>
-    },
-  ) {
+  saveStages(identity: ApplicationIdentity, projectId: string, input: SaveJourneyStagesRequest) {
     return withAuthorizedOperation(
       this.prisma,
       identity,
@@ -528,7 +516,7 @@ export class ParticipantsService {
     identity: ApplicationIdentity,
     projectId: string,
     beneficiaryId: string,
-    input: EnrollmentJourneyEventDto,
+    input: RecordJourneyEventRequest,
   ) {
     return withAuthorizedOperation(
       this.prisma,
@@ -645,7 +633,7 @@ export class ParticipantsService {
     projectId: string,
     beneficiaryId: string,
     eventId: string,
-    input: CorrectJourneyEventDto,
+    input: CorrectJourneyEventRequest,
   ) {
     return withAuthorizedOperation(
       this.prisma,
