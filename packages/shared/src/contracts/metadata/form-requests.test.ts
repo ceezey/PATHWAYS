@@ -224,6 +224,7 @@ describe('other form bodies', () => {
     ...extra,
   })
   const generate = { code: 'ok_code', name: 'Okay' }
+  const plainValues = { first_name: 'Ana', age: 3, tags: ['a', 'b'], ok: true, empty: null }
   const accepts = (
     schema: { safeParse: (value: unknown) => { success: boolean } },
     value: unknown,
@@ -233,6 +234,7 @@ describe('other form bodies', () => {
     ['update', updateFormRequest, { ...form, expectedUpdatedAt: '2026-W01-1' }, true],
     ['update', updateFormRequest, { ...form, expectedUpdatedAt: 'yesterday' }, false],
     ['update', updateFormRequest, { ...form, expectedUpdatedAt: 5 }, false],
+    ['update', updateFormRequest, { ...form, expectedUpdatedAt: stamp, extra: 1 }, false],
     ['generate', generateFormRequest, { ...generate, templateKey: 'training_survey' }, true],
     ['generate', generateFormRequest, { ...generate, sourceFormId: uuid }, true],
     ['generate', generateFormRequest, { ...generate, templateKey: null, sourceFormId: null }, true],
@@ -265,16 +267,27 @@ describe('other form bodies', () => {
     ['save', saveSubmissionRequest, save({ beneficiaryId: 'x' }), false],
     ['save', saveSubmissionRequest, save({ values: [] }), false],
     ['save', saveSubmissionRequest, save({ extra: 1 }), false],
+    ['save', saveSubmissionRequest, save({ values: plainValues }), true],
+    ['save', saveSubmissionRequest, save({ values: { first_name: { constructor: 1 } } }), false],
     [
       'edit',
       updateSubmissionRequest,
       { expectedUpdatedAt: stamp, values: { first_name: 'Ana' } },
       true,
     ],
+    ['edit', updateSubmissionRequest, { expectedUpdatedAt: stamp, values: plainValues }, true],
+    [
+      'edit',
+      updateSubmissionRequest,
+      { expectedUpdatedAt: stamp, values: { tags: [{ constructor: 1 }] } },
+      false,
+    ],
+    ['edit', updateSubmissionRequest, { expectedUpdatedAt: stamp, values: {}, extra: 1 }, false],
     ['edit', updateSubmissionRequest, { values: {} }, false],
     ['edit', updateSubmissionRequest, { expectedUpdatedAt: stamp }, false],
     ['submit', submitSubmissionRequest, { expectedUpdatedAt: stamp }, true],
     ['submit', submitSubmissionRequest, { expectedUpdatedAt: 'x' }, false],
+    ['submit', submitSubmissionRequest, { expectedUpdatedAt: stamp, extra: 1 }, false],
   ] as const)('%s row %#: accepted %s', (_route, schema, body, expected) => {
     expect(accepts(schema, body)).toBe(expected)
   })
@@ -291,6 +304,14 @@ describe('other form bodies', () => {
     expect(
       validateFormValuesRequest.parse({ values: { first_name: 'Ana', hasOwnProperty: 1 } }),
     ).toEqual({ values: { first_name: 'Ana' } })
+  })
+
+  it('drops a method-named values key on the save and edit bodies', () => {
+    const values = { first_name: 'Ana', toString: 'x' }
+    expect(saveSubmissionRequest.parse(save({ values })).values).toEqual({ first_name: 'Ana' })
+    expect(updateSubmissionRequest.parse({ expectedUpdatedAt: stamp, values }).values).toEqual({
+      first_name: 'Ana',
+    })
   })
 
   it.each([
