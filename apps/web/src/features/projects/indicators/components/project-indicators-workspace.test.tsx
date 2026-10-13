@@ -6,12 +6,12 @@ import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
-  ProjectIndicatorsWorkspace,
   generateIndicatorCode,
   indicatorInputFromForm,
   indicatorPeriod,
   suggestIndicatorCode,
-} from './project-indicators-workspace'
+} from '../indicators.utils'
+import { ProjectIndicatorsWorkspace } from './project-indicators-workspace'
 
 const state = vi.hoisted(() => ({
   roles: ['PROJECT_MANAGER'],
