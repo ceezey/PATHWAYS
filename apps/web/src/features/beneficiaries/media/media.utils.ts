@@ -5,3 +5,6 @@ export const formatMediaFileSize = (bytes: number) => {
 
   return `${(bytes / 1_000_000).toFixed(1)} MB`
 }
+
+// Load state of a media request.
+export type LoadState = 'loading' | 'error' | 'ready'
