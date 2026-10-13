@@ -1,4 +1,4 @@
-import type { ReportSections, StatusLevel } from '@/lib/services/report-sections'
+import type { ReportSections, StatusLevel } from '@/lib/api/report-sections'
 import { cn } from '@/lib/utils'
 
 const levelStyle: Record<StatusLevel, { label: string; className: string }> = {

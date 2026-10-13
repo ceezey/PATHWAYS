@@ -2,7 +2,7 @@ import { type GenerateReportRequest, reportKinds } from '@pathways/shared'
 import { z } from 'zod'
 
 import { ownedJsonPost, ownedJsonRead, projectPath } from '@/lib/api/core/owned-json-read'
-import { reportSectionsSchema } from '@/lib/services/report-sections'
+import { reportSectionsSchema } from '@/lib/api/report-sections'
 
 const uuid = z.string().uuid()
 const timestamp = z.string().datetime({ offset: true })

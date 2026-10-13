@@ -1,5 +1,5 @@
 /* @vitest-environment jsdom */
-import { reportSectionsSchema } from '@/lib/services/report-sections'
+import { reportSectionsSchema } from '@/lib/api/report-sections'
 import { cleanup, render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { readPrintReport } from './print-report-payload'

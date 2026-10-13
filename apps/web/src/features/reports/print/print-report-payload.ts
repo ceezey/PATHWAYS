@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-import { reportSectionsSchema } from '@/lib/services/report-sections'
+import { reportSectionsSchema } from '@/lib/api/report-sections'
 
 const cell = z.string().max(2000)
 const printReportSchema = z

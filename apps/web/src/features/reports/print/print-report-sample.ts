@@ -1,4 +1,4 @@
-import type { ReportSections } from '@/lib/services/report-sections'
+import type { ReportSections } from '@/lib/api/report-sections'
 import type { PrintReport } from './print-report-payload'
 
 const figure = (label: string, value: string | null, percent: number | null, detail = '') => ({
