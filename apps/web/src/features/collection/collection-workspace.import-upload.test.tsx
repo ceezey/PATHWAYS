@@ -3,6 +3,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { clearSensitiveDraftStorage } from '@/lib/auth/sensitive-drafts'
 import { DisplayLabelsProvider } from '@/providers/display-labels-provider'
 
 import { CollectionWorkspace } from './collection-workspace'
@@ -571,5 +572,50 @@ describe('collection conservative uploader mapping', () => {
     )
     expect(api.getImportBatch).not.toHaveBeenCalled()
     expect(api.saveImportMapping).not.toHaveBeenCalled()
+  })
+})
+
+describe('collection upload identity', () => {
+  const proceed = () => {
+    fireEvent.click(screen.getByRole('button', { name: 'Proceed' }))
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Proceed' }))
+  }
+  const changes: Record<string, () => Promise<void>> = {
+    nothing: async () => {},
+    file: async () => {
+      fireEvent.change(screen.getByLabelText('Source file'), {
+        target: { files: [csvFile('changed.csv', async () => 'beneficiary_id\nBEN-OTHER')] },
+      })
+      await screen.findByText(/Preview ready for changed.csv/)
+    },
+    version: async () => {
+      const [current] = await api.getDigitalForms.mock.results[0].value
+      api.getDigitalForms.mockResolvedValue([{ ...current, version: 2 }])
+      fireEvent.click(screen.getByRole('button', { name: 'Build forms' }))
+      await waitFor(() => expect(api.getDigitalForms).toHaveBeenCalledTimes(2))
+      fireEvent.click(screen.getByRole('link', { name: /Import existing file/ }))
+      await waitFor(() => expect(api.getDigitalForms).toHaveBeenCalledTimes(3))
+      await screen.findByText('Ready to proceed')
+    },
+    generation: async () => {
+      await act(async () => clearSensitiveDraftStorage())
+    },
+  }
+  it.each([
+    ['nothing', true],
+    ['file', false],
+    ['version', false],
+    ['generation', false],
+  ])('after a lost upload, a change of %s reuses the import id: %s', async (part, reused) => {
+    api.uploadImport.mockRejectedValue(new Error('Upload response was lost.'))
+    const { submit } = await ownedDataset()
+    fireEvent.click(submit)
+    await screen.findByText('Upload response was lost.')
+    await changes[part]()
+    proceed()
+    await waitFor(() => expect(api.uploadImport).toHaveBeenCalledTimes(2))
+    const [first, second] = api.uploadImport.mock.calls
+    expect(first[2]).toMatch(/^[0-9a-f-]{36}$/)
+    expect(second[2] === first[2]).toBe(reused)
   })
 })
