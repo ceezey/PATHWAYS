@@ -1,6 +1,8 @@
 /* @vitest-environment jsdom */
 import { act, renderHook } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { clearSensitiveDraftStorage } from '@/lib/auth/sensitive-drafts'
 
 import type { FormField } from '../collection.utils'
 import { type OperationGuard, useFormFields } from './use-form-fields'
@@ -34,6 +36,10 @@ const ids = (fields: FormField[]) => fields.map((item) => item.id)
 
 describe('useFormFields', () => {
   beforeEach(() => vi.clearAllMocks())
+  afterEach(() => {
+    vi.useRealTimers()
+    document.getElementById('collection-field-choice-c')?.remove()
+  })
 
   it('starts on the first field', () => {
     const { result } = renderHook(() => useFormFields(initial, guard()))
@@ -108,7 +114,7 @@ describe('useFormFields', () => {
     expect(result.current.selectedFieldId).toBe('a')
   })
 
-  it.each(['current', 'unmounted', 'replaced'] as const)(
+  it.each(['current', 'unmounted', 'replaced', 'cleared'] as const)(
     'focuses the next field choice after a delete only while the owner is current (%s)',
     (owner) => {
       vi.useFakeTimers()
@@ -123,14 +129,26 @@ describe('useFormFields', () => {
       act(() => result.current.confirmDeleteField())
       if (owner === 'unmounted') operation.mounted.current = false
       if (owner === 'replaced') owned.current = false
+      if (owner === 'cleared') clearSensitiveDraftStorage()
       act(() => {
         vi.runAllTimers()
       })
       expect(document.activeElement === target).toBe(owner === 'current')
-      vi.useRealTimers()
-      target.remove()
     },
   )
+
+  it('counts every edit as a new intent', () => {
+    const operation = guard()
+    const { result } = renderHook(() => useFormFields(initial, operation))
+    act(() => result.current.updateField('a', { label: 'x' }))
+    expect(operation.intent.current).toBe(1)
+    act(() => result.current.moveField('a', 'down'))
+    expect(operation.intent.current).toBe(2)
+    act(() => result.current.requestDeleteField('a'))
+    expect(operation.intent.current).toBe(3)
+    act(() => result.current.confirmDeleteField())
+    expect(operation.intent.current).toBe(4)
+  })
 
   it('ignores every edit while an operation holds the form', () => {
     const operation = guard()
