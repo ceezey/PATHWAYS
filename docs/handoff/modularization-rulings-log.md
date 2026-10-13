@@ -347,3 +347,7 @@ Ruling: apply the S3b pre-flight must-fixes (alias count excludes types/pathways
 Ruling: the scan's other notes need no edit (hashes, counts, anchors and cumulative test counts all matched origin/dev 79ad8bbb), cost if wrong: none.
 
 Ruling: accept the Task 0 baseline Middleware 103 kB (the plan's 102 kB came from Windows builds; same .env.example values) as M0 for this container, later builds compare against it, cost if wrong: none, comparisons stay same-machine.
+
+Ruling: format docs/handoff/sad-assemble.mjs with Biome in its own commit (dcaca076); it was committed unformatted at 79ad8bbb, so pnpm lint failed on dev and would also fail the dev CI lint step, cost if wrong: none, formatting only.
+
+Ruling: pnpm verify-deps-before-run is set false in the container's global pnpm config, because a bare pnpm run (the husky hook included) reinstalled from the lockfile and dropped the npm xlsx, cost if wrong: none, container only.
