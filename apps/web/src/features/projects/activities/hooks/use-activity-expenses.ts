@@ -4,8 +4,8 @@ import { useAuthorizedRead } from '@/hooks/use-authorized-read'
 import { financeClient } from '@/lib/api/finance'
 import type { Activity } from '@/types/pathways'
 
-import type { ExpenseBudgetReference } from '../../activity-expense-dialog'
-import type { PendingExpense } from '../../activity-expense-review-dialog'
+import type { ExpenseBudgetReference } from '../../budget/components/activity-expense-dialog'
+import type { PendingExpense } from '../../budget/components/activity-expense-review-dialog'
 import type { ActivityExpenseEntry } from '../components/activity-detail-sections'
 
 export const useActivityExpenses = ({

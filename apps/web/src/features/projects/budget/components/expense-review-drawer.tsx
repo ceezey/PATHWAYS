@@ -11,7 +11,7 @@ import { Sheet } from '@/components/ui/sheet'
 import { Textarea } from '@/components/ui/textarea'
 import { financeClient } from '@/lib/api/finance'
 
-import { formatCurrency } from '../activities/activities.utils'
+import { formatCurrency } from '../../activities/activities.utils'
 
 type Expense = Awaited<ReturnType<typeof financeClient.expenses>>[number]
 export type ReviewAction = 'VERIFY' | 'APPROVE' | 'SIGNOFF'

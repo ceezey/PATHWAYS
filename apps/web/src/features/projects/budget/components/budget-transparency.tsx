@@ -6,8 +6,8 @@ import { useState } from 'react'
 import { SectionCard } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 
-import { formatCurrency } from '../activities/activities.utils'
-import type { useBudgetModule } from './use-budget-module'
+import { formatCurrency } from '../../activities/activities.utils'
+import type { useBudgetModule } from '../hooks/use-budget-module'
 
 type Module = ReturnType<typeof useBudgetModule>
 

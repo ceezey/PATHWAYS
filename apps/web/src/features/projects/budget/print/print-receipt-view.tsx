@@ -1,7 +1,7 @@
 'use client'
 
 import { BrandMark } from '@/components/pathways/brand-mark'
-import { Band, Table, td } from '@/features/reports/print/print-report-sections'
+import { Band, Table, td } from '@/features/reports'
 
 import { amountInWords } from './print-receipt-amount'
 import type { PrintReceipt } from './print-receipt-payload'

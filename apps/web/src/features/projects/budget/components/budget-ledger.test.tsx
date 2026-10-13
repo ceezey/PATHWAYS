@@ -9,8 +9,8 @@ vi.mock('@/lib/services/core-feature-client', () => ({
 }))
 vi.mock('./expense-review-drawer', () => ({ ExpenseReviewDrawer: () => null }))
 
+import { buildActivityRows, projectLevelKey } from '../budget.utils'
 import { BudgetLedger } from './budget-ledger'
-import { buildActivityRows, projectLevelKey } from './budget-math'
 
 const expense = (id: string, budgetRecordId: string) => ({
   id,

@@ -54,7 +54,7 @@ function violation(file: string, specifier: string): string | null {
 }
 
 // Features whose index.ts is their only surface for files outside them (CR section 3.3).
-const indexedFeatures: readonly string[] = ['projects', 'beneficiaries']
+const indexedFeatures: readonly string[] = ['projects', 'beneficiaries', 'reports']
 
 // The rule an import of an indexed feature breaks, or null when it names the feature index.
 function surfaceViolation(file: string, specifier: string): string | null {
@@ -128,7 +128,7 @@ describe('feature public surfaces', () => {
       "const c = await import('@/features/projects/team/project-team-selectors')",
       "import { d } from '@/features/projects'",
       "import { e } from '@/features/projects/index'",
-      "import { f } from '@/features/reports/reporting-workspace'",
+      "import { f } from '@/features/settings/audit-log-workspace'",
       "import { g } from './analytics-utils'",
     ].join('\n')
     expect(specifiers(source).map((specifier) => surfaceViolation(file, specifier))).toEqual([

@@ -14,10 +14,10 @@ import {
   saveCoreArtifact,
 } from '@/lib/services/core-feature-client'
 
-import { formatCurrency, formatDate } from '../activities/activities.utils'
-import { categoryLabel, projectLevelKey, remaining } from './budget-math'
+import { formatCurrency, formatDate } from '../../activities/activities.utils'
+import { categoryLabel, projectLevelKey, remaining } from '../budget.utils'
+import type { useBudgetModule } from '../hooks/use-budget-module'
 import { ExpenseReviewDrawer, type ReviewAction } from './expense-review-drawer'
-import type { useBudgetModule } from './use-budget-module'
 
 type Module = ReturnType<typeof useBudgetModule>
 type Expense = Module['expenses'][number]

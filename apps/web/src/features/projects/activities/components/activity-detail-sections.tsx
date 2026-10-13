@@ -4,7 +4,7 @@ import { ProgressBar, StatusBadge } from '@/components/pathways'
 import type { Activity, ProjectTeamMember } from '@/types/pathways'
 import type { IndicatorResponse } from '@pathways/shared'
 
-import { activityBudgetFigures, categoryLabel, toneFor } from '../../budget-module/budget-math'
+import { activityBudgetFigures, categoryLabel, toneFor } from '../../budget/budget.utils'
 import { formatCurrency, formatDate } from '../activities.utils'
 
 const sectionHeading = 'text-xs font-semibold uppercase tracking-wide text-muted-foreground'

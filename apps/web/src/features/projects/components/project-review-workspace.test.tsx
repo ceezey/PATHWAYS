@@ -51,10 +51,10 @@ vi.mock('@/lib/api/core/request', () => ({ PathwaysClientError: MockPathwaysClie
 vi.mock('@/lib/api/proof-inspection', () => ({ privateProofClient: proofClient }))
 vi.mock('@/lib/api/reports', () => ({ reportsClient: coreApi }))
 vi.mock('@/lib/services/core-feature-client', () => ({ saveCoreArtifact: coreApi.save }))
-vi.mock('../budget-module/budget-module', () => ({
+vi.mock('../budget/components/budget-module', () => ({
   BudgetModule: ({ projectId }: { projectId: string }) => <div>Finance for {projectId}</div>,
 }))
-vi.mock('../live-evaluation-workspace', () => ({
+vi.mock('../evaluation/components/live-evaluation-workspace', () => ({
   LiveEvaluationWorkspace: ({ projectId }: { projectId: string }) => (
     <div>Evaluation for {projectId}</div>
   ),

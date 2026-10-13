@@ -14,12 +14,15 @@ import type {
 } from '@/types/pathways'
 import type { IndicatorResponse } from '@pathways/shared'
 
-import { ActivityExpenseDialog, type ExpenseBudgetReference } from '../../activity-expense-dialog'
+import { categoryLabel } from '../../budget/budget.utils'
+import {
+  ActivityExpenseDialog,
+  type ExpenseBudgetReference,
+} from '../../budget/components/activity-expense-dialog'
 import {
   ActivityExpenseReviewDialog,
   type PendingExpense,
-} from '../../activity-expense-review-dialog'
-import { categoryLabel } from '../../budget-module/budget-math'
+} from '../../budget/components/activity-expense-review-dialog'
 import { activityStatusTone, formatCurrency, formatDate } from '../activities.utils'
 import {
   ActivityBudget,

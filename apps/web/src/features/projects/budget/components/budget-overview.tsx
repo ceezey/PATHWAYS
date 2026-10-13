@@ -8,9 +8,9 @@ import { Button } from '@/components/ui/button'
 import { formatCappedPercent } from '@/lib/format/percent'
 import { cn } from '@/lib/utils'
 
-import { formatCurrency } from '../activities/activities.utils'
-import { type BudgetAlert, toneFor } from './budget-math'
-import type { useBudgetModule } from './use-budget-module'
+import { formatCurrency } from '../../activities/activities.utils'
+import { type BudgetAlert, toneFor } from '../budget.utils'
+import type { useBudgetModule } from '../hooks/use-budget-module'
 
 type Module = ReturnType<typeof useBudgetModule>
 

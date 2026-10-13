@@ -8,11 +8,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { principalHasAtomicPermission } from '@/lib/rbac/policy'
 
+import { useBudgetModule } from '../hooks/use-budget-module'
 import { BudgetActions } from './budget-actions'
 import { BudgetLedger, hashedExpenseId } from './budget-ledger'
 import { BudgetOverview } from './budget-overview'
 import { BudgetTransparency } from './budget-transparency'
-import { useBudgetModule } from './use-budget-module'
 
 /** Budget tab: overview, expense ledger and transparency, derived from existing finance reads. */
 export const BudgetModule = ({ projectId }: { projectId: string }) => {

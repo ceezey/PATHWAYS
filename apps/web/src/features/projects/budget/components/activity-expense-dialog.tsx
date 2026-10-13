@@ -22,7 +22,7 @@ import { financeClient } from '@/lib/api/finance'
 import { useOperationRequestId } from '@/lib/auth/operation-request-id'
 import { principalHasAtomicPermission } from '@/lib/rbac/policy'
 import type { Activity } from '@/types/pathways'
-import { categoryLabel } from './budget-module/budget-math'
+import { categoryLabel } from '../budget.utils'
 
 /** A submitter-safe budget reference: the amount stays hidden, only the linkage is exposed. */
 export type ExpenseBudgetReference = {

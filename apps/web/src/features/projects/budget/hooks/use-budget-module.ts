@@ -5,8 +5,8 @@ import { useMemo } from 'react'
 import { useAuthorizedRead } from '@/hooks/use-authorized-read'
 import { financeClient } from '@/lib/api/finance'
 
-import { useProjectActivitiesRead } from '../activities/activities.reads'
-import { useProjectOverviewMetricsRead } from '../projects.reads'
+import { useProjectActivitiesRead } from '../../activities/activities.reads'
+import { useProjectOverviewMetricsRead } from '../../projects.reads'
 import {
   buildActivityRows,
   deriveAlerts,
@@ -14,7 +14,7 @@ import {
   remaining,
   toNumber,
   utilization,
-} from './budget-math'
+} from '../budget.utils'
 
 /** Reads budgets, expenses and overview metrics, and derives totals, rows and alerts. */
 export const useBudgetModule = (projectId: string) => {

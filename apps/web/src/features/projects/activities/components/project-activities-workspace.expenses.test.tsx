@@ -6,8 +6,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { AuthorizedQueryProvider } from '@/providers/authorized-query-provider'
 
-import type { ExpenseBudgetReference } from '../../activity-expense-dialog'
-import type { PendingExpense } from '../../activity-expense-review-dialog'
+import type { ExpenseBudgetReference } from '../../budget/components/activity-expense-dialog'
+import type { PendingExpense } from '../../budget/components/activity-expense-review-dialog'
 import type { ActivityExpenseEntry } from './activity-detail-sections'
 import { ProjectActivitiesWorkspace } from './project-activities-workspace'
 

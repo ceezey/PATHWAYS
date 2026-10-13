@@ -1,8 +1,8 @@
 'use client'
 
 import { reportsClient } from '@/lib/api/reports'
-import { BudgetModule } from '../budget-module/budget-module'
-import { LiveEvaluationWorkspace } from '../live-evaluation-workspace'
+import { BudgetModule } from '../budget/components/budget-module'
+import { LiveEvaluationWorkspace } from '../evaluation/components/live-evaluation-workspace'
 import { ProjectRulesPanel } from '../project-rules-panel'
 
 import { FileText } from 'lucide-react'

@@ -9,7 +9,7 @@ import {
   remaining,
   toneFor,
   utilization,
-} from './budget-math'
+} from './budget.utils'
 
 const budgets = [
   { id: 'b1', activityId: 'a1', category: 'ACTIVITY_PROFILE_TOTAL', plannedBudget: '1000.00' },

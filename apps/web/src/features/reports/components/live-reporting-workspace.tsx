@@ -25,6 +25,7 @@ import type { ReportKindCode } from '@pathways/shared'
 import { Download, FileSpreadsheet, Save } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
+import { reportFileName } from '../reports.utils'
 
 type Principal = Parameters<typeof principalHasAtomicPermission>[0]
 type AtomicPermission = Parameters<typeof principalHasAtomicPermission>[1]
@@ -59,15 +60,6 @@ export const allowedKinds = (profile: Principal) =>
       (kind !== 'SURVEY_FORM_RESULTS' || principalHasAtomicPermission(profile, 'assessments.read')),
   )
 
-/** Download name from the saved report name, stripped of characters file systems reject. */
-export const reportFileName = (name: string, reportId: string, extension: string) => {
-  const base = Array.from(name, (char) => (char < ' ' || '\\/:*?"<>|'.includes(char) ? ' ' : char))
-    .join('')
-    .replace(/\s+/g, ' ')
-    .replace(/^[\s.]+|[\s.]+$/g, '')
-    .slice(0, 150)
-  return `${base || `report-${reportId}`}.${extension}`
-}
 const day = (value: string) =>
   new Date(value).toLocaleDateString('en-GB', {
     day: 'numeric',

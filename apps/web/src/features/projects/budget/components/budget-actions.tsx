@@ -17,7 +17,7 @@ import { useOperationRequestId } from '@/lib/auth/operation-request-id'
 import { createdSince, fingerprintOf } from '@/lib/forms/pending-create'
 import { principalHasAtomicPermission } from '@/lib/rbac/policy'
 
-import { type ActivityLabel, categoryLabel } from './budget-math'
+import { type ActivityLabel, categoryLabel } from '../budget.utils'
 
 const fail = (error: unknown, fallback: string) =>
   toast.error(error instanceof Error ? error.message : fallback)
