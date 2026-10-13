@@ -95,7 +95,6 @@ Workflow rule: an audit is finding and evidence, a Change Record is the approved
 | Spec | File | Date | Scope | Status |
 |---|---|---|---|---|
 | [Plan 2 cloud handoff](handoff-extensions-and-escalations.md) | handoff-extensions-and-escalations.md | 2026-10-04 | Paused state of Plan 2 Task 1 handed to the cloud session, with the SDD ledger rulings | Closed; resumed and completed |
-| [S3 indicators plan](superpowers/plans/2026-10-13-modularization-s3-indicators.md) | 2026-10-13-modularization-s3-indicators.md | 2026-10-13 | S3 of the codebase modularization: S3a indicator contracts, API mapper, helpers, measurement service and request identity; S3b web outline | S3a executed; holds the S3b outline |
 | [Cloud handoff prompt](handoff/cloud-handoff-prompt.md) | cloud-handoff-prompt.md | 2026-10-13 | Prompt and rules for continuing the codebase modularization in a Claude Code cloud session | Active |
 | [Memory digest](handoff/memory-digest.md) | memory-digest.md | 2026-10-13 | Standing developer rules, baselines and pitfalls carried from the local session memory | Active |
 | [Modularization rulings log](handoff/modularization-rulings-log.md) | modularization-rulings-log.md | 2026-10-13 | Every controller ruling with its cost if wrong, F1 to S3a, for the final report | Active |
@@ -110,6 +109,7 @@ Workflow rule: an audit is finding and evidence, a Change Record is the approved
 | [Implementer common brief](handoff/implementer-common.md) | implementer-common.md | 2026-10-13 | Common rules handed to every implementer subagent | Active |
 | [Reviewer common brief](handoff/reviewer-common.md) | reviewer-common.md | 2026-10-13 | Common rules handed to every task reviewer subagent | Active |
 | [SAD packet example](handoff/sad-packet-example.md) | sad-packet-example.md | 2026-10-13 | S3a SAD section 4.2 handoff packet used as the layout for later slices | Active |
+| [S3b indicators web plan](superpowers/plans/2026-10-13-modularization-s3b-indicators-web.md) | 2026-10-13-modularization-s3b-indicators-web.md | 2026-10-13 | S3b of the codebase modularization: indicator and indicator library clients, indicators feature folder, workspace and library manager split, indicator read keys, web alias removed | In progress |
 
 ### 1.7 Traceability Matrix
 
