@@ -141,6 +141,16 @@ describe('routing and digest', () => {
     expect(routed['beneficiary-privacy-guardian']).toEqual(files)
   })
 
+  it('routes form metadata modules and collection contracts to the metadata import validator', () => {
+    const files = [
+      'apps/api/src/modules/metadata/form-lookup.service.ts',
+      'packages/shared/src/contracts/imports/import-requests.ts',
+      'packages/shared/src/contracts/metadata/form-requests.ts',
+    ]
+    const routed = routing(files.map((file) => change(file, 'new', 'old')))
+    expect(routed['metadata-import-validator']).toEqual(files)
+  })
+
   it('routes the rules dispatch workflow to design-qa-agent', () => {
     const file = '.github/workflows/rules-dispatch.yml'
     expect(routing([change(file, 'new', 'old')])['design-qa-agent']).toContain(file)

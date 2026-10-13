@@ -65,7 +65,13 @@ export const roles = {
   },
   'metadata-import-validator': {
     pillars: ['Functional Suitability'],
-    globs: ['packages/imports/src/**/*.ts', 'apps/api/src/modules/imports/**/*.ts'],
+    globs: [
+      'packages/imports/src/**/*.ts',
+      'apps/api/src/modules/imports/**/*.ts',
+      'apps/api/src/modules/metadata/**/*.ts',
+      'packages/shared/src/contracts/imports/**/*.ts',
+      'packages/shared/src/contracts/metadata/**/*.ts',
+    ],
   },
   'rule-engine-determinism-checker': {
     pillars: ['Performance Efficiency'],

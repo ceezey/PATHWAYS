@@ -894,7 +894,7 @@ flowchart LR
 
 #### State Machines
 
-Import batch lifecycle (`ImportStatus`, `apps/api/src/modules/imports/imports.service.ts`).
+Import batch lifecycle (`ImportStatus`, the upload, mapping, validation and claims services in `apps/api/src/modules/imports`).
 
 ```mermaid
 stateDiagram-v2
