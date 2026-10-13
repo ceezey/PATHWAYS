@@ -10,7 +10,7 @@ import { ActivityReviewService } from '../src/modules/activities/activity-review
 import { BeneficiariesService } from '../src/modules/beneficiaries/beneficiaries.service'
 import { BeneficiaryRegistrationService } from '../src/modules/beneficiaries/beneficiary-registration.service'
 import { DashboardsService } from '../src/modules/dashboards/dashboards.service'
-import { EvaluationMetricsService } from '../src/modules/evaluations/evaluation-metrics'
+import { EvaluationMetricsService } from '../src/modules/evaluations/evaluation-metrics.service'
 import { EvaluationsService } from '../src/modules/evaluations/evaluations.service'
 import { FinanceService } from '../src/modules/finance/finance.service'
 import type { ReceiptPdfRenderer } from '../src/modules/finance/receipt-pdf.renderer'

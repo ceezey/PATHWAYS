@@ -3,7 +3,7 @@ import { hasAtomicPermission, saveEvaluationScoresRequest } from '@pathways/shar
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import type { PrismaService } from '../../prisma/prisma.service'
-import type { EvaluationMetricsService } from './evaluation-metrics'
+import type { EvaluationMetricsService } from './evaluation-metrics.service'
 import { EvaluationsService } from './evaluations.service'
 
 const scope = vi.hoisted(() => ({ actor: undefined as unknown, tx: undefined as unknown }))

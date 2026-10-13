@@ -6,7 +6,7 @@ import {
   type CriterionType,
   EvaluationMetricsService,
   classifyScoreCommentary,
-} from './evaluation-metrics'
+} from './evaluation-metrics.service'
 
 const organizationId = '10000000-0000-4000-8000-00000000000a'
 const project = {

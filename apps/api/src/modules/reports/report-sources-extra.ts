@@ -3,7 +3,7 @@ import { type MonitoringDashboard, metricCellSchema } from '@pathways/shared'
 import type { Prisma } from '@prisma/client'
 import { z } from 'zod'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
-import { classifyScoreCommentary } from '../evaluations/evaluation-metrics'
+import { classifyScoreCommentary } from '../evaluations/evaluation-metrics.service'
 
 type ExtraReportKind = 'MONITORING_REPORT' | 'EVALUATION_REPORT'
 export const isExtraReportKind = (kind: string): kind is ExtraReportKind =>

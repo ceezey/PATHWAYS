@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import { BENEFICIARY_STEP_UP_KEY } from '../../common/decorators/beneficiary-step-up.decorator'
 import type { PrismaService } from '../../prisma/prisma.service'
-import type { EvaluationMetricsService } from './evaluation-metrics'
+import type { EvaluationMetricsService } from './evaluation-metrics.service'
 import { EvaluationsController } from './evaluations.controller'
 import { EvaluationsService } from './evaluations.service'
 

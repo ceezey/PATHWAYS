@@ -24,7 +24,7 @@ import { projectScope } from '../../common/authz/project-scope'
 import { requireScopedProject } from '../../common/authz/scoped-project'
 import { PrismaService } from '../../prisma/prisma.service'
 import { provisionCriteria } from './evaluation-criteria-template'
-import { EvaluationMetricsService, classifyScoreCommentary } from './evaluation-metrics'
+import { EvaluationMetricsService, classifyScoreCommentary } from './evaluation-metrics.service'
 
 const projectIdSchema = z.string().uuid()
 // Locked auth RFC: System Administrator is denied assessment/survey detail and
