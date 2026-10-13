@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  archiveBeneficiaryRequest,
   beneficiaryListQuery,
+  enrollBeneficiaryRequest,
   registerBeneficiaryRequest,
   resolveDuplicateRequest,
   updateBeneficiaryRequest,
@@ -23,6 +25,22 @@ describe('beneficiary request contracts', () => {
       search: 'Ana',
     })
   })
+
+  it.each([
+    [' 7 ', 7],
+    ['1e1', 10],
+    ['0x10', 16],
+    [['10'], 10],
+  ])('coerces the list limit %j to %d as the DTO transform did', (limit, parsed) => {
+    expect(beneficiaryListQuery.parse({ limit }).limit).toBe(parsed)
+  })
+
+  it.each([{ limit: '' }, { limit: '1.5' }, { limit: ['1', '2'] }])(
+    'rejects the list limit %j',
+    (query) => {
+      expect(beneficiaryListQuery.safeParse(query).success).toBe(false)
+    },
+  )
 
   it.each([{ limit: '0' }, { limit: '51' }, { search: '   ' }, { ageBand: '5-9' }, { page: '2' }])(
     'rejects the list query %j',
@@ -75,5 +93,19 @@ describe('beneficiary request contracts', () => {
     expect(
       resolveDuplicateRequest.safeParse({ leftId: uuid, rightId: uuid, decision: 'MERGE' }).success,
     ).toBe(false)
+  })
+
+  it.each([
+    [
+      'register',
+      registerBeneficiaryRequest,
+      { formId: uuid, clientRegistrationId: uuid, values: {} },
+    ],
+    ['archive', archiveBeneficiaryRequest, { expectedUpdatedAt: '2026-09-24' }],
+    ['enroll', enrollBeneficiaryRequest, { enrollmentDate: '2026-01-01' }],
+    ['resolve', resolveDuplicateRequest, { leftId: uuid, rightId: uuid, decision: 'LINK' }],
+  ])('rejects an unknown key on the %s body', (_name, contract, body) => {
+    expect(contract.safeParse(body).success).toBe(true)
+    expect(contract.safeParse({ ...body, extra: true }).success).toBe(false)
   })
 })

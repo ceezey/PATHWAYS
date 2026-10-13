@@ -33,4 +33,46 @@ describe('beneficiary media request contract', () => {
     const body = { files: [{ ...file, fileName: 'a\\b.jpg' }] }
     expect(reserveBeneficiaryMediaRequest.parse(body)).toEqual(body)
   })
+
+  it('accepts a null note and keeps it null', () => {
+    expect(reserveBeneficiaryMediaRequest.parse({ files: [file], note: null }).note).toBeNull()
+  })
+
+  it.each([
+    [{ byteSize: 1 }, true],
+    [{ byteSize: 104_857_600 }, true],
+    [{ byteSize: 0 }, false],
+    [{ byteSize: 104_857_601 }, false],
+    [{ byteSize: 1.5 }, false],
+    [{ byteSize: '1024' }, false],
+    [{ sha256: 'a'.repeat(63) }, false],
+    [{ sha256: 'A'.repeat(64) }, false],
+    [{ sha256: null }, false],
+    [{ fileName: 'x'.repeat(128) }, true],
+    [{ fileName: 'x'.repeat(129) }, false],
+    [{ fileName: '' }, false],
+    [{ fileName: 1 }, false],
+  ])('checks the file patch %j (accepted: %s)', (patch, ok) => {
+    expect(
+      reserveBeneficiaryMediaRequest.safeParse({ files: [{ ...file, ...patch }] }).success,
+    ).toBe(ok)
+  })
+
+  it.each([
+    [{ note: 'x'.repeat(500) }, true],
+    [{ note: '' }, true],
+    [{ note: 'x'.repeat(501) }, false],
+    [{ note: 5 }, false],
+  ])('checks the note %j (accepted: %s)', (extra, ok) => {
+    expect(reserveBeneficiaryMediaRequest.safeParse({ files: [file], ...extra }).success).toBe(ok)
+  })
+
+  it('rejects an unknown key on a file and on the body', () => {
+    expect(
+      reserveBeneficiaryMediaRequest.safeParse({ files: [{ ...file, extra: true }] }).success,
+    ).toBe(false)
+    expect(reserveBeneficiaryMediaRequest.safeParse({ files: [file], extra: true }).success).toBe(
+      false,
+    )
+  })
 })

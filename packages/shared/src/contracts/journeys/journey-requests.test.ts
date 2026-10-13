@@ -37,4 +37,34 @@ describe('journey request contracts', () => {
     expect(correctJourneyEventRequest.safeParse({ ...fix, reason: 'Typo' }).success).toBe(true)
     expect(correctJourneyEventRequest.safeParse({ ...fix, reason: '' }).success).toBe(false)
   })
+
+  it('passes JSON null through on every nullable optional field', () => {
+    const nulls = { id: null, parentStageId: null, terminal: null, description: null }
+    expect(saveJourneyStagesRequest.parse({ stages: [{ ...stage, ...nulls }] })).toEqual({
+      stages: [{ ...stage, code: 'J1', ...nulls }],
+    })
+    const event = { eventType: 'FOLLOW_UP', eventDate: '2026-06-01', description: 'Checked in' }
+    const eventNulls = { note: null, stageId: null, destinationProjectId: null }
+    expect(recordJourneyEventRequest.parse({ ...event, ...eventNulls })).toEqual({
+      ...event,
+      ...eventNulls,
+    })
+    const fix = { eventDate: '2026-06-02', description: 'Corrected', reason: 'Typo' }
+    const fixNulls = { note: null, stageId: null }
+    expect(correctJourneyEventRequest.parse({ ...fix, ...fixNulls })).toEqual({
+      ...fix,
+      ...fixNulls,
+    })
+  })
+
+  it('rejects an unknown key on each journey body', () => {
+    const event = { eventType: 'FOLLOW_UP', eventDate: '2026-06-01', description: 'Checked in' }
+    const fix = { eventDate: '2026-06-02', description: 'Corrected', reason: 'Typo' }
+    expect(journeyStageInput.safeParse({ ...stage, extra: true }).success).toBe(false)
+    expect(saveJourneyStagesRequest.safeParse({ stages: [stage], extra: true }).success).toBe(false)
+    expect(recordJourneyEventRequest.safeParse({ ...event, reason: 'x' }).success).toBe(false)
+    expect(correctJourneyEventRequest.safeParse({ ...fix, eventType: 'FOLLOW_UP' }).success).toBe(
+      false,
+    )
+  })
 })
