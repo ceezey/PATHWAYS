@@ -358,10 +358,14 @@ Ruling: Tasks 1 and 2 paired review PASS; accept the low finding (replay-as-rece
 
 Ruling: accept the Task 3 pre-layout route baseline (routes 72, different 12 against Task 0: every difference within 1 kB except /alerts/repository 322 to 312 kB as planned; six other routes moved by 1 kB and two planned ones did not) as container rounding, and the layout move changed none (different 0, Middleware 103 kB), cost if wrong: a real 1 kB growth hides in rounding.
 
-Ruling: apply the S4 pre-flight fixes (6 must-fix, 15 should-fix and two count notes: hash 14 after S2, activities.dto.ts git rm, docs/handoff grep exclusion, stacked base with SAD --base at the S4 base sha, cp plan copy, pull request in place of the dev merge, cloud replay, seed and e2e wording, Claude-Session trailer, post-S3b baselines web 224 and 1998, S4b outline figures 41 factories and pathways-client 1361 lines), cost if wrong: a Task 0 stop in S4.
+Ruling: apply the S4 pre-flight fixes (6 must-fix, 15 should-fix and two count notes: hash 14 after S2, activities.dto.ts git rm, docs/handoff grep exclusion, stacked base with the SAD base set to the S4 base sha, cp plan copy, pull request in place of the dev merge, cloud replay, seed and e2e wording, Claude-Session trailer, post-S3b baselines web 224 and 1998, S4b outline figures 41 factories and pathways-client 1361 lines), cost if wrong: a Task 0 stop in S4.
 
 Ruling: PR #49 CI run 38348960829 on b4f87c3d (F1 to S3a plus S3b Tasks 0 to 2 and the assembler format fix) is green: replay, lint, typecheck, test, build and the automated SAD checks all pass; it stands as the CI confirmation of the F1 to S3a batch, cost if wrong: none.
 
 Ruling: Tasks 3 and 4 paired review PASS; the low findings need no change (Task 7 compares with the same 1 kB tolerance and M0 103 kB, the copy-file comment line is dropped by the brief's own sed and the 50-line figure holds), and the old doc paths are Task 6's job (deferred-features is in its list; the change records keep history), cost if wrong: none.
 
 Ruling: accept Task 5's route result (against the Task 3 baseline five routes moved by -1 kB and /indicators/library stayed at 280 kB where the plan expected +1 kB; routes 72, different 5, Middleware 103 kB) as container rounding, no route grew, cost if wrong: none.
+
+Ruling: Task 5 review PASS; the low finding (a second summary freshness constant in indicators.reads.ts) is the brief's text and stays, cost if wrong: none.
+
+Ruling: Task 6 records use the measured figures where they differ from the brief (eleven routes moved by 1 kB or less in Tasks 1 and 2, five in Task 5, Middleware 103 kB in the container); the docs check's seventh failure was a double hyphen in this log, now reworded, cost if wrong: none.
