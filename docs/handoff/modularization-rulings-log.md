@@ -379,3 +379,13 @@ Ruling: S3b SAD sign-off PASS at e293bec8 (57 of 57 lines PASS across design-qa-
 Ruling: apply the S5 pre-flight fixes (6 must-fix, 16 should-fix and replacement blocks B1 to B4, including the hex project id that makes the Task 5 Step 6 characterization test meaningful and the post-S4 imports.service.ts count of 2119) and record that the S3b cross-plan lines for S5, S6 and S7 were already in those plans, cost if wrong: an S5 Task 0 stop.
 
 Ruling: record the S3b gates in a post-sign-off docs commit with the plan fixes, as S3a did, so the SAD digest stays bound to e293bec8 and docs changes route nowhere, cost if wrong: none.
+
+## S4a
+
+Ruling: S4 stacks on the S3b tip ef6c4025 on its own pushed branch claude/modularization-s4-9ept8o (the environment accepts a second branch name), so each slice keeps its own pull request into dev and S3b's PR stays S3b only, cost if wrong: a stacked PR shows S3b's commits until S3b merges.
+
+Ruling: S4a Task 0 matched every anchor at ef6c4025 (14 hashes, counts, baselines with web 224 and 1998, Middleware 103 kB); Task 1 created the contract and its test together, so its fail-first run was skipped, and the paired review confirmed the contract test fails without .strict(), cost if wrong: none.
+
+Ruling: S4a Tasks 1 and 2 paired review PASS; the low findings stay (the coercion and strict rows lived in the deleted parity test by plan design; a third shared type import in the seed is formatting only), cost if wrong: a later coercion change in the contract is caught only by the controller HTTP tests.
+
+Ruling: apply the S6 pre-flight fixes (6 must-fix, 12 should-fix and blocks B1 to B5: cloud Task 0 with a base sha, plan copy and one index row, SAD base sha, pull request in place of the dev merge, docs/handoff grep exclusion, exact audit append strings, Claude-Session trailers, known baselines and a Task 0 web build), cost if wrong: an S6 Task 0 stop.
