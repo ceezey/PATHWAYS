@@ -281,6 +281,26 @@ describe('financeClient requests', () => {
       [{ ...expense, submittedByName: 'x'.repeat(201) }],
     ],
     [
+      'a verifier name over 200 characters',
+      (c, id) => c.expenses(id),
+      [{ ...expense, verifiedByName: 'x'.repeat(201) }],
+    ],
+    [
+      'an approver name over 200 characters',
+      (c, id) => c.expenses(id),
+      [{ ...expense, approvedByName: 'x'.repeat(201) }],
+    ],
+    [
+      'a sign-off name over 200 characters',
+      (c, id) => c.expenses(id),
+      [{ ...expense, signedOffByName: 'x'.repeat(201) }],
+    ],
+    [
+      'an expense amount that is not a decimal',
+      (c, id) => c.expenses(id),
+      [{ ...expense, amount: '1e3' }],
+    ],
+    [
       'an expense update time that is not a timestamp',
       (c, id) => c.expenses(id),
       [{ ...expense, updatedAt: 'yesterday' }],
@@ -348,6 +368,25 @@ describe('financeClient requests', () => {
     await expect(financeClient.expenses(projectId)).resolves.toEqual([rejectedExpense])
     fetcher.mockResolvedValueOnce(json(Array.from({ length: 100 }, () => budget)))
     await expect(financeClient.budgets(projectId)).resolves.toHaveLength(100)
+  })
+})
+
+describe('financeClient response bounds', () => {
+  it('accepts person names of exactly 200 characters', async () => {
+    const named = {
+      ...expense,
+      submittedByName: 'x'.repeat(200),
+      verifiedByName: 'y'.repeat(200),
+      approvedByName: 'z'.repeat(200),
+      signedOffByName: 'w'.repeat(200),
+    }
+    fetcher.mockResolvedValueOnce(json([named]))
+    await expect(financeClient.expenses(projectId)).resolves.toEqual([named])
+  })
+  it('accepts a negative decimal amount and a non date-only expense date', async () => {
+    const odd = { ...expense, amount: '-12.50', expenseDate: '2026-09-01T00:00:00.000Z' }
+    fetcher.mockResolvedValueOnce(json([odd]))
+    await expect(financeClient.expenses(projectId)).resolves.toEqual([odd])
   })
 })
 

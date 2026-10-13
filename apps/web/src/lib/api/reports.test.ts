@@ -253,6 +253,51 @@ describe('reportsClient requests', () => {
       [{ ...report, status: 'LOST' }],
     ],
     [
+      'a preview generation time that is not a timestamp',
+      (c, id) => c.reportPreview(id, 'PROJECT_SUMMARY'),
+      { ...summaryPreview, generatedAt: 'yesterday' },
+    ],
+    [
+      'a preview with a null sections value',
+      (c, id) => c.reportPreview(id, 'PROJECT_SUMMARY'),
+      { ...summaryPreview, sections: null },
+    ],
+    [
+      'a preview row with more than 30 cells',
+      (c, id) => c.reportPreview(id, 'PROJECT_SUMMARY'),
+      { ...summaryPreview, rows: [Array.from({ length: 31 }, () => 'Cell')] },
+    ],
+    [
+      'a report generation time that is not a timestamp',
+      (c, id) => c.reports(id),
+      [{ ...report, generatedAt: 'yesterday' }],
+    ],
+    [
+      'a survey form version that is not an integer',
+      (c, id) => c.surveyForms(id),
+      [{ ...form, version: 1.5 }],
+    ],
+    [
+      'an evaluation round start that is not date-only',
+      (c, id) => c.evaluationRounds(id),
+      [{ ...round, periodStart: '2026-01-01T00:00:00.000Z' }],
+    ],
+    [
+      'an evaluation round end that is not date-only',
+      (c, id) => c.evaluationRounds(id),
+      [{ ...round, periodEnd: '2026-06-30T00:00:00.000Z' }],
+    ],
+    [
+      'an evaluation round score that is not a decimal',
+      (c, id) => c.evaluationRounds(id),
+      [{ ...round, overallScore: '1e2' }],
+    ],
+    [
+      'a generated report with the PDF fallback flag set to false',
+      (c, id) => c.generateReport(id, generateBody),
+      { id: reportId, status: 'GENERATED', pdfFallback: false },
+    ],
+    [
       'a report evaluation with an extra key',
       (c, id) => c.reports(id),
       [{ ...report, evaluation: { ...reportEvaluation, extra: 'x' } }],
@@ -324,6 +369,21 @@ describe('reportsClient requests', () => {
       'a preview with sections',
       (c, id) => c.reportPreview(id, 'PROJECT_SUMMARY'),
       { ...summaryPreview, sections },
+    ],
+    [
+      'a preview row of exactly 30 cells',
+      (c, id) => c.reportPreview(id, 'PROJECT_SUMMARY'),
+      { ...summaryPreview, rows: [Array.from({ length: 30 }, () => 'Cell')] },
+    ],
+    [
+      'an archived report in the XLS format',
+      (c, id) => c.reports(id),
+      [{ ...report, format: 'XLS', status: 'ARCHIVED' }],
+    ],
+    [
+      'an archived evaluation round',
+      (c, id) => c.evaluationRounds(id),
+      [{ ...round, status: 'ARCHIVED' }],
     ],
     [
       'a generated report with the PDF fallback flag',

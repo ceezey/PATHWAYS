@@ -238,6 +238,27 @@ describe('evaluationsClient requests', () => {
     await expect(evaluationsClient.evaluation(projectId)).resolves.toEqual(populated)
   })
   it.each([
+    'KPI',
+    'TIMELINE_COMPLIANCE',
+    'BUDGET_EFFICIENCY',
+    'BENEFICIARY_REACH',
+    'INDICATOR_LINKAGE',
+    'ASSESSMENT_GAIN',
+    'OTHER',
+  ])('accepts the criterion type %s', async (type) => {
+    const typed = { ...populated, criteria: [{ ...criterion, type }] }
+    fetcher.mockResolvedValueOnce(json(typed))
+    await expect(evaluationsClient.evaluation(projectId)).resolves.toEqual(typed)
+  })
+  it('accepts a decimal overall score and a return reason', async () => {
+    const scored = {
+      ...populated,
+      evaluations: [{ ...detail, overallScore: '-80.5', returnReason: 'Fictional reason' }],
+    }
+    fetcher.mockResolvedValueOnce(json(scored))
+    await expect(evaluationsClient.evaluation(projectId)).resolves.toEqual(scored)
+  })
+  it.each([
     [
       'more than 20 evaluations',
       { ...populated, evaluations: Array.from({ length: 21 }, () => detail) },
@@ -276,6 +297,14 @@ describe('evaluationsClient requests', () => {
     [
       'a person reference with an extra key',
       { ...populated, evaluations: [{ ...detail, evaluatedBy: { ...person, email: 'x' } }] },
+    ],
+    [
+      'a non-decimal overall score',
+      { ...populated, evaluations: [{ ...detail, overallScore: '1e2' }] },
+    ],
+    [
+      'an evaluation without a return reason',
+      { ...populated, evaluations: [(({ returnReason, ...rest }) => rest)(detail)] },
     ],
     ['a read for another project', { ...populated, projectId: otherId }],
     ['a response without hasMore', { projectId, criteria: [], evaluations: [] }],
@@ -342,6 +371,27 @@ describe('evaluationsClient beneficiary assessment list read', () => {
     await expect(
       evaluationsClient.getBeneficiaryAssessments(projectId, enrollmentId),
     ).rejects.toThrow(PathwaysClientError)
+  })
+})
+
+describe('evaluationsClient error codes', () => {
+  it('reports the network code for an invalid assessment row', async () => {
+    fetcher.mockResolvedValueOnce(json([{ ...assessment, score: 40 }]))
+    await expect(
+      evaluationsClient.getBeneficiaryAssessments(projectId, enrollmentId),
+    ).rejects.toMatchObject({ code: 'network' })
+  })
+  it('reports the network code for a response that fails validation', async () => {
+    fetcher.mockResolvedValueOnce(json({ ...detail, extra: 'x' }))
+    await expect(
+      evaluationsClient.submitEvaluation(projectId, evaluationId, submitBody),
+    ).rejects.toMatchObject({ code: 'network' })
+  })
+  it('reports the unauthorized code for a response that is not JSON', async () => {
+    fetcher.mockResolvedValueOnce(new Response('{}', { headers: { 'Content-Type': 'text/plain' } }))
+    await expect(
+      evaluationsClient.submitEvaluation(projectId, evaluationId, submitBody),
+    ).rejects.toMatchObject({ code: 'unauthorized' })
   })
 })
 
