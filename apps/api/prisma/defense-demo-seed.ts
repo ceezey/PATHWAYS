@@ -8,6 +8,7 @@ import { ActivityProofFinalizeService } from '../src/modules/activities/activity
 import { ActivityProofsService } from '../src/modules/activities/activity-proofs.service'
 import { ActivityReviewService } from '../src/modules/activities/activity-review.service'
 import { BeneficiariesService } from '../src/modules/beneficiaries/beneficiaries.service'
+import { BeneficiaryRegistrationService } from '../src/modules/beneficiaries/beneficiary-registration.service'
 import { DashboardsService } from '../src/modules/dashboards/dashboards.service'
 import { EvaluationMetricsService } from '../src/modules/evaluations/evaluation-metrics'
 import { EvaluationsService } from '../src/modules/evaluations/evaluations.service'
@@ -122,7 +123,8 @@ async function seed(owner: PrismaClient, testLocal: boolean) {
 
     const storage = new StorageService()
     const participants = new ParticipantsService(runtime)
-    const beneficiaries = new BeneficiariesService(runtime)
+    const registration = new BeneficiaryRegistrationService()
+    const beneficiaries = new BeneficiariesService(runtime, registration)
     const indicators = new IndicatorsService(runtime)
     const drainRules =
       localWorkerDrain(process.env) ??
@@ -160,7 +162,7 @@ async function seed(owner: PrismaClient, testLocal: boolean) {
         beneficiaries,
         metadata: new MetadataService(runtime, participants),
         participants,
-        imports: new ImportsService(runtime, storage, beneficiaries, participants),
+        imports: new ImportsService(runtime, storage, registration, participants),
         finance: new FinanceService(
           runtime,
           storage,

@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { PrismaService } from '@app/prisma/prisma.service'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
-import type { BeneficiariesService } from '../beneficiaries/beneficiaries.service'
+import type { BeneficiaryRegistrationService } from '../beneficiaries/beneficiary-registration.service'
 import type { StorageService } from '../storage/storage.service'
 import { ImportsService } from './imports.service'
 
@@ -327,7 +327,7 @@ function service() {
   return new ImportsService(
     {} as PrismaService,
     { isConfigured: () => true } as unknown as StorageService,
-    {} as unknown as BeneficiariesService,
+    {} as unknown as BeneficiaryRegistrationService,
     { promoteParticipation: vi.fn() } as never,
   )
 }

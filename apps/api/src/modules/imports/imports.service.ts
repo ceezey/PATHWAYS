@@ -37,9 +37,9 @@ import { requireScopedProject } from '../../common/authz/scoped-project'
 import type { Tx } from '../../common/prisma/transaction'
 import { PrismaService } from '../../prisma/prisma.service'
 import {
-  BeneficiariesService,
+  BeneficiaryRegistrationService,
   type RegistrationImportForm,
-} from '../beneficiaries/beneficiaries.service'
+} from '../beneficiaries/beneficiary-registration.service'
 import { ParticipantsService } from '../participants/participants.service'
 import { StorageService } from '../storage/storage.service'
 import { parseAutomaticMappingReceipt } from './automatic-mapping-receipt'
@@ -335,7 +335,8 @@ export class ImportsService {
   constructor(
     @Inject(PrismaService) private readonly prisma: PrismaService,
     @Inject(StorageService) private readonly storage: StorageService,
-    @Inject(BeneficiariesService) private readonly beneficiaries: BeneficiariesService,
+    @Inject(BeneficiaryRegistrationService)
+    private readonly beneficiaries: BeneficiaryRegistrationService,
     @Inject(ParticipantsService) private readonly participants: ParticipantsService,
   ) {}
 

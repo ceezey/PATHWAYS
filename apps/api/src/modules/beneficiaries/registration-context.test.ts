@@ -5,6 +5,7 @@ import { PERMISSION_KEY } from '../../common/decorators/permission.decorator'
 import type { PrismaService } from '../../prisma/prisma.service'
 import { BeneficiariesController } from './beneficiaries.controller'
 import { BeneficiariesService } from './beneficiaries.service'
+import { BeneficiaryRegistrationService } from './beneficiary-registration.service'
 const organizationId = '10000000-0000-4000-8000-000000000001'
 const actorId = '20000000-0000-4000-8000-000000000002'
 const projectId = '30000000-0000-4000-8000-000000000003'
@@ -108,7 +109,7 @@ const definition = () => ({
 let service: BeneficiariesService
 beforeEach(() => {
   vi.clearAllMocks()
-  service = new BeneficiariesService({} as PrismaService)
+  service = new BeneficiariesService({} as PrismaService, new BeneficiaryRegistrationService())
   tx.project.findFirst.mockResolvedValue({ id: projectId })
   tx.digitalForm.groupBy.mockResolvedValue([{ code: 'registration', _max: { version: 2 } }])
   tx.digitalForm.findMany.mockResolvedValue([definition()])

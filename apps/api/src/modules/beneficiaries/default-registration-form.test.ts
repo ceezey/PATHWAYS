@@ -16,6 +16,7 @@ import { PERMISSION_KEY } from '../../common/decorators/permission.decorator'
 import type { PrismaService } from '../../prisma/prisma.service'
 import { BeneficiariesController } from './beneficiaries.controller'
 import { BeneficiariesService } from './beneficiaries.service'
+import { BeneficiaryRegistrationService } from './beneficiary-registration.service'
 
 // cr-pathways-default-registration-form: provisioning endpoint, template listing and the fixed
 // field set of migration 0040. The real authorized-operation wrapper runs here so the role and
@@ -106,9 +107,10 @@ let service: BeneficiariesService
 beforeEach(() => {
   vi.clearAllMocks()
   profile.current = registrar
-  service = new BeneficiariesService({
-    withVerifiedContext: vi.fn(async (_context, work) => work(tx)),
-  } as unknown as PrismaService)
+  service = new BeneficiariesService(
+    { withVerifiedContext: vi.fn(async (_context, work) => work(tx)) } as unknown as PrismaService,
+    new BeneficiaryRegistrationService(),
+  )
   tx.project.findFirst.mockResolvedValue({ id: projectId })
   tx.$queryRaw.mockResolvedValue([{ outcome: 'PROVISIONED' }])
   tx.digitalForm.groupBy.mockImplementation(async ({ where }) =>
