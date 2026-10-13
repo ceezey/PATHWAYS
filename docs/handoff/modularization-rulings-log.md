@@ -607,3 +607,19 @@ Ruling: S5b Task 8 matched (five replacements, three audit tails, docs check at 
 Ruling: S5b final review PASS (nothing left unpinned; Task 3 dropped only the old-client half of each describe.each); records fixed docs-only: pathways-client.ts is 407 lines, not 424 (Biome compacted it after Task 3 measured), and the plan-copy line says the controller removes it after the final merge; the Task 6 entry keeps 10 rows (the count at that commit) and the tests-only bullet gives 12; the Ticket type duplicate and the unused pathwaysClient mock go to S5c, cost if wrong: a stale line count.
 
 Ruling: the S5b route sentence written from the plan said 10 routes smaller with /collection/import 3 kB; the gate build measured 12 smaller (/collection/import 4 kB, six other routes 1 kB) and none bigger, so the change record carries the measured figure, cost if wrong: none.
+
+## S6b
+
+Ruling: the S7b planner split S7 again into S7b (api and shared, Tasks 0 to 8, replayed from an S7a replay with 42 blocks exit 0 and 6 plan defects fixed) and an S7c outline (web); S7c joins the run order after S7b, cost if wrong: one extra slice cycle.
+
+Ruling: S7b leaves analytics.service.test.ts (1514 lines, one shared 326-line harness) unsplit as its ruling 12 records, because the api has no test fixtures convention and other api tests also pass 600 lines; it is listed for W1 rather than added as a task, cost if wrong: one oversized api test stays.
+
+Ruling: S7b allows route growth up to 2 kB with Middleware at M0, because 22 of 72 routes grow 1 kB (one 2 kB) when the web app bundles the compiled shared package after the shared folder layout; the real figure goes in the records, cost if wrong: a 2 kB bundle growth accepted as layout noise.
+
+Ruling: the S6c plan (Tasks 0 to 8: response contracts, a shared report kind grant table, the reporting and evaluation workspace splits and read keys; replayed from the S6b replay, lost 0 on every move, 5 of 72 routes 1 kB bigger) is accepted as one slice and gets its pre-flight against the real S6b tip, cost if wrong: extra pre-flight fixes.
+
+Ruling: run order after S5b becomes S6b, S5c, S6c, S7a, S7b, S7c, S8a, S8b, W1: S6b runs next because its plan is ready (pre-flight now against the real S5b tip 0469ccb0) while the S5c planner works from the real S5b tip, and S5c touches only collection files S6b leaves alone, cost if wrong: an S5c anchor moved by S6b, caught by its pre-flight.
+
+Ruling: the S8b plan (Tasks 0 to 7: publication and audit clients, core-feature-client.ts deleted with its artifact helpers moved to lib/api/core, auth, profile, public and settings layouts and indexes, user management workspace 938 to 342 lines and MFA form 717 to 213 split after 21 characterization cases each) is accepted as one slice; its dry run caught the cut scripts dropping 'use client' from two shells, now restored and printed by the plan, cost if wrong: a production build break caught by the gates.
+
+Ruling: apply the S6b pre-flight fixes (4 must-fix: the S5b marker tests features/collection/hooks, no plan-copy removal anywhere in the slice, Expected values from the real S5b tip with shared 675, web 2071 and pathways-client.ts 407 lines, Opus trailers in all 9 commits; should-fix: Task 0 branch, handoff and ancestor checks, characterization cases added so all 87 mutants of the new modules die on both clients before the old code goes with 146 cases and 292 runs, the gate bullet from commands, one wording for no pull request, 1 kB route criteria, the Task 5 branch heading), cost if wrong: an S6b Task 0 stop.
