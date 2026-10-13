@@ -96,6 +96,20 @@ Workflow rule: an audit is finding and evidence, a Change Record is the approved
 |---|---|---|---|---|
 | [Plan 2 cloud handoff](handoff-extensions-and-escalations.md) | handoff-extensions-and-escalations.md | 2026-10-04 | Paused state of Plan 2 Task 1 handed to the cloud session, with the SDD ledger rulings | Closed; resumed and completed |
 | [S3 indicators plan](superpowers/plans/2026-10-13-modularization-s3-indicators.md) | 2026-10-13-modularization-s3-indicators.md | 2026-10-13 | S3 of the codebase modularization: S3a indicator contracts, API mapper, helpers, measurement service and request identity; S3b web outline | S3a executed; holds the S3b outline |
+| [Cloud handoff prompt](handoff/cloud-handoff-prompt.md) | cloud-handoff-prompt.md | 2026-10-13 | Prompt and rules for continuing the codebase modularization in a Claude Code cloud session | Active |
+| [Memory digest](handoff/memory-digest.md) | memory-digest.md | 2026-10-13 | Standing developer rules, baselines and pitfalls carried from the local session memory | Active |
+| [Modularization rulings log](handoff/modularization-rulings-log.md) | modularization-rulings-log.md | 2026-10-13 | Every controller ruling with its cost if wrong, F1 to S3a, for the final report | Active |
+| [S3b indicators web plan](handoff/modularization-s3b-indicators-web.md) | modularization-s3b-indicators-web.md | 2026-10-13 | Full S3b plan: indicator web client, feature folder, workspace split and reads; dry run green | Active |
+| [S3b plan summary](handoff/s3b-summary.md) | s3b-summary.md | 2026-10-13 | S3b dry run figures, routes, SAD roles and cross-plan edits | Active |
+| [S4 beneficiaries plan](handoff/modularization-s4-beneficiaries.md) | modularization-s4-beneficiaries.md | 2026-10-13 | Full plan for modularization slice S4 | Active |
+| [S5 collection plan](handoff/modularization-s5-collection.md) | modularization-s5-collection.md | 2026-10-13 | Full plan for modularization slice S5 | Active |
+| [S6 finance and reports plan](handoff/modularization-s6-finance-reports.md) | modularization-s6-finance-reports.md | 2026-10-13 | Full plan for modularization slice S6 | Active |
+| [S7 analytics and rules plan](handoff/modularization-s7-analytics-rules.md) | modularization-s7-analytics-rules.md | 2026-10-13 | Full plan for modularization slice S7 | Active |
+| [S8 public, users and auth plan](handoff/modularization-s8-public-users-auth.md) | modularization-s8-public-users-auth.md | 2026-10-13 | Full plan for modularization slice S8 | Active |
+| [Cross-plan review](handoff/cross-plan-review.md) | cross-plan-review.md | 2026-10-13 | Edits each slice plan applied to the later plans | Active |
+| [Implementer common brief](handoff/implementer-common.md) | implementer-common.md | 2026-10-13 | Common rules handed to every implementer subagent | Active |
+| [Reviewer common brief](handoff/reviewer-common.md) | reviewer-common.md | 2026-10-13 | Common rules handed to every task reviewer subagent | Active |
+| [SAD packet example](handoff/sad-packet-example.md) | sad-packet-example.md | 2026-10-13 | S3a SAD section 4.2 handoff packet used as the layout for later slices | Active |
 
 ### 1.7 Traceability Matrix
 
