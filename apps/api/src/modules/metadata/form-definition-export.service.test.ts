@@ -232,6 +232,24 @@ describe('form-definition export', () => {
     expect(tx.auditLog.create).not.toHaveBeenCalled()
   })
 
+  it('reads an upper-case project id as the stored id and refuses a malformed one before any query', async () => {
+    const stored = '3000000a-0000-4000-8000-00000000000b'
+    state.actor = actor({ assignedProjectIds: [stored] })
+    await service.export(state.actor, stored.toUpperCase(), formId, 'CSV')
+    expect(tx.project.findFirst).toHaveBeenCalledWith({
+      where: { AND: [expect.anything(), { id: stored }] },
+      select: { id: true },
+    })
+    expect(tx.digitalForm.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ projectId: stored }) }),
+    )
+    vi.clearAllMocks()
+    await expect(service.export(state.actor, 'not-a-uuid', formId, 'CSV')).rejects.toThrow(
+      'Project unavailable.',
+    )
+    expect(tx.project.findFirst).not.toHaveBeenCalled()
+  })
+
   it('fails whole when the definition exceeds the artifact bounds', async () => {
     const huge = form().formField_form[1]
     tx.digitalForm.findFirst.mockResolvedValue(
