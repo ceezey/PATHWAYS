@@ -50,7 +50,7 @@ describe('"None yet" empty states versus error and permission wording', () => {
       'const monitoringReadable = canReadIndicators && monitoring !== null && !monitoringError',
     ],
     ['features/analytics/components/analytics-dashboard.tsx', ': monitoringReadable'],
-    ['features/analytics/components/analytics-dashboard.tsx', "row.mean ?? 'None yet'"],
+    ['features/analytics/components/descriptive-statistics-table.tsx', "row.mean ?? 'None yet'"],
     [
       'features/projects/activities/components/activity-detail-sections.tsx',
       "canReadBudgets ? 'None yet' : 'Unavailable'",
@@ -87,8 +87,11 @@ describe('"None yet" empty states versus error and permission wording', () => {
 
   it('derives the participation empty-chart title from the shared metric-unavailable helper, not an unconditional "None yet"', () => {
     const analytics = source('features/analytics/components/analytics-dashboard.tsx')
-    expect(analytics).toContain(
-      "import { metricUnavailableLabel, overviewMetricLabel } from '@/features/projects'",
+    expect(source('features/analytics/components/survey-analytics-panel.tsx')).toContain(
+      "import { metricUnavailableLabel } from '@/features/projects'",
+    )
+    expect(source('features/analytics/analytics.utils.ts')).toContain(
+      "import { overviewMetricLabel } from '@/features/projects'",
     )
     // Participation now renders its own breakdown panel, so no unconditional "None yet" title remains.
     expect(analytics).toContain('ParticipationBreakdownPanel')

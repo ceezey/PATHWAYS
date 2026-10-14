@@ -38,7 +38,6 @@ import {
   DASHBOARD_PINS_UI_ENABLED,
   MAPS_UI_ENABLED,
 } from '@/constants/feature-flags'
-import { metricUnavailableLabel, overviewMetricLabel } from '@/features/projects'
 import { useAuthorizedRead } from '@/hooks/use-authorized-read'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'
@@ -51,7 +50,6 @@ import {
 import { dashboardsClient } from '@/lib/api/dashboards'
 import { indicatorsClient } from '@/lib/api/indicators'
 import { projectsClient } from '@/lib/api/projects'
-import { rulesHumanClient } from '@/lib/api/rules'
 import { addPin } from '@/lib/dashboard-pins'
 import { formatCalendarDay } from '@/lib/format/date'
 import { formatCappedPercent } from '@/lib/format/percent'
@@ -62,11 +60,9 @@ import type { ActivitySummary, ProjectSummary } from '@/types/pathways'
 import {
   type DescriptiveAnalytics,
   type IndicatorResponse,
-  type MetricCell,
   type MonitoringDashboard,
   type SadddDashboard,
   type SurveyAnalytics,
-  type SurveyGroup,
   type TimelineAnalytics,
   formatMetricCell,
 } from '@pathways/shared'
@@ -76,6 +72,20 @@ import {
   deriveAnalyticsReportingPeriods,
   nonOverlappingAnalyticsPeriods,
 } from '../analytics-reporting-periods.utils'
+import {
+  type AnalysisView,
+  type ExportFormat,
+  SURVEY_CLOSED_PERIOD_MESSAGE,
+  SURVEY_PERIOD_MESSAGE,
+  SURVEY_RESTRICTED_MESSAGE,
+  type SurveyErrorKind,
+  type VisualizationType,
+  analysisViews,
+  exportFormats,
+  visualizationTypes,
+} from '../analytics.copy'
+import { countOpenAlerts } from '../analytics.reads'
+import { businessDateInManila, surveyErrorKindFor } from '../analytics.utils'
 import {
   canReadInsight,
   useBudgetSummary,
@@ -88,92 +98,20 @@ import {
   DescriptiveAnalysisChart,
   IndicatorProgressChart,
   SadddChart,
-  SurveyImprovementChart,
 } from './analytics-charts'
 import {
   type AnalyticsExportPreview,
   AnalyticsExportPreviewDialog,
 } from './analytics-export-preview'
 import { BudgetSummaryCard } from './budget-summary-card'
+import { ChartPanel, UnavailableChart } from './chart-panel'
+import { DescriptiveStatisticsTable } from './descriptive-statistics-table'
 import { IndicatorTrendChart } from './indicator-trend-chart'
 import { InsightStatus } from './insight-status'
 import { ParticipationBreakdownPanel } from './participation-breakdown-panel'
 import { ProjectCoverageMapPanel } from './project-coverage-map-panel'
-
-const analysisViews = [
-  { value: 'kpi', label: 'KPI / indicator performance' },
-  { value: 'participation', label: 'Participation patterns' },
-  { value: 'survey', label: 'Survey improvement' },
-  { value: 'timeline', label: 'Project / activity timeline adherence' },
-] as const
-const visualizationTypes = [
-  { value: 'bar', label: 'Bar chart' },
-  { value: 'line', label: 'Line chart' },
-  { value: 'table', label: 'Table' },
-  { value: 'map', label: 'Map' },
-] as const
-type AnalysisView = (typeof analysisViews)[number]['value']
-type VisualizationType = (typeof visualizationTypes)[number]['value']
-
-const businessDateInManila = (date = new Date()) => {
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'Asia/Manila',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).formatToParts(date)
-  const value = Object.fromEntries(parts.map((part) => [part.type, part.value]))
-  return `${value.year}-${value.month}-${value.day}`
-}
-
-type SurveyErrorKind = 'restricted' | 'period' | 'retry'
-const SURVEY_RESTRICTED_MESSAGE = 'Survey improvement is restricted for your role.'
-const SURVEY_PERIOD_MESSAGE = 'This reporting period cannot be used for survey results.'
-const SURVEY_CLOSED_PERIOD_MESSAGE =
-  'Survey results for your role are released after the reporting period closes. Choose a closed period.'
-const SURVEY_FROZEN_CAPTION =
-  'Released once for this closed period; figures do not change on later views.'
-
-/** 403 = role restriction and 400 = refused period are final; only network/5xx may be retried. */
-const surveyErrorKindFor = (caught: unknown): SurveyErrorKind => {
-  const status =
-    caught && typeof caught === 'object' && 'status' in caught
-      ? (caught as { status?: unknown }).status
-      : undefined
-  return status === 403 ? 'restricted' : status === 400 ? 'period' : 'retry'
-}
-
-const OPEN_ALERT_STATUSES = ['NEW', 'REVIEWED', 'ACTIONED'] as const
-const OPEN_ALERT_MAX_PAGES = 10
-
-/**
- * Counts open alerts with the server status filter, following cursors per status. It stops
- * after OPEN_ALERT_MAX_PAGES pages of a status and reports `capped` so the UI shows "N+".
- */
-export const countOpenAlerts = async (projectId: string, signal?: AbortSignal) => {
-  let count = 0
-  let capped = false
-  for (const status of OPEN_ALERT_STATUSES) {
-    let cursor: string | undefined
-    for (let page = 0; ; page += 1) {
-      const result = await rulesHumanClient.listAlerts(
-        { projectId, status, limit: '100', ...(cursor ? { cursor } : {}) },
-        signal,
-      )
-      count += result.items.length
-      if (!result.nextCursor) break
-      if (page + 1 >= OPEN_ALERT_MAX_PAGES) {
-        capped = true
-        break
-      }
-      cursor = result.nextCursor
-    }
-  }
-  return { count, capped }
-}
-
-const exportFormats = ['CSV', 'XLS', 'XLSX', 'PDF'] as const
-type ExportFormat = (typeof exportFormats)[number]
+import { SurveyAnalyticsPanel } from './survey-analytics-panel'
+import { TimelineAnalyticsPanel } from './timeline-analytics-panel'
 
 export const AnalyticsDashboard = () => {
   const { labels } = useDisplayLabels()
@@ -1381,366 +1319,3 @@ export const AnalyticsDashboard = () => {
     </div>
   )
 }
-
-const ChartPanel = ({
-  title,
-  description,
-  children,
-}: {
-  title: string
-  description?: string
-  children: React.ReactNode
-}) => (
-  <section className="overflow-hidden rounded-2xl border border-border bg-card p-5">
-    <h2 className="text-lg font-semibold text-foreground">{title}</h2>
-    {description ? <p className="mt-1 text-sm text-muted-foreground">{description}</p> : null}
-    <div className="mt-4">{children}</div>
-  </section>
-)
-
-/**
- * A visible value (including a real zero) renders with its unit; MISSING/SUPPRESSED
- * get the shared readable copy. `kind` matches overviewMetricLabel's Overview
- * convention so a percent cell never displays as a bare, unit-less number.
- */
-const analyticsCellValue = (cell: MetricCell, kind: 'percent' | 'pp' | 'count' = 'count') =>
-  overviewMetricLabel(cell, kind)
-
-const activityFallbackLabel = 'Activity (name unavailable)'
-
-/**
- * Maps a per-activity survey group's activityId key to its human title from the
- * already-loaded project activities, instead of showing a raw UUID. Falls back to
- * a neutral label when the activity is not found (e.g. archived or deleted).
- */
-const surveyGroupRows = (
-  data: SurveyAnalytics,
-  activities: readonly ActivitySummary[],
-): Array<SurveyGroup & { label: string }> => [
-  { ...data.overall, label: 'All activities (cohort change)' },
-  ...data.byActivity.map((group) => ({
-    ...group,
-    label: activities.find((activity) => activity.id === group.key)?.title ?? activityFallbackLabel,
-  })),
-]
-
-/**
- * F9 survey improvement view (analytics.descriptive.survey.v1). Cards + chart cover the
- * cohort ("all activities") group; the table lists every group, including per-activity
- * breakdowns, with the same MISSING/SUPPRESSED wording as the rest of Analytics.
- */
-const SurveyAnalyticsPanel = ({
-  data,
-  loading,
-  error,
-  errorKind,
-  frozen,
-  noUsablePeriod,
-  onRetry,
-  periodsReadable,
-  showChart,
-  activities,
-}: {
-  data: SurveyAnalytics | null
-  loading: boolean
-  error: string
-  errorKind: SurveyErrorKind
-  frozen: boolean
-  noUsablePeriod: boolean
-  onRetry: () => void
-  periodsReadable: boolean
-  showChart: boolean
-  activities: readonly ActivitySummary[]
-}) => {
-  if (loading)
-    return (
-      <AsyncState
-        status="loading"
-        title="Loading survey analytics"
-        description="Loading scoped paired assessment data."
-        icon={BarChart3}
-      />
-    )
-  if (error && errorKind !== 'retry') return <UnavailableChart description={error} />
-  if (error)
-    return (
-      <AsyncState
-        status="error"
-        title="Survey analytics could not be loaded"
-        description={error}
-        icon={AlertTriangle}
-        onRetry={onRetry}
-      />
-    )
-  if (!data && noUsablePeriod) return <UnavailableChart description={SURVEY_PERIOD_MESSAGE} />
-  if (!data)
-    return (
-      <UnavailableChart
-        description={
-          periodsReadable
-            ? 'No active Indicator reporting period is available for this project.'
-            : 'Indicator reporting periods are not available for this role.'
-        }
-        title={periodsReadable ? 'None yet' : undefined}
-      />
-    )
-  const { overall } = data
-  const isSuppressed = overall.pairs.state === 'SUPPRESSED'
-  const isMissing = overall.pairs.value === '0'
-  return (
-    <div className="space-y-4" data-testid="survey-analytics">
-      {frozen ? <p className="text-sm text-muted-foreground">{SURVEY_FROZEN_CAPTION}</p> : null}
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <MetricCard
-          description="Enrollments with both a PRE_TEST and a POST_TEST in this period."
-          icon={ClipboardCheck}
-          label="Paired assessments"
-          tone="info"
-          value={analyticsCellValue(overall.pairs)}
-        />
-        <MetricCard
-          description="Cohort mean normalized pre-test score (0-100)."
-          icon={BarChart3}
-          label="Mean pre-test"
-          tone="info"
-          value={analyticsCellValue(overall.meanPre, 'percent')}
-        />
-        <MetricCard
-          description="Cohort mean normalized post-test score (0-100)."
-          icon={BarChart3}
-          label="Mean post-test"
-          tone="info"
-          value={analyticsCellValue(overall.meanPost, 'percent')}
-        />
-        <MetricCard
-          description="Cohort-level change in mean normalized score. Never an individual verdict."
-          icon={Target}
-          label="Mean cohort change"
-          tone={
-            overall.meanChange.value === null
-              ? 'info'
-              : Number(overall.meanChange.value) < 0
-                ? 'warning'
-                : 'success'
-          }
-          value={analyticsCellValue(overall.meanChange, 'pp')}
-        />
-      </div>
-      {isSuppressed ? (
-        <p className="text-sm text-muted-foreground">Suppressed (fewer than 5)</p>
-      ) : isMissing ? (
-        <UnavailableChart description={metricUnavailableLabel(overall.meanPre)} title="None yet" />
-      ) : showChart ? (
-        <SurveyImprovementChart group={overall} title="Cohort change (all activities)" />
-      ) : null}
-      <table className="w-full text-left text-sm">
-        <caption className="sr-only">Survey improvement by group</caption>
-        <thead>
-          <tr className="border-b">
-            <th className="p-2">Group</th>
-            <th className="p-2">Pairs</th>
-            <th className="p-2">Mean pre</th>
-            <th className="p-2">Mean post</th>
-            <th className="p-2">Mean change</th>
-            <th className="p-2">Improved</th>
-            <th className="p-2">Same</th>
-            <th className="p-2">Declined</th>
-          </tr>
-        </thead>
-        <tbody>
-          {surveyGroupRows(data, activities).map((row) => (
-            <tr className="border-b" key={row.key}>
-              <td className="p-2">{row.label}</td>
-              <td className="p-2 tabular-nums">{analyticsCellValue(row.pairs)}</td>
-              <td className="p-2 tabular-nums">{analyticsCellValue(row.meanPre, 'percent')}</td>
-              <td className="p-2 tabular-nums">{analyticsCellValue(row.meanPost, 'percent')}</td>
-              <td className="p-2 tabular-nums">{analyticsCellValue(row.meanChange, 'pp')}</td>
-              <td className="p-2 tabular-nums">{analyticsCellValue(row.improved)}</td>
-              <td className="p-2 tabular-nums">{analyticsCellValue(row.same)}</td>
-              <td className="p-2 tabular-nums">{analyticsCellValue(row.declined)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  )
-}
-
-/** F9 timeline adherence view (analytics.descriptive.timeline.v1). Cards only; no chart. */
-const TimelineAnalyticsPanel = ({
-  data,
-  loading,
-  error,
-  onRetry,
-}: {
-  data: TimelineAnalytics | null
-  loading: boolean
-  error: string
-  onRetry: () => void
-}) => {
-  if (loading)
-    return (
-      <AsyncState
-        status="loading"
-        title="Loading timeline analytics"
-        description="Loading scoped activity and milestone data."
-        icon={BarChart3}
-      />
-    )
-  if (error)
-    return (
-      <AsyncState
-        status="error"
-        title="Timeline analytics could not be loaded"
-        description={error}
-        icon={AlertTriangle}
-        onRetry={onRetry}
-      />
-    )
-  if (!data)
-    return (
-      <UnavailableChart description="Timeline adherence is not available for this selection." />
-    )
-  return (
-    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3" data-testid="timeline-analytics">
-      <MetricCard
-        description="Share of the project period elapsed as of the reporting date; 100% once completed."
-        icon={ClipboardCheck}
-        label="Elapsed"
-        tone="info"
-        value={analyticsCellValue(data.elapsedPercent, 'percent')}
-      />
-      <MetricCard
-        description="Calendar days remaining before the project's recorded end date; 0 once completed."
-        icon={ClipboardCheck}
-        label="Remaining days"
-        tone="info"
-        value={analyticsCellValue(data.remainingDays)}
-      />
-      <MetricCard
-        description="Calendar days past the project's recorded end date; once completed, how late its last activity finished."
-        icon={AlertTriangle}
-        label="Overdue days"
-        tone={
-          data.overdueDays.value !== null && Number(data.overdueDays.value) > 0 ? 'warning' : 'info'
-        }
-        value={analyticsCellValue(data.overdueDays)}
-      />
-      <MetricCard
-        description="Share of in-scope activities marked Completed."
-        icon={ClipboardCheck}
-        label="Activity completion"
-        tone="success"
-        value={analyticsCellValue(data.activityCompletionPercent, 'percent')}
-      />
-      <MetricCard
-        description="In-scope activities past their planned end date and not yet Completed."
-        icon={AlertTriangle}
-        label="Overdue activities"
-        tone={
-          data.activityOverdueCount.value !== null && Number(data.activityOverdueCount.value) > 0
-            ? 'warning'
-            : 'info'
-        }
-        value={analyticsCellValue(data.activityOverdueCount)}
-      />
-      <MetricCard
-        description="Completed milestones finished on or before their target date."
-        icon={Target}
-        label="Milestone on-time"
-        tone="success"
-        value={analyticsCellValue(data.milestoneOnTimePercent, 'percent')}
-      />
-    </div>
-  )
-}
-
-const sectionLabels: Record<DescriptiveAnalytics['distributions'][number]['section'], string> = {
-  ACTIVITY_STATE: 'Activity state',
-  MILESTONE_STATE: 'Milestone state',
-  SADDD_SEX: 'Sex',
-  SADDD_AGE: 'Age band',
-  SADDD_DISABILITY: 'Disability',
-}
-
-const formatShare = (share: string | null) =>
-  share === null ? 'Withheld' : `${(Number(share) * 100).toFixed(1)}%`
-
-const DescriptiveStatisticsTable = ({ data }: { data: DescriptiveAnalytics }) => (
-  <div className="space-y-4 overflow-x-auto text-sm" data-testid="descriptive-statistics">
-    <table className="w-full text-left">
-      <caption className="sr-only">Descriptive counts</caption>
-      <thead>
-        <tr className="border-b">
-          <th className="p-2">Measure</th>
-          <th className="p-2">Count</th>
-        </tr>
-      </thead>
-      <tbody>
-        {data.counts.map((row) => (
-          <tr className="border-b" key={row.key}>
-            <td className="p-2">{row.label}</td>
-            <td className="p-2 tabular-nums">{formatMetricCell(row.metric)}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-    <table className="w-full text-left">
-      <caption className="sr-only">Distributions</caption>
-      <thead>
-        <tr className="border-b">
-          <th className="p-2">Dimension</th>
-          <th className="p-2">Category</th>
-          <th className="p-2">Count</th>
-          <th className="p-2">Share</th>
-        </tr>
-      </thead>
-      <tbody>
-        {data.distributions.map((row) => (
-          <tr className="border-b" key={`${row.section}-${row.key}`}>
-            <td className="p-2">{sectionLabels[row.section]}</td>
-            <td className="p-2">{row.label}</td>
-            <td className="p-2 tabular-nums">{formatMetricCell(row.metric)}</td>
-            <td className="p-2 tabular-nums">{formatShare(row.share)}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-    {data.indicatorSummaries.length ? (
-      <table className="w-full text-left">
-        <caption className="sr-only">Indicator means by unit</caption>
-        <thead>
-          <tr className="border-b">
-            <th className="p-2">Unit</th>
-            <th className="p-2">Reported</th>
-            <th className="p-2">Mean</th>
-            <th className="p-2">Minimum</th>
-            <th className="p-2">Maximum</th>
-          </tr>
-        </thead>
-        <tbody>
-          {data.indicatorSummaries.map((row) => (
-            <tr className="border-b" key={`${row.unitLabel}-${row.numericKind}`}>
-              <td className="p-2">{row.unitLabel ?? 'No unit'}</td>
-              <td className="p-2 tabular-nums">
-                {row.reportedCount}/{row.indicatorCount}
-              </td>
-              <td className="p-2 tabular-nums">{row.mean ?? 'None yet'}</td>
-              <td className="p-2 tabular-nums">{row.minimum ?? 'None yet'}</td>
-              <td className="p-2 tabular-nums">{row.maximum ?? 'None yet'}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    ) : null}
-  </div>
-)
-
-/** Capability gaps keep "Data unavailable"; genuinely empty selections pass "None yet". */
-const UnavailableChart = ({
-  description,
-  title = 'Data unavailable',
-}: {
-  description: string
-  title?: string
-}) => <EmptyState description={description} icon={BarChart3} title={title} />

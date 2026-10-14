@@ -13,7 +13,8 @@ import {
   rulesHumanClient,
 } from '@/test/fixtures/analytics-dashboard-fixtures'
 
-import { AnalyticsDashboard, countOpenAlerts } from './analytics-dashboard'
+import { countOpenAlerts } from '../analytics.reads'
+import { AnalyticsDashboard } from './analytics-dashboard'
 
 describe('Analytics dashboard request dependencies', () => {
   beforeEach(() => {
@@ -141,6 +142,14 @@ describe('Analytics dashboard request dependencies', () => {
         expect.objectContaining({ status: 'NEW', cursor: 'c1', projectId: 'project-a' }),
         undefined,
       )
+      expect(
+        list.mock.calls.map(([query]) => [query?.status, query?.limit, query?.cursor]),
+      ).toEqual([
+        ['NEW', '100', undefined],
+        ['NEW', '100', 'c1'],
+        ['REVIEWED', '100', undefined],
+        ['ACTIONED', '100', undefined],
+      ])
     })
 
     it('stops at the page bound and reports the count as capped', async () => {
