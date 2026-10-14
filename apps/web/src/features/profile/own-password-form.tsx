@@ -3,7 +3,7 @@
 import { Button } from '@/components/ui/button'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useSession } from '@/hooks/use-session'
-import { ownProfileClient } from '@/lib/services/own-profile-client'
+import { ownProfileClient } from '@/lib/api/profile'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { useEffect, useRef, useState } from 'react'
 import { OwnPasswordDialog, type PasswordStep } from './own-password-dialog'

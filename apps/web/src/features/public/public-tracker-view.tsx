@@ -3,7 +3,7 @@ import Link from 'next/link'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardTitle } from '@/components/ui/card'
-import type { PublicProjectSnapshot } from '@/lib/services/public-projects'
+import type { PublicProjectSnapshot } from '@/lib/api/public'
 
 // Renders only the PRD-F13 allowlisted snapshot fields; nothing else crosses into the public view.
 type Snapshot = Omit<PublicProjectSnapshot, 'publishedAt'> & { publishedAt?: string }

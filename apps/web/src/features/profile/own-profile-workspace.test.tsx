@@ -31,7 +31,7 @@ vi.mock('@/hooks/use-current-role', () => ({
     refreshAccess: state.refresh,
   }),
 }))
-vi.mock('@/lib/services/own-profile-client', () => ({
+vi.mock('@/lib/api/profile', () => ({
   ownProfileClient: { read: state.read, update: state.update },
 }))
 vi.mock('./own-password-form', () => ({

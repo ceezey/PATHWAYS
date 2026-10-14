@@ -20,7 +20,7 @@ const role = {
 }
 vi.mock('@/hooks/use-session', () => ({ useSession: () => ({ session, signOut: state.signOut }) }))
 vi.mock('@/hooks/use-current-role', () => ({ useCurrentRole: () => role }))
-vi.mock('@/lib/services/own-profile-client', () => ({
+vi.mock('@/lib/api/profile', () => ({
   ownProfileClient: { read: vi.fn().mockResolvedValue({}) },
 }))
 vi.mock('./own-password-operation', async () => {

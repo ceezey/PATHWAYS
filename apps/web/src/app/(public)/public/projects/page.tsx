@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 
 import { PublicTrackerList, PublicTrackerUnavailable } from '@/features/public/public-tracker-view'
-import { readPublicSnapshots } from '@/lib/services/public-projects'
+import { readPublicSnapshots } from '@/lib/api/public'
 
 export const metadata: Metadata = { title: 'Public Project Directory' }
 export const dynamic = 'force-dynamic'

@@ -5,7 +5,7 @@ import {
   PublicTrackerDetail,
   PublicTrackerUnavailable,
 } from '@/features/public/public-tracker-view'
-import { readPublicSnapshots } from '@/lib/services/public-projects'
+import { readPublicSnapshots } from '@/lib/api/public'
 
 export const metadata: Metadata = { title: 'Public Project Story' }
 export const dynamic = 'force-dynamic'

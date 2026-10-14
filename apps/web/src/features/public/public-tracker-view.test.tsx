@@ -2,7 +2,7 @@
 import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { readPublicSnapshots } from '@/lib/services/public-projects'
+import { readPublicSnapshots } from '@/lib/api/public'
 import { PublicTrackerDetail, PublicTrackerList } from './public-tracker-view'
 
 const snapshot = {
