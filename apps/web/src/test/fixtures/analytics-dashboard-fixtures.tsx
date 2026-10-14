@@ -18,6 +18,13 @@ const alertHook = vi.hoisted(() => ({ result: { data: undefined } as Record<stri
 const download = vi.hoisted(() => vi.fn())
 const previewExport = vi.hoisted(() => vi.fn())
 const toastError = vi.hoisted(() => vi.fn())
+const toastSuccess = vi.hoisted(() => vi.fn())
+const rbac = vi.hoisted(() => ({ allowed: [] as string[] }))
+const insightCalls = vi.hoisted(() => ({
+  budget: [] as unknown[][],
+  participation: [] as unknown[][],
+  trends: [] as unknown[][],
+}))
 export const idle = { data: undefined, isError: false, isPending: true, refetch: vi.fn() }
 const insights = vi.hoisted(() => ({
   budget: {} as Record<string, unknown>,
@@ -43,7 +50,19 @@ const currentAccess = vi.hoisted(() => ({
     assignedProjectIds: ['project-a', 'project-b'],
   },
 }))
-export { alertHook, api, coverageMap, currentAccess, download, insights, previewExport, toastError }
+export {
+  alertHook,
+  api,
+  coverageMap,
+  currentAccess,
+  download,
+  insightCalls,
+  insights,
+  previewExport,
+  rbac,
+  toastError,
+  toastSuccess,
+}
 export const rulesHumanClient = rules
 
 // Plain buttons stand in for the Radix menu, matching the other workspace tests.
@@ -74,13 +93,22 @@ vi.mock('@/lib/api/projects', () => ({ projectsClient: api }))
 vi.mock('@/lib/services/core-feature-client', () => ({
   downloadCoreArtifact: download,
 }))
-vi.mock('sonner', () => ({ toast: { error: toastError, success: vi.fn() } }))
+vi.mock('sonner', () => ({ toast: { error: toastError, success: toastSuccess } }))
 vi.mock('echarts-for-react', () => ({ default: () => <div>chart</div> }))
 vi.mock('@/features/analytics/hooks/use-analytics-insights', async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
-  useBudgetSummary: () => insights.budget,
-  useIndicatorTrends: () => insights.trends,
-  useParticipationBreakdown: () => insights.participation,
+  useBudgetSummary: (...args: unknown[]) => {
+    insightCalls.budget.push(args)
+    return insights.budget
+  },
+  useIndicatorTrends: (...args: unknown[]) => {
+    insightCalls.trends.push(args)
+    return insights.trends
+  },
+  useParticipationBreakdown: (...args: unknown[]) => {
+    insightCalls.participation.push(args)
+    return insights.participation
+  },
 }))
 vi.mock('@/hooks/use-current-role', () => ({
   useCurrentRole: () => currentAccess,
@@ -88,9 +116,16 @@ vi.mock('@/hooks/use-current-role', () => ({
 vi.mock('@/hooks/use-display-labels', () => ({
   useDisplayLabels: () => ({ labels: { moduleAnalytics: 'Analytics' } }),
 }))
-vi.mock('@/lib/rbac/can', () => ({ can: () => false }))
+vi.mock('@/lib/rbac/can', () => ({
+  can: (_role: string, permission: string) => rbac.allowed.includes(permission),
+}))
 vi.mock('@/components/layout/page-header', () => ({
-  PageHeader: ({ title }: { title: string }) => <h1>{title}</h1>,
+  PageHeader: ({ actions, title }: { actions?: React.ReactNode; title: string }) => (
+    <>
+      <h1>{title}</h1>
+      {actions}
+    </>
+  ),
 }))
 vi.mock('@/hooks/use-authorized-read', () => ({ useAuthorizedRead: () => alertHook.result }))
 vi.mock('@/lib/api/rules', () => ({ rulesHumanClient: { listAlerts: vi.fn() } }))
@@ -240,10 +275,29 @@ export const loadMapsDashboard = async () => {
   return MapsDashboard
 }
 
+// Loads the dashboard with the named UI flags on; every flag is off unless named, except the export button.
+export const loadDashboard = async (flags: {
+  export?: boolean
+  maps?: boolean
+  pins?: boolean
+}) => {
+  vi.resetModules()
+  vi.doMock('@/constants/feature-flags', () => ({
+    ANALYTICS_AGGREGATE_EXPORT_UI_ENABLED: flags.export ?? true,
+    UNFINISHED_CONTROLS_UI_ENABLED: true,
+    DASHBOARD_PINS_UI_ENABLED: flags.pins ?? false,
+    MAPS_UI_ENABLED: flags.maps ?? false,
+  }))
+  const { AnalyticsDashboard: Dashboard } = await import('@/features/analytics')
+  vi.doUnmock('@/constants/feature-flags')
+  return Dashboard
+}
+
 export const resetAnalyticsMocks = () => {
   vi.useFakeTimers({ toFake: ['Date'] })
   vi.setSystemTime(new Date('2026-09-27T04:00:00.000Z'))
   currentAccess.role = 'Monitoring and Evaluation Officer'
+  currentAccess.profile.userId = 'user-1'
   currentAccess.profile.roles = ['MONITORING_AND_EVALUATION_OFFICER']
   currentAccess.profile.permissions = [
     'projects.read',
@@ -254,6 +308,10 @@ export const resetAnalyticsMocks = () => {
     'indicators.read',
   ]
   alertHook.result = { data: undefined }
+  rbac.allowed = []
+  insightCalls.budget.length = 0
+  insightCalls.participation.length = 0
+  insightCalls.trends.length = 0
   coverageMap.instanceCount = 0
   coverageMap.featureCollections.length = 0
   const projects = [
@@ -286,6 +344,8 @@ export const resetAnalyticsMocks = () => {
     disability: [],
   })
   api.getDescriptiveAnalytics.mockReturnValue(new Promise(() => {}))
+  api.getSurveyAnalytics.mockReturnValue(new Promise(() => {}))
+  api.getTimelineAnalytics.mockReturnValue(new Promise(() => {}))
   insights.budget = { ...idle }
   insights.trends = { ...idle }
   insights.participation = { ...idle }
