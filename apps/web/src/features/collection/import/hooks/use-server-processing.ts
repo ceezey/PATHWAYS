@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { importsClient } from '@/lib/api/imports'
 import type { principalHasAtomicPermission } from '@/lib/rbac/policy'
 
+import type { OperationTicket } from '../../collection.utils'
 import type { ImportProcessingState } from '../components/import-processing-panel'
 import {
   type ImportProcessingOutcome,
@@ -11,11 +12,6 @@ import {
   runImportProcessing,
 } from '../import-auto-continue'
 import type { useImportBatch } from './use-import-batch'
-
-type Ticket = {
-  valid: (permission?: Parameters<typeof principalHasAtomicPermission>[1]) => boolean
-  finish: () => void
-}
 
 // Runs the repeated server process calls of one confirmed import and keeps its progress, stop and resume.
 export function useServerProcessing({
@@ -27,7 +23,9 @@ export function useServerProcessing({
   setImportMessage,
 }: {
   projectId: string
-  beginOperation: (permission: Parameters<typeof principalHasAtomicPermission>[1]) => Ticket | null
+  beginOperation: (
+    permission: Parameters<typeof principalHasAtomicPermission>[1],
+  ) => OperationTicket | null
   importBatch: ReturnType<typeof useImportBatch>
   setSavedNotice: (notice: string) => void
   setProceedDialogOpen: (open: boolean) => void
@@ -45,7 +43,7 @@ export function useServerProcessing({
   // Calls process until the batch is done, a call fails, or Stop is pressed. Each call
   // is a separate authorized request; progress comes from each server response.
   const continueServerProcessing = async (
-    ticket: Ticket,
+    ticket: OperationTicket,
     target: {
       projectId: string
       batchId: string

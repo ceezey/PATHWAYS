@@ -1,5 +1,13 @@
+import type { principalHasAtomicPermission } from '@/lib/rbac/policy'
+
 import type { BuilderFieldType, BuilderFormField } from './forms/digital-form-contract'
 import type { MappingStatus } from './import/collection-import-state'
+
+/** What a screen's operation guard hands out: a check that the owner is still current, and the release of the lock. */
+export type OperationTicket = {
+  valid: (permission?: Parameters<typeof principalHasAtomicPermission>[1]) => boolean
+  finish: () => void
+}
 
 export type CollectionMode = 'scratch' | 'import' | 'extend'
 
