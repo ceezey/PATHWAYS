@@ -24,6 +24,6 @@ export function assertReportPermission(actor: ApplicationIdentity, kind: ReportK
     throw new ForbiddenException('Current report permission required.')
 }
 
-// Report kinds the actor may list, with the extra grants the beneficiary summary needs.
+// Report kinds the actor may list, each with its own permission and extra grants.
 export const readableReportKinds = (actor: ApplicationIdentity) =>
   grantedReportKinds(actor.roles[0], actor.permissions)
