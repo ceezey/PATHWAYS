@@ -1,6 +1,6 @@
 /* @vitest-environment jsdom */
 
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
@@ -16,6 +16,8 @@ import {
   router,
   section,
 } from '@/test/fixtures/role-dashboard-fixtures'
+
+import { deferred } from '@/test/fixtures/deferred'
 
 import { RoleDashboard } from './role-dashboard'
 
@@ -83,6 +85,43 @@ describe('Role dashboard states and records', () => {
           'We could not load this dashboard right now. Reload the page to try again.',
         ),
       ).toBeTruthy()
+    })
+
+    it('shows the unavailable page for a null dashboard', async () => {
+      api.getDashboard.mockResolvedValue(null)
+      render(<RoleDashboard />)
+
+      expect(await screen.findByText('Dashboard data unavailable')).toBeTruthy()
+    })
+
+    it('ignores a dashboard answer that arrives after the role was cleared', async () => {
+      const read = deferred<Record<string, unknown>>()
+      api.getDashboard.mockReturnValue(read.promise)
+      const view = render(<RoleDashboard />)
+
+      access.role = null
+      view.rerender(<RoleDashboard />)
+      await act(async () => {
+        read.resolve(dashboard())
+      })
+
+      expect(screen.getByText('Loading dashboard...')).toBeTruthy()
+      expect(screen.queryByRole('heading', { name: /^Welcome!/ })).toBeNull()
+    })
+
+    it('ignores a dashboard failure that arrives after the role was cleared', async () => {
+      const read = deferred<Record<string, unknown>>()
+      api.getDashboard.mockReturnValue(read.promise)
+      const view = render(<RoleDashboard />)
+
+      access.role = null
+      view.rerender(<RoleDashboard />)
+      await act(async () => {
+        read.reject(new Error('late failure'))
+      })
+
+      expect(screen.getByText('Loading dashboard...')).toBeTruthy()
+      expect(screen.queryByText('Dashboard data unavailable')).toBeNull()
     })
 
     it('shows the empty page when there are no metrics and no section items', async () => {
@@ -175,6 +214,16 @@ describe('Role dashboard states and records', () => {
       expect(screen.queryByRole('link', { name: 'View Warning metric' })).toBeNull()
     })
 
+    it('explains each card in its tooltip', async () => {
+      await shown(
+        dashboard({ metrics: [metric({ label: 'Danger metric', helperText: 'Danger helper' })] }),
+      )
+
+      fireEvent.focus(screen.getByRole('button', { name: 'More information about Danger metric' }))
+
+      expect(screen.getByRole('tooltip').textContent).toBe('Danger helper')
+    })
+
     it('colors each card by severity and falls back to info', async () => {
       await shown(dashboard({ metrics }))
 
@@ -229,6 +278,11 @@ describe('Role dashboard states and records', () => {
       expect(screen.getByText('Operational detail')).toBeTruthy()
       expect(
         screen.getByRole('heading', { name: 'Projects and alerts behind the summary' }),
+      ).toBeTruthy()
+      expect(
+        screen.getByText(
+          'Portfolio-wide records remain available for follow-up after the executive review.',
+        ),
       ).toBeTruthy()
     })
 

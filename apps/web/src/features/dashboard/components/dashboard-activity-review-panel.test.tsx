@@ -4,6 +4,8 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import type { ComponentProps } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { deferred } from '@/test/fixtures/deferred'
+
 import { DashboardActivityReviewPanel } from './dashboard-activity-review-panel'
 
 const api = vi.hoisted(() => ({ getActivity: vi.fn(), getIndicators: vi.fn() }))
@@ -41,15 +43,6 @@ const target = (overrides: Record<string, unknown> = {}) => ({
   proofId: undefined,
   ...overrides,
 })
-const deferred = <T,>() => {
-  let resolve: (value: T) => void = () => {}
-  let reject: (reason: unknown) => void = () => {}
-  const promise = new Promise<T>((done, fail) => {
-    resolve = done
-    reject = fail
-  })
-  return { promise, resolve, reject }
-}
 const onActivityChanged = vi.fn()
 const onClose = vi.fn()
 const props = (overrides: Record<string, unknown> = {}) =>

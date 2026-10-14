@@ -4,6 +4,8 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import type { ComponentProps } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { deferred } from '@/test/fixtures/deferred'
+
 import { ConnectedMonitoringSnapshot } from './connected-monitoring-snapshot'
 
 const api = vi.hoisted(() => ({ getProjectsForRole: vi.fn(), getMonitoringDashboard: vi.fn() }))
@@ -135,15 +137,6 @@ const metric = (n: number, overrides: Record<string, unknown> = {}) => ({
   helperText: `Helper ${n}`,
   ...overrides,
 })
-const deferred = <T,>() => {
-  let resolve: (value: T) => void = () => {}
-  let reject: (reason: unknown) => void = () => {}
-  const promise = new Promise<T>((done, fail) => {
-    resolve = done
-    reject = fail
-  })
-  return { promise, resolve, reject }
-}
 
 describe('ConnectedMonitoringSnapshot', () => {
   beforeEach(() => {
@@ -363,6 +356,20 @@ describe('ConnectedMonitoringSnapshot', () => {
       fireEvent.change(scope(), { target: { value: 'project-b' } })
       expect(await screen.findByText('Metric 1|Helper 1')).toBeTruthy()
       expect(screen.queryByText('Monitoring data could not be loaded.')).toBeNull()
+    })
+
+    it('hides the cards of a role that has no authorized project', async () => {
+      api.getMonitoringDashboard.mockResolvedValueOnce({ metrics: [metric(1)] })
+      const view = show()
+      await screen.findByText('Metric 1|Helper 1')
+
+      api.getProjectsForRole.mockResolvedValueOnce([])
+      view.rerender(
+        <ConnectedMonitoringSnapshot {...({ role: 'Project Manager' } as unknown as Props)} />,
+      )
+
+      expect(await screen.findByText('No authorized projects')).toBeTruthy()
+      expect(screen.queryByTestId('metric')).toBeNull()
     })
 
     it('ignores the answer of a scope that was replaced before it arrived', async () => {
