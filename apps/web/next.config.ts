@@ -51,6 +51,7 @@ export default function createNextConfig(phase: string): NextConfig {
         '@/features/beneficiaries',
         '@/features/reports',
         '@/features/collection',
+        '@/features/rules',
       ],
     },
     transpilePackages: ['@pathways/config', '@pathways/imports', '@pathways/shared'],

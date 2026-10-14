@@ -1,4 +1,4 @@
-import { RecommendationsWorkspace } from '@/features/rules/components/recommendations-workspace'
+import { RecommendationsWorkspace } from '@/features/rules'
 import { type ProtectedPageProps, requireServerPage } from '@/lib/rbac/server-access'
 import { uuidSchema } from '@pathways/shared'
 import { notFound } from 'next/navigation'

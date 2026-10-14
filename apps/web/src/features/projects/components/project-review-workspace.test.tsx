@@ -59,7 +59,7 @@ vi.mock('../evaluation/components/live-evaluation-workspace', () => ({
     <div>Evaluation for {projectId}</div>
   ),
 }))
-vi.mock('@/features/rules/components/project-rules-panel', () => ({
+vi.mock('@/features/rules', () => ({
   ProjectRulesPanel: ({ projectId }: { projectId: string }) => <div>Rules for {projectId}</div>,
 }))
 vi.mock('@/hooks/use-current-role', () => ({

@@ -1,6 +1,6 @@
 'use client'
 
-import { ProjectRulesPanel } from '@/features/rules/components/project-rules-panel'
+import { ProjectRulesPanel } from '@/features/rules'
 import { reportsClient } from '@/lib/api/reports'
 import { BudgetModule } from '../budget/components/budget-module'
 import { LiveEvaluationWorkspace } from '../evaluation/components/live-evaluation-workspace'

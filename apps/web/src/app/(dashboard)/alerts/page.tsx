@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 
-import { AlertsWorkspace } from '@/features/rules/components/alerts-workspace'
+import { AlertsWorkspace } from '@/features/rules'
 import { type ProtectedPageProps, requireServerPage } from '@/lib/rbac/server-access'
 
 export const metadata: Metadata = { title: 'Alert Review' }
