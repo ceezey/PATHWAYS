@@ -54,6 +54,17 @@ describe('evaluation response contracts', () => {
     expect(evaluationDetailResponse.safeParse({ ...detail, extra: 1 }).success).toBe(false)
   })
 
+  it('accepts a criterion snapshot with a free-form type, weight and maximum score', () => {
+    const free = {
+      ...score.criterion,
+      type: 'CUSTOM_TYPE',
+      weight_percentage: 'about 20',
+      maximum_score: 'n/a',
+    }
+    const loose = { ...detail, scores: [{ ...score, criterion: free }] }
+    expect(evaluationDetailResponse.safeParse(loose).success).toBe(true)
+  })
+
   it('accepts the criteria and rounds of a project and limits the rounds to 20', () => {
     const criterion = {
       id: uuid,

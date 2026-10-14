@@ -55,6 +55,12 @@ describe('finance response contracts', () => {
     ).toBe(false)
   })
 
+  it('accepts an expense date that is not a plain calendar date', () => {
+    for (const expenseDate of ['2026-10-14T08:00:00.000Z', '14/10/2026']) {
+      expect(expenseResponse.safeParse({ ...expense, expenseDate }).success).toBe(true)
+    }
+  })
+
   it('accepts the receipts of a budget write, an expense action and a sign-off', () => {
     expect(budgetWriteResponse.safeParse({ id: uuid, updatedAt: stamp }).success).toBe(true)
     const ack = { id: uuid, projectId: uuid, status: 'VERIFIED', updatedAt: stamp }
