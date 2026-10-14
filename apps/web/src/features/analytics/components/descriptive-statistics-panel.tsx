@@ -3,8 +3,8 @@
 import { AlertTriangle, BarChart3 } from 'lucide-react'
 
 import { AsyncState } from '@/components/pathways'
-
 import type { DescriptiveAnalytics } from '@pathways/shared'
+
 import { ChartPanel, UnavailableChart } from './chart-panel'
 import { DescriptiveStatisticsTable } from './descriptive-statistics-table'
 

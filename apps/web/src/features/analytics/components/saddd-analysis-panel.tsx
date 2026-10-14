@@ -4,9 +4,8 @@ import { AlertTriangle, CalendarClock, UsersRound } from 'lucide-react'
 
 import { AsyncState, StatusMessage } from '@/components/pathways'
 import { EmptyState } from '@/components/pathways/empty-state'
-import { formatMetricCell } from '@pathways/shared'
+import { type SadddDashboard, formatMetricCell } from '@pathways/shared'
 
-import type { SadddDashboard } from '@pathways/shared'
 import { SadddChart } from './analytics-charts'
 import { ChartPanel, UnavailableChart } from './chart-panel'
 
