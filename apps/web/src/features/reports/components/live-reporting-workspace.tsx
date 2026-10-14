@@ -21,25 +21,12 @@ import { useSensitiveDraftOwner } from '@/lib/auth/sensitive-drafts'
 import { principalHasAtomicPermission } from '@/lib/rbac/policy'
 import { downloadCoreArtifact } from '@/lib/services/core-feature-client'
 import type { ReportKind } from '@/types/pathways'
-import { type ReportKindCode, grantedReportKinds, reportKindGrants } from '@pathways/shared'
+import { type ReportKindCode, reportKindGrants } from '@pathways/shared'
 import { Download, FileSpreadsheet, Save } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
-import { reportFileName } from '../reports.utils'
-
-type Principal = Parameters<typeof principalHasAtomicPermission>[0]
-export const reportKindLabels: Record<ReportKindCode, string> = {
-  PROJECT_SUMMARY: 'Project summary',
-  INDICATOR_SUMMARY: 'Indicator summary',
-  BENEFICIARY_SUMMARY: 'Beneficiary summary',
-  SURVEY_FORM_RESULTS: 'Survey results',
-  MONITORING_REPORT: 'Monitoring report',
-  EVALUATION_REPORT: 'Evaluation report',
-}
-
-/** Kinds the principal may open: the shared grants, for a principal with exactly one role. */
-export const allowedKinds = (profile: Principal): ReportKindCode[] =>
-  profile?.roles.length === 1 ? grantedReportKinds(profile.roles[0], profile.permissions) : []
+import { reportKindLabels } from '../reports.copy'
+import { allowedKinds, reportFileName } from '../reports.utils'
 
 const day = (value: string) =>
   new Date(value).toLocaleDateString('en-GB', {
