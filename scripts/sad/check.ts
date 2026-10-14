@@ -22,6 +22,8 @@ export const roles = {
       'apps/api/src/**/*.service.ts',
       'apps/api/src/**/*.helpers.ts',
       'packages/shared/src/rbac/**/*.ts',
+      'packages/shared/src/contracts/auth/**/*.ts',
+      'packages/shared/src/contracts/users/**/*.ts',
       'apps/api/src/common/authz/**/*.ts',
       'apps/api/src/common/audit/**/*.ts',
       'apps/api/src/modules/auth/guards/**/*.ts',

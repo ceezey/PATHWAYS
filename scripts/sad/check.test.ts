@@ -104,6 +104,15 @@ describe('routing and digest', () => {
     const file = 'packages/shared/src/rbac/authorization-policy.ts'
     expect(routing([change(file, 'new', 'old')])['organization-isolation-checker']).toEqual([file])
   })
+
+  it('routes auth and user authorization contracts to the organization isolation checker', () => {
+    const files = [
+      'packages/shared/src/contracts/auth/auth-requests.ts',
+      'packages/shared/src/contracts/users/user-authorization.ts',
+    ]
+    const routed = routing(files.map((file) => change(file, 'new', 'old')))
+    expect(routed['organization-isolation-checker']).toEqual(files)
+  })
   it('routes api authz, audit and guard changes to the organization isolation checker', () => {
     const files = [
       'apps/api/src/common/audit/write-audit-log.ts',
