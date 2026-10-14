@@ -16,15 +16,15 @@ import type { IndicatorsService } from '@app/modules/indicators/indicators.servi
 import type { PrismaService } from '@app/prisma/prisma.service'
 import { ForbiddenException } from '@nestjs/common'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { suppressSmallCount } from '../dashboards/dashboards.helpers'
+import { DashboardsService } from '../dashboards/dashboards.service'
 import * as reportArtifact from '../reports/report-artifact'
 import { AnalyticsController } from './analytics.controller'
 import { AnalyticsService } from './analytics.service'
-import { DashboardsService } from './dashboards.service'
 import {
   analyticsTableCsv,
   buildDescriptiveAnalytics,
   descriptiveAnalyticsTable,
-  suppressSmallCount,
 } from './descriptive-analytics'
 
 vi.mock('@pathways/config', () => ({

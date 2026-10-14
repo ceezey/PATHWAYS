@@ -25,7 +25,7 @@ import { currentBusinessDate } from '../../common/time/business-date'
 import { PrismaService } from '../../prisma/prisma.service'
 import { monitoringSqlError } from '../indicators/indicators.helpers'
 import { IndicatorsService } from '../indicators/indicators.service'
-import { parseDashboardQuery, parseSadddQuery } from './dashboards.dto'
+import { parseDashboardQuery, parseSadddQuery } from './dashboards.helpers'
 
 @Injectable()
 export class DashboardsService {

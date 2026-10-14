@@ -23,7 +23,11 @@ import { withAuthorizedOperation } from '../../common/authz/authorized-operation
 import { requireScopedProject } from '../../common/authz/scoped-project'
 import type { Tx } from '../../common/prisma/transaction'
 import { PrismaService } from '../../prisma/prisma.service'
-import { currentMeasurements, summarizeBudget, suppressBreakdown } from './insights-math'
+import {
+  currentMeasurements,
+  summarizeBudget,
+  suppressBreakdown,
+} from './analytics-insights.helpers'
 
 const logger = new Logger('AnalyticsInsightsService')
 const MAX_INDICATORS = 50

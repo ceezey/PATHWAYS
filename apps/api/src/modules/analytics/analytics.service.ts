@@ -29,8 +29,8 @@ import { requireScopedProjectRow } from '../../common/authz/scoped-project'
 import type { Tx } from '../../common/prisma/transaction'
 import { PrismaService } from '../../prisma/prisma.service'
 import { faultCause } from '../../prisma/transaction-diagnostic'
+import { DashboardsService } from '../dashboards/dashboards.service'
 import { monitoringSqlError } from '../indicators/indicators.helpers'
-import { DashboardsService } from './dashboards.service'
 import {
   type AnalyticsTable,
   analyticsTableCsv,

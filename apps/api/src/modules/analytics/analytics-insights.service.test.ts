@@ -11,8 +11,12 @@ import {
 import { hasAtomicPermission, rolePermissions } from '@pathways/shared'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AnalyticsInsightsController } from './analytics-insights.controller'
+import {
+  currentMeasurements,
+  summarizeBudget,
+  suppressBreakdown,
+} from './analytics-insights.helpers'
 import { AnalyticsInsightsService } from './analytics-insights.service'
-import { currentMeasurements, summarizeBudget, suppressBreakdown } from './insights-math'
 
 vi.mock('@app/common/authz/authorized-operation', () => ({ withAuthorizedOperation: vi.fn() }))
 

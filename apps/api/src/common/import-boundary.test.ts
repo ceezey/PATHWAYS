@@ -154,12 +154,9 @@ describe('api module import pairs', () => {
     ])
   })
 
-  it('allows only the recorded pair of modules that import each other', () => {
+  it('allows no pair of modules that import each other', () => {
     const files = sourceFiles(modules)
     expect(files.length).toBeGreaterThan(100)
-    // The generic report artifact writer is shared with the analytics export; this pair is recorded for S7.
-    expect(mutualModulePairs(files, (file) => readFileSync(file, 'utf8'))).toEqual([
-      'dashboards <-> reports',
-    ])
+    expect(mutualModulePairs(files, (file) => readFileSync(file, 'utf8'))).toEqual([])
   })
 })

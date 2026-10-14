@@ -12,7 +12,7 @@ import {
 import { RouteParamtypes } from '@nestjs/common/enums/route-paramtypes.enum'
 import { describe, expect, it } from 'vitest'
 import { AppModule } from '../../app.module'
-import { AnalyticsInsightsModule } from '../analytics-insights/analytics-insights.module'
+import { AnalyticsModule } from '../analytics/analytics.module'
 import { DashboardsModule } from './dashboards.module'
 
 type Handler = (request: object, ...args: unknown[]) => unknown
@@ -20,7 +20,7 @@ type ControllerClass = { new (service: unknown): Record<string, Handler>; protot
 
 const controllers = (): ControllerClass[] => [
   ...Reflect.getMetadata('controllers', DashboardsModule),
-  ...Reflect.getMetadata('controllers', AnalyticsInsightsModule),
+  ...Reflect.getMetadata('controllers', AnalyticsModule),
 ]
 const handlers = (controller: ControllerClass) =>
   Object.getOwnPropertyNames(controller.prototype).filter((name) => name !== 'constructor')
@@ -101,7 +101,7 @@ describe('dashboards and analytics routes', () => {
   it('registers the dashboards and insights modules in the application module', () => {
     const imports: unknown[] = Reflect.getMetadata('imports', AppModule)
     expect(imports).toContain(DashboardsModule)
-    expect(imports).toContain(AnalyticsInsightsModule)
+    expect(imports).toContain(AnalyticsModule)
   })
 
   it('answers 403 on every route when no application identity is attached', async () => {
