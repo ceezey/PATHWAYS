@@ -19,13 +19,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { suppressSmallCount } from '../dashboards/dashboards.helpers'
 import { DashboardsService } from '../dashboards/dashboards.service'
 import * as reportArtifact from '../reports/report-artifact'
+import { analyticsTableCsv, descriptiveAnalyticsTable } from './analytics-export.helpers'
 import { AnalyticsController } from './analytics.controller'
 import { AnalyticsService } from './analytics.service'
-import {
-  analyticsTableCsv,
-  buildDescriptiveAnalytics,
-  descriptiveAnalyticsTable,
-} from './descriptive-analytics'
+import { buildDescriptiveAnalytics } from './descriptive-analytics.helpers'
 
 vi.mock('@pathways/config', () => ({
   readApiEnv: () => ({ BUSINESS_TIME_ZONE: 'Asia/Manila' }),

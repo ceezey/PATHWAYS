@@ -33,20 +33,14 @@ import { DashboardsService } from '../dashboards/dashboards.service'
 import { monitoringSqlError } from '../indicators/indicators.helpers'
 import {
   type AnalyticsTable,
-  analyticsTableCsv,
-  buildDescriptiveAnalytics,
-  buildTimelineAnalytics,
   descriptiveAnalyticsTable,
+  exportArtifact,
+  parseExportFormat,
   surveyAnalyticsTable,
-  timelineAggregateSchema,
   timelineAnalyticsTable,
-} from './descriptive-analytics'
-
-import {
-  ReportArtifactInputError,
-  createReportArtifact,
-  reportMime,
-} from '../reports/report-artifact'
+} from './analytics-export.helpers'
+import { buildDescriptiveAnalytics } from './descriptive-analytics.helpers'
+import { buildTimelineAnalytics, timelineAggregateSchema } from './timeline-analytics.helpers'
 
 const logger = new Logger('AnalyticsService')
 const EXPORT_PREVIEW_ROWS = 50
@@ -58,50 +52,6 @@ function parseDescriptiveQuery(value: unknown): DescriptiveAnalyticsQuery {
       'Descriptive analytics requires exactly one authorized project and an optional complete period.',
     )
   return parsed.data
-}
-
-const exportFormats = ['CSV', 'XLSX', 'XLS', 'PDF'] as const
-type ExportFormat = (typeof exportFormats)[number]
-
-/** Splits the optional file format off before the strict analytics query parse. */
-function parseExportFormat(input: unknown): { format: ExportFormat; query: unknown } {
-  if (!input || typeof input !== 'object') return { format: 'CSV', query: input }
-  const { format = 'CSV', ...query } = input as Record<string, unknown>
-  if (!exportFormats.includes(format as ExportFormat))
-    throw new BadRequestException('Export format must be CSV, XLSX, XLS or PDF.')
-  return { format: format as ExportFormat, query }
-}
-
-async function exportArtifact(
-  format: ExportFormat,
-  title: string,
-  table: AnalyticsTable,
-  fileBase: string,
-) {
-  if (format === 'CSV')
-    return {
-      bytes: Buffer.from(analyticsTableCsv(table), 'utf8'),
-      contentType: 'text/csv; charset=utf-8',
-      fileName: `${fileBase}.csv`,
-    }
-  const rows = table.map((row) => row.map((cell) => (cell === null ? '' : String(cell))))
-  try {
-    return {
-      bytes: await createReportArtifact(title, rows, format),
-      contentType: reportMime[format],
-      fileName: `${fileBase}.${format.toLowerCase()}`,
-    }
-  } catch (error) {
-    if (error instanceof ReportArtifactInputError) throw new BadRequestException(error.message)
-    logger.error({
-      event: 'PATHWAYS_ANALYTICS_EXPORT_RENDER_FAILED',
-      format,
-      cause: faultCause(error),
-    })
-    throw new ServiceUnavailableException(
-      `The ${format} file could not be generated on this server. Export CSV instead.`,
-    )
-  }
 }
 
 // Project fields the survey and timeline views read after the scope check.

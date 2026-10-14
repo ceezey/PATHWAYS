@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildTimelineAnalytics } from './descriptive-analytics'
+import { buildTimelineAnalytics } from './timeline-analytics.helpers'
 
 const aggregate = {
   activities: { eligible: 2, completed: 1, overdue: 0, missingDates: 0, maxOverdueDays: null },
