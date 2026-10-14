@@ -1,5 +1,3 @@
-'use client'
-
 import { AlertTriangle, BarChart3, ChevronDown, Download, Plus } from 'lucide-react'
 import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
@@ -36,7 +34,6 @@ import { projectsClient } from '@/lib/api/projects'
 import { addPin } from '@/lib/dashboard-pins'
 import { formatCalendarDay } from '@/lib/format/date'
 import { can } from '@/lib/rbac/can'
-import { principalHasAtomicPermission } from '@/lib/rbac/policy'
 import type { ActivitySummary, ProjectSummary } from '@/types/pathways'
 import type { IndicatorResponse, MonitoringDashboard } from '@pathways/shared'
 import { toast } from 'sonner'
@@ -54,11 +51,10 @@ import {
   exportFormats,
   visualizationTypes,
 } from '../analytics.copy'
-import { countOpenAlerts } from '../analytics.reads'
+import { analyticsAccess, countOpenAlerts } from '../analytics.reads'
 import { businessDateInManila } from '../analytics.utils'
 import { useAnalyticsExport } from '../hooks/use-analytics-export'
 import {
-  canReadInsight,
   useBudgetSummary,
   useIndicatorTrends,
   useParticipationBreakdown,
@@ -90,25 +86,22 @@ import { TimelineAnalyticsPanel } from './timeline-analytics-panel'
 export const AnalyticsDashboard = () => {
   const { labels } = useDisplayLabels()
   const { role, profile } = useCurrentRole()
-  const canReadActivities = principalHasAtomicPermission(profile, 'activities.read')
-  const canReadIndicators = principalHasAtomicPermission(profile, 'monitoring.read')
-  // Definitions need indicators.read; other monitoring roles read released values for periods and KPIs.
-  const canReadIndicatorDefinitions =
-    canReadIndicators && principalHasAtomicPermission(profile, 'indicators.read')
-  const canReadIndicatorValues =
-    canReadIndicators && principalHasAtomicPermission(profile, 'reports.indicator.read')
-  const canReadDescriptive = principalHasAtomicPermission(profile, 'analytics.descriptive.read')
-  // Survey and timeline read person-derived aggregates, so the API requires both permissions
-  // (analytics.descriptive.read and monitoring.read). Anything less is restricted, never "None yet".
-  const canReadSurveyTimeline = canReadDescriptive && canReadIndicators
-  const canReadSurvey = canReadSurveyTimeline
-  // Roles without assessments.detail.read (Program/Grant Manager) get a frozen release of closed periods only.
-  const surveyFrozenOnly = !principalHasAtomicPermission(profile, 'assessments.detail.read')
-  const canExportAnalytics =
-    canReadDescriptive && principalHasAtomicPermission(profile, 'analytics.export')
-  const canReadBudgetUtilization = canReadInsight(profile, 'budget')
-  const canReadTrends = canReadInsight(profile, 'trends')
-  const canReadParticipation = canReadInsight(profile, 'participation')
+  const {
+    canExportAnalytics,
+    canReadActivities,
+    canReadAlerts,
+    canReadBudgetUtilization,
+    canReadDescriptive,
+    canReadIndicatorDefinitions,
+    canReadIndicatorValues,
+    canReadIndicators,
+    canReadParticipation,
+    canReadSaddd,
+    canReadSurvey,
+    canReadSurveyTimeline,
+    canReadTrends,
+    surveyFrozenOnly,
+  } = analyticsAccess(profile)
   const [projects, setProjects] = useState<ProjectSummary[]>([])
   const [projectId, setProjectId] = useState('')
   const [period, setPeriod] = useState('')
@@ -129,7 +122,6 @@ export const AnalyticsDashboard = () => {
   const [monitoringLoadAttempt, setMonitoringLoadAttempt] = useState(0)
 
   const selectedProject = projects.find((row) => row.id === projectId)
-  const canReadAlerts = principalHasAtomicPermission(profile, 'alerts.read')
   const alertRead = useAuthorizedRead(
     'analytics-open-alerts',
     projectId || null,
@@ -181,8 +173,6 @@ export const AnalyticsDashboard = () => {
               'Sex, age and disability breakdowns are shown once the project has started. Select a started project to see them now.',
           }
         : null
-  // Roles without the SADDD release grant (Project Officers) get no SADDD card or request.
-  const canReadSaddd = principalHasAtomicPermission(profile, 'analytics.saddd.read')
   const sadddEligible = canReadSaddd && sadddNotice === null
   const sadddOngoing = sadddEligible && (selectedProject?.endDate ?? '') >= businessDateInManila()
   const periodRange = selectedPeriod
