@@ -112,6 +112,7 @@ Workflow rule: an audit is finding and evidence, a Change Record is the approved
 | [S7 analytics and rules plan](handoff/modularization-s7-analytics-rules.md) | modularization-s7-analytics-rules.md | 2026-10-13 | Full plan for modularization slice S7 | Active |
 | [S7b analytics and dashboards api plan](handoff/modularization-s7b-analytics-dashboards.md) | modularization-s7b-analytics-dashboards.md | 2026-10-14 | Full plan for modularization slice S7b | Active |
 | [S7c analytics and dashboards web plan](handoff/modularization-s7c-analytics-dashboards-web.md) | modularization-s7c-analytics-dashboards-web.md | 2026-10-14 | Full plan for modularization slice S7c | Active |
+| [S7d dashboards web plan](handoff/modularization-s7d-dashboards-web.md) | modularization-s7d-dashboards-web.md | 2026-10-14 | Full plan for modularization slice S7d | Active |
 | [S8 public, users and auth plan](handoff/modularization-s8-public-users-auth.md) | modularization-s8-public-users-auth.md | 2026-10-13 | Full plan for modularization slice S8 | Active |
 | [Cross-plan review](handoff/cross-plan-review.md) | cross-plan-review.md | 2026-10-13 | Edits each slice plan applied to the later plans | Active |
 | [Implementer common brief](handoff/implementer-common.md) | implementer-common.md | 2026-10-13 | Common rules handed to every implementer subagent | Active |
