@@ -5,7 +5,7 @@ import Link from 'next/link'
 
 import { AsyncState } from '@/components/pathways'
 import { useAuthorizedRead } from '@/hooks/use-authorized-read'
-import { pathwaysClient } from '@/lib/services/pathways-client'
+import { dashboardsClient } from '@/lib/api/dashboards'
 import { cn } from '@/lib/utils'
 import type { DashboardActionCounts } from '@pathways/shared'
 
@@ -78,7 +78,7 @@ export const actionKpiCards = (counts: DashboardActionCounts): Card[] => {
 
 export const ActionKpiRow = () => {
   const read = useAuthorizedRead('dashboard-action-counts', null, 'projects.read', () =>
-    pathwaysClient.getDashboardActionCounts(),
+    dashboardsClient.getDashboardActionCounts(),
   )
   if (!read.eligible) return null
   if (read.isError)

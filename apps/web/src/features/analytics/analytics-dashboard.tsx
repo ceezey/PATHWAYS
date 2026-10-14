@@ -43,6 +43,12 @@ import { useAuthorizedRead } from '@/hooks/use-authorized-read'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'
 import { activitiesClient } from '@/lib/api/activities'
+import {
+  analyticsClient,
+  descriptiveAnalyticsSearch,
+  getAnalyticsExportPreview,
+} from '@/lib/api/analytics'
+import { dashboardsClient } from '@/lib/api/dashboards'
 import { indicatorsClient } from '@/lib/api/indicators'
 import { projectsClient } from '@/lib/api/projects'
 import { rulesHumanClient } from '@/lib/api/rules'
@@ -52,11 +58,6 @@ import { formatCappedPercent } from '@/lib/format/percent'
 import { can } from '@/lib/rbac/can'
 import { principalHasAtomicPermission } from '@/lib/rbac/policy'
 import { downloadCoreArtifact } from '@/lib/services/core-feature-client'
-import {
-  descriptiveAnalyticsSearch,
-  getAnalyticsExportPreview,
-  pathwaysClient,
-} from '@/lib/services/pathways-client'
 import type { ActivitySummary, ProjectSummary } from '@/types/pathways'
 import {
   type DescriptiveAnalytics,
@@ -425,7 +426,7 @@ export const AnalyticsDashboard = () => {
     let active = true
     setSadddLoading(true)
     setSadddError('')
-    pathwaysClient
+    dashboardsClient
       .getSadddDashboard({ projectId })
       .then((result) => {
         if (active) setSaddd(result)
@@ -454,7 +455,7 @@ export const AnalyticsDashboard = () => {
     setMonitoringLoading(true)
     setMonitoring(null)
     setMonitoringError('')
-    pathwaysClient
+    dashboardsClient
       .getMonitoringDashboard({
         projectId,
         periodStart: selectedPeriod.start,
@@ -489,7 +490,7 @@ export const AnalyticsDashboard = () => {
     setDescriptiveLoading(true)
     setDescriptive(null)
     setDescriptiveError('')
-    pathwaysClient
+    analyticsClient
       .getDescriptiveAnalytics({
         projectId,
         periodStart: selectedPeriod.start,
@@ -527,7 +528,7 @@ export const AnalyticsDashboard = () => {
     setSurvey(null)
     setSurveyError('')
     setSurveyErrorKind('retry')
-    pathwaysClient
+    analyticsClient
       .getSurveyAnalytics({
         projectId,
         periodStart: surveyPeriod.start,
@@ -580,7 +581,7 @@ export const AnalyticsDashboard = () => {
     setTimelineLoading(true)
     setTimeline(null)
     setTimelineError('')
-    pathwaysClient
+    analyticsClient
       .getTimelineAnalytics({ projectId })
       .then((result) => {
         if (active) setTimeline(result)

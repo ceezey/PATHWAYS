@@ -47,7 +47,8 @@ vi.mock('@/hooks/use-current-role', () => ({
     },
   }),
 }))
-vi.mock('@/lib/services/pathways-client', () => ({ pathwaysClient: api }))
+vi.mock('@/lib/services/pathways-client', () => ({ pathwaysClient: {} }))
+vi.mock('@/lib/api/dashboards', () => ({ dashboardsClient: api }))
 vi.mock('@/lib/api/projects', () => ({ projectsClient: api }))
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }))
 vi.mock('./action-kpi-row', () => ({ ActionKpiRow: () => null }))

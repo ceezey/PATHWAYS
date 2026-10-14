@@ -578,12 +578,6 @@ describe('PATHWAYS frontend data boundary', () => {
     expect(fetcher.mock.calls[1]?.[0]).toBe(`http://127.0.0.1:4000/api/projects/${projectId}`)
   })
 
-  it('rejects dashboard reads without a session', async () => {
-    await expect(pathwaysClient.getDashboard('Program Manager')).rejects.toMatchObject({
-      code: 'unauthorized',
-    })
-  })
-
   it('preserves bounded server field errors for direct-entry correction', async () => {
     const authUserId = '74000000-0000-4000-8000-000000000001'
     const organizationId = '74000000-0000-4000-8000-000000000002'

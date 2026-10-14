@@ -13,6 +13,7 @@ vi.mock('./project-metrics-reads', () => ({
 vi.mock('@/hooks/use-authorized-read', () => ({ useAuthorizedRead: () => ({ data: null }) }))
 vi.mock('@/hooks/use-current-role', () => ({ useCurrentRole: () => ({ profile: null }) }))
 vi.mock('@/lib/services/pathways-client', () => ({ pathwaysClient: {} }))
+vi.mock('@/lib/api/dashboards', () => ({ dashboardsClient: {} }))
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }))
 
 import { RoleOverviewDashboard } from './role-overview'

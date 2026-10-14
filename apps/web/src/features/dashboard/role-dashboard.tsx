@@ -39,11 +39,11 @@ import {
 } from '@/constants/feature-flags'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { activitiesClient } from '@/lib/api/activities'
+import { dashboardsClient } from '@/lib/api/dashboards'
 import { indicatorsClient } from '@/lib/api/indicators'
 import { projectsClient } from '@/lib/api/projects'
 import { can } from '@/lib/rbac/can'
 import { principalHasAtomicPermission } from '@/lib/rbac/policy'
-import { pathwaysClient } from '@/lib/services/pathways-client'
 import type {
   Activity,
   DashboardAction,
@@ -297,7 +297,7 @@ const ConnectedMonitoringSnapshot = ({
     let active = true
     setMetrics([])
     setError('')
-    pathwaysClient
+    dashboardsClient
       .getMonitoringDashboard({
         ...(projectId === 'all' ? {} : { projectId }),
         ...trailingYearPeriod(),
@@ -471,7 +471,7 @@ export const RoleDashboard = () => {
     setStatus('loading')
 
     if (role !== 'System Administrator') return
-    pathwaysClient
+    dashboardsClient
       .getDashboard(role)
       .then((viewModel) => {
         if (!mounted) {

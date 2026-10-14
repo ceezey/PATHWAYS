@@ -62,8 +62,10 @@ vi.mock('@/components/ui/dropdown-menu', () => ({
     </button>
   ),
 }))
-vi.mock('@/lib/services/pathways-client', () => ({
-  pathwaysClient: api,
+vi.mock('@/lib/services/pathways-client', () => ({ pathwaysClient: {} }))
+vi.mock('@/lib/api/dashboards', () => ({ dashboardsClient: api }))
+vi.mock('@/lib/api/analytics', () => ({
+  analyticsClient: api,
   getAnalyticsExportPreview: previewExport,
   descriptiveAnalyticsSearch: (query: Record<string, string>) =>
     `?${new URLSearchParams(query).toString()}`,

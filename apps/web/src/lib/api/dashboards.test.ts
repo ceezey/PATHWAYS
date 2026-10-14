@@ -8,7 +8,6 @@ vi.mock('@/lib/supabase/client', () => ({
   getBrowserSupabaseClient: () => ({ auth: { getSession: browser.getSession } }),
 }))
 
-import { pathwaysClient } from '@/lib/services/pathways-client'
 import { dashboardsClient } from './dashboards'
 
 const authUserId = '79300000-0000-4000-8000-000000000001'
@@ -104,13 +103,9 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
-// The same cases run against the member still on pathwaysClient and against its copy in dashboardsClient.
-const clients: readonly (readonly [string, typeof dashboardsClient])[] = [
-  ['pathwaysClient', pathwaysClient],
-  ['dashboardsClient', dashboardsClient],
-]
+const client = dashboardsClient
 
-describe.each(clients)('%s dashboard reads', (_name, client) => {
+describe('dashboardsClient dashboard reads', () => {
   it('reads the action counts from their route and parses them', async () => {
     fetcher.mockResolvedValueOnce(json(actionCounts))
     await expect(client.getDashboardActionCounts()).resolves.toEqual(actionCounts)

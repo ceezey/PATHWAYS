@@ -8,7 +8,7 @@ vi.mock('@/lib/supabase/client', () => ({
   getBrowserSupabaseClient: () => ({ auth: { getSession: browser.getSession } }),
 }))
 
-import { analyticsInsightsClient } from './analytics-insights-client'
+import { analyticsInsightsClient } from './analytics-insights'
 
 const authUserId = '79500000-0000-4000-8000-000000000001'
 const organizationId = '79500000-0000-4000-8000-000000000002'

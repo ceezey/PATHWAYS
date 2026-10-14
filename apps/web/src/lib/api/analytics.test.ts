@@ -8,16 +8,7 @@ vi.mock('@/lib/supabase/client', () => ({
   getBrowserSupabaseClient: () => ({ auth: { getSession: browser.getSession } }),
 }))
 
-import {
-  getAnalyticsExportPreview as oldPreview,
-  descriptiveAnalyticsSearch as oldSearch,
-  pathwaysClient,
-} from '@/lib/services/pathways-client'
-import {
-  analyticsClient,
-  getAnalyticsExportPreview as newPreview,
-  descriptiveAnalyticsSearch as newSearch,
-} from './analytics'
+import { analyticsClient, descriptiveAnalyticsSearch, getAnalyticsExportPreview } from './analytics'
 
 const authUserId = '79400000-0000-4000-8000-000000000001'
 const organizationId = '79400000-0000-4000-8000-000000000002'
@@ -105,37 +96,9 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
-// The same cases run against the members still on pathwaysClient and against their copies in analyticsClient.
-const clients = [
-  [
-    'pathwaysClient',
-    {
-      getDescriptiveAnalytics: (query) => pathwaysClient.getDescriptiveAnalytics(query),
-      getSurveyAnalytics: (query) => pathwaysClient.getSurveyAnalytics(query),
-      getTimelineAnalytics: (query) => pathwaysClient.getTimelineAnalytics(query),
-      descriptiveAnalyticsSearch: oldSearch,
-      getAnalyticsExportPreview: oldPreview,
-    },
-  ],
-  [
-    'analyticsClient',
-    {
-      getDescriptiveAnalytics: (query) => analyticsClient.getDescriptiveAnalytics(query),
-      getSurveyAnalytics: (query) => analyticsClient.getSurveyAnalytics(query),
-      getTimelineAnalytics: (query) => analyticsClient.getTimelineAnalytics(query),
-      descriptiveAnalyticsSearch: newSearch,
-      getAnalyticsExportPreview: newPreview,
-    },
-  ],
-] as const satisfies readonly (readonly [
-  string,
-  typeof analyticsClient & {
-    descriptiveAnalyticsSearch: typeof newSearch
-    getAnalyticsExportPreview: typeof newPreview
-  },
-])[]
+const client = { ...analyticsClient, descriptiveAnalyticsSearch, getAnalyticsExportPreview }
 
-describe.each(clients)('%s analytics reads', (_name, client) => {
+describe('analyticsClient analytics reads', () => {
   it.each([
     ['a project', { projectId }, `?projectId=${projectId}`],
     ['a project and a period', { projectId, ...period }, `?projectId=${projectId}${periodSearch}`],

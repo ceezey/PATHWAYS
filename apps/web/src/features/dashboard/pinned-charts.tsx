@@ -17,9 +17,10 @@ import {
 import { overviewMetricLabel } from '@/features/projects'
 import { useAuthorizedRead } from '@/hooks/use-authorized-read'
 import { useCurrentRole } from '@/hooks/use-current-role'
+import { analyticsClient } from '@/lib/api/analytics'
+import { dashboardsClient } from '@/lib/api/dashboards'
 import { type DashboardPin, type PinView, readPins, removePin } from '@/lib/dashboard-pins'
 import { principalHasAtomicPermission } from '@/lib/rbac/policy'
-import { pathwaysClient } from '@/lib/services/pathways-client'
 
 const viewLabels: Record<PinView, string> = {
   kpi: 'KPI / indicator performance',
@@ -39,7 +40,7 @@ const Kpi = ({ pin }: { pin: DashboardPin }) => {
     `dashboard-pin-kpi:${periodStart ?? ''}:${periodEnd ?? ''}`,
     projectId,
     'monitoring.read',
-    () => pathwaysClient.getMonitoringDashboard({ projectId, periodStart, periodEnd }),
+    () => dashboardsClient.getMonitoringDashboard({ projectId, periodStart, periodEnd }),
     Boolean(periodStart && periodEnd),
   )
   return (
@@ -74,7 +75,7 @@ const Timeline = ({ pin }: { pin: DashboardPin }) => {
     'dashboard-pin-timeline',
     pin.projectId,
     'analytics.descriptive.read',
-    () => pathwaysClient.getTimelineAnalytics({ projectId: pin.projectId }),
+    () => analyticsClient.getTimelineAnalytics({ projectId: pin.projectId }),
   )
   return (
     <InsightStatus read={read} label={viewLabels[pin.view]}>
