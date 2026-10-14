@@ -6,7 +6,7 @@ import { SurveySubjectPicker } from './survey-subject-picker'
 import { DIRECT_ENTRY_FORM_TYPES } from '@pathways/shared'
 import { CheckCircle2, Save, Send, TriangleAlert } from 'lucide-react'
 import Link from 'next/link'
-import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { PageHeader } from '@/components/layout/page-header'
 import { AsyncState, EmptyState, LoadingSkeleton, StatusBadge } from '@/components/pathways'
@@ -28,46 +28,9 @@ import type {
   FormValidationError,
 } from '@/types/pathways'
 
-function verifySurveySubject(
-  submission: DirectFormSubmission,
-  form: DigitalFormDefinition,
-  expected?: string | null,
-) {
-  if (submission.formId !== form.id || submission.formVersion !== form.version)
-    throw new Error('The submission version could not be verified.')
-  if (form.formType !== 'TRAINING_SURVEY') return
-  if (
-    submission.beneficiaryId !== null &&
-    (typeof submission.beneficiaryId !== 'string' ||
-      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-        submission.beneficiaryId,
-      ))
-  )
-    throw new Error('The persisted contributor could not be verified.')
-  if (expected !== undefined && submission.beneficiaryId !== expected)
-    throw new Error('The saved contributor does not match this submission.')
-}
+import { type EntryProps, verifySurveySubject } from '../entry.utils'
+import { StateShell } from './state-shell'
 
-const StateShell = ({
-  eyebrow,
-  title = 'Direct form entry',
-  children,
-}: {
-  eyebrow?: string
-  title?: string
-  children: ReactNode
-}) => (
-  <div className="space-y-6">
-    <PageHeader eyebrow={eyebrow} title={title} />
-    {children}
-  </div>
-)
-
-type EntryProps = {
-  initialSubmissionId?: string
-  projectId: string
-  formId: string
-}
 export function DirectFormEntryWorkspace(props: EntryProps) {
   const { profile } = useCurrentRole()
   const scope = useSensitiveDraftOwner(
