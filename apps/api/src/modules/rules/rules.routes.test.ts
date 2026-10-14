@@ -2,7 +2,13 @@ import 'reflect-metadata'
 
 import { PERMISSION_KEY } from '@app/common/decorators/permission.decorator'
 import { ForbiddenException, RequestMethod } from '@nestjs/common'
-import { HEADERS_METADATA, METHOD_METADATA, PATH_METADATA } from '@nestjs/common/constants'
+import {
+  HEADERS_METADATA,
+  METHOD_METADATA,
+  PATH_METADATA,
+  ROUTE_ARGS_METADATA,
+} from '@nestjs/common/constants'
+import { RouteParamtypes } from '@nestjs/common/enums/route-paramtypes.enum'
 import { describe, expect, it } from 'vitest'
 import { RulesHumanModule } from './rules-human.module'
 import { RulesSourceOperationsModule } from './rules-source-operations.module'
@@ -34,6 +40,24 @@ function routeTable(): string[] {
   })
 }
 
+// One line per handler in registration order: the kind, index and data of each parameter decorator.
+function argumentTable(): string[] {
+  return controllers().flatMap((controller) =>
+    handlers(controller).map((name) => {
+      const metadata: Record<string, { index: number; data?: string }> =
+        Reflect.getMetadata(ROUTE_ARGS_METADATA, controller, name) ?? {}
+      const args = Object.entries(metadata)
+        .map(([key, { index, data }]) => ({
+          index,
+          text: `${index}:${RouteParamtypes[Number(key.split(':')[0])]}${data ? `(${data})` : ''}`,
+        }))
+        .sort((a, b) => a.index - b.index)
+        .map(({ text }) => text)
+      return `${controller.name}.${name} ${args.join(' ')}`
+    }),
+  )
+}
+
 describe('rules routes', () => {
   it('registers every route with its permission and no-store header in a stable order', () => {
     expect(routeTable()).toEqual([
@@ -60,6 +84,34 @@ describe('rules routes', () => {
       'GET /notifications alerts.read private, no-store',
       'POST /notifications/:id/read alerts.read private, no-store',
       'POST /projects/:projectId/source-operations/abandon undefined private, no-store',
+    ])
+  })
+
+  it('declares the request, param, query and body arguments of every handler', () => {
+    expect(argumentTable()).toEqual([
+      'RulesController.list 0:REQUEST 1:QUERY',
+      'RulesController.create 0:REQUEST 1:BODY',
+      'RulesController.dryRun 0:REQUEST 1:BODY',
+      'RulesController.get 0:REQUEST 1:PARAM(id)',
+      'RulesController.draft 0:REQUEST 1:PARAM(id) 2:BODY',
+      'RulesController.activate 0:REQUEST 1:PARAM(id) 2:BODY',
+      'RulesController.archive 0:REQUEST 1:PARAM(id) 2:BODY',
+      'AlertsController.list 0:REQUEST 1:QUERY',
+      'AlertsController.escalated 0:REQUEST 1:QUERY',
+      'AlertsController.get 0:REQUEST 1:PARAM(id)',
+      'AlertsController.history 0:REQUEST 1:PARAM(id) 2:QUERY',
+      'AlertsController.review 0:REQUEST 1:PARAM(id) 2:BODY',
+      'AlertsController.disposition 0:REQUEST 1:PARAM(id) 2:BODY',
+      'AlertsController.preview 0:REQUEST 1:PARAM(id) 2:BODY',
+      'AlertsController.confirm 0:REQUEST 1:PARAM(id) 2:BODY',
+      'RecommendationsController.list 0:REQUEST 1:QUERY',
+      'RecommendationsController.get 0:REQUEST 1:PARAM(id)',
+      'RecommendationsController.review 0:REQUEST 1:PARAM(id) 2:BODY',
+      'RecommendationsController.preview 0:REQUEST 1:PARAM(id) 2:BODY',
+      'RecommendationsController.confirm 0:REQUEST 1:PARAM(id) 2:BODY',
+      'NotificationsController.list 0:REQUEST 1:QUERY',
+      'NotificationsController.read 0:REQUEST 1:PARAM(id) 2:BODY',
+      'RulesSourceOperationsController.abandon 0:REQUEST 1:PARAM(projectId) 2:BODY',
     ])
   })
 
