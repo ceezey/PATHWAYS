@@ -2,7 +2,7 @@ import { NotFoundException, ServiceUnavailableException } from '@nestjs/common'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import type { PrismaService } from '../../prisma/prisma.service'
-import { PublicProjectsController } from './public.controller'
+import { PublicProjectsController } from './public-projects.controller'
 import { PublicService } from './public.service'
 
 const state = vi.hoisted(() => ({

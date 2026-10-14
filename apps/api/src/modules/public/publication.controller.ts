@@ -7,30 +7,11 @@ import {
   Inject,
   Param,
   Post,
-  Query,
   Req,
 } from '@nestjs/common'
 import type { AuthenticatedRequest } from '../../common/authz/application-identity'
 import { RequirePermission } from '../../common/decorators/permission.decorator'
-import { Public } from '../../common/decorators/public.decorator'
 import { PublicService } from './public.service'
-
-@Controller('public/projects')
-export class PublicProjectsController {
-  constructor(@Inject(PublicService) private readonly service: PublicService) {}
-  @Get()
-  @Public()
-  @Header('Cache-Control', 'no-store')
-  list(@Query('offset') offset = '0', @Query('limit') limit = '50') {
-    return this.service.published(undefined, Number(offset), Number(limit))
-  }
-  @Get(':projectId')
-  @Public()
-  @Header('Cache-Control', 'no-store')
-  get(@Param('projectId') projectId: string) {
-    return this.service.published(projectId)
-  }
-}
 
 @Controller('projects/:projectId/publication')
 export class PublicationController {
