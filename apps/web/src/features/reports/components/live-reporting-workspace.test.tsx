@@ -12,6 +12,7 @@ const state = vi.hoisted(() => ({
   generate: vi.fn(),
   downloadArtifact: vi.fn(),
   success: vi.fn(),
+  warning: vi.fn(),
   error: vi.fn(),
   refetch: vi.fn(),
   projectsError: false,
@@ -25,6 +26,7 @@ const state = vi.hoisted(() => ({
   rounds: [] as unknown[],
   savedEvaluation: null as unknown,
   preview: vi.fn(),
+  reads: [] as [string, unknown][],
   permissions: [
     'reports.read',
     'reports.project.read',
@@ -59,9 +61,10 @@ vi.mock('@/hooks/use-authorized-read', () => ({
   useAuthorizedRead: (
     key: string,
     _id: unknown,
-    _permission: unknown,
+    permission: unknown,
     fetcher?: (signal?: AbortSignal) => unknown,
   ) => {
+    state.reads.push([key, permission])
     if (key.startsWith('report-preview')) void fetcher?.()
     return {
       // Keep cached data present even on denial: the real screen must gate it.
@@ -153,6 +156,7 @@ vi.mock('@/components/ui/select', async (original) => {
 vi.mock('sonner', () => ({
   toast: {
     success: (...args: unknown[]) => state.success(...args),
+    warning: (...args: unknown[]) => state.warning(...args),
     error: (...args: unknown[]) => state.error(...args),
   },
 }))
@@ -251,6 +255,32 @@ describe('report generation owned retries', () => {
     expect(state.generate.mock.calls[0][1].name.length).toBe(200)
     expect(state.generate.mock.calls[0][1].name).toMatch(/^Project title /)
     expect(state.generate.mock.calls[0][1].name.endsWith(' Project summary')).toBe(true)
+  })
+  it('warns and announces that a fallback PDF will not match the preview', async () => {
+    state.generate.mockResolvedValue({ id: 'report', status: 'GENERATED', pdfFallback: true })
+    render(<LiveReportingWorkspace initialKind="project-summary" />)
+    fireEvent.click(screen.getByRole('button', { name: 'Generate private report' }))
+    await waitFor(() => expect(state.warning).toHaveBeenCalledOnce())
+    expect(state.warning.mock.calls[0][0]).toMatch(/plain layout/)
+    expect(state.success).not.toHaveBeenCalled()
+    expect(state.refetch).toHaveBeenCalledOnce()
+    expect(screen.getByText(state.warning.mock.calls[0][0])).toBeTruthy()
+  })
+  it('shows the server message when generation is refused with a conflict', async () => {
+    state.generate.mockRejectedValue(Object.assign(Error('Report already exists'), { status: 409 }))
+    render(<LiveReportingWorkspace initialKind="project-summary" />)
+    fireEvent.click(screen.getByRole('button', { name: 'Generate private report' }))
+    await waitFor(() => expect(state.error).toHaveBeenCalledWith('Report already exists'))
+    expect(screen.getByText('Report already exists')).toBeTruthy()
+  })
+  it('announces the download and reports a blocked download', async () => {
+    render(<LiveReportingWorkspace initialKind="project-summary" />)
+    fireEvent.click(screen.getByRole('button', { name: 'Download' }))
+    expect(await screen.findByText('Report downloaded as PDF.')).toBeTruthy()
+    state.downloadArtifact.mockRejectedValue(Error('Download blocked'))
+    fireEvent.click(screen.getByRole('button', { name: 'Download' }))
+    await waitFor(() => expect(state.error).toHaveBeenCalledWith('Download blocked'))
+    expect(screen.getByText('Download blocked')).toBeTruthy()
   })
   it('renders the status layout instead of the plain table when sections are present', () => {
     state.sections = sampleProjectReport.sections
@@ -438,10 +468,65 @@ describe('evaluation round selection', () => {
     ).toBe(true)
   })
 
+  it('names the missing signed-off round when generation is refused with a conflict', async () => {
+    state.generate.mockRejectedValue(Object.assign(Error('Conflict'), { status: 409 }))
+    openEvaluation()
+    fireEvent.click(screen.getByRole('button', { name: 'Generate private report' }))
+    await waitFor(() => expect(state.error).toHaveBeenCalledOnce())
+    expect(state.error.mock.calls[0][0]).toMatch(/^No signed-off evaluation exists/)
+  })
+
   it('shows the round on a saved evaluation report', () => {
     state.savedEvaluation = { title: 'Midterm', periodStart: '2026-01-01', periodEnd: '2026-06-30' }
     render(<LiveReportingWorkspace initialKind="project-summary" />)
     expect(screen.getByText('Round: Midterm (2026-01-01 to 2026-06-30)')).toBeTruthy()
     state.savedEvaluation = null
   })
+})
+
+describe('report read permissions', () => {
+  const grantOf = (key: string) =>
+    [...state.reads].reverse().find(([read]) => read.startsWith(key))?.[1]
+  beforeEach(() => {
+    vi.clearAllMocks()
+    state.native = true
+    state.reads = []
+    state.permissions = [
+      'reports.read',
+      'reports.project.read',
+      'reports.indicator.read',
+      'reports.beneficiary.read',
+      'analytics.saddd.read',
+      'beneficiaries.aggregates.read',
+      'monitoring.read',
+      'forms.read',
+      'assessments.read',
+    ]
+  })
+  afterEach(() => {
+    state.native = false
+    cleanup()
+  })
+
+  it.each([
+    ['Project summary', 'PROJECT_SUMMARY', 'reports.project.read'],
+    ['Indicator summary', 'INDICATOR_SUMMARY', 'reports.indicator.read'],
+    ['Beneficiary summary', 'BENEFICIARY_SUMMARY', 'reports.beneficiary.read'],
+    ['Survey results', 'SURVEY_FORM_RESULTS', 'reports.project.read'],
+    ['Monitoring report', 'MONITORING_REPORT', 'reports.indicator.read'],
+    ['Evaluation report', 'EVALUATION_REPORT', 'reports.project.read'],
+  ] as const)(
+    'reads the %s preview and its sibling resources under their own permissions',
+    (label, kind, permission) => {
+      render(<LiveReportingWorkspace initialKind="project-summary" />)
+      const native = screen.getAllByRole('combobox')[1] as HTMLSelectElement
+      const value = Array.from(native.options).find((item) => item.text === label)?.value
+      fireEvent.change(native, { target: { value } })
+      expect(grantOf(`report-preview:${kind}:`)).toBe(permission)
+      expect(grantOf('report-projects')).toBe('reports.read')
+      expect(grantOf('report-survey-forms')).toBe('forms.read')
+      expect(grantOf('report-evaluation-rounds')).toBe('reports.project.read')
+      expect(grantOf('report-artifacts')).toBe('reports.read')
+    },
+  )
 })
