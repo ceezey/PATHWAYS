@@ -1,6 +1,5 @@
 import { approvedApiBaseUrl } from '@/lib/api-base-url'
 import { webEnv } from '@/lib/env'
-import type { PublicProjectRecord } from '@/types/pathways'
 import { z } from 'zod'
 
 const snapshot = z
@@ -18,49 +17,6 @@ const snapshot = z
   .strict()
 
 export type PublicProjectSnapshot = z.infer<typeof snapshot>
-
-export function mapPublicSnapshot(input: unknown): PublicProjectRecord {
-  const row = snapshot.parse(input)
-  return {
-    id: row.id,
-    title: row.title,
-    tagline: row.code,
-    area: row.area ?? 'Not specified',
-    sector: row.sector ?? 'Not specified',
-    timeframe:
-      row.startDate && row.endDate
-        ? `${row.startDate.slice(0, 10)} to ${row.endDate.slice(0, 10)}`
-        : 'Not specified',
-    approvedSummary: row.approvedSummary,
-    description: row.approvedSummary,
-    aboutProject: row.approvedSummary,
-    projectAreas: row.area ? [row.area] : [],
-    selectedIndicators: [],
-    milestones: [],
-    accomplishments: [],
-    progressTrend: [],
-    beneficiariesReached: null,
-    budgetSummary: 'Not available for public viewing.',
-    assessmentSummary: 'Not available for public viewing.',
-    publicationState: 'Approved for public preview',
-    approvedMedia: [],
-    publicPresentation: {
-      eyebrow: 'Approved project summary',
-      headline: row.title,
-      summaryTitle: 'About this project',
-      summaryBody: row.approvedSummary,
-      quote: '',
-      quoteAttribution: '',
-      closingTitle: 'Explore approved projects',
-      closingText: 'Read the approved summaries of our community projects.',
-      secondaryCtaLabel: 'All public projects',
-      secondaryCtaHref: '/public/projects',
-      layoutPreset: 'balanced',
-      sectionOrder: ['overview', 'media', 'progress', 'indicators', 'milestones'],
-      visibleSections: ['overview'],
-    },
-  }
-}
 
 // Reads the allowlisted public snapshots; throws PUBLIC_NOT_FOUND or PUBLIC_UNAVAILABLE.
 export async function readPublicSnapshots(projectId?: string): Promise<PublicProjectSnapshot[]> {
