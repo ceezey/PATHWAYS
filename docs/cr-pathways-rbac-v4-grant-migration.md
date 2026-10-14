@@ -51,7 +51,7 @@ Strictly narrows access except the two Program and Grant Manager activity-read g
 `/collection/entry` redirects to `/collection`; the unused manual entry workspace is removed.
 
 ### Tests
-`metadata.service.test.ts`, `csv-rbac.test.ts`, `workspace-resolution.service.test.ts`, `route-access.frontend-aliases.test.ts`, `apps/web/src/features/collection/*.test.tsx`, and the replay marker `RBAC_V4_GRANTS_RUNTIME`.
+`metadata.service.test.ts`, `csv-rbac.test.ts`, `workspace-resolution.service.test.ts`, `route-access.frontend-aliases.test.ts`, `apps/web/src/features/collection/**/*.test.tsx`, and the replay marker `RBAC_V4_GRANTS_RUNTIME`.
 
 ### Documentation
 Adoption CR, PRD, QAD 3.7, SDD, runbook, state, index, logs; the deferred row is removed.
