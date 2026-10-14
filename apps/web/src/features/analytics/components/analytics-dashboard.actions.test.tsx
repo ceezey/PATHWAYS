@@ -6,6 +6,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   api,
   currentAccess,
+  download,
+  indicator,
   loadDashboard,
   previewExport,
   rbac,
@@ -192,6 +194,66 @@ describe('Analytics dashboard actions: rules link, Add to Dashboard and export',
       expect(document.getElementById('pin-blocked-reason')).toBeNull()
     })
 
+    it('pins the shared period, not the survey period, when the two differ', async () => {
+      api.getProjectIndicators.mockResolvedValue([
+        indicator('project-a', 'A-SEP', '2026-09-01', '2026-09-30'),
+        indicator('project-a', 'A-WIDE', '2026-08-15', '2026-09-15'),
+        indicator('project-a', 'A-JUL', '2026-07-01', '2026-07-31'),
+      ])
+      await pinnable()
+
+      fireEvent.click(addButton())
+      expect(pins()[0]).toMatchObject({ periodStart: '2026-09-01', periodEnd: '2026-09-30' })
+    })
+
+    it('offers the KPI pin to a role without the SADDD grant', async () => {
+      currentAccess.profile.permissions = [
+        'projects.read',
+        'activities.read',
+        'monitoring.read',
+        'analytics.read',
+        'indicators.read',
+      ]
+      await pinnable()
+
+      expect(addButton().disabled).toBe(false)
+    })
+
+    it('offers the timeline pin to a role that holds only the timeline grants', async () => {
+      currentAccess.profile.permissions = [
+        'projects.read',
+        'monitoring.read',
+        'analytics.read',
+        'analytics.descriptive.read',
+        'reports.indicator.read',
+      ]
+      await pinnable()
+      fireEvent.change(screen.getByLabelText('Analysis view'), { target: { value: 'timeline' } })
+
+      expect(addButton().disabled).toBe(false)
+      fireEvent.click(addButton())
+      expect(pins()[0]).toMatchObject({ view: 'timeline', projectId: 'project-a' })
+    })
+
+    it.each([
+      ['participation', 'journeys.read'],
+      ['timeline', 'analytics.descriptive.read'],
+    ])('hides the %s pin once the role loses %s', async (view, lost) => {
+      grant(...participationGrants)
+      const Dashboard = await loadDashboard({ pins: true })
+      const shown = render(<Dashboard />)
+      await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
+      fireEvent.change(screen.getByLabelText('Analysis view'), { target: { value: view } })
+      expect(addButton().disabled).toBe(false)
+
+      currentAccess.profile.permissions = currentAccess.profile.permissions.filter(
+        (permission) => permission !== lost,
+      )
+      shown.rerender(<Dashboard />)
+
+      expect(screen.queryByRole('button', { name: 'Add to Dashboard' })).toBeNull()
+    })
+
     it('hides the button for a role that cannot read indicator progress', async () => {
       currentAccess.profile.permissions = ['projects.read', 'activities.read', 'analytics.read']
       const Dashboard = await loadDashboard({ pins: true })
@@ -290,6 +352,21 @@ describe('Analytics dashboard actions: rules link, Add to Dashboard and export',
       fireEvent.click(screen.getByText('CSV'))
       await waitFor(() => expect(exportButton().textContent).toBe('Preparing preview'))
       expect(exportButton().disabled).toBe(true)
+    })
+
+    it('keeps the Export aggregates label, disabled, while the confirmed download runs', async () => {
+      previewExport.mockResolvedValue(preview)
+      download.mockReturnValue(new Promise(() => {}))
+      await exporter()
+
+      fireEvent.click(screen.getByText('CSV'))
+      fireEvent.click(await screen.findByRole('button', { name: 'Download' }))
+
+      await waitFor(() => expect(download).toHaveBeenCalled())
+      expect(screen.queryByText('Preparing preview')).toBeNull()
+      expect(
+        (screen.getByText('Export aggregates') as HTMLElement).closest('button')?.disabled,
+      ).toBe(true)
     })
 
     it('names the project and the period in the preview, and the reporting date for the timeline', async () => {

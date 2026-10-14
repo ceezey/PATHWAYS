@@ -80,6 +80,15 @@ describe('Analytics dashboard request dependencies', () => {
       )
     })
 
+    it('shows the loading state while the survey read is pending', async () => {
+      render(<AnalyticsDashboard />)
+      await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
+      fireEvent.change(screen.getByLabelText('Analysis view'), { target: { value: 'survey' } })
+
+      expect(await screen.findByText('Loading survey analytics')).toBeTruthy()
+      expect(screen.queryByText('Loading timeline analytics')).toBeNull()
+    })
+
     it('labels survey mean pre/post in % and mean change in pp, never %', async () => {
       const activityId = '40000000-0000-4000-8000-000000000099'
       api.getActivities.mockResolvedValue([

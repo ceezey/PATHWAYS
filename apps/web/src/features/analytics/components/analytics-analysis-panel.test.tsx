@@ -314,9 +314,36 @@ describe('AnalyticsAnalysisPanel', () => {
       expect(screen.queryByRole('table')).toBeNull()
     })
 
+    it('names the missing period, not the missing rows, when both hold', () => {
+      show({ analysisRows: [], selectedPeriod: undefined })
+
+      expect(
+        screen.getByText('No active Indicator reporting period is available for this project.'),
+      ).toBeTruthy()
+      expect(screen.queryByText('No released values are available for this selection.')).toBeNull()
+    })
+
     it('ignores the rows in the other views', () => {
       show({ analysisView: 'timeline', analysisRows: [] })
 
+      expect(screen.queryByText('No released values are available for this selection.')).toBeNull()
+    })
+  })
+
+  describe('views other than the KPI view without a reporting period', () => {
+    const noPeriod = { analysisRows: [], selectedPeriod: undefined }
+
+    it.each([
+      ['participation', 'breakdown participants'],
+      ['survey', 'survey panel'],
+      ['timeline', 'timeline panel'],
+    ])('keeps the %s view on its own content', (analysisView, content) => {
+      show({ ...noPeriod, analysisView })
+
+      expect(screen.getByText(content, { exact: false })).toBeTruthy()
+      expect(
+        screen.queryByText('No active Indicator reporting period is available for this project.'),
+      ).toBeNull()
       expect(screen.queryByText('No released values are available for this selection.')).toBeNull()
     })
   })

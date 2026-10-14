@@ -14,6 +14,7 @@ import {
   toastError,
 } from '@/test/fixtures/analytics-dashboard-fixtures'
 
+import { SURVEY_PERIOD_MESSAGE } from '../analytics.copy'
 import { AnalyticsDashboard } from './analytics-dashboard'
 
 describe('Analytics dashboard request dependencies', () => {
@@ -351,6 +352,37 @@ describe('Analytics dashboard request dependencies', () => {
             view: 'timeline',
           }),
         )
+      })
+    })
+
+    describe('with every reporting period overlapping another', () => {
+      beforeEach(() => {
+        surveyDefaults()
+        currentAccess.profile.permissions.push('analytics.export')
+        api.getProjectIndicators.mockResolvedValue([
+          indicator('project-a', 'A-SEP', '2026-09-01', '2026-09-30'),
+          indicator('project-a', 'A-WIDE', '2026-08-15', '2026-09-15'),
+        ])
+      })
+
+      it('keeps the KPI view exportable and on its own period', async () => {
+        const Dashboard = await loadExportDashboard()
+        render(<Dashboard />)
+        await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
+
+        const button = screen.getByRole('button', { name: 'Export aggregates' })
+        expect((button as HTMLButtonElement).disabled).toBe(false)
+        expect(screen.queryByText(/No active Indicator reporting period/)).toBeNull()
+      })
+
+      it('blocks the survey export and says the period cannot be used', async () => {
+        const Dashboard = await loadExportDashboard()
+        render(<Dashboard />)
+        await showView('survey')
+
+        expect(await screen.findByText(SURVEY_PERIOD_MESSAGE)).toBeTruthy()
+        const button = screen.getByRole('button', { name: 'Export aggregates' })
+        expect((button as HTMLButtonElement).disabled).toBe(true)
       })
     })
 

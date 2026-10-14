@@ -249,6 +249,17 @@ describe('Analytics dashboard scope: projects, project data and monitoring', () 
       expect(completion()).not.toContain('1/1')
     })
 
+    it('shows the status line while only the project data is still loading behind the map', async () => {
+      const MapsDashboard = await loadDashboard({ maps: true })
+      api.getActivities.mockReturnValue(new Promise(() => {}))
+      render(<MapsDashboard />)
+      await waitFor(() => expect(api.getActivities).toHaveBeenCalledTimes(1))
+
+      fireEvent.change(screen.getByLabelText('Visualization type'), { target: { value: 'map' } })
+
+      expect(await screen.findByText('Updating project analytics.')).toBeTruthy()
+    })
+
     it('shows a status line, not the loading page, while analytics reload behind the map', async () => {
       const MapsDashboard = await loadDashboard({ maps: true })
       api.getMonitoringDashboard.mockReturnValue(new Promise(() => {}))
@@ -272,6 +283,7 @@ describe('Analytics dashboard scope: projects, project data and monitoring', () 
       await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
 
       fireEvent.change(screen.getByLabelText('Visualization type'), { target: { value: 'table' } })
+      expect(screen.getByLabelText('Visualization type')).toHaveProperty('value', 'table')
       await waitFor(() => expect(tableRows()).toHaveLength(2))
       expect(tableRows()).toEqual(['Indicator I-140 %', 'Indicator I-280 %'])
       expect(screen.getByText('I-2 · Indicator I-2', { selector: 'option' })).toBeTruthy()

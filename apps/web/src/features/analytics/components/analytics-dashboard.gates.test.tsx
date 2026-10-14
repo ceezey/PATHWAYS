@@ -218,6 +218,88 @@ describe('Analytics dashboard grants and date rules that stay in the shell', () 
     })
   })
 
+  describe('what the filters and the analysis panel take from the grants', () => {
+    const optionValues = (label: string) =>
+      Array.from((screen.getByLabelText(label) as HTMLSelectElement).options)
+        .map((option) => option.value)
+        .filter(Boolean)
+    const descriptiveOnly = [
+      'projects.read',
+      'monitoring.read',
+      'analytics.read',
+      'analytics.descriptive.read',
+      'reports.indicator.read',
+    ]
+    const participationGrants = [
+      'analytics.descriptive.read',
+      'journeys.read',
+      'beneficiaries.records.read',
+      'assessments.detail.read',
+    ]
+    const emptyTitle = (description: string) =>
+      screen.getByText(description).previousElementSibling?.textContent
+
+    it.each([
+      ['trends but no participation grants', ['analytics.descriptive.read'], 'kpi,survey,timeline'],
+      ['descriptive and monitoring only', descriptiveOnly, 'kpi,survey,timeline'],
+      ['every participation grant', participationGrants, 'kpi,participation,survey,timeline'],
+    ])('lists the views of a role with %s', async (_name, granted, views) => {
+      currentAccess.profile.permissions =
+        granted === descriptiveOnly
+          ? [...granted]
+          : [...currentAccess.profile.permissions, ...granted]
+      render(<AnalyticsDashboard />)
+      await ready()
+
+      expect(optionValues('Analysis view').join(',')).toBe(views)
+    })
+
+    it('shows the timeline panel, not the unavailable text, to a role without indicator definitions', async () => {
+      currentAccess.profile.permissions = [...descriptiveOnly]
+      render(<AnalyticsDashboard />)
+      await ready()
+      fireEvent.change(screen.getByLabelText('Analysis view'), { target: { value: 'timeline' } })
+
+      expect(await screen.findByText('Loading timeline analytics')).toBeTruthy()
+      expect(screen.queryByText('Timeline adherence is not available for this role.')).toBeNull()
+    })
+
+    it('restricts the participation view once the role loses a participation grant', async () => {
+      grant(...participationGrants)
+      const view = render(<AnalyticsDashboard />)
+      await ready()
+      fireEvent.change(screen.getByLabelText('Analysis view'), {
+        target: { value: 'participation' },
+      })
+      expect(screen.queryByText('Participation patterns are restricted for your role.')).toBeNull()
+
+      withoutGrant('journeys.read')
+      view.rerender(<AnalyticsDashboard />)
+
+      expect(
+        await screen.findByText('Participation patterns are restricted for your role.'),
+      ).toBeTruthy()
+    })
+
+    it('says periods are unavailable, not none yet, for a role that reads no indicator source', async () => {
+      currentAccess.profile.permissions = ['projects.read', 'monitoring.read', 'analytics.read']
+      render(<AnalyticsDashboard />)
+
+      const description = 'Indicator reporting periods are not available for this role.'
+      expect(await screen.findByText(description)).toBeTruthy()
+      expect(emptyTitle(description)).toBe('Data unavailable')
+    })
+
+    it('says none yet when the monitoring read came back without indicators', async () => {
+      render(<AnalyticsDashboard />)
+      await ready()
+
+      const description = 'No released values are available for this selection.'
+      expect(await screen.findByText(description)).toBeTruthy()
+      expect(emptyTitle(description)).toBe('None yet')
+    })
+  })
+
   describe('map view while the project data has not arrived', () => {
     const wording = 'Indicator reporting periods are not available for this role.'
 

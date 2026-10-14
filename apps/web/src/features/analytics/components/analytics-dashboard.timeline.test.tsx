@@ -51,6 +51,15 @@ describe('Analytics dashboard request dependencies', () => {
       expect(screen.queryByText(/timeline adherence · /i)).toBeNull()
     })
 
+    it('shows the loading state while the timeline read is pending', async () => {
+      render(<AnalyticsDashboard />)
+      await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
+      fireEvent.change(screen.getByLabelText('Analysis view'), { target: { value: 'timeline' } })
+
+      expect(await screen.findByText('Loading timeline analytics')).toBeTruthy()
+      expect(screen.queryByText('Loading survey analytics')).toBeNull()
+    })
+
     it('renders timeline metric cards without requiring a reporting period', async () => {
       api.getTimelineAnalytics.mockResolvedValue({
         contractVersion: 'analytics.descriptive.timeline.v1',
