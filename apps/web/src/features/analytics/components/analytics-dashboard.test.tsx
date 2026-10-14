@@ -424,4 +424,40 @@ describe('Analytics dashboard request dependencies', () => {
       screen.queryByText('Project / activity timeline adherence', { selector: 'option' }),
     ).toBeNull()
   })
+
+  it('retries the SADDD read from its error panel', async () => {
+    api.getProjectsForRole.mockResolvedValue([
+      project('project-dated', 'Dated project', '2025-08-01', '2025-09-30'),
+    ])
+    api.getProjectIndicators.mockResolvedValue([
+      indicator('project-dated', 'D-SEP', '2025-09-01', '2025-09-30'),
+    ])
+    api.getSadddDashboard.mockRejectedValueOnce(
+      new Error('Monitoring verification is unavailable.'),
+    )
+
+    render(<AnalyticsDashboard />)
+
+    fireEvent.click(await screen.findByRole('button', { name: /retry/i }))
+
+    await waitFor(() => expect(api.getSadddDashboard).toHaveBeenCalledTimes(2))
+    await screen.findByTestId('saddd-chart')
+    expect(screen.queryByRole('button', { name: /retry/i })).toBeNull()
+  })
+
+  it('retries the descriptive statistics read from its error panel', async () => {
+    currentAccess.profile.permissions = [
+      ...currentAccess.profile.permissions,
+      'analytics.descriptive.read',
+    ]
+    api.getDescriptiveAnalytics.mockRejectedValueOnce(
+      new Error('Descriptive statistics are unavailable.'),
+    )
+
+    render(<AnalyticsDashboard />)
+
+    fireEvent.click(await screen.findByRole('button', { name: /retry/i }))
+
+    await waitFor(() => expect(api.getDescriptiveAnalytics).toHaveBeenCalledTimes(2))
+  })
 })
