@@ -7,6 +7,7 @@ import { financeClient } from '@/lib/api/finance'
 
 import { useProjectActivitiesRead } from '../../activities/activities.reads'
 import { useProjectOverviewMetricsRead } from '../../projects.reads'
+import { useBudgetsRead } from '../budget.reads'
 import {
   buildActivityRows,
   deriveAlerts,
@@ -18,9 +19,7 @@ import {
 
 /** Reads budgets, expenses and overview metrics, and derives totals, rows and alerts. */
 export const useBudgetModule = (projectId: string) => {
-  const budgets = useAuthorizedRead('finance-budgets', projectId, 'budgets.read', (signal) =>
-    financeClient.budgets(projectId, signal),
-  )
+  const budgets = useBudgetsRead(projectId)
   const expenses = useAuthorizedRead('finance-expenses', projectId, 'expenses.read', (signal) =>
     financeClient.expenses(projectId, signal),
   )

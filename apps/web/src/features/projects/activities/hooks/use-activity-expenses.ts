@@ -4,6 +4,7 @@ import { useAuthorizedRead } from '@/hooks/use-authorized-read'
 import { financeClient } from '@/lib/api/finance'
 import type { Activity } from '@/types/pathways'
 
+import { useBudgetsRead } from '../../budget/budget.reads'
 import type { ExpenseBudgetReference } from '../../budget/components/activity-expense-dialog'
 import type { PendingExpense } from '../../budget/components/activity-expense-review-dialog'
 import type { ActivityExpenseEntry } from '../components/activity-detail-sections'
@@ -39,13 +40,7 @@ export const useActivityExpenses = ({
     (signal) => financeClient.expenses(projectId, signal),
     canReadExpenses,
   )
-  const budgetLinesRead = useAuthorizedRead(
-    'finance-budgets',
-    projectId,
-    'budgets.read',
-    (signal) => financeClient.budgets(projectId, signal),
-    canReadBudgetLines,
-  )
+  const budgetLinesRead = useBudgetsRead(projectId, canReadBudgetLines)
   const budgetReferences: ExpenseBudgetReference[] = expenseReferencesRead.data ?? []
   /**
    * Budget record to activity, from whichever read the principal is allowed. The reference
