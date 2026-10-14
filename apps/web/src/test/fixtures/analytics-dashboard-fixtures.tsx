@@ -275,7 +275,7 @@ export const loadMapsDashboard = async () => {
   return MapsDashboard
 }
 
-// Loads the dashboard with the named UI flags on; every flag is off unless named, except the export button.
+// Loads the dashboard with the named UI flags set; export is on by default, unfinished controls always on, the rest off.
 export const loadDashboard = async (flags: {
   export?: boolean
   maps?: boolean

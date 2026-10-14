@@ -70,8 +70,11 @@ describe('analyticsAccess', () => {
     expect(analyticsAccess(profile('assessments.detail.read')).surveyFrozenOnly).toBe(false)
   })
 
-  it('grants nothing without a profile', () => {
-    expect(Object.values({ ...analyticsAccess(null), surveyFrozenOnly: false })).not.toContain(true)
+  it('grants nothing without a profile, and the survey stays frozen', () => {
+    expect(analyticsAccess(null)).toEqual({
+      ...Object.fromEntries(Object.keys(needs).map((flag) => [flag, false])),
+      surveyFrozenOnly: true,
+    })
   })
 
   it('grants every flag to a role with every grant, and the survey is not frozen', () => {

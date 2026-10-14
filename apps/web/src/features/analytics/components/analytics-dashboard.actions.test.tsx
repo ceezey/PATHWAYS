@@ -301,7 +301,9 @@ describe('Analytics dashboard actions: rules link, Add to Dashboard and export',
         (await screen.findByText(/^Descriptive analytics for Project A, .+\. The PDF file/))
           .textContent,
       ).not.toContain('current reporting date')
-      expect(screen.getByText(/Project A, Sep 1/).textContent).toContain('Sep')
+      expect(screen.getByText(/Project A, Sep 1/).textContent).toBe(
+        'Descriptive analytics for Project A, Sep 1\u201330, 2026. The PDF file contains these aggregate rows only.',
+      )
       fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
       await waitFor(() => expect(screen.queryByTestId('analytics-export-preview')).toBeNull())
 
