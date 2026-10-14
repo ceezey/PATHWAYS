@@ -761,3 +761,53 @@ Ruling: S6c gates pass at 86985c87 (shared 42 and 721, api 153 and 2614, web 250
 ## S7a
 
 Ruling: apply the S7a pre-flight fixes (12 must-fix: Task 0 branch, base-sha and ancestor checks with S5c and S6c markers and real baselines, Biome with its file list set in Task 3, git grep that sees the untracked rules.reads.ts, a next.config edit that matches the multi-line list, a Task 8 that runs the web build without prisma generate and opens no pull request, no plan copy removal in the S7b outline, corrected test deltas, a 403 row that asserts ForbiddenException; 15 should-fix mutation-checked pins: the service call of all 23 handlers, the alert evidence table, evaluation line and history list, the editor indicator binding, the context-only read, useBindingChoices and the rules.reads fetchers), replayed to the end with api B+3 and web B+17 in 249 files, cost if wrong: a Task 0 recount on the real S6c tip catches drift.
+
+Ruling: the S7a pre-flight replayed on the planned S6c end state, so Task 0 takes the real S6c figures as baselines (shared 42 files and 721 tests, api 153 and 2614, web 250 and 2427, the S6c route table), cost if wrong: a later Expected compares against a stale count and the delta check catches it.
+
+Ruling: S7a Task 0 committed fc5ed5c8 with every Expected matching except the announced real baselines (shared 721, web 250 files and 2427), Middleware 103 kB, cost if wrong: none.
+
+Ruling: S7a Task 1 committed 2ff66e36 and 59eec143 with every Expected matching (rules.routes.test.ts passes before the change, four controllers with same lines 153, api 154 files and 2617 tests), cost if wrong: none.
+
+Ruling: S7a Task 2 committed 3e2bfc80 and 31ceea0e with every Expected matching (NUL separator written as an escape and pinned, 30 renames into features/rules with 26 specifier edits), cost if wrong: none.
+
+Ruling: S7a Task 2 review PASS on both (the escape is byte-identical at runtime, 30 pure renames, no stale specifier); the old paths in deferred-features.md:37 go to the Task 7 records and the CR and handoff mentions stay as point-in-time records, cost if wrong: none.
+
+Ruling: S7a Task 1 review spec PASS, quality FAIL on one medium (the parameter decorators of the 23 moved handlers are pinned nowhere: dropping @Param('id') or swapping @Query() for @Body() survives the api suite); a tests-only fix 1 after Task 3 adds the route argument metadata (ROUTE_ARGS_METADATA) of every handler to rules.routes.test.ts, each kind proven by a mutation; the low (the table depends on declaration order and a count of 23) stays, since a new handler must change the table anyway, cost if wrong: none.
+
+Ruling: S7a Task 3 committed 0aebc163, deabb63f and 2e47329b with every Expected matching (34 declarations moved with same lines 2435, rule-drawer-shared.ts and rule-output-fields.tsx deleted, web 251 files and 2430 tests), cost if wrong: none.
+
+Ruling: fix 1 committed 560861b9 (one test of 23 route argument rows; four decorator mutations each fail it; api count +1 test), cost if wrong: none.
+
+Ruling: S7a Task 4 committed 0efc2b50 with every Expected matching (rules.reads.ts, alertSeverityRank, 8 use-binding-choices rows; web 253 files and 2444 tests), cost if wrong: none.
+
+Ruling: S7a Task 4 review spec PASS, quality PASS; the two lows stay (the `?? ''` fallback of the indicator and activity reads is unreachable because both reads are enabled only with a scope, and the missing blank line before one new test is cosmetic and passes Biome), cost if wrong: a later caller enabling those reads without a scope would query with an empty project id unpinned.
+
+Ruling: S7a Task 5 committed 334808cd with every Expected matching (2 renames, 20 specifier or mock edits, counts 22, 21, 9; typecheck, lint 1491 and 44 focused files pass; a reviewer mutation staged by the first git add was restored before the commit and rules.reads.ts is unchanged from 0efc2b50), cost if wrong: none.
+
+Ruling: S7a Task 5 review spec PASS, quality PASS (client byte-identical, 9 mocks before and after, no stale specifier in apps; doc mentions of the old path are historical or plan text and stay), cost if wrong: none.
+
+Ruling: S7a Task 6 committed a4338236 with every Expected matching except the route comparison (different 2, not 4 or 5: /alerts/repository and one activity route at +1.0 kB, none above 1 kB), which is build jitter under the stop rule, cost if wrong: none, the final gate re-measures routes.
+
+Ruling: S7a Task 6 review spec PASS, quality PASS (barrel holds four client components and no server code; both mocks still supply what the importers render), cost if wrong: none.
+
+Ruling: S7a Task 7 committed be2380b5 with every Expected matching (sad 57, docs:check 6 failures and 1 warning as at Task 0, lint 1492); the records carry the real figures (api +1 file and 4 tests with fix 1, web +3 files and 17 tests, same lines 2435, routes 72 different 2), and the audit rows end in later-slice wording, which the sed handles, cost if wrong: none.
+
+Ruling: S7a SAD design-qa blocked three web files on duplicate imports from '../rules.utils' left by the Task 2 and 3 codemods (linked-alert-summary.tsx, rule-drawer.tsx, rule-test-workspace.tsx; style only); the controller merges each into one import in a fix commit after the gate run and final review, reruns lint, typecheck and the rules tests, and re-dispatches design-qa on those three paths, cost if wrong: none.
+
+Ruling: S7a final review PASS with four lows (runbook names rule-board-model.ts, activity log says nine component files where git shows eight, audit MOD-05 row lacks the rules client move, CR 3.3 reads-row widening lacks its amended note); all four are fixed in the docs fix commit together with the SAD duplicate-import merges, and the Task 8 gate line states the /alerts/repository +1.0 kB is jitter, cost if wrong: none.
+
+Ruling: fix 2 committed 3aa63b44 (three duplicate rules.utils imports merged, runbook path, eight component files, MOD-05 rules client, CR 3.3 amended note; tsc, rules tests 108, lint 1492 and docs check unchanged), cost if wrong: none.
+
+Ruling: S7a Task 3 review spec PASS, quality FAIL on mediums: rules.utils helpers (leafCount, clearRecordBindings, newCondition, recordBound, severity order, nodeKey), the review workspace and drawer permission gates, the condition builder remove, cap, binding-clear and BETWEEN reset, the recommendation cap and the editor leaf cap survive mutation; following the S6c precedent a tests-only fix 3 pins them with mutation proofs, while copy, preview labels and the severity field display stay as accepted debt and notification-row stays unreachable behind showNotifications, cost if wrong: copy regressions in the rules screens are caught only by smoke.
+
+Ruling: fix 3 committed c50e42ee (tests only: 8 new and 2 extended test files, all under 600 lines; 66 mutations over items 1 to 7 each fail a test, two drawer and editor project-change tests made to wait for records after first surviving; web 261 files and 2527 tests, lint 1500), cost if wrong: none.
+
+Ruling: S7a gate docs committed 1549f7d1 (records name fixes 2 and 3 and the real web figure 261 files and 2527 tests; the build figures come from the gate run at be2380b5, since fixes 2 and 3 change only imports and tests); SAD sign-off exit 0 on 182 evaluations with no BLOCKED path, cost if wrong: none.
+
+## S7b
+
+Ruling: S7b pre-flight found 13 must-fix, 15 should-fix and 12 notes; apply-s7b.py writes the fixed plan, replayed end to end on the S7a end state (shared 731 in 46 files, api 2628 in 158 files, web unchanged, sad 58, Middleware 103 kB); imports.service.test.ts duplicate-metadata case named a known flake after one full-run failure, cost if wrong: a real ordering bug in that test is hidden until CI.
+
+Ruling: S7d planned as Tasks 0 to 9 (dashboards web and the rest of the analytics shell: shell 898 to 437 lines, role dashboard 693 to 283, web +16 files and 440 tests, every cut lost 0), dry-run end to end on the simulated S7c base; its pre-flight on the real S7c end state follows the S7c pre-flight, and the pre-existing survivors in the shell lines that did not move stay listed as gaps, cost if wrong: an 11006-line plan costs pre-flight time but no code.
+
+Ruling: W2 is planned now on the W1 dry-run base in parallel with the serial S7c, S7d, S8 pre-flights, with outline items 1 to 4, 6 and 7 only; the per-domain seed data split (item 5) is out, recorded in CR section 9 as left to the developer, because seed work is his and the cloud cannot run the local seed proof, cost if wrong: MOD-21's data part stays open until he takes it.
