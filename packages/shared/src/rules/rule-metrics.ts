@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { metricCellSchema as sharedCellSchema } from '../monitoring/metric-cell'
+import { metricCellSchema as sharedCellSchema } from '../metrics/metric-cell'
 import {
   decimalString,
   indicatorProgress,
@@ -8,7 +8,7 @@ import {
   numericKinds,
   scaledDecimal,
   numericMetric as sharedNumericMetric,
-} from '../monitoring/metric-math'
+} from '../metrics/metric-math'
 import {
   type MetricObservation,
   type RuleMetricKey,

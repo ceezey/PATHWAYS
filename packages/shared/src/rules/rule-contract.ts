@@ -4,7 +4,7 @@ import {
   normalizeMetricDecimal,
   numericKinds,
   scaledDecimal,
-} from '../monitoring/metric-math'
+} from '../metrics/metric-math'
 
 export const RULE_CONTRACT_VERSION = 'f10.v1' as const
 const MAX_GROUP_DEPTH = 4

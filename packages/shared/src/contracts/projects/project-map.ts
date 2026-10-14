@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { metricCellSchema } from './metric-cell'
+import { metricCellSchema } from '../../metrics/metric-cell'
 import { projectOverviewMetricsSchema } from './overview-metrics'
 
 export const PROJECT_MAP_CONTRACT_VERSION = 'analytics.project-map.v1' as const

@@ -1,97 +1,8 @@
 import { z } from 'zod'
-import { metricCellSchema } from './metric-cell'
-import { type MetricCell, isCalendarDate, missingMetric, numericMetric } from './metric-math'
-
-export const DESCRIPTIVE_ANALYTICS_CONTRACT_VERSION = 'analytics.descriptive.v1' as const
-
-const date = z.string().refine(isCalendarDate, 'Use a real YYYY-MM-DD date from 1900 through 2100.')
-const uuid = z
-  .string()
-  .uuid()
-  .transform((value) => value.toLowerCase())
-const decimal = z.string().regex(/^-?(?:0|[1-9]\d{0,13})(?:\.\d{1,4})?$/)
-
-export const descriptiveAnalyticsViews = ['kpi', 'participation', 'survey', 'timeline'] as const
-export type DescriptiveAnalyticsView = (typeof descriptiveAnalyticsViews)[number]
-
-/**
- * One authorized project; the optional period applies to monitoring counts only.
- * `view` is optional and defaults to the combined (pre-existing) payload for callers
- * that have not adopted the per-view contract yet.
- */
-export const descriptiveAnalyticsQuerySchema = z
-  .object({
-    projectId: uuid,
-    periodStart: date.optional(),
-    periodEnd: date.optional(),
-    view: z.enum(descriptiveAnalyticsViews).optional(),
-  })
-  .strict()
-  .refine((input) => Boolean(input.periodStart) === Boolean(input.periodEnd), {
-    message: 'Both period dates are required.',
-  })
-export type DescriptiveAnalyticsQuery = z.infer<typeof descriptiveAnalyticsQuerySchema>
-
-export const descriptiveSections = [
-  'ACTIVITY_STATE',
-  'MILESTONE_STATE',
-  'SADDD_SEX',
-  'SADDD_AGE',
-  'SADDD_DISABILITY',
-] as const
-export type DescriptiveSection = (typeof descriptiveSections)[number]
-
-export const descriptiveDistributionRowSchema = z
-  .object({
-    section: z.enum(descriptiveSections),
-    key: z.string().max(80),
-    label: z.string().max(160),
-    metric: metricCellSchema,
-    /** Share of the visible section total; null whenever any cell in the section is not visible. */
-    share: decimal.nullable(),
-  })
-  .strict()
-
-export const descriptiveCountRowSchema = z
-  .object({ key: z.string().max(80), label: z.string().max(160), metric: metricCellSchema })
-  .strict()
-
-export const descriptiveIndicatorSummarySchema = z
-  .object({
-    unitLabel: z.string().max(100).nullable(),
-    numericKind: z.string().max(40).nullable(),
-    indicatorCount: z.number().int().min(0).max(100),
-    reportedCount: z.number().int().min(0).max(100),
-    mean: decimal.nullable(),
-    minimum: decimal.nullable(),
-    maximum: decimal.nullable(),
-  })
-  .strict()
-
-export const descriptiveAnalyticsSchema = z
-  .object({
-    contractVersion: z.literal(DESCRIPTIVE_ANALYTICS_CONTRACT_VERSION),
-    projectId: uuid,
-    generatedAt: z.string().datetime({ offset: true }),
-    monitoringPeriod: z
-      .object({ periodStart: date, periodEnd: date, businessTimeZone: z.string().max(100) })
-      .strict(),
-    sadddPeriod: z.object({ periodStart: date.nullable(), periodEnd: date.nullable() }).strict(),
-    sadddReleaseState: z.enum(['RELEASED', 'STALE', 'UNAVAILABLE']),
-    privacy: z
-      .object({
-        threshold: z.literal(5),
-        complementarySuppression: z.literal(true),
-        source: z.literal('P06_SADDD_RELEASE'),
-        beneficiaryRows: z.literal(false),
-      })
-      .strict(),
-    counts: z.array(descriptiveCountRowSchema).max(10),
-    distributions: z.array(descriptiveDistributionRowSchema).max(40),
-    indicatorSummaries: z.array(descriptiveIndicatorSummarySchema).max(100),
-  })
-  .strict()
-export type DescriptiveAnalytics = z.infer<typeof descriptiveAnalyticsSchema>
+import { metricCellSchema } from '../../metrics/metric-cell'
+import { date, uuid } from '../../metrics/metric-fields'
+import { type MetricCell, missingMetric, numericMetric } from '../../metrics/metric-math'
+import { round1 } from '../../metrics/metric-round'
 
 /** Locked SADDD RFC G4 threshold, mirrored here for the pure survey calculator: 1-4 is suppressed. */
 export const SURVEY_SMALL_CELL_THRESHOLD = 5
@@ -174,13 +85,6 @@ export type SurveyAssessmentRow = {
   assessmentDate: string
   enrollmentId: string | null
   activityId: string | null
-}
-
-/** Round half away from zero to 1 decimal place and format as a plain decimal string. */
-function round1(value: number): string {
-  const rounded = ((Math.sign(value) || 1) * Math.round(Math.abs(value) * 10)) / 10
-  const fixed = rounded.toFixed(1).replace(/\.0$/, '')
-  return fixed === '-0' ? '0' : fixed
 }
 
 type NormalizedRow = {
@@ -482,77 +386,4 @@ export function computeSurveyAnalytics(input: {
     generatedAt: input.generatedAt,
     aggregate: surveyAggregateFromRows(input.rows),
   })
-}
-
-export const TIMELINE_ANALYTICS_CONTRACT_VERSION = 'analytics.descriptive.timeline.v1' as const
-
-export const timelineAnalyticsSchema = z
-  .object({
-    contractVersion: z.literal(TIMELINE_ANALYTICS_CONTRACT_VERSION),
-    projectId: uuid,
-    generatedAt: z.string().datetime({ offset: true }),
-    reportingDate: date,
-    elapsedPercent: metricCellSchema,
-    remainingDays: metricCellSchema,
-    overdueDays: metricCellSchema,
-    activityCompletionPercent: metricCellSchema,
-    activityOverdueCount: metricCellSchema,
-    milestoneOnTimePercent: metricCellSchema,
-  })
-  .strict()
-export type TimelineAnalytics = z.infer<typeof timelineAnalyticsSchema>
-
-export type TimelineMilestoneRow = {
-  status: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED'
-  targetDate: string | null
-  completionDate: string | null
-}
-
-/**
- * Milestone counts behind the on-time metric, as returned by the trusted
- * pathways.p10_f9_timeline_aggregate function: completed milestones, completed
- * milestones that carry both a target and a completion date (rated), and rated
- * ones finished on or before their target.
- */
-export const milestoneCountsSchema = z
-  .object({
-    completed: z.number().int().min(0),
-    rated: z.number().int().min(0),
-    onTime: z.number().int().min(0),
-  })
-  .strict()
-  .refine((counts) => counts.onTime <= counts.rated && counts.rated <= counts.completed, {
-    message: 'Milestone counts must satisfy onTime <= rated <= completed.',
-  })
-export type MilestoneCounts = z.infer<typeof milestoneCountsSchema>
-
-/**
- * Milestone on-time percent = completed milestones with completion_date <= target_date,
- * divided by completed milestones that have both dates. Cancelled milestones are
- * excluded. MISSING (NO_COMPLETED_MILESTONES) when there is nothing to rate, never 0.
- */
-export function milestoneOnTimeFromCounts(counts: MilestoneCounts): MetricCell {
-  if (counts.completed === 0 || counts.rated === 0) return missingMetric('NO_COMPLETED_MILESTONES')
-  return numericMetric(round1((counts.onTime / counts.rated) * 100))
-}
-
-/** Test/parity adapter: folds milestone rows into the counts the trusted SQL function returns. */
-export function milestoneCountsFromRows(
-  milestones: readonly TimelineMilestoneRow[],
-): MilestoneCounts {
-  const completed = milestones.filter((milestone) => milestone.status === 'COMPLETED')
-  const rated = completed.filter(
-    (milestone) => milestone.targetDate !== null && milestone.completionDate !== null,
-  )
-  return {
-    completed: completed.length,
-    rated: rated.length,
-    onTime: rated.filter(
-      (milestone) => (milestone.completionDate as string) <= (milestone.targetDate as string),
-    ).length,
-  }
-}
-
-export function milestoneOnTimeCell(milestones: readonly TimelineMilestoneRow[]): MetricCell {
-  return milestoneOnTimeFromCounts(milestoneCountsFromRows(milestones))
 }

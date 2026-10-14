@@ -1,8 +1,8 @@
 import { z } from 'zod'
-import { indicatorListResponse } from '../contracts/indicators/indicator-responses'
-import { P06_CONTRACT_VERSION, metricCellSchema } from './metric-cell'
-import { date, uuid } from './metric-fields'
-import { validateMetricPeriod } from './metric-math'
+import { P06_CONTRACT_VERSION, metricCellSchema } from '../../metrics/metric-cell'
+import { date, uuid } from '../../metrics/metric-fields'
+import { validateMetricPeriod } from '../../metrics/metric-math'
+import { indicatorListResponse } from '../indicators/indicator-responses'
 
 export const sadddAgeBands = ['0-9', '10-14', '15-17', '18-24', '25+', 'Unknown'] as const
 

@@ -1,6 +1,5 @@
 import { z } from 'zod'
 
-import { sadddAgeBands } from '../../monitoring/metric-contract'
 import {
   isoDateString,
   lengthString,
@@ -8,6 +7,7 @@ import {
   trimmedInput,
   uuidString,
 } from '../common/field-schemas'
+import { sadddAgeBands } from '../dashboards/metric-contract'
 
 export const beneficiarySexes = [
   'MALE',

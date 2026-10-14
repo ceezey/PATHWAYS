@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { isCalendarDate } from './metric-math'
+import { isCalendarDate } from '../../metrics/metric-math'
 
 export const ROLE_OVERVIEW_CONTRACT_VERSION = 'dashboard.role-overview.v1' as const
 export const alertSeverities = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'] as const

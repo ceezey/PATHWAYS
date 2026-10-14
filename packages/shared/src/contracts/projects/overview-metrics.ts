@@ -1,12 +1,12 @@
 import { z } from 'zod'
-import { metricCellSchema } from './metric-cell'
+import { metricCellSchema } from '../../metrics/metric-cell'
 import {
   type MetricCell,
   isCalendarDate,
   missingMetric,
   numericMetric,
   scaledDecimal,
-} from './metric-math'
+} from '../../metrics/metric-math'
 
 const moneyString = z.string().regex(/^\d{1,18}\.\d{2}$/)
 

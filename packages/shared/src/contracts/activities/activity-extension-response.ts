@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { isCalendarDate } from '../../monitoring/metric-math'
+import { isCalendarDate } from '../../metrics/metric-math'
 
 export const activityExtensionStatuses = [
   'PENDING',

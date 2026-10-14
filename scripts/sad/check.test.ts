@@ -79,6 +79,18 @@ describe('routing and digest', () => {
       'packages/shared/src/rules/rule-contract.ts',
     ])
   })
+  it('routes metric, dashboard and analytics contracts to the determinism checker', () => {
+    const files = [
+      'packages/shared/src/contracts/analytics/survey-analytics.ts',
+      'packages/shared/src/contracts/dashboards/role-overview.ts',
+      'packages/shared/src/contracts/projects/overview-metrics.ts',
+      'packages/shared/src/contracts/projects/project-map.ts',
+      'packages/shared/src/metrics/metric-math.ts',
+    ]
+    const other = 'packages/shared/src/contracts/projects/project-requests.ts'
+    const routed = routing([...files, other].map((file) => change(file, 'new', 'old')))
+    expect(routed['rule-engine-determinism-checker']).toEqual(files)
+  })
   it('routes indicator contracts to the determinism checker and the privacy guardian', () => {
     const file = 'packages/shared/src/contracts/indicators/indicator-requests.ts'
     const routed = routing([change(file, 'new', 'old')])

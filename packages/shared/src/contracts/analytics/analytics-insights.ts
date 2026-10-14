@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { isCalendarDate } from './metric-math'
+import { isCalendarDate } from '../../metrics/metric-math'
 
 const date = z.string().refine(isCalendarDate, 'Use a real YYYY-MM-DD date from 1900 through 2100.')
 

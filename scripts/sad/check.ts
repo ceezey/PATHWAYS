@@ -77,7 +77,11 @@ export const roles = {
   'rule-engine-determinism-checker': {
     pillars: ['Performance Efficiency'],
     globs: [
-      'packages/shared/src/monitoring/**/*.ts',
+      'packages/shared/src/metrics/**/*.ts',
+      'packages/shared/src/contracts/analytics/**/*.ts',
+      'packages/shared/src/contracts/dashboards/**/*.ts',
+      'packages/shared/src/contracts/projects/overview-metrics.ts',
+      'packages/shared/src/contracts/projects/project-map.ts',
       'packages/shared/src/rules/**',
       'packages/shared/src/contracts/indicators/**/*.ts',
       'apps/api/src/modules/indicators/**/*.ts',

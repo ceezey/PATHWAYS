@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { isCalendarDate } from './metric-math'
+import { isCalendarDate } from '../../metrics/metric-math'
 
 export const DASHBOARD_ACTION_COUNTS_CONTRACT_VERSION = 'dashboard.action-counts.v1' as const
 

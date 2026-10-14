@@ -1,12 +1,12 @@
 import { z } from 'zod'
-import { type MetricRecipe, metricRecipes } from '../../monitoring/metric-cell'
-import { date, decimal, uuid } from '../../monitoring/metric-fields'
+import { type MetricRecipe, metricRecipes } from '../../metrics/metric-cell'
+import { date, decimal, uuid } from '../../metrics/metric-fields'
 import {
   indicatorProgress,
   normalizeMetricDecimal,
   numericKinds,
   validateMetricPeriod,
-} from '../../monitoring/metric-math'
+} from '../../metrics/metric-math'
 
 export const indicatorBindingSchema = z
   .object({

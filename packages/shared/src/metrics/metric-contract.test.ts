@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { dashboardQuerySchema, sadddAgeBands } from '../contracts/dashboards/metric-contract'
 import {
   createIndicatorDraftRequest,
   createIndicatorRequest,
@@ -6,7 +7,6 @@ import {
 } from '../contracts/indicators/indicator-requests'
 import { indicatorResponse } from '../contracts/indicators/indicator-responses'
 import { metricCellSchema } from './metric-cell'
-import { dashboardQuerySchema, sadddAgeBands } from './metric-contract'
 import {
   businessCalendarDate,
   indicatorProgress,
