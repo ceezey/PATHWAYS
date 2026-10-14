@@ -1,7 +1,12 @@
 import 'reflect-metadata'
 
 import { ForbiddenException, RequestMethod } from '@nestjs/common'
-import { HEADERS_METADATA, METHOD_METADATA, PATH_METADATA } from '@nestjs/common/constants'
+import {
+  HEADERS_METADATA,
+  METHOD_METADATA,
+  PATH_METADATA,
+  ROUTE_ARGS_METADATA,
+} from '@nestjs/common/constants'
 import { describe, expect, it, vi } from 'vitest'
 
 import { PERMISSION_KEY } from '../../common/decorators/permission.decorator'
@@ -85,6 +90,22 @@ describe('public and publication routes', () => {
     for (const [name, operation] of Object.entries(operations)) {
       instance[name]({ headers: {}, user }, 'p1', body)
       expect(service.transition).toHaveBeenLastCalledWith(user, 'p1', operation, body)
+    }
+  })
+
+  it('declares the four publication bodies as the third argument with no pipe', () => {
+    const publication = controllers().find(
+      (controller) => controller.name === 'PublicationController',
+    ) as ControllerClass
+    for (const name of ['submit', 'approve', 'publish', 'withdraw']) {
+      const args: Record<string, { index: number; pipes: unknown[] }> = Reflect.getMetadata(
+        ROUTE_ARGS_METADATA,
+        publication,
+        name,
+      )
+      const body = Object.entries(args).find(([key]) => key.startsWith('3:'))?.[1]
+      expect(body?.index).toBe(2)
+      expect(body?.pipes).toEqual([])
     }
   })
 

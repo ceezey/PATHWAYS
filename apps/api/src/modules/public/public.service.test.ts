@@ -1,4 +1,4 @@
-import { NotFoundException, ServiceUnavailableException } from '@nestjs/common'
+import { BadRequestException, NotFoundException, ServiceUnavailableException } from '@nestjs/common'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import type { PrismaService } from '../../prisma/prisma.service'
@@ -204,5 +204,122 @@ describe('anonymous public routes (QAD-A09)', () => {
     )
     expect(routes.sort()).toEqual(['get', 'list'])
     expect(Reflect.getMetadata('path', PublicProjectsController)).toBe('public/projects')
+  })
+})
+
+describe('publication body parse', () => {
+  const operations = ['SUBMIT', 'APPROVE', 'PUBLISH', 'WITHDRAW'] as const
+  const validSummary = 'Synthetic public summary.'
+  const upper = requestId.toUpperCase()
+  // The state each operation starts from, so a valid body reaches the update.
+  const from = {
+    SUBMIT: undefined,
+    APPROVE: 'FOR_REVIEW',
+    PUBLISH: 'APPROVED',
+    WITHDRAW: 'PUBLISHED',
+  }
+  // A valid body for one operation: the summary belongs to SUBMIT only.
+  const valid = (operation: (typeof operations)[number], extra: Record<string, unknown> = {}) => ({
+    clientRequestId: upper,
+    expectedRevision: operation === 'SUBMIT' ? 0 : 2,
+    ...(operation === 'SUBMIT' ? { summary: validSummary } : {}),
+    ...extra,
+  })
+  let writes: Array<{ values: unknown[] }>
+  beforeEach(() => {
+    vi.resetAllMocks()
+    state.actor = actor
+    state.tx = tx
+    writes = []
+    tx.project.findFirst.mockResolvedValue({ id: projectId })
+    tx.$executeRaw.mockResolvedValue(1)
+    tx.$queryRaw.mockImplementation((query: { sql?: string; values?: unknown[] } | string[]) => {
+      const text = Array.isArray(query) ? query.join('') : (query.sql ?? '')
+      const values = (query as { values: unknown[] }).values
+      if (text.includes('INSERT INTO') || text.includes('UPDATE pathways.project_publications'))
+        writes.push({ values })
+      if (text.includes('INSERT INTO'))
+        return [{ revision: 1, state: 'FOR_REVIEW', updatedAt: now }]
+      if (text.includes('UPDATE pathways.project_publications'))
+        return [{ ...row('FOR_REVIEW'), revision: 2, updatedAt: now }]
+      if (text.includes('FOR UPDATE')) {
+        const stage = (from as Record<string, string | undefined>)[currentOperation]
+        return stage ? [row(stage)] : []
+      }
+      return []
+    })
+  })
+  let currentOperation = 'SUBMIT'
+  const bad = async (operation: (typeof operations)[number], input: unknown) => {
+    currentOperation = operation
+    // The parse throws before any promise exists, so the call is wrapped.
+    const failure = async () => service.transition(actor, projectId, operation, input)
+    await expect(failure()).rejects.toBeInstanceOf(BadRequestException)
+    await expect(failure()).rejects.toThrow(/^Invalid publication request\.$/)
+    expect(tx.$queryRaw).not.toHaveBeenCalled()
+    expect(tx.$executeRaw).not.toHaveBeenCalled()
+  }
+
+  it.each(operations)(
+    '%s refuses a body outside the schema with the fixed message',
+    async (operation) => {
+      const base = valid(operation)
+      for (const input of [
+        undefined,
+        null,
+        'text',
+        [],
+        {},
+        { ...base, extra: 1 },
+        { ...base, clientRequestId: 'not-a-uuid' },
+        { ...base, clientRequestId: undefined },
+        { ...base, expectedRevision: -1 },
+        { ...base, expectedRevision: 1.5 },
+        { ...base, expectedRevision: 2147483647 },
+        { ...base, expectedRevision: '2' },
+      ])
+        await bad(operation, input)
+    },
+  )
+
+  it('requires a summary on SUBMIT and forbids one on the other operations', async () => {
+    await bad('SUBMIT', { clientRequestId: requestId, expectedRevision: 0 })
+    for (const operation of ['APPROVE', 'PUBLISH', 'WITHDRAW'] as const)
+      await bad(operation, valid(operation, { summary: validSummary }))
+  })
+
+  it('bounds the summary after trimming, for SUBMIT and for the forbidden case alike', async () => {
+    for (const summary of ['', '   ', 'x'.repeat(4001), 7]) {
+      await bad('SUBMIT', valid('SUBMIT', { summary }))
+      await bad('APPROVE', valid('APPROVE', { summary }))
+    }
+  })
+
+  it('accepts the summary bounds and writes the trimmed value', async () => {
+    currentOperation = 'SUBMIT'
+    await service.transition(
+      actor,
+      projectId,
+      'SUBMIT',
+      valid('SUBMIT', { summary: ` ${'x'.repeat(4000)} ` }),
+    )
+    await service.transition(actor, projectId, 'SUBMIT', valid('SUBMIT', { summary: ' y ' }))
+    expect(writes[0].values).toContain('x'.repeat(4000))
+    expect(writes[1].values).toContain('y')
+  })
+
+  it.each(operations)('%s passes the parsed body to the data call', async (operation) => {
+    currentOperation = operation
+    await expect(
+      service.transition(actor, projectId, operation, valid(operation)),
+    ).resolves.toMatchObject({ revision: expect.any(Number) })
+    expect(writes).toHaveLength(1)
+    // The receipt row carries the lowercased request key.
+    expect(tx.$executeRaw.mock.calls[0][4]).toBe(requestId)
+    const lock = tx.$queryRaw.mock.calls.find(
+      (call) => Array.isArray(call[0]) && call[0].join('').includes('pg_advisory_xact_lock'),
+    )
+    expect(lock?.[1]).toBe(`${actor.organizationId}:${actor.userId}:${requestId}`)
+    if (operation === 'SUBMIT') expect(writes[0].values).toContain(validSummary)
   })
 })
