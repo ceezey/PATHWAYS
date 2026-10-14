@@ -123,6 +123,12 @@ describe('users routes body validation', () => {
     expect(users.update).toHaveBeenCalledWith(actor, userId, body)
   })
 
+  it('passes the user id from the path of the update route', async () => {
+    const body = { role: 'PROGRAM_MANAGER', accountStatus: 'ACTIVE', projectIds: [] }
+    expect((await send('PATCH', `/${authUserId}`, JSON.stringify(body))).status).toBe(200)
+    expect(users.update).toHaveBeenCalledWith(actor, authUserId, body)
+  })
+
   it.each([
     [
       'POST',

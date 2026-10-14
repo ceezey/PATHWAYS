@@ -1,8 +1,15 @@
 import 'reflect-metadata'
 
-import { ForbiddenException, RequestMethod } from '@nestjs/common'
+import type { AddressInfo } from 'node:net'
+import {
+  ForbiddenException,
+  type INestApplication,
+  RequestMethod,
+  ValidationPipe,
+} from '@nestjs/common'
 import { HEADERS_METADATA, METHOD_METADATA, PATH_METADATA } from '@nestjs/common/constants'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { Test } from '@nestjs/testing'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type {
   ApplicationIdentity,
@@ -11,7 +18,7 @@ import type {
 import { BENEFICIARY_STEP_UP_KEY } from '../../common/decorators/beneficiary-step-up.decorator'
 import { PERMISSION_KEY } from '../../common/decorators/permission.decorator'
 import { AuthorizedDataController } from './authorized-data.controller'
-import type { AuthorizedDataService } from './authorized-data.service'
+import { AuthorizedDataService } from './authorized-data.service'
 
 const actor = { id: '75000000-0000-4000-8000-000000000003' } as ApplicationIdentity
 const projectId = '75000000-0000-4000-8000-000000000004'
@@ -87,5 +94,43 @@ describe('authorized data controller routes', () => {
         [{ name: 'Cache-Control', value: 'no-store' }],
       ],
     ])
+  })
+})
+
+describe('authorized data controller router', () => {
+  let app: INestApplication
+  let base: string
+
+  beforeAll(async () => {
+    const module = await Test.createTestingModule({
+      controllers: [AuthorizedDataController],
+      providers: [{ provide: AuthorizedDataService, useValue: data }],
+    }).compile()
+    app = module.createNestApplication({ logger: false })
+    // Stands in for the identity the auth guard attaches; the guard is not under test here.
+    app.use((request: { user?: unknown }, _response: unknown, next: () => void) => {
+      request.user = actor
+      next()
+    })
+    app.useGlobalPipes(
+      new ValidationPipe({
+        whitelist: true,
+        forbidNonWhitelisted: true,
+        transform: true,
+        forbidUnknownValues: false,
+      }),
+    )
+    await app.listen(0, '127.0.0.1')
+    base = `http://127.0.0.1:${(app.getHttpServer().address() as AddressInfo).port}/access`
+  })
+  afterAll(async () => app?.close())
+
+  it.each([
+    ['beneficiaries', 'beneficiaries'],
+    ['beneficiary-aggregate', 'beneficiaryAggregate'],
+  ] as const)('passes the project id from the path of the %s route', async (segment, method) => {
+    const response = await fetch(`${base}/projects/${projectId}/${segment}`)
+    expect(response.status).toBe(200)
+    expect(data[method]).toHaveBeenCalledWith(actor, projectId)
   })
 })
