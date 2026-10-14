@@ -107,6 +107,20 @@ describe('auth routes body validation', () => {
     },
   )
 
+  it('verifies a valid PIN body through the verify route only', async () => {
+    const result = await post('/step-up/pin', '{"pin":"482915"}')
+    expect(result.status).toBe(200)
+    expect(pins.verify).toHaveBeenCalledWith(pinActor, '482915')
+    expect(pins.setup).not.toHaveBeenCalled()
+  })
+
+  it('sets up a valid PIN body through the setup route only', async () => {
+    const result = await post('/step-up/pin/setup', '{"pin":"482915"}')
+    expect(result.status).toBe(200)
+    expect(pins.setup).toHaveBeenCalledWith(pinActor, '482915')
+    expect(pins.verify).not.toHaveBeenCalled()
+  })
+
   it.each([
     '{"newPin":"529317","method":"TOTP"}',
     '{"newPin":"529317","currentPin":482915}',
