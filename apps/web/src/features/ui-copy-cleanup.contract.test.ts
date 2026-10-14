@@ -79,10 +79,12 @@ describe('"None yet" empty states versus error and permission wording', () => {
     expect(source(file)).toContain(copy)
   })
 
-  it('never shows "None yet" for indicator data the role cannot read or for unmapped fields', () => {
-    expect(source('features/analytics/components/analytics-dashboard.tsx')).not.toContain(
-      "averageKpi === null ? 'None yet'",
-    )
+  it.each([
+    'features/analytics/components/analytics-dashboard.tsx',
+    'features/analytics/components/analytics-summary-cards.tsx',
+  ])('never shows "None yet" for indicator data the role cannot read in %s', (file) => {
+    expect(source(file)).toContain('averageKpi')
+    expect(source(file)).not.toContain("averageKpi === null ? 'None yet'")
   })
 
   it('derives the participation empty-chart title from the shared metric-unavailable helper, not an unconditional "None yet"', () => {
