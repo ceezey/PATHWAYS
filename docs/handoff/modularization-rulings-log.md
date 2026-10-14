@@ -811,3 +811,57 @@ Ruling: S7b pre-flight found 13 must-fix, 15 should-fix and 12 notes; apply-s7b.
 Ruling: S7d planned as Tasks 0 to 9 (dashboards web and the rest of the analytics shell: shell 898 to 437 lines, role dashboard 693 to 283, web +16 files and 440 tests, every cut lost 0), dry-run end to end on the simulated S7c base; its pre-flight on the real S7c end state follows the S7c pre-flight, and the pre-existing survivors in the shell lines that did not move stay listed as gaps, cost if wrong: an 11006-line plan costs pre-flight time but no code.
 
 Ruling: W2 is planned now on the W1 dry-run base in parallel with the serial S7c, S7d, S8 pre-flights, with outline items 1 to 4, 6 and 7 only; the per-domain seed data split (item 5) is out, recorded in CR section 9 as left to the developer, because seed work is his and the cloud cannot run the local seed proof, cost if wrong: MOD-21's data part stays open until he takes it.
+
+Ruling: apply the S7b pre-flight fixes (13 must-fix, 15 should-fix), replayed on the S7a end state; Task 0 takes the real S7a figures as baselines (shared 42 files and 721 tests, api 154 and 2618, web 261 and 2527 after S7a fix 3, lint 1500), since the replay ran before S7a fixes 2 and 3, cost if wrong: a later Expected compares against a stale count and the delta check catches it.
+
+Ruling: S7b Task 0 committed f7028682 with every Expected matching except the known baselines (shared 721, api 2618 passed and 21 skipped in 154 files, web 261 files and 2527 tests, M0 103 kB), which later tasks use, cost if wrong: none.
+
+Ruling: S7b Task 1 also pins the route argument metadata (ROUTE_ARGS_METADATA) of every dashboards and analytics-insights handler in dashboards.routes.test.ts, written against the unchanged controllers with a mutation proof, because S7a review 1 found the same gap; api counts run one test above the plan's Expected from here on, cost if wrong: one extra test row.
+
+Ruling: S7b Task 1 committed 381bff86 with every Expected matching except the explained +1 api test (the argument metadata case; api 155 files, 2624 passed and 21 skipped) and lint 1501 (the brief's figure predates S7a fix 3); three argument mutations each fail only that case, cost if wrong: none.
+
+Ruling: S7b Task 1 review spec PASS, quality PASS with three minors; the 403-before-404 order (a role without the permission asking for an out-of-scope project) and lookup-before-compute order in the insights service get a tests-only fix 1 after Task 2, because the first decides what an unauthorized caller learns about project existence; the expect.anything() scope clause stays, since scoped-project.test.ts pins the scope rule, cost if wrong: none.
+
+Ruling: S7b Task 2 committed 4fcebab6 with the brief's stat and every Expected matching except the explained ones (the registration mutation fails 1 of 5 cases, lint 1502, api 2625 passed and 21 skipped in 156 files, two above the plan from the real base and the Task 1 argument case), cost if wrong: none.
+
+Ruling: S7b Task 2 review spec PASS, quality PASS; the two minors (which module owns each controller is not pinned, and DashboardsModule is not compiled alone) stay, because Nest serves the same routes whichever module registers a controller and the AppModule test already fails on an unresolved provider, cost if wrong: a controller moved between modules goes unnoticed with no change a caller can see.
+
+Ruling: fix 1 committed 40b3568d (6 insights cases pin 403 before the scope lookup and the lookup before compute and audit; both order mutations fail 3 cases each; api 156 files, 2631 passed and 21 skipped), cost if wrong: none.
+
+Ruling: S7b Task 3 committed 5de8b28d with the brief's stat and every Expected matching except the explained counts (analytics folder 96 tests, lint 1505, api 157 files and 2633 passed and 21 skipped), cost if wrong: none.
+
+Ruling: S7b Task 3 review spec PASS, quality PASS with two minors; the export file names (CSV fileName, the three fileBase names, Content-Disposition), XLS acceptance and the null-to-empty cell mapping are what a user downloads, so a tests-only fix 2 after Task 4 pins them with mutation proofs; the missing blank line before the copied logger stays (Biome passes), cost if wrong: none.
+
+Ruling: S7b Task 4 committed 9d7da106 with the brief's stat and every Expected matching (same tokens 3361, row-cap mutation fails 1 of 3) except the explained counts (dashboards folder 37, lint 1509, api 158 files and 2636 passed and 21 skipped), cost if wrong: none.
+
+Ruling: fix 2 committed f5518d22 (tests only in three files: export file names per format and view, accepted formats, empty cells, the controller's Content-Disposition; seven mutations each fail a test; api 159 files, 2647 passed and 21 skipped; lint 1510), cost if wrong: none.
+
+Ruling: S7b Task 4 review spec PASS (8 readers identical), quality PASS with three importants and one minor, all pre-existing but now spread over three files: the select of every reader, the own-row and self-exclusion filters, the month window and the imports.read, activities.read and projects.detail.read gates decide what each role sees, so a tests-only fix 3 after Task 5 pins them with mutation proofs; the gt to gte survivor is equivalent, cost if wrong: none.
+
+Ruling: S7b Task 5 committed a4a9c283 with the brief's stat and every Expected matching (302 exports before and after, 35 test titles lost 0, barrel and SAD glob mutations fail as planned) except the explained counts (shared 45 files and 723 tests, lint 1516); one beneficiary-detail-loader flake passed 6 of 6 alone, cost if wrong: none.
+
+Ruling: fix 3 committed 084af1e4 (one 423-line test file, 9 tests; 41 mutations over selects, own-row and self-exclusion filters, the month window, nested queries and three permission gates each fail a test; api 160 files, 2656 passed and 21 skipped; lint 1517); the implementer ran pkill -f once against its own mutation script despite the rule, so a concurrent run that dies without a summary is rerun, cost if wrong: none.
+
+Ruling: S7b Task 5 review spec FAIL on one low (the SAD determinism glob for contracts/projects/overview-metrics.ts is a literal path, so its test no longer routes there), quality PASS with three pre-existing mediums (metric-round sign and negative-zero handling, .strict() on the project map, action counts and timeline contracts, and the descriptive analytics query schema rules are pinned only by api tests or not at all); fix 4 after Task 6 widens the glob to overview-metrics*.ts in check.ts, check.test.ts and sad-pathways.md and adds shared tests with mutation proofs for those schema rules and rounding, cost if wrong: none.
+
+Ruling: S7b Task 6 committed 0d95f726 with the brief's stat and every Expected matching (10 replacements in 5 files, a sixth status fails exactly 5 tests) except the explained counts (shared 46 files and 733 tests, lint 1518, Biome 118 files), cost if wrong: none.
+
+Ruling: S7b Task 6 review spec PASS, quality PASS; the low (widening rule-metrics.ts:189 survives because the output re-parses through the rule-contract union with the same message) stays, since that site's input schema is not exported and the re-parse rejects the same values, cost if wrong: none a caller can see.
+
+Ruling: fix 4 committed e5dff71e (overview-metrics*.ts routing; sad 58 fails before and passes after) and 1cac578f (tests only: rounding, every .strict(), max(100) and both refines of the moved contracts; 24 of 25 mutations fail a test; shared 50 files and 759 tests, lint 1522); the surviving negative-zero guard in round1 is unreachable (toFixed(1) of -0 is 0.0), so it counts as an equivalent mutant, cost if wrong: none.
+
+Ruling: S7b Task 7 committed 4a2686ad with real figures (shared +8 files and 38 tests, api +6 files and 38 tests, web unchanged, sad +1, lint 1522; analytics.service.ts 504 to 454 lines) and one line per fix in the activity log and CR, so its diffstat runs above the brief's, cost if wrong: none.
+
+Ruling: S7b SAD restraint blocked scripts/sad/check.ts on the literal project-map.ts determinism path, which misses the new project-map.test.ts (the same gap fix 4 closed for overview-metrics); fix 5 after the gate run and final review widens it to project-map*.ts in check.ts and sad-pathways.md and adds the test path to check.test.ts, cost if wrong: none.
+
+Ruling: S7b final review PASS with three record lows fixed in fix 5 (activity log says 1514 lines, CR says 797-line test, sdd-pathways.md names the insights controller and service as part of the analytics module), the CR S7c targets marked as new files, and the historical gate-closure CR left as history; the reviewer's brief detached checkout at the same commit changed no file, cost if wrong: none.
+
+Ruling: S7b Task 8 Step 2 handoff checks match exactly (five S8 DTO files, two S8 identity controllers plus the helper, 0 TransactionClient, no old folders or specifiers, import loops 0); fix 5 committed d032e921 (project-map*.ts glob, sad 58 fails before and passes after, four record corrections), cost if wrong: none.
+
+## S7c
+
+Ruling: the W2 plan (items 1, 2, 3, 4, 6 and 7, 3688 lines) was dry-run end to end on the W1 replay tree; item 5, the per-domain seed data split, stays out and is recorded in CR section 9 as the developer's own work. Cost if wrong: Cian expected a seed code change from W2.
+
+Ruling: apply the S7c pre-flight fixes (8 must-fix, 13 should-fix, 87 asserted edits, 6348-line plan, 137 mutations each failing a test), replayed on the S7b replay end state; Task 0 takes the real S7b tip figures as baselines (shared 50 files and 759 tests, api 160 and 2656 passed and 21 skipped, web 261 and 2527, lint 1522), and the three S7a fix 3 rules tests that mock `pathways-client` with an empty object add 3 files to its importer and factory counts, cost if wrong: a later Expected compares against a stale count and the delta check catches it.
+
+Ruling: the only files both S7c and the drift since the replay base touch are five docs (activity log, audit, CR, deferred features, index); where an exact-string docs edit misses on the real text, the implementer applies the same intent to the real line and reports it, cost if wrong: one docs line worded differently from the plan.
