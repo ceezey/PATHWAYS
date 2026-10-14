@@ -1,7 +1,7 @@
 import type { ProjectSummary } from '@/types/pathways'
 import type { IndicatorResponse } from '@pathways/shared'
 
-interface AnalyticsReportingPeriod {
+export interface AnalyticsReportingPeriod {
   value: string
   label: string
   start: string

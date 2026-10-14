@@ -42,11 +42,6 @@ import { useAuthorizedRead } from '@/hooks/use-authorized-read'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'
 import { activitiesClient } from '@/lib/api/activities'
-import {
-  analyticsClient,
-  descriptiveAnalyticsSearch,
-  getAnalyticsExportPreview,
-} from '@/lib/api/analytics'
 import { dashboardsClient } from '@/lib/api/dashboards'
 import { indicatorsClient } from '@/lib/api/indicators'
 import { projectsClient } from '@/lib/api/projects'
@@ -55,15 +50,10 @@ import { formatCalendarDay } from '@/lib/format/date'
 import { formatCappedPercent } from '@/lib/format/percent'
 import { can } from '@/lib/rbac/can'
 import { principalHasAtomicPermission } from '@/lib/rbac/policy'
-import { downloadCoreArtifact } from '@/lib/services/core-feature-client'
 import type { ActivitySummary, ProjectSummary } from '@/types/pathways'
 import {
-  type DescriptiveAnalytics,
   type IndicatorResponse,
   type MonitoringDashboard,
-  type SadddDashboard,
-  type SurveyAnalytics,
-  type TimelineAnalytics,
   formatMetricCell,
 } from '@pathways/shared'
 import { toast } from 'sonner'
@@ -74,24 +64,26 @@ import {
 } from '../analytics-reporting-periods.utils'
 import {
   type AnalysisView,
-  type ExportFormat,
   SURVEY_CLOSED_PERIOD_MESSAGE,
-  SURVEY_PERIOD_MESSAGE,
   SURVEY_RESTRICTED_MESSAGE,
-  type SurveyErrorKind,
   type VisualizationType,
   analysisViews,
   exportFormats,
   visualizationTypes,
 } from '../analytics.copy'
 import { countOpenAlerts } from '../analytics.reads'
-import { businessDateInManila, surveyErrorKindFor } from '../analytics.utils'
+import { businessDateInManila } from '../analytics.utils'
+import { useAnalyticsExport } from '../hooks/use-analytics-export'
 import {
   canReadInsight,
   useBudgetSummary,
   useIndicatorTrends,
   useParticipationBreakdown,
 } from '../hooks/use-analytics-insights'
+import { useDescriptiveAnalytics } from '../hooks/use-descriptive-analytics'
+import { useSadddDashboard } from '../hooks/use-saddd-dashboard'
+import { useSurveyAnalytics } from '../hooks/use-survey-analytics'
+import { useTimelineAnalytics } from '../hooks/use-timeline-analytics'
 import { activeIndicators, metricNumber, progressRows } from '../kpi-rows.utils'
 import {
   ActivityCompletionChart,
@@ -99,10 +91,7 @@ import {
   IndicatorProgressChart,
   SadddChart,
 } from './analytics-charts'
-import {
-  type AnalyticsExportPreview,
-  AnalyticsExportPreviewDialog,
-} from './analytics-export-preview'
+import { AnalyticsExportPreviewDialog } from './analytics-export-preview'
 import { BudgetSummaryCard } from './budget-summary-card'
 import { ChartPanel, UnavailableChart } from './chart-panel'
 import { DescriptiveStatisticsTable } from './descriptive-statistics-table'
@@ -135,17 +124,6 @@ export const AnalyticsDashboard = () => {
   const canReadBudgetUtilization = canReadInsight(profile, 'budget')
   const canReadTrends = canReadInsight(profile, 'trends')
   const canReadParticipation = canReadInsight(profile, 'participation')
-  const [descriptive, setDescriptive] = useState<DescriptiveAnalytics | null>(null)
-  const [descriptiveLoading, setDescriptiveLoading] = useState(false)
-  const [descriptiveError, setDescriptiveError] = useState('')
-  const [descriptiveLoadAttempt, setDescriptiveLoadAttempt] = useState(0)
-  const [exporting, setExporting] = useState(false)
-  const [exportPreview, setExportPreview] = useState<{
-    format: ExportFormat
-    path: string
-    fileName: string
-    data: AnalyticsExportPreview
-  } | null>(null)
   const [projects, setProjects] = useState<ProjectSummary[]>([])
   const [projectId, setProjectId] = useState('')
   const [period, setPeriod] = useState('')
@@ -154,31 +132,16 @@ export const AnalyticsDashboard = () => {
   const [indicatorId, setIndicatorId] = useState('all')
   const [indicatorDefinitions, setIndicatorDefinitions] = useState<IndicatorResponse[]>([])
   const [monitoring, setMonitoring] = useState<MonitoringDashboard | null>(null)
-  const [saddd, setSaddd] = useState<SadddDashboard | null>(null)
   const [activities, setActivities] = useState<ActivitySummary[]>([])
   const [projectsLoading, setProjectsLoading] = useState(true)
   const [projectDataLoading, setProjectDataLoading] = useState(false)
   const [monitoringLoading, setMonitoringLoading] = useState(false)
-  const [sadddLoading, setSadddLoading] = useState(false)
   const [projectsError, setProjectsError] = useState('')
   const [projectDataError, setProjectDataError] = useState('')
   const [monitoringError, setMonitoringError] = useState('')
-  const [sadddError, setSadddError] = useState('')
   const [projectsLoadAttempt, setProjectsLoadAttempt] = useState(0)
   const [projectDataLoadAttempt, setProjectDataLoadAttempt] = useState(0)
   const [monitoringLoadAttempt, setMonitoringLoadAttempt] = useState(0)
-  const [sadddLoadAttempt, setSadddLoadAttempt] = useState(0)
-  // F9 survey/timeline analytics (analytics.descriptive.survey.v1 / .timeline.v1).
-  const [survey, setSurvey] = useState<SurveyAnalytics | null>(null)
-  const [surveyLoading, setSurveyLoading] = useState(false)
-  const [surveyError, setSurveyError] = useState('')
-  // restricted (403) and period (400) are final answers, so only 'retry' offers Retry.
-  const [surveyErrorKind, setSurveyErrorKind] = useState<SurveyErrorKind>('retry')
-  const [surveyLoadAttempt, setSurveyLoadAttempt] = useState(0)
-  const [timeline, setTimeline] = useState<TimelineAnalytics | null>(null)
-  const [timelineLoading, setTimelineLoading] = useState(false)
-  const [timelineError, setTimelineError] = useState('')
-  const [timelineLoadAttempt, setTimelineLoadAttempt] = useState(0)
 
   const selectedProject = projects.find((row) => row.id === projectId)
   const canReadAlerts = principalHasAtomicPermission(profile, 'alerts.read')
@@ -347,39 +310,11 @@ export const AnalyticsDashboard = () => {
     )
   }, [reportingPeriods])
 
-  useEffect(() => {
-    if (!projectId || !selectedProject) {
-      setSadddLoading(false)
-      setSaddd(null)
-      setSadddError('')
-      return
-    }
-    void sadddLoadAttempt
-    setSaddd(null)
-    if (!sadddEligible) {
-      setSadddLoading(false)
-      setSadddError('')
-      return
-    }
-    let active = true
-    setSadddLoading(true)
-    setSadddError('')
-    dashboardsClient
-      .getSadddDashboard({ projectId })
-      .then((result) => {
-        if (active) setSaddd(result)
-      })
-      .catch((caught: unknown) => {
-        if (active)
-          setSadddError(caught instanceof Error ? caught.message : 'SADDD analysis is unavailable.')
-      })
-      .finally(() => {
-        if (active) setSadddLoading(false)
-      })
-    return () => {
-      active = false
-    }
-  }, [projectId, sadddEligible, sadddLoadAttempt, selectedProject])
+  const { resetSaddd, retrySaddd, saddd, sadddError, sadddLoading } = useSadddDashboard({
+    projectId,
+    sadddEligible,
+    selectedProject,
+  })
 
   useEffect(() => {
     if (!projectId || !selectedPeriod || !canReadIndicators) {
@@ -416,169 +351,30 @@ export const AnalyticsDashboard = () => {
     }
   }, [canReadIndicators, monitoringLoadAttempt, projectId, selectedPeriod])
 
-  useEffect(() => {
-    if (!projectId || !selectedPeriod || !canReadDescriptive) {
-      setDescriptiveLoading(false)
-      setDescriptive(null)
-      setDescriptiveError('')
-      return
-    }
-    void descriptiveLoadAttempt
-    let active = true
-    setDescriptiveLoading(true)
-    setDescriptive(null)
-    setDescriptiveError('')
-    analyticsClient
-      .getDescriptiveAnalytics({
-        projectId,
-        periodStart: selectedPeriod.start,
-        periodEnd: selectedPeriod.end,
-      })
-      .then((result) => {
-        if (active) setDescriptive(result)
-      })
-      .catch((caught: unknown) => {
-        if (active)
-          setDescriptiveError(
-            caught instanceof Error ? caught.message : 'Descriptive statistics are unavailable.',
-          )
-      })
-      .finally(() => {
-        if (active) setDescriptiveLoading(false)
-      })
-    return () => {
-      active = false
-    }
-  }, [canReadDescriptive, descriptiveLoadAttempt, projectId, selectedPeriod])
+  const { descriptive, descriptiveError, descriptiveLoading, resetDescriptive, retryDescriptive } =
+    useDescriptiveAnalytics({ canReadDescriptive, projectId, selectedPeriod })
 
-  // Paired pre/post survey improvement. Requires a complete period, same as the API contract.
-  useEffect(() => {
-    if (!projectId || !surveyPeriod || surveyUnavailable || analysisView !== 'survey') {
-      setSurveyLoading(false)
-      setSurvey(null)
-      setSurveyError('')
-      setSurveyErrorKind('retry')
-      return
-    }
-    void surveyLoadAttempt
-    let active = true
-    setSurveyLoading(true)
-    setSurvey(null)
-    setSurveyError('')
-    setSurveyErrorKind('retry')
-    analyticsClient
-      .getSurveyAnalytics({
-        projectId,
-        periodStart: surveyPeriod.start,
-        periodEnd: surveyPeriod.end,
-      })
-      .then((result) => {
-        if (active) setSurvey(result)
-      })
-      .catch((caught: unknown) => {
-        if (!active) return
-        const kind = surveyErrorKindFor(caught)
-        setSurveyErrorKind(kind)
-        setSurveyError(
-          kind === 'restricted'
-            ? SURVEY_RESTRICTED_MESSAGE
-            : kind === 'period'
-              ? surveyFrozenOnly
-                ? SURVEY_CLOSED_PERIOD_MESSAGE
-                : SURVEY_PERIOD_MESSAGE
-              : caught instanceof Error
-                ? caught.message
-                : 'Survey analytics could not be loaded.',
-        )
-      })
-      .finally(() => {
-        if (active) setSurveyLoading(false)
-      })
-    return () => {
-      active = false
-    }
-  }, [
-    analysisView,
-    surveyUnavailable,
-    surveyFrozenOnly,
-    projectId,
-    surveyPeriod,
-    surveyLoadAttempt,
-  ])
-
-  // Timeline adherence uses the business reporting date server-side; no period selection needed.
-  useEffect(() => {
-    if (!projectId || !canReadSurveyTimeline || analysisView !== 'timeline') {
-      setTimelineLoading(false)
-      setTimeline(null)
-      setTimelineError('')
-      return
-    }
-    void timelineLoadAttempt
-    let active = true
-    setTimelineLoading(true)
-    setTimeline(null)
-    setTimelineError('')
-    analyticsClient
-      .getTimelineAnalytics({ projectId })
-      .then((result) => {
-        if (active) setTimeline(result)
-      })
-      .catch((caught: unknown) => {
-        if (active)
-          setTimelineError(
-            caught instanceof Error ? caught.message : 'Timeline analytics could not be loaded.',
-          )
-      })
-      .finally(() => {
-        if (active) setTimelineLoading(false)
-      })
-    return () => {
-      active = false
-    }
-  }, [analysisView, canReadSurveyTimeline, projectId, timelineLoadAttempt])
-
-  /** Loads the file's first rows for review; the download itself waits for confirmation. */
-  const previewExport = async (format: ExportFormat) => {
-    const view = analysisView === 'survey' || analysisView === 'timeline' ? analysisView : undefined
-    if (!ANALYTICS_AGGREGATE_EXPORT_UI_ENABLED || !canExportAnalytics || !projectId || exporting)
-      return
-    const exportPeriod = view === 'survey' ? surveyPeriod : selectedPeriod
-    if (view !== 'timeline' && !exportPeriod) return
-    if (view === 'survey' && surveyUnavailable) return
-    const query = {
+  const { resetSurvey, retrySurvey, survey, surveyError, surveyErrorKind, surveyLoading } =
+    useSurveyAnalytics({
+      analysisView,
       projectId,
-      ...(exportPeriod ? { periodStart: exportPeriod.start, periodEnd: exportPeriod.end } : {}),
-      ...(view ? { view } : {}),
-    }
-    setExporting(true)
-    try {
-      const data = await getAnalyticsExportPreview(query)
-      setExportPreview({
-        format,
-        data,
-        path: `/analytics/descriptive/export${descriptiveAnalyticsSearch(query)}${format === 'CSV' ? '' : `&format=${format}`}`,
-        fileName: `${view ?? 'descriptive'}-analytics-${projectId.toLowerCase()}.${format.toLowerCase()}`,
-      })
-    } catch (caught) {
-      toast.error(caught instanceof Error ? caught.message : 'Aggregate export unavailable.')
-    } finally {
-      setExporting(false)
-    }
-  }
+      surveyFrozenOnly,
+      surveyPeriod,
+      surveyUnavailable,
+    })
 
-  const downloadExport = async () => {
-    if (!exportPreview || exporting) return
-    setExporting(true)
-    try {
-      await downloadCoreArtifact(exportPreview.path, exportPreview.fileName)
-      setExportPreview(null)
-    } catch (caught) {
-      toast.error(caught instanceof Error ? caught.message : 'Aggregate export unavailable.')
-    } finally {
-      setExporting(false)
-    }
-  }
+  const { resetTimeline, retryTimeline, timeline, timelineError, timelineLoading } =
+    useTimelineAnalytics({ analysisView, canReadSurveyTimeline, projectId })
+
+  const { closeExportPreview, downloadExport, exportPreview, exporting, previewExport } =
+    useAnalyticsExport({
+      analysisView,
+      canExportAnalytics,
+      projectId,
+      selectedPeriod,
+      surveyPeriod,
+      surveyUnavailable,
+    })
 
   // Views and pins the role cannot read are hidden rather than shown as unavailable.
   const viewPermitted: Record<AnalysisView, boolean> = {
@@ -635,20 +431,14 @@ export const AnalyticsDashboard = () => {
     setIndicatorDefinitions([])
     setMonitoring(null)
     setActivities([])
-    setSaddd(null)
-    setDescriptive(null)
-    setDescriptiveError('')
-    setSurvey(null)
-    setSurveyError('')
-    setSurveyErrorKind('retry')
-    setTimeline(null)
-    setTimelineError('')
+    resetSaddd()
+    resetDescriptive()
+    resetSurvey()
+    resetTimeline()
     setProjectDataLoading(true)
     setMonitoringLoading(false)
-    setSadddLoading(false)
     setProjectDataError('')
     setMonitoringError('')
-    setSadddError('')
   }
 
   const mapSelected = visualizationType === 'map'
@@ -877,7 +667,7 @@ export const AnalyticsDashboard = () => {
         }}
         downloading={exporting}
         format={exportPreview?.format ?? ''}
-        onCancel={() => setExportPreview(null)}
+        onCancel={closeExportPreview}
         onDownload={() => void downloadExport()}
         preview={exportPreview?.data ?? null}
       />
@@ -962,7 +752,7 @@ export const AnalyticsDashboard = () => {
                 frozen={surveyFrozenOnly}
                 loading={surveyLoading}
                 noUsablePeriod={reportingPeriods.length > 0 && surveyPeriods.length === 0}
-                onRetry={() => setSurveyLoadAttempt((value) => value + 1)}
+                onRetry={retrySurvey}
                 periodsReadable={periodsReadable}
                 showChart={visualizationType !== 'table'}
               />
@@ -971,7 +761,7 @@ export const AnalyticsDashboard = () => {
                 data={timeline}
                 error={timelineError}
                 loading={timelineLoading}
-                onRetry={() => setTimelineLoadAttempt((value) => value + 1)}
+                onRetry={retryTimeline}
               />
             ) : analysisView === 'participation' ? (
               canReadParticipation ? (
@@ -1183,9 +973,7 @@ export const AnalyticsDashboard = () => {
                     title="SADDD analysis unavailable"
                     description={sadddError}
                     icon={AlertTriangle}
-                    onRetry={
-                      sadddEligible ? () => setSadddLoadAttempt((value) => value + 1) : undefined
-                    }
+                    onRetry={sadddEligible ? retrySaddd : undefined}
                   />
                 ) : saddd ? (
                   <>
@@ -1249,7 +1037,7 @@ export const AnalyticsDashboard = () => {
                     title="Descriptive statistics unavailable"
                     description={descriptiveError}
                     icon={AlertTriangle}
-                    onRetry={() => setDescriptiveLoadAttempt((value) => value + 1)}
+                    onRetry={retryDescriptive}
                   />
                 ) : descriptive ? (
                   <DescriptiveStatisticsTable data={descriptive} />
