@@ -79,7 +79,7 @@ export function RuleTestWorkspace({ rule }: { rule: HumanRule }) {
   )
   if (!owner || !profile) return <output>Current rule access is required.</output>
   return (
-    <OwnedRuleTest
+    <RuleTestForm
       key={`${owner.generation}:${owner.key}`}
       rule={rule}
       owner={owner}
@@ -87,7 +87,7 @@ export function RuleTestWorkspace({ rule }: { rule: HumanRule }) {
     />
   )
 }
-function OwnedRuleTest({
+function RuleTestForm({
   rule,
   owner,
   organizationId,

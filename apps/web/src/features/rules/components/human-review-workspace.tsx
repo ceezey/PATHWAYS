@@ -28,9 +28,9 @@ import { LinkedAlertSummary } from './linked-alert-summary'
 import { ReviewCardList, basisLabel, statusLabel } from './review-card-list'
 import { RuleTreeView, comparisonCopy } from './rule-condition-editor'
 
-const copy = (value: string) =>
+const codeLabel = (value: string) =>
   value === 'AUTO_RESOLVED' ? 'Auto-resolved' : value.replaceAll('_', ' ').toLowerCase()
-const instant = (value: string) =>
+const manilaTime = (value: string) =>
   new Date(value).toLocaleString('en-US', { timeZone: 'Asia/Manila' })
 const permissionFor = (kind: 'alert' | 'recommendation', action: 'read' | 'review' | 'outcome') =>
   kind === 'alert'
@@ -290,16 +290,16 @@ export function HumanReviewWorkspace({
                     {history.data.items.map((event) => (
                       <li className="border-b border-border pb-3" key={event.id}>
                         <p className="font-semibold">
-                          {copy(event.kind)} ({copy(event.actorKind)})
+                          {codeLabel(event.kind)} ({codeLabel(event.actorKind)})
                         </p>
                         <p>{event.explanation}</p>
                         <p className="text-sm text-muted-foreground">
-                          {instant(event.occurredAt)} Asia/Manila
+                          {manilaTime(event.occurredAt)} Asia/Manila
                         </p>
-                        {event.outcome ? <p>{copy(event.outcome)}</p> : null}
+                        {event.outcome ? <p>{codeLabel(event.outcome)}</p> : null}
                         <p className="text-sm">
                           Rule version {event.ruleVersion}
-                          {event.result ? `; result ${copy(event.result)}` : ''}
+                          {event.result ? `; result ${codeLabel(event.result)}` : ''}
                         </p>
                         {event.evidence.length ? <EvidenceTable evidence={event.evidence} /> : null}
                       </li>
@@ -513,8 +513,8 @@ function AlertEvidence({ item }: { item: HumanAlert }) {
     <div className="space-y-4">
       <p className="whitespace-pre-wrap">{item.explanation}</p>
       <p className="text-sm text-muted-foreground">
-        Rule version {item.ruleVersion}; {copy(item.freshness)}. Evaluated{' '}
-        {instant(item.evaluatedAt)} Asia/Manila. Reporting date {item.reportingDate}; calendar
+        Rule version {item.ruleVersion}; {codeLabel(item.freshness)}. Evaluated{' '}
+        {manilaTime(item.evaluatedAt)} Asia/Manila. Reporting date {item.reportingDate}; calendar
         version {item.calendar.version}.
       </p>
       <RuleTreeView node={item.conditions} />
@@ -569,12 +569,12 @@ function EvidenceTable({ evidence }: { evidence: HumanAlert['evidence'] }) {
           {evidence.map((evidence) => (
             <tr className="border-t border-border" key={evidence.conditionId}>
               <th className="p-2 font-normal" scope="row">
-                {copy(evidence.metric)}
+                {codeLabel(evidence.metric)}
               </th>
               <td className="p-2">
                 {evidence.cell.value !== null
                   ? formatMetricValue(evidence.cell.value, evidence.unit)
-                  : `${copy(evidence.cell.state)}${evidence.cell.reason ? ` (${copy(evidence.cell.reason)})` : ''}`}
+                  : `${codeLabel(evidence.cell.state)}${evidence.cell.reason ? ` (${codeLabel(evidence.cell.reason)})` : ''}`}
               </td>
               <td className="p-2">
                 {comparisonCopy[evidence.operator]}{' '}
@@ -583,7 +583,7 @@ function EvidenceTable({ evidence }: { evidence: HumanAlert['evidence'] }) {
                   ? ` to ${formatMetricValue(evidence.thresholdMaximum, evidence.unit)}`
                   : ''}
               </td>
-              <td className="p-2">{copy(evidence.result)}</td>
+              <td className="p-2">{codeLabel(evidence.result)}</td>
             </tr>
           ))}
         </tbody>
@@ -623,7 +623,7 @@ function NotificationRow({ item, onRead }: { item: HumanNotification; onRead: ()
     <li className="space-y-2 rounded-sm border border-border p-3">
       <p>{item.message}</p>
       <p className="text-sm text-muted-foreground">
-        {instant(item.createdAt)} Asia/Manila; {copy(item.deliveryState)}
+        {manilaTime(item.createdAt)} Asia/Manila; {codeLabel(item.deliveryState)}
       </p>
       <Link className="text-primary underline" href={`/alerts?alert=${item.alertId}`}>
         View alert

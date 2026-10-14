@@ -60,9 +60,9 @@ export function HumanReviewAction(props: Props) {
     access === 'ready',
   )
   if (!owner) return <output>Current access is being verified.</output>
-  return <OwnedAction key={`${owner.generation}:${owner.key}`} {...props} owner={owner} />
+  return <HumanReviewActionForm key={`${owner.generation}:${owner.key}`} {...props} owner={owner} />
 }
-function OwnedAction({
+function HumanReviewActionForm({
   kind,
   item,
   mode,

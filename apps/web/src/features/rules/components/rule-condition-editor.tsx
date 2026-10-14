@@ -17,7 +17,6 @@ const nodeKey = (node: RuleNode): string =>
   node.kind === 'CONDITION'
     ? node.id
     : `group_${node.children[0] ? nodeKey(node.children[0]) : 'empty'}`
-const label = (value: string) => metricLabel(value)
 export const newCondition = (): RuleNode => ({
   kind: 'CONDITION',
   id: `c_${crypto.randomUUID().replaceAll('-', '')}`,
@@ -154,12 +153,12 @@ export function RuleConditionEditor({
         >
           {!metricAvailable ? (
             <option value={node.metric} disabled>
-              {label(node.metric)} (unavailable for organization templates)
+              {metricLabel(node.metric)} (unavailable for organization templates)
             </option>
           ) : null}
           {metrics.map((metric) => (
             <option value={metric} key={metric}>
-              {label(metric)}
+              {metricLabel(metric)}
             </option>
           ))}
         </select>
@@ -256,7 +255,7 @@ export function RuleTreeView({ node }: { node: RuleNode }) {
     </div>
   ) : (
     <p className="text-sm">
-      {label(node.metric)} {comparisonCopy[node.operator]} {node.threshold}
+      {metricLabel(node.metric)} {comparisonCopy[node.operator]} {node.threshold}
       {node.thresholdMaximum !== undefined ? ` to ${node.thresholdMaximum}` : ''}
     </p>
   )

@@ -88,7 +88,7 @@ export function RuleDrawer(props: Props) {
       : 'Create Recommendation Rule'
   if (props.inline)
     return owner ? (
-      <OwnedDrawer key={`${owner.generation}:${owner.key}`} {...props} owner={owner} />
+      <RuleDrawerForm key={`${owner.generation}:${owner.key}`} {...props} owner={owner} />
     ) : (
       <output>Current rule access is required.</output>
     )
@@ -101,7 +101,7 @@ export function RuleDrawer(props: Props) {
         description="Rule outputs are rule-based and need human review; nothing is executed automatically."
       >
         {owner ? (
-          <OwnedDrawer key={`${owner.generation}:${owner.key}`} {...props} owner={owner} />
+          <RuleDrawerForm key={`${owner.generation}:${owner.key}`} {...props} owner={owner} />
         ) : (
           <output>Current rule access is required.</output>
         )}
@@ -110,7 +110,7 @@ export function RuleDrawer(props: Props) {
   )
 }
 
-function OwnedDrawer({
+function RuleDrawerForm({
   mode,
   rule,
   projectId,

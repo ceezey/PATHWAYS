@@ -139,10 +139,10 @@ export function RuleEditor(props: Props) {
     access === 'ready',
   )
   if (!owner) return <output>Current rule authoring access is required.</output>
-  return <OwnedRuleEditor key={`${owner.generation}:${owner.key}`} {...props} owner={owner} />
+  return <RuleEditorForm key={`${owner.generation}:${owner.key}`} {...props} owner={owner} />
 }
 
-function OwnedRuleEditor({
+function RuleEditorForm({
   projectId,
   original,
   template,
