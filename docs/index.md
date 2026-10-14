@@ -132,6 +132,7 @@ Workflow rule: an audit is finding and evidence, a Change Record is the approved
 | [S7b analytics and dashboards api plan](superpowers/plans/2026-10-14-modularization-s7b-analytics-dashboards.md) | 2026-10-14-modularization-s7b-analytics-dashboards.md | 2026-10-14 | S7b of the codebase modularization: analytics module, role overview and descriptive analytics splits, shared monitoring folder dissolved, stored project status list; S7c outline | S7b executed; holds the S7c outline |
 | [S7c analytics and dashboards web plan](superpowers/plans/2026-10-14-modularization-s7c-analytics-dashboards-web.md) | 2026-10-14-modularization-s7c-analytics-dashboards-web.md | 2026-10-14 | S7c of the codebase modularization: dashboards and analytics clients, features/analytics layout and surface, analytics dashboard test and component splits; S7d outline | S7c executed; holds the S7d outline |
 | [S7d dashboards web plan](superpowers/plans/2026-10-14-modularization-s7d-dashboards-web.md) | 2026-10-14-modularization-s7d-dashboards-web.md | 2026-10-14 | S7d of the codebase modularization: analytics shell split, features/dashboard layout and role dashboard split, dashboard read key | S7d executed |
+| [S8 public, users, profile and auth plan](superpowers/plans/2026-10-14-modularization-s8-public-users-auth.md) | 2026-10-14-modularization-s8-public-users-auth.md | 2026-10-14 | S8 of the codebase modularization: S8a auth, users, profile and public contracts, web clients and dead code; S8b outline | In progress |
 
 ### 1.7 Traceability Matrix
 
