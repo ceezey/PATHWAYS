@@ -1,7 +1,7 @@
 import { clearSensitiveDraftStorage } from '@/lib/auth/sensitive-drafts'
 /* @vitest-environment jsdom */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { rulesHumanClient } from './rules-human-client'
+import { rulesHumanClient } from './rules'
 const transport = vi.hoisted(() => vi.fn())
 vi.mock('@/lib/api/core/request', () => ({
   requestFoundationResponse: transport,

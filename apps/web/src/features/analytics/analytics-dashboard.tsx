@@ -45,6 +45,7 @@ import { useDisplayLabels } from '@/hooks/use-display-labels'
 import { activitiesClient } from '@/lib/api/activities'
 import { indicatorsClient } from '@/lib/api/indicators'
 import { projectsClient } from '@/lib/api/projects'
+import { rulesHumanClient } from '@/lib/api/rules'
 import { addPin } from '@/lib/dashboard-pins'
 import { formatCalendarDay } from '@/lib/format/date'
 import { formatCappedPercent } from '@/lib/format/percent'
@@ -56,7 +57,6 @@ import {
   getAnalyticsExportPreview,
   pathwaysClient,
 } from '@/lib/services/pathways-client'
-import { rulesHumanClient } from '@/lib/services/rules-human-client'
 import type { ActivitySummary, ProjectSummary } from '@/types/pathways'
 import {
   type DescriptiveAnalytics,

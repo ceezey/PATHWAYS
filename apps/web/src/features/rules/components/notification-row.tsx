@@ -2,8 +2,8 @@
 
 import { Button } from '@/components/ui/button'
 import { useCurrentRole } from '@/hooks/use-current-role'
+import { rulesHumanClient } from '@/lib/api/rules'
 import { useSensitiveDraftOwner } from '@/lib/auth/sensitive-drafts'
-import { rulesHumanClient } from '@/lib/services/rules-human-client'
 import type { HumanNotification } from '@pathways/shared'
 import Link from 'next/link'
 import { useRef, useState } from 'react'

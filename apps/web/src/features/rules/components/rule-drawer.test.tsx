@@ -33,7 +33,7 @@ vi.mock('@/lib/api/core/request', () => ({
     status?: number
   },
 }))
-vi.mock('@/lib/services/rules-human-client', () => ({ rulesHumanClient: state }))
+vi.mock('@/lib/api/rules', () => ({ rulesHumanClient: state }))
 
 const activeRule = {
   id: '50000000-0000-4000-8000-000000000001',

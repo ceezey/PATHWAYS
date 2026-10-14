@@ -2,8 +2,8 @@
 
 import { useAuthorizedRead } from '@/hooks/use-authorized-read'
 import { useCurrentRole } from '@/hooks/use-current-role'
+import { rulesHumanClient } from '@/lib/api/rules'
 import { principalHasAtomicPermission } from '@/lib/rbac/policy'
-import { rulesHumanClient } from '@/lib/services/rules-human-client'
 import type { HumanAlert } from '@pathways/shared'
 import Link from 'next/link'
 import { codeLabel, manilaTime } from '../rules.utils'

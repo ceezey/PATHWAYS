@@ -4,8 +4,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useCurrentRole } from '@/hooks/use-current-role'
+import { rulesHumanClient } from '@/lib/api/rules'
 import { type SensitiveDraftOwner, useSensitiveDraftOwner } from '@/lib/auth/sensitive-drafts'
-import { rulesHumanClient } from '@/lib/services/rules-human-client'
 import { cn } from '@/lib/utils'
 import {
   type DryEvidence,

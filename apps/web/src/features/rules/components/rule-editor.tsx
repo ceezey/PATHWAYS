@@ -9,9 +9,9 @@ import { useAuthorizedRead } from '@/hooks/use-authorized-read'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { PathwaysClientError } from '@/lib/api/core/request'
 import { projectsClient } from '@/lib/api/projects'
+import { rulesHumanClient } from '@/lib/api/rules'
 import { type SensitiveDraftOwner, useSensitiveDraftOwner } from '@/lib/auth/sensitive-drafts'
 import { principalHasAtomicPermission } from '@/lib/rbac/policy'
-import { rulesHumanClient } from '@/lib/services/rules-human-client'
 import {
   type HumanRule,
   type RuleCondition,

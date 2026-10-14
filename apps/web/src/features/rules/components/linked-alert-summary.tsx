@@ -2,7 +2,7 @@
 
 import { StatusBadge } from '@/components/pathways'
 import { useAuthorizedRead } from '@/hooks/use-authorized-read'
-import { rulesHumanClient } from '@/lib/services/rules-human-client'
+import { rulesHumanClient } from '@/lib/api/rules'
 import Link from 'next/link'
 import { statusLabel } from '../rules.copy'
 import { severityTone, titleCase } from '../rules.utils'

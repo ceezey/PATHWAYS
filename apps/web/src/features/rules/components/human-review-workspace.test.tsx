@@ -39,7 +39,7 @@ vi.mock('@/components/layout/page-header', () => ({
   PageHeader: ({ title }: { title: string }) => <h1>{title}</h1>,
 }))
 vi.mock('@/lib/api/projects', () => ({ projectsClient: { getProjects: state.project } }))
-vi.mock('@/lib/services/rules-human-client', () => ({
+vi.mock('@/lib/api/rules', () => ({
   rulesHumanClient: {
     listAlerts: state.alerts,
     listRecommendations: state.recommendations,

@@ -56,7 +56,7 @@ vi.mock('@/lib/api/core/request', () => ({
     }
   },
 }))
-vi.mock('@/lib/services/rules-human-client', () => ({
+vi.mock('@/lib/api/rules', () => ({
   rulesHumanClient: { createRule: state.createRule, draftRule: state.draftRule },
 }))
 vi.mock('@/lib/auth/sensitive-drafts', async (importOriginal) => {

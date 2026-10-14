@@ -18,7 +18,7 @@ vi.mock('@/hooks/use-current-role', () => ({
     access: 'ready',
   }),
 }))
-vi.mock('@/lib/services/rules-human-client', () => ({ rulesHumanClient: { dryRun: state.call } }))
+vi.mock('@/lib/api/rules', () => ({ rulesHumanClient: { dryRun: state.call } }))
 const rule: HumanRule = {
   id: '30000000-0000-4000-8000-000000000001',
   projectId: '40000000-0000-4000-8000-000000000001',

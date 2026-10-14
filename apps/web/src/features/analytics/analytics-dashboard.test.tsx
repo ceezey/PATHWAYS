@@ -3,7 +3,7 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { rulesHumanClient } from '@/lib/services/rules-human-client'
+import { rulesHumanClient } from '@/lib/api/rules'
 
 import { AnalyticsDashboard, countOpenAlerts } from './analytics-dashboard'
 
@@ -93,7 +93,7 @@ vi.mock('@/components/layout/page-header', () => ({
   PageHeader: ({ title }: { title: string }) => <h1>{title}</h1>,
 }))
 vi.mock('@/hooks/use-authorized-read', () => ({ useAuthorizedRead: () => alertHook.result }))
-vi.mock('@/lib/services/rules-human-client', () => ({ rulesHumanClient: { listAlerts: vi.fn() } }))
+vi.mock('@/lib/api/rules', () => ({ rulesHumanClient: { listAlerts: vi.fn() } }))
 vi.mock('./analytics-charts', () => ({
   ActivityCompletionChart: () => <div>Activity chart</div>,
   DescriptiveAnalysisChart: () => <div>Analysis chart</div>,

@@ -28,7 +28,7 @@ vi.mock('@/hooks/use-current-role', () => ({
     access: 'ready',
   }),
 }))
-vi.mock('@/lib/services/rules-human-client', () => ({
+vi.mock('@/lib/api/rules', () => ({
   rulesHumanClient: { listAlerts: state.alerts, listRecommendations: state.recommendations },
 }))
 vi.mock('@/lib/api/core/request', () => ({ PathwaysClientError: class extends Error {} }))
