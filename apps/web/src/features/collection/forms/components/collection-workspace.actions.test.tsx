@@ -1,11 +1,24 @@
 /* @vitest-environment jsdom */
 
-import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import {
+  act,
+  cleanup,
+  configure,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { clearSensitiveDraftStorage } from '@/lib/auth/sensitive-drafts'
 import { DisplayLabelsProvider } from '@/providers/display-labels-provider'
 
 import { CollectionWorkspace } from './collection-workspace'
+
+// Real-timer waits in the import rows cross several renders and need headroom under load.
+configure({ asyncUtilTimeout: 5000 })
 
 const api = vi.hoisted(() => ({
   createDigitalForm: vi.fn(),
@@ -267,6 +280,42 @@ describe('collection draft save', () => {
     await waitFor(() => expect(toasts.success).toHaveBeenCalledWith('Draft saved to the server.'))
     expect((screen.getByLabelText('Form title') as HTMLInputElement).value).toBe('Edited title')
   })
+
+  it('sends the revision of the previous save with the next save', async () => {
+    const revised = '2026-09-23T00:00:00Z'
+    api.getDigitalForms.mockResolvedValue([draft])
+    api.updateDigitalForm.mockResolvedValue({ ...draft, updatedAt: revised })
+    renderOpenForm('form-draft')
+    await screen.findByDisplayValue('Intake draft')
+    saveFromDialog()
+    await waitFor(() => expect(toasts.success).toHaveBeenCalledWith('Draft saved to the server.'))
+    saveFromDialog()
+    await waitFor(() => expect(api.updateDigitalForm).toHaveBeenCalledTimes(2))
+    const sent = api.updateDigitalForm.mock.calls.map((call) => call[2].expectedUpdatedAt)
+    expect(sent).toEqual([stamp, revised])
+  })
+
+  it('saves against the revision the edit started from when the forms list reloads with a newer one', async () => {
+    api.getDigitalForms.mockResolvedValue([draft])
+    api.updateDigitalForm.mockResolvedValue(draft)
+    render(
+      <DisplayLabelsProvider>
+        <CollectionWorkspace
+          initialProjectId="futuremakers-ncr"
+          initialFormId="form-draft"
+          initialView="import"
+        />
+      </DisplayLabelsProvider>,
+    )
+    await screen.findByDisplayValue('Intake draft')
+    api.getDigitalForms.mockResolvedValue([{ ...draft, updatedAt: '2026-09-26T00:00:00Z' }])
+    fireEvent.click(screen.getByRole('button', { name: 'Build forms' }))
+    await waitFor(() => expect(api.getDigitalForms).toHaveBeenCalledTimes(2))
+    await act(async () => undefined)
+    saveFromDialog()
+    await waitFor(() => expect(api.updateDigitalForm).toHaveBeenCalledOnce())
+    expect(api.updateDigitalForm.mock.calls[0]?.[2].expectedUpdatedAt).toBe(stamp)
+  })
 })
 
 describe('collection publish', () => {
@@ -346,6 +395,24 @@ describe('collection saved forms list', () => {
     await act(async () => undefined)
     expect(core.downloadCoreArtifact).not.toHaveBeenCalled()
   })
+
+  it('releases the screen after refusing the export of a form of another project', async () => {
+    api.getDigitalForms.mockResolvedValue([{ ...published, projectId: 'other-project' }])
+    renderFormsList()
+    fireEvent.click(await screen.findByRole('button', { name: 'Export form' }))
+    await act(async () => undefined)
+    expect(screen.getByRole('button', { name: 'Export form' }).matches(':disabled')).toBe(false)
+  })
+
+  it('reports no export when the screen changed hands while the file was being saved', async () => {
+    core.downloadCoreArtifact.mockImplementation(async () => clearSensitiveDraftStorage())
+    api.getDigitalForms.mockResolvedValue([published])
+    renderFormsList()
+    fireEvent.click(await screen.findByRole('button', { name: 'Export form' }))
+    await waitFor(() => expect(core.downloadCoreArtifact).toHaveBeenCalledOnce())
+    await act(async () => undefined)
+    expect(toasts.success).not.toHaveBeenCalled()
+  })
 })
 
 describe('collection form versions and copies', () => {
@@ -406,6 +473,53 @@ describe('collection form versions and copies', () => {
     const code = api.generateDigitalForm.mock.calls[0]?.[1].code as string
     expect(code).toHaveLength(64)
     expect(code).toMatch(/^a+_copy_[a-z0-9]+$/)
+  })
+
+  it('allows another version after a failed attempt', async () => {
+    api.getDigitalForms.mockResolvedValue([published])
+    api.createDigitalFormVersion.mockRejectedValue(new Error('Version failed.'))
+    renderOpenForm('form-live')
+    fireEvent.click(await screen.findByRole('button', { name: 'Create new version' }))
+    await waitFor(() => expect(toasts.error).toHaveBeenCalledWith('Version failed.'))
+    fireEvent.click(screen.getByRole('button', { name: 'Create new version' }))
+    await waitFor(() => expect(api.createDigitalFormVersion).toHaveBeenCalledTimes(2))
+  })
+
+  it.each([
+    ['fails', () => api.generateDigitalForm.mockRejectedValue(new Error('Copy failed.'))],
+    [
+      'succeeds',
+      () => api.generateDigitalForm.mockResolvedValue({ ...published, id: 'form-copy' }),
+    ],
+  ])('allows another copy after a copy %s', async (_name, arrange) => {
+    currentAccess.profile.permissions = [...currentAccess.profile.permissions, 'forms.generate']
+    api.getDigitalForms.mockResolvedValue([published])
+    arrange()
+    renderOpenForm('form-live')
+    fireEvent.click(await screen.findByRole('button', { name: 'Generate copy' }))
+    await waitFor(() => expect(api.generateDigitalForm).toHaveBeenCalledOnce())
+    await act(async () => undefined)
+    fireEvent.click(screen.getByRole('button', { name: 'Generate copy' }))
+    await waitFor(() => expect(api.generateDigitalForm).toHaveBeenCalledTimes(2))
+  })
+
+  it('lists a generated copy beside the draft it was made from', async () => {
+    currentAccess.profile.permissions = [...currentAccess.profile.permissions, 'forms.generate']
+    api.getDigitalForms.mockResolvedValue([draft])
+    api.generateDigitalForm.mockResolvedValue({ ...draft, id: 'form-copy', name: 'Intake copy' })
+    api.publishDigitalForm.mockResolvedValue({ ...draft, status: 'PUBLISHED' })
+    renderOpenForm('form-draft')
+    fireEvent.click(await screen.findByRole('button', { name: 'Generate copy' }))
+    await waitFor(() =>
+      expect(toasts.success).toHaveBeenCalledWith('Generated draft form Intake copy.'),
+    )
+    // The reload for the Forms view is dropped, so the list shows what the screen already held.
+    api.getDigitalForms.mockImplementation(async () => {
+      clearSensitiveDraftStorage()
+      return []
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Publish saved draft' }))
+    expect(await screen.findAllByRole('button', { name: 'Open form' })).toHaveLength(2)
   })
 })
 
@@ -576,5 +690,67 @@ describe('collection import proceed', () => {
     expect(code).toHaveLength(64)
     expect(code).toMatch(/^a_very_long_questionnaire_title/)
     expect(await screen.findByRole('button', { name: 'Open form' })).toBeTruthy()
+  })
+
+  it('offers a fresh Proceed after a paused run was closed', async () => {
+    stageDataset({ sourceColumns: [column], mappingRevision: 0 })
+    api.validateImport.mockResolvedValue({
+      id: 'batch-1',
+      mappingRevision: 3,
+      validationRevision: 1,
+      totals,
+    })
+    api.processImport.mockRejectedValue(new Error('Server stopped'))
+    await openImport('attendance.csv', 'beneficiary_id\nBEN-001', 'published-form')
+    confirmDialog('Proceed')
+    fireEvent.click(await screen.findByRole('button', { name: 'Close' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    fireEvent.click(screen.getByRole('button', { name: 'Proceed' }))
+    const dialog = screen.getByRole('dialog')
+    expect(within(dialog).queryByRole('button', { name: 'Resume processing' })).toBeNull()
+    expect(within(dialog).getByRole('button', { name: 'Proceed' })).toBeTruthy()
+  })
+
+  it('shows the title taken from the file name in the builder after a header-only create', async () => {
+    api.createDigitalForm.mockImplementation(async (projectId, input) => {
+      const created = { ...draft, ...input, id: 'created-form', projectId }
+      api.getDigitalForms.mockResolvedValue([created])
+      return created
+    })
+    await openImport('attendance-survey.csv', 'beneficiary_id,attendance_status')
+    confirmDialog('Create draft')
+    await screen.findByRole('button', { name: 'Open form' })
+    // jsdom cannot navigate, so the default action of the link click is cancelled.
+    document.addEventListener('click', (event) => event.preventDefault(), { once: true })
+    fireEvent.click(screen.getByRole('link', { name: /Build forms/ }))
+    const title = (await screen.findByLabelText('Form title')) as HTMLInputElement
+    expect(title.value).toBe('Attendance Survey')
+  })
+
+  it('builds the fields from the file headers when extending', async () => {
+    render(
+      <DisplayLabelsProvider>
+        <CollectionWorkspace
+          initialMode="extend"
+          initialView="import"
+          initialProjectId="futuremakers-ncr"
+        />
+      </DisplayLabelsProvider>,
+    )
+    await waitFor(() =>
+      expect(screen.getByLabelText('Source file').matches(':disabled')).toBe(false),
+    )
+    fireEvent.change(screen.getByLabelText('Source file'), {
+      target: {
+        files: [csvFile('extend.csv', 'beneficiary_id,attendance_status\nBEN-001,Present')],
+      },
+    })
+    await screen.findByText(/ready for/)
+    fireEvent.click(screen.getByRole('button', { name: 'Extend in builder' }))
+    const first = document.getElementById('collection-field-choice-imported-0-beneficiary_id')
+    expect(first?.getAttribute('aria-pressed')).toBe('true')
+    expect(
+      document.getElementById('collection-field-choice-imported-1-attendance_status'),
+    ).toBeTruthy()
   })
 })

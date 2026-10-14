@@ -1,6 +1,6 @@
 /* @vitest-environment jsdom */
 
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { StrictMode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -14,6 +14,12 @@ const api = vi.hoisted(() => ({
   getDigitalForms: vi.fn(),
   getActivities: vi.fn(),
   getIndicators: vi.fn(),
+  uploadImport: vi.fn(),
+  automaticImportMapping: vi.fn(),
+  getImportBatch: vi.fn(),
+  saveImportMapping: vi.fn(),
+  validateImport: vi.fn(),
+  processImport: vi.fn(),
 }))
 const access = vi.hoisted(() => {
   const permissions = [
@@ -48,6 +54,7 @@ const access = vi.hoisted(() => {
 
 vi.mock('@/providers/current-role-provider', () => ({ useCurrentRole: () => access }))
 vi.mock('@/lib/api/forms', () => ({ formsClient: api }))
+vi.mock('@/lib/api/imports', () => ({ importsClient: api }))
 vi.mock('@/lib/api/indicators', () => ({ indicatorsClient: api }))
 vi.mock('@/lib/api/activities', () => ({ activitiesClient: api }))
 vi.mock('@/lib/api/projects', () => ({ projectsClient: api }))
@@ -88,6 +95,7 @@ vi.mock('@/components/ui/select', async () => {
 })
 
 beforeEach(() => {
+  access.profile = { ...access.profile, assignedProjectIds: ['project-a', 'project-b'] }
   // The API list returns slim rows for roles without projects.detail.read.
   api.getProjectsForRole.mockResolvedValue([
     { id: 'project-a', code: 'A', title: 'Alpha Project', status: 'ONGOING' },
@@ -103,6 +111,33 @@ afterEach(() => {
 })
 
 const projectSelect = () => screen.getByLabelText('Project selection') as HTMLSelectElement
+const csvFile = (name: string, text: string) => {
+  const file = new File(['test'], name, { type: 'text/csv' })
+  Object.defineProperty(file, 'text', { configurable: true, value: async () => text })
+  return file
+}
+const attendance = {
+  id: 'published-form',
+  projectId: 'project-a',
+  code: 'attendance',
+  name: 'Attendance',
+  version: 1,
+  formType: 'OTHER',
+  status: 'PUBLISHED',
+  updatedAt: '2026-09-22T00:00:00Z',
+  activityId: null,
+  journeyStageId: null,
+  fields: [
+    {
+      code: 'beneficiary_id',
+      label: 'Beneficiary ID',
+      dataType: 'TEXT',
+      required: true,
+      metadataKey: true,
+      sadddField: false,
+    },
+  ],
+}
 
 describe('extend import project dropdown', () => {
   it.each([
@@ -276,5 +311,90 @@ describe('extend import project dropdown', () => {
     const labels = Array.from(projectSelect().options).map((option) => option.textContent)
     expect(labels).not.toContain('Beta Project')
     expect(labels).toContain('Alpha Project')
+  })
+
+  it('keeps an initial project that is not the first one listed', async () => {
+    render(
+      <DisplayLabelsProvider>
+        <CollectionWorkspace
+          initialView="import"
+          initialMode="extend"
+          initialProjectId="project-b"
+        />
+      </DisplayLabelsProvider>,
+    )
+    await waitFor(() =>
+      expect(Array.from(projectSelect().options).map((option) => option.textContent)).toContain(
+        'Alpha Project',
+      ),
+    )
+    await waitFor(() => expect(api.getDigitalForms).toHaveBeenLastCalledWith('project-b'))
+    expect(projectSelect().value).toBe('project-b')
+  })
+
+  it('keeps the file preview when the current project is selected again', async () => {
+    render(
+      <DisplayLabelsProvider>
+        <CollectionWorkspace initialView="import" initialMode="extend" />
+      </DisplayLabelsProvider>,
+    )
+    await waitFor(() => expect(projectSelect().value).toBe('project-a'))
+    fireEvent.change(screen.getByLabelText('Source file'), {
+      target: { files: [csvFile('extend.csv', 'beneficiary_id\nBEN-001')] },
+    })
+    await screen.findByText(/Preview ready for extend.csv/)
+    fireEvent.change(projectSelect(), { target: { value: 'project-a' } })
+    expect(screen.getByText(/Preview ready for extend.csv/)).toBeTruthy()
+  })
+
+  it('sends a column marked Ignored to the server mapping as ignored without a target', async () => {
+    api.getDigitalForms.mockResolvedValue([attendance])
+    api.uploadImport.mockResolvedValue({ id: 'batch-1', mappingRevision: 0 })
+    api.automaticImportMapping.mockResolvedValue({ mappingRevision: 1 })
+    api.getImportBatch.mockResolvedValue({
+      sourceColumns: [
+        { key: 'column_0001', columnIndex: 1, header: 'beneficiary_id' },
+        { key: 'column_0002', columnIndex: 2, header: 'notes' },
+      ],
+      mappingRevision: 1,
+    })
+    api.saveImportMapping.mockResolvedValue({ id: 'batch-1', mappingRevision: 2 })
+    api.validateImport.mockResolvedValue({
+      id: 'batch-1',
+      mappingRevision: 2,
+      validationRevision: 1,
+      totals: { rows: 1, valid: 1, invalid: 0, processed: 0, unprocessed: 1, failed: 0 },
+    })
+    api.processImport.mockResolvedValue({
+      id: 'batch-1',
+      status: 'PROCESSED',
+      totals: { rows: 1, valid: 1, invalid: 0, processed: 1, unprocessed: 0, failed: 0 },
+    })
+    render(
+      <DisplayLabelsProvider>
+        <CollectionWorkspace
+          initialView="import"
+          initialMode="import"
+          initialProjectId="project-a"
+          initialFormId="published-form"
+        />
+      </DisplayLabelsProvider>,
+    )
+    await waitFor(() =>
+      expect((screen.getByLabelText('Form title') as HTMLInputElement).value).toBe('Attendance'),
+    )
+    fireEvent.change(screen.getByLabelText('Source file'), {
+      target: { files: [csvFile('notes.csv', 'beneficiary_id,notes\nBEN-001,hello')] },
+    })
+    await screen.findByText(/Preview ready for notes.csv/)
+    const row = screen.getByText('notes', { selector: 'span' }).closest('tr') as HTMLElement
+    fireEvent.change(within(row).getAllByRole('combobox')[1], { target: { value: 'ignored' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Proceed' }))
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Proceed' }))
+    await waitFor(() => expect(api.saveImportMapping).toHaveBeenCalled())
+    expect(api.saveImportMapping.mock.calls[0]?.[3]).toEqual([
+      { sourceFieldName: 'column_0001', targetFieldCode: 'beneficiary_id', ignored: false },
+      { sourceFieldName: 'column_0002', targetFieldCode: undefined, ignored: true },
+    ])
   })
 })
