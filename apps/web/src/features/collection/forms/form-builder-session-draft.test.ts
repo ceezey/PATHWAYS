@@ -1,3 +1,4 @@
+import { digitalFormTypes } from '@pathways/shared'
 import { describe, expect, it, vi } from 'vitest'
 
 import type { BuilderFormField } from './digital-form-contract'
@@ -121,5 +122,24 @@ describe('form builder session draft', () => {
     })
     expect(target.getItem(key)).toBeNull()
     expect(readFormBuilderSessionDraft(target, key, null, draft.projectId)).toBeNull()
+  })
+
+  it.each(digitalFormTypes)('keeps a draft of the %s form type', (formType) => {
+    const target = storage()
+    const key = formBuilderSessionDraftKey(scope)
+    writeFormBuilderSessionDraft(target, key, { ...draft, formType })
+    expect(
+      readFormBuilderSessionDraft(target, key, draft.baseUpdatedAt, draft.projectId)?.formType,
+    ).toBe(formType)
+  })
+
+  it('drops a draft whose form type is not one the API defines', () => {
+    const target = storage()
+    const key = formBuilderSessionDraftKey(scope)
+    writeFormBuilderSessionDraft(target, key, { ...draft, formType: 'SURVEY' as never })
+    expect(target.getItem(key)).not.toBeNull()
+    expect(
+      readFormBuilderSessionDraft(target, key, draft.baseUpdatedAt, draft.projectId),
+    ).toBeNull()
   })
 })
