@@ -1,5 +1,6 @@
 import {
   type MetricCell,
+  type StoredProjectStatus,
   TIMELINE_ANALYTICS_CONTRACT_VERSION,
   type TimelineAnalytics,
   activityAggregateCells,
@@ -59,7 +60,7 @@ export function buildTimelineAnalytics(input: {
   generatedAt: string
   reportingDate: string
   project: {
-    status: 'PLANNED' | 'ONGOING' | 'COMPLETED' | 'ON_HOLD' | 'CANCELLED'
+    status: StoredProjectStatus
     archived: boolean
     startDate: string | null
     endDate: string | null

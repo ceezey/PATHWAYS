@@ -1,3 +1,4 @@
+import type { StoredProjectStatus } from '@pathways/shared'
 import { describe, expect, it } from 'vitest'
 import { buildTimelineAnalytics } from './timeline-analytics.helpers'
 
@@ -7,7 +8,7 @@ const aggregate = {
 }
 
 const build = (
-  status: 'PLANNED' | 'ONGOING' | 'COMPLETED' | 'ON_HOLD' | 'CANCELLED',
+  status: StoredProjectStatus,
   lastCompletedOn: string | null,
   overrides: { archived?: boolean; endDate?: string | null } = {},
 ) =>

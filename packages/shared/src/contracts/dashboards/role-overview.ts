@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { isCalendarDate } from '../../metrics/metric-math'
+import { storedProjectStatuses } from '../projects/project-requests'
 
 export const ROLE_OVERVIEW_CONTRACT_VERSION = 'dashboard.role-overview.v1' as const
 export const alertSeverities = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'] as const
@@ -20,7 +21,7 @@ const projectRow = z
     id,
     code: text(64),
     title: text(200),
-    status: z.enum(['PLANNED', 'ONGOING', 'COMPLETED', 'ON_HOLD', 'CANCELLED']),
+    status: z.enum(storedProjectStatuses),
     programName: text(200).nullable(),
     managerName: text(200).nullable(),
   })

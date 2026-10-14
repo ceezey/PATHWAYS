@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { storedProjectStatuses } from '../contracts/projects/project-requests'
 import { metricCellSchema as sharedCellSchema } from '../metrics/metric-cell'
 import {
   decimalString,
@@ -185,7 +186,7 @@ const timelineInputSchema = z
     conditionId: conditionIdSchema,
     asOf: instant,
     reportingDate: z.string().refine(isCalendarDate),
-    projectStatus: z.enum(['PLANNED', 'ONGOING', 'COMPLETED', 'ON_HOLD', 'CANCELLED']),
+    projectStatus: z.enum(storedProjectStatuses),
     projectArchived: z.boolean(),
     revision,
     metric: z.enum([
@@ -413,7 +414,7 @@ const aggregateBase = {
   conditionId: conditionIdSchema,
   asOf: instant,
   revision,
-  projectStatus: z.enum(['PLANNED', 'ONGOING', 'COMPLETED', 'ON_HOLD', 'CANCELLED']),
+  projectStatus: z.enum(storedProjectStatuses),
   projectArchived: z.boolean(),
 }
 const count = z.number().int().min(0).max(1000000000)
