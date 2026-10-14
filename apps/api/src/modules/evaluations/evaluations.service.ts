@@ -1,5 +1,6 @@
 import { BadRequestException, ConflictException, Inject, Injectable } from '@nestjs/common'
 import {
+  type EvaluationsResponse,
   createEvaluationRequest,
   hasAtomicPermission,
   returnEvaluationRequest,
@@ -76,7 +77,7 @@ export class EvaluationsService {
         })),
         evaluations: await withScores(tx, actor, id, evaluations.slice(0, maxEvaluations)),
         hasMore: evaluations.length > maxEvaluations,
-      }
+      } satisfies EvaluationsResponse
     })
   }
 

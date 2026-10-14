@@ -1,9 +1,14 @@
-import { type IndicatorResponse, type MetricCell, alertSeverities } from '@pathways/shared'
+import {
+  type AlertSeverity,
+  type IndicatorResponse,
+  type MetricCell,
+  alertSeverities,
+} from '@pathways/shared'
 
 export type StatusLevel = 'ON_TRACK' | 'AT_RISK' | 'OFF_TRACK' | 'NOT_AVAILABLE'
 export type Figure = {
   label: string
-  state: string
+  state: MetricCell['state']
   value: string | null
   reason: string | null
   detail: string
@@ -40,7 +45,12 @@ export type ProjectSections = {
     current: string
     progress: string
   }>
-  alerts?: Array<{ title: string; severity: string; explanation: string; evaluatedAt: string }>
+  alerts?: Array<{
+    title: string
+    severity: AlertSeverity
+    explanation: string
+    evaluatedAt: string
+  }>
 }
 type OverviewInput = {
   reportDate: string

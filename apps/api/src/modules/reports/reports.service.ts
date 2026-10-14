@@ -12,7 +12,16 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common'
 import { readApiEnv } from '@pathways/config'
-import { generateReportRequest, hasAtomicPermission, reportPreviewQuery } from '@pathways/shared'
+import {
+  type EvaluationRoundResponse,
+  type GenerateReportResponse,
+  type ReportPreviewResponse,
+  type ReportResponse,
+  type SurveyFormResponse,
+  generateReportRequest,
+  hasAtomicPermission,
+  reportPreviewQuery,
+} from '@pathways/shared'
 import { Prisma } from '@prisma/client'
 import { writeAuditLog } from '../../common/audit/write-audit-log'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
@@ -103,7 +112,7 @@ export class ReportsService {
           ...(source.sections ? { sections: source.sections } : {}),
           generatedAt: source.generatedAt,
           unavailableReasons: source.unavailableReasons,
-        }
+        } satisfies ReportPreviewResponse
       },
       { isolationLevel: 'RepeatableRead' },
     )
@@ -118,7 +127,7 @@ export class ReportsService {
         Array<{ id: string; name: string; code: string; version: number }>
       >`SELECT f.id::text,f.name,f.code,f.version FROM pathways.digital_forms f WHERE f.organization_id=${actor.organizationId}::uuid AND f.project_id=${projectId}::uuid AND f.form_type='TRAINING_SURVEY' AND f.status='PUBLISHED' AND NOT EXISTS(SELECT FROM pathways.digital_forms newer WHERE newer.organization_id=f.organization_id AND newer.project_id=f.project_id AND newer.code=f.code AND newer.status='PUBLISHED' AND newer.version>f.version) ORDER BY f.code,f.id LIMIT 101`
       if (rows.length > 100) throw new BadRequestException('Select a smaller survey scope.')
-      return rows
+      return rows satisfies SurveyFormResponse[]
     })
   }
   evaluationRounds(identity: ApplicationIdentity, projectId: string) {
@@ -144,15 +153,17 @@ export class ReportsService {
         take: 101,
       })
       if (rows.length > 100) throw new BadRequestException('Select a smaller evaluation scope.')
-      return rows.map((row) => ({
-        id: row.id,
-        title: row.title,
-        status: row.status,
-        periodStart: row.periodStart.toISOString().slice(0, 10),
-        periodEnd: row.periodEnd.toISOString().slice(0, 10),
-        signedOffAt: row.signedOffAt?.toISOString() ?? null,
-        overallScore: row.overallScore?.toString() ?? null,
-      }))
+      return rows.map(
+        (row): EvaluationRoundResponse => ({
+          id: row.id,
+          title: row.title,
+          status: row.status,
+          periodStart: row.periodStart.toISOString().slice(0, 10),
+          periodEnd: row.periodEnd.toISOString().slice(0, 10),
+          signedOffAt: row.signedOffAt?.toISOString() ?? null,
+          overallScore: row.overallScore?.toString() ?? null,
+        }),
+      )
     })
   }
   list(identity: ApplicationIdentity, projectId: string) {
@@ -180,17 +191,19 @@ export class ReportsService {
         take: 101,
       })
       if (rows.length > 100) throw new BadRequestException('Select a smaller report scope.')
-      return rows.map(({ evaluation, ...row }) => ({
-        ...row,
-        generatedAt: row.generatedAt?.toISOString() ?? null,
-        evaluation: evaluation
-          ? {
-              title: evaluation.title,
-              periodStart: evaluation.periodStart.toISOString().slice(0, 10),
-              periodEnd: evaluation.periodEnd.toISOString().slice(0, 10),
-            }
-          : null,
-      }))
+      return rows.map(
+        ({ evaluation, ...row }): ReportResponse => ({
+          ...row,
+          generatedAt: row.generatedAt?.toISOString() ?? null,
+          evaluation: evaluation
+            ? {
+                title: evaluation.title,
+                periodStart: evaluation.periodStart.toISOString().slice(0, 10),
+                periodEnd: evaluation.periodEnd.toISOString().slice(0, 10),
+              }
+            : null,
+        }),
+      )
     })
   }
   // Designed PDF through headless Chromium; null keeps the pdfkit artifact as the fallback.
@@ -214,7 +227,11 @@ export class ReportsService {
       return null
     }
   }
-  async generate(identity: ApplicationIdentity, requestedProjectId: string, input: unknown) {
+  async generate(
+    identity: ApplicationIdentity,
+    requestedProjectId: string,
+    input: unknown,
+  ): Promise<GenerateReportResponse> {
     if (!uuid.safeParse(requestedProjectId).success)
       throw new NotFoundException('Project unavailable.')
     const projectId = requestedProjectId.toLowerCase()
