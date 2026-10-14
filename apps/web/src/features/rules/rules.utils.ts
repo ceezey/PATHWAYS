@@ -1,4 +1,11 @@
-import { type HumanRule, type RuleMetricKey, type RuleNode, ruleMetrics } from '@pathways/shared'
+import {
+  type HumanAlert,
+  type HumanRule,
+  type RuleCondition,
+  type RuleMetricKey,
+  type RuleNode,
+  ruleMetrics,
+} from '@pathways/shared'
 
 export type MetricScope =
   | 'Project'
@@ -193,3 +200,49 @@ export const titleCase = (value: string) =>
     .replaceAll('_', ' ')
     .toLowerCase()
     .replace(/^\w/, (char) => char.toUpperCase())
+export const selectClass =
+  'h-11 w-full rounded-md border border-input bg-card px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:bg-secondary disabled:text-disabled-foreground'
+export type Rec = { id: string; title: string; text: string }
+export type Mode = 'AND' | 'OR'
+export const severities: readonly HumanRule['severity'][] = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']
+export const recordBound = (metric: string) =>
+  metric.startsWith('INDICATOR_') || metric === 'ACTIVITY_OVERDUE_DAYS'
+export const newRow = (metric: string): RuleCondition => ({
+  kind: 'CONDITION',
+  id: `c_${crypto.randomUUID().replaceAll('-', '')}`,
+  metric: metric as RuleCondition['metric'],
+  operator: 'LT',
+  threshold: '',
+})
+export const newRec = (): Rec => ({ id: crypto.randomUUID(), title: '', text: '' })
+export const nodeKey = (node: RuleNode): string =>
+  node.kind === 'CONDITION'
+    ? node.id
+    : `group_${node.children[0] ? nodeKey(node.children[0]) : 'empty'}`
+export const newCondition = (): RuleNode => ({
+  kind: 'CONDITION',
+  id: `c_${crypto.randomUUID().replaceAll('-', '')}`,
+  metric: 'PROJECT_REMAINING_DAYS',
+  operator: 'LT',
+  threshold: '0',
+})
+export const leafCount = (node: RuleNode): number =>
+  node.kind === 'CONDITION' ? 1 : node.children.reduce((sum, child) => sum + leafCount(child), 0)
+/** Removes indicator/activity bindings from every condition, e.g. after a project change. */
+export function clearRecordBindings(node: RuleNode): RuleNode {
+  if (node.kind === 'GROUP') return { ...node, children: node.children.map(clearRecordBindings) }
+  const { indicatorId: _indicator, activityId: _activity, ...rest } = node
+  return rest
+}
+export type Choice = { id: string; name: string }
+/** The first measured evidence value against its threshold, or null when none was measured. */
+export const basisLine = (alert: HumanAlert) => {
+  const seen = alert.evidence.find((item) => item.cell.value !== null)
+  return seen?.cell.value
+    ? `Current ${metricLabel(seen.metric).toLowerCase()} ${formatMetricValue(seen.cell.value, seen.unit)} vs threshold ${formatMetricValue(seen.threshold, seen.unit)}`
+    : null
+}
+export const codeLabel = (value: string) =>
+  value === 'AUTO_RESOLVED' ? 'Auto-resolved' : value.replaceAll('_', ' ').toLowerCase()
+export const manilaTime = (value: string) =>
+  new Date(value).toLocaleString('en-US', { timeZone: 'Asia/Manila' })

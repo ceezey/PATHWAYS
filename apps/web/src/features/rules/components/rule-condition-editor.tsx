@@ -4,28 +4,9 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { type RuleNode, operators, ruleMetrics } from '@pathways/shared'
-import { metricLabel } from '../rules.utils'
-export const comparisonCopy = {
-  LT: 'Below (<)',
-  LTE: 'At most (<=)',
-  EQ: 'Equal to (=)',
-  GTE: 'At least (>=)',
-  GT: 'Above (>)',
-  BETWEEN: 'Between',
-} as const
-const nodeKey = (node: RuleNode): string =>
-  node.kind === 'CONDITION'
-    ? node.id
-    : `group_${node.children[0] ? nodeKey(node.children[0]) : 'empty'}`
-export const newCondition = (): RuleNode => ({
-  kind: 'CONDITION',
-  id: `c_${crypto.randomUUID().replaceAll('-', '')}`,
-  metric: 'PROJECT_REMAINING_DAYS',
-  operator: 'LT',
-  threshold: '0',
-})
-export const leafCount = (node: RuleNode): number =>
-  node.kind === 'CONDITION' ? 1 : node.children.reduce((sum, child) => sum + leafCount(child), 0)
+import { comparisonCopy } from '../rules.copy'
+import { metricLabel, newCondition, nodeKey } from '../rules.utils'
+
 type Choice = { id: string; name: string }
 type Props = {
   node: RuleNode
@@ -37,12 +18,6 @@ type Props = {
   metrics?: readonly (typeof ruleMetrics)[number][]
   path?: string
   depth?: number
-}
-/** Removes indicator/activity bindings from every condition, e.g. after a project change. */
-export function clearRecordBindings(node: RuleNode): RuleNode {
-  if (node.kind === 'GROUP') return { ...node, children: node.children.map(clearRecordBindings) }
-  const { indicatorId: _indicator, activityId: _activity, ...rest } = node
-  return rest
 }
 export function RuleConditionEditor({
   node,
@@ -243,20 +218,5 @@ export function RuleConditionEditor({
         </div>
       ) : null}
     </fieldset>
-  )
-}
-export function RuleTreeView({ node }: { node: RuleNode }) {
-  return node.kind === 'GROUP' ? (
-    <div className="space-y-2 border-l-2 border-border pl-3">
-      <p className="font-medium">{node.mode === 'AND' ? 'All conditions' : 'Any condition'}</p>
-      {node.children.map((child) => (
-        <RuleTreeView key={nodeKey(child)} node={child} />
-      ))}
-    </div>
-  ) : (
-    <p className="text-sm">
-      {metricLabel(node.metric)} {comparisonCopy[node.operator]} {node.threshold}
-      {node.thresholdMaximum !== undefined ? ` to ${node.thresholdMaximum}` : ''}
-    </p>
   )
 }

@@ -28,7 +28,7 @@ import {
   timelineObservation,
 } from '@pathways/shared'
 import { useEffect, useRef, useState } from 'react'
-import { selectClass } from '../rule-drawer-shared'
+import { selectClass } from '../rules.utils'
 import { conditionSentence, titleCase, unitOf } from '../rules.utils'
 type IndicatorInput = {
   current: string

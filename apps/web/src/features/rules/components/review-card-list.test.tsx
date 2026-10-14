@@ -2,7 +2,8 @@
 import type { HumanAlert, HumanRecommendation } from '@pathways/shared'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { ReviewCardList, statusLabel } from './review-card-list'
+import { statusLabel } from '../rules.copy'
+import { ReviewCardList } from './review-card-list'
 
 const id = (n: number) => `30000000-0000-4000-8000-00000000000${n}`
 const alert = (lifecycle: HumanAlert['lifecycle']): HumanAlert =>

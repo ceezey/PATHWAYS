@@ -3,38 +3,15 @@ import { cn } from '@/lib/utils'
 import type { HumanAlert, HumanRecommendation } from '@pathways/shared'
 import { Lightbulb, TriangleAlert } from 'lucide-react'
 import type { ReactNode } from 'react'
-import { formatMetricValue, metricLabel, severityTone, titleCase } from '../rules.utils'
+import { basisLabel, statusLabel } from '../rules.copy'
+import { basisLine, severityTone, titleCase } from '../rules.utils'
 
-const STATUS_LABELS: Record<string, string> = {
-  NEW: 'New',
-  REVIEWED: 'Reviewed',
-  ACTIONED: 'Actioned',
-  RESOLVED: 'Resolved',
-  DISMISSED: 'Dismissed',
-  AUTO_RESOLVED: 'Auto-resolved',
-}
-/** Unknown statuses fall back to title case instead of failing. */
-export const statusLabel = (status: string) => STATUS_LABELS[status] ?? titleCase(status)
 const statusTone = (status: string) =>
   status === 'NEW'
     ? ('info' as const)
     : status === 'ACTIONED'
       ? ('success' as const)
       : ('neutral' as const)
-const BASIS_LABELS: Record<string, string> = {
-  KPI: 'Based on indicator (KPI) results',
-  COMBINED: 'Based on project monitoring signals',
-}
-/** Plain-language basis; unknown or free-text values pass through with a Based on prefix. */
-export const basisLabel = (basis: string) =>
-  BASIS_LABELS[basis] ?? (basis.startsWith('Based on') ? basis : `Based on ${basis}`)
-/** The first measured evidence value against its threshold, or null when none was measured. */
-export const basisLine = (alert: HumanAlert) => {
-  const seen = alert.evidence.find((item) => item.cell.value !== null)
-  return seen?.cell.value
-    ? `Current ${metricLabel(seen.metric).toLowerCase()} ${formatMetricValue(seen.cell.value, seen.unit)} vs threshold ${formatMetricValue(seen.threshold, seen.unit)}`
-    : null
-}
 
 // Tailwind needs whole class names, so each tone keeps its own surface, border, icon and title styles.
 const TONE_STYLES = {

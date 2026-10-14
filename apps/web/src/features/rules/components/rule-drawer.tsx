@@ -20,14 +20,9 @@ import {
   parseRuleTree,
 } from '@pathways/shared'
 import { useEffect, useRef, useState } from 'react'
-import {
-  DEFAULT_REC,
-  type Mode,
-  type Rec,
-  newRec,
-  newRow,
-  recordBound,
-} from '../rule-drawer-shared'
+import { useBindingChoices } from '../hooks/use-binding-choices'
+import { DEFAULT_REC } from '../rules.copy'
+import { type Mode, type Rec, newRec, newRow, recordBound } from '../rules.utils'
 import {
   type MetricScope,
   appliesTo,
@@ -37,14 +32,17 @@ import {
   previewSentence,
   suggestRuleCode,
 } from '../rules.utils'
-import { ApplyToFields, ConditionBuilder, useBindingChoices } from './condition-builder'
-import { clearRecordBindings } from './rule-condition-editor'
+import { clearRecordBindings } from '../rules.utils'
+import { ApplyToFields } from './apply-to-fields'
+import { ConditionBuilder } from './condition-builder'
+import { RecommendationFields } from './recommendation-fields'
 import { RuleDrawerFooter } from './rule-drawer-footer'
 import { RuleEditor } from './rule-editor'
 import { LifecyclePrompt } from './rule-lifecycle-prompt'
-import { RecommendationFields, RulePreview, SeverityField } from './rule-output-fields'
+import { RulePreview } from './rule-preview'
 import { RuleStepCard } from './rule-step-card'
 import { RuleTestWorkspace } from './rule-test-workspace'
+import { SeverityField } from './severity-field'
 
 export type DrawerIntent = 'test' | 'activate' | 'deactivate'
 type Props = {

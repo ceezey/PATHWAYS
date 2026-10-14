@@ -24,12 +24,9 @@ import {
   ruleMetrics,
 } from '@pathways/shared'
 import { useEffect, useId, useRef, useState } from 'react'
-import {
-  RuleConditionEditor,
-  clearRecordBindings,
-  leafCount,
-  newCondition,
-} from './rule-condition-editor'
+import { type RuleTemplateSpec, ruleTemplates } from '../rule-templates'
+import { clearRecordBindings, leafCount, newCondition } from '../rules.utils'
+import { RuleConditionEditor } from './rule-condition-editor'
 
 type Props = {
   projectId: string | null
@@ -53,77 +50,6 @@ const findRecordBoundLeaf = (node: RuleNode): RuleCondition | null =>
     : recordBoundMetrics.includes(node.metric)
       ? node
       : null
-
-type RuleTemplateSpec = {
-  key: string
-  name: string
-  available: boolean
-  unavailableReason?: string
-  build?: () => {
-    name: string
-    code: string
-    severity: HumanRule['severity']
-    conditions: RuleNode
-    recommendations: { id: string; title: string; text: string }[]
-  }
-}
-const ruleTemplates: RuleTemplateSpec[] = [
-  {
-    key: 'OPERATIONS_BOTTLENECK',
-    name: 'Operations Bottleneck',
-    available: true,
-    build: () => ({
-      name: 'Operations Bottleneck',
-      code: 'OPERATIONS_BOTTLENECK',
-      severity: 'HIGH',
-      conditions: {
-        kind: 'GROUP',
-        mode: 'AND',
-        children: [
-          {
-            kind: 'CONDITION',
-            id: `c_${crypto.randomUUID().replaceAll('-', '')}`,
-            metric: 'PROJECT_TIMELINE_ELAPSED_PERCENT',
-            operator: 'GT',
-            threshold: '50',
-          },
-          {
-            kind: 'CONDITION',
-            id: `c_${crypto.randomUUID().replaceAll('-', '')}`,
-            metric: 'ACTIVITY_COMPLETION_PERCENT',
-            operator: 'LT',
-            threshold: '40',
-          },
-        ],
-      },
-      recommendations: [
-        {
-          id: crypto.randomUUID(),
-          title: 'Review activity schedule',
-          text: 'Review dependencies in the activity schedule. Consider allocating additional field staff or adjusting milestone dates.',
-        },
-      ],
-    }),
-  },
-  {
-    key: 'FINANCIAL_EFFICIENCY_RISK',
-    name: 'Financial Efficiency Risk',
-    available: false,
-    unavailableReason: 'Requires a rule template that is not yet available',
-  },
-  {
-    key: 'BUDGET_UNDER_UTILIZATION',
-    name: 'Budget Under-utilization',
-    available: false,
-    unavailableReason: 'Requires a rule template that is not yet available',
-  },
-  {
-    key: 'IDEAL_VECTOR',
-    name: 'Ideal Vector',
-    available: false,
-    unavailableReason: 'Requires a rule template that is not yet available',
-  },
-]
 
 export function RuleEditor(props: Props) {
   const { profile, access } = useCurrentRole()

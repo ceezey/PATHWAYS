@@ -15,23 +15,20 @@ import { useAuthorizedRead } from '@/hooks/use-authorized-read'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'
 import { projectsClient } from '@/lib/api/projects'
-import { useSensitiveDraftOwner } from '@/lib/auth/sensitive-drafts'
 import { principalHasAtomicPermission } from '@/lib/rbac/policy'
 import { rulesHumanClient } from '@/lib/services/rules-human-client'
-import type { HumanAlert, HumanNotification } from '@pathways/shared'
 import { ArrowDownWideNarrow } from 'lucide-react'
 import Link from 'next/link'
-import { useRef, useState } from 'react'
-import { formatMetricValue } from '../rules.utils'
+import { useState } from 'react'
+import { basisLabel, statusLabel } from '../rules.copy'
+import { codeLabel, manilaTime } from '../rules.utils'
+import { AlertEvidence } from './alert-evidence'
+import { EvidenceTable } from './evidence-table'
 import { HumanReviewAction } from './human-review-action'
 import { LinkedAlertSummary } from './linked-alert-summary'
-import { ReviewCardList, basisLabel, statusLabel } from './review-card-list'
-import { RuleTreeView, comparisonCopy } from './rule-condition-editor'
+import { NotificationRow } from './notification-row'
+import { ReviewCardList } from './review-card-list'
 
-const codeLabel = (value: string) =>
-  value === 'AUTO_RESOLVED' ? 'Auto-resolved' : value.replaceAll('_', ' ').toLowerCase()
-const manilaTime = (value: string) =>
-  new Date(value).toLocaleString('en-US', { timeZone: 'Asia/Manila' })
 const permissionFor = (kind: 'alert' | 'recommendation', action: 'read' | 'review' | 'outcome') =>
   kind === 'alert'
     ? action === 'read'
@@ -492,155 +489,5 @@ export function HumanReviewWorkspace({
         </SectionCard>
       ) : null}
     </div>
-  )
-}
-function AlertEvidence({ item }: { item: HumanAlert }) {
-  const { profile } = useCurrentRole()
-  const canReadLinked =
-    principalHasAtomicPermission(profile, 'recommendations.read') &&
-    item.linkedRecommendationIds.length > 0
-  // One read labels each linked recommendation by its title instead of a number.
-  const linked = useAuthorizedRead(
-    `alert-linked-recommendations:${item.id}`,
-    item.projectId,
-    'recommendations.read',
-    (signal) => rulesHumanClient.listRecommendations({ alertId: item.id, limit: '10' }, signal),
-    canReadLinked,
-    { freshness: 'summary' },
-  )
-  const titleOf = (id: string) => linked.data?.items.find((row) => row.id === id)?.title
-  return (
-    <div className="space-y-4">
-      <p className="whitespace-pre-wrap">{item.explanation}</p>
-      <p className="text-sm text-muted-foreground">
-        Rule version {item.ruleVersion}; {codeLabel(item.freshness)}. Evaluated{' '}
-        {manilaTime(item.evaluatedAt)} Asia/Manila. Reporting date {item.reportingDate}; calendar
-        version {item.calendar.version}.
-      </p>
-      <RuleTreeView node={item.conditions} />
-      <EvidenceTable evidence={item.evidence} />
-      {canReadLinked ? (
-        <ul className="space-y-2">
-          {item.linkedRecommendationIds.map((id, index) => (
-            <li key={id}>
-              <Link className="text-primary underline" href={`/recommendations/${id}`}>
-                {titleOf(id)
-                  ? `Linked recommendation: ${titleOf(id)}`
-                  : `View linked recommendation ${index + 1}`}
-              </Link>
-            </li>
-          ))}
-        </ul>
-      ) : null}
-      <h3 className="font-semibold">Predefined recommendations</h3>
-      <ul className="space-y-2">
-        {item.predefinedRecommendations.map((recommendation) => (
-          <li key={recommendation.id}>
-            <strong>{recommendation.title}</strong>
-            <p>{recommendation.text}</p>
-          </li>
-        ))}
-      </ul>
-    </div>
-  )
-}
-function EvidenceTable({ evidence }: { evidence: HumanAlert['evidence'] }) {
-  return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-left text-sm">
-        <caption className="mb-2 text-left font-semibold">Recorded evaluation evidence</caption>
-        <thead>
-          <tr>
-            <th className="p-2" scope="col">
-              Metric
-            </th>
-            <th className="p-2" scope="col">
-              Observed value
-            </th>
-            <th className="p-2" scope="col">
-              Condition
-            </th>
-            <th className="p-2" scope="col">
-              Result
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {evidence.map((evidence) => (
-            <tr className="border-t border-border" key={evidence.conditionId}>
-              <th className="p-2 font-normal" scope="row">
-                {codeLabel(evidence.metric)}
-              </th>
-              <td className="p-2">
-                {evidence.cell.value !== null
-                  ? formatMetricValue(evidence.cell.value, evidence.unit)
-                  : `${codeLabel(evidence.cell.state)}${evidence.cell.reason ? ` (${codeLabel(evidence.cell.reason)})` : ''}`}
-              </td>
-              <td className="p-2">
-                {comparisonCopy[evidence.operator]}{' '}
-                {formatMetricValue(evidence.threshold, evidence.unit)}
-                {evidence.thresholdMaximum !== null
-                  ? ` to ${formatMetricValue(evidence.thresholdMaximum, evidence.unit)}`
-                  : ''}
-              </td>
-              <td className="p-2">{codeLabel(evidence.result)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  )
-}
-function NotificationRow({ item, onRead }: { item: HumanNotification; onRead: () => void }) {
-  const { profile, access } = useCurrentRole()
-  const owner = useSensitiveDraftOwner(
-    profile,
-    'notification-read',
-    'alerts.read',
-    item.projectId,
-    item.id,
-    access === 'ready',
-  )
-  const [busy, setBusy] = useState(false)
-  const [notice, setNotice] = useState('')
-  const inFlight = useRef(false)
-  const markRead = async () => {
-    if (!owner?.isCurrent() || inFlight.current) return
-    inFlight.current = true
-    setBusy(true)
-    setNotice('')
-    try {
-      await rulesHumanClient.markNotificationRead(item.id)
-      if (owner.isCurrent()) onRead()
-    } catch {
-      if (owner.isCurrent()) setNotice('Could not mark this notification read. Try again.')
-    } finally {
-      inFlight.current = false
-      if (owner.isCurrent()) setBusy(false)
-    }
-  }
-  return (
-    <li className="space-y-2 rounded-sm border border-border p-3">
-      <p>{item.message}</p>
-      <p className="text-sm text-muted-foreground">
-        {manilaTime(item.createdAt)} Asia/Manila; {codeLabel(item.deliveryState)}
-      </p>
-      <Link className="text-primary underline" href={`/alerts?alert=${item.alertId}`}>
-        View alert
-      </Link>
-      {item.readAt ? (
-        <p className="text-sm">Read</p>
-      ) : (
-        <Button
-          disabled={busy || !owner}
-          type="button"
-          variant="outline"
-          onClick={() => void markRead()}
-        >
-          Mark read
-        </Button>
-      )}
-      {notice ? <output className="block text-sm">{notice}</output> : null}
-    </li>
   )
 }
