@@ -236,6 +236,8 @@ describe('AnalyticsActionBar', () => {
 
     it.each([
       ['no project', { selectedProject: undefined }],
+      ['no project in the timeline view', { analysisView: 'timeline', selectedProject: undefined }],
+      ['no project in the survey view', { analysisView: 'survey', selectedProject: undefined }],
       ['an export running', { exporting: true }],
       ['the kpi view without a period', { pickerPeriod: undefined }],
       [
