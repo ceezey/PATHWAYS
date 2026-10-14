@@ -5,9 +5,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Sheet } from '@/components/ui/sheet'
-import { clearRecordBindings } from '@/features/analytics/rule-condition-editor'
-import { RuleEditor } from '@/features/analytics/rule-editor'
-import { RuleTestWorkspace } from '@/features/analytics/rule-test-workspace'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { usePermission } from '@/hooks/use-permission'
 import { PathwaysClientError } from '@/lib/api/core/request'
@@ -24,6 +21,14 @@ import {
 } from '@pathways/shared'
 import { useEffect, useRef, useState } from 'react'
 import {
+  DEFAULT_REC,
+  type Mode,
+  type Rec,
+  newRec,
+  newRow,
+  recordBound,
+} from '../rule-drawer-shared'
+import {
   type MetricScope,
   appliesTo,
   availableMetrics,
@@ -31,13 +36,15 @@ import {
   conditionSummary,
   previewSentence,
   suggestRuleCode,
-} from './rule-board-model'
-import { ApplyToFields, ConditionBuilder, useBindingChoices } from './rule-condition-rows'
+} from '../rules.utils'
+import { ApplyToFields, ConditionBuilder, useBindingChoices } from './condition-builder'
+import { clearRecordBindings } from './rule-condition-editor'
 import { RuleDrawerFooter } from './rule-drawer-footer'
-import { DEFAULT_REC, type Mode, type Rec, newRec, newRow, recordBound } from './rule-drawer-shared'
+import { RuleEditor } from './rule-editor'
 import { LifecyclePrompt } from './rule-lifecycle-prompt'
 import { RecommendationFields, RulePreview, SeverityField } from './rule-output-fields'
 import { RuleStepCard } from './rule-step-card'
+import { RuleTestWorkspace } from './rule-test-workspace'
 
 export type DrawerIntent = 'test' | 'activate' | 'deactivate'
 type Props = {

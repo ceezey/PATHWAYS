@@ -4,13 +4,13 @@ import { UnavailableHint } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { RuleTreeView, clearRecordBindings } from '@/features/analytics/rule-condition-editor'
 import { useAuthorizedRead } from '@/hooks/use-authorized-read'
 import { usePermission } from '@/hooks/use-permission'
 import { activitiesClient } from '@/lib/api/activities'
 import { indicatorsClient } from '@/lib/api/indicators'
 import { cn } from '@/lib/utils'
 import { type HumanRule, type RuleCondition, operators } from '@pathways/shared'
+import { type Mode, newRow, recordBound, selectClass } from '../rule-drawer-shared'
 import {
   type MetricScope,
   SCOPES,
@@ -18,8 +18,8 @@ import {
   metricLabel,
   operatorWords,
   unitLabel,
-} from './rule-board-model'
-import { type Mode, newRow, recordBound, selectClass } from './rule-drawer-shared'
+} from '../rules.utils'
+import { RuleTreeView, clearRecordBindings } from './rule-condition-editor'
 
 type Choice = { id: string; name: string }
 

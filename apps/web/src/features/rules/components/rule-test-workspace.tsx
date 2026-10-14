@@ -28,8 +28,8 @@ import {
   timelineObservation,
 } from '@pathways/shared'
 import { useEffect, useRef, useState } from 'react'
-import { conditionSentence, titleCase, unitOf } from '../rules-board/rule-board-model'
-import { selectClass } from '../rules-board/rule-drawer-shared'
+import { selectClass } from '../rule-drawer-shared'
+import { conditionSentence, titleCase, unitOf } from '../rules.utils'
 type IndicatorInput = {
   current: string
   baseline: string

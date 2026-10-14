@@ -71,7 +71,7 @@ describe('"None yet" empty states versus error and permission wording', () => {
       'title="Some information is unavailable"',
     ],
     [
-      'features/projects/project-rules-panel.tsx',
+      'features/rules/components/project-rules-panel.tsx',
       'Project alerts are unavailable for your current access.',
     ],
     ['features/projects/projects.utils.ts', '// Unknown reasons are not assumed to be empty.'],

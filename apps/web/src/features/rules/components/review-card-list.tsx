@@ -3,7 +3,7 @@ import { cn } from '@/lib/utils'
 import type { HumanAlert, HumanRecommendation } from '@pathways/shared'
 import { Lightbulb, TriangleAlert } from 'lucide-react'
 import type { ReactNode } from 'react'
-import { formatMetricValue, metricLabel, severityTone, titleCase } from './rule-board-model'
+import { formatMetricValue, metricLabel, severityTone, titleCase } from '../rules.utils'
 
 const STATUS_LABELS: Record<string, string> = {
   NEW: 'New',

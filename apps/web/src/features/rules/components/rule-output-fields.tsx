@@ -7,7 +7,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 import type { HumanRule } from '@pathways/shared'
 import { useState } from 'react'
-import { type Rec, newRec, severities } from './rule-drawer-shared'
+import { type Rec, newRec, severities } from '../rule-drawer-shared'
 
 // Each severity carries the reading an officer should take from it, including the
 // low end used for progress and milestone insight rather than risk. The picker keeps

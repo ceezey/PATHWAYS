@@ -1,11 +1,11 @@
 'use client'
 
 import { StatusBadge } from '@/components/pathways'
-import { basisLine, statusLabel } from '@/features/rules-board/review-card-list'
-import { severityTone, titleCase } from '@/features/rules-board/rule-board-model'
 import { useAuthorizedRead } from '@/hooks/use-authorized-read'
 import { rulesHumanClient } from '@/lib/services/rules-human-client'
 import Link from 'next/link'
+import { severityTone, titleCase } from '../rules.utils'
+import { basisLine, statusLabel } from './review-card-list'
 
 /** Names the alert a recommendation came from, with its severity, status and measured value. */
 export function LinkedAlertSummary({ alertId, projectId }: { alertId: string; projectId: string }) {

@@ -11,7 +11,7 @@ import {
   previewSentence,
   severityTone,
   suggestRuleCode,
-} from './rule-board-model'
+} from './rules.utils'
 
 const leaf = (id: string, metric: string, operator: string, threshold: string, max?: string) =>
   ({

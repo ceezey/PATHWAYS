@@ -11,8 +11,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { ReviewCardList, basisLabel, statusLabel } from '@/features/rules-board/review-card-list'
-import { formatMetricValue } from '@/features/rules-board/rule-board-model'
 import { useAuthorizedRead } from '@/hooks/use-authorized-read'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'
@@ -24,8 +22,10 @@ import type { HumanAlert, HumanNotification } from '@pathways/shared'
 import { ArrowDownWideNarrow } from 'lucide-react'
 import Link from 'next/link'
 import { useRef, useState } from 'react'
+import { formatMetricValue } from '../rules.utils'
 import { HumanReviewAction } from './human-review-action'
 import { LinkedAlertSummary } from './linked-alert-summary'
+import { ReviewCardList, basisLabel, statusLabel } from './review-card-list'
 import { RuleTreeView, comparisonCopy } from './rule-condition-editor'
 
 const copy = (value: string) =>

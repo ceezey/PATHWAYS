@@ -39,7 +39,7 @@ import {
   severityTone,
   statusTone,
   titleCase,
-} from './rule-board-model'
+} from '../rules.utils'
 import { type DrawerIntent, RuleDrawer, type RuleOutcome } from './rule-drawer'
 
 // Radix Select rejects an empty value, so the organization scope uses a sentinel.
