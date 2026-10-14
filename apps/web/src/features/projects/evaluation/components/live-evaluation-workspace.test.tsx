@@ -1,6 +1,6 @@
 /* @vitest-environment jsdom */
 import type { EvaluationDetailResponse } from '@pathways/shared'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { LiveEvaluationWorkspace } from './live-evaluation-workspace'
 
@@ -238,6 +238,55 @@ describe('automatic evaluation workspace', () => {
     const confirm = screen.getAllByRole('button', { name: 'Submit evaluation' })
     fireEvent.click(confirm[confirm.length - 1] as HTMLElement)
     await waitFor(() => expect(state.submit).toHaveBeenCalledOnce())
+  })
+
+  it('keeps submit locked until the unsaved narrative is recomputed and saved', async () => {
+    state.evaluation = { ...openEvaluation }
+    state.saveScores.mockResolvedValue({ ...openEvaluation })
+    render(<LiveEvaluationWorkspace projectId={projectId} />)
+    const notice = 'Recompute to save the narrative before submitting.'
+    expect(screen.queryByText(notice)).toBeNull()
+    fireEvent.change(screen.getByLabelText('Evaluation narrative'), { target: { value: 'Notes' } })
+    expect(screen.getByText(notice)).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Recompute' }))
+    await waitFor(() => expect(state.success).toHaveBeenCalledWith('Scores recomputed.'))
+    expect(screen.queryByText(notice)).toBeNull()
+    expect(screen.getByRole('button', { name: 'Submit evaluation' }).hasAttribute('disabled')).toBe(
+      false,
+    )
+  })
+
+  it('shows the server message when a recompute fails and keeps the narrative unsaved', async () => {
+    state.evaluation = { ...openEvaluation }
+    state.saveScores.mockRejectedValue(Error('Scores are locked'))
+    render(<LiveEvaluationWorkspace projectId={projectId} />)
+    fireEvent.change(screen.getByLabelText('Evaluation narrative'), { target: { value: 'Notes' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Recompute' }))
+    await waitFor(() => expect(state.error).toHaveBeenCalledWith('Scores are locked'))
+    expect(state.success).not.toHaveBeenCalled()
+    expect(state.refetch).not.toHaveBeenCalled()
+    expect(screen.getByText('Recompute to save the narrative before submitting.')).toBeTruthy()
+  })
+
+  it('sends one request while an operation is pending', () => {
+    state.evaluation = { ...openEvaluation }
+    state.saveScores.mockReturnValue(new Promise(() => {}))
+    render(<LiveEvaluationWorkspace projectId={projectId} />)
+    const button = screen.getByRole('button', { name: 'Recompute' })
+    act(() => {
+      button.click()
+      button.click()
+    })
+    expect(state.saveScores).toHaveBeenCalledOnce()
+    expect(button.hasAttribute('disabled')).toBe(true)
+  })
+
+  it('refuses to start a round that ends before it begins', () => {
+    render(<LiveEvaluationWorkspace projectId={projectId} />)
+    fireEvent.change(screen.getByLabelText('Period end'), { target: { value: '2025-12-31' } })
+    expect(screen.getByRole('button', { name: 'Start evaluation' }).hasAttribute('disabled')).toBe(
+      true,
+    )
   })
 
   it('shows the return reason and keeps it out of the narrative', () => {
