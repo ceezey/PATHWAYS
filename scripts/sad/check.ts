@@ -82,8 +82,8 @@ export const roles = {
       'packages/shared/src/contracts/indicators/**/*.ts',
       'apps/api/src/modules/indicators/**/*.ts',
       'apps/api/src/modules/rules/**/*.ts',
-      'apps/web/src/features/analytics/rule*.ts',
-      'apps/web/src/features/analytics/rule*.tsx',
+      'apps/web/src/features/rules/**/*.ts',
+      'apps/web/src/features/rules/**/*.tsx',
     ],
   },
   'restraint-guardian': {

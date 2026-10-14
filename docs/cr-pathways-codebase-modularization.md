@@ -49,7 +49,7 @@ Feature folder `apps/web/src/features/<domain>/`:
 |---|---|
 | `components/` | One exported component per file |
 | `hooks/` | `use-*.ts` state, reads and writes |
-| `<domain>.reads.ts` | Authorized-read resource keys and fetchers |
+| `<domain>.reads.ts` | Authorized-read resource keys, fetchers and the hooks that call them |
 | `<domain>.utils.ts` | Pure helpers |
 | `<domain>.copy.ts` | Labels and constants |
 | `index.ts` | Public surface; other features import only from here |
@@ -129,7 +129,7 @@ Domain slices, each covering contracts, API split, web client and feature compon
 | S4a, S4b | Beneficiaries, participants, journey, media. S4a: request contracts and api split; S4b: web client, response contracts and feature layout; S4c: beneficiary component splits | Provides `promoteRegistration` and `promoteParticipation` to imports |
 | S5a, S5b, S5c | Collection: metadata, imports, `packages/imports`. S5a: imports and metadata contracts, api service splits, smart-match split; S5b: web client, one import flow, collection components | Merges the two import flows; splits `smart-match` |
 | S6a, S6b, S6c | Finance, evaluations, reports, report-pdf (S6a: shared contracts and API; S6b: web client and screens; S6c: response contracts, report kind grants, workspace splits) | Removes the reports and report-pdf cycle |
-| S7 | Analytics, dashboards, rules | Merges rules-board and analytics rule files into `features/rules` |
+| S7 | Analytics, dashboards, rules | Merges rules-board and analytics rule files into `features/rules`; split into S7a (rules) and S7b (analytics and dashboards) |
 | S8 | Public, users, profile, auth and MFA | Least coupled |
 
 Wrap-up:
@@ -453,3 +453,16 @@ S6c applied 2026-10-14 on the S6c slice branch:
 - Gate: S6c is the last slice of part 2 of 3 stacked pull requests into `dev`; the controller opens that pull request (`claude/modularization-s6c-9ept8o` into `dev`) after the S6c sign-off, and its CI, including the DB replay, is the gate for the stack.
 
 S6 is complete after S6c; the `dashboards <-> reports` import pair is left to S7.
+
+S7a applied 2026-10-14 on the S7a slice branch:
+- Feature: 30 files from `features/rules-board`, the analytics rule and review screens and `features/projects/project-rules-panel.tsx` moved to `features/rules` (`components/`, `hooks/`, `rules.utils.ts`, `rules.copy.ts`, `rules.reads.ts`, `rule-templates.ts`, `index.ts`); analytics and rules no longer import each other.
+- Split: one exported component per file; `rule-drawer-shared.ts` and `rule-output-fields.tsx` were emptied and removed; `Owned*` screens became `*Form`; declarations moved verbatim (`same lines: 2435`).
+- Duplicates: the two copies of the three `rule-binding-*` reads became `rules.reads` hooks with the same keys, scopes, permissions and enabled flags; `SEVERITY_RANK` became `alertSeverityRank` over shared `alertSeverities`; a duplicate `Choice` type and the dead `firstMetric` were removed; the literal NUL key separator became an escape.
+- Client: `lib/services/rules-human-client.ts` moved to `lib/api/rules.ts` (22 specifiers in 21 files, 9 mocks).
+- Surface: `features/rules/index.ts` exports `AlertsWorkspace`, `RulesBoard`, `RecommendationsWorkspace` and `ProjectRulesPanel`; the three route pages and the project review workspace import it; `import-direction.test.ts` lists `rules` among the indexed features; no route more than 1 kB bigger than before (`routes 72, different 2`).
+- Api: four controllers in `rules-human.controller.ts` became one per file; the five rules controllers use `requestIdentity`; seven `Prisma.TransactionClient` annotations became `Tx`; `rules.routes.test.ts` pins 23 routes, the 403 without identity, the service call of every handler and the route argument metadata (request, param, query and body) of every handler.
+- SAD: rule-engine determinism routing covers `apps/web/src/features/rules/**`.
+- Tests: api gained 1 file and 4 tests (`rules.routes.test.ts`, the fourth added by a review fix for the argument metadata), web 3 files and 17 tests (the reuse key, the evidence and history rows, the sort, the editor and drawer bindings, the rank and the read fetchers); the rows added before each move pin behavior that no test held (the alert evidence table, the history list, the binding reads of the indicator and context paths, and the service call of each controller handler). `NotificationRow` is not pinned because no control reaches it.
+- Decisions: split into S7a and S7b by domain (ruling 1); route pages import `features/rules` through its index, as S1b does (ruling 3); three rules files stay above 500 lines, `rule-editor.tsx` (632), `rule-test-workspace.tsx` (603) and `rules-board.tsx` (503), because each is one stateful body (ruling 4); the client keeps the name `rulesHumanClient` (ruling 9); no contract or DTO work, because the rules api has no DTO (ruling 13).
+
+Deferred to S7b: analytics and dashboards api, web and the shared `monitoring` folder, including `dashboards.dto.ts`, the `descriptive-analytics` and `role-overview` splits, `requestIdentity` and `Tx` in the five analytics and dashboards controllers and their services, the stored project status union copies (three of them in `packages/shared/src/rules`), the `dashboards <-> reports` module pair, `analytics-dashboard.tsx`, `DashboardSeverity` and the analytics and dashboard indexes.

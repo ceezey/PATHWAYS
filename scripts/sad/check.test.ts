@@ -68,12 +68,14 @@ describe('routing and digest', () => {
   it('routes rules engine and rule editor changes to the determinism checker', () => {
     const routed = routing([
       change('apps/api/src/modules/rules/rule-engine.ts', 'new', 'old'),
-      change('apps/web/src/features/analytics/rule-editor.tsx', 'new', 'old'),
+      change('apps/web/src/features/rules/components/rule-editor.tsx', 'new', 'old'),
+      change('apps/web/src/features/rules/rules.utils.ts', 'new', 'old'),
       change('packages/shared/src/rules/rule-contract.ts', 'new', 'old'),
     ])
     expect(routed['rule-engine-determinism-checker']).toEqual([
       'apps/api/src/modules/rules/rule-engine.ts',
-      'apps/web/src/features/analytics/rule-editor.tsx',
+      'apps/web/src/features/rules/components/rule-editor.tsx',
+      'apps/web/src/features/rules/rules.utils.ts',
       'packages/shared/src/rules/rule-contract.ts',
     ])
   })
