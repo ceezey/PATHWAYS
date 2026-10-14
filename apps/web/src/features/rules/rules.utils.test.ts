@@ -4,12 +4,18 @@ import {
   alertSeverityRank,
   appliesTo,
   availableMetrics,
+  clearRecordBindings,
   conditionSummary,
   filterRules,
   flattenRecommendations,
   formatMetricValue,
   isMetricAvailable,
+  leafCount,
+  newCondition,
+  nodeKey,
   previewSentence,
+  recordBound,
+  severities,
   severityTone,
   suggestRuleCode,
 } from './rules.utils'
@@ -117,5 +123,72 @@ describe('alertSeverityRank', () => {
     expect(
       ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', '', 'UNKNOWN', 'constructor'].map(alertSeverityRank),
     ).toEqual([0, 1, 2, 3, 4, 4, 4])
+  })
+})
+
+describe('condition tree helpers', () => {
+  it('counts every leaf of nested groups and one for a single condition', () => {
+    expect(leafCount(leaf('a', 'PROJECT_REMAINING_DAYS', 'LT', '1'))).toBe(1)
+    expect(leafCount(tree)).toBe(3)
+    expect(leafCount({ kind: 'GROUP', mode: 'OR', children: [tree, tree] })).toBe(6)
+  })
+  it('clears indicator and activity bindings from a leaf and from every leaf of a group', () => {
+    const bound = (id: string) => ({
+      ...leaf(id, 'INDICATOR_PROGRESS_PERCENT', 'LT', '5'),
+      indicatorId: 'ind-1',
+      activityId: 'act-1',
+    })
+    expect(clearRecordBindings(bound('a'))).toEqual(
+      leaf('a', 'INDICATOR_PROGRESS_PERCENT', 'LT', '5'),
+    )
+    const cleared = clearRecordBindings({
+      kind: 'GROUP',
+      mode: 'AND',
+      children: [bound('a'), { kind: 'GROUP', mode: 'OR', children: [bound('b')] }],
+    })
+    expect(cleared).toEqual({
+      kind: 'GROUP',
+      mode: 'AND',
+      children: [
+        leaf('a', 'INDICATOR_PROGRESS_PERCENT', 'LT', '5'),
+        {
+          kind: 'GROUP',
+          mode: 'OR',
+          children: [leaf('b', 'INDICATOR_PROGRESS_PERCENT', 'LT', '5')],
+        },
+      ],
+    })
+  })
+  it('creates a distinct default condition on remaining days each time', () => {
+    const first = newCondition()
+    expect(first).toMatchObject({
+      kind: 'CONDITION',
+      metric: 'PROJECT_REMAINING_DAYS',
+      operator: 'LT',
+      threshold: '0',
+    })
+    expect(first).toHaveProperty('id', expect.stringMatching(/^c_[0-9a-f]{32}$/))
+    expect(newCondition()).not.toHaveProperty('id', (first as { id: string }).id)
+  })
+  it('flags only indicator metrics and activity overdue days as record bound', () => {
+    expect(recordBound('INDICATOR_PROGRESS_PERCENT')).toBe(true)
+    expect(recordBound('INDICATOR_CURRENT_VALUE')).toBe(true)
+    expect(recordBound('ACTIVITY_OVERDUE_DAYS')).toBe(true)
+    expect(recordBound('ACTIVITY_OVERDUE_COUNT')).toBe(false)
+    expect(recordBound('ACTIVITY_COMPLETION_PERCENT')).toBe(false)
+    expect(recordBound('PROJECT_REMAINING_DAYS')).toBe(false)
+  })
+  it('keeps the selectable severities from least to most severe', () => {
+    expect(severities).toEqual(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'])
+  })
+  it('keys a condition by its id and a group by its first child, stable and distinct', () => {
+    const a = leaf('a', 'PROJECT_REMAINING_DAYS', 'LT', '1')
+    const b = leaf('b', 'PROJECT_REMAINING_DAYS', 'LT', '1')
+    expect(nodeKey(a)).toBe('a')
+    expect(nodeKey({ kind: 'GROUP', mode: 'AND', children: [a, b] })).toBe('group_a')
+    expect(nodeKey({ kind: 'GROUP', mode: 'AND', children: [b, a] })).toBe('group_b')
+    expect(nodeKey({ kind: 'GROUP', mode: 'OR', children: [] })).toBe('group_empty')
+    expect(nodeKey(tree)).toBe(nodeKey(tree))
+    expect(nodeKey(tree)).not.toBe(nodeKey(a))
   })
 })
