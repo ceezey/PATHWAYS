@@ -38,4 +38,12 @@ describe('captureRequestOwner', () => {
     controller.abort()
     expect(current()).toBe(false)
   })
+
+  it('counts an empty workspace cookie as an owner and ignores a cookie that only shares the prefix', () => {
+    document.cookie = 'pathways-context-old=x; Path=/'
+    expect(captureRequestOwner()()).toBe(false)
+    document.cookie = 'pathways-context=; Path=/'
+    expect(captureRequestOwner()()).toBe(true)
+    document.cookie = 'pathways-context-old=; Path=/; Max-Age=0'
+  })
 })

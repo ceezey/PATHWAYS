@@ -4,6 +4,7 @@ import { testAuthUserId } from './auth-access.test-fixtures'
 import {
   decodeWorkspaceContext,
   encodeWorkspaceContext,
+  readWorkspaceContextCookie,
   requestAuthorizedProjects,
   workspacePermissions,
 } from './workspace-access'
@@ -133,5 +134,23 @@ describe('server-authoritative workspace integration', () => {
         fetcher,
       ),
     ).rejects.toThrow()
+  })
+})
+
+describe('workspace context cookie', () => {
+  it.each([
+    ['theme=dark; pathways-context=%7B%7D; sidebar=compact', '%7B%7D'],
+    ['pathways-context-old=x; pathways-context=v', 'v'],
+    ['pathways-context=', ''],
+    ['theme=dark;pathways-context=v', 'v'],
+    ['theme=dark; pathways-context-old=x', undefined],
+    ['', undefined],
+  ])('reads %j as %j', (cookie, expected) => {
+    vi.stubGlobal('document', { cookie })
+    try {
+      expect(readWorkspaceContextCookie()).toBe(expected)
+    } finally {
+      vi.unstubAllGlobals()
+    }
   })
 })
