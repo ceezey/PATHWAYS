@@ -1,3 +1,4 @@
+import type { StatusTone } from '@/lib/format/tone'
 import type { PathwaysRole } from '@/types/pathways-role'
 import type {
   ActivityCapabilitiesResponse,
@@ -30,7 +31,7 @@ type BeneficiaryEnrollmentStatus =
   | 'Completed'
   | 'Exited'
   | 'Not recorded'
-export type DashboardSeverity = 'neutral' | 'info' | 'success' | 'warning' | 'danger'
+export type DashboardSeverity = StatusTone
 export type DashboardActionKind = 'dialog' | 'navigate' | 'toast'
 
 /** Project profile only. Overview metrics come from `GET /projects/:id/overview-metrics`. */

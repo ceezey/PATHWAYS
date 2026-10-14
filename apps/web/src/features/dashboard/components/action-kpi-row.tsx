@@ -4,10 +4,10 @@ import { AlertTriangle, ClipboardList, Clock, FileCheck, type LucideIcon } from 
 import Link from 'next/link'
 
 import { AsyncState } from '@/components/pathways'
-import { useAuthorizedRead } from '@/hooks/use-authorized-read'
-import { dashboardsClient } from '@/lib/api/dashboards'
 import { cn } from '@/lib/utils'
 import type { DashboardActionCounts } from '@pathways/shared'
+
+import { useDashboardActionCounts } from '../dashboard.reads'
 
 const tones = {
   danger: { tile: 'bg-danger-subtle text-danger', value: 'text-danger' },
@@ -77,9 +77,7 @@ export const actionKpiCards = (counts: DashboardActionCounts): Card[] => {
 }
 
 export const ActionKpiRow = () => {
-  const read = useAuthorizedRead('dashboard-action-counts', null, 'projects.read', () =>
-    dashboardsClient.getDashboardActionCounts(),
-  )
+  const read = useDashboardActionCounts()
   if (!read.eligible) return null
   if (read.isError)
     return (
