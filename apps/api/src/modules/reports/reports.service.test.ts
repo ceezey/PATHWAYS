@@ -760,6 +760,20 @@ describe('report source authority, privacy and artifact recovery', () => {
     await expect(service.export(actor, projectId, id)).rejects.toThrow('Report source is stale')
     expect(state.read).not.toHaveBeenCalled()
   })
+  it('refuses to export a report of a stored type that no route lists', async () => {
+    tx.$queryRaw.mockResolvedValue([
+      {
+        id,
+        projectId,
+        formId: null,
+        type: 'OTHER',
+        sourceFingerprint: 'a'.repeat(64),
+        status: 'GENERATED',
+      },
+    ])
+    await expect(service.export(actor, projectId, id)).rejects.toThrow('Report unavailable')
+    expect(state.read).not.toHaveBeenCalled()
+  })
   it('returns sections with a flattened copy and sends them to the designed renderer', async () => {
     const preview = await service.preview(actor, projectId, { kind: 'PROJECT_SUMMARY' })
     expect(preview.sections?.information.code).toBe('SYN')

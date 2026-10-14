@@ -1,4 +1,6 @@
 import { clearSensitiveDraftStorage } from '@/lib/auth/sensitive-drafts'
+import { principalHasAtomicPermission } from '@/lib/rbac/policy'
+import { type AtomicPermission, type ReportKindCode, rolePermissions } from '@pathways/shared'
 /* @vitest-environment jsdom */
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -505,5 +507,74 @@ describe('evaluation round selection', () => {
     render(<LiveReportingWorkspace initialKind="project-summary" />)
     expect(screen.getByText('Round: Midterm (2026-01-01 to 2026-06-30)')).toBeTruthy()
     state.savedEvaluation = null
+  })
+})
+
+describe('report kind menu before the shared table', () => {
+  // The menu rule as the component wrote it before the shared grant table.
+  const table: Record<
+    ReportKindCode,
+    { permission: AtomicPermission; requires?: AtomicPermission[] }
+  > = {
+    PROJECT_SUMMARY: { permission: 'reports.project.read' },
+    INDICATOR_SUMMARY: { permission: 'reports.indicator.read' },
+    BENEFICIARY_SUMMARY: {
+      permission: 'reports.beneficiary.read',
+      requires: ['analytics.saddd.read', 'beneficiaries.aggregates.read'],
+    },
+    SURVEY_FORM_RESULTS: { permission: 'reports.project.read' },
+    MONITORING_REPORT: { permission: 'reports.indicator.read', requires: ['monitoring.read'] },
+    EVALUATION_REPORT: { permission: 'reports.project.read', requires: ['monitoring.read'] },
+  }
+  type Principal = Parameters<typeof allowedKinds>[0]
+  const listedBefore = (principal: Principal) =>
+    (Object.keys(table) as ReportKindCode[]).filter(
+      (kind) =>
+        principalHasAtomicPermission(principal, table[kind].permission) &&
+        (table[kind].requires ?? []).every((grant) =>
+          principalHasAtomicPermission(principal, grant),
+        ) &&
+        (kind !== 'SURVEY_FORM_RESULTS' ||
+          principalHasAtomicPermission(principal, 'assessments.read')),
+    )
+  const relevant: AtomicPermission[] = [
+    'reports.project.read',
+    'reports.indicator.read',
+    'reports.beneficiary.read',
+    'analytics.saddd.read',
+    'beneficiaries.aggregates.read',
+    'monitoring.read',
+    'assessments.read',
+  ]
+  const subsets = relevant
+    .map((_, index) => index)
+    .reduce<AtomicPermission[][]>(
+      (all, index) =>
+        all.concat(all.map((subset) => [...subset, relevant[index] as AtomicPermission])),
+      [[]],
+    )
+  const principalOf = (roles: string[], permissions: string[]) =>
+    ({
+      userId: 'u',
+      organizationId: 'org',
+      roles,
+      permissions,
+      assignedProjectIds: [],
+    }) as Principal
+
+  it('offers every role the kinds it was offered before, for every subset of the grants', () => {
+    expect(subsets).toHaveLength(128)
+    for (const role of Object.keys(rolePermissions))
+      for (const granted of subsets) {
+        const principal = principalOf([role], granted)
+        expect(allowedKinds(principal), `${role} ${granted}`).toEqual(listedBefore(principal))
+      }
+  })
+
+  it('offers nothing without a profile or with other than exactly one role', () => {
+    expect(allowedKinds(null)).toEqual([])
+    expect(allowedKinds(undefined)).toEqual([])
+    expect(allowedKinds(principalOf([], relevant))).toEqual([])
+    expect(allowedKinds(principalOf(['PROJECT_MANAGER', 'PROJECT_OFFICER'], relevant))).toEqual([])
   })
 })
