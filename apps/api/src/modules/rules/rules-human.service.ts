@@ -36,6 +36,7 @@ import { Prisma } from '@prisma/client'
 import type { z } from 'zod'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import { withAuthorizedOperation } from '../../common/authz/authorized-operation'
+import type { Tx } from '../../common/prisma/transaction'
 import { PrismaService } from '../../prisma/prisma.service'
 import { evaluateRule } from './rule-engine'
 
@@ -137,7 +138,7 @@ export class RulesHumanService {
     )
   }
   private async executeInTransaction<T extends z.ZodTypeAny>(
-    tx: Prisma.TransactionClient,
+    tx: Tx,
     actor: ApplicationIdentity,
     operation: Operation,
     id: string | null,
@@ -173,11 +174,7 @@ export class RulesHumanService {
     return checked.data
   }
   /** Lists alerts inside an already-authorized report transaction; alerts.read is still required. */
-  listAlertsInTransaction(
-    tx: Prisma.TransactionClient,
-    actor: ApplicationIdentity,
-    query: unknown,
-  ) {
+  listAlertsInTransaction(tx: Tx, actor: ApplicationIdentity, query: unknown) {
     return this.executeInTransaction(
       tx,
       actor,

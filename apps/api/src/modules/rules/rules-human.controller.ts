@@ -1,22 +1,8 @@
-import {
-  Body,
-  Controller,
-  ForbiddenException,
-  Get,
-  Header,
-  Inject,
-  Param,
-  Post,
-  Query,
-  Req,
-} from '@nestjs/common'
+import { Body, Controller, Get, Header, Inject, Param, Post, Query, Req } from '@nestjs/common'
 import type { AuthenticatedRequest } from '../../common/authz/application-identity'
+import { requestIdentity } from '../../common/authz/request-identity'
 import { RequirePermission } from '../../common/decorators/permission.decorator'
 import { RulesHumanService } from './rules-human.service'
-function actor(request: AuthenticatedRequest) {
-  if (!request.user) throw new ForbiddenException('Application profile is required.')
-  return request.user
-}
 @Controller('rules')
 export class RulesController {
   constructor(@Inject(RulesHumanService) private readonly service: RulesHumanService) {}
@@ -24,43 +10,43 @@ export class RulesController {
   @Header('Cache-Control', 'private, no-store')
   @RequirePermission('rules.read')
   list(@Req() request: AuthenticatedRequest, @Query() query: unknown) {
-    return this.service.listRules(actor(request), query)
+    return this.service.listRules(requestIdentity(request), query)
   }
   @Post()
   @Header('Cache-Control', 'private, no-store')
   @RequirePermission('rules.create')
   create(@Req() request: AuthenticatedRequest, @Body() body: unknown) {
-    return this.service.createRule(actor(request), body)
+    return this.service.createRule(requestIdentity(request), body)
   }
   @Post('dry-run')
   @Header('Cache-Control', 'private, no-store')
   @RequirePermission('rules.read')
   dryRun(@Req() request: AuthenticatedRequest, @Body() body: unknown) {
-    return this.service.dryRun(actor(request), body)
+    return this.service.dryRun(requestIdentity(request), body)
   }
   @Get(':id')
   @Header('Cache-Control', 'private, no-store')
   @RequirePermission('rules.read')
   get(@Req() request: AuthenticatedRequest, @Param('id') id: string) {
-    return this.service.getRule(actor(request), id)
+    return this.service.getRule(requestIdentity(request), id)
   }
   @Post(':id/drafts')
   @Header('Cache-Control', 'private, no-store')
   @RequirePermission('rules.update')
   draft(@Req() request: AuthenticatedRequest, @Param('id') id: string, @Body() body: unknown) {
-    return this.service.draftRule(actor(request), id, body)
+    return this.service.draftRule(requestIdentity(request), id, body)
   }
   @Post(':id/activate')
   @Header('Cache-Control', 'private, no-store')
   @RequirePermission('rules.activate')
   activate(@Req() request: AuthenticatedRequest, @Param('id') id: string, @Body() body: unknown) {
-    return this.service.activateRule(actor(request), id, body)
+    return this.service.activateRule(requestIdentity(request), id, body)
   }
   @Post(':id/archive')
   @Header('Cache-Control', 'private, no-store')
   @RequirePermission('rules.update')
   archive(@Req() request: AuthenticatedRequest, @Param('id') id: string, @Body() body: unknown) {
-    return this.service.archiveRule(actor(request), id, body)
+    return this.service.archiveRule(requestIdentity(request), id, body)
   }
 }
 @Controller('alerts')
@@ -70,32 +56,32 @@ export class AlertsController {
   @Header('Cache-Control', 'private, no-store')
   @RequirePermission('alerts.read')
   list(@Req() request: AuthenticatedRequest, @Query() query: unknown) {
-    return this.service.listAlerts(actor(request), query)
+    return this.service.listAlerts(requestIdentity(request), query)
   }
   // Declared before ':id' so the fixed segment is not captured as an identifier.
   @Get('escalated')
   @Header('Cache-Control', 'private, no-store')
   @RequirePermission('alerts.read')
   escalated(@Req() request: AuthenticatedRequest, @Query() query: unknown) {
-    return this.service.listEscalatedAlerts(actor(request), query)
+    return this.service.listEscalatedAlerts(requestIdentity(request), query)
   }
   @Get(':id')
   @Header('Cache-Control', 'private, no-store')
   @RequirePermission('alerts.read')
   get(@Req() request: AuthenticatedRequest, @Param('id') id: string) {
-    return this.service.getAlert(actor(request), id)
+    return this.service.getAlert(requestIdentity(request), id)
   }
   @Get(':id/history')
   @Header('Cache-Control', 'private, no-store')
   @RequirePermission('alerts.read')
   history(@Req() request: AuthenticatedRequest, @Param('id') id: string, @Query() query: unknown) {
-    return this.service.alertHistory(actor(request), id, query)
+    return this.service.alertHistory(requestIdentity(request), id, query)
   }
   @Post(':id/review')
   @Header('Cache-Control', 'private, no-store')
   @RequirePermission('alerts.review')
   review(@Req() request: AuthenticatedRequest, @Param('id') id: string, @Body() body: unknown) {
-    return this.service.reviewAlert(actor(request), id, body)
+    return this.service.reviewAlert(requestIdentity(request), id, body)
   }
   @Post(':id/disposition')
   @Header('Cache-Control', 'private, no-store')
@@ -105,19 +91,19 @@ export class AlertsController {
     @Param('id') id: string,
     @Body() body: unknown,
   ) {
-    return this.service.dispositionAlert(actor(request), id, body)
+    return this.service.dispositionAlert(requestIdentity(request), id, body)
   }
   @Post(':id/outcome-preview')
   @Header('Cache-Control', 'private, no-store')
   @RequirePermission('alerts.outcome.record')
   preview(@Req() request: AuthenticatedRequest, @Param('id') id: string, @Body() body: unknown) {
-    return this.service.previewAlert(actor(request), id, body)
+    return this.service.previewAlert(requestIdentity(request), id, body)
   }
   @Post(':id/outcomes')
   @Header('Cache-Control', 'private, no-store')
   @RequirePermission('alerts.outcome.record')
   confirm(@Req() request: AuthenticatedRequest, @Param('id') id: string, @Body() body: unknown) {
-    return this.service.confirmAlert(actor(request), id, body)
+    return this.service.confirmAlert(requestIdentity(request), id, body)
   }
 }
 @Controller('recommendations')
@@ -127,31 +113,31 @@ export class RecommendationsController {
   @Header('Cache-Control', 'private, no-store')
   @RequirePermission('recommendations.read')
   list(@Req() request: AuthenticatedRequest, @Query() query: unknown) {
-    return this.service.listRecommendations(actor(request), query)
+    return this.service.listRecommendations(requestIdentity(request), query)
   }
   @Get(':id')
   @Header('Cache-Control', 'private, no-store')
   @RequirePermission('recommendations.read')
   get(@Req() request: AuthenticatedRequest, @Param('id') id: string) {
-    return this.service.getRecommendation(actor(request), id)
+    return this.service.getRecommendation(requestIdentity(request), id)
   }
   @Post(':id/review')
   @Header('Cache-Control', 'private, no-store')
   @RequirePermission('recommendations.review')
   review(@Req() request: AuthenticatedRequest, @Param('id') id: string, @Body() body: unknown) {
-    return this.service.reviewRecommendation(actor(request), id, body)
+    return this.service.reviewRecommendation(requestIdentity(request), id, body)
   }
   @Post(':id/outcome-preview')
   @Header('Cache-Control', 'private, no-store')
   @RequirePermission('recommendations.outcome.record')
   preview(@Req() request: AuthenticatedRequest, @Param('id') id: string, @Body() body: unknown) {
-    return this.service.previewRecommendation(actor(request), id, body)
+    return this.service.previewRecommendation(requestIdentity(request), id, body)
   }
   @Post(':id/outcomes')
   @Header('Cache-Control', 'private, no-store')
   @RequirePermission('recommendations.outcome.record')
   confirm(@Req() request: AuthenticatedRequest, @Param('id') id: string, @Body() body: unknown) {
-    return this.service.confirmRecommendation(actor(request), id, body)
+    return this.service.confirmRecommendation(requestIdentity(request), id, body)
   }
 }
 @Controller('notifications')
@@ -161,12 +147,12 @@ export class NotificationsController {
   @Header('Cache-Control', 'private, no-store')
   @RequirePermission('alerts.read')
   list(@Req() request: AuthenticatedRequest, @Query() query: unknown) {
-    return this.service.listNotifications(actor(request), query)
+    return this.service.listNotifications(requestIdentity(request), query)
   }
   @Post(':id/read')
   @Header('Cache-Control', 'private, no-store')
   @RequirePermission('alerts.read')
   read(@Req() request: AuthenticatedRequest, @Param('id') id: string, @Body() body: unknown) {
-    return this.service.readNotification(actor(request), id, body)
+    return this.service.readNotification(requestIdentity(request), id, body)
   }
 }
