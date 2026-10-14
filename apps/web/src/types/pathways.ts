@@ -701,17 +701,7 @@ export interface FormValidationResult {
 
 export type DirectFormSubmission = FormSubmissionResponse
 
-export type ImportBatchStatus =
-  | 'UPLOADING'
-  | 'UPLOADED'
-  | 'MAPPED'
-  | 'VALIDATING'
-  | 'VALIDATED'
-  | 'PROCESSING'
-  | 'PARTIALLY_PROCESSED'
-  | 'PROCESSED'
-  | 'RECOVERY_REQUIRED'
-  | 'FAILED'
+export type ImportBatchStatus = ImportBatchResponse['status']
 
 export type ImportSourceColumn = ImportSourceColumnResponse
 
