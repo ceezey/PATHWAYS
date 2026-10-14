@@ -12,6 +12,7 @@ import {
 import { RouteParamtypes } from '@nestjs/common/enums/route-paramtypes.enum'
 import { describe, expect, it } from 'vitest'
 import { AppModule } from '../../app.module'
+import { AnalyticsController } from '../analytics/analytics.controller'
 import { AnalyticsModule } from '../analytics/analytics.module'
 import { DashboardsModule } from './dashboards.module'
 
@@ -153,5 +154,28 @@ describe('dashboards and analytics routes', () => {
       'DashboardsController.saddd(user, query)',
       'RoleOverviewController.read(user)',
     ])
+  })
+
+  it('sends the export file name as an attachment Content-Disposition with its content type', async () => {
+    const headers: Record<string, string> = {}
+    const res = {
+      setHeader: (name: string, value: string) => {
+        headers[name] = value
+      },
+    }
+    const service = {
+      export: async () => ({
+        contentType: 'text/csv; charset=utf-8',
+        fileName: 'synthetic-export.csv',
+        bytes: new Uint8Array(),
+      }),
+    }
+    const controller = new AnalyticsController(service as never)
+    await controller.export({ user: { id: 'identity' } } as never, {}, res)
+    expect(headers).toEqual({
+      'Content-Type': 'text/csv; charset=utf-8',
+      'Content-Disposition': 'attachment; filename="synthetic-export.csv"',
+      'X-Content-Type-Options': 'nosniff',
+    })
   })
 })

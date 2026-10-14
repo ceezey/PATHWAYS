@@ -1,7 +1,11 @@
 import type { DescriptiveAnalytics, SurveyAnalytics, TimelineAnalytics } from '@pathways/shared'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import * as reportArtifact from '../reports/report-artifact'
 import {
+  type AnalyticsTable,
   descriptiveAnalyticsTable,
+  exportArtifact,
+  parseExportFormat,
   surveyAnalyticsTable,
   timelineAnalyticsTable,
 } from './analytics-export.helpers'
@@ -57,4 +61,50 @@ describe('analytics export tables', () => {
       'NO_DATA',
     ])
   })
+})
+
+describe('analytics export file names, formats and empty cells', () => {
+  const table: AnalyticsTable = [
+    ['section', 'value'],
+    ['A', null],
+  ]
+
+  afterEach(() => vi.restoreAllMocks())
+
+  it.each([
+    ['CSV', 'synthetic-base.csv', 'text/csv; charset=utf-8'],
+    ['XLSX', 'synthetic-base.xlsx', reportArtifact.reportMime.XLSX],
+    ['XLS', 'synthetic-base.xls', reportArtifact.reportMime.XLS],
+    ['PDF', 'synthetic-base.pdf', reportArtifact.reportMime.PDF],
+  ] as const)(
+    'names the %s file base plus its lowercase extension',
+    async (format, fileName, contentType) => {
+      const result = await exportArtifact(format, 'Synthetic', table, 'synthetic-base')
+      expect(result.fileName).toBe(fileName)
+      expect(result.contentType).toBe(contentType)
+    },
+  )
+
+  it('accepts CSV, XLSX, XLS and PDF, defaults to CSV and rejects any other format', () => {
+    for (const format of ['CSV', 'XLSX', 'XLS', 'PDF'])
+      expect(parseExportFormat({ projectId: 'p', format })).toEqual({
+        format,
+        query: { projectId: 'p' },
+      })
+    expect(parseExportFormat({ projectId: 'p' }).format).toBe('CSV')
+    expect(() => parseExportFormat({ projectId: 'p', format: 'DOCX' })).toThrow(
+      'Export format must be CSV, XLSX, XLS or PDF.',
+    )
+  })
+
+  it.each(['XLSX', 'PDF'] as const)(
+    'renders a null cell as an empty string in %s rows',
+    async (format) => {
+      const render = vi
+        .spyOn(reportArtifact, 'createReportArtifact')
+        .mockResolvedValue(Buffer.from('synthetic'))
+      await exportArtifact(format, 'Synthetic', [['A', null, 7]], 'synthetic-base')
+      expect(render).toHaveBeenCalledWith('Synthetic', [['A', '', '7']], format)
+    },
+  )
 })
