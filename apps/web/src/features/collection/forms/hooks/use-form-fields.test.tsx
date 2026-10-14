@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { clearSensitiveDraftStorage } from '@/lib/auth/sensitive-drafts'
 
-import type { FormField } from '../collection.utils'
+import type { FormField } from '../../collection.utils'
 import { type OperationGuard, useFormFields } from './use-form-fields'
 
 const toasts = vi.hoisted(() => ({ success: vi.fn() }))

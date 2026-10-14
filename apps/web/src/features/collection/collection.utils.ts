@@ -1,5 +1,5 @@
-import type { MappingStatus } from './collection-import-state'
-import type { BuilderFieldType, BuilderFormField } from './digital-form-contract'
+import type { BuilderFieldType, BuilderFormField } from './forms/digital-form-contract'
+import type { MappingStatus } from './import/collection-import-state'
 
 export type CollectionMode = 'scratch' | 'import' | 'extend'
 

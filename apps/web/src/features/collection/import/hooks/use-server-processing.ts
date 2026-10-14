@@ -3,13 +3,13 @@ import { useState } from 'react'
 import { importsClient } from '@/lib/api/imports'
 import type { principalHasAtomicPermission } from '@/lib/rbac/policy'
 
+import type { ImportProcessingState } from '../components/import-processing-panel'
 import {
   type ImportProcessingOutcome,
   type ImportProcessingProgress,
   importProcessingProgress,
   runImportProcessing,
 } from '../import-auto-continue'
-import type { ImportProcessingState } from '../import-processing-panel'
 import type { useImportBatch } from './use-import-batch'
 
 type Ticket = {

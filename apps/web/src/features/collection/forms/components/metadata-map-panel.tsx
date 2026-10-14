@@ -2,7 +2,7 @@
 
 import { ProgressBar, SectionCard } from '@/components/pathways'
 
-import type { FormField } from '../collection.utils'
+import type { FormField } from '../../collection.utils'
 
 export const MetadataMapPanel = ({
   fields,

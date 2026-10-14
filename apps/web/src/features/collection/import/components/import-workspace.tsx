@@ -44,15 +44,15 @@ import type {
   ProjectSummary,
 } from '@/types/pathways'
 
-import { useImportBatch } from './hooks/use-import-batch'
+import { enumLabel } from '../../collection.copy'
+import { useImportBatch } from '../hooks/use-import-batch'
 import {
   type ImportProcessingProgress,
   importProcessingComplete,
   importProcessingProgress,
   runImportProcessing,
-} from './import-auto-continue'
+} from '../import-auto-continue'
 import { ImportProcessingPanel, type ImportProcessingState } from './import-processing-panel'
-import { enumLabel } from './import-status-labels'
 import {
   type ColumnRuleDraft,
   ImportValueMapEditor,

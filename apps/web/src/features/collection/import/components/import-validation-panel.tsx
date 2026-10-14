@@ -2,8 +2,8 @@
 
 import { ProgressBar, SectionCard, StatusBadge } from '@/components/pathways'
 
+import type { ParsedImport } from '../../collection.utils'
 import type { MappingReadiness } from '../collection-import-state'
-import type { ParsedImport } from '../collection.utils'
 import { SummaryPill } from './summary-pill'
 
 export const ImportValidationPanel = ({

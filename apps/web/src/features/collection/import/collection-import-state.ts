@@ -2,7 +2,7 @@ import { AUTO_SMART_V2_LIMITS, type SmartMatchDecision, smartMatchColumns } from
 
 import type { FormFieldDataType } from '@/types/pathways'
 
-import { fieldCodeFromText } from './digital-form-contract'
+import { fieldCodeFromText } from '../forms/digital-form-contract'
 
 export type MappingStatus = 'mapped' | 'unmapped' | 'ignored' | 'invalid'
 

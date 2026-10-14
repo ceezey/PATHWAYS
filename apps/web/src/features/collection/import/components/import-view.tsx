@@ -12,16 +12,16 @@ import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
 import type { ActivitySummary, ProjectSummary } from '@/types/pathways'
 
-import type { MappingReadiness, MappingRow } from '../collection-import-state'
 import type {
   CollectionMode,
   CollectionView,
   FormField,
   ImportStatus,
   ParsedImport,
-} from '../collection.utils'
+} from '../../collection.utils'
+import { FormInfoPanel } from '../../forms/components/form-info-panel'
+import type { MappingReadiness, MappingRow } from '../collection-import-state'
 import { DataPreview } from './data-preview'
-import { FormInfoPanel } from './form-info-panel'
 import { ImportValidationPanel } from './import-validation-panel'
 import { MappingTable } from './mapping-table'
 import { SummaryMetric } from './summary-metric'

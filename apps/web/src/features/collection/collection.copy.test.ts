@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { enumLabel } from './import-status-labels'
+import { enumLabel } from './collection.copy'
 
 describe('enumLabel', () => {
   it('sentence-cases known and unknown enum values', () => {

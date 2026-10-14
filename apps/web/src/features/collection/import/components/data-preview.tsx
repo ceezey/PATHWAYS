@@ -9,7 +9,7 @@ import {
   type ParsedImport,
   formatValue,
   tableHeadClass,
-} from '../collection.utils'
+} from '../../collection.utils'
 
 export const DataPreview = ({ parsedImport }: { parsedImport: ParsedImport }) => (
   <SectionCard

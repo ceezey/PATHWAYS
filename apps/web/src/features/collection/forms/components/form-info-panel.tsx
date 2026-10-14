@@ -13,7 +13,7 @@ import {
 import { cn } from '@/lib/utils'
 import type { ActivitySummary, ProjectSummary } from '@/types/pathways'
 
-import { formTypeLabels } from '../digital-form-contract'
+import { formTypeLabels } from '../../collection.copy'
 import { JourneyStageSelector } from './journey-stage-selector'
 
 export const FormInfoPanel = ({

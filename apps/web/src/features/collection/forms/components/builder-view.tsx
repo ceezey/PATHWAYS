@@ -21,7 +21,7 @@ import {
   type FormField,
   dataTypeLabels,
   statusTone,
-} from '../collection.utils'
+} from '../../collection.utils'
 import { FieldEditor } from './field-editor'
 import { FormInfoPanel } from './form-info-panel'
 import { FormPreviewPanel } from './form-preview-panel'

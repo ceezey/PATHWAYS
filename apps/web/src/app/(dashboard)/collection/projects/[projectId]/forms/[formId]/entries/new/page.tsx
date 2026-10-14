@@ -1,4 +1,4 @@
-import { DirectFormEntryWorkspace } from '@/features/collection/direct-form-entry-workspace'
+import { DirectFormEntryWorkspace } from '@/features/collection'
 import { type ProtectedPageProps, requireServerPage } from '@/lib/rbac/server-access'
 
 export const dynamic = 'force-dynamic'

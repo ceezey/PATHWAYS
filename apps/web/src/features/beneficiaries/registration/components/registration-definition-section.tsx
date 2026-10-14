@@ -1,6 +1,6 @@
 'use client'
 
-import { FormDefinitionEntryField } from '@/features/collection/form-definition-entry-field'
+import { FormDefinitionEntryField } from '@/features/collection'
 
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'

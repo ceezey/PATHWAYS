@@ -54,12 +54,6 @@ import type {
 } from '@/types/pathways'
 
 import {
-  type MappingRow,
-  createQuestionnaireMappingRows,
-  createSmartMappingRows,
-  getMappingReadiness,
-} from './collection-import-state'
-import {
   type CollectionMode,
   type CollectionView,
   type FormField,
@@ -67,26 +61,32 @@ import {
   type ParsedImport,
   type SavedForm,
   dataTypeLabels,
-} from './collection.utils'
-import { BuilderView } from './components/builder-view'
-import { FormsGeneratorView } from './components/forms-generator-view'
-import { ImportView } from './components/import-view'
+} from '../../collection.utils'
+import {
+  type MappingRow,
+  createQuestionnaireMappingRows,
+  createSmartMappingRows,
+  getMappingReadiness,
+} from '../../import/collection-import-state'
+import { ImportProcessingPanel } from '../../import/components/import-processing-panel'
+import { ImportView } from '../../import/components/import-view'
+import { useImportBatch } from '../../import/hooks/use-import-batch'
+import { useServerProcessing } from '../../import/hooks/use-server-processing'
+import { importProcessingProgress } from '../../import/import-auto-continue'
+import { parseImportPreview } from '../../import/import-preview'
 import {
   fieldCodeFromText,
   fromDigitalForm,
   neatFormCode,
   toDigitalFormInput,
-} from './digital-form-contract'
+} from '../digital-form-contract'
 import {
   type FormDefinitionExportFormat,
   formDefinitionExportRequest,
-} from './form-definition-export'
-import { useFormFields } from './hooks/use-form-fields'
-import { useImportBatch } from './hooks/use-import-batch'
-import { useServerProcessing } from './hooks/use-server-processing'
-import { importProcessingProgress } from './import-auto-continue'
-import { parseImportPreview } from './import-preview'
-import { ImportProcessingPanel } from './import-processing-panel'
+} from '../form-definition-export'
+import { useFormFields } from '../hooks/use-form-fields'
+import { BuilderView } from './builder-view'
+import { FormsGeneratorView } from './forms-generator-view'
 
 type ExportFormat = FormDefinitionExportFormat
 /** The editable correction table paginates instead of capping, so every row stays correctable. */

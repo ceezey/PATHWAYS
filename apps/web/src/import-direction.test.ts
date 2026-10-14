@@ -54,7 +54,7 @@ function violation(file: string, specifier: string): string | null {
 }
 
 // Features whose index.ts is their only surface for files outside them (CR section 3.3).
-const indexedFeatures: readonly string[] = ['projects', 'beneficiaries', 'reports']
+const indexedFeatures: readonly string[] = ['projects', 'beneficiaries', 'reports', 'collection']
 
 // The rule an import of an indexed feature breaks, or null when it names the feature index.
 function surfaceViolation(file: string, specifier: string): string | null {

@@ -1,7 +1,6 @@
 import { type ProtectedPageProps, requireServerPage } from '@/lib/rbac/server-access'
 
-import { CollectionWorkspace } from '@/features/collection/collection-workspace'
-import { ImportWorkspace } from '@/features/collection/import-workspace'
+import { CollectionWorkspace, ImportWorkspace } from '@/features/collection'
 
 function CollectionImportPage({ extend }: { extend: boolean }) {
   return extend ? (

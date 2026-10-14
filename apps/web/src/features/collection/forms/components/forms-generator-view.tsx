@@ -13,7 +13,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 
-import { type SavedForm, formatSavedAt, savedFormStatus } from '../collection.utils'
+import { type SavedForm, formatSavedAt, savedFormStatus } from '../../collection.utils'
 
 export const FormsGeneratorView = ({
   canCreate,

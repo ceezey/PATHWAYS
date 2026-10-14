@@ -3,7 +3,7 @@
 import { SectionCard } from '@/components/pathways'
 import { Label } from '@/components/ui/label'
 
-import { type FormField, dataTypeLabels } from '../collection.utils'
+import { type FormField, dataTypeLabels } from '../../collection.utils'
 
 export const FormPreviewPanel = ({
   fields,

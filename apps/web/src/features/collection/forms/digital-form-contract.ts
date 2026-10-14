@@ -47,16 +47,6 @@ const builderFieldTypes = Object.fromEntries(
   Object.entries(apiFieldTypes).map(([builder, api]) => [api, builder]),
 ) as Record<FormFieldDataType, BuilderFieldType>
 
-export const formTypeLabels: Record<DigitalFormType, string> = {
-  BENEFICIARY_REGISTRATION: 'Beneficiary registration',
-  TRAINING_SURVEY: 'Training survey',
-  PRE_TEST: 'Pre-test',
-  POST_TEST: 'Post-test',
-  OUTCOME_MONITORING: 'Outcome monitoring',
-  ACTIVITY_MONITORING: 'Activity monitoring',
-  OTHER: 'Other',
-}
-
 /** Snake-case field code derived from free text, as the builder has always generated it. */
 export const fieldCodeFromText = (value: string) =>
   value

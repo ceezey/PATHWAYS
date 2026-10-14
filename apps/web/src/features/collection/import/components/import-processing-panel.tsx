@@ -5,7 +5,7 @@ import { useEffect, useId, useRef } from 'react'
 import { ProgressBar } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 
-import { type ImportProcessingProgress, importProcessingPercent } from './import-auto-continue'
+import { type ImportProcessingProgress, importProcessingPercent } from '../import-auto-continue'
 
 export type ImportProcessingState = 'running' | 'stopping' | 'stopped' | 'failed' | 'complete'
 

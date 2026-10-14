@@ -12,13 +12,13 @@ import {
 import { TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { cn } from '@/lib/utils'
 
-import type { MappingReadiness, MappingRow, MappingStatus } from '../collection-import-state'
 import {
   type CollectionMode,
   type CollectionView,
   type FormField,
   tableHeadClass,
-} from '../collection.utils'
+} from '../../collection.utils'
+import type { MappingReadiness, MappingRow, MappingStatus } from '../collection-import-state'
 
 export const MappingTable = ({
   canProceed,

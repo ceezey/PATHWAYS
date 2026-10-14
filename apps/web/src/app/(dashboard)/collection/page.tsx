@@ -1,6 +1,6 @@
 import { type ProtectedPageProps, requireServerPage } from '@/lib/rbac/server-access'
 
-import { CollectionWorkspace } from '@/features/collection/collection-workspace'
+import { CollectionWorkspace } from '@/features/collection'
 
 function CollectionPage() {
   return <CollectionWorkspace initialMode="scratch" initialView="home" />

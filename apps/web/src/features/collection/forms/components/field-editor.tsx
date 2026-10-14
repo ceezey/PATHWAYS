@@ -11,8 +11,8 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 
-import type { MappingStatus } from '../collection-import-state'
-import { type FieldType, type FormField, dataTypeLabels } from '../collection.utils'
+import { type FieldType, type FormField, dataTypeLabels } from '../../collection.utils'
+import type { MappingStatus } from '../../import/collection-import-state'
 import { fieldCodeFromText, fieldCodeWhileTyping } from '../digital-form-contract'
 import { ToggleRow } from './toggle-row'
 
