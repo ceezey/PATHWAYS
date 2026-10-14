@@ -1,7 +1,7 @@
 import { AuthorizedQueryProvider } from '@/providers/authorized-query-provider'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 /* @vitest-environment jsdom */
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { HumanReviewWorkspace } from './human-review-workspace'
 const state = vi.hoisted(() => ({
@@ -13,6 +13,7 @@ const state = vi.hoisted(() => ({
   rules: vi.fn(),
   notifications: vi.fn(),
   getAlert: vi.fn(),
+  alertHistory: vi.fn(),
 }))
 vi.mock('@/hooks/use-current-role', () => ({
   useCurrentRole: () => ({
@@ -45,6 +46,7 @@ vi.mock('@/lib/services/rules-human-client', () => ({
     listRules: state.rules,
     listNotifications: state.notifications,
     getAlert: state.getAlert,
+    alertHistory: state.alertHistory,
   },
 }))
 const renderWorkspace = () =>
@@ -127,6 +129,95 @@ describe('alert outcome controls', () => {
     )
     await screen.findByRole('heading', { name: alert.title })
     expect(Boolean(screen.queryByRole('button', { name: 'Record outcome' }))).toBe(shown)
+  })
+  it('renders the evaluation line, the conditions and the evidence table of a loaded alert', async () => {
+    state.getAlert.mockResolvedValue({
+      ...alert,
+      ruleVersion: 3,
+      freshness: 'SOURCE_CHANGED',
+      evaluatedAt: '2026-09-27T16:30:00Z',
+      evidence: [
+        {
+          conditionId: 'days',
+          metric: 'PROJECT_REMAINING_DAYS',
+          operator: 'LT',
+          threshold: '0',
+          thresholdMaximum: null,
+          cell: { state: 'AVAILABLE', value: '-2', reason: null },
+          unit: 'DAYS',
+          result: 'TRUE',
+        },
+        {
+          conditionId: 'share',
+          metric: 'ACTIVITY_COMPLETION_PERCENT',
+          operator: 'BETWEEN',
+          threshold: '10',
+          thresholdMaximum: '20.5',
+          cell: { state: 'MISSING', value: null, reason: 'NO_MEASUREMENT' },
+          unit: 'PERCENT',
+          result: 'UNAVAILABLE',
+        },
+      ],
+    })
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <AuthorizedQueryProvider>
+          <HumanReviewWorkspace kind="alert" initialId={alert.id} />
+        </AuthorizedQueryProvider>
+      </QueryClientProvider>,
+    )
+    await screen.findByRole('heading', { name: alert.title })
+    expect(
+      screen.getByText(
+        'Rule version 3; source changed. Evaluated 9/28/2026, 12:30:00 AM Asia/Manila. Reporting date 2026-09-27; calendar version 1.',
+      ),
+    ).toBeTruthy()
+    const rows = within(screen.getByRole('table', { name: 'Recorded evaluation evidence' }))
+      .getAllByRole('row')
+      .slice(1)
+      .map((row) => Array.from(row.children).map((cell) => cell.textContent))
+    expect(rows).toEqual([
+      ['project remaining days', '-2 DAYS', 'Below (<) 0 DAYS', 'true'],
+      [
+        'activity completion percent',
+        'missing (no measurement)',
+        'Between 10% to 20.5%',
+        'unavailable',
+      ],
+    ])
+  })
+  it('lists the alert history with its evidence when asked', async () => {
+    state.getAlert.mockResolvedValue(alert)
+    state.alertHistory.mockResolvedValue({
+      items: [
+        {
+          id: '60000000-0000-4000-8000-000000000001',
+          occurredAt: '2026-09-27T16:30:00Z',
+          actorKind: 'SYSTEM',
+          kind: 'AUTO_RESOLVED',
+          lifecycle: 'AUTO_RESOLVED',
+          outcome: null,
+          ruleVersion: 2,
+          explanation: 'Condition no longer holds.',
+          result: 'FALSE',
+          evidence: [],
+        },
+      ],
+      nextCursor: null,
+    })
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <AuthorizedQueryProvider>
+          <HumanReviewWorkspace kind="alert" initialId={alert.id} />
+        </AuthorizedQueryProvider>
+      </QueryClientProvider>,
+    )
+    fireEvent.click(await screen.findByRole('button', { name: 'Show history' }))
+    await screen.findByText('Auto-resolved (system)')
+    expect(screen.getByText('Condition no longer holds.')).toBeTruthy()
+    expect(screen.getByText('9/28/2026, 12:30:00 AM Asia/Manila')).toBeTruthy()
+    expect(screen.getByText('Rule version 2; result false')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Hide history' })).toBeTruthy()
   })
   it('labels a linked recommendation by its title', async () => {
     const recommendationId = '50000000-0000-4000-8000-000000000009'
