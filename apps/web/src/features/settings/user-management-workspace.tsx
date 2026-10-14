@@ -53,8 +53,8 @@ import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'
 import { usePendingCreate } from '@/hooks/use-pending-create'
 import { projectsClient } from '@/lib/api/projects'
+import { usersClient } from '@/lib/api/users'
 import { createdSince, fingerprintOf } from '@/lib/forms/pending-create'
-import { pathwaysClient } from '@/lib/services/pathways-client'
 import type { ProjectSummary, UserRecord } from '@/types/pathways'
 import type { PathwaysRole } from '@/types/pathways-role'
 import {
@@ -122,7 +122,7 @@ export const UserManagementWorkspace = ({
     void loadAttempt
     let active = true
     setLoadState('loading')
-    void Promise.all([pathwaysClient.getUsers(), projectsClient.getProjects()])
+    void Promise.all([usersClient.getUsers(), projectsClient.getProjects()])
       .then(([nextUsers, nextProjects]) => {
         if (!active) return
         setUsers(nextUsers)
@@ -147,7 +147,7 @@ export const UserManagementWorkspace = ({
     kind: 'user',
     successMessage: 'Account authorized',
     findCreated: async (fingerprint, startedAt) =>
-      (await pathwaysClient.getUsers()).find(
+      (await usersClient.getUsers()).find(
         (user) =>
           fingerprintOf(user.authUserId) === fingerprint && createdSince(user.createdAt, startedAt),
       ),
@@ -262,7 +262,7 @@ export const UserManagementWorkspace = ({
       }
       try {
         const created = await pendingCreate.submit(fingerprintOf(authUserId), () =>
-          pathwaysClient.authorizeExistingUser({
+          usersClient.authorizeExistingUser({
             authUserId,
             fullName: name,
             role: editor.role,
@@ -305,7 +305,7 @@ export const UserManagementWorkspace = ({
       if (current.email.toLocaleLowerCase() !== email) {
         throw new Error('Changing the Auth email is not supported by this user endpoint.')
       }
-      const updated = await pathwaysClient.updateAuthorizedUser(editor.userId, {
+      const updated = await usersClient.updateAuthorizedUser(editor.userId, {
         fullName: name,
         role: editor.role,
         accountStatus: current.accountStatus === 'Deactivated' ? 'Deactivated' : 'Active',
@@ -324,7 +324,7 @@ export const UserManagementWorkspace = ({
   const deactivate = async () => {
     if (!deactivateUser) return
     try {
-      const updated = await pathwaysClient.updateAuthorizedUser(deactivateUser.id, {
+      const updated = await usersClient.updateAuthorizedUser(deactivateUser.id, {
         role: deactivateUser.role,
         accountStatus: 'Deactivated',
         projectIds: deactivateUser.projectIds,
@@ -338,7 +338,7 @@ export const UserManagementWorkspace = ({
   }
   const reactivate = async (user: UserRecord) => {
     try {
-      const updated = await pathwaysClient.updateAuthorizedUser(user.id, {
+      const updated = await usersClient.updateAuthorizedUser(user.id, {
         role: user.role,
         accountStatus: 'Active',
         projectIds: user.projectIds,

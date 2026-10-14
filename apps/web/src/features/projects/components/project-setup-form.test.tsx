@@ -18,9 +18,8 @@ const testState = vi.hoisted(() => ({
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: testState.routerPush }) }))
 vi.mock('sonner', () => ({ toast: { success: vi.fn() } }))
-vi.mock('@/lib/services/pathways-client', () => ({
-  pathwaysClient: { getUsers: testState.getUsers },
-}))
+vi.mock('@/lib/services/pathways-client', () => ({ pathwaysClient: {} }))
+vi.mock('@/lib/api/users', () => ({ usersClient: { getUsers: testState.getUsers } }))
 vi.mock('@/lib/api/projects', () => ({
   projectsClient: {
     createProject: testState.createProject,

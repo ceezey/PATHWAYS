@@ -91,8 +91,8 @@ const getProjects = vi.fn()
 const authorizeExistingUser = vi.fn()
 const updateAuthorizedUser = vi.fn()
 
-vi.mock('@/lib/services/pathways-client', () => ({
-  pathwaysClient: {
+vi.mock('@/lib/api/users', () => ({
+  usersClient: {
     getUsers: (...args: unknown[]) => getUsers(...args),
     authorizeExistingUser: (...args: unknown[]) => authorizeExistingUser(...args),
     updateAuthorizedUser: (...args: unknown[]) => updateAuthorizedUser(...args),

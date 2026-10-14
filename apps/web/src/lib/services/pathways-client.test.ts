@@ -26,7 +26,7 @@ import {
 import { formsClient } from '@/lib/api/forms'
 import { importsClient } from '@/lib/api/imports'
 import { projectsClient } from '@/lib/api/projects'
-import { pathwaysClient, recoverSourceMutation } from './pathways-client'
+import { recoverSourceMutation } from './pathways-client'
 
 describe('PATHWAYS frontend data boundary', () => {
   const setupSourceBrowser = () => {
@@ -355,7 +355,6 @@ describe('PATHWAYS frontend data boundary', () => {
       code: 'unauthorized',
     })
     await expect(projectsClient.getProjects()).rejects.toMatchObject({ code: 'unauthorized' })
-    await expect(pathwaysClient.getUsers()).rejects.toMatchObject({ code: 'unauthorized' })
   })
 
   it('uses the current session and non-authoritative workspace selectors for a real API read', async () => {

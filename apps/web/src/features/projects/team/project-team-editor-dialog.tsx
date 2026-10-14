@@ -23,7 +23,7 @@ import {
 } from '@/components/ui/dialog'
 import { Form } from '@/components/ui/form'
 import { projectsClient } from '@/lib/api/projects'
-import { pathwaysClient } from '@/lib/services/pathways-client'
+import { usersClient } from '@/lib/api/users'
 import type { ProjectDetail, UserRecord } from '@/types/pathways'
 
 // Uses the shared server-side gate (packages/shared/src/rbac/authorization-policy.ts,
@@ -127,7 +127,7 @@ export const ProjectTeamEditorDialog = ({
     let active = true
     setLoading(true)
     setLoadError(null)
-    pathwaysClient
+    usersClient
       .getUsers()
       .then((records) => {
         if (active) {
