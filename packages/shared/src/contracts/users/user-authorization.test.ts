@@ -6,6 +6,7 @@ import { authorizeExistingUserRequest, updateAuthorizedUserRequest } from './use
 const authUserId = '71000000-0000-4000-8000-000000000001'
 const officer = { authUserId, fullName: 'A', role: 'PROJECT_OFFICER' }
 const change = { role: 'PROJECT_OFFICER', accountStatus: 'ACTIVE', projectIds: [] }
+const astral = (count: number) => String.fromCodePoint(0x1f600).repeat(count)
 
 describe('user authorization contracts', () => {
   it('defaults the project list to empty and trims the name', () => {
@@ -57,6 +58,19 @@ describe('user authorization contracts', () => {
     expect(authorizeExistingUserRequest.safeParse({ ...officer, fullName }).success).toBe(accepted)
     expect(updateAuthorizedUserRequest.safeParse({ ...change, fullName }).success).toBe(accepted)
   })
+
+  it.each([
+    ['120 astral characters', astral(120), true],
+    ['121 astral characters', astral(121), false],
+  ])(
+    'counts code points, not UTF-16 units, in the name on both bodies: %s',
+    (_label, fullName, accepted) => {
+      expect(authorizeExistingUserRequest.safeParse({ ...officer, fullName }).success).toBe(
+        accepted,
+      )
+      expect(updateAuthorizedUserRequest.safeParse({ ...change, fullName }).success).toBe(accepted)
+    },
+  )
 
   it('accepts every role code and refuses a display name on both bodies', () => {
     for (const role of Object.keys(roleNames)) {

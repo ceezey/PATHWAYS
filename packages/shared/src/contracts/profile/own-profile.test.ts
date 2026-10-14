@@ -8,6 +8,8 @@ const body = {
   expectedUpdatedAt: '2026-10-01T00:00:00.000Z',
 }
 
+const astral = (count: number) => String.fromCodePoint(0x1f600).repeat(count)
+
 describe('own profile contracts', () => {
   it('trims the name and accepts an empty contact number', () => {
     expect(
@@ -25,6 +27,8 @@ describe('own profile contracts', () => {
     { ...body, contactNumber: 'not a phone' },
     { ...body, expectedUpdatedAt: '2026-02-30' },
     { fullName: 'Synthetic User', expectedUpdatedAt: body.expectedUpdatedAt },
+    { contactNumber: body.contactNumber, expectedUpdatedAt: body.expectedUpdatedAt },
+    { fullName: body.fullName, contactNumber: body.contactNumber },
     { ...body, email: 'a@example.invalid' },
   ])('rejects %j', (input) => {
     expect(updateOwnProfileRequest.safeParse(input).success).toBe(false)
@@ -47,6 +51,8 @@ describe('own profile contracts', () => {
     ['80 characters', 'x'.repeat(80), true],
     ['81 characters', 'x'.repeat(81), false],
     ['1 character after the trim', ' A ', false],
+    ['80 astral characters', astral(80), true],
+    ['81 astral characters', astral(81), false],
   ])('checks the name length: %s', (_label, fullName, accepted) => {
     expect(updateOwnProfileRequest.safeParse({ ...body, fullName }).success).toBe(accepted)
   })
