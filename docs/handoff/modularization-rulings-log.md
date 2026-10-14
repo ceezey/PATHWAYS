@@ -711,3 +711,53 @@ Ruling: S5c SAD sign-off PASS at 66a9be6e (design-qa-agent 168 paths in four pac
 Ruling: the W1 plan (Tasks 0 to 8: cloud-run deferrals, analytics test split, scripts/db, phase6 renamed to replay with forwarding stubs for the old PowerShell and mjs entry points, seeds into prisma/seeds, tooling tests wired into a CI job, records, gates; 142 renames, every count equal) is accepted, and its W2 outline becomes the last slice, limited to items the change record's W1 row or its recorded deferrals name (path aliases, the docs/check.py split, the lib/services residue, the seed data and large test file splits only where a deferral names them), making 18 slices, cost if wrong: one more slice of work, flagged to Cian.
 
 Ruling: apply the S6c pre-flight fixes (11 must-fix: Task 0 branch, ancestor and S5c marker checks with base-sha first, Expected values from the S5c replay, the indicators noUnusedLocals line in use-collection-state.ts, the Task 7 index sed, grep -a and a sorted typecheck in Task 8, 'use client' kept on 11 cut components; 7 should-fix: a shared response-rules test of 27 cases leaving one equivalent mutant, SUBMITTED and REVIEWED round statuses, six report read permission rows, the api export guard for a stored report type with no route, the activeOperation guard), and Task 0 recounts the real S5c figures, which carry fix 3 and fix 6 rows the replay lacks, cost if wrong: an S6c Task 0 stop.
+
+Ruling: S6c is the last slice of part 2, so its Task 8 gate line says S6c ships in part 2 of 3 stacked pull requests into dev and the controller opens that pull request (claude/modularization-s6c-9ept8o into dev) after the S6c sign-off, in place of the plan's "one pull request after every slice" wording, cost if wrong: none (Cian chose stacked pull requests on 2026-10-14).
+
+Ruling: S6c Task 0 takes the real S5c figures as baselines (web 246 files and 2287 tests, the S5c route table) where the replay printed 244 and 2253, cost if wrong: a later Expected compares against a stale count and is caught by the delta check.
+
+Ruling: S6c Task 0 committed 4fb57e71 with every Expected matching except B_web (246 files and 2287 tests, the real S5c figure), Middleware 103 kB, cost if wrong: none.
+
+Ruling: S6c Task 1 committed 47d13434 (stat equal to the brief; lint checked 1451 files, not 1449, the two S5c split test files), cost if wrong: none.
+
+Ruling: S6c Task 2 committed 6a7cfe2c (stat equal to the brief, schema-moved lost 0 three times, the strict mutation killed; lint 1450 files, the two S5c split files), cost if wrong: none.
+
+Ruling: S6c Task 1 review PASS on both; its low (three tightening mutants survive: snapshot weight_percentage and maximum_score to decimal, snapshot type to an enum, expenseDate to a date regex, since no row passes a free-form value) is fixed by a tests-only commit after Task 3 (fix-1-brief.md), because a tightened response rule would reject real api responses at runtime, cost if wrong: a few extra rows.
+
+Ruling: S6c Task 2 review PASS on both; its two nits stay (the EvaluationDetail alias is what the brief specifies, and Biome does not wrap the one long comment), cost if wrong: none.
+
+Ruling: S6c Task 3 committed d0648345 and 835f9718 (stats equal to the brief, parity rows pass on the old code, the monitoring grant mutation fails 2 rows in each of the three tests; lint 1453 files from the S5c split files), cost if wrong: none.
+
+Ruling: fix 1 committed f2a21f17 (two rows, four tightening mutations each failing a row; shared 42 files and 721 tests, two more than the brief from here on), cost if wrong: none.
+
+Ruling: S6c Task 3 review PASS on both (nothing widens access, parity holds over every role and grant subset); its two lows (the stale reports.helpers.ts:27 comment, ReportKindGrant exported with no outside user) are fixed by the controller in one small commit after Task 4 so the implementer's tree is not touched mid-task, cost if wrong: none.
+
+Ruling: the review 3 comment low is fixed in f9dc1181; ReportKindGrant keeps its export, because the exported reportKindGrants annotation uses it and the shared declaration build would otherwise report a private name, cost if wrong: one needless type export.
+
+Ruling: S6c Task 4 committed 44aa1180, e0c5d623 and 385cd72c with every Expected matching (live-reporting-workspace.tsx 523 to 33 lines, lost 0, six mutations killed; the brief's prose 59 tests contradicts its own Expected 65, which ran), cost if wrong: none.
+
+Ruling: S6c Task 5 committed d3a62177 and cc62fe6c with every Expected matching (live-evaluation-workspace.tsx 531 to 42 lines, lost 0, three behavior mutations and the tone type mutation caught), cost if wrong: none.
+
+Ruling: S6c Task 6 committed 408b940f with every Expected matching (one shared budgets read, the permission mutation fails one row); the untracked evaluation-mut folder is the Task 5 reviewer's scratch copy and is removed once that review ends, cost if wrong: none.
+
+Ruling: S6c Task 6 review PASS on both (same key, fetcher, permission and enabled condition, one shared cache entry; four mutations each fail the new row), cost if wrong: none.
+
+Ruling: S6c Task 5 review spec PASS, quality PASS for the split, with Important test debt (84 of 103 mutants survive, unpinned before the move): as in S5c fixes 3 and 6, the state logic gets a tests-only fix (fix-5-brief.md: round status gates, owner and reviewer enablement, sign-off gate, dialog confirm gating and cancel, success and failure messages with dialog close and field reset, the stale-owner and activeOperation guards where the DOM can reach them, the start card disables, table sort order), while pure copy and display survivors (card field labels, status tone classes) stay as debt and the unreachable readError state is recorded, cost if wrong: a few more rows than needed.
+
+Ruling: S6c Task 4 review spec PASS, quality PASS with six medium test-debt findings (about 100 of 138 mutants survive, unpinned before the split): as for review 5, a tests-only fix 4 after fix 5 pins the state logic (previewOnly, the survey and round reset on project change, the chosen format in the request, the download and generate stale-owner, catch, finally and re-entry guards where the DOM reaches them, the start and fallback messages, the file extension, the draft-owner inputs and the export permission, the saved reports disable rule and the allowed-kind clamp), while pure copy and display states (empty, pending and error texts, title fallback, unavailable reasons) stay as debt, cost if wrong: a few more rows than needed.
+
+Ruling: fix 5 committed d01cedcb (live-evaluation-workspace.state.test.tsx, 63 cases, 73 of 74 mutants killed, the survivor equivalent; the review card SUBMITTED check and the list error branch skipped as unreachable; web 249 files and 2370 tests), cost if wrong: none.
+
+Ruling: fix 4 committed 91f961a7 (live-reporting-workspace.state.test.tsx, 57 rows, 52 of 57 mutants killed, the five survivors unreachable re-entry guards behind a disabled button or equivalent; web 250 files and 2427 tests), cost if wrong: none.
+
+Ruling: S6c Task 7 committed 5e9c774a (6 docs files; shared 42 and 721, api 153 and 2614, web 250 and 2427; three project routes 1 kB bigger, report routes unchanged; the CR roadmap row now names S6c), cost if wrong: none.
+
+Ruling: S6c SAD PASS on all 75 paths (organization-isolation-checker 6, beneficiary-privacy-guardian 13, design-qa-agent 56), 0 blocked, cost if wrong: none.
+
+Ruling: S6c final review PASS; its record lows are fixed in the gate commit (the report routes kept their First Load sizes with the print chunk 0.5 kB bigger, the PRD G-F12-1 row lists QAD-T121, reports.service.test.ts at 836 lines is named as W2 test debt); the fix 4 denominator stays 57 (52 killed, four unreachable guards, one equivalent, as its hand-back counted), and the schema-plus-type exports and SavedScore keep their export as the shared convention, cost if wrong: one needless export each.
+
+Ruling: S6c gates pass at 86985c87 (shared 42 and 721, api 153 and 2614, web 250 and 2427, sad 57, Middleware 103 kB) and SAD sign-off exits 0; the branch is pushed and part 2 opens, cost if wrong: none.
+
+## S7a
+
+Ruling: apply the S7a pre-flight fixes (12 must-fix: Task 0 branch, base-sha and ancestor checks with S5c and S6c markers and real baselines, Biome with its file list set in Task 3, git grep that sees the untracked rules.reads.ts, a next.config edit that matches the multi-line list, a Task 8 that runs the web build without prisma generate and opens no pull request, no plan copy removal in the S7b outline, corrected test deltas, a 403 row that asserts ForbiddenException; 15 should-fix mutation-checked pins: the service call of all 23 handlers, the alert evidence table, evaluation line and history list, the editor indicator binding, the context-only read, useBindingChoices and the rules.reads fetchers), replayed to the end with api B+3 and web B+17 in 249 files, cost if wrong: a Task 0 recount on the real S6c tip catches drift.
