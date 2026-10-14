@@ -152,6 +152,16 @@ describe('Analytics dashboard request dependencies', () => {
       ])
     })
 
+    it('hands the abort signal of the query to every alerts request', async () => {
+      const list = vi.mocked(rulesHumanClient.listAlerts)
+      list.mockImplementation((async (input: { status?: string; cursor?: string }) =>
+        input.status === 'NEW' && !input.cursor ? page(1, 'c1') : page(0, null)) as never)
+      const { signal } = new AbortController()
+      await countOpenAlerts('project-a', signal)
+      expect(list).toHaveBeenCalledTimes(4)
+      for (const [, received] of list.mock.calls) expect(received).toBe(signal)
+    })
+
     it('stops at the page bound and reports the count as capped', async () => {
       const list = vi.mocked(rulesHumanClient.listAlerts)
       list.mockImplementation((async () => page(100, 'more')) as never)

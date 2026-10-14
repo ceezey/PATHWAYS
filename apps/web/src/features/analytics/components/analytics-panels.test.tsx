@@ -211,6 +211,18 @@ describe('timeline analytics panel', () => {
     expect(screen.getByText('Data unavailable')).toBeTruthy()
     expect(screen.getByText('Timeline adherence is not available for this selection.')).toBeTruthy()
   })
+
+  it('lets loading win over an error and an error win over data', () => {
+    const { rerender } = render(
+      <TimelineAnalyticsPanel {...props} data={null} error="Server said no." loading />,
+    )
+    expect(screen.getByText('Loading timeline analytics')).toBeTruthy()
+    expect(screen.queryByText('Server said no.')).toBeNull()
+    rerender(<TimelineAnalyticsPanel {...props} data={data} error="Server said no." />)
+    expect(screen.getByText('Timeline analytics could not be loaded')).toBeTruthy()
+    expect(screen.getByText('Server said no.')).toBeTruthy()
+    expect(screen.queryByTestId('timeline-analytics')).toBeNull()
+  })
 })
 
 describe('survey analytics panel', () => {
@@ -292,6 +304,8 @@ describe('survey analytics panel', () => {
   it.each([
     [cell('-5.5'), '-5.5pp', 'warning'],
     [cell('0.5'), '0.5pp', 'success'],
+    [cell('0'), '0pp', 'success'],
+    [zero, '0pp', 'success'],
     [gap('MISSING', 'NO_MEASUREMENT'), 'None yet', 'info'],
   ])('colours the cohort change %# by its sign', (meanChange, value, tone) => {
     render(
@@ -367,6 +381,63 @@ describe('survey analytics panel', () => {
     expect(screen.getByText('Data unavailable')).toBeTruthy()
     expect(screen.getByText('Restricted for your role.')).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull()
+  })
+
+  it('shows a period error as a final error without Retry', () => {
+    render(
+      <SurveyAnalyticsPanel {...props} data={null} error="Pick a period." errorKind="period" />,
+    )
+    expect(screen.getByText('Data unavailable')).toBeTruthy()
+    expect(screen.getByText('Pick a period.')).toBeTruthy()
+    expect(screen.queryByText('Survey analytics could not be loaded')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull()
+  })
+
+  it.each(['retry', 'restricted'] as const)('lets loading win over a %s error', (errorKind) => {
+    render(
+      <SurveyAnalyticsPanel
+        {...props}
+        data={null}
+        error="Network down."
+        errorKind={errorKind}
+        loading
+      />,
+    )
+    expect(screen.getByText('Loading survey analytics')).toBeTruthy()
+    expect(screen.queryByText('Network down.')).toBeNull()
+  })
+
+  it.each([
+    ['retry', 'Survey analytics could not be loaded'],
+    ['restricted', 'Data unavailable'],
+  ] as const)('lets a %s error win over data and the no usable period flag', (errorKind, title) => {
+    render(
+      <SurveyAnalyticsPanel
+        {...props}
+        error="Network down."
+        errorKind={errorKind}
+        noUsablePeriod
+      />,
+    )
+    expect(screen.getByText(title)).toBeTruthy()
+    expect(screen.getByText('Network down.')).toBeTruthy()
+    expect(screen.queryByText(SURVEY_PERIOD_MESSAGE)).toBeNull()
+    expect(screen.queryByTestId('survey-analytics')).toBeNull()
+  })
+
+  it('shows the data, not the no usable period message, when data is present', () => {
+    render(<SurveyAnalyticsPanel {...props} noUsablePeriod />)
+    expect(screen.getByTestId('survey-analytics')).toBeTruthy()
+    expect(screen.queryByText(SURVEY_PERIOD_MESSAGE)).toBeNull()
+  })
+
+  it('charts the cohort group, not an activity group', () => {
+    render(<SurveyAnalyticsPanel {...props} showChart />)
+    expect(readRows('Cohort change (all activities) values')).toEqual([
+      ['Improved', '8'],
+      ['Same', '3'],
+      ['Declined', '1'],
+    ])
   })
 
   it('explains an empty panel by period usability and by role', () => {
