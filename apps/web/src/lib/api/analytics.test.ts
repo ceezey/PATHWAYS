@@ -127,11 +127,21 @@ describe('analyticsClient analytics reads', () => {
     )
   })
 
-  it('forces the timeline view and sends no period', async () => {
+  it('adds the timeline view to a project only query', async () => {
     fetcher.mockResolvedValueOnce(json(timeline))
     await expect(client.getTimelineAnalytics({ projectId })).resolves.toEqual(timeline)
     expect(String(fetcher.mock.calls[0][0])).toBe(
       `${base}/analytics/descriptive?projectId=${projectId}&view=timeline`,
+    )
+  })
+
+  it('forces the timeline view, whatever view the caller names, and keeps the period', async () => {
+    fetcher.mockResolvedValueOnce(json(timeline))
+    await expect(
+      client.getTimelineAnalytics({ projectId, ...period, view: 'survey' }),
+    ).resolves.toEqual(timeline)
+    expect(String(fetcher.mock.calls[0][0])).toBe(
+      `${base}/analytics/descriptive?projectId=${projectId}${periodSearch}&view=timeline`,
     )
   })
 
