@@ -131,6 +131,7 @@ Workflow rule: an audit is finding and evidence, a Change Record is the approved
 | [S7 analytics, dashboards and rules plan](superpowers/plans/2026-10-14-modularization-s7-analytics-rules.md) | 2026-10-14-modularization-s7-analytics-rules.md | 2026-10-14 | S7 of the codebase modularization: S7a features/rules, lib/api/rules, rule-binding reads and one rules controller per file; S7b outline | In progress |
 | [S7b analytics and dashboards api plan](superpowers/plans/2026-10-14-modularization-s7b-analytics-dashboards.md) | 2026-10-14-modularization-s7b-analytics-dashboards.md | 2026-10-14 | S7b of the codebase modularization: analytics module, role overview and descriptive analytics splits, shared monitoring folder dissolved, stored project status list; S7c outline | S7b executed; holds the S7c outline |
 | [S7c analytics and dashboards web plan](superpowers/plans/2026-10-14-modularization-s7c-analytics-dashboards-web.md) | 2026-10-14-modularization-s7c-analytics-dashboards-web.md | 2026-10-14 | S7c of the codebase modularization: dashboards and analytics clients, features/analytics layout and surface, analytics dashboard test and component splits; S7d outline | S7c executed; holds the S7d outline |
+| [S7d dashboards web plan](superpowers/plans/2026-10-14-modularization-s7d-dashboards-web.md) | 2026-10-14-modularization-s7d-dashboards-web.md | 2026-10-14 | S7d of the codebase modularization: analytics shell split, features/dashboard layout and role dashboard split, dashboard read key | In progress |
 
 ### 1.7 Traceability Matrix
 
