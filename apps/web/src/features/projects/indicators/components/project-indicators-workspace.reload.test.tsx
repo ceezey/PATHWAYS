@@ -55,7 +55,7 @@ vi.mock('@/hooks/use-current-role', () => ({
 vi.mock('@/hooks/use-source-mutation-context', () => ({
   useSourceMutationContext: () => ({ isCurrent: () => true }),
 }))
-vi.mock('@/features/analytics/use-monitoring-read', () => ({
+vi.mock('@/hooks/use-monitoring-read', () => ({
   useMonitoringRead: () => ({
     data: [indicator],
     loading: false,

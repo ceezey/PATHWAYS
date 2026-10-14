@@ -47,6 +47,7 @@ export default function createNextConfig(phase: string): NextConfig {
     // Barrel imports of an indexed feature otherwise pull every client component of it into the route bundle.
     experimental: {
       optimizePackageImports: [
+        '@/features/analytics',
         '@/features/projects',
         '@/features/beneficiaries',
         '@/features/reports',

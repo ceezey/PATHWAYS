@@ -5,15 +5,17 @@ import { useEffect, useState } from 'react'
 
 import { EmptyState } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
-import { IndicatorProgressChart } from '@/features/analytics/analytics-charts'
-import { InsightStatus, RestrictedInsight } from '@/features/analytics/insight-status'
-import { activeIndicators, progressRows } from '@/features/analytics/kpi-rows'
-import { ParticipationBreakdownPanel } from '@/features/analytics/participation-breakdown-panel'
 import {
+  IndicatorProgressChart,
+  InsightStatus,
   type InsightsSelection,
+  ParticipationBreakdownPanel,
+  RestrictedInsight,
+  activeIndicators,
   canReadInsight,
+  progressRows,
   useParticipationBreakdown,
-} from '@/features/analytics/use-analytics-insights'
+} from '@/features/analytics'
 import { overviewMetricLabel } from '@/features/projects'
 import { useAuthorizedRead } from '@/hooks/use-authorized-read'
 import { useCurrentRole } from '@/hooks/use-current-role'

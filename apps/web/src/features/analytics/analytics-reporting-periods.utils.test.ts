@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   deriveAnalyticsReportingPeriods,
   formatAnalyticsReportingPeriod,
-} from './analytics-reporting-periods'
+} from './analytics-reporting-periods.utils'
 
 const indicator = (
   periodStart: string | null,

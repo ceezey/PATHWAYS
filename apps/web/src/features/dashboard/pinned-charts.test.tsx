@@ -21,12 +21,12 @@ vi.mock('@/lib/services/pathways-client', () => ({ pathwaysClient: {} }))
 vi.mock('@/lib/api/dashboards', () => ({ dashboardsClient: {} }))
 vi.mock('@/lib/api/analytics', () => ({ analyticsClient: {} }))
 vi.mock('@/hooks/use-authorized-read', () => ({ useAuthorizedRead: () => insight.result }))
-vi.mock('@/features/analytics/use-analytics-insights', () => ({
+vi.mock('@/features/analytics/hooks/use-analytics-insights', () => ({
   canReadInsight: (profile: { permissions: string[] }, kind: string) =>
     profile.permissions.includes(kind),
   useParticipationBreakdown: () => insight.result,
 }))
-vi.mock('@/features/analytics/analytics-charts', () => ({
+vi.mock('@/features/analytics/components/analytics-charts', () => ({
   IndicatorProgressChart: ({ rows }: { rows: Array<{ label: string }> }) => (
     <div>{`progress:${rows.map((row) => row.label).join(',')}`}</div>
   ),

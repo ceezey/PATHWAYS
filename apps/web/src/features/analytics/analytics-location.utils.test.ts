@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   EMPTY_SAFE_MAP_FEATURE_COLLECTION,
   toProjectCoverageFeatureCollection,
-} from './analytics-location-utils'
+} from './analytics-location.utils'
 
 describe('project coverage map data contract', () => {
   it.each([

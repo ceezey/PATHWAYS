@@ -5,7 +5,7 @@ import type { ProjectMap } from '@pathways/shared'
 import { useAuthorizedRead } from '@/hooks/use-authorized-read'
 import { projectsClient } from '@/lib/api/projects'
 
-import type { SafeMapFeatureCollection } from './analytics-location-utils'
+import type { SafeMapFeatureCollection } from '../analytics-location.utils'
 
 const readProjectMap = (signal: AbortSignal): Promise<ProjectMap> =>
   projectsClient.getProjectMap(signal)

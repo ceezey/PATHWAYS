@@ -78,8 +78,8 @@ vi.mock('@/lib/services/core-feature-client', () => ({
 }))
 vi.mock('sonner', () => ({ toast: { error: toastError, success: vi.fn() } }))
 vi.mock('echarts-for-react', () => ({ default: () => <div>chart</div> }))
-vi.mock('./use-analytics-insights', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('./use-analytics-insights')>()),
+vi.mock('../hooks/use-analytics-insights', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../hooks/use-analytics-insights')>()),
   useBudgetSummary: () => insights.budget,
   useIndicatorTrends: () => insights.trends,
   useParticipationBreakdown: () => insights.participation,

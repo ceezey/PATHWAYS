@@ -7,7 +7,7 @@ import ReactECharts from 'echarts-for-react'
 
 import type { ActivitySummary, AlertRecord, BudgetRecord, ProjectDetail } from '@/types/pathways'
 
-import { type AggregateChartBucket, aggregateChartOption } from './aggregate-chart-options'
+import { type AggregateChartBucket, aggregateChartOption } from '../aggregate-chart-options.utils'
 
 type ChartProps = {
   projects: ProjectDetail[]

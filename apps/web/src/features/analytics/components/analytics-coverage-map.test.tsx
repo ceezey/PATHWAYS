@@ -3,7 +3,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { SafeMapFeatureCollection } from './analytics-location-utils'
+import type { SafeMapFeatureCollection } from '../analytics-location.utils'
 
 const maplibre = vi.hoisted(() => ({
   instances: [] as MapMock[],

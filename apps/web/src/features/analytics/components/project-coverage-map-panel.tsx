@@ -2,9 +2,9 @@
 
 import { useMemo } from 'react'
 
+import { toProjectMapFeatures, useProjectMap } from '../hooks/use-project-map'
 import { AnalyticsCoverageMap } from './analytics-coverage-map'
 import { ProjectMapCard } from './project-map-card'
-import { toProjectMapFeatures, useProjectMap } from './use-project-map'
 
 /** Coverage map of every scoped project; hovering or tapping a dot opens that location's overview. */
 export const ProjectCoverageMapPanel = () => {

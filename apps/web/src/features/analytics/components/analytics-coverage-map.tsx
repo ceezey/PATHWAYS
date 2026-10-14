@@ -19,7 +19,7 @@ import { cn } from '@/lib/utils'
 import {
   EMPTY_SAFE_MAP_FEATURE_COLLECTION,
   type SafeMapFeatureCollection,
-} from './analytics-location-utils'
+} from '../analytics-location.utils'
 
 const sourceId = 'pathways-authorized-project-locations'
 const layerId = 'pathways-authorized-project-location-points'

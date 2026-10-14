@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import path from 'node:path'
 import { PHASE_PRODUCTION_BUILD } from 'next/constants'
 import { describe, expect, it } from 'vitest'
@@ -55,6 +55,7 @@ function violation(file: string, specifier: string): string | null {
 
 // Features whose index.ts is their only surface for files outside them (CR section 3.3).
 const indexedFeatures: readonly string[] = [
+  'analytics',
   'projects',
   'beneficiaries',
   'reports',
@@ -163,6 +164,14 @@ describe('feature public surfaces', () => {
       }),
     )
     expect(violations).toEqual([])
+  })
+
+  it('lists every feature that has an index.ts as indexed', () => {
+    const features = path.join(src, 'features')
+    const withIndex = readdirSync(features).filter((name) =>
+      existsSync(path.join(features, name, 'index.ts')),
+    )
+    expect([...indexedFeatures].sort()).toEqual(withIndex.sort())
   })
 
   it('has Next optimize the barrel of each indexed feature so route bundles keep their size', () => {

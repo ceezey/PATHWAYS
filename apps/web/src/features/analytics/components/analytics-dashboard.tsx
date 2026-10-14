@@ -73,6 +73,17 @@ import {
 import { toast } from 'sonner'
 
 import {
+  deriveAnalyticsReportingPeriods,
+  nonOverlappingAnalyticsPeriods,
+} from '../analytics-reporting-periods.utils'
+import {
+  canReadInsight,
+  useBudgetSummary,
+  useIndicatorTrends,
+  useParticipationBreakdown,
+} from '../hooks/use-analytics-insights'
+import { activeIndicators, metricNumber, progressRows } from '../kpi-rows.utils'
+import {
   ActivityCompletionChart,
   DescriptiveAnalysisChart,
   IndicatorProgressChart,
@@ -83,22 +94,11 @@ import {
   type AnalyticsExportPreview,
   AnalyticsExportPreviewDialog,
 } from './analytics-export-preview'
-import {
-  deriveAnalyticsReportingPeriods,
-  nonOverlappingAnalyticsPeriods,
-} from './analytics-reporting-periods'
 import { BudgetSummaryCard } from './budget-summary-card'
 import { IndicatorTrendChart } from './indicator-trend-chart'
 import { InsightStatus } from './insight-status'
-import { activeIndicators, metricNumber, progressRows } from './kpi-rows'
 import { ParticipationBreakdownPanel } from './participation-breakdown-panel'
 import { ProjectCoverageMapPanel } from './project-coverage-map-panel'
-import {
-  canReadInsight,
-  useBudgetSummary,
-  useIndicatorTrends,
-  useParticipationBreakdown,
-} from './use-analytics-insights'
 
 const analysisViews = [
   { value: 'kpi', label: 'KPI / indicator performance' },

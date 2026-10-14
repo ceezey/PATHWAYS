@@ -6,7 +6,7 @@ const source = (file: string) => readFileSync(path.resolve(__dirname, '..', file
 
 const removedDescriptions = [
   [
-    'features/analytics/analytics-dashboard.tsx',
+    'features/analytics/components/analytics-dashboard.tsx',
     'Project performance, SADDD Analysis, budget utilization, aggregate location coverage, Beneficiary reach, and Rule-Based Alerts for human review.',
   ],
   [
@@ -46,11 +46,11 @@ describe('"None yet" empty states versus error and permission wording', () => {
 
   it.each([
     [
-      'features/analytics/analytics-dashboard.tsx',
+      'features/analytics/components/analytics-dashboard.tsx',
       'const monitoringReadable = canReadIndicators && monitoring !== null && !monitoringError',
     ],
-    ['features/analytics/analytics-dashboard.tsx', ': monitoringReadable'],
-    ['features/analytics/analytics-dashboard.tsx', "row.mean ?? 'None yet'"],
+    ['features/analytics/components/analytics-dashboard.tsx', ': monitoringReadable'],
+    ['features/analytics/components/analytics-dashboard.tsx', "row.mean ?? 'None yet'"],
     [
       'features/projects/activities/components/activity-detail-sections.tsx',
       "canReadBudgets ? 'None yet' : 'Unavailable'",
@@ -80,13 +80,13 @@ describe('"None yet" empty states versus error and permission wording', () => {
   })
 
   it('never shows "None yet" for indicator data the role cannot read or for unmapped fields', () => {
-    expect(source('features/analytics/analytics-dashboard.tsx')).not.toContain(
+    expect(source('features/analytics/components/analytics-dashboard.tsx')).not.toContain(
       "averageKpi === null ? 'None yet'",
     )
   })
 
   it('derives the participation empty-chart title from the shared metric-unavailable helper, not an unconditional "None yet"', () => {
-    const analytics = source('features/analytics/analytics-dashboard.tsx')
+    const analytics = source('features/analytics/components/analytics-dashboard.tsx')
     expect(analytics).toContain(
       "import { metricUnavailableLabel, overviewMetricLabel } from '@/features/projects'",
     )
@@ -126,7 +126,7 @@ describe('Phase 4 UI copy cleanup contract', () => {
     expect(source('components/layout/beneficiary-access-gate.tsx')).toContain(
       'Verify beneficiary module access',
     )
-    expect(source('features/analytics/analytics-coverage-map.tsx')).toContain(
+    expect(source('features/analytics/components/analytics-coverage-map.tsx')).toContain(
       'No mapped locations available',
     )
   })

@@ -2,7 +2,7 @@ import { numericMetric } from '@pathways/shared'
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
-import { aggregateAccessibleText, aggregateChartOption } from './aggregate-chart-options'
+import { aggregateAccessibleText, aggregateChartOption } from '../aggregate-chart-options.utils'
 import { SadddChart } from './analytics-charts'
 
 vi.mock('echarts-for-react', () => ({ default: () => null }))
