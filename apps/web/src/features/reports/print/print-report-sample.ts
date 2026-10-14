@@ -1,4 +1,4 @@
-import type { ReportSections } from '@/lib/services/report-sections'
+import type { ReportSectionsResponse } from '@pathways/shared'
 import type { PrintReport } from './print-report-payload'
 
 const figure = (label: string, value: string | null, percent: number | null, detail = '') => ({
@@ -18,7 +18,7 @@ const milestone = (title: string, status: string, target: string, done: string |
 })
 
 // Fictional fixture for checking the Project summary design locally with ?sample=project.
-const sections: ReportSections = {
+const sections: ReportSectionsResponse = {
   reportDate: '2026-10-05',
   information: {
     code: 'SAMPLE-01',

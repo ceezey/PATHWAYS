@@ -14,6 +14,9 @@ import { readApiEnv } from '@pathways/config'
 import type { Prisma } from '@prisma/client'
 
 import {
+  type BeneficiaryMediaItemResponse,
+  type BeneficiaryMediaLimitsResponse,
+  type BeneficiaryMediaReservationResponse,
   MAX_BENEFICIARY_MEDIA_FILES,
   type ReserveBeneficiaryMediaRequest,
   aggregateOnlyRoles,
@@ -62,7 +65,7 @@ export class BeneficiaryMediaService {
       maxFiles: MAX_BENEFICIARY_MEDIA_FILES,
       maxFileBytes: this.env.EVIDENCE_MAX_FILE_BYTES,
       contentTypes: [...beneficiaryMediaContentTypes],
-    }
+    } satisfies BeneficiaryMediaLimitsResponse
   }
 
   /** Aggregate-only roles are denied first; then project assignment and the enrollment are resolved. */
@@ -150,17 +153,19 @@ export class BeneficiaryMediaService {
           orderBy: [{ submittedAt: 'desc' }, { id: 'asc' }],
           take: MAX_LISTED_MEDIA,
         })
-        return rows.map((row) => ({
-          id: row.id,
-          type: row.type,
-          fileName: row.fileName,
-          contentType: row.contentType,
-          byteSize: Number(row.byteSize),
-          description: row.description,
-          submittedAt: row.submittedAt.toISOString(),
-          submittedBy: row.submittedBy.fullName,
-          storageReady: row.storageReady,
-        }))
+        return rows.map(
+          (row): BeneficiaryMediaItemResponse => ({
+            id: row.id,
+            type: row.type,
+            fileName: row.fileName,
+            contentType: row.contentType,
+            byteSize: Number(row.byteSize),
+            description: row.description,
+            submittedAt: row.submittedAt.toISOString(),
+            submittedBy: row.submittedBy.fullName,
+            storageReady: row.storageReady,
+          }),
+        )
       },
     )
   }
@@ -243,7 +248,7 @@ export class BeneficiaryMediaService {
             uploadUrl: signed[index].uploadUrl,
           }
         }),
-      }
+      } satisfies BeneficiaryMediaReservationResponse
     } catch {
       throw new ServiceUnavailableException('Media upload could not be prepared. Retry the upload.')
     }

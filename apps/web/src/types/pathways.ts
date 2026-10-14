@@ -2,8 +2,16 @@ import type { PathwaysRole } from '@/types/pathways-role'
 import type {
   ActivityCapabilitiesResponse,
   AssignableOfficerResponse,
+  FormResponse,
+  FormSubmissionResponse,
+  ImportBatchDetailResponse,
+  ImportBatchResponse,
+  ImportRowResponse,
+  ImportRowsPageResponse,
+  ImportSourceColumnResponse,
   OverdueExplanationCategory,
   SadddDashboard,
+  DigitalFormType as SharedDigitalFormType,
   StoredProjectStatus,
 } from '@pathways/shared'
 
@@ -524,12 +532,6 @@ export interface BeneficiaryRecord extends Beneficiary {
   }>
 }
 
-export interface RegisterBeneficiaryInput {
-  formId: string
-  clientRegistrationId: string
-  values: Record<string, unknown>
-}
-
 export interface UpdateBeneficiaryInput {
   subjectType: 'INDIVIDUAL' | 'GROUP' | 'COMMUNITY'
   displayName?: string
@@ -637,38 +639,6 @@ export type AlertLifecycleStatus =
   | 'Dismissed'
   | 'Auto-resolved'
 
-export interface ReportRecord {
-  id: string
-  title: string
-  projectId: string
-  reportingPeriod: string
-}
-
-type SurveyFormFieldType = 'Single select' | 'Numeric score'
-
-export interface SurveyFormFieldDefinition {
-  id: string
-  label: string
-  responseType: SurveyFormFieldType
-  metadataKey: string
-  required: boolean
-  options?: string[]
-  minimum?: number
-  maximum?: number
-}
-
-export interface SurveyFormDefinition {
-  id: string
-  title: string
-  formType: 'Training Survey' | 'Pre/Post Assessment' | 'Feedback Form'
-  programName: string
-  projectId: string
-  journeyStageId?: string
-  activityId?: string
-  fields: SurveyFormFieldDefinition[]
-  source?: string
-}
-
 export type FormFieldDataType =
   | 'TEXT'
   | 'LONG_TEXT'
@@ -679,14 +649,7 @@ export type FormFieldDataType =
   | 'SELECT'
   | 'MULTIPLE_SELECT'
 
-export type DigitalFormType =
-  | 'BENEFICIARY_REGISTRATION'
-  | 'TRAINING_SURVEY'
-  | 'PRE_TEST'
-  | 'POST_TEST'
-  | 'OUTCOME_MONITORING'
-  | 'ACTIVITY_MONITORING'
-  | 'OTHER'
+export type DigitalFormType = SharedDigitalFormType
 
 export interface DigitalFormFieldDefinition {
   id?: string
@@ -706,23 +669,7 @@ export interface DigitalFormFieldDefinition {
   sequence?: number
 }
 
-export interface DigitalFormDefinition {
-  id: string
-  projectId: string
-  code: string
-  version: number
-  name: string
-  description: string | null
-  formType: DigitalFormType
-  status: 'DRAFT' | 'PUBLISHED' | 'ARCHIVED'
-  activityId: string | null
-  journeyStageId: string | null
-  publishedAt?: string
-  archivedAt?: string
-  updatedAt: string
-  createdByCurrentUser: boolean
-  fields: DigitalFormFieldDefinition[]
-}
+export type DigitalFormDefinition = FormResponse
 
 export interface SaveDigitalFormInput {
   code: string
@@ -746,109 +693,19 @@ export interface FormValidationResult {
   errors: FormValidationError[]
 }
 
-export interface DirectFormSubmission {
-  beneficiaryId?: string | null
-  id: string
-  clientSubmissionId: string
-  status: 'DRAFT' | 'VALIDATED'
-  formId: string
-  formVersion: number
-  submittedAt?: string
-  updatedAt: string
-  values: Record<string, string | number | boolean | string[] | null>
-}
+export type DirectFormSubmission = FormSubmissionResponse
 
-export type ImportBatchStatus =
-  | 'UPLOADING'
-  | 'UPLOADED'
-  | 'MAPPED'
-  | 'VALIDATING'
-  | 'VALIDATED'
-  | 'PROCESSING'
-  | 'PARTIALLY_PROCESSED'
-  | 'PROCESSED'
-  | 'RECOVERY_REQUIRED'
-  | 'FAILED'
+export type ImportBatchStatus = ImportBatchResponse['status']
 
-export interface ImportSourceColumn {
-  key: string
-  header: string
-  columnIndex: number
-}
+export type ImportSourceColumn = ImportSourceColumnResponse
 
-export interface ImportBatchDefinition {
-  id: string
-  projectId: string
-  formId: string
-  formVersion: number
-  formCode: string
-  formName: string
-  formType: DigitalFormType
-  originalFileName: string
-  fileType: 'CSV' | 'XLSX' | 'XLS' | 'PDF'
-  clientImportId: string
-  storageStatus: 'RESERVED' | 'STORED' | 'RECOVERY_REQUIRED' | 'FAILED'
-  status: ImportBatchStatus
-  mappingRevision: number
-  validationRevision: number
-  validatedMappingRevision: number | null
-  processingRevision: number
-  totals: {
-    rows: number
-    valid: number
-    invalid: number
-    processed: number
-    unprocessed: number
-    failed: number
-  }
-  failureCode: string | null
-  uploadedAt: string
-  validatedAt?: string
-  processedAt?: string
-  updatedAt: string
-  sourceHeaders?: string[]
-  sourceColumns?: ImportSourceColumn[]
-  mappings?: Array<{
-    sourceFieldName: string
-    status: 'PENDING' | 'MAPPED' | 'IGNORED' | 'INVALID'
-    revision: number
-    targetField: { code: string; label: string } | null
-    validationMessage: string | null
-    /** AUTO_SMART_V2: a field suggested for a PENDING column; confirmation needs imports.review. */
-    suggestedField?: { code: string; label: string } | null
-    matchScore?: number | null
-    dataType?: FormFieldDataType | null
-    valueMap?: Array<{ from: string; to: string }> | null
-    matchReason?:
-      | 'EXACT'
-      | 'SYNONYM'
-      | 'SYNONYM_REVIEW'
-      | 'TOKEN_SET'
-      | 'TOKEN_OVERLAP'
-      | 'EDIT_DISTANCE'
-      | null
-  }>
-}
+// A batch from any import route; only the detail route fills the source columns and mappings.
+export type ImportBatchDefinition = ImportBatchResponse &
+  Partial<Pick<ImportBatchDetailResponse, 'sourceHeaders' | 'sourceColumns' | 'mappings'>>
 
-export interface ImportRowDefinition {
-  id: string
-  rowNumber: number
-  rawData: Record<string, string | number | boolean | null>
-  status: 'PENDING' | 'VALID' | 'INVALID' | 'PROCESSING' | 'UNPROCESSED' | 'PROCESSED' | 'FAILED'
-  validationErrors: FormValidationError[]
-  mappingRevision: number
-  validationRevision: number
-  processingAttempts: number
-  processingErrorCode: string | null
-  updatedAt: string
-}
+export type ImportRowDefinition = ImportRowResponse
 
-export interface ImportRowsPage {
-  offset: number
-  take: number
-  total: number
-  rows: ImportRowDefinition[]
-}
+export type ImportRowsPage = ImportRowsPageResponse
 
 export interface ImportMappingInput {
   sourceFieldName: string
@@ -860,59 +717,11 @@ export interface ImportMappingInput {
   valueMap?: Array<{ from: string; to: string }>
 }
 
-interface SurveyAggregateCount {
-  label: string
-  count: number
-}
-
-export interface SurveyCategoricalAggregate {
-  fieldId: string
-  kind: 'Categorical distribution'
-  responseCount: number
-  values: SurveyAggregateCount[]
-}
-
-export interface SurveyNumericAggregate {
-  fieldId: string
-  kind: 'Numeric summary'
-  responseCount: number
-  average: number
-  minimum: number
-  maximum: number
-  scaleLabel: string
-}
-
-export type SurveyQuestionAggregate = SurveyCategoricalAggregate | SurveyNumericAggregate
-
-export interface SurveyDemographicAggregate {
-  dimension: 'Sex' | 'Age group' | 'Disability status'
-  values: SurveyAggregateCount[]
-}
-
-export interface SurveyAggregateResultSet {
-  id: string
-  formId: string
-  projectId: string
-  location: string
-  responseDate: string
-  reportingPeriod: string
-  responseCount: number
-  questionResults: SurveyQuestionAggregate[]
-  demographicBreakdowns: SurveyDemographicAggregate[]
-  source?: string
-}
-
 export type ReportKind =
   | 'project-summary'
   | 'indicator-summary'
   | 'beneficiary-summary'
   | 'survey-results'
-
-export interface ReportColumnConfig {
-  id: string
-  label: string
-  enabledByDefault: boolean
-}
 
 export interface PublicIndicator {
   id: string

@@ -9,8 +9,18 @@ import {
   uuidString,
 } from '../common/field-schemas'
 
-const beneficiarySexes = ['MALE', 'FEMALE', 'OTHER', 'PREFER_NOT_TO_SAY', 'NOT_SPECIFIED'] as const
-const disabilityStatuses = ['WITH_DISABILITY', 'WITHOUT_DISABILITY', 'NOT_SPECIFIED'] as const
+export const beneficiarySexes = [
+  'MALE',
+  'FEMALE',
+  'OTHER',
+  'PREFER_NOT_TO_SAY',
+  'NOT_SPECIFIED',
+] as const
+export const disabilityStatuses = [
+  'WITH_DISABILITY',
+  'WITHOUT_DISABILITY',
+  'NOT_SPECIFIED',
+] as const
 
 // Query of GET beneficiaries/projects/:projectId; limit defaults to 25 and arrives as a string.
 export const beneficiaryListQuery = z

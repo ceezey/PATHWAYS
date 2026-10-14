@@ -17,11 +17,14 @@ vi.mock('@/lib/supabase/client', () => ({
 }))
 
 import { activitiesClient } from '@/lib/api/activities'
+import { beneficiariesClient } from '@/lib/api/beneficiaries'
 import {
   PathwaysClientError,
   requestFoundation,
   requestFoundationResponse,
 } from '@/lib/api/core/request'
+import { formsClient } from '@/lib/api/forms'
+import { importsClient } from '@/lib/api/imports'
 import { projectsClient } from '@/lib/api/projects'
 import { pathwaysClient, recoverSourceMutation } from './pathways-client'
 
@@ -234,9 +237,9 @@ describe('PATHWAYS frontend data boundary', () => {
   })
 
   it('returns no beneficiary records without a project scope', async () => {
-    await expect(pathwaysClient.getBeneficiaryRecordsForRole('Program Manager')).resolves.toEqual(
-      [],
-    )
+    await expect(
+      beneficiariesClient.getBeneficiaryRecordsForRole('Program Manager'),
+    ).resolves.toEqual([])
   })
 
   it('loads and creates activities through the scoped API without requiring relationship links', async () => {
@@ -617,7 +620,7 @@ describe('PATHWAYS frontend data boundary', () => {
     )
 
     await expect(
-      pathwaysClient.saveDirectSubmission(
+      formsClient.saveDirectSubmission(
         '74000000-0000-4000-8000-000000000004',
         '74000000-0000-4000-8000-000000000005',
         '74000000-0000-4000-8000-000000000006',
@@ -786,7 +789,7 @@ describe('PATHWAYS frontend data boundary', () => {
     )
     vi.stubGlobal('fetch', fetcher)
 
-    await pathwaysClient.getDirectSubmission(projectId, formId, submissionId)
+    await formsClient.getDirectSubmission(projectId, formId, submissionId)
 
     expect(fetcher.mock.calls[0]?.[0]).toBe(
       `http://127.0.0.1:4000/api/metadata/projects/${projectId}/forms/${formId}/submissions/${submissionId}`,
@@ -816,7 +819,7 @@ describe('PATHWAYS frontend data boundary', () => {
     vi.stubGlobal('fetch', fetcher)
     const source = new File(['score\n0\n'], 'scores.csv', { type: 'text/csv' })
 
-    await pathwaysClient.uploadImport(
+    await importsClient.uploadImport(
       '75000000-0000-4000-8000-000000000004',
       '75000000-0000-4000-8000-000000000005',
       '75000000-0000-4000-8000-000000000006',
@@ -866,7 +869,7 @@ describe('PATHWAYS frontend data boundary', () => {
     )
 
     await expect(
-      pathwaysClient.uploadImport(
+      importsClient.uploadImport(
         '76000000-0000-4000-8000-000000000004',
         '76000000-0000-4000-8000-000000000005',
         '76000000-0000-4000-8000-000000000006',
@@ -965,7 +968,7 @@ describe('workspace ownership during asynchronous token acquisition', () => {
       )
       const fetcher = vi.fn()
       vi.stubGlobal('fetch', fetcher)
-      const request = pathwaysClient.registerBeneficiary(projectId, {
+      const request = beneficiariesClient.registerBeneficiary(projectId, {
         formId: '72000000-0000-4000-8000-000000000005',
         clientRegistrationId: '72000000-0000-4000-8000-000000000006',
         values: { display_name: 'Actor A entered data' },

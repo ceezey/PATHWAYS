@@ -1,6 +1,6 @@
 import { type ProtectedPageProps, requireServerPage } from '@/lib/rbac/server-access'
 
-import { ReportingPage } from '@/features/reports/reporting-page'
+import { ReportingPage } from '@/features/reports'
 import type { ReportKind } from '@/types/pathways'
 
 const reportKinds: ReportKind[] = [

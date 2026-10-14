@@ -1,4 +1,4 @@
-import { DuplicateResolutionWorkspace } from '@/features/beneficiaries/duplicate-resolution-workspace'
+import { DuplicateResolutionWorkspace } from '@/features/beneficiaries'
 import { type ProtectedPageProps, requireServerPage } from '@/lib/rbac/server-access'
 
 export const dynamic = 'force-dynamic'

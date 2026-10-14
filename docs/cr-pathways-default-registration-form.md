@@ -14,7 +14,7 @@ Audit findings J and K (2026-09-28, `dev` at `002d3ac`) for PRD-F3.
 
 - `promoteRegistration` requires a published `BENEFICIARY_REGISTRATION` form (`apps/api/src/modules/beneficiaries/beneficiaries.service.ts:650-665`, 404 "Published registration form unavailable.").
 - No seed or project set-up creates such a form.
-- The web form stops with "No published registration form is available for this project." (`apps/web/src/features/beneficiaries/beneficiary-form.tsx:721`) and blocks submission (`:568`, `:630`).
+- The web form stops with "No published registration form is available for this project." (`apps/web/src/features/beneficiaries/registration/components/beneficiary-form.tsx:721`) and blocks submission (`:568`, `:630`).
 - Publishing one needs two people. The `p2_guard_form` trigger (`apps/api/prisma/migrations/0000_pathways_baseline_through_0026/migration.sql:3074-3128`, bound by trigger `p2_form` at `:6113`) enforces:
   - new forms must start as DRAFT (`:3079-3085`);
   - publication is rejected when `published_by_id`, `published_at` or `created_by_id` is null, or when `published_by_id = created_by_id` ("Publication requires a different attributable reviewer", `:3114-3119`).

@@ -39,7 +39,7 @@ No new permission. Maps are reviewer-authored rules, not source data; audit carr
 `PATCH /imports/projects/:projectId/batches/:batchId/mapping` items accept optional `dataType` and `valueMap`; batch detail returns them per mapping.
 
 ### UI
-`apps/web/src/features/collection/import-value-map-editor.tsx` (type select and translation rows, controls 44px high) under each mapped column in the import workspace.
+`apps/web/src/features/collection/import/components/import-value-map-editor.tsx` (type select and translation rows, controls 44px high) under each mapped column in the import workspace.
 
 ### Tests
 QAD-T54: happy (M and F to canonical values), sad (coercion failure stays staged with a reason), abuse (oversized map, duplicate keys, formula-like and control text, prototype-named keys).

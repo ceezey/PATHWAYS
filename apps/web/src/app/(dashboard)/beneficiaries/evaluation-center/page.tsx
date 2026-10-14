@@ -1,4 +1,4 @@
-import { EvaluationCenterLookup } from '@/features/beneficiaries/evaluation-center-lookup'
+import { EvaluationCenterLookup } from '@/features/beneficiaries'
 import { type ProtectedPageProps, requireServerPage } from '@/lib/rbac/server-access'
 import type { Metadata } from 'next'
 

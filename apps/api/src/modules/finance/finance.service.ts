@@ -12,6 +12,10 @@ import {
 } from '@nestjs/common'
 import { readApiEnv } from '@pathways/config'
 import {
+  type BudgetResponse,
+  type BudgetWriteResponse,
+  type ExpenseResponse,
+  type ExpenseSignoffResponse,
   createBudgetRequest,
   hasAtomicPermission,
   replaceBudgetRequest,
@@ -63,11 +67,13 @@ export class FinanceService {
         take: 101,
       })
       if (rows.length > 100) throw new BadRequestException('Select a smaller budget scope.')
-      return rows.map((row) => ({
-        ...row,
-        plannedBudget: row.plannedBudget.toFixed(2),
-        updatedAt: row.updatedAt.toISOString(),
-      }))
+      return rows.map(
+        (row): BudgetResponse => ({
+          ...row,
+          plannedBudget: row.plannedBudget.toFixed(2),
+          updatedAt: row.updatedAt.toISOString(),
+        }),
+      )
     })
   }
   createBudget(identity: ApplicationIdentity, projectId: string, input: unknown) {
@@ -91,7 +97,7 @@ export class FinanceService {
         entityType: 'ProjectBudgetRecord',
         entityId: row.id,
       })
-      return { id: row.id, updatedAt: row.updatedAt.toISOString() }
+      return { id: row.id, updatedAt: row.updatedAt.toISOString() } satisfies BudgetWriteResponse
     })
   }
   replaceBudget(identity: ApplicationIdentity, projectId: string, id: string, input: unknown) {
@@ -138,7 +144,7 @@ export class FinanceService {
         entityId: row.id,
         changes: { previousId: id },
       })
-      return { id: row.id, updatedAt: row.updatedAt.toISOString() }
+      return { id: row.id, updatedAt: row.updatedAt.toISOString() } satisfies BudgetWriteResponse
     })
   }
   expenses(identity: ApplicationIdentity, projectId: string) {
@@ -169,7 +175,7 @@ export class FinanceService {
       const signoffs = await tx.$queryRaw<
         Array<{ expenseId: string; signedOffById: string; signedOffAt: Date; fullName: string }>
       >`SELECT s.expense_id::text AS "expenseId",s.signed_off_by_id::text AS "signedOffById",s.signed_off_at AS "signedOffAt",u.full_name AS "fullName" FROM pathways.expense_signoffs s JOIN pathways.system_users u ON u.organization_id=s.organization_id AND u.id=s.signed_off_by_id WHERE s.organization_id=${actor.organizationId}::uuid AND s.project_id=${projectId}::uuid`
-      return rows.map(({ submittedBy, verifiedBy, approvedBy, ...row }) => {
+      return rows.map(({ submittedBy, verifiedBy, approvedBy, ...row }): ExpenseResponse => {
         const signoff = signoffs.find((value) => value.expenseId === row.id)
         return {
           ...row,
@@ -433,7 +439,7 @@ export class FinanceService {
         entityType: 'BudgetExpenseEntry',
         entityId: id,
       })
-      return { ...row, signedOffAt: row.signedOffAt.toISOString() }
+      return { ...row, signedOffAt: row.signedOffAt.toISOString() } satisfies ExpenseSignoffResponse
     })
   }
 }

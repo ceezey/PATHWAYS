@@ -4,7 +4,7 @@ import {
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common'
-import { hasAtomicPermission } from '@pathways/shared'
+import { type FormSubmissionResponse, hasAtomicPermission } from '@pathways/shared'
 import { Prisma } from '@prisma/client'
 import { type ApplicationIdentity, UUID_PATTERN } from '../../common/authz/application-identity'
 import { requireScopedProject } from '../../common/authz/scoped-project'
@@ -112,7 +112,7 @@ export async function findSubmission(
   actor: ApplicationIdentity,
   form: FormRow,
   submissionId: string,
-) {
+): Promise<FormSubmissionResponse> {
   if (!UUID_PATTERN.test(submissionId)) throw new NotFoundException('Submission unavailable.')
   const row = await tx.formSubmission.findFirst({
     where: {

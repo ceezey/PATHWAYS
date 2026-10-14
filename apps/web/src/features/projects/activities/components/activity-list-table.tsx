@@ -10,7 +10,7 @@ import { formatCappedPercent } from '@/lib/format/percent'
 import { cn } from '@/lib/utils'
 import type { ActivitySummary } from '@/types/pathways'
 
-import { toneFor } from '../../budget-module/budget-math'
+import { toneFor } from '../../budget/budget.utils'
 import { activityStatusTone, formatDate } from '../activities.utils'
 
 type ColumnKey = 'code' | 'status' | 'dueDate' | 'beneficiaries' | 'indicators' | 'budget'

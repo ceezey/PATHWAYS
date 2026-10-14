@@ -501,3 +501,213 @@ Ruling: S6a final review PASS (independent archive run matches the activity log,
 Ruling: S6a static gates passed at 02b272f4 (config 19, shared 657, imports 94, api 2602 with 21 skipped, web 224 files and 1998 tests, sad 57, Middleware 103 kB, dist layout ok, docs check 6 and 1 at baseline); the container replay stops at initdb as root, so the final PR's CI is the replay gate; the renderer check fails at navigate with no browser and at launch with the Playwright Chromium (root sandbox), so it joins the pending local runs, cost if wrong: a renderer wiring fault would surface only in Cian's local run or the final PR CI.
 
 Ruling: the tests-only fix 5bd2ae40 adds 8 api cases (four finance refusals assert no authorized operation ran, 0.01 reaches SQL, trimmed periodLabel and report name reach the write, three findFirst argument checks and two 403-before-lookup cases), each shown to fail on a temporary production break; its commit message was amended from a Sonnet co-author line to the Opus line before any push; api is now B_api+95 (2610), cost if wrong: none.
+
+Ruling: S6a SAD sign-off re-run PASS at bde243e2 after the scoped design-qa re-review of the four test files changed by 5bd2ae40 (84 entries, no block), and the branch is pushed; S6a is complete with no pull request of its own, cost if wrong: none.
+
+## S4b
+
+Ruling: apply the S4b pre-flight fixes (6 must-fix: the Task 5 index anchor, the shared index check by git diff, baselines and cumulative counts from the S6a tip, branch and markers, no dev merge, SAD base with the S6a records; 5 should-fix: S4 plan copy removal moved to the controller after the final merge, stale 51d3139e text, the plans listing, the activity-log header branch, the CR roadmap row), with api 2610 from 5bd2ae40 and no pull request of its own per Cian's one-PR rule, cost if wrong: an S4b Task 0 stop.
+
+Ruling: execution order after S6a is S4b, S4c, S5b, S6b, S7a, S7b, S8a, S8b, W1; the S4c and S6b planners run now in parallel on the S4b dry-run tree and the S5b planner starts on the S4c dry-run tree, and each plan gets a pre-flight against the real base before it runs, cost if wrong: extra pre-flight fixes where S4c or S5b moved an S6b anchor.
+Ruling: S4b Task 0 matched every anchor at 811cb2ed (markers, 10 hash prefixes, line and call counts, 41 mock factories) with baselines shared 657, imports 94, api 2610 (21 skipped), web 224 files and 1998 tests, sad 57, M0 103 kB; plan copy and index row committed in e249692c, cost if wrong: none.
+Ruling: S4b Task 1 matched (3 index exports, 28 annotations in 8 files, drift proof TS2561 and TS2353 then clean, shared 664, api unchanged at 2610) in 3ed9b214; files extracted from the brief by script, cost if wrong: none.
+Ruling: S4b Task 1 review PASS (contracts match mappers field by field, enums equal Prisma, type-only api edits); the two weak rejection rows (AUDIO media type and the events id-only row fail for missing fields too) get fixed to fail only on the property under test, and the dropped 'Supporting output allowlist' comment is restored, in one fix after Task 2; the satisfies-with-spread limit stays, cost if wrong: two rows that would not catch an enum widening.
+Ruling: S4b Task 2 matched (26 blocks, lost 0 added 0, 30 characterization tests on old and new client, page-size mutation fails exactly the 2 named cases, web 227 files and 2028 tests); Biome counted 32 files instead of 29 because the three tests were extracted with the scripts, cost if wrong: none.
+Ruling: S4b Task 2 review PASS (19 methods and 7 helpers line-equal, describe.each runs the same bodies on both clients with the old one as oracle); because Task 3 removes the old client, the lows are fixed before Task 3 while the oracle still exists: the list case pins the full mapped record with toEqual and the journey tests add the parentStageId refusal and per-event history cases on both clients; the wrapped one-sentence comment stays verbatim, cost if wrong: a few rows that lose their oracle in Task 3.
+Ruling: the fix 463478a0 makes the AUDIO media row and the event-type row fail on one property each (bite shown by widening each enum) and restores the 'Supporting output allowlist' comment above RegistrationContextResponse in the shared contract, where that interface now lives, cost if wrong: none.
+Ruling: the tests-only fix 25b58725 pins the whole mapped beneficiary record (fixture given non-null locations and a provenance entry so a province mutation bites) and adds the parentStageId and history-event refusal cases on both clients, each mutation failing only its row; web 2032, and Task 3's expected web total reads 2015 instead of 2013 (insertion counts differ slightly), cost if wrong: a Task 3 count mismatch the implementer would stop on.
+Ruling: S4b Task 3 matched (46 calls in 16 files, 12 mock splits, 19 methods removed, factories 41 naming 0, web 2015 with the two fix cases) in c900f450; commit size 207/916 instead of 196/905 because of the larger fixed tests, and the converted tests compare only against fixtures and literals, cost if wrong: none.
+Ruling: S4b Task 4 pre-layout route compare printed 27 different routes (24 smaller, 3 bigger) instead of 28: /alerts/repository stayed 312 kB where the dry run saw 311 to 312, and every other cell is within 1 kB of the plan, inside the plan's rounding drift note, so the task continues, cost if wrong: none, the layout compare against the pre-layout build is the gate.
+Ruling: S4b Task 3 review PASS (scripted call-site and removal replays equal the commit, 17 duplicate runs removed exactly, no mock lost a method, no self-comparing row); its note that the reworked AUDIO and event-type rows no longer pin that an incomplete item is refused gets two plain rows (missing required field refused) in the next tests-only fix, so 463478a0 drops no coverage; the pathways-client names on the c2 to c4 and survey-subject test files stay, cost if wrong: none.
+Ruling: S4b Task 4 matched apart from the accepted route drift (33 git mv, 29 specifiers in 23 files, journey-config gone, index-only page imports, layout compare 0 different, web 2015) in 4a768493, cost if wrong: none.
+Ruling: S4b Task 4 review PASS (33 pure renames, index exports the six client components only, no stale path in apps/web, no cycle); the three docs still citing old beneficiary paths are Task 5's repoint, cost if wrong: none.
+Ruling: the fix 8fa5a147 pins that a media item without submittedBy and a history event without recordedBy are refused (each shown to fail when the field is made optional); shared 665, cost if wrong: none.
+Ruling: S4b Task 5 matched (6 replacements in 4 files, 4 audit tails, docs check at baseline) in 8c4811da with the real counts, the 27-route figure and a bullet for the three tests-only commits; stat 31/8 instead of 29/8 from those lines, cost if wrong: none.
+Ruling: S4b final review PASS (Review Focus 1 to 6 hold, drift proof re-run, no removed assertion left unpinned, route figures confirmed); the three lows get a docs-only fix with the gate bullet: the CR Routes bullet names 103 kB instead of the M0 placeholder, and the MOD-B1 audit row and the default registration form CR point at the moved directory and form files (line numbers unchanged by the verbatim moves); the S5 plan's old paths are left to its S5b pre-flight, cost if wrong: none.
+Ruling: the S4b final-review lows are fixed docs-only (CR Routes bullet says 103 kB, audit MOD-B1 and the default registration form CR cite the new feature paths) with the gate bullet and the three tests-only commits recorded in the activity log, cost if wrong: a stale path in a doc.
+
+## S4c
+
+Ruling: apply the S4c pre-flight fixes (2 must-fix: baselines from the real S4b tip with shared 665, api 2610, web 2015 and Middleware 103 kB, and no S4b plan-copy removal in Task 0; 7 should-fix: one pull request wording, the S4b gate bullet format, the activity-log branch, the narrowed ScopedBeneficiaryForm claim, 50 rows, the stale base wording and a fifth Task 5 edit for the MOD-B1 audit lines 89 and 295), cost if wrong: an S4c Task 0 stop.
+
+Ruling: the S4c plan (Tasks 0 to 6, replayed from the S4b dry-run tip with lost 0 on all four splits and 50 rows and 177 expect kept in the two split tests) gets one combined pre-flight and fix agent against the real S4b tip 7442e2fe, and the S5b planner starts now on the S4c replay tree b85a0f8, cost if wrong: a fix less independently checked, caught by the task reviews.
+
+Ruling: the two mutation gaps the S4c planner found (a stored draft of another project and the minor age boundary are untested before and after the split) are recorded, not closed in S4c, because they predate the refactor and S4c changes no behavior, cost if wrong: two untested behaviors stay untested.
+
+Ruling: S4c Task 0 matched every anchor at 1a6919b4 (nine line counts total 5463, 50 it, 6 describe, 177 expect, nine hash prefixes) with baselines shared 665, imports 94, api 2610 (21 skipped), web 227 files and 2015 tests, sad 57, M0 103 kB; plan copy and index row in fd0dd7f0, cost if wrong: none.
+
+Ruling: S4c Task 1 matched (14 cuts, lost 0 added 255 over 1365 lines, ScopedBeneficiaryForm 0, hook mutations fail 1, 3 and 1 tests and restore byte for byte, web 227 files and 2015 tests, 15 files 1715/1367) in ff73a876, cost if wrong: none.
+
+Ruling: S4c Task 1 review PASS (lost 0 of real content; 11 lines Biome reflowed in JSX render the same; the only logic change is the stable setConfirmOpen setter in the context effect dependency array per ruling 2; mutations re-run), no fix, cost if wrong: none.
+
+Ruling: S4c Task 2 matched (14 cuts, lost 0 added 145 over 1069 lines, history reload and stage order mutations fail 3 and 1 named tests, web 227 files and 2015 tests, 14 files 1576/1108) in 5019688d; one known beneficiary-detail-loader flake passed alone and on rerun, cost if wrong: none.
+
+Ruling: S4c Task 2 review PASS (lost 0 of real content, 8 Biome-reflowed lines render the same, useSearchParams now runs inside the view hook after the state hooks as the brief prescribes, which is harmless because hook order stays fixed across renders and it holds no state), no fix, cost if wrong: none.
+
+Ruling: S4c Task 3 matched (50 it and 177 expect before and after, describe 6 to 10, form proof loses only the select mock opener, detail lost 0, web 232 files and 2015 tests, 10 files 1457/1149) in 79c9e14c, cost if wrong: none.
+
+Ruling: S4c Task 3 review PASS (it and expect multisets equal 50 and 177, setup blocks byte-identical per test family, select mock opener only reformatted); the two nits (fixtures import block placement, exported mutable profileState isolated per file) stay as is, cost if wrong: none.
+
+Ruling: S4c Task 4 route compare printed 0 different routes instead of 3 bigger by 1 kB, accepted, because this container's Task 0 baseline already shows 300, 280 and 280 kB first load for the three beneficiary routes (the plan measured 299, 279 and 279 on a lower base) and they stay there; only the detail page size moved from 13.6 to 14.3 kB, cost if wrong: a 1 kB route growth unrecorded.
+
+Ruling: S4c Task 4 otherwise matched (media lost 0 added 0, directory lost 0 added 12, web 232 files and 2015 tests, Middleware 103 kB) in 17d2d93a and 814dc049, cost if wrong: none.
+
+Ruling: S4c Task 5 matched (5 replacements in 2 files, 3 audit tails, docs check at baseline) in 5801f1fc with the real route figure (first load 280, 300 and 280 kB unchanged, detail page 13.6 to 14.3 kB) in place of the plan's 1 kB growth, cost if wrong: none.
+
+Ruling: S4c Task 4 review PASS (media and directory bodies byte for byte, only export openers, imports and the briefed hook plumbing changed); the two nits (two imports from media.utils, return the memo directly) stay as is because the plan moves code verbatim, cost if wrong: none.
+
+Ruling: S4c final review PASS (no unpinned row: it titles and the 316-line expect multiset equal across the range; route figure and records match); the two CR lows are fixed docs-only (seven of eleven detail sections take a Pick and four plain props; all five files above 300 lines named), the medium is met by writing the real route figure and the pending local runs in the gate bullet, the use-beneficiary-columns.tsx name stays because the hook returns JSX column cells, and the docs/cr-pathways-default-registration-form.md lines 17 and 25 stay as dated audit evidence, cost if wrong: a slightly stale doc line.
+
+## S5b
+
+Ruling: the S6b planner split S6 web again into S6b (Tasks 0 to 6, full plan replayed from fc2ff1c with 8 plan defects fixed) and an S6c outline; S6c joins the run order after S6b, and the S6b plan gets its pre-flight against the S5b tip because its dry run lacks S4c and S5b, cost if wrong: one extra slice cycle.
+
+Ruling: the S7b planner starts now on its own tree (the S6b replay plus an S7a replay run from the pre-flighted S7a plan) instead of waiting for the real S7a, because S4c and S5b touch only beneficiary and collection web files; its S7a replay doubles as an early S7a pre-flight, and the real S7a and S7b each still get a pre-flight against the real base, cost if wrong: extra pre-flight fixes.
+
+Ruling: the S5b planner split S5 web into S5b (Tasks 0 to 9: forms and imports clients, type-only response contracts, the shared useImportBatch hook, collection-workspace.tsx from 3186 to 1640 lines and its test split) and an S5c outline; S5c joins the run order after S5b, and S5b gets one combined pre-flight and fix agent against the real S4c tip 796ddcd5, cost if wrong: one extra slice cycle.
+
+Ruling: apply the S5b pre-flight fixes (2 must-fix: baselines from the real S4c tip with shared 665, api 2610, web 2015 and Middleware 103 kB, and an add-only Task 0 plan-copy step; 9 should-fix: one pull request wording, the S4b gate bullet format, the activity-log branch, 424 lines not 440, a stacking check and base-sha wording in Task 0, routes judged by ruling 12 and M0, stale base wording, a prefixed import-boundary path, the S5c outline wording), cost if wrong: an S5b Task 0 stop.
+
+Ruling: S5b Task 0 matched every anchor at c9503aab (8476 lines, 37 collection files, 13 hash prefixes) with baselines shared 665, imports 94, api 2610 (21 skipped), web 232 files and 2015 tests, sad 57, M0 103 kB; plan copy and index row in 26c06a06, cost if wrong: none.
+
+Ruling: S5b Task 1 matched (13 replacements in 5 files, shared 37 files and 672 tests, api 2610, bite proof TS2322 at imports.mapper.ts:69 then clean) in 0d006da9, cost if wrong: none.
+
+Ruling: S5b Task 2 matched (23 blocks, lost 0 added 0 over 222 lines, 30 characterization runs, one-line mutation in each client fails exactly the 2 named cases) in 0d9c96d8; Task 3 waits for the Task 2 review because it removes the old methods the characterization tests compare against, cost if wrong: some wall clock.
+
+Ruling: S5b Task 1 review PASS (contracts equal Prisma enums and mapper keys, type-only, two extra bites confirmed); the two weak rejection rows (totals with one member, a batch detail missing three members) get a tests-only fix to fail on one property each with separate incomplete-object rows kept, and positive rows for the JSON and OTHER file types, combined with any Task 2 review pins before Task 3, cost if wrong: two rows that pass for the wrong reason.
+
+Ruling: S5b Task 2 review PASS, but 18 of 19 extra mutations survived; before Task 3 removes the old methods, a tests-only commit adds the eight "Pin before Task 3" cases from review-2.md to the characterization tests so each runs on the old and the new client, each shown to fail on a temporary break, together with the Task 1 contract row fixes; Task 3 then carries the higher counts, cost if wrong: Task 3 count drift to explain.
+
+Ruling: the tests-only commits 0f558215 (import response rows fail on one property, shared 675) and 381abebf (eight client pins run on both clients and bite on the new one; a beforeEach arrow that returned the mock and leaked a rejection is now a block body; web 234 files and 2061) land before Task 3, whose web total becomes 2038 and count-it it 23, describe 2, expect 51 instead of the brief's 2030 and 15, 2, 37, cost if wrong: none.
+
+Ruling: S5b Task 3 matched (45 calls in 7 files, 12 mock files, 22 methods removed, pathways-client.ts 424 lines, receipt test 3 rows kept) in 06708a61 with the predicted counts (it 23, describe 2, expect 51; web 234 files and 2038); the brief's git rm ran unwrapped after a safety check refused a bash -c wrapper, cost if wrong: none.
+
+Ruling: S5b Task 4 matched (characterization 66029bb7 with two one-line mutations failing exactly 3 rows; shared hook 64c1ae8e with 16 replacements in 2 files and a bite failing 4 rows; web 236 files and 2051) cost if wrong: none.
+
+Ruling: S5b Task 3 review PASS (45 calls identical, mocks keep every method, the real clients are reached only by their own tests, 8 pins kept); the five web aliases now follow the api contract (PROCESSED and REJECTED, JSON and OTHER, required beneficiaryId and field id), which is the type-only ruling 3 trade-off that typecheck covers, and the unused VALIDATING member of the web ImportBatchStatus is left to S5c, cost if wrong: a web type that is wider or stricter than its old copy.
+
+Ruling: S5b Task 5 matched (16 files, lost 0 added 0 over 2942 lines, screen 1788 lines, collection folder 23 files and 179 tests) in cc3fc518, cost if wrong: none.
+
+Ruling: S5b Task 4 review PASS (the two old copies differ only in identity parts and the kept mapping revision, both carried by the hook parameters); resume now maps with stored.id where the old code used batch.id, accepted because stored is fetched with getImportBatch(projectId, batch.id) so the ids are equal; the identity target wiring (generation, form version, import formId), unpinned before and after the refactor, gets a tests-only pin with bite proofs after Task 6, cost if wrong: a dropped identity part goes unnoticed.
+
+Ruling: S5b Task 6 matched (use-form-fields 123 and use-server-processing 127 lines, screen 1788 to 1640, lost 5 as listed, stopped-state bite fails the named row, 10 new hook rows each bitten by one of 7 mutations, collection folder 24 files and 189 tests) in 2962748d and d71e4cc6; the identity pins go in after Task 7 so its hash-pinned test cut still matches, cost if wrong: none.
+
+Ruling: S5b Task 5 review PASS (lost 0, each of the 14 view bodies an exact substring of the old file, one signature reflow, client boundary correct, full web 236 files and 2051), no fix, cost if wrong: none.
+
+Ruling: S5b Task 7 matched (five files, 50 test names identical, it 35 before and after, expect 194 to 195 from the copied ownedDataset helper, web 241 files and 2061) in 29e53b7b, cost if wrong: none.
+
+Ruling: S5b Task 6 review PASS (hook order kept, 7 mutations plus 2 more each fail one row, full web 237 files and 2061); its three lows on the new hook test (intent counter unasserted, sensitiveDraftGeneration branch untested, fake timers restored after the assertions) get a tests-only commit after the identity pins, cost if wrong: a hook test that misses two branches.
+
+Ruling: S5b Task 7 review PASS (35 titles equal, 195 expects with one from the copied helper, setup lines 1 to 140 byte-identical in all five files, helpers identical), no fix, cost if wrong: none.
+
+Ruling: the tests-only commits 5c083d55 (each upload identity part pinned: collection file, version and generation, import file, project and form, each bitten by dropping it; collection projectId and form id are redundant because changeProject and openSavedForm call forgetUpload first, so no row; a native select mock in the new identity file because the Radix select stalls jsdom) and 6765d867 (intent counter, sensitiveDraftGeneration branch, timers reset in afterEach) bring web to 242 files and 2071, cost if wrong: none.
+
+Ruling: S5b Task 8 matched (five replacements, three audit tails, docs check at baseline) in 436a73df with the real hashes and counts and one bullet for the four tests-only commits; the route sentence is confirmed or corrected after the gates, cost if wrong: none.
+
+Ruling: S5b final review PASS (nothing left unpinned; Task 3 dropped only the old-client half of each describe.each); records fixed docs-only: pathways-client.ts is 407 lines, not 424 (Biome compacted it after Task 3 measured), and the plan-copy line says the controller removes it after the final merge; the Task 6 entry keeps 10 rows (the count at that commit) and the tests-only bullet gives 12; the Ticket type duplicate and the unused pathwaysClient mock go to S5c, cost if wrong: a stale line count.
+
+Ruling: the S5b route sentence written from the plan said 10 routes smaller with /collection/import 3 kB; the gate build measured 12 smaller (/collection/import 4 kB, six other routes 1 kB) and none bigger, so the change record carries the measured figure, cost if wrong: none.
+
+## S6b
+
+Ruling: the S7b planner split S7 again into S7b (api and shared, Tasks 0 to 8, replayed from an S7a replay with 42 blocks exit 0 and 6 plan defects fixed) and an S7c outline (web); S7c joins the run order after S7b, cost if wrong: one extra slice cycle.
+
+Ruling: S7b leaves analytics.service.test.ts (1514 lines, one shared 326-line harness) unsplit as its ruling 12 records, because the api has no test fixtures convention and other api tests also pass 600 lines; it is listed for W1 rather than added as a task, cost if wrong: one oversized api test stays.
+
+Ruling: S7b allows route growth up to 2 kB with Middleware at M0, because 22 of 72 routes grow 1 kB (one 2 kB) when the web app bundles the compiled shared package after the shared folder layout; the real figure goes in the records, cost if wrong: a 2 kB bundle growth accepted as layout noise.
+
+Ruling: the S6c plan (Tasks 0 to 8: response contracts, a shared report kind grant table, the reporting and evaluation workspace splits and read keys; replayed from the S6b replay, lost 0 on every move, 5 of 72 routes 1 kB bigger) is accepted as one slice and gets its pre-flight against the real S6b tip, cost if wrong: extra pre-flight fixes.
+
+Ruling: run order after S5b becomes S6b, S5c, S6c, S7a, S7b, S7c, S8a, S8b, W1: S6b runs next because its plan is ready (pre-flight now against the real S5b tip 0469ccb0) while the S5c planner works from the real S5b tip, and S5c touches only collection files S6b leaves alone, cost if wrong: an S5c anchor moved by S6b, caught by its pre-flight.
+
+Ruling: the S8b plan (Tasks 0 to 7: publication and audit clients, core-feature-client.ts deleted with its artifact helpers moved to lib/api/core, auth, profile, public and settings layouts and indexes, user management workspace 938 to 342 lines and MFA form 717 to 213 split after 21 characterization cases each) is accepted as one slice; its dry run caught the cut scripts dropping 'use client' from two shells, now restored and printed by the plan, cost if wrong: a production build break caught by the gates.
+
+Ruling: apply the S6b pre-flight fixes (4 must-fix: the S5b marker tests features/collection/hooks, no plan-copy removal anywhere in the slice, Expected values from the real S5b tip with shared 675, web 2071 and pathways-client.ts 407 lines, Opus trailers in all 9 commits; should-fix: Task 0 branch, handoff and ancestor checks, characterization cases added so all 87 mutants of the new modules die on both clients before the old code goes with 146 cases and 292 runs, the gate bullet from commands, one wording for no pull request, 1 kB route criteria, the Task 5 branch heading), cost if wrong: an S6b Task 0 stop.
+
+Ruling: S6b Task 0 matched every anchor at d6c9c6d3 (baselines, 18 reports files, 15 budget-module files, 10 hash prefixes, 32 production calls in 12 files, 34 test calls in 2 files, 20 members, 19 mock factories with 5 naming a moved member); plan copy and index row in e4d59ec2, cost if wrong: none.
+
+Ruling: S6b Task 1 committed 659d691d (6 dead reporting files deleted, 11 types and reportKindPermissions cut, web 239 files and 2053 tests, 18 expected titles lost); the first full web run died without a summary and the rerun passed, read as the known load flake, cost if wrong: a real web failure caught by later full runs and CI.
+
+Ruling: S6b Task 1 review PASS on both; the two lows stay as is (the Task 5 records write the activity-log entry, and historical audit and CR mentions of reporting-workspace.tsx describe the past), cost if wrong: a stale doc line fixed later.
+
+Ruling: accept S6b Task 2 at d4536e5b although its stat says 1527 insertions, not the brief's 1097; the 430 extra lines are the characterization cases the pre-flight added (146 cases, 292 runs, all matching) and the brief's stat line was not updated with them, cost if wrong: none, since every file, test count, lost-0 proof and mutation result matched.
+
+Ruling: S6b Task 3 committed f0e1309d and b557359d with every Expected matching (0 callers left, core-feature-client.ts 173 lines, pathways-client.ts 330, web 242 files and 2197 tests, titles lost 0), cost if wrong: none.
+
+Ruling: S6b Task 3 review PASS on both; the now-dead pathways-client mock factory in beneficiary-detail-loader.test.tsx joins the W1 deferrals (it mocks a module the loader no longer imports, so it changes nothing, and that file is a known load flake best left alone mid-slice), and the copied expenseId name in evaluations.test.ts stays, cost if wrong: one dead mock lives until W1.
+
+Ruling: S6b review 2 spec FAIL (about 20 response schema rules of the new clients unpinned, enforced nowhere since Task 3 removed the old clients); fix with a tests-only commit after Task 4 that pins each rule with a mutation proof (fix-2-brief.md), and leave the AssessmentDetail export as is since it moved verbatim, cost if wrong: a later schema edit could loosen a response bound unseen.
+
+Ruling: S6b Task 4 committed 99c59297 with every scripted Expected matching; the route lists differ from the brief within ruling 9 (pre-layout 19 routes smaller by 1 to 5 kB rather than the brief's 21 mixed lines, layout step 1 route at -1 kB rather than /dashboard +1, none grew, Middleware 103 kB), and the records use the measured figures, cost if wrong: none, since route sizes only shrank.
+
+Ruling: S6b Task 4 review PASS on both; the two lows stay (the self-alias import predates the move, and the reports index shape is what the brief requires), cost if wrong: none.
+
+Ruling: fix 2 committed 33234e5d (31 schema pins, each killed its mutation; web 243 files and 2228 tests); the pins follow the real schema where the review guessed (expenseDate is plain string, pdfFallback false is rejected, a row holds at most 30 cells), and later Expected web counts move up by 31, cost if wrong: none.
+
+Ruling: S6b Task 5 committed 6ee4e6db with the four controller corrections (review-fix bullet, final web 2228, measured route sentence, Task 2 wording), so the section is 10 lines and the commit 41 insertions instead of 9 and 40, cost if wrong: none.
+
+Ruling: S6b static gates at 6ee4e6db pass (lint, typecheck, config 19, shared 675, imports 94, api 2610 and 21 skipped, web 243 files and 2228, sad 57, build with Middleware 103 kB, 19 routes smaller and none bigger, docs 6 and 1); the replay stops at initdb as root so the final pull request CI is the gate, and seeds, dev servers, both e2e suites and the browser smoke are pending local run, cost if wrong: a runtime break the container cannot see, caught by CI or Cian's local run.
+
+Ruling: S6b final review PASS; fix its record lows in the gate commit (two UI copy contract entries, not three; the 18 dead tests are counted by file; the route sentence now says the layout move took 1 kB more off one of the 19 routes), leave budget-ledger.tsx (327) and activity-expense-dialog.tsx (304) as verbatim moves for S6c to judge, and hand its F4 list of response rules still unpinned (finance status members, assessment types, report-sections schema, owned-read boundaries, .strict() on 12 of 15 objects, all also unpinned before S6b) to the S6c pre-flight, since S6c adds the response contracts, cost if wrong: a loosened response rule unseen until S6c.
+
+Ruling: S6b SAD sign-off PASS at 46f6ffd3 (design-qa-agent 104 in two packets, beneficiary-privacy-guardian 14, organization-isolation-checker 1, 119 entries, no block); gate results in 46f6ffd3; branch pushed, cost if wrong: none.
+
+## S5c
+
+Ruling: the S5c plan (Tasks 0 to 8: collection-workspace 1640 to 359 lines, import-workspace 1110 to 134, direct-form-entry 654 to 74, every cut lost 0, 66 mutants killed) is accepted as one slice with no S5d, and its route criterion is no route more than 2 kB bigger because the dry run measured the five collection routes 2 kB bigger, cost if wrong: a 2 kB route growth the gates accept.
+
+Ruling: the S5c plan's cross-plan notes go to the pre-flights that own them (S6c and S8b markers must not test features/collection/index.ts before S5c, the S6c noUnusedLocals indicators baseline path follows the S5c hook move), cost if wrong: a Task 0 stop in S6c or S8b.
+
+Ruling: the S7c plan (Tasks 0 to 9: dashboards and analytics clients with characterization tables, the analytics test split, feature layout, five hooks and four sections out of analytics-dashboard.tsx, 1745 to 898 lines, 99 mutants killed) is accepted, and its S7d outline (features/dashboard, role-dashboard.tsx, the analytics filter bar, analysis panel and scope state) becomes its own slice S7d, making 17 slices, cost if wrong: one more slice of planning and gates.
+
+Ruling: plan S7d on the S7c dry-run tree and W1 on the S6b tip now, in parallel with S5c, so neither waits at the end; W1's Task 0 recounts every figure later slices move, cost if wrong: a W1 pre-flight with more fixes.
+
+Ruling: apply the S5c pre-flight fixes (6 must-fix: index-lists.mjs reads the multi-line next.config entries and counts four indexed features, the Task 0 ancestor check tries local refs and checks the handoff copy, baselines and anchors from the real S6b tip with web 243 files and 2228 tests and Middleware 103 kB, the Task 7 audit anchors, the 38-mutation Expected block, routes judged at no more than 3 kB bigger because /collection/import prints +3 kB; 5 should-fix: the Task 7 record totals, the gate bullet from commands, the SAD text with 166 paths in three packets, exact formTypeLabels and import batch status rows pinned before the old code goes, and a note that commit hashes in Expected blocks differ), cost if wrong: an S5c Task 0 stop.
+
+Ruling: S5c Task 0 matched every anchor at 298f7389 (baselines web 243 and 2228, Middleware 103 kB, nine-file hashes, 63 collection files, 15 pathways-client mockers, 199 collection test names); plan copy and index row in ec77adcd, cost if wrong: none.
+
+Ruling: accept S5c Task 1's +1 kB on /collection/import (432 to 433 kB, reproduced on two builds, Middleware 103 kB) although the brief expected no route change; the pre-flighted route criterion allows up to 3 kB, and the barrel index plausibly adds a few hundred bytes to the import route, cost if wrong: 1 kB on one route.
+
+Ruling: S5c Task 1 committed 598dea4a (62 files moved into forms, import and entry, collection index, four indexed features), every other Expected matching, cost if wrong: none.
+
+Ruling: S5c Task 1 review PASS on both; of the three older change records naming pre-move collection paths, Task 7 updates the two that describe current code (import-value-map-editor.tsx in cr-pathways-import-value-map.md:42 and the collection test glob in cr-pathways-rbac-v4-grant-migration.md:54 to features/collection/**/*.test.tsx), as S4b did for cr-pathways-default-registration-form.md, and leaves cr-pathways-smart-import-mapping.md:14, whose file:line ranges are point-in-time evidence, cost if wrong: one stale path in a historical record.
+
+Ruling: S5c Task 2 committed 94ddfe95, 9728f5b4, 0a3dee37 and d1448d27 with every Expected matching (VALIDATING dropped by the alias, 15 unreachable pathways-client mocks removed, form type list and labels pinned, DigitalFormType from the shared contract; web derived 243 files and 2238 tests), cost if wrong: none.
+
+Ruling: S5c Task 2 review PASS on both (web 243 files and 2238 tests confirmed); the type-level expectTypeOf pin stays because the typecheck gate runs it, and the batch status row's describe placement stays, cost if wrong: none.
+
+Ruling: S5c Task 3 committed 25e70fe6, c5ce7156 and 8df88238 with every Expected matching (screen 1640 to 615 lines, lost 0, 66 mutants killed, web 244 files and 2253 tests); the one failure of the new 'asks for a published form before importing data rows' row under heavy load passed alone twice and in two full mutation runs, and its review checks it for a timing dependence, cost if wrong: a new flaky row in CI.
+
+Ruling: S5c Task 4 committed 3167b8af with every Expected matching (five sections cut, screen 615 to 359 lines, lost 0, 6 mutants killed, collection 30 files and 224 tests), cost if wrong: none.
+
+Ruling: Cian chose stacked pull requests (2026-10-14 01:31Z): part 1 is #52 (S3b to S6a into dev, #49 to #51 closed as superseded), part 2 is S4b to S6c stacked on the S6a branch, part 3 is S7a to W1 stacked on part 2; slices still open no pull request of their own, and gate bullets from S5c on say the slice ships in its part's pull request instead of 'one pull request after every slice', cost if wrong: one stale sentence in a gate bullet.
+
+Ruling: S5c Task 5 committed 7a8ebc47, 4a4f4327 and 79b8e171 with every Expected matching (shared ticket type, import screen 1110 to 134 lines, lost 0, hook order unchanged, 12 mutants killed), cost if wrong: none.
+
+Ruling: S5c Task 6 committed d855af99 and 3a108613 with every Expected matching (direct entry screen 654 to 74 lines, lost 0, hook order unchanged, 6 mutants killed, collection 31 files and 229 tests with the direction test), cost if wrong: none.
+
+Ruling: S5c review 3 spec PASS, quality FAIL; fix with one tests-only commit (fix-3-brief.md) that raises the actions test's async timeout to 5 s and pins the reachable handler paths 25 surviving mutants showed unpinned (they were unpinned before the move too, but the code is being handed over to a client in November), leaving 'use client' off the hook files like their siblings, cost if wrong: one more implementer round on S5c.
+
+Ruling: S5c Task 4 review PASS on both; its 16 surviving markup mutants (labels, descriptions, the save dialog's guard and counts, the correction page clamp) were unpinned before the move and the markup moved verbatim with lost 0, so no pins are added for them (unlike the Task 3 handler paths, they are copy and display, not state logic), and DuplicateDecision stays behind its constant-false flag as before, cost if wrong: a later copy edit to those dialogs goes unseen by tests.
+
+Ruling: S5c Task 6 review PASS on both; its medium test-debt finding (direct entry stale-load, begin and valid guards, start another record, retry) is fixed by a tests-only commit after fix 3 (fix-6-brief.md), the pure useMemo now running before the effect changes nothing observable, and entry-state-views.tsx keeps the five small state views the plan put there, a named exception to CR 3.3 one-component-per-file recorded in the S5c disposition, cost if wrong: one file split later.
+
+Ruling: fix 3 committed ea8c08c6 (actions row timeout 5 s, 14 rows each killing its mutation, a beforeEach reset of assignedProjectIds for an order leak, four paths skipped as unreachable because disabled buttons or beginOperation and eligible() already guard them; web 244 files and 2267 tests); the two 15 s timeouts at load average 50 passed alone and in the next full run, cost if wrong: a load flake in CI on part 2.
+
+Ruling: fix 6 committed c75e674d (20 direct entry rows, 45 mutations each restored; redundant or DOM-unreachable guards skipped with reasons; web 244 files and 2287 tests); its pkill may have killed other agents' vitest runs, so they are told to rerun any run that died without a summary, cost if wrong: one wasted run.
+
+Ruling: S5c Task 5 review PASS on both; its lows stay (an import order nit in use-batch-review.ts, the 11 receipt schema and 34 import workspace mutants that survived before the move and that Task 5 did not touch, no header comment on the new hooks), since no CR row or recorded deferral names them, cost if wrong: a later receipt schema edit goes unseen by tests.
+
+Ruling: S5c Task 7 committed 8cb6224b (7 docs files; web 244 files and 2287 tests; six collection routes 1 to 3 kB bigger, within the 3 kB criterion; the import value map CR names the moved component file, which is the path that line held; test debt counted as 14 handler, 34 import and 10 entry mutations by the implementer's tally from reviews 3 and 5 and fixes 3 and 6), cost if wrong: a debt count in the CR off by a few.
+
+Ruling: S5c SAD design-qa-agent PASS on all 166 paths in three packets (56, 56, 54), 0 blocked; nits (import grouping in use-batch-review.ts, a ../hooks specifier in use-collection-state.ts, inline cleanup in two entry rows) stay, cost if wrong: none.
+
+Ruling: S5c final review PASS; its medium (activity log said 54 files of specifiers, git shows 43 specifiers in 33 files) and three docs lows (stale paths in deferred-features.md lines 25, 37, 39, 66; three biome-ignore lines, not two; the CR roadmap row now names S5c) are fixed by the controller in the gate docs commit; the two test files this slice pushed past the CR 3.5 600 line rule (collection-workspace.actions.test.tsx 756, direct-entry-ownership.test.tsx 680) are split by concern in a tests-only commit after the gate run, while collection-workspace.import-upload.test.tsx (620, 621 before the slice) stays as it was and is recorded; importedFieldLabels in forms.utils.ts keeps its export (a pure label helper with no data, exported by the line-range cut), cost if wrong: one needless export.
+
+Ruling: S5c SAD sign-off PASS at 66a9be6e (design-qa-agent 168 paths in four packets, the fourth for the split test files), 0 blocked, cost if wrong: none.
+
+## S6c
+
+Ruling: the W1 plan (Tasks 0 to 8: cloud-run deferrals, analytics test split, scripts/db, phase6 renamed to replay with forwarding stubs for the old PowerShell and mjs entry points, seeds into prisma/seeds, tooling tests wired into a CI job, records, gates; 142 renames, every count equal) is accepted, and its W2 outline becomes the last slice, limited to items the change record's W1 row or its recorded deferrals name (path aliases, the docs/check.py split, the lib/services residue, the seed data and large test file splits only where a deferral names them), making 18 slices, cost if wrong: one more slice of work, flagged to Cian.
+
+Ruling: apply the S6c pre-flight fixes (11 must-fix: Task 0 branch, ancestor and S5c marker checks with base-sha first, Expected values from the S5c replay, the indicators noUnusedLocals line in use-collection-state.ts, the Task 7 index sed, grep -a and a sorted typecheck in Task 8, 'use client' kept on 11 cut components; 7 should-fix: a shared response-rules test of 27 cases leaving one equivalent mutant, SUBMITTED and REVIEWED round statuses, six report read permission rows, the api export guard for a stored report type with no route, the activeOperation guard), and Task 0 recounts the real S5c figures, which carry fix 3 and fix 6 rows the replay lacks, cost if wrong: an S6c Task 0 stop.

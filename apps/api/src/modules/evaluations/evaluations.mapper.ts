@@ -1,3 +1,4 @@
+import type { EvaluationDetailResponse } from '@pathways/shared'
 import type { Prisma } from '@prisma/client'
 import { z } from 'zod'
 import { classifyScoreCommentary, day } from './evaluations.helpers'
@@ -52,7 +53,10 @@ export const scoreDetailSelect = {
 } as const
 type ScoreDetailRow = Prisma.ProjectEvaluationScoreGetPayload<{ select: typeof scoreDetailSelect }>
 
-export function mapEvaluationDetail(row: EvaluationDetailRow, scores: ScoreDetailRow[]) {
+export function mapEvaluationDetail(
+  row: EvaluationDetailRow,
+  scores: ScoreDetailRow[],
+): EvaluationDetailResponse {
   return {
     id: row.id,
     title: row.title,

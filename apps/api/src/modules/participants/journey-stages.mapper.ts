@@ -1,5 +1,7 @@
 import type { Prisma } from '@prisma/client'
 
+import type { JourneyStageResponse } from '@pathways/shared'
+
 export const stageSelection = {
   id: true,
   projectId: true,
@@ -19,14 +21,16 @@ export const stageSelection = {
   },
 } satisfies Prisma.JourneyStageSelect
 
-export function mapStage(stage: Prisma.JourneyStageGetPayload<{ select: typeof stageSelection }>) {
+export function mapStage(
+  stage: Prisma.JourneyStageGetPayload<{ select: typeof stageSelection }>,
+): JourneyStageResponse {
   return {
     id: stage.id,
     projectId: stage.projectId,
     code: stage.code,
     name: stage.name,
     order: stage.stageOrder,
-    type: { ENTRY: 'Entry', CORE: 'Core', BRANCH: 'Branch', FOLLOW_UP: 'Follow-Up' }[
+    type: ({ ENTRY: 'Entry', CORE: 'Core', BRANCH: 'Branch', FOLLOW_UP: 'Follow-Up' } as const)[
       stage.stageType
     ],
     parentStageId: stage.parentStageId ?? undefined,

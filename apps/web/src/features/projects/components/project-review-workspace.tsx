@@ -1,8 +1,8 @@
 'use client'
 
-import { coreDataClient } from '@/lib/services/core-feature-client'
-import { BudgetModule } from '../budget-module/budget-module'
-import { LiveEvaluationWorkspace } from '../live-evaluation-workspace'
+import { reportsClient } from '@/lib/api/reports'
+import { BudgetModule } from '../budget/components/budget-module'
+import { LiveEvaluationWorkspace } from '../evaluation/components/live-evaluation-workspace'
 import { ProjectRulesPanel } from '../project-rules-panel'
 
 import { FileText } from 'lucide-react'
@@ -112,7 +112,7 @@ const EvidenceWorkspace = ({ projectId }: { projectId: string }) => {
           unavailable.push('Evidence records are not available for this role')
         }
         if (canReadReports) {
-          requests.push(optional('Report records', coreDataClient.reports(projectId), setReports))
+          requests.push(optional('Report records', reportsClient.reports(projectId), setReports))
         }
         await Promise.all(requests)
         if (mounted) setUnavailableSections([...new Set(unavailable)])

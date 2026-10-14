@@ -7,8 +7,11 @@ import {
 } from '@nestjs/common'
 
 import {
+  type BeneficiaryJourneyResponse,
   type CorrectJourneyEventRequest,
+  type CorrectJourneyEventResponse,
   type RecordJourneyEventRequest,
+  type RecordJourneyEventResponse,
   aggregateOnlyRoles,
 } from '@pathways/shared'
 import { writeAuditLog } from '../../common/audit/write-audit-log'
@@ -73,7 +76,7 @@ export class BeneficiaryJourneyService {
           recordedAt: event.recordedAt.toISOString(),
           recordedBy: event.recordedBy.fullName,
         })),
-      }
+      } satisfies BeneficiaryJourneyResponse
     })
   }
 
@@ -188,7 +191,7 @@ export class BeneficiaryJourneyService {
           enrollmentId: enrollment.id,
           eventType: input.eventType,
           eventDate: input.eventDate,
-        }
+        } satisfies RecordJourneyEventResponse
       },
     )
   }
@@ -249,7 +252,7 @@ export class BeneficiaryJourneyService {
             noteAttached: Boolean(input.note),
           },
         })
-        return { id: correction.id }
+        return { id: correction.id } satisfies CorrectJourneyEventResponse
       },
     )
   }

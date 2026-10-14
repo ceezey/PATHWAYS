@@ -6,9 +6,9 @@ import { CappedPercent, SectionCard } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { privateProofClient } from '@/lib/api/proof-inspection'
+import type { reportsClient } from '@/lib/api/reports'
 import { useSensitiveDraftOwner } from '@/lib/auth/sensitive-drafts'
 import { principalHasAtomicPermission } from '@/lib/rbac/policy'
-import type { coreDataClient } from '@/lib/services/core-feature-client'
 import type { ActivitySummary, EvidenceActivitySummary, EvidenceRecord } from '@/types/pathways'
 import {
   AuditMetadataCard,
@@ -16,7 +16,7 @@ import {
 } from '../activities/components/evidence-panels'
 import { PrivateProofPreview } from '../activities/components/private-proof-preview'
 
-export type ProjectReportRecord = Awaited<ReturnType<typeof coreDataClient.reports>>[number]
+export type ProjectReportRecord = Awaited<ReturnType<typeof reportsClient.reports>>[number]
 
 /** Dash when there is no allocation to measure against, or no budget access. */
 const budgetUsedText = (activity: ActivitySummary | undefined) =>

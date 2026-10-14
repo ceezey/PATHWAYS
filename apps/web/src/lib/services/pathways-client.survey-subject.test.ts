@@ -4,7 +4,7 @@ vi.mock('@/lib/env', () => ({ webEnv: { NEXT_PUBLIC_API_BASE_URL: 'http://localh
 vi.mock('@/lib/supabase/client', () => ({
   getBrowserSupabaseClient: () => ({ auth: { getSession: browser.getSession } }),
 }))
-import { pathwaysClient } from './pathways-client'
+import { beneficiariesClient } from '@/lib/api/beneficiaries'
 const authUserId = '79000000-0000-4000-8000-000000000001'
 const organizationId = '79000000-0000-4000-8000-000000000002'
 const userId = '79000000-0000-4000-8000-000000000003'
@@ -45,7 +45,12 @@ describe('survey contributor scoped consumed response boundary', () => {
     fetcher.mockResolvedValueOnce(json({ items: [record], nextCursor: otherId }))
     const controller = new AbortController()
     await expect(
-      pathwaysClient.getSurveySubjectPage(projectId, ' Fictional ', otherId, controller.signal),
+      beneficiariesClient.getSurveySubjectPage(
+        projectId,
+        ' Fictional ',
+        otherId,
+        controller.signal,
+      ),
     ).resolves.toEqual({
       items: [{ id: subjectId, code: 'SYN-1', displayName: 'Fictional contributor' }],
       nextCursor: otherId,
@@ -70,7 +75,7 @@ describe('survey contributor scoped consumed response boundary', () => {
     [projectId, 'x'.repeat(81), undefined],
     [projectId, '', 'bad'],
   ] as const)('rejects invalid search input before network %j', async (project, search, cursor) => {
-    await expect(pathwaysClient.getSurveySubjectPage(project, search, cursor)).rejects.toThrow(
+    await expect(beneficiariesClient.getSurveySubjectPage(project, search, cursor)).rejects.toThrow(
       'Invalid contributor search',
     )
     expect(fetcher).not.toHaveBeenCalled()
@@ -82,7 +87,7 @@ describe('survey contributor scoped consumed response boundary', () => {
     { items: Array(26).fill(record), nextCursor: null },
   ])('rejects an invalid or unbounded page %j', async (value) => {
     fetcher.mockResolvedValueOnce(json(value))
-    await expect(pathwaysClient.getSurveySubjectPage(projectId)).rejects.toThrow(
+    await expect(beneficiariesClient.getSurveySubjectPage(projectId)).rejects.toThrow(
       'Invalid contributor page',
     )
   })
@@ -99,7 +104,7 @@ describe('survey contributor scoped consumed response boundary', () => {
     fetcher.mockResolvedValueOnce(
       json({ items: [{ ...record, ...replacement }], nextCursor: null }),
     )
-    await expect(pathwaysClient.getSurveySubjectPage(projectId)).rejects.toThrow(
+    await expect(beneficiariesClient.getSurveySubjectPage(projectId)).rejects.toThrow(
       'scope could not be verified',
     )
   })
@@ -118,7 +123,7 @@ describe('survey contributor scoped consumed response boundary', () => {
       fetcher.mockResolvedValueOnce(
         json({ items: [{ ...record, ...replacement }], nextCursor: null }),
       )
-      await expect(pathwaysClient.getSurveySubjectPage(projectId)).resolves.toEqual({
+      await expect(beneficiariesClient.getSurveySubjectPage(projectId)).resolves.toEqual({
         items: [],
         nextCursor: null,
       })
@@ -131,7 +136,7 @@ describe('survey contributor scoped consumed response boundary', () => {
         nextCursor: null,
       }),
     )
-    const page = await pathwaysClient.getSurveySubjectPage(projectId)
+    const page = await beneficiariesClient.getSurveySubjectPage(projectId)
     expect(page.items).toEqual([
       { id: subjectId, code: 'SYN-1', displayName: 'Fictional contributor' },
     ])

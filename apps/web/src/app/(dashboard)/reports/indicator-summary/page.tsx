@@ -1,6 +1,6 @@
 import { type ProtectedPageProps, requireServerPage } from '@/lib/rbac/server-access'
 
-import { ReportingPage } from '@/features/reports/reporting-page'
+import { ReportingPage } from '@/features/reports'
 
 function IndicatorSummaryReportPage() {
   return <ReportingPage initialKind="indicator-summary" />

@@ -1,6 +1,12 @@
 import { NotFoundException } from '@nestjs/common'
 import { IMPORT_ENGINEERING_LIMITS } from '@pathways/imports/server'
-import type { ImportRowsQuery } from '@pathways/shared'
+import type {
+  ImportBatchDetailResponse,
+  ImportMappingResponse,
+  ImportRowResponse,
+  ImportRowsPageResponse,
+  ImportRowsQuery,
+} from '@pathways/shared'
 import { Prisma } from '@prisma/client'
 import { type ApplicationIdentity, UUID_PATTERN } from '../../common/authz/application-identity'
 import { requireScopedProject } from '../../common/authz/scoped-project'
@@ -24,7 +30,7 @@ export async function readBatchDetail(
   actor: ApplicationIdentity,
   projectId: string,
   batchId: string,
-) {
+): Promise<ImportBatchDetailResponse> {
   const batch = await requireBatch(tx, actor, projectId, batchId)
   const mappings = await tx.metadataMapping.findMany({
     where: { importBatchId: batch.id, revision: batch.mappingRevision },
@@ -52,7 +58,12 @@ export async function readBatchDetail(
     ...mapBatch(batch),
     sourceHeaders: sourceColumns.map((column) => column.key),
     sourceColumns,
-    mappings,
+    mappings: mappings.map(
+      (mapping): ImportMappingResponse => ({
+        ...mapping,
+        valueMap: mapping.valueMap as ImportMappingResponse['valueMap'],
+      }),
+    ),
   }
 }
 
@@ -62,7 +73,7 @@ export async function readBatchRows(
   projectId: string,
   batchId: string,
   query: ImportRowsQuery,
-) {
+): Promise<ImportRowsPageResponse> {
   const batch = await requireBatch(tx, actor, projectId, batchId)
   const rows = await tx.dataImportRow.findMany({
     where: {
@@ -90,7 +101,14 @@ export async function readBatchRows(
     offset: query.offset,
     take: query.take,
     total: batch.totalRows,
-    rows: rows.map((row) => ({ ...row, updatedAt: row.updatedAt.toISOString() })),
+    rows: rows.map(
+      (row): ImportRowResponse => ({
+        ...row,
+        rawData: row.rawData as ImportRowResponse['rawData'],
+        validationErrors: row.validationErrors as ImportRowResponse['validationErrors'],
+        updatedAt: row.updatedAt.toISOString(),
+      }),
+    ),
   }
 }
 

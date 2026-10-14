@@ -1,6 +1,6 @@
 import { type ProtectedPageProps, requireServerPage } from '@/lib/rbac/server-access'
 
-import { BeneficiaryFormLoader } from '@/features/beneficiaries/beneficiary-form-loader'
+import { BeneficiaryFormLoader } from '@/features/beneficiaries'
 
 function NewBeneficiaryPage() {
   return <BeneficiaryFormLoader />

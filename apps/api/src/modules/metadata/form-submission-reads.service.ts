@@ -1,5 +1,6 @@
 import { NotFoundException } from '@nestjs/common'
 import {
+  type FormSubmissionPageResponse,
   type FormValidationMode,
   type ListSubmissionsQuery,
   validateAndNormalizeFormData,
@@ -30,7 +31,7 @@ export async function listOwnSubmissions(
   projectId: string,
   formId: string,
   query: ListSubmissionsQuery,
-) {
+): Promise<FormSubmissionPageResponse> {
   const form = await requireForm(tx, actor, projectId, formId)
   const offset = Math.min(10_000, Math.max(0, query.offset ?? 0))
   const limit = Math.min(50, Math.max(1, query.limit ?? 10))

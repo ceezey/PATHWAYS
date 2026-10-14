@@ -1,5 +1,5 @@
 /* @vitest-environment jsdom */
-import { reportSectionsSchema } from '@/lib/services/report-sections'
+import { reportSectionsResponse } from '@pathways/shared'
 import { cleanup, render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { readPrintReport } from './print-report-payload'
@@ -13,7 +13,8 @@ afterEach(cleanup)
 const sections = sampleProjectReport.sections
 if (!sections) throw new Error('Sample fixture needs sections.')
 const many = (count: number, item: object) => Array.from({ length: count }, () => item)
-const accepts = (patch: object) => reportSectionsSchema.safeParse({ ...sections, ...patch }).success
+const accepts = (patch: object) =>
+  reportSectionsResponse.safeParse({ ...sections, ...patch }).success
 
 describe('report sections schema', () => {
   it('accepts the sample and bounds each list', () => {

@@ -46,6 +46,7 @@ const access = vi.hoisted(() => ({
 vi.mock('@/lib/services/pathways-client', () => ({
   pathwaysClient: api,
 }))
+vi.mock('@/lib/api/journeys', () => ({ journeysClient: api }))
 vi.mock('@/lib/api/indicators', () => ({ indicatorsClient: api }))
 vi.mock('@/lib/api/activities', () => ({ activitiesClient: api }))
 vi.mock('@/lib/api/projects', () => ({ projectsClient: api }))
@@ -70,8 +71,12 @@ vi.mock('../../components/project-workspace-header', () => ({ ProjectWorkspaceHe
 vi.mock('./activity-form-dialog', () => ({ ActivityFormDialog: () => null }))
 vi.mock('./activity-proof-dialog', () => ({ ActivityProofDialog: () => null }))
 vi.mock('./activity-progress-dialog', () => ({ ActivityProgressDialog: () => null }))
-vi.mock('../../activity-expense-dialog', () => ({ ActivityExpenseDialog: () => null }))
-vi.mock('../../activity-expense-review-dialog', () => ({ ActivityExpenseReviewDialog: () => null }))
+vi.mock('../../budget/components/activity-expense-dialog', () => ({
+  ActivityExpenseDialog: () => null,
+}))
+vi.mock('../../budget/components/activity-expense-review-dialog', () => ({
+  ActivityExpenseReviewDialog: () => null,
+}))
 vi.mock('./activity-proof-files', () => ({ ActivityProofFiles: () => null }))
 vi.mock('./activity-proof-review-dialog', () => ({ ActivityProofReviewDialog: () => null }))
 

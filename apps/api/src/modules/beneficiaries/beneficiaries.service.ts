@@ -10,9 +10,13 @@ import type { Prisma } from '@prisma/client'
 
 import {
   type ArchiveBeneficiaryRequest,
+  type ArchiveBeneficiaryResponse,
   type BeneficiaryListQuery,
+  type BeneficiaryResponse,
   type EnrollBeneficiaryRequest,
+  type EnrollBeneficiaryResponse,
   type RegisterBeneficiaryRequest,
+  type RegistrationContextResponse,
   type UpdateBeneficiaryRequest,
   updateBeneficiaryRequest,
 } from '@pathways/shared'
@@ -27,7 +31,7 @@ import { mapBeneficiary, scopedIncludes } from './beneficiaries.mapper'
 import { canReadProgress, loadProgress } from './beneficiary-progress'
 import { businessToday, exactDate } from './beneficiary-registration.helpers'
 import { BeneficiaryRegistrationService } from './beneficiary-registration.service'
-import { type RegistrationContext, loadRegistrationContext } from './registration-context.service'
+import { loadRegistrationContext } from './registration-context.service'
 
 // The compiled update DTO carried every declared field, so the profile update audit lists all of them.
 const auditedProfileFields = Object.keys(updateBeneficiaryRequest.shape).filter(
@@ -112,16 +116,18 @@ export class BeneficiariesService {
             )
           : null
         return {
-          items: page.map((row) => ({
-            ...mapBeneficiary(row, scopedProjectId),
-            progress: progress
-              ? (progress.get(row.beneficiaryProjectEnrollment_beneficiary[0]?.id ?? '') ?? {
-                  restricted: false as const,
-                  lastParticipation: null,
-                  stage: null,
-                })
-              : { restricted: true as const },
-          })),
+          items: page.map(
+            (row): BeneficiaryResponse => ({
+              ...mapBeneficiary(row, scopedProjectId),
+              progress: progress
+                ? (progress.get(row.beneficiaryProjectEnrollment_beneficiary[0]?.id ?? '') ?? {
+                    restricted: false as const,
+                    lastParticipation: null,
+                    stage: null,
+                  })
+                : { restricted: true as const },
+            }),
+          ),
           nextCursor: hasMore ? page.at(-1)?.id : null,
         }
       },
@@ -131,7 +137,7 @@ export class BeneficiariesService {
   registrationContext(
     identity: ApplicationIdentity,
     projectId: string,
-  ): Promise<RegistrationContext> {
+  ): Promise<RegistrationContextResponse> {
     if (!UUID_PATTERN.test(projectId))
       throw new BadRequestException('Project identifier is invalid.')
     return withAuthorizedOperation(
@@ -154,7 +160,7 @@ export class BeneficiariesService {
   ensureDefaultRegistrationForm(
     identity: ApplicationIdentity,
     projectId: string,
-  ): Promise<RegistrationContext> {
+  ): Promise<RegistrationContextResponse> {
     if (!UUID_PATTERN.test(projectId))
       throw new BadRequestException('Project identifier is invalid.')
     return withAuthorizedOperation(
@@ -196,7 +202,7 @@ export class BeneficiariesService {
                 stage: null,
               })
             : { restricted: true as const }
-        return { ...mapBeneficiary(row, project.id), progress }
+        return { ...mapBeneficiary(row, project.id), progress } satisfies BeneficiaryResponse
       },
     )
   }
@@ -315,7 +321,11 @@ export class BeneficiariesService {
           entityId: current.id,
           changes: { archivedAt: now.toISOString() },
         })
-        return { id: current.id, status: 'ARCHIVED', archivedAt: now.toISOString() }
+        return {
+          id: current.id,
+          status: 'ARCHIVED',
+          archivedAt: now.toISOString(),
+        } satisfies ArchiveBeneficiaryResponse
       },
     )
   }
@@ -359,7 +369,7 @@ export class BeneficiariesService {
           id: enrollment.id,
           enrollmentDate: enrollment.enrollmentDate.toISOString().slice(0, 10),
           status: enrollment.status,
-        }
+        } satisfies EnrollBeneficiaryResponse
       },
     )
   }

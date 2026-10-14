@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-import { reportSectionsSchema } from '@/lib/services/report-sections'
+import { reportSectionsResponse } from '@pathways/shared'
 
 const cell = z.string().max(2000)
 const printReportSchema = z
@@ -9,7 +9,7 @@ const printReportSchema = z
     kind: z.string().min(1).max(40),
     columns: z.array(cell).min(1).max(30),
     rows: z.array(z.array(cell).max(30)).max(1000),
-    sections: reportSectionsSchema.optional(),
+    sections: reportSectionsResponse.optional(),
     generatedAt: z.string().max(40),
     unavailableReasons: z.array(cell).max(100),
   })

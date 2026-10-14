@@ -12,6 +12,6 @@ export { ActivityProofDialog } from './activities/components/activity-proof-dial
 export { ProjectActivitiesWorkspace } from './activities/components/project-activities-workspace'
 
 // Exported for files outside the feature until the slices that own them move them.
-export { PrintReceiptPage } from './budget-module/print/print-receipt-page'
+export { PrintReceiptPage } from './budget/print/print-receipt-page'
 export { IndicatorLibraryManager } from './indicators/components/indicator-library-manager'
 export { ProjectIndicatorsWorkspace } from './indicators/components/project-indicators-workspace'

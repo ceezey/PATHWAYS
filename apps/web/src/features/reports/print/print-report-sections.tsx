@@ -1,7 +1,7 @@
-import type { ReportSections, StatusLevel } from '@/lib/services/report-sections'
 import { cn } from '@/lib/utils'
+import type { ReportSectionsResponse, ReportStatusLevel } from '@pathways/shared'
 
-const levelStyle: Record<StatusLevel, { label: string; className: string }> = {
+const levelStyle: Record<ReportStatusLevel, { label: string; className: string }> = {
   ON_TRACK: { label: 'ON TRACK', className: 'border-success bg-success-subtle text-success' },
   AT_RISK: { label: 'AT RISK', className: 'border-warning bg-warning-subtle text-warning' },
   OFF_TRACK: { label: 'OFF TRACK', className: 'border-danger bg-danger-subtle text-danger' },
@@ -10,7 +10,7 @@ const levelStyle: Record<StatusLevel, { label: string; className: string }> = {
     className: 'border-border bg-surface-subtle text-muted-foreground',
   },
 }
-const stateStyle: Record<string, { label: string; level: StatusLevel }> = {
+const stateStyle: Record<string, { label: string; level: ReportStatusLevel }> = {
   AVAILABLE: { label: 'Available', level: 'ON_TRACK' },
   ZERO: { label: 'Zero', level: 'ON_TRACK' },
   SUPPRESSED: { label: 'Fewer than 5', level: 'AT_RISK' },
@@ -19,7 +19,7 @@ const stateStyle: Record<string, { label: string; level: StatusLevel }> = {
 }
 const pill = 'inline-block rounded border px-2 py-0.5 text-[10px] font-semibold'
 
-function StatusPill({ level }: { level: StatusLevel }) {
+function StatusPill({ level }: { level: ReportStatusLevel }) {
   const { label, className } = levelStyle[level]
   return <span className={cn(pill, className)}>{label}</span>
 }
@@ -67,7 +67,7 @@ export const Table = ({
   </table>
 )
 
-const figureValue = (figure: NonNullable<ReportSections['keyFigures']>[number]) =>
+const figureValue = (figure: NonNullable<ReportSectionsResponse['keyFigures']>[number]) =>
   figure.state === 'SUPPRESSED' ? 'Fewer than 5' : (figure.value ?? 'Not available')
 
 // Each overview area's status rule, printed only for the areas the report shows.
@@ -81,7 +81,7 @@ const statusRules: Record<string, string> = {
 }
 
 /** One-page Project summary body, shared by the PDF print page and the in-app preview. */
-export function ProjectStatusSections({ sections }: { sections: ReportSections }) {
+export function ProjectStatusSections({ sections }: { sections: ReportSectionsResponse }) {
   const info = sections.information
   const pairs: Array<[string, string]> = [
     ['Code', info.code],

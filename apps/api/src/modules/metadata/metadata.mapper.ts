@@ -1,4 +1,4 @@
-import type { CreateFormRequest, FormFieldValidationContract } from '@pathways/shared'
+import type { CreateFormRequest, FormFieldValidationContract, FormResponse } from '@pathways/shared'
 import type { Prisma } from '@prisma/client'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
 
@@ -62,7 +62,7 @@ export function formFieldContract(field: FormFieldContractRow): FormFieldValidat
   }
 }
 
-export function mapForm(form: FormRow, actor: ApplicationIdentity) {
+export function mapForm(form: FormRow, actor: ApplicationIdentity): FormResponse {
   return {
     id: form.id,
     projectId: form.projectId,

@@ -23,11 +23,11 @@ import { usePendingCreate } from '@/hooks/use-pending-create'
 import { useSourceMutationContext } from '@/hooks/use-source-mutation-context'
 import { activitiesClient } from '@/lib/api/activities'
 import { PathwaysClientError } from '@/lib/api/core/request'
+import { formsClient } from '@/lib/api/forms'
 import { indicatorsClient } from '@/lib/api/indicators'
 import { formatCappedPercent } from '@/lib/format/percent'
 import { fingerprintOf } from '@/lib/forms/pending-create'
 import { principalHasAtomicPermission } from '@/lib/rbac/policy'
-import { pathwaysClient } from '@/lib/services/pathways-client'
 import {
   type SourceMutationResult,
   isSourceReplay,
@@ -81,7 +81,7 @@ export function ProjectIndicatorsWorkspace({ projectId }: { projectId: string })
     async (signal) => {
       const [forms, activities] = await Promise.all([
         canReadForms
-          ? pathwaysClient.getDigitalForms(projectId)
+          ? formsClient.getDigitalForms(projectId)
           : Promise.resolve<DigitalFormDefinition[]>([]),
         canReadActivityContext
           ? activitiesClient.getActivityContext(projectId)

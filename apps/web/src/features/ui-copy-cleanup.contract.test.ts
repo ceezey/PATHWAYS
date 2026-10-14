@@ -10,11 +10,7 @@ const removedDescriptions = [
     'Project performance, SADDD Analysis, budget utilization, aggregate location coverage, Beneficiary reach, and Rule-Based Alerts for human review.',
   ],
   [
-    'features/reports/reporting-workspace.tsx',
-    'Build, preview, retain, and export project, indicator, beneficiary, and aggregate survey reports.',
-  ],
-  [
-    'features/collection/collection-workspace.tsx',
+    'features/collection/forms/components/collection-workspace.tsx',
     'Build and publish project forms, encode data, and import validated CSV, XLS, or XLSX datasets.',
   ],
   ['features/projects/components/project-detail-view.tsx', 'Assigned project team members.'],
@@ -49,7 +45,6 @@ describe('"None yet" empty states versus error and permission wording', () => {
   })
 
   it.each([
-    ['features/reports/reporting-workspace.tsx', "indicator.target ?? 'None yet'"],
     [
       'features/analytics/analytics-dashboard.tsx',
       'const monitoringReadable = canReadIndicators && monitoring !== null && !monitoringError',

@@ -1,6 +1,6 @@
 import { requireServerPage } from '@/lib/rbac/server-access'
 
-import { JourneyStagesLoader } from '@/features/beneficiaries/journey-stages-loader'
+import { JourneyStagesLoader } from '@/features/beneficiaries'
 
 export const dynamic = 'force-dynamic'
 

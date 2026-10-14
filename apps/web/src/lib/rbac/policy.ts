@@ -10,12 +10,6 @@ import {
   routePolicy,
 } from '@pathways/shared'
 
-export const reportKindPermissions = {
-  'project-summary': 'reports.project_summary.view',
-  'indicator-summary': 'reports.indicator_summary.view',
-  'beneficiary-summary': 'reports.beneficiary_summary.view',
-  'survey-results': 'reports.view',
-} as const
 type RouteAccessResult = {
   allowed: boolean
   moduleName: string

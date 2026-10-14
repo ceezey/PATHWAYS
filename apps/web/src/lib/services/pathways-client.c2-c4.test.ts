@@ -10,8 +10,9 @@ vi.mock('@/lib/supabase/client', () => ({
 }))
 
 import { activitiesClient } from '@/lib/api/activities'
+import { beneficiariesClient } from '@/lib/api/beneficiaries'
+import { journeysClient } from '@/lib/api/journeys'
 import type { JourneyStageConfig } from '@/types/pathways'
-import { pathwaysClient } from './pathways-client'
 import { sourceMutationTickets } from './source-mutation'
 
 const authUserId = '76000000-0000-4000-8000-000000000001'
@@ -165,8 +166,8 @@ describe('PATHWAYS C2/C4 browser client', () => {
       .mockResolvedValueOnce(json([stage]))
     vi.stubGlobal('fetch', fetcher)
 
-    await expect(pathwaysClient.getJourneyStages(projectId)).resolves.toEqual([stage])
-    await pathwaysClient.saveJourneyStages(projectId, [stage])
+    await expect(journeysClient.getJourneyStages(projectId)).resolves.toEqual([stage])
+    await journeysClient.saveJourneyStages(projectId, [stage])
 
     expect(fetcher.mock.calls[1]?.[0]).toContain(`/projects/${projectId}/journey-stages`)
     expect(JSON.parse(String((fetcher.mock.calls[1]?.[1] as RequestInit).body))).toEqual({
@@ -228,7 +229,10 @@ describe('PATHWAYS C2/C4 browser client', () => {
         }),
       ),
     )
-    const rows = await pathwaysClient.getBeneficiaryRecordsForRole('Project Officer', projectId)
+    const rows = await beneficiariesClient.getBeneficiaryRecordsForRole(
+      'Project Officer',
+      projectId,
+    )
     expect(rows.map((item) => [item.age, item.ageGroup])).toEqual([
       [6, '5-9'],
       [9, '5-9'],
@@ -275,19 +279,23 @@ describe('PATHWAYS C2/C4 browser client', () => {
     vi.stubGlobal('fetch', fetcher)
 
     await expect(
-      pathwaysClient.getBeneficiaryRecordsForRole('Project Officer', projectId, {
+      beneficiariesClient.getBeneficiaryRecordsForRole('Project Officer', projectId, {
         search: 'BEN-C3',
       }),
     ).resolves.toEqual([
       expect.objectContaining({ id: beneficiaryId, ageGroup: '25+', projectIds: [projectId] }),
     ])
-    await pathwaysClient.getBeneficiaryRecordForRole('Project Officer', projectId, beneficiaryId)
-    await pathwaysClient.registerBeneficiary(projectId, {
+    await beneficiariesClient.getBeneficiaryRecordForRole(
+      'Project Officer',
+      projectId,
+      beneficiaryId,
+    )
+    await beneficiariesClient.registerBeneficiary(projectId, {
       formId: '76000000-0000-4000-8000-000000000014',
       clientRegistrationId: '76000000-0000-4000-8000-000000000015',
       values: { registration_operation: 'CREATE', beneficiary_code: row.code },
     })
-    await pathwaysClient.updateBeneficiary(projectId, beneficiaryId, {
+    await beneficiariesClient.updateBeneficiary(projectId, beneficiaryId, {
       subjectType: 'INDIVIDUAL',
       sex: 'NOT_SPECIFIED',
       disabilityStatus: 'NOT_SPECIFIED',
@@ -354,15 +362,15 @@ describe('PATHWAYS C2/C4 browser client', () => {
     vi.stubGlobal('fetch', fetcher)
 
     await expect(
-      pathwaysClient.getBeneficiaryJourneyHistory(projectId, history.beneficiaryId),
+      journeysClient.getBeneficiaryJourneyHistory(projectId, history.beneficiaryId),
     ).resolves.toEqual(history)
-    await pathwaysClient.transitionBeneficiaryJourney(projectId, history.beneficiaryId, {
+    await journeysClient.transitionBeneficiaryJourney(projectId, history.beneficiaryId, {
       eventType: 'FOLLOW_UP',
       eventDate: '2026-09-22',
       description: 'Follow-up check',
       stageId,
     })
-    await pathwaysClient.correctBeneficiaryJourneyEvent(projectId, history.beneficiaryId, eventId, {
+    await journeysClient.correctBeneficiaryJourneyEvent(projectId, history.beneficiaryId, eventId, {
       eventDate: '2026-09-21',
       description: 'Corrected participation note',
       reason: 'Corrected wording',

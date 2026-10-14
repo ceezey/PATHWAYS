@@ -6,8 +6,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { AuthorizedQueryProvider } from '@/providers/authorized-query-provider'
 
-import type { ExpenseBudgetReference } from '../../activity-expense-dialog'
-import type { PendingExpense } from '../../activity-expense-review-dialog'
+import type { ExpenseBudgetReference } from '../../budget/components/activity-expense-dialog'
+import type { PendingExpense } from '../../budget/components/activity-expense-review-dialog'
 import type { ActivityExpenseEntry } from './activity-detail-sections'
 import { ProjectActivitiesWorkspace } from './project-activities-workspace'
 
@@ -49,15 +49,16 @@ const access = vi.hoisted(() => ({
   },
 }))
 
-vi.mock('@/lib/services/pathways-client', () => ({
-  pathwaysClient: { getJourneyStages: api.getJourneyStages },
+vi.mock('@/lib/services/pathways-client', () => ({ pathwaysClient: {} }))
+vi.mock('@/lib/api/journeys', () => ({
+  journeysClient: { getJourneyStages: api.getJourneyStages },
 }))
 vi.mock('@/lib/api/indicators', () => ({
   indicatorsClient: { getProjectIndicators: api.getProjectIndicators },
 }))
 vi.mock('@/lib/api/activities', () => ({ activitiesClient: api }))
 vi.mock('@/lib/api/projects', () => ({ projectsClient: api }))
-vi.mock('@/lib/services/core-feature-client', () => ({ coreDataClient: core }))
+vi.mock('@/lib/api/finance', () => ({ financeClient: core }))
 vi.mock('@/hooks/use-current-role', () => ({ useCurrentRole: () => access }))
 vi.mock('@/hooks/use-display-labels', () => ({
   useDisplayLabels: () => ({ labels: { projectActivities: 'Activities' } }),

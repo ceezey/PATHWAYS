@@ -47,6 +47,7 @@ const access = vi.hoisted(() => ({
 vi.mock('@/lib/services/pathways-client', () => ({
   pathwaysClient: api,
 }))
+vi.mock('@/lib/api/journeys', () => ({ journeysClient: api }))
 vi.mock('@/lib/api/indicators', () => ({ indicatorsClient: api }))
 vi.mock('@/lib/api/activities', () => ({ activitiesClient: api }))
 vi.mock('@/lib/api/projects', () => ({ projectsClient: api }))
@@ -95,8 +96,8 @@ vi.mock('@/components/ui/dropdown-menu', () => ({
   ),
 }))
 // A Project Manager now reads expenses and budget lines for the activity expense trail.
-vi.mock('@/lib/services/core-feature-client', () => ({
-  coreDataClient: {
+vi.mock('@/lib/api/finance', () => ({
+  financeClient: {
     budgetReferences: vi.fn().mockResolvedValue([]),
     budgets: vi.fn().mockResolvedValue([]),
     expenses: vi.fn().mockResolvedValue([]),
