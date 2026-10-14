@@ -1,3 +1,5 @@
+import { digitalFormTypes } from '@pathways/shared'
+
 import { type DraftScope, sensitiveDraftKey } from '@/lib/auth/sensitive-drafts'
 import type { DigitalFormType } from '@/types/pathways'
 import type { BuilderFormField } from './digital-form-contract'
@@ -22,15 +24,7 @@ type SessionStorage = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>
 const maximumDraftBytes = 250_000
 const modes = new Set(['scratch', 'import', 'extend'])
 const views = new Set(['home', 'forms', 'builder', 'import'])
-const formTypes = new Set([
-  'BENEFICIARY_REGISTRATION',
-  'TRAINING_SURVEY',
-  'PRE_TEST',
-  'POST_TEST',
-  'OUTCOME_MONITORING',
-  'ACTIVITY_MONITORING',
-  'OTHER',
-])
+const formTypes = new Set<string>(digitalFormTypes)
 const fieldTypes = new Set([
   'text',
   'long_text',

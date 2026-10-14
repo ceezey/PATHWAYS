@@ -11,6 +11,7 @@ import type {
   ImportSourceColumnResponse,
   OverdueExplanationCategory,
   SadddDashboard,
+  DigitalFormType as SharedDigitalFormType,
   StoredProjectStatus,
 } from '@pathways/shared'
 
@@ -648,14 +649,7 @@ export type FormFieldDataType =
   | 'SELECT'
   | 'MULTIPLE_SELECT'
 
-export type DigitalFormType =
-  | 'BENEFICIARY_REGISTRATION'
-  | 'TRAINING_SURVEY'
-  | 'PRE_TEST'
-  | 'POST_TEST'
-  | 'OUTCOME_MONITORING'
-  | 'ACTIVITY_MONITORING'
-  | 'OTHER'
+export type DigitalFormType = SharedDigitalFormType
 
 export interface DigitalFormFieldDefinition {
   id?: string
