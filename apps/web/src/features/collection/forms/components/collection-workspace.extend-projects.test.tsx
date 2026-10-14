@@ -47,7 +47,6 @@ const access = vi.hoisted(() => {
 })
 
 vi.mock('@/providers/current-role-provider', () => ({ useCurrentRole: () => access }))
-vi.mock('@/lib/services/pathways-client', () => ({ pathwaysClient: api }))
 vi.mock('@/lib/api/forms', () => ({ formsClient: api }))
 vi.mock('@/lib/api/indicators', () => ({ indicatorsClient: api }))
 vi.mock('@/lib/api/activities', () => ({ activitiesClient: api }))

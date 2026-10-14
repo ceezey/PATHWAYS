@@ -27,7 +27,6 @@ const api = vi.hoisted(() => ({
 }))
 const toasts = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }))
 vi.mock('@/hooks/use-current-role', () => ({ useCurrentRole: () => state }))
-vi.mock('@/lib/services/pathways-client', () => ({ pathwaysClient: api }))
 vi.mock('@/lib/api/forms', () => ({ formsClient: api }))
 vi.mock('@/lib/api/imports', () => ({ importsClient: api }))
 vi.mock('@/lib/api/projects', () => ({ projectsClient: api }))

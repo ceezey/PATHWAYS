@@ -24,9 +24,6 @@ const api = vi.hoisted(() => ({
   getDirectSubmissionByClientId: vi.fn(),
 }))
 
-vi.mock('@/lib/services/pathways-client', () => ({
-  pathwaysClient: api,
-}))
 vi.mock('@/lib/api/forms', () => ({ formsClient: api }))
 vi.mock('@/lib/api/core/request', () => ({
   PathwaysClientError: class PathwaysClientError extends Error {

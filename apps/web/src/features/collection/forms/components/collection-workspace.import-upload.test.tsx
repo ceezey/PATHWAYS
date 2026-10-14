@@ -66,7 +66,6 @@ vi.mock('@/lib/services/core-feature-client', async (importOriginal) => ({
   downloadCoreArtifact: core.downloadCoreArtifact,
 }))
 
-vi.mock('@/lib/services/pathways-client', () => ({ pathwaysClient: {} }))
 vi.mock('@/lib/api/forms', () => ({
   formsClient: {
     getDigitalForms: api.getDigitalForms,

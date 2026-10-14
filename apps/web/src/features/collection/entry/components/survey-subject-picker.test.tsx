@@ -16,7 +16,6 @@ vi.mock('@/hooks/use-current-role', () => ({
     },
   }),
 }))
-vi.mock('@/lib/services/pathways-client', () => ({ pathwaysClient: {} }))
 vi.mock('@/lib/api/beneficiaries', () => ({
   beneficiariesClient: { getSurveySubjectPage: (...args: unknown[]) => state.page(...args) },
 }))

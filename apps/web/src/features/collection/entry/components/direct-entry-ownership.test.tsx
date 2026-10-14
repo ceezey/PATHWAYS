@@ -25,9 +25,6 @@ const api = vi.hoisted(() => ({
   getSurveySubjectPage: vi.fn(),
 }))
 vi.mock('@/hooks/use-current-role', () => ({ useCurrentRole: () => state }))
-vi.mock('@/lib/services/pathways-client', () => ({
-  pathwaysClient: api,
-}))
 vi.mock('@/lib/api/forms', () => ({ formsClient: api }))
 vi.mock('@/lib/api/beneficiaries', () => ({ beneficiariesClient: api }))
 vi.mock('@/lib/api/core/request', () => ({
