@@ -26,6 +26,7 @@ import type { ApplicationIdentity } from '../../common/authz/application-identit
 import { withAuthorizedOperation } from '../../common/authz/authorized-operation'
 import { projectScope } from '../../common/authz/project-scope'
 import { requireScopedProjectRow } from '../../common/authz/scoped-project'
+import type { Tx } from '../../common/prisma/transaction'
 import { PrismaService } from '../../prisma/prisma.service'
 import { faultCause } from '../../prisma/transaction-diagnostic'
 import { monitoringSqlError } from '../indicators/indicators.helpers'
@@ -125,7 +126,7 @@ export class AnalyticsService {
    * The database release function remains the enforcing authority.
    */
   private async sadddReleasable(
-    tx: Prisma.TransactionClient,
+    tx: Tx,
     actor: ApplicationIdentity,
     projectId: string,
     period: { businessTimeZone: string },
@@ -169,11 +170,7 @@ export class AnalyticsService {
    * transaction. Project scope is resolved by the dashboard scope query before
    * any aggregate is read; SADDD comes only from the suppressed p06_saddd release.
    */
-  private async compute(
-    tx: Prisma.TransactionClient,
-    actor: ApplicationIdentity,
-    query: DescriptiveAnalyticsQuery,
-  ) {
+  private async compute(tx: Tx, actor: ApplicationIdentity, query: DescriptiveAnalyticsQuery) {
     const role = actor.roles[0]
     this.requireMonitoringRead(actor)
     const monitoringQuery = {
@@ -211,7 +208,7 @@ export class AnalyticsService {
    * a timeout or other database fault maps to the existing 503 path.
    */
   private async callAggregate(
-    tx: Prisma.TransactionClient,
+    tx: Tx,
     query: Prisma.Sql,
     invalidRequestMessage?: string,
   ): Promise<unknown> {
@@ -246,7 +243,7 @@ export class AnalyticsService {
    * before anything leaves this process.
    */
   private async computeSurvey(
-    tx: Prisma.TransactionClient,
+    tx: Tx,
     actor: ApplicationIdentity,
     query: DescriptiveAnalyticsQuery,
   ): Promise<SurveyAnalytics> {
@@ -295,7 +292,7 @@ export class AnalyticsService {
    * activities.read still receive real counts. Rows are never read here.
    */
   private async computeTimeline(
-    tx: Prisma.TransactionClient,
+    tx: Tx,
     actor: ApplicationIdentity,
     query: DescriptiveAnalyticsQuery,
   ): Promise<TimelineAnalytics> {
@@ -337,7 +334,7 @@ export class AnalyticsService {
 
   /** Latest completed-activity end date from the trusted function, as YYYY-MM-DD or null. */
   private async lastCompletion(
-    tx: Prisma.TransactionClient,
+    tx: Tx,
     actor: ApplicationIdentity,
     projectId: string,
   ): Promise<string | null> {
@@ -350,7 +347,7 @@ export class AnalyticsService {
   }
 
   private async recordViewedAudit(
-    tx: Prisma.TransactionClient,
+    tx: Tx,
     actor: ApplicationIdentity,
     projectId: string,
     query: DescriptiveAnalyticsQuery,
@@ -414,11 +411,7 @@ export class AnalyticsService {
    * default) keeps the existing combined payload for backwards compatibility.
    * Every fetch is audited in the same transaction, including kpi/participation.
    */
-  private async dispatch(
-    tx: Prisma.TransactionClient,
-    actor: ApplicationIdentity,
-    query: DescriptiveAnalyticsQuery,
-  ) {
+  private async dispatch(tx: Tx, actor: ApplicationIdentity, query: DescriptiveAnalyticsQuery) {
     return this.withRetrievalFaultMapping(async () => {
       const data: DescriptiveAnalytics | SurveyAnalytics | TimelineAnalytics =
         query.view === 'survey'
@@ -469,11 +462,7 @@ export class AnalyticsService {
   }
 
   /** Computes the view's suppressed table once, shared by the file export and its preview. */
-  private async exportSource(
-    tx: Prisma.TransactionClient,
-    actor: ApplicationIdentity,
-    query: DescriptiveAnalyticsQuery,
-  ) {
+  private async exportSource(tx: Tx, actor: ApplicationIdentity, query: DescriptiveAnalyticsQuery) {
     if (!hasAtomicPermission(actor.roles[0], actor.permissions, 'analytics.descriptive.read'))
       throw new ForbiddenException('Descriptive analytics permission is required.')
     if (query.view === 'survey') {

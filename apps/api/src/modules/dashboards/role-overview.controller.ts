@@ -1,5 +1,6 @@
-import { Controller, ForbiddenException, Get, Header, Inject, Req } from '@nestjs/common'
+import { Controller, Get, Header, Inject, Req } from '@nestjs/common'
 import type { AuthenticatedRequest } from '../../common/authz/application-identity'
+import { requestIdentity } from '../../common/authz/request-identity'
 import { RequirePermission } from '../../common/decorators/permission.decorator'
 import { RoleOverviewService } from './role-overview.service'
 
@@ -11,7 +12,6 @@ export class RoleOverviewController {
   @Header('Cache-Control', 'private, no-store')
   @RequirePermission('projects.read')
   read(@Req() request: AuthenticatedRequest) {
-    if (!request.user) throw new ForbiddenException('Application profile is required.')
-    return this.service.read(request.user)
+    return this.service.read(requestIdentity(request))
   }
 }

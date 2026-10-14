@@ -1,12 +1,8 @@
-import { Controller, ForbiddenException, Get, Header, Inject, Query, Req } from '@nestjs/common'
+import { Controller, Get, Header, Inject, Query, Req } from '@nestjs/common'
 import type { AuthenticatedRequest } from '../../common/authz/application-identity'
+import { requestIdentity } from '../../common/authz/request-identity'
 import { RequirePermission } from '../../common/decorators/permission.decorator'
 import { AnalyticsInsightsService } from './analytics-insights.service'
-
-function identity(request: AuthenticatedRequest) {
-  if (!request.user) throw new ForbiddenException('Application profile is required.')
-  return request.user
-}
 
 @Controller('analytics/insights')
 export class AnalyticsInsightsController {
@@ -18,20 +14,20 @@ export class AnalyticsInsightsController {
   @Header('Cache-Control', 'private, no-store')
   @RequirePermission('analytics.descriptive.read')
   participation(@Req() request: AuthenticatedRequest, @Query() query: unknown) {
-    return this.service.participation(identity(request), query)
+    return this.service.participation(requestIdentity(request), query)
   }
 
   @Get('indicator-trends')
   @Header('Cache-Control', 'private, no-store')
   @RequirePermission('analytics.descriptive.read')
   indicatorTrends(@Req() request: AuthenticatedRequest, @Query() query: unknown) {
-    return this.service.indicatorTrends(identity(request), query)
+    return this.service.indicatorTrends(requestIdentity(request), query)
   }
 
   @Get('budget')
   @Header('Cache-Control', 'private, no-store')
   @RequirePermission('analytics.descriptive.read')
   budget(@Req() request: AuthenticatedRequest, @Query() query: unknown) {
-    return this.service.budget(identity(request), query)
+    return this.service.budget(requestIdentity(request), query)
   }
 }

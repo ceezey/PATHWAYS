@@ -260,10 +260,24 @@ describe('AnalyticsInsightsService', () => {
 
   it('returns 404 for an out-of-scope project and writes no audit row', async () => {
     const { service, tx } = harness()
-    await expect(
-      service.indicatorTrends(actor('MONITORING_AND_EVALUATION_OFFICER'), { projectId: projectB }),
-    ).rejects.toBeInstanceOf(NotFoundException)
+    const call = service.indicatorTrends(actor('MONITORING_AND_EVALUATION_OFFICER'), {
+      projectId: projectB,
+    })
+    await expect(call).rejects.toBeInstanceOf(NotFoundException)
+    await expect(call).rejects.toThrow('Project unavailable.')
     expect(tx.auditLog.create).not.toHaveBeenCalled()
+  })
+
+  it('looks the project up once by its lowercase id, selecting only the id', async () => {
+    const { service, tx } = harness()
+    await service.participation(actor('MONITORING_AND_EVALUATION_OFFICER'), {
+      projectId: projectA.toUpperCase(),
+    })
+    expect(tx.project.findFirst).toHaveBeenCalledTimes(1)
+    expect(tx.project.findFirst).toHaveBeenCalledWith({
+      where: { AND: [expect.anything(), { id: projectA }] },
+      select: { id: true },
+    })
   })
 
   it('indicator trends: converts decimals and applies the period filter', async () => {
