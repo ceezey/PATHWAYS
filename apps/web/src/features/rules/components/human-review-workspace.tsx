@@ -21,7 +21,7 @@ import { ArrowDownWideNarrow } from 'lucide-react'
 import Link from 'next/link'
 import { useState } from 'react'
 import { basisLabel, statusLabel } from '../rules.copy'
-import { codeLabel, manilaTime } from '../rules.utils'
+import { alertSeverityRank, codeLabel, manilaTime } from '../rules.utils'
 import { AlertEvidence } from './alert-evidence'
 import { EvidenceTable } from './evidence-table'
 import { HumanReviewAction } from './human-review-action'
@@ -41,10 +41,6 @@ const permissionFor = (kind: 'alert' | 'recommendation', action: 'read' | 'revie
       : action === 'review'
         ? 'recommendations.review'
         : 'recommendations.outcome.record'
-
-// Most severe first when the queue is sorted; unknown severities sort last.
-const SEVERITY_RANK: Record<string, number> = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3 }
-const severityRank = (value: string) => SEVERITY_RANK[value] ?? 4
 
 // Radix Select rejects an empty value, so the unfiltered queue uses a sentinel.
 const ALL_PROJECTS = 'all'
@@ -166,8 +162,8 @@ export function HumanReviewWorkspace({
     kind === 'alert' && sortBySeverity
       ? [...items].sort(
           (a, b) =>
-            severityRank('severity' in a ? a.severity : '') -
-            severityRank('severity' in b ? b.severity : ''),
+            alertSeverityRank('severity' in a ? a.severity : '') -
+            alertSeverityRank('severity' in b ? b.severity : ''),
         )
       : items
   const inQueue = Boolean(items.some((row) => row.id === selectedId))

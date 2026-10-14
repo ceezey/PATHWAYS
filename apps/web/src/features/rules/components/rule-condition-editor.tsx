@@ -5,9 +5,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { type RuleNode, operators, ruleMetrics } from '@pathways/shared'
 import { comparisonCopy } from '../rules.copy'
-import { metricLabel, newCondition, nodeKey } from '../rules.utils'
+import { type Choice, metricLabel, newCondition, nodeKey } from '../rules.utils'
 
-type Choice = { id: string; name: string }
 type Props = {
   node: RuleNode
   onChange: (node: RuleNode) => void

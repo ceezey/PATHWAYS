@@ -1,6 +1,7 @@
 import type { RuleNode } from '@pathways/shared'
 import { describe, expect, it } from 'vitest'
 import {
+  alertSeverityRank,
   appliesTo,
   availableMetrics,
   conditionSummary,
@@ -108,5 +109,13 @@ describe('formatMetricValue', () => {
     expect(formatMetricValue('55', '%')).toBe('55%')
     expect(formatMetricValue('11.625', 'POINTS')).toBe('11.625 pts')
     expect(formatMetricValue('30', 'DAYS')).toBe('30 DAYS')
+  })
+})
+
+describe('alertSeverityRank', () => {
+  it('ranks the four severities most severe first and anything else last', () => {
+    expect(
+      ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', '', 'UNKNOWN', 'constructor'].map(alertSeverityRank),
+    ).toEqual([0, 1, 2, 3, 4, 4, 4])
   })
 })

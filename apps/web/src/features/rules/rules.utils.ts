@@ -4,6 +4,7 @@ import {
   type RuleCondition,
   type RuleMetricKey,
   type RuleNode,
+  alertSeverities,
   ruleMetrics,
 } from '@pathways/shared'
 
@@ -121,8 +122,6 @@ export const formatMetricValue = (value: string, unit: string) => {
   return `${value} ${unit}`
 }
 export const unitLabel = (key: string) => (unitOf(key) === 'value' ? 'Value' : unitOf(key))
-const firstMetric = (node: RuleNode): string =>
-  node.kind === 'CONDITION' ? node.metric : firstMetric(node.children[0] as RuleNode)
 
 const leaves = (node: RuleNode): Leaf[] =>
   node.kind === 'CONDITION' ? [node] : node.children.flatMap(leaves)
@@ -246,3 +245,8 @@ export const codeLabel = (value: string) =>
   value === 'AUTO_RESOLVED' ? 'Auto-resolved' : value.replaceAll('_', ' ').toLowerCase()
 export const manilaTime = (value: string) =>
   new Date(value).toLocaleString('en-US', { timeZone: 'Asia/Manila' })
+// Most severe first when the queue is sorted; unknown severities sort last.
+export const alertSeverityRank = (value: string) => {
+  const rank = (alertSeverities as readonly string[]).indexOf(value)
+  return rank === -1 ? alertSeverities.length : rank
+}

@@ -7,9 +7,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { UNFINISHED_CONTROLS_UI_ENABLED } from '@/constants/feature-flags'
 import { useAuthorizedRead } from '@/hooks/use-authorized-read'
 import { useCurrentRole } from '@/hooks/use-current-role'
-import { activitiesClient } from '@/lib/api/activities'
 import { PathwaysClientError } from '@/lib/api/core/request'
-import { indicatorsClient } from '@/lib/api/indicators'
 import { projectsClient } from '@/lib/api/projects'
 import { type SensitiveDraftOwner, useSensitiveDraftOwner } from '@/lib/auth/sensitive-drafts'
 import { principalHasAtomicPermission } from '@/lib/rbac/policy'
@@ -25,6 +23,11 @@ import {
 } from '@pathways/shared'
 import { useEffect, useId, useRef, useState } from 'react'
 import { type RuleTemplateSpec, ruleTemplates } from '../rule-templates'
+import {
+  useRuleBindingActivities,
+  useRuleBindingActivityContext,
+  useRuleBindingIndicators,
+} from '../rules.reads'
 import { clearRecordBindings, leafCount, newCondition } from '../rules.utils'
 import { RuleConditionEditor } from './rule-condition-editor'
 
@@ -141,25 +144,16 @@ function RuleEditorForm({
   const projects = useAuthorizedRead('rules-editor-projects', null, 'projects.read', (signal) =>
     projectsClient.getProjects(signal),
   )
-  const indicators = useAuthorizedRead(
-    'rule-binding-indicators',
+  const indicators = useRuleBindingIndicators(
     scopeProjectId,
-    'indicators.read',
-    (signal) => indicatorsClient.getProjectIndicators(scopeProjectId ?? '', signal),
     Boolean(scopeProjectId && requires(conditions, 'INDICATOR_')),
   )
-  const activitiesFull = useAuthorizedRead(
-    'rule-binding-activities',
+  const activitiesFull = useRuleBindingActivities(
     scopeProjectId,
-    'activities.read',
-    (signal) => activitiesClient.getActivities(scopeProjectId ?? '', signal),
     Boolean(scopeProjectId && requires(conditions, 'ACTIVITY_OVERDUE_DAYS') && canReadActivities),
   )
-  const activitiesContext = useAuthorizedRead(
-    'rule-binding-activities-context',
+  const activitiesContext = useRuleBindingActivityContext(
     scopeProjectId,
-    'activities.context.read',
-    (signal) => activitiesClient.getActivityContext(scopeProjectId ?? '', signal),
     Boolean(
       scopeProjectId &&
         requires(conditions, 'ACTIVITY_OVERDUE_DAYS') &&

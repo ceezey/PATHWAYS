@@ -275,6 +275,32 @@ describe('project-scoped record bindings', () => {
     expect((screen.getByLabelText('Activity') as HTMLSelectElement).value).toBe('')
   })
 
+  it('binds an indicator condition through the indicator read of the selected project', async () => {
+    renderEditor({ projectId })
+    await screen.findByLabelText('Applies to')
+    fireEvent.change(screen.getByLabelText('Metric'), {
+      target: { value: 'INDICATOR_PROGRESS_PERCENT' },
+    })
+    await waitFor(() =>
+      expect(state.indicators).toHaveBeenCalledWith(projectId, expect.any(AbortSignal)),
+    )
+    expect(await screen.findByRole('option', { name: 'Indicator one' })).toBeTruthy()
+  })
+
+  it('binds an activity condition through the context read for a role without activities.read', async () => {
+    state.permissions = ['rules.create', 'projects.read', 'activities.context.read']
+    renderEditor({ projectId })
+    await screen.findByLabelText('Applies to')
+    fireEvent.change(screen.getByLabelText('Metric'), {
+      target: { value: 'ACTIVITY_OVERDUE_DAYS' },
+    })
+    await waitFor(() =>
+      expect(state.activityContext).toHaveBeenCalledWith(projectId, expect.any(AbortSignal)),
+    )
+    expect(await screen.findByRole('option', { name: 'Field activity' })).toBeTruthy()
+    expect(state.activities).not.toHaveBeenCalled()
+  })
+
   it('shows a permission message and makes no activities request when the user lacks both activity permissions', async () => {
     state.permissions = ['rules.create', 'projects.read', 'indicators.read']
     renderEditor({ projectId })

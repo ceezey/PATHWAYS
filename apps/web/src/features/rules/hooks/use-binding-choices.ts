@@ -1,8 +1,10 @@
-import { useAuthorizedRead } from '@/hooks/use-authorized-read'
 import { usePermission } from '@/hooks/use-permission'
-import { activitiesClient } from '@/lib/api/activities'
-import { indicatorsClient } from '@/lib/api/indicators'
 import type { RuleCondition } from '@pathways/shared'
+import {
+  useRuleBindingActivities,
+  useRuleBindingActivityContext,
+  useRuleBindingIndicators,
+} from '../rules.reads'
 import type { Choice } from '../rules.utils'
 
 /** Loads the project records that indicator and activity metrics bind to. */
@@ -11,25 +13,16 @@ export function useBindingChoices(scopeProjectId: string | null, rows: RuleCondi
   const needs = (test: (metric: string) => boolean) =>
     rows.some((row) => test(row.metric)) && scopeProjectId !== null
   const canReadActivities = has('activities.read')
-  const indicators = useAuthorizedRead(
-    'rule-binding-indicators',
+  const indicators = useRuleBindingIndicators(
     scopeProjectId,
-    'indicators.read',
-    (signal) => indicatorsClient.getProjectIndicators(scopeProjectId ?? '', signal),
     needs((metric) => metric.startsWith('INDICATOR_')),
   )
-  const activitiesFull = useAuthorizedRead(
-    'rule-binding-activities',
+  const activitiesFull = useRuleBindingActivities(
     scopeProjectId,
-    'activities.read',
-    (signal) => activitiesClient.getActivities(scopeProjectId ?? '', signal),
     needs((metric) => metric === 'ACTIVITY_OVERDUE_DAYS') && canReadActivities,
   )
-  const activitiesContext = useAuthorizedRead(
-    'rule-binding-activities-context',
+  const activitiesContext = useRuleBindingActivityContext(
     scopeProjectId,
-    'activities.context.read',
-    (signal) => activitiesClient.getActivityContext(scopeProjectId ?? '', signal),
     needs((metric) => metric === 'ACTIVITY_OVERDUE_DAYS') &&
       !canReadActivities &&
       has('activities.context.read'),

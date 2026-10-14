@@ -219,6 +219,23 @@ describe('alert outcome controls', () => {
     expect(screen.getByText('Rule version 2; result false')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Hide history' })).toBeTruthy()
   })
+  it('sorts the loaded queue most severe first on request', async () => {
+    state.alerts.mockResolvedValue({
+      items: ['LOW', 'CRITICAL', 'MEDIUM', 'HIGH'].map((severity, index) => ({
+        ...alert,
+        id: `30000000-0000-4000-8000-00000000001${index}`,
+        title: `${severity} alert`,
+        severity,
+      })),
+      nextCursor: null,
+    })
+    renderWorkspace()
+    await screen.findByText('LOW alert')
+    fireEvent.click(screen.getByRole('button', { name: 'Sort by severity' }))
+    const titles = screen.getAllByText(/ alert$/).map((node) => node.textContent)
+    expect(titles).toEqual(['CRITICAL alert', 'HIGH alert', 'MEDIUM alert', 'LOW alert'])
+  })
+
   it('labels a linked recommendation by its title', async () => {
     const recommendationId = '50000000-0000-4000-8000-000000000009'
     state.role = 'PROJECT_MANAGER'
