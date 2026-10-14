@@ -1,6 +1,8 @@
+'use client'
+
 import { AlertTriangle, BarChart3, ChevronDown, Download, Plus } from 'lucide-react'
 import Link from 'next/link'
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 
 import { PageHeader } from '@/components/layout/page-header'
 import { AsyncState } from '@/components/pathways'
@@ -27,21 +29,12 @@ import {
 import { useAuthorizedRead } from '@/hooks/use-authorized-read'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'
-import { activitiesClient } from '@/lib/api/activities'
-import { dashboardsClient } from '@/lib/api/dashboards'
-import { indicatorsClient } from '@/lib/api/indicators'
-import { projectsClient } from '@/lib/api/projects'
 import { addPin } from '@/lib/dashboard-pins'
 import { formatCalendarDay } from '@/lib/format/date'
 import { can } from '@/lib/rbac/can'
-import type { ActivitySummary, ProjectSummary } from '@/types/pathways'
-import type { IndicatorResponse, MonitoringDashboard } from '@pathways/shared'
 import { toast } from 'sonner'
 
-import {
-  deriveAnalyticsReportingPeriods,
-  nonOverlappingAnalyticsPeriods,
-} from '../analytics-reporting-periods.utils'
+import { nonOverlappingAnalyticsPeriods } from '../analytics-reporting-periods.utils'
 import {
   type AnalysisView,
   SURVEY_CLOSED_PERIOD_MESSAGE,
@@ -59,6 +52,7 @@ import {
   useIndicatorTrends,
   useParticipationBreakdown,
 } from '../hooks/use-analytics-insights'
+import { useAnalyticsScope } from '../hooks/use-analytics-scope'
 import { useDescriptiveAnalytics } from '../hooks/use-descriptive-analytics'
 import { useSadddDashboard } from '../hooks/use-saddd-dashboard'
 import { useSurveyAnalytics } from '../hooks/use-survey-analytics'
@@ -102,26 +96,36 @@ export const AnalyticsDashboard = () => {
     canReadTrends,
     surveyFrozenOnly,
   } = analyticsAccess(profile)
-  const [projects, setProjects] = useState<ProjectSummary[]>([])
-  const [projectId, setProjectId] = useState('')
-  const [period, setPeriod] = useState('')
+  const {
+    activities,
+    monitoring,
+    monitoringError,
+    monitoringLoading,
+    period,
+    projectDataError,
+    projectDataLoading,
+    projectId,
+    projects,
+    projectsError,
+    projectsLoading,
+    reportingPeriods,
+    retryLoad,
+    retryMapData,
+    selectProject,
+    selectedPeriod,
+    selectedProject,
+    setPeriod,
+  } = useAnalyticsScope({
+    canReadActivities,
+    canReadIndicatorDefinitions,
+    canReadIndicatorValues,
+    canReadIndicators,
+    role,
+  })
   const [analysisView, setAnalysisView] = useState<AnalysisView>('kpi')
   const [visualizationType, setVisualizationType] = useState<VisualizationType>('bar')
   const [indicatorId, setIndicatorId] = useState('all')
-  const [indicatorDefinitions, setIndicatorDefinitions] = useState<IndicatorResponse[]>([])
-  const [monitoring, setMonitoring] = useState<MonitoringDashboard | null>(null)
-  const [activities, setActivities] = useState<ActivitySummary[]>([])
-  const [projectsLoading, setProjectsLoading] = useState(true)
-  const [projectDataLoading, setProjectDataLoading] = useState(false)
-  const [monitoringLoading, setMonitoringLoading] = useState(false)
-  const [projectsError, setProjectsError] = useState('')
-  const [projectDataError, setProjectDataError] = useState('')
-  const [monitoringError, setMonitoringError] = useState('')
-  const [projectsLoadAttempt, setProjectsLoadAttempt] = useState(0)
-  const [projectDataLoadAttempt, setProjectDataLoadAttempt] = useState(0)
-  const [monitoringLoadAttempt, setMonitoringLoadAttempt] = useState(0)
 
-  const selectedProject = projects.find((row) => row.id === projectId)
   const alertRead = useAuthorizedRead(
     'analytics-open-alerts',
     projectId || null,
@@ -134,17 +138,6 @@ export const AnalyticsDashboard = () => {
   const openAlertText = openAlerts ? `${openAlerts.count}${openAlerts.capped ? '+' : ''}` : ''
   const alertsLoading = canReadAlerts && Boolean(projectId) && !openAlerts && !alertRead.isError
   const alertsFailed = canReadAlerts && !openAlerts && alertRead.isError
-  const reportingPeriods = useMemo(
-    () =>
-      deriveAnalyticsReportingPeriods(
-        selectedProject,
-        indicatorDefinitions.filter((indicator) => indicator.projectId === projectId),
-      ),
-    [indicatorDefinitions, projectId, selectedProject],
-  )
-  // Monitoring, KPI and descriptive panels always use every readable reporting period.
-  const selectedPeriod =
-    reportingPeriods.find((candidate) => candidate.value === period) ?? reportingPeriods[0]
   // The survey releases only non-overlapping periods, so it keeps its own period. It never
   // rewrites the shared period, so leaving the survey view restores the other panels' period.
   const surveyPeriods = useMemo(
@@ -189,138 +182,11 @@ export const AnalyticsDashboard = () => {
     canReadParticipation && analysisView === 'participation',
   )
 
-  useEffect(() => {
-    if (!role) {
-      setProjectsLoading(false)
-      return
-    }
-    void projectsLoadAttempt
-    let active = true
-    setProjectsLoading(true)
-    setProjectsError('')
-    projectsClient
-      .getProjectsForRole(role)
-      .then((records) => {
-        if (!active) return
-        setProjects(records)
-        setProjectId((current) =>
-          records.some((row) => row.id === current) ? current : (records[0]?.id ?? ''),
-        )
-      })
-      .catch((caught: unknown) => {
-        if (active)
-          setProjectsError(
-            caught instanceof Error ? caught.message : 'Projects could not be loaded.',
-          )
-      })
-      .finally(() => {
-        if (active) setProjectsLoading(false)
-      })
-    return () => {
-      active = false
-    }
-  }, [projectsLoadAttempt, role])
-
-  useEffect(() => {
-    if (!projectId || !selectedProject) {
-      setProjectDataLoading(false)
-      setActivities([])
-      setIndicatorDefinitions([])
-      return
-    }
-    void projectDataLoadAttempt
-    let active = true
-    setProjectDataLoading(true)
-    setProjectDataError('')
-    setActivities([])
-    setIndicatorDefinitions([])
-    setPeriod('')
-    setMonitoring(null)
-    setMonitoringError('')
-    Promise.all([
-      canReadActivities
-        ? activitiesClient.getActivities(projectId)
-        : Promise.resolve<ActivitySummary[]>([]),
-      canReadIndicatorDefinitions
-        ? indicatorsClient.getProjectIndicators(projectId)
-        : canReadIndicatorValues
-          ? indicatorsClient.getProjectIndicatorValues(projectId)
-          : Promise.resolve<IndicatorResponse[]>([]),
-    ])
-      .then(([nextActivities, nextIndicators]) => {
-        if (!active) return
-        setActivities(nextActivities)
-        setIndicatorDefinitions(nextIndicators)
-      })
-      .catch((caught: unknown) => {
-        if (active)
-          setProjectDataError(
-            caught instanceof Error ? caught.message : 'Analytics data could not be loaded.',
-          )
-      })
-      .finally(() => {
-        if (active) setProjectDataLoading(false)
-      })
-    return () => {
-      active = false
-    }
-  }, [
-    canReadActivities,
-    canReadIndicatorDefinitions,
-    canReadIndicatorValues,
-    projectDataLoadAttempt,
-    projectId,
-    selectedProject,
-  ])
-
-  useEffect(() => {
-    setPeriod((current) =>
-      reportingPeriods.some((candidate) => candidate.value === current)
-        ? current
-        : (reportingPeriods[0]?.value ?? ''),
-    )
-  }, [reportingPeriods])
-
   const { resetSaddd, retrySaddd, saddd, sadddError, sadddLoading } = useSadddDashboard({
     projectId,
     sadddEligible,
     selectedProject,
   })
-
-  useEffect(() => {
-    if (!projectId || !selectedPeriod || !canReadIndicators) {
-      setMonitoringLoading(false)
-      setMonitoring(null)
-      setMonitoringError('')
-      return
-    }
-    void monitoringLoadAttempt
-    let active = true
-    setMonitoringLoading(true)
-    setMonitoring(null)
-    setMonitoringError('')
-    dashboardsClient
-      .getMonitoringDashboard({
-        projectId,
-        periodStart: selectedPeriod.start,
-        periodEnd: selectedPeriod.end,
-      })
-      .then((nextMonitoring) => {
-        if (active) setMonitoring(nextMonitoring)
-      })
-      .catch((caught: unknown) => {
-        if (active)
-          setMonitoringError(
-            caught instanceof Error ? caught.message : 'Analytics data could not be loaded.',
-          )
-      })
-      .finally(() => {
-        if (active) setMonitoringLoading(false)
-      })
-    return () => {
-      active = false
-    }
-  }, [canReadIndicators, monitoringLoadAttempt, projectId, selectedPeriod])
 
   const { descriptive, descriptiveError, descriptiveLoading, resetDescriptive, retryDescriptive } =
     useDescriptiveAnalytics({ canReadDescriptive, projectId, selectedPeriod })
@@ -397,19 +263,11 @@ export const AnalyticsDashboard = () => {
 
   const handleProjectChange = (nextProjectId: string) => {
     if (nextProjectId === projectId) return
-    setProjectId(nextProjectId)
-    setPeriod('')
-    setIndicatorDefinitions([])
-    setMonitoring(null)
-    setActivities([])
+    selectProject(nextProjectId)
     resetSaddd()
     resetDescriptive()
     resetSurvey()
     resetTimeline()
-    setProjectDataLoading(true)
-    setMonitoringLoading(false)
-    setProjectDataError('')
-    setMonitoringError('')
   }
 
   const mapSelected = visualizationType === 'map'
@@ -417,11 +275,6 @@ export const AnalyticsDashboard = () => {
   const mapDataError = projectDataError || monitoringError
   const loading = projectsLoading || (!mapSelected && (projectDataLoading || monitoringLoading))
   const error = projectsError || (!mapSelected ? projectDataError || monitoringError : '')
-  const retryLoad = () => {
-    if (projectsError) setProjectsLoadAttempt((value) => value + 1)
-    else if (projectDataError) setProjectDataLoadAttempt((value) => value + 1)
-    else setMonitoringLoadAttempt((value) => value + 1)
-  }
   const indicators = monitoring ? activeIndicators(monitoring, projectId) : []
   const analysisMeta = {
     kpi: { title: 'KPI / indicator performance', unit: '%' },
@@ -690,16 +543,7 @@ export const AnalyticsDashboard = () => {
                     role="alert"
                   >
                     <span>{mapDataError}</span>
-                    <Button
-                      onClick={() =>
-                        projectDataError
-                          ? setProjectDataLoadAttempt((value) => value + 1)
-                          : setMonitoringLoadAttempt((value) => value + 1)
-                      }
-                      size="sm"
-                      type="button"
-                      variant="outline"
-                    >
+                    <Button onClick={retryMapData} size="sm" type="button" variant="outline">
                       Retry analytics
                     </Button>
                   </div>
