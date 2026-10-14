@@ -1,10 +1,17 @@
 import 'reflect-metadata'
 
 import type { AddressInfo } from 'node:net'
-import { type INestApplication, ValidationPipe } from '@nestjs/common'
+import {
+  ForbiddenException,
+  type INestApplication,
+  RequestMethod,
+  ValidationPipe,
+} from '@nestjs/common'
+import { METHOD_METADATA, PATH_METADATA } from '@nestjs/common/constants'
 import { Test } from '@nestjs/testing'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { PERMISSION_KEY } from '../../common/decorators/permission.decorator'
 import { ProfileController } from './profile.controller'
 import { ProfileService } from './profile.service'
 
@@ -93,6 +100,41 @@ describe('PATCH profile body validation', () => {
     },
   ])('answers 400 for %j without calling the service', async (body) => {
     expect(await patch(body)).toBe(400)
+    expect(profiles.update).not.toHaveBeenCalled()
+  })
+})
+
+describe('profile routes', () => {
+  it('registers a read and an update route, each behind the profile.manage permission', () => {
+    const prototype = ProfileController.prototype as unknown as Record<string, () => void>
+    const names = Object.getOwnPropertyNames(prototype).filter((name) => name !== 'constructor')
+    expect(Reflect.getMetadata(PATH_METADATA, ProfileController)).toBe('profile')
+    expect(
+      names.map((name) => [
+        name,
+        RequestMethod[Reflect.getMetadata(METHOD_METADATA, prototype[name])],
+        Reflect.getMetadata(PERMISSION_KEY, prototype[name]),
+      ]),
+    ).toEqual([
+      ['read', 'GET', 'profile.manage'],
+      ['update', 'PATCH', 'profile.manage'],
+    ])
+  })
+
+  it('answers 403 Verified profile required. before any service call without a profile', () => {
+    const controller = new ProfileController(profiles as unknown as ProfileService)
+    for (const call of [
+      () => controller.read({ headers: {} }),
+      () =>
+        controller.update(
+          { headers: {} },
+          { fullName: 'Ana', contactNumber: '', expectedUpdatedAt: updatedAt },
+        ),
+    ]) {
+      expect(call).toThrow(ForbiddenException)
+      expect(call).toThrow('Verified profile required.')
+    }
+    expect(profiles.read).not.toHaveBeenCalled()
     expect(profiles.update).not.toHaveBeenCalled()
   })
 })

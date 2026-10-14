@@ -1,10 +1,11 @@
 import 'reflect-metadata'
 
 import type { AddressInfo } from 'node:net'
-import { type INestApplication, ValidationPipe } from '@nestjs/common'
+import { ForbiddenException, type INestApplication, ValidationPipe } from '@nestjs/common'
 import { Test } from '@nestjs/testing'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { AuthenticatedRequest } from '../../common/authz/application-identity'
 import { AuthController } from './auth.controller'
 import { AuthService } from './auth.service'
 import { BeneficiaryStepUpPinService } from './beneficiary-step-up-pin.service'
@@ -141,5 +142,32 @@ describe('auth routes body validation', () => {
     const result = await post('/step-up/pin/change', '{"newPin":"529317","currentPin":null}')
     expect(result.status).toBe(200)
     expect(pins.change).toHaveBeenCalledWith(pinActor, '529317', null)
+  })
+})
+
+describe('auth controller verified values', () => {
+  it.each([
+    ['no auth', { user: profile, authSessionId: sessionId }],
+    ['no profile', { auth, authSessionId: sessionId }],
+    ['no session', { auth, user: profile }],
+  ])('answers 403 Verified profile required. for a step-up route with %s', (_label, values) => {
+    const controller = new AuthController(
+      {} as AuthService,
+      {} as WorkspaceResolutionService,
+      pins as unknown as BeneficiaryStepUpPinService,
+      signIns as unknown as SignInLockoutService,
+    )
+    const request = { headers: {}, ...values } as unknown as AuthenticatedRequest
+    for (const call of [
+      () => controller.getStepUpStatus(request),
+      () => controller.verifyStepUpPin(request, { pin: '482915' }),
+      () => controller.setupStepUpPin(request, { pin: '482915' }),
+      () => controller.changeStepUpPin(request, { newPin: '529317' }),
+      () => controller.unlockStepUpPin(request),
+    ]) {
+      expect(call).toThrow(ForbiddenException)
+      expect(call).toThrow('Verified profile required.')
+    }
+    for (const fn of Object.values(pins)) expect(fn).not.toHaveBeenCalled()
   })
 })
