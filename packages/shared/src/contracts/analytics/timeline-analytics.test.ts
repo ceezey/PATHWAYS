@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import {
+  TIMELINE_ANALYTICS_CONTRACT_VERSION,
   type TimelineMilestoneRow,
   milestoneCountsFromRows,
+  milestoneCountsSchema,
   milestoneOnTimeCell,
   milestoneOnTimeFromCounts,
+  timelineAnalyticsSchema,
 } from './timeline-analytics'
 
 describe('milestoneOnTimeCell', () => {
@@ -71,5 +74,50 @@ describe('milestoneOnTimeFromCounts', () => {
       state: 'MISSING',
       reason: 'NO_COMPLETED_MILESTONES',
     })
+  })
+})
+
+describe('timelineAnalyticsSchema', () => {
+  const cell = { state: 'ZERO', value: '0', reason: null }
+  const valid = {
+    contractVersion: TIMELINE_ANALYTICS_CONTRACT_VERSION,
+    projectId: '77000000-0000-4000-8000-000000000001',
+    generatedAt: '2026-06-01T00:00:00Z',
+    reportingDate: '2026-06-01',
+    elapsedPercent: cell,
+    remainingDays: cell,
+    overdueDays: cell,
+    activityCompletionPercent: cell,
+    activityOverdueCount: cell,
+    milestoneOnTimePercent: cell,
+  }
+
+  it('accepts a full payload', () => {
+    expect(timelineAnalyticsSchema.safeParse(valid).success).toBe(true)
+  })
+
+  it('rejects an unknown key', () => {
+    expect(timelineAnalyticsSchema.safeParse({ ...valid, extra: 1 }).success).toBe(false)
+  })
+})
+
+describe('milestoneCountsSchema', () => {
+  it('accepts ordered counts', () => {
+    expect(milestoneCountsSchema.safeParse({ completed: 3, rated: 2, onTime: 1 }).success).toBe(
+      true,
+    )
+  })
+
+  it('rejects an unknown key', () => {
+    expect(
+      milestoneCountsSchema.safeParse({ completed: 1, rated: 1, onTime: 1, extra: 1 }).success,
+    ).toBe(false)
+  })
+
+  it('rejects counts that break onTime <= rated <= completed with the contract message', () => {
+    const result = milestoneCountsSchema.safeParse({ completed: 1, rated: 2, onTime: 1 })
+    expect(result.success ? [] : result.error.issues.map((issue) => issue.message)).toEqual([
+      'Milestone counts must satisfy onTime <= rated <= completed.',
+    ])
   })
 })
