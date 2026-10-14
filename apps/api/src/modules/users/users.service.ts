@@ -21,6 +21,7 @@ import { writeAuditLog } from '../../common/audit/write-audit-log'
 import { type ApplicationIdentity, UUID_PATTERN } from '../../common/authz/application-identity'
 import { withAuthorizedOperation } from '../../common/authz/authorized-operation'
 import { projectScope } from '../../common/authz/project-scope'
+import type { Tx } from '../../common/prisma/transaction'
 import { PrismaService } from '../../prisma/prisma.service'
 import { AuthDirectoryService } from './auth-directory.service'
 
@@ -386,7 +387,7 @@ export class UsersService {
   }
 
   private async requireProjects(
-    tx: Prisma.TransactionClient,
+    tx: Tx,
     actor: ApplicationIdentity,
     targetRole: CanonicalRole,
     requestedProjectIds: readonly string[],
