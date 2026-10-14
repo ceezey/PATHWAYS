@@ -80,7 +80,7 @@ export const roles = {
       'packages/shared/src/metrics/**/*.ts',
       'packages/shared/src/contracts/analytics/**/*.ts',
       'packages/shared/src/contracts/dashboards/**/*.ts',
-      'packages/shared/src/contracts/projects/overview-metrics.ts',
+      'packages/shared/src/contracts/projects/overview-metrics*.ts',
       'packages/shared/src/contracts/projects/project-map.ts',
       'packages/shared/src/rules/**',
       'packages/shared/src/contracts/indicators/**/*.ts',

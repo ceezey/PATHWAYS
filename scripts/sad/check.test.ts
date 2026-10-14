@@ -83,6 +83,7 @@ describe('routing and digest', () => {
     const files = [
       'packages/shared/src/contracts/analytics/survey-analytics.ts',
       'packages/shared/src/contracts/dashboards/role-overview.ts',
+      'packages/shared/src/contracts/projects/overview-metrics.test.ts',
       'packages/shared/src/contracts/projects/overview-metrics.ts',
       'packages/shared/src/contracts/projects/project-map.ts',
       'packages/shared/src/metrics/metric-math.ts',
