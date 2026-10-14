@@ -20,6 +20,7 @@ import {
   type SurveyFormResponse,
   generateReportRequest,
   hasAtomicPermission,
+  reportKindGrants,
   reportPreviewQuery,
 } from '@pathways/shared'
 import { Prisma } from '@prisma/client'
@@ -49,12 +50,7 @@ import {
 import { ReportPdfError, ReportPdfRenderer } from './report-pdf.renderer'
 import type { ReportSourceDeps } from './report-project-status-source'
 import { type ReportSource, loadReportSource } from './report-source.service'
-import {
-  assertReportPermission,
-  kindPermission,
-  readableReportKinds,
-  uuid,
-} from './reports.helpers'
+import { assertReportPermission, readableReportKinds, uuid } from './reports.helpers'
 
 const hash = (value: string | Buffer) => createHash('sha256').update(value).digest('hex')
 @Injectable()
@@ -376,7 +372,7 @@ export class ReportsService {
           const [row] = await tx.$queryRaw<Artifact[]>(
             Prisma.sql`SELECT ${artifactFields} FROM pathways.reports WHERE organization_id=${actor.organizationId}::uuid AND project_id=${projectId}::uuid AND id=${id}::uuid AND status='GENERATED' AND archived_at IS NULL`,
           )
-          if (!row || !Object.hasOwn(kindPermission, row.type))
+          if (!row || !Object.hasOwn(reportKindGrants, row.type))
             throw new NotFoundException('Report unavailable.')
           assertReportPermission(actor, row.type)
           if (

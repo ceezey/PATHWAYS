@@ -21,44 +21,25 @@ import { useSensitiveDraftOwner } from '@/lib/auth/sensitive-drafts'
 import { principalHasAtomicPermission } from '@/lib/rbac/policy'
 import { downloadCoreArtifact } from '@/lib/services/core-feature-client'
 import type { ReportKind } from '@/types/pathways'
-import type { ReportKindCode } from '@pathways/shared'
+import { type ReportKindCode, grantedReportKinds, reportKindGrants } from '@pathways/shared'
 import { Download, FileSpreadsheet, Save } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { reportFileName } from '../reports.utils'
 
 type Principal = Parameters<typeof principalHasAtomicPermission>[0]
-type AtomicPermission = Parameters<typeof principalHasAtomicPermission>[1]
-type KindDefinition = { label: string; permission: AtomicPermission; requires?: AtomicPermission[] }
-export const kinds: Record<ReportKindCode, KindDefinition> = {
-  PROJECT_SUMMARY: { label: 'Project summary', permission: 'reports.project.read' },
-  INDICATOR_SUMMARY: { label: 'Indicator summary', permission: 'reports.indicator.read' },
-  BENEFICIARY_SUMMARY: {
-    label: 'Beneficiary summary',
-    permission: 'reports.beneficiary.read',
-    requires: ['analytics.saddd.read', 'beneficiaries.aggregates.read'],
-  },
-  SURVEY_FORM_RESULTS: { label: 'Survey results', permission: 'reports.project.read' },
-  MONITORING_REPORT: {
-    label: 'Monitoring report',
-    permission: 'reports.indicator.read',
-    requires: ['monitoring.read'],
-  },
-  EVALUATION_REPORT: {
-    label: 'Evaluation report',
-    permission: 'reports.project.read',
-    requires: ['monitoring.read'],
-  },
+export const reportKindLabels: Record<ReportKindCode, string> = {
+  PROJECT_SUMMARY: 'Project summary',
+  INDICATOR_SUMMARY: 'Indicator summary',
+  BENEFICIARY_SUMMARY: 'Beneficiary summary',
+  SURVEY_FORM_RESULTS: 'Survey results',
+  MONITORING_REPORT: 'Monitoring report',
+  EVALUATION_REPORT: 'Evaluation report',
 }
 
-/** Kinds the principal may open: the kind grant plus any extra grant the API also requires. */
-export const allowedKinds = (profile: Principal) =>
-  (Object.keys(kinds) as ReportKindCode[]).filter(
-    (kind) =>
-      principalHasAtomicPermission(profile, kinds[kind].permission) &&
-      (kinds[kind].requires ?? []).every((grant) => principalHasAtomicPermission(profile, grant)) &&
-      (kind !== 'SURVEY_FORM_RESULTS' || principalHasAtomicPermission(profile, 'assessments.read')),
-  )
+/** Kinds the principal may open: the shared grants, for a principal with exactly one role. */
+export const allowedKinds = (profile: Principal): ReportKindCode[] =>
+  profile?.roles.length === 1 ? grantedReportKinds(profile.roles[0], profile.permissions) : []
 
 const day = (value: string) =>
   new Date(value).toLocaleDateString('en-GB', {
@@ -107,7 +88,7 @@ export function LiveReportingWorkspace({
   const rounds = useAuthorizedRead(
     'report-evaluation-rounds',
     id,
-    kinds.EVALUATION_REPORT.permission,
+    reportKindGrants.EVALUATION_REPORT.permission,
     (signal) => reportsClient.evaluationRounds(id ?? '', signal),
     Boolean(id && kind === 'EVALUATION_REPORT'),
   )
@@ -125,7 +106,7 @@ export function LiveReportingWorkspace({
   const preview = useAuthorizedRead(
     `report-preview:${kind}:${formId ?? ''}:${evaluationId ?? ''}`,
     id,
-    kinds[kind].permission,
+    reportKindGrants[kind].permission,
     (signal) => reportsClient.reportPreview(id ?? '', kind, signal, formId, evaluationId),
     contextReady,
   )
@@ -197,7 +178,7 @@ export function LiveReportingWorkspace({
   const generate = async () => {
     if (!owner?.isCurrent() || !id || busy || !currentPreview) return
     const captured = owner
-    const label = kinds[kind].label
+    const label = reportKindLabels[kind]
     const base = kind === 'EVALUATION_REPORT' && round ? round.title : (project?.title ?? 'Project')
     const fallbackName = `${base.slice(0, 199 - label.length)} ${label}`
     const body = {
@@ -333,7 +314,7 @@ export function LiveReportingWorkspace({
               <SelectContent>
                 {allowed.map((value) => (
                   <SelectItem key={value} value={value}>
-                    {kinds[value].label}
+                    {reportKindLabels[value]}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -463,7 +444,7 @@ export function LiveReportingWorkspace({
           <div className="overflow-x-auto">
             <PrintReportView
               report={{
-                title: currentName || kinds[kind].label,
+                title: currentName || reportKindLabels[kind],
                 kind: currentPreview.kind,
                 columns: currentPreview.columns,
                 rows: currentPreview.rows,
