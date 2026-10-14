@@ -1,6 +1,7 @@
 import { z } from 'zod'
 
-export const publicProjectSchema = z
+// One approved public project snapshot; the API and the web both parse it as the anonymous allowlist.
+export const publicProjectResponse = z
   .object({
     id: z.string().uuid(),
     title: z.string().min(1).max(300),
@@ -13,11 +14,15 @@ export const publicProjectSchema = z
     publishedAt: z.string().datetime({ offset: true }),
   })
   .strict()
-export const publicationInputSchema = z
+export type PublicProjectResponse = z.infer<typeof publicProjectResponse>
+
+// Body of the four publication transitions; PublicService requires the summary on submit only.
+export const publicationTransitionRequest = z
   .object({
     clientRequestId: z.string().uuid(),
     expectedRevision: z.number().int().min(0).max(2147483646),
     summary: z.string().trim().min(1).max(4000).optional(),
   })
   .strict()
+export type PublicationTransitionRequest = z.infer<typeof publicationTransitionRequest>
 export type PublicationOperation = 'SUBMIT' | 'APPROVE' | 'PUBLISH' | 'WITHDRAW'
