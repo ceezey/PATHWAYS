@@ -1,11 +1,10 @@
-import type { evaluationDetailSchema } from '@/lib/api/evaluations'
 /* @vitest-environment jsdom */
+import type { EvaluationDetailResponse } from '@pathways/shared'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { z } from 'zod'
 import { LiveEvaluationWorkspace } from './live-evaluation-workspace'
 
-type EvaluationDetail = z.infer<typeof evaluationDetailSchema>
+type EvaluationDetail = EvaluationDetailResponse
 const state = vi.hoisted(() => ({
   readError: false,
   role: 'MONITORING_AND_EVALUATION_OFFICER',

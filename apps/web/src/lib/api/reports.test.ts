@@ -338,6 +338,21 @@ describe('reportsClient requests', () => {
       [{ ...round, status: 'DRAFT' }],
     ],
     [
+      'an evaluation round with a submitted status',
+      (c, id) => c.evaluationRounds(id),
+      [{ ...round, status: 'SUBMITTED' }],
+    ],
+    [
+      'an evaluation round with a reviewed status',
+      (c, id) => c.evaluationRounds(id),
+      [{ ...round, status: 'REVIEWED' }],
+    ],
+    [
+      'a saved report of a type outside the report kinds',
+      (c, id) => c.reports(id),
+      [{ ...report, type: 'OTHER' }],
+    ],
+    [
       'a generated report with another status',
       (c, id) => c.generateReport(id, generateBody),
       { id: reportId, status: 'DRAFT' },

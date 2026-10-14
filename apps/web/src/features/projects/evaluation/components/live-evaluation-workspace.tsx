@@ -14,17 +14,17 @@ import { Textarea } from '@/components/ui/textarea'
 import { metricGlossary } from '@/constants/metric-glossary'
 import { useAuthorizedRead } from '@/hooks/use-authorized-read'
 import { useCurrentRole } from '@/hooks/use-current-role'
-import { type evaluationDetailSchema, evaluationsClient } from '@/lib/api/evaluations'
+import { evaluationsClient } from '@/lib/api/evaluations'
 import { useOperationRequestId } from '@/lib/auth/operation-request-id'
 import { useSensitiveDraftOwner } from '@/lib/auth/sensitive-drafts'
 import { principalHasAtomicPermission } from '@/lib/rbac/policy'
+import type { EvaluationDetailResponse } from '@pathways/shared'
 import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
-import type { z } from 'zod'
 import { InlineNotice } from '../../components/option-select'
 import { useProjectRead } from '../../projects.reads'
 
-type EvaluationDetail = z.infer<typeof evaluationDetailSchema>
+type EvaluationDetail = EvaluationDetailResponse
 type SavedScore = EvaluationDetail['scores'][number]
 
 const statusTone = {
