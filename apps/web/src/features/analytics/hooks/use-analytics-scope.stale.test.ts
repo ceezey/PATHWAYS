@@ -3,6 +3,7 @@
 import { act, cleanup, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { deferred } from '@/test/fixtures/deferred'
 import { useAnalyticsScope } from './use-analytics-scope'
 
 const api = vi.hoisted(() => ({
@@ -35,15 +36,6 @@ const grants = {
 const monitoring = { indicators: [] }
 const august = '2026-08-01::2026-08-31'
 
-const deferred = <T>() => {
-  let resolve: (value: T) => void = () => {}
-  let reject: (reason: unknown) => void = () => {}
-  const promise = new Promise<T>((res, rej) => {
-    resolve = res
-    reject = rej
-  })
-  return { promise, resolve, reject }
-}
 // Lets the then, catch and finally callbacks of a settled promise run inside act.
 const settle = (run: () => void) =>
   act(async () => {
