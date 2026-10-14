@@ -1,7 +1,7 @@
 import type { MonitoringDashboard } from '@pathways/shared'
 import { describe, expect, it } from 'vitest'
 
-import { monitoringReachMetrics } from './monitoring-reach-metrics'
+import { monitoringReachMetrics } from './monitoring-reach-metrics.utils'
 
 describe('monitoringReachMetrics', () => {
   it('shows withheld and suppressed counts by label, never as 0', () => {

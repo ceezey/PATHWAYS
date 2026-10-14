@@ -56,11 +56,11 @@ import type { PathwaysRole } from '@/types/pathways-role'
 import { type RoutePrincipal, businessCalendarDate } from '@pathways/shared'
 
 import { ActivityDetailPanel, ActivityProofDialog } from '@/features/projects'
+import { monitoringReachMetrics } from '../monitoring-reach-metrics.utils'
+import { RoleOverviewDashboard } from '../role-overview/role-overview'
 import { ActionKpiRow } from './action-kpi-row'
 import { ExecutiveDashboard } from './executive-dashboard'
-import { monitoringReachMetrics } from './monitoring-reach-metrics'
 import { PinnedCharts } from './pinned-charts'
-import { RoleOverviewDashboard } from './role-overview/role-overview'
 
 export const canLoadDashboardMonitoring = (
   role: PathwaysRole | null,

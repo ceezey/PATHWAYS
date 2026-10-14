@@ -48,6 +48,7 @@ export default function createNextConfig(phase: string): NextConfig {
     experimental: {
       optimizePackageImports: [
         '@/features/analytics',
+        '@/features/dashboard',
         '@/features/projects',
         '@/features/beneficiaries',
         '@/features/reports',
