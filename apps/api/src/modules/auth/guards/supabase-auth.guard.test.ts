@@ -1018,10 +1018,14 @@ describe('Beneficiary step-up PIN fallback (cr-pathways-beneficiary-step-up-pin)
         expect(result.raw).not.toContain('482915')
       }
       expect(queryRaw).not.toHaveBeenCalled()
-      // A body session value never replaces the verified session claim.
-      queryRaw.mockResolvedValue([{ outcome: 'INCORRECT', expiresAt: null }])
+      // A body session value is refused before the service, so only the verified session claim is used.
       const forged = '99000000-0000-4000-8000-000000000099'
-      await post('/auth/step-up/pin', { pin: '736150', sessionId: forged })
+      expect((await post('/auth/step-up/pin', { pin: '736150', sessionId: forged })).status).toBe(
+        400,
+      )
+      expect(queryRaw).not.toHaveBeenCalled()
+      queryRaw.mockResolvedValue([{ outcome: 'INCORRECT', expiresAt: null }])
+      await post('/auth/step-up/pin', { pin: '736150' })
       expect(pinCalls('step_up_pin_verify')[0]?.slice(1)).toEqual(['736150', sessionId])
     })
 
