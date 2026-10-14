@@ -1,8 +1,8 @@
 import { Body, Controller, ForbiddenException, Get, Inject, Patch, Req } from '@nestjs/common'
+import { type UpdateOwnProfileRequest, updateOwnProfileRequest } from '@pathways/shared'
 import type { AuthenticatedRequest } from '../../common/authz/application-identity'
 import { RequirePermission } from '../../common/decorators/permission.decorator'
-// biome-ignore lint/style/useImportType: Nest needs the DTO constructor for validation.
-import { UpdateOwnProfileDto } from './profile.dto'
+import { ZodPipe } from '../../common/validation/zod-pipe'
 import { ProfileService } from './profile.service'
 
 function actor(request: AuthenticatedRequest) {
@@ -22,7 +22,10 @@ export class ProfileController {
 
   @Patch()
   @RequirePermission('profile.manage')
-  update(@Req() request: AuthenticatedRequest, @Body() body: UpdateOwnProfileDto) {
+  update(
+    @Req() request: AuthenticatedRequest,
+    @Body(new ZodPipe(updateOwnProfileRequest)) body: UpdateOwnProfileRequest,
+  ) {
     return this.profiles.update(actor(request), body)
   }
 }

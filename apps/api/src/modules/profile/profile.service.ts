@@ -1,8 +1,8 @@
 import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common'
+import type { UpdateOwnProfileRequest } from '@pathways/shared'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import { withAuthorizedOperation } from '../../common/authz/authorized-operation'
 import { PrismaService } from '../../prisma/prisma.service'
-import type { UpdateOwnProfileDto } from './profile.dto'
 
 const selection = { fullName: true, contactNumber: true, updatedAt: true } as const
 type OwnProfile = { fullName: string; contactNumber: string | null; updatedAt: Date }
@@ -33,7 +33,7 @@ export class ProfileService {
     })
   }
 
-  update(identity: ApplicationIdentity, input: UpdateOwnProfileDto) {
+  update(identity: ApplicationIdentity, input: UpdateOwnProfileRequest) {
     return withAuthorizedOperation(this.prisma, identity, 'profile.manage', async (tx) => {
       // Actor and organization come exclusively from verified transaction context.
       const rows = await tx.$queryRaw<OwnProfile[]>`
