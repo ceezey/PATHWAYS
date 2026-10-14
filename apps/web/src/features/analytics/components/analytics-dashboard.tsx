@@ -1,24 +1,12 @@
 'use client'
 
-import {
-  AlertTriangle,
-  BarChart3,
-  CalendarClock,
-  ChevronDown,
-  ClipboardCheck,
-  Download,
-  PhilippinePeso,
-  Plus,
-  Target,
-  UsersRound,
-} from 'lucide-react'
+import { AlertTriangle, BarChart3, ChevronDown, Download, Plus } from 'lucide-react'
 import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
 
 import { PageHeader } from '@/components/layout/page-header'
-import { AsyncState, CappedPercent, StatusMessage } from '@/components/pathways'
+import { AsyncState } from '@/components/pathways'
 import { EmptyState } from '@/components/pathways/empty-state'
-import { MetricCard } from '@/components/pathways/metric-card'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -47,15 +35,10 @@ import { indicatorsClient } from '@/lib/api/indicators'
 import { projectsClient } from '@/lib/api/projects'
 import { addPin } from '@/lib/dashboard-pins'
 import { formatCalendarDay } from '@/lib/format/date'
-import { formatCappedPercent } from '@/lib/format/percent'
 import { can } from '@/lib/rbac/can'
 import { principalHasAtomicPermission } from '@/lib/rbac/policy'
 import type { ActivitySummary, ProjectSummary } from '@/types/pathways'
-import {
-  type IndicatorResponse,
-  type MonitoringDashboard,
-  formatMetricCell,
-} from '@pathways/shared'
+import type { IndicatorResponse, MonitoringDashboard } from '@pathways/shared'
 import { toast } from 'sonner'
 
 import {
@@ -89,16 +72,18 @@ import {
   ActivityCompletionChart,
   DescriptiveAnalysisChart,
   IndicatorProgressChart,
-  SadddChart,
 } from './analytics-charts'
 import { AnalyticsExportPreviewDialog } from './analytics-export-preview'
+import { AnalyticsSummaryCards } from './analytics-summary-cards'
 import { BudgetSummaryCard } from './budget-summary-card'
 import { ChartPanel, UnavailableChart } from './chart-panel'
-import { DescriptiveStatisticsTable } from './descriptive-statistics-table'
+import { DescriptiveStatisticsPanel } from './descriptive-statistics-panel'
 import { IndicatorTrendChart } from './indicator-trend-chart'
 import { InsightStatus } from './insight-status'
+import { OpenAlertsPanel } from './open-alerts-panel'
 import { ParticipationBreakdownPanel } from './participation-breakdown-panel'
 import { ProjectCoverageMapPanel } from './project-coverage-map-panel'
+import { SadddAnalysisPanel } from './saddd-analysis-panel'
 import { SurveyAnalyticsPanel } from './survey-analytics-panel'
 import { TimelineAnalyticsPanel } from './timeline-analytics-panel'
 
@@ -153,7 +138,6 @@ export const AnalyticsDashboard = () => {
     Boolean(projectId),
   )
   const openAlerts = alertRead.data ?? null
-  const openAlertCount = openAlerts ? openAlerts.count : null
   // A capped count is shown as "N+" rather than passed off as exact.
   const openAlertText = openAlerts ? `${openAlerts.count}${openAlerts.capped ? '+' : ''}` : ''
   const alertsLoading = canReadAlerts && Boolean(projectId) && !openAlerts && !alertRead.isError
@@ -214,9 +198,6 @@ export const AnalyticsDashboard = () => {
     { projectId: insightProject, ...periodRange },
     canReadParticipation && analysisView === 'participation',
   )
-  const budgetCurrencies = budgetRead.data?.currencies ?? []
-  const budgetUtilizationPercent =
-    budgetCurrencies.length === 1 ? budgetCurrencies[0].utilizationPercent : null
 
   useEffect(() => {
     if (!role) {
@@ -478,9 +459,6 @@ export const AnalyticsDashboard = () => {
     !projectDataLoading &&
     !projectDataError
   const monitoringReadable = canReadIndicators && monitoring !== null && !monitoringError
-  const completedActivities = activities.filter(
-    (activity) => activity.status === 'Completed',
-  ).length
   const canViewRules = Boolean(role && can(role, 'rules.view'))
   const canConfigureRules = Boolean(role && can(role, 'rules.configure'))
 
@@ -817,109 +795,21 @@ export const AnalyticsDashboard = () => {
               />
             )}
           </ChartPanel>
-          <section className="grid gap-4 md:grid-cols-2 xl:auto-cols-fr xl:grid-flow-col">
-            {canReadIndicators ? (
-              <MetricCard
-                description="Average of released indicator progress values in this project and period."
-                icon={Target}
-                label="KPI achievement"
-                tone={averageKpi === null ? 'info' : averageKpi >= 70 ? 'success' : 'warning'}
-                value={
-                  averageKpi !== null
-                    ? formatCappedPercent(averageKpi)
-                    : monitoringReadable
-                      ? 'None yet'
-                      : 'Unavailable'
-                }
-              />
-            ) : null}
-            {canReadBudgetUtilization ? (
-              <MetricCard
-                description={
-                  !canReadBudgetUtilization
-                    ? 'Budget and expense permissions are required for this metric.'
-                    : budgetRead.isError
-                      ? 'Budget utilization could not be loaded.'
-                      : budgetCurrencies.length > 1
-                        ? 'Several currencies are recorded; see the Budget utilization panel.'
-                        : 'Approved expenses against planned budget allocations; pending is not counted.'
-                }
-                icon={PhilippinePeso}
-                label="Budget utilization"
-                tone={
-                  budgetUtilizationPercent === null
-                    ? 'info'
-                    : budgetUtilizationPercent > 100
-                      ? 'warning'
-                      : 'success'
-                }
-                value={
-                  !canReadBudgetUtilization ? (
-                    'Unavailable'
-                  ) : budgetRead.isError ? (
-                    'Unavailable'
-                  ) : !budgetRead.data ? (
-                    'Loading...'
-                  ) : budgetCurrencies.length > 1 ? (
-                    'Multiple currencies'
-                  ) : budgetUtilizationPercent !== null ? (
-                    <CappedPercent value={budgetUtilizationPercent} overLabel="over budget" />
-                  ) : (
-                    'No budget'
-                  )
-                }
-              />
-            ) : null}
-            {canReadIndicators ? (
-              <MetricCard
-                description="Enrolled individuals overlapping the period; privacy suppression applies."
-                icon={UsersRound}
-                label="Beneficiary reach"
-                tone="info"
-                value={
-                  monitoring?.enrolledIndividuals
-                    ? formatMetricCell(monitoring.enrolledIndividuals)
-                    : 'Unavailable'
-                }
-              />
-            ) : null}
-            {canReadActivities ? (
-              <MetricCard
-                description="Completed activities in the selected project."
-                icon={ClipboardCheck}
-                label="Activity completion"
-                tone="success"
-                value={
-                  canReadActivities ? `${completedActivities}/${activities.length}` : 'Unavailable'
-                }
-              />
-            ) : null}
-            {canReadAlerts ? (
-              <MetricCard
-                description={
-                  !canReadAlerts
-                    ? 'Rule-Based Alerts are unavailable for this role.'
-                    : alertsFailed
-                      ? 'Open alerts could not be loaded. Use Retry in the Rule-Based Alerts panel.'
-                      : 'Open alerts (new, reviewed or actioned) in the selected project.'
-                }
-                icon={AlertTriangle}
-                label="Rule-Based Alerts"
-                tone={openAlertCount ? 'warning' : 'info'}
-                value={
-                  !canReadAlerts
-                    ? 'Unavailable'
-                    : alertsLoading
-                      ? 'Loading...'
-                      : alertsFailed
-                        ? 'Unavailable'
-                        : openAlerts
-                          ? openAlertText
-                          : 'Unavailable'
-                }
-              />
-            ) : null}
-          </section>
+          <AnalyticsSummaryCards
+            activities={activities}
+            alertsFailed={alertsFailed}
+            alertsLoading={alertsLoading}
+            averageKpi={averageKpi}
+            budgetRead={budgetRead}
+            canReadActivities={canReadActivities}
+            canReadAlerts={canReadAlerts}
+            canReadBudgetUtilization={canReadBudgetUtilization}
+            canReadIndicators={canReadIndicators}
+            monitoring={monitoring}
+            monitoringReadable={monitoringReadable}
+            openAlertText={openAlertText}
+            openAlerts={openAlerts}
+          />
           <section className="space-y-6" aria-labelledby="fixed-monitoring-charts-title">
             <h2 className="text-lg font-semibold" id="fixed-monitoring-charts-title">
               Monitoring charts
@@ -953,105 +843,24 @@ export const AnalyticsDashboard = () => {
               </ChartPanel>
             ) : null}
             {canReadSaddd ? (
-              <ChartPanel title="SADDD Analysis">
-                {sadddLoading ? (
-                  <AsyncState
-                    status="loading"
-                    title="Loading SADDD analysis"
-                    description="Loading the scoped beneficiary aggregate data."
-                    icon={UsersRound}
-                  />
-                ) : sadddNotice ? (
-                  <EmptyState
-                    description={sadddNotice.description}
-                    icon={CalendarClock}
-                    title={sadddNotice.title}
-                  />
-                ) : sadddError ? (
-                  <AsyncState
-                    status="error"
-                    title="SADDD analysis unavailable"
-                    description={sadddError}
-                    icon={AlertTriangle}
-                    onRetry={sadddEligible ? retrySaddd : undefined}
-                  />
-                ) : saddd ? (
-                  <>
-                    <StatusMessage>SADDD analysis loaded.</StatusMessage>
-                    {sadddOngoing ? (
-                      <p className="mb-2 text-sm text-muted-foreground">
-                        Counts to date; groups of fewer than 5 are hidden.
-                      </p>
-                    ) : null}
-                    <div data-testid="saddd-chart">
-                      <SadddChart dashboard={saddd} />
-                    </div>
-                    <details className="mt-3 rounded-xl border border-border p-3 text-sm">
-                      <summary className="cursor-pointer font-medium">
-                        Accessible SADDD data table
-                      </summary>
-                      <table className="mt-3 w-full text-left">
-                        <thead>
-                          <tr>
-                            <th>Dimension</th>
-                            <th>Category</th>
-                            <th>Count</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {[
-                            ...saddd.sex.map((row) => ({ ...row, dimension: 'Sex' })),
-                            ...saddd.age.map((row) => ({ ...row, dimension: 'Age' })),
-                            ...saddd.disability.map((row) => ({ ...row, dimension: 'Disability' })),
-                          ].map((row) => (
-                            <tr key={`${row.dimension}-${row.key}`}>
-                              <td>{row.dimension}</td>
-                              <td>{row.label}</td>
-                              <td>{formatMetricCell(row.metric)}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </details>
-                  </>
-                ) : (
-                  <UnavailableChart description="SADDD analysis is unavailable for this project." />
-                )}
-              </ChartPanel>
+              <SadddAnalysisPanel
+                retrySaddd={retrySaddd}
+                saddd={saddd}
+                sadddEligible={sadddEligible}
+                sadddError={sadddError}
+                sadddLoading={sadddLoading}
+                sadddNotice={sadddNotice}
+                sadddOngoing={sadddOngoing}
+              />
             ) : null}
             {canReadDescriptive ? (
-              <ChartPanel
-                description="Counts and shares come from suppressed aggregates. A suppressed cell withholds every share in its group."
-                title="Descriptive statistics"
-              >
-                {descriptiveLoading ? (
-                  <AsyncState
-                    status="loading"
-                    title="Loading descriptive statistics"
-                    description="Loading scoped aggregate data."
-                    icon={BarChart3}
-                  />
-                ) : descriptiveError ? (
-                  <AsyncState
-                    status="error"
-                    title="Descriptive statistics unavailable"
-                    description={descriptiveError}
-                    icon={AlertTriangle}
-                    onRetry={retryDescriptive}
-                  />
-                ) : descriptive ? (
-                  <DescriptiveStatisticsTable data={descriptive} />
-                ) : (
-                  <UnavailableChart
-                    description={
-                      periodsReadable
-                        ? 'No active Indicator reporting period is available for this project.'
-                        : 'Indicator reporting periods are not available for this role.'
-                    }
-                    title={periodsReadable ? 'None yet' : undefined}
-                  />
-                )}
-              </ChartPanel>
+              <DescriptiveStatisticsPanel
+                descriptive={descriptive}
+                descriptiveError={descriptiveError}
+                descriptiveLoading={descriptiveLoading}
+                periodsReadable={periodsReadable}
+                retryDescriptive={retryDescriptive}
+              />
             ) : null}
             {canReadActivities ? (
               <ChartPanel title="Activity completion">
@@ -1071,34 +880,14 @@ export const AnalyticsDashboard = () => {
                 </ChartPanel>
               ) : null}
               {canReadAlerts ? (
-                <ChartPanel title="Rule-Based Alerts">
-                  {!canReadAlerts ? (
-                    <UnavailableChart description="Rule-Based Alerts are unavailable for this role." />
-                  ) : alertsLoading ? (
-                    <AsyncState
-                      status="loading"
-                      title="Loading Rule-Based Alerts"
-                      description="Verifying current alert access."
-                      icon={AlertTriangle}
-                    />
-                  ) : alertsFailed ? (
-                    <AsyncState
-                      status="error"
-                      title="Rule-Based Alerts unavailable"
-                      description="Open alerts could not be loaded."
-                      icon={AlertTriangle}
-                      onRetry={() => void alertRead.refetch()}
-                    />
-                  ) : openAlerts ? (
-                    <p className="text-sm text-foreground">
-                      <span className="text-3xl font-semibold tabular-nums">{openAlertText}</span>{' '}
-                      open alert{openAlerts.count === 1 && !openAlerts.capped ? '' : 's'} in this
-                      project.
-                    </p>
-                  ) : (
-                    <UnavailableChart description="Select a project to see its Rule-Based Alerts." />
-                  )}
-                </ChartPanel>
+                <OpenAlertsPanel
+                  alertRead={alertRead}
+                  alertsFailed={alertsFailed}
+                  alertsLoading={alertsLoading}
+                  canReadAlerts={canReadAlerts}
+                  openAlertText={openAlertText}
+                  openAlerts={openAlerts}
+                />
               ) : null}
             </div>
           </section>

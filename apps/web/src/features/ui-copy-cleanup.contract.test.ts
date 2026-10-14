@@ -49,7 +49,7 @@ describe('"None yet" empty states versus error and permission wording', () => {
       'features/analytics/components/analytics-dashboard.tsx',
       'const monitoringReadable = canReadIndicators && monitoring !== null && !monitoringError',
     ],
-    ['features/analytics/components/analytics-dashboard.tsx', ': monitoringReadable'],
+    ['features/analytics/components/analytics-summary-cards.tsx', ': monitoringReadable'],
     ['features/analytics/components/descriptive-statistics-table.tsx', "row.mean ?? 'None yet'"],
     [
       'features/projects/activities/components/activity-detail-sections.tsx',

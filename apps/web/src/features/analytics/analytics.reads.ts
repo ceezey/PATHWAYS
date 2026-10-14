@@ -28,3 +28,5 @@ export const countOpenAlerts = async (projectId: string, signal?: AbortSignal) =
   }
   return { count, capped }
 }
+
+export type OpenAlertCount = Awaited<ReturnType<typeof countOpenAlerts>>
