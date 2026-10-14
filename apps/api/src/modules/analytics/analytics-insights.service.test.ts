@@ -272,6 +272,43 @@ describe('AnalyticsInsightsService', () => {
     expect(tx.auditLog.create).not.toHaveBeenCalled()
   })
 
+  it.each([
+    ['participation', 'GRANT_MANAGER'],
+    ['indicatorTrends', 'GRANT_MANAGER'],
+    ['budget', 'MONITORING_AND_EVALUATION_OFFICER'],
+  ] as const)(
+    '%s: answers 403, not 404, to %s asking for an out-of-scope project',
+    async (view, role) => {
+      const { service, tx } = harness()
+      const call = service[view](actor(role), { projectId: projectB })
+      await expect(call).rejects.toBeInstanceOf(ForbiddenException)
+      await expect(call).rejects.toThrow('Required application permission is missing.')
+      expect(tx.project.findFirst).not.toHaveBeenCalled()
+      expect(tx.auditLog.create).not.toHaveBeenCalled()
+    },
+  )
+
+  it.each(['participation', 'indicatorTrends', 'budget'] as const)(
+    '%s: answers 404 for an out-of-scope project before any data read or audit write',
+    async (view) => {
+      const { service, tx } = harness()
+      const call = service[view](actor('PROJECT_MANAGER'), { projectId: projectB })
+      await expect(call).rejects.toBeInstanceOf(NotFoundException)
+      await expect(call).rejects.toThrow('Project unavailable.')
+      expect(tx.project.findFirst).toHaveBeenCalled()
+      for (const model of [
+        tx.beneficiaryActivityParticipation,
+        tx.projectActivity,
+        tx.projectIndicator,
+        tx.projectIndicatorMeasurement,
+        tx.projectBudgetRecord,
+        tx.budgetExpenseEntry,
+      ])
+        for (const read of Object.values(model)) expect(read).not.toHaveBeenCalled()
+      expect(tx.auditLog.create).not.toHaveBeenCalled()
+    },
+  )
+
   it('looks the project up once by its lowercase id, selecting only the id', async () => {
     const { service, tx } = harness()
     await service.participation(actor('MONITORING_AND_EVALUATION_OFFICER'), {
