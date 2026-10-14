@@ -1,25 +1,10 @@
 import { approvedApiBaseUrl } from '@/lib/api-base-url'
 import { webEnv } from '@/lib/env'
+import { type PublicProjectResponse, publicProjectResponse } from '@pathways/shared'
 import { z } from 'zod'
 
-const snapshot = z
-  .object({
-    id: z.string().uuid(),
-    title: z.string().min(1).max(300),
-    code: z.string().max(100),
-    approvedSummary: z.string().min(1).max(4000),
-    area: z.string().nullable(),
-    sector: z.string().nullable(),
-    startDate: z.string().nullable(),
-    endDate: z.string().nullable(),
-    publishedAt: z.string().datetime({ offset: true }),
-  })
-  .strict()
-
-export type PublicProjectSnapshot = z.infer<typeof snapshot>
-
 // Reads the allowlisted public snapshots; throws PUBLIC_NOT_FOUND or PUBLIC_UNAVAILABLE.
-export async function readPublicSnapshots(projectId?: string): Promise<PublicProjectSnapshot[]> {
+export async function readPublicSnapshots(projectId?: string): Promise<PublicProjectResponse[]> {
   if (projectId && !z.string().uuid().safeParse(projectId).success)
     throw new Error('PUBLIC_NOT_FOUND')
   const base = approvedApiBaseUrl(webEnv.NEXT_PUBLIC_API_BASE_URL, webEnv.NEXT_PUBLIC_API_BASE_URL)
@@ -37,5 +22,7 @@ export async function readPublicSnapshots(projectId?: string): Promise<PublicPro
   const text = await response.text()
   if (text.length > 1_000_000) throw new Error('PUBLIC_UNAVAILABLE')
   const value: unknown = JSON.parse(text)
-  return projectId ? [snapshot.parse(value)] : z.array(snapshot).max(100).parse(value)
+  return projectId
+    ? [publicProjectResponse.parse(value)]
+    : z.array(publicProjectResponse).max(100).parse(value)
 }

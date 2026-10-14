@@ -3,10 +3,10 @@ import Link from 'next/link'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardTitle } from '@/components/ui/card'
-import type { PublicProjectSnapshot } from '@/lib/api/public'
+import type { PublicProjectResponse } from '@pathways/shared'
 
 // Renders only the PRD-F13 allowlisted snapshot fields; nothing else crosses into the public view.
-type Snapshot = Omit<PublicProjectSnapshot, 'publishedAt'> & { publishedAt?: string }
+type Snapshot = Omit<PublicProjectResponse, 'publishedAt'> & { publishedAt?: string }
 
 const notSpecified = 'Not specified'
 const day = (value: string | null | undefined) => (value ? value.slice(0, 10) : null)

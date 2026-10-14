@@ -3,7 +3,7 @@ import Link from 'next/link'
 import type { ReactNode } from 'react'
 
 import { publicOrganizations } from '@/constants/navigation'
-import type { PublicProjectSnapshot } from '@/lib/api/public'
+import type { PublicProjectResponse } from '@pathways/shared'
 import { Reveal, ScrollProgress } from './public-motion'
 import { Blend, Eyebrow, Footer, Glow, SectionHead, shell } from './public-sections'
 import { PublicTrackerCards } from './public-tracker-view'
@@ -125,7 +125,7 @@ export const PublicOrganizationPage = ({
   projects,
 }: {
   organization: Organization
-  projects: PublicProjectSnapshot[] | null
+  projects: PublicProjectResponse[] | null
 }) => (
   <div className="overflow-x-clip bg-white">
     <ScrollProgress />

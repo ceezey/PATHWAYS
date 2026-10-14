@@ -7,8 +7,9 @@ import { Input } from '@/components/ui/input'
 import { STEP_UP_PIN_UI_ENABLED } from '@/constants/feature-flags'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useSession } from '@/hooks/use-session'
-import { type OwnProfileRecord, ownProfileClient } from '@/lib/api/profile'
+import { ownProfileClient } from '@/lib/api/profile'
 import { type SensitiveDraftOwner, useSensitiveDraftOwner } from '@/lib/auth/sensitive-drafts'
+import type { OwnProfileResponse } from '@pathways/shared'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { OwnPasswordForm } from './own-password-form'
 import { ownProfileSchema } from './own-profile-contract'
@@ -50,7 +51,7 @@ const OwnedProfileWorkspace = ({ owner: draftOwner }: { owner: SensitiveDraftOwn
   }, [])
   const draftIsCurrent = draftOwner.isCurrent
   const isCurrent = useCallback(() => mounted.current && draftIsCurrent(), [draftIsCurrent])
-  const [state, setState] = useState<{ owner: string; record: OwnProfileRecord } | null>(null)
+  const [state, setState] = useState<{ owner: string; record: OwnProfileResponse } | null>(null)
   const [notice, setNotice] = useState('')
   const [busy, setBusy] = useState(false)
   const [attempt, setAttempt] = useState(0)

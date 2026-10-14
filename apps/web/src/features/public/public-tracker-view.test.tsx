@@ -52,4 +52,12 @@ describe('public tracker view', () => {
     )
     await expect(readPublicSnapshots()).rejects.toThrow()
   })
+
+  it('rejects a public response whose area exceeds the API bound', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(JSON.stringify([{ ...snapshot, area: 'a'.repeat(501) }]))),
+    )
+    await expect(readPublicSnapshots()).rejects.toThrow()
+  })
 })
