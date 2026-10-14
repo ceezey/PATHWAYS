@@ -13,10 +13,6 @@ const cases: ControllerCase[] = [
     file: 'src/modules/auth/auth.controller.ts',
     dtoNames: ['ChangeStepUpPinDto', 'VerifyStepUpPinDto'],
   },
-  {
-    file: 'src/modules/users/users.controller.ts',
-    dtoNames: ['AuthorizeExistingUserDto', 'UpdateAuthorizedUserDto'],
-  },
 ]
 
 function compileController(file: string) {

@@ -10,10 +10,15 @@ import {
   Req,
 } from '@nestjs/common'
 
+import {
+  type AuthorizeExistingUserRequest,
+  type UpdateAuthorizedUserRequest,
+  authorizeExistingUserRequest,
+  updateAuthorizedUserRequest,
+} from '@pathways/shared'
 import type { AuthenticatedRequest } from '../../common/authz/application-identity'
 import { RequirePermission } from '../../common/decorators/permission.decorator'
-// biome-ignore lint/style/useImportType: Nest validation needs the DTO constructors at runtime.
-import { AuthorizeExistingUserDto, UpdateAuthorizedUserDto } from './users.dto'
+import { ZodPipe } from '../../common/validation/zod-pipe'
 import { UsersService } from './users.service'
 
 function profile(request: AuthenticatedRequest) {
@@ -33,7 +38,10 @@ export class UsersController {
 
   @Post('authorize-existing')
   @RequirePermission('users.authorize')
-  authorizeExisting(@Req() request: AuthenticatedRequest, @Body() body: AuthorizeExistingUserDto) {
+  authorizeExisting(
+    @Req() request: AuthenticatedRequest,
+    @Body(new ZodPipe(authorizeExistingUserRequest)) body: AuthorizeExistingUserRequest,
+  ) {
     return this.users.authorizeExisting(profile(request), body)
   }
 
@@ -42,7 +50,7 @@ export class UsersController {
   update(
     @Req() request: AuthenticatedRequest,
     @Param('userId') userId: string,
-    @Body() body: UpdateAuthorizedUserDto,
+    @Body(new ZodPipe(updateAuthorizedUserRequest)) body: UpdateAuthorizedUserRequest,
   ) {
     return this.users.update(profile(request), userId, body)
   }

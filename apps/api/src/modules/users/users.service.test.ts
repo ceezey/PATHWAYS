@@ -1,6 +1,7 @@
 import { ForbiddenException, NotFoundException } from '@nestjs/common'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { CanonicalRole } from '@pathways/shared'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import type { PrismaService } from '../../prisma/prisma.service'
 import type { AuthDirectoryService } from './auth-directory.service'
@@ -84,12 +85,16 @@ function writeCalls(tx: Tx) {
 const directory = { getExistingVerifiedIdentity: vi.fn() }
 const service = new UsersService({} as PrismaService, directory as unknown as AuthDirectoryService)
 const update = (userId: string, role: string) =>
-  service.update(identity, userId, { role, accountStatus: 'ACTIVE', projectIds: [projectId] })
+  service.update(identity, userId, {
+    role: role as CanonicalRole,
+    accountStatus: 'ACTIVE',
+    projectIds: [projectId],
+  })
 const authorize = (role: string) =>
   service.authorizeExisting(identity, {
     authUserId: id(7),
     fullName: 'Synthetic User',
-    role,
+    role: role as CanonicalRole,
     projectIds: [projectId],
   })
 
