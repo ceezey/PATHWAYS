@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   api,
   available,
+  currentAccess,
   missing,
   resetAnalyticsMocks,
   surveyDefaults,
@@ -109,5 +110,45 @@ describe('Analytics dashboard request dependencies', () => {
       await waitFor(() => expect(api.getTimelineAnalytics).toHaveBeenCalledTimes(2))
       expect(await screen.findByTestId('timeline-analytics')).toBeTruthy()
     })
+
+    it.each([
+      ['analytics.descriptive.read', 'monitoring.read'],
+      ['monitoring.read', 'analytics.descriptive.read'],
+    ])(
+      'stops reading the timeline when %s is kept and %s is taken away, and reads again when it returns',
+      async (kept, lost) => {
+        api.getTimelineAnalytics.mockResolvedValue({
+          contractVersion: 'analytics.descriptive.timeline.v1',
+          projectId: 'project-a',
+          generatedAt: '2026-09-27T04:00:00.000Z',
+          reportingDate: '2026-09-27',
+          elapsedPercent: available('50'),
+          remainingDays: available('30'),
+          overdueDays: zero,
+          activityCompletionPercent: available('75'),
+          activityOverdueCount: zero,
+          milestoneOnTimePercent: available('100'),
+        })
+        const { rerender } = render(<AnalyticsDashboard />)
+        await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
+        fireEvent.change(screen.getByLabelText('Analysis view'), { target: { value: 'timeline' } })
+        await screen.findByTestId('timeline-analytics')
+        expect(api.getTimelineAnalytics).toHaveBeenCalledTimes(1)
+        expect(currentAccess.profile.permissions).toContain(kept)
+        currentAccess.profile.permissions = currentAccess.profile.permissions.filter(
+          (permission) => permission !== lost,
+        )
+        rerender(<AnalyticsDashboard />)
+        expect(
+          await screen.findByText('Timeline adherence is not available for this role.'),
+        ).toBeTruthy()
+        expect(screen.queryByTestId('timeline-analytics')).toBeNull()
+        expect(api.getTimelineAnalytics).toHaveBeenCalledTimes(1)
+        currentAccess.profile.permissions = [...currentAccess.profile.permissions, lost]
+        rerender(<AnalyticsDashboard />)
+        await waitFor(() => expect(api.getTimelineAnalytics).toHaveBeenCalledTimes(2))
+        expect(await screen.findByTestId('timeline-analytics')).toBeTruthy()
+      },
+    )
   })
 })

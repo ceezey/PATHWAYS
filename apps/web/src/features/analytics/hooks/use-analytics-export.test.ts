@@ -146,4 +146,36 @@ describe('useAnalyticsExport', () => {
     act(() => result.current.closeExportPreview())
     expect(result.current.exportPreview).toBeNull()
   })
+
+  it('lowercases the project id in the file name', async () => {
+    const upper = '79300000-0000-4000-8000-00000000000A'
+    api.preview.mockResolvedValue(rows)
+    const { result } = renderHook(() => useAnalyticsExport({ ...params, projectId: upper }))
+    await act(() => result.current.previewExport('CSV'))
+    expect(result.current.exportPreview?.fileName).toBe(
+      'descriptive-analytics-79300000-0000-4000-8000-00000000000a.csv',
+    )
+  })
+
+  it('downloads nothing without a preview', async () => {
+    const { result } = renderHook(() => useAnalyticsExport(params))
+    await act(() => result.current.downloadExport())
+    expect(api.download).not.toHaveBeenCalled()
+    expect(api.toastError).not.toHaveBeenCalled()
+    expect(result.current.exporting).toBe(false)
+  })
+
+  it('holds the exporting flag during a download and ignores a second one', async () => {
+    api.preview.mockResolvedValue(rows)
+    api.download.mockReturnValue(new Promise(() => {}))
+    const { result } = renderHook(() => useAnalyticsExport(params))
+    await act(() => result.current.previewExport('CSV'))
+    act(() => {
+      void result.current.downloadExport()
+    })
+    await waitFor(() => expect(result.current.exporting).toBe(true))
+    await act(() => result.current.downloadExport())
+    expect(api.download).toHaveBeenCalledTimes(1)
+    expect(result.current.exportPreview).not.toBeNull()
+  })
 })

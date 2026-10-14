@@ -20,6 +20,22 @@ const params = {
   surveyUnavailable: false,
 }
 const refused = (status: number) => Object.assign(new Error('Refused.'), { status })
+const newer = { overall: { n: 2 } } as unknown as SurveyAnalytics
+const octoberPeriod = { value: 'o', label: 'October', start: '2026-10-01', end: '2026-10-31' }
+const render = (initialProps: Parameters<typeof useSurveyAnalytics>[0] = params) =>
+  renderHook((props) => useSurveyAnalytics(props), { initialProps })
+
+const deferred = <T>() => {
+  let resolve!: (value: T) => void
+  let reject!: (reason: unknown) => void
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res
+    reject = rej
+  })
+  return { promise, reject, resolve }
+}
+type Read<T> = ReturnType<typeof deferred<T>>
+const settle = () => act(() => new Promise<void>((done) => setTimeout(done, 0)))
 
 describe('useSurveyAnalytics', () => {
   afterEach(() => {
@@ -92,5 +108,131 @@ describe('useSurveyAnalytics', () => {
     act(() => result.current.resetSurvey())
     expect(result.current.surveyError).toBe('')
     expect(result.current.surveyErrorKind).toBe('retry')
+  })
+
+  it('keeps the newest result when an older request resolves late', async () => {
+    const first = deferred<SurveyAnalytics>()
+    api.getSurveyAnalytics.mockReturnValueOnce(first.promise).mockResolvedValue(newer)
+    const { result, rerender } = render()
+    rerender({ ...params, projectId: 'project-b' })
+    await waitFor(() => expect(result.current.survey).toBe(newer))
+    first.resolve(loaded)
+    await settle()
+    expect(result.current.survey).toBe(newer)
+  })
+
+  it('ignores the failure, the error kind and the settling of an older request', async () => {
+    const first = deferred<SurveyAnalytics>()
+    api.getSurveyAnalytics.mockReturnValueOnce(first.promise).mockReturnValue(new Promise(() => {}))
+    const { result, rerender } = render()
+    rerender({ ...params, surveyPeriod: octoberPeriod })
+    await waitFor(() => expect(api.getSurveyAnalytics).toHaveBeenCalledTimes(2))
+    first.reject(refused(403))
+    await settle()
+    expect(result.current.surveyError).toBe('')
+    expect(result.current.surveyErrorKind).toBe('retry')
+    expect(result.current.surveyLoading).toBe(true)
+  })
+
+  it('sets no state after unmount when a request resolves', async () => {
+    const first = deferred<SurveyAnalytics>()
+    api.getSurveyAnalytics.mockReturnValue(first.promise)
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const { result, unmount } = render()
+    unmount()
+    first.resolve(loaded)
+    await settle()
+    expect(result.current.survey).toBeNull()
+    expect(logged).not.toHaveBeenCalled()
+    logged.mockRestore()
+  })
+
+  it.each([
+    ['the project id', { ...params, projectId: 'project-b' }, 'project-b', '2026-09-01'],
+    ['the survey period', { ...params, surveyPeriod: octoberPeriod }, 'project-a', '2026-10-01'],
+    ['the frozen-only flag', { ...params, surveyFrozenOnly: true }, 'project-a', '2026-09-01'],
+  ])('reads again when %s changes', async (_name, next, id, start) => {
+    api.getSurveyAnalytics.mockResolvedValue(loaded)
+    const { rerender } = render()
+    await waitFor(() => expect(api.getSurveyAnalytics).toHaveBeenCalledTimes(1))
+    rerender(next)
+    await waitFor(() => expect(api.getSurveyAnalytics).toHaveBeenCalledTimes(2))
+    expect(api.getSurveyAnalytics).toHaveBeenLastCalledWith(
+      expect.objectContaining({ projectId: id, periodStart: start }),
+    )
+  })
+
+  it('reads when the survey becomes available', async () => {
+    api.getSurveyAnalytics.mockResolvedValue(loaded)
+    const { result, rerender } = render({ ...params, surveyUnavailable: true })
+    expect(api.getSurveyAnalytics).not.toHaveBeenCalled()
+    rerender(params)
+    await waitFor(() => expect(result.current.survey).toBe(loaded))
+  })
+
+  it.each([
+    ['a success', (read: Read<SurveyAnalytics>) => read.resolve(loaded)],
+    ['a failure', (read: Read<SurveyAnalytics>) => read.reject(new Error('Down.'))],
+  ])('holds the loading flag while pending and drops it after %s', async (_name, settleWith) => {
+    const pending = deferred<SurveyAnalytics>()
+    api.getSurveyAnalytics.mockReturnValue(pending.promise)
+    const { result } = render()
+    await waitFor(() => expect(result.current.surveyLoading).toBe(true))
+    settleWith(pending)
+    await waitFor(() => expect(result.current.surveyLoading).toBe(false))
+  })
+
+  it('clears the result, the failure and the error kind at the start of a read', async () => {
+    api.getSurveyAnalytics
+      .mockRejectedValueOnce(refused(403))
+      .mockReturnValue(new Promise(() => {}))
+    const { result } = render()
+    await waitFor(() => expect(result.current.surveyErrorKind).toBe('restricted'))
+    act(() => result.current.retrySurvey())
+    await waitFor(() => expect(result.current.surveyLoading).toBe(true))
+    expect(result.current.surveyError).toBe('')
+    expect(result.current.surveyErrorKind).toBe('retry')
+    expect(result.current.survey).toBeNull()
+  })
+
+  it('clears the result at the start of a read', async () => {
+    api.getSurveyAnalytics.mockResolvedValueOnce(loaded).mockReturnValue(new Promise(() => {}))
+    const { result } = render()
+    await waitFor(() => expect(result.current.survey).toBe(loaded))
+    act(() => result.current.retrySurvey())
+    await waitFor(() => expect(result.current.surveyLoading).toBe(true))
+    expect(result.current.survey).toBeNull()
+  })
+
+  describe.each([
+    ['the view leaves the survey', { ...params, analysisView: 'kpi' as const }],
+    ['the survey becomes unavailable', { ...params, surveyUnavailable: true }],
+    ['the period disappears', { ...params, surveyPeriod: undefined }],
+    ['the project is cleared', { ...params, projectId: '' }],
+  ])('when %s', (_name, next) => {
+    it('clears the result', async () => {
+      api.getSurveyAnalytics.mockResolvedValue(loaded)
+      const { result, rerender } = render()
+      await waitFor(() => expect(result.current.survey).toBe(loaded))
+      rerender(next)
+      expect(result.current.survey).toBeNull()
+    })
+
+    it('clears the failure and the error kind', async () => {
+      api.getSurveyAnalytics.mockRejectedValue(refused(403))
+      const { result, rerender } = render()
+      await waitFor(() => expect(result.current.surveyErrorKind).toBe('restricted'))
+      rerender(next)
+      expect(result.current.surveyError).toBe('')
+      expect(result.current.surveyErrorKind).toBe('retry')
+    })
+
+    it('clears the loading flag', async () => {
+      api.getSurveyAnalytics.mockReturnValue(new Promise(() => {}))
+      const { result, rerender } = render()
+      await waitFor(() => expect(result.current.surveyLoading).toBe(true))
+      rerender(next)
+      expect(result.current.surveyLoading).toBe(false)
+    })
   })
 })

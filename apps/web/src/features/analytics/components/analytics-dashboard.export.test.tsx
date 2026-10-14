@@ -7,8 +7,10 @@ import {
   api,
   currentAccess,
   download,
+  indicator,
   previewExport,
   resetAnalyticsMocks,
+  surveyDefaults,
   toastError,
 } from '@/test/fixtures/analytics-dashboard-fixtures'
 
@@ -261,5 +263,114 @@ describe('Analytics dashboard request dependencies', () => {
 
     expect(screen.getByRole('button', { name: 'Add to Dashboard' })).toBeTruthy()
     expect(screen.getByText('Participation patterns', { selector: 'option' })).toBeTruthy()
+  })
+
+  describe('export request per analysis view', () => {
+    const loadExportDashboard = async () => {
+      vi.resetModules()
+      vi.doMock('@/constants/feature-flags', () => ({
+        ANALYTICS_AGGREGATE_EXPORT_UI_ENABLED: true,
+        UNFINISHED_CONTROLS_UI_ENABLED: true,
+        DASHBOARD_PINS_UI_ENABLED: false,
+        MAPS_UI_ENABLED: false,
+      }))
+      const { AnalyticsDashboard: ExportEnabledDashboard } = await import('./analytics-dashboard')
+      vi.doUnmock('@/constants/feature-flags')
+      return ExportEnabledDashboard
+    }
+    const showView = async (view: string) => {
+      await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
+      fireEvent.change(screen.getByLabelText('Analysis view'), { target: { value: view } })
+    }
+
+    beforeEach(() => {
+      previewExport.mockResolvedValue({ title: 'Rows', columns: [], rows: [], totalRows: 0 })
+      api.getSurveyAnalytics.mockReturnValue(new Promise(() => {}))
+      api.getTimelineAnalytics.mockReturnValue(new Promise(() => {}))
+    })
+
+    describe('with a survey period apart from the shared period', () => {
+      beforeEach(() => {
+        surveyDefaults()
+        currentAccess.profile.permissions.push('analytics.export')
+        api.getProjectIndicators.mockResolvedValue([
+          indicator('project-a', 'A-SEP', '2026-09-01', '2026-09-30'),
+          indicator('project-a', 'A-WIDE', '2026-08-15', '2026-09-15'),
+          indicator('project-a', 'A-JUL', '2026-07-01', '2026-07-31'),
+        ])
+      })
+
+      it('exports the shared period without a view on the KPI view', async () => {
+        const Dashboard = await loadExportDashboard()
+        render(<Dashboard />)
+        await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
+        const [periodStart, periodEnd] = (
+          screen.getByLabelText('Reporting period') as HTMLSelectElement
+        ).value.split('::')
+        expect(periodStart).not.toBe('2026-07-01')
+        fireEvent.click(screen.getByText('CSV'))
+        await waitFor(() =>
+          expect(previewExport).toHaveBeenCalledWith({
+            projectId: 'project-a',
+            periodStart,
+            periodEnd,
+          }),
+        )
+      })
+
+      it('exports the survey period with the survey view on the survey view', async () => {
+        const Dashboard = await loadExportDashboard()
+        render(<Dashboard />)
+        await showView('survey')
+        await waitFor(() => expect(api.getSurveyAnalytics).toHaveBeenCalled())
+        fireEvent.click(screen.getByText('CSV'))
+        await waitFor(() =>
+          expect(previewExport).toHaveBeenCalledWith({
+            projectId: 'project-a',
+            periodStart: '2026-07-01',
+            periodEnd: '2026-07-31',
+            view: 'survey',
+          }),
+        )
+      })
+
+      it('exports the timeline view with the shared period', async () => {
+        const Dashboard = await loadExportDashboard()
+        render(<Dashboard />)
+        await showView('timeline')
+        await waitFor(() => expect(api.getTimelineAnalytics).toHaveBeenCalled())
+        const [periodStart, periodEnd] = (
+          screen.getByLabelText('Reporting period') as HTMLSelectElement
+        ).value.split('::')
+        fireEvent.click(screen.getByText('CSV'))
+        await waitFor(() =>
+          expect(previewExport).toHaveBeenCalledWith({
+            projectId: 'project-a',
+            periodStart,
+            periodEnd,
+            view: 'timeline',
+          }),
+        )
+      })
+    })
+
+    it('requests no survey export while the survey is unavailable for an open period', async () => {
+      currentAccess.profile.permissions = [
+        'projects.read',
+        'monitoring.read',
+        'analytics.read',
+        'analytics.descriptive.read',
+        'analytics.export',
+        'reports.indicator.read',
+      ]
+      const Dashboard = await loadExportDashboard()
+      render(<Dashboard />)
+      await showView('survey')
+      await screen.findByText(
+        'Survey results for your role are released after the reporting period closes. Choose a closed period.',
+      )
+      fireEvent.click(screen.getByText('CSV'))
+      expect(previewExport).not.toHaveBeenCalled()
+    })
   })
 })
