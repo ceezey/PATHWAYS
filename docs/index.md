@@ -124,6 +124,7 @@ Workflow rule: an audit is finding and evidence, a Change Record is the approved
 | [S5c collection components plan](superpowers/plans/2026-10-13-modularization-s5c-collection-components.md) | 2026-10-13-modularization-s5c-collection-components.md | 2026-10-13 | S5c of the codebase modularization: the collection folders, the form type list, the collection screen hooks and sections, the import screen and the direct entry screen splits | In progress |
 | [S6 finance and reports plan](superpowers/plans/2026-10-13-modularization-s6-finance-reports.md) | 2026-10-13-modularization-s6-finance-reports.md | 2026-10-13 | S6 of the codebase modularization: S6a renderer cycle, finance, evaluation and report contracts and service splits; S6b outline | In progress |
 | [S6b finance and reports web plan](superpowers/plans/2026-10-13-modularization-s6b-finance-reports-web.md) | 2026-10-13-modularization-s6b-finance-reports-web.md | 2026-10-13 | S6b of the codebase modularization: dead reporting workspace removed, finance, evaluation and report clients, budget, evaluation and reports feature layout; S6c outline | In progress |
+| [S6c finance and reports components plan](superpowers/plans/2026-10-14-modularization-s6c-finance-reports-components.md) | 2026-10-14-modularization-s6c-finance-reports-components.md | 2026-10-14 | S6c of the codebase modularization: finance, evaluation and report response contracts, shared report kind grants, reporting and evaluation workspace splits, the finance-budgets read | In progress |
 
 ### 1.7 Traceability Matrix
 
