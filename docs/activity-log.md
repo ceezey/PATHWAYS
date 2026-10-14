@@ -893,5 +893,5 @@
 - Fix 4 (e5dff71e, 1cac578f): the SAD determinism glob became `overview-metrics*.ts` so its test routes again; tests pin the rounding, every `.strict()`, the `max(100)` bounds and both refines of the moved contracts; 24 of 25 mutations fail a test (the survivor is unreachable); shared +26 tests.
 - Task 7: the change record, audit, QAD, SDD and deferred features rows follow the new paths and the S7b disposition is recorded.
 - Decisions: the S7b decisions are recorded in the change record section 9; the plan stays until S7c is planned because it holds the S7c outline.
-- Deferred to S7c: the web analytics and dashboards work. Not split: `analytics.service.test.ts` (1514 lines after Task 2), with the other api tests above 600 lines.
+- Deferred to S7c: the web analytics and dashboards work. Not split: `analytics.service.test.ts` (1514 lines), with the other api tests above 600 lines.
 - Counts from the Task 0 baseline: shared 42 files and 721 tests to 50 and 759, api 154 files with 2618 passed and 21 skipped to 160 with 2656 and 21, web unchanged at 261 files and 2527 tests, sad 57 to 58, lint 1500 to 1522 files.
