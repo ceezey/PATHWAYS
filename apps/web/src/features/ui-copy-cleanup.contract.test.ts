@@ -88,7 +88,7 @@ describe('"None yet" empty states versus error and permission wording', () => {
   })
 
   it('derives the participation empty-chart title from the shared metric-unavailable helper, not an unconditional "None yet"', () => {
-    const analytics = source('features/analytics/components/analytics-dashboard.tsx')
+    const analytics = source('features/analytics/components/analytics-analysis-panel.tsx')
     expect(source('features/analytics/components/survey-analytics-panel.tsx')).toContain(
       "import { metricUnavailableLabel } from '@/features/projects'",
     )
