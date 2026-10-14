@@ -2,6 +2,7 @@ import { type PathwaysRole, pathwaysRoles } from '@/types/pathways-role'
 import {
   type AtomicPermission,
   type CanonicalRole,
+  aggregateOnlyRoles,
   canAssignRole,
   canAuthorizeRole,
   roleCodeByName,
@@ -99,7 +100,7 @@ export const roleAccessProfiles = Object.fromEntries(
     const permissions = rolePermissions[code]
     const has = (permission: AtomicPermission) => permissions.includes(permission)
     const managesUsers = has('users.authorize')
-    const aggregate = code === 'PROGRAM_MANAGER' || code === 'GRANT_MANAGER'
+    const aggregate = aggregateOnlyRoles.includes(code)
     const profile: RoleAccessProfile = {
       role,
       permissions: (Object.keys(legacyAtomicPermissions) as PermissionCode[]).filter((permission) =>

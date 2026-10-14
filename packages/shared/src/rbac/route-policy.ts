@@ -1,4 +1,8 @@
-import { type AtomicPermission, hasAtomicPermission } from './authorization-policy'
+import {
+  type AtomicPermission,
+  aggregateOnlyRoles,
+  hasAtomicPermission,
+} from './authorization-policy'
 
 // Route decisions are a UI ceiling; the API remains identity authority.
 export type RoutePrincipal = {
@@ -251,7 +255,7 @@ export function routeAllowed(
     (spec.scope === 'beneficiary' ||
       selection.route === 'beneficiaryReport' ||
       selection.kind === 'beneficiary-summary') &&
-    ['PROGRAM_MANAGER', 'GRANT_MANAGER'].includes(role)
+    aggregateOnlyRoles.includes(role)
   )
     return false
   // Portfolio and organization scope must be checked by relational server queries.
@@ -265,7 +269,7 @@ export function routeAllowed(
   return true
 }
 export const isAggregateOnly = (principal: RoutePrincipal) =>
-  principal.roles.length === 1 && ['PROGRAM_MANAGER', 'GRANT_MANAGER'].includes(principal.roles[0])
+  principal.roles.length === 1 && aggregateOnlyRoles.includes(principal.roles[0])
 export type RouteDecision = {
   route: RouteKey
   authorization: 'database-verified'

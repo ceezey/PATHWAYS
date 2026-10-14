@@ -1,4 +1,5 @@
 import { subscribeSensitiveDraftInvalidation } from '@/lib/auth/sensitive-drafts'
+import { routeUuidPattern } from '@pathways/shared'
 
 export type SourceReplayAcknowledgement = { requestId: string; committed: true; replayed: true }
 export type SourceMutationResult<T> = T | SourceReplayAcknowledgement
@@ -62,7 +63,6 @@ export function parseSourceMutationResult<T>(
   )
 }
 
-const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 const MAX_PENDING = 32
 const MAX_BODY_BYTES = 65536
 const RECOVERY_AFTER_MS = 15 * 60 * 1000
@@ -268,7 +268,7 @@ export class SourceMutationTickets {
         createdAt: this.now(),
         pending: false,
       }
-      if (!uuid.test(ticket.id))
+      if (!routeUuidPattern.test(ticket.id))
         throw new SourceMutationRecoveryError('A valid request identifier is unavailable.')
       this.tickets.set(operation, ticket)
       this.changed()

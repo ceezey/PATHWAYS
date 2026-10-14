@@ -1,5 +1,9 @@
 import { ForbiddenException, NotFoundException } from '@nestjs/common'
-import { enrollmentAssessmentsQuery, hasAtomicPermission } from '@pathways/shared'
+import {
+  aggregateOnlyRoles,
+  enrollmentAssessmentsQuery,
+  hasAtomicPermission,
+} from '@pathways/shared'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import { projectScope } from '../../common/authz/project-scope'
 import { requireScopedProject } from '../../common/authz/scoped-project'
@@ -8,11 +12,7 @@ import { projectIdSchema } from './evaluations.helpers'
 
 // Locked auth RFC: System Administrator is denied assessment/survey detail and
 // Program/Grant Managers are aggregate-only, independent of any stored grant.
-const assessmentDetailDeniedRoles = new Set([
-  'SYSTEM_ADMINISTRATOR',
-  'PROGRAM_MANAGER',
-  'GRANT_MANAGER',
-])
+const assessmentDetailDeniedRoles = new Set(['SYSTEM_ADMINISTRATOR', ...aggregateOnlyRoles])
 
 // Reads one assessment result, with its beneficiary only for a reader of beneficiary records.
 export async function readAssessmentDetail(

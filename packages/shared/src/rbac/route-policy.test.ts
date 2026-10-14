@@ -52,6 +52,21 @@ describe('route policy', () => {
     expect(isAggregateOnly(principal('PROGRAM_MANAGER'))).toBe(true)
     expect(isAggregateOnly(principal('GRANT_MANAGER'))).toBe(true)
     expect(isAggregateOnly(principal('PROJECT_MANAGER'))).toBe(false)
+    expect(
+      isAggregateOnly({
+        ...principal('PROGRAM_MANAGER'),
+        roles: ['PROGRAM_MANAGER', 'PROJECT_MANAGER'],
+      }),
+    ).toBe(false)
+  })
+
+  it('denies program and grant managers the beneficiary summary in either route', () => {
+    for (const role of ['PROGRAM_MANAGER', 'GRANT_MANAGER'] as const) {
+      expect(routeAllowed(principal(role), { route: 'beneficiaryReport' })).toBe(false)
+      expect(
+        routeAllowed(principal(role), { route: 'reportPreview', kind: 'beneficiary-summary' }),
+      ).toBe(false)
+    }
   })
 
   it('accepts version 1 to 8 UUIDs only', () => {

@@ -309,4 +309,21 @@ describe('owned source mutation recovery', () => {
     ).toThrow()
     expect(parseSourceMutationResult(fresh, id, parse, true)).toEqual({ id: 'record' })
   })
+  it.each([
+    ['a version 0 id', '20000000-0000-0000-8000-000000000001'],
+    ['a non-RFC variant id', '20000000-0000-4000-0000-000000000001'],
+    ['a malformed id', 'not-a-request-id'],
+  ])('refuses %s before sending', async (_label, requestId) => {
+    const send = vi.fn()
+    await expect(
+      new SourceMutationTickets(() => requestId).execute(
+        context,
+        'POST:project/activity',
+        { title: 'Synthetic' },
+        send,
+        parse,
+      ),
+    ).rejects.toThrow('A valid request identifier is unavailable.')
+    expect(send).not.toHaveBeenCalled()
+  })
 })
