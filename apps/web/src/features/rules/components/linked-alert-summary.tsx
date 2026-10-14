@@ -5,8 +5,7 @@ import { useAuthorizedRead } from '@/hooks/use-authorized-read'
 import { rulesHumanClient } from '@/lib/api/rules'
 import Link from 'next/link'
 import { statusLabel } from '../rules.copy'
-import { severityTone, titleCase } from '../rules.utils'
-import { basisLine } from '../rules.utils'
+import { basisLine, severityTone, titleCase } from '../rules.utils'
 
 /** Names the alert a recommendation came from, with its severity, status and measured value. */
 export function LinkedAlertSummary({ alertId, projectId }: { alertId: string; projectId: string }) {

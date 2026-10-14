@@ -22,17 +22,21 @@ import {
 import { useEffect, useRef, useState } from 'react'
 import { useBindingChoices } from '../hooks/use-binding-choices'
 import { DEFAULT_REC } from '../rules.copy'
-import { type Mode, type Rec, newRec, newRow, recordBound } from '../rules.utils'
 import {
   type MetricScope,
+  type Mode,
+  type Rec,
   appliesTo,
   availableMetrics,
   categoryOf,
+  clearRecordBindings,
   conditionSummary,
+  newRec,
+  newRow,
   previewSentence,
+  recordBound,
   suggestRuleCode,
 } from '../rules.utils'
-import { clearRecordBindings } from '../rules.utils'
 import { ApplyToFields } from './apply-to-fields'
 import { ConditionBuilder } from './condition-builder'
 import { RecommendationFields } from './recommendation-fields'
