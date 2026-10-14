@@ -108,6 +108,7 @@ Workflow rule: an audit is finding and evidence, a Change Record is the approved
 | [S5c collection components plan](handoff/modularization-s5c-collection-components.md) | modularization-s5c-collection-components.md | 2026-10-13 | Full plan for modularization slice S5c | Active |
 | [S6 finance and reports plan](handoff/modularization-s6-finance-reports.md) | modularization-s6-finance-reports.md | 2026-10-13 | Full plan for modularization slice S6 | Active |
 | [S6b finance and reports web plan](handoff/modularization-s6b-finance-reports-web.md) | modularization-s6b-finance-reports-web.md | 2026-10-13 | Full plan for modularization slice S6b | Active |
+| [S6c finance and reports components plan](handoff/modularization-s6c-finance-reports-components.md) | modularization-s6c-finance-reports-components.md | 2026-10-13 | Full plan for modularization slice S6c | Active |
 | [S7 analytics and rules plan](handoff/modularization-s7-analytics-rules.md) | modularization-s7-analytics-rules.md | 2026-10-13 | Full plan for modularization slice S7 | Active |
 | [S8 public, users and auth plan](handoff/modularization-s8-public-users-auth.md) | modularization-s8-public-users-auth.md | 2026-10-13 | Full plan for modularization slice S8 | Active |
 | [Cross-plan review](handoff/cross-plan-review.md) | cross-plan-review.md | 2026-10-13 | Edits each slice plan applied to the later plans | Active |

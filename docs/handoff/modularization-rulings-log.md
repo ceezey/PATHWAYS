@@ -663,3 +663,51 @@ Ruling: the S7c plan (Tasks 0 to 9: dashboards and analytics clients with charac
 Ruling: plan S7d on the S7c dry-run tree and W1 on the S6b tip now, in parallel with S5c, so neither waits at the end; W1's Task 0 recounts every figure later slices move, cost if wrong: a W1 pre-flight with more fixes.
 
 Ruling: apply the S5c pre-flight fixes (6 must-fix: index-lists.mjs reads the multi-line next.config entries and counts four indexed features, the Task 0 ancestor check tries local refs and checks the handoff copy, baselines and anchors from the real S6b tip with web 243 files and 2228 tests and Middleware 103 kB, the Task 7 audit anchors, the 38-mutation Expected block, routes judged at no more than 3 kB bigger because /collection/import prints +3 kB; 5 should-fix: the Task 7 record totals, the gate bullet from commands, the SAD text with 166 paths in three packets, exact formTypeLabels and import batch status rows pinned before the old code goes, and a note that commit hashes in Expected blocks differ), cost if wrong: an S5c Task 0 stop.
+
+Ruling: S5c Task 0 matched every anchor at 298f7389 (baselines web 243 and 2228, Middleware 103 kB, nine-file hashes, 63 collection files, 15 pathways-client mockers, 199 collection test names); plan copy and index row in ec77adcd, cost if wrong: none.
+
+Ruling: accept S5c Task 1's +1 kB on /collection/import (432 to 433 kB, reproduced on two builds, Middleware 103 kB) although the brief expected no route change; the pre-flighted route criterion allows up to 3 kB, and the barrel index plausibly adds a few hundred bytes to the import route, cost if wrong: 1 kB on one route.
+
+Ruling: S5c Task 1 committed 598dea4a (62 files moved into forms, import and entry, collection index, four indexed features), every other Expected matching, cost if wrong: none.
+
+Ruling: S5c Task 1 review PASS on both; of the three older change records naming pre-move collection paths, Task 7 updates the two that describe current code (import-value-map-editor.tsx in cr-pathways-import-value-map.md:42 and the collection test glob in cr-pathways-rbac-v4-grant-migration.md:54 to features/collection/**/*.test.tsx), as S4b did for cr-pathways-default-registration-form.md, and leaves cr-pathways-smart-import-mapping.md:14, whose file:line ranges are point-in-time evidence, cost if wrong: one stale path in a historical record.
+
+Ruling: S5c Task 2 committed 94ddfe95, 9728f5b4, 0a3dee37 and d1448d27 with every Expected matching (VALIDATING dropped by the alias, 15 unreachable pathways-client mocks removed, form type list and labels pinned, DigitalFormType from the shared contract; web derived 243 files and 2238 tests), cost if wrong: none.
+
+Ruling: S5c Task 2 review PASS on both (web 243 files and 2238 tests confirmed); the type-level expectTypeOf pin stays because the typecheck gate runs it, and the batch status row's describe placement stays, cost if wrong: none.
+
+Ruling: S5c Task 3 committed 25e70fe6, c5ce7156 and 8df88238 with every Expected matching (screen 1640 to 615 lines, lost 0, 66 mutants killed, web 244 files and 2253 tests); the one failure of the new 'asks for a published form before importing data rows' row under heavy load passed alone twice and in two full mutation runs, and its review checks it for a timing dependence, cost if wrong: a new flaky row in CI.
+
+Ruling: S5c Task 4 committed 3167b8af with every Expected matching (five sections cut, screen 615 to 359 lines, lost 0, 6 mutants killed, collection 30 files and 224 tests), cost if wrong: none.
+
+Ruling: Cian chose stacked pull requests (2026-10-14 01:31Z): part 1 is #52 (S3b to S6a into dev, #49 to #51 closed as superseded), part 2 is S4b to S6c stacked on the S6a branch, part 3 is S7a to W1 stacked on part 2; slices still open no pull request of their own, and gate bullets from S5c on say the slice ships in its part's pull request instead of 'one pull request after every slice', cost if wrong: one stale sentence in a gate bullet.
+
+Ruling: S5c Task 5 committed 7a8ebc47, 4a4f4327 and 79b8e171 with every Expected matching (shared ticket type, import screen 1110 to 134 lines, lost 0, hook order unchanged, 12 mutants killed), cost if wrong: none.
+
+Ruling: S5c Task 6 committed d855af99 and 3a108613 with every Expected matching (direct entry screen 654 to 74 lines, lost 0, hook order unchanged, 6 mutants killed, collection 31 files and 229 tests with the direction test), cost if wrong: none.
+
+Ruling: S5c review 3 spec PASS, quality FAIL; fix with one tests-only commit (fix-3-brief.md) that raises the actions test's async timeout to 5 s and pins the reachable handler paths 25 surviving mutants showed unpinned (they were unpinned before the move too, but the code is being handed over to a client in November), leaving 'use client' off the hook files like their siblings, cost if wrong: one more implementer round on S5c.
+
+Ruling: S5c Task 4 review PASS on both; its 16 surviving markup mutants (labels, descriptions, the save dialog's guard and counts, the correction page clamp) were unpinned before the move and the markup moved verbatim with lost 0, so no pins are added for them (unlike the Task 3 handler paths, they are copy and display, not state logic), and DuplicateDecision stays behind its constant-false flag as before, cost if wrong: a later copy edit to those dialogs goes unseen by tests.
+
+Ruling: S5c Task 6 review PASS on both; its medium test-debt finding (direct entry stale-load, begin and valid guards, start another record, retry) is fixed by a tests-only commit after fix 3 (fix-6-brief.md), the pure useMemo now running before the effect changes nothing observable, and entry-state-views.tsx keeps the five small state views the plan put there, a named exception to CR 3.3 one-component-per-file recorded in the S5c disposition, cost if wrong: one file split later.
+
+Ruling: fix 3 committed ea8c08c6 (actions row timeout 5 s, 14 rows each killing its mutation, a beforeEach reset of assignedProjectIds for an order leak, four paths skipped as unreachable because disabled buttons or beginOperation and eligible() already guard them; web 244 files and 2267 tests); the two 15 s timeouts at load average 50 passed alone and in the next full run, cost if wrong: a load flake in CI on part 2.
+
+Ruling: fix 6 committed c75e674d (20 direct entry rows, 45 mutations each restored; redundant or DOM-unreachable guards skipped with reasons; web 244 files and 2287 tests); its pkill may have killed other agents' vitest runs, so they are told to rerun any run that died without a summary, cost if wrong: one wasted run.
+
+Ruling: S5c Task 5 review PASS on both; its lows stay (an import order nit in use-batch-review.ts, the 11 receipt schema and 34 import workspace mutants that survived before the move and that Task 5 did not touch, no header comment on the new hooks), since no CR row or recorded deferral names them, cost if wrong: a later receipt schema edit goes unseen by tests.
+
+Ruling: S5c Task 7 committed 8cb6224b (7 docs files; web 244 files and 2287 tests; six collection routes 1 to 3 kB bigger, within the 3 kB criterion; the import value map CR names the moved component file, which is the path that line held; test debt counted as 14 handler, 34 import and 10 entry mutations by the implementer's tally from reviews 3 and 5 and fixes 3 and 6), cost if wrong: a debt count in the CR off by a few.
+
+Ruling: S5c SAD design-qa-agent PASS on all 166 paths in three packets (56, 56, 54), 0 blocked; nits (import grouping in use-batch-review.ts, a ../hooks specifier in use-collection-state.ts, inline cleanup in two entry rows) stay, cost if wrong: none.
+
+Ruling: S5c final review PASS; its medium (activity log said 54 files of specifiers, git shows 43 specifiers in 33 files) and three docs lows (stale paths in deferred-features.md lines 25, 37, 39, 66; three biome-ignore lines, not two; the CR roadmap row now names S5c) are fixed by the controller in the gate docs commit; the two test files this slice pushed past the CR 3.5 600 line rule (collection-workspace.actions.test.tsx 756, direct-entry-ownership.test.tsx 680) are split by concern in a tests-only commit after the gate run, while collection-workspace.import-upload.test.tsx (620, 621 before the slice) stays as it was and is recorded; importedFieldLabels in forms.utils.ts keeps its export (a pure label helper with no data, exported by the line-range cut), cost if wrong: one needless export.
+
+Ruling: S5c SAD sign-off PASS at 66a9be6e (design-qa-agent 168 paths in four packets, the fourth for the split test files), 0 blocked, cost if wrong: none.
+
+## S6c
+
+Ruling: the W1 plan (Tasks 0 to 8: cloud-run deferrals, analytics test split, scripts/db, phase6 renamed to replay with forwarding stubs for the old PowerShell and mjs entry points, seeds into prisma/seeds, tooling tests wired into a CI job, records, gates; 142 renames, every count equal) is accepted, and its W2 outline becomes the last slice, limited to items the change record's W1 row or its recorded deferrals name (path aliases, the docs/check.py split, the lib/services residue, the seed data and large test file splits only where a deferral names them), making 18 slices, cost if wrong: one more slice of work, flagged to Cian.
+
+Ruling: apply the S6c pre-flight fixes (11 must-fix: Task 0 branch, ancestor and S5c marker checks with base-sha first, Expected values from the S5c replay, the indicators noUnusedLocals line in use-collection-state.ts, the Task 7 index sed, grep -a and a sorted typecheck in Task 8, 'use client' kept on 11 cut components; 7 should-fix: a shared response-rules test of 27 cases leaving one equivalent mutant, SUBMITTED and REVIEWED round statuses, six report read permission rows, the api export guard for a stored report type with no route, the activeOperation guard), and Task 0 recounts the real S5c figures, which carry fix 3 and fix 6 rows the replay lacks, cost if wrong: an S6c Task 0 stop.
