@@ -118,4 +118,42 @@ describe('ActionKpiRow', () => {
 
     expect(view.container.innerHTML).toBe('')
   })
+
+  it('colors each card value and icon tile by its tone and draws its own icon', () => {
+    ready(counts)
+    render(<ActionKpiRow />)
+
+    const parts = screen.getAllByRole('link').map((link) => ({
+      value: link.querySelector('p.text-3xl')?.className,
+      tile: link.querySelector('div.h-10')?.className,
+      icon: link.querySelector('svg')?.getAttribute('class'),
+    }))
+    const tones = ['danger', 'warning', 'info', 'success']
+    const icons = ['clipboard-list', 'triangle-alert', 'clock', 'file-check']
+    parts.forEach((part, n) => {
+      expect(part.value).toContain(`text-${tones[n]}`)
+      expect(part.tile).toContain(`bg-${tones[n]}-subtle text-${tones[n]}`)
+      expect(part.icon).toContain(`lucide-${icons[n]}`)
+    })
+  })
+
+  it('shows an alert count of 0 and the plural days late', () => {
+    ready({
+      ...counts,
+      activeAlerts: { count: 0, capped: false },
+      overdueActivities: { count: 4, mostOverdue: { code: 'ACT-9', daysLate: 5 } },
+    })
+    render(<ActionKpiRow />)
+
+    const text = screen.getAllByRole('link').map((link) => link.textContent)
+    expect(text[1]).toBe('Active budget alerts0Require your decision')
+    expect(text[2]).toBe('Overdue activities4ACT-9 is 5 days late')
+  })
+
+  it('says nothing is past due on the overdue card', () => {
+    ready({ ...counts, overdueActivities: { count: 0, mostOverdue: null } })
+    render(<ActionKpiRow />)
+
+    expect(screen.getByText('Nothing is past due')).toBeTruthy()
+  })
 })
