@@ -5,11 +5,18 @@ import type { ComponentProps } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { ActivitySummary } from '@/types/pathways'
-import type { DescriptiveAnalytics, SurveyAnalytics, TimelineAnalytics } from '@pathways/shared'
+import type {
+  DescriptiveAnalytics,
+  SadddDashboard,
+  SurveyAnalytics,
+  TimelineAnalytics,
+} from '@pathways/shared'
 
 import { SURVEY_FROZEN_CAPTION, SURVEY_PERIOD_MESSAGE } from '../analytics.copy'
 import { ChartPanel, UnavailableChart } from './chart-panel'
 import { DescriptiveStatisticsTable } from './descriptive-statistics-table'
+import { OpenAlertsPanel } from './open-alerts-panel'
+import { SadddAnalysisPanel } from './saddd-analysis-panel'
 import { SurveyAnalyticsPanel } from './survey-analytics-panel'
 import { TimelineAnalyticsPanel } from './timeline-analytics-panel'
 
@@ -453,5 +460,74 @@ describe('survey analytics panel', () => {
     expect(
       screen.getByText('Indicator reporting periods are not available for this role.'),
     ).toBeTruthy()
+  })
+})
+
+describe('SADDD analysis panel data', () => {
+  const bucket = (
+    key: string,
+    label: string,
+    metric: ReturnType<typeof cell> | ReturnType<typeof gap> | typeof zero,
+  ) => ({
+    key,
+    label,
+    metric,
+  })
+  const saddd = {
+    sex: [bucket('f', 'Female', cell('12')), bucket('m', 'Male', cell('9'))],
+    age: [bucket('a1', '18 to 24', cell('7')), bucket('a2', '25 to 59', gap('SUPPRESSED'))],
+    disability: [bucket('d1', 'With disability', cell('6')), bucket('d2', 'Not stated', zero)],
+  } as unknown as SadddDashboard
+  const props = {
+    retrySaddd: vi.fn(),
+    saddd,
+    sadddEligible: true,
+    sadddError: '',
+    sadddLoading: false,
+    sadddNotice: null,
+    sadddOngoing: true,
+  }
+
+  it('lists the sex, age and disability rows in that order with the metric cell text', () => {
+    const { container } = render(<SadddAnalysisPanel {...props} />)
+    expect(screen.getByText('SADDD analysis loaded.')).toBeTruthy()
+    expect(screen.getByText('Accessible SADDD data table')).toBeTruthy()
+    const rows = Array.from(container.querySelectorAll('details table tr'), (tr) =>
+      Array.from(tr.children, (node) => node.textContent),
+    )
+    expect(rows).toEqual([
+      ['Dimension', 'Category', 'Count'],
+      ['Sex', 'Female', '12'],
+      ['Sex', 'Male', '9'],
+      ['Age', '18 to 24', '7'],
+      ['Age', '25 to 59', 'Suppressed'],
+      ['Disability', 'With disability', '6'],
+      ['Disability', 'Not stated', '0'],
+    ])
+  })
+
+  it('captions the counts to date only for an ongoing project', () => {
+    const caption = 'Counts to date; groups of fewer than 5 are hidden.'
+    const { rerender } = render(<SadddAnalysisPanel {...props} />)
+    expect(screen.getByText(caption)).toBeTruthy()
+    rerender(<SadddAnalysisPanel {...props} sadddOngoing={false} />)
+    expect(screen.queryByText(caption)).toBeNull()
+    expect(screen.getByTestId('saddd-chart')).toBeTruthy()
+  })
+})
+
+describe('Rule-Based Alerts panel without a count', () => {
+  it('asks for a project when the role can read alerts and nothing was counted', () => {
+    render(
+      <OpenAlertsPanel
+        alertRead={{ refetch: vi.fn() }}
+        alertsFailed={false}
+        alertsLoading={false}
+        canReadAlerts
+        openAlertText=""
+        openAlerts={null}
+      />,
+    )
+    expect(screen.getByText('Select a project to see its Rule-Based Alerts.')).toBeTruthy()
   })
 })

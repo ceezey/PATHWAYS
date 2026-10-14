@@ -109,6 +109,18 @@ describe('Analytics dashboard summary cards and descriptive statistics empty sta
     expect(card('Rule-Based Alerts')?.textContent).toBe(`Rule-Based Alerts${value}`)
   })
 
+  it('shows the SADDD chart without the counts to date caption for an ended project', async () => {
+    api.getProjectsForRole.mockResolvedValue([
+      project('project-ended', 'Ended project', '2026-01-01', '2026-06-30'),
+    ])
+    api.getProjectIndicators.mockResolvedValue([
+      indicator('project-ended', 'E-JUN', '2026-06-01', '2026-06-30'),
+    ])
+    render(<AnalyticsDashboard />)
+    expect(await screen.findByTestId('saddd-chart')).toBeTruthy()
+    expect(screen.queryByText('Counts to date; groups of fewer than 5 are hidden.')).toBeNull()
+  })
+
   describe('descriptive statistics panel without a result', () => {
     const panel = () => {
       const section = screen
