@@ -13,7 +13,12 @@ import {
 import { readApiEnv } from '@pathways/config'
 import type { Prisma } from '@prisma/client'
 
-import { aggregateOnlyRoles } from '@pathways/shared'
+import {
+  MAX_BENEFICIARY_MEDIA_FILES,
+  type ReserveBeneficiaryMediaRequest,
+  aggregateOnlyRoles,
+  beneficiaryMediaContentTypes,
+} from '@pathways/shared'
 import { writeAuditLog } from '../../common/audit/write-audit-log'
 import { type ApplicationIdentity, UUID_PATTERN } from '../../common/authz/application-identity'
 import { withAuthorizedOperation } from '../../common/authz/authorized-operation'
@@ -31,11 +36,6 @@ import {
   type PrivateStorageFactories,
 } from '../storage/private-storage-factories'
 import { StorageService } from '../storage/storage.service'
-import {
-  MAX_BENEFICIARY_MEDIA_FILES,
-  type ReserveBeneficiaryMediaDto,
-  beneficiaryMediaContentTypes,
-} from './beneficiary-media.dto'
 
 const MAX_LISTED_MEDIA = 100
 const unavailable = () => new NotFoundException('Beneficiary media unavailable.')
@@ -170,7 +170,7 @@ export class BeneficiaryMediaService {
     identity: ApplicationIdentity,
     projectId: string,
     beneficiaryId: string,
-    input: ReserveBeneficiaryMediaDto,
+    input: ReserveBeneficiaryMediaRequest,
   ) {
     if (
       !Array.isArray(input.files) ||

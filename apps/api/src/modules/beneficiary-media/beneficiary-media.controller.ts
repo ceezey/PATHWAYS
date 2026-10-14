@@ -2,7 +2,6 @@ import {
   BadRequestException,
   Body,
   Controller,
-  ForbiddenException,
   Get,
   Inject,
   Param,
@@ -12,17 +11,16 @@ import {
   StreamableFile,
 } from '@nestjs/common'
 
+import {
+  type ReserveBeneficiaryMediaRequest,
+  reserveBeneficiaryMediaRequest,
+} from '@pathways/shared'
 import type { AuthenticatedRequest } from '../../common/authz/application-identity'
+import { requestIdentity } from '../../common/authz/request-identity'
 import { RequireBeneficiaryStepUp } from '../../common/decorators/beneficiary-step-up.decorator'
 import { RequirePermission } from '../../common/decorators/permission.decorator'
-// biome-ignore lint/style/useImportType: Nest validation needs the DTO constructor at runtime.
-import { ReserveBeneficiaryMediaDto } from './beneficiary-media.dto'
+import { ZodPipe } from '../../common/validation/zod-pipe'
 import { BeneficiaryMediaService } from './beneficiary-media.service'
-
-function profile(request: AuthenticatedRequest) {
-  if (!request.user) throw new ForbiddenException('Application profile is required.')
-  return request.user
-}
 
 @Controller('beneficiaries/projects/:projectId/:beneficiaryId/media')
 export class BeneficiaryMediaController {
@@ -36,7 +34,7 @@ export class BeneficiaryMediaController {
     @Param('projectId') projectId: string,
     @Param('beneficiaryId') beneficiaryId: string,
   ) {
-    return this.media.list(profile(request), projectId, beneficiaryId)
+    return this.media.list(requestIdentity(request), projectId, beneficiaryId)
   }
 
   @Get('limits')
@@ -53,9 +51,9 @@ export class BeneficiaryMediaController {
     @Req() request: AuthenticatedRequest,
     @Param('projectId') projectId: string,
     @Param('beneficiaryId') beneficiaryId: string,
-    @Body() body: ReserveBeneficiaryMediaDto,
+    @Body(new ZodPipe(reserveBeneficiaryMediaRequest)) body: ReserveBeneficiaryMediaRequest,
   ) {
-    return this.media.reserve(profile(request), projectId, beneficiaryId, body)
+    return this.media.reserve(requestIdentity(request), projectId, beneficiaryId, body)
   }
 
   @Post(':mediaId/finalize')
@@ -67,7 +65,7 @@ export class BeneficiaryMediaController {
     @Param('beneficiaryId') beneficiaryId: string,
     @Param('mediaId') mediaId: string,
   ) {
-    return this.media.finalize(profile(request), projectId, beneficiaryId, mediaId)
+    return this.media.finalize(requestIdentity(request), projectId, beneficiaryId, mediaId)
   }
 
   @Get(':mediaId/content')
@@ -82,7 +80,12 @@ export class BeneficiaryMediaController {
   ) {
     if (request.headers.range !== undefined)
       throw new BadRequestException('Partial content is unavailable.')
-    const file = await this.media.content(profile(request), projectId, beneficiaryId, mediaId)
+    const file = await this.media.content(
+      requestIdentity(request),
+      projectId,
+      beneficiaryId,
+      mediaId,
+    )
     response.setHeader('Cache-Control', 'private, no-store')
     response.setHeader('X-Content-Type-Options', 'nosniff')
     // A failed integrity check destroys the connection, so a client never receives a complete unverified file.

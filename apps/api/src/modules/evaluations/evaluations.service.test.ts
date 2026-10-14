@@ -1,10 +1,10 @@
 import { ForbiddenException } from '@nestjs/common'
-import { hasAtomicPermission } from '@pathways/shared'
+import { hasAtomicPermission, saveEvaluationScoresRequest } from '@pathways/shared'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import type { PrismaService } from '../../prisma/prisma.service'
-import type { EvaluationMetricsService } from './evaluation-metrics'
-import { EvaluationsService, saveScoresSchema } from './evaluations.service'
+import type { EvaluationMetricsService } from './evaluation-metrics.service'
+import { EvaluationsService } from './evaluations.service'
 
 const scope = vi.hoisted(() => ({ actor: undefined as unknown, tx: undefined as unknown }))
 vi.mock('../../common/authz/authorized-operation', () => ({
@@ -69,14 +69,14 @@ describe('evaluation reads', () => {
 describe('score save request', () => {
   const expectedUpdatedAt = '2026-09-27T00:00:00.000Z'
   it('accepts a narrative and a revision and nothing else', () => {
-    expect(saveScoresSchema.safeParse({ expectedUpdatedAt, commentary: 'Narrative' }).success).toBe(
-      true,
-    )
-    expect(saveScoresSchema.safeParse({ expectedUpdatedAt }).success).toBe(true)
+    expect(
+      saveEvaluationScoresRequest.safeParse({ expectedUpdatedAt, commentary: 'Narrative' }).success,
+    ).toBe(true)
+    expect(saveEvaluationScoresRequest.safeParse({ expectedUpdatedAt }).success).toBe(true)
   })
   it('rejects manual scores and notes', () => {
     expect(
-      saveScoresSchema.safeParse({
+      saveEvaluationScoresRequest.safeParse({
         expectedUpdatedAt,
         scores: [{ criterionId, manualScore: 90, note: 'x' }],
       }).success,

@@ -20,6 +20,7 @@ export const roles = {
     pillars: ['Security'],
     globs: [
       'apps/api/src/**/*.service.ts',
+      'apps/api/src/**/*.helpers.ts',
       'packages/shared/src/rbac/**/*.ts',
       'apps/api/src/common/authz/**/*.ts',
       'apps/api/src/common/audit/**/*.ts',
@@ -51,6 +52,9 @@ export const roles = {
     globs: [
       'apps/api/src/**/*.controller.ts',
       'apps/api/src/**/*.mapper.ts',
+      'apps/api/src/modules/beneficiaries/**/*.ts',
+      'apps/api/src/modules/beneficiary-media/**/*.ts',
+      'apps/api/src/modules/participants/**/*.ts',
       'apps/web/src/api/**/*.ts',
       '**/schemas/*.zod.ts',
       'apps/web/src/lib/services/**/*.ts',
@@ -62,7 +66,13 @@ export const roles = {
   },
   'metadata-import-validator': {
     pillars: ['Functional Suitability'],
-    globs: ['packages/imports/src/**/*.ts', 'apps/api/src/modules/imports/**/*.ts'],
+    globs: [
+      'packages/imports/src/**/*.ts',
+      'apps/api/src/modules/imports/**/*.ts',
+      'apps/api/src/modules/metadata/**/*.ts',
+      'packages/shared/src/contracts/imports/**/*.ts',
+      'packages/shared/src/contracts/metadata/**/*.ts',
+    ],
   },
   'rule-engine-determinism-checker': {
     pillars: ['Performance Efficiency'],

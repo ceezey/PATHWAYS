@@ -1,4 +1,4 @@
-import { ForbiddenException, NotFoundException } from '@nestjs/common'
+import { ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common'
 import type { Prisma } from '@prisma/client'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
@@ -66,7 +66,7 @@ const setup = () => {
   let currentPayload = payload
   const tx = {
     project: { findFirst: vi.fn().mockResolvedValue({ id: project }) },
-    digitalForm: { findFirst: vi.fn() },
+    digitalForm: { findFirst: vi.fn(), updateMany: vi.fn().mockResolvedValue({ count: 0 }) },
     $queryRaw: vi.fn(async (_query: unknown, ...values: unknown[]) => [
       {
         status: currentPayload.status,
@@ -148,5 +148,23 @@ describe('atomic definition source verification before cache reuse', () => {
     expect((await service.getForm(actor, project, id)).status).toBe('ARCHIVED')
     await service.getForm(actor, project, id)
     expect(tx.$queryRaw.mock.calls.at(-1)?.at(-2)).toBeNull()
+  })
+  it('evicts the warmed definition on edit, publish and archive so the next read is fresh', async () => {
+    const { tx, service } = setup()
+    const stamp = { expectedUpdatedAt: '2026-09-01T00:00:00.000Z' }
+    const writes = [
+      ['DRAFT', () => service.updateForm(actor, project, id, { ...stamp, fields } as never)],
+      ['PUBLISHED', () => service.publishForm(actor, project, id, stamp)],
+      ['PUBLISHED', () => service.archiveForm(actor, project, id, stamp)],
+    ] as const
+    for (const [status, write] of writes) {
+      tx.digitalForm.findFirst.mockResolvedValue({ id, projectId: project, status })
+      await service.getForm(actor, project, id)
+      await service.getForm(actor, project, id)
+      expect(tx.$queryRaw.mock.calls.at(-1)?.at(-2)).toBe('a'.repeat(64))
+      await write().catch((error) => expect(error).toBeInstanceOf(ConflictException))
+      await service.getForm(actor, project, id)
+      expect(tx.$queryRaw.mock.calls.at(-1)?.at(-2)).toBeNull()
+    }
   })
 })

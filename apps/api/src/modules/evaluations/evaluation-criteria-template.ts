@@ -2,7 +2,7 @@ import { Prisma } from '@prisma/client'
 import { writeAuditLog } from '../../common/audit/write-audit-log'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import type { Tx } from '../../common/prisma/transaction'
-import type { CriterionType } from './evaluation-metrics'
+import type { CriterionType } from './evaluations.helpers'
 
 /** Fixed default OECD-DAC set every project is evaluated against; weights total 100. */
 export const defaultCriteria: ReadonlyArray<{

@@ -8,11 +8,10 @@ const summary = { freshness: 'summary' } as const
 
 /**
  * Stable resource keys shared by every project workspace tab, so the Overview and the
- * Activities tab reuse one project read and each workspace loads indicators once.
+ * Activities tab reuse one project read.
  */
 const projectReadResources = {
   project: 'project',
-  indicators: 'project-indicators',
   journeyStages: 'project-journey-stages',
   overviewMetrics: 'project-overview-metrics',
 } as const
@@ -23,17 +22,6 @@ export const useProjectRead = (projectId: string, enabled = true) =>
     projectId,
     'projects.detail.read',
     (signal) => projectsClient.getProject(projectId, signal),
-    enabled,
-    summary,
-  )
-
-/** Full indicator rows; `getIndicators` is the same request projected to code and label. */
-export const useProjectIndicatorsRead = (projectId: string, enabled = true) =>
-  useAuthorizedRead(
-    projectReadResources.indicators,
-    projectId,
-    'indicators.read',
-    (signal) => pathwaysClient.getProjectIndicators(projectId, signal),
     enabled,
     summary,
   )

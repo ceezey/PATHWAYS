@@ -1,12 +1,12 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common'
 
+import type { ResolveDuplicateRequest } from '@pathways/shared'
 import { writeAuditLog } from '../../common/audit/write-audit-log'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import { withAuthorizedOperation } from '../../common/authz/authorized-operation'
 import { requireScopedProject } from '../../common/authz/scoped-project'
 import type { Tx } from '../../common/prisma/transaction'
 import { PrismaService } from '../../prisma/prisma.service'
-import type { ResolveDuplicateDto } from './beneficiaries.dto'
 
 const RESOLVED_ACTIONS = ['BENEFICIARY_IDENTITY_KEPT_DISTINCT', 'BENEFICIARY_IDENTITY_LINKED']
 const MAX_PROFILES = 500
@@ -82,7 +82,7 @@ export class IdentityReviewService {
   }
 
   // Both outcomes only record an audited reviewer decision; no profile data is moved or deleted.
-  resolve(identity: ApplicationIdentity, projectId: string, input: ResolveDuplicateDto) {
+  resolve(identity: ApplicationIdentity, projectId: string, input: ResolveDuplicateRequest) {
     return withAuthorizedOperation(
       this.prisma,
       identity,

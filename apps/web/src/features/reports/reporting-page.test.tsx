@@ -8,6 +8,7 @@ const api = vi.hoisted(() => ({
   getProjectIndicators: vi.fn(),
 }))
 vi.mock('@/lib/services/pathways-client', () => ({ pathwaysClient: api }))
+vi.mock('@/lib/api/indicators', () => ({ indicatorsClient: api }))
 vi.mock('@/lib/api/projects', () => ({ projectsClient: api }))
 vi.mock('./live-reporting-workspace', () => ({
   LiveReportingWorkspace: ({

@@ -13,10 +13,10 @@ import type { Prisma } from '@prisma/client'
 import { describe, expect, it } from 'vitest'
 import { DashboardsService } from '../dashboards/dashboards.service'
 import { ProjectOverviewMetricsService } from '../projects/project-overview-metrics.service'
-import type { ReportPdfRenderer } from '../report-pdf/report-pdf.renderer'
 import { RulesHumanService } from '../rules/rules-human.service'
 import { privateStorageFactories } from '../storage/private-storage-factories'
 import type { StorageService } from '../storage/storage.service'
+import type { ReportPdfRenderer } from './report-pdf.renderer'
 import { ReportsService } from './reports.service'
 
 // Explicit opt-in only. Gate G-F12-1: report output respects role scope and suppression.

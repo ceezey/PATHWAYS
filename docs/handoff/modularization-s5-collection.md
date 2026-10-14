@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Give the collection API (form metadata, direct entry and imports) shared zod request contracts, split `imports.service.ts` (2120 lines after S4), `metadata.service.ts` (1315) and `packages/imports` `smart-match.ts` (626) by responsibility, and remove the phase-coded file names, with no change to any route, status code, response body, audit row, permission decision, transaction boundary, SQL statement or matcher decision.
+**Goal:** Give the collection API (form metadata, direct entry and imports) shared zod request contracts, split `imports.service.ts` (2119 lines after S4), `metadata.service.ts` (1315) and `packages/imports` `smart-match.ts` (626) by responsibility, and remove the phase-coded file names, with no change to any route, status code, response body, audit row, permission decision, transaction boundary, SQL statement or matcher decision.
 
 **Architecture:** S5 is split (ruling 1). This plan gives S5a in full (ten tasks including baseline and gates) and S5b, the web client and the one import flow, as an outline at the end. S5a first adds two input schemas beside the S1 field schemas, then replaces the imports and metadata DTOs after parity tests, then turns each service into a facade that keeps its constructor, its route methods and one `withAuthorizedOperation` wrapper per transaction, while the work inside each transaction moves verbatim into function modules that take the caller's `tx`. Mechanical edits use one-off Node scripts under `.tmp/s5a/` (gitignored, never committed) whose content is given in full. Every step was dry-run on an exported copy of `a101ad7c` (F4a complete) with the S1a field schemas and `requestIdentity` added from the S1 plan and the S4a registration service edits to the imports service, its three tests and two seeds applied as the S4 plan writes them (with a delegating `BeneficiaryRegistrationService` stand-in): the copy typechecked (api source, tests and seeds), its api, shared and imports suites passed apart from harness-only parse-worker faults that fail identically on an unmodified copy, and the outputs quoted below come from those runs.
 
@@ -30,7 +30,7 @@ Controller rulings for S5 (2026-10-12). Each was checked against `refactor/f4a-w
 14. **SAD routing.** `apps/api/src/modules/metadata/**/*.ts` and `packages/shared/src/contracts/{imports,metadata}/**/*.ts` route to metadata-import-validator, beside `apps/api/src/modules/imports/**/*.ts` and `packages/imports/src/**/*.ts`: forms, direct entry and the import request bodies are that reviewer's subject.
 15. **Response contracts move with the web client.** S5a adds request contracts only. The batch, row page, form, submission and submission page response shapes (`mapBatch`, `readBatchDetail`, `readBatchRows`, `mapForm`, `findSubmission`, `listOwnSubmissions`) become types-only response contracts in S5b Task 1, where the web client that reads them is written; the api change there is a return type annotation on each mapper, checked by `pnpm typecheck` (S1 ruling 6 pattern).
 16. **The large imports tests stay whole.** `imports.service.test.ts` (860 lines, 22 tests) shares one 100-line mocked transaction and fixture harness across upload, mapping, validation and processing cases, and several tests cross those concerns; `imports.chunked-promotion.test.ts` (648) is already a concern file. Splitting either would duplicate the harness for no reader benefit, as S3 ruling 14 found for indicators; both run unchanged against the facade, which is the evidence Review Focus 4 relies on.
-17. **Spec facts corrected by the baseline:** `imports.service.ts` is 2118 lines at `a101ad7c` and 2120 after S4's constructor edit (the audit counted 2165 at `d272ee18`) and `metadata.service.ts` 1315 (1365); eight files import the two DTO modules; `GenerateFormDto` and `AutomaticImportMappingDto` were never in the controller runtime metadata test; `automaticMapping` re-checks its body inside the service, which stays; there is no imports or metadata contract on the web yet (S5b).
+17. **Spec facts corrected by the baseline:** `imports.service.ts` is 2118 lines at `a101ad7c` and 2119 after S4's constructor edit (the audit counted 2165 at `d272ee18`) and `metadata.service.ts` 1315 (1365); eight files import the two DTO modules; `GenerateFormDto` and `AutomaticImportMappingDto` were never in the controller runtime metadata test; `automaticMapping` re-checks its body inside the service, which stays; there is no imports or metadata contract on the web yet (S5b).
 18. **The unused `ParticipantsService` constructor parameter stays.** S4 left its `PrismaService` parameter to S5. Removing it changes the two `new ParticipantsService(runtime)` seed calls and the participants tests, none of which S5 otherwise touches, and the global constraints keep S5 out of `apps/api/prisma`; it is recorded for W1, which moves the seeds. The imports and metadata tests pass positional fakes, so S5 needs no change there.
 19. Cross-plan: S5 appends only `trimmedLowercaseInput` and `queryInteger` to the S1 `field-schemas.ts`, after S2 appended `countInput` and `pesoAmountInput`; Task 0 greps the four S1 exports it uses and that its two new names are absent, so S2's two additions are tolerated, and `field-schemas.inputs.test.ts` stays a separate file so S2's edit to `field-schemas.test.ts` cannot conflict. S5 starts from S4's `imports.service.ts`, three imports tests and two seeds (hash check in Task 0) and from S1b's `source-mutation-request.ts` for S5b. Cost if wrong: an anchor mismatch stops Task 0, or a duplicate helper name fails the barrel.
 20. Cross-plan (S1b): S5b extends S1b's `indexedFeatures` and `optimizePackageImports` instead of writing a second surface rule. Cost if wrong: two rules disagree, or the collection routes grow in First Load JS.
@@ -70,10 +70,9 @@ S5b assumes F4b's `apps/web/src/lib/api/core/request.ts` (`PathwaysClientError`,
 - `pnpm typecheck` rewrites `apps/web/next-env.d.ts`; run `git checkout -- apps/web/next-env.d.ts` before every commit.
 - After removing code, delete any import name left with no use (Biome 1.9 recommended rules do not flag unused imports); the split modules were checked with `tsc --noUnusedLocals`.
 - Inline `node - <<'EOF'` scripts in this plan contain no backslashes; scripts that need them are files.
-- `git ls-files` with `':!*.test.ts'` pathspecs returns nothing in this Git for Windows setup; `git grep` pathspecs work.
 - One-off scripts live in `.tmp/s5a/` (gitignored) and are never committed; `.tmp/` also holds logs.
-- Commit messages end with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
-- Work in `C:\PATHWAYS` on branch `refactor/s5a-collection-api`; no new worktree. All paths are relative to `C:\PATHWAYS`. Do not push.
+- Commit messages end with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>` and, on the next line, `Claude-Session: https://claude.ai/code/session_015GXgWsghnfykNXQ8sJ5BRx`.
+- Work in the repository root on the slice branch the environment assigns (S3b's, stacked); no new worktree. All paths are relative to the repository root. Only the controller pushes the slice branch, at task-pair boundaries; nobody pushes `dev` or `master`.
 - Do not touch migrations, `.env` files, review evidence, `apps/api/prisma` or `apps/web`.
 
 ## Review Focus
@@ -96,34 +95,32 @@ S5b assumes F4b's `apps/web/src/lib/api/core/request.ts` (`PathwaysClientError`,
 ### Task 0: Branch setup and baseline
 
 **Files:**
-- Create: `docs/superpowers/plans/2026-10-12-modularization-s5-collection.md` (this plan)
+- Create: `docs/superpowers/plans/<date>-modularization-s5-collection.md` (this plan; `<date>` from `date +%F`)
 - Modify: `docs/index.md` (section 1.6 plan row)
 
-- [ ] **Step 1: Confirm local dev contains S1 to S4 and create the branch**
+- [ ] **Step 1: Confirm the stacked branch holds S1 to S4**
 
 ```bash
-cd /c/PATHWAYS
+cd "$(git rev-parse --show-toplevel)"
 git status --short
-git checkout dev
-git log --oneline dev | grep -m1 -E "Merge refactor/s4[a-z]?-[a-z-]+ into dev"
+test -f apps/web/src/lib/api/indicators.ts && test ! -e apps/web/src/lib/services/indicator-library-client.ts && echo "S3b present"
 test -f packages/shared/src/contracts/common/field-schemas.ts && test -f apps/api/src/common/authz/request-identity.ts && echo "S1 kernel present"
 test -f apps/api/src/modules/beneficiaries/beneficiary-registration.service.ts && echo "S4 registration service present"
 ls docs/superpowers/plans/
-git checkout -b refactor/s5a-collection-api
-pnpm install --frozen-lockfile
 mkdir -p .tmp/s5a
+git rev-parse HEAD > .tmp/s5a/base-sha
 ```
 
-Expected: clean status, an S4 merge commit, `S1 kernel present` and `S4 registration service present` printed, install succeeds. If any is missing, stop and report: S5 builds on S1 to S4. Write down the plan files `ls` lists; this plan does not touch other slices' plans.
+Expected: clean status, `S3b present`, `S1 kernel present` and `S4 registration service present` printed. The branch is the one the environment assigned (S3b's and S4's, stacked while their pull request is open); do not create refactor/s5a-collection-api. `.tmp/s5a/base-sha` holds the S5 base (the SAD base of Task 9 Step 4). Dependencies are already installed in the cloud container; do not run pnpm install (the rulings log records the S3b install workaround). If any marker is missing, stop and report: S5 builds on S1 to S4. Write down the plan files `ls` lists; this plan does not touch other slices' plans.
 
 - [ ] **Step 2: Record the baseline**
 
 ```bash
 pnpm --filter @pathways/shared build
-pnpm typecheck && pnpm test 2>&1 | grep -E "Tests +[0-9]+"
-pnpm sad:test 2>&1 | grep -E "Tests +[0-9]+"
+pnpm typecheck && pnpm test 2>&1 | sed 's/\x1b\[[0-9;]*m//g' | grep -E "Test Files|Tests +[0-9]+"
+pnpm sad:test 2>&1 | sed 's/\x1b\[[0-9;]*m//g' | grep -E "Tests +[0-9]+"
 pnpm docs:check 2>&1 | tail -3
-pnpm --filter @pathways/web build > .tmp/s5a/web-build-baseline.log 2>&1; echo "exit $?"
+rm -rf apps/web/.next && pnpm --filter @pathways/web build > .tmp/s5a/web-build-baseline.log 2>&1; echo "exit $?"
 grep -E "Middleware" .tmp/s5a/web-build-baseline.log
 git hash-object apps/api/src/modules/imports/imports.controller.ts apps/api/src/modules/imports/imports.dto.ts apps/api/src/modules/metadata/metadata.service.ts apps/api/src/modules/metadata/metadata.controller.ts apps/api/src/modules/metadata/metadata.dto.ts apps/api/src/modules/metadata/form-templates.ts packages/imports/src/mappers/smart-match.ts packages/shared/src/contracts/imports/import-requests.ts apps/api/src/modules/metadata/form-definition-export.service.ts
 git hash-object apps/api/src/modules/imports/automatic-mapping.service.test.ts apps/api/src/modules/metadata/metadata.generate.test.ts apps/api/src/modules/imports/imports.controller.validation.test.ts packages/shared/src/contracts/imports/import-requests.test.ts apps/api/src/modules/metadata/form-definition-export.service.test.ts
@@ -141,24 +138,25 @@ git grep -nwE "trimmedLowercaseInput|queryInteger|importRequestLimits|uploadImpo
 git checkout -- apps/web/next-env.d.ts
 ```
 
-Expected: typecheck clean; write down each package's passing and skipped test counts (config, shared, imports, api, web), the sad count, the docs check failure count, the web build exit code (0) and the `Middleware` size. Later tasks compare against these (`B_shared`, `B_imports`, `B_api`, `B_sad`, `M0`). The hashes print, in order: `10393eed4714d442cac7e0f61e56598713dd8384`, `0ee83c8e0ee4a23a0283391a352e63f2a3dd5ea6`, `34ab1a0a343539eac9e60fa871ebdd9c9fa575e5`, `fad0813f2a9ead8c09e3e5e0a125b190af80f81b`, `5ed04dc7109d4c10cdd9c331de8272aa946364a1`, `db8e7506589e03fccb15c28ac19a3d09bfa9cb58`, `88025a90ad5215c4d35d3a74f31a605501f8993b`, `708cbd12050e0fa8bc704e6bd082e69533455aa1`, `4760a3f49592cfbd6be1e7b66e612e2fc1d1bf53`, then `a2bce199fb6cc40820caad3140cacab375a21207`, `b9167fd18665af0a69ed56a89257d2e4aadca904`, `6662e5274d8969873986b15887af4589876c5d3e`, `8143dd48f53f989d150034e3846a0ba521719a90`, `78fa63b8ceabb6acecdd1f9d3c5fea772d8157a7`. The name-only diff lists exactly the four files S4 edits (`imports.chunked-promotion.test.ts`, `imports.f6-gates.test.ts`, `imports.service.test.ts`, `imports.service.ts`), and the filtered diff count is `0` (every changed line names the beneficiaries or registration service, as S4 Task 6 writes them). `wc` prints 2120, 1315 and 626; the greps print `8`, `2`, `4`, `3`, `1`, `1`, `1` and `0`. If any differs, stop and report: the edit anchors, codemod plans and counts below were taken at `a101ad7c` with S4's edits applied, and an earlier slice changed a file this plan edits (a `4` for the S1 schema grep and a `1` for the mapper route mean S1 is as planned; `3`, `1`, `1` for the S4 greps mean S4 is as planned).
+Expected: typecheck clean; config 19, shared 316, imports 91, api 2484 passed and 21 skipped, web 224 files and 1998 tests, sad 55, docs check 6 failures and 1 warning, the web build exit code (0) and `Middleware` 102 kB (S3b and S4a applied; shared, api and sad are the post-S3a numbers plus S4a's 35, 39 and 1, so the S4 gate line in `docs/activity-log.md` wins if it differs). Web builds read apps/web/.env.local (a gitignored copy of apps/web/.env.example); create it once if missing so both builds see the same values. Later tasks compare against these (`B_shared`, `B_imports`, `B_api`, `B_sad`, `M0`). The hashes print, in order: `10393eed4714d442cac7e0f61e56598713dd8384`, `0ee83c8e0ee4a23a0283391a352e63f2a3dd5ea6`, `34ab1a0a343539eac9e60fa871ebdd9c9fa575e5`, `fad0813f2a9ead8c09e3e5e0a125b190af80f81b`, `5ed04dc7109d4c10cdd9c331de8272aa946364a1`, `db8e7506589e03fccb15c28ac19a3d09bfa9cb58`, `88025a90ad5215c4d35d3a74f31a605501f8993b`, `708cbd12050e0fa8bc704e6bd082e69533455aa1`, `4760a3f49592cfbd6be1e7b66e612e2fc1d1bf53`, then `a2bce199fb6cc40820caad3140cacab375a21207`, `b9167fd18665af0a69ed56a89257d2e4aadca904`, `6662e5274d8969873986b15887af4589876c5d3e`, `8143dd48f53f989d150034e3846a0ba521719a90`, `78fa63b8ceabb6acecdd1f9d3c5fea772d8157a7`. The name-only diff lists exactly the four files S4 edits (`imports.chunked-promotion.test.ts`, `imports.f6-gates.test.ts`, `imports.service.test.ts`, `imports.service.ts`), and the filtered diff count is `0` (every changed line names the beneficiaries or registration service, as S4 Task 6 writes them). `wc` prints 2119, 1315 and 626; the greps print `8`, `2`, `4`, `3`, `1`, `1`, `1` and `0`. If any differs, stop and report: the edit anchors, codemod plans and counts below were taken at `a101ad7c` with S4's edits applied, and an earlier slice changed a file this plan edits (a `4` for the S1 schema grep and a `1` for the mapper route mean S1 is as planned; `3`, `1`, `1` for the S4 greps mean S4 is as planned).
 
 - [ ] **Step 3: Add the plan and commit**
 
-The controller has saved this plan as `docs/superpowers/plans/2026-10-12-modularization-s5-collection.md`.
+Copy this plan: `cp docs/handoff/modularization-s5-collection.md docs/superpowers/plans/$(date +%F)-modularization-s5-collection.md`. The handoff copy and its index row stay.
 
 In `docs/index.md` section 1.6, add as the last row of the table:
 
 ```markdown
-| [S5 collection plan](superpowers/plans/2026-10-12-modularization-s5-collection.md) | 2026-10-12-modularization-s5-collection.md | 2026-10-12 | S5 of the codebase modularization: S5a imports and metadata contracts, imports and metadata service splits and the smart-match split; S5b outline | In progress |
+| [S5 collection plan](superpowers/plans/<date>-modularization-s5-collection.md) | <date>-modularization-s5-collection.md | <date> | S5 of the codebase modularization: S5a imports and metadata contracts, imports and metadata service splits and the smart-match split; S5b outline | In progress |
 ```
 
 ```bash
-git add docs/superpowers/plans/2026-10-12-modularization-s5-collection.md docs/index.md
+git add docs/superpowers/plans docs/index.md
 pnpm docs:check 2>&1 | tail -3
 git commit -m "docs: add the S5 collection plan
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015GXgWsghnfykNXQ8sJ5BRx"
 ```
 
 Expected: docs check failure count equals the Step 2 baseline.
@@ -763,7 +761,8 @@ git checkout -- apps/web/next-env.d.ts
 git add packages/shared/src/contracts packages/imports/src/limits.test.ts apps/api/src/modules/imports/import-request-parity.test.ts
 git commit -m "feat(shared): add the import request contracts with their DTO parity test
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015GXgWsghnfykNXQ8sJ5BRx"
 ```
 
 Expected: shared = `B_shared + 23` (input schemas 12, import requests 11), imports = `B_imports + 1`, api = `B_api + 88`.
@@ -1296,7 +1295,8 @@ git commit -m "refactor(api): validate the import routes with the shared zod con
 
 The imports DTO, its value map test and the parity test are removed; QAD-T54 runs against the contract.
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015GXgWsghnfykNXQ8sJ5BRx"
 ```
 
 Expected: the HTTP test passes 16 of 16; api = `B_api + 8` (Task 1 count minus 88 parity, minus 2 value map, minus 1 runtime metadata case, plus 11 HTTP).
@@ -1935,7 +1935,8 @@ git checkout -- apps/web/next-env.d.ts
 git add packages/shared/src/contracts packages/shared/src/index.ts apps/api/src/modules/metadata/form-request-parity.test.ts
 git commit -m "feat(shared): add the form metadata request contracts with their DTO parity test
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015GXgWsghnfykNXQ8sJ5BRx"
 ```
 
 Expected: shared = `B_shared + 29`, api = `B_api + 139` (Task 2 count plus 131).
@@ -2515,7 +2516,8 @@ git commit -m "refactor(api): validate the form metadata routes with the shared 
 
 The metadata DTO and its parity test are removed; the controller reads the identity with requestIdentity.
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015GXgWsghnfykNXQ8sJ5BRx"
 ```
 
 Expected: the HTTP test passes 6 of 6; `pnpm typecheck` also compiles the two seeds that construct `MetadataService` and `ImportsService` (`local-demo-seed.ts`, `defense-demo-seed.ts`) and the stages that call them; api = `B_api + 13` (Task 3 count minus 131 parity, minus 1 runtime metadata case, plus 6 HTTP).
@@ -2545,7 +2547,8 @@ pnpm --filter @pathways/api exec vitest run src/modules/metadata
 git status --short apps/api/src/modules/metadata | grep "^R"
 git commit -m "test(api): name the metadata gate tests after what they check
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015GXgWsghnfykNXQ8sJ5BRx"
 ```
 
 Expected: tests pass; two `R` renames.
@@ -3249,7 +3252,8 @@ git checkout -- apps/web/next-env.d.ts
 git add -A apps/api/src/modules/metadata
 git commit -m "refactor(api): split the metadata service into form modules that take the caller's tx
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015GXgWsghnfykNXQ8sJ5BRx"
 ```
 
 Expected: Biome reformats the generated files and fixes their type-only imports; `wc` shows `metadata.service.ts` 221, `metadata.mapper.ts` 138, `metadata.helpers.ts` 78, `form-lookup.service.ts` 204, `form-definitions.service.ts` 240, `form-versions.service.ts` 301, `form-submissions.service.ts` 232, `form-submission-reads.service.ts` 127; every metadata test passes unchanged (the published-definition cache test included, Review Focus 5); api = `B_api + 15` (mapper test 2).
@@ -3260,13 +3264,15 @@ In `apps/api/src/modules/metadata/form-definition-export.service.test.ts`, direc
 
 ```ts
   it('reads an upper-case project id as the stored id and refuses a malformed one before any query', async () => {
-    await service.export(state.actor, projectId.toUpperCase(), formId, 'CSV')
+    const stored = '3000000a-0000-4000-8000-00000000000b'
+    state.actor = actor({ assignedProjectIds: [stored] })
+    await service.export(state.actor, stored.toUpperCase(), formId, 'CSV')
     expect(tx.project.findFirst).toHaveBeenCalledWith({
-      where: { AND: [expect.anything(), { id: projectId }] },
+      where: { AND: [expect.anything(), { id: stored }] },
       select: { id: true },
     })
     expect(tx.digitalForm.findFirst).toHaveBeenCalledWith(
-      expect.objectContaining({ where: expect.objectContaining({ projectId }) }),
+      expect.objectContaining({ where: expect.objectContaining({ projectId: stored }) }),
     )
     vi.clearAllMocks()
     await expect(service.export(state.actor, 'not-a-uuid', formId, 'CSV')).rejects.toThrow(
@@ -3277,7 +3283,7 @@ In `apps/api/src/modules/metadata/form-definition-export.service.test.ts`, direc
 ```
 
 Run: `pnpm --filter @pathways/api exec vitest run src/modules/metadata/form-definition-export.service.test.ts`
-Expected: PASS, 17 tests, against the inline lookup. This is a characterization case: it pins what the shared helper must keep (`vi.clearAllMocks` clears calls only, so the scoped project mock of `beforeEach` still applies).
+Expected: PASS, 17 tests, against the inline lookup. This is a characterization case: it pins what the shared helper must keep (`vi.clearAllMocks` clears calls only, so the scoped project mock of `beforeEach` still applies). Run Step 6 against the inline lookup first (it must pass there); confirm once that removing `.toLowerCase()` from `requireScopedProjectRow` in a scratch copy makes it fail.
 
 - [ ] **Step 7: Read the export project through requireScopedProject and commit**
 
@@ -3314,7 +3320,8 @@ git checkout -- apps/web/next-env.d.ts
 git add apps/api/src/modules/metadata/form-definition-export.service.ts apps/api/src/modules/metadata/form-definition-export.service.test.ts
 git commit -m "refactor(api): read the form export project through requireScopedProject
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015GXgWsghnfykNXQ8sJ5BRx"
 ```
 
 Expected: the grep prints nothing; 21 tests pass (17 export service, 4 export audit), including the cross-project denial and the organization scoping cases; `form-definition-export.service.ts` is 164 lines; api = `B_api + 16`.
@@ -3347,7 +3354,8 @@ git add -A apps/api/src/modules/imports
 git status --short apps/api/src/modules/imports | grep "^R"
 git commit -m "refactor(api): name the upload finalization fault and the import gate test after their purpose
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015GXgWsghnfykNXQ8sJ5BRx"
 ```
 
 Expected: the grep prints nothing; tests and typecheck pass; three `R` renames.
@@ -4284,7 +4292,8 @@ git commit -m "refactor(api): split the imports service into batch, mapping, val
 
 The field contract mapping now has one owner in metadata.mapper.ts.
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015GXgWsghnfykNXQ8sJ5BRx"
 ```
 
 Expected: `wc` shows `imports.service.ts` 519 (ruling 8), `imports.helpers.ts` 128, `imports.mapper.ts` 88, `import-batches.service.ts` 165, `automatic-mapping.service.ts` 147, `import-mapping.service.ts` 157, `import-validation.service.ts` 197, `import-upload.service.ts` 237, `import-promotion-context.service.ts` 114, `import-row-promotion.service.ts` 320, `import-promotion.service.ts` 165, `import-claims.service.ts` 236; the grep prints nothing; every imports test passes unchanged, including the spies on the seven private wrappers and the transaction timeout assertions (Review Focus 4); `git grep -nE "(this|promotion)[.]beneficiaries|readonly beneficiaries" -- apps/api/src/modules/imports` prints nothing; api = `B_api + 16`.
@@ -4490,7 +4499,8 @@ git checkout -- apps/web/next-env.d.ts
 git add -A packages/imports/src
 git commit -m "refactor(imports): split smart-match into rules, name scoring and value gates
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015GXgWsghnfykNXQ8sJ5BRx"
 ```
 
 Expected: `wc` shows `smart-match-rules.ts` 169, `smart-match-names.ts` 175, `smart-match-values.ts` 161, `smart-match.ts` 168; `smart-match.test.ts` is unchanged (no diff); imports = `B_imports + 3` (limits 1, exports 2), with all 33 smart-match tests passing; the two web tests that load `@pathways/imports` in the browser preview (the matcher and the value map editor) pass.
@@ -4556,7 +4566,7 @@ Expected: PASS; sad = `B_sad + 1`.
 
 `docs/cr-pathways-codebase-modularization.md`:
 
-Section 3.4, append to the paragraph (after the S1a sentence on `contracts/common/field-schemas.ts`):
+Section 3.4, insert in the paragraph directly after the sentence ending `(amended 2026-10-10 for S1a).` and before `` `contracts/common/source-mutation-acknowledgement.ts` holds ``:
 
 ```text
 The same file holds `trimmedLowercaseInput` and `queryInteger`, which port a trim and lower-case `@Transform` and an `@Type(() => Number)` query bound (amended <date> for S5a).
@@ -4595,40 +4605,40 @@ with
 Section 9, append:
 
 ```markdown
-S5a applied <date> on refactor/s5a-collection-api:
+S5a applied <date> on the S5a slice branch:
 - Contracts: `uploadImportRequest`, `importMappingItemRequest`, `saveImportMappingRequest`, `automaticImportMappingRequest`, `processImportRequest` and `importRowsQuery` (beside F3b `validateImportRequest`) and the form metadata contracts in `packages/shared/src/contracts/metadata/form-requests.ts` replaced the 15 remaining class-validator bodies and queries of the imports and metadata routes; parity tests ran each DTO and contract through the configured pipes over 87 import and 131 metadata bodies before the DTOs were deleted; `trimmedLowercaseInput` and `queryInteger` joined the field schemas; `importRequestLimits` is pinned to the `@pathways/imports` limits by a test.
-- Services: `imports.service.ts` (2118 lines) and `metadata.service.ts` (1315) became facades that keep their constructors, methods and one authorized transaction per method; the work inside each transaction moved verbatim into function modules that take the caller's `tx` (imports: `imports.helpers.ts`, `imports.mapper.ts` and the batches, automatic mapping, mapping, validation, upload, promotion context, row promotion, promotion and claims services; metadata: `metadata.mapper.ts`, `metadata.helpers.ts` and the form lookup, definitions, versions, submissions and submission reads services); the duplicated field contract mapping has one owner, `formFieldContract` in `metadata.mapper.ts`; the import promotion modules call S4's `BeneficiaryRegistrationService` through `PromotionHandlers`, and the facade field that holds it is named `registration` (the S4 deferral).
+- Services: `imports.service.ts` (2119 lines) and `metadata.service.ts` (1315) became facades that keep their constructors, methods and one authorized transaction per method; the work inside each transaction moved verbatim into function modules that take the caller's `tx` (imports: `imports.helpers.ts`, `imports.mapper.ts` and the batches, automatic mapping, mapping, validation, upload, promotion context, row promotion, promotion and claims services; metadata: `metadata.mapper.ts`, `metadata.helpers.ts` and the form lookup, definitions, versions, submissions and submission reads services); the duplicated field contract mapping has one owner, `formFieldContract` in `metadata.mapper.ts`; the import promotion modules call S4's `BeneficiaryRegistrationService` through `PromotionHandlers`, and the facade field that holds it is named `registration` (the S4 deferral).
 - Scope: the form definition export reads its project through `requireScopedProject`, closing the last F3a inline project lookup in the slice.
 - Package: `smart-match.ts` split into rules, name scoring and value gates with the same exports and the same `AUTO_SMART_V2` decisions.
 - Names: `p07-w10-finalization-fault.ts` became `upload-finalization-fault.ts`; the F5 and F6 gate tests are named after what they check.
 - SAD: metadata-import-validator routing covers `apps/api/src/modules/metadata/**/*.ts` and the imports and metadata contract folders.
 - Decisions: S5 split into S5a and S5b (ruling 1); `beneficiaryId` is `.optional()`, and an array in place of a mapping, value map or field object now answers 400 at the pipe, beside the F3b prototype keys (ruling 3); query bounds use `queryInteger`, not `z.coerce` (ruling 4); response values drop the ten `Object.prototype` method keys and refuse `constructor`, which answered 500 (ruling 5); import bounds are literals pinned by a test because shared cannot import `@pathways/imports` (ruling 6); the services are facades because seeds and tests construct them positionally and tests spy on seven private wrappers, so `imports.service.ts` stays at 519 lines (ruling 8); the unused `ParticipantsService` constructor parameter that S4 left to S5 stays, because removing it edits seeds S5 does not touch (ruling 18).
 
-Deferred to S5b: `lib/api` collection clients for the 24 metadata and import methods of `pathways-client.ts` (with `validateImport` typed from `ValidateImportRequest`, the F3b deferral), one `use-import-batch` hook for the two web import flows, the split of `collection-workspace.tsx`, `import-workspace.tsx` and `direct-form-entry-workspace.tsx`, the `features/collection` layout and public `index.ts`, and the web form type copies (`form-builder-session-draft.ts`, `types/pathways.ts` `DigitalFormType`). Deferred to W1: the unused `ParticipantsService` `PrismaService` parameter with its two seed constructions, and the eight test-only `Prisma.TransactionClient` annotations in the imports and metadata test harnesses.
+Deferred to S5b: `lib/api` collection clients for the 22 metadata and import methods of `pathways-client.ts` (with `validateImport` typed from `ValidateImportRequest`, the F3b deferral), one `use-import-batch` hook for the two web import flows, the split of `collection-workspace.tsx`, `import-workspace.tsx` and `direct-form-entry-workspace.tsx`, the `features/collection` layout and public `index.ts`, and the web form type copies (`form-builder-session-draft.ts`, `types/pathways.ts` `DigitalFormType`). Deferred to W1: the unused `ParticipantsService` `PrismaService` parameter with its two seed constructions, and the eight test-only `Prisma.TransactionClient` annotations in the imports and metadata test harnesses.
 ```
 
-Replace `<date>` with the merge date (four places).
+Replace `<date>` with the day Task 8 runs (`date +%F`) in the four places; the activity log heading uses the same day.
 
 - [ ] **Step 3: Update the audit, living docs and index**
 
-- Audit: append to the disposition cell of MOD-04 `; imports and metadata services split by S5a.`, of MOD-11 `; imports and metadata DTOs replaced by S5a.` and of MOD-17 `; imports and metadata phase-coded names removed by S5a.`
+- Audit: in `docs/audit-pathways-codebase-modularity-20261009.md` make three exact replacements: MOD-04 old `services split by S4a. |` new `services split by S4a; imports and metadata services split by S5a. |`; MOD-11 old `DTOs replaced by S4a. |` new `DTOs replaced by S4a; imports and metadata DTOs replaced by S5a. |`; MOD-17 old `Scoped and Owned names by S2b. |` new `Scoped and Owned names by S2b; imports and metadata phase-coded names removed by S5a. |`.
 
 ```bash
 sed -i -e 's#apps/api/src/modules/imports/imports.dto.value-map.test.ts#packages/shared/src/contracts/imports/import-requests.test.ts#g' -e 's#apps/api/src/modules/imports/imports.f6-gates.test.ts#apps/api/src/modules/imports/imports.review-flow.test.ts#g' -e 's#apps/api/src/modules/metadata/metadata.f5-gates.test.ts#apps/api/src/modules/metadata/metadata.direct-entry.test.ts#g' -e 's#apps/api/src/modules/metadata/form-definition-export.f5-gates.test.ts#apps/api/src/modules/metadata/form-definition-export.audit.test.ts#g' docs/qad-pathways.md
 sed -i 's#(`ImportStatus`, `apps/api/src/modules/imports/imports.service.ts`)#(`ImportStatus`, the upload, mapping, validation and claims services in `apps/api/src/modules/imports`)#' docs/prd-pathways.md
-git grep -nE "imports\.dto|metadata\.dto|f5-gates|f6-gates|p07-w10|modules/imports/imports\.service\.ts" -- docs ':!docs/activity-log.md' ':!docs/audit-*' ':!docs/cr-*' ':!docs/superpowers/*'
+git grep -nE "imports\.dto|metadata\.dto|f5-gates|f6-gates|p07-w10|modules/imports/imports\.service\.ts" -- docs ':!docs/activity-log.md' ':!docs/audit-*' ':!docs/cr-*' ':!docs/superpowers/*' ':!docs/handoff'
 ```
 
 Expected: the grep prints nothing (at `a101ad7c` the replacements touch 10 references in `qad-pathways.md` and 1 in `prd-pathways.md`).
 
-- `docs/index.md`: the CR row status becomes `Approved; F1 to F4b, S1 to S4 and S5a applied, S5b next`.
+- `docs/index.md`: in the CR row status record S5a as applied and keep S4b open, for example `Approved; F1 to F4b, S1a, S1b, S2a, S2b, S3a, S3b, S4a and S5a applied, S4b and S5b next`; read the row after S4a and extend it.
 
 - [ ] **Step 4: Activity log**
 
 Add to `docs/activity-log.md`:
 
 ```markdown
-## <date> Modularization S5a collection api (refactor/s5a-collection-api)
+## <date> Modularization S5a collection api (<slice branch>)
 ```
 
 with one bullet per Task 1 to Task 7 stating what was added, switched, split or renamed, with its commit hash and the shared, imports and api test counts at the end of that task; a bullet saying the S5a decisions are recorded in the change record section 9 (the plan stays until S5b is planned, because it holds the S5b outline); and a bullet listing the S5b deferrals. Task 9 Step 5 appends the gate results.
@@ -4638,10 +4648,11 @@ with one bullet per Task 1 to Task 7 stating what was added, switched, split or 
 ```bash
 pnpm docs:check 2>&1 | tail -3
 pnpm lint
-git add docs scripts/sad
+git add docs/sad-pathways.md docs/cr-pathways-codebase-modularization.md docs/audit-pathways-codebase-modularity-20261009.md docs/qad-pathways.md docs/prd-pathways.md docs/index.md docs/activity-log.md scripts/sad
 git commit -m "docs: record modularization S5a and route form metadata to the import validator
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015GXgWsghnfykNXQ8sJ5BRx"
 ```
 
 Expected: docs check failure count equals the Task 0 baseline.
@@ -4686,14 +4697,16 @@ for (const [file, name] of controllers) {
 ```
 
 ```bash
-pnpm install --frozen-lockfile && pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm sad:test
+pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm sad:test
 git checkout -- apps/web/next-env.d.ts
 test -f packages/shared/dist/contracts/metadata/form-requests.js && test -f apps/api/dist/packages/shared/src/contracts/metadata/form-requests.js && test -f apps/api/dist/apps/api/src/modules/imports/import-claims.service.js && test -f apps/api/dist/apps/api/src/modules/metadata/metadata.mapper.js && test -f packages/imports/dist/mappers/smart-match-rules.js && test -f apps/api/dist/packages/imports/src/mappers/smart-match-rules.js && test ! -e apps/api/dist/apps/api/src/modules/imports/imports.dto.js && test ! -e apps/api/dist/apps/api/src/modules/metadata/metadata.dto.js && echo "dist layout ok"
 node .tmp/s5a/probe-pipes.cjs
-pnpm --filter @pathways/web build > .tmp/s5a/web-build-gates.log 2>&1; echo "exit $?"
+rm -rf apps/web/.next && pnpm --filter @pathways/web build > .tmp/s5a/web-build-gates.log 2>&1; echo "exit $?"
 grep -E "Middleware" .tmp/s5a/web-build-gates.log
 git checkout -- apps/web/next-env.d.ts
 ```
+
+Install: (skip in the cloud container; deps are installed), as in Task 0 Step 1.
 
 Expected: all pass and `dist layout ok` (nest `deleteOutDir` removes the old DTO output); the probe prints
 
@@ -4706,15 +4719,15 @@ MetadataController: create:Object generate:Object update:Object publish:Object a
 
 - [ ] **Step 2: Local DB replay**
 
-```powershell
-./infra/supabase/phase6/Replay-Local.ps1 -MigrationBaseline
+```bash
+pwsh ./infra/supabase/phase6/Replay-Local.ps1 -MigrationBaseline
 ```
 
-Expected: exit 0.
+Expected: exit 0. If PostgreSQL 18 is not installed at /usr/lib/postgresql/18/bin, the pull request CI replay is the gate (expect 171 PASS, 0 FAIL); record which one ran.
 
 - [ ] **Step 3: Local stack, compiled API boot, e2e and smoke**
 
-Stop anything on ports 3000 and 4000 first.
+If supabase or Docker is missing, record Step 3 (seed, pnpm dev:local boot, compiled API probe, both Playwright configs and the browser smoke) as pending local run in the activity log gate line and list it for the developer; do not skip Steps 1, 2 or 4. Stop anything on ports 3000 and 4000 first.
 
 ```bash
 pnpm db:local:start && pnpm db:local:reset && pnpm db:local:demo
@@ -4734,63 +4747,61 @@ Expected: `"status":"ok"`; a module-resolution error or an undefined contract in
 - [ ] **Step 4: SAD review**
 
 ```bash
-pnpm sad:check --base dev --head HEAD --output .tmp/sad/s5/manifest.json
+pnpm sad:check --base "$(cat .tmp/s5a/base-sha)" --head HEAD --output .tmp/sad/s5/manifest.json
 ```
 
-Dispatch every role the manifest requires (expect `design-qa-agent`, `restraint-guardian`, `organization-isolation-checker`, `beneficiary-privacy-guardian` and `metadata-import-validator`) with the section 4.2 handoff packet from `docs/sad-pathways.md`, save their section 4.4 envelopes to `.tmp/sad/s5/reviews.json`, then:
+Dispatch every role the manifest requires (expect `design-qa-agent`, `restraint-guardian`, `organization-isolation-checker`, `beneficiary-privacy-guardian` and `metadata-import-validator`) with the section 4.2 handoff packet from `docs/sad-pathways.md` (layout in `docs/handoff/sad-packet-example.md`; split a role above 60 paths), transcribe each reply into `.tmp/sad/s5/reply-<role>.txt`, copy `docs/handoff/sad-assemble.mjs` to `.tmp/sad/s5/assemble.mjs`, run `node .tmp/sad/s5/assemble.mjs` (it writes `reviews.json`), then:
 
 ```bash
-pnpm sad:signoff -- --base dev --head HEAD --reviews .tmp/sad/s5/reviews.json
+pnpm sad:signoff -- --base "$(cat .tmp/s5a/base-sha)" --head HEAD --reviews .tmp/sad/s5/reviews.json
 ```
 
 Expected: sign-off. Any finding is fixed on this branch and the affected gates rerun.
 
 - [ ] **Step 5: Record the gate results**
 
-Append a final bullet to the Task 8 activity-log section with the gate results (per-package counts, Middleware size, compiled pipe probe, replay exit code, demo seed result, e2e pass counts, smoke result, SAD sign-off), then:
+Append a final bullet to the Task 8 activity-log section with the gate results (per-package counts, Middleware size, compiled pipe probe, replay exit code or CI result, demo seed result, e2e pass counts and smoke result or pending local run, SAD sign-off), then:
 
 ```bash
 git add docs/activity-log.md
 git commit -m "docs: record modularization S5a release gate results
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015GXgWsghnfykNXQ8sJ5BRx"
 ```
 
-- [ ] **Step 6: Merge into local dev**
+- [ ] **Step 6: Pull request into dev**
+
+Push the slice branch and open one pull request into `dev` (or add S5a to the open S3b and S4a pull request, as the rulings log says); wait for CI (replay, lint, typecheck, test, build, SAD checks) and record the result in the activity log gate line. Ask the developer to merge. Do not merge or push `dev`.
+
+- [ ] **Step 7: Keep the plan for S5b (after the developer merges)**
+
+The plan holds the S5b outline, so the `docs/superpowers/plans` copy stays after the merge (the `docs/handoff` copy stays too). In `docs/index.md` section 1.6 change the status of the `superpowers/plans` S5 plan row only (not the `handoff/` row) to `S5a executed; holds the S5b outline` with the sed below, then:
 
 ```bash
-git checkout dev
-git merge --no-ff refactor/s5a-collection-api -m "Merge refactor/s5a-collection-api into dev
-
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
-```
-
-- [ ] **Step 7: Keep the plan for S5b**
-
-The plan holds the S5b outline, so it stays on dev. In `docs/index.md` section 1.6 change the S5 plan row status to `S5a executed; holds the S5b outline`, then:
-
-```bash
+sed -i '/(superpowers\/plans\/.*modularization-s5-collection/s/| In progress |$/| S5a executed; holds the S5b outline |/' docs/index.md
 pnpm docs:check 2>&1 | tail -3
 git add docs/index.md
 git commit -m "docs: mark S5a executed in the plan index
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015GXgWsghnfykNXQ8sJ5BRx"
 ```
 
-Expected: docs check failure count equals the Task 0 baseline. Do not push `origin dev` until the developer says so.
+Expected: docs check failure count equals the Task 0 baseline.
 
 ---
 
 ## S5b outline (collection web, branch `refactor/s5b-collection-web`)
 
-To be written as its own plan from dev after S5a merges; that plan's Task 0 removes this file and its index row. Counts below were taken at `a101ad7c` (before F4b and S1b) and must be recounted in S5b Task 0, because F4b and S1b rewrite `pathways-client.ts` imports and mocks.
+To be written as its own plan from dev after S5a merges; that plan's Task 0 removes the docs/superpowers/plans copy and its index row with a sed that matches only that row; the docs/handoff copy stays. Counts below were taken at `a101ad7c` (before F4b and S1b) and must be recounted in S5b Task 0, because F4b and S1b rewrite `pathways-client.ts` imports and mocks.
 
 - **Task 0, baseline:** recount every number below; confirm the F4b and S1b exports listed under "Interfaces assumed"; record web Middleware.
-- **Task 1, `lib/api/forms.ts` and `lib/api/imports.ts`:** move the 14 form metadata and direct entry methods (`getDigitalForms` to `submitDirectSubmission`) and the 10 import methods (`getImportBatches` to `processImport`) out of `pathways-client.ts` as `formsClient` and `importsClient` with the same signatures, on F4b's `requestFoundation`. Request bodies take the S5a contract types where they are identical (`ValidateImportRequest` for `validateImport`, the F3b deferral; `SaveImportMappingRequest['mappings']` for `ImportMappingInput` only if a characterization test shows the same JSON). Add the types-only response contracts of S5a ruling 15 (`packages/shared/src/contracts/imports/import-responses.ts`, `contracts/metadata/form-responses.ts`), annotate the api mappers and read functions with them so `pnpm typecheck` catches drift, and replace `ImportBatchDefinition`, `ImportRowsPage`, `DigitalFormDefinition` and `DirectFormSubmission` in `types/pathways.ts` where they match; nothing parses responses at runtime (CR 3.6). 18 files reference the methods (7 production: `collection-workspace.tsx`, `import-workspace.tsx`, `direct-form-entry-workspace.tsx`, `beneficiary-detail.tsx`, `beneficiary-detail-loader.tsx`, `project-indicators-workspace.tsx` and the client); 10 of the 56 `vi.mock('@/lib/services/pathways-client', ...)` factories define one and must split into a second mock of the new module in the same commit, counted before and after. `collection-workspace.test.tsx` already has an `activitiesClient` mock beside its `pathwaysClient` factory after S2b, and after S3b a `vi.mock('@/lib/api/indicators', ...)` split off that factory (`getIndicators`), while `collection-workspace.extend-projects.test.tsx` gets `indicatorsClient: api` and `collection-workspace.tsx` calls `indicatorsClient.getIndicators`; add the new mocks beside them and do not delete any. SAD: `apps/web/src/lib/api/**/*.ts` already routes to beneficiary-privacy-guardian from F4b.
+- **Task 1, `lib/api/forms.ts` and `lib/api/imports.ts`:** move the 13 form metadata and direct entry methods (`getDigitalForms` to `submitDirectSubmission`) and the 9 import methods (`getImportBatches` to `processImport`) out of `pathways-client.ts` as `formsClient` and `importsClient` with the same signatures, on F4b's `requestFoundation`. Request bodies take the S5a contract types where they are identical (`ValidateImportRequest` for `validateImport`, the F3b deferral; `SaveImportMappingRequest['mappings']` for `ImportMappingInput` only if a characterization test shows the same JSON). Add the types-only response contracts of S5a ruling 15 (`packages/shared/src/contracts/imports/import-responses.ts`, `contracts/metadata/form-responses.ts`), annotate the api mappers and read functions with them so `pnpm typecheck` catches drift, and replace `ImportBatchDefinition`, `ImportRowsPage`, `DigitalFormDefinition` and `DirectFormSubmission` in `types/pathways.ts` where they match; nothing parses responses at runtime (CR 3.6). 18 files reference the methods (7 production: `collection-workspace.tsx`, `import-workspace.tsx`, `direct-form-entry-workspace.tsx`, `beneficiary-detail.tsx`, `beneficiary-detail-loader.tsx`, `features/projects/indicators/components/project-indicators-workspace.tsx` and the client); 10 of the 41 `vi.mock('@/lib/services/pathways-client', ...)` factories define one and must split into a second mock of the new module in the same commit, counted before and after. `collection-workspace.test.tsx` already has an `activitiesClient` mock beside its `pathwaysClient` factory after S2b, and after S3b a `vi.mock('@/lib/api/indicators', ...)` split off that factory (`getIndicators`), while `collection-workspace.extend-projects.test.tsx` gets `indicatorsClient: api` and `collection-workspace.tsx` calls `indicatorsClient.getIndicators`; add the new mocks beside them and do not delete any. SAD: `apps/web/src/lib/api/**/*.ts` already routes to beneficiary-privacy-guardian from F4b.
 - **Task 2, one import flow (MOD-07):** characterization tests first for both drivers: the collection screen's one-shot flow (upload, automatic mapping, save mapping, validate, then `processImport` repeated until the batch completes, a call fails or the user stops) and the import screen's reviewed flow (one checkpoint per click, value maps, ownership checks in `import-workspace.ownership.test.tsx`). Then `features/collection/hooks/use-import-batch.ts` holds the shared batch state, request ownership (F4b `captureRequestOwner`) and step calls; each screen keeps its own process policy as a parameter, so neither screen's clicks, texts or request sequence change. Record any difference the tests find as a ruling instead of unifying it.
 - **Task 3, `collection-workspace.tsx` (3182 lines):** split `OwnedCollectionWorkspace` (about 1560 lines, 40 `useState`, 18 direct client calls) into hooks (`use-form-builder`, `use-form-list`, the Task 2 hook) and move the 14 inline components (`FormsGeneratorView`, `BuilderView`, `FormInfoPanel`, `JourneyStageSelector`, `FieldEditor`, `ToggleRow`, `MetadataMapPanel`, `FormPreviewPanel`, `ImportView`, `SummaryMetric`, `MappingTable`, `DataPreview`, `ImportValidationPanel`, `SummaryPill`; the audit counted 11) into `features/collection/components/`, one per file, verbatim. The 1632-line `collection-workspace.test.tsx` splits by concern as `collection-workspace.<concern>.test.tsx`.
 - **Task 4, `import-workspace.tsx` (1130) and `direct-form-entry-workspace.tsx` (657):** split by component and hook, verbatim, with characterization tests first where the existing tests do not render the moved part.
 - **Task 5, `features/collection` layout:** the folder has 37 files; move components and hooks into subfolders, `import-status-labels.ts` and `formTypeLabels` into `collection.copy.ts`, pure helpers into `collection.utils.ts`; add `features/collection/index.ts` and repoint the six route pages and `features/beneficiaries/beneficiary-form.tsx` (`FormDefinitionEntryField`) through it; add `'collection'` to S1b's `indexedFeatures` in `apps/web/src/import-direction.test.ts` and `'@/features/collection'` to `experimental.optimizePackageImports` in `apps/web/next.config.ts`, instead of writing a new rule.
 - **Task 6, web types:** `form-builder-session-draft.ts` `formTypes` and `types/pathways.ts` `DigitalFormType` become the shared `digitalFormTypes` and `DigitalFormType` (identical seven codes, pinned by a test before the copies go); other collection view models stay where the contracts do not cover them.
 - **Task 7, records:** CR 3.3 and section 9 S5b disposition, audit MOD-05, MOD-06, MOD-07, MOD-15 and MOD-16 (collection parts), index, activity log.
-- **Task 8, gates and merge:** as S5a Task 9 (SAD evidence under `.tmp/sad/s5b/`), with Middleware measured and a smoke over every collection screen, both import flows, direct entry, the beneficiary form's dynamic fields and the project indicators screen. After merge, remove this plan and its index row.
+- **Task 8, gates and merge:** as S5a Task 9 (SAD evidence under `.tmp/sad/s5b/`), with Middleware measured and a smoke over every collection screen, both import flows, direct entry, the beneficiary form's dynamic fields and the project indicators screen. After the developer merges, remove the `docs/superpowers/plans` copy and its index row with a sed that matches only that row (the `docs/handoff` copy and its rows stay).

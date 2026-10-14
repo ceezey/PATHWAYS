@@ -1,7 +1,8 @@
 'use client'
 
 import { ProgressBar, StatusBadge } from '@/components/pathways'
-import type { Activity, ProjectIndicator, ProjectTeamMember } from '@/types/pathways'
+import type { Activity, ProjectTeamMember } from '@/types/pathways'
+import type { IndicatorResponse } from '@pathways/shared'
 
 import { activityBudgetFigures, categoryLabel, toneFor } from '../../budget-module/budget-math'
 import { formatCurrency, formatDate } from '../activities.utils'
@@ -51,13 +52,13 @@ export const ActivityTeam = ({
   )
 }
 
-const cellValue = (cell: ProjectIndicator['current']) =>
+const cellValue = (cell: IndicatorResponse['current']) =>
   cell.state === 'AVAILABLE' || cell.state === 'ZERO' ? Number(cell.value) : null
 
 /** Connected indicators as actual against target, the way the monitoring tab reads them. */
 export const ActivityIndicators = ({
   rows,
-}: { rows: Array<{ id: string; code: string; label: string; row?: ProjectIndicator }> }) => {
+}: { rows: Array<{ id: string; code: string; label: string; row?: IndicatorResponse }> }) => {
   if (rows.length === 0)
     return (
       <p className="rounded-lg border border-dashed border-border p-3 text-sm text-muted-foreground">

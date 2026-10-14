@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common'
 import { IndicatorsModule } from '../indicators/indicators.module'
-import { EvaluationMetricsService } from './evaluation-metrics'
+import { EvaluationMetricsService } from './evaluation-metrics.service'
 import { EvaluationsController } from './evaluations.controller'
 import { EvaluationsService } from './evaluations.service'
 

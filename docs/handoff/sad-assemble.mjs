@@ -34,11 +34,19 @@ for (const [role, paths] of Object.entries(manifest.required_subagents)) {
   for (const line of fs.readFileSync(file, 'utf8').split(/\r?\n/)) {
     const parts = line.split('|')
     if (parts[0] === 'PASS' && parts.length >= 3)
-      seen.set(parts[1].trim(), { status: 'PASS', lines: [], evidence: parts.slice(2).join('|').trim(), fix: 'None.' })
+      seen.set(parts[1].trim(), {
+        status: 'PASS',
+        lines: [],
+        evidence: parts.slice(2).join('|').trim(),
+        fix: 'None.',
+      })
     else if (parts[0] === 'BLOCKED' && parts.length >= 5)
       seen.set(parts[1].trim(), {
         status: 'BLOCKED',
-        lines: parts[2].split(',').map((n) => Number(n.trim())).filter((n) => Number.isInteger(n) && n > 0),
+        lines: parts[2]
+          .split(',')
+          .map((n) => Number(n.trim()))
+          .filter((n) => Number.isInteger(n) && n > 0),
         evidence: parts[3].trim(),
         fix: parts.slice(4).join('|').trim(),
       })
@@ -58,7 +66,11 @@ for (const [role, paths] of Object.entries(manifest.required_subagents)) {
     })
   }
 }
-evaluations.sort((a, b) => a.subagent.localeCompare(b.subagent) || a.findings.file_path.localeCompare(b.findings.file_path))
+evaluations.sort(
+  (a, b) =>
+    a.subagent.localeCompare(b.subagent) ||
+    a.findings.file_path.localeCompare(b.findings.file_path),
+)
 fs.writeFileSync(
   path.join(dir, 'reviews.json'),
   `${JSON.stringify({ change_digest: manifest.change_digest, subagent_evaluations: evaluations }, null, 2)}\n`,
@@ -66,4 +78,5 @@ fs.writeFileSync(
 const blocked = evaluations.filter((e) => e.status === 'BLOCKED')
 console.log(`entries=${evaluations.length} blocked=${blocked.length} problems=${problems.length}`)
 for (const p of problems) console.log(`PROBLEM ${p}`)
-for (const b of blocked) console.log(`BLOCKED ${b.subagent} ${b.findings.file_path}: ${b.findings.violation_evidence}`)
+for (const b of blocked)
+  console.log(`BLOCKED ${b.subagent} ${b.findings.file_path}: ${b.findings.violation_evidence}`)

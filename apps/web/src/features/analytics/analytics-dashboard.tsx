@@ -43,6 +43,7 @@ import { useAuthorizedRead } from '@/hooks/use-authorized-read'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'
 import { activitiesClient } from '@/lib/api/activities'
+import { indicatorsClient } from '@/lib/api/indicators'
 import { projectsClient } from '@/lib/api/projects'
 import { addPin } from '@/lib/dashboard-pins'
 import { formatCalendarDay } from '@/lib/format/date'
@@ -56,9 +57,10 @@ import {
   pathwaysClient,
 } from '@/lib/services/pathways-client'
 import { rulesHumanClient } from '@/lib/services/rules-human-client'
-import type { ActivitySummary, ProjectIndicator, ProjectSummary } from '@/types/pathways'
+import type { ActivitySummary, ProjectSummary } from '@/types/pathways'
 import {
   type DescriptiveAnalytics,
+  type IndicatorResponse,
   type MetricCell,
   type MonitoringDashboard,
   type SadddDashboard,
@@ -211,7 +213,7 @@ export const AnalyticsDashboard = () => {
   const [analysisView, setAnalysisView] = useState<AnalysisView>('kpi')
   const [visualizationType, setVisualizationType] = useState<VisualizationType>('bar')
   const [indicatorId, setIndicatorId] = useState('all')
-  const [indicatorDefinitions, setIndicatorDefinitions] = useState<ProjectIndicator[]>([])
+  const [indicatorDefinitions, setIndicatorDefinitions] = useState<IndicatorResponse[]>([])
   const [monitoring, setMonitoring] = useState<MonitoringDashboard | null>(null)
   const [saddd, setSaddd] = useState<SadddDashboard | null>(null)
   const [activities, setActivities] = useState<ActivitySummary[]>([])
@@ -367,10 +369,10 @@ export const AnalyticsDashboard = () => {
         ? activitiesClient.getActivities(projectId)
         : Promise.resolve<ActivitySummary[]>([]),
       canReadIndicatorDefinitions
-        ? pathwaysClient.getProjectIndicators(projectId)
+        ? indicatorsClient.getProjectIndicators(projectId)
         : canReadIndicatorValues
-          ? pathwaysClient.getProjectIndicatorValues(projectId)
-          : Promise.resolve<ProjectIndicator[]>([]),
+          ? indicatorsClient.getProjectIndicatorValues(projectId)
+          : Promise.resolve<IndicatorResponse[]>([]),
     ])
       .then(([nextActivities, nextIndicators]) => {
         if (!active) return

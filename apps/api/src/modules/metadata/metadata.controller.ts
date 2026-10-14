@@ -1,7 +1,6 @@
 import {
   Body,
   Controller,
-  ForbiddenException,
   Get,
   Header,
   Inject,
@@ -14,27 +13,32 @@ import {
   StreamableFile,
 } from '@nestjs/common'
 
-import type { AuthenticatedRequest } from '../../common/authz/application-identity'
-import { RequirePermission } from '../../common/decorators/permission.decorator'
-import { FormDefinitionExportService } from './form-definition-export.service'
-// biome-ignore lint/style/useImportType: Nest validation needs the DTO constructors at runtime.
 import {
-  CreateFormDto,
-  ExpectedVersionDto,
-  GenerateFormDto,
-  ListSubmissionsQueryDto,
-  SaveSubmissionDto,
-  SubmitSubmissionDto,
-  UpdateFormDto,
-  UpdateSubmissionDto,
-  ValidateValuesDto,
-} from './metadata.dto'
+  type CreateFormRequest,
+  type FormVersionRequest,
+  type GenerateFormRequest,
+  type ListSubmissionsQuery,
+  type SaveSubmissionRequest,
+  type SubmitSubmissionRequest,
+  type UpdateFormRequest,
+  type UpdateSubmissionRequest,
+  type ValidateFormValuesRequest,
+  createFormRequest,
+  formVersionRequest,
+  generateFormRequest,
+  listSubmissionsQuery,
+  saveSubmissionRequest,
+  submitSubmissionRequest,
+  updateFormRequest,
+  updateSubmissionRequest,
+  validateFormValuesRequest,
+} from '@pathways/shared'
+import type { AuthenticatedRequest } from '../../common/authz/application-identity'
+import { requestIdentity } from '../../common/authz/request-identity'
+import { RequirePermission } from '../../common/decorators/permission.decorator'
+import { ZodPipe } from '../../common/validation/zod-pipe'
+import { FormDefinitionExportService } from './form-definition-export.service'
 import { MetadataService } from './metadata.service'
-
-function profile(request: AuthenticatedRequest) {
-  if (!request.user) throw new ForbiddenException('Application profile is required.')
-  return request.user
-}
 
 @Controller('metadata/projects/:projectId/forms')
 export class MetadataController {
@@ -46,7 +50,7 @@ export class MetadataController {
   @Get()
   @RequirePermission('forms.read')
   list(@Req() request: AuthenticatedRequest, @Param('projectId') projectId: string) {
-    return this.metadata.listForms(profile(request), projectId)
+    return this.metadata.listForms(requestIdentity(request), projectId)
   }
 
   @Post()
@@ -54,9 +58,9 @@ export class MetadataController {
   create(
     @Req() request: AuthenticatedRequest,
     @Param('projectId') projectId: string,
-    @Body() body: CreateFormDto,
+    @Body(new ZodPipe(createFormRequest)) body: CreateFormRequest,
   ) {
-    return this.metadata.createForm(profile(request), projectId, body)
+    return this.metadata.createForm(requestIdentity(request), projectId, body)
   }
 
   @Post('generate')
@@ -64,9 +68,9 @@ export class MetadataController {
   generate(
     @Req() request: AuthenticatedRequest,
     @Param('projectId') projectId: string,
-    @Body() body: GenerateFormDto,
+    @Body(new ZodPipe(generateFormRequest)) body: GenerateFormRequest,
   ) {
-    return this.metadata.generateForm(profile(request), projectId, body)
+    return this.metadata.generateForm(requestIdentity(request), projectId, body)
   }
 
   @Get(':formId')
@@ -76,7 +80,7 @@ export class MetadataController {
     @Param('projectId') projectId: string,
     @Param('formId') formId: string,
   ) {
-    return this.metadata.getForm(profile(request), projectId, formId)
+    return this.metadata.getForm(requestIdentity(request), projectId, formId)
   }
 
   @Get(':formId/export')
@@ -89,7 +93,7 @@ export class MetadataController {
     @Query('format') format: unknown,
     @Res({ passthrough: true }) res: { setHeader: (name: string, value: string) => void },
   ) {
-    const result = await this.formExport.export(profile(request), projectId, formId, format)
+    const result = await this.formExport.export(requestIdentity(request), projectId, formId, format)
     res.setHeader('Content-Type', result.contentType)
     res.setHeader('Content-Disposition', `attachment; filename="${result.fileName}"`)
     res.setHeader('X-Content-Type-Options', 'nosniff')
@@ -102,9 +106,9 @@ export class MetadataController {
     @Req() request: AuthenticatedRequest,
     @Param('projectId') projectId: string,
     @Param('formId') formId: string,
-    @Body() body: UpdateFormDto,
+    @Body(new ZodPipe(updateFormRequest)) body: UpdateFormRequest,
   ) {
-    return this.metadata.updateForm(profile(request), projectId, formId, body)
+    return this.metadata.updateForm(requestIdentity(request), projectId, formId, body)
   }
 
   @Post(':formId/publish')
@@ -113,9 +117,9 @@ export class MetadataController {
     @Req() request: AuthenticatedRequest,
     @Param('projectId') projectId: string,
     @Param('formId') formId: string,
-    @Body() body: ExpectedVersionDto,
+    @Body(new ZodPipe(formVersionRequest)) body: FormVersionRequest,
   ) {
-    return this.metadata.publishForm(profile(request), projectId, formId, body)
+    return this.metadata.publishForm(requestIdentity(request), projectId, formId, body)
   }
 
   @Post(':formId/archive')
@@ -124,9 +128,9 @@ export class MetadataController {
     @Req() request: AuthenticatedRequest,
     @Param('projectId') projectId: string,
     @Param('formId') formId: string,
-    @Body() body: ExpectedVersionDto,
+    @Body(new ZodPipe(formVersionRequest)) body: FormVersionRequest,
   ) {
-    return this.metadata.archiveForm(profile(request), projectId, formId, body)
+    return this.metadata.archiveForm(requestIdentity(request), projectId, formId, body)
   }
 
   @Post(':formId/versions')
@@ -136,7 +140,7 @@ export class MetadataController {
     @Param('projectId') projectId: string,
     @Param('formId') formId: string,
   ) {
-    return this.metadata.newVersion(profile(request), projectId, formId)
+    return this.metadata.newVersion(requestIdentity(request), projectId, formId)
   }
 
   @Post(':formId/validate')
@@ -145,9 +149,9 @@ export class MetadataController {
     @Req() request: AuthenticatedRequest,
     @Param('projectId') projectId: string,
     @Param('formId') formId: string,
-    @Body() body: ValidateValuesDto,
+    @Body(new ZodPipe(validateFormValuesRequest)) body: ValidateFormValuesRequest,
   ) {
-    return this.metadata.validateValues(profile(request), projectId, formId, body.values)
+    return this.metadata.validateValues(requestIdentity(request), projectId, formId, body.values)
   }
 
   @Post(':formId/submissions')
@@ -156,9 +160,9 @@ export class MetadataController {
     @Req() request: AuthenticatedRequest,
     @Param('projectId') projectId: string,
     @Param('formId') formId: string,
-    @Body() body: SaveSubmissionDto,
+    @Body(new ZodPipe(saveSubmissionRequest)) body: SaveSubmissionRequest,
   ) {
-    return this.metadata.saveSubmission(profile(request), projectId, formId, body)
+    return this.metadata.saveSubmission(requestIdentity(request), projectId, formId, body)
   }
 
   @Get(':formId/submissions')
@@ -167,9 +171,9 @@ export class MetadataController {
     @Req() request: AuthenticatedRequest,
     @Param('projectId') projectId: string,
     @Param('formId') formId: string,
-    @Query() query: ListSubmissionsQueryDto,
+    @Query(new ZodPipe(listSubmissionsQuery)) query: ListSubmissionsQuery,
   ) {
-    return this.metadata.listSubmissions(profile(request), projectId, formId, query)
+    return this.metadata.listSubmissions(requestIdentity(request), projectId, formId, query)
   }
 
   @Get(':formId/submissions/:submissionId')
@@ -180,7 +184,7 @@ export class MetadataController {
     @Param('formId') formId: string,
     @Param('submissionId') submissionId: string,
   ) {
-    return this.metadata.getSubmission(profile(request), projectId, formId, submissionId)
+    return this.metadata.getSubmission(requestIdentity(request), projectId, formId, submissionId)
   }
 
   @Get(':formId/submissions/by-client/:clientSubmissionId')
@@ -192,7 +196,7 @@ export class MetadataController {
     @Param('clientSubmissionId') clientSubmissionId: string,
   ) {
     return this.metadata.getSubmissionByClientId(
-      profile(request),
+      requestIdentity(request),
       projectId,
       formId,
       clientSubmissionId,
@@ -206,9 +210,15 @@ export class MetadataController {
     @Param('projectId') projectId: string,
     @Param('formId') formId: string,
     @Param('submissionId') submissionId: string,
-    @Body() body: UpdateSubmissionDto,
+    @Body(new ZodPipe(updateSubmissionRequest)) body: UpdateSubmissionRequest,
   ) {
-    return this.metadata.updateSubmission(profile(request), projectId, formId, submissionId, body)
+    return this.metadata.updateSubmission(
+      requestIdentity(request),
+      projectId,
+      formId,
+      submissionId,
+      body,
+    )
   }
 
   @Post(':formId/submissions/:submissionId/validate')
@@ -219,7 +229,12 @@ export class MetadataController {
     @Param('formId') formId: string,
     @Param('submissionId') submissionId: string,
   ) {
-    return this.metadata.validateSubmission(profile(request), projectId, formId, submissionId)
+    return this.metadata.validateSubmission(
+      requestIdentity(request),
+      projectId,
+      formId,
+      submissionId,
+    )
   }
 
   @Post(':formId/submissions/:submissionId/submit')
@@ -229,8 +244,14 @@ export class MetadataController {
     @Param('projectId') projectId: string,
     @Param('formId') formId: string,
     @Param('submissionId') submissionId: string,
-    @Body() body: SubmitSubmissionDto,
+    @Body(new ZodPipe(submitSubmissionRequest)) body: SubmitSubmissionRequest,
   ) {
-    return this.metadata.submitSubmission(profile(request), projectId, formId, submissionId, body)
+    return this.metadata.submitSubmission(
+      requestIdentity(request),
+      projectId,
+      formId,
+      submissionId,
+      body,
+    )
   }
 }

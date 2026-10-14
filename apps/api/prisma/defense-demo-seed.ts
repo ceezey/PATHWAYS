@@ -8,21 +8,24 @@ import { ActivityProofFinalizeService } from '../src/modules/activities/activity
 import { ActivityProofsService } from '../src/modules/activities/activity-proofs.service'
 import { ActivityReviewService } from '../src/modules/activities/activity-review.service'
 import { BeneficiariesService } from '../src/modules/beneficiaries/beneficiaries.service'
+import { BeneficiaryRegistrationService } from '../src/modules/beneficiaries/beneficiary-registration.service'
 import { DashboardsService } from '../src/modules/dashboards/dashboards.service'
-import { EvaluationMetricsService } from '../src/modules/evaluations/evaluation-metrics'
+import { EvaluationMetricsService } from '../src/modules/evaluations/evaluation-metrics.service'
 import { EvaluationsService } from '../src/modules/evaluations/evaluations.service'
 import { FinanceService } from '../src/modules/finance/finance.service'
+import type { ReceiptPdfRenderer } from '../src/modules/finance/receipt-pdf.renderer'
 import { ImportsService } from '../src/modules/imports/imports.service'
 import { IndicatorLibraryService } from '../src/modules/indicators/indicator-library.service'
 import { IndicatorMeasurementsService } from '../src/modules/indicators/indicator-measurements.service'
 import { IndicatorsService } from '../src/modules/indicators/indicators.service'
 import { MetadataService } from '../src/modules/metadata/metadata.service'
+import { BeneficiaryJourneyService } from '../src/modules/participants/beneficiary-journey.service'
+import { JourneyStagesService } from '../src/modules/participants/journey-stages.service'
 import { ParticipantsService } from '../src/modules/participants/participants.service'
 import { ProjectOverviewMetricsService } from '../src/modules/projects/project-overview-metrics.service'
 import { ProjectsService } from '../src/modules/projects/projects.service'
 import { PublicService } from '../src/modules/public/public.service'
-import type { ReceiptPdfRenderer } from '../src/modules/report-pdf/receipt-pdf.renderer'
-import type { ReportPdfRenderer } from '../src/modules/report-pdf/report-pdf.renderer'
+import type { ReportPdfRenderer } from '../src/modules/reports/report-pdf.renderer'
 import { ReportsService } from '../src/modules/reports/reports.service'
 import { RulesHumanService } from '../src/modules/rules/rules-human.service'
 import { privateStorageFactories } from '../src/modules/storage/private-storage-factories'
@@ -122,7 +125,8 @@ async function seed(owner: PrismaClient, testLocal: boolean) {
 
     const storage = new StorageService()
     const participants = new ParticipantsService(runtime)
-    const beneficiaries = new BeneficiariesService(runtime)
+    const registration = new BeneficiaryRegistrationService()
+    const beneficiaries = new BeneficiariesService(runtime, registration)
     const indicators = new IndicatorsService(runtime)
     const drainRules =
       localWorkerDrain(process.env) ??
@@ -159,8 +163,9 @@ async function seed(owner: PrismaClient, testLocal: boolean) {
         library: new IndicatorLibraryService(runtime, indicators),
         beneficiaries,
         metadata: new MetadataService(runtime, participants),
-        participants,
-        imports: new ImportsService(runtime, storage, beneficiaries, participants),
+        journeyStages: new JourneyStagesService(runtime),
+        beneficiaryJourney: new BeneficiaryJourneyService(runtime),
+        imports: new ImportsService(runtime, storage, registration, participants),
         finance: new FinanceService(
           runtime,
           storage,

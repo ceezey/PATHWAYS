@@ -12,7 +12,7 @@ import type { Prisma } from '@prisma/client'
 import { writeAuditLog } from '../../common/audit/write-audit-log'
 import { type ApplicationIdentity, UUID_PATTERN } from '../../common/authz/application-identity'
 import { withAuthorizedOperation } from '../../common/authz/authorized-operation'
-import { projectScope } from '../../common/authz/project-scope'
+import { requireScopedProject } from '../../common/authz/scoped-project'
 import type { Tx } from '../../common/prisma/transaction'
 import { PrismaService } from '../../prisma/prisma.service'
 import {
@@ -148,18 +148,13 @@ export class FormDefinitionExportService {
   }
 
   private async readForm(tx: Tx, actor: ApplicationIdentity, projectId: string, formId: string) {
-    if (!UUID_PATTERN.test(projectId)) throw new NotFoundException('Project unavailable.')
-    const project = await tx.project.findFirst({
-      where: { AND: [projectScope(actor), { id: projectId.toLowerCase() }] },
-      select: { id: true },
-    })
-    if (!project) throw new NotFoundException('Project unavailable.')
+    const scopedProjectId = await requireScopedProject(tx, actor, projectId)
     if (!UUID_PATTERN.test(formId)) throw new NotFoundException('Form unavailable.')
     const form = await tx.digitalForm.findFirst({
       where: {
         id: formId.toLowerCase(),
         organizationId: actor.organizationId,
-        projectId: project.id,
+        projectId: scopedProjectId,
       },
       select: exportSelection,
     })

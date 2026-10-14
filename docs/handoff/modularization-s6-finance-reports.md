@@ -12,9 +12,9 @@
 
 ## Rulings
 
-Controller rulings for S6. Each was checked against `refactor/f4a-web-boundaries` `a101ad7c` and rechecked on dev `675a0b58`, which differs only in `docs/activity-log.md`. F4b and S1 to S5 land before S6; none of them is expected to touch the S6 api files, and Task 0 stops on any hash or count that differs.
+Controller rulings for S6. Each was checked against `refactor/f4a-web-boundaries` `a101ad7c` and rechecked on dev `675a0b58`, which differs only in `docs/activity-log.md`. F4b and S1 to S5 land before S6; none of them is expected to touch the S6 api files, and Task 0 stops on any hash or count that differs. Re-scanned on the S3b tip with the S4a and S5a api splits replayed: the 16 hashes, the Task 0 counts, the module pairs and the printed line counts of Tasks 1 to 6 are unchanged.
 
-1. **Split into S6a and S6b.** The S6 row covers four api modules, their contracts, the web client members in `core-feature-client.ts`, the reports feature, the budget module and the evaluation workspace; with baseline, records and gates that is about seventeen tasks. S6a (this plan, branch `refactor/s6a-finance-reports-api`) takes the api and the shared contracts; S6b (outline below, branch `refactor/s6b-finance-reports-web`) takes the web. Both names replace `refactor/s6-finance-reports`; SAD evidence goes to `.tmp/sad/s6a/` and `.tmp/sad/s6b/`.
+1. **Split into S6a and S6b.** The S6 row covers four api modules, their contracts, the web client members in `core-feature-client.ts`, the reports feature, the budget module and the evaluation workspace; with baseline, records and gates that is about seventeen tasks. S6a (this plan, on the slice branch the environment assigns) takes the api and the shared contracts; S6b (outline below, its own slice branch) takes the web. SAD evidence goes to `.tmp/sad/s6a/` and `.tmp/sad/s6b/`.
 2. **The cycle is removed by moving each document renderer to its owner.** `report-pdf/report-pdf.renderer.ts` imported `reports/report-artifact` (`REPORT_MAX_BYTES`, `validatedReportRows`) and `reports/report-project-status` (`ProjectSections`) while `reports` imported the renderer. `ReportPdfRenderer` and its test move to `modules/reports`, `ReceiptPdfRenderer` moves to `modules/finance`, and the folder, which then holds only the Chromium pipeline, becomes `modules/print-pdf` with `PrintPdfModule` providing and exporting `PrintPdfRenderer` once (one shared browser, as today). Moves use `git mv`; the module wiring is a second commit. The only other mutual pair, `dashboards <-> reports`, stays: `dashboards/analytics.service.ts` uses the generic artifact writer `reports/report-artifact.ts`, whose bundled font and coverage files are found by source path at runtime and copied by the `nest-cli.json` asset glob, so moving it changes the hosted bundle, which cannot be verified locally. A new case in `apps/api/src/common/import-boundary.test.ts` fails when two api modules import each other outside the recorded list `['dashboards <-> reports']`; S7 shrinks it. Longer cycles through `dashboards` (for example `dashboards -> reports -> evaluations -> dashboards`) are not pairs and stay for S7.
 3. **Requests stay validated in the service, as in S3 ruling 6.** The three controllers pass `@Body() input: unknown` and `@Query() query: unknown` to services that parse with zod and answer `400 { statusCode: 400, message: '<fixed text>', error: 'Bad Request' }` with a string message (for example `Invalid budget record.`); `ZodPipe` would answer a `message` array. The seeds call the services directly (`finance.budgets` 2, `createBudget` 1, `expenses` 1, `review` 3, `signoff` 1, `submit` 1, `uploadReceipt` 1, `evaluations.createEvaluation` 2, `saveScores` 1, `reports.generate` 1), so a controller pipe would leave those paths unvalidated. No S6 module has a class-validator DTO (MOD-11's 13 modules do not include them; `reports.dto.ts` is a zod module), so there is no DTO parity test: a service-level characterization test per module is written first, commits green against the old schemas, and runs unchanged after the switch (apart from ruling 4). `reports.dto.ts` is deleted (CR 3.2: no `*.dto.ts`).
 4. **The expense amount check no longer throws.** `amount: money.refine((value) => new Prisma.Decimal(value).greaterThan(0))` cannot move into `packages/shared`, which imports only `zod`. The shared contract uses `money.refine((value) => /[1-9]/.test(value))`: on every string the money regex `^(?:0|[1-9]\d{0,15})(?:\.\d{1,2})?$` accepts, the amount is above zero exactly when some digit is 1 to 9. Zod 3 runs a refinement even after the regex failed, and `Prisma.Decimal` throws `[DecimalError] Invalid argument` on `'abc'`, `''` and `' 1'` (probed under Prisma 6.19.2), so those three bodies answered 500; they now answer 400 `Invalid expense submission.`. This is the only accepted difference; Task 2 pins the three rows before and after. The web sends the amount from a `type="number"` input with `min="0.01"` and refuses an empty value first, so no screen sends these strings.
@@ -27,7 +27,7 @@ Controller rulings for S6. Each was checked against `refactor/f4a-web-boundaries
 11. **SAD routing gains api helpers.** `assertReportPermission`, `readableReportKinds`, `kindPermission` and `extraKindRequires` decide which report kinds a role may read; today they sit in `reports.service.ts`, which `apps/api/src/**/*.service.ts` routes to organization-isolation-checker. In `reports.helpers.ts` only `apps/api/src/**` (design-qa-agent) would match, so a later edit to the kind policy would skip the isolation review. Task 7 adds `apps/api/src/**/*.helpers.ts` to organization-isolation-checker (CR 3.2 helpers hold domain rules, and permission rules are among them), with a `scripts/sad/check.test.ts` case and the `docs/sad-pathways.md` row. Every other moved or new file stays under an existing glob: `apps/api/src/**/*.service.ts` (the function modules), `packages/shared/src/contracts/**/*.ts` (beneficiary-privacy-guardian, which also reviews the evaluation assessment move) and S1's `apps/api/src/**/*.mapper.ts`. No glob names `report-pdf`.
 12. **Spec facts corrected by the baseline.** The modules `dashboards`, `evaluations`, `projects`, `report-pdf` and `reports` form one strongly connected group with two mutual pairs (`dashboards <-> reports`, `report-pdf <-> reports`); S6a removes the second. MOD-04 sizes are now `reports.service.ts` 873 (audit 877), `evaluations.service.ts` 809 (audit 846) and `finance.service.ts` 631. MOD-06's `reporting-workspace.tsx` (1132) is production-dead: only its own test imports it, the reports routes render `LiveReportingWorkspace`, and it is the only user of `survey-report-overview.tsx`, `survey-report-utils.ts` and `reportKindPermissions`; S6b deletes it. MOD-08's reports inline lookups (F3a left them to the slices) are handled by ruling 9.
 13. Cross-plan: order with S3b and S2b: S3b runs first and has already deleted the `ProjectIndicator` alias, so `reporting-workspace.tsx` imports `IndicatorResponse` from `@pathways/shared`, calls `indicatorsClient.getProjectIndicators`, and `reporting-workspace.test.tsx` and `reporting-page.test.tsx` mock `@/lib/api/indicators`; S6b Task 1 deletes that chain from S3b's result regardless. S2b leaves the four activity expense files, which S6b claims for `features/projects/budget/` from S1b's layout. S6a imports `metricCellSchema` from the barrel, which S3 keeps; it never imports `monitoring/metric-cell` directly. The keep-in-service validation of ruling 3 is the S3 criterion recorded in the S1 plan. Cost if wrong: a merge conflict in a deleted file, or a stale `features/projects` path in the budget move.
-14. Cross-plan (S1b): S1b leaves `features/projects/` with `components/`, `team/` and `index.ts` and no `hooks/`, and the print receipt route already imports through the feature index, so S6b repoints the index export line. S6b Task 0 recounts the pathways-client mock factories (42 after S1b, not 49). Cost if wrong: S6b looks for a `hooks/` folder or edits a route import that is already correct.
+14. Cross-plan (S1b): S1b leaves `features/projects/` with `components/`, `team/` and `index.ts` and no `hooks/`, and the print receipt route already imports through the feature index, so S6b repoints the index export line. S6b Task 0 recounts the pathways-client mock factories (41 at the S3b tip, 42 after S1b, not 49). Cost if wrong: S6b looks for a `hooks/` folder or edits a route import that is already correct.
 15. Cross-plan (S2b): the S6b repoints of the expense dialogs and the `finance-budgets` read follow S2b's layout (`activities/components/activity-detail-content.tsx`, `activities/hooks/use-activity-expenses.ts`), the budget module already imports `../activities/activities.utils` and `../activities/activities.reads`, and `features/projects/budget/` gets no `index.ts` (S2b measured a sub-index growing `/dashboard` by 23 kB; the feature index lists leaf paths). Cost if wrong: a stale import path in Task 5, or 23 kB on the dashboard route.
 
 ## Global Constraints
@@ -42,11 +42,10 @@ Controller rulings for S6. Each was checked against `refactor/f4a-web-boundaries
 - Format touched files with `pnpm exec biome check --write <files>`; `pnpm lint` must pass before every commit. New untracked files need `git add -N` before `git diff --name-only` lists them; pass `--diff-filter=AMR` so a deleted file is not handed to Biome.
 - `pnpm typecheck` rewrites `apps/web/next-env.d.ts`; run `git checkout -- apps/web/next-env.d.ts` before every commit.
 - After removing code, delete any import name left with no use: `pnpm --filter @pathways/api exec tsc --noEmit --noUnusedLocals 2>&1 | grep -E "modules/(evaluations|reports|finance|print-pdf)/"` must print nothing (Biome 1.9 does not flag unused imports and `tsconfig.base.json` has no `noUnusedLocals`).
-- `git ls-files` with `':!*.test.ts'` pathspecs returns nothing in this Git for Windows setup; filter with `grep -v` as written. `git grep` pathspecs work.
 - The line counts the scripts print are split lengths, one more than `wc -l` for a file that ends with a newline.
 - One-off scripts live in `.tmp/s6a/` (gitignored) and are never committed; `.tmp/` also holds logs.
-- Commit messages end with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
-- Work in `C:\PATHWAYS` on branch `refactor/s6a-finance-reports-api`; no new worktree. All paths are relative to `C:\PATHWAYS`. Do not push.
+- Commit messages end with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>` and, on the next line, `Claude-Session: https://claude.ai/code/session_015GXgWsghnfykNXQ8sJ5BRx`.
+- Work in the repository root on the slice branch the environment assigns (stacked on S5a); no new worktree. All paths are relative to the repository root. Only the controller pushes the slice branch, at task-pair boundaries; nobody pushes `dev` or `master`.
 - Do not touch migrations, `.env` files, review evidence or `apps/web`; under `apps/api/prisma` only the import specifiers that `repoint.mjs` rewrites in `local-demo-seed.ts` and `defense-demo-seed.ts` change.
 
 ## Review Focus
@@ -98,24 +97,24 @@ MOD-09 and MOD-13 for finance and reports were closed by F3a and F3b; MOD-B1 and
 ### Task 0: Branch setup and baseline
 
 **Files:**
-- Create: `docs/superpowers/plans/2026-10-12-modularization-s6-finance-reports.md` (this plan)
+- Create: `docs/superpowers/plans/<date>-modularization-s6-finance-reports.md` (this plan; `<date>` from `date +%F`)
 - Modify: `docs/index.md` (section 1.6 plan row)
 
-- [ ] **Step 1: Confirm local dev contains S5 and create the branch**
+- [ ] **Step 1: Confirm the stacked branch holds S3b, S4a and S5a**
 
 ```bash
-cd /c/PATHWAYS
+cd "$(git rev-parse --show-toplevel)"
 git status --short
-git checkout dev
-git log --oneline dev | grep -m1 -E "Merge refactor/s5[ab]?-"
-git log --oneline dev | grep -m1 "Merge refactor/f4b-web-helpers"
-ls docs/superpowers/plans | grep modularization
-git checkout -b refactor/s6a-finance-reports-api
-pnpm install --frozen-lockfile
+test -f apps/web/src/lib/api/indicators.ts && echo "S3b present"
+test -f apps/api/src/modules/beneficiaries/beneficiary-registration.service.ts && echo "S4a present"
+test -f apps/api/src/modules/metadata/form-definitions.service.ts && echo "S5a present"
+test -f apps/web/src/hooks/use-authorized-read.ts && test -f apps/api/src/common/authz/request-identity.ts && echo "F4b and S1 kernel present"
+ls docs/superpowers/plans/
 mkdir -p .tmp/s6a
+git rev-parse HEAD > .tmp/s6a/base-sha
 ```
 
-Expected: clean status, an S5 merge commit and the F4b merge commit printed, install succeeds. If either merge is missing, stop and report: S6a builds on the S5 tree. Write down the listed modularization plans; an executed plan that is still listed is reported, not removed here.
+Expected: clean status and `S3b present`, `S4a present`, `S5a present` and `F4b and S1 kernel present` printed. The branch is the one the environment assigned (S3b's, S4a's and S5a's, stacked while their pull request is open); do not create refactor/s6a-finance-reports-api. S4b and S5b (web slices) are not required: S6a touches no web file. `.tmp/s6a/base-sha` holds the S6a base (the SAD base of Task 8 Step 4). Dependencies are already installed in the cloud container; do not run pnpm install (the rulings log records the S3b install workaround). If a marker is missing, stop and report: S6a builds on the S3b, S4a and S5a tree. Write down the listed modularization plans; an executed plan that is still listed is reported, not removed here.
 
 - [ ] **Step 2: Create the module pair script**
 
@@ -158,8 +157,8 @@ console.log(pairs.join('\n') || 'no pairs')
 
 ```bash
 pnpm --filter @pathways/shared build
-pnpm typecheck && pnpm test 2>&1 | grep -E "Tests +[0-9]+"
-pnpm sad:test 2>&1 | grep -E "Tests +[0-9]+"
+pnpm typecheck && pnpm test 2>&1 | sed 's/\x1b\[[0-9;]*m//g' | grep -E "Test Files|Tests +[0-9]+"
+pnpm sad:test 2>&1 | sed 's/\x1b\[[0-9;]*m//g' | grep -E "Tests +[0-9]+"
 pnpm docs:check 2>&1 | tail -3
 git hash-object apps/api/src/modules/finance/finance.service.ts apps/api/src/modules/evaluations/evaluations.service.ts apps/api/src/modules/evaluations/evaluations.service.test.ts apps/api/src/modules/evaluations/evaluation-metrics.ts apps/api/src/modules/evaluations/evaluation-metrics.test.ts apps/api/src/modules/evaluations/evaluation-criteria-template.ts apps/api/src/modules/reports/reports.service.ts apps/api/src/modules/reports/reports.service.test.ts apps/api/src/modules/reports/reports.dto.ts apps/api/src/modules/reports/report-sources-extra.ts apps/api/src/modules/reports/report-project-status-source.ts apps/api/src/modules/report-pdf/report-pdf.module.ts apps/api/src/modules/report-pdf/report-pdf.renderer.ts apps/api/src/modules/report-pdf/receipt-pdf.renderer.ts apps/api/src/modules/report-pdf/print-pdf.renderer.ts apps/api/src/modules/report-pdf/report-pdf.renderer.test.ts
 node .tmp/s6a/module-pairs.mjs
@@ -167,10 +166,12 @@ git grep -n "Prisma.TransactionClient" -- apps/api/src/modules/finance apps/api/
 git grep -nwE "createBudgetRequest|replaceBudgetRequest|submitExpenseRequest|reviewExpenseRequest|uploadExpenseReceiptRequest|createEvaluationRequest|saveEvaluationScoresRequest|submitEvaluationRequest|returnEvaluationRequest|signOffEvaluationRequest|enrollmentAssessmentsQuery|reportPreviewQuery|generateReportRequest|PrintPdfModule|loadReportSource|ReportSourceDeps|reserveReport|finalizeReport|assertReportPermission|readableReportKinds|admitReceiptUpload|admitReceiptRead|readOfficialReceipt" -- apps packages | wc -l
 grep -c "A domain whose services are also called by seeds" docs/cr-pathways-codebase-modularization.md
 grep -c "'apps/api/src/\*\*/\*.helpers.ts'" scripts/sad/check.ts
+rm -rf apps/web/.next && pnpm --filter @pathways/web build > .tmp/s6a/web-build-baseline.log 2>&1; echo "exit $?"
+grep -E "Middleware" .tmp/s6a/web-build-baseline.log
 git checkout -- apps/web/next-env.d.ts
 ```
 
-Expected: typecheck clean; write down each package's passing and skipped test counts and file counts (config, shared, imports, api, web), the sad count and the docs check failure count. Later tasks compare against these (`B_shared`, `B_api`, `B_web`, `B_sad`). The hashes print, in order:
+Expected: typecheck clean; config 19, shared 345, imports 94, api 2500 passed and 21 skipped, web 224 files and 1998 tests, sad 56, docs check 6 failures and 1 warning, web build exit 0 and `Middleware` 103 kB in this container (102 kB on Windows). These are the S3b summary numbers plus S4a's 35 shared, 39 api and 1 sad and S5a's 29 shared, 3 imports, 16 api and 1 sad, so the S5 gate line in `docs/activity-log.md` wins if it differs. Later tasks compare against these (`B_shared`, `B_api`, `B_sad`, `M0`). The hashes print, in order:
 
 ```text
 f209d501235cd966ce70048d1c37dbf7e48a093f
@@ -195,20 +196,21 @@ Then `dashboards <-> reports` and `report-pdf <-> reports` (two lines), then `9`
 
 - [ ] **Step 4: Add the plan and commit**
 
-The controller has saved this plan as `docs/superpowers/plans/2026-10-12-modularization-s6-finance-reports.md`.
+Copy this plan: `cp docs/handoff/modularization-s6-finance-reports.md docs/superpowers/plans/$(date +%F)-modularization-s6-finance-reports.md`. The handoff copy and its index row stay.
 
 In `docs/index.md` section 1.6, add as the last row of the table:
 
 ```markdown
-| [S6 finance and reports plan](superpowers/plans/2026-10-12-modularization-s6-finance-reports.md) | 2026-10-12-modularization-s6-finance-reports.md | 2026-10-12 | S6 of the codebase modularization: S6a renderer cycle, finance, evaluation and report contracts and service splits; S6b outline | In progress |
+| [S6 finance and reports plan](superpowers/plans/<date>-modularization-s6-finance-reports.md) | <date>-modularization-s6-finance-reports.md | <date> | S6 of the codebase modularization: S6a renderer cycle, finance, evaluation and report contracts and service splits; S6b outline | In progress |
 ```
 
 ```bash
-git add docs/superpowers/plans/2026-10-12-modularization-s6-finance-reports.md docs/index.md
+git add docs/superpowers/plans docs/index.md
 pnpm docs:check 2>&1 | tail -3
 git commit -m "docs: add the S6 finance and reports plan
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015GXgWsghnfykNXQ8sJ5BRx"
 ```
 
 Expected: docs check failure count equals the Step 3 baseline.
@@ -335,7 +337,8 @@ git checkout -- apps/web/next-env.d.ts
 git add -A apps/api
 git commit -m "refactor(api): move the report and receipt renderers to their modules
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015GXgWsghnfykNXQ8sJ5BRx"
 ```
 
 Expected: the grep prints nothing; tests, typecheck and lint pass; api count equals `B_api`.
@@ -462,7 +465,8 @@ git checkout -- apps/web/next-env.d.ts
 git add apps/api/src/common/import-boundary.test.ts apps/api/src/modules/print-pdf apps/api/src/modules/reports/reports.module.ts apps/api/src/modules/finance/finance.module.ts
 git commit -m "refactor(api): give print-pdf only the print pipeline and pin api module pairs
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015GXgWsghnfykNXQ8sJ5BRx"
 ```
 
 Expected: the whole boundary file passes, `app-module-wiring.test.ts` passes (no provider registered twice), the grep prints nothing; api = `B_api + 2`.
@@ -730,7 +734,8 @@ pnpm lint
 git add apps/api/src/modules/finance/finance.validation.test.ts
 git commit -m "test(api): characterize finance request validation
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015GXgWsghnfykNXQ8sJ5BRx"
 ```
 
 Expected: api = `B_api + 41`.
@@ -1024,7 +1029,8 @@ git commit -m "refactor(api): validate finance requests with the shared contract
 
 The expense amount check no longer throws on unparseable text, which answered 500 and now answers 400.
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015GXgWsghnfykNXQ8sJ5BRx"
 ```
 
 Expected: the finance suite passes (4 files, 71 tests in the dry run), the unused-import grep prints nothing; shared = `B_shared + 20`, api = `B_api + 41`.
@@ -1269,7 +1275,8 @@ pnpm lint
 git add apps/api/src/modules/evaluations/evaluations.validation.test.ts apps/api/src/modules/reports/reports.validation.test.ts
 git commit -m "test(api): characterize evaluation and report request validation
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015GXgWsghnfykNXQ8sJ5BRx"
 ```
 
 Expected: api = `B_api + 80`.
@@ -1620,7 +1627,8 @@ git commit -m "refactor(api): validate evaluation and report requests with the s
 
 reports.dto.ts is removed; the services keep their fixed 400 messages.
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015GXgWsghnfykNXQ8sJ5BRx"
 ```
 
 Expected: the validation tests pass unchanged; the unused-import grep prints nothing; shared = `B_shared + 35`, api = `B_api + 80`.
@@ -1690,7 +1698,8 @@ git checkout -- apps/web/next-env.d.ts
 git add -A apps/api
 git commit -m "refactor(api): name the evaluation metrics service file after its class
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015GXgWsghnfykNXQ8sJ5BRx"
 ```
 
 Expected: all pass; api count unchanged.
@@ -2234,7 +2243,8 @@ git commit -m "refactor(api): split the evaluations service by responsibility
 Mapper, helpers, detail reads, scoring, assessments and review transitions move verbatim into
 function modules that take the caller's transaction.
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015GXgWsghnfykNXQ8sJ5BRx"
 ```
 
 Expected: the unused-import grep prints nothing; the evaluations suite passes (8 files, 1 skipped local file); api count unchanged from Task 3 (the 5 `classifyScoreCommentary` tests moved, not added); `evaluations.service.ts` is 337 lines and every other evaluations source file is under 230.
@@ -2370,7 +2380,8 @@ pnpm lint
 git add apps/api/src/modules/reports/reports.scope.test.ts
 git commit -m "test(api): pin the project scope of the report read routes
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015GXgWsghnfykNXQ8sJ5BRx"
 ```
 
 Expected: PASS, 7 tests, against the inline lookups; api = `B_api + 87`.
@@ -2393,7 +2404,8 @@ git checkout -- apps/web/next-env.d.ts
 git add -A $R
 git commit -m "refactor(api): name the report monitoring and evaluation source after its content
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015GXgWsghnfykNXQ8sJ5BRx"
 ```
 
 Expected: `apps/api/src/modules/reports/report-project-status-source.ts`, `apps/api/src/modules/reports/reports.service.ts`, `2 files rewritten`; Biome reorders the import in `reports.service.ts` without changing its line count (878 lines).
@@ -2724,7 +2736,8 @@ git checkout -- apps/web/next-env.d.ts
 git add -A $R
 git commit -m "refactor(api): split report sources, generation steps and kind policy out of ReportsService
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015GXgWsghnfykNXQ8sJ5BRx"
 ```
 
 Expected: the unused-import grep prints nothing; all pass; api count unchanged from Step 1.
@@ -2762,7 +2775,8 @@ git checkout -- apps/web/next-env.d.ts
 git add $R/reports.service.ts
 git commit -m "refactor(api): use requireScopedProject in the report read routes
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015GXgWsghnfykNXQ8sJ5BRx"
 ```
 
 Expected: `apps/api/src/modules/reports/reports.service.ts: 456 lines`; `reports.scope.test.ts` still passes 7 of 7 (ruling 9); the `Prisma.TransactionClient` grep prints nothing; api = `B_api + 87`.
@@ -2940,7 +2954,8 @@ git checkout -- apps/web/next-env.d.ts
 git add -A $D
 git commit -m "refactor(api): move the finance receipt admission and record reads into expense-receipts
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015GXgWsghnfykNXQ8sJ5BRx"
 ```
 
 Expected: the unused-import grep prints nothing; the finance suite passes (4 files, 71 tests); api = `B_api + 87`.
@@ -3013,7 +3028,7 @@ Section 3.7, replace the row `| S6 | Finance, evaluations, reports, report-pdf |
 Section 9, append:
 
 ```markdown
-S6a applied on refactor/s6a-finance-reports-api:
+S6a applied on the S6a slice branch:
 - Cycle: `ReportPdfRenderer` and its test moved to `modules/reports`, `ReceiptPdfRenderer` to `modules/finance`, and `modules/report-pdf` became `modules/print-pdf`, whose `PrintPdfModule` provides only `PrintPdfRenderer`; `apps/api/src/common/import-boundary.test.ts` fails when two api modules import each other outside the recorded `dashboards <-> reports` pair.
 - Contracts: `packages/shared/src/contracts/finance/finance-requests.ts`, `contracts/evaluations/evaluation-requests.ts` and `contracts/reports/report-requests.ts` hold the request schemas moved verbatim from the services and `reports.dto.ts` (deleted); the services keep parsing them with their fixed 400 messages, pinned by `finance.validation.test.ts`, `evaluations.validation.test.ts` and `reports.validation.test.ts`.
 - Evaluations: `evaluations.service.ts` went from 809 to 337 lines; mapper, helpers, detail reads, scoring, assessments and review transitions moved verbatim into `evaluations.mapper.ts`, `evaluations.helpers.ts` and four function modules; `evaluation-metrics.ts` became `evaluation-metrics.service.ts`.
@@ -3028,37 +3043,38 @@ Deferred to S6b: the web client members, reports feature, budget module, evaluat
 
 - [ ] **Step 3: Update the audit, living docs and index**
 
-- Audit: append to the disposition cell of MOD-04 `; reports, evaluations and finance split by S6a.`, of MOD-08 `; reports read routes use requireScopedProject (S6a).`, of MOD-11 `; finance, evaluation and report contracts by S6a.` and of MOD-17 `; S6a renamed evaluation-metrics, report-sources-extra and report-pdf and removed reports.dto.ts.`
+- Audit: in `docs/audit-pathways-codebase-modularity-20261009.md` make four exact replacements: MOD-04 old `services split by S5a. |` new `services split by S5a; reports, evaluations and finance split by S6a. |`; MOD-08 old `One \`requireScopedProject\` in \`common/authz\` (F3); closed by F3a. |` new `One \`requireScopedProject\` in \`common/authz\` (F3); closed by F3a; reports read routes use requireScopedProject (S6a). |`; MOD-11 old `DTOs replaced by S5a. |` new `DTOs replaced by S5a; finance, evaluation and report contracts by S6a. |`; MOD-17 old `phase-coded names removed by S5a. |` new `phase-coded names removed by S5a; S6a renamed evaluation-metrics, report-sources-extra and report-pdf and removed reports.dto.ts. |`. If S5a has not landed, the first, third and fourth olds read `services split by S4a. |`, `DTOs replaced by S4a. |` and `Scoped and Owned names by S2b. |`; read the cell and append to what is there, because each cell already ends with a period.
 - `docs/qad-pathways.md` QAD-T119: replace `` `apps/api/src/modules/report-pdf/report-pdf.renderer.test.ts` `` with `` `apps/api/src/modules/reports/report-pdf.renderer.test.ts` ``.
 - `docs/deferred-features.md`: in the `Designed PDF on hosted` row replace `` `apps/api/src/modules/report-pdf` `` with `` `apps/api/src/modules/print-pdf` ``; in the `Indicator summary with an indicator lacking measurement mode or direction` row replace `` `apps/api/src/modules/reports/reports.service.ts` `` with `` `apps/api/src/modules/reports/report-source.service.ts` ``.
 
 ```bash
-git grep -nE "modules/report-pdf|reports\.dto|report-sources-extra|evaluation-metrics(\.test)?\.ts" -- docs AGENTS.md README.md ':!docs/activity-log.md' ':!docs/audit-*' ':!docs/cr-*' ':!docs/superpowers/*'
+git grep -nE "modules/report-pdf|reports\.dto|report-sources-extra|evaluation-metrics(\.test)?\.ts" -- docs AGENTS.md README.md ':!docs/activity-log.md' ':!docs/audit-*' ':!docs/cr-*' ':!docs/superpowers/*' ':!docs/handoff'
 ```
 
 Expected: the grep prints nothing.
 
-- `docs/index.md`: the modularization CR row status names S6a as applied and S6b next, keeping the earlier entries (for example `Approved; F1 to S5 applied, S6a applied, S6b next`, matching the current wording).
+- `docs/index.md`: the modularization CR row status names S6a as applied and S6b next, keeping the earlier entries (for example `Approved; F1 to F4b, S1a, S1b, S2a, S2b, S3a, S3b, S4a, S5a and S6a applied, S4b, S5b and S6b next`; read the row after S5a and extend it, keeping any slice part that is still open).
 
 - [ ] **Step 4: Activity log**
 
 Add to `docs/activity-log.md`:
 
 ```markdown
-## Modularization S6a finance and reports api (refactor/s6a-finance-reports-api)
+## <date> Modularization S6a finance and reports api (<slice branch>)
 ```
 
-with one bullet per Task 1 to Task 6 stating what moved, split or was added, with its commit hashes and the shared and api test counts at the end of that task; a bullet with the accepted difference of ruling 4; a bullet saying the S6a decisions are recorded in the change record section 9 (the plan stays until S6b is planned, because it holds the S6b outline); and a bullet listing the S6b deferrals. Task 8 Step 5 appends the gate results.
+`<date>` is the day Task 7 runs (`date +%F`). Under it, one bullet per Task 1 to Task 6 stating what moved, split or was added, with its commit hashes and the shared and api test counts at the end of that task; a bullet with the accepted difference of ruling 4; a bullet saying the S6a decisions are recorded in the change record section 9 (the plan stays until S6b is planned, because it holds the S6b outline); and a bullet listing the S6b deferrals. Task 8 Step 5 appends the gate results.
 
 - [ ] **Step 5: Check and commit**
 
 ```bash
 pnpm docs:check 2>&1 | tail -3
 pnpm lint
-git add docs scripts/sad
+git add docs/sad-pathways.md docs/cr-pathways-codebase-modularization.md docs/audit-pathways-codebase-modularity-20261009.md docs/qad-pathways.md docs/deferred-features.md docs/index.md docs/activity-log.md scripts/sad
 git commit -m "docs: record modularization S6a finance and reports api and route api helpers to the isolation checker
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015GXgWsghnfykNXQ8sJ5BRx"
 ```
 
 Expected: docs check failure count equals the Task 0 baseline.
@@ -3070,26 +3086,28 @@ Expected: docs check failure count equals the Task 0 baseline.
 - [ ] **Step 1: Static gates and dist layout**
 
 ```bash
-pnpm install --frozen-lockfile && pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm sad:test
+pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm sad:test
 git checkout -- apps/web/next-env.d.ts
 test -f packages/shared/dist/contracts/finance/finance-requests.js && test -f packages/shared/dist/contracts/evaluations/evaluation-requests.js && test -f packages/shared/dist/contracts/reports/report-requests.js && test -f apps/api/dist/apps/api/src/modules/print-pdf/print-pdf.module.js && test -f apps/api/dist/apps/api/src/modules/reports/report-pdf.renderer.js && test -f apps/api/dist/apps/api/src/modules/finance/receipt-pdf.renderer.js && test ! -e apps/api/dist/apps/api/src/modules/report-pdf && test ! -e apps/api/dist/apps/api/src/modules/reports/reports.dto.js && test -f apps/api/dist/apps/api/src/modules/reports/assets/NotoSans-Regular.ttf && echo "dist layout ok"
-pnpm --filter @pathways/web build > .tmp/s6a/web-build-gates.log 2>&1; echo "exit $?"
+rm -rf apps/web/.next && pnpm --filter @pathways/web build > .tmp/s6a/web-build-gates.log 2>&1; echo "exit $?"
 git checkout -- apps/web/next-env.d.ts
 ```
 
-Expected: all pass and `dist layout ok` (nest `deleteOutDir` removes the old `report-pdf` output; the font asset still ships). Versus Task 0: shared = `B_shared + 35` (3 new files), api = `B_api + 87` (5 new files: three validation tests, the scope test and `evaluations.helpers.test.ts`), sad = `B_sad + 1` (Task 7), web, config and imports unchanged; web build exit 0.
+Install: (skip in the cloud container; deps are installed), as in Task 0 Step 1.
+
+Expected: all pass and `dist layout ok` (nest `deleteOutDir` removes the old `report-pdf` output; the font asset still ships). Versus Task 0: shared = `B_shared + 35` (3 new files), api = `B_api + 87` (5 new files: three validation tests, the scope test and `evaluations.helpers.test.ts`), sad = `B_sad + 1` (Task 7), web, config and imports unchanged; web build exit 0 with Middleware at most M0 (the barrel grows by three contract files; "sideEffects": false keeps them out of the Edge bundle). Web builds read apps/web/.env.local (a gitignored copy of apps/web/.env.example); create it once if missing so both builds see the same values.
 
 - [ ] **Step 2: Local DB replay**
 
-```powershell
-./infra/supabase/phase6/Replay-Local.ps1 -MigrationBaseline
+```bash
+pwsh ./infra/supabase/phase6/Replay-Local.ps1 -MigrationBaseline
 ```
 
-Expected: exit 0 (the replay runs `evaluations.local.test.ts` and `reports-runtime.local.test.ts` against a disposable PostgreSQL).
+Expected: exit 0 (the replay runs `evaluations.local.test.ts` and `reports-runtime.local.test.ts` against a disposable PostgreSQL). If PostgreSQL 18 is not installed at /usr/lib/postgresql/18/bin, the pull request CI replay is the gate (expect 171 PASS, 0 FAIL); record which one ran.
 
 - [ ] **Step 3: Seeds, compiled API boot, renderer check, e2e and smoke**
 
-Stop anything on ports 3000 and 4000 first.
+If supabase or Docker is missing, record Step 3 (seeds, pnpm dev:local boot, both Playwright configs and the browser smoke) as pending local run in the activity log gate line and list it for the developer; do not skip Steps 1, 2 or 4. Run `pnpm --filter @pathways/api exec tsx scripts/check-pdf-renderer.ts` in the container regardless, and record its output or the Chromium launch error. Stop anything on ports 3000 and 4000 first.
 
 ```bash
 pnpm db:local:start && pnpm db:local:reset && pnpm db:local:demo
@@ -3111,56 +3129,54 @@ Expected: both seeds finish without error (Review Focus 5); the renderer check w
 - [ ] **Step 4: SAD review**
 
 ```bash
-pnpm sad:check --base dev --head HEAD --output .tmp/sad/s6a/manifest.json
+pnpm sad:check --base "$(cat .tmp/s6a/base-sha)" --head HEAD --output .tmp/sad/s6a/manifest.json
 ```
 
-Dispatch every role the manifest requires (expect `design-qa-agent`, `restraint-guardian`, `organization-isolation-checker` and `beneficiary-privacy-guardian`) with the section 4.2 handoff packet from `docs/sad-pathways.md`, save their section 4.4 envelopes to `.tmp/sad/s6a/reviews.json`, then:
+Dispatch every role the manifest requires (expect `design-qa-agent`, `restraint-guardian`, `organization-isolation-checker` and `beneficiary-privacy-guardian`) with the section 4.2 handoff packet from `docs/sad-pathways.md` (layout in `docs/handoff/sad-packet-example.md`; split a role above 60 paths), transcribe each reply into `.tmp/sad/s6a/reply-<role>.txt`, copy `docs/handoff/sad-assemble.mjs` to `.tmp/sad/s6a/assemble.mjs`, run `node .tmp/sad/s6a/assemble.mjs` (it writes `reviews.json`), then:
 
 ```bash
-pnpm sad:signoff -- --base dev --head HEAD --reviews .tmp/sad/s6a/reviews.json
+pnpm sad:signoff -- --base "$(cat .tmp/s6a/base-sha)" --head HEAD --reviews .tmp/sad/s6a/reviews.json
 ```
 
 Expected: sign-off. Any finding is fixed on this branch and the affected gates rerun.
 
 - [ ] **Step 5: Record the gate results**
 
-Append a final bullet to the Task 7 activity-log section with the gate results (per-package counts, replay exit code, seed results, renderer check, e2e pass counts, smoke result, SAD sign-off), then:
+Append a final bullet to the Task 7 activity-log section with the gate results (per-package counts, Middleware size, replay exit code or CI result, seed results or pending local run, renderer check, e2e pass counts and smoke result or pending local run, SAD sign-off), then:
 
 ```bash
 git add docs/activity-log.md
 git commit -m "docs: record modularization S6a release gate results
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015GXgWsghnfykNXQ8sJ5BRx"
 ```
 
-- [ ] **Step 6: Merge into local dev**
+- [ ] **Step 6: Pull request into dev**
+
+Push the slice branch and open one pull request into `dev` (or add S6a to the open pull request of the stack, as the rulings log says); wait for CI (replay, lint, typecheck, test, build, SAD checks) and record the result in the activity log gate line. Ask the developer to merge. Do not merge or push `dev`.
+
+- [ ] **Step 7: Keep the plan for S6b (after the developer merges)**
+
+The plan holds the S6b outline, so the `docs/superpowers/plans` copy stays after the merge (the `docs/handoff` copy stays too). In `docs/index.md` section 1.6 change the status of the `superpowers/plans` S6 row only (not the `handoff/` row) to `S6a executed; holds the S6b outline` with the sed below, then:
 
 ```bash
-git checkout dev
-git merge --no-ff refactor/s6a-finance-reports-api -m "Merge refactor/s6a-finance-reports-api into dev
-
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
-```
-
-- [ ] **Step 7: Keep the plan for S6b**
-
-The plan holds the S6b outline, so it stays on dev. In `docs/index.md` section 1.6 change the S6 plan row status to `S6a executed; holds the S6b outline`, then:
-
-```bash
+sed -i '/(superpowers\/plans\/.*modularization-s6-finance-reports/s/| In progress |$/| S6a executed; holds the S6b outline |/' docs/index.md
 pnpm docs:check 2>&1 | tail -3
 git add docs/index.md
 git commit -m "docs: mark S6a executed in the plan index
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015GXgWsghnfykNXQ8sJ5BRx"
 ```
 
-Expected: docs check failure count equals the Task 0 baseline. Do not push `origin dev` until the developer says so.
+Expected: docs check failure count equals the Task 0 baseline.
 
 ---
 
-## S6b outline (finance and reports web, branch `refactor/s6b-finance-reports-web`)
+## S6b outline (finance and reports web)
 
-To be written as its own plan from dev after S6a merges; that plan's Task 0 removes this file and its index row. Counts below were taken at `a101ad7c` (before F4b and S1 to S5) and must be recounted in S6b Task 0.
+To be written as its own plan from dev after S6a merges; that plan's Task 0 removes the docs/superpowers/plans copy and its index row with a sed that matches only that row; the docs/handoff copy stays. Counts below were taken at `a101ad7c` (before F4b and S1 to S5); at the S3b tip core-feature-client.ts is lib/services/core-feature-client.ts with 529 lines, coreDataClient has 22 files (13 production) and 15 mock factories, reporting-workspace.tsx is 1123 lines and 41 pathways-client factories exist; recount everything in S6b Task 0, and re-read the S4b result for beneficiary-detail-loader.tsx before Task 2.
 
 **Interfaces assumed from earlier slices (S6b):**
 - F4b: `apps/web/src/lib/format/{date,percent,plural,tone}.ts` (including `formatCalendarDay`, `plural` and the `StatusTone` union), `apps/web/src/lib/api/core/request.ts` (`PathwaysClientError`, `requestFoundation`, `requestFoundationResponse`; `readContextCookie` is private there), `apps/web/src/lib/api/core/request-owner.ts` (`captureRequestOwner(signal?: AbortSignal | null): () => boolean`, already used by the `read()` and `fetchCoreArtifact` in `core-feature-client.ts`), `apps/web/src/hooks/use-authorized-read.ts` (`useAuthorizedRead`, `authorizedReadPolicy`, `SUMMARY_READ_STALE_MS`), `stickyTableHeadClass` from `apps/web/src/components/pathways/sticky-table-head.ts` (used by `live-evaluation-workspace.tsx`), and `apps/web/src/lib/api/**/*.ts` in the beneficiary-privacy-guardian globs.
@@ -3180,4 +3196,4 @@ To be written as its own plan from dev after S6a merges; that plan's Task 0 remo
 - **Task 5, feature folders:** `git mv` `features/projects/budget-module/*` (15 files) to `features/projects/budget/` with `components/`, `hooks/` and `print/`, the two activity expense dialogs and their tests to the same folder (see S2 above), and `live-evaluation-workspace.tsx` with its test to `features/projects/evaluation/`; repoint `app/print/receipts/[expenseId]/page.tsx`, the two budget and monitor-evaluate route pages, `activities/components/activity-detail-content.tsx`, `activities/hooks/use-activity-expenses.ts` (the type import) and `project-review-workspace.tsx` through `features/projects/index.ts` (the panel, `activity-detail-sections.tsx`, `activity-list-table.tsx` and the workspace no longer import the dialogs after S2b) (the print receipt page route already imports `PrintReceiptPage` through the feature index, so S6b repoints that index export line and edits no route import). `features/reports` gets `components/`, `hooks/`, `reports.utils.ts` (`reportFileName`) and `index.ts`.
 - **Task 6, oversized components and read keys:** split `live-reporting-workspace.tsx` (549) and `live-evaluation-workspace.tsx` (533) by component and hook, verbatim, with characterization tests first where the existing tests do not render the moved part. `budget.reads.ts` holds the `finance-budgets` key now read in `use-budget-module.ts:20` and in `activities/hooks/use-activity-expenses.ts` (S2b moved it out of `project-activities-workspace.tsx:296`); `budget/` gets no sub-index; share it only if the fetcher, permission and freshness are identical (one key serves one cache entry), and record the comparison either way. `live-evaluation-workspace.tsx`'s `statusTone` is typed to F4b's `StatusTone`. The direct `principalHasAtomicPermission(profile, ...)` calls in these components stay (F4a left no local wrapper here; `budget-ledger.tsx` already uses `usePermission`).
 - **Task 7, records:** CR section 9 S6b disposition, audit MOD-05, MOD-06, MOD-15, MOD-16 and MOD-17 (finance, evaluation and report parts), QAD and deferred-feature paths, index, activity log.
-- **Task 8, gates and merge:** as S6a Task 8, with web Middleware measured and a smoke over the reports pages and print view, the budget tab and print receipt, the activity expense dialogs, the monitor and evaluate tab and the beneficiary assessments panel. After merge, remove this plan and its index row.
+- **Task 8, gates and merge:** as S6a Task 8, with web Middleware measured and a smoke over the reports pages and print view, the budget tab and print receipt, the activity expense dialogs, the monitor and evaluate tab and the beneficiary assessments panel. After the developer merges, remove the `docs/superpowers/plans` copy and its index row with a sed that matches only that row (the `docs/handoff` copy and its rows stay).

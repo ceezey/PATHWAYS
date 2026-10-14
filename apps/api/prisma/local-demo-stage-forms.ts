@@ -400,7 +400,7 @@ export async function stageJourneysAndForms(ctx: DemoContext) {
     const specs = journeyStages[project.key]
     if (!specs) continue
     const projectId = projectOf(ctx, project.key)
-    const existing = await ctx.services.participants.listStages(me.identity, projectId)
+    const existing = await ctx.services.journeyStages.listStages(me.identity, projectId)
     if (existing.length === 0) {
       // Ids are assigned up front so a branch can name its parent stage in the same save.
       const ids = new Map(
@@ -433,14 +433,14 @@ export async function stageJourneysAndForms(ctx: DemoContext) {
         })
       }
       await step(`journey stages ${project.code}`, () =>
-        ctx.services.participants.saveStages(me.identity, projectId, { stages }),
+        ctx.services.journeyStages.saveStages(me.identity, projectId, { stages }),
       )
     }
   }
 
   for (const project of demoProjects) {
     const projectId = projectOf(ctx, project.key)
-    const stages = await ctx.services.participants.listStages(me.identity, projectId)
+    const stages = await ctx.services.journeyStages.listStages(me.identity, projectId)
     for (const spec of attendanceForms[project.key] ?? []) {
       const stage = stages.find((entry) => entry.code === spec.stageCode)
       if (!stage) throw new Error(`Journey stage ${spec.stageCode} is missing for ${project.code}.`)

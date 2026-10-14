@@ -73,6 +73,7 @@ import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'
 import { usePendingCreate } from '@/hooks/use-pending-create'
 import { activitiesClient } from '@/lib/api/activities'
+import { indicatorsClient } from '@/lib/api/indicators'
 import { projectsClient } from '@/lib/api/projects'
 import { sensitiveDraftGeneration } from '@/lib/auth/sensitive-drafts'
 import { createdSince, fingerprintOf } from '@/lib/forms/pending-create'
@@ -757,7 +758,7 @@ const OwnedCollectionWorkspace = ({
     if (view === 'builder' && canReadIndicators && eligible('monitoring.read', projectId)) {
       requests.push(
         load(
-          pathwaysClient.getIndicators(projectId),
+          indicatorsClient.getIndicators(projectId),
           setIndicators,
           'Indicators',
           'monitoring.read',

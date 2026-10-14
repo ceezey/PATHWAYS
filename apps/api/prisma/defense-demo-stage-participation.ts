@@ -58,7 +58,7 @@ export async function stageDefenseParticipation(ctx: DemoContext) {
       })
   }
 
-  const stages = await ctx.services.participants.listStages(officer, projectId)
+  const stages = await ctx.services.journeyStages.listStages(officer, projectId)
   const stage = stages.find((entry) => entry.code === 'COACHING')
   if (!stage) throw new Error('Journey stage COACHING is missing for CRL.')
   let noted = 0
@@ -89,7 +89,7 @@ export async function stageDefenseParticipation(ctx: DemoContext) {
       continue
     }
     await step(`journey note ${people[index].code}`, () =>
-      ctx.services.participants.correctEvent(officer, projectId, beneficiary.id, event.id, {
+      ctx.services.beneficiaryJourney.correctEvent(officer, projectId, beneficiary.id, event.id, {
         eventDate: ctx.today,
         description: event.description ?? 'Follow-up needed after the coaching session.',
         reason: 'Added the visit note after the household follow-up.',

@@ -1,7 +1,6 @@
-import type { Prisma } from '@prisma/client'
-
 import { aggregateOnlyRoles, hasAtomicPermission } from '@pathways/shared'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
+import type { Tx } from '../../common/prisma/transaction'
 
 type BeneficiaryProgress =
   | { restricted: true }
@@ -37,7 +36,7 @@ export const canReadProgress = (actor: ApplicationIdentity) =>
 
 /** One call per page: the definer function checks scope once and returns latest participation, current stage and reached stages. */
 export async function loadProgress(
-  tx: Prisma.TransactionClient,
+  tx: Tx,
   actor: ApplicationIdentity,
   projectId: string,
   enrollmentIds: string[],

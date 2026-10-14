@@ -113,3 +113,53 @@ describe('api to web boundary', () => {
     expect(violations).toEqual([])
   })
 })
+
+// The api module a file belongs to, or null outside src/modules.
+function moduleOf(file: string): string | null {
+  const relative = path.relative(modules, file)
+  return relative.startsWith('..') || !relative.includes(path.sep)
+    ? null
+    : relative.split(path.sep)[0]
+}
+
+// Pairs of api modules whose non-test files import each other, as sorted "a <-> b" labels.
+function mutualModulePairs(files: string[], read: (file: string) => string): string[] {
+  const edges = new Set<string>()
+  for (const file of files) {
+    const from = moduleOf(file)
+    for (const specifier of specifiers(read(file))) {
+      if (!from || !specifier.startsWith('.')) continue
+      const to = moduleOf(path.resolve(path.dirname(file), specifier))
+      if (to && to !== from) edges.add(`${from}>${to}`)
+    }
+  }
+  return [...edges]
+    .map((edge) => edge.split('>'))
+    .filter(([from, to]) => from < to && edges.has(`${to}>${from}`))
+    .map(([from, to]) => `${from} <-> ${to}`)
+    .sort()
+}
+
+describe('api module import pairs', () => {
+  it('detects two modules that import each other', () => {
+    const sources: Record<string, string> = {
+      [path.join(modules, 'alpha', 'alpha.service.ts')]: "import { b } from '../beta/beta.service'",
+      [path.join(modules, 'beta', 'beta.service.ts')]:
+        "import { a } from '../alpha/alpha.helpers'\nimport { c } from '../gamma/gamma.service'",
+      [path.join(modules, 'gamma', 'gamma.service.ts')]:
+        "import { t } from '../../common/prisma/transaction'",
+    }
+    expect(mutualModulePairs(Object.keys(sources), (file) => sources[file])).toEqual([
+      'alpha <-> beta',
+    ])
+  })
+
+  it('allows only the recorded pair of modules that import each other', () => {
+    const files = sourceFiles(modules)
+    expect(files.length).toBeGreaterThan(100)
+    // The generic report artifact writer is shared with the analytics export; this pair is recorded for S7.
+    expect(mutualModulePairs(files, (file) => readFileSync(file, 'utf8'))).toEqual([
+      'dashboards <-> reports',
+    ])
+  })
+})

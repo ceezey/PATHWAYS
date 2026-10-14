@@ -19,6 +19,7 @@ const access = vi.hoisted(() => ({
 }))
 
 vi.mock('@/lib/services/pathways-client', () => ({ pathwaysClient: api }))
+vi.mock('@/lib/api/indicators', () => ({ indicatorsClient: api }))
 vi.mock('@/hooks/use-current-role', () => ({
   useCurrentRole: () => ({ ...access, assignedProjectIds: access.profile.assignedProjectIds }),
 }))

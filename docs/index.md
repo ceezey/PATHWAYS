@@ -95,7 +95,6 @@ Workflow rule: an audit is finding and evidence, a Change Record is the approved
 | Spec | File | Date | Scope | Status |
 |---|---|---|---|---|
 | [Plan 2 cloud handoff](handoff-extensions-and-escalations.md) | handoff-extensions-and-escalations.md | 2026-10-04 | Paused state of Plan 2 Task 1 handed to the cloud session, with the SDD ledger rulings | Closed; resumed and completed |
-| [S3 indicators plan](superpowers/plans/2026-10-13-modularization-s3-indicators.md) | 2026-10-13-modularization-s3-indicators.md | 2026-10-13 | S3 of the codebase modularization: S3a indicator contracts, API mapper, helpers, measurement service and request identity; S3b web outline | S3a executed; holds the S3b outline |
 | [Cloud handoff prompt](handoff/cloud-handoff-prompt.md) | cloud-handoff-prompt.md | 2026-10-13 | Prompt and rules for continuing the codebase modularization in a Claude Code cloud session | Active |
 | [Memory digest](handoff/memory-digest.md) | memory-digest.md | 2026-10-13 | Standing developer rules, baselines and pitfalls carried from the local session memory | Active |
 | [Modularization rulings log](handoff/modularization-rulings-log.md) | modularization-rulings-log.md | 2026-10-13 | Every controller ruling with its cost if wrong, F1 to S3a, for the final report | Active |
@@ -110,6 +109,10 @@ Workflow rule: an audit is finding and evidence, a Change Record is the approved
 | [Implementer common brief](handoff/implementer-common.md) | implementer-common.md | 2026-10-13 | Common rules handed to every implementer subagent | Active |
 | [Reviewer common brief](handoff/reviewer-common.md) | reviewer-common.md | 2026-10-13 | Common rules handed to every task reviewer subagent | Active |
 | [SAD packet example](handoff/sad-packet-example.md) | sad-packet-example.md | 2026-10-13 | S3a SAD section 4.2 handoff packet used as the layout for later slices | Active |
+| [S3b indicators web plan](superpowers/plans/2026-10-13-modularization-s3b-indicators-web.md) | 2026-10-13-modularization-s3b-indicators-web.md | 2026-10-13 | S3b of the codebase modularization: indicator and indicator library clients, indicators feature folder, workspace and library manager split, indicator read keys, web alias removed | In progress |
+| [S4 beneficiaries plan](superpowers/plans/2026-10-13-modularization-s4-beneficiaries.md) | 2026-10-13-modularization-s4-beneficiaries.md | 2026-10-13 | S4 of the codebase modularization: S4a beneficiary, journey and media request contracts, beneficiaries and participants services split, registration service for imports; S4b outline | In progress |
+| [S5 collection plan](superpowers/plans/2026-10-13-modularization-s5-collection.md) | 2026-10-13-modularization-s5-collection.md | 2026-10-13 | S5 of the codebase modularization: S5a imports and metadata contracts, imports and metadata service splits and the smart-match split; S5b outline | In progress |
+| [S6 finance and reports plan](superpowers/plans/2026-10-13-modularization-s6-finance-reports.md) | 2026-10-13-modularization-s6-finance-reports.md | 2026-10-13 | S6 of the codebase modularization: S6a renderer cycle, finance, evaluation and report contracts and service splits; S6b outline | In progress |
 
 ### 1.7 Traceability Matrix
 
@@ -145,7 +148,7 @@ Newest first. Core P1 supporting contract reconciliation is approved for local i
 
 | CR ID | Date | Summary | Status |
 |---|---|---|---|
-| [cr-pathways-codebase-modularization](cr-pathways-codebase-modularization.md) | 2026-10-09 | Behavior-preserving restructure in 14 sub-projects (F1 to F4, S1 to S8, W1): layout conventions, one-way dependency direction, zod API contracts in `packages/shared`, shared rbac and rules code, dead code removal; no migration | Approved; F1 to F4b, S1a, S1b, S2a, S2b and S3a applied, S3b next |
+| [cr-pathways-codebase-modularization](cr-pathways-codebase-modularization.md) | 2026-10-09 | Behavior-preserving restructure in 14 sub-projects (F1 to F4, S1 to S8, W1): layout conventions, one-way dependency direction, zod API contracts in `packages/shared`, shared rbac and rules code, dead code removal; no migration | Approved; F1 to F4b, S1a, S1b, S2a, S2b, S3a, S3b, S4a, S5a and S6a applied, S4b, S5b and S6b next |
 | [cr-pathways-defense-seed-snapshot](cr-pathways-defense-seed-snapshot.md) | 2026-10-06 | Defense demo snapshot restore: local service seed with mirrored devV2 identities, data-only dump of the wipe tables, one-transaction restore on devV2 with triggers skipped (replica role), staged day shift and storage upsert; no migration | Approved; local rehearsal passed, hosted restore pending |
 | [cr-pathways-report-pdf-renderer](cr-pathways-report-pdf-renderer.md) | 2026-10-05 | PRD-F12 UC-F12-1: PDF reports rendered by headless Chromium from `/print/reports/[id]` with an injected snapshot, pdfkit fallback, env keys `WEB_PROTECTION_BYPASS` and `PDF_CHROME_PATH`, no migration | Applied locally; hosted verification pending |
 | [cr-pathways-f8-f9-f12-gate-closure](cr-pathways-f8-f9-f12-gate-closure.md) | 2026-10-04 | Closes G-F9-9, G-F9-10 and G-F12-4: analytics insights API (participation, indicator trends, approved-only budget), closed-period survey release for aggregate-only roles (migration 0057), monitoring and evaluation report kinds with bare `text/csv`, export button, Participation option and browser-stored Add to Dashboard pins | Applied; 0057 applied on PATHWAYS-devV2 |

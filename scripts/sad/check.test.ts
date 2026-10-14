@@ -97,6 +97,14 @@ describe('routing and digest', () => {
     const routed = routing(files.map((file) => change(file, 'new', 'old')))
     expect(routed['organization-isolation-checker']).toEqual(files)
   })
+  it('routes api domain helpers to the organization isolation checker', () => {
+    const files = [
+      'apps/api/src/modules/finance/finance.helpers.ts',
+      'apps/api/src/modules/reports/reports.helpers.ts',
+    ]
+    const routed = routing(files.map((file) => change(file, 'new', 'old')))
+    expect(routed['organization-isolation-checker']).toEqual(files)
+  })
   it('routes web auth, rbac and middleware changes to the organization isolation checker', () => {
     const files = [
       'apps/web/src/lib/auth/workspace-access.ts',
@@ -129,6 +137,26 @@ describe('routing and digest', () => {
     const routed = routing([change(mapper, 'new', 'old'), change(service, 'new', 'old')])
     expect(routed['beneficiary-privacy-guardian']).toEqual([mapper])
     expect(routed['organization-isolation-checker']).toEqual([service])
+  })
+
+  it('routes beneficiary, journey and media module code to the privacy guardian', () => {
+    const files = [
+      'apps/api/src/modules/beneficiaries/beneficiary-registration.helpers.ts',
+      'apps/api/src/modules/beneficiary-media/beneficiary-media.service.ts',
+      'apps/api/src/modules/participants/participants.helpers.ts',
+    ]
+    const routed = routing(files.map((file) => change(file, 'new', 'old')))
+    expect(routed['beneficiary-privacy-guardian']).toEqual(files)
+  })
+
+  it('routes form metadata modules and collection contracts to the metadata import validator', () => {
+    const files = [
+      'apps/api/src/modules/metadata/form-lookup.service.ts',
+      'packages/shared/src/contracts/imports/import-requests.ts',
+      'packages/shared/src/contracts/metadata/form-requests.ts',
+    ]
+    const routed = routing(files.map((file) => change(file, 'new', 'old')))
+    expect(routed['metadata-import-validator']).toEqual(files)
   })
 
   it('routes the rules dispatch workflow to design-qa-agent', () => {

@@ -21,11 +21,8 @@ import { principalHasAtomicPermission } from '@/lib/rbac/policy'
 import { isUiActionAvailable } from '@/lib/rbac/ui-action-availability'
 import type { Activity, ActivitySummary } from '@/types/pathways'
 
-import {
-  useProjectIndicatorsRead,
-  useProjectJourneyStagesRead,
-  useProjectRead,
-} from '../../projects.reads'
+import { useProjectIndicatorsRead } from '../../indicators/indicators.reads'
+import { useProjectJourneyStagesRead, useProjectRead } from '../../projects.reads'
 import {
   useActivityDetailRead,
   useAssignableOfficersRead,

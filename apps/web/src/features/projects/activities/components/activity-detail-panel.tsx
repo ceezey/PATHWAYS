@@ -5,13 +5,8 @@ import { useEffect, useRef } from 'react'
 import { SidePanel } from '@/components/pathways'
 import { AsyncState } from '@/components/pathways/async-state'
 import { Sheet } from '@/components/ui/sheet'
-import type {
-  Activity,
-  Indicator,
-  JourneyStageConfig,
-  ProjectIndicator,
-  ProjectTeamMember,
-} from '@/types/pathways'
+import type { Activity, Indicator, JourneyStageConfig, ProjectTeamMember } from '@/types/pathways'
+import type { IndicatorResponse } from '@pathways/shared'
 
 import type { ExpenseBudgetReference } from '../../activity-expense-dialog'
 import type { PendingExpense } from '../../activity-expense-review-dialog'
@@ -67,7 +62,7 @@ export const ActivityDetailPanel = ({
   canOpenProof?: boolean
   canValidateExpense: boolean
   canValidateProof: boolean
-  indicatorRows?: ProjectIndicator[]
+  indicatorRows?: IndicatorResponse[]
   indicators: Indicator[]
   journeyStages: JourneyStageConfig[]
   onActivityChanged: (activity: Activity) => void

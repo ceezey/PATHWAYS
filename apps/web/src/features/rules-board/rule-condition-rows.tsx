@@ -8,7 +8,7 @@ import { RuleTreeView, clearRecordBindings } from '@/features/analytics/rule-con
 import { useAuthorizedRead } from '@/hooks/use-authorized-read'
 import { usePermission } from '@/hooks/use-permission'
 import { activitiesClient } from '@/lib/api/activities'
-import { pathwaysClient } from '@/lib/services/pathways-client'
+import { indicatorsClient } from '@/lib/api/indicators'
 import { cn } from '@/lib/utils'
 import { type HumanRule, type RuleCondition, operators } from '@pathways/shared'
 import {
@@ -33,7 +33,7 @@ export function useBindingChoices(scopeProjectId: string | null, rows: RuleCondi
     'rule-binding-indicators',
     scopeProjectId,
     'indicators.read',
-    (signal) => pathwaysClient.getProjectIndicators(scopeProjectId ?? '', signal),
+    (signal) => indicatorsClient.getProjectIndicators(scopeProjectId ?? '', signal),
     needs((metric) => metric.startsWith('INDICATOR_')),
   )
   const activitiesFull = useAuthorizedRead(

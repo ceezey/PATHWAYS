@@ -10,10 +10,11 @@ import type {
   TransitionActivityRequest,
 } from '@pathways/shared'
 import type { CreateProjectRequest } from '@pathways/shared'
+import type { RegisterBeneficiaryRequest } from '@pathways/shared'
 import type { ApplicationIdentity } from '../src/common/authz/application-identity'
 import { ActivityLifecycleService } from '../src/modules/activities/activity-lifecycle.service'
-import type { RegisterBeneficiaryDto } from '../src/modules/beneficiaries/beneficiaries.dto'
 import { BeneficiariesService } from '../src/modules/beneficiaries/beneficiaries.service'
+import { BeneficiaryRegistrationService } from '../src/modules/beneficiaries/beneficiary-registration.service'
 import { IndicatorMeasurementsService } from '../src/modules/indicators/indicator-measurements.service'
 import { IndicatorsService } from '../src/modules/indicators/indicators.service'
 import { ProjectsService } from '../src/modules/projects/projects.service'
@@ -505,7 +506,10 @@ async function main() {
   const activityLifecycleService = new ActivityLifecycleService(runtime)
   const indicatorsService = new IndicatorsService(runtime)
   const indicatorMeasurementsService = new IndicatorMeasurementsService(runtime, indicatorsService)
-  const beneficiariesService = new BeneficiariesService(runtime)
+  const beneficiariesService = new BeneficiariesService(
+    runtime,
+    new BeneficiaryRegistrationService(),
+  )
 
   try {
     // --- Storage buckets -------------------------------------------------
@@ -1048,7 +1052,7 @@ function planBeneficiaryRegistration(
   const disabilityStatus = index % 9 === 0 ? 'WITH_DISABILITY' : 'NOT_SPECIFIED'
   const barangay = pick(plan.barangays, index)
   const clientRegistrationId = stableUuid(`beneficiary-register:${plan.code}:${code}`)
-  const registerDto: RegisterBeneficiaryDto = {
+  const registerDto: RegisterBeneficiaryRequest = {
     formId,
     clientRegistrationId,
     values: {

@@ -82,3 +82,15 @@ export const pesoAmountInput = trimmedInput(
       'must be a non-negative PHP amount with at most 2 decimal places.',
     ),
 )
+
+// A string Transform that trimmed and lower-cased the value before the DTO validators ran.
+export const trimmedLowercaseInput = <T extends z.ZodTypeAny>(schema: T) =>
+  z.preprocess((value) => (typeof value === 'string' ? value.trim().toLowerCase() : value), schema)
+
+// A query value read by Type(() => Number) with IsInt, Min and Max: Number() of a scalar, an array kept as it is.
+export const queryInteger = (min: number, max: number) =>
+  z.preprocess(
+    (value) =>
+      Array.isArray(value) || value === null || value === undefined ? value : Number(value),
+    z.number().int().min(min).max(max),
+  )

@@ -68,7 +68,6 @@ vi.mock('@/lib/services/core-feature-client', async (importOriginal) => ({
 vi.mock('@/lib/services/pathways-client', () => ({
   pathwaysClient: {
     getDigitalForms: api.getDigitalForms,
-    getIndicators: api.getIndicators,
     createDigitalForm: api.createDigitalForm,
     createDigitalFormVersion: api.createDigitalFormVersion,
     generateDigitalForm: api.generateDigitalForm,
@@ -83,6 +82,7 @@ vi.mock('@/lib/services/pathways-client', () => ({
     getDigitalForm: api.getDigitalForm,
   },
 }))
+vi.mock('@/lib/api/indicators', () => ({ indicatorsClient: { getIndicators: api.getIndicators } }))
 vi.mock('@/lib/api/activities', () => ({ activitiesClient: { getActivities: api.getActivities } }))
 vi.mock('@/lib/api/projects', () => ({
   projectsClient: { getProjectsForRole: api.getProjectsForRole },

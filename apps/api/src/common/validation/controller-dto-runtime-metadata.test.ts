@@ -14,45 +14,6 @@ const cases: ControllerCase[] = [
     dtoNames: ['ChangeStepUpPinDto', 'VerifyStepUpPinDto'],
   },
   {
-    file: 'src/modules/beneficiaries/beneficiaries.controller.ts',
-    dtoNames: [
-      'ArchiveBeneficiaryDto',
-      'BeneficiaryListQueryDto',
-      'EnrollBeneficiaryDto',
-      'RegisterBeneficiaryDto',
-      'UpdateBeneficiaryDto',
-    ],
-  },
-  {
-    file: 'src/modules/beneficiary-media/beneficiary-media.controller.ts',
-    dtoNames: ['ReserveBeneficiaryMediaDto'],
-  },
-  {
-    file: 'src/modules/imports/imports.controller.ts',
-    dtoNames: ['ImportRowsQueryDto', 'ProcessImportDto', 'SaveImportMappingDto', 'UploadImportDto'],
-  },
-  {
-    file: 'src/modules/metadata/metadata.controller.ts',
-    dtoNames: [
-      'CreateFormDto',
-      'ExpectedVersionDto',
-      'ListSubmissionsQueryDto',
-      'SaveSubmissionDto',
-      'SubmitSubmissionDto',
-      'UpdateFormDto',
-      'UpdateSubmissionDto',
-      'ValidateValuesDto',
-    ],
-  },
-  {
-    file: 'src/modules/participants/participants.controller.ts',
-    dtoNames: [
-      'SaveJourneyConfigurationDto',
-      'CorrectJourneyEventDto',
-      'EnrollmentJourneyEventDto',
-    ],
-  },
-  {
     file: 'src/modules/users/users.controller.ts',
     dtoNames: ['AuthorizeExistingUserDto', 'UpdateAuthorizedUserDto'],
   },

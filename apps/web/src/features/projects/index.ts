@@ -13,5 +13,5 @@ export { ProjectActivitiesWorkspace } from './activities/components/project-acti
 
 // Exported for files outside the feature until the slices that own them move them.
 export { PrintReceiptPage } from './budget-module/print/print-receipt-page'
-export { IndicatorLibraryManager } from './indicator-library-manager'
-export { ProjectIndicatorsWorkspace } from './project-indicators-workspace'
+export { IndicatorLibraryManager } from './indicators/components/indicator-library-manager'
+export { ProjectIndicatorsWorkspace } from './indicators/components/project-indicators-workspace'

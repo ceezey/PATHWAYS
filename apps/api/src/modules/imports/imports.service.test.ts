@@ -11,10 +11,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { PrismaService } from '@app/prisma/prisma.service'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
-import type { BeneficiariesService } from '../beneficiaries/beneficiaries.service'
+import type { BeneficiaryRegistrationService } from '../beneficiaries/beneficiary-registration.service'
 import type { StorageService } from '../storage/storage.service'
 import { ImportsService, type UploadedImportFile } from './imports.service'
-import { W10_CLIENT_IMPORT_ID, W10_SOURCE_SHA256 } from './p07-w10-finalization-fault'
+import { W10_CLIENT_IMPORT_ID, W10_SOURCE_SHA256 } from './upload-finalization-fault'
 
 const state = vi.hoisted(() => ({
   actor: undefined as ApplicationIdentity | undefined,
@@ -144,7 +144,7 @@ describe('P03 import service', () => {
     service = new ImportsService(
       {} as PrismaService,
       storage as unknown as StorageService,
-      beneficiaries as unknown as BeneficiariesService,
+      beneficiaries as unknown as BeneficiaryRegistrationService,
       { promoteParticipation: vi.fn() } as never,
     )
     tx.project.findFirst.mockResolvedValue({ id: projectId })
