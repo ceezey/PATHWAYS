@@ -2,7 +2,7 @@
 
 **ID:** `cr-pathways-guided-rule-setup`
 **Date:** 2026-10-15
-**Status:** Applied on `feat/guided-rule-setup`; R1-R5 integration and development-preview verification pending
+**Status:** Applied 2026-10-15; R1-R5 verified on `dev` commit `d36cd7de`
 
 ## 1. Trigger
 
@@ -98,4 +98,4 @@ Developer direction on 2026-10-15 selected disabled incompatible scope choices w
 
 ## 9. Disposition
 
-Applied on `feat/guided-rule-setup` after the focused rules-board suite (39 tests), workspace typecheck, web production build, SAD final review and digest-bound sign-off verified the shipped behavior. The Locked DSD, materialized design reference and rule-creation runbook now describe the inline Create rule flow. R1-R5 integration, push and both development-preview checks remain required before the October 18 panel target is complete; R6 production deployment is outside this Change Record.
+Applied 2026-10-15 after the focused rules-board suite (39 tests), workspace typecheck, web production build, SAD final review and digest-bound sign-off verified the shipped behavior. The Locked DSD, materialized design reference and rule-creation runbook now describe the inline Create rule flow. R1 passed on `feat/guided-rule-setup`; R2 merged cleanly into `integration/guided-rule-setup`; renewed R3 SAD sign-off and R4 requirements QA passed on digest `2e1997a9b5692dc6665a88a39a1d4f1b181803d75c7cc3cdd2523d5ee2f265cf`; R5 merged and pushed `d36cd7de` to `dev`. The exact API preview was Ready and returned HTTP 200 from `/api/health`; the exact protected web preview was Ready and returned its expected Vercel SSO HTTP 302 from `/alerts/repository`. R6 production deployment is outside this Change Record.
