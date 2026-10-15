@@ -47,7 +47,7 @@ Every threshold is an exact decimal: at most 14 integer and 4 fractional digits,
 | Rule Code | `^[A-Z][A-Z0-9_-]{1,79}$`, auto-suggested from the name until typed in, locked after the rule exists |
 | Rule Category | Read-only, derived from the first condition's metric |
 | Rule scope | Organization template, or one project; locked when editing |
-| Applies To | Six scopes; Organization templates disable Indicator with the visible explanation `Indicator metrics require a project record.`; aggregate Activity remains available but its record-bound metric is absent |
+| Applies To | Six scopes; Organization templates disable Indicator and expose `Indicator metrics require a project record.` on hover and keyboard focus, with an assistive-technology description; aggregate Activity remains available but its record-bound metric is absent |
 | Match | All conditions (AND) or Any condition (OR); appears only from the second condition |
 | Condition | below, at most, equal to, at least, above, between |
 | Upper threshold | Only with between, and must be at or above the lower threshold |
@@ -97,7 +97,7 @@ Each row is run from a valid draft, changing only the named field.
 | Sign in without `rules.activate` | No Activate action on a draft |
 | Lose scope permission between opening and saving | `Current permission for the selected scope is required.` |
 | Organization template scope | Record-bound metrics are absent from the Metric dropdown |
-| Organization template scope | Indicator is disabled and visibly explains `Indicator metrics require a project record.`; Activity and its aggregate metrics remain available while Activity overdue days is absent |
+| Organization template scope | Indicator is disabled; hover and keyboard focus expose `Indicator metrics require a project record.`, and its assistive-technology description remains available. Activity and its aggregate metrics remain available while Activity overdue days is absent |
 | Organization template saved | No Activate action; a template must be copied into a project first |
 | Without `indicators.read` or activity read | The record dropdown offers no choices, so the rule cannot be saved |
 | Rule edited elsewhere while open | Save is refused on the version check; reopen the rule and redo the change |
