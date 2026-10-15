@@ -139,8 +139,8 @@ describe('RuleDrawer', () => {
     })
     expect(body.recommendations).toHaveLength(1)
     expect(body.recommendations[0]).toMatchObject({
-      title: 'Review flagged condition',
-      text: 'Review the recorded evidence and decide on a response.',
+      title: 'Review project timeline',
+      text: 'Check the current schedule and recorded evidence with the project team, then agree on a follow-up.',
     })
     await waitFor(() => expect(onSaved).toHaveBeenCalledWith(null, 'created'))
   })
@@ -151,6 +151,100 @@ describe('RuleDrawer', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save Rule' }))
     expect((await screen.findByRole('alert')).textContent).toMatch(/at least one recommendation/)
     expect(state.createRule).not.toHaveBeenCalled()
+  })
+  it('disables Indicator for organization templates with an accessible explanation while Activity stays available', () => {
+    renderDrawer()
+    const indicator = screen.getByRole('checkbox', { name: /Indicator/ }) as HTMLInputElement
+    expect(indicator.disabled).toBe(true)
+    expect(screen.getByText('Indicator metrics require a project record.')).toBeTruthy()
+    const activity = screen.getByRole('checkbox', { name: /Activity/ }) as HTMLInputElement
+    expect(activity.disabled).toBe(false)
+    fireEvent.click(activity)
+    expect(option('Activity completion')).toBeTruthy()
+    expect(option('Activity overdue days')).toBeNull()
+  })
+  it('clears incompatible conditions and bindings when a project rule becomes an organization template', () => {
+    const project = { id: '30000000-0000-4000-8000-000000000001', title: 'North' }
+    renderDrawer({ projectId: project.id, projects: [project] })
+    fireEvent.click(screen.getByRole('checkbox', { name: /Indicator/ }))
+    fireEvent.change(screen.getByLabelText('Metric'), {
+      target: { value: 'INDICATOR_PROGRESS_PERCENT' },
+    })
+    fireEvent.change(screen.getByLabelText('Rule scope'), { target: { value: '' } })
+    expect(screen.getByRole('alert').textContent).toMatch(/Cleared 1 incompatible condition/)
+    expect(option('Indicator progress')).toBeNull()
+    expect((screen.getByLabelText('Metric') as HTMLSelectElement).value).toBe(
+      'PROJECT_TIMELINE_ELAPSED_PERCENT',
+    )
+  })
+  it('preserves compatible conditions when a rule moves between project scopes', () => {
+    const first = { id: '30000000-0000-4000-8000-000000000001', title: 'North' }
+    const second = { id: '30000000-0000-4000-8000-000000000002', title: 'South' }
+    renderDrawer({ projectId: first.id, projects: [first, second] })
+    fireEvent.change(screen.getByLabelText('Metric'), {
+      target: { value: 'PROJECT_REMAINING_DAYS' },
+    })
+    fireEvent.change(screen.getByLabelText('Threshold'), { target: { value: '20' } })
+    fireEvent.change(screen.getByLabelText('Rule scope'), { target: { value: second.id } })
+    expect((screen.getByLabelText('Metric') as HTMLSelectElement).value).toBe(
+      'PROJECT_REMAINING_DAYS',
+    )
+    expect((screen.getByLabelText('Threshold') as HTMLInputElement).value).toBe('20')
+  })
+  it('requires one Applies To family and clears a family that is removed', () => {
+    renderDrawer()
+    fireEvent.click(screen.getByRole('checkbox', { name: /Project/ }))
+    expect(screen.getByRole('alert').textContent).toBe('Select at least one Applies To family.')
+    fireEvent.click(screen.getByRole('checkbox', { name: /Activity/ }))
+    fireEvent.change(screen.getByLabelText('Metric'), {
+      target: { value: 'ACTIVITY_COMPLETION_PERCENT' },
+    })
+    fireEvent.click(screen.getByRole('checkbox', { name: /Activity/ }))
+    expect(screen.getByRole('alert').textContent).toMatch(/Cleared 1 incompatible condition/)
+    expect(option('Activity completion')).toBeNull()
+  })
+  it('suggests severity without overwriting a manual choice and saves the chosen severity', async () => {
+    renderDrawer()
+    fireEvent.change(screen.getByLabelText('Metric'), {
+      target: { value: 'PROJECT_OVERDUE_DAYS' },
+    })
+    fireEvent.change(screen.getByLabelText('Condition'), { target: { value: 'GTE' } })
+    fireEvent.change(screen.getByLabelText('Threshold'), { target: { value: '1' } })
+    expect(screen.getByTestId('severity-suggestion').textContent).toBe('Suggested severity: High')
+    fireEvent.click(screen.getByRole('radio', { name: /Critical/ }))
+    fireEvent.change(screen.getByLabelText('Threshold'), { target: { value: '2' } })
+    expect((screen.getByRole('radio', { name: /Critical/ }) as HTMLInputElement).checked).toBe(true)
+    fireEvent.click(screen.getByRole('button', { name: 'Use suggestion' }))
+    expect((screen.getByRole('radio', { name: /High/ }) as HTMLInputElement).checked).toBe(true)
+    fillBasics()
+    fireEvent.click(screen.getByRole('button', { name: 'Save Rule' }))
+    await waitFor(() => expect(state.createRule).toHaveBeenCalled())
+    expect(state.createRule.mock.calls[0]?.[0].severity).toBe('HIGH')
+  })
+  it('refreshes a new recommendation prefill by family but preserves user edits and reused text', async () => {
+    renderDrawer()
+    expect((screen.getByLabelText('Recommendation title') as HTMLInputElement).value).toBe(
+      'Review project timeline',
+    )
+    fireEvent.click(screen.getByRole('checkbox', { name: /Budget/ }))
+    fireEvent.change(screen.getByLabelText('Metric'), {
+      target: { value: 'BUDGET_UTILIZATION_PERCENT' },
+    })
+    await waitFor(() =>
+      expect((screen.getByLabelText('Recommendation title') as HTMLInputElement).value).toBe(
+        'Review budget utilization',
+      ),
+    )
+    fireEvent.change(screen.getByLabelText('Recommendation title'), {
+      target: { value: 'Keep my tailored title' },
+    })
+    fireEvent.click(screen.getByRole('checkbox', { name: /Assessment/ }))
+    fireEvent.change(screen.getByLabelText('Metric'), {
+      target: { value: 'SURVEY_MEAN_IMPROVEMENT_POINTS' },
+    })
+    expect((screen.getByLabelText('Recommendation title') as HTMLInputElement).value).toBe(
+      'Keep my tailored title',
+    )
   })
   it('blocks saving an invalid threshold', async () => {
     renderDrawer()
@@ -175,6 +269,10 @@ describe('RuleDrawer', () => {
     renderDrawer({ library: [saved] })
     await screen.findByLabelText('Rule Name')
     fireEvent.click(screen.getByRole('button', { name: 'Reuse' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: /Budget/ }))
+    fireEvent.change(screen.getByLabelText('Metric'), {
+      target: { value: 'BUDGET_UTILIZATION_PERCENT' },
+    })
     fillBasics()
     fireEvent.click(screen.getByRole('button', { name: 'Save Rule' }))
     await waitFor(() => expect(state.createRule).toHaveBeenCalled())
@@ -224,6 +322,14 @@ describe('RuleDrawer', () => {
     const dialog = await screen.findByRole('dialog', { name: /advanced/i })
     for (const label of [/^Rule name/i, /^Rule code/i, /^Severity/i])
       expect(dialog.contains(within(dialog).getByLabelText(label))).toBe(true)
+  })
+  it('keeps an existing rule severity and saved recommendation unchanged on open', async () => {
+    renderDrawer({ rule: activeRule })
+    await screen.findByLabelText('Rule Name')
+    expect((screen.getByRole('radio', { name: /High/ }) as HTMLInputElement).checked).toBe(true)
+    expect(screen.getByTestId('severity-suggestion').textContent).toBe('Suggested severity: Medium')
+    expect(screen.getByText('Review')).toBeTruthy()
+    expect(screen.queryByLabelText('Recommendation title')).toBeNull()
   })
   it('requires a note before deactivating an active rule', async () => {
     renderDrawer({ rule: activeRule })

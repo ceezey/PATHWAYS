@@ -9,7 +9,9 @@ import {
   formatMetricValue,
   isMetricAvailable,
   previewSentence,
+  recommendationPrefill,
   severityTone,
+  suggestSeverity,
   suggestRuleCode,
 } from './rule-board-model'
 
@@ -97,6 +99,35 @@ describe('rule board model', () => {
     expect(severityTone('CRITICAL')).toBe('danger')
     expect(severityTone('MEDIUM')).toBe('warning')
     expect(severityTone('LOW')).toBe('neutral')
+  })
+  it('suggests severity only from conditions that necessarily match their stated bound', () => {
+    expect(suggestSeverity(leaf('a', 'PROJECT_OVERDUE_DAYS', 'GTE', '1'))).toMatchObject({
+      severity: 'HIGH',
+    })
+    expect(suggestSeverity(leaf('b', 'ACTIVITY_COMPLETION_PERCENT', 'GTE', '100'))).toMatchObject({
+      severity: 'LOW',
+    })
+    expect(suggestSeverity(leaf('c', 'PROJECT_REMAINING_DAYS', 'LT', '30'))).toMatchObject({
+      severity: 'MEDIUM',
+    })
+    expect(suggestSeverity(tree)).toMatchObject({ severity: 'MEDIUM' })
+    expect(
+      suggestSeverity({
+        kind: 'GROUP',
+        mode: 'AND',
+        children: [
+          leaf('a', 'ACTIVITY_COMPLETION_PERCENT', 'GTE', '100'),
+          leaf('b', 'ACTIVITY_OVERDUE_COUNT', 'GT', '0'),
+        ],
+      }),
+    ).toMatchObject({ severity: 'HIGH' })
+  })
+  it('offers predefined authoring copy by metric family and combines mixed families', () => {
+    expect(recommendationPrefill(leaf('a', 'BUDGET_UTILIZATION_PERCENT', 'GTE', '80'))).toEqual({
+      title: 'Review budget utilization',
+      text: 'Review approved spending and remaining allocation with authorized budget staff before considering any adjustment.',
+    })
+    expect(recommendationPrefill(tree)).toMatchObject({ title: 'Review combined signals' })
   })
 })
 
