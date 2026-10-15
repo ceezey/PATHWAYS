@@ -203,6 +203,8 @@ Examples are schema illustrations, not executable review evidence. An empty eval
 
 Agent definitions live in `.claude/agents/` and are read by Claude Code. They defer to this document; `pnpm docs:check` fails on roster or model drift. Coordinators run as the main thread because subagents cannot spawn subagents.
 
+Codex platform binding (2026-10-15): `.codex/agents/*.toml` supplies the same role names and evidence obligations. Models and reasoning effort inherit from the Codex session; the roster Model column continues to bind Claude definitions only. Codex coordinators also run in the main session. See `CODEX.md` and build guide section 2.3. This binding changes no trigger, engineering rule, review stage or sign-off requirement.
+
 ## 6. Maintenance
 
 - Changing a role, trigger glob or model is a SAD change and must update `scripts/sad/check.ts` and `.claude/agents/` together.

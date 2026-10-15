@@ -11,6 +11,8 @@
 
 Root `AGENTS.md` is a materialized copy. Edit this guide first, then run `pnpm docs:materialize` and `pnpm docs:check`.
 
+Codex sessions also read root `CODEX.md` for platform usage and `.codex/agents/*.toml` role bindings. These defer to this guide and the SAD.
+
 ## 1. How to Build From These Docs
 
 ### 1.1 Read Order
@@ -112,6 +114,10 @@ Use `release-integrator` as the main-thread agent (`claude --agent release-integ
 6. **R6 Deployment:** merge `dev` into `master` and push normally.
 
 The developer authorized R6 without per-release approval on 2026-09-28, only when all of these pass on the exact commit pushed: `pnpm -r typecheck`, test and build scripts, `pnpm docs:check`, `pnpm sad:signoff` with valid PASS evidence, R4 PASS for every feature, and healthy development previews. A release containing schema or migration changes stops before R6 for human authorization. Run logs and evidence go to `.tmp/release/<run>/`.
+
+### 2.3 Codex Platform Binding
+
+Codex uses `.codex/agents/*.toml` for the same seven SAD specialists, `requirements-qa-gate`, and the two coordinator workflows. `CODEX.md` describes dispatch and connected-service usage. Coordinate SAD and release workflows in the main session by reading the corresponding role instructions. Use the same SAD routing, packets, stage order, final digest and evidence validator. Codex roles inherit the session model and reasoning effort; the SAD Claude model assignments remain specific to `.claude/agents/`. If named custom roles are unavailable, supply the corresponding role instructions and packet to an available subagent explicitly. Missing specialist execution still withholds sign-off.
 
 ## 3. Stack Currency & Deprecations
 

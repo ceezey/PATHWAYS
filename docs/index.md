@@ -20,7 +20,8 @@
 | Brand reference | [BRAND.md](../BRAND.md) | Working | Materialized from the DSD |
 | Design reference | [DESIGN.md](../DESIGN.md) | Working | Materialized from the DSD |
 | Setup guide | [README-setup.md](../README-setup.md) | Working | Local environment setup |
-| Project instructions | [CLAUDE.md](../CLAUDE.md) | Control | Repository guidance for the AI assistant |
+| Project instructions | [CLAUDE.md](../CLAUDE.md) | Control | Repository guidance for Claude |
+| Codex instructions | [CODEX.md](../CODEX.md) | Control | Codex platform usage and `.codex/agents/*.toml` bindings; defers to BUILD and SAD |
 
 ### 1.2 Suite
 
