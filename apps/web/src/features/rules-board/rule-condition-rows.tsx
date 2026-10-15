@@ -10,6 +10,7 @@ import { activitiesClient } from '@/lib/api/activities'
 import { indicatorsClient } from '@/lib/api/indicators'
 import { cn } from '@/lib/utils'
 import { type HumanRule, type RuleCondition, operators } from '@pathways/shared'
+import { useId, useState } from 'react'
 import {
   type MetricScope,
   SCOPES,
@@ -21,6 +22,68 @@ import {
 import { type Mode, newRow, recordBound, selectClass } from './rule-drawer-shared'
 
 type Choice = { id: string; name: string }
+
+function ScopeOption({
+  scope,
+  unavailable,
+  checked,
+  message,
+  onToggle,
+}: {
+  scope: MetricScope
+  unavailable: boolean
+  checked: boolean
+  message: string
+  onToggle: () => void
+}) {
+  const descriptionId = useId()
+  const [hintOpen, setHintOpen] = useState(false)
+  const canExplain = unavailable
+  return (
+    <span
+      className="relative inline-flex"
+      onMouseEnter={() => canExplain && setHintOpen(true)}
+      onMouseLeave={() => setHintOpen(false)}
+    >
+      <span
+        aria-describedby={canExplain ? descriptionId : undefined}
+        aria-label={canExplain ? `${scope} unavailable` : undefined}
+        className="inline-flex"
+        onBlur={() => setHintOpen(false)}
+        onFocus={() => canExplain && setHintOpen(true)}
+        onKeyDown={(event) => {
+          if (event.key === 'Escape') {
+            setHintOpen(false)
+            event.currentTarget.blur()
+          }
+        }}
+        role={canExplain ? 'group' : undefined}
+        tabIndex={canExplain ? 0 : undefined}
+      >
+        <label
+          className={cn('flex items-center gap-2 text-sm', unavailable && 'text-muted-foreground')}
+          title={unavailable ? message : undefined}
+        >
+          <input checked={checked} disabled={unavailable} onChange={onToggle} type="checkbox" />
+          {scope}
+        </label>
+      </span>
+      {canExplain ? (
+        <span className="sr-only" id={descriptionId}>
+          {message}
+        </span>
+      ) : null}
+      {hintOpen ? (
+        <span
+          className="absolute left-0 top-full z-40 mt-2 w-[min(16rem,calc(100vw-2rem))] rounded-md border border-border bg-popover px-3 py-2 text-left text-xs font-normal leading-5 text-popover-foreground shadow-dialog"
+          role="tooltip"
+        >
+          {message}
+        </span>
+      ) : null}
+    </span>
+  )
+}
 
 /** Loads the project records that indicator and activity metrics bind to. */
 export function useBindingChoices(scopeProjectId: string | null, rows: RuleCondition[]) {
@@ -100,30 +163,18 @@ export function ApplyToFields({
           const missing = availableMetrics([scope]).length === 0
           const needsProject = organizationTemplate && scope === 'Indicator'
           const unavailable = missing || needsProject
-          const hint = `scope-unavailable-${scope.replaceAll(' ', '-')}`
           const message = needsProject
             ? 'Indicator metrics require a project record.'
             : 'Not in the rule metric catalog yet'
           return (
-            <label
-              className={cn('flex items-center gap-2 text-sm', unavailable && 'text-muted-foreground')}
+            <ScopeOption
+              checked={scopes.includes(scope)}
               key={scope}
-              title={unavailable ? message : undefined}
-            >
-              <input
-                aria-describedby={unavailable ? hint : undefined}
-                checked={scopes.includes(scope)}
-                disabled={unavailable}
-                onChange={() => onToggle(scope)}
-                type="checkbox"
-              />
-              {scope}
-              {unavailable ? (
-                <span className="text-xs text-muted-foreground" id={hint}>
-                  {message}
-                </span>
-              ) : null}
-            </label>
+              message={message}
+              scope={scope}
+              unavailable={unavailable}
+              onToggle={() => onToggle(scope)}
+            />
           )
         })}
       </div>

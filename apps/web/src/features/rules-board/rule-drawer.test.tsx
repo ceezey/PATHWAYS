@@ -152,11 +152,25 @@ describe('RuleDrawer', () => {
     expect((await screen.findByRole('alert')).textContent).toMatch(/at least one recommendation/)
     expect(state.createRule).not.toHaveBeenCalled()
   })
-  it('disables Indicator for organization templates with an accessible explanation while Activity stays available', () => {
+  it('shows the unavailable Indicator explanation on hover and focus while Activity stays available', () => {
     renderDrawer()
     const indicator = screen.getByRole('checkbox', { name: /Indicator/ }) as HTMLInputElement
     expect(indicator.disabled).toBe(true)
-    expect(screen.getByText('Indicator metrics require a project record.')).toBeTruthy()
+    const hintTrigger = screen.getByRole('group', { name: 'Indicator unavailable' })
+    const descriptionId = hintTrigger.getAttribute('aria-describedby')
+    expect(document.getElementById(descriptionId as string)?.textContent).toBe(
+      'Indicator metrics require a project record.',
+    )
+    expect(document.getElementById(descriptionId as string)?.className).toContain('sr-only')
+    expect(screen.queryByRole('tooltip')).toBeNull()
+    fireEvent.mouseEnter(hintTrigger)
+    expect(screen.getByRole('tooltip').textContent).toBe('Indicator metrics require a project record.')
+    fireEvent.mouseLeave(hintTrigger)
+    expect(screen.queryByRole('tooltip')).toBeNull()
+    fireEvent.focus(hintTrigger)
+    expect(screen.getByRole('tooltip')).toBeTruthy()
+    fireEvent.keyDown(hintTrigger, { key: 'Escape' })
+    expect(screen.queryByRole('tooltip')).toBeNull()
     const activity = screen.getByRole('checkbox', { name: /Activity/ }) as HTMLInputElement
     expect(activity.disabled).toBe(false)
     fireEvent.click(activity)
