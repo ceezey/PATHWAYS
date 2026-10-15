@@ -8,6 +8,7 @@ import {
   flattenRecommendations,
   formatMetricValue,
   isMetricAvailable,
+  metricGuidance,
   previewSentence,
   recommendationPrefill,
   severityTone,
@@ -51,10 +52,10 @@ const rule = (name: string, status: 'DRAFT' | 'ACTIVE' | 'ARCHIVED') => ({
 describe('rule board model', () => {
   it('summarizes flat and nested conditions', () => {
     expect(conditionSummary(leaf('a', 'INDICATOR_PROGRESS_PERCENT', 'LT', '70'))).toBe(
-      'Indicator progress < 70%',
+      'Progress toward indicator target < 70%',
     )
     expect(conditionSummary(tree)).toBe(
-      'Indicator progress < 70% AND (Project remaining days <= 30 days OR Activity completion between 10 and 40%)',
+      'Progress toward indicator target < 70% AND (Days until project end <= 30 days OR Activities completed between 10 and 40%)',
     )
   })
   it('derives distinct scopes', () => {
@@ -73,7 +74,7 @@ describe('rule board model', () => {
       conditions: leaf('a', 'INDICATOR_PROGRESS_PERCENT', 'LT', '70'),
     })
     expect(sentence).toBe(
-      "IF Indicator progress is below 70% THEN raise a high alert 'Low progress' for assigned project users. Human review required.",
+      'Raise a High alert when Progress toward indicator target is below 70%. Human review required.',
     )
   })
   it('flattens recommendations without severity', () => {
@@ -129,15 +130,29 @@ describe('rule board model', () => {
     })
     expect(recommendationPrefill(tree)).toMatchObject({ title: 'Review combined signals' })
   })
+  it('keeps approved guidance display-only against the existing Assessment key', () => {
+    expect(metricGuidance('SURVEY_MEAN_IMPROVEMENT_POINTS')).toMatchObject({
+      label: 'Average assessment score change',
+      monitors: 'Project aggregate',
+      definition: expect.stringContaining('0–100'),
+      example: {
+        label: 'Worked example',
+        value: 'A score increasing from 60% to 75% changes by 15 percentage points.',
+      },
+    })
+    expect(metricGuidance('BUDGET_UTILIZATION_PERCENT')?.definition).toContain(
+      'Counted spending is approved expenses.',
+    )
+  })
 })
 
 describe('formatMetricValue', () => {
-  it('drops COUNT, rounds PERCENT to two decimals and shortens POINTS', () => {
+  it('drops COUNT, rounds PERCENT to two decimals and spells out percentage points', () => {
     expect(formatMetricValue('2', 'COUNT')).toBe('2')
     expect(formatMetricValue('108.1081', 'PERCENT')).toBe('108.11%')
     expect(formatMetricValue('92', 'PERCENT')).toBe('92%')
     expect(formatMetricValue('55', '%')).toBe('55%')
-    expect(formatMetricValue('11.625', 'POINTS')).toBe('11.625 pts')
+    expect(formatMetricValue('11.625', 'POINTS')).toBe('11.625 percentage points')
     expect(formatMetricValue('30', 'DAYS')).toBe('30 DAYS')
   })
 })

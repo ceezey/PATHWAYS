@@ -197,9 +197,7 @@ function OwnedDrawer({
   useEffect(() => {
     if (rule || recommendationEdited.current) return
     setRecs((current) =>
-      current.length === 1
-        ? [{ ...(current[0] as Rec), ...suggestedRecommendation }]
-        : current,
+      current.length === 1 ? [{ ...(current[0] as Rec), ...suggestedRecommendation }] : current,
     )
   }, [rule, suggestedRecommendation.text, suggestedRecommendation.title])
   const changeName = (value: string) => {
@@ -232,7 +230,9 @@ function OwnedDrawer({
     if (!nextRows.length) nextRows.push(newRow(permitted[0] ?? ''))
     setRows(nextRows)
     const cleared = [
-      clearedConditions ? `${clearedConditions} incompatible condition${clearedConditions === 1 ? '' : 's'}` : '',
+      clearedConditions
+        ? `${clearedConditions} incompatible condition${clearedConditions === 1 ? '' : 's'}`
+        : '',
       clearedBindings ? `${clearedBindings} record binding${clearedBindings === 1 ? '' : 's'}` : '',
     ].filter(Boolean)
     if (cleared.length) setNotice(`Cleared ${cleared.join(' and ')} because ${cause}.`)
@@ -372,7 +372,7 @@ function OwnedDrawer({
           <RuleStepCard
             step={1}
             title="Name and scope"
-            hint="Name the rule and choose the projects it watches."
+            hint="Name the rule, choose its project scope, then choose what it watches."
           >
             <div className="space-y-2">
               <Label htmlFor="drawer-rule-name">Rule Name</Label>
@@ -414,7 +414,7 @@ function OwnedDrawer({
           <RuleStepCard
             step={2}
             title="What are you watching?"
-            hint="Pick the metric to monitor and the threshold that flags it."
+            hint="Pick the metric to monitor, read its definition and example, then enter the threshold that flags it."
           >
             <ConditionBuilder
               activities={activities}
@@ -432,7 +432,7 @@ function OwnedDrawer({
           <RuleStepCard
             step={3}
             title="How should this read?"
-            hint="Severity sets how the output is read, from a progress milestone to an urgent risk."
+            hint="Severity is the alert’s urgency. Choose it deliberately, or use the suggestion."
           >
             <SeverityField
               mode={mode}

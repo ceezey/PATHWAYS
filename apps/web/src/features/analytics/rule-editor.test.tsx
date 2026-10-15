@@ -248,7 +248,11 @@ describe('aggregate metric options', () => {
     renderEditor({ projectId })
     await screen.findByLabelText('Applies to')
     const metricSelect = screen.getByLabelText('Metric')
-    for (const label of ['Budget utilization', 'Beneficiary follow-up', 'Survey mean improvement'])
+    for (const label of [
+      'Budget used',
+      'Beneficiaries needing follow-up',
+      'Average assessment score change',
+    ])
       expect(within(metricSelect).getByText(label)).toBeTruthy()
     fireEvent.change(metricSelect, { target: { value: 'BUDGET_UTILIZATION_PERCENT' } })
     expect(screen.queryByLabelText('Activity')).toBeNull()

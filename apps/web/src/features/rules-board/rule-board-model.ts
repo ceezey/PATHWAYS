@@ -15,7 +15,16 @@ type MetricCategory =
   | 'Financial'
   | 'Participation'
   | 'Outcome'
-type MetricEntry = { label: string; scope: MetricScope; unit: MetricUnit; category: MetricCategory }
+type MetricExample = { label: string; value: string }
+type MetricEntry = {
+  label: string
+  scope: MetricScope
+  unit: MetricUnit
+  category: MetricCategory
+  definition: string
+  example: MetricExample
+  monitors: 'Selected project' | 'Selected record' | 'Project aggregate'
+}
 type Leaf = Extract<RuleNode, { kind: 'CONDITION' }>
 type BoardRule = Pick<
   HumanRule,
@@ -46,38 +55,145 @@ const entry = (
   scope: MetricScope,
   unit: MetricUnit,
   category: MetricCategory,
-): MetricEntry => ({ label, scope, unit, category })
+  definition: string,
+  example: MetricExample,
+  monitors: MetricEntry['monitors'],
+): MetricEntry => ({ label, scope, unit, category, definition, example, monitors })
 const METRIC_CATALOG: Record<RuleMetricKey, MetricEntry> = {
-  INDICATOR_CURRENT_VALUE: entry('Indicator current value', 'Indicator', 'value', 'Performance'),
-  INDICATOR_PROGRESS_PERCENT: entry('Indicator progress', 'Indicator', '%', 'Performance'),
-  PROJECT_TIMELINE_ELAPSED_PERCENT: entry('Project timeline elapsed', 'Project', '%', 'Schedule'),
-  PROJECT_REMAINING_DAYS: entry('Project remaining days', 'Project', 'days', 'Schedule'),
-  PROJECT_OVERDUE_DAYS: entry('Project overdue days', 'Project', 'days', 'Schedule'),
-  ACTIVITY_COMPLETION_PERCENT: entry('Activity completion', 'Activity', '%', 'Delivery'),
-  ACTIVITY_OVERDUE_COUNT: entry('Overdue activities', 'Activity', 'count', 'Delivery'),
-  ACTIVITY_OVERDUE_DAYS: entry('Activity overdue days', 'Activity', 'days', 'Delivery'),
-  BUDGET_UTILIZATION_PERCENT: entry('Budget utilization', 'Budget', '%', 'Financial'),
+  INDICATOR_CURRENT_VALUE: entry(
+    'Current indicator value',
+    'Indicator',
+    'value',
+    'Performance',
+    'The latest value of the selected indicator, expressed in its measurement unit.',
+    {
+      label: 'Worked example',
+      value: 'If the indicator records 42 households, the value is 42 households.',
+    },
+    'Selected record',
+  ),
+  INDICATOR_PROGRESS_PERCENT: entry(
+    'Progress toward indicator target',
+    'Indicator',
+    '%',
+    'Performance',
+    'Percentage progress calculated using the selected indicator’s baseline, target, and direction.',
+    {
+      label: 'Worked example',
+      value: 'From a baseline of 20 to a target of 80, a current value of 50 is 50% progress.',
+    },
+    'Selected record',
+  ),
+  PROJECT_TIMELINE_ELAPSED_PERCENT: entry(
+    'Project timeline elapsed',
+    'Project',
+    '%',
+    'Schedule',
+    'Percentage of the scheduled project duration that has passed. This measures time, not work completed.',
+    { label: 'Worked example', value: 'Halfway through a 120-day schedule is 50% elapsed.' },
+    'Selected project',
+  ),
+  PROJECT_REMAINING_DAYS: entry(
+    'Days until project end',
+    'Project',
+    'days',
+    'Schedule',
+    'Calendar days until the scheduled end date. Negative values mean the date has passed.',
+    { label: 'Worked example', value: 'An end date 10 calendar days away gives 10 days.' },
+    'Selected project',
+  ),
+  PROJECT_OVERDUE_DAYS: entry(
+    'Days past project end',
+    'Project',
+    'days',
+    'Schedule',
+    'Calendar days beyond the scheduled end date; otherwise zero.',
+    { label: 'Worked example', value: 'An end date 3 calendar days ago gives 3 days.' },
+    'Selected project',
+  ),
+  ACTIVITY_COMPLETION_PERCENT: entry(
+    'Activities completed',
+    'Activity',
+    '%',
+    'Delivery',
+    'Percentage of eligible activities marked completed.',
+    { label: 'Worked example', value: '8 completed eligible activities out of 10 is 80%.' },
+    'Project aggregate',
+  ),
+  ACTIVITY_OVERDUE_COUNT: entry(
+    'Number of overdue activities',
+    'Activity',
+    'count',
+    'Delivery',
+    'Count of unfinished activities past their planned end dates.',
+    {
+      label: 'Worked example',
+      value: '2 unfinished activities past their planned end dates gives a count of 2.',
+    },
+    'Project aggregate',
+  ),
+  ACTIVITY_OVERDUE_DAYS: entry(
+    'Days activity is overdue',
+    'Activity',
+    'days',
+    'Delivery',
+    'Calendar days a selected unfinished activity is past its planned end date.',
+    {
+      label: 'Worked example',
+      value: 'An unfinished activity 4 calendar days past its planned end date is 4 days overdue.',
+    },
+    'Selected record',
+  ),
+  BUDGET_UTILIZATION_PERCENT: entry(
+    'Budget used',
+    'Budget',
+    '%',
+    'Financial',
+    'Approved expense total as a percentage of the planned budget total. Counted spending is approved expenses.',
+    {
+      label: 'Worked example',
+      value: '250 in approved expenses against a planned total of 1,000 is 25%.',
+    },
+    'Project aggregate',
+  ),
   BENEFICIARY_FOLLOW_UP_PERCENT: entry(
-    'Beneficiary follow-up',
+    'Beneficiaries needing follow-up',
     'Beneficiary Group',
     '%',
     'Participation',
+    'Percentage of active enrollments whose latest participation record indicates follow-up is needed. This is not follow-up completion.',
+    { label: 'Worked example', value: '5 active enrollments needing follow-up out of 20 is 25%.' },
+    'Project aggregate',
   ),
   SURVEY_MEAN_IMPROVEMENT_POINTS: entry(
-    'Survey mean improvement',
+    'Average assessment score change',
     'Assessment',
     'points',
     'Outcome',
+    'Average post-test minus pre-test score after converting scores to a 0–100 scale. Negative values indicate a decline.',
+    {
+      label: 'Worked example',
+      value: 'A score increasing from 60% to 75% changes by 15 percentage points.',
+    },
+    'Project aggregate',
   ),
 }
 export const SCOPES: MetricScope[] = [
   'Project',
   'Indicator',
-  'Assessment',
   'Activity',
-  'Beneficiary Group',
   'Budget',
+  'Beneficiary Group',
+  'Assessment',
 ]
+export const scopeGuidance: Record<MetricScope, string> = {
+  Project: 'Project schedule',
+  Indicator: 'Indicator results',
+  Activity: 'Activity delivery',
+  Budget: 'Budget spending',
+  'Beneficiary Group': 'Beneficiary follow-up',
+  Assessment: 'Assessment scores',
+}
 const operatorSymbols = { LT: '<', LTE: '<=', EQ: '=', GTE: '>=', GT: '>' } as const
 export const operatorWords = {
   LT: 'below',
@@ -105,9 +221,15 @@ export const availableMetrics = (scopes?: readonly MetricScope[]) =>
   )
 const suffix = (key: string) => {
   const unit = unitOf(key)
-  return unit === '%' ? '%' : unit === 'days' || unit === 'points' ? ` ${unit}` : ''
+  return unit === '%'
+    ? '%'
+    : unit === 'days'
+      ? ' days'
+      : unit === 'points'
+        ? ' percentage points'
+        : ''
 }
-/** Display only: COUNT drops its unit, PERCENT rounds to 2 decimals with %, POINTS reads pts. */
+/** Display only: COUNT drops its unit, PERCENT rounds to 2 decimals with %. */
 export const formatMetricValue = (value: string, unit: string) => {
   const kind = unit.toUpperCase()
   if (kind === 'COUNT') return value
@@ -115,10 +237,19 @@ export const formatMetricValue = (value: string, unit: string) => {
     const n = Number(value)
     return `${Number.isFinite(n) ? Number(n.toFixed(2)) : value}%`
   }
-  if (kind === 'POINTS') return `${value} pts`
+  if (kind === 'POINTS') return `${value} percentage points`
   return `${value} ${unit}`
 }
-export const unitLabel = (key: string) => (unitOf(key) === 'value' ? 'Value' : unitOf(key))
+export const metricGuidance = (key: string): MetricEntry | null =>
+  (METRIC_CATALOG as Record<string, MetricEntry | undefined>)[key] ?? null
+export const unitLabel = (key: string) => {
+  const unit = unitOf(key)
+  if (unit === '%') return 'Percentage'
+  if (unit === 'days') return 'Calendar days'
+  if (unit === 'points') return 'Percentage points'
+  if (unit === 'count') return 'Count'
+  return 'Measurement unit'
+}
 const firstMetric = (node: RuleNode): string =>
   node.kind === 'CONDITION' ? node.metric : firstMetric(node.children[0] as RuleNode)
 
@@ -160,9 +291,7 @@ export const suggestSeverity = (conditions: RuleNode): SuggestedSeverity => {
       reason: 'An overdue condition can only match a value above zero.',
     }
   if (
-    ruleLeaves.some(
-      (leaf) => completionMetrics.has(leaf.metric) && necessarilyAtLeast(leaf, 100),
-    )
+    ruleLeaves.some((leaf) => completionMetrics.has(leaf.metric) && necessarilyAtLeast(leaf, 100))
   )
     return {
       severity: 'LOW',
@@ -170,7 +299,8 @@ export const suggestSeverity = (conditions: RuleNode): SuggestedSeverity => {
     }
   return {
     severity: 'MEDIUM',
-    reason: 'The configured conditions do not imply an overdue value above zero or completion of at least 100%.',
+    reason:
+      'The configured conditions do not imply an overdue value above zero or completion of at least 100%.',
   }
 }
 const recommendationPrefills: Record<MetricScope, RecommendationPrefill> = {
@@ -235,7 +365,7 @@ const summarize = (node: RuleNode, words: boolean): string => {
 export const conditionSummary = (node: RuleNode) => summarize(node, false)
 export const conditionSentence = (node: RuleNode) => summarize(node, true)
 export const previewSentence = (draft: RuleDraft) =>
-  `IF ${summarize(draft.conditions, true)} THEN raise a ${draft.severity.toLowerCase()} alert '${draft.name.trim() || 'Untitled rule'}' for assigned project users. Human review required.`
+  `Raise a ${draft.severity[0]}${draft.severity.slice(1).toLowerCase()} alert when ${summarize(draft.conditions, true)}. Human review required.`
 
 export const flattenRecommendations = (rules: BoardRule[]): RecommendationRow[] =>
   rules.flatMap((rule) =>

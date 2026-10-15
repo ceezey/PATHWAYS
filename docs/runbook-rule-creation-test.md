@@ -23,21 +23,23 @@ Use synthetic seed data only. No real Beneficiary data in any environment.
 
 The Applies To checkboxes filter this list; the Metric dropdown shows only metrics whose scope is checked. Record-bound metrics are hidden entirely while Rule scope is Organization template.
 
-| Metric | Scope | Unit | Category | Threshold domain | Binds a record |
+| Metric | Scope | Unit | Monitoring | Threshold domain | Binds a record |
 |---|---|---|---|---|---|
-| Indicator current value | Indicator | value | Performance | any exact decimal | indicator |
-| Indicator progress | Indicator | % | Performance | any exact decimal, not capped at 100 | indicator |
-| Project timeline elapsed | Project | % | Schedule | >= 0, not capped at 100 | no |
-| Project remaining days | Project | days | Schedule | whole numbers, may be negative | no |
-| Project overdue days | Project | days | Schedule | >= 0, whole numbers | no |
-| Activity completion | Activity | % | Delivery | 0 to 100 | no |
-| Overdue activities | Activity | count | Delivery | >= 0, whole numbers | no |
-| Activity overdue days | Activity | days | Delivery | >= 0, whole numbers | activity |
-| Budget utilization | Budget | % | Financial | >= 0, not capped at 100 | no |
-| Beneficiary follow-up | Beneficiary Group | % | Participation | 0 to 100 | no |
-| Survey mean improvement | Assessment | points | Outcome | -100 to 100 | no |
+| Current indicator value | Indicator | measurement unit | latest selected indicator value | any exact decimal | indicator |
+| Progress toward indicator target | Indicator | percentage | baseline-to-target progress using direction | any exact decimal, not capped at 100 | indicator |
+| Project timeline elapsed | Project | percentage | scheduled duration passed, not work completed | >= 0, not capped at 100 | no |
+| Days until project end | Project | calendar days | scheduled end date; negative means passed | whole numbers, may be negative | no |
+| Days past project end | Project | calendar days | days beyond scheduled end, otherwise zero | >= 0, whole numbers | no |
+| Activities completed | Activity | percentage | eligible activities marked completed | 0 to 100 | no |
+| Number of overdue activities | Activity | count | unfinished activities past planned end | >= 0, whole numbers | no |
+| Days activity is overdue | Activity | calendar days | selected unfinished activity past planned end | >= 0, whole numbers | activity |
+| Budget used | Budget | percentage | approved expenses over planned budget; counted spending is approved expenses | >= 0, not capped at 100 | no |
+| Beneficiaries needing follow-up | Beneficiary Group | percentage | active enrollments whose latest participation needs follow-up, not completion | 0 to 100 | no |
+| Average assessment score change | Assessment | percentage points | average post-test minus pre-test after 0–100 conversion; negative means decline | -100 to 100 | no |
 
 Every threshold is an exact decimal: at most 14 integer and 4 fractional digits, 20 characters.
+
+The builder shows a definition, monitoring level and clearly labelled worked example for the selected metric. Examples explain only; they never populate, default or save a threshold. For Assessment, confirm the worked example says that 60% to 75% changes by 15 percentage points. The stored metric key remains `SURVEY_MEAN_IMPROVEMENT_POINTS` and is not shown as a user-facing Survey metric.
 
 ## 3. Field cheatsheet
 
@@ -64,10 +66,10 @@ Every threshold is an exact decimal: at most 14 integer and 4 fractional digits,
 5. Step 1: enter Rule Name `Overdue activity watch`. Expect: Rule Code fills with `OVERDUE_ACTIVITY_WATCH`.
 6. Confirm Rule scope shows your project.
 7. Tick **Activity** under Applies To.
-8. Step 2: set Metric to `Overdue activities`, Condition to `At least`, Threshold to `2`. Expect: Unit reads `count`, and Rule Category in step 1 reads `Delivery`.
+8. Step 2: set Metric to `Number of overdue activities`, Condition to `At least`, Threshold to `2`. Expect: Unit reads `Count`, the guidance says it counts unfinished activities past planned end dates, and Rule Category in step 1 reads `Delivery`.
 9. Step 3: expect **Suggested severity: High** and the reason that the overdue condition can only match a value above zero. Choose **Use suggestion**. Expect: the High tile takes the warning tone. Choose Critical, change the threshold, and confirm Critical remains selected until **Use suggestion** is pressed.
 10. Step 4: expect title `Review activity progress` and response `Check the activity status and recorded evidence with assigned staff, then agree on a follow-up.` Replace both with your own text.
-11. Check the preview column: the sentence reads `IF overdue activities is at least 2 THEN raise a high alert 'Overdue activity watch' for assigned project users. Human review required.`, and the sample below it shows the name, the severity tone, the condition and your recommendation.
+11. Check the preview column: the sentence reads `Raise a High alert when Number of overdue activities is at least 2. Human review required.`, and the sample below it shows the name, the severity tone, the condition and your recommendation.
 12. Press **Save Rule**. Expect: the Rule repository tab returns, `Rule changes saved.` appears, and the rule is listed as **Draft**.
 13. Open **Manage Rules**, find the rule, press **Test**, then **Activate**. Expect: status becomes **Active**.
 

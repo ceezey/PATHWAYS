@@ -16,7 +16,9 @@ import {
   SCOPES,
   availableMetrics,
   metricLabel,
+  metricGuidance,
   operatorWords,
+  scopeGuidance,
   unitLabel,
 } from './rule-board-model'
 import { type Mode, newRow, recordBound, selectClass } from './rule-drawer-shared'
@@ -28,12 +30,14 @@ function ScopeOption({
   unavailable,
   checked,
   message,
+  description,
   onToggle,
 }: {
   scope: MetricScope
   unavailable: boolean
   checked: boolean
   message: string
+  description: string
   onToggle: () => void
 }) {
   const descriptionId = useId()
@@ -41,7 +45,7 @@ function ScopeOption({
   const canExplain = unavailable
   return (
     <span
-      className="relative inline-flex"
+      className="relative block"
       onMouseEnter={() => canExplain && setHintOpen(true)}
       onMouseLeave={() => setHintOpen(false)}
     >
@@ -68,6 +72,7 @@ function ScopeOption({
           {scope}
         </label>
       </span>
+      <p className="mt-1 text-xs text-muted-foreground">{description}</p>
       {canExplain ? (
         <span className="sr-only" id={descriptionId}>
           {message}
@@ -169,6 +174,7 @@ export function ApplyToFields({
           return (
             <ScopeOption
               checked={scopes.includes(scope)}
+              description={scopeGuidance[scope]}
               key={scope}
               message={message}
               scope={scope}
@@ -301,6 +307,27 @@ export function ConditionBuilder({
                 <Label htmlFor={`${row.id}-unit`}>Unit</Label>
                 <Input id={`${row.id}-unit`} readOnly value={unitLabel(row.metric)} />
               </div>
+              {metricGuidance(row.metric) ? (
+                <aside
+                  aria-label={`About ${metricLabel(row.metric)}`}
+                  className="col-span-2 space-y-2 rounded-md border border-info/30 bg-info-subtle p-3 text-sm"
+                >
+                  <p className="font-medium">About {metricLabel(row.metric)}</p>
+                  <p>{metricGuidance(row.metric)?.definition}</p>
+                  <p className="text-muted-foreground">
+                    Monitors: {metricGuidance(row.metric)?.monitors}. Unit: {unitLabel(row.metric)}.
+                  </p>
+                  <p>
+                    <span className="font-medium">
+                      {metricGuidance(row.metric)?.example.label}:
+                    </span>{' '}
+                    {metricGuidance(row.metric)?.example.value}
+                  </p>
+                  <p className="text-muted-foreground">
+                    Enter the threshold yourself. This example does not fill or save a threshold.
+                  </p>
+                </aside>
+              ) : null}
               {row.operator === 'BETWEEN' ? (
                 <div className="col-span-2 space-y-2">
                   <Label htmlFor={`${row.id}-upper`}>Upper threshold</Label>

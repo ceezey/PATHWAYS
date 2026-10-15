@@ -94,13 +94,13 @@ describe('RuleDrawer', () => {
   it('filters the metric list by the Applies To checkboxes and derives the unit', () => {
     renderDrawer()
     expect(option('Project timeline elapsed')).toBeTruthy()
-    expect(option('Activity completion')).toBeNull()
+    expect(option('Activities completed')).toBeNull()
     fireEvent.click(screen.getByRole('checkbox', { name: 'Activity' }))
-    expect(option('Activity completion')).toBeTruthy()
+    expect(option('Activities completed')).toBeTruthy()
     fireEvent.change(screen.getByLabelText('Metric'), {
       target: { value: 'ACTIVITY_OVERDUE_COUNT' },
     })
-    expect((screen.getByLabelText('Unit') as HTMLInputElement).value).toBe('count')
+    expect((screen.getByLabelText('Unit') as HTMLInputElement).value).toBe('Count')
     expect(screen.getByTestId('rule-category').textContent).toBe('Delivery')
     expect(screen.queryByLabelText('Rule Category')).toBeNull()
   })
@@ -110,11 +110,46 @@ describe('RuleDrawer', () => {
       false,
     )
   })
+  it('explains scopes and selected Assessment metric guidance without setting a threshold', () => {
+    renderDrawer()
+    for (const description of [
+      'Project schedule',
+      'Indicator results',
+      'Activity delivery',
+      'Budget spending',
+      'Beneficiary follow-up',
+      'Assessment scores',
+    ])
+      expect(screen.getByText(description)).toBeTruthy()
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Assessment' }))
+    fireEvent.change(screen.getByLabelText('Metric'), {
+      target: { value: 'SURVEY_MEAN_IMPROVEMENT_POINTS' },
+    })
+    expect(screen.getByText('About Average assessment score change')).toBeTruthy()
+    expect(
+      screen.getByText(
+        'Average post-test minus pre-test score after converting scores to a 0–100 scale. Negative values indicate a decline.',
+      ),
+    ).toBeTruthy()
+    expect(screen.getByText('Monitors: Project aggregate. Unit: Percentage points.')).toBeTruthy()
+    expect(
+      screen.getByText('A score increasing from 60% to 75% changes by 15 percentage points.'),
+    ).toBeTruthy()
+    expect(
+      screen.getByText(
+        'Enter the threshold yourself. This example does not fill or save a threshold.',
+      ),
+    ).toBeTruthy()
+    expect((screen.getByLabelText('Threshold') as HTMLInputElement).value).toBe('')
+    expect(screen.getByTestId('rule-preview').textContent).toBe(
+      'Raise a Medium alert when Average assessment score change is below ... percentage points. Human review required.',
+    )
+  })
   it('shows the preview sentence and the human-review line', () => {
     renderDrawer()
     fillBasics()
     expect(screen.getByTestId('rule-preview').textContent).toBe(
-      "IF Project remaining days is below 30 days THEN raise a medium alert 'Late project' for assigned project users. Human review required.",
+      'Raise a Medium alert when Days until project end is below 30 days. Human review required.',
     )
     expect(screen.getAllByText(/nothing is executed automatically/).length).toBeGreaterThan(0)
   })
@@ -164,7 +199,9 @@ describe('RuleDrawer', () => {
     expect(document.getElementById(descriptionId as string)?.className).toContain('sr-only')
     expect(screen.queryByRole('tooltip')).toBeNull()
     fireEvent.mouseEnter(hintTrigger)
-    expect(screen.getByRole('tooltip').textContent).toBe('Indicator metrics require a project record.')
+    expect(screen.getByRole('tooltip').textContent).toBe(
+      'Indicator metrics require a project record.',
+    )
     fireEvent.mouseLeave(hintTrigger)
     expect(screen.queryByRole('tooltip')).toBeNull()
     fireEvent.focus(hintTrigger)
@@ -174,8 +211,8 @@ describe('RuleDrawer', () => {
     const activity = screen.getByRole('checkbox', { name: /Activity/ }) as HTMLInputElement
     expect(activity.disabled).toBe(false)
     fireEvent.click(activity)
-    expect(option('Activity completion')).toBeTruthy()
-    expect(option('Activity overdue days')).toBeNull()
+    expect(option('Activities completed')).toBeTruthy()
+    expect(option('Days activity is overdue')).toBeNull()
   })
   it('clears incompatible conditions and bindings when a project rule becomes an organization template', () => {
     const project = { id: '30000000-0000-4000-8000-000000000001', title: 'North' }
@@ -186,7 +223,7 @@ describe('RuleDrawer', () => {
     })
     fireEvent.change(screen.getByLabelText('Rule scope'), { target: { value: '' } })
     expect(screen.getByRole('alert').textContent).toMatch(/Cleared 1 incompatible condition/)
-    expect(option('Indicator progress')).toBeNull()
+    expect(option('Progress toward indicator target')).toBeNull()
     expect((screen.getByLabelText('Metric') as HTMLSelectElement).value).toBe(
       'PROJECT_TIMELINE_ELAPSED_PERCENT',
     )
@@ -215,7 +252,7 @@ describe('RuleDrawer', () => {
     })
     fireEvent.click(screen.getByRole('checkbox', { name: /Activity/ }))
     expect(screen.getByRole('alert').textContent).toMatch(/Cleared 1 incompatible condition/)
-    expect(option('Activity completion')).toBeNull()
+    expect(option('Activities completed')).toBeNull()
   })
   it('suggests severity without overwriting a manual choice and saves the chosen severity', async () => {
     renderDrawer()
