@@ -1,6 +1,5 @@
 'use client'
 
-import { UnavailableHint } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -76,6 +75,7 @@ export function ApplyToFields({
   onToggle: (scope: MetricScope) => void
   onProject: (value: string) => void
 }) {
+  const organizationTemplate = scopeProjectId === null
   return (
     <div className="space-y-3">
       <div className="space-y-2">
@@ -98,23 +98,30 @@ export function ApplyToFields({
       <div className="grid grid-cols-3 gap-2">
         {SCOPES.map((scope) => {
           const missing = availableMetrics([scope]).length === 0
+          const needsProject = organizationTemplate && scope === 'Indicator'
+          const unavailable = missing || needsProject
           const hint = `scope-unavailable-${scope.replaceAll(' ', '-')}`
+          const message = needsProject
+            ? 'Indicator metrics require a project record.'
+            : 'Not in the rule metric catalog yet'
           return (
             <label
-              className={cn('flex items-center gap-2 text-sm', missing && 'text-muted-foreground')}
+              className={cn('flex items-center gap-2 text-sm', unavailable && 'text-muted-foreground')}
               key={scope}
-              title={missing ? 'Not in the rule metric catalog yet' : undefined}
+              title={unavailable ? message : undefined}
             >
               <input
-                aria-describedby={missing ? hint : undefined}
+                aria-describedby={unavailable ? hint : undefined}
                 checked={scopes.includes(scope)}
-                disabled={missing}
+                disabled={unavailable}
                 onChange={() => onToggle(scope)}
                 type="checkbox"
               />
               {scope}
-              {missing ? (
-                <UnavailableHint id={hint} message="Not in the rule metric catalog yet" />
+              {unavailable ? (
+                <span className="text-xs text-muted-foreground" id={hint}>
+                  {message}
+                </span>
               ) : null}
             </label>
           )
@@ -192,9 +199,6 @@ export function ConditionBuilder({
                     }))
                   }
                 >
-                  {metricOptions.includes(row.metric) ? null : (
-                    <option value={row.metric}>{metricLabel(row.metric)}</option>
-                  )}
                   {metricOptions.map((key) => (
                     <option key={key} value={key}>
                       {metricLabel(key)}

@@ -35,6 +35,11 @@ type RecommendationRow = {
   condition: string
   status: HumanRule['status']
 }
+export type SuggestedSeverity = {
+  severity: Exclude<HumanRule['severity'], 'CRITICAL'>
+  reason: string
+}
+export type RecommendationPrefill = { title: string; text: string }
 
 const entry = (
   label: string,
@@ -119,6 +124,92 @@ const firstMetric = (node: RuleNode): string =>
 
 const leaves = (node: RuleNode): Leaf[] =>
   node.kind === 'CONDITION' ? [node] : node.children.flatMap(leaves)
+const numericThreshold = (value: string) => {
+  const number = Number(value)
+  return Number.isFinite(number) ? number : null
+}
+const necessarilyAbove = (leaf: Leaf, value: number) => {
+  const threshold = numericThreshold(leaf.threshold)
+  if (threshold === null) return false
+  if (leaf.operator === 'GT') return threshold >= value
+  if (leaf.operator === 'GTE' || leaf.operator === 'EQ') return threshold > value
+  return leaf.operator === 'BETWEEN' && threshold > value
+}
+const necessarilyAtLeast = (leaf: Leaf, value: number) => {
+  const threshold = numericThreshold(leaf.threshold)
+  if (threshold === null) return false
+  if (leaf.operator === 'GT' || leaf.operator === 'GTE' || leaf.operator === 'EQ')
+    return threshold >= value
+  return leaf.operator === 'BETWEEN' && threshold >= value
+}
+const overdueMetrics = new Set([
+  'PROJECT_OVERDUE_DAYS',
+  'ACTIVITY_OVERDUE_COUNT',
+  'ACTIVITY_OVERDUE_DAYS',
+])
+const completionMetrics = new Set(['INDICATOR_PROGRESS_PERCENT', 'ACTIVITY_COMPLETION_PERCENT'])
+/**
+ * A UI authoring aid based solely on the typed condition values. It deliberately
+ * cannot infer a live risk, and Critical remains an explicit human decision.
+ */
+export const suggestSeverity = (conditions: RuleNode): SuggestedSeverity => {
+  const ruleLeaves = leaves(conditions)
+  if (ruleLeaves.some((leaf) => overdueMetrics.has(leaf.metric) && necessarilyAbove(leaf, 0)))
+    return {
+      severity: 'HIGH',
+      reason: 'An overdue condition can only match a value above zero.',
+    }
+  if (
+    ruleLeaves.some(
+      (leaf) => completionMetrics.has(leaf.metric) && necessarilyAtLeast(leaf, 100),
+    )
+  )
+    return {
+      severity: 'LOW',
+      reason: 'A progress or completion condition can only match at least 100%.',
+    }
+  return {
+    severity: 'MEDIUM',
+    reason: 'The configured conditions do not imply an overdue value above zero or completion of at least 100%.',
+  }
+}
+const recommendationPrefills: Record<MetricScope, RecommendationPrefill> = {
+  Project: {
+    title: 'Review project timeline',
+    text: 'Check the current schedule and recorded evidence with the project team, then agree on a follow-up.',
+  },
+  Indicator: {
+    title: 'Review indicator result',
+    text: 'Verify the latest indicator measurement and its target context with the project team, then agree on a response.',
+  },
+  Activity: {
+    title: 'Review activity progress',
+    text: 'Check the activity status and recorded evidence with assigned staff, then agree on a follow-up.',
+  },
+  Budget: {
+    title: 'Review budget utilization',
+    text: 'Review approved spending and remaining allocation with authorized budget staff before considering any adjustment.',
+  },
+  'Beneficiary Group': {
+    title: 'Review aggregate follow-up',
+    text: 'Review the aggregate follow-up trend with authorized project staff and agree on a privacy-preserving response.',
+  },
+  Assessment: {
+    title: 'Review assessment results',
+    text: 'Check the aggregate assessment results and data quality with the project team, then agree on an improvement action.',
+  },
+}
+const combinedRecommendation: RecommendationPrefill = {
+  title: 'Review combined signals',
+  text: 'Review each condition and its recorded evidence with the project team, then agree on a response.',
+}
+/** Predefined editable starting copy, never a runtime recommendation generator. */
+export const recommendationPrefill = (conditions: RuleNode): RecommendationPrefill => {
+  const scopes = [...new Set(leaves(conditions).map((leaf) => scopeOf(leaf.metric)))]
+  return scopes.length === 1
+    ? recommendationPrefills[scopes[0] as MetricScope]
+    : combinedRecommendation
+}
 export const appliesTo = (rule: Pick<BoardRule, 'conditions'>): string[] => [
   ...new Set(leaves(rule.conditions).map((leaf) => scopeOf(leaf.metric))),
 ]
