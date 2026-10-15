@@ -41,7 +41,7 @@
 | CLR | [clr-pathways.md](clr-pathways.md) | 2.0 | Working |
 | AIA | [aia-pathways.md](aia-pathways.md) | 2.0 | Working; not triggered |
 | GTM | [gtm-pathways.md](gtm-pathways.md) | 2.0 | Draft |
-| PITCH | [pitch-pathways.md](pitch-pathways.md) | 2.0 | Working |
+| PITCH | [pitch-pathways.md](pitch-pathways.md) | 2.1 | Working |
 | WRAP | [wrap-pathways.md](wrap-pathways.md) | 2.0 | Draft |
 | OPS | [ops-pathways.md](ops-pathways.md) | 2.0 | Working |
 | LOG | [log-pathways.md](log-pathways.md) | - | Control; append-only |
@@ -64,6 +64,7 @@
 | Runbook | File | Status |
 |---|---|---|
 | Local development | [runbook-local-dev.md](runbook-local-dev.md) | Working |
+| Hosted devV2 local development | [local-dev.md](local-dev.md) | Working |
 | Backup/restore | [runbook-backup-restore.md](runbook-backup-restore.md) | Working |
 | Migration baseline | [runbook-migration-baseline.md](runbook-migration-baseline.md) | Working |
 | Role-staging build | [runbook-role-staging-build.md](runbook-role-staging-build.md) | Working |
@@ -115,6 +116,9 @@ Workflow rule: an audit is finding and evidence, a Change Record is the approved
 | [Implementer common brief](handoff/implementer-common.md) | implementer-common.md | 2026-10-13 | Common rules handed to every implementer subagent | Active |
 | [Reviewer common brief](handoff/reviewer-common.md) | reviewer-common.md | 2026-10-13 | Common rules handed to every task reviewer subagent | Active |
 | [SAD packet example](handoff/sad-packet-example.md) | sad-packet-example.md | 2026-10-13 | S3a SAD section 4.2 handoff packet used as the layout for later slices | Active |
+| [E2E legacy spec triage](e2e-legacy-spec-triage.md) | e2e-legacy-spec-triage.md | 2026-10-09 | Retired demo-state Playwright-spec triage and live-feature replacement mapping | Working |
+| [Defense demo seed handoff](handoff-defense-demo-seed.md) | handoff-defense-demo-seed.md | 2026-10-04 | Historical cloud-session handoff for the defense demo seed | Closed; work merged into dev |
+| [Page-load performance options](load-performance-options.md) | load-performance-options.md | 2026-10-03 | Measured performance options and constraints; no implementation decision | On hold |
 | [S3b indicators web plan](superpowers/plans/2026-10-13-modularization-s3b-indicators-web.md) | 2026-10-13-modularization-s3b-indicators-web.md | 2026-10-13 | S3b of the codebase modularization: indicator and indicator library clients, indicators feature folder, workspace and library manager split, indicator read keys, web alias removed | In progress |
 | [S4 beneficiaries plan](superpowers/plans/2026-10-13-modularization-s4-beneficiaries.md) | 2026-10-13-modularization-s4-beneficiaries.md | 2026-10-13 | S4 of the codebase modularization: S4a beneficiary, journey and media request contracts, beneficiaries and participants services split, registration service for imports; S4b outline | In progress |
 | [S4b beneficiaries web plan](superpowers/plans/2026-10-13-modularization-s4b-beneficiaries-web.md) | 2026-10-13-modularization-s4b-beneficiaries-web.md | 2026-10-13 | S4b of the codebase modularization: beneficiary response contracts, beneficiary, journey and media clients, features/beneficiaries layout with journey-config merged in; S4c outline | In progress |
