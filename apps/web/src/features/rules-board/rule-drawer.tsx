@@ -30,11 +30,13 @@ import {
   categoryOf,
   conditionSummary,
   previewSentence,
+  recommendationPrefill,
+  suggestSeverity,
   suggestRuleCode,
 } from './rule-board-model'
 import { ApplyToFields, ConditionBuilder, useBindingChoices } from './rule-condition-rows'
 import { RuleDrawerFooter } from './rule-drawer-footer'
-import { DEFAULT_REC, type Mode, type Rec, newRec, newRow, recordBound } from './rule-drawer-shared'
+import { type Mode, type Rec, newRec, newRow, recordBound } from './rule-drawer-shared'
 import { LifecyclePrompt } from './rule-lifecycle-prompt'
 import { RecommendationFields, RulePreview, SeverityField } from './rule-output-fields'
 import { RuleStepCard } from './rule-step-card'
@@ -134,7 +136,16 @@ function OwnedDrawer({
   const [severity, setSeverity] = useState<HumanRule['severity']>(rule?.severity ?? 'MEDIUM')
   const [recs, setRecs] = useState<Rec[]>(
     rule?.recommendations.map((item) => ({ ...item })) ?? [
-      mode === 'alert' ? { ...newRec(), ...DEFAULT_REC } : newRec(),
+      {
+        ...newRec(),
+        ...recommendationPrefill({
+          kind: 'GROUP',
+          mode: initial?.mode ?? 'AND',
+          children: initial?.rows.length
+            ? initial.rows
+            : [newRow(availableMetrics(['Project'])[0] ?? '')],
+        }),
+      },
     ],
   )
   const [notice, setNotice] = useState('')
@@ -148,6 +159,7 @@ function OwnedDrawer({
   const [advanced, setAdvanced] = useState(false)
   const mounted = useRef(true)
   const inFlight = useRef(false)
+  const recommendationEdited = useRef(Boolean(rule))
   const captured = useRef<
     | Parameters<typeof rulesHumanClient.createRule>[0]
     | Parameters<typeof rulesHumanClient.draftRule>[1]
@@ -179,18 +191,71 @@ function OwnedDrawer({
   )
   const { indicators, activities } = useBindingChoices(scopeProjectId, rows)
   const tree: RuleNode = { kind: 'GROUP', mode: matchMode, children: rows }
+  const suggestedSeverity = suggestSeverity(tree)
+  const suggestedRecommendation = recommendationPrefill(tree)
   const category = rows[0] ? categoryOf(rows[0].metric) : null
+  useEffect(() => {
+    if (rule || recommendationEdited.current) return
+    setRecs((current) =>
+      current.length === 1
+        ? [{ ...(current[0] as Rec), ...suggestedRecommendation }]
+        : current,
+    )
+  }, [rule, suggestedRecommendation.text, suggestedRecommendation.title])
   const changeName = (value: string) => {
     setName(value)
     if (!rule && !codeTouched) setCode(suggestRuleCode(value))
   }
-  const toggleScope = (scope: MetricScope) =>
-    setScopes((current) =>
-      current.includes(scope) ? current.filter((item) => item !== scope) : [...current, scope],
+  const reconcileRows = (
+    nextScopes: MetricScope[],
+    nextProjectId: string | null,
+    cause: 'scope changed' | 'Applies To changed',
+  ) => {
+    const permitted = availableMetrics(nextScopes).filter(
+      (key) => nextProjectId !== null || !recordBound(key),
     )
+    let clearedConditions = 0
+    let clearedBindings = 0
+    const nextRows = rows.flatMap((row) => {
+      if (!permitted.includes(row.metric)) {
+        clearedConditions += 1
+        if (row.indicatorId || row.activityId) clearedBindings += 1
+        return []
+      }
+      const projectChanged = nextProjectId !== scopeProjectId
+      if ((nextProjectId === null || projectChanged) && (row.indicatorId || row.activityId)) {
+        clearedBindings += 1
+        return [clearRecordBindings(row) as RuleCondition]
+      }
+      return [row]
+    })
+    if (!nextRows.length) nextRows.push(newRow(permitted[0] ?? ''))
+    setRows(nextRows)
+    const cleared = [
+      clearedConditions ? `${clearedConditions} incompatible condition${clearedConditions === 1 ? '' : 's'}` : '',
+      clearedBindings ? `${clearedBindings} record binding${clearedBindings === 1 ? '' : 's'}` : '',
+    ].filter(Boolean)
+    if (cleared.length) setNotice(`Cleared ${cleared.join(' and ')} because ${cause}.`)
+  }
+  const toggleScope = (scope: MetricScope) => {
+    if (scope === 'Indicator' && scopeProjectId === null) return
+    const selected = scopes.includes(scope)
+    if (selected && scopes.length === 1) {
+      setNotice('Select at least one Applies To family.')
+      return
+    }
+    const nextScopes = selected ? scopes.filter((item) => item !== scope) : [...scopes, scope]
+    setScopes(nextScopes)
+    reconcileRows(nextScopes, scopeProjectId, 'Applies To changed')
+  }
   const changeProject = (value: string) => {
-    setScopeProjectId(value || null)
-    setRows((current) => current.map((row) => clearRecordBindings(row) as RuleCondition))
+    const nextProjectId = value || null
+    if (nextProjectId === scopeProjectId) return
+    let nextScopes = nextProjectId ? scopes : scopes.filter((scope) => scope !== 'Indicator')
+    if (!nextScopes.length) nextScopes = ['Project']
+    setScopeProjectId(nextProjectId)
+    setScopes(nextScopes)
+    reconcileRows(nextScopes, nextProjectId, 'scope changed')
   }
   const fail = (error: unknown, fallback: string) => {
     if (!isCurrent()) return
@@ -225,6 +290,9 @@ function OwnedDrawer({
     if (!name.trim()) return setNotice('Enter a rule name.')
     if (!rule && !/^[A-Z][A-Z0-9_-]{1,79}$/.test(code))
       return setNotice('Enter a rule code using capital letters, numbers, underscores, or hyphens.')
+    if (!scopes.length) return setNotice('Select at least one Applies To family.')
+    if (!rows.length || rows.some((row) => !metricOptions.includes(row.metric)))
+      return setNotice('Choose a metric available for the selected scope.')
     if (!scopeOwner) return setNotice('Current permission for the selected scope is required.')
     if (!captured.current) {
       if (!recs.length || recs.some((item) => !item.title.trim() || !item.text.trim()))
@@ -366,7 +434,13 @@ function OwnedDrawer({
             title="How should this read?"
             hint="Severity sets how the output is read, from a progress milestone to an urgent risk."
           >
-            <SeverityField mode={mode} onSeverity={setSeverity} severity={severity} />
+            <SeverityField
+              mode={mode}
+              onSeverity={setSeverity}
+              onUseSuggestion={() => setSeverity(suggestedSeverity.severity)}
+              severity={severity}
+              suggestion={suggestedSeverity}
+            />
           </RuleStepCard>
           <RuleStepCard
             step={4}
@@ -377,6 +451,9 @@ function OwnedDrawer({
               hasRule={Boolean(rule)}
               library={library}
               onRecs={setRecs}
+              onUserEdit={() => {
+                recommendationEdited.current = true
+              }}
               recs={recs}
             />
           </RuleStepCard>
