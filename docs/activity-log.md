@@ -387,6 +387,10 @@
 - CRs updated: evaluation write path, zone check memo, defense seed snapshot (second, realistic restore), beneficiary assessment view, project status report; new `cr-pathways-beneficiary-reach-kpi-values`.
 - Rules dispatch: the drain is green after the developer set the `pathways_rules_worker` password; the sweep waits for production to run the isolation fix (PR #45).
 
+## 2026-10-15 Hosted rules scheduler verification
+
+- G-F10-7 verified on the active hosted environment: scheduled GitHub Actions run 38697916775 acknowledged `sweep` at 07:19 UTC and run 38719842309 acknowledged `drain` at 10:22 UTC. A read-only acknowledgement query found 20 acknowledgements in the preceding 24 hours, including hourly work. PRD, QAD-T68, operations guidance, index and the scheduler Change Record were reconciled; no scheduler configuration, secret or database state was changed.
+
 ## 2026-10-06 Demo indicators linked to activities
 - Root cause: the demo seed created indicators and activities but never `activity_indicator_links`, so the Activities INDICATORS column (`indicatorCount` = link count) read 0 beside indicators with readings.
 - Seed: each demo indicator now lists its producing `activityKeys`; the indicators stage writes the links on the runtime role (the table forces RLS); `--verify` checks that no seeded indicator with readings is unlinked.

@@ -94,9 +94,9 @@ Other runbooks: [local development](runbook-local-dev.md), [role staging build](
 
 - Check migration state before schema work; keep tested backups before destructive changes ([backup and restore](runbook-backup-restore.md), [migration baseline](runbook-migration-baseline.md)).
 - Review stale accounts and assignments, and failed imports or evaluations.
-- Rules scheduler: `.github/workflows/rules-dispatch.yml` drains every 5 minutes and sweeps hourly once a person completes the steps below ([cr-pathways-rules-hosted-scheduler](cr-pathways-rules-hosted-scheduler.md)). Until then it is inert and `RULES_WORKER_ENABLED` stays `false`.
+- Rules scheduler: `.github/workflows/rules-dispatch.yml` drains every 5 minutes and sweeps hourly ([cr-pathways-rules-hosted-scheduler](cr-pathways-rules-hosted-scheduler.md)). Hosted operation was verified 2026-10-15; retain the recovery controls below for any configuration change or incident.
 
-### Rules scheduler activation (human only)
+### Rules scheduler activation and recovery (human only)
 
 Agents never create or store these credentials.
 
@@ -107,6 +107,8 @@ Agents never create or store these credentials.
 5. Set `RULES_DISPATCH_ENABLED=true`, run the workflow by hand and expect a 403 "Rule processing is unavailable".
 6. After measuring a full drain, set `RULES_RUNTIME_VERIFIED_MS` (30000 or more) and `RULES_PERIODIC_DRAIN_VERIFIED=true` together with `RULES_WORKER_ENABLED=true`; the API refuses to start if enabled without them.
 7. Run the workflow by hand and expect `{"state":"ACKNOWLEDGED"}`, then confirm hourly progress read-only with `SELECT max(committed_at) FROM pathways_rules_internal.acknowledgements` and record it in QAD-T68.
+
+Verification record: on 2026-10-15, scheduled GitHub Actions run 38697916775 acknowledged `sweep` at 07:19 UTC and run 38719842309 acknowledged `drain` at 10:22 UTC. A read-only query against the active hosted database reported 20 acknowledgements in the preceding 24 hours and current hourly work acknowledgements. Do not place credentials, tokens, or connection strings in this record.
 
 Recovery: set `RULES_WORKER_ENABLED=false` or `RULES_DISPATCH_ENABLED=false`; never revert an applied migration.
 
