@@ -50,6 +50,8 @@ type Props = {
   intent?: DrawerIntent
   /** Recommendations already saved on rules in scope, offered for reuse in the builder. */
   library?: Rec[]
+  /** The authorized organization-wide recommendation library is still loading. */
+  libraryPending?: boolean
   /** Inline renders the builder in the page beside a sticky preview instead of a side panel. */
   inline?: boolean
   onClose: () => void
@@ -112,6 +114,7 @@ function OwnedDrawer({
   projects,
   intent,
   library,
+  libraryPending,
   inline,
   onClose,
   onSaved,
@@ -465,6 +468,7 @@ function OwnedDrawer({
             <RecommendationFields
               hasRule={Boolean(rule)}
               library={library}
+              libraryPending={libraryPending}
               onRecs={setRecs}
               onUserEdit={() => {
                 recommendationEdited.current = true

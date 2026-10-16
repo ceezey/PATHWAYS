@@ -59,6 +59,22 @@ const outcomeCopy: Record<RuleOutcome, string> = {
 const head = 'sticky top-0 z-10 bg-surface-subtle'
 const row = 'h-14 cursor-pointer'
 
+/** Loads every page of rules the current user may configure, independent of the board filter. */
+async function listRecommendationLibrary(signal: AbortSignal) {
+  const first = await rulesHumanClient.listRules({ limit: '100' }, signal)
+  const items = [...first.items]
+  const seenCursors = new Set<string>()
+  let cursor = first.nextCursor
+  while (cursor) {
+    if (signal.aborted || seenCursors.has(cursor)) break
+    seenCursors.add(cursor)
+    const page = await rulesHumanClient.listRules({ cursor, limit: '100' }, signal)
+    items.push(...page.items)
+    cursor = page.nextCursor
+  }
+  return items
+}
+
 function RuleTables({
   kind,
   rules,
@@ -187,9 +203,20 @@ export function RulesBoard() {
       signal,
     ),
   )
+  const recommendationLibrary = useAuthorizedRead(
+    'rules-recommendation-library',
+    null,
+    'rules.read',
+    listRecommendationLibrary,
+    true,
+    { freshness: 'summary' },
+  )
   const all = [...(list.data?.items ?? []), ...(more?.items ?? [])]
-  // Recommendations already written in this scope, offered for reuse on a new rule.
-  const savedRecommendations = all.flatMap((rule) => rule.recommendations)
+  // This source deliberately ignores the repository filter. The API applies trusted scope checks
+  // before returning each page, so only recommendations the current user may configure are offered.
+  const savedRecommendations = (recommendationLibrary.data ?? []).flatMap(
+    (rule) => rule.recommendations,
+  )
   const nextCursor = more ? more.nextCursor : (list.data?.nextCursor ?? null)
   const rules = filterRules(all, { search, status })
   // Creating runs in the Create rule tab; an existing rule opens the side panel.
@@ -361,6 +388,7 @@ export function RulesBoard() {
               inline
               key={`new:${createMode}`}
               library={savedRecommendations}
+              libraryPending={recommendationLibrary.isPending}
               mode={createMode}
               onClose={() => setTab('repository')}
               onSaved={saved}
@@ -408,6 +436,7 @@ export function RulesBoard() {
           mode={drawer.mode}
           onClose={() => setDrawer(null)}
           library={savedRecommendations}
+          libraryPending={recommendationLibrary.isPending}
           onSaved={saved}
           projectId={projectId}
           projects={projects.data ?? []}

@@ -128,6 +128,7 @@ export function RecommendationFields({
   recs,
   onRecs,
   library = [],
+  libraryPending = false,
   hasRule = false,
   onUserEdit,
 }: {
@@ -135,6 +136,7 @@ export function RecommendationFields({
   onRecs: React.Dispatch<React.SetStateAction<Rec[]>>
   /** Recommendations already saved on other rules in scope, offered for reuse. */
   library?: Rec[]
+  libraryPending?: boolean
   hasRule?: boolean
   onUserEdit?: () => void
 }) {
@@ -246,7 +248,11 @@ export function RecommendationFields({
         </Button>
         {libraryOpen ? (
           <div className="space-y-2" id="recommendation-library-options">
-            {offered.length ? (
+            {libraryPending ? (
+              <p className="text-sm text-muted-foreground" role="status">
+                Loading saved recommendations you can use in this organization.
+              </p>
+            ) : offered.length ? (
               <ul className="space-y-2">
                 {offered.map((item) => (
                   <li
@@ -270,8 +276,8 @@ export function RecommendationFields({
               </ul>
             ) : (
               <p className="text-sm text-muted-foreground" role="status">
-                No other saved recommendations are available in this scope yet. Save a rule with a
-                recommendation first, or choose another project scope.
+                No other saved recommendations are available in this organization yet. Save a rule
+                with a recommendation first.
               </p>
             )}
           </div>

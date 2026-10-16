@@ -130,6 +130,13 @@ describe('RulesBoard', () => {
     expect(await screen.findByLabelText('Rule Name')).toBeTruthy()
     expect(screen.queryByRole('dialog')).toBeNull()
   })
+  it('loads the recommendation library without inheriting the repository scope', async () => {
+    renderBoard()
+    await screen.findAllByText('Low indicator progress')
+    await waitFor(() =>
+      expect(state.listRules).toHaveBeenCalledWith({ limit: '100' }, expect.anything()),
+    )
+  })
   it('hides the Create rule tab without rules.create', async () => {
     state.permissions = ['rules.read', 'projects.read']
     renderBoard()
