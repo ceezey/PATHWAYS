@@ -53,7 +53,7 @@ The builder shows a definition, monitoring level and clearly labelled worked exa
 | Match | All conditions (AND) or Any condition (OR); appears only from the second condition |
 | Condition | below, at most, equal to, at least, above, between |
 | Upper threshold | Only with between, and must be at or above the lower threshold |
-| Severity | Critical, High, Medium, Low; an editable condition-only suggestion never selects Critical or overwrites a manual choice |
+| Severity | Critical, High, Medium, Low; the condition-only aid uses the configured family, metric, operator and threshold range, never live values. It shows a supported Low, Medium or High only when the whole valid matching interval has one interpretation; otherwise it says **Needs your judgment**, explains why, and disables Use suggestion. It never selects Critical or overwrites a manual choice. |
 | Recommendations | 1 to 10, each needs a title and a suggested response; a new rule starts with family-specific editable copy unless the administrator has edited or reused a recommendation |
 | Conditions per rule | 32 |
 
@@ -67,7 +67,7 @@ The builder shows a definition, monitoring level and clearly labelled worked exa
 6. Confirm Rule scope shows your project.
 7. Tick **Activity** under Applies To.
 8. Step 2: set Metric to `Number of overdue activities`, Condition to `At least`, Threshold to `2`. Expect: Unit reads `Count`, the guidance says it counts unfinished activities past planned end dates, and Rule Category in step 1 reads `Delivery`.
-9. Step 3: expect **Suggested severity: High** and the reason that the overdue condition can only match a value above zero. Choose **Use suggestion**. Expect: the High tile takes the warning tone. Choose Critical, change the threshold, and confirm Critical remains selected until **Use suggestion** is pressed.
+9. Step 3: expect **Suggested severity: High** and a reason that the overdue condition can only match unfinished overdue work. Choose **Use suggestion**. Expect: the High tile takes the warning tone. Choose Critical, change the threshold, and confirm Critical remains selected until **Use suggestion** is pressed. Change the condition to Budget used at least 80%; expect **Needs your judgment**, a visible delivery/timing-context explanation, and a disabled Use suggestion button. Change it to Budget used above 100%; expect **Suggested severity: High**.
 10. Step 4: expect title `Review activity progress` and response `Check the activity status and recorded evidence with assigned staff, then agree on a follow-up.` Replace both with your own text.
 11. Check the preview column: the sentence reads `Raise a High alert when Number of overdue activities is at least 2. Human review required.`, and the sample below it shows the name, the severity tone, the condition and your recommendation.
 12. Press **Save Rule**. Expect: the Rule repository tab returns, `Rule changes saved.` appears, and the rule is listed as **Draft**.

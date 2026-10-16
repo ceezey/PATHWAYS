@@ -110,22 +110,37 @@ describe('RuleDrawer', () => {
       false,
     )
   })
-  it('explains scopes and selected Assessment metric guidance without setting a threshold', () => {
+  it('explains scopes through accessible information tooltips without setting a threshold', () => {
     renderDrawer()
-    for (const description of [
-      'Project schedule',
-      'Indicator results',
-      'Activity delivery',
-      'Budget spending',
-      'Beneficiary follow-up',
-      'Assessment scores',
-    ])
-      expect(screen.getByText(description)).toBeTruthy()
+    const projectScopeInfo = screen.getByRole('button', {
+      name: 'More information about Project scope',
+    })
+    fireEvent.mouseEnter(projectScopeInfo)
+    expect(screen.getByRole('tooltip').textContent).toBe('Project schedule')
+    fireEvent.mouseLeave(projectScopeInfo)
+
+    const indicatorScopeInfo = screen.getByRole('button', {
+      name: 'More information about Indicator scope',
+    })
+    fireEvent.focus(indicatorScopeInfo)
+    expect(screen.getByRole('tooltip').textContent).toBe(
+      'Indicator results. Indicator metrics require a project record.',
+    )
+    fireEvent.keyDown(indicatorScopeInfo, { key: 'Escape' })
+    expect(screen.queryByRole('tooltip')).toBeNull()
     fireEvent.click(screen.getByRole('checkbox', { name: 'Assessment' }))
     fireEvent.change(screen.getByLabelText('Metric'), {
       target: { value: 'SURVEY_MEAN_IMPROVEMENT_POINTS' },
     })
-    expect(screen.getByText('About Average assessment score change')).toBeTruthy()
+    const guidance = screen.getByRole('button', { name: 'About Average assessment score change' })
+    expect(guidance.getAttribute('aria-expanded')).toBe('false')
+    expect(
+      screen.queryByText(
+        'Average post-test minus pre-test score after converting scores to a 0–100 scale. Negative values indicate a decline.',
+      ),
+    ).toBeNull()
+    fireEvent.click(guidance)
+    expect(guidance.getAttribute('aria-expanded')).toBe('true')
     expect(
       screen.getByText(
         'Average post-test minus pre-test score after converting scores to a 0–100 scale. Negative values indicate a decline.',
@@ -140,6 +155,9 @@ describe('RuleDrawer', () => {
         'Enter the threshold yourself. This example does not fill or save a threshold.',
       ),
     ).toBeTruthy()
+    fireEvent.click(guidance)
+    expect(guidance.getAttribute('aria-expanded')).toBe('false')
+    expect(screen.queryByText('Monitors: Project aggregate. Unit: Percentage points.')).toBeNull()
     expect((screen.getByLabelText('Threshold') as HTMLInputElement).value).toBe('')
     expect(screen.getByTestId('rule-preview').textContent).toBe(
       'Raise a Medium alert when Average assessment score change is below ... percentage points. Human review required.',
@@ -191,16 +209,13 @@ describe('RuleDrawer', () => {
     renderDrawer()
     const indicator = screen.getByRole('checkbox', { name: /Indicator/ }) as HTMLInputElement
     expect(indicator.disabled).toBe(true)
-    const hintTrigger = screen.getByRole('group', { name: 'Indicator unavailable' })
-    const descriptionId = hintTrigger.getAttribute('aria-describedby')
-    expect(document.getElementById(descriptionId as string)?.textContent).toBe(
-      'Indicator metrics require a project record.',
-    )
-    expect(document.getElementById(descriptionId as string)?.className).toContain('sr-only')
+    const hintTrigger = screen.getByRole('button', {
+      name: 'More information about Indicator scope',
+    })
     expect(screen.queryByRole('tooltip')).toBeNull()
     fireEvent.mouseEnter(hintTrigger)
     expect(screen.getByRole('tooltip').textContent).toBe(
-      'Indicator metrics require a project record.',
+      'Indicator results. Indicator metrics require a project record.',
     )
     fireEvent.mouseLeave(hintTrigger)
     expect(screen.queryByRole('tooltip')).toBeNull()
@@ -374,11 +389,41 @@ describe('RuleDrawer', () => {
     for (const label of [/^Rule name/i, /^Rule code/i, /^Severity/i])
       expect(dialog.contains(within(dialog).getByLabelText(label))).toBe(true)
   })
+  it('uses the retained nested tree for its suggestion instead of the flat-row fallback', async () => {
+    const nested = {
+      ...activeRule,
+      conditions: {
+        kind: 'GROUP',
+        mode: 'AND',
+        children: [
+          {
+            kind: 'GROUP',
+            mode: 'OR',
+            children: [
+              {
+                kind: 'CONDITION',
+                id: 'c-overdue',
+                metric: 'PROJECT_OVERDUE_DAYS',
+                operator: 'GT',
+                threshold: '0',
+              },
+            ],
+          },
+        ],
+      },
+    } as unknown as HumanRule
+    renderDrawer({ rule: nested })
+    await screen.findByLabelText('Rule Name')
+    expect(screen.getByTestId('severity-suggestion').textContent).toBe('Suggested severity: High')
+  })
   it('keeps an existing rule severity and saved recommendation unchanged on open', async () => {
     renderDrawer({ rule: activeRule })
     await screen.findByLabelText('Rule Name')
     expect((screen.getByRole('radio', { name: /High/ }) as HTMLInputElement).checked).toBe(true)
-    expect(screen.getByTestId('severity-suggestion').textContent).toBe('Suggested severity: Medium')
+    expect(screen.getByTestId('severity-suggestion').textContent).toBe('Needs your judgment')
+    expect(
+      (screen.getByRole('button', { name: 'Use suggestion' }) as HTMLButtonElement).disabled,
+    ).toBe(true)
     expect(screen.getByText('Review')).toBeTruthy()
     expect(screen.queryByLabelText('Recommendation title')).toBeNull()
   })

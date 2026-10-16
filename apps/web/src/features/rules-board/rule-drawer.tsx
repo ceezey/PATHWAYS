@@ -31,8 +31,8 @@ import {
   conditionSummary,
   previewSentence,
   recommendationPrefill,
-  suggestSeverity,
   suggestRuleCode,
+  suggestSeverity,
 } from './rule-board-model'
 import { ApplyToFields, ConditionBuilder, useBindingChoices } from './rule-condition-rows'
 import { RuleDrawerFooter } from './rule-drawer-footer'
@@ -191,15 +191,27 @@ function OwnedDrawer({
   )
   const { indicators, activities } = useBindingChoices(scopeProjectId, rows)
   const tree: RuleNode = { kind: 'GROUP', mode: matchMode, children: rows }
-  const suggestedSeverity = suggestSeverity(tree)
+  // A nested stored rule is read-only in this builder; its suggestion must inspect
+  // the retained tree rather than the blank flat-row fallback shown for the advanced editor.
+  const suggestedSeverity = suggestSeverity(nested && rule ? rule.conditions : tree)
   const suggestedRecommendation = recommendationPrefill(tree)
+  const suggestedRecommendationTitle = suggestedRecommendation.title
+  const suggestedRecommendationText = suggestedRecommendation.text
   const category = rows[0] ? categoryOf(rows[0].metric) : null
   useEffect(() => {
     if (rule || recommendationEdited.current) return
     setRecs((current) =>
-      current.length === 1 ? [{ ...(current[0] as Rec), ...suggestedRecommendation }] : current,
+      current.length === 1
+        ? [
+            {
+              ...(current[0] as Rec),
+              title: suggestedRecommendationTitle,
+              text: suggestedRecommendationText,
+            },
+          ]
+        : current,
     )
-  }, [rule, suggestedRecommendation.text, suggestedRecommendation.title])
+  }, [rule, suggestedRecommendationText, suggestedRecommendationTitle])
   const changeName = (value: string) => {
     setName(value)
     if (!rule && !codeTouched) setCode(suggestRuleCode(value))
@@ -437,7 +449,10 @@ function OwnedDrawer({
             <SeverityField
               mode={mode}
               onSeverity={setSeverity}
-              onUseSuggestion={() => setSeverity(suggestedSeverity.severity)}
+              onUseSuggestion={() => {
+                if (suggestedSeverity.status === 'SUGGESTED')
+                  setSeverity(suggestedSeverity.severity)
+              }}
               severity={severity}
               suggestion={suggestedSeverity}
             />

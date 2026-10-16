@@ -1,5 +1,6 @@
 'use client'
 
+import { MetricTooltip } from '@/components/pathways/metric-tooltip'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -10,13 +11,14 @@ import { activitiesClient } from '@/lib/api/activities'
 import { indicatorsClient } from '@/lib/api/indicators'
 import { cn } from '@/lib/utils'
 import { type HumanRule, type RuleCondition, operators } from '@pathways/shared'
+import { ChevronDown } from 'lucide-react'
 import { useId, useState } from 'react'
 import {
   type MetricScope,
   SCOPES,
   availableMetrics,
-  metricLabel,
   metricGuidance,
+  metricLabel,
   operatorWords,
   scopeGuidance,
   unitLabel,
@@ -40,53 +42,58 @@ function ScopeOption({
   description: string
   onToggle: () => void
 }) {
-  const descriptionId = useId()
-  const [hintOpen, setHintOpen] = useState(false)
-  const canExplain = unavailable
+  const tooltipText = unavailable ? `${description}. ${message}` : description
   return (
-    <span
-      className="relative block"
-      onMouseEnter={() => canExplain && setHintOpen(true)}
-      onMouseLeave={() => setHintOpen(false)}
-    >
-      <span
-        aria-describedby={canExplain ? descriptionId : undefined}
-        aria-label={canExplain ? `${scope} unavailable` : undefined}
-        className="inline-flex"
-        onBlur={() => setHintOpen(false)}
-        onFocus={() => canExplain && setHintOpen(true)}
-        onKeyDown={(event) => {
-          if (event.key === 'Escape') {
-            setHintOpen(false)
-            event.currentTarget.blur()
-          }
-        }}
-        role={canExplain ? 'group' : undefined}
-        tabIndex={canExplain ? 0 : undefined}
+    <div className="flex items-center gap-1">
+      <label
+        className={cn('flex items-center gap-2 text-sm', unavailable && 'text-muted-foreground')}
       >
-        <label
-          className={cn('flex items-center gap-2 text-sm', unavailable && 'text-muted-foreground')}
-          title={unavailable ? message : undefined}
-        >
-          <input checked={checked} disabled={unavailable} onChange={onToggle} type="checkbox" />
-          {scope}
-        </label>
-      </span>
-      <p className="mt-1 text-xs text-muted-foreground">{description}</p>
-      {canExplain ? (
-        <span className="sr-only" id={descriptionId}>
-          {message}
-        </span>
+        <input checked={checked} disabled={unavailable} onChange={onToggle} type="checkbox" />
+        {scope}
+      </label>
+      <MetricTooltip label={`${scope} scope`}>{tooltipText}</MetricTooltip>
+    </div>
+  )
+}
+
+function MetricGuidance({ metric }: { metric: string }) {
+  const guidance = metricGuidance(metric)
+  const contentId = useId()
+  const [expanded, setExpanded] = useState(false)
+
+  if (!guidance) return null
+
+  const label = metricLabel(metric)
+  return (
+    <div className="col-span-2 overflow-hidden rounded-md border border-info/30 bg-info-subtle text-sm">
+      <button
+        aria-controls={contentId}
+        aria-expanded={expanded}
+        className="flex min-h-11 w-full items-center justify-between gap-3 px-3 py-2 text-left font-medium text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+        type="button"
+        onClick={() => setExpanded((current) => !current)}
+      >
+        <span>About {label}</span>
+        <ChevronDown
+          aria-hidden="true"
+          className={cn('h-4 w-4 shrink-0 transition-transform', expanded && 'rotate-180')}
+        />
+      </button>
+      {expanded ? (
+        <div className="space-y-2 border-t border-info/30 px-3 py-3" id={contentId}>
+          <p>{guidance.definition}</p>
+          <p className="text-muted-foreground">
+            Monitors: {guidance.monitors}. Unit: {unitLabel(metric)}.
+          </p>
+          <p>
+            <span className="font-medium">{guidance.example.label}:</span> {guidance.example.value}
+          </p>
+          <p className="text-muted-foreground">
+            Enter the threshold yourself. This example does not fill or save a threshold.
+          </p>
+        </div>
       ) : null}
-      {hintOpen ? (
-        <span
-          className="absolute left-0 top-full z-40 mt-2 w-[min(16rem,calc(100vw-2rem))] rounded-md border border-border bg-popover px-3 py-2 text-left text-xs font-normal leading-5 text-popover-foreground shadow-dialog"
-          role="tooltip"
-        >
-          {message}
-        </span>
-      ) : null}
-    </span>
+    </div>
   )
 }
 
@@ -307,27 +314,7 @@ export function ConditionBuilder({
                 <Label htmlFor={`${row.id}-unit`}>Unit</Label>
                 <Input id={`${row.id}-unit`} readOnly value={unitLabel(row.metric)} />
               </div>
-              {metricGuidance(row.metric) ? (
-                <aside
-                  aria-label={`About ${metricLabel(row.metric)}`}
-                  className="col-span-2 space-y-2 rounded-md border border-info/30 bg-info-subtle p-3 text-sm"
-                >
-                  <p className="font-medium">About {metricLabel(row.metric)}</p>
-                  <p>{metricGuidance(row.metric)?.definition}</p>
-                  <p className="text-muted-foreground">
-                    Monitors: {metricGuidance(row.metric)?.monitors}. Unit: {unitLabel(row.metric)}.
-                  </p>
-                  <p>
-                    <span className="font-medium">
-                      {metricGuidance(row.metric)?.example.label}:
-                    </span>{' '}
-                    {metricGuidance(row.metric)?.example.value}
-                  </p>
-                  <p className="text-muted-foreground">
-                    Enter the threshold yourself. This example does not fill or save a threshold.
-                  </p>
-                </aside>
-              ) : null}
+              <MetricGuidance metric={row.metric} />
               {row.operator === 'BETWEEN' ? (
                 <div className="col-span-2 space-y-2">
                   <Label htmlFor={`${row.id}-upper`}>Upper threshold</Label>

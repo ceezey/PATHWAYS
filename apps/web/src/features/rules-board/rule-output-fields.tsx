@@ -7,6 +7,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 import type { HumanRule } from '@pathways/shared'
 import { useState } from 'react'
+import type { SuggestedSeverity } from './rule-board-model'
 import { type Rec, newRec, severities } from './rule-drawer-shared'
 
 // Each severity carries the reading an officer should take from it, including the
@@ -45,7 +46,7 @@ export function SeverityField({
   mode: 'alert' | 'recommendation'
   severity: HumanRule['severity']
   onSeverity: (value: HumanRule['severity']) => void
-  suggestion: { severity: Exclude<HumanRule['severity'], 'CRITICAL'>; reason: string }
+  suggestion: SuggestedSeverity
   onUseSuggestion: () => void
 }) {
   return (
@@ -84,12 +85,26 @@ export function SeverityField({
           })}
         </div>
       </fieldset>
-      <div className="space-y-2 rounded-md border border-info/30 bg-info-subtle p-3">
+      <div
+        aria-atomic="true"
+        aria-live="polite"
+        className="space-y-2 rounded-md border border-info/30 bg-info-subtle p-3"
+      >
         <p className="text-sm font-medium" data-testid="severity-suggestion">
-          Suggested severity: {severityCopy[suggestion.severity].label}
+          {suggestion.status === 'SUGGESTED'
+            ? `Suggested severity: ${severityCopy[suggestion.severity].label}`
+            : 'Needs your judgment'}
         </p>
-        <p className="text-sm text-muted-foreground">{suggestion.reason}</p>
-        <Button type="button" variant="outline" onClick={onUseSuggestion}>
+        <p className="text-sm text-muted-foreground" id="severity-suggestion-reason">
+          {suggestion.reason}
+        </p>
+        <Button
+          aria-describedby="severity-suggestion-reason"
+          disabled={suggestion.status !== 'SUGGESTED'}
+          type="button"
+          variant="outline"
+          onClick={onUseSuggestion}
+        >
           Use suggestion
         </Button>
       </div>
