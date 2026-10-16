@@ -335,7 +335,7 @@ describe('RuleDrawer', () => {
     renderDrawer({ library: [saved] })
     await screen.findByLabelText('Rule Name')
     fireEvent.click(screen.getByRole('button', { name: 'Choose from recommendation library' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Copy to this rule' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Copy recommendation to this rule' }))
     fireEvent.click(screen.getByRole('checkbox', { name: /Budget/ }))
     fireEvent.change(screen.getByLabelText('Metric'), {
       target: { value: 'BUDGET_UTILIZATION_PERCENT' },

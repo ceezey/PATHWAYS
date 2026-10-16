@@ -263,7 +263,7 @@ export function RecommendationFields({
                         setLibraryOpen(false)
                       }}
                     >
-                      Copy to this rule
+                      Copy recommendation to this rule
                     </Button>
                   </li>
                 ))}
