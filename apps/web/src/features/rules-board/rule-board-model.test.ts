@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   appliesTo,
   availableMetrics,
+  categoriesForScopes,
   conditionSummary,
   filterRules,
   flattenRecommendations,
@@ -69,6 +70,14 @@ describe('rule board model', () => {
     expect(isMetricAvailable('NOT_A_METRIC')).toBe(false)
     expect(availableMetrics(['Indicator'])).toContain('INDICATOR_PROGRESS_PERCENT')
     expect(availableMetrics(['Indicator'])).not.toContain('PROJECT_REMAINING_DAYS')
+  })
+  it('derives ordered, distinct category tags from selected scope families', () => {
+    expect(categoriesForScopes(['Project'])).toEqual(['Schedule'])
+    expect(categoriesForScopes(['Project', 'Budget', 'Activity'])).toEqual([
+      'Schedule',
+      'Delivery',
+      'Financial',
+    ])
   })
   it('builds the preview sentence with human-review wording', () => {
     const sentence = previewSentence({
@@ -237,6 +246,19 @@ describe('rule board model', () => {
       leaf('domain', 'ACTIVITY_COMPLETION_PERCENT', 'GT', '100'),
     ])
       expect(suggestSeverity(condition)).toMatchObject({ status: 'NEEDS_JUDGMENT', severity: null })
+
+    expect(
+      suggestSeverity(leaf('timeline-empty', 'PROJECT_TIMELINE_ELAPSED_PERCENT', 'LT', '')),
+    ).toMatchObject({
+      status: 'NEEDS_JUDGMENT',
+      reason: expect.stringContaining('does not receive an automatic severity suggestion'),
+    })
+    expect(
+      suggestSeverity(leaf('indicator-empty', 'INDICATOR_CURRENT_VALUE', 'LT', '')),
+    ).toMatchObject({
+      status: 'NEEDS_JUDGMENT',
+      reason: expect.stringContaining('does not receive an automatic severity suggestion'),
+    })
 
     expect(
       suggestSeverity(leaf('large', 'INDICATOR_PROGRESS_PERCENT', 'GTE', '99999999999999.9999')),

@@ -15,6 +15,9 @@ export const newRow = (metric: string): RuleCondition => ({
   threshold: '',
 })
 export const newRec = (): Rec => ({ id: crypto.randomUUID(), title: '', text: '' })
+export const completeRec = (item: Rec) => Boolean(item.title.trim() && item.text.trim())
+export const appendRec = (items: Rec[], item: Rec) =>
+  items.length === 1 && !completeRec(items[0] as Rec) ? [item] : [...items, item]
 export const DEFAULT_REC = {
   title: 'Review flagged condition',
   text: 'Review the recorded evidence and decide on a response.',

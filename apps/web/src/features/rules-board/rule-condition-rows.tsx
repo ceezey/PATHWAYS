@@ -152,45 +152,58 @@ export function ApplyToFields({
 }) {
   const organizationTemplate = scopeProjectId === null
   return (
-    <div className="space-y-3">
+    <div className="space-y-2">
       <div className="space-y-2">
         <Label htmlFor="rule-scope">Rule scope</Label>
-        <select
-          className={selectClass}
-          disabled={locked}
-          id="rule-scope"
-          value={scopeProjectId ?? ''}
-          onChange={(event) => onProject(event.target.value)}
-        >
-          <option value="">Organization template</option>
-          {projects.map((project) => (
-            <option key={project.id} value={project.id}>
-              {project.title}
-            </option>
-          ))}
-        </select>
+        <div className="rounded-md border border-border focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2">
+          <select
+            className={cn(
+              selectClass,
+              'rounded-b-none rounded-t-md border-0 focus-visible:ring-0 focus-visible:ring-offset-0',
+            )}
+            disabled={locked}
+            id="rule-scope"
+            value={scopeProjectId ?? ''}
+            onChange={(event) => onProject(event.target.value)}
+          >
+            <option value="">Organization template</option>
+            {projects.map((project) => (
+              <option key={project.id} value={project.id}>
+                {project.title}
+              </option>
+            ))}
+          </select>
+          <fieldset
+            aria-label="Applies To"
+            className="rounded-b-md border-t border-border bg-background p-3"
+          >
+            <div className="grid grid-cols-3 gap-2">
+              {SCOPES.map((scope) => {
+                const missing = availableMetrics([scope]).length === 0
+                const needsProject = organizationTemplate && scope === 'Indicator'
+                const unavailable = missing || needsProject
+                const message = needsProject
+                  ? 'Indicator metrics require a project record.'
+                  : 'Not in the rule metric catalog yet'
+                return (
+                  <ScopeOption
+                    checked={scopes.includes(scope)}
+                    description={scopeGuidance[scope]}
+                    key={scope}
+                    message={message}
+                    scope={scope}
+                    unavailable={unavailable}
+                    onToggle={() => onToggle(scope)}
+                  />
+                )
+              })}
+            </div>
+          </fieldset>
+        </div>
       </div>
-      <div className="grid grid-cols-3 gap-2">
-        {SCOPES.map((scope) => {
-          const missing = availableMetrics([scope]).length === 0
-          const needsProject = organizationTemplate && scope === 'Indicator'
-          const unavailable = missing || needsProject
-          const message = needsProject
-            ? 'Indicator metrics require a project record.'
-            : 'Not in the rule metric catalog yet'
-          return (
-            <ScopeOption
-              checked={scopes.includes(scope)}
-              description={scopeGuidance[scope]}
-              key={scope}
-              message={message}
-              scope={scope}
-              unavailable={unavailable}
-              onToggle={() => onToggle(scope)}
-            />
-          )
-        })}
-      </div>
+      <p className="px-3 text-sm leading-5 text-muted-foreground">
+        Check every scope that applies to a rule. If unsure, one scope is enough.
+      </p>
     </div>
   )
 }
@@ -206,6 +219,7 @@ export function ConditionBuilder({
   indicators,
   activities,
   onAdvanced,
+  hideAddButton = false,
 }: {
   nestedRule?: HumanRule
   rows: RuleCondition[]
@@ -217,6 +231,7 @@ export function ConditionBuilder({
   indicators: Choice[]
   activities: Choice[]
   onAdvanced: () => void
+  hideAddButton?: boolean
 }) {
   const setRow = (index: number, patch: (row: RuleCondition) => RuleCondition) =>
     setRows((current) => current.map((row, i) => (i === index ? patch(row) : row)))
@@ -247,7 +262,7 @@ export function ConditionBuilder({
           ) : null}
           {rows.map((row, index) => (
             <div
-              className="grid grid-cols-2 gap-3 rounded-md border border-border p-3"
+              className="grid grid-cols-2 gap-3 rounded-md border border-border bg-background p-3"
               key={row.id}
             >
               <div className="space-y-2">
@@ -378,14 +393,16 @@ export function ConditionBuilder({
               ) : null}
             </div>
           ))}
-          <Button
-            disabled={rows.length >= 32}
-            type="button"
-            variant="outline"
-            onClick={() => setRows((current) => [...current, newRow(metricOptions[0] ?? '')])}
-          >
-            Add condition
-          </Button>
+          {!hideAddButton ? (
+            <Button
+              disabled={rows.length >= 32}
+              type="button"
+              variant="outline"
+              onClick={() => setRows((current) => [...current, newRow(metricOptions[0] ?? '')])}
+            >
+              Add condition
+            </Button>
+          ) : null}
         </>
       )}
     </div>

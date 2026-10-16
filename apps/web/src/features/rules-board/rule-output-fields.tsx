@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils'
 import type { HumanRule } from '@pathways/shared'
 import { useState } from 'react'
 import type { SuggestedSeverity } from './rule-board-model'
-import { type Rec, newRec, severities } from './rule-drawer-shared'
+import { type Rec, appendRec, completeRec, newRec, severities } from './rule-drawer-shared'
 
 // Each severity carries the reading an officer should take from it, including the
 // low end used for progress and milestone insight rather than risk. The picker keeps
@@ -108,21 +108,9 @@ export function SeverityField({
           Use suggestion
         </Button>
       </div>
-      <div className="space-y-1">
-        <p className="text-sm font-medium">Time Basis</p>
-        <p className="text-sm text-muted-foreground">
-          Evaluated when source data changes and on the scheduled sweep
-        </p>
-      </div>
-      <div className="space-y-1">
-        <p className="text-sm font-medium">Notification Recipients</p>
-        <p className="text-sm text-muted-foreground">Assigned project users holding alert access</p>
-      </div>
     </div>
   )
 }
-
-const complete = (item: Rec) => Boolean(item.title.trim() && item.text.trim())
 
 export function RecommendationFields({
   recs,
@@ -131,6 +119,7 @@ export function RecommendationFields({
   libraryPending = false,
   hasRule = false,
   onUserEdit,
+  hideAddButton = false,
 }: {
   recs: Rec[]
   onRecs: React.Dispatch<React.SetStateAction<Rec[]>>
@@ -139,16 +128,17 @@ export function RecommendationFields({
   libraryPending?: boolean
   hasRule?: boolean
   onUserEdit?: () => void
+  hideAddButton?: boolean
 }) {
   // A new rule opens on its first recommendation; a saved rule's recommendations stay collapsed.
   const [editing, setEditing] = useState<string | null>(
     hasRule || !recs[0] ? null : (recs[0].id as string),
   )
   const [libraryOpen, setLibraryOpen] = useState(false)
-  const expanded = (item: Rec) => editing === item.id || !complete(item)
+  const expanded = (item: Rec) => editing === item.id || !completeRec(item)
   const used = new Set(recs.map((item) => `${item.title}\u0000${item.text}`))
   const offered = library
-    .filter((item) => complete(item) && !used.has(`${item.title}\u0000${item.text}`))
+    .filter((item) => completeRec(item) && !used.has(`${item.title}\u0000${item.text}`))
     .filter(
       (item, index, list) =>
         list.findIndex((other) => other.title === item.title && other.text === item.text) === index,
@@ -159,14 +149,17 @@ export function RecommendationFields({
   }
   const add = (item: Rec) => {
     onUserEdit?.()
-    onRecs((list) => (list.length === 1 && !complete(list[0] as Rec) ? [item] : [...list, item]))
-    setEditing(complete(item) ? null : item.id)
+    onRecs((list) => appendRec(list, item))
+    setEditing(completeRec(item) ? null : item.id)
   }
   return (
     <div className="space-y-3">
       {recs.map((item, index) =>
         expanded(item) ? (
-          <div className="space-y-2 rounded-md border border-border p-3" key={item.id}>
+          <div
+            className="space-y-2 rounded-md border border-border bg-background p-3"
+            key={item.id}
+          >
             <Label htmlFor={`rec-title-${item.id}`}>Recommendation title</Label>
             <Input
               id={`rec-title-${item.id}`}
@@ -182,7 +175,7 @@ export function RecommendationFields({
               onChange={(event) => set(item.id, { text: event.target.value })}
             />
             <div className="flex flex-wrap gap-2">
-              {complete(item) ? (
+              {completeRec(item) ? (
                 <Button type="button" variant="outline" onClick={() => setEditing(null)}>
                   Done
                 </Button>
@@ -249,9 +242,9 @@ export function RecommendationFields({
         {libraryOpen ? (
           <div className="space-y-2" id="recommendation-library-options">
             {libraryPending ? (
-              <p className="text-sm text-muted-foreground" role="status">
+              <output className="block text-sm text-muted-foreground">
                 Loading saved recommendations you can use in this organization.
-              </p>
+              </output>
             ) : offered.length ? (
               <ul className="space-y-2">
                 {offered.map((item) => (
@@ -275,22 +268,24 @@ export function RecommendationFields({
                 ))}
               </ul>
             ) : (
-              <p className="text-sm text-muted-foreground" role="status">
+              <output className="block text-sm text-muted-foreground">
                 No other saved recommendations are available in this organization yet. Save a rule
                 with a recommendation first.
-              </p>
+              </output>
             )}
           </div>
         ) : null}
       </div>
-      <Button
-        disabled={recs.length >= 10}
-        type="button"
-        variant="outline"
-        onClick={() => add(newRec())}
-      >
-        Add recommendation
-      </Button>
+      {!hideAddButton ? (
+        <Button
+          disabled={recs.length >= 10}
+          type="button"
+          variant="outline"
+          onClick={() => add(newRec())}
+        >
+          Add recommendation
+        </Button>
+      ) : null}
     </div>
   )
 }
@@ -315,7 +310,7 @@ export function RulePreview({
     <section className="min-h-32 space-y-3 rounded-md border border-info/30 bg-info-subtle p-4">
       <div className="space-y-1">
         <h3 className="font-semibold">Rule Preview</h3>
-        <p className="text-xs text-muted-foreground">Updates as you fill in the steps</p>
+        {/* <p className="text-xs text-muted-foreground">Updates as you fill in the steps</p> */}
       </div>
       <p className="text-sm" data-testid="rule-preview">
         {sentence}

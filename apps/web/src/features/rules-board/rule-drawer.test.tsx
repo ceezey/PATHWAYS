@@ -83,29 +83,114 @@ const fillBasics = () => {
   })
   fireEvent.change(screen.getByLabelText('Threshold'), { target: { value: '30' } })
 }
-afterEach(cleanup)
+const initialViewportWidth = window.innerWidth
+afterEach(() => {
+  cleanup()
+  Object.defineProperty(window, 'innerWidth', { configurable: true, value: initialViewportWidth })
+})
 beforeEach(() => {
   vi.clearAllMocks()
   state.createRule.mockResolvedValue(activeRule)
+  state.draftRule.mockResolvedValue(activeRule)
   state.archiveRule.mockResolvedValue(activeRule)
 })
 
 describe('RuleDrawer', () => {
-  it('filters the metric list by the Applies To checkboxes and derives the unit', () => {
+  it('uses a padded rounded action bar in the inline rule builder', () => {
+    renderDrawer({ inline: true })
+    const footer = screen.getByRole('button', { name: 'Save Rule' }).parentElement
+    expect(footer?.className).toContain('rounded-md')
+    expect(footer?.className).toContain('p-3')
+  })
+  it('lets an edit-rule panel expand from an accessible drag handle', () => {
+    renderDrawer({ rule: activeRule })
+    const handle = screen.getByRole('separator', { name: 'Resize edit rule panel' })
+    expect(handle.getAttribute('aria-valuenow')).toBe('480')
+    expect(handle.getAttribute('aria-valuemax')).toBe('960')
+    fireEvent.keyDown(handle, { key: 'ArrowLeft' })
+    expect(handle.getAttribute('aria-valuenow')).toBe('520')
+    expect(handle.parentElement?.getAttribute('style')).toContain('width: 520px')
+    const pointer = (type: string, clientX: number) => {
+      const event = new Event(type, { bubbles: true })
+      Object.defineProperties(event, {
+        clientX: { value: clientX },
+        pointerId: { value: 1 },
+      })
+      fireEvent(handle, event)
+    }
+    pointer('pointerdown', 1000)
+    pointer('pointermove', 900)
+    pointer('pointerup', 900)
+    expect(handle.getAttribute('aria-valuenow')).toBe('620')
+    fireEvent.keyDown(handle, { key: 'End' })
+    expect(handle.getAttribute('aria-valuenow')).toBe('960')
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 800 })
+    fireEvent(window, new Event('resize'))
+    expect(handle.getAttribute('aria-valuemax')).toBe('752')
+    expect(handle.getAttribute('aria-valuenow')).toBe('752')
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 600 })
+    fireEvent(window, new Event('resize'))
+    expect(handle.parentElement?.getAttribute('style')).not.toContain('width')
+    expect(handle.getAttribute('aria-valuemax')).toBe('552')
+  })
+  it('lets edit-rule actions fill the expanded panel while create actions stay compact', () => {
+    renderDrawer({ rule: activeRule })
+    const editFooter = screen.getByRole('button', { name: 'Save Rule' }).parentElement
+    expect(editFooter?.className).toContain('grid-cols-[repeat(auto-fit,minmax(12rem,1fr))]')
+    expect(screen.getByRole('button', { name: 'Save Rule' }).className).toContain('w-full')
+    expect(screen.getByRole('button', { name: 'Test Rule' }).className).toContain('w-full')
+    expect(screen.getByRole('button', { name: 'Deactivate' }).className).toContain('w-full')
+  })
+  it('uses the same padded rounded action bar for recommendation creation', () => {
+    renderDrawer({ inline: true, mode: 'recommendation' })
+    const footer = screen.getByRole('button', { name: 'Save recommendation' }).parentElement
+    expect(footer?.className).toContain('rounded-md')
+    expect(footer?.className).toContain('p-3')
+  })
+  it('keeps step 3 focused on severity and separates the editable field panels', () => {
+    renderDrawer()
+    expect(screen.queryByText('Time Basis')).toBeNull()
+    expect(screen.queryByText('Notification Recipients')).toBeNull()
+    expect(screen.getByLabelText('Metric').closest('[class~="bg-background"]')).toBeTruthy()
+    expect(
+      screen.getByLabelText('Recommendation title').closest('[class~="bg-background"]'),
+    ).toBeTruthy()
+  })
+  it('uses compact add controls in the condition and recommendation step headers', () => {
+    renderDrawer()
+    expect(screen.getByRole('button', { name: 'Add condition' }).querySelector('svg')).toBeTruthy()
+    expect(
+      screen.getByRole('button', { name: 'Add recommendation' }).querySelector('svg'),
+    ).toBeTruthy()
+    expect(screen.queryByText('Add condition')).toBeNull()
+    expect(screen.queryByText('Add recommendation')).toBeNull()
+  })
+  it('filters metrics by Applies To and shows a category tag for each selected scope family', () => {
     renderDrawer()
     expect(option('Project timeline elapsed')).toBeTruthy()
     expect(option('Activities completed')).toBeNull()
+    expect(screen.getByTestId('rule-category-label').textContent).toBe('Rule Category:')
+    expect(within(screen.getByTestId('rule-category')).getByText('Schedule')).toBeTruthy()
     fireEvent.click(screen.getByRole('checkbox', { name: 'Activity' }))
     expect(option('Activities completed')).toBeTruthy()
+    expect(screen.getByTestId('rule-category-label').textContent).toBe('Rule Categories:')
+    expect(within(screen.getByTestId('rule-category')).getByText('Schedule')).toBeTruthy()
+    expect(within(screen.getByTestId('rule-category')).getByText('Delivery')).toBeTruthy()
     fireEvent.change(screen.getByLabelText('Metric'), {
       target: { value: 'ACTIVITY_OVERDUE_COUNT' },
     })
     expect((screen.getByLabelText('Unit') as HTMLInputElement).value).toBe('Count')
-    expect(screen.getByTestId('rule-category').textContent).toBe('Delivery')
     expect(screen.queryByLabelText('Rule Category')).toBeNull()
   })
   it('keeps scopes with an available metric enabled', () => {
     renderDrawer()
+    const scope = screen.getByLabelText('Rule scope') as HTMLSelectElement
+    const appliesTo = screen.getByRole('group', { name: 'Applies To' })
+    expect(scope.parentElement?.className).not.toContain('overflow-hidden')
+    expect(scope.parentElement?.className).toContain('rounded-md')
+    expect(scope.parentElement?.className).toContain('focus-within:ring-2')
+    expect(scope.className).toContain('rounded-t-md')
+    expect(appliesTo.parentElement).toBe(scope.parentElement)
     expect((screen.getByRole('checkbox', { name: 'Project' }) as HTMLInputElement).disabled).toBe(
       false,
     )
@@ -170,6 +255,87 @@ describe('RuleDrawer', () => {
       'Raise a Medium alert when Days until project end is below 30 days. Human review required.',
     )
     expect(screen.getAllByText(/nothing is executed automatically/).length).toBeGreaterThan(0)
+  })
+  it('adds recommendations through the selected alert without exposing alert setup steps', async () => {
+    renderDrawer({ mode: 'recommendation', alertLibrary: [activeRule] })
+    expect(screen.getByText('Choose an existing alert')).toBeTruthy()
+    expect(screen.getByText('What should the system recommend?')).toBeTruthy()
+    expect(screen.queryByLabelText('Rule Name')).toBeNull()
+    expect(screen.queryByLabelText('Metric')).toBeNull()
+    expect(screen.queryByRole('radio', { name: /High/ })).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Choose from alert library' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Choose alert' }))
+    expect(screen.getByRole('status').textContent).toContain('Late project')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add recommendation' }))
+    fireEvent.change(screen.getByLabelText('Recommendation title'), {
+      target: { value: 'Check resourcing' },
+    })
+    fireEvent.change(screen.getByLabelText('Suggested response'), {
+      target: { value: 'Review the project team capacity and agree the next action.' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save recommendation' }))
+
+    await waitFor(() => expect(state.draftRule).toHaveBeenCalledTimes(1))
+    expect(state.draftRule).toHaveBeenCalledWith(
+      activeRule.id,
+      expect.objectContaining({
+        name: activeRule.name,
+        severity: activeRule.severity,
+        conditions: activeRule.conditions,
+        expectedVersion: activeRule.version,
+        recommendations: expect.arrayContaining([
+          expect.objectContaining({ title: 'Review', text: 'Check.' }),
+          expect.objectContaining({
+            title: 'Check resourcing',
+            text: 'Review the project team capacity and agree the next action.',
+          }),
+        ]),
+      }),
+    )
+  })
+  it('allows a recommendation to be written before its alert is chosen', async () => {
+    renderDrawer({ mode: 'recommendation', alertLibrary: [activeRule] })
+    fireEvent.change(screen.getByLabelText('Recommendation title'), {
+      target: { value: 'Check resourcing' },
+    })
+    fireEvent.change(screen.getByLabelText('Suggested response'), {
+      target: { value: 'Review the project team capacity and agree the next action.' },
+    })
+    expect(screen.getByText('Choose an alert before saving this recommendation.')).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Choose from alert library' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Choose alert' }))
+    expect((screen.getByLabelText('Recommendation title') as HTMLInputElement).value).toBe(
+      'Check resourcing',
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Save recommendation' }))
+
+    await waitFor(() => expect(state.draftRule).toHaveBeenCalledTimes(1))
+    expect(state.draftRule.mock.calls[0]?.[1].recommendations).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ title: 'Review', text: 'Check.' }),
+        expect.objectContaining({ title: 'Check resourcing' }),
+      ]),
+    )
+  })
+  it('shows the linked project and alert details in the recommendation alert library', () => {
+    const projectAlert = {
+      ...activeRule,
+      projectId: '30000000-0000-4000-8000-000000000001',
+    } as HumanRule
+    renderDrawer({
+      mode: 'recommendation',
+      alertLibrary: [projectAlert],
+      projects: [{ id: projectAlert.projectId as string, title: 'North Star Project' }],
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Choose from alert library' }))
+    expect(screen.getByText('Project: North Star Project')).toBeTruthy()
+    expect(screen.getByText(/Condition: Days until project end/)).toBeTruthy()
+    expect(screen.getByText('Severity: High')).toBeTruthy()
+    expect(screen.getByText('Status: Active')).toBeTruthy()
   })
   it('saves a new rule through createRule with a valid tree', async () => {
     const onSaved = vi.fn()
@@ -237,7 +403,7 @@ describe('RuleDrawer', () => {
       target: { value: 'INDICATOR_PROGRESS_PERCENT' },
     })
     fireEvent.change(screen.getByLabelText('Rule scope'), { target: { value: '' } })
-    expect(screen.getByRole('alert').textContent).toMatch(/Cleared 1 incompatible condition/)
+    expect(screen.queryByRole('alert')).toBeNull()
     expect(option('Progress toward indicator target')).toBeNull()
     expect((screen.getByLabelText('Metric') as HTMLSelectElement).value).toBe(
       'PROJECT_TIMELINE_ELAPSED_PERCENT',
@@ -266,7 +432,7 @@ describe('RuleDrawer', () => {
       target: { value: 'ACTIVITY_COMPLETION_PERCENT' },
     })
     fireEvent.click(screen.getByRole('checkbox', { name: /Activity/ }))
-    expect(screen.getByRole('alert').textContent).toMatch(/Cleared 1 incompatible condition/)
+    expect(screen.queryByRole('alert')).toBeNull()
     expect(option('Activities completed')).toBeNull()
   })
   it('suggests severity without overwriting a manual choice and saves the chosen severity', async () => {

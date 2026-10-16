@@ -130,12 +130,37 @@ describe('RulesBoard', () => {
     expect(await screen.findByLabelText('Rule Name')).toBeTruthy()
     expect(screen.queryByRole('dialog')).toBeNull()
   })
+  it('shows Manage Rules only with the Rule repository controls', async () => {
+    renderBoard()
+    await screen.findAllByText('Low indicator progress')
+    expect(screen.getByRole('button', { name: 'Manage Rules' })).toBeTruthy()
+
+    fireEvent.mouseDown(screen.getByRole('tab', { name: 'Create rule' }))
+    await screen.findByLabelText('Rule Name')
+    expect(screen.queryByRole('button', { name: 'Manage Rules' })).toBeNull()
+  })
+  it('uses a truncating scope trigger while preserving its full accessible name', async () => {
+    renderBoard()
+    const scope = await screen.findByRole('combobox', { name: 'Scope: Organization templates' })
+    expect(scope.className).toContain('min-w-0')
+    expect(scope.getAttribute('title')).toBe('Organization templates')
+    expect(scope.querySelector('.truncate')?.textContent).toBe('Organization templates')
+  })
   it('loads the recommendation library without inheriting the repository scope', async () => {
     renderBoard()
     await screen.findAllByText('Low indicator progress')
     await waitFor(() =>
       expect(state.listRules).toHaveBeenCalledWith({ limit: '100' }, expect.anything()),
     )
+  })
+  it('uses the alert library in the recommendation-rule creation flow', async () => {
+    renderBoard()
+    await screen.findAllByText('Low indicator progress')
+    fireEvent.mouseDown(screen.getByRole('tab', { name: 'Create rule' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Recommendation rule' }))
+    expect(await screen.findByText('Choose an existing alert')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Choose from alert library' }))
+    expect(screen.getByRole('button', { name: 'Choose alert' })).toBeTruthy()
   })
   it('hides the Create rule tab without rules.create', async () => {
     state.permissions = ['rules.read', 'projects.read']

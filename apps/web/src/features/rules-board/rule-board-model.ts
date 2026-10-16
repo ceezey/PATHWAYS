@@ -226,6 +226,20 @@ export const availableMetrics = (scopes?: readonly MetricScope[]) =>
   Object.keys(METRIC_CATALOG).filter(
     (key) => isMetricAvailable(key) && (!scopes?.length || scopes.includes(scopeOf(key))),
   )
+/**
+ * Categories summarize the scope families selected while authoring. Keep the
+ * order stable so the tags follow the Applies To checkbox order.
+ */
+export const categoriesForScopes = (scopes: readonly MetricScope[]): MetricCategory[] => {
+  const categories = new Set<MetricCategory>()
+  for (const scope of SCOPES) {
+    if (!scopes.includes(scope)) continue
+    for (const metric of Object.values(METRIC_CATALOG)) {
+      if (metric.scope === scope) categories.add(metric.category)
+    }
+  }
+  return [...categories]
+}
 const suffix = (key: string) => {
   const unit = unitOf(key)
   return unit === '%'
@@ -366,9 +380,18 @@ const needsJudgment = (reason: string): SuggestedSeverity => ({
   severity: null,
   reason,
 })
+const humanJudgmentReason = (metric: RuleMetricKey) => {
+  if (metric === 'PROJECT_TIMELINE_ELAPSED_PERCENT')
+    return 'Project timeline elapsed measures time, not work completed. It does not receive an automatic severity suggestion; choose severity using delivery context.'
+  if (metric === 'INDICATOR_CURRENT_VALUE')
+    return 'Current indicator value needs its measurement unit, target, and direction to judge urgency. It does not receive an automatic severity suggestion.'
+  return null
+}
 const mixedReason = (metric: string) =>
   `${metricLabel(metric)} spans values with different interpretations. Narrow the comparison or choose severity using your judgment.`
 const suggestLeafSeverity = (leaf: Leaf): SuggestedSeverity => {
+  const humanReason = humanJudgmentReason(leaf.metric)
+  if (humanReason) return needsJudgment(humanReason)
   const interval = intersect(matchingInterval(leaf), domainFor(leaf.metric))
   if (isEmpty(interval))
     return needsJudgment(
@@ -399,14 +422,6 @@ const suggestLeafSeverity = (leaf: Leaf): SuggestedSeverity => {
       'Days until project end spans upcoming and passed dates, or has no bounded upcoming window. Narrow the comparison or choose severity using delivery context.',
     )
   }
-  if (leaf.metric === 'PROJECT_TIMELINE_ELAPSED_PERCENT')
-    return needsJudgment(
-      'Project timeline elapsed measures time, not work completed. Choose severity using delivery context.',
-    )
-  if (leaf.metric === 'INDICATOR_CURRENT_VALUE')
-    return needsJudgment(
-      'Current indicator value needs its measurement unit, target, and direction to judge urgency.',
-    )
   if (leaf.metric === 'INDICATOR_PROGRESS_PERCENT') {
     if (minimumIsAtLeast(interval, hundred))
       return supported(
@@ -490,6 +505,10 @@ export const suggestSeverity = (conditions: RuleNode): SuggestedSeverity => {
   try {
     parsed = parseRuleTree(conditions)
   } catch {
+    const humanReason = leaves(conditions)
+      .map((leaf) => humanJudgmentReason(leaf.metric))
+      .find((reason) => reason !== null)
+    if (humanReason) return needsJudgment(humanReason)
     return needsJudgment(
       'Enter a valid threshold and complete every condition before using a suggestion.',
     )

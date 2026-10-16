@@ -10,6 +10,7 @@ type Props = {
   nested: boolean
   showTest: boolean
   inline?: boolean
+  resizable?: boolean
   onTest: () => void
   onCancel?: () => void
   onConfirm: (action: 'activate' | 'deactivate') => void
@@ -24,26 +25,35 @@ export function RuleDrawerFooter({
   nested,
   showTest,
   inline,
+  resizable,
   onTest,
   onCancel,
   onConfirm,
 }: Props) {
+  const actionClass = resizable && !inline ? 'w-full' : 'w-40'
   return (
     <div
       className={cn(
-        'border-t border-border bg-card pb-1 pt-3',
+        'bg-card',
         inline
-          ? 'flex flex-row-reverse flex-wrap justify-start gap-2'
-          : 'sticky bottom-0 flex flex-col items-end gap-2',
+          ? 'flex flex-row-reverse flex-wrap justify-start gap-2 rounded-md border border-border p-3'
+          : resizable
+            ? 'sticky bottom-0 grid grid-cols-[repeat(auto-fit,minmax(12rem,1fr))] gap-2 rounded-t-md border border-border border-b-0 p-3'
+            : 'sticky bottom-0 flex flex-col items-end gap-2 rounded-t-md border border-border border-b-0 p-3',
       )}
     >
       {canWrite ? (
-        <Button className="w-40" disabled={busy || nested} form="rule-drawer-form" type="submit">
+        <Button
+          className={actionClass}
+          disabled={busy || nested}
+          form="rule-drawer-form"
+          type="submit"
+        >
           {busy ? 'Saving...' : 'Save Rule'}
         </Button>
       ) : null}
       <Button
-        className="w-40"
+        className={actionClass}
         disabled={!hasRule}
         title={hasRule ? undefined : 'Save the rule first to run a test'}
         type="button"
@@ -54,7 +64,7 @@ export function RuleDrawerFooter({
       </Button>
       {canActivate ? (
         <Button
-          className="w-40"
+          className={actionClass}
           disabled={busy}
           type="button"
           onClick={() => onConfirm('activate')}
@@ -64,7 +74,7 @@ export function RuleDrawerFooter({
       ) : null}
       {canDeactivate ? (
         <Button
-          className="w-40"
+          className={actionClass}
           disabled={busy}
           type="button"
           variant="outline"
@@ -74,7 +84,7 @@ export function RuleDrawerFooter({
         </Button>
       ) : null}
       {onCancel ? (
-        <Button className="w-40" type="button" variant="outline" onClick={() => onCancel()}>
+        <Button className={actionClass} type="button" variant="outline" onClick={() => onCancel()}>
           Cancel
         </Button>
       ) : null}

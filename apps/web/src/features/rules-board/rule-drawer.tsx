@@ -1,6 +1,7 @@
 'use client'
 
-import { SidePanel } from '@/components/pathways'
+import { SidePanel, StatusBadge } from '@/components/pathways'
+import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -14,6 +15,7 @@ import { PathwaysClientError } from '@/lib/api/core/request'
 import { type SensitiveDraftOwner, useSensitiveDraftOwner } from '@/lib/auth/sensitive-drafts'
 import { principalHasAtomicPermission } from '@/lib/rbac/policy'
 import { rulesHumanClient } from '@/lib/services/rules-human-client'
+import { cn } from '@/lib/utils'
 import {
   type HumanRule,
   type RuleCondition,
@@ -22,21 +24,23 @@ import {
   draftRuleSchema,
   parseRuleTree,
 } from '@pathways/shared'
+import { Plus } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import {
   type MetricScope,
   appliesTo,
   availableMetrics,
-  categoryOf,
+  categoriesForScopes,
   conditionSummary,
   previewSentence,
   recommendationPrefill,
   suggestRuleCode,
   suggestSeverity,
+  titleCase,
 } from './rule-board-model'
 import { ApplyToFields, ConditionBuilder, useBindingChoices } from './rule-condition-rows'
 import { RuleDrawerFooter } from './rule-drawer-footer'
-import { type Mode, type Rec, newRec, newRow, recordBound } from './rule-drawer-shared'
+import { type Mode, type Rec, appendRec, newRec, newRow, recordBound } from './rule-drawer-shared'
 import { LifecyclePrompt } from './rule-lifecycle-prompt'
 import { RecommendationFields, RulePreview, SeverityField } from './rule-output-fields'
 import { RuleStepCard } from './rule-step-card'
@@ -52,6 +56,10 @@ type Props = {
   library?: Rec[]
   /** The authorized organization-wide recommendation library is still loading. */
   libraryPending?: boolean
+  /** Alert rules the current user may update, offered when adding recommendations. */
+  alertLibrary?: HumanRule[]
+  /** The authorized organization-wide alert library is still loading. */
+  alertLibraryPending?: boolean
   /** Inline renders the builder in the page beside a sticky preview instead of a side panel. */
   inline?: boolean
   onClose: () => void
@@ -92,8 +100,13 @@ export function RuleDrawer(props: Props) {
   return (
     <Sheet open onOpenChange={(open) => !open && props.onClose()}>
       <SidePanel
-        className="sm:max-w-[480px] [&_h2]:font-semibold [&_h2]:uppercase"
+        className={cn(
+          '[&_h2]:font-semibold [&_h2]:uppercase',
+          rule ? 'sm:w-[480px] sm:max-w-none' : 'sm:max-w-[480px]',
+        )}
         containedScroll
+        resizable={Boolean(rule)}
+        resizeLabel="Resize edit rule panel"
         title={title}
         description="Rule outputs are rule-based and need human review; nothing is executed automatically."
       >
@@ -107,7 +120,262 @@ export function RuleDrawer(props: Props) {
   )
 }
 
-function OwnedDrawer({
+function OwnedDrawer(props: Props & { owner: SensitiveDraftOwner }) {
+  // A recommendation is a configured response on an alert rule, rather than a
+  // standalone rule. New recommendation work therefore starts from an existing
+  // alert and drafts that alert's next version without exposing its conditions
+  // or severity in this focused flow.
+  if (props.mode === 'recommendation' && !props.rule) return <RecommendationRuleDrawer {...props} />
+  return <AlertRuleDrawer {...props} />
+}
+
+function RecommendationRuleDrawer({
+  library,
+  libraryPending,
+  alertLibrary = [],
+  alertLibraryPending = false,
+  projects,
+  inline,
+  onClose,
+  onSaved,
+  owner,
+}: Props & { owner: SensitiveDraftOwner }) {
+  const { profile, access } = useCurrentRole()
+  const has = usePermission()
+  const [selectedAlert, setSelectedAlert] = useState<HumanRule | null>(null)
+  // Recommendation text can be composed before an alert is selected. Choosing an
+  // alert retains those local drafts and adds them to that alert's saved responses.
+  const [recs, setRecs] = useState<Rec[]>([newRec()])
+  const [libraryOpen, setLibraryOpen] = useState(false)
+  const [notice, setNotice] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [locked, setLocked] = useState(false)
+  const mounted = useRef(true)
+  const inFlight = useRef(false)
+  const sourceOwner = useSensitiveDraftOwner(
+    profile,
+    'rule-drawer-recommendation-source',
+    'rules.update',
+    selectedAlert?.projectId ?? null,
+    selectedAlert ? `${selectedAlert.id}:${selectedAlert.version}` : 'unselected',
+    access === 'ready',
+  )
+  useEffect(() => {
+    mounted.current = true
+    return () => {
+      mounted.current = false
+    }
+  }, [])
+  const isCurrent = () => mounted.current && owner.isCurrent() && sourceOwner?.isCurrent()
+  const canWrite = has('rules.update')
+  const availableAlerts = alertLibrary.filter((item) => item.status !== 'ARCHIVED')
+  const projectNames = new Map(projects.map((project) => [project.id, project.title]))
+  const projectLabel = (item: HumanRule) =>
+    item.projectId
+      ? (projectNames.get(item.projectId) ?? 'Project unavailable in your workspace')
+      : 'Organization template'
+  const choose = (item: HumanRule) => {
+    const selectedSourceIds = new Set(selectedAlert?.recommendations.map((item) => item.id))
+    const pending = recs.filter(
+      (recommendation) =>
+        !selectedSourceIds.has(recommendation.id) &&
+        Boolean(recommendation.title.trim() || recommendation.text.trim()),
+    )
+    if (item.recommendations.length + pending.length > 10) {
+      setNotice(
+        'The selected alert already has too many recommendations to add these drafts. Choose another alert or remove a recommendation from it first.',
+      )
+      return
+    }
+    setSelectedAlert(item)
+    setRecs([...item.recommendations.map((recommendation) => ({ ...recommendation })), ...pending])
+    setLibraryOpen(false)
+    setNotice('')
+  }
+  const addRecommendation = () => setRecs((current) => appendRec(current, newRec()))
+  const save = async () => {
+    if (!selectedAlert) return setNotice('Choose an existing alert first.')
+    if (!sourceOwner || !isCurrent() || inFlight.current) return
+    if (!recs.length || recs.some((item) => !item.title.trim() || !item.text.trim()))
+      return setNotice('Add at least one recommendation, each with a title and suggested response.')
+    const parsed = draftRuleSchema.safeParse({
+      name: selectedAlert.name,
+      severity: selectedAlert.severity,
+      conditions: selectedAlert.conditions,
+      recommendations: recs,
+      expectedVersion: selectedAlert.version,
+      clientOperationId: crypto.randomUUID(),
+    })
+    if (!parsed.success)
+      return setNotice(parsed.error.issues[0]?.message ?? 'Review the recommendation fields.')
+    inFlight.current = true
+    setBusy(true)
+    setLocked(true)
+    setNotice('')
+    try {
+      await rulesHumanClient.draftRule(selectedAlert.id, parsed.data)
+      if (isCurrent()) onSaved(selectedAlert.projectId, 'drafted')
+    } catch (error) {
+      if (!isCurrent()) return
+      setLocked(false)
+      if (error instanceof PathwaysClientError && [400, 403, 404, 409].includes(error.status ?? 0))
+        setNotice(
+          error.message ||
+            'The recommendation could not be saved. Refresh the selected alert and verify current access.',
+        )
+      else setNotice('A response was not confirmed. Retry the same operation.')
+    } finally {
+      inFlight.current = false
+      if (isCurrent()) setBusy(false)
+    }
+  }
+  const builder = (
+    <div className="space-y-6">
+      <form
+        className="space-y-6"
+        id="rule-drawer-form"
+        onSubmit={(event) => {
+          event.preventDefault()
+          void save()
+        }}
+      >
+        <fieldset className="space-y-6" disabled={busy || locked || !canWrite}>
+          <RuleStepCard
+            step={1}
+            title="Choose an existing alert"
+            hint="Choose the alert whose recommendations you want to update. Its conditions and severity stay unchanged."
+          >
+            <div className="space-y-2 rounded-md border border-border bg-surface-subtle p-3">
+              <p className="text-sm font-medium">Alert library</p>
+              <p className="text-sm text-muted-foreground" id="alert-library-description">
+                Choose an alert configuration to receive recommendations. Saving creates a new draft
+                of that alert.
+              </p>
+              {selectedAlert ? (
+                <output className="block rounded-md border border-border bg-card p-3">
+                  <span className="block font-medium">{selectedAlert.name}</span>
+                  <span className="mt-1 grid gap-1 text-sm text-muted-foreground sm:grid-cols-2">
+                    <span>Project: {projectLabel(selectedAlert)}</span>
+                    <span>Condition: {conditionSummary(selectedAlert.conditions)}</span>
+                    <span>Severity: {titleCase(selectedAlert.severity)}</span>
+                    <span>Status: {titleCase(selectedAlert.status)}</span>
+                  </span>
+                </output>
+              ) : null}
+              <Button
+                aria-controls="alert-library-options"
+                aria-describedby="alert-library-description"
+                aria-expanded={libraryOpen}
+                type="button"
+                variant="outline"
+                onClick={() => setLibraryOpen((open) => !open)}
+              >
+                {libraryOpen
+                  ? 'Hide alert library'
+                  : selectedAlert
+                    ? 'Choose a different alert'
+                    : 'Choose from alert library'}
+              </Button>
+              {libraryOpen ? (
+                <div className="space-y-2" id="alert-library-options">
+                  {alertLibraryPending ? (
+                    <output className="block text-sm text-muted-foreground">
+                      Loading alerts you can update in this organization.
+                    </output>
+                  ) : availableAlerts.length ? (
+                    <ul className="space-y-2">
+                      {availableAlerts.map((item) => (
+                        <li
+                          className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-card p-2"
+                          key={item.id}
+                        >
+                          <span className="min-w-0 flex-1">
+                            <span className="block text-sm font-medium">{item.name}</span>
+                            <span className="mt-1 grid gap-1 text-xs text-muted-foreground sm:grid-cols-2">
+                              <span>Project: {projectLabel(item)}</span>
+                              <span>Condition: {conditionSummary(item.conditions)}</span>
+                              <span>Severity: {titleCase(item.severity)}</span>
+                              <span>Status: {titleCase(item.status)}</span>
+                            </span>
+                          </span>
+                          <Button type="button" variant="outline" onClick={() => choose(item)}>
+                            Choose alert
+                          </Button>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <output className="block text-sm text-muted-foreground">
+                      No editable alerts are available in this organization yet. Create an alert
+                      rule first.
+                    </output>
+                  )}
+                </div>
+              ) : null}
+            </div>
+          </RuleStepCard>
+          <RuleStepCard
+            step={2}
+            title="What should the system recommend?"
+            hint="Write the response the system retrieves when the selected alert matches. It is stored, not generated."
+            action={
+              <Button
+                aria-label="Add recommendation"
+                disabled={recs.length >= 10}
+                size="icon"
+                title="Add recommendation"
+                type="button"
+                variant="outline"
+                onClick={addRecommendation}
+              >
+                <Plus className="h-4 w-4" aria-hidden="true" />
+              </Button>
+            }
+          >
+            <RecommendationFields
+              hasRule={Boolean(selectedAlert)}
+              hideAddButton
+              library={library}
+              libraryPending={libraryPending}
+              onRecs={setRecs}
+              recs={recs}
+            />
+            {!selectedAlert ? (
+              <output className="block text-sm text-muted-foreground">
+                Choose an alert before saving this recommendation.
+              </output>
+            ) : null}
+          </RuleStepCard>
+        </fieldset>
+      </form>
+      {notice ? (
+        <p className="text-sm text-danger" role="alert">
+          {notice}
+        </p>
+      ) : null}
+      <div className="flex flex-row-reverse flex-wrap justify-start gap-2 rounded-md border border-border bg-card p-3">
+        {canWrite ? (
+          <Button
+            className="w-40"
+            disabled={busy || locked || !selectedAlert}
+            form="rule-drawer-form"
+            type="submit"
+          >
+            {busy ? 'Saving...' : 'Save recommendation'}
+          </Button>
+        ) : null}
+        {inline ? (
+          <Button className="w-40" type="button" variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+        ) : null}
+      </div>
+    </div>
+  )
+  return builder
+}
+
+function AlertRuleDrawer({
   mode,
   rule,
   projectId,
@@ -200,7 +468,7 @@ function OwnedDrawer({
   const suggestedRecommendation = recommendationPrefill(tree)
   const suggestedRecommendationTitle = suggestedRecommendation.title
   const suggestedRecommendationText = suggestedRecommendation.text
-  const category = rows[0] ? categoryOf(rows[0].metric) : null
+  const categories = categoriesForScopes(scopes)
   useEffect(() => {
     if (rule || recommendationEdited.current) return
     setRecs((current) =>
@@ -219,38 +487,27 @@ function OwnedDrawer({
     setName(value)
     if (!rule && !codeTouched) setCode(suggestRuleCode(value))
   }
-  const reconcileRows = (
-    nextScopes: MetricScope[],
-    nextProjectId: string | null,
-    cause: 'scope changed' | 'Applies To changed',
-  ) => {
+  const addRecommendation = () => {
+    recommendationEdited.current = true
+    setRecs((current) => appendRec(current, newRec()))
+  }
+  const reconcileRows = (nextScopes: MetricScope[], nextProjectId: string | null) => {
     const permitted = availableMetrics(nextScopes).filter(
       (key) => nextProjectId !== null || !recordBound(key),
     )
-    let clearedConditions = 0
-    let clearedBindings = 0
     const nextRows = rows.flatMap((row) => {
       if (!permitted.includes(row.metric)) {
-        clearedConditions += 1
-        if (row.indicatorId || row.activityId) clearedBindings += 1
         return []
       }
       const projectChanged = nextProjectId !== scopeProjectId
       if ((nextProjectId === null || projectChanged) && (row.indicatorId || row.activityId)) {
-        clearedBindings += 1
         return [clearRecordBindings(row) as RuleCondition]
       }
       return [row]
     })
     if (!nextRows.length) nextRows.push(newRow(permitted[0] ?? ''))
     setRows(nextRows)
-    const cleared = [
-      clearedConditions
-        ? `${clearedConditions} incompatible condition${clearedConditions === 1 ? '' : 's'}`
-        : '',
-      clearedBindings ? `${clearedBindings} record binding${clearedBindings === 1 ? '' : 's'}` : '',
-    ].filter(Boolean)
-    if (cleared.length) setNotice(`Cleared ${cleared.join(' and ')} because ${cause}.`)
+    setNotice('')
   }
   const toggleScope = (scope: MetricScope) => {
     if (scope === 'Indicator' && scopeProjectId === null) return
@@ -261,7 +518,7 @@ function OwnedDrawer({
     }
     const nextScopes = selected ? scopes.filter((item) => item !== scope) : [...scopes, scope]
     setScopes(nextScopes)
-    reconcileRows(nextScopes, scopeProjectId, 'Applies To changed')
+    reconcileRows(nextScopes, scopeProjectId)
   }
   const changeProject = (value: string) => {
     const nextProjectId = value || null
@@ -270,7 +527,7 @@ function OwnedDrawer({
     if (!nextScopes.length) nextScopes = ['Project']
     setScopeProjectId(nextProjectId)
     setScopes(nextScopes)
-    reconcileRows(nextScopes, nextProjectId, 'scope changed')
+    reconcileRows(nextScopes, nextProjectId)
   }
   const fail = (error: unknown, fallback: string) => {
     if (!isCurrent()) return
@@ -389,33 +646,41 @@ function OwnedDrawer({
             title="Name and scope"
             hint="Name the rule, choose its project scope, then choose what it watches."
           >
-            <div className="space-y-2">
-              <Label htmlFor="drawer-rule-name">Rule Name</Label>
-              <Input
-                id="drawer-rule-name"
-                maxLength={160}
-                value={name}
-                onChange={(event) => changeName(event.target.value)}
-              />
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="drawer-rule-name">Rule Name</Label>
+                <Input
+                  id="drawer-rule-name"
+                  maxLength={160}
+                  value={name}
+                  onChange={(event) => changeName(event.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="drawer-rule-code">Rule Code</Label>
+                <Input
+                  id="drawer-rule-code"
+                  maxLength={80}
+                  disabled={Boolean(rule)}
+                  value={code}
+                  onChange={(event) => {
+                    setCodeTouched(true)
+                    setCode(event.target.value.toUpperCase())
+                  }}
+                />
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="drawer-rule-code">Rule Code</Label>
-              <Input
-                id="drawer-rule-code"
-                maxLength={80}
-                disabled={Boolean(rule)}
-                value={code}
-                onChange={(event) => {
-                  setCodeTouched(true)
-                  setCode(event.target.value.toUpperCase())
-                }}
-              />
-            </div>
-            <div className="space-y-2">
-              <p className="text-sm font-medium">Rule Category</p>
-              <p className="text-sm text-muted-foreground" data-testid="rule-category">
-                {category ?? 'Derived from the first metric'}
-              </p>
+            <div className="flex flex-wrap items-center gap-2 text-sm">
+              <span className="font-medium" data-testid="rule-category-label">
+                Rule Categor{categories.length === 1 ? 'y' : 'ies'}:
+              </span>
+              <div className="flex flex-wrap gap-1.5" data-testid="rule-category">
+                {categories.map((category) => (
+                  <StatusBadge dot={false} key={category} tone="neutral">
+                    {category}
+                  </StatusBadge>
+                ))}
+              </div>
             </div>
             <ApplyToFields
               locked={Boolean(rule)}
@@ -430,6 +695,21 @@ function OwnedDrawer({
             step={2}
             title="What are you watching?"
             hint="Pick the metric to monitor, read its definition and example, then enter the threshold that flags it."
+            action={
+              !nested ? (
+                <Button
+                  aria-label="Add condition"
+                  disabled={rows.length >= 32}
+                  size="icon"
+                  title="Add condition"
+                  type="button"
+                  variant="outline"
+                  onClick={() => setRows((current) => [...current, newRow(metricOptions[0] ?? '')])}
+                >
+                  <Plus className="h-4 w-4" aria-hidden="true" />
+                </Button>
+              ) : undefined
+            }
           >
             <ConditionBuilder
               activities={activities}
@@ -438,6 +718,7 @@ function OwnedDrawer({
               metricOptions={metricOptions}
               nestedRule={nested ? rule : undefined}
               onAdvanced={() => setAdvanced(true)}
+              hideAddButton
               rows={rows}
               scopeProjectId={scopeProjectId}
               setMatchMode={setMatchMode}
@@ -464,9 +745,23 @@ function OwnedDrawer({
             step={4}
             title="What should the system recommend?"
             hint="Write the response the system retrieves when this rule matches. It is stored, not generated."
+            action={
+              <Button
+                aria-label="Add recommendation"
+                disabled={recs.length >= 10}
+                size="icon"
+                title="Add recommendation"
+                type="button"
+                variant="outline"
+                onClick={addRecommendation}
+              >
+                <Plus className="h-4 w-4" aria-hidden="true" />
+              </Button>
+            }
           >
             <RecommendationFields
               hasRule={Boolean(rule)}
+              hideAddButton
               library={library}
               libraryPending={libraryPending}
               onRecs={setRecs}
@@ -495,6 +790,7 @@ function OwnedDrawer({
         hasRule={Boolean(rule)}
         inline={inline}
         nested={nested}
+        resizable={Boolean(rule) && !inline}
         onCancel={inline ? onClose : undefined}
         onConfirm={setConfirm}
         onTest={() => setShowTest((value) => !value)}
