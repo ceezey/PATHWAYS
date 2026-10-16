@@ -142,6 +142,7 @@ export function RecommendationFields({
   const [editing, setEditing] = useState<string | null>(
     hasRule || !recs[0] ? null : (recs[0].id as string),
   )
+  const [libraryOpen, setLibraryOpen] = useState(false)
   const expanded = (item: Rec) => editing === item.id || !complete(item)
   const used = new Set(recs.map((item) => `${item.title}\u0000${item.text}`))
   const offered = library
@@ -228,6 +229,54 @@ export function RecommendationFields({
           </div>
         ),
       )}
+      <div className="space-y-2 rounded-md border border-border bg-surface-subtle p-3">
+        <p className="text-sm font-medium">Recommendation library</p>
+        <p className="text-sm text-muted-foreground" id="recommendation-library-description">
+          Choose a saved recommendation to copy into this rule. Later edits stay only in this rule.
+        </p>
+        <Button
+          aria-controls="recommendation-library-options"
+          aria-describedby="recommendation-library-description"
+          aria-expanded={libraryOpen}
+          type="button"
+          variant="outline"
+          onClick={() => setLibraryOpen((open) => !open)}
+        >
+          {libraryOpen ? 'Hide recommendation library' : 'Choose from recommendation library'}
+        </Button>
+        {libraryOpen ? (
+          <div className="space-y-2" id="recommendation-library-options">
+            {offered.length ? (
+              <ul className="space-y-2">
+                {offered.map((item) => (
+                  <li
+                    className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-card p-2"
+                    key={`${item.title}:${item.text}`}
+                  >
+                    <span className="flex-1 text-sm font-medium">{item.title}</span>
+                    <Button
+                      disabled={recs.length >= 10}
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        add({ id: crypto.randomUUID(), title: item.title, text: item.text })
+                        setLibraryOpen(false)
+                      }}
+                    >
+                      Copy to this rule
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-sm text-muted-foreground" role="status">
+                No other saved recommendations are available in this scope yet. Save a rule with a
+                recommendation first, or choose another project scope.
+              </p>
+            )}
+          </div>
+        ) : null}
+      </div>
       <Button
         disabled={recs.length >= 10}
         type="button"
@@ -236,30 +285,6 @@ export function RecommendationFields({
       >
         Add recommendation
       </Button>
-      {offered.length && recs.length < 10 ? (
-        <div className="space-y-2 rounded-md border border-border bg-surface-subtle p-3">
-          <p className="text-sm font-medium">Reuse a saved recommendation</p>
-          <p className="text-sm text-muted-foreground">
-            Copied into this rule, so later edits here do not change the rule it came from.
-          </p>
-          <ul className="space-y-2">
-            {offered.map((item) => (
-              <li className="flex flex-wrap items-center gap-2" key={`${item.title}:${item.text}`}>
-                <span className="flex-1 text-sm">{item.title}</span>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() =>
-                    add({ id: crypto.randomUUID(), title: item.title, text: item.text })
-                  }
-                >
-                  Reuse
-                </Button>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
     </div>
   )
 }

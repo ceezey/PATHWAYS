@@ -330,11 +330,12 @@ describe('RuleDrawer', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Done' }))
     expect(screen.queryByLabelText('Recommendation title')).toBeNull()
   })
-  it('copies a reused recommendation under a new identity', async () => {
+  it('shows the recommendation library and copies a saved recommendation under a new identity', async () => {
     const saved = { id: '60000000-0000-4000-8000-000000000009', title: 'Reassign', text: 'Move.' }
     renderDrawer({ library: [saved] })
     await screen.findByLabelText('Rule Name')
-    fireEvent.click(screen.getByRole('button', { name: 'Reuse' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Choose from recommendation library' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Copy to this rule' }))
     fireEvent.click(screen.getByRole('checkbox', { name: /Budget/ }))
     fireEvent.change(screen.getByLabelText('Metric'), {
       target: { value: 'BUDGET_UTILIZATION_PERCENT' },
@@ -345,6 +346,12 @@ describe('RuleDrawer', () => {
     const sent = state.createRule.mock.calls[0]?.[0].recommendations
     expect(sent.some((item: { title: string }) => item.title === 'Reassign')).toBe(true)
     expect(sent.every((item: { id: string }) => item.id !== saved.id)).toBe(true)
+  })
+  it('explains when the current scope has no reusable recommendation', async () => {
+    renderDrawer()
+    await screen.findByLabelText('Rule Name')
+    fireEvent.click(screen.getByRole('button', { name: 'Choose from recommendation library' }))
+    expect(screen.getByRole('status').textContent).toMatch(/No other saved recommendations/)
   })
   it('keeps advanced editor labels bound to its own fields over the drawer', async () => {
     const nested = {
