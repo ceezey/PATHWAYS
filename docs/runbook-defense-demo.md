@@ -21,8 +21,8 @@ Service audit timestamps (submitted, reviewed, approved) are immutable by design
 
 | File | Purpose |
 |---|---|
-| `infra/supabase/phase6/hosted-defense-demo-wipe-dry-run.sql` | Row counts per table, then ROLLBACK |
-| `infra/supabase/phase6/hosted-defense-demo-wipe.sql` | One-transaction TRUNCATE of domain data; keeps org, roles, permissions, users, step-up PINs, lockouts and rules catalogs |
+| `infra/supabase/replay/hosted-defense-demo-wipe-dry-run.sql` | Row counts per table, then ROLLBACK |
+| `infra/supabase/replay/hosted-defense-demo-wipe.sql` | One-transaction TRUNCATE of domain data; keeps org, roles, permissions, users, step-up PINs, lockouts and rules catalogs |
 | `scripts/db/defense/demo.mjs` | Launcher for `apps/api/prisma/defense-demo-seed.ts` |
 | `apps/api/prisma/defense-demo-verify.ts` | Read-only checks run by `--verify` |
 | `scripts/db/defense/snapshot.mjs` | Snapshot mirror, dump, restore and storage copy (section 8) |
@@ -52,12 +52,12 @@ Preview and Production share devV2, so the wipe affects both.
 
 ## 5. Rules scheduler activation (once)
 
-Follow `docs/ops-pathways.md` section "Rules scheduler activation": run `infra/supabase/phase6/hosted-rules-machine-login.sql` with psql, store the drain and sweep tokens in GitHub environment `rules-hosted` and Vercel `pathways-api`, confirm 403 while disabled, enable and confirm `{"state":"ACKNOWLEDGED"}`. This costs two `pathways-api` redeploys and records G-F10-7 evidence (QAD-T68).
+Follow `docs/ops-pathways.md` section "Rules scheduler activation": run `infra/supabase/replay/hosted-rules-machine-login.sql` with psql, store the drain and sweep tokens in GitHub environment `rules-hosted` and Vercel `pathways-api`, confirm 403 while disabled, enable and confirm `{"state":"ACKNOWLEDGED"}`. This costs two `pathways-api` redeploys and records G-F10-7 evidence (QAD-T68).
 
 ## 6. Local rehearsal
 
 1. `pnpm db:local:reset`
-2. `docker exec -i supabase_db_pathways psql -v ON_ERROR_STOP=1 -q -U postgres -d postgres < infra/supabase/phase6/hosted-defense-demo-wipe.sql`
+2. `docker exec -i supabase_db_pathways psql -v ON_ERROR_STOP=1 -q -U postgres -d postgres < infra/supabase/replay/hosted-defense-demo-wipe.sql`
 3. `pnpm db:defense:local`, then `node scripts/db/defense/demo.mjs --test-local --verify`
 
 ## 7. Known limits

@@ -15,7 +15,7 @@ import {
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..')
 const realWipe = readFileSync(
-  path.join(root, 'infra/supabase/phase6/hosted-defense-demo-wipe.sql'),
+  path.join(root, 'infra/supabase/replay/hosted-defense-demo-wipe.sql'),
   'utf8',
 )
 

@@ -30,7 +30,7 @@ import { assertEnvFileLocation, parseEnvFile, redactUrl, validateHostedEnv } fro
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..')
 const migrationsDir = path.join(root, 'apps', 'api', 'prisma', 'migrations')
-const phase6Dir = path.join(root, 'infra', 'supabase', 'phase6')
+const phase6Dir = path.join(root, 'infra', 'supabase', 'replay')
 const stageDir = path.join(root, '.tmp', 'hosted-build', 'migrations')
 // A small local receipt, never containing secrets, that survives across process restarts
 // so a --resume run can recover the rules cleanup's required original_prisma_database_create

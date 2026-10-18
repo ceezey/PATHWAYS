@@ -6,7 +6,7 @@
 
 The active chain is `0000_pathways_baseline_through_0026` followed by `0027_revised_csv_rbac` and the explicitly approved `0028_revised_aggregate_permission_guards`. The immutable archive and manifest preserve all 26 original SQL files and the migration lock, exact hashes, Git provenance, superseded definitions, and security invariants. There remains one public Prisma ledger.
 
-Run `python scripts/migrations/history.py` to verify history. Run `infra/supabase/phase6/Replay-Local.ps1 -MigrationBaseline` to verify archived replay, fresh provisioning, preserved-ledger upgrade, catalog and effective-privilege parity, and a subsequent disposable Prisma migration. The script's other switches are `-ProjectActivityCreationRepair`, `-CsvRbacRealignment`, `-Port` and `-PostgresBin`; the pre-baseline modes were retired under [the replay harness Change Record](cr-pathways-replay-harness-modernization.md). Historical deployment runners retain their original branch/commit/ledger guards and are obsolete deployment paths. Archive extraction does not authorize their use against current databases.
+Run `python scripts/migrations/history.py` to verify history. Run `infra/supabase/replay/Replay-Local.ps1 -MigrationBaseline` to verify archived replay, fresh provisioning, preserved-ledger upgrade, catalog and effective-privilege parity, and a subsequent disposable Prisma migration. The script's other switches are `-ProjectActivityCreationRepair`, `-CsvRbacRealignment`, `-Port` and `-PostgresBin`; the pre-baseline modes were retired under [the replay harness Change Record](cr-pathways-replay-harness-modernization.md). Historical deployment runners retain their original branch/commit/ledger guards and are obsolete deployment paths. Archive extraction does not authorize their use against current databases.
 
 For fresh provisioning, establish provider schemas/roles and Auth prerequisites in the intended empty environment, then deploy the baseline with administrator ownership capabilities. The baseline establishes portable Prisma/Postgres owners and the restricted runtime role. Configure the migration identity separately for subsequent forward corrections. Never copy business records, Auth identities, Storage objects, or credentials into migration SQL. The local provider bootstrap is synthetic test setup and must not be run against hosted Supabase.
 
@@ -24,7 +24,7 @@ Verify both dev previews even when only shared frontend route policy changes: th
 
 ## 7. Schema drift
 
-Local gate: `./infra/supabase/phase6/Test-SchemaDrift.ps1` copies the saved replay template to a disposable loopback cluster, introspects it as `postgres`, runs `prisma migrate diff` to `apps/api/prisma/schema.prisma` and compares the result with the committed `infra/supabase/phase6/schema-drift-expected.sql` (the known diff from SQL-only objects Prisma cannot model). It takes seconds and refuses a stale template.
+Local gate: `./infra/supabase/replay/Test-SchemaDrift.ps1` copies the saved replay template to a disposable loopback cluster, introspects it as `postgres`, runs `prisma migrate diff` to `apps/api/prisma/schema.prisma` and compares the result with the committed `infra/supabase/replay/schema-drift-expected.sql` (the known diff from SQL-only objects Prisma cannot model). It takes seconds and refuses a stale template.
 
 | Output | Exit |
 |---|---|

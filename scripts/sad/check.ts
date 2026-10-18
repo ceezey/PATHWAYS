@@ -34,7 +34,7 @@ export const roles = {
       'apps/api/prisma/schema.prisma',
       'infra/supabase/**/*.sql',
       'apps/api/prisma/migrations/**/*.sql',
-      'infra/supabase/phase6/*.ps1',
+      'infra/supabase/replay/*.ps1',
     ],
   },
   'migration-integrity-guardian': {
@@ -45,7 +45,7 @@ export const roles = {
       'apps/api/prisma/history/**',
       'scripts/migrations/**',
       'infra/supabase/**/*.sql',
-      'infra/supabase/phase6/*.ps1',
+      'infra/supabase/replay/*.ps1',
       '.github/workflows/ci.yml',
     ],
   },
@@ -105,7 +105,7 @@ export const roles = {
       'scripts/sad/**',
       '.github/workflows/ci.yml',
       '.github/workflows/rules-dispatch.yml',
-      'infra/supabase/phase6/*.ps1',
+      'infra/supabase/replay/*.ps1',
     ],
   },
 } as const

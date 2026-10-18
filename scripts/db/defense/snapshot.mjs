@@ -21,7 +21,7 @@ const files = {
   identities: path.join(root, '.tmp', 'defense-identities.json'),
   data: path.join(root, '.tmp', 'defense-snapshot', 'data.sql'),
   manifest: path.join(root, '.tmp', 'defense-snapshot', 'manifest.json'),
-  wipe: path.join(root, 'infra', 'supabase', 'phase6', 'hosted-defense-demo-wipe.sql'),
+  wipe: path.join(root, 'infra', 'supabase', 'replay', 'hosted-defense-demo-wipe.sql'),
 }
 
 function parseArgs(argv) {

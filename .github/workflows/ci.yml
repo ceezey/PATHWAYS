@@ -55,7 +55,7 @@ jobs:
 
       - name: Replay verified history, baseline and forward corrections
         shell: pwsh
-        run: ./infra/supabase/phase6/Replay-Local.ps1 -MigrationBaseline -PostgresBin /usr/lib/postgresql/18/bin
+        run: ./infra/supabase/replay/Replay-Local.ps1 -MigrationBaseline -PostgresBin /usr/lib/postgresql/18/bin
 
       - name: Check committed files for secret assignments
         shell: bash

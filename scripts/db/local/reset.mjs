@@ -10,7 +10,7 @@ import { localDatabase } from './target.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..')
 const migrationsDir = path.join(root, 'apps', 'api', 'prisma', 'migrations')
-const phase6Dir = path.join(root, 'infra', 'supabase', 'phase6')
+const phase6Dir = path.join(root, 'infra', 'supabase', 'replay')
 const stageDir = path.join(root, '.tmp', 'local-db', 'migrations')
 
 const baseline = '0000_pathways_baseline_through_0026'
