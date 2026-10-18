@@ -143,6 +143,7 @@ Workflow rule: an audit is finding and evidence, a Change Record is the approved
 | [S8 public, users, profile and auth plan](superpowers/plans/2026-10-14-modularization-s8-public-users-auth.md) | 2026-10-14-modularization-s8-public-users-auth.md | 2026-10-14 | S8 of the codebase modularization: S8a auth, users, profile and public contracts, web clients and dead code; S8b outline | S8a executed; holds the S8b outline |
 | [S8b public, users, profile and auth web plan](superpowers/plans/2026-10-18-modularization-s8b-public-users-auth-web.md) | 2026-10-18-modularization-s8b-public-users-auth-web.md | 2026-10-18 | S8b of the codebase modularization: publication and audit clients, user management and MFA splits, auth, profile, public and settings feature layout | S8b executed |
 | [W1 tooling and docs plan](superpowers/plans/2026-10-18-modularization-w1-tooling-docs.md) | 2026-10-18-modularization-w1-tooling-docs.md | 2026-10-18 | W1 of the codebase modularization: cloud-run deferrals, analytics test split, scripts/db, replay folder and seed moves, tooling tests in CI; W2 outline | In progress |
+| [W2 tooling follow-up plan](superpowers/plans/2026-10-18-modularization-w2-tooling-follow-up.md) | 2026-10-18-modularization-w2-tooling-follow-up.md | 2026-10-18 | W2 of the codebase modularization: lib/services residue, path aliases in one place, check.py split, large test splits | In progress |
 
 ### 1.7 Traceability Matrix
 
