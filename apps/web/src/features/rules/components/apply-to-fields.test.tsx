@@ -60,7 +60,7 @@ describe('ApplyToFields', () => {
     expect(onProject).toHaveBeenLastCalledWith('')
   })
   it('checks only the chosen scopes and reports the toggled scope', () => {
-    const { onToggle } = renderFields({ scopes: ['Project', 'Activity'] })
+    const { onToggle } = renderFields({ scopeProjectId: 'proj-a', scopes: ['Project', 'Activity'] })
     const checked = (name: string) =>
       (screen.getByRole('checkbox', { name }) as HTMLInputElement).checked
     expect([checked('Project'), checked('Activity'), checked('Indicator')]).toEqual([
@@ -72,16 +72,26 @@ describe('ApplyToFields', () => {
     expect(onToggle).toHaveBeenCalledOnce()
     expect(onToggle).toHaveBeenCalledWith('Indicator')
   })
-  it('disables a scope without a catalog metric and describes why', () => {
+  it('disables a scope without a catalog metric and describes why in its tooltip', () => {
     renderFields({ scopes: ['Budget'] })
     const budget = screen.getByRole('checkbox', { name: /^Budget/ }) as HTMLInputElement
     expect(budget.disabled).toBe(true)
-    expect(budget.getAttribute('aria-describedby')).toBe('scope-unavailable-Budget')
-    expect(document.getElementById('scope-unavailable-Budget')?.textContent).toBe(
-      'Not in the rule metric catalog yet',
+    fireEvent.focus(screen.getByRole('button', { name: 'More information about Budget scope' }))
+    expect(screen.getByRole('tooltip').textContent).toBe(
+      'Budget spending. Not in the rule metric catalog yet',
     )
     const project = screen.getByRole('checkbox', { name: 'Project' }) as HTMLInputElement
     expect(project.disabled).toBe(false)
-    expect(project.hasAttribute('aria-describedby')).toBe(false)
+  })
+  it('disables Indicator on an organization template and enables it with a project', () => {
+    renderFields()
+    expect((screen.getByRole('checkbox', { name: 'Indicator' }) as HTMLInputElement).disabled).toBe(
+      true,
+    )
+    cleanup()
+    renderFields({ scopeProjectId: 'proj-a' })
+    expect((screen.getByRole('checkbox', { name: 'Indicator' }) as HTMLInputElement).disabled).toBe(
+      false,
+    )
   })
 })

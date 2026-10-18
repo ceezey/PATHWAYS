@@ -7,7 +7,14 @@ import { RecommendationFields } from './recommendation-fields'
 
 afterEach(cleanup)
 
-describe('RecommendationFields reuse list', () => {
+const openLibrary = () =>
+  fireEvent.click(screen.getByRole('button', { name: 'Choose from recommendation library' }))
+const copyButtons = () =>
+  screen.queryAllByRole('button', {
+    name: 'Copy recommendation to this rule',
+  }) as HTMLButtonElement[]
+
+describe('RecommendationFields library', () => {
   it('offers a saved recommendation once, unless the rule already has the same title and text', () => {
     render(
       <RecommendationFields
@@ -21,8 +28,10 @@ describe('RecommendationFields reuse list', () => {
         ]}
       />,
     )
-    expect(screen.getAllByRole('button', { name: 'Reuse' })).toHaveLength(1)
-    expect(screen.getByRole('listitem').textContent).toBe('aReuse')
+    expect(copyButtons()).toHaveLength(0)
+    openLibrary()
+    expect(copyButtons()).toHaveLength(1)
+    expect(screen.getByRole('listitem').textContent).toBe('aCopy recommendation to this rule')
   })
 })
 
@@ -41,19 +50,22 @@ function Harness({ initial, library }: { initial: Rec[]; library?: Rec[] }) {
 const add = () => screen.getByRole('button', { name: 'Add recommendation' }) as HTMLButtonElement
 
 describe('RecommendationFields list limits', () => {
-  it('allows the tenth recommendation and then disables adding and hides the reuse list', () => {
+  it('allows the tenth recommendation and then disables adding and copying from the library', () => {
     render(<Harness initial={recsOf(9)} library={[rec(50)]} />)
     expect(add().disabled).toBe(false)
-    expect(screen.getByRole('button', { name: 'Reuse' })).toBeTruthy()
+    openLibrary()
+    expect(copyButtons()[0]?.disabled).toBe(false)
     fireEvent.click(add())
     expect(latest).toHaveLength(10)
     expect(add().disabled).toBe(true)
-    expect(screen.queryByRole('button', { name: 'Reuse' })).toBeNull()
+    expect(copyButtons()[0]?.disabled).toBe(true)
   })
   it('keeps the cap when ten recommendations are already present', () => {
     render(<Harness initial={recsOf(10)} library={[rec(50)]} />)
     expect(add().disabled).toBe(true)
-    expect(screen.queryByText('Reuse a saved recommendation')).toBeNull()
+    openLibrary()
+    expect(copyButtons()[0]?.disabled).toBe(true)
+    expect(screen.getByText('Recommendation library')).toBeTruthy()
   })
   it('replaces a single blank recommendation when adding, but appends after a complete one', () => {
     render(<Harness initial={[rec(1, '', '')]} />)
@@ -66,9 +78,11 @@ describe('RecommendationFields list limits', () => {
     expect(latest).toHaveLength(2)
     expect(latest[0]).toEqual(rec(1))
   })
-  it('replaces a single blank recommendation with a reused one and collapses it', () => {
+  it('replaces a single blank recommendation with a copied one, collapses it and closes the library', () => {
     render(<Harness initial={[rec(1, '', '')]} library={[rec(7)]} />)
-    fireEvent.click(screen.getByRole('button', { name: 'Reuse' }))
+    openLibrary()
+    fireEvent.click(copyButtons()[0] as HTMLElement)
+    expect(screen.getByRole('button', { name: 'Choose from recommendation library' })).toBeTruthy()
     expect(latest.map((item) => [item.title, item.text])).toEqual([['Title 7', 'Text 7']])
     expect(screen.queryByLabelText('Recommendation title')).toBeNull()
     expect(screen.getByText('Title 7')).toBeTruthy()
@@ -94,5 +108,35 @@ describe('RecommendationFields list limits', () => {
     render(<Harness initial={[rec(1, '', '')]} />)
     expect(screen.getByLabelText('Recommendation title').getAttribute('maxlength')).toBe('160')
     expect(screen.getByLabelText('Suggested response').getAttribute('maxlength')).toBe('2000')
+  })
+  it('shows a loading note and an empty note in the open library', () => {
+    const { rerender } = render(
+      <RecommendationFields hasRule libraryPending onRecs={vi.fn()} recs={[rec(1)]} />,
+    )
+    openLibrary()
+    expect(screen.getByText(/^Loading saved recommendations/)).toBeTruthy()
+    rerender(<RecommendationFields hasRule onRecs={vi.fn()} recs={[rec(1)]} />)
+    expect(screen.getByText(/^No other saved recommendations/)).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Hide recommendation library' }))
+    expect(screen.queryByText(/^No other saved recommendations/)).toBeNull()
+  })
+  it('hides the Add button on request and reports user edits and removals', () => {
+    const onUserEdit = vi.fn()
+    render(
+      <RecommendationFields
+        hasRule={false}
+        hideAddButton
+        onRecs={vi.fn()}
+        onUserEdit={onUserEdit}
+        recs={[rec(1, '', ''), rec(2)]}
+      />,
+    )
+    expect(screen.queryByRole('button', { name: 'Add recommendation' })).toBeNull()
+    fireEvent.change(screen.getByLabelText('Recommendation title'), { target: { value: 'x' } })
+    expect(onUserEdit).toHaveBeenCalledTimes(1)
+    fireEvent.click(screen.getByRole('button', { name: 'Remove recommendation' }))
+    expect(onUserEdit).toHaveBeenCalledTimes(2)
+    fireEvent.click(screen.getByRole('button', { name: 'Remove recommendation 2' }))
+    expect(onUserEdit).toHaveBeenCalledTimes(3)
   })
 })

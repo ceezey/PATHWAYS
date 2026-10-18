@@ -20,7 +20,8 @@
 | Brand reference | [BRAND.md](../BRAND.md) | Working | Materialized from the DSD |
 | Design reference | [DESIGN.md](../DESIGN.md) | Working | Materialized from the DSD |
 | Setup guide | [README-setup.md](../README-setup.md) | Working | Local environment setup |
-| Project instructions | [CLAUDE.md](../CLAUDE.md) | Control | Repository guidance for the AI assistant |
+| Project instructions | [CLAUDE.md](../CLAUDE.md) | Control | Repository guidance for Claude |
+| Codex instructions | [CODEX.md](../CODEX.md) | Control | Codex platform usage and `.codex/agents/*.toml` bindings; defers to BUILD and SAD |
 
 ### 1.2 Suite
 
@@ -41,7 +42,7 @@
 | CLR | [clr-pathways.md](clr-pathways.md) | 2.0 | Working |
 | AIA | [aia-pathways.md](aia-pathways.md) | 2.0 | Working; not triggered |
 | GTM | [gtm-pathways.md](gtm-pathways.md) | 2.0 | Draft |
-| PITCH | [pitch-pathways.md](pitch-pathways.md) | 2.0 | Working |
+| PITCH | [pitch-pathways.md](pitch-pathways.md) | 2.1 | Working |
 | WRAP | [wrap-pathways.md](wrap-pathways.md) | 2.0 | Draft |
 | OPS | [ops-pathways.md](ops-pathways.md) | 2.0 | Working |
 | LOG | [log-pathways.md](log-pathways.md) | - | Control; append-only |
@@ -64,6 +65,7 @@
 | Runbook | File | Status |
 |---|---|---|
 | Local development | [runbook-local-dev.md](runbook-local-dev.md) | Working |
+| Hosted devV2 local development | [local-dev.md](local-dev.md) | Working |
 | Backup/restore | [runbook-backup-restore.md](runbook-backup-restore.md) | Working |
 | Migration baseline | [runbook-migration-baseline.md](runbook-migration-baseline.md) | Working |
 | Role-staging build | [runbook-role-staging-build.md](runbook-role-staging-build.md) | Working |
@@ -118,6 +120,9 @@ Workflow rule: an audit is finding and evidence, a Change Record is the approved
 | [Implementer common brief](handoff/implementer-common.md) | implementer-common.md | 2026-10-13 | Common rules handed to every implementer subagent | Active |
 | [Reviewer common brief](handoff/reviewer-common.md) | reviewer-common.md | 2026-10-13 | Common rules handed to every task reviewer subagent | Active |
 | [SAD packet example](handoff/sad-packet-example.md) | sad-packet-example.md | 2026-10-13 | S3a SAD section 4.2 handoff packet used as the layout for later slices | Active |
+| [E2E legacy spec triage](e2e-legacy-spec-triage.md) | e2e-legacy-spec-triage.md | 2026-10-09 | Retired demo-state Playwright-spec triage and live-feature replacement mapping | Working |
+| [Defense demo seed handoff](handoff-defense-demo-seed.md) | handoff-defense-demo-seed.md | 2026-10-04 | Historical cloud-session handoff for the defense demo seed | Closed; work merged into dev |
+| [Page-load performance options](load-performance-options.md) | load-performance-options.md | 2026-10-03 | Measured performance options and constraints; no implementation decision | On hold |
 | [S3b indicators web plan](superpowers/plans/2026-10-13-modularization-s3b-indicators-web.md) | 2026-10-13-modularization-s3b-indicators-web.md | 2026-10-13 | S3b of the codebase modularization: indicator and indicator library clients, indicators feature folder, workspace and library manager split, indicator read keys, web alias removed | In progress |
 | [S4 beneficiaries plan](superpowers/plans/2026-10-13-modularization-s4-beneficiaries.md) | 2026-10-13-modularization-s4-beneficiaries.md | 2026-10-13 | S4 of the codebase modularization: S4a beneficiary, journey and media request contracts, beneficiaries and participants services split, registration service for imports; S4b outline | In progress |
 | [S4b beneficiaries web plan](superpowers/plans/2026-10-13-modularization-s4b-beneficiaries-web.md) | 2026-10-13-modularization-s4b-beneficiaries-web.md | 2026-10-13 | S4b of the codebase modularization: beneficiary response contracts, beneficiary, journey and media clients, features/beneficiaries layout with journey-config merged in; S4c outline | In progress |
@@ -149,7 +154,7 @@ Gates are the `G-F<n>-<m>` rows in the PRD. SDD and QAD cite every feature by it
 | PRD-F7 | Project Indicator and Monitoring | Must-Have | 5 | yes | yes | - | Implemented |
 | PRD-F8 | Aggregated Monitoring Dashboard with SADDD Analysis | Must-Have | 7 | yes | yes | SADDD RFC | Implemented |
 | PRD-F9 | Descriptive Analytics and Project Performance Summaries | Supporting | 10 | yes | yes | - | Implemented for KPI, participation, survey and timeline views; on-hold items in the [deferred register](deferred-features.md) |
-| PRD-F10 | Rule-Based Alerts | Supporting | 7 | yes | yes | rules RFC | Runtime verified on local PostgreSQL (0058-0060 on dev, not applied to hosted); hosted scheduler activation pending |
+| PRD-F10 | Rule-Based Alerts | Supporting | 7 | yes | yes | rules RFC | Hosted scheduler verified 2026-10-15; runtime migration application remains separately tracked |
 | PRD-F11 | Rule-Based Decision Support and Recommendations | Supporting | 5 | yes | yes | rules RFC | Human review and auto-resolve verified on local PostgreSQL (0058-0059 on dev, not applied to hosted) |
 | PRD-F12 | Reporting and Data Visualization | Supporting | 5 | yes | yes | rollout CR | Local preview and artifact APIs; final verification pending; hosted application deferred |
 | PRD-F13 | Public Project Tracker | Supporting | 5 | yes | yes | rollout CR | Local publication and approved-public APIs; final verification pending; hosted application deferred |
@@ -168,6 +173,9 @@ Newest first. Core P1 supporting contract reconciliation is approved for local i
 
 | CR ID | Date | Summary | Status |
 |---|---|---|---|
+| [cr-pathways-rule-severity-guidance](cr-pathways-rule-severity-guidance.md) | 2026-10-16 | Conservative metric-aware rule severity authoring guidance: supported Low/Medium/High or Needs your judgment, without live data, API/runtime changes, or automatic Critical | Applied locally 2026-10-16; final SAD sign-off passed; no release or hosted change |
+| [cr-pathways-rule-terminology-and-guidance](cr-pathways-rule-terminology-and-guidance.md) | 2026-10-15 | Plain-language rule metric terminology and four-step guidance for PRD-F10/F11; preserves internal identifiers, calculations, API, availability, privacy and authorization | Applied 2026-10-16; final SAD sign-off passed |
+| [cr-pathways-guided-rule-setup](cr-pathways-guided-rule-setup.md) | 2026-10-15 | Guided rule scope, hover/focus unavailable-scope hint, editable severity suggestion, and predefined editable recommendation starting text for PRD-F10/F11; no API or migration | Applied 2026-10-15; R1-R5 verified and pushed to `dev` at `26d132c0`; R6 excluded |
 | [cr-pathways-codebase-modularization](cr-pathways-codebase-modularization.md) | 2026-10-09 | Behavior-preserving restructure in 14 sub-projects (F1 to F4, S1 to S8, W1): layout conventions, one-way dependency direction, zod API contracts in `packages/shared`, shared rbac and rules code, dead code removal; no migration | Approved; F1 to F4b, S1a, S1b, S2a, S2b, S3a, S3b, S4a, S4b, S4c, S5a, S5b, S5c, S6a, S6b, S6c, S7a, S7b, S7c, S7d and S8a applied, S8b next |
 | [cr-pathways-defense-seed-snapshot](cr-pathways-defense-seed-snapshot.md) | 2026-10-06 | Defense demo snapshot restore: local service seed with mirrored devV2 identities, data-only dump of the wipe tables, one-transaction restore on devV2 with triggers skipped (replica role), staged day shift and storage upsert; no migration | Approved; local rehearsal passed, hosted restore pending |
 | [cr-pathways-report-pdf-renderer](cr-pathways-report-pdf-renderer.md) | 2026-10-05 | PRD-F12 UC-F12-1: PDF reports rendered by headless Chromium from `/print/reports/[id]` with an injected snapshot, pdfkit fallback, env keys `WEB_PROTECTION_BYPASS` and `PDF_CHROME_PATH`, no migration | Applied locally; hosted verification pending |
@@ -203,7 +211,7 @@ Newest first. Core P1 supporting contract reconciliation is approved for local i
 | conservative-mapping-v1-2026-09-27 | 2026-09-27 | Register stable source keys, conservative NFKC/ASCII code-label matching and unresolved candidate collisions for PRD-F6 preview suggestions | Contract clarification; preview implementation pending; no server authority or SQL installed |
 | [cr-pathways-f10-f11-runtime-authority](cr-pathways-f10-f11-runtime-authority.md) | 2026-09-26 | Local least-privilege worker/sweeper boundary, SYSTEM attribution, calendar equality, conservative exposure and legacy preservation; human matrix unchanged | Approved; local implementation verified (migration 0031); hosted application, scheduler and release excluded |
 | [cr-pathways-rules-metric-catalog-and-auto-resolve](cr-pathways-rules-metric-catalog-and-auto-resolve.md) | 2026-10-04 | Budget, Beneficiary and survey rule metrics on `f10.v1` with suppression and source-read audience restriction, plus recommendation Auto-resolved when the linked alert clears; closes G-F10-6 and G-F11-5 | Approved; implemented and verified locally (0058-0060 on dev); hosted apply pending |
-| [cr-pathways-rules-hosted-scheduler](cr-pathways-rules-hosted-scheduler.md) | 2026-10-04 | GitHub Actions drain/sweep schedule against the hosted API, pooler usernames and a prompt-only machine login script; G-F10-7 | Approved; code complete; hosted activation pending human credentials |
+| [cr-pathways-rules-hosted-scheduler](cr-pathways-rules-hosted-scheduler.md) | 2026-10-04 | GitHub Actions drain/sweep schedule against the hosted API, pooler usernames and a prompt-only machine login script; G-F10-7 | Applied; hosted schedule and acknowledgement progress verified 2026-10-15 |
 | [cr-pathways-rules-board-ui](cr-pathways-rules-board-ui.md) | 2026-10-04 | Two-card rule board with drawer builder on `/alerts/repository`, sidebar entry removed, Figma review cards on `/alerts` | Approved; implemented on dev |
 | sad-review-adoption-2026-09-26 | 2026-09-26 | Developer-approved seven-role SAD, digest-bound external sign-off, automated CI diagnostics, and disposable PostgreSQL 18 archive/baseline replay | Applied; local checker and replay verified; hosted application excluded |
 | [cr-pathways-revised-rbac-baseline](cr-pathways-revised-rbac-baseline.md) | 2026-09-26 | Revised grants and archived baseline consolidation | Applied |

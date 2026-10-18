@@ -59,6 +59,22 @@ const outcomeCopy: Record<RuleOutcome, string> = {
 const head = 'sticky top-0 z-10 bg-surface-subtle'
 const row = 'h-14 cursor-pointer'
 
+/** Loads every page of rules the current user may configure, independent of the board filter. */
+async function listRecommendationLibrary(signal: AbortSignal) {
+  const first = await rulesHumanClient.listRules({ limit: '100' }, signal)
+  const items = [...first.items]
+  const seenCursors = new Set<string>()
+  let cursor = first.nextCursor
+  while (cursor) {
+    if (signal.aborted || seenCursors.has(cursor)) break
+    seenCursors.add(cursor)
+    const page = await rulesHumanClient.listRules({ cursor, limit: '100' }, signal)
+    items.push(...page.items)
+    cursor = page.nextCursor
+  }
+  return items
+}
+
 function RuleTables({
   kind,
   rules,
@@ -187,9 +203,24 @@ export function RulesBoard() {
       signal,
     ),
   )
+  const recommendationLibrary = useAuthorizedRead(
+    'rules-recommendation-library',
+    null,
+    'rules.read',
+    listRecommendationLibrary,
+    true,
+    { freshness: 'summary' },
+  )
+  const projectChoices = projects.data ?? []
+  const scopeLabel = projectId
+    ? (projectChoices.find((project) => project.id === projectId)?.title ?? 'Selected project')
+    : 'Organization templates'
   const all = [...(list.data?.items ?? []), ...(more?.items ?? [])]
-  // Recommendations already written in this scope, offered for reuse on a new rule.
-  const savedRecommendations = all.flatMap((rule) => rule.recommendations)
+  // This source deliberately ignores the repository filter. The API applies trusted scope checks
+  // before returning each page, so only recommendations the current user may configure are offered.
+  const savedRecommendations = (recommendationLibrary.data ?? []).flatMap(
+    (rule) => rule.recommendations,
+  )
   const nextCursor = more ? more.nextCursor : (list.data?.nextCursor ?? null)
   const rules = filterRules(all, { search, status })
   // Creating runs in the Create rule tab; an existing rule opens the side panel.
@@ -282,14 +313,7 @@ export function RulesBoard() {
   )
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Alert & Recommendation Rules"
-        actions={
-          <Button type="button" variant="outline" onClick={() => setView('manage')}>
-            Manage Rules
-          </Button>
-        }
-      />
+      <PageHeader title="Alert & Recommendation Rules" />
       <Tabs value={tab} onValueChange={(value) => setTab(value as Tab)}>
         <TabsList>
           <TabsTrigger value="repository">Rule repository</TabsTrigger>
@@ -297,7 +321,7 @@ export function RulesBoard() {
         </TabsList>
         <TabsContent className="space-y-6" value="repository">
           <Card>
-            <CardContent className="grid gap-3 p-4 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)]">
+            <CardContent className="grid gap-3 p-4 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_auto]">
               <Input
                 aria-label="Search rules"
                 placeholder="Search rules by name..."
@@ -308,12 +332,16 @@ export function RulesBoard() {
                 value={projectId ?? ORGANIZATION_SCOPE}
                 onValueChange={(value) => changeScope(value === ORGANIZATION_SCOPE ? null : value)}
               >
-                <SelectTrigger aria-label="Scope">
+                <SelectTrigger
+                  aria-label={`Scope: ${scopeLabel}`}
+                  className="min-w-0"
+                  title={scopeLabel}
+                >
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value={ORGANIZATION_SCOPE}>Organization templates</SelectItem>
-                  {projects.data?.map((project) => (
+                  {projectChoices.map((project) => (
                     <SelectItem key={project.id} value={project.id}>
                       {project.title}
                     </SelectItem>
@@ -331,6 +359,9 @@ export function RulesBoard() {
                   <SelectItem value="ARCHIVED">Archived</SelectItem>
                 </SelectContent>
               </Select>
+              <Button type="button" variant="outline" onClick={() => setView('manage')}>
+                Manage Rules
+              </Button>
             </CardContent>
           </Card>
           {notice ? (
@@ -358,9 +389,12 @@ export function RulesBoard() {
               ))}
             </div>
             <RuleDrawer
+              alertLibrary={recommendationLibrary.data ?? []}
+              alertLibraryPending={recommendationLibrary.isPending}
               inline
               key={`new:${createMode}`}
               library={savedRecommendations}
+              libraryPending={recommendationLibrary.isPending}
               mode={createMode}
               onClose={() => setTab('repository')}
               onSaved={saved}
@@ -403,11 +437,14 @@ export function RulesBoard() {
       </Dialog>
       {drawer ? (
         <RuleDrawer
+          alertLibrary={recommendationLibrary.data ?? []}
+          alertLibraryPending={recommendationLibrary.isPending}
           key={drawer.rule ? `${drawer.rule.id}:${drawer.rule.version}` : 'new'}
           intent={drawer.intent}
           mode={drawer.mode}
           onClose={() => setDrawer(null)}
           library={savedRecommendations}
+          libraryPending={recommendationLibrary.isPending}
           onSaved={saved}
           projectId={projectId}
           projects={projects.data ?? []}

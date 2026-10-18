@@ -33,11 +33,13 @@ function Harness({
   scopeProjectId = 'proj-a',
   nestedRule,
   onAdvanced = vi.fn(),
+  hideAddButton,
 }: {
   initial: RuleCondition[]
   scopeProjectId?: string | null
   nestedRule?: HumanRule
   onAdvanced?: () => void
+  hideAddButton?: boolean
 }) {
   const [rows, setRows] = useState(initial)
   const [matchMode, setMatchMode] = useState<Mode>('AND')
@@ -46,6 +48,7 @@ function Harness({
   return (
     <ConditionBuilder
       activities={activities}
+      hideAddButton={hideAddButton}
       indicators={indicators}
       matchMode={matchMode}
       metricOptions={metricOptions}
@@ -202,5 +205,29 @@ describe('ConditionBuilder nested rule', () => {
     expect(screen.queryByLabelText('Metric')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Open advanced editor' }))
     expect(onAdvanced).toHaveBeenCalledOnce()
+  })
+})
+
+describe('ConditionBuilder guidance and layout options', () => {
+  it('hides the Add condition button on request', () => {
+    render(<Harness hideAddButton initial={[row('a')]} />)
+    expect(screen.queryByRole('button', { name: 'Add condition' })).toBeNull()
+  })
+  it('toggles the About panel for the chosen metric without changing the threshold', () => {
+    render(<Harness initial={[row('a')]} />)
+    const about = screen.getByRole('button', { name: 'About Days until project end' })
+    expect(about.getAttribute('aria-expanded')).toBe('false')
+    fireEvent.click(about)
+    expect(about.getAttribute('aria-expanded')).toBe('true')
+    expect(screen.getByText(/does not fill or save a threshold/)).toBeTruthy()
+    expect(rowsNow[0]?.threshold).toBe('5')
+    fireEvent.click(about)
+    expect(about.getAttribute('aria-expanded')).toBe('false')
+    expect(screen.queryByText(/does not fill or save a threshold/)).toBeNull()
+  })
+  it('lists only the offered metrics and no extra option for a metric outside them', () => {
+    render(<Harness initial={[row('a', { metric: 'PROJECT_OVERDUE_DAYS' })]} />)
+    const options = Array.from((field('Metric', 'a-metric') as HTMLSelectElement).options)
+    expect(options.map((option) => option.value)).toEqual(metricOptions)
   })
 })

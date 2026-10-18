@@ -49,7 +49,9 @@ describe('ReviewCardList', () => {
     )
     expect(screen.getByText('Budget depletion risk')).toBeTruthy()
     expect(screen.getByText('ACT-001')).toBeTruthy()
-    expect(screen.getByText('Current indicator progress 55% vs threshold 70%')).toBeTruthy()
+    expect(
+      screen.getByText('Current progress toward indicator target 55% vs threshold 70%'),
+    ).toBeTruthy()
     expect(screen.getByText('High')).toBeTruthy()
     expect(screen.getByText('Auto-resolved')).toBeTruthy()
     expect(document.querySelector('[data-card-kind="alert"]')?.className).toContain('danger-subtle')

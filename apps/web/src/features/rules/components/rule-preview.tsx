@@ -25,7 +25,6 @@ export function RulePreview({
     <section className="min-h-32 space-y-3 rounded-md border border-info/30 bg-info-subtle p-4">
       <div className="space-y-1">
         <h3 className="font-semibold">Rule Preview</h3>
-        <p className="text-xs text-muted-foreground">Updates as you fill in the steps</p>
       </div>
       <p className="text-sm" data-testid="rule-preview">
         {sentence}

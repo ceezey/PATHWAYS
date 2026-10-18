@@ -1,10 +1,6 @@
 import type { HumanRule } from '@pathways/shared'
 import { titleCase } from './rules.utils'
 
-export const DEFAULT_REC = {
-  title: 'Review flagged condition',
-  text: 'Review the recorded evidence and decide on a response.',
-}
 export const comparisonCopy = {
   LT: 'Below (<)',
   LTE: 'At most (<=)',
