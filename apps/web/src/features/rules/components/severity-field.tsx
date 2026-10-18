@@ -3,8 +3,9 @@
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import type { HumanRule } from '@pathways/shared'
+import type { SuggestedSeverity } from '../rule-severity.utils'
 import { severityCopy } from '../rules.copy'
-import { type SuggestedSeverity, severities } from '../rules.utils'
+import { severities } from '../rules.utils'
 
 export function SeverityField({
   mode,
