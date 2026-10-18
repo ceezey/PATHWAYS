@@ -987,3 +987,81 @@ Ruling: keep the plan's ruling 4 (a null `projectIds` on `POST users/authorize-e
 Ruling: the real S7d tip differs from the replay base only by the S7a to S7d review fixes; of the 100 files S8a touches, only six docs (activity log, audit, CR, deferred features, index, SAD) and `scripts/sad/check.ts` and its test differ, in hunks S8a does not edit (the S7b `overview-metrics*` and `project-map*` globs, the S5c index row order); every exact-string docs edit of Task 9 matches the real text with its asserted count. Task 0 records the real baselines (shared 50 files and 759 tests, api 160 files with 2656 passed and 21 skipped, web 298 files and 3290 tests, lint 1591, sad 58, Middleware 103 kB), and four extra test files mock `@/lib/services/pathways-client` with `{ pathwaysClient: {} }` (three rules tests and `role-overview.wiring.test.tsx`), which stay valid after Task 8 removes the export. Cost if wrong: an implementer stop on a count, settled by the drift note.
 
 Ruling: the S8b pre-flight carries the items the S7d and S8a pre-flights found (the ruling 10 example becomes `@/features/unlisted/example`; the Task 0 started checks, ancestor loop and marker lines; real baselines; 26 and 20 importer counts, the mock-scan figures, the `import-direction.test.ts` hash; the S8a commit identity and trailers; the exact CR-row replacement of `S7d and S8a applied, S8b next`). Cost if wrong: S8b Task 0 stops, which is its purpose.
+
+Ruling: S8a set up from the S7d tip fe6920dd with the pre-flighted plan commit; the four pre-flight rulings are in the rulings log under S8a. Cost if wrong: none.
+
+Ruling: S8a Task 0 committed 0aa0bf1b (plan copy and index row) with every Expected matching except the drift-note baselines (shared 50/759, api 160/2656 and 21 skipped, web 298/3290, Middleware 103) and the staging commit as the second log line; base-sha 18ca7f84 is the staging commit. Accepted. Cost if wrong: none.
+
+Ruling: S8a Task 1 committed abae5ab4 and 155f0913 with every Expected matching except the drift counts (contracts 35/651, shared 51/778, api 2650, lint 1594 and 1592); 25 mutations, 0 survivors. Accepted. Cost if wrong: none beyond the review.
+
+Ruling: S8a Task 1 review spec PASS, quality PASS (fuzzed parity: only ruling 4 differs); the users contract's astral-length case (an emoji name at the limit, reachable from the user editor) becomes part of a tests-only fix after Task 2, bundled with any Task 2 findings; the id lowercasing survivor is unobservable (the service lowercases), the default array instance and the QAD-A05 citation (Task 10 edits it) and the profile() 403 (Task 5) need nothing now. Cost if wrong: one unpinned contract swap until the fix lands.
+
+Ruling: S8a Task 2 committed 44bc2ed6 and ffcd2248 with every Expected matching except the drift counts (shared 52/808, api 2654, lint 1595 and 1594, Biome 77 files); 28 mutations, 1 equivalent survivor as in the brief. Checked that neither commit touches Task 1 files after the reviewer's parallel mutations collided with one Step 4 run (rerun green). Accepted. Cost if wrong: none.
+
+Ruling: from now on a reviewer that runs while an implementer works must not mutate tracked files (focused test runs only); mutation re-runs happen only in reviews with no implementer active. Cost if wrong: reviews re-run fewer mutations, which the implementers' cmp-checked proofs cover.
+
+Ruling: S8a Task 2 review spec PASS, quality PASS (8101-body parity: only the CR 3.6 prototype keys differ); its astral-length low joins Task 1's in a tests-only fix 1 after Task 3, with the missing `fullName` and `expectedUpdatedAt` rejections; the duplicated 30 cap mirrors the DTO and stays. Cost if wrong: none; tests only.
+
+Ruling: S8a Task 3 committed 69cc67d0 and 91443fe9 with every Expected matching except the drift counts (shared 53/829, lint 1598 and 1594, api 2606 = Task 2 minus 48 as the brief says); 24 mutations, 0 survivors. Accepted. Cost if wrong: none beyond the review.
+
+Ruling: fix 1 committed 1eb72185 (tests only, 4 mutations killed; the at-maximum astral cases are the discriminating ones). Accepted. Cost if wrong: none.
+
+Ruling: S8a Task 3 review spec PASS, quality PASS (427-body probe: only own keys named on Object.prototype differ); its medium (auth contracts tested in ASCII only) and its two test lows (the three S1 field-schema rules only the deleted parity test pinned, and a valid-body 200 case for the verify and setup routes) become tests-only fix 2 after Task 4; the CR 3.6 wording widens to "own keys named on `Object.prototype`" through a Task 9 controller note; swagger body schemas (off in CI) need nothing. Cost if wrong: none; tests and record wording.
+
+Ruling: S8a Task 4 committed c5980615 and 51c3e1df with every Expected matching except the drift counts (shared 54/873, api 2610, lint 1595 and 1597) and Biome's one import reorder in public.service.ts; 56 mutations, 0 survivors. Accepted. Cost if wrong: none beyond the review.
+
+Ruling: S8a Task 4 review spec PASS, quality PASS; its two reachable lows (the fixed `Invalid publication request.` 400 and the SUBMIT summary rule have no test, and nothing pins that publication bodies reach the service unvalidated under ruling 6) become tests-only fix 3, since the schemas those rules use just moved; the snapshot comment is true by the slice's end (Task 8), and the one-header mutation is backed by the seven-route table. Cost if wrong: none; tests only.
+
+Ruling: fix 2 committed 88e9f7d1 (tests only, 13 mutations killed; the email astral boundary is pinned at the shared length rule, the API isEmail refine stays covered by the Task 3 probe). Accepted. Cost if wrong: none.
+
+Ruling: fix 3 committed 2ca03528 (tests only, 13 mutations killed; the pipe-free body is pinned by route-argument metadata and an HTTP test since Vitest emits no design types). Accepted. Cost if wrong: none.
+
+Ruling: S8a Task 5 committed baf1155e and dfd526d3 with every Expected matching except the totals the fixes and drift explain (api 2639, lint 1598 and 1600); 28 mutations, 0 survivors. Accepted. Cost if wrong: none beyond the review.
+
+Ruling: S8a Task 5 review spec PASS, quality PASS (characterization tests pass on the unchanged controllers; 28 of 28 mutations replayed); the unpinned `@Param('projectId')` and `@Param('userId')` keys of the two controllers Task 5 touched join a tests-only fix 4 with any Task 6 findings (a route test through the real router pins them). Cost if wrong: none; tests only.
+
+Ruling: S8a Task 6 committed 14095097 and 51ccc824 with every Expected matching except drift (web subset 784 with the S7d fix case, web 299/3308, lint 1600 and 1601, Middleware 103 = real M0, three routes 0.02 to 0.04 kB smaller, Biome's import wrap); 22 mutations, 3 equivalent survivors as in the brief. Accepted. Cost if wrong: none beyond the review.
+
+Ruling: S8a Task 6 review spec PASS, quality PASS (role sets identical, 158 jsdom cookie strings with 0 differences, the 3 survivors equivalent over 100 selections); the unexercised `typeof document` guard of `ownerCookie()` joins fix 4 as a node-environment case; the two style nits stay. Cost if wrong: none; tests only.
+
+Ruling: S8a Task 7 committed 08190e72 (seven dead files, mapPublicSnapshot and seven view models removed; deferred-features rows edited and one added) with every Expected matching except drift (web 296/3302, lint 1594, Middleware 103) and a plain diff of route tables (identical to Task 6). Accepted. Cost if wrong: none beyond the review.
+
+Ruling: S8a Task 7 review spec PASS, quality PASS; the restore pointer to the activity log is satisfied by the Task 9 activity-log section (its Task 7 line names the commit), checked at Task 9 review; the row scope and the access-matrix test name stay. Cost if wrong: none.
+
+Ruling: fix 4 committed 4f023c31 (tests only, 4 mutations killed; the users key was already pinned by the validation test, the null branch reached through captureRequestOwner since ownerCookie is private). Accepted. Cost if wrong: none.
+
+Ruling: S8a Task 8 committed 88be39d0, 557f358d and 0049dd61 with every Expected matching except drift (web 300/3342, lint 1599, Middleware 103, subset runs) and Biome fix counts; 42 mutations, 0 survivors; against the Task 0 build 5 routes are 1 kB smaller and none bigger; the inert pathways-client mock in project-setup-form.test.tsx stays as the brief words it. Accepted. Cost if wrong: none beyond the review.
+
+Ruling: S8a Task 8 review spec PASS, quality PASS; the removed getUsers unauthorized assertion stays covered by requestFoundation's own tests (the users client adds no error mapping of its own), the inert mock stays per the brief, the page-size shifts keep First Load equal or smaller, and the duplicated area case is harmless. No fix. Cost if wrong: an unauthorized users read regresses unseen only if requestFoundation's tests miss it.
+
+Ruling: S8a Task 9 records committed 8ab5f86d (SAD routing test first red then sad 59; 11 replacements, one extra for the CR 3.6 Object.prototype wording; hashes written from git log since the brief's grep patterns miss the real subjects; fixes 1 to 4 recorded; QAD-A05 repointed; Middleware 103). Accepted. Cost if wrong: none beyond the final review.
+
+Ruling: S8a SAD: isolation 18, privacy 35, restraint 2 and design-qa 97 (split 49 and 48) all PASS; assembled 152 entries, 0 blocked; sign-off waits for the final review and gates. Cost if wrong: none.
+
+Ruling: S8a final review PASS; I fix its three record lows (both ruling 5 messages in CR section 9, the Task 6 web test count 9, the profile and public client counts in order) plus the two info wordings that are cheap and true (85 parity cases, class-transformer stays beside class-validator) in one docs commit after the gates; the inert pathwaysClient mocks and PublicationTransitionRequest (S8b's) stay. Cost if wrong: none; docs only.
+
+Ruling: S8a Task 10 records shared 885 and api 2642 as measured on the committed tip (green, file counts and skips equal); the 884 and 2639 I carried were mid-slice figures. Cost if wrong: two gate figures off by 1 and 3 in the activity log.
+
+Ruling: dev's 18 new commits are merged into the stack on the S8b branch before the S8b pre-flight, so S8b, W1 and W2 are planned on the merged tree and the part 3 PR carries no conflict. Cost if wrong: one merge commit to redo if Cian wanted the merge at PR time.
+
+Ruling: the merge ports dev's rules changes into the features/rules split; dev's behavior wins where HEAD characterization tests pinned the old behavior, and those tests are updated, not deleted. Cost if wrong: a test intent changed beyond what dev's change requires; caught by the merge review.
+
+Ruling: a separate behavior-neutral commit moves RecommendationRuleDrawer and the severity suggestion block into their own files when the merged files pass 500 lines, following S7a's one-component-per-file layout; dev's test files stay unsplit. Cost if wrong: one extra move commit to revert.
+
+Ruling: DEFAULT_REC is deleted with its last user; categoryOf and UnavailableHint stay for parity. Cost if wrong: two unused exports remain.
+
+Ruling: the merge review's one finding (the apply-to-fields Project aria-describedby assertion dropped without need) was restored in cc811845 with a mutation proof; the over-500 rule-drawer.tsx (587) and rules-board.tsx (540) are recorded in the CR, not split further, as one stateful body each. Cost if wrong: two files to split in a later pass.
+
+Ruling: the S8b pre-flight is rerun on a clone of the real merged tree (cc811845) because the earlier one replayed on the dry-run S8a and docs:check, counts and figures moved. Cost if wrong: one extra pre-flight run.
+
+## S8b
+
+Ruling: apply the S8b pre-flight fixes (15 must-fix, 10 should-fix, 13 notes; 117 asserted edits, 4533-line plan), replayed end to end on the real S8a tip with the dev merge (cc811845) from this staging commit: every Expected fence is real output (33 checked, 0 mismatches), 30 mutations over four lists all fail a case, web goes from 301 files and 3378 tests to 307 and 3472, and config, shared, imports, api and sad keep 19, 885, 94, 2642 and 21 skipped, and 59. Cost if wrong: a later Task 0 stop on a stale figure, which is its purpose.
+
+Ruling: S8b runs on top of the dev merge: Task 0 checks the "Dev merge before S8b" record, the S8b paragraph of the change record is appended after that paragraph instead of after the S8a "Deferred to S8b" line, and the `docs:check` baseline is 0 failures and 0 warnings; the merge touches none of the files S8b moves, splits or tests. Cost if wrong: the S8b record lands out of order in section 9.
+
+Ruling: absolute route and Middleware sizes are written `<n>` in the Expected fences (Middleware is 102 kB in the replay clone and 103 kB in the main checkout), `build-routes.sh` prints `Middleware equals M0` for every build after Task 0, and the route names and deltas must match; a checkout that rounds differently may move other routes by 1 kB, which ruling 11 accepts. Cost if wrong: a route list that differs only by 1 kB moves stops a task for a controller ruling.
+
+Ruling: `/dashboard` is 1 kB bigger after Tasks 1 and 2 (the shared chunks regroup once the old client leaves), inside ruling 11's bound, and no route changes in Tasks 3 to 5 in the replay; the replay clone without `apps/web/.env.local` showed `/auth/mfa` 1 kB bigger after the MFA split instead, also inside the bound. Cost if wrong: a 1 kB bigger first load of the dashboard is accepted.
+
+Ruling: the S5c test split, the S6c fix 4 state test and the S7c export hook test leave 28 files naming `core-feature-client` and 22 naming an artifact helper (15 artifact mocks, seven of them `collection-workspace.*.test.tsx`), so Task 2 repoints 23 files with the save characterization file; the `sed` reads the list from `git grep`, so only the counts change. Cost if wrong: none.
