@@ -68,7 +68,7 @@ import {
   isProjectAssignableRole,
   roleSummaries,
   userAccountStatusTone,
-} from './user-management-utils'
+} from '../settings.utils'
 
 type EditorMode = 'create' | 'edit'
 

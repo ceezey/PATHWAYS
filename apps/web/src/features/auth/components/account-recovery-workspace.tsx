@@ -24,7 +24,7 @@ import {
   requestPasswordRecoveryEmail,
 } from '@/lib/auth/password-recovery'
 import { getBrowserSupabaseClient } from '@/lib/supabase/client'
-import { type RecoveryRequestValues, recoveryRequestSchema } from './account-access-validation'
+import { type RecoveryRequestValues, recoveryRequestSchema } from '../auth.schema'
 import { StaffAuthFrame } from './staff-auth-frame'
 
 const genericResponse = passwordRecoveryAcknowledgement

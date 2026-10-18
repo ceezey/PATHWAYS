@@ -1,4 +1,4 @@
-import { AccessRecovery } from '@/features/auth/access-recovery'
+import { AccessRecovery } from '@/features/auth'
 
 export const dynamic = 'force-dynamic'
 

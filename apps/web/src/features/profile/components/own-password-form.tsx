@@ -6,13 +6,13 @@ import { useSession } from '@/hooks/use-session'
 import { ownProfileClient } from '@/lib/api/profile'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { useEffect, useRef, useState } from 'react'
-import { OwnPasswordDialog, type PasswordStep } from './own-password-dialog'
 import {
   bindPasswordSession,
   createPasswordAuthClient,
   currentContinuation,
-} from './own-password-operation'
-import { ownPasswordSchema } from './own-profile-contract'
+} from '../own-password-operation'
+import { ownPasswordSchema } from '../own-profile.schema'
+import { OwnPasswordDialog, type PasswordStep } from './own-password-dialog'
 
 const UNCERTAIN =
   'The password change could not be confirmed. Sign in with the new password before trying again.'

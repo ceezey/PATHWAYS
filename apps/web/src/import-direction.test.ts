@@ -55,6 +55,10 @@ function violation(file: string, specifier: string): string | null {
 
 // Features whose index.ts is their only surface for files outside them (CR section 3.3).
 const indexedFeatures: readonly string[] = [
+  'auth',
+  'profile',
+  'public',
+  'settings',
   'analytics',
   'dashboard',
   'projects',
@@ -136,7 +140,7 @@ describe('feature public surfaces', () => {
       "const c = await import('@/features/projects/team/project-team-selectors')",
       "import { d } from '@/features/projects'",
       "import { e } from '@/features/projects/index'",
-      "import { f } from '@/features/settings/audit-log-workspace'",
+      "import { f } from '@/features/unlisted/example'",
       "import { g } from './analytics-utils'",
     ].join('\n')
     expect(specifiers(source).map((specifier) => surfaceViolation(file, specifier))).toEqual([

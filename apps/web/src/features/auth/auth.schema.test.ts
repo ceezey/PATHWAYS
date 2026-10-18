@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { recoveryRequestSchema, resetPasswordSchema } from './account-access-validation'
+import { recoveryRequestSchema, resetPasswordSchema } from './auth.schema'
 
 describe('account access validation', () => {
   it('accepts valid email syntax without exposing account existence', () => {

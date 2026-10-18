@@ -19,8 +19,8 @@ import {
 import { Input } from '@/components/ui/input'
 import { useSession } from '@/hooks/use-session'
 import { getBrowserSupabaseClient } from '@/lib/supabase/client'
-import { type LoginSchema, loginSchema } from './login-validation'
-import { formatLockRemaining, requestSignIn } from './signin-request'
+import { type LoginSchema, loginSchema } from '../login.schema'
+import { formatLockRemaining, requestSignIn } from '../signin-request'
 import { StaffAuthFrame } from './staff-auth-frame'
 
 const invalidCredentialsMessage = 'Could not sign in. Check your credentials and try again.'

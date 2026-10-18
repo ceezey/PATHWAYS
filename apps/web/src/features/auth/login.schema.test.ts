@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { loginSchema } from './login-validation'
+import { loginSchema } from './login.schema'
 
 describe('login validation', () => {
   it('requires a valid email and a non-empty password', () => {

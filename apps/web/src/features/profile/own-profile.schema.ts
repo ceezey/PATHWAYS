@@ -1,4 +1,4 @@
-import { strongPasswordSchema } from '@/features/auth/account-access-validation'
+import { strongPasswordSchema } from '@/features/auth'
 import { z } from 'zod'
 
 export const ownProfileSchema = z.object({

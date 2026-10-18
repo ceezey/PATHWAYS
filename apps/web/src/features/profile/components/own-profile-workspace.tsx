@@ -11,8 +11,8 @@ import { ownProfileClient } from '@/lib/api/profile'
 import { type SensitiveDraftOwner, useSensitiveDraftOwner } from '@/lib/auth/sensitive-drafts'
 import type { OwnProfileResponse } from '@pathways/shared'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { ownProfileSchema } from '../own-profile.schema'
 import { OwnPasswordForm } from './own-password-form'
-import { ownProfileSchema } from './own-profile-contract'
 import { OwnStepUpPinForm } from './own-step-up-pin-form'
 
 export const OwnProfileWorkspace = () => {

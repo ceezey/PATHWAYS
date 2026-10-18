@@ -3,7 +3,7 @@ import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 
 import { SkipLink } from '@/components/layout/skip-link'
-import { PasswordRecoveryRequestForm } from '@/features/auth/password-recovery-request-form'
+import { PasswordRecoveryRequestForm } from '@/features/auth'
 import {
   localPasswordRecoveryOrigin,
   passwordRecoveryRequestUrl,

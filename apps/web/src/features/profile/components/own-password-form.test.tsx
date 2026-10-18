@@ -23,9 +23,9 @@ vi.mock('@/hooks/use-current-role', () => ({ useCurrentRole: () => role }))
 vi.mock('@/lib/api/profile', () => ({
   ownProfileClient: { read: vi.fn().mockResolvedValue({}) },
 }))
-vi.mock('./own-password-operation', async () => {
-  const actual = await vi.importActual<typeof import('./own-password-operation')>(
-    './own-password-operation',
+vi.mock('../own-password-operation', async () => {
+  const actual = await vi.importActual<typeof import('../own-password-operation')>(
+    '../own-password-operation',
   )
   const user = { data: { user: { id: 'synthetic-a' } }, error: null }
   return {

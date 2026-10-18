@@ -17,7 +17,7 @@ import {
   isAcceptableStepUpPin,
 } from '@pathways/shared'
 import { useEffect, useRef, useState } from 'react'
-import { currentContinuation } from './own-password-operation'
+import { currentContinuation } from '../own-password-operation'
 
 type Proof = 'pin' | 'authenticator'
 type PinField = 'newPin' | 'confirmPin' | 'currentPin' | 'authenticatorCode'

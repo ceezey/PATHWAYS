@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 
-import { PublicAboutPage } from '@/features/public/public-about'
+import { PublicAboutPage } from '@/features/public'
 
 export const metadata: Metadata = { title: 'About Us' }
 

@@ -19,7 +19,7 @@ const removedDescriptions = [
     'features/projects/activities/components/project-activities-workspace.tsx',
     'Scan all filtered activities in one view.',
   ],
-  ['features/settings/user-management-workspace.tsx', 'Related configuration.'],
+  ['features/settings/components/user-management-workspace.tsx', 'Related configuration.'],
   [
     'features/projects/components/project-review-workspace.tsx',
     'Generated report references for the project.',

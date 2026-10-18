@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 
-import { PublicLandingPage } from '@/features/public/public-landing'
+import { PublicLandingPage } from '@/features/public'
 
 export const metadata: Metadata = { title: 'Home' }
 

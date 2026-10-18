@@ -21,7 +21,7 @@ import {
   classifyPasswordCompletionResult,
   passwordRecoveryCompletePath,
 } from '@/lib/auth/password-recovery'
-import { type ResetPasswordValues, resetPasswordSchema } from './account-access-validation'
+import { type ResetPasswordValues, resetPasswordSchema } from '../auth.schema'
 import { StaffAuthFrame } from './staff-auth-frame'
 
 export const ResetPasswordWorkspace = () => {

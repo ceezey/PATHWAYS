@@ -8,7 +8,7 @@ import {
   getProjectAccessLabels,
   getUserInitials,
   userAccountStatusTone,
-} from './user-management-utils'
+} from './settings.utils'
 
 const makeProject = (id: string, title: string): ProjectSummary => ({
   id,

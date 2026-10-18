@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 
-import { PublicTrackerList, PublicTrackerUnavailable } from '@/features/public/public-tracker-view'
+import { PublicTrackerList, PublicTrackerUnavailable } from '@/features/public'
 import { readPublicSnapshots } from '@/lib/api/public'
 
 export const metadata: Metadata = { title: 'Public Project Directory' }
