@@ -236,6 +236,21 @@ describe('MfaForm factor choices', () => {
     expect(mfa.verify).not.toHaveBeenCalled()
   })
 
+  it.each([
+    ['a different user', { access_token: 'synthetic-token', user: { id: otherFactorId } }],
+    ['no session', null],
+  ])('refuses the factor call when the session shows %s at that moment', async (_name, now) => {
+    mfa.listFactors.mockResolvedValue({ data: { all: [factor(factorId)] }, error: null })
+    render(<MfaForm />)
+    await screen.findByLabelText('Digit 1 of 6')
+    mfa.getSession.mockResolvedValue({ data: { session: now }, error: null })
+    fillCode('123456')
+    expect((await screen.findByRole('alert')).textContent).toMatch(/Verification was not accepted/)
+    expect(mfa.challenge).not.toHaveBeenCalled()
+    expect(mfa.verify).not.toHaveBeenCalled()
+    expect(state.refreshSession).not.toHaveBeenCalled()
+  })
+
   it('shows the retry guidance after a rejected code', async () => {
     mfa.listFactors.mockResolvedValue({ data: { all: [factor(factorId)] }, error: null })
     render(<MfaForm />)
@@ -331,6 +346,28 @@ describe('MfaForm sign out', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Sign out and return to login' }))
     await waitFor(() => expect(state.replace).toHaveBeenCalledWith('/staff/login'))
     expect(state.signOut).toHaveBeenCalledOnce()
+  })
+
+  it('keeps the sign-out card without the no-session text while the sign-out completes', async () => {
+    mfa.listFactors.mockResolvedValue({ data: { all: [factor(factorId)] }, error: null })
+    let finish: () => void = () => {}
+    const view = render(<MfaForm />)
+    await screen.findByLabelText('Digit 1 of 6')
+    state.signOut.mockImplementation(() => {
+      state.session = null
+      return new Promise<void>((resolve) => {
+        finish = resolve
+      })
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Sign out and return to login' }))
+    await waitFor(() => expect(state.signOut).toHaveBeenCalledOnce())
+    view.rerender(<MfaForm />)
+    expect(screen.queryByText('Sign in before setting up MFA.')).toBeNull()
+    const button = screen.getByRole('button', { name: 'Sign out and return to login' })
+    expect((button as HTMLButtonElement).disabled).toBe(true)
+    expect(state.replace).not.toHaveBeenCalled()
+    await act(async () => finish())
+    await waitFor(() => expect(state.replace).toHaveBeenCalledWith('/staff/login'))
   })
 
   it('stays on the page with a warning when the sign-out cannot be confirmed', async () => {
