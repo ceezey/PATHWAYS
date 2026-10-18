@@ -35,6 +35,7 @@ export const roles = {
       'infra/supabase/**/*.sql',
       'apps/api/prisma/migrations/**/*.sql',
       'infra/supabase/replay/*.ps1',
+      'infra/supabase/phase6/*.ps1',
     ],
   },
   'migration-integrity-guardian': {
@@ -46,6 +47,7 @@ export const roles = {
       'scripts/migrations/**',
       'infra/supabase/**/*.sql',
       'infra/supabase/replay/*.ps1',
+      'infra/supabase/phase6/*.ps1',
       '.github/workflows/ci.yml',
     ],
   },
@@ -106,6 +108,7 @@ export const roles = {
       '.github/workflows/ci.yml',
       '.github/workflows/rules-dispatch.yml',
       'infra/supabase/replay/*.ps1',
+      'infra/supabase/phase6/*.ps1',
     ],
   },
 } as const
