@@ -82,6 +82,7 @@ describe('ApplyToFields', () => {
     )
     const project = screen.getByRole('checkbox', { name: 'Project' }) as HTMLInputElement
     expect(project.disabled).toBe(false)
+    expect(project.hasAttribute('aria-describedby')).toBe(false)
   })
   it('disables Indicator on an organization template and enables it with a project', () => {
     renderFields()
