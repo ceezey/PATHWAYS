@@ -90,7 +90,7 @@ vi.mock('@/lib/api/analytics', () => ({
 vi.mock('@/lib/api/indicators', () => ({ indicatorsClient: api }))
 vi.mock('@/lib/api/activities', () => ({ activitiesClient: api }))
 vi.mock('@/lib/api/projects', () => ({ projectsClient: api }))
-vi.mock('@/lib/services/core-feature-client', () => ({
+vi.mock('@/lib/api/core/artifact-download', () => ({
   downloadCoreArtifact: download,
 }))
 vi.mock('sonner', () => ({ toast: { error: toastError, success: toastSuccess } }))

@@ -12,7 +12,7 @@ vi.mock('@/lib/api/analytics', async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
   getAnalyticsExportPreview: api.preview,
 }))
-vi.mock('@/lib/services/core-feature-client', () => ({ downloadCoreArtifact: api.download }))
+vi.mock('@/lib/api/core/artifact-download', () => ({ downloadCoreArtifact: api.download }))
 vi.mock('sonner', () => ({ toast: { error: api.toastError } }))
 
 const projectId = '79300000-0000-4000-8000-000000000001'

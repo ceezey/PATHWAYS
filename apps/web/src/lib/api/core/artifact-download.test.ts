@@ -1,4 +1,4 @@
-import { clearSensitiveDraftStorage } from '@/lib/auth/sensitive-drafts'
+import { delayedBody } from '@/test/fixtures/delayed-body'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const browser = vi.hoisted(() => ({ getSession: vi.fn() }))
@@ -9,35 +9,13 @@ vi.mock('@/lib/supabase/client', () => ({
   getBrowserSupabaseClient: () => ({ auth: { getSession: browser.getSession } }),
 }))
 
-import { coreDataClient, coreFeatureClient, downloadCoreArtifact } from './core-feature-client'
+import { downloadCoreArtifact } from './artifact-download'
 
 const authUserId = '78000000-0000-4000-8000-000000000001'
 const organizationId = '78000000-0000-4000-8000-000000000002'
 const userId = '78000000-0000-4000-8000-000000000003'
 const projectId = '78000000-0000-4000-8000-000000000004'
 const otherId = '78000000-0000-4000-8000-000000000006'
-const updatedAt = '2026-09-27T00:00:00.000Z'
-const publication = {
-  revision: 1,
-  state: 'FOR_REVIEW',
-  summary: 'A fictional approved project summary.',
-  snapshot: {
-    id: projectId,
-    title: 'Fictional project',
-    code: 'SYNTHETIC-1',
-    approvedSummary: 'A fictional approved project summary.',
-    area: null,
-    sector: null,
-    startDate: null,
-    endDate: null,
-  },
-  submittedById: userId,
-  approvedById: null,
-  publishedById: null,
-  updatedAt,
-}
-const json = (value: unknown) =>
-  new Response(JSON.stringify(value), { headers: { 'Content-Type': 'application/json' } })
 
 // Exercise the real foundation fetch/header path and Core stream/Zod boundary.
 const fetcher = vi.fn<typeof fetch>()
@@ -66,127 +44,14 @@ afterEach(() => {
   vi.useRealTimers()
 })
 
-function delayedBody(contentType: string) {
-  let controller: ReadableStreamDefaultController<Uint8Array> | undefined
-  const body = new ReadableStream<Uint8Array>({
-    start(value) {
-      controller = value
-    },
-  })
-  const response = new Response(body, { headers: { 'Content-Type': contentType } })
-  const reader = body.getReader()
-  const read = vi.spyOn(reader, 'read')
-  const cancel = vi.spyOn(reader, 'cancel')
-  const release = vi.spyOn(reader, 'releaseLock')
-  vi.spyOn(body, 'getReader').mockReturnValue(reader)
-  return {
-    response,
-    read,
-    cancel,
-    release,
-    send: (bytes: Uint8Array) => controller?.enqueue(bytes),
-  }
-}
-
-describe('Core client request and strict response boundaries', () => {
-  it('accepts only the allowlisted publication snapshot for the requested project', async () => {
-    fetcher.mockResolvedValueOnce(json(publication))
-    await expect(coreFeatureClient.publication(projectId)).resolves.toEqual(publication)
-    fetcher.mockResolvedValueOnce(
-      json({ ...publication, snapshot: { ...publication.snapshot, id: otherId } }),
-    )
-    await expect(coreFeatureClient.publication(projectId)).rejects.toThrow('could not be validated')
-  })
-  it.each(['privateNotes', 'beneficiaries', 'expenseAmount'])(
-    'rejects private snapshot field %s',
-    async (key) => {
-      fetcher.mockResolvedValueOnce(
-        json({
-          ...publication,
-          snapshot: { ...publication.snapshot, [key]: 'synthetic private data' },
-        }),
-      )
-      await expect(coreFeatureClient.publication(projectId)).rejects.toThrow(
-        'could not be validated',
-      )
-    },
-  )
-  it('honors an already aborted read signal before dispatch', async () => {
-    const controller = new AbortController()
-    controller.abort()
-    await expect(coreDataClient.audit(undefined, controller.signal)).rejects.toThrow(
-      'Current workspace access',
-    )
-    expect(fetcher).not.toHaveBeenCalled()
-  })
-  it('refuses reads and downloads without a workspace cookie before dispatch', async () => {
+describe('owned private artifact delivery', () => {
+  it('refuses downloads without a workspace cookie before dispatch', async () => {
     document.cookie = ''
-    await expect(coreDataClient.audit()).rejects.toThrow('Current workspace access')
     await expect(
       downloadCoreArtifact('/synthetic-artifact', 'report-synthetic.pdf'),
     ).rejects.toThrow('Current artifact access')
     expect(fetcher).not.toHaveBeenCalled()
   })
-
-  it('cancels a JSON response arriving after ownership invalidation before reading its body', async () => {
-    const response = json({ projectId, evaluations: [], criteria: [] })
-    if (!response.body) throw new Error('Test response requires a stream')
-    const cancel = vi.spyOn(response.body, 'cancel')
-    const read = vi.spyOn(response.body, 'getReader')
-    let finish: (value: Response) => void = () => {}
-    fetcher.mockReturnValueOnce(
-      new Promise((resolve) => {
-        finish = resolve
-      }),
-    )
-    const rejection = expect(coreDataClient.audit()).rejects.toThrow(
-      'Response ownership or format changed',
-    )
-    await vi.waitFor(() => expect(fetcher).toHaveBeenCalledOnce())
-    clearSensitiveDraftStorage()
-    finish(response)
-    await rejection
-    expect(cancel).toHaveBeenCalledOnce()
-    expect(read).not.toHaveBeenCalled()
-  })
-  it('cancels an unexpected JSON response MIME before body parsing', async () => {
-    const response = new Response('synthetic unexpected content', {
-      headers: { 'Content-Type': 'text/html' },
-    })
-    if (!response.body) throw new Error('Test response requires a stream')
-    const cancel = vi.spyOn(response.body, 'cancel')
-    const read = vi.spyOn(response.body, 'getReader')
-    fetcher.mockResolvedValueOnce(response)
-    await expect(coreDataClient.audit()).rejects.toThrow('Response ownership or format changed')
-    expect(cancel).toHaveBeenCalledOnce()
-    expect(read).not.toHaveBeenCalled()
-  })
-  it('drops a body that completes after logout and return to the same cookie owner', async () => {
-    const delayed = delayedBody('application/json')
-    fetcher.mockResolvedValueOnce(delayed.response)
-    const rejection = expect(coreDataClient.audit()).rejects.toThrow('Response unavailable')
-    await vi.waitFor(() => expect(delayed.read).toHaveBeenCalled())
-    clearSensitiveDraftStorage()
-    delayed.send(
-      new TextEncoder().encode(JSON.stringify({ projectId, evaluations: [], criteria: [] })),
-    )
-    await rejection
-    expect(delayed.cancel).toHaveBeenCalledOnce()
-    expect(delayed.release).toHaveBeenCalledOnce()
-  })
-  it('cancels an oversized JSON body before parsing or accepting it', async () => {
-    const delayed = delayedBody('application/json')
-    fetcher.mockResolvedValueOnce(delayed.response)
-    const rejection = expect(coreDataClient.audit()).rejects.toThrow('Response unavailable')
-    await vi.waitFor(() => expect(delayed.read).toHaveBeenCalled())
-    delayed.send(new Uint8Array(2_000_001))
-    await rejection
-    expect(delayed.cancel).toHaveBeenCalledOnce()
-    expect(delayed.release).toHaveBeenCalledOnce()
-  })
-})
-
-describe('owned private artifact delivery', () => {
   it('does not save delayed bytes after the local project owner changes', async () => {
     const delayed = delayedBody('application/pdf')
     fetcher.mockResolvedValueOnce(delayed.response)

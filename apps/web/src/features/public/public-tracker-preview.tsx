@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { AsyncState, EmptyState } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import { useAuthorizedRead } from '@/hooks/use-authorized-read'
-import { coreFeatureClient } from '@/lib/services/core-feature-client'
+import { publicationClient } from '@/lib/api/publication'
 
 import { PublicTrackerDetail } from './public-tracker-view'
 
@@ -22,7 +22,7 @@ export const PublicTrackerPreview = ({ projectId }: { projectId: string }) => {
     'publication-detail',
     projectId,
     'public.preview',
-    (signal) => coreFeatureClient.publication(projectId, signal),
+    (signal) => publicationClient.get(projectId, signal),
   )
   if (publication.isPending)
     return (

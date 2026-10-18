@@ -1,9 +1,9 @@
 'use client'
 import { ProofPreviewDialog } from '@/components/pathways/proof-preview-dialog'
 import { Button } from '@/components/ui/button'
+import { saveCoreArtifact } from '@/lib/api/core/artifact-download'
 import { PathwaysClientError } from '@/lib/api/core/request'
 import type { PrivateProofFile } from '@/lib/api/proof-inspection'
-import { saveCoreArtifact } from '@/lib/services/core-feature-client'
 import { Eye } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 

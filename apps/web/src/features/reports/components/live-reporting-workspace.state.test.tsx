@@ -75,7 +75,7 @@ vi.mock('@/lib/api/reports', () => ({
     reportPreview: (...args: unknown[]) => state.preview(...args),
   },
 }))
-vi.mock('@/lib/services/core-feature-client', () => ({
+vi.mock('@/lib/api/core/artifact-download', () => ({
   downloadCoreArtifact: (...args: unknown[]) => state.downloadArtifact(...args),
 }))
 vi.mock('@/lib/api/projects', () => ({ projectsClient: { getProjects: vi.fn() } }))

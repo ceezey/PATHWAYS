@@ -1,4 +1,3 @@
-import { coreDataClient } from '@/lib/services/core-feature-client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const browser = vi.hoisted(() => ({ getSession: vi.fn() }))
@@ -49,13 +48,8 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
-type Client = { list: (cursor?: string, signal?: AbortSignal) => Promise<unknown> }
-const clients: readonly (readonly [string, Client])[] = [
-  ['coreDataClient', { list: (cursor, signal) => coreDataClient.audit(cursor, signal) }],
-  ['auditClient', auditClient],
-]
-
-describe.each(clients)('%s audit read', (_name, client) => {
+describe('auditClient audit read', () => {
+  const client = auditClient
   it.each([
     ['without a cursor', undefined, '/audit'],
     ['with an encoded cursor', 'a b&c=d/e', `/audit?cursor=${encodeURIComponent('a b&c=d/e')}`],

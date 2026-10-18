@@ -51,9 +51,9 @@ vi.mock('@/hooks/use-current-role', () => ({
     },
   }),
 }))
-vi.mock('@/lib/services/core-feature-client', () => ({
-  coreFeatureClient: {
-    transitionPublication: (...args: unknown[]) => state.transition(...args),
+vi.mock('@/lib/api/publication', () => ({
+  publicationClient: {
+    transition: (...args: unknown[]) => state.transition(...args),
   },
 }))
 vi.mock('@/lib/api/projects', () => ({ projectsClient: { getProjects: vi.fn() } }))

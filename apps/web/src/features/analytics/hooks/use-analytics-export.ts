@@ -4,7 +4,7 @@ import { useState } from 'react'
 
 import { ANALYTICS_AGGREGATE_EXPORT_UI_ENABLED } from '@/constants/feature-flags'
 import { descriptiveAnalyticsSearch, getAnalyticsExportPreview } from '@/lib/api/analytics'
-import { downloadCoreArtifact } from '@/lib/services/core-feature-client'
+import { downloadCoreArtifact } from '@/lib/api/core/artifact-download'
 import { toast } from 'sonner'
 
 import type { AnalyticsReportingPeriod } from '../analytics-reporting-periods.utils'

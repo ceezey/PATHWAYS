@@ -4,7 +4,7 @@ import { useState } from 'react'
 
 import { ProofPreviewDialog } from '@/components/pathways'
 import { activitiesClient } from '@/lib/api/activities'
-import { saveCoreArtifact } from '@/lib/services/core-feature-client'
+import { saveCoreArtifact } from '@/lib/api/core/artifact-download'
 import type { ActivityProof } from '@/types/pathways'
 
 import { ProofStatusBadge } from './activity-detail-sections'

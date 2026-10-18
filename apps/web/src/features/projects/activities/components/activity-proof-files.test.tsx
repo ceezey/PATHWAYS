@@ -6,7 +6,7 @@ vi.mock('@/components/pathways', async (original) => ({
   ...(await original<object>()),
   ProofPreviewDialog: () => null,
 }))
-vi.mock('@/lib/services/core-feature-client', () => ({ saveCoreArtifact: vi.fn() }))
+vi.mock('@/lib/api/core/artifact-download', () => ({ saveCoreArtifact: vi.fn() }))
 vi.mock('@/lib/api/activities', () => ({ activitiesClient: { downloadActivityProof: vi.fn() } }))
 
 import type { ActivityProof } from '@/types/pathways'

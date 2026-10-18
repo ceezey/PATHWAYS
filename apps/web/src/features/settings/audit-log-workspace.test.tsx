@@ -23,7 +23,7 @@ vi.mock('@/lib/auth/sensitive-drafts', () => ({
   useSensitiveDraftOwner: () =>
     state.authorized ? { key: state.user, generation: state.generation } : null,
 }))
-vi.mock('@/lib/services/core-feature-client', () => ({ coreDataClient: { audit: vi.fn() } }))
+vi.mock('@/lib/api/audit', () => ({ auditClient: { list: vi.fn() } }))
 vi.mock('@/hooks/use-authorized-read', () => ({
   useAuthorizedRead: (key: string) => {
     state.reads(key)

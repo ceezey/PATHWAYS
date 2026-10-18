@@ -24,8 +24,8 @@ import {
 } from '@/components/ui/select'
 import { useAuthorizedRead } from '@/hooks/use-authorized-read'
 import { useCurrentRole } from '@/hooks/use-current-role'
+import { auditClient } from '@/lib/api/audit'
 import { useSensitiveDraftOwner } from '@/lib/auth/sensitive-drafts'
-import { coreDataClient } from '@/lib/services/core-feature-client'
 
 type AuditEvent = {
   id: string
@@ -76,7 +76,7 @@ const AuditContent = ({ authorized }: { authorized: boolean }) => {
     `audit-events:${cursor ?? 'first'}`,
     null,
     'audit.read',
-    (signal) => coreDataClient.audit(cursor, signal),
+    (signal) => auditClient.list(cursor, signal),
   )
   const accessError = read.isError ? 'Current audit access could not be verified.' : ''
   const loading = !read.isError && read.isPending

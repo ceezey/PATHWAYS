@@ -1,54 +1,5 @@
-import { ownedJsonRead, projectPath } from '@/lib/api/core/owned-json-read'
 import { PathwaysClientError, requestFoundationResponse } from '@/lib/api/core/request'
 import { captureRequestOwner } from '@/lib/api/core/request-owner'
-import { z } from 'zod'
-
-const uuid = z.string().uuid()
-const publicationSchema = z
-  .object({
-    revision: z.number().int().positive(),
-    state: z.enum(['FOR_REVIEW', 'APPROVED', 'PUBLISHED']),
-    summary: z.string().min(1).max(4000),
-    snapshot: z
-      .object({
-        id: uuid,
-        title: z.string().min(1).max(300),
-        code: z.string().max(100),
-        approvedSummary: z.string().min(1).max(4000),
-        area: z.string().max(500).nullable(),
-        sector: z.string().max(300).nullable(),
-        startDate: z.string().nullable(),
-        endDate: z.string().nullable(),
-      })
-      .strict(),
-    submittedById: uuid,
-    approvedById: uuid.nullable(),
-    publishedById: uuid.nullable(),
-    updatedAt: z.string().datetime({ offset: true }),
-  })
-  .strict()
-const publicationReceipt = publicationSchema.pick({ revision: true, state: true, updatedAt: true })
-const timestamp = z.string().datetime({ offset: true })
-const auditSchema = z
-  .object({
-    id: uuid,
-    occurredAt: timestamp,
-    action: z.string(),
-    entityType: z.string(),
-    entityId: z.string().nullable(),
-    projectId: uuid.nullable(),
-    actorUserId: uuid.nullable(),
-    actorName: z.string().nullable(),
-  })
-  .strict()
-export const coreDataClient = {
-  audit: (cursor?: string, signal?: AbortSignal) =>
-    ownedJsonRead(
-      `/audit${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`,
-      z.object({ rows: z.array(auditSchema).max(100), nextCursor: z.string().nullable() }).strict(),
-      { signal },
-    ),
-}
 
 export type CoreArtifact = { blob: Blob; fileName: string }
 
@@ -151,23 +102,4 @@ export async function downloadCoreArtifact(
   isOwnerCurrent: () => boolean = () => true,
 ) {
   saveCoreArtifact(await fetchCoreArtifact(url, fileName, isOwnerCurrent), isOwnerCurrent)
-}
-export const coreFeatureClient = {
-  publication: (id: string, signal?: AbortSignal) =>
-    ownedJsonRead(
-      `${projectPath(id)}/publication`,
-      publicationSchema.refine((row) => row.snapshot.id === id).nullable(),
-      { signal },
-    ),
-  transitionPublication: (
-    id: string,
-    operation: 'submit' | 'approve' | 'publish' | 'withdraw',
-    body: { clientRequestId: string; expectedRevision: number; summary?: string },
-    signal?: AbortSignal,
-  ) =>
-    ownedJsonRead(`${projectPath(id)}/publication/${operation}`, publicationReceipt, {
-      method: 'POST',
-      body: JSON.stringify(body),
-      signal,
-    }),
 }

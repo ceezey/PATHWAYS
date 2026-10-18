@@ -1,4 +1,4 @@
-import { saveCoreArtifact } from '@/lib/services/core-feature-client'
+import { saveCoreArtifact } from '@/lib/api/core/artifact-download'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/env', () => ({

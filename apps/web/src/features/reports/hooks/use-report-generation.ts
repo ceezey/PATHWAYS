@@ -1,7 +1,7 @@
+import { downloadCoreArtifact } from '@/lib/api/core/artifact-download'
 import { reportsClient } from '@/lib/api/reports'
 import { useOperationRequestId } from '@/lib/auth/operation-request-id'
 import { useSensitiveDraftOwner } from '@/lib/auth/sensitive-drafts'
-import { downloadCoreArtifact } from '@/lib/services/core-feature-client'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { reportKindLabels } from '../reports.copy'

@@ -10,9 +10,9 @@ import { useAuthorizedRead } from '@/hooks/use-authorized-read'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { usePermission } from '@/hooks/use-permission'
 import { projectsClient } from '@/lib/api/projects'
+import { publicationClient } from '@/lib/api/publication'
 import { useOperationRequestId } from '@/lib/auth/operation-request-id'
 import { useSensitiveDraftOwner } from '@/lib/auth/sensitive-drafts'
-import { coreFeatureClient } from '@/lib/services/core-feature-client'
 import { Eye, Save, Search, Send, ShieldCheck, Undo2 } from 'lucide-react'
 import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
@@ -45,7 +45,7 @@ export const PublicationQueueWorkspace = ({
     'publication-detail',
     id,
     'public.preview',
-    (signal) => coreFeatureClient.publication(id ?? '', signal),
+    (signal) => publicationClient.get(id ?? '', signal),
     Boolean(id),
   )
   const ready = Boolean(id && !publication.isError && !publication.isPending)
@@ -114,7 +114,7 @@ export const PublicationQueueWorkspace = ({
     const clientRequestId = requests.forBody(`${captured.key}:${captured.generation}`, body)
     setBusy(true)
     try {
-      await coreFeatureClient.transitionPublication(id, operation, {
+      await publicationClient.transition(id, operation, {
         clientRequestId,
         expectedRevision: revision,
         ...(operation === 'submit' ? { summary: summary.trim() } : {}),

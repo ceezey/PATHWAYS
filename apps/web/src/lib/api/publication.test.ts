@@ -1,4 +1,3 @@
-import { coreFeatureClient } from '@/lib/services/core-feature-client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const browser = vi.hoisted(() => ({ getSession: vi.fn() }))
@@ -61,32 +60,13 @@ afterEach(() => {
 })
 
 type Operation = 'submit' | 'approve' | 'publish' | 'withdraw'
-type Client = {
-  get: (id: string, signal?: AbortSignal) => Promise<unknown>
-  transition: (
-    id: string,
-    operation: Operation,
-    body: { clientRequestId: string; expectedRevision: number; summary?: string },
-    signal?: AbortSignal,
-  ) => Promise<unknown>
-}
-const clients: readonly (readonly [string, Client])[] = [
-  [
-    'coreFeatureClient',
-    {
-      get: (id, signal) => coreFeatureClient.publication(id, signal),
-      transition: (id, operation, body, signal) =>
-        coreFeatureClient.transitionPublication(id, operation, body, signal),
-    },
-  ],
-  ['publicationClient', publicationClient],
-]
 const receipt = { revision: 2, state: 'APPROVED', updatedAt }
 const operations: readonly Operation[] = ['submit', 'approve', 'publish', 'withdraw']
 const edit = (replacement: object) => ({ ...publication, ...replacement })
 const editSnapshot = (replacement: object) => edit({ snapshot: { ...snapshot, ...replacement } })
 
-describe.each(clients)('%s publication read', (_name, client) => {
+describe('publicationClient publication read', () => {
+  const client = publicationClient
   it('requests the project publication and returns the parsed row or null', async () => {
     const controller = new AbortController()
     fetcher.mockResolvedValueOnce(json(publication))
@@ -149,7 +129,8 @@ describe.each(clients)('%s publication read', (_name, client) => {
   })
 })
 
-describe.each(clients)('%s publication transition', (_name, client) => {
+describe('publicationClient publication transition', () => {
+  const client = publicationClient
   it.each(operations)('%s posts the body unchanged and returns the receipt', async (operation) => {
     const controller = new AbortController()
     const body = {
@@ -186,4 +167,27 @@ describe.each(clients)('%s publication transition', (_name, client) => {
       client.transition(projectId, 'approve', { clientRequestId: requestId, expectedRevision: 1 }),
     ).rejects.toThrow('could not be validated')
   })
+})
+
+describe('publicationClient request and strict response boundaries', () => {
+  it('accepts only the allowlisted publication snapshot for the requested project', async () => {
+    fetcher.mockResolvedValueOnce(json(publication))
+    await expect(publicationClient.get(projectId)).resolves.toEqual(publication)
+    fetcher.mockResolvedValueOnce(
+      json({ ...publication, snapshot: { ...publication.snapshot, id: otherId } }),
+    )
+    await expect(publicationClient.get(projectId)).rejects.toThrow('could not be validated')
+  })
+  it.each(['privateNotes', 'beneficiaries', 'expenseAmount'])(
+    'rejects private snapshot field %s',
+    async (key) => {
+      fetcher.mockResolvedValueOnce(
+        json({
+          ...publication,
+          snapshot: { ...publication.snapshot, [key]: 'synthetic private data' },
+        }),
+      )
+      await expect(publicationClient.get(projectId)).rejects.toThrow('could not be validated')
+    },
+  )
 })
