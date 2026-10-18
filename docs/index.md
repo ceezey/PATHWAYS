@@ -118,6 +118,7 @@ Workflow rule: an audit is finding and evidence, a Change Record is the approved
 | [S8 public, users and auth plan](handoff/modularization-s8-public-users-auth.md) | modularization-s8-public-users-auth.md | 2026-10-13 | Full plan for modularization slice S8 | Active |
 | [S8b public, users, profile and auth web plan](handoff/modularization-s8b-public-users-auth-web.md) | modularization-s8b-public-users-auth-web.md | 2026-10-18 | Full plan for modularization slice S8b | Active |
 | [W1 tooling and docs plan](handoff/modularization-w1-tooling-docs.md) | modularization-w1-tooling-docs.md | 2026-10-18 | Full plan for modularization slice W1 | Active |
+| [W2 tooling follow-up plan](handoff/modularization-w2-tooling-follow-up.md) | modularization-w2-tooling-follow-up.md | 2026-10-18 | Full plan for modularization slice W2 | Active |
 | [Cross-plan review](handoff/cross-plan-review.md) | cross-plan-review.md | 2026-10-13 | Edits each slice plan applied to the later plans | Active |
 | [Implementer common brief](handoff/implementer-common.md) | implementer-common.md | 2026-10-13 | Common rules handed to every implementer subagent | Active |
 | [Reviewer common brief](handoff/reviewer-common.md) | reviewer-common.md | 2026-10-13 | Common rules handed to every task reviewer subagent | Active |

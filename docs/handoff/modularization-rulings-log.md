@@ -1139,3 +1139,25 @@ Ruling: every W1 commit runs as ceezey with the Co-Authored-By Claude Opus 5.5 t
 - Ruling: W1 SAD sign-off at 5d2185eb exit 0 (manifest org 113, migration 113, privacy 6, metadata 4, restraint 4, design 50; 290 entries, 0 blocked) after two delta rounds. Cost if wrong: none.
 
 - Ruling: W1 Task 8 gates passed at 5d2185eb with every figure as the plan except three that the two SAD routing commits explain: sad tests 60 (one routing test added), the replay stale scan prints 7 intentional phase6 forwarder routes (sad-pathways.md, check.ts, check.test.ts), and 14 commits over the base. Cost if wrong: none.
+
+## W2
+
+Ruling: apply the W2 pre-flight fixes (see the pre-flight record for the counts and edit ids), replayed end to end on the W1 tip cc407f21 from this staging commit. Cost if wrong: a W2 Task 0 stop on a figure.
+
+Ruling: W2 runs on claude/modularization-s8b-xjnlzt, the branch W1 ended on, because this cloud session can push only that name; Task 0 finds the W1 tip by the "docs: record the W1 gates" commit message, not by a branch name, and expects one staging commit above it. Cost if wrong: a branch rename or a Task 0 stop.
+
+Ruling: W2 opens no pull request itself; the controller opens the part 3 stacked pull request into dev after the W2 gates. Cost if wrong: none.
+
+Ruling: the per-domain seed data splits stay with the developer, so the W2 row anchor and the audit row anchor of Task 7 follow the W1 wording ("left to the developer"). Cost if wrong: Cian expected a W2 seed change.
+
+Ruling: Task 0 builds the packages first and saves the Middleware line; Tasks 6 and 8 compare it byte for byte, and the route compare shows only its last line (routes 72, over 1 kB 0) with the list of moved routes in .tmp/w2/routes-*.diff, because which route moves by 1 kB depends on the build. Cost if wrong: a Task 6 or Task 8 stop on a route that moved by 1 kB.
+
+Ruling: the docs:check baseline is 0 failures and 0 warnings, and the Task 3 compare (722 s under nice) runs in the background because a foreground call stops at ten minutes. Cost if wrong: a docs failure goes unnoticed or a foreground timeout.
+
+Ruling: the shell scan stays read-only; at the W1 tip the verdict is keep with one name, recoverSourceMutation, and 39 test files mock the shell, so retiring it is left to a later slice. Cost if wrong: the shell stays one slice longer.
+
+Ruling: the Task 8 SAD step prints the paths per routed role and the number of evaluations (0, none BLOCKED) instead of counting status lines of the log, which are empty for W2. Cost if wrong: a role missing from the routes goes unnoticed.
+
+Ruling: W2 runs no Pester file (it changes none and Pester 5 cannot be installed in the cloud container); the two replay helper files stay a pending local run of W1 and run in the tooling job in CI. Cost if wrong: they stay unrun until the part 3 pull request.
+
+Ruling: every W2 commit runs as ceezey with the Co-Authored-By Claude Opus 5.5 trailer and the Claude-Session trailer of this session (01QPvEwEhu9YUbjKLd7DLzUg). Cost if wrong: none.
