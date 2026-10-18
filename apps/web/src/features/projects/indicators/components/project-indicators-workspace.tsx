@@ -23,16 +23,16 @@ import { usePendingCreate } from '@/hooks/use-pending-create'
 import { useSourceMutationContext } from '@/hooks/use-source-mutation-context'
 import { activitiesClient } from '@/lib/api/activities'
 import { PathwaysClientError } from '@/lib/api/core/request'
+import {
+  type SourceMutationResult,
+  isSourceReplay,
+  sourceMutationTickets,
+} from '@/lib/api/core/source-mutation'
 import { formsClient } from '@/lib/api/forms'
 import { indicatorsClient } from '@/lib/api/indicators'
 import { formatCappedPercent } from '@/lib/format/percent'
 import { fingerprintOf } from '@/lib/forms/pending-create'
 import { principalHasAtomicPermission } from '@/lib/rbac/policy'
-import {
-  type SourceMutationResult,
-  isSourceReplay,
-  sourceMutationTickets,
-} from '@/lib/services/source-mutation'
 import type { DigitalFormDefinition } from '@/types/pathways'
 import { type IndicatorResponse, formatMetricCell } from '@pathways/shared'
 import { MoreHorizontal, Target } from 'lucide-react'

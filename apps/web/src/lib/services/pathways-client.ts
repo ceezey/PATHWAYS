@@ -2,7 +2,7 @@ import {
   type SourceMutationContext,
   ensureSourceInvalidationSubscription,
   sourceMutationTickets,
-} from './source-mutation'
+} from '../api/core/source-mutation'
 
 import { PathwaysClientError, requestFoundation } from '@/lib/api/core/request'
 

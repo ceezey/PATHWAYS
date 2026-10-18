@@ -1,6 +1,6 @@
 import { clearSensitiveDraftStorage } from '@/lib/auth/sensitive-drafts'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { sourceMutationTickets } from './source-mutation'
+import { sourceMutationTickets } from '../api/core/source-mutation'
 
 const mutationId = '20000000-0000-4000-8000-000000000001'
 const mutationContext = { principalKey: 'synthetic-owner', isCurrent: () => true }

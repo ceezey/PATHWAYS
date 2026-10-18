@@ -73,7 +73,7 @@ vi.mock('@/lib/services/pathways-client', () => ({
 }))
 vi.mock('@/lib/api/indicators', () => ({ indicatorsClient: api }))
 vi.mock('@/lib/api/core/request', () => ({ PathwaysClientError: class extends Error {} }))
-vi.mock('@/lib/services/source-mutation', () => ({
+vi.mock('@/lib/api/core/source-mutation', () => ({
   isSourceReplay: () => tickets.replay,
   sourceMutationTickets: { finishAcknowledgement: tickets.finishAcknowledgement },
 }))

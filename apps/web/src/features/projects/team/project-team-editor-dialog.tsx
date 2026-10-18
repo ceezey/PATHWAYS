@@ -3,7 +3,7 @@ import { SourceMutationRecovery } from '../components/source-mutation-recovery'
 
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useSourceMutationContext } from '@/hooks/use-source-mutation-context'
-import { isSourceReplay, sourceMutationTickets } from '@/lib/services/source-mutation'
+import { isSourceReplay, sourceMutationTickets } from '@/lib/api/core/source-mutation'
 
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Pencil, Save } from 'lucide-react'

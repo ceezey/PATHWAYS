@@ -17,12 +17,12 @@ import { useCurrentRole } from '@/hooks/use-current-role'
 import { useSession } from '@/hooks/use-session'
 import { useSourceMutationContext } from '@/hooks/use-source-mutation-context'
 import { activitiesClient } from '@/lib/api/activities'
-import { type SensitiveDraftOwner, useSensitiveDraftOwner } from '@/lib/auth/sensitive-drafts'
 import {
   SourceMutationRecoveryError,
   isSourceReplay,
   sourceMutationTickets,
-} from '@/lib/services/source-mutation'
+} from '@/lib/api/core/source-mutation'
+import { type SensitiveDraftOwner, useSensitiveDraftOwner } from '@/lib/auth/sensitive-drafts'
 import type { Activity, ActivityProof } from '@/types/pathways'
 import { useEffect, useRef, useState } from 'react'
 import { ActivityProofFiles } from './activity-proof-files'

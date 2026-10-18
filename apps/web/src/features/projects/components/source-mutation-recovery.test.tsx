@@ -1,10 +1,10 @@
-import { sourceMutationTickets } from '@/lib/services/source-mutation'
+import { sourceMutationTickets } from '@/lib/api/core/source-mutation'
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const state = vi.hoisted(() => ({ server: vi.fn() }))
 vi.mock('@/lib/services/pathways-client', async () => {
-  const { sourceMutationTickets } = await import('@/lib/services/source-mutation')
+  const { sourceMutationTickets } = await import('@/lib/api/core/source-mutation')
   return {
     recoverSourceMutation: (
       context: Parameters<typeof sourceMutationTickets.recover>[0],

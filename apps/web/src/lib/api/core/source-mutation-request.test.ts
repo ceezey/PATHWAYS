@@ -10,7 +10,7 @@ vi.mock('./request', async (importOriginal) => ({
   requestFoundation,
 }))
 
-import { sourceMutationTickets } from '@/lib/services/source-mutation'
+import { sourceMutationTickets } from '@/lib/api/core/source-mutation'
 import { PathwaysClientError } from './request'
 import { requestSourceMutation } from './source-mutation-request'
 

@@ -13,7 +13,7 @@ import { activitiesClient } from '@/lib/api/activities'
 import { beneficiariesClient } from '@/lib/api/beneficiaries'
 import { journeysClient } from '@/lib/api/journeys'
 import type { JourneyStageConfig } from '@/types/pathways'
-import { sourceMutationTickets } from '../services/source-mutation'
+import { sourceMutationTickets } from './core/source-mutation'
 
 const authUserId = '76000000-0000-4000-8000-000000000001'
 const organizationId = '76000000-0000-4000-8000-000000000002'

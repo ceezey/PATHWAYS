@@ -12,12 +12,12 @@ import {
 } from '@pathways/shared'
 
 import { PathwaysClientError, requestFoundation } from '@/lib/api/core/request'
-import { requestSourceMutation } from '@/lib/api/core/source-mutation-request'
 import {
   type SourceMutationContext,
   type SourceMutationResult,
   sourceMutationTickets,
-} from '@/lib/services/source-mutation'
+} from '@/lib/api/core/source-mutation'
+import { requestSourceMutation } from '@/lib/api/core/source-mutation-request'
 import type { Indicator } from '@/types/pathways'
 
 export const indicatorsClient = {

@@ -1,13 +1,13 @@
 import { approvedApiBaseUrl } from '@/lib/api-base-url'
+import {
+  announceAuthorizationDenied,
+  announceWriteCommitted,
+} from '@/lib/api/core/authorized-read-events'
+import { ensureSourceInvalidationSubscription } from '@/lib/api/core/source-mutation'
 import { announceStepUpRequired } from '@/lib/auth/beneficiary-step-up-events'
 import { sensitiveDraftGeneration } from '@/lib/auth/sensitive-drafts'
 import { decodeWorkspaceContext, readWorkspaceContextCookie } from '@/lib/auth/workspace-access'
 import { webEnv } from '@/lib/env'
-import {
-  announceAuthorizationDenied,
-  announceWriteCommitted,
-} from '@/lib/services/authorized-read-events'
-import { ensureSourceInvalidationSubscription } from '@/lib/services/source-mutation'
 import { getBrowserSupabaseClient } from '@/lib/supabase/client'
 import type { FormValidationError } from '@/types/pathways'
 import { STEP_UP_REQUIRED_CODE } from '@pathways/shared'

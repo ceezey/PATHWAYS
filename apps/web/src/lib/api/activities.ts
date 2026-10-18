@@ -3,8 +3,8 @@ import {
   requestFoundation,
   requestFoundationResponse,
 } from '@/lib/api/core/request'
+import type { SourceMutationContext, SourceMutationResult } from '@/lib/api/core/source-mutation'
 import { requestSourceMutation } from '@/lib/api/core/source-mutation-request'
-import type { SourceMutationContext, SourceMutationResult } from '@/lib/services/source-mutation'
 import type {
   Activity,
   ActivityProofFinalizeResult,

@@ -4,8 +4,8 @@ import { describe, expect, it, vi } from 'vitest'
 vi.mock('@/lib/env', () => ({ webEnv: { NEXT_PUBLIC_API_BASE_URL: 'http://localhost:4000/api' } }))
 vi.mock('@/lib/supabase/client', () => ({ getBrowserSupabaseClient: () => null }))
 
+import { sourceMutationTickets } from '@/lib/api/core/source-mutation'
 import { clearSensitiveDraftStorage } from '@/lib/auth/sensitive-drafts'
-import { sourceMutationTickets } from '@/lib/services/source-mutation'
 import { PathwaysClientError, requestFoundationResponse } from './request'
 
 const context = { principalKey: 'synthetic-owner-a', isCurrent: () => true }
