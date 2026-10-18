@@ -14,7 +14,7 @@ import {
   shiftSql,
   stagedLoadSql,
   storageObjectsSql,
-} from './defense-snapshot-sql.mjs'
+} from './snapshot-sql.mjs'
 
 const STOP = String.raw`\set ON_ERROR_STOP on
 `

@@ -6,7 +6,7 @@ import {
   assertRestoreTarget,
   assertSameMigration,
   libpqUrl,
-} from './defense-snapshot-target.mjs'
+} from './snapshot-target.mjs'
 
 const ref = 'klbtoqdalmcsfjqophty'
 const pooler = `postgresql://postgres.${ref}:pw@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres`

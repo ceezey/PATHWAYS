@@ -12,9 +12,9 @@ import {
   parseEnvFile,
   redactUrl,
   validateHostedEnv,
-} from './hosted-target.mjs'
+} from './target.mjs'
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..')
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..')
 const ref = 'klbtoqdalmcsfjqophty'
 const goodEnv = () => ({
   HOSTED_TARGET_REF: ref,

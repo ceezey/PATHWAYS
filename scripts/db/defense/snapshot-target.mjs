@@ -1,5 +1,5 @@
 // Restore target and identities guards for the defense snapshot; validates input and connects to nothing.
-import { assertHostedPgUrl } from './hosted-seed-target.mjs'
+import { assertHostedPgUrl } from '../hosted/seed-target.mjs'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 

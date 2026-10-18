@@ -1,4 +1,4 @@
-// Runs the real hosted-build sequence (scripts/db/hosted-build.mjs, unmodified
+// Runs the real hosted-build sequence (scripts/db/hosted/build.mjs, unmodified
 // production code path) against a disposable, owned local PostgreSQL cluster
 // instead of a hosted target. This is the closest thing to an end-to-end
 // rehearsal that does not touch a network.
@@ -9,9 +9,9 @@
 // not require it.
 //
 // Safety: this test uses `allowLoopback: true` when validating env, which
-// hosted-target.mjs structurally refuses to combine with any non-loopback
+// hosted/target.mjs structurally refuses to combine with any non-loopback
 // HOSTED_ADMIN_URL/HOSTED_DIRECT_URL (see validateHostedEnv). There is no
-// code path here, or in hosted-build.mjs's CLI, that exposes allowLoopback
+// code path here, or in hosted/build.mjs's CLI, that exposes allowLoopback
 // to a real invocation; it is only reachable by importing the module
 // functions directly, as this test does.
 import assert from 'node:assert/strict'
@@ -23,13 +23,13 @@ import path from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 
-import { createLiveIO, runHostedBuild } from './hosted-build.mjs'
-import { MIGRATIONS_IN_ORDER } from './hosted-plan.mjs'
-import { validateHostedEnv } from './hosted-target.mjs'
+import { createLiveIO, runHostedBuild } from './build.mjs'
+import { MIGRATIONS_IN_ORDER } from './plan.mjs'
+import { validateHostedEnv } from './target.mjs'
 
 const shouldRun = process.env.RUN_HOSTED_BUILD_LOCAL_INTEGRATION === '1'
 const directory = path.dirname(fileURLToPath(import.meta.url))
-const root = path.resolve(directory, '..', '..')
+const root = path.resolve(directory, '..', '..', '..')
 const ref = 'klbtoqdalmcsfjqophty' // the reviewed hosted SQL pins only this ref (and one other); never rewritten
 const port = 55461 // distinct from the local Supabase container (54322) and its shadow port (55448)
 const pgBin = 'C:/Program Files/PostgreSQL/18/bin'

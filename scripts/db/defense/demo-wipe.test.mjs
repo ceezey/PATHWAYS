@@ -4,9 +4,9 @@ import path from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 
-import { parseWipeTables } from './defense-snapshot-parse.mjs'
+import { parseWipeTables } from './snapshot-parse.mjs'
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..')
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..')
 const sql = readFileSync(
   path.join(root, 'infra/supabase/phase6/hosted-defense-demo-wipe.sql'),
   'utf8',

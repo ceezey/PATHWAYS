@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { assertShiftAllowed, guardRun, summaryLines } from './defense-snapshot-plan.mjs'
+import { assertShiftAllowed, guardRun, summaryLines } from './snapshot-plan.mjs'
 
 test('assertShiftAllowed refuses a shift or any warning unless allowed', () => {
   assert.doesNotThrow(() => assertShiftAllowed({ warnings: [], delta: 0, allowShift: false }))

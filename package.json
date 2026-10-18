@@ -24,13 +24,13 @@
     "rules:dispatch": "tsx --tsconfig apps/api/tsconfig.json apps/api/src/rules-dispatcher.ts",
     "db:local:start": "supabase start",
     "db:local:stop": "supabase stop",
-    "db:local:reset": "node scripts/db/local-reset.mjs",
-    "db:local:seed": "node scripts/db/local-seed.mjs",
-    "db:local:demo": "node scripts/db/local-demo.mjs",
-    "db:defense:local": "node scripts/db/defense-demo.mjs --test-local",
-    "db:local:load-seed": "node scripts/db/local-load-seed.mjs",
+    "db:local:reset": "node scripts/db/local/reset.mjs",
+    "db:local:seed": "node scripts/db/local/seed.mjs",
+    "db:local:demo": "node scripts/db/local/demo.mjs",
+    "db:defense:local": "node scripts/db/defense/demo.mjs --test-local",
+    "db:local:load-seed": "node scripts/db/local/load-seed.mjs",
     "perf:dashboards": "node scripts/perf/dashboard-load.mjs",
-    "dev:local": "node scripts/db/local-dev.mjs"
+    "dev:local": "node scripts/db/local/dev.mjs"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",

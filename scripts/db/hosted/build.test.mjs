@@ -9,10 +9,10 @@ import {
   preflight,
   resumePreflight,
   runHostedBuild,
-} from './hosted-build.mjs'
-import { BASELINE, MIGRATIONS_IN_ORDER } from './hosted-plan.mjs'
+} from './build.mjs'
+import { BASELINE, MIGRATIONS_IN_ORDER } from './plan.mjs'
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..')
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..')
 
 const config = {
   ref: 'klbtoqdalmcsfjqophty',

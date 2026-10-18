@@ -2,17 +2,17 @@
 // --test-local, the loopback Supabase stack. It reuses existing staff accounts and never creates users.
 //
 // Usage:
-//   node scripts/db/defense-demo.mjs --env-file <path under .tmp/ or outside the repo> [--verify] [--only a,b]
-//   node scripts/db/defense-demo.mjs --test-local [--verify] [--only a,b]
+//   node scripts/db/defense/demo.mjs --env-file <path under .tmp/ or outside the repo> [--verify] [--only a,b]
+//   node scripts/db/defense/demo.mjs --test-local [--verify] [--only a,b]
 import { execFileSync, spawnSync } from 'node:child_process'
 import { randomBytes } from 'node:crypto'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { assertSeedTarget, loadEnvFile, resolveEnvFilePath } from './hosted-seed-target.mjs'
-import { localDatabase, localSupabase } from './local-target.mjs'
+import { assertSeedTarget, loadEnvFile, resolveEnvFilePath } from '../hosted/seed-target.mjs'
+import { localDatabase, localSupabase } from '../local/target.mjs'
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..')
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..')
 const shell = process.platform === 'win32'
 
 function parseArgs(argv) {
@@ -47,7 +47,7 @@ function runSeed(env, args) {
 }
 
 function psql(sql) {
-  // Fixed local container only, same as local-demo.mjs.
+  // Fixed local container only, same as local/demo.mjs.
   execFileSync(
     'docker',
     [

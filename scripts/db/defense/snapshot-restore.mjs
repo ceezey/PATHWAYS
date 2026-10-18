@@ -1,21 +1,21 @@
 // The restore and storage commands of the defense snapshot: storage copy first, then one DB transaction.
 import { readFileSync } from 'node:fs'
 
-import { dayDelta, manilaDay, restoreWarnings } from './defense-snapshot-dates.mjs'
-import { assertLocalContainer, psqlLocal, psqlUrl, readJson } from './defense-snapshot-io.mjs'
+import { ALLOWED_PROJECT_REF } from '../hosted/seed-target.mjs'
+import { localSupabase } from '../local/target.mjs'
+import { dayDelta, manilaDay, restoreWarnings } from './snapshot-dates.mjs'
+import { assertLocalContainer, psqlLocal, psqlUrl, readJson } from './snapshot-io.mjs'
 import {
   assertSameTables,
   compareCounts,
   countsOf,
   parseDump,
   parseWipeTables,
-} from './defense-snapshot-parse.mjs'
-import { assertShiftAllowed, guardRun, summaryLines } from './defense-snapshot-plan.mjs'
-import { buildRestoreSql } from './defense-snapshot-sql.mjs'
-import { assertDistinctStorage, copyObjects } from './defense-snapshot-storage.mjs'
-import { assertRestoreTarget, libpqUrl } from './defense-snapshot-target.mjs'
-import { ALLOWED_PROJECT_REF } from './hosted-seed-target.mjs'
-import { localSupabase } from './local-target.mjs'
+} from './snapshot-parse.mjs'
+import { assertShiftAllowed, guardRun, summaryLines } from './snapshot-plan.mjs'
+import { buildRestoreSql } from './snapshot-sql.mjs'
+import { assertDistinctStorage, copyObjects } from './snapshot-storage.mjs'
+import { assertRestoreTarget, libpqUrl } from './snapshot-target.mjs'
 
 function localStorageApi() {
   const local = localSupabase()
@@ -30,7 +30,7 @@ function restoreTarget(args, hostedEnv) {
     assertLocalContainer()
     return {
       label: 'the local stack',
-      verify: 'node scripts/db/defense-demo.mjs --test-local --verify',
+      verify: 'node scripts/db/defense/demo.mjs --test-local --verify',
       run: (sql) => psqlLocal(sql, { capture: false }),
     }
   }
@@ -45,7 +45,7 @@ function restoreTarget(args, hostedEnv) {
   assertLocalContainer()
   return {
     label: `hosted project ${ALLOWED_PROJECT_REF} (PATHWAYS-devV2)`,
-    verify: `node scripts/db/defense-demo.mjs --env-file ${args.envFile} --verify`,
+    verify: `node scripts/db/defense/demo.mjs --env-file ${args.envFile} --verify`,
     run: guardRun((sql) => psqlUrl(url, sql, { capture: false })),
     storage: source && { source, target },
   }
@@ -56,7 +56,7 @@ async function copyStorage(manifest, target, args) {
     await copyObjects(manifest.storage, target.storage.source, target.storage.target)
   } catch (error) {
     console.error(
-      `Storage copy failed; rerun: node scripts/db/defense-snapshot.mjs storage --env-file ${args.envFile}`,
+      `Storage copy failed; rerun: node scripts/db/defense/snapshot.mjs storage --env-file ${args.envFile}`,
     )
     throw error
   }

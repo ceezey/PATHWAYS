@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { copyObjects, objectUrl, uploadContentType } from './defense-snapshot-storage.mjs'
+import { copyObjects, objectUrl, uploadContentType } from './snapshot-storage.mjs'
 
 function fakeFetch(responses) {
   const calls = []

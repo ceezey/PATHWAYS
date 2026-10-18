@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { dayDelta, manilaDay, restoreWarnings } from './defense-snapshot-dates.mjs'
+import { dayDelta, manilaDay, restoreWarnings } from './snapshot-dates.mjs'
 
 test('manilaDay uses the Asia/Manila calendar', () => {
   assert.equal(manilaDay(new Date('2026-10-05T16:30:00Z')), '2026-10-06')

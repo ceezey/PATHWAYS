@@ -11,9 +11,9 @@ import {
   parseDump,
   parseWipeTables,
   splitWipe,
-} from './defense-snapshot-parse.mjs'
+} from './snapshot-parse.mjs'
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..')
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..')
 const realWipe = readFileSync(
   path.join(root, 'infra/supabase/phase6/hosted-defense-demo-wipe.sql'),
   'utf8',

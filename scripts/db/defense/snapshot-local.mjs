@@ -1,6 +1,7 @@
 // Local-stack halves of the defense snapshot: mirror hosted identities in, dump the seeded stack out.
 import { readFileSync } from 'node:fs'
 
+import { ALLOWED_PROJECT_REF } from '../hosted/seed-target.mjs'
 import {
   assertLocalContainer,
   dumpLocal,
@@ -10,27 +11,21 @@ import {
   readJson,
   writeJson,
   writeText,
-} from './defense-snapshot-io.mjs'
-import {
-  assertSameTables,
-  countsOf,
-  parseDump,
-  parseWipeTables,
-} from './defense-snapshot-parse.mjs'
+} from './snapshot-io.mjs'
+import { assertSameTables, countsOf, parseDump, parseWipeTables } from './snapshot-parse.mjs'
 import {
   dateColumnsSql,
   mirrorReadSql,
   mirrorWriteSql,
   seedInfoSql,
   storageObjectsSql,
-} from './defense-snapshot-sql.mjs'
+} from './snapshot-sql.mjs'
 import {
   assertIdentities,
   assertSameMigration,
   latestMigrationSql,
   libpqUrl,
-} from './defense-snapshot-target.mjs'
-import { ALLOWED_PROJECT_REF } from './hosted-seed-target.mjs'
+} from './snapshot-target.mjs'
 
 export async function mirror(args, files, hostedEnv) {
   if (Boolean(args.envFile) === Boolean(args.identities))

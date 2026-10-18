@@ -6,12 +6,12 @@ import path from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 
-import { psqlUrlArgs } from './defense-snapshot-io.mjs'
-import { assertDistinctStorage } from './defense-snapshot-storage.mjs'
+import { psqlUrlArgs } from './snapshot-io.mjs'
+import { assertDistinctStorage } from './snapshot-storage.mjs'
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..')
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..')
 const cli = (...args) =>
-  spawnSync(process.execPath, [path.join(root, 'scripts/db/defense-snapshot.mjs'), ...args], {
+  spawnSync(process.execPath, [path.join(root, 'scripts/db/defense/snapshot.mjs'), ...args], {
     cwd: root,
     encoding: 'utf8',
   })
@@ -22,7 +22,7 @@ test('an unknown command prints usage and exits 2', () => {
     assert.equal(run.status, 2)
     assert.match(
       run.stderr,
-      /Usage: node scripts\/db\/defense-snapshot\.mjs mirror\|dump\|restore\|storage/,
+      /Usage: node scripts\/db\/defense\/snapshot\.mjs mirror\|dump\|restore\|storage/,
     )
   }
 })

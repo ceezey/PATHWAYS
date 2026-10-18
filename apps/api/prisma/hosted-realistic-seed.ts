@@ -25,7 +25,7 @@ import { approvedOrganization } from './developer-bootstrap'
 
 /**
  * Realistic, fictional Philippine-context hosted seed for the PATHWAYS-devV2 project
- * (klbtoqdalmcsfjqophty). Run only through scripts/db/hosted-seed.mjs, which validates the
+ * (klbtoqdalmcsfjqophty). Run only through scripts/db/hosted/seed.mjs, which validates the
  * target and forwards env vars; this file never resolves or validates a Supabase project on
  * its own. Never creates, invites, emails, or sets a password for the System Administrator
  * account; it is looked up by email through the admin API and must already exist.
@@ -138,7 +138,7 @@ function isPoolerHost(hostname: string | null): boolean {
   return /\.pooler\.supabase\.com$/i.test(String(hostname || ''))
 }
 
-// Mirrors scripts/db/hosted-seed-target.mjs's assertHostedPgUrl: the host must be the
+// Mirrors scripts/db/hosted/seed-target.mjs's assertHostedPgUrl: the host must be the
 // project's direct Postgres host (bare role username) or a pooler host (username
 // "<role>.<ref>"). Anything else, including a loopback host, is rejected in hosted mode.
 function assertHostedPgUrl(url: URL, label: string, expectedRole: string): void {

@@ -1,9 +1,9 @@
-// Side effects for defense-snapshot.mjs: psql and pg_dump inside the local container, and .tmp files.
+// Side effects for defense/snapshot.mjs: psql and pg_dump inside the local container, and .tmp files.
 import { execFileSync } from 'node:child_process'
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 
-import { localDatabase } from './local-target.mjs'
+import { localDatabase } from '../local/target.mjs'
 
 const PSQL_FLAGS = ['-v', 'ON_ERROR_STOP=1', '-X', '-q', '-At']
 

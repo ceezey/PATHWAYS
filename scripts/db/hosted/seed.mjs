@@ -3,15 +3,15 @@
 // points at, then hands the resulting env vars to the seed process.
 //
 // Usage:
-//   node scripts/db/hosted-seed.mjs --env-file <path under .tmp/ or outside the repo>
-//   node scripts/db/hosted-seed.mjs --env-file <path> --test-local   (loopback only, for local testing)
+//   node scripts/db/hosted/seed.mjs --env-file <path under .tmp/ or outside the repo>
+//   node scripts/db/hosted/seed.mjs --env-file <path> --test-local   (loopback only, for local testing)
 import { spawnSync } from 'node:child_process'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { assertSeedTarget, loadEnvFile, resolveEnvFilePath } from './hosted-seed-target.mjs'
+import { assertSeedTarget, loadEnvFile, resolveEnvFilePath } from './seed-target.mjs'
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..')
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..')
 
 function parseArgs(argv) {
   let envFile

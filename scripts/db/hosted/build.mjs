@@ -1,13 +1,13 @@
 // Builds the full PATHWAYS schema on an EMPTY hosted Supabase project by
-// replaying the exact sequence in scripts/db/local-reset.mjs (the reference
+// replaying the exact sequence in scripts/db/local/reset.mjs (the reference
 // implementation) against a real connection instead of the local Docker
 // container. The developer runs this themselves; it never runs in CI and
 // never touches a hosted database unless HOSTED_* env vars point at one.
 //
 // Usage:
-//   node scripts/db/hosted-build.mjs --env-file .tmp/hosted-role-staging.env [--dry-run] [--resume]
+//   node scripts/db/hosted/build.mjs --env-file .tmp/hosted-role-staging.env [--dry-run] [--resume]
 //
-// Required env vars (see scripts/db/hosted-target.mjs for exact validation):
+// Required env vars (see scripts/db/hosted/target.mjs for exact validation):
 //   HOSTED_TARGET_REF     must equal klbtoqdalmcsfjqophty
 //   HOSTED_ADMIN_URL      postgres superuser/admin connection URL
 //   HOSTED_DIRECT_URL     prisma migration connection URL
@@ -25,15 +25,10 @@ import {
   assertResumablePrefix,
   buildPlan,
   planIndexForAppliedCount,
-} from './hosted-plan.mjs'
-import {
-  assertEnvFileLocation,
-  parseEnvFile,
-  redactUrl,
-  validateHostedEnv,
-} from './hosted-target.mjs'
+} from './plan.mjs'
+import { assertEnvFileLocation, parseEnvFile, redactUrl, validateHostedEnv } from './target.mjs'
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..')
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..')
 const migrationsDir = path.join(root, 'apps', 'api', 'prisma', 'migrations')
 const phase6Dir = path.join(root, 'infra', 'supabase', 'phase6')
 const stageDir = path.join(root, '.tmp', 'hosted-build', 'migrations')
@@ -225,7 +220,7 @@ export function createLiveIO({ ref }) {
 }
 
 // ---------------------------------------------------------------------------
-// Staging helpers (pure filesystem, no network) mirroring local-reset.mjs.
+// Staging helpers (pure filesystem, no network) mirroring local/reset.mjs.
 // ---------------------------------------------------------------------------
 function stageMigrations(names) {
   for (const name of names) {

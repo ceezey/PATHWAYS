@@ -6,9 +6,9 @@ import { cpSync, mkdirSync, readFileSync, readdirSync, rmSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { localDatabase } from './local-target.mjs'
+import { localDatabase } from './target.mjs'
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..')
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..')
 const migrationsDir = path.join(root, 'apps', 'api', 'prisma', 'migrations')
 const phase6Dir = path.join(root, 'infra', 'supabase', 'phase6')
 const stageDir = path.join(root, '.tmp', 'local-db', 'migrations')
@@ -227,7 +227,7 @@ REVOKE TEMPORARY ON DATABASE postgres FROM PUBLIC;`,
     'runtime login',
   )
 
-  run('node', [path.join(root, 'scripts', 'db', 'local-seed.mjs')], {
+  run('node', [path.join(root, 'scripts', 'db', 'local/seed.mjs')], {
     label: 'local synthetic seed',
   })
 }

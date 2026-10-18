@@ -1,4 +1,4 @@
-// Guards and env handling for scripts/db/hosted-build.mjs. Kept separate from
+// Guards and env handling for scripts/db/hosted/build.mjs. Kept separate from
 // the orchestrator so the validation logic can be unit tested without ever
 // touching a network connection or spawning a process.
 import { readFileSync } from 'node:fs'
@@ -86,7 +86,7 @@ export function isLoopbackHostname(hostname) {
 // Validates the five required env vars and returns a parsed, redaction-safe
 // config object. Throws HostedEnvError (with every problem, not just the
 // first) on any failure. `allowLoopback` is only ever set by the test-only
-// local integration path; see hosted-build.mjs for why it cannot combine
+// local integration path; see hosted/build.mjs for why it cannot combine
 // with a non-loopback URL.
 export function validateHostedEnv(env, { allowLoopback = false } = {}) {
   const problems = []

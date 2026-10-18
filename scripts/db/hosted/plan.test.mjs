@@ -11,9 +11,9 @@ import {
   buildPlan,
   planIndexForAppliedCount,
   planMigrationOrder,
-} from './hosted-plan.mjs'
+} from './plan.mjs'
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..')
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..')
 const migrationsDir = path.join(root, 'apps', 'api', 'prisma', 'migrations')
 
 test('MIGRATIONS_IN_ORDER matches the real migrations directory exactly, in order', () => {

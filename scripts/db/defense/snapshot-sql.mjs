@@ -1,5 +1,5 @@
 // Pure SQL builders for the defense snapshot: identity mirror, dump queries and the one-transaction restore.
-import { assertSameTables, parseWipeTables, splitWipe } from './defense-snapshot-parse.mjs'
+import { assertSameTables, parseWipeTables, splitWipe } from './snapshot-parse.mjs'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const TABLE_NAME = /^[a-z_][a-z0-9_]*\.[a-z_][a-z0-9_]*$/

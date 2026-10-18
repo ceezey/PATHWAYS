@@ -3,9 +3,9 @@ import { spawnSync } from 'node:child_process'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { localDatabase, localSupabase } from './local-target.mjs'
+import { localDatabase, localSupabase } from './target.mjs'
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..')
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..')
 const supabase = localSupabase()
 const result = spawnSync(
   'pnpm',

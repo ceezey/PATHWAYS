@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process'
 import { type Page, expect, test } from '@playwright/test'
-import { localDatabase } from '../../../scripts/db/local-target.mjs'
+import { localDatabase } from '../../../scripts/db/local/target.mjs'
 import {
   type Actor,
   hasLocalDb,

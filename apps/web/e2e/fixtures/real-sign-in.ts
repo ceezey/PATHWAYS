@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process'
 import { createHmac, randomBytes } from 'node:crypto'
 import type { Page } from '@playwright/test'
 import { createClient } from '@supabase/supabase-js'
-import { localDatabase } from '../../../../scripts/db/local-target.mjs'
+import { localDatabase } from '../../../../scripts/db/local/target.mjs'
 
 const shell = process.platform === 'win32'
 

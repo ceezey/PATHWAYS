@@ -10,7 +10,7 @@ export const ALLOWED_SUPABASE_URL = `https://${ALLOWED_PROJECT_REF}.supabase.co`
 
 const LOOPBACK_HOSTNAMES = new Set(['127.0.0.1', 'localhost', '[::1]', '::1'])
 
-const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..')
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..')
 
 /** Resolves and validates the --env-file path: it must live under a repo-root `.tmp/`
  * directory, or entirely outside the repository tree. It must never be a tracked file.
@@ -40,7 +40,7 @@ export function resolveEnvFilePath(envFileArg) {
 /** Minimal dependency-free .env parser: KEY=VALUE lines, `#` comments, blank lines skipped,
  * optional single/double-quoted values. Parses without mutating process.env, so guard checks
  * run on an isolated map. Deliberately has no external dependency: this file may run from a
- * bare `node scripts/db/hosted-seed.mjs`, outside any package's own node_modules resolution.
+ * bare `node scripts/db/hosted/seed.mjs`, outside any package's own node_modules resolution.
  */
 export function loadEnvFile(resolvedPath) {
   const text = readFileSync(resolvedPath, 'utf8')

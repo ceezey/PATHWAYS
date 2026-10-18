@@ -2,21 +2,21 @@
 // Hosted runs belong to the developer; implementers use --test-local and an identities fixture only.
 //
 // Usage:
-//   node scripts/db/defense-snapshot.mjs mirror (--env-file <path> | --identities <file>)
-//   node scripts/db/defense-snapshot.mjs dump [--identities <file>]
-//   node scripts/db/defense-snapshot.mjs restore (--env-file <path> | --test-local) [--identities <file>]
+//   node scripts/db/defense/snapshot.mjs mirror (--env-file <path> | --identities <file>)
+//   node scripts/db/defense/snapshot.mjs dump [--identities <file>]
+//   node scripts/db/defense/snapshot.mjs restore (--env-file <path> | --test-local) [--identities <file>]
 //     [--today YYYY-MM-DD, test-local only] [--skip-storage] [--allow-shift] [--dry-run]
-//   node scripts/db/defense-snapshot.mjs storage (--env-file <path> | --test-local)
+//   node scripts/db/defense/snapshot.mjs storage (--env-file <path> | --test-local)
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { readJson } from './defense-snapshot-io.mjs'
-import { dump, mirror } from './defense-snapshot-local.mjs'
-import { restore, storage } from './defense-snapshot-restore.mjs'
-import { assertIdentities } from './defense-snapshot-target.mjs'
-import { assertSeedTarget, loadEnvFile, resolveEnvFilePath } from './hosted-seed-target.mjs'
+import { assertSeedTarget, loadEnvFile, resolveEnvFilePath } from '../hosted/seed-target.mjs'
+import { readJson } from './snapshot-io.mjs'
+import { dump, mirror } from './snapshot-local.mjs'
+import { restore, storage } from './snapshot-restore.mjs'
+import { assertIdentities } from './snapshot-target.mjs'
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..')
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..')
 const files = {
   identities: path.join(root, '.tmp', 'defense-identities.json'),
   data: path.join(root, '.tmp', 'defense-snapshot', 'data.sql'),
@@ -63,7 +63,7 @@ async function main() {
   const args = parseArgs(process.argv.slice(2))
   if (!Object.hasOwn(commands, args.command ?? '')) {
     console.error(
-      'Usage: node scripts/db/defense-snapshot.mjs mirror|dump|restore|storage [options]',
+      'Usage: node scripts/db/defense/snapshot.mjs mirror|dump|restore|storage [options]',
     )
     process.exit(2)
   }

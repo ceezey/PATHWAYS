@@ -31,7 +31,7 @@ function invocation(purpose: 'DRAIN' | 'SWEEP', budgetMs = 24_000): MachineInvoc
 }
 
 /** Default drain: runs the same worker the API's drain endpoint runs, against the dedicated machine
- * roles that scripts/db/local-demo.mjs opens for the length of this seed; skips when they are absent. */
+ * roles that scripts/db/local/demo.mjs opens for the length of this seed; skips when they are absent. */
 export function localDrainRules(log: (line: string) => void) {
   let worker: RulesMachineWorker | undefined
   return async () => {

@@ -5,7 +5,7 @@ const LOCAL_DB_PORT = '54322'
 /**
  * The local presentation workspace writes only to the loopback Supabase stack. Every URL must be
  * a loopback host, both database URLs must use the fixed local database port, and the optional
- * rule-machine URLs (opened only by scripts/db/local-demo.mjs) must be loopback as well. Anything
+ * rule-machine URLs (opened only by scripts/db/local/demo.mjs) must be loopback as well. Anything
  * else, including any production or hosted address, is refused before a connection is made.
  */
 export function assertLocalDemoTarget(env: NodeJS.ProcessEnv) {

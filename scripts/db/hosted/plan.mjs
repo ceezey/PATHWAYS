@@ -1,12 +1,12 @@
-// The ordered build plan for scripts/db/hosted-build.mjs, kept separate and
+// The ordered build plan for scripts/db/hosted/build.mjs, kept separate and
 // pure (no I/O) so it can be unit tested in isolation. Mirrors the sequence
-// in scripts/db/local-reset.mjs, staged for a hosted, non-Docker target.
+// in scripts/db/local/reset.mjs, staged for a hosted, non-Docker target.
 
 export const BASELINE = '0000_pathways_baseline_through_0026'
 
 // The exact 44-row migration ledger (baseline plus 0027-0057 and 0058-0069) this script must produce, in order. This is
 // the repository's own migration directory listing (apps/api/prisma/migrations),
-// asserted against the real directory in hosted-plan.test.mjs so this literal
+// asserted against the real directory in hosted/plan.test.mjs so this literal
 // list can never silently drift from the repo.
 export const MIGRATIONS_IN_ORDER = Object.freeze([
   BASELINE,
@@ -236,7 +236,7 @@ export function assertResumablePrefix(ledgerRows) {
 //  * 0041_activity_media_evidence and 0044_activity_progress_review are both (a) the terminal
 //    state of a completed build (cleanup already ran) and (b) the state of a build that crashed
 //    between the deploy and its own cleanup, which never ran (see the in-process catch in
-//    runHostedBuild / hosted-build.mjs). Both have the same appliedCount.
+//    runHostedBuild / hosted/build.mjs). Both have the same appliedCount.
 //  * 0043_activity_overdue_explanation is (a) a plain ledger that still needs the 0044
 //    preprovision, or (b) a build that crashed after that preprovision and before the 0044
 //    deploy, whose temporary chain is still granted (the preprovision would refuse to run again).
