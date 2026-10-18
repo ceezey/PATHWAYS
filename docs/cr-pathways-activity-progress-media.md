@@ -52,7 +52,7 @@ The developer decided on 2026-09-28:
   - `p3_evidence_file` (`:4614`) requires a private scoped key, a hex digest, a positive size and a MIME-shaped content type;
   - public-visibility rules keep new evidence `PRIVATE` with `consent_confirmed = false` and `is_identifying = true`.
 - **Auth RFC section 4.** Pending-proof inspection is limited to assigned, distinct M&E reviewers. No broader media release.
-- **Local storage.** `supabase/config.toml:117` sets `file_size_limit = "50MiB"`. The local seed creates `pathways-private` with `public: false` only (`apps/api/prisma/local-synthetic-seed.ts:100-101`).
+- **Local storage.** `supabase/config.toml:117` sets `file_size_limit = "50MiB"`. The local seed creates `pathways-private` with `public: false` only (`apps/api/prisma/seeds/local-synthetic-seed.ts:107-108`).
 
 ## 3. Proposed Change
 
