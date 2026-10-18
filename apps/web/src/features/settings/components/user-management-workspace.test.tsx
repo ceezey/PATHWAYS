@@ -1,77 +1,15 @@
 /* @vitest-environment jsdom */
 
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import type { ChangeEvent, ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { UserManagementWorkspace } from './user-management-workspace'
 
-vi.mock('@/components/ui/select', async () => {
-  const { Children, createElement, isValidElement } = await import('react')
-  const SelectContent = () => null
-  const SelectItem = () => null
-  const SelectTrigger = () => null
-  return {
-    Select: ({
-      children,
-      disabled,
-      onValueChange,
-      value,
-    }: {
-      children: ReactNode
-      disabled?: boolean
-      onValueChange?: (value: string) => void
-      value?: string
-    }) => {
-      let triggerProps: Record<string, unknown> = {}
-      const options: ReactNode[] = []
-      Children.forEach(children, (child) => {
-        if (!isValidElement(child)) return
-        if (child.type === SelectTrigger) triggerProps = child.props as Record<string, unknown>
-        if (child.type !== SelectContent) return
-        Children.forEach((child.props as { children?: ReactNode }).children, (item) => {
-          if (!isValidElement(item) || item.type !== SelectItem) return
-          const props = item.props as { children?: ReactNode; value: string }
-          options.push(
-            createElement('option', { key: props.value, value: props.value }, props.children),
-          )
-        })
-      })
-      return createElement(
-        'select',
-        {
-          ...triggerProps,
-          disabled,
-          value,
-          onChange: (event: ChangeEvent<HTMLSelectElement>) => onValueChange?.(event.target.value),
-        },
-        options,
-      )
-    },
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue: () => null,
-  }
-})
+import { baseUser, projectManagerProfile } from '@/test/fixtures/user-management-fixtures'
 
-const baseUser = {
-  id: 'user-1',
-  authUserId: 'auth-user-1',
-  name: 'Ada Lovelace',
-  email: 'ada@example.test',
-  role: 'Project Officer' as const,
-  accountStatus: 'Active' as const,
-  signInMethod: 'Supabase account' as const,
-  projectIds: [],
-  projectAccess: [],
-  createdAt: new Date().toISOString(),
-  lastActiveAt: new Date().toISOString(),
-}
-
-const projectManagerProfile = {
-  permissions: ['users.authorize'],
-}
+vi.mock('@/components/ui/select', async () =>
+  (await import('@/test/fixtures/user-management-fixtures')).selectMock(),
+)
 
 let currentRole: {
   role: string | null
