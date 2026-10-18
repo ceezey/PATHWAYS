@@ -1089,3 +1089,7 @@ Ruling: Task 4 passed review; the review found reachable logic the new tests lea
 Ruling: Task 5 passed review; two security behaviors of Review Focus 5 were reachable but unpinned (the session re-check before each factor call, the sign-out card not flashing on a successful sign-out), so a tests-only fix with mutation proofs follows the Task 4 fix round; the split react imports and the 23-value hook return stay (Biome output, ruling 7). Cost if wrong: two more test cases.
 
 Ruling: the review fix rounds added 3 user editor cases (9b405c25) and 3 MFA cases (f48d89ab), tests only with mutation proofs, so S8b ends at web 307 files and 3478 tests instead of the plan's 3472; Task 6 and Task 7 state the six extra cases. Cost if wrong: none.
+
+Ruling: the final S8b review approved with two record nits (the change record counts useState lines including the import, 11 and 12, where the calls are 10 and 11; the Task 1 figure 304 files and 3478 tests reads like a typo though it is the true Task 1 result); the useState wording is corrected in the Task 7 gate commit and the Task 1 figure stays. Cost if wrong: none.
+
+Ruling: Task 7 gates passed (web 307 files and 3478 tests, all other figures equal the baselines, Middleware equals M0 103 kB, /dashboard the only bigger route at +1 kB); the first compare summary is different 14 rather than 15 because /transparency did not round down 1 kB here, the same variance as Task 3. SAD sign-off at 5d67f532 exit 0 with manifest 1, 10, 165 (176 entries, 0 blocked). Cost if wrong: none.
