@@ -39,7 +39,14 @@ describe('auth navigation failure and wiring contracts', () => {
     expect(recovery).not.toMatch(/pathwaysClient|useEffect|searchParams|localStorage/)
   })
   it('retains a native user-initiated MFA retry and only action-specific MFA status requests', () => {
-    const form = source('features/auth/components/mfa-form.tsx')
+    const form = [
+      'features/auth/components/mfa-form.tsx',
+      'features/auth/components/mfa-verified-panel.tsx',
+      'features/auth/hooks/use-mfa-flow.ts',
+      'features/auth/hooks/use-mfa-handoff.ts',
+    ]
+      .map(source)
+      .join('\n')
     expect(form).toContain('<a href="/workspace">Retry opening workspace</a>')
     expect(form.match(/'\/auth\/mfa\/status'/g)).toHaveLength(2)
     expect(form).not.toMatch(/window\.location\.(?:replace|assign)/)
