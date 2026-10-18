@@ -13,7 +13,7 @@
     "lint": "pnpm exec biome check .",
     "format": "pnpm exec biome format --write .",
     "test": "pnpm -r --if-present run test",
-    "test:scripts": "node --test \"scripts/db/**/*.test.mjs\" infra/supabase/security-adapter/runtime-output.test.mjs",
+    "test:scripts": "node --test \"scripts/db/**/*.test.mjs\" scripts/tsconfig-aliases.test.mjs infra/supabase/security-adapter/runtime-output.test.mjs",
     "typecheck": "pnpm -r --if-present run typecheck",
     "docs:check": "python scripts/docs/check.py docs",
     "docs:materialize": "python scripts/docs/materialize.py docs",
