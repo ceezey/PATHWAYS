@@ -1113,3 +1113,17 @@ Ruling: Pester 5 cannot be installed in the cloud container (NuGet and the Power
 Ruling: the docs:check baseline is 0 failures and 0 warnings (dev's fix 34162c12), so any failure is a stop, and the "171 PASS" figure of the CI replay is dropped from the plan (the PASS count is read from the CI run). Cost if wrong: a docs failure or a replay count change goes unnoticed.
 
 Ruling: every W1 commit runs as ceezey with the Co-Authored-By Claude Opus 5.5 trailer and the Claude-Session trailer of this session (01QPvEwEhu9YUbjKLd7DLzUg). Cost if wrong: none.
+
+- Ruling: W1 staged on claude/modularization-s8b-xjnlzt by cherry-picking the pre-flight staging commit (tree identical to 0f834e5d in the replay clone). Cost if wrong: none.
+
+- Ruling: W1 Task 0 (e91e8554) matched every baseline; Task 1 (bb4cd150, 7f6c3501) passed review with no findings. Cost if wrong: none.
+
+- Ruling: W1 Task 2 (07db5d63) passed review with no findings (45 cases kept, lost 0). Cost if wrong: none.
+
+- Ruling: W1 Task 3 passed review; the forwarding stubs exit 1 when the child dies by a signal (the old direct run reported the signal) and reset.mjs joins 'local/seed.mjs' as one segment; both stay as the pre-flighted plan wrote them, because the stubs only keep old entry points alive and the join resolves the same path. Cost if wrong: an exit code 1 instead of a signal on an interrupted old entry point.
+
+- Ruling: W1 Task 4 passed review; the PowerShell forwarders end with exit $LASTEXITCODE, which is exact because all four targets end with an explicit exit. Cost if wrong: a stale exit code if a target later loses its exit line.
+
+- Ruling: W1 Task 5 passed review; three current docs still name the old seed paths (cr-pathways-activity-progress-media.md line 55, cr-pathways-report-pdf-renderer.md line 21, cr-pathways-codebase-modularization.md lines 252 and 262), so a docs-only fix follows the records commit; history records keep their old paths. Cost if wrong: none.
+
+- Ruling: W1 Task 6 passed review; the tooling job's vacuous-pass edge cases (zero-test discovery, unpinned Python and Pester floor 5.0) stay as the pre-flighted plan wrote them, because every target exists today and pinning is outside the W1 roadmap row; the first CI run of the part 3 pull request shows the real counts. Cost if wrong: a future empty test run passing silently.

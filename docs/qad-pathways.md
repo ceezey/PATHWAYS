@@ -436,10 +436,11 @@ RBAC v4 under [its approved Change Record](cr-pathways-rbac-v4-grant-migration.m
 | `./infra/supabase/replay/Replay-Local.ps1 -MigrationBaseline` | migration and SQL runtime replay on disposable PostgreSQL |
 | `./infra/supabase/replay/Replay-Local.ps1 -MigrationBaseline -SaveTemplate`, then `./infra/supabase/replay/Invoke-RuntimeSql.ps1 -File <sql>` | save the replayed cluster once per migration change, then run one runtime SQL file against a disposable copy (development speed only, the full replay stays the merge gate) |
 | `./infra/supabase/replay/Test-SchemaDrift.ps1` (`-Accept` after a reviewed migration plus schema change) | seconds-long check that `schema.prisma` matches the migration chain, run against the saved template (exit 0 clean, 2 drift, 1 error) |
+| `pnpm test:scripts` | node tests of `scripts/db` and the security adapter output check (the `tooling` CI job also runs the Python migration checks and two Pester files) |
 | `pnpm sad:test`, `pnpm sad:typecheck`, `pnpm sad:check` | SAD checker |
 | `pnpm docs:check` | documentation checks |
 
-CI (`.github/workflows/ci.yml`) runs Prisma validate and generate, the replay on PostgreSQL 18, the secret-assignment scan, lint, typecheck, test and build, plus the automated SAD checks as a separate job. CI publishes diagnostics without claiming full SAD approval; an unexecuted CI job is not verified evidence.
+CI (`.github/workflows/ci.yml`) runs Prisma validate and generate, the replay on PostgreSQL 18, the secret-assignment scan, lint, typecheck, test and build, plus the tooling tests (database scripts, security adapter output, migration checks and the replay helper Pester files) and the automated SAD checks as separate jobs. CI publishes diagnostics without claiming full SAD approval; an unexecuted CI job is not verified evidence.
 
 Automate:
 

@@ -87,7 +87,7 @@ A feature index may also export the print primitives another feature's print vie
 ### 3.5 Naming and size rules
 
 - Kebab-case file names that describe purpose; no phase or ticket codes (`p07-w10`, `f6-gates`, `phase6`).
-- Allowed suffixes: `.module`, `.controller`, `.service`, `.mapper`, `.helpers` (api); `.reads`, `.utils`, `.copy`, `.schema` (web).
+- Allowed suffixes: `.module`, `.controller`, `.service`, `.mapper`, `.helpers`, `.harness` (api; a harness holds the fixtures and helpers that the test files of one source share, and `tsconfig.build.json` excludes it, amended 2026-10-18 for W1); `.reads`, `.utils`, `.copy`, `.schema` (web).
 - Source files target 300 lines or fewer and are flagged in review above 500; pure data tables (seed data, synonym lists) are exempt.
 - Tests sit beside their source; above about 600 lines they split by concern as `<file>.<concern>.test.ts`.
 
@@ -143,7 +143,8 @@ Wrap-up:
 
 | ID | Sub-project | Contents |
 |---|---|---|
-| W1 | Tooling and docs | `scripts/db/{local,hosted,defense}`, `infra/supabase/phase6` renamed to `replay`, unrun tests wired into CI or retired, path aliases in one place, `docs/check.py` split, seed scripts into `prisma/seeds/`, SDD, runbook, AGENTS.md and README paths updated |
+| W1 | Tooling and docs | `scripts/db/{local,hosted,defense}`, `infra/supabase/phase6` renamed to `replay`, unrun tests wired into CI or retired, seed scripts into `prisma/seeds/` (flat), SDD, runbook and README paths updated, and the deferrals of the cloud runs (W1 split into W1 and W2 on 2026-10-18, section 9) |
+| W2 | Tooling follow-up | the `lib/services` residue, path aliases in one place, the `scripts/docs/check.py` split and the splits of the largest tests; the per-domain seed data splits are left to the developer |
 
 ## 4. Impact
 
@@ -535,3 +536,15 @@ S8b applied 2026-10-18 on the S8b slice branch:
 - Decisions: the layout comes before the splits (ruling 1); `core-feature-client.ts` is deleted because its artifact helpers moved (ruling 3); user management is tested before it is cut (ruling 6); the MFA form splits by concern, not by step, and one effect order changed (ruling 7); the layout keeps two request helpers at the folder root (ruling 8).
 
 All slices S1 to S8 are applied; W1 (tooling and docs) is the remaining sub-project (the wrap-up table of section 3.7).
+
+W1 applied 2026-10-18 on `claude/modularization-s8b-xjnlzt` (W1 stacks on the S8b slice branch):
+- Deferrals of earlier slices: `ParticipantsService` lost its unused `PrismaService` parameter, the eight `Prisma.TransactionClient` annotations of the imports and metadata test harnesses became `Tx`, the two demo seed literal unions follow `OverdueExplanationCategory` and `ReportKindCode`, the C2/C4 and survey subject web tests became `lib/api/scoped-endpoints.test.ts` and `lib/api/beneficiaries.survey-subject.test.ts`, and the dead `pathways-client` mock factory left `beneficiary-detail-loader.test.tsx`.
+- Analytics test: `analytics.service.test.ts` (1514 lines) became `analytics.service.harness.ts` and three test files by concern (read and export, survey and timeline, aggregate-only roles); every line and all 59 test titles are kept, `tsconfig.build.json` excludes `*.harness.ts` and section 3.5 lists `.harness`.
+- Scripts: the 34 files of `scripts/db` moved into `local/` (6), `hosted/` (9) and `defense/` (19) without the group prefix; `hosted-build.mjs`, `hosted-seed.mjs`, `defense-demo.mjs` and `defense-snapshot.mjs` stay at the old path as forwarders for the Windows PowerShell workflows and the runbooks outside the repository.
+- Replay: `infra/supabase/phase6` is `infra/supabase/replay` (58 files, all pure renames, so `Verify-Forward.ps1` keeps the hash it records); the CI replay step, the SAD globs and the path joins of `scripts/db` follow, and `Replay-Local.ps1`, `Invoke-RuntimeSql.ps1`, `Invoke-RuntimeVitest.ps1` and `Test-SchemaDrift.ps1` stay at the old path as forwarders. The internal names (`$phase6*` variables, the database `pathways_phase4_phase6_replay`, `PATHWAYS_PHASE6_REPLAY_MIGRATIONS`, `.tmp/pathways-phase6-*`) stay, because the CI environment, the runtime SQL guards and the legacy retirement SQL name them.
+- Seeds: 56 files (46 scripts, 6 demo photos, 4 import fixtures) moved flat into `apps/api/prisma/seeds`; `schema.prisma`, `migrations/`, `history/`, `tests/`, `check-connection.ts`, the legacy retirement files and the authorization bootstrap runner stay in `prisma`. The seed files import each other in a cycle across local, defense and hosted, so the `seeds/{local,defense,hosted}` subfolders of MOD-21 are not made.
+- Tests in CI: a `tooling` job runs `npm run test:scripts`, the Python migration checks and the `replay-port` and `replay-timing` Pester files. Nothing is retired: `test_catalogs.py` checks the immutable archive of 27 migrations, which is its subject. `Invoke-RuntimeSql`, `Invoke-RuntimeVitest` and `Test-SchemaDrift` Pester files need a saved replay cluster and a non-root `initdb`, so they stay local runs.
+- Docs: the living docs (runbooks, QAD, SAD, deferred features, READMEs) follow every moved path by script; the history files (this record, the audits, the activity log, the handoff and superpowers documents, the migrations) keep the paths they were written with. AGENTS.md is generated from `docs/build-pathways.md`, which names none of the moved paths.
+- Decisions: W1 split into W1 and W2 (ruling 1); the seeds are flat (ruling 5); no test is retired (ruling 6); only the analytics service test is split and the other tests above 600 lines stay (ruling 7).
+
+Deferred to W2: `authorized-read-events.ts` and `source-mutation.ts` (with its test) from `lib/services` to `lib/api/core` and the scan for retiring the `pathways-client.ts` shell, path aliases in one place, the `scripts/docs/check.py` split, and the splits of the test files above 600 lines. Left to the developer: the per-domain splits of `local-demo-data.ts` and `hosted-realistic-seed.ts`, whose proof is a seed run on a local database that the cloud container cannot do.
