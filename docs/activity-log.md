@@ -868,3 +868,8 @@
 - Gate: S6c is the last slice of part 2 of 3 stacked pull requests into `dev`; the controller opens the pull request (`claude/modularization-s6c-9ept8o` into `dev`) after the S6c sign-off.
 - Review fixes: the final review asked for the report route wording, the PRD G-F12-1 trace row and the 836 line api reports test named as W2 debt, fixed in the gate commit.
 - Gates (2026-10-14, cloud container, head 5e9c774a): lint, typecheck and tests pass with config 19, shared 42 files and 721 tests, imports 94, api 153 files with 2614 passed and 21 skipped, web 250 files and 2427 tests, sad 57; noUnusedLocals shows only the two baseline lines; docs check 6 failures and 1 warning (baseline); production build exit 0 with Middleware 103 kB and three project routes 1 kB bigger, none more; SAD PASS on 75 paths (organization isolation 6, beneficiary privacy 13, design QA 56); replay: initdb refuses root in the container, so the part 2 pull request CI is the gate; pending local run: seeds, dev servers, both e2e suites and the browser smoke. S6c is the last slice of part 2 of 3 stacked pull requests into dev.
+
+## 2026-10-19 Rules drawer condition rows grouped by monitoring area
+
+- Condition rows render per selected Applies To area with a labeled add button each; changing areas seeds one row per newly selected area; step labels renamed (Monitoring area(s), What should we check?); `scopeOf` and `suffix` exported from the board model.
+- Gates: rules-board drawer tests pass and typecheck is clean; `review-card-list.test.tsx` has 1 failure that already exists on HEAD 931bd08e (indicator progress copy), not caused by this change.

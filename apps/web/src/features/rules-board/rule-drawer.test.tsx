@@ -78,10 +78,11 @@ const renderDrawer = (props: Partial<React.ComponentProps<typeof RuleDrawer>> = 
 const option = (name: string) => screen.queryByRole('option', { name })
 const fillBasics = () => {
   fireEvent.change(screen.getByLabelText('Rule Name'), { target: { value: 'Late project' } })
-  fireEvent.change(screen.getByLabelText('Metric'), {
+  const projectGroup = screen.getByRole('group', { name: 'Project' })
+  fireEvent.change(within(projectGroup).getByLabelText('What should we check?'), {
     target: { value: 'PROJECT_REMAINING_DAYS' },
   })
-  fireEvent.change(screen.getByLabelText('Threshold'), { target: { value: '30' } })
+  fireEvent.change(within(projectGroup).getByLabelText('Threshold'), { target: { value: '30' } })
 }
 const initialViewportWidth = window.innerWidth
 afterEach(() => {
@@ -151,19 +152,20 @@ describe('RuleDrawer', () => {
     renderDrawer()
     expect(screen.queryByText('Time Basis')).toBeNull()
     expect(screen.queryByText('Notification Recipients')).toBeNull()
-    expect(screen.getByLabelText('Metric').closest('[class~="bg-background"]')).toBeTruthy()
+    expect(
+      screen.getByLabelText('What should we check?').closest('[class~="bg-background"]'),
+    ).toBeTruthy()
     expect(
       screen.getByLabelText('Recommendation title').closest('[class~="bg-background"]'),
     ).toBeTruthy()
   })
-  it('uses compact add controls in the condition and recommendation step headers', () => {
+  it('uses a compact icon-only add control for recommendations and a labeled add button per area', () => {
     renderDrawer()
-    expect(screen.getByRole('button', { name: 'Add condition' }).querySelector('svg')).toBeTruthy()
     expect(
       screen.getByRole('button', { name: 'Add recommendation' }).querySelector('svg'),
     ).toBeTruthy()
-    expect(screen.queryByText('Add condition')).toBeNull()
     expect(screen.queryByText('Add recommendation')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Add another Project condition' })).toBeTruthy()
   })
   it('filters metrics by Applies To and shows a category tag for each selected scope family', () => {
     renderDrawer()
@@ -176,15 +178,16 @@ describe('RuleDrawer', () => {
     expect(screen.getByTestId('rule-category-label').textContent).toBe('Rule Categories:')
     expect(within(screen.getByTestId('rule-category')).getByText('Schedule')).toBeTruthy()
     expect(within(screen.getByTestId('rule-category')).getByText('Delivery')).toBeTruthy()
-    fireEvent.change(screen.getByLabelText('Metric'), {
+    const activityGroup = screen.getByRole('group', { name: 'Activity' })
+    fireEvent.change(within(activityGroup).getByLabelText('What should we check?'), {
       target: { value: 'ACTIVITY_OVERDUE_COUNT' },
     })
-    expect((screen.getByLabelText('Unit') as HTMLInputElement).value).toBe('Count')
+    expect(within(activityGroup).queryByText('%')).toBeNull()
     expect(screen.queryByLabelText('Rule Category')).toBeNull()
   })
   it('keeps scopes with an available metric enabled', () => {
     renderDrawer()
-    const scope = screen.getByLabelText('Rule scope') as HTMLSelectElement
+    const scope = screen.getByLabelText('Monitoring area(s)') as HTMLSelectElement
     const appliesTo = screen.getByRole('group', { name: 'Applies To' })
     expect(scope.parentElement?.className).not.toContain('overflow-hidden')
     expect(scope.parentElement?.className).toContain('rounded-md')
@@ -195,7 +198,7 @@ describe('RuleDrawer', () => {
       false,
     )
   })
-  it('explains scopes through accessible information tooltips without setting a threshold', () => {
+  it('explains scopes through accessible information tooltips and shows metric guidance without setting a threshold', () => {
     renderDrawer()
     const projectScopeInfo = screen.getByRole('button', {
       name: 'More information about Project scope',
@@ -214,36 +217,17 @@ describe('RuleDrawer', () => {
     fireEvent.keyDown(indicatorScopeInfo, { key: 'Escape' })
     expect(screen.queryByRole('tooltip')).toBeNull()
     fireEvent.click(screen.getByRole('checkbox', { name: 'Assessment' }))
-    fireEvent.change(screen.getByLabelText('Metric'), {
+    const assessmentGroup = screen.getByRole('group', { name: 'Assessment' })
+    fireEvent.change(within(assessmentGroup).getByLabelText('What should we check?'), {
       target: { value: 'SURVEY_MEAN_IMPROVEMENT_POINTS' },
     })
-    const guidance = screen.getByRole('button', { name: 'About Average assessment score change' })
-    expect(guidance.getAttribute('aria-expanded')).toBe('false')
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Project' }))
     expect(
-      screen.queryByText(
-        'Average post-test minus pre-test score after converting scores to a 0–100 scale. Negative values indicate a decline.',
-      ),
-    ).toBeNull()
-    fireEvent.click(guidance)
-    expect(guidance.getAttribute('aria-expanded')).toBe('true')
-    expect(
-      screen.getByText(
+      within(assessmentGroup).getByText(
         'Average post-test minus pre-test score after converting scores to a 0–100 scale. Negative values indicate a decline.',
       ),
     ).toBeTruthy()
-    expect(screen.getByText('Monitors: Project aggregate. Unit: Percentage points.')).toBeTruthy()
-    expect(
-      screen.getByText('A score increasing from 60% to 75% changes by 15 percentage points.'),
-    ).toBeTruthy()
-    expect(
-      screen.getByText(
-        'Enter the threshold yourself. This example does not fill or save a threshold.',
-      ),
-    ).toBeTruthy()
-    fireEvent.click(guidance)
-    expect(guidance.getAttribute('aria-expanded')).toBe('false')
-    expect(screen.queryByText('Monitors: Project aggregate. Unit: Percentage points.')).toBeNull()
-    expect((screen.getByLabelText('Threshold') as HTMLInputElement).value).toBe('')
+    expect((within(assessmentGroup).getByLabelText('Threshold') as HTMLInputElement).value).toBe('')
     expect(screen.getByTestId('rule-preview').textContent).toBe(
       'Raise a Medium alert when Average assessment score change is below ... percentage points. Human review required.',
     )
@@ -261,7 +245,7 @@ describe('RuleDrawer', () => {
     expect(screen.getByText('Choose an existing alert')).toBeTruthy()
     expect(screen.getByText('What should the system recommend?')).toBeTruthy()
     expect(screen.queryByLabelText('Rule Name')).toBeNull()
-    expect(screen.queryByLabelText('Metric')).toBeNull()
+    expect(screen.queryByLabelText('What should we check?')).toBeNull()
     expect(screen.queryByRole('radio', { name: /High/ })).toBeNull()
 
     fireEvent.click(screen.getByRole('button', { name: 'Choose from alert library' }))
@@ -399,13 +383,14 @@ describe('RuleDrawer', () => {
     const project = { id: '30000000-0000-4000-8000-000000000001', title: 'North' }
     renderDrawer({ projectId: project.id, projects: [project] })
     fireEvent.click(screen.getByRole('checkbox', { name: /Indicator/ }))
-    fireEvent.change(screen.getByLabelText('Metric'), {
+    const indicatorGroup = screen.getByRole('group', { name: 'Indicator / KPI' })
+    fireEvent.change(within(indicatorGroup).getByLabelText('What should we check?'), {
       target: { value: 'INDICATOR_PROGRESS_PERCENT' },
     })
-    fireEvent.change(screen.getByLabelText('Rule scope'), { target: { value: '' } })
+    fireEvent.change(screen.getByLabelText('Monitoring area(s)'), { target: { value: '' } })
     expect(screen.queryByRole('alert')).toBeNull()
     expect(option('Progress toward indicator target')).toBeNull()
-    expect((screen.getByLabelText('Metric') as HTMLSelectElement).value).toBe(
+    expect((screen.getByLabelText('What should we check?') as HTMLSelectElement).value).toBe(
       'PROJECT_TIMELINE_ELAPSED_PERCENT',
     )
   })
@@ -413,12 +398,12 @@ describe('RuleDrawer', () => {
     const first = { id: '30000000-0000-4000-8000-000000000001', title: 'North' }
     const second = { id: '30000000-0000-4000-8000-000000000002', title: 'South' }
     renderDrawer({ projectId: first.id, projects: [first, second] })
-    fireEvent.change(screen.getByLabelText('Metric'), {
+    fireEvent.change(screen.getByLabelText('What should we check?'), {
       target: { value: 'PROJECT_REMAINING_DAYS' },
     })
     fireEvent.change(screen.getByLabelText('Threshold'), { target: { value: '20' } })
-    fireEvent.change(screen.getByLabelText('Rule scope'), { target: { value: second.id } })
-    expect((screen.getByLabelText('Metric') as HTMLSelectElement).value).toBe(
+    fireEvent.change(screen.getByLabelText('Monitoring area(s)'), { target: { value: second.id } })
+    expect((screen.getByLabelText('What should we check?') as HTMLSelectElement).value).toBe(
       'PROJECT_REMAINING_DAYS',
     )
     expect((screen.getByLabelText('Threshold') as HTMLInputElement).value).toBe('20')
@@ -428,7 +413,8 @@ describe('RuleDrawer', () => {
     fireEvent.click(screen.getByRole('checkbox', { name: /Project/ }))
     expect(screen.getByRole('alert').textContent).toBe('Select at least one Applies To family.')
     fireEvent.click(screen.getByRole('checkbox', { name: /Activity/ }))
-    fireEvent.change(screen.getByLabelText('Metric'), {
+    const activityGroup = screen.getByRole('group', { name: 'Activity' })
+    fireEvent.change(within(activityGroup).getByLabelText('What should we check?'), {
       target: { value: 'ACTIVITY_COMPLETION_PERCENT' },
     })
     fireEvent.click(screen.getByRole('checkbox', { name: /Activity/ }))
@@ -437,7 +423,7 @@ describe('RuleDrawer', () => {
   })
   it('suggests severity without overwriting a manual choice and saves the chosen severity', async () => {
     renderDrawer()
-    fireEvent.change(screen.getByLabelText('Metric'), {
+    fireEvent.change(screen.getByLabelText('What should we check?'), {
       target: { value: 'PROJECT_OVERDUE_DAYS' },
     })
     fireEvent.change(screen.getByLabelText('Condition'), { target: { value: 'GTE' } })
@@ -459,9 +445,11 @@ describe('RuleDrawer', () => {
       'Review project timeline',
     )
     fireEvent.click(screen.getByRole('checkbox', { name: /Budget/ }))
-    fireEvent.change(screen.getByLabelText('Metric'), {
+    const budgetGroup = screen.getByRole('group', { name: 'Budget' })
+    fireEvent.change(within(budgetGroup).getByLabelText('What should we check?'), {
       target: { value: 'BUDGET_UTILIZATION_PERCENT' },
     })
+    fireEvent.click(screen.getByRole('checkbox', { name: /Project/ }))
     await waitFor(() =>
       expect((screen.getByLabelText('Recommendation title') as HTMLInputElement).value).toBe(
         'Review budget utilization',
@@ -471,7 +459,8 @@ describe('RuleDrawer', () => {
       target: { value: 'Keep my tailored title' },
     })
     fireEvent.click(screen.getByRole('checkbox', { name: /Assessment/ }))
-    fireEvent.change(screen.getByLabelText('Metric'), {
+    const assessmentGroup = screen.getByRole('group', { name: 'Assessment' })
+    fireEvent.change(within(assessmentGroup).getByLabelText('What should we check?'), {
       target: { value: 'SURVEY_MEAN_IMPROVEMENT_POINTS' },
     })
     expect((screen.getByLabelText('Recommendation title') as HTMLInputElement).value).toBe(
@@ -503,9 +492,11 @@ describe('RuleDrawer', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Choose from recommendation library' }))
     fireEvent.click(screen.getByRole('button', { name: 'Copy recommendation to this rule' }))
     fireEvent.click(screen.getByRole('checkbox', { name: /Budget/ }))
-    fireEvent.change(screen.getByLabelText('Metric'), {
+    const budgetGroup = screen.getByRole('group', { name: 'Budget' })
+    fireEvent.change(within(budgetGroup).getByLabelText('What should we check?'), {
       target: { value: 'BUDGET_UTILIZATION_PERCENT' },
     })
+    fireEvent.change(within(budgetGroup).getByLabelText('Threshold'), { target: { value: '10' } })
     fillBasics()
     fireEvent.click(screen.getByRole('button', { name: 'Save Rule' }))
     await waitFor(() => expect(state.createRule).toHaveBeenCalled())

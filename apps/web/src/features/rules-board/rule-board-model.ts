@@ -211,7 +211,7 @@ export const operatorWords = {
   BETWEEN: 'between',
 } as const
 
-const scopeOf = (key: string): MetricScope =>
+export const scopeOf = (key: string): MetricScope =>
   (METRIC_CATALOG as Record<string, MetricEntry | undefined>)[key]?.scope ?? 'Project'
 export const unitOf = (key: string): MetricUnit =>
   (METRIC_CATALOG as Record<string, MetricEntry | undefined>)[key]?.unit ?? 'value'
@@ -240,7 +240,7 @@ export const categoriesForScopes = (scopes: readonly MetricScope[]): MetricCateg
   }
   return [...categories]
 }
-const suffix = (key: string) => {
+export const suffix = (key: string) => {
   const unit = unitOf(key)
   return unit === '%'
     ? '%'
