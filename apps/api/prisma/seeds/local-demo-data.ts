@@ -1,5 +1,5 @@
 /**
- * Content for the local presentation workspace (apps/api/prisma/local-demo-seed.ts). Pure data and
+ * Content for the local presentation workspace (apps/api/prisma/seeds/local-demo-seed.ts). Pure data and
  * pure builders only: no I/O, no clock reads, so the content can be unit tested. Everything here is
  * fictional. Dates are expressed as day offsets from the run date so that "overdue", "near
  * completion" and "upcoming" stay true whenever the workspace is built.

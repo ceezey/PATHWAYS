@@ -1,8 +1,8 @@
 import { createInterface } from 'node:readline/promises'
 import type { PrismaClient } from '@prisma/client'
-import type { MachineInvocation } from '../src/modules/rules/rules-machine-boundary'
-import { RulesMachineSqlClient } from '../src/modules/rules/rules-machine-sql'
-import { RulesMachineWorker } from '../src/modules/rules/rules-machine-worker'
+import type { MachineInvocation } from '../../src/modules/rules/rules-machine-boundary'
+import { RulesMachineSqlClient } from '../../src/modules/rules/rules-machine-sql'
+import { RulesMachineWorker } from '../../src/modules/rules/rules-machine-worker'
 
 const POLL_MS = 15_000
 const TIMEOUT_MS = 15 * 60_000

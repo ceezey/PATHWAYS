@@ -6,7 +6,7 @@ import { localDatabase } from '../../../../scripts/db/local/target.mjs'
 
 const shell = process.platform === 'win32'
 
-// Local seed accounts by role, as defined in apps/api/prisma/local-demo-seed.ts.
+// Local seed accounts by role, as defined in apps/api/prisma/seeds/local-demo-seed.ts.
 export const seedAccounts = {
   SA: 'cian.francisco@pathways.example',
   PO: 'liza.bautista@pathways.example',

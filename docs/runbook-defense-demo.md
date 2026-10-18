@@ -23,8 +23,8 @@ Service audit timestamps (submitted, reviewed, approved) are immutable by design
 |---|---|
 | `infra/supabase/replay/hosted-defense-demo-wipe-dry-run.sql` | Row counts per table, then ROLLBACK |
 | `infra/supabase/replay/hosted-defense-demo-wipe.sql` | One-transaction TRUNCATE of domain data; keeps org, roles, permissions, users, step-up PINs, lockouts and rules catalogs |
-| `scripts/db/defense/demo.mjs` | Launcher for `apps/api/prisma/defense-demo-seed.ts` |
-| `apps/api/prisma/defense-demo-verify.ts` | Read-only checks run by `--verify` |
+| `scripts/db/defense/demo.mjs` | Launcher for `apps/api/prisma/seeds/defense-demo-seed.ts` |
+| `apps/api/prisma/seeds/defense-demo-verify.ts` | Read-only checks run by `--verify` |
 | `scripts/db/defense/snapshot.mjs` | Snapshot mirror, dump, restore and storage copy (section 8) |
 
 ## 3. Env file (hosted)

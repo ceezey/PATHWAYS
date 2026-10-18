@@ -147,7 +147,7 @@ async function main() {
     // leaves Auth users whose passwords are unknown.
     const created = credentials.filter((entry) => entry.password)
     if (created.length) {
-      const outputDir = path.resolve(__dirname, '..', '..', '..', '.tmp', 'local-seed')
+      const outputDir = path.resolve(__dirname, '..', '..', '..', '..', '.tmp', 'local-seed')
       mkdirSync(outputDir, { recursive: true })
       writeFileSync(
         path.join(outputDir, `credentials-${Date.now()}.json`),

@@ -18,7 +18,7 @@ const result = spawnSync(
     'ts-node/register',
     '-r',
     'tsconfig-paths/register',
-    'prisma/local-load-seed.ts',
+    'prisma/seeds/local-load-seed.ts',
   ],
   {
     cwd: root,

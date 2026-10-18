@@ -1,4 +1,4 @@
-// Launches apps/api/prisma/hosted-realistic-seed.ts against the hosted PATHWAYS-devV2
+// Launches apps/api/prisma/seeds/hosted-realistic-seed.ts against the hosted PATHWAYS-devV2
 // project. Never connects to anything itself: it only validates the env file the developer
 // points at, then hands the resulting env vars to the seed process.
 //
@@ -46,7 +46,7 @@ function main() {
       'ts-node/register',
       '-r',
       'tsconfig-paths/register',
-      'prisma/hosted-realistic-seed.ts',
+      'prisma/seeds/hosted-realistic-seed.ts',
     ],
     {
       cwd: root,

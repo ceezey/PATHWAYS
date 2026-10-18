@@ -1,4 +1,4 @@
-// Launches apps/api/prisma/defense-demo-seed.ts against hosted PATHWAYS-devV2 or, with
+// Launches apps/api/prisma/seeds/defense-demo-seed.ts against hosted PATHWAYS-devV2 or, with
 // --test-local, the loopback Supabase stack. It reuses existing staff accounts and never creates users.
 //
 // Usage:
@@ -38,7 +38,7 @@ function runSeed(env, args) {
       'ts-node/register',
       '-r',
       'tsconfig-paths/register',
-      'prisma/defense-demo-seed.ts',
+      'prisma/seeds/defense-demo-seed.ts',
       ...args,
     ],
     { cwd: root, stdio: 'inherit', shell, env: { ...process.env, ...env } },

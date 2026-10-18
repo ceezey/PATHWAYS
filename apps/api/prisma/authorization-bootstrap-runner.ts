@@ -3,12 +3,12 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { Prisma, PrismaClient } from '@prisma/client'
 import { DEVELOPER_AUTH_UUID } from '../src/modules/auth/developer-bootstrap-identity'
-import { seedCanonicalReferenceData } from './canonical-seed'
+import { seedCanonicalReferenceData } from './seeds/canonical-seed'
 import {
   bootstrapDeveloperAdministrator,
   bootstrapDeveloperOrganization,
   verifyDeveloperBootstrap,
-} from './developer-bootstrap'
+} from './seeds/developer-bootstrap'
 
 export const phase5Checksums = {
   '0001_init': '8b4e25d97b493e6042287373bda015db8e1f1e6a1daf0e49b142484762e248ab',

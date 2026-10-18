@@ -1,5 +1,5 @@
 // Fills the LOCAL Supabase stack with the realistic presentation workspace
-// (apps/api/prisma/local-demo-seed.ts). Run after `pnpm db:local:reset`. Loopback only:
+// (apps/api/prisma/seeds/local-demo-seed.ts). Run after `pnpm db:local:reset`. Loopback only:
 // the database URLs are fixed to the local container and the seed refuses any other target.
 import { execFileSync, spawnSync } from 'node:child_process'
 import { randomBytes } from 'node:crypto'
@@ -85,7 +85,7 @@ assertLocalContainer()
 
 // The base accounts, organization and first project come from the reset; running the base seed
 // again is idempotent and repairs a database that was reset without it.
-let status = run('prisma/local-synthetic-seed.ts').status ?? 1
+let status = run('prisma/seeds/local-synthetic-seed.ts').status ?? 1
 if (status === 0) {
   // Rule evaluation runs on two dedicated machine roles that are provisioned without a login.
   // For the length of this seed they get a random password held only in this process, then are
@@ -98,7 +98,7 @@ ALTER ROLE pathways_rules_sweeper WITH CONNECTION LIMIT 2 PASSWORD '${password}'
   try {
     const base = `@${localDatabase.host}:${localDatabase.port}/postgres`
     status =
-      run('prisma/local-demo-seed.ts', {
+      run('prisma/seeds/local-demo-seed.ts', {
         RULES_WORKER_DATABASE_URL: `postgresql://pathways_rules_worker:${password}${base}`,
         RULES_SWEEPER_DATABASE_URL: `postgresql://pathways_rules_sweeper:${password}${base}`,
       }).status ?? 1

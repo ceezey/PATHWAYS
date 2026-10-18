@@ -1,4 +1,4 @@
-// Writes the local synthetic workspace (apps/api/prisma/local-synthetic-seed.ts).
+// Writes the local synthetic workspace (apps/api/prisma/seeds/local-synthetic-seed.ts).
 import { spawnSync } from 'node:child_process'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -18,7 +18,7 @@ const result = spawnSync(
     'ts-node/register',
     '-r',
     'tsconfig-paths/register',
-    'prisma/local-synthetic-seed.ts',
+    'prisma/seeds/local-synthetic-seed.ts',
   ],
   {
     cwd: root,

@@ -63,7 +63,7 @@ enabled = false
 schema_paths = []
 
 [db.seed]
-# Synthetic data is written by apps/api/prisma/local-synthetic-seed.ts, not seed.sql.
+# Synthetic data is written by apps/api/prisma/seeds/local-synthetic-seed.ts, not seed.sql.
 enabled = false
 # Specifies an ordered list of seed files to load during db reset.
 # Supports glob patterns relative to supabase directory: "./seeds/*.sql"

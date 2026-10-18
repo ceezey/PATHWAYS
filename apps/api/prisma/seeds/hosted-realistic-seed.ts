@@ -11,15 +11,15 @@ import type {
 } from '@pathways/shared'
 import type { CreateProjectRequest } from '@pathways/shared'
 import type { RegisterBeneficiaryRequest } from '@pathways/shared'
-import type { ApplicationIdentity } from '../src/common/authz/application-identity'
-import { ActivityLifecycleService } from '../src/modules/activities/activity-lifecycle.service'
-import { BeneficiariesService } from '../src/modules/beneficiaries/beneficiaries.service'
-import { BeneficiaryRegistrationService } from '../src/modules/beneficiaries/beneficiary-registration.service'
-import { IndicatorMeasurementsService } from '../src/modules/indicators/indicator-measurements.service'
-import { IndicatorsService } from '../src/modules/indicators/indicators.service'
-import { ProjectsService } from '../src/modules/projects/projects.service'
-import { StorageService } from '../src/modules/storage/storage.service'
-import { PrismaService } from '../src/prisma/prisma.service'
+import type { ApplicationIdentity } from '../../src/common/authz/application-identity'
+import { ActivityLifecycleService } from '../../src/modules/activities/activity-lifecycle.service'
+import { BeneficiariesService } from '../../src/modules/beneficiaries/beneficiaries.service'
+import { BeneficiaryRegistrationService } from '../../src/modules/beneficiaries/beneficiary-registration.service'
+import { IndicatorMeasurementsService } from '../../src/modules/indicators/indicator-measurements.service'
+import { IndicatorsService } from '../../src/modules/indicators/indicators.service'
+import { ProjectsService } from '../../src/modules/projects/projects.service'
+import { StorageService } from '../../src/modules/storage/storage.service'
+import { PrismaService } from '../../src/prisma/prisma.service'
 import { seedCanonicalReferenceData } from './canonical-seed'
 import { approvedOrganization } from './developer-bootstrap'
 
@@ -562,7 +562,7 @@ async function main() {
     }
     const createdCredentials = staffCredentials.filter((entry) => entry.password)
     if (createdCredentials.length) {
-      const outputDir = path.resolve(__dirname, '..', '..', '..', '.tmp', 'hosted-seed')
+      const outputDir = path.resolve(__dirname, '..', '..', '..', '..', '.tmp', 'hosted-seed')
       mkdirSync(outputDir, { recursive: true })
       writeFileSync(
         path.join(outputDir, `credentials-${Date.now()}.json`),

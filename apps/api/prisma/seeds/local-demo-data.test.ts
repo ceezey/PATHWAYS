@@ -33,7 +33,7 @@ import { assertLocalDemoTarget } from './local-demo-target'
 
 const fixtures = path.resolve(__dirname, 'demo-fixtures')
 const migration = readFileSync(
-  path.resolve(__dirname, 'migrations/0040_default_registration_form/migration.sql'),
+  path.resolve(__dirname, '../migrations/0040_default_registration_form/migration.sql'),
   'utf8',
 )
 
