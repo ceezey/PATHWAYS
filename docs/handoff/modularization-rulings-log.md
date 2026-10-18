@@ -1065,3 +1065,27 @@ Ruling: absolute route and Middleware sizes are written `<n>` in the Expected fe
 Ruling: `/dashboard` is 1 kB bigger after Tasks 1 and 2 (the shared chunks regroup once the old client leaves), inside ruling 11's bound, and no route changes in Tasks 3 to 5 in the replay; the replay clone without `apps/web/.env.local` showed `/auth/mfa` 1 kB bigger after the MFA split instead, also inside the bound. Cost if wrong: a 1 kB bigger first load of the dashboard is accepted.
 
 Ruling: the S5c test split, the S6c fix 4 state test and the S7c export hook test leave 28 files naming `core-feature-client` and 22 naming an artifact helper (15 artifact mocks, seven of them `collection-workspace.*.test.tsx`), so Task 2 repoints 23 files with the save characterization file; the `sed` reads the list from `git grep`, so only the counts change. Cost if wrong: none.
+
+Ruling: S8b set up from cc811845 (S8a tip plus the dev merge) with the staging commit 57b8dd59 (plan copy, index row, 33 S8a ledger rulings and the five S8b pre-flight rulings in the rulings log). Cost if wrong: none.
+
+Ruling: the W1 pre-flight runs in parallel with the S8b run, on a clone of the S8b replay tip (1dfc3b37) with nice -n 19 for heavy steps, because W1 renames no path S8b touches; the real S8b tip differs in shas and the gate line only. Cost if wrong: a W1 Task 0 stop on a figure, settled by a drift note.
+
+Ruling: S8b continues on claude/modularization-s8b-xjnlzt (from ef72bc9c) because this cloud session can push only its assigned branch name; W1 and W2 stack on the same branch. Cost if wrong: a branch rename.
+
+Ruling: node_modules in this container takes xlsx 0.20.3 from the npm mirror @e965/xlsx because the proxy denies cdn.sheetjs.com; the lockfile and package.json stay unchanged and CI installs the real tarball. Cost if wrong: an xlsx-only test difference that CI catches.
+
+Ruling: apps/web/.env.local holds placeholder public values with the staff portal at http://127.0.0.1:3000 (the only http origin password-recovery.ts accepts); Task 0 measured Middleware M0 103 kB, equal to the main checkout figure, and every Task 0 baseline matched the plan. Cost if wrong: none.
+
+Ruling: Task 1 (7de25942) passed review on spec and quality with no findings; all mutation and same-lines figures matched the plan. Cost if wrong: none.
+
+Ruling: Task 2 (7a82788f) passed review; the copied download setup in owned-json-read.test.ts (dead for owned reads) stays because the plan cuts those lines verbatim by range and a tidy would break the same-lines proof. Cost if wrong: a few unused test lines.
+
+Ruling: Task 3 (18227297) prelayout table lacks the /transparency -1 kB line the replay showed, a rounding variance ruling 11 allows; every other delta matched and the layout move changed no route. Cost if wrong: none.
+
+Ruling: Task 3 passed review; the profile schema importing strongPasswordSchema through the auth index stays as the plan rules (ruling 8), and the build table showed no route change across the move. Cost if wrong: a route size the Task 7 tables would show.
+
+Ruling: Task 4 passed review; the review found reachable logic the new tests leave unpinned (out-of-scope project error, unavailable target role error, Deactivated status kept on edit), so a tests-only fix follows Task 5 in its own commit; the type import order nit stays as Biome left it. Cost if wrong: three more test cases.
+
+Ruling: Task 5 passed review; two security behaviors of Review Focus 5 were reachable but unpinned (the session re-check before each factor call, the sign-out card not flashing on a successful sign-out), so a tests-only fix with mutation proofs follows the Task 4 fix round; the split react imports and the 23-value hook return stay (Biome output, ruling 7). Cost if wrong: two more test cases.
+
+Ruling: the review fix rounds added 3 user editor cases (9b405c25) and 3 MFA cases (f48d89ab), tests only with mutation proofs, so S8b ends at web 307 files and 3478 tests instead of the plan's 3472; Task 6 and Task 7 state the six extra cases. Cost if wrong: none.
