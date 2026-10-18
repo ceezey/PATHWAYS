@@ -1093,3 +1093,23 @@ Ruling: the review fix rounds added 3 user editor cases (9b405c25) and 3 MFA cas
 Ruling: the final S8b review approved with two record nits (the change record counts useState lines including the import, 11 and 12, where the calls are 10 and 11; the Task 1 figure 304 files and 3478 tests reads like a typo though it is the true Task 1 result); the useState wording is corrected in the Task 7 gate commit and the Task 1 figure stays. Cost if wrong: none.
 
 Ruling: Task 7 gates passed (web 307 files and 3478 tests, all other figures equal the baselines, Middleware equals M0 103 kB, /dashboard the only bigger route at +1 kB); the first compare summary is different 14 rather than 15 because /transparency did not round down 1 kB here, the same variance as Task 3. SAD sign-off at 5d67f532 exit 0 with manifest 1, 10, 165 (176 entries, 0 blocked). Cost if wrong: none.
+
+## W1
+
+Ruling: apply the W1 pre-flight fixes (see the pre-flight record for the counts and edit ids), replayed end to end on the real S8b tip 61ef8c5d from this staging commit. Cost if wrong: a W1 Task 0 stop on a figure.
+
+Ruling: W1 runs on claude/modularization-s8b-xjnlzt, the branch S8b ended on, because this cloud session can push only that name; Task 0 checks by ancestry (local refs first, then origin) that s5b to s8b are below HEAD, checks the S8b tip 61ef8c5d by sha and checks the "Dev merge before S8b" record. Cost if wrong: a branch rename.
+
+Ruling: W1 opens no pull request, and the controller opens the part 3 stacked pull request into dev after W2. Cost if wrong: none.
+
+Ruling: move-paths.mjs recomputes a relative specifier only when its file or its target moves; the unscoped version rewrote ../hooks/use-form-fields in features/collection/forms/hooks/use-collection-state.ts, an unrelated file, inside the Task 3 move commit. Cost if wrong: an unrelated import edit hides in a pure-rename commit.
+
+Ruling: the only builds are the package builds, nest build and the web build; no root pnpm build and no prisma generate (the Prisma client is already generated). Middleware is saved in Task 0 and compared byte for byte in Task 8, so the 103 kB of the main checkout and the 102 kB of a scratch clone both pass. Cost if wrong: a Task 8 stop on a build that differs by checkout.
+
+Ruling: the per-domain seed data splits (local-demo-data.ts, hosted-realistic-seed.ts) are left to the developer, not to W2, and the W1 records (change record, audit row, activity log, plan outline) say so; the W2 plan anchors on those W1 lines change with it. Cost if wrong: Cian expected a W2 seed change.
+
+Ruling: Pester 5 cannot be installed in the cloud container (NuGet and the PowerShell Gallery are not reachable), so the Pester steps of Tasks 0, 4, 6 and 8 are a pending local run and their Expected blocks show no Pester line; the CI job installs Pester itself. Cost if wrong: the two Pester files stay unrun until the part 3 pull request.
+
+Ruling: the docs:check baseline is 0 failures and 0 warnings (dev's fix 34162c12), so any failure is a stop, and the "171 PASS" figure of the CI replay is dropped from the plan (the PASS count is read from the CI run). Cost if wrong: a docs failure or a replay count change goes unnoticed.
+
+Ruling: every W1 commit runs as ceezey with the Co-Authored-By Claude Opus 5.5 trailer and the Claude-Session trailer of this session (01QPvEwEhu9YUbjKLd7DLzUg). Cost if wrong: none.
