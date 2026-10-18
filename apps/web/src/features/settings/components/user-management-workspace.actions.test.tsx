@@ -254,6 +254,48 @@ describe('user management: account actions', () => {
     expect(updateAuthorizedUser).not.toHaveBeenCalled()
   })
 
+  it('keeps a deactivated account deactivated when its details are saved', async () => {
+    updateAuthorizedUser.mockResolvedValue({ ...alan, name: 'Alan Mathison Turing' })
+    await loaded()
+    await openEdit('Alan Turing')
+    fireEvent.change(screen.getByLabelText('Full name'), {
+      target: { value: 'Alan Mathison Turing' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+    await waitFor(() =>
+      expect(updateAuthorizedUser).toHaveBeenCalledWith('user-3', {
+        fullName: 'Alan Mathison Turing',
+        role: 'Project Officer',
+        accountStatus: 'Deactivated',
+        projectIds: ['project-1'],
+      }),
+    )
+    expect(updateAuthorizedUser).toHaveBeenCalledTimes(1)
+  })
+
+  it.each([
+    [
+      'a target role the actor can no longer manage',
+      () => actAs('Project Officer', ['users.authorize']),
+      'That target role is not available to your current role.',
+    ],
+    [
+      'projects outside the permitted assignment scope',
+      () => actAs('Project Manager', ['users.authorize'], ['project-9']),
+      'One or more selected projects are outside your permitted assignment scope.',
+    ],
+  ])('refuses to save %s before any request', async (_label, narrowActor, message) => {
+    actAs('Project Manager', ['users.authorize'], ['project-1'])
+    const view = render(<UserManagementWorkspace />)
+    await screen.findByRole('list', { name: 'User accounts' })
+    await openEdit('Ada Lovelace')
+    narrowActor()
+    view.rerender(<UserManagementWorkspace />)
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+    expect((await screen.findByRole('alert')).textContent).toBe(message)
+    expect(updateAuthorizedUser).not.toHaveBeenCalled()
+  })
+
   it('clears the selected projects when the role changes', async () => {
     await loaded()
     await openEdit('Ada Lovelace')
