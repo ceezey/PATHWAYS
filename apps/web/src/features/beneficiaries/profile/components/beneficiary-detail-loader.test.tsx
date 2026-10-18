@@ -22,9 +22,6 @@ const { client, access } = vi.hoisted(() => ({
 vi.mock('@/hooks/use-current-role', () => ({
   useCurrentRole: () => access,
 }))
-vi.mock('@/lib/services/pathways-client', () => ({
-  pathwaysClient: client,
-}))
 vi.mock('@/lib/api/forms', () => ({ formsClient: client }))
 vi.mock('@/lib/api/evaluations', () => ({ evaluationsClient: client }))
 vi.mock('@/lib/api/beneficiaries', () => ({ beneficiariesClient: client }))
