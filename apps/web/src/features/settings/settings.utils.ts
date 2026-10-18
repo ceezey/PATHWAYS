@@ -142,3 +142,36 @@ export const getUserInitials = (name: string) =>
     .slice(0, 2)
     .map((part) => part[0]?.toLocaleUpperCase())
     .join('') || 'U'
+
+type EditorMode = 'create' | 'edit'
+
+export interface UserEditorState {
+  mode: EditorMode
+  userId?: string
+  name: string
+  email: string
+  authUserId: string
+  role: PathwaysRole
+  signInMethod: UserRecord['signInMethod']
+  projectIds: string[]
+}
+
+export const emptyEditor = (role: PathwaysRole): UserEditorState => ({
+  mode: 'create',
+  name: '',
+  email: '',
+  authUserId: '',
+  role,
+  signInMethod: 'Supabase account',
+  projectIds: [],
+})
+
+export const formatAccountDate = (value?: string) => {
+  if (!value) return 'Not yet active'
+
+  return new Intl.DateTimeFormat('en-PH', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+    timeZone: 'Asia/Manila',
+  }).format(new Date(value))
+}
