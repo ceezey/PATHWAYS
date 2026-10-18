@@ -1127,3 +1127,15 @@ Ruling: every W1 commit runs as ceezey with the Co-Authored-By Claude Opus 5.5 t
 - Ruling: W1 Task 5 passed review; three current docs still name the old seed paths (cr-pathways-activity-progress-media.md line 55, cr-pathways-report-pdf-renderer.md line 21, cr-pathways-codebase-modularization.md lines 252 and 262), so a docs-only fix follows the records commit; history records keep their old paths. Cost if wrong: none.
 
 - Ruling: W1 Task 6 passed review; the tooling job's vacuous-pass edge cases (zero-test discovery, unpinned Python and Pester floor 5.0) stay as the pre-flighted plan wrote them, because every target exists today and pinning is outside the W1 roadmap row; the first CI run of the part 3 pull request shows the real counts. Cost if wrong: a future empty test run passing silently.
+
+- Ruling: the docs-only fix 304f70a5 points cr-pathways-activity-progress-media.md and cr-pathways-report-pdf-renderer.md at apps/api/prisma/seeds (and corrects the bucket line reference to 107-108); the change record lines that name old seed paths are section 9 history and stay. Cost if wrong: none.
+
+- Ruling: the final W1 review passed; docs/qad-pathways.md still cites the deleted analytics.service.test.ts in its evidence rows, so the W1 gate commit points them at the three split files; the audit's largest-files list stays as a finding record, and the SAD globs that no longer cover the three-line phase6 forwarders stay. Cost if wrong: an unrouted forwarder edit.
+
+- Ruling: SAD design-qa-agent BLOCKED scripts/sad/check.ts because the three replay globs no longer route the four infra/supabase/phase6 PowerShell forwarders; commit adds infra/supabase/phase6/*.ps1 beside each replay glob with a routing test (mutation: removing the globs fails it), sad tests become 60, and SAD reruns on the new head. Cost if wrong: none.
+
+- Ruling: the SAD delta review blocked the routing fix until docs/sad-pathways.md section 3.1 lists infra/supabase/phase6/*.ps1 beside infra/supabase/replay/*.ps1 for the three replay roles (commit after 38524112); plan ruling 12 ('no new route') is superseded by this line, and the phase6 route goes when the forwarders are deleted. Cost if wrong: none.
+
+- Ruling: W1 SAD sign-off at 5d2185eb exit 0 (manifest org 113, migration 113, privacy 6, metadata 4, restraint 4, design 50; 290 entries, 0 blocked) after two delta rounds. Cost if wrong: none.
+
+- Ruling: W1 Task 8 gates passed at 5d2185eb with every figure as the plan except three that the two SAD routing commits explain: sad tests 60 (one routing test added), the replay stale scan prints 7 intentional phase6 forwarder routes (sad-pathways.md, check.ts, check.test.ts), and 14 commits over the base. Cost if wrong: none.
