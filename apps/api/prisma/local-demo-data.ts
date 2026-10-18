@@ -4,6 +4,7 @@
  * fictional. Dates are expressed as day offsets from the run date so that "overdue", "near
  * completion" and "upcoming" stay true whenever the workspace is built.
  */
+import type { OverdueExplanationCategory } from '@pathways/shared'
 
 export type ProjectKey = 'SSG' | 'CRL' | 'ALS' | 'ECD' | 'WSH' | 'EHK'
 
@@ -216,7 +217,7 @@ export type DemoActivity = {
   note?: string
   reviewNote?: string
   reason?: string
-  category?: 'WEATHER' | 'SECURITY' | 'FUNDING' | 'COMMUNITY' | 'LOGISTICS' | 'OTHER'
+  category?: OverdueExplanationCategory
   explanation?: string
   reached?: number
 }

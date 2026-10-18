@@ -1,3 +1,4 @@
+import type { ReportKindCode } from '@pathways/shared'
 import type { ProjectKey } from './local-demo-data'
 import type { DemoContext, StaffKey } from './local-demo-seed'
 import { projectOf, step } from './local-demo-util'
@@ -5,7 +6,7 @@ import { projectOf, step } from './local-demo-util'
 type ReportPlan = {
   project: ProjectKey
   by: StaffKey
-  kind: 'PROJECT_SUMMARY' | 'INDICATOR_SUMMARY' | 'BENEFICIARY_SUMMARY' | 'SURVEY_FORM_RESULTS'
+  kind: ReportKindCode
   format: 'CSV' | 'XLSX' | 'PDF'
   name: string
   formCode?: string

@@ -1,12 +1,12 @@
 import { ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common'
-import type { Prisma } from '@prisma/client'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
+import type { Tx } from '../../common/prisma/transaction'
 import type { PrismaService } from '../../prisma/prisma.service'
 import type { ParticipantsService } from '../participants/participants.service'
 const state = vi.hoisted(() => ({
   actor: undefined as ApplicationIdentity | undefined,
-  tx: undefined as Prisma.TransactionClient | undefined,
+  tx: undefined as Tx | undefined,
   denied: false,
 }))
 vi.mock('../../common/authz/authorized-operation', () => ({
@@ -80,7 +80,7 @@ const setup = () => {
       },
     ]),
   }
-  state.tx = tx as unknown as Prisma.TransactionClient
+  state.tx = tx as unknown as Tx
   return {
     tx,
     service: new MetadataService({} as PrismaService, {} as ParticipantsService),

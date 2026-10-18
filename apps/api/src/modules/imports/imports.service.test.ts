@@ -11,6 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { PrismaService } from '@app/prisma/prisma.service'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
+import type { Tx } from '../../common/prisma/transaction'
 import type { BeneficiaryRegistrationService } from '../beneficiaries/beneficiary-registration.service'
 import type { StorageService } from '../storage/storage.service'
 import { ImportsService, type UploadedImportFile } from './imports.service'
@@ -18,7 +19,7 @@ import { W10_CLIENT_IMPORT_ID, W10_SOURCE_SHA256 } from './upload-finalization-f
 
 const state = vi.hoisted(() => ({
   actor: undefined as ApplicationIdentity | undefined,
-  tx: undefined as Prisma.TransactionClient | undefined,
+  tx: undefined as Tx | undefined,
   operationCalls: [] as Array<{ permission: string; options: unknown }>,
 }))
 
@@ -139,7 +140,7 @@ describe('P03 import service', () => {
     vi.clearAllMocks()
     vi.stubEnv('UPLOADS_BUCKET', testUploadsBucket)
     state.actor = actor
-    state.tx = tx as unknown as Prisma.TransactionClient
+    state.tx = tx as unknown as Tx
     state.operationCalls = []
     service = new ImportsService(
       {} as PrismaService,

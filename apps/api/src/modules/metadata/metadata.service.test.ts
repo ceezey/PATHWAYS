@@ -10,11 +10,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { PrismaService } from '@app/prisma/prisma.service'
 import { DIRECT_ENTRY_FORM_TYPES, rolePermissions } from '@pathways/shared'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
+import type { Tx } from '../../common/prisma/transaction'
 import { MetadataService } from './metadata.service'
 
 const state = vi.hoisted(() => ({
   actor: undefined as ApplicationIdentity | undefined,
-  tx: undefined as Prisma.TransactionClient | undefined,
+  tx: undefined as Tx | undefined,
 }))
 vi.mock('../../common/authz/authorized-operation', () => ({
   withAuthorizedOperation: vi.fn(async (_prisma, _identity, _permission, work) =>
@@ -118,7 +119,7 @@ describe('P02 metadata service', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     state.actor = actor()
-    state.tx = tx as unknown as Prisma.TransactionClient
+    state.tx = tx as unknown as Tx
     tx.project.findFirst.mockResolvedValue({ id: projectId })
     tx.digitalForm.findFirst.mockResolvedValue(form())
     tx.digitalForm.updateMany.mockResolvedValue({ count: 1 })

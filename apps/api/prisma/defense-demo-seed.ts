@@ -124,7 +124,7 @@ async function seed(owner: PrismaClient, testLocal: boolean) {
     await prepareStorage(supabase, testLocal)
 
     const storage = new StorageService()
-    const participants = new ParticipantsService(runtime)
+    const participants = new ParticipantsService()
     const registration = new BeneficiaryRegistrationService()
     const beneficiaries = new BeneficiariesService(runtime, registration)
     const indicators = new IndicatorsService(runtime)

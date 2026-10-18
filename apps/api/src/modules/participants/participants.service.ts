@@ -1,9 +1,8 @@
-import { ConflictException, ForbiddenException, Inject, Injectable } from '@nestjs/common'
+import { ConflictException, ForbiddenException, Injectable } from '@nestjs/common'
 
 import { writeAuditLog } from '../../common/audit/write-audit-log'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import type { Tx } from '../../common/prisma/transaction'
-import { PrismaService } from '../../prisma/prisma.service'
 import { canonicalCode } from '../beneficiaries/beneficiary-registration.helpers'
 import { normalizedText } from './participants.helpers'
 
@@ -27,8 +26,6 @@ interface ParticipationPromotionInput {
 
 @Injectable()
 export class ParticipantsService {
-  constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
-
   async promoteParticipation(
     tx: Tx,
     actor: ApplicationIdentity,

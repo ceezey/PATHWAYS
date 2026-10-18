@@ -161,7 +161,7 @@ async function main() {
   const owner = new PrismaClient({ datasources: { db: { url: process.env.DIRECT_URL } } })
   const runtime = new PrismaService({ datasources: { db: { url: process.env.DATABASE_URL } } })
   const storage = new StorageService()
-  const participants = new ParticipantsService(runtime)
+  const participants = new ParticipantsService()
   const registration = new BeneficiaryRegistrationService()
   const beneficiaries = new BeneficiariesService(runtime, registration)
   const indicators = new IndicatorsService(runtime)
