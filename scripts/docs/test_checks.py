@@ -16,7 +16,7 @@ from checks.filing import check_filing
 from checks.inception import check_inception
 from checks.project_specific import check_project_specific
 from checks.scrutiny import check_scrutiny
-from checks.trace import check_cr_propagation
+from checks.trace import check_cr_propagation, check_index_accuracy, check_sdd_contracts, check_trace
 from checks.voice import check_voice
 
 EM = "—"
@@ -24,6 +24,9 @@ SCRUTINY = "**Status:** Working\n\nClaims extracted: 1\n\n| # | Claim | Finding 
 PRD = "**Status:** {status}\n\n| ID | Feature | Priority |\n|---|---|---|\n| PRD-F1 | A | Must-Have |\n"
 SAD = "| Specialist | Model |\n|---|---|\n| qa-agent | opus |\n"
 IDEA = "**Status:** " "Locked\n\n**One-line pitch:** a\n**Problem:** {problem}\n**Insight (why us, why now):** a\n**Primary user (named, specific):** a\n**Their moment of pain:** a\n**If we only ship one thing:** a\n"
+INDEX = "| File | Version | Status |\n|---|---|---|\n" + "".join(f"| [{n}-x.md]({n}-x.md) | 1.0 | Locked |\n" for n in ("prd", "sdd", "qad"))
+DOC = "**Version:** 1.0\n**Status:** Locked\n**Last reconciled:** 2026-01-01\n\n{ids}\n"
+VALID = {"docs/index.md": INDEX, **{f"docs/{n}-x.md": DOC.format(ids="PRD-F1 US-1") for n in ("prd", "sdd", "qad")}}
 
 
 class Tree(unittest.TestCase):
@@ -146,6 +149,44 @@ class Trace(Tree):
     def test_draft_cr_is_not_checked(self):
         text = "**Status:** Draft\n\n| Area | Affected | Done |\n|---|---|---|\n| API | Yes | [ ] |\n"
         self.assertEqual(self.run_check(check_cr_propagation, {"docs/cr-x.md": text}), ([], []))
+
+    def trace_fails(self, files, drop=()):
+        return self.run_check(check_trace, {**{k: v for k, v in VALID.items() if k not in drop}, **files})[0]
+
+    def test_valid_tree_passes_trace_index_and_sdd_checks(self):
+        self.put(VALID)
+        for fn in (check_trace, check_index_accuracy, check_sdd_contracts):
+            self.assertEqual(fn(self.root), ([], []), fn.__name__)
+
+    def test_undefined_prd_id_in_a_downstream_doc_fails(self):
+        fails = self.trace_fails({"docs/sdd-x.md": DOC.format(ids="PRD-F1 PRD-F9")})
+        self.assertOneMessage(fails, "sdd-x.md", "references PRD-F9, not defined in the PRD")
+
+    def test_sdd_and_qad_without_ids_fail(self):
+        fails = self.trace_fails({"docs/sdd-x.md": DOC.format(ids="none"), "docs/qad-x.md": DOC.format(ids="none")})
+        self.assertEqual(len(fails), 2, fails)
+        self.assertIn("sdd-x.md: references no PRD-F#/US-# IDs", fails[0])
+        self.assertIn("qad-x.md: references no PRD-F#/US-# IDs", fails[1])
+
+    def test_downstream_ids_without_a_prd_fail(self):
+        fails = self.trace_fails({}, drop=("docs/prd-x.md",))
+        self.assertOneMessage(fails, "downstream docs reference 2 PRD/US ID(s)", "no prd-*.md defines them")
+
+    def test_missing_index_fails(self):
+        fails = self.trace_fails({}, drop=("docs/index.md",))
+        self.assertOneMessage(fails, "no index.md")
+
+    def test_doc_missing_from_the_index_fails(self):
+        fails = self.trace_fails({"docs/state.md": "# State\n"})
+        self.assertOneMessage(fails, "state.md", "not listed in a manifest row in index.md")
+
+    def test_locked_doc_without_a_reconciled_date_fails(self):
+        fails = self.trace_fails({"docs/sdd-x.md": "**Status:** Locked\n\nPRD-F1\n"})
+        self.assertOneMessage(fails, "sdd-x.md", "Locked but Last reconciled is unset")
+
+    def test_locked_doc_with_an_invalid_reconciled_date_fails(self):
+        fails = self.trace_fails({"docs/sdd-x.md": DOC.replace("2026-01-01", "2026-13-45").format(ids="PRD-F1")})
+        self.assertOneMessage(fails, "sdd-x.md", "date is invalid (2026-13-45)")
 
 
 class Coverage(Tree):
