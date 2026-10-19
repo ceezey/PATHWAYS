@@ -106,7 +106,7 @@ Specific claims verified:
 |---|---|---|---|
 | Objective / technology / computation cheat sheet | Missing | source: SDD section 2.4 | Draft from sections 2 and 4 of this audit |
 | Activity diagram / system cheat sheet | Partial | PRD section 5.3, SDD sections 2.1, 4.1 | Condense to one page |
-| Engineering / system documentation | Partial | SDD, ops, build, runbooks | Spread out; state.md dated 10-01 |
+| Engineering / system documentation | Partial | SDD, ops, build, runbooks | Spread out |
 | Panel test script | Missing | none | Printable walkthrough from golden path |
 
 ### P2: Judgment-gated improvements

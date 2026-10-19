@@ -33,4 +33,4 @@ On 2026-09-28 the developer also approved (option A) accepting a plain-HTTP Supa
 
 ## 5. Disposition
 
-Mark Applied after hosted application with a protected backup, development preview verification and release. The same release adds the local Supabase tooling described in the [local development runbook](runbook-local-dev.md).
+Mark Applied after hosted application with a protected backup, development preview verification and release. The same release adds the local Supabase tooling described in the local development section of `README-setup.md`.

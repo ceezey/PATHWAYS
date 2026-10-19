@@ -86,7 +86,7 @@ None in this record. Follow-up: `csv-rbac.test.ts` and route-access suites for V
 | `qad-pathways.md` section 3.7 | Yes | [x] |
 | `audit-pathways-manuscript-alignment-20261001.md` (MA-18) | Yes | [x] |
 | `deferred-features.md` (RBAC v4 grant migration, Activity escalation) | Yes | [x] |
-| `index.md`, `state.md`, `activity-log.md`, `log-pathways.md` | Yes | [x] |
+| `index.md`, `activity-log.md`, `log-pathways.md` | Yes | [x] |
 
 ## 5. Alternatives Considered
 

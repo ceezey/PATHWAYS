@@ -104,7 +104,7 @@ Exact versions are in `docs/sdd-pathways.md` section 2.4 and the `package.json` 
 
 - Environment setup: [README-setup.md](README-setup.md)
 - Run locally on synthetic data (Docker required): `pnpm install`, then `pnpm db:local:start`, `pnpm db:local:reset` and `pnpm dev:local`; sign in at `http://127.0.0.1:3000/staff/login`.
-- Local development commands and rules: [docs/runbook-local-dev.md](docs/runbook-local-dev.md)
+- Local development commands and rules: [README-setup.md](README-setup.md)
 - Validate documentation: `pnpm docs:check`; regenerate `AGENTS.md`, `BRAND.md` and `DESIGN.md` with `pnpm docs:materialize` (never hand-edit them).
 
 ## Documentation Map

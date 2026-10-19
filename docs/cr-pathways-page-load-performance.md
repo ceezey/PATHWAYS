@@ -6,11 +6,11 @@
 
 ## 1. Trigger
 
-The options note `load-performance-options.md` (on hold since 2026-10-03) records that most project screens fetch several authorized reads on mount, render only when all resolve, and refetch on every tab switch. Developer request 2026-10-19: implement options 1, 2, 3, 4 and 6; option 5 (bundled endpoints) is not taken.
+The options note (removed after implementation; see git history) recorded that most project screens fetch several authorized reads on mount, render only when all resolve, and refetch on every tab switch. Developer request 2026-10-19: implement options 1, 2, 3, 4 and 6; option 5 (bundled endpoints) is not taken.
 
 ## 2. Current Contract
 
-Authorized reads default to `live` freshness (`staleTime: 0`, `gcTime: 0`, refetch on mount). Tabs fetched the project separately, and several workspaces waited on one `Promise.all` before drawing anything. The API gave no per-route timing.
+Authorized reads default to `live` freshness (`staleTime: 0`, `gcTime: 0`, refetch on mount). Many legacy components fetched through raw `pathwaysClient` calls in `useEffect`, outside react-query, so each tab fetched the project again, and each API call re-ran auth, permission resolution and `withAuthorizedOperation` (one transaction with RLS context). Tabs fetched the project separately, and several workspaces waited on one `Promise.all` before drawing anything. The API gave no per-route timing.
 
 ## 3. Proposed Change
 
@@ -48,7 +48,7 @@ Section loading notes on the Evidence tab, the journey mapping panel (with a Ret
 Allowlist and live-only cases in `authorized-query-cache.test.tsx`, freshness and tab-prefetch mapping cases in `projects.reads.test.ts`, `use-authorized-prefetch.test.tsx` (including denial recording), `journey-stages-loader.test.tsx` (manage-only actor, live editor read, kept editor, activity failure), a progressive-render case in `project-review-workspace.test.tsx`, the tab hover case in `project-workspace-header.test.tsx` and `server-timing.test.ts`.
 
 ### Documentation
-This record, `load-performance-options.md` (status line), the deferred-features register row and the index.
+This record, the deferred-features register row and the index.
 
 ## 5. Alternatives Considered
 

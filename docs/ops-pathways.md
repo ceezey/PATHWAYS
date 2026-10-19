@@ -88,7 +88,7 @@ Evidence uploads go directly to the private `pathways-private` bucket through a 
 
 Applying migration `0041_activity_media_evidence` on the hosted database needs a human DBA to run `infra/supabase/replay/hosted-activity-media-preprovision.sql` first and `infra/supabase/replay/hosted-activity-media-cleanup.sql` right after, also after a failed attempt. Both require independently pinned `target_project_ref` and `expected_database`. The `forward-activity-media-*.sql` pair is for the disposable local replay database only.
 
-Other runbooks: [local development](runbook-local-dev.md), [role staging build](runbook-role-staging-build.md), [doc reconciliation](runbook-doc-reconciliation.md).
+Other runbooks: [local development](../README-setup.md), [role staging build](runbook-role-staging-build.md), [doc reconciliation](runbook-doc-reconciliation.md).
 
 ## 5. Routine Operations
 

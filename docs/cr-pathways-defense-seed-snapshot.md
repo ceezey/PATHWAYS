@@ -10,7 +10,7 @@ The hosted devV2 reseed (`runbook-defense-demo.md` section 4) drives every servi
 
 ## 2. Current Contract
 
-`handoff-defense-demo-seed.md` forbids disabling triggers. The hosted reseed is the wipe file plus `defense-demo.mjs` against devV2; nothing copies data between databases.
+The defense demo seed handoff (removed; see git history) forbade disabling triggers. The hosted reseed is the wipe file plus `defense-demo.mjs` against devV2; nothing copies data between databases.
 
 ## 3. Proposed Change
 
@@ -51,7 +51,7 @@ None.
 `scripts/db/defense-snapshot-parse.test.mjs`, `-dates`, `-target`, `-sql`, `-storage` and `-cli` suites (`node --test`), the shared parser in `defense-demo-wipe.test.mjs`. Local rehearsal passed on 2026-10-06 (fixture identities, `--test-local`): seed and `--verify` clean (23 true rows), dump of 77 tables (8323 rows) and 75 storage objects, restore at +3 days shifted all 7 baseline date rows exactly 3 days, a tampered identities file rolled back with the data unchanged, delta-0 restore and `--verify` clean; the storage copy is skipped under `--test-local` (source equals target) and stays hosted-only.
 
 ### Documentation
-`runbook-defense-demo.md` section 8, `handoff-defense-demo-seed.md` constraints, `index.md`, `activity-log.md`.
+`runbook-defense-demo.md` section 8, the defense demo seed handoff constraints (removed; see git history), `index.md`, `activity-log.md`.
 
 ## 5. Alternatives Considered
 
