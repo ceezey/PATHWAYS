@@ -1037,5 +1037,5 @@
 ## 2026-10-19 Docs cleanup (feature/docs-cleanup)
 - Removed the closed handoffs, `e2e-legacy-spec-triage.md`, `state.md`, `load-performance-options.md`, the whole `docs/handoff/` folder (incl. `sad-assemble.mjs`, unreferenced outside it), `runbook-local-dev.md` and `local-dev.md`; their history lives in git.
 - Merged the local stack, hosted devV2, fast-runner, e2e and session rules into `README-setup.md`; fixed README, ops, pitch, PRD, UES, WRAP, reconciliation runbook and CR links; dropped the matching `docs/index.md` rows. The why-slow analysis added to the page-load CR section 2.
-- `docs/deferred-features.md`: 79 rows checked against code; 25 moved to a Closed section, stale paths fixed, open rows ordered by status, hosted apply of 0070 and the page-load staging re-measure kept as open rows.
+- `docs/deferred-features.md`: 77 rows checked against code; 25 moved to a Closed section, stale paths fixed, open rows ordered by status, hosted apply of 0070 and the page-load staging re-measure kept as open rows.
 - `pnpm docs:check` has 0 failures and 1 filing warning (no `docs/state.md`); `scripts/docs/test_checks.py` passes (47 tests).
