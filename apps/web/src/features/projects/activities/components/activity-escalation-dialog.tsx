@@ -90,7 +90,11 @@ export const ActivityEscalationDialog = ({
           <div className="space-y-2">
             <Label htmlFor="escalation-reason">Reason</Label>
             <Textarea
-              aria-describedby="escalation-reason-hint escalation-reason-count"
+              aria-describedby={
+                error
+                  ? 'escalation-reason-hint escalation-reason-count escalation-reason-error'
+                  : 'escalation-reason-hint escalation-reason-count'
+              }
               aria-invalid={error ? true : undefined}
               aria-required="true"
               className="min-h-28"
@@ -109,7 +113,11 @@ export const ActivityEscalationDialog = ({
             </p>
           </div>
           {error ? (
-            <p className="text-sm font-medium text-destructive" role="alert">
+            <p
+              className="text-sm font-medium text-destructive"
+              id="escalation-reason-error"
+              role="alert"
+            >
               {error}
             </p>
           ) : null}

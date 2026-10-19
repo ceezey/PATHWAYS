@@ -166,7 +166,9 @@ export const ActivityEscalationPanel = ({
         <div className="space-y-2">
           <Label htmlFor="escalation-note">Note</Label>
           <Textarea
-            aria-describedby="escalation-note-hint"
+            aria-describedby={
+              error ? 'escalation-note-hint escalation-note-error' : 'escalation-note-hint'
+            }
             aria-invalid={error ? true : undefined}
             disabled={busy !== null}
             id="escalation-note"
@@ -196,13 +198,13 @@ export const ActivityEscalationPanel = ({
           </div>
         </div>
       ) : null}
-      {loadError && !rows.length ? (
+      {loadError ? (
         <p className="text-sm text-muted-foreground" role="alert">
           Escalations could not be loaded.
         </p>
       ) : null}
       {error ? (
-        <p className="text-sm font-medium text-destructive" role="alert">
+        <p className="text-sm font-medium text-destructive" id="escalation-note-error" role="alert">
           {error}
         </p>
       ) : null}

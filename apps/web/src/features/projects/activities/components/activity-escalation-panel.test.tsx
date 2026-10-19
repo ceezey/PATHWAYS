@@ -148,4 +148,14 @@ describe('ActivityEscalationPanel', () => {
     render(<ActivityEscalationPanel activity={activity} tier={null} />)
     expect((await screen.findByRole('alert')).textContent).toBe('Escalations could not be loaded.')
   })
+
+  it('keeps the rows and shows the error when a refresh fails', async () => {
+    api.listActivityEscalations.mockResolvedValueOnce([escalation('OPEN')])
+    const view = render(<ActivityEscalationPanel activity={activity} tier={null} />)
+    await screen.findByText('Escalations')
+    api.listActivityEscalations.mockRejectedValue(new Error('offline'))
+    view.rerender(<ActivityEscalationPanel activity={activity} refreshKey={1} tier={null} />)
+    expect((await screen.findByRole('alert')).textContent).toBe('Escalations could not be loaded.')
+    expect(screen.getByText('The venue is not available.')).toBeTruthy()
+  })
 })

@@ -75,7 +75,7 @@ All policies `TO pathways_runtime`, organization from `app.organization_id`, sco
 
 Grants: REVOKE ALL from PUBLIC, anon, authenticated, service_role; `GRANT SELECT, INSERT` to `pathways_runtime`; column `GRANT UPDATE (status, forwarded_by_id, forwarded_at, forward_note, resolved_by_id, resolved_at, resolution_note, resolution_level, updated_at)`. No DELETE; `reason` and other content columns cannot be updated. Only prisma-owned helpers are referenced, so no DBA preprovision is needed. Postconditions mirror 0061 (owner, 7 CHECKs, 6 FKs, forced RLS, 3 policies, grants, trigger enabled).
 
-Role enforcement in the database. No existing helper returns the acting role, but `pathways_runtime` already has SELECT on `pathways.system_users` and `pathways.roles` (policies `p4_runtime_select`, organization-scoped), so the `ROLE(code)` pattern needs no new privileged object, owner or grant. The database therefore enforces that forward and project-level resolve are done by a Project Manager (so the System Administrator, who also holds `activities.update`, is refused) and that program-level resolve is done by a Program Manager. A Program Manager is in scope through the managed program (`programs.manager_user_id`) or a direct active project assignment; both are valid. The API role checks (`soleRole`) still run first so users get the documented 403 and the database is the backstop. Scope, organization, separation of duties, state order and immutability are enforced by the database in every case. No role residual remains at the database layer.
+Role enforcement in the database. No existing helper returns the acting role, but `pathways_runtime` already has SELECT on `pathways.system_users` and `pathways.roles` (policies `p4_runtime_select`, organization-scoped), so the `ROLE(code)` pattern needs no new privileged object, owner or grant. The database therefore enforces that forward and project-level resolve are done by a Project Manager (only `PROJECT_MANAGER` holds `activities.update`; the System Administrator reaches these rows through scope and `activities.escalations.read` but is refused by the role check) and that program-level resolve is done by a Program Manager. A Program Manager is in scope through the managed program (`programs.manager_user_id`) or a direct active project assignment; both are valid. The API role checks (`soleRole`) still run first so users get the documented 403 and the database is the backstop. Scope, organization, separation of duties, state order and immutability are enforced by the database in every case. No role residual remains at the database layer. The Project Officer active-assignment check and the finished-activity refusal are API-only (the 0061 pattern); the database does not enforce them.
 
 ### 3.5 Permissions (no new codes; matrix stays 312 rows)
 
@@ -145,7 +145,7 @@ Section 3.8; style follows the extension dialog and panel in `apps/web/src/featu
 - `apps/api/prisma/tests/activity-escalations-runtime.sql` (separation of duties, state order, immutability, one open per activity, no DELETE, scope; role assertions: a session whose profile is not a Program Manager cannot write a RESOLVED level PROGRAM row, a Program Manager who is neither raiser nor forwarder can, a profile without `activities.update` cannot forward or resolve at project level, and a System Administrator cannot forward or resolve at project level).
 - `apps/api/src/modules/activity-escalations/*.test.ts` (service, controller, validation, local replay).
 - `packages/shared/src/contracts/activities/activity-escalations.test.ts`.
-- `apps/web/src/features/projects/activities/components/activity-escalation-dialog.test.tsx` and `activity-escalation-panel.test.tsx`, `apps/web/src/lib/api/activity-escalations.test.ts`, and the role-overview tests `manager-overview.test.tsx` and `portfolio-overview.test.tsx`.
+- `apps/web/src/features/projects/activities/components/activity-escalation-dialog.test.tsx` and `activity-escalation-panel.test.tsx`, `apps/web/src/lib/api/activity-escalations.test.ts`, the role-overview tests `manager-overview.test.tsx` and `portfolio-overview.test.tsx`, and the API role overview queue tests in `apps/api/src/modules/dashboards/role-overview.service.test.ts`.
 
 QAD-T122 to QAD-T124 and QAD-A45.
 
@@ -202,8 +202,8 @@ Scenario 4, program-level separation on D:
 
 Scenario 5, concurrency, finished activity and replay on A and E:
 14. PO1 raises on A again; PM1 and PM2 open it in two tabs. PM2 forwards; PM1 submits Resolve with the old `expectedUpdatedAt`. Expect 409 and no change. PG1 then resolves it.
-15. PO1 raises on E (COMPLETED). Expect 409 `A finished activity cannot be escalated.`
-16. Raise on B, then re-send the same request id and input. Expect the same row; with a different reason expect 409. PM2 resolves it afterwards.
+15. By API, PO1 raises on E (COMPLETED). Expect 409 `A finished activity cannot be escalated.`
+16. By API, ME1 raises on B, then re-send the same request id and input. Expect the same row; with a different reason expect 409. PM2 resolves it afterwards.
 
 Scenario 6, privacy and audit:
 17. As PG1 and GM1, inspect the queue, the activity panel and the network responses. Expect only project, activity code and title, status, reason, notes, staff names and times; no beneficiary name, contact, evidence or submission.
