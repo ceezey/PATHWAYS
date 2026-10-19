@@ -8,6 +8,7 @@ import { rulesHumanClient } from '@/lib/api/rules'
 import { principalHasAtomicPermission } from '@/lib/rbac/policy'
 import Link from 'next/link'
 import { useState } from 'react'
+import { AlertSeverityBadge } from './alert-severity-badge'
 
 export function ProjectRulesPanel({ projectId }: { projectId: string }) {
   const { profile } = useCurrentRole()
@@ -74,17 +75,7 @@ export function ProjectRulesPanel({ projectId }: { projectId: string }) {
                 <div key={alert.id} className="rounded-lg border border-border bg-background p-3">
                   <div className="flex items-center justify-between gap-3">
                     <p className="font-medium text-foreground">{alert.title}</p>
-                    <StatusBadge
-                      tone={
-                        alert.severity === 'HIGH' || alert.severity === 'CRITICAL'
-                          ? 'danger'
-                          : alert.severity === 'MEDIUM'
-                            ? 'warning'
-                            : 'neutral'
-                      }
-                    >
-                      {alert.severity}
-                    </StatusBadge>
+                    <AlertSeverityBadge severity={alert.severity} basis={alert.severityBasis} />
                   </div>
                   <p className="mt-1 text-sm text-muted-foreground">{alert.lifecycle}</p>
                   <Link

@@ -36,7 +36,8 @@ const alert = {
   id: '20000000-0000-4000-8000-000000000001',
   projectId,
   title: 'Activity delivery needs attention',
-  severity: 'HIGH',
+  severity: 'HIGH' as string | null,
+  severityBasis: null,
   lifecycle: 'NEW',
 }
 const recommendation = {
@@ -167,6 +168,15 @@ describe('current-access project rules panel', () => {
     expect(await screen.findByText(alert.title)).toBeTruthy()
     expect(state.alerts).toHaveBeenCalledTimes(2)
     expect(state.recommendations).toHaveBeenCalledTimes(1)
+  })
+  it('labels stored and missing severity through the shared alert badge', async () => {
+    state.alerts.mockResolvedValue({
+      items: [alert, { ...alert, id: '20000000-0000-4000-8000-000000000002', severity: null }],
+      nextCursor: null,
+    })
+    mount()
+    expect(await screen.findByText('High')).toBeTruthy()
+    expect(screen.getByText('Needs context')).toBeTruthy()
   })
   it('does not request the recommendation dependency when its current permission is absent', async () => {
     state.permissions = ['projects.read', 'alerts.read']
