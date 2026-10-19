@@ -1045,3 +1045,8 @@
 - `hosted/build.mjs --resume` applied 0070: ledger 45 rows 0000-0070, all finished; table owner prisma, RLS forced, 3 policies, 7 CHECKs, 6 FKs, no runtime DELETE.
 - `dev` pushed to origin (d4d102df..14c0a8e5); the CR section 7 manual test script is the open step.
 - Count checks: devV2 `role_permissions` is 314 by design (0064 revoked 1 and granted 3 evaluation rows), so the escalation CR now says 314. Local and devV2 hold the same 60 pathways tables; the replay guard's 61 includes the harness probe `baseline_compatibility_probe`, now stated in `Replay-Local.ps1` and the CR.
+
+## 2026-10-19 Severity classification and assessment score entry designs
+- Panel revision matrix, Panelist 2 items 3 and 7: approved cr-pathways-severity-classification (suggested severity with basis from actual figures, Severity Guide v0.2) and cr-pathways-assessment-score-entry (manual pre/post scores from the journey-stage assessment icon).
+- Added `severity-guide-v0-2.md` (registered in the index) and two deferred rows: notification on severity change, automatic score recording from digital data collection.
+- No code, migration or hosted change yet; implementation plan next on feature/severity-classification.

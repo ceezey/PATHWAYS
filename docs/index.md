@@ -48,6 +48,7 @@
 | LOG | [log-pathways.md](log-pathways.md) | - | Control; append-only |
 | Deferred features register | [deferred-features.md](deferred-features.md) | - | Control; updated alongside each hide/defer decision |
 | Activity log | [activity-log.md](activity-log.md) | - | Working; dated session activity notes |
+| Severity guide | [severity-guide-v0-2.md](severity-guide-v0-2.md) | 0.2 | Draft; manager review required |
 
 ### 1.3 RFCs
 
