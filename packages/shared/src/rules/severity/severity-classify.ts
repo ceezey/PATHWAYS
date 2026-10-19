@@ -225,16 +225,9 @@ export function classifyAlertSeverity(input: ClassifyInput): SeverityBasis {
   const counted: RuleCondition[] = []
   const unchecked: string[] = []
   collect(input.tree, input.results, counted, unchecked)
-  // The same figure counts once, kept under its first condition id.
-  const figures = new Set<string>()
+  // A repeated figure stays as evidence; the level is a maximum, so it never counts twice.
   const conditions = counted
     .sort((a, b) => byText(a.id, b.id))
-    .filter((c) => {
-      const figure = `${c.metric}|${c.indicatorId ?? ''}|${c.activityId ?? ''}`
-      if (figures.has(figure)) return false
-      figures.add(figure)
-      return true
-    })
     .map((c) => {
       const facts = input.facts[c.id]
       if (!facts) throw new Error(`Severity facts are missing for condition ${c.id}.`)

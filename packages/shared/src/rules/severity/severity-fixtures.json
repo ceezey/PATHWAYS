@@ -4019,7 +4019,7 @@
     }
   },
   {
-    "name": "duplicate condition on the same figure counts once",
+    "name": "duplicate condition on the same figure is kept but counts once",
     "input": {
       "tree": {
         "kind": "GROUP",
@@ -4080,6 +4080,19 @@
       "conditions": [
         {
           "conditionId": "progressA",
+          "metric": "INDICATOR_PROGRESS_PERCENT",
+          "outcome": "LEVEL",
+          "level": "HIGH",
+          "measure": {
+            "kind": "BEHIND_PERCENT",
+            "actual": "45.0000",
+            "expected": "100.0000",
+            "value": "55.0000"
+          },
+          "missing": null
+        },
+        {
+          "conditionId": "progressB",
           "metric": "INDICATOR_PROGRESS_PERCENT",
           "outcome": "LEVEL",
           "level": "HIGH",
