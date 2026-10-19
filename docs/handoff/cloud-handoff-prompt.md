@@ -1,6 +1,6 @@
-# Handoff: PATHWAYS codebase modularization in Claude Code on the web (resume at S3b)
+# Handoff: PATHWAYS codebase modularization in Claude Code on the web (complete)
 
-Paste the section below into a new Claude Code session at claude.ai/code (Chrome), on repository `ceezey/PATHWAYS`, starting from branch `dev`.
+The modularization finished on 2026-10-19 (part 3 PR #54 merged into `dev` as `8324951c`). The prompt below is kept as the record of how the cloud run worked; reuse it only for follow-up slices. Paste the section below into a new Claude Code session at claude.ai/code (Chrome), on repository `ceezey/PATHWAYS`, starting from branch `dev`.
 
 ## Prompt
 
@@ -10,17 +10,17 @@ Continue the PATHWAYS codebase modularization. It is a behavior-preserving refac
 
 1. `docs/handoff/memory-digest.md`: my standing rules, baselines and pitfalls. The local memory does not reach this environment, so treat that file as memory.
 2. `CLAUDE.md` and `docs/cr-pathways-codebase-modularization.md` (3.7 roadmap, section 9 per unit).
-3. `docs/handoff/modularization-s3b-indicators-web.md` (next plan, full, dry run green) and `docs/handoff/s3b-summary.md`.
-4. `docs/handoff/cross-plan-review.md` and the later plans `docs/handoff/modularization-s{4..8}-*.md`.
+3. The executed plans `docs/handoff/modularization-*.md` and `docs/handoff/cross-plan-review.md`, as the pattern for a follow-up slice.
+4. The section 9 dispositions of the change record, which list what each unit deferred.
 5. `docs/handoff/implementer-common.md` and `docs/handoff/reviewer-common.md` (common subagent briefs).
 6. `docs/handoff/modularization-rulings-log.md` (every ruling so far).
 
-### State at handoff (2026-10-13)
+### State at handoff (2026-10-19)
 
-- `origin/dev` holds F1 to F4b, S1a, S2a, S1b, S2b, the assignment cutoff clock fix and S3a (merge `87935091`, gates `b4a98426`), plus the commit that adds `docs/handoff/`. Nothing is pending on another branch.
-- S3a passed every gate except two that I stopped for this move: its demo seed ran only through the monitoring stage (which passed) and its defense seed and e2e did not run. I will run them locally; until then treat them as pending local runs and list them with the next slice's pending gates.
-- Next: S3b. Its plan has had a planner dry run but no pre-flight scan yet; run the scan first (see "How to run a slice").
-- Baselines: config 19, shared 281, imports 91, api 2445 (21 skipped), web 1983, sad 54, docs check 6, web Middleware 102 kB, e2e main 9 known failures, auth navigation 27 of 27.
+- `origin/dev` holds every unit F1 to W2 (part 1 PR #52, part 2 PR #53, part 3 PR #54 merged as `8324951c`); the executed plan copies under `docs/superpowers/plans/` are retired.
+- Pending local runs for the developer: the demo and defense seeds, dev servers, both e2e suites, the browser smoke, the compiled API boot, Pester and the Windows PowerShell forwarders.
+- Left to the developer: the per-domain seed data splits.
+- Baselines: config 19, shared 885, imports 94, api 2642 (21 skipped), web 3478, sad 60, docs check 0, web Middleware 103 kB, 72 routes, e2e main 9 known failures, auth navigation 27 of 27.
 
 ### What changed with the move to the cloud
 
