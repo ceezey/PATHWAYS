@@ -293,6 +293,18 @@ describe('BeneficiaryDetail assessments', () => {
       expect(refresh).not.toHaveBeenCalled()
     })
 
+    it('reports a saved score with a reload hint when only the refresh fails', async () => {
+      client.recordBeneficiaryAssessment.mockResolvedValue({ id: 'new' })
+      const refresh = renderRecord(vi.fn().mockRejectedValue(new Error('Network down')))
+      enterScore('40')
+      fireEvent.click(screen.getByRole('button', { name: 'Save score' }))
+      const notice = await screen.findByText('Score saved. Reload to see it in the list.')
+      expect(notice.tagName).toBe('OUTPUT')
+      expect(refresh).toHaveBeenCalledTimes(1)
+      expect(screen.queryByRole('alert')).toBeNull()
+      expect((screen.getByLabelText('Score') as HTMLInputElement).value).toBe('')
+    })
+
     it('rejects a comma score before any request', () => {
       renderRecord()
       enterScore('85,5')

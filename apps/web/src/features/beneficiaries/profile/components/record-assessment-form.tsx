@@ -48,6 +48,7 @@ export const RecordAssessmentForm = ({
   const [assessmentDate, setAssessmentDate] = useState(today)
   const [errors, setErrors] = useState<Partial<Record<FieldName, string>>>({})
   const [failure, setFailure] = useState('')
+  const [notice, setNotice] = useState('')
   const [saving, setSaving] = useState(false)
 
   // The first activity of the stage is the default until another one is chosen.
@@ -83,17 +84,20 @@ export const RecordAssessmentForm = ({
     }
     setErrors(next)
     setFailure('')
+    setNotice('')
     if (!parsed.success || Object.keys(next).length > 0) return
     setSaving(true)
     try {
       await evaluationsClient.recordBeneficiaryAssessment(projectId, parsed.data)
-      setScore('')
-      await onRecorded()
     } catch (error) {
       setFailure(error instanceof Error ? error.message : 'The score could not be recorded.')
-    } finally {
       setSaving(false)
+      return
     }
+    setScore('')
+    // A failed list refresh after a saved score must not read as a save failure.
+    await onRecorded().catch(() => setNotice('Score saved. Reload to see it in the list.'))
+    setSaving(false)
   }
 
   const describedBy = (field: FieldName) =>
@@ -193,6 +197,7 @@ export const RecordAssessmentForm = ({
           {failure}
         </p>
       ) : null}
+      {notice ? <output className="block text-sm text-muted-foreground">{notice}</output> : null}
       <Button disabled={saving} type="submit">
         {saving ? 'Saving...' : 'Save score'}
       </Button>
