@@ -183,7 +183,8 @@ export function evaluateRuleWithSeverity(input: unknown): RuleEvaluation & {
   const walk = (node: EvaluationEvidence) => {
     if ('kind' in node) return node.children.forEach(walk)
     results[node.condition.id] = node.result
-    if (node.observation) facts[node.condition.id] = severityFactsFromObservation(node.observation)
+    if (node.observation && node.result === 'TRUE')
+      facts[node.condition.id] = severityFactsFromObservation(node.observation)
   }
   walk(evaluation.evidence)
   const { rule } = evaluation

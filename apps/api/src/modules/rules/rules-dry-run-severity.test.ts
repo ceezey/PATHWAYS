@@ -96,4 +96,23 @@ describe('dry-run severity basis', () => {
     expect((run({ expectedScoreImprovement: '20' })).severityBasis?.level).toBe('HIGH')
     expect((run()).severityBasis?.status).toBe('CONTEXT_REQUIRED')
   })
+  it('ignores an unavailable leaf with no value when another OR leaf matches', () => {
+    const thin = surveyImprovementObservation({
+      scope,
+      conditionId: 'S',
+      asOf,
+      revision: '1',
+      projectStatus: 'ONGOING',
+      projectArchived: false,
+      pairCount: 3,
+      differenceSum: '10',
+    })
+    const out = evaluateRuleWithSeverity({
+      rule: definition({ kind: 'GROUP', mode: 'OR', children: [progressLeaf, surveyLeaf] }),
+      asOf,
+      observations: [progress('45'), thin],
+    })
+    expect(out.result).toBe('TRUE')
+    expect(out.severityBasis?.level).toBe('HIGH')
+  })
 })
