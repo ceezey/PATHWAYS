@@ -167,4 +167,25 @@ Developer decisions 2026-10-19: implement the guide within the severity-classifi
 
 ## 9. Disposition
 
-Pending.
+Implemented locally on `feature/severity-classification` (no push, deploy or hosted migration):
+
+- e1a40e59, 89380057: shared Severity Guide v0.2 classifier, reason text and 71 fixtures.
+- 73e89ad5: nullable rule severity, expectations and alert severity basis contracts.
+- 5192b1a9, 9d14e56a: severity basis in rule dry-run.
+- 80c86697, 33b6129e: migration 0072 (expectation columns, observation facts, SQL classifier, classification at snapshot commit, severity change on re-match, alert read model; new `rules-severity` preprovision and cleanup).
+- 35fd3900: Needs context alerts in dashboards and reports.
+- d8d4400c, ad4834fa: Step 3 preview, Critical mark and expectation fields.
+- 04c86925: suggested severity in Test rule.
+- d7830f00: severity badge and "Why this level" on alerts.
+- Demo runbook: [runbook-severity-panel-demo](runbook-severity-panel-demo.md).
+
+Verification so far: SQL and TS give identical bases for all 71 fixtures and their reordered twins; `Replay-Local.ps1 -MigrationBaseline` exit 0 with `SEVERITY_CLASSIFICATION_RUNTIME=PASS` (155 assertions), `F10_F11_RULES_RUNTIME=PASS` (89 checks) and `SCHEMA_DRIFT=CLEAN`; shared, API and web unit suites, typechecks and the web build pass. The local end-to-end run of the runbook (section 7 step 3) has not been done yet.
+
+Known limits:
+
+- A rule snapshot captured before 0072 and committed after it fails once (its observations have no facts) and is recaptured on the next claim.
+- The rule dependency fingerprint does not include indicator target dates or activity planned dates; a change to those dates alone is picked up by the hourly sweep.
+- Earlier bases beyond the immediately previous one are kept in evaluation evidence but not shown in alert history.
+- The Step 3 preview for activity completion and current indicator value is a range, because the level depends on dates known only when the alert fires.
+
+SAD sign-off pending; not Applied.

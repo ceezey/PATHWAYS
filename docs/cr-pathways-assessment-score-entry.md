@@ -72,7 +72,7 @@ This record; RBAC matrix and PRD/DSD where assessment permissions are listed; de
 
 ## 6. Migration / Rollback
 
-Additive migration. Rollback drops the policy and the permission grants; recorded rows remain valid data.
+Additive migration. Rollback drops the policy and the permission grants, recreates the `assessment_results` trigger `p3_30_source` on `p3_guard_source`, then drops `p3_guard_assessment_source`; recorded rows remain valid data.
 
 ## 7. Verification
 

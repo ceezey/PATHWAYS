@@ -1052,3 +1052,10 @@
 - No code, migration or hosted change yet; implementation plan next on feature/severity-classification.
 - Assessment score entry implemented locally (bf04a40f, b87e7c73, ae175867): migration 0071 adds `assessments.record` (PO, M&E, PM), a restrictive INSERT policy and the definer provenance guard `p3_guard_assessment_source`; `POST /projects/:projectId/evaluation/assessments` sources the row from the enrollment's validated attendance and audits ids only; the assessment dialog gains a Record score form.
 - Verification: replay `-MigrationBaseline` exit 0 with `ASSESSMENT_SCORE_ENTRY_RUNTIME=PASS`, unit suites and typechecks pass. SAD sign-off pending; not Applied; no push or hosted change. Deferred row "Application write path for assessment results" moved to Closed.
+
+## 2026-10-20 Severity classification implemented locally (feature/severity-classification)
+- Shared Severity Guide v0.2 classifier, reason text and 71 fixtures (e1a40e59, 89380057); nullable rule severity, expectations and alert basis contracts (73e89ad5); dry-run basis (5192b1a9, 9d14e56a).
+- Migration 0072 (80c86697, 33b6129e): expectation columns, observation facts, SQL classifier at snapshot commit, severity change on re-match, alert read model, `rules-severity` preprovision and cleanup; SQL and TS bases match on all fixtures.
+- API and web: Needs context in dashboards and reports (35fd3900), Step 3 preview, Critical mark and expectations (d8d4400c, ad4834fa), Test rule sample result (04c86925), alert badge and "Why this level" (d7830f00).
+- Verification: replay `-MigrationBaseline` exit 0 with `SEVERITY_CLASSIFICATION_RUNTIME=PASS` and `F10_F11_RULES_RUNTIME=PASS`, schema drift clean, unit suites, typechecks and web build pass.
+- Docs: `runbook-severity-panel-demo.md` (items 3 and 7 on CRL-NS-2026, local only), CR disposition, score-entry rollback, role-staging 0071/0072 section, DSD, rule creation script, QAD-T125 to T128, partly-superseded notes on the two earlier rule CRs. SAD sign-off pending; not Applied; no push or hosted change.
