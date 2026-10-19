@@ -39,12 +39,14 @@ const emptyDraft = { amount: '', budgetRecordId: '', date: '', description: '' }
 export const ActivityExpenseDialog = ({
   activity,
   budgetReferences,
+  budgetReferencesLoading = false,
   open,
   onOpenChange,
   onSubmitted,
 }: {
   activity: Activity
   budgetReferences: ExpenseBudgetReference[]
+  budgetReferencesLoading?: boolean
   open: boolean
   onOpenChange: (open: boolean) => void
   onSubmitted: () => void
@@ -169,6 +171,8 @@ export const ActivityExpenseDialog = ({
             <p className="text-sm font-medium text-destructive" role="alert">
               Expense submission is outside your current permissions.
             </p>
+          ) : budgetReferencesLoading ? (
+            <output className="text-sm text-muted-foreground">Loading budget allocations.</output>
           ) : activityReferences.length === 0 ? (
             <output className="text-sm text-muted-foreground">
               No budget allocation is linked to this activity yet. Ask a Program or Grant Manager to

@@ -36,9 +36,19 @@ type WorkspaceProps = {
   project: ProjectDetail
   activities: Pick<Activity, 'id' | 'title' | 'journeyStageId'>[]
   initialStages: JourneyStageConfig[]
+  activitiesLoading?: boolean
+  activitiesFailed?: boolean
+  onRetryActivities?: () => void
 }
 
-export const JourneyConfigWorkspace = ({ project, activities, initialStages }: WorkspaceProps) => {
+export const JourneyConfigWorkspace = ({
+  project,
+  activities,
+  initialStages,
+  activitiesLoading = false,
+  activitiesFailed = false,
+  onRetryActivities,
+}: WorkspaceProps) => {
   const { role, profile } = useCurrentRole()
   const canEdit = isUiActionAvailable(role, 'journeys.manage', profile)
   const [stages, setStages] = useState(initialStages)
@@ -166,6 +176,9 @@ export const JourneyConfigWorkspace = ({ project, activities, initialStages }: W
                 stage={selected}
                 stages={stages}
                 activities={activities}
+                activitiesLoading={activitiesLoading}
+                activitiesFailed={activitiesFailed}
+                onRetryActivities={onRetryActivities}
                 canEdit={canEdit}
                 onChange={update}
                 onRemove={() => {

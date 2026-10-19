@@ -32,6 +32,7 @@ export const useActivityExpenses = ({
     'expenses.submit',
     (signal) => financeClient.budgetReferences(projectId, signal),
     canReadExpenseReferences,
+    { freshness: 'summary' },
   )
   const expensesRead = useAuthorizedRead(
     'activity-expenses',
@@ -114,5 +115,12 @@ export const useActivityExpenses = ({
     void refetchDetail()
   }
 
-  return { activityExpenses, budgetReferences, pendingExpenses, refreshExpenses }
+  const budgetReferencesLoading = expenseReferencesRead.eligible && expenseReferencesRead.isPending
+  return {
+    activityExpenses,
+    budgetReferences,
+    budgetReferencesLoading,
+    pendingExpenses,
+    refreshExpenses,
+  }
 }

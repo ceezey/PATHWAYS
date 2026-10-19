@@ -122,8 +122,13 @@ const ExpenseDialog = ({
   onDone,
 }: { activities: ActivityLabel[]; projectId: string; onDone: () => Promise<void> }) => {
   const requests = useOperationRequestId()
-  const refs = useAuthorizedRead('expense-budget-references', projectId, 'expenses.submit', (s) =>
-    financeClient.budgetReferences(projectId, s),
+  const refs = useAuthorizedRead(
+    'expense-budget-references',
+    projectId,
+    'expenses.submit',
+    (s) => financeClient.budgetReferences(projectId, s),
+    true,
+    { freshness: 'summary' },
   )
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)

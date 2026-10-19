@@ -13,6 +13,7 @@ import { corsOptions } from './common/network/cors-origins'
 import { inspectionBudgetMiddleware } from './common/network/inspection-request-budget'
 import { listenOnIpv4Loopback } from './common/network/local-listener'
 import { machineBudgetMiddleware } from './common/network/machine-request-budget'
+import { serverTimingMiddleware } from './common/network/server-timing'
 import { initializeApiSentry } from './common/sentry'
 
 async function bootstrap() {
@@ -24,6 +25,7 @@ async function bootstrap() {
   })
 
   // app.use is registered before Nest init/listen installs its body parser.
+  app.use(serverTimingMiddleware())
   app.use(machineBudgetMiddleware(env.API_PREFIX))
   app.use(inspectionBudgetMiddleware(env.API_PREFIX))
   app.useLogger(app.get(Logger))

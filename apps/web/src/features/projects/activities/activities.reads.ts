@@ -1,6 +1,6 @@
 'use client'
 
-import { useAuthorizedRead } from '@/hooks/use-authorized-read'
+import { type AuthorizedReadSpec, useAuthorizedRead } from '@/hooks/use-authorized-read'
 import { activitiesClient } from '@/lib/api/activities'
 
 const summary = { freshness: 'summary' } as const
@@ -12,15 +12,17 @@ const activityReadResources = {
   assignableOfficers: 'activity-assignable-officers',
 } as const
 
-export const useProjectActivitiesRead = (projectId: string, enabled = true) =>
-  useAuthorizedRead(
-    activityReadResources.list,
-    projectId,
-    'activities.read',
-    (signal) => activitiesClient.getActivities(projectId, signal),
-    enabled,
-    summary,
-  )
+export const projectActivitiesSpec = (projectId: string) =>
+  ({
+    resource: activityReadResources.list,
+    permission: 'activities.read',
+    read: (signal) => activitiesClient.getActivities(projectId, signal),
+  }) satisfies AuthorizedReadSpec
+
+export const useProjectActivitiesRead = (projectId: string, enabled = true) => {
+  const { resource, permission, read } = projectActivitiesSpec(projectId)
+  return useAuthorizedRead(resource, projectId, permission, read, enabled, summary)
+}
 
 /** Activity detail carries proof and update history, so it always re-verifies. */
 export const useActivityDetailRead = (projectId: string, activityId: string | null) =>
@@ -44,4 +46,5 @@ export const useAssignableOfficersRead = (
     permission,
     (signal) => activitiesClient.getAssignableProjectOfficers(projectId, signal),
     enabled,
+    summary,
   )

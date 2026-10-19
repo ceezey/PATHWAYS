@@ -1006,3 +1006,17 @@
 - Part 3 PR #54 merged into `dev` as 8324951c; the 18 executed plan copies under `docs/superpowers/plans` (S3b to W2) and their index rows are removed, and the 18 `docs/handoff` plan rows say Closed.
 - The W2 task rulings are appended to `docs/handoff/modularization-rulings-log.md`, and `memory-digest.md` and `cloud-handoff-prompt.md` record the finished state and the W2 baselines.
 - Gates: docs check 0 failures and 0 warnings; docs only, so the other gates are unchanged.
+
+## 2026-10-19 Load performance: server timing (feature/load-performance)
+- Every API response now carries `Server-Timing: auth;dur=N, total;dur=N` from `serverTimingMiddleware` (`apps/api/src/common/network/server-timing.ts`); durations only, no identities or values, and any existing dev-only `pathways_*` entries are kept.
+- `auth` is the `SupabaseAuthGuard` duration (token check plus workspace and permission resolution); the handler-side `withAuthorizedOperation` profile read counts in `total` only. `Server-Timing` is added to the CORS exposed headers.
+
+## 2026-10-19 Load performance: shared project read (feature/load-performance)
+- The Evidence tab (`ProjectReviewWorkspace`) now reads the project through `useProjectRead`, the same `project` summary key the frame, Overview, Activities, Indicators and Evaluation tabs use, instead of a raw `getProject` call in an effect; a tab switch reuses the cached read.
+- Writes through the API client already purge and refetch private reads, so the project edit form needs no explicit invalidation. The team dialog writes the shared key through `replaceData`.
+- The edit form's own load stays a live read so form defaults are never stale.
+
+## 2026-10-19 Load performance: progressive render, prefetch and CR (feature/load-performance)
+- Evidence tab sections (evidence, reports) and the Activities list render as their own reads resolve; the journey stages loader reads the project and activities through the shared reads and the stages through a live editor key (`journey-stages-editor`), and keeps the editor mounted with unsaved edits if a later refresh fails.
+- New `useAuthorizedPrefetch` (`use-authorized-read.ts`) and `useProjectPrefetch` (`projects.reads.ts`): hover or focus on a project tab link warms its summary reads, and on a project card warms the shared project read; live-only and unlisted resources are never prefetched.
+- Added `docs/cr-pathways-page-load-performance.md` (options 1-4 and 6 applied, option 5 not taken, privacy rationale, Server-Timing reading guide, staging re-measure pending), registered in the index and the deferred-features row.

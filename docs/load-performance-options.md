@@ -1,6 +1,6 @@
-# Page load performance options (on hold)
+# Page load performance options
 
-Status: On hold since 2026-10-03, post-defense. Nothing here is implemented.
+Status: Options 1 to 4 and 6 implemented 2026-10-19 (see `cr-pathways-page-load-performance.md`); option 5 not taken.
 
 ## Why pages load slowly
 

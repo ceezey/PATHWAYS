@@ -48,6 +48,7 @@ export const ActivityDetailContent = ({
   activityExpenses = [],
   canReadExpenses = false,
   budgetReferences = [],
+  budgetReferencesLoading = false,
   canDecideProof,
   canDecideExtension = false,
   focusExtension = false,
@@ -76,6 +77,7 @@ export const ActivityDetailContent = ({
   activityExpenses?: ActivityExpenseEntry[]
   canReadExpenses?: boolean
   budgetReferences?: ExpenseBudgetReference[]
+  budgetReferencesLoading?: boolean
   canDecideProof: boolean
   canDecideExtension?: boolean
   focusExtension?: boolean
@@ -338,6 +340,7 @@ export const ActivityDetailContent = ({
       <ActivityExpenseDialog
         activity={activity}
         budgetReferences={budgetReferences}
+        budgetReferencesLoading={budgetReferencesLoading}
         onOpenChange={setExpenseOpen}
         onSubmitted={onExpensesChanged}
         open={expenseOpen}

@@ -11,6 +11,8 @@ import { type WorkspaceTabAccess, filterWorkspaceTabs } from '@/lib/rbac/nav'
 import { cn } from '@/lib/utils'
 import type { ProjectDetail } from '@/types/pathways'
 
+import { useProjectPrefetch } from '../projects.reads'
+
 // Each tab carries the route it opens, so tab visibility equals route access.
 const createWorkspaceTabs = (labels: DisplayLabels): WorkspaceTabAccess[] => [
   { label: 'Overview', path: '', route: 'project' },
@@ -30,6 +32,7 @@ export const ProjectWorkspaceHeader = ({ project }: { project: ProjectDetail }) 
     role && profile
       ? filterWorkspaceTabs(createWorkspaceTabs(labels), role, profile, project.id)
       : []
+  const prefetch = useProjectPrefetch()
   const tabRefs = useRef<Array<HTMLAnchorElement | null>>([])
 
   return (
@@ -66,6 +69,8 @@ export const ProjectWorkspaceHeader = ({ project }: { project: ProjectDetail }) 
                 )}
                 href={href}
                 key={tab.path}
+                onFocus={() => tab.route && prefetch.tab(project.id, tab.route)}
+                onMouseEnter={() => tab.route && prefetch.tab(project.id, tab.route)}
                 onKeyDown={(event) => {
                   const last = visibleTabs.length - 1
                   const nextIndex =

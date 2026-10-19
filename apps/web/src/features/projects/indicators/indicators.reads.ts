@@ -1,6 +1,6 @@
 'use client'
 
-import { useAuthorizedRead } from '@/hooks/use-authorized-read'
+import { type AuthorizedReadSpec, useAuthorizedRead } from '@/hooks/use-authorized-read'
 import { indicatorLibraryClient, indicatorsClient } from '@/lib/api/indicators'
 
 const summary = { freshness: 'summary' } as const
@@ -26,12 +26,14 @@ export const useIndicatorLibraryRead = (
   )
 
 /** Full indicator rows; `getIndicators` is the same request projected to code and label. */
-export const useProjectIndicatorsRead = (projectId: string, enabled = true) =>
-  useAuthorizedRead(
-    indicatorReadResources.projectIndicators,
-    projectId,
-    'indicators.read',
-    (signal) => indicatorsClient.getProjectIndicators(projectId, signal),
-    enabled,
-    summary,
-  )
+export const projectIndicatorsSpec = (projectId: string) =>
+  ({
+    resource: indicatorReadResources.projectIndicators,
+    permission: 'indicators.read',
+    read: (signal) => indicatorsClient.getProjectIndicators(projectId, signal),
+  }) satisfies AuthorizedReadSpec
+
+export const useProjectIndicatorsRead = (projectId: string, enabled = true) => {
+  const { resource, permission, read } = projectIndicatorsSpec(projectId)
+  return useAuthorizedRead(resource, projectId, permission, read, enabled, summary)
+}

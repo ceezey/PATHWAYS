@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common'
 import { Reflector } from '@nestjs/core'
 
+import { markAuthDuration } from '../../../common/network/server-timing'
 import { RulesMachineBoundary } from '../../rules/rules-machine-boundary'
 
 import { hasAtomicPermission } from '@pathways/shared'
@@ -81,6 +82,15 @@ export class SupabaseAuthGuard implements CanActivate {
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
+    const startedAt = performance.now()
+    try {
+      return await this.authenticate(context)
+    } finally {
+      markAuthDuration(context.switchToHttp().getRequest<object>(), performance.now() - startedAt)
+    }
+  }
+
+  private async authenticate(context: ExecutionContext): Promise<boolean> {
     // Exact registered machine handlers never enter Public or human auth paths.
     const machine = this.machines.enter(context)
     if (machine !== null) return machine
