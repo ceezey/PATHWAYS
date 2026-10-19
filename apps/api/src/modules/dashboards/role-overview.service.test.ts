@@ -454,7 +454,11 @@ describe('RoleOverviewService', () => {
       tx.activityEscalation.findMany.mockResolvedValue([escalation(project), escalation(user)])
       const result = await service.read(actor('PROJECT_MANAGER'))
       const where = tx.activityEscalation.findMany.mock.calls[0][0].where
-      expect(where).toMatchObject({ status: 'OPEN', organizationId: org })
+      expect(where).toMatchObject({
+        status: 'OPEN',
+        organizationId: org,
+        activity: { archivedAt: null },
+      })
       expect(where.project).toMatchObject({ organizationId: org, id: { in: [project] } })
       expect(result.escalationQueue?.rows.map((r) => r.stage)).toEqual(['RESOLVE', 'FORWARD'])
       expect(result.escalationQueue?.rows[0].reason).toHaveLength(2000)

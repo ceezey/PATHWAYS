@@ -137,7 +137,7 @@ export class RoleOverviewService {
                 : null,
           escalationQueue:
             can('activities.update') && actor.roles[0] === 'PROJECT_MANAGER'
-              ? await escalationQueue(tx, actor, 'RESOLVE')
+              ? await escalationQueue(tx, actor, 'PROJECT')
               : can('activities.escalations.read') && actor.roles[0] === 'PROGRAM_MANAGER'
                 ? await escalationQueue(tx, actor, 'PROGRAM')
                 : can('activities.escalations.read') && actor.roles[0] === 'GRANT_MANAGER'

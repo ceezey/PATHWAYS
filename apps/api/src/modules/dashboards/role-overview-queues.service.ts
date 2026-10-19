@@ -183,14 +183,15 @@ export async function extensionQueue(
   }
 }
 
-export type EscalationStage = 'RESOLVE' | 'PROGRAM' | 'WATCH'
+export type EscalationStage = 'PROJECT' | 'PROGRAM' | 'WATCH'
 
 // Project Manager sees OPEN rows, Program Manager FORWARDED rows they did not raise or forward, Grant Manager watches both.
 export async function escalationQueue(tx: Tx, actor: ApplicationIdentity, stage: EscalationStage) {
   const where = {
     organizationId: actor.organizationId,
     project: projectScope(actor),
-    ...(stage === 'RESOLVE'
+    activity: { archivedAt: null },
+    ...(stage === 'PROJECT'
       ? { status: 'OPEN' }
       : stage === 'PROGRAM'
         ? {
@@ -233,7 +234,7 @@ export async function escalationQueue(tx: Tx, actor: ApplicationIdentity, stage:
       reason: e.reason.slice(0, 2000),
       raisedByName: e.raisedBy.fullName.slice(0, 200),
       raisedAt: e.raisedAt.toISOString(),
-      stage: stage === 'RESOLVE' ? (e.raisedById === actor.userId ? 'FORWARD' : 'RESOLVE') : stage,
+      stage: stage === 'PROJECT' ? (e.raisedById === actor.userId ? 'FORWARD' : 'RESOLVE') : stage,
     })),
   }
 }

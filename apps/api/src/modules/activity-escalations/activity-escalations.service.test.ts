@@ -202,11 +202,29 @@ describe('ActivityEscalationsService.raise', () => {
       raisedById: officer,
       reason: raiseBody.reason,
     })
-    expect(tx.auditLog.create.mock.calls[0][0].data).toMatchObject({
+    const audit = tx.auditLog.create.mock.calls[0][0].data
+    expect(audit).toMatchObject({
       action: 'ACTIVITY_ESCALATION_RAISED',
       entityType: 'ActivityEscalation',
-      changes: { activityId },
     })
+    expect(audit.changes).toEqual({ activityId })
+  })
+
+  it('refuses a finished activity before checking the officer assignment', async () => {
+    const { tx, service } = setup(escalationRow(), 'CANCELLED')
+    tx.activityEscalation.findFirst.mockResolvedValue(null)
+    tx.projectActivityAssignment.findFirst.mockResolvedValue(null)
+    await expect(
+      service.raise(actor('PROJECT_OFFICER', officer), project, activityId, raiseBody),
+    ).rejects.toMatchObject({ status: 409 })
+    expect(tx.projectActivityAssignment.findFirst).not.toHaveBeenCalled()
+  })
+
+  it('lets a Grant Manager raise', async () => {
+    const { tx, service } = setup()
+    tx.activityEscalation.findFirst.mockResolvedValue(null)
+    await service.raise(actor('GRANT_MANAGER', programManager), project, activityId, raiseBody)
+    expect(tx.activityEscalation.create).toHaveBeenCalled()
   })
 
   it('maps a database unique refusal to 409', async () => {
@@ -235,10 +253,23 @@ describe('ActivityEscalationsService.forward', () => {
       where: { status: 'OPEN', updatedAt: stamp },
       data: { status: 'FORWARDED', forwardedById: manager, forwardNote: decideBody.note },
     })
-    expect(tx.auditLog.create.mock.calls[0][0].data).toMatchObject({
-      action: 'ACTIVITY_ESCALATION_FORWARDED',
-      changes: { activityId },
-    })
+    const audit = tx.auditLog.create.mock.calls[0][0].data
+    expect(audit.action).toBe('ACTIVITY_ESCALATION_FORWARDED')
+    expect(audit.changes).toEqual({ activityId })
+  })
+
+  it('answers 404 for an unknown escalation', async () => {
+    const { tx, service } = setup()
+    tx.activityEscalation.findFirst.mockResolvedValue(null)
+    await expect(
+      service.forward(
+        actor('PROJECT_MANAGER', manager),
+        project,
+        activityId,
+        escalationId,
+        decideBody,
+      ),
+    ).rejects.toMatchObject({ status: 404 })
   })
 
   it('lets the raiser forward their own escalation', async () => {
@@ -335,10 +366,9 @@ describe('ActivityEscalationsService.resolve', () => {
     })
     expect(tx.projectActivity.updateMany).not.toHaveBeenCalled()
     expect(tx.projectActivity.update).not.toHaveBeenCalled()
-    expect(tx.auditLog.create.mock.calls[0][0].data).toMatchObject({
-      action: 'ACTIVITY_ESCALATION_RESOLVED',
-      changes: { activityId, level: 'PROJECT' },
-    })
+    const audit = tx.auditLog.create.mock.calls[0][0].data
+    expect(audit.action).toBe('ACTIVITY_ESCALATION_RESOLVED')
+    expect(audit.changes).toEqual({ activityId, level: 'PROJECT' })
   })
 
   it('refuses the raiser resolving at project level', async () => {
