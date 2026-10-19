@@ -1,9 +1,9 @@
 /* @vitest-environment jsdom */
 import type { HumanRule, RuleCondition } from '@pathways/shared'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { Mode } from '../rules.utils'
+import { type MetricScope, type Mode, availableMetrics, metricGuidance } from '../rules.utils'
 import { ConditionBuilder } from './condition-builder'
 
 // Rendering 32 conditions is slow under a loaded full run.
@@ -18,11 +18,6 @@ const row = (id: string, patch: Partial<RuleCondition> = {}): RuleCondition => (
   threshold: '5',
   ...patch,
 })
-const metricOptions = [
-  'PROJECT_REMAINING_DAYS',
-  'INDICATOR_PROGRESS_PERCENT',
-  'ACTIVITY_OVERDUE_DAYS',
-]
 const indicators = [{ id: 'ind-1', name: 'Indicator one' }]
 const activities = [{ id: 'act-1', name: 'Activity one' }]
 
@@ -33,13 +28,13 @@ function Harness({
   scopeProjectId = 'proj-a',
   nestedRule,
   onAdvanced = vi.fn(),
-  hideAddButton,
+  scopes = ['Project'],
 }: {
   initial: RuleCondition[]
   scopeProjectId?: string | null
   nestedRule?: HumanRule
   onAdvanced?: () => void
-  hideAddButton?: boolean
+  scopes?: MetricScope[]
 }) {
   const [rows, setRows] = useState(initial)
   const [matchMode, setMatchMode] = useState<Mode>('AND')
@@ -48,14 +43,13 @@ function Harness({
   return (
     <ConditionBuilder
       activities={activities}
-      hideAddButton={hideAddButton}
       indicators={indicators}
       matchMode={matchMode}
-      metricOptions={metricOptions}
       nestedRule={nestedRule}
       onAdvanced={onAdvanced}
       rows={rows}
       scopeProjectId={scopeProjectId}
+      scopes={scopes}
       setMatchMode={setMatchMode}
       setRows={setRows}
     />
@@ -63,16 +57,21 @@ function Harness({
 }
 const field = (label: string, id: string) =>
   screen.getByLabelText(label, { selector: `[id="${id}"]` })
-const add = () => screen.getByRole('button', { name: 'Add condition' }) as HTMLButtonElement
+const add = () =>
+  screen.getByRole('button', { name: 'Add another Project condition' }) as HTMLButtonElement
 
 describe('ConditionBuilder match and remove guards', () => {
-  it('offers the match mode only with several conditions and reports a change', () => {
-    render(<Harness initial={[row('a')]} />)
-    expect(screen.queryByLabelText('Match')).toBeNull()
-    cleanup()
+  it('offers the match mode only between several areas and reports a change', () => {
     render(<Harness initial={[row('a'), row('b')]} />)
-    expect((screen.getByLabelText('Match') as HTMLSelectElement).value).toBe('AND')
-    fireEvent.change(screen.getByLabelText('Match'), { target: { value: 'OR' } })
+    expect(screen.queryByText('Combine with previous condition')).toBeNull()
+    cleanup()
+    render(
+      <Harness
+        initial={[row('a'), row('b', { metric: 'ACTIVITY_OVERDUE_DAYS' })]}
+        scopes={['Project', 'Activity']}
+      />,
+    )
+    fireEvent.click(screen.getByRole('radio', { name: 'OR' }))
     expect(modeNow).toBe('OR')
   })
   it('offers Remove only with several conditions and removes the chosen one', () => {
@@ -95,7 +94,7 @@ describe('ConditionBuilder condition cap', () => {
     expect(rowsNow).toHaveLength(32)
     expect(rowsNow[31]).toMatchObject({
       kind: 'CONDITION',
-      metric: 'PROJECT_REMAINING_DAYS',
+      metric: availableMetrics(['Project'])[0],
       operator: 'LT',
       threshold: '',
     })
@@ -109,6 +108,9 @@ describe('ConditionBuilder condition cap', () => {
 
 describe('ConditionBuilder edits', () => {
   it('clears both record bindings when the metric changes', () => {
+    const target = availableMetrics(['Indicator']).find(
+      (key) => key !== 'INDICATOR_PROGRESS_PERCENT',
+    ) as RuleCondition['metric']
     render(
       <Harness
         initial={[
@@ -118,10 +120,13 @@ describe('ConditionBuilder edits', () => {
             activityId: 'act-1',
           }),
         ]}
+        scopes={['Indicator']}
       />,
     )
-    fireEvent.change(field('Metric', 'a-metric'), { target: { value: 'PROJECT_REMAINING_DAYS' } })
-    expect(rowsNow[0]).toEqual(row('a', { metric: 'PROJECT_REMAINING_DAYS' }))
+    fireEvent.change(field('What should we check?', 'a-metric'), {
+      target: { value: target },
+    })
+    expect(rowsNow[0]).toEqual(row('a', { metric: target }))
   })
   it('adds an empty upper threshold for BETWEEN and drops it for any other operator', () => {
     render(<Harness initial={[row('a')]} />)
@@ -154,19 +159,30 @@ describe('ConditionBuilder record select', () => {
       <Harness
         initial={[row('a', { metric: 'INDICATOR_PROGRESS_PERCENT' })]}
         scopeProjectId={null}
+        scopes={['Indicator']}
       />,
     )
     const select = screen.getByLabelText('Indicator') as HTMLSelectElement
     expect(select.disabled).toBe(true)
     expect(select.options[0]?.text).toBe('Choose a project scope first')
     cleanup()
-    render(<Harness initial={[row('a', { metric: 'INDICATOR_PROGRESS_PERCENT' })]} />)
+    render(
+      <Harness
+        initial={[row('a', { metric: 'INDICATOR_PROGRESS_PERCENT' })]}
+        scopes={['Indicator']}
+      />,
+    )
     const enabled = screen.getByLabelText('Indicator') as HTMLSelectElement
     expect(enabled.disabled).toBe(false)
     expect(enabled.options[0]?.text).toBe('Choose a current project record')
   })
   it('lists indicators for an indicator metric and stores the choice as indicatorId', () => {
-    render(<Harness initial={[row('a', { metric: 'INDICATOR_PROGRESS_PERCENT' })]} />)
+    render(
+      <Harness
+        initial={[row('a', { metric: 'INDICATOR_PROGRESS_PERCENT' })]}
+        scopes={['Indicator']}
+      />,
+    )
     const select = screen.getByLabelText('Indicator') as HTMLSelectElement
     expect(Array.from(select.options).map((option) => option.text)).toEqual([
       'Choose a current project record',
@@ -178,8 +194,10 @@ describe('ConditionBuilder record select', () => {
     expect(select.value).toBe('ind-1')
   })
   it('lists activities for the activity overdue metric and stores the choice as activityId', () => {
-    render(<Harness initial={[row('a', { metric: 'ACTIVITY_OVERDUE_DAYS' })]} />)
-    const select = screen.getByLabelText('Activity') as HTMLSelectElement
+    render(
+      <Harness initial={[row('a', { metric: 'ACTIVITY_OVERDUE_DAYS' })]} scopes={['Activity']} />,
+    )
+    const select = screen.getByRole('combobox', { name: 'Activity' }) as HTMLSelectElement
     expect(Array.from(select.options).map((option) => option.text)).toEqual([
       'Choose a current project record',
       'Activity one',
@@ -201,33 +219,50 @@ describe('ConditionBuilder nested rule', () => {
       },
     } as unknown as HumanRule
     render(<Harness initial={[]} nestedRule={nestedRule} onAdvanced={onAdvanced} />)
-    expect(screen.queryByRole('button', { name: 'Add condition' })).toBeNull()
-    expect(screen.queryByLabelText('Metric')).toBeNull()
+    expect(screen.queryByRole('button', { name: /^Add another .* condition$/ })).toBeNull()
+    expect(screen.queryByLabelText('What should we check?')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Open advanced editor' }))
     expect(onAdvanced).toHaveBeenCalledOnce()
   })
 })
 
-describe('ConditionBuilder guidance and layout options', () => {
-  it('hides the Add condition button on request', () => {
-    render(<Harness hideAddButton initial={[row('a')]} />)
-    expect(screen.queryByRole('button', { name: 'Add condition' })).toBeNull()
-  })
-  it('toggles the About panel for the chosen metric without changing the threshold', () => {
+describe('ConditionBuilder area groups', () => {
+  it('shows metric guidance as plain text without changing the threshold', () => {
     render(<Harness initial={[row('a')]} />)
-    const about = screen.getByRole('button', { name: 'About Days until project end' })
-    expect(about.getAttribute('aria-expanded')).toBe('false')
-    fireEvent.click(about)
-    expect(about.getAttribute('aria-expanded')).toBe('true')
-    expect(screen.getByText(/does not fill or save a threshold/)).toBeTruthy()
-    expect(rowsNow[0]?.threshold).toBe('5')
-    fireEvent.click(about)
-    expect(about.getAttribute('aria-expanded')).toBe('false')
+    const definition = metricGuidance('PROJECT_REMAINING_DAYS')?.definition ?? ''
+    expect(definition).not.toBe('')
+    expect(screen.getByText(definition, { selector: 'p' })).toBeTruthy()
     expect(screen.queryByText(/does not fill or save a threshold/)).toBeNull()
+    expect(rowsNow[0]?.threshold).toBe('5')
   })
-  it('lists only the offered metrics and no extra option for a metric outside them', () => {
-    render(<Harness initial={[row('a', { metric: 'PROJECT_OVERDUE_DAYS' })]} />)
-    const options = Array.from((field('Metric', 'a-metric') as HTMLSelectElement).options)
-    expect(options.map((option) => option.value)).toEqual(metricOptions)
+  it('groups rows by area, labels Indicator as Indicator / KPI and counts conditions', () => {
+    render(
+      <Harness
+        initial={[row('a'), row('b'), row('c', { metric: 'INDICATOR_PROGRESS_PERCENT' })]}
+        scopes={['Indicator', 'Project']}
+      />,
+    )
+    expect(screen.getAllByRole('group').map((group) => group.getAttribute('aria-label'))).toEqual([
+      'Project',
+      'Indicator / KPI',
+    ])
+    expect(
+      within(screen.getByRole('group', { name: 'Project' })).getByText('2 conditions'),
+    ).toBeTruthy()
+    expect(
+      within(screen.getByRole('group', { name: 'Indicator / KPI' })).getByText('1 condition'),
+    ).toBeTruthy()
+  })
+  it('lists only the area metrics and hides record-bound ones without a project', () => {
+    render(<Harness initial={[row('a')]} scopeProjectId={null} scopes={['Project', 'Indicator']} />)
+    const values = Array.from(
+      (field('What should we check?', 'a-metric') as HTMLSelectElement).options,
+    ).map((option) => option.value)
+    expect(values).toContain('PROJECT_REMAINING_DAYS')
+    expect(values).not.toContain('INDICATOR_PROGRESS_PERCENT')
+  })
+  it('shows the unit suffix after the threshold', () => {
+    render(<Harness initial={[row('a', { metric: 'PROJECT_TIMELINE_ELAPSED_PERCENT' })]} />)
+    expect(screen.getByText('%')).toBeTruthy()
   })
 })

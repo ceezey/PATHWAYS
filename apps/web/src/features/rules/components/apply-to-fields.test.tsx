@@ -33,7 +33,11 @@ const renderFields = (props: Partial<React.ComponentProps<typeof ApplyToFields>>
       {...props}
     />,
   )
-  return { onToggle, onProject, select: screen.getByLabelText('Rule scope') as HTMLSelectElement }
+  return {
+    onToggle,
+    onProject,
+    select: screen.getByLabelText('Monitoring area(s)') as HTMLSelectElement,
+  }
 }
 
 describe('ApplyToFields', () => {
@@ -63,12 +67,12 @@ describe('ApplyToFields', () => {
     const { onToggle } = renderFields({ scopeProjectId: 'proj-a', scopes: ['Project', 'Activity'] })
     const checked = (name: string) =>
       (screen.getByRole('checkbox', { name }) as HTMLInputElement).checked
-    expect([checked('Project'), checked('Activity'), checked('Indicator')]).toEqual([
+    expect([checked('Project'), checked('Activity'), checked('Indicator / KPI')]).toEqual([
       true,
       true,
       false,
     ])
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Indicator' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: /^Indicator/ }))
     expect(onToggle).toHaveBeenCalledOnce()
     expect(onToggle).toHaveBeenCalledWith('Indicator')
   })
@@ -86,13 +90,13 @@ describe('ApplyToFields', () => {
   })
   it('disables Indicator on an organization template and enables it with a project', () => {
     renderFields()
-    expect((screen.getByRole('checkbox', { name: 'Indicator' }) as HTMLInputElement).disabled).toBe(
-      true,
-    )
+    expect(
+      (screen.getByRole('checkbox', { name: /^Indicator/ }) as HTMLInputElement).disabled,
+    ).toBe(true)
     cleanup()
     renderFields({ scopeProjectId: 'proj-a' })
-    expect((screen.getByRole('checkbox', { name: 'Indicator' }) as HTMLInputElement).disabled).toBe(
-      false,
-    )
+    expect(
+      (screen.getByRole('checkbox', { name: /^Indicator/ }) as HTMLInputElement).disabled,
+    ).toBe(false)
   })
 })

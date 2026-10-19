@@ -2,7 +2,7 @@ import { AuthorizedQueryProvider } from '@/providers/authorized-query-provider'
 /* @vitest-environment jsdom */
 import type { HumanRule } from '@pathways/shared'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { RuleDrawer } from './rule-drawer'
 
@@ -175,8 +175,9 @@ describe('RuleDrawer project change', () => {
       ],
     })
     await screen.findByLabelText('Rule Name')
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Indicator' }))
-    fireEvent.change(screen.getByLabelText('Metric'), {
+    fireEvent.click(screen.getByRole('checkbox', { name: /Indicator/ }))
+    const indicatorGroup = screen.getByRole('group', { name: 'Indicator / KPI' })
+    fireEvent.change(within(indicatorGroup).getByLabelText('What should we check?'), {
       target: { value: 'INDICATOR_PROGRESS_PERCENT' },
     })
     await waitFor(() => expect(state.indicators).toHaveBeenCalled())
@@ -184,7 +185,7 @@ describe('RuleDrawer project change', () => {
     await screen.findByRole('option', { name: 'Indicator one' })
     fireEvent.change(record, { target: { value: 'ind-1' } })
     expect(record.value).toBe('ind-1')
-    fireEvent.change(screen.getByLabelText('Rule scope'), { target: { value: projectB } })
+    fireEvent.change(screen.getByLabelText('Monitoring area(s)'), { target: { value: projectB } })
     // The choice must stay empty once the new project's indicators have loaded, not only while they load.
     await waitFor(() => expect(state.indicators).toHaveBeenCalledTimes(2))
     await screen.findByRole('option', { name: 'Indicator one' })

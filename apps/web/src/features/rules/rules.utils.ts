@@ -189,6 +189,17 @@ export const SCOPES: MetricScope[] = [
   'Beneficiary Group',
   'Assessment',
 ]
+export const SCOPE_GRID_ORDER: MetricScope[] = [
+  'Project',
+  'Activity',
+  'Indicator',
+  'Budget',
+  'Beneficiary Group',
+  'Assessment',
+]
+export const scopeDisplayLabel: Partial<Record<MetricScope, string>> = {
+  Indicator: 'Indicator / KPI',
+}
 export const scopeGuidance: Record<MetricScope, string> = {
   Project: 'Project schedule',
   Indicator: 'Indicator results',
@@ -236,7 +247,7 @@ export const categoriesForScopes = (scopes: readonly MetricScope[]): MetricCateg
   }
   return [...categories]
 }
-const suffix = (key: string) => {
+export const suffix = (key: string) => {
   const unit = unitOf(key)
   return unit === '%'
     ? '%'

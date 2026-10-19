@@ -3,10 +3,12 @@
 import { MetricTooltip } from '@/components/pathways/metric-tooltip'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
+import { CheckCircle2, Circle } from 'lucide-react'
 import {
   type MetricScope,
-  SCOPES,
+  SCOPE_GRID_ORDER,
   availableMetrics,
+  scopeDisplayLabel,
   scopeGuidance,
   selectClass,
 } from '../rules.utils'
@@ -28,12 +30,32 @@ function ScopeOption({
 }) {
   const tooltipText = unavailable ? `${description}. ${message}` : description
   return (
-    <div className="flex items-center gap-1">
+    <div
+      className={cn(
+        'flex items-center gap-1 rounded-md border p-3 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring has-[:focus-visible]:ring-offset-2',
+        checked ? 'border-primary bg-primary-subtle' : 'border-border bg-card',
+        unavailable && 'opacity-60',
+      )}
+    >
       <label
-        className={cn('flex items-center gap-2 text-sm', unavailable && 'text-muted-foreground')}
+        className={cn(
+          'flex flex-1 cursor-pointer items-center gap-2 text-sm',
+          unavailable && 'cursor-not-allowed text-muted-foreground',
+        )}
       >
-        <input checked={checked} disabled={unavailable} onChange={onToggle} type="checkbox" />
-        {scope}
+        <input
+          checked={checked}
+          className="sr-only"
+          disabled={unavailable}
+          onChange={onToggle}
+          type="checkbox"
+        />
+        {checked ? (
+          <CheckCircle2 aria-hidden="true" className="h-4 w-4 shrink-0 text-primary" />
+        ) : (
+          <Circle aria-hidden="true" className="h-4 w-4 shrink-0 text-muted-foreground" />
+        )}
+        {scopeDisplayLabel[scope] ?? scope}
       </label>
       <MetricTooltip label={`${scope} scope`}>{tooltipText}</MetricTooltip>
     </div>
@@ -59,7 +81,7 @@ export function ApplyToFields({
   return (
     <div className="space-y-2">
       <div className="space-y-2">
-        <Label htmlFor="rule-scope">Rule scope</Label>
+        <Label htmlFor="rule-scope">Monitoring area(s)</Label>
         <div className="rounded-md border border-border focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2">
           <select
             className={cn(
@@ -82,8 +104,8 @@ export function ApplyToFields({
             aria-label="Applies To"
             className="rounded-b-md border-t border-border bg-background p-3"
           >
-            <div className="grid grid-cols-3 gap-2">
-              {SCOPES.map((scope) => {
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              {SCOPE_GRID_ORDER.map((scope) => {
                 const missing = availableMetrics([scope]).length === 0
                 const needsProject = organizationTemplate && scope === 'Indicator'
                 const unavailable = missing || needsProject
@@ -107,7 +129,7 @@ export function ApplyToFields({
         </div>
       </div>
       <p className="px-3 text-sm leading-5 text-muted-foreground">
-        Check every scope that applies to a rule. If unsure, one scope is enough.
+        Choose one or more monitoring areas.
       </p>
     </div>
   )

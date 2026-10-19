@@ -267,6 +267,14 @@ function AlertRuleDrawer({
       }
       return [row]
     })
+    for (const scope of nextScopes) {
+      const scopeMetrics = availableMetrics([scope]).filter(
+        (key) => nextProjectId !== null || !recordBound(key),
+      )
+      if (scopeMetrics.length && !nextRows.some((row) => scopeMetrics.includes(row.metric))) {
+        nextRows.push(newRow(scopeMetrics[0] as string))
+      }
+    }
     if (!nextRows.length) nextRows.push(newRow(permitted[0] ?? ''))
     setRows(nextRows)
     setNotice('')
@@ -405,7 +413,7 @@ function AlertRuleDrawer({
         <fieldset className="space-y-6" disabled={busy || locked || !canWrite}>
           <RuleStepCard
             step={1}
-            title="Name and scope"
+            title="Name and monitoring area"
             hint="Name the rule, choose its project scope, then choose what it watches."
           >
             <div className="grid gap-4 sm:grid-cols-2">
@@ -455,34 +463,18 @@ function AlertRuleDrawer({
           </RuleStepCard>
           <RuleStepCard
             step={2}
-            title="What are you watching?"
-            hint="Pick the metric to monitor, read its definition and example, then enter the threshold that flags it."
-            action={
-              !nested ? (
-                <Button
-                  aria-label="Add condition"
-                  disabled={rows.length >= 32}
-                  size="icon"
-                  title="Add condition"
-                  type="button"
-                  variant="outline"
-                  onClick={() => setRows((current) => [...current, newRow(metricOptions[0] ?? '')])}
-                >
-                  <Plus className="h-4 w-4" aria-hidden="true" />
-                </Button>
-              ) : undefined
-            }
+            title="When should we notify you?"
+            hint="Set a condition for each selected area. You can add more conditions as needed."
           >
             <ConditionBuilder
               activities={activities}
               indicators={indicators}
               matchMode={matchMode}
-              metricOptions={metricOptions}
               nestedRule={nested ? rule : undefined}
               onAdvanced={() => setAdvanced(true)}
-              hideAddButton
               rows={rows}
               scopeProjectId={scopeProjectId}
+              scopes={scopes}
               setMatchMode={setMatchMode}
               setRows={setRows}
             />
