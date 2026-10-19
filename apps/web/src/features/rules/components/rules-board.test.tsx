@@ -43,7 +43,7 @@ const rule = {
   name: 'Low indicator progress',
   code: 'LOW_PROGRESS',
   version: 1,
-  severity: 'HIGH',
+  severity: null as string | null,
   status: 'ACTIVE',
   conditions: {
     kind: 'GROUP',
@@ -104,6 +104,25 @@ describe('RulesBoard', () => {
       'Linked Rule',
       'Status',
     ])
+  })
+  it('labels rules by the manual Critical mark, never by a stored legacy level', async () => {
+    state.listRules.mockResolvedValue({
+      items: [
+        { ...rule, id: 'r-null', name: 'Unmarked rule', severity: null },
+        { ...rule, id: 'r-high', name: 'Legacy rule', severity: 'HIGH' },
+        { ...rule, id: 'r-crit', name: 'Critical rule', severity: 'CRITICAL' },
+      ],
+      nextCursor: null,
+    })
+    renderBoard()
+    await screen.findAllByText('Unmarked rule')
+    const alerts = screen.getAllByRole('table')[0] as HTMLElement
+    const label = (name: string) =>
+      within(alerts).getByText(name).closest('tr')?.querySelectorAll('td')[3]?.textContent
+    expect(label('Unmarked rule')).toBe('Suggested when it fires')
+    expect(label('Legacy rule')).toBe('Suggested when it fires')
+    expect(label('Critical rule')).toBe('Critical (manual)')
+    expect(within(alerts).queryByText('Needs context')).toBeNull()
   })
   it('points the empty state at the Create rule tab instead of repeating a button', async () => {
     state.listRules.mockResolvedValue({ items: [], nextCursor: null })

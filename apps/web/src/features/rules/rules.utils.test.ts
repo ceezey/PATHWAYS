@@ -17,6 +17,8 @@ import {
   nodeKey,
   previewSentence,
   recordBound,
+  ruleSeverityText,
+  ruleSeverityTone,
   severityTone,
   suggestRuleCode,
 } from './rules.utils'
@@ -161,6 +163,21 @@ describe('alertSeverityRank', () => {
   })
   it('sorts a Needs context alert after Low', () => {
     expect(alertSeverityRank(null)).toBeGreaterThan(alertSeverityRank('LOW'))
+  })
+})
+
+describe('rule severity label', () => {
+  it('names only the manual Critical mark and treats null and legacy levels as suggested', () => {
+    expect([null, 'HIGH', 'CRITICAL'].map(ruleSeverityText)).toEqual([
+      'Suggested when it fires',
+      'Suggested when it fires',
+      'Critical (manual)',
+    ])
+    expect([null, 'HIGH', 'CRITICAL'].map(ruleSeverityTone)).toEqual([
+      'neutral',
+      'neutral',
+      'danger',
+    ])
   })
 })
 

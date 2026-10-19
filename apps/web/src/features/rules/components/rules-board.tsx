@@ -36,8 +36,8 @@ import {
   conditionSummary,
   filterRules,
   flattenRecommendations,
-  severityText,
-  severityTone,
+  ruleSeverityText,
+  ruleSeverityTone,
   statusTone,
   titleCase,
 } from '../rules.utils'
@@ -167,8 +167,8 @@ function RuleTables({
               {conditionSummary(rule.conditions)}
             </TableCell>
             <TableCell>
-              <StatusBadge tone={severityTone(rule.severity)}>
-                {severityText(rule.severity)}
+              <StatusBadge tone={ruleSeverityTone(rule.severity)}>
+                {ruleSeverityText(rule.severity)}
               </StatusBadge>
             </TableCell>
             <TableCell>

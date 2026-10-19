@@ -15,7 +15,7 @@ import {
   conditionSummary,
   manualSeverity,
   newRec,
-  severityText,
+  ruleSeverityText,
   titleCase,
 } from '../rules.utils'
 import { RecommendationFields } from './recommendation-fields'
@@ -167,7 +167,7 @@ export function RecommendationRuleDrawer({
                   <span className="mt-1 grid gap-1 text-sm text-muted-foreground sm:grid-cols-2">
                     <span>Project: {projectLabel(selectedAlert)}</span>
                     <span>Condition: {conditionSummary(selectedAlert.conditions)}</span>
-                    <span>Severity: {severityText(selectedAlert.severity)}</span>
+                    <span>Severity: {ruleSeverityText(selectedAlert.severity)}</span>
                     <span>Status: {titleCase(selectedAlert.status)}</span>
                   </span>
                 </output>
@@ -204,7 +204,7 @@ export function RecommendationRuleDrawer({
                             <span className="mt-1 grid gap-1 text-xs text-muted-foreground sm:grid-cols-2">
                               <span>Project: {projectLabel(item)}</span>
                               <span>Condition: {conditionSummary(item.conditions)}</span>
-                              <span>Severity: {severityText(item.severity)}</span>
+                              <span>Severity: {ruleSeverityText(item.severity)}</span>
                               <span>Status: {titleCase(item.status)}</span>
                             </span>
                           </span>

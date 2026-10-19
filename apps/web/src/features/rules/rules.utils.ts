@@ -356,12 +356,17 @@ export const titleCase = (value: string) =>
     .replaceAll('_', ' ')
     .toLowerCase()
     .replace(/^\w/, (char) => char.toUpperCase())
-// Alerts and rules without a stored level read as needing context.
+// Alerts without a stored level read as needing context.
 export const severityText = (severity: string | null) =>
   severity === null ? 'Needs context' : titleCase(severity)
 // Rules store only a manual Critical mark; the system suggests every other level.
 export const manualSeverity = (severity: string | null) =>
   severity === 'CRITICAL' ? ('CRITICAL' as const) : null
+// Rule-level label: only the manual Critical mark is fixed; legacy levels no longer affect alerts.
+export const ruleSeverityText = (severity: string | null) =>
+  manualSeverity(severity) ? 'Critical (manual)' : 'Suggested when it fires'
+export const ruleSeverityTone = (severity: string | null) =>
+  manualSeverity(severity) ? ('danger' as const) : ('neutral' as const)
 export const selectClass =
   'h-11 w-full rounded-md border border-input bg-card px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:bg-secondary disabled:text-disabled-foreground'
 export type Rec = { id: string; title: string; text: string }

@@ -338,7 +338,7 @@ describe('RuleDrawer', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Choose from alert library' }))
     expect(screen.getByText('Project: North Star Project')).toBeTruthy()
     expect(screen.getByText(/Condition: Days until project end/)).toBeTruthy()
-    expect(screen.getByText('Severity: High')).toBeTruthy()
+    expect(screen.getByText('Severity: Suggested when it fires')).toBeTruthy()
     expect(screen.getByText('Status: Active')).toBeTruthy()
   })
   it('saves a new rule through createRule with a valid tree', async () => {
