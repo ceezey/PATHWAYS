@@ -170,7 +170,7 @@ export async function recordEnrollmentAssessment(
   const parsed = recordAssessmentRequest.safeParse(input)
   if (!parsed.success) throw new BadRequestException('Supply a valid assessment score and date.')
   const body = parsed.data
-  if (body.assessmentDate.slice(0, 10) > currentBusinessDate())
+  if (body.assessmentDate > currentBusinessDate())
     throw new BadRequestException('The assessment date cannot be in the future.')
   const id = await requireScopedProject(tx, actor, projectId)
   const enrollment = await tx.beneficiaryProjectEnrollment.findFirst({
@@ -210,7 +210,7 @@ export async function recordEnrollmentAssessment(
       type: body.type,
       score: body.score,
       maximumScore: body.maximumScore,
-      assessmentDate: new Date(`${body.assessmentDate.slice(0, 10)}T00:00:00.000Z`),
+      assessmentDate: new Date(`${body.assessmentDate}T00:00:00.000Z`),
       recordedById: actor.userId,
     },
     select: { id: true },

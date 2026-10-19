@@ -166,6 +166,21 @@ describe('record beneficiary assessment', () => {
     expect(tx.assessmentResult.create).not.toHaveBeenCalled()
   })
 
+  it('stores the exact assessment day', async () => {
+    await record()
+    const stored = tx.assessmentResult.create.mock.calls[0][0].data.assessmentDate as Date
+    expect(stored.toISOString()).toBe('2026-09-01T00:00:00.000Z')
+  })
+
+  it.each(['2026', '2026-09', '20260901', '2026-W01', '2026-044', '2026-02-30'])(
+    'refuses the reduced or unreal date %j before any query',
+    async (assessmentDate) => {
+      await expect(record({ ...body, assessmentDate })).rejects.toThrow(BadRequestException)
+      expect(tx.project.findFirst).not.toHaveBeenCalled()
+      expect(tx.assessmentResult.create).not.toHaveBeenCalled()
+    },
+  )
+
   it('writes an audit entry without scores', async () => {
     await record()
     expect(writeAuditLog).toHaveBeenCalledWith(

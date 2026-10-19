@@ -162,4 +162,35 @@ describe('record assessment request', () => {
     expect(accepts({ extra: 1 })).toBe(false)
     expect(accepts({ type: 'SURVEY' })).toBe(false)
   })
+
+  it.each([
+    '2026',
+    '2026-09',
+    '20260901',
+    '2026-W01',
+    '2026-044',
+    '2026-02-30',
+    '2026-09-01T00:00',
+  ])('rejects the assessment date %j', (assessmentDate) => {
+    expect(accepts({ assessmentDate })).toBe(false)
+  })
+
+  it('accepts a real YYYY-MM-DD assessment date', () => {
+    expect(recordAssessmentRequest.parse(base).assessmentDate).toBe('2026-09-01')
+  })
+
+  it('compares scores exactly near the 14-digit limit', () => {
+    const maximumScore = '99999999999999.9998'
+    expect(accepts({ maximumScore, score: '99999999999999.9998' })).toBe(true)
+    expect(accepts({ maximumScore, score: '99999999999999.9999' })).toBe(false)
+    expect(accepts({ maximumScore: '0.0001', score: '0.0001' })).toBe(true)
+    expect(accepts({ maximumScore: '0.0000', score: '0' })).toBe(false)
+  })
+
+  it('reports only the field error for a malformed score', () => {
+    const result = recordAssessmentRequest.safeParse({ ...base, score: 85 })
+    expect(result.success ? [] : result.error.issues.map((issue) => issue.path)).toEqual([
+      ['score'],
+    ])
+  })
 })

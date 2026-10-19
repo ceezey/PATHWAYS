@@ -1,6 +1,7 @@
 import { z } from 'zod'
 
-import { strictIsoDateString, uuidString } from '../common/field-schemas'
+import { isCalendarDate, scaledDecimal } from '../../metrics/metric-math'
+import { uuidString } from '../common/field-schemas'
 
 const revision = z.string().datetime({ offset: true })
 // A calendar date that also names a real UTC day.
@@ -61,9 +62,8 @@ export const enrollmentAssessmentsQuery = z.object({ enrollmentId: z.string().uu
 export type EnrollmentAssessmentsQuery = z.infer<typeof enrollmentAssessmentsQuery>
 
 // A non-negative decimal string with at most 4 decimal places, matching the score columns.
-const scoreString = z
-  .string()
-  .regex(/^(?:0|[1-9]\d{0,13})(?:\.\d{1,4})?$/, 'must be a non-negative number')
+const scorePattern = /^(?:0|[1-9]\d{0,13})(?:\.\d{1,4})?$/
+const scoreString = z.string().regex(scorePattern, 'must be a non-negative number')
 
 // Body of POST projects/:projectId/evaluation/assessments.
 export const recordAssessmentRequest = z
@@ -73,17 +73,20 @@ export const recordAssessmentRequest = z
     type: z.enum(['PRE_TEST', 'POST_TEST']),
     score: scoreString,
     maximumScore: scoreString.default('100'),
-    assessmentDate: strictIsoDateString,
+    assessmentDate: z.string().refine(isCalendarDate, 'must be a real YYYY-MM-DD date'),
   })
   .strict()
   .superRefine((value, ctx) => {
-    if (Number(value.maximumScore) <= 0)
+    // Zod still refines a body whose fields failed, so compare only well-formed scores.
+    const scores: unknown[] = [value.score, value.maximumScore]
+    if (!scores.every((score) => typeof score === 'string' && scorePattern.test(score))) return
+    if (scaledDecimal(value.maximumScore) <= 0n)
       ctx.addIssue({
         code: 'custom',
         message: 'must be above zero',
         path: ['maximumScore'],
       })
-    else if (Number(value.score) > Number(value.maximumScore))
+    else if (scaledDecimal(value.score) > scaledDecimal(value.maximumScore))
       ctx.addIssue({
         code: 'custom',
         message: 'cannot exceed the maximum',
