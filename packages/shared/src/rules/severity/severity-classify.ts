@@ -122,8 +122,8 @@ function judge(c: RuleCondition, f: SeverityFacts, e: RuleExpectations): Conditi
       if (f.missingEnd !== 0) return context(c, 'ACTIVITY_PLANNED_END_DATES')
       return behind(c, f.value, { n: BigInt(f.dueByDate) * 100n, d: BigInt(f.included) })
     case 'ACTIVITY_OVERDUE_COUNT': {
+      // An available count dates every unfinished activity, so missing ends are ignored.
       if (!f.included || f.included <= 0) return context(c, 'ACTIVITY_TOTAL')
-      if (f.missingEnd !== 0) return context(c, 'ACTIVITY_PLANNED_END_DATES')
       const count = scaledDecimal(f.value)
       const included = BigInt(f.included)
       return measured(c, 'OVERDUE_SHARE', decimal(f.value), whole(included), {

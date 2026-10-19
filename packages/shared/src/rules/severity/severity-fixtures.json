@@ -1984,7 +1984,7 @@
     }
   },
   {
-    "name": "overdue activities with an activity missing its planned end needs context",
+    "name": "2 of 10 activities overdue with a completed activity missing its planned end is high",
     "input": {
       "tree": {
         "kind": "GROUP",
@@ -2019,6 +2019,67 @@
     },
     "expected": {
       "criteriaVersion": "severity-guide-v0.2",
+      "status": "CLASSIFIED",
+      "level": "HIGH",
+      "supportedLevel": "HIGH",
+      "decisiveConditionId": "count",
+      "combination": null,
+      "manualCritical": false,
+      "conditions": [
+        {
+          "conditionId": "count",
+          "metric": "ACTIVITY_OVERDUE_COUNT",
+          "outcome": "LEVEL",
+          "level": "HIGH",
+          "measure": {
+            "kind": "OVERDUE_SHARE",
+            "actual": "2.0000",
+            "expected": "10.0000",
+            "value": "20.0000"
+          },
+          "missing": null
+        }
+      ],
+      "missing": [],
+      "unchecked": []
+    }
+  },
+  {
+    "name": "overdue activities with a zero included total needs context",
+    "input": {
+      "tree": {
+        "kind": "GROUP",
+        "mode": "AND",
+        "children": [
+          {
+            "kind": "CONDITION",
+            "id": "count",
+            "metric": "ACTIVITY_OVERDUE_COUNT",
+            "operator": "GT",
+            "threshold": "0"
+          }
+        ]
+      },
+      "results": {
+        "count": "TRUE"
+      },
+      "facts": {
+        "count": {
+          "metric": "ACTIVITY_OVERDUE_COUNT",
+          "value": "0",
+          "reportingDate": "2026-10-19",
+          "included": 0,
+          "missingEnd": 0
+        }
+      },
+      "expectations": {
+        "expectedScoreImprovement": null,
+        "manageableFollowUpPercent": null
+      },
+      "ruleSeverity": null
+    },
+    "expected": {
+      "criteriaVersion": "severity-guide-v0.2",
       "status": "CONTEXT_REQUIRED",
       "level": null,
       "supportedLevel": null,
@@ -2032,10 +2093,10 @@
           "outcome": "CONTEXT_REQUIRED",
           "level": null,
           "measure": null,
-          "missing": "ACTIVITY_PLANNED_END_DATES"
+          "missing": "ACTIVITY_TOTAL"
         }
       ],
-      "missing": ["ACTIVITY_PLANNED_END_DATES"],
+      "missing": ["ACTIVITY_TOTAL"],
       "unchecked": []
     }
   },

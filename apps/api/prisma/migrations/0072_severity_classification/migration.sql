@@ -637,9 +637,8 @@ BEGIN
    en:=(f->>'dueByDate')::numeric*100;ed:=(f->>'included')::numeric;
   END IF;
  ELSIF metric='ACTIVITY_OVERDUE_COUNT' THEN
+  -- An available count dates every unfinished activity, so a completed one without an end is ignored.
   IF f->>'included' IS NULL OR (f->>'included')::numeric<=0 THEN outcome:='CONTEXT_REQUIRED';missing:='ACTIVITY_TOTAL';
-  ELSIF f->>'missingEnd' IS NULL OR (f->>'missingEnd')::numeric<>0 THEN
-   outcome:='CONTEXT_REQUIRED';missing:='ACTIVITY_PLANNED_END_DATES';
   ELSE kind:='OVERDUE_SHARE';an:=pathways_rules_internal.decimal_value(f->>'value')*10000;
    en:=(f->>'included')::numeric;ed:=1;vn:=an*100;vd:=10000*en;
   END IF;
