@@ -1024,3 +1024,7 @@
 ## 2026-10-19 Activity escalation change record (feature/activity-escalation)
 - Added `docs/cr-pathways-activity-escalation.md` (Approved, implementation pending): states OPEN/FORWARDED/RESOLVED with resolution level, migration 0070 table, RLS and grants, five routes, role-overview `escalationQueue`, privacy rationale for aggregate roles (direct RLS read, no SECURITY DEFINER) and a role-by-role manual test script.
 - Added PRD bullet and G-F2-21, QAD-T122 to QAD-T124 and QAD-A45, deferred-features row update, and the index entry.
+
+## 2026-10-19 Activity escalation migration 0070 (feature/activity-escalation)
+- Added migration `0070_activity_escalations` (table, 7 CHECKs, 6 FKs, partial unique open key, 3 RLS policies with the inlined ROLE(code) pattern, transition trigger, column grants), the `ActivityEscalation` Prisma model and `activity-escalations-runtime.sql` (55 assertions).
+- Registered 0070 in hosted plan and build checks, `Verify-Forward.ps1`, the legacy-retirement test (59 models), `Replay-Local.ps1` (61 pathways tables, new SQL step) and the demo wipe TRUNCATE list; local baseline replay and `SCHEMA_DRIFT=CLEAN` pass with no expected-file change.

@@ -56,6 +56,7 @@ $forwardInventory = @(
   '0067_beneficiary_progress_read'
   '0068_timeline_final_position'
   '0069_evaluation_auto_scoring'
+  '0070_activity_escalations'
 )
 if (($forwardMigrations.Name -join ',') -cne ($forwardInventory -join ',')) { throw 'Forward migration inventory requires renewed review.' }
 

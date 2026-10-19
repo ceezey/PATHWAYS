@@ -597,6 +597,8 @@ END $$;
       Write-Output 'F9_SURVEY_PERIOD_RELEASE_RUNTIME=PASS'
       Measure-ReplayStep 'sql activity-extension-requests-runtime' { Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/activity-extension-requests-runtime.sql'))) $phase6Database }
       Write-Output 'ACTIVITY_EXTENSION_REQUESTS_RUNTIME=PASS'
+      Measure-ReplayStep 'sql activity-escalations-runtime' { Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/activity-escalations-runtime.sql'))) $phase6Database }
+      Write-Output 'ACTIVITY_ESCALATIONS_RUNTIME=PASS'
       Measure-ReplayStep 'sql zone-check-memo-runtime' { Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/zone-check-memo-runtime.sql'))) $phase6Database }
       Write-Output 'ZONE_CHECK_MEMO_RUNTIME=PASS'
       Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/beneficiary-reach-kpi-values-runtime.sql'))) $phase6Database
@@ -613,8 +615,8 @@ END $$;
     } finally { Pop-Location }
     if ($MigrationBaseline) {
       # Only this path reaches the current schema, so the current-schema API suites run here.
-      # Fixed pathways table count (60 after 0061 adds activity_extension_requests, 59 after 0057 adds survey_period_releases; 0052 adds only the pathways_auth schema) so a missing or extra table fails the guard.
-      $env:PATHWAYS_EXPECTED_TABLE_COUNT = "60"
+      # Fixed pathways table count (61 after 0070 adds activity_escalations, 60 after 0061 adds activity_extension_requests, 59 after 0057 adds survey_period_releases; 0052 adds only the pathways_auth schema) so a missing or extra table fails the guard.
+      $env:PATHWAYS_EXPECTED_TABLE_COUNT = "61"
       $env:PATHWAYS_FEATURE_READ_LOCAL_TESTS = '1'
       $env:PATHWAYS_C8_LOCAL_TESTS = '1'
       $env:PATHWAYS_DASHBOARD_HOME_SCOPE_LOCAL_TESTS = '1'

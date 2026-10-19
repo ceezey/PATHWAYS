@@ -90,6 +90,7 @@ model Organization {
   activityUpdate_organization                   ActivityUpdate[]                   @relation("ActivityUpdate_organization")
   activityOverdueExplanation_organization       ActivityOverdueExplanation[]       @relation("ActivityOverdueExplanation_organization")
   activityExtensionRequest_organization ActivityExtensionRequest[] @relation("ActivityExtensionRequest_organization")
+  activityEscalation_organization ActivityEscalation[] @relation("ActivityEscalation_organization")
   indicatorLibraryEntry_organization            IndicatorLibraryEntry[]            @relation("IndicatorLibraryEntry_organization")
 
   @@index([status], map: "organizations_status_idx")
@@ -222,6 +223,9 @@ model SystemUser {
   activityExtensionRequest_requestedBy ActivityExtensionRequest[] @relation("ActivityExtensionRequest_requestedBy")
   activityExtensionRequest_verifiedBy ActivityExtensionRequest[] @relation("ActivityExtensionRequest_verifiedBy")
   activityExtensionRequest_decidedBy ActivityExtensionRequest[] @relation("ActivityExtensionRequest_decidedBy")
+  activityEscalation_raisedBy ActivityEscalation[] @relation("ActivityEscalation_raisedBy")
+  activityEscalation_forwardedBy ActivityEscalation[] @relation("ActivityEscalation_forwardedBy")
+  activityEscalation_resolvedBy ActivityEscalation[] @relation("ActivityEscalation_resolvedBy")
   indicatorLibraryEntry_createdBy             IndicatorLibraryEntry[]            @relation("IndicatorLibraryEntry_createdBy")
   userProjectAssignment_user                  UserProjectAssignment[]            @relation("UserProjectAssignment_user")
   projectPublication_submittedBy              ProjectPublication[]               @relation("ProjectPublication_submittedBy")
@@ -730,6 +734,7 @@ model Project {
   activityUpdate_project                   ActivityUpdate[]                   @relation("ActivityUpdate_project")
   activityOverdueExplanation_project       ActivityOverdueExplanation[]       @relation("ActivityOverdueExplanation_project")
   activityExtensionRequest_project ActivityExtensionRequest[] @relation("ActivityExtensionRequest_project")
+  activityEscalation_project ActivityEscalation[] @relation("ActivityEscalation_project")
   projectPublication_project               ProjectPublication?                @relation("ProjectPublication_project")
 
   @@unique([organizationId, id], map: "projects_scope_key")
@@ -815,6 +820,7 @@ model ProjectActivity {
   activityUpdate_activity                   ActivityUpdate[]                   @relation("ActivityUpdate_activity")
   activityOverdueExplanation_activity       ActivityOverdueExplanation[]       @relation("ActivityOverdueExplanation_activity")
   activityExtensionRequest_activity ActivityExtensionRequest[] @relation("ActivityExtensionRequest_activity")
+  activityEscalation_activity ActivityEscalation[] @relation("ActivityEscalation_activity")
 
   @@unique([organizationId, projectId, id], map: "project_activities_scope_key")
   @@unique([organizationId, projectId, code], map: "project_activities_project_code_key")
@@ -879,6 +885,39 @@ model ActivityOverdueExplanation {
   @@index([organizationId, projectId, activityId, recordedAt], map: "activity_overdue_explanations_activity_time_idx")
   @@index([organizationId, recordedById], map: "activity_overdue_explanations_recorded_by_idx")
   @@map("activity_overdue_explanations")
+  @@schema("pathways")
+}
+
+model ActivityEscalation {
+  id               String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId   String          @map("organization_id") @db.Uuid
+  projectId        String          @map("project_id") @db.Uuid
+  activityId       String          @map("activity_id") @db.Uuid
+  reason           String
+  status           String          @default("OPEN")
+  raisedById       String          @map("raised_by_id") @db.Uuid
+  raisedAt         DateTime        @default(now()) @map("raised_at") @db.Timestamptz(3)
+  forwardedById    String?         @map("forwarded_by_id") @db.Uuid
+  forwardedAt      DateTime?       @map("forwarded_at") @db.Timestamptz(3)
+  forwardNote      String?         @map("forward_note")
+  resolvedById     String?         @map("resolved_by_id") @db.Uuid
+  resolvedAt       DateTime?       @map("resolved_at") @db.Timestamptz(3)
+  resolutionNote   String?         @map("resolution_note")
+  resolutionLevel  String?         @map("resolution_level")
+  clientMutationId String          @map("client_mutation_id") @db.Uuid
+  updatedAt        DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  organization     Organization    @relation("ActivityEscalation_organization", fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "activity_escalations_organization_fk")
+  project          Project         @relation("ActivityEscalation_project", fields: [organizationId, projectId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "activity_escalations_project_fk")
+  activity         ProjectActivity @relation("ActivityEscalation_activity", fields: [organizationId, projectId, activityId], references: [organizationId, projectId, id], onDelete: Restrict, onUpdate: Restrict, map: "activity_escalations_activity_fk")
+  raisedBy         SystemUser      @relation("ActivityEscalation_raisedBy", fields: [organizationId, raisedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "activity_escalations_raised_by_fk")
+  forwardedBy      SystemUser?     @relation("ActivityEscalation_forwardedBy", fields: [organizationId, forwardedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "activity_escalations_forwarded_by_fk")
+  resolvedBy       SystemUser?     @relation("ActivityEscalation_resolvedBy", fields: [organizationId, resolvedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "activity_escalations_resolved_by_fk")
+
+  @@unique([organizationId, projectId, activityId, id], map: "activity_escalations_scope_key")
+  @@unique([organizationId, clientMutationId], map: "activity_escalations_client_key")
+  @@index([organizationId, projectId, status, raisedAt], map: "activity_escalations_status_idx")
+  @@index([organizationId, raisedById], map: "activity_escalations_raised_by_idx")
+  @@map("activity_escalations")
   @@schema("pathways")
 }
 
