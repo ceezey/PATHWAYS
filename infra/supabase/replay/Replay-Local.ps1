@@ -42,7 +42,7 @@ $phase6Port = if ($Port -gt 0) { $Port } else { Get-FreeLoopbackPort }
 $phase6Exit = 1
 $phase6Started = $false
 $phase6PreviousEnvironment = @{}
-foreach ($phase6EnvironmentName in @('PATHWAYS_PHASE6_REPLAY_MIGRATIONS','PATHWAYS_CSV_RBAC_LOCAL_TESTS','PATHWAYS_FEATURE_READ_LOCAL_TESTS','PATHWAYS_PROJECT_ACTIVITY_CREATION_LOCAL_TESTS','PATHWAYS_C8_LOCAL_TESTS','PATHWAYS_EXPECTED_TABLE_COUNT','PATHWAYS_DASHBOARD_HOME_SCOPE_LOCAL_TESTS','PATHWAYS_REPORTS_LOCAL_TESTS','PATHWAYS_ACTIVITY_EXTENSIONS_LOCAL_TESTS','PATHWAYS_EVALUATIONS_LOCAL_TESTS','PATHWAYS_REPLAY_PORT','DIRECT_URL','DATABASE_URL')) {
+foreach ($phase6EnvironmentName in @('PATHWAYS_PHASE6_REPLAY_MIGRATIONS','PATHWAYS_CSV_RBAC_LOCAL_TESTS','PATHWAYS_FEATURE_READ_LOCAL_TESTS','PATHWAYS_PROJECT_ACTIVITY_CREATION_LOCAL_TESTS','PATHWAYS_C8_LOCAL_TESTS','PATHWAYS_EXPECTED_TABLE_COUNT','PATHWAYS_DASHBOARD_HOME_SCOPE_LOCAL_TESTS','PATHWAYS_REPORTS_LOCAL_TESTS','PATHWAYS_ACTIVITY_EXTENSIONS_LOCAL_TESTS','PATHWAYS_ACTIVITY_ESCALATIONS_LOCAL_TESTS','PATHWAYS_EVALUATIONS_LOCAL_TESTS','PATHWAYS_REPLAY_PORT','DIRECT_URL','DATABASE_URL')) {
   $phase6EnvironmentItem = Get-Item -LiteralPath "Env:$phase6EnvironmentName" -ErrorAction SilentlyContinue
   $phase6PreviousEnvironment[$phase6EnvironmentName] = if ($null -eq $phase6EnvironmentItem) {
     @{ Present = $false; Value = $null }
@@ -597,6 +597,8 @@ END $$;
       Write-Output 'F9_SURVEY_PERIOD_RELEASE_RUNTIME=PASS'
       Measure-ReplayStep 'sql activity-extension-requests-runtime' { Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/activity-extension-requests-runtime.sql'))) $phase6Database }
       Write-Output 'ACTIVITY_EXTENSION_REQUESTS_RUNTIME=PASS'
+      Measure-ReplayStep 'sql activity-escalations-runtime' { Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/activity-escalations-runtime.sql'))) $phase6Database }
+      Write-Output 'ACTIVITY_ESCALATIONS_RUNTIME=PASS'
       Measure-ReplayStep 'sql zone-check-memo-runtime' { Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/zone-check-memo-runtime.sql'))) $phase6Database }
       Write-Output 'ZONE_CHECK_MEMO_RUNTIME=PASS'
       Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/beneficiary-reach-kpi-values-runtime.sql'))) $phase6Database
@@ -613,17 +615,18 @@ END $$;
     } finally { Pop-Location }
     if ($MigrationBaseline) {
       # Only this path reaches the current schema, so the current-schema API suites run here.
-      # Fixed pathways table count (60 after 0061 adds activity_extension_requests, 59 after 0057 adds survey_period_releases; 0052 adds only the pathways_auth schema) so a missing or extra table fails the guard.
-      $env:PATHWAYS_EXPECTED_TABLE_COUNT = "60"
+      # Fixed pathways table count (61 after 0070 adds activity_escalations, 60 after 0061 adds activity_extension_requests, 59 after 0057 adds survey_period_releases; 0052 adds only the pathways_auth schema) so a missing or extra table fails the guard.
+      $env:PATHWAYS_EXPECTED_TABLE_COUNT = "61"
       $env:PATHWAYS_FEATURE_READ_LOCAL_TESTS = '1'
       $env:PATHWAYS_C8_LOCAL_TESTS = '1'
       $env:PATHWAYS_DASHBOARD_HOME_SCOPE_LOCAL_TESTS = '1'
       $env:PATHWAYS_REPORTS_LOCAL_TESTS = '1'
       $env:PATHWAYS_ACTIVITY_EXTENSIONS_LOCAL_TESTS = '1'
+      $env:PATHWAYS_ACTIVITY_ESCALATIONS_LOCAL_TESTS = '1'
       $env:PATHWAYS_EVALUATIONS_LOCAL_TESTS = '1'
       Push-Location $phase6Root
       try {
-        foreach ($currentSuite in @('activities/feature-read', 'dashboards/c8-runtime', 'dashboards/dashboard-home-runtime', 'reports/reports-runtime', 'activity-extensions/activity-extensions', 'evaluations/evaluations')) {
+        foreach ($currentSuite in @('activities/feature-read', 'dashboards/c8-runtime', 'dashboards/dashboard-home-runtime', 'reports/reports-runtime', 'activity-extensions/activity-extensions', 'activity-escalations/activity-escalations', 'evaluations/evaluations')) {
           Measure-ReplayStep "vitest $currentSuite" { pnpm --dir apps/api exec vitest run "src/modules/$currentSuite.local.test.ts" }
           if ($LASTEXITCODE -ne 0) { throw "Current-schema suite $currentSuite failed." }
         }

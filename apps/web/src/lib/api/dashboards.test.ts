@@ -38,6 +38,7 @@ const roleOverview = {
   approvalQueue: null,
   myExtensions: null,
   extensionQueue: null,
+  escalationQueue: null,
   datasetsImportedThisMonth: null,
   alerts: null,
 }

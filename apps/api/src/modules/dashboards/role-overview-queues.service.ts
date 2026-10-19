@@ -182,3 +182,59 @@ export async function extensionQueue(
     })),
   }
 }
+
+export type EscalationStage = 'PROJECT' | 'PROGRAM' | 'WATCH'
+
+// Project Manager sees OPEN rows, Program Manager FORWARDED rows they did not raise or forward, Grant Manager watches both.
+export async function escalationQueue(tx: Tx, actor: ApplicationIdentity, stage: EscalationStage) {
+  const where = {
+    organizationId: actor.organizationId,
+    project: projectScope(actor),
+    activity: { archivedAt: null },
+    ...(stage === 'PROJECT'
+      ? { status: 'OPEN' }
+      : stage === 'PROGRAM'
+        ? {
+            status: 'FORWARDED',
+            raisedById: { not: actor.userId },
+            NOT: { forwardedById: actor.userId },
+          }
+        : { status: { in: ['OPEN', 'FORWARDED'] } }),
+  }
+  const [count, found] = await Promise.all([
+    tx.activityEscalation.count({ where }),
+    tx.activityEscalation.findMany({
+      where,
+      select: {
+        id: true,
+        activityId: true,
+        projectId: true,
+        status: true,
+        reason: true,
+        raisedById: true,
+        raisedAt: true,
+        project: { select: { title: true } },
+        activity: { select: { code: true, title: true } },
+        raisedBy: { select: { fullName: true } },
+      },
+      orderBy: [{ raisedAt: 'asc' }, { id: 'asc' }],
+      take: rows,
+    }),
+  ])
+  return {
+    count,
+    rows: found.map((e) => ({
+      id: e.id,
+      activityId: e.activityId,
+      projectId: e.projectId,
+      projectTitle: e.project.title.slice(0, 200),
+      activityCode: e.activity.code.slice(0, 64),
+      activityTitle: e.activity.title.slice(0, 200),
+      status: e.status as 'OPEN' | 'FORWARDED',
+      reason: e.reason.slice(0, 2000),
+      raisedByName: e.raisedBy.fullName.slice(0, 200),
+      raisedAt: e.raisedAt.toISOString(),
+      stage: stage === 'PROJECT' ? (e.raisedById === actor.userId ? 'FORWARD' : 'RESOLVE') : stage,
+    })),
+  }
+}

@@ -1020,3 +1020,16 @@
 - Evidence tab sections (evidence, reports) and the Activities list render as their own reads resolve; the journey stages loader reads the project and activities through the shared reads and the stages through a live editor key (`journey-stages-editor`), and keeps the editor mounted with unsaved edits if a later refresh fails.
 - New `useAuthorizedPrefetch` (`use-authorized-read.ts`) and `useProjectPrefetch` (`projects.reads.ts`): hover or focus on a project tab link warms its summary reads, and on a project card warms the shared project read; live-only and unlisted resources are never prefetched.
 - Added `docs/cr-pathways-page-load-performance.md` (options 1-4 and 6 applied, option 5 not taken, privacy rationale, Server-Timing reading guide, staging re-measure pending), registered in the index and the deferred-features row.
+
+## 2026-10-19 Activity escalation change record (feature/activity-escalation)
+- Added `docs/cr-pathways-activity-escalation.md` (Approved, implementation pending): states OPEN/FORWARDED/RESOLVED with resolution level, migration 0070 table, RLS and grants, five routes, role-overview `escalationQueue`, privacy rationale for aggregate roles (direct RLS read, no SECURITY DEFINER) and a role-by-role manual test script.
+- Added PRD bullet and G-F2-21, QAD-T122 to QAD-T124 and QAD-A45, deferred-features row update, and the index entry.
+
+## 2026-10-19 Activity escalation migration 0070 (feature/activity-escalation)
+- Added migration `0070_activity_escalations` (table, 7 CHECKs, 6 FKs, partial unique open key, 3 RLS policies with the inlined ROLE(code) pattern, transition trigger, column grants), the `ActivityEscalation` Prisma model and `activity-escalations-runtime.sql` (55 assertions).
+- Registered 0070 in hosted plan and build checks, `Verify-Forward.ps1`, the legacy-retirement test (59 models), `Replay-Local.ps1` (61 pathways tables, new SQL step) and the demo wipe TRUNCATE list; local baseline replay and `SCHEMA_DRIFT=CLEAN` pass with no expected-file change.
+
+## 2026-10-19 Activity escalation web UI and docs status (feature/activity-escalation)
+- Added the web client `activity-escalations.ts`, the Raise escalation dialog (privacy hint, 10-2000 trimmed characters, reused client mutation id) and the escalation panel (Project Manager Forward or Resolve, Program Manager Resolve on forwarded, status only otherwise) beside the extension panel, with deep link `?action=escalation`; escalation reads stay live and are not in the summary allowlist.
+- Manager overview shows open escalations (Resolve or Forward link to the activity); portfolio overview shows forwarded escalations with a Resolve link for the Program Manager and read-only rows for the Grant Manager.
+- CR status set to Applied locally (hosted apply pending), failed-apply recovery added to section 6, G-F2-21 marked Met on the local suites, deferred-features row and index row updated.

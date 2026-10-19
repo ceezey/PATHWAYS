@@ -60,6 +60,10 @@ function setup() {
       findMany: vi.fn().mockResolvedValue([]),
       count: vi.fn().mockResolvedValue(0),
     },
+    activityEscalation: {
+      findMany: vi.fn().mockResolvedValue([]),
+      count: vi.fn().mockResolvedValue(0),
+    },
   }
   vi.mocked(withAuthorizedOperation).mockImplementation((async (_p, identity, _perm, fn) =>
     fn(tx as unknown as Prisma.TransactionClient, identity)) as typeof withAuthorizedOperation)
@@ -429,5 +433,67 @@ describe('RoleOverviewService', () => {
     expect(result.alerts?.capped).toBe(true)
     expect(result.alerts?.escalated[0]).toMatchObject({ escalatedAt: '2026-10-02T00:00:00.000Z' })
     expect(result.extensionQueue).toBeNull()
+  })
+
+  describe('escalation queue', () => {
+    const escalation = (raisedById: string, status = 'OPEN') => ({
+      id: project,
+      activityId: project,
+      projectId: project,
+      status,
+      reason: 'r'.repeat(3000),
+      raisedById,
+      raisedAt: new Date('2026-10-01T00:00:00.000Z'),
+      project: { title: 'P' },
+      activity: { code: 'A-1', title: 'T' },
+      raisedBy: { fullName: 'Officer' },
+    })
+
+    it('lists OPEN rows for the Project Manager with RESOLVE or FORWARD stage', async () => {
+      const { tx, service } = setup()
+      tx.activityEscalation.findMany.mockResolvedValue([escalation(project), escalation(user)])
+      const result = await service.read(actor('PROJECT_MANAGER'))
+      const where = tx.activityEscalation.findMany.mock.calls[0][0].where
+      expect(where).toMatchObject({
+        status: 'OPEN',
+        organizationId: org,
+        activity: { archivedAt: null },
+      })
+      expect(where.project).toMatchObject({ organizationId: org, id: { in: [project] } })
+      expect(result.escalationQueue?.rows.map((r) => r.stage)).toEqual(['RESOLVE', 'FORWARD'])
+      expect(result.escalationQueue?.rows[0].reason).toHaveLength(2000)
+    })
+
+    it('lists FORWARDED rows for the Program Manager excluding own raise or forward', async () => {
+      const { tx, service } = setup()
+      tx.activityEscalation.findMany.mockResolvedValue([escalation(project, 'FORWARDED')])
+      const result = await service.read(actor('PROGRAM_MANAGER'))
+      expect(tx.activityEscalation.findMany.mock.calls[0][0].where).toMatchObject({
+        status: 'FORWARDED',
+        raisedById: { not: user },
+        NOT: { forwardedById: user },
+      })
+      expect(result.escalationQueue?.rows[0]).toMatchObject({
+        stage: 'PROGRAM',
+        status: 'FORWARDED',
+      })
+    })
+
+    it('shows the Grant Manager open and forwarded rows to watch, selecting no beneficiary data', async () => {
+      const { tx, service } = setup()
+      tx.activityEscalation.findMany.mockResolvedValue([escalation(project, 'FORWARDED')])
+      const result = await service.read(actor('GRANT_MANAGER'))
+      const arg = tx.activityEscalation.findMany.mock.calls[0][0]
+      expect(arg.where.status).toEqual({ in: ['OPEN', 'FORWARDED'] })
+      expect(Object.keys(arg.select).filter((key) => /benef/i.test(key))).toEqual([])
+      expect(result.escalationQueue?.rows[0].stage).toBe('WATCH')
+    })
+
+    it('leaves the queue null for other roles', async () => {
+      const { tx, service } = setup()
+      for (const role of ['PROJECT_OFFICER', 'MONITORING_AND_EVALUATION_OFFICER'] as const)
+        expect((await service.read(actor(role))).escalationQueue).toBeNull()
+      expect(tx.activityEscalation.findMany).not.toHaveBeenCalled()
+    })
   })
 })

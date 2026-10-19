@@ -43,6 +43,7 @@ const data = {
   approvalQueue: null,
   myExtensions: null,
   extensionQueue: null,
+  escalationQueue: null,
   datasetsImportedThisMonth: 6,
   alerts: {
     open: 3,

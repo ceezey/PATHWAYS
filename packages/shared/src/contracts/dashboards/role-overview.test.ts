@@ -13,6 +13,7 @@ const base = {
   approvalQueue: null,
   myExtensions: null,
   extensionQueue: null,
+  escalationQueue: null,
   datasetsImportedThisMonth: null,
   alerts: null,
 }
@@ -192,6 +193,24 @@ describe('roleOverviewSchema', () => {
             currentEndDate: null,
             reason: 'Rains delayed delivery.',
             stage: 'DECIDE',
+          },
+        ],
+      },
+      escalationQueue: {
+        count: 1,
+        rows: [
+          {
+            id: u(1),
+            activityId: u(2),
+            projectId: u(3),
+            projectTitle: 'P',
+            activityCode: 'A',
+            activityTitle: 'A',
+            status: 'FORWARDED',
+            reason: 'The venue fell through.',
+            raisedByName: 'R',
+            raisedAt: at,
+            stage: 'PROGRAM',
           },
         ],
       },

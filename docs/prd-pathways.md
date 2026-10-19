@@ -268,6 +268,7 @@ flowchart LR
 - Activity create, update, status transition, progress update and proof submission with review.
 - Private proof inspection before approval, and overdue explanations.
 - Activity extension requests: an assigned Project Officer requests a later end date with a reason, the M&E Officer verifies or returns it, and the Project Manager approves or declines it; approval moves the planned end date through the activity update source operation (cr-pathways-activity-extension-request).
+- Activity escalation: any role holding the raise permission in scope raises an escalation with a reason; a Project Manager forwards it with a note (the raiser may forward) or resolves it (not the raiser), and a Program Manager who is neither raiser nor forwarder resolves forwarded ones; the Grant Manager and System Administrator can raise but not forward or resolve, aggregate roles see no beneficiary data, and the activity lifecycle never changes (cr-pathways-activity-escalation).
 - Milestone create and update.
 - Budget records and expense entries with a private receipt, verification, approval, rejection and final sign-off.
 **Bounds (out):**
@@ -302,6 +303,7 @@ flowchart LR
 | G-F2-18 | Final sign-off is recorded once per expense by a holder of `expenses.signoff` | Met | QAD-T48, QAD-T85 |
 | G-F2-19 | Overview metrics derive budget utilization and timeline deterministically and deny out-of-scope projects | Met | QAD-P03, QAD-P08 |
 | G-F2-20 | An assigned officer requests an extension, a different M&E Officer verifies it and a Project Manager who is neither approves it, moving only the planned end date; a stale activity returns 409 and an unassigned officer 403 | Met | QAD-T115, QAD-T116, QAD-T117, QAD-A43 |
+| G-F2-21 | A raised escalation is forwarded by a Project Manager or resolved by one who is not the raiser, and a forwarded one is resolved by a Program Manager who is neither raiser nor forwarder; one open escalation per activity, a stale version returns 409, an unassigned Project Officer raising returns 403 and the Grant Manager forwarding or resolving returns 403, and the activity status and dates are unchanged | Met | QAD-T122, QAD-T123, QAD-T124, QAD-A45 |
 
 #### Use Cases
 

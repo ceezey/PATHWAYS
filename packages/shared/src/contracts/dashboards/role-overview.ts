@@ -137,6 +137,22 @@ const extensionQueueRow = z
   })
   .strict()
 
+const escalationQueueRow = z
+  .object({
+    id,
+    activityId: id,
+    projectId: id,
+    projectTitle: text(200),
+    activityCode: text(64),
+    activityTitle: text(200),
+    status: z.enum(['OPEN', 'FORWARDED']),
+    reason: text(2000),
+    raisedByName: text(200),
+    raisedAt: instant,
+    stage: z.enum(['RESOLVE', 'FORWARD', 'PROGRAM', 'WATCH']),
+  })
+  .strict()
+
 /** Role dashboard sections; a `null` section means the viewer lacks its permission. */
 export const roleOverviewSchema = z
   .object({
@@ -151,6 +167,7 @@ export const roleOverviewSchema = z
     approvalQueue: list(approvalRow).nullable(),
     myExtensions: list(myExtensionRow).nullable(),
     extensionQueue: list(extensionQueueRow).nullable(),
+    escalationQueue: list(escalationQueueRow).nullable(),
     datasetsImportedThisMonth: count.nullable(),
     alerts: z
       .object({

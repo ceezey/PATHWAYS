@@ -10,7 +10,7 @@ import type { IndicatorResponse } from '@pathways/shared'
 
 import type { ExpenseBudgetReference } from '../../budget/components/activity-expense-dialog'
 import type { PendingExpense } from '../../budget/components/activity-expense-review-dialog'
-import { ActivityDetailContent } from './activity-detail-content'
+import { ActivityDetailContent, type EscalationAccess } from './activity-detail-content'
 import type { ActivityExpenseEntry } from './activity-detail-sections'
 
 export const ActivityDetailPanel = ({
@@ -22,6 +22,7 @@ export const ActivityDetailPanel = ({
   canDecideProof,
   canDecideExtension = false,
   focusExtension = false,
+  escalation,
   canEdit,
   canLogExpense,
   canReadBudgets = false,
@@ -54,6 +55,7 @@ export const ActivityDetailPanel = ({
   canDecideProof: boolean
   canDecideExtension?: boolean
   focusExtension?: boolean
+  escalation?: EscalationAccess
   canEdit: boolean
   canLogExpense: boolean
   canReadBudgets?: boolean
@@ -117,6 +119,7 @@ export const ActivityDetailPanel = ({
             canDecideProof={canDecideProof}
             canDecideExtension={canDecideExtension}
             focusExtension={focusExtension}
+            escalation={escalation}
             canEdit={canEdit}
             canLogExpense={canLogExpense}
             canReadBudgets={canReadBudgets}
