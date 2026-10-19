@@ -672,4 +672,45 @@ SELECT pg_temp.ok((SELECT doc->>'severity'='HIGH' AND doc->'severityBasis'->>'st
  AND (SELECT doc->>'severity'='HIGH' AND doc->'severityBasis'='null'::jsonb AND doc->'severityChange'='null'::jsonb
   FROM t_out WHERE name='p21_json'),'alert read model exposes severityBasis and severityChange');
 
+-- (9) 0072 re-match edges. P22 stays Medium, P23 is dismissed then worsens, P20 (manual Critical) worsens.
+BEGIN;
+SET LOCAL session_replication_role = replica;
+INSERT INTO pathways.projects(id,organization_id,code,title,start_date,end_date,status,created_by_id)
+SELECT pg_temp.u(321+n),pg_temp.u(1),'F10R-P'||(21+n),'F10 project '||(21+n),current_date-200,current_date-CASE n WHEN 1 THEN 12 ELSE 10 END,'ONGOING',pg_temp.u(101) FROM generate_series(1,2) n;
+INSERT INTO pathways.user_project_assignments(id,organization_id,project_id,user_id,assigned_by_id)
+SELECT pg_temp.u(418+n),pg_temp.u(1),pg_temp.u(321+n),pg_temp.u(102),pg_temp.u(101) FROM generate_series(1,2) n;
+COMMIT;
+BEGIN;
+SELECT pg_temp.act(1);
+SELECT pg_temp.make_rule('p22',322,'PROJECT_OVERDUE_DAYS','GT','0',1,9930);
+SELECT pg_temp.make_rule('p23',323,'PROJECT_OVERDUE_DAYS','GT','0',1,9940);
+COMMIT;
+CALL pg_temp.drain('severity_edges');
+INSERT INTO t_out SELECT 'edges_before',jsonb_build_object('p22',(pg_temp.alert_of(322)).severity_basis,'p23',(pg_temp.alert_of(323)).severity_basis,
+ 'p20',(pg_temp.alert_of(320)).severity_basis,'p23_id',(pg_temp.alert_of(323)).id);
+SELECT pg_temp.ok((SELECT (pg_temp.alert_of(322)).severity='MEDIUM' AND (pg_temp.alert_of(323)).severity='MEDIUM'),'edge fixtures start Medium');
+BEGIN;
+SELECT pg_temp.act(2);
+SELECT pathways.f10_alert_disposition((SELECT (doc->>'p23_id')::uuid FROM t_out WHERE name='edges_before'),
+ jsonb_build_object('action','DISMISS','expectedRevision','1','note','Dismissed by PM','clientOperationId',pg_temp.u(9950)));
+-- P22 moves to 15 of 185 days (still Medium); P23 and P20 move to 30 of 170 days (High).
+SELECT pg_temp.set_project_end(322,9951,current_date-15);
+SELECT pg_temp.set_project_end(323,9952,current_date-30);
+SELECT pg_temp.set_project_end(320,9953,current_date-30);
+COMMIT;
+CALL pg_temp.drain('severity_edges_rematch');
+SELECT pg_temp.ok((SELECT a.severity='MEDIUM' AND a.severity_change IS NULL AND a.revision=2 AND a.severity_basis->>'level'='MEDIUM'
+  AND a.severity_basis IS DISTINCT FROM (SELECT doc->'p22' FROM t_out WHERE name='edges_before')
+  AND (SELECT e.evidence->'severityBasis' FROM pathways_rules_internal.evaluations e WHERE e.id=a.latest_evaluation_id)=a.severity_basis
+  FROM pg_temp.alert_of(322) a),'same-level re-match moves the basis and keeps severity without a change');
+SELECT pg_temp.ok((SELECT a.lifecycle='DISMISSED' AND a.revision=3 AND a.severity='MEDIUM' AND a.severity_change IS NULL
+  AND a.severity_basis=(SELECT doc->'p23' FROM t_out WHERE name='edges_before')
+  AND (SELECT e.result='TRUE' AND e.evidence->'severityBasis'->>'level'='HIGH' FROM pathways_rules_internal.evaluations e WHERE e.id=a.latest_evaluation_id)
+  FROM pg_temp.alert_of(323) a),'re-match of a dismissed alert leaves its severity and basis');
+SELECT pg_temp.ok((SELECT a.severity='CRITICAL' AND a.severity_basis->>'level'='HIGH' AND (a.severity_basis->'manualCritical')::boolean
+  AND a.severity_change->>'from'='CRITICAL' AND a.severity_change->>'to'='CRITICAL'
+  AND a.severity_change->'previous'=(SELECT doc->'p20' FROM t_out WHERE name='edges_before')
+  AND (a.severity_change->>'at')::timestamptz=a.updated_at
+  FROM pg_temp.alert_of(320) a),'manual Critical re-match stays Critical and records the suggested-level change');
+
 DO $$ BEGIN RAISE NOTICE 'F10_F11_RULES_RUNTIME=PASS (% checks)',(SELECT count(*) FROM t_results); END $$;
