@@ -1,6 +1,6 @@
 # PATHWAYS Setup
 
-How to get PATHWAYS running on your machine. For what the product is, read [README.md](README.md); for day-to-day rules and the fast test runners, read [docs/runbook-local-dev.md](docs/runbook-local-dev.md).
+How to get PATHWAYS running on your machine. For what the product is, read [README.md](README.md); for the day-to-day rules and fast test runners, read the sections below.
 
 ## What Is In This Repo
 
@@ -76,15 +76,32 @@ Then:
 
 Stop the containers with `pnpm db:local:stop`.
 
+Details:
+
+- `pnpm db:local:reset` acts only on the fixed local container `supabase_db_pathways` (port 54322, 127.0.0.1) and replays the Prisma ledger. Supabase publishes that port on all interfaces with well-known passwords, so keep only synthetic data in it and leave the host firewall enabled.
+- `pnpm dev:local` passes local values only to the child processes, so ignored `.env` files are neither used nor changed. Stop other servers on ports 3000 and 4000 first.
+- The reset seed writes one organization, program and project and one account per role (plus a second Project Officer), and no Beneficiary, activity or indicator data.
+- `pnpm db:local:demo` (run after reset, before `dev:local`) is idempotent and refuses any target that is not the loopback local stack. It fills a fictional Plan International Pilipinas style workspace: six projects, 155 participants, forms, imports, budgets, rules with alerts, reports and F9 data. Content lives in `apps/api/prisma/seeds/local-demo-data.ts` and the `local-demo-stage-*.ts` files beside it.
+- Live import files for a presentation are in `apps/api/prisma/seeds/demo-fixtures/`: `beneficiary-registration-borongan.csv` or `.xlsx` (project "Safe Schools for Girls", published registration form, 25 valid rows), `household-profile-followup.csv` (published "Household Profile Update" form, 12 valid rows) and `livelihood-followup-structure.csv` (Collection, Import then extend; its columns become a new draft form).
+
 ## 5. Run Against The Hosted Development Database
 
-`pnpm dev` starts the web app and the API together. The API uses the runtime database role from `apps/api/.env` (the hosted development project) and deliberately ignores migration credentials.
+`pnpm dev` starts the web app and the API together against the hosted devV2 Supabase database and storage. The API uses the runtime database role from `apps/api/.env` and deliberately ignores migration credentials.
 
 1. Ask the developer for the development values: `NEXT_PUBLIC_SUPABASE_URL`, the Supabase publishable or anon key, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` and the runtime `DATABASE_URL`.
 2. Paste them into your env files.
 3. Run `pnpm dev`.
 
 `DATABASE_URL` is the API runtime identity and `DIRECT_URL` is the migration owner; they must never share a PostgreSQL role. You do not need `DIRECT_URL` to run the app.
+
+How it behaves:
+
+- Web: `http://localhost:3000` (`next dev`, hot reload). API: `http://localhost:4000/api`; it builds `packages/shared`, `packages/imports` and `packages/config` first, then builds once and keeps running, so restart `pnpm dev` after API or `.env` changes, or use `pnpm --filter @pathways/api dev:watch` for automatic reloads.
+- `infra/supabase/security-adapter/dev-local.mjs` blanks `DIRECT_URL`, `SHADOW_DATABASE_URL` and `PGPASSWORD` for the running API and redacts secrets from its output.
+- Data and uploads land in the hosted devV2 project, the same one the deployed site uses. Use synthetic data only.
+- The old launcher for the legacy PATHWAYS-dev database is `pnpm --filter @pathways/api dev:legacy-db`.
+- Push to `dev` in batches: each push starts two Vercel builds and the free plan has a build rate limit.
+- Docker (`infra/docker/docker-compose.yml`) builds production images with no live reload; use it only for a production-like check.
 
 ## 6. Check It Works
 
@@ -108,6 +125,29 @@ pnpm docs:check    # validate the document suite
 pnpm --filter @pathways/web e2e   # Playwright end-to-end tests
 ```
 
+## Fast Checks
+
+For development speed only; the full `./infra/supabase/replay/Replay-Local.ps1 -MigrationBaseline` stays the merge gate.
+
+- Save the replayed cluster once per migration change: `./infra/supabase/replay/Replay-Local.ps1 -MigrationBaseline -SaveTemplate` (writes `.tmp/pathways-replay-template/` with a migrations hash). The runners below refuse a stale template.
+- Run a runtime SQL file: `./infra/supabase/replay/Invoke-RuntimeSql.ps1 -File apps/api/prisma/tests/<file>.sql`. Each run copies the template to a disposable loopback cluster on a free port and deletes it afterwards. `project-indicator-dashboard-runtime.sql` is replay-only and fails under this runner.
+- Run a DB-backed Vitest suite: `./infra/supabase/replay/Invoke-RuntimeVitest.ps1 -File apps/api/src/modules/<module>/<name>.local.test.ts`. It sets the replay environment for that suite, refuses a file outside its flag map and restores the environment afterwards.
+- Run each affected `*.local.test.ts` and `.sql` suite through these runners before review and push.
+
+## End-To-End Tests
+
+1. Stop anything on ports 3000 and 4000, then run `pnpm db:local:start`, `pnpm db:local:reset` and `pnpm db:local:demo`.
+2. Start the apps with `pnpm dev:local`, never `pnpm dev`: `pnpm dev` reads the hosted values in `apps/api/.env`, so real sign-in fails with 401 or 503 and never reaches `/auth/mfa`.
+3. Run `npx playwright test --config playwright.config.ts` (serial, about 6 minutes) and `npx playwright test --config playwright.auth-navigation.config.ts`.
+4. The real sign-in specs reset the `@pathways.example` seed passwords and TOTP factors on every run; their rows accumulate until the next `pnpm db:local:reset`.
+
+## Working Rules
+
+- Use the repository package manager and scripts; copy environment templates rather than committing secrets; use synthetic identities and data.
+- Never print full secret-bearing URLs. Keep runtime database credentials, migration credentials, the local shadow database and the restore-test database separate.
+- Session start: read `docs/index.md` and `AGENTS.md`, then the registered PRD, SDD, RFC, DSD or QAD documents for the task; inspect the branch and status; confirm the environment target; run the install, build and test commands.
+- Session end: run tests, review the diff, and update durable registered docs only when an approved contract or verified repository fact changes.
+
 ## Database Safety
 
 - Never run `prisma migrate reset` or `prisma db push`.
@@ -125,7 +165,6 @@ pnpm --filter @pathways/web e2e   # Playwright end-to-end tests
 
 ## Useful Documents
 
-- [docs/runbook-local-dev.md](docs/runbook-local-dev.md): local stack, fast test runners and session rules
 - `infra/environment.md`: environment variable guide
 - `infra/supabase/HUMAN_SETUP.md`: human-only Supabase project setup
 - `infra/supabase/developer-mfa.md`: authenticator (TOTP) setup for developers

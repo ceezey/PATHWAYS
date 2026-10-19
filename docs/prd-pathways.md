@@ -1940,7 +1940,7 @@ Assumptions:
 
 ## 9. Implementation Plan
 
-Current position is in [state](state.md); manuscript alignment findings are in `docs/audit-pathways-manuscript-alignment-20261001.md`.
+Current position is in the [activity log](activity-log.md); manuscript alignment findings are in `docs/audit-pathways-manuscript-alignment-20261001.md`.
 
 | Feature | Status |
 |---|---|

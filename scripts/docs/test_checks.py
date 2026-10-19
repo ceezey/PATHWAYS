@@ -228,10 +228,9 @@ class Filing(Tree):
         fails, _ = self.run_check(check_filing, {"prd-stray.md": "x", "docs/state.md": "x"})
         self.assertOneMessage(fails, "prd-stray.md", "PRD doc")
 
-    def test_docs_without_state_warn(self):
+    def test_docs_without_state_do_not_warn(self):
         fails, warns = self.run_check(check_filing, {"docs/prd-x.md": "x"})
-        self.assertEqual(fails, [])
-        self.assertOneMessage(warns, "no state.md")
+        self.assertEqual((fails, warns), ([], []))
 
 
 class ProjectSpecific(Tree):

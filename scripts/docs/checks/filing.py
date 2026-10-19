@@ -2,7 +2,7 @@
 
 import re
 
-from .common import docs_ancestor, docs_roots, rel
+from .common import docs_ancestor, rel
 
 
 # Doc-type prefixes (file-naming convention). Used by the filing check.
@@ -15,19 +15,6 @@ def check_filing(target):
     """Fail-loud: a registered doc ({type}-*.md) saved outside a docs/ folder escapes
     the voice and trace checks entirely, so it fails rather than warns."""
     failures, warnings = [], []
-    # A docs suite should carry its operating position in docs/state.md (WARN).
-    for root in sorted(docs_roots(target)):
-        if (root / "state.md").is_file():
-            continue
-        generated = [
-            p for p in root.glob("*.md")
-            if FILING_RE.match(p.name) and not p.name.startswith("log-")
-        ]
-        if generated:
-            warnings.append(
-                f"{rel(root)}: no state.md (operating position: milestone, signals, "
-                f"assumptions). Create docs/state.md"
-            )
     for p in target.rglob("*.md"):
         if docs_ancestor(p) is not None:
             continue

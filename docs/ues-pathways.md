@@ -69,7 +69,7 @@ Not applicable: client-sponsored internal system, so there is no raise to trigge
 
 ## 7. Venture Stage Map
 
-Not applicable: client-sponsored internal system, so no venture stage applies. Stage is tracked in [state](state.md).
+Not applicable: client-sponsored internal system, so no venture stage applies. Stage is tracked in the [activity log](activity-log.md).
 
 ## Self-Check
 

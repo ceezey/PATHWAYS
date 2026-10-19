@@ -9,7 +9,7 @@ The project has not concluded, so outcome sections are Not established until it 
 
 ## 1. Outcome Snapshot
 
-Not established: project in progress. Current position is in [state](state.md); alignment findings are in `docs/audit-pathways-manuscript-alignment-20261001.md`.
+Not established: project in progress. Current position is in the [activity log](activity-log.md); alignment findings are in `docs/audit-pathways-manuscript-alignment-20261001.md`.
 
 ## 2. Keep / Cut / Borrow
 

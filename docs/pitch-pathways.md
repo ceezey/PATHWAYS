@@ -30,7 +30,7 @@ One project cycle, told through one session (`docs/brd-pathways.md` section 2 fo
 
 ## 3. Live Demo Script
 
-**Goal:** trace one Safe Schools for Girls (SSG-ES-2026) life-skills session from plan to report, where each step uses what the previous step produced, then show Emergency Hygiene and Learning Kits (EHK-ES-2026) as the completed cycle. Roles: Monitoring and Evaluation Officer (M&E), Project Officer (PO), Project Manager (PM), plus an anonymous browser. The demo runs on the reseeded PATHWAYS-devV2 workspace ([defense demo reseed](runbook-defense-demo.md)); the local workspace is the fallback for every step ([local development](runbook-local-dev.md)). The task sheet's "Futuremakers" project is SSG-ES-2026.
+**Goal:** trace one Safe Schools for Girls (SSG-ES-2026) life-skills session from plan to report, where each step uses what the previous step produced, then show Emergency Hygiene and Learning Kits (EHK-ES-2026) as the completed cycle. Roles: Monitoring and Evaluation Officer (M&E), Project Officer (PO), Project Manager (PM), plus an anonymous browser. The demo runs on the reseeded PATHWAYS-devV2 workspace ([defense demo reseed](runbook-defense-demo.md)); the local workspace is the fallback for every step ([local development](../README-setup.md)). The task sheet's "Futuremakers" project is SSG-ES-2026.
 
 L = live action, S = show seeded state. "Rehearsal" values are recorded at the local rehearsal; nothing else is assumed.
 

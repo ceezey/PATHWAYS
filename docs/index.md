@@ -46,7 +46,6 @@
 | WRAP | [wrap-pathways.md](wrap-pathways.md) | 2.0 | Draft |
 | OPS | [ops-pathways.md](ops-pathways.md) | 2.0 | Working |
 | LOG | [log-pathways.md](log-pathways.md) | - | Control; append-only |
-| STATE | [state.md](state.md) | - | Control; operating position |
 | Deferred features register | [deferred-features.md](deferred-features.md) | - | Control; updated alongside each hide/defer decision |
 | Activity log | [activity-log.md](activity-log.md) | - | Working; dated session activity notes |
 
@@ -64,8 +63,6 @@
 
 | Runbook | File | Status |
 |---|---|---|
-| Local development | [runbook-local-dev.md](runbook-local-dev.md) | Working |
-| Hosted devV2 local development | [local-dev.md](local-dev.md) | Working |
 | Backup/restore | [runbook-backup-restore.md](runbook-backup-restore.md) | Working |
 | Migration baseline | [runbook-migration-baseline.md](runbook-migration-baseline.md) | Working |
 | Role-staging build | [runbook-role-staging-build.md](runbook-role-staging-build.md) | Working |
@@ -96,36 +93,6 @@ Workflow rule: an audit is finding and evidence, a Change Record is the approved
 
 | Spec | File | Date | Scope | Status |
 |---|---|---|---|---|
-| [Plan 2 cloud handoff](handoff-extensions-and-escalations.md) | handoff-extensions-and-escalations.md | 2026-10-04 | Paused state of Plan 2 Task 1 handed to the cloud session, with the SDD ledger rulings | Closed; resumed and completed |
-| [Cloud handoff prompt](handoff/cloud-handoff-prompt.md) | cloud-handoff-prompt.md | 2026-10-13 | Prompt and rules for continuing the codebase modularization in a Claude Code cloud session | Active |
-| [Memory digest](handoff/memory-digest.md) | memory-digest.md | 2026-10-13 | Standing developer rules, baselines and pitfalls carried from the local session memory | Active |
-| [Modularization rulings log](handoff/modularization-rulings-log.md) | modularization-rulings-log.md | 2026-10-13 | Every controller ruling with its cost if wrong, F1 to S3a, for the final report | Active |
-| [S3b indicators web plan](handoff/modularization-s3b-indicators-web.md) | modularization-s3b-indicators-web.md | 2026-10-13 | Full S3b plan: indicator web client, feature folder, workspace split and reads; dry run green | Closed; executed and merged into dev |
-| [S3b plan summary](handoff/s3b-summary.md) | s3b-summary.md | 2026-10-13 | S3b dry run figures, routes, SAD roles and cross-plan edits | Active |
-| [S4 beneficiaries plan](handoff/modularization-s4-beneficiaries.md) | modularization-s4-beneficiaries.md | 2026-10-13 | Full plan for modularization slice S4 | Closed; executed and merged into dev |
-| [S4b beneficiaries web plan](handoff/modularization-s4b-beneficiaries-web.md) | modularization-s4b-beneficiaries-web.md | 2026-10-13 | Full plan for modularization slice S4b | Closed; executed and merged into dev |
-| [S4c beneficiaries components plan](handoff/modularization-s4c-beneficiaries-components.md) | modularization-s4c-beneficiaries-components.md | 2026-10-13 | Full plan for modularization slice S4c | Closed; executed and merged into dev |
-| [S5 collection plan](handoff/modularization-s5-collection.md) | modularization-s5-collection.md | 2026-10-13 | Full plan for modularization slice S5 | Closed; executed and merged into dev |
-| [S5b collection web plan](handoff/modularization-s5b-collection-web.md) | modularization-s5b-collection-web.md | 2026-10-13 | Full plan for modularization slice S5b | Closed; executed and merged into dev |
-| [S5c collection components plan](handoff/modularization-s5c-collection-components.md) | modularization-s5c-collection-components.md | 2026-10-13 | Full plan for modularization slice S5c | Closed; executed and merged into dev |
-| [S6 finance and reports plan](handoff/modularization-s6-finance-reports.md) | modularization-s6-finance-reports.md | 2026-10-13 | Full plan for modularization slice S6 | Closed; executed and merged into dev |
-| [S6b finance and reports web plan](handoff/modularization-s6b-finance-reports-web.md) | modularization-s6b-finance-reports-web.md | 2026-10-13 | Full plan for modularization slice S6b | Closed; executed and merged into dev |
-| [S6c finance and reports components plan](handoff/modularization-s6c-finance-reports-components.md) | modularization-s6c-finance-reports-components.md | 2026-10-13 | Full plan for modularization slice S6c | Closed; executed and merged into dev |
-| [S7 analytics and rules plan](handoff/modularization-s7-analytics-rules.md) | modularization-s7-analytics-rules.md | 2026-10-13 | Full plan for modularization slice S7 | Closed; executed and merged into dev |
-| [S7b analytics and dashboards api plan](handoff/modularization-s7b-analytics-dashboards.md) | modularization-s7b-analytics-dashboards.md | 2026-10-14 | Full plan for modularization slice S7b | Closed; executed and merged into dev |
-| [S7c analytics and dashboards web plan](handoff/modularization-s7c-analytics-dashboards-web.md) | modularization-s7c-analytics-dashboards-web.md | 2026-10-14 | Full plan for modularization slice S7c | Closed; executed and merged into dev |
-| [S7d dashboards web plan](handoff/modularization-s7d-dashboards-web.md) | modularization-s7d-dashboards-web.md | 2026-10-14 | Full plan for modularization slice S7d | Closed; executed and merged into dev |
-| [S8 public, users and auth plan](handoff/modularization-s8-public-users-auth.md) | modularization-s8-public-users-auth.md | 2026-10-13 | Full plan for modularization slice S8 | Closed; executed and merged into dev |
-| [S8b public, users, profile and auth web plan](handoff/modularization-s8b-public-users-auth-web.md) | modularization-s8b-public-users-auth-web.md | 2026-10-18 | Full plan for modularization slice S8b | Closed; executed and merged into dev |
-| [W1 tooling and docs plan](handoff/modularization-w1-tooling-docs.md) | modularization-w1-tooling-docs.md | 2026-10-18 | Full plan for modularization slice W1 | Closed; executed and merged into dev |
-| [W2 tooling follow-up plan](handoff/modularization-w2-tooling-follow-up.md) | modularization-w2-tooling-follow-up.md | 2026-10-18 | Full plan for modularization slice W2 | Closed; executed and merged into dev |
-| [Cross-plan review](handoff/cross-plan-review.md) | cross-plan-review.md | 2026-10-13 | Edits each slice plan applied to the later plans | Active |
-| [Implementer common brief](handoff/implementer-common.md) | implementer-common.md | 2026-10-13 | Common rules handed to every implementer subagent | Active |
-| [Reviewer common brief](handoff/reviewer-common.md) | reviewer-common.md | 2026-10-13 | Common rules handed to every task reviewer subagent | Active |
-| [SAD packet example](handoff/sad-packet-example.md) | sad-packet-example.md | 2026-10-13 | S3a SAD section 4.2 handoff packet used as the layout for later slices | Active |
-| [E2E legacy spec triage](e2e-legacy-spec-triage.md) | e2e-legacy-spec-triage.md | 2026-10-09 | Retired demo-state Playwright-spec triage and live-feature replacement mapping | Working |
-| [Defense demo seed handoff](handoff-defense-demo-seed.md) | handoff-defense-demo-seed.md | 2026-10-04 | Historical cloud-session handoff for the defense demo seed | Closed; work merged into dev |
-| [Page-load performance options](load-performance-options.md) | load-performance-options.md | 2026-10-03 | Measured performance options and constraints; no implementation decision | On hold |
 
 ### 1.7 Traceability Matrix
 
@@ -265,4 +232,4 @@ Last run: 2026-10-01.
 
 **Current next step**
 
-The suite is reconciled to one canonical baseline under the [doc reconciliation runbook](runbook-doc-reconciliation.md). The [manuscript alignment audit](audit-pathways-manuscript-alignment-20261001.md) is open and gates production release. Production release and core-feature repairs keep their separate authorization boundaries; remaining gaps are recorded in `state.md` and the relevant contracts.
+The suite is reconciled to one canonical baseline under the [doc reconciliation runbook](runbook-doc-reconciliation.md). The [manuscript alignment audit](audit-pathways-manuscript-alignment-20261001.md) is open and gates production release. Production release and core-feature repairs keep their separate authorization boundaries; remaining gaps are recorded in `deferred-features.md` and the relevant contracts.
