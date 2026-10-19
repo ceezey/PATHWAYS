@@ -1,0 +1,4570 @@
+[
+  {
+    "name": "indicator progress exactly 10 behind is low",
+    "input": {
+      "tree": {
+        "kind": "GROUP",
+        "mode": "AND",
+        "children": [
+          {
+            "kind": "CONDITION",
+            "id": "progress",
+            "metric": "INDICATOR_PROGRESS_PERCENT",
+            "operator": "LT",
+            "threshold": "95",
+            "indicatorId": "40000000-0000-4000-8000-000000000004"
+          }
+        ]
+      },
+      "results": {
+        "progress": "TRUE"
+      },
+      "facts": {
+        "progress": {
+          "metric": "INDICATOR_PROGRESS_PERCENT",
+          "value": "90",
+          "reportingDate": "2026-10-19",
+          "targetDate": "2026-10-01",
+          "periodEnd": null
+        }
+      },
+      "expectations": {
+        "expectedScoreImprovement": null,
+        "manageableFollowUpPercent": null
+      },
+      "ruleSeverity": null
+    },
+    "expected": {
+      "criteriaVersion": "severity-guide-v0.2",
+      "status": "CLASSIFIED",
+      "level": "LOW",
+      "supportedLevel": "LOW",
+      "decisiveConditionId": "progress",
+      "combination": null,
+      "manualCritical": false,
+      "conditions": [
+        {
+          "conditionId": "progress",
+          "metric": "INDICATOR_PROGRESS_PERCENT",
+          "outcome": "LEVEL",
+          "level": "LOW",
+          "measure": {
+            "kind": "BEHIND_PERCENT",
+            "actual": "90.0000",
+            "expected": "100.0000",
+            "value": "10.0000"
+          },
+          "missing": null
+        }
+      ],
+      "missing": [],
+      "unchecked": []
+    }
+  },
+  {
+    "name": "indicator progress just past 10 behind is medium",
+    "input": {
+      "tree": {
+        "kind": "GROUP",
+        "mode": "AND",
+        "children": [
+          {
+            "kind": "CONDITION",
+            "id": "progress",
+            "metric": "INDICATOR_PROGRESS_PERCENT",
+            "operator": "LT",
+            "threshold": "95",
+            "indicatorId": "40000000-0000-4000-8000-000000000004"
+          }
+        ]
+      },
+      "results": {
+        "progress": "TRUE"
+      },
+      "facts": {
+        "progress": {
+          "metric": "INDICATOR_PROGRESS_PERCENT",
+          "value": "89.9999",
+          "reportingDate": "2026-10-19",
+          "targetDate": "2026-10-01",
+          "periodEnd": null
+        }
+      },
+      "expectations": {
+        "expectedScoreImprovement": null,
+        "manageableFollowUpPercent": null
+      },
+      "ruleSeverity": null
+    },
+    "expected": {
+      "criteriaVersion": "severity-guide-v0.2",
+      "status": "CLASSIFIED",
+      "level": "MEDIUM",
+      "supportedLevel": "MEDIUM",
+      "decisiveConditionId": "progress",
+      "combination": null,
+      "manualCritical": false,
+      "conditions": [
+        {
+          "conditionId": "progress",
+          "metric": "INDICATOR_PROGRESS_PERCENT",
+          "outcome": "LEVEL",
+          "level": "MEDIUM",
+          "measure": {
+            "kind": "BEHIND_PERCENT",
+            "actual": "89.9999",
+            "expected": "100.0000",
+            "value": "10.0001"
+          },
+          "missing": null
+        }
+      ],
+      "missing": [],
+      "unchecked": []
+    }
+  },
+  {
+    "name": "indicator progress exactly 25 behind is medium",
+    "input": {
+      "tree": {
+        "kind": "GROUP",
+        "mode": "AND",
+        "children": [
+          {
+            "kind": "CONDITION",
+            "id": "progress",
+            "metric": "INDICATOR_PROGRESS_PERCENT",
+            "operator": "LT",
+            "threshold": "95",
+            "indicatorId": "40000000-0000-4000-8000-000000000004"
+          }
+        ]
+      },
+      "results": {
+        "progress": "TRUE"
+      },
+      "facts": {
+        "progress": {
+          "metric": "INDICATOR_PROGRESS_PERCENT",
+          "value": "75",
+          "reportingDate": "2026-10-19",
+          "targetDate": "2026-10-01",
+          "periodEnd": null
+        }
+      },
+      "expectations": {
+        "expectedScoreImprovement": null,
+        "manageableFollowUpPercent": null
+      },
+      "ruleSeverity": null
+    },
+    "expected": {
+      "criteriaVersion": "severity-guide-v0.2",
+      "status": "CLASSIFIED",
+      "level": "MEDIUM",
+      "supportedLevel": "MEDIUM",
+      "decisiveConditionId": "progress",
+      "combination": null,
+      "manualCritical": false,
+      "conditions": [
+        {
+          "conditionId": "progress",
+          "metric": "INDICATOR_PROGRESS_PERCENT",
+          "outcome": "LEVEL",
+          "level": "MEDIUM",
+          "measure": {
+            "kind": "BEHIND_PERCENT",
+            "actual": "75.0000",
+            "expected": "100.0000",
+            "value": "25.0000"
+          },
+          "missing": null
+        }
+      ],
+      "missing": [],
+      "unchecked": []
+    }
+  },
+  {
+    "name": "indicator progress just past 25 behind is high",
+    "input": {
+      "tree": {
+        "kind": "GROUP",
+        "mode": "AND",
+        "children": [
+          {
+            "kind": "CONDITION",
+            "id": "progress",
+            "metric": "INDICATOR_PROGRESS_PERCENT",
+            "operator": "LT",
+            "threshold": "95",
+            "indicatorId": "40000000-0000-4000-8000-000000000004"
+          }
+        ]
+      },
+      "results": {
+        "progress": "TRUE"
+      },
+      "facts": {
+        "progress": {
+          "metric": "INDICATOR_PROGRESS_PERCENT",
+          "value": "74.9999",
+          "reportingDate": "2026-10-19",
+          "targetDate": "2026-10-01",
+          "periodEnd": null
+        }
+      },
+      "expectations": {
+        "expectedScoreImprovement": null,
+        "manageableFollowUpPercent": null
+      },
+      "ruleSeverity": null
+    },
+    "expected": {
+      "criteriaVersion": "severity-guide-v0.2",
+      "status": "CLASSIFIED",
+      "level": "HIGH",
+      "supportedLevel": "HIGH",
+      "decisiveConditionId": "progress",
+      "combination": null,
+      "manualCritical": false,
+      "conditions": [
+        {
+          "conditionId": "progress",
+          "metric": "INDICATOR_PROGRESS_PERCENT",
+          "outcome": "LEVEL",
+          "level": "HIGH",
+          "measure": {
+            "kind": "BEHIND_PERCENT",
+            "actual": "74.9999",
+            "expected": "100.0000",
+            "value": "25.0001"
+          },
+          "missing": null
+        }
+      ],
+      "missing": [],
+      "unchecked": []
+    }
+  },
+  {
+    "name": "indicator progress ahead of the plan is low",
+    "input": {
+      "tree": {
+        "kind": "GROUP",
+        "mode": "AND",
+        "children": [
+          {
+            "kind": "CONDITION",
+            "id": "progress",
+            "metric": "INDICATOR_PROGRESS_PERCENT",
+            "operator": "LT",
+            "threshold": "95",
+            "indicatorId": "40000000-0000-4000-8000-000000000004"
+          }
+        ]
+      },
+      "results": {
+        "progress": "TRUE"
+      },
+      "facts": {
+        "progress": {
+          "metric": "INDICATOR_PROGRESS_PERCENT",
+          "value": "120",
+          "reportingDate": "2026-10-19",
+          "targetDate": "2026-10-01",
+          "periodEnd": null
+        }
+      },
+      "expectations": {
+        "expectedScoreImprovement": null,
+        "manageableFollowUpPercent": null
+      },
+      "ruleSeverity": null
+    },
+    "expected": {
+      "criteriaVersion": "severity-guide-v0.2",
+      "status": "CLASSIFIED",
+      "level": "LOW",
+      "supportedLevel": "LOW",
+      "decisiveConditionId": "progress",
+      "combination": null,
+      "manualCritical": false,
+      "conditions": [
+        {
+          "conditionId": "progress",
+          "metric": "INDICATOR_PROGRESS_PERCENT",
+          "outcome": "LEVEL",
+          "level": "LOW",
+          "measure": {
+            "kind": "BEHIND_PERCENT",
+            "actual": "120.0000",
+            "expected": "100.0000",
+            "value": "-20.0000"
+          },
+          "missing": null
+        }
+      ],
+      "missing": [],
+      "unchecked": []
+    }
+  },
+  {
+    "name": "indicator progress on its target date gives a level",
+    "input": {
+      "tree": {
+        "kind": "GROUP",
+        "mode": "AND",
+        "children": [
+          {
+            "kind": "CONDITION",
+            "id": "progress",
+            "metric": "INDICATOR_PROGRESS_PERCENT",
+            "operator": "LT",
+            "threshold": "95",
+            "indicatorId": "40000000-0000-4000-8000-000000000004"
+          }
+        ]
+      },
+      "results": {
+        "progress": "TRUE"
+      },
+      "facts": {
+        "progress": {
+          "metric": "INDICATOR_PROGRESS_PERCENT",
+          "value": "45",
+          "reportingDate": "2026-10-19",
+          "targetDate": "2026-10-19",
+          "periodEnd": null
+        }
+      },
+      "expectations": {
+        "expectedScoreImprovement": null,
+        "manageableFollowUpPercent": null
+      },
+      "ruleSeverity": null
+    },
+    "expected": {
+      "criteriaVersion": "severity-guide-v0.2",
+      "status": "CLASSIFIED",
+      "level": "HIGH",
+      "supportedLevel": "HIGH",
+      "decisiveConditionId": "progress",
+      "combination": null,
+      "manualCritical": false,
+      "conditions": [
+        {
+          "conditionId": "progress",
+          "metric": "INDICATOR_PROGRESS_PERCENT",
+          "outcome": "LEVEL",
+          "level": "HIGH",
+          "measure": {
+            "kind": "BEHIND_PERCENT",
+            "actual": "45.0000",
+            "expected": "100.0000",
+            "value": "55.0000"
+          },
+          "missing": null
+        }
+      ],
+      "missing": [],
+      "unchecked": []
+    }
+  },
+  {
+    "name": "indicator progress before its target date needs expected progress",
+    "input": {
+      "tree": {
+        "kind": "GROUP",
+        "mode": "AND",
+        "children": [
+          {
+            "kind": "CONDITION",
+            "id": "progress",
+            "metric": "INDICATOR_PROGRESS_PERCENT",
+            "operator": "LT",
+            "threshold": "95",
+            "indicatorId": "40000000-0000-4000-8000-000000000004"
+          }
+        ]
+      },
+      "results": {
+        "progress": "TRUE"
+      },
+      "facts": {
+        "progress": {
+          "metric": "INDICATOR_PROGRESS_PERCENT",
+          "value": "45",
+          "reportingDate": "2026-10-19",
+          "targetDate": "2026-10-20",
+          "periodEnd": "2026-09-30"
+        }
+      },
+      "expectations": {
+        "expectedScoreImprovement": null,
+        "manageableFollowUpPercent": null
+      },
+      "ruleSeverity": null
+    },
+    "expected": {
+      "criteriaVersion": "severity-guide-v0.2",
+      "status": "CONTEXT_REQUIRED",
+      "level": null,
+      "supportedLevel": null,
+      "decisiveConditionId": null,
+      "combination": null,
+      "manualCritical": false,
+      "conditions": [
+        {
+          "conditionId": "progress",
+          "metric": "INDICATOR_PROGRESS_PERCENT",
+          "outcome": "CONTEXT_REQUIRED",
+          "level": null,
+          "measure": null,
+          "missing": "EXPECTED_PROGRESS_FOR_DATE"
+        }
+      ],
+      "missing": ["EXPECTED_PROGRESS_FOR_DATE"],
+      "unchecked": []
+    }
+  },
+  {
+    "name": "indicator progress without target date falls back to period end",
+    "input": {
+      "tree": {
+        "kind": "GROUP",
+        "mode": "AND",
+        "children": [
+          {
+            "kind": "CONDITION",
+            "id": "progress",
+            "metric": "INDICATOR_PROGRESS_PERCENT",
+            "operator": "LT",
+            "threshold": "95",
+            "indicatorId": "40000000-0000-4000-8000-000000000004"
+          }
+        ]
+      },
+      "results": {
+        "progress": "TRUE"
+      },
+      "facts": {
+        "progress": {
+          "metric": "INDICATOR_PROGRESS_PERCENT",
+          "value": "80",
+          "reportingDate": "2026-10-19",
+          "targetDate": null,
+          "periodEnd": "2026-09-30"
+        }
+      },
+      "expectations": {
+        "expectedScoreImprovement": null,
+        "manageableFollowUpPercent": null
+      },
+      "ruleSeverity": null
+    },
+    "expected": {
+      "criteriaVersion": "severity-guide-v0.2",
+      "status": "CLASSIFIED",
+      "level": "MEDIUM",
+      "supportedLevel": "MEDIUM",
+      "decisiveConditionId": "progress",
+      "combination": null,
+      "manualCritical": false,
+      "conditions": [
+        {
+          "conditionId": "progress",
+          "metric": "INDICATOR_PROGRESS_PERCENT",
+          "outcome": "LEVEL",
+          "level": "MEDIUM",
+          "measure": {
+            "kind": "BEHIND_PERCENT",
+            "actual": "80.0000",
+            "expected": "100.0000",
+            "value": "20.0000"
+          },
+          "missing": null
+        }
+      ],
+      "missing": [],
+      "unchecked": []
+    }
+  },
+  {
+    "name": "indicator progress without target date or period end needs expected progress",
+    "input": {
+      "tree": {
+        "kind": "GROUP",
+        "mode": "AND",
+        "children": [
+          {
+            "kind": "CONDITION",
+            "id": "progress",
+            "metric": "INDICATOR_PROGRESS_PERCENT",
+            "operator": "LT",
+            "threshold": "95",
+            "indicatorId": "40000000-0000-4000-8000-000000000004"
+          }
+        ]
+      },
+      "results": {
+        "progress": "TRUE"
+      },
+      "facts": {
+        "progress": {
+          "metric": "INDICATOR_PROGRESS_PERCENT",
+          "value": "80",
+          "reportingDate": "2026-10-19",
+          "targetDate": null,
+          "periodEnd": null
+        }
+      },
+      "expectations": {
+        "expectedScoreImprovement": null,
+        "manageableFollowUpPercent": null
+      },
+      "ruleSeverity": null
+    },
+    "expected": {
+      "criteriaVersion": "severity-guide-v0.2",
+      "status": "CONTEXT_REQUIRED",
+      "level": null,
+      "supportedLevel": null,
+      "decisiveConditionId": null,
+      "combination": null,
+      "manualCritical": false,
+      "conditions": [
+        {
+          "conditionId": "progress",
+          "metric": "INDICATOR_PROGRESS_PERCENT",
+          "outcome": "CONTEXT_REQUIRED",
+          "level": null,
+          "measure": null,
+          "missing": "EXPECTED_PROGRESS_FOR_DATE"
+        }
+      ],
+      "missing": ["EXPECTED_PROGRESS_FOR_DATE"],
+      "unchecked": []
+    }
+  },
+  {
+    "name": "indicator current value is judged by its progress",
+    "input": {
+      "tree": {
+        "kind": "GROUP",
+        "mode": "AND",
+        "children": [
+          {
+            "kind": "CONDITION",
+            "id": "current",
+            "metric": "INDICATOR_CURRENT_VALUE",
+            "operator": "LT",
+            "threshold": "50",
+            "indicatorId": "40000000-0000-4000-8000-000000000004"
+          }
+        ]
+      },
+      "results": {
+        "current": "TRUE"
+      },
+      "facts": {
+        "current": {
+          "metric": "INDICATOR_CURRENT_VALUE",
+          "value": "42",
+          "reportingDate": "2026-10-19",
+          "progress": "83.3333",
+          "targetDate": "2026-10-01",
+          "periodEnd": null
+        }
+      },
+      "expectations": {
+        "expectedScoreImprovement": null,
+        "manageableFollowUpPercent": null
+      },
+      "ruleSeverity": null
+    },
+    "expected": {
+      "criteriaVersion": "severity-guide-v0.2",
+      "status": "CLASSIFIED",
+      "level": "MEDIUM",
+      "supportedLevel": "MEDIUM",
+      "decisiveConditionId": "current",
+      "combination": null,
+      "manualCritical": false,
+      "conditions": [
+        {
+          "conditionId": "current",
+          "metric": "INDICATOR_CURRENT_VALUE",
+          "outcome": "LEVEL",
+          "level": "MEDIUM",
+          "measure": {
+            "kind": "BEHIND_PERCENT",
+            "actual": "83.3333",
+            "expected": "100.0000",
+            "value": "16.6667"
+          },
+          "missing": null
+        }
+      ],
+      "missing": [],
+      "unchecked": []
+    }
+  },
+  {
+    "name": "indicator current value with invalid baseline or target needs context",
+    "input": {
+      "tree": {
+        "kind": "GROUP",
+        "mode": "AND",
+        "children": [
+          {
+            "kind": "CONDITION",
+            "id": "current",
+            "metric": "INDICATOR_CURRENT_VALUE",
+            "operator": "LT",
+            "threshold": "50",
+            "indicatorId": "40000000-0000-4000-8000-000000000004"
+          }
+        ]
+      },
+      "results": {
+        "current": "TRUE"
+      },
+      "facts": {
+        "current": {
+          "metric": "INDICATOR_CURRENT_VALUE",
+          "value": "42",
+          "reportingDate": "2026-10-19",
+          "progress": null,
+          "targetDate": "2026-10-01",
+          "periodEnd": null
+        }
+      },
+      "expectations": {
+        "expectedScoreImprovement": null,
+        "manageableFollowUpPercent": null
+      },
+      "ruleSeverity": null
+    },
+    "expected": {
+      "criteriaVersion": "severity-guide-v0.2",
+      "status": "CONTEXT_REQUIRED",
+      "level": null,
+      "supportedLevel": null,
+      "decisiveConditionId": null,
+      "combination": null,
+      "manualCritical": false,
+      "conditions": [
+        {
+          "conditionId": "current",
+          "metric": "INDICATOR_CURRENT_VALUE",
+          "outcome": "CONTEXT_REQUIRED",
+          "level": null,
+          "measure": null,
+          "missing": "INDICATOR_BASELINE_TARGET_DIRECTION"
+        }
+      ],
+      "missing": ["INDICATOR_BASELINE_TARGET_DIRECTION"],
+      "unchecked": []
+    }
+  },
+  {
+    "name": "activity completion exactly 10 behind is low",
+    "input": {
+      "tree": {
+        "kind": "GROUP",
+        "mode": "AND",
+        "children": [
+          {
+            "kind": "CONDITION",
+            "id": "completion",
+            "metric": "ACTIVITY_COMPLETION_PERCENT",
+            "operator": "LT",
+            "threshold": "90"
+          }
+        ]
+      },
+      "results": {
+        "completion": "TRUE"
+      },
+      "facts": {
+        "completion": {
+          "metric": "ACTIVITY_COMPLETION_PERCENT",
+          "value": "72",
+          "reportingDate": "2026-10-19",
+          "included": 10,
+          "dueByDate": 8,
+          "missingEnd": 0
+        }
+      },
+      "expectations": {
+        "expectedScoreImprovement": null,
+        "manageableFollowUpPercent": null
+      },
+      "ruleSeverity": null
+    },
+    "expected": {
+      "criteriaVersion": "severity-guide-v0.2",
+      "status": "CLASSIFIED",
+      "level": "LOW",
+      "supportedLevel": "LOW",
+      "decisiveConditionId": "completion",
+      "combination": null,
+      "manualCritical": false,
+      "conditions": [
+        {
+          "conditionId": "completion",
+          "metric": "ACTIVITY_COMPLETION_PERCENT",
+          "outcome": "LEVEL",
+          "level": "LOW",
+          "measure": {
+            "kind": "BEHIND_PERCENT",
+            "actual": "72.0000",
+            "expected": "80.0000",
+            "value": "10.0000"
+          },
+          "missing": null
+        }
+      ],
+      "missing": [],
+      "unchecked": []
+    }
+  },
+  {
+    "name": "activity completion just past 10 behind is medium",
+    "input": {
+      "tree": {
+        "kind": "GROUP",
+        "mode": "AND",
+        "children": [
+          {
+            "kind": "CONDITION",
+            "id": "completion",
+            "metric": "ACTIVITY_COMPLETION_PERCENT",
+            "operator": "LT",
+            "threshold": "90"
+          }
+        ]
+      },
+      "results": {
+        "completion": "TRUE"
+      },
+      "facts": {
+        "completion": {
+          "metric": "ACTIVITY_COMPLETION_PERCENT",
+          "value": "71.9999",
+          "reportingDate": "2026-10-19",
+          "included": 10,
+          "dueByDate": 8,
+          "missingEnd": 0
+        }
+      },
+      "expectations": {
+        "expectedScoreImprovement": null,
+        "manageableFollowUpPercent": null
+      },
+      "ruleSeverity": null
+    },
+    "expected": {
+      "criteriaVersion": "severity-guide-v0.2",
+      "status": "CLASSIFIED",
+      "level": "MEDIUM",
+      "supportedLevel": "MEDIUM",
+      "decisiveConditionId": "completion",
+      "combination": null,
+      "manualCritical": false,
+      "conditions": [
+        {
+          "conditionId": "completion",
+          "metric": "ACTIVITY_COMPLETION_PERCENT",
+          "outcome": "LEVEL",
+          "level": "MEDIUM",
+          "measure": {
+            "kind": "BEHIND_PERCENT",
+            "actual": "71.9999",
+            "expected": "80.0000",
+            "value": "10.0001"
+          },
+          "missing": null
+        }
+      ],
+      "missing": [],
+      "unchecked": []
+    }
+  },
+  {
+    "name": "activity completion exactly 25 behind is medium",
+    "input": {
+      "tree": {
+        "kind": "GROUP",
+        "mode": "AND",
+        "children": [
+          {
+            "kind": "CONDITION",
+            "id": "completion",
+            "metric": "ACTIVITY_COMPLETION_PERCENT",
+            "operator": "LT",
+            "threshold": "90"
+          }
+        ]
+      },
+      "results": {
+        "completion": "TRUE"
+      },
+      "facts": {
+        "completion": {
+          "metric": "ACTIVITY_COMPLETION_PERCENT",
+          "value": "60",
+          "reportingDate": "2026-10-19",
+          "included": 10,
+          "dueByDate": 8,
+          "missingEnd": 0
+        }
+      },
+      "expectations": {
+        "expectedScoreImprovement": null,
+        "manageableFollowUpPercent": null
+      },
+      "ruleSeverity": null
+    },
+    "expected": {
+      "criteriaVersion": "severity-guide-v0.2",
+      "status": "CLASSIFIED",
+      "level": "MEDIUM",
+      "supportedLevel": "MEDIUM",
+      "decisiveConditionId": "completion",
+      "combination": null,
+      "manualCritical": false,
+      "conditions": [
+        {
+          "conditionId": "completion",
+          "metric": "ACTIVITY_COMPLETION_PERCENT",
+          "outcome": "LEVEL",
+          "level": "MEDIUM",
+          "measure": {
+            "kind": "BEHIND_PERCENT",
+            "actual": "60.0000",
+            "expected": "80.0000",
+            "value": "25.0000"
+          },
+          "missing": null
+        }
+      ],
+      "missing": [],
+      "unchecked": []
+    }
+  },
+  {
+    "name": "activity completion just past 25 behind is high",
+    "input": {
+      "tree": {
+        "kind": "GROUP",
+        "mode": "AND",
+        "children": [
+          {
+            "kind": "CONDITION",
+            "id": "completion",
+            "metric": "ACTIVITY_COMPLETION_PERCENT",
+            "operator": "LT",
+            "threshold": "90"
+          }
+        ]
+      },
+      "results": {
+        "completion": "TRUE"
+      },
+      "facts": {
+        "completion": {
+          "metric": "ACTIVITY_COMPLETION_PERCENT",
+          "value": "59.9999",
+          "reportingDate": "2026-10-19",
+          "included": 10,
+          "dueByDate": 8,
+          "missingEnd": 0
+        }
+      },
+      "expectations": {
+        "expectedScoreImprovement": null,
+        "manageableFollowUpPercent": null
+      },
+      "ruleSeverity": null
+    },
+    "expected": {
+      "criteriaVersion": "severity-guide-v0.2",
+      "status": "CLASSIFIED",
+      "level": "HIGH",
+      "supportedLevel": "HIGH",
+      "decisiveConditionId": "completion",
+      "combination": null,
+      "manualCritical": false,
+      "conditions": [
+        {
+          "conditionId": "completion",
+          "metric": "ACTIVITY_COMPLETION_PERCENT",
+          "outcome": "LEVEL",
+          "level": "HIGH",
+          "measure": {
+            "kind": "BEHIND_PERCENT",
+            "actual": "59.9999",
+            "expected": "80.0000",
+            "value": "25.0001"
+          },
+          "missing": null
+        }
+      ],
+      "missing": [],
+      "unchecked": []
+    }
+  },
+  {
+    "name": "activity completion expecting zero with zero done is low",
+    "input": {
+      "tree": {
+        "kind": "GROUP",
+        "mode": "AND",
+        "children": [
+          {
+            "kind": "CONDITION",
+            "id": "completion",
+            "metric": "ACTIVITY_COMPLETION_PERCENT",
+            "operator": "LT",
+            "threshold": "90"
+          }
+        ]
+      },
+      "results": {
+        "completion": "TRUE"
+      },
+      "facts": {
+        "completion": {
+          "metric": "ACTIVITY_COMPLETION_PERCENT",
+          "value": "0",
+          "reportingDate": "2026-10-19",
+          "included": 10,
+          "dueByDate": 0,
+          "missingEnd": 0
+        }
+      },
+      "expectations": {
+        "expectedScoreImprovement": null,
+        "manageableFollowUpPercent": null
+      },
+      "ruleSeverity": null
+    },
+    "expected": {
+      "criteriaVersion": "severity-guide-v0.2",
+      "status": "CLASSIFIED",
+      "level": "LOW",
+      "supportedLevel": "LOW",
+      "decisiveConditionId": "completion",
+      "combination": null,
+      "manualCritical": false,
+      "conditions": [
+        {
+          "conditionId": "completion",
+          "metric": "ACTIVITY_COMPLETION_PERCENT",
+          "outcome": "LEVEL",
+          "level": "LOW",
+          "measure": {
+            "kind": "BEHIND_PERCENT",
+            "actual": "0.0000",
+            "expected": "0.0000",
+            "value": "0.0000"
+          },
+          "missing": null
+        }
+      ],
+      "missing": [],
+      "unchecked": []
+    }
+  },
+  {
+    "name": "activity completion rounds half away from zero",
+    "input": {
+      "tree": {
+        "kind": "GROUP",
+        "mode": "AND",
+        "children": [
+          {
+            "kind": "CONDITION",
+            "id": "completion",
+            "metric": "ACTIVITY_COMPLETION_PERCENT",
+            "operator": "LT",
+            "threshold": "90"
+          }
+        ]
+      },
+      "results": {
+        "completion": "TRUE"
+      },
+      "facts": {
+        "completion": {
+          "metric": "ACTIVITY_COMPLETION_PERCENT",
+          "value": "33.3333",
+          "reportingDate": "2026-10-19",
+          "included": 3,
+          "dueByDate": 2,
+          "missingEnd": 0
+        }
+      },
+      "expectations": {
+        "expectedScoreImprovement": null,
+        "manageableFollowUpPercent": null
+      },
+      "ruleSeverity": null
+    },
+    "expected": {
+      "criteriaVersion": "severity-guide-v0.2",
+      "status": "CLASSIFIED",
+      "level": "HIGH",
+      "supportedLevel": "HIGH",
+      "decisiveConditionId": "completion",
+      "combination": null,
+      "manualCritical": false,
+      "conditions": [
+        {
+          "conditionId": "completion",
+          "metric": "ACTIVITY_COMPLETION_PERCENT",
+          "outcome": "LEVEL",
+          "level": "HIGH",
+          "measure": {
+            "kind": "BEHIND_PERCENT",
+            "actual": "33.3333",
+            "expected": "66.6667",
+            "value": "50.0001"
+          },
+          "missing": null
+        }
+      ],
+      "missing": [],
+      "unchecked": []
+    }
+  },
+  {
+    "name": "activity completion with an activity missing its planned end needs context",
+    "input": {
+      "tree": {
+        "kind": "GROUP",
+        "mode": "AND",
+        "children": [
+          {
+            "kind": "CONDITION",
+            "id": "completion",
+            "metric": "ACTIVITY_COMPLETION_PERCENT",
+            "operator": "LT",
+            "threshold": "90"
+          }
+        ]
+      },
+      "results": {
+        "completion": "TRUE"
+      },
+      "facts": {
+        "completion": {
+          "metric": "ACTIVITY_COMPLETION_PERCENT",
+          "value": "30",
+          "reportingDate": "2026-10-19",
+          "included": 10,
+          "dueByDate": 8,
+          "missingEnd": 1
+        }
+      },
+      "expectations": {
+        "expectedScoreImprovement": null,
+        "manageableFollowUpPercent": null
+      },
+      "ruleSeverity": null
+    },
+    "expected": {
+      "criteriaVersion": "severity-guide-v0.2",
+      "status": "CONTEXT_REQUIRED",
+      "level": null,
+      "supportedLevel": null,
+      "decisiveConditionId": null,
+      "combination": null,
+      "manualCritical": false,
+      "conditions": [
+        {
+          "conditionId": "completion",
+          "metric": "ACTIVITY_COMPLETION_PERCENT",
+          "outcome": "CONTEXT_REQUIRED",
+          "level": null,
+          "measure": null,
+          "missing": "ACTIVITY_PLANNED_END_DATES"
+        }
+      ],
+      "missing": ["ACTIVITY_PLANNED_END_DATES"],
+      "unchecked": []
+    }
+  },
+  {
+    "name": "activity completion without an included total needs context",
+    "input": {
+      "tree": {
+        "kind": "GROUP",
+        "mode": "AND",
+        "children": [
+          {
+            "kind": "CONDITION",
+            "id": "completion",
+            "metric": "ACTIVITY_COMPLETION_PERCENT",
+            "operator": "LT",
+            "threshold": "90"
+          }
+        ]
+      },
+      "results": {
+        "completion": "TRUE"
+      },
+      "facts": {
+        "completion": {
+          "metric": "ACTIVITY_COMPLETION_PERCENT",
+          "value": "30",
+          "reportingDate": "2026-10-19",
+          "included": null,
+          "dueByDate": null,
+          "missingEnd": null
+        }
+      },
+      "expectations": {
+        "expectedScoreImprovement": null,
+        "manageableFollowUpPercent": null
+      },
+      "ruleSeverity": null
+    },
+    "expected": {
+      "criteriaVersion": "severity-guide-v0.2",
+      "status": "CONTEXT_REQUIRED",
+      "level": null,
+      "supportedLevel": null,
+      "decisiveConditionId": null,
+      "combination": null,
+      "manualCritical": false,
+      "conditions": [
+        {
+          "conditionId": "completion",
+          "metric": "ACTIVITY_COMPLETION_PERCENT",
+          "outcome": "CONTEXT_REQUIRED",
+          "level": null,
+          "measure": null,
+          "missing": "ACTIVITY_TOTAL"
+        }
+      ],
+      "missing": ["ACTIVITY_TOTAL"],
+      "unchecked": []
+    }
+  },
+  {
+    "name": "timeline elapsed alone needs a delivery expectation",
+    "input": {
+      "tree": {
+        "kind": "GROUP",
+        "mode": "AND",
+        "children": [
+          {
+            "kind": "CONDITION",
+            "id": "timeline",
+            "metric": "PROJECT_TIMELINE_ELAPSED_PERCENT",
+            "operator": "GT",
+            "threshold": "80"
+          }
+        ]
+      },
+      "results": {
+        "timeline": "TRUE"
+      },
+      "facts": {
+        "timeline": {
+          "metric": "PROJECT_TIMELINE_ELAPSED_PERCENT",
+          "value": "85",
+          "reportingDate": "2026-10-19",
+          "startDate": "2026-01-01",
+          "endDate": "2026-12-31"
+        }
+      },
+      "expectations": {
+        "expectedScoreImprovement": null,
+        "manageableFollowUpPercent": null
+      },
+      "ruleSeverity": null
+    },
+    "expected": {
+      "criteriaVersion": "severity-guide-v0.2",
+      "status": "CONTEXT_REQUIRED",
+      "level": null,
+      "supportedLevel": null,
+      "decisiveConditionId": null,
+      "combination": null,
+      "manualCritical": false,
+      "conditions": [
+        {
+          "conditionId": "timeline",
+          "metric": "PROJECT_TIMELINE_ELAPSED_PERCENT",
+          "outcome": "EXPLANATORY",
+          "level": null,
+          "measure": null,
+          "missing": null
+        }
+      ],
+      "missing": ["DELIVERY_EXPECTATION"],
+      "unchecked": []
+    }
+  },
+  {
+    "name": "remaining days zero alone needs a delivery expectation",
+    "input": {
+      "tree": {
+        "kind": "GROUP",
+        "mode": "AND",
+        "children": [
+          {
+            "kind": "CONDITION",
+            "id": "remaining",
+            "metric": "PROJECT_REMAINING_DAYS",
+            "operator": "LT",
+            "threshold": "10"
+          }
+        ]
+      },
+      "results": {
+        "remaining": "TRUE"
+      },
+      "facts": {
+        "remaining": {
+          "metric": "PROJECT_REMAINING_DAYS",
+          "value": "0",
+          "reportingDate": "2026-10-19",
+          "startDate": "2026-01-01",
+          "endDate": "2026-10-19"
+        }
+      },
+      "expectations": {
+        "expectedScoreImprovement": null,
+        "manageableFollowUpPercent": null
+      },
+      "ruleSeverity": null
+    },
+    "expected": {
+      "criteriaVersion": "severity-guide-v0.2",
+      "status": "CONTEXT_REQUIRED",
+      "level": null,
+      "supportedLevel": null,
+      "decisiveConditionId": null,
+      "combination": null,
+      "manualCritical": false,
+      "conditions": [
+        {
+          "conditionId": "remaining",
+          "metric": "PROJECT_REMAINING_DAYS",
+          "outcome": "EXPLANATORY",
+          "level": null,
+          "measure": null,
+          "missing": null
+        }
+      ],
+      "missing": ["DELIVERY_EXPECTATION"],
+      "unchecked": []
+    }
+  },
+  {
+    "name": "remaining days -11 on a 100-day project is high",
+    "input": {
+      "tree": {
+        "kind": "GROUP",
+        "mode": "AND",
+        "children": [
+          {
+            "kind": "CONDITION",
+            "id": "remaining",
+            "metric": "PROJECT_REMAINING_DAYS",
+            "operator": "LT",
+            "threshold": "10"
+          }
+        ]
+      },
+      "results": {
+        "remaining": "TRUE"
+      },
+      "facts": {
+        "remaining": {
+          "metric": "PROJECT_REMAINING_DAYS",
+          "value": "-11",
+          "reportingDate": "2026-10-20",
+          "startDate": "2026-07-01",
+          "endDate": "2026-10-09"
+        }
+      },
+      "expectations": {
+        "expectedScoreImprovement": null,
+        "manageableFollowUpPercent": null
+      },
+      "ruleSeverity": null
+    },
+    "expected": {
+      "criteriaVersion": "severity-guide-v0.2",
+      "status": "CLASSIFIED",
+      "level": "HIGH",
+      "supportedLevel": "HIGH",
+      "decisiveConditionId": "remaining",
+      "combination": null,
+      "manualCritical": false,
+      "conditions": [
+        {
+          "conditionId": "remaining",
+          "metric": "PROJECT_REMAINING_DAYS",
+          "outcome": "LEVEL",
+          "level": "HIGH",
+          "measure": {
+            "kind": "DELAY_SHARE",
+            "actual": "11.0000",
+            "expected": "100.0000",
+            "value": "11.0000"
+          },
+          "missing": null
+        }
+      ],
+      "missing": [],
+      "unchecked": []
+    }
+  },
+  {
+    "name": "negative remaining days without project dates needs context",
+    "input": {
+      "tree": {
+        "kind": "GROUP",
+        "mode": "AND",
+        "children": [
+          {
+            "kind": "CONDITION",
+            "id": "remaining",
+            "metric": "PROJECT_REMAINING_DAYS",
+            "operator": "LT",
+            "threshold": "10"
+          }
+        ]
+      },
+      "results": {
+        "remaining": "TRUE"
+      },
+      "facts": {
+        "remaining": {
+          "metric": "PROJECT_REMAINING_DAYS",
+          "value": "-3",
+          "reportingDate": "2026-10-19",
+          "startDate": null,
+          "endDate": "2026-10-16"
+        }
+      },
+      "expectations": {
+        "expectedScoreImprovement": null,
+        "manageableFollowUpPercent": null
+      },
+      "ruleSeverity": null
+    },
+    "expected": {
+      "criteriaVersion": "severity-guide-v0.2",
+      "status": "CONTEXT_REQUIRED",
+      "level": null,
+      "supportedLevel": null,
+      "decisiveConditionId": null,
+      "combination": null,
+      "manualCritical": false,
+      "conditions": [
+        {
+          "conditionId": "remaining",
+          "metric": "PROJECT_REMAINING_DAYS",
+          "outcome": "CONTEXT_REQUIRED",
+          "level": null,
+          "measure": null,
+          "missing": "PROJECT_DATES"
+        }
+      ],
+      "missing": ["PROJECT_DATES"],
+      "unchecked": []
+    }
+  },
+  {
+    "name": "project 15 days late on 300 days is low",
+    "input": {
+      "tree": {
+        "kind": "GROUP",
+        "mode": "AND",
+        "children": [
+          {
+            "kind": "CONDITION",
+            "id": "overdue",
+            "metric": "PROJECT_OVERDUE_DAYS",
+            "operator": "GT",
+            "threshold": "0"
+          }
+        ]
+      },
+      "results": {
+        "overdue": "TRUE"
+      },
+      "facts": {
+        "overdue": {
+          "metric": "PROJECT_OVERDUE_DAYS",
+          "value": "15",
+          "reportingDate": "2026-10-19",
+          "startDate": "2025-01-01",
+          "endDate": "2025-10-28"
+        }
+      },
+      "expectations": {
+        "expectedScoreImprovement": null,
+        "manageableFollowUpPercent": null
+      },
+      "ruleSeverity": null
+    },
+    "expected": {
+      "criteriaVersion": "severity-guide-v0.2",
+      "status": "CLASSIFIED",
+      "level": "LOW",
+      "supportedLevel": "LOW",
+      "decisiveConditionId": "overdue",
+      "combination": null,
+      "manualCritical": false,
+      "conditions": [
+        {
+          "conditionId": "overdue",
+          "metric": "PROJECT_OVERDUE_DAYS",
+          "outcome": "LEVEL",
+          "level": "LOW",
+          "measure": {
+            "kind": "DELAY_SHARE",
+            "actual": "15.0000",
+            "expected": "300.0000",
+            "value": "5.0000"
+          },
+          "missing": null
+        }
+      ],
+      "missing": [],
+      "unchecked": []
+    }
+  },
+  {
+    "name": "project 16 days late on 300 days is medium",
+    "input": {
+      "tree": {
+        "kind": "GROUP",
+        "mode": "AND",
+        "children": [
+          {
+            "kind": "CONDITION",
+            "id": "overdue",
+            "metric": "PROJECT_OVERDUE_DAYS",
+            "operator": "GT",
+            "threshold": "0"
+          }
+        ]
+      },
+      "results": {
+        "overdue": "TRUE"
+      },
+      "facts": {
+        "overdue": {
+          "metric": "PROJECT_OVERDUE_DAYS",
+          "value": "16",
+          "reportingDate": "2026-10-19",
+          "startDate": "2025-01-01",
+          "endDate": "2025-10-28"
+        }
+      },
+      "expectations": {
+        "expectedScoreImprovement": null,
+        "manageableFollowUpPercent": null
+      },
+      "ruleSeverity": null
+    },
+    "expected": {
+      "criteriaVersion": "severity-guide-v0.2",
+      "status": "CLASSIFIED",
+      "level": "MEDIUM",
+      "supportedLevel": "MEDIUM",
+      "decisiveConditionId": "overdue",
+      "combination": null,
+      "manualCritical": false,
+      "conditions": [
+        {
+          "conditionId": "overdue",
+          "metric": "PROJECT_OVERDUE_DAYS",
+          "outcome": "LEVEL",
+          "level": "MEDIUM",
+          "measure": {
+            "kind": "DELAY_SHARE",
+            "actual": "16.0000",
+            "expected": "300.0000",
+            "value": "5.3333"
+          },
+          "missing": null
+        }
+      ],
+      "missing": [],
+      "unchecked": []
+    }
+  },
+  {
+    "name": "project 30 days late on 300 days is medium",
+    "input": {
+      "tree": {
+        "kind": "GROUP",
+        "mode": "AND",
+        "children": [
+          {
+            "kind": "CONDITION",
+            "id": "overdue",
+            "metric": "PROJECT_OVERDUE_DAYS",
+            "operator": "GT",
+            "threshold": "0"
+          }
+        ]
+      },
+      "results": {
+        "overdue": "TRUE"
+      },
+      "facts": {
+        "overdue": {
+          "metric": "PROJECT_OVERDUE_DAYS",
+          "value": "30",
+          "reportingDate": "2026-10-19",
+          "startDate": "2025-01-01",
+          "endDate": "2025-10-28"
+        }
+      },
+      "expectations": {
+        "expectedScoreImprovement": null,
+        "manageableFollowUpPercent": null
+      },
+      "ruleSeverity": null
+    },
+    "expected": {
+      "criteriaVersion": "severity-guide-v0.2",
+      "status": "CLASSIFIED",
+      "level": "MEDIUM",
+      "supportedLevel": "MEDIUM",
+      "decisiveConditionId": "overdue",
+      "combination": null,
+      "manualCritical": false,
+      "conditions": [
+        {
+          "conditionId": "overdue",
+          "metric": "PROJECT_OVERDUE_DAYS",
+          "outcome": "LEVEL",
+          "level": "MEDIUM",
+          "measure": {
+            "kind": "DELAY_SHARE",
+            "actual": "30.0000",
+            "expected": "300.0000",
+            "value": "10.0000"
+          },
+          "missing": null
+        }
+      ],
+      "missing": [],
+      "unchecked": []
+    }
+  },
+  {
+    "name": "project 31 days late on 300 days is high",
+    "input": {
+      "tree": {
+        "kind": "GROUP",
+        "mode": "AND",
+        "children": [
+          {
+            "kind": "CONDITION",
+            "id": "overdue",
+            "metric": "PROJECT_OVERDUE_DAYS",
+            "operator": "GT",
+            "threshold": "0"
+          }
+        ]
+      },
+      "results": {
+        "overdue": "TRUE"
+      },
+      "facts": {
+        "overdue": {
+          "metric": "PROJECT_OVERDUE_DAYS",
+          "value": "31",
+          "reportingDate": "2026-10-19",
+          "startDate": "2025-01-01",
+          "endDate": "2025-10-28"
+        }
+      },
+      "expectations": {
+        "expectedScoreImprovement": null,
+        "manageableFollowUpPercent": null
+      },
+      "ruleSeverity": null
+    },
+    "expected": {
+      "criteriaVersion": "severity-guide-v0.2",
+      "status": "CLASSIFIED",
+      "level": "HIGH",
+      "supportedLevel": "HIGH",
+      "decisiveConditionId": "overdue",
+      "combination": null,
+      "manualCritical": false,
+      "conditions": [
+        {
+          "conditionId": "overdue",
+          "metric": "PROJECT_OVERDUE_DAYS",
+          "outcome": "LEVEL",
+          "level": "HIGH",
+          "measure": {
+            "kind": "DELAY_SHARE",
+            "actual": "31.0000",
+            "expected": "300.0000",
+            "value": "10.3333"
+          },
+          "missing": null
+        }
+      ],
+      "missing": [],
+      "unchecked": []
+    }
+  },
+  {
+    "name": "same-day project needs an agreed delay rule",
+    "input": {
+      "tree": {
+        "kind": "GROUP",
+        "mode": "AND",
+        "children": [
+          {
+            "kind": "CONDITION",
+            "id": "overdue",
+            "metric": "PROJECT_OVERDUE_DAYS",
+            "operator": "GT",
+            "threshold": "0"
+          }
+        ]
+      },
+      "results": {
+        "overdue": "TRUE"
+      },
+      "facts": {
+        "overdue": {
+          "metric": "PROJECT_OVERDUE_DAYS",
+          "value": "3",
+          "reportingDate": "2026-10-19",
+          "startDate": "2026-10-01",
+          "endDate": "2026-10-01"
+        }
+      },
+      "expectations": {
+        "expectedScoreImprovement": null,
+        "manageableFollowUpPercent": null
+      },
+      "ruleSeverity": null
+    },
+    "expected": {
+      "criteriaVersion": "severity-guide-v0.2",
+      "status": "CONTEXT_REQUIRED",
+      "level": null,
+      "supportedLevel": null,
+      "decisiveConditionId": null,
+      "combination": null,
+      "manualCritical": false,
+      "conditions": [
+        {
+          "conditionId": "overdue",
+          "metric": "PROJECT_OVERDUE_DAYS",
+          "outcome": "CONTEXT_REQUIRED",
+          "level": null,
+          "measure": null,
+          "missing": "SAME_DAY_PROJECT"
+        }
+      ],
+      "missing": ["SAME_DAY_PROJECT"],
+      "unchecked": []
+    }
+  },
+  {
+    "name": "5 of 100 activities overdue is low",
+    "input": {
+      "tree": {
+        "kind": "GROUP",
+        "mode": "AND",
+        "children": [
+          {
+            "kind": "CONDITION",
+            "id": "count",
+            "metric": "ACTIVITY_OVERDUE_COUNT",
+            "operator": "GT",
+            "threshold": "0"
+          }
+        ]
+      },
+      "results": {
+        "count": "TRUE"
+      },
+      "facts": {
+        "count": {
+          "metric": "ACTIVITY_OVERDUE_COUNT",
+          "value": "5",
+          "reportingDate": "2026-10-19",
+          "included": 100,
+          "missingEnd": 0
+        }
+      },
+      "expectations": {
+        "expectedScoreImprovement": null,
+        "manageableFollowUpPercent": null
+      },
+      "ruleSeverity": null
+    },
+    "expected": {
+      "criteriaVersion": "severity-guide-v0.2",
+      "status": "CLASSIFIED",
+      "level": "LOW",
+      "supportedLevel": "LOW",
+      "decisiveConditionId": "count",
+      "combination": null,
+      "manualCritical": false,
+      "conditions": [
+        {
+          "conditionId": "count",
+          "metric": "ACTIVITY_OVERDUE_COUNT",
+          "outcome": "LEVEL",
+          "level": "LOW",
+          "measure": {
+            "kind": "OVERDUE_SHARE",
+            "actual": "5.0000",
+            "expected": "100.0000",
+            "value": "5.0000"
+          },
+          "missing": null
+        }
+      ],
+      "missing": [],
+      "unchecked": []
+    }
+  },
+  {
+    "name": "6 of 100 activities overdue is medium",
+    "input": {
+      "tree": {
+        "kind": "GROUP",
+        "mode": "AND",
+        "children": [
+          {
+            "kind": "CONDITION",
+            "id": "count",
+            "metric": "ACTIVITY_OVERDUE_COUNT",
+            "operator": "GT",
+            "threshold": "0"
+          }
+        ]
+      },
+      "results": {
+        "count": "TRUE"
+      },
+      "facts": {
+        "count": {
+          "metric": "ACTIVITY_OVERDUE_COUNT",
+          "value": "6",
+          "reportingDate": "2026-10-19",
+          "included": 100,
+          "missingEnd": 0
+        }
+      },
+      "expectations": {
+        "expectedScoreImprovement": null,
+        "manageableFollowUpPercent": null
+      },
+      "ruleSeverity": null
+    },
+    "expected": {
+      "criteriaVersion": "severity-guide-v0.2",
+      "status": "CLASSIFIED",
+      "level": "MEDIUM",
+      "supportedLevel": "MEDIUM",
+      "decisiveConditionId": "count",
+      "combination": null,
+      "manualCritical": false,
+      "conditions": [
+        {
+          "conditionId": "count",
+          "metric": "ACTIVITY_OVERDUE_COUNT",
+          "outcome": "LEVEL",
+          "level": "MEDIUM",
+          "measure": {
+            "kind": "OVERDUE_SHARE",
+            "actual": "6.0000",
+            "expected": "100.0000",
+            "value": "6.0000"
+          },
+          "missing": null
+        }
+      ],
+      "missing": [],
+      "unchecked": []
+    }
+  },
+  {
+    "name": "15 of 100 activities overdue is medium",
+    "input": {
+      "tree": {
+        "kind": "GROUP",
+        "mode": "AND",
+        "children": [
+          {
+            "kind": "CONDITION",
+            "id": "count",
+            "metric": "ACTIVITY_OVERDUE_COUNT",
+            "operator": "GT",
+            "threshold": "0"
+          }
+        ]
+      },
+      "results": {
+        "count": "TRUE"
+      },
+      "facts": {
+        "count": {
+          "metric": "ACTIVITY_OVERDUE_COUNT",
+          "value": "15",
+          "reportingDate": "2026-10-19",
+          "included": 100,
+          "missingEnd": 0
+        }
+      },
+      "expectations": {
+        "expectedScoreImprovement": null,
+        "manageableFollowUpPercent": null
+      },
+      "ruleSeverity": null
+    },
+    "expected": {
+      "criteriaVersion": "severity-guide-v0.2",
+      "status": "CLASSIFIED",
+      "level": "MEDIUM",
+      "supportedLevel": "MEDIUM",
+      "decisiveConditionId": "count",
+      "combination": null,
+      "manualCritical": false,
+      "conditions": [
+        {
+          "conditionId": "count",
+          "metric": "ACTIVITY_OVERDUE_COUNT",
+          "outcome": "LEVEL",
+          "level": "MEDIUM",
+          "measure": {
+            "kind": "OVERDUE_SHARE",
+            "actual": "15.0000",
+            "expected": "100.0000",
+            "value": "15.0000"
+          },
+          "missing": null
+        }
+      ],
+      "missing": [],
+      "unchecked": []
+    }
+  },
+  {
+    "name": "16 of 100 activities overdue is high",
+    "input": {
+      "tree": {
+        "kind": "GROUP",
+        "mode": "AND",
+        "children": [
+          {
+            "kind": "CONDITION",
+            "id": "count",
+            "metric": "ACTIVITY_OVERDUE_COUNT",
+            "operator": "GT",
+            "threshold": "0"
+          }
+        ]
+      },
+      "results": {
+        "count": "TRUE"
+      },
+      "facts": {
+        "count": {
+          "metric": "ACTIVITY_OVERDUE_COUNT",
+          "value": "16",
+          "reportingDate": "2026-10-19",
+          "included": 100,
+          "missingEnd": 0
+        }
+      },
+      "expectations": {
+        "expectedScoreImprovement": null,
+        "manageableFollowUpPercent": null
+      },
+      "ruleSeverity": null
+    },
+    "expected": {
+      "criteriaVersion": "severity-guide-v0.2",
+      "status": "CLASSIFIED",
+      "level": "HIGH",
+      "supportedLevel": "HIGH",
+      "decisiveConditionId": "count",
+      "combination": null,
+      "manualCritical": false,
+      "conditions": [
+        {
+          "conditionId": "count",
+          "metric": "ACTIVITY_OVERDUE_COUNT",
+          "outcome": "LEVEL",
+          "level": "HIGH",
+          "measure": {
+            "kind": "OVERDUE_SHARE",
+            "actual": "16.0000",
+            "expected": "100.0000",
+            "value": "16.0000"
+          },
+          "missing": null
+        }
+      ],
+      "missing": [],
+      "unchecked": []
+    }
+  },
+  {
+    "name": "overdue activities without an included total needs context",
+    "input": {
+      "tree": {
+        "kind": "GROUP",
+        "mode": "AND",
+        "children": [
+          {
+            "kind": "CONDITION",
+            "id": "count",
+            "metric": "ACTIVITY_OVERDUE_COUNT",
+            "operator": "GT",
+            "threshold": "0"
+          }
+        ]
+      },
+      "results": {
+        "count": "TRUE"
+      },
+      "facts": {
+        "count": {
+          "metric": "ACTIVITY_OVERDUE_COUNT",
+          "value": "2",
+          "reportingDate": "2026-10-19",
+          "included": null,
+          "missingEnd": null
+        }
+      },
+      "expectations": {
+        "expectedScoreImprovement": null,
+        "manageableFollowUpPercent": null
+      },
+      "ruleSeverity": null
+    },
+    "expected": {
+      "criteriaVersion": "severity-guide-v0.2",
+      "status": "CONTEXT_REQUIRED",
+      "level": null,
+      "supportedLevel": null,
+      "decisiveConditionId": null,
+      "combination": null,
+      "manualCritical": false,
+      "conditions": [
+        {
+          "conditionId": "count",
+          "metric": "ACTIVITY_OVERDUE_COUNT",
+          "outcome": "CONTEXT_REQUIRED",
+          "level": null,
+          "measure": null,
+          "missing": "ACTIVITY_TOTAL"
+        }
+      ],
+      "missing": ["ACTIVITY_TOTAL"],
+      "unchecked": []
+    }
+  },
+  {
+    "name": "overdue activities with an activity missing its planned end needs context",
+    "input": {
+      "tree": {
+        "kind": "GROUP",
+        "mode": "AND",
+        "children": [
+          {
+            "kind": "CONDITION",
+            "id": "count",
+            "metric": "ACTIVITY_OVERDUE_COUNT",
+            "operator": "GT",
+            "threshold": "0"
+          }
+        ]
+      },
+      "results": {
+        "count": "TRUE"
+      },
+      "facts": {
+        "count": {
+          "metric": "ACTIVITY_OVERDUE_COUNT",
+          "value": "2",
+          "reportingDate": "2026-10-19",
+          "included": 10,
+          "missingEnd": 2
+        }
+      },
+      "expectations": {
+        "expectedScoreImprovement": null,
+        "manageableFollowUpPercent": null
+      },
+      "ruleSeverity": null
+    },
+    "expected": {
+      "criteriaVersion": "severity-guide-v0.2",
+      "status": "CONTEXT_REQUIRED",
+      "level": null,
+      "supportedLevel": null,
+      "decisiveConditionId": null,
+      "combination": null,
+      "manualCritical": false,
+      "conditions": [
+        {
+          "conditionId": "count",
+          "metric": "ACTIVITY_OVERDUE_COUNT",
+          "outcome": "CONTEXT_REQUIRED",
+          "level": null,
+          "measure": null,
+          "missing": "ACTIVITY_PLANNED_END_DATES"
+        }
+      ],
+      "missing": ["ACTIVITY_PLANNED_END_DATES"],
+      "unchecked": []
+    }
+  },
+  {
+    "name": "activity 2 days late on 40 days is low",
+    "input": {
+      "tree": {
+        "kind": "GROUP",
+        "mode": "AND",
+        "children": [
+          {
+            "kind": "CONDITION",
+            "id": "late",
+            "metric": "ACTIVITY_OVERDUE_DAYS",
+            "operator": "GT",
+            "threshold": "0",
+            "activityId": "50000000-0000-4000-8000-000000000005"
+          }
+        ]
+      },
+      "results": {
+        "late": "TRUE"
+      },
+      "facts": {
+        "late": {
+          "metric": "ACTIVITY_OVERDUE_DAYS",
+          "value": "2",
+          "reportingDate": "2026-10-19",
+          "activityStart": "2026-09-01",
+          "activityEnd": "2026-10-11"
+        }
+      },
+      "expectations": {
+        "expectedScoreImprovement": null,
+        "manageableFollowUpPercent": null
+      },
+      "ruleSeverity": null
+    },
+    "expected": {
+      "criteriaVersion": "severity-guide-v0.2",
+      "status": "CLASSIFIED",
+      "level": "LOW",
+      "supportedLevel": "LOW",
+      "decisiveConditionId": "late",
+      "combination": null,
+      "manualCritical": false,
+      "conditions": [
+        {
+          "conditionId": "late",
+          "metric": "ACTIVITY_OVERDUE_DAYS",
+          "outcome": "LEVEL",
+          "level": "LOW",
+          "measure": {
+            "kind": "DELAY_SHARE",
+            "actual": "2.0000",
+            "expected": "40.0000",
+            "value": "5.0000"
+          },
+          "missing": null
+        }
+      ],
+      "missing": [],
+      "unchecked": []
+    }
+  },
+  {
+    "name": "activity 3 days late on 40 days is medium",
+    "input": {
+      "tree": {
+        "kind": "GROUP",
+        "mode": "AND",
+        "children": [
+          {
+            "kind": "CONDITION",
+            "id": "late",
+            "metric": "ACTIVITY_OVERDUE_DAYS",
+            "operator": "GT",
+            "threshold": "0",
+            "activityId": "50000000-0000-4000-8000-000000000005"
+          }
+        ]
+      },
+      "results": {
+        "late": "TRUE"
+      },
+      "facts": {
+        "late": {
+          "metric": "ACTIVITY_OVERDUE_DAYS",
+          "value": "3",
+          "reportingDate": "2026-10-19",
+          "activityStart": "2026-09-01",
+          "activityEnd": "2026-10-11"
+        }
+      },
+      "expectations": {
+        "expectedScoreImprovement": null,
+        "manageableFollowUpPercent": null
+      },
+      "ruleSeverity": null
+    },
+    "expected": {
+      "criteriaVersion": "severity-guide-v0.2",
+      "status": "CLASSIFIED",
+      "level": "MEDIUM",
+      "supportedLevel": "MEDIUM",
+      "decisiveConditionId": "late",
+      "combination": null,
+      "manualCritical": false,
+      "conditions": [
+        {
+          "conditionId": "late",
+          "metric": "ACTIVITY_OVERDUE_DAYS",
+          "outcome": "LEVEL",
+          "level": "MEDIUM",
+          "measure": {
+            "kind": "DELAY_SHARE",
+            "actual": "3.0000",
+            "expected": "40.0000",
+            "value": "7.5000"
+          },
+          "missing": null
+        }
+      ],
+      "missing": [],
+      "unchecked": []
+    }
+  },
+  {
+    "name": "activity 4 days late on 40 days is medium",
+    "input": {
+      "tree": {
+        "kind": "GROUP",
+        "mode": "AND",
+        "children": [
+          {
+            "kind": "CONDITION",
+            "id": "late",
+            "metric": "ACTIVITY_OVERDUE_DAYS",
+            "operator": "GT",
+            "threshold": "0",
+            "activityId": "50000000-0000-4000-8000-000000000005"
+          }
+        ]
+      },
+      "results": {
+        "late": "TRUE"
+      },
+      "facts": {
+        "late": {
+          "metric": "ACTIVITY_OVERDUE_DAYS",
+          "value": "4",
+          "reportingDate": "2026-10-19",
+          "activityStart": "2026-09-01",
+          "activityEnd": "2026-10-11"
+        }
+      },
+      "expectations": {
+        "expectedScoreImprovement": null,
+        "manageableFollowUpPercent": null
+      },
+      "ruleSeverity": null
+    },
+    "expected": {
+      "criteriaVersion": "severity-guide-v0.2",
+      "status": "CLASSIFIED",
+      "level": "MEDIUM",
+      "supportedLevel": "MEDIUM",
+      "decisiveConditionId": "late",
+      "combination": null,
+      "manualCritical": false,
+      "conditions": [
+        {
+          "conditionId": "late",
+          "metric": "ACTIVITY_OVERDUE_DAYS",
+          "outcome": "LEVEL",
+          "level": "MEDIUM",
+          "measure": {
+            "kind": "DELAY_SHARE",
+            "actual": "4.0000",
+            "expected": "40.0000",
+            "value": "10.0000"
+          },
+          "missing": null
+        }
+      ],
+      "missing": [],
+      "unchecked": []
+    }
+  },
+  {
+    "name": "activity 5 days late on 40 days is high",
+    "input": {
+      "tree": {
+        "kind": "GROUP",
+        "mode": "AND",
+        "children": [
+          {
+            "kind": "CONDITION",
+            "id": "late",
+            "metric": "ACTIVITY_OVERDUE_DAYS",
+            "operator": "GT",
+            "threshold": "0",
+            "activityId": "50000000-0000-4000-8000-000000000005"
+          }
+        ]
+      },
+      "results": {
+        "late": "TRUE"
+      },
+      "facts": {
+        "late": {
+          "metric": "ACTIVITY_OVERDUE_DAYS",
+          "value": "5",
+          "reportingDate": "2026-10-19",
+          "activityStart": "2026-09-01",
+          "activityEnd": "2026-10-11"
+        }
+      },
+      "expectations": {
+        "expectedScoreImprovement": null,
+        "manageableFollowUpPercent": null
+      },
+      "ruleSeverity": null
+    },
+    "expected": {
+      "criteriaVersion": "severity-guide-v0.2",
+      "status": "CLASSIFIED",
+      "level": "HIGH",
+      "supportedLevel": "HIGH",
+      "decisiveConditionId": "late",
+      "combination": null,
+      "manualCritical": false,
+      "conditions": [
+        {
+          "conditionId": "late",
+          "metric": "ACTIVITY_OVERDUE_DAYS",
+          "outcome": "LEVEL",
+          "level": "HIGH",
+          "measure": {
+            "kind": "DELAY_SHARE",
+            "actual": "5.0000",
+            "expected": "40.0000",
+            "value": "12.5000"
+          },
+          "missing": null
+        }
+      ],
+      "missing": [],
+      "unchecked": []
+    }
+  },
+  {
+    "name": "same-day activity needs an agreed delay rule",
+    "input": {
+      "tree": {
+        "kind": "GROUP",
+        "mode": "AND",
+        "children": [
+          {
+            "kind": "CONDITION",
+            "id": "late",
+            "metric": "ACTIVITY_OVERDUE_DAYS",
+            "operator": "GT",
+            "threshold": "0",
+            "activityId": "50000000-0000-4000-8000-000000000005"
+          }
+        ]
+      },
+      "results": {
+        "late": "TRUE"
+      },
+      "facts": {
+        "late": {
+          "metric": "ACTIVITY_OVERDUE_DAYS",
+          "value": "2",
+          "reportingDate": "2026-10-19",
+          "activityStart": "2026-10-01",
+          "activityEnd": "2026-10-01"
+        }
+      },
+      "expectations": {
+        "expectedScoreImprovement": null,
+        "manageableFollowUpPercent": null
+      },
+      "ruleSeverity": null
+    },
+    "expected": {
+      "criteriaVersion": "severity-guide-v0.2",
+      "status": "CONTEXT_REQUIRED",
+      "level": null,
+      "supportedLevel": null,
+      "decisiveConditionId": null,
+      "combination": null,
+      "manualCritical": false,
+      "conditions": [
+        {
+          "conditionId": "late",
+          "metric": "ACTIVITY_OVERDUE_DAYS",
+          "outcome": "CONTEXT_REQUIRED",
+          "level": null,
+          "measure": null,
+          "missing": "SAME_DAY_ACTIVITY"
+        }
+      ],
+      "missing": ["SAME_DAY_ACTIVITY"],
+      "unchecked": []
+    }
+  },
+  {
+    "name": "activity without planned dates needs context",
+    "input": {
+      "tree": {
+        "kind": "GROUP",
+        "mode": "AND",
+        "children": [
+          {
+            "kind": "CONDITION",
+            "id": "late",
+            "metric": "ACTIVITY_OVERDUE_DAYS",
+            "operator": "GT",
+            "threshold": "0",
+            "activityId": "50000000-0000-4000-8000-000000000005"
+          }
+        ]
+      },
+      "results": {
+        "late": "TRUE"
+      },
+      "facts": {
+        "late": {
+          "metric": "ACTIVITY_OVERDUE_DAYS",
+          "value": "2",
+          "reportingDate": "2026-10-19",
+          "activityStart": null,
+          "activityEnd": "2026-10-11"
+        }
+      },
+      "expectations": {
+        "expectedScoreImprovement": null,
+        "manageableFollowUpPercent": null
+      },
+      "ruleSeverity": null
+    },
+    "expected": {
+      "criteriaVersion": "severity-guide-v0.2",
+      "status": "CONTEXT_REQUIRED",
+      "level": null,
+      "supportedLevel": null,
+      "decisiveConditionId": null,
+      "combination": null,
+      "manualCritical": false,
+      "conditions": [
+        {
+          "conditionId": "late",
+          "metric": "ACTIVITY_OVERDUE_DAYS",
+          "outcome": "CONTEXT_REQUIRED",
+          "level": null,
+          "measure": null,
+          "missing": "ACTIVITY_DATES"
+        }
+      ],
+      "missing": ["ACTIVITY_DATES"],
+      "unchecked": []
+    }
+  },
+  {
+    "name": "budget exactly 100 alone needs a delivery expectation",
+    "input": {
+      "tree": {
+        "kind": "GROUP",
+        "mode": "AND",
+        "children": [
+          {
+            "kind": "CONDITION",
+            "id": "budget",
+            "metric": "BUDGET_UTILIZATION_PERCENT",
+            "operator": "GT",
+            "threshold": "90"
+          }
+        ]
+      },
+      "results": {
+        "budget": "TRUE"
+      },
+      "facts": {
+        "budget": {
+          "metric": "BUDGET_UTILIZATION_PERCENT",
+          "value": "100",
+          "reportingDate": "2026-10-19"
+        }
+      },
+      "expectations": {
+        "expectedScoreImprovement": null,
+        "manageableFollowUpPercent": null
+      },
+      "ruleSeverity": null
+    },
+    "expected": {
+      "criteriaVersion": "severity-guide-v0.2",
+      "status": "CONTEXT_REQUIRED",
+      "level": null,
+      "supportedLevel": null,
+      "decisiveConditionId": null,
+      "combination": null,
+      "manualCritical": false,
+      "conditions": [
+        {
+          "conditionId": "budget",
+          "metric": "BUDGET_UTILIZATION_PERCENT",
+          "outcome": "EXPLANATORY",
+          "level": null,
+          "measure": {
+            "kind": "BUDGET_PERCENT",
+            "actual": "100.0000",
+            "expected": null,
+            "value": "100.0000"
+          },
+          "missing": null
+        }
+      ],
+      "missing": ["DELIVERY_EXPECTATION"],
+      "unchecked": []
+    }
+  },
+  {
+    "name": "budget just past 100 is medium",
+    "input": {
+      "tree": {
+        "kind": "GROUP",
+        "mode": "AND",
+        "children": [
+          {
+            "kind": "CONDITION",
+            "id": "budget",
+            "metric": "BUDGET_UTILIZATION_PERCENT",
+            "operator": "GT",
+            "threshold": "90"
+          }
+        ]
+      },
+      "results": {
+        "budget": "TRUE"
+      },
+      "facts": {
+        "budget": {
+          "metric": "BUDGET_UTILIZATION_PERCENT",
+          "value": "100.0001",
+          "reportingDate": "2026-10-19"
+        }
+      },
+      "expectations": {
+        "expectedScoreImprovement": null,
+        "manageableFollowUpPercent": null
+      },
+      "ruleSeverity": null
+    },
+    "expected": {
+      "criteriaVersion": "severity-guide-v0.2",
+      "status": "CLASSIFIED",
+      "level": "MEDIUM",
+      "supportedLevel": "MEDIUM",
+      "decisiveConditionId": "budget",
+      "combination": null,
+      "manualCritical": false,
+      "conditions": [
+        {
+          "conditionId": "budget",
+          "metric": "BUDGET_UTILIZATION_PERCENT",
+          "outcome": "LEVEL",
+          "level": "MEDIUM",
+          "measure": {
+            "kind": "BUDGET_PERCENT",
+            "actual": "100.0001",
+            "expected": null,
+            "value": "100.0001"
+          },
+          "missing": null
+        }
+      ],
+      "missing": [],
+      "unchecked": []
+    }
+  },
+  {
+    "name": "budget exactly 110 is medium",
+    "input": {
+      "tree": {
+        "kind": "GROUP",
+        "mode": "AND",
+        "children": [
+          {
+            "kind": "CONDITION",
+            "id": "budget",
+            "metric": "BUDGET_UTILIZATION_PERCENT",
+            "operator": "GT",
+            "threshold": "90"
+          }
+        ]
+      },
+      "results": {
+        "budget": "TRUE"
+      },
+      "facts": {
+        "budget": {
+          "metric": "BUDGET_UTILIZATION_PERCENT",
+          "value": "110",
+          "reportingDate": "2026-10-19"
+        }
+      },
+      "expectations": {
+        "expectedScoreImprovement": null,
+        "manageableFollowUpPercent": null
+      },
+      "ruleSeverity": null
+    },
+    "expected": {
+      "criteriaVersion": "severity-guide-v0.2",
+      "status": "CLASSIFIED",
+      "level": "MEDIUM",
+      "supportedLevel": "MEDIUM",
+      "decisiveConditionId": "budget",
+      "combination": null,
+      "manualCritical": false,
+      "conditions": [
+        {
+          "conditionId": "budget",
+          "metric": "BUDGET_UTILIZATION_PERCENT",
+          "outcome": "LEVEL",
+          "level": "MEDIUM",
+          "measure": {
+            "kind": "BUDGET_PERCENT",
+            "actual": "110.0000",
+            "expected": null,
+            "value": "110.0000"
+          },
+          "missing": null
+        }
+      ],
+      "missing": [],
+      "unchecked": []
+    }
+  },
+  {
+    "name": "budget just past 110 is high",
+    "input": {
+      "tree": {
+        "kind": "GROUP",
+        "mode": "AND",
+        "children": [
+          {
+            "kind": "CONDITION",
+            "id": "budget",
+            "metric": "BUDGET_UTILIZATION_PERCENT",
+            "operator": "GT",
+            "threshold": "90"
+          }
+        ]
+      },
+      "results": {
+        "budget": "TRUE"
+      },
+      "facts": {
+        "budget": {
+          "metric": "BUDGET_UTILIZATION_PERCENT",
+          "value": "110.0001",
+          "reportingDate": "2026-10-19"
+        }
+      },
+      "expectations": {
+        "expectedScoreImprovement": null,
+        "manageableFollowUpPercent": null
+      },
+      "ruleSeverity": null
+    },
+    "expected": {
+      "criteriaVersion": "severity-guide-v0.2",
+      "status": "CLASSIFIED",
+      "level": "HIGH",
+      "supportedLevel": "HIGH",
+      "decisiveConditionId": "budget",
+      "combination": null,
+      "manualCritical": false,
+      "conditions": [
+        {
+          "conditionId": "budget",
+          "metric": "BUDGET_UTILIZATION_PERCENT",
+          "outcome": "LEVEL",
+          "level": "HIGH",
+          "measure": {
+            "kind": "BUDGET_PERCENT",
+            "actual": "110.0001",
+            "expected": null,
+            "value": "110.0001"
+          },
+          "missing": null
+        }
+      ],
+      "missing": [],
+      "unchecked": []
+    }
+  },
+  {
+    "name": "budget 95 alone needs a delivery expectation",
+    "input": {
+      "tree": {
+        "kind": "GROUP",
+        "mode": "AND",
+        "children": [
+          {
+            "kind": "CONDITION",
+            "id": "budget",
+            "metric": "BUDGET_UTILIZATION_PERCENT",
+            "operator": "GT",
+            "threshold": "90"
+          }
+        ]
+      },
+      "results": {
+        "budget": "TRUE"
+      },
+      "facts": {
+        "budget": {
+          "metric": "BUDGET_UTILIZATION_PERCENT",
+          "value": "95",
+          "reportingDate": "2026-10-19"
+        }
+      },
+      "expectations": {
+        "expectedScoreImprovement": null,
+        "manageableFollowUpPercent": null
+      },
+      "ruleSeverity": null
+    },
+    "expected": {
+      "criteriaVersion": "severity-guide-v0.2",
+      "status": "CONTEXT_REQUIRED",
+      "level": null,
+      "supportedLevel": null,
+      "decisiveConditionId": null,
+      "combination": null,
+      "manualCritical": false,
+      "conditions": [
+        {
+          "conditionId": "budget",
+          "metric": "BUDGET_UTILIZATION_PERCENT",
+          "outcome": "EXPLANATORY",
+          "level": null,
+          "measure": {
+            "kind": "BUDGET_PERCENT",
+            "actual": "95.0000",
+            "expected": null,
+            "value": "95.0000"
+          },
+          "missing": null
+        }
+      ],
+      "missing": ["DELIVERY_EXPECTATION"],
+      "unchecked": []
+    }
+  },
+  {
+    "name": "follow-up 5 points above manageable is low",
+    "input": {
+      "tree": {
+        "kind": "GROUP",
+        "mode": "AND",
+        "children": [
+          {
+            "kind": "CONDITION",
+            "id": "followUp",
+            "metric": "BENEFICIARY_FOLLOW_UP_PERCENT",
+            "operator": "GT",
+            "threshold": "5"
+          }
+        ]
+      },
+      "results": {
+        "followUp": "TRUE"
+      },
+      "facts": {
+        "followUp": {
+          "metric": "BENEFICIARY_FOLLOW_UP_PERCENT",
+          "value": "15",
+          "reportingDate": "2026-10-19"
+        }
+      },
+      "expectations": {
+        "expectedScoreImprovement": null,
+        "manageableFollowUpPercent": "10"
+      },
+      "ruleSeverity": null
+    },
+    "expected": {
+      "criteriaVersion": "severity-guide-v0.2",
+      "status": "CLASSIFIED",
+      "level": "LOW",
+      "supportedLevel": "LOW",
+      "decisiveConditionId": "followUp",
+      "combination": null,
+      "manualCritical": false,
+      "conditions": [
+        {
+          "conditionId": "followUp",
+          "metric": "BENEFICIARY_FOLLOW_UP_PERCENT",
+          "outcome": "LEVEL",
+          "level": "LOW",
+          "measure": {
+            "kind": "POINTS_ABOVE",
+            "actual": "15.0000",
+            "expected": "10.0000",
+            "value": "5.0000"
+          },
+          "missing": null
+        }
+      ],
+      "missing": [],
+      "unchecked": []
+    }
+  },
+  {
+    "name": "follow-up just past 5 points above is medium",
+    "input": {
+      "tree": {
+        "kind": "GROUP",
+        "mode": "AND",
+        "children": [
+          {
+            "kind": "CONDITION",
+            "id": "followUp",
+            "metric": "BENEFICIARY_FOLLOW_UP_PERCENT",
+            "operator": "GT",
+            "threshold": "5"
+          }
+        ]
+      },
+      "results": {
+        "followUp": "TRUE"
+      },
+      "facts": {
+        "followUp": {
+          "metric": "BENEFICIARY_FOLLOW_UP_PERCENT",
+          "value": "15.0001",
+          "reportingDate": "2026-10-19"
+        }
+      },
+      "expectations": {
+        "expectedScoreImprovement": null,
+        "manageableFollowUpPercent": "10"
+      },
+      "ruleSeverity": null
+    },
+    "expected": {
+      "criteriaVersion": "severity-guide-v0.2",
+      "status": "CLASSIFIED",
+      "level": "MEDIUM",
+      "supportedLevel": "MEDIUM",
+      "decisiveConditionId": "followUp",
+      "combination": null,
+      "manualCritical": false,
+      "conditions": [
+        {
+          "conditionId": "followUp",
+          "metric": "BENEFICIARY_FOLLOW_UP_PERCENT",
+          "outcome": "LEVEL",
+          "level": "MEDIUM",
+          "measure": {
+            "kind": "POINTS_ABOVE",
+            "actual": "15.0001",
+            "expected": "10.0000",
+            "value": "5.0001"
+          },
+          "missing": null
+        }
+      ],
+      "missing": [],
+      "unchecked": []
+    }
+  },
+  {
+    "name": "follow-up 15 points above manageable is medium",
+    "input": {
+      "tree": {
+        "kind": "GROUP",
+        "mode": "AND",
+        "children": [
+          {
+            "kind": "CONDITION",
+            "id": "followUp",
+            "metric": "BENEFICIARY_FOLLOW_UP_PERCENT",
+            "operator": "GT",
+            "threshold": "5"
+          }
+        ]
+      },
+      "results": {
+        "followUp": "TRUE"
+      },
+      "facts": {
+        "followUp": {
+          "metric": "BENEFICIARY_FOLLOW_UP_PERCENT",
+          "value": "25",
+          "reportingDate": "2026-10-19"
+        }
+      },
+      "expectations": {
+        "expectedScoreImprovement": null,
+        "manageableFollowUpPercent": "10"
+      },
+      "ruleSeverity": null
+    },
+    "expected": {
+      "criteriaVersion": "severity-guide-v0.2",
+      "status": "CLASSIFIED",
+      "level": "MEDIUM",
+      "supportedLevel": "MEDIUM",
+      "decisiveConditionId": "followUp",
+      "combination": null,
+      "manualCritical": false,
+      "conditions": [
+        {
+          "conditionId": "followUp",
+          "metric": "BENEFICIARY_FOLLOW_UP_PERCENT",
+          "outcome": "LEVEL",
+          "level": "MEDIUM",
+          "measure": {
+            "kind": "POINTS_ABOVE",
+            "actual": "25.0000",
+            "expected": "10.0000",
+            "value": "15.0000"
+          },
+          "missing": null
+        }
+      ],
+      "missing": [],
+      "unchecked": []
+    }
+  },
+  {
+    "name": "follow-up just past 15 points above is high",
+    "input": {
+      "tree": {
+        "kind": "GROUP",
+        "mode": "AND",
+        "children": [
+          {
+            "kind": "CONDITION",
+            "id": "followUp",
+            "metric": "BENEFICIARY_FOLLOW_UP_PERCENT",
+            "operator": "GT",
+            "threshold": "5"
+          }
+        ]
+      },
+      "results": {
+        "followUp": "TRUE"
+      },
+      "facts": {
+        "followUp": {
+          "metric": "BENEFICIARY_FOLLOW_UP_PERCENT",
+          "value": "25.0001",
+          "reportingDate": "2026-10-19"
+        }
+      },
+      "expectations": {
+        "expectedScoreImprovement": null,
+        "manageableFollowUpPercent": "10"
+      },
+      "ruleSeverity": null
+    },
+    "expected": {
+      "criteriaVersion": "severity-guide-v0.2",
+      "status": "CLASSIFIED",
+      "level": "HIGH",
+      "supportedLevel": "HIGH",
+      "decisiveConditionId": "followUp",
+      "combination": null,
+      "manualCritical": false,
+      "conditions": [
+        {
+          "conditionId": "followUp",
+          "metric": "BENEFICIARY_FOLLOW_UP_PERCENT",
+          "outcome": "LEVEL",
+          "level": "HIGH",
+          "measure": {
+            "kind": "POINTS_ABOVE",
+            "actual": "25.0001",
+            "expected": "10.0000",
+            "value": "15.0001"
+          },
+          "missing": null
+        }
+      ],
+      "missing": [],
+      "unchecked": []
+    }
+  },
+  {
+    "name": "follow-up below manageable is low",
+    "input": {
+      "tree": {
+        "kind": "GROUP",
+        "mode": "AND",
+        "children": [
+          {
+            "kind": "CONDITION",
+            "id": "followUp",
+            "metric": "BENEFICIARY_FOLLOW_UP_PERCENT",
+            "operator": "GT",
+            "threshold": "5"
+          }
+        ]
+      },
+      "results": {
+        "followUp": "TRUE"
+      },
+      "facts": {
+        "followUp": {
+          "metric": "BENEFICIARY_FOLLOW_UP_PERCENT",
+          "value": "8",
+          "reportingDate": "2026-10-19"
+        }
+      },
+      "expectations": {
+        "expectedScoreImprovement": null,
+        "manageableFollowUpPercent": "10"
+      },
+      "ruleSeverity": null
+    },
+    "expected": {
+      "criteriaVersion": "severity-guide-v0.2",
+      "status": "CLASSIFIED",
+      "level": "LOW",
+      "supportedLevel": "LOW",
+      "decisiveConditionId": "followUp",
+      "combination": null,
+      "manualCritical": false,
+      "conditions": [
+        {
+          "conditionId": "followUp",
+          "metric": "BENEFICIARY_FOLLOW_UP_PERCENT",
+          "outcome": "LEVEL",
+          "level": "LOW",
+          "measure": {
+            "kind": "POINTS_ABOVE",
+            "actual": "8.0000",
+            "expected": "10.0000",
+            "value": "-2.0000"
+          },
+          "missing": null
+        }
+      ],
+      "missing": [],
+      "unchecked": []
+    }
+  },
+  {
+    "name": "follow-up without a manageable level needs context",
+    "input": {
+      "tree": {
+        "kind": "GROUP",
+        "mode": "AND",
+        "children": [
+          {
+            "kind": "CONDITION",
+            "id": "followUp",
+            "metric": "BENEFICIARY_FOLLOW_UP_PERCENT",
+            "operator": "GT",
+            "threshold": "5"
+          }
+        ]
+      },
+      "results": {
+        "followUp": "TRUE"
+      },
+      "facts": {
+        "followUp": {
+          "metric": "BENEFICIARY_FOLLOW_UP_PERCENT",
+          "value": "25",
+          "reportingDate": "2026-10-19"
+        }
+      },
+      "expectations": {
+        "expectedScoreImprovement": null,
+        "manageableFollowUpPercent": null
+      },
+      "ruleSeverity": null
+    },
+    "expected": {
+      "criteriaVersion": "severity-guide-v0.2",
+      "status": "CONTEXT_REQUIRED",
+      "level": null,
+      "supportedLevel": null,
+      "decisiveConditionId": null,
+      "combination": null,
+      "manualCritical": false,
+      "conditions": [
+        {
+          "conditionId": "followUp",
+          "metric": "BENEFICIARY_FOLLOW_UP_PERCENT",
+          "outcome": "CONTEXT_REQUIRED",
+          "level": null,
+          "measure": null,
+          "missing": "MANAGEABLE_FOLLOW_UP_LEVEL"
+        }
+      ],
+      "missing": ["MANAGEABLE_FOLLOW_UP_LEVEL"],
+      "unchecked": []
+    }
+  },
+  {
+    "name": "assessment shortfall 5 is low",
+    "input": {
+      "tree": {
+        "kind": "GROUP",
+        "mode": "AND",
+        "children": [
+          {
+            "kind": "CONDITION",
+            "id": "survey",
+            "metric": "SURVEY_MEAN_IMPROVEMENT_POINTS",
+            "operator": "LT",
+            "threshold": "10"
+          }
+        ]
+      },
+      "results": {
+        "survey": "TRUE"
+      },
+      "facts": {
+        "survey": {
+          "metric": "SURVEY_MEAN_IMPROVEMENT_POINTS",
+          "value": "5",
+          "reportingDate": "2026-10-19"
+        }
+      },
+      "expectations": {
+        "expectedScoreImprovement": "10",
+        "manageableFollowUpPercent": null
+      },
+      "ruleSeverity": null
+    },
+    "expected": {
+      "criteriaVersion": "severity-guide-v0.2",
+      "status": "CLASSIFIED",
+      "level": "LOW",
+      "supportedLevel": "LOW",
+      "decisiveConditionId": "survey",
+      "combination": null,
+      "manualCritical": false,
+      "conditions": [
+        {
+          "conditionId": "survey",
+          "metric": "SURVEY_MEAN_IMPROVEMENT_POINTS",
+          "outcome": "LEVEL",
+          "level": "LOW",
+          "measure": {
+            "kind": "POINTS_BELOW",
+            "actual": "5.0000",
+            "expected": "10.0000",
+            "value": "5.0000"
+          },
+          "missing": null
+        }
+      ],
+      "missing": [],
+      "unchecked": []
+    }
+  },
+  {
+    "name": "assessment shortfall just past 5 is medium",
+    "input": {
+      "tree": {
+        "kind": "GROUP",
+        "mode": "AND",
+        "children": [
+          {
+            "kind": "CONDITION",
+            "id": "survey",
+            "metric": "SURVEY_MEAN_IMPROVEMENT_POINTS",
+            "operator": "LT",
+            "threshold": "10"
+          }
+        ]
+      },
+      "results": {
+        "survey": "TRUE"
+      },
+      "facts": {
+        "survey": {
+          "metric": "SURVEY_MEAN_IMPROVEMENT_POINTS",
+          "value": "4.9999",
+          "reportingDate": "2026-10-19"
+        }
+      },
+      "expectations": {
+        "expectedScoreImprovement": "10",
+        "manageableFollowUpPercent": null
+      },
+      "ruleSeverity": null
+    },
+    "expected": {
+      "criteriaVersion": "severity-guide-v0.2",
+      "status": "CLASSIFIED",
+      "level": "MEDIUM",
+      "supportedLevel": "MEDIUM",
+      "decisiveConditionId": "survey",
+      "combination": null,
+      "manualCritical": false,
+      "conditions": [
+        {
+          "conditionId": "survey",
+          "metric": "SURVEY_MEAN_IMPROVEMENT_POINTS",
+          "outcome": "LEVEL",
+          "level": "MEDIUM",
+          "measure": {
+            "kind": "POINTS_BELOW",
+            "actual": "4.9999",
+            "expected": "10.0000",
+            "value": "5.0001"
+          },
+          "missing": null
+        }
+      ],
+      "missing": [],
+      "unchecked": []
+    }
+  },
+  {
+    "name": "assessment shortfall 10 is medium",
+    "input": {
+      "tree": {
+        "kind": "GROUP",
+        "mode": "AND",
+        "children": [
+          {
+            "kind": "CONDITION",
+            "id": "survey",
+            "metric": "SURVEY_MEAN_IMPROVEMENT_POINTS",
+            "operator": "LT",
+            "threshold": "10"
+          }
+        ]
+      },
+      "results": {
+        "survey": "TRUE"
+      },
+      "facts": {
+        "survey": {
+          "metric": "SURVEY_MEAN_IMPROVEMENT_POINTS",
+          "value": "0",
+          "reportingDate": "2026-10-19"
+        }
+      },
+      "expectations": {
+        "expectedScoreImprovement": "10",
+        "manageableFollowUpPercent": null
+      },
+      "ruleSeverity": null
+    },
+    "expected": {
+      "criteriaVersion": "severity-guide-v0.2",
+      "status": "CLASSIFIED",
+      "level": "MEDIUM",
+      "supportedLevel": "MEDIUM",
+      "decisiveConditionId": "survey",
+      "combination": null,
+      "manualCritical": false,
+      "conditions": [
+        {
+          "conditionId": "survey",
+          "metric": "SURVEY_MEAN_IMPROVEMENT_POINTS",
+          "outcome": "LEVEL",
+          "level": "MEDIUM",
+          "measure": {
+            "kind": "POINTS_BELOW",
+            "actual": "0.0000",
+            "expected": "10.0000",
+            "value": "10.0000"
+          },
+          "missing": null
+        }
+      ],
+      "missing": [],
+      "unchecked": []
+    }
+  },
+  {
+    "name": "assessment shortfall just past 10 is high",
+    "input": {
+      "tree": {
+        "kind": "GROUP",
+        "mode": "AND",
+        "children": [
+          {
+            "kind": "CONDITION",
+            "id": "survey",
+            "metric": "SURVEY_MEAN_IMPROVEMENT_POINTS",
+            "operator": "LT",
+            "threshold": "10"
+          }
+        ]
+      },
+      "results": {
+        "survey": "TRUE"
+      },
+      "facts": {
+        "survey": {
+          "metric": "SURVEY_MEAN_IMPROVEMENT_POINTS",
+          "value": "-0.0001",
+          "reportingDate": "2026-10-19"
+        }
+      },
+      "expectations": {
+        "expectedScoreImprovement": "10",
+        "manageableFollowUpPercent": null
+      },
+      "ruleSeverity": null
+    },
+    "expected": {
+      "criteriaVersion": "severity-guide-v0.2",
+      "status": "CLASSIFIED",
+      "level": "HIGH",
+      "supportedLevel": "HIGH",
+      "decisiveConditionId": "survey",
+      "combination": null,
+      "manualCritical": false,
+      "conditions": [
+        {
+          "conditionId": "survey",
+          "metric": "SURVEY_MEAN_IMPROVEMENT_POINTS",
+          "outcome": "LEVEL",
+          "level": "HIGH",
+          "measure": {
+            "kind": "POINTS_BELOW",
+            "actual": "-0.0001",
+            "expected": "10.0000",
+            "value": "10.0001"
+          },
+          "missing": null
+        }
+      ],
+      "missing": [],
+      "unchecked": []
+    }
+  },
+  {
+    "name": "assessment shortfall 11 is high",
+    "input": {
+      "tree": {
+        "kind": "GROUP",
+        "mode": "AND",
+        "children": [
+          {
+            "kind": "CONDITION",
+            "id": "survey",
+            "metric": "SURVEY_MEAN_IMPROVEMENT_POINTS",
+            "operator": "LT",
+            "threshold": "10"
+          }
+        ]
+      },
+      "results": {
+        "survey": "TRUE"
+      },
+      "facts": {
+        "survey": {
+          "metric": "SURVEY_MEAN_IMPROVEMENT_POINTS",
+          "value": "-1",
+          "reportingDate": "2026-10-19"
+        }
+      },
+      "expectations": {
+        "expectedScoreImprovement": "10",
+        "manageableFollowUpPercent": null
+      },
+      "ruleSeverity": null
+    },
+    "expected": {
+      "criteriaVersion": "severity-guide-v0.2",
+      "status": "CLASSIFIED",
+      "level": "HIGH",
+      "supportedLevel": "HIGH",
+      "decisiveConditionId": "survey",
+      "combination": null,
+      "manualCritical": false,
+      "conditions": [
+        {
+          "conditionId": "survey",
+          "metric": "SURVEY_MEAN_IMPROVEMENT_POINTS",
+          "outcome": "LEVEL",
+          "level": "HIGH",
+          "measure": {
+            "kind": "POINTS_BELOW",
+            "actual": "-1.0000",
+            "expected": "10.0000",
+            "value": "11.0000"
+          },
+          "missing": null
+        }
+      ],
+      "missing": [],
+      "unchecked": []
+    }
+  },
+  {
+    "name": "assessment without an expected improvement needs context",
+    "input": {
+      "tree": {
+        "kind": "GROUP",
+        "mode": "AND",
+        "children": [
+          {
+            "kind": "CONDITION",
+            "id": "survey",
+            "metric": "SURVEY_MEAN_IMPROVEMENT_POINTS",
+            "operator": "LT",
+            "threshold": "10"
+          }
+        ]
+      },
+      "results": {
+        "survey": "TRUE"
+      },
+      "facts": {
+        "survey": {
+          "metric": "SURVEY_MEAN_IMPROVEMENT_POINTS",
+          "value": "2",
+          "reportingDate": "2026-10-19"
+        }
+      },
+      "expectations": {
+        "expectedScoreImprovement": null,
+        "manageableFollowUpPercent": null
+      },
+      "ruleSeverity": null
+    },
+    "expected": {
+      "criteriaVersion": "severity-guide-v0.2",
+      "status": "CONTEXT_REQUIRED",
+      "level": null,
+      "supportedLevel": null,
+      "decisiveConditionId": null,
+      "combination": null,
+      "manualCritical": false,
+      "conditions": [
+        {
+          "conditionId": "survey",
+          "metric": "SURVEY_MEAN_IMPROVEMENT_POINTS",
+          "outcome": "CONTEXT_REQUIRED",
+          "level": null,
+          "measure": null,
+          "missing": "EXPECTED_SCORE_IMPROVEMENT"
+        }
+      ],
+      "missing": ["EXPECTED_SCORE_IMPROVEMENT"],
+      "unchecked": []
+    }
+  },
+  {
+    "name": "budget 95 with completion 56.25 behind is high spending with low delivery",
+    "input": {
+      "tree": {
+        "kind": "GROUP",
+        "mode": "AND",
+        "children": [
+          {
+            "kind": "CONDITION",
+            "id": "budget",
+            "metric": "BUDGET_UTILIZATION_PERCENT",
+            "operator": "GT",
+            "threshold": "90"
+          },
+          {
+            "kind": "CONDITION",
+            "id": "completion",
+            "metric": "ACTIVITY_COMPLETION_PERCENT",
+            "operator": "LT",
+            "threshold": "90"
+          }
+        ]
+      },
+      "results": {
+        "budget": "TRUE",
+        "completion": "TRUE"
+      },
+      "facts": {
+        "budget": {
+          "metric": "BUDGET_UTILIZATION_PERCENT",
+          "value": "95",
+          "reportingDate": "2026-10-19"
+        },
+        "completion": {
+          "metric": "ACTIVITY_COMPLETION_PERCENT",
+          "value": "35",
+          "reportingDate": "2026-10-19",
+          "included": 10,
+          "dueByDate": 8,
+          "missingEnd": 0
+        }
+      },
+      "expectations": {
+        "expectedScoreImprovement": null,
+        "manageableFollowUpPercent": null
+      },
+      "ruleSeverity": null
+    },
+    "expected": {
+      "criteriaVersion": "severity-guide-v0.2",
+      "status": "CLASSIFIED",
+      "level": "HIGH",
+      "supportedLevel": "HIGH",
+      "decisiveConditionId": "completion",
+      "combination": "HIGH_SPENDING_LOW_DELIVERY",
+      "manualCritical": false,
+      "conditions": [
+        {
+          "conditionId": "budget",
+          "metric": "BUDGET_UTILIZATION_PERCENT",
+          "outcome": "EXPLANATORY",
+          "level": null,
+          "measure": {
+            "kind": "BUDGET_PERCENT",
+            "actual": "95.0000",
+            "expected": null,
+            "value": "95.0000"
+          },
+          "missing": null
+        },
+        {
+          "conditionId": "completion",
+          "metric": "ACTIVITY_COMPLETION_PERCENT",
+          "outcome": "LEVEL",
+          "level": "HIGH",
+          "measure": {
+            "kind": "BEHIND_PERCENT",
+            "actual": "35.0000",
+            "expected": "80.0000",
+            "value": "56.2500"
+          },
+          "missing": null
+        }
+      ],
+      "missing": [],
+      "unchecked": []
+    }
+  },
+  {
+    "name": "reordered children give identical output",
+    "input": {
+      "tree": {
+        "kind": "GROUP",
+        "mode": "AND",
+        "children": [
+          {
+            "kind": "CONDITION",
+            "id": "completion",
+            "metric": "ACTIVITY_COMPLETION_PERCENT",
+            "operator": "LT",
+            "threshold": "90"
+          },
+          {
+            "kind": "CONDITION",
+            "id": "budget",
+            "metric": "BUDGET_UTILIZATION_PERCENT",
+            "operator": "GT",
+            "threshold": "90"
+          }
+        ]
+      },
+      "results": {
+        "completion": "TRUE",
+        "budget": "TRUE"
+      },
+      "facts": {
+        "completion": {
+          "metric": "ACTIVITY_COMPLETION_PERCENT",
+          "value": "35",
+          "reportingDate": "2026-10-19",
+          "included": 10,
+          "dueByDate": 8,
+          "missingEnd": 0
+        },
+        "budget": {
+          "metric": "BUDGET_UTILIZATION_PERCENT",
+          "value": "95",
+          "reportingDate": "2026-10-19"
+        }
+      },
+      "expectations": {
+        "expectedScoreImprovement": null,
+        "manageableFollowUpPercent": null
+      },
+      "ruleSeverity": null
+    },
+    "expected": {
+      "criteriaVersion": "severity-guide-v0.2",
+      "status": "CLASSIFIED",
+      "level": "HIGH",
+      "supportedLevel": "HIGH",
+      "decisiveConditionId": "completion",
+      "combination": "HIGH_SPENDING_LOW_DELIVERY",
+      "manualCritical": false,
+      "conditions": [
+        {
+          "conditionId": "budget",
+          "metric": "BUDGET_UTILIZATION_PERCENT",
+          "outcome": "EXPLANATORY",
+          "level": null,
+          "measure": {
+            "kind": "BUDGET_PERCENT",
+            "actual": "95.0000",
+            "expected": null,
+            "value": "95.0000"
+          },
+          "missing": null
+        },
+        {
+          "conditionId": "completion",
+          "metric": "ACTIVITY_COMPLETION_PERCENT",
+          "outcome": "LEVEL",
+          "level": "HIGH",
+          "measure": {
+            "kind": "BEHIND_PERCENT",
+            "actual": "35.0000",
+            "expected": "80.0000",
+            "value": "56.2500"
+          },
+          "missing": null
+        }
+      ],
+      "missing": [],
+      "unchecked": []
+    }
+  },
+  {
+    "name": "budget just below 90 with low delivery is high without the combination",
+    "input": {
+      "tree": {
+        "kind": "GROUP",
+        "mode": "AND",
+        "children": [
+          {
+            "kind": "CONDITION",
+            "id": "budget",
+            "metric": "BUDGET_UTILIZATION_PERCENT",
+            "operator": "GT",
+            "threshold": "90"
+          },
+          {
+            "kind": "CONDITION",
+            "id": "completion",
+            "metric": "ACTIVITY_COMPLETION_PERCENT",
+            "operator": "LT",
+            "threshold": "90"
+          }
+        ]
+      },
+      "results": {
+        "budget": "TRUE",
+        "completion": "TRUE"
+      },
+      "facts": {
+        "budget": {
+          "metric": "BUDGET_UTILIZATION_PERCENT",
+          "value": "89.9999",
+          "reportingDate": "2026-10-19"
+        },
+        "completion": {
+          "metric": "ACTIVITY_COMPLETION_PERCENT",
+          "value": "35",
+          "reportingDate": "2026-10-19",
+          "included": 10,
+          "dueByDate": 8,
+          "missingEnd": 0
+        }
+      },
+      "expectations": {
+        "expectedScoreImprovement": null,
+        "manageableFollowUpPercent": null
+      },
+      "ruleSeverity": null
+    },
+    "expected": {
+      "criteriaVersion": "severity-guide-v0.2",
+      "status": "CLASSIFIED",
+      "level": "HIGH",
+      "supportedLevel": "HIGH",
+      "decisiveConditionId": "completion",
+      "combination": null,
+      "manualCritical": false,
+      "conditions": [
+        {
+          "conditionId": "budget",
+          "metric": "BUDGET_UTILIZATION_PERCENT",
+          "outcome": "EXPLANATORY",
+          "level": null,
+          "measure": {
+            "kind": "BUDGET_PERCENT",
+            "actual": "89.9999",
+            "expected": null,
+            "value": "89.9999"
+          },
+          "missing": null
+        },
+        {
+          "conditionId": "completion",
+          "metric": "ACTIVITY_COMPLETION_PERCENT",
+          "outcome": "LEVEL",
+          "level": "HIGH",
+          "measure": {
+            "kind": "BEHIND_PERCENT",
+            "actual": "35.0000",
+            "expected": "80.0000",
+            "value": "56.2500"
+          },
+          "missing": null
+        }
+      ],
+      "missing": [],
+      "unchecked": []
+    }
+  },
+  {
+    "name": "budget exactly 90 with indicator 26 behind is high spending with low delivery",
+    "input": {
+      "tree": {
+        "kind": "GROUP",
+        "mode": "AND",
+        "children": [
+          {
+            "kind": "CONDITION",
+            "id": "budget",
+            "metric": "BUDGET_UTILIZATION_PERCENT",
+            "operator": "GT",
+            "threshold": "90"
+          },
+          {
+            "kind": "CONDITION",
+            "id": "progress",
+            "metric": "INDICATOR_PROGRESS_PERCENT",
+            "operator": "LT",
+            "threshold": "95",
+            "indicatorId": "40000000-0000-4000-8000-000000000004"
+          }
+        ]
+      },
+      "results": {
+        "budget": "TRUE",
+        "progress": "TRUE"
+      },
+      "facts": {
+        "budget": {
+          "metric": "BUDGET_UTILIZATION_PERCENT",
+          "value": "90",
+          "reportingDate": "2026-10-19"
+        },
+        "progress": {
+          "metric": "INDICATOR_PROGRESS_PERCENT",
+          "value": "74",
+          "reportingDate": "2026-10-19",
+          "targetDate": "2026-10-01",
+          "periodEnd": null
+        }
+      },
+      "expectations": {
+        "expectedScoreImprovement": null,
+        "manageableFollowUpPercent": null
+      },
+      "ruleSeverity": null
+    },
+    "expected": {
+      "criteriaVersion": "severity-guide-v0.2",
+      "status": "CLASSIFIED",
+      "level": "HIGH",
+      "supportedLevel": "HIGH",
+      "decisiveConditionId": "progress",
+      "combination": "HIGH_SPENDING_LOW_DELIVERY",
+      "manualCritical": false,
+      "conditions": [
+        {
+          "conditionId": "budget",
+          "metric": "BUDGET_UTILIZATION_PERCENT",
+          "outcome": "EXPLANATORY",
+          "level": null,
+          "measure": {
+            "kind": "BUDGET_PERCENT",
+            "actual": "90.0000",
+            "expected": null,
+            "value": "90.0000"
+          },
+          "missing": null
+        },
+        {
+          "conditionId": "progress",
+          "metric": "INDICATOR_PROGRESS_PERCENT",
+          "outcome": "LEVEL",
+          "level": "HIGH",
+          "measure": {
+            "kind": "BEHIND_PERCENT",
+            "actual": "74.0000",
+            "expected": "100.0000",
+            "value": "26.0000"
+          },
+          "missing": null
+        }
+      ],
+      "missing": [],
+      "unchecked": []
+    }
+  },
+  {
+    "name": "budget 95 with completion on plan is low",
+    "input": {
+      "tree": {
+        "kind": "GROUP",
+        "mode": "AND",
+        "children": [
+          {
+            "kind": "CONDITION",
+            "id": "budget",
+            "metric": "BUDGET_UTILIZATION_PERCENT",
+            "operator": "GT",
+            "threshold": "90"
+          },
+          {
+            "kind": "CONDITION",
+            "id": "completion",
+            "metric": "ACTIVITY_COMPLETION_PERCENT",
+            "operator": "LT",
+            "threshold": "90"
+          }
+        ]
+      },
+      "results": {
+        "budget": "TRUE",
+        "completion": "TRUE"
+      },
+      "facts": {
+        "budget": {
+          "metric": "BUDGET_UTILIZATION_PERCENT",
+          "value": "95",
+          "reportingDate": "2026-10-19"
+        },
+        "completion": {
+          "metric": "ACTIVITY_COMPLETION_PERCENT",
+          "value": "75",
+          "reportingDate": "2026-10-19",
+          "included": 10,
+          "dueByDate": 8,
+          "missingEnd": 0
+        }
+      },
+      "expectations": {
+        "expectedScoreImprovement": null,
+        "manageableFollowUpPercent": null
+      },
+      "ruleSeverity": null
+    },
+    "expected": {
+      "criteriaVersion": "severity-guide-v0.2",
+      "status": "CLASSIFIED",
+      "level": "LOW",
+      "supportedLevel": "LOW",
+      "decisiveConditionId": "completion",
+      "combination": null,
+      "manualCritical": false,
+      "conditions": [
+        {
+          "conditionId": "budget",
+          "metric": "BUDGET_UTILIZATION_PERCENT",
+          "outcome": "EXPLANATORY",
+          "level": null,
+          "measure": {
+            "kind": "BUDGET_PERCENT",
+            "actual": "95.0000",
+            "expected": null,
+            "value": "95.0000"
+          },
+          "missing": null
+        },
+        {
+          "conditionId": "completion",
+          "metric": "ACTIVITY_COMPLETION_PERCENT",
+          "outcome": "LEVEL",
+          "level": "LOW",
+          "measure": {
+            "kind": "BEHIND_PERCENT",
+            "actual": "75.0000",
+            "expected": "80.0000",
+            "value": "6.2500"
+          },
+          "missing": null
+        }
+      ],
+      "missing": [],
+      "unchecked": []
+    }
+  },
+  {
+    "name": "or group where only budget 105 matches is medium",
+    "input": {
+      "tree": {
+        "kind": "GROUP",
+        "mode": "OR",
+        "children": [
+          {
+            "kind": "GROUP",
+            "mode": "AND",
+            "children": [
+              {
+                "kind": "CONDITION",
+                "id": "timeline",
+                "metric": "PROJECT_TIMELINE_ELAPSED_PERCENT",
+                "operator": "GT",
+                "threshold": "80"
+              },
+              {
+                "kind": "CONDITION",
+                "id": "progress",
+                "metric": "INDICATOR_PROGRESS_PERCENT",
+                "operator": "LT",
+                "threshold": "50",
+                "indicatorId": "40000000-0000-4000-8000-000000000004"
+              }
+            ]
+          },
+          {
+            "kind": "CONDITION",
+            "id": "budget",
+            "metric": "BUDGET_UTILIZATION_PERCENT",
+            "operator": "GT",
+            "threshold": "100"
+          }
+        ]
+      },
+      "results": {
+        "timeline": "FALSE",
+        "progress": "TRUE",
+        "budget": "TRUE"
+      },
+      "facts": {
+        "timeline": {
+          "metric": "PROJECT_TIMELINE_ELAPSED_PERCENT",
+          "value": "50",
+          "reportingDate": "2026-10-19",
+          "startDate": "2026-01-01",
+          "endDate": "2027-01-01"
+        },
+        "progress": {
+          "metric": "INDICATOR_PROGRESS_PERCENT",
+          "value": "10",
+          "reportingDate": "2026-10-19",
+          "targetDate": "2026-10-01",
+          "periodEnd": null
+        },
+        "budget": {
+          "metric": "BUDGET_UTILIZATION_PERCENT",
+          "value": "105",
+          "reportingDate": "2026-10-19"
+        }
+      },
+      "expectations": {
+        "expectedScoreImprovement": null,
+        "manageableFollowUpPercent": null
+      },
+      "ruleSeverity": null
+    },
+    "expected": {
+      "criteriaVersion": "severity-guide-v0.2",
+      "status": "CLASSIFIED",
+      "level": "MEDIUM",
+      "supportedLevel": "MEDIUM",
+      "decisiveConditionId": "budget",
+      "combination": null,
+      "manualCritical": false,
+      "conditions": [
+        {
+          "conditionId": "budget",
+          "metric": "BUDGET_UTILIZATION_PERCENT",
+          "outcome": "LEVEL",
+          "level": "MEDIUM",
+          "measure": {
+            "kind": "BUDGET_PERCENT",
+            "actual": "105.0000",
+            "expected": null,
+            "value": "105.0000"
+          },
+          "missing": null
+        }
+      ],
+      "missing": [],
+      "unchecked": []
+    }
+  },
+  {
+    "name": "true or group lists the unavailable sibling as unchecked",
+    "input": {
+      "tree": {
+        "kind": "GROUP",
+        "mode": "OR",
+        "children": [
+          {
+            "kind": "CONDITION",
+            "id": "budget",
+            "metric": "BUDGET_UTILIZATION_PERCENT",
+            "operator": "GT",
+            "threshold": "90"
+          },
+          {
+            "kind": "GROUP",
+            "mode": "AND",
+            "children": [
+              {
+                "kind": "CONDITION",
+                "id": "followUp",
+                "metric": "BENEFICIARY_FOLLOW_UP_PERCENT",
+                "operator": "GT",
+                "threshold": "5"
+              },
+              {
+                "kind": "CONDITION",
+                "id": "timeline",
+                "metric": "PROJECT_TIMELINE_ELAPSED_PERCENT",
+                "operator": "GT",
+                "threshold": "80"
+              }
+            ]
+          }
+        ]
+      },
+      "results": {
+        "budget": "TRUE",
+        "followUp": "UNAVAILABLE",
+        "timeline": "TRUE"
+      },
+      "facts": {
+        "budget": {
+          "metric": "BUDGET_UTILIZATION_PERCENT",
+          "value": "105",
+          "reportingDate": "2026-10-19"
+        },
+        "timeline": {
+          "metric": "PROJECT_TIMELINE_ELAPSED_PERCENT",
+          "value": "85",
+          "reportingDate": "2026-10-19",
+          "startDate": "2026-01-01",
+          "endDate": "2026-12-31"
+        }
+      },
+      "expectations": {
+        "expectedScoreImprovement": null,
+        "manageableFollowUpPercent": null
+      },
+      "ruleSeverity": null
+    },
+    "expected": {
+      "criteriaVersion": "severity-guide-v0.2",
+      "status": "CLASSIFIED",
+      "level": "MEDIUM",
+      "supportedLevel": "MEDIUM",
+      "decisiveConditionId": "budget",
+      "combination": null,
+      "manualCritical": false,
+      "conditions": [
+        {
+          "conditionId": "budget",
+          "metric": "BUDGET_UTILIZATION_PERCENT",
+          "outcome": "LEVEL",
+          "level": "MEDIUM",
+          "measure": {
+            "kind": "BUDGET_PERCENT",
+            "actual": "105.0000",
+            "expected": null,
+            "value": "105.0000"
+          },
+          "missing": null
+        }
+      ],
+      "missing": [],
+      "unchecked": ["followUp"]
+    }
+  },
+  {
+    "name": "duplicate condition on the same figure counts once",
+    "input": {
+      "tree": {
+        "kind": "GROUP",
+        "mode": "AND",
+        "children": [
+          {
+            "kind": "CONDITION",
+            "id": "progressA",
+            "metric": "INDICATOR_PROGRESS_PERCENT",
+            "operator": "LT",
+            "threshold": "50",
+            "indicatorId": "40000000-0000-4000-8000-000000000004"
+          },
+          {
+            "kind": "CONDITION",
+            "id": "progressB",
+            "metric": "INDICATOR_PROGRESS_PERCENT",
+            "operator": "LT",
+            "threshold": "60",
+            "indicatorId": "40000000-0000-4000-8000-000000000004"
+          }
+        ]
+      },
+      "results": {
+        "progressA": "TRUE",
+        "progressB": "TRUE"
+      },
+      "facts": {
+        "progressA": {
+          "metric": "INDICATOR_PROGRESS_PERCENT",
+          "value": "45",
+          "reportingDate": "2026-10-19",
+          "targetDate": "2026-10-01",
+          "periodEnd": null
+        },
+        "progressB": {
+          "metric": "INDICATOR_PROGRESS_PERCENT",
+          "value": "45",
+          "reportingDate": "2026-10-19",
+          "targetDate": "2026-10-01",
+          "periodEnd": null
+        }
+      },
+      "expectations": {
+        "expectedScoreImprovement": null,
+        "manageableFollowUpPercent": null
+      },
+      "ruleSeverity": null
+    },
+    "expected": {
+      "criteriaVersion": "severity-guide-v0.2",
+      "status": "CLASSIFIED",
+      "level": "HIGH",
+      "supportedLevel": "HIGH",
+      "decisiveConditionId": "progressA",
+      "combination": null,
+      "manualCritical": false,
+      "conditions": [
+        {
+          "conditionId": "progressA",
+          "metric": "INDICATOR_PROGRESS_PERCENT",
+          "outcome": "LEVEL",
+          "level": "HIGH",
+          "measure": {
+            "kind": "BEHIND_PERCENT",
+            "actual": "45.0000",
+            "expected": "100.0000",
+            "value": "55.0000"
+          },
+          "missing": null
+        }
+      ],
+      "missing": [],
+      "unchecked": []
+    }
+  },
+  {
+    "name": "medium known with a counted needs context condition needs context",
+    "input": {
+      "tree": {
+        "kind": "GROUP",
+        "mode": "AND",
+        "children": [
+          {
+            "kind": "CONDITION",
+            "id": "budget",
+            "metric": "BUDGET_UTILIZATION_PERCENT",
+            "operator": "GT",
+            "threshold": "90"
+          },
+          {
+            "kind": "CONDITION",
+            "id": "survey",
+            "metric": "SURVEY_MEAN_IMPROVEMENT_POINTS",
+            "operator": "LT",
+            "threshold": "10"
+          }
+        ]
+      },
+      "results": {
+        "budget": "TRUE",
+        "survey": "TRUE"
+      },
+      "facts": {
+        "budget": {
+          "metric": "BUDGET_UTILIZATION_PERCENT",
+          "value": "105",
+          "reportingDate": "2026-10-19"
+        },
+        "survey": {
+          "metric": "SURVEY_MEAN_IMPROVEMENT_POINTS",
+          "value": "2",
+          "reportingDate": "2026-10-19"
+        }
+      },
+      "expectations": {
+        "expectedScoreImprovement": null,
+        "manageableFollowUpPercent": null
+      },
+      "ruleSeverity": null
+    },
+    "expected": {
+      "criteriaVersion": "severity-guide-v0.2",
+      "status": "CONTEXT_REQUIRED",
+      "level": null,
+      "supportedLevel": "MEDIUM",
+      "decisiveConditionId": "budget",
+      "combination": null,
+      "manualCritical": false,
+      "conditions": [
+        {
+          "conditionId": "budget",
+          "metric": "BUDGET_UTILIZATION_PERCENT",
+          "outcome": "LEVEL",
+          "level": "MEDIUM",
+          "measure": {
+            "kind": "BUDGET_PERCENT",
+            "actual": "105.0000",
+            "expected": null,
+            "value": "105.0000"
+          },
+          "missing": null
+        },
+        {
+          "conditionId": "survey",
+          "metric": "SURVEY_MEAN_IMPROVEMENT_POINTS",
+          "outcome": "CONTEXT_REQUIRED",
+          "level": null,
+          "measure": null,
+          "missing": "EXPECTED_SCORE_IMPROVEMENT"
+        }
+      ],
+      "missing": ["EXPECTED_SCORE_IMPROVEMENT"],
+      "unchecked": []
+    }
+  },
+  {
+    "name": "high known with a counted needs context condition stays high",
+    "input": {
+      "tree": {
+        "kind": "GROUP",
+        "mode": "AND",
+        "children": [
+          {
+            "kind": "CONDITION",
+            "id": "budget",
+            "metric": "BUDGET_UTILIZATION_PERCENT",
+            "operator": "GT",
+            "threshold": "90"
+          },
+          {
+            "kind": "CONDITION",
+            "id": "followUp",
+            "metric": "BENEFICIARY_FOLLOW_UP_PERCENT",
+            "operator": "GT",
+            "threshold": "5"
+          }
+        ]
+      },
+      "results": {
+        "budget": "TRUE",
+        "followUp": "TRUE"
+      },
+      "facts": {
+        "budget": {
+          "metric": "BUDGET_UTILIZATION_PERCENT",
+          "value": "115",
+          "reportingDate": "2026-10-19"
+        },
+        "followUp": {
+          "metric": "BENEFICIARY_FOLLOW_UP_PERCENT",
+          "value": "25",
+          "reportingDate": "2026-10-19"
+        }
+      },
+      "expectations": {
+        "expectedScoreImprovement": null,
+        "manageableFollowUpPercent": null
+      },
+      "ruleSeverity": null
+    },
+    "expected": {
+      "criteriaVersion": "severity-guide-v0.2",
+      "status": "CLASSIFIED",
+      "level": "HIGH",
+      "supportedLevel": "HIGH",
+      "decisiveConditionId": "budget",
+      "combination": null,
+      "manualCritical": false,
+      "conditions": [
+        {
+          "conditionId": "budget",
+          "metric": "BUDGET_UTILIZATION_PERCENT",
+          "outcome": "LEVEL",
+          "level": "HIGH",
+          "measure": {
+            "kind": "BUDGET_PERCENT",
+            "actual": "115.0000",
+            "expected": null,
+            "value": "115.0000"
+          },
+          "missing": null
+        },
+        {
+          "conditionId": "followUp",
+          "metric": "BENEFICIARY_FOLLOW_UP_PERCENT",
+          "outcome": "CONTEXT_REQUIRED",
+          "level": null,
+          "measure": null,
+          "missing": "MANAGEABLE_FOLLOW_UP_LEVEL"
+        }
+      ],
+      "missing": ["MANAGEABLE_FOLLOW_UP_LEVEL"],
+      "unchecked": []
+    }
+  },
+  {
+    "name": "manual critical keeps the system level",
+    "input": {
+      "tree": {
+        "kind": "GROUP",
+        "mode": "AND",
+        "children": [
+          {
+            "kind": "CONDITION",
+            "id": "budget",
+            "metric": "BUDGET_UTILIZATION_PERCENT",
+            "operator": "GT",
+            "threshold": "90"
+          }
+        ]
+      },
+      "results": {
+        "budget": "TRUE"
+      },
+      "facts": {
+        "budget": {
+          "metric": "BUDGET_UTILIZATION_PERCENT",
+          "value": "105",
+          "reportingDate": "2026-10-19"
+        }
+      },
+      "expectations": {
+        "expectedScoreImprovement": null,
+        "manageableFollowUpPercent": null
+      },
+      "ruleSeverity": "CRITICAL"
+    },
+    "expected": {
+      "criteriaVersion": "severity-guide-v0.2",
+      "status": "CLASSIFIED",
+      "level": "MEDIUM",
+      "supportedLevel": "MEDIUM",
+      "decisiveConditionId": "budget",
+      "combination": null,
+      "manualCritical": true,
+      "conditions": [
+        {
+          "conditionId": "budget",
+          "metric": "BUDGET_UTILIZATION_PERCENT",
+          "outcome": "LEVEL",
+          "level": "MEDIUM",
+          "measure": {
+            "kind": "BUDGET_PERCENT",
+            "actual": "105.0000",
+            "expected": null,
+            "value": "105.0000"
+          },
+          "missing": null
+        }
+      ],
+      "missing": [],
+      "unchecked": []
+    }
+  },
+  {
+    "name": "timeline 85 with progress 45 is high and time only explains",
+    "input": {
+      "tree": {
+        "kind": "GROUP",
+        "mode": "AND",
+        "children": [
+          {
+            "kind": "CONDITION",
+            "id": "timeline",
+            "metric": "PROJECT_TIMELINE_ELAPSED_PERCENT",
+            "operator": "GT",
+            "threshold": "80"
+          },
+          {
+            "kind": "CONDITION",
+            "id": "progress",
+            "metric": "INDICATOR_PROGRESS_PERCENT",
+            "operator": "LT",
+            "threshold": "95",
+            "indicatorId": "40000000-0000-4000-8000-000000000004"
+          }
+        ]
+      },
+      "results": {
+        "timeline": "TRUE",
+        "progress": "TRUE"
+      },
+      "facts": {
+        "timeline": {
+          "metric": "PROJECT_TIMELINE_ELAPSED_PERCENT",
+          "value": "85",
+          "reportingDate": "2026-10-19",
+          "startDate": "2026-01-01",
+          "endDate": "2026-12-31"
+        },
+        "progress": {
+          "metric": "INDICATOR_PROGRESS_PERCENT",
+          "value": "45",
+          "reportingDate": "2026-10-19",
+          "targetDate": "2026-10-01",
+          "periodEnd": null
+        }
+      },
+      "expectations": {
+        "expectedScoreImprovement": null,
+        "manageableFollowUpPercent": null
+      },
+      "ruleSeverity": null
+    },
+    "expected": {
+      "criteriaVersion": "severity-guide-v0.2",
+      "status": "CLASSIFIED",
+      "level": "HIGH",
+      "supportedLevel": "HIGH",
+      "decisiveConditionId": "progress",
+      "combination": null,
+      "manualCritical": false,
+      "conditions": [
+        {
+          "conditionId": "progress",
+          "metric": "INDICATOR_PROGRESS_PERCENT",
+          "outcome": "LEVEL",
+          "level": "HIGH",
+          "measure": {
+            "kind": "BEHIND_PERCENT",
+            "actual": "45.0000",
+            "expected": "100.0000",
+            "value": "55.0000"
+          },
+          "missing": null
+        },
+        {
+          "conditionId": "timeline",
+          "metric": "PROJECT_TIMELINE_ELAPSED_PERCENT",
+          "outcome": "EXPLANATORY",
+          "level": null,
+          "measure": null,
+          "missing": null
+        }
+      ],
+      "missing": [],
+      "unchecked": []
+    }
+  },
+  {
+    "name": "timeline with progress before its target date needs only expected progress",
+    "input": {
+      "tree": {
+        "kind": "GROUP",
+        "mode": "AND",
+        "children": [
+          {
+            "kind": "CONDITION",
+            "id": "timeline",
+            "metric": "PROJECT_TIMELINE_ELAPSED_PERCENT",
+            "operator": "GT",
+            "threshold": "80"
+          },
+          {
+            "kind": "CONDITION",
+            "id": "progress",
+            "metric": "INDICATOR_PROGRESS_PERCENT",
+            "operator": "LT",
+            "threshold": "95",
+            "indicatorId": "40000000-0000-4000-8000-000000000004"
+          }
+        ]
+      },
+      "results": {
+        "timeline": "TRUE",
+        "progress": "TRUE"
+      },
+      "facts": {
+        "timeline": {
+          "metric": "PROJECT_TIMELINE_ELAPSED_PERCENT",
+          "value": "85",
+          "reportingDate": "2026-10-19",
+          "startDate": "2026-01-01",
+          "endDate": "2026-12-31"
+        },
+        "progress": {
+          "metric": "INDICATOR_PROGRESS_PERCENT",
+          "value": "45",
+          "reportingDate": "2026-10-19",
+          "targetDate": "2026-12-31",
+          "periodEnd": null
+        }
+      },
+      "expectations": {
+        "expectedScoreImprovement": null,
+        "manageableFollowUpPercent": null
+      },
+      "ruleSeverity": null
+    },
+    "expected": {
+      "criteriaVersion": "severity-guide-v0.2",
+      "status": "CONTEXT_REQUIRED",
+      "level": null,
+      "supportedLevel": null,
+      "decisiveConditionId": null,
+      "combination": null,
+      "manualCritical": false,
+      "conditions": [
+        {
+          "conditionId": "progress",
+          "metric": "INDICATOR_PROGRESS_PERCENT",
+          "outcome": "CONTEXT_REQUIRED",
+          "level": null,
+          "measure": null,
+          "missing": "EXPECTED_PROGRESS_FOR_DATE"
+        },
+        {
+          "conditionId": "timeline",
+          "metric": "PROJECT_TIMELINE_ELAPSED_PERCENT",
+          "outcome": "EXPLANATORY",
+          "level": null,
+          "measure": null,
+          "missing": null
+        }
+      ],
+      "missing": ["EXPECTED_PROGRESS_FOR_DATE"],
+      "unchecked": []
+    }
+  },
+  {
+    "name": "equal highest levels pick the first condition id",
+    "input": {
+      "tree": {
+        "kind": "GROUP",
+        "mode": "AND",
+        "children": [
+          {
+            "kind": "CONDITION",
+            "id": "count",
+            "metric": "ACTIVITY_OVERDUE_COUNT",
+            "operator": "GT",
+            "threshold": "0"
+          },
+          {
+            "kind": "CONDITION",
+            "id": "budget",
+            "metric": "BUDGET_UTILIZATION_PERCENT",
+            "operator": "GT",
+            "threshold": "90"
+          }
+        ]
+      },
+      "results": {
+        "count": "TRUE",
+        "budget": "TRUE"
+      },
+      "facts": {
+        "count": {
+          "metric": "ACTIVITY_OVERDUE_COUNT",
+          "value": "20",
+          "reportingDate": "2026-10-19",
+          "included": 100,
+          "missingEnd": 0
+        },
+        "budget": {
+          "metric": "BUDGET_UTILIZATION_PERCENT",
+          "value": "120",
+          "reportingDate": "2026-10-19"
+        }
+      },
+      "expectations": {
+        "expectedScoreImprovement": null,
+        "manageableFollowUpPercent": null
+      },
+      "ruleSeverity": null
+    },
+    "expected": {
+      "criteriaVersion": "severity-guide-v0.2",
+      "status": "CLASSIFIED",
+      "level": "HIGH",
+      "supportedLevel": "HIGH",
+      "decisiveConditionId": "budget",
+      "combination": null,
+      "manualCritical": false,
+      "conditions": [
+        {
+          "conditionId": "budget",
+          "metric": "BUDGET_UTILIZATION_PERCENT",
+          "outcome": "LEVEL",
+          "level": "HIGH",
+          "measure": {
+            "kind": "BUDGET_PERCENT",
+            "actual": "120.0000",
+            "expected": null,
+            "value": "120.0000"
+          },
+          "missing": null
+        },
+        {
+          "conditionId": "count",
+          "metric": "ACTIVITY_OVERDUE_COUNT",
+          "outcome": "LEVEL",
+          "level": "HIGH",
+          "measure": {
+            "kind": "OVERDUE_SHARE",
+            "actual": "20.0000",
+            "expected": "100.0000",
+            "value": "20.0000"
+          },
+          "missing": null
+        }
+      ],
+      "missing": [],
+      "unchecked": []
+    }
+  }
+]
