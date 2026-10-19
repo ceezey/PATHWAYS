@@ -1001,3 +1001,8 @@
 
 - Condition rows render per selected Applies To area with a labeled add button each; changing areas seeds one row per newly selected area; step labels renamed (Monitoring area(s), What should we check?); `scopeOf` and `suffix` exported from the board model.
 - Gates: rules-board drawer tests pass and typecheck is clean; `review-card-list.test.tsx` has 1 failure that already exists on HEAD 931bd08e (indicator progress copy), not caused by this change.
+
+## 2026-10-19 Modularization close-out (claude/modularization-s8b-xjnlzt)
+- Part 3 PR #54 merged into `dev` as 8324951c; the 18 executed plan copies under `docs/superpowers/plans` (S3b to W2) and their index rows are removed, and the 18 `docs/handoff` plan rows say Closed.
+- The W2 task rulings are appended to `docs/handoff/modularization-rulings-log.md`, and `memory-digest.md` and `cloud-handoff-prompt.md` record the finished state and the W2 baselines.
+- Gates: docs check 0 failures and 0 warnings; docs only, so the other gates are unchanged.

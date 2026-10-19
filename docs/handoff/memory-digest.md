@@ -1,6 +1,6 @@
 # Memory digest for the cloud session
 
-Date: 2026-10-13. The local Claude Code sessions kept these facts in a per-machine memory folder that a cloud session cannot read. This file carries the ones the modularization still needs. Each line is a standing rule or a known fact; the reason follows where it matters.
+Date: 2026-10-13, state updated 2026-10-19. The local Claude Code sessions kept these facts in a per-machine memory folder that a cloud session cannot read. This file carries the ones the modularization still needs. Each line is a standing rule or a known fact; the reason follows where it matters.
 
 ## Identity and pushing
 
@@ -24,20 +24,22 @@ Date: 2026-10-13. The local Claude Code sessions kept these facts in a per-machi
 ## Modularization state
 
 - Change record `docs/cr-pathways-codebase-modularization.md` (3.7 roadmap, section 9 per unit); audit `docs/audit-pathways-codebase-modularity-20261009.md`.
-- Merged into `dev`: F1, F2, F3a, F3b, F4a, F4b, S1a, S2a, S1b, S2b, the assignment cutoff clock fix and S3a (see `docs/activity-log.md` for each merge hash and gate line).
-- S3a pending local gates: the defense seed, a full demo seed and both e2e suites (stopped for the cloud move on 2026-10-13).
-- Next: S3b (`docs/handoff/modularization-s3b-indicators-web.md`, full plan, dry run green, no pre-flight scan yet), then S4 to S8 (full plans in this folder, cross-plan edits in `cross-plan-review.md`).
-- Rulings so far are in `modularization-rulings-log.md`; the final report lists every ruling with its cost if wrong.
+- Done: every unit F1 to W2 is merged into `dev` (part 1 PR #52, part 2 PR #53, part 3 PR #54 as `8324951c` on 2026-10-19); see `docs/activity-log.md` for each gate line.
+- The executed plan copies under `docs/superpowers/plans/` are retired; the plans in this folder stay as the record and their index rows say Closed.
+- Left to the developer: the per-domain seed data splits, and the pending local gates of part 3 (demo and defense seeds, dev servers, both e2e suites, browser smoke, compiled API boot, Pester and the Windows PowerShell forwarders).
+- Every ruling is in `modularization-rulings-log.md` with its cost if wrong.
 
-## Baselines after S3a
+## Baselines after W2
 
-- Tests: config 19, shared 281, imports 91, api 2445 (21 skipped), web 1983, sad 54; docs check 6 known failures; web Middleware 102 kB.
+- Tests: config 19, shared 885, imports 94, api 2642 (21 skipped), web 3478, sad 60, docs check tests 47; docs check 0 failures and 0 warnings; web Middleware 103 kB, 72 routes.
+- CI runs the DB replay, secret scan, lint, typecheck, tests and build (`validate`), the node, Python and Pester tooling tests (`tooling`) and the SAD checks (`sad`) on every pull request.
 - E2E main suite has 9 known failures (MFA verify helper, password login harness, workflows seed end date before start); compare against them, not against zero. Auth navigation suite is 27 of 27.
 - Route sizes: plan figures come from builds with `.env.example` and shift by about 1 kB; stop only if a route grows by more than 2 kB or Middleware changes. Always `rm -rf apps/web/.next` before a comparison build.
 
 ## Pitfalls
 
-- Known flakes: the ZodPipe 5 s test and `beneficiary-detail-loader.test.tsx` under load; rerun alone before treating as real.
+- Known flakes: the ZodPipe 5 s test, `beneficiary-detail-loader.test.tsx`, the collection workspace timeouts, the imports service duplicate metadata keys and one `sad:test` case; rerun the file alone before treating as real.
+- The CI secret scan matches any database URL or Supabase key variable followed by an equals sign and a value, placeholders included; write dummy URLs in docs as prose.
 - The demo seed survey report (SQL `pathways.p34_survey_report`) times out intermittently; it predates the refactor. Rerun once; if it still fails and the slice touches no API or SQL code, proceed and record a ruling.
 - The first demo seed right after a replay tends to hit P2028; wait about five minutes.
 - Biome 1.9 does not flag unused imports and counts JSDoc mentions as uses; prune imports by hand.

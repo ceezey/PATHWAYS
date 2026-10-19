@@ -1161,3 +1161,63 @@ Ruling: the Task 8 SAD step prints the paths per routed role and the number of e
 Ruling: W2 runs no Pester file (it changes none and Pester 5 cannot be installed in the cloud container); the two replay helper files stay a pending local run of W1 and run in the tooling job in CI. Cost if wrong: they stay unrun until the part 3 pull request.
 
 Ruling: every W2 commit runs as ceezey with the Co-Authored-By Claude Opus 5.5 trailer and the Claude-Session trailer of this session (01QPvEwEhu9YUbjKLd7DLzUg). Cost if wrong: none.
+
+Ruling: W2 staged on claude/modularization-s8b-xjnlzt by cherry-picking the pre-flight staging commit 6a1ab25f as db102e71 (rulings log conflict resolved by keeping the W1 lines, then the W2 section); every Task 7 anchor matches the real W1 tip once. Cost if wrong: Task 7 stops on an anchor.
+
+Ruling: W2 Task 0 baselines match the replay except B_sad 60 (plan 59), explained by the routing test of 38524112; carried forward. Middleware 103 kB, 72 routes, lint 1633, api 2642/21 (166 files), web 3478 (307), docs 0/0, node 188. Cost if wrong: none, later sad counts compare with 60.
+
+Ruling: W2 Task 1 (b2767c3b) moved the three lib/services residue files to lib/api/core as 100% renames (unexplained 0, stale 0, web 3478 equal); shell scan verdict keep with recoverSourceMutation and 39 test files, as pre-flighted. Cost if wrong: none.
+
+Ruling: Task 1 review passed; the old lib/services paths left in docs/handoff executed plans are history (the stale scan exempts history), and the change record line is rewritten by Task 7. Cost if wrong: a reader of an old plan follows a dead path.
+
+Ruling: W2 Task 2 (46390b47) derives the Vitest aliases from the tsconfig paths; every suite equals its baseline (sad 60), 8 of 8 mutations caught. Cost if wrong: none.
+
+Ruling: Task 2 review passed with low findings only; the baseUrl, compilerOptions and paths defaults and the regex escape of . and $ are unreached by every real tsconfig (all four set baseUrl and paths, no pattern holds . or $), so no tests-only fix; the double call in the test stays as pre-flighted. Cost if wrong: a future tsconfig without baseUrl resolves from its own folder untested.
+
+Ruling: W2 Task 3 (6ecd779c, rerun after a container restart cut off the first run before any commit) split check.py into ten modules; output byte-identical, lost 0, 39/39 faults identical, coverage 715/762 as pre-flighted. Cost if wrong: none.
+
+Ruling: W2 Task 4 (99b087cd) adds 39 docs check unit tests (16/16 mutations caught) and the tooling CI step; node 199, Python 13 and 39 on a clean export, as pre-flighted. Cost if wrong: none.
+
+Ruling: Task 3 review passed (62 definitions identical by AST except ROOT one parent deeper); the brief remark that materialize.py imports check.py is wrong but harmless, and the Co-Authored-By line is the one Cian set. Cost if wrong: none.
+
+Ruling: Task 4 review found the trace module (check_trace, check_index_accuracy, check_sdd_contracts) with no fixture at all, which is reachable logic run by every docs:check; a tests-only fix with mutation proof follows after Task 5 commits (same checkout). The minor unpinned branches in voice, scrutiny, inception, coverage, agents, currency and filing stay as the pre-flighted 39-test scope, since each module already has passing and failing fixtures and pinning every branch would widen the slice. Unpinned Python stays as W1 ruled (ubuntu-latest has 3.12+, which exits 5 on zero tests). Cost if wrong: a later edit to a minor branch passes the unit tests and is caught only by docs:check on the real docs.
+
+Ruling: W2 Task 5 (558fc472, 3049e53d, 89726846) split the guard, imports and reports service tests into harness plus concern files; lost 0, titles 63/24/39 kept, api 172 files 2642 tests, dist harness 0, 3/3 mutations, stats as the plan. Cost if wrong: none.
+
+Ruling: Task 5 review passed (126 tests in the 9 new files, line multisets equal apart from imports and Biome rewraps); the live-binding export let service stays as the pre-flighted harness shape. Cost if wrong: none.
+
+Ruling: tests-only fix 543654e6 pins check_trace, check_index_accuracy and check_sdd_contracts (8 tests, 39 to 47, 7 of 7 branch mutations caught). Cost if wrong: none; later figures say 47 docs check tests where the plan says 39.
+
+Ruling: the Task 7 activity line and the Task 8 Expected blocks were updated for the review fix (47 docs check tests, eleven slice commits before the gates commit, twelfth with it). Cost if wrong: a Task 7 or 8 stop on a count.
+
+Ruling: the Task 5 and Task 6 mutation commands passed repository-root paths to vitest run inside the app package, so they matched no file and counted the exit 1 as caught (vacuous). The controller reran Task 5 with basename filters (unmutated 126 pass, then 3 of 3 caught) and the Task 6 implementer reran by hand with the activity-proof-dialog filter (1 of 1 caught, 49 pass unmutated). Cost if wrong: none, the proofs now stand.
+
+Ruling: W2 Task 6 (aaf30bdf) split the activity proof dialog test; lost 0, 49 titles kept, Middleware byte-equal, 72 routes with one moved 1 kB as pre-flighted. Cost if wrong: none.
+
+Ruling: Task 6 review passed (44 it lines equal, 49/49 pass); activity and limits exported from the harness as the split needs. Cost if wrong: none.
+
+Ruling: W2 Task 7 records committed (amended to 9d03ad76 so the change record says 47 docs check tests, matching the activity log); docs:check 0/0. Cost if wrong: none.
+
+Ruling: Task 7 review passed; the docs/index.md CR row still counts 14 sub-projects ending at W1, fixed by a one-line docs commit after the Task 8 gates (before SAD); the awkward shell scan sentence stays as the pre-flighted template text. Cost if wrong: none.
+
+Ruling: W2 Task 8 gates passed at 4d5e1879 with every figure as the plan except sad 60 (base drift) and the 47 docs check tests and eleven commits of the review fix; docs commit after the gates counts W2 in the index row and the change record header (15 sub-projects). Cost if wrong: none.
+
+Ruling: the W2 final review passed; the gates line names 9d03ad76, the head the gates ran on before the gates commit (the W1 convention), and the double hyphen example in the voice.py comment is carried verbatim from check.py. Cost if wrong: none.
+
+Ruling: W2 SAD sign-off at 85cb93a8 exit 0 (base db102e71; org 5, migration 1, privacy 20, metadata 5, restraint 1, design 55; 87 entries, 0 blocked). Cost if wrong: none.
+
+Ruling: merged origin/dev (a3a133cb, rules condition rows grouped by monitoring area) as 1d3bed8c, ported into features/rules (condition-builder, apply-to-fields, rules.utils exports suffix, SCOPE_GRID_ORDER, scopeDisplayLabel); review approved, and two vacuous assertions in condition-builder.test.tsx were made real (guidance definition text proven by mutation). Cost if wrong: a rules drawer regression CI or smoke would show.
+
+Ruling: part 3 PR #54 opened from claude/modularization-s8b-xjnlzt into dev, not draft, no reviewer request (the PR author is ceezey). Cost if wrong: none.
+
+Ruling: Cian chose Placeholder (2026-10-19 02:03Z) for the CI secret scan hit; 7686eab3 replaces the dummy seed probe URL in both W1 plan copies with <DIRECT_URL set to a dummy closed-port URL> (the literal assignment form with angle brackets would still match the scan). Cost if wrong: none, the plan is executed.
+
+Ruling: PR #54 CI green on 7686eab3 (validate incl. DB replay, secret scan, lint, typecheck, test, build; tooling; SAD), mergeable clean; merge waits on Cian. Cost if wrong: none.
+
+Ruling: Cian said Proceed (2026-10-19 02:33Z) and PR #54 merged into dev as 8324951c; the pending local gates (seeds, both e2e suites, browser smoke, compiled API boot, Pester and the Windows PowerShell forwarders) stay with the developer. Cost if wrong: a regression only a local gate catches reaches dev.
+
+Ruling: after the merge claude/modularization-s8b-xjnlzt restarts from origin/dev 8324951c, as the rule for a merged pull request says, and carries the retirement change as a new pull request into dev. Cost if wrong: none, the branch held only merged history.
+
+Ruling: the 18 executed plan copies under docs/superpowers/plans (S3b to W2) are removed with their index rows, and the 18 docs/handoff plan rows say Closed instead of Active; the docs/handoff plans stay as the record. Cost if wrong: a reader wanting the working copy reads the docs/handoff plan, which holds the same text plus pre-flight edits.
+
+Ruling: the W2 task ledger lines are appended to this log after the merge, because the W2 run kept them in the cloud ledger; the two that quoted a double hyphen and the scanned assignment form are reworded. Cost if wrong: none.
