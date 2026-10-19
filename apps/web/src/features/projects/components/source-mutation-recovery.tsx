@@ -1,8 +1,8 @@
 'use client'
 
 import { Button } from '@/components/ui/button'
+import { type SourceMutationContext, sourceMutationTickets } from '@/lib/api/core/source-mutation'
 import { recoverSourceMutation } from '@/lib/services/pathways-client'
-import { type SourceMutationContext, sourceMutationTickets } from '@/lib/services/source-mutation'
 import { useEffect, useRef, useState } from 'react'
 
 /** No body, actor or request identity is rendered. Recovery always reauthorizes on the API. */

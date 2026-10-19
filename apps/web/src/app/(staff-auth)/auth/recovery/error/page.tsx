@@ -3,7 +3,7 @@ import Link from 'next/link'
 
 import { SkipLink } from '@/components/layout/skip-link'
 import { Button } from '@/components/ui/button'
-import { StaffAuthFrame } from '@/features/auth/staff-auth-frame'
+import { StaffAuthFrame } from '@/features/auth'
 
 export const metadata: Metadata = {
   title: 'Recovery link unavailable',

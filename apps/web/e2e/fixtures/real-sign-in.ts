@@ -2,11 +2,11 @@ import { execFileSync } from 'node:child_process'
 import { createHmac, randomBytes } from 'node:crypto'
 import type { Page } from '@playwright/test'
 import { createClient } from '@supabase/supabase-js'
-import { localDatabase } from '../../../../scripts/db/local-target.mjs'
+import { localDatabase } from '../../../../scripts/db/local/target.mjs'
 
 const shell = process.platform === 'win32'
 
-// Local seed accounts by role, as defined in apps/api/prisma/local-demo-seed.ts.
+// Local seed accounts by role, as defined in apps/api/prisma/seeds/local-demo-seed.ts.
 export const seedAccounts = {
   SA: 'cian.francisco@pathways.example',
   PO: 'liza.bautista@pathways.example',

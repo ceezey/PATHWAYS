@@ -24,7 +24,7 @@ The client intends to host PATHWAYS in its AWS environment. Production may run i
 ## 2. Requirements
 
 - Multi-organization isolation is preserved: organization context and row-level security apply on every request.
-- The domain model does not hard-code Plan International Pilipinas as the only organization; the name appears only in seed and bootstrap scripts (`apps/api/prisma/seed.ts`, `apps/api/prisma/developer-bootstrap.ts`).
+- The domain model does not hard-code Plan International Pilipinas as the only organization; the name appears only in seed and bootstrap scripts (`apps/api/prisma/seeds/seed.ts`, `apps/api/prisma/seeds/developer-bootstrap.ts`).
 - Known v1 constraint: one organization per login.
 - Every phase keeps the release gates in `docs/ops-pathways.md` and the SAD review in `docs/sad-pathways.md`.
 
@@ -43,10 +43,10 @@ The current deployment, trust boundaries and stack are in `docs/sdd-pathways.md`
 | `system_users.auth_user_id` references `auth.users`; baseline expects `auth.uid()` | `apps/api/prisma/migrations/0000_pathways_baseline_through_0026/migration.sql`, `apps/api/prisma/tests/security-adapter-local-bootstrap.sql` | Replace the foreign key with an opaque subject column; RLS context must not call `auth.uid()` |
 | Migrations need `supabase_admin` or a true superuser; revoke lists name `anon`, `authenticated`, `service_role` | `apps/api/prisma/migrations/0031_f10_f11_rules_runtime`, `apps/api/prisma/migrations/0034_core_feature_completion` | RDS offers `rds_superuser` only; forward migrations written for RDS, applied history preserved |
 | Step-up PIN fallback keyed on the provider session id; `pgcrypto` in the `extensions` schema | `apps/api/prisma/migrations/0037_step_up_pin` | Key the PIN on an app session id; create `pgcrypto` in a known schema |
-| Web sign-in, TOTP, middleware assurance gate, recovery flow | `apps/web/src/middleware.ts`, `apps/web/src/features/auth/login-form.tsx`, `apps/web/src/lib/auth/mfa-flow.ts`, `apps/web/src/lib/auth/password-recovery.ts` | Auth client adapter; Cognito or provider hosted flows; recovery email from the provider |
+| Web sign-in, TOTP, middleware assurance gate, recovery flow | `apps/web/src/middleware.ts`, `apps/web/src/features/auth/components/login-form.tsx`, `apps/web/src/lib/auth/mfa-flow.ts`, `apps/web/src/lib/auth/password-recovery.ts` | Auth client adapter; Cognito or provider hosted flows; recovery email from the provider |
 | Staff provisioning through the provider admin API | `apps/api/src/modules/users/auth-directory.service.ts` | Directory adapter for Cognito admin calls or the provider API |
 | Storage through supabase-js and raw storage REST with a service role; signed multipart upload | `apps/api/src/modules/storage/storage.service.ts`, `apps/api/src/modules/storage/private-inspection-reader.ts` | Storage adapter over S3 presigned URLs; web upload origin made configurable |
-| Seeds and bootstrap call Auth and Storage admin APIs and `auth.*` tables | `apps/api/prisma/authorization-bootstrap-runner.ts`, `apps/api/prisma/developer-bootstrap.ts`, `apps/api/prisma/seed.ts` | Route through the same adapters |
+| Seeds and bootstrap call Auth and Storage admin APIs and `auth.*` tables | `apps/api/prisma/authorization-bootstrap-runner.ts`, `apps/api/prisma/seeds/developer-bootstrap.ts`, `apps/api/prisma/seeds/seed.ts` | Route through the same adapters |
 | Loopback-only listeners | `apps/api/src/common/network/local-listener.ts`, `apps/api/src/main.ts`, `apps/api/Dockerfile` | Configurable bind address; container binds all interfaces behind the load balancer |
 | Hardcoded bucket name `pathways-private` | `apps/api/src/modules/finance/finance.service.ts`, `apps/api/src/modules/reports/reports.service.test.ts` | Bucket name from configuration, including SQL checks that name it |
 

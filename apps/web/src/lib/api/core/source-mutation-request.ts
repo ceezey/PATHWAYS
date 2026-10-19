@@ -3,7 +3,7 @@ import {
   SourceMutationRecoveryError,
   type SourceMutationResult,
   sourceMutationTickets,
-} from '@/lib/services/source-mutation'
+} from '@/lib/api/core/source-mutation'
 import { PathwaysClientError, requestFoundation } from './request'
 
 /** Sends an owned source mutation through the recovery tickets and maps a recovery fault to a client error. */

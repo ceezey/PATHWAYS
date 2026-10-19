@@ -34,12 +34,19 @@ describe('auth navigation failure and wiring contracts', () => {
   })
   it('keeps recovery free of domain data, arbitrary destinations and automatic redirects', () => {
     expect(ACCESS_UNAVAILABLE_PATH).toBe('/auth/access-unavailable')
-    const recovery = source('features/auth/access-recovery.tsx')
+    const recovery = source('features/auth/components/access-recovery.tsx')
     expect(recovery).toContain('href="/workspace"')
     expect(recovery).not.toMatch(/pathwaysClient|useEffect|searchParams|localStorage/)
   })
   it('retains a native user-initiated MFA retry and only action-specific MFA status requests', () => {
-    const form = source('features/auth/mfa-form.tsx')
+    const form = [
+      'features/auth/components/mfa-form.tsx',
+      'features/auth/components/mfa-verified-panel.tsx',
+      'features/auth/hooks/use-mfa-flow.ts',
+      'features/auth/hooks/use-mfa-handoff.ts',
+    ]
+      .map(source)
+      .join('\n')
     expect(form).toContain('<a href="/workspace">Retry opening workspace</a>')
     expect(form.match(/'\/auth\/mfa\/status'/g)).toHaveLength(2)
     expect(form).not.toMatch(/window\.location\.(?:replace|assign)/)

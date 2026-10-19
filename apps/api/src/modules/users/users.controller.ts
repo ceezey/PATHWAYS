@@ -1,25 +1,16 @@
+import { Body, Controller, Get, Inject, Param, Patch, Post, Req } from '@nestjs/common'
+
 import {
-  Body,
-  Controller,
-  ForbiddenException,
-  Get,
-  Inject,
-  Param,
-  Patch,
-  Post,
-  Req,
-} from '@nestjs/common'
-
+  type AuthorizeExistingUserRequest,
+  type UpdateAuthorizedUserRequest,
+  authorizeExistingUserRequest,
+  updateAuthorizedUserRequest,
+} from '@pathways/shared'
 import type { AuthenticatedRequest } from '../../common/authz/application-identity'
+import { requestIdentity } from '../../common/authz/request-identity'
 import { RequirePermission } from '../../common/decorators/permission.decorator'
-// biome-ignore lint/style/useImportType: Nest validation needs the DTO constructors at runtime.
-import { AuthorizeExistingUserDto, UpdateAuthorizedUserDto } from './users.dto'
+import { ZodPipe } from '../../common/validation/zod-pipe'
 import { UsersService } from './users.service'
-
-function profile(request: AuthenticatedRequest) {
-  if (!request.user) throw new ForbiddenException('Application profile is required.')
-  return request.user
-}
 
 @Controller('users')
 export class UsersController {
@@ -28,13 +19,16 @@ export class UsersController {
   @Get()
   @RequirePermission('users.authorize')
   list(@Req() request: AuthenticatedRequest) {
-    return this.users.list(profile(request))
+    return this.users.list(requestIdentity(request))
   }
 
   @Post('authorize-existing')
   @RequirePermission('users.authorize')
-  authorizeExisting(@Req() request: AuthenticatedRequest, @Body() body: AuthorizeExistingUserDto) {
-    return this.users.authorizeExisting(profile(request), body)
+  authorizeExisting(
+    @Req() request: AuthenticatedRequest,
+    @Body(new ZodPipe(authorizeExistingUserRequest)) body: AuthorizeExistingUserRequest,
+  ) {
+    return this.users.authorizeExisting(requestIdentity(request), body)
   }
 
   @Patch(':userId')
@@ -42,8 +36,8 @@ export class UsersController {
   update(
     @Req() request: AuthenticatedRequest,
     @Param('userId') userId: string,
-    @Body() body: UpdateAuthorizedUserDto,
+    @Body(new ZodPipe(updateAuthorizedUserRequest)) body: UpdateAuthorizedUserRequest,
   ) {
-    return this.users.update(profile(request), userId, body)
+    return this.users.update(requestIdentity(request), userId, body)
   }
 }

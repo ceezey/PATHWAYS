@@ -1,6 +1,6 @@
 import { clearSensitiveDraftStorage } from '@/lib/auth/sensitive-drafts'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { sourceMutationTickets } from './source-mutation'
+import { sourceMutationTickets } from '../api/core/source-mutation'
 
 const mutationId = '20000000-0000-4000-8000-000000000001'
 const mutationContext = { principalKey: 'synthetic-owner', isCurrent: () => true }
@@ -26,7 +26,7 @@ import {
 import { formsClient } from '@/lib/api/forms'
 import { importsClient } from '@/lib/api/imports'
 import { projectsClient } from '@/lib/api/projects'
-import { pathwaysClient, recoverSourceMutation } from './pathways-client'
+import { recoverSourceMutation } from './pathways-client'
 
 describe('PATHWAYS frontend data boundary', () => {
   const setupSourceBrowser = () => {
@@ -355,7 +355,6 @@ describe('PATHWAYS frontend data boundary', () => {
       code: 'unauthorized',
     })
     await expect(projectsClient.getProjects()).rejects.toMatchObject({ code: 'unauthorized' })
-    await expect(pathwaysClient.getUsers()).rejects.toMatchObject({ code: 'unauthorized' })
   })
 
   it('uses the current session and non-authoritative workspace selectors for a real API read', async () => {
@@ -576,12 +575,6 @@ describe('PATHWAYS frontend data boundary', () => {
     })
     expect(fetcher.mock.calls[0]?.[0]).toBe('http://127.0.0.1:4000/api/projects')
     expect(fetcher.mock.calls[1]?.[0]).toBe(`http://127.0.0.1:4000/api/projects/${projectId}`)
-  })
-
-  it('rejects dashboard reads without a session', async () => {
-    await expect(pathwaysClient.getDashboard('Program Manager')).rejects.toMatchObject({
-      code: 'unauthorized',
-    })
   })
 
   it('preserves bounded server field errors for direct-entry correction', async () => {

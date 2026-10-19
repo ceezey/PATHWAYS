@@ -1,5 +1,5 @@
 -- P08 Project/Activity creation-contract and aggregate security checks.
--- Run ONLY through infra/supabase/phase6/Replay-Local.ps1.
+-- Run ONLY through infra/supabase/replay/Replay-Local.ps1.
 \set ON_ERROR_STOP on
 BEGIN;
 

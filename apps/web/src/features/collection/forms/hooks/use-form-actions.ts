@@ -1,8 +1,8 @@
 import { toast } from 'sonner'
 
+import { downloadCoreArtifact } from '@/lib/api/core/artifact-download'
 import { formsClient } from '@/lib/api/forms'
 import { fingerprintOf } from '@/lib/forms/pending-create'
-import { downloadCoreArtifact } from '@/lib/services/core-feature-client'
 
 import type { SavedForm } from '../../collection.utils'
 import { fromDigitalForm, neatFormCode, toDigitalFormInput } from '../digital-form-contract'

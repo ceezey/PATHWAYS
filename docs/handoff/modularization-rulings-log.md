@@ -711,3 +711,453 @@ Ruling: S5c SAD sign-off PASS at 66a9be6e (design-qa-agent 168 paths in four pac
 Ruling: the W1 plan (Tasks 0 to 8: cloud-run deferrals, analytics test split, scripts/db, phase6 renamed to replay with forwarding stubs for the old PowerShell and mjs entry points, seeds into prisma/seeds, tooling tests wired into a CI job, records, gates; 142 renames, every count equal) is accepted, and its W2 outline becomes the last slice, limited to items the change record's W1 row or its recorded deferrals name (path aliases, the docs/check.py split, the lib/services residue, the seed data and large test file splits only where a deferral names them), making 18 slices, cost if wrong: one more slice of work, flagged to Cian.
 
 Ruling: apply the S6c pre-flight fixes (11 must-fix: Task 0 branch, ancestor and S5c marker checks with base-sha first, Expected values from the S5c replay, the indicators noUnusedLocals line in use-collection-state.ts, the Task 7 index sed, grep -a and a sorted typecheck in Task 8, 'use client' kept on 11 cut components; 7 should-fix: a shared response-rules test of 27 cases leaving one equivalent mutant, SUBMITTED and REVIEWED round statuses, six report read permission rows, the api export guard for a stored report type with no route, the activeOperation guard), and Task 0 recounts the real S5c figures, which carry fix 3 and fix 6 rows the replay lacks, cost if wrong: an S6c Task 0 stop.
+
+Ruling: S6c is the last slice of part 2, so its Task 8 gate line says S6c ships in part 2 of 3 stacked pull requests into dev and the controller opens that pull request (claude/modularization-s6c-9ept8o into dev) after the S6c sign-off, in place of the plan's "one pull request after every slice" wording, cost if wrong: none (Cian chose stacked pull requests on 2026-10-14).
+
+Ruling: S6c Task 0 takes the real S5c figures as baselines (web 246 files and 2287 tests, the S5c route table) where the replay printed 244 and 2253, cost if wrong: a later Expected compares against a stale count and is caught by the delta check.
+
+Ruling: S6c Task 0 committed 4fb57e71 with every Expected matching except B_web (246 files and 2287 tests, the real S5c figure), Middleware 103 kB, cost if wrong: none.
+
+Ruling: S6c Task 1 committed 47d13434 (stat equal to the brief; lint checked 1451 files, not 1449, the two S5c split test files), cost if wrong: none.
+
+Ruling: S6c Task 2 committed 6a7cfe2c (stat equal to the brief, schema-moved lost 0 three times, the strict mutation killed; lint 1450 files, the two S5c split files), cost if wrong: none.
+
+Ruling: S6c Task 1 review PASS on both; its low (three tightening mutants survive: snapshot weight_percentage and maximum_score to decimal, snapshot type to an enum, expenseDate to a date regex, since no row passes a free-form value) is fixed by a tests-only commit after Task 3 (fix-1-brief.md), because a tightened response rule would reject real api responses at runtime, cost if wrong: a few extra rows.
+
+Ruling: S6c Task 2 review PASS on both; its two nits stay (the EvaluationDetail alias is what the brief specifies, and Biome does not wrap the one long comment), cost if wrong: none.
+
+Ruling: S6c Task 3 committed d0648345 and 835f9718 (stats equal to the brief, parity rows pass on the old code, the monitoring grant mutation fails 2 rows in each of the three tests; lint 1453 files from the S5c split files), cost if wrong: none.
+
+Ruling: fix 1 committed f2a21f17 (two rows, four tightening mutations each failing a row; shared 42 files and 721 tests, two more than the brief from here on), cost if wrong: none.
+
+Ruling: S6c Task 3 review PASS on both (nothing widens access, parity holds over every role and grant subset); its two lows (the stale reports.helpers.ts:27 comment, ReportKindGrant exported with no outside user) are fixed by the controller in one small commit after Task 4 so the implementer's tree is not touched mid-task, cost if wrong: none.
+
+Ruling: the review 3 comment low is fixed in f9dc1181; ReportKindGrant keeps its export, because the exported reportKindGrants annotation uses it and the shared declaration build would otherwise report a private name, cost if wrong: one needless type export.
+
+Ruling: S6c Task 4 committed 44aa1180, e0c5d623 and 385cd72c with every Expected matching (live-reporting-workspace.tsx 523 to 33 lines, lost 0, six mutations killed; the brief's prose 59 tests contradicts its own Expected 65, which ran), cost if wrong: none.
+
+Ruling: S6c Task 5 committed d3a62177 and cc62fe6c with every Expected matching (live-evaluation-workspace.tsx 531 to 42 lines, lost 0, three behavior mutations and the tone type mutation caught), cost if wrong: none.
+
+Ruling: S6c Task 6 committed 408b940f with every Expected matching (one shared budgets read, the permission mutation fails one row); the untracked evaluation-mut folder is the Task 5 reviewer's scratch copy and is removed once that review ends, cost if wrong: none.
+
+Ruling: S6c Task 6 review PASS on both (same key, fetcher, permission and enabled condition, one shared cache entry; four mutations each fail the new row), cost if wrong: none.
+
+Ruling: S6c Task 5 review spec PASS, quality PASS for the split, with Important test debt (84 of 103 mutants survive, unpinned before the move): as in S5c fixes 3 and 6, the state logic gets a tests-only fix (fix-5-brief.md: round status gates, owner and reviewer enablement, sign-off gate, dialog confirm gating and cancel, success and failure messages with dialog close and field reset, the stale-owner and activeOperation guards where the DOM can reach them, the start card disables, table sort order), while pure copy and display survivors (card field labels, status tone classes) stay as debt and the unreachable readError state is recorded, cost if wrong: a few more rows than needed.
+
+Ruling: S6c Task 4 review spec PASS, quality PASS with six medium test-debt findings (about 100 of 138 mutants survive, unpinned before the split): as for review 5, a tests-only fix 4 after fix 5 pins the state logic (previewOnly, the survey and round reset on project change, the chosen format in the request, the download and generate stale-owner, catch, finally and re-entry guards where the DOM reaches them, the start and fallback messages, the file extension, the draft-owner inputs and the export permission, the saved reports disable rule and the allowed-kind clamp), while pure copy and display states (empty, pending and error texts, title fallback, unavailable reasons) stay as debt, cost if wrong: a few more rows than needed.
+
+Ruling: fix 5 committed d01cedcb (live-evaluation-workspace.state.test.tsx, 63 cases, 73 of 74 mutants killed, the survivor equivalent; the review card SUBMITTED check and the list error branch skipped as unreachable; web 249 files and 2370 tests), cost if wrong: none.
+
+Ruling: fix 4 committed 91f961a7 (live-reporting-workspace.state.test.tsx, 57 rows, 52 of 57 mutants killed, the five survivors unreachable re-entry guards behind a disabled button or equivalent; web 250 files and 2427 tests), cost if wrong: none.
+
+Ruling: S6c Task 7 committed 5e9c774a (6 docs files; shared 42 and 721, api 153 and 2614, web 250 and 2427; three project routes 1 kB bigger, report routes unchanged; the CR roadmap row now names S6c), cost if wrong: none.
+
+Ruling: S6c SAD PASS on all 75 paths (organization-isolation-checker 6, beneficiary-privacy-guardian 13, design-qa-agent 56), 0 blocked, cost if wrong: none.
+
+Ruling: S6c final review PASS; its record lows are fixed in the gate commit (the report routes kept their First Load sizes with the print chunk 0.5 kB bigger, the PRD G-F12-1 row lists QAD-T121, reports.service.test.ts at 836 lines is named as W2 test debt); the fix 4 denominator stays 57 (52 killed, four unreachable guards, one equivalent, as its hand-back counted), and the schema-plus-type exports and SavedScore keep their export as the shared convention, cost if wrong: one needless export each.
+
+Ruling: S6c gates pass at 86985c87 (shared 42 and 721, api 153 and 2614, web 250 and 2427, sad 57, Middleware 103 kB) and SAD sign-off exits 0; the branch is pushed and part 2 opens, cost if wrong: none.
+
+## S7a
+
+Ruling: apply the S7a pre-flight fixes (12 must-fix: Task 0 branch, base-sha and ancestor checks with S5c and S6c markers and real baselines, Biome with its file list set in Task 3, git grep that sees the untracked rules.reads.ts, a next.config edit that matches the multi-line list, a Task 8 that runs the web build without prisma generate and opens no pull request, no plan copy removal in the S7b outline, corrected test deltas, a 403 row that asserts ForbiddenException; 15 should-fix mutation-checked pins: the service call of all 23 handlers, the alert evidence table, evaluation line and history list, the editor indicator binding, the context-only read, useBindingChoices and the rules.reads fetchers), replayed to the end with api B+3 and web B+17 in 249 files, cost if wrong: a Task 0 recount on the real S6c tip catches drift.
+
+Ruling: the S7a pre-flight replayed on the planned S6c end state, so Task 0 takes the real S6c figures as baselines (shared 42 files and 721 tests, api 153 and 2614, web 250 and 2427, the S6c route table), cost if wrong: a later Expected compares against a stale count and the delta check catches it.
+
+Ruling: S7a Task 0 committed fc5ed5c8 with every Expected matching except the announced real baselines (shared 721, web 250 files and 2427), Middleware 103 kB, cost if wrong: none.
+
+Ruling: S7a Task 1 committed 2ff66e36 and 59eec143 with every Expected matching (rules.routes.test.ts passes before the change, four controllers with same lines 153, api 154 files and 2617 tests), cost if wrong: none.
+
+Ruling: S7a Task 2 committed 3e2bfc80 and 31ceea0e with every Expected matching (NUL separator written as an escape and pinned, 30 renames into features/rules with 26 specifier edits), cost if wrong: none.
+
+Ruling: S7a Task 2 review PASS on both (the escape is byte-identical at runtime, 30 pure renames, no stale specifier); the old paths in deferred-features.md:37 go to the Task 7 records and the CR and handoff mentions stay as point-in-time records, cost if wrong: none.
+
+Ruling: S7a Task 1 review spec PASS, quality FAIL on one medium (the parameter decorators of the 23 moved handlers are pinned nowhere: dropping @Param('id') or swapping @Query() for @Body() survives the api suite); a tests-only fix 1 after Task 3 adds the route argument metadata (ROUTE_ARGS_METADATA) of every handler to rules.routes.test.ts, each kind proven by a mutation; the low (the table depends on declaration order and a count of 23) stays, since a new handler must change the table anyway, cost if wrong: none.
+
+Ruling: S7a Task 3 committed 0aebc163, deabb63f and 2e47329b with every Expected matching (34 declarations moved with same lines 2435, rule-drawer-shared.ts and rule-output-fields.tsx deleted, web 251 files and 2430 tests), cost if wrong: none.
+
+Ruling: fix 1 committed 560861b9 (one test of 23 route argument rows; four decorator mutations each fail it; api count +1 test), cost if wrong: none.
+
+Ruling: S7a Task 4 committed 0efc2b50 with every Expected matching (rules.reads.ts, alertSeverityRank, 8 use-binding-choices rows; web 253 files and 2444 tests), cost if wrong: none.
+
+Ruling: S7a Task 4 review spec PASS, quality PASS; the two lows stay (the `?? ''` fallback of the indicator and activity reads is unreachable because both reads are enabled only with a scope, and the missing blank line before one new test is cosmetic and passes Biome), cost if wrong: a later caller enabling those reads without a scope would query with an empty project id unpinned.
+
+Ruling: S7a Task 5 committed 334808cd with every Expected matching (2 renames, 20 specifier or mock edits, counts 22, 21, 9; typecheck, lint 1491 and 44 focused files pass; a reviewer mutation staged by the first git add was restored before the commit and rules.reads.ts is unchanged from 0efc2b50), cost if wrong: none.
+
+Ruling: S7a Task 5 review spec PASS, quality PASS (client byte-identical, 9 mocks before and after, no stale specifier in apps; doc mentions of the old path are historical or plan text and stay), cost if wrong: none.
+
+Ruling: S7a Task 6 committed a4338236 with every Expected matching except the route comparison (different 2, not 4 or 5: /alerts/repository and one activity route at +1.0 kB, none above 1 kB), which is build jitter under the stop rule, cost if wrong: none, the final gate re-measures routes.
+
+Ruling: S7a Task 6 review spec PASS, quality PASS (barrel holds four client components and no server code; both mocks still supply what the importers render), cost if wrong: none.
+
+Ruling: S7a Task 7 committed be2380b5 with every Expected matching (sad 57, docs:check 6 failures and 1 warning as at Task 0, lint 1492); the records carry the real figures (api +1 file and 4 tests with fix 1, web +3 files and 17 tests, same lines 2435, routes 72 different 2), and the audit rows end in later-slice wording, which the sed handles, cost if wrong: none.
+
+Ruling: S7a SAD design-qa blocked three web files on duplicate imports from '../rules.utils' left by the Task 2 and 3 codemods (linked-alert-summary.tsx, rule-drawer.tsx, rule-test-workspace.tsx; style only); the controller merges each into one import in a fix commit after the gate run and final review, reruns lint, typecheck and the rules tests, and re-dispatches design-qa on those three paths, cost if wrong: none.
+
+Ruling: S7a final review PASS with four lows (runbook names rule-board-model.ts, activity log says nine component files where git shows eight, audit MOD-05 row lacks the rules client move, CR 3.3 reads-row widening lacks its amended note); all four are fixed in the docs fix commit together with the SAD duplicate-import merges, and the Task 8 gate line states the /alerts/repository +1.0 kB is jitter, cost if wrong: none.
+
+Ruling: fix 2 committed 3aa63b44 (three duplicate rules.utils imports merged, runbook path, eight component files, MOD-05 rules client, CR 3.3 amended note; tsc, rules tests 108, lint 1492 and docs check unchanged), cost if wrong: none.
+
+Ruling: S7a Task 3 review spec PASS, quality FAIL on mediums: rules.utils helpers (leafCount, clearRecordBindings, newCondition, recordBound, severity order, nodeKey), the review workspace and drawer permission gates, the condition builder remove, cap, binding-clear and BETWEEN reset, the recommendation cap and the editor leaf cap survive mutation; following the S6c precedent a tests-only fix 3 pins them with mutation proofs, while copy, preview labels and the severity field display stay as accepted debt and notification-row stays unreachable behind showNotifications, cost if wrong: copy regressions in the rules screens are caught only by smoke.
+
+Ruling: fix 3 committed c50e42ee (tests only: 8 new and 2 extended test files, all under 600 lines; 66 mutations over items 1 to 7 each fail a test, two drawer and editor project-change tests made to wait for records after first surviving; web 261 files and 2527 tests, lint 1500), cost if wrong: none.
+
+Ruling: S7a gate docs committed 1549f7d1 (records name fixes 2 and 3 and the real web figure 261 files and 2527 tests; the build figures come from the gate run at be2380b5, since fixes 2 and 3 change only imports and tests); SAD sign-off exit 0 on 182 evaluations with no BLOCKED path, cost if wrong: none.
+
+## S7b
+
+Ruling: S7b pre-flight found 13 must-fix, 15 should-fix and 12 notes; apply-s7b.py writes the fixed plan, replayed end to end on the S7a end state (shared 731 in 46 files, api 2628 in 158 files, web unchanged, sad 58, Middleware 103 kB); imports.service.test.ts duplicate-metadata case named a known flake after one full-run failure, cost if wrong: a real ordering bug in that test is hidden until CI.
+
+Ruling: S7d planned as Tasks 0 to 9 (dashboards web and the rest of the analytics shell: shell 898 to 437 lines, role dashboard 693 to 283, web +16 files and 440 tests, every cut lost 0), dry-run end to end on the simulated S7c base; its pre-flight on the real S7c end state follows the S7c pre-flight, and the pre-existing survivors in the shell lines that did not move stay listed as gaps, cost if wrong: an 11006-line plan costs pre-flight time but no code.
+
+Ruling: W2 is planned now on the W1 dry-run base in parallel with the serial S7c, S7d, S8 pre-flights, with outline items 1 to 4, 6 and 7 only; the per-domain seed data split (item 5) is out, recorded in CR section 9 as left to the developer, because seed work is his and the cloud cannot run the local seed proof, cost if wrong: MOD-21's data part stays open until he takes it.
+
+Ruling: apply the S7b pre-flight fixes (13 must-fix, 15 should-fix), replayed on the S7a end state; Task 0 takes the real S7a figures as baselines (shared 42 files and 721 tests, api 154 and 2618, web 261 and 2527 after S7a fix 3, lint 1500), since the replay ran before S7a fixes 2 and 3, cost if wrong: a later Expected compares against a stale count and the delta check catches it.
+
+Ruling: S7b Task 0 committed f7028682 with every Expected matching except the known baselines (shared 721, api 2618 passed and 21 skipped in 154 files, web 261 files and 2527 tests, M0 103 kB), which later tasks use, cost if wrong: none.
+
+Ruling: S7b Task 1 also pins the route argument metadata (ROUTE_ARGS_METADATA) of every dashboards and analytics-insights handler in dashboards.routes.test.ts, written against the unchanged controllers with a mutation proof, because S7a review 1 found the same gap; api counts run one test above the plan's Expected from here on, cost if wrong: one extra test row.
+
+Ruling: S7b Task 1 committed 381bff86 with every Expected matching except the explained +1 api test (the argument metadata case; api 155 files, 2624 passed and 21 skipped) and lint 1501 (the brief's figure predates S7a fix 3); three argument mutations each fail only that case, cost if wrong: none.
+
+Ruling: S7b Task 1 review spec PASS, quality PASS with three minors; the 403-before-404 order (a role without the permission asking for an out-of-scope project) and lookup-before-compute order in the insights service get a tests-only fix 1 after Task 2, because the first decides what an unauthorized caller learns about project existence; the expect.anything() scope clause stays, since scoped-project.test.ts pins the scope rule, cost if wrong: none.
+
+Ruling: S7b Task 2 committed 4fcebab6 with the brief's stat and every Expected matching except the explained ones (the registration mutation fails 1 of 5 cases, lint 1502, api 2625 passed and 21 skipped in 156 files, two above the plan from the real base and the Task 1 argument case), cost if wrong: none.
+
+Ruling: S7b Task 2 review spec PASS, quality PASS; the two minors (which module owns each controller is not pinned, and DashboardsModule is not compiled alone) stay, because Nest serves the same routes whichever module registers a controller and the AppModule test already fails on an unresolved provider, cost if wrong: a controller moved between modules goes unnoticed with no change a caller can see.
+
+Ruling: fix 1 committed 40b3568d (6 insights cases pin 403 before the scope lookup and the lookup before compute and audit; both order mutations fail 3 cases each; api 156 files, 2631 passed and 21 skipped), cost if wrong: none.
+
+Ruling: S7b Task 3 committed 5de8b28d with the brief's stat and every Expected matching except the explained counts (analytics folder 96 tests, lint 1505, api 157 files and 2633 passed and 21 skipped), cost if wrong: none.
+
+Ruling: S7b Task 3 review spec PASS, quality PASS with two minors; the export file names (CSV fileName, the three fileBase names, Content-Disposition), XLS acceptance and the null-to-empty cell mapping are what a user downloads, so a tests-only fix 2 after Task 4 pins them with mutation proofs; the missing blank line before the copied logger stays (Biome passes), cost if wrong: none.
+
+Ruling: S7b Task 4 committed 9d7da106 with the brief's stat and every Expected matching (same tokens 3361, row-cap mutation fails 1 of 3) except the explained counts (dashboards folder 37, lint 1509, api 158 files and 2636 passed and 21 skipped), cost if wrong: none.
+
+Ruling: fix 2 committed f5518d22 (tests only in three files: export file names per format and view, accepted formats, empty cells, the controller's Content-Disposition; seven mutations each fail a test; api 159 files, 2647 passed and 21 skipped; lint 1510), cost if wrong: none.
+
+Ruling: S7b Task 4 review spec PASS (8 readers identical), quality PASS with three importants and one minor, all pre-existing but now spread over three files: the select of every reader, the own-row and self-exclusion filters, the month window and the imports.read, activities.read and projects.detail.read gates decide what each role sees, so a tests-only fix 3 after Task 5 pins them with mutation proofs; the gt to gte survivor is equivalent, cost if wrong: none.
+
+Ruling: S7b Task 5 committed a4a9c283 with the brief's stat and every Expected matching (302 exports before and after, 35 test titles lost 0, barrel and SAD glob mutations fail as planned) except the explained counts (shared 45 files and 723 tests, lint 1516); one beneficiary-detail-loader flake passed 6 of 6 alone, cost if wrong: none.
+
+Ruling: fix 3 committed 084af1e4 (one 423-line test file, 9 tests; 41 mutations over selects, own-row and self-exclusion filters, the month window, nested queries and three permission gates each fail a test; api 160 files, 2656 passed and 21 skipped; lint 1517); the implementer ran pkill -f once against its own mutation script despite the rule, so a concurrent run that dies without a summary is rerun, cost if wrong: none.
+
+Ruling: S7b Task 5 review spec FAIL on one low (the SAD determinism glob for contracts/projects/overview-metrics.ts is a literal path, so its test no longer routes there), quality PASS with three pre-existing mediums (metric-round sign and negative-zero handling, .strict() on the project map, action counts and timeline contracts, and the descriptive analytics query schema rules are pinned only by api tests or not at all); fix 4 after Task 6 widens the glob to overview-metrics*.ts in check.ts, check.test.ts and sad-pathways.md and adds shared tests with mutation proofs for those schema rules and rounding, cost if wrong: none.
+
+Ruling: S7b Task 6 committed 0d95f726 with the brief's stat and every Expected matching (10 replacements in 5 files, a sixth status fails exactly 5 tests) except the explained counts (shared 46 files and 733 tests, lint 1518, Biome 118 files), cost if wrong: none.
+
+Ruling: S7b Task 6 review spec PASS, quality PASS; the low (widening rule-metrics.ts:189 survives because the output re-parses through the rule-contract union with the same message) stays, since that site's input schema is not exported and the re-parse rejects the same values, cost if wrong: none a caller can see.
+
+Ruling: fix 4 committed e5dff71e (overview-metrics*.ts routing; sad 58 fails before and passes after) and 1cac578f (tests only: rounding, every .strict(), max(100) and both refines of the moved contracts; 24 of 25 mutations fail a test; shared 50 files and 759 tests, lint 1522); the surviving negative-zero guard in round1 is unreachable (toFixed(1) of -0 is 0.0), so it counts as an equivalent mutant, cost if wrong: none.
+
+Ruling: S7b Task 7 committed 4a2686ad with real figures (shared +8 files and 38 tests, api +6 files and 38 tests, web unchanged, sad +1, lint 1522; analytics.service.ts 504 to 454 lines) and one line per fix in the activity log and CR, so its diffstat runs above the brief's, cost if wrong: none.
+
+Ruling: S7b SAD restraint blocked scripts/sad/check.ts on the literal project-map.ts determinism path, which misses the new project-map.test.ts (the same gap fix 4 closed for overview-metrics); fix 5 after the gate run and final review widens it to project-map*.ts in check.ts and sad-pathways.md and adds the test path to check.test.ts, cost if wrong: none.
+
+Ruling: S7b final review PASS with three record lows fixed in fix 5 (activity log says 1514 lines, CR says 797-line test, sdd-pathways.md names the insights controller and service as part of the analytics module), the CR S7c targets marked as new files, and the historical gate-closure CR left as history; the reviewer's brief detached checkout at the same commit changed no file, cost if wrong: none.
+
+Ruling: S7b Task 8 Step 2 handoff checks match exactly (five S8 DTO files, two S8 identity controllers plus the helper, 0 TransactionClient, no old folders or specifiers, import loops 0); fix 5 committed d032e921 (project-map*.ts glob, sad 58 fails before and passes after, four record corrections), cost if wrong: none.
+
+## S7c
+
+Ruling: the W2 plan (items 1, 2, 3, 4, 6 and 7, 3688 lines) was dry-run end to end on the W1 replay tree; item 5, the per-domain seed data split, stays out and is recorded in CR section 9 as the developer's own work. Cost if wrong: Cian expected a seed code change from W2.
+
+Ruling: apply the S7c pre-flight fixes (8 must-fix, 13 should-fix, 87 asserted edits, 6348-line plan, 137 mutations each failing a test), replayed on the S7b replay end state; Task 0 takes the real S7b tip figures as baselines (shared 50 files and 759 tests, api 160 and 2656 passed and 21 skipped, web 261 and 2527, lint 1522), and the three S7a fix 3 rules tests that mock `pathways-client` with an empty object add 3 files to its importer and factory counts, cost if wrong: a later Expected compares against a stale count and the delta check catches it.
+
+Ruling: the only files both S7c and the drift since the replay base touch are five docs (activity log, audit, CR, deferred features, index); where an exact-string docs edit misses on the real text, the implementer applies the same intent to the real line and reports it, cost if wrong: one docs line worded differently from the plan.
+
+Ruling: S7c Task 0 committed 49105249 with every Expected matching except the known baselines (shared 50 files and 759, api 160 and 2656 passed and 21 skipped, web 261 and 2527, lint 1522, M0 103 kB), the pathways-client counts 3 higher (50 files, 39 factories; the three S7a fix 3 rules mocks) and the base commit subject (the controller's commit, not the replay's staging subject), which later tasks use, cost if wrong: none.
+
+Ruling: S7c Task 1 committed 9efd83f7 with the brief's stat and every Expected matching (12 client mutations, same-lines lost 0) except the explained counts (lint 1527, web 264 files and 2611 tests), cost if wrong: none.
+
+Ruling: S7c Task 1 review spec PASS, quality PASS with two lows and one info; the forced timeline view is what the request sends whatever the caller names, so a tests-only fix 1 after Task 2 adds a row with a caller-named view (and retitles the case) with a mutation proof; the unmutated parses and keys stay, since each has a literal assertion that fails on loss, and the encodeURIComponent equivalent mutant stays, cost if wrong: none.
+
+Ruling: S7c Task 2 committed 64426e6a with the brief's stat and every Expected matching (same-lines lost 0, titles lost 0, call counts and hashes) except the explained counts (pathways-client factories 39, the three rules mocks left untouched; lint 1526, web 263 files and 2572 tests), cost if wrong: none.
+
+Ruling: fix 1 committed e3c0bc0f (one case pins the forced timeline view over a caller-named view with the period kept, the old case retitled; the caller-view-wins mutation fails it; analytics.test.ts 16 tests); the implementer amended its own unpushed commit to drop a force-added report, cost if wrong: none.
+
+Ruling: S7c Task 2 review spec PASS, quality PASS with two lows; the timeline view low is fix 1 (e3c0bc0f); the `const client = dashboardsClient` alias stays, since it keeps the moved test bodies identical to the old ones and same-lines proves the move, cost if wrong: one redundant line in a test.
+
+Ruling: S7c Task 3 committed 272e78e5 with the brief's stat and every Expected matching (23 moves, registration mutations fail 1 of 6 each, 9 routes differ from the Task 0 build, none above 1 kB bigger) except the explained counts (lint 1527, web 263 files and 2574 tests) and four route prints 1 kB off the brief within its tolerance, cost if wrong: none.
+
+Ruling: S7c Task 3 review spec PASS, quality PASS; the route-size doubt is settled by the implementer's prelayout-to-layout build comparison (72 routes, 0 different); the two stale docs lines (CR line 356 and activity log line 742 calling `features/analytics/use-monitoring-read` deferred to S7) go to Task 8 as an added note (the CR item gets a closed-by-S7c suffix; the hook now lives in `src/hooks/`; the log line stays as history); the index export order stays as the brief gives it, cost if wrong: none.
+
+Ruling: S7c Task 4 committed d06a17a6 with the brief's stat and every Expected matching (same-lines lost 0 over 1549 lines, 67 titles lost 0, 60 it and 258 assertions before and after) except the explained counts (lint 1533, web 268 files and 2574 tests); staged by explicit path instead of the brief's `git add -A`, cost if wrong: none.
+
+Ruling: S7c Task 4 review spec PASS, quality PASS; the exported but unused `idle` fixture stays as the plan's sed gives it (a test fixture, not app data), cost if wrong: one needless export in a test fixture.
+
+Ruling: S7c Task 5 committed d36183a8 with the brief's stat and every Expected matching (same-lines lost 0 over 1611 lines, folder 14 files and 133 tests, 9 helper and 35 panel mutations each failing with the brief's counts) except the explained counts (lint 1543, web 271 files and 2613 tests), cost if wrong: none.
+
+Ruling: S7c Task 5 review spec PASS, quality PASS with six lows; the alert request's abort signal, the zero-change cohort tone, the state precedence of the survey and timeline panels and the group passed to the chart decide what a user sees or whether a stale request is cancelled, so a tests-only fix 2 after Task 6 pins them with mutation proofs; row keys (unobservable), the MetricCard class selectors and the default date stay as debt, cost if wrong: none.
+
+Ruling: S7c Task 6 committed b9688efa and a3e4fada with the brief's stats and every Expected matching (two Retry cases, same-lines lost 0 over 1190 lines, 38 hook mutations and 5 wiring mutations each failing, the four reset-call survivors equivalent as the plan records) except the explained counts (lint 1553, web 276 files and 2651 tests), cost if wrong: none.
+
+Ruling: S7c Task 6 review spec PASS (effect order, dependency lists, cleanup and Retry unchanged; the four reset survivors equivalent), quality PASS with three lows; the hooks' stale-response guards, refetch triggers, loading flags, early clears after a permission or view loss, export guards and the call-site arguments decide which project's data a user sees and whether revoked data stays on screen, so a tests-only fix 3 after fix 2 pins them with mutation proofs; hook call order, the reset calls, the per-hook 'use client' line (hooks load only from a client component), the moved F9 comment and the type-only import stay as debt, cost if wrong: none.
+
+Ruling: fix 2 committed 34af1844 (12 cases in the panels and cards tests pin the alert request signal, the zero-change success tone, seven panel state precedences and the cohort group of the chart; 11 mutations each fail a case; analytics folder 19 files and 182 tests), cost if wrong: none.
+
+Ruling: fix 3 committed 635a28a2 (tests only, 8 files: 61 hook mutations and 23 of 24 call-site mutations each fail a case, analytics folder 20 files and 264 tests); the survivor (`canExportAnalytics: true` into the export hook) is equivalent from the component, which renders the export menu only when the permission holds, and the hook's own guard has its case; the unmount cases are weak under React 19 (no warning), so the cleanup is pinned by the stale-project cases, cost if wrong: none.
+
+Ruling: S7c Task 7 committed 4eb7bb8d and 6606ce7e with the brief's stats and every Expected matching (same-lines lost 0 over 990 lines, 31 mutations failing with the brief's counts, shell 898 lines) except the explained counts (the Task 0 drift plus fixes 2 and 3: components 11 files and 137 tests, web 278 files and 2753 tests, lint 1559); a harness stop left the shell mutated mid-run, the implementer restored it from the saved copy (cmp identical) and ran the last two mutations separately, and the tree is clean at HEAD, cost if wrong: none.
+
+Ruling: S7c Task 8 committed 327337b1 (13 replacements in 3 files, one applied to the real CR text of the S7b deferral line, the S3 use-monitoring-read item closed by suffix, fix bullets placed after their tasks; docs check baseline); the controller corrected the mutation totals in 7223f2dd (236 each failing a test: 137 in the tasks, 1, 11 and 64 plus 23 in the fixes; the fix 3 report lists 64 distinct hook mutations, not 61), cost if wrong: a mutation total off by a few in the records.
+
+Ruling: S7c Task 7 review spec PASS (the one cut difference, `{' '}` and a line break to a literal space, renders the same), quality PASS with three lows; the split and duplicate `@pathways/shared` imports are merged in fix 4 (a SAD design-qa block in S7a for the same thing), and the SADDD table rows and labels, the budget card states and tone, the 70 tone boundary and the alerts card branches decide what a user reads, so fix 4 pins them with mutation proofs; the 898-line shell is S7d's (ruling 10), the unreachable branches stay as equivalent mutants, and copy, loading text, card order and grid classes stay as debt, cost if wrong: none.
+
+Ruling: fix 4 committed eafffb76 (import merge, non-import lines hash-identical) and 0a68efb0 (22 cases; 17 mutations each fail one; analytics folder 22 files and 295 tests), and the controller recorded it (fix 4 bullet, CR mutation total 253), cost if wrong: none.
+
+Ruling: S7c SAD first round: privacy 10 PASS, design-qa 104 PASS and 1 BLOCKED (`ui-copy-cleanup.contract.test.ts` lines 83 to 85 still read the shell for the `averageKpi === null ? 'None yet'` guard after Task 7 moved the KPI card to `analytics-summary-cards.tsx`, so the guard passes vacuously); fix 5 points the guard at both files after the gates run, then a delta SAD round, cost if wrong: none.
+
+Ruling: S7c final review PASS with five lows; fix 5 corrects the CR test split figures (342-line fixture, files of 113 to 427 lines after Biome), the hook sentence (four reads and the export became five hooks; the monitoring read stays, ruling 9) and the activity log note that the insights client test moved with its client; the 253 total stands (the 137 task mutations include Task 6's five pre-move wiring runs: 12, 2, 9, 35, 5, 38, 5 and 31); "twelve cases" in fix 2 counts test runs (it.each rows), as the report does; the remaining review 5 and 7 lows (two-state precedence of the SADDD and descriptive panels, prop swaps the section tests do not catch, a fixture id outside the 79300000 family, a multi-line JSDoc) stay as debt, cost if wrong: none.
+
+Ruling: S7c fix 5 committed 02cc7473 (the KPI None yet guard reads the shell and the summary cards, an injected guard in the summary cards fails it; three record figures corrected); Task 9 gates pass (web 279 files and 2776 tests with fix 5, 9 of 72 routes differ from Task 0, none beyond 1 kB, 0 from the layout build, Middleware 103 kB); the design-qa delta PASS; assembled 114 entries, sign-off exit 0 at a69ec604; the index row already reads `S7c executed; holds the S7d outline` from Task 8, cost if wrong: one more SAD round in the part 3 PR.
+
+## S7d
+
+Ruling: apply the S7d pre-flight fixes (11 must-fix, 10 should-fix, 113 asserted edits, 11371-line plan; 13 analytics shell gates and 4 role dashboard shell tests added with mutation proofs; S8a needs no change), replayed on the S7c replay end state; Task 0 takes the real S7c tip figures as baselines, and the S7c fixes 1 to 4 (tests only, plus the import merge of fix 4) raise the analytics test counts and may kill more of the plan's recorded shell survivors, cost if wrong: a later Expected compares against a stale count and the delta check catches it.
+
+Ruling: the three S8b items the S7d pre-flight found (the ruling 10 unindexed example `@/features/dashboard/role-overview/portfolio-overview`, the unused-locals baseline that still names `collection-workspace.tsx`, and the index sed wording) go to the S8b pre-flight, since S7d does not edit S8 plans, cost if wrong: none.
+
+Ruling: the only code file both S7d and the S7c drift since the replay base touch is `ui-copy-cleanup.contract.test.ts` (S7c fix 5 changed the KPI guard, S7d's sed changes the participation source line, which fix 5 left alone), so its Task 0 hash differs and the sed still applies; the S7c fixes add 5 files and 117 web tests to the analytics folder and change no shell line, cost if wrong: a Task 0 hash stop that the drift note explains.
+
+Ruling: S7d Task 0 committed 2f8bc771 with every Expected matching except the known baselines (shared 50 files and 759, api 160 and 2656 passed and 21 skipped, web 279 and 2776, lint 1560, M0 103 kB), the analytics file count 55 (two S7c fix test files), the contract test hash (S7c fix 5) and the pathways-client factories 39 (the three S7a fix 3 rules mocks), which later tasks use, cost if wrong: none.
+
+Ruling: S7d Task 1 committed df22e2d4 with the brief's stat and every Expected matching (102 shell mutations, 73 killed and the same 29 named survivors as the plan) except the explained counts (analytics folder 25 files and 349 tests, lint 1563; the S7c fix tests), cost if wrong: none.
+
+Ruling: S7d Task 2 committed 6108b428 with the brief's stat and every Expected matching (cut hash, same-lines lost 0 over 822 lines, 10 of 10 mutations killed) except the explained counts (folder 26 files and 366 tests, lint 1564) and Biome's fix count (the new test file existed on disk before the first check), cost if wrong: none.
+
+Ruling: S7d Task 2 review: the cut dropped `'use client'` from the shell at 6108b428 (the plan's Task 2 cut keeps `@imports` only; Task 3's cut puts the directive back, as its brief shows), so 6108b428 alone would not build; it is already pushed on this unmerged slice branch, and rewriting it would need a force push, so the history keeps it and the Task 3 commit restores the directive (checked at Task 3 and by the Task 9 build), cost if wrong: one commit in the series that a bisect would find unbuildable. The null-profile survey frozen flag gets a tests-only fix 1; the Principal alias repeat and the 888-line shell (cut by Task 4) stay, cost if wrong: none.
+
+Ruling: S7d Task 1 review spec PASS, quality PASS with one medium and three lows; the medium (the shell's pin and export logic is not in the Task 1 mutation list, so export with no project in the timeline view may be unpinned) is checked against Task 4's action bar mutations, and a tests-only fix follows only if one of them survives there; the tautological assertion and the fixture comment go into fix 1; the positional hook-argument asserts and the none-or-all budget grants stay, since Task 1's role tests and the S7c hook tests pin the requests, cost if wrong: an export guard left unpinned until the Task 4 check.
+
+Ruling: S7d Task 3 committed e1885027 with the brief's stat and every Expected matching (cut hash, same-lines lost 0 over 788 lines, 49 mutations with the brief's six survivors) except the explained counts (folder 26 files and 366 tests, lint 1566); the shell carries `'use client'` again, cost if wrong: none.
+
+Ruling: fix 1 committed 404f533c (the null-profile flags pinned with `surveyFrozenOnly: true`, its mutation fails the case; the tautological assertion became the full preview sentence; the fixture comment corrected), cost if wrong: none.
+
+Ruling: S7d Task 3 review spec PASS, quality PASS with five lows; the scope hook's stale guards (projects, monitoring, the data effect's catch and finally) and the "empty scope keeps indicator definitions" survivor (reachable: a stale monitoring request when the project list empties and the same project returns) get a tests-only fix 2 after Task 4; the wider effect order change (budget, trends and participation reads and the SADDD read now start after the scope effects, independent requests) is recorded in the Task 9 records beside ruling 3; the one-render reset delay and the missing same-id guard in `selectProject` stay as debt, cost if wrong: none.
+
+Ruling: S7d Task 4 committed cc48e632 with the brief's stat and every Expected matching (shell hash, same-lines lost 0 over 642 lines, `'use client'` on all four cut files, action bar 57 with the brief's 10 survivors, filter bar 47 with 0, analysis panel 76 with the brief's 3, shell 43 with the brief's 9) except the explained counts (31 files and 525 tests, lint 1572) and Biome's fix counts (test files extracted before step 1); no mutation covers export with no project in the timeline view, so fix 2 adds that case, cost if wrong: none.
+
+Ruling: S7d Task 4 review spec PASS (every cut verbatim, shell 437 lines), quality PASS; the 22 recorded survivors are unreachable or equivalent; the timeline export guard is fix 2 item 4; the shell's props to the three cut components (for example the survey export period and the pin gates) were never mutated, so a tests-only fix 3 mutates the wiring and pins each survivor, with the tail of the panel's branch chain; the reset delay, whole-object props and duplicate `mapSelected` stay, cost if wrong: none.
+
+Ruling: fix 2 committed d58dedb1 (`use-analytics-scope.stale.test.ts` with 7 cases and 2 action bar cases; 15 mutations each fail a case, none survives; analytics folder 31 files and 509 tests without the contract test, consistent with Task 4's 525 that included its 25 cases), cost if wrong: none.
+
+Ruling: fix 3 committed f9686be4 (22 cases; 142 wiring mutations, 98 killed by the existing tests and 31 more by the new cases; 5 panel order mutations each killed; the 13 survivors are equivalent value swaps (`canReadSurvey` and `canReadSurveyTimeline` are one value, `selectedPeriod` and `pickerPeriod` coincide where read, `retryMapData` and `retryLoad`), two panel precedence equivalents, the action bar's `surveyUnavailable` term (the period empties first) and the accepted one-render reset), cost if wrong: none.
+
+Ruling: S7d Task 5 committed a6d01ab3 with the brief's stat and every Expected matching (9 renames, no leaf import outside the feature, both registration mutations and the page sed mutation fail a case) except the explained counts (web 288 files and 3012 tests, lint 1574), Middleware 103 kB (the brief allows 102 or 103) and `/analytics` +1 kB against the Task 0 table (the brief's tolerance; 0 routes differ from the prelayout build), cost if wrong: none.
+
+Ruling: S7d Task 5 review spec PASS, quality PASS; the living docs naming moved dashboard paths (DESIGN.md, deferred features, DSD) follow the final paths in Task 9's records step (controller note added to its brief), while dated change records and the log stay as history; the four role overview files without `'use client'` are unmoved and imported only by a client component, so the boundary holds, cost if wrong: a stale path in a living doc.
+
+Ruling: S7d Task 6 committed 493ef5e6 with the brief's stat and every Expected matching (dashboard folder 15 files and 167 tests, 240 mutations with the brief's 42 named survivors, role-dashboard.tsx hash unchanged) except lint 1578 (the +21 drift), cost if wrong: none.
+
+Ruling: S7d Task 6 review spec PASS, quality PASS with three lows; the reachable survivors the brief mislabels (snapshot card tone and link, the two stale monitoring answers) are pinned by Task 7's direct and deferred-promise tests, which the Task 7 review checks; the tooltip helper text and snapshot description stay as copy debt; the over-claiming test name and the thin repeat test stay (tests only, no behavior), cost if wrong: a reachable survivor left unpinned if Task 7 misses it, which its review catches.
+
+Ruling: S7d Task 7 committed 701be5ae with the brief's stat and every Expected matching (cut hash, same-lines lost 0 over 592 lines, `'use client'` on every cut component, 125 new tests, 241 mutations with the brief's 15 survivors) except lint 1586 (the +21 drift), cost if wrong: none.
+
+Ruling: review 7 PASS (spec and quality, lows only); review 6's four reachable survivors are now pinned and killed. Cost if wrong: an unpinned card tone or stale answer slips through S7d.
+
+Ruling: review 7's reachable lows (the two stale dashboard-answer survivors through a role-to-null rerender, snapshot cards with an empty project list at unit level, the metric card tooltip and the executive note copy) become a tests-only fix 4, dispatched after Task 8 commits so only one implementer works on the branch. The nits (`!dashboard` by type, repeated it.each constants, duplicated `deferred`) and the pinned-nowhere edges (empty-read loading line, `#` after query, empty `?review=`) stay as they are, since they are pre-existing behavior, not lost by the move. Cost if wrong: one more test commit, or a small unpinned edge.
+
+Ruling: S7d Task 8 committed 3f116df8 (pins) and 7d81f98f (action-counts hook and severity alias) with every Expected matching except lint 1587 and 1589 (the known +21 drift) and explicit git add paths instead of `-A apps`; 32 mutations, 0 survivors. Accepted. Cost if wrong: none beyond the review.
+
+Ruling: review 8 PASS (spec and quality); its lows are all in code Task 8 did not change but that S7d moved (role-overview, action-kpi-row), so they become a tests-only fix 5, run after fix 4 commits (one implementer at a time). Cost if wrong: one more test commit for edges that were never pinned on dev either.
+
+Ruling: fix 4 committed 8a7252e2 (tests plus one shared `test/fixtures/deferred.ts`, replacing two local copies); 6 mutations, 0 survivors. Accepted the shared fixture as within "tests only", and the brief's wrong folder for the shell (it is under components/) as harmless. Checked that the commit holds only test files and no source differs from 7d81f98f, so the reviewer's parallel mutations and lint-staged's stash did not leak. Cost if wrong: none; the diff was verified.
+
+Ruling: fix 5 committed 21f822b1 (tests only, 27 mutations, 0 survivors); accepted the three readings of "0 alerts as nonzero", the new role-overview.wiring.test.tsx beside the existing test (different mocks), and no deferred helper (no async). Cost if wrong: none; tests only.
+
+Ruling: Task 9 records committed 6e5529ad (15 replacements in 7 files, one extra for DESIGN.md:607 under the controller note; shell 437 and role 283 lines; fixes 1 to 5 recorded; ruling 3 widened; lint 1591, the +21 drift); the plan's Task 7 figure "152 mutations, 7 equivalents" matches the report (31+17+58+46, 6+1), and fix 4's line records that the snapshot one is now pinned, so the record stays. Cost if wrong: one survivor called equivalent in the CR that a later test pins.
+
+Ruling: S7d final review PASS; I fix its four record lows (deferred-features rows 23, 24, 26 and 86 to the action bar and filter bar files; the hook's real state list; the open alerts read back in ruling 3; 13 new Task 8 tests, not 16) and its first test duplicate (the stale test imports the shared `test/fixtures/deferred.ts`) in one commit after the gates; `loadMapsDashboard` stays as a named shortcut in the fixture (four call sites, no behavior). Cost if wrong: one duplicated fixture helper.
+
+Ruling: S7d SAD design-qa-agent 61 paths (split 31 and 30) all PASS; assembled 61 entries, 0 blocked; sign-off runs after the record fix commit. Cost if wrong: none.
+
+Ruling: Task 9 gates (Steps 4 to 6) match the real baselines: config 19, shared 759/50, imports 94, api 2656 and 21 skipped in 160 files, web 298 files and 3290 tests (2776 plus 514 from Tasks 1 to 8 and fixes 2 to 5), sad 58, lint 1591, typecheck clean, build exit 0, Middleware 103 kB = M0, only /analytics +1 kB against Task 0 (accepted at Task 5) and 0 differences against the prelayout and layout builds; DB replay refused as root (CI replay of the final PR is the gate); local stack, e2e and smoke pending local run. Cost if wrong: none.
+
+Ruling: the record fix 87407e42 changes one test file, so the design QA reply for that path is replaced by a delta review on the new digest before sign-off. Cost if wrong: none.
+
+Ruling: S7d signed off (61 PASS, exit 0) and closed with the gate line fe6920dd, pushed; S7d is done. Cost if wrong: none.
+
+## S8a
+
+Ruling: apply the S8a pre-flight fixes (17 must-fix, 9 should-fix, 13 notes; 183 asserted edits, 6398-line plan), replayed end to end on the S7d replay end state (32261a1, tip 203aa40): every Expected fence is real output (78 checked, 0 mismatches), 225 mutations over 14 lists with 221 killed and 4 named equivalents, the empty `PathwaysClient` deleted in Task 8 (Biome `noBannedTypes`), and Task 10 renamed "Release gates" with no merge, root build or plan-copy removal. Cost if wrong: a later Task 0 stop on a stale figure, which is its purpose.
+
+Ruling: keep the plan's ruling 4 (a null `projectIds` on `POST users/authorize-existing` answers 400 before any lookup instead of the 403 `Application scope could not be verified.` after one; the web always sends an array, so no screen reaches it) and ruling 5 (the two reachable messages keep their class-validator text, including the newly found `projectIds must contain no more than 100 elements`, pinned by contract, parity and HTTP tests). These are the plan's own rulings, recorded in CR 3.6, and the null case is the only accepted-body difference over 85 parity bodies. Cost if wrong: a hand-written client sending null sees 400 instead of 403.
+
+Ruling: the real S7d tip differs from the replay base only by the S7a to S7d review fixes; of the 100 files S8a touches, only six docs (activity log, audit, CR, deferred features, index, SAD) and `scripts/sad/check.ts` and its test differ, in hunks S8a does not edit (the S7b `overview-metrics*` and `project-map*` globs, the S5c index row order); every exact-string docs edit of Task 9 matches the real text with its asserted count. Task 0 records the real baselines (shared 50 files and 759 tests, api 160 files with 2656 passed and 21 skipped, web 298 files and 3290 tests, lint 1591, sad 58, Middleware 103 kB), and four extra test files mock `@/lib/services/pathways-client` with `{ pathwaysClient: {} }` (three rules tests and `role-overview.wiring.test.tsx`), which stay valid after Task 8 removes the export. Cost if wrong: an implementer stop on a count, settled by the drift note.
+
+Ruling: the S8b pre-flight carries the items the S7d and S8a pre-flights found (the ruling 10 example becomes `@/features/unlisted/example`; the Task 0 started checks, ancestor loop and marker lines; real baselines; 26 and 20 importer counts, the mock-scan figures, the `import-direction.test.ts` hash; the S8a commit identity and trailers; the exact CR-row replacement of `S7d and S8a applied, S8b next`). Cost if wrong: S8b Task 0 stops, which is its purpose.
+
+Ruling: S8a set up from the S7d tip fe6920dd with the pre-flighted plan commit; the four pre-flight rulings are in the rulings log under S8a. Cost if wrong: none.
+
+Ruling: S8a Task 0 committed 0aa0bf1b (plan copy and index row) with every Expected matching except the drift-note baselines (shared 50/759, api 160/2656 and 21 skipped, web 298/3290, Middleware 103) and the staging commit as the second log line; base-sha 18ca7f84 is the staging commit. Accepted. Cost if wrong: none.
+
+Ruling: S8a Task 1 committed abae5ab4 and 155f0913 with every Expected matching except the drift counts (contracts 35/651, shared 51/778, api 2650, lint 1594 and 1592); 25 mutations, 0 survivors. Accepted. Cost if wrong: none beyond the review.
+
+Ruling: S8a Task 1 review spec PASS, quality PASS (fuzzed parity: only ruling 4 differs); the users contract's astral-length case (an emoji name at the limit, reachable from the user editor) becomes part of a tests-only fix after Task 2, bundled with any Task 2 findings; the id lowercasing survivor is unobservable (the service lowercases), the default array instance and the QAD-A05 citation (Task 10 edits it) and the profile() 403 (Task 5) need nothing now. Cost if wrong: one unpinned contract swap until the fix lands.
+
+Ruling: S8a Task 2 committed 44bc2ed6 and ffcd2248 with every Expected matching except the drift counts (shared 52/808, api 2654, lint 1595 and 1594, Biome 77 files); 28 mutations, 1 equivalent survivor as in the brief. Checked that neither commit touches Task 1 files after the reviewer's parallel mutations collided with one Step 4 run (rerun green). Accepted. Cost if wrong: none.
+
+Ruling: from now on a reviewer that runs while an implementer works must not mutate tracked files (focused test runs only); mutation re-runs happen only in reviews with no implementer active. Cost if wrong: reviews re-run fewer mutations, which the implementers' cmp-checked proofs cover.
+
+Ruling: S8a Task 2 review spec PASS, quality PASS (8101-body parity: only the CR 3.6 prototype keys differ); its astral-length low joins Task 1's in a tests-only fix 1 after Task 3, with the missing `fullName` and `expectedUpdatedAt` rejections; the duplicated 30 cap mirrors the DTO and stays. Cost if wrong: none; tests only.
+
+Ruling: S8a Task 3 committed 69cc67d0 and 91443fe9 with every Expected matching except the drift counts (shared 53/829, lint 1598 and 1594, api 2606 = Task 2 minus 48 as the brief says); 24 mutations, 0 survivors. Accepted. Cost if wrong: none beyond the review.
+
+Ruling: fix 1 committed 1eb72185 (tests only, 4 mutations killed; the at-maximum astral cases are the discriminating ones). Accepted. Cost if wrong: none.
+
+Ruling: S8a Task 3 review spec PASS, quality PASS (427-body probe: only own keys named on Object.prototype differ); its medium (auth contracts tested in ASCII only) and its two test lows (the three S1 field-schema rules only the deleted parity test pinned, and a valid-body 200 case for the verify and setup routes) become tests-only fix 2 after Task 4; the CR 3.6 wording widens to "own keys named on `Object.prototype`" through a Task 9 controller note; swagger body schemas (off in CI) need nothing. Cost if wrong: none; tests and record wording.
+
+Ruling: S8a Task 4 committed c5980615 and 51c3e1df with every Expected matching except the drift counts (shared 54/873, api 2610, lint 1595 and 1597) and Biome's one import reorder in public.service.ts; 56 mutations, 0 survivors. Accepted. Cost if wrong: none beyond the review.
+
+Ruling: S8a Task 4 review spec PASS, quality PASS; its two reachable lows (the fixed `Invalid publication request.` 400 and the SUBMIT summary rule have no test, and nothing pins that publication bodies reach the service unvalidated under ruling 6) become tests-only fix 3, since the schemas those rules use just moved; the snapshot comment is true by the slice's end (Task 8), and the one-header mutation is backed by the seven-route table. Cost if wrong: none; tests only.
+
+Ruling: fix 2 committed 88e9f7d1 (tests only, 13 mutations killed; the email astral boundary is pinned at the shared length rule, the API isEmail refine stays covered by the Task 3 probe). Accepted. Cost if wrong: none.
+
+Ruling: fix 3 committed 2ca03528 (tests only, 13 mutations killed; the pipe-free body is pinned by route-argument metadata and an HTTP test since Vitest emits no design types). Accepted. Cost if wrong: none.
+
+Ruling: S8a Task 5 committed baf1155e and dfd526d3 with every Expected matching except the totals the fixes and drift explain (api 2639, lint 1598 and 1600); 28 mutations, 0 survivors. Accepted. Cost if wrong: none beyond the review.
+
+Ruling: S8a Task 5 review spec PASS, quality PASS (characterization tests pass on the unchanged controllers; 28 of 28 mutations replayed); the unpinned `@Param('projectId')` and `@Param('userId')` keys of the two controllers Task 5 touched join a tests-only fix 4 with any Task 6 findings (a route test through the real router pins them). Cost if wrong: none; tests only.
+
+Ruling: S8a Task 6 committed 14095097 and 51ccc824 with every Expected matching except drift (web subset 784 with the S7d fix case, web 299/3308, lint 1600 and 1601, Middleware 103 = real M0, three routes 0.02 to 0.04 kB smaller, Biome's import wrap); 22 mutations, 3 equivalent survivors as in the brief. Accepted. Cost if wrong: none beyond the review.
+
+Ruling: S8a Task 6 review spec PASS, quality PASS (role sets identical, 158 jsdom cookie strings with 0 differences, the 3 survivors equivalent over 100 selections); the unexercised `typeof document` guard of `ownerCookie()` joins fix 4 as a node-environment case; the two style nits stay. Cost if wrong: none; tests only.
+
+Ruling: S8a Task 7 committed 08190e72 (seven dead files, mapPublicSnapshot and seven view models removed; deferred-features rows edited and one added) with every Expected matching except drift (web 296/3302, lint 1594, Middleware 103) and a plain diff of route tables (identical to Task 6). Accepted. Cost if wrong: none beyond the review.
+
+Ruling: S8a Task 7 review spec PASS, quality PASS; the restore pointer to the activity log is satisfied by the Task 9 activity-log section (its Task 7 line names the commit), checked at Task 9 review; the row scope and the access-matrix test name stay. Cost if wrong: none.
+
+Ruling: fix 4 committed 4f023c31 (tests only, 4 mutations killed; the users key was already pinned by the validation test, the null branch reached through captureRequestOwner since ownerCookie is private). Accepted. Cost if wrong: none.
+
+Ruling: S8a Task 8 committed 88be39d0, 557f358d and 0049dd61 with every Expected matching except drift (web 300/3342, lint 1599, Middleware 103, subset runs) and Biome fix counts; 42 mutations, 0 survivors; against the Task 0 build 5 routes are 1 kB smaller and none bigger; the inert pathways-client mock in project-setup-form.test.tsx stays as the brief words it. Accepted. Cost if wrong: none beyond the review.
+
+Ruling: S8a Task 8 review spec PASS, quality PASS; the removed getUsers unauthorized assertion stays covered by requestFoundation's own tests (the users client adds no error mapping of its own), the inert mock stays per the brief, the page-size shifts keep First Load equal or smaller, and the duplicated area case is harmless. No fix. Cost if wrong: an unauthorized users read regresses unseen only if requestFoundation's tests miss it.
+
+Ruling: S8a Task 9 records committed 8ab5f86d (SAD routing test first red then sad 59; 11 replacements, one extra for the CR 3.6 Object.prototype wording; hashes written from git log since the brief's grep patterns miss the real subjects; fixes 1 to 4 recorded; QAD-A05 repointed; Middleware 103). Accepted. Cost if wrong: none beyond the final review.
+
+Ruling: S8a SAD: isolation 18, privacy 35, restraint 2 and design-qa 97 (split 49 and 48) all PASS; assembled 152 entries, 0 blocked; sign-off waits for the final review and gates. Cost if wrong: none.
+
+Ruling: S8a final review PASS; I fix its three record lows (both ruling 5 messages in CR section 9, the Task 6 web test count 9, the profile and public client counts in order) plus the two info wordings that are cheap and true (85 parity cases, class-transformer stays beside class-validator) in one docs commit after the gates; the inert pathwaysClient mocks and PublicationTransitionRequest (S8b's) stay. Cost if wrong: none; docs only.
+
+Ruling: S8a Task 10 records shared 885 and api 2642 as measured on the committed tip (green, file counts and skips equal); the 884 and 2639 I carried were mid-slice figures. Cost if wrong: two gate figures off by 1 and 3 in the activity log.
+
+Ruling: dev's 18 new commits are merged into the stack on the S8b branch before the S8b pre-flight, so S8b, W1 and W2 are planned on the merged tree and the part 3 PR carries no conflict. Cost if wrong: one merge commit to redo if Cian wanted the merge at PR time.
+
+Ruling: the merge ports dev's rules changes into the features/rules split; dev's behavior wins where HEAD characterization tests pinned the old behavior, and those tests are updated, not deleted. Cost if wrong: a test intent changed beyond what dev's change requires; caught by the merge review.
+
+Ruling: a separate behavior-neutral commit moves RecommendationRuleDrawer and the severity suggestion block into their own files when the merged files pass 500 lines, following S7a's one-component-per-file layout; dev's test files stay unsplit. Cost if wrong: one extra move commit to revert.
+
+Ruling: DEFAULT_REC is deleted with its last user; categoryOf and UnavailableHint stay for parity. Cost if wrong: two unused exports remain.
+
+Ruling: the merge review's one finding (the apply-to-fields Project aria-describedby assertion dropped without need) was restored in cc811845 with a mutation proof; the over-500 rule-drawer.tsx (587) and rules-board.tsx (540) are recorded in the CR, not split further, as one stateful body each. Cost if wrong: two files to split in a later pass.
+
+Ruling: the S8b pre-flight is rerun on a clone of the real merged tree (cc811845) because the earlier one replayed on the dry-run S8a and docs:check, counts and figures moved. Cost if wrong: one extra pre-flight run.
+
+## S8b
+
+Ruling: apply the S8b pre-flight fixes (15 must-fix, 10 should-fix, 13 notes; 117 asserted edits, 4533-line plan), replayed end to end on the real S8a tip with the dev merge (cc811845) from this staging commit: every Expected fence is real output (33 checked, 0 mismatches), 30 mutations over four lists all fail a case, web goes from 301 files and 3378 tests to 307 and 3472, and config, shared, imports, api and sad keep 19, 885, 94, 2642 and 21 skipped, and 59. Cost if wrong: a later Task 0 stop on a stale figure, which is its purpose.
+
+Ruling: S8b runs on top of the dev merge: Task 0 checks the "Dev merge before S8b" record, the S8b paragraph of the change record is appended after that paragraph instead of after the S8a "Deferred to S8b" line, and the `docs:check` baseline is 0 failures and 0 warnings; the merge touches none of the files S8b moves, splits or tests. Cost if wrong: the S8b record lands out of order in section 9.
+
+Ruling: absolute route and Middleware sizes are written `<n>` in the Expected fences (Middleware is 102 kB in the replay clone and 103 kB in the main checkout), `build-routes.sh` prints `Middleware equals M0` for every build after Task 0, and the route names and deltas must match; a checkout that rounds differently may move other routes by 1 kB, which ruling 11 accepts. Cost if wrong: a route list that differs only by 1 kB moves stops a task for a controller ruling.
+
+Ruling: `/dashboard` is 1 kB bigger after Tasks 1 and 2 (the shared chunks regroup once the old client leaves), inside ruling 11's bound, and no route changes in Tasks 3 to 5 in the replay; the replay clone without `apps/web/.env.local` showed `/auth/mfa` 1 kB bigger after the MFA split instead, also inside the bound. Cost if wrong: a 1 kB bigger first load of the dashboard is accepted.
+
+Ruling: the S5c test split, the S6c fix 4 state test and the S7c export hook test leave 28 files naming `core-feature-client` and 22 naming an artifact helper (15 artifact mocks, seven of them `collection-workspace.*.test.tsx`), so Task 2 repoints 23 files with the save characterization file; the `sed` reads the list from `git grep`, so only the counts change. Cost if wrong: none.
+
+Ruling: S8b set up from cc811845 (S8a tip plus the dev merge) with the staging commit 57b8dd59 (plan copy, index row, 33 S8a ledger rulings and the five S8b pre-flight rulings in the rulings log). Cost if wrong: none.
+
+Ruling: the W1 pre-flight runs in parallel with the S8b run, on a clone of the S8b replay tip (1dfc3b37) with nice -n 19 for heavy steps, because W1 renames no path S8b touches; the real S8b tip differs in shas and the gate line only. Cost if wrong: a W1 Task 0 stop on a figure, settled by a drift note.
+
+Ruling: S8b continues on claude/modularization-s8b-xjnlzt (from ef72bc9c) because this cloud session can push only its assigned branch name; W1 and W2 stack on the same branch. Cost if wrong: a branch rename.
+
+Ruling: node_modules in this container takes xlsx 0.20.3 from the npm mirror @e965/xlsx because the proxy denies cdn.sheetjs.com; the lockfile and package.json stay unchanged and CI installs the real tarball. Cost if wrong: an xlsx-only test difference that CI catches.
+
+Ruling: apps/web/.env.local holds placeholder public values with the staff portal at http://127.0.0.1:3000 (the only http origin password-recovery.ts accepts); Task 0 measured Middleware M0 103 kB, equal to the main checkout figure, and every Task 0 baseline matched the plan. Cost if wrong: none.
+
+Ruling: Task 1 (7de25942) passed review on spec and quality with no findings; all mutation and same-lines figures matched the plan. Cost if wrong: none.
+
+Ruling: Task 2 (7a82788f) passed review; the copied download setup in owned-json-read.test.ts (dead for owned reads) stays because the plan cuts those lines verbatim by range and a tidy would break the same-lines proof. Cost if wrong: a few unused test lines.
+
+Ruling: Task 3 (18227297) prelayout table lacks the /transparency -1 kB line the replay showed, a rounding variance ruling 11 allows; every other delta matched and the layout move changed no route. Cost if wrong: none.
+
+Ruling: Task 3 passed review; the profile schema importing strongPasswordSchema through the auth index stays as the plan rules (ruling 8), and the build table showed no route change across the move. Cost if wrong: a route size the Task 7 tables would show.
+
+Ruling: Task 4 passed review; the review found reachable logic the new tests leave unpinned (out-of-scope project error, unavailable target role error, Deactivated status kept on edit), so a tests-only fix follows Task 5 in its own commit; the type import order nit stays as Biome left it. Cost if wrong: three more test cases.
+
+Ruling: Task 5 passed review; two security behaviors of Review Focus 5 were reachable but unpinned (the session re-check before each factor call, the sign-out card not flashing on a successful sign-out), so a tests-only fix with mutation proofs follows the Task 4 fix round; the split react imports and the 23-value hook return stay (Biome output, ruling 7). Cost if wrong: two more test cases.
+
+Ruling: the review fix rounds added 3 user editor cases (9b405c25) and 3 MFA cases (f48d89ab), tests only with mutation proofs, so S8b ends at web 307 files and 3478 tests instead of the plan's 3472; Task 6 and Task 7 state the six extra cases. Cost if wrong: none.
+
+Ruling: the final S8b review approved with two record nits (the change record counts useState lines including the import, 11 and 12, where the calls are 10 and 11; the Task 1 figure 304 files and 3478 tests reads like a typo though it is the true Task 1 result); the useState wording is corrected in the Task 7 gate commit and the Task 1 figure stays. Cost if wrong: none.
+
+Ruling: Task 7 gates passed (web 307 files and 3478 tests, all other figures equal the baselines, Middleware equals M0 103 kB, /dashboard the only bigger route at +1 kB); the first compare summary is different 14 rather than 15 because /transparency did not round down 1 kB here, the same variance as Task 3. SAD sign-off at 5d67f532 exit 0 with manifest 1, 10, 165 (176 entries, 0 blocked). Cost if wrong: none.
+
+## W1
+
+Ruling: apply the W1 pre-flight fixes (see the pre-flight record for the counts and edit ids), replayed end to end on the real S8b tip 61ef8c5d from this staging commit. Cost if wrong: a W1 Task 0 stop on a figure.
+
+Ruling: W1 runs on claude/modularization-s8b-xjnlzt, the branch S8b ended on, because this cloud session can push only that name; Task 0 checks by ancestry (local refs first, then origin) that s5b to s8b are below HEAD, checks the S8b tip 61ef8c5d by sha and checks the "Dev merge before S8b" record. Cost if wrong: a branch rename.
+
+Ruling: W1 opens no pull request, and the controller opens the part 3 stacked pull request into dev after W2. Cost if wrong: none.
+
+Ruling: move-paths.mjs recomputes a relative specifier only when its file or its target moves; the unscoped version rewrote ../hooks/use-form-fields in features/collection/forms/hooks/use-collection-state.ts, an unrelated file, inside the Task 3 move commit. Cost if wrong: an unrelated import edit hides in a pure-rename commit.
+
+Ruling: the only builds are the package builds, nest build and the web build; no root pnpm build and no prisma generate (the Prisma client is already generated). Middleware is saved in Task 0 and compared byte for byte in Task 8, so the 103 kB of the main checkout and the 102 kB of a scratch clone both pass. Cost if wrong: a Task 8 stop on a build that differs by checkout.
+
+Ruling: the per-domain seed data splits (local-demo-data.ts, hosted-realistic-seed.ts) are left to the developer, not to W2, and the W1 records (change record, audit row, activity log, plan outline) say so; the W2 plan anchors on those W1 lines change with it. Cost if wrong: Cian expected a W2 seed change.
+
+Ruling: Pester 5 cannot be installed in the cloud container (NuGet and the PowerShell Gallery are not reachable), so the Pester steps of Tasks 0, 4, 6 and 8 are a pending local run and their Expected blocks show no Pester line; the CI job installs Pester itself. Cost if wrong: the two Pester files stay unrun until the part 3 pull request.
+
+Ruling: the docs:check baseline is 0 failures and 0 warnings (dev's fix 34162c12), so any failure is a stop, and the "171 PASS" figure of the CI replay is dropped from the plan (the PASS count is read from the CI run). Cost if wrong: a docs failure or a replay count change goes unnoticed.
+
+Ruling: every W1 commit runs as ceezey with the Co-Authored-By Claude Opus 5.5 trailer and the Claude-Session trailer of this session (01QPvEwEhu9YUbjKLd7DLzUg). Cost if wrong: none.
+
+- Ruling: W1 staged on claude/modularization-s8b-xjnlzt by cherry-picking the pre-flight staging commit (tree identical to 0f834e5d in the replay clone). Cost if wrong: none.
+
+- Ruling: W1 Task 0 (e91e8554) matched every baseline; Task 1 (bb4cd150, 7f6c3501) passed review with no findings. Cost if wrong: none.
+
+- Ruling: W1 Task 2 (07db5d63) passed review with no findings (45 cases kept, lost 0). Cost if wrong: none.
+
+- Ruling: W1 Task 3 passed review; the forwarding stubs exit 1 when the child dies by a signal (the old direct run reported the signal) and reset.mjs joins 'local/seed.mjs' as one segment; both stay as the pre-flighted plan wrote them, because the stubs only keep old entry points alive and the join resolves the same path. Cost if wrong: an exit code 1 instead of a signal on an interrupted old entry point.
+
+- Ruling: W1 Task 4 passed review; the PowerShell forwarders end with exit $LASTEXITCODE, which is exact because all four targets end with an explicit exit. Cost if wrong: a stale exit code if a target later loses its exit line.
+
+- Ruling: W1 Task 5 passed review; three current docs still name the old seed paths (cr-pathways-activity-progress-media.md line 55, cr-pathways-report-pdf-renderer.md line 21, cr-pathways-codebase-modularization.md lines 252 and 262), so a docs-only fix follows the records commit; history records keep their old paths. Cost if wrong: none.
+
+- Ruling: W1 Task 6 passed review; the tooling job's vacuous-pass edge cases (zero-test discovery, unpinned Python and Pester floor 5.0) stay as the pre-flighted plan wrote them, because every target exists today and pinning is outside the W1 roadmap row; the first CI run of the part 3 pull request shows the real counts. Cost if wrong: a future empty test run passing silently.
+
+- Ruling: the docs-only fix 304f70a5 points cr-pathways-activity-progress-media.md and cr-pathways-report-pdf-renderer.md at apps/api/prisma/seeds (and corrects the bucket line reference to 107-108); the change record lines that name old seed paths are section 9 history and stay. Cost if wrong: none.
+
+- Ruling: the final W1 review passed; docs/qad-pathways.md still cites the deleted analytics.service.test.ts in its evidence rows, so the W1 gate commit points them at the three split files; the audit's largest-files list stays as a finding record, and the SAD globs that no longer cover the three-line phase6 forwarders stay. Cost if wrong: an unrouted forwarder edit.
+
+- Ruling: SAD design-qa-agent BLOCKED scripts/sad/check.ts because the three replay globs no longer route the four infra/supabase/phase6 PowerShell forwarders; commit adds infra/supabase/phase6/*.ps1 beside each replay glob with a routing test (mutation: removing the globs fails it), sad tests become 60, and SAD reruns on the new head. Cost if wrong: none.
+
+- Ruling: the SAD delta review blocked the routing fix until docs/sad-pathways.md section 3.1 lists infra/supabase/phase6/*.ps1 beside infra/supabase/replay/*.ps1 for the three replay roles (commit after 38524112); plan ruling 12 ('no new route') is superseded by this line, and the phase6 route goes when the forwarders are deleted. Cost if wrong: none.
+
+- Ruling: W1 SAD sign-off at 5d2185eb exit 0 (manifest org 113, migration 113, privacy 6, metadata 4, restraint 4, design 50; 290 entries, 0 blocked) after two delta rounds. Cost if wrong: none.
+
+- Ruling: W1 Task 8 gates passed at 5d2185eb with every figure as the plan except three that the two SAD routing commits explain: sad tests 60 (one routing test added), the replay stale scan prints 7 intentional phase6 forwarder routes (sad-pathways.md, check.ts, check.test.ts), and 14 commits over the base. Cost if wrong: none.
+
+## W2
+
+Ruling: apply the W2 pre-flight fixes (see the pre-flight record for the counts and edit ids), replayed end to end on the W1 tip cc407f21 from this staging commit. Cost if wrong: a W2 Task 0 stop on a figure.
+
+Ruling: W2 runs on claude/modularization-s8b-xjnlzt, the branch W1 ended on, because this cloud session can push only that name; Task 0 finds the W1 tip by the "docs: record the W1 gates" commit message, not by a branch name, and expects one staging commit above it. Cost if wrong: a branch rename or a Task 0 stop.
+
+Ruling: W2 opens no pull request itself; the controller opens the part 3 stacked pull request into dev after the W2 gates. Cost if wrong: none.
+
+Ruling: the per-domain seed data splits stay with the developer, so the W2 row anchor and the audit row anchor of Task 7 follow the W1 wording ("left to the developer"). Cost if wrong: Cian expected a W2 seed change.
+
+Ruling: Task 0 builds the packages first and saves the Middleware line; Tasks 6 and 8 compare it byte for byte, and the route compare shows only its last line (routes 72, over 1 kB 0) with the list of moved routes in .tmp/w2/routes-*.diff, because which route moves by 1 kB depends on the build. Cost if wrong: a Task 6 or Task 8 stop on a route that moved by 1 kB.
+
+Ruling: the docs:check baseline is 0 failures and 0 warnings, and the Task 3 compare (722 s under nice) runs in the background because a foreground call stops at ten minutes. Cost if wrong: a docs failure goes unnoticed or a foreground timeout.
+
+Ruling: the shell scan stays read-only; at the W1 tip the verdict is keep with one name, recoverSourceMutation, and 39 test files mock the shell, so retiring it is left to a later slice. Cost if wrong: the shell stays one slice longer.
+
+Ruling: the Task 8 SAD step prints the paths per routed role and the number of evaluations (0, none BLOCKED) instead of counting status lines of the log, which are empty for W2. Cost if wrong: a role missing from the routes goes unnoticed.
+
+Ruling: W2 runs no Pester file (it changes none and Pester 5 cannot be installed in the cloud container); the two replay helper files stay a pending local run of W1 and run in the tooling job in CI. Cost if wrong: they stay unrun until the part 3 pull request.
+
+Ruling: every W2 commit runs as ceezey with the Co-Authored-By Claude Opus 5.5 trailer and the Claude-Session trailer of this session (01QPvEwEhu9YUbjKLd7DLzUg). Cost if wrong: none.

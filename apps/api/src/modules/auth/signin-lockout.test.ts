@@ -2,8 +2,9 @@ import 'reflect-metadata'
 import { BadRequestException, HttpException, ValidationPipe } from '@nestjs/common'
 import { describe, expect, it } from 'vitest'
 
+import { ZodPipe } from '../../common/validation/zod-pipe'
 import type { PrismaService } from '../../prisma/prisma.service'
-import { SignInDto } from './signin-lockout.dto'
+import { signInBody } from './auth.helpers'
 import { type PasswordGrant, SignInLockoutService } from './signin-lockout.service'
 
 const pipe = new ValidationPipe({
@@ -12,7 +13,9 @@ const pipe = new ValidationPipe({
   transform: true,
   forbidUnknownValues: false,
 })
-const validate = (value: unknown) => pipe.transform(value, { type: 'body', metatype: SignInDto })
+// The route path: the global pipe passes the zod-typed body through, then the zod pipe parses it.
+const validate = async (value: unknown) =>
+  new ZodPipe(signInBody).transform(await pipe.transform(value, { type: 'body', metatype: Object }))
 
 // In-memory model of the 0046 functions: 5 failures lock, success resets.
 function harness(grants: PasswordGrant[]) {

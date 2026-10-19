@@ -55,7 +55,7 @@ vi.mock('@/hooks/use-current-role', () => ({
 vi.mock('@/hooks/use-source-mutation-context', () => ({
   useSourceMutationContext: () => ({ isCurrent: () => true }),
 }))
-vi.mock('@/features/analytics/use-monitoring-read', () => ({
+vi.mock('@/hooks/use-monitoring-read', () => ({
   useMonitoringRead: () => ({
     data: [indicator],
     loading: false,
@@ -73,7 +73,7 @@ vi.mock('@/lib/services/pathways-client', () => ({
 }))
 vi.mock('@/lib/api/indicators', () => ({ indicatorsClient: api }))
 vi.mock('@/lib/api/core/request', () => ({ PathwaysClientError: class extends Error {} }))
-vi.mock('@/lib/services/source-mutation', () => ({
+vi.mock('@/lib/api/core/source-mutation', () => ({
   isSourceReplay: () => tickets.replay,
   sourceMutationTickets: { finishAcknowledgement: tickets.finishAcknowledgement },
 }))

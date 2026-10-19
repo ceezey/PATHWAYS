@@ -20,11 +20,12 @@ import { Prisma } from '@prisma/client'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import { withAuthorizedOperation } from '../../common/authz/authorized-operation'
 import { projectScope } from '../../common/authz/project-scope'
+import type { Tx } from '../../common/prisma/transaction'
 import { currentBusinessDate } from '../../common/time/business-date'
 import { PrismaService } from '../../prisma/prisma.service'
 import { monitoringSqlError } from '../indicators/indicators.helpers'
 import { IndicatorsService } from '../indicators/indicators.service'
-import { parseDashboardQuery, parseSadddQuery } from './dashboards.dto'
+import { parseDashboardQuery, parseSadddQuery } from './dashboards.helpers'
 
 @Injectable()
 export class DashboardsService {
@@ -44,11 +45,7 @@ export class DashboardsService {
     }
     return { periodStart, periodEnd, businessTimeZone: zone }
   }
-  private async scope(
-    tx: Prisma.TransactionClient,
-    actor: ApplicationIdentity,
-    query: DashboardQuery,
-  ) {
+  private async scope(tx: Tx, actor: ApplicationIdentity, query: DashboardQuery) {
     const projects = await tx.project.findMany({
       where: {
         AND: [
@@ -89,7 +86,7 @@ export class DashboardsService {
   }
   /** Reads the aggregate monitoring contract inside an already-authorized transaction. */
   async monitoringInTransaction(
-    tx: Prisma.TransactionClient,
+    tx: Tx,
     actor: ApplicationIdentity,
     query: DashboardQuery,
     period: { periodStart: string; periodEnd: string; businessTimeZone: string },
@@ -158,11 +155,7 @@ export class DashboardsService {
     )
   }
   /** Reads the suppressed SADDD release inside an already-authorized transaction. */
-  async sadddInTransaction(
-    tx: Prisma.TransactionClient,
-    actor: ApplicationIdentity,
-    projectId: string,
-  ) {
+  async sadddInTransaction(tx: Tx, actor: ApplicationIdentity, projectId: string) {
     const query = { projectId }
     {
       if (

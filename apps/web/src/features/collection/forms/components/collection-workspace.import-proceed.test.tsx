@@ -71,8 +71,8 @@ vi.mock('@/providers/current-role-provider', () => ({
   useCurrentRole: () => currentAccess,
 }))
 
-vi.mock('@/lib/services/core-feature-client', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/services/core-feature-client')>()),
+vi.mock('@/lib/api/core/artifact-download', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/api/core/artifact-download')>()),
   downloadCoreArtifact: core.downloadCoreArtifact,
 }))
 

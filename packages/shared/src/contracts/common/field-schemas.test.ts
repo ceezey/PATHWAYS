@@ -25,6 +25,24 @@ describe('class-validator field schemas', () => {
     expect(accepts(lengthString(3, 160), grin.repeat(3))).toBe(true)
   })
 
+  it('counts a run of three presentation selectors as three characters', () => {
+    const selectors = String.fromCharCode(0xfe0f).repeat(3)
+    expect(validatorLength(selectors)).toBe(3)
+    expect(accepts(lengthString(3, 3), selectors)).toBe(true)
+    expect(accepts(lengthString(0, 2), selectors)).toBe(false)
+  })
+
+  it('counts a lone surrogate, a surrogate run and a selector after a letter as the validator does', () => {
+    const lowSurrogate = String.fromCharCode(0xdc00)
+    const highSurrogate = String.fromCharCode(0xd800)
+    expect(validatorLength(lowSurrogate)).toBe(1)
+    expect(validatorLength(lowSurrogate.repeat(2))).toBe(2)
+    expect(validatorLength(highSurrogate.repeat(2))).toBe(2)
+    expect(validatorLength(`${lowSurrogate}${highSurrogate}`)).toBe(2)
+    expect(validatorLength(`ab${String.fromCharCode(0xfe0e)}`)).toBe(2)
+    expect(validatorLength(`e${String.fromCharCode(0x301)}`)).toBe(2)
+  })
+
   it.each([
     ['10000000-0000-4000-8000-000000000001', true],
     ['FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF', true],
@@ -41,6 +59,9 @@ describe('class-validator field schemas', () => {
     ['2026-02-30', true, false],
     ['2024-366', true, true],
     ['2026-366', true, false],
+    ['1900-366', true, false],
+    ['2000-366', true, true],
+    ['1900-365', true, true],
     ['2026-W01-1', true, true],
     ['2026-01-01T00:00:00.000Z', true, true],
     ['20260101', true, true],

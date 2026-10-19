@@ -4,7 +4,7 @@ import { createHmac } from 'node:crypto'
 import { readFileSync, readdirSync } from 'node:fs'
 import path from 'node:path'
 
-import { localDatabase, localSupabase } from '../db/local-target.mjs'
+import { localDatabase, localSupabase } from '../db/local/target.mjs'
 
 const base = process.env.PATHWAYS_LOCAL_API_URL ?? 'http://127.0.0.1:4000/api'
 if (!/^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?(\/api)?$/.test(base))

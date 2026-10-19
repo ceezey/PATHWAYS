@@ -6,10 +6,10 @@ import {
   ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common'
-import type { Prisma } from '@prisma/client'
 
 import { type ApplicationIdentity, UUID_PATTERN } from '../../common/authz/application-identity'
 import { readApplicationProfile } from '../../common/authz/application-profile'
+import type { Tx } from '../../common/prisma/transaction'
 import {
   InactiveVerifiedSessionError,
   PrismaService,
@@ -80,7 +80,7 @@ export class ApplicationProfileService {
       const databaseContext = sessionId
         ? { authSubject, organizationId, userId, sessionId }
         : { authSubject, organizationId, userId }
-      const readProfile = (transaction: Prisma.TransactionClient) =>
+      const readProfile = (transaction: Tx) =>
         readApplicationProfile(transaction, authSubject, organizationId, userId)
       budget?.check()
       const result = await (onTiming || budget

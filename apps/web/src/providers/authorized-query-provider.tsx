@@ -4,15 +4,15 @@ import { useQueryClient } from '@tanstack/react-query'
 import { createContext, useEffect, useMemo, useRef, useState } from 'react'
 
 import { useCurrentRole } from '@/hooks/use-current-role'
-import { PathwaysClientError } from '@/lib/api/core/request'
-import type { ApplicationProfile } from '@/lib/auth/auth-access'
-import { sensitiveDraftGeneration, useSensitiveDraftOwner } from '@/lib/auth/sensitive-drafts'
-import { canAccessProjectForRole } from '@/lib/rbac/data-scope'
 import {
   AUTHORIZATION_DENIED_EVENT,
   WRITE_COMMITTED_EVENT,
   authorizationDenialToken,
-} from '@/lib/services/authorized-read-events'
+} from '@/lib/api/core/authorized-read-events'
+import { PathwaysClientError } from '@/lib/api/core/request'
+import type { ApplicationProfile } from '@/lib/auth/auth-access'
+import { sensitiveDraftGeneration, useSensitiveDraftOwner } from '@/lib/auth/sensitive-drafts'
+import { canAccessProjectForRole } from '@/lib/rbac/data-scope'
 
 type Context = {
   identity: string | null

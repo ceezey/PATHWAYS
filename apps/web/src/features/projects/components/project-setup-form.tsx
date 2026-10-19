@@ -1,6 +1,6 @@
 'use client'
 import { useSourceMutationContext } from '@/hooks/use-source-mutation-context'
-import { isSourceReplay, sourceMutationTickets } from '@/lib/services/source-mutation'
+import { isSourceReplay, sourceMutationTickets } from '@/lib/api/core/source-mutation'
 
 import { zodResolver } from '@hookform/resolvers/zod'
 import { ArrowLeft, Loader2, Save } from 'lucide-react'
@@ -18,6 +18,7 @@ import { useCurrentRole } from '@/hooks/use-current-role'
 import { usePendingCreate } from '@/hooks/use-pending-create'
 import { PathwaysClientError } from '@/lib/api/core/request'
 import { projectsClient } from '@/lib/api/projects'
+import { usersClient } from '@/lib/api/users'
 import {
   type SensitiveDraftOwner,
   readSensitiveDraft,
@@ -27,7 +28,6 @@ import {
 } from '@/lib/auth/sensitive-drafts'
 import { createdSince, fingerprintOf } from '@/lib/forms/pending-create'
 import { principalHasAtomicPermission } from '@/lib/rbac/policy'
-import { pathwaysClient } from '@/lib/services/pathways-client'
 import type { ProjectDetail, ProjectSummary, UserRecord } from '@/types/pathways'
 
 import {
@@ -208,7 +208,7 @@ const ProjectSetupFormContent = ({
     let mounted = true
     setUsersLoading(true)
     setUsersLoadError(null)
-    pathwaysClient
+    usersClient
       .getUsers()
       .then((records) => {
         if (mounted && scope.isCurrent()) setUsers(records)

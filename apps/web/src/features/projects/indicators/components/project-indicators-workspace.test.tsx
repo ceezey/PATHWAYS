@@ -34,7 +34,7 @@ vi.mock('@/hooks/use-current-role', () => ({
     },
   }),
 }))
-vi.mock('@/features/analytics/use-monitoring-read', () => ({
+vi.mock('@/hooks/use-monitoring-read', () => ({
   useMonitoringRead: () => ({
     data: state.data,
     loading: false,

@@ -12,13 +12,13 @@ import {
   type StepUpPinState,
   isAcceptableStepUpPin,
 } from '@pathways/shared'
-import type { Prisma } from '@prisma/client'
 
 import {
   type ApplicationIdentity,
   UUID_PATTERN,
   type VerifiedAuthIdentity,
 } from '../../common/authz/application-identity'
+import type { Tx } from '../../common/prisma/transaction'
 import { InactiveVerifiedSessionError, PrismaService } from '../../prisma/prisma.service'
 import {
   STEP_UP_PIN_CODES,
@@ -82,7 +82,7 @@ export interface StepUpPinActor {
 
 /** Live PIN grant for this user, organization and session, read inside a verified context. */
 export async function readStepUpPinStatus(
-  tx: Prisma.TransactionClient,
+  tx: Tx,
   sessionId: string,
 ): Promise<{ pinState: StepUpPinState; grantExpiresAt: Date | null }> {
   const rows = await tx.$queryRaw<Array<{ pinState: unknown; grantExpiresAt: unknown }>>`
@@ -247,7 +247,7 @@ export class BeneficiaryStepUpPinService {
 
   private async run<T>(
     { auth, profile, sessionId }: StepUpPinActor,
-    work: (tx: Prisma.TransactionClient) => Promise<T>,
+    work: (tx: Tx) => Promise<T>,
   ): Promise<T> {
     if (!UUID_PATTERN.test(sessionId) || auth.id !== profile.id) {
       throw new UnauthorizedException('Verified session required.')

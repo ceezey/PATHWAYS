@@ -75,10 +75,11 @@ export const clearWorkspaceContext = () => {
   document.cookie = `${contextCookieName}=; Path=/; SameSite=Strict; Max-Age=0`
 }
 
-// The workspace context cookie value, found by splitting document.cookie on '; '.
+// The workspace context cookie value; browsers join entries with '; ', and trimming also accepts a bare ';'.
 export const readWorkspaceContextCookie = () =>
   document.cookie
-    .split('; ')
+    .split(';')
+    .map((part) => part.trim())
     .find((part) => part.startsWith(`${contextCookieName}=`))
     ?.slice(contextCookieName.length + 1)
 

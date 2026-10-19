@@ -11,7 +11,7 @@ import {
 import {
   AUTHORIZATION_DENIED_EVENT,
   WRITE_COMMITTED_EVENT,
-} from '@/lib/services/authorized-read-events'
+} from '@/lib/api/core/authorized-read-events'
 import { AuthorizedQueryProvider } from './authorized-query-provider'
 
 const state = vi.hoisted(() => ({

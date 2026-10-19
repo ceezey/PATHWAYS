@@ -1,10 +1,11 @@
 import { z } from 'zod'
+import { storedProjectStatuses } from '../contracts/projects/project-requests'
 import {
   isCalendarDate,
   normalizeMetricDecimal,
   numericKinds,
   scaledDecimal,
-} from '../monitoring/metric-math'
+} from '../metrics/metric-math'
 
 export const RULE_CONTRACT_VERSION = 'f10.v1' as const
 const MAX_GROUP_DEPTH = 4
@@ -246,7 +247,7 @@ const calculationSchema = z.discriminatedUnion('kind', [
   z
     .object({
       kind: z.literal('PROJECT_TIMELINE'),
-      projectStatus: z.enum(['PLANNED', 'ONGOING', 'COMPLETED', 'ON_HOLD', 'CANCELLED']),
+      projectStatus: z.enum(storedProjectStatuses),
       projectArchived: z.boolean(),
       reportingDate: calendarDateSchema,
       startDate: calendarDateSchema.nullable(),

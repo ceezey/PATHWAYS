@@ -1,7 +1,7 @@
 import { z } from 'zod'
-import { P06_CONTRACT_VERSION, metricCellSchema, metricRecipes } from '../../monitoring/metric-cell'
-import { date, decimal, uuid } from '../../monitoring/metric-fields'
-import { numericKinds } from '../../monitoring/metric-math'
+import { P06_CONTRACT_VERSION, metricCellSchema, metricRecipes } from '../../metrics/metric-cell'
+import { date, decimal, uuid } from '../../metrics/metric-fields'
+import { numericKinds } from '../../metrics/metric-math'
 import { indicatorBindingSchema, indicatorTypes } from './indicator-requests'
 
 export const indicatorLibraryEntryResponse = z

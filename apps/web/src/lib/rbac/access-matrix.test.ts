@@ -137,6 +137,17 @@ describe('RBAC matrix', () => {
     })
   })
 
+  it.each([
+    ['System Administrator', 'none'],
+    ['Program Manager', 'aggregate'],
+    ['Grant Manager', 'aggregate'],
+    ['Project Manager', 'scoped'],
+    ['Project Officer', 'scoped'],
+    ['Monitoring and Evaluation Officer', 'scoped'],
+  ] as const)('gives %s the %s Beneficiary module', (role, expected) => {
+    expect(roleAccessProfiles[role].modules.beneficiaries).toBe(expected)
+  })
+
   it('limits account creation and authorization to the locked hierarchy', () => {
     expect(
       pathwaysRoles.filter((role) => canCreateOrAuthorizeRole('System Administrator', role)),

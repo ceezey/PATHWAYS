@@ -68,14 +68,30 @@ describe('routing and digest', () => {
   it('routes rules engine and rule editor changes to the determinism checker', () => {
     const routed = routing([
       change('apps/api/src/modules/rules/rule-engine.ts', 'new', 'old'),
-      change('apps/web/src/features/analytics/rule-editor.tsx', 'new', 'old'),
+      change('apps/web/src/features/rules/components/rule-editor.tsx', 'new', 'old'),
+      change('apps/web/src/features/rules/rules.utils.ts', 'new', 'old'),
       change('packages/shared/src/rules/rule-contract.ts', 'new', 'old'),
     ])
     expect(routed['rule-engine-determinism-checker']).toEqual([
       'apps/api/src/modules/rules/rule-engine.ts',
-      'apps/web/src/features/analytics/rule-editor.tsx',
+      'apps/web/src/features/rules/components/rule-editor.tsx',
+      'apps/web/src/features/rules/rules.utils.ts',
       'packages/shared/src/rules/rule-contract.ts',
     ])
+  })
+  it('routes metric, dashboard and analytics contracts to the determinism checker', () => {
+    const files = [
+      'packages/shared/src/contracts/analytics/survey-analytics.ts',
+      'packages/shared/src/contracts/dashboards/role-overview.ts',
+      'packages/shared/src/contracts/projects/overview-metrics.test.ts',
+      'packages/shared/src/contracts/projects/overview-metrics.ts',
+      'packages/shared/src/contracts/projects/project-map.test.ts',
+      'packages/shared/src/contracts/projects/project-map.ts',
+      'packages/shared/src/metrics/metric-math.ts',
+    ]
+    const other = 'packages/shared/src/contracts/projects/project-requests.ts'
+    const routed = routing([...files, other].map((file) => change(file, 'new', 'old')))
+    expect(routed['rule-engine-determinism-checker']).toEqual(files)
   })
   it('routes indicator contracts to the determinism checker and the privacy guardian', () => {
     const file = 'packages/shared/src/contracts/indicators/indicator-requests.ts'
@@ -87,6 +103,15 @@ describe('routing and digest', () => {
   it('routes shared rbac policy changes to the organization isolation checker', () => {
     const file = 'packages/shared/src/rbac/authorization-policy.ts'
     expect(routing([change(file, 'new', 'old')])['organization-isolation-checker']).toEqual([file])
+  })
+
+  it('routes auth and user authorization contracts to the organization isolation checker', () => {
+    const files = [
+      'packages/shared/src/contracts/auth/auth-requests.ts',
+      'packages/shared/src/contracts/users/user-authorization.ts',
+    ]
+    const routed = routing(files.map((file) => change(file, 'new', 'old')))
+    expect(routed['organization-isolation-checker']).toEqual(files)
   })
   it('routes api authz, audit and guard changes to the organization isolation checker', () => {
     const files = [
@@ -157,6 +182,21 @@ describe('routing and digest', () => {
     ]
     const routed = routing(files.map((file) => change(file, 'new', 'old')))
     expect(routed['metadata-import-validator']).toEqual(files)
+  })
+
+  it('routes the replay scripts and the phase6 forwarders to the replay reviewers', () => {
+    for (const file of [
+      'infra/supabase/replay/Replay-Local.ps1',
+      'infra/supabase/phase6/Replay-Local.ps1',
+    ]) {
+      const routed = routing([change(file, 'new', 'old')])
+      for (const role of [
+        'organization-isolation-checker',
+        'migration-integrity-guardian',
+        'design-qa-agent',
+      ] as const)
+        expect(routed[role]).toContain(file)
+    }
   })
 
   it('routes the rules dispatch workflow to design-qa-agent', () => {

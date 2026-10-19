@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 
-import { OwnProfileWorkspace } from '@/features/profile/own-profile-workspace'
+import { OwnProfileWorkspace } from '@/features/profile'
 import { type ProtectedPageProps, requireServerPage } from '@/lib/rbac/server-access'
 
 export const metadata: Metadata = { title: 'My Profile' }

@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 
 import { SkipLink } from '@/components/layout/skip-link'
-import { LoginForm } from '@/features/auth/login-form'
+import { LoginForm } from '@/features/auth'
 
 export const metadata: Metadata = { title: 'Staff Sign In' }
 

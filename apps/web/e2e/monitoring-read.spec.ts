@@ -14,7 +14,7 @@ test.beforeAll(async () => {
       contents: `import { createRoot } from 'react-dom/client';
         import { useCallback } from 'react';
         import { useFixtureProject } from './fixtures/monitoring-read';
-        import { useMonitoringRead } from '../src/features/analytics/use-monitoring-read';
+        import { useMonitoringRead } from '../src/hooks/use-monitoring-read';
         const pending = new Map();
         const fixture = window;
         fixture.monitoringRequests = [];

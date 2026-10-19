@@ -12,7 +12,7 @@ import {
   downloadCoreArtifact,
   fetchCoreArtifact,
   saveCoreArtifact,
-} from '@/lib/services/core-feature-client'
+} from '@/lib/api/core/artifact-download'
 
 import { formatCurrency, formatDate } from '../../activities/activities.utils'
 import { categoryLabel, projectLevelKey, remaining } from '../budget.utils'

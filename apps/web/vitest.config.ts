@@ -2,16 +2,11 @@ import path from 'node:path'
 
 import { defineConfig } from 'vitest/config'
 
+import { tsconfigAliases } from '../../scripts/tsconfig-aliases.mjs'
+
 export default defineConfig({
   esbuild: { jsx: 'automatic' },
-  resolve: {
-    alias: {
-      '@': path.resolve(__dirname, 'src'),
-      '@pathways/config': path.resolve(__dirname, '../../packages/config/src/index.ts'),
-      '@pathways/imports': path.resolve(__dirname, '../../packages/imports/src/index.ts'),
-      '@pathways/shared': path.resolve(__dirname, '../../packages/shared/src/index.ts'),
-    },
-  },
+  resolve: { alias: tsconfigAliases(path.resolve(__dirname, 'tsconfig.json')) },
   test: {
     environment: 'node',
     include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],

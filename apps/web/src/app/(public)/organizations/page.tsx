@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 
-import { PublicOrganizationsPage } from '@/features/public/public-organizations'
+import { PublicOrganizationsPage } from '@/features/public'
 
 export const metadata: Metadata = { title: 'Organizations' }
 

@@ -43,13 +43,13 @@ Keep both files under the repository's ignored `.tmp/` directory or outside the 
 ## 3. Build the schema
 
 ```bash
-node scripts/db/hosted-build.mjs --dry-run
+node scripts/db/hosted/build.mjs --dry-run
 ```
 
 Check the printed 37-step plan. It covers the prisma role, the 0000 baseline and its registration, then staged deploys with the preprovision and cleanup steps around 0031, 0034, 0037, 0041 and 0044, with the 0042 and 0043 deploys between 0041 and 0044, the 0045 deploy after 0044 and one deploy each for 0046 to 0052 after 0045, then the expense-submit preprovision, the 0053 deploy and its cleanup, the 0054 deploy, the 0055 deploy, then the runtime login, then the postconditions.
 
 ```bash
-node scripts/db/hosted-build.mjs --env-file .tmp/role-staging-build.env
+node scripts/db/hosted/build.mjs --env-file .tmp/role-staging-build.env
 ```
 
 Every step prints `start` and `done` lines and has a time limit. A successful build ends with these PASS lines:
@@ -69,7 +69,7 @@ The ledger holds 28 rows because 0000 is the consolidated baseline for the histo
 ## 4. Seed realistic dummy data
 
 ```bash
-node scripts/db/hosted-seed.mjs --env-file .tmp/role-staging-seed.env
+node scripts/db/hosted/seed.mjs --env-file .tmp/role-staging-seed.env
 ```
 
 The seed does the following:
@@ -134,7 +134,7 @@ SELECT rolcanlogin FROM pg_catalog.pg_roles WHERE rolname = 'pathways_runtime';
 The operator runs:
 
 ```bash
-node scripts/db/hosted-build.mjs --env-file .tmp/role-staging-build.env --resume
+node scripts/db/hosted/build.mjs --env-file .tmp/role-staging-build.env --resume
 ```
 
 Because the ledger is already the complete, cleanly finished 0000 to 0041 prefix, `--resume` first checks for residual activity-media owner memberships (see above), then continues with the 0042 deploy, then the 0043 deploy, then the activity-review preprovision, the 0044 deploy and its cleanup, then the 0045 deploy, then the postconditions. Unless a residual membership was found, it does not re-run the activity-media cleanup; the runtime-role alteration always runs again at the end regardless, since `ALTER ROLE ... WITH LOGIN` is idempotent. A successful run ends with these PASS lines:
@@ -162,11 +162,11 @@ Role-staging applied the original 0047, 0048 and 0051 before they were amended i
 
 ### Applying 0061 and 0062 to role-staging
 
-0061 (cr-pathways-activity-extension-request) adds one prisma-owned table and needs no preprovision. 0062 (cr-pathways-escalated-alerts) creates `pathways.f10_escalated_alert_list` owned by `rules_human_owner`, so `hosted-build.mjs` runs `hosted-rules-escalation-preprovision.sql` (temporary SET-only membership from prisma to `rules_human_owner`) before it and `hosted-rules-escalation-cleanup.sql` right after. The ledger then holds 37 rows (0000 plus 0027-0062). A ledger ending at 0061 or 0062 is read the same way as 0043/0044: `--resume` checks for a residual `rules_human_owner` membership and resumes at the 0062 deploy or the rules-escalation cleanup when it is still granted. Clear `.tmp/hosted-build/migrations` before any `--resume`.
+0061 (cr-pathways-activity-extension-request) adds one prisma-owned table and needs no preprovision. 0062 (cr-pathways-escalated-alerts) creates `pathways.f10_escalated_alert_list` owned by `rules_human_owner`, so `hosted/build.mjs` runs `hosted-rules-escalation-preprovision.sql` (temporary SET-only membership from prisma to `rules_human_owner`) before it and `hosted-rules-escalation-cleanup.sql` right after. The ledger then holds 37 rows (0000 plus 0027-0062). A ledger ending at 0061 or 0062 is read the same way as 0043/0044: `--resume` checks for a residual `rules_human_owner` membership and resumes at the 0062 deploy or the rules-escalation cleanup when it is still granted. Clear `.tmp/hosted-build/migrations` before any `--resume`.
 
 ### Applying 0063 to role-staging
 
-0063 (rules scope memo) replaces `pathways_rules_internal.human_rules_scope`, so `hosted-build.mjs` runs `hosted-rules-scope-memo-preprovision.sql` (temporary SET-only chain from prisma to `rules_store_owner` and `rules_eligibility_owner`) before it and `hosted-rules-scope-memo-cleanup.sql` after it. After a failed 0063 preprovision on a 0062 ledger, run `prisma migrate resolve --rolled-back 0063_rules_scope_memo` if a failed row exists, then `hosted-rules-scope-memo-cleanup.sql`, then `--resume`.
+0063 (rules scope memo) replaces `pathways_rules_internal.human_rules_scope`, so `hosted/build.mjs` runs `hosted-rules-scope-memo-preprovision.sql` (temporary SET-only chain from prisma to `rules_store_owner` and `rules_eligibility_owner`) before it and `hosted-rules-scope-memo-cleanup.sql` after it. After a failed 0063 preprovision on a 0062 ledger, run `prisma migrate resolve --rolled-back 0063_rules_scope_memo` if a failed row exists, then `hosted-rules-scope-memo-cleanup.sql`, then `--resume`.
 
 ### Disambiguating a ledger that stops exactly at 0043 or 0044
 

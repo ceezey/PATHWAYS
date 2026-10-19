@@ -50,7 +50,7 @@ vi.mock('@/lib/api/projects', () => ({ projectsClient: api }))
 vi.mock('@/lib/api/core/request', () => ({ PathwaysClientError: MockPathwaysClientError }))
 vi.mock('@/lib/api/proof-inspection', () => ({ privateProofClient: proofClient }))
 vi.mock('@/lib/api/reports', () => ({ reportsClient: coreApi }))
-vi.mock('@/lib/services/core-feature-client', () => ({ saveCoreArtifact: coreApi.save }))
+vi.mock('@/lib/api/core/artifact-download', () => ({ saveCoreArtifact: coreApi.save }))
 vi.mock('../budget/components/budget-module', () => ({
   BudgetModule: ({ projectId }: { projectId: string }) => <div>Finance for {projectId}</div>,
 }))
@@ -59,7 +59,7 @@ vi.mock('../evaluation/components/live-evaluation-workspace', () => ({
     <div>Evaluation for {projectId}</div>
   ),
 }))
-vi.mock('../project-rules-panel', () => ({
+vi.mock('@/features/rules', () => ({
   ProjectRulesPanel: ({ projectId }: { projectId: string }) => <div>Rules for {projectId}</div>,
 }))
 vi.mock('@/hooks/use-current-role', () => ({

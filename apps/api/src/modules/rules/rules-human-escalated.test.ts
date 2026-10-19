@@ -7,7 +7,7 @@ import type { PrismaService } from '@app/prisma/prisma.service'
 import { escalatedAlertOutputSchema, rolePermissions } from '@pathways/shared'
 import type { Prisma } from '@prisma/client'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { AlertsController } from './rules-human.controller'
+import { AlertsController } from './alerts.controller'
 import { RulesHumanService } from './rules-human.service'
 
 vi.mock('@app/common/authz/authorized-operation', () => ({ withAuthorizedOperation: vi.fn() }))

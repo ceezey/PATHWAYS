@@ -10,7 +10,7 @@ vi.mock('@/lib/api/core/request', async (importOriginal) => ({
   requestFoundation: request.requestFoundation,
 }))
 
-import { SourceMutationRecoveryError, sourceMutationTickets } from '@/lib/services/source-mutation'
+import { SourceMutationRecoveryError, sourceMutationTickets } from '@/lib/api/core/source-mutation'
 import { indicatorLibraryClient, indicatorsClient } from './indicators'
 
 const projectId = '79300000-0000-4000-8000-000000000001'

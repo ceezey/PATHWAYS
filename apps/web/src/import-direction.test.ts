@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import path from 'node:path'
 import { PHASE_PRODUCTION_BUILD } from 'next/constants'
 import { describe, expect, it } from 'vitest'
@@ -54,7 +54,19 @@ function violation(file: string, specifier: string): string | null {
 }
 
 // Features whose index.ts is their only surface for files outside them (CR section 3.3).
-const indexedFeatures: readonly string[] = ['projects', 'beneficiaries', 'reports', 'collection']
+const indexedFeatures: readonly string[] = [
+  'auth',
+  'profile',
+  'public',
+  'settings',
+  'analytics',
+  'dashboard',
+  'projects',
+  'beneficiaries',
+  'reports',
+  'collection',
+  'rules',
+]
 
 // The rule an import of an indexed feature breaks, or null when it names the feature index.
 function surfaceViolation(file: string, specifier: string): string | null {
@@ -128,7 +140,7 @@ describe('feature public surfaces', () => {
       "const c = await import('@/features/projects/team/project-team-selectors')",
       "import { d } from '@/features/projects'",
       "import { e } from '@/features/projects/index'",
-      "import { f } from '@/features/settings/audit-log-workspace'",
+      "import { f } from '@/features/unlisted/example'",
       "import { g } from './analytics-utils'",
     ].join('\n')
     expect(specifiers(source).map((specifier) => surfaceViolation(file, specifier))).toEqual([
@@ -157,6 +169,14 @@ describe('feature public surfaces', () => {
       }),
     )
     expect(violations).toEqual([])
+  })
+
+  it('lists every feature that has an index.ts as indexed', () => {
+    const features = path.join(src, 'features')
+    const withIndex = readdirSync(features).filter((name) =>
+      existsSync(path.join(features, name, 'index.ts')),
+    )
+    expect([...indexedFeatures].sort()).toEqual(withIndex.sort())
   })
 
   it('has Next optimize the barrel of each indexed feature so route bundles keep their size', () => {

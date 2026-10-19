@@ -1,6 +1,5 @@
 import 'reflect-metadata'
 import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common'
-import type { Prisma } from '@prisma/client'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { PrismaService } from '@app/prisma/prisma.service'
@@ -8,13 +7,14 @@ import { generateFormRequest, rolePermissions } from '@pathways/shared'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import { withAuthorizedOperation } from '../../common/authz/authorized-operation'
 import { PERMISSION_KEY } from '../../common/decorators/permission.decorator'
+import type { Tx } from '../../common/prisma/transaction'
 import { formTemplates } from './form-templates'
 import { MetadataController } from './metadata.controller'
 import { MetadataService } from './metadata.service'
 
 const state = vi.hoisted(() => ({
   actor: undefined as ApplicationIdentity | undefined,
-  tx: undefined as Prisma.TransactionClient | undefined,
+  tx: undefined as Tx | undefined,
 }))
 vi.mock('../../common/authz/authorized-operation', () => ({
   withAuthorizedOperation: vi.fn(async (_prisma, _identity, _permission, work) =>
@@ -92,7 +92,7 @@ describe('forms.generate', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     state.actor = identity
-    state.tx = tx as unknown as Prisma.TransactionClient
+    state.tx = tx as unknown as Tx
     tx.project.findFirst.mockResolvedValue({ id: projectId })
     tx.digitalForm.create.mockResolvedValue({ id: createdFormId })
     tx.auditLog.create.mockResolvedValue({ id: 'audit' })

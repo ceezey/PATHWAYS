@@ -7,17 +7,18 @@ import {
   NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common'
+import {
+  type PublicProjectResponse,
+  type PublicationOperation,
+  publicProjectResponse,
+  publicationTransitionRequest,
+} from '@pathways/shared'
 import { Prisma } from '@prisma/client'
 import { z } from 'zod'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import { withAuthorizedOperation } from '../../common/authz/authorized-operation'
 import { requireScopedProject } from '../../common/authz/scoped-project'
 import { PrismaService } from '../../prisma/prisma.service'
-import {
-  type PublicationOperation,
-  publicProjectSchema,
-  publicationInputSchema,
-} from './public.dto'
 
 type PublicationRow = {
   revision: number
@@ -53,11 +54,11 @@ export class PublicService {
       .safeParse({ offset, limit })
     if (!page.success) throw new BadRequestException('Invalid public page.')
     // This fixed entrypoint exposes only approved snapshots; no staff identity or source DTO is read.
-    let projects: z.infer<typeof publicProjectSchema>[]
+    let projects: PublicProjectResponse[]
     try {
       const [row] = await this.prisma.$queryRaw<Array<{ projects: unknown }>>`
         SELECT pathways.p34_public_projects(${projectId ?? null}::uuid,${offset}::integer,${limit}::integer) AS projects`
-      projects = z.array(publicProjectSchema).max(100).parse(row?.projects)
+      projects = z.array(publicProjectResponse).max(100).parse(row?.projects)
     } catch {
       // Anonymous callers get a fixed outage response, never a database diagnostic.
       throw new ServiceUnavailableException('Public information is temporarily unavailable.')
@@ -83,7 +84,7 @@ export class PublicService {
     operation: PublicationOperation,
     input: unknown,
   ) {
-    const parsed = publicationInputSchema.safeParse(input)
+    const parsed = publicationTransitionRequest.safeParse(input)
     if (!parsed.success || (operation === 'SUBMIT') !== (parsed.data.summary !== undefined))
       throw new BadRequestException('Invalid publication request.')
     const body = { ...parsed.data, clientRequestId: parsed.data.clientRequestId.toLowerCase() }

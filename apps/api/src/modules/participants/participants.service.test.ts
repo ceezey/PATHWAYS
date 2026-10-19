@@ -5,7 +5,6 @@ import type { Prisma } from '@prisma/client'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ApplicationIdentity } from '@app/common/authz/application-identity'
-import type { PrismaService } from '@app/prisma/prisma.service'
 import { ParticipantsService } from './participants.service'
 
 const organizationId = '10000000-0000-4000-8000-000000000001'
@@ -59,7 +58,7 @@ const tx = {
 }
 
 describe('P05 participation promotion contract', () => {
-  const service = new ParticipantsService({} as PrismaService)
+  const service = new ParticipantsService()
 
   beforeEach(() => {
     vi.clearAllMocks()

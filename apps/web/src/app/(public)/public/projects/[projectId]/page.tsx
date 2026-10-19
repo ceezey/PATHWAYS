@@ -1,11 +1,8 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 
-import {
-  PublicTrackerDetail,
-  PublicTrackerUnavailable,
-} from '@/features/public/public-tracker-view'
-import { readPublicSnapshots } from '@/lib/services/public-projects'
+import { PublicTrackerDetail, PublicTrackerUnavailable } from '@/features/public'
+import { readPublicSnapshots } from '@/lib/api/public'
 
 export const metadata: Metadata = { title: 'Public Project Story' }
 export const dynamic = 'force-dynamic'

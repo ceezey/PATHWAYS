@@ -55,7 +55,7 @@ jobs:
 
       - name: Replay verified history, baseline and forward corrections
         shell: pwsh
-        run: ./infra/supabase/phase6/Replay-Local.ps1 -MigrationBaseline -PostgresBin /usr/lib/postgresql/18/bin
+        run: ./infra/supabase/replay/Replay-Local.ps1 -MigrationBaseline -PostgresBin /usr/lib/postgresql/18/bin
 
       - name: Check committed files for secret assignments
         shell: bash
@@ -76,6 +76,39 @@ jobs:
 
       - name: Build
         run: pnpm build
+
+  tooling:
+    name: Tooling tests (database scripts, adapter output, migration checks, replay helpers)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Test database scripts and the security adapter output check
+        run: npm run test:scripts
+
+      - name: Test migration comparison scripts
+        run: python3 -m unittest discover -s scripts/migrations -p "test_*.py"
+
+      - name: Test documentation check scripts
+        run: python3 -m unittest discover -s scripts/docs -p "test_*.py"
+
+      - name: Test replay helper scripts
+        shell: pwsh
+        run: |
+          if (-not (Get-Module -ListAvailable Pester | Where-Object { $_.Version -ge [version]'5.0' })) { Install-Module Pester -MinimumVersion 5.0 -Scope CurrentUser -Force }
+          Import-Module Pester -MinimumVersion 5.0
+          $config = New-PesterConfiguration
+          $config.Run.Path = 'infra/supabase/replay/replay-port.Tests.ps1', 'infra/supabase/replay/replay-timing.Tests.ps1'
+          $config.Run.Exit = $true
+          Invoke-Pester -Configuration $config
 
   sad:
     name: Automated SAD checks (specialist sign-off remains separate)

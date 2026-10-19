@@ -1,13 +1,13 @@
 import { approvedApiBaseUrl } from '@/lib/api-base-url'
-import { announceStepUpRequired } from '@/lib/auth/beneficiary-step-up-events'
-import { sensitiveDraftGeneration } from '@/lib/auth/sensitive-drafts'
-import { contextCookieName, decodeWorkspaceContext } from '@/lib/auth/workspace-access'
-import { webEnv } from '@/lib/env'
 import {
   announceAuthorizationDenied,
   announceWriteCommitted,
-} from '@/lib/services/authorized-read-events'
-import { ensureSourceInvalidationSubscription } from '@/lib/services/source-mutation'
+} from '@/lib/api/core/authorized-read-events'
+import { ensureSourceInvalidationSubscription } from '@/lib/api/core/source-mutation'
+import { announceStepUpRequired } from '@/lib/auth/beneficiary-step-up-events'
+import { sensitiveDraftGeneration } from '@/lib/auth/sensitive-drafts'
+import { decodeWorkspaceContext, readWorkspaceContextCookie } from '@/lib/auth/workspace-access'
+import { webEnv } from '@/lib/env'
 import { getBrowserSupabaseClient } from '@/lib/supabase/client'
 import type { FormValidationError } from '@/types/pathways'
 import { STEP_UP_REQUIRED_CODE } from '@pathways/shared'
@@ -32,15 +32,6 @@ export class PathwaysClientError extends Error {
   }
 }
 
-function readContextCookie() {
-  const value = document.cookie
-    .split(';')
-    .map((part) => part.trim())
-    .find((part) => part.startsWith(`${contextCookieName}=`))
-    ?.slice(contextCookieName.length + 1)
-  return value
-}
-
 export async function requestFoundationResponse(
   path: string,
   init: RequestInit = {},
@@ -56,11 +47,11 @@ export async function requestFoundationResponse(
     throw new PathwaysClientError('Authentication is not configured.', 'not_configured')
   // Capture the operation's workspace before asynchronous token acquisition.
   // A singleton account switch must not redirect an already-entered payload.
-  const ownerCookie = readContextCookie()
+  const ownerCookie = readWorkspaceContextCookie()
   const ownerGeneration = sensitiveDraftGeneration()
   const { data, error } = await supabase.auth.getSession()
   if (
-    ownerCookie !== readContextCookie() ||
+    ownerCookie !== readWorkspaceContextCookie() ||
     ownerGeneration !== sensitiveDraftGeneration() ||
     (isCurrent && !isCurrent())
   ) {

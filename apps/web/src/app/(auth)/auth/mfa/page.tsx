@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 
-import { MfaForm } from '@/features/auth/mfa-form'
+import { MfaForm } from '@/features/auth'
 
 export const metadata: Metadata = {
   title: 'Developer MFA | PATHWAYS',

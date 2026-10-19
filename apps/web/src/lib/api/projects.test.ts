@@ -11,7 +11,7 @@ vi.mock('@/lib/api/core/request', async (importOriginal) => ({
 }))
 
 import { PathwaysClientError } from '@/lib/api/core/request'
-import { sourceMutationTickets } from '@/lib/services/source-mutation'
+import { sourceMutationTickets } from '@/lib/api/core/source-mutation'
 import { projectsClient } from './projects'
 
 const projectId = '73500000-0000-4000-8000-000000000001'

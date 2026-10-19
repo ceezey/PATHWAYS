@@ -16,23 +16,23 @@ import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
 import { INDICATOR_LIBRARY_UI_ENABLED } from '@/constants/feature-flags'
 import { metricGlossary } from '@/constants/metric-glossary'
-import { useMonitoringRead } from '@/features/analytics/use-monitoring-read'
 import { useAuthorizedRead } from '@/hooks/use-authorized-read'
 import { useCurrentRole } from '@/hooks/use-current-role'
+import { useMonitoringRead } from '@/hooks/use-monitoring-read'
 import { usePendingCreate } from '@/hooks/use-pending-create'
 import { useSourceMutationContext } from '@/hooks/use-source-mutation-context'
 import { activitiesClient } from '@/lib/api/activities'
 import { PathwaysClientError } from '@/lib/api/core/request'
+import {
+  type SourceMutationResult,
+  isSourceReplay,
+  sourceMutationTickets,
+} from '@/lib/api/core/source-mutation'
 import { formsClient } from '@/lib/api/forms'
 import { indicatorsClient } from '@/lib/api/indicators'
 import { formatCappedPercent } from '@/lib/format/percent'
 import { fingerprintOf } from '@/lib/forms/pending-create'
 import { principalHasAtomicPermission } from '@/lib/rbac/policy'
-import {
-  type SourceMutationResult,
-  isSourceReplay,
-  sourceMutationTickets,
-} from '@/lib/services/source-mutation'
 import type { DigitalFormDefinition } from '@/types/pathways'
 import { type IndicatorResponse, formatMetricCell } from '@pathways/shared'
 import { MoreHorizontal, Target } from 'lucide-react'

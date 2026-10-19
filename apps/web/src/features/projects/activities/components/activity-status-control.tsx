@@ -3,7 +3,7 @@ import { SourceMutationRecovery } from '../../components/source-mutation-recover
 
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useSourceMutationContext } from '@/hooks/use-source-mutation-context'
-import { isSourceReplay, sourceMutationTickets } from '@/lib/services/source-mutation'
+import { isSourceReplay, sourceMutationTickets } from '@/lib/api/core/source-mutation'
 
 import { Loader2 } from 'lucide-react'
 import { useState } from 'react'

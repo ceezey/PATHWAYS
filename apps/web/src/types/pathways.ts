@@ -1,3 +1,4 @@
+import type { StatusTone } from '@/lib/format/tone'
 import type { PathwaysRole } from '@/types/pathways-role'
 import type {
   ActivityCapabilitiesResponse,
@@ -30,7 +31,7 @@ type BeneficiaryEnrollmentStatus =
   | 'Completed'
   | 'Exited'
   | 'Not recorded'
-export type DashboardSeverity = 'neutral' | 'info' | 'success' | 'warning' | 'danger'
+export type DashboardSeverity = StatusTone
 export type DashboardActionKind = 'dialog' | 'navigate' | 'toast'
 
 /** Project profile only. Overview metrics come from `GET /projects/:id/overview-metrics`. */
@@ -722,83 +723,6 @@ export type ReportKind =
   | 'indicator-summary'
   | 'beneficiary-summary'
   | 'survey-results'
-
-export interface PublicIndicator {
-  id: string
-  label: string
-  targetLabel: string
-  actualLabel: string
-  progress: number
-  status: 'On Track' | 'Monitoring' | 'Completed'
-}
-
-export interface PublicMilestone {
-  id: string
-  title: string
-  dateLabel: string
-  status: 'Completed' | 'In Progress' | 'Planned'
-}
-
-export type PublicDashboardSectionId =
-  | 'overview'
-  | 'media'
-  | 'progress'
-  | 'indicators'
-  | 'milestones'
-
-export type PublicDashboardLayoutPreset = 'story-led' | 'balanced' | 'compact'
-
-export interface PublicDashboardPresentation {
-  eyebrow: string
-  headline: string
-  summaryTitle: string
-  summaryBody: string
-  quote: string
-  quoteAttribution: string
-  closingTitle: string
-  closingText: string
-  secondaryCtaLabel: string
-  secondaryCtaHref: string
-  layoutPreset: PublicDashboardLayoutPreset
-  sectionOrder: PublicDashboardSectionId[]
-  visibleSections: PublicDashboardSectionId[]
-}
-
-export interface PublicBeneficiaryMediaRecord {
-  id: string
-  projectId: string
-  mediaType: 'Photo'
-  src: string
-  alt: string
-  caption: string
-  contextLabel: string
-  approvalState: 'Approved for public presentation'
-  consentScope: 'Public project storytelling'
-  source: string
-}
-
-export interface PublicProjectRecord {
-  id: string
-  title: string
-  tagline: string
-  area: string
-  sector: string
-  timeframe: string
-  approvedSummary: string
-  description: string
-  aboutProject: string
-  projectAreas: string[]
-  selectedIndicators: PublicIndicator[]
-  milestones: PublicMilestone[]
-  accomplishments: string[]
-  progressTrend: number[]
-  beneficiariesReached: number | null
-  budgetSummary: string
-  assessmentSummary: string
-  publicationState: 'Approved for public preview'
-  publicPresentation: PublicDashboardPresentation
-  approvedMedia: PublicBeneficiaryMediaRecord[]
-}
 
 export interface UserRecord {
   id: string

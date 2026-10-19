@@ -47,10 +47,17 @@ export default function createNextConfig(phase: string): NextConfig {
     // Barrel imports of an indexed feature otherwise pull every client component of it into the route bundle.
     experimental: {
       optimizePackageImports: [
+        '@/features/auth',
+        '@/features/profile',
+        '@/features/public',
+        '@/features/settings',
+        '@/features/analytics',
+        '@/features/dashboard',
         '@/features/projects',
         '@/features/beneficiaries',
         '@/features/reports',
         '@/features/collection',
+        '@/features/rules',
       ],
     },
     transpilePackages: ['@pathways/config', '@pathways/imports', '@pathways/shared'],

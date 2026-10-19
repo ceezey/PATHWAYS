@@ -19,7 +19,7 @@ export default defineConfig({
   schema: path.join(currentDir, 'prisma', 'schema.prisma'),
   migrations: {
     path: path.join(currentDir, 'prisma', 'migrations'),
-    seed: 'node -r ts-node/register -r tsconfig-paths/register prisma/seed.ts',
+    seed: 'node -r ts-node/register -r tsconfig-paths/register prisma/seeds/seed.ts',
   },
   datasource: {
     url: env('DIRECT_URL'),

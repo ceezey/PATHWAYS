@@ -3,7 +3,7 @@ import Page from './page'
 const state = vi.hoisted(() => ({ authorize: vi.fn(), notFound: vi.fn() }))
 vi.mock('@/lib/rbac/server-access', () => ({ requireServerPage: state.authorize }))
 vi.mock('next/navigation', () => ({ notFound: state.notFound }))
-vi.mock('@/features/analytics/recommendations-workspace', () => ({
+vi.mock('@/features/rules', () => ({
   RecommendationsWorkspace: () => null,
 }))
 beforeEach(() => {

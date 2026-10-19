@@ -7,7 +7,7 @@ import { ProjectsService } from '../projects/projects.service'
 import { ActivitiesService } from './activities.service'
 
 // Explicit opt-in only. This harness uses one fixed, password-free loopback
-// database created and removed by phase6/Replay-Local.ps1.
+// database created and removed by replay/Replay-Local.ps1.
 const enabled = process.env.PATHWAYS_FEATURE_READ_LOCAL_TESTS === '1'
 const replayPort = Number(process.env.PATHWAYS_REPLAY_PORT)
 if (enabled && !replayPort) throw new Error('PATHWAYS_REPLAY_PORT is required')

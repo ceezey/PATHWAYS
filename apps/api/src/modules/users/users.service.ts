@@ -9,7 +9,9 @@ import {
 import type { Prisma } from '@prisma/client'
 
 import {
+  type AuthorizeExistingUserRequest,
   type CanonicalRole,
+  type UpdateAuthorizedUserRequest,
   canAssignRole,
   canAuthorizeRole,
   isCanonicalRole,
@@ -19,9 +21,9 @@ import { writeAuditLog } from '../../common/audit/write-audit-log'
 import { type ApplicationIdentity, UUID_PATTERN } from '../../common/authz/application-identity'
 import { withAuthorizedOperation } from '../../common/authz/authorized-operation'
 import { projectScope } from '../../common/authz/project-scope'
+import type { Tx } from '../../common/prisma/transaction'
 import { PrismaService } from '../../prisma/prisma.service'
 import { AuthDirectoryService } from './auth-directory.service'
-import type { AuthorizeExistingUserDto, UpdateAuthorizedUserDto } from './users.dto'
 
 const assignableRoles: readonly CanonicalRole[] = [
   'PROGRAM_MANAGER',
@@ -126,7 +128,7 @@ export class UsersService {
     })
   }
 
-  async authorizeExisting(identity: ApplicationIdentity, input: AuthorizeExistingUserDto) {
+  async authorizeExisting(identity: ApplicationIdentity, input: AuthorizeExistingUserRequest) {
     const authIdentity = await this.authDirectory.getExistingVerifiedIdentity(
       input.authUserId.toLowerCase(),
     )
@@ -199,7 +201,7 @@ export class UsersService {
     )
   }
 
-  update(identity: ApplicationIdentity, userId: string, input: UpdateAuthorizedUserDto) {
+  update(identity: ApplicationIdentity, userId: string, input: UpdateAuthorizedUserRequest) {
     return withAuthorizedOperation(
       this.prisma,
       identity,
@@ -385,7 +387,7 @@ export class UsersService {
   }
 
   private async requireProjects(
-    tx: Prisma.TransactionClient,
+    tx: Tx,
     actor: ApplicationIdentity,
     targetRole: CanonicalRole,
     requestedProjectIds: readonly string[],

@@ -86,7 +86,7 @@ Support is best effort with no on-call for now (developer target 2026-10-01). No
 
 Evidence uploads go directly to the private `pathways-private` bucket through a server-issued signed token (see [activity media CR](cr-pathways-activity-progress-media.md)). `EVIDENCE_MAX_FILE_BYTES` defaults to 52,428,800 bytes, matching the Supabase Free plan file cap; the bucket `file_size_limit` and `allowed_mime_types` must track it. Private proof inspection rules are in the [inspection CR](cr-pathways-private-activity-proof-inspection.md).
 
-Applying migration `0041_activity_media_evidence` on the hosted database needs a human DBA to run `infra/supabase/phase6/hosted-activity-media-preprovision.sql` first and `infra/supabase/phase6/hosted-activity-media-cleanup.sql` right after, also after a failed attempt. Both require independently pinned `target_project_ref` and `expected_database`. The `forward-activity-media-*.sql` pair is for the disposable local replay database only.
+Applying migration `0041_activity_media_evidence` on the hosted database needs a human DBA to run `infra/supabase/replay/hosted-activity-media-preprovision.sql` first and `infra/supabase/replay/hosted-activity-media-cleanup.sql` right after, also after a failed attempt. Both require independently pinned `target_project_ref` and `expected_database`. The `forward-activity-media-*.sql` pair is for the disposable local replay database only.
 
 Other runbooks: [local development](runbook-local-dev.md), [role staging build](runbook-role-staging-build.md), [doc reconciliation](runbook-doc-reconciliation.md).
 
@@ -101,7 +101,7 @@ Other runbooks: [local development](runbook-local-dev.md), [role staging build](
 Agents never create or store these credentials.
 
 1. Confirm every API deployment reading the target database runs the widened rules contract, then apply the pending rules migrations with their preprovision and cleanup scripts.
-2. Run `infra/supabase/phase6/hosted-rules-machine-login.sql` with `psql -v target_project_ref=... -v expected_database=postgres`; `\password` prompts for the worker and sweeper passwords with hidden input and stores nothing.
+2. Run `infra/supabase/replay/hosted-rules-machine-login.sql` with `psql -v target_project_ref=... -v expected_database=postgres`; `\password` prompts for the worker and sweeper passwords with hidden input and stores nothing.
 3. Generate two distinct tokens with `openssl rand -hex 32`. Store them as GitHub environment `rules-hosted` secrets `RULES_DRAIN_TOKEN` and `RULES_SWEEP_TOKEN`, and set variable `RULES_DISPATCH_API_BASE_URL` to the API base including `/api`.
 4. In Vercel `pathways-api`, set Sensitive `RULES_DRAIN_TOKEN`, `RULES_SWEEP_TOKEN`, `RULES_WORKER_DATABASE_URL` and `RULES_SWEEPER_DATABASE_URL` (session pooler, port 5432, user `role.<projectref>`, `sslmode=require`), `BUSINESS_TIME_ZONE=Asia/Manila`, with `RULES_WORKER_ENABLED=false`.
 5. Set `RULES_DISPATCH_ENABLED=true`, run the workflow by hand and expect a 403 "Rule processing is unavailable".

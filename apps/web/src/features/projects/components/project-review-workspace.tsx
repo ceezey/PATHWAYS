@@ -1,9 +1,9 @@
 'use client'
 
+import { ProjectRulesPanel } from '@/features/rules'
 import { reportsClient } from '@/lib/api/reports'
 import { BudgetModule } from '../budget/components/budget-module'
 import { LiveEvaluationWorkspace } from '../evaluation/components/live-evaluation-workspace'
-import { ProjectRulesPanel } from '../project-rules-panel'
 
 import { FileText } from 'lucide-react'
 import Link from 'next/link'

@@ -15,6 +15,7 @@ import { useCurrentRole } from '@/hooks/use-current-role'
 import { usePendingCreate } from '@/hooks/use-pending-create'
 import { useSourceMutationContext } from '@/hooks/use-source-mutation-context'
 import { activitiesClient } from '@/lib/api/activities'
+import { isSourceReplay, sourceMutationTickets } from '@/lib/api/core/source-mutation'
 import {
   type SensitiveDraftOwner,
   removeSensitiveDraft,
@@ -23,7 +24,6 @@ import {
 import { createdSince, fingerprintOf } from '@/lib/forms/pending-create'
 import { principalHasAtomicPermission } from '@/lib/rbac/policy'
 import { isUiActionAvailable } from '@/lib/rbac/ui-action-availability'
-import { isSourceReplay, sourceMutationTickets } from '@/lib/services/source-mutation'
 import type {
   Activity,
   AssignableProjectOfficer,

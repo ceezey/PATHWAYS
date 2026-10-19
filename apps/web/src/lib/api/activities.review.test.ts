@@ -11,7 +11,7 @@ vi.mock('@/lib/supabase/client', () => ({
 
 import { activitiesClient } from '@/lib/api/activities'
 import { PathwaysClientError } from '@/lib/api/core/request'
-import { isSourceReplay, sourceMutationTickets } from '../services/source-mutation'
+import { isSourceReplay, sourceMutationTickets } from './core/source-mutation'
 
 // The exact JSON ActivitiesService.reviewUpdate returns today: the mapped activity detail
 // (migrations 0042 and 0043 included) with the source acknowledgement alongside it.

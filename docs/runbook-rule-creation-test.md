@@ -4,7 +4,7 @@
 **Last reconciled:** 2026-10-15
 **Covers:** `/alerts/repository` Create rule tab, `RuleDrawer` builder, `F10` rule contract
 
-Manual script and field reference for creating an alert or recommendation rule. Values below are taken from the shipped contract (`packages/shared/src/rules/rule-contract.ts`, `rule-board-model.ts`), not from the UI text, so they stay accurate when copy changes. Pair with the happy, sad and abuse path requirement in [QAD](qad-pathways.md) section 1.
+Manual script and field reference for creating an alert or recommendation rule. Values below are taken from the shipped contract (`packages/shared/src/rules/rule-contract.ts`, `apps/web/src/features/rules/rules.utils.ts`), not from the UI text, so they stay accurate when copy changes. Pair with the happy, sad and abuse path requirement in [QAD](qad-pathways.md) section 1.
 
 ## 1. Preconditions
 
