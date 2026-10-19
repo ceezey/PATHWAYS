@@ -178,6 +178,7 @@ Implemented locally on `feature/severity-classification` (no push, deploy or hos
 - 04c86925: suggested severity in Test rule.
 - d7830f00: severity badge and "Why this level" on alerts.
 - Demo runbook: [runbook-severity-panel-demo](runbook-severity-panel-demo.md).
+- SAD remediation (83669d99, 67783b55): the score entry date must be a real YYYY-MM-DD day and scores compare exactly, and the overdue activity share (row 7) no longer needs context for a completed activity without a planned end, in TS and in 0072 edited in place (never applied to a persistent database), now 72 fixtures.
 
 Verification so far: SQL and TS give identical bases for all 71 fixtures and their reordered twins; `Replay-Local.ps1 -MigrationBaseline` exit 0 with `SEVERITY_CLASSIFICATION_RUNTIME=PASS` (155 assertions), `F10_F11_RULES_RUNTIME=PASS` (89 checks; 93 with the three re-match edge cases, run on a copy of the saved template) and `SCHEMA_DRIFT=CLEAN`; shared, API and web unit suites, typechecks and the web build pass. The local end-to-end run of the runbook (section 7 step 3) has not been done yet.
 
