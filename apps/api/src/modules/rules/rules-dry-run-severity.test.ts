@@ -93,8 +93,8 @@ describe('dry-run severity basis', () => {
         asOf,
         observations: [survey],
       })
-    expect((run({ expectedScoreImprovement: '20' })).severityBasis?.level).toBe('HIGH')
-    expect((run()).severityBasis?.status).toBe('CONTEXT_REQUIRED')
+    expect(run({ expectedScoreImprovement: '20' }).severityBasis?.level).toBe('HIGH')
+    expect(run().severityBasis?.status).toBe('CONTEXT_REQUIRED')
   })
   it('ignores an unavailable leaf with no value when another OR leaf matches', () => {
     const thin = surveyImprovementObservation({
