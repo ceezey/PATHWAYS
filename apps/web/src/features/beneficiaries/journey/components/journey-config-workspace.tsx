@@ -37,6 +37,8 @@ type WorkspaceProps = {
   activities: Pick<Activity, 'id' | 'title' | 'journeyStageId'>[]
   initialStages: JourneyStageConfig[]
   activitiesLoading?: boolean
+  activitiesFailed?: boolean
+  onRetryActivities?: () => void
   onSaved?: () => void
 }
 
@@ -45,6 +47,8 @@ export const JourneyConfigWorkspace = ({
   activities,
   initialStages,
   activitiesLoading = false,
+  activitiesFailed = false,
+  onRetryActivities,
   onSaved,
 }: WorkspaceProps) => {
   const { role, profile } = useCurrentRole()
@@ -176,6 +180,8 @@ export const JourneyConfigWorkspace = ({
                 stages={stages}
                 activities={activities}
                 activitiesLoading={activitiesLoading}
+                activitiesFailed={activitiesFailed}
+                onRetryActivities={onRetryActivities}
                 canEdit={canEdit}
                 onChange={update}
                 onRemove={() => {

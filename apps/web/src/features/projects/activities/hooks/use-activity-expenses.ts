@@ -115,5 +115,12 @@ export const useActivityExpenses = ({
     void refetchDetail()
   }
 
-  return { activityExpenses, budgetReferences, pendingExpenses, refreshExpenses }
+  const budgetReferencesLoading = expenseReferencesRead.eligible && expenseReferencesRead.isPending
+  return {
+    activityExpenses,
+    budgetReferences,
+    budgetReferencesLoading,
+    pendingExpenses,
+    refreshExpenses,
+  }
 }

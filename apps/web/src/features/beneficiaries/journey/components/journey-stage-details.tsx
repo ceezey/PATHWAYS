@@ -20,6 +20,8 @@ type DetailsProps = {
   stages: JourneyStageConfig[]
   activities: Pick<Activity, 'id' | 'title' | 'journeyStageId'>[]
   activitiesLoading?: boolean
+  activitiesFailed?: boolean
+  onRetryActivities?: () => void
   canEdit: boolean
   onRemove: () => void
   onChange: <Key extends keyof JourneyStageConfig>(key: Key, value: JourneyStageConfig[Key]) => void
@@ -30,6 +32,8 @@ export const JourneyStageDetails = ({
   stages,
   activities,
   activitiesLoading = false,
+  activitiesFailed = false,
+  onRetryActivities,
   canEdit,
   onChange,
   onRemove,
@@ -140,6 +144,13 @@ export const JourneyStageDetails = ({
               <span className="text-sm text-foreground">{activity.title}</span>
             </Label>
           ))
+        ) : activitiesFailed ? (
+          <p className="text-sm text-destructive" role="alert">
+            Project activities could not be loaded.{' '}
+            <Button onClick={onRetryActivities} size="sm" type="button" variant="outline">
+              Retry
+            </Button>
+          </p>
         ) : activitiesLoading ? (
           <output className="text-sm text-muted-foreground">Loading project activities.</output>
         ) : (

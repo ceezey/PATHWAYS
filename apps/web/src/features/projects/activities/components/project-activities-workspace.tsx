@@ -144,15 +144,20 @@ export const ProjectActivitiesWorkspace = ({
   const editorFailed = editorReads.some((read) => read.isError)
   const detail = useActivityDetailRead(projectId, selectedActivityId)
   const selectedActivity = detail.data ?? null
-  const { activityExpenses, budgetReferences, pendingExpenses, refreshExpenses } =
-    useActivityExpenses({
-      canReadBudgetLines,
-      canReadExpenseReferences,
-      canReadExpenses,
-      projectId,
-      refetchDetail: () => detail.refetch(),
-      selectedActivity,
-    })
+  const {
+    activityExpenses,
+    budgetReferences,
+    budgetReferencesLoading,
+    pendingExpenses,
+    refreshExpenses,
+  } = useActivityExpenses({
+    canReadBudgetLines,
+    canReadExpenseReferences,
+    canReadExpenses,
+    projectId,
+    refetchDetail: () => detail.refetch(),
+    selectedActivity,
+  })
   const detailNotFound =
     detail.isError &&
     detail.error instanceof PathwaysClientError &&
@@ -425,6 +430,7 @@ export const ProjectActivitiesWorkspace = ({
       <ActivityDetailPanel
         activity={selectedActivity}
         budgetReferences={budgetReferences}
+        budgetReferencesLoading={budgetReferencesLoading}
         loading={Boolean(selectedActivityId) && detail.isPending}
         canDecideProof={canDecideProof}
         canDecideExtension={role === 'Project Manager' && inProjectScope && canUpdate}

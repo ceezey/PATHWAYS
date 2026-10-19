@@ -184,7 +184,10 @@ export function useAuthorizedPrefetch() {
             if (!context.isCurrent())
               throw new PathwaysClientError('Current workspace access is required.', 'unauthorized')
             const epoch = context.currentEpoch()
-            return { epoch, value: await read(signal) }
+            const value = await read(signal)
+            if (signal.aborted || !context.isCurrent())
+              throw new PathwaysClientError('Current workspace access is required.', 'unauthorized')
+            return { epoch, value }
           },
           staleTime: SUMMARY_READ_STALE_MS,
           gcTime: SUMMARY_READ_STALE_MS,
