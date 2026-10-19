@@ -118,7 +118,7 @@ Every pair improves by 2 points, so the project average is exactly +2. Tell the 
 ### Step 6. Review, and what happens afterwards (4 minutes, Project Manager)
 
 1. On the alert, **Mark reviewed**; Decision note `Coaching team to repeat the module; check again after the next session.`; submit. Expect status **Reviewed**.
-2. Show that the level follows the data. Open `BEN-CRL-NS-2026-005`, View assessment, Record score: Activity Livelihood coaching post-test, **Post-test**, Score = pre-test minus 9 (52 gives `43`), Assessment date **today**. It must be dated after the first post-test to count as the latest.
+2. Show that the level follows the data. Open `BEN-CRL-NS-2026-005`, View assessment, Record score: Activity Livelihood coaching post-test (after the step 2b fallback, the seeded activity used there, Abaca and coconut by-product livelihood grants), **Post-test**, Score = pre-test minus 9 (52 gives `43`), Assessment date **today**. It must be dated after the first post-test to count as the latest.
 3. `pnpm rules:dispatch sweep`, then `pnpm rules:dispatch drain`.
 4. Reopen the alert. **Expected:** a **High** badge, "Expected +10 points, actual -0.2, 10.2 points below. (Severity Guide v0.2, 5.11)", the line "Raised from Medium to High on {today, for example 20 Oct}", status still **Reviewed**. The change sends no new notification and does not undo the review.
 5. Close it: **Dismiss alert** (or **Resolve alert**) with a note, for example `Demo complete; follow-up agreed with the coaching team.` Expect status **Dismissed** (or **Resolved**). A note is required.
@@ -142,6 +142,8 @@ Rules are evaluated by background jobs: a sweep queues active rules whose data c
 ### 3.2 Hosted devV2
 
 Only after 0071 and 0072 are applied to devV2 under their own approval ([runbook-role-staging-build](runbook-role-staging-build.md) section 7). The hosted scheduler ([cr-pathways-rules-hosted-scheduler](cr-pathways-rules-hosted-scheduler.md)) drains every 5 minutes and sweeps hourly at minute 7, so a new score shows within about an hour. To avoid waiting, the developer runs `gh workflow run rules-dispatch.yml -f purpose=sweep`, waits for success, then `gh workflow run rules-dispatch.yml -f purpose=drain`.
+
+Step 1's **Needs context** badge and basis need an alert created at 0072 or later. An alert created before 0072 has no basis, so **Why this level** shows "Stored level: X" (for example "Stored level: Medium") instead.
 
 ## 4. Short answers for follow-up questions
 
