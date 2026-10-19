@@ -14,12 +14,14 @@ import {
   type NumericKind,
   type RuleCondition,
   type RuleNode,
+  type SeverityBasis,
   activityObservation,
   beneficiaryFollowUpObservation,
   budgetObservation,
   businessCalendarDate,
   decimalString,
   dryRunInputSchema,
+  formatSeverityBasis,
   indicatorObservation,
   numericKinds,
   numericMetric,
@@ -33,12 +35,14 @@ type IndicatorInput = {
   current: string
   baseline: string
   target: string
+  targetDate: string
   numericKind: NumericKind
   direction: MetricDirection
 }
 type ActivityInput = {
   id: string
   status: 'NOT_STARTED' | 'IN_PROGRESS' | 'FOR_REVIEW' | 'COMPLETED'
+  plannedStartDate: string
   plannedEndDate: string
 }
 const aggregateFields = [
@@ -110,6 +114,7 @@ function RuleTestForm({
           current: '',
           baseline: '',
           target: '',
+          targetDate: '',
           numericKind: 'NON_NEGATIVE',
           direction: 'DESCRIPTIVE',
         },
@@ -117,7 +122,12 @@ function RuleTestForm({
     ),
   )
   const [activities, setActivities] = useState<ActivityInput[]>(() =>
-    boundActivityIds.map((id) => ({ id, status: 'NOT_STARTED', plannedEndDate: '' })),
+    boundActivityIds.map((id) => ({
+      id,
+      status: 'NOT_STARTED',
+      plannedStartDate: '',
+      plannedEndDate: '',
+    })),
   )
   const [aggregates, setAggregates] = useState<Record<AggregateKey, string>>({
     budgetPlanned: '',
@@ -159,6 +169,7 @@ function RuleTestForm({
         ...scope,
         revision,
         archived: false,
+        plannedStartDate: item.plannedStartDate || null,
         plannedEndDate: item.plannedEndDate || null,
       }))
       const observations = conditions.map((condition) => {
@@ -181,6 +192,7 @@ function RuleTestForm({
               direction: input.direction,
               baseline: input.baseline || null,
               target: input.target || null,
+              targetDate: input.targetDate || null,
               current: input.current
                 ? numericMetric(input.current)
                 : { state: 'MISSING', value: null, reason: 'NO_MEASUREMENT' },
@@ -249,6 +261,7 @@ function RuleTestForm({
           severity: manualSeverity(rule.severity),
           conditions: rule.conditions,
           recommendations: rule.recommendations,
+          ...(rule.expectations ? { expectations: rule.expectations } : {}),
         },
         asOf,
         observations,
@@ -434,6 +447,13 @@ function RuleTestForm({
                   value={input.target}
                   onChange={(event) => update({ target: event.target.value })}
                 />
+                <Label htmlFor={`test-target-date-${id}`}>Test target date</Label>
+                <Input
+                  id={`test-target-date-${id}`}
+                  type="date"
+                  value={input.targetDate}
+                  onChange={(event) => update({ targetDate: event.target.value })}
+                />
                 <p className="text-sm">
                   Blank current values remain unavailable. Progress requires baseline, target, and
                   direction.
@@ -483,6 +503,22 @@ function RuleTestForm({
                       </option>
                     ))}
                   </select>
+                  <Label htmlFor={`test-start-${activity.id}`}>Test planned start date</Label>
+                  <Input
+                    id={`test-start-${activity.id}`}
+                    type="date"
+                    value={activity.plannedStartDate}
+                    onChange={(event) => {
+                      change()
+                      setActivities((values) =>
+                        values.map((item) =>
+                          item.id === activity.id
+                            ? { ...item, plannedStartDate: event.target.value }
+                            : item,
+                        ),
+                      )
+                    }}
+                  />
                   <Label htmlFor={`test-due-${activity.id}`}>Test planned end date</Label>
                   <Input
                     id={`test-due-${activity.id}`}
@@ -521,7 +557,12 @@ function RuleTestForm({
                   change()
                   setActivities((values) => [
                     ...values,
-                    { id: crypto.randomUUID(), status: 'NOT_STARTED', plannedEndDate: '' },
+                    {
+                      id: crypto.randomUUID(),
+                      status: 'NOT_STARTED',
+                      plannedStartDate: '',
+                      plannedEndDate: '',
+                    },
                   ])
                 }}
               >
@@ -546,7 +587,25 @@ function RuleTestForm({
           <TestEvidence conditions={conditions} evidence={result.evidence} />
         </div>
       ) : null}
+      {result?.severityBasis ? <SampleResult basis={result.severityBasis} /> : null}
     </section>
+  )
+}
+function SampleResult({ basis }: { basis: SeverityBasis }) {
+  const text = formatSeverityBasis(basis)
+  return (
+    <div className="space-y-2 rounded-xl border border-border bg-card p-4">
+      <h4 className="font-semibold text-foreground">Sample result</h4>
+      <p className="text-sm font-semibold text-foreground">{text.headline}</p>
+      <p className="text-sm text-muted-foreground">{text.reason}</p>
+      {text.missing.length > 0 ? (
+        <ul className="list-disc pl-5 text-sm text-muted-foreground">
+          {text.missing.map((item) => (
+            <li key={item}>{item}</li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
   )
 }
 function TestEvidence({

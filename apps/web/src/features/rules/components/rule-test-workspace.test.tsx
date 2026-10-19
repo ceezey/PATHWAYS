@@ -1,5 +1,5 @@
 import { clearSensitiveDraftStorage } from '@/lib/auth/sensitive-drafts'
-import type { HumanRule } from '@pathways/shared'
+import { type HumanRule, type SeverityBasis, formatSeverityBasis } from '@pathways/shared'
 /* @vitest-environment jsdom */
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -46,6 +46,24 @@ const rule: HumanRule = {
   activatedAt: null,
   archivedAt: null,
 }
+const basis = {
+  status: 'CLASSIFIED',
+  level: 'MEDIUM',
+  supportedLevel: null,
+  decisiveConditionId: 'remaining',
+  combination: null,
+  unchecked: [],
+  missing: [],
+  conditions: [
+    {
+      conditionId: 'remaining',
+      metric: 'BUDGET_UTILIZATION_PERCENT',
+      outcome: 'LEVEL',
+      level: 'MEDIUM',
+      measure: { kind: 'BUDGET_PERCENT', value: '105', actual: '105', expected: '100' },
+    },
+  ],
+} as unknown as SeverityBasis
 const enter = () => {
   fireEvent.change(screen.getByLabelText('Test reporting date (Asia/Manila)'), {
     target: { value: '2026-09-27' },
@@ -72,6 +90,7 @@ beforeEach(() => {
       result: 'TRUE',
       reason: null,
     },
+    severityBasis: basis,
   }))
 })
 describe('synthetic rule condition testing', () => {
@@ -200,5 +219,75 @@ describe('synthetic rule condition testing', () => {
     expect(
       (screen.getByLabelText('Test reporting date (Asia/Manila)') as HTMLInputElement).value,
     ).toBe('')
+  })
+  it('adds target date and planned start inputs and passes them to the observations', async () => {
+    const nested = {
+      kind: 'GROUP',
+      mode: 'AND',
+      children: [
+        {
+          kind: 'CONDITION',
+          id: 'ind',
+          metric: 'INDICATOR_CURRENT_VALUE',
+          operator: 'LT',
+          threshold: '5',
+          indicatorId: '60000000-0000-4000-8000-000000000001',
+        },
+        {
+          kind: 'CONDITION',
+          id: 'act',
+          metric: 'ACTIVITY_OVERDUE_DAYS',
+          operator: 'GT',
+          threshold: '0',
+          activityId: '70000000-0000-4000-8000-000000000001',
+        },
+      ],
+    } as unknown as HumanRule['conditions']
+    render(<RuleTestWorkspace rule={{ ...rule, conditions: nested }} />)
+    fireEvent.change(screen.getByLabelText('Test reporting date (Asia/Manila)'), {
+      target: { value: '2026-09-27' },
+    })
+    fireEvent.change(screen.getByLabelText('Test current value'), { target: { value: '3' } })
+    fireEvent.change(screen.getByLabelText('Test target date'), { target: { value: '2026-12-31' } })
+    fireEvent.change(screen.getByLabelText('Test planned start date'), {
+      target: { value: '2026-09-01' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Run condition test' }))
+    await waitFor(() => expect(state.call).toHaveBeenCalledOnce())
+    const [indicator, activity] = state.call.mock.calls[0][0].observations
+    expect(indicator.calculation).toMatchObject({ targetDate: '2026-12-31' })
+    expect(activity.calculation.members[0]).toMatchObject({ plannedStartDate: '2026-09-01' })
+  })
+  it('sends the Critical mark and expectations, and shows the suggested severity', async () => {
+    const expectations = { expectedScoreImprovement: '10', manageableFollowUpPercent: null }
+    render(
+      <RuleTestWorkspace
+        rule={{ ...rule, severity: 'HIGH', expectations } as unknown as HumanRule}
+      />,
+    )
+    enter()
+    await screen.findByRole('heading', { name: 'Sample result' })
+    expect(state.call.mock.calls[0][0].rule).toMatchObject({ severity: null, expectations })
+    const text = formatSeverityBasis(basis)
+    expect(screen.getByText(text.headline)).toBeTruthy()
+    expect(screen.getByText(text.reason)).toBeTruthy()
+  })
+  it('shows no severity block when the rule is not triggered', async () => {
+    state.call.mockImplementationOnce(async (body) => ({
+      rule: body.rule,
+      asOf: body.asOf,
+      result: 'FALSE',
+      evidence: {
+        condition: body.rule.conditions,
+        observation: body.observations[0],
+        result: 'FALSE',
+        reason: null,
+      },
+      severityBasis: null,
+    }))
+    render(<RuleTestWorkspace rule={rule} />)
+    enter()
+    await screen.findByRole('heading', { name: 'Test result' })
+    expect(screen.queryByRole('heading', { name: 'Sample result' })).toBeNull()
   })
 })
