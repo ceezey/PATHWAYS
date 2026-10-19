@@ -2,7 +2,7 @@
 
 **ID:** `cr-pathways-severity-classification`  
 **Date:** 2026-10-19  
-**Status:** Approved (developer, 2026-10-19)
+**Status:** Applied locally 2026-10-20
 
 ## 1. Trigger
 
@@ -191,4 +191,4 @@ Known limits:
 - Earlier bases beyond the immediately previous one are kept in evaluation evidence but not shown in alert history.
 - The Step 3 preview for activity completion and current indicator value is a range, because the level depends on dates known only when the alert fires.
 
-SAD sign-off pending; not Applied.
+SAD sign-off passed 2026-10-20 (digest 8b6bc4ec, 181 PASS evaluations across organization isolation, migration integrity, beneficiary privacy, rule-engine determinism and design QA; evidence under `.tmp/sad/20261020-severity-classification-r2/`). Applied locally only: no push, deploy or hosted migration; the demo runbook has not been rehearsed on a running stack.

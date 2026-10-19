@@ -2,7 +2,7 @@
 
 **ID:** `cr-pathways-assessment-score-entry`  
 **Date:** 2026-10-19  
-**Status:** Approved (developer, 2026-10-19)
+**Status:** Applied locally 2026-10-20
 
 ## 1. Trigger
 
@@ -88,4 +88,4 @@ Implemented locally on `feature/severity-classification` (commits bf04a40f, b87e
 
 Verification passed: replay with `-MigrationBaseline` exit 0 with `ASSESSMENT_SCORE_ENTRY_RUNTIME=PASS`; shared, API and web unit suites; API and web typechecks. No push, deploy or hosted migration.
 
-SAD sign-off pending; not Applied.
+SAD sign-off passed 2026-10-20 (digest 8b6bc4ec, 181 PASS evaluations across organization isolation, migration integrity, beneficiary privacy, rule-engine determinism and design QA; evidence under `.tmp/sad/20261020-severity-classification-r2/`). Applied locally only: no push, deploy or hosted migration; the demo runbook has not been rehearsed on a running stack.
