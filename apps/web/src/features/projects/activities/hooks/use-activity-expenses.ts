@@ -32,6 +32,7 @@ export const useActivityExpenses = ({
     'expenses.submit',
     (signal) => financeClient.budgetReferences(projectId, signal),
     canReadExpenseReferences,
+    { freshness: 'summary' },
   )
   const expensesRead = useAuthorizedRead(
     'activity-expenses',

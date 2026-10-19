@@ -20,8 +20,8 @@ type Envelope<T> = { epoch: number; value: T }
  */
 type AuthorizedReadFreshness = 'summary' | 'live'
 export const SUMMARY_READ_STALE_MS = 30_000
-/** Beneficiary detail, step-up protected and import batch-status reads are never cached. */
-const LIVE_ONLY_RESOURCE = /^(beneficiar|step-up|import-batch)/
+/** Beneficiary, step-up, import batch and SADDD (analytics insight, report preview) reads are never cached. */
+const LIVE_ONLY_RESOURCE = /^(beneficiar|step-up|import-batch|analytics-insights|report-preview)/
 
 export function authorizedReadPolicy(resource: string, freshness: AuthorizedReadFreshness) {
   return freshness === 'summary' && !LIVE_ONLY_RESOURCE.test(resource)

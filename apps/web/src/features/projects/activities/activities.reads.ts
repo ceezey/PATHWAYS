@@ -44,4 +44,5 @@ export const useAssignableOfficersRead = (
     permission,
     (signal) => activitiesClient.getAssignableProjectOfficers(projectId, signal),
     enabled,
+    summary,
   )

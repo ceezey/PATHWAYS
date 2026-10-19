@@ -117,6 +117,8 @@ describe('summary cache policy (performance CR step 2)', () => {
     'beneficiaries-directory',
     'step-up-status',
     'import-batch-status:batch',
+    'analytics-insights:participation::',
+    'report-preview:beneficiary-summary::',
   ])('never caches %s, even when a caller asks for the summary window', (resource) => {
     expect(authorizedReadPolicy(resource, 'summary')).toEqual({
       staleTime: 0,

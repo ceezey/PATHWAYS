@@ -69,6 +69,10 @@ describe('activity authorized reads', () => {
       ['activity-assignable-officers', 'project-1', 'activities.update'],
     ])
     expect(read.mock.calls.map((call) => call[4])).toEqual([true, false])
+    expect(read.mock.calls.map((call) => call[5])).toEqual([
+      { freshness: 'summary' },
+      { freshness: 'summary' },
+    ])
     read.mock.calls[0][3](signal)
     expect(client.getAssignableProjectOfficers).toHaveBeenCalledWith('project-1', signal)
   })
