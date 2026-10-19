@@ -29,7 +29,7 @@ export const JourneyTab = ({
     | 'selectedStageParticipationActivities'
     | 'openParticipationForSelectedStage'
     | 'canViewAssessmentDetail'
-    | 'beneficiary'
+    | 'assessmentButtonDisabled'
     | 'setAssessmentOpen'
     | 'assessmentButtonTitle'
     | 'canCorrectJourney'
@@ -54,7 +54,7 @@ export const JourneyTab = ({
     selectedStageParticipationActivities,
     openParticipationForSelectedStage,
     canViewAssessmentDetail,
-    beneficiary,
+    assessmentButtonDisabled,
     setAssessmentOpen,
     assessmentButtonTitle,
     canCorrectJourney,
@@ -133,7 +133,7 @@ export const JourneyTab = ({
                 {canViewAssessmentDetail ? (
                   <Button
                     aria-label="View assessment"
-                    disabled={beneficiary.assessments.length === 0}
+                    disabled={assessmentButtonDisabled}
                     onClick={() => setAssessmentOpen(true)}
                     size="icon"
                     title={assessmentButtonTitle}

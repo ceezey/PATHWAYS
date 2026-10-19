@@ -2,7 +2,7 @@
 
 import { ShieldAlert, UserRoundX } from 'lucide-react'
 import Link from 'next/link'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 
 import { AsyncState, StatusMessage } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
@@ -173,37 +173,37 @@ export const BeneficiaryDetailLoader = ({
     }
   }, [beneficiaryId, loadAttempt, projectId, role, canReadForms, canReadAssessments])
 
-  // A completed step-up re-reads only the assessments, keeping the page and selected stage.
-  useEffect(() => {
-    if (state.status !== 'ready' || !state.data.assessmentsUnavailable || !canReadAssessments)
-      return
+  // Re-reads only the assessments, keeping the page and selected stage.
+  const refreshAssessments = useCallback(async () => {
+    if (state.status !== 'ready' || !canReadAssessments) return
     const { beneficiary, projectId: scoped } = state.data
     const enrollmentId = beneficiary.enrollments.find((item) => item.projectId === scoped)?.id
     if (!enrollmentId) return
-    const onCompleted = () =>
-      evaluationsClient
-        .getBeneficiaryAssessments(scoped, enrollmentId)
-        .then((rows) =>
-          setState((current) =>
-            current.status === 'ready'
-              ? {
-                  status: 'ready',
-                  data: {
-                    ...current.data,
-                    assessmentsUnavailable: false,
-                    beneficiary: {
-                      ...current.data.beneficiary,
-                      assessments: rows.map(toAssessmentRecord(beneficiary.id, scoped)),
-                    },
-                  },
-                }
-              : current,
-          ),
-        )
-        .catch(() => undefined)
+    const rows = await evaluationsClient.getBeneficiaryAssessments(scoped, enrollmentId)
+    setState((current) =>
+      current.status === 'ready'
+        ? {
+            status: 'ready',
+            data: {
+              ...current.data,
+              assessmentsUnavailable: false,
+              beneficiary: {
+                ...current.data.beneficiary,
+                assessments: rows.map(toAssessmentRecord(beneficiary.id, scoped)),
+              },
+            },
+          }
+        : current,
+    )
+  }, [state, canReadAssessments])
+
+  // A completed step-up re-reads the assessments once an earlier read was denied.
+  useEffect(() => {
+    if (state.status !== 'ready' || !state.data.assessmentsUnavailable) return
+    const onCompleted = () => void refreshAssessments().catch(() => undefined)
     window.addEventListener(STEP_UP_COMPLETED_EVENT, onCompleted)
     return () => window.removeEventListener(STEP_UP_COMPLETED_EVENT, onCompleted)
-  }, [state, canReadAssessments])
+  }, [state, refreshAssessments])
 
   if (state.status === 'loading') {
     return (
@@ -220,7 +220,7 @@ export const BeneficiaryDetailLoader = ({
     return (
       <>
         <StatusMessage>Beneficiary record loaded.</StatusMessage>
-        <BeneficiaryDetail {...state.data} />
+        <BeneficiaryDetail {...state.data} refreshAssessments={refreshAssessments} />
       </>
     )
   }
