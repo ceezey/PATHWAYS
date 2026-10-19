@@ -181,6 +181,8 @@ Implemented locally on `feature/severity-classification` (no push, deploy or hos
 
 Verification so far: SQL and TS give identical bases for all 71 fixtures and their reordered twins; `Replay-Local.ps1 -MigrationBaseline` exit 0 with `SEVERITY_CLASSIFICATION_RUNTIME=PASS` (155 assertions), `F10_F11_RULES_RUNTIME=PASS` (89 checks) and `SCHEMA_DRIFT=CLEAN`; shared, API and web unit suites, typechecks and the web build pass. The local end-to-end run of the runbook (section 7 step 3) has not been done yet.
 
+Seed deviation: because 0072 rejects LOW, MEDIUM and HIGH on rule save, the eight demo rule definitions in `apps/api/prisma/seeds/local-demo-data.ts` were changed from stored levels to null severity, and `defense-demo-verify.ts` now checks that an alert carries a classified level instead of expecting High and Medium (33b6129e). This is a compatibility edit only: no reseed was run, and the seed data are otherwise unchanged.
+
 Known limits:
 
 - A rule snapshot captured before 0072 and committed after it fails once (its observations have no facts) and is recaptured on the next claim.
