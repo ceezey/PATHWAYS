@@ -26,7 +26,7 @@ import type {
 import { useProjectRead } from '../projects.reads'
 import { EvidenceView, type ProjectReportRecord } from './evidence-view'
 
-const reviewSections = ['activities', 'evidence', 'reports'] as const
+const reviewSections = ['evidence', 'reports'] as const
 type ReviewSection = (typeof reviewSections)[number]
 type ProjectReviewView = 'evidence' | 'monitor-evaluate' | 'budget'
 
@@ -81,7 +81,7 @@ const EvidenceWorkspace = ({ projectId }: { projectId: string }) => {
 
     const unavailable: string[] = []
     const optional = async <T,>(
-      section: ReviewSection,
+      section: ReviewSection | null,
       label: string,
       request: Promise<T>,
       apply: (value: T) => void,
@@ -104,15 +104,13 @@ const EvidenceWorkspace = ({ projectId }: { projectId: string }) => {
         if (canReadActivities) {
           requests.push(
             optional(
-              'activities',
+              null,
               'Connected activities',
               activitiesClient.getActivities(projectId),
               // A missing list leaves the tab usable; the budget column reads as a dash.
               (list) => setActivities(list ?? []),
             ),
           )
-        } else {
-          setPending((current) => current.filter((item) => item !== 'activities'))
         }
         if (canReadEvidence) {
           requests.push(

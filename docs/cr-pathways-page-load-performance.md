@@ -14,11 +14,11 @@ Authorized reads default to `live` freshness (`staleTime: 0`, `gcTime: 0`, refet
 
 ## 3. Proposed Change
 
-- Option 6, server timing: every API response carries `Server-Timing: auth;dur=N, total;dur=N` (`apps/api/src/common/network/server-timing.ts`), exposed through CORS. `auth` is the whole `SupabaseAuthGuard` (token check, workspace and permission resolution); `total` is the full request. Durations only, no identities or values.
+- Option 6, server timing: every API response carries `Server-Timing: auth;dur=N, total;dur=N` (`apps/api/src/common/network/server-timing.ts`), exposed through CORS. `auth` is the whole `SupabaseAuthGuard` (token check, workspace and permission resolution); `total` runs from request start until the response headers are written, so it understates streamed responses such as PDF and CSV downloads. Durations only, no identities or values; public routes also carry the header.
 - Option 1, summary freshness: assignable officers and both budget-reference reads join project detail, journey stages, overview metrics and the activity list on the 30 s `summary` window. A fail-closed allowlist (`SUMMARY_ELIGIBLE_RESOURCE` in `use-authorized-read.ts`) means a resource not listed reads live even when a caller asks for `summary`; `LIVE_ONLY_RESOURCE` also covers beneficiary, step-up, import-batch, analytics-insights and report-preview reads.
-- Option 2, one project read: every tab uses `useProjectRead` (key `project`); `useInvalidateProjectRead` marks it stale after a project edit, and `useInvalidateJourneyStagesRead` marks journey stages and the activity list stale after a stage save.
-- Option 3, progressive render: the Evidence tab shows each section (evidence, reports) when its own read resolves, with a per-section loading note; the Activities workspace draws its list when the list resolves instead of also waiting on the project; the journey stages loader reads through the shared project, stages and activity reads, draws the stage list once project and stages resolve, and shows its mapping panel with its own loading state.
-- Option 4, prefetch on intent: hovering or focusing a project tab link warms that tab's summary reads (overview metrics, activities, indicators, journey stages), and hovering or focusing "Open Project" on a project card warms the shared project read, under the same query keys as the hooks. Live tabs (evidence, monitoring, budget) have nothing to prefetch. Prefetch skips unlisted and live-only resources, principals without the permission or project scope, and keys with a recorded denial; a failed prefetch leaves no cache entry.
+- Option 2, one project read: every tab uses `useProjectRead` (key `project`). Every successful write through the API client fires the write-committed event, which purges inactive private queries and refetches active ones, so a project edit or stage save refreshes the shared reads without a per-feature invalidation hook; a write from another browser tab or user can still be up to 30 s stale, the accepted summary contract.
+- Option 3, progressive render: the Evidence tab shows each section (evidence, reports) when its own read resolves, with a per-section loading note; the Activities workspace draws its list when the list resolves instead of also waiting on the project; the budget-allocation list in the expense dialog shows its own loading note. The journey stages loader reads the project and activities through the shared reads, but the stage editor reads stages through a separate live key (`journey-stages-editor`, not on the allowlist) because the editor copies its stages once and a save rewrites every mapping, so it must never start from a 30 s cached copy. Once the editor has its first data it stays mounted with unsaved edits, and a later failed refresh shows an error beside it. The mapping panel has its own loading and error states.
+- Option 4, prefetch on intent: hovering or focusing a project tab link warms the summary reads that tab mounts with: Overview warms overview metrics; Activities warms the activity list, project indicators and journey stages (its editor reads); Journey Stages warms the activity list (its mapping choices). Indicators, Evidence, Monitoring and Budget warm nothing (live or non-shared reads), and the live journey editor key is never prefetched. Hovering or focusing "Open Project" on a project card (not the whole card) warms the shared project read. Prefetch uses the same query keys as the hooks, skips unlisted and live-only resources, principals without the permission or project scope and keys with a recorded denial, records a 401/403 like a normal read so repeat hovers do not refire, and leaves no cache entry on failure.
 
 ## 4. Impact
 
@@ -42,10 +42,10 @@ Only non-sensitive reads qualify for the 30 s window, which is keyed by organiza
 Only the `Server-Timing` header and its CORS exposure. No new endpoint.
 
 ### UI
-Section loading notes on the Evidence tab and the journey mapping panel; no layout change.
+Section loading notes on the Evidence tab, the journey mapping panel (with a Retry on failure) and the expense dialog ("Loading budget allocations"); no layout change.
 
 ### Tests
-Allowlist and live-only cases in `authorized-query-cache.test.tsx`, freshness cases in `projects.reads.test.ts`, `use-authorized-prefetch.test.tsx`, and a progressive-render case in `project-review-workspace.test.tsx`.
+Allowlist and live-only cases in `authorized-query-cache.test.tsx`, freshness and tab-prefetch mapping cases in `projects.reads.test.ts`, `use-authorized-prefetch.test.tsx` (including denial recording), `journey-stages-loader.test.tsx` (manage-only actor, live editor read, kept editor, activity failure), a progressive-render case in `project-review-workspace.test.tsx`, the tab hover case in `project-workspace-header.test.tsx` and `server-timing.test.ts`.
 
 ### Documentation
 This record, `load-performance-options.md` (status line), the deferred-features register row and the index.
@@ -61,7 +61,7 @@ No migration. Roll back by reverting the web commits; remove a resource from `SU
 
 ## 7. Verification
 
-- Reading `Server-Timing`: in the browser network panel open any API request and read the Timing tab or the response headers. `auth` is the guard time, `total` the whole request, and `total - auth` approximates handler and query time. A large `auth` points at token and permission resolution; a large remainder points at the query or transaction.
+- Reading `Server-Timing`: in the browser network panel open any API request and read the Timing tab or the response headers. `auth` is the guard time, `total` the time until response headers were written (streamed downloads are understated), and `total - auth` approximates handler and query time. A large `auth` points at token and permission resolution; a large remainder points at the query or transaction.
 - Staging re-measure: pending. Record `auth` and `total` for the project detail, activities list and journey stages routes on the staging API, and compare tab-switch network counts within 30 s.
 - Unit suites: web unit suite, web typecheck and lint, API `server-timing` tests.
 

@@ -56,6 +56,11 @@ const renderLoader = () =>
 
 describe('JourneyStagesLoader', () => {
   beforeEach(() => {
+    access.role = 'System Administrator'
+    access.assignedProjectIds = []
+    access.profile.roles = ['SYSTEM_ADMINISTRATOR']
+    access.profile.assignedProjectIds = []
+    access.profile.permissions = ['projects.read', 'projects.detail.read', 'journeys.manage']
     api.getProject.mockResolvedValue({ id: projectId, title: 'Project Alpha' })
     api.getJourneyStages.mockResolvedValue([{ id: 's1' }])
     api.getActivities.mockResolvedValue([])
@@ -84,7 +89,6 @@ describe('JourneyStagesLoader', () => {
     access.profile.permissions = ['projects.read', 'projects.detail.read']
     renderLoader()
     expect(await screen.findByText('Journey stages unavailable')).toBeTruthy()
-    access.profile.permissions = ['projects.read', 'projects.detail.read', 'journeys.manage']
   })
 
   it('flags a failed activity read instead of passing an empty list', async () => {
@@ -102,5 +106,23 @@ describe('JourneyStagesLoader', () => {
     api.getActivityContext.mockRejectedValue(new Error('down'))
     renderLoader()
     expect(await screen.findByText(/activities failed/)).toBeTruthy()
+  })
+
+  it('keeps the editor mounted when a later project refresh fails', async () => {
+    const client = new QueryClient()
+    const tree = (
+      <QueryClientProvider client={client}>
+        <AuthorizedQueryProvider>
+          <JourneyStagesLoader projectId={projectId} />
+        </AuthorizedQueryProvider>
+      </QueryClientProvider>
+    )
+    const view = render(tree)
+    await screen.findByText('Stages 1')
+    api.getProject.mockRejectedValue(new Error('down'))
+    await client.invalidateQueries()
+    view.rerender(tree)
+    expect(await screen.findByText(/unsaved changes are kept/)).toBeTruthy()
+    expect(screen.getByText('Stages 1')).toBeTruthy()
   })
 })

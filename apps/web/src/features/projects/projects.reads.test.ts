@@ -1,24 +1,29 @@
 /* @vitest-environment jsdom */
 
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { renderHook } from '@testing-library/react'
-import { type ReactNode, createElement } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { AuthorizedQueryContext, privateKey } from '@/providers/authorized-query-provider'
-
 const read = vi.hoisted(() => vi.fn())
+const prefetch = vi.hoisted(() => vi.fn())
 
-vi.mock('@/hooks/use-authorized-read', () => ({ useAuthorizedRead: read }))
+vi.mock('@/hooks/use-authorized-read', () => ({
+  useAuthorizedRead: read,
+  useAuthorizedPrefetch: prefetch,
+}))
 vi.mock('@/lib/api/journeys', () => ({ journeysClient: { getJourneyStages: vi.fn() } }))
+vi.mock('./activities/activities.reads', () => ({
+  projectActivitiesSpec: () => ({ resource: 'project-activities' }),
+}))
+vi.mock('./indicators/indicators.reads', () => ({
+  projectIndicatorsSpec: () => ({ resource: 'project-indicators' }),
+}))
 vi.mock('@/lib/api/projects', () => ({
   projectsClient: { getProject: vi.fn(), getProjectOverviewMetrics: vi.fn() },
 }))
 
 import {
-  useInvalidateProjectRead,
   useProjectJourneyStagesRead,
   useProjectOverviewMetricsRead,
+  useProjectPrefetch,
   useProjectRead,
 } from './projects.reads'
 
@@ -36,26 +41,26 @@ describe('project authorized reads', () => {
     ])
   })
 
-  it('invalidates only the shared project key of that project and identity', async () => {
-    const client = new QueryClient()
-    const key = (resource: string, id: string) => [privateKey[0], 'identity-1', resource, id]
-    for (const k of [key('project', 'p1'), key('project', 'p2'), key('project-activities', 'p1')])
-      client.setQueryData(k, 1)
-    const wrapper = ({ children }: { children: ReactNode }) =>
-      createElement(
-        QueryClientProvider,
-        { client },
-        createElement(
-          AuthorizedQueryContext.Provider,
-          { value: { identity: 'identity-1' } as never },
-          children,
-        ),
-      )
-    const { result } = renderHook(() => useInvalidateProjectRead(), { wrapper })
-    await result.current('p1')
-    const stale = (k: unknown[]) => client.getQueryState(k)?.isInvalidated
-    expect(stale(key('project', 'p1'))).toBe(true)
-    expect(stale(key('project', 'p2'))).toBe(false)
-    expect(stale(key('project-activities', 'p1'))).toBe(false)
+  it('prefetches only the summary reads a tab mounts with, never the live journey editor key', () => {
+    const warm = vi.fn()
+    prefetch.mockReturnValue(warm)
+    const { project, tab } = useProjectPrefetch()
+    const keys = (route: Parameters<typeof tab>[1]) => {
+      warm.mockClear()
+      tab('p1', route)
+      return warm.mock.calls.map((call) => call[1].resource)
+    }
+    expect(keys('activities')).toEqual([
+      'project-activities',
+      'project-indicators',
+      'project-journey-stages',
+    ])
+    expect(keys('project')).toEqual(['project-overview-metrics'])
+    expect(keys('journey')).toEqual(['project-activities'])
+    for (const route of ['indicators', 'evidence', 'monitoring', 'budget'] as const)
+      expect(keys(route)).toEqual([])
+    warm.mockClear()
+    project('p1')
+    expect(warm.mock.calls.map((call) => call[1].resource)).toEqual(['project'])
   })
 })

@@ -184,7 +184,15 @@ export function useAuthorizedPrefetch() {
             if (!context.isCurrent())
               throw new PathwaysClientError('Current workspace access is required.', 'unauthorized')
             const epoch = context.currentEpoch()
-            const value = await read(signal)
+            let value: unknown
+            try {
+              value = await read(signal)
+            } catch (error) {
+              // A denied key is recorded like a hook read, so repeat hovers do not refire.
+              if (isAuthorizationFailure(error))
+                context.recordDenial(JSON.stringify(queryKey), error)
+              throw error
+            }
             if (signal.aborted || !context.isCurrent())
               throw new PathwaysClientError('Current workspace access is required.', 'unauthorized')
             return { epoch, value }

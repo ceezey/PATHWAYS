@@ -5,6 +5,7 @@ import { renderHook } from '@testing-library/react'
 import { type ReactNode, createElement } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
+import { PathwaysClientError } from '@/lib/api/core/request'
 import { AuthorizedQueryContext, privateKey } from '@/providers/authorized-query-provider'
 
 import { useAuthorizedPrefetch } from './use-authorized-read'
@@ -22,6 +23,7 @@ const setup = (overrides: Record<string, unknown> = {}) => {
     isCurrent: () => true,
     currentEpoch: () => 0,
     deniedRead: () => null,
+    recordDenial: vi.fn(),
     ...overrides,
   }
   const wrapper = ({ children }: { children: ReactNode }) =>
@@ -81,6 +83,19 @@ describe('useAuthorizedPrefetch', () => {
     result.current('p1', s)
     await vi.waitFor(() =>
       expect(client.getQueryState([privateKey[0], 'identity-1', 'project', 'p1'])).toBeUndefined(),
+    )
+  })
+
+  it('records an authorization denial so a repeat hover does not refire', async () => {
+    const recordDenial = vi.fn()
+    const { result } = setup({ recordDenial })
+    const denial = new PathwaysClientError('Forbidden', 'forbidden', [], 403)
+    result.current('p1', spec('project', vi.fn().mockRejectedValue(denial)))
+    await vi.waitFor(() =>
+      expect(recordDenial).toHaveBeenCalledWith(
+        JSON.stringify([privateKey[0], 'identity-1', 'project', 'p1']),
+        denial,
+      ),
     )
   })
 })

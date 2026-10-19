@@ -38,7 +38,6 @@ import {
   toProjectTeamInput,
   toUpdateProjectInput,
 } from '../project-form.utils'
-import { useInvalidateProjectRead } from '../projects.reads'
 import { ProjectTeamSelectors } from '../team/project-team-selectors'
 import { hiddenTeamFields } from '../team/team-selection.utils'
 import { ProjectSetupFields } from './project-setup-fields'
@@ -108,7 +107,6 @@ const ProjectSetupFormContent = ({
     (!projectId || principalHasAtomicPermission(profile, 'budgets.update'))
   const canReadBudget = !projectId || principalHasAtomicPermission(profile, 'budgets.read')
   const router = useRouter()
-  const invalidateProjectRead = useInvalidateProjectRead()
   const [draftHydrated, setDraftHydrated] = useState(false)
   const [draftRecovered, setDraftRecovered] = useState(false)
   const [existingProject, setExistingProject] = useState<ProjectDetail | null>(null)
@@ -281,8 +279,6 @@ const ProjectSetupFormContent = ({
       if (!project) return
       if (!scope.isCurrent()) return
       if (!projectId) removeSensitiveDraft(projectDraftStorageKey)
-      // The edited project must not be served from the shared project read.
-      if (existingProject) void invalidateProjectRead(projectId ?? existingProject.id)
       toast.success(existingProject ? 'Project profile updated.' : 'Project profile created.')
       if (isSourceReplay(project)) {
         if (!projectId || !mutationContext?.isCurrent()) return

@@ -5,7 +5,6 @@ export { ProjectReviewWorkspace } from './components/project-review-workspace'
 export { ProjectSetupForm } from './components/project-setup-form'
 export { ProjectWorkspaceFrame } from './components/project-workspace-frame'
 export {
-  useInvalidateJourneyStagesRead,
   useProjectJourneyStagesRead,
   useProjectOverviewMetricsRead,
   useProjectRead,

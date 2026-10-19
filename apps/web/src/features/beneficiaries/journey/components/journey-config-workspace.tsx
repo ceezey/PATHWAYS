@@ -39,7 +39,6 @@ type WorkspaceProps = {
   activitiesLoading?: boolean
   activitiesFailed?: boolean
   onRetryActivities?: () => void
-  onSaved?: () => void
 }
 
 export const JourneyConfigWorkspace = ({
@@ -49,7 +48,6 @@ export const JourneyConfigWorkspace = ({
   activitiesLoading = false,
   activitiesFailed = false,
   onRetryActivities,
-  onSaved,
 }: WorkspaceProps) => {
   const { role, profile } = useCurrentRole()
   const canEdit = isUiActionAvailable(role, 'journeys.manage', profile)
@@ -103,7 +101,6 @@ export const JourneyConfigWorkspace = ({
     try {
       setStages(await journeysClient.saveJourneyStages(project.id, stages))
       toast.success('Journey-stage configuration saved.')
-      onSaved?.()
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Journey stages could not be saved.')
     } finally {

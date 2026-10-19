@@ -16,8 +16,6 @@ const testState = vi.hoisted(() => ({
   callOrder: [] as string[],
 }))
 
-const invalidateProjectRead = vi.hoisted(() => vi.fn())
-vi.mock('../projects.reads', () => ({ useInvalidateProjectRead: () => invalidateProjectRead }))
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: testState.routerPush }) }))
 vi.mock('sonner', () => ({ toast: { success: vi.fn() } }))
 vi.mock('@/lib/services/pathways-client', () => ({ pathwaysClient: {} }))
@@ -77,7 +75,6 @@ const project: ProjectDetail = {
 
 beforeEach(() => {
   testState.callOrder = []
-  invalidateProjectRead.mockReset()
   testState.createProject.mockReset().mockResolvedValue(project)
   testState.getProject.mockReset().mockResolvedValue(project)
   testState.getUsers.mockReset().mockResolvedValue([])
@@ -198,7 +195,6 @@ describe('ProjectSetupForm', () => {
     )
     expect(testState.updateProject.mock.calls[0][2].isCurrent()).toBe(true)
     expect(testState.routerPush).toHaveBeenCalledWith(`/projects/${project.id}`)
-    expect(invalidateProjectRead).toHaveBeenCalledWith(project.id)
   })
 })
 
