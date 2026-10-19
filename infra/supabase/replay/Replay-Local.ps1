@@ -601,6 +601,12 @@ END $$;
       Write-Output 'ACTIVITY_ESCALATIONS_RUNTIME=PASS'
       Measure-ReplayStep 'sql assessment-score-entry-runtime' { Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/assessment-score-entry-runtime.sql'))) $phase6Database }
       Write-Output 'ASSESSMENT_SCORE_ENTRY_RUNTIME=PASS'
+      # The suite reads the shared severity fixtures by a path relative to the repository root.
+      Push-Location $phase6Root
+      try {
+        Measure-ReplayStep 'sql severity-classification-runtime' { Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/severity-classification-runtime.sql'))) $phase6Database }
+      } finally { Pop-Location }
+      Write-Output 'SEVERITY_CLASSIFICATION_RUNTIME=PASS'
       Measure-ReplayStep 'sql zone-check-memo-runtime' { Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/zone-check-memo-runtime.sql'))) $phase6Database }
       Write-Output 'ZONE_CHECK_MEMO_RUNTIME=PASS'
       Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/beneficiary-reach-kpi-values-runtime.sql'))) $phase6Database

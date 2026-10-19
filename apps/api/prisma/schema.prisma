@@ -2092,7 +2092,7 @@ model AlertRule {
   description                  String?
   type                         AlertRuleType
   matchMode                    RuleMatchMode             @map("match_mode")
-  severity                     AlertSeverity             @default(MEDIUM)
+  severity                     AlertSeverity?
   status                       RuleStatus                @default(DRAFT)
   createdById                  String                    @map("created_by_id") @db.Uuid
   activatedById                String?                   @map("activated_by_id") @db.Uuid
@@ -2168,7 +2168,7 @@ model RuleBasedAlert {
   activityId                   String?                  @map("activity_id") @db.Uuid
   title                        String
   message                      String
-  severity                     AlertSeverity
+  severity                     AlertSeverity?
   observedValues               Json                     @map("observed_values")
   evaluatedSnapshot            Json                     @map("evaluated_snapshot")
   evaluatedById                String?                  @map("evaluated_by_id") @db.Uuid

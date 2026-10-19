@@ -68,7 +68,7 @@ CREATE FUNCTION pg_temp.make_rule(tag text,project integer,metric text,operator 
 RETURNS void LANGUAGE plpgsql AS $$
 DECLARE created jsonb;
 BEGIN
- created:=pathways.f10_rule_create(jsonb_build_object('name','Rule '||tag,'severity','HIGH','code','F10-'||upper(tag),
+ created:=pathways.f10_rule_create(jsonb_build_object('name','Rule '||tag,'severity',NULL,'code','F10-'||upper(tag),
   'projectId',pg_temp.u(project),'clientOperationId',pg_temp.u(op),
   'conditions',jsonb_build_object('kind','CONDITION','id','c1','metric',metric,'operator',operator,'threshold',threshold),
   'recommendations',(SELECT jsonb_agg(jsonb_build_object('id',pg_temp.u(op*10+g),'title','Action '||g,'text','Synthetic action '||g)) FROM generate_series(1,recs) g)));
@@ -185,7 +185,7 @@ SELECT pg_temp.ok((SELECT count(*) FROM pathways.decision_recommendations WHERE 
 
 -- G-F10-3 stored-rule abuse: closed shapes only, each refused with 22023.
 CREATE FUNCTION pg_temp.rule_input(cond jsonb,extra jsonb DEFAULT '{}',rec_extra jsonb DEFAULT '{}') RETURNS jsonb LANGUAGE sql AS $$
- SELECT jsonb_build_object('name','Abuse','severity','HIGH','code','F10-ABUSE','projectId',pg_temp.u(301),'clientOperationId',pg_temp.u(9600),
+ SELECT jsonb_build_object('name','Abuse','severity',NULL,'code','F10-ABUSE','projectId',pg_temp.u(301),'clientOperationId',pg_temp.u(9600),
   'conditions',cond,'recommendations',jsonb_build_array(jsonb_build_object('id',pg_temp.u(9601),'title','T','text','X')||rec_extra))||extra
 $$;
 BEGIN;
@@ -200,9 +200,37 @@ SELECT pg_temp.reject(format('SELECT pathways.f10_rule_create(%L::jsonb)',pg_tem
  '{"kind":"CONDITION","id":"c1","metric":"PROJECT_OVERDUE_DAYS","operator":"GT","threshold":"0"}','{"script":"x"}')),'22023','extra top-level key');
 SELECT pg_temp.reject(format('SELECT pathways.f10_rule_create(%L::jsonb)',pg_temp.rule_input(
  '{"kind":"CONDITION","id":"c1","metric":"PROJECT_OVERDUE_DAYS","operator":"GT","threshold":"0"}','{}','{"html":"<b>"}')),'22023','recommendation with an extra key');
+-- 0072: severity is null or the manual CRITICAL mark, and expectations are two optional decimals from 0 to 100.
+SELECT pg_temp.reject(format('SELECT pathways.f10_rule_create(%L::jsonb)',pg_temp.rule_input(
+ '{"kind":"CONDITION","id":"c1","metric":"PROJECT_OVERDUE_DAYS","operator":"GT","threshold":"0"}','{"severity":"HIGH"}')),'22023','author-chosen HIGH severity');
+SELECT pg_temp.reject(format('SELECT pathways.f10_rule_create(%L::jsonb)',pg_temp.rule_input(
+ '{"kind":"CONDITION","id":"c1","metric":"PROJECT_OVERDUE_DAYS","operator":"GT","threshold":"0"}')-'severity'),'22023','missing severity');
+SELECT pg_temp.reject(format('SELECT pathways.f10_rule_create(%L::jsonb)',pg_temp.rule_input(
+ '{"kind":"CONDITION","id":"c1","metric":"PROJECT_OVERDUE_DAYS","operator":"GT","threshold":"0"}','{"expectations":{"expectedScoreImprovement":"100.0001"}}')),'22023','expectation above 100');
+SELECT pg_temp.reject(format('SELECT pathways.f10_rule_create(%L::jsonb)',pg_temp.rule_input(
+ '{"kind":"CONDITION","id":"c1","metric":"PROJECT_OVERDUE_DAYS","operator":"GT","threshold":"0"}','{"expectations":{"manageableFollowUpPercent":10}}')),'22023','expectation as a JSON number');
+SELECT pg_temp.reject(format('SELECT pathways.f10_rule_create(%L::jsonb)',pg_temp.rule_input(
+ '{"kind":"CONDITION","id":"c1","metric":"PROJECT_OVERDUE_DAYS","operator":"GT","threshold":"0"}','{"expectations":{"target":"1"}}')),'22023','expectation with an extra key');
+INSERT INTO t_out SELECT 'rule_expect',pathways.f10_rule_create(pg_temp.rule_input(
+ '{"kind":"CONDITION","id":"c1","metric":"SURVEY_MEAN_IMPROVEMENT_POINTS","operator":"LT","threshold":"5"}',
+ jsonb_build_object('severity','CRITICAL','code','F10-EXPECT','clientOperationId',pg_temp.u(9610),
+  'expectations',jsonb_build_object('expectedScoreImprovement','10.50','manageableFollowUpPercent',NULL))));
 SELECT pg_temp.reject(format('SELECT pathways.f10_rule_draft(%L,%L::jsonb)',(SELECT (doc->>'id')::uuid FROM t_out WHERE name='rule_p1'),
  (pg_temp.rule_input('{"kind":"CONDITION","id":"c1","metric":"FOO","operator":"GT","threshold":"0"}')-'code'-'projectId')||'{"expectedVersion":1}'),'22023','draft with a metric outside the catalog');
 COMMIT;
+SELECT pg_temp.ok((SELECT doc->'severity'='null'::jsonb AND doc->'expectations'='{"expectedScoreImprovement":null,"manageableFollowUpPercent":null}'::jsonb
+  FROM t_out WHERE name='rule_p1')
+ AND (SELECT doc->>'severity'='CRITICAL' AND doc->'expectations'='{"expectedScoreImprovement":"10.5","manageableFollowUpPercent":null}'::jsonb
+  FROM t_out WHERE name='rule_expect')
+ AND (SELECT expected_score_improvement=10.5 AND manageable_follow_up_percent IS NULL FROM pathways.alert_rules
+  WHERE id=(SELECT (doc->>'id')::uuid FROM t_out WHERE name='rule_expect')),'0072 rule severity and expectations stored and read');
+-- A digest without expectations keeps its pre-0072 form; set expectations join it.
+SELECT pg_temp.ok((SELECT bool_and(r.definition_digest=sha256(convert_to((jsonb_build_object('name',r.name,'severity',r.severity,
+   'conditions',r.conditions_json,'recommendations',(SELECT jsonb_agg(jsonb_build_object('id',t.id,'title',t.title,'text',t.text) ORDER BY t.title)
+    FROM pathways.alert_rule_recommendations t WHERE t.rule_id=r.id))
+   ||CASE WHEN r.id=(SELECT (doc->>'id')::uuid FROM t_out WHERE name='rule_expect') THEN
+    '{"expectations":{"expectedScoreImprovement":"10.5","manageableFollowUpPercent":null}}'::jsonb ELSE '{}'::jsonb END)::text,'UTF8')))
+  FROM pathways.alert_rules r WHERE r.id IN (SELECT (doc->>'id')::uuid FROM t_out WHERE name IN ('rule_p1','rule_expect'))),'0072 definition digest form');
 
 -- (3) Recommit with the same arguments writes nothing, no second job, sweep and drain keep one latched alert.
 BEGIN;

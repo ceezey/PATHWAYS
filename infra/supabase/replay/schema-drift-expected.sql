@@ -203,7 +203,9 @@ DROP INDEX "pathways"."f10_rule_scoped_id";
 ALTER TABLE "pathways"."alert_rules" DROP COLUMN "conditions_json",
 DROP COLUMN "definition_digest",
 DROP COLUMN "display_code",
+DROP COLUMN "expected_score_improvement",
 DROP COLUMN "logical_rule_id",
+DROP COLUMN "manageable_follow_up_percent",
 DROP COLUMN "project_id",
 DROP COLUMN "runtime_contract_version",
 DROP COLUMN "template_origin_id";
@@ -223,7 +225,9 @@ DROP COLUMN "latest_evaluation_id",
 DROP COLUMN "lifecycle",
 DROP COLUMN "origin_snapshot_id",
 DROP COLUMN "revision",
-DROP COLUMN "runtime_contract_version";
+DROP COLUMN "runtime_contract_version",
+DROP COLUMN "severity_basis",
+DROP COLUMN "severity_change";
 
 -- DropTable
 DROP TABLE "auth"."sessions";

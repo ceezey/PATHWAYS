@@ -374,11 +374,11 @@ export async function postconditions(io, config) {
     JSON.stringify(names) !== JSON.stringify(expectedNames)
   ) {
     throw new Error(
-      `Ledger postcondition failed: expected exactly the ${MIGRATIONS_IN_ORDER.length} migrations 0000-0071, all finished and none failed`,
+      `Ledger postcondition failed: expected exactly the ${MIGRATIONS_IN_ORDER.length} migrations 0000-0072, all finished and none failed`,
     )
   }
   console.log(
-    `PASS: ledger has exactly ${MIGRATIONS_IN_ORDER.length} migrations 0000-0071, all finished and none failed`,
+    `PASS: ledger has exactly ${MIGRATIONS_IN_ORDER.length} migrations 0000-0072, all finished and none failed`,
   )
 
   const residualRows = io.psqlQuery(
@@ -612,7 +612,7 @@ function printDryRunPlan(log = console.log) {
     'env file location, empty-target preflight (pathways schema absent, auth.users present, prisma absent).',
   )
   log(
-    'Checks that will run after the last step: exact 0000-0071 finished ledger, no residual prisma owner',
+    'Checks that will run after the last step: exact 0000-0072 finished ledger, no residual prisma owner',
   )
   log('memberships, repo-derived role/permission/grant counts.')
 }
