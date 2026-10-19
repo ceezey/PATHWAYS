@@ -1,7 +1,8 @@
--- 0072 severity classification, part 1 (cr-pathways-severity-classification 3.2 to 3.7, severity-guide-v0.2).
+-- 0072 severity classification (cr-pathways-severity-classification 3.2 to 3.7, severity-guide-v0.2).
 -- Storage: alert_rules.severity becomes nullable with no default (null lets the system decide, CRITICAL is the author's
 -- manual mark) and gains two optional expectations (expected score improvement and manageable follow-up level, 0 to 100);
--- rule_based_alerts.severity becomes nullable and gains severity_basis and severity_change. Earlier rows are not touched.
+-- rule_based_alerts.severity becomes nullable (only when the basis needs context) and gains severity_basis and
+-- severity_change. Earlier rows are not touched.
 -- Replaced, each by its own owner, keeping signature, owner, ACL, security mode, volatility and empty search_path:
 --  * rules_config_owner: validate_configuration_input (severity is null or CRITICAL, optional expectations) and
 --    configuration_operation (stores expectations; they join the definition digest only when set);
@@ -10,7 +11,13 @@
 --    capture_rule_snapshot (manifest entries carry expectations).
 -- New prisma-owned IMMUTABLE invoker functions: classify_alert_severity and its four helpers, the SQL twin of the shared
 -- classifyAlertSeverity, executable only by rules_commit_owner. Column SELECT for the new rule columns and indicator target_date.
--- Part 2 (classification at snapshot commit and the alert read model) follows in this file.
+-- Part 2, again each by its own owner:
+--  * rules_commit_owner: commit_rule_snapshot classifies every matched evaluation into its evidence, sets a new alert's
+--    severity (CRITICAL when the rule is marked, otherwise the suggested level) and, on a matched re-evaluation of an
+--    open alert that has a basis, moves the basis and, when status or level changed, the severity with a change record;
+--  * rules_runtime_guard_owner: assert_runtime_mutation lets the commit write those columns, only with that basis;
+--  * rules_human_owner: alert_json adds severityBasis and severityChange.
+-- Lifecycle, notifications and recommendations are never changed by a severity change; alerts without a basis keep theirs.
 -- DBA prerequisite: run hosted-rules-severity-preprovision.sql first and hosted-rules-severity-cleanup.sql afterwards
 -- (after a failure, run prisma migrate resolve --rolled-back first). rules_store_owner lends schema USAGE and CREATE.
 BEGIN;
@@ -22,12 +29,13 @@ DO $$ DECLARE fn record; wanted record; BEGIN
  THEN RAISE EXCEPTION '0072 requires the verified 0071 state and migration identity'; END IF;
  IF NOT pg_catalog.pg_has_role('prisma','rules_store_owner','SET') OR NOT pg_catalog.pg_has_role('prisma','rules_projection_owner','SET')
   OR NOT pg_catalog.pg_has_role('prisma','rules_config_owner','SET') OR NOT pg_catalog.pg_has_role('prisma','rules_human_owner','SET')
+  OR NOT pg_catalog.pg_has_role('prisma','rules_commit_owner','SET') OR NOT pg_catalog.pg_has_role('prisma','rules_runtime_guard_owner','SET')
  THEN RAISE EXCEPTION '0072 requires the temporary rules owner SET chain (run hosted-rules-severity-preprovision.sql)'; END IF;
  IF (SELECT pg_catalog.pg_get_userbyid(nspowner) FROM pg_catalog.pg_namespace WHERE nspname='pathways_rules_internal')<>'rules_store_owner'
   OR (SELECT pg_catalog.pg_get_userbyid(relowner) FROM pg_catalog.pg_class WHERE oid='pathways.alert_rules'::pg_catalog.regclass)<>'prisma'
   OR (SELECT pg_catalog.pg_get_userbyid(relowner) FROM pg_catalog.pg_class WHERE oid='pathways.rule_based_alerts'::pg_catalog.regclass)<>'prisma'
-  OR EXISTS(SELECT FROM pg_catalog.pg_roles r WHERE r.rolname IN ('prisma','rules_projection_owner','rules_config_owner','rules_human_owner')
-   AND pg_catalog.has_schema_privilege(r.oid,'pathways_rules_internal','CREATE'))
+  OR EXISTS(SELECT FROM pg_catalog.pg_roles r WHERE r.rolname IN ('prisma','rules_projection_owner','rules_config_owner','rules_human_owner',
+   'rules_commit_owner','rules_runtime_guard_owner') AND pg_catalog.has_schema_privilege(r.oid,'pathways_rules_internal','CREATE'))
  THEN RAISE EXCEPTION '0072 requires the reviewed schema and table owners and no earlier schema CREATE'; END IF;
  IF EXISTS(SELECT FROM pg_catalog.pg_attribute WHERE NOT attisdropped AND attnum>0
    AND ((attrelid='pathways.alert_rules'::pg_catalog.regclass AND attname IN ('expected_score_improvement','manageable_follow_up_percent'))
@@ -42,7 +50,10 @@ DO $$ DECLARE fn record; wanted record; BEGIN
   (1,'pathways_rules_internal.configuration_operation(uuid,jsonb,text)','rules_config_owner',true,'v','edbaf221645a04c039d494097b73c4fd'),
   (2,'pathways_rules_internal.rule_json(uuid)','rules_human_owner',false,'s','519d441502e52ba1e9a403fd99215901'),
   (3,'pathways_rules_internal.project_metric_observation(uuid,uuid,text,uuid,uuid,timestamp with time zone,date)','rules_projection_owner',true,'s','5dba57ac3d29beaeb201db5d51cb5e6e'),
-  (4,'pathways_rules_internal.capture_rule_snapshot(uuid,text)','rules_projection_owner',true,'v','0ed70417ea4783a8972f7a882c977560')
+  (4,'pathways_rules_internal.capture_rule_snapshot(uuid,text)','rules_projection_owner',true,'v','0ed70417ea4783a8972f7a882c977560'),
+  (5,'pathways_rules_internal.assert_runtime_mutation(oid,text,jsonb,jsonb)','rules_runtime_guard_owner',true,'v','5471c4a385d7bef25f59b068fa95c6e8'),
+  (6,'pathways_rules_internal.commit_rule_snapshot(uuid,text,uuid,bytea)','rules_commit_owner',true,'v','78bdeafefc3861eba6aeb5fa395296dd'),
+  (7,'pathways_rules_internal.alert_json(uuid)','rules_human_owner',false,'v','34642b36d3ff722a7686417c83cbff89')
  ) w(n,signature,owner,definer,volatility,source_md5) LOOP
   SELECT p.* INTO fn FROM pg_catalog.pg_proc p WHERE p.oid::pg_catalog.regprocedure::pg_catalog.text=wanted.signature;
   IF NOT FOUND OR pg_catalog.pg_get_userbyid(fn.proowner)<>wanted.owner OR fn.prosecdef IS DISTINCT FROM wanted.definer
@@ -54,11 +65,12 @@ DO $$ DECLARE fn record; wanted record; BEGIN
 END $$;
 SELECT pg_advisory_xact_lock(505005,1);
 
--- 0. The schema owner lends prisma USAGE and CREATE, and the three function owners CREATE, until step 6.
+-- 0. The schema owner lends prisma USAGE and CREATE, and the five function owners CREATE, until step 7.
 SELECT pg_catalog.set_config('pathways_0072.had_usage',pg_catalog.has_schema_privilege('prisma','pathways_rules_internal','USAGE')::text,true);
 SET LOCAL ROLE rules_store_owner;
 GRANT USAGE,CREATE ON SCHEMA pathways_rules_internal TO prisma;
-GRANT CREATE ON SCHEMA pathways_rules_internal TO rules_projection_owner,rules_config_owner,rules_human_owner;
+GRANT CREATE ON SCHEMA pathways_rules_internal TO rules_projection_owner,rules_config_owner,rules_human_owner,
+ rules_commit_owner,rules_runtime_guard_owner;
 RESET ROLE;
 
 -- 1. Storage on the prisma-owned tables; existing rows keep their values and no row is backfilled.
@@ -68,7 +80,11 @@ ALTER TABLE pathways.alert_rules ALTER COLUMN severity DROP DEFAULT, ALTER COLUM
  ADD CONSTRAINT alert_rules_manageable_follow_up_percent_range CHECK (manageable_follow_up_percent>=0 AND manageable_follow_up_percent<=100);
 ALTER TABLE pathways.rule_based_alerts ALTER COLUMN severity DROP NOT NULL,
  ADD COLUMN severity_basis jsonb, ADD COLUMN severity_change jsonb,
- ADD CONSTRAINT rule_based_alerts_severity_basis_check CHECK (severity IS NOT NULL OR severity_basis->>'status'='CONTEXT_REQUIRED');
+ ADD CONSTRAINT rule_based_alerts_severity_basis_check
+  CHECK (severity IS NOT NULL OR (severity_basis->>'status') IS NOT DISTINCT FROM 'CONTEXT_REQUIRED');
+-- The commit writes the severity columns and the human read model shows the basis and its change.
+GRANT UPDATE(severity,severity_basis,severity_change) ON pathways.rule_based_alerts TO rules_commit_owner;
+GRANT SELECT(severity_basis,severity_change) ON pathways.rule_based_alerts TO rules_human_owner;
 GRANT SELECT(expected_score_improvement,manageable_follow_up_percent) ON pathways.alert_rules
  TO rules_projection_owner,rules_commit_owner,rules_human_owner;
 GRANT SELECT(target_date) ON pathways.project_indicators TO rules_projection_owner;
@@ -744,22 +760,512 @@ GRANT EXECUTE ON FUNCTION pathways_rules_internal.severity_shown(numeric,numeric
  pathways_rules_internal.severity_node_result(jsonb,jsonb),pathways_rules_internal.severity_condition_basis(jsonb,jsonb,jsonb),
  pathways_rules_internal.classify_alert_severity(jsonb,jsonb,jsonb,jsonb,text) TO rules_commit_owner;
 
--- 6. The schema owner takes back every loan from step 0.
+-- 6. Part 2: classification at snapshot commit and the alert read model, each function replaced by its own owner.
+SET LOCAL ROLE rules_runtime_guard_owner;
+CREATE OR REPLACE FUNCTION pathways_rules_internal.assert_runtime_mutation(
+ wanted_relation oid,wanted_action text,old_row jsonb,new_row jsonb
+) RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$
+DECLARE intent pathways_rules_internal.runtime_mutation_intents;
+ config pathways_rules_internal.configuration_context;
+ relation_name text; row_id uuid; org uuid; project uuid; permission text; human_rule uuid;
+BEGIN
+ IF wanted_action NOT IN ('INSERT','UPDATE') OR new_row IS NULL
+  OR pg_catalog.jsonb_typeof(new_row)<>'object'
+  OR (wanted_action='INSERT' AND old_row IS NOT NULL)
+  OR (wanted_action='UPDATE' AND (old_row IS NULL OR pg_catalog.jsonb_typeof(old_row)<>'object'))
+  OR wanted_relation NOT IN ('pathways.alert_rules'::regclass,'pathways.alert_rule_recommendations'::regclass,
+    'pathways.rule_based_alerts'::regclass,'pathways.decision_recommendations'::regclass) THEN
+  RAISE EXCEPTION 'Runtime mutation unavailable' USING ERRCODE='42501'; END IF;
+ row_id:=(new_row->>'id')::uuid; org:=(new_row->>'organization_id')::uuid;
+ project:=(new_row->>'project_id')::uuid;
+ IF wanted_relation='pathways.alert_rule_recommendations'::regclass THEN
+  SELECT r.project_id INTO project FROM pathways.alert_rules r
+   WHERE r.id=(new_row->>'rule_id')::uuid AND r.organization_id=org AND r.runtime_contract_version='f10.v1';
+  IF NOT FOUND THEN RAISE EXCEPTION 'Runtime parent unavailable' USING ERRCODE='42501'; END IF;
+ END IF;
+ IF row_id IS NULL OR org IS NULL THEN RAISE EXCEPTION 'Runtime mutation unavailable' USING ERRCODE='42501'; END IF;
+ SELECT i.* INTO intent FROM pathways_rules_internal.runtime_mutation_intents i
+  WHERE i.transaction_id=pg_catalog.pg_current_xact_id() AND i.backend_pid=pg_catalog.pg_backend_pid()
+   AND i.login_name=session_user AND i.relation_oid=wanted_relation AND i.action=wanted_action
+   AND i.record_id=row_id AND i.organization_id=org AND NOT i.consumed
+  FOR NO KEY UPDATE;
+ IF NOT FOUND OR intent.expected_old IS DISTINCT FROM old_row OR intent.expected_new IS DISTINCT FROM new_row
+  OR intent.project_id IS DISTINCT FROM project THEN
+  RAISE EXCEPTION 'Runtime mutation unavailable' USING ERRCODE='42501'; END IF;
+ IF old_row IS NOT NULL AND ((old_row->'id',old_row->'organization_id',old_row->'project_id')
+      IS DISTINCT FROM (new_row->'id',new_row->'organization_id',new_row->'project_id')) THEN
+  RAISE EXCEPTION 'Runtime scope is immutable' USING ERRCODE='23514'; END IF;
+ IF old_row IS NOT NULL AND new_row->'runtime_contract_version' IS DISTINCT FROM old_row->'runtime_contract_version' THEN
+  RAISE EXCEPTION 'Runtime contract is immutable' USING ERRCODE='23514'; END IF;
+ relation_name:=CASE wanted_relation WHEN 'pathways.alert_rules'::regclass THEN 'RULE'
+  WHEN 'pathways.alert_rule_recommendations'::regclass THEN 'TEMPLATE'
+  WHEN 'pathways.rule_based_alerts'::regclass THEN 'ALERT' ELSE 'RECOMMENDATION' END;
+
+ IF intent.purpose='COMMIT' THEN
+  IF session_user<>'pathways_rules_worker' OR relation_name NOT IN ('ALERT','RECOMMENDATION')
+   OR project IS NULL OR NOT EXISTS(
+    SELECT FROM pathways_rules_internal.projection_context c
+    JOIN pathways_rules_internal.jobs j ON j.id=c.job_id AND j.organization_id=c.organization_id AND j.project_id=c.project_id
+    JOIN pathways_rules_internal.snapshots s ON s.id=c.snapshot_id AND s.job_id=j.id
+      AND s.organization_id=j.organization_id AND s.project_id=j.project_id
+    WHERE c.transaction_id=pg_catalog.pg_current_xact_id() AND c.backend_pid=pg_catalog.pg_backend_pid()
+     AND c.login_name=session_user AND c.purpose='COMMIT' AND c.snapshot_id=intent.operation_id
+     AND c.organization_id=org AND c.project_id=project AND j.state='LEASED'
+     AND j.lease_session=session_user AND j.lease_hash=c.lease_hash AND s.lease_hash=c.lease_hash
+     AND j.lease_expires_at>pg_catalog.clock_timestamp()+interval '3 seconds'
+     AND c.expires_at=j.lease_expires_at) THEN
+   RAISE EXCEPTION 'Runtime commit unavailable' USING ERRCODE='42501'; END IF;
+  IF wanted_action='INSERT' AND (
+    new_row->>'attribution' IS DISTINCT FROM 'SYSTEM'
+    OR (relation_name='ALERT' AND new_row->'evaluated_by_id' IS DISTINCT FROM 'null'::jsonb)
+    OR (relation_name='RECOMMENDATION' AND new_row->'proposed_by_id' IS DISTINCT FROM 'null'::jsonb)) THEN
+   RAISE EXCEPTION 'Runtime system attribution required' USING ERRCODE='23514'; END IF;
+  -- An undecided recommendation closes with its auto-resolved alert (0059) and an alert may move its severity (0072); no other commit write is permitted.
+  IF wanted_action='UPDATE' AND NOT (
+   (relation_name='ALERT' AND (new_row-ARRAY['lifecycle','revision','latest_evaluation_id','updated_at','severity','severity_basis','severity_change'])
+      IS NOT DISTINCT FROM (old_row-ARRAY['lifecycle','revision','latest_evaluation_id','updated_at','severity','severity_basis','severity_change']))
+   OR (relation_name='RECOMMENDATION'
+    AND (new_row-ARRAY['status','revision','updated_at']) IS NOT DISTINCT FROM (old_row-ARRAY['status','revision','updated_at'])
+    AND old_row->>'status' IN ('NEW','REVIEWED') AND new_row->>'status'='AUTO_RESOLVED'
+    AND EXISTS(SELECT FROM pathways.rule_based_alerts a
+     JOIN pathways_rules_internal.evaluations e ON e.id=a.latest_evaluation_id AND e.organization_id=a.organization_id
+      AND e.project_id=a.project_id AND e.rule_version_id=a.rule_id
+     WHERE a.id=(new_row->>'alert_id')::uuid AND a.organization_id=org AND a.project_id=project
+      AND a.lifecycle='AUTO_RESOLVED' AND e.snapshot_id=intent.operation_id AND e.result='FALSE')
+    AND NOT EXISTS(SELECT FROM pathways_rules_internal.decisions d WHERE d.organization_id=org AND d.project_id=project
+     AND d.recommendation_id=row_id))) THEN
+   RAISE EXCEPTION 'Runtime commit write set unavailable' USING ERRCODE='23514'; END IF;
+ ELSIF intent.purpose='FEATURE_HUMAN' THEN
+  IF session_user<>'pathways_runtime' OR relation_name NOT IN ('ALERT','RECOMMENDATION')
+   OR wanted_action<>'UPDATE' OR org IS DISTINCT FROM nullif(pg_catalog.current_setting('app.organization_id',true),'')::uuid
+   OR pathways_rules_internal.feature_human_scope(org,project) IS DISTINCT FROM true
+   OR NOT EXISTS(SELECT FROM pathways_rules_internal.feature_operation_context c
+    WHERE c.transaction_id=pg_catalog.pg_current_xact_id() AND c.backend_pid=pg_catalog.pg_backend_pid()
+     AND c.login_name=session_user AND c.organization_id=org AND c.project_id=project
+     AND c.actor_id=nullif(pg_catalog.current_setting('app.user_id',true),'')::uuid AND c.operation_id=intent.operation_id
+     AND ((relation_name='ALERT' AND c.alert_id=row_id)
+       OR (relation_name='RECOMMENDATION' AND c.recommendation_id=row_id))
+     AND (relation_name<>'ALERT' OR c.operation_code='ALERT_REVIEW'
+       OR pathways.p06_can('alerts.outcome.record',project) IS TRUE)
+     AND (relation_name<>'RECOMMENDATION' OR c.operation_code='RECOMMENDATION_REVIEW'
+       OR pathways.p06_can('recommendations.outcome.record',project) IS TRUE)) THEN
+   RAISE EXCEPTION 'Runtime human mutation unavailable' USING ERRCODE='42501'; END IF;
+  IF relation_name='ALERT' THEN human_rule:=(new_row->>'rule_id')::uuid;
+  ELSE SELECT a.rule_id INTO human_rule FROM pathways.rule_based_alerts a
+   WHERE a.id=(new_row->>'alert_id')::uuid AND a.organization_id=org AND a.project_id=project
+    AND a.runtime_contract_version='f10.v1'; END IF;
+  IF human_rule IS NULL OR pathways_rules_internal.rule_exposure_allowed(human_rule) IS DISTINCT FROM true THEN
+   RAISE EXCEPTION 'Runtime human exposure unavailable' USING ERRCODE='42501'; END IF;
+  IF (relation_name='ALERT' AND (new_row-ARRAY['lifecycle','revision','updated_at'])
+      IS DISTINCT FROM (old_row-ARRAY['lifecycle','revision','updated_at']))
+   OR (relation_name='RECOMMENDATION' AND (new_row-ARRAY['status','revision','private_review_id','reviewed_by_id','reviewed_at','updated_at'])
+      IS DISTINCT FROM (old_row-ARRAY['status','revision','private_review_id','reviewed_by_id','reviewed_at','updated_at'])) THEN
+   RAISE EXCEPTION 'Runtime human write set unavailable' USING ERRCODE='23514'; END IF;
+ ELSIF intent.purpose='CONFIGURATION' THEN
+  IF session_user<>'pathways_runtime' OR relation_name NOT IN ('RULE','TEMPLATE')
+   OR org IS DISTINCT FROM nullif(pg_catalog.current_setting('app.organization_id',true),'')::uuid THEN
+   RAISE EXCEPTION 'Runtime configuration context unavailable' USING ERRCODE='42501'; END IF;
+  SELECT c.* INTO config FROM pathways_rules_internal.configuration_context c
+   WHERE c.transaction_id=pg_catalog.pg_current_xact_id() AND c.backend_pid=pg_catalog.pg_backend_pid()
+    AND c.login_name=session_user AND c.organization_id=org AND c.project_id IS NOT DISTINCT FROM project
+    AND c.actor_id=nullif(pg_catalog.current_setting('app.user_id',true),'')::uuid AND c.operation_id=intent.operation_id
+    AND ((relation_name='RULE' AND (c.target_rule_id=row_id OR
+       (c.operation_code='RULE_ACTIVATE' AND wanted_action='UPDATE' AND c.predecessor_rule_id=row_id)))
+      OR (relation_name='TEMPLATE' AND c.target_rule_id=(new_row->>'rule_id')::uuid));
+  IF NOT FOUND THEN RAISE EXCEPTION 'Runtime configuration context unavailable' USING ERRCODE='42501'; END IF;
+  permission:=CASE config.operation_code WHEN 'RULE_CREATE' THEN 'rules.create' WHEN 'RULE_ACTIVATE' THEN 'rules.activate' ELSE 'rules.update' END;
+  IF pathways.p09_can(permission) IS DISTINCT FROM true
+   OR (project IS NOT NULL AND pathways.p06_can(permission,project) IS DISTINCT FROM true) OR
+    (project IS NOT NULL AND NOT EXISTS(SELECT FROM pathways_rules_internal.project_state s
+      WHERE s.organization_id=org AND s.project_id=project AND s.bootstrap_complete
+       AND s.required_generation=config.admitted_generation AND s.source_watermark=config.admitted_watermark)) THEN
+   RAISE EXCEPTION 'Runtime configuration authority unavailable' USING ERRCODE='42501'; END IF;
+  IF relation_name='RULE' THEN
+   IF new_row->>'runtime_contract_version' IS DISTINCT FROM 'f10.v1'
+    OR (wanted_action='INSERT' AND (new_row->>'status' IS DISTINCT FROM 'DRAFT'
+      OR new_row->>'created_by_id' IS DISTINCT FROM config.actor_id::text
+      OR new_row->'activated_at' IS DISTINCT FROM 'null'::jsonb)) THEN
+    RAISE EXCEPTION 'Runtime draft origin unavailable' USING ERRCODE='23514'; END IF;
+   IF wanted_action='UPDATE' THEN
+    IF (new_row-ARRAY['status','activated_by_id','activated_at','archived_at','updated_at'])
+       IS DISTINCT FROM (old_row-ARRAY['status','activated_by_id','activated_at','archived_at','updated_at'])
+     OR NOT ((config.operation_code='RULE_ACTIVATE' AND old_row->>'status'='DRAFT' AND new_row->>'status'='ACTIVE'
+       AND new_row->>'activated_by_id'=config.actor_id::text AND new_row->'activated_at'<>'null'::jsonb)
+      OR (config.operation_code IN ('RULE_ACTIVATE','RULE_ARCHIVE') AND old_row->>'status'='ACTIVE' AND new_row->>'status'='ARCHIVED'
+       AND new_row->'activated_by_id'=old_row->'activated_by_id' AND new_row->'activated_at'=old_row->'activated_at'
+       AND new_row->'archived_at'<>'null'::jsonb)) THEN
+     RAISE EXCEPTION 'Activated runtime rule is immutable' USING ERRCODE='23514'; END IF;
+   END IF;
+  ELSE
+   IF wanted_action<>'INSERT' OR new_row->>'created_by_id' IS DISTINCT FROM config.actor_id::text
+    OR NOT EXISTS(SELECT FROM pathways.alert_rules r WHERE r.id=config.target_rule_id
+      AND r.organization_id=org AND r.project_id IS NOT DISTINCT FROM project
+      AND r.runtime_contract_version='f10.v1' AND r.status='DRAFT' AND r.activated_at IS NULL) THEN
+    RAISE EXCEPTION 'Activated runtime templates are immutable' USING ERRCODE='23514'; END IF;
+  END IF;
+ ELSE RAISE EXCEPTION 'Runtime purpose unavailable' USING ERRCODE='42501'; END IF;
+
+ IF relation_name='ALERT' THEN
+  IF new_row->>'lifecycle' IS NULL OR new_row->>'revision' IS NULL
+   OR new_row->>'lifecycle' NOT IN ('NEW','REVIEWED','ACTIONED','RESOLVED','DISMISSED','AUTO_RESOLVED')
+   OR (new_row->>'revision')::bigint<=0
+   OR (old_row IS NOT NULL AND (new_row->>'revision')::bigint<>(old_row->>'revision')::bigint+1)
+   OR (wanted_action='INSERT' AND (new_row->>'lifecycle'<>'NEW' OR (new_row->>'revision')::bigint<>1)) THEN
+   RAISE EXCEPTION 'Runtime lifecycle unavailable' USING ERRCODE='23514'; END IF;
+  IF old_row IS NOT NULL AND old_row->>'lifecycle' IN ('RESOLVED','DISMISSED','AUTO_RESOLVED')
+    AND new_row->>'lifecycle' IS DISTINCT FROM old_row->>'lifecycle' THEN
+   RAISE EXCEPTION 'Terminal runtime lifecycle is immutable' USING ERRCODE='23514'; END IF;
+  IF intent.purpose='COMMIT' AND NOT EXISTS(
+   SELECT FROM pathways_rules_internal.evaluations e
+   WHERE e.id=(new_row->>'latest_evaluation_id')::uuid AND e.snapshot_id=intent.operation_id
+    AND e.organization_id=org AND e.project_id=project
+    AND e.rule_version_id=(new_row->>'rule_id')::uuid
+    AND (wanted_action<>'INSERT' OR (e.result='TRUE' AND e.evidence=new_row->'evaluated_snapshot'))
+    -- Severity moves only with a new basis, which must be the one stored on this commit's matched evaluation (0072).
+    AND ((new_row->'severity_basis' IS NOT DISTINCT FROM old_row->'severity_basis' AND new_row->'severity' IS NOT DISTINCT FROM old_row->'severity')
+     OR (e.result='TRUE' AND e.evidence->'severityBasis'=new_row->'severity_basis'))) THEN
+   RAISE EXCEPTION 'Runtime evaluation provenance unavailable' USING ERRCODE='23514'; END IF;
+  IF intent.purpose='COMMIT' AND old_row IS NOT NULL
+   AND new_row->>'lifecycle' IS DISTINCT FROM old_row->>'lifecycle'
+   AND NOT (old_row->>'lifecycle' IN ('NEW','REVIEWED','ACTIONED')
+    AND new_row->>'lifecycle'='AUTO_RESOLVED' AND EXISTS(
+     SELECT FROM pathways_rules_internal.evaluations e WHERE e.id=(new_row->>'latest_evaluation_id')::uuid
+      AND e.snapshot_id=intent.operation_id AND e.organization_id=org AND e.project_id=project AND e.result='FALSE')) THEN
+   RAISE EXCEPTION 'Runtime automatic clearance unavailable' USING ERRCODE='23514'; END IF;
+  IF intent.purpose='FEATURE_HUMAN' THEN
+   IF NOT EXISTS(
+    SELECT FROM pathways_rules_internal.feature_operation_context c
+    JOIN pathways_rules_internal.feature_operation_receipts o ON o.client_operation_id=c.operation_id
+     AND o.organization_id=c.organization_id AND o.project_id=c.project_id AND o.actor_id=c.actor_id
+    WHERE c.transaction_id=pg_catalog.pg_current_xact_id() AND c.backend_pid=pg_catalog.pg_backend_pid()
+     AND c.login_name=session_user AND c.operation_id=intent.operation_id AND c.alert_id=row_id
+     AND c.organization_id=org AND c.project_id=project
+     AND o.alert_id=row_id AND o.operation_code=c.operation_code AND c.actor_id=nullif(pg_catalog.current_setting('app.user_id',true),'')::uuid
+     AND ((c.operation_code='ALERT_REVIEW'
+       AND new_row->>'lifecycle'=CASE WHEN old_row->>'lifecycle'='NEW' THEN 'REVIEWED' ELSE old_row->>'lifecycle' END
+       AND EXISTS(
+       SELECT FROM pathways_rules_internal.alert_reviews r WHERE r.organization_id=org AND r.project_id=project
+        AND r.alert_id=row_id AND r.operation_receipt_id=o.id AND r.actor_id=c.actor_id
+        AND r.state_before=old_row->>'lifecycle' AND r.state_after=new_row->>'lifecycle'))
+      OR (c.operation_code='ALERT_DISPOSITION' AND old_row->>'lifecycle' IN ('NEW','REVIEWED','ACTIONED') AND EXISTS(
+       SELECT FROM pathways_rules_internal.lifecycle_events e WHERE e.organization_id=org AND e.project_id=project
+        AND e.alert_id=row_id AND e.operation_receipt_id=o.id AND e.actor_id=c.actor_id AND e.actor_kind='HUMAN'
+        AND e.state_before=old_row->>'lifecycle' AND e.state_after=new_row->>'lifecycle'
+        AND e.state_after IN ('RESOLVED','DISMISSED')))
+      OR (c.operation_code IN ('ALERT_CONFIRM','RECOMMENDATION_CONFIRM') AND EXISTS(
+       SELECT FROM pathways_rules_internal.decisions d WHERE d.organization_id=org AND d.project_id=project
+        AND d.alert_id=row_id AND d.operation_receipt_id=o.id AND d.actor_id=c.actor_id
+        AND d.client_operation_id=c.operation_id
+        -- A direct alert outcome on a terminal alert is refused; recommendation outcomes keep their behavior (G-F10-4, 0059).
+        AND (c.operation_code='RECOMMENDATION_CONFIRM' OR old_row->>'lifecycle' IN ('NEW','REVIEWED','ACTIONED'))
+        AND ((d.outcome IN ('ACCEPT','PARTIALLY_ACCEPT') AND
+          ((old_row->>'lifecycle' IN ('NEW','REVIEWED','ACTIONED') AND new_row->>'lifecycle'='ACTIONED')
+           OR (old_row->>'lifecycle' IN ('RESOLVED','DISMISSED','AUTO_RESOLVED') AND new_row->>'lifecycle'=old_row->>'lifecycle')))
+          OR (d.outcome IN ('DECLINE','ESCALATE') AND new_row->>'lifecycle'=old_row->>'lifecycle')))))) THEN
+    RAISE EXCEPTION 'Runtime human event provenance unavailable' USING ERRCODE='23514'; END IF;
+  END IF;
+ ELSEIF relation_name='RECOMMENDATION' THEN
+  IF new_row->>'runtime_contract_version' IS DISTINCT FROM 'f10.v1'
+   OR new_row->>'status' IS NULL OR new_row->>'revision' IS NULL OR new_row->>'status' NOT IN ('NEW','REVIEWED','AUTO_RESOLVED')
+   OR new_row->'review_note' IS DISTINCT FROM 'null'::jsonb
+   OR new_row->'outcome_note' IS DISTINCT FROM 'null'::jsonb
+   OR new_row->'outcome' IS DISTINCT FROM 'null'::jsonb
+   OR (new_row->>'revision')::bigint<=0
+   OR (old_row IS NOT NULL AND (new_row->>'revision')::bigint<>(old_row->>'revision')::bigint+1) THEN
+   RAISE EXCEPTION 'Runtime recommendation unavailable' USING ERRCODE='23514'; END IF;
+  -- AUTO_RESOLVED is terminal and is written only by the lease-bound commit (0059).
+  IF (old_row IS NOT NULL AND old_row->>'status'='AUTO_RESOLVED')
+   OR (new_row->>'status'='AUTO_RESOLVED' AND (intent.purpose<>'COMMIT' OR wanted_action<>'UPDATE')) THEN
+   RAISE EXCEPTION 'Terminal runtime recommendation is immutable' USING ERRCODE='23514'; END IF;
+  IF wanted_action='INSERT' AND (new_row->>'status'<>'NEW' OR (new_row->>'revision')::bigint<>1
+   OR new_row->'private_review_id' IS DISTINCT FROM 'null'::jsonb
+   OR new_row->'reviewed_by_id' IS DISTINCT FROM 'null'::jsonb
+   OR new_row->'reviewed_at' IS DISTINCT FROM 'null'::jsonb) THEN
+   RAISE EXCEPTION 'Runtime recommendation origin unavailable' USING ERRCODE='23514'; END IF;
+  -- Insert provenance only; the auto-resolve update is proven in the commit write set check above (0059).
+  IF intent.purpose='COMMIT' AND wanted_action='INSERT' AND NOT EXISTS(
+   SELECT FROM pathways.rule_based_alerts a
+   JOIN pathways_rules_internal.evaluations e ON e.id=a.latest_evaluation_id
+    AND e.organization_id=a.organization_id AND e.project_id=a.project_id AND e.rule_version_id=a.rule_id
+   JOIN pathways.alert_rule_recommendations t ON t.id=(new_row->>'source_rule_recommendation_id')::uuid
+    AND t.organization_id=a.organization_id AND t.rule_id=a.rule_id
+   WHERE a.id=(new_row->>'alert_id')::uuid AND a.organization_id=org AND a.project_id=project
+    AND e.snapshot_id=intent.operation_id AND e.result='TRUE'
+    AND new_row->>'title'=t.title AND new_row->>'text'=t.text
+    AND new_row->'source_snapshot'->>'evaluationId'=e.id::text) THEN
+   RAISE EXCEPTION 'Runtime recommendation provenance unavailable' USING ERRCODE='23514'; END IF;
+  IF intent.purpose='FEATURE_HUMAN' AND old_row->>'status'='REVIEWED'
+   AND (new_row->'private_review_id',new_row->'reviewed_by_id',new_row->'reviewed_at',new_row->'status')
+    IS DISTINCT FROM (old_row->'private_review_id',old_row->'reviewed_by_id',old_row->'reviewed_at',old_row->'status') THEN
+   RAISE EXCEPTION 'Runtime review event is immutable' USING ERRCODE='23514'; END IF;
+  IF intent.purpose='FEATURE_HUMAN' AND old_row->>'status'=new_row->>'status'
+   AND (new_row->'private_review_id',new_row->'reviewed_by_id',new_row->'reviewed_at')
+    IS DISTINCT FROM (old_row->'private_review_id',old_row->'reviewed_by_id',old_row->'reviewed_at') THEN
+   RAISE EXCEPTION 'Runtime decision cannot alter review provenance' USING ERRCODE='23514'; END IF;
+  IF intent.purpose='FEATURE_HUMAN' AND old_row->>'status'='NEW' AND new_row->>'status'='REVIEWED' AND NOT EXISTS(
+   SELECT FROM pathways_rules_internal.recommendation_reviews r
+   JOIN pathways_rules_internal.feature_operation_receipts o ON o.id=r.operation_receipt_id
+    AND o.organization_id=r.organization_id AND o.project_id=r.project_id
+   WHERE r.id=(new_row->>'private_review_id')::uuid AND r.organization_id=org AND r.project_id=project
+    AND r.recommendation_id=row_id AND r.actor_id=nullif(pg_catalog.current_setting('app.user_id',true),'')::uuid
+    AND r.actor_id=(new_row->>'reviewed_by_id')::uuid AND r.occurred_at=(new_row->>'reviewed_at')::timestamptz
+    AND o.actor_id=r.actor_id AND o.client_operation_id=intent.operation_id
+    AND o.operation_code='RECOMMENDATION_REVIEW') THEN
+   RAISE EXCEPTION 'Runtime review provenance unavailable' USING ERRCODE='23514'; END IF;
+  IF intent.purpose='FEATURE_HUMAN' AND old_row->>'status'=new_row->>'status' AND NOT EXISTS(
+   SELECT FROM pathways_rules_internal.decisions d
+   JOIN pathways_rules_internal.feature_operation_receipts o ON o.id=d.operation_receipt_id
+    AND o.organization_id=d.organization_id AND o.project_id=d.project_id
+   WHERE d.organization_id=org AND d.project_id=project AND d.recommendation_id=row_id
+    AND d.actor_id=nullif(pg_catalog.current_setting('app.user_id',true),'')::uuid AND d.client_operation_id=intent.operation_id
+    AND o.actor_id=d.actor_id AND o.client_operation_id=d.client_operation_id
+    AND o.operation_code IN ('ALERT_CONFIRM','RECOMMENDATION_CONFIRM')) THEN
+   RAISE EXCEPTION 'Runtime decision provenance unavailable' USING ERRCODE='23514'; END IF;
+ END IF;
+ UPDATE pathways_rules_internal.runtime_mutation_intents i SET consumed=true
+  WHERE i.id=intent.id AND NOT i.consumed;
+ IF NOT FOUND THEN RAISE EXCEPTION 'Runtime intent already consumed' USING ERRCODE='42501'; END IF;
+END $$;
+RESET ROLE;
+
+SET LOCAL ROLE rules_commit_owner;
+CREATE OR REPLACE FUNCTION pathways_rules_internal.commit_rule_snapshot(wanted_job uuid,nonce text,wanted_snapshot uuid,wanted_digest bytea)
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$
+#variable_conflict use_variable
+DECLARE org uuid;project uuid;state pathways_rules_internal.project_state;job pathways_rules_internal.jobs;
+ captured pathways_rules_internal.snapshots;ack record;calendar record;entry jsonb;current_rule record;templates jsonb;
+ result jsonb;evidence jsonb;leaf jsonb;condition_units jsonb;sequence bigint;moment timestamptz(3);evaluation uuid;
+ cursor pathways_rules_internal.episode_cursors;affected_kind text;affected uuid;indicator uuid;activity uuid;
+ old_alert pathways.rule_based_alerts;new_alert pathways.rule_based_alerts;recommendation pathways.decision_recommendations;
+ template jsonb;rule_id uuid;matched boolean;row_count integer;observed jsonb;auto_rec pathways.decision_recommendations;
+ basis jsonb;results jsonb;facts jsonb;
+BEGIN
+ PERFORM pathways_rules_internal.assert_session('pathways_rules_worker');
+ IF pg_catalog.current_setting('transaction_isolation')<>'read committed' OR nonce IS NULL OR nonce !~ '^[a-f0-9]{64}$'
+  OR wanted_job IS NULL OR wanted_snapshot IS NULL OR wanted_digest IS NULL OR pg_catalog.octet_length(wanted_digest)<>32 THEN
+  RAISE EXCEPTION 'Rules operation unavailable' USING ERRCODE='42501'; END IF;
+ -- Derive scope from private job metadata, then take state before queue/resource.
+ SELECT j.organization_id,j.project_id INTO org,project FROM pathways_rules_internal.jobs j WHERE j.id=wanted_job;
+ IF NOT FOUND THEN RAISE EXCEPTION 'Rules operation unavailable' USING ERRCODE='42501'; END IF;
+ SELECT s.* INTO state FROM pathways_rules_internal.project_state s WHERE s.organization_id=org AND s.project_id=project FOR NO KEY UPDATE;
+ IF NOT FOUND OR NOT state.bootstrap_complete THEN RAISE EXCEPTION 'Rules bootstrap unavailable' USING ERRCODE='55000'; END IF;
+ -- Immutable original capability recovery is read-only even after lease expiry,
+ -- newer work, terminal human outcomes or another worker has claimed the job.
+ SELECT * INTO ack FROM pathways_rules_internal.committed_acknowledgement(wanted_job,nonce,wanted_snapshot,wanted_digest);
+ IF FOUND THEN RETURN pg_catalog.jsonb_build_object('requiredGeneration',ack.required_generation::text,
+  'sourceWatermark',ack.source_watermark::text,'calendarVersion',ack.calendar_version::text,
+  'evaluationSequence',ack.evaluation_sequence::text,'committedAt',pathways_rules_internal.utc_milliseconds(ack.committed_at)); END IF;
+ SELECT j.* INTO job FROM pathways_rules_internal.jobs j WHERE j.id=wanted_job AND j.organization_id=org AND j.project_id=project FOR NO KEY UPDATE;
+ PERFORM pathways_rules_internal.install_commit_context(wanted_job,nonce,wanted_snapshot,wanted_digest);
+ SELECT s.* INTO captured FROM pathways_rules_internal.snapshots s WHERE s.id=wanted_snapshot AND s.job_id=wanted_job
+  AND s.organization_id=org AND s.project_id=project;
+ SELECT c.version,c.zone INTO calendar FROM pathways_rules_internal.calendar_configuration c WHERE c.singleton;
+ IF NOT FOUND OR captured.id IS NULL OR captured.digest IS DISTINCT FROM wanted_digest
+  OR pg_catalog.sha256(pg_catalog.convert_to(captured.canonical_payload::text,'UTF8')) IS DISTINCT FROM captured.digest
+  OR captured.required_generation IS DISTINCT FROM state.required_generation OR captured.source_watermark IS DISTINCT FROM state.source_watermark
+  OR captured.calendar_version IS DISTINCT FROM calendar.version OR captured.zone IS DISTINCT FROM calendar.zone
+  OR job.claim_generation IS DISTINCT FROM state.required_generation OR job.claim_watermark IS DISTINCT FROM state.source_watermark THEN
+  RAISE EXCEPTION 'The rules source changed.' USING ERRCODE='40001'; END IF;
+ SELECT count(*)::integer INTO row_count FROM pathways.alert_rules r WHERE r.organization_id=org AND r.project_id=project
+  AND r.status='ACTIVE' AND r.runtime_contract_version='f10.v1';
+ IF row_count<>pg_catalog.jsonb_array_length(captured.manifest) THEN RAISE EXCEPTION 'The rules source changed.' USING ERRCODE='40001'; END IF;
+ FOR entry IN SELECT value FROM pg_catalog.jsonb_array_elements(captured.manifest) LOOP
+  rule_id:=(entry->>'ruleId')::uuid;
+  SELECT r.version,r.definition_digest,r.conditions_json,r.name,r.severity INTO current_rule FROM pathways.alert_rules r
+   WHERE r.id=rule_id AND r.organization_id=org AND r.project_id=project AND r.status='ACTIVE' AND r.runtime_contract_version='f10.v1';
+  IF NOT FOUND OR current_rule.version IS DISTINCT FROM (entry->>'version')::integer
+   OR pg_catalog.encode(current_rule.definition_digest,'hex') IS DISTINCT FROM entry->>'definitionDigest'
+   OR current_rule.conditions_json IS DISTINCT FROM entry->'conditions' OR current_rule.name IS DISTINCT FROM entry->>'name'
+   OR current_rule.severity::text IS DISTINCT FROM entry->>'severity'
+   OR pathways_rules_internal.lease_rule_exposure_allowed(rule_id) IS DISTINCT FROM (entry->>'eligible')::boolean
+   OR pg_catalog.encode(pathways_rules_internal.classification_fingerprint(rule_id),'hex') IS DISTINCT FROM entry->>'classificationFingerprint'
+   OR pg_catalog.encode(pathways_rules_internal.rule_dependency_fingerprint(rule_id,captured.as_of),'hex')
+    IS DISTINCT FROM captured.source_inputs->'resourceFingerprints'->>rule_id::text THEN
+   RAISE EXCEPTION 'The rules source changed.' USING ERRCODE='40001'; END IF;
+  SELECT COALESCE(pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object('id',t.id,'title',t.title,'text',t.text,'type',t.type)
+   ORDER BY t.id),'[]'::jsonb) INTO templates FROM pathways.alert_rule_recommendations t WHERE t.organization_id=org AND t.rule_id=rule_id;
+  IF templates IS DISTINCT FROM entry->'recommendations' THEN RAISE EXCEPTION 'The rules source changed.' USING ERRCODE='40001'; END IF;
+ END LOOP;
+ -- No writes above. Now each actual evaluation/episode is fixed from the trusted
+ -- immutable captured observations and bounded deterministic evaluator.
+ sequence:=state.evaluation_sequence+1;moment:=pg_catalog.date_trunc('milliseconds',pg_catalog.clock_timestamp());
+ FOR entry IN SELECT value FROM pg_catalog.jsonb_array_elements(captured.manifest) ORDER BY value->>'ruleId' LOOP
+  rule_id:=(entry->>'ruleId')::uuid;result:=pathways_rules_internal.evaluate_snapshot_rule(entry->'conditions',captured.observations->rule_id::text);
+  condition_units:='[]';observed:='{}';results:='{}';facts:='{}';basis:=NULL;
+  FOR leaf IN SELECT value FROM pg_catalog.jsonb_array_elements(result->'conditions') ORDER BY value->>'conditionId' LOOP
+   condition_units:=condition_units||pg_catalog.jsonb_build_array(leaf||pg_catalog.jsonb_build_object('unit',
+    captured.observations->rule_id::text->(leaf->>'conditionId')->>'unit'));
+   observed:=observed||pg_catalog.jsonb_build_object(leaf->>'conditionId',leaf->'cell');
+   -- Severity inputs (0072): every leaf result, and the captured facts of each TRUE leaf only.
+   results:=results||pg_catalog.jsonb_build_object(leaf->>'conditionId',leaf->>'result');
+   IF leaf->>'result'='TRUE' THEN facts:=facts||pg_catalog.jsonb_build_object(leaf->>'conditionId',
+    captured.observations->rule_id::text->(leaf->>'conditionId')->'facts'); END IF;
+  END LOOP;
+  evidence:=result||pg_catalog.jsonb_build_object('conditions',condition_units,'snapshotId',captured.id,
+   'asOf',pathways_rules_internal.utc_milliseconds(captured.as_of),'reportingDate',captured.reporting_date,
+   'calendar',pg_catalog.jsonb_build_object('zone',captured.zone,'version',captured.calendar_version::text));
+  -- Each matched evaluation stores its own severity basis (0072).
+  IF result->>'result'='TRUE' THEN
+   basis:=pathways_rules_internal.classify_alert_severity(entry->'conditions',results,facts,entry->'expectations',entry->>'severity');
+   evidence:=evidence||pg_catalog.jsonb_build_object('severityBasis',basis);
+  END IF;
+  SELECT CASE WHEN count(DISTINCT b.indicator_id)=1 AND bool_and(b.indicator_id IS NOT NULL) THEN min(b.indicator_id::text)::uuid END,
+   CASE WHEN count(DISTINCT b.activity_id)=1 AND bool_and(b.activity_id IS NOT NULL) THEN min(b.activity_id::text)::uuid END
+   INTO indicator,activity FROM pathways_rules_internal.rule_bindings b WHERE b.organization_id=org AND b.project_id=project AND b.rule_version_id=rule_id;
+  affected_kind:=CASE WHEN indicator IS NOT NULL THEN 'INDICATOR' WHEN activity IS NOT NULL THEN 'ACTIVITY' ELSE 'PROJECT' END;
+  affected:=COALESCE(indicator,activity,project);evaluation:=pg_catalog.gen_random_uuid();
+  INSERT INTO pathways_rules_internal.evaluations(id,snapshot_id,organization_id,project_id,rule_version_id,affected_kind,affected_id,
+   evaluation_sequence,result,evidence,superseded) VALUES(evaluation,captured.id,org,project,rule_id,affected_kind,affected,sequence,result->>'result',evidence,false);
+  INSERT INTO pathways_rules_internal.episode_cursors(organization_id,project_id,rule_version_id,affected_kind,affected_id)
+   VALUES(org,project,rule_id,affected_kind,affected) ON CONFLICT DO NOTHING;
+  SELECT c.* INTO cursor FROM pathways_rules_internal.episode_cursors c WHERE c.organization_id=org AND c.project_id=project
+   AND c.rule_version_id=rule_id AND c.affected_kind=affected_kind AND c.affected_id=affected FOR NO KEY UPDATE;
+  IF NOT FOUND OR cursor.last_sequence>=sequence OR (cursor.latched AND cursor.alert_id IS NULL)
+   OR (cursor.episode_number>0 AND cursor.alert_id IS NULL) THEN
+   RAISE EXCEPTION 'Episode cursor is inconsistent' USING ERRCODE='55000'; END IF;
+  old_alert:=NULL;new_alert:=NULL;
+  IF result->>'result'='TRUE' AND NOT cursor.latched THEN
+   new_alert.id:=pg_catalog.gen_random_uuid();new_alert.organization_id:=org;new_alert.project_id:=project;new_alert.rule_id:=rule_id;
+   new_alert.indicator_id:=indicator;new_alert.activity_id:=activity;new_alert.title:=entry->>'name';new_alert.message:='Rule conditions matched.';
+   new_alert.severity:=(CASE WHEN entry->>'severity'='CRITICAL' THEN 'CRITICAL' ELSE basis->>'level' END)::pathways.alert_severity;
+   new_alert.severity_basis:=basis;new_alert.observed_values:=observed;new_alert.evaluated_snapshot:=evidence;
+   new_alert.evaluated_by_id:=NULL;new_alert.evaluated_at:=captured.as_of;new_alert.created_at:=moment;new_alert.updated_at:=moment;
+   new_alert.runtime_contract_version:='f10.v1';new_alert.attribution:='SYSTEM';new_alert.lifecycle:='NEW';new_alert.revision:=1;
+   new_alert.episode_number:=cursor.episode_number+1;new_alert.affected_kind:=affected_kind;new_alert.affected_id:=affected;new_alert.latest_evaluation_id:=evaluation;new_alert.origin_snapshot_id:=captured.id;
+   PERFORM pathways_rules_internal.install_commit_intent('pathways.rule_based_alerts'::regclass,NULL,pg_catalog.to_jsonb(new_alert));
+   INSERT INTO pathways.rule_based_alerts SELECT (new_alert).*;
+   INSERT INTO pathways_rules_internal.lifecycle_events(organization_id,project_id,alert_id,actor_kind,state_before,state_after,evaluation_id,occurred_at)
+    VALUES(org,project,new_alert.id,'SYSTEM',NULL,'NEW',evaluation,moment);
+   FOR template IN SELECT value FROM pg_catalog.jsonb_array_elements(entry->'recommendations') LOOP
+    recommendation:=NULL;recommendation.id:=pg_catalog.gen_random_uuid();recommendation.organization_id:=org;recommendation.project_id:=project;
+    recommendation.alert_id:=new_alert.id;recommendation.source_rule_recommendation_id:=(template->>'id')::uuid;
+    recommendation.title:=template->>'title';recommendation.text:=template->>'text';recommendation.type:=(template->>'type')::pathways.recommendation_type;
+    recommendation.basis:=CASE affected_kind WHEN 'INDICATOR' THEN 'KPI'::pathways.recommendation_basis ELSE 'COMBINED'::pathways.recommendation_basis END;
+    recommendation.source_snapshot:=evidence||pg_catalog.jsonb_build_object('evaluationId',evaluation);recommendation.proposed_by_id:=NULL;
+    recommendation.proposed_at:=moment;recommendation.status:='NEW';recommendation.created_at:=moment;recommendation.updated_at:=moment;
+    recommendation.revision:=1;recommendation.runtime_contract_version:='f10.v1';recommendation.attribution:='SYSTEM';
+    PERFORM pathways_rules_internal.install_commit_intent('pathways.decision_recommendations'::regclass,NULL,pg_catalog.to_jsonb(recommendation));
+    INSERT INTO pathways.decision_recommendations SELECT (recommendation).*;
+   END LOOP;
+  ELSIF cursor.alert_id IS NOT NULL THEN
+   SELECT a.* INTO old_alert FROM pathways.rule_based_alerts a WHERE a.id=cursor.alert_id AND a.organization_id=org AND a.project_id=project
+    AND a.rule_id=rule_id AND a.runtime_contract_version='f10.v1' FOR NO KEY UPDATE;
+   IF NOT FOUND THEN RAISE EXCEPTION 'Episode cursor unavailable' USING ERRCODE='55000'; END IF;
+   new_alert:=old_alert;new_alert.latest_evaluation_id:=evaluation;new_alert.revision:=old_alert.revision+1;new_alert.updated_at:=moment;
+   IF result->>'result'='FALSE' AND old_alert.lifecycle IN ('NEW','REVIEWED','ACTIONED') THEN new_alert.lifecycle:='AUTO_RESOLVED'; END IF;
+   -- An open alert with a basis takes each matched basis; a new status or level moves its severity and records the change (0072).
+   IF result->>'result'='TRUE' AND old_alert.severity_basis IS NOT NULL AND old_alert.lifecycle IN ('NEW','REVIEWED','ACTIONED') THEN
+    new_alert.severity_basis:=basis;
+    IF (basis->>'status',basis->>'level') IS DISTINCT FROM (old_alert.severity_basis->>'status',old_alert.severity_basis->>'level') THEN
+     new_alert.severity:=(CASE WHEN entry->>'severity'='CRITICAL' THEN 'CRITICAL' ELSE basis->>'level' END)::pathways.alert_severity;
+     new_alert.severity_change:=pg_catalog.jsonb_build_object('from',old_alert.severity,'to',new_alert.severity,
+      'at',pathways_rules_internal.utc_milliseconds(moment),'previous',old_alert.severity_basis);
+    END IF;
+   END IF;
+   PERFORM pathways_rules_internal.install_commit_intent('pathways.rule_based_alerts'::regclass,pg_catalog.to_jsonb(old_alert),pg_catalog.to_jsonb(new_alert));
+   UPDATE pathways.rule_based_alerts SET latest_evaluation_id=evaluation,revision=new_alert.revision,lifecycle=new_alert.lifecycle,updated_at=moment,
+    severity=new_alert.severity,severity_basis=new_alert.severity_basis,severity_change=new_alert.severity_change
+    WHERE id=old_alert.id AND organization_id=org AND project_id=project AND revision=old_alert.revision;
+   IF NOT FOUND THEN RAISE EXCEPTION 'The rules resource changed.' USING ERRCODE='40001'; END IF;
+   IF new_alert.lifecycle IS DISTINCT FROM old_alert.lifecycle THEN
+    INSERT INTO pathways_rules_internal.lifecycle_events(organization_id,project_id,alert_id,actor_kind,state_before,state_after,evaluation_id,occurred_at)
+     VALUES(org,project,new_alert.id,'SYSTEM',old_alert.lifecycle,new_alert.lifecycle,evaluation,moment);
+    -- Undecided recommendations close with the alert, alert row locked first (0059).
+    IF new_alert.lifecycle='AUTO_RESOLVED' THEN
+     FOR recommendation IN SELECT r.* FROM pathways.decision_recommendations r WHERE r.organization_id=org AND r.project_id=project
+      AND r.alert_id=old_alert.id AND r.runtime_contract_version='f10.v1' AND r.status IN ('NEW','REVIEWED')
+      AND NOT EXISTS(SELECT 1 FROM pathways_rules_internal.decisions d WHERE d.organization_id=org AND d.project_id=project AND d.recommendation_id=r.id)
+      ORDER BY r.id FOR NO KEY UPDATE OF r LOOP
+      auto_rec:=recommendation;auto_rec.status:='AUTO_RESOLVED';auto_rec.revision:=recommendation.revision+1;auto_rec.updated_at:=moment;
+      PERFORM pathways_rules_internal.install_commit_intent('pathways.decision_recommendations'::regclass,pg_catalog.to_jsonb(recommendation),pg_catalog.to_jsonb(auto_rec));
+      UPDATE pathways.decision_recommendations SET status='AUTO_RESOLVED',revision=auto_rec.revision,updated_at=moment
+       WHERE id=recommendation.id AND organization_id=org AND project_id=project AND revision=recommendation.revision;
+      IF NOT FOUND THEN RAISE EXCEPTION 'The rules resource changed.' USING ERRCODE='40001'; END IF;
+      INSERT INTO pathways.audit_logs(organization_id,project_id,action,entity_type,entity_id,changes)
+       VALUES(org,project,'rules.system.recommendation_auto_resolved','DecisionRecommendation',recommendation.id,
+        pg_catalog.jsonb_build_object('attribution','SYSTEM','alertId',old_alert.id,'evaluationId',evaluation,'statusBefore',recommendation.status));
+     END LOOP;
+    END IF;
+   END IF;
+  END IF;
+  UPDATE pathways_rules_internal.episode_cursors SET last_sequence=sequence,last_result=result->>'result',
+   latched=CASE result->>'result' WHEN 'TRUE' THEN true WHEN 'FALSE' THEN false ELSE cursor.latched END,
+   episode_number=CASE WHEN result->>'result'='TRUE' AND NOT cursor.latched THEN cursor.episode_number+1 ELSE cursor.episode_number END,
+   alert_id=COALESCE(new_alert.id,cursor.alert_id) WHERE organization_id=org AND project_id=project
+    AND rule_version_id=rule_id AND episode_cursors.affected_kind=affected_kind AND affected_id=affected AND last_sequence=cursor.last_sequence;
+  IF NOT FOUND THEN RAISE EXCEPTION 'Episode sequence changed' USING ERRCODE='40001'; END IF;
+ END LOOP;
+ IF pathways_rules_internal.lease_metric_scope(org,project) IS DISTINCT FROM true THEN
+  RAISE EXCEPTION 'The rules source changed.' USING ERRCODE='40001'; END IF;
+ INSERT INTO pathways_rules_internal.acknowledgements(snapshot_id,job_id,organization_id,project_id,snapshot_digest,lease_hash,lease_session,
+  required_generation,source_watermark,calendar_version,evaluation_sequence,committed_at)
+ VALUES(captured.id,job.id,org,project,captured.digest,job.lease_hash,session_user,captured.required_generation,
+  captured.source_watermark,captured.calendar_version,sequence,moment);
+ INSERT INTO pathways_rules_internal.work_coverage(work_item_id,organization_id,project_id,acknowledgement_snapshot_id)
+  SELECT w.id,w.organization_id,w.project_id,captured.id FROM pathways_rules_internal.work_items w WHERE w.organization_id=org AND w.project_id=project
+   AND w.generation<=captured.required_generation AND NOT EXISTS(SELECT FROM pathways_rules_internal.work_coverage coverage WHERE coverage.work_item_id=w.id);
+ UPDATE pathways_rules_internal.project_state SET acknowledged_generation=captured.required_generation,evaluation_sequence=sequence
+  WHERE organization_id=org AND project_id=project AND required_generation=captured.required_generation AND source_watermark=captured.source_watermark;
+ IF NOT FOUND THEN RAISE EXCEPTION 'The rules source changed.' USING ERRCODE='40001'; END IF;
+ INSERT INTO pathways.audit_logs(organization_id,project_id,action,entity_type,entity_id,changes)
+  VALUES(org,project,'rules.system.evaluated','RulesSnapshot',captured.id,pg_catalog.jsonb_build_object('attribution','SYSTEM','evaluatedRuleCount',row_count));
+ -- Remove live-marker before releasing lease; no later source reads/writes.
+ PERFORM pathways_rules_internal.remove_projection_context();
+ UPDATE pathways_rules_internal.jobs AS j SET state='IDLE',lease_hash=NULL,lease_session=NULL,lease_expires_at=NULL,claim_generation=NULL,claim_watermark=NULL,
+  stale_attempts=0,operational_failures=0 WHERE j.id=job.id AND j.organization_id=org AND j.project_id=project AND j.lease_hash=job.lease_hash AND j.state='LEASED';
+ IF NOT FOUND THEN RAISE EXCEPTION 'The rules lease changed.' USING ERRCODE='40001'; END IF;
+ RETURN pg_catalog.jsonb_build_object('requiredGeneration',captured.required_generation::text,'sourceWatermark',captured.source_watermark::text,
+  'calendarVersion',captured.calendar_version::text,'evaluationSequence',sequence::text,'committedAt',pathways_rules_internal.utc_milliseconds(moment));
+END $$;
+RESET ROLE;
+
+SET LOCAL ROLE rules_human_owner;
+CREATE OR REPLACE FUNCTION pathways_rules_internal.alert_json(wanted uuid)
+RETURNS jsonb LANGUAGE sql VOLATILE SECURITY INVOKER SET search_path='' AS $$
+ SELECT pg_catalog.jsonb_build_object('id',a.id,'projectId',a.project_id,'ruleId',a.rule_id,'ruleVersion',r.version,
+  'title',a.title,'explanation',a.message,'severity',a.severity,
+  'severityBasis',a.severity_basis,'severityChange',a.severity_change,'lifecycle',a.lifecycle,'revision',a.revision::text,
+  'evaluatedAt',a.evaluated_at,'freshness',pathways_rules_internal.resource_freshness(a.id),
+  'conditions',r.conditions_json,'asOf',a.evaluated_snapshot->'asOf',
+  'reportingDate',a.evaluated_snapshot->'reportingDate','calendar',a.evaluated_snapshot->'calendar',
+  'evidence',COALESCE((SELECT pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object(
+   'conditionId',leaf->>'conditionId','metric',leaf->>'metric','operator',leaf->>'operator',
+   'threshold',leaf->>'threshold','thresholdMaximum',leaf->>'thresholdMaximum',
+   'cell',pg_catalog.jsonb_build_object('state',leaf->'cell'->>'state','value',leaf->'cell'->'value','reason',leaf->'cell'->'reason'),
+   'unit',leaf->>'unit','result',leaf->>'result') ORDER BY leaf->>'conditionId')
+   FROM pg_catalog.jsonb_array_elements(a.evaluated_snapshot->'conditions') leaf),'[]'::jsonb),
+  'predefinedRecommendations',COALESCE((SELECT pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object(
+   'id',t.id,'title',t.title,'text',t.text) ORDER BY t.id) FROM pathways.alert_rule_recommendations t
+   WHERE t.organization_id=a.organization_id AND t.rule_id=a.rule_id),'[]'::jsonb),
+  'linkedRecommendationIds',CASE WHEN pathways.p06_can('recommendations.read',a.project_id) IS TRUE THEN
+   COALESCE((SELECT pg_catalog.jsonb_agg(d.id ORDER BY d.id) FROM pathways.decision_recommendations d
+    WHERE d.organization_id=a.organization_id AND d.project_id=a.project_id AND d.alert_id=a.id
+     AND d.runtime_contract_version='f10.v1'),'[]'::jsonb) ELSE '[]'::jsonb END)
+ FROM pathways.rule_based_alerts a JOIN pathways.alert_rules r ON r.organization_id=a.organization_id AND r.id=a.rule_id
+ WHERE a.id=wanted AND a.organization_id=nullif(pg_catalog.current_setting('app.organization_id',true),'')::uuid AND a.runtime_contract_version='f10.v1'
+$$;
+RESET ROLE;
+
+-- 7. The schema owner takes back every loan from step 0.
 SET LOCAL ROLE rules_store_owner;
-REVOKE CREATE ON SCHEMA pathways_rules_internal FROM prisma,rules_projection_owner,rules_config_owner,rules_human_owner;
+REVOKE CREATE ON SCHEMA pathways_rules_internal FROM prisma,rules_projection_owner,rules_config_owner,rules_human_owner,
+ rules_commit_owner,rules_runtime_guard_owner;
 DO $$ BEGIN
  IF pg_catalog.current_setting('pathways_0072.had_usage')<>'true' THEN REVOKE USAGE ON SCHEMA pathways_rules_internal FROM prisma; END IF;
 END $$;
 RESET ROLE;
 
--- 7. Postconditions; functions are resolved by text because prisma holds no USAGE on the schema.
+-- 8. Postconditions; functions are resolved by text because prisma holds no USAGE on the schema.
 DO $$ DECLARE fn record; wanted record; BEGIN
  FOR wanted IN SELECT * FROM (VALUES
   (0,'pathways_rules_internal.validate_configuration_input(jsonb,text)','rules_config_owner',false,'i','9907d1ba98c5fe890b8220f9ecf4e8f2'),
   (1,'pathways_rules_internal.configuration_operation(uuid,jsonb,text)','rules_config_owner',true,'v','edbaf221645a04c039d494097b73c4fd'),
   (2,'pathways_rules_internal.rule_json(uuid)','rules_human_owner',false,'s','519d441502e52ba1e9a403fd99215901'),
   (3,'pathways_rules_internal.project_metric_observation(uuid,uuid,text,uuid,uuid,timestamp with time zone,date)','rules_projection_owner',true,'s','5dba57ac3d29beaeb201db5d51cb5e6e'),
-  (4,'pathways_rules_internal.capture_rule_snapshot(uuid,text)','rules_projection_owner',true,'v','0ed70417ea4783a8972f7a882c977560')
+  (4,'pathways_rules_internal.capture_rule_snapshot(uuid,text)','rules_projection_owner',true,'v','0ed70417ea4783a8972f7a882c977560'),
+  (5,'pathways_rules_internal.assert_runtime_mutation(oid,text,jsonb,jsonb)','rules_runtime_guard_owner',true,'v','5471c4a385d7bef25f59b068fa95c6e8'),
+  (6,'pathways_rules_internal.commit_rule_snapshot(uuid,text,uuid,bytea)','rules_commit_owner',true,'v','78bdeafefc3861eba6aeb5fa395296dd'),
+  (7,'pathways_rules_internal.alert_json(uuid)','rules_human_owner',false,'v','34642b36d3ff722a7686417c83cbff89')
  ) w(n,signature,owner,definer,volatility,source_md5) LOOP
   SELECT p.* INTO fn FROM pg_catalog.pg_proc p WHERE p.oid::pg_catalog.regprocedure::pg_catalog.text=wanted.signature;
   IF NOT FOUND OR pg_catalog.pg_get_userbyid(fn.proowner)<>wanted.owner OR fn.prosecdef IS DISTINCT FROM wanted.definer
@@ -795,11 +1301,15 @@ DO $$ DECLARE fn record; wanted record; BEGIN
   OR NOT pg_catalog.has_column_privilege('rules_projection_owner','pathways.alert_rules','expected_score_improvement','SELECT')
   OR NOT pg_catalog.has_column_privilege('rules_human_owner','pathways.alert_rules','manageable_follow_up_percent','SELECT')
   OR NOT pg_catalog.has_column_privilege('rules_projection_owner','pathways.project_indicators','target_date','SELECT')
+  OR NOT pg_catalog.has_column_privilege('rules_commit_owner','pathways.rule_based_alerts','severity_change','UPDATE')
+  OR NOT pg_catalog.has_column_privilege('rules_human_owner','pathways.rule_based_alerts','severity_basis','SELECT')
+  OR pg_catalog.has_column_privilege('rules_outcome_owner','pathways.rule_based_alerts','severity_basis','UPDATE')
   OR NOT EXISTS(SELECT FROM pg_catalog.pg_constraint WHERE conrelid='pathways.rule_based_alerts'::pg_catalog.regclass
-   AND conname='rule_based_alerts_severity_basis_check' AND contype='c' AND convalidated)
+   AND conname='rule_based_alerts_severity_basis_check' AND contype='c' AND convalidated
+   AND pg_catalog.pg_get_constraintdef(oid) LIKE '%IS DISTINCT FROM ''CONTEXT_REQUIRED''%')
  THEN RAISE EXCEPTION '0072 storage postcondition failed'; END IF;
- IF EXISTS(SELECT FROM pg_catalog.pg_roles r WHERE r.rolname IN ('prisma','rules_projection_owner','rules_config_owner','rules_human_owner')
-   AND pg_catalog.has_schema_privilege(r.oid,'pathways_rules_internal','CREATE'))
+ IF EXISTS(SELECT FROM pg_catalog.pg_roles r WHERE r.rolname IN ('prisma','rules_projection_owner','rules_config_owner','rules_human_owner',
+   'rules_commit_owner','rules_runtime_guard_owner') AND pg_catalog.has_schema_privilege(r.oid,'pathways_rules_internal','CREATE'))
   OR pg_catalog.has_schema_privilege('prisma','pathways_rules_internal','USAGE')::text<>pg_catalog.current_setting('pathways_0072.had_usage')
  THEN RAISE EXCEPTION '0072 schema loan postcondition failed'; END IF;
 END $$;

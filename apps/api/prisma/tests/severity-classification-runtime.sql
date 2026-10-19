@@ -1,4 +1,4 @@
--- cr-pathways-severity-classification (migration 0072, part 1): SQL classifier parity with the shared fixtures,
+-- cr-pathways-severity-classification (migration 0072): SQL classifier parity with the shared fixtures,
 -- observation facts and catalog shape. Synthetic fixtures only; everything rolls back. Run as a local superuser
 -- from the repository root against a disposable pathways_phase2_* or pathways_phase4_* replay database with 0072.
 -- The fixtures are read with `type` on Windows (the Replay-Local and Verify-Forward host) and `cat` elsewhere.
@@ -119,6 +119,31 @@ SELECT pg_temp.ok(pathways_rules_internal.classify_alert_severity(
   '{"kind":"CONDITION","id":"c1","metric":"INDICATOR_CURRENT_VALUE","operator":"LT","threshold":"180","indicatorId":"7f000000-0000-4000-8000-000000000003"}',
   '{"c1":"TRUE"}',jsonb_build_object('c1',(SELECT doc->'facts' FROM sc_observed WHERE metric='INDICATOR_CURRENT_VALUE')),'{}',NULL)
   @>'{"status":"CLASSIFIED","level":"MEDIUM","conditions":[{"measure":{"value":"20.0000"}}]}','observed facts classify');
+-- A suppressed indicator or family gives only the base facts, so no withheld figure can reach a basis.
+CREATE OR REPLACE FUNCTION pathways_rules_internal.lease_indicator_allowed(org uuid,project uuid,indicator uuid) RETURNS boolean
+ LANGUAGE sql VOLATILE AS 'SELECT false';
+CREATE OR REPLACE FUNCTION pathways_rules_internal.lease_family_allowed(org uuid,project uuid,family text) RETURNS boolean
+ LANGUAGE sql VOLATILE AS 'SELECT false';
+SELECT pg_temp.ok((SELECT bool_and(pathways_rules_internal.project_metric_observation(pg_temp.u(1),pg_temp.u(2),v.metric,v.indicator,NULL,
+   timestamptz '2026-10-19 12:00+08',date '2026-10-19')->'facts'=jsonb_build_object('metric',v.metric,'value',NULL,'reportingDate','2026-10-19'))
+  FROM (VALUES ('INDICATOR_CURRENT_VALUE',pg_temp.u(3)),('INDICATOR_PROGRESS_PERCENT',pg_temp.u(3)),
+   ('BENEFICIARY_FOLLOW_UP_PERCENT',NULL::uuid),('SURVEY_MEAN_IMPROVEMENT_POINTS',NULL)) v(metric,indicator)),
+ 'suppressed indicator and families give base facts only');
+
+-- (4) Part 2: the commit owner can classify, writes the severity columns, and humans read the basis.
+SET LOCAL ROLE rules_commit_owner;
+SELECT pathways_rules_internal.classify_alert_severity('{"kind":"CONDITION","id":"c1","metric":"BUDGET_UTILIZATION_PERCENT"}',
+ '{"c1":"TRUE"}','{"c1":{"metric":"BUDGET_UTILIZATION_PERCENT","value":"105","reportingDate":"2026-10-19"}}','{}',NULL)->>'level' AS commit_owner_level \gset
+RESET ROLE;
+SELECT pg_temp.ok(:'commit_owner_level'='MEDIUM','commit owner classifies under its own grant');
+SELECT pg_temp.ok(has_column_privilege('rules_commit_owner','pathways.rule_based_alerts','severity','UPDATE')
+ AND has_column_privilege('rules_commit_owner','pathways.rule_based_alerts','severity_basis','UPDATE')
+ AND has_column_privilege('rules_commit_owner','pathways.rule_based_alerts','severity_change','UPDATE')
+ AND has_column_privilege('rules_human_owner','pathways.rule_based_alerts','severity_basis','SELECT')
+ AND has_column_privilege('rules_human_owner','pathways.rule_based_alerts','severity_change','SELECT')
+ AND NOT has_column_privilege('rules_outcome_owner','pathways.rule_based_alerts','severity_basis','UPDATE')
+ AND (SELECT pg_get_constraintdef(oid) LIKE '%IS DISTINCT FROM ''CONTEXT_REQUIRED''%' FROM pg_constraint
+  WHERE conrelid='pathways.rule_based_alerts'::regclass AND conname='rule_based_alerts_severity_basis_check'),'part 2 column grants and strict basis check');
 
 DO $$ DECLARE total integer; BEGIN
  SELECT count(*) INTO total FROM sc_results;

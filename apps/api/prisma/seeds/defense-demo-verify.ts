@@ -234,17 +234,18 @@ export async function verifyDefenseDemo(
   })
   if (severities.length === 0) {
     for (const name of [
-      'alerts include high and medium severity',
+      'an alert carries a classified level',
       'an alert was auto-resolved',
       'a recommendation was escalated',
     ])
       skip(name, 'rule evaluation did not run')
   } else {
+    // Levels come from classification (0072); a null severity is shown as Needs context.
     const present = severities.map((row) => row.severity)
     add(
-      'alerts include high and medium severity',
-      ['HIGH', 'MEDIUM'].every((s) => present.includes(s as never)),
-      present.join(', '),
+      'an alert carries a classified level',
+      present.some((s) => s !== null),
+      present.map((s) => s ?? 'Needs context').join(', '),
     )
     const auto = await owner.decisionRecommendation.count({ where: { status: 'AUTO_RESOLVED' } })
     add('an alert was auto-resolved', auto > 0, `${auto} recommendations auto-resolved`)

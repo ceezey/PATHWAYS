@@ -63,15 +63,15 @@ BEGIN
  END LOOP;
  INSERT INTO t_out VALUES('drain_'||label,jsonb_build_object('handled',handled));
 END $$;
--- Rule create and activate as the system administrator, stored under a name.
-CREATE FUNCTION pg_temp.make_rule(tag text,project integer,metric text,operator text,threshold text,recs integer,op integer)
+-- Rule create and activate as the system administrator, stored under a name; extra overrides request keys.
+CREATE FUNCTION pg_temp.make_rule(tag text,project integer,metric text,operator text,threshold text,recs integer,op integer,extra jsonb DEFAULT '{}')
 RETURNS void LANGUAGE plpgsql AS $$
 DECLARE created jsonb;
 BEGIN
  created:=pathways.f10_rule_create(jsonb_build_object('name','Rule '||tag,'severity',NULL,'code','F10-'||upper(tag),
   'projectId',pg_temp.u(project),'clientOperationId',pg_temp.u(op),
   'conditions',jsonb_build_object('kind','CONDITION','id','c1','metric',metric,'operator',operator,'threshold',threshold),
-  'recommendations',(SELECT jsonb_agg(jsonb_build_object('id',pg_temp.u(op*10+g),'title','Action '||g,'text','Synthetic action '||g)) FROM generate_series(1,recs) g)));
+  'recommendations',(SELECT jsonb_agg(jsonb_build_object('id',pg_temp.u(op*10+g),'title','Action '||g,'text','Synthetic action '||g)) FROM generate_series(1,recs) g))||extra);
  INSERT INTO t_out VALUES('rule_'||tag,created);
  PERFORM pathways.f10_rule_activate((created->>'id')::uuid,jsonb_build_object('expectedVersion',1,'clientOperationId',pg_temp.u(op+1)));
 END $$;
@@ -577,5 +577,99 @@ BEGIN;
 SELECT pg_temp.act(2);
 SELECT pg_temp.ok(pathways.f10_alert_get((SELECT (doc->>'id')::uuid FROM t_out WHERE name='p6_alert')) IS NOT NULL,'records.read holder sees the beneficiary alert');
 COMMIT;
+
+-- (8) 0072 severity at commit. P19 survey with an expected improvement, P20 manual Critical, P21 a pre-0072 style alert.
+BEGIN;
+SET LOCAL session_replication_role = replica;
+INSERT INTO pathways.projects(id,organization_id,code,title,start_date,end_date,status,created_by_id)
+SELECT pg_temp.u(318+n),pg_temp.u(1),'F10R-P'||(18+n),'F10 project '||(18+n),current_date-200,current_date-10,'ONGOING',pg_temp.u(101) FROM generate_series(1,3) n;
+INSERT INTO pathways.user_project_assignments(id,organization_id,project_id,user_id,assigned_by_id)
+SELECT pg_temp.u(415+n),pg_temp.u(1),pg_temp.u(318+n),pg_temp.u(102),pg_temp.u(101) FROM generate_series(1,3) n;
+-- Five survey pairs, pre 50 and post 52 percent: a mean improvement of 2 points against an expected 10 is Medium.
+INSERT INTO pathways.beneficiary_project_enrollments(id,organization_id,project_id,beneficiary_id,enrollment_date,status,recorded_by_id)
+SELECT pg_temp.u(10000+g),pg_temp.u(1),pg_temp.u(319),pg_temp.u(10100+g),current_date-100,'ACTIVE',pg_temp.u(101) FROM generate_series(1,5) g;
+INSERT INTO pathways.assessment_results(id,organization_id,project_id,enrollment_id,type,score,maximum_score,assessment_date,recorded_by_id)
+SELECT pg_temp.u(10200+g+t*10),pg_temp.u(1),pg_temp.u(319),pg_temp.u(10000+g),CASE t WHEN 0 THEN 'PRE_TEST' ELSE 'POST_TEST' END::pathways.assessment_type,
+ CASE t WHEN 0 THEN 50 ELSE 52 END,100,current_date-30+t*10,pg_temp.u(101) FROM generate_series(1,5) g,generate_series(0,1) t;
+COMMIT;
+BEGIN;
+SELECT pg_temp.act(1);
+SELECT pg_temp.make_rule('p19',319,'SURVEY_MEAN_IMPROVEMENT_POINTS','LT','20',1,9560,'{"expectations":{"expectedScoreImprovement":"10"}}');
+SELECT pg_temp.make_rule('p20',320,'PROJECT_OVERDUE_DAYS','GT','0',1,9570,'{"severity":"CRITICAL"}');
+SELECT pg_temp.make_rule('p21',321,'PROJECT_OVERDUE_DAYS','GT','0',1,9580);
+COMMIT;
+CALL pg_temp.drain('severity');
+CREATE FUNCTION pg_temp.alert_of(n integer) RETURNS pathways.rule_based_alerts LANGUAGE sql AS $$
+ SELECT a.* FROM pathways.rule_based_alerts a WHERE a.project_id=pg_temp.u(n)
+$$;
+SELECT pg_temp.ok((SELECT a.severity='MEDIUM' AND a.severity_basis->>'status'='CLASSIFIED' AND a.severity_basis->>'level'='MEDIUM'
+  AND a.severity_basis->'conditions'->0->'measure'->>'value'='8.0000' AND a.severity_change IS NULL
+  AND a.evaluated_snapshot->'severityBasis'=a.severity_basis
+  AND (SELECT e.evidence->'severityBasis' FROM pathways_rules_internal.evaluations e WHERE e.id=a.latest_evaluation_id)=a.severity_basis
+  FROM pg_temp.alert_of(319) a),'expected improvement 10 and mean 2 give Medium with its basis');
+SELECT pg_temp.ok((SELECT a.severity IS NULL AND a.severity_basis->>'status'='CONTEXT_REQUIRED'
+  AND a.severity_basis->'missing'='["EXPECTED_SCORE_IMPROVEMENT"]'::jsonb FROM pg_temp.alert_of(307) a),'no expectation: alert exists with Needs context');
+SELECT pg_temp.ok((SELECT a.severity='CRITICAL' AND (a.severity_basis->'manualCritical')::boolean AND a.severity_basis->>'level'='MEDIUM'
+  FROM pg_temp.alert_of(320) a),'manual Critical keeps the suggested level beside it');
+BEGIN;
+SET LOCAL session_replication_role = replica;
+SELECT pg_temp.reject(format('UPDATE pathways.rule_based_alerts SET severity_basis=NULL WHERE id=%L',(pg_temp.alert_of(307)).id),
+ '23514','alert without severity or basis');
+ROLLBACK;
+-- The PM reviews the Medium alert; P21 is made a pre-0072 alert (HIGH, no basis) outside the runtime.
+INSERT INTO t_out SELECT 'sev_alerts',jsonb_build_object('p19',(pg_temp.alert_of(319)).id,'p21',(pg_temp.alert_of(321)).id);
+INSERT INTO t_out SELECT 'p19_before',jsonb_build_object('notifications',(SELECT count(*) FROM pathways_rules_internal.notifications
+ WHERE alert_id=(pg_temp.alert_of(319)).id));
+BEGIN;
+SELECT pg_temp.act(2);
+SELECT pathways.f10_alert_review((SELECT (doc->>'p19')::uuid FROM t_out WHERE name='sev_alerts'),jsonb_build_object('expectedRevision','1','note','Reviewed','clientOperationId',pg_temp.u(9590)));
+COMMIT;
+BEGIN;
+SET LOCAL session_replication_role = replica;
+UPDATE pathways.rule_based_alerts SET severity='HIGH',severity_basis=NULL WHERE project_id=pg_temp.u(321);
+-- Later post-tests of 45 percent drop the mean to -5 points, 15 below the expectation: High.
+INSERT INTO pathways.assessment_results(id,organization_id,project_id,enrollment_id,type,score,maximum_score,assessment_date,recorded_by_id)
+SELECT pg_temp.u(10300+g),pg_temp.u(1),pg_temp.u(319),pg_temp.u(10000+g),'POST_TEST',45,100,current_date-1,pg_temp.u(101) FROM generate_series(1,5) g;
+COMMIT;
+-- Moves a project's planned end through a PROJECT_UPDATE source operation so its rules re-evaluate.
+CREATE FUNCTION pg_temp.set_project_end(n integer,op integer,end_on date) RETURNS void LANGUAGE plpgsql AS $$
+DECLARE p pathways.projects; started jsonb; ts timestamptz;
+BEGIN
+ SELECT * INTO p FROM pathways.projects WHERE id=pg_temp.u(n);
+ started:=pathways.f10_begin_source_operation('PROJECT_UPDATE',p.id,p.id,'CLIENT_MUTATION',pg_temp.u(op),'MUTATION',
+  jsonb_build_object('expectedUpdatedAt',to_char(p.updated_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
+   'title',p.title,'status',p.status,'startDate',p.start_date,'endDate',end_on));
+ ts:=(started->'generatedValues'->>'timestamp')::timestamptz;
+ UPDATE pathways.projects SET end_date=end_on,updated_at=ts WHERE id=p.id AND organization_id=p.organization_id;
+ PERFORM pathways.f10_finish_source_operation((started->>'operationHandle')::uuid);
+END $$;
+BEGIN;
+SELECT pg_temp.act(2);
+SELECT pg_temp.set_project_end(319,9591,current_date+365);
+SELECT pg_temp.set_project_end(321,9592,current_date-5);
+COMMIT;
+CALL pg_temp.drain('severity_rematch');
+SELECT pg_temp.ok((SELECT a.lifecycle='REVIEWED' AND a.revision=3 AND a.severity='HIGH' AND a.severity_basis->>'level'='HIGH'
+  AND a.severity_change->>'from'='MEDIUM' AND a.severity_change->>'to'='HIGH' AND a.severity_change->'previous'->>'level'='MEDIUM'
+  AND (a.severity_change->>'at')::timestamptz=a.updated_at
+  AND (SELECT e.evidence->'severityBasis' FROM pathways_rules_internal.evaluations e WHERE e.id=a.latest_evaluation_id)=a.severity_basis
+  FROM pg_temp.alert_of(319) a),'re-match while REVIEWED raises Medium to High and keeps the lifecycle');
+SELECT pg_temp.ok((SELECT count(*) FROM pathways_rules_internal.notifications WHERE alert_id=(pg_temp.alert_of(319)).id)
+  =(SELECT (doc->>'notifications')::bigint FROM t_out WHERE name='p19_before')
+ AND (SELECT count(*) FROM pathways_rules_internal.lifecycle_events WHERE alert_id=(pg_temp.alert_of(319)).id AND actor_kind='SYSTEM')=1
+ AND (SELECT status::text||':'||revision FROM pathways.decision_recommendations WHERE alert_id=(pg_temp.alert_of(319)).id)='NEW:1',
+ 'a severity change sends no notification and leaves lifecycle and recommendations');
+SELECT pg_temp.ok((SELECT a.severity='HIGH' AND a.severity_basis IS NULL AND a.severity_change IS NULL AND a.revision=2
+  AND (SELECT e.result='TRUE' AND e.evidence->'severityBasis'->>'level'='LOW' FROM pathways_rules_internal.evaluations e WHERE e.id=a.latest_evaluation_id)
+  FROM pg_temp.alert_of(321) a),'pre-0072 alert keeps HIGH without a basis on re-match');
+BEGIN;
+SELECT pg_temp.act(2);
+INSERT INTO t_out SELECT 'p19_json',pathways.f10_alert_get((SELECT (doc->>'p19')::uuid FROM t_out WHERE name='sev_alerts'));
+INSERT INTO t_out SELECT 'p21_json',pathways.f10_alert_get((SELECT (doc->>'p21')::uuid FROM t_out WHERE name='sev_alerts'));
+COMMIT;
+SELECT pg_temp.ok((SELECT doc->>'severity'='HIGH' AND doc->'severityBasis'->>'status'='CLASSIFIED'
+  AND doc->'severityChange'->>'from'='MEDIUM' FROM t_out WHERE name='p19_json')
+ AND (SELECT doc->>'severity'='HIGH' AND doc->'severityBasis'='null'::jsonb AND doc->'severityChange'='null'::jsonb
+  FROM t_out WHERE name='p21_json'),'alert read model exposes severityBasis and severityChange');
 
 DO $$ BEGIN RAISE NOTICE 'F10_F11_RULES_RUNTIME=PASS (% checks)',(SELECT count(*) FROM t_results); END $$;
