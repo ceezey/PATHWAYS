@@ -84,4 +84,8 @@ Developer decision 2026-10-19 to build score entry from the journey-stage assess
 
 ## 9. Disposition
 
-Pending.
+Implemented locally on `feature/severity-classification` (commits bf04a40f, b87e7c73, ae175867): migration 0071 (permission, role grants, restrictive INSERT policy), `POST /projects/:projectId/evaluation/assessments`, and the Record score form in the assessment dialog. Migration 0071 adds the definer provenance guard `p3_guard_assessment_source` for `assessment_results`, because the invoker `p3_guard_source` cannot see validated submissions under runtime RLS.
+
+Verification passed: replay with `-MigrationBaseline` exit 0 with `ASSESSMENT_SCORE_ENTRY_RUNTIME=PASS`; shared, API and web unit suites; API and web typechecks. No push, deploy or hosted migration.
+
+SAD sign-off pending; not Applied.

@@ -139,6 +139,7 @@ Admin = System Administrator; Program = Program Manager; Grant = Grant Manager; 
 | `programs.create` | Denied |
 | `settings.labels.manage` | Reserved; granted to no role |
 | `assessments.detail.read` | PO, M&E, PM |
+| `assessments.record` | PO, M&E, PM |
 | `forms.archive` | Denied |
 | `indicators.archive` | Denied |
 | `milestones.manage` | Denied |
