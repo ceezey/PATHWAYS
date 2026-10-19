@@ -9,7 +9,7 @@ type Health = {
 /** Project health comes only from open rule-based alerts, never from a success score. */
 export const healthOf = (
   status: ProjectStatus,
-  alert: { open: number; maxSeverity: AlertSeverity } | undefined,
+  alert: { open: number; maxSeverity: AlertSeverity | null } | undefined,
 ): Health => {
   if (status === 'PLANNED') return { label: 'Planned', tone: 'neutral' }
   if (alert?.maxSeverity === 'CRITICAL') return { label: 'Critical', tone: 'danger' }

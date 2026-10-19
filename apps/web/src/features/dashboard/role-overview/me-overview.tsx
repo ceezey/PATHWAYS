@@ -115,7 +115,10 @@ export const MeOverview = ({
                 <div className="flex items-start gap-2">
                   <span
                     aria-hidden="true"
-                    className={cn('mt-1.5 h-2 w-2 shrink-0 rounded-full', dot[row.severity])}
+                    className={cn(
+                      'mt-1.5 h-2 w-2 shrink-0 rounded-full',
+                      dot[row.severity ?? 'LOW'],
+                    )}
                   />
                   <div className="min-w-0">
                     <Link

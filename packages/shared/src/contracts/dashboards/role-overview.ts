@@ -99,7 +99,7 @@ const alertRow = z
     id,
     projectId: id,
     title: text(300),
-    severity: z.enum(alertSeverities),
+    severity: z.enum(alertSeverities).nullable(),
     explanation: text(1000),
     recommendation: text(1000).nullable(),
     budget: z.boolean(),
@@ -174,9 +174,16 @@ export const roleOverviewSchema = z
         open: count,
         capped: z.boolean(),
         bySeverity: z.object({ CRITICAL: count, HIGH: count, MEDIUM: count, LOW: count }).strict(),
+        needsContext: count,
         byProject: z
           .array(
-            z.object({ projectId: id, open: count, maxSeverity: z.enum(alertSeverities) }).strict(),
+            z
+              .object({
+                projectId: id,
+                open: count,
+                maxSeverity: z.enum(alertSeverities).nullable(),
+              })
+              .strict(),
           )
           .max(100),
         recent: z.array(alertRow).max(5),

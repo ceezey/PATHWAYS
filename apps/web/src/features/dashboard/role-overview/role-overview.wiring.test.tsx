@@ -81,6 +81,7 @@ const data = {
     open: 1,
     capped: false,
     bySeverity: { CRITICAL: 1, HIGH: 0, MEDIUM: 0, LOW: 0 },
+    needsContext: 0,
     byProject: [{ projectId: p, open: 1, maxSeverity: 'CRITICAL' }],
     recent: [alert],
     budgetOpen: 1,

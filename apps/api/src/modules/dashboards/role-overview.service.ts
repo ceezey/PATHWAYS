@@ -37,7 +37,7 @@ export class RoleOverviewService {
       id: string
       projectId: string
       title: string
-      severity: AlertSeverity
+      severity: AlertSeverity | null
       explanation: string
       evidence: Array<{ metric: string }>
       predefinedRecommendations: Array<{ title: string }>
@@ -60,15 +60,22 @@ export class RoleOverviewService {
         cursor = result.nextCursor
       }
     }
-    const rank = (s: AlertSeverity) => alertSeverities.indexOf(s)
+    // Alerts needing context rank after every level.
+    const rank = (s: AlertSeverity | null) =>
+      s === null ? alertSeverities.length : alertSeverities.indexOf(s)
     const bySeverity = { CRITICAL: 0, HIGH: 0, MEDIUM: 0, LOW: 0 }
-    const projects = new Map<string, { open: number; maxSeverity: AlertSeverity }>()
+    let needsContext = 0
+    const projects = new Map<string, { open: number; maxSeverity: AlertSeverity | null }>()
     for (const a of counted) {
-      bySeverity[a.severity] += 1
+      if (a.severity === null) needsContext += 1
+      else bySeverity[a.severity] += 1
       const p = projects.get(a.projectId)
       projects.set(a.projectId, {
         open: (p?.open ?? 0) + 1,
-        maxSeverity: p && rank(p.maxSeverity) <= rank(a.severity) ? p.maxSeverity : a.severity,
+        maxSeverity:
+          p?.maxSeverity != null && (a.severity === null || rank(p.maxSeverity) <= rank(a.severity))
+            ? p.maxSeverity
+            : a.severity,
       })
     }
     const isBudget = (a: (typeof counted)[number]) =>
@@ -92,6 +99,7 @@ export class RoleOverviewService {
       open: counted.length,
       capped: capped || escalated.nextCursor !== null,
       bySeverity,
+      needsContext,
       byProject: [...projects].map(([projectId, v]) => ({ projectId, ...v })).slice(0, 100),
       recent: sorted.slice(0, 5).map(row),
       budgetOpen: budget.length,

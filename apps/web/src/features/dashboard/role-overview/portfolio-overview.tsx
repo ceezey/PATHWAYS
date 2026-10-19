@@ -227,7 +227,7 @@ export const PortfolioOverview = ({
             <div className="flex items-start gap-3 py-3" key={row.id}>
               <span
                 aria-hidden="true"
-                className={cn('mt-1.5 h-2 w-2 shrink-0 rounded-full', dot[row.severity])}
+                className={cn('mt-1.5 h-2 w-2 shrink-0 rounded-full', dot[row.severity ?? 'LOW'])}
               />
               <div className="min-w-0 flex-1 space-y-1">
                 <p className="text-sm font-medium text-primary">{row.title}</p>
