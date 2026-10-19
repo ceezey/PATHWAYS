@@ -1,5 +1,4 @@
 import {
-  type AlertSeverity,
   type HumanAlert,
   type HumanRule,
   type RuleCondition,
@@ -41,7 +40,7 @@ type BoardRule = Pick<
 > & { code?: string }
 type RuleDraft = {
   name: string
-  severity: AlertSeverity
+  critical: boolean
   conditions: RuleNode
 }
 type RecommendationRow = {
@@ -306,8 +305,9 @@ const summarize = (node: RuleNode, words: boolean): string => {
 }
 export const conditionSummary = (node: RuleNode) => summarize(node, false)
 export const conditionSentence = (node: RuleNode) => summarize(node, true)
+// Only a manual Critical mark is named; other levels come from actual figures when the alert fires.
 export const previewSentence = (draft: RuleDraft) =>
-  `Raise a ${draft.severity[0]}${draft.severity.slice(1).toLowerCase()} alert when ${summarize(draft.conditions, true)}. Human review required.`
+  `Raise ${draft.critical ? 'a Critical' : 'an'} alert when ${summarize(draft.conditions, true)}. Human review required.`
 
 export const flattenRecommendations = (rules: BoardRule[]): RecommendationRow[] =>
   rules.flatMap((rule) =>
@@ -366,7 +366,6 @@ export const selectClass =
   'h-11 w-full rounded-md border border-input bg-card px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:bg-secondary disabled:text-disabled-foreground'
 export type Rec = { id: string; title: string; text: string }
 export type Mode = 'AND' | 'OR'
-export const severities: readonly AlertSeverity[] = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']
 export const recordBound = (metric: string) =>
   metric.startsWith('INDICATOR_') || metric === 'ACTIVITY_OVERDUE_DAYS'
 export const newRow = (metric: string): RuleCondition => ({

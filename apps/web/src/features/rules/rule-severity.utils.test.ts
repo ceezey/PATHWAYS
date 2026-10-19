@@ -1,6 +1,6 @@
-import type { RuleMetricKey, RuleNode } from '@pathways/shared'
+import type { RuleNode } from '@pathways/shared'
 import { describe, expect, it } from 'vitest'
-import { recommendationPrefill, suggestSeverity } from './rule-severity.utils'
+import { previewSeverity, recommendationPrefill, relevantExpectations } from './rule-severity.utils'
 
 const testRecordId = '11111111-1111-4111-8111-111111111111'
 const leaf = (id: string, metric: string, operator: string, threshold: string, max?: string) =>
@@ -30,198 +30,145 @@ const tree: RuleNode = {
   ],
 }
 
-describe('rule severity suggestions', () => {
-  it('uses the conservative metric-aware policy across every metric and operator', () => {
-    const cases: Array<{
-      metric: RuleMetricKey
-      operator: 'LT' | 'LTE' | 'EQ' | 'GTE' | 'GT' | 'BETWEEN'
-      threshold: string
-      maximum?: string
-      severity?: 'LOW' | 'MEDIUM' | 'HIGH'
-    }> = [
-      ...(['LT', 'LTE', 'EQ', 'GTE', 'GT', 'BETWEEN'] as const).map((operator, index) => ({
-        metric: 'PROJECT_OVERDUE_DAYS' as const,
-        operator,
-        threshold: ['0', '0', '0', '1', '0', '1'][index] as string,
-        maximum: operator === 'BETWEEN' ? '2' : undefined,
-        severity: (['', 'LOW', 'LOW', 'HIGH', 'HIGH', 'HIGH'][index] || undefined) as
-          | 'LOW'
-          | 'MEDIUM'
-          | 'HIGH'
-          | undefined,
-      })),
-      ...(['LT', 'LTE', 'EQ', 'GTE', 'GT', 'BETWEEN'] as const).map((operator, index) => ({
-        metric: 'PROJECT_REMAINING_DAYS' as const,
-        operator,
-        threshold: ['0', '-1', '-1', '0', '0', '0'][index] as string,
-        maximum: operator === 'BETWEEN' ? '30' : undefined,
-        severity: (['HIGH', 'HIGH', 'HIGH', '', '', 'MEDIUM'][index] || undefined) as
-          | 'LOW'
-          | 'MEDIUM'
-          | 'HIGH'
-          | undefined,
-      })),
-      ...(['LT', 'LTE', 'EQ', 'GTE', 'GT', 'BETWEEN'] as const).map((operator, index) => ({
-        metric: 'PROJECT_TIMELINE_ELAPSED_PERCENT' as const,
-        operator,
-        threshold: ['1', '0', '0', '0', '0', '0'][index] as string,
-        maximum: operator === 'BETWEEN' ? '1' : undefined,
-      })),
-      ...(['LT', 'LTE', 'EQ', 'GTE', 'GT', 'BETWEEN'] as const).map((operator, index) => ({
-        metric: 'INDICATOR_CURRENT_VALUE' as const,
-        operator,
-        threshold: ['1', '0', '0', '0', '0', '0'][index] as string,
-        maximum: operator === 'BETWEEN' ? '1' : undefined,
-      })),
-      ...(['LT', 'LTE', 'EQ', 'GTE', 'GT', 'BETWEEN'] as const).map((operator, index) => ({
-        metric: 'INDICATOR_PROGRESS_PERCENT' as const,
-        operator,
-        threshold: ['100', '99', '100', '100', '100', '0'][index] as string,
-        maximum: operator === 'BETWEEN' ? '99' : undefined,
-        severity: (['MEDIUM', 'MEDIUM', 'LOW', 'LOW', 'LOW', 'MEDIUM'][index] || undefined) as
-          | 'LOW'
-          | 'MEDIUM'
-          | 'HIGH'
-          | undefined,
-      })),
-      ...(['LT', 'LTE', 'EQ', 'GTE', 'GT', 'BETWEEN'] as const).map((operator, index) => ({
-        metric: 'ACTIVITY_COMPLETION_PERCENT' as const,
-        operator,
-        threshold: ['100', '99', '100', '100', '100', '0'][index] as string,
-        maximum: operator === 'BETWEEN' ? '99' : undefined,
-        severity: (['MEDIUM', 'MEDIUM', 'LOW', 'LOW', '', 'MEDIUM'][index] || undefined) as
-          | 'LOW'
-          | 'MEDIUM'
-          | 'HIGH'
-          | undefined,
-      })),
-      ...(['LT', 'LTE', 'EQ', 'GTE', 'GT', 'BETWEEN'] as const).flatMap((operator, index) =>
-        (['ACTIVITY_OVERDUE_COUNT', 'ACTIVITY_OVERDUE_DAYS'] as const).map((metric) => ({
-          metric,
-          operator,
-          threshold: ['0', '0', '0', '1', '0', '1'][index] as string,
-          maximum: operator === 'BETWEEN' ? '2' : undefined,
-          severity: (['', 'LOW', 'LOW', 'HIGH', 'HIGH', 'HIGH'][index] || undefined) as
-            | 'LOW'
-            | 'MEDIUM'
-            | 'HIGH'
-            | undefined,
-        })),
-      ),
-      ...(['LT', 'LTE', 'EQ', 'GTE', 'GT', 'BETWEEN'] as const).map((operator, index) => ({
-        metric: 'BUDGET_UTILIZATION_PERCENT' as const,
-        operator,
-        threshold: ['100', '100', '100', '100', '100', '101'][index] as string,
-        maximum: operator === 'BETWEEN' ? '200' : undefined,
-        severity: (['', '', '', '', 'HIGH', 'HIGH'][index] || undefined) as
-          | 'LOW'
-          | 'MEDIUM'
-          | 'HIGH'
-          | undefined,
-      })),
-      ...(['LT', 'LTE', 'EQ', 'GTE', 'GT', 'BETWEEN'] as const).map((operator, index) => ({
-        metric: 'BENEFICIARY_FOLLOW_UP_PERCENT' as const,
-        operator,
-        threshold: ['0', '0', '0', '1', '0', '1'][index] as string,
-        maximum: operator === 'BETWEEN' ? '2' : undefined,
-        severity: (['', 'LOW', 'LOW', 'MEDIUM', 'MEDIUM', 'MEDIUM'][index] || undefined) as
-          | 'LOW'
-          | 'MEDIUM'
-          | 'HIGH'
-          | undefined,
-      })),
-      ...(['LT', 'LTE', 'EQ', 'GTE', 'GT', 'BETWEEN'] as const).map((operator, index) => ({
-        metric: 'SURVEY_MEAN_IMPROVEMENT_POINTS' as const,
-        operator,
-        threshold: ['0', '-1', '1', '1', '0', '-1'][index] as string,
-        maximum: operator === 'BETWEEN' ? '1' : undefined,
-        severity: (['MEDIUM', 'MEDIUM', 'LOW', 'LOW', 'LOW', ''][index] || undefined) as
-          | 'LOW'
-          | 'MEDIUM'
-          | 'HIGH'
-          | undefined,
-      })),
-    ]
+const group = (mode: 'AND' | 'OR', ...children: RuleNode[]): RuleNode => ({
+  kind: 'GROUP',
+  mode,
+  children,
+})
+const bound = (id: string, operator: string, threshold: string, indicatorId: string) =>
+  ({
+    ...(leaf(id, 'INDICATOR_PROGRESS_PERCENT', operator, threshold) as object),
+    indicatorId,
+  }) as RuleNode
 
-    for (const [index, entry] of cases.entries()) {
-      const result = suggestSeverity(
-        leaf(`case-${index}`, entry.metric, entry.operator, entry.threshold, entry.maximum),
-      )
-      if (entry.severity)
-        expect(result, `${entry.metric} ${entry.operator}`).toMatchObject({
-          status: 'SUGGESTED',
-          severity: entry.severity,
-        })
-      else expect(result).toMatchObject({ status: 'NEEDS_JUDGMENT', severity: null })
-    }
+describe('severity preview', () => {
+  it('narrows follow-up and assessment levels with the stored expectations', () => {
+    const followUp = { manageableFollowUpPercent: '10' }
+    expect(
+      previewSeverity(leaf('a', 'BENEFICIARY_FOLLOW_UP_PERCENT', 'GT', '30'), followUp),
+    ).toEqual({
+      levels: ['HIGH'],
+      dependsOnDates: false,
+      explanatoryOnly: false,
+      needs: [],
+      contradiction: null,
+    })
+    expect(
+      previewSeverity(leaf('a', 'BENEFICIARY_FOLLOW_UP_PERCENT', 'GT', '12'), followUp).levels,
+    ).toEqual(['LOW', 'MEDIUM', 'HIGH'])
+    expect(
+      previewSeverity(leaf('a', 'SURVEY_MEAN_IMPROVEMENT_POINTS', 'LT', '8'), {
+        expectedScoreImprovement: '10',
+      }).levels,
+    ).toEqual(['LOW', 'MEDIUM', 'HIGH'])
+    expect(
+      previewSeverity(leaf('a', 'SURVEY_MEAN_IMPROVEMENT_POINTS', 'LT', '-1'), {
+        expectedScoreImprovement: '10',
+      }).levels,
+    ).toEqual(['HIGH'])
   })
-  it('fails closed for invalid or ambiguous conditions and keeps exact decimal boundaries exact', () => {
-    for (const condition of [
-      leaf('empty', 'BUDGET_UTILIZATION_PERCENT', 'GT', ''),
-      leaf('exponent', 'BUDGET_UTILIZATION_PERCENT', 'GT', '1e2'),
-      leaf('precision', 'BUDGET_UTILIZATION_PERCENT', 'GT', '100.00001'),
-      leaf('range', 'BUDGET_UTILIZATION_PERCENT', 'BETWEEN', '101', '100'),
-      leaf('domain', 'ACTIVITY_COMPLETION_PERCENT', 'GT', '100'),
+  it('asks for a missing expectation without narrowing', () => {
+    expect(
+      previewSeverity(leaf('a', 'BENEFICIARY_FOLLOW_UP_PERCENT', 'GT', '30'), {}),
+    ).toMatchObject({
+      levels: ['LOW', 'MEDIUM', 'HIGH'],
+      needs: ['MANAGEABLE_FOLLOW_UP_LEVEL'],
+    })
+    expect(
+      previewSeverity(leaf('a', 'SURVEY_MEAN_IMPROVEMENT_POINTS', 'LT', '8'), {
+        expectedScoreImprovement: 'abc',
+      }).needs,
+    ).toEqual(['EXPECTED_SCORE_IMPROVEMENT'])
+  })
+  it('reads budget bands from the criteria and keeps the within-budget part explanatory', () => {
+    expect(previewSeverity(leaf('a', 'BUDGET_UTILIZATION_PERCENT', 'GT', '110'), {})).toMatchObject(
+      {
+        levels: ['HIGH'],
+        needs: [],
+      },
+    )
+    expect(previewSeverity(leaf('a', 'BUDGET_UTILIZATION_PERCENT', 'GT', '90'), {})).toMatchObject({
+      levels: ['MEDIUM', 'HIGH'],
+      explanatoryOnly: false,
+      needs: ['DELIVERY_EXPECTATION'],
+    })
+  })
+  it('says when the level depends on dates and when time alone only explains', () => {
+    expect(previewSeverity(leaf('a', 'INDICATOR_PROGRESS_PERCENT', 'LT', '75'), {})).toMatchObject({
+      levels: ['LOW', 'MEDIUM', 'HIGH'],
+      dependsOnDates: true,
+    })
+    expect(previewSeverity(leaf('a', 'PROJECT_TIMELINE_ELAPSED_PERCENT', 'GT', '80'), {})).toEqual({
+      levels: [],
+      dependsOnDates: false,
+      explanatoryOnly: true,
+      needs: ['DELIVERY_EXPECTATION'],
+      contradiction: null,
+    })
+    expect(previewSeverity(leaf('a', 'PROJECT_OVERDUE_DAYS', 'EQ', '0'), {}).levels).toEqual([
+      'LOW',
     ])
-      expect(suggestSeverity(condition)).toMatchObject({ status: 'NEEDS_JUDGMENT', severity: null })
-
+  })
+  it('flags contradictory comparisons on the same metric and binding inside an AND group', () => {
+    const other = '22222222-2222-4222-8222-222222222222'
     expect(
-      suggestSeverity(leaf('timeline-empty', 'PROJECT_TIMELINE_ELAPSED_PERCENT', 'LT', '')),
-    ).toMatchObject({
-      status: 'NEEDS_JUDGMENT',
-      reason: expect.stringContaining('does not receive an automatic severity suggestion'),
-    })
+      previewSeverity(
+        group('AND', bound('a', 'LT', '20', testRecordId), bound('b', 'GT', '80', testRecordId)),
+        {},
+      ).contradiction,
+    ).toBe('These conditions cannot happen together.')
     expect(
-      suggestSeverity(leaf('indicator-empty', 'INDICATOR_CURRENT_VALUE', 'LT', '')),
-    ).toMatchObject({
-      status: 'NEEDS_JUDGMENT',
-      reason: expect.stringContaining('does not receive an automatic severity suggestion'),
-    })
-
+      previewSeverity(
+        group('AND', bound('a', 'LT', '20', testRecordId), bound('b', 'GT', '80', other)),
+        {},
+      ).contradiction,
+    ).toBeNull()
     expect(
-      suggestSeverity(leaf('large', 'INDICATOR_PROGRESS_PERCENT', 'GTE', '99999999999999.9999')),
-    ).toMatchObject({ status: 'SUGGESTED', severity: 'LOW' })
-    expect(suggestSeverity(leaf('zero', 'PROJECT_OVERDUE_DAYS', 'GTE', '0'))).toMatchObject({
-      status: 'NEEDS_JUDGMENT',
-    })
-    expect(
-      suggestSeverity(leaf('hundred', 'BUDGET_UTILIZATION_PERCENT', 'GTE', '100')),
-    ).toMatchObject({
-      status: 'NEEDS_JUDGMENT',
+      previewSeverity(
+        group('OR', bound('a', 'LT', '20', testRecordId), bound('b', 'GT', '80', testRecordId)),
+        {},
+      ).contradiction,
+    ).toBeNull()
+  })
+  it('keeps AND levels at or above the highest leaf minimum and unites OR levels', () => {
+    const followUp = leaf('a', 'BENEFICIARY_FOLLOW_UP_PERCENT', 'GT', '12')
+    const budget = leaf('b', 'BUDGET_UTILIZATION_PERCENT', 'GT', '100')
+    const expectations = { manageableFollowUpPercent: '10' }
+    expect(previewSeverity(group('AND', followUp, budget), expectations).levels).toEqual([
+      'MEDIUM',
+      'HIGH',
+    ])
+    expect(previewSeverity(group('OR', followUp, budget), expectations).levels).toEqual([
+      'LOW',
+      'MEDIUM',
+      'HIGH',
+    ])
+    const timeline = leaf('c', 'PROJECT_TIMELINE_ELAPSED_PERCENT', 'GT', '80')
+    expect(previewSeverity(group('AND', timeline, budget), {})).toMatchObject({
+      levels: ['MEDIUM', 'HIGH'],
+      explanatoryOnly: false,
+      needs: [],
     })
   })
-  it('uses highest supported group severity but never hides an unavailable leaf', () => {
+  it('previews an incomplete condition across its whole range instead of failing', () => {
+    expect(previewSeverity(leaf('a', 'BUDGET_UTILIZATION_PERCENT', 'GT', ''), {}).levels).toEqual([
+      'MEDIUM',
+      'HIGH',
+    ])
+  })
+  it('keeps only the expectations for metrics the rule uses', () => {
+    const values = { expectedScoreImprovement: ' 10 ', manageableFollowUpPercent: '5' }
     expect(
-      suggestSeverity({
-        kind: 'GROUP',
-        mode: 'OR',
-        children: [
-          leaf('low', 'ACTIVITY_COMPLETION_PERCENT', 'GTE', '100'),
-          leaf('high', 'ACTIVITY_OVERDUE_COUNT', 'GT', '0'),
-        ],
-      }),
-    ).toMatchObject({ status: 'SUGGESTED', severity: 'HIGH' })
+      relevantExpectations(leaf('a', 'SURVEY_MEAN_IMPROVEMENT_POINTS', 'LT', '8'), values),
+    ).toEqual({
+      expectedScoreImprovement: '10',
+      manageableFollowUpPercent: null,
+    })
     expect(
-      suggestSeverity({
-        kind: 'GROUP',
-        mode: 'AND',
-        children: [
-          leaf('medium', 'INDICATOR_PROGRESS_PERCENT', 'LT', '70'),
-          leaf('low', 'ACTIVITY_COMPLETION_PERCENT', 'GTE', '100'),
-        ],
+      relevantExpectations(leaf('a', 'BENEFICIARY_FOLLOW_UP_PERCENT', 'GT', '8'), {
+        manageableFollowUpPercent: ' ',
       }),
-    ).toMatchObject({ status: 'SUGGESTED', severity: 'MEDIUM' })
-    expect(
-      suggestSeverity({
-        kind: 'GROUP',
-        mode: 'OR',
-        children: [
-          leaf('high', 'ACTIVITY_OVERDUE_COUNT', 'GT', '0'),
-          leaf('uncertain', 'BUDGET_UTILIZATION_PERCENT', 'GTE', '100'),
-        ],
-      }),
-    ).toMatchObject({ status: 'NEEDS_JUDGMENT', severity: null })
-    expect(suggestSeverity(tree)).toMatchObject({ status: 'NEEDS_JUDGMENT', severity: null })
+    ).toEqual({ expectedScoreImprovement: null, manageableFollowUpPercent: null })
   })
   it('offers predefined authoring copy by metric family and combines mixed families', () => {
     expect(recommendationPrefill(leaf('a', 'BUDGET_UTILIZATION_PERCENT', 'GTE', '80'))).toEqual({

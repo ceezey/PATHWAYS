@@ -1,26 +1,23 @@
 'use client'
 
 import { cn } from '@/lib/utils'
-import type { AlertSeverity } from '@pathways/shared'
-import { severityCopy } from '../rules.copy'
 import type { Rec } from '../rules.utils'
 
 export function RulePreview({
   sentence,
   name,
-  severity,
+  critical,
   mode,
   condition,
   recommendation,
 }: {
   sentence: string
   name: string
-  severity: AlertSeverity
+  critical: boolean
   mode: 'alert' | 'recommendation'
   condition: string
   recommendation: Rec | undefined
 }) {
-  const copy = severityCopy[severity]
   return (
     <section className="min-h-32 space-y-3 rounded-md border border-info/30 bg-info-subtle p-4">
       <div className="space-y-1">
@@ -30,8 +27,16 @@ export function RulePreview({
         {sentence}
       </p>
       <div className="overflow-hidden rounded-md border border-border bg-card">
-        <p className={cn('px-3 py-2 text-sm font-semibold', copy.tile)}>
-          {name.trim() || 'Untitled rule'} - {copy.label}
+        <p
+          className={cn(
+            'px-3 py-2 text-sm font-semibold',
+            critical
+              ? 'border-danger/30 bg-danger-subtle text-danger'
+              : 'border-border bg-muted text-muted-foreground',
+          )}
+        >
+          {name.trim() || 'Untitled rule'} -{' '}
+          {critical ? 'Critical' : 'Severity from actual figures'}
         </p>
         <p className="px-3 py-2 text-sm">
           {mode === 'alert' ? 'Condition met' : 'Insight recorded'}:{' '}

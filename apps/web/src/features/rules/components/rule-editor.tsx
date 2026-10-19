@@ -13,9 +13,9 @@ import { rulesHumanClient } from '@/lib/api/rules'
 import { type SensitiveDraftOwner, useSensitiveDraftOwner } from '@/lib/auth/sensitive-drafts'
 import { principalHasAtomicPermission } from '@/lib/rbac/policy'
 import {
-  type AlertSeverity,
   type HumanRule,
   type RuleCondition,
+  type RuleExpectations,
   type RuleNode,
   createRuleSchema,
   draftRuleSchema,
@@ -23,14 +23,17 @@ import {
   ruleMetrics,
 } from '@pathways/shared'
 import { useEffect, useId, useRef, useState } from 'react'
+import { previewSeverity, relevantExpectations } from '../rule-severity.utils'
 import { type RuleTemplateSpec, ruleTemplates } from '../rule-templates'
+import { severityStepCopy } from '../rules.copy'
 import {
   useRuleBindingActivities,
   useRuleBindingActivityContext,
   useRuleBindingIndicators,
 } from '../rules.reads'
-import { clearRecordBindings, leafCount, manualSeverity, newCondition } from '../rules.utils'
+import { clearRecordBindings, leafCount, newCondition } from '../rules.utils'
 import { RuleConditionEditor } from './rule-condition-editor'
+import { SeverityPreview } from './severity-preview'
 
 type Props = {
   projectId: string | null
@@ -99,7 +102,8 @@ function RuleEditorForm({
   )
   const [name, setName] = useState(initial?.name ?? '')
   const [code, setCode] = useState(original?.code ?? '')
-  const [severity, setSeverity] = useState<AlertSeverity>(initial?.severity ?? 'LOW')
+  const [critical, setCritical] = useState(initial?.severity === 'CRITICAL')
+  const [expectations, setExpectations] = useState<RuleExpectations>(initial?.expectations ?? {})
   const [conditions, setConditions] = useState<RuleNode>(
     initial?.conditions ?? { kind: 'GROUP', mode: 'AND', children: [newCondition()] },
   )
@@ -183,7 +187,7 @@ function RuleEditorForm({
     const built = spec.build()
     setName(built.name)
     setCode((current) => (original ? current : built.code))
-    setSeverity(built.severity)
+    setCritical(built.severity === 'CRITICAL')
     setConditions(built.conditions)
     setRecommendations(built.recommendations)
     setStepError('')
@@ -262,7 +266,8 @@ function RuleEditorForm({
     if (!captured.current) {
       const content = {
         name,
-        severity: manualSeverity(severity),
+        severity: critical ? ('CRITICAL' as const) : null,
+        expectations: relevantExpectations(conditions, expectations),
         conditions,
         recommendations,
         clientOperationId: crypto.randomUUID(),
@@ -454,21 +459,6 @@ function RuleEditorForm({
                 Use capital letters, numbers, underscores, or hyphens.
               </p>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="rule-severity">Severity</Label>
-              <select
-                className="h-11 w-full rounded-sm border border-input bg-background px-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                id="rule-severity"
-                value={severity}
-                onChange={(event) => setSeverity(event.target.value as AlertSeverity)}
-              >
-                {['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'].map((value) => (
-                  <option key={value} value={value}>
-                    {value.toLowerCase()}
-                  </option>
-                ))}
-              </select>
-            </div>
           </fieldset>
           <p className="text-sm text-muted-foreground">
             Use up to 32 conditions in four levels of groups. Thresholds retain their entered
@@ -483,6 +473,19 @@ function RuleEditorForm({
             activities={activityChoices.map((item) => ({ id: item.id, name: item.title }))}
             metrics={availableMetrics}
           />
+          <fieldset className="space-y-2" disabled={busy || locked}>
+            <legend className="font-semibold">{severityStepCopy.title}</legend>
+            <p className="text-sm text-muted-foreground">{severityStepCopy.hint}</p>
+            <SeverityPreview
+              critical={critical}
+              expectations={expectations}
+              onCritical={setCritical}
+              onExpectations={setExpectations}
+              preview={previewSeverity(conditions, expectations)}
+              showFollowUp={requires(conditions, 'BENEFICIARY_FOLLOW_UP_PERCENT')}
+              showScore={requires(conditions, 'SURVEY_MEAN_IMPROVEMENT_POINTS')}
+            />
+          </fieldset>
           {requires(conditions, 'INDICATOR_') || requires(conditions, 'ACTIVITY_OVERDUE_DAYS') ? (
             <div className="space-y-2 text-sm">
               <p>

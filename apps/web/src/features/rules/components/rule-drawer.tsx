@@ -14,9 +14,9 @@ import { type SensitiveDraftOwner, useSensitiveDraftOwner } from '@/lib/auth/sen
 import { principalHasAtomicPermission } from '@/lib/rbac/policy'
 import { cn } from '@/lib/utils'
 import {
-  type AlertSeverity,
   type HumanRule,
   type RuleCondition,
+  type RuleExpectations,
   type RuleNode,
   createRuleSchema,
   draftRuleSchema,
@@ -25,7 +25,12 @@ import {
 import { Plus } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useBindingChoices } from '../hooks/use-binding-choices'
-import { recommendationPrefill, suggestSeverity } from '../rule-severity.utils'
+import {
+  previewSeverity,
+  recommendationPrefill,
+  relevantExpectations,
+} from '../rule-severity.utils'
+import { severityStepCopy } from '../rules.copy'
 import {
   type MetricScope,
   type Mode,
@@ -36,7 +41,7 @@ import {
   categoriesForScopes,
   clearRecordBindings,
   conditionSummary,
-  manualSeverity,
+  leaves,
   newRec,
   newRow,
   previewSentence,
@@ -53,7 +58,7 @@ import { LifecyclePrompt } from './rule-lifecycle-prompt'
 import { RulePreview } from './rule-preview'
 import { RuleStepCard } from './rule-step-card'
 import { RuleTestWorkspace } from './rule-test-workspace'
-import { SeverityField } from './severity-field'
+import { SeverityPreview } from './severity-preview'
 
 export type DrawerIntent = 'test' | 'activate' | 'deactivate'
 type Props = {
@@ -168,7 +173,8 @@ function AlertRuleDrawer({
   const [rows, setRows] = useState<RuleCondition[]>(
     initial?.rows.length ? initial.rows : [newRow(availableMetrics(['Project'])[0] ?? '')],
   )
-  const [severity, setSeverity] = useState<AlertSeverity>(rule?.severity ?? 'MEDIUM')
+  const [critical, setCritical] = useState(rule?.severity === 'CRITICAL')
+  const [expectations, setExpectations] = useState<RuleExpectations>(rule?.expectations ?? {})
   const [recs, setRecs] = useState<Rec[]>(
     rule?.recommendations.map((item) => ({ ...item })) ?? [
       {
@@ -226,9 +232,10 @@ function AlertRuleDrawer({
   )
   const { indicators, activities } = useBindingChoices(scopeProjectId, rows)
   const tree: RuleNode = { kind: 'GROUP', mode: matchMode, children: rows }
-  // A nested stored rule is read-only in this builder; its suggestion must inspect
+  // A nested stored rule is read-only in this builder; its preview must inspect
   // the retained tree rather than the blank flat-row fallback shown for the advanced editor.
-  const suggestedSeverity = suggestSeverity(nested && rule ? rule.conditions : tree)
+  const previewTree = nested && rule ? rule.conditions : tree
+  const metrics = leaves(previewTree).map((leaf) => leaf.metric)
   const suggestedRecommendation = recommendationPrefill(tree)
   const suggestedRecommendationTitle = suggestedRecommendation.title
   const suggestedRecommendationText = suggestedRecommendation.text
@@ -345,7 +352,8 @@ function AlertRuleDrawer({
         )
       const content = {
         name,
-        severity: manualSeverity(severity),
+        severity: critical ? ('CRITICAL' as const) : null,
+        expectations: relevantExpectations(tree, expectations),
         recommendations: recs,
         clientOperationId: crypto.randomUUID(),
       }
@@ -398,8 +406,8 @@ function AlertRuleDrawer({
       mode={mode}
       name={name}
       recommendation={recs[0]}
-      sentence={previewSentence({ name, severity, conditions: tree })}
-      severity={severity}
+      critical={critical}
+      sentence={previewSentence({ name, critical, conditions: tree })}
     />
   )
   const builder = (
@@ -481,20 +489,15 @@ function AlertRuleDrawer({
               setRows={setRows}
             />
           </RuleStepCard>
-          <RuleStepCard
-            step={3}
-            title="How should this read?"
-            hint="Severity is the alert’s urgency. Choose it deliberately, or use the suggestion."
-          >
-            <SeverityField
-              mode={mode}
-              onSeverity={setSeverity}
-              onUseSuggestion={() => {
-                if (suggestedSeverity.status === 'SUGGESTED')
-                  setSeverity(suggestedSeverity.severity)
-              }}
-              severity={severity}
-              suggestion={suggestedSeverity}
+          <RuleStepCard step={3} title={severityStepCopy.title} hint={severityStepCopy.hint}>
+            <SeverityPreview
+              critical={critical}
+              expectations={expectations}
+              onCritical={setCritical}
+              onExpectations={setExpectations}
+              preview={previewSeverity(previewTree, expectations)}
+              showFollowUp={metrics.includes('BENEFICIARY_FOLLOW_UP_PERCENT')}
+              showScore={metrics.includes('SURVEY_MEAN_IMPROVEMENT_POINTS')}
             />
           </RuleStepCard>
           <RuleStepCard
