@@ -10,7 +10,7 @@ Developer request 2026-10-19: implement the tiered Activity Escalation Process n
 
 ## 2. Current Contract
 
-The two permission codes exist in the role-permission matrix (312 rows) and nothing reads them. A blocked or at-risk activity can only be raised verbally or through an alert; there is no recorded reason, owner, hand-off or decision. The activity extension request (`cr-pathways-activity-extension-request`, migration 0061) is the model for a reviewed, audited, role-staged request on an activity.
+The two permission codes exist in the role-permission matrix (314 rows since 0064) and nothing reads them. A blocked or at-risk activity can only be raised verbally or through an alert; there is no recorded reason, owner, hand-off or decision. The activity extension request (`cr-pathways-activity-extension-request`, migration 0061) is the model for a reviewed, audited, role-staged request on an activity.
 
 ## 3. Proposed Change
 
@@ -77,7 +77,7 @@ Grants: REVOKE ALL from PUBLIC, anon, authenticated, service_role; `GRANT SELECT
 
 Role enforcement in the database. No existing helper returns the acting role, but `pathways_runtime` already has SELECT on `pathways.system_users` and `pathways.roles` (policies `p4_runtime_select`, organization-scoped), so the `ROLE(code)` pattern needs no new privileged object, owner or grant. The database therefore enforces that forward and project-level resolve are done by a Project Manager (only `PROJECT_MANAGER` holds `activities.update`; the System Administrator reaches these rows through scope and `activities.escalations.read` but is refused by the role check) and that program-level resolve is done by a Program Manager. A Program Manager is in scope through the managed program (`programs.manager_user_id`) or a direct active project assignment; both are valid. The API role checks (`soleRole`) still run first so users get the documented 403 and the database is the backstop. Scope, organization, separation of duties, state order and immutability are enforced by the database in every case. No role residual remains at the database layer. The Project Officer active-assignment check and the finished-activity refusal are API-only (the 0061 pattern); the database does not enforce them.
 
-### 3.5 Permissions (no new codes; matrix stays 312 rows)
+### 3.5 Permissions (no new codes; matrix stays 314 rows)
 
 | Action | Role (sole role) | Permission | Extra rule |
 |---|---|---|---|
@@ -130,7 +130,7 @@ Refusals: unknown or out-of-scope activity or escalation 404; wrong role, raiser
 Anyone on an activity can flag a blocker with a reason; the Project Manager handles it or hands it up; the Program Manager closes forwarded ones; a decision trail exists.
 
 ### Data / Migration
-Migration `0070_activity_escalations`: one table, three policies, one trigger, column grants. Requires verified 0069 and prisma identity (0061 guard style). Only prisma-owned helpers are referenced, so no DBA preprovision is needed. Task 6 also adds the `schema.prisma` model (with the drift check), registers 0070 wherever 0069 is referenced (`scripts/db/hosted/plan.mjs` and `plan.test.mjs`, `infra/supabase/replay/Verify-Forward.ps1`, `apps/api/prisma/legacy-retirement.test.ts`) and updates the comment at `Replay-Local.ps1:616`. Pathways table count 61 (`Replay-Local.ps1` `PATHWAYS_EXPECTED_TABLE_COUNT` is 60 today and no migration 0062-0069 creates a table; Task 6 raises it to 61); ledger 45 rows through 0070 (44 migration directories 0000-0069 today).
+Migration `0070_activity_escalations`: one table, three policies, one trigger, column grants. Requires verified 0069 and prisma identity (0061 guard style). Only prisma-owned helpers are referenced, so no DBA preprovision is needed. Task 6 also adds the `schema.prisma` model (with the drift check), registers 0070 wherever 0069 is referenced (`scripts/db/hosted/plan.mjs` and `plan.test.mjs`, `infra/supabase/replay/Verify-Forward.ps1`, `apps/api/prisma/legacy-retirement.test.ts`) and updates the comment at `Replay-Local.ps1:616`. Pathways schema tables 60 on devV2 after 0070; the local replay guard `PATHWAYS_EXPECTED_TABLE_COUNT` is 61 because the full replay also holds the harness probe table `baseline_compatibility_probe`; ledger 45 rows through 0070 (44 migration directories 0000-0069 today).
 
 ### Authorization / Privacy
 See 3.4, 3.5 and 3.6. No new permission codes, no widened grants, no beneficiary data in any escalation surface.
@@ -156,14 +156,14 @@ QAD-T122 to QAD-T124 and QAD-A45.
 
 - Restraint option: do nothing and keep using alerts and verbal escalation. Rejected: the permissions exist with no use and the developer asked for the flow.
 - A 0062-style SECURITY DEFINER list function for aggregate roles: rejected, see 3.6.
-- A new permission code per tier or a `notifications` inbox: rejected; the matrix stays 312 rows and no inbox exists.
+- A new permission code per tier or a `notifications` inbox: rejected; the matrix stays 314 rows and no inbox exists.
 - A single `/resolve` route dispatched by role: rejected; separate routes keep each `RequirePermission` and audit action explicit.
 
 ## 6. Migration / Rollback
 
 Apply by the normal migration chain after local replay and suites pass. Rollback before use: `DROP TABLE pathways.activity_escalations` and its function in a corrective migration; after use, resolve forward with a new migration (never edit 0070). No data from other tables is touched.
 
-After a failed 0070 apply, run `prisma migrate resolve --rolled-back 0070_activity_escalations`, then `--resume` (precedent: `runbook-role-staging-build.md`). A corrective DROP needs separate destructive authorization and must reverse the inventory changes (61-table count, wipe list, 59-model count).
+After a failed 0070 apply, run `prisma migrate resolve --rolled-back 0070_activity_escalations`, then `--resume` (precedent: `runbook-role-staging-build.md`). A corrective DROP needs separate destructive authorization and must reverse the inventory changes (replay guard count, wipe list, 59-model count).
 
 ## 7. Verification
 

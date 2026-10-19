@@ -1044,3 +1044,4 @@
 - SAD reviews bound to digest c5637f7d (migration integrity, organization isolation, design QA) passed with no blocking findings.
 - `hosted/build.mjs --resume` applied 0070: ledger 45 rows 0000-0070, all finished; table owner prisma, RLS forced, 3 policies, 7 CHECKs, 6 FKs, no runtime DELETE.
 - `dev` pushed to origin (d4d102df..14c0a8e5); the CR section 7 manual test script is the open step.
+- Count checks: devV2 `role_permissions` is 314 by design (0064 revoked 1 and granted 3 evaluation rows), so the escalation CR now says 314. Local and devV2 hold the same 60 pathways tables; the replay guard's 61 includes the harness probe `baseline_compatibility_probe`, now stated in `Replay-Local.ps1` and the CR.
