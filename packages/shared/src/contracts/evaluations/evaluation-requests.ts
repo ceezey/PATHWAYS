@@ -1,5 +1,7 @@
 import { z } from 'zod'
 
+import { strictIsoDateString, uuidString } from '../common/field-schemas'
+
 const revision = z.string().datetime({ offset: true })
 // A calendar date that also names a real UTC day.
 const dateOnly = z
@@ -57,3 +59,35 @@ export type SignOffEvaluationRequest = z.infer<typeof signOffEvaluationRequest>
 // Query of GET projects/:projectId/evaluation/assessments; other query keys are ignored.
 export const enrollmentAssessmentsQuery = z.object({ enrollmentId: z.string().uuid() })
 export type EnrollmentAssessmentsQuery = z.infer<typeof enrollmentAssessmentsQuery>
+
+// A non-negative decimal string with at most 4 decimal places, matching the score columns.
+const scoreString = z
+  .string()
+  .regex(/^(?:0|[1-9]\d{0,13})(?:\.\d{1,4})?$/, 'must be a non-negative number')
+
+// Body of POST projects/:projectId/evaluation/assessments.
+export const recordAssessmentRequest = z
+  .object({
+    enrollmentId: uuidString,
+    activityId: uuidString,
+    type: z.enum(['PRE_TEST', 'POST_TEST']),
+    score: scoreString,
+    maximumScore: scoreString.default('100'),
+    assessmentDate: strictIsoDateString,
+  })
+  .strict()
+  .superRefine((value, ctx) => {
+    if (Number(value.maximumScore) <= 0)
+      ctx.addIssue({
+        code: 'custom',
+        message: 'must be above zero',
+        path: ['maximumScore'],
+      })
+    else if (Number(value.score) > Number(value.maximumScore))
+      ctx.addIssue({
+        code: 'custom',
+        message: 'cannot exceed the maximum',
+        path: ['score'],
+      })
+  })
+export type RecordAssessmentRequest = z.infer<typeof recordAssessmentRequest>

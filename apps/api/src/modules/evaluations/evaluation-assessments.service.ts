@@ -1,13 +1,16 @@
-import { ForbiddenException, NotFoundException } from '@nestjs/common'
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common'
 import {
   aggregateOnlyRoles,
   enrollmentAssessmentsQuery,
   hasAtomicPermission,
+  recordAssessmentRequest,
 } from '@pathways/shared'
+import { writeAuditLog } from '../../common/audit/write-audit-log'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import { projectScope } from '../../common/authz/project-scope'
 import { requireScopedProject } from '../../common/authz/scoped-project'
 import type { Tx } from '../../common/prisma/transaction'
+import { currentBusinessDate } from '../../common/time/business-date'
 import { projectIdSchema } from './evaluations.helpers'
 
 // Locked auth RFC: System Administrator is denied assessment/survey detail and
@@ -153,4 +156,75 @@ export async function listEnrollmentAssessments(
     assessmentDate: row.assessmentDate.toISOString().slice(0, 10),
     recordedAt: row.recordedAt.toISOString(),
   }))
+}
+
+// Records one pre or post test score, sourced from the enrollment's validated attendance for the stage.
+export async function recordEnrollmentAssessment(
+  tx: Tx,
+  actor: ApplicationIdentity,
+  projectId: string,
+  input: unknown,
+): Promise<{ id: string }> {
+  if (assessmentDetailDeniedRoles.has(actor.roles[0]))
+    throw new ForbiddenException('Assessment recording is not available to this role.')
+  const parsed = recordAssessmentRequest.safeParse(input)
+  if (!parsed.success) throw new BadRequestException('Supply a valid assessment score and date.')
+  const body = parsed.data
+  if (body.assessmentDate.slice(0, 10) > currentBusinessDate())
+    throw new BadRequestException('The assessment date cannot be in the future.')
+  const id = await requireScopedProject(tx, actor, projectId)
+  const enrollment = await tx.beneficiaryProjectEnrollment.findFirst({
+    where: {
+      id: body.enrollmentId,
+      organizationId: actor.organizationId,
+      projectId: id,
+      beneficiary: { organizationId: actor.organizationId, archivedAt: null },
+    },
+    select: { id: true },
+  })
+  if (!enrollment) throw new NotFoundException('Enrollment unavailable.')
+  const direction = body.type === 'PRE_TEST' ? 'asc' : 'desc'
+  const attendance = await tx.beneficiaryActivityParticipation.findFirst({
+    where: {
+      organizationId: actor.organizationId,
+      projectId: id,
+      enrollmentId: enrollment.id,
+      activityId: body.activityId,
+      sourceSubmission: {
+        status: { in: ['VALIDATED', 'PROCESSED'] },
+        isDummyRecord: false,
+      },
+    },
+    orderBy: [{ participationDate: direction }, { id: direction }],
+    select: { sourceSubmissionId: true },
+  })
+  if (!attendance)
+    throw new BadRequestException('Record participation for this stage before recording a score.')
+  const created = await tx.assessmentResult.create({
+    data: {
+      organizationId: actor.organizationId,
+      projectId: id,
+      activityId: body.activityId,
+      enrollmentId: enrollment.id,
+      sourceSubmissionId: attendance.sourceSubmissionId,
+      type: body.type,
+      score: body.score,
+      maximumScore: body.maximumScore,
+      assessmentDate: new Date(`${body.assessmentDate.slice(0, 10)}T00:00:00.000Z`),
+      recordedById: actor.userId,
+    },
+    select: { id: true },
+  })
+  await writeAuditLog(tx, actor, {
+    projectId: id,
+    action: 'ASSESSMENT_RECORD',
+    entityType: 'AssessmentResult',
+    entityId: created.id,
+    changes: {
+      type: body.type,
+      enrollmentId: enrollment.id,
+      activityId: body.activityId,
+    },
+  })
+  return { id: created.id }
 }
