@@ -1,8 +1,11 @@
 /* @vitest-environment jsdom */
 
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { cleanup, fireEvent, render as rtlRender, screen, waitFor } from '@testing-library/react'
+import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { AuthorizedQueryProvider } from '@/providers/authorized-query-provider'
 import { ProjectReviewWorkspace } from './project-review-workspace'
 
 const projectId = '72000000-0000-4000-8000-000000000004'
@@ -17,12 +20,21 @@ const proofClient = vi.hoisted(() => ({
   inspect: vi.fn(),
 }))
 const access = vi.hoisted(() => ({
+  access: 'ready',
+  assignedProjectIds: ['72000000-0000-4000-8000-000000000004'],
   role: 'Monitoring and Evaluation Officer',
   profile: {
+    id: 'synthetic-subject',
     organizationId: '10000000-0000-4000-8000-000000000001',
     userId: '60000000-0000-4000-8000-000000000006',
     roles: ['MONITORING_AND_EVALUATION_OFFICER'],
-    permissions: ['projects.read', 'evidence.read', 'evidence.review', 'reports.read'],
+    permissions: [
+      'projects.read',
+      'projects.detail.read',
+      'evidence.read',
+      'evidence.review',
+      'reports.read',
+    ],
     assignedProjectIds: ['72000000-0000-4000-8000-000000000004'],
   },
 }))
@@ -84,13 +96,22 @@ vi.mock('./project-workspace-header', () => ({
   ProjectWorkspaceHeader: () => <nav>Project tabs</nav>,
 }))
 
+const render = (ui: ReactNode) =>
+  rtlRender(
+    <QueryClientProvider client={new QueryClient()}>
+      <AuthorizedQueryProvider>{ui}</AuthorizedQueryProvider>
+    </QueryClientProvider>,
+  )
+
 describe('shared project workspace optional loading', () => {
   beforeEach(() => {
     access.role = 'Monitoring and Evaluation Officer'
     access.profile.roles = ['MONITORING_AND_EVALUATION_OFFICER']
     access.profile.assignedProjectIds = [projectId]
+    access.assignedProjectIds = [projectId]
     access.profile.permissions = [
       'projects.read',
+      'projects.detail.read',
       'activities.read',
       'evidence.read',
       'evidence.review',
@@ -148,7 +169,7 @@ describe('shared project workspace optional loading', () => {
     },
   )
   it('preserves current permission-driven optional reads with unavailable metrics', async () => {
-    access.profile.permissions = ['projects.read', 'evidence.review']
+    access.profile.permissions = ['projects.read', 'projects.detail.read', 'evidence.review']
     api.getProject.mockResolvedValue({
       id: projectId,
       title: 'Project Alpha',
@@ -158,6 +179,23 @@ describe('shared project workspace optional loading', () => {
     render(<ProjectReviewWorkspace projectId={projectId} view="evidence" />)
     expect(await screen.findByRole('heading', { name: 'Report records' })).toBeTruthy()
     expect(coreApi.reports).not.toHaveBeenCalled()
+  })
+  it('reads the project once through the shared key across a tab remount', async () => {
+    api.getEvidence.mockResolvedValue({ scope: 'detail', records: [] })
+    const client = new QueryClient()
+    const tree = (view: 'evidence' | 'budget') => (
+      <QueryClientProvider client={client}>
+        <AuthorizedQueryProvider>
+          <ProjectReviewWorkspace projectId={projectId} view={view} />
+        </AuthorizedQueryProvider>
+      </QueryClientProvider>
+    )
+    const mounted = rtlRender(tree('evidence'))
+    expect(await screen.findByRole('heading', { name: 'Report records' })).toBeTruthy()
+    mounted.rerender(tree('budget'))
+    mounted.rerender(tree('evidence'))
+    expect(await screen.findByRole('heading', { name: 'Report records' })).toBeTruthy()
+    expect(api.getProject).toHaveBeenCalledOnce()
   })
   it('keeps failed project authorization authoritative and does not read children', async () => {
     api.getProject.mockRejectedValue(new Error('Project unavailable.'))
@@ -201,6 +239,7 @@ describe('shared project workspace optional loading', () => {
   }
   const reviewerPermissions = [
     'projects.read',
+    'projects.detail.read',
     'activities.read',
     'evidence.read',
     'evidence.review',
@@ -294,7 +333,7 @@ describe('shared project workspace optional loading', () => {
   ])('renders only aggregate evidence counts for %s', async (role, code) => {
     access.role = role
     access.profile.roles = [code]
-    access.profile.permissions = ['projects.read', 'evidence.read']
+    access.profile.permissions = ['projects.read', 'projects.detail.read', 'evidence.read']
     api.getEvidence.mockResolvedValue({
       scope: 'aggregate',
       activities: [

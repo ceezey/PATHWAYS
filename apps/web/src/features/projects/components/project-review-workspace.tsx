@@ -15,7 +15,6 @@ import { Button } from '@/components/ui/button'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'
 import { activitiesClient } from '@/lib/api/activities'
-import { projectsClient } from '@/lib/api/projects'
 import { canAccessProjectForRole } from '@/lib/rbac/data-scope'
 import { principalHasAtomicPermission } from '@/lib/rbac/policy'
 import type {
@@ -23,8 +22,8 @@ import type {
   EvidenceActivitySummary,
   EvidenceList,
   EvidenceRecord,
-  ProjectDetail,
 } from '@/types/pathways'
+import { useProjectRead } from '../projects.reads'
 import { EvidenceView, type ProjectReportRecord } from './evidence-view'
 
 type ProjectReviewView = 'evidence' | 'monitor-evaluate' | 'budget'
@@ -46,7 +45,10 @@ export const ProjectReviewWorkspace = ({
 const EvidenceWorkspace = ({ projectId }: { projectId: string }) => {
   const { labels } = useDisplayLabels()
   const { role, profile } = useCurrentRole()
-  const [project, setProject] = useState<ProjectDetail | null>(null)
+  // Shares the stable project key with the frame and every other tab.
+  const projectRead = useProjectRead(projectId)
+  const project = projectRead.data ?? null
+  const hasProject = project !== null
   const [activities, setActivities] = useState<ActivitySummary[]>([])
   const [evidence, setEvidence] = useState<EvidenceRecord[]>([])
   const [evidenceSummary, setEvidenceSummary] = useState<EvidenceActivitySummary[] | null>(null)
@@ -57,6 +59,7 @@ const EvidenceWorkspace = ({ projectId }: { projectId: string }) => {
 
   useEffect(() => {
     let mounted = true
+    if (!hasProject) return
     setLoading(true)
     setError(false)
     setUnavailableSections([])
@@ -88,9 +91,6 @@ const EvidenceWorkspace = ({ projectId }: { projectId: string }) => {
 
     const load = async () => {
       try {
-        const projectRecord = await projectsClient.getProject(projectId)
-        if (!mounted) return
-        setProject(projectRecord)
         const requests: Promise<void>[] = []
         if (canReadActivities) {
           requests.push(
@@ -127,7 +127,7 @@ const EvidenceWorkspace = ({ projectId }: { projectId: string }) => {
     return () => {
       mounted = false
     }
-  }, [profile, projectId, role])
+  }, [profile, projectId, role, hasProject])
 
   const canReviewEvidence =
     role === 'Monitoring and Evaluation Officer' &&
@@ -135,7 +135,8 @@ const EvidenceWorkspace = ({ projectId }: { projectId: string }) => {
     principalHasAtomicPermission(profile, 'evidence.read') &&
     principalHasAtomicPermission(profile, 'evidence.review') &&
     principalHasAtomicPermission(profile, 'activities.read')
-  if (loading) {
+  const projectPending = projectRead.isPending && projectRead.eligible
+  if (projectPending || (hasProject && loading)) {
     return (
       <AsyncState
         description="Loading the project workspace tab."
@@ -145,7 +146,7 @@ const EvidenceWorkspace = ({ projectId }: { projectId: string }) => {
     )
   }
 
-  if (error || !project) {
+  if (error || projectRead.isError || !project) {
     return (
       <>
         <PageHeader

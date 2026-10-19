@@ -1010,3 +1010,8 @@
 ## 2026-10-19 Load performance: server timing (feature/load-performance)
 - Every API response now carries `Server-Timing: auth;dur=N, total;dur=N` from `serverTimingMiddleware` (`apps/api/src/common/network/server-timing.ts`); durations only, no identities or values, and any existing dev-only `pathways_*` entries are kept.
 - `auth` is the `SupabaseAuthGuard` duration (token check plus workspace and permission resolution); the handler-side `withAuthorizedOperation` profile read counts in `total` only. `Server-Timing` is added to the CORS exposed headers.
+
+## 2026-10-19 Load performance: shared project read (feature/load-performance)
+- The Evidence tab (`ProjectReviewWorkspace`) now reads the project through `useProjectRead`, the same `project` summary key the frame, Overview, Activities, Indicators and Evaluation tabs use, instead of a raw `getProject` call in an effect; a tab switch reuses the cached read.
+- New `useInvalidateProjectRead` (`projects.reads.ts`) marks that key stale; the project edit form calls it after a successful save so the next tab mount refetches. The team dialog already writes the shared key through `replaceData`.
+- The edit form's own load stays a live read so form defaults are never stale.
