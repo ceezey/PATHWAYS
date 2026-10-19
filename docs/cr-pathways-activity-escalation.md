@@ -2,7 +2,7 @@
 
 **ID:** `cr-pathways-activity-escalation`  
 **Date:** 2026-10-19  
-**Status:** Applied locally (2026-10-19; 0070 local replay passed; hosted apply pending)
+**Status:** Applied (2026-10-19; 0070 on PATHWAYS-devV2, 45-row ledger; hosted manual test script pending)
 
 ## 1. Trigger
 

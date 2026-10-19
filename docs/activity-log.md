@@ -1039,3 +1039,8 @@
 - Merged the local stack, hosted devV2, fast-runner, e2e and session rules into `README-setup.md`; fixed README, ops, pitch, PRD, UES, WRAP, reconciliation runbook and CR links; dropped the matching `docs/index.md` rows. The why-slow analysis added to the page-load CR section 2.
 - `docs/deferred-features.md`: 77 rows checked against code; 25 moved to a Closed section, stale paths fixed, open rows ordered by status, hosted apply of 0070 and the page-load staging re-measure kept as open rows.
 - `pnpm docs:check` has 0 failures and 1 filing warning (no `docs/state.md`); `scripts/docs/test_checks.py` passes (47 tests).
+
+## 2026-10-19 Migration 0070 applied to devV2
+- SAD reviews bound to digest c5637f7d (migration integrity, organization isolation, design QA) passed with no blocking findings.
+- `hosted/build.mjs --resume` applied 0070: ledger 45 rows 0000-0070, all finished; table owner prisma, RLS forced, 3 policies, 7 CHECKs, 6 FKs, no runtime DELETE.
+- `dev` pushed to origin (d4d102df..14c0a8e5); the CR section 7 manual test script is the open step.
