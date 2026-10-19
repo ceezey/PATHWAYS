@@ -14,6 +14,7 @@ import { type SensitiveDraftOwner, useSensitiveDraftOwner } from '@/lib/auth/sen
 import { principalHasAtomicPermission } from '@/lib/rbac/policy'
 import { cn } from '@/lib/utils'
 import {
+  type AlertSeverity,
   type HumanRule,
   type RuleCondition,
   type RuleNode,
@@ -35,6 +36,7 @@ import {
   categoriesForScopes,
   clearRecordBindings,
   conditionSummary,
+  manualSeverity,
   newRec,
   newRow,
   previewSentence,
@@ -166,7 +168,7 @@ function AlertRuleDrawer({
   const [rows, setRows] = useState<RuleCondition[]>(
     initial?.rows.length ? initial.rows : [newRow(availableMetrics(['Project'])[0] ?? '')],
   )
-  const [severity, setSeverity] = useState<HumanRule['severity']>(rule?.severity ?? 'MEDIUM')
+  const [severity, setSeverity] = useState<AlertSeverity>(rule?.severity ?? 'MEDIUM')
   const [recs, setRecs] = useState<Rec[]>(
     rule?.recommendations.map((item) => ({ ...item })) ?? [
       {
@@ -343,7 +345,7 @@ function AlertRuleDrawer({
         )
       const content = {
         name,
-        severity,
+        severity: manualSeverity(severity),
         recommendations: recs,
         clientOperationId: crypto.randomUUID(),
       }

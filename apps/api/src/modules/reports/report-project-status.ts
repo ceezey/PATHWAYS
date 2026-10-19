@@ -47,7 +47,7 @@ export type ProjectSections = {
   }>
   alerts?: Array<{
     title: string
-    severity: AlertSeverity
+    severity: AlertSeverity | null
     explanation: string
     evaluatedAt: string
   }>
@@ -134,11 +134,11 @@ export function overviewRows(input: OverviewInput) {
   return [schedule, spend, results]
 }
 
-/** Alerts by highest severity first, capped at 10. */
-export const topAlerts = <T extends { severity: string }>(alerts: T[]) =>
-  [...alerts]
-    .sort((a, b) => severityOrder.indexOf(a.severity) - severityOrder.indexOf(b.severity))
-    .slice(0, 10)
+/** Alerts by highest severity first, then those needing context, capped at 10. */
+const severityRank = (severity: string | null) =>
+  severity === null ? severityOrder.length : severityOrder.indexOf(severity)
+export const topAlerts = <T extends { severity: string | null }>(alerts: T[]) =>
+  [...alerts].sort((a, b) => severityRank(a.severity) - severityRank(b.severity)).slice(0, 10)
 
 const cellText = (cell: MetricCell, suffix = '') =>
   cell.state === 'SUPPRESSED'
@@ -216,6 +216,7 @@ export function flattenSections(s: ProjectSections) {
       i.current,
       `Baseline ${i.baseline ?? 'n/a'}; target ${i.target ?? 'n/a'}; progress ${i.progress}`,
     ])
-  for (const a of s.alerts ?? []) rows.push(['Open alerts', a.title, a.severity, a.explanation])
+  for (const a of s.alerts ?? [])
+    rows.push(['Open alerts', a.title, a.severity ?? 'Needs context', a.explanation])
   return { columns: ['Section', 'Item', 'Value', 'Detail'], rows }
 }

@@ -1,4 +1,5 @@
 import {
+  type AlertSeverity,
   type HumanAlert,
   type HumanRule,
   type RuleCondition,
@@ -40,7 +41,7 @@ type BoardRule = Pick<
 > & { code?: string }
 type RuleDraft = {
   name: string
-  severity: HumanRule['severity']
+  severity: AlertSeverity
   conditions: RuleNode
 }
 type RecommendationRow = {
@@ -342,7 +343,7 @@ export const suggestRuleCode = (name: string) => {
   const code = /^[A-Z]/.test(slug) ? slug : `R_${slug}`
   return code.length < 2 ? `${code}_RULE` : code.slice(0, 80)
 }
-export const severityTone = (severity: string) =>
+export const severityTone = (severity: string | null) =>
   severity === 'HIGH' || severity === 'CRITICAL'
     ? ('danger' as const)
     : severity === 'MEDIUM'
@@ -355,11 +356,17 @@ export const titleCase = (value: string) =>
     .replaceAll('_', ' ')
     .toLowerCase()
     .replace(/^\w/, (char) => char.toUpperCase())
+// Alerts and rules without a stored level read as needing context.
+export const severityText = (severity: string | null) =>
+  severity === null ? 'Needs context' : titleCase(severity)
+// Rules store only a manual Critical mark; the system suggests every other level.
+export const manualSeverity = (severity: string | null) =>
+  severity === 'CRITICAL' ? ('CRITICAL' as const) : null
 export const selectClass =
   'h-11 w-full rounded-md border border-input bg-card px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:bg-secondary disabled:text-disabled-foreground'
 export type Rec = { id: string; title: string; text: string }
 export type Mode = 'AND' | 'OR'
-export const severities: readonly HumanRule['severity'][] = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']
+export const severities: readonly AlertSeverity[] = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']
 export const recordBound = (metric: string) =>
   metric.startsWith('INDICATOR_') || metric === 'ACTIVITY_OVERDUE_DAYS'
 export const newRow = (metric: string): RuleCondition => ({
@@ -405,7 +412,7 @@ export const codeLabel = (value: string) =>
 export const manilaTime = (value: string) =>
   new Date(value).toLocaleString('en-US', { timeZone: 'Asia/Manila' })
 // Most severe first when the queue is sorted; unknown severities sort last.
-export const alertSeverityRank = (value: string) => {
-  const rank = (alertSeverities as readonly string[]).indexOf(value)
+export const alertSeverityRank = (value: string | null) => {
+  const rank = (alertSeverities as readonly (string | null)[]).indexOf(value)
   return rank === -1 ? alertSeverities.length : rank
 }

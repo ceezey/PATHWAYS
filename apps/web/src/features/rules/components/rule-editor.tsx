@@ -13,6 +13,7 @@ import { rulesHumanClient } from '@/lib/api/rules'
 import { type SensitiveDraftOwner, useSensitiveDraftOwner } from '@/lib/auth/sensitive-drafts'
 import { principalHasAtomicPermission } from '@/lib/rbac/policy'
 import {
+  type AlertSeverity,
   type HumanRule,
   type RuleCondition,
   type RuleNode,
@@ -28,7 +29,7 @@ import {
   useRuleBindingActivityContext,
   useRuleBindingIndicators,
 } from '../rules.reads'
-import { clearRecordBindings, leafCount, newCondition } from '../rules.utils'
+import { clearRecordBindings, leafCount, manualSeverity, newCondition } from '../rules.utils'
 import { RuleConditionEditor } from './rule-condition-editor'
 
 type Props = {
@@ -98,7 +99,7 @@ function RuleEditorForm({
   )
   const [name, setName] = useState(initial?.name ?? '')
   const [code, setCode] = useState(original?.code ?? '')
-  const [severity, setSeverity] = useState<HumanRule['severity']>(initial?.severity ?? 'LOW')
+  const [severity, setSeverity] = useState<AlertSeverity>(initial?.severity ?? 'LOW')
   const [conditions, setConditions] = useState<RuleNode>(
     initial?.conditions ?? { kind: 'GROUP', mode: 'AND', children: [newCondition()] },
   )
@@ -261,7 +262,7 @@ function RuleEditorForm({
     if (!captured.current) {
       const content = {
         name,
-        severity,
+        severity: manualSeverity(severity),
         conditions,
         recommendations,
         clientOperationId: crypto.randomUUID(),
@@ -459,7 +460,7 @@ function RuleEditorForm({
                 className="h-11 w-full rounded-sm border border-input bg-background px-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 id="rule-severity"
                 value={severity}
-                onChange={(event) => setSeverity(event.target.value as HumanRule['severity'])}
+                onChange={(event) => setSeverity(event.target.value as AlertSeverity)}
               >
                 {['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'].map((value) => (
                   <option key={value} value={value}>

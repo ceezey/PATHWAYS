@@ -2,7 +2,7 @@
 
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import type { HumanRule } from '@pathways/shared'
+import type { AlertSeverity } from '@pathways/shared'
 import type { SuggestedSeverity } from '../rule-severity.utils'
 import { severityCopy } from '../rules.copy'
 import { severities } from '../rules.utils'
@@ -15,8 +15,8 @@ export function SeverityField({
   onUseSuggestion,
 }: {
   mode: 'alert' | 'recommendation'
-  severity: HumanRule['severity']
-  onSeverity: (value: HumanRule['severity']) => void
+  severity: AlertSeverity
+  onSeverity: (value: AlertSeverity) => void
   suggestion: SuggestedSeverity
   onUseSuggestion: () => void
 }) {

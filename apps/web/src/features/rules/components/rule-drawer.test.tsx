@@ -266,7 +266,7 @@ describe('RuleDrawer', () => {
       activeRule.id,
       expect.objectContaining({
         name: activeRule.name,
-        severity: activeRule.severity,
+        severity: null,
         conditions: activeRule.conditions,
         expectedVersion: activeRule.version,
         recommendations: expect.arrayContaining([
@@ -437,7 +437,7 @@ describe('RuleDrawer', () => {
     fillBasics()
     fireEvent.click(screen.getByRole('button', { name: 'Save Rule' }))
     await waitFor(() => expect(state.createRule).toHaveBeenCalled())
-    expect(state.createRule.mock.calls[0]?.[0].severity).toBe('HIGH')
+    expect(state.createRule.mock.calls[0]?.[0].severity).toBeNull()
   })
   it('refreshes a new recommendation prefill by family but preserves user edits and reused text', async () => {
     renderDrawer()

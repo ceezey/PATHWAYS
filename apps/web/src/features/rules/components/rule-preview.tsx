@@ -1,7 +1,7 @@
 'use client'
 
 import { cn } from '@/lib/utils'
-import type { HumanRule } from '@pathways/shared'
+import type { AlertSeverity } from '@pathways/shared'
 import { severityCopy } from '../rules.copy'
 import type { Rec } from '../rules.utils'
 
@@ -15,7 +15,7 @@ export function RulePreview({
 }: {
   sentence: string
   name: string
-  severity: HumanRule['severity']
+  severity: AlertSeverity
   mode: 'alert' | 'recommendation'
   condition: string
   recommendation: Rec | undefined

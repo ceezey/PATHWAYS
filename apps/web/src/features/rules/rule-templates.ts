@@ -1,4 +1,4 @@
-import type { HumanRule, RuleNode } from '@pathways/shared'
+import type { AlertSeverity, RuleNode } from '@pathways/shared'
 
 export type RuleTemplateSpec = {
   key: string
@@ -8,7 +8,7 @@ export type RuleTemplateSpec = {
   build?: () => {
     name: string
     code: string
-    severity: HumanRule['severity']
+    severity: AlertSeverity
     conditions: RuleNode
     recommendations: { id: string; title: string; text: string }[]
   }

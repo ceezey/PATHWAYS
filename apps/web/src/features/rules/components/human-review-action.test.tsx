@@ -103,6 +103,8 @@ const linked: HumanAlert = {
   title: 'Linked alert',
   explanation: 'Recorded source.',
   severity: 'LOW',
+  severityBasis: null,
+  severityChange: null,
   lifecycle: 'AUTO_RESOLVED',
   revision: '9',
   evaluatedAt: '2026-09-27T01:00:00Z',

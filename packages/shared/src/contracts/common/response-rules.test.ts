@@ -472,6 +472,7 @@ describe('report response rules', () => {
     schema: reportPreviewResponse,
     sample: sections.alerts[0],
     wrap: inSections((value) => ({ alerts: [value] })),
+    nullable: ['severity'],
     enums: { severity: ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'] },
     max: { title: 2000, explanation: 2000, evaluatedAt: 40 },
   })

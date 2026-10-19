@@ -4,7 +4,7 @@ import type { HumanAlert, HumanRecommendation } from '@pathways/shared'
 import { Lightbulb, TriangleAlert } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { basisLabel, statusLabel } from '../rules.copy'
-import { basisLine, severityTone, titleCase } from '../rules.utils'
+import { basisLine, severityText, severityTone } from '../rules.utils'
 
 const statusTone = (status: string) =>
   status === 'NEW'
@@ -85,7 +85,7 @@ export function ReviewCardList({ items, selectedId, onSelect, projectLabel, deta
                   )}
                   {alert ? (
                     <StatusBadge tone={severityTone(item.severity)}>
-                      {titleCase(item.severity)}
+                      {severityText(item.severity)}
                     </StatusBadge>
                   ) : null}
                   <StatusBadge tone={statusTone(status)}>{statusLabel(status)}</StatusBadge>

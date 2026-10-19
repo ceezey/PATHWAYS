@@ -217,7 +217,7 @@ export class RulesHumanService {
   dryRun(identity: ApplicationIdentity, body: unknown) {
     return withAuthorizedOperation(this.prisma, identity, 'rules.read', async () => {
       try {
-        return evaluateRule(body)
+        return { ...evaluateRule(body), severityBasis: null }
       } catch {
         throw new BadRequestException('Invalid synthetic typed evaluation.')
       }

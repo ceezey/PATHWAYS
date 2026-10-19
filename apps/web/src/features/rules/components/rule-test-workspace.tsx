@@ -28,7 +28,7 @@ import {
   timelineObservation,
 } from '@pathways/shared'
 import { useEffect, useRef, useState } from 'react'
-import { conditionSentence, selectClass, titleCase, unitOf } from '../rules.utils'
+import { conditionSentence, manualSeverity, selectClass, titleCase, unitOf } from '../rules.utils'
 type IndicatorInput = {
   current: string
   baseline: string
@@ -246,7 +246,7 @@ function RuleTestForm({
           ruleId: rule.id,
           version: rule.version,
           name: rule.name,
-          severity: rule.severity,
+          severity: manualSeverity(rule.severity),
           conditions: rule.conditions,
           recommendations: rule.recommendations,
         },

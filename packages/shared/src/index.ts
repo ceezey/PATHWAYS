@@ -20,6 +20,7 @@ export * from './rules/rule-metrics'
 export * from './rules/rules-human-contract'
 export * from './rules/severity/severity-criteria'
 export * from './rules/severity/severity-classify'
+export * from './rules/severity/severity-facts'
 export * from './rules/severity/severity-format'
 
 export * from './contracts/imports/import-requests'

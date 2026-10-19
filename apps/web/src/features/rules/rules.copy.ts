@@ -1,4 +1,4 @@
-import type { HumanRule } from '@pathways/shared'
+import type { AlertSeverity } from '@pathways/shared'
 import { titleCase } from './rules.utils'
 
 export const comparisonCopy = {
@@ -12,10 +12,7 @@ export const comparisonCopy = {
 // Each severity carries the reading an officer should take from it, including the
 // low end used for progress and milestone insight rather than risk. The picker keeps
 // High and Critical apart, so it maps per level rather than reusing severityTone.
-export const severityCopy: Record<
-  HumanRule['severity'],
-  { label: string; hint: string; tile: string }
-> = {
+export const severityCopy: Record<AlertSeverity, { label: string; hint: string; tile: string }> = {
   LOW: {
     label: 'Low',
     hint: 'Progress or milestone insight to carry into later planning',

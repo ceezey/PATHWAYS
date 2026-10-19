@@ -1,5 +1,5 @@
 import {
-  type HumanRule,
+  type AlertSeverity,
   type RuleMetricKey,
   type RuleNode,
   parseRuleTree,
@@ -7,7 +7,7 @@ import {
 } from '@pathways/shared'
 import { type Leaf, type MetricScope, leaves, metricLabel, scopeOf } from './rules.utils'
 
-type SuggestedLevel = Exclude<HumanRule['severity'], 'CRITICAL'>
+type SuggestedLevel = Exclude<AlertSeverity, 'CRITICAL'>
 export type SuggestedSeverity =
   | { status: 'SUGGESTED'; severity: SuggestedLevel; reason: string }
   | { status: 'NEEDS_JUDGMENT'; severity: null; reason: string }
