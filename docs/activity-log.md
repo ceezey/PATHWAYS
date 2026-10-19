@@ -1020,3 +1020,7 @@
 - Evidence tab sections (evidence, reports) and the Activities list render as their own reads resolve; the journey stages loader reads the project and activities through the shared reads and the stages through a live editor key (`journey-stages-editor`), and keeps the editor mounted with unsaved edits if a later refresh fails.
 - New `useAuthorizedPrefetch` (`use-authorized-read.ts`) and `useProjectPrefetch` (`projects.reads.ts`): hover or focus on a project tab link warms its summary reads, and on a project card warms the shared project read; live-only and unlisted resources are never prefetched.
 - Added `docs/cr-pathways-page-load-performance.md` (options 1-4 and 6 applied, option 5 not taken, privacy rationale, Server-Timing reading guide, staging re-measure pending), registered in the index and the deferred-features row.
+
+## 2026-10-19 Activity escalation change record (feature/activity-escalation)
+- Added `docs/cr-pathways-activity-escalation.md` (Approved, implementation pending): states OPEN/FORWARDED/RESOLVED with resolution level, migration 0070 table, RLS and grants, five routes, role-overview `escalationQueue`, privacy rationale for aggregate roles (direct RLS read, no SECURITY DEFINER) and a role-by-role manual test script.
+- Added PRD bullet and G-F2-21, QAD-T122 to QAD-T124 and QAD-A45, deferred-features row update, and the index entry.
