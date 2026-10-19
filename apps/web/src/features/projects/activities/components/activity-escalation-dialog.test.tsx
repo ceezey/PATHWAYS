@@ -25,6 +25,7 @@ vi.mock('@/components/ui/dialog', () => ({
   DialogFooter: ({ children }: { children: ReactNode }) => <div>{children}</div>,
 }))
 
+import { PathwaysClientError } from '@/lib/api/core/request'
 import { ActivityEscalationDialog } from './activity-escalation-dialog'
 
 const activity = {
@@ -82,5 +83,16 @@ describe('ActivityEscalationDialog', () => {
     await waitFor(() =>
       expect(screen.getByRole('alert').textContent).toBe('An escalation is already open.'),
     )
+  })
+
+  it('refreshes the panel when the raise conflicts with an open escalation', async () => {
+    const onRaised = vi.fn()
+    api.raiseActivityEscalation.mockRejectedValueOnce(
+      new PathwaysClientError('Conflict', 'invalid', [], 409),
+    )
+    renderDialog(onRaised)
+    fill('The venue is not available.')
+    await waitFor(() => expect(onRaised).toHaveBeenCalled())
+    expect(screen.getByRole('alert')).toBeTruthy()
   })
 })

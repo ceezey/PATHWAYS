@@ -43,27 +43,27 @@ export const ActivityEscalationPanel = ({
   userId,
   focus = false,
   refreshKey = 0,
-  onDecided,
 }: {
   activity: Activity
   tier: EscalationTier
   userId?: string
   focus?: boolean
   refreshKey?: number
-  onDecided: () => void
 }) => {
   const [rows, setRows] = useState<ActivityEscalation[]>([])
   const [note, setNote] = useState('')
   const [busy, setBusy] = useState<EscalationStep | null>(null)
   const [error, setError] = useState('')
+  const [loadError, setLoadError] = useState(false)
 
   const load = useCallback(async () => {
     try {
       setRows(
         await activityEscalationsClient.listActivityEscalations(activity.projectId, activity.id),
       )
+      setLoadError(false)
     } catch {
-      setRows([])
+      setLoadError(true)
     }
   }, [activity.projectId, activity.id])
 
@@ -83,10 +83,11 @@ export const ActivityEscalationPanel = ({
       ?.focus({ preventScroll: true })
   }, [focus, loaded])
 
-  if (!rows.length) return null
+  if (!rows.length && !loadError) return null
   const latest = rows[0]
-  const steps: EscalationStep[] =
-    tier === 'PROJECT' && latest.status === 'OPEN'
+  const steps: EscalationStep[] = !latest
+    ? []
+    : tier === 'PROJECT' && latest.status === 'OPEN'
       ? latest.raisedBy.id === userId
         ? ['forward']
         : ['resolve', 'forward']
@@ -117,11 +118,12 @@ export const ActivityEscalationPanel = ({
       toast.success(`Escalation ${stepPast[step]}.`)
       setNote('')
       await load()
-      onDecided()
     } catch (caught) {
+      const conflict = caught instanceof PathwaysClientError && caught.status === 409
+      if (conflict) await load()
       setError(
-        caught instanceof PathwaysClientError && caught.status === 409
-          ? 'This escalation changed; reload before deciding.'
+        conflict
+          ? 'This escalation changed and was reloaded; review it and decide again.'
           : caught instanceof Error
             ? caught.message
             : 'The escalation could not be updated.',
@@ -164,12 +166,17 @@ export const ActivityEscalationPanel = ({
         <div className="space-y-2">
           <Label htmlFor="escalation-note">Note</Label>
           <Textarea
+            aria-describedby="escalation-note-hint"
+            aria-invalid={error ? true : undefined}
             disabled={busy !== null}
             id="escalation-note"
             maxLength={2000}
             onChange={(event) => setNote(event.target.value)}
             value={note}
           />
+          <p className="text-xs text-muted-foreground" id="escalation-note-hint">
+            Do not include beneficiary names or contact details.
+          </p>
           <div className="flex flex-wrap gap-2">
             {steps.map((step, index) => (
               <Button
@@ -188,6 +195,11 @@ export const ActivityEscalationPanel = ({
             ))}
           </div>
         </div>
+      ) : null}
+      {loadError && !rows.length ? (
+        <p className="text-sm text-muted-foreground" role="alert">
+          Escalations could not be loaded.
+        </p>
       ) : null}
       {error ? (
         <p className="text-sm font-medium text-destructive" role="alert">

@@ -10,6 +10,7 @@ import { Dialog, DialogFooter } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { activityEscalationsClient } from '@/lib/api/activity-escalations'
+import { PathwaysClientError } from '@/lib/api/core/request'
 import type { Activity } from '@/types/pathways'
 
 import { definitiveRejection } from './activity-progress-dialog'
@@ -64,6 +65,8 @@ export const ActivityEscalationDialog = ({
       onOpenChange(false)
     } catch (caught) {
       if (definitiveRejection(caught)) setClientMutationId(crypto.randomUUID())
+      // A duplicate-open conflict means a row exists, so refresh the panel behind the dialog.
+      if (caught instanceof PathwaysClientError && caught.status === 409) onRaised()
       setError(caught instanceof Error ? caught.message : 'The escalation could not be raised.')
     } finally {
       setSubmitting(false)
@@ -87,6 +90,8 @@ export const ActivityEscalationDialog = ({
           <div className="space-y-2">
             <Label htmlFor="escalation-reason">Reason</Label>
             <Textarea
+              aria-describedby="escalation-reason-hint escalation-reason-count"
+              aria-invalid={error ? true : undefined}
               aria-required="true"
               className="min-h-28"
               disabled={submitting}
@@ -96,10 +101,10 @@ export const ActivityEscalationDialog = ({
               placeholder="Describe the blocker that needs a decision."
               value={reason}
             />
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-muted-foreground" id="escalation-reason-hint">
               Do not include beneficiary names or contact details.
             </p>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-muted-foreground" id="escalation-reason-count">
               {trimmedLength} / {MAX_LENGTH} characters (minimum {MIN_LENGTH})
             </p>
           </div>

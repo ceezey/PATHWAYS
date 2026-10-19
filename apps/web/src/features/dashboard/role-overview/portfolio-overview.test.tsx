@@ -172,6 +172,7 @@ describe('PortfolioOverview', () => {
     expect(link.getAttribute('href')).toBe(
       `/projects/${p1}/activities/40000000-0000-4000-8000-000000000001?action=escalation`,
     )
+    expect(screen.queryByText(/beneficiar/i)).toBeNull()
   })
   it('shows Grant Manager escalation rows with no action', () => {
     const escalationQueue = {
@@ -200,5 +201,6 @@ describe('PortfolioOverview', () => {
     expect(screen.getByText('Activity escalations')).toBeTruthy()
     expect(screen.getByText(/The venue is not available\./)).toBeTruthy()
     expect(screen.queryByRole('link', { name: /Resolve escalation/ })).toBeNull()
+    expect(screen.queryByText(/beneficiar/i)).toBeNull()
   })
 })

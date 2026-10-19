@@ -45,9 +45,7 @@ const escalation = (status: string, extra = {}) => ({
 
 const renderPanel = (row: object, tier: EscalationTier, userId = manager) => {
   api.listActivityEscalations.mockResolvedValue([row])
-  render(
-    <ActivityEscalationPanel activity={activity} onDecided={vi.fn()} tier={tier} userId={userId} />,
-  )
+  render(<ActivityEscalationPanel activity={activity} tier={tier} userId={userId} />)
   return screen.findByText('Escalations')
 }
 
@@ -117,17 +115,37 @@ describe('ActivityEscalationPanel', () => {
     })
   })
 
-  it('shows a reload message on 409', async () => {
-    api.stepActivityEscalation.mockRejectedValueOnce(
-      new PathwaysClientError('Conflict', 'invalid', [], 409),
-    )
+  it('reloads on 409 so the next decision uses the new version', async () => {
+    api.stepActivityEscalation
+      .mockRejectedValueOnce(new PathwaysClientError('Conflict', 'invalid', [], 409))
+      .mockResolvedValueOnce({})
     await renderPanel(escalation('OPEN'), 'PROJECT')
+    api.listActivityEscalations.mockResolvedValue([
+      escalation('OPEN', { updatedAt: '2026-10-19T02:00:00.000Z' }),
+    ])
     fireEvent.change(screen.getByLabelText('Note'), { target: { value: 'Resolved on site.' } })
     fireEvent.click(screen.getByRole('button', { name: 'Resolve' }))
     await waitFor(() =>
       expect(screen.getByRole('alert').textContent).toBe(
-        'This escalation changed; reload before deciding.',
+        'This escalation changed and was reloaded; review it and decide again.',
       ),
     )
+    await waitFor(() => expect(api.listActivityEscalations).toHaveBeenCalledTimes(2))
+    fireEvent.click(screen.getByRole('button', { name: 'Resolve' }))
+    await waitFor(() => expect(api.stepActivityEscalation).toHaveBeenCalledTimes(2))
+    expect(api.stepActivityEscalation.mock.calls[1][4].expectedUpdatedAt).toBe(
+      '2026-10-19T02:00:00.000Z',
+    )
+  })
+
+  it('shows the privacy hint on the decision note', async () => {
+    await renderPanel(escalation('OPEN'), 'PROJECT')
+    expect(screen.getByText('Do not include beneficiary names or contact details.')).toBeTruthy()
+  })
+
+  it('shows a message when the list cannot be loaded', async () => {
+    api.listActivityEscalations.mockRejectedValue(new Error('offline'))
+    render(<ActivityEscalationPanel activity={activity} tier={null} />)
+    expect((await screen.findByRole('alert')).textContent).toBe('Escalations could not be loaded.')
   })
 })

@@ -117,10 +117,12 @@ vi.mock('./activity-detail-panel', () => ({
   ActivityDetailPanel: ({
     activity,
     loading,
+    escalation,
     open,
     onOpenChange,
   }: {
     activity: Activity | null
+    escalation?: unknown
     loading: boolean
     open: boolean
     onOpenChange: (open: boolean) => void
@@ -128,6 +130,7 @@ vi.mock('./activity-detail-panel', () => ({
     open ? (
       <section aria-label="Activity panel">
         <p>{activity ? `Detail: ${activity.title}` : loading ? 'Loading detail' : ''}</p>
+        <output aria-label="Escalation access">{JSON.stringify(escalation)}</output>
         <button onClick={() => onOpenChange(false)} type="button">
           Close panel
         </button>
@@ -489,5 +492,30 @@ describe('project activities permission-aware loading', () => {
     // Returning within the summary window reuses project and metrics.
     expect(api.getProject).toHaveBeenCalledOnce()
     expect(api.getProjectOverviewMetrics).toHaveBeenCalledOnce()
+  })
+
+  it('gates the escalation controls by role, permission and assignment', async () => {
+    const access_ = async () => {
+      cleanup()
+      renderWorkspace(activityId)
+      const out = await screen.findByLabelText('Escalation access')
+      return JSON.parse(out.textContent ?? '{}')
+    }
+    const raise = 'activities.escalations.raise'
+    const read = 'activities.escalations.read'
+    access.profile.permissions = [...access.profile.permissions, raise]
+    expect(await access_()).toMatchObject({ canRaise: false, tier: null })
+    api.getActivity.mockResolvedValue({ ...detail, assignedUserIds: ['synthetic-user'] })
+    expect(await access_()).toMatchObject({ canRaise: true, tier: null })
+    asProjectManager()
+    access.profile.permissions = [...access.profile.permissions, raise]
+    expect(await access_()).toMatchObject({ canRaise: true, tier: 'PROJECT' })
+    access.role = 'Program Manager'
+    access.profile.roles = ['PROGRAM_MANAGER']
+    access.profile.permissions = ['projects.read', 'activities.read', read, raise]
+    expect(await access_()).toMatchObject({ canRaise: true, tier: 'PROGRAM' })
+    access.role = 'Grant Manager'
+    access.profile.roles = ['GRANT_MANAGER']
+    expect(await access_()).toMatchObject({ tier: null })
   })
 })

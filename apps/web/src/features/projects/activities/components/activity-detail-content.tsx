@@ -339,12 +339,6 @@ export const ActivityDetailContent = ({
       <ActivityEscalationPanel
         activity={activity}
         focus={escalation.focus}
-        onDecided={() => {
-          void activitiesClient
-            .getActivity(activity.projectId, activity.id)
-            .then(onActivityChanged)
-            .catch(() => {})
-        }}
         refreshKey={escalationRefresh}
         tier={escalation.tier}
         userId={escalation.userId}
