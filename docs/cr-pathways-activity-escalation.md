@@ -18,10 +18,10 @@ Binding contract for migration `0070_activity_escalations`, module `apps/api/src
 
 ### 3.1 Flow
 
-1. Raise: a Project Officer, M&E Officer or Project Manager raises an escalation on an activity with a reason. Status OPEN.
-2. Project tier: a Project Manager (not the raiser) either RESOLVES it with a note (resolution level PROJECT) or FORWARDS it to the program level with a note (status FORWARDED).
+1. Raise: any role holding `activities.escalations.raise` within project scope (all six roles, RBAC v4 row 53) raises an escalation on an activity with a reason. Status OPEN.
+2. Project tier: a Project Manager either FORWARDS it to the program level with a note (status FORWARDED; the raiser may forward) or RESOLVES it with a note (resolution level PROJECT; the raiser may not).
 3. Program tier: a Program Manager who is neither the raiser nor the forwarder RESOLVES a FORWARDED escalation with a decision note (resolution level PROGRAM).
-4. Grant Manager, System Administrator and every other holder of `activities.escalations.read` in scope see status only; the Grant Manager is read-only.
+4. The Grant Manager and System Administrator can raise but have no forward or resolve action; every other holder of `activities.escalations.read` in scope see status only; the Grant Manager is read-only.
 
 Escalation never changes the activity's status, dates, assignments or lifecycle and never calls a rule source operation. It records a reason and decisions only.
 
@@ -55,10 +55,9 @@ Prisma-owned, composite FKs, RLS enabled and forced, no DELETE, content immutabl
 | `client_mutation_id` | uuid NOT NULL | UNIQUE (organization_id, client_mutation_id) |
 | `updated_at` | timestamptz(3) NOT NULL DEFAULT now | optimistic concurrency token |
 
-Constraints (8 CHECKs, 6 FKs):
+Constraints (7 CHECKs, 6 FKs):
 
-- `activity_escalations_status_check`, `_reason_check`, `_forward_note_check`, `_resolution_note_check`, `_level_check`.
-- `_forwarder_check`: `forwarded_by_id IS NULL OR forwarded_by_id <> raised_by_id`.
+- `activity_escalations_status_check`, `_reason_check`, `_forward_note_check`, `_resolution_note_check`, `_level_check`. There is no forwarder check: the raiser may forward.
 - `_resolver_check`: `resolved_by_id IS NULL OR (resolved_by_id <> raised_by_id AND resolved_by_id IS DISTINCT FROM forwarded_by_id)`.
 - `_state_check`: OPEN has no forward or resolution fields; FORWARDED has `forwarded_by_id`, `forwarded_at`, `forward_note` and no resolution fields; RESOLVED has `resolved_by_id`, `resolved_at`, `resolution_note`, `resolution_level`, and level PROJECT requires no forward fields while level PROGRAM requires all three forward fields.
 - `UNIQUE (organization_id, project_id, activity_id, id)` scope key; partial unique `activity_escalations_open_key` on (organization_id, project_id, activity_id) WHERE status IN ('OPEN','FORWARDED').
@@ -74,7 +73,7 @@ All policies `TO pathways_runtime`, organization from `app.organization_id`, sco
 - INSERT `p05_activity_escalations_insert`: `activities.escalations.raise`, `raised_by_id = app.user_id`, `status = 'OPEN'`.
 - UPDATE `p05_activity_escalations_update`: USING `status IN ('OPEN','FORWARDED')` and (`activities.update` OR `activities.escalations.read`). WITH CHECK: a FORWARDED row needs `forwarded_by_id = app.user_id` and `activities.update`; a RESOLVED row needs `resolved_by_id = app.user_id` and (`resolution_level = 'PROGRAM'` OR `activities.update`).
 
-Grants: REVOKE ALL from PUBLIC, anon, authenticated, service_role; `GRANT SELECT, INSERT` to `pathways_runtime`; column `GRANT UPDATE (status, forwarded_by_id, forwarded_at, forward_note, resolved_by_id, resolved_at, resolution_note, resolution_level, updated_at)`. No DELETE; `reason` and other content columns cannot be updated. Only prisma-owned helpers are referenced, so no DBA preprovision is needed. Postconditions mirror 0061 (owner, 8 CHECKs, 6 FKs, forced RLS, 3 policies, grants, trigger enabled).
+Grants: REVOKE ALL from PUBLIC, anon, authenticated, service_role; `GRANT SELECT, INSERT` to `pathways_runtime`; column `GRANT UPDATE (status, forwarded_by_id, forwarded_at, forward_note, resolved_by_id, resolved_at, resolution_note, resolution_level, updated_at)`. No DELETE; `reason` and other content columns cannot be updated. Only prisma-owned helpers are referenced, so no DBA preprovision is needed. Postconditions mirror 0061 (owner, 7 CHECKs, 6 FKs, forced RLS, 3 policies, grants, trigger enabled).
 
 Role discrimination between Program Manager and Grant Manager (both hold `activities.escalations.read` and neither holds `activities.update`) cannot be expressed in the `p05` permission helper, so the API enforces the role exactly as 0061 does for the M&E Officer. The runtime role is held only by the API, and the database still enforces scope, organization, separation of duties, state order and immutability.
 
@@ -83,12 +82,13 @@ Role discrimination between Program Manager and Grant Manager (both hold `activi
 | Action | Role (sole role) | Permission | Extra rule |
 |---|---|---|---|
 | List | any role | `activities.escalations.read` | project scope |
-| Raise | PROJECT_OFFICER, MONITORING_AND_EVALUATION_OFFICER, PROJECT_MANAGER | `activities.escalations.raise` | Project Officer needs an ACTIVE activity assignment (`requireActiveAssignment`, as the extension request does); M&E Officer and Project Manager need project scope only; a COMPLETED or CANCELLED activity is refused with 409 `A finished activity cannot be escalated.` |
-| Forward, Resolve (project) | PROJECT_MANAGER | `activities.update` | actor is not the raiser |
+| Raise | any of the six roles (no role filter beyond the permission) | `activities.escalations.raise` | project scope; the Project Officer also needs an ACTIVE activity assignment (`requireActiveAssignment`, as the extension request does); a COMPLETED or CANCELLED activity is refused with 409 `A finished activity cannot be escalated.` |
+| Forward | PROJECT_MANAGER | `activities.update` | the raiser may forward |
+| Resolve (project) | PROJECT_MANAGER | `activities.update` | actor is not the raiser |
 | Resolve (program) | PROGRAM_MANAGER | `activities.escalations.read` | actor is neither raiser nor forwarder; status FORWARDED |
-| Grant Manager, Program Manager, System Administrator raising | refused 403 | | Grant Manager is read-only; the Program Manager and System Administrator act at their tier or observe |
+| Grant Manager, System Administrator | no forward or resolve (403) | | Grant Manager is otherwise read-only; the System Administrator observes |
 
-A Project Manager who raised an escalation cannot forward or resolve it; another Project Manager on the project must, otherwise it stays OPEN (known limit, accepted).
+A Project Manager who raised an escalation may forward it but cannot resolve it at project level; the program-level resolver must be neither the raiser nor the forwarder.
 
 ### 3.6 Privacy for aggregate-only roles
 
@@ -112,7 +112,7 @@ Base `projects/:projectId/activities/:activityId/escalations`; every response `C
 
 `ActivityEscalation` = `{ id, projectId, activityId, reason, status, raisedBy: {id,name}, raisedAt, forwardedBy: {id,name}|null, forwardedAt|null, forwardNote|null, resolvedBy: {id,name}|null, resolvedAt|null, resolutionNote|null, resolutionLevel: 'PROJECT'|'PROGRAM'|null, updatedAt }` (ISO strings).
 
-Refusals: unknown or out-of-scope activity or escalation 404; wrong role, own raise, raiser or forwarder deciding, or unassigned Project Officer 403; wrong status, open duplicate, stale `expectedUpdatedAt` 409; reason or note outside 10-2000 trimmed 400. Audit rows (`writeAuditLog`, entity `ActivityEscalation`): `ACTIVITY_ESCALATION_RAISED`, `_FORWARDED`, `_RESOLVED`, with `changes: { activityId, level? }` and never the free text.
+Refusals: unknown or out-of-scope activity or escalation 404; wrong role, raiser resolving at project level, raiser or forwarder resolving at program level, or unassigned Project Officer 403; wrong status, open duplicate, stale `expectedUpdatedAt` 409; reason or note outside 10-2000 trimmed 400. Audit rows (`writeAuditLog`, entity `ActivityEscalation`): `ACTIVITY_ESCALATION_RAISED`, `_FORWARDED`, `_RESOLVED`, with `changes: { activityId, level? }` and never the free text.
 
 ### 3.8 Dashboards and web
 
@@ -130,7 +130,7 @@ Refusals: unknown or out-of-scope activity or escalation 404; wrong role, own ra
 Anyone on an activity can flag a blocker with a reason; the Project Manager handles it or hands it up; the Program Manager closes forwarded ones; a decision trail exists.
 
 ### Data / Migration
-Migration `0070_activity_escalations`: one table, three policies, one trigger, column grants. Requires verified 0069 and prisma identity (0061 guard style). The implementer records the resulting ledger and pathways table counts.
+Migration `0070_activity_escalations`: one table, three policies, one trigger, column grants. Requires verified 0069 and prisma identity (0061 guard style). Only prisma-owned helpers are referenced, so no DBA preprovision is needed. Pathways table count 61 (`Replay-Local.ps1` `PATHWAYS_EXPECTED_TABLE_COUNT` is 60 today and no migration 0062-0069 creates a table; Task 6 raises it to 61); ledger 45 rows through 0070 (44 migration directories 0000-0069 today).
 
 ### Authorization / Privacy
 See 3.4, 3.5 and 3.6. No new permission codes, no widened grants, no beneficiary data in any escalation surface.
@@ -158,7 +158,6 @@ QAD-T122 to QAD-T124 and QAD-A45.
 - A 0062-style SECURITY DEFINER list function for aggregate roles: rejected, see 3.6.
 - A new permission code per tier or a `notifications` inbox: rejected; the matrix stays 312 rows and no inbox exists.
 - A single `/resolve` route dispatched by role: rejected; separate routes keep each `RequirePermission` and audit action explicit.
-- Letting a Project Manager's own raise go straight to FORWARDED: deferred; recorded as the known limit in 3.5.
 
 ## 6. Migration / Rollback
 
@@ -174,17 +173,17 @@ Use one project with a Project Officer (PO1, assigned to activity A), a second u
 
 1. PO1 opens A, Raise escalation, enters a 5-character reason. Expect the form refuses it (10 character minimum) and the privacy hint is visible. Enter 20+ characters, submit. Expect status OPEN, panel shows PO1 and the time; A's status and dates are unchanged.
 2. PO1 raises a second escalation on A. Expect 409 `already has an open escalation`.
-3. PO2 (not assigned to A) tries to raise. Expect 403 `An active activity assignment is required.` and no row.
-4. GM1 opens A. Expect the escalation panel and the dashboard WATCH row with no action buttons; a direct POST raise or resolve returns 403.
+3. PO2 (Project Officer not assigned to A) tries to raise. Expect 403 `An active activity assignment is required.` and no row.
+4. GM1 opens A. Expect the escalation panel and the dashboard WATCH row with no action buttons; a direct POST forward, resolve or program-resolve returns 403. GM1 can raise on A (scoped raising); do so, let PM2 resolve it, and confirm GM1's own forward or resolve returns 403.
 5. OUT1 requests the list by URL. Expect 404 and no rows.
 6. PO1 attempts Forward or Resolve by API. Expect 403.
 7. PM1 sees the dashboard Resolve queue row. PM1 opens A, Forward with a 3-character note. Expect refused; with 10+ characters expect FORWARDED, the row leaves PM1's queue and appears in PG1's queue.
 8. PM1 tries Resolve on the FORWARDED row. Expect 409. PG1 resolves with a decision note: expect RESOLVED, level PROGRAM, PG1 and time shown.
 9. PG1 tries program-resolve on the already RESOLVED row. Expect 409. Reload the panel; the stale button is gone.
 10. Raise a new escalation as ME1 (allowed once the previous one is RESOLVED). PM2 resolves it directly with a note: expect RESOLVED, level PROJECT, PM2 recorded, no forward fields.
-11. Raise as PM1, then PM1 tries Forward and Resolve. Expect 403 for both; PM2 can act. PG1 tries program-resolve while it is OPEN. Expect 409.
+11. Raise as PM1, then PM1 tries Resolve: expect 403. PM1 Forward with a note: expect FORWARDED (the raiser may forward). PG1 tries program-resolve on an OPEN escalation: expect 409.
 12. Stale check: open the same OPEN escalation as PM1 and PM2 in two tabs; PM2 forwards; PM1 submits Resolve with the old `expectedUpdatedAt`. Expect 409 and no change.
-13. PG1 tries to raise on A. Expect 403. Confirm the Program Manager dashboard queue lists only FORWARDED rows, and that a PM-forwarded escalation originally raised by PG1's own account cannot exist (PG1 never raises).
+13. PG1 raises an escalation on A (scoped raising, allowed), PM2 forwards it, then PG1 tries program-resolve: expect 403 (raiser); another Program Manager resolves it. Separately, PM1 forwards an escalation PM1 raised, then a Program Manager other than PM1 resolves it: expect success. The Program Manager dashboard queue lists only FORWARDED rows the viewer neither raised nor forwarded.
 14. Privacy: as PG1 and GM1 inspect the queue, the activity panel and the network responses. Expect only project, activity code and title, status, reason, notes, staff names and times; no beneficiary name, contact, evidence or submission.
 15. Audit: the audit log has RAISED, FORWARDED and RESOLVED rows with the actor, the activity id and the level, and no reason or note text.
 16. Replay: re-send the same raise request id with the same input. Expect the same row; with a different reason expect 409.
