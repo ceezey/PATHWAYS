@@ -2198,7 +2198,7 @@ The move needs no new code. The rule file below puts every seed file in the fold
 
 ```bash
 git ls-files apps/api/prisma | grep -v -E '^apps/api/prisma/(migrations/|history/|tests/|schema\.prisma$|check-connection\.ts$|legacy-retirement|authorization-bootstrap)' | sed 's/.*\.//' | sort | uniq -c
-(cd apps/api && DIRECT_URL=postgresql://u@127.0.0.1:1/x pnpm exec prisma db seed 2>&1 | grep -E "Running seed|disabled" | cut -c1-110)
+(cd apps/api && <DIRECT_URL set to a dummy closed-port URL> pnpm exec prisma db seed 2>&1 | grep -E "Running seed|disabled" | cut -c1-110)
 pnpm --filter @pathways/api exec vitest run prisma 2>&1 | sed 's/\x1b\[[0-9;]*m//g' | grep -E "Test Files|Tests +[0-9]+| FAIL "
 (cd apps/api && pnpm exec tsc -p tsconfig.build.json --noEmit --listFilesOnly | grep -c "apps/api/prisma/")
 git grep -n "prisma/seed\|prisma/local-\|prisma/hosted-\|prisma/defense-" -- . ':!docs' ':!apps/api/prisma' | cut -c1-120
@@ -2311,7 +2311,7 @@ pnpm typecheck 2>&1 | sed 's/\x1b\[[0-9;]*m//g' | grep -E "typecheck: (Done|Fail
 git checkout -- apps/web/next-env.d.ts
 pnpm --filter @pathways/api exec vitest run prisma 2>&1 | sed 's/\x1b\[[0-9;]*m//g' | grep -E "Test Files|Tests +[0-9]+| FAIL "
 node --test "scripts/db/**/*.test.mjs" 2>&1 | grep -E "^# (tests|pass|fail|skipped)"
-(cd apps/api && DIRECT_URL=postgresql://u@127.0.0.1:1/x pnpm exec prisma db seed 2>&1 | grep -E "Running seed|disabled" | cut -c1-110)
+(cd apps/api && <DIRECT_URL set to a dummy closed-port URL> pnpm exec prisma db seed 2>&1 | grep -E "Running seed|disabled" | cut -c1-110)
 (cd apps/api && pnpm exec tsc -p tsconfig.build.json --noEmit --listFilesOnly | grep -c "apps/api/prisma/")
 git status --short | grep -v "^[RM] " | head
 ```
