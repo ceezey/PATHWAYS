@@ -27,6 +27,7 @@ const dot = {
   HIGH: 'bg-danger',
   MEDIUM: 'bg-warning',
   LOW: 'bg-muted-foreground',
+  NEEDS_CONTEXT: 'border border-muted-foreground bg-transparent',
 } as const
 const peso = (amount: string) =>
   `PHP ${Number(amount).toLocaleString('en-PH', { maximumFractionDigits: 0 })}`
@@ -227,11 +228,15 @@ export const PortfolioOverview = ({
             <div className="flex items-start gap-3 py-3" key={row.id}>
               <span
                 aria-hidden="true"
-                className={cn('mt-1.5 h-2 w-2 shrink-0 rounded-full', dot[row.severity ?? 'LOW'])}
+                className={cn(
+                  'mt-1.5 h-2 w-2 shrink-0 rounded-full',
+                  dot[row.severity ?? 'NEEDS_CONTEXT'],
+                )}
               />
               <div className="min-w-0 flex-1 space-y-1">
                 <p className="text-sm font-medium text-primary">{row.title}</p>
                 <p className="text-xs text-muted-foreground">
+                  {row.severity ? '' : 'Needs context · '}
                   {data.projects.find((p) => p.id === row.projectId)?.title ?? 'Project'} ·{' '}
                   {row.explanation}
                 </p>

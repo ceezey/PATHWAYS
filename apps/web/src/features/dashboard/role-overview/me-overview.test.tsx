@@ -85,6 +85,17 @@ describe('MeOverview', () => {
     render(<MeOverview data={data} evaluations={[]} fullName="Leah Sy" onOpenActivity={vi.fn()} />)
     expect(screen.getByText('2 critical · 1 high')).toBeTruthy()
   })
+  it('marks a Needs context alert with its own dot and the text label', () => {
+    const alerts = data.alerts as NonNullable<RoleOverview['alerts']>
+    const row = { ...alerts.recent[0], severity: null }
+    const ctx = { ...data, alerts: { ...alerts, recent: [row] } } as RoleOverview
+    const { container } = render(
+      <MeOverview data={ctx} evaluations={[]} fullName="Leah Sy" onOpenActivity={vi.fn()} />,
+    )
+    expect(screen.getAllByText(/Needs context/).length).toBeGreaterThan(0)
+    const dot = container.querySelector('span[aria-hidden="true"].rounded-full.h-2')
+    expect(dot?.className).not.toContain('bg-muted-foreground')
+  })
   it('opens proof review with the update id', () => {
     const open = vi.fn()
     render(<MeOverview data={data} evaluations={[]} fullName="Leah Sy" onOpenActivity={open} />)

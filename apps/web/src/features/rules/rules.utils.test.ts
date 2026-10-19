@@ -159,6 +159,9 @@ describe('alertSeverityRank', () => {
       ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', '', 'UNKNOWN', 'constructor'].map(alertSeverityRank),
     ).toEqual([0, 1, 2, 3, 4, 4, 4])
   })
+  it('sorts a Needs context alert after Low', () => {
+    expect(alertSeverityRank(null)).toBeGreaterThan(alertSeverityRank('LOW'))
+  })
 })
 
 describe('condition tree helpers', () => {

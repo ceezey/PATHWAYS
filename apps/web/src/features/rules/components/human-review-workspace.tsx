@@ -23,11 +23,13 @@ import { useState } from 'react'
 import { basisLabel, statusLabel } from '../rules.copy'
 import { alertSeverityRank, codeLabel, manilaTime } from '../rules.utils'
 import { AlertEvidence } from './alert-evidence'
+import { AlertSeverityBadge } from './alert-severity-badge'
 import { EvidenceTable } from './evidence-table'
 import { HumanReviewAction } from './human-review-action'
 import { LinkedAlertSummary } from './linked-alert-summary'
 import { NotificationRow } from './notification-row'
 import { ReviewCardList } from './review-card-list'
+import { SeverityBasisPanel } from './severity-basis-panel'
 
 const permissionFor = (kind: 'alert' | 'recommendation', action: 'read' | 'review' | 'outcome') =>
   kind === 'alert'
@@ -186,12 +188,20 @@ export function HumanReviewWorkspace({
         <div className="space-y-4">
           <div className="space-y-2">
             <h2 className="text-xl font-semibold">{item.title}</h2>
-            <StatusBadge tone="neutral">
-              {statusLabel('lifecycle' in item ? item.lifecycle : item.status)}
-            </StatusBadge>
+            <div className="flex flex-wrap gap-2">
+              {'severity' in item ? (
+                <AlertSeverityBadge severity={item.severity} basis={item.severityBasis} />
+              ) : null}
+              <StatusBadge tone="neutral">
+                {statusLabel('lifecycle' in item ? item.lifecycle : item.status)}
+              </StatusBadge>
+            </div>
           </div>
           {'evidence' in item ? (
-            <AlertEvidence item={item} />
+            <>
+              <SeverityBasisPanel alert={item} />
+              <AlertEvidence item={item} />
+            </>
           ) : (
             <>
               <p className="whitespace-pre-wrap">{item.text}</p>

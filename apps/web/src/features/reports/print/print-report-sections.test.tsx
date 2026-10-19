@@ -62,6 +62,18 @@ describe('project status layout', () => {
     expect(screen.getByText('Indicator behind schedule')).toBeTruthy()
     expect(screen.getByText(/Overdue means/)).toBeTruthy()
   })
+  it('prints a Needs context pill for an alert without a level', () => {
+    const alert = { ...(sections.alerts?.[0] as object), severity: null }
+    render(
+      <PrintReportView
+        report={{
+          ...sampleProjectReport,
+          sections: { ...sections, alerts: [alert] } as typeof sections,
+        }}
+      />,
+    )
+    expect(screen.getByText('Needs context')).toBeTruthy()
+  })
   it('shows a suppressed figure as Fewer than 5, never zero', () => {
     render(<PrintReportView report={sampleProjectReport} />)
     const card = screen.getByText('Beneficiaries reached').parentElement as HTMLElement

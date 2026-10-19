@@ -37,6 +37,22 @@ const recommendation = {
 
 afterEach(cleanup)
 describe('ReviewCardList', () => {
+  it('uses the severity badge for Needs context and manual Critical', () => {
+    const context = {
+      ...alert('NEW'),
+      severity: null,
+      severityBasis: null,
+    } as unknown as HumanAlert
+    const manual = {
+      ...alert('NEW'),
+      id: id(4),
+      severity: 'CRITICAL',
+      severityBasis: { manualCritical: true },
+    } as unknown as HumanAlert
+    render(<ReviewCardList items={[context, manual]} selectedId={null} onSelect={vi.fn()} />)
+    expect(screen.getByText('Needs context')).toBeTruthy()
+    expect(screen.getByText('Critical: manual judgment by rule author')).toBeTruthy()
+  })
   it('renders alert cards with severity and basis line as one clickable card', () => {
     const onSelect = vi.fn()
     render(

@@ -2,7 +2,7 @@ import type { AlertSeverity, RoleOverview } from '@pathways/shared'
 
 type ProjectStatus = RoleOverview['projects'][number]['status']
 type Health = {
-  label: 'Critical' | 'At risk' | 'On track' | 'Planned'
+  label: 'Critical' | 'At risk' | 'On track' | 'Planned' | 'Needs context'
   tone: 'danger' | 'warning' | 'success' | 'neutral'
 }
 
@@ -15,6 +15,9 @@ export const healthOf = (
   if (alert?.maxSeverity === 'CRITICAL') return { label: 'Critical', tone: 'danger' }
   if (alert?.maxSeverity === 'HIGH' || alert?.maxSeverity === 'MEDIUM')
     return { label: 'At risk', tone: 'warning' }
+  // Open alerts without a level are not good news, so they never read On track.
+  if (alert && alert.open > 0 && alert.maxSeverity === null)
+    return { label: 'Needs context', tone: 'neutral' }
   return { label: 'On track', tone: 'success' }
 }
 
