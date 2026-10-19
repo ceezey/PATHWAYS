@@ -23,8 +23,14 @@ export const SUMMARY_READ_STALE_MS = 30_000
 /** Beneficiary, step-up, import batch and SADDD (analytics insight, report preview) reads are never cached. */
 const LIVE_ONLY_RESOURCE = /^(beneficiar|step-up|import-batch|analytics-insights|report-preview)/
 
+/** Resources allowed to use the summary window; any other resource asking for it reads live. */
+export const SUMMARY_ELIGIBLE_RESOURCE =
+  /^(projects|project|project-journey-stages|project-overview-metrics|project-activities|activity-assignable-officers|expense-budget-references|activity-expense-references|indicator-library|project-indicators|indicator-binding-choices|rules-recommendation-library|analytics-project-map|recommendation-linked-alert:.+|alert-linked-recommendations:.+)$/
+
 export function authorizedReadPolicy(resource: string, freshness: AuthorizedReadFreshness) {
-  return freshness === 'summary' && !LIVE_ONLY_RESOURCE.test(resource)
+  return freshness === 'summary' &&
+    SUMMARY_ELIGIBLE_RESOURCE.test(resource) &&
+    !LIVE_ONLY_RESOURCE.test(resource)
     ? { staleTime: SUMMARY_READ_STALE_MS, gcTime: SUMMARY_READ_STALE_MS, refetchOnMount: true }
     : { staleTime: 0, gcTime: 0, refetchOnMount: 'always' as const }
 }

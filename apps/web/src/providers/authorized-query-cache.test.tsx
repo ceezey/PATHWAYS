@@ -127,6 +127,34 @@ describe('summary cache policy (performance CR step 2)', () => {
     })
   })
 
+  it('treats a resource missing from the allowlist as live, even when it asks for summary', () => {
+    expect(authorizedReadPolicy('saddd-breakdown', 'summary')).toEqual({
+      staleTime: 0,
+      gcTime: 0,
+      refetchOnMount: 'always',
+    })
+  })
+
+  it.each([
+    'projects',
+    'project',
+    'project-journey-stages',
+    'project-overview-metrics',
+    'project-activities',
+    'activity-assignable-officers',
+    'expense-budget-references',
+    'activity-expense-references',
+    'indicator-library',
+    'project-indicators',
+    'indicator-binding-choices',
+    'rules-recommendation-library',
+    'analytics-project-map',
+    'recommendation-linked-alert:a-1',
+    'alert-linked-recommendations:a-1',
+  ])('lists %s, the key a summary caller uses, as eligible', (resource) => {
+    expect(authorizedReadPolicy(resource, 'summary').staleTime).toBe(30_000)
+  })
+
   it('keys every read by organization, user, role, permissions, assignments and project', async () => {
     const client = new QueryClient()
     const Session = session(client)
