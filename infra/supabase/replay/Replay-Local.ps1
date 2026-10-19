@@ -599,6 +599,8 @@ END $$;
       Write-Output 'ACTIVITY_EXTENSION_REQUESTS_RUNTIME=PASS'
       Measure-ReplayStep 'sql activity-escalations-runtime' { Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/activity-escalations-runtime.sql'))) $phase6Database }
       Write-Output 'ACTIVITY_ESCALATIONS_RUNTIME=PASS'
+      Measure-ReplayStep 'sql assessment-score-entry-runtime' { Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/assessment-score-entry-runtime.sql'))) $phase6Database }
+      Write-Output 'ASSESSMENT_SCORE_ENTRY_RUNTIME=PASS'
       Measure-ReplayStep 'sql zone-check-memo-runtime' { Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/zone-check-memo-runtime.sql'))) $phase6Database }
       Write-Output 'ZONE_CHECK_MEMO_RUNTIME=PASS'
       Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/beneficiary-reach-kpi-values-runtime.sql'))) $phase6Database

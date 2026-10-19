@@ -57,6 +57,7 @@ $forwardInventory = @(
   '0068_timeline_final_position'
   '0069_evaluation_auto_scoring'
   '0070_activity_escalations'
+  '0071_assessment_score_entry'
 )
 if (($forwardMigrations.Name -join ',') -cne ($forwardInventory -join ',')) { throw 'Forward migration inventory requires renewed review.' }
 
@@ -691,7 +692,7 @@ SELECT (pathways.p09_role_allows('SYSTEM_ADMINISTRATOR','activities.read')
  AND (SELECT count(*) FROM pathways.role_permissions rp JOIN pathways.roles r ON r.id=rp.role_id
       JOIN pathways.permissions p ON p.id=rp.permission_id
       WHERE r.code='SYSTEM_ADMINISTRATOR' AND p.code IN ('activities.read','budgets.read'))=1
- AND (SELECT count(*) FROM pathways.role_permissions)=314)::text;
+ AND (SELECT count(*) FROM pathways.role_permissions)=317)::text;
 "@
     if ($adminRead.Trim() -cne 'true') { throw "0035 admin read grants differ in $db." }
   }
@@ -1001,7 +1002,7 @@ SELECT ((SELECT bool_and(pg_catalog.pg_get_userbyid(p.proowner)='prisma' AND p.p
  FROM pg_catalog.pg_proc p WHERE p.oid IN ('pathways.p06_participation_breakdown(uuid,date,date)'::pg_catalog.regprocedure,
   'pathways.p06_indicator_values(uuid,text)'::pg_catalog.regprocedure))
  AND NOT has_function_privilege('pathways_runtime','pathways.p06_release_reach(jsonb)','EXECUTE')
- AND (SELECT count(*) FROM pathways.role_permissions)=314)::text;
+ AND (SELECT count(*) FROM pathways.role_permissions)=317)::text;
 "@
     if ($reachShape.Trim() -cne 'true') { throw "0066 beneficiary reach inventory differs in $db." }
   }
@@ -1037,6 +1038,18 @@ SELECT (SELECT count(*)=7 AND bool_and(e.enumlabel IN ('KPI','TIMELINE_COMPLIANC
     if ($criterionShape.Trim() -cne 'true') { throw "0069 criterion type inventory differs in $db." }
   }
   Write-Output 'FORWARD_0069_EVALUATION_AUTO_SCORING_INVENTORY=PASS'
+  # 0071 inventory: assessments.record is held by exactly three roles and a restrictive runtime INSERT policy requires it.
+  foreach ($db in @('pathways_phase4_baseline', 'pathways_phase4_forward_restore')) {
+    $scoreEntryShape = Read-ForwardSql $db @"
+SELECT ((SELECT count(*) FROM pathways.role_permissions rp JOIN pathways.permissions p ON p.id=rp.permission_id
+  WHERE p.code='assessments.record')=3
+ AND EXISTS(SELECT FROM pg_catalog.pg_policy WHERE polrelid='pathways.assessment_results'::pg_catalog.regclass
+  AND polname='p09_insert' AND NOT polpermissive AND polcmd='a')
+ AND NOT pathways.p09_role_allows('SYSTEM_ADMINISTRATOR','assessments.record'))::text;
+"@
+    if ($scoreEntryShape.Trim() -cne 'true') { throw "0071 assessment score entry inventory differs in $db." }
+  }
+  Write-Output 'FORWARD_0071_ASSESSMENT_SCORE_ENTRY_INVENTORY=PASS'
 } finally {
   foreach ($key in $forwardPriorEnvironment.Keys) { Set-Item -LiteralPath "Env:$key" -Value $forwardPriorEnvironment[$key] }
 }

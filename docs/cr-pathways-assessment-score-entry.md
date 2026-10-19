@@ -47,7 +47,7 @@ Editing or deleting results; scores for survey types other than pre/post; bulk e
 Teams record pre/post test scores where they already view them; the severity demo can enter real results.
 
 ### Data / Migration
-One migration: permission row, `role_permissions` rows, restrictive INSERT policy. No table change.
+One migration: permission row, `role_permissions` rows, restrictive INSERT policy. No table change. The migration adds a definer provenance guard (`p3_guard_assessment_source`) for `assessment_results` only, because the invoker `p3_guard_source` cannot see validated submissions under runtime RLS; `evidence_media` keeps `p3_guard_source`.
 
 ### Authorization / Privacy
 As 3.2.
