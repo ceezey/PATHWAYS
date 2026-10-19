@@ -134,8 +134,12 @@ const rangeOf = (leaf: Leaf): Interval => {
     return domainFor(leaf.metric)
   }
 }
-const leafReach = (leaf: Leaf, expectations: RuleExpectations): Reach => {
-  const range = rangeOf(leaf)
+/** Metric and record a condition compares, or null while its record is still unchosen. */
+const bindingKey = (leaf: Leaf) =>
+  recordBound(leaf.metric) && !leaf.indicatorId && !leaf.activityId
+    ? null
+    : `${leaf.metric}:${leaf.indicatorId ?? ''}:${leaf.activityId ?? ''}`
+const leafReach = (leaf: Leaf, expectations: RuleExpectations, range = rangeOf(leaf)): Reach => {
   if (isEmpty(range)) return reach([])
   const metric = leaf.metric
   if (metric === 'PROJECT_TIMELINE_ELAPSED_PERCENT') return reach([-1])
@@ -162,14 +166,35 @@ const leafReach = (leaf: Leaf, expectations: RuleExpectations): Reach => {
   }
   if (SHARE_METRICS.includes(metric))
     return reach(range.upper && range.upper.value <= zero ? [0] : ALL, true)
-  // Progress or completion at or above 100% is never behind any expectation.
-  const ahead = metric !== 'INDICATOR_CURRENT_VALUE' && (range.lower?.value ?? -1n) >= hundred
+  // Indicator progress is expected at 100% from its target date and needs context before it.
+  if (metric === 'INDICATOR_PROGRESS_PERCENT') {
+    const [low, medium] = SEVERITY_BOUNDS.BEHIND_PERCENT
+    const bands = falling(hundred - low * scale, hundred - medium * scale)
+    return reach(ranksIn(range, bands), true, 'EXPECTED_PROGRESS_FOR_DATE')
+  }
+  // Completion at or above 100% is never behind any expectation.
+  const ahead = metric === 'ACTIVITY_COMPLETION_PERCENT' && (range.lower?.value ?? -1n) >= hundred
   return reach(ahead ? [0] : ALL, true)
 }
 /** AND reaches levels at or above every child minimum; OR reaches any child level. */
 const nodeReach = (node: RuleNode, expectations: RuleExpectations): Reach => {
   if (node.kind === 'CONDITION') return leafReach(node, expectations)
-  const children = node.children.map((child) => nodeReach(child, expectations))
+  const children: Reach[] = []
+  // An AND group narrows one metric and record to the overlap of its comparisons.
+  const merged = new Map<string, { leaf: Leaf; range: Interval }>()
+  for (const child of node.children) {
+    const key = node.mode === 'AND' && child.kind === 'CONDITION' ? bindingKey(child) : null
+    if (key === null || child.kind !== 'CONDITION') {
+      children.push(nodeReach(child, expectations))
+      continue
+    }
+    const previous = merged.get(key)?.range
+    merged.set(key, {
+      leaf: child,
+      range: previous ? intersect(previous, rangeOf(child)) : rangeOf(child),
+    })
+  }
+  for (const { leaf, range } of merged.values()) children.push(leafReach(leaf, expectations, range))
   const floor =
     node.mode === 'AND' ? Math.max(...children.map((child) => Math.min(...child.ranks))) : -1
   return {
@@ -185,9 +210,8 @@ const contradicts = (node: RuleNode): boolean => {
   if (node.mode !== 'AND') return false
   const ranges = new Map<string, Interval>()
   for (const child of node.children) {
-    if (child.kind !== 'CONDITION') continue
-    if (recordBound(child.metric) && !child.indicatorId && !child.activityId) continue
-    const key = `${child.metric}:${child.indicatorId ?? ''}:${child.activityId ?? ''}`
+    const key = child.kind === 'CONDITION' ? bindingKey(child) : null
+    if (key === null || child.kind !== 'CONDITION') continue
     let range: Interval
     try {
       range = matchingInterval(child)

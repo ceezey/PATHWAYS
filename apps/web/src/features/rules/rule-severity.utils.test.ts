@@ -94,7 +94,13 @@ describe('severity preview', () => {
     })
   })
   it('says when the level depends on dates and when time alone only explains', () => {
-    expect(previewSeverity(leaf('a', 'INDICATOR_PROGRESS_PERCENT', 'LT', '75'), {})).toMatchObject({
+    expect(previewSeverity(leaf('a', 'ACTIVITY_COMPLETION_PERCENT', 'LT', '75'), {})).toMatchObject(
+      {
+        levels: ['LOW', 'MEDIUM', 'HIGH'],
+        dependsOnDates: true,
+      },
+    )
+    expect(previewSeverity(leaf('a', 'INDICATOR_CURRENT_VALUE', 'LT', '75'), {})).toMatchObject({
       levels: ['LOW', 'MEDIUM', 'HIGH'],
       dependsOnDates: true,
     })
@@ -108,6 +114,32 @@ describe('severity preview', () => {
     expect(previewSeverity(leaf('a', 'PROJECT_OVERDUE_DAYS', 'EQ', '0'), {}).levels).toEqual([
       'LOW',
     ])
+  })
+  it('reads indicator progress against 100% from the target date and asks for context before it', () => {
+    const progress = (operator: string, threshold: string, max?: string) =>
+      previewSeverity(leaf('a', 'INDICATOR_PROGRESS_PERCENT', operator, threshold, max), {})
+    expect(progress('LT', '75')).toEqual({
+      levels: ['HIGH'],
+      dependsOnDates: true,
+      explanatoryOnly: false,
+      needs: ['EXPECTED_PROGRESS_FOR_DATE'],
+      contradiction: null,
+    })
+    expect(progress('LT', '95').levels).toEqual(['LOW', 'MEDIUM', 'HIGH'])
+    expect(progress('GTE', '100').levels).toEqual(['LOW'])
+    expect(progress('GTE', '90').levels).toEqual(['LOW'])
+    expect(progress('LT', '90').levels).toEqual(['MEDIUM', 'HIGH'])
+    expect(progress('BETWEEN', '75', '89.9999').levels).toEqual(['MEDIUM'])
+    expect(
+      previewSeverity(
+        group(
+          'AND',
+          leaf('a', 'INDICATOR_PROGRESS_PERCENT', 'LT', '80'),
+          leaf('b', 'INDICATOR_PROGRESS_PERCENT', 'GTE', '76'),
+        ),
+        {},
+      ).levels,
+    ).toEqual(['MEDIUM'])
   })
   it('flags contradictory comparisons on the same metric and binding inside an AND group', () => {
     const other = '22222222-2222-4222-8222-222222222222'
