@@ -17,7 +17,7 @@ Developer request to modularize the whole repository for readability, after the 
 
 ## 3. Proposed Change
 
-Behavior-preserving restructure in 14 sub-projects. Scope: split large files, remove duplication, delete dead code, unify naming and patterns. Renamed files and folders are named for the purpose of their code.
+Behavior-preserving restructure in 15 sub-projects. Scope: split large files, remove duplication, delete dead code, unify naming and patterns. Renamed files and folders are named for the purpose of their code.
 
 ### 3.1 Dependency direction
 
