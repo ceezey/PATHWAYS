@@ -69,7 +69,9 @@ export const MeOverview = ({
           <AccentKpi
             action={{ label: 'Review', href: '/alerts' }}
             label="Active alerts"
-            sub={`${alerts.bySeverity.CRITICAL} critical · ${alerts.bySeverity.HIGH} high`}
+            sub={`${alerts.bySeverity.CRITICAL} critical · ${alerts.bySeverity.HIGH} high${
+              alerts.needsContext > 0 ? ` · ${alerts.needsContext} need context` : ''
+            }`}
             tone="danger"
             value={`${alerts.open}${alerts.capped ? '+' : ''}`}
           />

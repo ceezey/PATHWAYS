@@ -85,6 +85,12 @@ describe('MeOverview', () => {
     render(<MeOverview data={data} evaluations={[]} fullName="Leah Sy" onOpenActivity={vi.fn()} />)
     expect(screen.getByText('2 critical · 1 high')).toBeTruthy()
   })
+  it('adds the Needs context count to the alert split only when there are any', () => {
+    const alerts = data.alerts as NonNullable<RoleOverview['alerts']>
+    const ctx = { ...data, alerts: { ...alerts, needsContext: 4 } } as RoleOverview
+    render(<MeOverview data={ctx} evaluations={[]} fullName="Leah Sy" onOpenActivity={vi.fn()} />)
+    expect(screen.getByText('2 critical · 1 high · 4 need context')).toBeTruthy()
+  })
   it('marks a Needs context alert with its own dot and the text label', () => {
     const alerts = data.alerts as NonNullable<RoleOverview['alerts']>
     const row = { ...alerts.recent[0], severity: null }
