@@ -30,7 +30,7 @@ export function corsOptions(webOrigin: string): CorsOptions {
     origin: allowedWebOrigins(webOrigin),
     credentials: false,
     maxAge: CORS_PREFLIGHT_MAX_AGE_SECONDS,
-    exposedHeaders: ['Content-Disposition', 'X-Content-Type-Options'],
+    exposedHeaders: ['Content-Disposition', 'X-Content-Type-Options', 'Server-Timing'],
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'OPTIONS'],
     allowedHeaders: [
       'Authorization',

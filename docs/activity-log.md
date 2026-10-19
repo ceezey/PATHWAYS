@@ -1006,3 +1006,7 @@
 - Part 3 PR #54 merged into `dev` as 8324951c; the 18 executed plan copies under `docs/superpowers/plans` (S3b to W2) and their index rows are removed, and the 18 `docs/handoff` plan rows say Closed.
 - The W2 task rulings are appended to `docs/handoff/modularization-rulings-log.md`, and `memory-digest.md` and `cloud-handoff-prompt.md` record the finished state and the W2 baselines.
 - Gates: docs check 0 failures and 0 warnings; docs only, so the other gates are unchanged.
+
+## 2026-10-19 Load performance: server timing (feature/load-performance)
+- Every API response now carries `Server-Timing: auth;dur=N, total;dur=N` from `serverTimingMiddleware` (`apps/api/src/common/network/server-timing.ts`); durations only, no identities or values, and any existing dev-only `pathways_*` entries are kept.
+- `auth` is the `SupabaseAuthGuard` duration (token check plus workspace and permission resolution); the handler-side `withAuthorizedOperation` profile read counts in `total` only. `Server-Timing` is added to the CORS exposed headers.
