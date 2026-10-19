@@ -79,6 +79,15 @@ export const ProjectActivitiesWorkspace = ({
     inProjectScope &&
     principalHasAtomicPermission(profile, 'evidence.review')
   const canDecideProof = false
+  // The server decides each step again; the UI only hides what the role can never do.
+  const escalationTier =
+    role === 'Project Manager' && canUpdate
+      ? 'PROJECT'
+      : role === 'Program Manager' &&
+          inProjectScope &&
+          principalHasAtomicPermission(profile, 'activities.escalations.read')
+        ? 'PROGRAM'
+        : null
   const canValidateExpense = role === 'Monitoring and Evaluation Officer' && inProjectScope
   // Expense-budget references never expose plan amounts; they are also the only project-scoped
   // read that carries the activity linkage, so both the submit dialog and the pending-expense
@@ -144,6 +153,12 @@ export const ProjectActivitiesWorkspace = ({
   const editorFailed = editorReads.some((read) => read.isError)
   const detail = useActivityDetailRead(projectId, selectedActivityId)
   const selectedActivity = detail.data ?? null
+  // A Project Officer raises only on an activity they are assigned to.
+  const canRaiseEscalation =
+    inProjectScope &&
+    principalHasAtomicPermission(profile, 'activities.escalations.raise') &&
+    (role !== 'Project Officer' ||
+      Boolean(profile && selectedActivity?.assignedUserIds.includes(profile.userId)))
   const {
     activityExpenses,
     budgetReferences,
@@ -457,6 +472,12 @@ export const ProjectActivitiesWorkspace = ({
         canReadExpenses={canReadExpenses}
         pendingExpenses={pendingExpenses}
         focusExtension={initialAction === 'extension'}
+        escalation={{
+          tier: escalationTier,
+          canRaise: canRaiseEscalation,
+          userId: profile?.userId,
+          focus: initialAction === 'escalation',
+        }}
         requestedProofId={initialProofId}
       />
       <ActivityEditorLoadingDialog

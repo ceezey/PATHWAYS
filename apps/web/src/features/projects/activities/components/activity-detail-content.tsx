@@ -33,6 +33,8 @@ import {
   ActivityTeam,
   PanelSection,
 } from './activity-detail-sections'
+import { ActivityEscalationDialog } from './activity-escalation-dialog'
+import { ActivityEscalationPanel, type EscalationTier } from './activity-escalation-panel'
 import { ActivityExplainDelayDialog } from './activity-explain-delay-dialog'
 import { ActivityExtensionDialog } from './activity-extension-dialog'
 import { ActivityExtensionPanel } from './activity-extension-panel'
@@ -43,6 +45,13 @@ import { groupProofsByUpdate, proofTone } from '../activity-proof.utils'
 import { ActivityDetailActions } from './activity-detail-actions'
 import { ActivityHistory } from './activity-history'
 
+export type EscalationAccess = {
+  tier: EscalationTier
+  canRaise: boolean
+  userId?: string
+  focus?: boolean
+}
+
 export const ActivityDetailContent = ({
   activity,
   activityExpenses = [],
@@ -52,6 +61,7 @@ export const ActivityDetailContent = ({
   canDecideProof,
   canDecideExtension = false,
   focusExtension = false,
+  escalation = { tier: null, canRaise: false },
   canEdit,
   canLogExpense,
   canReadBudgets = false,
@@ -81,6 +91,7 @@ export const ActivityDetailContent = ({
   canDecideProof: boolean
   canDecideExtension?: boolean
   focusExtension?: boolean
+  escalation?: EscalationAccess
   canEdit: boolean
   canLogExpense: boolean
   canReadBudgets?: boolean
@@ -107,6 +118,8 @@ export const ActivityDetailContent = ({
   const [expenseOpen, setExpenseOpen] = useState(false)
   const [extensionOpen, setExtensionOpen] = useState(false)
   const [extensionRefresh, setExtensionRefresh] = useState(0)
+  const [escalationOpen, setEscalationOpen] = useState(false)
+  const [escalationRefresh, setEscalationRefresh] = useState(0)
   const [expenseReviewTarget, setExpenseReviewTarget] = useState<PendingExpense | null>(null)
   const [reviewTarget, setReviewTarget] = useState<{
     mode: 'validate' | 'decide'
@@ -286,11 +299,13 @@ export const ActivityDetailContent = ({
       <ActivityDetailActions
         activity={activity}
         canLogExpense={canLogExpense}
+        canRaiseEscalation={escalation.canRaise}
         canRequestExtension={canRequestExtension}
         onEdit={onEdit}
         onSubmitProof={onSubmitProof}
         ownIncompleteProof={ownIncompleteProof}
         setExpenseOpen={setExpenseOpen}
+        setEscalationOpen={setEscalationOpen}
         setExplainDelayOpen={setExplainDelayOpen}
         setExtensionOpen={setExtensionOpen}
         setProgressOpen={setProgressOpen}
@@ -319,6 +334,27 @@ export const ActivityDetailContent = ({
           onOpenChange={setExtensionOpen}
           onRequested={() => setExtensionRefresh((value) => value + 1)}
           open={extensionOpen}
+        />
+      ) : null}
+      <ActivityEscalationPanel
+        activity={activity}
+        focus={escalation.focus}
+        onDecided={() => {
+          void activitiesClient
+            .getActivity(activity.projectId, activity.id)
+            .then(onActivityChanged)
+            .catch(() => {})
+        }}
+        refreshKey={escalationRefresh}
+        tier={escalation.tier}
+        userId={escalation.userId}
+      />
+      {escalationOpen ? (
+        <ActivityEscalationDialog
+          activity={activity}
+          onOpenChange={setEscalationOpen}
+          onRaised={() => setEscalationRefresh((value) => value + 1)}
+          open={escalationOpen}
         />
       ) : null}
       {progressOpen ? (

@@ -210,6 +210,32 @@ export const ManagerOverview = ({
           </ListCard>
         ) : null}
       </div>
+      {data.escalationQueue ? (
+        <ListCard empty="No escalations are open." title="Open escalations">
+          {data.escalationQueue.rows.map((row) => (
+            <ListRow
+              key={row.id}
+              lead={<InitialsBadge text="ESC" />}
+              meta={`${row.reason} · ${row.raisedByName} · ${row.projectTitle}`}
+              title={`${row.activityCode} — ${row.activityTitle}`}
+              trailing={
+                <Button
+                  aria-label={`${row.stage === 'FORWARD' ? 'Forward' : 'Resolve'} escalation for ${row.activityCode}`}
+                  onClick={() =>
+                    onOpenActivity(
+                      `/projects/${row.projectId}/activities/${row.activityId}?action=escalation`,
+                    )
+                  }
+                  size="sm"
+                  type="button"
+                >
+                  {row.stage === 'FORWARD' ? 'Forward' : 'Resolve'}
+                </Button>
+              }
+            />
+          ))}
+        </ListCard>
+      ) : null}
       {data.alerts ? (
         <ListCard
           empty="No budget alerts are open."

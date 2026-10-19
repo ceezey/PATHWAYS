@@ -227,4 +227,48 @@ describe('ManagerOverview', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Approve extension for ACT-009' }))
     expect(open).toHaveBeenCalledWith(`/projects/${p}/activities/${a}?action=extension`)
   })
+  it('lists open escalations with a Resolve or Forward action to the activity', () => {
+    const open = vi.fn()
+    const base = {
+      id: '80000000-0000-4000-8000-000000000001',
+      activityId: a,
+      projectId: p,
+      projectTitle: 'FutureMakers NCR',
+      activityCode: 'ACT-009',
+      activityTitle: 'Distribute kits',
+      status: 'OPEN',
+      reason: 'The venue is not available.',
+      raisedByName: 'Ron Perez',
+      raisedAt: '2026-10-18T00:00:00.000Z',
+      stage: 'RESOLVE',
+    }
+    const queue = {
+      count: 2,
+      rows: [
+        base,
+        {
+          ...base,
+          id: '80000000-0000-4000-8000-000000000002',
+          activityCode: 'ACT-010',
+          stage: 'FORWARD',
+        },
+      ],
+    } as RoleOverview['escalationQueue']
+    render(
+      <ManagerOverview
+        counts={null}
+        data={{ ...data, escalationQueue: queue }}
+        metrics={{}}
+        onOpenActivity={open}
+      />,
+    )
+    expect(screen.getByText('Open escalations')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Resolve escalation for ACT-009' }))
+    expect(open).toHaveBeenCalledWith(`/projects/${p}/activities/${a}?action=escalation`)
+    expect(screen.getByRole('button', { name: 'Forward escalation for ACT-010' })).toBeTruthy()
+  })
+  it('hides the escalation card when the queue is null', () => {
+    render(<ManagerOverview counts={null} data={data} metrics={{}} onOpenActivity={vi.fn()} />)
+    expect(screen.queryByText('Open escalations')).toBeNull()
+  })
 })

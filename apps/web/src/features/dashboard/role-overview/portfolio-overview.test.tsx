@@ -147,4 +147,58 @@ describe('PortfolioOverview', () => {
     expect(screen.getByText('Escalated alerts')).toBeTruthy()
     expect(screen.queryByRole('link', { name: 'Decide' })).toBeNull()
   })
+  it('gives the Program Manager a Resolve link on forwarded escalations', () => {
+    const escalationQueue = {
+      count: 1,
+      rows: [
+        {
+          id: '80000000-0000-4000-8000-000000000001',
+          activityId: '40000000-0000-4000-8000-000000000001',
+          projectId: p1,
+          projectTitle: 'FutureMakers NCR',
+          activityCode: 'ACT-009',
+          activityTitle: 'Distribute kits',
+          status: 'FORWARDED',
+          reason: 'The venue is not available.',
+          raisedByName: 'Ron Perez',
+          raisedAt: '2026-10-18T00:00:00.000Z',
+          stage: 'PROGRAM',
+        },
+      ],
+    } as RoleOverview['escalationQueue']
+    render(<PortfolioOverview data={{ ...data, escalationQueue }} metrics={{}} readOnly={false} />)
+    expect(screen.getByText('Forwarded escalations')).toBeTruthy()
+    const link = screen.getByRole('link', { name: 'Resolve escalation for ACT-009' })
+    expect(link.getAttribute('href')).toBe(
+      `/projects/${p1}/activities/40000000-0000-4000-8000-000000000001?action=escalation`,
+    )
+  })
+  it('shows Grant Manager escalation rows with no action', () => {
+    const escalationQueue = {
+      count: 1,
+      rows: [
+        {
+          ...{
+            id: '80000000-0000-4000-8000-000000000001',
+            activityId: '40000000-0000-4000-8000-000000000001',
+            projectId: p1,
+            projectTitle: 'FutureMakers NCR',
+            activityCode: 'ACT-009',
+            activityTitle: 'Distribute kits',
+            status: 'FORWARDED',
+            reason: 'The venue is not available.',
+            raisedByName: 'Ron Perez',
+            raisedAt: '2026-10-18T00:00:00.000Z',
+            stage: 'PROGRAM',
+          },
+          stage: 'WATCH',
+          status: 'OPEN',
+        },
+      ],
+    } as RoleOverview['escalationQueue']
+    render(<PortfolioOverview data={{ ...data, escalationQueue }} metrics={{}} readOnly />)
+    expect(screen.getByText('Activity escalations')).toBeTruthy()
+    expect(screen.getByText(/The venue is not available\./)).toBeTruthy()
+    expect(screen.queryByRole('link', { name: /Resolve escalation/ })).toBeNull()
+  })
 })

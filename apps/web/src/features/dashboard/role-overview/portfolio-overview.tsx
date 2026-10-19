@@ -7,7 +7,14 @@ import { plural } from '@/lib/format/plural'
 import { cn } from '@/lib/utils'
 import { healthOf } from './health'
 import type { ProjectMetrics } from './manager-overview'
-import { AccentKpi, DashboardHeading, KpiStrip, ListCard } from './primitives'
+import {
+  AccentKpi,
+  DashboardHeading,
+  InitialsBadge,
+  KpiStrip,
+  ListCard,
+  ListRow,
+} from './primitives'
 
 const bar = {
   danger: 'bg-danger',
@@ -182,6 +189,33 @@ export const PortfolioOverview = ({
           </p>
         </div>
       </div>
+      {data.escalationQueue ? (
+        <ListCard
+          empty="No activity escalations are waiting."
+          title={readOnly ? 'Activity escalations' : 'Forwarded escalations'}
+        >
+          {data.escalationQueue.rows.map((row) => (
+            <ListRow
+              key={row.id}
+              lead={<InitialsBadge text="ESC" />}
+              meta={`${row.status === 'FORWARDED' ? 'Forwarded' : 'Open'} · ${row.reason} · ${row.projectTitle}`}
+              title={`${row.activityCode} — ${row.activityTitle}`}
+              trailing={
+                row.stage === 'PROGRAM' ? (
+                  <Button asChild size="sm">
+                    <Link
+                      aria-label={`Resolve escalation for ${row.activityCode}`}
+                      href={`/projects/${row.projectId}/activities/${row.activityId}?action=escalation`}
+                    >
+                      Resolve
+                    </Link>
+                  </Button>
+                ) : null
+              }
+            />
+          ))}
+        </ListCard>
+      ) : null}
       {data.alerts ? (
         <ListCard
           caption={escalated ? 'Requiring program-level decision' : undefined}

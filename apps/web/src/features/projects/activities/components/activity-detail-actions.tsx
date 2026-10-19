@@ -1,4 +1,12 @@
-import { BellRing, CalendarClock, Pencil, ReceiptText, TrendingUp, UploadCloud } from 'lucide-react'
+import {
+  BellRing,
+  CalendarClock,
+  Flag,
+  Pencil,
+  ReceiptText,
+  TrendingUp,
+  UploadCloud,
+} from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import type { Activity } from '@/types/pathways'
@@ -6,11 +14,13 @@ import type { Activity } from '@/types/pathways'
 export const ActivityDetailActions = ({
   activity,
   canLogExpense,
+  canRaiseEscalation,
   canRequestExtension,
   onEdit,
   onSubmitProof,
   ownIncompleteProof,
   setExpenseOpen,
+  setEscalationOpen,
   setExplainDelayOpen,
   setExtensionOpen,
   setProgressOpen,
@@ -21,11 +31,13 @@ export const ActivityDetailActions = ({
 }: {
   activity: Activity
   canLogExpense: boolean
+  canRaiseEscalation: boolean
   canRequestExtension: boolean
   onEdit: (activity: Activity) => void
   onSubmitProof: (activity: Activity) => void
   ownIncompleteProof: boolean
   setExpenseOpen: (open: boolean) => void
+  setEscalationOpen: (open: boolean) => void
   setExplainDelayOpen: (open: boolean) => void
   setExtensionOpen: (open: boolean) => void
   setProgressOpen: (open: boolean) => void
@@ -91,6 +103,19 @@ export const ActivityDetailActions = ({
       >
         <CalendarClock className="h-4 w-4" aria-hidden="true" />
         Request an extension
+      </Button>
+    ) : null}
+    {canRaiseEscalation &&
+    activity.status !== 'Completed' &&
+    activity.storedStatus !== 'CANCELLED' ? (
+      <Button
+        className="gap-2"
+        onClick={() => setEscalationOpen(true)}
+        type="button"
+        variant="outline"
+      >
+        <Flag className="h-4 w-4" aria-hidden="true" />
+        Raise escalation
       </Button>
     ) : null}
   </div>

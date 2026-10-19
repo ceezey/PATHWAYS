@@ -2,7 +2,7 @@
 
 **ID:** `cr-pathways-activity-escalation`  
 **Date:** 2026-10-19  
-**Status:** Approved (2026-10-19; implementation pending)
+**Status:** Applied locally (2026-10-19; 0070 local replay passed; hosted apply pending)
 
 ## 1. Trigger
 
@@ -163,6 +163,8 @@ QAD-T122 to QAD-T124 and QAD-A45.
 
 Apply by the normal migration chain after local replay and suites pass. Rollback before use: `DROP TABLE pathways.activity_escalations` and its function in a corrective migration; after use, resolve forward with a new migration (never edit 0070). No data from other tables is touched.
 
+After a failed 0070 apply, run `prisma migrate resolve --rolled-back 0070_activity_escalations`, then `--resume` (precedent: `runbook-role-staging-build.md`). A corrective DROP needs separate destructive authorization and must reverse the inventory changes (61-table count, wipe list, 59-model count).
+
 ## 7. Verification
 
 Local replay of 0000-0070, the runtime SQL suite, API and shared unit tests, web tests, typecheck, lint, then the manual test script below on the hosted stage.
@@ -213,4 +215,4 @@ Developer decision 2026-10-19: approved. Tiered flow, no new permission codes, m
 
 ## 9. Disposition
 
-Closes the "Activity escalation" gap (RBAC v4 row 53). Follow-ups: migration 0070, module and web UI (Tasks 6-8 of the 2026-10-19 plan); the escalation inbox or notification of the next tier remains deferred with the notification inbox. Do not mark Applied until the migration, API, UI and the tests above exist.
+Closes the "Activity escalation" gap (RBAC v4 row 53). Implemented locally: migration 0070, module and web UI (Tasks 6-8 of the 2026-10-19 plan); hosted apply and the manual test script remain. Follow-up: the escalation inbox or notification of the next tier remains deferred with the notification inbox. Mark hosted-applied only after the migration is applied and the manual test script passes on the hosted stage.

@@ -303,7 +303,7 @@ flowchart LR
 | G-F2-18 | Final sign-off is recorded once per expense by a holder of `expenses.signoff` | Met | QAD-T48, QAD-T85 |
 | G-F2-19 | Overview metrics derive budget utilization and timeline deterministically and deny out-of-scope projects | Met | QAD-P03, QAD-P08 |
 | G-F2-20 | An assigned officer requests an extension, a different M&E Officer verifies it and a Project Manager who is neither approves it, moving only the planned end date; a stale activity returns 409 and an unassigned officer 403 | Met | QAD-T115, QAD-T116, QAD-T117, QAD-A43 |
-| G-F2-21 | A raised escalation is forwarded by a Project Manager or resolved by one who is not the raiser, and a forwarded one is resolved by a Program Manager who is neither raiser nor forwarder; one open escalation per activity, a stale version returns 409, an unassigned Project Officer raising returns 403 and the Grant Manager forwarding or resolving returns 403, and the activity status and dates are unchanged | Not met | QAD-T122, QAD-T123, QAD-T124, QAD-A45 |
+| G-F2-21 | A raised escalation is forwarded by a Project Manager or resolved by one who is not the raiser, and a forwarded one is resolved by a Program Manager who is neither raiser nor forwarder; one open escalation per activity, a stale version returns 409, an unassigned Project Officer raising returns 403 and the Grant Manager forwarding or resolving returns 403, and the activity status and dates are unchanged | Met | QAD-T122, QAD-T123, QAD-T124, QAD-A45 |
 
 #### Use Cases
 

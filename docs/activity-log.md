@@ -1028,3 +1028,8 @@
 ## 2026-10-19 Activity escalation migration 0070 (feature/activity-escalation)
 - Added migration `0070_activity_escalations` (table, 7 CHECKs, 6 FKs, partial unique open key, 3 RLS policies with the inlined ROLE(code) pattern, transition trigger, column grants), the `ActivityEscalation` Prisma model and `activity-escalations-runtime.sql` (55 assertions).
 - Registered 0070 in hosted plan and build checks, `Verify-Forward.ps1`, the legacy-retirement test (59 models), `Replay-Local.ps1` (61 pathways tables, new SQL step) and the demo wipe TRUNCATE list; local baseline replay and `SCHEMA_DRIFT=CLEAN` pass with no expected-file change.
+
+## 2026-10-19 Activity escalation web UI and docs status (feature/activity-escalation)
+- Added the web client `activity-escalations.ts`, the Raise escalation dialog (privacy hint, 10-2000 trimmed characters, reused client mutation id) and the escalation panel (Project Manager Forward or Resolve, Program Manager Resolve on forwarded, status only otherwise) beside the extension panel, with deep link `?action=escalation`; escalation reads stay live and are not in the summary allowlist.
+- Manager overview shows open escalations (Resolve or Forward link to the activity); portfolio overview shows forwarded escalations with a Resolve link for the Program Manager and read-only rows for the Grant Manager.
+- CR status set to Applied locally (hosted apply pending), failed-apply recovery added to section 6, G-F2-21 marked Met on the local suites, deferred-features row and index row updated.
