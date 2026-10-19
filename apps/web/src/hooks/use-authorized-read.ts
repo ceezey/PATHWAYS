@@ -27,10 +27,11 @@ const LIVE_ONLY_RESOURCE = /^(beneficiar|step-up|import-batch|analytics-insights
 export const SUMMARY_ELIGIBLE_RESOURCE =
   /^(projects|project|project-journey-stages|project-overview-metrics|project-activities|activity-assignable-officers|expense-budget-references|activity-expense-references|indicator-library|project-indicators|indicator-binding-choices|rules-recommendation-library|analytics-project-map|recommendation-linked-alert:.+|alert-linked-recommendations:.+)$/
 
+const summaryEligible = (resource: string) =>
+  SUMMARY_ELIGIBLE_RESOURCE.test(resource) && !LIVE_ONLY_RESOURCE.test(resource)
+
 export function authorizedReadPolicy(resource: string, freshness: AuthorizedReadFreshness) {
-  return freshness === 'summary' &&
-    SUMMARY_ELIGIBLE_RESOURCE.test(resource) &&
-    !LIVE_ONLY_RESOURCE.test(resource)
+  return freshness === 'summary' && summaryEligible(resource)
     ? { staleTime: SUMMARY_READ_STALE_MS, gcTime: SUMMARY_READ_STALE_MS, refetchOnMount: true }
     : { staleTime: 0, gcTime: 0, refetchOnMount: 'always' as const }
 }
@@ -149,4 +150,50 @@ export function useAuthorizedRead<T>(
       }))
     },
   }
+}
+
+/** What a prefetch needs to warm one authorized read under the same key as its hook. */
+export type AuthorizedReadSpec<T = unknown> = {
+  resource: string
+  permission: Permission
+  read: (signal: AbortSignal) => Promise<T>
+}
+
+/**
+ * Warms a summary-eligible read on user intent (hover or focus). Live-only and unlisted
+ * resources, ineligible principals and denied keys are skipped; failures leave no entry.
+ */
+export function useAuthorizedPrefetch() {
+  const context = useContext(AuthorizedQueryContext)
+  const client = useQueryClient()
+  return useCallback(
+    (projectId: string, { resource, permission, read }: AuthorizedReadSpec) => {
+      if (
+        !context?.identity ||
+        !summaryEligible(resource) ||
+        !principalHasAtomicPermission(context.profile, permission) ||
+        !context.inProject(projectId)
+      )
+        return
+      const queryKey = [privateKey[0], context.identity, resource, projectId]
+      if (context.deniedRead(JSON.stringify(queryKey))) return
+      void client
+        .prefetchQuery<Envelope<unknown>>({
+          queryKey,
+          queryFn: async ({ signal }) => {
+            if (!context.isCurrent())
+              throw new PathwaysClientError('Current workspace access is required.', 'unauthorized')
+            const epoch = context.currentEpoch()
+            return { epoch, value: await read(signal) }
+          },
+          staleTime: SUMMARY_READ_STALE_MS,
+          gcTime: SUMMARY_READ_STALE_MS,
+        })
+        .then(() => {
+          if (client.getQueryState(queryKey)?.status === 'error')
+            client.removeQueries({ queryKey, exact: true, type: 'inactive' })
+        })
+    },
+    [client, context],
+  )
 }

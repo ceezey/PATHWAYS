@@ -36,9 +36,17 @@ type WorkspaceProps = {
   project: ProjectDetail
   activities: Pick<Activity, 'id' | 'title' | 'journeyStageId'>[]
   initialStages: JourneyStageConfig[]
+  activitiesLoading?: boolean
+  onSaved?: () => void
 }
 
-export const JourneyConfigWorkspace = ({ project, activities, initialStages }: WorkspaceProps) => {
+export const JourneyConfigWorkspace = ({
+  project,
+  activities,
+  initialStages,
+  activitiesLoading = false,
+  onSaved,
+}: WorkspaceProps) => {
   const { role, profile } = useCurrentRole()
   const canEdit = isUiActionAvailable(role, 'journeys.manage', profile)
   const [stages, setStages] = useState(initialStages)
@@ -91,6 +99,7 @@ export const JourneyConfigWorkspace = ({ project, activities, initialStages }: W
     try {
       setStages(await journeysClient.saveJourneyStages(project.id, stages))
       toast.success('Journey-stage configuration saved.')
+      onSaved?.()
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Journey stages could not be saved.')
     } finally {
@@ -166,6 +175,7 @@ export const JourneyConfigWorkspace = ({ project, activities, initialStages }: W
                 stage={selected}
                 stages={stages}
                 activities={activities}
+                activitiesLoading={activitiesLoading}
                 canEdit={canEdit}
                 onChange={update}
                 onRemove={() => {

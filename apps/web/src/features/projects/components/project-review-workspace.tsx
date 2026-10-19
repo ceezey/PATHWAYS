@@ -26,6 +26,8 @@ import type {
 import { useProjectRead } from '../projects.reads'
 import { EvidenceView, type ProjectReportRecord } from './evidence-view'
 
+const reviewSections = ['activities', 'evidence', 'reports'] as const
+type ReviewSection = (typeof reviewSections)[number]
 type ProjectReviewView = 'evidence' | 'monitor-evaluate' | 'budget'
 
 export const ProjectReviewWorkspace = ({
@@ -53,14 +55,15 @@ const EvidenceWorkspace = ({ projectId }: { projectId: string }) => {
   const [evidence, setEvidence] = useState<EvidenceRecord[]>([])
   const [evidenceSummary, setEvidenceSummary] = useState<EvidenceActivitySummary[] | null>(null)
   const [reports, setReports] = useState<ProjectReportRecord[]>([])
-  const [loading, setLoading] = useState(true)
+  // Sections still waiting on their own read; each renders as soon as it resolves.
+  const [pending, setPending] = useState<ReviewSection[]>([...reviewSections])
   const [error, setError] = useState(false)
   const [unavailableSections, setUnavailableSections] = useState<string[]>([])
 
   useEffect(() => {
     let mounted = true
     if (!hasProject) return
-    setLoading(true)
+    setPending([...reviewSections])
     setError(false)
     setUnavailableSections([])
     setActivities([])
@@ -69,7 +72,7 @@ const EvidenceWorkspace = ({ projectId }: { projectId: string }) => {
     setReports([])
 
     if (!role || !profile) {
-      setLoading(false)
+      setPending([])
       setError(true)
       return () => {
         mounted = false
@@ -77,13 +80,19 @@ const EvidenceWorkspace = ({ projectId }: { projectId: string }) => {
     }
 
     const unavailable: string[] = []
-    const optional = async <T,>(label: string, request: Promise<T>, apply: (value: T) => void) => {
+    const optional = async <T,>(
+      section: ReviewSection,
+      label: string,
+      request: Promise<T>,
+      apply: (value: T) => void,
+    ) => {
       try {
         const value = await request
         if (mounted) apply(value)
       } catch {
         unavailable.push(label)
       }
+      if (mounted) setPending((current) => current.filter((item) => item !== section))
     }
     const canReadActivities = principalHasAtomicPermission(profile, 'activities.read')
     const canReadEvidence = principalHasAtomicPermission(profile, 'evidence.read')
@@ -95,31 +104,42 @@ const EvidenceWorkspace = ({ projectId }: { projectId: string }) => {
         if (canReadActivities) {
           requests.push(
             optional(
+              'activities',
               'Connected activities',
               activitiesClient.getActivities(projectId),
               // A missing list leaves the tab usable; the budget column reads as a dash.
               (list) => setActivities(list ?? []),
             ),
           )
+        } else {
+          setPending((current) => current.filter((item) => item !== 'activities'))
         }
         if (canReadEvidence) {
           requests.push(
-            optional('Evidence records', activitiesClient.getEvidence(projectId), (list) =>
-              applyEvidence(list, setEvidence, setEvidenceSummary),
+            optional(
+              'evidence',
+              'Evidence records',
+              activitiesClient.getEvidence(projectId),
+              (list) => applyEvidence(list, setEvidence, setEvidenceSummary),
             ),
           )
         } else {
           unavailable.push('Evidence records are not available for this role')
+          setPending((current) => current.filter((item) => item !== 'evidence'))
         }
         if (canReadReports) {
-          requests.push(optional('Report records', reportsClient.reports(projectId), setReports))
+          requests.push(
+            optional('reports', 'Report records', reportsClient.reports(projectId), setReports),
+          )
+        } else {
+          setPending((current) => current.filter((item) => item !== 'reports'))
         }
         await Promise.all(requests)
         if (mounted) setUnavailableSections([...new Set(unavailable)])
       } catch {
         if (mounted) setError(true)
       } finally {
-        if (mounted) setLoading(false)
+        if (mounted) setPending([])
       }
     }
     void load()
@@ -136,7 +156,7 @@ const EvidenceWorkspace = ({ projectId }: { projectId: string }) => {
     principalHasAtomicPermission(profile, 'evidence.review') &&
     principalHasAtomicPermission(profile, 'activities.read')
   const projectPending = projectRead.isPending && projectRead.eligible
-  if (projectPending || (hasProject && loading)) {
+  if (projectPending) {
     return (
       <AsyncState
         description="Loading the project workspace tab."
@@ -195,6 +215,7 @@ const EvidenceWorkspace = ({ projectId }: { projectId: string }) => {
         evidence={evidence}
         evidenceSummary={evidenceSummary}
         reports={reports}
+        pending={pending}
       />
     </>
   )

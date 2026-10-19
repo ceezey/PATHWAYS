@@ -19,6 +19,7 @@ type DetailsProps = {
   stage: JourneyStageConfig
   stages: JourneyStageConfig[]
   activities: Pick<Activity, 'id' | 'title' | 'journeyStageId'>[]
+  activitiesLoading?: boolean
   canEdit: boolean
   onRemove: () => void
   onChange: <Key extends keyof JourneyStageConfig>(key: Key, value: JourneyStageConfig[Key]) => void
@@ -28,6 +29,7 @@ export const JourneyStageDetails = ({
   stage,
   stages,
   activities,
+  activitiesLoading = false,
   canEdit,
   onChange,
   onRemove,
@@ -138,6 +140,8 @@ export const JourneyStageDetails = ({
               <span className="text-sm text-foreground">{activity.title}</span>
             </Label>
           ))
+        ) : activitiesLoading ? (
+          <output className="text-sm text-muted-foreground">Loading project activities.</output>
         ) : (
           <p className="text-sm text-muted-foreground">
             No project activities are available for mapping.

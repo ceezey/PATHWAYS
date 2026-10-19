@@ -1,6 +1,6 @@
 /* @vitest-environment jsdom */
 
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ProjectDetail } from '@/types/pathways'
@@ -18,6 +18,8 @@ const access = vi.hoisted(() => ({
 }))
 
 vi.mock('next/navigation', () => ({ usePathname: () => `/projects/${projectId}` }))
+const prefetch = vi.hoisted(() => ({ project: vi.fn(), tab: vi.fn() }))
+vi.mock('../projects.reads', () => ({ useProjectPrefetch: () => prefetch }))
 vi.mock('@/hooks/use-current-role', () => ({ useCurrentRole: () => access }))
 vi.mock('@/hooks/use-display-labels', () => ({
   useDisplayLabels: () => ({
@@ -101,5 +103,18 @@ describe('project workspace tab access', () => {
 
     expect(screen.queryByText('On Track')).toBeNull()
     expect(screen.queryByText('Not assessed')).toBeNull()
+  })
+
+  it('prefetches a tab on hover and focus of its link', () => {
+    access.role = 'System Administrator'
+    access.profile.roles = ['SYSTEM_ADMINISTRATOR']
+    access.profile.permissions = ['projects.read', 'indicators.read']
+    prefetch.tab.mockClear()
+    render(<ProjectWorkspaceHeader project={project} />)
+    const tab = screen.getByRole('tab', { name: 'Indicators' })
+    fireEvent.mouseEnter(tab)
+    fireEvent.focus(tab)
+    expect(prefetch.tab).toHaveBeenCalledTimes(2)
+    expect(prefetch.tab).toHaveBeenCalledWith(projectId, 'indicators')
   })
 })

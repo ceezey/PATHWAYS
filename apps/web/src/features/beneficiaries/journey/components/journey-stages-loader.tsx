@@ -2,84 +2,54 @@
 
 import { RouteOff } from 'lucide-react'
 import Link from 'next/link'
-import { useEffect, useState } from 'react'
 
 import { AsyncState } from '@/components/pathways/async-state'
 import { EmptyState } from '@/components/pathways/empty-state'
 import { Button } from '@/components/ui/button'
+import { useAuthorizedRead } from '@/hooks/use-authorized-read'
+import { useCurrentRole } from '@/hooks/use-current-role'
 import { activitiesClient } from '@/lib/api/activities'
 import { PathwaysClientError } from '@/lib/api/core/request'
-import { journeysClient } from '@/lib/api/journeys'
-import { projectsClient } from '@/lib/api/projects'
-import type { Activity, JourneyStageConfig, ProjectDetail } from '@/types/pathways'
-
-import { useCurrentRole } from '@/hooks/use-current-role'
 import { principalHasAtomicPermission } from '@/lib/rbac/policy'
 
 import { JourneyConfigWorkspace } from '@/features/beneficiaries/journey/components/journey-config-workspace'
+import {
+  useInvalidateJourneyStagesRead,
+  useProjectActivitiesRead,
+  useProjectJourneyStagesRead,
+  useProjectRead,
+} from '@/features/projects'
 
 export const JourneyStagesLoader = ({ projectId }: { projectId: string }) => {
   const { profile } = useCurrentRole()
   const contextOnly = principalHasAtomicPermission(profile, 'activities.context.read')
   const canReadActivities = principalHasAtomicPermission(profile, 'activities.read')
-  const [project, setProject] = useState<ProjectDetail | null>(null)
-  const [activities, setActivities] = useState<Pick<Activity, 'id' | 'title' | 'journeyStageId'>[]>(
-    [],
+  const invalidateStages = useInvalidateJourneyStagesRead()
+  const projectRead = useProjectRead(projectId)
+  const stagesRead = useProjectJourneyStagesRead(projectId)
+  // Mapping choices are secondary: the stage list shows as soon as the project and stages resolve.
+  const contextRead = useAuthorizedRead(
+    'activity-context',
+    projectId,
+    'activities.context.read',
+    (signal) => activitiesClient.getActivityContext(projectId, signal),
+    contextOnly,
   )
-  const [stages, setStages] = useState<JourneyStageConfig[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
+  const listRead = useProjectActivitiesRead(projectId, canReadActivities && !contextOnly)
+  const activityRead = contextOnly ? contextRead : listRead
+  const activitiesLoading = (contextOnly || canReadActivities) && activityRead.isPending
 
-  useEffect(() => {
-    let active = true
-    setLoading(true)
-    setError('')
-    Promise.all([
-      projectsClient.getProject(projectId),
-      contextOnly
-        ? activitiesClient.getActivityContext(projectId)
-        : canReadActivities
-          ? activitiesClient.getActivities(projectId)
-          : Promise.resolve([]),
-      journeysClient.getJourneyStages(projectId),
-    ])
-      .then(([projectRecord, activityRecords, stageRecords]) => {
-        if (!active) return
-        setProject(projectRecord)
-        setActivities(activityRecords)
-        setStages(stageRecords)
-      })
-      .catch((caught) => {
-        if (!active) return
-        setError(
-          caught instanceof PathwaysClientError
-            ? caught.message
-            : 'Journey-stage configuration could not be loaded.',
-        )
-      })
-      .finally(() => {
-        if (active) setLoading(false)
-      })
-    return () => {
-      active = false
-    }
-  }, [projectId, contextOnly, canReadActivities])
-
-  if (loading) {
-    return (
-      <AsyncState
-        status="loading"
-        title="Loading journey stages"
-        description="Loading persisted project journey configuration."
-      />
-    )
-  }
-  if (error || !project) {
+  const failure = projectRead.error ?? stagesRead.error
+  if (failure || (!projectRead.isPending && !projectRead.data)) {
     return (
       <EmptyState
         icon={RouteOff}
         title="Journey stages unavailable"
-        description={error || 'The project journey configuration is unavailable.'}
+        description={
+          failure instanceof PathwaysClientError
+            ? failure.message
+            : 'The project journey configuration is unavailable.'
+        }
         action={
           <Button asChild variant="outline">
             <Link href="/projects">Back to projects</Link>
@@ -88,5 +58,22 @@ export const JourneyStagesLoader = ({ projectId }: { projectId: string }) => {
       />
     )
   }
-  return <JourneyConfigWorkspace project={project} activities={activities} initialStages={stages} />
+  if (!projectRead.data || !stagesRead.data) {
+    return (
+      <AsyncState
+        status="loading"
+        title="Loading journey stages"
+        description="Loading persisted project journey configuration."
+      />
+    )
+  }
+  return (
+    <JourneyConfigWorkspace
+      project={projectRead.data}
+      activities={activityRead.data ?? []}
+      activitiesLoading={activitiesLoading}
+      initialStages={stagesRead.data}
+      onSaved={() => void invalidateStages(projectId)}
+    />
+  )
 }

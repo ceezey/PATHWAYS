@@ -108,12 +108,9 @@ export const ProjectActivitiesWorkspace = ({
   const loadFailure = projectRead.isError ? projectRead.error : activityList.error
   // Only a real not-found error reaches the not-found view; data that is hidden while
   // access is re-verified stays in the loading state.
+  // The list renders when its own read resolves; the project only fills the team and errors.
   const loading =
-    !projectRead.eligible ||
-    !activityList.eligible ||
-    projectRead.isPending ||
-    activityList.isPending ||
-    (!loadFailure && (!project || !activityList.data))
+    !activityList.eligible || activityList.isPending || (!loadFailure && !activityList.data)
   const loadError = loadFailure
     ? loadFailure instanceof PathwaysClientError && loadFailure.code === 'not_found'
       ? 'not-found'
@@ -174,7 +171,6 @@ export const ProjectActivitiesWorkspace = ({
   } = useActivityFilters(activities, indicators)
 
   const upsertActivity = (activity: Activity, selectActivity = true) => {
-    if (!project) return
     const item = activitySummary(activity)
     activityList.replaceData((previous) => [
       ...(previous ?? []).filter((current) => current.id !== activity.id),
@@ -279,7 +275,7 @@ export const ProjectActivitiesWorkspace = ({
     )
   }
 
-  if (loadError === 'not-found' || !project) {
+  if (loadError === 'not-found') {
     return (
       <>
         <PageHeader

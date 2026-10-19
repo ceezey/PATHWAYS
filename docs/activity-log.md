@@ -1015,3 +1015,8 @@
 - The Evidence tab (`ProjectReviewWorkspace`) now reads the project through `useProjectRead`, the same `project` summary key the frame, Overview, Activities, Indicators and Evaluation tabs use, instead of a raw `getProject` call in an effect; a tab switch reuses the cached read.
 - New `useInvalidateProjectRead` (`projects.reads.ts`) marks that key stale; the project edit form calls it after a successful save so the next tab mount refetches. The team dialog already writes the shared key through `replaceData`.
 - The edit form's own load stays a live read so form defaults are never stale.
+
+## 2026-10-19 Load performance: progressive render, prefetch and CR (feature/load-performance)
+- Evidence tab sections (evidence, reports) and the Activities list render as their own reads resolve; the journey stages loader now uses the shared project, stages and activity reads and shows the stage list before its mapping choices arrive. A stage save marks the journey stages and activity list stale (`useInvalidateJourneyStagesRead`).
+- New `useAuthorizedPrefetch` (`use-authorized-read.ts`) and `useProjectPrefetch` (`projects.reads.ts`): hover or focus on a project tab link warms its summary reads, and on a project card warms the shared project read; live-only and unlisted resources are never prefetched.
+- Added `docs/cr-pathways-page-load-performance.md` (options 1-4 and 6 applied, option 5 not taken, privacy rationale, Server-Timing reading guide, staging re-measure pending), registered in the index and the deferred-features row.

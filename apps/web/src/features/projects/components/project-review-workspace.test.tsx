@@ -142,6 +142,23 @@ describe('shared project workspace optional loading', () => {
     expect(screen.getByText('No evidence records are available for this project.')).toBeTruthy()
     await waitFor(() => expect(coreApi.reports).toHaveBeenCalledWith(projectId))
   })
+  it('shows evidence as soon as it resolves while report records still load', async () => {
+    let finishReports: (value: never[]) => void = () => {}
+    api.getEvidence.mockResolvedValue({ scope: 'detail', records: [] })
+    coreApi.reports.mockReturnValue(
+      new Promise((resolve) => {
+        finishReports = resolve
+      }),
+    )
+    render(<ProjectReviewWorkspace projectId={projectId} view="evidence" />)
+    expect(await screen.findByText('Loading report records.')).toBeTruthy()
+    expect(
+      await screen.findByText('No evidence records are available for this project.'),
+    ).toBeTruthy()
+    finishReports([])
+    expect(await screen.findByText('No report records are linked yet.')).toBeTruthy()
+    expect(screen.queryByText('Loading report records.')).toBeNull()
+  })
   it('dispatches each live workspace with the exact project ID', () => {
     const finance = render(<ProjectReviewWorkspace projectId={projectId} view="budget" />)
     expect(screen.getByText(`Finance for ${projectId}`)).toBeTruthy()

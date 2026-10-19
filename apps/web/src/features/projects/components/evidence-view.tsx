@@ -141,6 +141,7 @@ export const EvidenceView = ({
   evidence,
   evidenceSummary,
   reports,
+  pending = [],
 }: {
   activities: ActivitySummary[]
   projectId: string
@@ -148,9 +149,17 @@ export const EvidenceView = ({
   evidence: EvidenceRecord[]
   evidenceSummary: EvidenceActivitySummary[] | null
   reports: ProjectReportRecord[]
+  /** Sections whose own read is still running; each shows a loading note. */
+  pending?: string[]
 }) => (
   <section className="grid gap-4 xl:grid-cols-[1.4fr_0.6fr]">
-    {evidenceSummary ? (
+    {pending.includes('evidence') ? (
+      <SectionCard className="xl:col-span-2" title="Evidence">
+        <output aria-live="polite" className="text-sm text-muted-foreground">
+          Loading evidence records.
+        </output>
+      </SectionCard>
+    ) : evidenceSummary ? (
       <EvidenceSummaryCard activities={evidenceSummary} budgets={activities} />
     ) : (
       <>
@@ -187,7 +196,11 @@ export const EvidenceView = ({
     )}
     <SectionCard className="xl:col-span-2" title="Report records">
       <div className="space-y-3">
-        {reports.length > 0 ? (
+        {pending.includes('reports') ? (
+          <output aria-live="polite" className="text-sm text-muted-foreground">
+            Loading report records.
+          </output>
+        ) : reports.length > 0 ? (
           reports.map((report) => (
             <div
               key={report.id}

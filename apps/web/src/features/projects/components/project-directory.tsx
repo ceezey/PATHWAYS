@@ -28,7 +28,7 @@ import { cn } from '@/lib/utils'
 import type { ProjectStatus, ProjectSummary } from '@/types/pathways'
 import { type MetricCell, businessCalendarDate, timelineProgress } from '@pathways/shared'
 
-import { useProjectRead } from '../projects.reads'
+import { useProjectPrefetch, useProjectRead } from '../projects.reads'
 import {
   type ProjectStatusFilter,
   overviewMetricLabel,
@@ -65,6 +65,7 @@ export const ProjectDirectory = () => {
   const [query, setQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<ProjectStatusFilter>('All')
   const [previewId, setPreviewId] = useState<string | null>(null)
+  const prefetch = useProjectPrefetch()
   const preview = useProjectRead(previewId ?? '', Boolean(previewId && canReadDetail))
   const previewProject = previewId && preview.data?.id === previewId ? preview.data : null
   const businessDate = businessCalendarDate(new Date(), 'Asia/Manila')
@@ -222,7 +223,11 @@ export const ProjectDirectory = () => {
                       Quick Preview
                     </Button>
                     <Button asChild className="gap-2 px-3">
-                      <Link href={`/projects/${project.id}`}>
+                      <Link
+                        href={`/projects/${project.id}`}
+                        onFocus={() => prefetch.project(project.id)}
+                        onMouseEnter={() => prefetch.project(project.id)}
+                      >
                         Open Project
                         <ArrowRight className="h-4 w-4" aria-hidden="true" />
                       </Link>
