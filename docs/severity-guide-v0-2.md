@@ -292,7 +292,7 @@ If the rule says the same indicator must be below 20% AND above 80% at the same 
 
 Use the actual figures and the approved plan for that date. Show one supported level when possible, with a short explanation such as:
 
-**Suggested severity: High. The plan expected 80% progress by today. Actual progress is 45%, which is 43.75% behind the expectation.**
+**Suggested severity: High. The plan expected 80% progress by the reporting date. Actual progress is 45%, which is 43.75% behind the expectation.**
 
 If important information is missing, say what is needed. For example: **We need the approved expected progress for this date before suggesting a level.**
 

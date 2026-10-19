@@ -45,10 +45,10 @@ function sentence(c: ConditionBasis): string {
   switch (m.kind) {
     case 'BEHIND_PERCENT':
       if (c.metric === 'ACTIVITY_COMPLETION_PERCENT')
-        return `The plan expected ${num(expected)}% of activities completed by today. Actual completion is ${num(m.actual)}%, ${shortfall}`
+        return `The plan expected ${num(expected)}% of activities completed by the reporting date. Actual completion is ${num(m.actual)}%, ${shortfall}`
       if (c.metric === 'INDICATOR_CURRENT_VALUE')
-        return `The plan expected ${num(expected)}% progress by today. The current value gives ${num(m.actual)}% progress, ${shortfall}`
-      return `The plan expected ${num(expected)}% progress by today. Actual progress is ${num(m.actual)}%, ${shortfall}`
+        return `The plan expected ${num(expected)}% progress by the reporting date. The current value gives ${num(m.actual)}% progress, ${shortfall}`
+      return `The plan expected ${num(expected)}% progress by the reporting date. Actual progress is ${num(m.actual)}%, ${shortfall}`
     case 'DELAY_SHARE':
       return c.metric === 'ACTIVITY_OVERDUE_DAYS'
         ? `The activity is ${days(m.actual)} overdue, ${num(m.value)}% of its planned ${days(expected)}.`

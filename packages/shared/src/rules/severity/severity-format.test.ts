@@ -46,7 +46,7 @@ describe('formatSeverityBasis', () => {
     ).toEqual({
       headline: 'Suggested severity: High.',
       reason:
-        'The plan expected 80% progress by today. Actual progress is 45%, which is 43.75% behind the expectation. (Severity Guide v0.2, 5.2)',
+        'The plan expected 80% progress by the reporting date. Actual progress is 45%, which is 43.75% behind the expectation. (Severity Guide v0.2, 5.2)',
       missing: [],
       section: '5.2',
     })
@@ -95,7 +95,7 @@ describe('formatSeverityBasis', () => {
     expect(formatted).toEqual({
       headline: 'Suggested severity: High.',
       reason:
-        'The plan expected 80% of activities completed by today. Actual completion is 35%, which is 56.25% behind the expectation. Budget used is 95%, so the linked spending supports the concern. (Severity Guide v0.2, 6)',
+        'The plan expected 80% of activities completed by the reporting date. Actual completion is 35%, which is 56.25% behind the expectation. Budget used is 95%, so the linked spending supports the concern. (Severity Guide v0.2, 6)',
       missing: [],
       section: '6',
     })
@@ -106,7 +106,7 @@ describe('formatSeverityBasis', () => {
       formatSeverityBasis(fixture('timeline 85 with progress 45 is high and time only explains'))
         .reason,
     ).toBe(
-      'The plan expected 100% progress by today. Actual progress is 45%, which is 55% behind the expectation. Time helps explain the situation; it has no separate severity. (Severity Guide v0.2, 5.2)',
+      'The plan expected 100% progress by the reporting date. Actual progress is 45%, which is 55% behind the expectation. Time helps explain the situation; it has no separate severity. (Severity Guide v0.2, 5.2)',
     )
   })
 
