@@ -12,6 +12,7 @@ $flags = @{
   'src/modules/dashboards/dashboard-home-runtime.local.test.ts' = 'PATHWAYS_DASHBOARD_HOME_SCOPE_LOCAL_TESTS'
   'src/modules/reports/reports-runtime.local.test.ts' = 'PATHWAYS_REPORTS_LOCAL_TESTS'
   'src/modules/activity-extensions/activity-extensions.local.test.ts' = 'PATHWAYS_ACTIVITY_EXTENSIONS_LOCAL_TESTS'
+  'src/modules/activity-escalations/activity-escalations.local.test.ts' = 'PATHWAYS_ACTIVITY_ESCALATIONS_LOCAL_TESTS'
   'src/modules/evaluations/evaluations.local.test.ts' = 'PATHWAYS_EVALUATIONS_LOCAL_TESTS'
 }
 $root = (Resolve-Path "$PSScriptRoot/../../..").Path

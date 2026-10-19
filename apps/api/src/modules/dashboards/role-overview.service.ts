@@ -16,6 +16,7 @@ import { PrismaService } from '../../prisma/prisma.service'
 import { RulesHumanService } from '../rules/rules-human.service'
 import {
   approvalQueue,
+  escalationQueue,
   extensionQueue,
   myExtensions,
   proofQueue,
@@ -134,6 +135,14 @@ export class RoleOverviewService {
               : can('activities.update') && actor.roles[0] === 'PROJECT_MANAGER'
                 ? await extensionQueue(tx, actor, 'DECIDE')
                 : null,
+          escalationQueue:
+            can('activities.update') && actor.roles[0] === 'PROJECT_MANAGER'
+              ? await escalationQueue(tx, actor, 'RESOLVE')
+              : can('activities.escalations.read') && actor.roles[0] === 'PROGRAM_MANAGER'
+                ? await escalationQueue(tx, actor, 'PROGRAM')
+                : can('activities.escalations.read') && actor.roles[0] === 'GRANT_MANAGER'
+                  ? await escalationQueue(tx, actor, 'WATCH')
+                  : null,
           datasetsImportedThisMonth: can('imports.read')
             ? await tx.dataImportBatch.count({
                 where: {

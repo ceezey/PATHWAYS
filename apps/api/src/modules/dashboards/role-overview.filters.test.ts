@@ -67,6 +67,10 @@ function setup() {
       findMany: vi.fn().mockResolvedValue([]),
       count: vi.fn().mockResolvedValue(0),
     },
+    activityEscalation: {
+      findMany: vi.fn().mockResolvedValue([]),
+      count: vi.fn().mockResolvedValue(0),
+    },
   }
   vi.mocked(withAuthorizedOperation).mockImplementation((async (_p, identity, _perm, fn) =>
     fn(tx as unknown as Prisma.TransactionClient, identity)) as typeof withAuthorizedOperation)

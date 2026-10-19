@@ -9,6 +9,7 @@ import { LoggerModule } from 'nestjs-pino'
 
 import { SentryInterceptor } from './common/interceptors/sentry.interceptor'
 import { ActivitiesModule } from './modules/activities/activities.module'
+import { ActivityEscalationsModule } from './modules/activity-escalations/activity-escalations.module'
 import { ActivityExtensionsModule } from './modules/activity-extensions/activity-extensions.module'
 import { AnalyticsModule } from './modules/analytics/analytics.module'
 import { AuditModule } from './modules/audit/audit.module'
@@ -175,6 +176,7 @@ export function createPathwaysPinoHttpOptions(environment = process.env.NODE_ENV
     AuthModule,
     ProfileModule,
     ActivitiesModule,
+    ActivityEscalationsModule,
     ActivityExtensionsModule,
     BeneficiariesModule,
     BeneficiaryMediaModule,
