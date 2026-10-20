@@ -251,8 +251,10 @@ export function ConditionBuilder({
               <SelectContent>
                 {operators.map((operator) => {
                   const isPreferred = preferred.includes(operator)
+                  const hintId = `${row.id}-${operator}-preferred`
                   return (
                     <SelectItem
+                      aria-describedby={isPreferred ? hintId : undefined}
                       className={cn(isPreferred && 'bg-info-subtle text-info')}
                       hint={
                         isPreferred ? (
@@ -265,7 +267,9 @@ export function ConditionBuilder({
                             >
                               <Star className="h-3.5 w-3.5 fill-current" />
                             </span>
-                            <span className="sr-only">Preferred condition</span>
+                            <span className="sr-only" id={hintId}>
+                              Preferred condition
+                            </span>
                           </>
                         ) : undefined
                       }
