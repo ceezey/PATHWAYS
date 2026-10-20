@@ -85,7 +85,7 @@ describe('SeverityPreview', () => {
       preview: { ...open, levels: ['MEDIUM', 'HIGH'], needs: ['DELIVERY_EXPECTATION'] },
     })
     expect(
-      screen.getByText('Budget used alone sets no level; your other conditions set it.'),
+      screen.getByText('Budget used only gets a level above 100%, when spending goes over budget.'),
     ).toBeTruthy()
     cleanup()
     view({ preview: { ...open, contradiction: 'These conditions cannot happen together.' } })

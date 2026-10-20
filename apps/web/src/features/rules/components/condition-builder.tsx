@@ -4,9 +4,22 @@ import { FilterChoiceGroup, StatusBadge } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { cn } from '@/lib/utils'
-import { type HumanRule, type RuleCondition, operators } from '@pathways/shared'
+import {
+  type HumanRule,
+  type RuleCondition,
+  type RuleExpectations,
+  operators,
+} from '@pathways/shared'
 import { Info, Trash2 } from 'lucide-react'
+import { preferredOperators } from '../rule-severity.utils'
 import {
   type Choice,
   type MetricScope,
@@ -48,6 +61,7 @@ export function ConditionBuilder({
   indicators,
   activities,
   onAdvanced,
+  expectations,
 }: {
   nestedRule?: HumanRule
   rows: RuleCondition[]
@@ -59,7 +73,9 @@ export function ConditionBuilder({
   indicators: Choice[]
   activities: Choice[]
   onAdvanced: () => void
+  expectations: RuleExpectations
 }) {
+  const preferredFor = (row: RuleCondition) => preferredOperators(row, expectations)
   const setRow = (id: string, patch: (row: RuleCondition) => RuleCondition) =>
     setRows((current) => current.map((row) => (row.id === id ? patch(row) : row)))
   const groups = SCOPE_GRID_ORDER.filter((scope) => scopes.includes(scope))
@@ -152,15 +168,12 @@ export function ConditionBuilder({
                     <Label className="sr-only" htmlFor={`${row.id}-operator`}>
                       Condition
                     </Label>
-                    <select
-                      aria-describedby={`${row.id}-notify-label`}
-                      className={cn(selectClass, 'max-w-40')}
-                      id={`${row.id}-operator`}
+                    <Select
                       value={row.operator}
-                      onChange={(event) =>
+                      onValueChange={(value) =>
                         setRow(row.id, (current) => {
                           const { thresholdMaximum: _upper, ...rest } = current
-                          const operator = event.target.value as RuleCondition['operator']
+                          const operator = value as RuleCondition['operator']
                           return {
                             ...rest,
                             operator,
@@ -169,12 +182,34 @@ export function ConditionBuilder({
                         })
                       }
                     >
-                      {operators.map((operator) => (
-                        <option key={operator} value={operator}>
-                          {operatorWords[operator].replace(/^\w/, (char) => char.toUpperCase())}
-                        </option>
-                      ))}
-                    </select>
+                      <SelectTrigger
+                        aria-describedby={`${row.id}-notify-label`}
+                        className="max-w-40"
+                        id={`${row.id}-operator`}
+                      >
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {operators.map((operator) => {
+                          const preferred = preferredFor(row).includes(operator)
+                          return (
+                            <SelectItem
+                              className={cn(preferred && 'bg-info-subtle text-info')}
+                              hint={
+                                preferred ? (
+                                  <span className="sr-only">Preferred condition</span>
+                                ) : undefined
+                              }
+                              title={preferred ? 'Preferred condition' : undefined}
+                              key={operator}
+                              value={operator}
+                            >
+                              {operatorWords[operator].replace(/^\w/, (char) => char.toUpperCase())}
+                            </SelectItem>
+                          )
+                        })}
+                      </SelectContent>
+                    </Select>
                     <Label className="sr-only" htmlFor={`${row.id}-threshold`}>
                       Threshold
                     </Label>

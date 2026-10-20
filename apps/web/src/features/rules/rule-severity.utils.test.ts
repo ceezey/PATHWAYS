@@ -1,6 +1,11 @@
 import type { RuleNode } from '@pathways/shared'
 import { describe, expect, it } from 'vitest'
-import { previewSeverity, recommendationPrefill, relevantExpectations } from './rule-severity.utils'
+import {
+  preferredOperators,
+  previewSeverity,
+  recommendationPrefill,
+  relevantExpectations,
+} from './rule-severity.utils'
 
 const testRecordId = '11111111-1111-4111-8111-111111111111'
 const leaf = (id: string, metric: string, operator: string, threshold: string, max?: string) =>
@@ -208,5 +213,28 @@ describe('severity preview', () => {
       text: 'Review approved spending and remaining allocation with authorized budget staff before considering any adjustment.',
     })
     expect(recommendationPrefill(tree)).toMatchObject({ title: 'Review combined signals' })
+  })
+})
+
+describe('preferredOperators', () => {
+  const ops = (metric: string, threshold: string, max?: string, expectations = {}) =>
+    preferredOperators(leaf('a', metric, 'LT', threshold, max) as never, expectations)
+  it('marks the operators that can reach a level with the value typed', () => {
+    expect(ops('PROJECT_REMAINING_DAYS', '10')).toEqual(['LT', 'LTE'])
+    expect(ops('PROJECT_REMAINING_DAYS', '-3')).toEqual(['LT', 'LTE', 'EQ', 'GTE', 'GT'])
+    expect(ops('BUDGET_UTILIZATION_PERCENT', '100')).toEqual(['GTE', 'GT'])
+  })
+  it('marks none for timeline, current value, a blank value or a missing expectation', () => {
+    expect(ops('PROJECT_TIMELINE_ELAPSED_PERCENT', '90')).toEqual([])
+    expect(ops('INDICATOR_CURRENT_VALUE', '10')).toEqual([])
+    expect(ops('PROJECT_REMAINING_DAYS', '')).toEqual([])
+    expect(ops('BENEFICIARY_FOLLOW_UP_PERCENT', '30')).toEqual([])
+    expect(
+      ops('BENEFICIARY_FOLLOW_UP_PERCENT', '30', undefined, { manageableFollowUpPercent: '20' }),
+    ).toContain('GT')
+  })
+  it('marks Between only once both values are entered', () => {
+    expect(ops('PROJECT_REMAINING_DAYS', '-5')).not.toContain('BETWEEN')
+    expect(ops('PROJECT_REMAINING_DAYS', '-5', '5')).toContain('BETWEEN')
   })
 })

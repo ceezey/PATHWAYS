@@ -8,8 +8,6 @@ export const comparisonCopy = {
   GT: 'Above (>)',
   BETWEEN: 'Between',
 } as const
-const listLabels = (labels: string[]) =>
-  new Intl.ListFormat('en', { type: 'conjunction' }).format(labels)
 // Step 3 copy: the system suggests Low, Medium or High when an alert fires; only Critical is set by the author.
 export const severityStepCopy = {
   title: 'How should this read?',
@@ -22,8 +20,6 @@ export const severityStepCopy = {
   dates: 'The level depends on planned dates and totals known only when the alert fires.',
   explanatory: 'This alert will say Needs context instead of Low, Medium or High.',
   howToToggle: 'How can I get a level?',
-  partlyExplanatory: (labels: string[]) =>
-    `${listLabels(labels)} alone ${labels.length > 1 ? 'set' : 'sets'} no level; your other conditions set it.`,
   incomplete: 'Complete each condition to preview possible levels.',
 } as const
 // Why a time or budget condition sets no level, and the smallest change that gives one.

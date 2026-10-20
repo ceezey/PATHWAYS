@@ -478,6 +478,7 @@ function AlertRuleDrawer({
           >
             <ConditionBuilder
               activities={activities}
+              expectations={expectations}
               indicators={indicators}
               matchMode={matchMode}
               nestedRule={nested ? rule : undefined}

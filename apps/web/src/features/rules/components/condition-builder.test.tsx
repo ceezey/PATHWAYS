@@ -6,6 +6,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { type MetricScope, type Mode, availableMetrics, metricGuidance } from '../rules.utils'
 import { ConditionBuilder } from './condition-builder'
 
+vi.mock('@/components/ui/select', async () =>
+  (await import('@/test/fixtures/beneficiary-form-fixtures')).selectMock(),
+)
+
 // Rendering 32 conditions is slow under a loaded full run.
 vi.setConfig({ testTimeout: 15000 })
 afterEach(cleanup)
@@ -43,6 +47,7 @@ function Harness({
   return (
     <ConditionBuilder
       activities={activities}
+      expectations={{}}
       indicators={indicators}
       matchMode={matchMode}
       nestedRule={nestedRule}

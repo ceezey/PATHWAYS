@@ -13,7 +13,7 @@ import { useId } from 'react'
 import { explainCombination, explainConditions, explanatoryMetrics } from '../rule-severity.explain'
 import type { SeverityPreview as Preview } from '../rule-severity.utils'
 import { severityStepCopy as copy, noLevelCopy, severityTiles } from '../rules.copy'
-import { type Leaf, metricLabel } from '../rules.utils'
+import type { Leaf } from '../rules.utils'
 
 type Props = {
   preview: Preview
@@ -44,18 +44,15 @@ export function SeverityPreview(props: Props) {
   const notes = explainCombination(props.conditions)
   const possible = !preview.contradiction && !preview.explanatoryOnly
   const metrics = explanatoryMetrics(props.conditions, expectations)
-  const reasons = preview.explanatoryOnly
-    ? metrics.flatMap((metric) => noLevelCopy[metric] ?? [])
-    : []
+  const why = metrics.flatMap((metric) => noLevelCopy[metric] ?? [])
+  const reasons = preview.explanatoryOnly ? why : []
   const details = [
     ...(preview.dependsOnDates && !preview.contradiction ? [copy.dates] : []),
-    ...(preview.explanatoryOnly
-      ? reasons.map((reason) => reason.why)
-      : preview.needs.map((need) =>
-          need === 'DELIVERY_EXPECTATION'
-            ? copy.partlyExplanatory(metrics.map(metricLabel))
-            : SEVERITY_MISSING_TEXT[need],
-        )),
+    ...preview.needs.flatMap((need) =>
+      need === 'DELIVERY_EXPECTATION'
+        ? why.map((reason) => reason.why)
+        : [SEVERITY_MISSING_TEXT[need]],
+    ),
   ]
   const title = cn('font-medium', preview.contradiction && 'text-danger')
   const field = (key: keyof RuleExpectations, label: string, hint: string) => {

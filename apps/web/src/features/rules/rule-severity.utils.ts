@@ -5,6 +5,7 @@ import {
   SEVERITY_BOUNDS,
   type SeverityLevel,
   type SeverityMissing,
+  operators,
   scaledDecimal,
   severityLevels,
 } from '@pathways/shared'
@@ -244,6 +245,32 @@ export const previewSeverity = (
     contradiction: contradicts(conditions) ? 'These conditions cannot happen together.' : null,
   }
 }
+// Without these expectations any range could reach a level, so no operator is marked preferred.
+const UNSET_EXPECTATIONS: SeverityMissing[] = [
+  'MANAGEABLE_FOLLOW_UP_LEVEL',
+  'EXPECTED_SCORE_IMPROVEMENT',
+]
+const valid = (leaf: Leaf) => {
+  try {
+    matchingInterval(leaf)
+    return true
+  } catch {
+    return false
+  }
+}
+/** Operators that, with the value typed, let this condition reach a level on its own. */
+export const preferredOperators = (leaf: Leaf, expectations: RuleExpectations) =>
+  leaf.metric === 'INDICATOR_CURRENT_VALUE'
+    ? []
+    : operators.filter((operator) => {
+        const candidate = { ...leaf, operator }
+        if (!valid(candidate)) return false
+        const preview = previewSeverity(candidate, expectations)
+        return (
+          preview.levels.length > 0 &&
+          !preview.needs.some((need) => UNSET_EXPECTATIONS.includes(need))
+        )
+      })
 /** Expectations for the metrics the rule uses; blank or unused fields save as null. */
 export const relevantExpectations = (
   conditions: RuleNode,
