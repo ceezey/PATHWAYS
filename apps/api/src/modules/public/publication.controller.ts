@@ -24,7 +24,8 @@ export class PublicationController {
   @RequirePermission('public.preview')
   @Header('Cache-Control', 'private, no-store')
   get(@Req() request: AuthenticatedRequest, @Param('projectId') id: string) {
-    return this.service.get(this.actor(request), id)
+    // Wrapped so "no publication yet" is sent as JSON; Nest sends a bare null as an empty body.
+    return this.service.get(this.actor(request), id).then((publication) => ({ publication }))
   }
   @Post('submit')
   @RequirePermission('public.preview')
