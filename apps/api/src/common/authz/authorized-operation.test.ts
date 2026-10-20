@@ -102,7 +102,10 @@ describe('authorized operation concurrency errors', () => {
       expect(error).toBeInstanceOf(ServiceUnavailableException)
       expect(error).toMatchObject({
         status: 503,
-        message: 'The application transaction is temporarily unavailable. Retry shortly.',
+        message: 'The server is busy and the request ran out of time. Retry shortly.',
+      })
+      expect((error as ServiceUnavailableException).getResponse()).toMatchObject({
+        code: 'DATABASE_BUSY',
       })
       expect(warn).toHaveBeenCalledWith({
         event: 'PATHWAYS_AUTHORIZED_OPERATION_UNAVAILABLE',

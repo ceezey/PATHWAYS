@@ -18,6 +18,23 @@ describe('monitoringSqlError', () => {
     expect(() => monitoringSqlError(error)).toThrow(type)
   })
 
+  it.each([
+    [{ code: 'P2028' }, 'DATABASE_BUSY'],
+    [{ code: 'P2010', meta: { code: '57014' } }, 'DATABASE_BUSY'],
+    [{ code: 'P2010', meta: { code: '42883' } }, 'MONITORING_SCHEMA_UNAVAILABLE'],
+    [{ code: 'P2010', meta: { code: '42P01' } }, 'MONITORING_SCHEMA_UNAVAILABLE'],
+    [{ code: 'P2010', meta: { code: '22023' } }, 'MONITORING_UNSUPPORTED'],
+  ])('tells a timeout apart from a schema or input fault for %j', (error, code) => {
+    let caught: unknown
+    try {
+      monitoringSqlError(error)
+    } catch (thrown) {
+      caught = thrown
+    }
+    expect(caught).toBeInstanceOf(ServiceUnavailableException)
+    expect((caught as ServiceUnavailableException).getResponse()).toMatchObject({ code })
+  })
+
   it('rethrows any other error unchanged', () => {
     const error = new Error('Synthetic driver fault')
     expect(() => monitoringSqlError(error)).toThrow(error)

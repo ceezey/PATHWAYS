@@ -191,7 +191,7 @@ describe('analytics descriptive read and export', () => {
     })
     await expect(
       timeout.service.export(actor('PROGRAM_MANAGER'), { projectId: projectA, view: 'timeline' }),
-    ).rejects.toThrow(/exceeded its query limit/)
+    ).rejects.toThrow(/server is busy/)
     vi.spyOn(reportArtifact, 'createReportArtifact').mockRejectedValueOnce(
       Object.assign(new Error('ENOENT'), { code: 'ENOENT' }),
     )
