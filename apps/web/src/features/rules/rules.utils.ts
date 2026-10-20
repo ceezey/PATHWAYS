@@ -416,6 +416,16 @@ export const runsOf = (rows: Leaf[], joins: Joins): Leaf[][] =>
     else runs[runs.length - 1]?.push(row)
     return runs
   }, [])
+/** Moves the row with `id` to the position of `targetId`; other rows keep their order. */
+export const moveRow = <T extends { id: string }>(rows: T[], id: string, targetId: string): T[] => {
+  const from = rows.findIndex((row) => row.id === id)
+  const to = rows.findIndex((row) => row.id === targetId)
+  if (from < 0 || to < 0 || from === to) return rows
+  const next = rows.slice()
+  const [moved] = next.splice(from, 1)
+  next.splice(to, 0, moved as T)
+  return next
+}
 /** Builds the stored tree with AND checked before OR: A AND B OR C saves as (A AND B) OR C. */
 export const rowsToTree = (rows: Leaf[], joins: Joins): RuleNode => {
   const runs = runsOf(rows, joins)

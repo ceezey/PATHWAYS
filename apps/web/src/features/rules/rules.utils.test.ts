@@ -13,6 +13,7 @@ import {
   isMetricAvailable,
   leafCount,
   metricGuidance,
+  moveRow,
   newCondition,
   nodeKey,
   previewSentence,
@@ -300,5 +301,14 @@ describe('KPI and test score metrics', () => {
     ])
       expect(metricGuidance(key)?.unit).toBe('%')
     expect(recordBound('KPI_ACHIEVEMENT_PERCENT')).toBe(false)
+  })
+})
+
+describe('moveRow', () => {
+  it('moves a row to the target position and ignores unknown ids', () => {
+    const rows = [{ id: 'a' }, { id: 'b' }, { id: 'c' }]
+    expect(moveRow(rows, 'c', 'a').map((r) => r.id)).toEqual(['c', 'a', 'b'])
+    expect(moveRow(rows, 'a', 'c').map((r) => r.id)).toEqual(['b', 'c', 'a'])
+    expect(moveRow(rows, 'x', 'a')).toBe(rows)
   })
 })

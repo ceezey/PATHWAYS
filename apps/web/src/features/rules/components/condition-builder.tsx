@@ -19,7 +19,8 @@ import {
   type RuleExpectations,
   operators,
 } from '@pathways/shared'
-import { Info, Trash2 } from 'lucide-react'
+import { GripVertical, Info, Trash2 } from 'lucide-react'
+import { useState } from 'react'
 import { preferredOperators } from '../rule-severity.utils'
 import {
   type Choice,
@@ -31,6 +32,7 @@ import {
   clearRecordBindings,
   metricGuidance,
   metricLabel,
+  moveRow,
   newRow,
   operatorWords,
   recordBound,
@@ -88,6 +90,11 @@ export function ConditionBuilder({
       ),
     }))
     .filter((area) => area.areaMetrics.length > 0)
+  // A card drags only while its handle is held, so text in its fields stays selectable.
+  const [armed, setArmed] = useState('')
+  const [dragId, setDragId] = useState('')
+  const move = (id: string, targetId: string) =>
+    setRows((current) => moveRow(current, id, targetId))
   const renderRow = (row: RuleCondition) => {
     const conditionIndex = rows.indexOf(row)
     const scope = scopeOf(row.metric)
@@ -97,7 +104,28 @@ export function ConditionBuilder({
         className="space-y-3 rounded-md border border-border bg-background p-3"
       >
         <div className="flex items-center justify-between gap-2">
-          <h4 className="font-semibold">{scopeDisplayLabel[scope] ?? scope}</h4>
+          <div className="flex items-center gap-2">
+            {rows.length > 1 ? (
+              <button
+                aria-label={`Reorder condition ${conditionIndex + 1}`}
+                className="cursor-grab text-muted-foreground"
+                title="Drag, or use arrow up and down, to reorder"
+                type="button"
+                onPointerDown={() => setArmed(row.id)}
+                onPointerUp={() => setArmed('')}
+                onKeyDown={(event) => {
+                  const target = rows[conditionIndex + (event.key === 'ArrowUp' ? -1 : 1)]
+                  if ((event.key === 'ArrowUp' || event.key === 'ArrowDown') && target) {
+                    event.preventDefault()
+                    move(row.id, target.id)
+                  }
+                }}
+              >
+                <GripVertical aria-hidden="true" className="h-4 w-4" />
+              </button>
+            ) : null}
+            <h4 className="font-semibold">{scopeDisplayLabel[scope] ?? scope}</h4>
+          </div>
           <div className="flex items-center gap-2">
             {conditionIndex > 0 ? (
               <FilterChoiceGroup
@@ -279,13 +307,22 @@ export function ConditionBuilder({
         </div>
       ) : (
         <>
-          {rows.length > 1 ? (
-            <p className="text-sm text-muted-foreground">
-              AND is checked before OR, so A AND B OR C means (A AND B) OR C.
-            </p>
-          ) : null}
           {rows.map((row, index) => (
-            <div className="space-y-3" key={row.id}>
+            <div
+              className={cn('space-y-3', dragId === row.id && 'opacity-50')}
+              draggable={armed === row.id}
+              key={row.id}
+              onDragEnd={() => {
+                setArmed('')
+                setDragId('')
+              }}
+              onDragOver={(event) => dragId && event.preventDefault()}
+              onDragStart={() => setDragId(row.id)}
+              onDrop={() => {
+                if (dragId) move(dragId, row.id)
+                setDragId('')
+              }}
+            >
               {index > 0 && joins[row.id] === 'OR' ? (
                 <div className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
                   <span className="h-px flex-1 bg-border" />

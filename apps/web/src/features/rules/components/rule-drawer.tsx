@@ -467,7 +467,7 @@ function AlertRuleDrawer({
           <RuleStepCard
             step={2}
             title="When should we notify you?"
-            hint="Set a condition for each selected area, then join conditions with AND or OR."
+            hint="Set a condition for each selected area."
           >
             <ConditionBuilder
               activities={activities}

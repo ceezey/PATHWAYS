@@ -88,7 +88,6 @@ describe('ConditionBuilder match and remove guards', () => {
     expect(within(card).getByRole('radiogroup', { name: 'Join condition 3' })).toBeTruthy()
     expect(within(card).getByRole('button', { name: 'Remove condition' })).toBeTruthy()
     expect(screen.getAllByText('OR', { selector: 'div' })).toHaveLength(1)
-    expect(screen.getByText(/AND is checked before OR/)).toBeTruthy()
   })
   it('offers Remove only with several conditions and removes the chosen one', () => {
     render(<Harness initial={[row('a')]} />)
@@ -99,6 +98,26 @@ describe('ConditionBuilder match and remove guards', () => {
     expect(removers).toHaveLength(3)
     fireEvent.click(removers[1] as HTMLElement)
     expect(rowsNow.map((item) => item.id)).toEqual(['a', 'c'])
+  })
+})
+
+describe('ConditionBuilder reorder', () => {
+  it('moves a card with the arrow keys on its handle and by drag and drop', () => {
+    render(<Harness initial={[row('a'), row('b'), row('c')]} />)
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Reorder condition 1' }), {
+      key: 'ArrowDown',
+    })
+    expect(rowsNow.map((item) => item.id)).toEqual(['b', 'a', 'c'])
+    const card = (name: string) => screen.getByRole('group', { name }).parentElement as HTMLElement
+    fireEvent.pointerDown(screen.getByRole('button', { name: 'Reorder condition 3' }))
+    fireEvent.dragStart(card('Condition 3 (Project)'))
+    fireEvent.dragOver(card('Condition 1 (Project)'))
+    fireEvent.drop(card('Condition 1 (Project)'))
+    expect(rowsNow.map((item) => item.id)).toEqual(['c', 'b', 'a'])
+  })
+  it('offers no handle for a single condition', () => {
+    render(<Harness initial={[row('a')]} />)
+    expect(screen.queryByRole('button', { name: /^Reorder/ })).toBeNull()
   })
 })
 
