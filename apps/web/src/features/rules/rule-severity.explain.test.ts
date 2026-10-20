@@ -1,6 +1,6 @@
 import type { RuleMetricKey } from '@pathways/shared'
 import { describe, expect, it } from 'vitest'
-import { explainCombination, explainConditions } from './rule-severity.explain'
+import { explainCombination, explainConditions, explanatorySubject } from './rule-severity.explain'
 import type { Leaf } from './rules.utils'
 
 const leaf = (metric: RuleMetricKey, operator: Leaf['operator'], threshold: string): Leaf => ({
@@ -28,12 +28,32 @@ describe('explainConditions', () => {
     )
   })
   it('states explanatory-only metrics and asks for missing expectations', () => {
-    expect(text(leaf('PROJECT_TIMELINE_ELAPSED_PERCENT', 'GT', '50'))).toContain('sets no level')
+    expect(explainConditions([leaf('PROJECT_TIMELINE_ELAPSED_PERCENT', 'GT', '50')], {})).toEqual(
+      [],
+    )
+    expect(text(leaf('PROJECT_REMAINING_DAYS', 'GT', '5'))).toContain('sets no level')
     expect(text(leaf('BENEFICIARY_FOLLOW_UP_PERCENT', 'GT', '30'))).toContain('(enter it below)')
     expect(
       text(leaf('BENEFICIARY_FOLLOW_UP_PERCENT', 'GT', '30'), { manageableFollowUpPercent: '20' }),
     ).toContain('manageable level of 20%')
     expect(text(leaf('SURVEY_MEAN_IMPROVEMENT_POINTS', 'LT', '5'))).toContain('(enter it below)')
+  })
+})
+
+describe('explanatorySubject', () => {
+  it('names only the time and budget conditions present', () => {
+    expect(explanatorySubject([leaf('PROJECT_TIMELINE_ELAPSED_PERCENT', 'GT', '50')])).toBe(
+      'Time passed',
+    )
+    expect(explanatorySubject([leaf('BUDGET_UTILIZATION_PERCENT', 'GT', '50')])).toBe(
+      'Budget spent within plan',
+    )
+    expect(
+      explanatorySubject([
+        leaf('PROJECT_REMAINING_DAYS', 'LT', '10'),
+        leaf('BUDGET_UTILIZATION_PERCENT', 'GT', '50'),
+      ]),
+    ).toBe('Time passed and budget spent within plan')
   })
 })
 

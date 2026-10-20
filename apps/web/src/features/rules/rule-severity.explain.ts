@@ -23,7 +23,7 @@ const explain = (leaf: Leaf, expectations: RuleExpectations): string => {
     case 'PROJECT_REMAINING_DAYS':
       return `Before the end date this ${explainsOnly}. Once it has passed: ${bands('DELAY_SHARE', '%')} of the planned length.`
     case 'PROJECT_TIMELINE_ELAPSED_PERCENT':
-      return `Time elapsed ${explainsOnly}.`
+      return ''
     case 'ACTIVITY_OVERDUE_COUNT':
       return `Overdue activities are compared with all included activities: ${bands('OVERDUE_SHARE', '%')}.`
     case 'ACTIVITY_COMPLETION_PERCENT':
@@ -50,11 +50,23 @@ export const explainConditions = (
   conditions: Leaf[],
   expectations: RuleExpectations,
 ): ConditionExplanation[] =>
-  conditions.map((leaf) => ({
-    id: leaf.id,
-    condition: conditionSentence(leaf),
-    text: explain(leaf, expectations),
-  }))
+  conditions
+    .map((leaf) => ({
+      id: leaf.id,
+      condition: conditionSentence(leaf),
+      text: explain(leaf, expectations),
+    }))
+    .filter((item) => item.text)
+
+/** Plain name of the present conditions that set no level on their own, such as "Time passed". */
+export const explanatorySubject = (conditions: Leaf[]): string => {
+  const metrics = new Set<string>(conditions.map((leaf) => leaf.metric))
+  const time =
+    metrics.has('PROJECT_TIMELINE_ELAPSED_PERCENT') || metrics.has('PROJECT_REMAINING_DAYS')
+  const budget = metrics.has('BUDGET_UTILIZATION_PERCENT')
+  if (time && budget) return 'Time passed and budget spent within plan'
+  return budget ? 'Budget spent within plan' : 'Time passed'
+}
 
 const DELIVERY = [
   'INDICATOR_PROGRESS_PERCENT',

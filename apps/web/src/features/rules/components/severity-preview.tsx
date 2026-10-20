@@ -10,7 +10,7 @@ import {
   severityLabel,
 } from '@pathways/shared'
 import { useId } from 'react'
-import { explainCombination, explainConditions } from '../rule-severity.explain'
+import { explainCombination, explainConditions, explanatorySubject } from '../rule-severity.explain'
 import type { SeverityPreview as Preview } from '../rule-severity.utils'
 import { severityStepCopy as copy, severityTiles } from '../rules.copy'
 import type { Leaf } from '../rules.utils'
@@ -43,11 +43,18 @@ export function SeverityPreview(props: Props) {
   const explained = explainConditions(props.conditions, expectations)
   const notes = explainCombination(props.conditions)
   const possible = !preview.contradiction && !preview.explanatoryOnly
-  const needs = preview.explanatoryOnly
-    ? []
-    : preview.needs.map((need) =>
-        need === 'DELIVERY_EXPECTATION' ? copy.partlyExplanatory : SEVERITY_MISSING_TEXT[need],
-      )
+  const subject = explanatorySubject(props.conditions)
+  const details = [
+    ...(preview.dependsOnDates && !preview.contradiction ? [copy.dates] : []),
+    ...(preview.explanatoryOnly
+      ? [copy.notBehind(subject), copy.howToLevel]
+      : preview.needs.map((need) =>
+          need === 'DELIVERY_EXPECTATION'
+            ? copy.partlyExplanatory(subject)
+            : SEVERITY_MISSING_TEXT[need],
+        )),
+  ]
+  const title = cn('font-medium', preview.contradiction && 'text-danger')
   const field = (key: keyof RuleExpectations, label: string, hint: string) => {
     const value = expectations[key] ?? ''
     const invalid =
@@ -120,23 +127,27 @@ export function SeverityPreview(props: Props) {
       <div
         aria-atomic="true"
         aria-live="polite"
-        className="space-y-1 rounded-md border border-info/30 bg-info-subtle p-3 text-sm"
+        className="rounded-md border border-info/30 bg-info-subtle p-3 text-sm"
         data-testid="severity-preview"
       >
-        <p
-          className={preview.contradiction ? 'font-medium text-danger' : 'font-medium'}
-          data-testid="severity-preview-levels"
-        >
-          {headline(preview)}
-        </p>
-        {preview.dependsOnDates && !preview.contradiction ? (
-          <p className="text-muted-foreground">{copy.dates}</p>
-        ) : null}
-        {needs.map((text) => (
-          <p className="text-muted-foreground" key={text}>
-            {text}
+        {details.length ? (
+          <details>
+            <summary className={cn(title, 'cursor-pointer')} data-testid="severity-preview-levels">
+              {headline(preview)}
+            </summary>
+            <div className="mt-2 space-y-1">
+              {details.map((text) => (
+                <p className="text-muted-foreground" key={text}>
+                  {text}
+                </p>
+              ))}
+            </div>
+          </details>
+        ) : (
+          <p className={title} data-testid="severity-preview-levels">
+            {headline(preview)}
           </p>
-        ))}
+        )}
       </div>
       {explained.length ? (
         <div className="space-y-2 text-sm" data-testid="severity-explanations">

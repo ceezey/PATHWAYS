@@ -37,6 +37,7 @@ describe('SeverityPreview', () => {
     view()
     expect(headline()).toBe('Possible levels: Low, Medium, or High.')
     expect(screen.getByTestId('severity-preview').getAttribute('aria-live')).toBe('polite')
+    expect(screen.getByTestId('severity-preview').querySelector('details')).toBeNull()
     cleanup()
     view({ preview: { ...open, levels: ['MEDIUM', 'HIGH'] } })
     expect(headline()).toBe('Possible levels: Medium or High.')
@@ -54,9 +55,24 @@ describe('SeverityPreview', () => {
     expect(screen.getByText('We need the manageable follow-up level for this group.')).toBeTruthy()
     cleanup()
     view({
+      conditions: [leaf('c1', 'PROJECT_TIMELINE_ELAPSED_PERCENT', 'LT', '90')],
       preview: { ...open, levels: [], explanatoryOnly: true, needs: ['DELIVERY_EXPECTATION'] },
     })
-    expect(headline()).toMatch(/add Activities completed or Progress toward indicator target/)
+    expect(headline()).toBe('This alert will say Needs context instead of Low, Medium or High.')
+    expect(screen.getByTestId('severity-preview').querySelector('details')).toBeTruthy()
+    expect(screen.getByText('Time passed alone doesn’t show whether work is behind.')).toBeTruthy()
+    expect(screen.getByText(/in step 2 add Activities completed/)).toBeTruthy()
+    expect(screen.getByTestId('severity-preview').textContent).not.toMatch(/budget/i)
+    cleanup()
+    view({
+      conditions: [leaf('c1', 'BUDGET_UTILIZATION_PERCENT', 'GT', '95')],
+      preview: { ...open, levels: ['MEDIUM', 'HIGH'], needs: ['DELIVERY_EXPECTATION'] },
+    })
+    expect(
+      screen.getByText(
+        'Budget spent within plan alone sets no level; your other conditions set it.',
+      ),
+    ).toBeTruthy()
     cleanup()
     view({ preview: { ...open, contradiction: 'These conditions cannot happen together.' } })
     expect(headline()).toBe('These conditions cannot happen together.')
