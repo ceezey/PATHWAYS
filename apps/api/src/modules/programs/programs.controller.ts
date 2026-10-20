@@ -1,15 +1,12 @@
-import { Body, Controller, ForbiddenException, Get, Inject, Post, Req } from '@nestjs/common'
+import { Body, Controller, Get, Inject, Post, Req } from '@nestjs/common'
 
+import { type CreateProgramRequest, createProgramRequest } from '@pathways/shared'
+
+import type { AuthenticatedRequest } from '../../common/authz/application-identity'
+import { requestIdentity } from '../../common/authz/request-identity'
 import { RequirePermission } from '../../common/decorators/permission.decorator'
-import type { AuthenticatedRequest } from '../auth/developer-access'
-// biome-ignore lint/style/useImportType: Nest validation needs the DTO constructor at runtime.
-import { CreateProgramDto } from './programs.dto'
+import { ZodPipe } from '../../common/validation/zod-pipe'
 import { ProgramsService } from './programs.service'
-
-function profile(request: AuthenticatedRequest) {
-  if (!request.user) throw new ForbiddenException('Application profile is required.')
-  return request.user
-}
 
 @Controller('programs')
 export class ProgramsController {
@@ -18,12 +15,15 @@ export class ProgramsController {
   @Get()
   @RequirePermission('projects.read')
   list(@Req() request: AuthenticatedRequest) {
-    return this.programs.list(profile(request))
+    return this.programs.list(requestIdentity(request))
   }
 
   @Post()
   @RequirePermission('programs.create')
-  create(@Req() request: AuthenticatedRequest, @Body() body: CreateProgramDto) {
-    return this.programs.create(profile(request), body)
+  create(
+    @Req() request: AuthenticatedRequest,
+    @Body(new ZodPipe(createProgramRequest)) body: CreateProgramRequest,
+  ) {
+    return this.programs.create(requestIdentity(request), body)
   }
 }

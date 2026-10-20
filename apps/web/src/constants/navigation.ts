@@ -20,19 +20,19 @@ export interface DashboardNavItem extends NavItem {
   icon: LucideIcon
 }
 
-export interface DashboardNavGroup {
+interface DashboardNavGroup {
   id: 'workspace' | 'decision-support' | 'administration'
   label: string
   items: DashboardNavItem[]
 }
 
-export const fixedDashboardNavGroupLabels = {
+const fixedDashboardNavGroupLabels = {
   workspace: 'Workspace',
   decisionSupport: 'Decision Support',
   administration: 'Administration',
 } as const
 
-export const fixedDashboardNavItemLabels = {
+const fixedDashboardNavItemLabels = {
   dashboard: 'Dashboard',
   projects: 'Projects',
   beneficiaries: 'Beneficiaries',
@@ -169,7 +169,7 @@ export const createDashboardNavGroups = (): DashboardNavGroup[] => [
   },
 ]
 
-export const dashboardNavGroups = createDashboardNavGroups()
+const dashboardNavGroups = createDashboardNavGroups()
 
 export const dashboardNavigation = dashboardNavGroups.flatMap((group) => group.items)
 

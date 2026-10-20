@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { landingPath } from './route-access'
+import { landingPath } from './policy'
 
 describe('post-sign-in landing path', () => {
   it('opens User Management for a System Administrator who can authorize users', () => {

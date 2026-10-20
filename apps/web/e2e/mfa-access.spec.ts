@@ -30,7 +30,7 @@ test.beforeAll(async () => {
         import { StrictMode, useEffect, useState } from 'react';
         import { useFormRevision, usePathname } from './fixtures/mfa-access';
         import { CurrentRoleProvider } from '../src/providers/current-role-provider';
-        import { MfaForm } from '../src/features/auth/mfa-form';
+        import { MfaForm } from '../src/features/auth/components/mfa-form';
         import { ProtectedRoute } from '../src/components/layout/protected-route';
         import { AppShell } from '../src/components/layout/app-shell';
         const routeReads = {

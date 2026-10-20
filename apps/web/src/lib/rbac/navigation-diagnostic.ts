@@ -1,5 +1,5 @@
-import { AuthAccessError } from '../../features/auth/auth-access'
-import { RouteCheckError } from './route-access'
+import { AuthAccessError } from '../auth/auth-access'
+import { RouteCheckError } from './transport'
 
 const boundaries = ['MIDDLEWARE', 'SERVER_PAGE'] as const
 const stages = [

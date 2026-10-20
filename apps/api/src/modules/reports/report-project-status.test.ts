@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { flattenSections, metricPercent, overviewRows } from './report-project-status'
+import { flattenSections, metricPercent, overviewRows, topAlerts } from './report-project-status'
 
 const base = { reportDate: '2026-10-06', milestones: [], timeline: 50, budget: 50, kpi: 50 }
 const status = (over: object, area: string) =>
@@ -95,5 +95,50 @@ describe('flattened sections', () => {
     expect(rows.flat().join('|')).toContain('Kickoff')
     expect(rows.flat().join('|')).toContain('Maria Santos')
     expect(rows.flat()).toContain('Fewer than 5')
+  })
+})
+
+describe('alerts needing context', () => {
+  it('orders null severity after LOW and keeps equal ranks stable', () => {
+    const a = (title: string, severity: string | null) => ({ title, severity })
+    const sorted = topAlerts([
+      a('n1', null),
+      a('l1', 'LOW'),
+      a('h1', 'HIGH'),
+      a('n2', null),
+      a('l2', 'LOW'),
+      a('c1', 'CRITICAL'),
+    ])
+    expect(sorted.map((x) => x.title)).toEqual(['c1', 'h1', 'l1', 'l2', 'n1', 'n2'])
+  })
+
+  it('writes Needs context in the CSV value cell for a null severity', () => {
+    const { rows } = flattenSections({
+      reportDate: '2026-10-06',
+      information: {
+        code: 'SYN',
+        title: 'Fictional',
+        status: 'ACTIVE',
+        sector: 'Health',
+        area: 'Region',
+        startDate: '2026-01-01',
+        endDate: '2026-12-31',
+        manager: null,
+        partners: 'Partner A',
+      },
+      overview: [],
+      keyFigures: [],
+      alerts: [
+        {
+          title: 'A',
+          severity: 'HIGH',
+          explanation: 'E1',
+          evaluatedAt: '2026-10-05T01:00:00.000Z',
+        },
+        { title: 'B', severity: null, explanation: 'E2', evaluatedAt: '2026-10-05T01:00:00.000Z' },
+      ],
+    })
+    expect(rows).toContainEqual(['Open alerts', 'A', 'HIGH', 'E1'])
+    expect(rows).toContainEqual(['Open alerts', 'B', 'Needs context', 'E2'])
   })
 })

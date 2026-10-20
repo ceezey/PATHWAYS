@@ -1,5 +1,5 @@
 import { type AnchorHTMLAttributes, useSyncExternalStore } from 'react'
-import type { ApplicationProfile } from '../../src/features/auth/auth-access'
+import type { ApplicationProfile } from '../../src/lib/auth/auth-access'
 
 // Synthetic, intercepted browser fixture. Not reachable from application routes.
 type State = {
@@ -76,14 +76,12 @@ export const webEnv = { NEXT_PUBLIC_API_BASE_URL: 'http://127.0.0.1:4000/api' }
 export const webSupabasePublishableKey = 'stub-key'
 export class BeneficiaryStepUpError extends Error {}
 export const PIN_LOCKED_MESSAGE = 'PIN locked.'
-export const PIN_RULE_MESSAGE = 'PIN rule.'
 export const getBeneficiaryStepUpStatus = async () => ({
   fresh: false,
   expiresAt: null,
   method: null,
   pinState: 'NONE' as const,
 })
-export const isAcceptableStepUpPin = () => false
 export const setStepUpPin = async () => undefined
 export const unlockStepUpPin = async () => undefined
 export const verifyBeneficiaryStepUp = async () => undefined

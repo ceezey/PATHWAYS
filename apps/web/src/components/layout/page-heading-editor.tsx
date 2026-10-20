@@ -9,7 +9,7 @@ import {
   UNFINISHED_CONTROLS_UI_ENABLED,
 } from '@/constants/feature-flags'
 
-// Organization display-label editing is deferred (docs/cr-pathways-frontend-usability.md, F-07):
+// Organization display-label editing is deferred (vault note cr-pathways-frontend-usability, F-07):
 // there is no server endpoint to save a page heading yet, so this stays a disabled, self-contained
 // control rather than opening a dialog that would fail on save.
 export const PageHeadingEditor = ({

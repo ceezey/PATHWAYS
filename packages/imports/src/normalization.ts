@@ -5,13 +5,13 @@ import {
 } from '@pathways/shared'
 import { type ImportColumnRule, mapKey } from './value-map'
 
-export interface ImportValueError {
+interface ImportValueError {
   fieldCode: string
   code: string
   message: string
 }
 
-export interface ImportRowNormalizationResult {
+interface ImportRowNormalizationResult {
   valid: boolean
   values: Record<string, string | number | boolean | string[] | null>
   errors: ImportValueError[]

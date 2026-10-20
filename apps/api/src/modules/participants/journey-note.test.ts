@@ -1,26 +1,25 @@
 import 'reflect-metadata'
 
 import type { Prisma } from '@prisma/client'
-import { plainToInstance } from 'class-transformer'
-import { validate } from 'class-validator'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { z } from 'zod'
 
-import type { ApplicationIdentity } from '@app/modules/auth/developer-access'
+import type { ApplicationIdentity } from '@app/common/authz/application-identity'
 import type { PrismaService } from '@app/prisma/prisma.service'
+import { correctJourneyEventRequest, recordJourneyEventRequest } from '@pathways/shared'
 
 const state = vi.hoisted(() => ({
   actor: undefined as ApplicationIdentity | undefined,
   tx: undefined as Prisma.TransactionClient | undefined,
 }))
 
-vi.mock('@app/modules/auth/authorized-operation', () => ({
+vi.mock('@app/common/authz/authorized-operation', () => ({
   withAuthorizedOperation: vi.fn(async (_prisma, _identity, _permission: string, work) =>
     work(state.tx, state.actor),
   ),
 }))
 
-import { CorrectJourneyEventDto, EnrollmentJourneyEventDto } from './participants.dto'
-import { ParticipantsService } from './participants.service'
+import { BeneficiaryJourneyService } from './beneficiary-journey.service'
 
 const organizationId = '10000000-0000-4000-8000-000000000001'
 const projectId = '20000000-0000-4000-8000-000000000002'
@@ -49,11 +48,11 @@ const tx = {
 
 const base = { eventType: 'FOLLOW_UP', eventDate: '2026-06-15', description: 'Followed up.' }
 const correction = { eventDate: '2026-06-15', description: 'Fixed.', reason: 'Wrong date.' }
-const check = async (cls: new () => object, body: Record<string, unknown>) =>
-  validate(plainToInstance(cls, body))
+const check = (schema: z.ZodTypeAny, body: Record<string, unknown>) =>
+  schema.safeParse(body).error?.issues ?? []
 
 describe('G-F4-6 journey note', () => {
-  const service = new ParticipantsService({} as PrismaService)
+  const service = new BeneficiaryJourneyService({} as PrismaService)
 
   beforeEach(() => {
     vi.clearAllMocks()
@@ -75,9 +74,8 @@ describe('G-F4-6 journey note', () => {
   })
 
   it('persists a trimmed note on a recorded event and audits only its presence', async () => {
-    const dto = plainToInstance(EnrollmentJourneyEventDto, { ...base, note: `  ${secret}  ` })
-    expect(await validate(dto)).toEqual([])
-    await service.transitionEnrollment(actor, projectId, beneficiaryId, dto)
+    const body = recordJourneyEventRequest.parse({ ...base, note: `  ${secret}  ` })
+    await service.transitionEnrollment(actor, projectId, beneficiaryId, body)
     expect(tx.beneficiaryJourneyEvent.create).toHaveBeenCalledWith({
       data: expect.objectContaining({ note: secret }),
     })
@@ -98,7 +96,7 @@ describe('G-F4-6 journey note', () => {
   })
 
   it('stores null when no note is given and the note is optional', async () => {
-    expect(await check(EnrollmentJourneyEventDto, base)).toEqual([])
+    expect(check(recordJourneyEventRequest, base)).toEqual([])
     await service.transitionEnrollment(actor, projectId, beneficiaryId, base as never)
     expect(tx.beneficiaryJourneyEvent.create).toHaveBeenCalledWith({
       data: expect.objectContaining({ note: null }),
@@ -107,15 +105,15 @@ describe('G-F4-6 journey note', () => {
 
   it('rejects an overlong note on both inputs', async () => {
     const note = 'x'.repeat(1001)
-    expect(await check(EnrollmentJourneyEventDto, { ...base, note })).toHaveLength(1)
-    expect(await check(CorrectJourneyEventDto, { ...correction, note })).toHaveLength(1)
-    expect(await check(EnrollmentJourneyEventDto, { ...base, note: 'x'.repeat(1000) })).toEqual([])
+    expect(check(recordJourneyEventRequest, { ...base, note })).toHaveLength(1)
+    expect(check(correctJourneyEventRequest, { ...correction, note })).toHaveLength(1)
+    expect(check(recordJourneyEventRequest, { ...base, note: 'x'.repeat(1000) })).toEqual([])
   })
 
   it('rejects a whitespace-only or non-string note', async () => {
     for (const note of ['   ', '\n\t', 42, { a: 1 }]) {
-      expect(await check(EnrollmentJourneyEventDto, { ...base, note })).toHaveLength(1)
-      expect(await check(CorrectJourneyEventDto, { ...correction, note })).toHaveLength(1)
+      expect(check(recordJourneyEventRequest, { ...base, note })).toHaveLength(1)
+      expect(check(correctJourneyEventRequest, { ...correction, note })).toHaveLength(1)
     }
   })
 })

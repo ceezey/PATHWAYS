@@ -1,15 +1,15 @@
-import { type BadRequestException, ForbiddenException } from '@nestjs/common'
+import { ForbiddenException } from '@nestjs/common'
+import { hasAtomicPermission } from '@pathways/shared'
 import { Prisma } from '@prisma/client'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import type { PrismaService } from '../../prisma/prisma.service'
-import { hasAtomicPermission } from '../auth/authorization-policy'
-import type { ApplicationIdentity } from '../auth/developer-access'
 import { provisionCriteria } from './evaluation-criteria-template'
-import type { EvaluationMetricsService } from './evaluation-metrics'
+import type { EvaluationMetricsService } from './evaluation-metrics.service'
 import { EvaluationsService } from './evaluations.service'
 
 const scope = vi.hoisted(() => ({ actor: undefined as unknown, tx: undefined as unknown }))
-vi.mock('../auth/authorized-operation', () => ({
+vi.mock('../../common/authz/authorized-operation', () => ({
   withAuthorizedOperation: (
     _db: unknown,
     _identity: unknown,

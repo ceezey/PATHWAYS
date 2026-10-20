@@ -3,8 +3,9 @@
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { ApplicationProfile } from '@/features/auth/auth-access'
-import type { WorkspaceVerification } from '@/features/auth/workspace-verification'
+import type { ApplicationProfile } from '@/lib/auth/auth-access'
+import { encodeWorkspaceContext } from '@/lib/auth/workspace-access'
+import type { WorkspaceVerification } from '@/lib/auth/workspace-verification'
 
 const verify = vi.hoisted(() => ({ fn: vi.fn() }))
 
@@ -15,7 +16,7 @@ vi.mock('@/hooks/use-session', () => ({
   useSession: () => ({ session, status: 'authenticated' }),
 }))
 
-vi.mock('@/features/auth/workspace-verification', async (importOriginal) => {
+vi.mock('@/lib/auth/workspace-verification', async (importOriginal) => {
   const original = await importOriginal<object>()
   return {
     ...original,
@@ -128,5 +129,44 @@ describe('CurrentRoleProvider refreshAccess', () => {
     await waitFor(() =>
       expect(screen.getByTestId('role').textContent).toBe('MONITORING_AND_EVALUATION_OFFICER'),
     )
+  })
+})
+
+describe('CurrentRoleProvider workspace context cookie', () => {
+  afterEach(() => {
+    document.cookie = 'pathways-context=; Path=/; Max-Age=0'
+    session.user.id = 'sub-1'
+  })
+
+  it('writes the verified workspace to the context cookie', async () => {
+    verify.fn.mockResolvedValue(ready())
+    render(
+      <CurrentRoleProvider>
+        <Probe />
+      </CurrentRoleProvider>,
+    )
+
+    await waitFor(() => expect(screen.getByTestId('role').textContent).toBe('SYSTEM_ADMINISTRATOR'))
+    expect(document.cookie).toContain(`pathways-context=${encodeWorkspaceContext(profile())}`)
+  })
+
+  it('sends the workspace in the context cookie as the verification hint', async () => {
+    const subject = '71000000-0000-4000-8000-000000000001'
+    const context = {
+      userId: '71000000-0000-4000-8000-000000000002',
+      organizationId: '71000000-0000-4000-8000-000000000003',
+    }
+    session.user.id = subject
+    document.cookie = 'theme=dark; Path=/'
+    document.cookie = `pathways-context=${encodeURIComponent(JSON.stringify({ authUserId: subject, ...context }))}; Path=/`
+    verify.fn.mockResolvedValue(ready())
+    render(
+      <CurrentRoleProvider>
+        <Probe />
+      </CurrentRoleProvider>,
+    )
+
+    await waitFor(() => expect(verify.fn).toHaveBeenCalledTimes(1))
+    expect(verify.fn.mock.calls[0][4]).toEqual(context)
   })
 })

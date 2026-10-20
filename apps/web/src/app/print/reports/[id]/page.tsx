@@ -4,11 +4,11 @@ import { useEffect, useState } from 'react'
 
 import {
   type PrintReport,
+  PrintReportView,
   readPrintReport,
+  sampleProjectReport,
   sampleReport,
-} from '@/features/reports/print/print-report-payload'
-import { sampleProjectReport } from '@/features/reports/print/print-report-sample'
-import { PrintReportView } from '@/features/reports/print/print-report-view'
+} from '@/features/reports'
 
 declare global {
   interface Window {

@@ -1,0 +1,225 @@
+import { performance } from 'node:perf_hooks'
+import {
+  type CanActivate,
+  type ExecutionContext,
+  ForbiddenException,
+  Inject,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common'
+import { Reflector } from '@nestjs/core'
+
+import { markAuthDuration } from '../../../common/network/server-timing'
+import { RulesMachineBoundary } from '../../rules/rules-machine-boundary'
+
+import { hasAtomicPermission } from '@pathways/shared'
+import type { AuthenticatedRequest } from '../../../common/authz/application-identity'
+import {
+  type AuthorizedOperationTiming,
+  registerAuthorizedOperationTiming,
+} from '../../../common/authz/authorized-operation-timing'
+import { AUTH_BOUNDARY_KEY } from '../../../common/decorators/auth-boundary.decorator'
+import { BENEFICIARY_STEP_UP_KEY } from '../../../common/decorators/beneficiary-step-up.decorator'
+import { PERMISSION_KEY } from '../../../common/decorators/permission.decorator'
+import { IS_PUBLIC_KEY } from '../../../common/decorators/public.decorator'
+import {
+  bindInspectionIdentity,
+  inspectionRequestBudget,
+} from '../../../common/network/inspection-request-budget'
+import type { VerifiedTransactionTiming } from '../../../prisma/prisma.service'
+import { BeneficiaryStepUpService } from '../beneficiary-step-up.service'
+import { TokenAuthService, type VerifiedAuthSession } from '../token-auth.service'
+import { WorkspaceResolutionService } from '../workspace-resolution.service'
+
+const MAX_REPORTED_STAGE_MS = 30_000
+const stageDuration = (startedAt: number) =>
+  Math.min(MAX_REPORTED_STAGE_MS, Math.max(0, Math.round(performance.now() - startedAt)))
+
+function exposeDevelopmentAuthTiming(
+  response: { setHeader: (name: string, value: string) => void },
+  verified: VerifiedAuthSession,
+  contextStage: 'session' | 'session_profile',
+  contextMs: number,
+  totalMs: number,
+  databaseTiming?: VerifiedTransactionTiming,
+) {
+  if (process.env.NODE_ENV === 'production') return
+  const metrics = [
+    `pathways_claims;dur=${verified.stageTimings.claimsMs}`,
+    `pathways_get_user;dur=${verified.stageTimings.currentUserMs}`,
+  ]
+  if (databaseTiming) {
+    metrics.push(
+      `pathways_db_acquire;dur=${databaseTiming.acquisitionMs}`,
+      `pathways_db_context;dur=${databaseTiming.contextMs}`,
+      `pathways_db_profile;dur=${databaseTiming.workMs}`,
+    )
+  }
+  metrics.push(`pathways_${contextStage};dur=${contextMs}`, `pathways_auth_total;dur=${totalMs}`)
+  const value = metrics.join(', ')
+  response.setHeader('Server-Timing', value)
+  return value
+}
+
+function operationTimingValue(timing: AuthorizedOperationTiming) {
+  return [
+    `pathways_op_acquire;dur=${timing.acquisitionMs}`,
+    `pathways_op_context;dur=${timing.contextMs}`,
+    `pathways_op_profile;dur=${timing.profileMs}`,
+    `pathways_op_feature;dur=${timing.featureMs}`,
+    `pathways_op_total;dur=${timing.totalMs}`,
+  ].join(', ')
+}
+
+@Injectable()
+export class SupabaseAuthGuard implements CanActivate {
+  constructor(
+    @Inject(Reflector) private readonly reflector: Reflector,
+    @Inject(TokenAuthService) private readonly tokens: TokenAuthService,
+    @Inject(WorkspaceResolutionService) private readonly workspaces: WorkspaceResolutionService,
+    @Inject(RulesMachineBoundary) private readonly machines: RulesMachineBoundary,
+    @Inject(BeneficiaryStepUpService) private readonly stepUp: BeneficiaryStepUpService,
+  ) {}
+
+  async canActivate(context: ExecutionContext): Promise<boolean> {
+    const startedAt = performance.now()
+    try {
+      return await this.authenticate(context)
+    } finally {
+      markAuthDuration(context.switchToHttp().getRequest<object>(), performance.now() - startedAt)
+    }
+  }
+
+  private async authenticate(context: ExecutionContext): Promise<boolean> {
+    // Exact registered machine handlers never enter Public or human auth paths.
+    const machine = this.machines.enter(context)
+    if (machine !== null) return machine
+    const request = context.switchToHttp().getRequest<AuthenticatedRequest>()
+    request.user = undefined
+    request.auth = undefined
+    request.authSessionId = undefined
+    const handlers = [context.getHandler(), context.getClass()]
+    if (this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, handlers)) return true
+    // Set before validation so denials/outages are private too, not just 200s.
+    const response = context
+      .switchToHttp()
+      .getResponse<{ setHeader: (name: string, value: string) => void }>()
+    response.setHeader('Cache-Control', 'private, no-store')
+
+    const header = request.headers?.authorization
+    if (typeof header !== 'string' || !/^Bearer [^\s]+$/i.test(header) || header.length > 16_384) {
+      throw new UnauthorizedException('A bearer token is required.')
+    }
+    const authStartedAt = performance.now()
+    const budget = inspectionRequestBudget(request)
+    budget?.check()
+    const verified = await this.tokens.verifyCurrent(header.slice(7), budget)
+    budget?.check()
+    const identity = verified.identity
+    const boundary = this.reflector.getAllAndOverride<string>(AUTH_BOUNDARY_KEY, handlers)
+    const assertSeparateSession = async () => {
+      const sessionStartedAt = performance.now()
+      try {
+        await this.tokens.assertSessionLive(verified, budget)
+      } finally {
+        exposeDevelopmentAuthTiming(
+          response,
+          verified,
+          'session',
+          stageDuration(sessionStartedAt),
+          stageDuration(authStartedAt),
+        )
+      }
+    }
+    if (boundary === 'mfa-setup') {
+      await assertSeparateSession()
+      request.auth = identity
+      return true
+    }
+    if (identity.aal !== 'aal2') {
+      await assertSeparateSession()
+      request.auth = identity
+      throw new ForbiddenException('MFA verification is required before application access.')
+    }
+    const permission = this.reflector.getAllAndOverride<string | string[]>(PERMISSION_KEY, handlers)
+    if (boundary === 'workspace-discovery' && !permission) {
+      await assertSeparateSession()
+      request.auth = identity
+      return true
+    }
+    if (boundary !== 'profile' && !permission) {
+      await assertSeparateSession()
+      request.auth = identity
+      throw new ForbiddenException('This application operation has not been authorized.')
+    }
+    const profileStartedAt = performance.now()
+    let databaseTiming: VerifiedTransactionTiming | undefined
+    let authTiming: string | undefined
+    try {
+      request.user = await this.workspaces.resolveSelection(
+        identity,
+        request.headers['x-pathways-organization-id'],
+        request.headers['x-pathways-user-id'],
+        verified.sessionId,
+        (timing) => {
+          databaseTiming = timing
+        },
+        budget,
+      )
+    } finally {
+      authTiming = exposeDevelopmentAuthTiming(
+        response,
+        verified,
+        'session_profile',
+        stageDuration(profileStartedAt),
+        stageDuration(authStartedAt),
+        databaseTiming,
+      )
+    }
+    budget?.check()
+    request.auth = identity
+    request.authSessionId = verified.sessionId
+    if (
+      permission &&
+      (request.user.roles.length !== 1 ||
+        ![permission]
+          .flat()
+          .some((code) =>
+            hasAtomicPermission(
+              request.user?.roles[0] ?? '',
+              request.user?.permissions ?? [],
+              code,
+            ),
+          ))
+    ) {
+      request.user = undefined
+      request.authSessionId = undefined
+      throw new ForbiddenException('Required application permission is missing.')
+    }
+    // Server-derived step-up after identity/account/org/role/permission and the
+    // route project assignment, before any Beneficiary query. Freshness (a signed TOTP
+    // or a live session-bound PIN grant) does not depend on the target record.
+    if (this.reflector.getAllAndOverride<boolean>(BENEFICIARY_STEP_UP_KEY, handlers)) {
+      try {
+        await this.stepUp.enforce(
+          identity,
+          request.user,
+          `${context.getClass().name}.${context.getHandler().name}`,
+          (request as { params?: Record<string, unknown> }).params?.projectId,
+          verified.sessionId,
+        )
+      } catch (error) {
+        request.user = undefined
+        request.authSessionId = undefined
+        throw error
+      }
+    }
+    if (budget) bindInspectionIdentity(request.user, verified.sessionId, budget)
+    if (authTiming) {
+      registerAuthorizedOperationTiming(request.user, (timing) => {
+        response.setHeader('Server-Timing', `${authTiming}, ${operationTimingValue(timing)}`)
+      })
+    }
+    return true
+  }
+}

@@ -4,17 +4,17 @@ import { BadRequestException, ForbiddenException, NotFoundException } from '@nes
 import type { Prisma } from '@prisma/client'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { ApplicationIdentity } from '@app/common/authz/application-identity'
 import { PERMISSION_KEY } from '@app/common/decorators/permission.decorator'
-import { hasAtomicPermission } from '@app/modules/auth/authorization-policy'
-import type { ApplicationIdentity } from '@app/modules/auth/developer-access'
 import type { PrismaService } from '@app/prisma/prisma.service'
+import { hasAtomicPermission } from '@pathways/shared'
 
 const state = vi.hoisted(() => ({
   actor: undefined as ApplicationIdentity | undefined,
   tx: undefined as Prisma.TransactionClient | undefined,
 }))
 
-vi.mock('@app/modules/auth/authorized-operation', () => ({
+vi.mock('@app/common/authz/authorized-operation', () => ({
   withAuthorizedOperation: vi.fn(async (_prisma, _identity, permission, work) => {
     const actor = state.actor as ApplicationIdentity
     if (!hasAtomicPermission(actor.roles[0], actor.permissions, permission))

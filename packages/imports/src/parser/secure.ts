@@ -15,7 +15,7 @@ interface WorkerResult {
   error?: string
 }
 
-export interface ParsedImportRow {
+interface ParsedImportRow {
   sourceRowNumber: number
   values: Record<string, CellValue>
 }
@@ -26,7 +26,7 @@ export interface ImportSourceColumn {
   columnIndex: number
 }
 
-export interface SecureImportParseResult {
+interface SecureImportParseResult {
   sourceColumns: ImportSourceColumn[]
   rows: ParsedImportRow[]
   sheetNames: string[]
@@ -270,7 +270,7 @@ function inspectPdfSignature(input: Buffer) {
  * accepted workbook (5 MiB, 25 MiB uncompressed) and PDF (50 pages at the text-item
  * bound) stay well below it. Exceeding it terminates the worker, never the API.
  */
-export const PARSER_WORKER_RESOURCE_LIMITS = Object.freeze({
+const PARSER_WORKER_RESOURCE_LIMITS = Object.freeze({
   maxOldGenerationSizeMb: 512,
   maxYoungGenerationSizeMb: 64,
   codeRangeSizeMb: 64,

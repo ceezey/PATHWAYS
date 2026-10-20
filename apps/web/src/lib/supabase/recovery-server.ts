@@ -3,7 +3,7 @@ import { createHash, randomBytes, timingSafeEqual } from 'node:crypto'
 import { type CookieOptions, createServerClient } from '@supabase/ssr'
 import type { NextRequest, NextResponse } from 'next/server'
 
-import { localPasswordRecoveryOrigin } from '@/features/auth/password-recovery'
+import { localPasswordRecoveryOrigin } from '@/lib/auth/password-recovery'
 import { webEnv, webSupabasePublishableKey } from '@/lib/env'
 
 export const passwordRecoveryIntentCookie = 'pathways-local-password-recovery'
@@ -58,7 +58,7 @@ const getRecoveryGrant = (grantValue: string | undefined, now: number) => {
   return grant ? { grant, key } : null
 }
 
-export interface PendingAuthResponse {
+interface PendingAuthResponse {
   cookies: Array<{ name: string; value: string; options: CookieOptions }>
   headers: Record<string, string>
 }
@@ -138,7 +138,7 @@ export const consumePasswordRecoveryGrant = (
 
 export const resetPasswordRecoveryGrantsForTesting = () => getRecoveryGrantStore().clear()
 
-export interface VerifiedRecoveryIdentity {
+interface VerifiedRecoveryIdentity {
   sessionId: string
   userId: string
 }

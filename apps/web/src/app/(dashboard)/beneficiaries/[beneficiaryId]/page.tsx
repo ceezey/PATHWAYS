@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 
-import { BeneficiaryDetailLoader } from '@/features/beneficiaries/beneficiary-detail-loader'
+import { BeneficiaryDetailLoader } from '@/features/beneficiaries'
 import { type ProtectedPageProps, requireServerPage } from '@/lib/rbac/server-access'
 
 export const metadata: Metadata = { title: 'Beneficiary Record' }

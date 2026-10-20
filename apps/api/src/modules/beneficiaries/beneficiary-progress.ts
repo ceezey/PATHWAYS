@@ -1,15 +1,10 @@
-import type { Prisma } from '@prisma/client'
-
-import { aggregateOnlyRoles, hasAtomicPermission } from '../auth/authorization-policy'
-import type { ApplicationIdentity } from '../auth/developer-access'
-
-export type BeneficiaryProgress =
-  | { restricted: true }
-  | {
-      restricted: false
-      lastParticipation: { activityId: string; title: string; date: string } | null
-      stage: { code: string; name: string; progressPercent: number } | null
-    }
+import {
+  type BeneficiaryProgressResponse,
+  aggregateOnlyRoles,
+  hasAtomicPermission,
+} from '@pathways/shared'
+import type { ApplicationIdentity } from '../../common/authz/application-identity'
+import type { Tx } from '../../common/prisma/transaction'
 
 type ProgressRow = {
   enrollment_id: string
@@ -37,12 +32,12 @@ export const canReadProgress = (actor: ApplicationIdentity) =>
 
 /** One call per page: the definer function checks scope once and returns latest participation, current stage and reached stages. */
 export async function loadProgress(
-  tx: Prisma.TransactionClient,
+  tx: Tx,
   actor: ApplicationIdentity,
   projectId: string,
   enrollmentIds: string[],
 ) {
-  const progress = new Map<string, BeneficiaryProgress>()
+  const progress = new Map<string, BeneficiaryProgressResponse>()
   if (enrollmentIds.length === 0) return progress
   const rows = await tx.$queryRaw<ProgressRow[]>`
     SELECT * FROM pathways.p05_beneficiary_progress(

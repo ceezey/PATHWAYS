@@ -43,11 +43,13 @@ const data = {
   approvalQueue: null,
   myExtensions: null,
   extensionQueue: null,
+  escalationQueue: null,
   datasetsImportedThisMonth: 6,
   alerts: {
     open: 3,
     capped: false,
     bySeverity: { CRITICAL: 2, HIGH: 1, MEDIUM: 0, LOW: 0 },
+    needsContext: 0,
     byProject: [{ projectId: p, open: 3, maxSeverity: 'CRITICAL' }],
     recent: [
       {
@@ -82,6 +84,23 @@ describe('MeOverview', () => {
   it('splits active alerts by severity', () => {
     render(<MeOverview data={data} evaluations={[]} fullName="Leah Sy" onOpenActivity={vi.fn()} />)
     expect(screen.getByText('2 critical · 1 high')).toBeTruthy()
+  })
+  it('adds the Needs context count to the alert split only when there are any', () => {
+    const alerts = data.alerts as NonNullable<RoleOverview['alerts']>
+    const ctx = { ...data, alerts: { ...alerts, needsContext: 4 } } as RoleOverview
+    render(<MeOverview data={ctx} evaluations={[]} fullName="Leah Sy" onOpenActivity={vi.fn()} />)
+    expect(screen.getByText('2 critical · 1 high · 4 need context')).toBeTruthy()
+  })
+  it('marks a Needs context alert with its own dot and the text label', () => {
+    const alerts = data.alerts as NonNullable<RoleOverview['alerts']>
+    const row = { ...alerts.recent[0], severity: null }
+    const ctx = { ...data, alerts: { ...alerts, recent: [row] } } as RoleOverview
+    const { container } = render(
+      <MeOverview data={ctx} evaluations={[]} fullName="Leah Sy" onOpenActivity={vi.fn()} />,
+    )
+    expect(screen.getAllByText(/Needs context/).length).toBeGreaterThan(0)
+    const dot = container.querySelector('span[aria-hidden="true"].rounded-full.h-2')
+    expect(dot?.className).not.toContain('bg-muted-foreground')
   })
   it('opens proof review with the update id', () => {
     const open = vi.fn()

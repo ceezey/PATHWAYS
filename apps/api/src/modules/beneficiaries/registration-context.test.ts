@@ -1,19 +1,15 @@
 import 'reflect-metadata'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import { PERMISSION_KEY } from '../../common/decorators/permission.decorator'
 import type { PrismaService } from '../../prisma/prisma.service'
-import type { ApplicationIdentity } from '../auth/developer-access'
 import { BeneficiariesController } from './beneficiaries.controller'
 import { BeneficiariesService } from './beneficiaries.service'
+import { BeneficiaryRegistrationService } from './beneficiary-registration.service'
 const organizationId = '10000000-0000-4000-8000-000000000001'
 const actorId = '20000000-0000-4000-8000-000000000002'
 const projectId = '30000000-0000-4000-8000-000000000003'
-const otherProjectId = '30000000-0000-4000-8000-000000000004'
 const formId = '40000000-0000-4000-8000-000000000004'
-const beneficiaryId = '50000000-0000-4000-8000-000000000005'
-const enrollmentId = '60000000-0000-4000-8000-000000000006'
-const submissionId = '70000000-0000-4000-8000-000000000007'
-const registrationId = '80000000-0000-4000-8000-000000000008'
 
 const actor: ApplicationIdentity = {
   id: '90000000-0000-4000-8000-000000000009',
@@ -90,7 +86,7 @@ const fields = [
 ]
 
 const wrapper = vi.hoisted(() => ({ run: vi.fn() }))
-vi.mock('../auth/authorized-operation', () => ({ withAuthorizedOperation: wrapper.run }))
+vi.mock('../../common/authz/authorized-operation', () => ({ withAuthorizedOperation: wrapper.run }))
 vi.mock('@pathways/config', () => ({ readApiEnv: () => ({ BUSINESS_TIME_ZONE: 'Asia/Manila' }) }))
 const tx = { project: { findFirst: vi.fn() }, digitalForm: { groupBy: vi.fn(), findMany: vi.fn() } }
 const definition = () => ({
@@ -113,7 +109,7 @@ const definition = () => ({
 let service: BeneficiariesService
 beforeEach(() => {
   vi.clearAllMocks()
-  service = new BeneficiariesService({} as PrismaService)
+  service = new BeneficiariesService({} as PrismaService, new BeneficiaryRegistrationService())
   tx.project.findFirst.mockResolvedValue({ id: projectId })
   tx.digitalForm.groupBy.mockResolvedValue([{ code: 'registration', _max: { version: 2 } }])
   tx.digitalForm.findMany.mockResolvedValue([definition()])

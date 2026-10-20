@@ -1,20 +1,21 @@
+import { roleNames } from '@pathways/shared'
 import { describe, expect, it } from 'vitest'
 
-import { getPathwaysRoleDisplayName } from './pathways-role'
+import { pathwaysRoles } from './pathways-role'
 
-describe('PATHWAYS role display names', () => {
-  it('keeps Program Manager and Grant Manager as distinct role labels', () => {
-    expect(getPathwaysRoleDisplayName('Program Manager')).toBe('Program Manager')
-    expect(getPathwaysRoleDisplayName('Grant Manager')).toBe('Grant Manager')
-    expect(getPathwaysRoleDisplayName('Grant Manager')).not.toBe(
-      getPathwaysRoleDisplayName('Program Manager'),
-    )
+describe('PATHWAYS role display order', () => {
+  it('lists every catalog role name exactly once', () => {
+    expect([...pathwaysRoles].sort()).toEqual(Object.values(roleNames).sort())
   })
 
-  it('preserves the locked operational role names', () => {
-    expect(getPathwaysRoleDisplayName('Monitoring and Evaluation Officer')).toBe(
+  it('keeps the UI order with System Administrator last', () => {
+    expect(pathwaysRoles).toEqual([
+      'Program Manager',
+      'Grant Manager',
+      'Project Manager',
       'Monitoring and Evaluation Officer',
-    )
-    expect(getPathwaysRoleDisplayName('System Administrator')).toBe('System Administrator')
+      'Project Officer',
+      'System Administrator',
+    ])
   })
 })

@@ -1,9 +1,14 @@
-import type { MetricCell, MonitoringIndicator } from '@pathways/shared'
+import {
+  type AlertSeverity,
+  type IndicatorResponse,
+  type MetricCell,
+  alertSeverities,
+} from '@pathways/shared'
 
 export type StatusLevel = 'ON_TRACK' | 'AT_RISK' | 'OFF_TRACK' | 'NOT_AVAILABLE'
 export type Figure = {
   label: string
-  state: string
+  state: MetricCell['state']
   value: string | null
   reason: string | null
   detail: string
@@ -40,7 +45,12 @@ export type ProjectSections = {
     current: string
     progress: string
   }>
-  alerts?: Array<{ title: string; severity: string; explanation: string; evaluatedAt: string }>
+  alerts?: Array<{
+    title: string
+    severity: AlertSeverity | null
+    explanation: string
+    evaluatedAt: string
+  }>
 }
 type OverviewInput = {
   reportDate: string
@@ -50,9 +60,9 @@ type OverviewInput = {
   kpi: number | null
 }
 const DAY_MS = 86_400_000
-const SEVERITY = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW']
+const severityOrder: readonly string[] = alertSeverities
 const closed = new Set(['COMPLETED', 'CANCELLED'])
-export const statusLabel: Record<StatusLevel, string> = {
+const statusLabel: Record<StatusLevel, string> = {
   ON_TRACK: 'ON TRACK',
   AT_RISK: 'AT RISK',
   OFF_TRACK: 'OFF TRACK',
@@ -124,11 +134,11 @@ export function overviewRows(input: OverviewInput) {
   return [schedule, spend, results]
 }
 
-/** Alerts by highest severity first, capped at 10. */
-export const topAlerts = <T extends { severity: string }>(alerts: T[]) =>
-  [...alerts]
-    .sort((a, b) => SEVERITY.indexOf(a.severity) - SEVERITY.indexOf(b.severity))
-    .slice(0, 10)
+/** Alerts by highest severity first, then those needing context, capped at 10. */
+const severityRank = (severity: string | null) =>
+  severity === null ? severityOrder.length : severityOrder.indexOf(severity)
+export const topAlerts = <T extends { severity: string | null }>(alerts: T[]) =>
+  [...alerts].sort((a, b) => severityRank(a.severity) - severityRank(b.severity)).slice(0, 10)
 
 const cellText = (cell: MetricCell, suffix = '') =>
   cell.state === 'SUPPRESSED'
@@ -140,7 +150,7 @@ const figureText = (f: Figure) =>
   f.state === 'SUPPRESSED' ? 'Fewer than 5' : (f.value ?? 'Not available')
 
 export const INDICATOR_CAP = 50
-export const indicatorRows = (items: MonitoringIndicator[]) =>
+export const indicatorRows = (items: IndicatorResponse[]) =>
   items.slice(0, INDICATOR_CAP).map((i) => ({
     code: i.code,
     name: i.name,
@@ -206,6 +216,7 @@ export function flattenSections(s: ProjectSections) {
       i.current,
       `Baseline ${i.baseline ?? 'n/a'}; target ${i.target ?? 'n/a'}; progress ${i.progress}`,
     ])
-  for (const a of s.alerts ?? []) rows.push(['Open alerts', a.title, a.severity, a.explanation])
+  for (const a of s.alerts ?? [])
+    rows.push(['Open alerts', a.title, a.severity ?? 'Needs context', a.explanation])
   return { columns: ['Section', 'Item', 'Value', 'Detail'], rows }
 }

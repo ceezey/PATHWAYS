@@ -2,21 +2,19 @@ import { type PathwaysRole, pathwaysRoles } from '@/types/pathways-role'
 import {
   type AtomicPermission,
   type CanonicalRole,
+  aggregateOnlyRoles,
   canAssignRole,
   canAuthorizeRole,
+  roleCodeByName,
   roleNames,
   rolePermissions,
-} from '../../../../api/src/modules/auth/authorization-policy'
+} from '@pathways/shared'
 import type { DataScopeCode, PermissionCode } from './permissions'
 
-export type AccessLevel = 'none' | 'view' | 'aggregate' | 'scoped' | 'full' | 'configure'
-export type ProjectAccessScope = 'organization' | 'portfolio' | 'assigned-projects'
-export type BeneficiaryDataAccess = 'all-records' | 'assigned-project-records' | 'aggregate-only'
-export type ProjectAssignmentScope =
-  | 'all-projects'
-  | 'portfolio-projects'
-  | 'assigned-projects'
-  | 'none'
+type AccessLevel = 'none' | 'view' | 'aggregate' | 'scoped' | 'full' | 'configure'
+type ProjectAccessScope = 'organization' | 'portfolio' | 'assigned-projects'
+type BeneficiaryDataAccess = 'all-records' | 'assigned-project-records' | 'aggregate-only'
+type ProjectAssignmentScope = 'all-projects' | 'portfolio-projects' | 'assigned-projects' | 'none'
 
 export const projectAssignableRoles = [
   'Program Manager',
@@ -28,13 +26,13 @@ export const projectAssignableRoles = [
 
 export type ProjectAssignableRole = (typeof projectAssignableRoles)[number]
 
-export interface UserAdministrationCapabilities {
+interface UserAdministrationCapabilities {
   createAndAuthorizeRoles: readonly PathwaysRole[]
   projectAssignmentRoles: readonly ProjectAssignableRole[]
   projectAssignmentScope: ProjectAssignmentScope
 }
 
-export interface RoleAccessProfile {
+interface RoleAccessProfile {
   role: PathwaysRole
   permissions: readonly PermissionCode[]
   dataScopes: readonly DataScopeCode[]
@@ -53,7 +51,7 @@ export interface RoleAccessProfile {
   }
 }
 
-export const legacyAtomicPermissions: Record<PermissionCode, readonly AtomicPermission[]> = {
+const legacyAtomicPermissions: Record<PermissionCode, readonly AtomicPermission[]> = {
   'projects.view': ['projects.detail.read'],
   'projects.create': ['projects.create'],
   'activities.view': ['activities.read'],
@@ -97,16 +95,12 @@ export const legacyAtomicPermissions: Record<PermissionCode, readonly AtomicPerm
 }
 
 const entries = Object.entries(roleNames) as Array<[CanonicalRole, PathwaysRole]>
-const roleCodesByName = Object.fromEntries(entries.map(([code, name]) => [name, code])) as Record<
-  PathwaysRole,
-  CanonicalRole
->
 export const roleAccessProfiles = Object.fromEntries(
   entries.map(([code, role]) => {
     const permissions = rolePermissions[code]
     const has = (permission: AtomicPermission) => permissions.includes(permission)
     const managesUsers = has('users.authorize')
-    const aggregate = code === 'PROGRAM_MANAGER' || code === 'GRANT_MANAGER'
+    const aggregate = aggregateOnlyRoles.includes(code)
     const profile: RoleAccessProfile = {
       role,
       permissions: (Object.keys(legacyAtomicPermissions) as PermissionCode[]).filter((permission) =>
@@ -130,10 +124,10 @@ export const roleAccessProfiles = Object.fromEntries(
           : 'assigned-project-records',
       userAdministration: {
         createAndAuthorizeRoles: managesUsers
-          ? pathwaysRoles.filter((name) => canAuthorizeRole(code, roleCodesByName[name]))
+          ? pathwaysRoles.filter((name) => canAuthorizeRole(code, roleCodeByName[name]))
           : [],
         projectAssignmentRoles: managesUsers
-          ? projectAssignableRoles.filter((name) => canAssignRole(code, roleCodesByName[name]))
+          ? projectAssignableRoles.filter((name) => canAssignRole(code, roleCodeByName[name]))
           : [],
         projectAssignmentScope: !managesUsers
           ? 'none'

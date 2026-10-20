@@ -1,17 +1,17 @@
 import type { PathwaysRole } from '@/types/pathways-role'
 import {
   type AtomicPermission,
-  type CanonicalRole,
   hasAtomicPermission,
-  roleNames,
+  roleCodeFor,
   rolePermissions,
-} from '../../../../api/src/modules/auth/authorization-policy'
+} from '@pathways/shared'
 
-export type UiAction =
+type UiAction =
   | 'activities.status.edit'
   | 'activities.edit'
   | 'activities.progress.record'
   | 'assessments.detail.view'
+  | 'assessments.record'
   | 'beneficiaries.edit'
   | 'beneficiaries.merge'
   | 'beneficiaries.media.upload'
@@ -36,6 +36,7 @@ const supportedActionPermission: Partial<Record<UiAction, AtomicPermission>> = {
   'activities.edit': 'activities.update',
   'activities.progress.record': 'activities.progress.update',
   'assessments.detail.view': 'assessments.detail.read',
+  'assessments.record': 'assessments.record',
   'beneficiaries.create': 'beneficiaries.records.register',
   'beneficiaries.edit': 'beneficiaries.profiles.update',
   'beneficiaries.media.upload': 'beneficiaries.enrollments.manage',
@@ -62,9 +63,7 @@ export const isUiActionAvailable = (
   if (!role) return false
   const permission = supportedActionPermission[action]
   if (!permission) return false
-  const roleCode = (Object.keys(roleNames) as CanonicalRole[]).find(
-    (code) => roleNames[code] === role,
-  )
+  const roleCode = roleCodeFor(role)
   if (!roleCode) return false
   // Role-only use describes the ceiling. Mounted controls pass the current profile.
   if (principal !== undefined) {

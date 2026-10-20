@@ -1,10 +1,10 @@
-import { describe, expect, it } from 'vitest'
 import {
   type RuleCondition,
   metricObservationSchema,
   parseRuleTree,
   ruleDefinitionSchema,
-} from './rule-contract'
+} from '@pathways/shared'
+import { describe, expect, it } from 'vitest'
 import { evaluateRule } from './rule-engine'
 
 const org = '10000000-0000-4000-8000-000000000001'
@@ -24,7 +24,7 @@ const definition = (conditions: unknown = leaf()) => ({
   ruleId: '30000000-0000-4000-8000-000000000003',
   version: 1,
   name: 'Synthetic timeline rule',
-  severity: 'MEDIUM',
+  severity: null,
   conditions,
   recommendations: [
     {
@@ -326,17 +326,77 @@ describe('deterministic evidence evaluation', () => {
         '-2.5',
         { pairCount: 6, differenceSum: '-15' },
       ],
+      [
+        'KPI_ACHIEVEMENT_PERCENT',
+        'KPI_AGGREGATE',
+        '62.5',
+        { indicatorCount: 3, reportedCount: 2, progressSum: '125' },
+      ],
+      [
+        'SURVEY_MEAN_PRE_TEST_PERCENT',
+        'PRE_TEST_AGGREGATE',
+        '40',
+        { enrollmentCount: 5, percentSum: '200' },
+      ],
+      [
+        'SURVEY_MEAN_POST_TEST_PERCENT',
+        'POST_TEST_AGGREGATE',
+        '70',
+        { enrollmentCount: 5, percentSum: '350' },
+      ],
     ] as const
     for (const [metric, kind, value, calculation] of cases) {
       const result = evaluateRule({
         rule: definition(
-          leaf({ metric, operator: 'GTE', threshold: metric.startsWith('SURVEY') ? '-3' : '3' }),
+          leaf({
+            metric,
+            operator: 'GTE',
+            threshold: metric === 'SURVEY_MEAN_IMPROVEMENT_POINTS' ? '-3' : '3',
+          }),
         ),
         asOf,
         observations: [aggregate(metric, kind, value, calculation)],
       })
       expect(result.result).toBe('TRUE')
     }
+    // Pre-test and improvement read the same assessments but keep separate source kinds.
+    const mixed = evaluateRule({
+      rule: definition({
+        kind: 'GROUP',
+        mode: 'OR',
+        children: [
+          leaf({ id: 'P', metric: 'SURVEY_MEAN_PRE_TEST_PERCENT', threshold: '50' }),
+          leaf({ id: 'S', metric: 'SURVEY_MEAN_IMPROVEMENT_POINTS', threshold: '5' }),
+          leaf({ id: 'K', metric: 'KPI_ACHIEVEMENT_PERCENT', threshold: '50' }),
+        ],
+      }),
+      asOf,
+      observations: [
+        {
+          ...aggregate('SURVEY_MEAN_PRE_TEST_PERCENT', 'PRE_TEST_AGGREGATE', '40', {
+            enrollmentCount: 5,
+            percentSum: '200',
+          }),
+          conditionId: 'P',
+        },
+        {
+          ...aggregate('SURVEY_MEAN_IMPROVEMENT_POINTS', 'SURVEY_AGGREGATE', '2', {
+            pairCount: 5,
+            differenceSum: '10',
+          }),
+          conditionId: 'S',
+        },
+        {
+          ...aggregate('KPI_ACHIEVEMENT_PERCENT', 'KPI_AGGREGATE', '62.5', {
+            indicatorCount: 2,
+            reportedCount: 2,
+            progressSum: '125',
+          }),
+          conditionId: 'K',
+        },
+      ],
+    })
+    expect(mixed.result).toBe('TRUE')
     expect(() =>
       evaluateRule({
         rule: definition(leaf({ metric: 'BUDGET_UTILIZATION_PERCENT', threshold: '5' })),

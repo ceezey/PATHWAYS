@@ -1,4 +1,4 @@
-import { CollectionWorkspace } from '@/features/collection/collection-workspace'
+import { CollectionWorkspace } from '@/features/collection'
 import { type ProtectedPageProps, requireServerPage } from '@/lib/rbac/server-access'
 
 export const dynamic = 'force-dynamic'

@@ -27,3 +27,15 @@ describe('greeting', () => {
     expect(greeting(new Date('2026-10-04T12:00:00Z'), '')).toBe('Good evening.')
   })
 })
+
+describe('healthOf with Needs context alerts', () => {
+  it('does not read On track when every open alert needs context', () => {
+    expect(healthOf('ONGOING', { open: 2, maxSeverity: null })).toEqual({
+      label: 'Needs context',
+      tone: 'neutral',
+    })
+  })
+  it('keeps On track when there are no open alerts', () => {
+    expect(healthOf('ONGOING', { open: 0, maxSeverity: null }).label).toBe('On track')
+  })
+})

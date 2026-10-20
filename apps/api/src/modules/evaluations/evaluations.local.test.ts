@@ -1,8 +1,8 @@
-import type { ApplicationIdentity } from '@app/modules/auth/developer-access'
+import type { ApplicationIdentity } from '@app/common/authz/application-identity'
 import { PrismaService } from '@app/prisma/prisma.service'
 import { ForbiddenException } from '@nestjs/common'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import type { EvaluationMetricsService } from './evaluation-metrics'
+import type { EvaluationMetricsService } from './evaluation-metrics.service'
 import { EvaluationsService } from './evaluations.service'
 
 const enabled = process.env.PATHWAYS_EVALUATIONS_LOCAL_TESTS === '1'

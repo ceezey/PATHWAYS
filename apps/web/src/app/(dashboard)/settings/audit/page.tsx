@@ -1,4 +1,4 @@
-import { AuditLogWorkspace } from '@/features/settings/audit-log-workspace'
+import { AuditLogWorkspace } from '@/features/settings'
 import { type ProtectedPageProps, requireServerPage } from '@/lib/rbac/server-access'
 
 export const dynamic = 'force-dynamic'

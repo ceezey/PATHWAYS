@@ -6,9 +6,9 @@ vi.mock('@/lib/env', () => ({
   webSupabasePublishableKey: 'publishable-test-fixture',
 }))
 
-import { testAuthUserId } from '@/features/auth/auth-access.test-fixtures'
+import { testAuthUserId } from '@/lib/auth/auth-access.test-fixtures'
 const developerAuthUserId = testAuthUserId
-import { localPasswordRecoveryOrigin } from '@/features/auth/password-recovery'
+import { localPasswordRecoveryOrigin } from '@/lib/auth/password-recovery'
 import {
   clearPasswordRecoveryIntent,
   consumePasswordRecoveryGrant,

@@ -11,7 +11,7 @@ test.beforeAll(async () => {
   const output = await build({
     stdin: {
       contents: `import { createRoot } from 'react-dom/client';
-        import { LoginForm } from '../src/features/auth/login-form';
+        import { LoginForm } from '../src/features/auth/components/login-form';
         createRoot(document.getElementById('root')).render(<LoginForm />);`,
       resolveDir: __dirname,
       loader: 'tsx',

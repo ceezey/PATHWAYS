@@ -13,29 +13,33 @@ import {
 import { readApiEnv } from '@pathways/config'
 import type { Prisma } from '@prisma/client'
 
-import { PrismaService } from '../../prisma/prisma.service'
-import { PROOF_STORAGE_DEADLINE_MS } from '../activities/activities.dto'
 import {
+  type BeneficiaryMediaItemResponse,
+  type BeneficiaryMediaLimitsResponse,
+  type BeneficiaryMediaReservationResponse,
+  MAX_BENEFICIARY_MEDIA_FILES,
+  type ReserveBeneficiaryMediaRequest,
+  aggregateOnlyRoles,
+  beneficiaryMediaContentTypes,
+} from '@pathways/shared'
+import { writeAuditLog } from '../../common/audit/write-audit-log'
+import { type ApplicationIdentity, UUID_PATTERN } from '../../common/authz/application-identity'
+import { withAuthorizedOperation } from '../../common/authz/authorized-operation'
+import { projectScope } from '../../common/authz/project-scope'
+import type { Tx } from '../../common/prisma/transaction'
+import { PrismaService } from '../../prisma/prisma.service'
+import {
+  PROOF_STORAGE_DEADLINE_MS,
   activityEvidenceType,
   evidenceExtension,
   proofDeclarations,
-} from '../activities/activities.service'
-import { aggregateOnlyRoles } from '../auth/authorization-policy'
-import { projectScope } from '../auth/authorized-data.service'
-import { withAuthorizedOperation } from '../auth/authorized-operation'
-import { type ApplicationIdentity, UUID_PATTERN } from '../auth/developer-access'
+} from '../activities/activity-proof.helpers'
 import {
-  createPrivateObjectStreamer,
-  createPrivateUploadVerifier,
-} from '../storage/private-inspection-reader'
+  PRIVATE_STORAGE_FACTORIES,
+  type PrivateStorageFactories,
+} from '../storage/private-storage-factories'
 import { StorageService } from '../storage/storage.service'
-import {
-  MAX_BENEFICIARY_MEDIA_FILES,
-  type ReserveBeneficiaryMediaDto,
-  beneficiaryMediaContentTypes,
-} from './beneficiary-media.dto'
 
-type Tx = Prisma.TransactionClient
 const MAX_LISTED_MEDIA = 100
 const unavailable = () => new NotFoundException('Beneficiary media unavailable.')
 const rejection = (code: string, message: string) =>
@@ -53,6 +57,7 @@ export class BeneficiaryMediaService {
   constructor(
     @Inject(PrismaService) private readonly prisma: PrismaService,
     @Inject(StorageService) private readonly storage: StorageService,
+    @Inject(PRIVATE_STORAGE_FACTORIES) private readonly storageFactories: PrivateStorageFactories,
   ) {}
 
   limits() {
@@ -60,7 +65,7 @@ export class BeneficiaryMediaService {
       maxFiles: MAX_BENEFICIARY_MEDIA_FILES,
       maxFileBytes: this.env.EVIDENCE_MAX_FILE_BYTES,
       contentTypes: [...beneficiaryMediaContentTypes],
-    }
+    } satisfies BeneficiaryMediaLimitsResponse
   }
 
   /** Aggregate-only roles are denied first; then project assignment and the enrollment are resolved. */
@@ -148,17 +153,19 @@ export class BeneficiaryMediaService {
           orderBy: [{ submittedAt: 'desc' }, { id: 'asc' }],
           take: MAX_LISTED_MEDIA,
         })
-        return rows.map((row) => ({
-          id: row.id,
-          type: row.type,
-          fileName: row.fileName,
-          contentType: row.contentType,
-          byteSize: Number(row.byteSize),
-          description: row.description,
-          submittedAt: row.submittedAt.toISOString(),
-          submittedBy: row.submittedBy.fullName,
-          storageReady: row.storageReady,
-        }))
+        return rows.map(
+          (row): BeneficiaryMediaItemResponse => ({
+            id: row.id,
+            type: row.type,
+            fileName: row.fileName,
+            contentType: row.contentType,
+            byteSize: Number(row.byteSize),
+            description: row.description,
+            submittedAt: row.submittedAt.toISOString(),
+            submittedBy: row.submittedBy.fullName,
+            storageReady: row.storageReady,
+          }),
+        )
       },
     )
   }
@@ -168,7 +175,7 @@ export class BeneficiaryMediaService {
     identity: ApplicationIdentity,
     projectId: string,
     beneficiaryId: string,
-    input: ReserveBeneficiaryMediaDto,
+    input: ReserveBeneficiaryMediaRequest,
   ) {
     if (
       !Array.isArray(input.files) ||
@@ -214,16 +221,12 @@ export class BeneficiaryMediaService {
             submittedById: actor.userId,
           })),
         })
-        await tx.auditLog.create({
-          data: {
-            organizationId: actor.organizationId,
-            actorUserId: actor.userId,
-            projectId: scope.projectId,
-            action: 'BENEFICIARY_MEDIA_RESERVED',
-            entityType: 'BeneficiaryProjectEnrollment',
-            entityId: scope.enrollmentId,
-            changes: { mediaIds: created.map((row) => row.id), fileCount: created.length },
-          },
+        await writeAuditLog(tx, actor, {
+          projectId: scope.projectId,
+          action: 'BENEFICIARY_MEDIA_RESERVED',
+          entityType: 'BeneficiaryProjectEnrollment',
+          entityId: scope.enrollmentId,
+          changes: { mediaIds: created.map((row) => row.id), fileCount: created.length },
         })
         return created
       },
@@ -245,7 +248,7 @@ export class BeneficiaryMediaService {
             uploadUrl: signed[index].uploadUrl,
           }
         }),
-      }
+      } satisfies BeneficiaryMediaReservationResponse
     } catch {
       throw new ServiceUnavailableException('Media upload could not be prepared. Retry the upload.')
     }
@@ -279,9 +282,11 @@ export class BeneficiaryMediaService {
     const byteSize = Number(row.byteSize)
     if (!Number.isSafeInteger(byteSize) || byteSize > this.env.EVIDENCE_MAX_FILE_BYTES)
       throw rejection('PROOF_FILE_TOO_LARGE', 'The media file exceeds the current per-file limit.')
-    let outcome: Awaited<ReturnType<ReturnType<typeof createPrivateUploadVerifier>>>
+    let outcome: Awaited<
+      ReturnType<ReturnType<PrivateStorageFactories['createPrivateUploadVerifier']>>
+    >
     try {
-      const verify = createPrivateUploadVerifier({
+      const verify = this.storageFactories.createPrivateUploadVerifier({
         serviceOrigin: this.env.SUPABASE_URL ?? '',
         serviceRoleKey: this.env.SUPABASE_SERVICE_ROLE_KEY ?? '',
         evidenceBucket: this.env.EVIDENCE_BUCKET,
@@ -337,16 +342,12 @@ export class BeneficiaryMediaService {
         })
         if (marked.count !== 1)
           throw new ConflictException('Media changed. Retry finalizing this file.')
-        await tx.auditLog.create({
-          data: {
-            organizationId: actor.organizationId,
-            actorUserId: actor.userId,
-            projectId: current.scope.projectId,
-            action: 'BENEFICIARY_MEDIA_FINALIZED',
-            entityType: 'EvidenceMedia',
-            entityId: row.id,
-            changes: { enrollmentId: current.scope.enrollmentId },
-          },
+        await writeAuditLog(tx, actor, {
+          projectId: current.scope.projectId,
+          action: 'BENEFICIARY_MEDIA_FINALIZED',
+          entityType: 'EvidenceMedia',
+          entityId: row.id,
+          changes: { enrollmentId: current.scope.enrollmentId },
         })
         return { mediaId: row.id, storageReady: true as const }
       },
@@ -372,7 +373,7 @@ export class BeneficiaryMediaService {
     )
     const { row } = target
     try {
-      const streamer = createPrivateObjectStreamer({
+      const streamer = this.storageFactories.createPrivateObjectStreamer({
         serviceOrigin: this.env.SUPABASE_URL ?? '',
         serviceRoleKey: this.env.SUPABASE_SERVICE_ROLE_KEY ?? '',
         evidenceBucket: this.env.EVIDENCE_BUCKET,

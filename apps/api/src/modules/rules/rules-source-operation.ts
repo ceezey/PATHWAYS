@@ -5,8 +5,8 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common'
 import { businessCalendarDate, isCalendarDate, normalizeMetricDecimal } from '@pathways/shared'
-import type { Prisma } from '@prisma/client'
 import { z } from 'zod'
+import type { Tx } from '../../common/prisma/transaction'
 
 export const operations = [
   'PROJECT_UPDATE',
@@ -21,7 +21,7 @@ export const operations = [
   'INDICATOR_ARCHIVE',
   'INDICATOR_MEASUREMENT',
 ] as const
-export type SourceOperation = (typeof operations)[number]
+type SourceOperation = (typeof operations)[number]
 export type SourceRequestKey =
   | { kind: 'CLIENT_MUTATION'; id: string }
   | { kind: 'CLIENT_MEASUREMENT'; id: string }
@@ -41,10 +41,7 @@ const day = z.string().refine(isCalendarDate)
 const ack = z
   .object({ requestId: uuid, committed: z.literal(true), replayed: z.boolean() })
   .strict()
-export type MutationAcknowledgement = z.infer<typeof ack>
-export type SourceMutationResult<T> =
-  | (T & { sourceAcknowledgement: MutationAcknowledgement })
-  | MutationAcknowledgement
+type MutationAcknowledgement = z.infer<typeof ack>
 const generated = z
   .object({
     timestamp: instant,
@@ -65,7 +62,7 @@ const measurementGenerated = generated
     requestHash: z.string().regex(/^[a-f0-9]{64}$/),
   })
   .strict()
-export type SourceOperationStart =
+type SourceOperationStart =
   | { kind: 'REPLAY'; acknowledgement: MutationAcknowledgement }
   | {
       kind: 'NEW'
@@ -233,7 +230,7 @@ async function one(work: () => Promise<Array<{ result: unknown }>>) {
   return rows[0]?.result
 }
 export async function readRuleSourceAcknowledgement(
-  tx: Prisma.TransactionClient,
+  tx: Tx,
   operation: SourceOperation,
   projectId: string,
   sourceId: string | null,
@@ -257,7 +254,7 @@ export async function readRuleSourceAcknowledgement(
   return parsed.data
 }
 export async function bootstrapRuleSourceProject(
-  tx: Prisma.TransactionClient,
+  tx: Tx,
   projectId: string,
   operation: SourceOperation,
 ) {
@@ -271,7 +268,7 @@ export async function bootstrapRuleSourceProject(
   }
 }
 export async function beginRuleSourceOperation(
-  tx: Prisma.TransactionClient,
+  tx: Tx,
   operation: SourceOperation,
   projectId: string,
   sourceId: string | null,
@@ -314,7 +311,7 @@ export async function beginRuleSourceOperation(
   return created.data
 }
 export async function finishRuleSourceOperation(
-  tx: Prisma.TransactionClient,
+  tx: Tx,
   handle: string,
   expectedRequestId: string,
 ): Promise<MutationAcknowledgement> {
@@ -330,9 +327,9 @@ export async function finishRuleSourceOperation(
   return parsed.data
 }
 
-export type SourceAbandonment = MutationAcknowledgement | { requestId: string; abandoned: true }
+type SourceAbandonment = MutationAcknowledgement | { requestId: string; abandoned: true }
 export async function abandonRuleSourceOperation(
-  tx: Prisma.TransactionClient,
+  tx: Tx,
   operation: SourceOperation,
   projectId: string,
   sourceId: string | null,

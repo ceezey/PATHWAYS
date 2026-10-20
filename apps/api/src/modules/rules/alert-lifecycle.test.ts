@@ -1,10 +1,9 @@
+import { alertStatuses, decisionOutcomes } from '@pathways/shared'
 import { describe, expect, it } from 'vitest'
 import {
-  alertStatuses,
   applyEvaluation,
   applyHumanAction,
   canAutoResolveRecommendation,
-  decisionOutcomes,
   initialEpisodeCursor,
   supersedeEpisode,
 } from './alert-lifecycle'

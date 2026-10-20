@@ -55,7 +55,7 @@ import { Prisma } from '@prisma/client'
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { ApplicationIdentity } from '@app/modules/auth/developer-access'
+import type { ApplicationIdentity } from '@app/common/authz/application-identity'
 import type { StorageService } from '@app/modules/storage/storage.service'
 import type { PrismaService } from '@app/prisma/prisma.service'
 
@@ -64,16 +64,19 @@ const state = vi.hoisted(() => ({
   tx: undefined as Prisma.TransactionClient | undefined,
 }))
 
-vi.mock('@app/modules/auth/application-profile.service', () => ({
+vi.mock('@app/common/authz/application-profile', () => ({
   readApplicationProfile: vi.fn(async () => state.actor),
 }))
-vi.mock('@app/modules/auth/authorized-operation', () => ({
+vi.mock('@app/common/authz/authorized-operation', () => ({
   withAuthorizedOperation: vi.fn(async (_prisma, _identity, _permission, work) =>
     work(state.tx, state.actor),
   ),
 }))
 
 import { ActivitiesService } from './activities.service'
+import { ActivityEvidenceService } from './activity-evidence.service'
+import { ActivityLifecycleService } from './activity-lifecycle.service'
+import { ActivityReviewService } from './activity-review.service'
 
 const organizationId = '10000000-0000-4000-8000-000000000001'
 const projectId = '20000000-0000-4000-8000-000000000002'
@@ -151,7 +154,12 @@ const listMetricKeys = [
 const storage = { downloadPrivateFile: vi.fn() }
 
 describe('P05 activity proof authorization', () => {
-  const service = new ActivitiesService({} as PrismaService, storage as unknown as StorageService)
+  const service = new ActivitiesService({} as PrismaService)
+  const evidenceService = new ActivityEvidenceService(
+    {} as PrismaService,
+    storage as unknown as StorageService,
+  )
+  const reviewService = new ActivityReviewService({} as PrismaService)
 
   beforeEach(() => {
     vi.clearAllMocks()
@@ -201,7 +209,9 @@ describe('P05 activity proof authorization', () => {
 
   it('denies a proof outside the project scope without metadata or storage reads', async () => {
     tx.project.findFirst.mockResolvedValue(null)
-    await expect(service.downloadProof(actor, projectId, activityId, updateId)).rejects.toThrow()
+    await expect(
+      evidenceService.downloadProof(actor, projectId, activityId, updateId),
+    ).rejects.toThrow()
     expect(tx.evidenceMedia.findFirst).not.toHaveBeenCalled()
     expect(storage.downloadPrivateFile).not.toHaveBeenCalled()
   })
@@ -212,7 +222,9 @@ describe('P05 activity proof authorization', () => {
     const proof = { bucket: 'b', objectKey: 'k', fileName: 'proof.jpg', contentType: 'image/jpeg' }
     tx.evidenceMedia.findFirst.mockResolvedValueOnce({ ...proof, sha256 })
     storage.downloadPrivateFile.mockResolvedValueOnce(bytes)
-    await expect(service.downloadProof(actor, projectId, activityId, updateId)).resolves.toEqual({
+    await expect(
+      evidenceService.downloadProof(actor, projectId, activityId, updateId),
+    ).resolves.toEqual({
       fileName: 'proof.jpg',
       contentType: 'image/jpeg',
       body: bytes,
@@ -225,7 +237,7 @@ describe('P05 activity proof authorization', () => {
     tx.evidenceMedia.findFirst.mockResolvedValueOnce({ ...proof, sha256: '0'.repeat(64) })
     storage.downloadPrivateFile.mockResolvedValueOnce(bytes)
     await expect(
-      service.downloadProof(actor, projectId, activityId, updateId),
+      evidenceService.downloadProof(actor, projectId, activityId, updateId),
     ).rejects.toBeInstanceOf(NotFoundException)
   })
 
@@ -515,7 +527,7 @@ describe('P05 activity proof authorization', () => {
   it('does not disclose a guessed proof identifier outside the scoped activity', async () => {
     tx.evidenceMedia.findFirst.mockResolvedValueOnce(null)
     await expect(
-      service.downloadProof(actor, projectId, activityId, updateId),
+      evidenceService.downloadProof(actor, projectId, activityId, updateId),
     ).rejects.toBeInstanceOf(NotFoundException)
     expect(storage.downloadPrivateFile).not.toHaveBeenCalled()
   })
@@ -530,7 +542,7 @@ describe('P05 activity proof authorization', () => {
       evidenceMedia_update: [{ id: 'proof', storageReady: true, status: 'PENDING' }],
     })
     await expect(
-      service.reviewUpdate(actor, projectId, activityId, updateId, {
+      reviewService.reviewUpdate(actor, projectId, activityId, updateId, {
         decision: 'APPROVE',
         reason: 'Not allowed',
         clientMutationId: 'e0000000-0000-4000-8000-000000000001',
@@ -573,7 +585,8 @@ describe('Activity creation contract authorization', () => {
     activityOverdueExplanation_activity: [],
     activityJourneyStageMapping_activity: [{ stageId }],
   }
-  const service = new ActivitiesService({} as PrismaService, storage as unknown as StorageService)
+  const service = new ActivitiesService({} as PrismaService)
+  const lifecycleService = new ActivityLifecycleService({} as PrismaService)
 
   beforeEach(() => {
     vi.clearAllMocks()
@@ -608,7 +621,7 @@ describe('Activity creation contract authorization', () => {
   })
 
   it('round-trips repaired fields, Project Officers, optional links, and decimal budget', async () => {
-    const created = await service.create(projectManager, projectId, input())
+    const created = await lifecycleService.create(projectManager, projectId, input())
     expect(created).toMatchObject({
       targetBeneficiaries: 50,
       budgetAllocation: '25000.25',
@@ -652,41 +665,41 @@ describe('Activity creation contract authorization', () => {
 
   it('accepts explicitly blank indicator and journey links', async () => {
     const blank = { ...input(), indicatorIds: [], journeyStageId: null }
-    await expect(service.create(projectManager, projectId, blank)).resolves.toBeDefined()
+    await expect(lifecycleService.create(projectManager, projectId, blank)).resolves.toBeDefined()
     expect(tx.activityIndicatorLink.createMany).not.toHaveBeenCalled()
     expect(tx.activityJourneyStageMapping.create).not.toHaveBeenCalled()
   })
 
   it('rejects an assignee who is not an active Project Officer on the project', async () => {
     tx.userProjectAssignment.findMany.mockResolvedValueOnce([])
-    await expect(service.create(projectManager, projectId, input())).rejects.toBeInstanceOf(
-      BadRequestException,
-    )
+    await expect(
+      lifecycleService.create(projectManager, projectId, input()),
+    ).rejects.toBeInstanceOf(BadRequestException)
     expect(tx.projectActivity.create).not.toHaveBeenCalled()
   })
 
   it('rejects a cross-project indicator', async () => {
     tx.projectIndicator.findMany.mockResolvedValueOnce([])
-    await expect(service.create(projectManager, projectId, input())).rejects.toBeInstanceOf(
-      BadRequestException,
-    )
+    await expect(
+      lifecycleService.create(projectManager, projectId, input()),
+    ).rejects.toBeInstanceOf(BadRequestException)
     expect(tx.projectActivity.create).not.toHaveBeenCalled()
   })
 
   it('rejects a cross-project journey stage', async () => {
     tx.journeyStage.findFirst.mockResolvedValueOnce(null)
-    await expect(service.create(projectManager, projectId, input())).rejects.toBeInstanceOf(
-      BadRequestException,
-    )
+    await expect(
+      lifecycleService.create(projectManager, projectId, input()),
+    ).rejects.toBeInstanceOf(BadRequestException)
     expect(tx.projectActivity.create).not.toHaveBeenCalled()
   })
 
   it('requires a justification only when Activity dates leave the Project timeline', async () => {
     const invalid = input()
     ;(invalid as Partial<typeof invalid>).timelineOverrideJustification = undefined
-    await expect(service.create(projectManager, projectId, invalid)).rejects.toBeInstanceOf(
-      BadRequestException,
-    )
+    await expect(
+      lifecycleService.create(projectManager, projectId, invalid),
+    ).rejects.toBeInstanceOf(BadRequestException)
     expect(tx.userProjectAssignment.findMany).not.toHaveBeenCalled()
   })
 
@@ -698,7 +711,7 @@ describe('Activity creation contract authorization', () => {
   it('updates with one project-scope query and one scoped activity read-back', async () => {
     tx.projectActivity.updateMany.mockResolvedValue({ count: 1 })
     await expect(
-      service.update(projectManager, projectId, activityId, updateInput()),
+      lifecycleService.update(projectManager, projectId, activityId, updateInput()),
     ).resolves.toMatchObject({ id: activityId })
     expect(tx.project.findFirst).toHaveBeenCalledOnce()
     expect(tx.projectActivity.findFirst).toHaveBeenCalledTimes(2)
@@ -709,7 +722,7 @@ describe('Activity creation contract authorization', () => {
   it('denies an update outside project scope before reading or writing the activity', async () => {
     tx.project.findFirst.mockResolvedValueOnce(null)
     await expect(
-      service.update(projectManager, projectId, activityId, updateInput()),
+      lifecycleService.update(projectManager, projectId, activityId, updateInput()),
     ).rejects.toBeInstanceOf(NotFoundException)
     expect(tx.projectActivity.findFirst).not.toHaveBeenCalled()
     expect(tx.projectActivity.updateMany).not.toHaveBeenCalled()
@@ -717,7 +730,7 @@ describe('Activity creation contract authorization', () => {
 
   it('transitions with one project-scope query and one scoped activity read-back', async () => {
     tx.projectActivity.updateMany.mockResolvedValue({ count: 1 })
-    await service.transition(projectManager, projectId, activityId, {
+    await lifecycleService.transition(projectManager, projectId, activityId, {
       status: 'IN_PROGRESS',
       clientMutationId: 'e0000000-0000-4000-8000-000000000002',
       expectedUpdatedAt: repairedActivity.updatedAt.toISOString(),
@@ -735,7 +748,7 @@ describe('Activity creation contract authorization', () => {
   it('denies a transition for a cross-project activity id', async () => {
     tx.projectActivity.findFirst.mockResolvedValueOnce(null)
     await expect(
-      service.transition(projectManager, projectId, activityId, {
+      lifecycleService.transition(projectManager, projectId, activityId, {
         status: 'CANCELLED',
         reason: 'Synthetic',
         clientMutationId: 'e0000000-0000-4000-8000-000000000003',
@@ -747,9 +760,9 @@ describe('Activity creation contract authorization', () => {
 
   it('hides an unauthorized or cross-organization Project before Activity creation', async () => {
     tx.project.findFirst.mockResolvedValueOnce(null)
-    await expect(service.create(projectManager, projectId, input())).rejects.toBeInstanceOf(
-      NotFoundException,
-    )
+    await expect(
+      lifecycleService.create(projectManager, projectId, input()),
+    ).rejects.toBeInstanceOf(NotFoundException)
     expect(tx.projectActivity.create).not.toHaveBeenCalled()
   })
 })

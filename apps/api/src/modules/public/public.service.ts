@@ -7,17 +7,18 @@ import {
   NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common'
+import {
+  type PublicProjectResponse,
+  type PublicationOperation,
+  publicProjectResponse,
+  publicationTransitionRequest,
+} from '@pathways/shared'
 import { Prisma } from '@prisma/client'
 import { z } from 'zod'
+import type { ApplicationIdentity } from '../../common/authz/application-identity'
+import { withAuthorizedOperation } from '../../common/authz/authorized-operation'
+import { requireScopedProject } from '../../common/authz/scoped-project'
 import { PrismaService } from '../../prisma/prisma.service'
-import { projectScope } from '../auth/authorized-data.service'
-import { withAuthorizedOperation } from '../auth/authorized-operation'
-import type { ApplicationIdentity } from '../auth/developer-access'
-import {
-  type PublicationOperation,
-  publicProjectSchema,
-  publicationInputSchema,
-} from './public.dto'
 
 type PublicationRow = {
   revision: number
@@ -53,11 +54,11 @@ export class PublicService {
       .safeParse({ offset, limit })
     if (!page.success) throw new BadRequestException('Invalid public page.')
     // This fixed entrypoint exposes only approved snapshots; no staff identity or source DTO is read.
-    let projects: z.infer<typeof publicProjectSchema>[]
+    let projects: PublicProjectResponse[]
     try {
       const [row] = await this.prisma.$queryRaw<Array<{ projects: unknown }>>`
         SELECT pathways.p34_public_projects(${projectId ?? null}::uuid,${offset}::integer,${limit}::integer) AS projects`
-      projects = z.array(publicProjectSchema).max(100).parse(row?.projects)
+      projects = z.array(publicProjectResponse).max(100).parse(row?.projects)
     } catch {
       // Anonymous callers get a fixed outage response, never a database diagnostic.
       throw new ServiceUnavailableException('Public information is temporarily unavailable.')
@@ -66,24 +67,9 @@ export class PublicService {
     return projectId ? projects[0] : projects
   }
 
-  private async requireProject(
-    tx: Prisma.TransactionClient,
-    actor: ApplicationIdentity,
-    projectId: string,
-  ) {
-    if (!z.string().uuid().safeParse(projectId).success)
-      throw new NotFoundException('Project unavailable.')
-    const project = await tx.project.findFirst({
-      where: { AND: [projectScope(actor), { id: projectId }] },
-      select: { id: true },
-    })
-    if (!project) throw new NotFoundException('Project unavailable.')
-    return project.id
-  }
-
   get(identity: ApplicationIdentity, projectId: string) {
     return withAuthorizedOperation(this.prisma, identity, 'public.preview', async (tx, actor) => {
-      const canonicalProjectId = await this.requireProject(tx, actor, projectId)
+      const canonicalProjectId = await requireScopedProject(tx, actor, projectId)
       const [row] = await tx.$queryRaw<
         PublicationRow[]
       >(Prisma.sql`SELECT ${rowSelection} FROM pathways.project_publications
@@ -98,7 +84,7 @@ export class PublicService {
     operation: PublicationOperation,
     input: unknown,
   ) {
-    const parsed = publicationInputSchema.safeParse(input)
+    const parsed = publicationTransitionRequest.safeParse(input)
     if (!parsed.success || (operation === 'SUBMIT') !== (parsed.data.summary !== undefined))
       throw new BadRequestException('Invalid publication request.')
     const body = { ...parsed.data, clientRequestId: parsed.data.clientRequestId.toLowerCase() }
@@ -107,7 +93,7 @@ export class PublicService {
       identity,
       permissions[operation],
       async (tx, actor) => {
-        const projectId = await this.requireProject(tx, actor, requestedProjectId)
+        const projectId = await requireScopedProject(tx, actor, requestedProjectId)
         const hash = createHash('sha256')
           .update(
             JSON.stringify({

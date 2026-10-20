@@ -4,10 +4,10 @@ import { useRouter } from 'next/navigation'
 
 import { AsyncState } from '@/components/pathways'
 import { useCurrentRole } from '@/hooks/use-current-role'
-import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
-import { pathwaysClient } from '@/lib/services/pathways-client'
-import { useAuthorizedRead } from '@/providers/authorized-query-provider'
+import { principalHasAtomicPermission } from '@/lib/rbac/policy'
 import type { PathwaysRole } from '@/types/pathways-role'
+
+import { useDashboardActionCounts } from '../dashboard.reads'
 import { ManagerOverview } from './manager-overview'
 import { MeOverview } from './me-overview'
 import { OfficerOverview } from './officer-overview'
@@ -34,13 +34,7 @@ export const RoleOverviewDashboard = ({
   )
   const { metrics, reads } = useProjectMetrics(read.data?.projects ?? [], role)
   // Overdue and For review tiles reuse the existing action counts read.
-  const counts = useAuthorizedRead(
-    'dashboard-action-counts',
-    null,
-    'projects.read',
-    () => pathwaysClient.getDashboardActionCounts(),
-    role === 'Project Manager',
-  )
+  const counts = useDashboardActionCounts(role === 'Project Manager')
   if (!read.eligible)
     return (
       <AsyncState

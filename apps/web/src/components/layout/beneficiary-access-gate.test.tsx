@@ -221,7 +221,7 @@ describe('BeneficiaryAccessGate (STEP_UP_PIN_UI_ENABLED false)', () => {
 })
 
 // The PIN fallback UI is hidden behind STEP_UP_PIN_UI_ENABLED (see
-// apps/web/src/constants/feature-flags.ts and docs/deferred-features.md). These tests
+// apps/web/src/constants/feature-flags.ts and vault note deferred-features). These tests
 // exercise the same gate with the flag forced on, so the underlying PIN behaviour the
 // API still enforces stays covered while the flag is off in the running app.
 describe('BeneficiaryAccessGate PIN fallback (cr-pathways-beneficiary-step-up-pin, flag on)', () => {

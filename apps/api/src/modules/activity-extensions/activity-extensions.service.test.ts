@@ -1,19 +1,18 @@
 import 'reflect-metadata'
 
-import { rolePermissions } from '@app/modules/auth/authorization-policy'
-import { withAuthorizedOperation } from '@app/modules/auth/authorized-operation'
-import type { ApplicationIdentity } from '@app/modules/auth/developer-access'
+import type { ApplicationIdentity } from '@app/common/authz/application-identity'
+import { withAuthorizedOperation } from '@app/common/authz/authorized-operation'
 import {
   beginRuleSourceOperation,
   finishRuleSourceOperation,
 } from '@app/modules/rules/rules-source-operation'
 import type { PrismaService } from '@app/prisma/prisma.service'
-import { activityExtensionSchema } from '@pathways/shared'
+import { activityExtensionResponse, rolePermissions } from '@pathways/shared'
 import type { Prisma } from '@prisma/client'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ActivityExtensionsService } from './activity-extensions.service'
 
-vi.mock('@app/modules/auth/authorized-operation', () => ({ withAuthorizedOperation: vi.fn() }))
+vi.mock('@app/common/authz/authorized-operation', () => ({ withAuthorizedOperation: vi.fn() }))
 vi.mock('@app/modules/rules/rules-source-operation', async (original) => ({
   ...(await original<typeof import('@app/modules/rules/rules-source-operation')>()),
   beginRuleSourceOperation: vi.fn(),
@@ -151,7 +150,7 @@ describe('ActivityExtensionsService.request', () => {
     tx.projectActivityAssignment.findFirst.mockResolvedValue(null)
     await expect(
       service.request(actor('PROJECT_OFFICER', officer), project, activityId, requestBody),
-    ).rejects.toMatchObject({ status: 403 })
+    ).rejects.toThrow('An active activity assignment is required.')
     expect(tx.activityExtensionRequest.create).not.toHaveBeenCalled()
   })
 
@@ -174,7 +173,7 @@ describe('ActivityExtensionsService.request', () => {
       activityId,
       requestBody,
     )
-    expect(activityExtensionSchema.parse(result).id).toBe(requestId)
+    expect(activityExtensionResponse.parse(result).id).toBe(requestId)
     expect(tx.activityExtensionRequest.create).not.toHaveBeenCalled()
   })
 

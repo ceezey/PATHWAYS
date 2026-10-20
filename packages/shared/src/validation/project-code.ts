@@ -28,7 +28,11 @@ const abbreviate = (value: string, max: number) => {
 }
 
 /** Readable project code such as CRL-NS-2026: title initials, area initials and start year. */
-export function projectCodeBase(input: { title: string; area?: string; startDate?: string }) {
+export function projectCodeBase(input: {
+  title: string
+  area?: string | null
+  startDate?: string | null
+}) {
   const [name, suffix] = input.title.split(/\s+[-–—]\s+/)
   // The province is the last comma part of the area, falling back to the title's location suffix.
   const place = input.area?.split(',').pop()?.trim() || suffix || ''

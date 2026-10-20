@@ -1,4 +1,4 @@
-import { ProjectWorkspaceFrame } from '@/features/projects/project-workspace-frame'
+import { ProjectWorkspaceFrame } from '@/features/projects'
 
 // The frame renders once for every tab; each tab page keeps its own route access check.
 export default async function ProjectWorkspaceLayout({

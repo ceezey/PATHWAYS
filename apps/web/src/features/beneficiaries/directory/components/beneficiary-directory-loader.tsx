@@ -1,0 +1,108 @@
+'use client'
+
+import { UsersRound } from 'lucide-react'
+import { useEffect, useState } from 'react'
+
+import { AsyncState } from '@/components/pathways'
+import { useCurrentRole } from '@/hooks/use-current-role'
+import { activitiesClient } from '@/lib/api/activities'
+import { beneficiariesClient } from '@/lib/api/beneficiaries'
+import { journeysClient } from '@/lib/api/journeys'
+import { projectsClient } from '@/lib/api/projects'
+import type {
+  ActivitySummary,
+  BeneficiaryRecord,
+  JourneyStageConfig,
+  ProjectSummary,
+} from '@/types/pathways'
+
+import { BeneficiaryDirectory } from './beneficiary-directory'
+
+type DirectoryData = {
+  beneficiaries: BeneficiaryRecord[]
+  projects: ProjectSummary[]
+  activities: ActivitySummary[]
+  stages: JourneyStageConfig[]
+}
+
+const emptyDirectoryData: DirectoryData = {
+  beneficiaries: [],
+  projects: [],
+  activities: [],
+  stages: [],
+}
+
+export const BeneficiaryDirectoryLoader = () => {
+  const { role } = useCurrentRole()
+  const [data, setData] = useState<DirectoryData>(emptyDirectoryData)
+  const [loading, setLoading] = useState(true)
+  const [failed, setFailed] = useState(false)
+  const [loadAttempt, setLoadAttempt] = useState(0)
+
+  useEffect(() => {
+    if (!role) return
+    const verifiedRole = role
+    void loadAttempt
+    let active = true
+
+    const loadDirectory = async () => {
+      setLoading(true)
+      setFailed(false)
+
+      try {
+        const projects = await projectsClient.getProjectsForRole(verifiedRole)
+        const [beneficiaryGroups, activityGroups, stageGroups] = await Promise.all([
+          Promise.all(
+            projects.map((project) =>
+              beneficiariesClient.getBeneficiaryRecordsForRole(verifiedRole, project.id),
+            ),
+          ),
+          Promise.all(projects.map((project) => activitiesClient.getActivities(project.id))),
+          Promise.all(projects.map((project) => journeysClient.getJourneyStages(project.id))),
+        ])
+
+        if (active) {
+          setData({
+            beneficiaries: beneficiaryGroups.flat(),
+            projects,
+            activities: activityGroups.flat(),
+            stages: stageGroups.flat(),
+          })
+        }
+      } catch {
+        if (active) {
+          setFailed(true)
+          setData(emptyDirectoryData)
+        }
+      } finally {
+        if (active) {
+          setLoading(false)
+        }
+      }
+    }
+
+    void loadDirectory()
+
+    return () => {
+      active = false
+    }
+  }, [loadAttempt, role])
+
+  if (loading) {
+    return <AsyncState icon={UsersRound} status="loading" title="Loading Beneficiary records" />
+  }
+
+  if (failed) {
+    return (
+      <AsyncState
+        description="The scoped records could not be loaded. Check your connection and try again."
+        icon={UsersRound}
+        onRetry={() => setLoadAttempt((attempt) => attempt + 1)}
+        status="error"
+        title="Beneficiary records unavailable"
+      />
+    )
+  }
+
+  return <BeneficiaryDirectory {...data} />
+}

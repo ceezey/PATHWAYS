@@ -6,13 +6,12 @@ import type { Reflector } from '@nestjs/core'
 import { AUTH_BOUNDARY_KEY } from '../../common/decorators/auth-boundary.decorator'
 import { PERMISSION_KEY } from '../../common/decorators/permission.decorator'
 import { IS_PUBLIC_KEY } from '../../common/decorators/public.decorator'
-import { ROLES_KEY } from '../../common/decorators/roles.decorator'
 import { machineRequestEntry } from '../../common/network/machine-request-budget'
 
 export const MACHINE_PURPOSE = 'pathways:rules-machine-purpose'
 export type Purpose = 'DRAIN' | 'SWEEP'
 export type MachineConfig = Readonly<{ enabled: boolean; drainToken: string; sweepToken: string }>
-export type Binding = Readonly<{
+type Binding = Readonly<{
   controller: Type<object>
   handler: (...args: never[]) => unknown
   purpose: Purpose
@@ -86,7 +85,7 @@ export class RulesMachineBoundary {
     )
       deny()
     for (const target of [controller, handler]) {
-      for (const key of [IS_PUBLIC_KEY, AUTH_BOUNDARY_KEY, PERMISSION_KEY, ROLES_KEY]) {
+      for (const key of [IS_PUBLIC_KEY, AUTH_BOUNDARY_KEY, PERMISSION_KEY]) {
         if (this.reflector.get<unknown>(key, target) !== undefined) deny()
       }
     }

@@ -1,6 +1,6 @@
 import { clearSensitiveDraftStorage } from '@/lib/auth/sensitive-drafts'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { sourceMutationTickets } from './source-mutation'
+import { sourceMutationTickets } from '../api/core/source-mutation'
 
 const mutationId = '20000000-0000-4000-8000-000000000001'
 const mutationContext = { principalKey: 'synthetic-owner', isCurrent: () => true }
@@ -16,13 +16,17 @@ vi.mock('@/lib/supabase/client', () => ({
   getBrowserSupabaseClient: () => ({ auth: { getSession: browser.getSession } }),
 }))
 
+import { activitiesClient } from '@/lib/api/activities'
+import { beneficiariesClient } from '@/lib/api/beneficiaries'
 import {
   PathwaysClientError,
-  pathwaysClient,
-  recoverSourceMutation,
   requestFoundation,
   requestFoundationResponse,
-} from './pathways-client'
+} from '@/lib/api/core/request'
+import { formsClient } from '@/lib/api/forms'
+import { importsClient } from '@/lib/api/imports'
+import { projectsClient } from '@/lib/api/projects'
+import { recoverSourceMutation } from './pathways-client'
 
 describe('PATHWAYS frontend data boundary', () => {
   const setupSourceBrowser = () => {
@@ -60,8 +64,8 @@ describe('PATHWAYS frontend data boundary', () => {
         new Response(JSON.stringify({ requestId: mutationId, committed: true, replayed: true })),
       )
     vi.stubGlobal('fetch', fetcher)
-    await expect(pathwaysClient.createActivity(input, mutationContext)).rejects.toThrow()
-    const replay = await pathwaysClient.createActivity(input, mutationContext)
+    await expect(activitiesClient.createActivity(input, mutationContext)).rejects.toThrow()
+    const replay = await activitiesClient.createActivity(input, mutationContext)
     expect(replay).toEqual({ requestId: mutationId, committed: true, replayed: true })
     expect(replay).not.toHaveProperty('id')
     expect(fetcher.mock.calls[0][1].body).toBe(fetcher.mock.calls[1][1].body)
@@ -85,7 +89,7 @@ describe('PATHWAYS frontend data boundary', () => {
       )
     vi.stubGlobal('fetch', fetcher)
     await expect(
-      pathwaysClient.reviewActivityUpdate(
+      activitiesClient.reviewActivityUpdate(
         projectId,
         activityId,
         updateId,
@@ -110,36 +114,6 @@ describe('PATHWAYS frontend data boundary', () => {
     })
     expect(sourceMutationTickets.pendingRecovery(mutationContext, key)).not.toBeNull()
   })
-  it('clears retained multipart note/files immediately through the existing logout lifecycle and never enables generic proof abandonment', async () => {
-    setupSourceBrowser()
-    const projectId = '73600000-0000-4000-8000-000000000004'
-    const activityId = '73600000-0000-4000-8000-000000000005'
-    const file = new File(['Synthetic'], 'synthetic.txt', { type: 'text/plain' })
-    const fetcher = vi.fn().mockRejectedValue(Error('response lost'))
-    vi.stubGlobal('fetch', fetcher)
-    await expect(
-      pathwaysClient.submitActivityProof(
-        {
-          projectId,
-          activityId,
-          clientUpdateId: mutationId,
-          progress: 20,
-          note: 'Synthetic',
-          files: [file],
-        },
-        mutationContext,
-      ),
-    ).rejects.toThrow()
-    const key = `POST:/projects/${projectId}/activities/${activityId}/updates`
-    expect(sourceMutationTickets.proofSnapshot(mutationContext, key)?.files[0]).toBe(file)
-    await expect(recoverSourceMutation(mutationContext, key)).rejects.toThrow(
-      'does not support recovery',
-    )
-    expect(fetcher).toHaveBeenCalledOnce()
-    clearSensitiveDraftStorage()
-    expect(sourceMutationTickets.proofSnapshot(mutationContext, key)).toBeNull()
-    expect(sourceMutationTickets.pendingRecovery(mutationContext, key)).toBeNull()
-  })
   it('checks the captured live mutation owner again after asynchronous token acquisition before dispatching private input', async () => {
     const { authUserId } = setupSourceBrowser()
     let live = true
@@ -152,7 +126,7 @@ describe('PATHWAYS frontend data boundary', () => {
     )
     const fetcher = vi.fn()
     vi.stubGlobal('fetch', fetcher)
-    const request = pathwaysClient.createActivity(
+    const request = activitiesClient.createActivity(
       {
         projectId: '73600000-0000-4000-8000-000000000004',
         title: 'Synthetic private title',
@@ -245,10 +219,10 @@ describe('PATHWAYS frontend data boundary', () => {
     vi.stubGlobal('fetch', fetcher)
     const controller = new AbortController()
     expect(
-      (await pathwaysClient.getProject(projectId, controller.signal)).targetBeneficiaries,
+      (await projectsClient.getProject(projectId, controller.signal)).targetBeneficiaries,
     ).toBeUndefined()
     expect(
-      (await pathwaysClient.getProject(projectId, controller.signal)).targetBeneficiaries,
+      (await projectsClient.getProject(projectId, controller.signal)).targetBeneficiaries,
     ).toBe(0)
     expect(fetcher.mock.calls.every((call) => call[1].signal === controller.signal)).toBe(true)
   })
@@ -262,33 +236,10 @@ describe('PATHWAYS frontend data boundary', () => {
     vi.restoreAllMocks()
   })
 
-  it('does not fabricate collection records while remaining domain endpoints are unavailable', async () => {
-    // Published projects are read over the network; keep a locally running API out of this test.
-    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(Error('network unavailable')))
-    const collections = await Promise.allSettled([
-      pathwaysClient.getExpenses('project-id'),
-      pathwaysClient.getRecommendationOutcomes('project-id'),
-      pathwaysClient.getTransparencySections('project-id'),
-      pathwaysClient.getBudgets(),
-      pathwaysClient.getAlerts(),
-      pathwaysClient.getRecommendations(),
-      pathwaysClient.getRules(),
-      pathwaysClient.getReports(),
-      pathwaysClient.getSurveyForms(),
-      pathwaysClient.getSurveyAggregateResults(),
-      pathwaysClient.getAnalyticsLocations(),
-      pathwaysClient.getPublicProjects(),
-    ])
-
-    expect(collections.every((result) => result.status === 'rejected')).toBe(true)
-    expect(
-      collections.every(
-        (result) => result.status === 'rejected' && result.reason instanceof PathwaysClientError,
-      ),
-    ).toBe(true)
-    await expect(pathwaysClient.getBeneficiaryRecordsForRole('Program Manager')).resolves.toEqual(
-      [],
-    )
+  it('returns no beneficiary records without a project scope', async () => {
+    await expect(
+      beneficiariesClient.getBeneficiaryRecordsForRole('Program Manager'),
+    ).resolves.toEqual([])
   })
 
   it('loads and creates activities through the scoped API without requiring relationship links', async () => {
@@ -358,12 +309,12 @@ describe('PATHWAYS frontend data boundary', () => {
       )
     vi.stubGlobal('fetch', fetcher)
 
-    const [loaded] = await pathwaysClient.getActivities(projectId)
+    const [loaded] = await activitiesClient.getActivities(projectId)
     expect(loaded).toMatchObject({ id: activity.id, indicatorIds: [], journeyStageId: '' })
     expect(loaded).not.toHaveProperty('targetGoal')
     expect(loaded).not.toHaveProperty('projectGoalComparison')
     expect(loaded).not.toHaveProperty('internalAuditSalt')
-    await pathwaysClient.createActivity(
+    await activitiesClient.createActivity(
       {
         projectId,
         title: activity.title,
@@ -400,11 +351,10 @@ describe('PATHWAYS frontend data boundary', () => {
   })
 
   it('requires a verified browser session for implemented foundation reads', async () => {
-    await expect(pathwaysClient.getProject('project-id')).rejects.toMatchObject({
+    await expect(projectsClient.getProject('project-id')).rejects.toMatchObject({
       code: 'unauthorized',
     })
-    await expect(pathwaysClient.getProjects()).rejects.toMatchObject({ code: 'unauthorized' })
-    await expect(pathwaysClient.getUsers()).rejects.toMatchObject({ code: 'unauthorized' })
+    await expect(projectsClient.getProjects()).rejects.toMatchObject({ code: 'unauthorized' })
   })
 
   it('uses the current session and non-authoritative workspace selectors for a real API read', async () => {
@@ -452,7 +402,7 @@ describe('PATHWAYS frontend data boundary', () => {
     )
     vi.stubGlobal('fetch', fetcher)
 
-    const projects = await pathwaysClient.getProjects()
+    const projects = await projectsClient.getProjects()
     // Metrics come only from the overview endpoint; the profile never fabricates zeros.
     for (const project of projects)
       for (const key of [
@@ -557,7 +507,7 @@ describe('PATHWAYS frontend data boundary', () => {
     vi.stubGlobal('fetch', fetcher)
 
     await expect(
-      pathwaysClient.createProject({
+      projectsClient.createProject({
         title: project.title,
         description: project.description,
         objectives: project.objectives,
@@ -577,7 +527,7 @@ describe('PATHWAYS frontend data boundary', () => {
       storedStatus: 'PLANNED',
     })
     await expect(
-      pathwaysClient.updateProject(
+      projectsClient.updateProject(
         projectId,
         {
           code: project.code,
@@ -627,15 +577,6 @@ describe('PATHWAYS frontend data boundary', () => {
     expect(fetcher.mock.calls[1]?.[0]).toBe(`http://127.0.0.1:4000/api/projects/${projectId}`)
   })
 
-  it('reports unfinished record reads as explicitly not configured', async () => {
-    await expect(pathwaysClient.getPublicProject('project-id')).rejects.toBeInstanceOf(
-      PathwaysClientError,
-    )
-    await expect(pathwaysClient.getDashboard('Program Manager')).rejects.toMatchObject({
-      code: 'unauthorized',
-    })
-  })
-
   it('preserves bounded server field errors for direct-entry correction', async () => {
     const authUserId = '74000000-0000-4000-8000-000000000001'
     const organizationId = '74000000-0000-4000-8000-000000000002'
@@ -672,7 +613,7 @@ describe('PATHWAYS frontend data boundary', () => {
     )
 
     await expect(
-      pathwaysClient.saveDirectSubmission(
+      formsClient.saveDirectSubmission(
         '74000000-0000-4000-8000-000000000004',
         '74000000-0000-4000-8000-000000000005',
         '74000000-0000-4000-8000-000000000006',
@@ -715,7 +656,7 @@ describe('PATHWAYS frontend data boundary', () => {
       ),
     )
 
-    await expect(pathwaysClient.getProject(projectId)).rejects.toMatchObject({
+    await expect(projectsClient.getProject(projectId)).rejects.toMatchObject({
       code: 'forbidden',
       message: 'A Project Manager cannot remove their own project authority.',
     })
@@ -750,7 +691,7 @@ describe('PATHWAYS frontend data boundary', () => {
       ),
     )
 
-    await expect(pathwaysClient.getProject(projectId)).rejects.toMatchObject({
+    await expect(projectsClient.getProject(projectId)).rejects.toMatchObject({
       code: 'invalid',
       message: 'startDate must be a valid ISO 8601 date string',
     })
@@ -781,7 +722,7 @@ describe('PATHWAYS frontend data boundary', () => {
       ),
     )
 
-    await expect(pathwaysClient.getProject(projectId)).rejects.toMatchObject({
+    await expect(projectsClient.getProject(projectId)).rejects.toMatchObject({
       code: 'network',
       message: 'The requested operation could not be completed.',
     })
@@ -811,7 +752,7 @@ describe('PATHWAYS frontend data boundary', () => {
     })
   })
 
-  it('uses the scoped paginated draft-list and persisted-submission routes', async () => {
+  it('reads one persisted submission through the scoped route', async () => {
     const authUserId = '74100000-0000-4000-8000-000000000001'
     const organizationId = '74100000-0000-4000-8000-000000000002'
     const userId = '74100000-0000-4000-8000-000000000003'
@@ -826,36 +767,24 @@ describe('PATHWAYS frontend data boundary', () => {
       data: { session: { access_token: 'synthetic-access-token', user: { id: authUserId } } },
       error: null,
     })
-    const fetcher = vi
-      .fn()
-      .mockResolvedValueOnce(
-        new Response(JSON.stringify({ offset: 5, limit: 5, total: 6, items: [] }), {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
+    const fetcher = vi.fn().mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          id: submissionId,
+          status: 'DRAFT',
+          formId,
+          formVersion: 1,
+          updatedAt: '2026-09-23T00:00:00.000Z',
+          values: { score: 42 },
         }),
-      )
-      .mockResolvedValueOnce(
-        new Response(
-          JSON.stringify({
-            id: submissionId,
-            status: 'DRAFT',
-            formId,
-            formVersion: 1,
-            updatedAt: '2026-09-23T00:00:00.000Z',
-            values: { score: 42 },
-          }),
-          { status: 200, headers: { 'Content-Type': 'application/json' } },
-        ),
-      )
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      ),
+    )
     vi.stubGlobal('fetch', fetcher)
 
-    await pathwaysClient.listDirectSubmissions(projectId, formId, 5, 5)
-    await pathwaysClient.getDirectSubmission(projectId, formId, submissionId)
+    await formsClient.getDirectSubmission(projectId, formId, submissionId)
 
     expect(fetcher.mock.calls[0]?.[0]).toBe(
-      `http://127.0.0.1:4000/api/metadata/projects/${projectId}/forms/${formId}/submissions?offset=5&limit=5`,
-    )
-    expect(fetcher.mock.calls[1]?.[0]).toBe(
       `http://127.0.0.1:4000/api/metadata/projects/${projectId}/forms/${formId}/submissions/${submissionId}`,
     )
   })
@@ -883,7 +812,7 @@ describe('PATHWAYS frontend data boundary', () => {
     vi.stubGlobal('fetch', fetcher)
     const source = new File(['score\n0\n'], 'scores.csv', { type: 'text/csv' })
 
-    await pathwaysClient.uploadImport(
+    await importsClient.uploadImport(
       '75000000-0000-4000-8000-000000000004',
       '75000000-0000-4000-8000-000000000005',
       '75000000-0000-4000-8000-000000000006',
@@ -933,7 +862,7 @@ describe('PATHWAYS frontend data boundary', () => {
     )
 
     await expect(
-      pathwaysClient.uploadImport(
+      importsClient.uploadImport(
         '76000000-0000-4000-8000-000000000004',
         '76000000-0000-4000-8000-000000000005',
         '76000000-0000-4000-8000-000000000006',
@@ -1000,7 +929,7 @@ describe('project client retired output omission', () => {
         ),
       ),
     )
-    const read = await pathwaysClient.getProject(projectId)
+    const read = await projectsClient.getProject(projectId)
     expect(read).not.toHaveProperty('targetGoal')
     expect(read.targetBeneficiaries).toBe(45)
   })
@@ -1032,7 +961,7 @@ describe('workspace ownership during asynchronous token acquisition', () => {
       )
       const fetcher = vi.fn()
       vi.stubGlobal('fetch', fetcher)
-      const request = pathwaysClient.registerBeneficiary(projectId, {
+      const request = beneficiariesClient.registerBeneficiary(projectId, {
         formId: '72000000-0000-4000-8000-000000000005',
         clientRegistrationId: '72000000-0000-4000-8000-000000000006',
         values: { display_name: 'Actor A entered data' },
@@ -1062,7 +991,7 @@ describe('workspace ownership during asynchronous token acquisition', () => {
     })
     const fetcher = vi.fn().mockResolvedValue({ ok: true, json: async () => [] })
     vi.stubGlobal('fetch', fetcher)
-    await expect(pathwaysClient.getProjects()).resolves.toEqual([])
+    await expect(projectsClient.getProjects()).resolves.toEqual([])
     expect(fetcher).toHaveBeenCalledOnce()
     expect(fetcher.mock.calls[0][1].headers.Authorization).toBe('Bearer synthetic-new-token')
     expect(fetcher.mock.calls[0][1].headers['X-Pathways-Organization-Id']).toBe(organizationId)
@@ -1150,9 +1079,9 @@ describe('Activity proof response parsing', () => {
       contentTypes: ['application/pdf'],
     }
     stubResponse(limits)
-    await expect(pathwaysClient.getActivityProofUploadLimits(projectId)).resolves.toEqual(limits)
+    await expect(activitiesClient.getActivityProofUploadLimits(projectId)).resolves.toEqual(limits)
     stubResponse({ ...limits, extra: true })
-    await expect(pathwaysClient.getActivityProofUploadLimits(projectId)).rejects.toMatchObject({
+    await expect(activitiesClient.getActivityProofUploadLimits(projectId)).rejects.toMatchObject({
       code: 'network',
     })
   })
@@ -1164,7 +1093,7 @@ describe('Activity proof response parsing', () => {
       maxTotalBytes: 1,
       contentTypes: Array.from({ length: 11 }, (_, index) => `type/${index}`),
     })
-    await expect(pathwaysClient.getActivityProofUploadLimits(projectId)).rejects.toMatchObject({
+    await expect(activitiesClient.getActivityProofUploadLimits(projectId)).rejects.toMatchObject({
       code: 'network',
     })
   })
@@ -1188,7 +1117,7 @@ describe('Activity proof response parsing', () => {
     }
     stubResponse(reservation)
     await expect(
-      pathwaysClient.reserveActivityProofUpload({
+      activitiesClient.reserveActivityProofUpload({
         projectId,
         activityId,
         clientUpdateId: 'client-1',
@@ -1217,7 +1146,7 @@ describe('Activity proof response parsing', () => {
       ],
     })
     await expect(
-      pathwaysClient.reserveActivityProofUpload({
+      activitiesClient.reserveActivityProofUpload({
         projectId,
         activityId,
         clientUpdateId: 'client-1',
@@ -1246,7 +1175,7 @@ describe('Activity proof response parsing', () => {
       ],
     })
     await expect(
-      pathwaysClient.reserveActivityProofUpload({
+      activitiesClient.reserveActivityProofUpload({
         projectId,
         activityId,
         clientUpdateId: 'client-1',
@@ -1275,7 +1204,7 @@ describe('Activity proof response parsing', () => {
       ],
     })
     await expect(
-      pathwaysClient.reserveActivityProofUpload({
+      activitiesClient.reserveActivityProofUpload({
         projectId,
         activityId,
         clientUpdateId: 'client-1',
@@ -1302,7 +1231,7 @@ describe('Activity proof response parsing', () => {
       })),
     })
     await expect(
-      pathwaysClient.reserveActivityProofUpload({
+      activitiesClient.reserveActivityProofUpload({
         projectId,
         activityId,
         clientUpdateId: 'client-1',
@@ -1316,7 +1245,7 @@ describe('Activity proof response parsing', () => {
   it('accepts a COMMITTED reservation and a COMMITTED finalize result', async () => {
     stubResponse({ clientUpdateId: 'client-1', status: 'COMMITTED', acknowledgement: { ok: true } })
     await expect(
-      pathwaysClient.reserveActivityProofUpload({
+      activitiesClient.reserveActivityProofUpload({
         projectId,
         activityId,
         clientUpdateId: 'client-1',
@@ -1331,7 +1260,7 @@ describe('Activity proof response parsing', () => {
     })
     stubResponse({ status: 'COMMITTED', acknowledgement: { ok: true } })
     await expect(
-      pathwaysClient.finalizeActivityProofFile(projectId, activityId, 'update-1', 'evidence-1'),
+      activitiesClient.finalizeActivityProofFile(projectId, activityId, 'update-1', 'evidence-1'),
     ).resolves.toEqual({ status: 'COMMITTED', acknowledgement: { ok: true } })
   })
 
@@ -1367,7 +1296,7 @@ describe('Activity proof response parsing', () => {
     }
     stubResponse({ status: 'COMMITTED', activity: committedActivity })
     await expect(
-      pathwaysClient.finalizeActivityProofFile(projectId, activityId, 'update-1', 'evidence-1'),
+      activitiesClient.finalizeActivityProofFile(projectId, activityId, 'update-1', 'evidence-1'),
     ).resolves.toEqual({
       status: 'COMMITTED',
       activity: {
@@ -1391,24 +1320,24 @@ describe('Activity proof response parsing', () => {
       acknowledgement: { ok: true },
     })
     await expect(
-      pathwaysClient.finalizeActivityProofFile(projectId, activityId, 'update-1', 'evidence-1'),
+      activitiesClient.finalizeActivityProofFile(projectId, activityId, 'update-1', 'evidence-1'),
     ).rejects.toMatchObject({ code: 'network' })
     // An `activity` payload missing sourceAcknowledgement is rejected.
     const { sourceAcknowledgement: _drop, ...withoutAcknowledgement } = committedActivity
     stubResponse({ status: 'COMMITTED', activity: withoutAcknowledgement })
     await expect(
-      pathwaysClient.finalizeActivityProofFile(projectId, activityId, 'update-1', 'evidence-1'),
+      activitiesClient.finalizeActivityProofFile(projectId, activityId, 'update-1', 'evidence-1'),
     ).rejects.toMatchObject({ code: 'network' })
   })
 
   it('rejects a finalize response with an out-of-range remaining count and a wrong-typed field', async () => {
     stubResponse({ status: 'UPLOADING', updateId: 'update-1', remaining: -1 })
     await expect(
-      pathwaysClient.finalizeActivityProofFile(projectId, activityId, 'update-1', 'evidence-1'),
+      activitiesClient.finalizeActivityProofFile(projectId, activityId, 'update-1', 'evidence-1'),
     ).rejects.toMatchObject({ code: 'network' })
     stubResponse({ status: 'UPLOADING', updateId: 42, remaining: 1 })
     await expect(
-      pathwaysClient.finalizeActivityProofFile(projectId, activityId, 'update-1', 'evidence-1'),
+      activitiesClient.finalizeActivityProofFile(projectId, activityId, 'update-1', 'evidence-1'),
     ).rejects.toMatchObject({ code: 'network' })
   })
 })

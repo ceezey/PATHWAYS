@@ -1,17 +1,16 @@
 import 'reflect-metadata'
 
+import type { ApplicationIdentity } from '@app/common/authz/application-identity'
+import { withAuthorizedOperation } from '@app/common/authz/authorized-operation'
 import { PERMISSION_KEY } from '@app/common/decorators/permission.decorator'
-import { rolePermissions } from '@app/modules/auth/authorization-policy'
-import { withAuthorizedOperation } from '@app/modules/auth/authorized-operation'
-import type { ApplicationIdentity } from '@app/modules/auth/developer-access'
 import type { PrismaService } from '@app/prisma/prisma.service'
+import { escalatedAlertOutputSchema, rolePermissions } from '@pathways/shared'
 import type { Prisma } from '@prisma/client'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { escalatedAlertOutputSchema } from './rules-human-contract'
-import { AlertsController } from './rules-human.controller'
+import { AlertsController } from './alerts.controller'
 import { RulesHumanService } from './rules-human.service'
 
-vi.mock('@app/modules/auth/authorized-operation', () => ({ withAuthorizedOperation: vi.fn() }))
+vi.mock('@app/common/authz/authorized-operation', () => ({ withAuthorizedOperation: vi.fn() }))
 
 const id = '10000000-0000-4000-8000-000000000001'
 const alert = {
@@ -22,6 +21,8 @@ const alert = {
   title: 'Schedule risk',
   explanation: 'Remaining days fell below zero.',
   severity: 'HIGH',
+  severityBasis: null,
+  severityChange: null,
   lifecycle: 'REVIEWED',
   revision: '3',
   evaluatedAt: '2026-09-27T01:00:00Z',

@@ -12,7 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import type { CoreArtifact } from '@/lib/services/core-feature-client'
+import type { CoreArtifact } from '@/lib/api/core/artifact-download'
 
 import { AsyncState } from './async-state'
 

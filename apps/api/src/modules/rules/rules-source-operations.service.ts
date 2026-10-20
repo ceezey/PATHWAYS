@@ -1,8 +1,8 @@
 import { BadRequestException, Inject, Injectable } from '@nestjs/common'
 import { z } from 'zod'
+import type { ApplicationIdentity } from '../../common/authz/application-identity'
+import { withAuthorizedOperation } from '../../common/authz/authorized-operation'
 import { PrismaService } from '../../prisma/prisma.service'
-import { withAuthorizedOperation } from '../auth/authorized-operation'
-import type { ApplicationIdentity } from '../auth/developer-access'
 import {
   type SourceRequestKey,
   abandonRuleSourceOperation,

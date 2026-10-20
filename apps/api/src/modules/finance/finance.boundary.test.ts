@@ -1,18 +1,22 @@
 import 'reflect-metadata'
 import { type ExecutionContext, ForbiddenException } from '@nestjs/common'
 import { Reflector } from '@nestjs/core'
+import { hasAtomicPermission } from '@pathways/shared'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { SupabaseAuthGuard } from '../../common/guards/supabase-auth.guard'
+import type {
+  ApplicationIdentity,
+  AuthenticatedRequest,
+} from '../../common/authz/application-identity'
 import type { PrismaService } from '../../prisma/prisma.service'
-import { hasAtomicPermission } from '../auth/authorization-policy'
-import type { ApplicationIdentity, AuthenticatedRequest } from '../auth/developer-access'
-import type { ReceiptPdfRenderer } from '../report-pdf/receipt-pdf.renderer'
+import { SupabaseAuthGuard } from '../auth/guards/supabase-auth.guard'
+import { privateStorageFactories } from '../storage/private-storage-factories'
 import type { StorageService } from '../storage/storage.service'
 import { FinanceController } from './finance.controller'
 import { FinanceService } from './finance.service'
+import type { ReceiptPdfRenderer } from './receipt-pdf.renderer'
 
 const state = vi.hoisted(() => ({ actor: undefined as unknown, tx: undefined as unknown }))
-vi.mock('../auth/authorized-operation', () => ({
+vi.mock('../../common/authz/authorized-operation', () => ({
   withAuthorizedOperation: (
     _db: unknown,
     _identity: unknown,
@@ -35,6 +39,7 @@ const service = new FinanceService(
   {
     render: () => Promise.reject(new Error('Receipt renderer disabled.')),
   } as unknown as ReceiptPdfRenderer,
+  privateStorageFactories,
 )
 const controller = new FinanceController(service)
 let actor: ApplicationIdentity

@@ -1,4 +1,4 @@
-import { cappedPercentParts } from '@/lib/percent'
+import { cappedPercentParts } from '@/lib/format/percent'
 
 /** A capped percent whose overrun note reads as small muted text beside the value. */
 export const CappedPercent = ({

@@ -84,7 +84,7 @@ indicators --> db
 rules --> db
 ```
 
-Domain modules live in `apps/api/src/modules`. The browser reaches domain data only through the API and Prisma. See `docs/sdd-pathways.md` for the full design.
+Domain modules live in `apps/api/src/modules`. The browser reaches domain data only through the API and Prisma. See the vault note `sdd-pathways` for the full design.
 
 ## Tech Stack
 
@@ -92,22 +92,23 @@ Domain modules live in `apps/api/src/modules`. The browser reaches domain data o
 |---|---|
 | Runtime and tooling | Node 22, pnpm 11, TypeScript 5 |
 | Web | Next.js 15 (App Router), React 19, Tailwind CSS 3, TanStack Query, ECharts |
-| API | NestJS 10, Zod, nestjs-pino, helmet, pdfkit |
+| API | NestJS 10, Zod, nestjs-pino, helmet; PDF reports through headless Chromium (puppeteer-core) with a pdfkit fallback |
 | Data | PostgreSQL 17 with row-level security, Prisma 6 |
 | Identity and files | Supabase Auth (including TOTP) and Supabase Storage |
-| Hosting and monitoring | Vercel, Sentry |
+| Hosting and monitoring | Vercel; Sentry on the API |
 | Tests | Vitest, Playwright |
 
-Exact versions are in `docs/sdd-pathways.md` section 2.4 and the `package.json` files.
+Exact versions are in the vault note `sdd-pathways` section 2.4 and the `package.json` files.
 
 ## Quick Start
 
 - Environment setup: [README-setup.md](README-setup.md)
-- Local development commands and rules: [docs/runbook-local-dev.md](docs/runbook-local-dev.md)
-- Validate documentation: `pnpm docs:check`; regenerate `AGENTS.md`, `BRAND.md` and `DESIGN.md` with `pnpm docs:materialize` (never hand-edit them).
+- Run locally on synthetic data (Docker required): `pnpm install`, then `pnpm db:local:start`, `pnpm db:local:reset` and `pnpm dev:local`; sign in at `http://127.0.0.1:3000/staff/login`.
+- Local development commands and rules: [README-setup.md](README-setup.md)
+- Documentation lives in the AI Memory Vault (`C:\AI Agentic Memory`); validate it with `python .vault/scripts/pathways_docs/check.py` and regenerate `AGENTS.md` with `python .vault/scripts/pathways_docs/materialize.py` (run in the vault; never hand-edit `AGENTS.md`).
 
 ## Documentation Map
 
-The full manifest, statuses, traceability, Change Log and Health Check are in [docs/index.md](docs/index.md). Start there, then read [AGENTS.md](AGENTS.md) for agent build rules and the relevant PRD, SDD, DSD, QAD or RFC for the task.
+All docs live in the AI Memory Vault. The full manifest, statuses, traceability, Change Log and Health Check are in the vault project index; [docs/index.md](docs/index.md) points to it and to every vault note. Start there, then read [AGENTS.md](AGENTS.md) for agent build rules and the relevant PRD, SDD, DSD, QAD or RFC for the task.
 
-Branches: `dev` for development, `origin/master` for deployment. SSO and AWS hosting are deferred and need explicit authorization (see `docs/rfc-pathways-aws-hosting-migration.md`, a Draft strategy only).
+Branches: `dev` for development, `origin/master` for deployment. SSO and AWS hosting are deferred and need explicit authorization (see the vault note `rfc-pathways-aws-hosting-migration`, a Draft strategy only).

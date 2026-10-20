@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 
-import { RoleDashboard } from '@/features/dashboard/role-dashboard'
+import { RoleDashboard } from '@/features/dashboard'
 import { type ProtectedPageProps, requireServerPage } from '@/lib/rbac/server-access'
 
 export const metadata: Metadata = { title: 'Staff Dashboard' }

@@ -10,8 +10,8 @@ vi.mock('@/lib/env', () => ({
   },
   webSupabasePublishableKey: 'synthetic-publishable-fixture',
 }))
-import type { ApplicationProfile } from '@/features/auth/auth-access'
-import { encodeWorkspaceContext } from '@/features/auth/workspace-access'
+import type { ApplicationProfile } from '@/lib/auth/auth-access'
+import { encodeWorkspaceContext } from '@/lib/auth/workspace-access'
 import { updateSession } from './middleware'
 
 const id = '10000000-0000-4000-8000-000000000001'

@@ -4,9 +4,9 @@
  * Run with: pnpm --filter @pathways/api exec tsx scripts/check-pdf-renderer.ts
  */
 import { config } from 'dotenv'
-import { PrintPdfRenderer } from '../src/modules/report-pdf/print-pdf.renderer'
-import { ReceiptPdfRenderer } from '../src/modules/report-pdf/receipt-pdf.renderer'
-import { ReportPdfRenderer } from '../src/modules/report-pdf/report-pdf.renderer'
+import { ReceiptPdfRenderer } from '../src/modules/finance/receipt-pdf.renderer'
+import { PrintPdfRenderer } from '../src/modules/print-pdf/print-pdf.renderer'
+import { ReportPdfRenderer } from '../src/modules/reports/report-pdf.renderer'
 
 config()
 

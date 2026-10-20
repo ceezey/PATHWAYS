@@ -1,13 +1,13 @@
 import type { PrismaService } from '@app/prisma/prisma.service'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { ApplicationIdentity } from '../auth/developer-access'
+import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import { MetadataService } from './metadata.service'
 
 const state = vi.hoisted(() => ({
   actor: undefined as ApplicationIdentity | undefined,
   tx: undefined as unknown,
 }))
-vi.mock('../auth/authorized-operation', () => ({
+vi.mock('../../common/authz/authorized-operation', () => ({
   withAuthorizedOperation: async (
     _db: unknown,
     _identity: unknown,

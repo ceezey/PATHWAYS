@@ -1,27 +1,27 @@
 'use client'
 
+import { useSession } from '@/hooks/use-session'
 import {
   type ApplicationContext,
   type ApplicationProfile,
   type MfaStatus,
   getProfileRole,
-} from '@/features/auth/auth-access'
-import { createVerificationFlight } from '@/features/auth/verification-flight'
+} from '@/lib/auth/auth-access'
+import { createVerificationFlight } from '@/lib/auth/verification-flight'
 import {
   clearWorkspaceContext,
-  contextCookieName,
   decodeWorkspaceContext,
-  encodeWorkspaceContext,
-} from '@/features/auth/workspace-access'
+  readWorkspaceContextCookie,
+  writeWorkspaceContext,
+} from '@/lib/auth/workspace-access'
 import {
   type WorkspaceAccess,
   type WorkspaceVerification,
   verificationFailure,
   verifyWorkspace,
-} from '@/features/auth/workspace-verification'
-import { useSession } from '@/hooks/use-session'
+} from '@/lib/auth/workspace-verification'
 import { webEnv } from '@/lib/env'
-import { isInternalPath } from '@/lib/rbac/route-access'
+import { isInternalPath } from '@/lib/rbac/routes'
 import type { PathwaysRole } from '@/types/pathways-role'
 import { usePathname } from 'next/navigation'
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
@@ -109,12 +109,8 @@ export const CurrentRoleProvider = ({ children }: { children: React.ReactNode })
     }
     inFlight.current = true
     const owner = flight.current
-    const cookie = document.cookie
-      .split('; ')
-      .find((part) => part.startsWith(`${contextCookieName}=`))
     const hint =
-      selected.current?.context ??
-      decodeWorkspaceContext(cookie?.slice(contextCookieName.length + 1), subject)
+      selected.current?.context ?? decodeWorkspaceContext(readWorkspaceContextCookie(), subject)
     const active = () =>
       revision === operation.current &&
       identityRef.current.internal &&
@@ -133,7 +129,7 @@ export const CurrentRoleProvider = ({ children }: { children: React.ReactNode })
             subject,
             context: { userId: value.profile.userId, organizationId: value.profile.organizationId },
           }
-          document.cookie = `${contextCookieName}=${encodeWorkspaceContext(value.profile)}; Path=/; SameSite=Strict${location.protocol === 'https:' ? '; Secure' : ''}`
+          writeWorkspaceContext(value.profile)
         }
       } catch {
         selected.current = null

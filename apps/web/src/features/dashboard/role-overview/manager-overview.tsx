@@ -4,7 +4,8 @@ import Link from 'next/link'
 
 import { StatusBadge } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
-import { formatCappedPercent } from '@/lib/percent'
+import { formatCappedPercent } from '@/lib/format/percent'
+import { plural } from '@/lib/format/plural'
 import { cn } from '@/lib/utils'
 import { healthOf } from './health'
 import {
@@ -37,7 +38,6 @@ const longDate = (day: string) =>
     timeZone: 'UTC',
   })
 const budgetHref = (projectId: string) => `/projects/${projectId}/budget`
-const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`
 
 /** Project Manager home: project health from alerts, expense approvals and budget alerts. */
 export const ManagerOverview = ({
@@ -210,6 +210,32 @@ export const ManagerOverview = ({
           </ListCard>
         ) : null}
       </div>
+      {data.escalationQueue ? (
+        <ListCard empty="No escalations are open." title="Open escalations">
+          {data.escalationQueue.rows.map((row) => (
+            <ListRow
+              key={row.id}
+              lead={<InitialsBadge text="ESC" />}
+              meta={`${row.reason} · ${row.raisedByName} · ${row.projectTitle}`}
+              title={`${row.activityCode} — ${row.activityTitle}`}
+              trailing={
+                <Button
+                  aria-label={`${row.stage === 'FORWARD' ? 'Forward' : 'Resolve'} escalation for ${row.activityCode}`}
+                  onClick={() =>
+                    onOpenActivity(
+                      `/projects/${row.projectId}/activities/${row.activityId}?action=escalation`,
+                    )
+                  }
+                  size="sm"
+                  type="button"
+                >
+                  {row.stage === 'FORWARD' ? 'Forward' : 'Resolve'}
+                </Button>
+              }
+            />
+          ))}
+        </ListCard>
+      ) : null}
       {data.alerts ? (
         <ListCard
           empty="No budget alerts are open."
@@ -221,7 +247,7 @@ export const ManagerOverview = ({
               href={budgetHref(row.projectId)}
               key={row.id}
               meta={row.explanation}
-              title={`${row.title} · ${row.severity.charAt(0)}${row.severity.slice(1).toLowerCase()}`}
+              title={`${row.title} · ${row.severity ? `${row.severity.charAt(0)}${row.severity.slice(1).toLowerCase()}` : 'Needs context'}`}
               trailing={
                 <Button asChild size="sm">
                   <Link href={budgetHref(row.projectId)}>Log outcome</Link>

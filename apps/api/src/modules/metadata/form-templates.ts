@@ -1,15 +1,15 @@
-import type { CreateFormDto, FormFieldDto } from './metadata.dto'
+import type { CreateFormRequest, FormFieldRequest } from '@pathways/shared'
 
-type TemplateDefinition = Pick<CreateFormDto, 'formType' | 'description'> & {
-  fields: FormFieldDto[]
+type TemplateDefinition = Pick<CreateFormRequest, 'formType' | 'description'> & {
+  fields: FormFieldRequest[]
 }
 
 const field = (
   code: string,
   label: string,
-  dataType: FormFieldDto['dataType'],
-  patch: Partial<FormFieldDto> = {},
-): FormFieldDto => ({
+  dataType: FormFieldRequest['dataType'],
+  patch: Partial<FormFieldRequest> = {},
+): FormFieldRequest => ({
   code,
   label,
   dataType,
@@ -49,4 +49,3 @@ export const formTemplates = {
 } as const satisfies Record<string, TemplateDefinition>
 
 export type FormTemplateKey = keyof typeof formTemplates
-export const formTemplateKeys = Object.keys(formTemplates) as FormTemplateKey[]

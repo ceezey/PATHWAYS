@@ -1,8 +1,8 @@
 import { Prisma } from '@prisma/client'
-import type { ApplicationIdentity } from '../auth/developer-access'
-import type { CriterionType } from './evaluation-metrics'
-
-type Tx = Prisma.TransactionClient
+import { writeAuditLog } from '../../common/audit/write-audit-log'
+import type { ApplicationIdentity } from '../../common/authz/application-identity'
+import type { Tx } from '../../common/prisma/transaction'
+import type { CriterionType } from './evaluations.helpers'
 
 /** Fixed default OECD-DAC set every project is evaluated against; weights total 100. */
 export const defaultCriteria: ReadonlyArray<{
@@ -137,15 +137,11 @@ export async function provisionCriteria(
     })
     created.push(id)
   }
-  await tx.auditLog.create({
-    data: {
-      organizationId: actor.organizationId,
-      projectId,
-      actorUserId: actor.userId,
-      action: 'EVALUATION_CRITERIA_PROVISIONED',
-      entityType: 'ProjectEvaluationCriterion',
-      entityId: projectId,
-      changes: { retired: live.map((row) => row.id), criterionIds: created },
-    },
+  await writeAuditLog(tx, actor, {
+    projectId,
+    action: 'EVALUATION_CRITERIA_PROVISIONED',
+    entityType: 'ProjectEvaluationCriterion',
+    entityId: projectId,
+    changes: { retired: live.map((row) => row.id), criterionIds: created },
   })
 }

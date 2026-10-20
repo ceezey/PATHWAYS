@@ -1,4 +1,4 @@
-import { PublicationQueueWorkspace } from '@/features/public/publication-queue-workspace'
+import { PublicationQueueWorkspace } from '@/features/public'
 import { type ProtectedPageProps, requireServerPage } from '@/lib/rbac/server-access'
 
 export const dynamic = 'force-dynamic'

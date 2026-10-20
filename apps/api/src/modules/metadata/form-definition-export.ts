@@ -28,7 +28,7 @@ export const FORM_DEFINITION_EXPORT_COLUMNS = [
   'maximum_length',
 ] as const
 
-export const FORM_DEFINITION_EXPORT_FORMATS = ['CSV', 'XLSX', 'XLS', 'PDF'] as const
+const FORM_DEFINITION_EXPORT_FORMATS = ['CSV', 'XLSX', 'XLS', 'PDF'] as const
 
 export interface ExportableFormDefinition {
   id: string

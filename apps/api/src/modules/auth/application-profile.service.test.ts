@@ -70,8 +70,7 @@ describe('ApplicationProfileService', () => {
     )
     expect(transaction.$queryRaw).toHaveBeenCalledTimes(1)
     const [parts, ...parameters] = transaction.$queryRaw.mock.calls[0]
-    expect(parameters[0]).toBeInstanceOf(Date)
-    expect(parameters.slice(1)).toEqual([userId, subject, organizationId])
+    expect(parameters).toEqual([userId, subject, organizationId])
     const sql = parts.join('?')
     expect(sql).toContain('u.id = ?::uuid AND u.auth_user_id = ?::uuid')
     expect(sql).toContain('u.organization_id = ?::uuid')
@@ -132,17 +131,14 @@ describe('ApplicationProfileService', () => {
   )
 
   it('loads only active, started, unended assignments to unarchived same-organization projects', async () => {
-    vi.useFakeTimers()
-    const now = new Date('2026-09-05T12:00:00.000Z')
-    vi.setSystemTime(now)
     const { service, transaction } = setup()
     await service.resolve(subject, organizationId, userId)
-    const [parts, cutoff] = transaction.$queryRaw.mock.calls[0]
+    const [parts, ...values] = transaction.$queryRaw.mock.calls[0]
     const sql = parts.join('')
-    expect(cutoff).toEqual(now)
+    expect(values.some((value: unknown) => value instanceof Date)).toBe(false)
     expect(sql).toContain('a.organization_id = u.organization_id AND a.user_id = u.id')
     expect(sql).toContain("a.status = 'ACTIVE' AND a.ended_at IS NULL")
-    expect(sql).toContain('a.assigned_at <=')
+    expect(sql).toContain('a.assigned_at <= clock_timestamp()')
     expect(sql).toContain('project.archived_at IS NULL')
     expect(transaction.userProjectAssignment.findMany).not.toHaveBeenCalled()
   })

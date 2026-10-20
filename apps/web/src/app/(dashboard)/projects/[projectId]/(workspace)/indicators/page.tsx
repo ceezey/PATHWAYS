@@ -1,6 +1,6 @@
 import { type ProtectedPageProps, requireServerPage } from '@/lib/rbac/server-access'
 
-import { ProjectIndicatorsWorkspace } from '@/features/projects/project-indicators-workspace'
+import { ProjectIndicatorsWorkspace } from '@/features/projects'
 
 async function ProjectIndicatorsPage({
   params,

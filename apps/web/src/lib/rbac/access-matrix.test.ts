@@ -4,7 +4,8 @@ import { createDashboardNavGroups } from '@/constants/navigation'
 import { pathwaysRoles } from '@/types/pathways-role'
 import { roleAccessProfiles } from './access-matrix'
 import { can, canConfigureProjectAssignmentsForRole, canCreateOrAuthorizeRole } from './can'
-import { filterDashboardNavGroups, getRouteAccess } from './route-access'
+import { filterDashboardNavGroups } from './nav'
+import { getRouteAccess } from './policy'
 
 const testProjectIds = [
   '10000000-0000-4000-8000-000000000001',
@@ -134,6 +135,17 @@ describe('RBAC matrix', () => {
         projectAssignmentScope: 'none',
       },
     })
+  })
+
+  it.each([
+    ['System Administrator', 'none'],
+    ['Program Manager', 'aggregate'],
+    ['Grant Manager', 'aggregate'],
+    ['Project Manager', 'scoped'],
+    ['Project Officer', 'scoped'],
+    ['Monitoring and Evaluation Officer', 'scoped'],
+  ] as const)('gives %s the %s Beneficiary module', (role, expected) => {
+    expect(roleAccessProfiles[role].modules.beneficiaries).toBe(expected)
   })
 
   it('limits account creation and authorization to the locked hierarchy', () => {

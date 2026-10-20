@@ -1,9 +1,9 @@
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
+import { hasAtomicPermission, rolePermissions } from '@pathways/shared'
 import { describe, expect, it } from 'vitest'
-import { hasAtomicPermission, rolePermissions } from './authorization-policy'
-import { projectScope } from './authorized-data.service'
-import type { ApplicationIdentity } from './developer-access'
+import type { ApplicationIdentity } from '../../common/authz/application-identity'
+import { projectScope } from '../../common/authz/project-scope'
 
 const organizationId = '10000000-0000-4000-8000-000000000001'
 const assignedProjectId = '20000000-0000-4000-8000-000000000002'
@@ -59,7 +59,10 @@ describe('rule-based access alignment contract', () => {
   )
 
   it('retains active, non-ended, same-organization assignment resolution', () => {
-    const source = readFileSync(path.join(__dirname, 'application-profile.service.ts'), 'utf8')
+    const source = readFileSync(
+      path.join(__dirname, '../../common/authz/application-profile.ts'),
+      'utf8',
+    )
     expect(source).toContain("a.status = 'ACTIVE' AND a.ended_at IS NULL")
     expect(source).toContain('a.organization_id = u.organization_id AND a.user_id = u.id')
     expect(source).toContain('project.archived_at IS NULL')

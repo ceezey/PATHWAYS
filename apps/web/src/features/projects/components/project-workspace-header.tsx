@@ -1,0 +1,104 @@
+'use client'
+
+import Link from 'next/link'
+import { usePathname } from 'next/navigation'
+import { useRef } from 'react'
+
+import type { DisplayLabels } from '@/constants/display-labels'
+import { useCurrentRole } from '@/hooks/use-current-role'
+import { useDisplayLabels } from '@/hooks/use-display-labels'
+import { type WorkspaceTabAccess, filterWorkspaceTabs } from '@/lib/rbac/nav'
+import { cn } from '@/lib/utils'
+import type { ProjectDetail } from '@/types/pathways'
+
+import { useProjectPrefetch } from '../projects.reads'
+
+// Each tab carries the route it opens, so tab visibility equals route access.
+const createWorkspaceTabs = (labels: DisplayLabels): WorkspaceTabAccess[] => [
+  { label: 'Overview', path: '', route: 'project' },
+  { label: labels.projectActivities, path: 'activities', route: 'activities' },
+  { label: labels.projectIndicators, path: 'indicators', route: 'indicators' },
+  { label: labels.projectEvidence, path: 'evidence', route: 'evidence' },
+  { label: labels.projectMonitorEvaluate, path: 'monitor-evaluate', route: 'monitoring' },
+  { label: labels.projectBudget, path: 'budget', route: 'budget' },
+  { label: labels.projectJourneyStages, path: 'journey-stages', route: 'journey' },
+]
+
+export const ProjectWorkspaceHeader = ({ project }: { project: ProjectDetail }) => {
+  const pathname = usePathname()
+  const { labels } = useDisplayLabels()
+  const { role, profile } = useCurrentRole()
+  const visibleTabs =
+    role && profile
+      ? filterWorkspaceTabs(createWorkspaceTabs(labels), role, profile, project.id)
+      : []
+  const prefetch = useProjectPrefetch()
+  const tabRefs = useRef<Array<HTMLAnchorElement | null>>([])
+
+  return (
+    <section
+      aria-label={`${project.title} workspace summary`}
+      className="min-w-0 max-w-full overflow-x-hidden rounded-2xl border border-border bg-card p-4 sm:p-5"
+    >
+      {/* The workspace frame draws the project title above; this card carries the tabs. */}
+      <p className="min-w-0 max-w-3xl text-sm leading-6 text-muted-foreground">
+        {project.description}
+      </p>
+      <nav
+        className="mt-5 w-full max-w-full overflow-x-auto border-b border-border"
+        aria-label="Project navigation"
+      >
+        <div className="flex min-w-max" role="tablist" aria-label="Project workspace sections">
+          {visibleTabs.map((tab, index) => {
+            const href = tab.path
+              ? `/projects/${project.id}/${tab.path}`
+              : `/projects/${project.id}`
+            const active = tab.path
+              ? pathname === href || pathname.startsWith(`${href}/`)
+              : pathname === href
+
+            return (
+              <Link
+                aria-current={active ? 'page' : undefined}
+                aria-selected={active}
+                className={cn(
+                  'inline-flex min-h-11 shrink-0 items-center border-b-2 px-4 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset',
+                  active
+                    ? 'border-primary text-primary'
+                    : 'border-transparent text-muted-foreground hover:border-border hover:text-foreground',
+                )}
+                href={href}
+                key={tab.path}
+                onFocus={() => tab.route && prefetch.tab(project.id, tab.route)}
+                onMouseEnter={() => tab.route && prefetch.tab(project.id, tab.route)}
+                onKeyDown={(event) => {
+                  const last = visibleTabs.length - 1
+                  const nextIndex =
+                    event.key === 'ArrowRight'
+                      ? (index + 1) % visibleTabs.length
+                      : event.key === 'ArrowLeft'
+                        ? (index - 1 + visibleTabs.length) % visibleTabs.length
+                        : event.key === 'Home'
+                          ? 0
+                          : event.key === 'End'
+                            ? last
+                            : -1
+                  if (nextIndex < 0) return
+                  event.preventDefault()
+                  tabRefs.current[nextIndex]?.focus()
+                }}
+                ref={(element) => {
+                  tabRefs.current[index] = element
+                }}
+                role="tab"
+                tabIndex={active ? 0 : -1}
+              >
+                {tab.label}
+              </Link>
+            )
+          })}
+        </div>
+      </nav>
+    </section>
+  )
+}

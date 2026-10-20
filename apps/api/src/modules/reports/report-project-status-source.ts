@@ -1,11 +1,12 @@
 import { readApiEnv } from '@pathways/config'
-import type { MetricCell } from '@pathways/shared'
+import { type AtomicPermission, type MetricCell, hasAtomicPermission } from '@pathways/shared'
 import { Prisma } from '@prisma/client'
-import { type AtomicPermission, hasAtomicPermission } from '../auth/authorization-policy'
-import type { ApplicationIdentity } from '../auth/developer-access'
+import type { ApplicationIdentity } from '../../common/authz/application-identity'
+import type { Tx } from '../../common/prisma/transaction'
 import type { DashboardsService } from '../dashboards/dashboards.service'
 import type { ProjectOverviewMetricsService } from '../projects/project-overview-metrics.service'
 import type { RulesHumanService } from '../rules/rules-human.service'
+import { monitoringReportPeriod } from './report-monitoring-evaluation-source'
 import {
   type Figure,
   INDICATOR_CAP,
@@ -18,9 +19,8 @@ import {
   overviewRows,
   topAlerts,
 } from './report-project-status'
-import { monitoringReportPeriod } from './report-sources-extra'
 
-type Deps = {
+export type ReportSourceDeps = {
   overview: Pick<ProjectOverviewMetricsService, 'readInTransaction'>
   dashboards: Pick<DashboardsService, 'monitoringInTransaction'>
   rules: Pick<RulesHumanService, 'listAlertsInTransaction'>
@@ -47,7 +47,7 @@ const money = (value: Prisma.Decimal) =>
   value.toNumber().toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
 /** Each budget line with its approved spending, spending still in review, and what remains. */
-async function budgetRows(tx: Prisma.TransactionClient, organizationId: string, projectId: string) {
+async function budgetRows(tx: Tx, organizationId: string, projectId: string) {
   const lines = await tx.projectBudgetRecord.findMany({
     where: { organizationId, projectId, archivedAt: null },
     select: {
@@ -107,8 +107,8 @@ const figure = (
 
 /** Builds the Project summary sections, reading and showing each one only when its permission is held. */
 export async function projectStatusSource(
-  deps: Deps,
-  tx: Prisma.TransactionClient,
+  deps: ReportSourceDeps,
+  tx: Tx,
   actor: ApplicationIdentity,
   projectId: string,
   project: ProjectRow,

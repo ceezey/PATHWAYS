@@ -1,25 +1,22 @@
 import 'reflect-metadata'
 import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common'
-import type { Prisma } from '@prisma/client'
-import { plainToInstance } from 'class-transformer'
-import { validateSync } from 'class-validator'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { PrismaService } from '@app/prisma/prisma.service'
+import { generateFormRequest, rolePermissions } from '@pathways/shared'
+import type { ApplicationIdentity } from '../../common/authz/application-identity'
+import { withAuthorizedOperation } from '../../common/authz/authorized-operation'
 import { PERMISSION_KEY } from '../../common/decorators/permission.decorator'
-import { rolePermissions } from '../auth/authorization-policy'
-import { withAuthorizedOperation } from '../auth/authorized-operation'
-import type { ApplicationIdentity } from '../auth/developer-access'
+import type { Tx } from '../../common/prisma/transaction'
 import { formTemplates } from './form-templates'
 import { MetadataController } from './metadata.controller'
-import { GenerateFormDto } from './metadata.dto'
 import { MetadataService } from './metadata.service'
 
 const state = vi.hoisted(() => ({
   actor: undefined as ApplicationIdentity | undefined,
-  tx: undefined as Prisma.TransactionClient | undefined,
+  tx: undefined as Tx | undefined,
 }))
-vi.mock('../auth/authorized-operation', () => ({
+vi.mock('../../common/authz/authorized-operation', () => ({
   withAuthorizedOperation: vi.fn(async (_prisma, _identity, _permission, work) =>
     work(state.tx, state.actor),
   ),
@@ -95,7 +92,7 @@ describe('forms.generate', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     state.actor = identity
-    state.tx = tx as unknown as Prisma.TransactionClient
+    state.tx = tx as unknown as Tx
     tx.project.findFirst.mockResolvedValue({ id: projectId })
     tx.digitalForm.create.mockResolvedValue({ id: createdFormId })
     tx.auditLog.create.mockResolvedValue({ id: 'audit' })
@@ -232,7 +229,7 @@ describe('forms.generate', () => {
 
   it('validates the request payload shape', () => {
     const errors = (value: unknown) =>
-      validateSync(plainToInstance(GenerateFormDto, value)).map((error) => error.property)
+      (generateFormRequest.safeParse(value).error?.issues ?? []).map((issue) => issue.path[0])
     expect(errors({ templateKey: 'training_survey', code: 'ok_code', name: 'Okay' })).toEqual([])
     expect(errors({ sourceFormId: 'not-a-uuid', code: 'ok_code', name: 'Okay' })).toContain(
       'sourceFormId',

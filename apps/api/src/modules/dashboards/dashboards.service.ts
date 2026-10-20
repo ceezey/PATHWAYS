@@ -8,21 +8,24 @@ import {
 } from '@nestjs/common'
 import { readApiEnv } from '@pathways/config'
 import {
+  type AtomicPermission,
   type DashboardQuery,
   P06_CONTRACT_VERSION,
-  businessCalendarDate,
+  hasAtomicPermission,
   monitoringDashboardSchema,
   sadddDashboardSchema,
   validateMetricPeriod,
 } from '@pathways/shared'
 import { Prisma } from '@prisma/client'
+import type { ApplicationIdentity } from '../../common/authz/application-identity'
+import { withAuthorizedOperation } from '../../common/authz/authorized-operation'
+import { projectScope } from '../../common/authz/project-scope'
+import type { Tx } from '../../common/prisma/transaction'
+import { currentBusinessDate } from '../../common/time/business-date'
 import { PrismaService } from '../../prisma/prisma.service'
-import { type AtomicPermission, hasAtomicPermission } from '../auth/authorization-policy'
-import { projectScope } from '../auth/authorized-data.service'
-import { withAuthorizedOperation } from '../auth/authorized-operation'
-import type { ApplicationIdentity } from '../auth/developer-access'
-import { IndicatorsService, monitoringSqlError } from '../indicators/indicators.service'
-import { parseDashboardQuery, parseSadddQuery } from './dashboards.dto'
+import { monitoringSqlError } from '../indicators/indicators.helpers'
+import { IndicatorsService } from '../indicators/indicators.service'
+import { parseDashboardQuery, parseSadddQuery } from './dashboards.helpers'
 
 @Injectable()
 export class DashboardsService {
@@ -32,12 +35,7 @@ export class DashboardsService {
   ) {}
   private period(query: DashboardQuery) {
     const zone = readApiEnv(process.env).BUSINESS_TIME_ZONE
-    let today: string
-    try {
-      today = businessCalendarDate(new Date(), zone)
-    } catch {
-      throw new ServiceUnavailableException('The configured business time zone is invalid.')
-    }
+    const today = currentBusinessDate()
     const periodEnd = query.periodEnd ?? today
     const periodStart = query.periodStart ?? `${periodEnd.slice(0, 7)}-01`
     try {
@@ -47,11 +45,7 @@ export class DashboardsService {
     }
     return { periodStart, periodEnd, businessTimeZone: zone }
   }
-  private async scope(
-    tx: Prisma.TransactionClient,
-    actor: ApplicationIdentity,
-    query: DashboardQuery,
-  ) {
+  private async scope(tx: Tx, actor: ApplicationIdentity, query: DashboardQuery) {
     const projects = await tx.project.findMany({
       where: {
         AND: [
@@ -92,7 +86,7 @@ export class DashboardsService {
   }
   /** Reads the aggregate monitoring contract inside an already-authorized transaction. */
   async monitoringInTransaction(
-    tx: Prisma.TransactionClient,
+    tx: Tx,
     actor: ApplicationIdentity,
     query: DashboardQuery,
     period: { periodStart: string; periodEnd: string; businessTimeZone: string },
@@ -161,11 +155,7 @@ export class DashboardsService {
     )
   }
   /** Reads the suppressed SADDD release inside an already-authorized transaction. */
-  async sadddInTransaction(
-    tx: Prisma.TransactionClient,
-    actor: ApplicationIdentity,
-    projectId: string,
-  ) {
+  async sadddInTransaction(tx: Tx, actor: ApplicationIdentity, projectId: string) {
     const query = { projectId }
     {
       if (

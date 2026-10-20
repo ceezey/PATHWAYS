@@ -4,9 +4,10 @@ import { ConflictException, ForbiddenException } from '@nestjs/common'
 import type { Prisma } from '@prisma/client'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { ApplicationIdentity } from '@app/modules/auth/developer-access'
+import type { ApplicationIdentity } from '@app/common/authz/application-identity'
 import type { StorageService } from '@app/modules/storage/storage.service'
 import type { PrismaService } from '@app/prisma/prisma.service'
+import { privateStorageFactories } from '../storage/private-storage-factories'
 
 const state = vi.hoisted(() => ({
   actor: undefined as ApplicationIdentity | undefined,
@@ -17,19 +18,15 @@ const state = vi.hoisted(() => ({
   ack: vi.fn(),
 }))
 
-vi.mock('@app/modules/auth/authorized-operation', () => ({
+vi.mock('@app/common/authz/authorized-operation', () => ({
   withAuthorizedOperation: vi.fn(async (_prisma, _identity, permission: string, work) => {
     if (!state.actor?.permissions.includes(permission))
       throw new ForbiddenException('Permission denied.')
     return work(state.tx, state.actor)
   }),
 }))
-vi.mock('@app/modules/auth/application-profile.service', () => ({
+vi.mock('@app/common/authz/application-profile', () => ({
   readApplicationProfile: vi.fn(async () => state.actor),
-}))
-vi.mock('@app/modules/storage/private-inspection-reader', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@app/modules/storage/private-inspection-reader')>()),
-  createPrivateUploadVerifier: () => state.verify,
 }))
 vi.mock('@app/modules/rules/rules-source-operation', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@app/modules/rules/rules-source-operation')>()),
@@ -39,6 +36,10 @@ vi.mock('@app/modules/rules/rules-source-operation', async (importOriginal) => (
 }))
 
 import { ActivitiesService } from './activities.service'
+import { ActivityProgressService } from './activity-progress.service'
+import { ActivityProofFinalizeService } from './activity-proof-finalize.service'
+import { ActivityProofsService } from './activity-proofs.service'
+import { ActivityReviewService } from './activity-review.service'
 
 // End-to-end lifecycle of one activity through the real service, against an in-memory store that
 // applies each Prisma write the service makes. It covers what the developer reported: a Project
@@ -217,7 +218,19 @@ const storage = {
   ),
   deleteFile: vi.fn(),
 }
-const service = new ActivitiesService({} as PrismaService, storage as unknown as StorageService)
+const service = new ActivitiesService({} as PrismaService)
+const proofsService = new ActivityProofsService(
+  {} as PrismaService,
+  storage as unknown as StorageService,
+)
+// The upload verifier is injected, so the real storage reader module is never mocked.
+const finalizeService = new ActivityProofFinalizeService(
+  {} as PrismaService,
+  storage as unknown as StorageService,
+  { ...privateStorageFactories, createPrivateUploadVerifier: () => state.verify },
+)
+const progressService = new ActivityProgressService({} as PrismaService)
+const reviewService = new ActivityReviewService({} as PrismaService)
 
 const as = <T>(actor: ApplicationIdentity, run: () => Promise<T>) => {
   state.actor = actor
@@ -238,7 +251,7 @@ const files = [
 ]
 const reserve = (clientUpdateId: string) =>
   as(officer, () =>
-    service.reserveProof(officer, projectId, activityId, {
+    proofsService.reserveProof(officer, projectId, activityId, {
       clientUpdateId,
       progressPercent: 60,
       note: 'Sessions held with evidence.',
@@ -247,11 +260,11 @@ const reserve = (clientUpdateId: string) =>
   ) as Promise<Loose>
 const finalize = (updateId: string, evidenceId: string) =>
   as(officer, () =>
-    service.finalizeProofFile(officer, projectId, activityId, updateId, evidenceId),
+    finalizeService.finalizeProofFile(officer, projectId, activityId, updateId, evidenceId),
   ) as Promise<Loose>
 const review = (updateId: string, decision: 'APPROVE' | 'RETURN', expectedUpdatedAt: string) =>
   as(reviewer, () =>
-    service.reviewUpdate(reviewer, projectId, activityId, updateId, {
+    reviewService.reviewUpdate(reviewer, projectId, activityId, updateId, {
       clientMutationId: 'e0000000-0000-4000-8000-0000000000e1',
       decision,
       reason: 'Synthetic scoped review',
@@ -377,7 +390,7 @@ describe('proof submit, reviewer visibility and review', () => {
 
   it('a pending progress note blocks proof submission until M&E reviews it, then the proof goes through', async () => {
     await as(officer, () =>
-      service.recordProgress(officer, projectId, activityId, {
+      progressService.recordProgress(officer, projectId, activityId, {
         clientUpdateId: 'b0000000-0000-4000-8000-00000000000b',
         progressPercent: 35,
         note: 'Halfway through the sessions.',
@@ -405,7 +418,7 @@ describe('proof submit, reviewer visibility and review', () => {
 
   it('returning a progress note leaves the activity progress unchanged and unblocks proof', async () => {
     await as(officer, () =>
-      service.recordProgress(officer, projectId, activityId, {
+      progressService.recordProgress(officer, projectId, activityId, {
         clientUpdateId: 'b0000000-0000-4000-8000-00000000000b',
         progressPercent: 35,
         note: 'Halfway through the sessions.',
@@ -429,7 +442,7 @@ describe('proof submit, reviewer visibility and review', () => {
   it('the submitter cannot review their own update', async () => {
     const ownReviewer: ApplicationIdentity = { ...reviewer, userId: officer.userId }
     await as(officer, () =>
-      service.recordProgress(officer, projectId, activityId, {
+      progressService.recordProgress(officer, projectId, activityId, {
         clientUpdateId: 'b0000000-0000-4000-8000-00000000000b',
         progressPercent: 35,
         note: 'Halfway through the sessions.',
@@ -438,7 +451,7 @@ describe('proof submit, reviewer visibility and review', () => {
     const note = (await detail()).updateNotes[0]
     state.actor = ownReviewer
     await expect(
-      service.reviewUpdate(ownReviewer, projectId, activityId, note.id, {
+      reviewService.reviewUpdate(ownReviewer, projectId, activityId, note.id, {
         clientMutationId: 'e0000000-0000-4000-8000-0000000000e1',
         decision: 'APPROVE',
         reason: 'Self review',

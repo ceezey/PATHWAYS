@@ -2,7 +2,7 @@ import { generateKeyPairSync, sign, webcrypto } from 'node:crypto'
 import { ServiceUnavailableException, UnauthorizedException } from '@nestjs/common'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { DEVELOPER_AUTH_UUID, DEVELOPER_SUPABASE_URL } from './developer-access'
+import { DEVELOPER_AUTH_UUID, DEVELOPER_SUPABASE_URL } from './developer-bootstrap-identity'
 import type { SessionLivenessService } from './session-liveness.service'
 import { TokenAuthService } from './token-auth.service'
 

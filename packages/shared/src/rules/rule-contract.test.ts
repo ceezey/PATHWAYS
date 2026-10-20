@@ -1,0 +1,91 @@
+import { describe, expect, it } from 'vitest'
+import { parseRuleTree, ruleMetricCellSchema } from './rule-contract'
+const condition = (id = 'a') => ({
+  kind: 'CONDITION',
+  id,
+  metric: 'PROJECT_REMAINING_DAYS',
+  operator: 'LT',
+  threshold: '0',
+})
+describe('bounded typed rules authoring', () => {
+  it('retains exact decimal thresholds and treats unavailable metrics separately from zero', () => {
+    expect(
+      parseRuleTree({
+        ...condition(),
+        metric: 'INDICATOR_CURRENT_VALUE',
+        indicatorId: '10000000-0000-4000-8000-000000000001',
+        threshold: '9007199254740.0001',
+      }),
+    ).toMatchObject({ threshold: '9007199254740.0001' })
+    expect(ruleMetricCellSchema.parse({ state: 'ZERO', value: '0', reason: null })).toEqual({
+      state: 'ZERO',
+      value: '0',
+      reason: null,
+    })
+    expect(
+      ruleMetricCellSchema.parse({ state: 'MISSING', value: null, reason: 'NO_MEASUREMENT' }).value,
+    ).toBeNull()
+    expect(
+      ruleMetricCellSchema.safeParse({ state: 'MISSING', value: '0', reason: 'NO_MEASUREMENT' })
+        .success,
+    ).toBe(false)
+  })
+  it('rejects arbitrary SQL, extra bindings, reversed bounds and invalid metric domains', () => {
+    for (const value of [
+      { ...condition(), sql: 'select private' },
+      { ...condition(), indicatorId: '10000000-0000-4000-8000-000000000001' },
+      { ...condition(), operator: 'BETWEEN', threshold: '5', thresholdMaximum: '1' },
+      { ...condition(), threshold: '1.5' },
+      { ...condition(), metric: 'ACTIVITY_COMPLETION_PERCENT', threshold: '101' },
+    ])
+      expect(() => parseRuleTree(value)).toThrow()
+  })
+  it('accepts the binding-free aggregate metrics within their domains only', () => {
+    for (const [metric, threshold] of [
+      ['BUDGET_UTILIZATION_PERCENT', '150'],
+      ['BENEFICIARY_FOLLOW_UP_PERCENT', '100'],
+      ['SURVEY_MEAN_IMPROVEMENT_POINTS', '-100'],
+      ['KPI_ACHIEVEMENT_PERCENT', '-20'],
+      ['KPI_ACHIEVEMENT_PERCENT', '150'],
+      ['SURVEY_MEAN_PRE_TEST_PERCENT', '0'],
+      ['SURVEY_MEAN_POST_TEST_PERCENT', '100'],
+    ])
+      expect(parseRuleTree({ ...condition(), metric, threshold })).toMatchObject({ metric })
+    for (const [metric, threshold] of [
+      ['BUDGET_UTILIZATION_PERCENT', '-1'],
+      ['BENEFICIARY_FOLLOW_UP_PERCENT', '100.0001'],
+      ['SURVEY_MEAN_IMPROVEMENT_POINTS', '100.0001'],
+      ['SURVEY_MEAN_PRE_TEST_PERCENT', '101'],
+      ['SURVEY_MEAN_POST_TEST_PERCENT', '-1'],
+      ['FOO', '1'],
+    ])
+      expect(() => parseRuleTree({ ...condition(), metric, threshold })).toThrow()
+    expect(() =>
+      parseRuleTree({
+        ...condition(),
+        metric: 'BUDGET_UTILIZATION_PERCENT',
+        indicatorId: '10000000-0000-4000-8000-000000000001',
+      }),
+    ).toThrow()
+  })
+  it('accepts exactly four groups and thirty-two distinct leaves while rejecting excess and cycles', () => {
+    const leaves = Array.from({ length: 32 }, (_, index) => condition(`c${index}`))
+    expect(parseRuleTree({ kind: 'GROUP', mode: 'AND', children: leaves })).toMatchObject({
+      children: expect.any(Array),
+    })
+    expect(() =>
+      parseRuleTree({ kind: 'GROUP', mode: 'AND', children: [...leaves, condition('overflow')] }),
+    ).toThrow()
+    let tree: unknown = condition()
+    for (let depth = 0; depth < 4; depth++) tree = { kind: 'GROUP', mode: 'AND', children: [tree] }
+    expect(() => parseRuleTree(tree)).not.toThrow()
+    expect(() => parseRuleTree({ kind: 'GROUP', mode: 'AND', children: [tree] })).toThrow()
+    const cycle: { kind: string; mode: string; children: unknown[] } = {
+      kind: 'GROUP',
+      mode: 'AND',
+      children: [],
+    }
+    cycle.children.push(cycle)
+    expect(() => parseRuleTree(cycle)).toThrow()
+  })
+})

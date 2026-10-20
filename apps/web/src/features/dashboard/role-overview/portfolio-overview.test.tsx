@@ -35,11 +35,13 @@ const data = {
   approvalQueue: null,
   myExtensions: null,
   extensionQueue: null,
+  escalationQueue: null,
   datasetsImportedThisMonth: null,
   alerts: {
     open: 1,
     capped: false,
     bySeverity: { CRITICAL: 1, HIGH: 0, MEDIUM: 0, LOW: 0 },
+    needsContext: 0,
     byProject: [{ projectId: p1, open: 1, maxSeverity: 'CRITICAL' }],
     recent: [
       {
@@ -79,6 +81,17 @@ describe('PortfolioOverview', () => {
     expect(screen.getByText('Planned')).toBeTruthy()
     expect(screen.getByText('2 projects across 2 programs')).toBeTruthy()
     expect(screen.getByRole('link', { name: 'Decide' })).toBeTruthy()
+  })
+  it('marks a Needs context alert with its own dot and the text label', () => {
+    const alerts = data.alerts as NonNullable<RoleOverview['alerts']>
+    const row = { ...alerts.recent[0], severity: null }
+    const ctx = { ...data, alerts: { ...alerts, recent: [row] } } as RoleOverview
+    const { container } = render(
+      <PortfolioOverview data={ctx} fullName="Maria" metrics={{}} readOnly={false} />,
+    )
+    expect(screen.getAllByText(/Needs context/).length).toBeGreaterThan(0)
+    const dot = container.querySelector('span[aria-hidden="true"].rounded-full.h-2')
+    expect(dot?.className).not.toContain('bg-muted-foreground')
   })
   it('hides decision buttons for the read-only Grant Manager view', () => {
     render(<PortfolioOverview data={data} fullName="Gina" metrics={{}} readOnly />)
@@ -145,5 +158,61 @@ describe('PortfolioOverview', () => {
     )
     expect(screen.getByText('Escalated alerts')).toBeTruthy()
     expect(screen.queryByRole('link', { name: 'Decide' })).toBeNull()
+  })
+  it('gives the Program Manager a Resolve link on forwarded escalations', () => {
+    const escalationQueue = {
+      count: 1,
+      rows: [
+        {
+          id: '80000000-0000-4000-8000-000000000001',
+          activityId: '40000000-0000-4000-8000-000000000001',
+          projectId: p1,
+          projectTitle: 'FutureMakers NCR',
+          activityCode: 'ACT-009',
+          activityTitle: 'Distribute kits',
+          status: 'FORWARDED',
+          reason: 'The venue is not available.',
+          raisedByName: 'Ron Perez',
+          raisedAt: '2026-10-18T00:00:00.000Z',
+          stage: 'PROGRAM',
+        },
+      ],
+    } as RoleOverview['escalationQueue']
+    render(<PortfolioOverview data={{ ...data, escalationQueue }} metrics={{}} readOnly={false} />)
+    expect(screen.getByText('Forwarded escalations')).toBeTruthy()
+    const link = screen.getByRole('link', { name: 'Resolve escalation for ACT-009' })
+    expect(link.getAttribute('href')).toBe(
+      `/projects/${p1}/activities/40000000-0000-4000-8000-000000000001?action=escalation`,
+    )
+    expect(screen.queryByText(/beneficiar/i)).toBeNull()
+  })
+  it('shows Grant Manager escalation rows with no action', () => {
+    const escalationQueue = {
+      count: 1,
+      rows: [
+        {
+          ...{
+            id: '80000000-0000-4000-8000-000000000001',
+            activityId: '40000000-0000-4000-8000-000000000001',
+            projectId: p1,
+            projectTitle: 'FutureMakers NCR',
+            activityCode: 'ACT-009',
+            activityTitle: 'Distribute kits',
+            status: 'FORWARDED',
+            reason: 'The venue is not available.',
+            raisedByName: 'Ron Perez',
+            raisedAt: '2026-10-18T00:00:00.000Z',
+            stage: 'PROGRAM',
+          },
+          stage: 'WATCH',
+          status: 'OPEN',
+        },
+      ],
+    } as RoleOverview['escalationQueue']
+    render(<PortfolioOverview data={{ ...data, escalationQueue }} metrics={{}} readOnly />)
+    expect(screen.getByText('Activity escalations')).toBeTruthy()
+    expect(screen.getByText(/The venue is not available\./)).toBeTruthy()
+    expect(screen.queryByRole('link', { name: /Resolve escalation/ })).toBeNull()
+    expect(screen.queryByText(/beneficiar/i)).toBeNull()
   })
 })

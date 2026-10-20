@@ -1,8 +1,4 @@
-import type {
-  BeneficiaryMediaProofRecord,
-  BeneficiaryRecord,
-  ProjectSummary,
-} from '@/types/pathways'
+import type { BeneficiaryRecord, ProjectSummary } from '@/types/pathways'
 import type { PathwaysRole } from '@/types/pathways-role'
 import type { ProjectAssignableRole } from './access-matrix'
 import { canConfigureProjectAssignmentsForRole, getAccessProfile } from './can'
@@ -49,7 +45,7 @@ export const scopeBeneficiariesForRole = (
     return scopedBeneficiary ? [scopedBeneficiary] : []
   })
 
-export const scopeBeneficiaryRecordForRole = (
+const scopeBeneficiaryRecordForRole = (
   beneficiary: BeneficiaryRecord,
   role: PathwaysRole,
   assignedProjectIds: AssignedProjectIds = [],
@@ -86,27 +82,6 @@ export const canAccessBeneficiaryForRole = (
   beneficiary: BeneficiaryRecord,
   assignedProjectIds: AssignedProjectIds = [],
 ) => scopeBeneficiaryRecordForRole(beneficiary, role, assignedProjectIds) !== null
-
-export const scopeBeneficiaryMediaForRole = (
-  mediaProof: BeneficiaryMediaProofRecord[],
-  beneficiary: BeneficiaryRecord,
-  role: PathwaysRole,
-  assignedProjectIds: AssignedProjectIds = [],
-) => {
-  const scopedBeneficiary = scopeBeneficiaryRecordForRole(beneficiary, role, assignedProjectIds)
-
-  if (!scopedBeneficiary) {
-    return []
-  }
-
-  const visibleProjectIds = new Set(scopedBeneficiary.projectIds)
-  return mediaProof.filter(
-    (item) =>
-      item.beneficiaryId === beneficiary.id &&
-      (getAccessProfile(role).beneficiaryDataAccess === 'all-records' ||
-        visibleProjectIds.has(item.projectId)),
-  )
-}
 
 // SADDD must come from /dashboards/saddd. Raw Beneficiary arrays are never an
 // acceptable analytics input, even for a role with beneficiary-detail permission.

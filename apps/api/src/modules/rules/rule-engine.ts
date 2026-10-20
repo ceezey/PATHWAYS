@@ -1,5 +1,3 @@
-import { scaledDecimal } from '@pathways/shared'
-import { z } from 'zod'
 import {
   MAX_CONDITIONS,
   type MetricObservation,
@@ -7,12 +5,18 @@ import {
   type RuleCondition,
   type RuleDefinition,
   type RuleNode,
+  type SeverityBasis,
+  type SeverityFacts,
+  classifyAlertSeverity,
   metricObservationSchema,
   ruleDefinitionSchema,
-} from './rule-contract'
+  scaledDecimal,
+  severityFactsFromObservation,
+} from '@pathways/shared'
+import { z } from 'zod'
 
-export type EvaluationResult = 'TRUE' | 'FALSE' | 'UNAVAILABLE'
-export type ConditionEvidence = {
+type EvaluationResult = 'TRUE' | 'FALSE' | 'UNAVAILABLE'
+type ConditionEvidence = {
   condition: RuleCondition
   observation: MetricObservation | null
   result: EvaluationResult
@@ -24,8 +28,8 @@ export type GroupEvidence = {
   result: EvaluationResult
   children: EvaluationEvidence[]
 }
-export type EvaluationEvidence = ConditionEvidence | GroupEvidence
-export type RuleEvaluation = {
+type EvaluationEvidence = ConditionEvidence | GroupEvidence
+type RuleEvaluation = {
   contractVersion: typeof RULE_CONTRACT_VERSION
   rule: RuleDefinition
   asOf: string
@@ -72,6 +76,9 @@ const aggregateSources = {
   BUDGET_UTILIZATION_PERCENT: 'BUDGET_AGGREGATE',
   BENEFICIARY_FOLLOW_UP_PERCENT: 'BENEFICIARY_AGGREGATE',
   SURVEY_MEAN_IMPROVEMENT_POINTS: 'SURVEY_AGGREGATE',
+  KPI_ACHIEVEMENT_PERCENT: 'KPI_AGGREGATE',
+  SURVEY_MEAN_PRE_TEST_PERCENT: 'PRE_TEST_AGGREGATE',
+  SURVEY_MEAN_POST_TEST_PERCENT: 'POST_TEST_AGGREGATE',
 } as const
 
 /** Trusted providers must retrieve authorized source scope before constructing this input. */
@@ -166,4 +173,30 @@ export function evaluateRule(input: unknown): RuleEvaluation {
   }
   const evidence = evaluate(rule.conditions)
   return { contractVersion: RULE_CONTRACT_VERSION, rule, asOf, result: evidence.result, evidence }
+}
+
+/** Evaluates a rule and, when it matches, adds the severity basis computed from the same evidence. */
+export function evaluateRuleWithSeverity(input: unknown): RuleEvaluation & {
+  severityBasis: SeverityBasis | null
+} {
+  const evaluation = evaluateRule(input)
+  if (evaluation.result !== 'TRUE') return { ...evaluation, severityBasis: null }
+  const results: Record<string, EvaluationResult> = {}
+  const facts: Record<string, SeverityFacts> = {}
+  const walk = (node: EvaluationEvidence) => {
+    if ('kind' in node) return node.children.forEach(walk)
+    results[node.condition.id] = node.result
+    if (node.observation && node.result === 'TRUE')
+      facts[node.condition.id] = severityFactsFromObservation(node.observation)
+  }
+  walk(evaluation.evidence)
+  const { rule } = evaluation
+  const severityBasis = classifyAlertSeverity({
+    tree: rule.conditions,
+    results,
+    facts,
+    expectations: rule.expectations ?? {},
+    ruleSeverity: rule.severity === 'CRITICAL' ? 'CRITICAL' : null,
+  })
+  return { ...evaluation, severityBasis }
 }

@@ -1,6 +1,6 @@
 import { type ProtectedPageProps, requireServerPage } from '@/lib/rbac/server-access'
 
-import { ActivityDetailPage } from '@/features/projects/activity-detail-page'
+import { ActivityDetailPage } from '@/features/projects'
 
 async function ProjectActivityDetailPage({
   params,

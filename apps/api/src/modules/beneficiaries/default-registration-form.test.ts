@@ -10,12 +10,13 @@ import {
 } from '@pathways/shared'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import { BENEFICIARY_STEP_UP_KEY } from '../../common/decorators/beneficiary-step-up.decorator'
 import { PERMISSION_KEY } from '../../common/decorators/permission.decorator'
 import type { PrismaService } from '../../prisma/prisma.service'
-import type { ApplicationIdentity } from '../auth/developer-access'
 import { BeneficiariesController } from './beneficiaries.controller'
 import { BeneficiariesService } from './beneficiaries.service'
+import { BeneficiaryRegistrationService } from './beneficiary-registration.service'
 
 // cr-pathways-default-registration-form: provisioning endpoint, template listing and the fixed
 // field set of migration 0040. The real authorized-operation wrapper runs here so the role and
@@ -38,7 +39,7 @@ const registrar: ApplicationIdentity = {
 }
 
 const profile = vi.hoisted(() => ({ current: undefined as unknown }))
-vi.mock('../auth/application-profile.service', () => ({
+vi.mock('../../common/authz/application-profile', () => ({
   readApplicationProfile: vi.fn(async () => profile.current),
 }))
 vi.mock('@pathways/config', () => ({ readApiEnv: () => ({ BUSINESS_TIME_ZONE: 'Asia/Manila' }) }))
@@ -106,9 +107,10 @@ let service: BeneficiariesService
 beforeEach(() => {
   vi.clearAllMocks()
   profile.current = registrar
-  service = new BeneficiariesService({
-    withVerifiedContext: vi.fn(async (_context, work) => work(tx)),
-  } as unknown as PrismaService)
+  service = new BeneficiariesService(
+    { withVerifiedContext: vi.fn(async (_context, work) => work(tx)) } as unknown as PrismaService,
+    new BeneficiaryRegistrationService(),
+  )
   tx.project.findFirst.mockResolvedValue({ id: projectId })
   tx.$queryRaw.mockResolvedValue([{ outcome: 'PROVISIONED' }])
   tx.digitalForm.groupBy.mockImplementation(async ({ where }) =>

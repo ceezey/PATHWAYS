@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 
 import { SkipLink } from '@/components/layout/skip-link'
-import { AccountRecoveryWorkspace } from '@/features/auth/account-recovery-workspace'
+import { AccountRecoveryWorkspace } from '@/features/auth'
 
 export const metadata: Metadata = { title: 'Recover Staff Account' }
 

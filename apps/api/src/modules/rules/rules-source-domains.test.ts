@@ -1,7 +1,8 @@
 import { createHash } from 'node:crypto'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import type { PrismaService } from '../../prisma/prisma.service'
-import type { ApplicationIdentity } from '../auth/developer-access'
+import { privateStorageFactories } from '../storage/private-storage-factories'
 import type { StorageService } from '../storage/storage.service'
 
 const boundary = vi.hoisted(() => ({
@@ -11,7 +12,7 @@ const boundary = vi.hoisted(() => ({
   ack: vi.fn(),
   finish: vi.fn(),
 }))
-vi.mock('../auth/authorized-operation', () => ({
+vi.mock('../../common/authz/authorized-operation', () => ({
   withAuthorizedOperation: async (
     _prisma: unknown,
     _identity: unknown,
@@ -32,7 +33,11 @@ vi.mock('@pathways/config', () => ({
     EVIDENCE_MAX_FILE_BYTES: 52_428_800,
   }),
 }))
-import { ActivitiesService } from '../activities/activities.service'
+import { ActivityLifecycleService } from '../activities/activity-lifecycle.service'
+import { ActivityProofFinalizeService } from '../activities/activity-proof-finalize.service'
+import { ActivityProofsService } from '../activities/activity-proofs.service'
+import { ActivityReviewService } from '../activities/activity-review.service'
+import { IndicatorMeasurementsService } from '../indicators/indicator-measurements.service'
 import { IndicatorsService } from '../indicators/indicators.service'
 import { ProjectsService } from '../projects/projects.service'
 const project = '10000000-0000-4000-8000-000000000001'
@@ -41,8 +46,10 @@ const request = '30000000-0000-4000-8000-000000000003'
 const revision = '2026-09-27T00:00:00.000Z'
 const acknowledgement = { requestId: request, committed: true as const, replayed: true }
 const projects = new ProjectsService({} as PrismaService)
-const activities = new ActivitiesService({} as PrismaService, {} as StorageService)
+const lifecycleService = new ActivityLifecycleService({} as PrismaService)
+const reviewService = new ActivityReviewService({} as PrismaService)
 const indicators = new IndicatorsService({} as PrismaService)
+const measurements = new IndicatorMeasurementsService({} as PrismaService, indicators)
 const activityBody = {
   clientMutationId: request,
   title: 'Synthetic activity',
@@ -76,11 +83,11 @@ const operations = [
         expectedUpdatedAt: revision,
       }),
   ],
-  ['ACTIVITY_CREATE', () => activities.create(boundary.actor, project, activityBody)],
+  ['ACTIVITY_CREATE', () => lifecycleService.create(boundary.actor, project, activityBody)],
   [
     'ACTIVITY_UPDATE',
     () =>
-      activities.update(boundary.actor, project, source, {
+      lifecycleService.update(boundary.actor, project, source, {
         ...activityBody,
         expectedUpdatedAt: revision,
       }),
@@ -88,7 +95,7 @@ const operations = [
   [
     'ACTIVITY_START',
     () =>
-      activities.transition(boundary.actor, project, source, {
+      lifecycleService.transition(boundary.actor, project, source, {
         clientMutationId: request,
         status: 'IN_PROGRESS',
         expectedUpdatedAt: revision,
@@ -97,7 +104,7 @@ const operations = [
   [
     'ACTIVITY_CANCEL',
     () =>
-      activities.transition(boundary.actor, project, source, {
+      lifecycleService.transition(boundary.actor, project, source, {
         clientMutationId: request,
         status: 'CANCELLED',
         reason: 'Synthetic cancellation',
@@ -107,7 +114,7 @@ const operations = [
   [
     'ACTIVITY_REVIEW',
     () =>
-      activities.reviewUpdate(boundary.actor, project, source, source, {
+      reviewService.reviewUpdate(boundary.actor, project, source, source, {
         clientMutationId: request,
         decision: 'APPROVE',
         reason: 'Synthetic review',
@@ -225,7 +232,7 @@ describe('current source handler immutable receipts precede mutable state and so
   )
   it('recovers committed measurement before definition archive, bootstrap or correction changes', async () => {
     expect(
-      await indicators.measure(boundary.actor, project, source, {
+      await measurements.measure(boundary.actor, project, source, {
         clientMeasurementId: request,
         periodStart: '2026-01-01',
         periodEnd: '2026-12-31',
@@ -240,7 +247,10 @@ describe('current source handler immutable receipts precede mutable state and so
   it('recovers finalized proof before external storage even after activity became terminal', async () => {
     const hash = createHash('sha256').update('synthetic-proof').digest('hex')
     const storage = { createPrivateUploadUrls: vi.fn(), deleteFile: vi.fn() }
-    const service = new ActivitiesService({} as PrismaService, storage as unknown as StorageService)
+    const proofsService = new ActivityProofsService(
+      {} as PrismaService,
+      storage as unknown as StorageService,
+    )
     boundary.tx = {
       project: { findFirst: vi.fn(async () => ({ id: project, startDate: null, endDate: null })) },
       projectActivity: {
@@ -271,7 +281,7 @@ describe('current source handler immutable receipts precede mutable state and so
       },
     }
     expect(
-      await service.reserveProof(boundary.actor, project, source, {
+      await proofsService.reserveProof(boundary.actor, project, source, {
         clientUpdateId: request,
         progressPercent: 100,
         note: 'Synthetic proof',
@@ -299,7 +309,11 @@ describe('current source handler immutable receipts precede mutable state and so
       }))
       .reverse()
     const storage = { createPrivateUploadUrls: vi.fn(), deleteFile: vi.fn() }
-    const service = new ActivitiesService({} as PrismaService, storage as unknown as StorageService)
+    const finalizeService = new ActivityProofFinalizeService(
+      {} as PrismaService,
+      storage as unknown as StorageService,
+      privateStorageFactories,
+    )
     boundary.begin.mockResolvedValueOnce({
       kind: 'REPLAY',
       acknowledgement: { ...acknowledgement, requestId: reservation },
@@ -330,7 +344,13 @@ describe('current source handler immutable receipts precede mutable state and so
       },
     }
     expect(
-      await service.finalizeProofFile(boundary.actor, project, source, reservation, evidence[0].id),
+      await finalizeService.finalizeProofFile(
+        boundary.actor,
+        project,
+        source,
+        reservation,
+        evidence[0].id,
+      ),
     ).toEqual({ status: 'COMMITTED', acknowledgement })
     expect(boundary.begin.mock.calls[0]?.[4]).toEqual({
       kind: 'PROOF_FINALIZE',
@@ -350,7 +370,10 @@ describe('current source handler immutable receipts precede mutable state and so
   it('rejects altered retry proof MIME/size before any receipt lookup or external storage', async () => {
     const hash = createHash('sha256').update('synthetic-proof').digest('hex')
     const storage = { createPrivateUploadUrls: vi.fn(), deleteFile: vi.fn() }
-    const service = new ActivitiesService({} as PrismaService, storage as unknown as StorageService)
+    const proofsService = new ActivityProofsService(
+      {} as PrismaService,
+      storage as unknown as StorageService,
+    )
     boundary.tx = {
       project: { findFirst: vi.fn(async () => ({ id: project, startDate: null, endDate: null })) },
       projectActivity: {
@@ -381,7 +404,7 @@ describe('current source handler immutable receipts precede mutable state and so
       },
     }
     await expect(
-      service.reserveProof(boundary.actor, project, source, {
+      proofsService.reserveProof(boundary.actor, project, source, {
         clientUpdateId: request,
         progressPercent: 50,
         note: 'Synthetic proof',

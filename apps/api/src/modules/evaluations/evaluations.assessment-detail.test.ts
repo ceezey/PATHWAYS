@@ -1,11 +1,11 @@
 import { ForbiddenException, NotFoundException } from '@nestjs/common'
+import { hasAtomicPermission } from '@pathways/shared'
 import { Prisma } from '@prisma/client'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import { BENEFICIARY_STEP_UP_KEY } from '../../common/decorators/beneficiary-step-up.decorator'
 import type { PrismaService } from '../../prisma/prisma.service'
-import { hasAtomicPermission } from '../auth/authorization-policy'
-import type { ApplicationIdentity } from '../auth/developer-access'
-import type { EvaluationMetricsService } from './evaluation-metrics'
+import type { EvaluationMetricsService } from './evaluation-metrics.service'
 import { EvaluationsController } from './evaluations.controller'
 import { EvaluationsService } from './evaluations.service'
 
@@ -14,7 +14,7 @@ const scope = vi.hoisted(() => ({
   tx: undefined as unknown,
   bypass: false,
 }))
-vi.mock('../auth/authorized-operation', () => ({
+vi.mock('../../common/authz/authorized-operation', () => ({
   withAuthorizedOperation: (
     _db: unknown,
     _identity: unknown,

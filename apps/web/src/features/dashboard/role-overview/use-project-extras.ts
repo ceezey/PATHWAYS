@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 
-import { coreDataClient } from '@/lib/services/core-feature-client'
+import { evaluationsClient } from '@/lib/api/evaluations'
 import type { PathwaysRole } from '@/types/pathways-role'
 
 type Project = { id: string; title: string }
@@ -27,7 +27,7 @@ export const useProjectExtras = (
     const controller = new AbortController()
     void (async () => {
       const results = await Promise.allSettled(
-        rows.map(([id]) => coreDataClient.evaluation(id, controller.signal)),
+        rows.map(([id]) => evaluationsClient.evaluation(id, controller.signal)),
       )
       if (controller.signal.aborted) return
       setEvaluations(

@@ -1,14 +1,14 @@
 import { browserDraftStorage, sensitiveDraftKey } from '@/lib/auth/sensitive-drafts'
 
 export type PendingCreateMarker = { startedAt: number; fingerprint: string }
-export type PendingCreateScope = {
+type PendingCreateScope = {
   organizationId: string
   userId: string
   projectId: string | null
 }
 
 /** Markers older than this are discarded as abandoned. */
-export const pendingCreateMaxAgeMs = 3 * 60_000
+const pendingCreateMaxAgeMs = 3 * 60_000
 /** Confirmation polling stops after this long and releases the button. */
 export const pendingCreateConfirmMs = 60_000
 export const pendingCreatePollMs = 2_000

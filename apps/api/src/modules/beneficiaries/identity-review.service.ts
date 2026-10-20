@@ -1,13 +1,12 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common'
-import type { Prisma } from '@prisma/client'
 
+import type { DuplicateCandidatePairResponse, ResolveDuplicateRequest } from '@pathways/shared'
+import { writeAuditLog } from '../../common/audit/write-audit-log'
+import type { ApplicationIdentity } from '../../common/authz/application-identity'
+import { withAuthorizedOperation } from '../../common/authz/authorized-operation'
+import { requireScopedProject } from '../../common/authz/scoped-project'
+import type { Tx } from '../../common/prisma/transaction'
 import { PrismaService } from '../../prisma/prisma.service'
-import { projectScope } from '../auth/authorized-data.service'
-import { withAuthorizedOperation } from '../auth/authorized-operation'
-import { type ApplicationIdentity, UUID_PATTERN } from '../auth/developer-access'
-import type { ResolveDuplicateDto } from './beneficiaries.dto'
-
-type Tx = Prisma.TransactionClient
 
 const RESOLVED_ACTIONS = ['BENEFICIARY_IDENTITY_KEPT_DISTINCT', 'BENEFICIARY_IDENTITY_LINKED']
 const MAX_PROFILES = 500
@@ -26,7 +25,7 @@ export class IdentityReviewService {
       identity,
       'beneficiaries.identities.review',
       async (tx, actor) => {
-        const id = await this.requireProject(tx, actor, projectId)
+        const id = await requireScopedProject(tx, actor, projectId)
         const rows = await tx.beneficiary.findMany({
           where: {
             organizationId: actor.organizationId,
@@ -68,7 +67,7 @@ export class IdentityReviewService {
           location: [row.locationBarangay, row.locationCityMunicipality].filter(Boolean).join(', '),
           updatedAt: row.updatedAt.toISOString(),
         })
-        const pairs = []
+        const pairs: DuplicateCandidatePairResponse[] = []
         for (const group of groups.values()) {
           for (let i = 0; i < group.length; i++) {
             for (let j = i + 1; j < group.length; j++) {
@@ -83,13 +82,13 @@ export class IdentityReviewService {
   }
 
   // Both outcomes only record an audited reviewer decision; no profile data is moved or deleted.
-  resolve(identity: ApplicationIdentity, projectId: string, input: ResolveDuplicateDto) {
+  resolve(identity: ApplicationIdentity, projectId: string, input: ResolveDuplicateRequest) {
     return withAuthorizedOperation(
       this.prisma,
       identity,
       'beneficiaries.identities.review',
       async (tx, actor) => {
-        const id = await this.requireProject(tx, actor, projectId)
+        const id = await requireScopedProject(tx, actor, projectId)
         const [leftId, rightId] = [input.leftId.toLowerCase(), input.rightId.toLowerCase()]
         if (leftId === rightId) throw new BadRequestException('Choose two different profiles.')
         const enrolled = await tx.beneficiary.count({
@@ -108,19 +107,15 @@ export class IdentityReviewService {
         ) {
           throw new BadRequestException('This pair was already reviewed.')
         }
-        await tx.auditLog.create({
-          data: {
-            organizationId: actor.organizationId,
-            actorUserId: actor.userId,
-            projectId: id,
-            action:
-              input.decision === 'LINK'
-                ? 'BENEFICIARY_IDENTITY_LINKED'
-                : 'BENEFICIARY_IDENTITY_KEPT_DISTINCT',
-            entityType: 'Beneficiary',
-            entityId: leftId,
-            changes: { otherBeneficiaryId: rightId, decision: input.decision },
-          },
+        await writeAuditLog(tx, actor, {
+          projectId: id,
+          action:
+            input.decision === 'LINK'
+              ? 'BENEFICIARY_IDENTITY_LINKED'
+              : 'BENEFICIARY_IDENTITY_KEPT_DISTINCT',
+          entityType: 'Beneficiary',
+          entityId: leftId,
+          changes: { otherBeneficiaryId: rightId, decision: input.decision },
         })
         return { leftId, rightId, decision: input.decision }
       },
@@ -139,15 +134,5 @@ export class IdentityReviewService {
         return event.entityId && other ? [pairKey(event.entityId, other)] : []
       }),
     )
-  }
-
-  private async requireProject(tx: Tx, actor: ApplicationIdentity, projectId: string) {
-    if (!UUID_PATTERN.test(projectId)) throw new NotFoundException('Project unavailable.')
-    const project = await tx.project.findFirst({
-      where: { AND: [projectScope(actor), { id: projectId.toLowerCase() }] },
-      select: { id: true },
-    })
-    if (!project) throw new NotFoundException('Project unavailable.')
-    return project.id
   }
 }

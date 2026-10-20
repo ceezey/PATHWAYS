@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { Suspense } from 'react'
 
 import { SkipLink } from '@/components/layout/skip-link'
-import { ResetPasswordWorkspace } from '@/features/auth/reset-password-workspace'
+import { ResetPasswordWorkspace } from '@/features/auth'
 
 export const metadata: Metadata = { title: 'Reset Staff Password' }
 

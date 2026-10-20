@@ -1,8 +1,22 @@
+import type { StatusTone } from '@/lib/format/tone'
 import type { PathwaysRole } from '@/types/pathways-role'
-import type { SadddDashboard, ProjectIndicator as SharedProjectIndicator } from '@pathways/shared'
+import type {
+  ActivityCapabilitiesResponse,
+  AssignableOfficerResponse,
+  FormResponse,
+  FormSubmissionResponse,
+  ImportBatchDetailResponse,
+  ImportBatchResponse,
+  ImportRowResponse,
+  ImportRowsPageResponse,
+  ImportSourceColumnResponse,
+  OverdueExplanationCategory,
+  SadddDashboard,
+  DigitalFormType as SharedDigitalFormType,
+  StoredProjectStatus,
+} from '@pathways/shared'
 
 export type ProjectStatus = 'Active' | 'Needs Attention' | 'Planned' | 'Completed'
-export type StoredProjectStatus = 'PLANNED' | 'ONGOING' | 'COMPLETED' | 'ON_HOLD' | 'CANCELLED'
 export type HealthStatus = 'On Track' | 'At Risk' | 'Critical'
 export type ActivityStatus =
   | 'Planned'
@@ -11,13 +25,13 @@ export type ActivityStatus =
   | 'Overdue'
   | 'Completed'
   | 'Cancelled'
-export type BeneficiaryEnrollmentStatus =
+type BeneficiaryEnrollmentStatus =
   | 'Active'
   | 'Pending Review'
   | 'Completed'
   | 'Exited'
   | 'Not recorded'
-export type DashboardSeverity = 'neutral' | 'info' | 'success' | 'warning' | 'danger'
+export type DashboardSeverity = StatusTone
 export type DashboardActionKind = 'dialog' | 'navigate' | 'toast'
 
 /** Project profile only. Overview metrics come from `GET /projects/:id/overview-metrics`. */
@@ -65,26 +79,6 @@ export interface ProjectDetail extends ProjectSummary {
   budgetCode: string
 }
 
-export type AnalyticsCoverageStatus = 'Strong' | 'Growing' | 'Limited' | 'Planned'
-
-export interface AnalyticsLocationProjectSummary {
-  projectId: string
-  beneficiariesReached: number
-  deliverySites: number
-  activitiesDelivered: number
-  coverageStatus: AnalyticsCoverageStatus
-}
-
-export interface AnalyticsLocationRecord {
-  id: string
-  name: string
-  region: string
-  latitude: number
-  longitude: number
-  coordinatePrecision: 'Approximate city centroid'
-  projectSummaries: AnalyticsLocationProjectSummary[]
-}
-
 export interface CreateProjectInput {
   code?: string
   title: string
@@ -123,20 +117,7 @@ export type StoredActivityStatus =
  * Server-computed, advisory flags for the calling user. The API re-checks every mutation,
  * so these only decide which controls are shown. A missing flag set means none are shown.
  */
-export interface ActivityCapabilities {
-  canEdit: boolean
-  canRecordProgress: boolean
-  canSubmitProof: boolean
-  canExplainOverdue: boolean
-}
-
-export type OverdueExplanationCategory =
-  | 'WEATHER'
-  | 'SECURITY'
-  | 'FUNDING'
-  | 'COMMUNITY'
-  | 'LOGISTICS'
-  | 'OTHER'
+export type ActivityCapabilities = ActivityCapabilitiesResponse
 
 /** One append-only entry from `activityOverdueExplanations` (cr-pathways-activity-overdue-explanation). */
 export interface ActivityOverdueExplanation {
@@ -156,10 +137,7 @@ export interface RecordOverdueExplanationInput {
 }
 
 /** Minimal projection from `GET /projects/:id/activities/assignable-officers`. */
-export interface AssignableProjectOfficer {
-  userId: string
-  displayName: string
-}
+export type AssignableProjectOfficer = AssignableOfficerResponse
 
 export interface Activity {
   id: string
@@ -306,15 +284,6 @@ export interface RecordActivityProgressInput {
   note: string
 }
 
-export interface SubmitActivityProofInput {
-  projectId: string
-  activityId: string
-  clientUpdateId: string
-  progress: number
-  note: string
-  files: File[]
-}
-
 // --- Direct-upload activity proof (cr-pathways-activity-progress-media) ---
 
 export interface ActivityProofUploadLimits {
@@ -370,30 +339,7 @@ export type ActivityProofFinalizeResult =
   | { status: 'COMMITTED'; activity: Activity & { sourceAcknowledgement: unknown } }
   | { status: 'UPLOADING'; updateId: string; remaining: number }
 
-export interface ProjectMilestone {
-  id: string
-  projectId: string
-  title: string
-  description: string
-  targetDate: string
-  completionDate: string
-  status: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED'
-  updatedAt: string
-}
-
-export interface SaveMilestoneInput {
-  title: string
-  description?: string
-  targetDate?: string
-}
-
-export interface UpdateMilestoneInput extends SaveMilestoneInput {
-  status: ProjectMilestone['status']
-  completionDate?: string
-  expectedUpdatedAt: string
-}
-
-export interface Beneficiary {
+interface Beneficiary {
   id: string
   code: string
   displayName: string
@@ -422,7 +368,7 @@ export interface JourneyStageConfig {
   updatedAt?: string
 }
 
-export type JourneyEventType =
+type JourneyEventType =
   | 'ENROLLMENT'
   | 'PARTICIPATION'
   | 'PROGRESS_UPDATE'
@@ -523,29 +469,6 @@ export interface BeneficiaryNoteRecord {
   journeyNote?: string
 }
 
-export type BeneficiaryMediaType = 'Photo' | 'Video'
-export type BeneficiaryMediaReviewStatus = 'For Review' | 'Accepted' | 'Needs Clarification'
-
-export interface BeneficiaryMediaProofRecord {
-  id: string
-  beneficiaryId: string
-  projectId: string
-  activityId?: string
-  mediaType: BeneficiaryMediaType
-  fileName: string
-  mimeType: string
-  fileSizeBytes: number
-  capturedAt: string
-  addedAt: string
-  addedBy: string
-  note?: string
-  tags: string[]
-  reviewStatus: BeneficiaryMediaReviewStatus
-  reviewNote?: string
-  durationSeconds?: number
-  source: 'Stored media' | 'Local preview'
-}
-
 export interface BeneficiaryMediaItem {
   id: string
   type: 'PHOTO' | 'VIDEO'
@@ -610,12 +533,6 @@ export interface BeneficiaryRecord extends Beneficiary {
   }>
 }
 
-export interface RegisterBeneficiaryInput {
-  formId: string
-  clientRegistrationId: string
-  values: Record<string, unknown>
-}
-
 export interface UpdateBeneficiaryInput {
   subjectType: 'INDIVIDUAL' | 'GROUP' | 'COMMUNITY'
   displayName?: string
@@ -631,9 +548,6 @@ export interface UpdateBeneficiaryInput {
   locationProvince?: string
   expectedUpdatedAt: string
 }
-
-/** P06 aggregate-only server response. No raw demographic cross-product contract. */
-export type BeneficiarySadddAggregate = SadddDashboard
 
 /** Activity links need definition identity only, not a second numeric authority. */
 export interface Indicator {
@@ -678,56 +592,11 @@ export type EvidenceList =
   | { scope: 'detail'; records: EvidenceRecord[] }
   | { scope: 'aggregate'; activities: EvidenceActivitySummary[] }
 
-export type IndicatorStatus = SharedProjectIndicator['status']
-export type ProjectIndicator = SharedProjectIndicator
-
-export interface EvaluationWeight {
-  id: string
-  label: string
-  value: number
-}
-
-export interface EvaluationAnnotation {
-  id: string
-  author: string
-  note: string
-  createdAt: string
-}
-
-export interface EvaluationHistoryEntry {
-  id: string
-  score: number
-  reviewer: string
-  reviewedAt: string
-  note: string
-}
-
-export interface EvaluationRecord {
-  projectId: string
-  currentScore: number
-  journeyProgression: number
-  indicatorAchievement: number
-  supportingEvidence: number
-  components: EvaluationWeight[]
-  annotations: EvaluationAnnotation[]
-  history: EvaluationHistoryEntry[]
-}
-
 export interface BudgetRecord {
   id: string
   projectId: string
   plannedAmount: number
   actualSpending: number
-}
-
-export type RecommendationOutcome = 'Accept' | 'Partially Accept' | 'Decline' | 'Escalate'
-
-export interface RecommendationOutcomeRecord {
-  id: string
-  recommendationId: string
-  outcome: RecommendationOutcome
-  note: string
-  loggedAt: string
 }
 
 export type LiquidationStatus = 'Pending' | 'Verified' | 'Approved' | 'Rejected'
@@ -771,89 +640,6 @@ export type AlertLifecycleStatus =
   | 'Dismissed'
   | 'Auto-resolved'
 
-export interface RecommendationRecord {
-  id: string
-  alertId: string
-  ruleId: string
-  alertBasis: string
-  ruleExplanation: string
-  text: string
-  reviewStatus: 'New' | 'Reviewed' | 'Actioned'
-  outcome?: RecommendationOutcome
-  outcomeNote?: string
-}
-
-export type RuleCategory =
-  | 'KPI / Indicator'
-  | 'Activity Timeline'
-  | 'Budget'
-  | 'Beneficiary Progress'
-  | 'Assessment'
-  | 'Project Health'
-
-export type RuleOperator = 'below' | 'above' | 'between' | 'equals'
-export type RuleSeverity = 'Low' | 'Medium' | 'High' | 'Critical'
-export type RuleStatus = 'Active' | 'Inactive'
-
-export interface RuleDefinition {
-  id: string
-  name: string
-  category: RuleCategory
-  parameter: string
-  operator: RuleOperator
-  threshold: number
-  upperThreshold?: number
-  severity: RuleSeverity
-  status: RuleStatus
-  suggestedAction: string
-  description: string
-  triggeredCount: number
-  lastTriggeredAt?: string
-}
-
-export type TransparencyApprovalState = 'Draft' | 'Pending Review' | 'Approved'
-
-export interface TransparencySection {
-  id: string
-  projectId: string
-  title: string
-  summary: string
-  visible: boolean
-  approvalState: TransparencyApprovalState
-}
-
-export interface ReportRecord {
-  id: string
-  title: string
-  projectId: string
-  reportingPeriod: string
-}
-
-export type SurveyFormFieldType = 'Single select' | 'Numeric score'
-
-export interface SurveyFormFieldDefinition {
-  id: string
-  label: string
-  responseType: SurveyFormFieldType
-  metadataKey: string
-  required: boolean
-  options?: string[]
-  minimum?: number
-  maximum?: number
-}
-
-export interface SurveyFormDefinition {
-  id: string
-  title: string
-  formType: 'Training Survey' | 'Pre/Post Assessment' | 'Feedback Form'
-  programName: string
-  projectId: string
-  journeyStageId?: string
-  activityId?: string
-  fields: SurveyFormFieldDefinition[]
-  source?: string
-}
-
 export type FormFieldDataType =
   | 'TEXT'
   | 'LONG_TEXT'
@@ -864,14 +650,7 @@ export type FormFieldDataType =
   | 'SELECT'
   | 'MULTIPLE_SELECT'
 
-export type DigitalFormType =
-  | 'BENEFICIARY_REGISTRATION'
-  | 'TRAINING_SURVEY'
-  | 'PRE_TEST'
-  | 'POST_TEST'
-  | 'OUTCOME_MONITORING'
-  | 'ACTIVITY_MONITORING'
-  | 'OTHER'
+export type DigitalFormType = SharedDigitalFormType
 
 export interface DigitalFormFieldDefinition {
   id?: string
@@ -891,23 +670,7 @@ export interface DigitalFormFieldDefinition {
   sequence?: number
 }
 
-export interface DigitalFormDefinition {
-  id: string
-  projectId: string
-  code: string
-  version: number
-  name: string
-  description: string | null
-  formType: DigitalFormType
-  status: 'DRAFT' | 'PUBLISHED' | 'ARCHIVED'
-  activityId: string | null
-  journeyStageId: string | null
-  publishedAt?: string
-  archivedAt?: string
-  updatedAt: string
-  createdByCurrentUser: boolean
-  fields: DigitalFormFieldDefinition[]
-}
+export type DigitalFormDefinition = FormResponse
 
 export interface SaveDigitalFormInput {
   code: string
@@ -931,124 +694,19 @@ export interface FormValidationResult {
   errors: FormValidationError[]
 }
 
-export interface DirectFormSubmission {
-  beneficiaryId?: string | null
-  id: string
-  clientSubmissionId: string
-  status: 'DRAFT' | 'VALIDATED'
-  formId: string
-  formVersion: number
-  submittedAt?: string
-  updatedAt: string
-  values: Record<string, string | number | boolean | string[] | null>
-}
+export type DirectFormSubmission = FormSubmissionResponse
 
-export interface DirectFormSubmissionSummary {
-  id: string
-  status: 'DRAFT' | 'VALIDATED' | 'PROCESSED' | 'REJECTED'
-  formVersion: number
-  submittedAt?: string
-  updatedAt: string
-}
+export type ImportBatchStatus = ImportBatchResponse['status']
 
-export interface DirectFormSubmissionPage {
-  offset: number
-  limit: number
-  total: number
-  items: DirectFormSubmissionSummary[]
-}
+export type ImportSourceColumn = ImportSourceColumnResponse
 
-export type ImportBatchStatus =
-  | 'UPLOADING'
-  | 'UPLOADED'
-  | 'MAPPED'
-  | 'VALIDATING'
-  | 'VALIDATED'
-  | 'PROCESSING'
-  | 'PARTIALLY_PROCESSED'
-  | 'PROCESSED'
-  | 'RECOVERY_REQUIRED'
-  | 'FAILED'
+// A batch from any import route; only the detail route fills the source columns and mappings.
+export type ImportBatchDefinition = ImportBatchResponse &
+  Partial<Pick<ImportBatchDetailResponse, 'sourceHeaders' | 'sourceColumns' | 'mappings'>>
 
-export interface ImportSourceColumn {
-  key: string
-  header: string
-  columnIndex: number
-}
+export type ImportRowDefinition = ImportRowResponse
 
-export interface ImportBatchDefinition {
-  id: string
-  projectId: string
-  formId: string
-  formVersion: number
-  formCode: string
-  formName: string
-  formType: DigitalFormType
-  originalFileName: string
-  fileType: 'CSV' | 'XLSX' | 'XLS' | 'PDF'
-  clientImportId: string
-  storageStatus: 'RESERVED' | 'STORED' | 'RECOVERY_REQUIRED' | 'FAILED'
-  status: ImportBatchStatus
-  mappingRevision: number
-  validationRevision: number
-  validatedMappingRevision: number | null
-  processingRevision: number
-  totals: {
-    rows: number
-    valid: number
-    invalid: number
-    processed: number
-    unprocessed: number
-    failed: number
-  }
-  failureCode: string | null
-  uploadedAt: string
-  validatedAt?: string
-  processedAt?: string
-  updatedAt: string
-  sourceHeaders?: string[]
-  sourceColumns?: ImportSourceColumn[]
-  mappings?: Array<{
-    sourceFieldName: string
-    status: 'PENDING' | 'MAPPED' | 'IGNORED' | 'INVALID'
-    revision: number
-    targetField: { code: string; label: string } | null
-    validationMessage: string | null
-    /** AUTO_SMART_V2: a field suggested for a PENDING column; confirmation needs imports.review. */
-    suggestedField?: { code: string; label: string } | null
-    matchScore?: number | null
-    dataType?: FormFieldDataType | null
-    valueMap?: Array<{ from: string; to: string }> | null
-    matchReason?:
-      | 'EXACT'
-      | 'SYNONYM'
-      | 'SYNONYM_REVIEW'
-      | 'TOKEN_SET'
-      | 'TOKEN_OVERLAP'
-      | 'EDIT_DISTANCE'
-      | null
-  }>
-}
-
-export interface ImportRowDefinition {
-  id: string
-  rowNumber: number
-  rawData: Record<string, string | number | boolean | null>
-  status: 'PENDING' | 'VALID' | 'INVALID' | 'PROCESSING' | 'UNPROCESSED' | 'PROCESSED' | 'FAILED'
-  validationErrors: FormValidationError[]
-  mappingRevision: number
-  validationRevision: number
-  processingAttempts: number
-  processingErrorCode: string | null
-  updatedAt: string
-}
-
-export interface ImportRowsPage {
-  offset: number
-  take: number
-  total: number
-  rows: ImportRowDefinition[]
-}
+export type ImportRowsPage = ImportRowsPageResponse
 
 export interface ImportMappingInput {
   sourceFieldName: string
@@ -1060,144 +718,11 @@ export interface ImportMappingInput {
   valueMap?: Array<{ from: string; to: string }>
 }
 
-export interface SurveyAggregateCount {
-  label: string
-  count: number
-}
-
-export interface SurveyCategoricalAggregate {
-  fieldId: string
-  kind: 'Categorical distribution'
-  responseCount: number
-  values: SurveyAggregateCount[]
-}
-
-export interface SurveyNumericAggregate {
-  fieldId: string
-  kind: 'Numeric summary'
-  responseCount: number
-  average: number
-  minimum: number
-  maximum: number
-  scaleLabel: string
-}
-
-export type SurveyQuestionAggregate = SurveyCategoricalAggregate | SurveyNumericAggregate
-
-export interface SurveyDemographicAggregate {
-  dimension: 'Sex' | 'Age group' | 'Disability status'
-  values: SurveyAggregateCount[]
-}
-
-export interface SurveyAggregateResultSet {
-  id: string
-  formId: string
-  projectId: string
-  location: string
-  responseDate: string
-  reportingPeriod: string
-  responseCount: number
-  questionResults: SurveyQuestionAggregate[]
-  demographicBreakdowns: SurveyDemographicAggregate[]
-  source?: string
-}
-
-export interface SurveyAggregateFilters {
-  formId?: string
-  projectId?: string
-  location?: string
-  responseDate?: string
-  reportingPeriod?: string
-}
-
 export type ReportKind =
   | 'project-summary'
   | 'indicator-summary'
   | 'beneficiary-summary'
   | 'survey-results'
-
-export interface ReportColumnConfig {
-  id: string
-  label: string
-  enabledByDefault: boolean
-}
-
-export interface PublicIndicator {
-  id: string
-  label: string
-  targetLabel: string
-  actualLabel: string
-  progress: number
-  status: 'On Track' | 'Monitoring' | 'Completed'
-}
-
-export interface PublicMilestone {
-  id: string
-  title: string
-  dateLabel: string
-  status: 'Completed' | 'In Progress' | 'Planned'
-}
-
-export type PublicDashboardSectionId =
-  | 'overview'
-  | 'media'
-  | 'progress'
-  | 'indicators'
-  | 'milestones'
-
-export type PublicDashboardLayoutPreset = 'story-led' | 'balanced' | 'compact'
-
-export interface PublicDashboardPresentation {
-  eyebrow: string
-  headline: string
-  summaryTitle: string
-  summaryBody: string
-  quote: string
-  quoteAttribution: string
-  closingTitle: string
-  closingText: string
-  secondaryCtaLabel: string
-  secondaryCtaHref: string
-  layoutPreset: PublicDashboardLayoutPreset
-  sectionOrder: PublicDashboardSectionId[]
-  visibleSections: PublicDashboardSectionId[]
-}
-
-export interface PublicBeneficiaryMediaRecord {
-  id: string
-  projectId: string
-  mediaType: 'Photo'
-  src: string
-  alt: string
-  caption: string
-  contextLabel: string
-  approvalState: 'Approved for public presentation'
-  consentScope: 'Public project storytelling'
-  source: string
-}
-
-export interface PublicProjectRecord {
-  id: string
-  title: string
-  tagline: string
-  area: string
-  sector: string
-  timeframe: string
-  approvedSummary: string
-  description: string
-  aboutProject: string
-  projectAreas: string[]
-  selectedIndicators: PublicIndicator[]
-  milestones: PublicMilestone[]
-  accomplishments: string[]
-  progressTrend: number[]
-  beneficiariesReached: number | null
-  budgetSummary: string
-  assessmentSummary: string
-  publicationState: 'Approved for public preview'
-  publicPresentation: PublicDashboardPresentation
-  approvedMedia: PublicBeneficiaryMediaRecord[]
-}
 
 export interface UserRecord {
   id: string

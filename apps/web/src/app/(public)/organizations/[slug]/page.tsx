@@ -2,8 +2,8 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 
 import { publicOrganizations } from '@/constants/navigation'
-import { PublicOrganizationPage } from '@/features/public/public-organizations'
-import { readPublicSnapshots } from '@/lib/services/public-projects'
+import { PublicOrganizationPage } from '@/features/public'
+import { readPublicSnapshots } from '@/lib/api/public'
 
 export const dynamic = 'force-dynamic'
 

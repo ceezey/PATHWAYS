@@ -1,21 +1,17 @@
-import {
-  BadRequestException,
-  ConflictException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { ForbiddenException, NotFoundException } from '@nestjs/common'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { PrismaService } from '@app/prisma/prisma.service'
-import { hasAtomicPermission } from '../auth/authorization-policy'
-import type { ApplicationIdentity } from '../auth/developer-access'
+import { hasAtomicPermission } from '@pathways/shared'
+import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import { BeneficiariesService } from './beneficiaries.service'
 import { canReadProgress, progressPercent } from './beneficiary-progress'
+import { BeneficiaryRegistrationService } from './beneficiary-registration.service'
 
 const readState = vi.hoisted(() => ({ tx: undefined as unknown }))
 
 // The operation boundary is replaced with the real permission policy against the synthetic actor.
-vi.mock('../auth/authorized-operation', () => ({
+vi.mock('../../common/authz/authorized-operation', () => ({
   withAuthorizedOperation: vi.fn(async (_prisma, identity, permission: string, work) => {
     if (!hasAtomicPermission(identity.roles[0], identity.permissions, permission))
       throw new ForbiddenException('Permission denied.')
@@ -23,20 +19,12 @@ vi.mock('../auth/authorized-operation', () => ({
   }),
 }))
 
-vi.mock('node:crypto', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('node:crypto')>()),
-  randomUUID: () => '50000000-0000-4000-8000-000000000005',
-}))
-
 const organizationId = '10000000-0000-4000-8000-000000000001'
 const actorId = '20000000-0000-4000-8000-000000000002'
 const projectId = '30000000-0000-4000-8000-000000000003'
 const otherProjectId = '30000000-0000-4000-8000-000000000004'
-const formId = '40000000-0000-4000-8000-000000000004'
 const beneficiaryId = '50000000-0000-4000-8000-000000000005'
 const enrollmentId = '60000000-0000-4000-8000-000000000006'
-const submissionId = '70000000-0000-4000-8000-000000000007'
-const registrationId = '80000000-0000-4000-8000-000000000008'
 
 const actor: ApplicationIdentity = {
   id: '90000000-0000-4000-8000-000000000009',
@@ -54,652 +42,6 @@ const actor: ApplicationIdentity = {
   ],
   assignedProjectIds: [projectId],
 }
-
-const field = (code: string, dataType: string, required = false, allowedValues?: string[]) => ({
-  id: `${code}-field`,
-  code,
-  label: code,
-  dataType,
-  isRequired: required,
-  allowedValues: allowedValues ?? null,
-  minimumValue: null,
-  maximumValue: null,
-  minimumDate: null,
-  maximumDate: null,
-  minimumLength: null,
-  maximumLength: null,
-  sequenceNo: 1,
-})
-
-const fields = [
-  field('registration_operation', 'SELECT', true, ['CREATE', 'LINK', 'UPDATE']),
-  field('beneficiary_code', 'TEXT', true),
-  field('subject_type', 'SELECT', true, ['INDIVIDUAL', 'GROUP', 'COMMUNITY']),
-  field('display_name', 'TEXT'),
-  field('first_name', 'TEXT'),
-  field('middle_name', 'TEXT'),
-  field('last_name', 'TEXT'),
-  field('sex', 'SELECT', false, ['MALE', 'FEMALE', 'OTHER', 'PREFER_NOT_TO_SAY', 'NOT_SPECIFIED']),
-  field('birth_date', 'DATE'),
-  field('age_at_registration', 'INTEGER'),
-  field('disability_status', 'SELECT', false, [
-    'WITH_DISABILITY',
-    'WITHOUT_DISABILITY',
-    'NOT_SPECIFIED',
-  ]),
-  field('location_barangay', 'TEXT'),
-  field('location_city_municipality', 'TEXT'),
-  field('location_province', 'TEXT'),
-  field('consent_recorded', 'BOOLEAN', true),
-  field('data_processing_consent_recorded', 'BOOLEAN', true),
-  field('is_minor', 'BOOLEAN'),
-  field('guardian_consent_recorded', 'BOOLEAN'),
-  field('enrollment_date', 'DATE', true),
-  field('external_identifier_type', 'TEXT'),
-  field('external_identifier_value', 'TEXT'),
-  field('profile_update_fields', 'MULTIPLE_SELECT', false, [
-    'display_name',
-    'first_name',
-    'middle_name',
-    'last_name',
-    'sex',
-    'birth_date',
-    'age_at_registration',
-    'disability_status',
-    'location_barangay',
-    'location_city_municipality',
-    'location_province',
-  ]),
-]
-
-const values = (patch: Record<string, unknown> = {}) => ({
-  registration_operation: 'CREATE',
-  beneficiary_code: 'BEN-001',
-  subject_type: 'INDIVIDUAL',
-  display_name: 'Synthetic Person',
-  first_name: 'Synthetic',
-  middle_name: null,
-  last_name: 'Person',
-  sex: 'NOT_SPECIFIED',
-  birth_date: '2000-01-01',
-  age_at_registration: 26,
-  disability_status: 'NOT_SPECIFIED',
-  location_barangay: 'Test',
-  location_city_municipality: 'Test City',
-  location_province: 'Test Province',
-  consent_recorded: true,
-  data_processing_consent_recorded: true,
-  is_minor: false,
-  guardian_consent_recorded: false,
-  enrollment_date: '2026-01-01',
-  external_identifier_type: null,
-  external_identifier_value: null,
-  profile_update_fields: null,
-  ...patch,
-})
-
-describe('P04 beneficiary registration service', () => {
-  const tx = {
-    $queryRaw: vi.fn(),
-    digitalForm: { findFirst: vi.fn() },
-    formSubmission: { findFirst: vi.fn(), create: vi.fn(), update: vi.fn() },
-    formResponseValue: { createMany: vi.fn() },
-    beneficiary: {
-      findUnique: vi.fn(),
-      findFirst: vi.fn(),
-      createMany: vi.fn(),
-      updateMany: vi.fn(),
-    },
-    beneficiaryIdentifier: { findUnique: vi.fn(), create: vi.fn() },
-    beneficiaryProjectEnrollment: {
-      findUnique: vi.fn(),
-      findMany: vi.fn(),
-      findFirst: vi.fn(),
-      create: vi.fn(),
-    },
-    beneficiaryConsentRecord: { createMany: vi.fn() },
-    auditLog: { create: vi.fn() },
-  }
-  let service: BeneficiariesService
-
-  beforeEach(() => {
-    vi.clearAllMocks()
-    service = new BeneficiariesService({} as PrismaService)
-    tx.digitalForm.findFirst.mockResolvedValue({
-      id: formId,
-      version: 1,
-      status: 'PUBLISHED',
-      formField_form: fields,
-    })
-    tx.$queryRaw.mockImplementation((query: TemplateStringsArray) =>
-      Promise.resolve(
-        query.join('').includes('p29_lock_registration_definition')
-          ? [{ locked: true }]
-          : [{ transactionTime: new Date('2026-01-01T00:00:00.000Z') }],
-      ),
-    )
-    tx.formSubmission.findFirst.mockResolvedValue(null)
-    tx.beneficiary.findUnique.mockResolvedValue(null)
-    tx.beneficiary.findFirst.mockResolvedValue(null)
-    tx.beneficiaryIdentifier.findUnique.mockResolvedValue(null)
-    tx.beneficiary.createMany.mockResolvedValue({ count: 1 })
-    tx.beneficiaryProjectEnrollment.findUnique.mockResolvedValue(null)
-    tx.beneficiaryProjectEnrollment.findMany.mockResolvedValue([])
-    tx.beneficiaryProjectEnrollment.findFirst.mockResolvedValue(null)
-    tx.beneficiaryProjectEnrollment.create.mockResolvedValue({ id: enrollmentId })
-    tx.formSubmission.create.mockResolvedValue({ id: submissionId })
-    tx.formSubmission.update.mockResolvedValue({ id: submissionId })
-    tx.formResponseValue.createMany.mockResolvedValue({ count: fields.length })
-    tx.beneficiaryConsentRecord.createMany.mockResolvedValue({ count: 2 })
-    tx.auditLog.create.mockResolvedValue({ id: 'audit' })
-  })
-
-  const promote = (
-    input = values(),
-    source: 'DIRECT_ENTRY' | 'IMPORTED_DATASET' = 'DIRECT_ENTRY',
-  ) =>
-    service.promoteRegistration(tx as never, actor, {
-      projectId,
-      formId,
-      clientRegistrationId: registrationId,
-      values: input,
-      source,
-      validatedById: actorId,
-      ...(source === 'IMPORTED_DATASET'
-        ? { importBatchId: 'a0000000-0000-4000-8000-000000000001', importRowId: registrationId }
-        : {}),
-    })
-
-  it.each(['PROJECT_OFFICER', 'MONITORING_AND_EVALUATION_OFFICER', 'PROJECT_MANAGER'])(
-    'checks the exact direct definition lock before mutation for %s',
-    async (role) => {
-      await service.promoteRegistration(
-        tx as never,
-        { ...actor, roles: [role] },
-        {
-          projectId,
-          formId,
-          clientRegistrationId: registrationId,
-          values: values(),
-          source: 'DIRECT_ENTRY',
-          validatedById: actorId,
-        },
-      )
-      const first = tx.$queryRaw.mock.calls[0]
-      expect(first[0].join('')).toContain('p29_lock_registration_definition')
-      expect(first.slice(1)).toEqual([organizationId, projectId, formId, 1])
-      expect(tx.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(
-        tx.beneficiary.createMany.mock.invocationCallOrder[0],
-      )
-      expect(
-        tx.$queryRaw.mock.calls.some((call) =>
-          call[0].join('').includes("date_trunc('milliseconds', CURRENT_TIMESTAMP)"),
-        ),
-      ).toBe(true)
-    },
-  )
-  it('inserts without returning the unreadable profile and carries its server-generated ID into enrollment', async () => {
-    await promote()
-    expect(tx.beneficiary.createMany).toHaveBeenCalledWith({
-      data: expect.objectContaining({ id: beneficiaryId, organizationId, createdById: actorId }),
-    })
-    expect(tx.beneficiaryProjectEnrollment.create).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ beneficiaryId, projectId }) }),
-    )
-    expect(tx.beneficiary.createMany.mock.invocationCallOrder[0]).toBeLessThan(
-      tx.beneficiaryProjectEnrollment.create.mock.invocationCallOrder[0],
-    )
-  })
-  it('fails closed if the insert does not create exactly one profile', async () => {
-    tx.beneficiary.createMany.mockResolvedValueOnce({ count: 0 })
-    await expect(promote()).rejects.toThrow('Beneficiary registration was not created.')
-    expect(tx.beneficiaryProjectEnrollment.create).not.toHaveBeenCalled()
-    expect(tx.formSubmission.create).not.toHaveBeenCalled()
-    expect(tx.auditLog.create).not.toHaveBeenCalled()
-  })
-  it('stops false definition authorization before any domain mutation', async () => {
-    tx.$queryRaw.mockResolvedValueOnce([{ locked: false }])
-    await expect(promote()).rejects.toMatchObject({
-      status: 404,
-      message: 'Published registration form unavailable.',
-    })
-    expect(tx.beneficiary.createMany).not.toHaveBeenCalled()
-    expect(tx.beneficiaryProjectEnrollment.create).not.toHaveBeenCalled()
-    expect(tx.formSubmission.create).not.toHaveBeenCalled()
-    expect(tx.auditLog.create).not.toHaveBeenCalled()
-  })
-  it.each([{ reply: [] }, { reply: [{}] }, { reply: [{ locked: 'true' }] }])(
-    'fails closed on malformed lock reply: %j',
-    async ({ reply }) => {
-      tx.$queryRaw.mockResolvedValueOnce(reply)
-      await expect(promote()).rejects.toThrow('Registration definition lock is unavailable.')
-      expect(tx.beneficiary.createMany).not.toHaveBeenCalled()
-      expect(tx.formSubmission.create).not.toHaveBeenCalled()
-    },
-  )
-  it('preserves imported registration without direct helper or clock rewrite', async () => {
-    await promote(values(), 'IMPORTED_DATASET')
-    const queries = tx.$queryRaw.mock.calls.map((call) => call[0].join(''))
-    expect(queries.some((query) => query.includes('p29_lock_registration_definition'))).toBe(false)
-    expect(queries.some((query) => query.includes("date_trunc('milliseconds'"))).toBe(false)
-    expect(queries.some((query) => query.includes('SELECT CURRENT_TIMESTAMP'))).toBe(true)
-  })
-  it('uses a preloaded import form only for the same imported form and never for direct entry', async () => {
-    const preloaded = {
-      form: { id: formId, version: 1, status: 'PUBLISHED' as const, formField_form: fields },
-    }
-    const input = (source: 'DIRECT_ENTRY' | 'IMPORTED_DATASET', wantedForm = formId) => ({
-      projectId,
-      formId: wantedForm,
-      clientRegistrationId: registrationId,
-      values: values(),
-      source,
-      validatedById: actorId,
-      ...(source === 'IMPORTED_DATASET'
-        ? { importBatchId: 'a0000000-0000-4000-8000-000000000001', importRowId: registrationId }
-        : {}),
-    })
-
-    await service.promoteRegistration(
-      tx as never,
-      actor,
-      input('IMPORTED_DATASET'),
-      preloaded as never,
-    )
-    expect(tx.digitalForm.findFirst).not.toHaveBeenCalled()
-    expect(tx.beneficiary.createMany).toHaveBeenCalledOnce()
-
-    vi.clearAllMocks()
-    tx.digitalForm.findFirst.mockResolvedValue(null)
-    await expect(
-      service.promoteRegistration(tx as never, actor, input('DIRECT_ENTRY'), preloaded as never),
-    ).rejects.toMatchObject({ status: 404 })
-    await expect(
-      service.promoteRegistration(
-        tx as never,
-        actor,
-        input('IMPORTED_DATASET', 'b0000000-0000-4000-8000-000000000001'),
-        preloaded as never,
-      ),
-    ).rejects.toMatchObject({ status: 404 })
-    expect(tx.digitalForm.findFirst).toHaveBeenCalledTimes(2)
-    expect(tx.beneficiary.createMany).not.toHaveBeenCalled()
-  })
-  it('atomically creates an individual, enrollment, versioned submission, consent provenance and audit', async () => {
-    await expect(promote()).resolves.toEqual({
-      kind: 'PROCESSED',
-      beneficiaryId,
-      enrollmentId,
-      submissionId,
-    })
-    expect(tx.beneficiary.createMany).toHaveBeenCalledOnce()
-    expect(tx.formSubmission.create).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ enrollmentId, formVersion: 1 }) }),
-    )
-    expect(tx.beneficiaryConsentRecord.createMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.arrayContaining([
-          expect.objectContaining({
-            kind: 'PARTICIPATION',
-            recordedAt: new Date('2026-01-01T00:00:00.000Z'),
-          }),
-          expect.objectContaining({
-            kind: 'DATA_PROCESSING',
-            recordedAt: new Date('2026-01-01T00:00:00.000Z'),
-          }),
-        ]),
-      }),
-    )
-    expect(tx.formSubmission.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          submittedAt: new Date('2026-01-01T00:00:00.000Z'),
-          validatedAt: new Date('2026-01-01T00:00:00.000Z'),
-        }),
-      }),
-    )
-    expect(tx.auditLog.create).toHaveBeenCalledOnce()
-  })
-
-  it('rejects an incompatible published registration definition before validating values', async () => {
-    tx.digitalForm.findFirst.mockResolvedValue({
-      id: formId,
-      version: 1,
-      status: 'PUBLISHED',
-      formField_form: fields.map((item) =>
-        item.code === 'enrollment_date' ? { ...item, dataType: 'DECIMAL' } : item,
-      ),
-    })
-
-    await expect(promote()).rejects.toMatchObject({
-      response: expect.objectContaining({
-        message: 'Registration form does not implement the required domain field contract.',
-        errors: expect.arrayContaining([
-          expect.objectContaining({ fieldCode: 'enrollment_date', code: 'invalid_definition' }),
-        ]),
-      }),
-    })
-    expect(tx.beneficiary.createMany).not.toHaveBeenCalled()
-    expect(tx.formSubmission.create).not.toHaveBeenCalled()
-  })
-
-  it('supports group/community subjects without fabricating person fields', async () => {
-    await promote(
-      values({
-        subject_type: 'GROUP',
-        display_name: 'Synthetic Group',
-        first_name: null,
-        last_name: null,
-        birth_date: null,
-        age_at_registration: null,
-      }),
-    )
-    expect(tx.beneficiary.createMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({ subjectType: 'GROUP', firstName: null, birthDate: null }),
-      }),
-    )
-  })
-
-  it.each([
-    { consent_recorded: false },
-    { birth_date: '2026-02-30' },
-    { birth_date: '2020-01-01', age_at_registration: 6, is_minor: false },
-    { external_identifier_type: 'EMAIL', external_identifier_value: 'synthetic@example.invalid' },
-  ])('rejects invalid or inferred registration facts: %s', async (patch) => {
-    await expect(promote(values(patch))).rejects.toBeInstanceOf(BadRequestException)
-    expect(tx.beneficiary.createMany).not.toHaveBeenCalled()
-  })
-
-  describe('enrollment date against the business date', () => {
-    // 01:00 on 2026-10-07 in Manila is still 2026-10-06 in UTC.
-    beforeEach(() => {
-      vi.useFakeTimers({ now: new Date('2026-10-06T17:00:00.000Z'), toFake: ['Date'] })
-    })
-    afterEach(() => {
-      vi.useRealTimers()
-    })
-    it('accepts enrollment on the business date before UTC reaches it', async () => {
-      await expect(promote(values({ enrollment_date: '2026-10-07' }))).resolves.toMatchObject({
-        kind: 'PROCESSED',
-      })
-    })
-    it('rejects enrollment after the business date', async () => {
-      await expect(promote(values({ enrollment_date: '2026-10-08' }))).rejects.toMatchObject({
-        status: 400,
-        message: 'enrollment_date cannot be future.',
-      })
-    })
-  })
-
-  describe('minimum age and future birth date (cr-pathways-default-registration-form)', () => {
-    // A calendar date safely after the business date in any time zone.
-    const future = new Date(Date.now() + 3 * 86_400_000).toISOString().slice(0, 10)
-    const minor = (patch: Record<string, unknown>) =>
-      values({ is_minor: true, guardian_consent_recorded: true, ...patch })
-
-    it.each([
-      [
-        'birth date one day short of age 5',
-        minor({ birth_date: '2021-01-02', age_at_registration: null }),
-      ],
-      ['supplied age 4 without a birth date', minor({ birth_date: null, age_at_registration: 4 })],
-      ['supplied age 0 without a birth date', minor({ birth_date: null, age_at_registration: 0 })],
-    ])('rejects %s with the exact message and no writes', async (_label, input) => {
-      await expect(promote(input)).rejects.toMatchObject({
-        status: 400,
-        message: 'Beneficiary must be at least 5 years old.',
-      })
-      expect(tx.beneficiary.createMany).not.toHaveBeenCalled()
-      expect(tx.formSubmission.create).not.toHaveBeenCalled()
-    })
-
-    it.each([
-      [
-        'birth date exactly 5 years before enrollment',
-        { birth_date: '2021-01-01', age_at_registration: 5 },
-      ],
-      ['supplied age 5 without a birth date', { birth_date: null, age_at_registration: 5 }],
-    ])('accepts %s', async (_label, patch) => {
-      await expect(promote(minor(patch))).resolves.toMatchObject({ kind: 'PROCESSED' })
-      expect(tx.beneficiary.createMany).toHaveBeenCalledWith({
-        data: expect.objectContaining({ ageAtRegistration: 5 }),
-      })
-    })
-
-    it('rejects a future birth date with the exact message before the enrollment comparison', async () => {
-      await expect(
-        promote(values({ birth_date: future, age_at_registration: null })),
-      ).rejects.toMatchObject({ status: 400, message: 'Date of birth cannot be in the future.' })
-      expect(tx.beneficiary.createMany).not.toHaveBeenCalled()
-    })
-
-    it('rejects an under-age imported row through the same parser, preloaded form included', async () => {
-      const preloaded = {
-        form: { id: formId, version: 1, status: 'PUBLISHED' as const, formField_form: fields },
-      }
-      await expect(
-        service.promoteRegistration(
-          tx as never,
-          actor,
-          {
-            projectId,
-            formId,
-            clientRegistrationId: registrationId,
-            values: minor({ birth_date: '2022-06-01', age_at_registration: null }),
-            source: 'IMPORTED_DATASET',
-            validatedById: actorId,
-            importBatchId: 'a0000000-0000-4000-8000-000000000001',
-            importRowId: registrationId,
-          },
-          preloaded as never,
-        ),
-      ).rejects.toMatchObject({ status: 400, message: 'Beneficiary must be at least 5 years old.' })
-      await expect(
-        promote(values({ birth_date: future, age_at_registration: null }), 'IMPORTED_DATASET'),
-      ).rejects.toMatchObject({ status: 400, message: 'Date of birth cannot be in the future.' })
-      expect(tx.beneficiary.createMany).not.toHaveBeenCalled()
-      expect(tx.formSubmission.create).not.toHaveBeenCalled()
-    })
-
-    describe('profile edits', () => {
-      type SubjectProfileCheck = (input: Record<string, unknown>, current: unknown) => void
-      const check = (input: Record<string, unknown>) =>
-        (service as unknown as { assertSubjectProfile: SubjectProfileCheck }).assertSubjectProfile(
-          {
-            subjectType: 'INDIVIDUAL',
-            firstName: 'Synthetic',
-            lastName: 'Legacy',
-            sex: 'NOT_SPECIFIED',
-            disabilityStatus: 'NOT_SPECIFIED',
-            expectedUpdatedAt: '2026-02-01T00:00:00.000Z',
-            ...input,
-          },
-          {
-            birthDate: new Date('2023-01-01T00:00:00.000Z'),
-            ageAtRegistration: 3,
-            isMinor: true,
-            beneficiaryProjectEnrollment_beneficiary: [
-              { enrollmentDate: new Date('2026-01-01T00:00:00.000Z') },
-            ],
-          },
-        )
-
-      it('keeps a legacy under-5 record editable when birth date and age are unchanged', () => {
-        expect(() => check({ birthDate: '2023-01-01', ageAtRegistration: 3 })).not.toThrow()
-        expect(() => check({ birthDate: '2023-01-01' })).not.toThrow()
-      })
-
-      it('applies the minimum age when the birth date or age changes', () => {
-        expect(() => check({ birthDate: '2022-01-01', ageAtRegistration: 4 })).toThrow(
-          'Beneficiary must be at least 5 years old.',
-        )
-        expect(() => check({ birthDate: '2022-01-01' })).toThrow(
-          'Beneficiary must be at least 5 years old.',
-        )
-        expect(() => check({ birthDate: undefined, ageAtRegistration: 4 })).toThrow(
-          'Beneficiary must be at least 5 years old.',
-        )
-        expect(() => check({ birthDate: '2021-01-01', ageAtRegistration: 5 })).not.toThrow()
-      })
-
-      it('rejects a changed future birth date with the exact message', () => {
-        expect(() => check({ birthDate: future })).toThrow('Date of birth cannot be in the future.')
-      })
-    })
-  })
-
-  it('returns an ambiguous-identity review to the reviewer without disclosing a record', async () => {
-    tx.beneficiary.findUnique.mockResolvedValue({ id: beneficiaryId })
-    tx.beneficiaryIdentifier.findUnique.mockResolvedValue({
-      beneficiaryId: '50000000-0000-4000-8000-000000000099',
-    })
-    await expect(
-      promote(values({ external_identifier_type: 'PARTNER_ID', external_identifier_value: 'A-1' })),
-    ).resolves.toEqual({ kind: 'REVIEW', code: 'AMBIGUOUS_IDENTITY' })
-    expect(tx.beneficiary.createMany).not.toHaveBeenCalled()
-  })
-
-  it('does not merge unknown LINK input using names, dates or email', async () => {
-    await expect(promote(values({ registration_operation: 'LINK' }))).resolves.toEqual({
-      kind: 'REVIEW',
-      code: 'UNKNOWN_IDENTITY',
-    })
-    expect(tx.beneficiary.createMany).not.toHaveBeenCalled()
-  })
-
-  it('denies exact LINK and UPDATE resolution before lookup without identity-review permission', async () => {
-    const restrictedActor = {
-      ...actor,
-      permissions: actor.permissions.filter(
-        (permission) => permission !== 'beneficiaries.identities.review',
-      ),
-    }
-    for (const operation of ['LINK', 'UPDATE'] as const) {
-      await expect(
-        service.promoteRegistration(tx as never, restrictedActor, {
-          projectId,
-          formId,
-          clientRegistrationId: registrationId,
-          values: values({
-            registration_operation: operation,
-            profile_update_fields: operation === 'UPDATE' ? ['display_name'] : null,
-          }),
-          source: 'DIRECT_ENTRY',
-          validatedById: actorId,
-        }),
-      ).rejects.toBeInstanceOf(ForbiddenException)
-    }
-    expect(tx.beneficiary.findUnique).not.toHaveBeenCalled()
-    expect(tx.beneficiaryIdentifier.findUnique).not.toHaveBeenCalled()
-  })
-
-  it('does not disclose a hidden duplicate identity to a registrar without review permission', async () => {
-    const restrictedActor = {
-      ...actor,
-      permissions: actor.permissions.filter(
-        (permission) => permission !== 'beneficiaries.identities.review',
-      ),
-    }
-    tx.beneficiary.findUnique.mockResolvedValue({ id: beneficiaryId })
-
-    await expect(
-      service.promoteRegistration(tx as never, restrictedActor, {
-        projectId,
-        formId,
-        clientRegistrationId: registrationId,
-        values: values(),
-        source: 'DIRECT_ENTRY',
-        validatedById: actorId,
-      }),
-    ).resolves.toEqual({ kind: 'REVIEW', code: 'IDENTITY_REVIEW_REQUIRED' })
-    expect(tx.beneficiary.findFirst).not.toHaveBeenCalled()
-  })
-
-  it('requires explicit allowlisted fields for an import profile update', async () => {
-    tx.beneficiary.findUnique.mockResolvedValue({ id: beneficiaryId })
-    await expect(promote(values({ registration_operation: 'UPDATE' }))).rejects.toBeInstanceOf(
-      BadRequestException,
-    )
-  })
-
-  it('holds an inaccessible shared-profile update for authorized review', async () => {
-    tx.beneficiary.findUnique.mockResolvedValue({ id: beneficiaryId })
-    tx.beneficiary.findFirst.mockResolvedValue({ code: 'BEN-001', subjectType: 'INDIVIDUAL' })
-    tx.beneficiaryProjectEnrollment.findFirst.mockResolvedValue({ id: 'inaccessible-enrollment' })
-    const updateFields = ['display_name']
-    await expect(
-      promote(values({ registration_operation: 'UPDATE', profile_update_fields: updateFields })),
-    ).resolves.toEqual({ kind: 'REVIEW', code: 'SHARED_PROFILE_UPDATE_REVIEW_REQUIRED' })
-    expect(tx.beneficiary.updateMany).not.toHaveBeenCalled()
-  })
-
-  it('treats an identical retry as the same canonical registration', async () => {
-    tx.formSubmission.findFirst.mockResolvedValue({
-      id: submissionId,
-      projectId,
-      formId,
-      formVersion: 1,
-      source: 'DIRECT_ENCODING',
-      enrollment: { id: enrollmentId, beneficiaryId },
-      formResponseValue_submission: fields.map((entry) => ({
-        field: { code: entry.code },
-        value: values()[entry.code as keyof ReturnType<typeof values>],
-      })),
-    })
-    await expect(promote()).resolves.toEqual({
-      kind: 'PROCESSED',
-      beneficiaryId,
-      enrollmentId,
-      submissionId,
-    })
-    expect(tx.beneficiary.createMany).not.toHaveBeenCalled()
-  })
-
-  it('rejects reuse of a registration key with conflicting values', async () => {
-    tx.formSubmission.findFirst.mockResolvedValue({
-      id: submissionId,
-      projectId,
-      formId,
-      formVersion: 1,
-      source: 'DIRECT_ENCODING',
-      enrollment: { id: enrollmentId, beneficiaryId },
-      formResponseValue_submission: [],
-    })
-    await expect(promote()).rejects.toBeInstanceOf(ConflictException)
-  })
-
-  it('uses the same domain writes for direct and imported registration sources', async () => {
-    await promote(values(), 'DIRECT_ENTRY')
-    const directCreate = tx.beneficiary.createMany.mock.calls[0]?.[0]
-    vi.clearAllMocks()
-    tx.digitalForm.findFirst.mockResolvedValue({
-      id: formId,
-      version: 1,
-      status: 'PUBLISHED',
-      formField_form: fields,
-    })
-    tx.beneficiary.createMany.mockResolvedValue({ count: 1 })
-    tx.beneficiaryProjectEnrollment.create.mockResolvedValue({ id: enrollmentId })
-    tx.formSubmission.create.mockResolvedValue({ id: submissionId })
-    await promote(values(), 'IMPORTED_DATASET')
-    expect(tx.beneficiary.createMany.mock.calls[0]?.[0]).toEqual(directCreate)
-    expect(tx.formSubmission.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({ source: 'IMPORTED_DATASET', importRowId: registrationId }),
-      }),
-    )
-  })
-
-  it('does not write when validation or a transactional dependency fails', async () => {
-    tx.beneficiaryProjectEnrollment.create.mockRejectedValue(
-      new Error('synthetic transaction rollback'),
-    )
-    await expect(promote()).rejects.toThrow('synthetic transaction rollback')
-    expect(tx.formSubmission.create).not.toHaveBeenCalled()
-    expect(tx.auditLog.create).not.toHaveBeenCalled()
-  })
-})
 
 describe('F3 scoped read and denial gates', () => {
   const readTx = {
@@ -726,7 +68,7 @@ describe('F3 scoped read and denial gates', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     readState.tx = readTx
-    service = new BeneficiariesService({} as PrismaService)
+    service = new BeneficiariesService({} as PrismaService, new BeneficiaryRegistrationService())
     readTx.project.findFirst.mockResolvedValue({ id: projectId, startDate: at, endDate: null })
     readTx.beneficiary.findMany.mockResolvedValue([row])
     readTx.beneficiary.findFirst.mockResolvedValue(row)
@@ -867,5 +209,74 @@ describe('directory progress rules', () => {
     expect(progressPercent({ reached: 1, at_terminal: true, path_length: 4 })).toBe(100)
     expect(progressPercent({ reached: 9, at_terminal: false, path_length: 4 })).toBe(100)
     expect(progressPercent({ reached: 0, at_terminal: false, path_length: 0 })).toBe(0)
+  })
+})
+
+describe('profile update audit', () => {
+  const at = new Date('2026-01-01T00:00:00.000Z')
+  const row = {
+    id: beneficiaryId,
+    code: 'GRP-001',
+    subjectType: 'GROUP',
+    displayName: 'Synthetic Group',
+    status: 'ACTIVE',
+    birthDate: null,
+    ageAtRegistration: null,
+    isMinor: false,
+    updatedAt: at,
+    beneficiaryProjectEnrollment_beneficiary: [
+      { id: enrollmentId, enrollmentDate: at, status: 'ACTIVE', updatedAt: at },
+    ],
+    beneficiaryConsentRecord_beneficiary: [],
+  }
+  const writeTx = {
+    project: { findFirst: vi.fn() },
+    beneficiary: { findFirst: vi.fn(), updateMany: vi.fn() },
+    beneficiaryProjectEnrollment: { findFirst: vi.fn() },
+    auditLog: { create: vi.fn() },
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    readState.tx = writeTx
+    writeTx.project.findFirst.mockResolvedValue({ id: projectId, startDate: at, endDate: null })
+    writeTx.beneficiary.findFirst.mockResolvedValue(row)
+    writeTx.beneficiary.updateMany.mockResolvedValue({ count: 1 })
+    writeTx.beneficiaryProjectEnrollment.findFirst.mockResolvedValue(null)
+  })
+
+  it('lists every profile field whatever the body holds, as the compiled DTO did', async () => {
+    const service = new BeneficiariesService(
+      {} as PrismaService,
+      new BeneficiaryRegistrationService(),
+    )
+    await service.update(actor, projectId, beneficiaryId, {
+      subjectType: 'GROUP',
+      displayName: 'Synthetic Group',
+      sex: 'NOT_SPECIFIED',
+      disabilityStatus: 'NOT_SPECIFIED',
+      expectedUpdatedAt: at.toISOString(),
+    })
+    expect(writeTx.auditLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        action: 'BENEFICIARY_PROFILE_UPDATED',
+        changes: {
+          fields: [
+            'subjectType',
+            'displayName',
+            'firstName',
+            'middleName',
+            'lastName',
+            'sex',
+            'birthDate',
+            'ageAtRegistration',
+            'disabilityStatus',
+            'locationBarangay',
+            'locationCityMunicipality',
+            'locationProvince',
+          ],
+        },
+      }),
+    })
   })
 })

@@ -1,8 +1,8 @@
 import 'reflect-metadata'
 
+import type { ApplicationIdentity } from '@app/common/authz/application-identity'
 import { PERMISSION_KEY } from '@app/common/decorators/permission.decorator'
-import { rolePermissions } from '@app/modules/auth/authorization-policy'
-import type { ApplicationIdentity } from '@app/modules/auth/developer-access'
+import { rolePermissions } from '@pathways/shared'
 import { describe, expect, it, vi } from 'vitest'
 import { RoleOverviewController } from './role-overview.controller'
 import type { RoleOverviewService } from './role-overview.service'

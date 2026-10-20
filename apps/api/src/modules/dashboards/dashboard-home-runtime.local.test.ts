@@ -1,4 +1,4 @@
-import type { ApplicationIdentity } from '@app/modules/auth/developer-access'
+import type { ApplicationIdentity } from '@app/common/authz/application-identity'
 import type { IndicatorsService } from '@app/modules/indicators/indicators.service'
 import { PrismaService } from '@app/prisma/prisma.service'
 import { ForbiddenException } from '@nestjs/common'

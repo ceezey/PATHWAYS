@@ -1,17 +1,16 @@
 import 'reflect-metadata'
 
-import { rolePermissions } from '@app/modules/auth/authorization-policy'
-import { withAuthorizedOperation } from '@app/modules/auth/authorized-operation'
-import type { ApplicationIdentity } from '@app/modules/auth/developer-access'
+import type { ApplicationIdentity } from '@app/common/authz/application-identity'
+import { withAuthorizedOperation } from '@app/common/authz/authorized-operation'
 import type { RulesHumanService } from '@app/modules/rules/rules-human.service'
 import type { PrismaService } from '@app/prisma/prisma.service'
-import { roleOverviewSchema } from '@pathways/shared'
+import { roleOverviewSchema, rolePermissions } from '@pathways/shared'
 import type { Prisma } from '@prisma/client'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { RoleOverviewService } from './role-overview.service'
 
 vi.mock('@pathways/config', () => ({ readApiEnv: () => ({ BUSINESS_TIME_ZONE: 'Asia/Manila' }) }))
-vi.mock('@app/modules/auth/authorized-operation', () => ({ withAuthorizedOperation: vi.fn() }))
+vi.mock('@app/common/authz/authorized-operation', () => ({ withAuthorizedOperation: vi.fn() }))
 
 const org = '10000000-0000-4000-8000-00000000000a'
 const project = '20000000-0000-4000-8000-00000000000a'
@@ -58,6 +57,10 @@ function setup() {
     },
     dataImportBatch: { count: vi.fn().mockResolvedValue(2) },
     activityExtensionRequest: {
+      findMany: vi.fn().mockResolvedValue([]),
+      count: vi.fn().mockResolvedValue(0),
+    },
+    activityEscalation: {
       findMany: vi.fn().mockResolvedValue([]),
       count: vi.fn().mockResolvedValue(0),
     },
@@ -186,6 +189,43 @@ describe('RoleOverviewService', () => {
       budget: true,
       recommendation: 'Reallocate',
     })
+  })
+
+  it('counts needs-context alerts apart from levels and ignores them for max severity', async () => {
+    const { rules, service } = setup()
+    const other = '20000000-0000-4000-8000-000000000009'
+    const item = (n: number, projectId: string, severity: string | null) => ({
+      id: `40000000-0000-4000-8000-00000000010${n}`,
+      projectId,
+      title: `Alert ${n}`,
+      severity,
+      lifecycle: 'NEW',
+      explanation: 'x',
+      evidence: [{ metric: 'INDICATOR_PROGRESS_PERCENT' }],
+      predefinedRecommendations: [],
+    })
+    rules.listAlerts.mockImplementation(async (_i, q) =>
+      q.status === 'NEW'
+        ? {
+            items: [
+              item(1, project, 'HIGH'),
+              item(2, project, null),
+              item(3, project, 'MEDIUM'),
+              item(4, other, null),
+            ],
+            nextCursor: null,
+          }
+        : { items: [], nextCursor: null },
+    )
+    const result = await service.read(actor('PROJECT_MANAGER'))
+    expect(result.alerts?.open).toBe(4)
+    expect(result.alerts?.bySeverity).toEqual({ CRITICAL: 0, HIGH: 1, MEDIUM: 1, LOW: 0 })
+    expect(result.alerts?.needsContext).toBe(2)
+    expect(result.alerts?.byProject).toEqual([
+      { projectId: project, open: 3, maxSeverity: 'HIGH' },
+      { projectId: other, open: 1, maxSeverity: null },
+    ])
+    expect(result.alerts?.recent.map((r) => r.severity)).toEqual(['HIGH', 'MEDIUM', null, null])
   })
 
   it('reports capped when alert paging hits the page limit', async () => {
@@ -430,5 +470,67 @@ describe('RoleOverviewService', () => {
     expect(result.alerts?.capped).toBe(true)
     expect(result.alerts?.escalated[0]).toMatchObject({ escalatedAt: '2026-10-02T00:00:00.000Z' })
     expect(result.extensionQueue).toBeNull()
+  })
+
+  describe('escalation queue', () => {
+    const escalation = (raisedById: string, status = 'OPEN') => ({
+      id: project,
+      activityId: project,
+      projectId: project,
+      status,
+      reason: 'r'.repeat(3000),
+      raisedById,
+      raisedAt: new Date('2026-10-01T00:00:00.000Z'),
+      project: { title: 'P' },
+      activity: { code: 'A-1', title: 'T' },
+      raisedBy: { fullName: 'Officer' },
+    })
+
+    it('lists OPEN rows for the Project Manager with RESOLVE or FORWARD stage', async () => {
+      const { tx, service } = setup()
+      tx.activityEscalation.findMany.mockResolvedValue([escalation(project), escalation(user)])
+      const result = await service.read(actor('PROJECT_MANAGER'))
+      const where = tx.activityEscalation.findMany.mock.calls[0][0].where
+      expect(where).toMatchObject({
+        status: 'OPEN',
+        organizationId: org,
+        activity: { archivedAt: null },
+      })
+      expect(where.project).toMatchObject({ organizationId: org, id: { in: [project] } })
+      expect(result.escalationQueue?.rows.map((r) => r.stage)).toEqual(['RESOLVE', 'FORWARD'])
+      expect(result.escalationQueue?.rows[0].reason).toHaveLength(2000)
+    })
+
+    it('lists FORWARDED rows for the Program Manager excluding own raise or forward', async () => {
+      const { tx, service } = setup()
+      tx.activityEscalation.findMany.mockResolvedValue([escalation(project, 'FORWARDED')])
+      const result = await service.read(actor('PROGRAM_MANAGER'))
+      expect(tx.activityEscalation.findMany.mock.calls[0][0].where).toMatchObject({
+        status: 'FORWARDED',
+        raisedById: { not: user },
+        NOT: { forwardedById: user },
+      })
+      expect(result.escalationQueue?.rows[0]).toMatchObject({
+        stage: 'PROGRAM',
+        status: 'FORWARDED',
+      })
+    })
+
+    it('shows the Grant Manager open and forwarded rows to watch, selecting no beneficiary data', async () => {
+      const { tx, service } = setup()
+      tx.activityEscalation.findMany.mockResolvedValue([escalation(project, 'FORWARDED')])
+      const result = await service.read(actor('GRANT_MANAGER'))
+      const arg = tx.activityEscalation.findMany.mock.calls[0][0]
+      expect(arg.where.status).toEqual({ in: ['OPEN', 'FORWARDED'] })
+      expect(Object.keys(arg.select).filter((key) => /benef/i.test(key))).toEqual([])
+      expect(result.escalationQueue?.rows[0].stage).toBe('WATCH')
+    })
+
+    it('leaves the queue null for other roles', async () => {
+      const { tx, service } = setup()
+      for (const role of ['PROJECT_OFFICER', 'MONITORING_AND_EVALUATION_OFFICER'] as const)
+        expect((await service.read(actor(role))).escalationQueue).toBeNull()
+      expect(tx.activityEscalation.findMany).not.toHaveBeenCalled()
+    })
   })
 })

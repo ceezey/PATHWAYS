@@ -3,6 +3,7 @@ import Link from 'next/link'
 import type { ReactNode } from 'react'
 
 import { Card, CardContent } from '@/components/ui/card'
+import type { SignalTone } from '@/lib/format/tone'
 import { cn } from '@/lib/utils'
 
 import { MetricTooltip } from './metric-tooltip'
@@ -19,7 +20,7 @@ export const MetricCard = ({
   value: ReactNode
   description: string
   icon?: LucideIcon
-  tone?: 'info' | 'success' | 'warning' | 'danger'
+  tone?: SignalTone
   href?: string
 }) => (
   <Card className={cn('relative')}>

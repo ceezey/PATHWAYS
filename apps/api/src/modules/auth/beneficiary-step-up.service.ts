@@ -7,20 +7,22 @@ import {
   UnauthorizedException,
 } from '@nestjs/common'
 
-import { InactiveVerifiedSessionError, PrismaService } from '../../prisma/prisma.service'
-import { projectScope } from './authorized-data.service'
+import { STEP_UP_REQUIRED_CODE } from '@pathways/shared'
+
+import { writeAuditLog } from '../../common/audit/write-audit-log'
 import {
-  STEP_UP_REQUIRED_CODE,
+  type ApplicationIdentity,
+  UUID_PATTERN,
+  type VerifiedAuthIdentity,
+} from '../../common/authz/application-identity'
+import { projectScope } from '../../common/authz/project-scope'
+import { InactiveVerifiedSessionError, PrismaService } from '../../prisma/prisma.service'
+import {
   STEP_UP_WINDOW_SECONDS,
   type StepUpMethod,
   evaluateBeneficiaryStepUp,
 } from './beneficiary-step-up'
 import { readStepUpPinStatus } from './beneficiary-step-up-pin.service'
-import {
-  type ApplicationIdentity,
-  UUID_PATTERN,
-  type VerifiedAuthIdentity,
-} from './developer-access'
 
 // Best-effort per-instance dedupe so one verified factor or denial reason is
 // audited once rather than on every request. Duplicates across instances are
@@ -107,20 +109,16 @@ export class BeneficiaryStepUpService {
             userId: profile.userId,
           },
           (tx) =>
-            tx.auditLog.create({
-              data: {
-                organizationId: profile.organizationId,
-                actorUserId: profile.userId,
-                action,
-                entityType: 'BeneficiaryStepUp',
-                changes: {
-                  operation,
-                  ...(method ? { method } : {}),
-                  factorVerifiedAt,
-                  ...(grantExpiry ? { grantExpiresAt: grantExpiry } : {}),
-                  windowSeconds: STEP_UP_WINDOW_SECONDS,
-                  ...(method || state.fresh ? {} : { reason: state.reason }),
-                },
+            writeAuditLog(tx, profile, {
+              action,
+              entityType: 'BeneficiaryStepUp',
+              changes: {
+                operation,
+                ...(method ? { method } : {}),
+                factorVerifiedAt,
+                ...(grantExpiry ? { grantExpiresAt: grantExpiry } : {}),
+                windowSeconds: STEP_UP_WINDOW_SECONDS,
+                ...(method || state.fresh ? {} : { reason: state.reason }),
               },
             }),
         )

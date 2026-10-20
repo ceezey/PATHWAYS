@@ -1,16 +1,13 @@
 import { createServerClient } from '@supabase/ssr'
 import { type NextRequest, NextResponse } from 'next/server'
 
-import { contextCookieName, decodeWorkspaceContext } from '@/features/auth/workspace-access'
+import { contextCookieName, decodeWorkspaceContext } from '@/lib/auth/workspace-access'
 import { webEnv, webSupabasePublishableKey } from '@/lib/env'
 import { ACCESS_UNAVAILABLE_PATH, providerFailureStatus } from '@/lib/rbac/access-recovery'
 import { type NavigationStage, recordNavigationDenial } from '@/lib/rbac/navigation-diagnostic'
-import {
-  RouteCheckError,
-  authorizationPathForUiPath,
-  isPublicPath,
-  matchRoute,
-} from '@/lib/rbac/route-access'
+import { authorizationPathForUiPath, isPublicPath } from '@/lib/rbac/routes'
+import { RouteCheckError } from '@/lib/rbac/transport'
+import { matchRoute } from '@pathways/shared'
 
 /** Optimistic navigation gate only. Every protected data page and API keeps
  * its existing current-session/database/object authorization before data access.

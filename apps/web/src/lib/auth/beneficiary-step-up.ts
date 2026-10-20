@@ -1,10 +1,13 @@
-import { getVerifiedTotpFactors, isTotpCode, verifyTotpCode } from '@/features/auth/mfa-flow'
-import { PathwaysClientError, requestFoundation } from '@/lib/services/pathways-client'
+import { PathwaysClientError, requestFoundation } from '@/lib/api/core/request'
 import { getBrowserSupabaseClient } from '@/lib/supabase/client'
+import {
+  STEP_UP_PIN_RULE_MESSAGE,
+  type StepUpPinState,
+  isAcceptableStepUpPin,
+} from '@pathways/shared'
+import { getVerifiedTotpFactors, isTotpCode, verifyTotpCode } from './mfa-flow'
 
-export type StepUpPinState = 'NONE' | 'SET' | 'LOCKED'
-
-export interface BeneficiaryStepUpStatus {
+interface BeneficiaryStepUpStatus {
   fresh: boolean
   expiresAt: string | null
   /** How the current step-up was satisfied, if it is fresh. */
@@ -24,15 +27,6 @@ export class BeneficiaryStepUpError extends Error {
 
 const UNAVAILABLE = 'The verification service could not be reached.'
 export const PIN_LOCKED_MESSAGE = 'PIN locked. Use your authenticator to unlock it.'
-export const PIN_RULE_MESSAGE =
-  'Use 6 to 12 digits. Repeated digits and simple ascending or descending sequences are not accepted.'
-
-/** Mirrors the server rule (cr-pathways-beneficiary-step-up-pin); the server decides. */
-export function isAcceptableStepUpPin(pin: string) {
-  if (!/^[0-9]{6,12}$/.test(pin)) return false
-  const steps = [...pin.slice(1)].map((digit, index) => digit.charCodeAt(0) - pin.charCodeAt(index))
-  return ![0, 1, -1].some((run) => steps.every((step) => step === run))
-}
 
 /** Server-derived freshness and PIN state; never cached or stored in the browser. */
 export async function getBeneficiaryStepUpStatus(
@@ -143,7 +137,7 @@ async function postPin(
         'throttled',
       )
     }
-    if (error.status === 400) throw new BeneficiaryStepUpError(PIN_RULE_MESSAGE, 'rejected')
+    if (error.status === 400) throw new BeneficiaryStepUpError(STEP_UP_PIN_RULE_MESSAGE, 'rejected')
     if (error.status === 403 || error.status === 409) {
       const status = await getBeneficiaryStepUpStatus().catch(() => null)
       if (status?.pinState === 'LOCKED') {
@@ -175,7 +169,8 @@ export async function verifyStepUpPin(pin: string): Promise<BeneficiaryStepUpSta
 
 /** Set a first PIN. The server requires a fresh TOTP from signed claims. */
 export async function setStepUpPin(pin: string) {
-  if (!isAcceptableStepUpPin(pin)) throw new BeneficiaryStepUpError(PIN_RULE_MESSAGE, 'rejected')
+  if (!isAcceptableStepUpPin(pin))
+    throw new BeneficiaryStepUpError(STEP_UP_PIN_RULE_MESSAGE, 'rejected')
   await postPin(
     '/auth/step-up/pin/setup',
     { pin },
@@ -189,7 +184,7 @@ export async function changeStepUpPin(
   proof: { currentPin: string } | { authenticatorCode: string },
 ) {
   if (!isAcceptableStepUpPin(newPin)) {
-    throw new BeneficiaryStepUpError(PIN_RULE_MESSAGE, 'rejected')
+    throw new BeneficiaryStepUpError(STEP_UP_PIN_RULE_MESSAGE, 'rejected')
   }
   if ('authenticatorCode' in proof) {
     await reverifyAuthenticator(proof.authenticatorCode)

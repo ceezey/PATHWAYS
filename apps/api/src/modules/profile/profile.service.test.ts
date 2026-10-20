@@ -2,15 +2,16 @@ import 'reflect-metadata'
 import { BadRequestException, ConflictException, ValidationPipe } from '@nestjs/common'
 import { describe, expect, it, vi } from 'vitest'
 
+import { type UpdateOwnProfileRequest, updateOwnProfileRequest } from '@pathways/shared'
+import type { ApplicationIdentity } from '../../common/authz/application-identity'
+import { ZodPipe } from '../../common/validation/zod-pipe'
 import type { PrismaService } from '../../prisma/prisma.service'
-import type { ApplicationIdentity } from '../auth/developer-access'
-import { UpdateOwnProfileDto } from './profile.dto'
 import { ProfileService } from './profile.service'
 
 const state = vi.hoisted(() => ({ tx: {} as Record<string, unknown>, permission: '' }))
 
 // The verified-transaction wrapper is replaced so the service runs against a mocked tx.
-vi.mock('../auth/authorized-operation', () => ({
+vi.mock('../../common/authz/authorized-operation', () => ({
   withAuthorizedOperation: (
     _prisma: unknown,
     identity: ApplicationIdentity,
@@ -37,8 +38,11 @@ const pipe = new ValidationPipe({
   transform: true,
   forbidUnknownValues: false,
 })
-const validate = (value: unknown) =>
-  pipe.transform(value, { type: 'body', metatype: UpdateOwnProfileDto })
+// The route path: the global pipe passes the zod-typed body through, then the zod pipe parses it.
+const validate = async (value: unknown) =>
+  new ZodPipe(updateOwnProfileRequest).transform(
+    await pipe.transform(value, { type: 'body', metatype: Object }),
+  )
 const body = {
   fullName: 'Synthetic User',
   contactNumber: '+63 900 000 0000',
@@ -73,7 +77,7 @@ describe('own profile (G-F1-8)', () => {
     const $queryRaw = vi.fn().mockResolvedValue([row])
     state.tx = { $queryRaw }
     const input = await validate(body)
-    await expect(service.update(actor, input as UpdateOwnProfileDto)).resolves.toMatchObject({
+    await expect(service.update(actor, input as UpdateOwnProfileRequest)).resolves.toMatchObject({
       fullName: 'Synthetic User',
     })
     const values = $queryRaw.mock.calls[0].slice(1)

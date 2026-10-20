@@ -11,9 +11,9 @@ import {
   Query,
   Req,
 } from '@nestjs/common'
+import type { AuthenticatedRequest } from '../../common/authz/application-identity'
 import { RequireBeneficiaryStepUp } from '../../common/decorators/beneficiary-step-up.decorator'
 import { RequirePermission } from '../../common/decorators/permission.decorator'
-import type { AuthenticatedRequest } from '../auth/developer-access'
 import { EvaluationsService } from './evaluations.service'
 
 @Controller('projects/:projectId/evaluation')
@@ -37,6 +37,18 @@ export class EvaluationsController {
   ) {
     if (!request.user) throw new ForbiddenException('Application profile required.')
     return this.service.listBeneficiaryAssessments(request.user, projectId, query)
+  }
+  @Post('assessments')
+  @Header('Cache-Control', 'private, no-store')
+  @RequirePermission('assessments.record')
+  @RequireBeneficiaryStepUp()
+  recordAssessment(
+    @Req() request: AuthenticatedRequest,
+    @Param('projectId') projectId: string,
+    @Body() input: unknown,
+  ) {
+    if (!request.user) throw new ForbiddenException('Application profile required.')
+    return this.service.recordBeneficiaryAssessment(request.user, projectId, input)
   }
   @Get('assessments/:assessmentId')
   @Header('Cache-Control', 'private, no-store')

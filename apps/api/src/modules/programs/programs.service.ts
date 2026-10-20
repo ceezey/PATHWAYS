@@ -1,9 +1,10 @@
 import { BadRequestException, ForbiddenException, Inject, Injectable } from '@nestjs/common'
+import type { CreateProgramRequest } from '@pathways/shared'
 
+import { writeAuditLog } from '../../common/audit/write-audit-log'
+import type { ApplicationIdentity } from '../../common/authz/application-identity'
+import { withAuthorizedOperation } from '../../common/authz/authorized-operation'
 import { PrismaService } from '../../prisma/prisma.service'
-import { withAuthorizedOperation } from '../auth/authorized-operation'
-import type { ApplicationIdentity } from '../auth/developer-access'
-import type { CreateProgramDto } from './programs.dto'
 
 @Injectable()
 export class ProgramsService {
@@ -43,7 +44,7 @@ export class ProgramsService {
     )
   }
 
-  create(identity: ApplicationIdentity, input: CreateProgramDto) {
+  create(identity: ApplicationIdentity, input: CreateProgramRequest) {
     return withAuthorizedOperation(this.prisma, identity, 'programs.create', async (tx, actor) => {
       if (actor.roles[0] !== 'SYSTEM_ADMINISTRATOR') {
         throw new ForbiddenException('Program creation requires System Administrator authority.')
@@ -71,15 +72,11 @@ export class ProgramsService {
           status: true,
         },
       })
-      await tx.auditLog.create({
-        data: {
-          organizationId: actor.organizationId,
-          actorUserId: actor.userId,
-          action: 'PROGRAM_CREATED',
-          entityType: 'Program',
-          entityId: row.id,
-          changes: { code: input.code, status: input.status },
-        },
+      await writeAuditLog(tx, actor, {
+        action: 'PROGRAM_CREATED',
+        entityType: 'Program',
+        entityId: row.id,
+        changes: { code: input.code, status: input.status },
       })
       return row
     })

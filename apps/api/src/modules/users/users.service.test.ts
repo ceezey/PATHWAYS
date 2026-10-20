@@ -1,15 +1,16 @@
 import { ForbiddenException, NotFoundException } from '@nestjs/common'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { CanonicalRole } from '@pathways/shared'
+import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import type { PrismaService } from '../../prisma/prisma.service'
-import type { ApplicationIdentity } from '../auth/developer-access'
 import type { AuthDirectoryService } from './auth-directory.service'
 import { UsersService } from './users.service'
 
 const state = vi.hoisted(() => ({ tx: {} as Record<string, unknown>, roles: ['PROGRAM_MANAGER'] }))
 
 // The verified-transaction wrapper is replaced so the role checks run against a mocked tx.
-vi.mock('../auth/authorized-operation', () => ({
+vi.mock('../../common/authz/authorized-operation', () => ({
   withAuthorizedOperation: (
     _prisma: unknown,
     identity: ApplicationIdentity,
@@ -84,12 +85,16 @@ function writeCalls(tx: Tx) {
 const directory = { getExistingVerifiedIdentity: vi.fn() }
 const service = new UsersService({} as PrismaService, directory as unknown as AuthDirectoryService)
 const update = (userId: string, role: string) =>
-  service.update(identity, userId, { role, accountStatus: 'ACTIVE', projectIds: [projectId] })
+  service.update(identity, userId, {
+    role: role as CanonicalRole,
+    accountStatus: 'ACTIVE',
+    projectIds: [projectId],
+  })
 const authorize = (role: string) =>
   service.authorizeExisting(identity, {
     authUserId: id(7),
     fullName: 'Synthetic User',
-    role,
+    role: role as CanonicalRole,
     projectIds: [projectId],
   })
 

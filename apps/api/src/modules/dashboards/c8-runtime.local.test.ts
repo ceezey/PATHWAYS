@@ -1,9 +1,10 @@
-import type { ApplicationIdentity } from '@app/modules/auth/developer-access'
-import type { BeneficiaryListQueryDto } from '@app/modules/beneficiaries/beneficiaries.dto'
+import type { ApplicationIdentity } from '@app/common/authz/application-identity'
 import { BeneficiariesService } from '@app/modules/beneficiaries/beneficiaries.service'
+import { BeneficiaryRegistrationService } from '@app/modules/beneficiaries/beneficiary-registration.service'
 import type { IndicatorsService } from '@app/modules/indicators/indicators.service'
 import { PrismaService } from '@app/prisma/prisma.service'
 import { BadRequestException } from '@nestjs/common'
+import type { BeneficiaryListQuery } from '@pathways/shared'
 import type { Prisma } from '@prisma/client'
 import { describe, expect, it } from 'vitest'
 import { DashboardsService } from './dashboards.service'
@@ -165,12 +166,15 @@ describe.skipIf(!enabled)('C8 service path on disposable PostgreSQL', () => {
             Object.defineProperty(scoped, '$transaction', {
               value: (work: (inner: Prisma.TransactionClient) => Promise<unknown>) => work(tx),
             })
-            const beneficiaries = new BeneficiariesService(scoped)
+            const beneficiaries = new BeneficiariesService(
+              scoped,
+              new BeneficiaryRegistrationService(),
+            )
             const dashboards = new DashboardsService(scoped, {} as IndicatorsService)
             await tx.$executeRaw`SET LOCAL session_replication_role = origin`
             await tx.$executeRaw`SET LOCAL ROLE pathways_runtime`
 
-            const list = (filters: Partial<BeneficiaryListQueryDto>) =>
+            const list = (filters: Partial<BeneficiaryListQuery>) =>
               beneficiaries.list(actor, projectId, { limit: 25, ...filters })
             const matching = await list({
               sex: 'FEMALE',

@@ -7,9 +7,9 @@ import {
 } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 
+import { UUID_PATTERN } from '../../common/authz/application-identity'
 import { PrismaService } from '../../prisma/prisma.service'
 import { prismaDiagnosticCode, transactionDiagnostic } from '../../prisma/transaction-diagnostic'
-import { UUID_PATTERN } from './developer-access'
 
 import {
   type InspectionRequestBudget,

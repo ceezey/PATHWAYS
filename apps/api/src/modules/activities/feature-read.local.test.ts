@@ -1,14 +1,13 @@
 import type { Prisma } from '@prisma/client'
 import { describe, expect, it } from 'vitest'
 
+import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import { PrismaService } from '../../prisma/prisma.service'
-import type { ApplicationIdentity } from '../auth/developer-access'
 import { ProjectsService } from '../projects/projects.service'
-import type { StorageService } from '../storage/storage.service'
 import { ActivitiesService } from './activities.service'
 
 // Explicit opt-in only. This harness uses one fixed, password-free loopback
-// database created and removed by phase6/Replay-Local.ps1.
+// database created and removed by replay/Replay-Local.ps1.
 const enabled = process.env.PATHWAYS_FEATURE_READ_LOCAL_TESTS === '1'
 const replayPort = Number(process.env.PATHWAYS_REPLAY_PORT)
 if (enabled && !replayPort) throw new Error('PATHWAYS_REPLAY_PORT is required')
@@ -165,7 +164,7 @@ describe.skipIf(!enabled)('joined feature reads on disposable PostgreSQL', () =>
                 work(transaction),
             })
             const projects = new ProjectsService(scoped)
-            const activities = new ActivitiesService(scoped, {} as StorageService)
+            const activities = new ActivitiesService(scoped)
             await transaction.$executeRaw`SET LOCAL session_replication_role = origin`
             await transaction.$executeRaw`SET LOCAL ROLE pathways_runtime`
 

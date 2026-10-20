@@ -8,19 +8,22 @@ import {
 } from '@nestjs/common'
 import type { Prisma } from '@prisma/client'
 
-import { PrismaService } from '../../prisma/prisma.service'
 import {
+  type AuthorizeExistingUserRequest,
   type CanonicalRole,
+  type UpdateAuthorizedUserRequest,
   canAssignRole,
   canAuthorizeRole,
   isCanonicalRole,
   roleNames,
-} from '../auth/authorization-policy'
-import { projectScope } from '../auth/authorized-data.service'
-import { withAuthorizedOperation } from '../auth/authorized-operation'
-import { type ApplicationIdentity, UUID_PATTERN } from '../auth/developer-access'
+} from '@pathways/shared'
+import { writeAuditLog } from '../../common/audit/write-audit-log'
+import { type ApplicationIdentity, UUID_PATTERN } from '../../common/authz/application-identity'
+import { withAuthorizedOperation } from '../../common/authz/authorized-operation'
+import { projectScope } from '../../common/authz/project-scope'
+import type { Tx } from '../../common/prisma/transaction'
+import { PrismaService } from '../../prisma/prisma.service'
 import { AuthDirectoryService } from './auth-directory.service'
-import type { AuthorizeExistingUserDto, UpdateAuthorizedUserDto } from './users.dto'
 
 const assignableRoles: readonly CanonicalRole[] = [
   'PROGRAM_MANAGER',
@@ -125,7 +128,7 @@ export class UsersService {
     })
   }
 
-  async authorizeExisting(identity: ApplicationIdentity, input: AuthorizeExistingUserDto) {
+  async authorizeExisting(identity: ApplicationIdentity, input: AuthorizeExistingUserRequest) {
     const authIdentity = await this.authDirectory.getExistingVerifiedIdentity(
       input.authUserId.toLowerCase(),
     )
@@ -182,15 +185,11 @@ export class UsersService {
             })),
           })
         }
-        await tx.auditLog.create({
-          data: {
-            organizationId: actor.organizationId,
-            actorUserId: actor.userId,
-            action: 'USER_AUTHORIZED',
-            entityType: 'SystemUser',
-            entityId: created.id,
-            changes: { role: input.role, projectCount: projectIds.length },
-          },
+        await writeAuditLog(tx, actor, {
+          action: 'USER_AUTHORIZED',
+          entityType: 'SystemUser',
+          entityId: created.id,
+          changes: { role: input.role, projectCount: projectIds.length },
         })
         const result = await tx.systemUser.findUniqueOrThrow({
           where: { id: created.id },
@@ -202,7 +201,7 @@ export class UsersService {
     )
   }
 
-  update(identity: ApplicationIdentity, userId: string, input: UpdateAuthorizedUserDto) {
+  update(identity: ApplicationIdentity, userId: string, input: UpdateAuthorizedUserRequest) {
     return withAuthorizedOperation(
       this.prisma,
       identity,
@@ -366,19 +365,15 @@ export class UsersService {
         if (input.accountStatus === 'DEACTIVATED') {
           await updateProfile()
         }
-        await tx.auditLog.create({
-          data: {
-            organizationId: actor.organizationId,
-            actorUserId: actor.userId,
-            action: 'USER_AUTHORIZATION_UPDATED',
-            entityType: 'SystemUser',
-            entityId: target.id,
-            changes: {
-              role: input.role,
-              accountStatus: input.accountStatus,
-              projectCount: projectIds.length,
-              nameChanged: Boolean(input.fullName),
-            },
+        await writeAuditLog(tx, actor, {
+          action: 'USER_AUTHORIZATION_UPDATED',
+          entityType: 'SystemUser',
+          entityId: target.id,
+          changes: {
+            role: input.role,
+            accountStatus: input.accountStatus,
+            projectCount: projectIds.length,
+            nameChanged: Boolean(input.fullName),
           },
         })
         const result = await tx.systemUser.findUniqueOrThrow({
@@ -392,7 +387,7 @@ export class UsersService {
   }
 
   private async requireProjects(
-    tx: Prisma.TransactionClient,
+    tx: Tx,
     actor: ApplicationIdentity,
     targetRole: CanonicalRole,
     requestedProjectIds: readonly string[],

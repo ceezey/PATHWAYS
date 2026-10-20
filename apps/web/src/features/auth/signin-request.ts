@@ -1,7 +1,7 @@
 import { approvedApiBaseUrl } from '@/lib/api-base-url'
 import { webEnv } from '@/lib/env'
 
-export type SignInOutcome =
+type SignInOutcome =
   | { kind: 'session'; accessToken: string; refreshToken: string }
   | { kind: 'invalid' }
   | { kind: 'locked'; retryAfterSeconds: number }

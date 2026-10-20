@@ -4,7 +4,7 @@ import { mkdirSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { expect, test } from '@playwright/test'
 import { createClient } from '@supabase/supabase-js'
-import { localDatabase } from '../../../scripts/db/local-target.mjs'
+import { localDatabase } from '../../../scripts/db/local/target.mjs'
 
 const api = process.env.PATHWAYS_LOCAL_API_URL ?? 'http://127.0.0.1:4000/api'
 const web = 'http://127.0.0.1:3000'

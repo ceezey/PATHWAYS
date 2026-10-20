@@ -9,10 +9,10 @@ import { Prisma } from '@prisma/client'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { parseWorkbook } from '@pathways/imports'
+import { hasAtomicPermission, rolePermissions } from '@pathways/shared'
+import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import { PERMISSION_KEY } from '../../common/decorators/permission.decorator'
 import type { PrismaService } from '../../prisma/prisma.service'
-import { hasAtomicPermission, rolePermissions } from '../auth/authorization-policy'
-import type { ApplicationIdentity } from '../auth/developer-access'
 import { FORM_DEFINITION_EXPORT_COLUMNS } from './form-definition-export'
 import { FormDefinitionExportService } from './form-definition-export.service'
 import { MetadataController } from './metadata.controller'
@@ -22,7 +22,7 @@ const state = vi.hoisted(() => ({
   permissions: [] as string[],
 }))
 
-vi.mock('../auth/authorized-operation', async () => {
+vi.mock('../../common/authz/authorized-operation', async () => {
   const { ForbiddenException: Forbidden } = await import('@nestjs/common')
   return {
     withAuthorizedOperation: vi.fn(async (_prisma, _identity, permission, work) => {
@@ -230,6 +230,24 @@ describe('form-definition export', () => {
       }),
     )
     expect(tx.auditLog.create).not.toHaveBeenCalled()
+  })
+
+  it('reads an upper-case project id as the stored id and refuses a malformed one before any query', async () => {
+    const stored = '3000000a-0000-4000-8000-00000000000b'
+    state.actor = actor({ assignedProjectIds: [stored] })
+    await service.export(state.actor, stored.toUpperCase(), formId, 'CSV')
+    expect(tx.project.findFirst).toHaveBeenCalledWith({
+      where: { AND: [expect.anything(), { id: stored }] },
+      select: { id: true },
+    })
+    expect(tx.digitalForm.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ projectId: stored }) }),
+    )
+    vi.clearAllMocks()
+    await expect(service.export(state.actor, 'not-a-uuid', formId, 'CSV')).rejects.toThrow(
+      'Project unavailable.',
+    )
+    expect(tx.project.findFirst).not.toHaveBeenCalled()
   })
 
   it('fails whole when the definition exceeds the artifact bounds', async () => {

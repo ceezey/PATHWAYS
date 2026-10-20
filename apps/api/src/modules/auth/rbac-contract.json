@@ -504,7 +504,12 @@
       "PROGRAM_MANAGER",
       "GRANT_MANAGER"
     ],
-    "activities.context.read": ["SYSTEM_ADMINISTRATOR"]
+    "activities.context.read": ["SYSTEM_ADMINISTRATOR"],
+    "assessments.record": [
+      "PROJECT_OFFICER",
+      "MONITORING_AND_EVALUATION_OFFICER",
+      "PROJECT_MANAGER"
+    ]
   },
   "rows": [
     {
@@ -1856,6 +1861,17 @@
         ["PROJECT_MANAGER", "evaluations.signoff"]
       ],
       "revokes": [["SYSTEM_ADMINISTRATOR", "evaluations.weights.configure"]]
+    },
+    {
+      "changeRecord": "cr-pathways-assessment-score-entry",
+      "migration": "0071_assessment_score_entry",
+      "rows": [],
+      "grants": [
+        ["PROJECT_OFFICER", "assessments.record"],
+        ["MONITORING_AND_EVALUATION_OFFICER", "assessments.record"],
+        ["PROJECT_MANAGER", "assessments.record"]
+      ],
+      "revokes": []
     }
   ]
 }

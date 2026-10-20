@@ -7,14 +7,14 @@ import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core'
 import { readApiEnv } from '@pathways/config'
 import { LoggerModule } from 'nestjs-pino'
 
-import { RolesGuard } from './common/guards/roles.guard'
-import { SupabaseAuthGuard } from './common/guards/supabase-auth.guard'
 import { SentryInterceptor } from './common/interceptors/sentry.interceptor'
 import { ActivitiesModule } from './modules/activities/activities.module'
+import { ActivityEscalationsModule } from './modules/activity-escalations/activity-escalations.module'
 import { ActivityExtensionsModule } from './modules/activity-extensions/activity-extensions.module'
-import { AnalyticsInsightsModule } from './modules/analytics-insights/analytics-insights.module'
+import { AnalyticsModule } from './modules/analytics/analytics.module'
 import { AuditModule } from './modules/audit/audit.module'
 import { AuthModule } from './modules/auth/auth.module'
+import { SupabaseAuthGuard } from './modules/auth/guards/supabase-auth.guard'
 import { BeneficiariesModule } from './modules/beneficiaries/beneficiaries.module'
 import { BeneficiaryMediaModule } from './modules/beneficiary-media/beneficiary-media.module'
 import { DashboardsModule } from './modules/dashboards/dashboards.module'
@@ -176,6 +176,7 @@ export function createPathwaysPinoHttpOptions(environment = process.env.NODE_ENV
     AuthModule,
     ProfileModule,
     ActivitiesModule,
+    ActivityEscalationsModule,
     ActivityExtensionsModule,
     BeneficiariesModule,
     BeneficiaryMediaModule,
@@ -187,7 +188,7 @@ export function createPathwaysPinoHttpOptions(environment = process.env.NODE_ENV
     ImportsModule,
     IndicatorsModule,
     DashboardsModule,
-    AnalyticsInsightsModule,
+    AnalyticsModule,
     ProjectMapModule,
     EvaluationsModule,
     FinanceModule,
@@ -200,10 +201,6 @@ export function createPathwaysPinoHttpOptions(environment = process.env.NODE_ENV
     {
       provide: APP_GUARD,
       useClass: SupabaseAuthGuard,
-    },
-    {
-      provide: APP_GUARD,
-      useClass: RolesGuard,
     },
     {
       provide: APP_INTERCEPTOR,

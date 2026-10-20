@@ -6,15 +6,39 @@ import {
   Injectable,
   ServiceUnavailableException,
 } from '@nestjs/common'
+import {
+  type AtomicPermission,
+  alertListSchema,
+  alertOutputSchema,
+  alertPreviewSchema,
+  confirmOutcomeSchema,
+  confirmationOutputSchema,
+  dispositionSchema,
+  emptyBodySchema,
+  escalatedAlertListSchema,
+  escalatedAlertOutputSchema,
+  hasAtomicPermission,
+  historyListSchema,
+  historyOutputSchema,
+  notificationListSchema,
+  notificationOutputSchema,
+  pageSchema,
+  previewOutputSchema,
+  recommendationListSchema,
+  recommendationOutputSchema,
+  recommendationPreviewSchema,
+  reviewSchema,
+  ruleListSchema,
+  ruleOutputSchema,
+  uuidSchema,
+} from '@pathways/shared'
 import { Prisma } from '@prisma/client'
 import type { z } from 'zod'
+import type { ApplicationIdentity } from '../../common/authz/application-identity'
+import { withAuthorizedOperation } from '../../common/authz/authorized-operation'
+import type { Tx } from '../../common/prisma/transaction'
 import { PrismaService } from '../../prisma/prisma.service'
-import { type AtomicPermission, hasAtomicPermission } from '../auth/authorization-policy'
-import { withAuthorizedOperation } from '../auth/authorized-operation'
-import type { ApplicationIdentity } from '../auth/developer-access'
-import { uuidSchema } from './rule-contract'
-import { evaluateRule } from './rule-engine'
-import * as contracts from './rules-human-contract'
+import { evaluateRuleWithSeverity } from './rule-engine'
 
 type Operation =
   | 'RULE_LIST'
@@ -114,7 +138,7 @@ export class RulesHumanService {
     )
   }
   private async executeInTransaction<T extends z.ZodTypeAny>(
-    tx: Prisma.TransactionClient,
+    tx: Tx,
     actor: ApplicationIdentity,
     operation: Operation,
     id: string | null,
@@ -150,18 +174,14 @@ export class RulesHumanService {
     return checked.data
   }
   /** Lists alerts inside an already-authorized report transaction; alerts.read is still required. */
-  listAlertsInTransaction(
-    tx: Prisma.TransactionClient,
-    actor: ApplicationIdentity,
-    query: unknown,
-  ) {
+  listAlertsInTransaction(tx: Tx, actor: ApplicationIdentity, query: unknown) {
     return this.executeInTransaction(
       tx,
       actor,
       'ALERT_LIST',
       null,
-      parse(contracts.alertListSchema, query),
-      contracts.pageSchema(contracts.alertOutputSchema),
+      parse(alertListSchema, query),
+      pageSchema(alertOutputSchema),
       'alerts.read',
     )
   }
@@ -171,61 +191,33 @@ export class RulesHumanService {
       'rules.read',
       'RULE_LIST',
       null,
-      parse(contracts.ruleListSchema, query),
-      contracts.pageSchema(contracts.ruleOutputSchema),
+      parse(ruleListSchema, query),
+      pageSchema(ruleOutputSchema),
     )
   }
   getRule(identity: ApplicationIdentity, id: string) {
-    return this.execute(identity, 'rules.read', 'RULE_GET', id, {}, contracts.ruleOutputSchema)
+    return this.execute(identity, 'rules.read', 'RULE_GET', id, {}, ruleOutputSchema)
   }
   // Fixed SQL configuration wrappers perform admission under state protection
   // BEFORE validating candidate content, version or committed receipt. Parsing
   // trees here would turn an inaccessible project into a candidate-dependent
   //400/403 response. SQL applies the same strict typed schemas after admission.
   createRule(identity: ApplicationIdentity, body: unknown) {
-    return this.execute(
-      identity,
-      'rules.create',
-      'RULE_CREATE',
-      null,
-      body,
-      contracts.ruleOutputSchema,
-    )
+    return this.execute(identity, 'rules.create', 'RULE_CREATE', null, body, ruleOutputSchema)
   }
   draftRule(identity: ApplicationIdentity, id: string, body: unknown) {
-    return this.execute(
-      identity,
-      'rules.update',
-      'RULE_DRAFT',
-      id,
-      body,
-      contracts.ruleOutputSchema,
-    )
+    return this.execute(identity, 'rules.update', 'RULE_DRAFT', id, body, ruleOutputSchema)
   }
   activateRule(identity: ApplicationIdentity, id: string, body: unknown) {
-    return this.execute(
-      identity,
-      'rules.activate',
-      'RULE_ACTIVATE',
-      id,
-      body,
-      contracts.ruleOutputSchema,
-    )
+    return this.execute(identity, 'rules.activate', 'RULE_ACTIVATE', id, body, ruleOutputSchema)
   }
   archiveRule(identity: ApplicationIdentity, id: string, body: unknown) {
-    return this.execute(
-      identity,
-      'rules.update',
-      'RULE_ARCHIVE',
-      id,
-      body,
-      contracts.ruleOutputSchema,
-    )
+    return this.execute(identity, 'rules.update', 'RULE_ARCHIVE', id, body, ruleOutputSchema)
   }
   dryRun(identity: ApplicationIdentity, body: unknown) {
     return withAuthorizedOperation(this.prisma, identity, 'rules.read', async () => {
       try {
-        return evaluateRule(body)
+        return evaluateRuleWithSeverity(body)
       } catch {
         throw new BadRequestException('Invalid synthetic typed evaluation.')
       }
@@ -237,8 +229,8 @@ export class RulesHumanService {
       'alerts.read',
       'ALERT_LIST',
       null,
-      parse(contracts.alertListSchema, query),
-      contracts.pageSchema(contracts.alertOutputSchema),
+      parse(alertListSchema, query),
+      pageSchema(alertOutputSchema),
     )
   }
   // Read-only queue of alerts whose latest recorded outcome is ESCALATE; the limit defaults like listAlerts.
@@ -248,12 +240,12 @@ export class RulesHumanService {
       'alerts.read',
       'ESCALATED_ALERT_LIST',
       null,
-      parse(contracts.escalatedAlertListSchema, query),
-      contracts.pageSchema(contracts.escalatedAlertOutputSchema),
+      parse(escalatedAlertListSchema, query),
+      pageSchema(escalatedAlertOutputSchema),
     )
   }
   getAlert(identity: ApplicationIdentity, id: string) {
-    return this.execute(identity, 'alerts.read', 'ALERT_GET', id, {}, contracts.alertOutputSchema)
+    return this.execute(identity, 'alerts.read', 'ALERT_GET', id, {}, alertOutputSchema)
   }
   alertHistory(identity: ApplicationIdentity, id: string, query: unknown) {
     return this.execute(
@@ -261,8 +253,8 @@ export class RulesHumanService {
       'alerts.read',
       'ALERT_HISTORY',
       id,
-      parse(contracts.historyListSchema, query),
-      contracts.pageSchema(contracts.historyOutputSchema),
+      parse(historyListSchema, query),
+      pageSchema(historyOutputSchema),
     )
   }
   reviewAlert(identity: ApplicationIdentity, id: string, body: unknown) {
@@ -271,8 +263,8 @@ export class RulesHumanService {
       'alerts.review',
       'ALERT_REVIEW',
       id,
-      parse(contracts.reviewSchema, body),
-      contracts.alertOutputSchema,
+      parse(reviewSchema, body),
+      alertOutputSchema,
     )
   }
   dispositionAlert(identity: ApplicationIdentity, id: string, body: unknown) {
@@ -281,19 +273,19 @@ export class RulesHumanService {
       'alerts.outcome.record',
       'ALERT_DISPOSITION',
       id,
-      parse(contracts.dispositionSchema, body),
-      contracts.alertOutputSchema,
+      parse(dispositionSchema, body),
+      alertOutputSchema,
     )
   }
   previewAlert(identity: ApplicationIdentity, id: string, body: unknown) {
-    const input = parse(contracts.alertPreviewSchema, body)
+    const input = parse(alertPreviewSchema, body)
     return this.execute(
       identity,
       'alerts.outcome.record',
       'ALERT_PREVIEW',
       id,
       input,
-      contracts.previewOutputSchema,
+      previewOutputSchema,
       input.recommendationId ? 'recommendations.outcome.record' : undefined,
     )
   }
@@ -303,8 +295,8 @@ export class RulesHumanService {
       'alerts.outcome.record',
       'ALERT_CONFIRM',
       id,
-      parse(contracts.confirmOutcomeSchema, body),
-      contracts.confirmationOutputSchema,
+      parse(confirmOutcomeSchema, body),
+      confirmationOutputSchema,
     )
   }
   listRecommendations(identity: ApplicationIdentity, query: unknown) {
@@ -313,8 +305,8 @@ export class RulesHumanService {
       'recommendations.read',
       'RECOMMENDATION_LIST',
       null,
-      parse(contracts.recommendationListSchema, query),
-      contracts.pageSchema(contracts.recommendationOutputSchema),
+      parse(recommendationListSchema, query),
+      pageSchema(recommendationOutputSchema),
     )
   }
   getRecommendation(identity: ApplicationIdentity, id: string) {
@@ -324,7 +316,7 @@ export class RulesHumanService {
       'RECOMMENDATION_GET',
       id,
       {},
-      contracts.recommendationOutputSchema,
+      recommendationOutputSchema,
     )
   }
   reviewRecommendation(identity: ApplicationIdentity, id: string, body: unknown) {
@@ -333,19 +325,19 @@ export class RulesHumanService {
       'recommendations.review',
       'RECOMMENDATION_REVIEW',
       id,
-      parse(contracts.reviewSchema, body),
-      contracts.recommendationOutputSchema,
+      parse(reviewSchema, body),
+      recommendationOutputSchema,
     )
   }
   previewRecommendation(identity: ApplicationIdentity, id: string, body: unknown) {
-    const input = parse(contracts.recommendationPreviewSchema, body)
+    const input = parse(recommendationPreviewSchema, body)
     return this.execute(
       identity,
       'recommendations.outcome.record',
       'RECOMMENDATION_PREVIEW',
       id,
       input,
-      contracts.previewOutputSchema,
+      previewOutputSchema,
       ['ACCEPT', 'PARTIALLY_ACCEPT'].includes(input.outcome) ? 'alerts.outcome.record' : undefined,
     )
   }
@@ -355,8 +347,8 @@ export class RulesHumanService {
       'recommendations.outcome.record',
       'RECOMMENDATION_CONFIRM',
       id,
-      parse(contracts.confirmOutcomeSchema, body),
-      contracts.confirmationOutputSchema,
+      parse(confirmOutcomeSchema, body),
+      confirmationOutputSchema,
     )
   }
   listNotifications(identity: ApplicationIdentity, query: unknown) {
@@ -365,8 +357,8 @@ export class RulesHumanService {
       'alerts.read',
       'NOTIFICATION_LIST',
       null,
-      parse(contracts.notificationListSchema, query),
-      contracts.pageSchema(contracts.notificationOutputSchema),
+      parse(notificationListSchema, query),
+      pageSchema(notificationOutputSchema),
     )
   }
   readNotification(identity: ApplicationIdentity, id: string, body: unknown) {
@@ -375,8 +367,8 @@ export class RulesHumanService {
       'alerts.read',
       'NOTIFICATION_READ',
       id,
-      parse(contracts.emptyBodySchema, body),
-      contracts.notificationOutputSchema,
+      parse(emptyBodySchema, body),
+      notificationOutputSchema,
     )
   }
 }

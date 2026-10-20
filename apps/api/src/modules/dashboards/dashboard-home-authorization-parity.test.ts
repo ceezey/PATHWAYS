@@ -1,12 +1,14 @@
+import type {
+  ApplicationIdentity,
+  AuthenticatedRequest,
+} from '@app/common/authz/application-identity'
+import { withAuthorizedOperation } from '@app/common/authz/authorized-operation'
 import { PERMISSION_KEY } from '@app/common/decorators/permission.decorator'
-import { hasAtomicPermission, rolePermissions } from '@app/modules/auth/authorization-policy'
-import { withAuthorizedOperation } from '@app/modules/auth/authorized-operation'
-import type { ApplicationIdentity, AuthenticatedRequest } from '@app/modules/auth/developer-access'
 import type { IndicatorsService } from '@app/modules/indicators/indicators.service'
 import type { PrismaService } from '@app/prisma/prisma.service'
 import { ForbiddenException } from '@nestjs/common'
+import { hasAtomicPermission, rolePermissions, routePolicy } from '@pathways/shared'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { routePolicy } from '../../../../web/src/lib/rbac/route-access'
 import { DashboardsController } from './dashboards.controller'
 import { DashboardsService } from './dashboards.service'
 
@@ -14,7 +16,7 @@ vi.mock('@pathways/config', () => ({
   readApiEnv: () => ({ BUSINESS_TIME_ZONE: 'Asia/Manila' }),
 }))
 
-vi.mock('@app/modules/auth/authorized-operation', () => ({
+vi.mock('@app/common/authz/authorized-operation', () => ({
   withAuthorizedOperation: vi.fn(),
 }))
 

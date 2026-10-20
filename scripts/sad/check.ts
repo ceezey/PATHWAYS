@@ -20,9 +20,21 @@ export const roles = {
     pillars: ['Security'],
     globs: [
       'apps/api/src/**/*.service.ts',
+      'apps/api/src/**/*.helpers.ts',
+      'packages/shared/src/rbac/**/*.ts',
+      'packages/shared/src/contracts/auth/**/*.ts',
+      'packages/shared/src/contracts/users/**/*.ts',
+      'apps/api/src/common/authz/**/*.ts',
+      'apps/api/src/common/audit/**/*.ts',
+      'apps/api/src/modules/auth/guards/**/*.ts',
+      'apps/web/src/lib/auth/**/*.ts',
+      'apps/web/src/lib/rbac/**/*.ts',
+      'apps/web/src/lib/middleware.ts',
+      'apps/web/src/middleware.ts',
       'apps/api/prisma/schema.prisma',
       'infra/supabase/**/*.sql',
       'apps/api/prisma/migrations/**/*.sql',
+      'infra/supabase/replay/*.ps1',
       'infra/supabase/phase6/*.ps1',
     ],
   },
@@ -34,6 +46,7 @@ export const roles = {
       'apps/api/prisma/history/**',
       'scripts/migrations/**',
       'infra/supabase/**/*.sql',
+      'infra/supabase/replay/*.ps1',
       'infra/supabase/phase6/*.ps1',
       '.github/workflows/ci.yml',
     ],
@@ -42,24 +55,43 @@ export const roles = {
     pillars: ['Compatibility', 'Security'],
     globs: [
       'apps/api/src/**/*.controller.ts',
+      'apps/api/src/**/*.mapper.ts',
+      'apps/api/src/modules/beneficiaries/**/*.ts',
+      'apps/api/src/modules/beneficiary-media/**/*.ts',
+      'apps/api/src/modules/participants/**/*.ts',
       'apps/web/src/api/**/*.ts',
       '**/schemas/*.zod.ts',
       'apps/web/src/lib/services/**/*.ts',
+      'apps/web/src/lib/api/**/*.ts',
       'packages/shared/src/validation/**/*.ts',
+      'packages/shared/src/contracts/**/*.ts',
+      'apps/api/src/common/validation/**/*.ts',
     ],
   },
   'metadata-import-validator': {
     pillars: ['Functional Suitability'],
-    globs: ['packages/imports/src/**/*.ts', 'apps/api/src/modules/imports/**/*.ts'],
+    globs: [
+      'packages/imports/src/**/*.ts',
+      'apps/api/src/modules/imports/**/*.ts',
+      'apps/api/src/modules/metadata/**/*.ts',
+      'packages/shared/src/contracts/imports/**/*.ts',
+      'packages/shared/src/contracts/metadata/**/*.ts',
+    ],
   },
   'rule-engine-determinism-checker': {
     pillars: ['Performance Efficiency'],
     globs: [
-      'packages/shared/src/monitoring/**/*.ts',
+      'packages/shared/src/metrics/**/*.ts',
+      'packages/shared/src/contracts/analytics/**/*.ts',
+      'packages/shared/src/contracts/dashboards/**/*.ts',
+      'packages/shared/src/contracts/projects/overview-metrics*.ts',
+      'packages/shared/src/contracts/projects/project-map*.ts',
+      'packages/shared/src/rules/**',
+      'packages/shared/src/contracts/indicators/**/*.ts',
       'apps/api/src/modules/indicators/**/*.ts',
       'apps/api/src/modules/rules/**/*.ts',
-      'apps/web/src/features/analytics/rule*.ts',
-      'apps/web/src/features/analytics/rule*.tsx',
+      'apps/web/src/features/rules/**/*.ts',
+      'apps/web/src/features/rules/**/*.tsx',
     ],
   },
   'restraint-guardian': {
@@ -75,6 +107,7 @@ export const roles = {
       'scripts/sad/**',
       '.github/workflows/ci.yml',
       '.github/workflows/rules-dispatch.yml',
+      'infra/supabase/replay/*.ps1',
       'infra/supabase/phase6/*.ps1',
     ],
   },
@@ -268,7 +301,7 @@ function invocations(file: string, text: string) {
   return result
 }
 // Developer-approved, unapplied transition only. Authority:
-// docs/cr-pathways-self-managed-rollout-scenarios.md, 2026-09-27.
+// vault note cr-pathways-self-managed-rollout-scenarios, 2026-09-27.
 // This exact exception does not establish application or runtime safety.
 export function approvedUnappliedTransition(
   file: string,

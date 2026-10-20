@@ -1,21 +1,21 @@
-import { ForbiddenException, NotFoundException } from '@nestjs/common'
-import type { Prisma } from '@prisma/client'
+import { ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { ApplicationIdentity } from '../../common/authz/application-identity'
+import type { Tx } from '../../common/prisma/transaction'
 import type { PrismaService } from '../../prisma/prisma.service'
-import type { ApplicationIdentity } from '../auth/developer-access'
 import type { ParticipantsService } from '../participants/participants.service'
 const state = vi.hoisted(() => ({
   actor: undefined as ApplicationIdentity | undefined,
-  tx: undefined as Prisma.TransactionClient | undefined,
+  tx: undefined as Tx | undefined,
   denied: false,
 }))
-vi.mock('../auth/authorized-operation', () => ({
+vi.mock('../../common/authz/authorized-operation', () => ({
   withAuthorizedOperation: vi.fn(async (_p, _i, _permission, work) => {
     if (state.denied) throw new ForbiddenException('Unavailable')
     return work(state.tx, state.actor)
   }),
 }))
-import { withAuthorizedOperation } from '../auth/authorized-operation'
+import { withAuthorizedOperation } from '../../common/authz/authorized-operation'
 import { MetadataService } from './metadata.service'
 const org = '10000000-0000-4000-8000-000000000001'
 const user = '20000000-0000-4000-8000-000000000002'
@@ -66,7 +66,7 @@ const setup = () => {
   let currentPayload = payload
   const tx = {
     project: { findFirst: vi.fn().mockResolvedValue({ id: project }) },
-    digitalForm: { findFirst: vi.fn() },
+    digitalForm: { findFirst: vi.fn(), updateMany: vi.fn().mockResolvedValue({ count: 0 }) },
     $queryRaw: vi.fn(async (_query: unknown, ...values: unknown[]) => [
       {
         status: currentPayload.status,
@@ -80,7 +80,7 @@ const setup = () => {
       },
     ]),
   }
-  state.tx = tx as unknown as Prisma.TransactionClient
+  state.tx = tx as unknown as Tx
   return {
     tx,
     service: new MetadataService({} as PrismaService, {} as ParticipantsService),
@@ -148,5 +148,23 @@ describe('atomic definition source verification before cache reuse', () => {
     expect((await service.getForm(actor, project, id)).status).toBe('ARCHIVED')
     await service.getForm(actor, project, id)
     expect(tx.$queryRaw.mock.calls.at(-1)?.at(-2)).toBeNull()
+  })
+  it('evicts the warmed definition on edit, publish and archive so the next read is fresh', async () => {
+    const { tx, service } = setup()
+    const stamp = { expectedUpdatedAt: '2026-09-01T00:00:00.000Z' }
+    const writes = [
+      ['DRAFT', () => service.updateForm(actor, project, id, { ...stamp, fields } as never)],
+      ['PUBLISHED', () => service.publishForm(actor, project, id, stamp)],
+      ['PUBLISHED', () => service.archiveForm(actor, project, id, stamp)],
+    ] as const
+    for (const [status, write] of writes) {
+      tx.digitalForm.findFirst.mockResolvedValue({ id, projectId: project, status })
+      await service.getForm(actor, project, id)
+      await service.getForm(actor, project, id)
+      expect(tx.$queryRaw.mock.calls.at(-1)?.at(-2)).toBe('a'.repeat(64))
+      await write().catch((error) => expect(error).toBeInstanceOf(ConflictException))
+      await service.getForm(actor, project, id)
+      expect(tx.$queryRaw.mock.calls.at(-1)?.at(-2)).toBeNull()
+    }
   })
 })

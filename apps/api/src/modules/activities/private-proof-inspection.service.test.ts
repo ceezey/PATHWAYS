@@ -1,9 +1,10 @@
 import { Readable } from 'node:stream'
 import { ForbiddenException } from '@nestjs/common'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import { bindInspectionIdentity } from '../../common/network/inspection-request-budget'
 import type { PrismaService } from '../../prisma/prisma.service'
-import type { ApplicationIdentity } from '../auth/developer-access'
+import { privateStorageFactories } from '../storage/private-storage-factories'
 
 const state = vi.hoisted(() => ({
   actor: null as unknown as ApplicationIdentity,
@@ -12,18 +13,13 @@ const state = vi.hoisted(() => ({
   release: vi.fn(),
   order: [] as string[],
 }))
-vi.mock('../auth/application-profile.service', () => ({
+vi.mock('../../common/authz/application-profile', () => ({
   readApplicationProfile: vi.fn(async () => state.actor),
 }))
-vi.mock('../auth/authorized-operation', () => ({
+vi.mock('../../common/authz/authorized-operation', () => ({
   withAuthorizedOperation: vi.fn(async (_prisma, _identity, _permission, work) =>
     work(state.tx, state.actor),
   ),
-}))
-// `read` is the verification pass; `release` is the streamed pass after final audit.
-vi.mock('../storage/private-inspection-reader', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../storage/private-inspection-reader')>()),
-  createPrivateObjectStreamer: () => ({ verify: state.read, release: state.release }),
 }))
 vi.mock('@pathways/config', () => ({
   readApiEnv: () => ({
@@ -90,7 +86,11 @@ const tx = {
   evidenceMedia: { findMany: vi.fn() },
   auditLog: { create: vi.fn() },
 }
-const service = new PrivateProofInspectionService({} as PrismaService)
+// `read` is the verification pass and `release` is the streamed pass after final audit.
+const service = new PrivateProofInspectionService({} as PrismaService, {
+  ...privateStorageFactories,
+  createPrivateObjectStreamer: () => ({ verify: state.read, release: state.release }),
+})
 const context = () => service.context(actor, ids.projectId, ids.activityId, ids.updateId)
 const inspect = () =>
   service.inspect(actor, ids.projectId, ids.activityId, ids.updateId, ids.evidenceId, revisions)

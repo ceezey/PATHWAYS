@@ -4,14 +4,14 @@ import { ForbiddenException } from '@nestjs/common'
 import type { Prisma } from '@prisma/client'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { ApplicationIdentity } from '@app/common/authz/application-identity'
 import { PERMISSION_KEY } from '@app/common/decorators/permission.decorator'
-import { hasAtomicPermission } from '@app/modules/auth/authorization-policy'
-import type { ApplicationIdentity } from '@app/modules/auth/developer-access'
 import type { PrismaService } from '@app/prisma/prisma.service'
+import { hasAtomicPermission } from '@pathways/shared'
 
 const state = vi.hoisted(() => ({ tx: undefined as Prisma.TransactionClient | undefined }))
 
-vi.mock('@app/modules/auth/authorized-operation', () => ({
+vi.mock('@app/common/authz/authorized-operation', () => ({
   withAuthorizedOperation: vi.fn(async (_prisma, identity, permission, work, options) => {
     const allowed = [permission, ...(options?.alsoAllow ?? [])]
     if (!allowed.some((code) => hasAtomicPermission(identity.roles[0], identity.permissions, code)))
@@ -20,8 +20,10 @@ vi.mock('@app/modules/auth/authorized-operation', () => ({
   }),
 }))
 
-import { BeneficiaryJourneyController, JourneyStagesController } from './participants.controller'
-import { ParticipantsService } from './participants.service'
+import { BeneficiaryJourneyController } from './beneficiary-journey.controller'
+import { BeneficiaryJourneyService } from './beneficiary-journey.service'
+import { JourneyStagesController } from './journey-stages.controller'
+import { JourneyStagesService } from './journey-stages.service'
 
 const projectId = '20000000-0000-4000-8000-000000000002'
 const identity = (role: string, permissions: string[]): ApplicationIdentity => ({
@@ -41,7 +43,8 @@ const tx = {
   project: { findFirst: vi.fn() },
   journeyStage: { findMany: vi.fn() },
 }
-const service = new ParticipantsService({} as PrismaService)
+const stages = new JourneyStagesService({} as PrismaService)
+const journey = new BeneficiaryJourneyService({} as PrismaService)
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -54,15 +57,15 @@ beforeEach(() => {
 describe('journey access split after the aggregate-only System Administrator change', () => {
   it('lets System Administrator list and save project-level stages with journeys.manage', async () => {
     const admin = identity('SYSTEM_ADMINISTRATOR', ['journeys.manage'])
-    await expect(service.listStages(admin, projectId)).resolves.toEqual([])
+    await expect(stages.listStages(admin, projectId)).resolves.toEqual([])
     tx.$queryRaw.mockResolvedValue([{ inUse: true }])
-    await expect(service.saveStages(admin, projectId, { stages: [] })).resolves.toEqual([])
+    await expect(stages.saveStages(admin, projectId, { stages: [] })).resolves.toEqual([])
   })
 
   it('returns 403 for System Administrator beneficiary journey history, even with a claimed permission', async () => {
     for (const permissions of [[], ['journeys.read'], ['journeys.read', 'journeys.manage']]) {
       await expect(
-        service.history(
+        journey.history(
           identity('SYSTEM_ADMINISTRATOR', permissions),
           projectId,
           '30000000-0000-4000-8000-00000000000a',
@@ -73,14 +76,14 @@ describe('journey access split after the aggregate-only System Administrator cha
 
   it('denies stage listing to a System Administrator holding only a claimed journeys.read', async () => {
     await expect(
-      service.listStages(identity('SYSTEM_ADMINISTRATOR', ['journeys.read']), projectId),
+      stages.listStages(identity('SYSTEM_ADMINISTRATOR', ['journeys.read']), projectId),
     ).rejects.toBeInstanceOf(ForbiddenException)
     expect(tx.journeyStage.findMany).not.toHaveBeenCalled()
   })
 
   it('still lets a Project Manager with the grant read stages', async () => {
     await expect(
-      service.listStages(identity('PROJECT_MANAGER', ['journeys.read']), projectId),
+      stages.listStages(identity('PROJECT_MANAGER', ['journeys.read']), projectId),
     ).resolves.toEqual([])
   })
 

@@ -14,15 +14,21 @@ import {
 } from '@nestjs/common'
 import { ApiOkResponse, ApiTags } from '@nestjs/swagger'
 
+import {
+  type ChangeStepUpPinRequest,
+  type SignInRequest,
+  type VerifyStepUpPinRequest,
+  changeStepUpPinRequest,
+  verifyStepUpPinRequest,
+} from '@pathways/shared'
+
+import type { AuthenticatedRequest } from '../../common/authz/application-identity'
 import { AuthBoundary } from '../../common/decorators/auth-boundary.decorator'
 import { Public } from '../../common/decorators/public.decorator'
+import { ZodPipe } from '../../common/validation/zod-pipe'
+import { signInBody } from './auth.helpers'
 import { AuthService } from './auth.service'
-// biome-ignore lint/style/useImportType: Nest needs the DTO constructors for validation.
-import { ChangeStepUpPinDto, VerifyStepUpPinDto } from './beneficiary-step-up-pin.dto'
 import { BeneficiaryStepUpPinService, type StepUpPinActor } from './beneficiary-step-up-pin.service'
-import type { AuthenticatedRequest } from './developer-access'
-// biome-ignore lint/style/useImportType: Nest needs the DTO constructor for validation.
-import { SignInDto } from './signin-lockout.dto'
 import { SignInLockoutService } from './signin-lockout.service'
 import { WorkspaceResolutionService } from './workspace-resolution.service'
 
@@ -51,7 +57,7 @@ export class AuthController {
   @ApiOkResponse({
     description: 'Identity-provider session; 429 SIGN_IN_LOCKED after repeated failures.',
   })
-  signIn(@Body() body: SignInDto) {
+  signIn(@Body(new ZodPipe(signInBody)) body: SignInRequest) {
     return this.signIns.signIn(body.email, body.password)
   }
 
@@ -103,7 +109,10 @@ export class AuthController {
   @HttpCode(200)
   @Header('Cache-Control', 'private, no-store')
   @ApiOkResponse({ description: 'Verify the PIN and grant 15 minutes for this session.' })
-  verifyStepUpPin(@Req() request: AuthenticatedRequest, @Body() body: VerifyStepUpPinDto) {
+  verifyStepUpPin(
+    @Req() request: AuthenticatedRequest,
+    @Body(new ZodPipe(verifyStepUpPinRequest)) body: VerifyStepUpPinRequest,
+  ) {
     return this.pins.verify(pinActor(request), body.pin)
   }
 
@@ -112,7 +121,10 @@ export class AuthController {
   @HttpCode(200)
   @Header('Cache-Control', 'private, no-store')
   @ApiOkResponse({ description: 'Set a first PIN inside a fresh TOTP step-up.' })
-  setupStepUpPin(@Req() request: AuthenticatedRequest, @Body() body: VerifyStepUpPinDto) {
+  setupStepUpPin(
+    @Req() request: AuthenticatedRequest,
+    @Body(new ZodPipe(verifyStepUpPinRequest)) body: VerifyStepUpPinRequest,
+  ) {
     return this.pins.setup(pinActor(request), body.pin)
   }
 
@@ -121,7 +133,10 @@ export class AuthController {
   @HttpCode(200)
   @Header('Cache-Control', 'private, no-store')
   @ApiOkResponse({ description: 'Change the PIN with the current PIN or a fresh TOTP.' })
-  changeStepUpPin(@Req() request: AuthenticatedRequest, @Body() body: ChangeStepUpPinDto) {
+  changeStepUpPin(
+    @Req() request: AuthenticatedRequest,
+    @Body(new ZodPipe(changeStepUpPinRequest)) body: ChangeStepUpPinRequest,
+  ) {
     return this.pins.change(pinActor(request), body.newPin, body.currentPin)
   }
 

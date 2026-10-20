@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server'
 
-import { localPasswordRecoveryOrigin, passwordUpdatePath } from '@/features/auth/password-recovery'
+import { localPasswordRecoveryOrigin, passwordUpdatePath } from '@/lib/auth/password-recovery'
 import {
   applyPendingAuthCookies,
   clearPasswordRecoveryIntent,

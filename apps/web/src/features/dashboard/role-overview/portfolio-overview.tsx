@@ -3,10 +3,18 @@ import Link from 'next/link'
 
 import { CappedPercent, StatusBadge } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
+import { plural } from '@/lib/format/plural'
 import { cn } from '@/lib/utils'
 import { healthOf } from './health'
 import type { ProjectMetrics } from './manager-overview'
-import { AccentKpi, DashboardHeading, KpiStrip, ListCard } from './primitives'
+import {
+  AccentKpi,
+  DashboardHeading,
+  InitialsBadge,
+  KpiStrip,
+  ListCard,
+  ListRow,
+} from './primitives'
 
 const bar = {
   danger: 'bg-danger',
@@ -19,12 +27,12 @@ const dot = {
   HIGH: 'bg-danger',
   MEDIUM: 'bg-warning',
   LOW: 'bg-muted-foreground',
+  NEEDS_CONTEXT: 'border border-muted-foreground bg-transparent',
 } as const
 const peso = (amount: string) =>
   `PHP ${Number(amount).toLocaleString('en-PH', { maximumFractionDigits: 0 })}`
 const shortDate = (iso: string) =>
   new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`
 
 /** Program and Grant Manager portfolio; Grant Manager is read-only with no decision buttons. */
 export const PortfolioOverview = ({
@@ -182,6 +190,33 @@ export const PortfolioOverview = ({
           </p>
         </div>
       </div>
+      {data.escalationQueue ? (
+        <ListCard
+          empty="No activity escalations are waiting."
+          title={readOnly ? 'Activity escalations' : 'Forwarded escalations'}
+        >
+          {data.escalationQueue.rows.map((row) => (
+            <ListRow
+              key={row.id}
+              lead={<InitialsBadge text="ESC" />}
+              meta={`${row.status === 'FORWARDED' ? 'Forwarded' : 'Open'} · ${row.reason} · ${row.projectTitle}`}
+              title={`${row.activityCode} — ${row.activityTitle}`}
+              trailing={
+                row.stage === 'PROGRAM' ? (
+                  <Button asChild size="sm">
+                    <Link
+                      aria-label={`Resolve escalation for ${row.activityCode}`}
+                      href={`/projects/${row.projectId}/activities/${row.activityId}?action=escalation`}
+                    >
+                      Resolve
+                    </Link>
+                  </Button>
+                ) : null
+              }
+            />
+          ))}
+        </ListCard>
+      ) : null}
       {data.alerts ? (
         <ListCard
           caption={escalated ? 'Requiring program-level decision' : undefined}
@@ -193,11 +228,15 @@ export const PortfolioOverview = ({
             <div className="flex items-start gap-3 py-3" key={row.id}>
               <span
                 aria-hidden="true"
-                className={cn('mt-1.5 h-2 w-2 shrink-0 rounded-full', dot[row.severity])}
+                className={cn(
+                  'mt-1.5 h-2 w-2 shrink-0 rounded-full',
+                  dot[row.severity ?? 'NEEDS_CONTEXT'],
+                )}
               />
               <div className="min-w-0 flex-1 space-y-1">
                 <p className="text-sm font-medium text-primary">{row.title}</p>
                 <p className="text-xs text-muted-foreground">
+                  {row.severity ? '' : 'Needs context · '}
                   {data.projects.find((p) => p.id === row.projectId)?.title ?? 'Project'} ·{' '}
                   {row.explanation}
                 </p>

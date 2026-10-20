@@ -1,11 +1,8 @@
-import { Controller, ForbiddenException, Get, Header, Inject, Query, Req } from '@nestjs/common'
+import { Controller, Get, Header, Inject, Query, Req } from '@nestjs/common'
+import type { AuthenticatedRequest } from '../../common/authz/application-identity'
+import { requestIdentity } from '../../common/authz/request-identity'
 import { RequirePermission } from '../../common/decorators/permission.decorator'
-import type { AuthenticatedRequest } from '../auth/developer-access'
 import { DashboardsService } from './dashboards.service'
-function identity(request: AuthenticatedRequest) {
-  if (!request.user) throw new ForbiddenException('Application profile is required.')
-  return request.user
-}
 @Controller('dashboards')
 export class DashboardsController {
   constructor(@Inject(DashboardsService) private readonly service: DashboardsService) {}
@@ -13,18 +10,18 @@ export class DashboardsController {
   @Header('Cache-Control', 'private, no-store')
   @RequirePermission('projects.read')
   home(@Req() request: AuthenticatedRequest, @Query() query: unknown) {
-    return this.service.home(identity(request), query)
+    return this.service.home(requestIdentity(request), query)
   }
   @Get('monitoring')
   @Header('Cache-Control', 'private, no-store')
   @RequirePermission('monitoring.read')
   monitoring(@Req() request: AuthenticatedRequest, @Query() query: unknown) {
-    return this.service.monitoring(identity(request), query)
+    return this.service.monitoring(requestIdentity(request), query)
   }
   @Get('saddd')
   @Header('Cache-Control', 'private, no-store')
   @RequirePermission('analytics.saddd.read')
   saddd(@Req() request: AuthenticatedRequest, @Query() query: unknown) {
-    return this.service.saddd(identity(request), query)
+    return this.service.saddd(requestIdentity(request), query)
   }
 }

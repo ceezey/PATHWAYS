@@ -6,23 +6,26 @@ import {
   ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common'
-import type { Prisma } from '@prisma/client'
-
-import { InactiveVerifiedSessionError, PrismaService } from '../../prisma/prisma.service'
 import {
-  STEP_UP_PIN_CODES,
   STEP_UP_PIN_PATTERN,
-  STEP_UP_WINDOW_SECONDS,
-  type StepUpMethod,
+  STEP_UP_PIN_RULE_MESSAGE,
   type StepUpPinState,
-  evaluateBeneficiaryStepUp,
   isAcceptableStepUpPin,
-} from './beneficiary-step-up'
+} from '@pathways/shared'
+
 import {
   type ApplicationIdentity,
   UUID_PATTERN,
   type VerifiedAuthIdentity,
-} from './developer-access'
+} from '../../common/authz/application-identity'
+import type { Tx } from '../../common/prisma/transaction'
+import { InactiveVerifiedSessionError, PrismaService } from '../../prisma/prisma.service'
+import {
+  STEP_UP_PIN_CODES,
+  STEP_UP_WINDOW_SECONDS,
+  type StepUpMethod,
+  evaluateBeneficiaryStepUp,
+} from './beneficiary-step-up'
 
 // cr-pathways-beneficiary-step-up-pin. The PIN travels only as a bound query parameter into
 // the 0037 SECURITY DEFINER functions; it is never logged, audited, echoed or cached. Every
@@ -50,14 +53,12 @@ const denial = (status: HttpStatus, code: string, message: string) =>
     status,
   )
 
-const PIN_RULE =
-  'Use 6 to 12 digits. Repeated digits and simple ascending or descending sequences are not accepted.'
 // Runtime shape check as well as the DTO: a JSON number must never reach the database.
 const isPinShape = (value: unknown): value is string =>
   typeof value === 'string' && STEP_UP_PIN_PATTERN.test(value)
-export const incorrectPin = () =>
+const incorrectPin = () =>
   denial(HttpStatus.FORBIDDEN, STEP_UP_PIN_CODES.incorrect, 'Incorrect PIN')
-export const lockedPin = () =>
+const lockedPin = () =>
   denial(
     HttpStatus.CONFLICT,
     STEP_UP_PIN_CODES.locked,
@@ -81,7 +82,7 @@ export interface StepUpPinActor {
 
 /** Live PIN grant for this user, organization and session, read inside a verified context. */
 export async function readStepUpPinStatus(
-  tx: Prisma.TransactionClient,
+  tx: Tx,
   sessionId: string,
 ): Promise<{ pinState: StepUpPinState; grantExpiresAt: Date | null }> {
   const rows = await tx.$queryRaw<Array<{ pinState: unknown; grantExpiresAt: unknown }>>`
@@ -192,7 +193,7 @@ export class BeneficiaryStepUpPinService {
 
   private assertAcceptable(pin: unknown): asserts pin is string {
     if (!isAcceptableStepUpPin(pin)) {
-      throw denial(HttpStatus.BAD_REQUEST, STEP_UP_PIN_CODES.invalid, PIN_RULE)
+      throw denial(HttpStatus.BAD_REQUEST, STEP_UP_PIN_CODES.invalid, STEP_UP_PIN_RULE_MESSAGE)
     }
   }
 
@@ -246,7 +247,7 @@ export class BeneficiaryStepUpPinService {
 
   private async run<T>(
     { auth, profile, sessionId }: StepUpPinActor,
-    work: (tx: Prisma.TransactionClient) => Promise<T>,
+    work: (tx: Tx) => Promise<T>,
   ): Promise<T> {
     if (!UUID_PATTERN.test(sessionId) || auth.id !== profile.id) {
       throw new UnauthorizedException('Verified session required.')

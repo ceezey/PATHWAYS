@@ -2,11 +2,11 @@ import { execFileSync } from 'node:child_process'
 import { createHmac, randomBytes } from 'node:crypto'
 import type { Page } from '@playwright/test'
 import { createClient } from '@supabase/supabase-js'
-import { localDatabase } from '../../../../scripts/db/local-target.mjs'
+import { localDatabase } from '../../../../scripts/db/local/target.mjs'
 
 const shell = process.platform === 'win32'
 
-// Local seed accounts by role, as defined in apps/api/prisma/local-demo-seed.ts.
+// Local seed accounts by role, as defined in apps/api/prisma/seeds/local-demo-seed.ts.
 export const seedAccounts = {
   SA: 'cian.francisco@pathways.example',
   PO: 'liza.bautista@pathways.example',
@@ -53,7 +53,7 @@ export const ownerQuery = (sql: string) =>
   ).trim()
 
 // RFC 6238 SHA-1 code for a base32 secret; the secret never leaves this process.
-export const totpCode = (secret: string, offsetSteps = 0) => {
+const totpCode = (secret: string, offsetSteps = 0) => {
   const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'
   let bits = ''
   for (const ch of secret.replace(/=+$/, '').toUpperCase()) {

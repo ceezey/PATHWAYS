@@ -18,6 +18,7 @@ const dot = {
   HIGH: 'bg-danger',
   MEDIUM: 'bg-warning',
   LOW: 'bg-muted-foreground',
+  NEEDS_CONTEXT: 'border border-muted-foreground bg-transparent',
 } as const
 const initials = (name: string) =>
   name
@@ -68,7 +69,9 @@ export const MeOverview = ({
           <AccentKpi
             action={{ label: 'Review', href: '/alerts' }}
             label="Active alerts"
-            sub={`${alerts.bySeverity.CRITICAL} critical · ${alerts.bySeverity.HIGH} high`}
+            sub={`${alerts.bySeverity.CRITICAL} critical · ${alerts.bySeverity.HIGH} high${
+              alerts.needsContext > 0 ? ` · ${alerts.needsContext} need context` : ''
+            }`}
             tone="danger"
             value={`${alerts.open}${alerts.capped ? '+' : ''}`}
           />
@@ -115,7 +118,10 @@ export const MeOverview = ({
                 <div className="flex items-start gap-2">
                   <span
                     aria-hidden="true"
-                    className={cn('mt-1.5 h-2 w-2 shrink-0 rounded-full', dot[row.severity])}
+                    className={cn(
+                      'mt-1.5 h-2 w-2 shrink-0 rounded-full',
+                      dot[row.severity ?? 'NEEDS_CONTEXT'],
+                    )}
                   />
                   <div className="min-w-0">
                     <Link
@@ -125,6 +131,7 @@ export const MeOverview = ({
                       {row.title}
                     </Link>
                     <p className="text-xs text-muted-foreground">
+                      {row.severity ? '' : 'Needs context · '}
                       {data.projects.find((p) => p.id === row.projectId)?.title ?? 'Project'} ·{' '}
                       {row.explanation}
                     </p>

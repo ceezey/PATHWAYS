@@ -1,13 +1,20 @@
-import { ForbiddenException, ValidationPipe } from '@nestjs/common'
-import { plainToInstance } from 'class-transformer'
-import { validate } from 'class-validator'
+import { BadRequestException, ForbiddenException } from '@nestjs/common'
 import { describe, expect, it, vi } from 'vitest'
 
+import {
+  type CreateProjectRequest,
+  type UpdateProjectRequest,
+  createProjectRequest,
+  hasAtomicPermission,
+  updateProjectRequest,
+} from '@pathways/shared'
+import type {
+  ApplicationIdentity,
+  AuthenticatedRequest,
+} from '../../common/authz/application-identity'
 import { PERMISSION_KEY } from '../../common/decorators/permission.decorator'
-import { hasAtomicPermission } from '../auth/authorization-policy'
-import type { ApplicationIdentity, AuthenticatedRequest } from '../auth/developer-access'
+import { ZodPipe } from '../../common/validation/zod-pipe'
 import { ProjectsController } from './projects.controller'
-import { CreateProjectDto, UpdateProjectDto } from './projects.dto'
 import type { ProjectsService } from './projects.service'
 
 const assignedProjectId = '51000000-0000-4000-8000-000000000004'
@@ -21,6 +28,23 @@ const identity: ApplicationIdentity = {
   permissions: ['projects.read', 'projects.create'],
   assignedProjectIds: [assignedProjectId],
 }
+const createPipe = new ZodPipe(createProjectRequest)
+const updatePipe = new ZodPipe(updateProjectRequest)
+const updateKeys = {
+  expectedUpdatedAt: '2026-09-24T00:00:00.000Z',
+  clientMutationId: '10000000-0000-4000-8000-000000000001',
+}
+
+// The 400 messages a pipe answered, or a failure when it accepted the body.
+function rejection(run: () => unknown): string[] {
+  try {
+    run()
+  } catch (error) {
+    expect(error).toBeInstanceOf(BadRequestException)
+    return ((error as BadRequestException).getResponse() as { message: string[] }).message
+  }
+  throw new Error('Expected a BadRequestException.')
+}
 
 describe('ProjectsController active project contract', () => {
   it('passes authenticated create and update payloads to the scoped project service', async () => {
@@ -30,16 +54,12 @@ describe('ProjectsController active project contract', () => {
     }
     const controller = new ProjectsController(service as unknown as ProjectsService)
     const request = { user: identity } as AuthenticatedRequest
-    const create = Object.assign(new CreateProjectDto(), {
+    const create: CreateProjectRequest = { title: 'Synthetic project', status: 'PLANNED' }
+    const update: UpdateProjectRequest = {
       title: 'Synthetic project',
-      status: 'PLANNED' as const,
-    })
-    const update = Object.assign(new UpdateProjectDto(), {
-      title: 'Synthetic project',
-      status: 'ONGOING' as const,
-
-      expectedUpdatedAt: '2026-09-24T00:00:00.000Z',
-    })
+      status: 'ONGOING',
+      ...updateKeys,
+    }
 
     await expect(controller.create(request, create)).resolves.toEqual({ id: 'created' })
     await expect(controller.update(request, assignedProjectId, update)).resolves.toEqual({
@@ -55,91 +75,51 @@ describe('ProjectsController active project contract', () => {
   })
 
   it.each(['62.5', '0', '', null, 75])(
-    'rejects retired targetGoal %s through the configured ValidationPipe',
-    async (targetGoal) => {
-      const pipe = new ValidationPipe({
-        whitelist: true,
-        forbidNonWhitelisted: true,
-        transform: true,
-        forbidUnknownValues: false,
-      })
-      for (const metatype of [CreateProjectDto, UpdateProjectDto]) {
-        await expect(
-          pipe.transform(
-            {
-              title: 'Synthetic project',
-              status: 'PLANNED',
-              ...(metatype === UpdateProjectDto
-                ? { expectedUpdatedAt: '2026-09-24T00:00:00.000Z' }
-                : {}),
-              targetGoal,
-            },
-            { type: 'body', metatype },
-          ),
-        ).rejects.toMatchObject({
-          status: 400,
-          response: { message: expect.arrayContaining(['property targetGoal should not exist']) },
-        })
+    'rejects retired targetGoal %s through the project contracts',
+    (targetGoal) => {
+      const body = { title: 'Synthetic project', status: 'PLANNED', targetGoal }
+      for (const [pipe, extra] of [
+        [createPipe, {}],
+        [updatePipe, updateKeys],
+      ] as const) {
+        expect(rejection(() => pipe.transform({ ...body, ...extra }))).toContain(
+          "Unrecognized key(s) in object: 'targetGoal'",
+        )
       }
     },
   )
 
   it.each(['Partner A, Partner B', '', null])(
-    'rejects deprecated free-text implementingPartners %j through the configured ValidationPipe',
-    async (implementingPartners) => {
-      const pipe = new ValidationPipe({
-        whitelist: true,
-        forbidNonWhitelisted: true,
-        transform: true,
-        forbidUnknownValues: false,
-      })
-      for (const metatype of [CreateProjectDto, UpdateProjectDto]) {
-        await expect(
-          pipe.transform(
-            {
-              title: 'Synthetic project',
-              status: 'PLANNED',
-              ...(metatype === UpdateProjectDto
-                ? {
-                    expectedUpdatedAt: '2026-09-24T00:00:00.000Z',
-                    clientMutationId: '10000000-0000-4000-8000-000000000001',
-                  }
-                : {}),
-              implementingPartnerNames: ['Partner A'],
-              implementingPartners,
-            },
-            { type: 'body', metatype },
-          ),
-        ).rejects.toMatchObject({
-          status: 400,
-          response: {
-            message: expect.arrayContaining(['property implementingPartners should not exist']),
-          },
-        })
+    'rejects deprecated free-text implementingPartners %j through the project contracts',
+    (implementingPartners) => {
+      const body = {
+        title: 'Synthetic project',
+        status: 'PLANNED',
+        implementingPartnerNames: ['Partner A'],
+        implementingPartners,
+      }
+      for (const [pipe, extra] of [
+        [createPipe, {}],
+        [updatePipe, updateKeys],
+      ] as const) {
+        expect(rejection(() => pipe.transform({ ...body, ...extra }))).toContain(
+          "Unrecognized key(s) in object: 'implementingPartners'",
+        )
       }
     },
   )
 
-  it('accepts goal-free creation and optimistic updates through the configured ValidationPipe', async () => {
-    const pipe = new ValidationPipe({
-      whitelist: true,
-      forbidNonWhitelisted: true,
-      transform: true,
-      forbidUnknownValues: false,
+  it('accepts goal-free creation and optimistic updates through the project contracts', () => {
+    const create = createPipe.transform({
+      title: 'Synthetic project',
+      status: 'PLANNED',
+      targetBeneficiaries: 250,
     })
-    const create = await pipe.transform(
-      { title: 'Synthetic project', status: 'PLANNED', targetBeneficiaries: 250 },
-      { type: 'body', metatype: CreateProjectDto },
-    )
-    const update = await pipe.transform(
-      {
-        title: 'Synthetic project',
-        status: 'ONGOING',
-        expectedUpdatedAt: '2026-09-24T00:00:00.000Z',
-        clientMutationId: '10000000-0000-4000-8000-000000000001',
-      },
-      { type: 'body', metatype: UpdateProjectDto },
-    )
+    const update = updatePipe.transform({
+      title: 'Synthetic project',
+      status: 'ONGOING',
+      ...updateKeys,
+    })
     expect(create.targetBeneficiaries).toBe(250)
     expect(create).not.toHaveProperty('targetGoal')
     expect(update).not.toHaveProperty('targetGoal')
@@ -152,18 +132,27 @@ describe('ProjectsController active project contract', () => {
     { projectBudget: '-1' },
     { projectBudget: '1.001' },
     { projectBudget: '1e3' },
-  ])('rejects invalid Project count or PHP budget input %j', async (invalid) => {
-    const dto = plainToInstance(CreateProjectDto, {
-      title: 'Synthetic project',
-      status: 'PLANNED',
-
-      ...invalid,
-    })
-    expect(await validate(dto)).not.toHaveLength(0)
+  ])('rejects invalid Project count or PHP budget input %j', (invalid) => {
+    expect(
+      createProjectRequest.safeParse({ title: 'Synthetic project', status: 'PLANNED', ...invalid })
+        .success,
+    ).toBe(false)
   })
 
-  it('accepts the complete repaired Project transport contract', async () => {
-    const dto = plainToInstance(CreateProjectDto, {
+  it('keeps the PHP budget message the web shows', () => {
+    expect(
+      rejection(() =>
+        createPipe.transform({
+          title: 'Synthetic project',
+          status: 'PLANNED',
+          projectBudget: '-1',
+        }),
+      ),
+    ).toEqual(['projectBudget must be a non-negative PHP amount with at most 2 decimal places.'])
+  })
+
+  it('accepts the complete repaired Project transport contract', () => {
+    const parsed = createProjectRequest.parse({
       title: 'Synthetic project',
       description: 'Description',
       objectives: 'Objectives',
@@ -172,13 +161,11 @@ describe('ProjectsController active project contract', () => {
       sector: 'Livelihood',
       targetBeneficiaries: '250',
       projectBudget: '125000.50',
-
       startDate: '2026-01-01',
       endDate: '2026-12-31',
       status: 'PLANNED',
     })
-    expect(await validate(dto)).toHaveLength(0)
-    expect(dto.targetBeneficiaries).toBe(250)
+    expect(parsed.targetBeneficiaries).toBe(250)
   })
 
   it('guards archive with projects.archive, which a Project Officer does not hold', async () => {

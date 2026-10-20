@@ -49,11 +49,16 @@ vi.mock('../rules/rules-source-operation', async (importOriginal) => ({
   readRuleSourceAcknowledgement: async () => null,
   bootstrapRuleSourceProject: async () => undefined,
 }))
-import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common'
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { ApplicationIdentity } from '@app/modules/auth/developer-access'
+import type { ApplicationIdentity } from '@app/common/authz/application-identity'
 import type { PrismaService } from '@app/prisma/prisma.service'
 
 const state = vi.hoisted(() => ({
@@ -61,7 +66,7 @@ const state = vi.hoisted(() => ({
   tx: undefined as Prisma.TransactionClient | undefined,
 }))
 
-vi.mock('@app/modules/auth/authorized-operation', () => ({
+vi.mock('@app/common/authz/authorized-operation', () => ({
   withAuthorizedOperation: vi.fn(async (_prisma, _identity, _permission, work) =>
     work(state.tx, state.actor),
   ),
@@ -377,6 +382,65 @@ describe('Project archive contract', () => {
     tx.project.findFirst.mockResolvedValue(null)
     await expect(service.archive(archiver, foreignProjectId)).rejects.toBeInstanceOf(
       NotFoundException,
+    )
+    expect(tx.project.updateMany).not.toHaveBeenCalled()
+  })
+})
+
+describe('Project update scope', () => {
+  const service = new ProjectsService({} as PrismaService)
+  const input = {
+    title: 'Updated scope',
+    status: 'ONGOING' as const,
+    clientMutationId: 'e0000000-0000-4000-8000-000000000002',
+    expectedUpdatedAt: now.toISOString(),
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    state.actor = manager
+    state.tx = tx as unknown as Prisma.TransactionClient
+    tx.project.findFirst.mockResolvedValue({ id: projectId, code: project.code, updatedAt: now })
+    tx.project.updateMany.mockResolvedValue({ count: 1 })
+    tx.project.findUniqueOrThrow.mockResolvedValue(project)
+    tx.projectBudgetRecord.findMany.mockResolvedValue([])
+  })
+
+  it('answers the uniform 404 for a malformed id before any project query', async () => {
+    await expect(service.update(manager, 'not-a-uuid', input)).rejects.toBeInstanceOf(
+      NotFoundException,
+    )
+    expect(tx.project.findFirst).not.toHaveBeenCalled()
+  })
+
+  it('reads the current row inside the actor scope by its lowercased id', async () => {
+    const lowerId = 'ab000000-0000-4000-8000-00000000000a'
+    await service.update(manager, lowerId.toUpperCase(), input)
+    expect(tx.project.findFirst).toHaveBeenCalledWith({
+      where: {
+        AND: [expect.objectContaining({ organizationId, archivedAt: null }), { id: lowerId }],
+      },
+      select: { id: true, code: true, updatedAt: true },
+    })
+  })
+
+  it('answers the uniform 404 for an unscoped project without writing', async () => {
+    tx.project.findFirst.mockResolvedValue(null)
+    await expect(service.update(manager, foreignProjectId, input)).rejects.toBeInstanceOf(
+      NotFoundException,
+    )
+    expect(tx.project.updateMany).not.toHaveBeenCalled()
+    expect(tx.auditLog.create).not.toHaveBeenCalled()
+  })
+
+  it('answers 409 when the stored version moved', async () => {
+    tx.project.findFirst.mockResolvedValue({
+      id: projectId,
+      code: project.code,
+      updatedAt: new Date('2026-09-26T00:00:00.000Z'),
+    })
+    await expect(service.update(manager, projectId, input)).rejects.toBeInstanceOf(
+      ConflictException,
     )
     expect(tx.project.updateMany).not.toHaveBeenCalled()
   })

@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 
-import { ReportingPage } from '@/features/reports/reporting-page'
+import { ReportingPage } from '@/features/reports'
 import { type ProtectedPageProps, requireServerPage } from '@/lib/rbac/server-access'
 
 export const metadata: Metadata = { title: 'Reports Workspace' }

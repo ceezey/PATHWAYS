@@ -49,17 +49,12 @@ vi.mock('./rules/rules-source-operation', async (importOriginal) => ({
   readRuleSourceAcknowledgement: async () => null,
   bootstrapRuleSourceProject: async () => undefined,
 }))
-import {
-  BadRequestException,
-  ConflictException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common'
+import { ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common'
 import type { Prisma } from '@prisma/client'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { ApplicationIdentity } from '../common/authz/application-identity'
 import type { PrismaService } from '../prisma/prisma.service'
-import type { ApplicationIdentity } from './auth/developer-access'
 import { ProgramsService } from './programs/programs.service'
 import { ProjectsService } from './projects/projects.service'
 import type { AuthDirectoryService } from './users/auth-directory.service'
@@ -70,7 +65,7 @@ const state = vi.hoisted(() => ({
   tx: undefined as Prisma.TransactionClient | undefined,
   operationOptions: [] as unknown[],
 }))
-vi.mock('./auth/authorized-operation', () => ({
+vi.mock('../common/authz/authorized-operation', () => ({
   withAuthorizedOperation: vi.fn(async (_prisma, _identity, _permission, work, options) => {
     state.operationOptions.push(options)
     return work(state.tx, state.actor)

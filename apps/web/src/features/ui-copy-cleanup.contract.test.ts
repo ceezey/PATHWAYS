@@ -6,61 +6,53 @@ const source = (file: string) => readFileSync(path.resolve(__dirname, '..', file
 
 const removedDescriptions = [
   [
-    'features/analytics/analytics-dashboard.tsx',
+    'features/analytics/components/analytics-dashboard.tsx',
     'Project performance, SADDD Analysis, budget utilization, aggregate location coverage, Beneficiary reach, and Rule-Based Alerts for human review.',
   ],
   [
-    'features/reports/reporting-workspace.tsx',
-    'Build, preview, retain, and export project, indicator, beneficiary, and aggregate survey reports.',
-  ],
-  [
-    'features/collection/collection-workspace.tsx',
+    'features/collection/forms/components/collection-workspace.tsx',
     'Build and publish project forms, encode data, and import validated CSV, XLS, or XLSX datasets.',
   ],
-  ['features/projects/project-detail-view.tsx', 'Assigned project team members.'],
-  ['features/projects/project-detail-view.tsx', 'Project implementation window.'],
+  ['features/projects/components/project-detail-view.tsx', 'Assigned project team members.'],
+  ['features/projects/components/project-detail-view.tsx', 'Project implementation window.'],
   [
-    'features/projects/project-activities-workspace.tsx',
+    'features/projects/activities/components/project-activities-workspace.tsx',
     'Scan all filtered activities in one view.',
   ],
-  ['features/settings/user-management-workspace.tsx', 'Related configuration.'],
+  ['features/settings/components/user-management-workspace.tsx', 'Related configuration.'],
   [
-    'features/projects/project-review-workspace.tsx',
+    'features/projects/components/project-review-workspace.tsx',
     'Generated report references for the project.',
   ],
-  ['features/projects/project-review-workspace.tsx', 'Human review notes.'],
-  ['features/projects/project-review-workspace.tsx', 'Formal review entries.'],
+  ['features/projects/components/project-review-workspace.tsx', 'Human review notes.'],
+  ['features/projects/components/project-review-workspace.tsx', 'Formal review entries.'],
 ] as const
 
 describe('"None yet" empty states versus error and permission wording', () => {
   it('replaces the hardcoded project metric fallback with endpoint-driven tiles', () => {
     for (const file of [
-      'features/projects/project-detail-view.tsx',
-      'features/projects/project-directory.tsx',
+      'features/projects/components/project-detail-view.tsx',
+      'features/projects/components/project-directory.tsx',
       'lib/services/pathways-client.ts',
     ]) {
       expect(source(file)).not.toContain('metricsAvailable')
       expect(source(file)).not.toContain(': `Unavailable / ')
     }
-    expect(source('features/projects/project-utils.ts')).toContain("return 'None yet'")
-    expect(source('features/projects/project-overview-metrics.tsx')).toContain(
+    expect(source('features/projects/projects.utils.ts')).toContain("return 'None yet'")
+    expect(source('features/projects/components/project-overview-metrics.tsx')).toContain(
       'Project metrics could not be loaded.',
     )
   })
 
   it.each([
-    ['features/projects/connected-delivery-workspace.tsx', "indicator.target ?? 'None yet'"],
-    ['features/projects/connected-delivery-workspace.tsx', "indicator.unit || 'None yet'"],
-    ['features/projects/connected-delivery-workspace.tsx', "indicator.dataSource || 'None yet'"],
-    ['features/reports/reporting-workspace.tsx', "indicator.target ?? 'None yet'"],
     [
-      'features/analytics/analytics-dashboard.tsx',
+      'features/analytics/components/analytics-dashboard.tsx',
       'const monitoringReadable = canReadIndicators && monitoring !== null && !monitoringError',
     ],
-    ['features/analytics/analytics-dashboard.tsx', ': monitoringReadable'],
-    ['features/analytics/analytics-dashboard.tsx', "row.mean ?? 'None yet'"],
+    ['features/analytics/components/analytics-summary-cards.tsx', ': monitoringReadable'],
+    ['features/analytics/components/descriptive-statistics-table.tsx', "row.mean ?? 'None yet'"],
     [
-      'features/projects/activity-detail-sections.tsx',
+      'features/projects/activities/components/activity-detail-sections.tsx',
       "canReadBudgets ? 'None yet' : 'Unavailable'",
     ],
   ])('uses "None yet" for a genuinely empty value in %s', (file, copy) => {
@@ -68,49 +60,47 @@ describe('"None yet" empty states versus error and permission wording', () => {
   })
 
   it.each([
-    ['features/projects/project-detail-view.tsx', 'title="Project data unavailable"'],
-    ['features/projects/project-directory.tsx', 'title="Project data unavailable"'],
-    ['features/projects/project-activities-workspace.tsx', 'title="Activities unavailable"'],
-    ['features/projects/project-review-workspace.tsx', 'title="Some information is unavailable"'],
-    ['features/analytics/rule-configuration-workspace.tsx', 'title="Rule access unavailable"'],
-    ['features/analytics/rule-configuration-workspace.tsx', 'title="Rules unavailable"'],
+    ['features/projects/components/project-detail-view.tsx', 'title="Project data unavailable"'],
+    ['features/projects/components/project-directory.tsx', 'title="Project data unavailable"'],
     [
-      'features/projects/project-rules-panel.tsx',
+      'features/projects/activities/components/project-activities-workspace.tsx',
+      'title="Activities unavailable"',
+    ],
+    [
+      'features/projects/components/project-review-workspace.tsx',
+      'title="Some information is unavailable"',
+    ],
+    [
+      'features/rules/components/project-rules-panel.tsx',
       'Project alerts are unavailable for your current access.',
     ],
-    [
-      'features/projects/connected-delivery-workspace.tsx',
-      "budget ? peso(budget.plannedAmount) : 'Unavailable'",
-    ],
-    [
-      'features/projects/connected-delivery-workspace.tsx',
-      "{indicator.disaggregation || 'Unavailable'}",
-    ],
-    ['features/projects/project-utils.ts', '// Unknown reasons are not assumed to be empty.'],
+    ['features/projects/projects.utils.ts', '// Unknown reasons are not assumed to be empty.'],
   ])('keeps load-failure, permission and capability wording in %s', (file, copy) => {
     expect(source(file)).toContain(copy)
   })
 
-  it('never shows "None yet" for indicator data the role cannot read or for unmapped fields', () => {
-    expect(source('features/analytics/analytics-dashboard.tsx')).not.toContain(
-      "averageKpi === null ? 'None yet'",
-    )
-    expect(source('features/projects/connected-delivery-workspace.tsx')).not.toContain(
-      "indicator.disaggregation || 'None yet'",
-    )
+  it.each([
+    'features/analytics/components/analytics-dashboard.tsx',
+    'features/analytics/components/analytics-summary-cards.tsx',
+  ])('never shows "None yet" for indicator data the role cannot read in %s', (file) => {
+    expect(source(file)).toContain('averageKpi')
+    expect(source(file)).not.toContain("averageKpi === null ? 'None yet'")
   })
 
   it('derives the participation empty-chart title from the shared metric-unavailable helper, not an unconditional "None yet"', () => {
-    const analytics = source('features/analytics/analytics-dashboard.tsx')
-    expect(analytics).toContain(
-      "import { metricUnavailableLabel, overviewMetricLabel } from '@/features/projects/project-utils'",
+    const analytics = source('features/analytics/components/analytics-analysis-panel.tsx')
+    expect(source('features/analytics/components/survey-analytics-panel.tsx')).toContain(
+      "import { metricUnavailableLabel } from '@/features/projects'",
+    )
+    expect(source('features/analytics/analytics.utils.ts')).toContain(
+      "import { overviewMetricLabel } from '@/features/projects'",
     )
     // Participation now renders its own breakdown panel, so no unconditional "None yet" title remains.
     expect(analytics).toContain('ParticipationBreakdownPanel')
     expect(analytics.replace(/\s+/g, ' ')).not.toContain(
       "analysisView === 'participation' ? 'None yet'",
     )
-    const projectUtils = source('features/projects/project-utils.ts')
+    const projectUtils = source('features/projects/projects.utils.ts')
     expect(projectUtils).toContain('export const metricUnavailableLabel')
     expect(projectUtils).toContain('return metricUnavailableLabel(cell)')
   })
@@ -141,7 +131,7 @@ describe('Phase 4 UI copy cleanup contract', () => {
     expect(source('components/layout/beneficiary-access-gate.tsx')).toContain(
       'Verify beneficiary module access',
     )
-    expect(source('features/analytics/analytics-coverage-map.tsx')).toContain(
+    expect(source('features/analytics/components/analytics-coverage-map.tsx')).toContain(
       'No mapped locations available',
     )
   })

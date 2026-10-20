@@ -1,11 +1,9 @@
 import { Module } from '@nestjs/common'
-import {
-  AlertsController,
-  NotificationsController,
-  RecommendationsController,
-  RulesController,
-} from './rules-human.controller'
+import { AlertsController } from './alerts.controller'
+import { NotificationsController } from './notifications.controller'
+import { RecommendationsController } from './recommendations.controller'
 import { RulesHumanService } from './rules-human.service'
+import { RulesController } from './rules.controller'
 @Module({
   controllers: [
     RulesController,
@@ -14,5 +12,6 @@ import { RulesHumanService } from './rules-human.service'
     NotificationsController,
   ],
   providers: [RulesHumanService],
+  exports: [RulesHumanService],
 })
 export class RulesHumanModule {}

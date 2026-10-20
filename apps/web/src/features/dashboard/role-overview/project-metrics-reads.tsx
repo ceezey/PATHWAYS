@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useState } from 'react'
 
-import { useProjectOverviewMetricsRead } from '@/features/projects/use-project-reads'
-import { formatCappedPercent } from '@/lib/percent'
+import { useProjectOverviewMetricsRead } from '@/features/projects'
+import { formatCappedPercent } from '@/lib/format/percent'
 import type { PathwaysRole } from '@/types/pathways-role'
 import type { ProjectMetrics } from './manager-overview'
 

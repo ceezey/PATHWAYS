@@ -62,7 +62,7 @@ function writePins(userId: string, pins: DashboardPin[]): boolean {
   }
 }
 
-export type AddPinResult = 'added' | 'duplicate' | 'full' | 'unavailable'
+type AddPinResult = 'added' | 'duplicate' | 'full' | 'unavailable'
 
 export function addPin(
   userId: string,
