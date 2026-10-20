@@ -19,7 +19,7 @@ import {
   type RuleExpectations,
   operators,
 } from '@pathways/shared'
-import { GripVertical, Info, Trash2 } from 'lucide-react'
+import { GripVertical, Info, Plus, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { preferredOperators } from '../rule-severity.utils'
 import {
@@ -336,15 +336,19 @@ export function ConditionBuilder({
           <div className="flex flex-wrap gap-2">
             {areas.map((area) => (
               <Button
+                aria-label={`Add another ${scopeDisplayLabel[area.scope] ?? area.scope} condition`}
+                className="gap-2"
                 disabled={rows.length >= MAX_CONDITIONS}
                 key={area.scope}
+                title={`Add another ${scopeDisplayLabel[area.scope] ?? area.scope} condition`}
                 type="button"
                 variant="outline"
                 onClick={() =>
                   setRows((current) => [...current, newRow(area.areaMetrics[0] ?? '')])
                 }
               >
-                Add another {scopeDisplayLabel[area.scope] ?? area.scope} condition
+                <Plus className="h-4 w-4" aria-hidden="true" />
+                {scopeDisplayLabel[area.scope] ?? area.scope}
               </Button>
             ))}
           </div>
