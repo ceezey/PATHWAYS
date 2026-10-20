@@ -20,6 +20,7 @@ const { client, toastSuccess, toastError, useCurrentRoleMock } = vi.hoisted(() =
     submitDirectSubmission: vi.fn(),
     transitionBeneficiaryJourney: vi.fn(),
     correctBeneficiaryJourneyEvent: vi.fn(),
+    getBeneficiaryRecordForRole: vi.fn(),
   },
   toastSuccess: vi.fn(),
   toastError: vi.fn(),
@@ -33,6 +34,7 @@ vi.mock('next/navigation', () => ({ useSearchParams: () => new URLSearchParams()
 vi.mock('@/lib/services/pathways-client', () => ({ pathwaysClient: client }))
 vi.mock('@/lib/api/forms', () => ({ formsClient: client }))
 vi.mock('@/lib/api/journeys', () => ({ journeysClient: client }))
+vi.mock('@/lib/api/beneficiaries', () => ({ beneficiariesClient: client }))
 vi.mock('sonner', () => ({
   toast: { error: toastError, success: toastSuccess },
 }))
