@@ -85,6 +85,11 @@ beforeEach(() => {
   state.indicators.mockResolvedValue([{ id: 'ind-1', name: 'Indicator one' }])
 })
 
+// Finds the single condition card for an area by its accessible name.
+const area = (label: string) =>
+  screen.getByRole('group', {
+    name: (name) => /^Condition \d+ \(/.test(name) && name.endsWith(` (${label})`),
+  })
 describe('RuleDrawer save gate', () => {
   it('shows Save Rule and enables the form for a creator on a new rule', async () => {
     state.permissions = ['rules.read', 'rules.create']
@@ -176,7 +181,7 @@ describe('RuleDrawer project change', () => {
     })
     await screen.findByLabelText('Rule Name')
     fireEvent.click(screen.getByRole('checkbox', { name: /Indicator/ }))
-    const indicatorGroup = screen.getByRole('group', { name: 'Indicator / KPI' })
+    const indicatorGroup = area('Indicator / KPI')
     fireEvent.change(within(indicatorGroup).getByLabelText('What should we check?'), {
       target: { value: 'INDICATOR_PROGRESS_PERCENT' },
     })

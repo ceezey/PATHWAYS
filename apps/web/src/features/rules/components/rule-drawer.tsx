@@ -32,8 +32,8 @@ import {
 } from '../rule-severity.utils'
 import { severityStepCopy } from '../rules.copy'
 import {
+  type Joins,
   type MetricScope,
-  type Mode,
   type Rec,
   appendRec,
   appliesTo,
@@ -46,7 +46,9 @@ import {
   newRow,
   previewSentence,
   recordBound,
+  rowsToTree,
   suggestRuleCode,
+  treeToRows,
 } from '../rules.utils'
 import { ApplyToFields } from './apply-to-fields'
 import { ConditionBuilder } from './condition-builder'
@@ -81,13 +83,6 @@ type Props = {
   onSaved: (scopeProjectId: string | null, outcome?: RuleOutcome) => void
 }
 export type RuleOutcome = 'created' | 'drafted' | 'activated' | 'deactivated'
-/** Splits a stored tree into the flat rows the drawer edits, or null when it nests deeper. */
-const flatten = (node: RuleNode): { mode: Mode; rows: RuleCondition[] } | null =>
-  node.kind === 'CONDITION'
-    ? { mode: 'AND', rows: [node] }
-    : node.children.every((child) => child.kind === 'CONDITION')
-      ? { mode: node.mode, rows: node.children as RuleCondition[] }
-      : null
 
 export function RuleDrawer(props: Props) {
   const { profile, access } = useCurrentRole()
@@ -159,7 +154,7 @@ function AlertRuleDrawer({
 }: Props & { owner: SensitiveDraftOwner }) {
   const { profile, access } = useCurrentRole()
   const has = usePermission()
-  const initial = rule ? flatten(rule.conditions) : { mode: 'AND' as Mode, rows: [] }
+  const initial = rule ? treeToRows(rule.conditions) : { rows: [], joins: {} }
   const [scopeProjectId, setScopeProjectId] = useState<string | null>(
     rule ? rule.projectId : projectId,
   )
@@ -169,7 +164,7 @@ function AlertRuleDrawer({
   const [scopes, setScopes] = useState<MetricScope[]>(
     rule ? (appliesTo(rule) as MetricScope[]) : ['Project'],
   )
-  const [matchMode, setMatchMode] = useState<Mode>(initial?.mode ?? 'AND')
+  const [joins, setJoins] = useState<Joins>(initial?.joins ?? {})
   const [rows, setRows] = useState<RuleCondition[]>(
     initial?.rows.length ? initial.rows : [newRow(availableMetrics(['Project'])[0] ?? '')],
   )
@@ -179,13 +174,11 @@ function AlertRuleDrawer({
     rule?.recommendations.map((item) => ({ ...item })) ?? [
       {
         ...newRec(),
-        ...recommendationPrefill({
-          kind: 'GROUP',
-          mode: initial?.mode ?? 'AND',
-          children: initial?.rows.length
-            ? initial.rows
-            : [newRow(availableMetrics(['Project'])[0] ?? '')],
-        }),
+        ...recommendationPrefill(
+          initial?.rows.length
+            ? rowsToTree(initial.rows, initial.joins)
+            : rowsToTree([newRow(availableMetrics(['Project'])[0] ?? '')], {}),
+        ),
       },
     ],
   )
@@ -231,7 +224,7 @@ function AlertRuleDrawer({
     (key) => scopeProjectId !== null || !recordBound(key),
   )
   const { indicators, activities } = useBindingChoices(scopeProjectId, rows)
-  const tree: RuleNode = { kind: 'GROUP', mode: matchMode, children: rows }
+  const tree = rowsToTree(rows, joins)
   // A nested stored rule is read-only in this builder; its preview must inspect
   // the retained tree rather than the blank flat-row fallback shown for the advanced editor.
   const previewTree = nested && rule ? rule.conditions : tree
@@ -474,19 +467,19 @@ function AlertRuleDrawer({
           <RuleStepCard
             step={2}
             title="When should we notify you?"
-            hint="Set a condition for each selected area. You can add more conditions as needed."
+            hint="Set a condition for each selected area, then join conditions with AND or OR."
           >
             <ConditionBuilder
               activities={activities}
               expectations={expectations}
               indicators={indicators}
-              matchMode={matchMode}
+              joins={joins}
               nestedRule={nested ? rule : undefined}
               onAdvanced={() => setAdvanced(true)}
               rows={rows}
               scopeProjectId={scopeProjectId}
               scopes={scopes}
-              setMatchMode={setMatchMode}
+              setJoins={setJoins}
               setRows={setRows}
             />
           </RuleStepCard>

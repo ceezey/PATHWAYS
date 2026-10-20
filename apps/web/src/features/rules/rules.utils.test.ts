@@ -1,4 +1,4 @@
-import type { RuleCondition, RuleNode } from '@pathways/shared'
+import { MAX_CONDITIONS, type RuleCondition, type RuleNode, parseRuleTree } from '@pathways/shared'
 import { describe, expect, it } from 'vitest'
 import {
   alertSeverityRank,
@@ -17,10 +17,12 @@ import {
   nodeKey,
   previewSentence,
   recordBound,
+  rowsToTree,
   ruleSeverityText,
   ruleSeverityTone,
   severityTone,
   suggestRuleCode,
+  treeToRows,
 } from './rules.utils'
 
 const testRecordId = '11111111-1111-4111-8111-111111111111'
@@ -238,5 +240,46 @@ describe('condition tree helpers', () => {
     expect(nodeKey({ kind: 'GROUP', mode: 'OR', children: [] })).toBe('group_empty')
     expect(nodeKey(tree)).toBe(nodeKey(tree))
     expect(nodeKey(tree)).not.toBe(nodeKey(a))
+  })
+})
+
+describe('per-row joins', () => {
+  const row = (id: string) => leaf(id, 'PROJECT_REMAINING_DAYS', 'LT', '5') as RuleCondition
+  const [a, b, c] = [row('a'), row('b'), row('c')]
+  const and = (...children: RuleNode[]): RuleNode => ({ kind: 'GROUP', mode: 'AND', children })
+  const or = (...children: RuleNode[]): RuleNode => ({ kind: 'GROUP', mode: 'OR', children })
+  it('checks AND before OR when building the tree', () => {
+    expect(rowsToTree([a], {})).toEqual(and(a))
+    expect(rowsToTree([a, b, c], {})).toEqual(and(a, b, c))
+    expect(rowsToTree([a, b, c], { b: 'OR', c: 'OR' })).toEqual(or(a, b, c))
+    expect(rowsToTree([a, b, c], { c: 'OR' })).toEqual(or(and(a, b), c))
+    expect(rowsToTree([a, b, c], { b: 'OR' })).toEqual(or(a, and(b, c)))
+    expect(rowsToTree([a, b], { a: 'OR' })).toEqual(and(a, b))
+  })
+  it('summarizes a mixed tree with brackets', () => {
+    expect(conditionSummary(rowsToTree([a, b, c], { c: 'OR' }))).toBe(
+      '(Days until project end < 5 days AND Days until project end < 5 days) OR Days until project end < 5 days',
+    )
+  })
+  it('keeps the full condition cap valid', () => {
+    const rows = Array.from({ length: MAX_CONDITIONS }, (_, i) => row(`r${i}`))
+    const joins = Object.fromEntries(
+      rows.map((item, i) => [item.id, i % 3 ? 'AND' : 'OR'] as const),
+    )
+    expect(() => parseRuleTree(rowsToTree(rows, joins))).not.toThrow()
+  })
+  it('reads guided shapes back and round-trips them', () => {
+    for (const node of [and(a, b, c), or(a, b), or(and(a, b), c), or(a, and(b, c))]) {
+      const read = treeToRows(node)
+      expect(read).not.toBeNull()
+      expect(rowsToTree(read?.rows ?? [], read?.joins ?? {})).toEqual(node)
+    }
+    expect(treeToRows(a)).toEqual({ rows: [a], joins: {} })
+  })
+  it('leaves other shapes to the advanced editor', () => {
+    expect(treeToRows(and(or(a, b), c))).toBeNull()
+    expect(treeToRows(or(or(a, b), c))).toBeNull()
+    expect(treeToRows(or(and(a), c))).toBeNull()
+    expect(treeToRows(or(and(a, or(b, c))))).toBeNull()
   })
 })

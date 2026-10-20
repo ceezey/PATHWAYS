@@ -3,7 +3,7 @@ import type { HumanRule, RuleCondition } from '@pathways/shared'
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { type MetricScope, type Mode, availableMetrics, metricGuidance } from '../rules.utils'
+import { type Joins, type MetricScope, availableMetrics, metricGuidance } from '../rules.utils'
 import { ConditionBuilder } from './condition-builder'
 
 vi.mock('@/components/ui/select', async () =>
@@ -26,36 +26,38 @@ const indicators = [{ id: 'ind-1', name: 'Indicator one' }]
 const activities = [{ id: 'act-1', name: 'Activity one' }]
 
 let rowsNow: RuleCondition[] = []
-let modeNow: Mode = 'AND'
+let joinsNow: Joins = {}
 function Harness({
   initial,
   scopeProjectId = 'proj-a',
   nestedRule,
   onAdvanced = vi.fn(),
   scopes = ['Project'],
+  initialJoins = {},
 }: {
   initial: RuleCondition[]
+  initialJoins?: Joins
   scopeProjectId?: string | null
   nestedRule?: HumanRule
   onAdvanced?: () => void
   scopes?: MetricScope[]
 }) {
   const [rows, setRows] = useState(initial)
-  const [matchMode, setMatchMode] = useState<Mode>('AND')
+  const [joins, setJoins] = useState<Joins>(initialJoins)
   rowsNow = rows
-  modeNow = matchMode
+  joinsNow = joins
   return (
     <ConditionBuilder
       activities={activities}
       expectations={{}}
       indicators={indicators}
-      matchMode={matchMode}
+      joins={joins}
       nestedRule={nestedRule}
       onAdvanced={onAdvanced}
       rows={rows}
       scopeProjectId={scopeProjectId}
       scopes={scopes}
-      setMatchMode={setMatchMode}
+      setJoins={setJoins}
       setRows={setRows}
     />
   )
@@ -66,18 +68,24 @@ const add = () =>
   screen.getByRole('button', { name: 'Add another Project condition' }) as HTMLButtonElement
 
 describe('ConditionBuilder match and remove guards', () => {
-  it('offers the match mode only between several areas and reports a change', () => {
-    render(<Harness initial={[row('a'), row('b')]} />)
-    expect(screen.queryByText('Combine with previous condition')).toBeNull()
+  it('offers a join before every condition after the first, within one area too', () => {
+    render(<Harness initial={[row('a')]} />)
+    expect(screen.queryByRole('radiogroup')).toBeNull()
     cleanup()
-    render(
-      <Harness
-        initial={[row('a'), row('b', { metric: 'ACTIVITY_OVERDUE_DAYS' })]}
-        scopes={['Project', 'Activity']}
-      />,
+    render(<Harness initial={[row('a'), row('b'), row('c')]} />)
+    expect(screen.queryByRole('radiogroup', { name: 'Join condition 1' })).toBeNull()
+    const second = screen.getByRole('radiogroup', { name: 'Join condition 3' })
+    fireEvent.click(within(second).getByRole('radio', { name: 'OR' }))
+    expect(joinsNow).toEqual({ c: 'OR' })
+    const first = screen.getByRole('radiogroup', { name: 'Join condition 2' })
+    expect((within(first).getByRole('radio', { name: 'AND' }) as HTMLInputElement).checked).toBe(
+      true,
     )
-    fireEvent.click(screen.getByRole('radio', { name: 'OR' }))
-    expect(modeNow).toBe('OR')
+  })
+  it('boxes each AND run once an OR splits the conditions', () => {
+    render(<Harness initial={[row('a'), row('b'), row('c')]} initialJoins={{ c: 'OR' }} />)
+    expect(screen.getAllByRole('group', { name: 'All of these must match' })).toHaveLength(2)
+    expect(screen.getByText(/AND is checked before OR/)).toBeTruthy()
   })
   it('offers Remove only with several conditions and removes the chosen one', () => {
     render(<Harness initial={[row('a')]} />)
@@ -240,23 +248,21 @@ describe('ConditionBuilder area groups', () => {
     expect(screen.queryByText(/does not fill or save a threshold/)).toBeNull()
     expect(rowsNow[0]?.threshold).toBe('5')
   })
-  it('groups rows by area, labels Indicator as Indicator / KPI and counts conditions', () => {
+  it('keeps rows in the order added across areas, each labelled with its area', () => {
     render(
       <Harness
-        initial={[row('a'), row('b'), row('c', { metric: 'INDICATOR_PROGRESS_PERCENT' })]}
+        initial={[row('a'), row('c', { metric: 'INDICATOR_PROGRESS_PERCENT' }), row('b')]}
         scopes={['Indicator', 'Project']}
       />,
     )
-    expect(screen.getAllByRole('group').map((group) => group.getAttribute('aria-label'))).toEqual([
-      'Project',
-      'Indicator / KPI',
+    expect(screen.getAllByText(/^Condition \d+$/).map((item) => item.textContent)).toEqual([
+      'Condition 1',
+      'Condition 2',
+      'Condition 3',
     ])
-    expect(
-      within(screen.getByRole('group', { name: 'Project' })).getByText('2 conditions'),
-    ).toBeTruthy()
-    expect(
-      within(screen.getByRole('group', { name: 'Indicator / KPI' })).getByText('1 condition'),
-    ).toBeTruthy()
+    expect(screen.getAllByText('Project')).toHaveLength(2)
+    expect(screen.getByText('Indicator / KPI', { selector: 'span' })).toBeTruthy()
+    expect(screen.getAllByRole('button', { name: /^Add another .* condition$/ })).toHaveLength(2)
   })
   it('lists only the area metrics and hides record-bound ones without a project', () => {
     render(<Harness initial={[row('a')]} scopeProjectId={null} scopes={['Project', 'Indicator']} />)

@@ -380,6 +380,50 @@ export const newRow = (metric: string): RuleCondition => ({
   operator: 'LT',
   threshold: '',
 })
+/** Connector before each row, keyed by row id; a missing entry means AND and the first row has none. */
+export type Joins = Record<string, Mode>
+/** Splits rows into AND-joined runs, starting a new run at every OR. */
+export const runsOf = (rows: Leaf[], joins: Joins): Leaf[][] =>
+  rows.reduce<Leaf[][]>((runs, row, index) => {
+    if (index === 0 || joins[row.id] === 'OR') runs.push([row])
+    else runs[runs.length - 1]?.push(row)
+    return runs
+  }, [])
+/** Builds the stored tree with AND checked before OR: A AND B OR C saves as (A AND B) OR C. */
+export const rowsToTree = (rows: Leaf[], joins: Joins): RuleNode => {
+  const runs = runsOf(rows, joins)
+  if (runs.length <= 1) return { kind: 'GROUP', mode: 'AND', children: runs[0] ?? [] }
+  return {
+    kind: 'GROUP',
+    mode: 'OR',
+    children: runs.map((run) =>
+      run.length === 1 ? (run[0] as Leaf) : { kind: 'GROUP', mode: 'AND', children: run },
+    ),
+  }
+}
+/** Reads a stored tree back into rows and connectors, or null when it needs the advanced editor. */
+export const treeToRows = (node: RuleNode): { rows: Leaf[]; joins: Joins } | null => {
+  if (node.kind === 'CONDITION') return { rows: [node], joins: {} }
+  const rows: Leaf[] = []
+  const joins: Joins = {}
+  for (const [index, child] of node.children.entries()) {
+    const run =
+      child.kind === 'CONDITION'
+        ? [child]
+        : node.mode === 'OR' &&
+            child.mode === 'AND' &&
+            child.children.length > 1 &&
+            child.children.every((item) => item.kind === 'CONDITION')
+          ? (child.children as Leaf[])
+          : null
+    if (!run) return null
+    for (const [position, row] of run.entries()) {
+      if (index > 0 || position > 0) joins[row.id] = position === 0 ? node.mode : 'AND'
+      rows.push(row)
+    }
+  }
+  return { rows, joins }
+}
 export const newRec = (): Rec => ({ id: crypto.randomUUID(), title: '', text: '' })
 export const completeRec = (item: Rec) => Boolean(item.title.trim() && item.text.trim())
 export const appendRec = (items: Rec[], item: Rec) =>

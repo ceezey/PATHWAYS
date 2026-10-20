@@ -75,10 +75,15 @@ const renderDrawer = (props: Partial<React.ComponentProps<typeof RuleDrawer>> = 
       </AuthorizedQueryProvider>
     </QueryClientProvider>,
   )
-const option = (name: string) => screen.queryByRole('option', { name })
+const option = (name: string) => screen.queryAllByRole('option', { name })[0] ?? null
+// Finds the single condition card for an area by its accessible name.
+const area = (label: string) =>
+  screen.getByRole('group', {
+    name: (name) => /^Condition \d+ \(/.test(name) && name.endsWith(` (${label})`),
+  })
 const fillBasics = () => {
   fireEvent.change(screen.getByLabelText('Rule Name'), { target: { value: 'Late project' } })
-  const projectGroup = screen.getByRole('group', { name: 'Project' })
+  const projectGroup = area('Project')
   fireEvent.change(within(projectGroup).getByLabelText('What should we check?'), {
     target: { value: 'PROJECT_REMAINING_DAYS' },
   })
@@ -178,7 +183,7 @@ describe('RuleDrawer', () => {
     expect(screen.getByTestId('rule-category-label').textContent).toBe('Rule Categories:')
     expect(within(screen.getByTestId('rule-category')).getByText('Schedule')).toBeTruthy()
     expect(within(screen.getByTestId('rule-category')).getByText('Delivery')).toBeTruthy()
-    const activityGroup = screen.getByRole('group', { name: 'Activity' })
+    const activityGroup = area('Activity')
     fireEvent.change(within(activityGroup).getByLabelText('What should we check?'), {
       target: { value: 'ACTIVITY_OVERDUE_COUNT' },
     })
@@ -217,17 +222,19 @@ describe('RuleDrawer', () => {
     fireEvent.keyDown(indicatorScopeInfo, { key: 'Escape' })
     expect(screen.queryByRole('tooltip')).toBeNull()
     fireEvent.click(screen.getByRole('checkbox', { name: 'Assessment' }))
-    const assessmentGroup = screen.getByRole('group', { name: 'Assessment' })
+    const assessmentGroup = area('Assessment')
     fireEvent.change(within(assessmentGroup).getByLabelText('What should we check?'), {
       target: { value: 'SURVEY_MEAN_IMPROVEMENT_POINTS' },
     })
     fireEvent.click(screen.getByRole('checkbox', { name: 'Project' }))
     expect(
-      within(assessmentGroup).getByText(
+      within(area('Assessment')).getByText(
         'Average post-test minus pre-test score after converting scores to a 0–100 scale. Negative values indicate a decline.',
       ),
     ).toBeTruthy()
-    expect((within(assessmentGroup).getByLabelText('Threshold') as HTMLInputElement).value).toBe('')
+    expect((within(area('Assessment')).getByLabelText('Threshold') as HTMLInputElement).value).toBe(
+      '',
+    )
     expect(screen.getByTestId('rule-preview').textContent).toBe(
       'Raise an alert when Average assessment score change is below ... percentage points. Human review required.',
     )
@@ -367,6 +374,55 @@ describe('RuleDrawer', () => {
     })
     await waitFor(() => expect(onSaved).toHaveBeenCalledWith(null, 'created'))
   })
+  it('saves mixed joins with AND checked before OR', async () => {
+    renderDrawer()
+    fillBasics()
+    fireEvent.click(screen.getByRole('button', { name: 'Add another Project condition' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Add another Project condition' }))
+    for (const [index, value] of ['10', '20'].entries())
+      fireEvent.change(screen.getAllByLabelText('Threshold')[index + 1] as HTMLElement, {
+        target: { value },
+      })
+    const third = screen.getByRole('radiogroup', { name: 'Join condition 3' })
+    fireEvent.click(within(third).getByRole('radio', { name: 'OR' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save Rule' }))
+    await waitFor(() => expect(state.createRule).toHaveBeenCalledTimes(1))
+    const conditions = state.createRule.mock.calls[0]?.[0].conditions
+    expect(conditions).toMatchObject({
+      kind: 'GROUP',
+      mode: 'OR',
+      children: [
+        { kind: 'GROUP', mode: 'AND', children: [{ threshold: '30' }, { threshold: '10' }] },
+        { kind: 'CONDITION', threshold: '20' },
+      ],
+    })
+  })
+  it('opens a stored (A AND B) OR C rule in the guided view and drafts it unchanged', async () => {
+    const leaf = (id: string, threshold: string) => ({
+      kind: 'CONDITION',
+      id,
+      metric: 'PROJECT_REMAINING_DAYS',
+      operator: 'LT',
+      threshold,
+    })
+    const conditions = {
+      kind: 'GROUP',
+      mode: 'OR',
+      children: [
+        { kind: 'GROUP', mode: 'AND', children: [leaf('c1', '30'), leaf('c2', '10')] },
+        leaf('c3', '5'),
+      ],
+    }
+    renderDrawer({ rule: { ...activeRule, conditions } as unknown as HumanRule })
+    expect(screen.queryByRole('button', { name: /advanced editor/i })).toBeNull()
+    const join = (n: number) =>
+      within(screen.getByRole('radiogroup', { name: `Join condition ${n}` }))
+    expect((join(2).getByRole('radio', { name: 'AND' }) as HTMLInputElement).checked).toBe(true)
+    expect((join(3).getByRole('radio', { name: 'OR' }) as HTMLInputElement).checked).toBe(true)
+    fireEvent.click(screen.getByRole('button', { name: 'Save Rule' }))
+    await waitFor(() => expect(state.draftRule).toHaveBeenCalledTimes(1))
+    expect(state.draftRule.mock.calls[0]?.[1].conditions).toEqual(conditions)
+  })
   it('blocks saving without a complete recommendation', async () => {
     renderDrawer()
     fillBasics()
@@ -403,7 +459,7 @@ describe('RuleDrawer', () => {
     const project = { id: '30000000-0000-4000-8000-000000000001', title: 'North' }
     renderDrawer({ projectId: project.id, projects: [project] })
     fireEvent.click(screen.getByRole('checkbox', { name: /Indicator/ }))
-    const indicatorGroup = screen.getByRole('group', { name: 'Indicator / KPI' })
+    const indicatorGroup = area('Indicator / KPI')
     fireEvent.change(within(indicatorGroup).getByLabelText('What should we check?'), {
       target: { value: 'INDICATOR_PROGRESS_PERCENT' },
     })
@@ -433,7 +489,7 @@ describe('RuleDrawer', () => {
     fireEvent.click(screen.getByRole('checkbox', { name: /Project/ }))
     expect(screen.getByRole('alert').textContent).toBe('Select at least one Applies To family.')
     fireEvent.click(screen.getByRole('checkbox', { name: /Activity/ }))
-    const activityGroup = screen.getByRole('group', { name: 'Activity' })
+    const activityGroup = area('Activity')
     fireEvent.change(within(activityGroup).getByLabelText('What should we check?'), {
       target: { value: 'ACTIVITY_COMPLETION_PERCENT' },
     })
@@ -487,7 +543,7 @@ describe('RuleDrawer', () => {
     expect(screen.queryByLabelText('Expected score improvement')).toBeNull()
     expect(screen.queryByLabelText('Manageable follow-up level')).toBeNull()
     fireEvent.click(screen.getByRole('checkbox', { name: 'Assessment' }))
-    const assessmentGroup = screen.getByRole('group', { name: 'Assessment' })
+    const assessmentGroup = area('Assessment')
     fireEvent.change(within(assessmentGroup).getByLabelText('What should we check?'), {
       target: { value: 'SURVEY_MEAN_IMPROVEMENT_POINTS' },
     })
@@ -511,7 +567,7 @@ describe('RuleDrawer', () => {
       'Review project timeline',
     )
     fireEvent.click(screen.getByRole('checkbox', { name: /Budget/ }))
-    const budgetGroup = screen.getByRole('group', { name: 'Budget' })
+    const budgetGroup = area('Budget')
     fireEvent.change(within(budgetGroup).getByLabelText('What should we check?'), {
       target: { value: 'BUDGET_UTILIZATION_PERCENT' },
     })
@@ -525,7 +581,7 @@ describe('RuleDrawer', () => {
       target: { value: 'Keep my tailored title' },
     })
     fireEvent.click(screen.getByRole('checkbox', { name: /Assessment/ }))
-    const assessmentGroup = screen.getByRole('group', { name: 'Assessment' })
+    const assessmentGroup = area('Assessment')
     fireEvent.change(within(assessmentGroup).getByLabelText('What should we check?'), {
       target: { value: 'SURVEY_MEAN_IMPROVEMENT_POINTS' },
     })
@@ -558,7 +614,7 @@ describe('RuleDrawer', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Choose from recommendation library' }))
     fireEvent.click(screen.getByRole('button', { name: 'Copy recommendation to this rule' }))
     fireEvent.click(screen.getByRole('checkbox', { name: /Budget/ }))
-    const budgetGroup = screen.getByRole('group', { name: 'Budget' })
+    const budgetGroup = area('Budget')
     fireEvent.change(within(budgetGroup).getByLabelText('What should we check?'), {
       target: { value: 'BUDGET_UTILIZATION_PERCENT' },
     })
@@ -581,11 +637,11 @@ describe('RuleDrawer', () => {
       ...activeRule,
       conditions: {
         kind: 'GROUP',
-        mode: 'OR',
+        mode: 'AND',
         children: [
           {
             kind: 'GROUP',
-            mode: 'AND',
+            mode: 'OR',
             children: [
               {
                 kind: 'CONDITION',
