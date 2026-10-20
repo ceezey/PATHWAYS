@@ -172,7 +172,7 @@ export const journeyStages: Partial<Record<ProjectKey, StageSpec[]>> = {
       order: 2,
       type: 'CORE',
       description: 'Coaching for household enterprises.',
-      activityKeys: ['livelihood'],
+      activityKeys: ['livelihood', 'posttest'],
     },
     {
       code: 'WAGE-JOB',
@@ -341,6 +341,12 @@ export const attendanceForms: Partial<Record<ProjectKey, AttendanceFormSpec[]>> 
       code: 'coaching_attendance',
       name: 'Livelihood Coaching Attendance',
       activityKey: 'livelihood',
+      stageCode: 'COACHING',
+    },
+    {
+      code: 'coaching_posttest_attendance',
+      name: 'Livelihood Coaching Final Assessment Attendance',
+      activityKey: 'posttest',
       stageCode: 'COACHING',
     },
   ],

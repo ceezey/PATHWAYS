@@ -255,5 +255,42 @@ export async function verifyDefenseDemo(
     })
     add('a recommendation was escalated', escalated > 0, `${escalated} escalated`)
   }
+  // Panel demo prep: only the five post-test scores are entered live, so everything else must be ready.
+  const postTest = await one(owner.$queryRaw`SELECT count(*) AS n FROM pathways.project_activities a
+    JOIN pathways.projects p ON p.id = a.project_id AND p.code = 'CRL-NS-2026'
+    JOIN pathways.activity_journey_stage_mappings m ON m.activity_id = a.id
+    JOIN pathways.journey_stages s ON s.id = m.stage_id AND s.code = 'COACHING'
+    JOIN pathways.digital_forms f ON f.activity_id = a.id AND f.code = 'coaching_posttest_attendance' AND f.status = 'PUBLISHED'
+    WHERE a.title = 'Livelihood coaching final assessment' AND a.archived_at IS NULL`)
+  add(
+    'CRL final assessment activity is on Livelihood coaching with a published form',
+    postTest === 1,
+    `${postTest} found`,
+  )
+  const ready =
+    await one(owner.$queryRaw`SELECT count(*) AS n FROM pathways.beneficiary_project_enrollments e
+    JOIN pathways.projects p ON p.id = e.project_id AND p.code = 'CRL-NS-2026'
+    JOIN pathways.beneficiaries b ON b.id = e.beneficiary_id
+    WHERE e.status = 'ACTIVE' AND b.code BETWEEN 'BEN-CRL-NS-2026-001' AND 'BEN-CRL-NS-2026-005'
+      AND EXISTS (SELECT 1 FROM pathways.assessment_results r WHERE r.enrollment_id = e.id AND r.type = 'PRE_TEST')
+      AND NOT EXISTS (SELECT 1 FROM pathways.assessment_results r WHERE r.enrollment_id = e.id AND r.type = 'POST_TEST')
+      AND EXISTS (SELECT 1 FROM pathways.beneficiary_activity_participations pa
+        JOIN pathways.form_submissions fs ON fs.id = pa.source_submission_id AND fs.status IN ('VALIDATED', 'PROCESSED')
+        JOIN pathways.project_activities a ON a.id = pa.activity_id AND a.title = 'Livelihood coaching final assessment'
+        WHERE pa.enrollment_id = e.id)`)
+  add(
+    'five CRL members attended the final assessment and have a pre-test but no post-test',
+    ready === 5,
+    `${ready} ready`,
+  )
+  const quiet = await one(owner.$queryRaw`SELECT count(*) AS n FROM pathways.alert_rules r
+    WHERE r.display_code = 'ASSESSMENT_IMPROVEMENT_BELOW_PLAN' AND r.status = 'ACTIVE' AND r.expected_score_improvement = 10
+      AND NOT EXISTS (SELECT 1 FROM pathways.rule_based_alerts x WHERE x.rule_id = r.id)`)
+  add(
+    'the panel rule is active, expects +10 points and has no alert yet',
+    quiet === 1,
+    `${quiet} found`,
+  )
+
   return checks
 }

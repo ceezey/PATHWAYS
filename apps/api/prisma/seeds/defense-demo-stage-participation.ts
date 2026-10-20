@@ -102,4 +102,39 @@ export async function stageDefenseParticipation(ctx: DemoContext) {
   ctx.log(
     `  fourth session recorded for ${people.length} members, journey notes added: ${noted}, already present: ${present}`,
   )
+  await recordPostTestAttendance(ctx, projectId, officer, people.slice(0, postTestSize))
+}
+
+/** Panel demo: the first members attend the post-test session, so their post-test scores can be
+ * entered live against that activity. Recorded last, so it never precedes the fourth session. */
+export const postTestSize = 5
+async function recordPostTestAttendance(
+  ctx: DemoContext,
+  projectId: string,
+  officer: ReturnType<typeof registrarFor>,
+  people: { code: string }[],
+) {
+  const form = await ctx.owner.digitalForm.findFirstOrThrow({
+    where: { projectId, code: 'coaching_posttest_attendance' },
+    select: { id: true },
+  })
+  for (const person of people) {
+    const saved = (await step(`post-test session ${person.code}`, () =>
+      ctx.services.metadata.saveSubmission(officer, projectId, form.id, {
+        clientSubmissionId: ctx.stable(`attendance:CRL-NS-2026:${person.code}:posttest`),
+        values: {
+          beneficiary_code: person.code,
+          participation_date: ctx.today,
+          attendance_status: 'PRESENT',
+          progress_status: 'IN_PROGRESS',
+          progress_notes: 'Took the final assessment on the livelihood coaching content.',
+        },
+      }),
+    )) as { id: string; updatedAt: string; status: string }
+    if (saved.status === 'DRAFT')
+      await ctx.services.metadata.submitSubmission(officer, projectId, form.id, saved.id, {
+        expectedUpdatedAt: saved.updatedAt,
+      })
+  }
+  ctx.log(`  post-test session recorded for ${people.length} members`)
 }

@@ -4,7 +4,7 @@
  * fictional. Dates are expressed as day offsets from the run date so that "overdue", "near
  * completion" and "upcoming" stay true whenever the workspace is built.
  */
-import type { OverdueExplanationCategory } from '@pathways/shared'
+import type { OverdueExplanationCategory, RuleMetricKey } from '@pathways/shared'
 
 export type ProjectKey = 'SSG' | 'CRL' | 'ALS' | 'ECD' | 'WSH' | 'EHK'
 
@@ -561,6 +561,18 @@ export const demoActivities: Record<ProjectKey, DemoActivity[]> = {
       progress: 80,
       note: 'Drills held in Baybay and Cawayan with 26 residents; evaluation form results attached.',
       reached: 26,
+    },
+    {
+      // Panel demo: five coached members attend; their post-test scores are entered live.
+      key: 'posttest',
+      title: 'Livelihood coaching final assessment',
+      type: 'Livelihood Support',
+      description: 'Final assessment on the livelihood coaching content.',
+      startOffset: -1,
+      endOffset: 7,
+      target: 5,
+      outcome: 'IN_PROGRESS',
+      officer: 'emmanuel',
     },
   ],
   ALS: [
@@ -1603,19 +1615,13 @@ export type DemoRule = {
   /** Null lets the system suggest severity; CRITICAL is the author's manual mark. */
   severity: 'CRITICAL' | null
   conditions: Array<{
-    metric:
-      | 'PROJECT_TIMELINE_ELAPSED_PERCENT'
-      | 'ACTIVITY_COMPLETION_PERCENT'
-      | 'ACTIVITY_OVERDUE_COUNT'
-      | 'PROJECT_REMAINING_DAYS'
-      | 'PROJECT_OVERDUE_DAYS'
-      | 'BUDGET_UTILIZATION_PERCENT'
-      | 'BENEFICIARY_FOLLOW_UP_PERCENT'
-      | 'SURVEY_MEAN_IMPROVEMENT_POINTS'
+    metric: RuleMetricKey
     operator: 'LT' | 'LTE' | 'EQ' | 'GTE' | 'GT'
     threshold: string
   }>
   mode: 'AND' | 'OR'
+  /** Agreed figures the suggested severity compares with, saved with the rule version. */
+  expectations?: { expectedScoreImprovement?: string; manageableFollowUpPercent?: string }
   recommendations: Array<{ title: string; text: string }>
 }
 
@@ -1744,6 +1750,22 @@ export const demoRules: DemoRule[] = [
       {
         title: 'Review the hygiene club training content',
         text: 'Review the training sessions with the facilitators and strengthen the topics where learners improved least.',
+      },
+    ],
+  },
+  {
+    // Panel demo: no post-test pairs yet, so it stays quiet until the five scores are entered live.
+    project: 'CRL',
+    code: 'ASSESSMENT_IMPROVEMENT_BELOW_PLAN',
+    name: 'Assessment improvement below plan',
+    severity: null,
+    mode: 'AND',
+    conditions: [{ metric: 'SURVEY_MEAN_IMPROVEMENT_POINTS', operator: 'LT', threshold: '10' }],
+    expectations: { expectedScoreImprovement: '10' },
+    recommendations: [
+      {
+        title: 'Repeat the coaching module',
+        text: 'Ask the coaching team to repeat the module and check the scores again after the next session.',
       },
     ],
   },

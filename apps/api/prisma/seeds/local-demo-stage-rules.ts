@@ -78,6 +78,7 @@ export async function stageRules(ctx: DemoContext) {
         code: plan.code,
         name: plan.name,
         severity: plan.severity,
+        ...(plan.expectations ? { expectations: plan.expectations } : {}),
         projectId,
         conditions: {
           kind: 'GROUP',
