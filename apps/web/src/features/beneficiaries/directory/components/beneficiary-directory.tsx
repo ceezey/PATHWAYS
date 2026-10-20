@@ -27,15 +27,9 @@ import {
 } from '@/components/ui/table'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'
-import { useSafeProjectSelection } from '@/hooks/use-safe-project-selection'
-import { scopeBeneficiariesForRole, scopeProjectsForRole } from '@/lib/rbac/data-scope'
+import { scopeBeneficiariesForRole } from '@/lib/rbac/data-scope'
 import { isUiActionAvailable } from '@/lib/rbac/ui-action-availability'
-import type {
-  ActivitySummary,
-  BeneficiaryRecord,
-  JourneyStageConfig,
-  ProjectSummary,
-} from '@/types/pathways'
+import type { BeneficiaryRecord, ProjectSummary } from '@/types/pathways'
 
 import { matchesBeneficiarySearch } from '../../beneficiaries.utils'
 import { useBeneficiaryColumns } from '../hooks/use-beneficiary-columns'
@@ -46,35 +40,33 @@ const safeFilterValue = (value: string | null, allowed: string[]) =>
   value && allowed.includes(value) ? value : allValue
 
 type BeneficiaryDirectoryProps = {
+  /** Records of the selected project only. */
   beneficiaries: BeneficiaryRecord[]
+  /** Projects already scoped to the current role. */
   projects: ProjectSummary[]
-  activities: ActivitySummary[]
-  stages: JourneyStageConfig[]
+  projectId: string
+  onProjectChange: (projectId: string) => void
+  status: 'loading' | 'error' | 'success'
+  onRetry: () => void
 }
 
 export const BeneficiaryDirectory = ({
   beneficiaries,
   projects,
-  activities,
-  stages,
+  projectId,
+  onProjectChange,
+  status,
+  onRetry,
 }: BeneficiaryDirectoryProps) => {
   const { labels } = useDisplayLabels()
   const { role, profile, assignedProjectIds } = useCurrentRole()
   const searchParams = useSearchParams()
   const readParam = (name: string) => searchParams?.get(name) ?? null
-  const scopedProjects = useMemo(
-    () => (role ? scopeProjectsForRole(projects, role, assignedProjectIds) : []),
-    [projects, role, assignedProjectIds],
-  )
   const scopedBeneficiaries = useMemo(
     () => (role ? scopeBeneficiariesForRole(beneficiaries, role, assignedProjectIds) : []),
     [beneficiaries, role, assignedProjectIds],
   )
   const [search, setSearch] = useState(readParam('q') ?? '')
-  const [projectId, setProjectId] = useSafeProjectSelection(
-    scopedProjects.map((project) => project.id),
-    readParam('project') ?? undefined,
-  )
   const [location, setLocation] = useState(readParam('location') ?? allValue)
   const [sex, setSex] = useState(() =>
     safeFilterValue(readParam('sex'), [
@@ -113,10 +105,10 @@ export const BeneficiaryDirectory = ({
   )
 
   useEffect(() => {
-    if (location !== allValue && !locations.includes(location)) {
+    if (status === 'success' && location !== allValue && !locations.includes(location)) {
       setLocation(allValue)
     }
-  }, [location, locations])
+  }, [location, locations, status])
 
   const filteredBeneficiaries = useMemo(
     () =>
@@ -153,7 +145,7 @@ export const BeneficiaryDirectory = ({
     ],
   )
 
-  const columns = useBeneficiaryColumns({ activities, scopedProjects, stages })
+  const columns = useBeneficiaryColumns({ scopedProjects: projects })
   const requestedPageIndex = Math.max(0, Number(readParam('page') ?? 1) - 1)
   const safeInitialPageIndex = Math.min(
     requestedPageIndex,
@@ -208,10 +200,11 @@ export const BeneficiaryDirectory = ({
   const pageCount = table.getPageCount()
   const { pageIndex } = table.getState().pagination
 
-  // Clamps the page when the filtered list shrinks below the current page.
+  // Clamps the page when the loaded, filtered list shrinks below the current page.
   useEffect(() => {
-    if (pageIndex > 0 && pageIndex >= pageCount) table.setPageIndex(Math.max(0, pageCount - 1))
-  }, [pageCount, pageIndex, table])
+    if (status === 'success' && pageIndex > 0 && pageIndex >= pageCount)
+      table.setPageIndex(Math.max(0, pageCount - 1))
+  }, [pageCount, pageIndex, status, table])
 
   return (
     <div className="space-y-6">
@@ -258,9 +251,9 @@ export const BeneficiaryDirectory = ({
           <FilterSelect
             label="Project"
             value={projectId}
-            onValueChange={withPageReset(setProjectId)}
+            onValueChange={withPageReset(onProjectChange)}
           >
-            {scopedProjects.map((project) => (
+            {projects.map((project) => (
               <SelectItem key={project.id} value={project.id}>
                 {project.title}
               </SelectItem>
@@ -336,9 +329,13 @@ export const BeneficiaryDirectory = ({
 
         <ResultsAnnouncement
           message={
-            filteredBeneficiaries.length === 0
-              ? 'No Beneficiary records match the current search and filters.'
-              : `${filteredBeneficiaries.length} Beneficiary ${filteredBeneficiaries.length === 1 ? 'record matches' : 'records match'} the current search and filters.`
+            status === 'loading'
+              ? 'Loading Beneficiary records.'
+              : status === 'error'
+                ? 'Beneficiary records for this project could not be loaded.'
+                : filteredBeneficiaries.length === 0
+                  ? 'No Beneficiary records match the current search and filters.'
+                  : `${filteredBeneficiaries.length} Beneficiary ${filteredBeneficiaries.length === 1 ? 'record matches' : 'records match'} the current search and filters.`
           }
           settleKey={[
             search,
@@ -348,6 +345,7 @@ export const BeneficiaryDirectory = ({
             ageGroup,
             disabilityStatus,
             enrollmentStatus,
+            status,
           ].join('|')}
         />
 
@@ -366,7 +364,25 @@ export const BeneficiaryDirectory = ({
             ))}
           </TableHeader>
           <TableBody>
-            {table.getRowModel().rows.length > 0 ? (
+            {status !== 'success' ? (
+              <TableRow>
+                <TableCell
+                  colSpan={columns.length}
+                  className="h-28 text-center text-muted-foreground"
+                >
+                  {status === 'loading' ? (
+                    'Loading Beneficiary records.'
+                  ) : (
+                    <span className="inline-flex items-center gap-3">
+                      Beneficiary records for this project could not be loaded.
+                      <Button onClick={onRetry} size="sm" type="button" variant="outline">
+                        Retry
+                      </Button>
+                    </span>
+                  )}
+                </TableCell>
+              </TableRow>
+            ) : table.getRowModel().rows.length > 0 ? (
               table.getRowModel().rows.map((row) => (
                 <TableRow
                   className="relative cursor-pointer focus-within:bg-primary-subtle"

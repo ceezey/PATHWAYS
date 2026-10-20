@@ -3,30 +3,12 @@ import { useMemo } from 'react'
 
 import { ProgressBar } from '@/components/pathways/progress-bar'
 import { StatusBadge } from '@/components/pathways/status-badge'
-import type {
-  ActivitySummary,
-  BeneficiaryRecord,
-  JourneyStageConfig,
-  ProjectSummary,
-} from '@/types/pathways'
+import type { BeneficiaryRecord, ProjectSummary } from '@/types/pathways'
 
-import {
-  deriveCurrentStage,
-  enrollmentTone,
-  formatDate,
-  progressionRate,
-  projectTitle,
-} from '../../beneficiaries.utils'
+import { enrollmentTone, formatDate, projectTitle } from '../../beneficiaries.utils'
 
-export const useBeneficiaryColumns = ({
-  activities,
-  scopedProjects,
-  stages,
-}: {
-  activities: ActivitySummary[]
-  scopedProjects: ProjectSummary[]
-  stages: JourneyStageConfig[]
-}) => {
+/** Stage and last activity come from the server-computed `progress` summary on each list row. */
+export const useBeneficiaryColumns = ({ scopedProjects }: { scopedProjects: ProjectSummary[] }) => {
   const columns = useMemo<ColumnDef<BeneficiaryRecord>[]>(
     () => [
       {
@@ -50,24 +32,11 @@ export const useBeneficiaryColumns = ({
       {
         header: 'Current stage',
         cell: ({ row }) => {
-          const projectStages = stages.filter((stage) =>
-            row.original.projectIds.includes(stage.projectId),
-          )
-          const projectActivities = activities.filter((activity) =>
-            row.original.projectIds.includes(activity.projectId),
-          )
-          const currentStage = deriveCurrentStage(
-            row.original.participation,
-            projectStages,
-            projectActivities,
-          )
           const summary = row.original.progress
           if (summary?.restricted)
             return <span className="text-sm text-muted-foreground">Restricted</span>
-          const stage = summary ? summary.stage : currentStage
-          const progress = summary
-            ? (summary.stage?.progressPercent ?? 0)
-            : progressionRate(row.original.participation, projectStages, projectActivities)
+          const stage = summary?.stage
+          const progress = stage?.progressPercent ?? 0
 
           return (
             <div className="min-w-[180px] space-y-2">
@@ -86,24 +55,12 @@ export const useBeneficiaryColumns = ({
           const summary = row.original.progress
           if (summary?.restricted)
             return <span className="text-sm text-muted-foreground">Restricted</span>
-          if (summary?.lastParticipation)
-            return (
-              <div className="space-y-1 text-sm">
-                <p className="font-medium">{summary.lastParticipation.title}</p>
-                <p className="text-xs text-muted-foreground">
-                  {formatDate(summary.lastParticipation.date)}
-                </p>
-              </div>
-            )
-          const latest = [...row.original.participation].sort((first, second) =>
-            second.participatedAt.localeCompare(first.participatedAt),
-          )[0]
-          const activity = activities.find((item) => item.id === latest?.activityId)
+          const latest = summary?.lastParticipation
 
           return latest ? (
             <div className="space-y-1 text-sm">
-              <p className="font-medium">{activity?.title ?? latest.activityId}</p>
-              <p className="text-xs text-muted-foreground">{formatDate(latest.participatedAt)}</p>
+              <p className="font-medium">{latest.title}</p>
+              <p className="text-xs text-muted-foreground">{formatDate(latest.date)}</p>
             </div>
           ) : (
             <span className="text-sm text-muted-foreground">No participation yet</span>
@@ -120,7 +77,7 @@ export const useBeneficiaryColumns = ({
         ),
       },
     ],
-    [activities, scopedProjects, stages],
+    [scopedProjects],
   )
   return columns
 }
