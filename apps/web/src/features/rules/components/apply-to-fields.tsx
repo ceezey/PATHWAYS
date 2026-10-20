@@ -34,13 +34,13 @@ function ScopeOption({
       className={cn(
         'flex items-center gap-1 rounded-md border p-3 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring has-[:focus-visible]:ring-offset-2',
         checked ? 'border-primary bg-primary-subtle' : 'border-border bg-card',
-        unavailable && 'opacity-60',
       )}
     >
       <label
         className={cn(
           'flex flex-1 cursor-pointer items-center gap-2 text-sm',
-          unavailable && 'cursor-not-allowed text-muted-foreground',
+          // Fade only the label: card opacity would also fade the tooltip and trap it under later cards.
+          unavailable && 'cursor-not-allowed text-muted-foreground opacity-60',
         )}
       >
         <input
