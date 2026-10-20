@@ -15,7 +15,7 @@ type TrackProps = {
 const stateStyle: Record<StageState, { node: string; label: string }> = {
   done: { node: 'border-primary bg-primary-subtle text-primary', label: 'Done' },
   current: {
-    node: 'border-primary bg-primary text-primary-foreground ring-2 ring-primary/30 ring-offset-2',
+    node: 'border-primary bg-primary text-primary-foreground ring-4 ring-primary/30',
     label: 'Current',
   },
   upcoming: { node: 'border-border bg-muted text-muted-foreground', label: 'Upcoming' },
@@ -54,7 +54,7 @@ const Node = ({
         className={cn(
           'flex h-12 w-12 items-center justify-center rounded-full border-2',
           status?.node ?? node,
-          selected && 'ring-2 ring-ring ring-offset-2',
+          selected && 'ring-4 ring-ring',
         )}
       >
         <Icon className="h-5 w-5" aria-hidden="true" />
@@ -72,23 +72,30 @@ export const JourneyTrack = ({ stages, selectedId, onSelect, stageState }: Track
   const roots = rootStages(stages)
   if (roots.length === 0)
     return <p className="text-sm text-muted-foreground">No stages configured yet.</p>
+  // A connector is filled once the stage it leads into is reached.
+  const connector = (target: JourneyStageConfig) => {
+    const state = stageState?.(target)
+    return state === 'done' || state === 'current' ? 'bg-primary' : 'bg-border-strong'
+  }
   return (
     <div className="overflow-x-auto" data-testid="journey-track">
       <ol className="flex min-w-max items-start py-3">
         {roots.map((root, index) => {
           const kids = childrenOf(stages, root.id)
+          const next = roots[index + 1]
           return (
             <li key={root.id} className="relative flex items-start px-4">
-              {/* Spine spans each column, so lines stay joined however wide the branches get. */}
-              {roots.length > 1 ? (
+              {/* Spine halves span each column, so lines stay joined however wide the branches get. */}
+              {index > 0 ? (
                 <span
                   aria-hidden="true"
-                  className={cn(
-                    'absolute top-6 h-px',
-                    index === 0 ? 'left-1/2' : 'left-0',
-                    index === roots.length - 1 ? 'right-1/2' : 'right-0',
-                    stageState?.(root) === 'done' ? 'bg-primary' : 'bg-border-strong',
-                  )}
+                  className={cn('absolute left-0 right-1/2 top-6 h-px', connector(root))}
+                />
+              ) : null}
+              {next ? (
+                <span
+                  aria-hidden="true"
+                  className={cn('absolute left-1/2 right-0 top-6 h-px', connector(next))}
                 />
               ) : null}
               <div className="relative flex flex-col items-center">

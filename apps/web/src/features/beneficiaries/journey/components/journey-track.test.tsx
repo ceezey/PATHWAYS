@@ -43,4 +43,15 @@ describe('JourneyTrack', () => {
       screen.getByRole('button', { name: 'J2 Stage 2: Current' }).getAttribute('aria-current'),
     ).toBe('step')
   })
+
+  it('colors each connector by whether the stage it leads into is reached', () => {
+    const order = ['done', 'current', 'upcoming'] as const
+    const { container } = render(
+      <JourneyTrack stages={stages} stageState={(item) => order[item.order - 1] ?? 'upcoming'} />,
+    )
+    const connectors = [...container.querySelectorAll('ol > li > span')].map((line) =>
+      line.classList.contains('bg-primary'),
+    )
+    expect(connectors).toEqual([true, true, false, false])
+  })
 })
