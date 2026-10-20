@@ -21,14 +21,26 @@ export const severityStepCopy = {
     'Budget used at 90% or more together with a High delivery shortfall is named as a combined signal in the alert.',
   dates: 'The level depends on planned dates and totals known only when the alert fires.',
   explanatory: 'This alert will say Needs context instead of Low, Medium or High.',
-  notBehind: (labels: string[]) =>
-    `${listLabels(labels)} alone ${labels.length > 1 ? 'don’t' : 'doesn’t'} show whether work is behind.`,
-  howToLevel:
-    'To get a severity level: in step 1 also tick Activity, then in step 2 add Activities completed.',
+  howToToggle: 'How can I get a level?',
   partlyExplanatory: (labels: string[]) =>
     `${listLabels(labels)} alone ${labels.length > 1 ? 'set' : 'sets'} no level; your other conditions set it.`,
   incomplete: 'Complete each condition to preview possible levels.',
 } as const
+// Why a time or budget condition sets no level, and the smallest change that gives one.
+export const noLevelCopy: Partial<Record<string, { why: string; tip: string }>> = {
+  PROJECT_REMAINING_DAYS: {
+    why: 'Days until project end only gets a level after the end date has passed.',
+    tip: 'Fine as a reminder. For a level, use a value below 0 to be alerted after the end date; the level then depends on how late the project is.',
+  },
+  PROJECT_TIMELINE_ELAPSED_PERCENT: {
+    why: 'Project timeline elapsed measures time, not work done, so it never gets a level.',
+    tip: 'Fine as a reminder. To also see whether work is behind, tick Activity in step 1, then add Activities completed in step 2.',
+  },
+  BUDGET_UTILIZATION_PERCENT: {
+    why: 'Budget used only gets a level above 100%, when spending goes over budget.',
+    tip: 'Fine for watching spending. For a level, use a value above 100%; overspending gets Medium or High.',
+  },
+}
 export const severityTiles = [
   {
     level: 'LOW',

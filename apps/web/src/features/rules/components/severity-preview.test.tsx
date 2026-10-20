@@ -61,18 +61,23 @@ describe('SeverityPreview', () => {
     expect(headline()).toBe('This alert will say Needs context instead of Low, Medium or High.')
     expect(screen.getByTestId('severity-preview').querySelector('details')).toBeTruthy()
     expect(
-      screen.getByText('Project timeline elapsed alone doesn’t show whether work is behind.'),
+      screen.getByText(
+        'Project timeline elapsed measures time, not work done, so it never gets a level.',
+      ),
     ).toBeTruthy()
-    expect(screen.getByText(/in step 2 add Activities completed/)).toBeTruthy()
+    expect(screen.getByText('How can I get a level?').closest('details')?.open).toBe(false)
+    expect(screen.getByText(/add Activities completed in step 2/)).toBeTruthy()
     expect(screen.getByTestId('severity-preview').textContent).not.toMatch(/budget/i)
     cleanup()
     view({
-      conditions: [leaf('c1', 'PROJECT_REMAINING_DAYS', 'GTE', '10')],
+      conditions: [leaf('c1', 'PROJECT_REMAINING_DAYS', 'EQ', '10')],
       preview: { ...open, levels: [], explanatoryOnly: true, needs: ['DELIVERY_EXPECTATION'] },
     })
     expect(
-      screen.getByText('Days until project end alone doesn’t show whether work is behind.'),
+      screen.getByText('Days until project end only gets a level after the end date has passed.'),
     ).toBeTruthy()
+    expect(screen.getByText(/use a value below 0/)).toBeTruthy()
+    expect(screen.queryByText(/Activities completed/)).toBeNull()
     expect(screen.queryByTestId('severity-explanations')).toBeNull()
     cleanup()
     view({

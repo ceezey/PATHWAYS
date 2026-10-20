@@ -1,6 +1,6 @@
 import type { RuleMetricKey } from '@pathways/shared'
 import { describe, expect, it } from 'vitest'
-import { explainCombination, explainConditions, explanatoryLabels } from './rule-severity.explain'
+import { explainCombination, explainConditions, explanatoryMetrics } from './rule-severity.explain'
 import type { Leaf } from './rules.utils'
 
 const leaf = (metric: RuleMetricKey, operator: Leaf['operator'], threshold: string): Leaf => ({
@@ -41,13 +41,13 @@ describe('explainConditions', () => {
   })
 })
 
-describe('explanatoryLabels', () => {
+describe('explanatoryMetrics', () => {
   it('names only the present conditions that can match without a level', () => {
-    expect(explanatoryLabels([leaf('PROJECT_REMAINING_DAYS', 'GTE', '10')], {})).toEqual([
-      'Days until project end',
+    expect(explanatoryMetrics([leaf('PROJECT_REMAINING_DAYS', 'GTE', '10')], {})).toEqual([
+      'PROJECT_REMAINING_DAYS',
     ])
     expect(
-      explanatoryLabels(
+      explanatoryMetrics(
         [
           leaf('PROJECT_TIMELINE_ELAPSED_PERCENT', 'GT', '50'),
           leaf('BUDGET_UTILIZATION_PERCENT', 'GT', '95'),
@@ -55,8 +55,8 @@ describe('explanatoryLabels', () => {
         ],
         {},
       ),
-    ).toEqual(['Project timeline elapsed', 'Budget used'])
-    expect(explanatoryLabels([leaf('BUDGET_UTILIZATION_PERCENT', 'GT', '120')], {})).toEqual([])
+    ).toEqual(['PROJECT_TIMELINE_ELAPSED_PERCENT', 'BUDGET_UTILIZATION_PERCENT'])
+    expect(explanatoryMetrics([leaf('BUDGET_UTILIZATION_PERCENT', 'GT', '120')], {})).toEqual([])
   })
 })
 

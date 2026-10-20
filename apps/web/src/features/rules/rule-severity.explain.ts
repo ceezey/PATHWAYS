@@ -1,7 +1,7 @@
 import { type RuleExpectations, SEVERITY_BOUNDS } from '@pathways/shared'
 import { previewSeverity } from './rule-severity.utils'
 import { severityStepCopy as copy } from './rules.copy'
-import { type Leaf, conditionSentence, metricLabel } from './rules.utils'
+import { type Leaf, conditionSentence } from './rules.utils'
 
 export type ConditionExplanation = { id: string; condition: string; text: string }
 
@@ -58,12 +58,15 @@ export const explainConditions = (
     }))
     .filter((item) => item.text)
 
-/** Labels of the conditions in the rule that can match without setting a level. */
-export const explanatoryLabels = (conditions: Leaf[], expectations: RuleExpectations): string[] => [
+/** Metrics of the conditions in the rule that can match without setting a level. */
+export const explanatoryMetrics = (
+  conditions: Leaf[],
+  expectations: RuleExpectations,
+): string[] => [
   ...new Set(
     conditions
       .filter((leaf) => previewSeverity(leaf, expectations).needs.includes('DELIVERY_EXPECTATION'))
-      .map((leaf) => metricLabel(leaf.metric)),
+      .map((leaf) => leaf.metric),
   ),
 ]
 

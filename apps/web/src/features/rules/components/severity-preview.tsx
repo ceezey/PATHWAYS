@@ -10,10 +10,10 @@ import {
   severityLabel,
 } from '@pathways/shared'
 import { useId } from 'react'
-import { explainCombination, explainConditions, explanatoryLabels } from '../rule-severity.explain'
+import { explainCombination, explainConditions, explanatoryMetrics } from '../rule-severity.explain'
 import type { SeverityPreview as Preview } from '../rule-severity.utils'
-import { severityStepCopy as copy, severityTiles } from '../rules.copy'
-import type { Leaf } from '../rules.utils'
+import { severityStepCopy as copy, noLevelCopy, severityTiles } from '../rules.copy'
+import { type Leaf, metricLabel } from '../rules.utils'
 
 type Props = {
   preview: Preview
@@ -43,14 +43,17 @@ export function SeverityPreview(props: Props) {
   const explained = explainConditions(props.conditions, expectations)
   const notes = explainCombination(props.conditions)
   const possible = !preview.contradiction && !preview.explanatoryOnly
-  const labels = explanatoryLabels(props.conditions, expectations)
+  const metrics = explanatoryMetrics(props.conditions, expectations)
+  const reasons = preview.explanatoryOnly
+    ? metrics.flatMap((metric) => noLevelCopy[metric] ?? [])
+    : []
   const details = [
     ...(preview.dependsOnDates && !preview.contradiction ? [copy.dates] : []),
     ...(preview.explanatoryOnly
-      ? [copy.notBehind(labels), copy.howToLevel]
+      ? reasons.map((reason) => reason.why)
       : preview.needs.map((need) =>
           need === 'DELIVERY_EXPECTATION'
-            ? copy.partlyExplanatory(labels)
+            ? copy.partlyExplanatory(metrics.map(metricLabel))
             : SEVERITY_MISSING_TEXT[need],
         )),
   ]
@@ -141,6 +144,18 @@ export function SeverityPreview(props: Props) {
                   {text}
                 </p>
               ))}
+              {reasons.length ? (
+                <details>
+                  <summary className="cursor-pointer font-medium">{copy.howToToggle}</summary>
+                  <div className="mt-1 space-y-1">
+                    {reasons.map((reason) => (
+                      <p className="text-muted-foreground" key={reason.tip}>
+                        {reason.tip}
+                      </p>
+                    ))}
+                  </div>
+                </details>
+              ) : null}
             </div>
           </details>
         ) : (
