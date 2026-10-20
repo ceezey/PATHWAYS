@@ -22,9 +22,13 @@ export const publicationClient = {
   get: (id: string, signal?: AbortSignal) =>
     ownedJsonRead(
       `${projectPath(id)}/publication`,
-      publicationSchema.refine((row) => row.snapshot.id === id).nullable(),
+      z
+        .object({
+          publication: publicationSchema.refine((row) => row.snapshot.id === id).nullable(),
+        })
+        .strict(),
       { signal },
-    ),
+    ).then((body) => body.publication),
   transition: (
     id: string,
     operation: 'submit' | 'approve' | 'publish' | 'withdraw',

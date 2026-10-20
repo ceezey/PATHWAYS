@@ -71,7 +71,7 @@ describe('public and publication routes', () => {
     }
   })
 
-  it('passes the profile, the project, the operation and the body to the service', () => {
+  it('passes the profile, the project, the operation and the body to the service', async () => {
     const publication = controllers().find(
       (controller) => controller.name === 'PublicationController',
     )
@@ -85,7 +85,8 @@ describe('public and publication routes', () => {
       publish: 'PUBLISH',
       withdraw: 'WITHDRAW',
     }
-    instance.get({ headers: {}, user }, 'p1')
+    service.get.mockResolvedValueOnce(null)
+    await expect(instance.get({ headers: {}, user }, 'p1')).resolves.toEqual({ publication: null })
     expect(service.get).toHaveBeenCalledWith(user, 'p1')
     for (const [name, operation] of Object.entries(operations)) {
       instance[name]({ headers: {}, user }, 'p1', body)
