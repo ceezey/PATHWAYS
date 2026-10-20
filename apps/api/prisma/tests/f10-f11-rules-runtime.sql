@@ -1,4 +1,4 @@
--- PRD-F10/F11 gate closure (migrations 0058-0060): end-to-end rules runtime checks.
+-- PRD-F10/F11 gate closure (migrations 0058-0060, 0072, 0073): end-to-end rules runtime checks.
 -- Synthetic fixtures only. The machine phases run in separate transactions as the worker and sweeper logins and
 -- the human calls as pathways_runtime with the app.* context, so the data COMMITS: run only against a disposable
 -- pathways_phase2_* or pathways_phase4_* replay database that has 0060 applied and its cleanup run.
@@ -712,5 +712,105 @@ SELECT pg_temp.ok((SELECT a.severity='CRITICAL' AND a.severity_basis->>'level'='
   AND a.severity_change->'previous'=(SELECT doc->'p20' FROM t_out WHERE name='edges_before')
   AND (a.severity_change->>'at')::timestamptz=a.updated_at
   FROM pg_temp.alert_of(320) a),'manual Critical re-match stays Critical and records the suggested-level change');
+
+-- (10) 0073 KPI performance and test score metrics. P30 KPI (two measured indicators of four), P31 none measured,
+-- P32 no indicators, P33 pre/post scores with a mixed (A AND B) OR C rule, P34 four post-tests, P35 on hold.
+BEGIN;
+SET LOCAL session_replication_role = replica;
+INSERT INTO pathways.projects(id,organization_id,code,title,start_date,end_date,status,created_by_id)
+SELECT pg_temp.u(329+n),pg_temp.u(1),'F10R-P'||(29+n),'F10 project '||(29+n),current_date-200,current_date+100,
+ CASE WHEN n=6 THEN 'ON_HOLD' ELSE 'ONGOING' END::pathways.project_status,pg_temp.u(101) FROM generate_series(1,6) n;
+INSERT INTO pathways.user_project_assignments(id,organization_id,project_id,user_id,assigned_by_id) VALUES
+ (pg_temp.u(431),pg_temp.u(1),pg_temp.u(330),pg_temp.u(102),pg_temp.u(101)),
+ (pg_temp.u(432),pg_temp.u(1),pg_temp.u(333),pg_temp.u(102),pg_temp.u(101)),
+ (pg_temp.u(433),pg_temp.u(1),pg_temp.u(333),pg_temp.u(106),pg_temp.u(101));
+-- P30: 10 of 20 (50 percent) and 15 of 20 (75 percent) give 62.5; an unmeasured and an archived indicator do not count.
+INSERT INTO pathways.project_indicators(id,organization_id,project_id,code,name,unit,unit_label,data_source,measurement_mode,numeric_kind,
+ direction,display_precision,period_start,period_end,baseline_value,target_value,created_by_id,archived_at)
+SELECT pg_temp.u(11500+v.n),pg_temp.u(1),pg_temp.u(v.project),'KPI-'||v.n,'KPI indicator '||v.n,'COUNT','people','Synthetic manual','MANUAL',
+ 'COUNT','HIGHER_IS_BETTER',0,current_date-200,current_date+100,0,20,pg_temp.u(101),v.archived
+FROM (VALUES (1,330,NULL::timestamptz),(2,330,NULL),(3,330,NULL),(4,330,now()),(5,331,NULL),(6,335,NULL)) v(n,project,archived);
+INSERT INTO pathways.project_indicator_measurements(id,organization_id,project_id,indicator_id,period_start,period_end,value,source,
+ client_measurement_id,request_hash,recorded_by_id)
+SELECT pg_temp.u(11600+v.n),pg_temp.u(1),pg_temp.u(v.project),pg_temp.u(11500+v.n),current_date-200,current_date+100,v.value,
+ 'Synthetic field report',pg_temp.u(11700+v.n),repeat('a',64),pg_temp.u(101)
+FROM (VALUES (1,330,10),(2,330,15),(4,330,20),(6,335,10)) v(n,project,value);
+-- P33: six active enrollments (pre 20 of 40, post 70 or 80 of 100) and a dropped one with full marks; 11001 also has an
+-- older pre of 0 that must not count. Score change keeps counting every enrollment (0060), so the dropped pair adds a
+-- change of 0: (3*20+3*30+0)/7 = 21.4286. P34: four active enrollments with a post-test.
+INSERT INTO pathways.beneficiary_project_enrollments(id,organization_id,project_id,beneficiary_id,enrollment_date,status,ended_date,end_reason,recorded_by_id)
+SELECT pg_temp.u(11000+g),pg_temp.u(1),pg_temp.u(333),pg_temp.u(11100+g),current_date-100,
+ CASE WHEN g=7 THEN 'DROPPED' ELSE 'ACTIVE' END::pathways.enrollment_status,CASE WHEN g=7 THEN current_date-5 END,
+ CASE WHEN g=7 THEN 'Dropped out' END,pg_temp.u(101) FROM generate_series(1,7) g
+UNION ALL SELECT pg_temp.u(11010+g),pg_temp.u(1),pg_temp.u(334),pg_temp.u(11110+g),current_date-100,'ACTIVE',NULL,NULL,pg_temp.u(101)
+ FROM generate_series(1,4) g;
+INSERT INTO pathways.assessment_results(id,organization_id,project_id,enrollment_id,type,score,maximum_score,assessment_date,recorded_by_id)
+SELECT pg_temp.u(11200+g),pg_temp.u(1),pg_temp.u(333),pg_temp.u(11000+g),'PRE_TEST'::pathways.assessment_type,
+ CASE WHEN g=7 THEN 40 ELSE 20 END,40,current_date-60,pg_temp.u(101) FROM generate_series(1,7) g
+UNION ALL SELECT pg_temp.u(11300+g),pg_temp.u(1),pg_temp.u(333),pg_temp.u(11000+g),'POST_TEST'::pathways.assessment_type,
+ CASE WHEN g=7 THEN 100 WHEN g<=3 THEN 70 ELSE 80 END,100,current_date-20,pg_temp.u(101) FROM generate_series(1,7) g
+UNION ALL SELECT pg_temp.u(11400),pg_temp.u(1),pg_temp.u(333),pg_temp.u(11001),'PRE_TEST'::pathways.assessment_type,0,40,current_date-90,pg_temp.u(101)
+UNION ALL SELECT pg_temp.u(11410+g),pg_temp.u(1),pg_temp.u(334),pg_temp.u(11010+g),'POST_TEST'::pathways.assessment_type,50,100,current_date-20,pg_temp.u(101)
+ FROM generate_series(1,4) g;
+COMMIT;
+BEGIN;
+SELECT pg_temp.act(1);
+SELECT pg_temp.make_rule('p30',330,'KPI_ACHIEVEMENT_PERCENT','LT','70',1,9960);
+SELECT pg_temp.make_rule('p31',331,'KPI_ACHIEVEMENT_PERCENT','LT','70',1,9962);
+SELECT pg_temp.make_rule('p32',332,'KPI_ACHIEVEMENT_PERCENT','LT','70',1,9964);
+SELECT pg_temp.make_rule('p33pre',333,'SURVEY_MEAN_PRE_TEST_PERCENT','LT','60',1,9966);
+SELECT pg_temp.make_rule('p33mix',333,'SURVEY_MEAN_PRE_TEST_PERCENT','LT','60',1,9968,jsonb_build_object('conditions',
+ '{"kind":"GROUP","mode":"OR","children":[{"kind":"GROUP","mode":"AND","children":[
+  {"kind":"CONDITION","id":"pre","metric":"SURVEY_MEAN_PRE_TEST_PERCENT","operator":"LT","threshold":"60"},
+  {"kind":"CONDITION","id":"post","metric":"SURVEY_MEAN_POST_TEST_PERCENT","operator":"GTE","threshold":"75"}]},
+  {"kind":"CONDITION","id":"gain","metric":"SURVEY_MEAN_IMPROVEMENT_POINTS","operator":"GTE","threshold":"100"}]}'::jsonb));
+SELECT pg_temp.make_rule('p34',334,'SURVEY_MEAN_POST_TEST_PERCENT','LT','100',1,9970);
+SELECT pg_temp.make_rule('p35',335,'KPI_ACHIEVEMENT_PERCENT','LT','70',1,9972);
+SELECT pg_temp.reject(format('SELECT pg_temp.make_rule(%L,333,%L,%L,%L,1,9974)','bad1','SURVEY_MEAN_POST_TEST_PERCENT','LT','101'),
+ '22023','post-test threshold above 100 is refused');
+SELECT pg_temp.reject(format('SELECT pathways.f10_rule_create(%L::jsonb)',jsonb_build_object('name','Bound KPI','severity',NULL,'code','F10-BADKPI',
+ 'projectId',pg_temp.u(330),'clientOperationId',pg_temp.u(9976),'recommendations',jsonb_build_array(jsonb_build_object('id',pg_temp.u(99761),'title','A','text','B')),
+ 'conditions',jsonb_build_object('kind','CONDITION','id','c1','metric','KPI_ACHIEVEMENT_PERCENT','operator','LT','threshold','70',
+  'indicatorId',pg_temp.u(11501)))),'22023','KPI with an indicator binding is refused');
+COMMIT;
+CALL pg_temp.drain('kpi_tests');
+SELECT pg_temp.ok(pg_temp.last_eval('p30')->>'result'='TRUE' AND pg_temp.last_eval('p30')->'cell'->>'value'='62.5'
+ AND pg_temp.last_eval('p30')->>'unit'='PERCENT' AND (pg_temp.alert_of(330)).id IS NOT NULL,'KPI mean of measured live indicators raises the alert');
+SELECT pg_temp.ok((SELECT a.severity IS NULL AND a.severity_basis->>'status'='CONTEXT_REQUIRED'
+ AND a.severity_basis->'missing'='["DELIVERY_EXPECTATION"]'::jsonb AND a.severity_basis->'conditions'->0->>'outcome'='EXPLANATORY'
+ FROM pg_temp.alert_of(330) a),'KPI only explains severity');
+SELECT pg_temp.ok(pg_temp.last_eval('p31')->'cell'->>'reason'='NO_MEASUREMENT' AND pg_temp.last_eval('p32')->'cell'->>'reason'='EMPTY_POPULATION'
+ AND pg_temp.last_eval('p35')->'cell'->>'reason'='NOT_APPLICABLE' AND (pg_temp.alert_of(331)).id IS NULL AND (pg_temp.alert_of(332)).id IS NULL,
+ 'KPI reasons for no values, no indicators and an on-hold project');
+SELECT pg_temp.ok(pg_temp.last_eval('p33pre')->>'result'='TRUE' AND pg_temp.last_eval('p33pre')->'cell'->>'value'='50'
+ AND pg_temp.last_eval('p33pre')->>'unit'='PERCENT','pre-test mean counts each active enrollment latest score only');
+SELECT pg_temp.ok((SELECT e.result='TRUE' AND (SELECT jsonb_object_agg(c->>'conditionId',c->'cell'->>'value') FROM jsonb_array_elements(e.evidence->'conditions') c)
+  ='{"pre":"50","post":"75","gain":"21.4286"}'::jsonb
+ FROM pathways_rules_internal.evaluations e JOIN pathways.alert_rules r ON r.id=e.rule_version_id
+ WHERE r.display_code='F10-P33MIX' ORDER BY e.evaluation_sequence DESC LIMIT 1),'(pre AND post) OR gain matches through the AND branch');
+SELECT pg_temp.ok(pg_temp.last_eval('p34')->'cell'->>'state'='SUPPRESSED' AND (pg_temp.alert_of(334)).id IS NULL,'four post-tests are suppressed');
+INSERT INTO t_out SELECT 'kpi_alerts',jsonb_build_object('p30',(pg_temp.alert_of(330)).id,
+ 'p33',(SELECT a.id FROM pathways.rule_based_alerts a JOIN pathways.alert_rules r ON r.id=a.rule_id WHERE r.display_code='F10-P33PRE'));
+-- Test score alerts need assessments.detail.read: the Grant Manager assigned to P33 is refused.
+BEGIN;
+SELECT pg_temp.act(6);
+SELECT pg_temp.reject(format('SELECT pathways.f10_alert_get(%L)',(SELECT (doc->>'p33')::uuid FROM t_out WHERE name='kpi_alerts')),'42501','no assessments.detail.read: pre-test alert');
+COMMIT;
+-- KPI alerts need monitoring.read and an indicator read: the PM sees it, and is refused once both indicator reads are revoked.
+BEGIN;
+SELECT pg_temp.act(2);
+SELECT pg_temp.ok(pathways.f10_alert_get((SELECT (doc->>'p30')::uuid FROM t_out WHERE name='kpi_alerts')) IS NOT NULL,'indicator reader sees the KPI alert');
+COMMIT;
+BEGIN;
+SET LOCAL session_replication_role = replica;
+CREATE TEMP TABLE t_saved_kpi ON COMMIT DROP AS SELECT rp.* FROM pathways.role_permissions rp JOIN pathways.roles r ON r.id=rp.role_id JOIN pathways.permissions p ON p.id=rp.permission_id
+ WHERE r.code='PROJECT_MANAGER' AND p.code IN ('indicators.read','reports.indicator.read');
+DELETE FROM pathways.role_permissions rp USING pathways.roles r,pathways.permissions p
+ WHERE rp.role_id=r.id AND rp.permission_id=p.id AND r.code='PROJECT_MANAGER' AND p.code IN ('indicators.read','reports.indicator.read');
+SELECT pg_temp.act(2);
+SELECT pg_temp.reject(format('SELECT pathways.f10_alert_get(%L)',(SELECT (doc->>'p30')::uuid FROM t_out WHERE name='kpi_alerts')),'42501','no indicator read: KPI alert');
+RESET SESSION AUTHORIZATION;
+INSERT INTO pathways.role_permissions SELECT * FROM t_saved_kpi;
+COMMIT;
 
 DO $$ BEGIN RAISE NOTICE 'F10_F11_RULES_RUNTIME=PASS (% checks)',(SELECT count(*) FROM t_results); END $$;

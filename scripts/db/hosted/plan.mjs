@@ -4,7 +4,7 @@
 
 export const BASELINE = '0000_pathways_baseline_through_0026'
 
-// The exact 47-row migration ledger (baseline plus 0027-0057 and 0058-0072) this script must produce, in order. This is
+// The exact 48-row migration ledger (baseline plus 0027-0057 and 0058-0073) this script must produce, in order. This is
 // the repository's own migration directory listing (apps/api/prisma/migrations),
 // asserted against the real directory in hosted/plan.test.mjs so this literal
 // list can never silently drift from the repo.
@@ -56,6 +56,7 @@ export const MIGRATIONS_IN_ORDER = Object.freeze([
   '0070_activity_escalations',
   '0071_assessment_score_entry',
   '0072_severity_classification',
+  '0073_rules_kpi_assessment_metrics',
 ])
 
 function range(from, to) {
@@ -194,6 +195,15 @@ export function buildPlan() {
     },
     { type: 'deploy', migrations: range(72, 72) },
     { type: 'cleanup', name: 'rules-severity', file: 'hosted-rules-severity-cleanup.sql' },
+    // 0073 replaces functions owned by rules_projection_owner and rules_eligibility_owner and the rules_store_owner CHECK,
+    // so it needs a temporary SET-only chain to those three roles.
+    {
+      type: 'preprovision',
+      name: 'rules-metrics',
+      file: 'hosted-rules-metrics-preprovision.sql',
+    },
+    { type: 'deploy', migrations: range(73, 73) },
+    { type: 'cleanup', name: 'rules-metrics', file: 'hosted-rules-metrics-cleanup.sql' },
     { type: 'alter-runtime-role' },
     { type: 'postconditions' },
   ]
@@ -234,7 +244,7 @@ export function assertResumablePrefix(ledgerRows) {
   }
   if (appliedCount !== names.length) {
     throw new Error(
-      'Ledger is not an exact finished prefix of the expected 0000-0072 migrations; --resume refuses it',
+      'Ledger is not an exact finished prefix of the expected 0000-0073 migrations; --resume refuses it',
     )
   }
   return appliedCount
@@ -243,7 +253,7 @@ export function assertResumablePrefix(ledgerRows) {
 // Maps a count of already-applied migrations (from assertResumablePrefix) to
 // the plan step index to resume at. Cleanup steps are not tracked by the
 // Prisma ledger, so when resuming right after a migration that has a
-// following cleanup step (0031, 0034, 0041, 0044, 0053, 0060, 0062, 0063, 0072), that cleanup step is re-run;
+// following cleanup step (0031, 0034, 0041, 0044, 0053, 0060, 0062, 0063, 0072, 0073), that cleanup step is re-run;
 // each cleanup script's own preconditions reject a target that was already
 // cleaned, surfacing a clear error rather than silently skipping it.
 //
@@ -269,6 +279,10 @@ export function assertResumablePrefix(ledgerRows) {
 //    when the residual chain is the 0063 one.
 //  * 0071_assessment_score_entry and 0072_severity_classification follow the same two shapes for the
 //    rules-severity chain (temporary SET chain to six rules owner roles) granted before and revoked after 0072.
+//  * 0072_severity_classification and 0073_rules_kpi_assessment_metrics follow the same two shapes for the
+//    rules-metrics chain (temporary SET chain to three rules owner roles) granted before and revoked after 0073.
+//    A 0072 ledger with a residual chain resumes at the rules-severity cleanup, whose own precondition rejects it
+//    when the residual chain is the 0073 one.
 // The caller therefore checks live database state (whether prisma still holds a temporary
 // rules owner membership) and passes it in as `residualOwnerMemberships`.
 // 0042_proof_session_beneficiary_count has no preprovision/cleanup pair (see buildPlan), so a
@@ -289,6 +303,7 @@ const PRIOR_BUILD_COMPLETION_POINTS = [
   '0063_rules_scope_memo',
   '0071_assessment_score_entry',
   '0072_severity_classification',
+  '0073_rules_kpi_assessment_metrics',
 ]
 
 // The migrations whose completion is ambiguous with a residual temporary owner chain, and the
@@ -302,6 +317,7 @@ const RESIDUAL_CHAIN_CLEANUPS = Object.freeze({
   '0062_rules_escalated_alert_list': 'rules-escalation',
   '0063_rules_scope_memo': 'rules-scope-memo',
   '0072_severity_classification': 'rules-severity',
+  '0073_rules_kpi_assessment_metrics': 'rules-metrics',
 })
 // Ledger counts at which the caller must read live owner-membership state.
 export const RESIDUAL_CHAIN_MIGRATIONS = Object.freeze([
@@ -319,6 +335,7 @@ export const RESIDUAL_CHAIN_MIGRATIONS = Object.freeze([
   '0063_rules_scope_memo',
   '0071_assessment_score_entry',
   '0072_severity_classification',
+  '0073_rules_kpi_assessment_metrics',
 ])
 
 export function planIndexForAppliedCount(appliedCount, { residualOwnerMemberships = false } = {}) {
