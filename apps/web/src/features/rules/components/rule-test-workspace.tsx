@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils'
 import {
   type DryEvidence,
   type HumanRule,
+  MAX_KPI_INDICATORS,
   type MetricDirection,
   type NumericKind,
   type RuleCondition,
@@ -223,6 +224,11 @@ function RuleTestForm({
           revision,
         }
         const whole = (value: string) => Number(value || '0')
+        // A count entered without its mean is incomplete input, never a zero mean.
+        const meanFor = (count: number, mean: string) => {
+          if (count > 0 && !mean) throw new Error('Test mean')
+          return mean || '0'
+        }
         if (condition.metric === 'BUDGET_UTILIZATION_PERCENT')
           return budgetObservation({
             ...open,
@@ -243,16 +249,20 @@ function RuleTestForm({
             ...open,
             pairCount,
             differenceSum: decimalString(
-              scaledDecimal(aggregates.surveyMean || '0') * BigInt(pairCount),
+              scaledDecimal(meanFor(pairCount, aggregates.surveyMean)) * BigInt(pairCount),
             ),
           })
         }
         if (condition.metric === 'KPI_ACHIEVEMENT_PERCENT') {
           const reported = whole(aggregates.kpiReported)
+          // Bound the count before building the progress list from it.
+          if (!Number.isInteger(reported) || reported < 0 || reported > MAX_KPI_INDICATORS)
+            throw new Error('KPI inputs')
+          const mean = meanFor(reported, aggregates.kpiMean)
           return kpiAchievementObservation({
             ...open,
             indicatorCount: reported,
-            progress: Array.from({ length: reported }, () => aggregates.kpiMean || '0'),
+            progress: Array.from({ length: reported }, () => mean),
           })
         }
         if (
@@ -265,8 +275,9 @@ function RuleTestForm({
             ...open,
             enrollmentCount,
             percentSum: decimalString(
-              scaledDecimal((pre ? aggregates.preMean : aggregates.postMean) || '0') *
-                BigInt(enrollmentCount),
+              scaledDecimal(
+                meanFor(enrollmentCount, pre ? aggregates.preMean : aggregates.postMean),
+              ) * BigInt(enrollmentCount),
             ),
           })
         }

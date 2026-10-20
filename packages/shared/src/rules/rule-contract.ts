@@ -10,6 +10,7 @@ import {
 export const RULE_CONTRACT_VERSION = 'f10.v1' as const
 const MAX_GROUP_DEPTH = 4
 export const MAX_CONDITIONS = 32
+export const MAX_KPI_INDICATORS = 100
 export const ruleMetrics = [
   'INDICATOR_CURRENT_VALUE',
   'INDICATOR_PROGRESS_PERCENT',
@@ -337,8 +338,8 @@ const calculationSchema = z.discriminatedUnion('kind', [
   z
     .object({
       kind: z.literal('KPI_AGGREGATE'),
-      indicatorCount: z.number().int().min(0).max(100),
-      reportedCount: z.number().int().min(0).max(100),
+      indicatorCount: z.number().int().min(0).max(MAX_KPI_INDICATORS),
+      reportedCount: z.number().int().min(0).max(MAX_KPI_INDICATORS),
       progressSum: decimalSchema,
     })
     .strict(),

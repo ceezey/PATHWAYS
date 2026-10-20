@@ -190,6 +190,37 @@ describe('synthetic rule condition testing', () => {
       expect(screen.queryByText('Test activity population')).toBeNull()
     },
   )
+  it.each([
+    ['KPI_ACHIEVEMENT_PERCENT', { 'Test indicators with a current value': '999999999' }],
+    ['KPI_ACHIEVEMENT_PERCENT', { 'Test indicators with a current value': '2.5' }],
+    ['KPI_ACHIEVEMENT_PERCENT', { 'Test indicators with a current value': '3' }],
+    ['SURVEY_MEAN_PRE_TEST_PERCENT', { 'Test enrollments with a pre-test score': '5' }],
+    ['SURVEY_MEAN_IMPROVEMENT_POINTS', { 'Test complete pre and post pairs': '5' }],
+  ])('refuses %s %o before building inputs or calling the test', async (metric, fields) => {
+    render(
+      <RuleTestWorkspace
+        rule={{
+          ...rule,
+          conditions: {
+            ...rule.conditions,
+            metric,
+            operator: 'LT',
+            threshold: '50',
+          } as HumanRule['conditions'],
+        }}
+      />,
+    )
+    fireEvent.change(screen.getByLabelText('Test reporting date (Asia/Manila)'), {
+      target: { value: '2026-09-27' },
+    })
+    for (const [label, entered] of Object.entries(fields))
+      fireEvent.change(screen.getByLabelText(label), { target: { value: entered } })
+    fireEvent.click(screen.getByRole('button', { name: 'Run condition test' }))
+    expect(
+      await screen.findByText('Review the entered date and exact numeric test values.'),
+    ).toBeTruthy()
+    expect(state.call).not.toHaveBeenCalled()
+  })
   it('ignores an old test result after logout and return to the same principal', async () => {
     let finish: (value: unknown) => void = () => {}
     state.call.mockReturnValueOnce(

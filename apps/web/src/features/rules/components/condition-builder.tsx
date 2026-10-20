@@ -19,8 +19,8 @@ import {
   type RuleExpectations,
   operators,
 } from '@pathways/shared'
-import { GripVertical, Info, Plus, Trash2 } from 'lucide-react'
-import { useState } from 'react'
+import { ChevronDown, ChevronUp, GripVertical, Info, Plus, Star, Trash2 } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
 import { preferredOperators } from '../rule-severity.utils'
 import {
   type Choice,
@@ -95,9 +95,27 @@ export function ConditionBuilder({
   const [dragId, setDragId] = useState('')
   const move = (id: string, targetId: string) =>
     setRows((current) => moveRow(current, id, targetId))
+  const handles = useRef(new Map<string, HTMLButtonElement>())
+  const [focusId, setFocusId] = useState('')
+  const [announcement, setAnnouncement] = useState('')
+  // Reordering keyed cards can detach the focused node, so focus returns to the moved card's handle.
+  useEffect(() => {
+    if (!focusId) return
+    handles.current.get(focusId)?.focus()
+    setFocusId('')
+  }, [focusId])
+  const shift = (index: number, delta: number) => {
+    const row = rows[index]
+    const target = rows[index + delta]
+    if (!row || !target) return
+    move(row.id, target.id)
+    setFocusId(row.id)
+    setAnnouncement(`Condition moved to position ${index + delta + 1} of ${rows.length}.`)
+  }
   const renderRow = (row: RuleCondition) => {
     const conditionIndex = rows.indexOf(row)
     const scope = scopeOf(row.metric)
+    const preferred = preferredFor(row)
     return (
       <fieldset
         aria-label={`Condition ${conditionIndex + 1} (${scopeDisplayLabel[scope] ?? scope})`}
@@ -106,23 +124,51 @@ export function ConditionBuilder({
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             {rows.length > 1 ? (
-              <button
-                aria-label={`Reorder condition ${conditionIndex + 1}`}
-                className="cursor-grab text-muted-foreground"
-                title="Drag, or use arrow up and down, to reorder"
-                type="button"
-                onPointerDown={() => setArmed(row.id)}
-                onPointerUp={() => setArmed('')}
-                onKeyDown={(event) => {
-                  const target = rows[conditionIndex + (event.key === 'ArrowUp' ? -1 : 1)]
-                  if ((event.key === 'ArrowUp' || event.key === 'ArrowDown') && target) {
+              <>
+                <button
+                  aria-label={`Reorder condition ${conditionIndex + 1}`}
+                  className="cursor-grab rounded-sm text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  ref={(node) => {
+                    if (node) handles.current.set(row.id, node)
+                    else handles.current.delete(row.id)
+                  }}
+                  title="Drag, or use arrow up and down, to reorder"
+                  type="button"
+                  onPointerDown={() => setArmed(row.id)}
+                  onPointerUp={() => setArmed('')}
+                  onKeyDown={(event) => {
+                    if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return
                     event.preventDefault()
-                    move(row.id, target.id)
-                  }
-                }}
-              >
-                <GripVertical aria-hidden="true" className="h-4 w-4" />
-              </button>
+                    shift(conditionIndex, event.key === 'ArrowUp' ? -1 : 1)
+                  }}
+                >
+                  <GripVertical aria-hidden="true" className="h-4 w-4" />
+                </button>
+                <Button
+                  aria-label={`Move condition ${conditionIndex + 1} up`}
+                  className="h-7 w-7"
+                  disabled={conditionIndex === 0}
+                  size="icon"
+                  title="Move up"
+                  type="button"
+                  variant="ghost"
+                  onClick={() => shift(conditionIndex, -1)}
+                >
+                  <ChevronUp aria-hidden="true" className="h-4 w-4" />
+                </Button>
+                <Button
+                  aria-label={`Move condition ${conditionIndex + 1} down`}
+                  className="h-7 w-7"
+                  disabled={conditionIndex === rows.length - 1}
+                  size="icon"
+                  title="Move down"
+                  type="button"
+                  variant="ghost"
+                  onClick={() => shift(conditionIndex, 1)}
+                >
+                  <ChevronDown aria-hidden="true" className="h-4 w-4" />
+                </Button>
+              </>
             ) : null}
             <h4 className="font-semibold">{scopeDisplayLabel[scope] ?? scope}</h4>
           </div>
@@ -204,14 +250,25 @@ export function ConditionBuilder({
               </SelectTrigger>
               <SelectContent>
                 {operators.map((operator) => {
-                  const preferred = preferredFor(row).includes(operator)
+                  const isPreferred = preferred.includes(operator)
                   return (
                     <SelectItem
-                      className={cn(preferred && 'bg-info-subtle text-info')}
+                      className={cn(isPreferred && 'bg-info-subtle text-info')}
                       hint={
-                        preferred ? <span className="sr-only">Preferred condition</span> : undefined
+                        isPreferred ? (
+                          <>
+                            {/* The star keeps the cue visible on the highlighted option, not colour alone. */}
+                            <span
+                              aria-hidden="true"
+                              className="ml-auto pl-2"
+                              title="Preferred condition"
+                            >
+                              <Star className="h-3.5 w-3.5 fill-current" />
+                            </span>
+                            <span className="sr-only">Preferred condition</span>
+                          </>
+                        ) : undefined
                       }
-                      title={preferred ? 'Preferred condition' : undefined}
                       key={operator}
                       value={operator}
                     >
@@ -307,6 +364,9 @@ export function ConditionBuilder({
         </div>
       ) : (
         <>
+          <p aria-live="polite" className="sr-only">
+            {announcement}
+          </p>
           {rows.map((row, index) => (
             <div
               className={cn('space-y-3', dragId === row.id && 'opacity-50')}

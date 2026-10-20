@@ -22,7 +22,7 @@ export const severityStepCopy = {
   howToToggle: 'How can I get a level?',
   incomplete: 'Complete each condition to preview possible levels.',
 } as const
-// Why a time or budget condition sets no level, and the smallest change that gives one.
+// Why a time, budget, KPI or test score condition sets no level, and the smallest change that gives one.
 export const noLevelCopy: Partial<Record<string, { why: string; tip: string }>> = {
   PROJECT_REMAINING_DAYS: {
     why: 'Days until project end only gets a level after the end date has passed.',
@@ -35,6 +35,18 @@ export const noLevelCopy: Partial<Record<string, { why: string; tip: string }>> 
   BUDGET_UTILIZATION_PERCENT: {
     why: 'Budget used only gets a level above 100%, when spending goes over budget.',
     tip: 'Fine for watching spending. For a level, use a value above 100%; overspending gets Medium or High.',
+  },
+  KPI_ACHIEVEMENT_PERCENT: {
+    why: 'KPI performance averages progress across all indicators, so it never gets a level.',
+    tip: 'Fine as a summary. For a level, tick Indicator / KPI in step 1, then add Progress toward indicator target in step 2.',
+  },
+  SURVEY_MEAN_PRE_TEST_PERCENT: {
+    why: 'Average pre-test score shows where people started, not how much they improved, so it never gets a level.',
+    tip: 'Fine for context. For a level, add Average assessment score change in step 2 and enter the expected score improvement here.',
+  },
+  SURVEY_MEAN_POST_TEST_PERCENT: {
+    why: 'Average post-test score shows where people ended, not how much they improved, so it never gets a level.',
+    tip: 'Fine for context. For a level, add Average assessment score change in step 2 and enter the expected score improvement here.',
   },
 }
 export const severityTiles = [

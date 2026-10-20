@@ -115,6 +115,27 @@ describe('ConditionBuilder reorder', () => {
     fireEvent.drop(card('Condition 1 (Project)'))
     expect(rowsNow.map((item) => item.id)).toEqual(['c', 'b', 'a'])
   })
+  it('keeps focus on the moved handle and announces the new position', () => {
+    render(<Harness initial={[row('a'), row('b'), row('c')]} />)
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Reorder condition 1' }), {
+      key: 'ArrowDown',
+    })
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Reorder condition 2' }))
+    fireEvent.keyDown(document.activeElement as HTMLElement, { key: 'ArrowDown' })
+    expect(rowsNow.map((item) => item.id)).toEqual(['b', 'c', 'a'])
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Reorder condition 3' }))
+    expect(screen.getByText('Condition moved to position 3 of 3.')).toBeTruthy()
+  })
+  it('moves a card with the up and down buttons as a single-pointer alternative to drag', () => {
+    render(<Harness initial={[row('a'), row('b'), row('c')]} />)
+    expect(
+      (screen.getByRole('button', { name: 'Move condition 1 up' }) as HTMLButtonElement).disabled,
+    ).toBe(true)
+    fireEvent.click(screen.getByRole('button', { name: 'Move condition 3 up' }))
+    expect(rowsNow.map((item) => item.id)).toEqual(['a', 'c', 'b'])
+    fireEvent.click(screen.getByRole('button', { name: 'Move condition 1 down' }))
+    expect(rowsNow.map((item) => item.id)).toEqual(['c', 'a', 'b'])
+  })
   it('offers no handle for a single condition', () => {
     render(<Harness initial={[row('a')]} />)
     expect(screen.queryByRole('button', { name: /^Reorder/ })).toBeNull()

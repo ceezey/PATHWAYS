@@ -12,6 +12,7 @@ import {
   numericMetric as sharedNumericMetric,
 } from '../metrics/metric-math'
 import {
+  MAX_KPI_INDICATORS,
   type MetricObservation,
   type RuleMetricKey,
   conditionIdSchema,
@@ -563,8 +564,8 @@ export function surveyImprovementObservation(input: unknown): MetricObservation 
 const kpiInputSchema = z
   .object({
     ...aggregateBase,
-    indicatorCount: z.number().int().min(0).max(100),
-    progress: z.array(decimalSchema).max(100),
+    indicatorCount: z.number().int().min(0).max(MAX_KPI_INDICATORS),
+    progress: z.array(decimalSchema).max(MAX_KPI_INDICATORS),
   })
   .strict()
   .refine((data) => data.progress.length <= data.indicatorCount, 'Reported exceeds indicators.')

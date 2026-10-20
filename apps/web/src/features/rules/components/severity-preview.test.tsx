@@ -88,6 +88,20 @@ describe('SeverityPreview', () => {
       screen.getByText('Budget used only gets a level above 100%, when spending goes over budget.'),
     ).toBeTruthy()
     cleanup()
+    view({
+      conditions: [leaf('c1', 'KPI_ACHIEVEMENT_PERCENT', 'LT', '50')],
+      preview: { ...open, levels: [], explanatoryOnly: true, needs: ['DELIVERY_EXPECTATION'] },
+    })
+    expect(screen.getByText(/KPI performance averages progress/)).toBeTruthy()
+    expect(screen.getByText(/add Progress toward indicator target/)).toBeTruthy()
+    cleanup()
+    view({
+      conditions: [leaf('c1', 'SURVEY_MEAN_POST_TEST_PERCENT', 'LT', '60')],
+      preview: { ...open, levels: [], explanatoryOnly: true, needs: ['DELIVERY_EXPECTATION'] },
+    })
+    expect(screen.getByText(/Average post-test score shows where people ended/)).toBeTruthy()
+    expect(screen.getByText(/add Average assessment score change/)).toBeTruthy()
+    cleanup()
     view({ preview: { ...open, contradiction: 'These conditions cannot happen together.' } })
     expect(headline()).toBe('These conditions cannot happen together.')
   })
