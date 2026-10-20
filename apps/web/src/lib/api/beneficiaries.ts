@@ -21,6 +21,7 @@ export const beneficiariesClient = {
     _role: PathwaysRole,
     projectId?: string,
     filters?: BeneficiaryFilters,
+    signal?: AbortSignal,
   ): Promise<BeneficiaryRecord[]> {
     if (!projectId) return []
     const params = new URLSearchParams()
@@ -45,6 +46,7 @@ export const beneficiariesClient = {
       if (cursor) params.set('cursor', cursor)
       const value = (await requestFoundation(
         `/beneficiaries/projects/${encodeURIComponent(projectId)}?${params.toString()}`,
+        { signal },
       )) as { items?: unknown; nextCursor?: unknown }
       if (
         !Array.isArray(value.items) ||

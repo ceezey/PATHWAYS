@@ -38,6 +38,9 @@ const auditedProfileFields = Object.keys(updateBeneficiaryRequest.shape).filter(
   (key) => key !== 'expectedUpdatedAt',
 )
 
+// Registration makes about 25 sequential round trips; 10s is too short on the pooled remote DB.
+const REGISTRATION_TRANSACTION_TIMEOUT_MS = 20_000
+
 @Injectable()
 export class BeneficiariesService {
   constructor(
@@ -231,6 +234,7 @@ export class BeneficiariesService {
         const row = await this.requireBeneficiary(tx, actor, project.id, outcome.beneficiaryId)
         return mapBeneficiary(row, project.id)
       },
+      { transactionTimeoutMs: REGISTRATION_TRANSACTION_TIMEOUT_MS },
     )
   }
 
