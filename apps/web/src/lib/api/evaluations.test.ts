@@ -374,6 +374,29 @@ describe('evaluationsClient beneficiary assessment list read', () => {
   })
 })
 
+describe('evaluationsClient record assessment', () => {
+  it('posts the score body to the project assessments route', async () => {
+    const body = {
+      enrollmentId,
+      activityId: otherId,
+      type: 'PRE_TEST',
+      score: '85.5',
+      maximumScore: '100',
+      assessmentDate: '2026-09-01',
+    } as const
+    fetcher.mockResolvedValueOnce(json({ id: assessment.id }))
+    await expect(evaluationsClient.recordBeneficiaryAssessment(projectId, body)).resolves.toEqual({
+      id: assessment.id,
+    })
+    const [url, init] = fetcher.mock.calls[0]
+    expect(String(url)).toBe(
+      `http://127.0.0.1:4000/api/projects/${projectId}/evaluation/assessments`,
+    )
+    expect(init?.method).toBe('POST')
+    expect(init?.body).toBe(JSON.stringify(body))
+  })
+})
+
 describe('evaluationsClient error codes', () => {
   it('reports the network code for an invalid assessment row', async () => {
     fetcher.mockResolvedValueOnce(json([{ ...assessment, score: 40 }]))

@@ -216,11 +216,15 @@ export function ProjectStatusSections({ sections }: { sections: ReportSectionsRe
                     className={cn(
                       pill,
                       levelStyle[
-                        a.severity === 'LOW' || a.severity === 'MEDIUM' ? 'AT_RISK' : 'OFF_TRACK'
+                        a.severity === null
+                          ? 'NOT_AVAILABLE'
+                          : a.severity === 'LOW' || a.severity === 'MEDIUM'
+                            ? 'AT_RISK'
+                            : 'OFF_TRACK'
                       ].className,
                     )}
                   >
-                    {a.severity}
+                    {a.severity ?? 'Needs context'}
                   </span>
                 </td>
                 <td className={td}>{a.explanation}</td>

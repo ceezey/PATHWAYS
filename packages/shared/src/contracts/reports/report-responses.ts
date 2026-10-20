@@ -99,7 +99,7 @@ export const reportSectionsResponse = z
         z
           .object({
             title: text,
-            severity: z.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']),
+            severity: z.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']).nullable(),
             explanation: text,
             evaluatedAt: z.string().max(40),
           })

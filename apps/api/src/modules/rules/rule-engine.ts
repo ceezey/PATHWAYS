@@ -5,9 +5,13 @@ import {
   type RuleCondition,
   type RuleDefinition,
   type RuleNode,
+  type SeverityBasis,
+  type SeverityFacts,
+  classifyAlertSeverity,
   metricObservationSchema,
   ruleDefinitionSchema,
   scaledDecimal,
+  severityFactsFromObservation,
 } from '@pathways/shared'
 import { z } from 'zod'
 
@@ -166,4 +170,30 @@ export function evaluateRule(input: unknown): RuleEvaluation {
   }
   const evidence = evaluate(rule.conditions)
   return { contractVersion: RULE_CONTRACT_VERSION, rule, asOf, result: evidence.result, evidence }
+}
+
+/** Evaluates a rule and, when it matches, adds the severity basis computed from the same evidence. */
+export function evaluateRuleWithSeverity(input: unknown): RuleEvaluation & {
+  severityBasis: SeverityBasis | null
+} {
+  const evaluation = evaluateRule(input)
+  if (evaluation.result !== 'TRUE') return { ...evaluation, severityBasis: null }
+  const results: Record<string, EvaluationResult> = {}
+  const facts: Record<string, SeverityFacts> = {}
+  const walk = (node: EvaluationEvidence) => {
+    if ('kind' in node) return node.children.forEach(walk)
+    results[node.condition.id] = node.result
+    if (node.observation && node.result === 'TRUE')
+      facts[node.condition.id] = severityFactsFromObservation(node.observation)
+  }
+  walk(evaluation.evidence)
+  const { rule } = evaluation
+  const severityBasis = classifyAlertSeverity({
+    tree: rule.conditions,
+    results,
+    facts,
+    expectations: rule.expectations ?? {},
+    ruleSeverity: rule.severity === 'CRITICAL' ? 'CRITICAL' : null,
+  })
+  return { ...evaluation, severityBasis }
 }

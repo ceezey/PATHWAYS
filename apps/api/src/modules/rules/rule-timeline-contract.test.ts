@@ -37,7 +37,7 @@ describe('timeline evaluation contract', () => {
           ruleId: '30000000-0000-4000-8000-000000000001',
           version: 1,
           name: 'Entered schedule',
-          severity: 'LOW',
+          severity: null,
           conditions: condition,
           recommendations: [
             {
@@ -52,7 +52,7 @@ describe('timeline evaluation contract', () => {
       })
       const result = evaluateRule(input)
       expect(result.result).toBe(projectStatus === 'PLANNED' ? 'TRUE' : 'UNAVAILABLE')
-      expect(dryRunOutputSchema.safeParse(result).success).toBe(true)
+      expect(dryRunOutputSchema.safeParse({ ...result, severityBasis: null }).success).toBe(true)
     },
   )
 })

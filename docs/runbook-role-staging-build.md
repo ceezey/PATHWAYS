@@ -168,6 +168,16 @@ Role-staging applied the original 0047, 0048 and 0051 before they were amended i
 
 0063 (rules scope memo) replaces `pathways_rules_internal.human_rules_scope`, so `hosted/build.mjs` runs `hosted-rules-scope-memo-preprovision.sql` (temporary SET-only chain from prisma to `rules_store_owner` and `rules_eligibility_owner`) before it and `hosted-rules-scope-memo-cleanup.sql` after it. After a failed 0063 preprovision on a 0062 ledger, run `prisma migrate resolve --rolled-back 0063_rules_scope_memo` if a failed row exists, then `hosted-rules-scope-memo-cleanup.sql`, then `--resume`.
 
+### Applying 0071 and 0072 to role-staging
+
+Not yet applied to devV2; each needs separate developer approval, and the API and web from the same commit must be deployed right after, because older code and the new schema disagree on rule severity and alert fields. Set the GitHub repository variable `RULES_DISPATCH_ENABLED=false` for the run and back to `true` afterwards.
+
+0071 (cr-pathways-assessment-score-entry) adds the `assessments.record` permission and its three grants (`role_permissions` 314 to 317), a restrictive INSERT policy on `assessment_results` and the prisma-owned definer guard `p3_guard_assessment_source`. Prisma owns everything it touches, so it needs no preprovision.
+
+0072 (cr-pathways-severity-classification) replaces functions owned by `rules_projection_owner`, `rules_config_owner`, `rules_human_owner`, `rules_commit_owner` and `rules_runtime_guard_owner` under a `rules_store_owner` schema loan. `hosted/build.mjs` runs `hosted-rules-severity-preprovision.sql` (temporary SET-only chain from prisma to those six roles, no ADMIN, no INHERIT) before it and `hosted-rules-severity-cleanup.sql` right after, also after a failed attempt. The ledger then holds 47 rows (0000 plus 0027-0072). A ledger ending at 0071 or 0072 is read the same way as 0043/0044: `--resume` checks for a residual rules-severity chain and resumes at the 0072 deploy, or at the rules-severity cleanup when the chain is still granted. After a failed 0072, run `prisma migrate resolve --rolled-back 0072_severity_classification` first; the cleanup refuses while a ledger row is unfinished. Clear `.tmp/hosted-build/migrations` before any `--resume`.
+
+A rule snapshot captured before 0072 and committed after it fails once and is recaptured on the next claim; keeping dispatch disabled during the run avoids it.
+
 ### Disambiguating a ledger that stops exactly at 0043 or 0044
 
 The same ambiguity applies to the 0044 chain, so `--resume` reads the live owner memberships at those two ledger counts as well:

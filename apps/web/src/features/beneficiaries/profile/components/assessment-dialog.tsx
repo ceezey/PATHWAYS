@@ -10,6 +10,7 @@ import {
 
 import { assessmentTypeLabel, formatDate } from '../../beneficiaries.utils'
 import type { BeneficiaryDetailState } from '../hooks/use-beneficiary-detail'
+import { RecordAssessmentForm } from './record-assessment-form'
 import { SummaryRow } from './summary-row'
 
 export const AssessmentDialog = ({
@@ -22,6 +23,11 @@ export const AssessmentDialog = ({
     | 'orderedAssessments'
     | 'assessmentStageLabel'
     | 'assessmentChange'
+    | 'canRecordAssessment'
+    | 'refreshAssessments'
+    | 'selectedStageActivities'
+    | 'beneficiary'
+    | 'projectId'
   >
 }) => {
   const {
@@ -30,6 +36,11 @@ export const AssessmentDialog = ({
     orderedAssessments,
     assessmentStageLabel,
     assessmentChange,
+    canRecordAssessment,
+    refreshAssessments,
+    selectedStageActivities,
+    beneficiary,
+    projectId,
   } = detail
   return (
     <Dialog open={assessmentOpen} onOpenChange={setAssessmentOpen}>
@@ -57,6 +68,16 @@ export const AssessmentDialog = ({
             />
           ) : null}
         </div>
+        {canRecordAssessment ? (
+          <RecordAssessmentForm
+            activities={selectedStageActivities}
+            enrollmentId={
+              beneficiary.enrollments.find((enrollment) => enrollment.projectId === projectId)?.id
+            }
+            onRecorded={refreshAssessments}
+            projectId={projectId}
+          />
+        ) : null}
       </DialogContent>
     </Dialog>
   )

@@ -41,6 +41,7 @@ const data = {
     open: 1,
     capped: false,
     bySeverity: { CRITICAL: 1, HIGH: 0, MEDIUM: 0, LOW: 0 },
+    needsContext: 0,
     byProject: [{ projectId: p1, open: 1, maxSeverity: 'CRITICAL' }],
     recent: [
       {
@@ -80,6 +81,17 @@ describe('PortfolioOverview', () => {
     expect(screen.getByText('Planned')).toBeTruthy()
     expect(screen.getByText('2 projects across 2 programs')).toBeTruthy()
     expect(screen.getByRole('link', { name: 'Decide' })).toBeTruthy()
+  })
+  it('marks a Needs context alert with its own dot and the text label', () => {
+    const alerts = data.alerts as NonNullable<RoleOverview['alerts']>
+    const row = { ...alerts.recent[0], severity: null }
+    const ctx = { ...data, alerts: { ...alerts, recent: [row] } } as RoleOverview
+    const { container } = render(
+      <PortfolioOverview data={ctx} fullName="Maria" metrics={{}} readOnly={false} />,
+    )
+    expect(screen.getAllByText(/Needs context/).length).toBeGreaterThan(0)
+    const dot = container.querySelector('span[aria-hidden="true"].rounded-full.h-2')
+    expect(dot?.className).not.toContain('bg-muted-foreground')
   })
   it('hides decision buttons for the read-only Grant Manager view', () => {
     render(<PortfolioOverview data={data} fullName="Gina" metrics={{}} readOnly />)

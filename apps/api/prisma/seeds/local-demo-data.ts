@@ -1600,7 +1600,8 @@ export type DemoRule = {
   project: ProjectKey
   code: string
   name: string
-  severity: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'
+  /** Null lets the system suggest severity; CRITICAL is the author's manual mark. */
+  severity: 'CRITICAL' | null
   conditions: Array<{
     metric:
       | 'PROJECT_TIMELINE_ELAPSED_PERCENT'
@@ -1623,7 +1624,7 @@ export const demoRules: DemoRule[] = [
     project: 'WSH',
     code: 'OPERATIONS_BOTTLENECK',
     name: 'Operations Bottleneck',
-    severity: 'HIGH',
+    severity: null,
     mode: 'AND',
     conditions: [
       { metric: 'PROJECT_TIMELINE_ELAPSED_PERCENT', operator: 'GT', threshold: '50' },
@@ -1658,7 +1659,7 @@ export const demoRules: DemoRule[] = [
     project: 'SSG',
     code: 'ACTIVITY_DELAYS',
     name: 'Multiple activities behind schedule',
-    severity: 'MEDIUM',
+    severity: null,
     mode: 'AND',
     conditions: [{ metric: 'ACTIVITY_OVERDUE_COUNT', operator: 'GTE', threshold: '2' }],
     recommendations: [
@@ -1676,7 +1677,7 @@ export const demoRules: DemoRule[] = [
     project: 'ALS',
     code: 'CLOSING_SOON',
     name: 'Project closing within 30 days',
-    severity: 'LOW',
+    severity: null,
     mode: 'AND',
     conditions: [{ metric: 'PROJECT_REMAINING_DAYS', operator: 'LT', threshold: '30' }],
     recommendations: [
@@ -1690,7 +1691,7 @@ export const demoRules: DemoRule[] = [
     project: 'CRL',
     code: 'ACTIVITY_DELAYS_WATCH',
     name: 'Watch: activity delays',
-    severity: 'LOW',
+    severity: null,
     mode: 'AND',
     conditions: [{ metric: 'ACTIVITY_OVERDUE_COUNT', operator: 'GT', threshold: '3' }],
     recommendations: [
@@ -1704,7 +1705,7 @@ export const demoRules: DemoRule[] = [
     project: 'CRL',
     code: 'BUDGET_NEAR_EXHAUSTED',
     name: 'Approved spending near the planned budget',
-    severity: 'HIGH',
+    severity: null,
     mode: 'AND',
     conditions: [{ metric: 'BUDGET_UTILIZATION_PERCENT', operator: 'GTE', threshold: '90' }],
     recommendations: [
@@ -1722,7 +1723,7 @@ export const demoRules: DemoRule[] = [
     project: 'CRL',
     code: 'FOLLOW_UP_GAP',
     name: 'Beneficiaries needing follow-up',
-    severity: 'MEDIUM',
+    severity: null,
     mode: 'AND',
     conditions: [{ metric: 'BENEFICIARY_FOLLOW_UP_PERCENT', operator: 'GTE', threshold: '25' }],
     recommendations: [
@@ -1736,7 +1737,7 @@ export const demoRules: DemoRule[] = [
     project: 'WSH',
     code: 'LOW_SURVEY_IMPROVEMENT',
     name: 'Low improvement in survey results',
-    severity: 'MEDIUM',
+    severity: null,
     mode: 'AND',
     conditions: [{ metric: 'SURVEY_MEAN_IMPROVEMENT_POINTS', operator: 'LT', threshold: '20' }],
     recommendations: [
@@ -1750,7 +1751,7 @@ export const demoRules: DemoRule[] = [
     project: 'CRL',
     code: 'ACTIVITY_OVERDUE_ANY',
     name: 'An activity is past its planned end date',
-    severity: 'MEDIUM',
+    severity: null,
     mode: 'AND',
     conditions: [{ metric: 'ACTIVITY_OVERDUE_COUNT', operator: 'GTE', threshold: '1' }],
     recommendations: [

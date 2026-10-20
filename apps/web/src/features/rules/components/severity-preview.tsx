@@ -1,0 +1,128 @@
+'use client'
+
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import {
+  type RuleExpectations,
+  SEVERITY_MISSING_TEXT,
+  ruleExpectationsSchema,
+  severityLabel,
+} from '@pathways/shared'
+import { useId } from 'react'
+import type { SeverityPreview as Preview } from '../rule-severity.utils'
+import { severityStepCopy as copy } from '../rules.copy'
+
+type Props = {
+  preview: Preview
+  critical: boolean
+  onCritical: (value: boolean) => void
+  expectations: RuleExpectations
+  onExpectations: (value: RuleExpectations) => void
+  showScore: boolean
+  showFollowUp: boolean
+}
+const listed = (labels: string[]) =>
+  labels.length < 3 ? labels.join(' or ') : `${labels.slice(0, -1).join(', ')}, or ${labels.at(-1)}`
+const headline = (preview: Preview) => {
+  if (preview.contradiction) return preview.contradiction
+  if (preview.explanatoryOnly) return copy.explanatory
+  if (!preview.levels.length) return copy.incomplete
+  return `Possible levels: ${listed(preview.levels.map(severityLabel))}. ${copy.manual}`
+}
+
+/** Step 3 severity preview with the manual Critical mark and the expectations severity compares with. */
+export function SeverityPreview(props: Props) {
+  const { preview, critical, onCritical, expectations, onExpectations } = props
+  const id = useId()
+  const needs = preview.explanatoryOnly
+    ? []
+    : preview.needs.map((need) =>
+        need === 'DELIVERY_EXPECTATION' ? copy.partlyExplanatory : SEVERITY_MISSING_TEXT[need],
+      )
+  const field = (key: keyof RuleExpectations, label: string, hint: string) => {
+    const value = expectations[key] ?? ''
+    const invalid =
+      value.trim() !== '' && !ruleExpectationsSchema.safeParse({ [key]: value.trim() }).success
+    return (
+      <div className="space-y-2">
+        <Label htmlFor={`${id}-${key}`}>{label}</Label>
+        <Input
+          aria-describedby={`${id}-${key}-hint${invalid ? ` ${id}-${key}-error` : ''}`}
+          aria-invalid={invalid || undefined}
+          id={`${id}-${key}`}
+          inputMode="decimal"
+          maxLength={20}
+          value={value}
+          onChange={(event) => onExpectations({ ...expectations, [key]: event.target.value })}
+        />
+        <p className="text-sm text-muted-foreground" id={`${id}-${key}-hint`}>
+          {hint}
+        </p>
+        {invalid ? (
+          <p className="text-sm text-danger" id={`${id}-${key}-error`}>
+            Use a value from 0 to 100.
+          </p>
+        ) : null}
+      </div>
+    )
+  }
+  return (
+    <div className="space-y-3">
+      <div
+        aria-atomic="true"
+        aria-live="polite"
+        className="space-y-1 rounded-md border border-info/30 bg-info-subtle p-3 text-sm"
+        data-testid="severity-preview"
+      >
+        <p
+          className={preview.contradiction ? 'font-medium text-danger' : 'font-medium'}
+          data-testid="severity-preview-levels"
+        >
+          {headline(preview)}
+        </p>
+        {preview.dependsOnDates && !preview.contradiction ? (
+          <p className="text-muted-foreground">{copy.dates}</p>
+        ) : null}
+        {needs.map((text) => (
+          <p className="text-muted-foreground" key={text}>
+            {text}
+          </p>
+        ))}
+      </div>
+      {props.showScore || props.showFollowUp ? (
+        <div className="grid gap-4 sm:grid-cols-2">
+          {props.showScore
+            ? field(
+                'expectedScoreImprovement',
+                'Expected score improvement',
+                'Points the assessment average should improve, 0 to 100, as agreed by managers.',
+              )
+            : null}
+          {props.showFollowUp
+            ? field(
+                'manageableFollowUpPercent',
+                'Manageable follow-up level',
+                'Percent of the group needing follow-up that managers agree is manageable, 0 to 100.',
+              )
+            : null}
+        </div>
+      ) : null}
+      <div className="flex items-start gap-2">
+        <input
+          aria-describedby={`${id}-critical-hint`}
+          checked={critical}
+          className="mt-0.5 size-4 accent-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          id={`${id}-critical`}
+          type="checkbox"
+          onChange={(event) => onCritical(event.target.checked)}
+        />
+        <div className="space-y-1">
+          <Label htmlFor={`${id}-critical`}>{copy.critical}</Label>
+          <p className="text-sm text-muted-foreground" id={`${id}-critical-hint`}>
+            {copy.criticalHint}
+          </p>
+        </div>
+      </div>
+    </div>
+  )
+}

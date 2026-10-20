@@ -243,6 +243,55 @@ describe('two-step rule editor navigation', () => {
   })
 })
 
+const toStepTwo = async () => {
+  fireEvent.click(screen.getByRole('button', { name: 'Next: Recommendations' }))
+  await waitFor(() =>
+    expect(screen.getAllByText('Step 2 of 2: Recommendations').length).toBeGreaterThan(0),
+  )
+}
+
+describe('severity preview and Critical mark', () => {
+  it('previews possible levels and saves a stored Medium rule with no severity', async () => {
+    renderEditor({ projectId, original: existingRule })
+    await screen.findByLabelText('Rule name')
+    expect(screen.queryByLabelText('Severity')).toBeNull()
+    expect(screen.getByTestId('severity-preview-levels').textContent).toBe(
+      'Possible levels: Low, Medium, or High. Critical is set manually.',
+    )
+    await toStepTwo()
+    fireEvent.click(screen.getByRole('button', { name: 'Save draft' }))
+    await waitFor(() => expect(state.draftRule).toHaveBeenCalledTimes(1))
+    expect(state.draftRule.mock.calls[0][1].severity).toBeNull()
+  })
+
+  it('saves CRITICAL when the manual mark is ticked and saves expectations for matching metrics', async () => {
+    renderEditor({ projectId })
+    await screen.findByLabelText('Applies to')
+    fillStepOne()
+    expect(screen.queryByLabelText('Expected score improvement')).toBeNull()
+    fireEvent.change(screen.getByLabelText('Metric'), {
+      target: { value: 'SURVEY_MEAN_IMPROVEMENT_POINTS' },
+    })
+    fireEvent.change(screen.getByLabelText('Expected score improvement'), {
+      target: { value: '10' },
+    })
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Mark as Critical (manual judgment)' }))
+    await toStepTwo()
+    fireEvent.change(screen.getByLabelText('Recommendation 1 title'), {
+      target: { value: 'Title one' },
+    })
+    fireEvent.change(screen.getByLabelText('Recommendation text'), {
+      target: { value: 'Text one' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Create draft' }))
+    await waitFor(() => expect(state.createRule).toHaveBeenCalledTimes(1))
+    expect(state.createRule.mock.calls[0][0]).toMatchObject({
+      severity: 'CRITICAL',
+      expectations: { expectedScoreImprovement: '10', manageableFollowUpPercent: null },
+    })
+  })
+})
+
 describe('aggregate metric options', () => {
   it('offers the new metrics with friendly labels and no record binding', async () => {
     renderEditor({ projectId })
@@ -507,7 +556,13 @@ describe('starting a rule from a template', () => {
     expect((screen.getByLabelText('Rule code') as HTMLInputElement).value).toBe(
       'OPERATIONS_BOTTLENECK',
     )
-    expect((screen.getByLabelText('Severity') as HTMLSelectElement).value).toBe('HIGH')
+    expect(
+      (
+        screen.getByRole('checkbox', {
+          name: 'Mark as Critical (manual judgment)',
+        }) as HTMLInputElement
+      ).checked,
+    ).toBe(false)
     expect((screen.getByLabelText('Combine conditions') as HTMLSelectElement).value).toBe('AND')
     const metricSelects = screen.getAllByLabelText('Metric') as HTMLSelectElement[]
     const operatorSelects = screen.getAllByLabelText('Comparison') as HTMLSelectElement[]

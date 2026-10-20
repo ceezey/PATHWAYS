@@ -38,6 +38,18 @@ export class EvaluationsController {
     if (!request.user) throw new ForbiddenException('Application profile required.')
     return this.service.listBeneficiaryAssessments(request.user, projectId, query)
   }
+  @Post('assessments')
+  @Header('Cache-Control', 'private, no-store')
+  @RequirePermission('assessments.record')
+  @RequireBeneficiaryStepUp()
+  recordAssessment(
+    @Req() request: AuthenticatedRequest,
+    @Param('projectId') projectId: string,
+    @Body() input: unknown,
+  ) {
+    if (!request.user) throw new ForbiddenException('Application profile required.')
+    return this.service.recordBeneficiaryAssessment(request.user, projectId, input)
+  }
   @Get('assessments/:assessmentId')
   @Header('Cache-Control', 'private, no-store')
   @RequirePermission('assessments.detail.read')

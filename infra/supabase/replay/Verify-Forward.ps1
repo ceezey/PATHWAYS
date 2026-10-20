@@ -57,6 +57,8 @@ $forwardInventory = @(
   '0068_timeline_final_position'
   '0069_evaluation_auto_scoring'
   '0070_activity_escalations'
+  '0071_assessment_score_entry'
+  '0072_severity_classification'
 )
 if (($forwardMigrations.Name -join ',') -cne ($forwardInventory -join ',')) { throw 'Forward migration inventory requires renewed review.' }
 
@@ -137,7 +139,8 @@ function Invoke-ForwardDeploy {
     [switch]$ProvisionExpense,
     [switch]$ProvisionRulesCatalog,
     [switch]$ProvisionRulesEscalation,
-    [switch]$ProvisionRulesScopeMemo
+    [switch]$ProvisionRulesScopeMemo,
+    [switch]$ProvisionRulesSeverity
   )
   Assert-ForwardTarget $Database
   $beforeDeployLog = Read-ForwardPostgresLog
@@ -179,6 +182,10 @@ function Invoke-ForwardDeploy {
     if ($ProvisionRulesScopeMemo) {
       # DBA prerequisite for 0063; temporary SET-only membership to rules_eligibility_owner.
       Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $PSScriptRoot 'forward-rules-scope-memo-preprovision.sql'))) $Database
+    }
+    if ($ProvisionRulesSeverity) {
+      # DBA prerequisite for 0072; temporary SET-only chain to six rules owner roles.
+      Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $PSScriptRoot 'forward-rules-severity-preprovision.sql'))) $Database
     }
     # Native failure is expected only for the isolated copied fault migration.
     $savedPreference = $ErrorActionPreference
@@ -237,6 +244,11 @@ function Invoke-ForwardDeploy {
       # Run after a successful 0063 deploy and also after a failed/rolled-back attempt.
       Assert-ForwardTarget $Database
       Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $PSScriptRoot 'forward-rules-scope-memo-cleanup.sql'))) $Database
+    }
+    if ($ProvisionRulesSeverity) {
+      # Run after a successful 0072 deploy and also after a failed/rolled-back attempt.
+      Assert-ForwardTarget $Database
+      Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $PSScriptRoot 'forward-rules-severity-cleanup.sql'))) $Database
     }
   }
   if (($Provision -or $ProvisionCore) -and -not $ExpectFailure) {
@@ -633,21 +645,22 @@ SELECT NOT EXISTS(SELECT FROM pg_catalog.pg_auth_members m JOIN pg_catalog.pg_ro
     $forwardCatalog = $migration.Name -cin @('0059_rules_recommendation_auto_resolve', '0060_rules_budget_beneficiary_survey_metrics')
     $forwardEscalation = $migration.Name -ceq '0062_rules_escalated_alert_list'
     $forwardScopeMemo = $migration.Name -ceq '0063_rules_scope_memo'
-    foreach ($db in $forwardDatabases[0..1]) { Invoke-ForwardDeploy -Database $db -Provision:($migration.Name -ceq '0031_f10_f11_rules_runtime') -ProvisionCore:($migration.Name -ceq '0034_core_feature_completion') -ProvisionPin:$forwardPin -ProvisionMedia:$forwardMedia -ProvisionReview:$forwardReview -ProvisionExpense:$forwardExpense -ProvisionRulesCatalog:$forwardCatalog -ProvisionRulesEscalation:$forwardEscalation -ProvisionRulesScopeMemo:$forwardScopeMemo }
-    if ([int]$migration.Name.Substring(0,4) -ge 31) { Invoke-ForwardDeploy -Database 'pathways_phase4_forward_restore' -Provision:($migration.Name -ceq '0031_f10_f11_rules_runtime') -ProvisionCore:($migration.Name -ceq '0034_core_feature_completion') -ProvisionPin:$forwardPin -ProvisionMedia:$forwardMedia -ProvisionReview:$forwardReview -ProvisionExpense:$forwardExpense -ProvisionRulesCatalog:$forwardCatalog -ProvisionRulesEscalation:$forwardEscalation -ProvisionRulesScopeMemo:$forwardScopeMemo }
-    if ([int]$migration.Name.Substring(0,4) -ge 34) { Invoke-ForwardDeploy -Database 'pathways_phase4_core_retry' -ProvisionCore:($migration.Name -ceq '0034_core_feature_completion') -ProvisionPin:$forwardPin -ProvisionMedia:$forwardMedia -ProvisionReview:$forwardReview -ProvisionExpense:$forwardExpense -ProvisionRulesCatalog:$forwardCatalog -ProvisionRulesEscalation:$forwardEscalation -ProvisionRulesScopeMemo:$forwardScopeMemo }
-    if ([int]$migration.Name.Substring(0,4) -ge 36) { Invoke-ForwardDeploy -Database 'pathways_phase4_pdf_retry' -ProvisionPin:$forwardPin -ProvisionMedia:$forwardMedia -ProvisionReview:$forwardReview -ProvisionExpense:$forwardExpense -ProvisionRulesCatalog:$forwardCatalog -ProvisionRulesEscalation:$forwardEscalation -ProvisionRulesScopeMemo:$forwardScopeMemo }
-    if ([int]$migration.Name.Substring(0,4) -ge 37) { Invoke-ForwardDeploy -Database 'pathways_phase4_pin_retry' -ProvisionPin:$forwardPin -ProvisionMedia:$forwardMedia -ProvisionReview:$forwardReview -ProvisionExpense:$forwardExpense -ProvisionRulesCatalog:$forwardCatalog -ProvisionRulesEscalation:$forwardEscalation -ProvisionRulesScopeMemo:$forwardScopeMemo }
-    if ([int]$migration.Name.Substring(0,4) -ge 38) { Invoke-ForwardDeploy -Database 'pathways_phase4_import_retry' -ProvisionMedia:$forwardMedia -ProvisionReview:$forwardReview -ProvisionExpense:$forwardExpense -ProvisionRulesCatalog:$forwardCatalog -ProvisionRulesEscalation:$forwardEscalation -ProvisionRulesScopeMemo:$forwardScopeMemo }
-    if ([int]$migration.Name.Substring(0,4) -ge 39) { Invoke-ForwardDeploy -Database 'pathways_phase4_partner_retry' -ProvisionMedia:$forwardMedia -ProvisionReview:$forwardReview -ProvisionExpense:$forwardExpense -ProvisionRulesCatalog:$forwardCatalog -ProvisionRulesEscalation:$forwardEscalation -ProvisionRulesScopeMemo:$forwardScopeMemo }
-    if ([int]$migration.Name.Substring(0,4) -ge 40) { Invoke-ForwardDeploy -Database 'pathways_phase4_drf_retry' -ProvisionMedia:$forwardMedia -ProvisionReview:$forwardReview -ProvisionExpense:$forwardExpense -ProvisionRulesCatalog:$forwardCatalog -ProvisionRulesEscalation:$forwardEscalation -ProvisionRulesScopeMemo:$forwardScopeMemo }
-    if ([int]$migration.Name.Substring(0,4) -ge 41) { Invoke-ForwardDeploy -Database 'pathways_phase4_media_retry' -ProvisionMedia:$forwardMedia -ProvisionReview:$forwardReview -ProvisionExpense:$forwardExpense -ProvisionRulesCatalog:$forwardCatalog -ProvisionRulesEscalation:$forwardEscalation -ProvisionRulesScopeMemo:$forwardScopeMemo }
-    if ([int]$migration.Name.Substring(0,4) -ge 42) { Invoke-ForwardDeploy -Database 'pathways_phase4_psc_retry' -ProvisionMedia:$forwardMedia -ProvisionReview:$forwardReview -ProvisionExpense:$forwardExpense -ProvisionRulesCatalog:$forwardCatalog -ProvisionRulesEscalation:$forwardEscalation -ProvisionRulesScopeMemo:$forwardScopeMemo }
-    if ([int]$migration.Name.Substring(0,4) -ge 43) { Invoke-ForwardDeploy -Database 'pathways_phase4_oex_retry' -ProvisionMedia:$forwardMedia -ProvisionReview:$forwardReview -ProvisionExpense:$forwardExpense -ProvisionRulesCatalog:$forwardCatalog -ProvisionRulesEscalation:$forwardEscalation -ProvisionRulesScopeMemo:$forwardScopeMemo }
-    if ([int]$migration.Name.Substring(0,4) -ge 44) { Invoke-ForwardDeploy -Database 'pathways_phase4_prv_retry' -ProvisionMedia:$forwardMedia -ProvisionReview:$forwardReview -ProvisionExpense:$forwardExpense -ProvisionRulesCatalog:$forwardCatalog -ProvisionRulesEscalation:$forwardEscalation -ProvisionRulesScopeMemo:$forwardScopeMemo }
-    if ([int]$migration.Name.Substring(0,4) -ge 45) { Invoke-ForwardDeploy -Database 'pathways_phase4_f9a_retry' -ProvisionMedia:$forwardMedia -ProvisionExpense:$forwardExpense -ProvisionRulesCatalog:$forwardCatalog -ProvisionRulesEscalation:$forwardEscalation -ProvisionRulesScopeMemo:$forwardScopeMemo }
-    if ([int]$migration.Name.Substring(0,4) -ge 59) { Invoke-ForwardDeploy -Database 'pathways_phase4_rar_retry' -ProvisionRulesCatalog:$forwardCatalog -ProvisionRulesEscalation:$forwardEscalation -ProvisionRulesScopeMemo:$forwardScopeMemo }
-    if ([int]$migration.Name.Substring(0,4) -ge 60) { Invoke-ForwardDeploy -Database 'pathways_phase4_rmt_retry' -ProvisionRulesCatalog:$forwardCatalog -ProvisionRulesEscalation:$forwardEscalation -ProvisionRulesScopeMemo:$forwardScopeMemo }
+    $forwardSeverity = $migration.Name -ceq '0072_severity_classification'
+    foreach ($db in $forwardDatabases[0..1]) { Invoke-ForwardDeploy -Database $db -Provision:($migration.Name -ceq '0031_f10_f11_rules_runtime') -ProvisionCore:($migration.Name -ceq '0034_core_feature_completion') -ProvisionPin:$forwardPin -ProvisionMedia:$forwardMedia -ProvisionReview:$forwardReview -ProvisionExpense:$forwardExpense -ProvisionRulesCatalog:$forwardCatalog -ProvisionRulesEscalation:$forwardEscalation -ProvisionRulesScopeMemo:$forwardScopeMemo -ProvisionRulesSeverity:$forwardSeverity }
+    if ([int]$migration.Name.Substring(0,4) -ge 31) { Invoke-ForwardDeploy -Database 'pathways_phase4_forward_restore' -Provision:($migration.Name -ceq '0031_f10_f11_rules_runtime') -ProvisionCore:($migration.Name -ceq '0034_core_feature_completion') -ProvisionPin:$forwardPin -ProvisionMedia:$forwardMedia -ProvisionReview:$forwardReview -ProvisionExpense:$forwardExpense -ProvisionRulesCatalog:$forwardCatalog -ProvisionRulesEscalation:$forwardEscalation -ProvisionRulesScopeMemo:$forwardScopeMemo -ProvisionRulesSeverity:$forwardSeverity }
+    if ([int]$migration.Name.Substring(0,4) -ge 34) { Invoke-ForwardDeploy -Database 'pathways_phase4_core_retry' -ProvisionCore:($migration.Name -ceq '0034_core_feature_completion') -ProvisionPin:$forwardPin -ProvisionMedia:$forwardMedia -ProvisionReview:$forwardReview -ProvisionExpense:$forwardExpense -ProvisionRulesCatalog:$forwardCatalog -ProvisionRulesEscalation:$forwardEscalation -ProvisionRulesScopeMemo:$forwardScopeMemo -ProvisionRulesSeverity:$forwardSeverity }
+    if ([int]$migration.Name.Substring(0,4) -ge 36) { Invoke-ForwardDeploy -Database 'pathways_phase4_pdf_retry' -ProvisionPin:$forwardPin -ProvisionMedia:$forwardMedia -ProvisionReview:$forwardReview -ProvisionExpense:$forwardExpense -ProvisionRulesCatalog:$forwardCatalog -ProvisionRulesEscalation:$forwardEscalation -ProvisionRulesScopeMemo:$forwardScopeMemo -ProvisionRulesSeverity:$forwardSeverity }
+    if ([int]$migration.Name.Substring(0,4) -ge 37) { Invoke-ForwardDeploy -Database 'pathways_phase4_pin_retry' -ProvisionPin:$forwardPin -ProvisionMedia:$forwardMedia -ProvisionReview:$forwardReview -ProvisionExpense:$forwardExpense -ProvisionRulesCatalog:$forwardCatalog -ProvisionRulesEscalation:$forwardEscalation -ProvisionRulesScopeMemo:$forwardScopeMemo -ProvisionRulesSeverity:$forwardSeverity }
+    if ([int]$migration.Name.Substring(0,4) -ge 38) { Invoke-ForwardDeploy -Database 'pathways_phase4_import_retry' -ProvisionMedia:$forwardMedia -ProvisionReview:$forwardReview -ProvisionExpense:$forwardExpense -ProvisionRulesCatalog:$forwardCatalog -ProvisionRulesEscalation:$forwardEscalation -ProvisionRulesScopeMemo:$forwardScopeMemo -ProvisionRulesSeverity:$forwardSeverity }
+    if ([int]$migration.Name.Substring(0,4) -ge 39) { Invoke-ForwardDeploy -Database 'pathways_phase4_partner_retry' -ProvisionMedia:$forwardMedia -ProvisionReview:$forwardReview -ProvisionExpense:$forwardExpense -ProvisionRulesCatalog:$forwardCatalog -ProvisionRulesEscalation:$forwardEscalation -ProvisionRulesScopeMemo:$forwardScopeMemo -ProvisionRulesSeverity:$forwardSeverity }
+    if ([int]$migration.Name.Substring(0,4) -ge 40) { Invoke-ForwardDeploy -Database 'pathways_phase4_drf_retry' -ProvisionMedia:$forwardMedia -ProvisionReview:$forwardReview -ProvisionExpense:$forwardExpense -ProvisionRulesCatalog:$forwardCatalog -ProvisionRulesEscalation:$forwardEscalation -ProvisionRulesScopeMemo:$forwardScopeMemo -ProvisionRulesSeverity:$forwardSeverity }
+    if ([int]$migration.Name.Substring(0,4) -ge 41) { Invoke-ForwardDeploy -Database 'pathways_phase4_media_retry' -ProvisionMedia:$forwardMedia -ProvisionReview:$forwardReview -ProvisionExpense:$forwardExpense -ProvisionRulesCatalog:$forwardCatalog -ProvisionRulesEscalation:$forwardEscalation -ProvisionRulesScopeMemo:$forwardScopeMemo -ProvisionRulesSeverity:$forwardSeverity }
+    if ([int]$migration.Name.Substring(0,4) -ge 42) { Invoke-ForwardDeploy -Database 'pathways_phase4_psc_retry' -ProvisionMedia:$forwardMedia -ProvisionReview:$forwardReview -ProvisionExpense:$forwardExpense -ProvisionRulesCatalog:$forwardCatalog -ProvisionRulesEscalation:$forwardEscalation -ProvisionRulesScopeMemo:$forwardScopeMemo -ProvisionRulesSeverity:$forwardSeverity }
+    if ([int]$migration.Name.Substring(0,4) -ge 43) { Invoke-ForwardDeploy -Database 'pathways_phase4_oex_retry' -ProvisionMedia:$forwardMedia -ProvisionReview:$forwardReview -ProvisionExpense:$forwardExpense -ProvisionRulesCatalog:$forwardCatalog -ProvisionRulesEscalation:$forwardEscalation -ProvisionRulesScopeMemo:$forwardScopeMemo -ProvisionRulesSeverity:$forwardSeverity }
+    if ([int]$migration.Name.Substring(0,4) -ge 44) { Invoke-ForwardDeploy -Database 'pathways_phase4_prv_retry' -ProvisionMedia:$forwardMedia -ProvisionReview:$forwardReview -ProvisionExpense:$forwardExpense -ProvisionRulesCatalog:$forwardCatalog -ProvisionRulesEscalation:$forwardEscalation -ProvisionRulesScopeMemo:$forwardScopeMemo -ProvisionRulesSeverity:$forwardSeverity }
+    if ([int]$migration.Name.Substring(0,4) -ge 45) { Invoke-ForwardDeploy -Database 'pathways_phase4_f9a_retry' -ProvisionMedia:$forwardMedia -ProvisionExpense:$forwardExpense -ProvisionRulesCatalog:$forwardCatalog -ProvisionRulesEscalation:$forwardEscalation -ProvisionRulesScopeMemo:$forwardScopeMemo -ProvisionRulesSeverity:$forwardSeverity }
+    if ([int]$migration.Name.Substring(0,4) -ge 59) { Invoke-ForwardDeploy -Database 'pathways_phase4_rar_retry' -ProvisionRulesCatalog:$forwardCatalog -ProvisionRulesEscalation:$forwardEscalation -ProvisionRulesScopeMemo:$forwardScopeMemo -ProvisionRulesSeverity:$forwardSeverity }
+    if ([int]$migration.Name.Substring(0,4) -ge 60) { Invoke-ForwardDeploy -Database 'pathways_phase4_rmt_retry' -ProvisionRulesCatalog:$forwardCatalog -ProvisionRulesEscalation:$forwardEscalation -ProvisionRulesScopeMemo:$forwardScopeMemo -ProvisionRulesSeverity:$forwardSeverity }
   }
   foreach ($db in $forwardDatabases[0..1]) {
     if ((Read-ForwardLedger $db ("migration_name NOT IN ('" + ($forwardInventory -join "','") + "')")) -cne $originalForwardLedgers[$db]) { throw 'Historical ledger rows changed during forward upgrade.' }
@@ -691,7 +704,7 @@ SELECT (pathways.p09_role_allows('SYSTEM_ADMINISTRATOR','activities.read')
  AND (SELECT count(*) FROM pathways.role_permissions rp JOIN pathways.roles r ON r.id=rp.role_id
       JOIN pathways.permissions p ON p.id=rp.permission_id
       WHERE r.code='SYSTEM_ADMINISTRATOR' AND p.code IN ('activities.read','budgets.read'))=1
- AND (SELECT count(*) FROM pathways.role_permissions)=314)::text;
+ AND (SELECT count(*) FROM pathways.role_permissions)=317)::text;
 "@
     if ($adminRead.Trim() -cne 'true') { throw "0035 admin read grants differ in $db." }
   }
@@ -1001,7 +1014,7 @@ SELECT ((SELECT bool_and(pg_catalog.pg_get_userbyid(p.proowner)='prisma' AND p.p
  FROM pg_catalog.pg_proc p WHERE p.oid IN ('pathways.p06_participation_breakdown(uuid,date,date)'::pg_catalog.regprocedure,
   'pathways.p06_indicator_values(uuid,text)'::pg_catalog.regprocedure))
  AND NOT has_function_privilege('pathways_runtime','pathways.p06_release_reach(jsonb)','EXECUTE')
- AND (SELECT count(*) FROM pathways.role_permissions)=314)::text;
+ AND (SELECT count(*) FROM pathways.role_permissions)=317)::text;
 "@
     if ($reachShape.Trim() -cne 'true') { throw "0066 beneficiary reach inventory differs in $db." }
   }
@@ -1037,6 +1050,36 @@ SELECT (SELECT count(*)=7 AND bool_and(e.enumlabel IN ('KPI','TIMELINE_COMPLIANC
     if ($criterionShape.Trim() -cne 'true') { throw "0069 criterion type inventory differs in $db." }
   }
   Write-Output 'FORWARD_0069_EVALUATION_AUTO_SCORING_INVENTORY=PASS'
+  # 0071 inventory: assessments.record is held by exactly three roles and a restrictive runtime INSERT policy requires it.
+  foreach ($db in @('pathways_phase4_baseline', 'pathways_phase4_forward_restore')) {
+    $scoreEntryShape = Read-ForwardSql $db @"
+SELECT ((SELECT count(*) FROM pathways.role_permissions rp JOIN pathways.permissions p ON p.id=rp.permission_id
+  WHERE p.code='assessments.record')=3
+ AND EXISTS(SELECT FROM pg_catalog.pg_policy WHERE polrelid='pathways.assessment_results'::pg_catalog.regclass
+  AND polname='p09_insert' AND NOT polpermissive AND polcmd='a')
+ AND NOT pathways.p09_role_allows('SYSTEM_ADMINISTRATOR','assessments.record'))::text;
+"@
+    if ($scoreEntryShape.Trim() -cne 'true') { throw "0071 assessment score entry inventory differs in $db." }
+  }
+  Write-Output 'FORWARD_0071_ASSESSMENT_SCORE_ENTRY_INVENTORY=PASS'
+  # 0072 inventory: nullable severities, rule expectations, the prisma-owned classifier and no residual owner chain or schema loan.
+  foreach ($db in @('pathways_phase4_baseline', 'pathways_phase4_forward_restore', 'pathways_phase4_rmt_retry')) {
+    $severityShape = Read-ForwardSql $db @"
+SELECT ((SELECT NOT attnotnull AND NOT atthasdef FROM pg_catalog.pg_attribute WHERE attrelid='pathways.alert_rules'::pg_catalog.regclass AND attname='severity')
+ AND (SELECT NOT attnotnull FROM pg_catalog.pg_attribute WHERE attrelid='pathways.rule_based_alerts'::pg_catalog.regclass AND attname='severity')
+ AND (SELECT count(*) FROM pg_catalog.pg_attribute WHERE NOT attisdropped AND ((attrelid='pathways.alert_rules'::pg_catalog.regclass
+   AND attname IN ('expected_score_improvement','manageable_follow_up_percent'))
+  OR (attrelid='pathways.rule_based_alerts'::pg_catalog.regclass AND attname IN ('severity_basis','severity_change'))))=4
+ AND (SELECT count(*) FROM pg_catalog.pg_proc WHERE pronamespace='pathways_rules_internal'::pg_catalog.regnamespace
+  AND proname IN ('classify_alert_severity','severity_shown','severity_calendar_date','severity_node_result','severity_condition_basis')
+  AND pg_catalog.pg_get_userbyid(proowner)='prisma' AND NOT prosecdef AND provolatile='i')=5
+ AND NOT EXISTS(SELECT FROM pg_catalog.pg_auth_members m JOIN pg_catalog.pg_roles r ON r.oid=m.roleid
+  WHERE m.member=(SELECT oid FROM pg_catalog.pg_roles WHERE rolname='prisma') AND r.rolname LIKE 'rules\_%\_owner')
+ AND NOT has_schema_privilege('prisma','pathways_rules_internal','USAGE'))::text;
+"@
+    if ($severityShape.Trim() -cne 'true') { throw "0072 severity classification inventory differs in $db." }
+  }
+  Write-Output 'FORWARD_0072_SEVERITY_CLASSIFICATION_INVENTORY=PASS'
 } finally {
   foreach ($key in $forwardPriorEnvironment.Keys) { Set-Item -LiteralPath "Env:$key" -Value $forwardPriorEnvironment[$key] }
 }

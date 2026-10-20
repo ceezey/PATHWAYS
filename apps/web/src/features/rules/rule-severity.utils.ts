@@ -1,21 +1,30 @@
 import {
-  type HumanRule,
+  type RuleExpectations,
   type RuleMetricKey,
   type RuleNode,
-  parseRuleTree,
+  SEVERITY_BOUNDS,
+  type SeverityLevel,
+  type SeverityMissing,
   scaledDecimal,
+  severityLevels,
 } from '@pathways/shared'
-import { type Leaf, type MetricScope, leaves, metricLabel, scopeOf } from './rules.utils'
+import { type Leaf, type MetricScope, leaves, recordBound, scopeOf } from './rules.utils'
 
-type SuggestedLevel = Exclude<HumanRule['severity'], 'CRITICAL'>
-export type SuggestedSeverity =
-  | { status: 'SUGGESTED'; severity: SuggestedLevel; reason: string }
-  | { status: 'NEEDS_JUDGMENT'; severity: null; reason: string }
 export type RecommendationPrefill = { title: string; text: string }
+export type SeverityPreview = {
+  levels: SeverityLevel[]
+  dependsOnDates: boolean
+  explanatoryOnly: boolean
+  needs: SeverityMissing[]
+  contradiction: string | null
+}
 type Bound = { value: bigint; inclusive: boolean }
 type Interval = { lower?: Bound; upper?: Bound }
+/** Outcomes a condition can reach: -1 explains only, 0 to 2 index severityLevels. */
+type Reach = { ranks: Set<number>; dates: boolean; needs: Set<SeverityMissing> }
+const scale = 10000n
 const zero = 0n
-const hundred = 1000000n
+const hundred = 100n * scale
 const nonNegative: Interval = { lower: { value: zero, inclusive: true } }
 const percentage: Interval = {
   lower: { value: zero, inclusive: true },
@@ -43,7 +52,7 @@ const earlierBound = (left: Bound | undefined, right: Bound | undefined): Bound 
   if (comparison > 0) return right
   return { value: left.value, inclusive: left.inclusive && right.inclusive }
 }
-const matchingInterval = (leaf: Leaf): Interval => {
+export const matchingInterval = (leaf: Leaf): Interval => {
   const threshold = scaledDecimal(leaf.threshold)
   if (leaf.operator === 'LT') return { upper: { value: threshold, inclusive: false } }
   if (leaf.operator === 'LTE') return { upper: { value: threshold, inclusive: true } }
@@ -60,11 +69,11 @@ const matchingInterval = (leaf: Leaf): Interval => {
     upper: { value: maximum, inclusive: true },
   }
 }
-const intersect = (left: Interval, right: Interval): Interval => ({
+export const intersect = (left: Interval, right: Interval): Interval => ({
   lower: laterBound(left.lower, right.lower),
   upper: earlierBound(left.upper, right.upper),
 })
-const isEmpty = (interval: Interval) => {
+export const isEmpty = (interval: Interval) => {
   if (!interval.lower || !interval.upper) return false
   return (
     interval.lower.value > interval.upper.value ||
@@ -72,26 +81,6 @@ const isEmpty = (interval: Interval) => {
       (!interval.lower.inclusive || !interval.upper.inclusive))
   )
 }
-const isExactly = (interval: Interval, value: bigint) =>
-  interval.lower?.value === value &&
-  interval.lower.inclusive &&
-  interval.upper?.value === value &&
-  interval.upper.inclusive
-const minimumIsAbove = (interval: Interval, value: bigint) =>
-  Boolean(
-    interval.lower &&
-      (interval.lower.value > value ||
-        (interval.lower.value === value && !interval.lower.inclusive)),
-  )
-const minimumIsAtLeast = (interval: Interval, value: bigint) =>
-  Boolean(interval.lower && interval.lower.value >= value)
-const maximumIsBelow = (interval: Interval, value: bigint) =>
-  Boolean(
-    interval.upper &&
-      (interval.upper.value < value ||
-        (interval.upper.value === value && !interval.upper.inclusive)),
-  )
-const isBounded = (interval: Interval) => Boolean(interval.lower && interval.upper)
 const domainFor = (metric: RuleMetricKey): Interval => {
   if (metric === 'ACTIVITY_COMPLETION_PERCENT' || metric === 'BENEFICIARY_FOLLOW_UP_PERCENT')
     return percentage
@@ -106,162 +95,173 @@ const domainFor = (metric: RuleMetricKey): Interval => {
     return nonNegative
   return {}
 }
-const supported = (severity: SuggestedLevel, reason: string): SuggestedSeverity => ({
-  status: 'SUGGESTED',
-  severity,
-  reason,
+const ALL = [0, 1, 2]
+const SHARE_METRICS: readonly RuleMetricKey[] = [
+  'PROJECT_OVERDUE_DAYS',
+  'ACTIVITY_OVERDUE_DAYS',
+  'ACTIVITY_OVERDUE_COUNT',
+]
+const reach = (ranks: number[], dates = false, need?: SeverityMissing): Reach => ({
+  ranks: new Set(ranks),
+  dates,
+  needs: new Set(need ? [need] : []),
 })
-const needsJudgment = (reason: string): SuggestedSeverity => ({
-  status: 'NEEDS_JUDGMENT',
-  severity: null,
-  reason,
-})
-const humanJudgmentReason = (metric: RuleMetricKey) => {
-  if (metric === 'PROJECT_TIMELINE_ELAPSED_PERCENT')
-    return 'Project timeline elapsed measures time, not work completed. It does not receive an automatic severity suggestion; choose severity using delivery context.'
-  if (metric === 'INDICATOR_CURRENT_VALUE')
-    return 'Current indicator value needs its measurement unit, target, and direction to judge urgency. It does not receive an automatic severity suggestion.'
-  return null
+/** Bands of actual values for Low, Medium and High when a higher value is worse. */
+const rising = (low: bigint, medium: bigint): Interval[] => [
+  { upper: { value: low, inclusive: true } },
+  { lower: { value: low, inclusive: false }, upper: { value: medium, inclusive: true } },
+  { lower: { value: medium, inclusive: false } },
+]
+/** Bands of actual values for Low, Medium and High when a lower value is worse. */
+const falling = (low: bigint, medium: bigint): Interval[] => [
+  { lower: { value: low, inclusive: true } },
+  { lower: { value: medium, inclusive: true }, upper: { value: low, inclusive: false } },
+  { upper: { value: medium, inclusive: false } },
+]
+const ranksIn = (interval: Interval, bands: Interval[]) =>
+  bands.flatMap((band, rank) => (isEmpty(intersect(interval, band)) ? [] : [rank]))
+const expectation = (value?: string | null) => {
+  try {
+    return value?.trim() ? scaledDecimal(value.trim()) : null
+  } catch {
+    return null
+  }
 }
-const mixedReason = (metric: string) =>
-  `${metricLabel(metric)} spans values with different interpretations. Narrow the comparison or choose severity using your judgment.`
-const suggestLeafSeverity = (leaf: Leaf): SuggestedSeverity => {
-  const humanReason = humanJudgmentReason(leaf.metric)
-  if (humanReason) return needsJudgment(humanReason)
-  const interval = intersect(matchingInterval(leaf), domainFor(leaf.metric))
-  if (isEmpty(interval))
-    return needsJudgment(
-      `${metricLabel(leaf.metric)} cannot match a valid value with this comparison. Enter a valid threshold before using a suggestion.`,
-    )
-  if (leaf.metric === 'PROJECT_OVERDUE_DAYS') {
-    if (minimumIsAbove(interval, zero))
-      return supported(
-        'HIGH',
-        'Project: Days past project end can only match a passed project end date.',
-      )
-    if (isExactly(interval, zero))
-      return supported(
-        'LOW',
-        'Project: Days past project end is zero, an informational no-overdue condition.',
-      )
-    return needsJudgment(mixedReason(leaf.metric))
+const rangeOf = (leaf: Leaf): Interval => {
+  try {
+    return intersect(matchingInterval(leaf), domainFor(leaf.metric))
+  } catch {
+    return domainFor(leaf.metric)
   }
-  if (leaf.metric === 'PROJECT_REMAINING_DAYS') {
-    if (maximumIsBelow(interval, zero))
-      return supported('HIGH', 'Project: Days until project end can only match a passed end date.')
-    if (minimumIsAtLeast(interval, zero) && isBounded(interval))
-      return supported(
-        'MEDIUM',
-        'Project: Days until project end stays within the configured upcoming window.',
-      )
-    return needsJudgment(
-      'Days until project end spans upcoming and passed dates, or has no bounded upcoming window. Narrow the comparison or choose severity using delivery context.',
-    )
+}
+/** Metric and record a condition compares, or null while its record is still unchosen. */
+const bindingKey = (leaf: Leaf) =>
+  recordBound(leaf.metric) && !leaf.indicatorId && !leaf.activityId
+    ? null
+    : `${leaf.metric}:${leaf.indicatorId ?? ''}:${leaf.activityId ?? ''}`
+const leafReach = (leaf: Leaf, expectations: RuleExpectations, range = rangeOf(leaf)): Reach => {
+  if (isEmpty(range)) return reach([])
+  const metric = leaf.metric
+  if (metric === 'PROJECT_TIMELINE_ELAPSED_PERCENT') return reach([-1])
+  if (metric === 'BUDGET_UTILIZATION_PERCENT') {
+    const [within, medium] = SEVERITY_BOUNDS.BUDGET_PERCENT
+    return reach(ranksIn(range, rising(within * scale, medium * scale)).map((rank) => rank || -1))
   }
-  if (leaf.metric === 'INDICATOR_PROGRESS_PERCENT') {
-    if (minimumIsAtLeast(interval, hundred))
-      return supported(
-        'LOW',
-        'Indicator: Progress toward indicator target can only match target attainment.',
-      )
-    if (maximumIsBelow(interval, hundred))
-      return supported(
-        'MEDIUM',
-        'Indicator: Progress toward indicator target can only match under-target progress; timing is needed to judge whether it is late.',
-      )
-    return needsJudgment(mixedReason(leaf.metric))
+  if (metric === 'BENEFICIARY_FOLLOW_UP_PERCENT') {
+    const manageable = expectation(expectations.manageableFollowUpPercent)
+    if (manageable === null) return reach(ALL, false, 'MANAGEABLE_FOLLOW_UP_LEVEL')
+    const [low, medium] = SEVERITY_BOUNDS.POINTS_ABOVE
+    return reach(ranksIn(range, rising(manageable + low * scale, manageable + medium * scale)))
   }
-  if (leaf.metric === 'ACTIVITY_COMPLETION_PERCENT') {
-    if (isExactly(interval, hundred))
-      return supported(
-        'LOW',
-        'Activity: Activities completed can only match the completion milestone.',
-      )
-    if (maximumIsBelow(interval, hundred))
-      return supported(
-        'MEDIUM',
-        'Activity: Activities completed can only match partial completion, which is not proof of delay.',
-      )
-    return needsJudgment(mixedReason(leaf.metric))
+  if (metric === 'SURVEY_MEAN_IMPROVEMENT_POINTS') {
+    const expected = expectation(expectations.expectedScoreImprovement)
+    if (expected === null) return reach(ALL, false, 'EXPECTED_SCORE_IMPROVEMENT')
+    const [low, medium] = SEVERITY_BOUNDS.POINTS_BELOW
+    return reach(ranksIn(range, falling(expected - low * scale, expected - medium * scale)))
   }
-  if (leaf.metric === 'ACTIVITY_OVERDUE_COUNT' || leaf.metric === 'ACTIVITY_OVERDUE_DAYS') {
-    if (minimumIsAbove(interval, zero))
-      return supported(
-        'HIGH',
-        `Activity: ${metricLabel(leaf.metric)} can only match unfinished overdue work.`,
-      )
-    if (isExactly(interval, zero))
-      return supported(
-        'LOW',
-        `Activity: ${metricLabel(leaf.metric)} is zero, an informational no-overdue condition.`,
-      )
-    return needsJudgment(mixedReason(leaf.metric))
+  if (metric === 'PROJECT_REMAINING_DAYS') {
+    const late = !isEmpty(intersect(range, { upper: { value: zero, inclusive: false } }))
+    const early = !isEmpty(intersect(range, { lower: { value: zero, inclusive: true } }))
+    return reach([...(early ? [-1] : []), ...(late ? ALL : [])], late)
   }
-  if (leaf.metric === 'BUDGET_UTILIZATION_PERCENT') {
-    if (minimumIsAbove(interval, hundred))
-      return supported(
-        'HIGH',
-        'Budget: Budget used above 100% flags spending beyond the planned allocation.',
-      )
-    return needsJudgment(
-      'Budget used at this level can represent normal planned spending or an overrun. Choose severity using delivery and timing context.',
-    )
+  if (SHARE_METRICS.includes(metric))
+    return reach(range.upper && range.upper.value <= zero ? [0] : ALL, true)
+  // Indicator progress is expected at 100% from its target date and needs context before it.
+  if (metric === 'INDICATOR_PROGRESS_PERCENT') {
+    const [low, medium] = SEVERITY_BOUNDS.BEHIND_PERCENT
+    const bands = falling(hundred - low * scale, hundred - medium * scale)
+    return reach(ranksIn(range, bands), true, 'EXPECTED_PROGRESS_FOR_DATE')
   }
-  if (leaf.metric === 'BENEFICIARY_FOLLOW_UP_PERCENT') {
-    if (minimumIsAbove(interval, zero))
-      return supported(
-        'MEDIUM',
-        'Beneficiary Group: Follow-up needs are present in the aggregate and need review.',
-      )
-    if (isExactly(interval, zero))
-      return supported(
-        'LOW',
-        'Beneficiary Group: No follow-up need is an informational aggregate condition.',
-      )
-    return needsJudgment(mixedReason(leaf.metric))
+  // Completion at or above 100% is never behind any expectation.
+  const ahead = metric === 'ACTIVITY_COMPLETION_PERCENT' && (range.lower?.value ?? -1n) >= hundred
+  return reach(ahead ? [0] : ALL, true)
+}
+/** AND reaches levels at or above every child minimum; OR reaches any child level. */
+const nodeReach = (node: RuleNode, expectations: RuleExpectations): Reach => {
+  if (node.kind === 'CONDITION') return leafReach(node, expectations)
+  const children: Reach[] = []
+  // An AND group narrows one metric and record to the overlap of its comparisons.
+  const merged = new Map<string, { leaf: Leaf; range: Interval }>()
+  for (const child of node.children) {
+    const key = node.mode === 'AND' && child.kind === 'CONDITION' ? bindingKey(child) : null
+    if (key === null || child.kind !== 'CONDITION') {
+      children.push(nodeReach(child, expectations))
+      continue
+    }
+    const previous = merged.get(key)?.range
+    merged.set(key, {
+      leaf: child,
+      range: previous ? intersect(previous, rangeOf(child)) : rangeOf(child),
+    })
   }
-  if (maximumIsBelow(interval, zero))
-    return supported(
-      'MEDIUM',
-      'Assessment: Average assessment score change can only match an aggregate decline.',
-    )
-  if (minimumIsAbove(interval, zero))
-    return supported(
-      'LOW',
-      'Assessment: Average assessment score change can only match an aggregate improvement.',
-    )
-  return needsJudgment(mixedReason(leaf.metric))
+  for (const { leaf, range } of merged.values()) children.push(leafReach(leaf, expectations, range))
+  const floor =
+    node.mode === 'AND' ? Math.max(...children.map((child) => Math.min(...child.ranks))) : -1
+  return {
+    ranks: new Set(children.flatMap((child) => [...child.ranks]).filter((rank) => rank >= floor)),
+    dates: children.some((child) => child.dates),
+    needs: new Set(children.flatMap((child) => [...child.needs])),
+  }
+}
+/** True when an AND group compares one metric and binding in ranges that never overlap. */
+const contradicts = (node: RuleNode): boolean => {
+  if (node.kind === 'CONDITION') return false
+  if (node.children.some(contradicts)) return true
+  if (node.mode !== 'AND') return false
+  const ranges = new Map<string, Interval>()
+  for (const child of node.children) {
+    const key = child.kind === 'CONDITION' ? bindingKey(child) : null
+    if (key === null || child.kind !== 'CONDITION') continue
+    let range: Interval
+    try {
+      range = matchingInterval(child)
+    } catch {
+      continue
+    }
+    const previous = ranges.get(key)
+    const next = previous ? intersect(previous, range) : range
+    if (isEmpty(next)) return true
+    ranges.set(key, next)
+  }
+  return false
 }
 /**
- * A UI authoring aid based solely on the typed condition values. It deliberately
- * cannot infer a live risk, and Critical remains an explicit human decision.
+ * Levels the rule could reach when it fires, from the condition ranges and stored
+ * expectations; the official level is classified from actual figures server-side.
  */
-export const suggestSeverity = (conditions: RuleNode): SuggestedSeverity => {
-  let parsed: RuleNode
-  try {
-    parsed = parseRuleTree(conditions)
-  } catch {
-    const humanReason = leaves(conditions)
-      .map((leaf) => humanJudgmentReason(leaf.metric))
-      .find((reason) => reason !== null)
-    if (humanReason) return needsJudgment(humanReason)
-    return needsJudgment(
-      'Enter a valid threshold and complete every condition before using a suggestion.',
-    )
+export const previewSeverity = (
+  conditions: RuleNode,
+  expectations: RuleExpectations,
+): SeverityPreview => {
+  const result = nodeReach(conditions, expectations)
+  const levels = severityLevels.filter((_, rank) => result.ranks.has(rank))
+  const explains = result.ranks.has(-1)
+  return {
+    levels,
+    dependsOnDates: result.dates,
+    explanatoryOnly: explains && levels.length === 0,
+    needs: [...result.needs, ...(explains ? (['DELIVERY_EXPECTATION'] as const) : [])],
+    contradiction: contradicts(conditions) ? 'These conditions cannot happen together.' : null,
   }
-  const results = leaves(parsed).map(suggestLeafSeverity)
-  const unavailable = results.find((result) => result.status === 'NEEDS_JUDGMENT')
-  if (unavailable) return unavailable
-  const priorities: SuggestedLevel[] = ['HIGH', 'MEDIUM', 'LOW']
-  const severity = priorities.find((level) =>
-    results.some((result) => result.status === 'SUGGESTED' && result.severity === level),
-  )
-  return severity
-    ? supported(
-        severity,
-        `Every configured condition supports a ${severity.toLowerCase()} priority.`,
-      )
-    : needsJudgment('Complete every condition before using a suggestion.')
+}
+/** Expectations for the metrics the rule uses; blank or unused fields save as null. */
+export const relevantExpectations = (
+  conditions: RuleNode,
+  expectations: RuleExpectations,
+): Required<RuleExpectations> => {
+  const metrics = new Set(leaves(conditions).map((leaf) => leaf.metric))
+  const keep = (metric: RuleMetricKey, value?: string | null) =>
+    metrics.has(metric) && value?.trim() ? value.trim() : null
+  return {
+    expectedScoreImprovement: keep(
+      'SURVEY_MEAN_IMPROVEMENT_POINTS',
+      expectations.expectedScoreImprovement,
+    ),
+    manageableFollowUpPercent: keep(
+      'BENEFICIARY_FOLLOW_UP_PERCENT',
+      expectations.manageableFollowUpPercent,
+    ),
+  }
 }
 const recommendationPrefills: Record<MetricScope, RecommendationPrefill> = {
   Project: {

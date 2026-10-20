@@ -48,6 +48,7 @@
 | LOG | [log-pathways.md](log-pathways.md) | - | Control; append-only |
 | Deferred features register | [deferred-features.md](deferred-features.md) | - | Control; updated alongside each hide/defer decision |
 | Activity log | [activity-log.md](activity-log.md) | - | Working; dated session activity notes |
+| Severity guide | [severity-guide-v0-2.md](severity-guide-v0-2.md) | 0.2 | Draft; manager review required |
 
 ### 1.3 RFCs
 
@@ -69,6 +70,7 @@
 | Defense demo reseed | [runbook-defense-demo.md](runbook-defense-demo.md) | Working |
 | Documentation reconciliation | [runbook-doc-reconciliation.md](runbook-doc-reconciliation.md) | Working |
 | Rule creation test script | [runbook-rule-creation-test.md](runbook-rule-creation-test.md) | Working |
+| Severity panel demo | [runbook-severity-panel-demo.md](runbook-severity-panel-demo.md) | Working; not yet rehearsed end to end |
 
 ### 1.5 Governance Templates and Audits
 
@@ -128,6 +130,8 @@ Newest first. Core P1 supporting contract reconciliation is approved for local i
 
 | CR ID | Date | Summary | Status |
 |---|---|---|---|
+| [cr-pathways-assessment-score-entry](cr-pathways-assessment-score-entry.md) | 2026-10-19 | Manual pre and post test score entry from the journey-stage assessment icon: `assessments.record` permission, restrictive INSERT policy and definer provenance guard (migration 0071), one POST endpoint, Record score form | Applied locally 2026-10-20; SAD sign-off passed; no release or hosted change |
+| [cr-pathways-severity-classification](cr-pathways-severity-classification.md) | 2026-10-19 | Suggested alert severity with basis from actual figures, per Severity Guide v0.2 (migration 0072), with the panel demo runbook | Applied locally 2026-10-20; SAD sign-off passed; no release or hosted change |
 | [cr-pathways-page-load-performance](cr-pathways-page-load-performance.md) | 2026-10-19 | Page load performance: Server-Timing auth and total header, summary freshness allowlist for non-sensitive reads, one shared project read, progressive section render and prefetch on tab and card intent; bundled endpoints not taken | Applied on `feature/load-performance`; staging re-measure pending |
 | [cr-pathways-activity-escalation](cr-pathways-activity-escalation.md) | 2026-10-19 | Tiered activity escalation: raise, Project Manager resolve or forward, Program Manager resolve; Grant Manager read-only; closes RBAC v4 row 53 (migration 0070) | Applied 2026-10-19 (0070 on devV2); manual test pending |
 | [cr-pathways-rule-severity-guidance](cr-pathways-rule-severity-guidance.md) | 2026-10-16 | Conservative metric-aware rule severity authoring guidance: supported Low/Medium/High or Needs your judgment, without live data, API/runtime changes, or automatic Critical | Applied locally 2026-10-16; final SAD sign-off passed; no release or hosted change |

@@ -2,6 +2,7 @@ import { z } from 'zod'
 import {
   MAX_CONDITIONS,
   RULE_CONTRACT_VERSION,
+  conditionIdSchema,
   conditionSchema,
   decimalSchema,
   metricObservationSchema,
@@ -9,10 +10,13 @@ import {
   parseRuleTree,
   recommendationSchema,
   ruleDefinitionSchema,
+  ruleExpectationsSchema,
   ruleMetricCellSchema,
   ruleMetrics,
+  ruleSeveritySchema,
   uuidSchema,
 } from './rule-contract'
+import { SEVERITY_CRITERIA_VERSION, type SeverityBasis } from './severity/severity-criteria'
 
 export const alertStatuses = [
   'NEW',
@@ -46,7 +50,8 @@ const tree = z.unknown().transform((value, ctx) => {
 })
 const content = {
   name: z.string().trim().min(1).max(160),
-  severity: z.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']),
+  severity: ruleSeveritySchema,
+  expectations: ruleExpectationsSchema.optional(),
   conditions: tree,
   recommendations: z
     .array(recommendationSchema)
@@ -139,6 +144,64 @@ export const historyListSchema = z
 // Every output is an explicit allowlist. Notes and note-presence metadata are
 // excluded even for Admin and committed retries, matching the approved CR.
 const instant = z.string().datetime({ offset: true })
+// Stored rules and alerts may still hold the levels authors chose before severity-guide-v0.2.
+const storedSeverity = z.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']).nullable()
+const severityLevel = z.enum(['LOW', 'MEDIUM', 'HIGH']).nullable()
+const severityMissing = z.enum([
+  'EXPECTED_PROGRESS_FOR_DATE',
+  'INDICATOR_BASELINE_TARGET_DIRECTION',
+  'ACTIVITY_PLANNED_END_DATES',
+  'ACTIVITY_TOTAL',
+  'PROJECT_DATES',
+  'SAME_DAY_PROJECT',
+  'ACTIVITY_DATES',
+  'SAME_DAY_ACTIVITY',
+  'EXPECTED_SCORE_IMPROVEMENT',
+  'MANAGEABLE_FOLLOW_UP_LEVEL',
+  'DELIVERY_EXPECTATION',
+])
+export const severityBasisSchema: z.ZodType<SeverityBasis> = z
+  .object({
+    criteriaVersion: z.literal(SEVERITY_CRITERIA_VERSION),
+    status: z.enum(['CLASSIFIED', 'CONTEXT_REQUIRED']),
+    level: severityLevel,
+    supportedLevel: severityLevel,
+    decisiveConditionId: conditionIdSchema.nullable(),
+    combination: z.literal('HIGH_SPENDING_LOW_DELIVERY').nullable(),
+    manualCritical: z.boolean(),
+    conditions: z
+      .array(
+        z
+          .object({
+            conditionId: conditionIdSchema,
+            metric: z.enum(ruleMetrics),
+            outcome: z.enum(['LEVEL', 'EXPLANATORY', 'CONTEXT_REQUIRED']),
+            level: severityLevel,
+            measure: z
+              .object({
+                kind: z.enum([
+                  'BEHIND_PERCENT',
+                  'DELAY_SHARE',
+                  'OVERDUE_SHARE',
+                  'BUDGET_PERCENT',
+                  'POINTS_ABOVE',
+                  'POINTS_BELOW',
+                ]),
+                actual: decimalSchema,
+                expected: decimalSchema.nullable(),
+                value: decimalSchema,
+              })
+              .strict()
+              .nullable(),
+            missing: severityMissing.nullable(),
+          })
+          .strict(),
+      )
+      .max(MAX_CONDITIONS),
+    missing: z.array(severityMissing).max(severityMissing.options.length),
+    unchecked: z.array(conditionIdSchema).max(MAX_CONDITIONS),
+  })
+  .strict()
 const alertEvidenceSchema = z
   .object({
     conditionId: z.string().regex(/^[A-Za-z][A-Za-z0-9_-]{0,63}$/),
@@ -160,6 +223,7 @@ export const ruleOutputSchema = z
     code: z.string().max(80),
     version,
     ...content,
+    severity: storedSeverity,
     status: z.enum(['DRAFT', 'ACTIVE', 'ARCHIVED']),
     activatedAt: instant.nullable(),
     archivedAt: instant.nullable(),
@@ -173,7 +237,17 @@ export const alertOutputSchema = z
     ruleVersion: version,
     title: z.string().max(160),
     explanation: z.string().max(4000),
-    severity: z.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']),
+    severity: storedSeverity,
+    severityBasis: severityBasisSchema.nullable(),
+    severityChange: z
+      .object({
+        from: storedSeverity,
+        to: storedSeverity,
+        at: instant,
+        previous: severityBasisSchema,
+      })
+      .strict()
+      .nullable(),
     lifecycle: z.enum(alertStatuses),
     revision: revisionSchema,
     evaluatedAt: instant,
@@ -379,5 +453,10 @@ export const dryRunOutputSchema = z
     asOf: instant,
     result: dryResult,
     evidence: boundedDryEvidenceSchema,
+    severityBasis: severityBasisSchema.nullable(),
   })
   .strict()
+  .refine(
+    (output) => output.result === 'TRUE' || output.severityBasis === null,
+    'Only a matched test result has a severity basis.',
+  )

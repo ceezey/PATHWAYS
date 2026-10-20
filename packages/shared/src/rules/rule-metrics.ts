@@ -47,6 +47,8 @@ function safeCell(input: unknown): Cell {
     )
   return numericMetric(cell.value)
 }
+const dateInput = z.string().max(10).nullable()
+const validDate = (value: string | null) => (value !== null && isCalendarDate(value) ? value : null)
 const indicatorInputSchema = z
   .object({
     scope: scopeSchema,
@@ -67,6 +69,8 @@ const indicatorInputSchema = z
         direction: z.enum(['HIGHER_IS_BETTER', 'LOWER_IS_BETTER', 'DESCRIPTIVE']).nullable(),
         baseline: decimalSchema.nullable(),
         target: decimalSchema.nullable(),
+        targetDate: dateInput.optional(),
+        periodEnd: dateInput.optional(),
         current: z.unknown(),
       })
       .strict(),
@@ -125,6 +129,12 @@ export function indicatorObservation(input: unknown): MetricObservation {
             baseline: indicator.baseline,
             target: indicator.target,
             current: current.value,
+            ...(indicator.targetDate === undefined
+              ? {}
+              : { targetDate: validDate(indicator.targetDate) }),
+            ...(indicator.periodEnd === undefined
+              ? {}
+              : { periodEnd: validDate(indicator.periodEnd) }),
           },
     source:
       cell.value === null
@@ -138,7 +148,6 @@ export function indicatorObservation(input: unknown): MetricObservation {
   })
 }
 
-const dateInput = z.string().max(10).nullable()
 function calendarDays(start: string, end: string) {
   return (Date.parse(`${end}T00:00:00Z`) - Date.parse(`${start}T00:00:00Z`)) / 86400000
 }
@@ -227,8 +236,8 @@ export function timelineObservation(input: unknown): MetricObservation {
       projectStatus,
       projectArchived,
       reportingDate,
-      startDate: startDate !== null && isCalendarDate(startDate) ? startDate : null,
-      endDate: endDate !== null && isCalendarDate(endDate) ? endDate : null,
+      startDate: validDate(startDate),
+      endDate: validDate(endDate),
     },
     source: { kind: 'PROJECT', recordId: scope.projectId, revision: sourceRevision },
   })
@@ -242,6 +251,7 @@ const activitySchema = z
     revision,
     status: z.enum(['NOT_STARTED', 'IN_PROGRESS', 'FOR_REVIEW', 'COMPLETED', 'CANCELLED']),
     archived: z.boolean(),
+    plannedStartDate: dateInput.optional(),
     plannedEndDate: dateInput,
   })
   .strict()
@@ -343,10 +353,10 @@ export function activityObservation(input: unknown): MetricObservation {
                 id: member.id,
                 revision: member.revision,
                 status: member.status,
-                plannedEndDate:
-                  member.plannedEndDate !== null && isCalendarDate(member.plannedEndDate)
-                    ? member.plannedEndDate
-                    : null,
+                ...(sourceActivity && member.plannedStartDate !== undefined
+                  ? { plannedStartDate: validDate(member.plannedStartDate) }
+                  : {}),
+                plannedEndDate: validDate(member.plannedEndDate),
               }))
               .sort((left, right) => left.id.localeCompare(right.id)),
           },

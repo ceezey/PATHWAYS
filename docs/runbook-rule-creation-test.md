@@ -1,7 +1,7 @@
 # Test Script: Rule Creation
 
 **Status:** Working
-**Last reconciled:** 2026-10-15
+**Last reconciled:** 2026-10-20
 **Covers:** `/alerts/repository` Create rule tab, `RuleDrawer` builder, `F10` rule contract
 
 Manual script and field reference for creating an alert or recommendation rule. Values below are taken from the shipped contract (`packages/shared/src/rules/rule-contract.ts`, `apps/web/src/features/rules/rules.utils.ts`), not from the UI text, so they stay accurate when copy changes. Pair with the happy, sad and abuse path requirement in [QAD](qad-pathways.md) section 1.
@@ -53,7 +53,9 @@ The builder shows a definition, monitoring level and clearly labelled worked exa
 | Match | All conditions (AND) or Any condition (OR); appears only from the second condition |
 | Condition | below, at most, equal to, at least, above, between |
 | Upper threshold | Only with between, and must be at or above the lower threshold |
-| Severity | Critical, High, Medium, Low; the condition-only aid uses the configured family, metric, operator and threshold range, never live values. It shows a supported Low, Medium or High only when the whole valid matching interval has one interpretation; otherwise it says **Needs your judgment**, explains why, and disables Use suggestion. It never selects Critical or overwrites a manual choice. |
+| Severity | No Low/Medium/High picker: the system suggests the level from actual figures when an alert fires ([cr-pathways-severity-classification](cr-pathways-severity-classification.md)). Step 3 shows a preview of possible levels and a **Mark as Critical (manual judgment)** checkbox; saved severity is null, or CRITICAL when ticked. |
+| Expected score improvement | Optional, shown only with Average assessment score change; decimal 0 to 100 points |
+| Manageable follow-up level | Optional, shown only with Beneficiaries needing follow-up; decimal 0 to 100 percent |
 | Recommendations | 1 to 10, each needs a title and a suggested response; a new rule starts with family-specific editable copy unless the administrator has edited or reused a recommendation |
 | Conditions per rule | 32 |
 
@@ -67,11 +69,11 @@ The builder shows a definition, monitoring level and clearly labelled worked exa
 6. Confirm Rule scope shows your project.
 7. Tick **Activity** under Applies To.
 8. Step 2: set Metric to `Number of overdue activities`, Condition to `At least`, Threshold to `2`. Expect: Unit reads `Count`, the guidance says it counts unfinished activities past planned end dates, and Rule Category in step 1 reads `Delivery`.
-9. Step 3: expect **Suggested severity: High** and a reason that the overdue condition can only match unfinished overdue work. Choose **Use suggestion**. Expect: the High tile takes the warning tone. Choose Critical, change the threshold, and confirm Critical remains selected until **Use suggestion** is pressed. Change the condition to Budget used at least 80%; expect **Needs your judgment**, a visible delivery/timing-context explanation, and a disabled Use suggestion button. Change it to Budget used above 100%; expect **Suggested severity: High**.
+9. Step 3: expect `Possible levels: Low, Medium, or High. Critical is set manually.` and a line that the level depends on planned dates and totals known only when the alert fires. Change the condition to Budget used above 110; expect `Possible levels: High. Critical is set manually.` Change it to Beneficiaries needing follow-up above 30 with Manageable follow-up level `10`; expect `Possible levels: High. Critical is set manually.` Add a second condition on the same metric, below 20, in the same All group; expect `These conditions cannot happen together.` Remove it, restore the overdue condition, and leave **Mark as Critical (manual judgment)** unticked.
 10. Step 4: expect title `Review activity progress` and response `Check the activity status and recorded evidence with assigned staff, then agree on a follow-up.` Replace both with your own text.
-11. Check the preview column: the sentence reads `Raise a High alert when Number of overdue activities is at least 2. Human review required.`, and the sample below it shows the name, the severity tone, the condition and your recommendation.
-12. Press **Save Rule**. Expect: the Rule repository tab returns, `Rule changes saved.` appears, and the rule is listed as **Draft**.
-13. Open **Manage Rules**, find the rule, press **Test**, then **Activate**. Expect: status becomes **Active**.
+11. Check the preview column: the sentence reads `Raise an alert when Number of overdue activities is at least 2. Human review required.` and the tile shows `Severity from actual figures`. Tick Mark as Critical; expect `Raise a Critical alert when ...` and the tile `Critical`. Untick it again.
+12. Press **Save Rule**. Expect: the Rule repository tab returns, `Rule created as a draft. Activate it to start checking project data.` appears, and the rule is listed as **Draft**. Saving changes to an existing rule shows `Draft saved.` instead.
+13. Open **Manage Rules**, find the rule, press **Test**, enter test values that match and press **Run condition test**. Expect: **Triggered** and a **Sample result** card with the suggested level and its reason (for an assessment rule with Expected score improvement 10, five pairs and mean 2: `Suggested severity: Medium.` and `Expected +10 points, actual +2, 8 points below. (Severity Guide v0.2, 5.11)`). Then **Activate**. Expect: status becomes **Active**.
 
 ## 5. Sad paths
 

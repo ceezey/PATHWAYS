@@ -44,8 +44,15 @@ export function normalizeMetricDecimal(value: string, kind: NumericKind): string
   return decimalString(scaled)
 }
 
+/** Scaled decimal with exactly four fractional digits, matching numeric(18,4) text. */
+export function fixedDecimal(value: bigint): string {
+  const absolute = value < 0n ? -value : value
+  const fraction = (absolute % scale).toString().padStart(4, '0')
+  return `${value < 0n ? '-' : ''}${absolute / scale}.${fraction}`
+}
+
 /** Round once, to four places, half away from zero. Denominator must be non-zero. */
-function divideRounded(numerator: bigint, denominator: bigint): bigint {
+export function divideRounded(numerator: bigint, denominator: bigint): bigint {
   if (denominator === 0n) throw new Error('Zero denominator.')
   const negative = numerator < 0n !== denominator < 0n
   const n = numerator < 0n ? -numerator : numerator

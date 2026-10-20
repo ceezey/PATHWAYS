@@ -5,7 +5,8 @@ import { useAuthorizedRead } from '@/hooks/use-authorized-read'
 import { rulesHumanClient } from '@/lib/api/rules'
 import Link from 'next/link'
 import { statusLabel } from '../rules.copy'
-import { basisLine, severityTone, titleCase } from '../rules.utils'
+import { basisLine } from '../rules.utils'
+import { AlertSeverityBadge } from './alert-severity-badge'
 
 /** Names the alert a recommendation came from, with its severity, status and measured value. */
 export function LinkedAlertSummary({ alertId, projectId }: { alertId: string; projectId: string }) {
@@ -33,7 +34,7 @@ export function LinkedAlertSummary({ alertId, projectId }: { alertId: string; pr
         {alert.title}
       </Link>
       <div className="flex flex-wrap gap-2">
-        <StatusBadge tone={severityTone(alert.severity)}>{titleCase(alert.severity)}</StatusBadge>
+        <AlertSeverityBadge severity={alert.severity} basis={alert.severityBasis} />
         <StatusBadge tone="neutral">{statusLabel(alert.lifecycle)}</StatusBadge>
       </div>
       <p className="whitespace-pre-wrap text-sm">{alert.explanation}</p>

@@ -9,7 +9,15 @@ import { type SensitiveDraftOwner, useSensitiveDraftOwner } from '@/lib/auth/sen
 import { type HumanRule, draftRuleSchema } from '@pathways/shared'
 import { Plus } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
-import { type Rec, appendRec, conditionSummary, newRec, titleCase } from '../rules.utils'
+import {
+  type Rec,
+  appendRec,
+  conditionSummary,
+  manualSeverity,
+  newRec,
+  ruleSeverityText,
+  titleCase,
+} from '../rules.utils'
 import { RecommendationFields } from './recommendation-fields'
 import type { RuleOutcome } from './rule-drawer'
 import { RuleStepCard } from './rule-step-card'
@@ -101,7 +109,8 @@ export function RecommendationRuleDrawer({
       return setNotice('Add at least one recommendation, each with a title and suggested response.')
     const parsed = draftRuleSchema.safeParse({
       name: selectedAlert.name,
-      severity: selectedAlert.severity,
+      severity: manualSeverity(selectedAlert.severity),
+      expectations: selectedAlert.expectations,
       conditions: selectedAlert.conditions,
       recommendations: recs,
       expectedVersion: selectedAlert.version,
@@ -158,7 +167,7 @@ export function RecommendationRuleDrawer({
                   <span className="mt-1 grid gap-1 text-sm text-muted-foreground sm:grid-cols-2">
                     <span>Project: {projectLabel(selectedAlert)}</span>
                     <span>Condition: {conditionSummary(selectedAlert.conditions)}</span>
-                    <span>Severity: {titleCase(selectedAlert.severity)}</span>
+                    <span>Severity: {ruleSeverityText(selectedAlert.severity)}</span>
                     <span>Status: {titleCase(selectedAlert.status)}</span>
                   </span>
                 </output>
@@ -195,7 +204,7 @@ export function RecommendationRuleDrawer({
                             <span className="mt-1 grid gap-1 text-xs text-muted-foreground sm:grid-cols-2">
                               <span>Project: {projectLabel(item)}</span>
                               <span>Condition: {conditionSummary(item.conditions)}</span>
-                              <span>Severity: {titleCase(item.severity)}</span>
+                              <span>Severity: {ruleSeverityText(item.severity)}</span>
                               <span>Status: {titleCase(item.status)}</span>
                             </span>
                           </span>

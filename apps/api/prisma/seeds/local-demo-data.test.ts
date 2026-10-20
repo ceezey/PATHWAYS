@@ -315,25 +315,25 @@ describe('defense dataset', () => {
   it('adds the budget, follow-up, survey and overdue rules', () => {
     const rule = (code: string) => demoRules.find((r) => r.code === code)
     const first = (code: string) => rule(code)?.conditions[0]
-    expect(rule('BUDGET_NEAR_EXHAUSTED')).toMatchObject({ project: 'CRL', severity: 'HIGH' })
+    expect(rule('BUDGET_NEAR_EXHAUSTED')).toMatchObject({ project: 'CRL', severity: null })
     expect(first('BUDGET_NEAR_EXHAUSTED')).toMatchObject({
       metric: 'BUDGET_UTILIZATION_PERCENT',
       operator: 'GTE',
       threshold: '90',
     })
-    expect(rule('FOLLOW_UP_GAP')).toMatchObject({ project: 'CRL', severity: 'MEDIUM' })
+    expect(rule('FOLLOW_UP_GAP')).toMatchObject({ project: 'CRL', severity: null })
     expect(first('FOLLOW_UP_GAP')).toMatchObject({
       metric: 'BENEFICIARY_FOLLOW_UP_PERCENT',
       operator: 'GTE',
       threshold: '25',
     })
-    expect(rule('LOW_SURVEY_IMPROVEMENT')).toMatchObject({ project: 'WSH', severity: 'MEDIUM' })
+    expect(rule('LOW_SURVEY_IMPROVEMENT')).toMatchObject({ project: 'WSH', severity: null })
     expect(first('LOW_SURVEY_IMPROVEMENT')).toMatchObject({
       metric: 'SURVEY_MEAN_IMPROVEMENT_POINTS',
       operator: 'LT',
       threshold: '20',
     })
-    expect(rule('ACTIVITY_OVERDUE_ANY')).toMatchObject({ project: 'CRL', severity: 'MEDIUM' })
+    expect(rule('ACTIVITY_OVERDUE_ANY')).toMatchObject({ project: 'CRL', severity: null })
     expect(first('ACTIVITY_OVERDUE_ANY')).toMatchObject({
       metric: 'ACTIVITY_OVERDUE_COUNT',
       operator: 'GTE',

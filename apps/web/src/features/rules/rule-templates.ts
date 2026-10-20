@@ -1,4 +1,4 @@
-import type { HumanRule, RuleNode } from '@pathways/shared'
+import type { RuleNode } from '@pathways/shared'
 
 export type RuleTemplateSpec = {
   key: string
@@ -8,7 +8,7 @@ export type RuleTemplateSpec = {
   build?: () => {
     name: string
     code: string
-    severity: HumanRule['severity']
+    severity: 'CRITICAL' | null
     conditions: RuleNode
     recommendations: { id: string; title: string; text: string }[]
   }
@@ -21,7 +21,7 @@ export const ruleTemplates: RuleTemplateSpec[] = [
     build: () => ({
       name: 'Operations Bottleneck',
       code: 'OPERATIONS_BOTTLENECK',
-      severity: 'HIGH',
+      severity: null,
       conditions: {
         kind: 'GROUP',
         mode: 'AND',

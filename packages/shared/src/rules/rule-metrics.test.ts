@@ -150,6 +150,13 @@ describe('trusted indicator observations', () => {
       numericKind: 'SIGNED_CHANGE',
       direction: 'HIGHER_IS_BETTER',
     })
+    expect(result.calculation).not.toHaveProperty('targetDate')
+    const dated = indicatorObservation({
+      ...context,
+      metric: 'INDICATOR_PROGRESS_PERCENT',
+      indicator: { ...indicator(), targetDate: '2026-02-30', periodEnd: '2026-12-31' },
+    })
+    expect(dated.calculation).toMatchObject({ targetDate: null, periodEnd: '2026-12-31' })
   })
   it('strips suppressed source evidence and withholds malformed measurements', () => {
     const source = {

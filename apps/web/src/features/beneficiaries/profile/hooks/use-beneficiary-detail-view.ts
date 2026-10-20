@@ -27,6 +27,7 @@ export const useBeneficiaryDetailView = ({
   participationForms,
   projectId,
   assessmentsUnavailable,
+  canRecordAssessment,
 }: {
   beneficiary: BeneficiaryRecord
   stages: JourneyStageConfig[]
@@ -37,6 +38,7 @@ export const useBeneficiaryDetailView = ({
   participationForms: DigitalFormDefinition[]
   projectId: string
   assessmentsUnavailable: boolean
+  canRecordAssessment: boolean
 }) => {
   const searchParams = useSearchParams()
   const summary = useMemo(
@@ -119,9 +121,11 @@ export const useBeneficiaryDetailView = ({
   }
   const assessmentButtonTitle = assessmentsUnavailable
     ? 'Assessment results could not be loaded for your current access.'
-    : beneficiary.assessments.length === 0
+    : beneficiary.assessments.length === 0 && !canRecordAssessment
       ? 'No assessments are recorded for this person.'
       : 'View assessment'
+  const assessmentButtonDisabled =
+    assessmentsUnavailable || (beneficiary.assessments.length === 0 && !canRecordAssessment)
   const selectedStageNotes = selectedStage
     ? notes.filter((note) => note.stageId === selectedStage.id)
     : []
@@ -151,6 +155,7 @@ export const useBeneficiaryDetailView = ({
     assessmentChange,
     assessmentStageLabel,
     assessmentButtonTitle,
+    assessmentButtonDisabled,
     selectedStageNotes,
     unlinkedNotes,
     transferDestinationOptions,

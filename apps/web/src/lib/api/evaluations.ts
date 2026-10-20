@@ -1,5 +1,6 @@
 import {
   type CreateEvaluationRequest,
+  type RecordAssessmentRequest,
   type ReturnEvaluationRequest,
   type SaveEvaluationScoresRequest,
   type SignOffEvaluationRequest,
@@ -46,6 +47,15 @@ export const evaluationsClient = {
       `${projectPath(id)}/evaluation/evaluations/${uuid.parse(evaluationId)}/signoff`,
       evaluationDetailResponse.refine((row) => row.id === evaluationId),
       body,
+    ),
+  recordBeneficiaryAssessment: (
+    projectId: string,
+    input: RecordAssessmentRequest,
+  ): Promise<{ id: string }> =>
+    ownedJsonPost(
+      `${projectPath(projectId)}/evaluation/assessments`,
+      z.object({ id: uuid }).strict(),
+      input,
     ),
   async getBeneficiaryAssessments(
     projectId: string,

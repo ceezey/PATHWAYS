@@ -107,6 +107,7 @@ export const permissionCodes = [
   'dashboards.customize',
   'analytics.descriptive.read',
   'analytics.saddd.read',
+  'assessments.record',
 ] as const
 export type AtomicPermission = (typeof permissionCodes)[number]
 
@@ -217,6 +218,7 @@ export const rolePermissions: Record<CanonicalRole, readonly AtomicPermission[]>
     'reports.export',
     'profile.manage',
     'assessments.detail.read',
+    'assessments.record',
     'activities.progress.update',
     'evidence.read',
     'activities.escalations.read',
@@ -280,6 +282,7 @@ export const rolePermissions: Record<CanonicalRole, readonly AtomicPermission[]>
     'reports.export',
     'profile.manage',
     'assessments.detail.read',
+    'assessments.record',
     'activities.progress.update',
     'evidence.read',
     'activities.escalations.read',
@@ -349,6 +352,7 @@ export const rolePermissions: Record<CanonicalRole, readonly AtomicPermission[]>
     'audit.read',
     'profile.manage',
     'assessments.detail.read',
+    'assessments.record',
     'activities.progress.update',
     'evidence.read',
     'activities.escalations.read',

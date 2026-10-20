@@ -170,6 +170,25 @@ export const recommendationSchema = z
     text: z.string().trim().min(1).max(2000),
   })
   .strict()
+const expectationSchema = decimalSchema
+  .refine((value) => {
+    try {
+      return scaledDecimal(value) >= 0n && scaledDecimal(value) <= 1000000n
+    } catch {
+      return false
+    }
+  }, 'Use a value from 0 to 100.')
+  .nullable()
+  .optional()
+/** Author-entered expectations that severity compares actual figures with. */
+export const ruleExpectationsSchema = z
+  .object({
+    expectedScoreImprovement: expectationSchema,
+    manageableFollowUpPercent: expectationSchema,
+  })
+  .strict()
+/** Null lets the system suggest severity; CRITICAL is the author's manual judgment. */
+export const ruleSeveritySchema = z.literal('CRITICAL').nullable()
 export const ruleDefinitionSchema = z
   .object({
     organizationId: uuidSchema,
@@ -177,7 +196,8 @@ export const ruleDefinitionSchema = z
     ruleId: uuidSchema,
     version: z.number().int().min(1).max(2147483647),
     name: z.string().trim().min(1).max(160),
-    severity: z.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']),
+    severity: ruleSeveritySchema,
+    expectations: ruleExpectationsSchema.optional(),
     conditions: z.unknown().transform((input, ctx): RuleNode => {
       try {
         return parseRuleTree(input)
@@ -242,6 +262,8 @@ const calculationSchema = z.discriminatedUnion('kind', [
       baseline: decimalSchema.nullable(),
       target: decimalSchema.nullable(),
       current: decimalSchema,
+      targetDate: calendarDateSchema.nullable().optional(),
+      periodEnd: calendarDateSchema.nullable().optional(),
     })
     .strict(),
   z
@@ -265,6 +287,7 @@ const calculationSchema = z.discriminatedUnion('kind', [
               id: uuidSchema,
               revision: z.string().regex(/^[A-Za-z0-9_.:-]{1,80}$/),
               status: z.enum(['NOT_STARTED', 'IN_PROGRESS', 'FOR_REVIEW', 'COMPLETED']),
+              plannedStartDate: calendarDateSchema.nullable().optional(),
               plannedEndDate: calendarDateSchema.nullable(),
             })
             .strict(),

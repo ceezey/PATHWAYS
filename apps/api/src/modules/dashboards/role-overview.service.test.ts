@@ -191,6 +191,43 @@ describe('RoleOverviewService', () => {
     })
   })
 
+  it('counts needs-context alerts apart from levels and ignores them for max severity', async () => {
+    const { rules, service } = setup()
+    const other = '20000000-0000-4000-8000-000000000009'
+    const item = (n: number, projectId: string, severity: string | null) => ({
+      id: `40000000-0000-4000-8000-00000000010${n}`,
+      projectId,
+      title: `Alert ${n}`,
+      severity,
+      lifecycle: 'NEW',
+      explanation: 'x',
+      evidence: [{ metric: 'INDICATOR_PROGRESS_PERCENT' }],
+      predefinedRecommendations: [],
+    })
+    rules.listAlerts.mockImplementation(async (_i, q) =>
+      q.status === 'NEW'
+        ? {
+            items: [
+              item(1, project, 'HIGH'),
+              item(2, project, null),
+              item(3, project, 'MEDIUM'),
+              item(4, other, null),
+            ],
+            nextCursor: null,
+          }
+        : { items: [], nextCursor: null },
+    )
+    const result = await service.read(actor('PROJECT_MANAGER'))
+    expect(result.alerts?.open).toBe(4)
+    expect(result.alerts?.bySeverity).toEqual({ CRITICAL: 0, HIGH: 1, MEDIUM: 1, LOW: 0 })
+    expect(result.alerts?.needsContext).toBe(2)
+    expect(result.alerts?.byProject).toEqual([
+      { projectId: project, open: 3, maxSeverity: 'HIGH' },
+      { projectId: other, open: 1, maxSeverity: null },
+    ])
+    expect(result.alerts?.recent.map((r) => r.severity)).toEqual(['HIGH', 'MEDIUM', null, null])
+  })
+
   it('reports capped when alert paging hits the page limit', async () => {
     const { rules, service } = setup()
     rules.listAlerts.mockResolvedValue({ items: [], nextCursor: 'more' })

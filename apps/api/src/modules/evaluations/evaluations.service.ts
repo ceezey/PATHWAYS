@@ -13,7 +13,11 @@ import type { ApplicationIdentity } from '../../common/authz/application-identit
 import { withAuthorizedOperation } from '../../common/authz/authorized-operation'
 import { requireScopedProject } from '../../common/authz/scoped-project'
 import { PrismaService } from '../../prisma/prisma.service'
-import { listEnrollmentAssessments, readAssessmentDetail } from './evaluation-assessments.service'
+import {
+  listEnrollmentAssessments,
+  readAssessmentDetail,
+  recordEnrollmentAssessment,
+} from './evaluation-assessments.service'
 import { provisionCriteria } from './evaluation-criteria-template'
 import { readDetail, requireEvaluation, withScores } from './evaluation-detail.service'
 import { EvaluationMetricsService } from './evaluation-metrics.service'
@@ -100,6 +104,12 @@ export class EvaluationsService {
       async (tx, actor) => {
         return listEnrollmentAssessments(tx, actor, projectId, query)
       },
+    )
+  }
+
+  recordBeneficiaryAssessment(identity: ApplicationIdentity, projectId: string, input: unknown) {
+    return withAuthorizedOperation(this.prisma, identity, 'assessments.record', (tx, actor) =>
+      recordEnrollmentAssessment(tx, actor, projectId, input),
     )
   }
 

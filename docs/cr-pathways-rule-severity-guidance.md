@@ -2,7 +2,8 @@
 
 **ID:** `cr-pathways-rule-severity-guidance`  
 **Date:** 2026-10-16  
-**Status:** Applied locally 2026-10-16
+**Status:** Applied locally 2026-10-16  
+**Partly superseded by:** [cr-pathways-severity-classification](cr-pathways-severity-classification.md) (2026-10-19): alerts take a severity suggested from actual figures, and the Step 3 Low/Medium/High aid is replaced by a preview of possible levels and a manual Critical mark.
 
 ## 1. Trigger
 

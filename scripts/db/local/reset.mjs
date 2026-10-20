@@ -29,6 +29,8 @@ const preprovision = {
   '0059_rules_recommendation_auto_resolve': 'hosted-rules-catalog-preprovision.sql',
   '0062_rules_escalated_alert_list': 'hosted-rules-escalation-preprovision.sql',
   '0063_rules_scope_memo': 'hosted-rules-scope-memo-preprovision.sql',
+  // 0072 replaces rules-owned functions through a SET-only chain to six rules owner roles.
+  '0072_severity_classification': 'hosted-rules-severity-preprovision.sql',
 }
 // Hosted DBAs revoke the temporary owner-role memberships right after 0031 and 0034 (and the later pairs).
 // Local runs the same reviewed cleanups at the same points, so later migrations (0037's
@@ -54,6 +56,8 @@ const cleanup = {
   '0062_rules_escalated_alert_list': ['hosted-rules-escalation-cleanup.sql', []],
   // 0063's temporary SET chain to rules_store_owner and rules_eligibility_owner is revoked right after it.
   '0063_rules_scope_memo': ['hosted-rules-scope-memo-cleanup.sql', []],
+  // 0072's temporary SET chain to the six rules owner roles is revoked right after it.
+  '0072_severity_classification': ['hosted-rules-severity-cleanup.sql', []],
 }
 
 function run(command, args, { input, env, label } = {}) {

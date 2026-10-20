@@ -29,6 +29,7 @@ export type BeneficiaryDetailProps = {
   participationForms: DigitalFormDefinition[]
   projectId: string
   assessmentsUnavailable?: boolean
+  refreshAssessments?: () => Promise<void>
 }
 
 export const useBeneficiaryDetail = ({
@@ -39,6 +40,7 @@ export const useBeneficiaryDetail = ({
   participationForms,
   projectId,
   assessmentsUnavailable = false,
+  refreshAssessments = async () => undefined,
 }: BeneficiaryDetailProps) => {
   const { role, profile } = useCurrentRole()
   const [participation, setParticipation] = useState(beneficiary.participation)
@@ -87,6 +89,7 @@ export const useBeneficiaryDetail = ({
   const canViewMedia = role !== null && !['Program Manager', 'Grant Manager'].includes(role)
   const canUploadMedia = isUiActionAvailable(role, 'beneficiaries.media.upload', profile)
   const canViewAssessmentDetail = isUiActionAvailable(role, 'assessments.detail.view', profile)
+  const canRecordAssessment = isUiActionAvailable(role, 'assessments.record', profile)
   const canTransitionJourney = isUiActionAvailable(
     role,
     'beneficiaries.journey.transition',
@@ -109,6 +112,7 @@ export const useBeneficiaryDetail = ({
     participationForms,
     projectId,
     assessmentsUnavailable,
+    canRecordAssessment,
   })
   const { selectedStageParticipationActivities, transferDestinationOptions, correctableNote } = view
 
@@ -298,6 +302,8 @@ export const useBeneficiaryDetail = ({
     canViewMedia,
     canUploadMedia,
     canViewAssessmentDetail,
+    canRecordAssessment,
+    refreshAssessments,
     canTransitionJourney,
     canCorrectJourney,
     canRecordParticipation,

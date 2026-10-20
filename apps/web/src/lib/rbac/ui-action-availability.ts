@@ -11,6 +11,7 @@ type UiAction =
   | 'activities.edit'
   | 'activities.progress.record'
   | 'assessments.detail.view'
+  | 'assessments.record'
   | 'beneficiaries.edit'
   | 'beneficiaries.merge'
   | 'beneficiaries.media.upload'
@@ -35,6 +36,7 @@ const supportedActionPermission: Partial<Record<UiAction, AtomicPermission>> = {
   'activities.edit': 'activities.update',
   'activities.progress.record': 'activities.progress.update',
   'assessments.detail.view': 'assessments.detail.read',
+  'assessments.record': 'assessments.record',
   'beneficiaries.create': 'beneficiaries.records.register',
   'beneficiaries.edit': 'beneficiaries.profiles.update',
   'beneficiaries.media.upload': 'beneficiaries.enrollments.manage',

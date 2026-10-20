@@ -17,7 +17,8 @@ import {
   nodeKey,
   previewSentence,
   recordBound,
-  severities,
+  ruleSeverityText,
+  ruleSeverityTone,
   severityTone,
   suggestRuleCode,
 } from './rules.utils'
@@ -87,11 +88,20 @@ describe('rule board model', () => {
   it('builds the preview sentence with human-review wording', () => {
     const sentence = previewSentence({
       name: 'Low progress',
-      severity: 'HIGH',
+      critical: false,
       conditions: leaf('a', 'INDICATOR_PROGRESS_PERCENT', 'LT', '70'),
     })
     expect(sentence).toBe(
-      'Raise a High alert when Progress toward indicator target is below 70%. Human review required.',
+      'Raise an alert when Progress toward indicator target is below 70%. Human review required.',
+    )
+    expect(
+      previewSentence({
+        name: 'Low progress',
+        critical: true,
+        conditions: leaf('a', 'INDICATOR_PROGRESS_PERCENT', 'LT', '70'),
+      }),
+    ).toBe(
+      'Raise a Critical alert when Progress toward indicator target is below 70%. Human review required.',
     )
   })
   it('flattens recommendations without severity', () => {
@@ -151,6 +161,24 @@ describe('alertSeverityRank', () => {
       ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', '', 'UNKNOWN', 'constructor'].map(alertSeverityRank),
     ).toEqual([0, 1, 2, 3, 4, 4, 4])
   })
+  it('sorts a Needs context alert after Low', () => {
+    expect(alertSeverityRank(null)).toBeGreaterThan(alertSeverityRank('LOW'))
+  })
+})
+
+describe('rule severity label', () => {
+  it('names only the manual Critical mark and treats null and legacy levels as suggested', () => {
+    expect([null, 'HIGH', 'CRITICAL'].map(ruleSeverityText)).toEqual([
+      'Suggested when it fires',
+      'Suggested when it fires',
+      'Critical (manual)',
+    ])
+    expect([null, 'HIGH', 'CRITICAL'].map(ruleSeverityTone)).toEqual([
+      'neutral',
+      'neutral',
+      'danger',
+    ])
+  })
 })
 
 describe('condition tree helpers', () => {
@@ -200,9 +228,6 @@ describe('condition tree helpers', () => {
     expect(recordBound('ACTIVITY_OVERDUE_COUNT')).toBe(false)
     expect(recordBound('ACTIVITY_COMPLETION_PERCENT')).toBe(false)
     expect(recordBound('PROJECT_REMAINING_DAYS')).toBe(false)
-  })
-  it('keeps the selectable severities from least to most severe', () => {
-    expect(severities).toEqual(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'])
   })
   it('keys a condition by its id and a group by its first child, stable and distinct', () => {
     const a = leaf('a', 'PROJECT_REMAINING_DAYS', 'LT', '1')

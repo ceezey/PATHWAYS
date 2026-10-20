@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   createEvaluationRequest,
   enrollmentAssessmentsQuery,
+  recordAssessmentRequest,
   returnEvaluationRequest,
   saveEvaluationScoresRequest,
   signOffEvaluationRequest,
@@ -136,5 +137,60 @@ describe('evaluation request contracts', () => {
 
   it.each([{}, { enrollmentId: 'not-a-uuid' }])('rejects the assessment query %j', (query) => {
     expect(enrollmentAssessmentsQuery.safeParse(query).success).toBe(false)
+  })
+})
+
+describe('record assessment request', () => {
+  const base = {
+    enrollmentId: '10000000-0000-4000-8000-000000000001',
+    activityId: '10000000-0000-4000-8000-000000000002',
+    type: 'POST_TEST',
+    score: '85.5',
+    assessmentDate: '2026-09-01',
+  }
+  const accepts = (patch: object) =>
+    recordAssessmentRequest.safeParse({ ...base, ...patch }).success
+
+  it('accepts a decimal score and defaults the maximum to 100', () => {
+    expect(recordAssessmentRequest.parse(base)).toEqual({ ...base, maximumScore: '100' })
+  })
+
+  it('rejects a comma decimal, a score above the maximum and an extra key', () => {
+    expect(accepts({ score: '85,5' })).toBe(false)
+    expect(accepts({ maximumScore: '80' })).toBe(false)
+    expect(accepts({ maximumScore: '0', score: '0' })).toBe(false)
+    expect(accepts({ extra: 1 })).toBe(false)
+    expect(accepts({ type: 'SURVEY' })).toBe(false)
+  })
+
+  it.each([
+    '2026',
+    '2026-09',
+    '20260901',
+    '2026-W01',
+    '2026-044',
+    '2026-02-30',
+    '2026-09-01T00:00',
+  ])('rejects the assessment date %j', (assessmentDate) => {
+    expect(accepts({ assessmentDate })).toBe(false)
+  })
+
+  it('accepts a real YYYY-MM-DD assessment date', () => {
+    expect(recordAssessmentRequest.parse(base).assessmentDate).toBe('2026-09-01')
+  })
+
+  it('compares scores exactly near the 14-digit limit', () => {
+    const maximumScore = '99999999999999.9998'
+    expect(accepts({ maximumScore, score: '99999999999999.9998' })).toBe(true)
+    expect(accepts({ maximumScore, score: '99999999999999.9999' })).toBe(false)
+    expect(accepts({ maximumScore: '0.0001', score: '0.0001' })).toBe(true)
+    expect(accepts({ maximumScore: '0.0000', score: '0' })).toBe(false)
+  })
+
+  it('reports only the field error for a malformed score', () => {
+    const result = recordAssessmentRequest.safeParse({ ...base, score: 85 })
+    expect(result.success ? [] : result.error.issues.map((issue) => issue.path)).toEqual([
+      ['score'],
+    ])
   })
 })

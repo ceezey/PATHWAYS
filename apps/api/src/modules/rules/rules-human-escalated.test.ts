@@ -21,6 +21,8 @@ const alert = {
   title: 'Schedule risk',
   explanation: 'Remaining days fell below zero.',
   severity: 'HIGH',
+  severityBasis: null,
+  severityChange: null,
   lifecycle: 'REVIEWED',
   revision: '3',
   evaluatedAt: '2026-09-27T01:00:00Z',

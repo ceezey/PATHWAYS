@@ -38,7 +38,7 @@ import type { ApplicationIdentity } from '../../common/authz/application-identit
 import { withAuthorizedOperation } from '../../common/authz/authorized-operation'
 import type { Tx } from '../../common/prisma/transaction'
 import { PrismaService } from '../../prisma/prisma.service'
-import { evaluateRule } from './rule-engine'
+import { evaluateRuleWithSeverity } from './rule-engine'
 
 type Operation =
   | 'RULE_LIST'
@@ -217,7 +217,7 @@ export class RulesHumanService {
   dryRun(identity: ApplicationIdentity, body: unknown) {
     return withAuthorizedOperation(this.prisma, identity, 'rules.read', async () => {
       try {
-        return evaluateRule(body)
+        return evaluateRuleWithSeverity(body)
       } catch {
         throw new BadRequestException('Invalid synthetic typed evaluation.')
       }
