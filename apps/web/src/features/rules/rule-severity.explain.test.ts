@@ -1,6 +1,6 @@
 import type { RuleMetricKey } from '@pathways/shared'
 import { describe, expect, it } from 'vitest'
-import { explainCombination, explainConditions, explanatorySubject } from './rule-severity.explain'
+import { explainCombination, explainConditions, explanatoryLabels } from './rule-severity.explain'
 import type { Leaf } from './rules.utils'
 
 const leaf = (metric: RuleMetricKey, operator: Leaf['operator'], threshold: string): Leaf => ({
@@ -31,7 +31,8 @@ describe('explainConditions', () => {
     expect(explainConditions([leaf('PROJECT_TIMELINE_ELAPSED_PERCENT', 'GT', '50')], {})).toEqual(
       [],
     )
-    expect(text(leaf('PROJECT_REMAINING_DAYS', 'GT', '5'))).toContain('sets no level')
+    expect(explainConditions([leaf('PROJECT_REMAINING_DAYS', 'GTE', '10')], {})).toEqual([])
+    expect(text(leaf('PROJECT_REMAINING_DAYS', 'LT', '5'))).toContain('sets no level')
     expect(text(leaf('BENEFICIARY_FOLLOW_UP_PERCENT', 'GT', '30'))).toContain('(enter it below)')
     expect(
       text(leaf('BENEFICIARY_FOLLOW_UP_PERCENT', 'GT', '30'), { manageableFollowUpPercent: '20' }),
@@ -40,20 +41,22 @@ describe('explainConditions', () => {
   })
 })
 
-describe('explanatorySubject', () => {
-  it('names only the time and budget conditions present', () => {
-    expect(explanatorySubject([leaf('PROJECT_TIMELINE_ELAPSED_PERCENT', 'GT', '50')])).toBe(
-      'Time passed',
-    )
-    expect(explanatorySubject([leaf('BUDGET_UTILIZATION_PERCENT', 'GT', '50')])).toBe(
-      'Budget spent within plan',
-    )
+describe('explanatoryLabels', () => {
+  it('names only the present conditions that can match without a level', () => {
+    expect(explanatoryLabels([leaf('PROJECT_REMAINING_DAYS', 'GTE', '10')], {})).toEqual([
+      'Days until project end',
+    ])
     expect(
-      explanatorySubject([
-        leaf('PROJECT_REMAINING_DAYS', 'LT', '10'),
-        leaf('BUDGET_UTILIZATION_PERCENT', 'GT', '50'),
-      ]),
-    ).toBe('Time passed and budget spent within plan')
+      explanatoryLabels(
+        [
+          leaf('PROJECT_TIMELINE_ELAPSED_PERCENT', 'GT', '50'),
+          leaf('BUDGET_UTILIZATION_PERCENT', 'GT', '95'),
+          leaf('ACTIVITY_COMPLETION_PERCENT', 'LT', '50'),
+        ],
+        {},
+      ),
+    ).toEqual(['Project timeline elapsed', 'Budget used'])
+    expect(explanatoryLabels([leaf('BUDGET_UTILIZATION_PERCENT', 'GT', '120')], {})).toEqual([])
   })
 })
 

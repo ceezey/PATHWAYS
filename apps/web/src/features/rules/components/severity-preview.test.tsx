@@ -60,18 +60,27 @@ describe('SeverityPreview', () => {
     })
     expect(headline()).toBe('This alert will say Needs context instead of Low, Medium or High.')
     expect(screen.getByTestId('severity-preview').querySelector('details')).toBeTruthy()
-    expect(screen.getByText('Time passed alone doesn’t show whether work is behind.')).toBeTruthy()
+    expect(
+      screen.getByText('Project timeline elapsed alone doesn’t show whether work is behind.'),
+    ).toBeTruthy()
     expect(screen.getByText(/in step 2 add Activities completed/)).toBeTruthy()
     expect(screen.getByTestId('severity-preview').textContent).not.toMatch(/budget/i)
+    cleanup()
+    view({
+      conditions: [leaf('c1', 'PROJECT_REMAINING_DAYS', 'GTE', '10')],
+      preview: { ...open, levels: [], explanatoryOnly: true, needs: ['DELIVERY_EXPECTATION'] },
+    })
+    expect(
+      screen.getByText('Days until project end alone doesn’t show whether work is behind.'),
+    ).toBeTruthy()
+    expect(screen.queryByTestId('severity-explanations')).toBeNull()
     cleanup()
     view({
       conditions: [leaf('c1', 'BUDGET_UTILIZATION_PERCENT', 'GT', '95')],
       preview: { ...open, levels: ['MEDIUM', 'HIGH'], needs: ['DELIVERY_EXPECTATION'] },
     })
     expect(
-      screen.getByText(
-        'Budget spent within plan alone sets no level; your other conditions set it.',
-      ),
+      screen.getByText('Budget used alone sets no level; your other conditions set it.'),
     ).toBeTruthy()
     cleanup()
     view({ preview: { ...open, contradiction: 'These conditions cannot happen together.' } })

@@ -1,6 +1,7 @@
 import { type RuleExpectations, SEVERITY_BOUNDS } from '@pathways/shared'
+import { previewSeverity } from './rule-severity.utils'
 import { severityStepCopy as copy } from './rules.copy'
-import { type Leaf, conditionSentence } from './rules.utils'
+import { type Leaf, conditionSentence, metricLabel } from './rules.utils'
 
 export type ConditionExplanation = { id: string; condition: string; text: string }
 
@@ -22,8 +23,6 @@ const explain = (leaf: Leaf, expectations: RuleExpectations): string => {
       return lateDays('the activity’s')
     case 'PROJECT_REMAINING_DAYS':
       return `Before the end date this ${explainsOnly}. Once it has passed: ${bands('DELAY_SHARE', '%')} of the planned length.`
-    case 'PROJECT_TIMELINE_ELAPSED_PERCENT':
-      return ''
     case 'ACTIVITY_OVERDUE_COUNT':
       return `Overdue activities are compared with all included activities: ${bands('OVERDUE_SHARE', '%')}.`
     case 'ACTIVITY_COMPLETION_PERCENT':
@@ -45,12 +44,13 @@ const explain = (leaf: Leaf, expectations: RuleExpectations): string => {
   }
 }
 
-/** One plain sentence per condition on how the level will be raised from actual figures. */
+/** One plain sentence per condition on how the level will be raised; conditions that never set one are left to the summary. */
 export const explainConditions = (
   conditions: Leaf[],
   expectations: RuleExpectations,
 ): ConditionExplanation[] =>
   conditions
+    .filter((leaf) => !previewSeverity(leaf, expectations).explanatoryOnly)
     .map((leaf) => ({
       id: leaf.id,
       condition: conditionSentence(leaf),
@@ -58,15 +58,14 @@ export const explainConditions = (
     }))
     .filter((item) => item.text)
 
-/** Plain name of the present conditions that set no level on their own, such as "Time passed". */
-export const explanatorySubject = (conditions: Leaf[]): string => {
-  const metrics = new Set<string>(conditions.map((leaf) => leaf.metric))
-  const time =
-    metrics.has('PROJECT_TIMELINE_ELAPSED_PERCENT') || metrics.has('PROJECT_REMAINING_DAYS')
-  const budget = metrics.has('BUDGET_UTILIZATION_PERCENT')
-  if (time && budget) return 'Time passed and budget spent within plan'
-  return budget ? 'Budget spent within plan' : 'Time passed'
-}
+/** Labels of the conditions in the rule that can match without setting a level. */
+export const explanatoryLabels = (conditions: Leaf[], expectations: RuleExpectations): string[] => [
+  ...new Set(
+    conditions
+      .filter((leaf) => previewSeverity(leaf, expectations).needs.includes('DELIVERY_EXPECTATION'))
+      .map((leaf) => metricLabel(leaf.metric)),
+  ),
+]
 
 const DELIVERY = [
   'INDICATOR_PROGRESS_PERCENT',

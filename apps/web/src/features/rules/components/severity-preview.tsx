@@ -10,7 +10,7 @@ import {
   severityLabel,
 } from '@pathways/shared'
 import { useId } from 'react'
-import { explainCombination, explainConditions, explanatorySubject } from '../rule-severity.explain'
+import { explainCombination, explainConditions, explanatoryLabels } from '../rule-severity.explain'
 import type { SeverityPreview as Preview } from '../rule-severity.utils'
 import { severityStepCopy as copy, severityTiles } from '../rules.copy'
 import type { Leaf } from '../rules.utils'
@@ -43,14 +43,14 @@ export function SeverityPreview(props: Props) {
   const explained = explainConditions(props.conditions, expectations)
   const notes = explainCombination(props.conditions)
   const possible = !preview.contradiction && !preview.explanatoryOnly
-  const subject = explanatorySubject(props.conditions)
+  const labels = explanatoryLabels(props.conditions, expectations)
   const details = [
     ...(preview.dependsOnDates && !preview.contradiction ? [copy.dates] : []),
     ...(preview.explanatoryOnly
-      ? [copy.notBehind(subject), copy.howToLevel]
+      ? [copy.notBehind(labels), copy.howToLevel]
       : preview.needs.map((need) =>
           need === 'DELIVERY_EXPECTATION'
-            ? copy.partlyExplanatory(subject)
+            ? copy.partlyExplanatory(labels)
             : SEVERITY_MISSING_TEXT[need],
         )),
   ]

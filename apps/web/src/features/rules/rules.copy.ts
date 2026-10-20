@@ -8,6 +8,8 @@ export const comparisonCopy = {
   GT: 'Above (>)',
   BETWEEN: 'Between',
 } as const
+const listLabels = (labels: string[]) =>
+  new Intl.ListFormat('en', { type: 'conjunction' }).format(labels)
 // Step 3 copy: the system suggests Low, Medium or High when an alert fires; only Critical is set by the author.
 export const severityStepCopy = {
   title: 'How should this read?',
@@ -19,11 +21,12 @@ export const severityStepCopy = {
     'Budget used at 90% or more together with a High delivery shortfall is named as a combined signal in the alert.',
   dates: 'The level depends on planned dates and totals known only when the alert fires.',
   explanatory: 'This alert will say Needs context instead of Low, Medium or High.',
-  notBehind: (subject: string) => `${subject} alone doesn’t show whether work is behind.`,
+  notBehind: (labels: string[]) =>
+    `${listLabels(labels)} alone ${labels.length > 1 ? 'don’t' : 'doesn’t'} show whether work is behind.`,
   howToLevel:
-    'To get a level: in step 1 also tick Activity, then in step 2 add Activities completed.',
-  partlyExplanatory: (subject: string) =>
-    `${subject} alone sets no level; your other conditions set it.`,
+    'To get a severity level: in step 1 also tick Activity, then in step 2 add Activities completed.',
+  partlyExplanatory: (labels: string[]) =>
+    `${listLabels(labels)} alone ${labels.length > 1 ? 'set' : 'sets'} no level; your other conditions set it.`,
   incomplete: 'Complete each condition to preview possible levels.',
 } as const
 export const severityTiles = [
