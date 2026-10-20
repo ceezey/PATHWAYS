@@ -1063,3 +1063,9 @@
 - Docs: `runbook-severity-panel-demo.md` (items 3 and 7 on CRL-NS-2026, local only), CR disposition, score-entry rollback, role-staging 0071/0072 section, DSD, rule creation script, QAD-T125 to T128, partly-superseded notes on the two earlier rule CRs. SAD sign-off pending; not Applied; no push or hosted change.
 - SAD remediation (83669d99, 67783b55): `recordAssessmentRequest.assessmentDate` uses `isCalendarDate` (reduced ISO forms and 2026-02-30 refused, stored as sent) and score refines compare bigints; `ACTIVITY_OVERDUE_COUNT` drops the missing planned end check in TS and in 0072 edited in place, 72 fixtures.
 - SAD: round 1 blocked two items (assessment date accepted reduced ISO forms; overdue share treated completed undated activities as missing context); both remediated, replay passed, round 2 sign-off passed (digest 8b6bc4ec, 181 PASS). Both CRs marked Applied locally; nothing pushed or applied to hosted databases.
+
+## 2026-10-20 Migrations 0071 and 0072 applied to devV2
+- `feature/severity-classification` merged into `dev` (be8e1e8e); lint, typecheck, docs check and API tests pass; one web test (`analytics-dashboard.actions.test.tsx`, first alert rules link case) times out at 15s on cold start and passes with a longer timeout.
+- `RULES_DISPATCH_ENABLED` set to false, then `hosted/build.mjs --resume` applied 0071, the rules-severity preprovision, 0072 and its cleanup: ledger 47 rows 0000-0072, all finished; no residual prisma owner memberships; 21 roles; `pathways_runtime` LOGIN true.
+- `dev` pushed to origin (87ad344a..be8e1e8e); Vercel pathways-api and pathways-web deployed the same commit, then `RULES_DISPATCH_ENABLED` set back to true.
+- No reseed; existing rules and alerts keep their stored severity. Open: rehearse `runbook-severity-panel-demo.md` on devV2.

@@ -2,7 +2,7 @@
 
 **ID:** `cr-pathways-severity-classification`  
 **Date:** 2026-10-19  
-**Status:** Applied locally 2026-10-20
+**Status:** Applied (2026-10-20; 0071 and 0072 on PATHWAYS-devV2, 47-row ledger; demo runbook rehearsal pending)
 
 ## 1. Trigger
 

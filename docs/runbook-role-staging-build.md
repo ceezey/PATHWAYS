@@ -170,7 +170,7 @@ Role-staging applied the original 0047, 0048 and 0051 before they were amended i
 
 ### Applying 0071 and 0072 to role-staging
 
-Not yet applied to devV2; each needs separate developer approval, and the API and web from the same commit must be deployed right after, because older code and the new schema disagree on rule severity and alert fields. Set the GitHub repository variable `RULES_DISPATCH_ENABLED=false` for the run and back to `true` afterwards.
+Applied to devV2 on 2026-10-20 (ledger 47 rows 0000-0072). Each needs separate developer approval, and the API and web from the same commit must be deployed right after, because older code and the new schema disagree on rule severity and alert fields. Set the GitHub repository variable `RULES_DISPATCH_ENABLED=false` for the run and back to `true` afterwards.
 
 0071 (cr-pathways-assessment-score-entry) adds the `assessments.record` permission and its three grants (`role_permissions` 314 to 317), a restrictive INSERT policy on `assessment_results` and the prisma-owned definer guard `p3_guard_assessment_source`. Prisma owns everything it touches, so it needs no preprovision.
 

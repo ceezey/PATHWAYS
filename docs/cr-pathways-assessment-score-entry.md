@@ -2,7 +2,7 @@
 
 **ID:** `cr-pathways-assessment-score-entry`  
 **Date:** 2026-10-19  
-**Status:** Applied locally 2026-10-20
+**Status:** Applied (2026-10-20; 0071 on PATHWAYS-devV2, 47-row ledger with 0072)
 
 ## 1. Trigger
 
