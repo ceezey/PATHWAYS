@@ -491,6 +491,7 @@ function AlertRuleDrawer({
           </RuleStepCard>
           <RuleStepCard step={3} title={severityStepCopy.title} hint={severityStepCopy.hint}>
             <SeverityPreview
+              conditions={leaves(previewTree)}
               critical={critical}
               expectations={expectations}
               onCritical={setCritical}

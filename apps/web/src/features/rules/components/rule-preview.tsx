@@ -35,8 +35,8 @@ export function RulePreview({
               : 'border-border bg-muted text-muted-foreground',
           )}
         >
-          {name.trim() || 'Untitled rule'} -{' '}
-          {critical ? 'Critical' : 'Severity from actual figures'}
+          {name.trim() || 'Untitled rule'}
+          {critical ? ' - Critical' : ''}
         </p>
         <p className="px-3 py-2 text-sm">
           {mode === 'alert' ? 'Condition met' : 'Insight recorded'}:{' '}

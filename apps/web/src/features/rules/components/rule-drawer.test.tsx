@@ -449,10 +449,10 @@ describe('RuleDrawer', () => {
       screen.getByText('The system suggests severity from actual figures when the alert fires.'),
     ).toBeTruthy()
     expect(screen.getByTestId('severity-preview-levels').textContent).toBe(
-      'Possible levels: Low, Medium, or High. Critical is set manually.',
+      'Possible levels: Low, Medium, or High.',
     )
     expect(screen.queryByRole('radio', { name: /^(Low|Medium|High)/ })).toBeNull()
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Mark as Critical (manual judgment)' }))
+    fireEvent.click(screen.getByRole('button', { name: /^Critical/ }))
     expect(screen.getByTestId('rule-preview').textContent).toBe(
       'Raise a Critical alert when Days until project end is below 30 days. Human review required.',
     )
@@ -469,10 +469,8 @@ describe('RuleDrawer', () => {
   })
   it('saves a rule stored as High with no severity unless Critical is ticked', async () => {
     renderDrawer({ rule: activeRule })
-    const box = (await screen.findByRole('checkbox', {
-      name: 'Mark as Critical (manual judgment)',
-    })) as HTMLInputElement
-    expect(box.checked).toBe(false)
+    const box = await screen.findByRole('button', { name: /^Critical/ })
+    expect(box.getAttribute('aria-pressed')).toBe('false')
     fireEvent.click(screen.getByRole('button', { name: 'Save Rule' }))
     await waitFor(() => expect(state.draftRule).toHaveBeenCalledTimes(1))
     expect(state.draftRule.mock.calls[0]?.[1].severity).toBeNull()
@@ -480,12 +478,8 @@ describe('RuleDrawer', () => {
     vi.clearAllMocks()
     renderDrawer({ rule: { ...activeRule, severity: 'CRITICAL' } as HumanRule })
     expect(
-      (
-        (await screen.findByRole('checkbox', {
-          name: 'Mark as Critical (manual judgment)',
-        })) as HTMLInputElement
-      ).checked,
-    ).toBe(true)
+      (await screen.findByRole('button', { name: /^Critical/ })).getAttribute('aria-pressed'),
+    ).toBe('true')
   })
   it('shows expectation fields only for matching metrics and saves them under expectations', async () => {
     renderDrawer()
@@ -622,8 +616,9 @@ describe('RuleDrawer', () => {
     renderDrawer({ rule: nested })
     fireEvent.click(screen.getByRole('button', { name: /advanced editor/i }))
     const dialog = await screen.findByRole('dialog', { name: /advanced/i })
-    for (const label of [/^Rule name/i, /^Rule code/i, /^Mark as Critical/i])
+    for (const label of [/^Rule name/i, /^Rule code/i])
       expect(dialog.contains(within(dialog).getByLabelText(label))).toBe(true)
+    expect(within(dialog).getByRole('button', { name: /^Critical/ })).toBeTruthy()
   })
   it('uses the retained nested tree for its preview instead of the flat-row fallback', async () => {
     const nested = {
@@ -650,9 +645,7 @@ describe('RuleDrawer', () => {
     } as unknown as HumanRule
     renderDrawer({ rule: nested })
     await screen.findByLabelText('Rule Name')
-    expect(screen.getByTestId('severity-preview-levels').textContent).toBe(
-      'Possible levels: High. Critical is set manually.',
-    )
+    expect(screen.getByTestId('severity-preview-levels').textContent).toBe('Possible levels: High.')
   })
   it('keeps an existing saved recommendation unchanged on open', async () => {
     renderDrawer({ rule: activeRule })

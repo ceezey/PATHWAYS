@@ -31,7 +31,7 @@ import {
   useRuleBindingActivityContext,
   useRuleBindingIndicators,
 } from '../rules.reads'
-import { clearRecordBindings, leafCount, newCondition } from '../rules.utils'
+import { clearRecordBindings, leafCount, leaves, newCondition } from '../rules.utils'
 import { RuleConditionEditor } from './rule-condition-editor'
 import { SeverityPreview } from './severity-preview'
 
@@ -477,6 +477,7 @@ function RuleEditorForm({
             <legend className="font-semibold">{severityStepCopy.title}</legend>
             <p className="text-sm text-muted-foreground">{severityStepCopy.hint}</p>
             <SeverityPreview
+              conditions={leaves(conditions)}
               critical={critical}
               expectations={expectations}
               onCritical={setCritical}

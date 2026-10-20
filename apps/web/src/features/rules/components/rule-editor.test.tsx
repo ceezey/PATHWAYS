@@ -256,7 +256,7 @@ describe('severity preview and Critical mark', () => {
     await screen.findByLabelText('Rule name')
     expect(screen.queryByLabelText('Severity')).toBeNull()
     expect(screen.getByTestId('severity-preview-levels').textContent).toBe(
-      'Possible levels: Low, Medium, or High. Critical is set manually.',
+      'Possible levels: Low, Medium, or High.',
     )
     await toStepTwo()
     fireEvent.click(screen.getByRole('button', { name: 'Save draft' }))
@@ -275,7 +275,7 @@ describe('severity preview and Critical mark', () => {
     fireEvent.change(screen.getByLabelText('Expected score improvement'), {
       target: { value: '10' },
     })
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Mark as Critical (manual judgment)' }))
+    fireEvent.click(screen.getByRole('button', { name: /^Critical/ }))
     await toStepTwo()
     fireEvent.change(screen.getByLabelText('Recommendation 1 title'), {
       target: { value: 'Title one' },
@@ -556,13 +556,9 @@ describe('starting a rule from a template', () => {
     expect((screen.getByLabelText('Rule code') as HTMLInputElement).value).toBe(
       'OPERATIONS_BOTTLENECK',
     )
-    expect(
-      (
-        screen.getByRole('checkbox', {
-          name: 'Mark as Critical (manual judgment)',
-        }) as HTMLInputElement
-      ).checked,
-    ).toBe(false)
+    expect(screen.getByRole('button', { name: /^Critical/ }).getAttribute('aria-pressed')).toBe(
+      'false',
+    )
     expect((screen.getByLabelText('Combine conditions') as HTMLSelectElement).value).toBe('AND')
     const metricSelects = screen.getAllByLabelText('Metric') as HTMLSelectElement[]
     const operatorSelects = screen.getAllByLabelText('Comparison') as HTMLSelectElement[]

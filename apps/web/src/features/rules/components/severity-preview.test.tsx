@@ -2,6 +2,7 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { SeverityPreview as Preview } from '../rule-severity.utils'
+import type { Leaf } from '../rules.utils'
 import { SeverityPreview } from './severity-preview'
 
 afterEach(cleanup)
@@ -13,9 +14,12 @@ const open: Preview = {
   needs: [],
   contradiction: null,
 }
+const leaf = (id: string, metric: string, operator: string, threshold: string) =>
+  ({ kind: 'CONDITION', id, metric, operator, threshold }) as Leaf
 const view = (props: Partial<React.ComponentProps<typeof SeverityPreview>> = {}) =>
   render(
     <SeverityPreview
+      conditions={[]}
       critical={false}
       expectations={{}}
       onCritical={vi.fn()}
@@ -31,14 +35,14 @@ const headline = () => screen.getByTestId('severity-preview-levels').textContent
 describe('SeverityPreview', () => {
   it('lists the possible levels in a live region and keeps the Critical sentence when narrowed', () => {
     view()
-    expect(headline()).toBe('Possible levels: Low, Medium, or High. Critical is set manually.')
+    expect(headline()).toBe('Possible levels: Low, Medium, or High.')
     expect(screen.getByTestId('severity-preview').getAttribute('aria-live')).toBe('polite')
     cleanup()
     view({ preview: { ...open, levels: ['MEDIUM', 'HIGH'] } })
-    expect(headline()).toBe('Possible levels: Medium or High. Critical is set manually.')
+    expect(headline()).toBe('Possible levels: Medium or High.')
     cleanup()
     view({ preview: { ...open, levels: ['HIGH'] } })
-    expect(headline()).toBe('Possible levels: High. Critical is set manually.')
+    expect(headline()).toBe('Possible levels: High.')
   })
   it('explains dates, explanatory-only rules, missing expectations and contradictions on the page', () => {
     view({ preview: { ...open, dependsOnDates: true, needs: ['MANAGEABLE_FOLLOW_UP_LEVEL'] } })
@@ -57,22 +61,46 @@ describe('SeverityPreview', () => {
     view({ preview: { ...open, contradiction: 'These conditions cannot happen together.' } })
     expect(headline()).toBe('These conditions cannot happen together.')
   })
-  it('marks Critical through a labelled keyboard-operable checkbox', () => {
+  it('toggles Critical through the one keyboard-operable tile', () => {
     const onCritical = vi.fn()
     view({ onCritical })
-    const box = screen.getByRole('checkbox', { name: 'Mark as Critical (manual judgment)' })
-    expect((box as HTMLInputElement).checked).toBe(false)
-    fireEvent.click(box)
+    const tile = screen.getByRole('button', { name: /^Critical/ })
+    expect(tile.getAttribute('aria-pressed')).toBe('false')
+    fireEvent.click(tile)
     expect(onCritical).toHaveBeenCalledWith(true)
     cleanup()
-    view({ critical: true })
-    expect(
-      (
-        screen.getByRole('checkbox', {
-          name: 'Mark as Critical (manual judgment)',
-        }) as HTMLInputElement
-      ).checked,
-    ).toBe(true)
+    view({ critical: true, onCritical })
+    const pressed = screen.getByRole('button', { name: /^Critical/ })
+    expect(pressed.getAttribute('aria-pressed')).toBe('true')
+    fireEvent.click(pressed)
+    expect(onCritical).toHaveBeenLastCalledWith(false)
+    expect(screen.getByText('Critical is set manually and is not suggested here.')).toBeTruthy()
+  })
+  it('lights only the possible Low, Medium and High tiles and never makes them clickable', () => {
+    const lit = (level: string) =>
+      screen.getByTestId(`severity-tile-${level}`).getAttribute('data-lit')
+    view({ preview: { ...open, levels: ['MEDIUM', 'HIGH'] } })
+    expect([lit('LOW'), lit('MEDIUM'), lit('HIGH')]).toEqual(['false', 'true', 'true'])
+    expect(screen.getByTestId('severity-tile-LOW').getAttribute('aria-disabled')).toBe('true')
+    expect(screen.queryByRole('button', { name: /^(Low|Medium|High)/ })).toBeNull()
+    cleanup()
+    view({ preview: { ...open, levels: [], explanatoryOnly: true } })
+    expect(lit('HIGH')).toBe('false')
+  })
+  it('explains per condition how the level is raised, with the combination notes', () => {
+    view({
+      conditions: [
+        leaf('a', 'PROJECT_OVERDUE_DAYS', 'GT', '10'),
+        leaf('b', 'BUDGET_UTILIZATION_PERCENT', 'GT', '95'),
+        leaf('c', 'ACTIVITY_COMPLETION_PERCENT', 'LT', '50'),
+      ],
+    })
+    const box = screen.getByTestId('severity-explanations').textContent ?? ''
+    expect(box).toContain('Days past project end is above 10 days:')
+    expect(box).toContain('Low up to 5%, Medium up to 10%, High above 10%')
+    expect(box).toContain('above 100% up to 110% is Medium')
+    expect(box).toContain('When several conditions match, the highest level wins.')
+    expect(box).toContain('combined signal')
   })
   it('shows each expectation field only when asked and links its error', () => {
     view()
