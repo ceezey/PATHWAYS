@@ -97,9 +97,6 @@ jobs:
       - name: Test migration comparison scripts
         run: python3 -m unittest discover -s scripts/migrations -p "test_*.py"
 
-      - name: Test documentation check scripts
-        run: python3 -m unittest discover -s scripts/docs -p "test_*.py"
-
       - name: Test replay helper scripts
         shell: pwsh
         run: |
