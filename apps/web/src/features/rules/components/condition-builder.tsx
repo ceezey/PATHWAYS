@@ -125,15 +125,13 @@ export function ConditionBuilder({
               }))
             }
           >
-            {areas.map((area) => (
-              <optgroup key={area.scope} label={scopeDisplayLabel[area.scope] ?? area.scope}>
-                {area.areaMetrics.map((key) => (
-                  <option key={key} value={key}>
-                    {metricLabel(key)}
-                  </option>
-                ))}
-              </optgroup>
-            ))}
+            {(areas.find((area) => area.scope === scope)?.areaMetrics ?? [row.metric]).map(
+              (key) => (
+                <option key={key} value={key}>
+                  {metricLabel(key)}
+                </option>
+              ),
+            )}
           </select>
         </div>
         <div className="space-y-2">

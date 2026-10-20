@@ -268,12 +268,19 @@ describe('ConditionBuilder area groups', () => {
     expect(screen.getAllByRole('button', { name: /^Add another .* condition$/ })).toHaveLength(2)
   })
   it('lists only the area metrics and hides record-bound ones without a project', () => {
-    render(<Harness initial={[row('a')]} scopeProjectId={null} scopes={['Project', 'Indicator']} />)
+    render(
+      <Harness
+        initial={[row('a')]}
+        scopeProjectId={null}
+        scopes={['Project', 'Indicator', 'Activity']}
+      />,
+    )
     const values = Array.from(
       (field('What should we check?', 'a-metric') as HTMLSelectElement).options,
     ).map((option) => option.value)
     expect(values).toContain('PROJECT_REMAINING_DAYS')
     expect(values).not.toContain('INDICATOR_PROGRESS_PERCENT')
+    expect(values).not.toContain('ACTIVITY_COMPLETION_PERCENT')
   })
   it('shows the unit suffix after the threshold', () => {
     render(<Harness initial={[row('a', { metric: 'PROJECT_TIMELINE_ELAPSED_PERCENT' })]} />)
