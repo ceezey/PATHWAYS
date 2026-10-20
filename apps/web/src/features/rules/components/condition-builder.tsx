@@ -1,6 +1,6 @@
 'use client'
 
-import { FilterChoiceGroup, StatusBadge } from '@/components/pathways'
+import { FilterChoiceGroup } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -34,7 +34,6 @@ import {
   newRow,
   operatorWords,
   recordBound,
-  runsOf,
   scopeDisplayLabel,
   scopeOf,
   selectClass,
@@ -99,18 +98,30 @@ export function ConditionBuilder({
       >
         <div className="flex items-center justify-between gap-2">
           <h4 className="font-semibold">{scopeDisplayLabel[scope] ?? scope}</h4>
-          {rows.length > 1 ? (
-            <Button
-              aria-label="Remove condition"
-              size="icon"
-              title="Remove condition"
-              type="button"
-              variant="outline"
-              onClick={() => setRows((current) => current.filter((r) => r.id !== row.id))}
-            >
-              <Trash2 aria-hidden="true" className="h-4 w-4" />
-            </Button>
-          ) : null}
+          <div className="flex items-center gap-2">
+            {conditionIndex > 0 ? (
+              <FilterChoiceGroup
+                label={`Join condition ${conditionIndex + 1}`}
+                options={['AND', 'OR']}
+                value={joins[row.id] ?? 'AND'}
+                onValueChange={(value) =>
+                  setJoins((current) => ({ ...current, [row.id]: value as Mode }))
+                }
+              />
+            ) : null}
+            {rows.length > 1 ? (
+              <Button
+                aria-label="Remove condition"
+                size="icon"
+                title="Remove condition"
+                type="button"
+                variant="outline"
+                onClick={() => setRows((current) => current.filter((r) => r.id !== row.id))}
+              >
+                <Trash2 aria-hidden="true" className="h-4 w-4" />
+              </Button>
+            ) : null}
+          </div>
         </div>
         <div className="space-y-2">
           <Label htmlFor={`${row.id}-metric`}>What should we check?</Label>
@@ -257,24 +268,6 @@ export function ConditionBuilder({
       </fieldset>
     )
   }
-  const runs = runsOf(rows, joins)
-  const blocked = runs.length > 1
-  const joinChoice = (row: RuleCondition) => {
-    const index = rows.indexOf(row)
-    return index > 0 ? (
-      <div className="flex items-center justify-between gap-2 rounded-md border border-border bg-background p-3">
-        <span className="text-sm font-medium">Join condition {index + 1}</span>
-        <FilterChoiceGroup
-          label={`Join condition ${index + 1}`}
-          options={['AND', 'OR']}
-          value={joins[row.id] ?? 'AND'}
-          onValueChange={(value) =>
-            setJoins((current) => ({ ...current, [row.id]: value as Mode }))
-          }
-        />
-      </div>
-    ) : null
-  }
   return (
     <div className="space-y-3">
       {nestedRule ? (
@@ -291,23 +284,16 @@ export function ConditionBuilder({
               AND is checked before OR, so A AND B OR C means (A AND B) OR C.
             </p>
           ) : null}
-          {runs.map((run) => (
-            <div className="space-y-2" key={run[0]?.id}>
-              {joinChoice(run[0] as RuleCondition)}
-              <fieldset
-                aria-label={blocked ? 'All of these must match' : 'Conditions'}
-                className={cn('space-y-2', blocked && 'rounded-md border border-border p-2')}
-              >
-                {blocked && run.length > 1 ? (
-                  <p className="text-sm font-medium">All of these must match</p>
-                ) : null}
-                {run.map((row, position) => (
-                  <div className="space-y-2" key={row.id}>
-                    {position > 0 ? joinChoice(row) : null}
-                    {renderRow(row)}
-                  </div>
-                ))}
-              </fieldset>
+          {rows.map((row, index) => (
+            <div className="space-y-3" key={row.id}>
+              {index > 0 && joins[row.id] === 'OR' ? (
+                <div className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
+                  <span className="h-px flex-1 bg-border" />
+                  OR
+                  <span className="h-px flex-1 bg-border" />
+                </div>
+              ) : null}
+              {renderRow(row)}
             </div>
           ))}
           <div className="flex flex-wrap gap-2">

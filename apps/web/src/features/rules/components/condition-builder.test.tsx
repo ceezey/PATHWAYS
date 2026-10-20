@@ -82,9 +82,12 @@ describe('ConditionBuilder match and remove guards', () => {
       true,
     )
   })
-  it('boxes each AND run once an OR splits the conditions', () => {
+  it('puts each join beside its remove button and divides AND runs at every OR', () => {
     render(<Harness initial={[row('a'), row('b'), row('c')]} initialJoins={{ c: 'OR' }} />)
-    expect(screen.getAllByRole('group', { name: 'All of these must match' })).toHaveLength(2)
+    const card = screen.getByRole('group', { name: 'Condition 3 (Project)' })
+    expect(within(card).getByRole('radiogroup', { name: 'Join condition 3' })).toBeTruthy()
+    expect(within(card).getByRole('button', { name: 'Remove condition' })).toBeTruthy()
+    expect(screen.getAllByText('OR', { selector: 'div' })).toHaveLength(1)
     expect(screen.getByText(/AND is checked before OR/)).toBeTruthy()
   })
   it('offers Remove only with several conditions and removes the chosen one', () => {
