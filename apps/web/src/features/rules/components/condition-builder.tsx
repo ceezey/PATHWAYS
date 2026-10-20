@@ -98,12 +98,7 @@ export function ConditionBuilder({
         className="space-y-3 rounded-md border border-border bg-background p-3"
       >
         <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <span className="font-semibold">Condition {conditionIndex + 1}</span>
-            <StatusBadge dot={false} tone="neutral">
-              {scopeDisplayLabel[scope] ?? scope}
-            </StatusBadge>
-          </div>
+          <h4 className="font-semibold">{scopeDisplayLabel[scope] ?? scope}</h4>
           {rows.length > 1 ? (
             <Button
               aria-label="Remove condition"

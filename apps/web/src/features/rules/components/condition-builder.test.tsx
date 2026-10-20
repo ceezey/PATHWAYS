@@ -255,13 +255,16 @@ describe('ConditionBuilder area groups', () => {
         scopes={['Indicator', 'Project']}
       />,
     )
-    expect(screen.getAllByText(/^Condition \d+$/).map((item) => item.textContent)).toEqual([
-      'Condition 1',
-      'Condition 2',
-      'Condition 3',
+    expect(screen.getAllByRole('heading').map((item) => item.textContent)).toEqual([
+      'Project',
+      'Indicator / KPI',
+      'Project',
     ])
-    expect(screen.getAllByText('Project')).toHaveLength(2)
-    expect(screen.getByText('Indicator / KPI', { selector: 'span' })).toBeTruthy()
+    expect(
+      screen
+        .getAllByRole('group', { name: /^Condition / })
+        .map((item) => item.getAttribute('aria-label')),
+    ).toEqual(['Condition 1 (Project)', 'Condition 2 (Indicator / KPI)', 'Condition 3 (Project)'])
     expect(screen.getAllByRole('button', { name: /^Add another .* condition$/ })).toHaveLength(2)
   })
   it('lists only the area metrics and hides record-bound ones without a project', () => {
