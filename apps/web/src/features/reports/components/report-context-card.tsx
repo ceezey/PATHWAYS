@@ -12,6 +12,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { principalHasAtomicPermission } from '@/lib/rbac/policy'
+import { cn } from '@/lib/utils'
 import type { ReportKindCode } from '@pathways/shared'
 import { Save } from 'lucide-react'
 import type { ReportContext } from '../hooks/use-report-context'
@@ -55,6 +56,8 @@ export function ReportContextCard({
   const { profile, projects, currentProjects, id, setSelection, kind, setKind, allowed } = context
   const { preview, currentPreview } = context
   const { owner, currentName, setName, format, setFormat, busy, generate } = generation
+  // A survey or round field makes four, so the grid stays even instead of wrapping one field.
+  const fourFields = kind === 'SURVEY_FORM_RESULTS' || kind === 'EVALUATION_REPORT'
   return (
     <SectionCard
       title="Report context"
@@ -74,8 +77,12 @@ export function ReportContextCard({
           description="Verifying current report project access."
         />
       ) : null}
-      <SurveyFormSelect context={context} />
-      <div className="grid gap-4 md:grid-cols-3">
+      <div
+        className={cn(
+          'grid gap-4',
+          fourFields ? 'md:grid-cols-2 xl:grid-cols-4' : 'md:grid-cols-3',
+        )}
+      >
         <Label className="space-y-2">
           <span>Project</span>
           <Select
@@ -110,6 +117,7 @@ export function ReportContextCard({
             </SelectContent>
           </Select>
         </Label>
+        <SurveyFormSelect context={context} />
         <RoundSelect context={context} />
         <Label className="space-y-2">
           <span>Format</span>
