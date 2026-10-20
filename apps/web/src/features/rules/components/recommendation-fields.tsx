@@ -38,8 +38,10 @@ export function RecommendationFields({
       (item, index, list) =>
         list.findIndex((other) => other.title === item.title && other.text === item.text) === index,
     )
+  // Typing keeps the card open until Done, even once both fields are filled.
   const set = (id: string, patch: Partial<Rec>) => {
     onUserEdit?.()
+    setEditing(id)
     onRecs((list) => list.map((item) => (item.id === id ? { ...item, ...patch } : item)))
   }
   const add = (item: Rec) => {

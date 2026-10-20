@@ -140,3 +140,14 @@ describe('RecommendationFields list limits', () => {
     expect(onUserEdit).toHaveBeenCalledTimes(3)
   })
 })
+
+describe('RecommendationFields editing', () => {
+  it('stays open while typing the first letter of the response until Done', () => {
+    render(<Harness initial={[{ id: 'r1', title: 'Check', text: '' }]} />)
+    fireEvent.change(screen.getByLabelText('Suggested response'), { target: { value: 'f' } })
+    expect((screen.getByLabelText('Suggested response') as HTMLTextAreaElement).value).toBe('f')
+    fireEvent.click(screen.getByRole('button', { name: 'Done' }))
+    expect(screen.queryByLabelText('Suggested response')).toBeNull()
+    expect(latest[0]).toMatchObject({ title: 'Check', text: 'f' })
+  })
+})
