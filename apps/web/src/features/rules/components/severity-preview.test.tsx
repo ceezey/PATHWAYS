@@ -56,7 +56,7 @@ describe('SeverityPreview', () => {
     view({
       preview: { ...open, levels: [], explanatoryOnly: true, needs: ['DELIVERY_EXPECTATION'] },
     })
-    expect(headline()).toMatch(/no separate severity/)
+    expect(headline()).toMatch(/add Activities completed or Progress toward indicator target/)
     cleanup()
     view({ preview: { ...open, contradiction: 'These conditions cannot happen together.' } })
     expect(headline()).toBe('These conditions cannot happen together.')

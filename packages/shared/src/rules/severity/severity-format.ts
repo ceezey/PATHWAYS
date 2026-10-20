@@ -24,7 +24,8 @@ export const SEVERITY_MISSING_TEXT: Record<SeverityMissing, string> = {
     'We need an agreed delay rule for an activity that starts and ends on the same day.',
   EXPECTED_SCORE_IMPROVEMENT: 'We need the expected score improvement for this assessment.',
   MANAGEABLE_FOLLOW_UP_LEVEL: 'We need the manageable follow-up level for this group.',
-  DELIVERY_EXPECTATION: 'We need the related delivery expectation before suggesting a level.',
+  DELIVERY_EXPECTATION:
+    'Time or spending within budget alone sets no level. Add Activities completed or Progress toward indicator target to this rule to get one.',
 }
 const TIME_TEXT = 'Time helps explain the situation; it has no separate severity.'
 

@@ -10,7 +10,7 @@ const bands = (kind: keyof typeof SEVERITY_BOUNDS, unit: string, tail = '') => {
 }
 const entered = (value: string | null | undefined, unit: string) =>
   value?.trim() ? ` of ${value.trim()}${unit}` : ' (enter it below)'
-const explainsOnly = 'explains the situation only, so on its own the alert shows Needs context'
+const explainsOnly = 'explains the situation only and sets no level'
 const lateDays = (subject: string) =>
   `Days past the end date are compared with ${subject} planned length: ${bands('DELAY_SHARE', '%')}.`
 

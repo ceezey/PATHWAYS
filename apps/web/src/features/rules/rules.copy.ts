@@ -19,9 +19,9 @@ export const severityStepCopy = {
     'Budget used at 90% or more together with a High delivery shortfall is named as a combined signal in the alert.',
   dates: 'The level depends on planned dates and totals known only when the alert fires.',
   explanatory:
-    'These conditions explain the situation but have no separate severity, so their alerts show Needs context.',
+    'Time, or spending within budget, can’t show whether work is behind, so alerts from this rule show Needs context with no level. To get a level, add Activities completed or Progress toward indicator target, for example Timeline elapsed at least 90% and Activities completed below 80%.',
   partlyExplanatory:
-    'A match on time or on budget within plan alone has no separate severity and shows Needs context.',
+    'A match on time or on spending within budget alone sets no level and shows Needs context; the other conditions set the level.',
   incomplete: 'Complete each condition to preview possible levels.',
 } as const
 export const severityTiles = [

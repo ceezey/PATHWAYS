@@ -28,7 +28,7 @@ describe('explainConditions', () => {
     )
   })
   it('states explanatory-only metrics and asks for missing expectations', () => {
-    expect(text(leaf('PROJECT_TIMELINE_ELAPSED_PERCENT', 'GT', '50'))).toContain('Needs context')
+    expect(text(leaf('PROJECT_TIMELINE_ELAPSED_PERCENT', 'GT', '50'))).toContain('sets no level')
     expect(text(leaf('BENEFICIARY_FOLLOW_UP_PERCENT', 'GT', '30'))).toContain('(enter it below)')
     expect(
       text(leaf('BENEFICIARY_FOLLOW_UP_PERCENT', 'GT', '30'), { manageableFollowUpPercent: '20' }),
