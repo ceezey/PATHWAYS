@@ -1,7 +1,8 @@
-import { useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
 import { useCurrentRole } from '@/hooks/use-current-role'
+import { beneficiariesClient } from '@/lib/api/beneficiaries'
 import { formsClient } from '@/lib/api/forms'
 import { journeysClient } from '@/lib/api/journeys'
 import { isUiActionAvailable } from '@/lib/rbac/ui-action-availability'
@@ -33,7 +34,7 @@ export type BeneficiaryDetailProps = {
 }
 
 export const useBeneficiaryDetail = ({
-  beneficiary,
+  beneficiary: loadedBeneficiary,
   projects,
   activities,
   stages,
@@ -43,8 +44,17 @@ export const useBeneficiaryDetail = ({
   refreshAssessments = async () => undefined,
 }: BeneficiaryDetailProps) => {
   const { role, profile } = useCurrentRole()
-  const [participation, setParticipation] = useState(beneficiary.participation)
-  const [notes, setNotes] = useState(beneficiary.notes)
+  const [participation, setParticipation] = useState(loadedBeneficiary.participation)
+  const [notes, setNotes] = useState(loadedBeneficiary.notes)
+  // The server journey summary and enrollment status change with every journey write.
+  const [summary, setSummary] = useState({
+    progress: loadedBeneficiary.progress,
+    enrollmentStatus: loadedBeneficiary.enrollmentStatus,
+  })
+  const beneficiary = useMemo(
+    () => ({ ...loadedBeneficiary, ...summary }),
+    [loadedBeneficiary, summary],
+  )
   const enrollmentStatus = beneficiary.enrollmentStatus
   const [profileOpen, setProfileOpen] = useState(false)
   const [assessmentOpen, setAssessmentOpen] = useState(false)
@@ -199,10 +209,7 @@ export const useBeneficiaryDetail = ({
       if (saved.status === 'DRAFT') {
         await formsClient.submitDirectSubmission(projectId, form.id, saved.id, saved.updatedAt)
       }
-      const history = await journeysClient.getBeneficiaryJourneyHistory(projectId, beneficiary.id)
-      const nextJourney = mapBeneficiaryJourneyHistory(history)
-      setParticipation(nextJourney.participation)
-      setNotes(nextJourney.notes)
+      await refreshJourneyHistory()
       setParticipationOpen(false)
       setParticipationDraft((current) => ({ ...current, note: '' }))
       participationClientId.current = null
@@ -215,10 +222,16 @@ export const useBeneficiaryDetail = ({
   }
 
   const refreshJourneyHistory = async () => {
-    const history = await journeysClient.getBeneficiaryJourneyHistory(projectId, beneficiary.id)
+    const [history, record] = await Promise.all([
+      journeysClient.getBeneficiaryJourneyHistory(projectId, beneficiary.id),
+      role
+        ? beneficiariesClient.getBeneficiaryRecordForRole(role, projectId, beneficiary.id)
+        : null,
+    ])
     const nextJourney = mapBeneficiaryJourneyHistory(history)
     setParticipation(nextJourney.participation)
     setNotes(nextJourney.notes)
+    if (record) setSummary({ progress: record.progress, enrollmentStatus: record.enrollmentStatus })
   }
 
   const transitionJourney = async () => {
