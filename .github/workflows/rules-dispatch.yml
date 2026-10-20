@@ -17,7 +17,7 @@ permissions:
 
 jobs:
   dispatch:
-    # Stays inert until a person finishes the hosted setup in docs/ops-pathways.md.
+    # Stays inert until a person finishes the hosted setup in vault note ops-pathways.
     if: vars.RULES_DISPATCH_ENABLED == 'true'
     runs-on: ubuntu-latest
     environment: rules-hosted

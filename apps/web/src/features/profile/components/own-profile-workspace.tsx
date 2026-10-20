@@ -38,7 +38,7 @@ const OwnedProfileWorkspace = ({ owner: draftOwner }: { owner: SensitiveDraftOwn
   const { profile, refreshAccess } = useCurrentRole()
   // UI only: the PIN is a Beneficiary step-up fallback, so aggregate-only roles skip it.
   // The API enforces permissions and step-up independently of this section. The PIN UI
-  // itself is hidden while STEP_UP_PIN_UI_ENABLED is false (see docs/deferred-features.md).
+  // itself is hidden while STEP_UP_PIN_UI_ENABLED is false (see vault note deferred-features).
   const beneficiaryDetail =
     STEP_UP_PIN_UI_ENABLED && Boolean(profile?.permissions.includes('beneficiaries.records.read'))
   const owner = `${draftOwner.generation}:${draftOwner.key}`

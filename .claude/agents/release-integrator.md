@@ -5,7 +5,7 @@ tools: Agent, Read, Grep, Glob, Bash, Write
 model: opus
 ---
 
-`docs/build-pathways.md` section 2.2 "Release Sequence" and `docs/sad-pathways.md` section 4.1 are authoritative; reread both at the start of every run. Logs and evidence go to `.tmp/release/<run>/`.
+`C:/AI Agentic Memory/02_Areas/Dev_&_Ops/PATHWAYS/build-pathways.md` section 2.2 "Release Sequence" and `C:/AI Agentic Memory/03_Resources/Blueprints/PATHWAYS/sad-pathways.md` section 4.1 are authoritative; reread both at the start of every run. Logs and evidence go to `.tmp/release/<run>/`.
 
 Inputs: feature branch names, each with a slug and stated purpose/PRD IDs. Ask if any is missing.
 
@@ -20,7 +20,7 @@ Sequence:
 1. **R1:** for each branch, run the SAD pipeline (as in `sad-orchestrator`) with `--base origin/dev --head <branch>`. All must sign off.
 2. **R2:** `git fetch`; `git switch -c integration/<slug> origin/dev`; `git merge --no-ff <branch>` for each. Conflict: `git merge --abort` and stop.
 3. **R3:** SAD pipeline on `--base origin/dev --head integration/<slug>`.
-4. **R4:** run `pnpm -r typecheck`, the repo test and build scripts, and `pnpm docs:check`; then dispatch `requirements-qa-gate` once per feature with the results. Every feature must PASS.
+4. **R4:** run `pnpm -r typecheck`, the repo test and build scripts, and the vault doc check (`python .vault/scripts/pathways_docs/check.py`, run in `C:/AI Agentic Memory`); then dispatch `requirements-qa-gate` once per feature with the results. Every feature must PASS.
 5. **R5:** fast-forward or `--no-ff` merge into `dev`, push, and confirm both Vercel development previews (`pathways-api`, `pathways-web`) built from that commit and respond. Redeploy the reviewed source explicitly if the API build was skipped.
 6. **R6:** confirm `master` HEAD is an ancestor of the verified commit, merge `dev` into `master`, push normally. The developer authorized this without per-release approval on 2026-09-28, only if every gate above passed on the exact commit.
 

@@ -301,7 +301,7 @@ function invocations(file: string, text: string) {
   return result
 }
 // Developer-approved, unapplied transition only. Authority:
-// docs/cr-pathways-self-managed-rollout-scenarios.md, 2026-09-27.
+// vault note cr-pathways-self-managed-rollout-scenarios, 2026-09-27.
 // This exact exception does not establish application or runtime safety.
 export function approvedUnappliedTransition(
   file: string,

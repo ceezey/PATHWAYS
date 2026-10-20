@@ -170,7 +170,7 @@ describe('own profile editing', () => {
 })
 
 // The PIN section is hidden behind STEP_UP_PIN_UI_ENABLED (see
-// apps/web/src/constants/feature-flags.ts and docs/deferred-features.md). This covers
+// apps/web/src/constants/feature-flags.ts and vault note deferred-features). This covers
 // the underlying role gating with the flag forced on.
 describe('own profile editing (STEP_UP_PIN_UI_ENABLED true)', () => {
   let EnabledWorkspace: typeof OwnProfileWorkspace

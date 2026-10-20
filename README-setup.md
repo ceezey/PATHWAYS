@@ -14,7 +14,7 @@ PATHWAYS is a pnpm monorepo: one repository holding the web app, the API and the
 - `supabase`: the local Supabase stack configuration
 - `scripts`: local database, docs and SAD review scripts
 - `infra`: environment notes, Docker, and the Supabase migration and replay harnesses
-- `docs`: the document suite; start at [docs/index.md](docs/index.md)
+- `docs`: [docs/index.md](docs/index.md) only, a pointer to the document suite in the AI Memory Vault
 
 ## 1. Install The Tools
 
@@ -121,7 +121,6 @@ pnpm test          # Vitest in every workspace
 pnpm build         # build every workspace
 pnpm dev:web       # web only
 pnpm dev:api       # API only
-pnpm docs:check    # validate the document suite
 pnpm --filter @pathways/web e2e   # Playwright end-to-end tests
 ```
 
@@ -145,14 +144,14 @@ For development speed only; the full `./infra/supabase/replay/Replay-Local.ps1 -
 
 - Use the repository package manager and scripts; copy environment templates rather than committing secrets; use synthetic identities and data.
 - Never print full secret-bearing URLs. Keep runtime database credentials, migration credentials, the local shadow database and the restore-test database separate.
-- Session start: read `docs/index.md` and `AGENTS.md`, then the registered PRD, SDD, RFC, DSD or QAD documents for the task; inspect the branch and status; confirm the environment target; run the install, build and test commands.
-- Session end: run tests, review the diff, and update durable registered docs only when an approved contract or verified repository fact changes.
+- Session start: read `docs/index.md` (vault pointer) and `AGENTS.md`, then the registered PRD, SDD, RFC, DSD or QAD documents for the task; inspect the branch and status; confirm the environment target; run the install, build and test commands.
+- Session end: run tests, review the diff, and update durable registered docs (in the vault) only when an approved contract or verified repository fact changes.
 
 ## Database Safety
 
 - Never run `prisma migrate reset` or `prisma db push`.
 - Never point a destructive command at the hosted development or production databases.
-- Migrations follow the guardrails in [AGENTS.md](AGENTS.md) and the runbooks in `docs/` (`runbook-migration-baseline.md`, `runbook-backup-restore.md`); run only database work you were explicitly authorized to run.
+- Migrations follow the guardrails in [AGENTS.md](AGENTS.md) and the vault runbooks `runbook-migration-baseline` and `runbook-backup-restore`; run only database work you were explicitly authorized to run.
 
 ## Troubleshooting
 

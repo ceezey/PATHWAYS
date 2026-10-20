@@ -45,7 +45,7 @@ export function useFormActions(state: CollectionState, guard: CollectionGuard) {
     setView,
   } = state
   const { beginOperation, canManageForms, canPublishForms, editingReady } = guard
-  // Format selection is hidden (docs/deferred-features.md); exports use the default.
+  // Format selection is hidden (vault note deferred-features); exports use the default.
   const exportFormat: ExportFormat = 'csv'
   const saveDraftToApi = async () => {
     if (!editingReady) {

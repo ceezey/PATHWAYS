@@ -1,6 +1,6 @@
 /** CSV RBAC contract, approved 2026-09-26. Database grants are authoritative;
  * this ceiling can only narrow them. No wildcard or administrator bypass.
- * See docs/rfc-pathways-auth-rbac-isolation.md for source precedence and scope.
+ * See vault note rfc-pathways-auth-rbac-isolation for source precedence and scope.
  */
 import { type CanonicalRole, isCanonicalRole } from './role-catalog'
 
