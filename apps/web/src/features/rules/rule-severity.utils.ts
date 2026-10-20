@@ -83,7 +83,12 @@ export const isEmpty = (interval: Interval) => {
   )
 }
 const domainFor = (metric: RuleMetricKey): Interval => {
-  if (metric === 'ACTIVITY_COMPLETION_PERCENT' || metric === 'BENEFICIARY_FOLLOW_UP_PERCENT')
+  if (
+    metric === 'ACTIVITY_COMPLETION_PERCENT' ||
+    metric === 'BENEFICIARY_FOLLOW_UP_PERCENT' ||
+    metric === 'SURVEY_MEAN_PRE_TEST_PERCENT' ||
+    metric === 'SURVEY_MEAN_POST_TEST_PERCENT'
+  )
     return percentage
   if (metric === 'SURVEY_MEAN_IMPROVEMENT_POINTS') return assessment
   if (
@@ -143,7 +148,13 @@ const bindingKey = (leaf: Leaf) =>
 const leafReach = (leaf: Leaf, expectations: RuleExpectations, range = rangeOf(leaf)): Reach => {
   if (isEmpty(range)) return reach([])
   const metric = leaf.metric
-  if (metric === 'PROJECT_TIMELINE_ELAPSED_PERCENT') return reach([-1])
+  if (
+    metric === 'PROJECT_TIMELINE_ELAPSED_PERCENT' ||
+    metric === 'KPI_ACHIEVEMENT_PERCENT' ||
+    metric === 'SURVEY_MEAN_PRE_TEST_PERCENT' ||
+    metric === 'SURVEY_MEAN_POST_TEST_PERCENT'
+  )
+    return reach([-1])
   if (metric === 'BUDGET_UTILIZATION_PERCENT') {
     const [within, medium] = SEVERITY_BOUNDS.BUDGET_PERCENT
     return reach(ranksIn(range, rising(within * scale, medium * scale)).map((rank) => rank || -1))

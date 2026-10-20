@@ -176,8 +176,9 @@ describe('RuleDrawer', () => {
     renderDrawer()
     expect(option('Project timeline elapsed')).toBeTruthy()
     expect(option('Activities completed')).toBeNull()
-    expect(screen.getByTestId('rule-category-label').textContent).toBe('Rule Category:')
+    expect(screen.getByTestId('rule-category-label').textContent).toBe('Rule Categories:')
     expect(within(screen.getByTestId('rule-category')).getByText('Schedule')).toBeTruthy()
+    expect(within(screen.getByTestId('rule-category')).getByText('Performance')).toBeTruthy()
     fireEvent.click(screen.getByRole('checkbox', { name: 'Activity' }))
     expect(option('Activities completed')).toBeTruthy()
     expect(screen.getByTestId('rule-category-label').textContent).toBe('Rule Categories:')
@@ -209,7 +210,7 @@ describe('RuleDrawer', () => {
       name: 'More information about Project scope',
     })
     fireEvent.mouseEnter(projectScopeInfo)
-    expect(screen.getByRole('tooltip').textContent).toBe('Project schedule')
+    expect(screen.getByRole('tooltip').textContent).toBe('Project schedule and KPI performance')
     fireEvent.mouseLeave(projectScopeInfo)
 
     const indicatorScopeInfo = screen.getByRole('button', {

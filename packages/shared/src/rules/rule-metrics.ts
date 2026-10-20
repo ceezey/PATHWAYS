@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { kpiAchievement } from '../contracts/projects/overview-metrics'
 import { storedProjectStatuses } from '../contracts/projects/project-requests'
 import { metricCellSchema as sharedCellSchema } from '../metrics/metric-cell'
 import {
@@ -443,7 +444,13 @@ function divideRounded(numerator: bigint, denominator: bigint) {
 function aggregateObservation(
   input: z.infer<z.ZodObject<typeof aggregateBase>>,
   metric: RuleMetricKey,
-  kind: 'BUDGET_AGGREGATE' | 'BENEFICIARY_AGGREGATE' | 'SURVEY_AGGREGATE',
+  kind:
+    | 'BUDGET_AGGREGATE'
+    | 'BENEFICIARY_AGGREGATE'
+    | 'SURVEY_AGGREGATE'
+    | 'KPI_AGGREGATE'
+    | 'PRE_TEST_AGGREGATE'
+    | 'POST_TEST_AGGREGATE',
   cell: Cell,
   calculation: Record<string, unknown>,
 ): MetricObservation {
@@ -550,5 +557,62 @@ export function surveyImprovementObservation(input: unknown): MetricObservation 
   return aggregateObservation(data, 'SURVEY_MEAN_IMPROVEMENT_POINTS', 'SURVEY_AGGREGATE', cell, {
     pairCount: data.pairCount,
     differenceSum: data.differenceSum,
+  })
+}
+
+const kpiInputSchema = z
+  .object({
+    ...aggregateBase,
+    indicatorCount: z.number().int().min(0).max(100),
+    progress: z.array(decimalSchema).max(100),
+  })
+  .strict()
+  .refine((data) => data.progress.length <= data.indicatorCount, 'Reported exceeds indicators.')
+
+/** Aggregate-only: mean progress of reported indicators, the project overview KPI achievement. */
+export function kpiAchievementObservation(input: unknown): MetricObservation {
+  const data = kpiInputSchema.parse(input)
+  const cells = [
+    ...data.progress.map(numericMetric),
+    ...Array.from({ length: data.indicatorCount - data.progress.length }, () =>
+      unavailable('NO_MEASUREMENT'),
+    ),
+  ]
+  let cell: Cell
+  if (!aggregateOpen(data)) cell = notApplicable()
+  else if (data.indicatorCount === 0) cell = unavailable('EMPTY_POPULATION')
+  else if (data.progress.length === 0) cell = unavailable('NO_MEASUREMENT')
+  else cell = safeCell(kpiAchievement(cells).metric)
+  const sum = data.progress.reduce((total, value) => total + scaledDecimal(value), 0n)
+  return aggregateObservation(data, 'KPI_ACHIEVEMENT_PERCENT', 'KPI_AGGREGATE', cell, {
+    indicatorCount: data.indicatorCount,
+    reportedCount: data.progress.length,
+    progressSum: decimalString(sum),
+  })
+}
+
+const testScoreInputSchema = z
+  .object({ ...aggregateBase, enrollmentCount: count, percentSum: nonNegativeDecimal })
+  .strict()
+
+/** Aggregate-only: mean of each active enrollment's latest pre-test or post-test percent score. */
+export function testScoreObservation(
+  metric: 'SURVEY_MEAN_PRE_TEST_PERCENT' | 'SURVEY_MEAN_POST_TEST_PERCENT',
+  input: unknown,
+): MetricObservation {
+  const data = testScoreInputSchema.parse(input)
+  let cell: Cell
+  if (!aggregateOpen(data)) cell = notApplicable()
+  else if (data.enrollmentCount === 0) cell = unavailable('EMPTY_POPULATION')
+  else if (BigInt(data.enrollmentCount) < MIN_COHORT) cell = suppressed()
+  else {
+    const mean = divideRounded(scaledDecimal(data.percentSum), BigInt(data.enrollmentCount))
+    cell = mean > 1000000n ? unavailable('INVALID_METRIC') : numericMetric(decimalString(mean))
+  }
+  const kind =
+    metric === 'SURVEY_MEAN_PRE_TEST_PERCENT' ? 'PRE_TEST_AGGREGATE' : 'POST_TEST_AGGREGATE'
+  return aggregateObservation(data, metric, kind, cell, {
+    enrollmentCount: data.enrollmentCount,
+    percentSum: data.percentSum,
   })
 }

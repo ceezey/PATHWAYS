@@ -80,9 +80,10 @@ describe('rule board model', () => {
     expect(availableMetrics(['Indicator'])).not.toContain('PROJECT_REMAINING_DAYS')
   })
   it('derives ordered, distinct category tags from selected scope families', () => {
-    expect(categoriesForScopes(['Project'])).toEqual(['Schedule'])
+    expect(categoriesForScopes(['Project'])).toEqual(['Schedule', 'Performance'])
     expect(categoriesForScopes(['Project', 'Budget', 'Activity'])).toEqual([
       'Schedule',
+      'Performance',
       'Delivery',
       'Financial',
     ])
@@ -281,5 +282,23 @@ describe('per-row joins', () => {
     expect(treeToRows(or(or(a, b), c))).toBeNull()
     expect(treeToRows(or(and(a), c))).toBeNull()
     expect(treeToRows(or(and(a, or(b, c))))).toBeNull()
+  })
+})
+
+describe('KPI and test score metrics', () => {
+  it('lists them under Project and Assessment as percentages', () => {
+    expect(availableMetrics(['Project'])).toContain('KPI_ACHIEVEMENT_PERCENT')
+    expect(availableMetrics(['Assessment'])).toEqual([
+      'SURVEY_MEAN_IMPROVEMENT_POINTS',
+      'SURVEY_MEAN_PRE_TEST_PERCENT',
+      'SURVEY_MEAN_POST_TEST_PERCENT',
+    ])
+    for (const key of [
+      'KPI_ACHIEVEMENT_PERCENT',
+      'SURVEY_MEAN_PRE_TEST_PERCENT',
+      'SURVEY_MEAN_POST_TEST_PERCENT',
+    ])
+      expect(metricGuidance(key)?.unit).toBe('%')
+    expect(recordBound('KPI_ACHIEVEMENT_PERCENT')).toBe(false)
   })
 })

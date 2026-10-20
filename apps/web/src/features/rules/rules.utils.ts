@@ -114,6 +114,15 @@ const METRIC_CATALOG: Record<RuleMetricKey, MetricEntry> = {
     { label: 'Worked example', value: 'An end date 3 calendar days ago gives 3 days.' },
     'Selected project',
   ),
+  KPI_ACHIEVEMENT_PERCENT: entry(
+    'KPI performance',
+    'Project',
+    '%',
+    'Performance',
+    'Average progress from baseline to target across the project indicators that have a current value. Indicators without a value are left out.',
+    { label: 'Worked example', value: 'Indicators at 40% and 60% of their targets give 50%.' },
+    'Project aggregate',
+  ),
   ACTIVITY_COMPLETION_PERCENT: entry(
     'Activities completed',
     'Activity',
@@ -180,6 +189,24 @@ const METRIC_CATALOG: Record<RuleMetricKey, MetricEntry> = {
     },
     'Project aggregate',
   ),
+  SURVEY_MEAN_PRE_TEST_PERCENT: entry(
+    'Average pre-test score',
+    'Assessment',
+    '%',
+    'Outcome',
+    "Average of each active participant's latest pre-test score on a 0–100 scale. Hidden when fewer than 5 people have a score.",
+    { label: 'Worked example', value: 'Scores of 12 out of 20 and 16 out of 20 average 70%.' },
+    'Project aggregate',
+  ),
+  SURVEY_MEAN_POST_TEST_PERCENT: entry(
+    'Average post-test score',
+    'Assessment',
+    '%',
+    'Outcome',
+    "Average of each active participant's latest post-test score on a 0–100 scale. Hidden when fewer than 5 people have a score.",
+    { label: 'Worked example', value: 'Scores of 15 out of 20 and 19 out of 20 average 85%.' },
+    'Project aggregate',
+  ),
 }
 export const SCOPES: MetricScope[] = [
   'Project',
@@ -201,7 +228,7 @@ export const scopeDisplayLabel: Partial<Record<MetricScope, string>> = {
   Indicator: 'Indicator / KPI',
 }
 export const scopeGuidance: Record<MetricScope, string> = {
-  Project: 'Project schedule',
+  Project: 'Project schedule and KPI performance',
   Indicator: 'Indicator results',
   Activity: 'Activity delivery',
   Budget: 'Budget spending',

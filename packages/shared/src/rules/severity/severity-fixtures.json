@@ -4640,5 +4640,250 @@
       "missing": [],
       "unchecked": []
     }
+  },
+  {
+    "name": "kpi performance alone needs a delivery expectation",
+    "input": {
+      "tree": {
+        "kind": "GROUP",
+        "mode": "AND",
+        "children": [
+          {
+            "kind": "CONDITION",
+            "id": "kpi",
+            "metric": "KPI_ACHIEVEMENT_PERCENT",
+            "operator": "LT",
+            "threshold": "70"
+          }
+        ]
+      },
+      "results": {
+        "kpi": "TRUE"
+      },
+      "facts": {
+        "kpi": {
+          "metric": "KPI_ACHIEVEMENT_PERCENT",
+          "value": "42.5",
+          "reportingDate": "2026-10-19"
+        }
+      },
+      "expectations": {
+        "expectedScoreImprovement": null,
+        "manageableFollowUpPercent": null
+      },
+      "ruleSeverity": null
+    },
+    "expected": {
+      "criteriaVersion": "severity-guide-v0.2",
+      "status": "CONTEXT_REQUIRED",
+      "level": null,
+      "supportedLevel": null,
+      "decisiveConditionId": null,
+      "combination": null,
+      "manualCritical": false,
+      "conditions": [
+        {
+          "conditionId": "kpi",
+          "metric": "KPI_ACHIEVEMENT_PERCENT",
+          "outcome": "EXPLANATORY",
+          "level": null,
+          "measure": null,
+          "missing": null
+        }
+      ],
+      "missing": ["DELIVERY_EXPECTATION"],
+      "unchecked": []
+    }
+  },
+  {
+    "name": "average pre-test score alone needs a delivery expectation",
+    "input": {
+      "tree": {
+        "kind": "GROUP",
+        "mode": "AND",
+        "children": [
+          {
+            "kind": "CONDITION",
+            "id": "pre",
+            "metric": "SURVEY_MEAN_PRE_TEST_PERCENT",
+            "operator": "LT",
+            "threshold": "70"
+          }
+        ]
+      },
+      "results": {
+        "pre": "TRUE"
+      },
+      "facts": {
+        "pre": {
+          "metric": "SURVEY_MEAN_PRE_TEST_PERCENT",
+          "value": "55",
+          "reportingDate": "2026-10-19"
+        }
+      },
+      "expectations": {
+        "expectedScoreImprovement": null,
+        "manageableFollowUpPercent": null
+      },
+      "ruleSeverity": null
+    },
+    "expected": {
+      "criteriaVersion": "severity-guide-v0.2",
+      "status": "CONTEXT_REQUIRED",
+      "level": null,
+      "supportedLevel": null,
+      "decisiveConditionId": null,
+      "combination": null,
+      "manualCritical": false,
+      "conditions": [
+        {
+          "conditionId": "pre",
+          "metric": "SURVEY_MEAN_PRE_TEST_PERCENT",
+          "outcome": "EXPLANATORY",
+          "level": null,
+          "measure": null,
+          "missing": null
+        }
+      ],
+      "missing": ["DELIVERY_EXPECTATION"],
+      "unchecked": []
+    }
+  },
+  {
+    "name": "average post-test score alone needs a delivery expectation",
+    "input": {
+      "tree": {
+        "kind": "GROUP",
+        "mode": "AND",
+        "children": [
+          {
+            "kind": "CONDITION",
+            "id": "post",
+            "metric": "SURVEY_MEAN_POST_TEST_PERCENT",
+            "operator": "LT",
+            "threshold": "70"
+          }
+        ]
+      },
+      "results": {
+        "post": "TRUE"
+      },
+      "facts": {
+        "post": {
+          "metric": "SURVEY_MEAN_POST_TEST_PERCENT",
+          "value": "61.25",
+          "reportingDate": "2026-10-19"
+        }
+      },
+      "expectations": {
+        "expectedScoreImprovement": null,
+        "manageableFollowUpPercent": null
+      },
+      "ruleSeverity": null
+    },
+    "expected": {
+      "criteriaVersion": "severity-guide-v0.2",
+      "status": "CONTEXT_REQUIRED",
+      "level": null,
+      "supportedLevel": null,
+      "decisiveConditionId": null,
+      "combination": null,
+      "manualCritical": false,
+      "conditions": [
+        {
+          "conditionId": "post",
+          "metric": "SURVEY_MEAN_POST_TEST_PERCENT",
+          "outcome": "EXPLANATORY",
+          "level": null,
+          "measure": null,
+          "missing": null
+        }
+      ],
+      "missing": ["DELIVERY_EXPECTATION"],
+      "unchecked": []
+    }
+  },
+  {
+    "name": "kpi performance beside activities completed keeps the activity level",
+    "input": {
+      "tree": {
+        "kind": "GROUP",
+        "mode": "AND",
+        "children": [
+          {
+            "kind": "CONDITION",
+            "id": "completion",
+            "metric": "ACTIVITY_COMPLETION_PERCENT",
+            "operator": "LT",
+            "threshold": "90"
+          },
+          {
+            "kind": "CONDITION",
+            "id": "kpi",
+            "metric": "KPI_ACHIEVEMENT_PERCENT",
+            "operator": "LT",
+            "threshold": "70"
+          }
+        ]
+      },
+      "results": {
+        "completion": "TRUE",
+        "kpi": "TRUE"
+      },
+      "facts": {
+        "completion": {
+          "metric": "ACTIVITY_COMPLETION_PERCENT",
+          "value": "72",
+          "reportingDate": "2026-10-19",
+          "included": 10,
+          "dueByDate": 8,
+          "missingEnd": 0
+        },
+        "kpi": {
+          "metric": "KPI_ACHIEVEMENT_PERCENT",
+          "value": "42.5",
+          "reportingDate": "2026-10-19"
+        }
+      },
+      "expectations": {
+        "expectedScoreImprovement": null,
+        "manageableFollowUpPercent": null
+      },
+      "ruleSeverity": null
+    },
+    "expected": {
+      "criteriaVersion": "severity-guide-v0.2",
+      "status": "CLASSIFIED",
+      "level": "LOW",
+      "supportedLevel": "LOW",
+      "decisiveConditionId": "completion",
+      "combination": null,
+      "manualCritical": false,
+      "conditions": [
+        {
+          "conditionId": "completion",
+          "metric": "ACTIVITY_COMPLETION_PERCENT",
+          "outcome": "LEVEL",
+          "level": "LOW",
+          "measure": {
+            "kind": "BEHIND_PERCENT",
+            "actual": "72.0000",
+            "expected": "80.0000",
+            "value": "10.0000"
+          },
+          "missing": null
+        },
+        {
+          "conditionId": "kpi",
+          "metric": "KPI_ACHIEVEMENT_PERCENT",
+          "outcome": "EXPLANATORY",
+          "level": null,
+          "measure": null,
+          "missing": null
+        }
+      ],
+      "missing": [],
+      "unchecked": []
+    }
   }
 ]

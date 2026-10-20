@@ -22,6 +22,9 @@ export const ruleMetrics = [
   'BUDGET_UTILIZATION_PERCENT',
   'BENEFICIARY_FOLLOW_UP_PERCENT',
   'SURVEY_MEAN_IMPROVEMENT_POINTS',
+  'KPI_ACHIEVEMENT_PERCENT',
+  'SURVEY_MEAN_PRE_TEST_PERCENT',
+  'SURVEY_MEAN_POST_TEST_PERCENT',
 ] as const
 export type RuleMetricKey = (typeof ruleMetrics)[number]
 export const uuidSchema = z
@@ -55,7 +58,14 @@ export type RuleGroup = { kind: 'GROUP'; mode: 'AND' | 'OR'; children: RuleNode[
 export type RuleNode = RuleCondition | RuleGroup
 
 function validateMetricDomain(metric: RuleMetricKey, value: string) {
-  if (['ACTIVITY_COMPLETION_PERCENT', 'BENEFICIARY_FOLLOW_UP_PERCENT'].includes(metric))
+  if (
+    [
+      'ACTIVITY_COMPLETION_PERCENT',
+      'BENEFICIARY_FOLLOW_UP_PERCENT',
+      'SURVEY_MEAN_PRE_TEST_PERCENT',
+      'SURVEY_MEAN_POST_TEST_PERCENT',
+    ].includes(metric)
+  )
     normalizeMetricDecimal(value, 'PERCENTAGE')
   if (metric === 'SURVEY_MEAN_IMPROVEMENT_POINTS') {
     if (scaledDecimal(value) < -1000000n || scaledDecimal(value) > 1000000n)
@@ -250,6 +260,14 @@ export const ruleMetricCellSchema = z
       ctx.addIssue({ code: 'custom', message: 'Metric state and value must agree.' })
   })
 const calendarDateSchema = z.string().refine(isCalendarDate)
+const testScoreCalculation = <K extends string>(kind: K) =>
+  z
+    .object({
+      kind: z.literal(kind),
+      enrollmentCount: z.number().int().min(0),
+      percentSum: decimalSchema,
+    })
+    .strict()
 const calculationSchema = z.discriminatedUnion('kind', [
   z
     .object({
@@ -316,11 +334,24 @@ const calculationSchema = z.discriminatedUnion('kind', [
       differenceSum: decimalSchema,
     })
     .strict(),
+  z
+    .object({
+      kind: z.literal('KPI_AGGREGATE'),
+      indicatorCount: z.number().int().min(0).max(100),
+      reportedCount: z.number().int().min(0).max(100),
+      progressSum: decimalSchema,
+    })
+    .strict(),
+  testScoreCalculation('PRE_TEST_AGGREGATE'),
+  testScoreCalculation('POST_TEST_AGGREGATE'),
 ])
 const aggregateMetric = {
   BUDGET_AGGREGATE: 'BUDGET_UTILIZATION_PERCENT',
   BENEFICIARY_AGGREGATE: 'BENEFICIARY_FOLLOW_UP_PERCENT',
   SURVEY_AGGREGATE: 'SURVEY_MEAN_IMPROVEMENT_POINTS',
+  KPI_AGGREGATE: 'KPI_ACHIEVEMENT_PERCENT',
+  PRE_TEST_AGGREGATE: 'SURVEY_MEAN_PRE_TEST_PERCENT',
+  POST_TEST_AGGREGATE: 'SURVEY_MEAN_POST_TEST_PERCENT',
 } as const
 export const metricObservationSchema = z
   .object({
@@ -344,6 +375,9 @@ export const metricObservationSchema = z
           'BUDGET_AGGREGATE',
           'BENEFICIARY_AGGREGATE',
           'SURVEY_AGGREGATE',
+          'KPI_AGGREGATE',
+          'PRE_TEST_AGGREGATE',
+          'POST_TEST_AGGREGATE',
         ]),
         recordId: uuidSchema,
         revision: z.string().regex(/^[A-Za-z0-9_.:-]{1,80}$/),

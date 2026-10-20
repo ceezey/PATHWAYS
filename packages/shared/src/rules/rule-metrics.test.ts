@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest'
+import { kpiAchievement } from '../contracts/projects/overview-metrics'
 import {
   activityObservation,
   beneficiaryFollowUpObservation,
   budgetObservation,
   indicatorObservation,
+  kpiAchievementObservation,
   timelineObservation as observeTimeline,
   surveyImprovementObservation,
+  testScoreObservation,
 } from './rule-metrics'
 const timelineObservation = (input: Record<string, unknown>) =>
   observeTimeline({ projectStatus: 'PLANNED', projectArchived: false, ...input })
@@ -505,5 +508,66 @@ describe('aggregate-only project observations', () => {
       }
     }
     expect(follow(4, 2).source).toBeNull()
+  })
+})
+
+describe('KPI and test score aggregates', () => {
+  const open = { revision: '1', projectStatus: 'ONGOING', projectArchived: false }
+  const kpi = (indicatorCount: number, progress: string[], patch: Record<string, unknown> = {}) =>
+    kpiAchievementObservation({ ...context, ...open, indicatorCount, progress, ...patch })
+  const pre = (enrollmentCount: number, percentSum: string, patch: Record<string, unknown> = {}) =>
+    testScoreObservation('SURVEY_MEAN_PRE_TEST_PERCENT', {
+      ...context,
+      ...open,
+      enrollmentCount,
+      percentSum,
+      ...patch,
+    })
+
+  it('averages reported indicator progress to tenths, matching the overview KPI', () => {
+    const result = kpi(3, ['40', '61.25'])
+    expect(result.cell).toEqual({ state: 'AVAILABLE', value: '50.6', reason: null })
+    expect(result.calculation).toEqual({
+      kind: 'KPI_AGGREGATE',
+      indicatorCount: 3,
+      reportedCount: 2,
+      progressSum: '101.25',
+    })
+    expect(result.source).toEqual({ kind: 'KPI_AGGREGATE', recordId: project, revision: '1' })
+    const cell = (value: string) => ({ state: 'AVAILABLE' as const, value, reason: null })
+    expect(kpi(2, ['-20', '10']).cell.value).toBe(
+      kpiAchievement([cell('-20'), cell('10')]).metric.value,
+    )
+    expect(kpi(1, ['150']).cell.value).toBe('150')
+  })
+  it('reports KPI reasons for no indicators, no values and closed projects', () => {
+    expect(kpi(0, []).cell.reason).toBe('EMPTY_POPULATION')
+    expect(kpi(2, []).cell.reason).toBe('NO_MEASUREMENT')
+    expect(kpi(1, ['50'], { projectStatus: 'ON_HOLD' }).cell.state).toBe('NOT_APPLICABLE')
+    expect(kpi(1, ['50'], { projectArchived: true }).cell.state).toBe('NOT_APPLICABLE')
+    expect(() => kpi(1, ['50', '60'])).toThrow()
+  })
+  it('averages test scores and suppresses fewer than five people', () => {
+    const result = pre(5, '312.5')
+    expect(result.cell).toEqual({ state: 'AVAILABLE', value: '62.5', reason: null })
+    expect(result.calculation).toEqual({
+      kind: 'PRE_TEST_AGGREGATE',
+      enrollmentCount: 5,
+      percentSum: '312.5',
+    })
+    expect(pre(4, '200').cell.state).toBe('SUPPRESSED')
+    expect(pre(4, '200').source).toBeNull()
+    expect(pre(0, '0').cell.reason).toBe('EMPTY_POPULATION')
+    expect(pre(5, '600').cell.reason).toBe('INVALID_METRIC')
+    expect(pre(5, '0').cell.state).toBe('ZERO')
+    expect(
+      testScoreObservation('SURVEY_MEAN_POST_TEST_PERCENT', {
+        ...context,
+        ...open,
+        enrollmentCount: 6,
+        percentSum: '500',
+      }).cell.value,
+    ).toBe('83.3333')
+    expect(() => pre(5, '-1')).toThrow()
   })
 })

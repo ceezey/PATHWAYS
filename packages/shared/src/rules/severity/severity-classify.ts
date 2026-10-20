@@ -132,6 +132,9 @@ function judge(c: RuleCondition, f: SeverityFacts, e: RuleExpectations): Conditi
       })
     }
     case 'PROJECT_TIMELINE_ELAPSED_PERCENT':
+    case 'KPI_ACHIEVEMENT_PERCENT':
+    case 'SURVEY_MEAN_PRE_TEST_PERCENT':
+    case 'SURVEY_MEAN_POST_TEST_PERCENT':
       return explanatory(c)
     case 'PROJECT_REMAINING_DAYS': {
       const days = scaledDecimal(f.value)

@@ -119,7 +119,7 @@ describe('formatSeverityBasis', () => {
   it('formats every fixture with a guide section', () => {
     for (const item of fixtures) {
       const formatted = formatSeverityBasis(item.expected)
-      expect(formatted.section).toMatch(/^(5\.(1[01]?|[2-9])|6)$/)
+      expect(formatted.section).toMatch(/^(5\.(1[0-4]?|[2-9])|6)$/)
       expect(formatted.reason).toContain(`(Severity Guide v0.2, ${formatted.section})`)
       expect(formatted.missing).toHaveLength(item.expected.missing.length)
     }

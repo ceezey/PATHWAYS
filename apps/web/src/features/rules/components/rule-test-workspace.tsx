@@ -23,10 +23,12 @@ import {
   dryRunInputSchema,
   formatSeverityBasis,
   indicatorObservation,
+  kpiAchievementObservation,
   numericKinds,
   numericMetric,
   scaledDecimal,
   surveyImprovementObservation,
+  testScoreObservation,
   timelineObservation,
 } from '@pathways/shared'
 import { useEffect, useRef, useState } from 'react'
@@ -56,6 +58,12 @@ const aggregateFields = [
   ['followUpCount', 'Test enrollments needing follow-up', 'BENEFICIARY_FOLLOW_UP_PERCENT'],
   ['surveyPairs', 'Test complete pre and post pairs', 'SURVEY_MEAN_IMPROVEMENT_POINTS'],
   ['surveyMean', 'Test mean improvement in points', 'SURVEY_MEAN_IMPROVEMENT_POINTS'],
+  ['kpiReported', 'Test indicators with a current value', 'KPI_ACHIEVEMENT_PERCENT'],
+  ['kpiMean', 'Test mean indicator progress %', 'KPI_ACHIEVEMENT_PERCENT'],
+  ['preCount', 'Test enrollments with a pre-test score', 'SURVEY_MEAN_PRE_TEST_PERCENT'],
+  ['preMean', 'Test mean pre-test score %', 'SURVEY_MEAN_PRE_TEST_PERCENT'],
+  ['postCount', 'Test enrollments with a post-test score', 'SURVEY_MEAN_POST_TEST_PERCENT'],
+  ['postMean', 'Test mean post-test score %', 'SURVEY_MEAN_POST_TEST_PERCENT'],
 ] as const
 type AggregateKey = (typeof aggregateFields)[number][0]
 const collect = (node: RuleNode): RuleCondition[] =>
@@ -129,14 +137,10 @@ function RuleTestForm({
       plannedEndDate: '',
     })),
   )
-  const [aggregates, setAggregates] = useState<Record<AggregateKey, string>>({
-    budgetPlanned: '',
-    budgetApproved: '',
-    followUpPopulation: '',
-    followUpCount: '',
-    surveyPairs: '',
-    surveyMean: '',
-  })
+  const [aggregates, setAggregates] = useState(
+    () =>
+      Object.fromEntries(aggregateFields.map(([key]) => [key, ''])) as Record<AggregateKey, string>,
+  )
   const [result, setResult] = useState<Awaited<ReturnType<typeof rulesHumanClient.dryRun>> | null>(
     null,
   )
@@ -240,6 +244,29 @@ function RuleTestForm({
             pairCount,
             differenceSum: decimalString(
               scaledDecimal(aggregates.surveyMean || '0') * BigInt(pairCount),
+            ),
+          })
+        }
+        if (condition.metric === 'KPI_ACHIEVEMENT_PERCENT') {
+          const reported = whole(aggregates.kpiReported)
+          return kpiAchievementObservation({
+            ...open,
+            indicatorCount: reported,
+            progress: Array.from({ length: reported }, () => aggregates.kpiMean || '0'),
+          })
+        }
+        if (
+          condition.metric === 'SURVEY_MEAN_PRE_TEST_PERCENT' ||
+          condition.metric === 'SURVEY_MEAN_POST_TEST_PERCENT'
+        ) {
+          const pre = condition.metric === 'SURVEY_MEAN_PRE_TEST_PERCENT'
+          const enrollmentCount = whole(pre ? aggregates.preCount : aggregates.postCount)
+          return testScoreObservation(condition.metric, {
+            ...open,
+            enrollmentCount,
+            percentSum: decimalString(
+              scaledDecimal((pre ? aggregates.preMean : aggregates.postMean) || '0') *
+                BigInt(enrollmentCount),
             ),
           })
         }

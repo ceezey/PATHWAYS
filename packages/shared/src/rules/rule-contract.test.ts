@@ -45,12 +45,18 @@ describe('bounded typed rules authoring', () => {
       ['BUDGET_UTILIZATION_PERCENT', '150'],
       ['BENEFICIARY_FOLLOW_UP_PERCENT', '100'],
       ['SURVEY_MEAN_IMPROVEMENT_POINTS', '-100'],
+      ['KPI_ACHIEVEMENT_PERCENT', '-20'],
+      ['KPI_ACHIEVEMENT_PERCENT', '150'],
+      ['SURVEY_MEAN_PRE_TEST_PERCENT', '0'],
+      ['SURVEY_MEAN_POST_TEST_PERCENT', '100'],
     ])
       expect(parseRuleTree({ ...condition(), metric, threshold })).toMatchObject({ metric })
     for (const [metric, threshold] of [
       ['BUDGET_UTILIZATION_PERCENT', '-1'],
       ['BENEFICIARY_FOLLOW_UP_PERCENT', '100.0001'],
       ['SURVEY_MEAN_IMPROVEMENT_POINTS', '100.0001'],
+      ['SURVEY_MEAN_PRE_TEST_PERCENT', '101'],
+      ['SURVEY_MEAN_POST_TEST_PERCENT', '-1'],
       ['FOO', '1'],
     ])
       expect(() => parseRuleTree({ ...condition(), metric, threshold })).toThrow()
