@@ -36,7 +36,7 @@ export function SeverityBasisPanel({ alert }: { alert: HumanAlert }) {
     <section className="space-y-2 rounded-md border border-border p-3">
       <h3 className="font-semibold">Why this level</h3>
       <p className="font-medium">{text.headline}</p>
-      <p className="text-sm">{text.reason}</p>
+      {text.reason ? <p className="text-sm">{text.reason}</p> : null}
       {text.missing.length ? (
         <ul className="list-disc space-y-1 pl-5 text-sm">
           {text.missing.map((item) => (

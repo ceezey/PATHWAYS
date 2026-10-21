@@ -44,6 +44,13 @@ export function normalizeMetricDecimal(value: string, kind: NumericKind): string
   return decimalString(scaled)
 }
 
+/** Display text rounded half away from zero to two places, trailing zeros dropped. */
+export function displayDecimal(input: string): string {
+  const value = scaledDecimal(input)
+  const rounded = (((value < 0n ? -value : value) + 50n) / 100n) * 100n
+  return decimalString(value < 0n ? -rounded : rounded)
+}
+
 /** Scaled decimal with exactly four fractional digits, matching numeric(18,4) text. */
 export function fixedDecimal(value: bigint): string {
   const absolute = value < 0n ? -value : value

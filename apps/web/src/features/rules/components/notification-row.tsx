@@ -41,7 +41,7 @@ export function NotificationRow({ item, onRead }: { item: HumanNotification; onR
     <li className="space-y-2 rounded-sm border border-border p-3">
       <p>{item.message}</p>
       <p className="text-sm text-muted-foreground">
-        {manilaTime(item.createdAt)} Asia/Manila; {codeLabel(item.deliveryState)}
+        {manilaTime(item.createdAt)}; {codeLabel(item.deliveryState)}
       </p>
       <Link className="text-primary underline" href={`/alerts?alert=${item.alertId}`}>
         View alert

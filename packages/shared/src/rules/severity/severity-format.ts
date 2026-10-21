@@ -1,11 +1,9 @@
-import { decimalString, scaledDecimal } from '../../metrics/metric-math'
-import {
-  COMBINATION_SECTION,
-  type ConditionBasis,
-  SEVERITY_SECTIONS,
-  type SeverityBasis,
-  type SeverityLevel,
-  type SeverityMissing,
+import { displayDecimal, scaledDecimal } from '../../metrics/metric-math'
+import type {
+  ConditionBasis,
+  SeverityBasis,
+  SeverityLevel,
+  SeverityMissing,
 } from './severity-criteria'
 
 /** Plain-language request for each missing item (guide 3 and 7). */
@@ -29,7 +27,7 @@ export const SEVERITY_MISSING_TEXT: Record<SeverityMissing, string> = {
 const TIME_TEXT = 'Time helps explain the situation; it has no separate severity.'
 
 export const severityLabel = (level: SeverityLevel) => `${level[0]}${level.slice(1).toLowerCase()}`
-const num = (value: string) => decimalString(scaledDecimal(value))
+const num = displayDecimal
 const signed = (value: string) => `${scaledDecimal(value) >= 0n ? '+' : ''}${num(value)}`
 const positive = (value: string) => scaledDecimal(value) > 0n
 const days = (value: string) => `${num(value)} ${num(value) === '1' ? 'day' : 'days'}`
@@ -72,23 +70,13 @@ function sentence(c: ConditionBasis): string {
   }
 }
 
-/** Headline, one-paragraph reason, missing requests and the cited guide section for a basis. */
+/** Headline, one-paragraph reason and missing requests for a basis. */
 export function formatSeverityBasis(basis: SeverityBasis): {
   headline: string
   reason: string
   missing: string[]
-  section: string
 } {
   const decisive = basis.conditions.find((c) => c.conditionId === basis.decisiveConditionId)
-  const first =
-    decisive ??
-    basis.conditions.find((c) => c.outcome === 'CONTEXT_REQUIRED') ??
-    basis.conditions[0]
-  const section = basis.combination
-    ? COMBINATION_SECTION
-    : first
-      ? SEVERITY_SECTIONS[first.metric]
-      : COMBINATION_SECTION
   const budget = basis.conditions.find((c) => c.metric === 'BUDGET_UTILIZATION_PERCENT')
   const parts: string[] = []
   if (basis.status === 'CONTEXT_REQUIRED')
@@ -112,7 +100,6 @@ export function formatSeverityBasis(basis: SeverityBasis): {
   )
     parts.push(TIME_TEXT)
   if (basis.unchecked.length > 0) parts.push('Some other conditions could not be checked.')
-  parts.push(`(Severity Guide v0.2, ${section})`)
   return {
     headline:
       basis.status === 'CLASSIFIED' && basis.level
@@ -120,6 +107,5 @@ export function formatSeverityBasis(basis: SeverityBasis): {
         : 'Needs context.',
     reason: parts.join(' '),
     missing: basis.missing.map((code) => SEVERITY_MISSING_TEXT[code]),
-    section,
   }
 }

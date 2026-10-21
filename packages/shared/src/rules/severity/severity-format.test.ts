@@ -46,9 +46,8 @@ describe('formatSeverityBasis', () => {
     ).toEqual({
       headline: 'Suggested severity: High.',
       reason:
-        'The plan expected 80% progress by the reporting date. Actual progress is 45%, which is 43.75% behind the expectation. (Severity Guide v0.2, 5.2)',
+        'The plan expected 80% progress by the reporting date. Actual progress is 45%, which is 43.75% behind the expectation.',
       missing: [],
-      section: '5.2',
     })
   })
 
@@ -83,7 +82,7 @@ describe('formatSeverityBasis', () => {
     )
     expect(formatted.headline).toBe('Needs context.')
     expect(formatted.reason).toBe(
-      'Medium already supported. Budget used is 105%, which is above the planned budget. (Severity Guide v0.2, 5.9)',
+      'Medium already supported. Budget used is 105%, which is above the planned budget.',
     )
     expect(formatted.missing).toEqual([wording.EXPECTED_SCORE_IMPROVEMENT])
   })
@@ -95,9 +94,8 @@ describe('formatSeverityBasis', () => {
     expect(formatted).toEqual({
       headline: 'Suggested severity: High.',
       reason:
-        'The plan expected 80% of activities completed by the reporting date. Actual completion is 35%, which is 56.25% behind the expectation. Budget used is 95%, so the linked spending supports the concern. (Severity Guide v0.2, 6)',
+        'The plan expected 80% of activities completed by the reporting date. Actual completion is 35%, which is 56.25% behind the expectation. Budget used is 95%, so the linked spending supports the concern.',
       missing: [],
-      section: '6',
     })
   })
 
@@ -106,23 +104,40 @@ describe('formatSeverityBasis', () => {
       formatSeverityBasis(fixture('timeline 85 with progress 45 is high and time only explains'))
         .reason,
     ).toBe(
-      'The plan expected 100% progress by the reporting date. Actual progress is 45%, which is 55% behind the expectation. Time helps explain the situation; it has no separate severity. (Severity Guide v0.2, 5.2)',
+      'The plan expected 100% progress by the reporting date. Actual progress is 45%, which is 55% behind the expectation. Time helps explain the situation; it has no separate severity.',
     )
   })
 
   it('uses the assessment wording from the change record', () => {
     expect(formatSeverityBasis(fixture('assessment shortfall 11 is high')).reason).toBe(
-      'Expected +10 points, actual -1, 11 points below. (Severity Guide v0.2, 5.11)',
+      'Expected +10 points, actual -1, 11 points below.',
     )
   })
 
-  it('formats every fixture with a guide section', () => {
+  it('formats every fixture without citing the guide', () => {
     for (const item of fixtures) {
       const formatted = formatSeverityBasis(item.expected)
-      expect(formatted.section).toMatch(/^(5\.(1[0-4]?|[2-9])|6)$/)
-      expect(formatted.reason).toContain(`(Severity Guide v0.2, ${formatted.section})`)
+      expect(formatted.reason).not.toContain('Severity Guide')
       expect(formatted.missing).toHaveLength(item.expected.missing.length)
     }
+  })
+
+  it('rounds every figure to two places', () => {
+    const formatted = formatSeverityBasis(
+      basis({
+        level: 'MEDIUM',
+        decisiveConditionId: 'score',
+        conditions: [
+          {
+            ...behind,
+            conditionId: 'score',
+            metric: 'SURVEY_MEAN_IMPROVEMENT_POINTS',
+            measure: { kind: 'POINTS_BELOW', expected: '10', actual: '1.6667', value: '8.3333' },
+          },
+        ],
+      }),
+    )
+    expect(formatted.reason).toBe('Expected +10 points, actual +1.67, 8.33 points below.')
   })
 
   it('formats what the classifier returns', () => {
@@ -134,6 +149,6 @@ describe('formatSeverityBasis', () => {
         }[]
       )[0].input,
     )
-    expect(formatSeverityBasis(classifyAlertSeverity(input)).section).toBe('5.2')
+    expect(formatSeverityBasis(classifyAlertSeverity(input)).reason).not.toContain('Severity Guide')
   })
 })
