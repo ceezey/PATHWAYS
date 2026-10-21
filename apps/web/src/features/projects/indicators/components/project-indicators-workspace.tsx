@@ -5,6 +5,7 @@ import { useProjectRead } from '../../projects.reads'
 import { UseFromLibrary } from './use-from-library'
 
 import { AsyncState } from '@/components/pathways/async-state'
+import { CappedPercent } from '@/components/pathways/capped-percent'
 import { DialogShell } from '@/components/pathways/dialog-shell'
 import { EmptyState } from '@/components/pathways/empty-state'
 import { MetricTooltip } from '@/components/pathways/metric-tooltip'
@@ -312,11 +313,13 @@ export function ProjectIndicatorsWorkspace({ projectId }: { projectId: string })
                               />
                             </div>
                             <span className="text-xs text-muted-foreground">
-                              {progress !== null
-                                ? formatCappedPercent(progress)
-                                : noDataYet
-                                  ? '0%'
-                                  : formatMetricCell(indicator.progress)}
+                              {progress !== null ? (
+                                <CappedPercent value={progress} overrun="target" />
+                              ) : noDataYet ? (
+                                '0%'
+                              ) : (
+                                formatMetricCell(indicator.progress)
+                              )}
                             </span>
                           </div>
                         </td>

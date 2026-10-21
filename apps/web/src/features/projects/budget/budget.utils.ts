@@ -1,3 +1,4 @@
+import { formatCappedPercent } from '@/lib/format/percent'
 import type { SignalTone } from '@/lib/format/tone'
 
 type BudgetRow = {
@@ -162,7 +163,7 @@ export const deriveRecommendations = (rows: ActivityBudgetRow[]) =>
     .map((row) => ({
       id: `plan-${row.key}`,
       activityKey: row.key,
-      signal: `${rowLabel(row)} utilization is ${row.utilization}%`,
+      signal: `${rowLabel(row)} utilization is ${formatCappedPercent(row.utilization ?? 0)}`,
       suggestion: `Consider reviewing the plan or allocation for ${row.title}.`,
     }))
 

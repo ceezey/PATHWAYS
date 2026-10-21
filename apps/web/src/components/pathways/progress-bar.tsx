@@ -1,18 +1,22 @@
-import { formatCappedPercent, roundPercent } from '@/lib/format/percent'
+import { type Overrun, roundPercent } from '@/lib/format/percent'
 import type { SignalTone } from '@/lib/format/tone'
 import { cn } from '@/lib/utils'
+import { CappedPercent } from './capped-percent'
 
 export const ProgressBar = ({
   value,
   label,
   tone = 'info',
   hideText = false,
+  overrun,
 }: {
   value: number
   label?: string
   /** Keeps the label for assistive technology but hides the visible label and percent. */
   hideText?: boolean
   tone?: SignalTone
+  /** Names what a value above 100 overran, for the overrun note's explanation. */
+  overrun?: Overrun
 }) => {
   const safeValue = Math.min(100, Math.max(0, value))
   const accessibleLabel = label ?? 'Progress'
@@ -23,7 +27,11 @@ export const ProgressBar = ({
         <div className="flex items-center justify-between gap-3 text-sm">
           <span className="font-medium text-foreground">{label}</span>
           <span className="text-muted-foreground tabular-nums">
-            {value > 100 ? formatCappedPercent(value) : `${roundPercent(safeValue)}%`}
+            {value > 100 ? (
+              <CappedPercent overrun={overrun} value={value} />
+            ) : (
+              `${roundPercent(safeValue)}%`
+            )}
           </span>
         </div>
       ) : null}

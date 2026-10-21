@@ -262,11 +262,7 @@ const ProjectTimeline = ({ timeline }: { timeline: MetricCell }) => (
       <span className="text-muted-foreground">{overviewMetricLabel(timeline, 'percent')}</span>
     )}
     <span className="font-semibold tabular-nums text-foreground">
-      {timeline.value !== null ? (
-        <CappedPercent value={timeline.value} overLabel="past schedule" />
-      ) : (
-        '—'
-      )}
+      {timeline.value !== null ? <CappedPercent value={timeline.value} overrun="schedule" /> : '—'}
     </span>
   </div>
 )

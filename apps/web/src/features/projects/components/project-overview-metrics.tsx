@@ -88,7 +88,7 @@ export const ProjectOverviewMetrics = ({
                   <ProgressBar hideText label="Timeline" value={Number(timeline.value)} />
                 </span>
                 <span className={figure}>
-                  <CappedPercent value={timeline.value} overLabel="past schedule" />
+                  <CappedPercent value={timeline.value} overrun="schedule" />
                 </span>
               </>
             ) : (

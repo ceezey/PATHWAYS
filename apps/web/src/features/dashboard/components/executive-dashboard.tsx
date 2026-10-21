@@ -207,7 +207,7 @@ const ExecutiveSignal = ({
     </div>
     {typeof progress === 'number' ? (
       <div className="mt-4">
-        <ProgressBar label={label} tone={tone} value={progress} />
+        <ProgressBar label={label} overrun="target" tone={tone} value={progress} />
       </div>
     ) : null}
   </article>

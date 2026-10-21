@@ -23,7 +23,7 @@ const budgetUsedText = (activity: ActivitySummary | undefined) =>
   activity?.budgetUtilization == null ? (
     '\u2014'
   ) : (
-    <CappedPercent value={activity.budgetUtilization} overLabel="over budget" />
+    <CappedPercent value={activity.budgetUtilization} overrun="budget" />
   )
 
 const EvidenceSummaryCard = ({
