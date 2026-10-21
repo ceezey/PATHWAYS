@@ -617,6 +617,8 @@ END $$;
       Write-Output 'INDICATOR_MEASUREMENT_LOOKUP_RUNTIME=PASS'
       Measure-ReplayStep 'sql indicator-summary-measurement-lookup-runtime' { Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/indicator-summary-measurement-lookup-runtime.sql'))) $phase6Database }
       Write-Output 'INDICATOR_SUMMARY_MEASUREMENT_LOOKUP_RUNTIME=PASS'
+      Measure-ReplayStep 'sql saddd-exact-counts-runtime' { Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/saddd-exact-counts-runtime.sql'))) $phase6Database }
+      Write-Output 'SADDD_EXACT_COUNTS_RUNTIME=PASS'
     }
     Invoke-LocalSql 'ALTER ROLE pathways_runtime LOGIN;' $phase6Database
     $env:PATHWAYS_CSV_RBAC_LOCAL_TESTS = '1'

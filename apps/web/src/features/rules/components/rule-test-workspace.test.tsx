@@ -148,11 +148,11 @@ describe('synthetic rule condition testing', () => {
       'BENEFICIARY_FOLLOW_UP_PERCENT',
       {
         'Test active enrollments with participation': '4',
-        'Test enrollments needing follow-up': '2',
+        'Test enrollments needing follow-up': '1',
       },
-      'SUPPRESSED',
-      null,
-      null,
+      'AVAILABLE',
+      '25',
+      'BENEFICIARY_AGGREGATE',
     ],
     [
       'SURVEY_MEAN_IMPROVEMENT_POINTS',

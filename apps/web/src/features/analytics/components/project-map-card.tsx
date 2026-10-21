@@ -24,7 +24,7 @@ const Row = ({ label, value, detail }: { label: string; value: string; detail?: 
 const percent = (cell: MetricCell | undefined) =>
   cell ? overviewMetricLabel(cell, 'percent') : restricted
 
-/** Overview aggregates for one mapped location, shown in the map popup; SADDD values arrive suppressed. */
+/** Overview aggregates for one mapped location, shown in the map popup; SADDD values arrive exact. */
 export const ProjectMapCard = ({
   project,
   place,

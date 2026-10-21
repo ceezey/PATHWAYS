@@ -64,9 +64,9 @@ export const sadddDashboardSchema = z
     demographicBasis: z.literal('CURRENT_PROFILE_NOT_HISTORICAL_SNAPSHOT'),
     privacy: z
       .object({
-        threshold: z.literal(5),
-        complementarySuppression: z.literal(true),
-        policy: z.literal('FIXED_CLOSED_PROJECT_PERIOD_V1'),
+        threshold: z.literal(0),
+        complementarySuppression: z.literal(false),
+        policy: z.literal('FIXED_CLOSED_PROJECT_PERIOD_V2'),
         crossFilters: z.literal('PROJECT_ONLY_NO_CROSS_FILTERS'),
       })
       .strict(),

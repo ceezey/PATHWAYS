@@ -120,7 +120,7 @@ export const SurveyAnalyticsPanel = ({
         />
       </div>
       {isSuppressed ? (
-        <p className="text-sm text-muted-foreground">Suppressed (fewer than 5)</p>
+        <p className="text-sm text-muted-foreground">Suppressed</p>
       ) : isMissing ? (
         <UnavailableChart description={metricUnavailableLabel(overall.meanPre)} title="None yet" />
       ) : showChart ? (

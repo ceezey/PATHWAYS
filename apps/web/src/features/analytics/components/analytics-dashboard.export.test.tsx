@@ -55,8 +55,8 @@ describe('Analytics dashboard request dependencies', () => {
       sadddPeriod: { periodStart: null, periodEnd: null },
       sadddReleaseState: 'RELEASED',
       privacy: {
-        threshold: 5,
-        complementarySuppression: true,
+        threshold: 0,
+        complementarySuppression: false,
         source: 'P06_SADDD_RELEASE',
         beneficiaryRows: false,
       },

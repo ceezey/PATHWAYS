@@ -6,7 +6,6 @@ import {
   type MonitoringDashboard,
   type SadddDashboard,
 } from '@pathways/shared'
-import { suppressSmallCount } from '../dashboards/dashboards.helpers'
 
 type Bucket = { key: string; label: string; metric: MetricCell }
 type Distribution = DescriptiveAnalytics['distributions'][number]
@@ -20,11 +19,7 @@ function formatDescriptiveDecimal(value: number): string {
   return trimmed === '-0' ? '0' : trimmed
 }
 
-/**
- * Shares are derived only when every cell of the section is visible. A suppressed
- * or missing cell withholds all shares so no hidden value can be recovered by
- * subtraction (complementary suppression is preserved, never undone).
- */
+/** Shares are derived only when every cell of the section is visible; a missing cell withholds all shares. */
 function distribution(section: DescriptiveSection, buckets: readonly Bucket[]): Distribution[] {
   const allVisible = buckets.length > 0 && buckets.every((bucket) => visible(bucket.metric))
   const total = allVisible
@@ -71,7 +66,7 @@ function indicatorSummaries(indicators: MonitoringDashboard['indicators']) {
 
 /**
  * Builds descriptive statistics exclusively from the already-validated aggregate
- * contracts. SADDD cells arrive banded and suppressed by the p06_saddd release;
+ * contracts. SADDD cells arrive banded and exact from the p06_saddd release;
  * this function never receives Beneficiary rows.
  */
 export function buildDescriptiveAnalytics(input: {
@@ -81,28 +76,21 @@ export function buildDescriptiveAnalytics(input: {
   generatedAt: string
 }): DescriptiveAnalytics {
   const { monitoring, saddd } = input
-  // Complementary suppression: a suppressed SADDD total also suppresses every
-  // person-derived monitoring count so it cannot be reconstructed by subtraction.
-  const sadddTotalHidden = saddd !== null && !visible(saddd.total)
-  const person = (metric: MetricCell): MetricCell =>
-    sadddTotalHidden && visible(metric) && metric.state !== 'ZERO'
-      ? { state: 'SUPPRESSED', value: null, reason: 'COMPLEMENTARY_SUPPRESSION' }
-      : suppressSmallCount(metric)
   const counts: DescriptiveAnalytics['counts'] = [
     {
       key: 'participationRecords',
       label: 'Participation records',
-      metric: person(monitoring.participationRecords),
+      metric: monitoring.participationRecords,
     },
     {
       key: 'attendingIndividuals',
       label: 'Attending individuals',
-      metric: person(monitoring.attendingIndividuals),
+      metric: monitoring.attendingIndividuals,
     },
     {
       key: 'enrolledBeneficiaryRecords',
       label: 'Enrolled Beneficiary records',
-      metric: person(monitoring.enrolledBeneficiaryRecords),
+      metric: monitoring.enrolledBeneficiaryRecords,
     },
     // The monitoring individual total duplicates the SADDD total, so it is
     // omitted whenever a SADDD release is present.
@@ -112,7 +100,7 @@ export function buildDescriptiveAnalytics(input: {
           {
             key: 'enrolledIndividuals',
             label: 'Enrolled individuals',
-            metric: person(monitoring.enrolledIndividuals),
+            metric: monitoring.enrolledIndividuals,
           },
         ]),
     {
@@ -129,7 +117,7 @@ export function buildDescriptiveAnalytics(input: {
     counts.push({
       key: 'sadddTotal',
       label: 'SADDD individuals',
-      metric: suppressSmallCount(saddd.total),
+      metric: saddd.total,
     })
   return {
     contractVersion: DESCRIPTIVE_ANALYTICS_CONTRACT_VERSION,
@@ -146,8 +134,8 @@ export function buildDescriptiveAnalytics(input: {
     },
     sadddReleaseState: saddd?.releaseState ?? 'UNAVAILABLE',
     privacy: {
-      threshold: 5,
-      complementarySuppression: true,
+      threshold: 0,
+      complementarySuppression: false,
       source: 'P06_SADDD_RELEASE',
       beneficiaryRows: false,
     },

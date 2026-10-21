@@ -35,6 +35,8 @@ const preprovision = {
   '0073_rules_kpi_assessment_metrics': 'hosted-rules-metrics-preprovision.sql',
   // 0075 replaces a report_projection_owner function through a SET-only membership, like 0053.
   '0075_indicator_summary_measurement_lookup': 'hosted-indicator-summary-preprovision.sql',
+  // 0076 replaces report and rules owner functions through a SET-only chain to three owner roles.
+  '0076_saddd_exact_counts': 'hosted-saddd-exact-preprovision.sql',
 }
 // Hosted DBAs revoke the temporary owner-role memberships right after 0031 and 0034 (and the later pairs).
 // Local runs the same reviewed cleanups at the same points, so later migrations (0037's
@@ -66,6 +68,8 @@ const cleanup = {
   '0073_rules_kpi_assessment_metrics': ['hosted-rules-metrics-cleanup.sql', []],
   // 0075's temporary SET membership to report_projection_owner is revoked right after it.
   '0075_indicator_summary_measurement_lookup': ['hosted-indicator-summary-cleanup.sql', []],
+  // 0076's temporary SET chain to the report and rules owner roles is revoked right after it.
+  '0076_saddd_exact_counts': ['hosted-saddd-exact-cleanup.sql', []],
 }
 
 function run(command, args, { input, env, label } = {}) {

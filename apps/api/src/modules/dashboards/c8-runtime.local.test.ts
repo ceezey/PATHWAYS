@@ -191,8 +191,7 @@ describe.skipIf(!enabled)('C8 service path on disposable PostgreSQL', () => {
             expect(released.releaseState).toBe('RELEASED')
             expect(released.periodStart).toBe('2026-01-01')
             expect(released.periodEnd).toBe('2026-07-31')
-            expect(released.total.state).toBe('SUPPRESSED')
-            expect(released.total.value).toBeNull()
+            expect(released.total).toEqual({ state: 'AVAILABLE', value: '1', reason: null })
             expect((await dashboards.saddd(actor, { projectId })).releaseState).toBe('RELEASED')
             await expect(
               dashboards.saddd(actor, { projectId, sex: 'FEMALE' }),

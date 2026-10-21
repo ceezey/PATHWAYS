@@ -71,9 +71,9 @@ const saddd = {
   population: 'DISTINCT_INDIVIDUALS_WITH_OVERLAPPING_ENROLLMENT',
   demographicBasis: 'CURRENT_PROFILE_NOT_HISTORICAL_SNAPSHOT',
   privacy: {
-    threshold: 5,
-    complementarySuppression: true,
-    policy: 'FIXED_CLOSED_PROJECT_PERIOD_V1',
+    threshold: 0,
+    complementarySuppression: false,
+    policy: 'FIXED_CLOSED_PROJECT_PERIOD_V2',
     crossFilters: 'PROJECT_ONLY_NO_CROSS_FILTERS',
   },
   total: cell('9'),
@@ -226,7 +226,7 @@ describe('dashboardsClient dashboard reads', () => {
           id: 'enrolled',
           label: 'Enrolled individuals',
           value: 'Suppressed',
-          helperText: 'Enrollment overlaps this period; privacy suppression applies.',
+          helperText: 'Enrollment overlaps this period.',
         },
       ],
       sections: [

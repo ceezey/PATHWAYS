@@ -2,7 +2,6 @@ import { withAuthorizedOperation } from '@app/common/authz/authorized-operation'
 import { PERMISSION_KEY } from '@app/common/decorators/permission.decorator'
 import { type MetricCell, descriptiveAnalyticsSchema, rolePermissions } from '@pathways/shared'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { suppressSmallCount } from '../dashboards/dashboards.helpers'
 import * as reportArtifact from '../reports/report-artifact'
 import { analyticsTableCsv, descriptiveAnalyticsTable } from './analytics-export.helpers'
 import { AnalyticsController } from './analytics.controller'
@@ -171,7 +170,7 @@ describe('analytics descriptive read and export', () => {
     expect(preview.totalRows).toBeGreaterThan(50)
   })
 
-  it('abuse: preview keeps small-cell suppression and needs analytics.export', async () => {
+  it('abuse: preview keeps a withheld SADDD cell withheld and needs analytics.export', async () => {
     const { service } = harness(suppressedSaddd)
     const preview = await service.exportPreview(actor('PROGRAM_MANAGER'), { projectId: projectA })
     const sadddRows = preview.rows.filter((row) => row[0].startsWith('SADDD_'))
@@ -228,7 +227,7 @@ describe('analytics descriptive read and export', () => {
     expect(withAuthorizedOperation).not.toHaveBeenCalled()
   })
 
-  it('abuse: suppression holds in the read and in the exported CSV', async () => {
+  it('abuse: a withheld SADDD cell stays withheld in the read and the exported CSV', async () => {
     const { service } = harness(suppressedSaddd)
     const identity = actor('PROGRAM_MANAGER')
     const result = await descriptive(service, identity, { projectId: projectA })
@@ -362,8 +361,8 @@ describe('analytics descriptive read and export', () => {
         sadddPeriod: { periodStart: null, periodEnd: null },
         sadddReleaseState: 'UNAVAILABLE',
         privacy: {
-          threshold: 5,
-          complementarySuppression: true,
+          threshold: 0,
+          complementarySuppression: false,
           source: 'P06_SADDD_RELEASE',
           beneficiaryRows: false,
         },
@@ -384,7 +383,7 @@ describe('analytics descriptive read and export', () => {
   })
 })
 
-describe('descriptive analytics small-cell and complementary suppression', () => {
+describe('descriptive analytics exact release', () => {
   const monitoringWith = (value: number) =>
     ({
       contractVersion: 'p06.v1',
@@ -431,8 +430,8 @@ describe('descriptive analytics small-cell and complementary suppression', () =>
 
   it.each([
     [0, 'ZERO', '0'],
-    [1, 'SUPPRESSED', null],
-    [4, 'SUPPRESSED', null],
+    [1, 'AVAILABLE', '1'],
+    [4, 'AVAILABLE', '4'],
     [5, 'AVAILABLE', '5'],
   ])(
     'count %i is %s in the read and the CSV for every person-derived count',
@@ -443,16 +442,15 @@ describe('descriptive analytics small-cell and complementary suppression', () =>
         const row = result.counts.find((candidate) => candidate.key === key)
         expect(row?.metric.state).toBe(state)
         expect(row?.metric.value).toBe(shown)
-        expect(csv).toContain(`"COUNT","${key}",`)
         const line = csv.split('\r\n').find((l) => l.startsWith(`"COUNT","${key}",`))
-        expect(line).toContain(`"${state}","${shown ?? ''}"`)
+        expect(line).toContain(`"${state}","${shown}"`)
       }
-      expect(suppressSmallCount(cell(value)).state).toBe(state)
+      expect(result.privacy).toMatchObject({ threshold: 0, complementarySuppression: false })
     },
   )
 
-  it('reconstruction: a suppressed SADDD total suppresses every paired monitoring count', () => {
-    const result = build(37, sadddWith(suppressed))
+  it('releases a small SADDD total and every paired monitoring count exactly', () => {
+    const result = build(3, sadddWith(cell(2)))
     const csv = analyticsTableCsv(descriptiveAnalyticsTable(result))
     expect(result.counts.find((row) => row.key === 'enrolledIndividuals')).toBeUndefined()
     for (const key of [
@@ -460,20 +458,18 @@ describe('descriptive analytics small-cell and complementary suppression', () =>
       'attendingIndividuals',
       'enrolledBeneficiaryRecords',
     ]) {
-      const row = result.counts.find((candidate) => candidate.key === key)
-      expect(row?.metric).toEqual({
-        state: 'SUPPRESSED',
-        value: null,
-        reason: 'COMPLEMENTARY_SUPPRESSION',
-      })
+      expect(result.counts.find((candidate) => candidate.key === key)?.metric).toEqual(cell(3))
     }
+    expect(result.counts.find((row) => row.key === 'sadddTotal')?.metric).toEqual(cell(2))
+    expect(csv).toContain('"COUNT","sadddTotal","SADDD individuals","AVAILABLE","2"')
+  })
+
+  it('passes a withheld SADDD total through without touching the monitoring counts', () => {
+    const result = build(37, sadddWith(suppressed))
     expect(result.counts.find((row) => row.key === 'sadddTotal')?.metric).toEqual(suppressed)
-    const visibleCounts = result.counts.filter(
-      (row) => row.key !== 'indicatorDefinitions' && row.metric.value !== null,
+    expect(result.counts.find((row) => row.key === 'attendingIndividuals')?.metric).toEqual(
+      cell(37),
     )
-    expect(visibleCounts).toEqual([])
-    expect(csv).not.toContain('"37"')
-    expect(csv).not.toContain('"enrolledIndividuals"')
   })
 
   it('omits the duplicate monitoring individual total when SADDD is released', () => {

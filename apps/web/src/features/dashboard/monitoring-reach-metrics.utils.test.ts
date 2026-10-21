@@ -23,7 +23,7 @@ describe('monitoringReachMetrics', () => {
     expect(monitoringReachMetrics(result).map((metric) => [metric.id, metric.value])).toEqual([
       ['projects', '2'],
       ['participation', '1,234'],
-      ['attending', 'Suppressed (fewer than 5)'],
+      ['attending', 'Suppressed'],
       ['enrolled', 'Unavailable'],
     ])
   })

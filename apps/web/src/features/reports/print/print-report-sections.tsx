@@ -13,7 +13,7 @@ const levelStyle: Record<ReportStatusLevel, { label: string; className: string }
 const stateStyle: Record<string, { label: string; level: ReportStatusLevel }> = {
   AVAILABLE: { label: 'Available', level: 'ON_TRACK' },
   ZERO: { label: 'Zero', level: 'ON_TRACK' },
-  SUPPRESSED: { label: 'Fewer than 5', level: 'AT_RISK' },
+  SUPPRESSED: { label: 'Suppressed', level: 'AT_RISK' },
   MISSING: { label: 'Not available', level: 'NOT_AVAILABLE' },
   NOT_APPLICABLE: { label: 'Not available', level: 'NOT_AVAILABLE' },
 }
@@ -68,7 +68,7 @@ export const Table = ({
 )
 
 const figureValue = (figure: NonNullable<ReportSectionsResponse['keyFigures']>[number]) =>
-  figure.state === 'SUPPRESSED' ? 'Fewer than 5' : (figure.value ?? 'Not available')
+  figure.state === 'SUPPRESSED' ? 'Suppressed' : (figure.value ?? 'Not available')
 
 // Each overview area's status rule, printed only for the areas the report shows.
 const statusRules: Record<string, string> = {

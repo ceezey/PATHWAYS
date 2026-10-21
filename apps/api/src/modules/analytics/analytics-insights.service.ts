@@ -25,8 +25,8 @@ import type { Tx } from '../../common/prisma/transaction'
 import { PrismaService } from '../../prisma/prisma.service'
 import {
   currentMeasurements,
+  releaseBreakdown,
   summarizeBudget,
-  suppressBreakdown,
 } from './analytics-insights.helpers'
 
 const logger = new Logger('AnalyticsInsightsService')
@@ -146,7 +146,7 @@ export class AnalyticsInsightsService {
         return out
       }
       const total = groups.reduce((sum, g) => sum + g._count._all, 0)
-      const byActivity = suppressBreakdown(
+      const byActivity = releaseBreakdown(
         total,
         [...tally((g) => g.activityId)].map(([activityId, count]) => ({
           activityId,
@@ -154,14 +154,14 @@ export class AnalyticsInsightsService {
           count,
         })),
       )
-      const byMonth = suppressBreakdown(
+      const byMonth = releaseBreakdown(
         total,
         [...tally((g) => g.participationDate.toISOString().slice(0, 7))]
           .sort(([a], [b]) => a.localeCompare(b))
           .map(([month, count]) => ({ month, count })),
       )
       const statusCounts = tally((g) => g.attendanceStatus)
-      const byStatus = suppressBreakdown(
+      const byStatus = releaseBreakdown(
         total,
         ANALYTICS_INSIGHTS_ATTENDANCE_STATUSES.map((status) => ({
           status,

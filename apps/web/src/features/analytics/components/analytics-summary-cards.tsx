@@ -105,7 +105,7 @@ export const AnalyticsSummaryCards = ({
       ) : null}
       {canReadIndicators ? (
         <MetricCard
-          description="Enrolled individuals overlapping the period; privacy suppression applies."
+          description="Enrolled individuals overlapping the period."
           icon={UsersRound}
           label="Beneficiary reach"
           tone="info"

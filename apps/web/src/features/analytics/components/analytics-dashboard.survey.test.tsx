@@ -185,7 +185,7 @@ describe('Analytics dashboard request dependencies', () => {
       })
 
       const panel = await screen.findByTestId('survey-analytics')
-      expect(within(panel).getAllByText('Suppressed (fewer than 5)').length).toBeGreaterThan(0)
+      expect(within(panel).getAllByText('Suppressed').length).toBeGreaterThan(0)
       expect(within(panel).queryByText('Survey chart')).toBeNull()
     })
 

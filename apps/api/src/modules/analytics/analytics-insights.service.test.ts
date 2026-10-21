@@ -13,8 +13,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AnalyticsInsightsController } from './analytics-insights.controller'
 import {
   currentMeasurements,
+  releaseBreakdown,
   summarizeBudget,
-  suppressBreakdown,
 } from './analytics-insights.helpers'
 import { AnalyticsInsightsService } from './analytics-insights.service'
 
@@ -43,33 +43,34 @@ const actor = (role: Role): ApplicationIdentity =>
 const d = (s: string) => new Date(`${s}T00:00:00.000Z`)
 const counts = (items: Array<{ count: number | null }>) => items.map((i) => i.count)
 
-describe('suppressBreakdown', () => {
-  it('shows zero and counts of 5 or more, hides 1-4 with a second cell for complementary cover', () => {
-    const r = suppressBreakdown(18, [{ count: 3 }, { count: 7 }, { count: 8 }, { count: 0 }])
+describe('releaseBreakdown', () => {
+  it('releases counts of 1-4 exactly beside larger cells and zero', () => {
+    const r = releaseBreakdown(18, [{ count: 3 }, { count: 7 }, { count: 8 }, { count: 0 }])
     expect(r.total).toBe(18)
-    expect(counts(r.items)).toEqual([null, null, 8, 0])
-    expect(r.items.map((i) => i.suppressed)).toEqual([true, true, false, false])
+    expect(r.totalSuppressed).toBe(false)
+    expect(counts(r.items)).toEqual([3, 7, 8, 0])
+    expect(r.items.map((i) => i.suppressed)).toEqual([false, false, false, false])
   })
 
   it('leaves a breakdown alone when no cell is small', () => {
-    const r = suppressBreakdown(15, [{ count: 5 }, { count: 10 }, { count: 0 }])
+    const r = releaseBreakdown(15, [{ count: 5 }, { count: 10 }, { count: 0 }])
     expect(counts(r.items)).toEqual([5, 10, 0])
   })
 
-  it('does not add a complementary cell when two cells are already suppressed', () => {
-    const r = suppressBreakdown(14, [{ count: 2 }, { count: 3 }, { count: 9 }])
-    expect(counts(r.items)).toEqual([null, null, 9])
+  it('releases several small cells exactly', () => {
+    const r = releaseBreakdown(14, [{ count: 2 }, { count: 3 }, { count: 9 }])
+    expect(counts(r.items)).toEqual([2, 3, 9])
   })
 
-  it('hides the total and every cell when the total is 1-4', () => {
-    const r = suppressBreakdown(3, [{ count: 3 }, { count: 0 }])
-    expect(r.total).toBeNull()
-    expect(r.totalSuppressed).toBe(true)
-    expect(counts(r.items)).toEqual([null, null])
+  it('releases a total of 1-4 and every cell exactly', () => {
+    const r = releaseBreakdown(3, [{ count: 3 }, { count: 0 }])
+    expect(r.total).toBe(3)
+    expect(r.totalSuppressed).toBe(false)
+    expect(counts(r.items)).toEqual([3, 0])
   })
 
   it('shows an empty breakdown as zero', () => {
-    const r = suppressBreakdown(0, [{ count: 0 }])
+    const r = releaseBreakdown(0, [{ count: 0 }])
     expect(r.total).toBe(0)
     expect(counts(r.items)).toEqual([0])
   })
@@ -218,7 +219,7 @@ describe('AnalyticsInsightsService', () => {
       )
   })
 
-  it('participation: returns suppressed breakdowns and writes one audit row without data', async () => {
+  it('participation: returns exact breakdowns and writes one audit row without data', async () => {
     const { service, tx } = harness()
     const r = await service.participation(actor('MONITORING_AND_EVALUATION_OFFICER'), {
       projectId: projectA,
@@ -232,8 +233,8 @@ describe('AnalyticsInsightsService', () => {
     expect(r.byActivity.find((a) => a.activityId === act1)?.count).toBe(8)
     expect(r.byAttendanceStatus.find((s) => s.status === 'ABSENT')).toEqual({
       status: 'ABSENT',
-      count: null,
-      suppressed: true,
+      count: 2,
+      suppressed: false,
     })
     expect(tx.auditLog.create).toHaveBeenCalledTimes(1)
     const audit = (

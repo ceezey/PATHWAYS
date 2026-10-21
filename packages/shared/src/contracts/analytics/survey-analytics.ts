@@ -4,16 +4,6 @@ import { date, uuid } from '../../metrics/metric-fields'
 import { type MetricCell, missingMetric, numericMetric } from '../../metrics/metric-math'
 import { round1 } from '../../metrics/metric-round'
 
-/** Locked SADDD RFC G4 threshold, mirrored here for the pure survey calculator: 1-4 is suppressed. */
-export const SURVEY_SMALL_CELL_THRESHOLD = 5
-function suppressSmallSurveyCount(metric: MetricCell): MetricCell {
-  if (metric.state !== 'AVAILABLE' || metric.value === null) return metric
-  const value = Number(metric.value)
-  return value > 0 && value < SURVEY_SMALL_CELL_THRESHOLD
-    ? { state: 'SUPPRESSED', value: null, reason: 'SMALL_CELL' }
-    : metric
-}
-
 export const SURVEY_ANALYTICS_CONTRACT_VERSION = 'analytics.descriptive.survey.v1' as const
 
 export const surveyGroupSchema = z
@@ -193,22 +183,6 @@ export function surveyAggregateFromRows(rows: SurveyAssessmentRow[]): SurveyAggr
   return { excludedRecords: excluded, groups: [...groups.values()] }
 }
 
-/** Every cell suppressed as one unit: no sub-cell can be partially revealed. */
-function suppressedSurveyGroup(key: string, label: string): SurveyGroup {
-  const suppressed: MetricCell = { state: 'SUPPRESSED', value: null, reason: 'SMALL_CELL' }
-  return {
-    key,
-    label,
-    pairs: suppressed,
-    meanPre: suppressed,
-    meanPost: suppressed,
-    meanChange: suppressed,
-    improved: suppressed,
-    same: suppressed,
-    declined: suppressed,
-  }
-}
-
 /** Every cell MISSING for the same reason, never a fabricated zero. */
 function missingSurveyGroup(key: string, label: string, reason: string): SurveyGroup {
   const missing = missingMetric(reason)
@@ -246,47 +220,24 @@ function addTotals(target: GroupTotals, group: GroupTotals): GroupTotals {
   return target
 }
 
-/** A count is safe to reveal on its own only when it is exactly zero or clears the threshold. */
-function clearsThresholdOrZero(count: number): boolean {
-  return count === 0 || count >= SURVEY_SMALL_CELL_THRESHOLD
-}
-
 /**
- * Builds one survey improvement group. A group with fewer than 5 pairs is fully
- * suppressed (never partially revealed). A group with zero pairs is MISSING
- * (NO_PAIRED_ASSESSMENTS), never a fabricated zero. Improved/same/declined receive
- * complementary suppression among themselves so a small sub-count cannot be
- * recovered from the visible pair total. Means are computed from the group sums.
+ * Builds one survey improvement group with exact counts. A group with zero pairs is
+ * MISSING (NO_PAIRED_ASSESSMENTS), never a fabricated zero. Means come from the group sums.
  */
 function buildSurveyGroup(key: string, label: string, totals: GroupTotals): SurveyGroup {
-  const pairsCell = suppressSmallSurveyCount(numericMetric(String(totals.pairs)))
-  if (pairsCell.state === 'SUPPRESSED') return suppressedSurveyGroup(key, label)
   if (totals.pairs === 0) return missingSurveyGroup(key, label, 'NO_PAIRED_ASSESSMENTS')
   const meanPre = totals.sumPre / totals.pairs
   const meanPost = totals.sumPost / totals.pairs
-  let improved = suppressSmallSurveyCount(numericMetric(String(totals.improved)))
-  let same = suppressSmallSurveyCount(numericMetric(String(totals.same)))
-  let declined = suppressSmallSurveyCount(numericMetric(String(totals.declined)))
-  if (
-    improved.state === 'SUPPRESSED' ||
-    same.state === 'SUPPRESSED' ||
-    declined.state === 'SUPPRESSED'
-  ) {
-    const suppressed: MetricCell = { state: 'SUPPRESSED', value: null, reason: 'SMALL_CELL' }
-    improved = suppressed
-    same = suppressed
-    declined = suppressed
-  }
   return {
     key,
     label,
-    pairs: pairsCell,
+    pairs: numericMetric(String(totals.pairs)),
     meanPre: numericMetric(round1(meanPre)),
     meanPost: numericMetric(round1(meanPost)),
     meanChange: numericMetric(round1(meanPost - meanPre)),
-    improved,
-    same,
-    declined,
+    improved: numericMetric(String(totals.improved)),
+    same: numericMetric(String(totals.same)),
+    declined: numericMetric(String(totals.declined)),
   }
 }
 
@@ -294,8 +245,7 @@ function buildSurveyGroup(key: string, label: string, totals: GroupTotals): Surv
  * Pure paired pre/post survey improvement calculator (analytics.descriptive.survey.v1)
  * over the group aggregate returned by the trusted database function. Input never
  * carries a row or any beneficiary identity; activity IDs are group keys only.
- * Threshold, complementary suppression and cross-group withholding are applied here,
- * once, before anything reaches a client or CSV.
+ * Every count is released exactly.
  */
 export function computeSurveyAnalyticsFromAggregates(input: {
   projectId: string
@@ -312,53 +262,19 @@ export function computeSurveyAnalyticsFromAggregates(input: {
   }
   const aggregate = surveyAggregateSchema.parse(input.aggregate)
   const overallTotals = emptyTotals()
-  const residualTotals = emptyTotals()
   const activityTotals = new Map<string, GroupTotals>()
   for (const group of aggregate.groups) {
     addTotals(overallTotals, group)
-    if (group.activityId) {
+    if (group.activityId)
       activityTotals.set(
         group.activityId,
         addTotals(activityTotals.get(group.activityId) ?? emptyTotals(), group),
       )
-    } else addTotals(residualTotals, group)
   }
   const overall = buildSurveyGroup('OVERALL', 'All activities (cohort change)', overallTotals)
-  const groupEntries = [...activityTotals.entries()].sort(([left], [right]) =>
-    left < right ? -1 : left > right ? 1 : 0,
-  )
-  const rawByActivity = groupEntries.map(([activityId, totals]) =>
-    buildSurveyGroup(activityId, activityId, totals),
-  )
-  // Cross-group complementary suppression, extended to every sub-cell (build guide
-  // section 5, SADDD suppression is part of correctness). An activity group's own
-  // pair count or improved/same/declined split can be small enough to be
-  // suppressed on its own, but so can the *residual* of pairs that carry no
-  // activity: the overall total minus the sum of every visible byActivity group,
-  // computed at both the pair level and the improved/same/declined level. Any of
-  // these lets a hidden count be recovered by subtraction from the overall total
-  // and its visible siblings, so the whole breakdown is withheld (never partially
-  // revealed) rather than just the one small group or sub-cell.
-  const anyGroupPairsSuppressed = rawByActivity.some((group) => group.pairs.state === 'SUPPRESSED')
-  const anyGroupSubCellsSuppressed = rawByActivity.some(
-    (group) => group.pairs.state !== 'SUPPRESSED' && group.improved.state === 'SUPPRESSED',
-  )
-  const residualPairsSmall = !clearsThresholdOrZero(residualTotals.pairs)
-  const residualSubCellsSmall =
-    !clearsThresholdOrZero(residualTotals.improved) ||
-    !clearsThresholdOrZero(residualTotals.same) ||
-    !clearsThresholdOrZero(residualTotals.declined)
-  const overallSuppressed =
-    overall.pairs.state === 'SUPPRESSED' || overall.improved.state === 'SUPPRESSED'
-  const withholdBreakdown =
-    anyGroupPairsSuppressed ||
-    anyGroupSubCellsSuppressed ||
-    residualPairsSmall ||
-    residualSubCellsSmall ||
-    overallSuppressed
-  const byActivity = withholdBreakdown
-    ? rawByActivity.map((group) => suppressedSurveyGroup(group.key, group.label))
-    : rawByActivity
+  const byActivity = [...activityTotals.entries()]
+    .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
+    .map(([activityId, totals]) => buildSurveyGroup(activityId, activityId, totals))
   return surveyAnalyticsSchema.parse({
     ...base,
     excludedRecords: aggregate.excludedRecords,

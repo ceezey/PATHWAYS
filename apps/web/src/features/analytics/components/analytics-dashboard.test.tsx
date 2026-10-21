@@ -226,9 +226,7 @@ describe('Analytics dashboard request dependencies', () => {
     render(<AnalyticsDashboard />)
 
     await waitFor(() => expect(api.getSadddDashboard).toHaveBeenCalled())
-    expect(
-      await screen.findByText('Counts to date; groups of fewer than 5 are hidden.'),
-    ).toBeTruthy()
+    expect(await screen.findByText('Counts to date.')).toBeTruthy()
     expect(screen.queryByText(/SADDD opens/)).toBeNull()
   })
 

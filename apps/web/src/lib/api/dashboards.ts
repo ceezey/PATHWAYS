@@ -98,7 +98,7 @@ export const dashboardsClient = {
           id: 'enrolled',
           label: 'Enrolled individuals',
           value: formatMetricCell(result.enrolledIndividuals),
-          helperText: 'Enrollment overlaps this period; privacy suppression applies.',
+          helperText: 'Enrollment overlaps this period.',
         },
       ],
       sections: [

@@ -42,7 +42,7 @@ export const formatNumber = (value: number) => new Intl.NumberFormat('en-US').fo
  * suppressed/missing/not-applicable copy so Analytics and Overview cannot diverge.
  */
 export const metricUnavailableLabel = (cell: MetricCell) => {
-  if (cell.state === 'SUPPRESSED') return 'Suppressed (fewer than 5)'
+  if (cell.state === 'SUPPRESSED') return 'Suppressed'
   if (cell.state === 'NOT_APPLICABLE') return 'Not applicable'
   switch (cell.reason) {
     // Known empty sources: readable, but nothing recorded yet.

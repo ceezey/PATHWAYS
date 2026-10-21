@@ -28,6 +28,6 @@ export const monitoringReachMetrics = (result: MonitoringDashboard): DashboardMe
     id: 'enrolled',
     label: 'Enrolled individuals',
     value: overviewMetricLabel(result.enrolledIndividuals, 'count'),
-    helperText: 'Enrollment overlaps the last 12 months; privacy suppression applies.',
+    helperText: 'Enrollment overlaps the last 12 months.',
   },
 ]
