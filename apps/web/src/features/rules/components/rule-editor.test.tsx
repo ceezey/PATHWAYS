@@ -423,7 +423,7 @@ describe('organization scope with a record-bound condition', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Next: Recommendations' }))
     expect(
       await screen.findByText(
-        /The condition using "activity overdue days" requires a project scope/,
+        /The condition using "Days activity is overdue" requires a project scope/,
       ),
     ).toBeTruthy()
     expect(screen.queryAllByText('Step 2 of 2: Recommendations')).toHaveLength(0)
