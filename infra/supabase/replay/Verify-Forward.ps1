@@ -60,6 +60,7 @@ $forwardInventory = @(
   '0071_assessment_score_entry'
   '0072_severity_classification'
   '0073_rules_kpi_assessment_metrics'
+  '0074_indicator_measurement_lookup'
 )
 if (($forwardMigrations.Name -join ',') -cne ($forwardInventory -join ',')) { throw 'Forward migration inventory requires renewed review.' }
 
