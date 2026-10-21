@@ -177,13 +177,8 @@ describe('alert outcome controls', () => {
       .slice(1)
       .map((row) => Array.from(row.children).map((cell) => cell.textContent))
     expect(rows).toEqual([
-      ['project remaining days', '-2 DAYS', 'Below (<) 0 DAYS', 'true'],
-      [
-        'activity completion percent',
-        'missing (no measurement)',
-        'Between 10% to 20.5%',
-        'unavailable',
-      ],
+      ['Days until project end', '-2 DAYS', 'Below (<) 0 DAYS', 'true'],
+      ['Activities completed', 'missing (no measurement)', 'Between 10% to 20.5%', 'unavailable'],
     ])
   })
   it('lists the alert history with its evidence when asked', async () => {

@@ -2,7 +2,7 @@
 
 import type { HumanAlert } from '@pathways/shared'
 import { comparisonCopy } from '../rules.copy'
-import { codeLabel, formatMetricValue } from '../rules.utils'
+import { codeLabel, formatMetricValue, metricLabel } from '../rules.utils'
 
 export function EvidenceTable({ evidence }: { evidence: HumanAlert['evidence'] }) {
   return (
@@ -29,7 +29,7 @@ export function EvidenceTable({ evidence }: { evidence: HumanAlert['evidence'] }
           {evidence.map((evidence) => (
             <tr className="border-t border-border" key={evidence.conditionId}>
               <th className="p-2 font-normal" scope="row">
-                {codeLabel(evidence.metric)}
+                {metricLabel(evidence.metric)}
               </th>
               <td className="p-2">
                 {evidence.cell.value !== null

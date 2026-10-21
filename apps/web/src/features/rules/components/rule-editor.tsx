@@ -31,7 +31,7 @@ import {
   useRuleBindingActivityContext,
   useRuleBindingIndicators,
 } from '../rules.reads'
-import { clearRecordBindings, leafCount, leaves, newCondition } from '../rules.utils'
+import { clearRecordBindings, leafCount, leaves, metricLabel, newCondition } from '../rules.utils'
 import { RuleConditionEditor } from './rule-condition-editor'
 import { SeverityPreview } from './severity-preview'
 
@@ -49,7 +49,6 @@ const recordBoundMetrics = ruleMetrics.filter(
   (metric) => metric.startsWith('INDICATOR_') || metric === 'ACTIVITY_OVERDUE_DAYS',
 )
 const projectFreeMetrics = ruleMetrics.filter((metric) => !recordBoundMetrics.includes(metric))
-const metricLabel = (metric: string) => metric.replaceAll('_', ' ').toLowerCase()
 /** First record-bound condition metric found in the tree, for a condition-specific error. */
 const findRecordBoundLeaf = (node: RuleNode): RuleCondition | null =>
   node.kind === 'GROUP'
