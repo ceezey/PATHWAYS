@@ -38,9 +38,11 @@ export const ProjectMapCard = ({
   const kpi = overview?.kpiAchievement
   const reached = overview?.beneficiariesReached
   const timeline = overview?.timeline
-  const sex = sadddSex
-    ?.map((bucket) => `${bucket.label} ${overviewMetricLabel(bucket.metric, 'count')}`)
-    .join(' · ')
+  const sexText = (buckets: typeof sadddSex | undefined) =>
+    buckets
+      ?.map((bucket) => `${bucket.label} ${overviewMetricLabel(bucket.metric, 'count')}`)
+      .join(' · ')
+  const here = project.places.find((row) => row.name === place)?.reach
 
   return (
     <aside aria-label={`${project.title} overview`} className="w-64 max-w-full text-left sm:w-72">
@@ -63,6 +65,16 @@ export const ProjectMapCard = ({
       </div>
       <dl className="mt-2">
         <Row
+          detail={sexText(here?.sex)}
+          label={`Reached in ${place} (SADDD)`}
+          value={here ? overviewMetricLabel(here.total, 'count') : restricted}
+        />
+      </dl>
+      <p className="mt-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+        Whole project
+      </p>
+      <dl>
+        <Row
           detail={
             kpi ? `${kpi.reportedCount} of ${kpi.indicatorCount} indicators reported` : undefined
           }
@@ -79,7 +91,7 @@ export const ProjectMapCard = ({
           value={percent(timeline?.metric)}
         />
         <Row
-          detail={sex || (reached?.target ? `Target ${reached.target}` : undefined)}
+          detail={sexText(sadddSex) || (reached?.target ? `Target ${reached.target}` : undefined)}
           label="Reached (SADDD)"
           value={reached ? overviewMetricLabel(reached.metric, 'count') : restricted}
         />

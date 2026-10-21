@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { PROJECT_MAP_CONTRACT_VERSION, projectMapSchema } from './project-map'
 
-const place = { name: 'Sample City', province: 'Sample Province', longitude: 121, latitude: 14 }
+const place = { name: 'Sample City', province: 'Sample Province', longitude: 121, latitude: 14, reach: null }
 const bucket = { key: 'F', label: 'Female', metric: { state: 'ZERO', value: '0', reason: null } }
 const project = {
   id: '77000000-0000-4000-8000-000000000001',
