@@ -1134,10 +1134,10 @@ SELECT ((SELECT count(*) FROM pg_catalog.pg_constraint WHERE conrelid='pathways_
     if ($metricsShape.Trim() -cne 'true') { throw "0073 rules metrics inventory differs in $db." }
   }
   Write-Output 'FORWARD_0073_RULES_METRICS_INVENTORY=PASS'
-  # 0075 inventory: the reviewed Indicator Summary body under its owner, and no residual membership or schema loan.
+  # 0075 inventory: the Indicator Summary body as 0076 replaced it, under its owner, and no residual membership or schema loan.
   foreach ($db in @('pathways_phase4_baseline', 'pathways_phase4_forward_restore', 'pathways_phase4_rmt_retry')) {
     $summaryShape = Read-ForwardSql $db @"
-SELECT ((SELECT pg_catalog.md5(prosrc)='a14c59889bae818ac6dfa7263c3d264b' AND pg_catalog.pg_get_userbyid(proowner)='report_projection_owner'
+SELECT ((SELECT pg_catalog.md5(prosrc)='65f2b6fe8bf48f7023dd435ca5888bdd' AND pg_catalog.pg_get_userbyid(proowner)='report_projection_owner'
   FROM pg_catalog.pg_proc WHERE oid='pathways.p34_compute_indicator_value(uuid,uuid,uuid,text)'::pg_catalog.regprocedure)
  AND NOT pg_catalog.pg_has_role('prisma','report_projection_owner','MEMBER')
  AND NOT pg_catalog.has_schema_privilege('report_projection_owner','pathways','CREATE'))::text;
