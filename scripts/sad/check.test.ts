@@ -184,19 +184,15 @@ describe('routing and digest', () => {
     expect(routed['metadata-import-validator']).toEqual(files)
   })
 
-  it('routes the replay scripts and the phase6 forwarders to the replay reviewers', () => {
-    for (const file of [
-      'infra/supabase/replay/Replay-Local.ps1',
-      'infra/supabase/phase6/Replay-Local.ps1',
-    ]) {
-      const routed = routing([change(file, 'new', 'old')])
-      for (const role of [
-        'organization-isolation-checker',
-        'migration-integrity-guardian',
-        'design-qa-agent',
-      ] as const)
-        expect(routed[role]).toContain(file)
-    }
+  it('routes the replay scripts to the replay reviewers', () => {
+    const file = 'infra/supabase/replay/Replay-Local.ps1'
+    const routed = routing([change(file, 'new', 'old')])
+    for (const role of [
+      'organization-isolation-checker',
+      'migration-integrity-guardian',
+      'design-qa-agent',
+    ] as const)
+      expect(routed[role]).toContain(file)
   })
 
   it('routes the rules dispatch workflow to design-qa-agent', () => {

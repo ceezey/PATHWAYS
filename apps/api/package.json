@@ -5,14 +5,12 @@
   "scripts": {
     "dev": "pnpm --filter \"@pathways/api^...\" run build && node ../../infra/supabase/security-adapter/dev-local.mjs",
     "dev:watch": "pnpm --filter \"@pathways/api^...\" run build && node ../../infra/supabase/security-adapter/dev-local.mjs --watch",
-    "dev:legacy-db": "pnpm --filter \"@pathways/api^...\" run build && nest build && powershell.exe -NoProfile -File ../../infra/supabase/security-adapter/Start-DevRuntime.ps1 -Action Start",
-    "start:dev": "pnpm --filter \"@pathways/api^...\" run build && nest build && powershell.exe -NoProfile -File ../../infra/supabase/security-adapter/Start-DevRuntime.ps1 -Action Start",
     "build": "pnpm --filter \"@pathways/api^...\" run build && prisma generate --config prisma.generate.config.ts && nest build",
     "start": "node dist/apps/api/src/main.js",
     "lint": "biome check .",
     "test": "vitest run --passWithNoTests",
     "typecheck": "tsc --noEmit",
-    "db:check": "node -r ts-node/register -r tsconfig-paths/register prisma/check-connection.ts",
+    "db:check": "tsx prisma/check-connection.ts",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate deploy",
     "prisma:seed": "prisma db seed"
@@ -54,8 +52,7 @@
     "@types/pdfkit": "0.17.6",
     "dotenv": "^16.6.1",
     "prisma": "6.19.2",
-    "ts-node": "^10.9.2",
-    "tsconfig-paths": "^4.2.0",
+    "tsx": "^4.20.5",
     "typescript": "^5.9.3"
   }
 }
