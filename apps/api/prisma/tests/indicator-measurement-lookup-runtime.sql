@@ -30,7 +30,7 @@ BEGIN
  RAISE EXCEPTION '0074 % expected rejection %',label,expected;
 END $$;
 CREATE FUNCTION pg_temp.u(n integer) RETURNS uuid LANGUAGE sql IMMUTABLE AS $$
-  SELECT ('74000000-0000-4000-8000-'||lpad(n::text,12,'0'))::uuid
+  SELECT ('a7400000-0000-4000-8000-'||lpad(n::text,12,'0'))::uuid
 $$;
 CREATE FUNCTION pg_temp.doc(wanted text) RETURNS jsonb LANGUAGE sql AS $$
   SELECT doc FROM iml_out WHERE name=wanted
