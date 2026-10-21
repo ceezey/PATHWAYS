@@ -10,7 +10,7 @@
     "lint": "biome check .",
     "test": "vitest run --passWithNoTests",
     "typecheck": "tsc --noEmit",
-    "db:check": "node -r ts-node/register -r tsconfig-paths/register prisma/check-connection.ts",
+    "db:check": "tsx prisma/check-connection.ts",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate deploy",
     "prisma:seed": "prisma db seed"
@@ -52,8 +52,7 @@
     "@types/pdfkit": "0.17.6",
     "dotenv": "^16.6.1",
     "prisma": "6.19.2",
-    "ts-node": "^10.9.2",
-    "tsconfig-paths": "^4.2.0",
+    "tsx": "^4.20.5",
     "typescript": "^5.9.3"
   }
 }

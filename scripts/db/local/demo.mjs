@@ -48,37 +48,23 @@ function assertLocalContainer() {
 
 function run(script, extraEnv = {}) {
   const supabase = localSupabase()
-  return spawnSync(
-    'pnpm',
-    [
-      '--filter',
-      '@pathways/api',
-      'exec',
-      'node',
-      '-r',
-      'ts-node/register',
-      '-r',
-      'tsconfig-paths/register',
-      script,
-    ],
-    {
-      cwd: root,
-      stdio: 'inherit',
-      shell,
-      env: {
-        ...process.env,
-        // Loopback HTTP Supabase is accepted only outside production.
-        NODE_ENV: 'development',
-        DIRECT_URL: localDatabase.prismaUrl,
-        DATABASE_URL: localDatabase.runtimeUrl,
-        SUPABASE_URL: supabase.apiUrl,
-        SUPABASE_SERVICE_ROLE_KEY: supabase.serviceRoleKey,
-        SUPABASE_JWT_SECRET: '',
-        RULES_WORKER_ENABLED: 'false',
-        ...extraEnv,
-      },
+  return spawnSync('pnpm', ['--filter', '@pathways/api', 'exec', 'tsx', script], {
+    cwd: root,
+    stdio: 'inherit',
+    shell,
+    env: {
+      ...process.env,
+      // Loopback HTTP Supabase is accepted only outside production.
+      NODE_ENV: 'development',
+      DIRECT_URL: localDatabase.prismaUrl,
+      DATABASE_URL: localDatabase.runtimeUrl,
+      SUPABASE_URL: supabase.apiUrl,
+      SUPABASE_SERVICE_ROLE_KEY: supabase.serviceRoleKey,
+      SUPABASE_JWT_SECRET: '',
+      RULES_WORKER_ENABLED: 'false',
+      ...extraEnv,
     },
-  )
+  })
 }
 
 assertLocalContainer()

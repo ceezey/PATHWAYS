@@ -37,17 +37,7 @@ function main() {
 
   const result = spawnSync(
     'pnpm',
-    [
-      '--filter',
-      '@pathways/api',
-      'exec',
-      'node',
-      '-r',
-      'ts-node/register',
-      '-r',
-      'tsconfig-paths/register',
-      'prisma/seeds/hosted-realistic-seed.ts',
-    ],
+    ['--filter', '@pathways/api', 'exec', 'tsx', 'prisma/seeds/hosted-realistic-seed.ts'],
     {
       cwd: root,
       stdio: 'inherit',
