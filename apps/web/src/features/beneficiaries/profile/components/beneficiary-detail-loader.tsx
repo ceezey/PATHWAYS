@@ -48,6 +48,10 @@ type DetailState =
   | { status: 'unavailable' }
   | { status: 'error' }
 
+const TRANSIENT_RETRY_DELAY_MS = 1_000
+const isTransientFailure = (error: unknown) =>
+  !(error instanceof PathwaysClientError) || error.code === 'network'
+
 const toAssessmentRecord =
   (beneficiaryId: string, projectId: string) =>
   (row: AssessmentSummary): BeneficiaryAssessmentRecord => ({
@@ -84,27 +88,44 @@ export const BeneficiaryDetailLoader = ({
     let active = true
     const controller = new AbortController()
 
-    const loadDetail = async () => {
+    const loadDetail = async (retried: boolean): Promise<void> => {
       setState({ status: 'loading' })
 
       try {
-        const projects = await projectsClient.getProjectsForRole(verifiedRole)
-        let beneficiary: BeneficiaryRecord | undefined
-        const candidateProjects = projectId
-          ? projects.filter((project) => project.id === projectId)
-          : projects
-        let scopedProjectId: string | undefined
-        for (const project of candidateProjects) {
+        const readRecord = async (candidateId: string) => {
           try {
-            beneficiary = await beneficiariesClient.getBeneficiaryRecordForRole(
+            return await beneficiariesClient.getBeneficiaryRecordForRole(
               verifiedRole,
-              project.id,
+              candidateId,
               beneficiaryId,
             )
-            scopedProjectId = project.id
-            break
           } catch (error) {
-            if (!(error instanceof PathwaysClientError && error.code === 'not_found')) throw error
+            if (error instanceof PathwaysClientError && error.code === 'not_found') return undefined
+            throw error
+          }
+        }
+        let beneficiary: BeneficiaryRecord | undefined
+        let scopedProjectId: string | undefined
+        let projects: ProjectSummary[]
+        if (projectId) {
+          // A known project needs no list lookup first, so both reads share one round trip.
+          const [listed, record] = await Promise.all([
+            projectsClient.getProjectsForRole(verifiedRole),
+            readRecord(projectId),
+          ])
+          projects = listed
+          if (projects.some((project) => project.id === projectId)) {
+            beneficiary = record
+            scopedProjectId = projectId
+          }
+        } else {
+          projects = await projectsClient.getProjectsForRole(verifiedRole)
+          for (const project of projects) {
+            beneficiary = await readRecord(project.id)
+            if (beneficiary) {
+              scopedProjectId = project.id
+              break
+            }
           }
         }
         if (!beneficiary || !scopedProjectId) {
@@ -154,6 +175,12 @@ export const BeneficiaryDetailLoader = ({
         if (!active) {
           return
         }
+        // A cold server or busy pool often clears within a second; denials and misses stay final.
+        if (!retried && isTransientFailure(error)) {
+          await new Promise((resolve) => setTimeout(resolve, TRANSIENT_RETRY_DELAY_MS))
+          if (active) await loadDetail(true)
+          return
+        }
 
         if (error instanceof PathwaysClientError && error.code === 'forbidden') {
           setState({ status: 'restricted' })
@@ -165,7 +192,7 @@ export const BeneficiaryDetailLoader = ({
       }
     }
 
-    void loadDetail()
+    void loadDetail(false)
 
     return () => {
       active = false

@@ -66,6 +66,7 @@ vi.mock('./beneficiary-detail', () => ({
   ),
 }))
 
+import { PathwaysClientError } from '@/lib/api/core/request'
 import { STEP_UP_COMPLETED_EVENT } from '@/lib/auth/beneficiary-step-up-events'
 import { BeneficiaryDetailLoader } from './beneficiary-detail-loader'
 
@@ -158,6 +159,70 @@ describe('BeneficiaryDetailLoader', () => {
     )
     await waitFor(() => expect(client.getActivities).toHaveBeenCalledWith('project-b'))
     expect(client.getActivities).not.toHaveBeenCalledWith('project-a')
+  })
+
+  describe('load resilience', () => {
+    const record = {
+      id: 'beneficiary-a',
+      projectIds: ['project-b'],
+      enrollments: [],
+      participation: [],
+      notes: [],
+    }
+    const setupReads = () => {
+      client.getProjectsForRole.mockResolvedValue([{ id: 'project-b' }])
+      client.getBeneficiaryRecordForRole.mockResolvedValue(record)
+      client.getActivities.mockResolvedValue([])
+      client.getJourneyStages.mockResolvedValue([])
+      client.getDigitalForms.mockResolvedValue([])
+      client.getBeneficiaryJourneyHistory.mockResolvedValue({
+        projectId: 'project-b',
+        beneficiaryId: 'beneficiary-a',
+        enrollmentId: 'enrollment-a',
+        enrollmentStatus: 'ACTIVE',
+        events: [],
+      })
+    }
+
+    it('reads the record without waiting for the project list when the project is known', async () => {
+      setupReads()
+      let releaseProjects: (value: unknown) => void = () => undefined
+      client.getProjectsForRole.mockReturnValue(
+        new Promise((resolve) => {
+          releaseProjects = resolve
+        }),
+      )
+      render(<BeneficiaryDetailLoader beneficiaryId="beneficiary-a" projectId="project-b" />)
+      await waitFor(() => expect(client.getBeneficiaryRecordForRole).toHaveBeenCalledTimes(1))
+      releaseProjects([{ id: 'project-b' }])
+      await screen.findByTestId('beneficiary-detail')
+    })
+
+    it('retries the load once after a busy or network failure', async () => {
+      setupReads()
+      client.getActivities.mockRejectedValueOnce(new PathwaysClientError('Busy.', 'network'))
+      render(<BeneficiaryDetailLoader beneficiaryId="beneficiary-a" projectId="project-b" />)
+      await screen.findByTestId('beneficiary-detail', {}, { timeout: 3000 })
+      expect(client.getActivities).toHaveBeenCalledTimes(2)
+    })
+
+    it('shows the retry state when the automatic retry also fails', async () => {
+      setupReads()
+      client.getActivities.mockRejectedValue(new PathwaysClientError('Busy.', 'network'))
+      render(<BeneficiaryDetailLoader beneficiaryId="beneficiary-a" projectId="project-b" />)
+      await screen.findByRole('button', { name: /retry/i }, { timeout: 3000 })
+      expect(client.getActivities).toHaveBeenCalledTimes(2)
+    })
+
+    it('never retries a denied read', async () => {
+      setupReads()
+      client.getBeneficiaryRecordForRole.mockRejectedValue(
+        new PathwaysClientError('Denied.', 'forbidden'),
+      )
+      render(<BeneficiaryDetailLoader beneficiaryId="beneficiary-a" projectId="project-b" />)
+      await screen.findByText('Beneficiary record restricted')
+      expect(client.getBeneficiaryRecordForRole).toHaveBeenCalledTimes(1)
+    })
   })
 
   describe('assessments', () => {
