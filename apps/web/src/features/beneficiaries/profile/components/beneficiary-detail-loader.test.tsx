@@ -214,6 +214,56 @@ describe('BeneficiaryDetailLoader', () => {
       expect(client.getActivities).toHaveBeenCalledTimes(2)
     })
 
+    it('does not retry when a denial settles after a busy failure', async () => {
+      setupReads()
+      client.getProjectsForRole.mockRejectedValue(new PathwaysClientError('Busy.', 'network'))
+      client.getBeneficiaryRecordForRole.mockReturnValue(
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new PathwaysClientError('Denied.', 'forbidden')), 50),
+        ),
+      )
+      render(<BeneficiaryDetailLoader beneficiaryId="beneficiary-a" projectId="project-b" />)
+      await screen.findByText('Beneficiary record restricted')
+      expect(client.getBeneficiaryRecordForRole).toHaveBeenCalledTimes(1)
+    })
+
+    it('does not retry after a denied assessment read', async () => {
+      setupReads()
+      access.profile.permissions = ['forms.read', 'assessments.detail.read']
+      client.getBeneficiaryRecordForRole.mockResolvedValue({
+        ...record,
+        enrollments: [{ id: 'enrollment-a', projectId: 'project-b' }],
+      })
+      client.getBeneficiaryAssessments.mockRejectedValue(
+        new PathwaysClientError('Step-up required.', 'forbidden'),
+      )
+      client.getActivities.mockRejectedValueOnce(new PathwaysClientError('Busy.', 'network'))
+      render(<BeneficiaryDetailLoader beneficiaryId="beneficiary-a" projectId="project-b" />)
+      await screen.findByRole('button', { name: /retry/i })
+      expect(client.getBeneficiaryAssessments).toHaveBeenCalledTimes(1)
+    })
+
+    it('keeps a record outside the listed projects out of the page', async () => {
+      setupReads()
+      client.getProjectsForRole.mockResolvedValue([{ id: 'project-a' }])
+      render(<BeneficiaryDetailLoader beneficiaryId="beneficiary-a" projectId="project-b" />)
+      await screen.findByText('Beneficiary record unavailable')
+      expect(screen.queryByTestId('beneficiary-detail')).toBeNull()
+    })
+
+    it('makes no retry reads after unmounting during the retry delay', async () => {
+      setupReads()
+      client.getActivities.mockRejectedValue(new PathwaysClientError('Busy.', 'network'))
+      const view = render(
+        <BeneficiaryDetailLoader beneficiaryId="beneficiary-a" projectId="project-b" />,
+      )
+      await waitFor(() => expect(client.getActivities).toHaveBeenCalledTimes(1))
+      view.unmount()
+      await new Promise((resolve) => setTimeout(resolve, 1_200))
+      expect(client.getActivities).toHaveBeenCalledTimes(1)
+      expect(client.getProjectsForRole).toHaveBeenCalledTimes(1)
+    })
+
     it('never retries a denied read', async () => {
       setupReads()
       client.getBeneficiaryRecordForRole.mockRejectedValue(

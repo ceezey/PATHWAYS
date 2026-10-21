@@ -52,6 +52,20 @@ const TRANSIENT_RETRY_DELAY_MS = 1_000
 const isTransientFailure = (error: unknown) =>
   !(error instanceof PathwaysClientError) || error.code === 'network'
 
+/** Waits for every read, so a denial or miss in any read outranks a busy one. */
+const settleAll = async <T extends readonly unknown[] | []>(
+  reads: T,
+): Promise<{ -readonly [K in keyof T]: Awaited<T[K]> }> => {
+  const results = await Promise.allSettled(reads)
+  const failures = results.flatMap((result) =>
+    result.status === 'rejected' ? [result.reason] : [],
+  )
+  if (failures.length > 0) throw failures.find((error) => !isTransientFailure(error)) ?? failures[0]
+  return results.map((result) => (result as PromiseFulfilledResult<unknown>).value) as {
+    -readonly [K in keyof T]: Awaited<T[K]>
+  }
+}
+
 const toAssessmentRecord =
   (beneficiaryId: string, projectId: string) =>
   (row: AssessmentSummary): BeneficiaryAssessmentRecord => ({
@@ -90,6 +104,8 @@ export const BeneficiaryDetailLoader = ({
 
     const loadDetail = async (retried: boolean): Promise<void> => {
       setState({ status: 'loading' })
+      // A swallowed assessment denial still blocks the retry, so no denied read is sent twice.
+      let denied = false
 
       try {
         const readRecord = async (candidateId: string) => {
@@ -109,7 +125,7 @@ export const BeneficiaryDetailLoader = ({
         let projects: ProjectSummary[]
         if (projectId) {
           // A known project needs no list lookup first, so both reads share one round trip.
-          const [listed, record] = await Promise.all([
+          const [listed, record] = await settleAll([
             projectsClient.getProjectsForRole(verifiedRole),
             readRecord(projectId),
           ])
@@ -141,12 +157,13 @@ export const BeneficiaryDetailLoader = ({
             ? evaluationsClient
                 .getBeneficiaryAssessments(scopedProjectId, enrollmentId, controller.signal)
                 .then((rows) => rows.map(toAssessmentRecord(beneficiaryId, scopedProjectId)))
-                .catch((): BeneficiaryAssessmentRecord[] => {
+                .catch((error: unknown): BeneficiaryAssessmentRecord[] => {
                   assessmentsUnavailable = true
+                  if (!isTransientFailure(error)) denied = true
                   return []
                 })
             : Promise.resolve([])
-        const [activities, stages, history, forms, assessments] = await Promise.all([
+        const [activities, stages, history, forms, assessments] = await settleAll([
           activitiesClient.getActivities(scopedProjectId),
           journeysClient.getJourneyStages(scopedProjectId),
           journeysClient.getBeneficiaryJourneyHistory(scopedProjectId, beneficiaryId),
@@ -176,7 +193,7 @@ export const BeneficiaryDetailLoader = ({
           return
         }
         // A cold server or busy pool often clears within a second; denials and misses stay final.
-        if (!retried && isTransientFailure(error)) {
+        if (!retried && !denied && isTransientFailure(error)) {
           await new Promise((resolve) => setTimeout(resolve, TRANSIENT_RETRY_DELAY_MS))
           if (active) await loadDetail(true)
           return
