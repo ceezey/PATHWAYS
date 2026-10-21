@@ -5,8 +5,9 @@ import { useAuthorizedRead } from '@/hooks/use-authorized-read'
 import { rulesHumanClient } from '@/lib/api/rules'
 import Link from 'next/link'
 import { statusLabel } from '../rules.copy'
-import { basisLine } from '../rules.utils'
+import { basisEvidence } from '../rules.utils'
 import { AlertSeverityBadge } from './alert-severity-badge'
+import { BasisLine } from './observed-value'
 
 /** Names the alert a recommendation came from, with its severity, status and measured value. */
 export function LinkedAlertSummary({ alertId, projectId }: { alertId: string; projectId: string }) {
@@ -26,7 +27,7 @@ export function LinkedAlertSummary({ alertId, projectId }: { alertId: string; pr
         {linked.isError ? 'View linked alert' : 'Loading linked alert'}
       </Link>
     )
-  const measured = basisLine(alert)
+  const measured = basisEvidence(alert)
   return (
     <div className="space-y-2 rounded-md border border-danger/30 bg-danger-subtle p-3">
       <p className="text-sm text-muted-foreground">Linked alert</p>
@@ -38,7 +39,11 @@ export function LinkedAlertSummary({ alertId, projectId }: { alertId: string; pr
         <StatusBadge tone="neutral">{statusLabel(alert.lifecycle)}</StatusBadge>
       </div>
       <p className="whitespace-pre-wrap text-sm">{alert.explanation}</p>
-      {measured ? <p className="text-sm text-muted-foreground">{measured}</p> : null}
+      {measured ? (
+        <p className="text-sm text-muted-foreground">
+          <BasisLine seen={measured} />
+        </p>
+      ) : null}
     </div>
   )
 }

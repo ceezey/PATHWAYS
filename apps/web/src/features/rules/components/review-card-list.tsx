@@ -4,8 +4,9 @@ import type { HumanAlert, HumanRecommendation } from '@pathways/shared'
 import { Lightbulb, TriangleAlert } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { basisLabel, statusLabel } from '../rules.copy'
-import { basisLine, severityTone } from '../rules.utils'
+import { basisEvidence, severityTone } from '../rules.utils'
 import { AlertSeverityBadge } from './alert-severity-badge'
+import { BasisLine } from './observed-value'
 
 const statusTone = (status: string) =>
   status === 'NEW'
@@ -51,7 +52,7 @@ export function ReviewCardList({ items, selectedId, onSelect, projectLabel, deta
         const alert = 'lifecycle' in item
         const status = alert ? item.lifecycle : item.status
         const label = alert ? projectLabel?.(item.projectId) : undefined
-        const basis = alert ? basisLine(item) : null
+        const basis = alert ? basisEvidence(item) : null
         const open = item.id === selectedId
         const tone = TONE_STYLES[alert ? severityTone(item.severity) : 'warning']
         return (
@@ -95,7 +96,11 @@ export function ReviewCardList({ items, selectedId, onSelect, projectLabel, deta
                 {label ? (
                   <span className="block text-sm text-muted-foreground">{label}</span>
                 ) : null}
-                {basis ? <span className="block text-sm">{basis}</span> : null}
+                {basis ? (
+                  <span className="block text-sm">
+                    <BasisLine focusable={false} seen={basis} />
+                  </span>
+                ) : null}
                 {alert ? null : (
                   <span className="line-clamp-2 block text-sm text-muted-foreground">
                     {basisLabel(item.basis)}

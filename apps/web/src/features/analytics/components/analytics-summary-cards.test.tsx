@@ -83,13 +83,7 @@ describe('Budget utilization card', () => {
     ],
     ['under the plan', budgetOf(currencyRow('PHP', 99.9)), '99.9%', 'success', approved],
     ['exactly on the plan', budgetOf(currencyRow('PHP', 100)), '100%', 'success', approved],
-    [
-      'over the plan',
-      budgetOf(currencyRow('PHP', 120)),
-      '100% (20% over budget)',
-      'warning',
-      approved,
-    ],
+    ['over the plan', budgetOf(currencyRow('PHP', 120)), '100% (+20%)', 'warning', approved],
   ])('reads %s', (_name, budgetRead, value, tone, tip) => {
     expect(readCard('Budget utilization', { budgetRead })).toEqual({ tip, value, tone })
   })

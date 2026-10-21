@@ -491,13 +491,9 @@ export function clearRecordBindings(node: RuleNode): RuleNode {
   return rest
 }
 export type Choice = { id: string; name: string }
-/** The first measured evidence value against its threshold, or null when none was measured. */
-export const basisLine = (alert: HumanAlert) => {
-  const seen = alert.evidence.find((item) => item.cell.value !== null)
-  return seen?.cell.value
-    ? `Current ${metricLabel(seen.metric).toLowerCase()} ${formatMetricValue(seen.cell.value, seen.unit)} vs threshold ${formatMetricValue(seen.threshold, seen.unit)}`
-    : null
-}
+/** The first measured evidence row, or null when none was measured. */
+export const basisEvidence = (alert: HumanAlert) =>
+  alert.evidence.find((item) => item.cell.value !== null) ?? null
 export const codeLabel = (value: string) =>
   value === 'AUTO_RESOLVED' ? 'Auto-resolved' : value.replaceAll('_', ' ').toLowerCase()
 export const manilaTime = (value: string) =>

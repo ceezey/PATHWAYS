@@ -1,3 +1,4 @@
+import { formatCappedPercent } from '@/lib/format/percent'
 import type { HealthStatus, ProjectStatus } from '@/types/pathways'
 import type { MetricCell } from '@pathways/shared'
 
@@ -84,7 +85,7 @@ export const metricUnavailableLabel = (cell: MetricCell) => {
  */
 export const overviewMetricLabel = (cell: MetricCell, kind: 'percent' | 'pp' | 'count') => {
   if (cell.value !== null) {
-    if (kind === 'percent') return `${cell.value}%`
+    if (kind === 'percent') return formatCappedPercent(cell.value)
     // 'pp': a difference between two percentages, in percentage points, never '%'.
     if (kind === 'pp') return `${cell.value}pp`
     return formatNumber(Number(cell.value))

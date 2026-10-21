@@ -167,7 +167,7 @@ describe('alert outcome controls', () => {
       </QueryClientProvider>,
     )
     await screen.findByRole('heading', { name: alert.title })
-    expect(screen.getByText('9/28/2026 12:30 AM')).toBeTruthy()
+    expect(screen.getByText('Rule evaluated at 9/28/2026 12:30 AM.')).toBeTruthy()
     const rows = within(screen.getByRole('table', { name: 'Recorded evaluation evidence' }))
       .getAllByRole('row')
       .slice(1)

@@ -3,6 +3,7 @@
 import type { HumanAlert } from '@pathways/shared'
 import { comparisonCopy } from '../rules.copy'
 import { codeLabel, formatMetricValue, metricLabel } from '../rules.utils'
+import { ObservedValue } from './observed-value'
 
 export function EvidenceTable({ evidence }: { evidence: HumanAlert['evidence'] }) {
   return (
@@ -32,9 +33,15 @@ export function EvidenceTable({ evidence }: { evidence: HumanAlert['evidence'] }
                 {metricLabel(evidence.metric)}
               </th>
               <td className="p-2">
-                {evidence.cell.value !== null
-                  ? formatMetricValue(evidence.cell.value, evidence.unit)
-                  : `${codeLabel(evidence.cell.state)}${evidence.cell.reason ? ` (${codeLabel(evidence.cell.reason)})` : ''}`}
+                {evidence.cell.value !== null ? (
+                  <ObservedValue
+                    metric={evidence.metric}
+                    unit={evidence.unit}
+                    value={evidence.cell.value}
+                  />
+                ) : (
+                  `${codeLabel(evidence.cell.state)}${evidence.cell.reason ? ` (${codeLabel(evidence.cell.reason)})` : ''}`
+                )}
               </td>
               <td className="p-2">
                 {comparisonCopy[evidence.operator]}{' '}

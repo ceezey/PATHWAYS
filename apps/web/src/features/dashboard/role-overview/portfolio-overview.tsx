@@ -85,7 +85,7 @@ export const PortfolioOverview = ({
             <div className="flex justify-between text-sm">
               <span className="font-medium">{project.title}</span>
               <span className="tabular-nums">
-                <CappedPercent value={budget.percent} overLabel="over budget" />
+                <CappedPercent value={budget.percent} overrun="budget" />
               </span>
             </div>
             <div className="flex justify-between text-xs text-muted-foreground">
