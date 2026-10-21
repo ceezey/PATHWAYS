@@ -10,6 +10,7 @@ import {
   indicator,
   insights,
   kpiCard,
+  loadDashboard,
   loadMapsDashboard,
   monitoring,
   project,
@@ -153,7 +154,8 @@ describe('Analytics dashboard request dependencies', () => {
   })
 
   it('does not offer the Map visualization while maps are hidden', async () => {
-    render(<AnalyticsDashboard />)
+    const Dashboard = await loadDashboard({ maps: false })
+    render(<Dashboard />)
     await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
     expect(screen.queryByRole('option', { name: 'Map' })).toBeNull()
   })

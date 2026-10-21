@@ -7,6 +7,7 @@ import type { SafeMapFeatureCollection } from '../analytics-location.utils'
 
 const maplibre = vi.hoisted(() => ({
   instances: [] as MapMock[],
+  setWorkerUrl: vi.fn(),
 }))
 
 type Handler = () => void
@@ -68,11 +69,13 @@ class NavigationControlMock {}
 vi.mock('maplibre-gl', () => ({
   Map: MapMock,
   NavigationControl: NavigationControlMock,
+  setWorkerUrl: maplibre.setWorkerUrl,
 }))
 
 import {
   AnalyticsCoverageMap,
   DEFAULT_MAP_STYLE_URL,
+  MAPLIBRE_WORKER_URL,
   resolveMapStyleUrl,
 } from './analytics-coverage-map'
 
@@ -123,6 +126,7 @@ describe('AnalyticsCoverageMap', () => {
     await waitFor(() => expect(maplibre.instances[0]?.addLayer).toHaveBeenCalledTimes(1))
     const map = maplibre.instances[0]
     expect(map?.options.style).toBe('https://tiles.example.test/style.json')
+    expect(maplibre.setWorkerUrl).toHaveBeenCalledWith(MAPLIBRE_WORKER_URL)
     expect(map?.options.center).toEqual([122, 12.5])
     expect(map?.addControl).toHaveBeenCalledTimes(1)
     expect(map?.sources.get('pathways-authorized-project-locations')?.data).toEqual(

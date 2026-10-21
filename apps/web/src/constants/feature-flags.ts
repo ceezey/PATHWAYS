@@ -28,11 +28,11 @@ export const STEP_UP_RESET_UI_ENABLED = false
 export const ANALYTICS_AGGREGATE_EXPORT_UI_ENABLED = true
 
 /**
- * The Analytics "Map" visualization (project coverage map) is hidden for every role (2026-10-07,
- * developer request) because it does not work yet. The map components and the project-map API stay
- * in place; see vault note deferred-features.
+ * The Analytics "Map" visualization (project coverage map) was hidden on 2026-10-07 because it drew
+ * no tiles or points, and is shown again for every role (2026-10-22) now that the maplibre worker is
+ * served from public. See vault note deferred-features.
  */
-export const MAPS_UI_ENABLED = false
+export const MAPS_UI_ENABLED = true
 
 /**
  * Backup & Recovery is hidden for every role, System Administrator included (2026-10-07, developer
