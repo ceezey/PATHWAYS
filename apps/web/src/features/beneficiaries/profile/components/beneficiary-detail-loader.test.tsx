@@ -249,6 +249,7 @@ describe('BeneficiaryDetailLoader', () => {
       render(<BeneficiaryDetailLoader beneficiaryId="beneficiary-a" projectId="project-b" />)
       await screen.findByText('Beneficiary record unavailable')
       expect(screen.queryByTestId('beneficiary-detail')).toBeNull()
+      expect(screen.queryByRole('button', { name: /retry/i })).toBeNull()
     })
 
     it('makes no retry reads after unmounting during the retry delay', async () => {
