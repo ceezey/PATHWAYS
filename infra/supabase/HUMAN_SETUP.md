@@ -36,4 +36,4 @@ Preserve the existing private `pathways-private` bucket and its object. Historic
 ## Secrets
 Do not commit real Supabase keys. Keep them only in local `.env` files or your chosen secret manager.
 
-Use the protected Windows runtime launcher described in `security-adapter/README.md`. It supplies runtime `DATABASE_URL` in the child process; migration `DIRECT_URL` stays separate. Never launch the API using the migration owner.
+Start the API with `pnpm dev`, which runs `security-adapter/dev-local.mjs` (see its README). It blanks migration `DIRECT_URL` for the API process, so only the runtime `DATABASE_URL` reaches it. Never launch the API using the migration owner.

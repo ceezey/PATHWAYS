@@ -99,7 +99,6 @@ How it behaves:
 - Web: `http://localhost:3000` (`next dev`, hot reload). API: `http://localhost:4000/api`; it builds `packages/shared`, `packages/imports` and `packages/config` first, then builds once and keeps running, so restart `pnpm dev` after API or `.env` changes, or use `pnpm --filter @pathways/api dev:watch` for automatic reloads.
 - `infra/supabase/security-adapter/dev-local.mjs` blanks `DIRECT_URL`, `SHADOW_DATABASE_URL` and `PGPASSWORD` for the running API and redacts secrets from its output.
 - Data and uploads land in the hosted devV2 project, the same one the deployed site uses. Use synthetic data only.
-- The old launcher for the legacy PATHWAYS-dev database is `pnpm --filter @pathways/api dev:legacy-db`.
 - Push to `dev` in batches: each push starts two Vercel builds and the free plan has a build rate limit.
 - Docker (`infra/docker/docker-compose.yml`) builds production images with no live reload; use it only for a production-like check.
 
