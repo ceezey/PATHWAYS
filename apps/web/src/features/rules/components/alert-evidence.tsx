@@ -6,7 +6,7 @@ import { rulesHumanClient } from '@/lib/api/rules'
 import { principalHasAtomicPermission } from '@/lib/rbac/policy'
 import type { HumanAlert } from '@pathways/shared'
 import Link from 'next/link'
-import { codeLabel, manilaTime } from '../rules.utils'
+import { manilaTime } from '../rules.utils'
 import { EvidenceTable } from './evidence-table'
 import { RuleTreeView } from './rule-tree-view'
 
@@ -28,11 +28,7 @@ export function AlertEvidence({ item }: { item: HumanAlert }) {
   return (
     <div className="space-y-4">
       <p className="whitespace-pre-wrap">{item.explanation}</p>
-      <p className="text-sm text-muted-foreground">
-        Rule version {item.ruleVersion}; {codeLabel(item.freshness)}. Evaluated{' '}
-        {manilaTime(item.evaluatedAt)} Asia/Manila. Reporting date {item.reportingDate}; calendar
-        version {item.calendar.version}.
-      </p>
+      <p className="text-sm text-muted-foreground">{manilaTime(item.evaluatedAt)}</p>
       <RuleTreeView node={item.conditions} />
       <EvidenceTable evidence={item.evidence} />
       {canReadLinked ? (

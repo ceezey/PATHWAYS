@@ -5,6 +5,7 @@ import {
   type RuleMetricKey,
   type RuleNode,
   alertSeverities,
+  displayDecimal,
   ruleMetrics,
 } from '@pathways/shared'
 
@@ -284,16 +285,21 @@ export const suffix = (key: string) => {
         ? ' percentage points'
         : ''
 }
-/** Display only: COUNT drops its unit, PERCENT rounds to 2 decimals with %. */
+// Values outside the stored decimal(18,4) text shape are shown unchanged.
+const rounded = (value: string) => {
+  try {
+    return displayDecimal(value)
+  } catch {
+    return value
+  }
+}
+/** Display only: COUNT drops its unit; every other value rounds to 2 decimals. */
 export const formatMetricValue = (value: string, unit: string) => {
   const kind = unit.toUpperCase()
   if (kind === 'COUNT') return value
-  if (kind === 'PERCENT' || kind === '%') {
-    const n = Number(value)
-    return `${Number.isFinite(n) ? Number(n.toFixed(2)) : value}%`
-  }
-  if (kind === 'POINTS') return `${value} percentage points`
-  return `${value} ${unit}`
+  if (kind === 'PERCENT' || kind === '%') return `${rounded(value)}%`
+  if (kind === 'POINTS') return `${rounded(value)} percentage points`
+  return `${rounded(value)} ${unit}`
 }
 export const metricGuidance = (key: string): MetricEntry | null =>
   (METRIC_CATALOG as Record<string, MetricEntry | undefined>)[key] ?? null
@@ -495,7 +501,16 @@ export const basisLine = (alert: HumanAlert) => {
 export const codeLabel = (value: string) =>
   value === 'AUTO_RESOLVED' ? 'Auto-resolved' : value.replaceAll('_', ' ').toLowerCase()
 export const manilaTime = (value: string) =>
-  new Date(value).toLocaleString('en-US', { timeZone: 'Asia/Manila' })
+  new Date(value)
+    .toLocaleString('en-US', {
+      timeZone: 'Asia/Manila',
+      year: 'numeric',
+      month: 'numeric',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    })
+    .replace(', ', ' ')
 // Most severe first when the queue is sorted; unknown severities sort last.
 export const alertSeverityRank = (value: string | null) => {
   const rank = (alertSeverities as readonly (string | null)[]).indexOf(value)

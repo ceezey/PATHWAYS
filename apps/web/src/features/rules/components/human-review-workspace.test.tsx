@@ -167,11 +167,7 @@ describe('alert outcome controls', () => {
       </QueryClientProvider>,
     )
     await screen.findByRole('heading', { name: alert.title })
-    expect(
-      screen.getByText(
-        'Rule version 3; source changed. Evaluated 9/28/2026, 12:30:00 AM Asia/Manila. Reporting date 2026-09-27; calendar version 1.',
-      ),
-    ).toBeTruthy()
+    expect(screen.getByText('9/28/2026 12:30 AM')).toBeTruthy()
     const rows = within(screen.getByRole('table', { name: 'Recorded evaluation evidence' }))
       .getAllByRole('row')
       .slice(1)
@@ -210,7 +206,7 @@ describe('alert outcome controls', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Show history' }))
     await screen.findByText('Auto-resolved (system)')
     expect(screen.getByText('Condition no longer holds.')).toBeTruthy()
-    expect(screen.getByText('9/28/2026, 12:30:00 AM Asia/Manila')).toBeTruthy()
+    expect(screen.getByText('9/28/2026 12:30 AM')).toBeTruthy()
     expect(screen.getByText('Rule version 2; result false')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Hide history' })).toBeTruthy()
   })

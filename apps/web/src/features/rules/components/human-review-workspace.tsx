@@ -297,7 +297,7 @@ export function HumanReviewWorkspace({
                         </p>
                         <p>{event.explanation}</p>
                         <p className="text-sm text-muted-foreground">
-                          {manilaTime(event.occurredAt)} Asia/Manila
+                          {manilaTime(event.occurredAt)}
                         </p>
                         {event.outcome ? <p>{codeLabel(event.outcome)}</p> : null}
                         <p className="text-sm">

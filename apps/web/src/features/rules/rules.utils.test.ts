@@ -12,6 +12,7 @@ import {
   formatMetricValue,
   isMetricAvailable,
   leafCount,
+  manilaTime,
   metricGuidance,
   moveRow,
   newCondition,
@@ -154,8 +155,17 @@ describe('formatMetricValue', () => {
     expect(formatMetricValue('108.1081', 'PERCENT')).toBe('108.11%')
     expect(formatMetricValue('92', 'PERCENT')).toBe('92%')
     expect(formatMetricValue('55', '%')).toBe('55%')
-    expect(formatMetricValue('11.625', 'POINTS')).toBe('11.625 percentage points')
+    expect(formatMetricValue('11.625', 'POINTS')).toBe('11.63 percentage points')
+    expect(formatMetricValue('1.6667', 'POINTS')).toBe('1.67 percentage points')
+    expect(formatMetricValue('-8.3333', 'POINTS')).toBe('-8.33 percentage points')
+    expect(formatMetricValue('2.5', 'DAYS')).toBe('2.5 DAYS')
     expect(formatMetricValue('30', 'DAYS')).toBe('30 DAYS')
+  })
+})
+
+describe('manilaTime', () => {
+  it('shows only the Manila date and time to the minute', () => {
+    expect(manilaTime('2026-10-20T19:11:58.000Z')).toBe('10/21/2026 3:11 AM')
   })
 })
 
