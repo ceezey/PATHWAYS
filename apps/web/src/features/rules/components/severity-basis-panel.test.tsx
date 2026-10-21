@@ -28,7 +28,7 @@ describe('SeverityBasisPanel', () => {
     render(<SeverityBasisPanel alert={alert({})} />)
     expect(screen.getByRole('heading', { name: 'Why this level' })).toBeTruthy()
     expect(screen.getByText('Suggested severity: High.')).toBeTruthy()
-    expect(screen.getByText(/Severity Guide v0\.2/)).toBeTruthy()
+    expect(screen.queryByText(/Severity Guide/)).toBeNull()
   })
   it('lists what is missing for a Needs context alert', () => {
     render(

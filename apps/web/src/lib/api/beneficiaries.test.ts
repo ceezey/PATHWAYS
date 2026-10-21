@@ -82,6 +82,7 @@ describe('beneficiariesClient beneficiary requests', () => {
   beforeEach(() => request.requestFoundation.mockReset())
 
   it('returns no records without a project and sends the filters of the first page', async () => {
+    const signal = new AbortController().signal
     await expect(
       beneficiariesClient.getBeneficiaryRecordsForRole('Project Officer'),
     ).resolves.toEqual([])
@@ -97,9 +98,11 @@ describe('beneficiariesClient beneficiary requests', () => {
         disabilityStatus: 'NOT_SPECIFIED',
         enrollmentStatus: 'ACTIVE',
       },
+      signal,
     )
     expect(request.requestFoundation).toHaveBeenCalledWith(
       `${base}?search=BEN&sex=FEMALE&ageBand=25%2B&disabilityStatus=NOT_SPECIFIED&enrollmentStatus=ACTIVE&limit=50`,
+      { signal },
     )
     expect(records).toStrictEqual([
       {

@@ -39,6 +39,7 @@ const publication = {
 }
 const json = (value: unknown) =>
   new Response(JSON.stringify(value), { headers: { 'Content-Type': 'application/json' } })
+const read = (value: unknown) => json({ publication: value })
 
 // Exercise the real foundation fetch and header path and the owned JSON read.
 const fetcher = vi.fn<typeof fetch>()
@@ -69,14 +70,20 @@ describe('publicationClient publication read', () => {
   const client = publicationClient
   it('requests the project publication and returns the parsed row or null', async () => {
     const controller = new AbortController()
-    fetcher.mockResolvedValueOnce(json(publication))
+    fetcher.mockResolvedValueOnce(read(publication))
     await expect(client.get(projectId, controller.signal)).resolves.toEqual(publication)
     const [url, init] = fetcher.mock.calls[0]
     expect(String(url)).toBe(`http://127.0.0.1:4000/api/projects/${projectId}/publication`)
     expect(init?.method ?? 'GET').toBe('GET')
     expect(init?.signal).toBe(controller.signal)
-    fetcher.mockResolvedValueOnce(json(null))
+    fetcher.mockResolvedValueOnce(read(null))
     await expect(client.get(projectId)).resolves.toBeNull()
+  })
+  it('rejects a bare row or an empty envelope', async () => {
+    fetcher.mockResolvedValueOnce(json(publication))
+    await expect(client.get(projectId)).rejects.toThrow('could not be validated')
+    fetcher.mockResolvedValueOnce(json({}))
+    await expect(client.get(projectId)).rejects.toThrow('could not be validated')
   })
   it('refuses a malformed project id before any request', () => {
     expect(() => client.get('../other')).toThrow()
@@ -92,7 +99,7 @@ describe('publicationClient publication read', () => {
       startDate: '2026-01-01',
       endDate: '2026-12-31',
     })
-    fetcher.mockResolvedValueOnce(json({ ...body, summary: 'f'.repeat(4000) }))
+    fetcher.mockResolvedValueOnce(read({ ...body, summary: 'f'.repeat(4000) }))
     await expect(client.get(projectId)).resolves.toMatchObject({ snapshot: body.snapshot })
   })
   it.each([
@@ -124,7 +131,7 @@ describe('publicationClient publication read', () => {
     ['a timestamp without an offset', edit({ updatedAt: '2026-09-27T00:00:00' })],
     ['an unknown top-level key', edit({ extra: 'x' })],
   ])('rejects %s', async (_label, body) => {
-    fetcher.mockResolvedValueOnce(json(body))
+    fetcher.mockResolvedValueOnce(read(body))
     await expect(client.get(projectId)).rejects.toThrow('could not be validated')
   })
 })
@@ -171,10 +178,10 @@ describe('publicationClient publication transition', () => {
 
 describe('publicationClient request and strict response boundaries', () => {
   it('accepts only the allowlisted publication snapshot for the requested project', async () => {
-    fetcher.mockResolvedValueOnce(json(publication))
+    fetcher.mockResolvedValueOnce(read(publication))
     await expect(publicationClient.get(projectId)).resolves.toEqual(publication)
     fetcher.mockResolvedValueOnce(
-      json({ ...publication, snapshot: { ...publication.snapshot, id: otherId } }),
+      read({ ...publication, snapshot: { ...publication.snapshot, id: otherId } }),
     )
     await expect(publicationClient.get(projectId)).rejects.toThrow('could not be validated')
   })
@@ -182,7 +189,7 @@ describe('publicationClient request and strict response boundaries', () => {
     'rejects private snapshot field %s',
     async (key) => {
       fetcher.mockResolvedValueOnce(
-        json({
+        read({
           ...publication,
           snapshot: { ...publication.snapshot, [key]: 'synthetic private data' },
         }),

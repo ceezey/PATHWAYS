@@ -24,8 +24,8 @@ test('MIGRATIONS_IN_ORDER matches the real migrations directory exactly, in orde
   assert.deepEqual([...MIGRATIONS_IN_ORDER].sort(), onDisk)
   // The migrations directory holds one folder per Prisma migration. 0000
   // squashes the original 0001-0026 into a single reviewed baseline, so the
-  // ledger has 48 rows (baseline plus 0027-0057 and 0058-0073) even though the numbering has gaps.
-  assert.equal(MIGRATIONS_IN_ORDER.length, 48)
+  // ledger has 50 rows (baseline plus 0027-0057 and 0058-0075) even though the numbering has gaps.
+  assert.equal(MIGRATIONS_IN_ORDER.length, 50)
   assert.equal(MIGRATIONS_IN_ORDER[0], BASELINE)
 })
 
@@ -104,6 +104,10 @@ test('the dry-run plan order exactly matches the documented stop points', () => 
     'preprovision:rules-metrics',
     'deploy:0073_rules_kpi_assessment_metrics',
     'cleanup:rules-metrics',
+    'deploy:0074_indicator_measurement_lookup',
+    'preprovision:indicator-summary',
+    'deploy:0075_indicator_summary_measurement_lookup',
+    'cleanup:indicator-summary',
     'alter-runtime-role',
     'postconditions',
   ])
@@ -266,7 +270,7 @@ test('planIndexForAppliedCount on a 0000-0048 ledger resumes at the 0049 deploy'
   assert.deepEqual(plan[index].migrations, ['0049_journey_event_note'])
 })
 
-test('planIndexForAppliedCount on a complete 0000-0073 ledger resumes at alter-runtime-role', () => {
+test('planIndexForAppliedCount on a complete 0000-0075 ledger resumes at alter-runtime-role', () => {
   const plan = buildPlan()
   const index = planIndexForAppliedCount(MIGRATIONS_IN_ORDER.length)
   assert.equal(plan[index].type, 'alter-runtime-role')
@@ -472,11 +476,32 @@ test('planIndexForAppliedCount on a 0000-0072 ledger resumes at the rules-metric
   assert.equal(plan[index].name, 'rules-severity')
 })
 
-test('planIndexForAppliedCount on a 0000-0073 ledger resumes at alter-runtime-role, or at the rules-metrics cleanup with residual owner memberships', () => {
+test('planIndexForAppliedCount on a 0000-0073 ledger resumes at the 0074 deploy, or at the rules-metrics cleanup with residual owner memberships', () => {
   const plan = buildPlan()
   const applied = MIGRATIONS_IN_ORDER.indexOf('0073_rules_kpi_assessment_metrics') + 1
-  assert.equal(plan[planIndexForAppliedCount(applied)].type, 'alter-runtime-role')
+  assert.deepEqual(plan[planIndexForAppliedCount(applied)].migrations, [
+    '0074_indicator_measurement_lookup',
+  ])
   const index = planIndexForAppliedCount(applied, { residualOwnerMemberships: true })
   assert.equal(plan[index].type, 'cleanup')
   assert.equal(plan[index].name, 'rules-metrics')
+})
+
+test('planIndexForAppliedCount on a 0000-0074 ledger resumes at the indicator-summary preprovision, or at the 0075 deploy when its chain is granted', () => {
+  const plan = buildPlan()
+  const applied = MIGRATIONS_IN_ORDER.indexOf('0074_indicator_measurement_lookup') + 1
+  const fresh = planIndexForAppliedCount(applied)
+  assert.equal(plan[fresh].type, 'preprovision')
+  assert.equal(plan[fresh].name, 'indicator-summary')
+  const granted = planIndexForAppliedCount(applied, { residualOwnerMemberships: true })
+  assert.deepEqual(plan[granted].migrations, ['0075_indicator_summary_measurement_lookup'])
+})
+
+test('planIndexForAppliedCount on a 0000-0075 ledger resumes at alter-runtime-role, or at the indicator-summary cleanup with residual owner memberships', () => {
+  const plan = buildPlan()
+  const applied = MIGRATIONS_IN_ORDER.indexOf('0075_indicator_summary_measurement_lookup') + 1
+  assert.equal(plan[planIndexForAppliedCount(applied)].type, 'alter-runtime-role')
+  const index = planIndexForAppliedCount(applied, { residualOwnerMemberships: true })
+  assert.equal(plan[index].type, 'cleanup')
+  assert.equal(plan[index].name, 'indicator-summary')
 })

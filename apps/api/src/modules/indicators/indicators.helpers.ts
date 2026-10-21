@@ -9,6 +9,7 @@ import type { CreateIndicatorLibraryEntryRequest } from '@pathways/shared'
 import type { IndicatorLibraryEntry } from '@prisma/client'
 import type { z } from 'zod'
 import { UUID_PATTERN } from '../../common/authz/application-identity'
+import { databaseBusyError } from '../../common/authz/database-busy'
 
 /** Service-side parse, so seeds and the library copy path are validated like the routes. */
 export function parseIndicatorRequest<T>(schema: z.ZodType<T>, input: unknown): T {
@@ -38,10 +39,18 @@ export function monitoringSqlError(error: unknown): never {
     )
   }
   if (sqlCode === '42501') throw new ForbiddenException('Monitoring scope is unavailable.')
-  if (code === 'P2028' || ['57014', '42P01', '42703', '42883', '22023'].includes(String(sqlCode))) {
-    throw new ServiceUnavailableException(
-      'Monitoring verification is unavailable or exceeded its query limit.',
-    )
+  if (code === 'P2028' || sqlCode === '57014') throw databaseBusyError()
+  if (['42P01', '42703', '42883'].includes(String(sqlCode))) {
+    throw new ServiceUnavailableException({
+      message: 'Monitoring calculation is missing from this database. Apply the latest migrations.',
+      code: 'MONITORING_SCHEMA_UNAVAILABLE',
+    })
+  }
+  if (sqlCode === '22023') {
+    throw new ServiceUnavailableException({
+      message: 'Monitoring cannot be calculated for this project or period.',
+      code: 'MONITORING_UNSUPPORTED',
+    })
   }
   throw error
 }

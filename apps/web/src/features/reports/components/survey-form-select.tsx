@@ -23,7 +23,7 @@ export function SurveyFormSelect({
   return (
     <>
       {kind === 'SURVEY_FORM_RESULTS' && (
-        <div className="mb-4 space-y-2">
+        <div className="space-y-2">
           <Label className="block space-y-2">
             <span>Published training survey</span>
             <Select

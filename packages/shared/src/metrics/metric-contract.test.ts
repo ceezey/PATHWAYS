@@ -9,6 +9,7 @@ import { indicatorResponse } from '../contracts/indicators/indicator-responses'
 import { metricCellSchema } from './metric-cell'
 import {
   businessCalendarDate,
+  displayDecimal,
   indicatorProgress,
   isCalendarDate,
   normalizeMetricDecimal,
@@ -267,5 +268,13 @@ describe('retired project benchmark contract', () => {
       state: 'NOT_APPLICABLE',
       value: null,
     })
+  })
+})
+
+describe('displayDecimal', () => {
+  it('rounds half away from zero to two places and drops trailing zeros', () => {
+    expect(
+      ['1.6667', '8.3333', '11.625', '-11.625', '10', '0.004', '-0.005', '2.5'].map(displayDecimal),
+    ).toEqual(['1.67', '8.33', '11.63', '-11.63', '10', '0', '-0.01', '2.5'])
   })
 })

@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { PrismaService } from '@app/prisma/prisma.service'
 import { hasAtomicPermission } from '@pathways/shared'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
+import { withAuthorizedOperation } from '../../common/authz/authorized-operation'
 import { BeneficiariesService } from './beneficiaries.service'
 import { canReadProgress, progressPercent } from './beneficiary-progress'
 import { BeneficiaryRegistrationService } from './beneficiary-registration.service'
@@ -178,6 +179,25 @@ describe('F3 scoped read and denial gates', () => {
     const detail = await service.get(actor, projectId, beneficiaryId)
     expect(detail.progress).toEqual({ restricted: true })
     expect(raw).not.toHaveBeenCalled()
+  })
+
+  it('gives direct registration the same 20s transaction budget as the import path', async () => {
+    const registration = new BeneficiaryRegistrationService()
+    vi.spyOn(registration, 'promoteRegistration').mockResolvedValue({
+      kind: 'PROCESSED',
+      beneficiaryId,
+      enrollmentId,
+      submissionId: '70000000-0000-4000-8000-000000000007',
+    } as never)
+    service = new BeneficiariesService({} as PrismaService, registration)
+    await service.register(actor, projectId, {
+      formId: '80000000-0000-4000-8000-000000000008',
+      clientRegistrationId: '80000000-0000-4000-8000-000000000009',
+      values: {},
+    } as never)
+    expect(vi.mocked(withAuthorizedOperation).mock.calls.at(-1)?.[4]).toEqual({
+      transactionTimeoutMs: 20_000,
+    })
   })
 
   it.each(['PROGRAM_MANAGER', 'GRANT_MANAGER', 'SYSTEM_ADMINISTRATOR'])(

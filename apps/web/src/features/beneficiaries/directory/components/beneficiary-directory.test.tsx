@@ -4,8 +4,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { DisplayLabelsProvider } from '@/providers/display-labels-provider'
-import { testActivities, testBeneficiaries } from '@/test/fixtures/api-view-fixtures'
-import { mockJourneyStages } from '@/test/fixtures/beneficiaries'
+import { testBeneficiaries } from '@/test/fixtures/api-view-fixtures'
 import { mockProjects } from '@/test/fixtures/projects'
 
 import { BeneficiaryDirectory } from './beneficiary-directory'
@@ -27,6 +26,38 @@ afterEach(() => {
   window.localStorage.clear()
 })
 
+const directoryProps = {
+  beneficiaries: testBeneficiaries,
+  projects: mockProjects,
+  projectId: 'futuremakers-ncr',
+  onProjectChange: () => undefined,
+  status: 'success' as 'loading' | 'error' | 'success',
+  onRetry: () => undefined,
+}
+
+const renderDirectory = (props: Partial<typeof directoryProps>) =>
+  render(
+    <DisplayLabelsProvider>
+      <BeneficiaryDirectory {...directoryProps} {...props} />
+    </DisplayLabelsProvider>,
+  )
+
+describe('BeneficiaryDirectory project read states', () => {
+  it('keeps the filters and shows a loading row while a project loads', () => {
+    renderDirectory({ status: 'loading' })
+    expect(screen.getByLabelText('Search by name or code')).toBeTruthy()
+    expect(screen.getAllByText('Loading Beneficiary records.').length).toBeGreaterThan(0)
+    expect(screen.queryByRole('link', { name: /^Open / })).toBeNull()
+  })
+
+  it('offers a retry when a project read fails', () => {
+    const onRetry = vi.fn()
+    renderDirectory({ status: 'error', onRetry })
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+    expect(onRetry).toHaveBeenCalledOnce()
+  })
+})
+
 describe('BeneficiaryDirectory', () => {
   it('clears active search state and returns pagination to the first page', async () => {
     const extraRecords = Array.from({ length: 9 }, (_, index) => ({
@@ -39,10 +70,8 @@ describe('BeneficiaryDirectory', () => {
     render(
       <DisplayLabelsProvider>
         <BeneficiaryDirectory
-          activities={testActivities}
+          {...directoryProps}
           beneficiaries={[...testBeneficiaries, ...extraRecords]}
-          projects={mockProjects}
-          stages={mockJourneyStages}
         />
       </DisplayLabelsProvider>,
     )
@@ -74,10 +103,8 @@ describe('BeneficiaryDirectory journey summary', () => {
     render(
       <DisplayLabelsProvider>
         <BeneficiaryDirectory
-          activities={testActivities}
+          {...directoryProps}
           beneficiaries={[{ ...testBeneficiaries[0], participation: [], progress }]}
-          projects={mockProjects}
-          stages={mockJourneyStages}
         />
       </DisplayLabelsProvider>,
     )

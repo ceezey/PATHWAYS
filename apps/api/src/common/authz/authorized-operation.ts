@@ -1,12 +1,6 @@
 import { performance } from 'node:perf_hooks'
 
-import {
-  ConflictException,
-  ForbiddenException,
-  HttpException,
-  Logger,
-  ServiceUnavailableException,
-} from '@nestjs/common'
+import { ConflictException, ForbiddenException, HttpException, Logger } from '@nestjs/common'
 import type { Prisma } from '@prisma/client'
 
 import { type AtomicPermission, hasAtomicPermission } from '@pathways/shared'
@@ -18,6 +12,7 @@ import {
   boundedOperationDuration,
   reportAuthorizedOperationTiming,
 } from './authorized-operation-timing'
+import { databaseBusyError } from './database-busy'
 
 interface AuthorizedOperationOptions {
   transactionTimeoutMs?: number
@@ -203,9 +198,7 @@ export async function withAuthorizedOperation<T>(
     }
     if (code === 'P2024' || code === 'P2028') {
       reportTemporaryDatabaseFailure(code, error)
-      throw new ServiceUnavailableException(
-        'The application transaction is temporarily unavailable. Retry shortly.',
-      )
+      throw databaseBusyError()
     }
 
     reportRejectedDatabaseFailure(code, error)

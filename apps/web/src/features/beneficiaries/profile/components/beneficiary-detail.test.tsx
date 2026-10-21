@@ -21,6 +21,7 @@ const { client, toastSuccess, toastError, useCurrentRoleMock } = vi.hoisted(() =
     submitDirectSubmission: vi.fn(),
     transitionBeneficiaryJourney: vi.fn(),
     correctBeneficiaryJourneyEvent: vi.fn(),
+    getBeneficiaryRecordForRole: vi.fn(),
   },
   toastSuccess: vi.fn(),
   toastError: vi.fn(),
@@ -34,6 +35,7 @@ vi.mock('next/navigation', () => ({ useSearchParams: () => new URLSearchParams()
 vi.mock('@/lib/services/pathways-client', () => ({ pathwaysClient: client }))
 vi.mock('@/lib/api/forms', () => ({ formsClient: client }))
 vi.mock('@/lib/api/journeys', () => ({ journeysClient: client }))
+vi.mock('@/lib/api/beneficiaries', () => ({ beneficiariesClient: client }))
 vi.mock('sonner', () => ({
   toast: { error: toastError, success: toastSuccess },
 }))
@@ -115,6 +117,40 @@ describe('BeneficiaryDetail participation', () => {
     expect(await screen.findAllByText(/Recorded from the UI/)).not.toHaveLength(0)
     expect(toastSuccess).toHaveBeenCalledWith(
       'Participation recorded and reloaded from the project history.',
+    )
+  })
+
+  it('reloads the server journey summary after recording participation', async () => {
+    const summary = (progressPercent: number) => ({
+      restricted: false as const,
+      lastParticipation: null,
+      stage: { code: stage.code, name: stage.name, progressPercent },
+    })
+    client.saveDirectSubmission.mockResolvedValue({ id: 'submission-b', status: 'VALIDATED' })
+    client.getBeneficiaryJourneyHistory.mockResolvedValue({ events: [] })
+    client.getBeneficiaryRecordForRole.mockResolvedValue({ ...beneficiary, progress: summary(60) })
+
+    render(
+      <BeneficiaryDetail
+        activities={[activity]}
+        beneficiary={{ ...beneficiary, progress: summary(20) }}
+        participationForms={[form]}
+        projectId={project.id}
+        projects={[project]}
+        stages={[stage]}
+      />,
+    )
+
+    expect(screen.getByText('20% progressed')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: /J1 Entry stage/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Record participation' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save participation' }))
+
+    expect(await screen.findByText('60% progressed')).toBeTruthy()
+    expect(client.getBeneficiaryRecordForRole).toHaveBeenCalledWith(
+      'Project Officer',
+      project.id,
+      beneficiary.id,
     )
   })
 })

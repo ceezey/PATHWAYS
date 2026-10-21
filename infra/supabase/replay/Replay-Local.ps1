@@ -613,6 +613,10 @@ END $$;
       Write-Output 'BENEFICIARY_REACH_KPI_VALUES_RUNTIME=PASS'
       Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/beneficiary-progress-read-runtime.sql'))) $phase6Database
       Write-Output 'BENEFICIARY_PROGRESS_READ_RUNTIME=PASS'
+      Measure-ReplayStep 'sql indicator-measurement-lookup-runtime' { Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/indicator-measurement-lookup-runtime.sql'))) $phase6Database }
+      Write-Output 'INDICATOR_MEASUREMENT_LOOKUP_RUNTIME=PASS'
+      Measure-ReplayStep 'sql indicator-summary-measurement-lookup-runtime' { Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/indicator-summary-measurement-lookup-runtime.sql'))) $phase6Database }
+      Write-Output 'INDICATOR_SUMMARY_MEASUREMENT_LOOKUP_RUNTIME=PASS'
     }
     Invoke-LocalSql 'ALTER ROLE pathways_runtime LOGIN;' $phase6Database
     $env:PATHWAYS_CSV_RBAC_LOCAL_TESTS = '1'
