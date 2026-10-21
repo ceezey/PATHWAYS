@@ -46,7 +46,7 @@ export const BudgetSummaryCard = ({ data }: { data: BudgetSummary }) =>
                 {row.utilizationPercent === null ? (
                   NO_BUDGET_LABEL
                 ) : (
-                  <CappedPercent value={row.utilizationPercent} overLabel="over budget" />
+                  <CappedPercent value={row.utilizationPercent} overrun="budget" />
                 )}
               </td>
             </tr>

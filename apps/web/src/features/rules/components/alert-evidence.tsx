@@ -28,7 +28,9 @@ export function AlertEvidence({ item }: { item: HumanAlert }) {
   return (
     <div className="space-y-4">
       <p className="whitespace-pre-wrap">{item.explanation}</p>
-      <p className="text-sm text-muted-foreground">{manilaTime(item.evaluatedAt)}</p>
+      <p className="text-sm text-muted-foreground">
+        Rule evaluated at {manilaTime(item.evaluatedAt)}.
+      </p>
       <RuleTreeView node={item.conditions} />
       <EvidenceTable evidence={item.evidence} />
       {canReadLinked ? (

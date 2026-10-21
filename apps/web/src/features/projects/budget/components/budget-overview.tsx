@@ -3,9 +3,14 @@
 import { AlertTriangle, CheckCircle2, Lightbulb, Wallet } from 'lucide-react'
 import { type ReactNode, useState } from 'react'
 
-import { EmptyState, ProgressBar, SectionCard, StatusBadge } from '@/components/pathways'
+import {
+  CappedPercent,
+  EmptyState,
+  ProgressBar,
+  SectionCard,
+  StatusBadge,
+} from '@/components/pathways'
 import { Button } from '@/components/ui/button'
-import { formatCappedPercent } from '@/lib/format/percent'
 import { cn } from '@/lib/utils'
 
 import { formatCurrency } from '../../activities/activities.utils'
@@ -45,7 +50,7 @@ const StatCard = ({
 }: {
   label: string
   value: string
-  sub: string
+  sub: ReactNode
   tone?: keyof typeof valueTone
   children?: ReactNode
 }) => (
@@ -115,9 +120,13 @@ export const BudgetOverview = ({
         <StatCard
           label="Total logged"
           sub={
-            pct === null
-              ? 'Utilization not available'
-              : `${formatCappedPercent(pct, 'over budget')} utilized`
+            pct === null ? (
+              'Utilization not available'
+            ) : (
+              <>
+                <CappedPercent value={pct} overrun="budget" /> utilized
+              </>
+            )
           }
           tone={tone}
           value={peso(totals.used)}

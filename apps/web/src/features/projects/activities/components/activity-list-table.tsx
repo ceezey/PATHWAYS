@@ -35,9 +35,7 @@ const beneficiariesText = (activity: ActivitySummary) => {
 }
 
 const budgetText = (activity: ActivitySummary) =>
-  activity.budgetUtilization == null
-    ? missing
-    : formatCappedPercent(activity.budgetUtilization, 'over budget')
+  activity.budgetUtilization == null ? missing : formatCappedPercent(activity.budgetUtilization)
 
 const indicatorsText = (activity: ActivitySummary) =>
   String(activity.indicatorCount ?? activity.indicatorIds.length)
@@ -212,7 +210,7 @@ export const ActivityListTable = ({
                       {activity.budgetUtilization == null ? (
                         missing
                       ) : (
-                        <CappedPercent value={activity.budgetUtilization} overLabel="over budget" />
+                        <CappedPercent value={activity.budgetUtilization} overrun="budget" />
                       )}
                     </td>
                   ) : null}

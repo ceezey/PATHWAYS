@@ -4,7 +4,6 @@ import { AlertTriangle, ClipboardCheck, PhilippinePeso, Target, UsersRound } fro
 
 import { CappedPercent } from '@/components/pathways'
 import { MetricCard } from '@/components/pathways/metric-card'
-import { formatCappedPercent } from '@/lib/format/percent'
 import type { ActivitySummary } from '@/types/pathways'
 import { type MonitoringDashboard, formatMetricCell } from '@pathways/shared'
 
@@ -57,11 +56,13 @@ export const AnalyticsSummaryCards = ({
           label="KPI achievement"
           tone={averageKpi === null ? 'info' : averageKpi >= 70 ? 'success' : 'warning'}
           value={
-            averageKpi !== null
-              ? formatCappedPercent(averageKpi)
-              : monitoringReadable
-                ? 'None yet'
-                : 'Unavailable'
+            averageKpi !== null ? (
+              <CappedPercent value={averageKpi} overrun="target" />
+            ) : monitoringReadable ? (
+              'None yet'
+            ) : (
+              'Unavailable'
+            )
           }
         />
       ) : null}
@@ -95,7 +96,7 @@ export const AnalyticsSummaryCards = ({
             ) : budgetCurrencies.length > 1 ? (
               'Multiple currencies'
             ) : budgetUtilizationPercent !== null ? (
-              <CappedPercent value={budgetUtilizationPercent} overLabel="over budget" />
+              <CappedPercent value={budgetUtilizationPercent} overrun="budget" />
             ) : (
               'No budget'
             )

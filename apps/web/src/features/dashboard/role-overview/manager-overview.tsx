@@ -2,9 +2,8 @@ import type { DashboardActionCounts, RoleOverview } from '@pathways/shared'
 
 import Link from 'next/link'
 
-import { StatusBadge } from '@/components/pathways'
+import { CappedPercent, StatusBadge } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
-import { formatCappedPercent } from '@/lib/format/percent'
 import { plural } from '@/lib/format/plural'
 import { cn } from '@/lib/utils'
 import { healthOf } from './health'
@@ -138,7 +137,7 @@ export const ManagerOverview = ({
                   </div>
                   <p className="text-xs text-muted-foreground">
                     KPI {m?.kpi ?? '—'} · Budget{' '}
-                    {m?.budget ? formatCappedPercent(m.budget.percent, 'over budget') : '—'}
+                    {m?.budget ? <CappedPercent value={m.budget.percent} overrun="budget" /> : '—'}
                   </p>
                   <div aria-hidden="true" className="h-1.5 overflow-hidden rounded-full bg-muted">
                     <div

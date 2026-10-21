@@ -1,6 +1,6 @@
 'use client'
 
-import { ProgressBar, StatusBadge } from '@/components/pathways'
+import { CappedPercent, ProgressBar, StatusBadge } from '@/components/pathways'
 import type { Activity, ProjectTeamMember } from '@/types/pathways'
 import type { IndicatorResponse } from '@pathways/shared'
 
@@ -134,7 +134,9 @@ export const ActivityBudget = ({
         <div>
           <div className="flex items-center justify-between">
             <dt className="text-muted-foreground">Utilization</dt>
-            <dd className="font-medium tabular-nums text-foreground">{figures.utilization}%</dd>
+            <dd className="font-medium tabular-nums text-foreground">
+              <CappedPercent value={figures.utilization} overrun="budget" />
+            </dd>
           </div>
           <ProgressBar
             label="Activity budget utilization"
