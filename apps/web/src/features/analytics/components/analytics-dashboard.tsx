@@ -265,6 +265,7 @@ export const AnalyticsDashboard = () => {
           selectedPeriod={selectedPeriod}
           selectedProject={selectedProject}
           surveyUnavailable={surveyUnavailable}
+          visualizationType={visualizationType}
         />
       </AnalyticsFilterBar>
 

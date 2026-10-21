@@ -64,12 +64,11 @@ export const ADMIN_DASHBOARD_MONITORING_UI_ENABLED = false
 export const UNFINISHED_CONTROLS_UI_ENABLED = true
 
 /**
- * The analytics "Add to Dashboard" button and the role dashboard's pinned "Monitoring charts"
- * section are hidden (2026-10-06, developer request). Browser-stored pins, the pin library and
- * the components stay in place; only these two UI entry points are gated by this flag. See
- * vault note deferred-features.
+ * The analytics "Add to Dashboard" button and the pinned "Monitoring charts" section, which sits
+ * at the bottom of every role's dashboard, were hidden on 2026-10-06 and are shown again
+ * (2026-10-22, developer request). Pins stay browser-stored; see vault note deferred-features.
  */
-export const DASHBOARD_PINS_UI_ENABLED = false
+export const DASHBOARD_PINS_UI_ENABLED = true
 
 /**
  * The page-heading pencil is hidden for every role, System Administrator included (2026-10-07,

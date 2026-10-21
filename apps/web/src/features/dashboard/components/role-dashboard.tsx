@@ -8,7 +8,10 @@ import { useEffect, useRef, useState } from 'react'
 import { PageHeader } from '@/components/layout/page-header'
 import { EmptyState, MetricCard, SectionCard } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
-import { ADMIN_DASHBOARD_MONITORING_UI_ENABLED } from '@/constants/feature-flags'
+import {
+  ADMIN_DASHBOARD_MONITORING_UI_ENABLED,
+  DASHBOARD_PINS_UI_ENABLED,
+} from '@/constants/feature-flags'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { dashboardsClient } from '@/lib/api/dashboards'
 import { can } from '@/lib/rbac/can'
@@ -30,6 +33,7 @@ import { ConnectedMonitoringSnapshot } from './connected-monitoring-snapshot'
 import { DashboardActivityReviewPanel } from './dashboard-activity-review-panel'
 import { ActionButton, DashboardListItem } from './dashboard-list-item'
 import { ExecutiveDashboard } from './executive-dashboard'
+import { PinnedCharts } from './pinned-charts'
 
 export const canLoadDashboardMonitoring = (
   role: PathwaysRole | null,
@@ -269,6 +273,7 @@ export const RoleDashboard = () => {
           </div>
         </section>
       ) : null}
+      {DASHBOARD_PINS_UI_ENABLED ? <PinnedCharts /> : null}
       <DashboardActivityReviewPanel
         onActivityChanged={() => setDashboardRevision((revision) => revision + 1)}
         onClose={() => {

@@ -9,28 +9,15 @@ import { deferred } from '@/test/fixtures/deferred'
 import { ConnectedMonitoringSnapshot } from './connected-monitoring-snapshot'
 
 const api = vi.hoisted(() => ({ getProjectsForRole: vi.fn(), getMonitoringDashboard: vi.fn() }))
-const flags = vi.hoisted(() => ({ pins: false }))
 const rbac = vi.hoisted(() => ({ allowed: ['monitor_evaluate.view'] as string[] }))
-const seen = vi.hoisted(() => ({ pinned: null as unknown }))
 
 vi.mock('@/lib/api/projects', () => ({ projectsClient: api }))
 vi.mock('@/lib/api/dashboards', () => ({ dashboardsClient: api }))
 vi.mock('@/lib/rbac/can', () => ({
   can: (_role: string, permission: string) => rbac.allowed.includes(permission),
 }))
-vi.mock('@/constants/feature-flags', () => ({
-  get DASHBOARD_PINS_UI_ENABLED() {
-    return flags.pins
-  },
-}))
 vi.mock('../monitoring-reach-metrics.utils', () => ({
   monitoringReachMetrics: (result: { metrics: unknown[] }) => result.metrics,
-}))
-vi.mock('./pinned-charts', () => ({
-  PinnedCharts: ({ projects }: { projects: Array<{ id: string }> }) => {
-    seen.pinned = projects
-    return <div data-testid="pinned-charts">{projects.map((row) => row.id).join(',')}</div>
-  },
 }))
 // Stubs expose the card props and the position of the icon in the rotation.
 vi.mock('@/components/pathways', async () => {
@@ -142,7 +129,6 @@ describe('ConnectedMonitoringSnapshot', () => {
   beforeEach(() => {
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(new Date('2026-09-27T04:00:00.000Z'))
-    flags.pins = false
     rbac.allowed = ['monitor_evaluate.view']
     api.getProjectsForRole.mockResolvedValue(projects)
     api.getMonitoringDashboard.mockResolvedValue({ metrics: [] })
@@ -447,7 +433,7 @@ describe('ConnectedMonitoringSnapshot', () => {
     })
   })
 
-  describe('action and pinned charts', () => {
+  describe('primary action', () => {
     it('puts the action at the right of the scope row only when there is one', async () => {
       show({ action: <button type="button">Open monitoring</button> })
 
@@ -458,20 +444,6 @@ describe('ConnectedMonitoringSnapshot', () => {
       show()
       await screen.findByText('Project scope')
       expect(document.querySelector('.ml-auto')).toBeNull()
-    })
-
-    it('shows the pinned charts of the projects only while the pins flag is on', async () => {
-      show()
-      await waitFor(() => expect(scope().value).toBe('all'))
-      expect(screen.queryByTestId('pinned-charts')).toBeNull()
-      cleanup()
-
-      flags.pins = true
-      show()
-      await waitFor(() =>
-        expect(screen.getByTestId('pinned-charts').textContent).toBe('project-a,project-b'),
-      )
-      expect(seen.pinned).toEqual(projects)
     })
   })
 })
