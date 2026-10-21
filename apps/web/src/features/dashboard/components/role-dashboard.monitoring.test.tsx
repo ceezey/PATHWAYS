@@ -14,6 +14,7 @@ import {
   rbac,
   resetRoleDashboardMocks,
   router,
+  section,
 } from '@/test/fixtures/role-dashboard-fixtures'
 
 import { RoleDashboard } from './role-dashboard'
@@ -230,17 +231,18 @@ describe('Role dashboard project monitoring', () => {
   })
 
   describe('pinned charts and the primary action', () => {
-    it('shows the pinned charts of the projects only while the pins flag is on', async () => {
-      await mounted()
+    it('shows the pinned charts below every section only while the pins flag is on', async () => {
+      await mounted(dashboard({ sections: [section()] }))
       expect(screen.queryByTestId('pinned-charts')).toBeNull()
       cleanup()
 
       flags.pins = true
-      await mounted()
-      await waitFor(() =>
-        expect(screen.getByTestId('pinned-charts').textContent).toBe('project-a,project-b'),
-      )
-      expect(panels.pinned).toHaveLength(2)
+      await mounted(dashboard({ sections: [section()] }))
+      const pinned = await screen.findByTestId('pinned-charts')
+      expect(
+        screen.getByText('Synthetic section').compareDocumentPosition(pinned) &
+          Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy()
     })
 
     it('puts the primary action in the monitoring card when there is no executive summary', async () => {

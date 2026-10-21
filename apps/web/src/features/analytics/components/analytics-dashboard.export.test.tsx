@@ -8,6 +8,7 @@ import {
   currentAccess,
   download,
   indicator,
+  loadDashboard,
   previewExport,
   resetAnalyticsMocks,
   surveyDefaults,
@@ -204,7 +205,8 @@ describe('Analytics dashboard request dependencies', () => {
   })
 
   it('hides Add to Dashboard while the dashboard pins flag is off', async () => {
-    render(<AnalyticsDashboard />)
+    const Dashboard = await loadDashboard({ pins: false })
+    render(<Dashboard />)
     await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
 
     expect(screen.queryByRole('button', { name: 'Add to Dashboard' })).toBeNull()

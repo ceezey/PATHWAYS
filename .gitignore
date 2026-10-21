@@ -3,6 +3,7 @@ node_modules
 .pnpm-store
 .next
 .next-dev
+apps/web/public/maplibre
 dist
 coverage
 .turbo

@@ -10,6 +10,7 @@ import {
   InsightStatus,
   type InsightsSelection,
   ParticipationBreakdownPanel,
+  ProjectCoverageMapPanel,
   RestrictedInsight,
   activeIndicators,
   canReadInsight,
@@ -21,6 +22,7 @@ import { useAuthorizedRead } from '@/hooks/use-authorized-read'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { analyticsClient } from '@/lib/api/analytics'
 import { dashboardsClient } from '@/lib/api/dashboards'
+import { projectsClient } from '@/lib/api/projects'
 import { type DashboardPin, type PinView, readPins, removePin } from '@/lib/dashboard-pins'
 import { principalHasAtomicPermission } from '@/lib/rbac/policy'
 
@@ -28,6 +30,7 @@ const viewLabels: Record<PinView, string> = {
   kpi: 'KPI / indicator performance',
   participation: 'Participation patterns',
   timeline: 'Timeline adherence',
+  map: 'Project coverage map',
 }
 
 const selectionOf = (pin: DashboardPin): InsightsSelection => ({
@@ -114,16 +117,21 @@ const PinBody = ({ pin }: { pin: DashboardPin }) => {
     timeline:
       principalHasAtomicPermission(profile, 'analytics.descriptive.read') &&
       principalHasAtomicPermission(profile, 'monitoring.read'),
+    map: principalHasAtomicPermission(profile, 'projects.read'),
   }[pin.view]
   if (!allowed) return <RestrictedInsight label={label} />
+  if (pin.view === 'map') return <ProjectCoverageMapPanel />
   if (pin.view === 'participation') return <Participation pin={pin} />
   if (pin.view === 'timeline') return <Timeline pin={pin} />
   return <Kpi pin={pin} />
 }
 
 /** Charts pinned in this browser; each is re-read live so current permissions always apply. */
-export const PinnedCharts = ({ projects }: { projects: Array<{ id: string; title: string }> }) => {
+export const PinnedCharts = () => {
   const { profile } = useCurrentRole()
+  const projects = useAuthorizedRead('dashboard-pin-projects', null, 'projects.read', (signal) =>
+    projectsClient.getProjects(signal),
+  ).data
   const userId = profile?.userId ?? ''
   const [pins, setPins] = useState<DashboardPin[]>([])
   useEffect(() => {
@@ -148,10 +156,15 @@ export const PinnedCharts = ({ projects }: { projects: Array<{ id: string; title
         <div className="grid gap-4 xl:grid-cols-2">
           {pins.map((pin) => {
             const title =
-              projects.find((project) => project.id === pin.projectId)?.title ??
-              'Project unavailable'
+              pin.view === 'map'
+                ? 'All projects in your scope'
+                : (projects?.find((project) => project.id === pin.projectId)?.title ??
+                  'Project unavailable')
             return (
-              <article className="rounded-2xl border border-border bg-card p-5" key={pin.id}>
+              <article
+                className={`rounded-2xl border border-border bg-card p-5 ${pin.view === 'map' ? 'xl:col-span-2' : ''}`}
+                key={pin.id}
+              >
                 <div className="mb-4 flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <h4 className="text-sm font-semibold text-foreground">

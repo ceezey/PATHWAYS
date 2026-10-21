@@ -30,6 +30,9 @@ const singleFeatureZoom = 12
 
 export const DEFAULT_MAP_STYLE_URL = 'https://tiles.openfreemap.org/styles/liberty'
 
+/** Copied into public by scripts/copy-maplibre-worker.mjs before dev and build. */
+export const MAPLIBRE_WORKER_URL = '/maplibre/maplibre-gl-worker.mjs'
+
 export const resolveMapStyleUrl = (configuredStyleUrl = process.env.NEXT_PUBLIC_MAP_STYLE_URL) =>
   configuredStyleUrl?.trim() || DEFAULT_MAP_STYLE_URL
 
@@ -143,6 +146,8 @@ export const AnalyticsCoverageMap = ({
       .then((maplibre) => {
         const { Map: MapLibre, NavigationControl } = maplibre
         if (cancelled) return
+        // The bundled worker URL never resolves, so tiles and points stay blank without this copy.
+        maplibre.setWorkerUrl(MAPLIBRE_WORKER_URL)
 
         map = new MapLibre({
           container,
