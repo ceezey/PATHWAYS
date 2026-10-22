@@ -67,6 +67,10 @@ export const automaticImportMappingRequest = z
   .strict()
 export type AutomaticImportMappingRequest = z.infer<typeof automaticImportMappingRequest>
 
+// Body of POST imports/projects/:projectId/batches/:batchId/rerun.
+export const rerunImportRequest = z.object({ formId: uuidString }).strict()
+export type RerunImportRequest = z.infer<typeof rerunImportRequest>
+
 // Body of POST imports/projects/:projectId/batches/:batchId/validate.
 export const validateImportRequest = z
   .object({ expectedMappingRevision: z.number().int().min(1) })

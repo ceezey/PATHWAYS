@@ -122,7 +122,7 @@ export const tx = {
   formSubmission: { findUnique: vi.fn(), create: vi.fn(), update: vi.fn() },
   formResponseValue: { createMany: vi.fn() },
   beneficiaryActivityParticipation: { findUnique: vi.fn() },
-  auditLog: { create: vi.fn() },
+  auditLog: { create: vi.fn(), findFirst: vi.fn() },
 }
 export const storage = {
   isConfigured: vi.fn(() => true),

@@ -6,6 +6,7 @@ import {
   importMappingItemRequest,
   importRowsQuery,
   processImportRequest,
+  rerunImportRequest,
   saveImportMappingRequest,
   uploadImportRequest,
   validateImportRequest,
@@ -106,6 +107,9 @@ describe('import request contracts', () => {
     ['upload', uploadImportRequest, { formId: uuid, clientImportId: uuid, extra: 'x' }, false],
     ['automatic', automaticImportMappingRequest, { expectedMappingRevision: 1 }, true],
     ['automatic', automaticImportMappingRequest, { expectedMappingRevision: 2 }, false],
+    ['rerun', rerunImportRequest, { formId: uuid }, true],
+    ['rerun', rerunImportRequest, { formId: uuid, extra: 'x' }, false],
+    ['rerun', rerunImportRequest, { formId: 'nope' }, false],
     ['process', processImportRequest, { expectedValidationRevision: 1 }, true],
     ['process', processImportRequest, { expectedValidationRevision: 0 }, false],
   ] as const)('%s body %j is accepted: %s', (_route, schema, body, expected) => {
