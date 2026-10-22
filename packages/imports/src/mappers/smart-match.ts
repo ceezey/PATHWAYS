@@ -1,3 +1,4 @@
+import { answerResolver } from '../answers'
 import {
   type PreparedField,
   nameScore,
@@ -16,6 +17,7 @@ import {
 import { boundedSamples, valueGate } from './smart-match-values'
 export {
   AUTO_SMART_V2,
+  AUTO_SMART_V3,
   AUTO_SMART_V2_LIMITS,
   SMART_DECISION_REASONS,
   SMART_MATCH_REASONS,
@@ -50,6 +52,35 @@ export function smartMatchColumns(
   columns: readonly SmartMatchColumn[],
   fields: readonly SmartMatchField[],
 ): SmartMatchDecision[] {
+  return matchColumns(columns, fields, false)
+}
+
+/** AUTO_SMART_V3: V2 plus source names, blank columns, calculated-field exclusion and answer aliases. */
+export function smartMatchColumnsV3(
+  columns: readonly SmartMatchColumn[],
+  fields: readonly SmartMatchField[],
+): SmartMatchDecision[] {
+  return matchColumns(columns, fields, true)
+}
+
+/** Canonical source names that exactly one field owns; shared names are dropped. */
+function ownedSourceNames(fields: readonly SmartMatchField[]) {
+  const sets = fields.map(
+    (field) =>
+      new Set((field.sourceNames ?? []).map((name) => prepareName(name).canonical).filter(Boolean)),
+  )
+  const counts = new Map<string, number>()
+  for (const set of sets) for (const name of set) counts.set(name, (counts.get(name) ?? 0) + 1)
+  return fields.map(
+    (_, index) => new Set([...sets[index]].filter((name) => counts.get(name) === 1)),
+  )
+}
+
+function matchColumns(
+  columns: readonly SmartMatchColumn[],
+  fields: readonly SmartMatchField[],
+  v3: boolean,
+): SmartMatchDecision[] {
   if (
     columns.length > AUTO_SMART_V2_LIMITS.maxColumns ||
     fields.length > AUTO_SMART_V2_LIMITS.maxFields ||
@@ -66,25 +97,38 @@ export function smartMatchColumns(
   const orderedColumns = [...columns].sort(
     (left, right) => left.columnIndex - right.columnIndex || compareText(left.key, right.key),
   )
-  const orderedFields: PreparedField[] = [...fields]
-    .sort((left, right) => compareText(left.code, right.code) || compareText(left.id, right.id))
-    .map((field) => ({
+  const owned = v3 ? ownedSourceNames(fields) : []
+  const orderedFields: PreparedField[] = fields
+    .map((field, index) => ({ field, sourceNames: owned[index] }))
+    .sort(
+      (left, right) =>
+        compareText(left.field.code, right.field.code) ||
+        compareText(left.field.id, right.field.id),
+    )
+    .map(({ field, sourceNames }) => ({
       field,
       code: prepareName(field.code),
       label: prepareName(field.label),
       allowed: new Set((field.allowedValues ?? []).map((value) => normalizeMappingNameV1(value))),
+      sourceNames: sourceNames ?? new Set<string>(),
+      calculated: v3 && field.calculated === true,
+      resolve:
+        v3 && field.dataType === 'SELECT'
+          ? answerResolver(field.allowedValues ?? [], field.valueAliases ?? [])
+          : undefined,
     }))
 
   // Candidates at or above the suggestion floor, best first; field order breaks ties.
   const candidates = orderedColumns.map((column) => {
     const source = prepareName(column.header)
     const scored: Candidate[] = []
+    const ignored = v3 && column.blank === true
     orderedFields.forEach((target, fieldIndex) => {
-      const match = nameScore(source, target)
+      const match = ignored ? null : nameScore(source, target)
       if (match) scored.push({ fieldIndex, score: match.score, reason: match.reason })
     })
     scored.sort((left, right) => right.score - left.score || left.fieldIndex - right.fieldIndex)
-    return { column, source, scored, samples: boundedSamples(column.samples) }
+    return { column, source, scored, ignored, samples: boundedSamples(column.samples) }
   })
 
   const bestScoreForField = new Map<number, number[]>()
@@ -96,21 +140,22 @@ export function smartMatchColumns(
     }
   })
 
-  const decisions: SmartMatchDecision[] = candidates.map(({ column }) => ({
+  const decisions: SmartMatchDecision[] = candidates.map(({ column, ignored }) => ({
     sourceKey: column.key,
     columnIndex: column.columnIndex,
-    status: 'PENDING',
+    status: ignored ? 'IGNORED' : 'PENDING',
     targetFieldId: null,
     suggestedFieldId: null,
     score: null,
     matchReason: null,
-    reason: 'NO_MATCH',
+    reason: ignored ? 'BLANK_COLUMN' : 'NO_MATCH',
   }))
   const held = new Map<number, SmartDecisionReason>()
   const claimed = new Set<number>()
 
   candidates.forEach((entry, position) => {
     const decision = decisions[position]
+    if (entry.ignored) return
     if (entry.source.v1 === '') {
       decision.reason = 'EMPTY_NAME'
       return
@@ -142,7 +187,7 @@ export function smartMatchColumns(
   // never a field another column already maps.
   const offers: Array<{ position: number; candidate: Candidate }> = []
   candidates.forEach((entry, position) => {
-    if (decisions[position].status === 'MAPPED' || entry.source.v1 === '') return
+    if (decisions[position].status !== 'PENDING' || entry.source.v1 === '') return
     for (const candidate of entry.scored) offers.push({ position, candidate })
   })
   offers.sort(
@@ -160,7 +205,7 @@ export function smartMatchColumns(
     decision.matchReason = candidate.reason
   }
   decisions.forEach((decision, position) => {
-    if (decision.status === 'MAPPED' || decision.reason === 'EMPTY_NAME') return
+    if (decision.status !== 'PENDING' || decision.reason === 'EMPTY_NAME') return
     decision.reason =
       held.get(position) ?? (decision.suggestedFieldId !== null ? 'SUGGESTED' : 'NO_MATCH')
   })

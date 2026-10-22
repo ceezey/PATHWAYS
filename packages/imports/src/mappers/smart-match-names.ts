@@ -153,13 +153,24 @@ export interface PreparedField {
   code: PreparedName
   label: PreparedName
   allowed: ReadonlySet<string>
+  /** Canonical source names this field owns alone; empty in V2. */
+  sourceNames: ReadonlySet<string>
+  /** True only in V3 for a calculated field. */
+  calculated: boolean
+  /** Resolves a SELECT answer through aliases and letter prefixes; V3 only. */
+  resolve?: (raw: string) => string | null
 }
 
 export function nameScore(source: PreparedName, target: PreparedField): ScoredName | null {
   if (source.v1 === '') return null
+  if (target.sourceNames.has(source.canonical)) {
+    return { score: TIER.sourceName, reason: 'METADATA_SOURCE_NAME' }
+  }
   if (source.v1 === target.code.v1 || source.v1 === target.label.v1) {
     return { score: TIER.exact, reason: 'EXACT' }
   }
+  // A calculated field is never guessed from a looser name (V3).
+  if (target.calculated) return null
   if (AUTOMATIC_SYNONYMS.get(target.code.v1)?.has(source.canonical)) {
     return { score: TIER.synonym, reason: 'SYNONYM' }
   }

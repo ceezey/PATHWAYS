@@ -1,5 +1,6 @@
 import type { SupportedFormFieldType } from '@pathways/shared'
 import { IMPORT_ENGINEERING_LIMITS } from '../limits'
+import type { ImportValueMapEntry } from '../value-map'
 
 /**
  * AUTO_SMART_V2 (cr-pathways-smart-import-mapping): deterministic header-to-field
@@ -12,6 +13,9 @@ import { IMPORT_ENGINEERING_LIMITS } from '../limits'
  * appear in the returned decisions.
  */
 export const AUTO_SMART_V2 = 'AUTO_SMART_V2' as const
+
+/** AUTO_SMART_V3: V2 plus the metadata source-name tier, blank columns and calculated-field exclusion. */
+export const AUTO_SMART_V3 = 'AUTO_SMART_V3' as const
 
 export const SMART_SYNONYMS_V2_ID = 'SMART_SYNONYMS_V2' as const
 
@@ -33,6 +37,7 @@ export const AUTO_SMART_V2_LIMITS = Object.freeze({
 })
 
 export const TIER = Object.freeze({
+  sourceName: 100,
   exact: 100,
   synonym: 90,
   tokenSet: 85,
@@ -43,6 +48,7 @@ export const TIER = Object.freeze({
 
 /** How the name matched. Stored as `match_reason`. */
 export const SMART_MATCH_REASONS = [
+  'METADATA_SOURCE_NAME',
   'EXACT',
   'SYNONYM',
   'SYNONYM_REVIEW',
@@ -63,6 +69,7 @@ export const SMART_DECISION_REASONS = [
   'HELD_NO_SAMPLES',
   'NO_MATCH',
   'EMPTY_NAME',
+  'BLANK_COLUMN',
 ] as const
 
 export type SmartDecisionReason = (typeof SMART_DECISION_REASONS)[number]
@@ -138,6 +145,8 @@ export interface SmartMatchColumn {
   header: string
   /** Bounded raw sample; at most samplesPerColumn non-blank values are read. */
   samples: readonly unknown[]
+  /** V3 only: every value in the column is blank. */
+  blank?: boolean
 }
 
 export interface SmartMatchField {
@@ -148,12 +157,18 @@ export interface SmartMatchField {
   allowedValues?: readonly string[] | null
   minimumLength?: number | null
   maximumLength?: number | null
+  /** V3 only: names the form publisher approved for this field. */
+  sourceNames?: readonly string[] | null
+  /** V3 only: answer aliases that the SELECT value gate accepts. */
+  valueAliases?: readonly ImportValueMapEntry[] | null
+  /** V3 only: a calculated field is only a target by exact name or source name. */
+  calculated?: boolean
 }
 
 export interface SmartMatchDecision {
   sourceKey: string
   columnIndex: number
-  status: 'MAPPED' | 'PENDING'
+  status: 'MAPPED' | 'PENDING' | 'IGNORED'
   targetFieldId: string | null
   suggestedFieldId: string | null
   score: number | null

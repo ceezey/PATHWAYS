@@ -1,6 +1,7 @@
 /// <reference path="./types/papaparse.d.ts" />
 
 export * from './answers'
+export * from './mappers/coverage'
 export * from './mappers/smart-match'
 export * from './mappers/summary'
 export * from './header-label'

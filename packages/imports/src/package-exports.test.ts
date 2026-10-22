@@ -6,6 +6,7 @@ import * as server from './server'
 const smartMatch = [
   'AUTO_SMART_V2',
   'AUTO_SMART_V2_LIMITS',
+  'AUTO_SMART_V3',
   'SMART_DECISION_REASONS',
   'SMART_MATCH_REASONS',
   'SMART_REVIEW_SYNONYMS_V2',
@@ -15,6 +16,7 @@ const smartMatch = [
   'boundedEditDistance',
   'normalizeMappingNameV1',
   'smartMatchColumns',
+  'smartMatchColumnsV3',
 ]
 
 describe('package entry points', () => {
@@ -34,6 +36,7 @@ describe('package entry points', () => {
         'createFileSummary',
         'formatPmerlRows',
         'hasLetterPrefix',
+        'importCoverage',
         'importHeaderLabel',
         'mapKey',
         'parseCsv',
@@ -63,6 +66,7 @@ describe('package entry points', () => {
         'comparableAnswer',
         'compatibleImportDataTypes',
         'hasLetterPrefix',
+        'importCoverage',
         'mapKey',
         'normalizeImportedRow',
         'parseSecureImport',

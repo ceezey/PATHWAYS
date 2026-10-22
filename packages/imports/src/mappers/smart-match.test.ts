@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   AUTO_SMART_V2_LIMITS,
+  AUTO_SMART_V3,
   SMART_DECISION_REASONS,
   SMART_MATCH_REASONS,
   type SmartMatchColumn,
@@ -10,6 +11,7 @@ import {
   boundedEditDistance,
   normalizeMappingNameV1,
   smartMatchColumns,
+  smartMatchColumnsV3,
 } from './smart-match'
 
 const text = (id: string, code: string, label: string): SmartMatchField => ({
@@ -344,5 +346,111 @@ describe('AUTO_SMART_V2 decisions', () => {
     expect(one('é', ['x'], fields)).toMatchObject({ status: 'MAPPED', targetFieldId: 'f-e' })
     expect(one('É', ['x'], fields).targetFieldId).toBeNull()
     expect(one('\u0085age', ['x'], fields).status).toBe('PENDING')
+  })
+})
+
+describe('AUTO_SMART_V3', () => {
+  const sex = registration[3]
+  const oneV3 = (header: string, samples: unknown[], fields: SmartMatchField[]) =>
+    smartMatchColumnsV3([column(1, header, samples)], fields)[0]
+
+  it('names the algorithm', () => {
+    expect(AUTO_SMART_V3).toBe('AUTO_SMART_V3')
+  })
+
+  it('maps "Gender - YEE" to sex only when it is a source name', () => {
+    const withName = [{ ...sex, sourceNames: ['Gender - YEE'] }]
+    expect(oneV3('Gender - YEE', ['MALE', 'FEMALE'], withName)).toMatchObject({
+      status: 'MAPPED',
+      targetFieldId: 'f-sex',
+      score: 100,
+      matchReason: 'METADATA_SOURCE_NAME',
+      reason: 'AUTO_MATCH',
+    })
+    expect(oneV3('Gender - YEE', ['MALE'], [sex]).status).toBe('PENDING')
+  })
+
+  it('exempts a source name from the review-only synonyms and leaves a bare Gender suggested at 80', () => {
+    expect(oneV3('Gender', ['MALE'], [{ ...sex, sourceNames: ['gender'] }])).toMatchObject({
+      status: 'MAPPED',
+      score: 100,
+    })
+    expect(oneV3('Gender', ['MALE'], [sex])).toMatchObject({
+      status: 'PENDING',
+      reason: 'SUGGESTED',
+      suggestedFieldId: 'f-sex',
+      score: 80,
+      matchReason: 'SYNONYM_REVIEW',
+    })
+  })
+
+  it('does not use a source name shared by two fields', () => {
+    const fields = [
+      { ...text('f-a', 'alpha', 'Alpha'), sourceNames: ['Shared'] },
+      { ...text('f-b', 'beta', 'Beta'), sourceNames: ['shared'] },
+    ]
+    expect(oneV3('Shared', ['x'], fields)).toMatchObject({
+      status: 'PENDING',
+      targetFieldId: null,
+    })
+  })
+
+  it('never maps Age to a calculated age_at_registration, while V2 still does', () => {
+    const calculated = registration.map((field) =>
+      field.id === 'f-age' ? { ...field, calculated: true } : field,
+    )
+    expect(oneV3('Age', ['21', '30'], calculated)).toMatchObject({
+      status: 'PENDING',
+      targetFieldId: null,
+      suggestedFieldId: null,
+    })
+    expect(one('Age', ['21', '30'], calculated)).toMatchObject({
+      status: 'MAPPED',
+      targetFieldId: 'f-age',
+    })
+    expect(oneV3('Age', ['21'], registration)).toMatchObject({ status: 'MAPPED', score: 90 })
+  })
+
+  it('lets a calculated field take an exact name or a source name', () => {
+    const exact = [{ ...registration[4], calculated: true }]
+    expect(oneV3('Age at registration', ['21'], exact)).toMatchObject({
+      status: 'MAPPED',
+      score: 100,
+    })
+    const named = [{ ...registration[4], calculated: true, sourceNames: ['Age'] }]
+    expect(oneV3('Age', ['21'], named)).toMatchObject({
+      status: 'MAPPED',
+      matchReason: 'METADATA_SOURCE_NAME',
+    })
+  })
+
+  it('records a blank column as IGNORED BLANK_COLUMN with no target, suggestion or score', () => {
+    const blank = { ...column(1, 'First name', []), blank: true }
+    expect(smartMatchColumnsV3([blank], registration)[0]).toEqual({
+      sourceKey: blank.key,
+      columnIndex: 1,
+      status: 'IGNORED',
+      targetFieldId: null,
+      suggestedFieldId: null,
+      score: null,
+      matchReason: null,
+      reason: 'BLANK_COLUMN',
+    })
+    // A blank column never claims a field from a real one.
+    const decisions = smartMatchColumnsV3([blank, column(2, 'First name', ['Ana'])], registration)
+    expect(decisions[1]).toMatchObject({ status: 'MAPPED', targetFieldId: 'f-first' })
+    expect(smartMatchColumns([blank], registration)[0].status).toBe('PENDING')
+  })
+
+  it('passes lettered and aliased answers through the SELECT value gate in V3 only', () => {
+    const lettered = ['A. Male', 'B. Female', 'a) male']
+    expect(oneV3('Sex', lettered, [sex])).toMatchObject({
+      status: 'MAPPED',
+      targetFieldId: 'f-sex',
+    })
+    expect(one('Sex', lettered, [sex])).toMatchObject({ reason: 'HELD_VALUE_GATE' })
+    const aliased = { ...sex, valueAliases: [{ from: 'Lalaki', to: 'MALE' }] }
+    expect(oneV3('Sex', ['Lalaki', 'Lalaki'], [aliased]).status).toBe('MAPPED')
+    expect(oneV3('Sex', ['Lalaki', 'Lalaki'], [sex]).reason).toBe('HELD_VALUE_GATE')
   })
 })
