@@ -81,7 +81,6 @@ export async function recordAutomaticMapping(
   }
 }
 
-const MAX_DISTINCT_VALUES = 101
 const isBlank = (value: unknown) =>
   value === null || value === undefined || (typeof value === 'string' && value.trim() === '')
 const parsed = <T>(
@@ -163,6 +162,7 @@ async function smartMappingInputs(
     take: IMPORT_ENGINEERING_LIMITS.maxRows,
   })
   const raw = rows.map((row) => safeRawData(row.rawData))
+  const sampleRows = raw.slice(0, AUTO_SMART_V2_LIMITS.sampleRows)
   const distinct = new Map(sourceColumns.map((column) => [column.key, new Set<unknown>()]))
   const blank = new Set(sourceColumns.map((column) => column.key))
   for (const values of raw) {
@@ -171,7 +171,7 @@ async function smartMappingInputs(
       if (isBlank(value)) continue
       blank.delete(column.key)
       const seen = distinct.get(column.key)
-      if (seen && seen.size < MAX_DISTINCT_VALUES) seen.add(value)
+      seen?.add(value)
     }
   }
   const fields: CoverageField[] = storedFields.map((field) => {
@@ -198,7 +198,7 @@ async function smartMappingInputs(
         key: column.key,
         columnIndex: column.columnIndex,
         header: column.header,
-        samples: raw.slice(0, AUTO_SMART_V2_LIMITS.sampleRows).map((values) => values[column.key]),
+        samples: sampleRows.map((values) => values[column.key]),
         blank: blank.has(column.key),
       })),
       fields,

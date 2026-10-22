@@ -94,7 +94,7 @@ describe('importsClient import requests', () => {
       requiredUnmapped: 0,
       ignored: 0,
       coverage: 'NOT_COVERED',
-      uncoveredColumns: 0,
+      uncoveredColumns: 1,
       unresolvedValues: 0,
       complete: false,
     }

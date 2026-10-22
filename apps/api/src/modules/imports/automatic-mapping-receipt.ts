@@ -38,7 +38,9 @@ export function parseAutomaticMappingReceipt(
     Number(row.mapped) > 100 ||
     Number(row.requiredUnmapped) > 100 ||
     typeof row.complete !== 'boolean' ||
-    row.complete !== (row.pending === 0 && row.requiredUnmapped === 0) ||
+    row.complete !== (row.pending === 0 && row.requiredUnmapped === 0 && Number(row.mapped) > 0) ||
+    row.uncoveredColumns !== row.pending ||
+    Number(row.unresolvedValues) > 250000 ||
     (row.coverage !== 'COVERED' && row.coverage !== 'NOT_COVERED') ||
     (row.coverage === 'COVERED' &&
       !(row.complete && row.uncoveredColumns === 0 && row.unresolvedValues === 0))

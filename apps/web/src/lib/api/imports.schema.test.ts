@@ -40,6 +40,10 @@ describe('automatic mapping client boundary', () => {
     { ...covered, uncoveredColumns: 1 },
     { ...covered, unresolvedValues: 1 },
     { ...covered, mapped: 100, pending: 0, ignored: 401 },
+    { ...covered, mapped: 0, ignored: 2 },
+    { ...receipt, uncoveredColumns: 0 },
+    { ...receipt, unresolvedValues: 250001 },
+    { ...receipt, pending: 501, uncoveredColumns: 501 },
   ])('rejects unsafe receipts %#', (value) =>
     expect(() => parseAutomaticMappingReceipt(value, batchId)).toThrow(),
   )

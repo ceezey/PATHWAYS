@@ -17,7 +17,14 @@ describe('automatic mapping output allowlist', () => {
   it('returns the exact bounded complete receipt', () =>
     expect(parseAutomaticMappingReceipt(receipt, batchId)).toEqual(receipt))
   it('allows NOT_COVERED with open counts', () => {
-    const open = { ...receipt, coverage: 'NOT_COVERED', uncoveredColumns: 2, unresolvedValues: 3 }
+    const open = {
+      ...receipt,
+      pending: 2,
+      complete: false,
+      coverage: 'NOT_COVERED',
+      uncoveredColumns: 2,
+      unresolvedValues: 3,
+    }
     expect(parseAutomaticMappingReceipt(open, batchId)).toEqual(open)
   })
   it('rejects COVERED when not complete', () =>
@@ -40,6 +47,9 @@ describe('automatic mapping output allowlist', () => {
     { ...receipt, unresolvedValues: 0.5, coverage: 'NOT_COVERED' },
     { ...receipt, ignored: undefined },
     { ...receipt, mapped: 0, ignored: 0 },
+    { ...receipt, mapped: 0, ignored: 2 },
+    { ...receipt, pending: 1, complete: false, coverage: 'NOT_COVERED' },
+    { ...receipt, unresolvedValues: 250001, coverage: 'NOT_COVERED' },
     { ...receipt, requiredUnmapped: 101 },
     { ...receipt, mapped: 0.5 },
   ])('rejects malformed or private receipt data %#', (value) =>

@@ -226,6 +226,126 @@ describe('automatic mapping API authority boundary', () => {
     })
     expect(result).toMatchObject({ coverage: 'NOT_COVERED', uncoveredColumns: 1 })
   })
+  const sexField = {
+    id: fieldIds.sex,
+    code: 'sex',
+    label: 'Sex',
+    dataType: 'SELECT',
+    allowedValues: ['MALE', 'FEMALE'],
+    sourceNames: ['Gender'],
+  }
+  const coveredFields = [
+    { id: fieldIds.first, code: 'first_name', label: 'First name', dataType: 'TEXT' },
+    { id: fieldIds.birth, code: 'birth_date', label: 'Birth date', dataType: 'DATE' },
+    sexField,
+  ]
+  const sqlReturns = (value: unknown) =>
+    tx.$queryRaw.mockImplementation(async (sql: { sql: string }) =>
+      String(sql.sql).includes('FOR UPDATE') ? [{ id: batchId }] : [{ receipt: value }],
+    )
+  it('a column that matches no field returns NOT_COVERED with uncoveredColumns 1', async () => {
+    tx.formField.findMany.mockResolvedValue(coveredFields)
+    tx.dataImportBatch.findFirst.mockImplementation(async (query: { select?: object }) =>
+      query.select && 'sourceHeaders' in query.select
+        ? {
+            sourceHeaders: [
+              { key: 'column_0001', columnIndex: 1, header: 'Given name' },
+              { key: 'column_0002', columnIndex: 2, header: 'DOB' },
+              { key: 'column_0003', columnIndex: 3, header: 'Gender' },
+              { key: 'column_0004', columnIndex: 4, header: 'Favourite colour' },
+            ],
+          }
+        : storedBatch,
+    )
+    tx.dataImportRow.findMany.mockResolvedValue([
+      {
+        rawData: {
+          column_0001: 'Ana',
+          column_0002: '2012-04-01',
+          column_0003: 'FEMALE',
+          column_0004: 'Blue',
+        },
+      },
+    ])
+    sqlReturns({ ...covered, mapped: 3, pending: 1, complete: false })
+    const result = await service.automaticMapping(actor as never, projectId, batchId, {
+      expectedMappingRevision: 0,
+    })
+    expect(result).toMatchObject({ coverage: 'NOT_COVERED', uncoveredColumns: 1 })
+    const decisions = JSON.parse(recorderCall()?.[0].values[3])
+    expect(decisions[3]).toMatchObject({ status: 'PENDING', targetFieldId: null })
+  })
+  it('an all-blank column reaches the recorder as an ignored blank column', async () => {
+    tx.formField.findMany.mockResolvedValue(coveredFields)
+    tx.dataImportRow.findMany.mockResolvedValue([
+      { rawData: { column_0001: 'Ana', column_0002: '2012-04-01', column_0003: '' } },
+      { rawData: { column_0001: 'Bo', column_0002: '2011-01-09', column_0003: '  ' } },
+    ])
+    sqlReturns({ ...covered, mapped: 2, ignored: 1 })
+    const result = await service.automaticMapping(actor as never, projectId, batchId, {
+      expectedMappingRevision: 0,
+    })
+    expect(JSON.parse(recorderCall()?.[0].values[3])[2]).toEqual({
+      sourceKey: 'column_0003',
+      columnIndex: 3,
+      status: 'IGNORED',
+      targetFieldId: null,
+      suggestedFieldId: null,
+      score: null,
+      matchReason: null,
+      reason: 'BLANK_COLUMN',
+    })
+    expect(result).toMatchObject({ coverage: 'COVERED', ignored: 1 })
+  })
+  it('required fields met by a default or a calculated rule stay COVERED', async () => {
+    tx.formField.findMany.mockResolvedValue([
+      ...coveredFields,
+      {
+        id: '60000000-0000-4000-8000-000000000004',
+        code: 'nationality',
+        label: 'Nationality',
+        dataType: 'TEXT',
+        isRequired: true,
+        importDefault: 'Synthetic default',
+      },
+      {
+        id: '60000000-0000-4000-8000-000000000005',
+        code: 'age',
+        label: 'Age',
+        dataType: 'INTEGER',
+        isRequired: true,
+        rule: { kind: 'AGE_AT_DATE', birthField: 'birth_date', atField: 'registered_on' },
+      },
+    ])
+    sqlReturns(covered)
+    const result = await service.automaticMapping(actor as never, projectId, batchId, {
+      expectedMappingRevision: 0,
+    })
+    expect(result).toMatchObject({ coverage: 'COVERED', uncoveredColumns: 0, unresolvedValues: 0 })
+  })
+  it('keeps every distinct answer so one unresolved value after 100 still counts', async () => {
+    const allowed = Array.from({ length: 100 }, (_, index) => `V${index + 1}`)
+    const aliases = Array.from({ length: 50 }, (_, index) => ({ from: `A${index + 1}`, to: 'V1' }))
+    tx.formField.findMany.mockResolvedValue([
+      coveredFields[0],
+      coveredFields[1],
+      { ...sexField, allowedValues: allowed, valueAliases: aliases },
+    ])
+    // 150 distinct answers; only the 140th is unknown.
+    const answers = Array.from({ length: 150 }, (_, index) =>
+      index === 139 ? 'Unknown-140' : index < 100 ? `V${index + 1}` : `A${index - 99}`,
+    )
+    tx.dataImportRow.findMany.mockResolvedValue(
+      answers.map((answer, index) => ({
+        rawData: { column_0001: `N${index}`, column_0002: '2012-04-01', column_0003: answer },
+      })),
+    )
+    sqlReturns(covered)
+    const result = await service.automaticMapping(actor as never, projectId, batchId, {
+      expectedMappingRevision: 0,
+    })
+    expect(result).toMatchObject({ coverage: 'NOT_COVERED', unresolvedValues: 1 })
+  })
   it('an unknown answer returns unresolvedValues 1', async () => {
     tx.formField.findMany.mockResolvedValue([
       { id: fieldIds.first, code: 'first_name', label: 'First name', dataType: 'TEXT' },
