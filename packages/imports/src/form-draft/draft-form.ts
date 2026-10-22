@@ -7,6 +7,7 @@ import {
 } from '../mappers/smart-match'
 import { type ImportValueMapEntry, mapKey } from '../value-map'
 import { suggestValueMap } from '../value-map-suggest'
+import { proposeIntakeRules } from './draft-rules'
 import { fieldCodeFromHeader } from './field-code'
 
 export type DraftField = FormFieldRequest & { id?: string }
@@ -203,7 +204,7 @@ const identifierTypeDefault = (header: string) =>
     .replace(/^_+|_+$/g, '')
 
 /**
- * Drafts what a staged import needs from a form (spec 3.6 rules 1-5, 5a and 7): source names,
+ * Drafts what a staged import needs from a form (spec 3.6 rules 1-7): source names,
  * new fields, answer aliases and options, and defaults. Pure and deterministic; the result is
  * a proposal for a publisher to check, and the summary carries field codes and counts only.
  */
@@ -235,7 +236,9 @@ export function draftFormFromImport(input: {
     rules: [],
     needsCheck: [],
   }
-  const added: FormFieldRequest[] = []
+  const added: DraftField[] = []
+  // Source key to the field code its column feeds, for the rule detection.
+  const mapping = new Map<string, string>()
   const note = (list: string[], code: string) => {
     if (!list.includes(code)) list.push(code)
   }
@@ -344,6 +347,7 @@ export function draftFormFromImport(input: {
         const field = newField(header, present, taken)
         added.push(field)
         note(summary.addedFields, field.code)
+        mapping.set(column.key, field.code)
         continue
       }
       if (!addSourceName(found[0], header, found[1])) continue
@@ -361,7 +365,10 @@ export function draftFormFromImport(input: {
         flag(identifierType.code, 'IMPORT_DEFAULT')
       }
     }
-    if (target) reconcileAnswers(target, present)
+    if (target) {
+      mapping.set(column.key, target.code)
+      reconcileAnswers(target, present)
+    }
   }
 
   if (consentProposed && free('consent_recorded'))
@@ -378,6 +385,9 @@ export function draftFormFromImport(input: {
     }
   }
 
+  const drafted: DraftField[] = [...fields, ...added]
+  proposeIntakeRules(drafted, input.columns, mapping, input.uploadDate, summary)
+
   const changed =
     added.length +
     summary.sourceNamesAdded.length +
@@ -386,9 +396,6 @@ export function draftFormFromImport(input: {
     summary.defaults.length +
     summary.needsCheck.length
   if (changed === 0) throw new FormDraftError('NOTHING_TO_ADD')
-  if (fields.length + added.length > LIMITS.fields) throw new FormDraftError('FIELD_LIMIT')
-  return {
-    fields: [...fields.map(({ id, ...field }) => field), ...added],
-    summary,
-  }
+  if (drafted.length > LIMITS.fields) throw new FormDraftError('FIELD_LIMIT')
+  return { fields: drafted.map(({ id, ...field }) => field), summary }
 }
