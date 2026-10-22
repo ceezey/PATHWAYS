@@ -6,9 +6,15 @@ import type { ApplicationIdentity } from '../../common/authz/application-identit
 import type { Tx } from '../../common/prisma/transaction'
 import { requireBatchWithHeaders } from './import-batches.service'
 
-/** A v4-shaped UUID from the first 16 bytes of sha256(oldBatchId:formId), so a retry reuses its key. */
-export function rerunClientImportId(batchId: string, formId: string) {
-  const bytes = createHash('sha256').update(`${batchId}:${formId}`).digest().subarray(0, 16)
+// A FAILED attempt keeps its key forever, so each re-run may spend up to this many keys.
+export const RERUN_MAX_ATTEMPTS = 5
+
+/** A v4-shaped UUID from the first 16 bytes of sha256(oldBatchId:formId:attempt), so a retry reuses its key. */
+export function rerunClientImportId(batchId: string, formId: string, attempt: number) {
+  const bytes = createHash('sha256')
+    .update(`${batchId}:${formId}:${attempt}`)
+    .digest()
+    .subarray(0, 16)
   bytes[6] = (bytes[6] & 0x0f) | 0x40
   bytes[8] = (bytes[8] & 0x3f) | 0x80
   const hex = bytes.toString('hex')
@@ -41,7 +47,9 @@ export async function readRerunSource(
   if (!newest || newest.id !== formId.toLowerCase() || newest.version <= batch.formVersion) {
     throw new ConflictException('The form is not a newer published version of this import.')
   }
+  const clientImportId = await firstUsableKey(tx, actor, batch.id, newest.id)
   return {
+    clientImportId,
     storageBucket: batch.storageBucket,
     storageObjectKey: batch.storageObjectKey,
     sourceChecksum: batch.sourceChecksum,
@@ -49,6 +57,19 @@ export async function readRerunSource(
     fileType: batch.fileType as SupportedImportFileType,
     formVersion: newest.version,
   }
+}
+
+// The first attempt key with no batch or a non-FAILED batch, so a retry resumes and a failure moves on.
+async function firstUsableKey(tx: Tx, actor: ApplicationIdentity, batchId: string, formId: string) {
+  for (let attempt = 0; attempt < RERUN_MAX_ATTEMPTS; attempt += 1) {
+    const clientImportId = rerunClientImportId(batchId, formId, attempt)
+    const existing = await tx.dataImportBatch.findFirst({
+      where: { organizationId: actor.organizationId, uploadedById: actor.userId, clientImportId },
+      select: { status: true },
+    })
+    if (existing?.status !== 'FAILED') return clientImportId
+  }
+  throw new ConflictException('The re-run failed repeatedly; upload the file again.')
 }
 
 /** Links the old and new batch once; a retry that returns the same new batch adds no second row. */

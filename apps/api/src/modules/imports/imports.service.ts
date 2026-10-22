@@ -49,7 +49,7 @@ import {
   promoteClaimedParticipationRow,
   promoteClaimedRegistrationRow,
 } from './import-promotion.service'
-import { readRerunSource, recordRerun, rerunClientImportId } from './import-rerun.service'
+import { readRerunSource, recordRerun } from './import-rerun.service'
 import {
   readUploadRecovery,
   recordUploadFailure,
@@ -239,7 +239,7 @@ export class ImportsService {
     const created = await this.upload(
       identity,
       projectId,
-      { formId, clientImportId: rerunClientImportId(batchId, formId) },
+      { formId, clientImportId: source.clientImportId },
       {
         buffer,
         originalname: source.originalFileName,
@@ -247,6 +247,7 @@ export class ImportsService {
         size: buffer.length,
       },
     )
+    if (created.status === 'FAILED') throw new ConflictException('The re-run failed. Retry it.')
     await withAuthorizedOperation(this.prisma, identity, 'imports.upload', (tx, actor) =>
       recordRerun(tx, actor, created.projectId, batchId, created.id, source.formVersion),
     )
