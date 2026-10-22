@@ -17,7 +17,11 @@ export const projectMapPlaceSchema = z
     latitude: z.number().min(4).max(22),
     // SADDD individuals whose recorded city or municipality is this place; null without the SADDD grant.
     reach: z
-      .object({ total: metricCellSchema, sex: z.array(sexBucketSchema).max(5) })
+      .object({
+        total: metricCellSchema,
+        sex: z.array(sexBucketSchema).max(5),
+        disability: metricCellSchema,
+      })
       .strict()
       .nullable(),
   })
@@ -35,6 +39,8 @@ export const projectMapProjectSchema = z
     overview: projectOverviewMetricsSchema.nullable(),
     // Whole-project SADDD sex buckets, present only once the closed-project release exists.
     sadddSex: z.array(sexBucketSchema).max(5).nullable(),
+    // Whole-project SADDD individuals with a disability, from the same release.
+    sadddDisability: metricCellSchema.nullable(),
   })
   .strict()
 
