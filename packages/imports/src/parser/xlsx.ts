@@ -1,5 +1,7 @@
 import * as XLSX from 'xlsx'
 
+import { excelSerialToIsoDate } from './excel-date'
+
 export interface WorkbookParseResult {
   headers: string[]
   rows: Record<string, unknown>[]
@@ -30,10 +32,20 @@ const rowKeys = (headerCells: unknown[]) => {
 export const parseWorkbook = (input: ArrayBuffer): WorkbookParseResult => {
   const workbook = XLSX.read(input, {
     type: 'array',
+    cellNF: true,
   })
 
   const firstSheetName = workbook.SheetNames[0]
   const sheet = workbook.Sheets[firstSheetName]
+  // Date-formatted numeric cells become ISO strings, matching the server parser; the date
+  // format is dropped either way so sheet_to_json does not build Date objects.
+  const date1904 = Boolean(workbook.Workbook?.WBProps?.date1904)
+  for (const [key, cell] of Object.entries(sheet ?? {})) {
+    if (key.startsWith('!') || cell.t !== 'n' || !cell.z || !XLSX.SSF.is_date(cell.z)) continue
+    const iso = excelSerialToIsoDate(cell.v as number, date1904)
+    cell.z = undefined
+    if (iso !== null) Object.assign(cell, { t: 's', v: iso })
+  }
   // Read the sheet once as a grid, then derive headers and keyed rows from it.
   const grid = sheet
     ? XLSX.utils.sheet_to_json<unknown[]>(sheet, { defval: '', header: 1, blankrows: false })
