@@ -213,6 +213,54 @@ describe('applyIntakeRules', () => {
   })
 })
 
+describe('applyIntakeRules hardening', () => {
+  it('never reads inherited object properties as calculation inputs', () => {
+    const inherited: IntakeField[] = [
+      field('copy', 'BOOLEAN', { rule: { kind: 'SAME_ANSWER_AS', field: 'constructor' } }),
+    ]
+    const values: Record<string, NormalizedImportValue> = {}
+    applyIntakeRules(inherited, values, new Set(), '2026-10-22')
+    expect(values.copy).toBeUndefined()
+  })
+
+  it('FOLLOW_UP_OF matches with or without a letter prefix on either side', () => {
+    const follow = (whenValues: string[]) => [
+      field('job', 'SELECT'),
+      field('job_other', 'TEXT', {
+        rule: { kind: 'FOLLOW_UP_OF', parentField: 'job', whenValues },
+      }),
+    ]
+    const warnings = (list: IntakeField[], job: string) =>
+      applyIntakeRules(list, { job, job_other: 'welder' }, new Set(), '2026-10-22').warnings
+    expect(warnings(follow(['F. Iba pa']), 'Iba pa')).toEqual([])
+    expect(warnings(follow(['Iba pa']), 'F. Iba pa')).toEqual([])
+    expect(warnings(follow(['F. Iba pa']), 'A. construction')).toHaveLength(1)
+  })
+
+  it('throws when uploadDate is not a YYYY-MM-DD calendar date', () => {
+    for (const bad of ['', 'yesterday', '2026-13-01', '2026-02-30', '10/22/2026'])
+      expect(() => run({}, [], bad)).toThrow(Error)
+  })
+
+  it('one blank answer plus one level-3 answer gives WITH_DISABILITY', () => {
+    const values = wg('Hindi - Hindi nahihirapan', null, 'Oo - Madalas nahihirapan')
+    run(values)
+    expect(values.disability_status).toBe('WITH_DISABILITY')
+  })
+
+  it('keeps a mapped age_at_registration source when birth_date is null, with no mismatch', () => {
+    const values: Record<string, NormalizedImportValue> = {
+      birth_date: null,
+      enrollment_date: '2026-05-28',
+      age_at_registration: 17,
+    }
+    const { errors, warnings } = run(values, ['age_at_registration'])
+    expect(values.age_at_registration).toBe(17)
+    expect(errors).toEqual([])
+    expect(warnings.map((warning) => warning.code)).not.toContain('CALCULATION_MISMATCH')
+  })
+})
+
 describe('washingtonGroupLevel', () => {
   it('maps English and Tagalog texts, with a letter prefix and dash variants', () => {
     expect(washingtonGroupLevel('No difficulty')).toBe(1)

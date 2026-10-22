@@ -65,7 +65,7 @@ const CALCULATED_KINDS: readonly string[] = [
 const toDate = (value: NormalizedImportValue | undefined) => {
   if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null
   const date = new Date(`${value}T00:00:00.000Z`)
-  return Number.isNaN(date.getTime()) ? null : date
+  return Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== value ? null : date
 }
 
 const isBlank = (value: NormalizedImportValue | undefined) =>
@@ -114,7 +114,9 @@ export function applyIntakeRules(
 ): { errors: ImportValueError[]; warnings: ImportRowWarning[] } {
   const errors: ImportValueError[] = []
   const warnings: ImportRowWarning[] = []
-  const inputs = { ...values }
+  const upload = toDate(uploadDate)
+  if (!upload) throw new Error('applyIntakeRules needs uploadDate as a YYYY-MM-DD calendar date')
+  const inputs: Record<string, NormalizedImportValue> = Object.assign(Object.create(null), values)
 
   for (const field of fields) {
     const rule = field.rule
@@ -133,7 +135,6 @@ export function applyIntakeRules(
     values[field.code] = calculated
   }
 
-  const upload = toDate(uploadDate)
   for (const field of fields) {
     const rule = field.rule
     const value = values[field.code]
@@ -147,13 +148,10 @@ export function applyIntakeRules(
         warn('AGE_MISMATCH')
     } else if (rule.kind === 'FOLLOW_UP_OF') {
       const parent = values[rule.parentField]
-      const expected = rule.whenValues.map(comparableAnswer)
+      const bare = (text: string) => comparableAnswer(stripLetterPrefix(text))
+      const expected = rule.whenValues.map(bare)
       const answers = Array.isArray(parent) ? parent : [parent]
-      if (
-        !answers.some(
-          (answer) => typeof answer === 'string' && expected.includes(comparableAnswer(answer)),
-        )
-      )
+      if (!answers.some((answer) => typeof answer === 'string' && expected.includes(bare(answer))))
         warn('FOLLOW_UP_UNEXPECTED')
     } else if (rule.kind === 'ID_FROM_INITIALS_AND_BIRTH_DATE') {
       const first = values[rule.firstNameField]
