@@ -204,7 +204,7 @@ describe('RuleDrawer', () => {
       false,
     )
   })
-  it('explains scopes through accessible information tooltips and shows metric guidance without setting a threshold', () => {
+  it('explains scopes through accessible information tooltips and shows metric guidance without setting a threshold', async () => {
     renderDrawer()
     const projectScopeInfo = screen.getByRole('button', {
       name: 'More information about Project scope',
@@ -212,6 +212,8 @@ describe('RuleDrawer', () => {
     fireEvent.mouseEnter(projectScopeInfo)
     expect(screen.getByRole('tooltip').textContent).toBe('Project schedule and KPI performance')
     fireEvent.mouseLeave(projectScopeInfo)
+    // A hover tooltip closes after a short delay so the pointer can move onto it.
+    await waitFor(() => expect(screen.queryByRole('tooltip')).toBeNull())
 
     const indicatorScopeInfo = screen.getByRole('button', {
       name: 'More information about Indicator scope',
@@ -432,7 +434,7 @@ describe('RuleDrawer', () => {
     expect((await screen.findByRole('alert')).textContent).toMatch(/at least one recommendation/)
     expect(state.createRule).not.toHaveBeenCalled()
   })
-  it('shows the unavailable Indicator explanation on hover and focus while Activity stays available', () => {
+  it('shows the unavailable Indicator explanation on hover and focus while Activity stays available', async () => {
     renderDrawer()
     const indicator = screen.getByRole('checkbox', { name: /Indicator/ }) as HTMLInputElement
     expect(indicator.disabled).toBe(true)
@@ -445,7 +447,7 @@ describe('RuleDrawer', () => {
       'Indicator results. Indicator metrics require a project record.',
     )
     fireEvent.mouseLeave(hintTrigger)
-    expect(screen.queryByRole('tooltip')).toBeNull()
+    await waitFor(() => expect(screen.queryByRole('tooltip')).toBeNull())
     fireEvent.focus(hintTrigger)
     expect(screen.getByRole('tooltip')).toBeTruthy()
     fireEvent.keyDown(hintTrigger, { key: 'Escape' })

@@ -356,7 +356,7 @@ export class AnalyticsService {
 
   /**
    * Routes to the requested view. `survey` and `timeline` compute their own
-   * dedicated, suppressed contracts; every other value (including the absent
+   * dedicated contracts; every other value (including the absent
    * default) keeps the existing combined payload for backwards compatibility.
    * Every fetch is audited in the same transaction, including kpi/participation.
    */
@@ -410,7 +410,7 @@ export class AnalyticsService {
     )
   }
 
-  /** Computes the view's suppressed table once, shared by the file export and its preview. */
+  /** Computes the view's export table once, shared by the file export and its preview. */
   private async exportSource(tx: Tx, actor: ApplicationIdentity, query: DescriptiveAnalyticsQuery) {
     if (!hasAtomicPermission(actor.roles[0], actor.permissions, 'analytics.descriptive.read'))
       throw new ForbiddenException('Descriptive analytics permission is required.')
