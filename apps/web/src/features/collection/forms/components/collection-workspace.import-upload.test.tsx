@@ -527,6 +527,10 @@ describe('collection conservative uploader mapping', () => {
         mapped: complete ? 1 : 0,
         pending: complete ? 0 : 1,
         requiredUnmapped: complete ? 0 : 1,
+        ignored: 0,
+        coverage: 'NOT_COVERED',
+        uncoveredColumns: 0,
+        unresolvedValues: 0,
         complete,
       })
       const { submit } = await ownedDataset()
@@ -566,6 +570,10 @@ describe('collection conservative uploader mapping', () => {
         mapped: 1,
         pending: 0,
         requiredUnmapped: 0,
+        ignored: 0,
+        coverage: 'NOT_COVERED',
+        uncoveredColumns: 0,
+        unresolvedValues: 0,
         complete: true,
       }),
     )

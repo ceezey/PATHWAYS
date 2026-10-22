@@ -92,6 +92,10 @@ describe('importsClient import requests', () => {
       mapped: 2,
       pending: 1,
       requiredUnmapped: 0,
+      ignored: 0,
+      coverage: 'NOT_COVERED',
+      uncoveredColumns: 0,
+      unresolvedValues: 0,
       complete: false,
     }
     request.requestFoundation.mockResolvedValue(receipt)

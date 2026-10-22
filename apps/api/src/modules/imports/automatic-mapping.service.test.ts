@@ -41,9 +41,11 @@ const receipt = {
   mappingRevision: 1,
   mapped: 1,
   pending: 1,
+  ignored: 0,
   requiredUnmapped: 0,
   complete: false,
 }
+const covered = { ...receipt, mapped: 3, pending: 0, complete: true }
 const fieldIds = {
   first: '60000000-0000-4000-8000-000000000001',
   birth: '60000000-0000-4000-8000-000000000002',
@@ -69,7 +71,7 @@ const tx = {
 }
 function recorderCall() {
   return tx.$queryRaw.mock.calls.find(([sql]) =>
-    String(sql.sql).includes('p38_record_smart_mapping'),
+    String(sql.sql).includes('p78_record_smart_mapping'),
   )
 }
 describe('automatic mapping API authority boundary', () => {
@@ -115,7 +117,7 @@ describe('automatic mapping API authority boundary', () => {
       await service.automaticMapping(actor as never, projectId, batchId, {
         expectedMappingRevision: 0,
       }),
-    ).toEqual(receipt)
+    ).toEqual({ ...receipt, coverage: 'NOT_COVERED', uncoveredColumns: 1, unresolvedValues: 0 })
     expect(state.permission).toBe('imports.upload')
     expect(tx.dataImportBatch.findFirst).toHaveBeenCalledWith(
       expect.objectContaining({ where: { id: batchId, projectId, organizationId } }),
@@ -123,9 +125,9 @@ describe('automatic mapping API authority boundary', () => {
     // Lock first, then one recorder call with server-derived values only.
     expect(String(tx.$queryRaw.mock.calls[0][0].sql)).toContain('FOR UPDATE')
     const sql = recorderCall()?.[0]
-    expect(sql.sql).toContain('pathways.p38_record_smart_mapping')
-    expect(sql.sql).not.toContain('p29_auto_map_import')
-    expect(sql.values.slice(0, 3)).toEqual([batchId, 0, 'AUTO_SMART_V2'])
+    expect(sql.sql).toContain('pathways.p78_record_smart_mapping')
+    expect(sql.sql).not.toContain('p38_record_smart_mapping')
+    expect(sql.values.slice(0, 3)).toEqual([batchId, 0, 'AUTO_SMART_V3'])
     expect(JSON.parse(sql.values[3])).toEqual([
       {
         sourceKey: 'column_0001',
@@ -172,7 +174,7 @@ describe('automatic mapping API authority boundary', () => {
     expect(tx.dataImportRow.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { organizationId, projectId, formId: storedBatch.formId, importBatchId: batchId },
-        take: 100,
+        take: 5000,
       }),
     )
   })
@@ -184,6 +186,100 @@ describe('automatic mapping API authority boundary', () => {
       expect(JSON.stringify(sql.values)).not.toContain(privateValue)
       expect(JSON.stringify(sql.values)).not.toContain('2012-04-01')
     }
+  })
+  it('a covered fixture batch returns coverage COVERED and status MAPPED', async () => {
+    tx.formField.findMany.mockResolvedValue([
+      { id: fieldIds.first, code: 'first_name', label: 'First name', dataType: 'TEXT' },
+      { id: fieldIds.birth, code: 'birth_date', label: 'Birth date', dataType: 'DATE' },
+      {
+        id: fieldIds.sex,
+        code: 'sex',
+        label: 'Sex',
+        dataType: 'SELECT',
+        allowedValues: ['MALE', 'FEMALE'],
+        sourceNames: ['Gender'],
+        isRequired: true,
+      },
+    ])
+    tx.$queryRaw.mockImplementation(async (sql: { sql: string }) =>
+      String(sql.sql).includes('FOR UPDATE') ? [{ id: batchId }] : [{ receipt: covered }],
+    )
+    const result = await service.automaticMapping(actor as never, projectId, batchId, {
+      expectedMappingRevision: 0,
+    })
+    expect(result).toEqual({
+      ...covered,
+      coverage: 'COVERED',
+      uncoveredColumns: 0,
+      unresolvedValues: 0,
+    })
+    const decisions = JSON.parse(recorderCall()?.[0].values[3])
+    expect(decisions.map((d: { status: string }) => d.status)).toEqual([
+      'MAPPED',
+      'MAPPED',
+      'MAPPED',
+    ])
+  })
+  it('an extra column returns NOT_COVERED with uncoveredColumns 1', async () => {
+    const result = await service.automaticMapping(actor as never, projectId, batchId, {
+      expectedMappingRevision: 0,
+    })
+    expect(result).toMatchObject({ coverage: 'NOT_COVERED', uncoveredColumns: 1 })
+  })
+  it('an unknown answer returns unresolvedValues 1', async () => {
+    tx.formField.findMany.mockResolvedValue([
+      { id: fieldIds.first, code: 'first_name', label: 'First name', dataType: 'TEXT' },
+      { id: fieldIds.birth, code: 'birth_date', label: 'Birth date', dataType: 'DATE' },
+      {
+        id: fieldIds.sex,
+        code: 'sex',
+        label: 'Sex',
+        dataType: 'SELECT',
+        allowedValues: ['MALE', 'FEMALE'],
+        sourceNames: ['Gender'],
+      },
+    ])
+    // Nine listed answers keep the value gate open; the tenth is unknown.
+    tx.dataImportRow.findMany.mockResolvedValue(
+      Array.from({ length: 10 }, (_, index) => ({
+        rawData: {
+          column_0001: 'Ana',
+          column_0002: '2012-04-01',
+          column_0003: index === 9 ? 'Unlisted-Answer-77' : 'FEMALE',
+        },
+      })),
+    )
+    tx.$queryRaw.mockImplementation(async (sql: { sql: string }) =>
+      String(sql.sql).includes('FOR UPDATE') ? [{ id: batchId }] : [{ receipt: covered }],
+    )
+    const result = await service.automaticMapping(actor as never, projectId, batchId, {
+      expectedMappingRevision: 0,
+    })
+    expect(result).toMatchObject({ coverage: 'NOT_COVERED', unresolvedValues: 1 })
+  })
+  it('a blank column is ignored using every staged row, not the samples', async () => {
+    const rows = Array.from({ length: 101 }, (_, index) => ({
+      rawData: {
+        column_0001: 'Ana',
+        column_0002: '2012-04-01',
+        column_0003: index === 100 ? 'FEMALE' : '',
+      },
+    }))
+    tx.dataImportRow.findMany.mockResolvedValue(rows)
+    await service.automaticMapping(actor as never, projectId, batchId, {
+      expectedMappingRevision: 0,
+    })
+    const decisions = JSON.parse(recorderCall()?.[0].values[3])
+    expect(decisions[2].status).not.toBe('IGNORED')
+  })
+  it('the receipt and audit contain no source value', async () => {
+    const result = await service.automaticMapping(actor as never, projectId, batchId, {
+      expectedMappingRevision: 0,
+    })
+    expect(JSON.stringify(result)).not.toContain(privateValue)
+    expect(JSON.stringify(result)).not.toContain('2012-04-01')
+    for (const [sql] of tx.$queryRaw.mock.calls)
+      expect(JSON.stringify(sql.values)).not.toContain(privateValue)
   })
   it('recomputes identical decisions for a revision 1 retry', async () => {
     await service.automaticMapping(actor as never, projectId, batchId, {
