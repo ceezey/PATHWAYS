@@ -483,6 +483,34 @@ describe('P04 beneficiary registration service', () => {
     })
   })
 
+  describe('imported rows without recorded consent', () => {
+    it.each(['consent_recorded', 'data_processing_consent_recorded'])(
+      'holds an imported row with %s false for review without writes',
+      async (code) => {
+        await expect(promote(values({ [code]: false }), 'IMPORTED_DATASET')).resolves.toEqual({
+          kind: 'REVIEW',
+          code: 'CONSENT_REQUIRED',
+        })
+        expect(tx.beneficiary.createMany).not.toHaveBeenCalled()
+        expect(tx.formSubmission.create).not.toHaveBeenCalled()
+      },
+    )
+
+    it('checks consent before the guardian hold', async () => {
+      await expect(
+        promote(
+          values({
+            birth_date: '2014-01-01',
+            age_at_registration: 12,
+            is_minor: true,
+            consent_recorded: false,
+          }),
+          'IMPORTED_DATASET',
+        ),
+      ).resolves.toEqual({ kind: 'REVIEW', code: 'CONSENT_REQUIRED' })
+    })
+  })
+
   describe('minors without guardian consent', () => {
     const minor = (patch: Record<string, unknown> = {}) =>
       values({

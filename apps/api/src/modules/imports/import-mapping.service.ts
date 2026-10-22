@@ -115,6 +115,7 @@ export async function saveBatchMapping(
       status: 'PENDING',
       normalizedData: Prisma.DbNull,
       validationErrors: [],
+      validationWarnings: [],
       mappingRevision: revision,
       validationRevision: 0,
       validatedById: null,

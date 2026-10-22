@@ -86,8 +86,10 @@ const baseActor: ApplicationIdentity = {
   assignedProjectIds: [projectId],
 }
 
+let fieldSequence = 0
+
 const field = (code: string, patch: Json = {}) => ({
-  id: `41000000-0000-4000-8000-${code.length.toString().padStart(12, '0')}`,
+  id: `41000000-0000-4000-8000-${String(++fieldSequence).padStart(12, '0')}`,
   code,
   label: code,
   dataType: 'TEXT',
@@ -391,6 +393,9 @@ function service(registration: unknown = {}) {
 
 const validate = (target: ImportsService) =>
   target.validate(state.actor, projectId, batchId, { expectedMappingRevision: 1 })
+
+const revalidate = (target: ImportsService, revision: number) =>
+  target.validate(state.actor, projectId, batchId, { expectedMappingRevision: revision })
 
 const runProcess = (target: ImportsService) =>
   target.process(state.actor, projectId, batchId, { expectedValidationRevision: 1 })
@@ -700,7 +705,7 @@ describe('metadata-driven intake validation', () => {
         'consent_recorded',
         'guardian_consent_recorded',
       ]),
-      participants,
+      participants.map((row) => ({ ...row })),
       {
         form: {
           code: 'registration',
@@ -810,6 +815,65 @@ describe('metadata-driven intake validation', () => {
       status: 'PARTIALLY_PROCESSED',
       totals: { processed: 0, unprocessed: 10, failed: 0 },
     })
+  })
+
+  it('holds a participant who answered no to consent instead of failing the row', async () => {
+    state.store = registrationStore()
+    state.store.rows[1].rawData.column_0006 = 'false'
+    const imports = registrar()
+
+    await validate(imports)
+    const processed = await runProcess(imports)
+
+    expect(state.store.rows[1]).toMatchObject({
+      status: 'UNPROCESSED',
+      processingErrorCode: 'CONSENT_REQUIRED',
+    })
+    expect(processed).toMatchObject({
+      status: 'PARTIALLY_PROCESSED',
+      totals: { processed: 7, unprocessed: 3, failed: 0 },
+    })
+  })
+
+  it('re-validation stores no warnings for a row that was fixed', async () => {
+    state.store = registrationStore()
+    const imports = service()
+    await validate(imports)
+    expect(state.store.rows[2].validationWarnings).toHaveLength(1)
+
+    state.store.rows[2].rawData.column_0007 = 'true'
+    const revalidated = await revalidate(imports, 1)
+
+    expect(state.store.rows[2]).toMatchObject({ status: 'VALID', validationWarnings: [] })
+    expect(state.store.rows[6].validationWarnings).toHaveLength(1)
+    expect(revalidated.totals.warnings).toBe(1)
+  })
+
+  it('saving a new mapping clears the stored warnings of the batch', async () => {
+    state.store = registrationStore()
+    const imports = service()
+    const validated = await validate(imports)
+    expect(validated.totals.warnings).toBe(2)
+
+    const remapped = await imports.saveMapping(state.actor, projectId, batchId, {
+      expectedMappingRevision: 1,
+      mappings: [
+        'beneficiary_code',
+        'first_name',
+        'last_name',
+        'birth_date',
+        'enrollment_date',
+        'consent_recorded',
+        'guardian_consent_recorded',
+      ].map((code, index) => ({
+        sourceFieldName: `column_000${index + 1}`,
+        targetFieldCode: code,
+        ignored: false,
+      })),
+    })
+
+    expect(state.store.rows.every((row) => row.validationWarnings.length === 0)).toBe(true)
+    expect(remapped).toMatchObject({ status: 'MAPPED', totals: { warnings: 0 } })
   })
 
   it('a disagreeing disability flag makes the row INVALID with CALCULATION_MISMATCH', async () => {

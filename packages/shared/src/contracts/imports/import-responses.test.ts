@@ -90,9 +90,11 @@ describe('import response contracts', () => {
   })
 
   it('reject a batch that differs from a valid one by a single property', () => {
-    const { warnings: _warnings, ...fewerTotals } = batch.totals
+    const { failed: _failed, ...fewerTotals } = batch.totals
+    const { warnings: _warnings, ...noWarningTotals } = batch.totals
     expect(importBatchResponse.safeParse({ ...batch, status: 'VALIDATING' }).success).toBe(false)
     expect(importBatchResponse.safeParse({ ...batch, totals: fewerTotals }).success).toBe(false)
+    expect(importBatchResponse.safeParse({ ...batch, totals: noWarningTotals }).success).toBe(false)
     expect(
       importBatchResponse.safeParse({ ...batch, totals: { ...batch.totals, valid: '2' } }).success,
     ).toBe(false)
