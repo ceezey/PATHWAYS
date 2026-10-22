@@ -1,6 +1,7 @@
 import { z } from 'zod'
 
 import { supportedFormFieldTypes } from '../../validation/form-data'
+import { fieldIntakeProperties } from './form-intake'
 import { digitalFormTypes } from './form-requests'
 
 // Response shapes of the form and direct entry routes, used as types and never parsed at runtime.
@@ -21,6 +22,7 @@ export const formFieldResponse = z.object({
   maximumDate: z.string().optional(),
   minimumLength: z.number().int().nullable(),
   maximumLength: z.number().int().nullable(),
+  ...fieldIntakeProperties,
   sequence: z.number().int(),
 })
 export type FormFieldResponse = z.infer<typeof formFieldResponse>

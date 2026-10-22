@@ -20,7 +20,7 @@ export const importRequestLimits = {
 const safeMapText = /^(?![=+@\t\r]|-(?!\d))\P{Cc}*$/u
 
 // One side of a value map entry, trimmed first.
-const valueMapText = (min: number) =>
+export const valueMapText = (min: number) =>
   trimmedInput(
     lengthString(min, importRequestLimits.maxValueMapTextLength).refine(
       (value) => safeMapText.test(value),
