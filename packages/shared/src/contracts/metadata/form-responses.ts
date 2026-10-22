@@ -79,3 +79,35 @@ export const formSubmissionPageResponse = z.object({
   items: z.array(formSubmissionSummaryResponse),
 })
 export type FormSubmissionPageResponse = z.infer<typeof formSubmissionPageResponse>
+
+// Why a draft change needs a person's check before publishing; mirrors the import drafter's reasons.
+export const draftNeedsCheckReasons = [
+  'SUGGESTED_SOURCE_NAME',
+  'ENUM_ANSWER_UNRESOLVED',
+  'IMPORT_DEFAULT',
+  'RULE_PROPOSED',
+  'CONSENT_SOURCE_PROPOSED',
+  'PARTICIPATION_CONSENT_NO_SOURCE',
+  'IDENTIFIER_PROPOSED',
+  'WASHINGTON_GROUP_FLAG_DISAGREES',
+  'COLUMN_MOVED_OFF_CALCULATED',
+] as const
+
+// What a draft from an import changed, as field codes and counts only.
+export const draftSummaryResponse = z.object({
+  addedFields: z.array(z.string()),
+  sourceNamesAdded: z.array(z.string()),
+  optionsAdded: z.array(z.string()),
+  aliasesAdded: z.number().int(),
+  defaults: z.array(z.string()),
+  rules: z.array(z.string()),
+  needsCheck: z.array(z.object({ fieldCode: z.string(), reason: z.enum(draftNeedsCheckReasons) })),
+})
+export type DraftSummaryResponse = z.infer<typeof draftSummaryResponse>
+
+// Body of POST metadata/projects/:projectId/forms/:formId/drafts/from-import.
+export const draftFromImportResponse = z.object({
+  form: formResponse,
+  summary: draftSummaryResponse,
+})
+export type DraftFromImportResponse = z.infer<typeof draftFromImportResponse>

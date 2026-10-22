@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   createFormRequest,
   digitalFormTypes,
+  draftFromImportRequest,
   formResponseValues,
   formVersionRequest,
   generateFormRequest,
@@ -328,5 +329,18 @@ describe('other form bodies', () => {
     [{ page: '1' }, false],
   ])('submission query %j is accepted: %s', (query, expected) => {
     expect(accepts(listSubmissionsQuery, query)).toBe(expected)
+  })
+
+  it.each([
+    [{ batchId: '10000000-0000-4000-8000-000000000001', expectedMappingRevision: 0 }, true],
+    [{ batchId: '10000000-0000-4000-8000-000000000001', expectedMappingRevision: 1_000 }, true],
+    [{ batchId: '10000000-0000-4000-8000-000000000001', expectedMappingRevision: 1_001 }, false],
+    [{ batchId: '10000000-0000-4000-8000-000000000001', expectedMappingRevision: -1 }, false],
+    [{ batchId: '10000000-0000-4000-8000-000000000001', expectedMappingRevision: 1.5 }, false],
+    [{ batchId: 'not-a-uuid', expectedMappingRevision: 0 }, false],
+    [{ batchId: '10000000-0000-4000-8000-000000000001' }, false],
+    [{ batchId: '10000000-0000-4000-8000-000000000001', expectedMappingRevision: 0, x: 1 }, false],
+  ])('draft from import body %j is accepted: %s', (body, expected) => {
+    expect(accepts(draftFromImportRequest, body)).toBe(expected)
   })
 })

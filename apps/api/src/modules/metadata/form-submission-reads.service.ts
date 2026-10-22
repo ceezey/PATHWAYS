@@ -6,10 +6,10 @@ import {
   validateAndNormalizeFormData,
 } from '@pathways/shared'
 import { type ApplicationIdentity, UUID_PATTERN } from '../../common/authz/application-identity'
+import { formFieldContract } from '../../common/forms/form-field-contract'
 import type { Tx } from '../../common/prisma/transaction'
 import { findSubmission, requireForm } from './form-lookup.service'
 import { assertDirectEntryForm } from './metadata.helpers'
-import { formFieldContract } from './metadata.mapper'
 
 export async function validateFormValues(
   tx: Tx,

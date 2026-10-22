@@ -1,11 +1,7 @@
-import type {
-  CreateFormRequest,
-  FieldIntakeRule,
-  FormFieldValidationContract,
-  FormResponse,
-} from '@pathways/shared'
+import type { CreateFormRequest, FieldIntakeRule, FormResponse } from '@pathways/shared'
 import type { Prisma } from '@prisma/client'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
+import { jsonStringArray } from '../../common/forms/form-field-contract'
 
 export const fieldSelection = {
   id: true,
@@ -50,12 +46,6 @@ export const formSelection = {
 
 export type FormRow = Prisma.DigitalFormGetPayload<{ select: typeof formSelection }>
 
-export function jsonStringArray(value: Prisma.JsonValue | null) {
-  return Array.isArray(value) && value.every((item) => typeof item === 'string')
-    ? (value as string[])
-    : null
-}
-
 // The stored intake columns in request shape; the database checks guarantee their structure.
 function intakeProperties(field: FormRow['formField_form'][number]) {
   return {
@@ -64,22 +54,6 @@ function intakeProperties(field: FormRow['formField_form'][number]) {
       undefined) as CreateFormRequest['fields'][number]['valueAliases'],
     importDefault: field.importDefault ?? undefined,
     rule: (field.rule ?? undefined) as FieldIntakeRule | undefined,
-  }
-}
-
-export function formFieldContract(field: FormFieldContractRow): FormFieldValidationContract {
-  return {
-    code: field.code,
-    label: field.label,
-    dataType: field.dataType,
-    required: field.isRequired,
-    allowedValues: jsonStringArray(field.allowedValues),
-    minimumValue: field.minimumValue?.toString(),
-    maximumValue: field.maximumValue?.toString(),
-    minimumDate: field.minimumDate?.toISOString().slice(0, 10),
-    maximumDate: field.maximumDate?.toISOString().slice(0, 10),
-    minimumLength: field.minimumLength,
-    maximumLength: field.maximumLength,
   }
 }
 
@@ -140,22 +114,6 @@ export function fieldInput(
     ...intakeProperties(field),
   }
 }
-
-// The form field columns a validation contract reads.
-export type FormFieldContractRow = Pick<
-  FormRow['formField_form'][number],
-  | 'code'
-  | 'label'
-  | 'dataType'
-  | 'isRequired'
-  | 'allowedValues'
-  | 'minimumValue'
-  | 'maximumValue'
-  | 'minimumDate'
-  | 'maximumDate'
-  | 'minimumLength'
-  | 'maximumLength'
->
 
 // A published form payload cached under the fingerprint of its source rows.
 export type CachedFormDefinition = { fingerprint: string; value: ReturnType<typeof mapForm> }

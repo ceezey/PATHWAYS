@@ -9,24 +9,24 @@ import {
   AUTO_SMART_V2_LIMITS,
   AUTO_SMART_V3,
   type CoverageField,
-  IMPORT_ENGINEERING_LIMITS,
   type SmartMatchDecision,
   importCoverage,
   smartMatchColumnsV3,
 } from '@pathways/imports/server'
-import {
-  type AutomaticImportMappingRequest,
-  CALCULATED_RULE_KINDS,
-  fieldIntakeProperties,
-  fieldIntakeRule,
-} from '@pathways/shared'
+import type { AutomaticImportMappingRequest } from '@pathways/shared'
 import { Prisma } from '@prisma/client'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import type { Tx } from '../../common/prisma/transaction'
-import { jsonStringArray } from '../metadata/metadata.mapper'
 import { parseAutomaticMappingReceipt } from './automatic-mapping-receipt'
+import {
+  coverageField,
+  isBlank,
+  matchFieldSelection,
+  readStagedRaw,
+  smartMatchColumns,
+} from './batch-match-inputs'
 import { lockBatch, requireBatch } from './import-batches.service'
-import { safeRawData, safeSourceColumns } from './imports.helpers'
+import { safeSourceColumns } from './imports.helpers'
 import type { BatchRow } from './imports.mapper'
 
 export async function recordAutomaticMapping(
@@ -81,16 +81,6 @@ export async function recordAutomaticMapping(
   }
 }
 
-const isBlank = (value: unknown) =>
-  value === null || value === undefined || (typeof value === 'string' && value.trim() === '')
-const parsed = <T>(
-  schema: { safeParse: (value: unknown) => { success: boolean; data?: T } },
-  value: unknown,
-) => {
-  const result = schema.safeParse(value)
-  return result.success ? result.data : undefined
-}
-
 /**
  * AUTO_SMART_V3 inputs, all scoped to the locked batch: stored headers, the pinned form's
  * fields and the staged raw values. Cell values stay in this function; only the matcher's
@@ -126,20 +116,7 @@ async function smartMappingInputs(
       projectId: batch.projectId,
       formId: batch.formId,
     },
-    select: {
-      id: true,
-      code: true,
-      label: true,
-      dataType: true,
-      allowedValues: true,
-      minimumLength: true,
-      maximumLength: true,
-      sourceNames: true,
-      valueAliases: true,
-      importDefault: true,
-      rule: true,
-      isRequired: true,
-    },
+    select: matchFieldSelection,
     orderBy: { sequenceNo: 'asc' },
     take: AUTO_SMART_V2_LIMITS.maxFields + 1,
   })
@@ -150,59 +127,19 @@ async function smartMappingInputs(
   ) {
     throw new BadRequestException('Invalid automatic mapping request.')
   }
-  const rows = await tx.dataImportRow.findMany({
-    where: {
-      organizationId: actor.organizationId,
-      projectId: batch.projectId,
-      formId: batch.formId,
-      importBatchId: batch.id,
-    },
-    select: { rawData: true },
-    orderBy: { rowNumber: 'asc' },
-    take: IMPORT_ENGINEERING_LIMITS.maxRows,
-  })
-  const raw = rows.map((row) => safeRawData(row.rawData))
-  const sampleRows = raw.slice(0, AUTO_SMART_V2_LIMITS.sampleRows)
+  const raw = await readStagedRaw(tx, actor, batch)
   const distinct = new Map(sourceColumns.map((column) => [column.key, new Set<unknown>()]))
-  const blank = new Set(sourceColumns.map((column) => column.key))
   for (const values of raw) {
     for (const column of sourceColumns) {
       const value = values[column.key]
       if (isBlank(value)) continue
-      blank.delete(column.key)
       const seen = distinct.get(column.key)
       seen?.add(value)
     }
   }
-  const fields: CoverageField[] = storedFields.map((field) => {
-    const rule = parsed(fieldIntakeRule, field.rule) ?? null
-    return {
-      id: field.id,
-      code: field.code,
-      label: field.label,
-      dataType: field.dataType,
-      allowedValues: jsonStringArray(field.allowedValues),
-      minimumLength: field.minimumLength,
-      maximumLength: field.maximumLength,
-      sourceNames: field.sourceNames,
-      valueAliases: parsed(fieldIntakeProperties.valueAliases, field.valueAliases) ?? null,
-      calculated: rule !== null && (CALCULATED_RULE_KINDS as readonly string[]).includes(rule.kind),
-      required: field.isRequired,
-      importDefault: field.importDefault,
-      rule,
-    }
-  })
+  const fields = storedFields.map(coverageField)
   try {
-    const decisions = smartMatchColumnsV3(
-      sourceColumns.map((column) => ({
-        key: column.key,
-        columnIndex: column.columnIndex,
-        header: column.header,
-        samples: sampleRows.map((values) => values[column.key]),
-        blank: blank.has(column.key),
-      })),
-      fields,
-    )
+    const decisions = smartMatchColumnsV3(smartMatchColumns(sourceColumns, raw), fields)
     return {
       decisions,
       fields,

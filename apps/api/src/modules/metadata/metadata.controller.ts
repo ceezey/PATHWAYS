@@ -15,6 +15,7 @@ import {
 
 import {
   type CreateFormRequest,
+  type DraftFromImportRequest,
   type FormVersionRequest,
   type GenerateFormRequest,
   type ListSubmissionsQuery,
@@ -24,6 +25,7 @@ import {
   type UpdateSubmissionRequest,
   type ValidateFormValuesRequest,
   createFormRequest,
+  draftFromImportRequest,
   formVersionRequest,
   generateFormRequest,
   listSubmissionsQuery,
@@ -141,6 +143,17 @@ export class MetadataController {
     @Param('formId') formId: string,
   ) {
     return this.metadata.newVersion(requestIdentity(request), projectId, formId)
+  }
+
+  @Post(':formId/drafts/from-import')
+  @RequirePermission('forms.manage')
+  draftFromImport(
+    @Req() request: AuthenticatedRequest,
+    @Param('projectId') projectId: string,
+    @Param('formId') formId: string,
+    @Body(new ZodPipe(draftFromImportRequest)) body: DraftFromImportRequest,
+  ) {
+    return this.metadata.draftFromImport(requestIdentity(request), projectId, formId, body)
   }
 
   @Post(':formId/validate')

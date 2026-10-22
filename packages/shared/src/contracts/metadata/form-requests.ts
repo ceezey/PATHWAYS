@@ -151,3 +151,9 @@ export const listSubmissionsQuery = z
   })
   .strict()
 export type ListSubmissionsQuery = z.infer<typeof listSubmissionsQuery>
+
+// Body of POST metadata/projects/:projectId/forms/:formId/drafts/from-import.
+export const draftFromImportRequest = z
+  .object({ batchId: uuidString, expectedMappingRevision: z.number().int().min(0).max(1_000) })
+  .strict()
+export type DraftFromImportRequest = z.infer<typeof draftFromImportRequest>

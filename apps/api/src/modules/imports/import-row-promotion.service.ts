@@ -3,8 +3,8 @@ import { normalizeImportedRow } from '@pathways/imports/server'
 import { Prisma } from '@prisma/client'
 import { writeAuditLog } from '../../common/audit/write-audit-log'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
+import { formFieldContract } from '../../common/forms/form-field-contract'
 import type { Tx } from '../../common/prisma/transaction'
-import { formFieldContract } from '../metadata/metadata.mapper'
 import {
   type PromotionContext,
   type PromotionHandlers,

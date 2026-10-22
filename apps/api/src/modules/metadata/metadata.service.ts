@@ -2,6 +2,7 @@ import { BadRequestException, Inject, Injectable } from '@nestjs/common'
 
 import type {
   CreateFormRequest,
+  DraftFromImportRequest,
   FormValidationMode,
   FormVersionRequest,
   GenerateFormRequest,
@@ -21,6 +22,7 @@ import {
   listProjectForms,
   readFormDefinition,
 } from './form-definitions.service'
+import { createDraftFromImport } from './form-draft-from-import.service'
 import {
   listOwnSubmissions,
   readSubmission,
@@ -125,6 +127,17 @@ export class MetadataService {
   newVersion(identity: ApplicationIdentity, projectId: string, formId: string) {
     return withAuthorizedOperation(this.prisma, identity, 'forms.manage', (tx, actor) =>
       createNextFormVersion(tx, actor, projectId, formId),
+    )
+  }
+
+  draftFromImport(
+    identity: ApplicationIdentity,
+    projectId: string,
+    formId: string,
+    input: DraftFromImportRequest,
+  ) {
+    return withAuthorizedOperation(this.prisma, identity, 'forms.manage', (tx, actor) =>
+      createDraftFromImport(tx, actor, projectId, formId, input),
     )
   }
 

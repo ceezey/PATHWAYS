@@ -8,6 +8,7 @@ import {
 } from '@pathways/shared'
 import { writeAuditLog } from '../../common/audit/write-audit-log'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
+import { formFieldContract } from '../../common/forms/form-field-contract'
 import type { Tx } from '../../common/prisma/transaction'
 import type { ParticipantsService } from '../participants/participants.service'
 import {
@@ -18,7 +19,6 @@ import {
   requireSurveySubject,
 } from './form-lookup.service'
 import { assertDirectEntryForm, assertValues, expectedDate, sameValues } from './metadata.helpers'
-import { formFieldContract } from './metadata.mapper'
 
 export async function saveDraftSubmission(
   tx: Tx,
