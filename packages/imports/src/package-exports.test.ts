@@ -17,6 +17,7 @@ const smartMatch = [
   'normalizeMappingNameV1',
   'smartMatchColumns',
   'smartMatchColumnsV3',
+  'sourceNameKey',
 ]
 
 describe('package entry points', () => {

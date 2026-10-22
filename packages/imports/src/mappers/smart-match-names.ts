@@ -44,6 +44,11 @@ export function prepareName(value: string): PreparedName {
   }
 }
 
+/** The key AUTO_SMART_V3 compares a source name on, so two names with one key collide for the matcher. */
+export function sourceNameKey(value: string) {
+  return prepareName(value).canonical
+}
+
 function canonicalSynonyms(source: Readonly<Record<string, readonly string[]>>) {
   const result = new Map<string, ReadonlySet<string>>()
   for (const [code, names] of Object.entries(source)) {

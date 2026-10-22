@@ -155,6 +155,7 @@ async function insertDraft(
       activityId: input.activityId?.toLowerCase(),
       journeyStageId: input.journeyStageId?.toLowerCase(),
       createdById: actor.userId,
+      lastEditedById: actor.userId,
     },
     select: { id: true },
   })
@@ -201,7 +202,7 @@ async function currentDefinition(
       ), fields AS (
         SELECT f.*, json_build_array(f.id,f.code,f.label,f.data_type,f.is_required,f.is_metadata_key,f.is_saddd_field,
           f.allowed_values,f.minimum_value,f.maximum_value,f.minimum_date,f.maximum_date,
-          f.minimum_length,f.maximum_length,f.sequence_no)::text AS source
+          f.minimum_length,f.maximum_length,f.source_names,f.value_aliases,f.import_default,f.rule,f.sequence_no)::text AS source
         FROM pathways.form_fields f
         WHERE organization_id=${actor.organizationId}::uuid AND project_id=${projectId}::uuid AND form_id=${formId}::uuid
         ORDER BY sequence_no,id LIMIT 101
@@ -226,11 +227,12 @@ async function currentDefinition(
               'metadataKey',is_metadata_key,'sadddField',is_saddd_field,
               'allowedValues',CASE WHEN jsonb_typeof(allowed_values)='array' THEN
                 CASE WHEN NOT EXISTS(SELECT FROM jsonb_array_elements(allowed_values) v WHERE jsonb_typeof(v)<>'string') THEN allowed_values ELSE NULL END ELSE NULL END,
-              'minimumLength',minimum_length,'maximumLength',maximum_length,'sequence',sequence_no
+              'minimumLength',minimum_length,'maximumLength',maximum_length,'sourceNames',to_jsonb(source_names),'sequence',sequence_no
             ) || jsonb_strip_nulls(jsonb_build_object(
               'minimumValue',CASE WHEN minimum_value=trunc(minimum_value) THEN trunc(minimum_value)::text ELSE trim(trailing '.' from trim(trailing '0' from minimum_value::text)) END,
               'maximumValue',CASE WHEN maximum_value=trunc(maximum_value) THEN trunc(maximum_value)::text ELSE trim(trailing '.' from trim(trailing '0' from maximum_value::text)) END,
-              'minimumDate',to_char(minimum_date,'YYYY-MM-DD'),'maximumDate',to_char(maximum_date,'YYYY-MM-DD')
+              'minimumDate',to_char(minimum_date,'YYYY-MM-DD'),'maximumDate',to_char(maximum_date,'YYYY-MM-DD'),
+              'valueAliases',value_aliases,'importDefault',import_default,'rule',rule
             )) ORDER BY sequence_no,id),'[]'::jsonb) FROM fields)
           ) || jsonb_strip_nulls(jsonb_build_object(
             'publishedAt',to_char(published_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),

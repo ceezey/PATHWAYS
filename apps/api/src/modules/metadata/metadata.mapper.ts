@@ -1,4 +1,9 @@
-import type { CreateFormRequest, FormFieldValidationContract, FormResponse } from '@pathways/shared'
+import type {
+  CreateFormRequest,
+  FieldIntakeRule,
+  FormFieldValidationContract,
+  FormResponse,
+} from '@pathways/shared'
 import type { Prisma } from '@prisma/client'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
 
@@ -17,6 +22,10 @@ export const fieldSelection = {
   maximumDate: true,
   minimumLength: true,
   maximumLength: true,
+  sourceNames: true,
+  valueAliases: true,
+  importDefault: true,
+  rule: true,
   sequenceNo: true,
 } satisfies Prisma.FormFieldSelect
 
@@ -32,6 +41,7 @@ export const formSelection = {
   activityId: true,
   journeyStageId: true,
   createdById: true,
+  lastEditedById: true,
   publishedAt: true,
   archivedAt: true,
   updatedAt: true,
@@ -44,6 +54,17 @@ export function jsonStringArray(value: Prisma.JsonValue | null) {
   return Array.isArray(value) && value.every((item) => typeof item === 'string')
     ? (value as string[])
     : null
+}
+
+// The stored intake columns in request shape; the database checks guarantee their structure.
+function intakeProperties(field: FormRow['formField_form'][number]) {
+  return {
+    sourceNames: field.sourceNames,
+    valueAliases: (field.valueAliases ??
+      undefined) as CreateFormRequest['fields'][number]['valueAliases'],
+    importDefault: field.importDefault ?? undefined,
+    rule: (field.rule ?? undefined) as FieldIntakeRule | undefined,
+  }
 }
 
 export function formFieldContract(field: FormFieldContractRow): FormFieldValidationContract {
@@ -93,6 +114,7 @@ export function mapForm(form: FormRow, actor: ApplicationIdentity): FormResponse
       maximumDate: field.maximumDate?.toISOString().slice(0, 10),
       minimumLength: field.minimumLength,
       maximumLength: field.maximumLength,
+      ...intakeProperties(field),
       sequence: field.sequenceNo,
     })),
   }
@@ -115,6 +137,7 @@ export function fieldInput(
     maximumDate: field.maximumDate?.toISOString().slice(0, 10),
     minimumLength: field.minimumLength ?? undefined,
     maximumLength: field.maximumLength ?? undefined,
+    ...intakeProperties(field),
   }
 }
 

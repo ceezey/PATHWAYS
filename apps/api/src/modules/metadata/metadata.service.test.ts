@@ -63,6 +63,10 @@ const field = {
   maximumDate: null,
   minimumLength: null,
   maximumLength: null,
+  sourceNames: [] as string[],
+  valueAliases: null,
+  importDefault: null,
+  rule: null,
   sequenceNo: 1,
 }
 
@@ -78,6 +82,7 @@ const form = (patch: Record<string, unknown> = {}) => ({
   activityId: null,
   journeyStageId: null,
   createdById: authorId,
+  lastEditedById: authorId,
   publishedAt: null,
   archivedAt: null,
   updatedAt: now,
@@ -277,6 +282,161 @@ describe('P02 metadata service', () => {
       }),
     ).rejects.toBeInstanceOf(ConflictException)
     expect(tx.auditLog.create).not.toHaveBeenCalled()
+  })
+
+  describe('form intake metadata', () => {
+    const request = (fields: Array<Record<string, unknown>>) => ({
+      code: 'monitoring',
+      name: 'Monitoring',
+      formType: 'OUTCOME_MONITORING',
+      fields: fields.map((item) => ({
+        label: 'Field',
+        required: false,
+        metadataKey: false,
+        sadddField: false,
+        ...item,
+      })),
+    })
+    const update = async (fields: Array<Record<string, unknown>>) =>
+      service.updateForm(state.actor as ApplicationIdentity, projectId, formId, {
+        ...request(fields),
+        expectedUpdatedAt: now.toISOString(),
+      } as never)
+    const intakeFields = [
+      {
+        code: 'status',
+        dataType: 'SELECT',
+        allowedValues: ['Yes', 'No'],
+        sourceNames: ['Current status'],
+        valueAliases: [{ from: 'Y', to: 'Yes' }],
+        importDefault: 'No',
+      },
+      { code: 'birth_date', dataType: 'DATE' },
+      { code: 'visit_date', dataType: 'DATE' },
+      {
+        code: 'age',
+        dataType: 'INTEGER',
+        rule: { kind: 'AGE_AT_DATE', birthField: 'birth_date', atField: 'visit_date' },
+      },
+    ]
+
+    it('create and read round-trip sourceNames, valueAliases, importDefault and rule', async () => {
+      tx.digitalForm.findFirst.mockResolvedValueOnce(null)
+      tx.digitalForm.create.mockResolvedValue({ id: formId })
+      await service.createForm(
+        state.actor as ApplicationIdentity,
+        projectId,
+        request(intakeFields) as never,
+      )
+      const stored = tx.formField.createMany.mock.calls[0][0].data
+      expect(stored[0]).toMatchObject({
+        sourceNames: ['Current status'],
+        valueAliases: [{ from: 'Y', to: 'Yes' }],
+        importDefault: 'No',
+        rule: Prisma.DbNull,
+      })
+      expect(stored[1]).toMatchObject({
+        sourceNames: [],
+        valueAliases: Prisma.DbNull,
+        importDefault: null,
+        rule: Prisma.DbNull,
+      })
+      expect(stored[3].rule).toEqual(intakeFields[3].rule)
+      expect(tx.digitalForm.create.mock.calls[0][0].data.lastEditedById).toBe(reviewerId)
+
+      tx.$queryRaw.mockResolvedValue([{ status: 'DRAFT', fingerprint: null }])
+      tx.digitalForm.findFirst.mockResolvedValue(
+        form({
+          formField_form: stored.map((row: Record<string, unknown>, index: number) => ({
+            ...field,
+            ...row,
+            valueAliases: row.valueAliases === Prisma.DbNull ? null : row.valueAliases,
+            rule: row.rule === Prisma.DbNull ? null : row.rule,
+            id: `50000000-0000-4000-8000-00000000050${index}`,
+            sequenceNo: index + 1,
+          })),
+        }),
+      )
+      const read = await service.getForm(state.actor as ApplicationIdentity, projectId, formId)
+      expect(read.fields[0]).toMatchObject({
+        sourceNames: ['Current status'],
+        valueAliases: [{ from: 'Y', to: 'Yes' }],
+        importDefault: 'No',
+      })
+      expect(read.fields[1].sourceNames).toEqual([])
+      expect(read.fields[3].rule).toEqual(intakeFields[3].rule)
+    })
+
+    it('update rejects importDefault on consent_recorded', async () => {
+      await expect(
+        update([{ code: 'consent_recorded', dataType: 'BOOLEAN', importDefault: 'true' }]),
+      ).rejects.toMatchObject({
+        response: expect.objectContaining({
+          message: 'Form intake metadata is invalid.',
+          errors: [expect.objectContaining({ fieldCode: 'consent_recorded' })],
+        }),
+      })
+      expect(tx.digitalForm.updateMany).not.toHaveBeenCalled()
+      expect(tx.formField.createMany).not.toHaveBeenCalled()
+    })
+
+    it('rejects duplicate source names across fields, on the matcher key', async () => {
+      await expect(
+        update([
+          { code: 'first_name', dataType: 'TEXT', sourceNames: ['Given Name'] },
+          { code: 'nickname', dataType: 'TEXT', sourceNames: ['given-name!'] },
+        ]),
+      ).rejects.toMatchObject({
+        response: expect.objectContaining({
+          errors: [
+            expect.objectContaining({ fieldCode: 'nickname', code: 'DUPLICATE_SOURCE_NAME' }),
+          ],
+        }),
+      })
+      expect(tx.digitalForm.updateMany).not.toHaveBeenCalled()
+    })
+
+    it('allows the same source name twice inside one field', async () => {
+      await update([
+        { code: 'first_name', dataType: 'TEXT', sourceNames: ['Given Name', 'given_name'] },
+      ])
+      expect(tx.formField.createMany).toHaveBeenCalled()
+    })
+
+    it('records the editor of a draft update as the last editor', async () => {
+      await update([{ code: 'score', dataType: 'DECIMAL' }])
+      expect(tx.digitalForm.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ lastEditedById: reviewerId }),
+        }),
+      )
+    })
+
+    it('publish is refused for the last editor', async () => {
+      tx.digitalForm.findFirst.mockResolvedValue(form({ lastEditedById: reviewerId }))
+      await expect(
+        service.publishForm(state.actor as ApplicationIdentity, projectId, formId, {
+          expectedUpdatedAt: now.toISOString(),
+        }),
+      ).rejects.toMatchObject({
+        status: 403,
+        message: 'A form author cannot approve and publish the same version.',
+      })
+      expect(tx.digitalForm.updateMany).not.toHaveBeenCalled()
+      expect(tx.auditLog.create).not.toHaveBeenCalled()
+    })
+
+    it('publish is allowed for a third user', async () => {
+      tx.digitalForm.findFirst.mockResolvedValue(form({ lastEditedById: authorId }))
+      state.actor = actor(
+        'MONITORING_AND_EVALUATION_OFFICER',
+        '20000000-0000-4000-8000-000000000009',
+      )
+      await service.publishForm(state.actor, projectId, formId, {
+        expectedUpdatedAt: now.toISOString(),
+      })
+      expect(tx.digitalForm.updateMany).toHaveBeenCalled()
+    })
   })
 
   it('rejects invalid or unknown direct-entry fields before persistence', async () => {

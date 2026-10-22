@@ -50,6 +50,7 @@ export async function updateFormDefinition(
       formType: input.formType,
       activityId: input.activityId?.toLowerCase() || null,
       journeyStageId: input.journeyStageId?.toLowerCase() || null,
+      lastEditedById: actor.userId,
     },
   })
   if (changed.count !== 1) throw new ConflictException('Form changed; reload before saving.')
@@ -84,7 +85,7 @@ export async function publishFormVersion(
   const current = await requireForm(tx, actor, projectId, formId)
   cache.evictForm(current.id)
   if (current.status !== 'DRAFT') throw new ConflictException('Only a draft can be published.')
-  if (current.createdById === actor.userId) {
+  if (current.createdById === actor.userId || current.lastEditedById === actor.userId) {
     throw new ForbiddenException('A form author cannot approve and publish the same version.')
   }
   const validation = validateAndNormalizeFormData(
@@ -272,6 +273,7 @@ async function createVersion(
             ? source.journeyStageId
             : override.journeyStageId?.toLowerCase() || null,
         createdById: actor.userId,
+        lastEditedById: actor.userId,
       },
       select: { id: true },
     })

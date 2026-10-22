@@ -31,7 +31,7 @@ export {
   SmartMatchInputError,
   type SmartMatchReason,
 } from './smart-match-rules'
-export { boundedEditDistance, normalizeMappingNameV1 } from './smart-match-names'
+export { boundedEditDistance, normalizeMappingNameV1, sourceNameKey } from './smart-match-names'
 
 function compareText(left: string, right: string) {
   return left < right ? -1 : left > right ? 1 : 0

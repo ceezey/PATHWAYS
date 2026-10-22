@@ -80,6 +80,10 @@ const form = (patch: Record<string, unknown> = {}) => ({
       maximumDate: null,
       minimumLength: null,
       maximumLength: null,
+      sourceNames: ['Attendance status', 'Present or absent'],
+      valueAliases: [{ from: 'here', to: 'present' }],
+      importDefault: 'present',
+      rule: null,
       sequenceNo: 2,
     },
     {
@@ -96,6 +100,10 @@ const form = (patch: Record<string, unknown> = {}) => ({
       maximumDate: null,
       minimumLength: null,
       maximumLength: null,
+      sourceNames: [],
+      valueAliases: null,
+      importDefault: null,
+      rule: { kind: 'SAME_ANSWER_AS', field: 'consent_recorded' },
       sequenceNo: 1,
     },
   ],
@@ -126,7 +134,7 @@ describe('form-definition export', () => {
     tx.auditLog.create.mockResolvedValue({ id: 'audit' })
   })
 
-  it('exports CSV with the 24 blank-definition columns and neutralized formula cells', async () => {
+  it('exports CSV with the 28 blank-definition columns and neutralized formula cells', async () => {
     const result = await service.export(state.actor, projectId, formId, 'CSV')
     const text = result.bytes.toString('utf8')
     const [header, first, second] = text.replace(/^﻿/, '').trim().split('\r\n')
@@ -140,6 +148,27 @@ describe('form-definition export', () => {
       contentType: 'text/csv',
       fileName: 'attendance-register-v3.csv',
     })
+  })
+
+  it('export includes the four properties', async () => {
+    const result = await service.export(state.actor, projectId, formId, 'CSV')
+    const lines = result.bytes
+      .toString('utf8')
+      .replace(/^\uFEFF/, '')
+      .trim()
+      .split('\r\n')
+    const [header, first, second] = lines
+    expect(header.split(',').slice(-4)).toEqual([
+      '"source_names"',
+      '"value_aliases"',
+      '"import_default"',
+      '"rule"',
+    ])
+    expect(first).toContain('"[]"')
+    expect(first).toContain('""kind"":""SAME_ANSWER_AS""')
+    expect(second).toContain('""Attendance status"",""Present or absent""')
+    expect(second).toContain('""from"":""here"",""to"":""present""')
+    expect(second).toContain('"present"')
   })
 
   it.each([
