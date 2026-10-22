@@ -364,7 +364,7 @@ describe('demo cohorts', () => {
     }
   })
 
-  it('leaves the Masbate pilot small enough for suppression to show', () => {
+  it('keeps the Masbate pilot a small cohort with small sex cells', () => {
     expect(demoCohorts.ECD.count).toBeLessThan(10)
     const pilot = planCohort(
       demoProjects.find((p) => p.key === 'ECD') as (typeof demoProjects)[number],
@@ -376,7 +376,7 @@ describe('demo cohorts', () => {
     expect(pilot.length - female).toBeLessThan(5)
   })
 
-  it('keeps every EHK SADDD marginal at 5 or more so the closed release is not suppressed', () => {
+  it('keeps every EHK SADDD marginal at 5 or more', () => {
     const ehk = demoProjects.find((p) => p.key === 'EHK') as (typeof demoProjects)[number]
     const projectStart = addDaysIso(today, ehk.startOffset)
     const projectEnd = addDaysIso(today, ehk.endOffset)

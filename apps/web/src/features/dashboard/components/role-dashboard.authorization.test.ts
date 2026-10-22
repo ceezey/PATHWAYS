@@ -52,6 +52,7 @@ vi.mock('@/lib/api/dashboards', () => ({ dashboardsClient: api }))
 vi.mock('@/lib/api/projects', () => ({ projectsClient: api }))
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }))
 vi.mock('./action-kpi-row', () => ({ ActionKpiRow: () => null }))
+vi.mock('./pinned-charts', () => ({ PinnedCharts: () => null }))
 describe('overview supporting requests use current grants', () => {
   beforeEach(() => {
     vi.clearAllMocks()

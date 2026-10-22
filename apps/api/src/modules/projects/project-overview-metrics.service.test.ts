@@ -184,7 +184,7 @@ describe('GET /projects/:projectId/overview-metrics', () => {
     expect(() => controller.read({} as AuthenticatedRequest, projectA)).toThrow(ForbiddenException)
   })
 
-  it('happy: derives KPI, budget, suppressed-aware reach and timeline for a Project Manager', async () => {
+  it('happy: derives KPI, budget, exact reach and timeline for a Project Manager', async () => {
     const { service, tx } = harness()
     const result = await service.read(actor('PROJECT_MANAGER'), projectA)
     expect(projectOverviewMetricsSchema.safeParse(result).success).toBe(true)
@@ -212,17 +212,17 @@ describe('GET /projects/:projectId/overview-metrics', () => {
   })
 
   it.each([
-    ['1', { state: 'SUPPRESSED', value: null, reason: 'SMALL_CELL' }],
-    ['4', { state: 'SUPPRESSED', value: null, reason: 'SMALL_CELL' }],
+    ['1', { state: 'AVAILABLE', value: '1', reason: null }],
+    ['4', { state: 'AVAILABLE', value: '4', reason: null }],
     ['5', { state: 'AVAILABLE', value: '5', reason: null }],
     ['0', { state: 'ZERO', value: '0', reason: null }],
-  ])('SADDD small-cell rule: a reach count of %s is released as %j', async (count, expected) => {
+  ])('SADDD exact release: a reach count of %s is released as %j', async (count, expected) => {
     const { service } = harness({ sadddTotal: cell(count) })
     const result = await service.read(actor('PROGRAM_MANAGER'), projectA)
     expect(result.beneficiariesReached?.metric).toEqual(expected)
   })
 
-  it('keeps an already suppressed SADDD total suppressed', async () => {
+  it('passes a withheld SADDD total through unchanged', async () => {
     const suppressed: MetricCell = { state: 'SUPPRESSED', value: null, reason: 'SMALL_CELL' }
     const { service } = harness({ sadddTotal: suppressed })
     const result = await service.read(actor('GRANT_MANAGER'), projectA)

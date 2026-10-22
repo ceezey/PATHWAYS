@@ -94,7 +94,7 @@ describe('flattened sections', () => {
     expect(rows.flat().join('|')).toContain('Schedule')
     expect(rows.flat().join('|')).toContain('Kickoff')
     expect(rows.flat().join('|')).toContain('Maria Santos')
-    expect(rows.flat()).toContain('Fewer than 5')
+    expect(rows.flat()).toContain('Suppressed')
   })
 })
 

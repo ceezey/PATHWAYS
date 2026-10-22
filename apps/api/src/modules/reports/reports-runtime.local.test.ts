@@ -19,7 +19,7 @@ import type { StorageService } from '../storage/storage.service'
 import type { ReportPdfRenderer } from './report-pdf.renderer'
 import { ReportsService } from './reports.service'
 
-// Explicit opt-in only. Gate G-F12-1: report output respects role scope and suppression.
+// Explicit opt-in only. Gate G-F12-1: report output respects role scope and releases exact counts.
 const enabled = process.env.PATHWAYS_REPORTS_LOCAL_TESTS === '1'
 const replayPort = Number(process.env.PATHWAYS_REPLAY_PORT)
 if (enabled && !replayPort) throw new Error('PATHWAYS_REPLAY_PORT is required')
@@ -94,8 +94,8 @@ const identityOf = (role: CanonicalRole) => {
   return identity
 }
 
-describe.skipIf(!enabled)('report preview scope and suppression on disposable PostgreSQL', () => {
-  it('keeps preview inside role, project, organization and small-cell limits', async () => {
+describe.skipIf(!enabled)('report preview scope and exact counts on disposable PostgreSQL', () => {
+  it('keeps preview inside role, project and organization limits with exact counts', async () => {
     const localUrl = new URL('postgresql://127.0.0.1')
     localUrl.username = 'postgres'
     localUrl.port = String(replayPort)
@@ -301,31 +301,31 @@ describe.skipIf(!enabled)('report preview scope and suppression on disposable Po
                 `no monitoring.read is forbidden for ${kind}`,
               ).rejects.toThrow(new ForbiddenException('Current report permission required.'))
 
-            // 5. Suppression: no count between 1 and 4 may leave the trusted aggregate.
+            // 5. Exact release: counts between 1 and 4 leave the trusted aggregate as they are.
             const saddd = await preview('PROJECT_MANAGER', projectAssigned, 'BENEFICIARY_SUMMARY')
             expect(saddd.rows.length, 'SADDD preview returns its cells').toBeGreaterThan(1)
             expect(
-              saddd.rows.filter((row) => /^[1-4]$/.test(row[2] ?? '')),
-              'no SADDD cell shows a count of 1 to 4',
-            ).toEqual([])
+              saddd.rows.filter((row) => /^[1-4]$/.test(row[2] ?? '')).length,
+              'SADDD cells show their exact counts of 1 to 4',
+            ).toBeGreaterThan(0)
             expect(
               saddd.rows.find((row) => row[0] === 'Total')?.slice(2, 4),
-              'SADDD total of three is suppressed',
-            ).toEqual(['Not available', 'SUPPRESSED'])
+              'SADDD total of three is released exactly',
+            ).toEqual(['3', 'AVAILABLE'])
             const monitoring = await preview(
               'PROJECT_MANAGER',
               projectAssigned,
               'MONITORING_REPORT',
             )
-            // The monitoring aggregate releases participation counts with 1-4 suppressed.
+            // The monitoring aggregate releases participation counts exactly.
             const participation = monitoring.rows.filter((row) => row[0] === 'Participation')
             expect(
               participation.length,
               'monitoring report lists participation rows',
             ).toBeGreaterThan(0)
             expect(
-              participation.filter((row) => /^[1-4]$/.test(row[2] ?? '')),
-              'monitoring report shows no participation count of 1 to 4',
+              participation.filter((row) => row[3] === 'SUPPRESSED'),
+              'monitoring report withholds no participation count',
             ).toEqual([])
 
             // 6. No signed-off evaluation: empty rows, a reason, and only allowlisted keys.

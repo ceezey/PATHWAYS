@@ -3,8 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "predev": "node scripts/assert-dev-port-free.mjs",
+    "predev": "node scripts/assert-dev-port-free.mjs && node scripts/copy-maplibre-worker.mjs",
     "dev": "next dev --turbopack --hostname 127.0.0.1 --port 3000",
+    "prebuild": "node scripts/copy-maplibre-worker.mjs",
     "build": "next build",
     "start": "next start --hostname 127.0.0.1 --port 3000",
     "lint": "biome check .",

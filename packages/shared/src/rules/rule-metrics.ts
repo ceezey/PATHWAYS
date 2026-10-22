@@ -420,7 +420,6 @@ export function activityAggregateCells(input: unknown): {
   }
 }
 
-const MIN_COHORT = 5n
 const aggregateBase = {
   scope: scopeSchema,
   conditionId: conditionIdSchema,
@@ -431,7 +430,6 @@ const aggregateBase = {
 }
 const count = z.number().int().min(0).max(1000000000)
 const nonNegativeDecimal = decimalSchema.refine((value) => scaledDecimal(value) >= 0n)
-const suppressed = () => unavailable('SUPPRESSED', 'SUPPRESSED')
 const notApplicable = () => unavailable('NOT_APPLICABLE', 'NOT_APPLICABLE')
 const aggregateOpen = (input: { projectStatus: string; projectArchived: boolean }) =>
   !input.projectArchived && ['PLANNED', 'ONGOING'].includes(input.projectStatus)
@@ -509,16 +507,9 @@ const beneficiaryInputSchema = z
 /** Aggregate-only: share of active enrollments whose latest participation needs follow-up. */
 export function beneficiaryFollowUpObservation(input: unknown): MetricObservation {
   const data = beneficiaryInputSchema.parse(input)
-  const small = (value: number) => value >= 1 && BigInt(value) < MIN_COHORT
   let cell: Cell
   if (!aggregateOpen(data)) cell = notApplicable()
   else if (data.population === 0) cell = unavailable('EMPTY_POPULATION')
-  else if (
-    BigInt(data.population) < MIN_COHORT ||
-    small(data.followUp) ||
-    small(data.population - data.followUp)
-  )
-    cell = suppressed()
   else
     cell = safeCell(
       indicatorProgress(
@@ -547,7 +538,6 @@ export function surveyImprovementObservation(input: unknown): MetricObservation 
   let cell: Cell
   if (!aggregateOpen(data)) cell = notApplicable()
   else if (data.pairCount === 0) cell = unavailable('EMPTY_POPULATION')
-  else if (BigInt(data.pairCount) < MIN_COHORT) cell = suppressed()
   else {
     const mean = divideRounded(scaledDecimal(data.differenceSum), BigInt(data.pairCount))
     cell =
@@ -605,7 +595,6 @@ export function testScoreObservation(
   let cell: Cell
   if (!aggregateOpen(data)) cell = notApplicable()
   else if (data.enrollmentCount === 0) cell = unavailable('EMPTY_POPULATION')
-  else if (BigInt(data.enrollmentCount) < MIN_COHORT) cell = suppressed()
   else {
     const mean = divideRounded(scaledDecimal(data.percentSum), BigInt(data.enrollmentCount))
     cell = mean > 1000000n ? unavailable('INVALID_METRIC') : numericMetric(decimalString(mean))

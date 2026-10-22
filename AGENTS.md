@@ -10,8 +10,8 @@
 > Create and edit every doc (suite docs, RFCs, runbooks, audits, Change Records, logs, session notes) in the vault, never in the repo `docs/`. Basenames are unchanged: the old repo `docs/<name>.md` is the vault note `<name>`.
 
 **Status:** Control
-**Version:** 2.2
-**Last reconciled:** 2026-10-21
+**Version:** 2.3
+**Last reconciled:** 2026-10-22
 **Owner:** PATHWAYS capstone team
 
 **Canonical:** this vault note, [build-pathways.md](<C:/AI Agentic Memory/02_Areas/Dev_&_Ops/PATHWAYS/build-pathways.md>).
@@ -87,7 +87,7 @@ Every requirement follows the chain `P<n>/R<n> -> PRD-F<n> -> G-F<n>-<m> -> UC-F
 | Metadata/import | PRD F5/F6 -> SDD -> ingestion RFC | staging/validation/idempotency tests |
 | Beneficiary | PRD F3/F4 -> SDD -> CLR | privacy/project-scope tests |
 | Indicators/dashboard | PRD F7/F8 -> SDD | metric/privacy tests |
-| SADDD | PRD F8 -> SADDD RFC | age/suppression tests |
+| SADDD | PRD F8 -> SADDD RFC | age-band and exact-count tests |
 | Rules/recommendations | PRD F10/F11 -> rules RFC | deterministic lifecycle/isolation tests |
 | UI | DSD + PRD | accessibility + backend-authority tests |
 | Migration/schema | SDD + RFC | replay/diff/integrity/recovery |
@@ -185,7 +185,7 @@ No arbitrary SQL/code in user-created rules.
 
 ### SADDD
 
-Use the Locked SADDD RFC. Suppression is part of correctness.
+Use the SADDD RFC (Working, no longer Locked) and [cr-pathways-saddd-exact-counts.md](<C:/AI Agentic Memory/01_Projects/PATHWAYS/Change_Records/cr-pathways-saddd-exact-counts.md>). Counts are released exactly, with no small-cell or complementary suppression; age bands, aggregate-only output and role and organization scoping are part of correctness.
 
 ## 5. Conventions & Guardrails
 

@@ -11,7 +11,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { DASHBOARD_PINS_UI_ENABLED } from '@/constants/feature-flags'
 import type { useCurrentRole } from '@/hooks/use-current-role'
 import { dashboardsClient } from '@/lib/api/dashboards'
 import { projectsClient } from '@/lib/api/projects'
@@ -20,7 +19,6 @@ import type { RoleDashboardViewModel } from '@/types/pathways'
 
 import { metricIcons, severityTone, trailingYearPeriod } from '../dashboard.utils'
 import { monitoringReachMetrics } from '../monitoring-reach-metrics.utils'
-import { PinnedCharts } from './pinned-charts'
 
 export const ConnectedMonitoringSnapshot = ({
   role,
@@ -141,7 +139,6 @@ export const ConnectedMonitoringSnapshot = ({
           title="No authorized projects"
         />
       )}
-      {DASHBOARD_PINS_UI_ENABLED ? <PinnedCharts projects={projects} /> : null}
     </SectionCard>
   )
 }

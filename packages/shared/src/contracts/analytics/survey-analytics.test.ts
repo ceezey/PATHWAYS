@@ -1,9 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import {
-  SURVEY_SMALL_CELL_THRESHOLD,
-  type SurveyAssessmentRow,
-  computeSurveyAnalytics,
-} from './survey-analytics'
+import { type SurveyAssessmentRow, computeSurveyAnalytics } from './survey-analytics'
 
 const projectId = '20000000-0000-4000-8000-00000000000a'
 const generatedAt = '2026-09-29T00:00:00.000Z'
@@ -84,7 +80,7 @@ describe('computeSurveyAnalytics', () => {
         enrollmentId: 'e1',
         assessmentDate: '2026-02-01',
       }),
-      // 4 more pairs to clear the small-cell threshold so the mean is visible.
+      // 4 more pairs so the mean blends several enrollments.
       ...['e2', 'e3', 'e4', 'e5'].flatMap((id) => pair(id, 60, 60)),
     ]
     const result = compute(rows)
@@ -125,7 +121,7 @@ describe('computeSurveyAnalytics', () => {
       row({ type: 'PRE_TEST', score: '90', enrollmentId: 'e1', assessmentDate: '2026-01-10' }),
       row({ type: 'POST_TEST', score: '10', enrollmentId: 'e1', assessmentDate: '2026-02-01' }),
       row({ type: 'POST_TEST', score: '95', enrollmentId: 'e1', assessmentDate: '2026-02-10' }),
-      // 4 more pairs to clear the small-cell threshold so the mean is visible.
+      // 4 more pairs so the mean blends several enrollments.
       ...['e2', 'e3', 'e4', 'e5'].flatMap((id) => pair(id, 50, 50)),
     ]
     const result = compute(rows)
@@ -135,30 +131,18 @@ describe('computeSurveyAnalytics', () => {
     expect(result.overall.meanPost).toEqual({ state: 'AVAILABLE', value: '59', reason: null })
   })
 
-  it.each([0, 1, 4])(
-    'suppresses the whole group as SMALL_CELL for %i pairs (fewer than 5, more than 0)',
-    (count) => {
-      const rows =
-        count === 0
-          ? []
-          : Array.from({ length: count }, (_, index) => pair(`e${index}`, 40, 60)).flat()
-      const result = compute(rows)
-      if (count === 0) {
-        expect(result.overall.pairs).toEqual({ state: 'ZERO', value: '0', reason: null })
-      } else {
-        expect(result.overall.pairs).toEqual({
-          state: 'SUPPRESSED',
-          value: null,
-          reason: 'SMALL_CELL',
-        })
-        expect(result.overall.meanChange).toEqual({
-          state: 'SUPPRESSED',
-          value: null,
-          reason: 'SMALL_CELL',
-        })
-      }
-    },
-  )
+  it.each([1, 4])('releases exact counts and means for %i pairs', (count) => {
+    const rows = Array.from({ length: count }, (_, index) => pair(`e${index}`, 40, 60)).flat()
+    const result = compute(rows)
+    const exact = (value: string) => ({ state: 'AVAILABLE', value, reason: null })
+    expect(result.overall.pairs).toEqual(exact(String(count)))
+    expect(result.overall.meanPre).toEqual(exact('40'))
+    expect(result.overall.meanPost).toEqual(exact('60'))
+    expect(result.overall.meanChange).toEqual(exact('20'))
+    expect(result.overall.improved).toEqual(exact(String(count)))
+    expect(result.overall.same).toEqual({ state: 'ZERO', value: '0', reason: null })
+    expect(result.overall.declined).toEqual({ state: 'ZERO', value: '0', reason: null })
+  })
 
   it('reveals a group of exactly 5 pairs and computes mean change to 1dp, half away from zero', () => {
     const rows = [
@@ -176,8 +160,7 @@ describe('computeSurveyAnalytics', () => {
     expect(result.overall.improved).toEqual({ state: 'AVAILABLE', value: '5', reason: null })
   })
 
-  it('applies complementary suppression across improved/same/declined when any sub-count is small', () => {
-    // 5 pairs total (visible), but only 1 improved: the 1/4 split must not leak via subtraction.
+  it('releases an exact 1/4 improved/same split with no complementary suppression', () => {
     const rows = [
       ...pair('e1', 40, 60),
       ...pair('e2', 40, 40),
@@ -186,18 +169,10 @@ describe('computeSurveyAnalytics', () => {
       ...pair('e5', 40, 40),
     ]
     const result = compute(rows)
-    expect(result.overall.pairs.state).toBe('AVAILABLE')
-    expect(result.overall.improved).toEqual({
-      state: 'SUPPRESSED',
-      value: null,
-      reason: 'SMALL_CELL',
-    })
-    expect(result.overall.same).toEqual({ state: 'SUPPRESSED', value: null, reason: 'SMALL_CELL' })
-    expect(result.overall.declined).toEqual({
-      state: 'SUPPRESSED',
-      value: null,
-      reason: 'SMALL_CELL',
-    })
+    expect(result.overall.pairs).toEqual({ state: 'AVAILABLE', value: '5', reason: null })
+    expect(result.overall.improved).toEqual({ state: 'AVAILABLE', value: '1', reason: null })
+    expect(result.overall.same).toEqual({ state: 'AVAILABLE', value: '4', reason: null })
+    expect(result.overall.declined).toEqual({ state: 'ZERO', value: '0', reason: null })
   })
 
   it('groups pairs by activity in addition to the overall cohort', () => {
@@ -271,64 +246,8 @@ describe('computeSurveyAnalytics', () => {
     expect(result.byActivity.map((group) => group.key)).toEqual(['aaa', 'zzz'])
   })
 
-  describe('cross-group reconstruction resistance', () => {
-    it('withholds the whole breakdown when one activity group is suppressed', () => {
-      // 5 residual (no-activity) pairs plus a 3-pair activity group: the activity
-      // group alone is suppressed, but the residual is visible from overall minus a
-      // suppressed placeholder -- so the whole breakdown must be withheld.
-      const rows = [
-        ...['e1', 'e2', 'e3', 'e4', 'e5'].flatMap((id) => pair(id, 40, 60)),
-        ...['e6', 'e7', 'e8'].flatMap((id) => pair(id, 40, 60, { activityId: 'act-1' })),
-      ]
-      const result = compute(rows)
-      expect(result.overall.pairs).toEqual({ state: 'AVAILABLE', value: '8', reason: null })
-      expect(result.byActivity).toHaveLength(1)
-      expect(result.byActivity[0]?.key).toBe('act-1')
-      for (const key of ['pairs', 'meanPre', 'improved'] as const) {
-        expect(result.byActivity[0]?.[key]).toEqual({
-          state: 'SUPPRESSED',
-          value: null,
-          reason: 'SMALL_CELL',
-        })
-      }
-    })
-
-    it('withholds the whole breakdown when the no-activity residual is 1-4, even if every group is visible', () => {
-      // 5 visible pairs in one activity group, plus 2 residual pairs with no
-      // activity: overall (7) minus the visible group (5) would leak the residual
-      // (2), so the breakdown is withheld even though the activity group is fine.
-      const rows = [
-        ...['e1', 'e2'].flatMap((id) => pair(id, 40, 60)),
-        ...['e3', 'e4', 'e5', 'e6', 'e7'].flatMap((id) =>
-          pair(id, 40, 60, { activityId: 'act-1' }),
-        ),
-      ]
-      const result = compute(rows)
-      expect(result.overall.pairs).toEqual({ state: 'AVAILABLE', value: '7', reason: null })
-      expect(result.byActivity).toHaveLength(1)
-      for (const key of ['pairs', 'meanPre', 'improved'] as const) {
-        expect(result.byActivity[0]?.[key]).toEqual({
-          state: 'SUPPRESSED',
-          value: null,
-          reason: 'SMALL_CELL',
-        })
-      }
-    })
-
-    it('reveals the breakdown when every group and the residual both clear the threshold', () => {
-      const rows = [
-        ...['e1', 'e2', 'e3', 'e4', 'e5'].flatMap((id) => pair(id, 40, 60)),
-        ...['e6', 'e7', 'e8', 'e9', 'e10'].flatMap((id) =>
-          pair(id, 40, 60, { activityId: 'act-1' }),
-        ),
-      ]
-      const result = compute(rows)
-      expect(result.byActivity).toHaveLength(1)
-      expect(result.byActivity[0]?.pairs).toEqual({ state: 'AVAILABLE', value: '5', reason: null })
-    })
-
-    // Builds a set of pairs for one enrollment prefix with an exact improved/same/declined
-    // split, so tests can construct sub-cells that recover by subtraction across groups.
+  describe('exact per-activity breakdown', () => {
+    // Builds pairs for one enrollment prefix with an exact improved/same/declined split.
     function splitPairs(
       prefix: string,
       counts: { improved: number; same: number; declined: number },
@@ -348,75 +267,70 @@ describe('computeSurveyAnalytics', () => {
       return rows
     }
 
-    it('withholds the whole breakdown when a visible group has a sub-count recoverable by subtraction (act-A/act-B)', () => {
-      // act-A: 10 pairs, 5 improved / 0 same / 5 declined -- clean on its own.
-      // act-B: 5 pairs, 2 improved / 0 same / 3 declined -- act-B's own group is
-      // suppressed as a unit by buildSurveyGroup, but without the cross-group fix
-      // its improved=2/declined=3 could be recovered as overall (7/0/8) minus act-A
-      // (5/0/5) = (2/0/3).
+    const exact = (value: string) =>
+      value === '0'
+        ? { state: 'ZERO', value, reason: null }
+        : { state: 'AVAILABLE', value, reason: null }
+
+    it('releases a small activity group exactly next to a larger no-activity residual', () => {
+      const rows = [
+        ...['e1', 'e2', 'e3', 'e4', 'e5'].flatMap((id) => pair(id, 40, 60)),
+        ...['e6', 'e7', 'e8'].flatMap((id) => pair(id, 40, 60, { activityId: 'act-1' })),
+      ]
+      const result = compute(rows)
+      expect(result.overall.pairs).toEqual(exact('8'))
+      expect(result.byActivity).toHaveLength(1)
+      expect(result.byActivity[0]).toMatchObject({
+        key: 'act-1',
+        pairs: exact('3'),
+        meanPre: exact('40'),
+        improved: exact('3'),
+      })
+    })
+
+    it('does not withhold byActivity when the no-activity residual is 1-4', () => {
+      const rows = [
+        ...['e1', 'e2'].flatMap((id) => pair(id, 40, 60)),
+        ...['e3', 'e4', 'e5', 'e6', 'e7'].flatMap((id) =>
+          pair(id, 40, 60, { activityId: 'act-1' }),
+        ),
+      ]
+      const result = compute(rows)
+      expect(result.overall.pairs).toEqual(exact('7'))
+      expect(result.byActivity).toHaveLength(1)
+      expect(result.byActivity[0]?.pairs).toEqual(exact('5'))
+    })
+
+    it('releases the exact improved/same/declined split of every activity group (act-A/act-B)', () => {
       const rows = [
         ...splitPairs('a', { improved: 5, same: 0, declined: 5 }, { activityId: 'act-A' }),
         ...splitPairs('b', { improved: 2, same: 0, declined: 3 }, { activityId: 'act-B' }),
       ]
       const result = compute(rows)
-      expect(result.overall.pairs).toEqual({ state: 'AVAILABLE', value: '15', reason: null })
-      expect(result.overall.improved).toEqual({ state: 'AVAILABLE', value: '7', reason: null })
-      expect(result.overall.declined).toEqual({ state: 'AVAILABLE', value: '8', reason: null })
-      expect(result.byActivity).toHaveLength(2)
-      for (const group of result.byActivity) {
-        for (const key of ['pairs', 'improved', 'same', 'declined'] as const) {
-          expect(group[key]).toEqual({ state: 'SUPPRESSED', value: null, reason: 'SMALL_CELL' })
-        }
-      }
+      const counts = (group: (typeof result.byActivity)[number] | typeof result.overall) =>
+        (['pairs', 'improved', 'same', 'declined'] as const).map((key) => group[key].value)
+      expect(counts(result.overall)).toEqual(['15', '7', '0', '8'])
+      expect(result.byActivity.map((group) => group.key)).toEqual(['act-A', 'act-B'])
+      expect(result.byActivity.map(counts)).toEqual([
+        ['10', '5', '0', '5'],
+        ['5', '2', '0', '3'],
+      ])
+      expect(result.byActivity[1]?.improved).toEqual(exact('2'))
     })
 
-    it('withholds the whole breakdown when the no-activity residual has >=5 pairs but a 1-4 sub-count', () => {
-      // Residual (no activity): 5 pairs, 2 improved / 0 same / 3 declined -- pairs
-      // clear the threshold, but the improved/declined split does not.
-      // act-1: 5 pairs, all improved -- clean on its own.
+    it('reveals the breakdown when every group and the residual are large', () => {
       const rows = [
-        ...splitPairs('r', { improved: 2, same: 0, declined: 3 }),
-        ...splitPairs('g', { improved: 5, same: 0, declined: 0 }, { activityId: 'act-1' }),
+        ...['e1', 'e2', 'e3', 'e4', 'e5'].flatMap((id) => pair(id, 40, 60)),
+        ...['e6', 'e7', 'e8', 'e9', 'e10'].flatMap((id) =>
+          pair(id, 40, 60, { activityId: 'act-1' }),
+        ),
       ]
       const result = compute(rows)
       expect(result.byActivity).toHaveLength(1)
-      for (const key of ['pairs', 'improved', 'same', 'declined'] as const) {
-        expect(result.byActivity[0]?.[key]).toEqual({
-          state: 'SUPPRESSED',
-          value: null,
-          reason: 'SMALL_CELL',
-        })
-      }
+      expect(result.byActivity[0]?.pairs).toEqual(exact('5'))
     })
 
-    it('withholds the whole breakdown when the overall improved/same/declined split is itself suppressed', () => {
-      // A single small activity group (3 pairs) is enough to suppress the overall
-      // group's own sub-cells too (only 3 pairs total); the byActivity group must
-      // also be withheld rather than left as a bare suppressed placeholder that
-      // diverges from an already-suppressed overall.
-      const rows = splitPairs('s', { improved: 1, same: 0, declined: 2 }, { activityId: 'act-1' })
-      const result = compute(rows)
-      expect(result.overall.pairs).toEqual({
-        state: 'SUPPRESSED',
-        value: null,
-        reason: 'SMALL_CELL',
-      })
-      expect(result.overall.improved).toEqual({
-        state: 'SUPPRESSED',
-        value: null,
-        reason: 'SMALL_CELL',
-      })
-      expect(result.byActivity).toHaveLength(1)
-      for (const key of ['pairs', 'improved', 'same', 'declined'] as const) {
-        expect(result.byActivity[0]?.[key]).toEqual({
-          state: 'SUPPRESSED',
-          value: null,
-          reason: 'SMALL_CELL',
-        })
-      }
-    })
-
-    it('is independent of input order for the act-A/act-B reconstruction case', () => {
+    it('is independent of input order for the act-A/act-B case', () => {
       const rows = [
         ...splitPairs('a', { improved: 5, same: 0, declined: 5 }, { activityId: 'act-A' }),
         ...splitPairs('b', { improved: 2, same: 0, declined: 3 }, { activityId: 'act-B' }),
@@ -424,62 +338,6 @@ describe('computeSurveyAnalytics', () => {
       const forward = compute(rows)
       const reversed = compute([...rows].reverse())
       expect(forward).toEqual(reversed)
-    })
-
-    it('property: byActivity is never a mix of suppressed and visible groups, so no suppressed value can be recovered from a visible sibling plus the overall total', () => {
-      const scenarios: SurveyAssessmentRow[][] = [
-        [
-          ...splitPairs('a', { improved: 5, same: 0, declined: 5 }, { activityId: 'act-A' }),
-          ...splitPairs('b', { improved: 2, same: 0, declined: 3 }, { activityId: 'act-B' }),
-        ],
-        [
-          ...splitPairs('r', { improved: 2, same: 0, declined: 3 }),
-          ...splitPairs('g', { improved: 5, same: 0, declined: 0 }, { activityId: 'act-1' }),
-        ],
-        [
-          ...splitPairs('c', { improved: 5, same: 0, declined: 0 }, { activityId: 'act-1' }),
-          ...splitPairs('d', { improved: 0, same: 5, declined: 0 }, { activityId: 'act-2' }),
-        ],
-      ]
-      const fields = ['pairs', 'improved', 'same', 'declined'] as const
-      for (const rows of scenarios) {
-        const result = compute(rows)
-        const states = new Set(
-          result.byActivity.flatMap((group) => fields.map((field) => group[field].state)),
-        )
-        // Every group's every field is suppressed together, or none are: there is no
-        // partial reveal from which a withheld value could be reconstructed by
-        // subtracting visible siblings from the overall total.
-        const allSuppressed = [...states].every((state) => state === 'SUPPRESSED')
-        const noneSuppressed = ![...states].includes('SUPPRESSED')
-        expect(allSuppressed || noneSuppressed).toBe(true)
-        if (noneSuppressed) {
-          // When visible, each group's own sub-count is itself 0 or >= threshold
-          // (buildSurveyGroup's own rule), so subtraction cannot expose a 1-4 value.
-          for (const group of result.byActivity) {
-            for (const field of fields) {
-              const cell = group[field]
-              if (cell.value === null) continue
-              const value = Number(cell.value)
-              expect(value === 0 || value >= SURVEY_SMALL_CELL_THRESHOLD).toBe(true)
-            }
-          }
-        }
-      }
-    })
-
-    it('suppressed groups carry a null value on every field, so the CSV exporter (which reads these same cells) cannot leak a sub-count', () => {
-      const rows = [
-        ...splitPairs('a', { improved: 5, same: 0, declined: 5 }, { activityId: 'act-A' }),
-        ...splitPairs('b', { improved: 2, same: 0, declined: 3 }, { activityId: 'act-B' }),
-      ]
-      const result = compute(rows)
-      for (const group of result.byActivity) {
-        expect(group.improved.value).toBeNull()
-        expect(group.same.value).toBeNull()
-        expect(group.declined.value).toBeNull()
-        expect(group.pairs.value).toBeNull()
-      }
     })
   })
 })

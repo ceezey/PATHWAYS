@@ -1,5 +1,7 @@
 import type { ProjectMapPlace } from '@pathways/shared'
 
+export type ResolvedPlace = Omit<ProjectMapPlace, 'reach'>
+
 type Row = readonly [name: string, longitude: number, latitude: number]
 type CityRow = readonly [name: string, province: string, longitude: number, latitude: number]
 
@@ -217,7 +219,7 @@ const take = (text: string, key: string) => (text.includes(key) ? text.split(key
  * Resolves free-text implementation areas to bundled centroids: named cities first,
  * falling back to province centroids; unknown text resolves to nothing, never a guess.
  */
-export function resolvePlaces(area: string | null | undefined): ProjectMapPlace[] {
+export function resolvePlaces(area: string | null | undefined): ResolvedPlace[] {
   if (!area?.trim()) return []
   let text = normalize(area)
   const matchedCities: CityRow[] = []

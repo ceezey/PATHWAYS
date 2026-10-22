@@ -7,10 +7,8 @@ import type {
   MapLayerMouseEvent,
   MapLibreMap,
   MapMouseEvent,
-  Popup,
 } from 'maplibre-gl'
-import { type ReactNode, useEffect, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
+import { type ReactNode, useEffect, useLayoutEffect, useRef, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { chartPalette } from '@/lib/chart-palette'
@@ -29,6 +27,9 @@ const defaultZoom = 4.5
 const singleFeatureZoom = 12
 
 export const DEFAULT_MAP_STYLE_URL = 'https://tiles.openfreemap.org/styles/liberty'
+
+/** Copied into public by scripts/copy-maplibre-worker.mjs before dev and build. */
+export const MAPLIBRE_WORKER_URL = '/maplibre/maplibre-gl-worker.mjs'
 
 export const resolveMapStyleUrl = (configuredStyleUrl = process.env.NEXT_PUBLIC_MAP_STYLE_URL) =>
   configuredStyleUrl?.trim() || DEFAULT_MAP_STYLE_URL
@@ -53,6 +54,26 @@ type MapPoint = Readonly<{
 }>
 
 type OpenPoint = MapPoint & Readonly<{ pinned: boolean }>
+
+const cardGap = 14
+const cardPad = 8
+
+/** Places the card above the point, else below, else beside it, always clamped inside the map frame. */
+const placeCard = (card: HTMLElement, x: number, y: number, width: number, height: number) => {
+  const clamp = (value: number, max: number) => Math.max(cardPad, Math.min(value, max - cardPad))
+  card.style.maxHeight = `${height - 2 * cardPad}px`
+  const w = card.offsetWidth
+  const h = card.offsetHeight
+  let left = x - w / 2
+  let top = y - cardGap - h
+  if (top < cardPad && y + cardGap + h <= height - cardPad) top = y + cardGap
+  else if (top < cardPad) {
+    top = y - h / 2
+    left = x + cardGap + w <= width - cardPad ? x + cardGap : x - cardGap - w
+  }
+  card.style.left = `${clamp(left, width - w)}px`
+  card.style.top = `${clamp(top, height - h)}px`
+}
 
 const syncMapCamera = (
   map: MapLibreMap,
@@ -114,7 +135,7 @@ export const AnalyticsCoverageMap = ({
   const centerLongitude = initialCenter[0]
   const centerLatitude = initialCenter[1]
 
-  const popupRef = useRef<{ popup: Popup; node: HTMLDivElement } | null>(null)
+  const cardRef = useRef<HTMLDivElement>(null)
   const [openPoint, setOpenPoint] = useState<OpenPoint | null>(null)
   const hasPopup = Boolean(renderPopup)
 
@@ -143,6 +164,8 @@ export const AnalyticsCoverageMap = ({
       .then((maplibre) => {
         const { Map: MapLibre, NavigationControl } = maplibre
         if (cancelled) return
+        // The bundled worker URL never resolves, so tiles and points stay blank without this copy.
+        maplibre.setWorkerUrl(MAPLIBRE_WORKER_URL)
 
         map = new MapLibre({
           container,
@@ -226,20 +249,6 @@ export const AnalyticsCoverageMap = ({
             map.easeTo({ center: [...point.coordinates], offset: [0, offsetY], duration: 300 })
           }
         }
-        if (hasPopup) {
-          const node = document.createElement('div')
-          popupRef.current = {
-            node,
-            popup: new maplibre.Popup({
-              closeButton: false,
-              closeOnClick: false,
-              focusAfterOpen: false,
-              maxWidth: 'min(320px, calc(100vw - 4rem))',
-              offset: 14,
-            }).setDOMContent(node),
-          }
-        }
-
         map.on('style.load', handleLoad)
         map.on('load', handleLoad)
         map.on('error', handleError)
@@ -264,8 +273,6 @@ export const AnalyticsCoverageMap = ({
     return () => {
       cancelled = true
       resizeObserver?.disconnect()
-      popupRef.current?.popup.remove()
-      popupRef.current = null
       setOpenPoint(null)
       if (map && handleLoad) map.off('style.load', handleLoad)
       if (map && handleLoad) map.off('load', handleLoad)
@@ -285,19 +292,30 @@ export const AnalyticsCoverageMap = ({
     }
   }, [centerLatitude, centerLongitude, featureCollection, initialZoom])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const map = mapRef.current
-    const entry = popupRef.current
-    if (status !== 'ready' || !map || !entry) return
-    if (openPoint) entry.popup.setLngLat([...openPoint.coordinates]).addTo(map)
-    else entry.popup.remove()
+    if (status !== 'ready' || !map || !hasPopup) return
     map.setPaintProperty(layerId, 'circle-radius', [
       'case',
       ['==', ['get', 'id'], openPoint?.id ?? ''],
       11,
       8,
     ])
-  }, [openPoint, status])
+    const card = cardRef.current
+    if (!openPoint || !card) return
+    const place = () => {
+      const { x, y } = map.project([...openPoint.coordinates])
+      const frame = map.getContainer()
+      placeCard(card, x, y, frame.clientWidth, frame.clientHeight)
+    }
+    place()
+    map.on('move', place)
+    map.on('resize', place)
+    return () => {
+      map.off('move', place)
+      map.off('resize', place)
+    }
+  }, [hasPopup, openPoint, status])
 
   const hasFeatures = featureCollection.features.length > 0
 
@@ -331,12 +349,14 @@ export const AnalyticsCoverageMap = ({
           title="No mapped locations available"
         />
       ) : null}
-      {openPoint && renderPopup && popupRef.current
-        ? createPortal(
-            renderPopup(openPoint, () => setOpenPoint(null)),
-            popupRef.current.node,
-          )
-        : null}
+      {openPoint && renderPopup && status === 'ready' ? (
+        <div
+          className="absolute z-10 max-w-[calc(100%-1rem)] overflow-y-auto rounded-md border border-border bg-card p-3 shadow-md"
+          ref={cardRef}
+        >
+          {renderPopup(openPoint, () => setOpenPoint(null))}
+        </div>
+      ) : null}
     </section>
   )
 }

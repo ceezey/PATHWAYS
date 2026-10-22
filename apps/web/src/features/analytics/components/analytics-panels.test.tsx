@@ -78,8 +78,8 @@ describe('descriptive statistics table', () => {
     sadddPeriod: { periodStart: null, periodEnd: null },
     sadddReleaseState: 'RELEASED',
     privacy: {
-      threshold: 5,
-      complementarySuppression: true,
+      threshold: 0,
+      complementarySuppression: false,
       source: 'P06_SADDD_RELEASE',
       beneficiaryRows: false,
     },
@@ -346,7 +346,7 @@ describe('survey analytics panel', () => {
   it('replaces the chart with the suppression note for a suppressed cohort', () => {
     const overall = group('OVERALL', { pairs: gap('SUPPRESSED', 'SMALL_CELL') })
     render(<SurveyAnalyticsPanel {...props} data={{ ...data, overall }} showChart />)
-    expect(screen.getByText('Suppressed (fewer than 5)', { selector: 'p.text-sm' })).toBeTruthy()
+    expect(screen.getByText('Suppressed', { selector: 'p.text-sm' })).toBeTruthy()
     expect(screen.queryByText(chartCaption)).toBeNull()
   })
 
@@ -507,7 +507,7 @@ describe('SADDD analysis panel data', () => {
   })
 
   it('captions the counts to date only for an ongoing project', () => {
-    const caption = 'Counts to date; groups of fewer than 5 are hidden.'
+    const caption = 'Counts to date.'
     const { rerender } = render(<SadddAnalysisPanel {...props} />)
     expect(screen.getByText(caption)).toBeTruthy()
     rerender(<SadddAnalysisPanel {...props} sadddOngoing={false} />)

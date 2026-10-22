@@ -309,7 +309,7 @@ describe('analytics descriptive views: survey and timeline', () => {
     expect(tx.auditLog.create).not.toHaveBeenCalled()
   })
 
-  it('happy: survey and timeline export as audited CSV with the suppression marker preserved', async () => {
+  it('happy: survey and timeline export as audited CSV with a single pair released exactly', async () => {
     const rows = [...pairedRows('e1', 40, 60)]
     const { service, tx } = harness(releasedSaddd, '2026-06-30', { assessmentResults: rows })
     const identity = actor('PROJECT_MANAGER')
@@ -321,7 +321,8 @@ describe('analytics descriptive views: survey and timeline', () => {
     })
     const csv = result.bytes.toString('utf8')
     expect(csv).toContain('"SURVEY"')
-    expect(csv).toMatch(/"SUPPRESSED","","",?"SMALL_CELL"/)
+    expect(csv).toContain('- Paired assessments","AVAILABLE","1","",""')
+    expect(csv).not.toContain('SUPPRESSED')
     // One export audit row per export, carrying contract version, view and row count
     // (overall plus one per byActivity group for survey; six metrics for timeline).
     const survey = await service.descriptive(identity, {
@@ -353,11 +354,8 @@ describe('analytics descriptive views: survey and timeline', () => {
     })
   })
 
-  it('abuse: CSV export withholds a whole byActivity breakdown when a group would leak a sub-count by subtraction', async () => {
-    // act-A: 5 improved / 2 declined (7 pairs, visible on its own); act-B: 2 improved / 3
-    // declined (5 pairs, its own group suppressed) -- without cross-group suppression on
-    // improved/declined, act-B's split is recoverable as overall (7 improved / 5 declined)
-    // minus act-A (5 / 2). The CSV must withhold every byActivity row, not just act-B's.
+  it('happy: CSV export releases every byActivity breakdown exactly, small groups included', async () => {
+    // act-A: 5 improved / 2 declined (7 pairs); act-B: 2 improved / 3 declined (5 pairs).
     const rows = [
       ...['a1', 'a2', 'a3', 'a4', 'a5'].flatMap((id) =>
         pairedRows(id, 40, 70, { activityId: 'act-A' }),
@@ -375,10 +373,16 @@ describe('analytics descriptive views: survey and timeline', () => {
       view: 'survey',
     })
     const csv = result.bytes.toString('utf8')
-    const activityLines = csv.split('\r\n').filter((line) => line.startsWith('"SURVEY","act-'))
-    expect(activityLines.length).toBeGreaterThan(0)
-    for (const line of activityLines) {
-      expect(line).toMatch(/"SUPPRESSED","","",?"SMALL_CELL"/)
+    for (const [group, label, value] of [
+      ['act-A', 'Paired assessments', '7'],
+      ['act-A', 'Improved', '5'],
+      ['act-A', 'Declined', '2'],
+      ['act-B', 'Paired assessments', '5'],
+      ['act-B', 'Improved', '2'],
+      ['act-B', 'Declined', '3'],
+    ]) {
+      expect(csv).toContain(`"SURVEY","${group}","${group} - ${label}","AVAILABLE","${value}"`)
     }
+    expect(csv).not.toContain('SUPPRESSED')
   })
 })

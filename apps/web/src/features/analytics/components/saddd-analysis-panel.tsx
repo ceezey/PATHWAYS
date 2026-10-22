@@ -52,9 +52,7 @@ export const SadddAnalysisPanel = ({
       <>
         <StatusMessage>SADDD analysis loaded.</StatusMessage>
         {sadddOngoing ? (
-          <p className="mb-2 text-sm text-muted-foreground">
-            Counts to date; groups of fewer than 5 are hidden.
-          </p>
+          <p className="mb-2 text-sm text-muted-foreground">Counts to date.</p>
         ) : null}
         <div data-testid="saddd-chart">
           <SadddChart dashboard={saddd} />

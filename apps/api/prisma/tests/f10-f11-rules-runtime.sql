@@ -394,8 +394,8 @@ SELECT pg_temp.ok(pg_temp.last_eval('p3b')->>'result'='TRUE' AND pg_temp.last_ev
  AND EXISTS(SELECT FROM pathways.rule_based_alerts a JOIN pathways.alert_rules r ON r.id=a.rule_id WHERE a.project_id=pg_temp.u(303) AND r.display_code='F10-P3B'),'utilization 85 raises the alert');
 SELECT pg_temp.ok(pg_temp.last_eval('p4')->>'result'='UNAVAILABLE' AND pg_temp.last_eval('p4')->'cell'->>'reason'='ZERO_DENOMINATOR'
  AND NOT EXISTS(SELECT FROM pathways.rule_based_alerts WHERE project_id=pg_temp.u(304)),'planned zero is ZERO_DENOMINATOR with no alert');
-SELECT pg_temp.ok(pg_temp.last_eval('p5')->>'result'='UNAVAILABLE' AND pg_temp.last_eval('p5')->'cell'->>'state'='SUPPRESSED'
- AND NOT EXISTS(SELECT FROM pathways.rule_based_alerts WHERE project_id=pg_temp.u(305)),'three enrollments are suppressed with no alert');
+SELECT pg_temp.ok(pg_temp.last_eval('p5')->>'result'='TRUE' AND pg_temp.last_eval('p5')->'cell'->>'value'='100'
+ AND EXISTS(SELECT FROM pathways.rule_based_alerts WHERE project_id=pg_temp.u(305)),'three enrollments are released exactly and raise the alert (0076)');
 SELECT pg_temp.ok(pg_temp.last_eval('p6')->>'result'='TRUE' AND pg_temp.last_eval('p6')->'cell'->>'value'='50' AND pg_temp.last_eval('p6')->>'unit'='PERCENT'
  AND EXISTS(SELECT FROM pathways.rule_based_alerts WHERE project_id=pg_temp.u(306)),'ten enrollments with five follow-ups give 50 percent');
 SELECT pg_temp.ok(pg_temp.last_eval('p7')->>'result'='TRUE' AND pg_temp.last_eval('p7')->'cell'->>'value'='13.3333' AND pg_temp.last_eval('p7')->>'unit'='POINTS'
@@ -404,12 +404,12 @@ SELECT pg_temp.ok(pg_temp.last_eval('p8')->>'result'='UNAVAILABLE' AND pg_temp.l
  AND NOT EXISTS(SELECT FROM pathways.rule_based_alerts WHERE project_id=pg_temp.u(308)),'mixed currency is UNSUPPORTED_SOURCE');
 SELECT pg_temp.ok(pg_temp.last_eval('p9')->>'result'='UNAVAILABLE' AND pg_temp.last_eval('p9')->'cell'->>'reason'='NOT_APPLICABLE','on-hold project is NOT_APPLICABLE');
 
-SELECT pg_temp.ok(pg_temp.last_eval('p11')->>'result'='UNAVAILABLE' AND pg_temp.last_eval('p11')->'cell'->>'state'='SUPPRESSED'
- AND NOT EXISTS(SELECT FROM pathways.rule_based_alerts WHERE project_id=pg_temp.u(311)),'four follow-ups of ten are suppressed');
-SELECT pg_temp.ok(pg_temp.last_eval('p12')->>'result'='UNAVAILABLE' AND pg_temp.last_eval('p12')->'cell'->>'state'='SUPPRESSED'
- AND NOT EXISTS(SELECT FROM pathways.rule_based_alerts WHERE project_id=pg_temp.u(312)),'complement of four is suppressed');
-SELECT pg_temp.ok(pg_temp.last_eval('p13')->>'result'='UNAVAILABLE' AND pg_temp.last_eval('p13')->'cell'->>'state'='SUPPRESSED'
- AND NOT EXISTS(SELECT FROM pathways.rule_based_alerts WHERE project_id=pg_temp.u(313)),'four survey pairs are suppressed');
+SELECT pg_temp.ok(pg_temp.last_eval('p11')->>'result'='TRUE' AND pg_temp.last_eval('p11')->'cell'->>'value'='40'
+ AND EXISTS(SELECT FROM pathways.rule_based_alerts WHERE project_id=pg_temp.u(311)),'four follow-ups of ten give exactly 40 percent (0076)');
+SELECT pg_temp.ok(pg_temp.last_eval('p12')->>'result'='TRUE' AND pg_temp.last_eval('p12')->'cell'->>'value'='60'
+ AND EXISTS(SELECT FROM pathways.rule_based_alerts WHERE project_id=pg_temp.u(312)),'a complement of four is released exactly (0076)');
+SELECT pg_temp.ok(pg_temp.last_eval('p13')->>'result'='TRUE' AND pg_temp.last_eval('p13')->'cell'->>'value'='10'
+ AND EXISTS(SELECT FROM pathways.rule_based_alerts WHERE project_id=pg_temp.u(313)),'four survey pairs give the exact mean improvement (0076)');
 
 -- Audience: M&E sees the timeline alert on P3 but not the budget alert; the PM sees both.
 INSERT INTO t_out SELECT 'p3_alerts',jsonb_build_object(
@@ -788,7 +788,7 @@ SELECT pg_temp.ok((SELECT e.result='TRUE' AND (SELECT jsonb_object_agg(c->>'cond
   ='{"pre":"50","post":"75","gain":"21.4286"}'::jsonb
  FROM pathways_rules_internal.evaluations e JOIN pathways.alert_rules r ON r.id=e.rule_version_id
  WHERE r.display_code='F10-P33MIX' ORDER BY e.evaluation_sequence DESC LIMIT 1),'(pre AND post) OR gain matches through the AND branch');
-SELECT pg_temp.ok(pg_temp.last_eval('p34')->'cell'->>'state'='SUPPRESSED' AND (pg_temp.alert_of(334)).id IS NULL,'four post-tests are suppressed');
+SELECT pg_temp.ok(pg_temp.last_eval('p34')->'cell'->>'value'='50' AND (pg_temp.alert_of(334)).id IS NOT NULL,'four post-tests give the exact mean and raise the alert (0076)');
 INSERT INTO t_out SELECT 'kpi_alerts',jsonb_build_object('p30',(pg_temp.alert_of(330)).id,
  'p33',(SELECT a.id FROM pathways.rule_based_alerts a JOIN pathways.alert_rules r ON r.id=a.rule_id WHERE r.display_code='F10-P33PRE'));
 -- Test score alerts need assessments.detail.read: the Grant Manager assigned to P33 is refused.

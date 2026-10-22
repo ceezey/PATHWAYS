@@ -4,6 +4,10 @@ import { projectOverviewMetricsSchema } from './overview-metrics'
 
 export const PROJECT_MAP_CONTRACT_VERSION = 'analytics.project-map.v1' as const
 
+const sexBucketSchema = z
+  .object({ key: z.string().max(80), label: z.string().max(160), metric: metricCellSchema })
+  .strict()
+
 /** One named place a project's implementation area resolves to, at a bundled centroid. */
 export const projectMapPlaceSchema = z
   .object({
@@ -11,11 +15,12 @@ export const projectMapPlaceSchema = z
     province: z.string().max(120),
     longitude: z.number().min(114).max(128),
     latitude: z.number().min(4).max(22),
+    // SADDD individuals whose recorded city or municipality is this place; null without the SADDD grant.
+    reach: z
+      .object({ total: metricCellSchema, sex: z.array(sexBucketSchema).max(5) })
+      .strict()
+      .nullable(),
   })
-  .strict()
-
-const sexBucketSchema = z
-  .object({ key: z.string().max(80), label: z.string().max(160), metric: metricCellSchema })
   .strict()
 
 /** Project-level map point: centroids only, never Beneficiary coordinates. */
@@ -28,7 +33,7 @@ export const projectMapProjectSchema = z
     implementationArea: z.string().max(500),
     places: z.array(projectMapPlaceSchema).min(1).max(20),
     overview: projectOverviewMetricsSchema.nullable(),
-    // Suppressed SADDD sex buckets, present only once the closed-project release exists.
+    // Whole-project SADDD sex buckets, present only once the closed-project release exists.
     sadddSex: z.array(sexBucketSchema).max(5).nullable(),
   })
   .strict()

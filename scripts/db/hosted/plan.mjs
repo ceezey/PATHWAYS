@@ -4,7 +4,7 @@
 
 export const BASELINE = '0000_pathways_baseline_through_0026'
 
-// The exact 50-row migration ledger (baseline plus 0027-0057 and 0058-0075) this script must produce, in order. This is
+// The exact 52-row migration ledger (baseline plus 0027-0057 and 0058-0077) this script must produce, in order. This is
 // the repository's own migration directory listing (apps/api/prisma/migrations),
 // asserted against the real directory in hosted/plan.test.mjs so this literal
 // list can never silently drift from the repo.
@@ -59,6 +59,8 @@ export const MIGRATIONS_IN_ORDER = Object.freeze([
   '0073_rules_kpi_assessment_metrics',
   '0074_indicator_measurement_lookup',
   '0075_indicator_summary_measurement_lookup',
+  '0076_saddd_exact_counts',
+  '0077_saddd_by_place',
 ])
 
 function range(from, to) {
@@ -217,6 +219,13 @@ export function buildPlan() {
     },
     { type: 'deploy', migrations: range(75, 75) },
     { type: 'cleanup', name: 'indicator-summary', file: 'hosted-indicator-summary-cleanup.sql' },
+    // 0076 replaces functions owned by report_projection_owner and rules_projection_owner (in the rules_store_owner
+    // schema), so it needs a temporary SET-only membership to those three roles.
+    { type: 'preprovision', name: 'saddd-exact', file: 'hosted-saddd-exact-preprovision.sql' },
+    { type: 'deploy', migrations: range(76, 76) },
+    { type: 'cleanup', name: 'saddd-exact', file: 'hosted-saddd-exact-cleanup.sql' },
+    // 0077 needs no preprovision: prisma owns the new p06_saddd_by_place.
+    { type: 'deploy', migrations: range(77, 77) },
     { type: 'alter-runtime-role' },
     { type: 'postconditions' },
   ]
@@ -257,7 +266,7 @@ export function assertResumablePrefix(ledgerRows) {
   }
   if (appliedCount !== names.length) {
     throw new Error(
-      'Ledger is not an exact finished prefix of the expected 0000-0075 migrations; --resume refuses it',
+      'Ledger is not an exact finished prefix of the expected 0000-0077 migrations; --resume refuses it',
     )
   }
   return appliedCount
@@ -266,7 +275,7 @@ export function assertResumablePrefix(ledgerRows) {
 // Maps a count of already-applied migrations (from assertResumablePrefix) to
 // the plan step index to resume at. Cleanup steps are not tracked by the
 // Prisma ledger, so when resuming right after a migration that has a
-// following cleanup step (0031, 0034, 0041, 0044, 0053, 0060, 0062, 0063, 0072, 0073, 0075), that cleanup step is re-run;
+// following cleanup step (0031, 0034, 0041, 0044, 0053, 0060, 0062, 0063, 0072, 0073, 0075, 0076), that cleanup step is re-run;
 // each cleanup script's own preconditions reject a target that was already
 // cleaned, surfacing a clear error rather than silently skipping it.
 //
@@ -298,6 +307,10 @@ export function assertResumablePrefix(ledgerRows) {
 //    when the residual chain is the 0073 one.
 //  * 0074_indicator_measurement_lookup and 0075_indicator_summary_measurement_lookup follow the same two shapes for the
 //    indicator-summary membership (temporary report_projection_owner SET chain) granted before and revoked after 0075.
+//  * 0075_indicator_summary_measurement_lookup and 0076_saddd_exact_counts follow the same two shapes for the
+//    saddd-exact membership (temporary report, rules store and rules projection owner SET chain) granted before and
+//    revoked after 0076. A 0075 ledger with a residual chain resumes at the indicator-summary cleanup, whose own
+//    precondition rejects it when the residual chain is the 0076 one.
 // The caller therefore checks live database state (whether prisma still holds a temporary
 // rules owner membership) and passes it in as `residualOwnerMemberships`.
 // 0042_proof_session_beneficiary_count has no preprovision/cleanup pair (see buildPlan), so a
@@ -321,6 +334,7 @@ const PRIOR_BUILD_COMPLETION_POINTS = [
   '0073_rules_kpi_assessment_metrics',
   '0074_indicator_measurement_lookup',
   '0075_indicator_summary_measurement_lookup',
+  '0076_saddd_exact_counts',
 ]
 
 // The migrations whose completion is ambiguous with a residual temporary owner chain, and the
@@ -336,6 +350,7 @@ const RESIDUAL_CHAIN_CLEANUPS = Object.freeze({
   '0072_severity_classification': 'rules-severity',
   '0073_rules_kpi_assessment_metrics': 'rules-metrics',
   '0075_indicator_summary_measurement_lookup': 'indicator-summary',
+  '0076_saddd_exact_counts': 'saddd-exact',
 })
 // Ledger counts at which the caller must read live owner-membership state.
 export const RESIDUAL_CHAIN_MIGRATIONS = Object.freeze([
@@ -356,6 +371,7 @@ export const RESIDUAL_CHAIN_MIGRATIONS = Object.freeze([
   '0073_rules_kpi_assessment_metrics',
   '0074_indicator_measurement_lookup',
   '0075_indicator_summary_measurement_lookup',
+  '0076_saddd_exact_counts',
 ])
 
 export function planIndexForAppliedCount(appliedCount, { residualOwnerMemberships = false } = {}) {

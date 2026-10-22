@@ -27,7 +27,6 @@ const rbac = vi.hoisted(() => ({ allowed: [] as string[] }))
 const panels = vi.hoisted(() => ({
   detail: null as Record<string, unknown> | null,
   proof: null as Record<string, unknown> | null,
-  pinned: null as unknown,
 }))
 export { access, api, flags, panels, rbac, router }
 
@@ -66,10 +65,7 @@ vi.mock('@/features/dashboard/components/executive-dashboard', () => ({
   ),
 }))
 vi.mock('@/features/dashboard/components/pinned-charts', () => ({
-  PinnedCharts: ({ projects }: { projects: Array<{ id: string }> }) => {
-    panels.pinned = projects
-    return <div data-testid="pinned-charts">{projects.map((row) => row.id).join(',')}</div>
-  },
+  PinnedCharts: () => <div data-testid="pinned-charts" />,
 }))
 vi.mock('@/features/dashboard/role-overview/role-overview', () => ({
   RoleOverviewDashboard: ({ fullName, role }: { fullName?: string | null; role: string }) => (
@@ -212,7 +208,6 @@ export const resetRoleDashboardMocks = () => {
   rbac.allowed = []
   panels.detail = null
   panels.proof = null
-  panels.pinned = null
   api.getDashboard.mockResolvedValue(dashboard())
   api.getProjectsForRole.mockResolvedValue([])
   api.getMonitoringDashboard.mockResolvedValue({ metrics: [] })

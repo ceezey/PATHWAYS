@@ -35,5 +35,5 @@ export const sampleReport: PrintReport = {
     ['Age group', '25 to 34', '84', 'AVAILABLE', ''],
   ],
   generatedAt: '2026-10-05T03:00:00.000Z',
-  unavailableReasons: ['Groups below the small-group threshold are suppressed.'],
+  unavailableReasons: ['Some figures were not available for this period.'],
 }

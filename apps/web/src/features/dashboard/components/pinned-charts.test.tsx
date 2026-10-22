@@ -11,6 +11,7 @@ const access = vi.hoisted(() => ({
   profile: { userId: 'u1', permissions: [] as string[] },
 }))
 const insight = vi.hoisted(() => ({ result: {} as Record<string, unknown> }))
+const scope = vi.hoisted(() => ({ projects: [] as Array<{ id: string; title: string }> }))
 
 vi.mock('@/hooks/use-current-role', () => ({ useCurrentRole: () => access }))
 vi.mock('@/lib/rbac/policy', () => ({
@@ -20,7 +21,11 @@ vi.mock('@/lib/rbac/policy', () => ({
 vi.mock('@/lib/services/pathways-client', () => ({ pathwaysClient: {} }))
 vi.mock('@/lib/api/dashboards', () => ({ dashboardsClient: {} }))
 vi.mock('@/lib/api/analytics', () => ({ analyticsClient: {} }))
-vi.mock('@/hooks/use-authorized-read', () => ({ useAuthorizedRead: () => insight.result }))
+vi.mock('@/lib/api/projects', () => ({ projectsClient: {} }))
+vi.mock('@/hooks/use-authorized-read', () => ({
+  useAuthorizedRead: (key: string) =>
+    key === 'dashboard-pin-projects' ? { data: scope.projects } : insight.result,
+}))
 vi.mock('@/features/analytics/hooks/use-analytics-insights', () => ({
   canReadInsight: (profile: { permissions: string[] }, kind: string) =>
     profile.permissions.includes(kind),
@@ -32,6 +37,9 @@ vi.mock('@/features/analytics/components/analytics-charts', () => ({
   ),
 }))
 vi.mock('echarts-for-react', () => ({ default: () => <div>chart</div> }))
+vi.mock('@/features/analytics/components/project-coverage-map-panel', () => ({
+  ProjectCoverageMapPanel: () => <div>coverage map</div>,
+}))
 
 const projectId = '11111111-1111-4111-8111-111111111111'
 const period = { periodStart: '2026-01-01', periodEnd: '2026-03-31' }
@@ -45,6 +53,7 @@ const ready = (data: unknown) => ({
 
 beforeEach(() => {
   access.profile.permissions = []
+  scope.projects = projects
   insight.result = { data: undefined, isError: false, isPending: true, refetch: vi.fn() }
 })
 afterEach(() => {
@@ -54,19 +63,19 @@ afterEach(() => {
 
 describe('pinned charts', () => {
   it('shows an empty state with no pins', () => {
-    render(<PinnedCharts projects={projects} />)
+    render(<PinnedCharts />)
     expect(screen.getByText('No pinned charts')).toBeTruthy()
   })
 
   it('shows a restricted card when the role lacks the permission', () => {
     addPin('u1', { view: 'participation', projectId })
-    render(<PinnedCharts projects={projects} />)
+    render(<PinnedCharts />)
     expect(screen.getByText('Participation patterns is restricted for your role.')).toBeTruthy()
   })
 
   it('shows a restricted card for a KPI pin without monitoring.read', () => {
     addPin('u1', { view: 'kpi', projectId, ...period })
-    render(<PinnedCharts projects={projects} />)
+    render(<PinnedCharts />)
     expect(
       screen.getByText('KPI / indicator performance is restricted for your role.'),
     ).toBeTruthy()
@@ -82,7 +91,7 @@ describe('pinned charts', () => {
       refetch: vi.fn(),
     }
     addPin('u1', { view: 'participation', projectId })
-    render(<PinnedCharts projects={projects} />)
+    render(<PinnedCharts />)
     expect(screen.getByText('Restricted')).toBeTruthy()
   })
 
@@ -90,7 +99,8 @@ describe('pinned charts', () => {
     access.profile.permissions = ['participation']
     insight.result = { data: undefined, eligible: false, isError: false, isPending: true }
     addPin('u1', { view: 'participation', projectId })
-    render(<PinnedCharts projects={[]} />)
+    scope.projects = []
+    render(<PinnedCharts />)
     expect(screen.getByText('Participation patterns is restricted for your role.')).toBeTruthy()
     expect(screen.queryByText(/Loading/)).toBeNull()
     expect(screen.getByText('Project unavailable')).toBeTruthy()
@@ -105,7 +115,7 @@ describe('pinned charts', () => {
       ],
     })
     addPin('u1', { view: 'kpi', projectId, ...period })
-    render(<PinnedCharts projects={projects} />)
+    render(<PinnedCharts />)
     expect(screen.getByText('progress:Reach')).toBeTruthy()
     expect(screen.getByText(/Alpha/)).toBeTruthy()
     fireEvent.click(
@@ -113,5 +123,20 @@ describe('pinned charts', () => {
     )
     expect(readPins('u1')).toEqual([])
     expect(screen.getByText('No pinned charts')).toBeTruthy()
+  })
+
+  it('renders a scope-wide map pin for a role with projects.read', () => {
+    access.profile.permissions = ['projects.read']
+    addPin('u1', { view: 'map', projectId: '' })
+    render(<PinnedCharts />)
+    expect(screen.getByText('coverage map')).toBeTruthy()
+    expect(screen.getByText('All projects in your scope')).toBeTruthy()
+  })
+
+  it('shows a restricted card for a map pin without projects.read', () => {
+    addPin('u1', { view: 'map', projectId: '' })
+    render(<PinnedCharts />)
+    expect(screen.getByText('Project coverage map is restricted for your role.')).toBeTruthy()
+    expect(screen.queryByText('coverage map')).toBeNull()
   })
 })

@@ -372,8 +372,8 @@ export const surveyDefaults = () => {
     sadddPeriod: { periodStart: null, periodEnd: null },
     sadddReleaseState: 'UNAVAILABLE',
     privacy: {
-      threshold: 5,
-      complementarySuppression: true,
+      threshold: 0,
+      complementarySuppression: false,
       source: 'P06_SADDD_RELEASE',
       beneficiaryRows: false,
     },
