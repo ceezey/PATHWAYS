@@ -3,12 +3,13 @@ import {
   PHASE_PRODUCTION_BUILD,
   PHASE_PRODUCTION_SERVER,
 } from 'next/constants'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import createNextConfig, {
   getWebBuildDirectory,
   passwordRecoveryResponseHeaders,
   privateAuthSurfacePaths,
+  publicSiteHostname,
   sensitiveIncomingRequestPaths,
 } from '../next.config'
 
@@ -47,6 +48,25 @@ describe('Next build-directory isolation', () => {
       destination: '/collection',
       permanent: true,
     })
+  })
+  it('keeps staff redirects and headers off the public address when the split is on', async () => {
+    expect(publicSiteHostname({})).toBe('')
+    expect(publicSiteHostname({ NEXT_PUBLIC_PUBLIC_SITE_BASE_URL: 'https://a.org' })).toBe('')
+    vi.stubEnv('NEXT_PUBLIC_PUBLIC_SITE_BASE_URL', 'https://pathways.example.org')
+    vi.stubEnv('NEXT_PUBLIC_STAFF_PORTAL_BASE_URL', 'https://staff.example.org')
+    try {
+      const config = createNextConfig(PHASE_PRODUCTION_BUILD)
+      const missing = [{ type: 'host', value: 'pathways\\.example\\.org' }]
+      expect(await config.redirects?.()).toContainEqual({
+        source: '/login',
+        destination: '/staff/login',
+        permanent: false,
+        missing,
+      })
+      for (const rule of (await config.headers?.()) ?? []) expect(rule.missing).toEqual(missing)
+    } finally {
+      vi.unstubAllEnvs()
+    }
   })
   it('keeps development artifacts separate from build and start artifacts', () => {
     expect(getWebBuildDirectory(PHASE_DEVELOPMENT_SERVER)).toBe('.next-dev')

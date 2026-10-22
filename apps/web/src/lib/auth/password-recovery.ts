@@ -1,9 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { z } from 'zod'
 
-import { webEnv } from '@/lib/env'
-
-const configuredPortalOrigin = webEnv.NEXT_PUBLIC_STAFF_PORTAL_BASE_URL
+// Read here, not through webEnv, so the staff address stays out of the shared bundle public pages load.
+const configuredPortalOrigin = process.env.NEXT_PUBLIC_STAFF_PORTAL_BASE_URL ?? ''
 const portalUrl = new URL(configuredPortalOrigin || 'http://127.0.0.1:3000')
 if (
   (portalUrl.protocol !== 'https:' && portalUrl.origin !== 'http://127.0.0.1:3000') ||
