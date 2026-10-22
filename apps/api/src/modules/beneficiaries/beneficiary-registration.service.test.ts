@@ -483,6 +483,41 @@ describe('P04 beneficiary registration service', () => {
     })
   })
 
+  describe('minors without guardian consent', () => {
+    const minor = (patch: Record<string, unknown> = {}) =>
+      values({
+        birth_date: '2014-01-01',
+        age_at_registration: 12,
+        is_minor: true,
+        guardian_consent_recorded: false,
+        ...patch,
+      })
+
+    it.each([false, null])(
+      'holds an imported minor with guardian consent %s for review without writes',
+      async (guardian) => {
+        await expect(
+          promote(minor({ guardian_consent_recorded: guardian }), 'IMPORTED_DATASET'),
+        ).resolves.toEqual({ kind: 'REVIEW', code: 'GUARDIAN_CONSENT_REQUIRED' })
+        expect(tx.beneficiary.createMany).not.toHaveBeenCalled()
+        expect(tx.formSubmission.create).not.toHaveBeenCalled()
+      },
+    )
+
+    it('promotes an imported minor once guardian consent is recorded', async () => {
+      await expect(
+        promote(minor({ guardian_consent_recorded: true }), 'IMPORTED_DATASET'),
+      ).resolves.toMatchObject({ kind: 'PROCESSED' })
+    })
+
+    it('keeps the direct entry rejection for a minor without guardian consent', async () => {
+      await expect(promote(minor())).rejects.toMatchObject({
+        status: 400,
+        message: 'Guardian consent is required only for an explicitly identified minor.',
+      })
+    })
+  })
+
   it('returns an ambiguous-identity review to the reviewer without disclosing a record', async () => {
     tx.beneficiary.findUnique.mockResolvedValue({ id: beneficiaryId })
     tx.beneficiaryIdentifier.findUnique.mockResolvedValue({

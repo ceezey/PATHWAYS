@@ -1,9 +1,14 @@
-import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common'
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { PrismaService } from '@app/prisma/prisma.service'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
-import type { BeneficiaryRegistrationService } from '../beneficiaries/beneficiary-registration.service'
+import { BeneficiaryRegistrationService } from '../beneficiaries/beneficiary-registration.service'
 import type { StorageService } from '../storage/storage.service'
 import { ImportsService } from './imports.service'
 
@@ -25,6 +30,7 @@ interface FakeRow {
   processingErrorCode: string | null
   normalizedData: Json | null
   validationErrors: unknown[]
+  validationWarnings: unknown[]
 }
 
 interface FakeMapping {
@@ -46,6 +52,7 @@ interface Store {
   mappings: FakeMapping[]
   fields: Json[]
   submissions: Array<{ id: string; importRowId: string }>
+  existingCodes: Set<string>
 }
 
 vi.mock('../../common/authz/authorized-operation', () => ({
@@ -65,6 +72,7 @@ const projectId = '30000000-0000-4000-8000-000000000003'
 const otherProjectId = '30000000-0000-4000-8000-0000000000ff'
 const formId = '40000000-0000-4000-8000-000000000004'
 const batchId = '50000000-0000-4000-8000-000000000005'
+const publisherId = '20000000-0000-4000-8000-0000000000aa'
 const now = new Date('2026-10-03T00:00:00.000Z')
 
 const baseActor: ApplicationIdentity = {
@@ -92,6 +100,11 @@ const field = (code: string, patch: Json = {}) => ({
   minimumLength: null,
   maximumLength: null,
   isMetadataKey: false,
+  isSadddField: false,
+  sourceNames: [],
+  valueAliases: null,
+  importDefault: null,
+  rule: null,
   ...patch,
 })
 
@@ -154,7 +167,14 @@ function createStore(
       validatedAt: null,
       processedAt: null,
       updatedAt: now,
-      form: { code: 'scores', name: 'Scores', formType: 'OTHER', status: 'PUBLISHED' },
+      createdAt: now,
+      form: {
+        code: 'scores',
+        name: 'Scores',
+        formType: 'OTHER',
+        status: 'PUBLISHED',
+        publishedById: publisherId,
+      },
       ...batchPatch,
     },
     rows: rawRows.map((rawData, index) => ({
@@ -173,10 +193,12 @@ function createStore(
       processingErrorCode: null,
       normalizedData: null,
       validationErrors: [],
+      validationWarnings: [],
     })),
     mappings,
     fields,
     submissions: [],
+    existingCodes: new Set(),
   }
 }
 
@@ -207,12 +229,18 @@ const rowById = (id: string) => state.store.rows.find((row) => row.id === id)
 
 const fakeTx = {
   // The lock query binds the project id, so a foreign project finds no batch.
-  $queryRaw: vi.fn(async (sql: { values: unknown[] }) =>
-    sql.values.includes(state.store.batch.projectId) &&
-    sql.values.includes(state.store.batch.organizationId)
+  // A tagged-template call is the registration service reading its lock or the transaction clock.
+  $queryRaw: vi.fn(async (sql: { values: unknown[]; sql?: string }) => {
+    if (Array.isArray(sql)) return [{ locked: true, transactionTime: new Date(now) }]
+    if (sql.sql?.includes('validation_warnings')) {
+      const warned = state.store.rows.filter((row) => row.validationWarnings.length > 0).length
+      return warned > 0 ? [{ batchId: state.store.batch.id, warnings: warned }] : []
+    }
+    return sql.values.includes(state.store.batch.projectId) &&
+      sql.values.includes(state.store.batch.organizationId)
       ? [{ id: state.store.batch.id }]
-      : [],
-  ),
+      : []
+  }),
   // Applies the validation write: its bound values carry both revisions and the row-update JSON.
   $executeRaw: vi.fn(async (sql: { values: unknown[] }) => {
     const [mappingRevision, validationRevision] = sql.values.filter(
@@ -220,7 +248,13 @@ const fakeTx = {
     )
     const updates = JSON.parse(
       sql.values.find((value) => typeof value === 'string' && value.startsWith('[')) as string,
-    ) as Array<{ id: string; status: string; normalized_data: Json | null; validation_errors: [] }>
+    ) as Array<{
+      id: string
+      status: string
+      normalized_data: Json | null
+      validation_errors: []
+      validation_warnings: []
+    }>
     for (const update of updates) {
       const row = rowById(update.id)
       if (!row) continue
@@ -228,6 +262,7 @@ const fakeTx = {
         status: update.status,
         normalizedData: update.normalized_data,
         validationErrors: update.validation_errors,
+        validationWarnings: update.validation_warnings,
         mappingRevision,
         validationRevision,
       })
@@ -243,7 +278,14 @@ const fakeTx = {
         : null
     }),
   },
-  digitalForm: { findFirst: vi.fn() },
+  digitalForm: {
+    findFirst: vi.fn(async () => ({
+      id: formId,
+      version: 1,
+      status: 'PUBLISHED',
+      formField_form: state.store.fields,
+    })),
+  },
   dataImportBatch: {
     findFirst: vi.fn(async (args: { where: Json }) =>
       args.where.projectId === state.store.batch.projectId
@@ -298,13 +340,10 @@ const fakeTx = {
     createMany: vi.fn(),
   },
   formField: {
-    findMany: vi.fn(async (args: { where: { isRequired?: boolean } }) =>
-      args.where.isRequired
-        ? state.store.fields.filter((item) => item.isRequired).map(({ code }) => ({ code }))
-        : state.store.fields,
-    ),
+    findMany: vi.fn(async () => state.store.fields),
   },
   formSubmission: {
+    findFirst: vi.fn(async () => null),
     findUnique: vi.fn(async (args: { where: { importRowId: string } }) => {
       const found = state.store.submissions.find(
         (item) => item.importRowId === args.where.importRowId,
@@ -319,15 +358,33 @@ const fakeTx = {
     update: vi.fn(async () => ({})),
   },
   formResponseValue: { createMany: vi.fn(async () => ({ count: 1 })) },
+  beneficiary: {
+    findUnique: vi.fn(async (args: { where: { organizationId_code: { code: string } } }) =>
+      state.store.existingCodes.has(args.where.organizationId_code.code)
+        ? { id: `existing-${args.where.organizationId_code.code}` }
+        : null,
+    ),
+    findFirst: vi.fn(async (args: { where: { id: string } }) => ({
+      code: args.where.id.replace('existing-', ''),
+      subjectType: 'INDIVIDUAL',
+    })),
+    createMany: vi.fn(async () => ({ count: 1 })),
+  },
+  beneficiaryIdentifier: { findUnique: vi.fn(async () => null), create: vi.fn() },
+  beneficiaryProjectEnrollment: {
+    findUnique: vi.fn(async () => null),
+    create: vi.fn(async () => ({ id: 'enrollment' })),
+  },
+  beneficiaryConsentRecord: { createMany: vi.fn(async () => ({ count: 2 })) },
   beneficiaryActivityParticipation: { findUnique: vi.fn() },
   auditLog: { create: vi.fn(async () => ({ id: 'audit' })) },
 }
 
-function service() {
+function service(registration: unknown = {}) {
   return new ImportsService(
     {} as PrismaService,
     { isConfigured: () => true } as unknown as StorageService,
-    {} as unknown as BeneficiaryRegistrationService,
+    registration as BeneficiaryRegistrationService,
     { promoteParticipation: vi.fn() } as never,
   )
 }
@@ -345,6 +402,7 @@ const rowWrites = () => {
     status: string
     normalized_data: Json | null
     validation_errors: Array<{ fieldCode: string; code: string; message: string }>
+    validation_warnings: Array<{ fieldCode: string; code: string }>
   }>
 }
 
@@ -395,12 +453,14 @@ describe('PRD-F6 gates', () => {
         status: 'VALID',
         normalized_data: { score: '2.5', sex: 'Male' },
         validation_errors: [],
+        validation_warnings: [],
       },
       {
         id: state.store.rows[1].id,
         status: 'VALID',
         normalized_data: { score: '4', sex: 'Female' },
         validation_errors: [],
+        validation_warnings: [],
       },
     ])
     expect(validated).toMatchObject({
@@ -522,10 +582,320 @@ describe('PRD-F6 gates', () => {
       validation_errors: [
         { fieldCode: 'enrolled', code: 'AMBIGUOUS_BOOLEAN', message: 'Expected true or false.' },
       ],
+      validation_warnings: [],
     })
     // The stored reason never echoes the rejected source value.
     expect(JSON.stringify(third.validation_errors)).not.toContain('maybe')
     expect(state.store.rows[2]).toMatchObject({ status: 'INVALID', normalizedData: null })
     expect(validated).toMatchObject({ totals: { rows: 3, valid: 2, invalid: 1 } })
+  })
+})
+
+describe('metadata-driven intake validation', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    state.actor = structuredClone(baseActor)
+  })
+
+  const rule = (value: Json) => ({ rule: value })
+
+  // A reduced registration form: defaults, calculations and a consent copy rule.
+  const registrationFields = (copyConsent = true) => [
+    field('registration_operation', {
+      dataType: 'SELECT',
+      isRequired: true,
+      allowedValues: ['CREATE', 'LINK', 'UPDATE'],
+      importDefault: 'CREATE',
+    }),
+    field('beneficiary_code', { isRequired: true }),
+    field('subject_type', {
+      dataType: 'SELECT',
+      isRequired: true,
+      allowedValues: ['INDIVIDUAL', 'GROUP', 'COMMUNITY'],
+      importDefault: 'INDIVIDUAL',
+    }),
+    field('display_name'),
+    field('first_name'),
+    field('middle_name'),
+    field('last_name'),
+    field('sex', {
+      dataType: 'SELECT',
+      allowedValues: ['MALE', 'FEMALE', 'OTHER', 'PREFER_NOT_TO_SAY', 'NOT_SPECIFIED'],
+      importDefault: 'NOT_SPECIFIED',
+    }),
+    field('birth_date', { dataType: 'DATE' }),
+    field('age_at_registration', {
+      dataType: 'INTEGER',
+      ...rule({ kind: 'AGE_AT_DATE', birthField: 'birth_date', atField: 'enrollment_date' }),
+    }),
+    field('disability_status', {
+      dataType: 'SELECT',
+      allowedValues: ['WITH_DISABILITY', 'WITHOUT_DISABILITY', 'NOT_SPECIFIED'],
+      importDefault: 'NOT_SPECIFIED',
+    }),
+    field('location_barangay'),
+    field('location_city_municipality'),
+    field('location_province'),
+    field('consent_recorded', { dataType: 'BOOLEAN', isRequired: true }),
+    field('data_processing_consent_recorded', {
+      dataType: 'BOOLEAN',
+      isRequired: true,
+      ...(copyConsent ? rule({ kind: 'SAME_ANSWER_AS', field: 'consent_recorded' }) : {}),
+    }),
+    field('is_minor', {
+      dataType: 'BOOLEAN',
+      ...rule({ kind: 'MINOR_AT_DATE', birthField: 'birth_date', atField: 'enrollment_date' }),
+    }),
+    field('guardian_consent_recorded', { dataType: 'BOOLEAN' }),
+    field('enrollment_date', { dataType: 'DATE', isRequired: true }),
+    field('external_identifier_type'),
+    field('external_identifier_value'),
+    field('profile_update_fields', {
+      dataType: 'MULTIPLE_SELECT',
+      allowedValues: [
+        'display_name',
+        'first_name',
+        'middle_name',
+        'last_name',
+        'sex',
+        'birth_date',
+        'age_at_registration',
+        'disability_status',
+        'location_barangay',
+        'location_city_municipality',
+        'location_province',
+      ],
+    }),
+  ]
+
+  const byCode = (fields: Json[], code: string) => fields.find((item) => item.code === code) as Json
+
+  const mappedColumns = (fields: Json[], codes: string[]) =>
+    codes.map((code, index) => mapped(`column_000${index + 1}`, byCode(fields, code)))
+
+  // Ten participants; rows 3 and 7 are minors at enrollment, with a blank and a "false" guardian answer.
+  const participants = Array.from({ length: 10 }, (_, index) => {
+    const minor = index === 2 || index === 6
+    return {
+      column_0001: `BEN-${String(index + 1).padStart(3, '0')}`,
+      column_0002: `First${index + 1}`,
+      column_0003: `Last${index + 1}`,
+      column_0004: minor ? '2014-01-01' : '1990-01-01',
+      column_0005: '2026-01-01',
+      column_0006: 'true',
+      column_0007: index === 6 ? 'false' : '',
+    }
+  })
+
+  const registrationStore = (copyConsent = true) => {
+    const fields = registrationFields(copyConsent)
+    return createStore(
+      fields,
+      mappedColumns(fields, [
+        'beneficiary_code',
+        'first_name',
+        'last_name',
+        'birth_date',
+        'enrollment_date',
+        'consent_recorded',
+        'guardian_consent_recorded',
+      ]),
+      participants,
+      {
+        form: {
+          code: 'registration',
+          name: 'Registration',
+          formType: 'BENEFICIARY_REGISTRATION',
+          status: 'PUBLISHED',
+          publishedById: publisherId,
+        },
+      },
+    )
+  }
+
+  const registrar = () => {
+    state.actor = {
+      ...state.actor,
+      permissions: [
+        ...state.actor.permissions,
+        'beneficiaries.records.register',
+        'beneficiaries.identities.review',
+      ],
+    }
+    return service(new BeneficiaryRegistrationService())
+  }
+
+  it('a covered registration file validates every row VALID with a guardian warning per minor', async () => {
+    state.store = registrationStore()
+
+    const validated = await validate(service())
+
+    const writes = rowWrites()
+    expect(writes.map((row) => row.status)).toEqual(Array(10).fill('VALID'))
+    expect(writes[0].normalized_data).toMatchObject({
+      registration_operation: 'CREATE',
+      subject_type: 'INDIVIDUAL',
+      age_at_registration: 36,
+      is_minor: false,
+      data_processing_consent_recorded: true,
+    })
+    expect(writes[2].normalized_data).toMatchObject({ age_at_registration: 12, is_minor: true })
+    const warned = writes.flatMap((row, index) => (row.validation_warnings.length ? [index] : []))
+    expect(warned).toEqual([2, 6])
+    expect(writes[2].validation_warnings).toEqual([
+      { fieldCode: 'guardian_consent_recorded', code: 'GUARDIAN_CONSENT_MISSING' },
+    ])
+    // Warnings carry codes only, never source values.
+    expect(JSON.stringify(writes.map((row) => row.validation_warnings))).not.toContain('2014')
+    expect(validated).toMatchObject({ totals: { rows: 10, valid: 10, invalid: 0, warnings: 2 } })
+    expect(fakeTx.auditLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        action: 'IMPORT_VALIDATED',
+        changes: expect.objectContaining({
+          formVersionId: formId,
+          formPublishedById: publisherId,
+          warnings: 2,
+        }),
+      }),
+    })
+  })
+
+  it('processing with SAME_ANSWER_AS promotes the adults and holds the minors for guardian consent', async () => {
+    state.store = registrationStore()
+    const imports = registrar()
+
+    await validate(imports)
+    const processed = await runProcess(imports)
+
+    const held = state.store.rows.filter((row) => row.status === 'UNPROCESSED')
+    expect(held.map((row) => row.rowNumber)).toEqual([4, 8])
+    expect(held.every((row) => row.processingErrorCode === 'GUARDIAN_CONSENT_REQUIRED')).toBe(true)
+    expect(state.store.rows.filter((row) => row.status === 'PROCESSED')).toHaveLength(8)
+    expect(fakeTx.beneficiary.createMany).toHaveBeenCalledTimes(8)
+    expect(state.store.submissions).toHaveLength(8)
+    expect(processed).toMatchObject({
+      status: 'PARTIALLY_PROCESSED',
+      totals: { processed: 8, unprocessed: 2, failed: 0, invalid: 0 },
+    })
+  })
+
+  it('without SAME_ANSWER_AS the required consent has no source and no row is promoted', async () => {
+    state.store = registrationStore(false)
+    const imports = registrar()
+
+    await expect(validate(imports)).rejects.toThrow(
+      new BadRequestException('Every required form field must have a source mapping.'),
+    )
+    await expect(runProcess(imports)).rejects.toBeInstanceOf(ConflictException)
+
+    expect(state.store.rows.every((row) => row.status === 'PENDING')).toBe(true)
+    expect(fakeTx.beneficiary.createMany).not.toHaveBeenCalled()
+    expect(state.store.submissions).toHaveLength(0)
+  })
+
+  it('re-importing existing participants is held as DUPLICATE_IDENTITY, not failed', async () => {
+    state.store = registrationStore()
+    for (const row of participants) state.store.existingCodes.add(row.column_0001)
+    const imports = registrar()
+
+    await validate(imports)
+    const processed = await runProcess(imports)
+
+    const codes = state.store.rows.map((row) => row.processingErrorCode)
+    expect(codes.filter((code) => code === 'DUPLICATE_IDENTITY')).toHaveLength(8)
+    expect(codes.filter((code) => code === 'GUARDIAN_CONSENT_REQUIRED')).toHaveLength(2)
+    expect(state.store.rows.every((row) => row.status === 'UNPROCESSED')).toBe(true)
+    expect(fakeTx.beneficiary.createMany).not.toHaveBeenCalled()
+    expect(processed).toMatchObject({
+      status: 'PARTIALLY_PROCESSED',
+      totals: { processed: 0, unprocessed: 10, failed: 0 },
+    })
+  })
+
+  it('a disagreeing disability flag makes the row INVALID with CALCULATION_MISMATCH', async () => {
+    const questions = Array.from({ length: 6 }, (_, index) => `wg_${index + 1}`)
+    const fields = [
+      ...questions.map((code) => field(code)),
+      field('disability_status', {
+        dataType: 'SELECT',
+        allowedValues: ['WITH_DISABILITY', 'WITHOUT_DISABILITY', 'NOT_SPECIFIED'],
+        isSadddField: true,
+        ...rule({
+          kind: 'WASHINGTON_GROUP_DISABILITY',
+          questionFields: questions,
+          disabilityValues: ['A lot of difficulty', 'Cannot do at all'],
+        }),
+      }),
+    ]
+    const answers = (last: string) =>
+      Object.fromEntries(
+        questions.map((_, index) => [
+          `column_000${index + 1}`,
+          index === 5 ? last : 'No difficulty',
+        ]),
+      )
+    state.store = createStore(fields, mappedColumns(fields, [...questions, 'disability_status']), [
+      { ...answers('No difficulty'), column_0007: 'WITHOUT_DISABILITY' },
+      { ...answers('Cannot do at all'), column_0007: 'WITHOUT_DISABILITY' },
+      { ...answers('Cannot do at all'), column_0007: 'WITH_DISABILITY' },
+    ])
+
+    const validated = await validate(service())
+
+    const [agree, mismatch, flagged] = rowWrites()
+    expect(agree.status).toBe('VALID')
+    expect(mismatch).toMatchObject({
+      status: 'INVALID',
+      normalized_data: null,
+      validation_errors: [{ fieldCode: 'disability_status', code: 'CALCULATION_MISMATCH' }],
+    })
+    expect(flagged.status).toBe('VALID')
+    expect(validated).toMatchObject({ totals: { valid: 2, invalid: 1, warnings: 0 } })
+  })
+
+  describe('age cross-check', () => {
+    const ageStore = (ages: string[], batchPatch: Json = {}) => {
+      const fields = [
+        field('birth_date', { dataType: 'DATE' }),
+        field('enrollment_date', { dataType: 'DATE' }),
+        field('age_stated', {
+          dataType: 'INTEGER',
+          ...rule({ kind: 'AGE_CHECK', birthField: 'birth_date', atFields: ['enrollment_date'] }),
+        }),
+      ]
+      return createStore(
+        fields,
+        mappedColumns(fields, ['birth_date', 'enrollment_date', 'age_stated']),
+        ages.map((age) => ({
+          column_0001: '1990-10-03',
+          column_0002: '2020-01-01',
+          column_0003: age,
+        })),
+        batchPatch,
+      )
+    }
+
+    it('a stale Age column only warns and the row stays VALID', async () => {
+      state.store = ageStore(['36', '25'])
+
+      const validated = await validate(service())
+
+      const [current, stale] = rowWrites()
+      expect(current).toMatchObject({ status: 'VALID', validation_warnings: [] })
+      expect(stale).toMatchObject({
+        status: 'VALID',
+        validation_warnings: [{ fieldCode: 'age_stated', code: 'AGE_MISMATCH' }],
+      })
+      expect(validated).toMatchObject({ totals: { valid: 2, invalid: 0, warnings: 1 } })
+    })
+
+    it('measures age today at the Manila calendar date of the batch creation', async () => {
+      // 17:00 UTC on 2 October is already 3 October in Manila, the 36th birthday.
+      state.store = ageStore(['36'], { createdAt: new Date('2026-10-02T17:00:00.000Z') })
+
+      await validate(service())
+
+      expect(rowWrites()[0].validation_warnings).toEqual([])
+    })
   })
 })

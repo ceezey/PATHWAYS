@@ -114,6 +114,14 @@ export class BeneficiaryRegistrationService {
       })
     }
     const values = validation.values as Record<string, NormalizedValue>
+    // An imported minor without recorded guardian consent waits for a person; direct entry still rejects it.
+    if (
+      input.source === 'IMPORTED_DATASET' &&
+      values.is_minor === true &&
+      values.guardian_consent_recorded !== true
+    ) {
+      return { kind: 'REVIEW', code: 'GUARDIAN_CONSENT_REQUIRED' }
+    }
     const registration = parseRegistration(values)
     const mayReviewIdentity = hasAtomicPermission(
       actor.roles[0],

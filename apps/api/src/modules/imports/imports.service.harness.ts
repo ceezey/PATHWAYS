@@ -29,6 +29,7 @@ export const rowId = '60000000-0000-4000-8000-000000000006'
 export const secondRowId = '60000000-0000-4000-8000-000000000007'
 export const clientImportId = '70000000-0000-4000-8000-000000000007'
 export const claimId = '80000000-0000-4000-8000-000000000008'
+export const publisherId = '20000000-0000-4000-8000-0000000000aa'
 export const now = new Date('2026-09-13T00:00:00.000Z')
 export const testUploadsBucket = 'uploads'
 
@@ -83,11 +84,18 @@ export const batch = (patch: Record<string, unknown> = {}) => ({
   failureCode: null,
   uploadedById: actorId,
   reviewedById: null,
+  createdAt: now,
   uploadedAt: now,
   validatedAt: null,
   processedAt: null,
   updatedAt: now,
-  form: { code: 'scores', name: 'Scores', formType: 'OTHER', status: 'PUBLISHED' },
+  form: {
+    code: 'scores',
+    name: 'Scores',
+    formType: 'OTHER',
+    status: 'PUBLISHED',
+    publishedById: publisherId,
+  },
   ...patch,
 })
 export const tx = {

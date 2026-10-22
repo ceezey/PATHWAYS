@@ -22,8 +22,30 @@ export async function listProjectBatches(tx: Tx, actor: ApplicationIdentity, pro
     orderBy: { createdAt: 'desc' },
     take: IMPORT_ENGINEERING_LIMITS.processingCheckpointRows,
   })
-  return batches.map(mapBatch)
+  const warnings = await warningRowCounts(
+    tx,
+    actor,
+    batches.map((batch) => batch.id),
+  )
+  return batches.map((batch) => mapBatch(batch, warnings.get(batch.id) ?? 0))
 }
+
+/** Rows with at least one stored validation warning, per batch. */
+async function warningRowCounts(tx: Tx, actor: ApplicationIdentity, batchIds: string[]) {
+  if (batchIds.length === 0) return new Map<string, number>()
+  const counts = await tx.$queryRaw<Array<{ batchId: string; warnings: number }>>(Prisma.sql`
+      SELECT import_batch_id::text AS "batchId", count(*)::int AS warnings
+      FROM pathways.data_import_rows
+      WHERE organization_id=${actor.organizationId}::uuid
+        AND import_batch_id=ANY(${batchIds}::uuid[])
+        AND validation_warnings <> '[]'::jsonb
+      GROUP BY import_batch_id
+    `)
+  return new Map(counts.map((entry) => [entry.batchId, entry.warnings]))
+}
+
+const warningRows = async (tx: Tx, actor: ApplicationIdentity, batchId: string) =>
+  (await warningRowCounts(tx, actor, [batchId])).get(batchId) ?? 0
 
 export async function readBatchDetail(
   tx: Tx,
@@ -55,7 +77,7 @@ export async function readBatchDetail(
   })
   const sourceColumns = stored ? safeSourceColumns(stored.sourceHeaders) : []
   return {
-    ...mapBatch(batch),
+    ...mapBatch(batch, await warningRows(tx, actor, batch.id)),
     sourceHeaders: sourceColumns.map((column) => column.key),
     sourceColumns,
     mappings: mappings.map(
@@ -87,6 +109,7 @@ export async function readBatchRows(
       rawData: true,
       status: true,
       validationErrors: true,
+      validationWarnings: true,
       mappingRevision: true,
       validationRevision: true,
       processingAttempts: true,
@@ -106,6 +129,7 @@ export async function readBatchRows(
         ...row,
         rawData: row.rawData as ImportRowResponse['rawData'],
         validationErrors: row.validationErrors as ImportRowResponse['validationErrors'],
+        validationWarnings: row.validationWarnings as ImportRowResponse['validationWarnings'],
         updatedAt: row.updatedAt.toISOString(),
       }),
     ),
@@ -118,7 +142,8 @@ export async function mapStoredBatch(
   projectId: string,
   batchId: string,
 ) {
-  return mapBatch(await requireBatch(tx, actor, projectId, batchId))
+  const batch = await requireBatch(tx, actor, projectId, batchId)
+  return mapBatch(batch, await warningRows(tx, actor, batch.id))
 }
 
 export async function lockBatch(
@@ -171,6 +196,7 @@ export async function requireBatchWithHeaders(
     where: { id: batch.id },
     select: {
       ...batchSelection,
+      createdAt: true,
       sourceHeaders: true,
       storageBucket: true,
       storageObjectKey: true,
