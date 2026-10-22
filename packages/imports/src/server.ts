@@ -1,4 +1,5 @@
 export * from './answers'
+export * from './intake-rules'
 export * from './limits'
 export * from './mappers/smart-match'
 export * from './normalization'

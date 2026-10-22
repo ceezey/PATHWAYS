@@ -24,6 +24,8 @@ describe('package entry points', () => {
         ...smartMatch,
         'IMPORT_ENGINEERING_LIMITS',
         'IMPORT_VALUE_MAP_LIMITS',
+        'WASHINGTON_GROUP_LEVELS_V1',
+        'applyIntakeRules',
         'buildImportValueMap',
         'comparableAnswer',
         'compareHeaders',
@@ -41,6 +43,7 @@ describe('package entry points', () => {
         'toCsv',
         'toWorkbookBytes',
         'toXlsxBuffer',
+        'washingtonGroupLevel',
       ].sort(),
     )
   })
@@ -51,6 +54,8 @@ describe('package entry points', () => {
         ...smartMatch,
         'IMPORT_ENGINEERING_LIMITS',
         'IMPORT_VALUE_MAP_LIMITS',
+        'WASHINGTON_GROUP_LEVELS_V1',
+        'applyIntakeRules',
         'ImportParseError',
         'buildImportValueMap',
         'comparableAnswer',
@@ -61,6 +66,7 @@ describe('package entry points', () => {
         'parseSecureImport',
         'resolveAnswer',
         'stripLetterPrefix',
+        'washingtonGroupLevel',
       ].sort(),
     )
   })
