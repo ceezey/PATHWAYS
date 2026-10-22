@@ -17,6 +17,7 @@ export function useCollectionEdits(state: CollectionState) {
     projectId,
     projects,
     setCorrectionPage,
+    setDraftSummary,
     setEditingBaseUpdatedAt,
     setEditingFormId,
     setFields,
@@ -67,6 +68,7 @@ export function useCollectionEdits(state: CollectionState) {
     setEditingFormId(undefined)
     setHydratedFormId(undefined)
     setEditingBaseUpdatedAt(null)
+    setDraftSummary(null)
     setForms([])
     setFields(initialFields)
     setFormCode('')
@@ -104,6 +106,7 @@ export function useCollectionEdits(state: CollectionState) {
     setMappingRows([])
     const form = forms.find((f) => f.id === summary.id)
     if (!form) return
+    setDraftSummary(null)
     setEditingFormId(form.id)
     setHydratedFormId(form.id)
     setEditingBaseUpdatedAt(form.updatedAt)
@@ -156,6 +159,7 @@ export function useCollectionEdits(state: CollectionState) {
     setEditingFormId(undefined)
     setHydratedFormId(undefined)
     setEditingBaseUpdatedAt(null)
+    setDraftSummary(null)
     setFormCode('')
     setFormDescription('')
     setFormType('OTHER')

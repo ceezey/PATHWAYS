@@ -1,7 +1,7 @@
 import type { DigitalFormType } from '@/types/pathways'
 
 import type { CollectionMode, CollectionView, FormField } from '../collection.utils'
-import { fieldCodeFromText } from './digital-form-contract'
+import { emptyIntake, fieldCodeFromText } from './digital-form-contract'
 import type { FormDefinitionExportFormat } from './form-definition-export'
 
 export type ExportFormat = FormDefinitionExportFormat
@@ -32,6 +32,7 @@ export const initialFields: FormField[] = [
     minimumLength: '',
     maximumLength: '',
     mappingStatus: 'mapped',
+    ...emptyIntake,
   },
   {
     id: 'field-attendance',
@@ -47,6 +48,7 @@ export const initialFields: FormField[] = [
     minimumLength: '',
     maximumLength: '',
     mappingStatus: 'mapped',
+    ...emptyIntake,
   },
   {
     id: 'field-age-band',
@@ -62,6 +64,7 @@ export const initialFields: FormField[] = [
     minimumLength: '',
     maximumLength: '',
     mappingStatus: 'unmapped',
+    ...emptyIntake,
   },
 ]
 
@@ -126,6 +129,7 @@ export const fieldFromHeader = (header: string, index: number): FormField => {
     maximumLength: '',
     // Each detected column defines this field, so it starts mapped to its own column.
     mappingStatus: code ? 'mapped' : 'invalid',
+    ...emptyIntake,
   }
 }
 

@@ -3,6 +3,7 @@ import type { PathwaysRole } from '@/types/pathways-role'
 import type {
   ActivityCapabilitiesResponse,
   AssignableOfficerResponse,
+  FieldIntakeRule,
   FormResponse,
   FormSubmissionResponse,
   ImportBatchDetailResponse,
@@ -667,6 +668,10 @@ export interface DigitalFormFieldDefinition {
   maximumDate?: string | null
   minimumLength?: number | null
   maximumLength?: number | null
+  sourceNames?: string[] | null
+  valueAliases?: Array<{ from: string; to: string }> | null
+  importDefault?: string | null
+  rule?: FieldIntakeRule | null
   sequence?: number
 }
 

@@ -1,3 +1,4 @@
+import type { DraftSummaryResponse } from '@pathways/shared'
 import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
@@ -56,6 +57,8 @@ export function useCollectionState({
   const [creatingVersion, setCreatingVersion] = useState(false)
   const [savedNotice, setSavedNotice] = useState('')
   const [loadError, setLoadError] = useState('')
+  // The change summary of a draft just made from an import, shown above the field list.
+  const [draftSummary, setDraftSummary] = useState<DraftSummaryResponse | null>(null)
   // Success notices show as a toast pop-up instead of an inline banner.
   useEffect(() => {
     if (!savedNotice) return
@@ -163,6 +166,7 @@ export function useCollectionState({
     createPending,
     creatingVersion,
     current,
+    draftSummary,
     duplicateDecision,
     editingBaseUpdatedAt,
     editingFormId,
@@ -208,6 +212,7 @@ export function useCollectionState({
     setActivities,
     setCorrectionPage,
     setCreatingVersion,
+    setDraftSummary,
     setDuplicateDecision,
     setEditingBaseUpdatedAt,
     setEditingFormId,

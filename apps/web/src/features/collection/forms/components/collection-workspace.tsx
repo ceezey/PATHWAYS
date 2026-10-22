@@ -78,6 +78,7 @@ const OwnedCollectionWorkspace = (
     activities,
     addField,
     creatingVersion,
+    draftSummary,
     editingFormId,
     fields,
     formTitle,
@@ -140,6 +141,7 @@ const OwnedCollectionWorkspace = (
   const selectedProject = projects.find((project) => project.id === projectId)
   const projectActivities = activities.filter((activity) => activity.projectId === projectId)
   const selectedField = fields.find((field) => field.id === selectedFieldId) ?? fields[0]
+  const editingStatus = forms.find((form) => form.id === editingFormId)?.status
 
   const mappedCount = fields.filter((field) => field.mappingStatus === 'mapped').length
   const sadddCount = fields.filter((field) => field.sadddField).length
@@ -259,6 +261,7 @@ const OwnedCollectionWorkspace = (
                 !forms.find((form) => form.id === editingFormId)?.createdByCurrentUser
               }
               deleteField={requestDeleteField}
+              draftSummary={draftSummary}
               fields={fields}
               formTitle={formTitle}
               formType={formType}
@@ -274,6 +277,9 @@ const OwnedCollectionWorkspace = (
               projects={projects}
               projectsLoaded={projectsLoaded}
               projectId={projectId}
+              readOnly={
+                !canManageForms || (editingStatus !== undefined && editingStatus !== 'DRAFT')
+              }
               sadddCount={sadddCount}
               selectedField={selectedField}
               selectedFieldId={selectedFieldId}

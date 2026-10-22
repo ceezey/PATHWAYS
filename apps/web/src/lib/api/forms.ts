@@ -1,5 +1,7 @@
 import type {
   CreateFormRequest,
+  DraftFromImportRequest,
+  DraftFromImportResponse,
   FormResponse,
   FormSubmissionResponse,
   FormValidationResult,
@@ -62,6 +64,24 @@ export const formsClient = {
       `/metadata/projects/${encodeURIComponent(projectId)}/forms/${encodeURIComponent(formId)}/versions`,
       { method: 'POST' },
     ) as Promise<FormResponse>
+  },
+
+  async draftFromImport(
+    projectId: string,
+    formId: string,
+    batchId: string,
+    expectedMappingRevision: number,
+  ) {
+    return requestFoundation(
+      `/metadata/projects/${encodeURIComponent(projectId)}/forms/${encodeURIComponent(formId)}/drafts/from-import`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          batchId,
+          expectedMappingRevision,
+        } satisfies DraftFromImportRequest),
+      },
+    ) as Promise<DraftFromImportResponse>
   },
 
   async generateDigitalForm(

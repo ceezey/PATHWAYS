@@ -1,13 +1,15 @@
 import {
+  INTAKE_RULE_KINDS,
   type DigitalFormType as SharedDigitalFormType,
   digitalFormTypes,
+  draftNeedsCheckReasons,
   importBatchResponse,
 } from '@pathways/shared'
 import { describe, expect, expectTypeOf, it } from 'vitest'
 
 import type { DigitalFormType } from '@/types/pathways'
 
-import { enumLabel, formTypeLabels } from './collection.copy'
+import { enumLabel, formTypeLabels, needsCheckLabels, ruleKindLabels } from './collection.copy'
 
 describe('enumLabel', () => {
   it('sentence-cases known and unknown enum values', () => {
@@ -46,5 +48,14 @@ describe('formTypeLabels', () => {
       'RECOVERY_REQUIRED',
       'FAILED',
     ])
+  })
+})
+
+describe('intake copy', () => {
+  it('words every needs-check reason and rule kind in plain language', () => {
+    expect(Object.keys(needsCheckLabels)).toEqual([...draftNeedsCheckReasons])
+    expect(Object.keys(ruleKindLabels)).toEqual([...INTAKE_RULE_KINDS])
+    for (const label of [...Object.values(needsCheckLabels), ...Object.values(ruleKindLabels)])
+      expect(label).not.toMatch(/[A-Z]{2,}_[A-Z]/)
   })
 })
