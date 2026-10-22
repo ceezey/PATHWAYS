@@ -1171,7 +1171,7 @@ model FormField {
   maximumDate                    DateTime?                 @map("maximum_date") @db.Date
   minimumLength                  Int?                      @map("minimum_length")
   maximumLength                  Int?                      @map("maximum_length")
-  sourceNames                    String[]                  @map("source_names")
+  sourceNames                    String[]                  @default([]) @map("source_names")
   valueAliases                   Json?                     @map("value_aliases")
   importDefault                  String?                   @map("import_default")
   rule                           Json?

@@ -1,8 +1,9 @@
 -- cr-pathways-metadata-import-intake: form field intake metadata and the AUTO_SMART_V3 recorder.
 -- Additive only. form_fields gains four nullable import metadata columns (source_names, value_aliases,
--- import_default, rule) with shape checks; p2_form_field already freezes the whole row outside DRAFT, so no
--- trigger is added. digital_forms gains last_edited_by_id (same composite FK as created_by_id) so the editor of
--- a draft can be kept from publishing it. data_import_rows gains validation_warnings (codes and counts only).
+-- import_default, rule) with shape checks; p2_guard_form_field already freezes the whole row outside DRAFT, so no
+-- field trigger is added. digital_forms gains last_edited_by_id (same composite FK as created_by_id) so the editor of
+-- a draft can be kept from publishing it: p2_guard_form (0040 body) now also freezes it on a published form and
+-- refuses a publish by the last editor. data_import_rows gains validation_warnings (codes and counts only).
 -- metadata_mappings_match_reason_known also admits METADATA_SOURCE_NAME. p78_record_smart_mapping is
 -- p38_record_smart_mapping with the AUTO_SMART_V3 deltas: IGNORED only as BLANK_COLUMN, the V3 prefix and audit,
 -- an ignored count in the receipt, and required fields satisfied by a default or a calculated rule. p38 stays
@@ -17,6 +18,8 @@ DO $$ BEGIN
  IF current_user <> 'prisma' OR NOT EXISTS(SELECT FROM public._prisma_migrations WHERE migration_name='0077_saddd_by_place' AND finished_at IS NOT NULL AND rolled_back_at IS NULL)
  OR pg_catalog.to_regprocedure('pathways.p38_record_smart_mapping(uuid,integer,text,jsonb)') IS NULL
  OR pg_catalog.to_regprocedure('pathways.p78_record_smart_mapping(uuid,integer,text,jsonb)') IS NOT NULL
+ OR NOT EXISTS(SELECT FROM pg_catalog.pg_proc p WHERE p.oid=pg_catalog.to_regprocedure('pathways.p2_guard_form()')
+  AND p.prosrc LIKE '%System form template tags are immutable%' AND p.prosrc NOT LIKE '%last_edited_by_id%')
  OR EXISTS(SELECT FROM pg_catalog.pg_attribute a WHERE NOT a.attisdropped AND (
    (a.attrelid='pathways.form_fields'::regclass AND a.attname IN('source_names','value_aliases','import_default','rule'))
    OR (a.attrelid='pathways.digital_forms'::regclass AND a.attname='last_edited_by_id')
@@ -36,23 +39,23 @@ DO $$ BEGIN
 END $$;
 SELECT pg_advisory_xact_lock(505005,78);
 
--- Source names are 0-20 non-blank entries of at most 100 characters; value aliases are 0-100 {from,to} string
--- pairs of 1-100 characters; import_default is 1-120 characters; rule is an object of one of the seven kinds.
+-- Source names are 0-20 non-blank entries of at most 100 characters (an empty array means none); value aliases are 0-100 {from,to} string
+-- pairs of 1-100 characters; import_default is 1-120 characters with a visible one; rule is an object of one of the seven kinds.
 ALTER TABLE pathways.form_fields
- ADD COLUMN source_names text[],
+ ADD COLUMN source_names text[] NOT NULL DEFAULT '{}',
  ADD COLUMN value_aliases jsonb,
  ADD COLUMN import_default text,
  ADD COLUMN rule jsonb,
- ADD CONSTRAINT form_fields_source_names_shape CHECK(source_names IS NULL OR cardinality(source_names)=0
-  OR (cardinality(source_names) <= 20 AND array_ndims(source_names)=1 AND array_position(source_names, NULL) IS NULL
-   AND array_to_string(source_names, E'\x01') !~ E'(^|\\x01)\\s*(\\x01|$)|[^\\x01]{101}')),
+ ADD CONSTRAINT form_fields_source_names_shape CHECK(cardinality(source_names) <= 20 AND coalesce(array_ndims(source_names),1)=1
+  AND NOT jsonb_path_exists(to_jsonb(source_names), '$[*] ? (@.type() != "string" || !(@ like_regex "^.{1,100}$" flag "s")
+   || @ like_regex "^[[:space:]]*$")')),
  ADD CONSTRAINT form_fields_value_aliases_shape CHECK(value_aliases IS NULL OR CASE
   WHEN jsonb_typeof(value_aliases)='array' THEN jsonb_array_length(value_aliases) <= 100
    AND NOT jsonb_path_exists(value_aliases, '$[*] ? (!(@.type() == "object" && @."from".type() == "string"
     && @."to".type() == "string" && @."from" like_regex "^.{1,100}$" flag "s" && @."to" like_regex "^.{1,100}$" flag "s")
     || exists(@.keyvalue() ? (@.key != "from" && @.key != "to")))')
   ELSE false END),
- ADD CONSTRAINT form_fields_import_default_shape CHECK(import_default IS NULL OR char_length(import_default) BETWEEN 1 AND 120),
+ ADD CONSTRAINT form_fields_import_default_shape CHECK(import_default IS NULL OR (char_length(import_default) BETWEEN 1 AND 120 AND import_default ~ '\S')),
  ADD CONSTRAINT form_fields_rule_kind CHECK(rule IS NULL OR (jsonb_typeof(rule)='object' AND coalesce(rule ->> 'kind','') IN
   ('AGE_AT_DATE','MINOR_AT_DATE','WASHINGTON_GROUP_DISABILITY','SAME_ANSWER_AS','AGE_CHECK','FOLLOW_UP_OF',
    'ID_FROM_INITIALS_AND_BIRTH_DATE')));
@@ -62,6 +65,74 @@ ALTER TABLE pathways.digital_forms
  ADD CONSTRAINT digital_forms_last_edited_by_fk FOREIGN KEY(organization_id,last_edited_by_id)
   REFERENCES pathways.system_users(organization_id,id) ON UPDATE RESTRICT ON DELETE RESTRICT;
 CREATE INDEX digital_forms_last_edited_by_idx ON pathways.digital_forms USING btree(organization_id,last_edited_by_id);
+
+-- The 0040 body of p2_guard_form with two additions: last_edited_by_id is frozen on a published form, and the
+-- last editor cannot publish (as the creator cannot). Owner, search_path, trigger and grants are unchanged.
+CREATE OR REPLACE FUNCTION pathways.p2_guard_form() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO ''
+    AS $$
+BEGIN
+  IF TG_OP='INSERT' THEN
+    IF NEW.status <> 'DRAFT'
+       OR NEW.published_by_id IS NOT NULL OR NEW.published_at IS NOT NULL
+       OR NEW.archived_at IS NOT NULL THEN
+      RAISE EXCEPTION 'Form definitions must start as drafts';
+    END IF;
+    IF NEW.system_template_key IS NOT NULL AND current_user <> 'prisma' THEN -- 0040
+      RAISE EXCEPTION 'System form templates are provisioned only by the database' USING ERRCODE='42501';
+    END IF;
+    RETURN NEW;
+  END IF;
+  IF TG_OP='DELETE' THEN
+    IF OLD.status <> 'DRAFT' THEN
+      RAISE EXCEPTION 'Published or archived form definitions are immutable';
+    END IF;
+    RETURN OLD;
+  END IF;
+  IF NEW.system_template_key IS DISTINCT FROM OLD.system_template_key THEN -- 0040
+    RAISE EXCEPTION 'System form template tags are immutable' USING ERRCODE='42501';
+  END IF;
+  IF OLD.status='ARCHIVED' THEN
+    RAISE EXCEPTION 'Archived form definitions are immutable';
+  END IF;
+  IF OLD.status='PUBLISHED' THEN
+    IF NEW.status <> 'ARCHIVED'
+       OR NEW.organization_id IS DISTINCT FROM OLD.organization_id
+       OR NEW.project_id IS DISTINCT FROM OLD.project_id
+       OR NEW.code IS DISTINCT FROM OLD.code
+       OR NEW.version IS DISTINCT FROM OLD.version
+       OR NEW.name IS DISTINCT FROM OLD.name
+       OR NEW.description IS DISTINCT FROM OLD.description
+       OR NEW.form_type IS DISTINCT FROM OLD.form_type
+       OR NEW.activity_id IS DISTINCT FROM OLD.activity_id
+       OR NEW.journey_stage_id IS DISTINCT FROM OLD.journey_stage_id
+       OR NEW.created_by_id IS DISTINCT FROM OLD.created_by_id
+       OR NEW.last_edited_by_id IS DISTINCT FROM OLD.last_edited_by_id -- 0078
+       OR NEW.published_by_id IS DISTINCT FROM OLD.published_by_id
+       OR NEW.published_at IS DISTINCT FROM OLD.published_at THEN
+      RAISE EXCEPTION 'Published form definitions are immutable';
+    END IF;
+    RETURN NEW;
+  END IF;
+  IF NEW.status='PUBLISHED' AND (
+    NEW.published_by_id IS NULL OR NEW.published_at IS NULL
+    OR (NEW.created_by_id IS NULL AND NOT (NEW.system_template_key IS NOT DISTINCT FROM 'SYSTEM_DEFAULT_REGISTRATION_V1' AND current_user='prisma')) -- 0040
+    OR NEW.published_by_id=NEW.created_by_id
+    OR NEW.published_by_id=NEW.last_edited_by_id -- 0078
+  ) THEN
+    RAISE EXCEPTION 'Publication requires a different attributable reviewer';
+  END IF;
+  IF NEW.status='PUBLISHED' AND NOT EXISTS (
+    SELECT FROM pathways.form_fields f
+    WHERE f.organization_id=NEW.organization_id AND f.project_id=NEW.project_id AND f.form_id=NEW.id
+  ) THEN
+    RAISE EXCEPTION 'Published form must contain fields';
+  END IF;
+  RETURN NEW;
+END
+$$;
+ALTER FUNCTION pathways.p2_guard_form() OWNER TO prisma;
 
 ALTER TABLE pathways.data_import_rows
  ADD COLUMN validation_warnings jsonb NOT NULL DEFAULT '[]'::jsonb,
@@ -362,11 +433,11 @@ GRANT EXECUTE ON FUNCTION pathways.p78_record_smart_mapping(uuid,integer,text,js
 -- Postconditions: columns and constraints present; exact function security; p38 untouched.
 DO $$ BEGIN
  IF (SELECT count(*) FROM pg_catalog.pg_attribute a WHERE a.attrelid='pathways.form_fields'::regclass
-  AND NOT a.attisdropped AND NOT a.attnotnull AND a.atthasdef IS FALSE
-  AND ((a.attname='source_names' AND a.atttypid='text[]'::regtype)
-   OR (a.attname='value_aliases' AND a.atttypid='jsonb'::regtype)
-   OR (a.attname='import_default' AND a.atttypid='text'::regtype)
-   OR (a.attname='rule' AND a.atttypid='jsonb'::regtype)))<>4
+  AND NOT a.attisdropped
+  AND ((a.attname='source_names' AND a.atttypid='text[]'::regtype AND a.attnotnull AND a.atthasdef)
+   OR (NOT a.attnotnull AND a.atthasdef IS FALSE AND ((a.attname='value_aliases' AND a.atttypid='jsonb'::regtype)
+    OR (a.attname='import_default' AND a.atttypid='text'::regtype)
+    OR (a.attname='rule' AND a.atttypid='jsonb'::regtype)))))<>4
  OR (SELECT count(*) FROM pg_catalog.pg_constraint c WHERE c.conrelid='pathways.form_fields'::regclass
   AND c.convalidated AND c.conname IN('form_fields_source_names_shape','form_fields_value_aliases_shape',
    'form_fields_import_default_shape','form_fields_rule_kind'))<>4
@@ -384,6 +455,19 @@ DO $$ BEGIN
  OR NOT EXISTS(SELECT FROM pg_catalog.pg_constraint c WHERE c.conrelid='pathways.metadata_mappings'::regclass
   AND c.convalidated AND c.conname='metadata_mappings_match_reason_known'
   AND pg_catalog.pg_get_constraintdef(c.oid) LIKE '%METADATA_SOURCE_NAME%')
+ OR NOT EXISTS(SELECT FROM pg_catalog.pg_proc p WHERE p.oid='pathways.p2_guard_form()'::regprocedure
+  AND pg_catalog.pg_get_userbyid(p.proowner)='prisma' AND NOT p.prosecdef
+  AND p.proconfig IS NOT DISTINCT FROM ARRAY['search_path=""']
+  AND p.prosrc LIKE '%NEW.last_edited_by_id IS DISTINCT FROM OLD.last_edited_by_id%'
+  AND p.prosrc LIKE '%NEW.published_by_id=NEW.last_edited_by_id%'
+  AND p.prosrc LIKE '%System form template tags are immutable%')
+ OR EXISTS(SELECT FROM pg_catalog.pg_proc p
+  CROSS JOIN LATERAL pg_catalog.aclexplode(coalesce(p.proacl,pg_catalog.acldefault('f',p.proowner))) a
+  WHERE p.oid='pathways.p2_guard_form()'::regprocedure AND a.grantee<>p.proowner)
+ OR (SELECT count(*) FROM pg_catalog.pg_trigger t WHERE t.tgfoid='pathways.p2_guard_form()'::regprocedure)<>1
+ OR NOT EXISTS(SELECT FROM pg_catalog.pg_trigger t WHERE t.tgrelid='pathways.digital_forms'::regclass
+  AND t.tgname='p2_form' AND t.tgfoid='pathways.p2_guard_form()'::regprocedure AND t.tgenabled='O'
+  AND NOT t.tgisinternal AND t.tgtype=31)
  THEN RAISE EXCEPTION '0078 column and constraint postconditions failed'; END IF;
  IF EXISTS(SELECT FROM pg_catalog.pg_proc p WHERE p.oid='pathways.p78_record_smart_mapping(uuid,integer,text,jsonb)'::regprocedure
   AND (pg_catalog.pg_get_userbyid(p.proowner)<>'prisma' OR NOT p.prosecdef

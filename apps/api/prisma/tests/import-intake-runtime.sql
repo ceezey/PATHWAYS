@@ -14,7 +14,8 @@ END $$;
 
 INSERT INTO auth.users(id) VALUES
  ('79000000-0000-4000-8000-000000000011'),('79000000-0000-4000-8000-000000000012'),
- ('79000000-0000-4000-8000-000000000013'),('79000000-0000-4000-8000-000000000014');
+ ('79000000-0000-4000-8000-000000000013'),('79000000-0000-4000-8000-000000000014'),
+ ('79000000-0000-4000-8000-000000000015');
 INSERT INTO pathways.organizations(id,code,name) VALUES
  ('79000000-0000-4000-8000-000000000001','INTAKE_ORG_A','Synthetic intake organization A'),
  ('79000000-0000-4000-8000-000000000002','INTAKE_ORG_B','Synthetic intake organization B');
@@ -24,7 +25,8 @@ FROM (VALUES
  ('79000000-0000-4000-8000-000000000031','79000000-0000-4000-8000-000000000001','PROJECT_OFFICER','79000000-0000-4000-8000-000000000011','Synthetic officer','intake-po@example.invalid'),
  ('79000000-0000-4000-8000-000000000032','79000000-0000-4000-8000-000000000001','MONITORING_AND_EVALUATION_OFFICER','79000000-0000-4000-8000-000000000012','Synthetic reviewer','intake-me@example.invalid'),
  ('79000000-0000-4000-8000-000000000033','79000000-0000-4000-8000-000000000002','PROJECT_OFFICER','79000000-0000-4000-8000-000000000013','Synthetic foreign officer','intake-foreign@example.invalid'),
- ('79000000-0000-4000-8000-000000000034','79000000-0000-4000-8000-000000000002','MONITORING_AND_EVALUATION_OFFICER','79000000-0000-4000-8000-000000000014','Synthetic foreign reviewer','intake-foreign-me@example.invalid')
+ ('79000000-0000-4000-8000-000000000034','79000000-0000-4000-8000-000000000002','MONITORING_AND_EVALUATION_OFFICER','79000000-0000-4000-8000-000000000014','Synthetic foreign reviewer','intake-foreign-me@example.invalid'),
+ ('79000000-0000-4000-8000-000000000035','79000000-0000-4000-8000-000000000001','MONITORING_AND_EVALUATION_OFFICER','79000000-0000-4000-8000-000000000015','Synthetic third reviewer','intake-third@example.invalid')
 ) v(id,org,role_code,sub,name,email)
 JOIN pathways.roles r ON r.code=v.role_code;
 -- The F10 source-proof trigger accepts only runtime sessions; fixtures bypass triggers here only.
@@ -37,12 +39,14 @@ INSERT INTO pathways.user_project_assignments(organization_id,project_id,user_id
  ('79000000-0000-4000-8000-000000000001','79000000-0000-4000-8000-000000000041','79000000-0000-4000-8000-000000000031','79000000-0000-4000-8000-000000000031'),
  ('79000000-0000-4000-8000-000000000001','79000000-0000-4000-8000-000000000041','79000000-0000-4000-8000-000000000032','79000000-0000-4000-8000-000000000031'),
  ('79000000-0000-4000-8000-000000000002','79000000-0000-4000-8000-000000000043','79000000-0000-4000-8000-000000000033','79000000-0000-4000-8000-000000000033');
--- F1 and F2 are published (A1), F4 is published (B1), F5 stays a draft for the constraint checks.
+-- F1, F2 and F6 are published (A1), F4 is published (B1), F5 and F7 stay drafts for the constraint and publish checks.
 INSERT INTO pathways.digital_forms(id,organization_id,project_id,code,version,name,form_type,status,created_by_id,last_edited_by_id) VALUES
  ('79000000-0000-4000-8000-000000000051','79000000-0000-4000-8000-000000000001','79000000-0000-4000-8000-000000000041','intake_f1',1,'Synthetic F1','OTHER','DRAFT','79000000-0000-4000-8000-000000000031','79000000-0000-4000-8000-000000000031'),
  ('79000000-0000-4000-8000-000000000052','79000000-0000-4000-8000-000000000001','79000000-0000-4000-8000-000000000041','intake_f2',1,'Synthetic F2','OTHER','DRAFT','79000000-0000-4000-8000-000000000031',NULL),
  ('79000000-0000-4000-8000-000000000054','79000000-0000-4000-8000-000000000002','79000000-0000-4000-8000-000000000043','intake_f4',1,'Synthetic F4','OTHER','DRAFT','79000000-0000-4000-8000-000000000033',NULL),
- ('79000000-0000-4000-8000-000000000055','79000000-0000-4000-8000-000000000001','79000000-0000-4000-8000-000000000041','intake_f5',1,'Synthetic F5','OTHER','DRAFT','79000000-0000-4000-8000-000000000031',NULL);
+ ('79000000-0000-4000-8000-000000000055','79000000-0000-4000-8000-000000000001','79000000-0000-4000-8000-000000000041','intake_f5',1,'Synthetic F5','OTHER','DRAFT','79000000-0000-4000-8000-000000000031',NULL),
+ ('79000000-0000-4000-8000-000000000056','79000000-0000-4000-8000-000000000001','79000000-0000-4000-8000-000000000041','intake_f6',1,'Synthetic F6','OTHER','DRAFT','79000000-0000-4000-8000-000000000031','79000000-0000-4000-8000-000000000031'),
+ ('79000000-0000-4000-8000-000000000057','79000000-0000-4000-8000-000000000001','79000000-0000-4000-8000-000000000041','intake_f7',1,'Synthetic F7','OTHER','DRAFT','79000000-0000-4000-8000-000000000031','79000000-0000-4000-8000-000000000032');
 INSERT INTO pathways.form_fields(id,organization_id,project_id,form_id,code,label,data_type,is_required,allowed_values,sequence_no,
  source_names,value_aliases,import_default,rule) VALUES
  ('79000000-0000-4000-8000-000000000061','79000000-0000-4000-8000-000000000001','79000000-0000-4000-8000-000000000041','79000000-0000-4000-8000-000000000051','first_name','First name','TEXT',true,NULL,1,
@@ -52,23 +56,27 @@ INSERT INTO pathways.form_fields(id,organization_id,project_id,form_id,code,labe
  ('79000000-0000-4000-8000-000000000063','79000000-0000-4000-8000-000000000001','79000000-0000-4000-8000-000000000041','79000000-0000-4000-8000-000000000051','sex','Sex','SELECT',false,'["MALE","FEMALE"]',3,
   ARRAY['Gender'],'[{"from":"M","to":"MALE"},{"from":"F","to":"FEMALE"}]',NULL,NULL),
  ('79000000-0000-4000-8000-000000000064','79000000-0000-4000-8000-000000000001','79000000-0000-4000-8000-000000000041','79000000-0000-4000-8000-000000000051','program_site','Program site','TEXT',true,NULL,4,
-  NULL,NULL,'Synthetic site',NULL),
+  '{}',NULL,'Synthetic site',NULL),
  ('79000000-0000-4000-8000-000000000065','79000000-0000-4000-8000-000000000001','79000000-0000-4000-8000-000000000041','79000000-0000-4000-8000-000000000051','age_at_registration','Age at registration','INTEGER',true,NULL,5,
-  NULL,NULL,NULL,'{"kind":"AGE_AT_DATE","birthField":"birth_date","atField":"registration_date"}'),
+  '{}',NULL,NULL,'{"kind":"AGE_AT_DATE","birthField":"birth_date","atField":"registration_date"}'),
  ('79000000-0000-4000-8000-000000000071','79000000-0000-4000-8000-000000000001','79000000-0000-4000-8000-000000000041','79000000-0000-4000-8000-000000000052','first_name','First name','TEXT',true,NULL,1,
   ARRAY['Given name'],NULL,NULL,NULL),
  ('79000000-0000-4000-8000-000000000072','79000000-0000-4000-8000-000000000001','79000000-0000-4000-8000-000000000041','79000000-0000-4000-8000-000000000052','village','Village','TEXT',true,NULL,2,
-  NULL,NULL,NULL,NULL),
+  '{}',NULL,NULL,NULL),
  ('79000000-0000-4000-8000-000000000073','79000000-0000-4000-8000-000000000001','79000000-0000-4000-8000-000000000041','79000000-0000-4000-8000-000000000052','age_check','Age check','INTEGER',true,NULL,3,
-  NULL,NULL,NULL,'{"kind":"AGE_CHECK","birthField":"birth_date","atFields":["registration_date"]}'),
+  '{}',NULL,NULL,'{"kind":"AGE_CHECK","birthField":"birth_date","atFields":["registration_date"]}'),
  ('79000000-0000-4000-8000-000000000076','79000000-0000-4000-8000-000000000002','79000000-0000-4000-8000-000000000043','79000000-0000-4000-8000-000000000054','first_name','First name','TEXT',false,NULL,1,
-  NULL,NULL,NULL,NULL),
+  '{}',NULL,NULL,NULL),
  ('79000000-0000-4000-8000-000000000091','79000000-0000-4000-8000-000000000001','79000000-0000-4000-8000-000000000041','79000000-0000-4000-8000-000000000055','draft_field','Draft field','TEXT',false,NULL,1,
-  NULL,NULL,NULL,NULL);
+  '{}',NULL,NULL,NULL),
+ ('79000000-0000-4000-8000-000000000092','79000000-0000-4000-8000-000000000001','79000000-0000-4000-8000-000000000041','79000000-0000-4000-8000-000000000056','draft_field','Draft field','TEXT',false,NULL,1,
+  '{}',NULL,NULL,NULL),
+ ('79000000-0000-4000-8000-000000000093','79000000-0000-4000-8000-000000000001','79000000-0000-4000-8000-000000000041','79000000-0000-4000-8000-000000000057','draft_field','Draft field','TEXT',false,NULL,1,
+  '{}',NULL,NULL,NULL);
 UPDATE pathways.digital_forms f SET status='PUBLISHED',published_at=now(),
  published_by_id=CASE WHEN f.organization_id='79000000-0000-4000-8000-000000000001'
   THEN '79000000-0000-4000-8000-000000000032'::uuid ELSE '79000000-0000-4000-8000-000000000034'::uuid END
-WHERE f.id IN ('79000000-0000-4000-8000-000000000051','79000000-0000-4000-8000-000000000052','79000000-0000-4000-8000-000000000054');
+WHERE f.id IN ('79000000-0000-4000-8000-000000000051','79000000-0000-4000-8000-000000000052','79000000-0000-4000-8000-000000000054','79000000-0000-4000-8000-000000000056');
 
 -- Upload reservations normally come from the runtime upload path; fixtures bypass its triggers.
 SET LOCAL session_replication_role = replica;
@@ -115,10 +123,12 @@ DO $$ BEGIN
  OR (SELECT prosrc FROM pg_proc WHERE oid='pathways.p38_record_smart_mapping(uuid,integer,text,jsonb)'::regprocedure) ~ 'AUTO_SMART_V3'
  THEN RAISE EXCEPTION 'p38 changed'; END IF;
  IF (SELECT count(*) FROM pg_attribute WHERE NOT attisdropped AND (
-   (attrelid='pathways.form_fields'::regclass AND attname IN('source_names','value_aliases','import_default','rule') AND NOT attnotnull)
+   (attrelid='pathways.form_fields'::regclass AND attname IN('value_aliases','import_default','rule') AND NOT attnotnull)
+   OR (attrelid='pathways.form_fields'::regclass AND attname='source_names' AND attnotnull AND atthasdef)
    OR (attrelid='pathways.digital_forms'::regclass AND attname='last_edited_by_id' AND NOT attnotnull)
    OR (attrelid='pathways.data_import_rows'::regclass AND attname='validation_warnings' AND attnotnull AND atthasdef)))<>6
  OR EXISTS(SELECT FROM pathways.data_import_rows WHERE validation_warnings <> '[]'::jsonb)
+ OR EXISTS(SELECT FROM pathways.form_fields WHERE source_names IS NULL)
  THEN RAISE EXCEPTION 'column catalog'; END IF;
  PERFORM set_config('intake.passed',(coalesce(nullif(current_setting('intake.passed',true),''),'0')::integer+1)::text,true);
 END $$;
@@ -142,12 +152,49 @@ BEGIN
  PERFORM set_config('intake.passed',(coalesce(nullif(current_setting('intake.passed',true),''),'0')::integer+1)::text,true);
 END $$;
 
+-- Form guard: last editor frozen after publication, and neither the creator nor the last editor may publish.
+-- The archive-authority trigger needs a runtime session, so it is off for these superuser checks only.
+ALTER TABLE pathways.digital_forms DISABLE TRIGGER p09_form_archive;
+DO $$
+DECLARE got text;
+BEGIN
+ -- A published form cannot change its last editor, even while being archived.
+ BEGIN
+  UPDATE pathways.digital_forms SET status='ARCHIVED',archived_at=now(),
+   last_edited_by_id='79000000-0000-4000-8000-000000000032' WHERE id='79000000-0000-4000-8000-000000000056';
+  RAISE EXCEPTION 'archive changed the last editor';
+ EXCEPTION WHEN raise_exception THEN IF SQLERRM !~ 'immutable' THEN RAISE; END IF; END;
+ BEGIN
+  UPDATE pathways.digital_forms SET last_edited_by_id='79000000-0000-4000-8000-000000000032' WHERE id='79000000-0000-4000-8000-000000000056';
+  RAISE EXCEPTION 'published form changed its last editor';
+ EXCEPTION WHEN raise_exception THEN IF SQLERRM !~ 'immutable' THEN RAISE; END IF; END;
+ -- The last editor cannot publish the draft; neither can the creator.
+ FOR got IN SELECT unnest(ARRAY['79000000-0000-4000-8000-000000000032','79000000-0000-4000-8000-000000000031']) LOOP
+  BEGIN
+   UPDATE pathways.digital_forms SET status='PUBLISHED',published_at=now(),published_by_id=got::uuid
+   WHERE id='79000000-0000-4000-8000-000000000057';
+   RAISE EXCEPTION 'publish by % accepted', got;
+  EXCEPTION WHEN raise_exception THEN IF SQLERRM !~ 'different attributable reviewer' THEN RAISE; END IF; END;
+ END LOOP;
+ -- A third user can.
+ UPDATE pathways.digital_forms SET status='PUBLISHED',published_at=now(),published_by_id='79000000-0000-4000-8000-000000000035'
+ WHERE id='79000000-0000-4000-8000-000000000057';
+ -- A plain archive of a published form still works.
+ UPDATE pathways.digital_forms SET status='ARCHIVED',archived_at=now() WHERE id='79000000-0000-4000-8000-000000000056';
+ PERFORM set_config('intake.passed',(coalesce(nullif(current_setting('intake.passed',true),''),'0')::integer+1)::text,true);
+END $$;
+ALTER TABLE pathways.digital_forms ENABLE TRIGGER p09_form_archive;
+
 -- Shape checks on a draft field and the last editor key; every case reports its own label.
 DO $$
 DECLARE c record; got text; field text := '79000000-0000-4000-8000-000000000091';
 BEGIN
  FOR c IN SELECT * FROM (VALUES
+  ('source names null','source_names','NULL','23502'),
   ('source names two dimensions','source_names','''{{a},{b}}''','23514'),
+  ('source names control char hides 101 chars','source_names','ARRAY[''a''||chr(1)||repeat(''b'',100)]','23514'),
+  ('source names control char makes one valid element','source_names','ARRAY[''a'',chr(1)||''  '']','00000'),
+  ('source names blank after control char','source_names','ARRAY[''a''||chr(1)||'''','' '']','23514'),
   ('source names 21 entries','source_names','array_fill(''x''::text,ARRAY[21])','23514'),
   ('source names empty entry','source_names','ARRAY['''']','23514'),
   ('source names blank entry','source_names','ARRAY[''  '']','23514'),
@@ -170,6 +217,9 @@ BEGIN
   ('aliases 100 char from ok','value_aliases','jsonb_build_array(jsonb_build_object(''from'',repeat(''a'',100),''to'',''b''))','00000'),
   ('aliases empty ok','value_aliases','''[]''::jsonb','00000'),
   ('default empty','import_default','''''','23514'),
+  ('default blank','import_default','''   ''','23514'),
+  ('default tab and newline','import_default','E''\t\n''','23514'),
+  ('default padded ok','import_default','''  x  ''','00000'),
   ('default 121 chars','import_default','repeat(''a'',121)','23514'),
   ('default 120 chars ok','import_default','repeat(''a'',120)','00000'),
   ('rule array','rule','''[]''::jsonb','23514'),
@@ -435,6 +485,6 @@ END $$;
 RESET SESSION AUTHORIZATION;
 
 SELECT 'IMPORT_INTAKE_ASSERTIONS_PASSED=' || current_setting('intake.passed') AS result;
-DO $$ BEGIN IF current_setting('intake.passed')::integer<>14 THEN RAISE EXCEPTION 'incomplete suite'; END IF; END $$;
+DO $$ BEGIN IF current_setting('intake.passed')::integer<>15 THEN RAISE EXCEPTION 'incomplete suite'; END IF; END $$;
 SELECT 'IMPORT_INTAKE_RUNTIME=PASS' AS result;
 ROLLBACK;
