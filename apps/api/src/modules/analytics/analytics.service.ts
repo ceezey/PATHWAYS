@@ -118,7 +118,7 @@ export class AnalyticsService {
   /**
    * Reuses the dashboard aggregate contracts inside the caller's authorized
    * transaction. Project scope is resolved by the dashboard scope query before
-   * any aggregate is read; SADDD comes only from the suppressed p06_saddd release.
+   * any aggregate is read; SADDD comes only from the p06_saddd release.
    */
   private async compute(tx: Tx, actor: ApplicationIdentity, query: DescriptiveAnalyticsQuery) {
     const role = actor.roles[0]
@@ -186,11 +186,10 @@ export class AnalyticsService {
    * database function is the enforcing authority (22023 -> 400, no audit row, same as any
    * other validation failure); the API deliberately does not re-read Indicator rows because
    * roles that hold monitoring.read need not hold indicators.read. The
-   * unsuppressed group aggregate comes from pathways.p10_f9_survey_aggregate, which
+   * group aggregate comes from pathways.p10_f9_survey_aggregate, which
    * requires analytics.descriptive.read, monitoring.read and assessments.detail.read; aggregate-only
-   * roles use p10_f9_survey_release (closed periods only, frozen copy), checked here and in the function. Assessment rows are never read here; threshold,
-   * complementary suppression and cross-group withholding run in the shared calculator
-   * before anything leaves this process.
+   * roles use p10_f9_survey_release (closed periods only, frozen copy), checked here and in the function. Assessment rows are never read here; the
+   * shared calculator releases exact counts (cr-pathways-saddd-exact-counts).
    */
   private async computeSurvey(
     tx: Tx,

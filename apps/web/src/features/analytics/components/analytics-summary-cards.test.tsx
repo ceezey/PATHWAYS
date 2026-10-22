@@ -42,9 +42,12 @@ const base: Props = {
 const readCard = (label: string, props: Partial<Props>) => {
   render(<AnalyticsSummaryCards {...base} {...props} />)
   const root = screen.getByText(label).closest('.relative') as HTMLElement
-  fireEvent.mouseEnter(within(root).getByRole('button'))
+  const trigger = within(root).getByRole('button')
+  fireEvent.mouseEnter(trigger)
+  // The tooltip renders in a portal, linked to its trigger by aria-describedby.
+  const tipId = trigger.getAttribute('aria-describedby') ?? ''
   return {
-    tip: within(root).getByRole('tooltip').textContent,
+    tip: document.getElementById(tipId)?.textContent,
     value: root.querySelector('p.tabular-nums')?.textContent,
     tone: /bg-(\w+)-subtle/.exec(root.querySelector('div.h-10')?.className ?? '')?.[1],
   }

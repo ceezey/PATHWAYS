@@ -285,9 +285,7 @@ export async function loadReportSource(
         field.meanState,
       ])
       if (aggregate.state === 'SUPPRESSED')
-        result.unavailableReasons = [
-          'All survey counts and means are suppressed to protect small groups.',
-        ]
+        result.unavailableReasons = ['Survey counts and means are not available for this report.']
     }
   }
   if (Buffer.byteLength(JSON.stringify(result.rows), 'utf8') > 2_000_000)

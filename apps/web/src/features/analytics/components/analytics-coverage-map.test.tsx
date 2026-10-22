@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { SafeMapFeatureCollection } from '../analytics-location.utils'
@@ -10,7 +10,7 @@ const maplibre = vi.hoisted(() => ({
   setWorkerUrl: vi.fn(),
 }))
 
-type Handler = () => void
+type Handler = (event?: unknown) => void
 
 class MapMock {
   readonly options: Record<string, unknown>
@@ -25,6 +25,12 @@ class MapMock {
   readonly jumpTo = vi.fn()
   readonly remove = vi.fn()
   readonly resize = vi.fn()
+  readonly easeTo = vi.fn()
+  readonly setPaintProperty = vi.fn()
+  readonly project = vi.fn(() => ({ x: 100, y: 100 }))
+  readonly getContainer = vi.fn(() => ({ clientWidth: 600, clientHeight: 400 }))
+  readonly getCanvas = vi.fn(() => ({ style: {} as Record<string, string> }))
+  readonly queryRenderedFeatures = vi.fn((): unknown[] => [])
 
   constructor(options: Record<string, unknown>) {
     this.options = options
@@ -32,20 +38,23 @@ class MapMock {
     queueMicrotask(() => this.emit(options.style === 'error-style' ? 'error' : 'load'))
   }
 
-  on(event: string, handler: Handler) {
+  on(event: string, layerOrHandler: string | Handler, layerHandler?: Handler) {
+    const handler = typeof layerOrHandler === 'function' ? layerOrHandler : layerHandler
+    if (!handler) return this
     const handlers = this.handlers.get(event) ?? new Set<Handler>()
     handlers.add(handler)
     this.handlers.set(event, handlers)
     return this
   }
 
-  off(event: string, handler: Handler) {
-    this.handlers.get(event)?.delete(handler)
+  off(event: string, layerOrHandler: string | Handler, layerHandler?: Handler) {
+    const handler = typeof layerOrHandler === 'function' ? layerOrHandler : layerHandler
+    if (handler) this.handlers.get(event)?.delete(handler)
     return this
   }
 
-  emit(event: string) {
-    for (const handler of this.handlers.get(event) ?? []) handler()
+  emit(event: string, payload?: unknown) {
+    for (const handler of this.handlers.get(event) ?? []) handler(payload)
   }
 
   addSource(id: string, source: { type: string; data: unknown }) {
@@ -76,6 +85,7 @@ import {
   AnalyticsCoverageMap,
   DEFAULT_MAP_STYLE_URL,
   MAPLIBRE_WORKER_URL,
+  cardPosition,
   resolveMapStyleUrl,
 } from './analytics-coverage-map'
 
@@ -97,7 +107,7 @@ const features = (
   features: points.map(([id, longitude, latitude]) => ({
     type: 'Feature',
     id,
-    properties: { id, label: id },
+    properties: { id, key: `${id}:0`, label: id, title: `Project ${id}` },
     geometry: { type: 'Point', coordinates: [longitude, latitude] },
   })),
 })
@@ -113,7 +123,89 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
+describe('cardPosition', () => {
+  const card = { width: 200, height: 150 }
+  const frame = { width: 600, height: 400 }
+
+  it('puts the card above the point when it fits', () => {
+    expect(cardPosition({ x: 300, y: 300 }, card, frame)).toEqual({ left: 200, top: 136 })
+  })
+
+  it('puts the card below a point near the top', () => {
+    expect(cardPosition({ x: 300, y: 50 }, card, frame)).toEqual({ left: 200, top: 64 })
+  })
+
+  it('puts the card beside a point with no room above or below, on the side with room', () => {
+    const tall = { width: 200, height: 300 }
+    expect(cardPosition({ x: 100, y: 200 }, tall, frame)).toEqual({ left: 114, top: 50 })
+    expect(cardPosition({ x: 500, y: 200 }, tall, frame)).toEqual({ left: 286, top: 50 })
+  })
+
+  it('clamps the card inside the frame at the edges', () => {
+    expect(cardPosition({ x: 5, y: 300 }, card, frame)).toEqual({ left: 8, top: 136 })
+    expect(cardPosition({ x: 595, y: 300 }, card, frame)).toEqual({ left: 392, top: 136 })
+  })
+})
+
 describe('AnalyticsCoverageMap', () => {
+  const popup = (point: { label: string }, close: () => void) => (
+    <div>
+      <p>{point.label} card</p>
+      <button onClick={close} type="button">
+        Close card
+      </button>
+    </div>
+  )
+
+  it('opens a place from the keyboard list as a focused dialog and returns focus on Escape', async () => {
+    render(
+      <AnalyticsCoverageMap
+        featureCollection={features([['place-a', 121, 14.6]])}
+        renderPopup={popup}
+        styleUrl="test-style"
+      />,
+    )
+    const opener = await screen.findByRole('button', { name: 'Project place-a: place-a' })
+    opener.focus()
+    fireEvent.click(opener)
+
+    const dialog = await screen.findByRole('dialog', { name: 'place-a overview' })
+    await waitFor(() => expect(document.activeElement).toBe(dialog))
+    expect(maplibre.instances[0]?.easeTo).toHaveBeenCalledTimes(1)
+    expect(maplibre.instances[0]?.setPaintProperty).toHaveBeenLastCalledWith(
+      'pathways-authorized-project-location-points',
+      'circle-radius',
+      ['case', ['==', ['get', 'key'], 'place-a:0'], 11, 8],
+    )
+
+    fireEvent.keyDown(dialog, { key: 'Escape' })
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(document.activeElement).toBe(opener)
+  })
+
+  it('opens a tapped point and closes it from the card', async () => {
+    render(
+      <AnalyticsCoverageMap
+        featureCollection={features([['place-b', 121, 14.6]])}
+        renderPopup={popup}
+        styleUrl="test-style"
+      />,
+    )
+    await screen.findByRole('button', { name: 'Project place-b: place-b' })
+    const map = maplibre.instances[0]
+    map?.queryRenderedFeatures.mockReturnValue([
+      {
+        properties: { id: 'place-b', key: 'place-b:0', label: 'place-b' },
+        geometry: { type: 'Point', coordinates: [121, 14.6] },
+      },
+    ])
+    act(() => map?.emit('click', { point: { x: 100, y: 100 } }))
+
+    expect(await screen.findByText('place-b card')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Close card' }))
+    expect(screen.queryByText('place-b card')).toBeNull()
+  })
+
   it('mounts normalized GeoJSON once with navigation controls and a one-point camera', async () => {
     render(
       <AnalyticsCoverageMap

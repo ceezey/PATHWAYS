@@ -33,6 +33,14 @@ describe('projectMapSchema', () => {
     expect(projectMapSchema.safeParse(valid).success).toBe(true)
   })
 
+  it('accepts a place with released reach', () => {
+    const count = { state: 'AVAILABLE', value: '3', reason: null }
+    const reach = { total: count, sex: [{ ...bucket, metric: count }], disability: bucket.metric }
+    expect(projectMapSchema.safeParse(withProject({ places: [{ ...place, reach }] })).success).toBe(
+      true,
+    )
+  })
+
   it('rejects an unknown key on the map', () => {
     expect(projectMapSchema.safeParse({ ...valid, extra: 1 }).success).toBe(false)
   })

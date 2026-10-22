@@ -32,6 +32,10 @@ ROLLBACK;
 DO $$ BEGIN
  IF EXISTS(SELECT FROM public._prisma_migrations WHERE finished_at IS NULL AND rolled_back_at IS NULL) THEN
   RAISE EXCEPTION 'A migration is still in progress'; END IF;
+ -- A residual rules owner membership is the 0076 saddd-exact chain, which only its own cleanup revokes.
+ IF EXISTS(SELECT FROM pg_catalog.pg_auth_members m JOIN pg_catalog.pg_roles r ON r.oid=m.roleid
+  WHERE m.member=(SELECT oid FROM pg_catalog.pg_roles WHERE rolname='prisma') AND r.rolname LIKE 'rules\_%\_owner') THEN
+  RAISE EXCEPTION 'Residual 0076 chain: run hosted-saddd-exact-cleanup.sql, then resume'; END IF;
 END $$;
 REVOKE report_projection_owner FROM prisma GRANTED BY postgres;
 DO $$ BEGIN
