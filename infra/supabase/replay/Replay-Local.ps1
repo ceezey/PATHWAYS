@@ -621,6 +621,8 @@ END $$;
       Write-Output 'SADDD_EXACT_COUNTS_RUNTIME=PASS'
       Measure-ReplayStep 'sql saddd-by-place-runtime' { Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/saddd-by-place-runtime.sql'))) $phase6Database }
       Write-Output 'SADDD_BY_PLACE_RUNTIME=PASS'
+      Measure-ReplayStep 'sql import-intake-runtime' { Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/import-intake-runtime.sql'))) $phase6Database }
+      Write-Output 'IMPORT_INTAKE_RUNTIME=PASS'
     }
     Invoke-LocalSql 'ALTER ROLE pathways_runtime LOGIN;' $phase6Database
     $env:PATHWAYS_CSV_RBAC_LOCAL_TESTS = '1'
