@@ -38,8 +38,8 @@ export type SurveyAnalytics = z.infer<typeof surveyAnalyticsSchema>
  * Group aggregate for paired pre/post assessments, as returned by the trusted
  * pathways.p10_f9_survey_aggregate function. It carries counts and sums only: no
  * row, enrollment, Beneficiary, or assessment identifier. `activityId` is the
- * group key (null is the no-activity group). Suppression is NOT applied here;
- * computeSurveyAnalyticsFromAggregates applies it before anything is released.
+ * group key (null is the no-activity group). computeSurveyAnalyticsFromAggregates
+ * releases its counts exactly (cr-pathways-saddd-exact-counts).
  */
 export const surveyAggregateGroupSchema = z
   .object({

@@ -63,19 +63,26 @@ BEGIN
       AND e.enrollment_date<=period_end AND (e.ended_date IS NULL OR e.ended_date>=project_start)
       AND ben.subject_type='INDIVIDUAL' AND ben.archived_at IS NULL AND NOT ben.is_dummy_record
   ), eligible AS MATERIALIZED (SELECT * FROM population WHERE age IS NOT NULL)
-  SELECT coalesce(jsonb_agg(jsonb_build_object('town', t.town, 'province', t.province, 'total', t.total, 'disability', t.disability, 'sex', t.sex)
+  -- One pass per town with exact counts; every town is returned, never a truncated subset.
+  SELECT coalesce(jsonb_agg(jsonb_build_object('town', t.town, 'province', t.province, 'total', t.total,
+    'disability', t.disability, 'sex', jsonb_build_array(
+      jsonb_build_object('key', 'MALE', 'label', 'Male', 'n', t.male),
+      jsonb_build_object('key', 'FEMALE', 'label', 'Female', 'n', t.female),
+      jsonb_build_object('key', 'OTHER', 'label', 'Other', 'n', t.other),
+      jsonb_build_object('key', 'PREFER_NOT_TO_SAY', 'label', 'Prefer not to say', 'n', t.prefer_not),
+      jsonb_build_object('key', 'NOT_SPECIFIED', 'label', 'Unknown', 'n', t.unknown)))
     ORDER BY t.town NULLS LAST, t.province NULLS LAST), '[]'::jsonb)
   INTO result
   FROM (
-    SELECT p.town, p.province, count(*) AS total, count(*) FILTER (WHERE p.disability='WITH_DISABILITY') AS disability,
-      (SELECT jsonb_agg(jsonb_build_object('key', v.key, 'label', v.label,
-         'n', (SELECT count(*) FROM eligible q WHERE q.town IS NOT DISTINCT FROM p.town
-           AND q.province IS NOT DISTINCT FROM p.province AND q.sex=v.key)) ORDER BY v.ord)
-       FROM (VALUES ('MALE','Male',1),('FEMALE','Female',2),('OTHER','Other',3),('PREFER_NOT_TO_SAY','Prefer not to say',4),
-         ('NOT_SPECIFIED','Unknown',5)) v(key,label,ord)) AS sex
+    SELECT p.town, p.province, count(*) AS total,
+      count(*) FILTER (WHERE p.disability='WITH_DISABILITY') AS disability,
+      count(*) FILTER (WHERE p.sex='MALE') AS male,
+      count(*) FILTER (WHERE p.sex='FEMALE') AS female,
+      count(*) FILTER (WHERE p.sex='OTHER') AS other,
+      count(*) FILTER (WHERE p.sex='PREFER_NOT_TO_SAY') AS prefer_not,
+      count(*) FILTER (WHERE p.sex='NOT_SPECIFIED') AS unknown
     FROM eligible p
     GROUP BY p.town, p.province
-    LIMIT 200
   ) t;
   RETURN result;
 END

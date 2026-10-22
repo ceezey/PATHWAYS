@@ -310,7 +310,8 @@ export function assertResumablePrefix(ledgerRows) {
 //  * 0075_indicator_summary_measurement_lookup and 0076_saddd_exact_counts follow the same two shapes for the
 //    saddd-exact membership (temporary report, rules store and rules projection owner SET chain) granted before and
 //    revoked after 0076. A 0075 ledger with a residual chain resumes at the indicator-summary cleanup, whose own
-//    precondition rejects it when the residual chain is the 0076 one.
+//    precondition rejects it when prisma still holds a rules owner membership (the 0076 chain); the operator then
+//    runs hosted-saddd-exact-cleanup.sql by hand and resumes at the saddd-exact preprovision.
 // The caller therefore checks live database state (whether prisma still holds a temporary
 // rules owner membership) and passes it in as `residualOwnerMemberships`.
 // 0042_proof_session_beneficiary_count has no preprovision/cleanup pair (see buildPlan), so a

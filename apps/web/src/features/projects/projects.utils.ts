@@ -59,6 +59,8 @@ export const metricUnavailableLabel = (cell: MetricCell) => {
       return 'After project close'
     case 'NOT_STARTED':
       return 'Not started yet'
+    case 'NO_RESIDENCE_MATCH':
+      return 'Town not recorded'
     case 'RESTATEMENT_REVIEW_REQUIRED':
       return 'Under review'
     // F9 survey/timeline analytics reasons (analytics.descriptive.survey.v1 /

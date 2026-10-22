@@ -3,6 +3,8 @@
 -- pathways_rules_internal (whose schema owner rules_store_owner lends CREATE), so this grants prisma a temporary
 -- SET-only membership to exactly those three roles (no ADMIN, no INHERIT). Run hosted-saddd-exact-cleanup.sql right
 -- after 0076; after a failed attempt run `prisma migrate resolve --rolled-back 0076_saddd_exact_counts` and then the cleanup.
+-- A build that stops after this script and before 0076 resumes at the 0075 cleanup, which refuses while this chain is
+-- granted: run hosted-saddd-exact-cleanup.sql, then resume, which grants this chain again.
 -- Hosted endpoint must be independently pinned with TLS first.
 \set ON_ERROR_STOP on
 \if :{?target_project_ref}

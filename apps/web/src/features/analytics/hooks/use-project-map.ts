@@ -28,7 +28,10 @@ const offset = (longitude: number, latitude: number, seen: Map<string, number>) 
   return [longitude + spread * Math.cos(angle), latitude + spread * Math.sin(angle)] as const
 }
 
-/** One point per resolved place; `properties.id` is the project id so its points highlight together. */
+/** Identifies one place of one project; the same town name can sit in two provinces. */
+export const placeKey = (projectId: string, index: number) => `${projectId}:${index}`
+
+/** One point per resolved place; `properties.id` is the project id and `key` the place. */
 export const toProjectMapFeatures = (map: ProjectMap | undefined): SafeMapFeatureCollection => {
   const seen = new Map<string, number>()
   return {
@@ -36,8 +39,13 @@ export const toProjectMapFeatures = (map: ProjectMap | undefined): SafeMapFeatur
     features: (map?.projects ?? []).flatMap((project) =>
       project.places.map((place, index) => ({
         type: 'Feature' as const,
-        id: `${project.id}:${index}`,
-        properties: { id: project.id, label: place.name },
+        id: placeKey(project.id, index),
+        properties: {
+          id: project.id,
+          key: placeKey(project.id, index),
+          label: place.name,
+          title: project.title,
+        },
         geometry: {
           type: 'Point' as const,
           coordinates: offset(place.longitude, place.latitude, seen),

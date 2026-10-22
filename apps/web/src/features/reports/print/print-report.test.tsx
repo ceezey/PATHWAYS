@@ -20,7 +20,7 @@ const report: PrintReport = {
   rows: [
     ['Sex', 'Female', '42', 'AVAILABLE', ''],
     ['Sex', 'Male', '1,204', 'AVAILABLE', ''],
-    ['Sex', 'Intersex', 'Suppressed', 'SUPPRESSED', 'Small group'],
+    ['Sex', 'Intersex', 'Suppressed', 'SUPPRESSED', 'Withheld for this role'],
   ],
   generatedAt: '2026-10-05T03:00:00.000Z',
   unavailableReasons: ['Participation counts are withheld for aggregate-only roles.'],

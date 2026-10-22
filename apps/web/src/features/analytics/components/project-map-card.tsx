@@ -1,6 +1,6 @@
 'use client'
 
-import type { MetricCell, ProjectMapProject } from '@pathways/shared'
+import type { MetricCell, ProjectMapPlace, ProjectMapProject } from '@pathways/shared'
 import { X } from 'lucide-react'
 import Link from 'next/link'
 
@@ -21,13 +21,13 @@ const Row = ({ label, value, detail }: RowData) => (
   </div>
 )
 
-// SADDD groups that hold people, so zero buckets and the disability count stay out when empty.
+// SADDD groups other than exact zeros; a withheld group keeps its label so it never reads as empty.
 const breakdown = (
   sex: ProjectMapProject['sadddSex'] | undefined,
   disability: MetricCell | null | undefined,
 ) =>
   [...(sex ?? []), ...(disability ? [{ label: 'With disability', metric: disability }] : [])]
-    .filter((bucket) => bucket.metric.state === 'AVAILABLE')
+    .filter((bucket) => bucket.metric.state !== 'ZERO')
     .map((bucket) => `${bucket.label} ${overviewMetricLabel(bucket.metric, 'count')}`)
     .join(' · ') || undefined
 
@@ -38,7 +38,7 @@ export const ProjectMapCard = ({
   onClose,
 }: {
   project: ProjectMapProject
-  place: string
+  place: ProjectMapPlace
   onClose: () => void
 }) => {
   const { overview } = project
@@ -46,7 +46,7 @@ export const ProjectMapCard = ({
   const reached = overview?.beneficiariesReached
   const timeline = overview?.timeline
   const budget = overview?.budgetUtilization
-  const here = project.places.find((row) => row.name === place)?.reach
+  const here = place.reach
   // Rows a role cannot read are left out rather than shown as unavailable.
   const wholeProject = [
     kpi && {
@@ -78,7 +78,7 @@ export const ProjectMapCard = ({
         <div className="min-w-0">
           <p className="font-medium text-foreground">{project.title}</p>
           <p className="text-xs text-muted-foreground">
-            {project.code} · {place}
+            {project.code} · {place.name}
           </p>
         </div>
         <Button
@@ -94,8 +94,8 @@ export const ProjectMapCard = ({
       {here ? (
         <dl className="mt-2">
           <Row
-            detail={breakdown(here.sex, here.disability)}
-            label={`Reached in ${place} (SADDD)`}
+            detail={here.total.value === null ? undefined : breakdown(here.sex, here.disability)}
+            label={`Reached in ${place.name} (SADDD)`}
             value={overviewMetricLabel(here.total, 'count')}
           />
         </dl>

@@ -3,7 +3,7 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 
-import { MetricTooltip } from './metric-tooltip'
+import { MetricTooltip, tooltipPosition } from './metric-tooltip'
 
 afterEach(cleanup)
 
@@ -35,5 +35,22 @@ describe('MetricTooltip', () => {
     expect(screen.getByRole('tooltip')).toBeTruthy()
     fireEvent.blur(trigger)
     expect(screen.queryByRole('tooltip')).toBeNull()
+  })
+
+  it('keeps the tooltip inside the viewport at the right and bottom edges', () => {
+    const tip = { width: 256, height: 80 }
+    const viewport = { width: 1000, height: 600 }
+    expect(tooltipPosition({ left: 100, top: 100, bottom: 120 }, tip, viewport)).toEqual({
+      left: 100,
+      top: 128,
+    })
+    expect(tooltipPosition({ left: 900, top: 100, bottom: 120 }, tip, viewport)).toEqual({
+      left: 736,
+      top: 128,
+    })
+    expect(tooltipPosition({ left: 100, top: 560, bottom: 580 }, tip, viewport)).toEqual({
+      left: 100,
+      top: 472,
+    })
   })
 })

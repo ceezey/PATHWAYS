@@ -30,7 +30,7 @@ export const sampleReport: PrintReport = {
   rows: [
     ['Sex', 'Female', '128', 'AVAILABLE', ''],
     ['Sex', 'Male', '97', 'AVAILABLE', ''],
-    ['Sex', 'Intersex', 'Suppressed', 'SUPPRESSED', 'Small group'],
+    ['Sex', 'Intersex', '3', 'AVAILABLE', ''],
     ['Age group', '18 to 24', '61', 'AVAILABLE', ''],
     ['Age group', '25 to 34', '84', 'AVAILABLE', ''],
   ],

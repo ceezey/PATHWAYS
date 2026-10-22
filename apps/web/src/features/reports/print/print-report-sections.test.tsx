@@ -114,7 +114,7 @@ describe('project status layout', () => {
           columns: ['Dimension', 'Category', 'Value', 'Metric state', 'Reason'],
           rows: [
             ['Sex', 'Female', '12', 'AVAILABLE', ''],
-            ['Sex', 'Male', 'Suppressed', 'SUPPRESSED', 'Small group'],
+            ['Sex', 'Male', 'Suppressed', 'SUPPRESSED', 'Withheld for this role'],
           ],
           generatedAt: '2026-10-05T03:00:00.000Z',
           unavailableReasons: [],

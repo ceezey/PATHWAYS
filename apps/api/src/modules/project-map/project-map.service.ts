@@ -4,6 +4,7 @@ import {
   PROJECT_MAP_CONTRACT_VERSION,
   type ProjectMap,
   type ProjectMapPlace,
+  missingMetric,
   numericMetric,
   projectMapSchema,
 } from '@pathways/shared'
@@ -19,24 +20,56 @@ import { type ResolvedPlace, resolvePlaces } from './ph-places'
 
 const projectLimit = 100
 
-const townReachSchema = z.array(
-  z.object({
-    town: z.string().nullable(),
-    province: z.string().nullable(),
-    total: z.number().int().min(0),
-    disability: z.number().int().min(0),
-    sex: z.array(z.object({ key: z.string(), label: z.string(), n: z.number().int().min(0) })),
-  }),
-)
-type TownReach = z.infer<typeof townReachSchema>
-
-/** Sums the towns that resolve to this place; a town naming no known place reaches no pin. */
-export function placeReach(place: ResolvedPlace, towns: TownReach): ProjectMapPlace['reach'] {
-  const here = towns.filter((row) =>
-    resolvePlaces([row.town, row.province].filter(Boolean).join(', ')).some(
-      (resolved) => resolved.name === place.name && resolved.province === place.province,
-    ),
+// One row per recorded town; a project never spans more than the country's cities and municipalities.
+const townReachSchema = z
+  .array(
+    z.object({
+      town: z.string().nullable(),
+      province: z.string().nullable(),
+      total: z.number().int().min(0),
+      disability: z.number().int().min(0),
+      sex: z.array(z.object({ key: z.string(), label: z.string(), n: z.number().int().min(0) })),
+    }),
   )
+  .max(2000)
+type TownReach = z.infer<typeof townReachSchema>
+type ResolvedTown = { row: TownReach[number]; places: ResolvedPlace[] }
+
+/** Resolves each recorded town once per project; a town naming no known place resolves to none. */
+export const resolveTowns = (towns: TownReach): ResolvedTown[] =>
+  towns.map((row) => ({
+    row,
+    places: resolvePlaces([row.town, row.province].filter(Boolean).join(', ')),
+  }))
+
+// Province centroids carry the province as their name; no bundled city shares its province's name.
+const isProvince = (place: ResolvedPlace) => place.name === place.province
+
+/**
+ * Sums the towns at this pin: a city pin by name and province, a province pin by every town in that province. With no
+ * match the pin is a measured zero only when no recorded town could belong to it; otherwise the count is missing.
+ */
+export function placeReach(place: ResolvedPlace, towns: ResolvedTown[]): ProjectMapPlace['reach'] {
+  const here = towns
+    .filter(({ places }) =>
+      places.some((resolved) =>
+        isProvince(place)
+          ? resolved.province === place.province
+          : resolved.name === place.name && resolved.province === place.province,
+      ),
+    )
+    .map(({ row }) => row)
+  const unknown = towns.some(
+    ({ places }) =>
+      places.length === 0 ||
+      (!isProvince(place) &&
+        places.every(isProvince) &&
+        places.some((resolved) => resolved.province === place.province)),
+  )
+  if (here.length === 0 && unknown) {
+    const missing = missingMetric('NO_RESIDENCE_MATCH')
+    return { total: missing, sex: [], disability: missing }
+  }
   const sex = new Map<string, { label: string; n: number }>()
   for (const row of here)
     for (const bucket of row.sex)
@@ -52,7 +85,7 @@ export function placeReach(place: ResolvedPlace, towns: TownReach): ProjectMapPl
 
 /**
  * Coverage map of the caller's scoped projects. Each point is a bundled place centroid and
- * each overview reuses the Project Overview and SADDD services, so scope and suppression match.
+ * each overview reuses the Project Overview and SADDD services, so scope and release rules match.
  */
 @Injectable()
 export class ProjectMapService {
@@ -75,7 +108,7 @@ export class ProjectMapService {
           tx.$queryRaw<Array<{ data: unknown }>>`
             SELECT pathways.p06_saddd_by_place(${actor.organizationId}::uuid, ${projectId}::uuid, ${zone}) AS data`,
       )
-      return townReachSchema.parse(rows[0]?.data ?? [])
+      return resolveTowns(townReachSchema.parse(rows[0]?.data ?? []))
     } catch (error) {
       this.logger.warn(`Place reach unavailable for map point: ${(error as Error).name}`)
       return null
