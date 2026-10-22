@@ -20,6 +20,19 @@ const flagOf = (value: unknown) => {
   return YES.has(key) ? true : NO.has(key) ? false : undefined
 }
 
+/** A cell as the runtime reads it for a number or boolean field: integer text and true/false text are coerced. */
+const coerced = (value: unknown) => {
+  if (typeof value !== 'string') return value
+  const text = value.trim().toLowerCase()
+  return /^\d+$/.test(text)
+    ? Number(text)
+    : text === 'true'
+      ? true
+      : text === 'false'
+        ? false
+        : value
+}
+
 function toDay(value: unknown) {
   if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value.trim())) return null
   const day = new Date(`${value.trim()}T00:00:00.000Z`)
@@ -149,13 +162,13 @@ export function proposeIntakeRules(
       const field = byCode.get(mapping.get(column.key) ?? '')
       const present = column.values.filter((value) => !isBlank(value))
       if (asked.has(column.key) || !field || !isNew(field.code) || present.length === 0) continue
-      if (!present.every((value) => flagOf(value) !== undefined)) continue
+      const plain = (value: unknown) => typeof value === 'boolean' || typeof value === 'string'
+      if (!present.every((value) => plain(value) && flagOf(value) !== undefined)) continue
       let checked = 0
       let differs = 0
       for (const row of rowIndexes) {
         if (isBlank(column.values[row])) continue
         const answers = levels(row)
-        if (answers.every((level) => level === null)) continue
         const expected = answers.some((level) => level !== null && level >= 3)
           ? true
           : answers.every((level) => level !== null)
@@ -219,7 +232,7 @@ export function proposeIntakeRules(
           (row) =>
             isBlank(column.values[row]) ||
             expected(row) === null ||
-            column.values[row] === expected(row),
+            coerced(column.values[row]) === expected(row),
         )
       propose(field, { kind, birthField: 'birth_date', atField: 'enrollment_date' })
       if (!column) continue
@@ -241,7 +254,9 @@ export function proposeIntakeRules(
       if (
         rowsChecked.length > 0 &&
         rowsChecked.every(
-          (row) => column.values[row] === years(row, upload) || column.values[row] === years(row),
+          (row) =>
+            coerced(column.values[row]) === years(row, upload) ||
+            coerced(column.values[row]) === years(row),
         )
       )
         propose(field, {

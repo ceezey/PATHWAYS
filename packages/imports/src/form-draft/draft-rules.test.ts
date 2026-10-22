@@ -90,6 +90,58 @@ describe('proposeIntakeRules on the Futuremakers fixture', () => {
     })
   })
 
+  it('keeps a numeric 1/0 flag column as its own field and does not fold it into disability_status', () => {
+    const result = withColumn(COLUMN.flag, (values) => values.map((value) => (value ? 1 : 0)))
+    expect(wgRule(result).questionFields).toHaveLength(6)
+    expect(find(result, 'living_with_disability')?.dataType).toBe('INTEGER')
+    expect(find(result, 'disability_status')?.sourceNames).toBeUndefined()
+    expect(find(result, 'disability_status')?.valueAliases).toBeUndefined()
+  })
+
+  describe('a row with all six Washington Group answers blank and a filled flag', () => {
+    const blankFirstRow = (flagHeader: string) => {
+      const columns = fixtureColumns()
+      for (const index of [18, 19, 20, 21, 22, 23])
+        columns[index] = {
+          ...columns[index],
+          values: columns[index].values.map((value, row) => (row === 0 ? '' : value)),
+        }
+      columns[COLUMN.flag] = { ...columns[COLUMN.flag], header: flagHeader }
+      return draft(columns)
+    }
+
+    it('counts as a disagreement: no fold, flagged when the header names disability', () => {
+      const result = blankFirstRow('Living With Disability')
+      expect(find(result, 'disability_status')?.sourceNames).toBeUndefined()
+      expect(find(result, 'living_with_disability')).toBeDefined()
+      expect(result.summary.needsCheck).toContainEqual({
+        fieldCode: 'living_with_disability',
+        reason: 'WASHINGTON_GROUP_FLAG_DISAGREES',
+      })
+    })
+
+    it('stays a plain field without a flag when the header does not name disability', () => {
+      const result = blankFirstRow('Special status')
+      expect(find(result, 'disability_status')?.sourceNames).toBeUndefined()
+      expect(find(result, 'special_status')).toBeDefined()
+      expect(result.summary.needsCheck.map((item) => item.reason)).not.toContain(
+        'WASHINGTON_GROUP_FLAG_DISAGREES',
+      )
+    })
+  })
+
+  it('treats an Age column of integer text equal to age at enrollment as a cross-check, not a move', () => {
+    const columns = fixtureColumns()
+    const years = (born: string, at: string) =>
+      Number(at.slice(0, 4)) - Number(born.slice(0, 4)) - (at.slice(5) < born.slice(5) ? 1 : 0)
+    const ages = columns[COLUMN.birth].values.map((born, row) =>
+      String(years(String(born), String(columns[1].values[row]))),
+    )
+    const result = withColumn(COLUMN.age, () => ages)
+    expect(find(result, 'age')).toBeUndefined()
+    expect(find(result, 'age_at_registration')?.sourceNames).toEqual(['Age'])
+  })
+
   it('moves Age off age_at_registration to a new age field with AGE_CHECK atFields [enrollment_date]', () => {
     const result = fixture()
     expect(find(result, 'age')).toMatchObject({
