@@ -412,6 +412,70 @@ describe('P02 metadata service', () => {
       )
     })
 
+    it('rejects a source name with no letter or digit, naming the field only', async () => {
+      await expect(
+        update([{ code: 'first_name', dataType: 'TEXT', sourceNames: ['!!!'] }]),
+      ).rejects.toMatchObject({
+        response: expect.objectContaining({
+          errors: [
+            {
+              fieldCode: 'first_name',
+              code: 'invalid_definition',
+              message: 'A source name must contain a letter or digit.',
+            },
+          ],
+        }),
+      })
+      expect(tx.digitalForm.updateMany).not.toHaveBeenCalled()
+    })
+
+    it('marks the form as own for the last editor who is not the creator', async () => {
+      tx.$queryRaw.mockResolvedValue([{ status: 'DRAFT', fingerprint: null }])
+      tx.digitalForm.findFirst.mockResolvedValue(form({ lastEditedById: reviewerId }))
+      const read = await service.getForm(state.actor as ApplicationIdentity, projectId, formId)
+      expect(read.createdByCurrentUser).toBe(true)
+      tx.digitalForm.findFirst.mockResolvedValue(
+        form({ lastEditedById: '20000000-0000-4000-8000-000000000009' }),
+      )
+      const other = await service.getForm(state.actor as ApplicationIdentity, projectId, formId)
+      expect(other.createdByCurrentUser).toBe(false)
+    })
+
+    it('a new version copies the intake properties and records the actor as last editor', async () => {
+      const source = form({
+        status: 'PUBLISHED',
+        formField_form: [
+          {
+            ...field,
+            dataType: 'SELECT',
+            allowedValues: ['Yes', 'No'],
+            sourceNames: ['Current status'],
+            valueAliases: [{ from: 'Y', to: 'Yes' }],
+            importDefault: 'No',
+            rule: { kind: 'SAME_ANSWER_AS', field: 'other' },
+          },
+        ],
+      })
+      tx.digitalForm.findFirst
+        .mockResolvedValueOnce(source)
+        .mockResolvedValueOnce(source)
+        .mockResolvedValueOnce({ id: formId, version: 1, status: 'PUBLISHED' })
+        .mockResolvedValueOnce(form({ version: 2 }))
+      tx.digitalForm.create.mockResolvedValue({ id: '40000000-0000-4000-8000-000000000044' })
+      await service.newVersion(state.actor as ApplicationIdentity, projectId, formId)
+      expect(tx.digitalForm.create.mock.calls[0][0].data).toMatchObject({
+        version: 2,
+        createdById: reviewerId,
+        lastEditedById: reviewerId,
+      })
+      expect(tx.formField.createMany.mock.calls[0][0].data[0]).toMatchObject({
+        sourceNames: ['Current status'],
+        valueAliases: [{ from: 'Y', to: 'Yes' }],
+        importDefault: 'No',
+        rule: { kind: 'SAME_ANSWER_AS', field: 'other' },
+      })
+    })
+
     it('publish is refused for the last editor', async () => {
       tx.digitalForm.findFirst.mockResolvedValue(form({ lastEditedById: reviewerId }))
       await expect(

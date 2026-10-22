@@ -98,7 +98,7 @@ export function mapForm(form: FormRow, actor: ApplicationIdentity): FormResponse
     publishedAt: form.publishedAt?.toISOString(),
     archivedAt: form.archivedAt?.toISOString(),
     updatedAt: form.updatedAt.toISOString(),
-    createdByCurrentUser: form.createdById === actor.userId,
+    createdByCurrentUser: form.createdById === actor.userId || form.lastEditedById === actor.userId,
     fields: form.formField_form.map((field) => ({
       id: field.id,
       code: field.code,

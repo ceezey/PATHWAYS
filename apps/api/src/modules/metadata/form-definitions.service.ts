@@ -221,7 +221,7 @@ async function currentDefinition(
           jsonb_build_object('id',id,'projectId',project_id,'code',code,'version',version,'name',name,
             'description',description,'formType',form_type,'status',status,'activityId',activity_id,
             'journeyStageId',journey_stage_id,'updatedAt',to_char(updated_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
-            'createdByCurrentUser',coalesce(created_by_id=${actor.userId}::uuid,false),
+            'createdByCurrentUser',coalesce(${actor.userId}::uuid IN (created_by_id,last_edited_by_id),false),
             'fields',(SELECT coalesce(jsonb_agg(jsonb_build_object(
               'id',id,'code',code,'label',label,'dataType',data_type,'required',is_required,
               'metadataKey',is_metadata_key,'sadddField',is_saddd_field,

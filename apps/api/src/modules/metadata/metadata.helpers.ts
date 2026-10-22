@@ -27,6 +27,14 @@ export function assertFormIntakeDefinition(fields: CreateFormRequest['fields']) 
   const owner = new Map<string, string>()
   for (const field of fields) {
     for (const key of new Set((field.sourceNames ?? []).map(sourceNameKey))) {
+      if (key === '') {
+        errors.push({
+          fieldCode: field.code,
+          code: 'invalid_definition',
+          message: 'A source name must contain a letter or digit.',
+        })
+        continue
+      }
       const first = owner.get(key)
       if (first === undefined) owner.set(key, field.code)
       else if (first !== field.code) {
