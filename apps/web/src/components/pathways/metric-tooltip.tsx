@@ -1,10 +1,11 @@
 'use client'
 
 import { Info } from 'lucide-react'
-import { useId, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 
 const gap = 8
+const closeDelayMs = 120
 
 type Box = Readonly<{ left: number; top: number; bottom: number }>
 type Size = Readonly<{ width: number; height: number }>
@@ -25,6 +26,29 @@ export const MetricTooltip = ({ label, children }: { label: string; children: st
   const [open, setOpen] = useState(false)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const tipRef = useRef<HTMLSpanElement>(null)
+  const closeTimer = useRef<number | undefined>(undefined)
+
+  const show = () => {
+    window.clearTimeout(closeTimer.current)
+    setOpen(true)
+  }
+  // Leaving the trigger or the tip closes after a short delay, so the pointer can cross onto the tip.
+  const hideSoon = () => {
+    window.clearTimeout(closeTimer.current)
+    closeTimer.current = window.setTimeout(() => setOpen(false), closeDelayMs)
+  }
+
+  useEffect(() => () => window.clearTimeout(closeTimer.current), [])
+
+  // Escape anywhere dismisses an open tip, however it opened, and leaves focus where it was.
+  useEffect(() => {
+    if (!open) return
+    const dismiss = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setOpen(false)
+    }
+    document.addEventListener('keydown', dismiss)
+    return () => document.removeEventListener('keydown', dismiss)
+  }, [open])
 
   // Fixed in a portal, so a scrolling sheet or card can never clip it.
   useLayoutEffect(() => {
@@ -54,20 +78,13 @@ export const MetricTooltip = ({ label, children }: { label: string; children: st
     <span className="pointer-events-auto relative inline-flex">
       <button
         aria-describedby={open ? tooltipId : undefined}
-        aria-expanded={open}
         aria-label={`More information about ${label}`}
         className="-m-2 inline-flex h-11 w-11 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         onBlur={() => setOpen(false)}
-        onClick={() => setOpen(true)}
-        onFocus={() => setOpen(true)}
-        onKeyDown={(event) => {
-          if (event.key === 'Escape') {
-            setOpen(false)
-            event.currentTarget.blur()
-          }
-        }}
-        onMouseEnter={() => setOpen(true)}
-        onMouseLeave={() => setOpen(false)}
+        onClick={show}
+        onFocus={show}
+        onMouseEnter={show}
+        onMouseLeave={hideSoon}
         ref={triggerRef}
         type="button"
       >
@@ -75,9 +92,12 @@ export const MetricTooltip = ({ label, children }: { label: string; children: st
       </button>
       {open
         ? createPortal(
+            // pointer-events-auto keeps the tip hoverable inside a modal sheet that disables body pointer events.
             <span
-              className="pointer-events-none fixed z-[60] w-[min(16rem,calc(100vw-1rem))] rounded-md border border-border bg-popover px-3 py-2 text-left text-xs font-normal leading-5 text-popover-foreground shadow-dialog"
+              className="pointer-events-auto fixed z-[60] w-[min(16rem,calc(100vw-1rem))] rounded-md border border-border bg-popover px-3 py-2 text-left text-xs font-normal leading-5 text-popover-foreground shadow-dialog"
               id={tooltipId}
+              onMouseEnter={show}
+              onMouseLeave={hideSoon}
               ref={tipRef}
               role="tooltip"
             >

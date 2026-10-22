@@ -41,6 +41,14 @@ describe('projectMapSchema', () => {
     )
   })
 
+  it('accepts a place whose recorded towns could not be matched', () => {
+    const missing = { state: 'MISSING', value: null, reason: 'NO_RESIDENCE_MATCH' }
+    const reach = { total: missing, sex: [], disability: missing }
+    expect(projectMapSchema.safeParse(withProject({ places: [{ ...place, reach }] })).success).toBe(
+      true,
+    )
+  })
+
   it('rejects an unknown key on the map', () => {
     expect(projectMapSchema.safeParse({ ...valid, extra: 1 }).success).toBe(false)
   })
