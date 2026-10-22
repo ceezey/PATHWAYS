@@ -1,3 +1,4 @@
+import { stripLetterPrefix } from './answers'
 import { IMPORT_VALUE_MAP_LIMITS, type ImportValueMapEntry, mapKey } from './value-map'
 
 /** Source words for a meaning, after the letter prefix is removed; matched as whole values only. */
@@ -11,7 +12,6 @@ const SYNONYMS: ReadonlyArray<{ words: readonly string[]; targets: readonly stri
 ]
 
 const comparable = (value: string) => mapKey(value).replace(/[\s_-]+/g, ' ')
-const withoutPrefix = (key: string) => key.replace(/^(?:[a-z]|\d{1,2})[.)]\s+/, '')
 
 export interface ValueMapSuggestion {
   pairs: ImportValueMapEntry[]
@@ -37,7 +37,7 @@ export function suggestValueMap(
     const key = mapKey(from)
     if (!key || taken.has(key) || allowedValues.includes(from)) continue
     taken.add(key)
-    const stripped = comparable(withoutPrefix(key))
+    const stripped = comparable(stripLetterPrefix(key))
     const synonym = SYNONYMS.find((group) =>
       group.words.some((word) => comparable(word) === stripped),
     )
