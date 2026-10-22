@@ -1,6 +1,6 @@
 -- 0077 SADDD reach by place (cr-pathways-map-reach-per-pin); forward migration.
 -- p06_saddd_by_place releases a project's SADDD population to date, the same individuals p06_compute_saddd counts,
--- grouped by each Beneficiary's recorded city or municipality and province with exact sex counts, so the coverage map can show the
+-- grouped by each Beneficiary's recorded city or municipality and province with exact sex and with-disability counts, so the coverage map can show the
 -- reach of one pin. Same gates as p06_saddd (organization context, analytics.saddd.read and
 -- beneficiaries.aggregates.read on the project, Asia/Manila business calendar); a project that has not started returns
 -- an empty array. Counts are live to date and never frozen in the release registry. Owned by prisma, which owns every
@@ -54,7 +54,7 @@ BEGIN
   PERFORM pathways.p06_assert_scope(wanted_org, ARRAY[wanted_project], 'beneficiaries.aggregates.read', project_start, project_start, zone);
   -- The p06_compute_saddd population and eligibility, keyed by the recorded city or municipality and province.
   WITH population AS MATERIALIZED (
-    SELECT DISTINCT ben.id, ben.sex::text AS sex, nullif(btrim(ben.location_city_municipality), '') AS town,
+    SELECT DISTINCT ben.id, ben.sex::text AS sex, ben.disability_status::text AS disability, nullif(btrim(ben.location_city_municipality), '') AS town,
       nullif(btrim(ben.location_province), '') AS province,
       CASE WHEN ben.birth_date>business_today THEN NULL ELSE pathways.p06_age_band(ben.birth_date, period_end) END AS age
     FROM pathways.beneficiary_project_enrollments e
@@ -63,11 +63,11 @@ BEGIN
       AND e.enrollment_date<=period_end AND (e.ended_date IS NULL OR e.ended_date>=project_start)
       AND ben.subject_type='INDIVIDUAL' AND ben.archived_at IS NULL AND NOT ben.is_dummy_record
   ), eligible AS MATERIALIZED (SELECT * FROM population WHERE age IS NOT NULL)
-  SELECT coalesce(jsonb_agg(jsonb_build_object('town', t.town, 'province', t.province, 'total', t.total, 'sex', t.sex)
+  SELECT coalesce(jsonb_agg(jsonb_build_object('town', t.town, 'province', t.province, 'total', t.total, 'disability', t.disability, 'sex', t.sex)
     ORDER BY t.town NULLS LAST, t.province NULLS LAST), '[]'::jsonb)
   INTO result
   FROM (
-    SELECT p.town, p.province, count(*) AS total,
+    SELECT p.town, p.province, count(*) AS total, count(*) FILTER (WHERE p.disability='WITH_DISABILITY') AS disability,
       (SELECT jsonb_agg(jsonb_build_object('key', v.key, 'label', v.label,
          'n', (SELECT count(*) FROM eligible q WHERE q.town IS NOT DISTINCT FROM p.town
            AND q.province IS NOT DISTINCT FROM p.province AND q.sex=v.key)) ORDER BY v.ord)

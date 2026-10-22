@@ -24,6 +24,7 @@ const townReachSchema = z.array(
     town: z.string().nullable(),
     province: z.string().nullable(),
     total: z.number().int().min(0),
+    disability: z.number().int().min(0),
     sex: z.array(z.object({ key: z.string(), label: z.string(), n: z.number().int().min(0) })),
   }),
 )
@@ -40,9 +41,12 @@ export function placeReach(place: ResolvedPlace, towns: TownReach): ProjectMapPl
   for (const row of here)
     for (const bucket of row.sex)
       sex.set(bucket.key, { label: bucket.label, n: (sex.get(bucket.key)?.n ?? 0) + bucket.n })
+  const sum = (pick: (row: TownReach[number]) => number) =>
+    numericMetric(String(here.reduce((total, row) => total + pick(row), 0)))
   return {
-    total: numericMetric(String(here.reduce((sum, row) => sum + row.total, 0))),
+    total: sum((row) => row.total),
     sex: [...sex].map(([key, { label, n }]) => ({ key, label, metric: numericMetric(String(n)) })),
+    disability: sum((row) => row.disability),
   }
 }
 
@@ -78,9 +82,9 @@ export class ProjectMapService {
     }
   }
 
-  private async sadddSex(identity: ApplicationIdentity, projectId: string) {
+  private async saddd(identity: ApplicationIdentity, projectId: string) {
     try {
-      return (await this.dashboards.saddd(identity, { projectId })).sex
+      return await this.dashboards.saddd(identity, { projectId })
     } catch (error) {
       this.logger.warn(`SADDD breakdown unavailable for map point: ${(error as Error).name}`)
       return null
@@ -109,7 +113,7 @@ export class ProjectMapService {
       const overview = await this.overview.read(identity, row.id).catch(() => null)
       const released = overview?.beneficiariesReached?.metric.state
       const releasedReach = released === 'AVAILABLE' || released === 'ZERO'
-      const sadddSex = releasedReach ? await this.sadddSex(identity, row.id) : null
+      const saddd = releasedReach ? await this.saddd(identity, row.id) : null
       const towns = releasedReach ? await this.townReach(identity, row.id) : null
       projects.push({
         id: row.id,
@@ -122,7 +126,9 @@ export class ProjectMapService {
           reach: towns ? placeReach(place, towns) : null,
         })),
         overview,
-        sadddSex,
+        sadddSex: saddd?.sex ?? null,
+        sadddDisability:
+          saddd?.disability.find((row) => row.key === 'WITH_DISABILITY')?.metric ?? null,
       })
     }
     return projectMapSchema.parse({

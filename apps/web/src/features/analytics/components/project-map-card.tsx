@@ -7,9 +7,9 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { overviewMetricLabel } from '@/features/projects'
 
-const restricted = 'Not available for your role'
+type RowData = { label: string; value: string; detail?: string }
 
-const Row = ({ label, value, detail }: { label: string; value: string; detail?: string }) => (
+const Row = ({ label, value, detail }: RowData) => (
   <div className="flex items-baseline justify-between gap-3 border-t border-border py-1.5 first:border-t-0">
     <dt className="text-sm text-muted-foreground">{label}</dt>
     <dd className="text-right text-sm font-medium tabular-nums text-foreground">
@@ -21,8 +21,15 @@ const Row = ({ label, value, detail }: { label: string; value: string; detail?: 
   </div>
 )
 
-const percent = (cell: MetricCell | undefined) =>
-  cell ? overviewMetricLabel(cell, 'percent') : restricted
+// SADDD groups that hold people, so zero buckets and the disability count stay out when empty.
+const breakdown = (
+  sex: ProjectMapProject['sadddSex'] | undefined,
+  disability: MetricCell | null | undefined,
+) =>
+  [...(sex ?? []), ...(disability ? [{ label: 'With disability', metric: disability }] : [])]
+    .filter((bucket) => bucket.metric.state === 'AVAILABLE')
+    .map((bucket) => `${bucket.label} ${overviewMetricLabel(bucket.metric, 'count')}`)
+    .join(' · ') || undefined
 
 /** Overview aggregates for one mapped location, shown in the map popup; SADDD values arrive exact. */
 export const ProjectMapCard = ({
@@ -34,15 +41,36 @@ export const ProjectMapCard = ({
   place: string
   onClose: () => void
 }) => {
-  const { overview, sadddSex } = project
+  const { overview } = project
   const kpi = overview?.kpiAchievement
   const reached = overview?.beneficiariesReached
   const timeline = overview?.timeline
-  const sexText = (buckets: typeof sadddSex | undefined) =>
-    buckets
-      ?.map((bucket) => `${bucket.label} ${overviewMetricLabel(bucket.metric, 'count')}`)
-      .join(' · ')
+  const budget = overview?.budgetUtilization
   const here = project.places.find((row) => row.name === place)?.reach
+  // Rows a role cannot read are left out rather than shown as unavailable.
+  const wholeProject = [
+    kpi && {
+      label: 'KPI achievement',
+      value: overviewMetricLabel(kpi.metric, 'percent'),
+      detail: `${kpi.reportedCount} of ${kpi.indicatorCount} indicators reported`,
+    },
+    timeline && {
+      label: 'Timeline progress',
+      value: overviewMetricLabel(timeline.metric, 'percent'),
+      detail:
+        timeline.startDate && timeline.endDate
+          ? `${timeline.startDate} to ${timeline.endDate}`
+          : undefined,
+    },
+    reached && {
+      label: 'Reached (SADDD)',
+      value: overviewMetricLabel(reached.metric, 'count'),
+      detail:
+        breakdown(project.sadddSex, project.sadddDisability) ??
+        (reached.target ? `Target ${reached.target}` : undefined),
+    },
+    budget && { label: 'Budget utilization', value: overviewMetricLabel(budget.metric, 'percent') },
+  ].filter((row): row is RowData => Boolean(row))
 
   return (
     <aside aria-label={`${project.title} overview`} className="w-64 max-w-full text-left sm:w-72">
@@ -63,40 +91,27 @@ export const ProjectMapCard = ({
           <X aria-hidden="true" className="h-4 w-4" />
         </Button>
       </div>
-      <dl className="mt-2">
-        <Row
-          detail={sexText(here?.sex)}
-          label={`Reached in ${place} (SADDD)`}
-          value={here ? overviewMetricLabel(here.total, 'count') : restricted}
-        />
-      </dl>
-      <p className="mt-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-        Whole project
-      </p>
-      <dl>
-        <Row
-          detail={
-            kpi ? `${kpi.reportedCount} of ${kpi.indicatorCount} indicators reported` : undefined
-          }
-          label="KPI achievement"
-          value={percent(kpi?.metric)}
-        />
-        <Row
-          detail={
-            timeline?.startDate && timeline.endDate
-              ? `${timeline.startDate} to ${timeline.endDate}`
-              : undefined
-          }
-          label="Timeline progress"
-          value={percent(timeline?.metric)}
-        />
-        <Row
-          detail={sexText(sadddSex) || (reached?.target ? `Target ${reached.target}` : undefined)}
-          label="Reached (SADDD)"
-          value={reached ? overviewMetricLabel(reached.metric, 'count') : restricted}
-        />
-        <Row label="Budget utilization" value={percent(overview?.budgetUtilization?.metric)} />
-      </dl>
+      {here ? (
+        <dl className="mt-2">
+          <Row
+            detail={breakdown(here.sex, here.disability)}
+            label={`Reached in ${place} (SADDD)`}
+            value={overviewMetricLabel(here.total, 'count')}
+          />
+        </dl>
+      ) : null}
+      {wholeProject.length > 0 ? (
+        <>
+          <p className="mt-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            Whole project
+          </p>
+          <dl>
+            {wholeProject.map((row) => (
+              <Row key={row.label} {...row} />
+            ))}
+          </dl>
+        </>
+      ) : null}
       <Link
         className="mt-2 inline-block text-sm font-medium text-primary underline-offset-4 hover:underline"
         href={`/projects/${project.id}`}
