@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
+import { importCoverage } from './coverage'
 import {
   AUTO_SMART_V2_LIMITS,
   AUTO_SMART_V3,
@@ -440,6 +441,43 @@ describe('AUTO_SMART_V3', () => {
     const decisions = smartMatchColumnsV3([blank, column(2, 'First name', ['Ana'])], registration)
     expect(decisions[1]).toMatchObject({ status: 'MAPPED', targetFieldId: 'f-first' })
     expect(smartMatchColumns([blank], registration)[0].status).toBe('PENDING')
+  })
+
+  it('passes MULTIPLE_SELECT answers that resolve only through aliases in V3 only', () => {
+    const tags: SmartMatchField = {
+      id: 'f-tags',
+      code: 'tags',
+      label: 'Tags',
+      dataType: 'MULTIPLE_SELECT',
+      allowedValues: ['A', 'B'],
+      valueAliases: [
+        { from: 'Isa', to: 'A' },
+        { from: 'Dalawa', to: 'B' },
+      ],
+    }
+    const samples = ['["Isa","Dalawa"]', '["isa"]']
+    const decision = oneV3('Tags', samples, [tags])
+    expect(decision).toMatchObject({ status: 'MAPPED', targetFieldId: 'f-tags' })
+    expect(
+      importCoverage({
+        decisions: [decision],
+        fields: [{ ...tags, required: false }],
+        distinctValues: { [decision.sourceKey]: samples },
+      }).coverage,
+    ).toBe('COVERED')
+    expect(one('Tags', samples, [tags])).toMatchObject({ reason: 'HELD_VALUE_GATE' })
+  })
+
+  it('rejects oversized source names and value aliases', () => {
+    const tooMany = { ...sex, sourceNames: Array.from({ length: 21 }, (_, index) => `n${index}`) }
+    const tooLong = { ...sex, sourceNames: ['x'.repeat(161)] }
+    const aliases = {
+      ...sex,
+      valueAliases: Array.from({ length: 101 }, (_, index) => ({ from: `f${index}`, to: 'MALE' })),
+    }
+    for (const field of [tooMany, tooLong, aliases]) {
+      expect(() => oneV3('Sex', ['MALE'], [field])).toThrow(SmartMatchInputError)
+    }
   })
 
   it('passes lettered and aliased answers through the SELECT value gate in V3 only', () => {

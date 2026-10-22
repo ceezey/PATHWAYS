@@ -1,7 +1,6 @@
 import { CALCULATED_RULE_KINDS, type FieldIntakeRule } from '@pathways/shared'
 import { answerResolver } from '../answers'
 import type { SmartMatchDecision, SmartMatchField } from './smart-match'
-import { choiceParts, isBlank, sampleText } from './smart-match-values'
 
 export type CoverageField = SmartMatchField & {
   required: boolean
@@ -14,6 +13,23 @@ export interface ImportCoverage {
   uncoveredColumns: number
   unresolvedValues: number
   requiredUncovered: number
+}
+
+/** The answers normalization accepts: SELECT takes text or a boolean, MULTIPLE_SELECT an array or JSON array of text. */
+function answersOf(value: unknown, multiple: boolean): string[] | null {
+  if (!multiple) {
+    if (typeof value === 'string') return [value]
+    return typeof value === 'boolean' ? [String(value)] : null
+  }
+  let parsed = value
+  if (typeof value === 'string') {
+    try {
+      parsed = JSON.parse(value)
+    } catch {
+      return null
+    }
+  }
+  return Array.isArray(parsed) && parsed.every((item) => typeof item === 'string') ? parsed : null
 }
 
 const isCalculated = (field: CoverageField) =>
@@ -46,10 +62,9 @@ export function importCoverage(input: {
       resolvers.set(field.id, resolve)
     }
     for (const value of input.distinctValues[decision.sourceKey] ?? []) {
-      if (isBlank(value)) continue
-      const parts = field.dataType === 'SELECT' ? [sampleText(value)] : choiceParts(value)
-      if (!parts || parts.some((part) => part === null || resolve(part) === null))
-        unresolvedValues++
+      if (value === null || value === undefined || value === '') continue
+      const answers = answersOf(value, field.dataType === 'MULTIPLE_SELECT')
+      if (!answers || answers.some((answer) => resolve(answer) === null)) unresolvedValues++
     }
   }
   const requiredUncovered = input.fields.filter(

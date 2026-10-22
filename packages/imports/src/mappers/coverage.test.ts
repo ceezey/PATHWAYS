@@ -83,6 +83,28 @@ describe('importCoverage', () => {
     expect(result).toMatchObject({ coverage: 'NOT_COVERED', unresolvedValues: 5 })
   })
 
+  it('counts values that normalization would reject as unresolved', () => {
+    const digits: CoverageField = { ...sex, id: 'f-digit', allowedValues: ['7'], valueAliases: [] }
+    const result = importCoverage({
+      decisions: [decision('c2', 'MAPPED', 'f-digit'), decision('c3', 'MAPPED', 'f-tags')],
+      fields: [digits, tags],
+      distinctValues: { c2: [7, '7'], c3: ['A;B', 'A,B', '["A","B"]'] },
+    })
+    // The number 7, "A;B" and "A,B" fail; the text "7" and the JSON array pass.
+    expect(result.unresolvedValues).toBe(3)
+  })
+
+  it('resolves MULTIPLE_SELECT answers through aliases and letter prefixes', () => {
+    const aliased: CoverageField = { ...tags, valueAliases: [{ from: 'Isa', to: 'A' }] }
+    expect(
+      importCoverage({
+        decisions: [decision('c3', 'MAPPED', 'f-tags')],
+        fields: [aliased],
+        distinctValues: { c3: [['Isa', 'b. B'], '["isa"]'] },
+      }),
+    ).toMatchObject({ coverage: 'COVERED', unresolvedValues: 0 })
+  })
+
   it('ignores distinct values of columns that are not mapped to a choice field', () => {
     expect(
       importCoverage({

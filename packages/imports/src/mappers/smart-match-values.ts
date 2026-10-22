@@ -1,7 +1,7 @@
 import { type PreparedField, normalizeMappingNameV1 } from './smart-match-names'
 import { AUTO_SMART_V2_LIMITS } from './smart-match-rules'
 
-export function sampleText(value: unknown): string | null {
+function sampleText(value: unknown): string | null {
   if (typeof value === 'string') {
     return value.length > AUTO_SMART_V2_LIMITS.maxSampleCharacters ? null : value.trim()
   }
@@ -10,7 +10,7 @@ export function sampleText(value: unknown): string | null {
   return null
 }
 
-export function isBlank(value: unknown) {
+function isBlank(value: unknown) {
   return value === null || value === undefined || (typeof value === 'string' && value.trim() === '')
 }
 
@@ -72,7 +72,7 @@ function looksLikeDate(value: unknown) {
   return false
 }
 
-export function choiceParts(value: unknown): string[] | null {
+function choiceParts(value: unknown): string[] | null {
   if (Array.isArray(value)) {
     if (value.length > AUTO_SMART_V2_LIMITS.maxMultipleSelectParts) return null
     return value.every((item) => typeof item === 'string') ? (value as string[]) : null
@@ -131,7 +131,12 @@ function compatible(value: unknown, target: PreparedField) {
   }
   if (field.dataType === 'MULTIPLE_SELECT') {
     const parts = choiceParts(value)
-    return parts?.every((part) => target.allowed.has(normalizeMappingNameV1(part))) === true
+    return (
+      parts?.every(
+        (part) =>
+          target.allowed.has(normalizeMappingNameV1(part)) || target.resolve?.(part) != null,
+      ) === true
+    )
   }
   const text = sampleText(value)
   if (text === null) return false

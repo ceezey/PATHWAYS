@@ -89,7 +89,12 @@ function matchColumns(
       (field) =>
         field.code.length > AUTO_SMART_V2_LIMITS.maxNameCharacters ||
         field.label.length > AUTO_SMART_V2_LIMITS.maxNameCharacters ||
-        (field.allowedValues?.length ?? 0) > 100,
+        (field.allowedValues?.length ?? 0) > 100 ||
+        (field.sourceNames?.length ?? 0) > 20 ||
+        (field.sourceNames ?? []).some(
+          (name) => name.length > AUTO_SMART_V2_LIMITS.maxNameCharacters,
+        ) ||
+        (field.valueAliases?.length ?? 0) > 100,
     )
   ) {
     throw new SmartMatchInputError()
@@ -113,7 +118,7 @@ function matchColumns(
       sourceNames: sourceNames ?? new Set<string>(),
       calculated: v3 && field.calculated === true,
       resolve:
-        v3 && field.dataType === 'SELECT'
+        v3 && (field.dataType === 'SELECT' || field.dataType === 'MULTIPLE_SELECT')
           ? answerResolver(field.allowedValues ?? [], field.valueAliases ?? [])
           : undefined,
     }))
