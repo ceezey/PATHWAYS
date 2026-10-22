@@ -276,6 +276,47 @@ describe('draftFormFromImport on the Futuremakers fixture', () => {
   })
 })
 
+const yearsBetween = (birth: string, at: string) => {
+  const [by, bm, bd] = birth.split('-').map(Number)
+  const [ay, am, ad] = at.split('-').map(Number)
+  return ay - by - (am < bm || (am === bm && ad < bd) ? 1 : 0)
+}
+
+describe('the Futuremakers fixture', () => {
+  const { headers, rows } = buildFuturemakersFixture()
+  const col = (n: number) => `column_${String(n).padStart(4, '0')}`
+
+  it('has 100 rows and 36 columns', () => {
+    expect(rows).toHaveLength(100)
+    expect(headers).toHaveLength(36)
+  })
+
+  it('shows exactly the spec letters for each Washington Group question', () => {
+    const letters = [0, 1, 2, 3, 4, 5].map((q) =>
+      [...new Set(rows.map((row) => String(row[col(19 + q)]).charAt(0)))].sort().join(''),
+    )
+    expect(letters).toEqual(['ABC', 'ABCD', 'ABC', 'ABCD', 'ABD', 'ABCD'])
+  })
+
+  it('Living With Disability agrees with the C or D cut-off on every row', () => {
+    const flags = rows.map((row) => {
+      const severe = [19, 20, 21, 22, 23, 24].some((n) => /^[CD]/.test(String(row[col(n)])))
+      return severe === row[col(25)]
+    })
+    expect(flags.every(Boolean)).toBe(true)
+    expect(rows.filter((row) => row[col(25)] === true).length).toBe(25)
+  })
+
+  it('has 16 minors at enrollment, nobody under 17, and Age counted at 2026-10-22', () => {
+    const ages = rows.map((row) => yearsBetween(String(row[col(14)]), String(row[col(2)])))
+    expect(ages.filter((age) => age < 18)).toHaveLength(16)
+    expect(Math.min(...ages)).toBeGreaterThanOrEqual(17)
+    expect(
+      rows.every((row) => row[col(15)] === yearsBetween(String(row[col(14)]), '2026-10-22')),
+    ).toBe(true)
+  })
+})
+
 describe('draftFormFromImport rules', () => {
   it('an answer outside an enum-mirror field options is ENUM_ANSWER_UNRESOLVED and adds no option', () => {
     const gender = columnOf('Gender - YEE', ['A. Babae', 'B. Lalaki', 'Z. Unknown', 'A. Babae'])
@@ -288,7 +329,7 @@ describe('draftFormFromImport rules', () => {
     expect(result.summary.optionsAdded).toEqual([])
   })
 
-  it('adds the stripped answer as an option on a non-enum SELECT field', () => {
+  it('adds the stripped answers as options in letter order whatever the row order', () => {
     const fields: DraftField[] = [
       ...REGISTRATION,
       {
@@ -302,16 +343,49 @@ describe('draftFormFromImport rules', () => {
         allowedValues: ['Single', 'Married'],
       },
     ]
-    const civil = columnOf('Civil Status', ['A. Single', 'B. Married', 'C. Widowed', 'A. Single'])
-    const result = draft([civil], fields)
-    expect(find(result, 'civil_status')?.allowedValues).toEqual(['Single', 'Married', 'Widowed'])
+    const values = [
+      ...Array.from({ length: 4 }, () => ['A. Single', 'B. Married']).flat(),
+      'D. Divorced',
+      'C. Widowed',
+    ]
+    const result = draft([columnOf('Civil Status', values)], fields)
+    expect(find(result, 'civil_status')?.allowedValues).toEqual([
+      'Single',
+      'Married',
+      'Widowed',
+      'Divorced',
+    ])
     expect(result.summary.optionsAdded).toEqual(['civil_status'])
+    const reversed = draft([columnOf('Civil Status', [...values].reverse())], fields)
+    expect(reversed.fields).toEqual(result.fields)
   })
 
   it('a lettered column with 101 distinct answers becomes TEXT', () => {
-    const values = Array.from({ length: 101 }, (_, i) => `A. answer ${i}`)
+    const labels = [...Array.from({ length: 99 }, (_, i) => String(i + 1)), 'a', 'b']
+    const values = labels.flatMap((label, i) => [`${label}. answer ${i}`, `${label}. answer ${i}`])
     expect(find(draft([columnOf('Quiz', values)]), 'quiz')?.dataType).toBe('TEXT')
-    expect(find(draft([columnOf('Quiz', values.slice(0, 100))]), 'quiz')?.dataType).toBe('SELECT')
+    expect(find(draft([columnOf('Quiz', values.slice(0, 200))]), 'quiz')?.dataType).toBe('SELECT')
+  })
+
+  it('lettered personal data stays TEXT with no option or alias', () => {
+    const initials = Array.from(
+      { length: 100 },
+      (_, i) => `${'JMAL'[i % 4]}. ${['Cruz', 'Reyes', 'Santos', 'Ramos', 'Flores'][i % 5]}`,
+    )
+    const roster = Array.from({ length: 100 }, (_, i) => `${i + 1}. Juan Dela Cruz ${i}`)
+    const names = Array.from({ length: 100 }, (_, i) => `Juan Dela Cruz ${i}`)
+    const result = draft([
+      columnOf('Pangalan', initials, 1),
+      columnOf('Listahan', roster, 2),
+      columnOf('Buong Pangalan', names, 3),
+    ])
+    for (const code of ['pangalan', 'listahan', 'buong_pangalan']) {
+      const field = find(result, code)
+      expect(field?.dataType).toBe('TEXT')
+      expect(field?.allowedValues).toBeUndefined()
+      expect(field?.valueAliases).toBeUndefined()
+    }
+    expect(JSON.stringify(result)).not.toMatch(/Cruz|Reyes|Santos|Juan/)
   })
 
   it('a column that is not mostly lettered stays TEXT or LONG_TEXT', () => {

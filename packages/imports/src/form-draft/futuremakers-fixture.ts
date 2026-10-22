@@ -136,7 +136,9 @@ function buildRow(i: number): unknown[] {
   const day = String(b.getUTCDate()).padStart(2, '0')
   const disabled = i % 4 === 1
   const wg = WG_HEADERS.map((_, q) => {
-    if (disabled && q === i % 6) return WG[WG_SEVERE[q][i % WG_SEVERE[q].length]]
+    // Disabled rows are i = 4k + 1; k picks the question, and k / 6 alternates its severe letters.
+    const k = Math.floor(i / 4)
+    if (disabled && q === k % 6) return WG[WG_SEVERE[q][Math.floor(k / 6) % WG_SEVERE[q].length]]
     return (i + q) % 3 === 0 ? WG.B : WG.A
   })
   const employment = i % 3

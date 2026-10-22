@@ -99,24 +99,48 @@ function inferType(
   return 'TEXT'
 }
 
-/** True when at least 90 percent of the answers carry a lettered prefix. */
-const isLettered = (texts: readonly string[]) =>
-  texts.filter(hasLetterPrefix).length * 100 >= texts.length * 90
+/** The case-folded "A" or "10" label of a lettered answer, if it has one. */
+const labelOf = (text: string) => /^([a-z]|\d{1,2})[.)]\s/i.exec(text)?.[1].toLowerCase()
 
-/** Sort key of the "A." or "10)" label: numbers first, then letters, then unlabelled text. */
+/** Sort key of the label: numbers first, then letters, then unlabelled text. */
 function prefixRank(text: string) {
-  const label = /^([a-z]|\d{1,2})[.)]\s/i.exec(text)?.[1].toLowerCase()
+  const label = labelOf(text)
   if (label === undefined) return '2'
   return /^\d/.test(label) ? `0${label.padStart(2, '0')}` : `1${label}`
 }
 
 const compareText = (left: string, right: string) => (left < right ? -1 : left > right ? 1 : 0)
 
-/** Options in letter order with each original answer as an alias, or null when the column is too wide for a form. */
+/** Letter order, then answer text, so a draft does not depend on row order. */
+const byPrefix = (left: string, right: string) =>
+  compareText(prefixRank(left), prefixRank(right)) ||
+  compareText(
+    comparableAnswer(stripLetterPrefix(left)),
+    comparableAnswer(stripLetterPrefix(right)),
+  ) ||
+  compareText(left, right)
+
+/**
+ * True for a lettered choice list: at least 90 percent lettered, each label meaning one answer,
+ * and repeated answers. This keeps lettered personal data ("J. Cruz", "1. Juan") out of options.
+ */
+function isChoiceColumn(texts: readonly string[]) {
+  if (texts.filter(hasLetterPrefix).length * 100 < texts.length * 90) return false
+  const answers = new Set<string>()
+  const byLabel = new Map<string, Set<string>>()
+  for (const text of texts) {
+    const answer = comparableAnswer(stripLetterPrefix(text))
+    answers.add(answer)
+    const label = labelOf(text)
+    if (label !== undefined) byLabel.set(label, (byLabel.get(label) ?? new Set()).add(answer))
+  }
+  return answers.size * 2 <= texts.length && [...byLabel.values()].every((set) => set.size === 1)
+}
+
+/** Options in letter order with each original answer as an alias, or null when the column is not a choice list or too wide for a form. */
 function choicesOf(texts: readonly string[]) {
-  const originals = [...new Set(texts)].sort(
-    (left, right) => compareText(prefixRank(left), prefixRank(right)) || compareText(left, right),
-  )
+  if (!isChoiceColumn(texts)) return null
+  const originals = [...new Set(texts)].sort(byPrefix)
   if (originals.some((text) => text.length > LIMITS.nameLength)) return null
   const options: string[] = []
   for (const text of originals) {
@@ -156,7 +180,7 @@ function newField(
   const type = inferType(present)
   if (type !== 'TEXT') return { ...base, dataType: type }
   const texts = present.map((value) => String(value).trim())
-  const choices = isLettered(texts) ? choicesOf(texts) : null
+  const choices = choicesOf(texts)
   if (choices)
     return {
       ...base,
@@ -276,7 +300,7 @@ export function draftFormFromImport(input: {
     const allowed = field.allowedValues ?? []
     const aliases = field.valueAliases ?? []
     const resolve = answerResolver(allowed, aliases)
-    const unresolved = [...new Set(texts)].filter((text) => resolve(text) === null)
+    const unresolved = [...new Set(texts)].filter((text) => resolve(text) === null).sort(byPrefix)
     if (unresolved.length === 0) return
     const accepted = suggestValueMap(unresolved, allowed, aliases).pairs.slice(
       0,
@@ -287,7 +311,7 @@ export function draftFormFromImport(input: {
       summary.aliasesAdded += accepted.length
     }
     const options = [...allowed]
-    const lettered = isLettered(texts)
+    const lettered = isChoiceColumn(texts)
     for (const text of unresolved.filter((t) => !accepted.some((pair) => pair.from === t))) {
       const option = stripLetterPrefix(text)
       if (
