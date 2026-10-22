@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { mkdirSync, readdirSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
@@ -204,6 +205,34 @@ test('runHostedBuild with resume starts after the already-applied migrations ins
     (c) => c.kind === 'psqlFile' && c.filePath.endsWith('hosted-rules-preprovision.sql'),
   )
   assert.ok(ranRulesPreprovision, 'resume must continue from the next unfinished step')
+})
+
+test('runHostedBuild with resume restages from the repo so a leftover stage copy never deploys', async () => {
+  const stageDir = path.join(root, '.tmp', 'hosted-build', 'migrations')
+  const stale = path.join(stageDir, '9999_stale_leftover')
+  mkdirSync(stale, { recursive: true })
+  writeFileSync(path.join(stale, 'migration.sql'), 'SELECT 1;')
+  const io = makeFakeIO({ schemaPresent: true, rolePresent: true })
+  const appliedPrefix = MIGRATIONS_IN_ORDER.slice(0, 5)
+  io.setLedger(
+    appliedPrefix.map((migration_name) => ({
+      migration_name,
+      finished_at: 'now',
+      rolled_back_at: null,
+    })),
+  )
+  const staged = []
+  const originalDeploy = io.prismaMigrateDeploy.bind(io)
+  io.prismaMigrateDeploy = (directUrl, dir) => {
+    staged.push(readdirSync(dir).sort())
+    return originalDeploy(directUrl, dir)
+  }
+  await assert.rejects(() => runHostedBuild({ io, config, resume: true }))
+  // The first deploy after resume (0031) sees exactly the applied prefix, that step and the lock file.
+  assert.deepEqual(
+    staged[0],
+    [...appliedPrefix, '0031_f10_f11_rules_runtime', 'migration_lock.toml'].sort(),
+  )
 })
 
 test('runHostedBuild --resume refuses a target with the schema/role absent (nothing to resume)', async () => {
