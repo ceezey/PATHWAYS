@@ -482,6 +482,9 @@ export async function runHostedBuild({ io, config, resume = false, log = console
     startIndex = planIndexForAppliedCount(appliedCount, { residualOwnerMemberships })
     const receipt = io.readReceipt ? io.readReceipt() : null
     if (receipt) captured = { ...captured, ...receipt }
+    // Restage from the repo: a leftover stage copy (older or later) must never deploy with the next step.
+    resetStage()
+    stageMigrations(MIGRATIONS_IN_ORDER.slice(0, appliedCount))
     log(`Resuming at plan step ${startIndex} (${appliedCount} migrations already applied)`)
   } else {
     await preflight(io, config)
