@@ -92,4 +92,11 @@ describe('ProjectMapCard', () => {
     expect(screen.getByText('Town not recorded')).toBeTruthy()
     expect(screen.queryByText('0')).toBeNull()
   })
+
+  it('leaves out the place row when the project has only one pin', () => {
+    const single = { ...project, places: [borongan] }
+    render(<ProjectMapCard onClose={vi.fn()} place={borongan} project={single} />)
+    expect(screen.queryByText(/Reached in Borongan/)).toBeNull()
+    expect(screen.getByText('SSG-ES · Borongan')).toBeTruthy()
+  })
 })

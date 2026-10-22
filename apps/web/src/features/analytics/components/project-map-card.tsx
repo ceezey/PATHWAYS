@@ -46,7 +46,8 @@ export const ProjectMapCard = ({
   const reached = overview?.beneficiariesReached
   const timeline = overview?.timeline
   const budget = overview?.budgetUtilization
-  const here = place.reach
+  // A one-pin project's place reach repeats the whole-project figure, so only multi-pin projects show it.
+  const here = project.places.length > 1 ? place.reach : null
   // Rows a role cannot read are left out rather than shown as unavailable.
   const wholeProject = [
     kpi && {
