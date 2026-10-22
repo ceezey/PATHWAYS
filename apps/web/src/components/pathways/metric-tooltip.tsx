@@ -35,19 +35,25 @@ export const MetricTooltip = ({ label, children }: { label: string; children: st
   // Leaving the trigger or the tip closes after a short delay, so the pointer can cross onto the tip.
   const hideSoon = () => {
     window.clearTimeout(closeTimer.current)
+    // A tip opened by keyboard focus stays while the trigger keeps focus.
+    if (triggerRef.current === document.activeElement) return
     closeTimer.current = window.setTimeout(() => setOpen(false), closeDelayMs)
   }
 
   useEffect(() => () => window.clearTimeout(closeTimer.current), [])
 
-  // Escape anywhere dismisses an open tip, however it opened, and leaves focus where it was.
+  // Escape anywhere dismisses an open tip and leaves focus where it was. Window capture runs before a Radix sheet's
+  // document capture handler, so the first Escape closes only the tip, never the sheet and its unsaved edits.
   useEffect(() => {
     if (!open) return
     const dismiss = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setOpen(false)
+      if (event.key !== 'Escape') return
+      event.preventDefault()
+      event.stopPropagation()
+      setOpen(false)
     }
-    document.addEventListener('keydown', dismiss)
-    return () => document.removeEventListener('keydown', dismiss)
+    window.addEventListener('keydown', dismiss, true)
+    return () => window.removeEventListener('keydown', dismiss, true)
   }, [open])
 
   // Fixed in a portal, so a scrolling sheet or card can never clip it.

@@ -1,7 +1,9 @@
 /* @vitest-environment jsdom */
 
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+
+import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet'
 
 import { MetricTooltip, tooltipPosition } from './metric-tooltip'
 
@@ -72,6 +74,42 @@ describe('MetricTooltip', () => {
     expect(screen.getByRole('tooltip')).toBeTruthy()
     fireEvent.mouseLeave(tip)
     await waitFor(() => expect(screen.queryByRole('tooltip')).toBeNull())
+  })
+
+  it('closes only the tooltip, not a surrounding sheet, on the first Escape', () => {
+    const onOpenChange = vi.fn()
+    render(
+      <Sheet onOpenChange={onOpenChange} open>
+        <SheetContent>
+          <SheetTitle>Edit rule</SheetTitle>
+          <SheetDescription>Rule details</SheetDescription>
+          <MetricTooltip label="Activity scope">Activity delivery</MetricTooltip>
+        </SheetContent>
+      </Sheet>,
+    )
+    const trigger = screen.getByRole('button', { name: 'More information about Activity scope' })
+    trigger.focus()
+    fireEvent.focus(trigger)
+    expect(screen.getByRole('tooltip')).toBeTruthy()
+
+    fireEvent.keyDown(trigger, { key: 'Escape' })
+    expect(screen.queryByRole('tooltip')).toBeNull()
+    expect(onOpenChange).not.toHaveBeenCalled()
+    expect(document.activeElement).toBe(trigger)
+
+    // With no tip open, Escape reaches the sheet as before.
+    fireEvent.keyDown(trigger, { key: 'Escape' })
+    expect(onOpenChange).toHaveBeenCalledWith(false)
+  })
+
+  it('keeps a focus-opened tooltip when the pointer crosses the trigger and leaves', async () => {
+    const trigger = renderTip()
+    trigger.focus()
+    fireEvent.focus(trigger)
+    fireEvent.mouseEnter(trigger)
+    fireEvent.mouseLeave(trigger)
+    await pause(200)
+    expect(screen.getByRole('tooltip')).toBeTruthy()
   })
 
   it('keeps the tooltip inside the viewport at the right and bottom edges', () => {
