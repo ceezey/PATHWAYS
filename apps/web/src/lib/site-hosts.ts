@@ -13,7 +13,11 @@ const sites = splitSites(
 )
 
 export function siteOf(request: NextRequest, split = sites) {
-  const host = siteHostname(request.headers.get('host') ?? '')
+  return siteOfHost(request.headers.get('host'), split)
+}
+
+export function siteOfHost(rawHost: string | null, split = sites) {
+  const host = siteHostname(rawHost ?? '')
   if (!split || !host) return null
   if (host === split.public.hostname) return 'public'
   return host === split.staff.hostname ? 'staff' : null
@@ -24,8 +28,9 @@ export function routeSite(request: NextRequest, split = sites): NextResponse | n
   const site = siteOf(request, split)
   if (!split || !site) return null
   const { pathname, search, searchParams } = request.nextUrl
+  // An empty 404 makes the browser show its own error page, so nothing of PATHWAYS is rendered.
   if (site === 'public')
-    return isPublicSitePath(pathname) ? null : NextResponse.rewrite(new URL('/404', request.url))
+    return isPublicSitePath(pathname) ? null : new NextResponse(null, { status: 404 })
   // Supabase sends a failed recovery link to the site root with error_code; the home page routes it.
   if (pathname === '/')
     return searchParams.get('error_code')

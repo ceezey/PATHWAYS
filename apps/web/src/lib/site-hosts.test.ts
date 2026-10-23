@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import { describe, expect, it } from 'vitest'
 
-import { routeSite, siteOf } from './site-hosts'
+import { routeSite, siteOf, siteOfHost } from './site-hosts'
 import { siteHostname, splitSites } from './site-split'
 
 const split = splitSites('https://pathways.example.org', 'https://staff.pathways.example.org')
@@ -34,7 +34,9 @@ describe('public and staff address split', () => {
     '/publicity',
   ])('shows not found for %s on the public address', (path) => {
     const response = route('pathways.example.org', path)
-    expect(response?.headers.get('x-middleware-rewrite')).toBe('https://pathways.example.org/404')
+    expect(response?.status).toBe(404)
+    expect(response?.body).toBeNull()
+    expect(response?.headers.get('x-middleware-rewrite')).toBeNull()
     expect(response?.headers.get('location')).toBeNull()
   })
 
@@ -63,9 +65,16 @@ describe('public and staff address split', () => {
     'treats Host %s as the public address',
     (host) => {
       expect(siteHostname(host)).toBe('pathways.example.org')
-      expect(route(host, '/staff/login')?.headers.get('x-middleware-rewrite')).toMatch(/\/404$/)
+      expect(route(host, '/staff/login')?.status).toBe(404)
     },
   )
+
+  it('names the site for a raw Host value', () => {
+    expect(siteOfHost('PATHWAYS.example.org:443', split)).toBe('public')
+    expect(siteOfHost('staff.pathways.example.org', split)).toBe('staff')
+    expect(siteOfHost(null, split)).toBeNull()
+    expect(siteOfHost('pathways.example.org', null)).toBeNull()
+  })
 
   it('treats a request without a Host header as a single address', () => {
     expect(siteOf(new NextRequest('https://pathways.example.org/dashboard'), split)).toBeNull()
