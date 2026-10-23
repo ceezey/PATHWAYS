@@ -80,6 +80,23 @@ describe('form field intake metadata', () => {
     expect(errorCodes([select('sex', { importDefault: 'FEMALE' })])).toEqual([])
   })
 
+  it('accepts true and false text as a BOOLEAN importDefault and flags other text', () => {
+    const flag = (importDefault: string) =>
+      errorCodes([
+        formFieldRequest.parse({
+          code: 'has_phone',
+          label: 'has_phone',
+          dataType: 'BOOLEAN',
+          ...base,
+          importDefault,
+        }),
+      ])
+    expect(flag('true')).toEqual([])
+    expect(flag('false')).toEqual([])
+    expect(flag('yes')).toEqual(['has_phone'])
+    expect(flag('1')).toEqual(['has_phone'])
+  })
+
   it('flags a rule that names a missing field', () => {
     const field = text('is_minor', {
       rule: { kind: 'MINOR_AT_DATE', birthField: 'birth_date', atField: 'enrollment_date' },

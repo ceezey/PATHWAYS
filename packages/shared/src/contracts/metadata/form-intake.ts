@@ -137,8 +137,11 @@ export function formIntakeDefinitionErrors(
       else if (field.rule && (CALCULATED_RULE_KINDS as readonly string[]).includes(field.rule.kind))
         flag('A calculated field cannot also have an import default.')
       else {
-        const value =
+        let value: unknown =
           field.dataType === 'MULTIPLE_SELECT' ? [field.importDefault] : field.importDefault
+        // Boolean text is checked as a boolean, matching import normalization.
+        if (field.dataType === 'BOOLEAN' && /^(true|false)$/i.test(field.importDefault.trim()))
+          value = field.importDefault.trim().toLowerCase() === 'true'
         const result = validateAndNormalizeFormData([field], { [field.code]: value }, 'draft')
         if (result.errors.some((item) => item.code !== 'invalid_definition'))
           flag('Import default does not pass the field type and allowed values.')
