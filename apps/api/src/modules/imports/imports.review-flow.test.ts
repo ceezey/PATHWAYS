@@ -847,6 +847,48 @@ describe('metadata-driven intake validation', () => {
     })
   })
 
+  it('a provided consent_recorded of false is never overwritten, so the row is held', async () => {
+    const fields = registrationFields()
+    state.store = createStore(
+      fields,
+      mappedColumns(fields, [
+        'beneficiary_code',
+        'first_name',
+        'last_name',
+        'birth_date',
+        'enrollment_date',
+        'consent_recorded',
+        'guardian_consent_recorded',
+        'data_processing_consent_recorded',
+      ]),
+      participants.map((row) => ({ ...row, column_0008: 'false' })),
+      {
+        form: {
+          code: 'registration',
+          name: 'Registration',
+          formType: 'BENEFICIARY_REGISTRATION',
+          status: 'PUBLISHED',
+          publishedById: publisherId,
+        },
+      },
+    )
+    state.store.rows[1].rawData.column_0006 = 'true'
+    const imports = registrar()
+
+    await validate(imports)
+    await runProcess(imports)
+
+    // Row 2 says consent yes but processing consent no: the source answer stays false.
+    expect(state.store.rows[1]).toMatchObject({
+      status: 'UNPROCESSED',
+      processingErrorCode: 'CONSENT_REQUIRED',
+    })
+    expect(rowWrites()[1].normalized_data).toMatchObject({
+      consent_recorded: true,
+      data_processing_consent_recorded: false,
+    })
+  })
+
   it('re-validation stores no warnings for a row that was fixed', async () => {
     state.store = registrationStore()
     const imports = service()

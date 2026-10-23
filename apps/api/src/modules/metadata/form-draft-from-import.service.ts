@@ -5,7 +5,11 @@ import {
   draftFormFromImport,
   smartMatchColumnsV3,
 } from '@pathways/imports/server'
-import type { DraftFromImportRequest, DraftFromImportResponse } from '@pathways/shared'
+import {
+  type DraftFromImportRequest,
+  type DraftFromImportResponse,
+  businessCalendarDate,
+} from '@pathways/shared'
 import { writeAuditLog } from '../../common/audit/write-audit-log'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import type { Tx } from '../../common/prisma/transaction'
@@ -16,8 +20,6 @@ import { requireForm } from './form-lookup.service'
 import { createVersion } from './form-versions.service'
 import { assertDefinition } from './metadata.helpers'
 import { fieldInput } from './metadata.mapper'
-
-const manilaDay = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' })
 
 /**
  * Drafts the next version of a form from a staged import (spec 3.6). The batch must be staged in
@@ -64,7 +66,7 @@ export async function createDraftFromImport(
         values: raw.map((values) => values[column.key]),
       })),
       decisions,
-      uploadDate: manilaDay.format(batch.createdAt),
+      uploadDate: businessCalendarDate(batch.createdAt, 'Asia/Manila'),
     })
   } catch (error) {
     if (error instanceof FormDraftError) {

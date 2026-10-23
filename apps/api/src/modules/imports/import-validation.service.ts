@@ -10,6 +10,7 @@ import {
   CALCULATED_RULE_KINDS,
   type FieldIntakeRule,
   type ValidateImportRequest,
+  businessCalendarDate,
 } from '@pathways/shared'
 import { Prisma } from '@prisma/client'
 import { writeAuditLog } from '../../common/audit/write-audit-log'
@@ -122,9 +123,7 @@ export async function validateBatchRows(
     take: IMPORT_ENGINEERING_LIMITS.maxRows,
   })
   const validationRevision = batch.validationRevision + 1
-  const uploadDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' }).format(
-    batch.createdAt,
-  )
+  const uploadDate = businessCalendarDate(batch.createdAt, 'Asia/Manila')
   const results = rows.map((row) => {
     const raw = safeRawData(row.rawData)
     const byFieldCode = Object.create(null) as Record<string, unknown>
