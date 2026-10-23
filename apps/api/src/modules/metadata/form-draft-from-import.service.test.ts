@@ -81,7 +81,7 @@ const formRow = (id: string, code: string, version: number, status: string) => (
   journeyStageId: null,
   createdById: reviewerId,
   lastEditedById: reviewerId,
-  importDraftSummary: null,
+  importDraftSummary: null as unknown,
   publishedAt: now,
   archivedAt: null,
   updatedAt: now,

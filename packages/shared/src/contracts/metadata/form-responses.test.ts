@@ -31,6 +31,7 @@ const form = {
   publishedAt: '2026-10-13T00:00:00.000Z',
   updatedAt: '2026-10-13T00:00:00.000Z',
   createdByCurrentUser: false,
+  draftSummary: null,
   fields: [field],
 }
 const submission = {
@@ -56,6 +57,24 @@ describe('form response contracts', () => {
         items: [{ id: uuid, status: 'VALIDATED', formVersion: 1, updatedAt: '2026-10-13' }],
       }).success,
     ).toBe(true)
+  })
+
+  it('accept a draft summary on a form and reject a malformed one', () => {
+    const draftSummary = {
+      addedFields: ['given_name'],
+      sourceNamesAdded: [],
+      optionsAdded: [],
+      aliasesAdded: 1,
+      defaults: [],
+      rules: [],
+      needsCheck: [{ fieldCode: 'given_name', reason: 'IMPORT_DEFAULT' }],
+    }
+    expect(formResponse.safeParse({ ...form, draftSummary }).success).toBe(true)
+    expect(formResponse.safeParse({ ...form, draftSummary: { addedFields: 'x' } }).success).toBe(
+      false,
+    )
+    const { draftSummary: _omitted, ...without } = form
+    expect(formResponse.safeParse(without).success).toBe(false)
   })
 
   it('reject a form with an unknown type or status, or a field without a data type', () => {
