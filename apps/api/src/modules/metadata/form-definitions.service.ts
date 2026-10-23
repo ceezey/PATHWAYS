@@ -1,5 +1,9 @@
 import { ConflictException, NotFoundException } from '@nestjs/common'
-import type { CreateFormRequest, GenerateFormRequest } from '@pathways/shared'
+import {
+  type CreateFormRequest,
+  type GenerateFormRequest,
+  draftSummaryResponse,
+} from '@pathways/shared'
 import type { Prisma } from '@prisma/client'
 import { writeAuditLog } from '../../common/audit/write-audit-log'
 import { type ApplicationIdentity, UUID_PATTERN } from '../../common/authz/application-identity'
@@ -196,7 +200,7 @@ async function currentDefinition(
   >`
       WITH form AS (
         SELECT f.*, json_build_array(f.id,f.project_id,f.code,f.version,f.name,f.description,f.form_type,f.status,
-          f.activity_id,f.journey_stage_id,f.created_by_id,f.published_at,f.archived_at,f.updated_at)::text AS source
+          f.activity_id,f.journey_stage_id,f.created_by_id,f.published_at,f.archived_at,f.updated_at,f.import_draft_summary)::text AS source
         FROM pathways.digital_forms f
         WHERE organization_id=${actor.organizationId}::uuid AND project_id=${projectId}::uuid AND id=${formId}::uuid
       ), fields AS (
@@ -220,7 +224,8 @@ async function currentDefinition(
         CASE WHEN fingerprint IS NULL OR (status='PUBLISHED' AND fingerprint=${candidateFingerprint}::text) THEN NULL ELSE
           jsonb_build_object('id',id,'projectId',project_id,'code',code,'version',version,'name',name,
             'description',description,'formType',form_type,'status',status,'activityId',activity_id,
-            'journeyStageId',journey_stage_id,'updatedAt',to_char(updated_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
+            'journeyStageId',journey_stage_id,'draftSummary',CASE WHEN status='DRAFT' THEN import_draft_summary ELSE NULL END,
+            'updatedAt',to_char(updated_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
             'createdByCurrentUser',coalesce(${actor.userId}::uuid IN (created_by_id,last_edited_by_id),false),
             'fields',(SELECT coalesce(jsonb_agg(jsonb_build_object(
               'id',id,'code',code,'label',label,'dataType',data_type,'required',is_required,
@@ -238,5 +243,12 @@ async function currentDefinition(
             'publishedAt',to_char(published_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
             'archivedAt',to_char(archived_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')
           )) END AS payload FROM snapshot`
-  return rows[0] ?? null
+  const row = rows[0]
+  if (!row?.payload) return row ?? null
+  // Same contract check as mapForm: only a draft carries a summary, and an invalid one reads as none.
+  row.payload.draftSummary =
+    row.status === 'DRAFT'
+      ? (draftSummaryResponse.safeParse(row.payload.draftSummary).data ?? null)
+      : null
+  return row
 }
