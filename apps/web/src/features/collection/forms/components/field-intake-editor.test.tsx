@@ -59,6 +59,16 @@ describe('FieldIntakeEditor', () => {
     expect(onChange).toHaveBeenLastCalledWith({ importDefault: 'Female' })
   })
 
+  it('ignores Enter once the source names are at the cap', () => {
+    const onChange = vi.fn()
+    const full = Array.from({ length: 20 }, (_, index) => `Name ${index}`)
+    renderEditor(field({ sourceNames: full }), onChange)
+    const input = screen.getByLabelText('New source name')
+    fireEvent.change(input, { target: { value: 'One too many' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
   it('does not offer aliases on a field that is not a choice', () => {
     renderEditor(field({ type: 'text', allowedValues: [] }))
     expect(screen.queryByRole('button', { name: 'Add alias' })).toBeNull()

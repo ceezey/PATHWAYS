@@ -31,6 +31,7 @@ export function ChipListInput({
 }) {
   const [draft, setDraft] = useState('')
   const add = () => {
+    if (readOnly || values.length >= max) return
     const text = draft.trim()
     if (text && !values.includes(text)) onChange([...values, text])
     setDraft('')
