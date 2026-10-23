@@ -272,6 +272,22 @@ describe('import normalization contract', () => {
       ).toEqual({ registration_operation: 'UPDATE' })
     })
 
+    it('a mapped blank cell does not take the importDefault', () => {
+      const operation = intake({
+        code: 'registration_operation',
+        dataType: 'SELECT',
+        required: true,
+        allowedValues: ['CREATE', 'UPDATE'],
+        importDefault: 'CREATE',
+      })
+      const result = normalizeImportedRow([operation], { registration_operation: '' })
+      expect(result.valid).toBe(false)
+      expect(result.values.registration_operation).toBeNull()
+      expect(normalizeImportedRow([operation], { registration_operation: undefined }).valid).toBe(
+        false,
+      )
+    })
+
     it('a MULTIPLE_SELECT importDefault fills a one-element array', () => {
       const multi = intake({
         code: 'multi',

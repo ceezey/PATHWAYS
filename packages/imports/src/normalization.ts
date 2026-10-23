@@ -167,7 +167,9 @@ export function normalizeImportedRow(
       const resolveElement = resolverFor(field)
       converted = { value: converted.value.map((item) => resolveElement(item) ?? item) }
     }
-    if (converted.value === null && !converted.error && field.importDefault) {
+    // The default applies only when no column maps to the field; a mapped blank stays blank.
+    const mapped = Object.hasOwn(rawValuesByFieldCode, field.code)
+    if (converted.value === null && !converted.error && !mapped && field.importDefault) {
       const fallback =
         field.dataType === 'MULTIPLE_SELECT' ? [field.importDefault] : field.importDefault
       converted = convert(field, fallback)
