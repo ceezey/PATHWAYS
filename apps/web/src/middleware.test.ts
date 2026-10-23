@@ -62,4 +62,28 @@ describe('Next.js middleware entry point', () => {
     expect(session).not.toHaveBeenCalled()
     expect(response.headers.get('x-middleware-next')).toBe('1')
   })
+
+  it('keeps each address to its own pages when the split is on', async () => {
+    vi.stubEnv('NEXT_PUBLIC_PUBLIC_SITE_BASE_URL', 'https://pathways.example.org')
+    vi.stubEnv('NEXT_PUBLIC_STAFF_PORTAL_BASE_URL', 'https://staff.example.org')
+    vi.resetModules()
+    try {
+      const split = await import('./middleware')
+      const at = (host: string, url: string) =>
+        split.middleware(new NextRequest(`https://${host}${url}`, { headers: { host } }))
+      session.mockReset().mockResolvedValue(NextResponse.next())
+      const hidden = await at('pathways.example.org', '/dashboard')
+      expect(session).not.toHaveBeenCalled()
+      expect(hidden.headers.get('x-middleware-rewrite')).toBe('https://pathways.example.org/404')
+      expect((await at('pathways.example.org', '/')).headers.get('x-robots-tag')).toBeNull()
+      const staff = await at('staff.example.org', '/dashboard')
+      expect(session).toHaveBeenCalledOnce()
+      expect(staff.headers.get('x-robots-tag')).toBe('noindex, nofollow')
+      expect((await at('staff.example.org', '/staff/login')).headers.get('x-robots-tag')).toBe(
+        'noindex, nofollow',
+      )
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
 })

@@ -12,7 +12,6 @@ export const webEnvSchema = z.object({
     .or(z.string().startsWith('/'))
     .default('http://127.0.0.1:4000/api'),
   NEXT_PUBLIC_SENTRY_DSN: optionalString,
-  NEXT_PUBLIC_STAFF_PORTAL_BASE_URL: optionalUrl,
   STAFF_PORTAL_BASE_URL: optionalUrl,
   WEB_PORT: z.coerce.number().default(3000),
 })

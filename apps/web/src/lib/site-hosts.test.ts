@@ -1,18 +1,20 @@
 import { NextRequest } from 'next/server'
 import { describe, expect, it } from 'vitest'
 
-import { configuredSites, routeSite, siteOf } from './site-hosts'
+import { routeSite, siteOf } from './site-hosts'
+import { siteHostname, splitSites } from './site-split'
 
-const split = configuredSites('https://pathways.example.org', 'https://staff.pathways.example.org')
+const split = splitSites('https://pathways.example.org', 'https://staff.pathways.example.org')
 const request = (host: string, path: string) =>
   new NextRequest(`https://${host}${path}`, { headers: { host } })
 const route = (host: string, path: string) => routeSite(request(host, path), split)
 
 describe('public and staff address split', () => {
-  it('is off unless both addresses are set to different hosts', () => {
-    expect(configuredSites('', 'https://staff.example.org')).toBeNull()
-    expect(configuredSites('https://example.org', '')).toBeNull()
-    expect(configuredSites('https://example.org', 'https://example.org/')).toBeNull()
+  it('is off unless both addresses are set to different hostnames', () => {
+    expect(splitSites('', 'https://staff.example.org')).toBeNull()
+    expect(splitSites('https://example.org', '')).toBeNull()
+    expect(splitSites('https://example.org', 'https://example.org/')).toBeNull()
+    expect(splitSites('https://example.org:8443', 'https://example.org')).toBeNull()
     expect(routeSite(request('pathways.example.org', '/dashboard'), null)).toBeNull()
   })
 
@@ -41,6 +43,9 @@ describe('public and staff address split', () => {
       'https://staff.pathways.example.org/staff/login',
     )
     expect(route('staff.pathways.example.org', '/?error_code=otp_expired')).toBeNull()
+    expect(route('staff.pathways.example.org', '/?error_code=')?.headers.get('location')).toBe(
+      'https://staff.pathways.example.org/staff/login',
+    )
   })
 
   it('sends public pages on the staff address to the public address', () => {
@@ -53,6 +58,18 @@ describe('public and staff address split', () => {
     'serves %s on the staff address',
     (path) => expect(route('staff.pathways.example.org', path)).toBeNull(),
   )
+
+  it.each(['PATHWAYS.example.org', 'pathways.example.org:443', 'pathways.example.org.'])(
+    'treats Host %s as the public address',
+    (host) => {
+      expect(siteHostname(host)).toBe('pathways.example.org')
+      expect(route(host, '/staff/login')?.headers.get('x-middleware-rewrite')).toMatch(/\/404$/)
+    },
+  )
+
+  it('treats a request without a Host header as a single address', () => {
+    expect(siteOf(new NextRequest('https://pathways.example.org/dashboard'), split)).toBeNull()
+  })
 
   it('leaves other hosts, such as Vercel deployment URLs, as a single address', () => {
     expect(siteOf(request('pathways-web-abc.vercel.app', '/'), split)).toBeNull()

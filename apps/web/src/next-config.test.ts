@@ -52,18 +52,27 @@ describe('Next build-directory isolation', () => {
   it('keeps staff redirects and headers off the public address when the split is on', async () => {
     expect(publicSiteHostname({})).toBe('')
     expect(publicSiteHostname({ NEXT_PUBLIC_PUBLIC_SITE_BASE_URL: 'https://a.org' })).toBe('')
+    // Next host conditions ignore the port, so addresses that differ only by port are not split.
+    expect(
+      publicSiteHostname({
+        NEXT_PUBLIC_PUBLIC_SITE_BASE_URL: 'https://a.org:8443',
+        NEXT_PUBLIC_STAFF_PORTAL_BASE_URL: 'https://a.org',
+      }),
+    ).toBe('')
     vi.stubEnv('NEXT_PUBLIC_PUBLIC_SITE_BASE_URL', 'https://pathways.example.org')
     vi.stubEnv('NEXT_PUBLIC_STAFF_PORTAL_BASE_URL', 'https://staff.example.org')
     try {
       const config = createNextConfig(PHASE_PRODUCTION_BUILD)
-      const missing = [{ type: 'host', value: 'pathways\\.example\\.org' }]
+      const missing = [{ type: 'host', value: 'pathways\\.example\\.org\\.?' }]
       expect(await config.redirects?.()).toContainEqual({
         source: '/login',
         destination: '/staff/login',
         permanent: false,
         missing,
       })
-      for (const rule of (await config.headers?.()) ?? []) expect(rule.missing).toEqual(missing)
+      const headers = (await config.headers?.()) ?? []
+      expect(headers).toHaveLength(privateAuthSurfacePaths.length)
+      for (const rule of headers) expect(rule.missing).toEqual(missing)
     } finally {
       vi.unstubAllEnvs()
     }

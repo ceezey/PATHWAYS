@@ -1,29 +1,22 @@
 import { type NextRequest, NextResponse } from 'next/server'
 
+import { siteHostname, splitSites } from './site-split'
+
 /** Pages the public address serves; every other page belongs to the staff address. */
 export const isPublicSitePath = (path: string) =>
   path === '/' || /^\/(?:about|organizations|public\/projects)(?:\/|$)/.test(path)
 
-export type Sites = { public: URL; staff: URL }
-
-// The split is on only when both addresses are set to different hosts.
-export function configuredSites(publicUrl: string, staffUrl: string): Sites | null {
-  if (!publicUrl || !staffUrl) return null
-  const sites = { public: new URL(publicUrl), staff: new URL(staffUrl) }
-  return sites.public.host === sites.staff.host ? null : sites
-}
-
 // Read directly, not through webEnv, so the staff address stays out of the shared browser bundle.
-const sites = configuredSites(
-  process.env.NEXT_PUBLIC_PUBLIC_SITE_BASE_URL ?? '',
-  process.env.NEXT_PUBLIC_STAFF_PORTAL_BASE_URL ?? '',
+const sites = splitSites(
+  process.env.NEXT_PUBLIC_PUBLIC_SITE_BASE_URL,
+  process.env.NEXT_PUBLIC_STAFF_PORTAL_BASE_URL,
 )
 
 export function siteOf(request: NextRequest, split = sites) {
-  const host = request.headers.get('host')
+  const host = siteHostname(request.headers.get('host') ?? '')
   if (!split || !host) return null
-  if (host === split.public.host) return 'public'
-  return host === split.staff.host ? 'staff' : null
+  if (host === split.public.hostname) return 'public'
+  return host === split.staff.hostname ? 'staff' : null
 }
 
 /** Keeps each address to its own pages; null means continue as a single-address app. */
@@ -35,7 +28,7 @@ export function routeSite(request: NextRequest, split = sites): NextResponse | n
     return isPublicSitePath(pathname) ? null : NextResponse.rewrite(new URL('/404', request.url))
   // Supabase sends a failed recovery link to the site root with error_code; the home page routes it.
   if (pathname === '/')
-    return searchParams.has('error_code')
+    return searchParams.get('error_code')
       ? null
       : NextResponse.redirect(new URL('/staff/login', split.staff))
   return isPublicSitePath(pathname)
