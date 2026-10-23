@@ -10,13 +10,13 @@ import {
   CALCULATED_RULE_KINDS,
   type FieldIntakeRule,
   type ValidateImportRequest,
-  businessCalendarDate,
 } from '@pathways/shared'
 import { Prisma } from '@prisma/client'
 import { writeAuditLog } from '../../common/audit/write-audit-log'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import { formFieldContract } from '../../common/forms/form-field-contract'
 import type { Tx } from '../../common/prisma/transaction'
+import { currentBusinessDate } from '../../common/time/business-date'
 import { lockBatch, mapStoredBatch, requireBatchWithHeaders } from './import-batches.service'
 import { safeRawData, safeSourceColumns, stableJson, storedValueMap } from './imports.helpers'
 import { type FieldRow, fieldSelection } from './imports.mapper'
@@ -123,7 +123,7 @@ export async function validateBatchRows(
     take: IMPORT_ENGINEERING_LIMITS.maxRows,
   })
   const validationRevision = batch.validationRevision + 1
-  const uploadDate = businessCalendarDate(batch.createdAt, 'Asia/Manila')
+  const uploadDate = currentBusinessDate(batch.createdAt)
   const results = rows.map((row) => {
     const raw = safeRawData(row.rawData)
     const byFieldCode = Object.create(null) as Record<string, unknown>

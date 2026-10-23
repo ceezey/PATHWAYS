@@ -5,14 +5,11 @@ import {
   draftFormFromImport,
   smartMatchColumnsV3,
 } from '@pathways/imports/server'
-import {
-  type DraftFromImportRequest,
-  type DraftFromImportResponse,
-  businessCalendarDate,
-} from '@pathways/shared'
+import type { DraftFromImportRequest, DraftFromImportResponse } from '@pathways/shared'
 import { writeAuditLog } from '../../common/audit/write-audit-log'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import type { Tx } from '../../common/prisma/transaction'
+import { currentBusinessDate } from '../../common/time/business-date'
 import { coverageField, readStagedRaw, smartMatchColumns } from '../imports/batch-match-inputs'
 import { requireBatchWithHeaders } from '../imports/import-batches.service'
 import { safeSourceColumns } from '../imports/imports.helpers'
@@ -66,7 +63,7 @@ export async function createDraftFromImport(
         values: raw.map((values) => values[column.key]),
       })),
       decisions,
-      uploadDate: businessCalendarDate(batch.createdAt, 'Asia/Manila'),
+      uploadDate: currentBusinessDate(batch.createdAt),
     })
   } catch (error) {
     if (error instanceof FormDraftError) {

@@ -246,6 +246,16 @@ describe('draft a form version from a staged import', () => {
     })
   })
 
+  it('follows the configured business time zone for the upload date', async () => {
+    vi.stubEnv('BUSINESS_TIME_ZONE', 'UTC')
+    try {
+      await run(me, { batchId, expectedMappingRevision: 1 })
+      expect(vi.mocked(draftFormFromImport).mock.lastCall?.[0].uploadDate).toBe('2026-10-22')
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
   it('PO is denied (403) before any read', async () => {
     const officer = identity('PROJECT_OFFICER', drafterId)
     await expect(run(officer, { batchId, expectedMappingRevision: 1 })).rejects.toBeInstanceOf(

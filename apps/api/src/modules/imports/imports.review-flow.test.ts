@@ -1015,5 +1015,21 @@ describe('metadata-driven intake validation', () => {
 
       expect(rowWrites()[0].validation_warnings).toEqual([])
     })
+
+    it('follows the configured business time zone for the upload date', async () => {
+      vi.stubEnv('BUSINESS_TIME_ZONE', 'UTC')
+      try {
+        // Still 2 October in UTC, so the stated 36 is one year ahead of the 35 computed.
+        state.store = ageStore(['36'], { createdAt: new Date('2026-10-02T17:00:00.000Z') })
+
+        await validate(service())
+
+        expect(rowWrites()[0].validation_warnings).toEqual([
+          expect.objectContaining({ fieldCode: 'age_stated', code: 'AGE_MISMATCH' }),
+        ])
+      } finally {
+        vi.unstubAllEnvs()
+      }
+    })
   })
 })
