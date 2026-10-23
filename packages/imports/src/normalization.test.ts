@@ -272,6 +272,47 @@ describe('import normalization contract', () => {
       ).toEqual({ registration_operation: 'UPDATE' })
     })
 
+    it('a MULTIPLE_SELECT importDefault fills a one-element array', () => {
+      const multi = intake({
+        code: 'multi',
+        dataType: 'MULTIPLE_SELECT',
+        required: true,
+        allowedValues: ['Alpha', 'Beta'],
+        importDefault: 'Alpha',
+      })
+      expect(normalizeImportedRow([multi], {})).toMatchObject({
+        valid: true,
+        values: { multi: ['Alpha'] },
+      })
+      expect(normalizeImportedRow([multi], { multi: '["Beta"]' }).values.multi).toEqual(['Beta'])
+    })
+
+    it('resolves identically across repeated rows with the cached resolver', () => {
+      const select = intake({ code: 'pick', dataType: 'SELECT', allowedValues: ['Alpha'] })
+      const first = normalizeImportedRow([select], { pick: 'a. alpha' })
+      const second = normalizeImportedRow([select], { pick: 'A. Alpha' })
+      expect([first.values.pick, second.values.pick]).toEqual(['Alpha', 'Alpha'])
+    })
+
+    it('a provided consent answer survives SAME_ANSWER_AS and the row stays false', () => {
+      const list = [
+        intake({
+          code: 'consent_recorded',
+          dataType: 'BOOLEAN',
+          rule: { kind: 'SAME_ANSWER_AS', field: 'data_processing_consent_recorded' },
+        }),
+        intake({ code: 'data_processing_consent_recorded', dataType: 'BOOLEAN' }),
+      ]
+      const result = normalizeImportedRow(
+        list,
+        { consent_recorded: 'false', data_processing_consent_recorded: 'true' },
+        {},
+        options,
+      )
+      expect(result.values.consent_recorded).toBe(false)
+      expect(result.warnings).toEqual([])
+    })
+
     it('a calculated is_minor satisfies a required field', () => {
       const list = [
         intake({ code: 'birth_date', dataType: 'DATE', required: true }),

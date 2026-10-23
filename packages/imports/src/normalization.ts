@@ -122,6 +122,18 @@ function translate(raw: unknown, rule: ImportColumnRule | undefined): unknown {
   return mapped === undefined ? raw : mapped
 }
 
+const resolverCache = new WeakMap<object, (raw: string) => string | null>()
+
+/** One resolver per field object, so a validation run builds its lookups once, not per row. */
+function resolverFor(field: IntakeField) {
+  let resolver = resolverCache.get(field)
+  if (!resolver) {
+    resolver = answerResolver(field.allowedValues ?? [], field.valueAliases ?? [])
+    resolverCache.set(field, resolver)
+  }
+  return resolver
+}
+
 const isBlankRaw = (raw: unknown) =>
   raw === null || raw === undefined || (typeof raw === 'string' && raw.trim() === '')
 
@@ -140,12 +152,11 @@ export function normalizeImportedRow(
   const sourceProvided = new Set<string>()
   for (const field of fields) {
     const rule = Object.hasOwn(rules, field.code) ? rules[field.code] : undefined
-    const resolve = () => answerResolver(field.allowedValues ?? [], field.valueAliases ?? [])
     let raw = translate(rawValuesByFieldCode[field.code], rule)
     if (!isBlankRaw(rawValuesByFieldCode[field.code])) sourceProvided.add(field.code)
     if (field.dataType === 'SELECT' && typeof raw === 'boolean') raw = String(raw)
     if (field.dataType === 'SELECT' && typeof raw === 'string' && raw !== '') {
-      raw = resolve()(raw) ?? raw
+      raw = resolverFor(field)(raw) ?? raw
     }
     const declared =
       rule?.dataType && rule.dataType !== field.dataType
@@ -153,11 +164,13 @@ export function normalizeImportedRow(
         : null
     let converted = declared?.error ? declared : convert(field, raw)
     if (field.dataType === 'MULTIPLE_SELECT' && Array.isArray(converted.value)) {
-      const resolveElement = resolve()
+      const resolveElement = resolverFor(field)
       converted = { value: converted.value.map((item) => resolveElement(item) ?? item) }
     }
     if (converted.value === null && !converted.error && field.importDefault) {
-      converted = convert(field, field.importDefault)
+      const fallback =
+        field.dataType === 'MULTIPLE_SELECT' ? [field.importDefault] : field.importDefault
+      converted = convert(field, fallback)
     }
     values[field.code] = converted.value
     if (converted.error) errors.push(converted.error)

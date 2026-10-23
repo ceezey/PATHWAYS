@@ -118,34 +118,36 @@ describe('applyIntakeRules', () => {
   describe('WASHINGTON_GROUP_DISABILITY', () => {
     const none = 'Hindi - Hindi nahihirapan'
     const some = 'Oo - medyo nahihirapan'
+    const runWg = (values: Record<string, NormalizedImportValue>) => run(values, wgCodes)
 
     it('gives WITH_DISABILITY for one level-3 answer', () => {
       const values = wg(none, none, 'Oo - Madalas nahihirapan', none, none, none)
-      run(values)
+      runWg(values)
       expect(values.disability_status).toBe('WITH_DISABILITY')
     })
 
     it('gives WITHOUT_DISABILITY when all six are level 1-2', () => {
       const values = wg(none, some, none, some, none, none)
-      run(values)
+      runWg(values)
       expect(values.disability_status).toBe('WITHOUT_DISABILITY')
     })
 
     it('gives NOT_SPECIFIED when one is blank and none qualifies', () => {
       const values = wg(none, some, none, some, none, null)
-      run(values)
+      runWg(values)
       expect(values.disability_status).toBe('NOT_SPECIFIED')
     })
 
     it('matches answers through dash and case folding', () => {
       const values = wg(none, none, 'OO – MADALAS NAHIHIRAPAN', none, none, none)
-      run(values)
+      runWg(values)
       expect(values.disability_status).toBe('WITH_DISABILITY')
     })
 
     it('a mapped disability flag that disagrees is an error on a SADDD field and a warning otherwise', () => {
       const answers = wg(none, none, 'Oo - Madalas nahihirapan', none, none, none)
       const saddd = run({ ...answers, disability_status: 'WITHOUT_DISABILITY' }, [
+        ...wgCodes,
         'disability_status',
       ])
       expect(saddd.errors).toEqual([
@@ -160,7 +162,12 @@ describe('applyIntakeRules', () => {
         ...answers,
         disability_status: 'WITHOUT_DISABILITY',
       }
-      const result = applyIntakeRules(plain, values, new Set(['disability_status']), '2026-10-22')
+      const result = applyIntakeRules(
+        plain,
+        values,
+        new Set([...wgCodes, 'disability_status']),
+        '2026-10-22',
+      )
       expect(result.errors).toEqual([])
       expect(result.warnings).toEqual([
         { fieldCode: 'disability_status', code: 'CALCULATION_MISMATCH' },
@@ -171,9 +178,27 @@ describe('applyIntakeRules', () => {
     it('accepts a mapped flag that agrees', () => {
       const answers = wg(none, none, 'Oo - Madalas nahihirapan', none, none, none)
       const result = run({ ...answers, disability_status: 'WITH_DISABILITY' }, [
+        ...wgCodes,
         'disability_status',
       ])
       expect(result.errors).toEqual([])
+    })
+
+    it('skips and keeps the source flag when no question is in the file', () => {
+      const values: Record<string, NormalizedImportValue> = {
+        ...wg(),
+        disability_status: 'WITHOUT_DISABILITY',
+      }
+      const result = run(values, ['disability_status'])
+      expect(values.disability_status).toBe('WITHOUT_DISABILITY')
+      expect(result.errors).toEqual([])
+      expect(result.warnings).toEqual([])
+    })
+
+    it('leaves disability_status untouched when there is no question and no flag', () => {
+      const values: Record<string, NormalizedImportValue> = { ...wg(), disability_status: null }
+      expect(run(values)).toEqual({ errors: [], warnings: [] })
+      expect(values.disability_status).toBeNull()
     })
   })
 
@@ -183,6 +208,23 @@ describe('applyIntakeRules', () => {
       run(values)
       expect(values.data_processing_consent_recorded).toBe(answer)
     }
+  })
+
+  it('SAME_ANSWER_AS never overrides a provided source value', () => {
+    const list = [
+      field('consent_recorded', 'BOOLEAN', {
+        rule: { kind: 'SAME_ANSWER_AS', field: 'data_processing_consent_recorded' },
+      }),
+      field('data_processing_consent_recorded', 'BOOLEAN'),
+    ]
+    const values: Record<string, NormalizedImportValue> = {
+      consent_recorded: false,
+      data_processing_consent_recorded: true,
+    }
+    const sourceProvided = new Set(['consent_recorded', 'data_processing_consent_recorded'])
+    const result = applyIntakeRules(list, values, sourceProvided, '2026-10-22')
+    expect(values.consent_recorded).toBe(false)
+    expect(result).toEqual({ errors: [], warnings: [] })
   })
 
   it('FOLLOW_UP_OF warns when other-job text is filled after "A. construction" and stays silent after "F. Iba pa"', () => {
@@ -244,7 +286,7 @@ describe('applyIntakeRules hardening', () => {
 
   it('one blank answer plus one level-3 answer gives WITH_DISABILITY', () => {
     const values = wg('Hindi - Hindi nahihirapan', null, 'Oo - Madalas nahihirapan')
-    run(values)
+    run(values, wgCodes)
     expect(values.disability_status).toBe('WITH_DISABILITY')
   })
 

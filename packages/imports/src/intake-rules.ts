@@ -80,6 +80,7 @@ const sameValue = (a: NormalizedImportValue | undefined, b: NormalizedImportValu
 function calculate(
   rule: FieldIntakeRule,
   inputs: Record<string, NormalizedImportValue>,
+  sourceProvided: ReadonlySet<string>,
 ): NormalizedImportValue {
   switch (rule.kind) {
     case 'AGE_AT_DATE':
@@ -91,6 +92,7 @@ function calculate(
       return rule.kind === 'AGE_AT_DATE' ? years : years < 18
     }
     case 'WASHINGTON_GROUP_DISABILITY': {
+      if (!rule.questionFields.some((code) => sourceProvided.has(code))) return null
       const qualifying = new Set(rule.disabilityValues.map(comparableAnswer))
       const answers = rule.questionFields.map((code) => inputs[code])
       const qualifies = (answer: NormalizedImportValue) =>
@@ -121,8 +123,9 @@ export function applyIntakeRules(
   for (const field of fields) {
     const rule = field.rule
     if (!rule || !CALCULATED_KINDS.includes(rule.kind)) continue
-    const calculated = calculate(rule, inputs)
-    if (calculated === null && rule.kind !== 'WASHINGTON_GROUP_DISABILITY') continue
+    if (rule.kind === 'SAME_ANSWER_AS' && sourceProvided.has(field.code)) continue
+    const calculated = calculate(rule, inputs, sourceProvided)
+    if (calculated === null) continue
     if (sourceProvided.has(field.code) && !sameValue(values[field.code], calculated)) {
       if (field.sadddField)
         errors.push({
