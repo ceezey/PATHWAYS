@@ -73,6 +73,9 @@ describe('straight-through import copy', () => {
     expect(coverageNotice({ uncoveredColumns: 3, unresolvedValues: 12 })).toBe(
       'Form needs updating: 3 columns, 12 answers',
     )
+    expect(coverageNotice({ uncoveredColumns: 1, unresolvedValues: 1 })).toBe(
+      'Form needs updating: 1 column, 1 answer',
+    )
     expect(importOutcomeMessage({ processed: 84, unprocessed: 16, invalid: 2, warnings: 5 })).toBe(
       'Imported 84. 16 held for review, 2 invalid, 5 with warnings.',
     )

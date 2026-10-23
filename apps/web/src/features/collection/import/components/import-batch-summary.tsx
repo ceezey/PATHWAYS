@@ -15,10 +15,12 @@ import { batchTone } from '../import.utils'
 export function ImportBatchSummary({
   review,
   intake,
+  pending,
   batch,
 }: {
   review: Pick<BatchReview, 'loadBatch' | 'resume'>
   intake: Pick<BatchIntake, 'rerun' | 'rerunTarget'>
+  pending: boolean
   batch: NonNullable<ImportState['batch']>
 }) {
   const { loadBatch, resume } = review
@@ -61,7 +63,7 @@ export function ImportBatchSummary({
             <Button onClick={() => void resume()}>Resume stored upload</Button>
           ) : null}
           {rerunTarget ? (
-            <Button className="min-h-11" onClick={() => void rerun()}>
+            <Button className="min-h-11" disabled={pending} onClick={() => void rerun()}>
               Re-run import
             </Button>
           ) : null}

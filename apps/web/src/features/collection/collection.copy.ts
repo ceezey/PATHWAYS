@@ -1,5 +1,6 @@
 import type { INTAKE_RULE_KINDS, draftNeedsCheckReasons } from '@pathways/shared'
 
+import { plural } from '@/lib/format/plural'
 import type { DigitalFormType } from '@/types/pathways'
 
 export const formTypeLabels: Record<DigitalFormType, string> = {
@@ -60,7 +61,7 @@ export const warningLabel = (code: string) => warningLabels[code] ?? enumLabel(c
 
 /** Shown when the file needs the form to change before it can be imported. */
 export const coverageNotice = (receipt: { uncoveredColumns: number; unresolvedValues: number }) =>
-  `Form needs updating: ${receipt.uncoveredColumns} columns, ${receipt.unresolvedValues} answers`
+  `Form needs updating: ${plural(receipt.uncoveredColumns, 'column')}, ${plural(receipt.unresolvedValues, 'answer')}`
 
 /** Shown after a straight-through import finishes. */
 export const importOutcomeMessage = (totals: {

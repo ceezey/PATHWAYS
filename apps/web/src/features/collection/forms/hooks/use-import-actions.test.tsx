@@ -13,6 +13,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DisplayLabelsProvider } from '@/providers/display-labels-provider'
 
 import { CollectionWorkspace } from '../components/collection-workspace'
+import { takeDraftSummary } from '../draft-handoff'
 
 configure({ asyncUtilTimeout: 5000 })
 
@@ -25,6 +26,7 @@ const api = vi.hoisted(() => ({
   processImport: vi.fn(),
   getActivities: vi.fn(),
   getDigitalForms: vi.fn(),
+  draftFromImport: vi.fn(),
   getIndicators: vi.fn(),
   getProjectsForRole: vi.fn(),
 }))
@@ -54,7 +56,11 @@ const allGrants = [
 const toasts = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }))
 vi.mock('sonner', () => ({ toast: toasts }))
 vi.mock('@/providers/current-role-provider', () => ({ useCurrentRole: () => access }))
-vi.mock('@/lib/api/forms', () => ({ formsClient: { getDigitalForms: api.getDigitalForms } }))
+vi.mock('@/lib/api/forms', () => ({
+  formsClient: { getDigitalForms: api.getDigitalForms, draftFromImport: api.draftFromImport },
+}))
+const nav = vi.hoisted(() => ({ push: vi.fn() }))
+vi.mock('next/navigation', () => ({ useRouter: () => nav }))
 vi.mock('@/lib/api/imports', () => ({ importsClient: api }))
 vi.mock('@/lib/api/indicators', () => ({ indicatorsClient: { getIndicators: api.getIndicators } }))
 vi.mock('@/lib/api/activities', () => ({ activitiesClient: { getActivities: api.getActivities } }))
@@ -174,22 +180,88 @@ describe('straight-through import', () => {
     expect(api.processImport).toHaveBeenCalledWith('project-1', 'batch-1', 2)
   })
 
-  it('not covered stops before validate and shows the counts', async () => {
-    api.automaticImportMapping.mockResolvedValue(
-      receipt({
-        coverage: 'NOT_COVERED',
-        complete: false,
-        mapped: 0,
-        pending: 3,
-        uncoveredColumns: 3,
-        unresolvedValues: 12,
-      }),
-    )
+  const notCovered = receipt({
+    coverage: 'NOT_COVERED',
+    complete: false,
+    mapped: 0,
+    pending: 3,
+    uncoveredColumns: 3,
+    unresolvedValues: 12,
+  })
+
+  it('not covered stops before validate and shows the counts when no reviewer can continue', async () => {
+    access.profile.permissions = allGrants.filter((grant) => grant !== 'imports.review')
+    api.automaticImportMapping.mockResolvedValue(notCovered)
     await proceed()
-    await screen.findByText(/Form needs updating: 3 columns, 12 answers/)
+    await screen.findByText('Form needs updating: 3 columns, 12 answers')
     expect(api.validateImport).not.toHaveBeenCalled()
     expect(api.processImport).not.toHaveBeenCalled()
     expect(api.saveImportMapping).not.toHaveBeenCalled()
+  })
+
+  it('not covered still lets a reviewer with a complete preview save, validate and process', async () => {
+    api.automaticImportMapping.mockResolvedValue(notCovered)
+    api.getImportBatch.mockResolvedValue({
+      id: 'batch-1',
+      mappingRevision: 1,
+      sourceColumns: [{ key: 'column_0001', columnIndex: 1, header: 'beneficiary_id' }],
+    })
+    api.saveImportMapping.mockResolvedValue({ id: 'batch-1', mappingRevision: 2 })
+    api.validateImport.mockResolvedValue({
+      id: 'batch-1',
+      validationRevision: 1,
+      totals: { ...totals, invalid: 0 },
+    })
+    api.processImport.mockResolvedValue({
+      id: 'batch-1',
+      status: 'PROCESSED',
+      totals: { ...totals, processed: 3 },
+    })
+    await proceed()
+    await waitFor(() => expect(api.processImport).toHaveBeenCalled())
+    expect(api.saveImportMapping).toHaveBeenCalledTimes(1)
+    expect(api.validateImport).toHaveBeenCalledWith('project-1', 'batch-1', 2)
+  })
+
+  describe('prepare form from the upload result', () => {
+    beforeEach(() => {
+      access.profile.permissions = allGrants.filter((grant) => grant !== 'imports.review')
+      api.automaticImportMapping.mockResolvedValue(notCovered)
+    })
+
+    it('drafts from the staged batch, hands over the summary and opens the editor', async () => {
+      api.draftFromImport.mockResolvedValue({
+        form: { id: 'draft-1', projectId: 'project-1' },
+        summary: { addedFields: ['given_name'] },
+      })
+      await proceed()
+      fireEvent.click(await screen.findByRole('button', { name: 'Prepare form' }))
+      await waitFor(() =>
+        expect(nav.push).toHaveBeenCalledWith('/collection/projects/project-1/forms/draft-1'),
+      )
+      expect(api.draftFromImport).toHaveBeenCalledWith('project-1', 'published-form', 'batch-1', 1)
+      expect(takeDraftSummary('draft-1')).toEqual({ addedFields: ['given_name'] })
+    })
+
+    it('shows a read-only notice without forms.manage', async () => {
+      access.profile.permissions = allGrants.filter(
+        (grant) => grant !== 'imports.review' && grant !== 'forms.manage',
+      )
+      await proceed()
+      await screen.findByText('Form needs updating: 3 columns, 12 answers')
+      expect(screen.queryByRole('button', { name: 'Prepare form' })).toBeNull()
+      expect(screen.getByText(/Someone who manages forms/)).toBeTruthy()
+    })
+
+    it('says in plain words when the draft is refused', async () => {
+      api.draftFromImport.mockRejectedValue(
+        new Error('Every column is already covered by the form.'),
+      )
+      await proceed()
+      fireEvent.click(await screen.findByRole('button', { name: 'Prepare form' }))
+      await screen.findByText('Every column is already covered by the form.')
+      expect(nav.push).not.toHaveBeenCalled()
+    })
   })
 
   it('stages a covered file for a user who cannot validate and process', async () => {

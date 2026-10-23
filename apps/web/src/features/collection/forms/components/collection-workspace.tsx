@@ -15,6 +15,7 @@ import { useDisplayLabels } from '@/hooks/use-display-labels'
 import { principalHasAtomicPermission } from '@/lib/rbac/policy'
 import { cn } from '@/lib/utils'
 
+import { ImportOpenDraft } from '../../import/components/import-open-draft'
 import { ImportView } from '../../import/components/import-view'
 import { type CollectionWorkspaceProps, modeDetails } from '../forms.utils'
 import { useCollectionEdits } from '../hooks/use-collection-edits'
@@ -79,6 +80,7 @@ const OwnedCollectionWorkspace = (
     addField,
     creatingVersion,
     draftSummary,
+    draftTarget,
     editingFormId,
     fields,
     formTitle,
@@ -103,6 +105,7 @@ const OwnedCollectionWorkspace = (
     projectsLoaded,
     requestDeleteField,
     selectedFieldId,
+    stagedCoverage,
     setFormTitle,
     setFormType,
     setJourneyStage,
@@ -136,6 +139,7 @@ const OwnedCollectionWorkspace = (
     importSummary,
     mappingReadiness,
     parseSelectedFile,
+    prepareStagedForm,
     retrySelectedFile,
   } = importActions
   const selectedProject = projects.find((project) => project.id === projectId)
@@ -179,6 +183,8 @@ const OwnedCollectionWorkspace = (
           ) : null
         }
       />
+
+      {draftTarget ? <ImportOpenDraft target={draftTarget} /> : null}
 
       <div className="grid gap-3 lg:grid-cols-3">
         {visibleModes.map((item) => (
@@ -318,6 +324,8 @@ const OwnedCollectionWorkspace = (
             mappingRows={mappingRows}
             mappingReadiness={mappingReadiness}
             mode={mode}
+            onPrepareForm={canManageForms ? () => void prepareStagedForm() : undefined}
+            operationPending={operationPending}
             parsedImport={parsedImport}
             parseSelectedFile={parseSelectedFile}
             sourceFileEnabled={Boolean(
@@ -345,6 +353,7 @@ const OwnedCollectionWorkspace = (
             setProjectId={changeProject}
             setView={changeInput(setView)}
             retrySelectedFile={retrySelectedFile}
+            stagedReceipt={stagedCoverage?.receipt ?? null}
             uploadProgress={uploadProgress}
           />
         </div>

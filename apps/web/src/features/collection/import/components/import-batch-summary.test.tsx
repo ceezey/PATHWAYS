@@ -17,11 +17,12 @@ const batch = {
 } as ImportBatchDefinition
 const rerun = vi.fn()
 
-const renderSummary = (rerunTarget: { version: number } | null) =>
+const renderSummary = (rerunTarget: { version: number } | null, pending = false) =>
   render(
     <ImportBatchSummary
       batch={batch}
       intake={{ rerun, rerunTarget: rerunTarget as never }}
+      pending={pending}
       review={{ loadBatch: vi.fn(), resume: vi.fn() }}
     />,
   )
@@ -37,6 +38,13 @@ describe('ImportBatchSummary re-run', () => {
     expect(screen.getByText(/Version 2 of this form is published/)).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Re-run import' }))
     expect(rerun).toHaveBeenCalledTimes(1)
+  })
+
+  it('disables Re-run import while another operation is running', () => {
+    renderSummary({ version: 2 }, true)
+    expect(
+      (screen.getByRole('button', { name: 'Re-run import' }) as HTMLButtonElement).disabled,
+    ).toBe(true)
   })
 
   it('offers nothing when there is no newer version for this person', () => {

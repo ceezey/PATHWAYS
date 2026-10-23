@@ -1,10 +1,9 @@
 import { toast } from 'sonner'
 
-import { formsClient } from '@/lib/api/forms'
 import { importsClient } from '@/lib/api/imports'
 
 import { importOutcomeMessage } from '../../collection.copy'
-import { stashDraftSummary } from '../../forms/draft-handoff'
+import { draftFormFromImport } from '../prepare-draft'
 import type { BatchProcessing } from './use-batch-processing'
 import type { BatchReview } from './use-batch-review'
 import type { ImportState } from './use-import-state'
@@ -47,15 +46,14 @@ export function useBatchIntake(state: ImportState, review: BatchReview, run: Bat
     const ticket = begin('forms.manage')
     if (!ticket) return
     try {
-      const { form, summary } = await formsClient.draftFromImport(
+      const target = await draftFormFromImport(
         projectId,
         batch.formId,
         batch.id,
         batch.mappingRevision,
       )
       if (!ticket.valid()) return
-      stashDraftSummary(form.id, summary)
-      setDraftTarget({ projectId: form.projectId, formId: form.id })
+      setDraftTarget(target)
     } catch (error) {
       if (ticket.valid())
         toast.error(error instanceof Error ? error.message : 'The form could not be prepared.')

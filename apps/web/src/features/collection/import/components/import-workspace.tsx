@@ -123,7 +123,12 @@ function OwnedImportWorkspace({ scope }: { scope: SensitiveDraftOwner }) {
               />
             ) : (
               <>
-                <ImportBatchSummary review={review} intake={intake} batch={batch} />
+                <ImportBatchSummary
+                  review={review}
+                  intake={intake}
+                  pending={pending}
+                  batch={batch}
+                />
 
                 {sourceColumns.length > 0 ? (
                   <ImportMappingCard

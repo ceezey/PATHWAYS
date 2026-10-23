@@ -11,13 +11,13 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 
-import { coverageNotice } from '../../collection.copy'
 import type { BatchIntake } from '../hooks/use-batch-intake'
 import type { BatchProcessing } from '../hooks/use-batch-processing'
 import type { BatchReview } from '../hooks/use-batch-review'
 import type { ImportState } from '../hooks/use-import-state'
 import { importProcessingComplete } from '../import-auto-continue'
 import { automaticMatchReason, mappingLockedStatuses } from '../import.utils'
+import { CoverageNotice } from './coverage-notice'
 import { ImportValueMapEditor, emptyColumnRule } from './import-value-map-editor'
 
 export function ImportMappingCard({
@@ -110,22 +110,12 @@ export function ImportMappingCard({
       </CardHeader>
       <CardContent className="space-y-3">
         {needsFormUpdate ? (
-          <div className="space-y-2 rounded-lg border border-warning/30 bg-warning-subtle p-3 text-sm">
-            <p className="font-medium text-warning">{coverageNotice(receipt)}</p>
-            {canManageForms ? (
-              <Button
-                className="min-h-11"
-                disabled={pending}
-                onClick={() => void intake.prepareForm()}
-              >
-                Prepare form
-              </Button>
-            ) : (
-              <p className="text-muted-foreground">
-                Someone who manages forms can prepare the form from this file.
-              </p>
-            )}
-          </div>
+          <CoverageNotice
+            receipt={receipt}
+            canPrepare={canManageForms}
+            pending={pending}
+            onPrepare={() => void intake.prepareForm()}
+          />
         ) : null}
         <output aria-live="polite" className="block text-sm text-muted-foreground">
           {mappingNotice}
