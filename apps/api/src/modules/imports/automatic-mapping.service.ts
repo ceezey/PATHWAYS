@@ -18,15 +18,9 @@ import { Prisma } from '@prisma/client'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import type { Tx } from '../../common/prisma/transaction'
 import { parseAutomaticMappingReceipt } from './automatic-mapping-receipt'
-import {
-  coverageField,
-  isBlank,
-  matchFieldSelection,
-  readStagedRaw,
-  smartMatchColumns,
-} from './batch-match-inputs'
+import { stagedMatchInputs } from './batch-coverage'
+import { smartMatchColumns } from './batch-match-inputs'
 import { lockBatch, requireBatch } from './import-batches.service'
-import { safeSourceColumns } from './imports.helpers'
 import type { BatchRow } from './imports.mapper'
 
 export async function recordAutomaticMapping(
@@ -104,47 +98,10 @@ async function smartMappingInputs(
   ) {
     throw new ConflictException('The import changed. Reload before retrying.')
   }
-  const stored = await tx.dataImportBatch.findFirst({
-    where: { id: batch.id, organizationId: actor.organizationId, projectId: batch.projectId },
-    select: { sourceHeaders: true },
-  })
-  if (!stored) throw new NotFoundException('Import batch unavailable.')
-  const sourceColumns = safeSourceColumns(stored.sourceHeaders)
-  const storedFields = await tx.formField.findMany({
-    where: {
-      organizationId: actor.organizationId,
-      projectId: batch.projectId,
-      formId: batch.formId,
-    },
-    select: matchFieldSelection,
-    orderBy: { sequenceNo: 'asc' },
-    take: AUTO_SMART_V2_LIMITS.maxFields + 1,
-  })
-  if (
-    sourceColumns.length < 1 ||
-    storedFields.length < 1 ||
-    storedFields.length > AUTO_SMART_V2_LIMITS.maxFields
-  ) {
-    throw new BadRequestException('Invalid automatic mapping request.')
-  }
-  const raw = await readStagedRaw(tx, actor, batch)
-  const distinct = new Map(sourceColumns.map((column) => [column.key, new Set<unknown>()]))
-  for (const values of raw) {
-    for (const column of sourceColumns) {
-      const value = values[column.key]
-      if (isBlank(value)) continue
-      const seen = distinct.get(column.key)
-      seen?.add(value)
-    }
-  }
-  const fields = storedFields.map(coverageField)
+  const { sourceColumns, fields, raw, distinctValues } = await stagedMatchInputs(tx, actor, batch)
   try {
     const decisions = smartMatchColumnsV3(smartMatchColumns(sourceColumns, raw), fields)
-    return {
-      decisions,
-      fields,
-      distinctValues: Object.fromEntries([...distinct].map(([key, values]) => [key, [...values]])),
-    }
+    return { decisions, fields, distinctValues }
   } catch {
     throw new BadRequestException('Invalid automatic mapping request.')
   }

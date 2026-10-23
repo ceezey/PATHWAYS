@@ -169,6 +169,22 @@ describe('import workspace intake paths', () => {
       expect(takeDraftSummary('draft-1')).toEqual(summary)
     })
 
+    it('offers Prepare form from the detail coverage to a forms.manage holder who did not upload it', async () => {
+      state.profile.permissions = [...grants, 'forms.manage']
+      const stored = batch({
+        uploadedByCurrentUser: false,
+        coverage: { coverage: 'NOT_COVERED', uncoveredColumns: 2, unresolvedValues: 5 },
+      })
+      api.getImportBatches.mockResolvedValue([stored])
+      api.getImportBatch.mockResolvedValue(stored)
+      await openBatch()
+      await screen.findByText('Form needs updating: 2 columns, 5 answers')
+      fireEvent.click(screen.getByRole('button', { name: 'Prepare form' }))
+      await waitFor(() =>
+        expect(api.draftFromImport).toHaveBeenCalledWith('project-1', 'form-1', 'batch-1', 1),
+      )
+    })
+
     it('says in plain words when the draft is refused', async () => {
       state.profile.permissions = [...grants, 'forms.manage']
       api.draftFromImport.mockRejectedValue(

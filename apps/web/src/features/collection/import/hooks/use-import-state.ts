@@ -40,7 +40,7 @@ export function useImportState(scope: SensitiveDraftOwner) {
   const [mapping, setMapping] = useState<Record<string, string>>({})
   const [rules, setRules] = useState<Record<string, ColumnRuleDraft>>({})
   const [mappingNotice, setMappingNotice] = useState('')
-  // The automatic-mapping receipt of each batch uploaded or re-run in this session; the server does not store coverage.
+  // The automatic-mapping receipt of each batch uploaded or re-run in this session; batch detail carries the stored coverage.
   const [receipts, setReceipts] = useState<Record<string, AutomaticMappingReceipt>>({})
   // The draft form just prepared from a batch, which the workspace then opens in the editor.
   const [draftTarget, setDraftTarget] = useState<{ projectId: string; formId: string } | null>(null)

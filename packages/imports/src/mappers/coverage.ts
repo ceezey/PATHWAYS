@@ -41,7 +41,7 @@ const isCalculated = (field: CoverageField) =>
  * Distinct values are keyed by source key; counts only, never the values.
  */
 export function importCoverage(input: {
-  decisions: readonly SmartMatchDecision[]
+  decisions: readonly Pick<SmartMatchDecision, 'sourceKey' | 'status' | 'targetFieldId'>[]
   fields: readonly CoverageField[]
   distinctValues: Readonly<Record<string, readonly unknown[]>>
 }): ImportCoverage {

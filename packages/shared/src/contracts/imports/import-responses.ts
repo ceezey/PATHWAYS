@@ -78,11 +78,21 @@ export const importMappingResponse = z.object({
 })
 export type ImportMappingResponse = z.infer<typeof importMappingResponse>
 
-// GET imports/projects/:projectId/batches/:batchId adds the source columns and the stored mappings.
+// Whether a staged file fits the pinned form after automatic mapping; counts only, never values.
+export const importCoverageResponse = z.object({
+  coverage: z.enum(['COVERED', 'NOT_COVERED']),
+  uncoveredColumns: z.number().int().nonnegative(),
+  unresolvedValues: z.number().int().nonnegative(),
+})
+export type ImportCoverageResponse = z.infer<typeof importCoverageResponse>
+
+// GET imports/projects/:projectId/batches/:batchId adds the source columns, the stored mappings and,
+// for a batch still on its automatic revision, the coverage (null otherwise).
 export const importBatchDetailResponse = importBatchResponse.extend({
   sourceHeaders: z.array(z.string()),
   sourceColumns: z.array(importSourceColumnResponse),
   mappings: z.array(importMappingResponse),
+  coverage: importCoverageResponse.nullable(),
 })
 export type ImportBatchDetailResponse = z.infer<typeof importBatchDetailResponse>
 

@@ -48,6 +48,7 @@ const detail = {
       valueMap: [{ from: 'M', to: 'Male' }],
     },
   ],
+  coverage: null,
 }
 const row = {
   id: uuid,
@@ -101,11 +102,22 @@ describe('import response contracts', () => {
     ).toBe(false)
   })
 
-  it('reject a detail that lacks one of the source headers, source columns or mappings', () => {
+  it('accept coverage counts on a detail and reject a malformed one', () => {
+    const covered = { coverage: 'NOT_COVERED', uncoveredColumns: 2, unresolvedValues: 5 }
+    expect(importBatchDetailResponse.safeParse({ ...detail, coverage: covered }).success).toBe(true)
+    for (const coverage of [
+      { ...covered, coverage: 'MAYBE' },
+      { ...covered, uncoveredColumns: -1 },
+    ])
+      expect(importBatchDetailResponse.safeParse({ ...detail, coverage }).success).toBe(false)
+  })
+
+  it('reject a detail that lacks one of the source headers, source columns, mappings or coverage', () => {
     const { sourceHeaders: _headers, ...noHeaders } = detail
     const { sourceColumns: _columns, ...noColumns } = detail
     const { mappings: _mappings, ...noMappings } = detail
-    for (const broken of [noHeaders, noColumns, noMappings]) {
+    const { coverage: _coverage, ...noCoverage } = detail
+    for (const broken of [noHeaders, noColumns, noMappings, noCoverage]) {
       expect(importBatchDetailResponse.safeParse(broken).success).toBe(false)
     }
   })

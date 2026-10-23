@@ -11,6 +11,7 @@ import { Prisma } from '@prisma/client'
 import { type ApplicationIdentity, UUID_PATTERN } from '../../common/authz/application-identity'
 import { requireScopedProject } from '../../common/authz/scoped-project'
 import type { Tx } from '../../common/prisma/transaction'
+import { readBatchCoverage } from './batch-coverage'
 import { safeSourceColumns } from './imports.helpers'
 import { batchSelection, mapBatch } from './imports.mapper'
 
@@ -86,6 +87,7 @@ export async function readBatchDetail(
         valueMap: mapping.valueMap as ImportMappingResponse['valueMap'],
       }),
     ),
+    coverage: await readBatchCoverage(tx, actor, batch, mappings),
   }
 }
 

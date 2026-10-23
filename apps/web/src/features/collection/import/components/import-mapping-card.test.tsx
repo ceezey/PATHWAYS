@@ -96,6 +96,19 @@ describe('ImportMappingCard form coverage', () => {
     ).toBeTruthy()
   })
 
+  it('shows Prepare form from the batch detail coverage to a forms.manage holder with no session receipt', () => {
+    const coverage = { coverage: 'NOT_COVERED', uncoveredColumns: 2, unresolvedValues: 4 }
+    renderCard({ receipts: {}, batch: { coverage, uploadedByCurrentUser: false } })
+    expect(screen.getByText('Form needs updating: 2 columns, 4 answers')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Prepare form' }))
+    expect(prepareForm).toHaveBeenCalledTimes(1)
+  })
+
+  it('prefers the server coverage over a stale session receipt', () => {
+    renderCard({ batch: { coverage: { ...notCovered, coverage: 'COVERED' } } })
+    expect(screen.queryByText(/Form needs updating/)).toBeNull()
+  })
+
   it('shows nothing for a covered file, a missing receipt or a later reviewed revision', () => {
     for (const over of [
       { receipts: { 'batch-1': { ...notCovered, coverage: 'COVERED' } } },

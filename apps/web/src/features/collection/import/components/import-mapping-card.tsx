@@ -80,9 +80,11 @@ export function ImportMappingCard({
   const { confirmSuggestions, saveMapping, validate } = review
   const { process, processingInterrupted } = run
   const receipt = receipts[batch.id]
+  // The server computes coverage for any reader; the uploader's session receipt covers a batch not yet reloaded.
   // The counts describe the automatic revision only; a reviewer's later revision replaces them.
-  const needsFormUpdate =
-    receipt?.coverage === 'NOT_COVERED' && receipt.mappingRevision === batch.mappingRevision
+  const coverage =
+    batch.coverage ?? (receipt?.mappingRevision === batch.mappingRevision ? receipt : null)
+  const needsFormUpdate = coverage?.coverage === 'NOT_COVERED'
   return (
     <Card>
       <CardHeader>
@@ -111,7 +113,7 @@ export function ImportMappingCard({
       <CardContent className="space-y-3">
         {needsFormUpdate ? (
           <CoverageNotice
-            receipt={receipt}
+            receipt={coverage}
             canPrepare={canManageForms}
             pending={pending}
             onPrepare={() => void intake.prepareForm()}
