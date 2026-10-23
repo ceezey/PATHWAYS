@@ -1,5 +1,6 @@
 import { BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common'
 import {
+  type DraftSummaryResponse,
   type FormVersionRequest,
   type UpdateFormRequest,
   activityMonitoringDefinitionErrors,
@@ -217,6 +218,7 @@ export async function createVersion(
   actor: ApplicationIdentity,
   sourceForm: FormRow,
   override?: UpdateFormRequest,
+  importDraftSummary?: DraftSummaryResponse,
 ) {
   await tx.$queryRaw`
       SELECT id FROM pathways.digital_forms
@@ -269,6 +271,7 @@ export async function createVersion(
             : override.journeyStageId?.toLowerCase() || null,
         createdById: actor.userId,
         lastEditedById: actor.userId,
+        importDraftSummary,
       },
       select: { id: true },
     })

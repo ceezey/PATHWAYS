@@ -125,8 +125,8 @@ DO $$ BEGIN
  IF (SELECT count(*) FROM pg_attribute WHERE NOT attisdropped AND (
    (attrelid='pathways.form_fields'::regclass AND attname IN('value_aliases','import_default','rule') AND NOT attnotnull)
    OR (attrelid='pathways.form_fields'::regclass AND attname='source_names' AND attnotnull AND atthasdef)
-   OR (attrelid='pathways.digital_forms'::regclass AND attname='last_edited_by_id' AND NOT attnotnull)
-   OR (attrelid='pathways.data_import_rows'::regclass AND attname='validation_warnings' AND attnotnull AND atthasdef)))<>6
+   OR (attrelid='pathways.digital_forms'::regclass AND attname IN('last_edited_by_id','import_draft_summary') AND NOT attnotnull)
+   OR (attrelid='pathways.data_import_rows'::regclass AND attname='validation_warnings' AND attnotnull AND atthasdef)))<>7
  OR EXISTS(SELECT FROM pathways.data_import_rows WHERE validation_warnings <> '[]'::jsonb)
  OR EXISTS(SELECT FROM pathways.form_fields WHERE source_names IS NULL)
  THEN RAISE EXCEPTION 'column catalog'; END IF;
@@ -168,6 +168,9 @@ BEGIN
   UPDATE pathways.digital_forms SET last_edited_by_id='79000000-0000-4000-8000-000000000032' WHERE id='79000000-0000-4000-8000-000000000056';
   RAISE EXCEPTION 'published form changed its last editor';
  EXCEPTION WHEN raise_exception THEN IF SQLERRM !~ 'immutable' THEN RAISE; END IF; END;
+ -- The import draft summary is editable on a draft but frozen once published, even while archiving.
+ UPDATE pathways.digital_forms SET import_draft_summary='{"addedFields":[],"sourceNamesAdded":[],"optionsAdded":[],"aliasesAdded":0,"defaults":[],"rules":[],"needsCheck":[]}'
+ WHERE id='79000000-0000-4000-8000-000000000057';
  -- The last editor cannot publish the draft; neither can the creator.
  FOR got IN SELECT unnest(ARRAY['79000000-0000-4000-8000-000000000032','79000000-0000-4000-8000-000000000031']) LOOP
   BEGIN
@@ -179,11 +182,62 @@ BEGIN
  -- A third user can.
  UPDATE pathways.digital_forms SET status='PUBLISHED',published_at=now(),published_by_id='79000000-0000-4000-8000-000000000035'
  WHERE id='79000000-0000-4000-8000-000000000057';
+ -- The summary is now frozen with the form.
+ BEGIN
+  UPDATE pathways.digital_forms SET import_draft_summary=NULL WHERE id='79000000-0000-4000-8000-000000000057';
+  RAISE EXCEPTION 'published form changed its draft summary';
+ EXCEPTION WHEN raise_exception THEN IF SQLERRM !~ 'immutable' THEN RAISE; END IF; END;
+ BEGIN
+  UPDATE pathways.digital_forms SET status='ARCHIVED',archived_at=now(),import_draft_summary=NULL WHERE id='79000000-0000-4000-8000-000000000057';
+  RAISE EXCEPTION 'archive changed the draft summary';
+ EXCEPTION WHEN raise_exception THEN IF SQLERRM !~ 'immutable' THEN RAISE; END IF; END;
  -- A plain archive of a published form still works.
  UPDATE pathways.digital_forms SET status='ARCHIVED',archived_at=now() WHERE id='79000000-0000-4000-8000-000000000056';
  PERFORM set_config('intake.passed',(coalesce(nullif(current_setting('intake.passed',true),''),'0')::integer+1)::text,true);
 END $$;
 ALTER TABLE pathways.digital_forms ENABLE TRIGGER p09_form_archive;
+
+-- The draft summary shape: exactly the seven keys, arrays of short field codes, a whole alias count, reason pairs.
+DO $$
+DECLARE c record; got text;
+  b text := '{"addedFields":["a_b"],"sourceNamesAdded":["a_b"],"optionsAdded":[],"aliasesAdded":3,"defaults":["x"],"rules":[],"needsCheck":[{"fieldCode":"a_b","reason":"IMPORT_DEFAULT"}]}';
+BEGIN
+ FOR c IN SELECT * FROM (VALUES
+  ('null', NULL::text, '00000'),
+  ('full summary', b, '00000'),
+  ('empty summary', '{"addedFields":[],"sourceNamesAdded":[],"optionsAdded":[],"aliasesAdded":0,"defaults":[],"rules":[],"needsCheck":[]}', '00000'),
+  ('1000 codes', jsonb_set(b::jsonb,'{addedFields}',(SELECT jsonb_agg('c'||g) FROM generate_series(1,1000) g))::text, '00000'),
+  ('array', '[]', '23514'),
+  ('string', '"x"', '23514'),
+  ('no keys', '{}', '23514'),
+  ('extra key', (b::jsonb || '{"extra":[]}')::text, '23514'),
+  ('renamed key', ((b::jsonb - 'rules') || '{"rule":[]}')::text, '23514'),
+  ('missing key', (b::jsonb - 'rules')::text, '23514'),
+  ('alias count text', jsonb_set(b::jsonb,'{aliasesAdded}','"3"')::text, '23514'),
+  ('alias count null', jsonb_set(b::jsonb,'{aliasesAdded}','null')::text, '23514'),
+  ('alias count negative', jsonb_set(b::jsonb,'{aliasesAdded}','-1')::text, '23514'),
+  ('alias count fraction', jsonb_set(b::jsonb,'{aliasesAdded}','1.5')::text, '23514'),
+  ('codes not an array', jsonb_set(b::jsonb,'{addedFields}','"a_b"')::text, '23514'),
+  ('code is a number', jsonb_set(b::jsonb,'{defaults}','[7]')::text, '23514'),
+  ('code is null', jsonb_set(b::jsonb,'{defaults}','[null]')::text, '23514'),
+  ('code is empty', jsonb_set(b::jsonb,'{rules}','[""]')::text, '23514'),
+  ('code of 65 characters', jsonb_set(b::jsonb,'{rules}',to_jsonb(ARRAY[repeat('a',65)]))::text, '23514'),
+  ('1001 codes', jsonb_set(b::jsonb,'{addedFields}',(SELECT jsonb_agg('c'||g) FROM generate_series(1,1001) g))::text, '23514'),
+  ('needs check not an array', jsonb_set(b::jsonb,'{needsCheck}','{}')::text, '23514'),
+  ('needs check element extra key', jsonb_set(b::jsonb,'{needsCheck}','[{"fieldCode":"a","reason":"IMPORT_DEFAULT","value":"x"}]')::text, '23514'),
+  ('needs check element no reason', jsonb_set(b::jsonb,'{needsCheck}','[{"fieldCode":"a"}]')::text, '23514'),
+  ('needs check element a string', jsonb_set(b::jsonb,'{needsCheck}','["a"]')::text, '23514'),
+  ('needs check reason lower case', jsonb_set(b::jsonb,'{needsCheck}','[{"fieldCode":"a","reason":"free text"}]')::text, '23514'),
+  ('needs check code of 65 characters', jsonb_set(b::jsonb,'{needsCheck}',jsonb_build_array(jsonb_build_object('fieldCode',repeat('a',65),'reason','IMPORT_DEFAULT')))::text, '23514')
+ ) v(label,val,wanted)
+ LOOP
+  got := '00000';
+  BEGIN UPDATE pathways.digital_forms SET import_draft_summary=c.val::jsonb WHERE id='79000000-0000-4000-8000-000000000055';
+  EXCEPTION WHEN OTHERS THEN got := SQLSTATE; END;
+  IF got IS DISTINCT FROM c.wanted THEN RAISE EXCEPTION 'draft summary %: expected SQLSTATE % but got %', c.label, c.wanted, got; END IF;
+ END LOOP;
+ PERFORM set_config('intake.passed',(coalesce(nullif(current_setting('intake.passed',true),''),'0')::integer+1)::text,true);
+END $$;
 
 -- Shape checks on a draft field and the last editor key; every case reports its own label.
 DO $$
@@ -485,6 +539,6 @@ END $$;
 RESET SESSION AUTHORIZATION;
 
 SELECT 'IMPORT_INTAKE_ASSERTIONS_PASSED=' || current_setting('intake.passed') AS result;
-DO $$ BEGIN IF current_setting('intake.passed')::integer<>15 THEN RAISE EXCEPTION 'incomplete suite'; END IF; END $$;
+DO $$ BEGIN IF current_setting('intake.passed')::integer<>16 THEN RAISE EXCEPTION 'incomplete suite'; END IF; END $$;
 SELECT 'IMPORT_INTAKE_RUNTIME=PASS' AS result;
 ROLLBACK;

@@ -4,7 +4,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { DisplayLabelsProvider } from '@/providers/display-labels-provider'
 
-import { stashDraftSummary, takeDraftSummary } from '../draft-handoff'
 import { CollectionWorkspace } from './collection-workspace'
 
 const api = vi.hoisted(() => ({
@@ -32,6 +31,15 @@ vi.mock('@/lib/api/projects', () => ({
   projectsClient: { getProjectsForRole: api.getProjectsForRole },
 }))
 
+const summary = {
+  addedFields: ['given_name'],
+  sourceNamesAdded: [],
+  optionsAdded: [],
+  aliasesAdded: 0,
+  defaults: [],
+  rules: [],
+  needsCheck: [],
+}
 const draft = {
   id: 'draft-1',
   projectId: 'project-1',
@@ -44,6 +52,7 @@ const draft = {
   journeyStageId: null,
   updatedAt: '2026-10-23T00:00:00Z',
   createdByCurrentUser: true,
+  draftSummary: summary,
   fields: [
     {
       id: 'f1',
@@ -55,15 +64,6 @@ const draft = {
       sadddField: false,
     },
   ],
-}
-const summary = {
-  addedFields: ['given_name'],
-  sourceNamesAdded: [],
-  optionsAdded: [],
-  aliasesAdded: 0,
-  defaults: [],
-  rules: [],
-  needsCheck: [],
 }
 const open = () =>
   render(
@@ -83,19 +83,32 @@ describe('draft prepared from an import', () => {
     api.getActivities.mockResolvedValue([])
     api.getIndicators.mockResolvedValue([])
   })
-  afterEach(() => {
-    cleanup()
-    takeDraftSummary('draft-1')
-  })
+  afterEach(cleanup)
 
-  it('opens in the editor with the change summary handed over by the Import workspace', async () => {
-    stashDraftSummary('draft-1', summary)
+  it('shows the change summary stored on the draft to any viewer opening it fresh', async () => {
     open()
     expect(await screen.findByText('Draft from import')).toBeTruthy()
-    expect(takeDraftSummary('draft-1')).toBeNull()
+  })
+
+  it('shows no summary on a draft without one or on a published form', async () => {
+    for (const form of [
+      { ...draft, draftSummary: null },
+      { ...draft, status: 'PUBLISHED', draftSummary: null },
+    ]) {
+      api.getDigitalForms.mockResolvedValue([form])
+      open()
+      await waitFor(() =>
+        expect((screen.getByLabelText('Form title') as HTMLInputElement).value).toBe(
+          'Registration',
+        ),
+      )
+      expect(screen.queryByText('Draft from import')).toBeNull()
+      cleanup()
+    }
   })
 
   it('shows no summary when the form is opened any other way', async () => {
+    api.getDigitalForms.mockResolvedValue([{ ...draft, draftSummary: null }])
     open()
     await waitFor(() =>
       expect((screen.getByLabelText('Form title') as HTMLInputElement).value).toBe('Registration'),

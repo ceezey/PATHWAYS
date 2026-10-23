@@ -1,4 +1,3 @@
-import type { DraftSummaryResponse } from '@pathways/shared'
 import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
@@ -58,8 +57,9 @@ export function useCollectionState({
   const [creatingVersion, setCreatingVersion] = useState(false)
   const [savedNotice, setSavedNotice] = useState('')
   const [loadError, setLoadError] = useState('')
-  // The change summary of a draft just made from an import, shown above the field list.
-  const [draftSummary, setDraftSummary] = useState<DraftSummaryResponse | null>(null)
+  // The change summary of a draft made from an import comes with the draft, so its publisher sees it too.
+  const editingForm = forms.find((form) => form.id === editingFormId)
+  const draftSummary = editingForm?.status === 'DRAFT' ? editingForm.draftSummary : null
   // The uploaded batch whose file needs the form updated first, so its upload result can offer Prepare form.
   const [stagedCoverage, setStagedCoverage] = useState<{
     batchId: string
@@ -222,7 +222,6 @@ export function useCollectionState({
     setActivities,
     setCorrectionPage,
     setCreatingVersion,
-    setDraftSummary,
     setDraftTarget,
     setStagedCoverage,
     stagedCoverage,

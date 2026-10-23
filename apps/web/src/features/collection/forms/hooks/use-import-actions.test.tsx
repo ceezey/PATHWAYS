@@ -13,7 +13,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DisplayLabelsProvider } from '@/providers/display-labels-provider'
 
 import { CollectionWorkspace } from '../components/collection-workspace'
-import { takeDraftSummary } from '../draft-handoff'
 
 configure({ asyncUtilTimeout: 5000 })
 
@@ -229,7 +228,7 @@ describe('straight-through import', () => {
       api.automaticImportMapping.mockResolvedValue(notCovered)
     })
 
-    it('drafts from the staged batch, hands over the summary and opens the editor', async () => {
+    it('drafts from the staged batch and opens the editor', async () => {
       api.draftFromImport.mockResolvedValue({
         form: { id: 'draft-1', projectId: 'project-1' },
         summary: { addedFields: ['given_name'] },
@@ -240,7 +239,6 @@ describe('straight-through import', () => {
         expect(nav.push).toHaveBeenCalledWith('/collection/projects/project-1/forms/draft-1'),
       )
       expect(api.draftFromImport).toHaveBeenCalledWith('project-1', 'published-form', 'batch-1', 1)
-      expect(takeDraftSummary('draft-1')).toEqual({ addedFields: ['given_name'] })
     })
 
     it('shows a read-only notice without forms.manage', async () => {

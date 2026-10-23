@@ -1,9 +1,10 @@
 -- cr-pathways-metadata-import-intake: form field intake metadata and the AUTO_SMART_V3 recorder.
--- Additive only. form_fields gains four nullable import metadata columns (source_names, value_aliases,
--- import_default, rule) with shape checks; p2_guard_form_field already freezes the whole row outside DRAFT, so no
+-- Additive only. form_fields gains four import metadata columns (source_names NOT NULL DEFAULT '{}', and the
+-- nullable value_aliases, import_default, rule) with shape checks; p2_guard_form_field already freezes the whole row outside DRAFT, so no
 -- field trigger is added. digital_forms gains last_edited_by_id (same composite FK as created_by_id) so the editor of
--- a draft can be kept from publishing it: p2_guard_form (0040 body) now also freezes it on a published form and
--- refuses a publish by the last editor. data_import_rows gains validation_warnings (codes and counts only).
+-- a draft can be kept from publishing it, and a nullable import_draft_summary (field codes and counts only) so the
+-- publisher sees the needs-check list of a draft made from an import: p2_guard_form (0040 body) now also freezes both
+-- on a published form and refuses a publish by the last editor. data_import_rows gains validation_warnings (codes and counts only).
 -- metadata_mappings_match_reason_known also admits METADATA_SOURCE_NAME. p78_record_smart_mapping is
 -- p38_record_smart_mapping with the AUTO_SMART_V3 deltas: IGNORED only as BLANK_COLUMN, the V3 prefix and audit,
 -- an ignored count in the receipt, and required fields satisfied by a default or a calculated rule. p38 stays
@@ -22,7 +23,7 @@ DO $$ BEGIN
   AND p.prosrc LIKE '%System form template tags are immutable%' AND p.prosrc NOT LIKE '%last_edited_by_id%')
  OR EXISTS(SELECT FROM pg_catalog.pg_attribute a WHERE NOT a.attisdropped AND (
    (a.attrelid='pathways.form_fields'::regclass AND a.attname IN('source_names','value_aliases','import_default','rule'))
-   OR (a.attrelid='pathways.digital_forms'::regclass AND a.attname='last_edited_by_id')
+   OR (a.attrelid='pathways.digital_forms'::regclass AND a.attname IN('last_edited_by_id','import_draft_summary'))
    OR (a.attrelid='pathways.data_import_rows'::regclass AND a.attname='validation_warnings')))
  THEN RAISE EXCEPTION '0078 requires the verified 0077 state and migration identity'; END IF;
  -- Everything the definer reads is owned by prisma without FORCE RLS, and the only helper it calls
@@ -60,14 +61,32 @@ ALTER TABLE pathways.form_fields
   ('AGE_AT_DATE','MINOR_AT_DATE','WASHINGTON_GROUP_DISABILITY','SAME_ANSWER_AS','AGE_CHECK','FOLLOW_UP_OF',
    'ID_FROM_INITIALS_AND_BIRTH_DATE')));
 
+-- The draft summary is an object with exactly the seven DraftSummary keys: five arrays of up to 1000 field codes
+-- (1-64 characters), a non-negative whole alias count, and up to 1000 {fieldCode,reason} pairs. It holds no cell value.
 ALTER TABLE pathways.digital_forms
  ADD COLUMN last_edited_by_id uuid,
+ ADD COLUMN import_draft_summary jsonb,
+ ADD CONSTRAINT digital_forms_import_draft_summary_shape CHECK(import_draft_summary IS NULL OR CASE
+  WHEN jsonb_typeof(import_draft_summary)='object' THEN
+   jsonb_array_length(jsonb_path_query_array(import_draft_summary, '$.keyvalue().key'))=7
+   AND NOT jsonb_path_exists(import_draft_summary, '$.keyvalue() ? (@.key != "addedFields" && @.key != "sourceNamesAdded"
+    && @.key != "optionsAdded" && @.key != "aliasesAdded" && @.key != "defaults" && @.key != "rules" && @.key != "needsCheck")')
+   AND coalesce(jsonb_path_match(import_draft_summary, 'strict $.aliasesAdded.type() == "number" && $.aliasesAdded >= 0
+    && $.aliasesAdded <= 100000 && $.aliasesAdded == $.aliasesAdded.floor()', '{}', true), false)
+   AND NOT jsonb_path_exists(import_draft_summary, '$.keyvalue() ? (@.key != "aliasesAdded" && (@.value.type() != "array"
+    || @.value.size() > 1000))')
+   AND NOT jsonb_path_exists(import_draft_summary, '$.keyvalue() ? (@.key != "aliasesAdded" && @.key != "needsCheck").value[*]
+    ? (@.type() != "string" || !(@ like_regex "^.{1,64}$" flag "s"))')
+   AND NOT jsonb_path_exists(import_draft_summary, '$.needsCheck[*] ? (!(@.type() == "object" && @.fieldCode.type() == "string"
+    && @.reason.type() == "string" && @.fieldCode like_regex "^.{1,64}$" flag "s" && @.reason like_regex "^[A-Z_]{1,64}$"
+    && !exists(@.keyvalue() ? (@.key != "fieldCode" && @.key != "reason"))))')
+  ELSE false END),
  ADD CONSTRAINT digital_forms_last_edited_by_fk FOREIGN KEY(organization_id,last_edited_by_id)
   REFERENCES pathways.system_users(organization_id,id) ON UPDATE RESTRICT ON DELETE RESTRICT;
 CREATE INDEX digital_forms_last_edited_by_idx ON pathways.digital_forms USING btree(organization_id,last_edited_by_id);
 
--- The 0040 body of p2_guard_form with two additions: last_edited_by_id is frozen on a published form, and the
--- last editor cannot publish (as the creator cannot). Owner, search_path, trigger and grants are unchanged.
+-- The 0040 body of p2_guard_form with additions: last_edited_by_id and import_draft_summary are frozen on a published
+-- form, and the last editor cannot publish (as the creator cannot). Owner, search_path, trigger and grants are unchanged.
 CREATE OR REPLACE FUNCTION pathways.p2_guard_form() RETURNS trigger
     LANGUAGE plpgsql
     SET search_path TO ''
@@ -109,6 +128,7 @@ BEGIN
        OR NEW.journey_stage_id IS DISTINCT FROM OLD.journey_stage_id
        OR NEW.created_by_id IS DISTINCT FROM OLD.created_by_id
        OR NEW.last_edited_by_id IS DISTINCT FROM OLD.last_edited_by_id -- 0078
+       OR NEW.import_draft_summary IS DISTINCT FROM OLD.import_draft_summary -- 0078
        OR NEW.published_by_id IS DISTINCT FROM OLD.published_by_id
        OR NEW.published_at IS DISTINCT FROM OLD.published_at THEN
       RAISE EXCEPTION 'Published form definitions are immutable';
@@ -443,7 +463,10 @@ DO $$ BEGIN
    'form_fields_import_default_shape','form_fields_rule_kind'))<>4
  OR (SELECT count(*) FROM pg_catalog.pg_attribute a WHERE a.attrelid='pathways.digital_forms'::regclass
   AND NOT a.attisdropped AND NOT a.attnotnull AND a.atthasdef IS FALSE
-  AND a.attname='last_edited_by_id' AND a.atttypid='uuid'::regtype)<>1
+  AND ((a.attname='last_edited_by_id' AND a.atttypid='uuid'::regtype)
+   OR (a.attname='import_draft_summary' AND a.atttypid='jsonb'::regtype)))<>2
+ OR NOT EXISTS(SELECT FROM pg_catalog.pg_constraint c WHERE c.conrelid='pathways.digital_forms'::regclass
+  AND c.convalidated AND c.contype='c' AND c.conname='digital_forms_import_draft_summary_shape')
  OR NOT EXISTS(SELECT FROM pg_catalog.pg_constraint c WHERE c.conrelid='pathways.digital_forms'::regclass
   AND c.convalidated AND c.contype='f' AND c.conname='digital_forms_last_edited_by_fk')
  OR pg_catalog.to_regclass('pathways.digital_forms_last_edited_by_idx') IS NULL
@@ -459,6 +482,7 @@ DO $$ BEGIN
   AND pg_catalog.pg_get_userbyid(p.proowner)='prisma' AND NOT p.prosecdef
   AND p.proconfig IS NOT DISTINCT FROM ARRAY['search_path=""']
   AND p.prosrc LIKE '%NEW.last_edited_by_id IS DISTINCT FROM OLD.last_edited_by_id%'
+  AND p.prosrc LIKE '%NEW.import_draft_summary IS DISTINCT FROM OLD.import_draft_summary%'
   AND p.prosrc LIKE '%NEW.published_by_id=NEW.last_edited_by_id%'
   AND p.prosrc LIKE '%System form template tags are immutable%')
  OR EXISTS(SELECT FROM pg_catalog.pg_proc p

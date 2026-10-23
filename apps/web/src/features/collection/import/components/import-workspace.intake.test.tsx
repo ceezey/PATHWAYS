@@ -4,7 +4,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { DisplayLabelsProvider } from '@/providers/display-labels-provider'
 
-import { takeDraftSummary } from '../../forms/draft-handoff'
 import { ImportWorkspace } from './import-workspace'
 
 const state = vi.hoisted(() => ({
@@ -154,7 +153,7 @@ describe('import workspace intake paths', () => {
       expect(screen.getByText(/Someone who manages forms/)).toBeTruthy()
     })
 
-    it('drafts from the batch, opens the editor and hands over the summary', async () => {
+    it('drafts from the batch and opens the editor', async () => {
       state.profile.permissions = [...grants, 'forms.manage']
       api.draftFromImport.mockResolvedValue({
         form: { id: 'draft-1', projectId: 'project-1' },
@@ -166,7 +165,6 @@ describe('import workspace intake paths', () => {
         expect(nav.push).toHaveBeenCalledWith('/collection/projects/project-1/forms/draft-1'),
       )
       expect(api.draftFromImport).toHaveBeenCalledWith('project-1', 'form-1', 'batch-1', 1)
-      expect(takeDraftSummary('draft-1')).toEqual(summary)
     })
 
     it('offers Prepare form from the detail coverage to a forms.manage holder who did not upload it', async () => {

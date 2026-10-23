@@ -2,7 +2,6 @@ import { useEffect, useRef } from 'react'
 
 import type { CollectionMode, SavedForm } from '../../collection.utils'
 import { fromDigitalForm } from '../digital-form-contract'
-import { takeDraftSummary } from '../draft-handoff'
 import { initialFields } from '../forms.utils'
 import type { CollectionState } from './use-collection-state'
 
@@ -18,7 +17,6 @@ export function useCollectionEdits(state: CollectionState) {
     projectId,
     projects,
     setCorrectionPage,
-    setDraftSummary,
     setEditingBaseUpdatedAt,
     setEditingFormId,
     setFields,
@@ -70,7 +68,6 @@ export function useCollectionEdits(state: CollectionState) {
     setEditingFormId(undefined)
     setHydratedFormId(undefined)
     setEditingBaseUpdatedAt(null)
-    setDraftSummary(null)
     setStagedCoverage(null)
     setForms([])
     setFields(initialFields)
@@ -109,7 +106,6 @@ export function useCollectionEdits(state: CollectionState) {
     setMappingRows([])
     const form = forms.find((f) => f.id === summary.id)
     if (!form) return
-    setDraftSummary(null)
     setEditingFormId(form.id)
     setHydratedFormId(form.id)
     setEditingBaseUpdatedAt(form.updatedAt)
@@ -148,9 +144,7 @@ export function useCollectionEdits(state: CollectionState) {
     setJourneyStage(form.journeyStageId ?? '')
     setFields(fromDigitalForm(form))
     setSelectedFieldId(fromDigitalForm(form)[0]?.id ?? '')
-    // A draft prepared from an import arrives with its change summary.
-    setDraftSummary(takeDraftSummary(form.id))
-  }, [initialFormId, forms, setFields, setSelectedFieldId, setDraftSummary])
+  }, [initialFormId, forms, setFields, setSelectedFieldId])
   const openBuilder = (nextMode: CollectionMode) => {
     if (mutation.current) return
     intent.current++
@@ -164,7 +158,6 @@ export function useCollectionEdits(state: CollectionState) {
     setEditingFormId(undefined)
     setHydratedFormId(undefined)
     setEditingBaseUpdatedAt(null)
-    setDraftSummary(null)
     setFormCode('')
     setFormDescription('')
     setFormType('OTHER')

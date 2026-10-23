@@ -17,6 +17,7 @@ describe('digital form builder contract', () => {
       journeyStageId: 'stage-id',
       updatedAt: '2026-09-13T00:00:00.000Z',
       createdByCurrentUser: true,
+      draftSummary: null,
       fields: [
         {
           code: 'choice',
@@ -128,6 +129,7 @@ describe('digital form builder contract', () => {
       journeyStageId: null,
       updatedAt: '2026-09-13T00:00:00.000Z',
       createdByCurrentUser: true,
+      draftSummary: null,
       fields: [
         {
           id: 'field-id',
@@ -165,6 +167,7 @@ describe('digital form builder contract', () => {
       journeyStageId: null,
       updatedAt: '2026-10-23T00:00:00.000Z',
       createdByCurrentUser: true,
+      draftSummary: null,
       fields: [
         {
           id: 'sex-id',

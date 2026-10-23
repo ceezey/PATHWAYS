@@ -84,10 +84,13 @@ export async function createDraftFromImport(
     fields: drafted.fields,
   }
   assertDefinition(definition)
-  const form = await createVersion(tx, actor, source, {
-    ...definition,
-    expectedUpdatedAt: source.updatedAt.toISOString(),
-  })
+  const form = await createVersion(
+    tx,
+    actor,
+    source,
+    { ...definition, expectedUpdatedAt: source.updatedAt.toISOString() },
+    drafted.summary,
+  )
   await writeAuditLog(tx, actor, {
     projectId: source.projectId,
     action: 'FORM_DRAFT_FROM_IMPORT',

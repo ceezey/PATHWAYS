@@ -1117,6 +1117,7 @@ model DigitalForm {
   createdById                 String?                   @map("created_by_id") @db.Uuid
   publishedById               String?                   @map("published_by_id") @db.Uuid
   lastEditedById              String?                   @map("last_edited_by_id") @db.Uuid
+  importDraftSummary          Json?                     @map("import_draft_summary")
   publishedAt                 DateTime?                 @map("published_at") @db.Timestamptz(3)
   archivedAt                  DateTime?                 @map("archived_at") @db.Timestamptz(3)
   createdAt                   DateTime                  @default(now()) @map("created_at") @db.Timestamptz(3)

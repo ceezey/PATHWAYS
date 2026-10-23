@@ -81,6 +81,7 @@ const formRow = (id: string, code: string, version: number, status: string) => (
   journeyStageId: null,
   createdById: reviewerId,
   lastEditedById: reviewerId,
+  importDraftSummary: null,
   publishedAt: now,
   archivedAt: null,
   updatedAt: now,
@@ -153,6 +154,7 @@ function fakeTx() {
           ...formRow(lastCreated, data.code as string, data.version as number, 'DRAFT'),
           createdById: data.createdById as string,
           lastEditedById: data.lastEditedById as string,
+          importDraftSummary: data.importDraftSummary ?? null,
           formField_form: [],
         })
         return { id: lastCreated }
@@ -314,6 +316,20 @@ describe('draft a form version from a staged import', () => {
     ])
     expect(JSON.stringify(store.audits)).not.toContain(privateValue)
     expect(JSON.stringify(store.audits)).not.toContain('Hobby')
+  })
+
+  it('stores the summary on the draft and drops it from the response once published', async () => {
+    const { form, summary } = await run(me, { batchId, expectedMappingRevision: 1 })
+    expect(store.tx.digitalForm.create.mock.calls[0][0].data.importDraftSummary).toEqual(summary)
+    expect(form.draftSummary).toEqual(summary)
+    expect(JSON.stringify(summary)).not.toContain(privateValue)
+
+    const second = identity('MONITORING_AND_EVALUATION_OFFICER', secondId)
+    state.profile = second
+    const published = await service.publishForm(second, projectId, form.id, {
+      expectedUpdatedAt: form.updatedAt,
+    })
+    expect(published.draftSummary).toBeNull()
   })
 
   it('the drafter cannot publish it; a second M&E can', async () => {

@@ -1,4 +1,9 @@
-import type { CreateFormRequest, FieldIntakeRule, FormResponse } from '@pathways/shared'
+import {
+  type CreateFormRequest,
+  type FieldIntakeRule,
+  type FormResponse,
+  draftSummaryResponse,
+} from '@pathways/shared'
 import type { Prisma } from '@prisma/client'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import { jsonStringArray } from '../../common/forms/form-field-contract'
@@ -38,6 +43,7 @@ export const formSelection = {
   journeyStageId: true,
   createdById: true,
   lastEditedById: true,
+  importDraftSummary: true,
   publishedAt: true,
   archivedAt: true,
   updatedAt: true,
@@ -73,6 +79,10 @@ export function mapForm(form: FormRow, actor: ApplicationIdentity): FormResponse
     archivedAt: form.archivedAt?.toISOString(),
     updatedAt: form.updatedAt.toISOString(),
     createdByCurrentUser: form.createdById === actor.userId || form.lastEditedById === actor.userId,
+    draftSummary:
+      form.status === 'DRAFT'
+        ? (draftSummaryResponse.safeParse(form.importDraftSummary).data ?? null)
+        : null,
     fields: form.formField_form.map((field) => ({
       id: field.id,
       code: field.code,
