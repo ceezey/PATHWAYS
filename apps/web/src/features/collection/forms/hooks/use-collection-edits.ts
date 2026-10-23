@@ -38,6 +38,7 @@ export function useCollectionEdits(state: CollectionState) {
     setProjectId,
     setSavedNotice,
     setSelectedFieldId,
+    setStagedCoverage,
     setUploadProgress,
     setView,
   } = state
@@ -67,6 +68,7 @@ export function useCollectionEdits(state: CollectionState) {
     setEditingFormId(undefined)
     setHydratedFormId(undefined)
     setEditingBaseUpdatedAt(null)
+    setStagedCoverage(null)
     setForms([])
     setFields(initialFields)
     setFormCode('')

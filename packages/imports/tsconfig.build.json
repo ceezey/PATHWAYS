@@ -12,5 +12,9 @@
     "paths": {}
   },
   "include": ["src/**/*"],
-  "exclude": ["src/**/*.test.ts"]
+  "exclude": [
+    "src/**/*.test.ts",
+    "src/form-draft/draft-test-support.ts",
+    "src/form-draft/futuremakers-fixture.ts"
+  ]
 }

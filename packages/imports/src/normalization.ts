@@ -3,18 +3,21 @@ import {
   type FormValueError,
   validateAndNormalizeFormData,
 } from '@pathways/shared'
+import { answerResolver } from './answers'
+import {
+  type ImportRowWarning,
+  type ImportValueError,
+  type IntakeField,
+  type NormalizedImportValue,
+  applyIntakeRules,
+} from './intake-rules'
 import { type ImportColumnRule, mapKey } from './value-map'
-
-interface ImportValueError {
-  fieldCode: string
-  code: string
-  message: string
-}
 
 interface ImportRowNormalizationResult {
   valid: boolean
-  values: Record<string, string | number | boolean | string[] | null>
+  values: Record<string, NormalizedImportValue>
   errors: ImportValueError[]
+  warnings: ImportRowWarning[]
 }
 
 function conversionError(field: FormFieldValidationContract, code: string, message: string) {
@@ -24,7 +27,7 @@ function conversionError(field: FormFieldValidationContract, code: string, messa
 function convert(
   field: FormFieldValidationContract,
   raw: unknown,
-): { value: string | number | boolean | string[] | null; error?: ImportValueError } {
+): { value: NormalizedImportValue; error?: ImportValueError } {
   if (raw === null || raw === undefined || raw === '') return { value: null }
   if (field.dataType === 'TEXT' || field.dataType === 'LONG_TEXT' || field.dataType === 'SELECT') {
     if (typeof raw !== 'string') {
@@ -119,30 +122,70 @@ function translate(raw: unknown, rule: ImportColumnRule | undefined): unknown {
   return mapped === undefined ? raw : mapped
 }
 
-/** Applies the reviewed value map, then the declared type check, then the field's own coercion. */
+const resolverCache = new WeakMap<object, (raw: string) => string | null>()
+
+/** One resolver per field object, so a validation run builds its lookups once, not per row. */
+function resolverFor(field: IntakeField) {
+  let resolver = resolverCache.get(field)
+  if (!resolver) {
+    resolver = answerResolver(field.allowedValues ?? [], field.valueAliases ?? [])
+    resolverCache.set(field, resolver)
+  }
+  return resolver
+}
+
+const isBlankRaw = (raw: unknown) =>
+  raw === null || raw === undefined || (typeof raw === 'string' && raw.trim() === '')
+
+/**
+ * Applies the reviewed value map, answer aliases, the declared type, the field's own coercion and
+ * its default, then (with options) the intake rules, then the shared validator.
+ */
 export function normalizeImportedRow(
-  fields: readonly FormFieldValidationContract[],
+  fields: readonly IntakeField[],
   rawValuesByFieldCode: Readonly<Record<string, unknown>>,
   rules: Readonly<Record<string, ImportColumnRule>> = {},
+  options?: { uploadDate: string },
 ): ImportRowNormalizationResult {
-  const values: Record<string, string | number | boolean | string[] | null> = Object.create(null)
+  const values: Record<string, NormalizedImportValue> = Object.create(null)
   const errors: ImportValueError[] = []
+  const sourceProvided = new Set<string>()
   for (const field of fields) {
     const rule = Object.hasOwn(rules, field.code) ? rules[field.code] : undefined
-    const raw = translate(rawValuesByFieldCode[field.code], rule)
+    let raw = translate(rawValuesByFieldCode[field.code], rule)
+    if (!isBlankRaw(rawValuesByFieldCode[field.code])) sourceProvided.add(field.code)
+    if (field.dataType === 'SELECT' && typeof raw === 'boolean') raw = String(raw)
+    if (field.dataType === 'SELECT' && typeof raw === 'string' && raw !== '') {
+      raw = resolverFor(field)(raw) ?? raw
+    }
     const declared =
       rule?.dataType && rule.dataType !== field.dataType
         ? convert({ ...field, dataType: rule.dataType }, raw)
         : null
-    const converted = declared?.error ? declared : convert(field, raw)
+    let converted = declared?.error ? declared : convert(field, raw)
+    if (field.dataType === 'MULTIPLE_SELECT' && Array.isArray(converted.value)) {
+      const resolveElement = resolverFor(field)
+      converted = { value: converted.value.map((item) => resolveElement(item) ?? item) }
+    }
+    // The default applies only when no column maps to the field; a mapped blank stays blank.
+    const mapped = Object.hasOwn(rawValuesByFieldCode, field.code)
+    if (converted.value === null && !converted.error && !mapped && field.importDefault) {
+      const fallback =
+        field.dataType === 'MULTIPLE_SELECT' ? [field.importDefault] : field.importDefault
+      converted = convert(field, fallback)
+    }
     values[field.code] = converted.value
     if (converted.error) errors.push(converted.error)
   }
-  if (errors.length > 0) return { valid: false, values, errors }
+  if (errors.length > 0) return { valid: false, values, errors, warnings: [] }
+  const intake = options
+    ? applyIntakeRules(fields, values, sourceProvided, options.uploadDate)
+    : { errors: [], warnings: [] }
   const validated = validateAndNormalizeFormData(fields, values, 'final')
   return {
-    valid: validated.valid,
+    valid: validated.valid && intake.errors.length === 0,
     values: validated.values,
-    errors: validated.errors.map(mappedError),
+    errors: [...intake.errors, ...validated.errors.map(mappedError)],
+    warnings: intake.warnings,
   }
 }

@@ -9,6 +9,7 @@ import {
   trimmedLowercaseInput,
   uuidString,
 } from '../common/field-schemas'
+import { fieldIntakeProperties, formFieldCode } from './form-intake'
 
 // Form types a digital form may declare.
 export const digitalFormTypes = [
@@ -61,9 +62,7 @@ export const formResponseValues = z.preprocess(
 // One field of a form definition.
 export const formFieldRequest = z
   .object({
-    code: trimmedLowercaseInput(
-      z.string().regex(/^[a-z][a-z0-9_]{0,63}$/, 'must be a lowercase field code'),
-    ),
+    code: formFieldCode,
     label: trimmedInput(lengthString(1, 160)),
     dataType: z.enum(supportedFormFieldTypes),
     required: z.boolean(),
@@ -76,6 +75,7 @@ export const formFieldRequest = z
     maximumDate: z.string().regex(calendarDay, 'must be a YYYY-MM-DD date').nullish(),
     minimumLength: z.number().int().min(0).max(10_000).nullish(),
     maximumLength: z.number().int().min(1).max(10_000).nullish(),
+    ...fieldIntakeProperties,
   })
   .strict()
 export type FormFieldRequest = z.infer<typeof formFieldRequest>
@@ -151,3 +151,9 @@ export const listSubmissionsQuery = z
   })
   .strict()
 export type ListSubmissionsQuery = z.infer<typeof listSubmissionsQuery>
+
+// Body of POST metadata/projects/:projectId/forms/:formId/drafts/from-import.
+export const draftFromImportRequest = z
+  .object({ batchId: uuidString, expectedMappingRevision: z.number().int().min(0).max(1_000) })
+  .strict()
+export type DraftFromImportRequest = z.infer<typeof draftFromImportRequest>

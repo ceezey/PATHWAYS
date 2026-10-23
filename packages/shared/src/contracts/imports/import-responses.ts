@@ -50,8 +50,12 @@ export const importBatchResponse = z.object({
     processed: z.number().int(),
     unprocessed: z.number().int(),
     failed: z.number().int(),
+    // Rows with at least one validation warning.
+    warnings: z.number().int(),
   }),
   failureCode: z.string().nullable(),
+  // True when the caller uploaded the batch, the only person who may re-run it.
+  uploadedByCurrentUser: z.boolean(),
   uploadedAt: z.string(),
   validatedAt: z.string().optional(),
   processedAt: z.string().optional(),
@@ -74,15 +78,25 @@ export const importMappingResponse = z.object({
 })
 export type ImportMappingResponse = z.infer<typeof importMappingResponse>
 
-// GET imports/projects/:projectId/batches/:batchId adds the source columns and the stored mappings.
+// Whether a staged file fits the pinned form after automatic mapping; counts only, never values.
+export const importCoverageResponse = z.object({
+  coverage: z.enum(['COVERED', 'NOT_COVERED']),
+  uncoveredColumns: z.number().int().nonnegative(),
+  unresolvedValues: z.number().int().nonnegative(),
+})
+export type ImportCoverageResponse = z.infer<typeof importCoverageResponse>
+
+// GET imports/projects/:projectId/batches/:batchId adds the source columns, the stored mappings and,
+// for a batch still on its automatic revision, the coverage (null otherwise).
 export const importBatchDetailResponse = importBatchResponse.extend({
   sourceHeaders: z.array(z.string()),
   sourceColumns: z.array(importSourceColumnResponse),
   mappings: z.array(importMappingResponse),
+  coverage: importCoverageResponse.nullable(),
 })
 export type ImportBatchDetailResponse = z.infer<typeof importBatchDetailResponse>
 
-// One staged row; the raw values and the validation errors are stored as JSON.
+// One staged row; the raw values, validation errors and warnings (codes only) are stored as JSON.
 export const importRowResponse = z.object({
   id: z.string(),
   rowNumber: z.number().int(),
@@ -99,6 +113,7 @@ export const importRowResponse = z.object({
   validationErrors: z.array(
     z.object({ fieldCode: z.string(), code: z.string(), message: z.string() }),
   ),
+  validationWarnings: z.array(z.object({ fieldCode: z.string(), code: z.string() })),
   mappingRevision: z.number().int(),
   validationRevision: z.number().int(),
   processingAttempts: z.number().int(),

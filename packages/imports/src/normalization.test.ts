@@ -1,6 +1,7 @@
 import type { FormFieldValidationContract } from '@pathways/shared'
 import { describe, expect, it } from 'vitest'
 
+import type { IntakeField } from './intake-rules'
 import { normalizeImportedRow } from './normalization'
 import { buildImportValueMap, compatibleImportDataTypes } from './value-map'
 
@@ -57,6 +58,7 @@ describe('import normalization contract', () => {
     ).toEqual({
       valid: true,
       errors: [],
+      warnings: [],
       values: {
         text: 'hello',
         long: null,
@@ -194,6 +196,225 @@ describe('import normalization contract', () => {
     it('offers only data types that fit the target field', () => {
       expect(compatibleImportDataTypes('DECIMAL')).toEqual(['INTEGER', 'DECIMAL'])
       expect(compatibleImportDataTypes('DATE')).toEqual(['DATE'])
+    })
+  })
+
+  describe('intake metadata', () => {
+    const intake = (extra: Partial<IntakeField> & Pick<IntakeField, 'code' | 'dataType'>) =>
+      ({ label: extra.code, required: false, ...extra }) as IntakeField
+    const options = { uploadDate: '2026-10-22' }
+    const sex = intake({
+      code: 'sex',
+      dataType: 'SELECT',
+      required: true,
+      allowedValues: ['MALE', 'FEMALE'],
+      valueAliases: [{ from: 'A. Babae', to: 'FEMALE' }],
+    })
+    const ageFields = (extra: Partial<IntakeField> = {}) => [
+      intake({ code: 'birth_date', dataType: 'DATE' }),
+      intake({ code: 'enrollment_date', dataType: 'DATE' }),
+      intake({
+        code: 'age_at_registration',
+        dataType: 'INTEGER',
+        rule: { kind: 'AGE_AT_DATE', birthField: 'birth_date', atField: 'enrollment_date' },
+        ...extra,
+      }),
+    ]
+    const dates = { birth_date: '2008-08-17', enrollment_date: '2026-05-28' }
+
+    it('"A. Babae" with an alias resolves to FEMALE', () => {
+      expect(normalizeImportedRow([sex], { sex: 'A. Babae' })).toMatchObject({
+        valid: true,
+        values: { sex: 'FEMALE' },
+      })
+    })
+
+    it('boolean true into a SELECT with alias true to YES gives YES', () => {
+      const yesNo = intake({
+        code: 'works',
+        dataType: 'SELECT',
+        allowedValues: ['YES', 'NO'],
+        valueAliases: [{ from: 'true', to: 'YES' }],
+      })
+      expect(normalizeImportedRow([yesNo], { works: true }).values.works).toBe('YES')
+      expect(normalizeImportedRow([yesNo], { works: false }).errors).toEqual([
+        expect.objectContaining({ fieldCode: 'works', code: 'invalid_value' }),
+      ])
+    })
+
+    it('resolves each multiple-select element and leaves unresolved ones unchanged', () => {
+      const multi = intake({
+        code: 'multi',
+        dataType: 'MULTIPLE_SELECT',
+        allowedValues: ['Alpha', 'Beta'],
+      })
+      expect(
+        normalizeImportedRow([multi], { multi: '["A. Alpha","b) Beta"]' }).values.multi,
+      ).toEqual(['Alpha', 'Beta'])
+      const result = normalizeImportedRow([multi], { multi: '["A. Alpha","Zeta"]' })
+      expect(result.errors).toEqual([expect.objectContaining({ code: 'invalid_value' })])
+    })
+
+    it('importDefault CREATE fills registration_operation', () => {
+      const operation = intake({
+        code: 'registration_operation',
+        dataType: 'SELECT',
+        required: true,
+        allowedValues: ['CREATE', 'UPDATE'],
+        importDefault: 'CREATE',
+      })
+      expect(normalizeImportedRow([operation], {})).toMatchObject({
+        valid: true,
+        values: { registration_operation: 'CREATE' },
+      })
+      expect(
+        normalizeImportedRow([operation], { registration_operation: 'UPDATE' }).values,
+      ).toEqual({ registration_operation: 'UPDATE' })
+    })
+
+    it('a mapped blank cell does not take the importDefault', () => {
+      const operation = intake({
+        code: 'registration_operation',
+        dataType: 'SELECT',
+        required: true,
+        allowedValues: ['CREATE', 'UPDATE'],
+        importDefault: 'CREATE',
+      })
+      const result = normalizeImportedRow([operation], { registration_operation: '' })
+      expect(result.valid).toBe(false)
+      expect(result.values.registration_operation).toBeNull()
+      expect(normalizeImportedRow([operation], { registration_operation: undefined }).valid).toBe(
+        false,
+      )
+    })
+
+    it('a MULTIPLE_SELECT importDefault fills a one-element array', () => {
+      const multi = intake({
+        code: 'multi',
+        dataType: 'MULTIPLE_SELECT',
+        required: true,
+        allowedValues: ['Alpha', 'Beta'],
+        importDefault: 'Alpha',
+      })
+      expect(normalizeImportedRow([multi], {})).toMatchObject({
+        valid: true,
+        values: { multi: ['Alpha'] },
+      })
+      expect(normalizeImportedRow([multi], { multi: '["Beta"]' }).values.multi).toEqual(['Beta'])
+    })
+
+    it('resolves identically across repeated rows with the cached resolver', () => {
+      const select = intake({ code: 'pick', dataType: 'SELECT', allowedValues: ['Alpha'] })
+      const first = normalizeImportedRow([select], { pick: 'a. alpha' })
+      const second = normalizeImportedRow([select], { pick: 'A. Alpha' })
+      expect([first.values.pick, second.values.pick]).toEqual(['Alpha', 'Alpha'])
+    })
+
+    it('a provided consent answer survives SAME_ANSWER_AS and the row stays false', () => {
+      const list = [
+        intake({
+          code: 'consent_recorded',
+          dataType: 'BOOLEAN',
+          rule: { kind: 'SAME_ANSWER_AS', field: 'data_processing_consent_recorded' },
+        }),
+        intake({ code: 'data_processing_consent_recorded', dataType: 'BOOLEAN' }),
+      ]
+      const result = normalizeImportedRow(
+        list,
+        { consent_recorded: 'false', data_processing_consent_recorded: 'true' },
+        {},
+        options,
+      )
+      expect(result.values.consent_recorded).toBe(false)
+      expect(result.warnings).toEqual([])
+    })
+
+    it('a calculated is_minor satisfies a required field', () => {
+      const list = [
+        intake({ code: 'birth_date', dataType: 'DATE', required: true }),
+        intake({ code: 'enrollment_date', dataType: 'DATE', required: true }),
+        intake({
+          code: 'is_minor',
+          dataType: 'BOOLEAN',
+          required: true,
+          rule: { kind: 'MINOR_AT_DATE', birthField: 'birth_date', atField: 'enrollment_date' },
+        }),
+      ]
+      expect(normalizeImportedRow(list, dates, {}, options)).toMatchObject({
+        valid: true,
+        values: { is_minor: true },
+      })
+      expect(normalizeImportedRow(list, dates).valid).toBe(false)
+    })
+
+    it('a blank SAME_ANSWER_AS source stays null so the required consent field fails', () => {
+      const list = [
+        intake({ code: 'consent_recorded', dataType: 'BOOLEAN' }),
+        intake({
+          code: 'data_processing_consent_recorded',
+          dataType: 'BOOLEAN',
+          required: true,
+          rule: { kind: 'SAME_ANSWER_AS', field: 'consent_recorded' },
+        }),
+      ]
+      const result = normalizeImportedRow(list, {}, {}, options)
+      expect(result.valid).toBe(false)
+      expect(result.values.data_processing_consent_recorded).toBeNull()
+    })
+
+    it('warns on a mapped source that disagrees with the calculation, not on an absent one', () => {
+      expect(normalizeImportedRow(ageFields(), dates, {}, options).warnings).toEqual([])
+      expect(
+        normalizeImportedRow(ageFields(), { ...dates, age_at_registration: 30 }, {}, options)
+          .warnings,
+      ).toEqual([{ fieldCode: 'age_at_registration', code: 'CALCULATION_MISMATCH' }])
+    })
+
+    it('a SADDD calculation mismatch makes the row invalid', () => {
+      const result = normalizeImportedRow(
+        ageFields({ sadddField: true }),
+        { ...dates, age_at_registration: 30 },
+        {},
+        options,
+      )
+      expect(result.valid).toBe(false)
+      expect(result.errors).toEqual([
+        expect.objectContaining({ fieldCode: 'age_at_registration', code: 'CALCULATION_MISMATCH' }),
+      ])
+    })
+
+    it('ISO text date passes and 8/17/2008 is INVALID AMBIGUOUS_DATE', () => {
+      const birth = intake({ code: 'birth_date', dataType: 'DATE', required: true })
+      expect(normalizeImportedRow([birth], { birth_date: '2008-08-17' }).valid).toBe(true)
+      const result = normalizeImportedRow([birth], { birth_date: '8/17/2008' })
+      expect(result.valid).toBe(false)
+      expect(result.errors).toEqual([expect.objectContaining({ code: 'AMBIGUOUS_DATE' })])
+    })
+
+    it('returns warnings without making the row invalid', () => {
+      const list = [
+        ...ageFields(),
+        intake({
+          code: 'is_minor',
+          dataType: 'BOOLEAN',
+          rule: { kind: 'MINOR_AT_DATE', birthField: 'birth_date', atField: 'enrollment_date' },
+        }),
+        intake({ code: 'guardian_consent_recorded', dataType: 'BOOLEAN' }),
+      ]
+      const result = normalizeImportedRow(list, dates, {}, options)
+      expect(result.valid).toBe(true)
+      expect(result.warnings).toEqual([
+        { fieldCode: 'guardian_consent_recorded', code: 'GUARDIAN_CONSENT_MISSING' },
+      ])
+    })
+
+    it('the existing call shape without options returns warnings []', () => {
+      expect(normalizeImportedRow([sex], { sex: 'MALE' })).toEqual({
+        valid: true,
+        values: { sex: 'MALE' },
+        errors: [],
+        warnings: [],
+      })
     })
   })
 })

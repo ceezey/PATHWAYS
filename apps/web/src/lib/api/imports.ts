@@ -4,6 +4,7 @@ import type {
   ImportBatchResponse,
   ImportRowsPageResponse,
   ProcessImportRequest,
+  RerunImportRequest,
   SaveImportMappingRequest,
   ValidateImportRequest,
 } from '@pathways/shared'
@@ -51,6 +52,13 @@ export const importsClient = {
     return requestFoundation(
       `/imports/projects/${encodeURIComponent(projectId)}/batches/${encodeURIComponent(batchId)}/resume`,
       { method: 'POST' },
+    ) as Promise<ImportBatchResponse>
+  },
+
+  async rerunImport(projectId: string, batchId: string, formId: string) {
+    return requestFoundation(
+      `/imports/projects/${encodeURIComponent(projectId)}/batches/${encodeURIComponent(batchId)}/rerun`,
+      { method: 'POST', body: JSON.stringify({ formId } satisfies RerunImportRequest) },
     ) as Promise<ImportBatchResponse>
   },
 

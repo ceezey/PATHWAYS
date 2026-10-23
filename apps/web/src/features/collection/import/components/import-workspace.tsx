@@ -10,6 +10,7 @@ import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'
 import { type SensitiveDraftOwner, useSensitiveDraftOwner } from '@/lib/auth/sensitive-drafts'
 
+import { useBatchIntake } from '../hooks/use-batch-intake'
 import { useBatchProcessing } from '../hooks/use-batch-processing'
 import { useBatchReview } from '../hooks/use-batch-review'
 import { useImportLoading } from '../hooks/use-import-loading'
@@ -17,6 +18,7 @@ import { useImportState } from '../hooks/use-import-state'
 import { ImportBatchList } from './import-batch-list'
 import { ImportBatchSummary } from './import-batch-summary'
 import { ImportMappingCard } from './import-mapping-card'
+import { ImportOpenDraft } from './import-open-draft'
 import { ImportProcessingPanel } from './import-processing-panel'
 import { ImportRowsCard } from './import-rows-card'
 import { ImportUploadCard } from './import-upload-card'
@@ -41,10 +43,12 @@ function OwnedImportWorkspace({ scope }: { scope: SensitiveDraftOwner }) {
   useImportLoading(state)
   const review = useBatchReview(state)
   const run = useBatchProcessing(state, review)
+  const intake = useBatchIntake(state, review, run)
   const {
     batch,
     canOpenForms,
     canProcess,
+    draftTarget,
     loadState,
     pending,
     setLoadAttempt,
@@ -69,6 +73,8 @@ function OwnedImportWorkspace({ scope }: { scope: SensitiveDraftOwner }) {
           ) : undefined
         }
       />
+
+      {draftTarget ? <ImportOpenDraft target={draftTarget} /> : null}
 
       {visibleProcessing ? (
         // Outside the disabled fieldset so Stop stays available while processing runs.
@@ -117,10 +123,21 @@ function OwnedImportWorkspace({ scope }: { scope: SensitiveDraftOwner }) {
               />
             ) : (
               <>
-                <ImportBatchSummary review={review} batch={batch} />
+                <ImportBatchSummary
+                  review={review}
+                  intake={intake}
+                  pending={pending}
+                  batch={batch}
+                />
 
                 {sourceColumns.length > 0 ? (
-                  <ImportMappingCard state={state} review={review} run={run} batch={batch} />
+                  <ImportMappingCard
+                    state={state}
+                    review={review}
+                    run={run}
+                    intake={intake}
+                    batch={batch}
+                  />
                 ) : null}
 
                 <ImportRowsCard state={state} />

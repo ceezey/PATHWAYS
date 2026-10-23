@@ -1,5 +1,6 @@
 import { BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common'
 import {
+  type DraftSummaryResponse,
   type FormVersionRequest,
   type UpdateFormRequest,
   activityMonitoringDefinitionErrors,
@@ -8,16 +9,11 @@ import {
 } from '@pathways/shared'
 import { writeAuditLog } from '../../common/audit/write-audit-log'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
+import { formFieldContract } from '../../common/forms/form-field-contract'
 import type { Tx } from '../../common/prisma/transaction'
 import { findForm, requireForm, requireLinks } from './form-lookup.service'
 import { expectedDate, fieldData } from './metadata.helpers'
-import {
-  type CachedFormDefinition,
-  type FormRow,
-  fieldInput,
-  formFieldContract,
-  mapForm,
-} from './metadata.mapper'
+import { type CachedFormDefinition, type FormRow, fieldInput, mapForm } from './metadata.mapper'
 import type { PublishedDefinitionCache } from './published-definition-cache'
 
 export async function updateFormDefinition(
@@ -50,6 +46,7 @@ export async function updateFormDefinition(
       formType: input.formType,
       activityId: input.activityId?.toLowerCase() || null,
       journeyStageId: input.journeyStageId?.toLowerCase() || null,
+      lastEditedById: actor.userId,
     },
   })
   if (changed.count !== 1) throw new ConflictException('Form changed; reload before saving.')
@@ -84,7 +81,7 @@ export async function publishFormVersion(
   const current = await requireForm(tx, actor, projectId, formId)
   cache.evictForm(current.id)
   if (current.status !== 'DRAFT') throw new ConflictException('Only a draft can be published.')
-  if (current.createdById === actor.userId) {
+  if (current.createdById === actor.userId || current.lastEditedById === actor.userId) {
     throw new ForbiddenException('A form author cannot approve and publish the same version.')
   }
   const validation = validateAndNormalizeFormData(
@@ -216,11 +213,12 @@ export async function createNextFormVersion(
   return createVersion(tx, actor, current)
 }
 
-async function createVersion(
+export async function createVersion(
   tx: Tx,
   actor: ApplicationIdentity,
   sourceForm: FormRow,
   override?: UpdateFormRequest,
+  importDraftSummary?: DraftSummaryResponse,
 ) {
   await tx.$queryRaw`
       SELECT id FROM pathways.digital_forms
@@ -272,6 +270,8 @@ async function createVersion(
             ? source.journeyStageId
             : override.journeyStageId?.toLowerCase() || null,
         createdById: actor.userId,
+        lastEditedById: actor.userId,
+        importDraftSummary,
       },
       select: { id: true },
     })

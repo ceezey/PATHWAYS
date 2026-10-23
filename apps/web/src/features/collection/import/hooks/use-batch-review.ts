@@ -35,6 +35,7 @@ export function useBatchReview(state: ImportState) {
     setForms,
     setMapping,
     setMappingNotice,
+    setReceipts,
     setRows,
     setRules,
     sourceColumns,
@@ -144,8 +145,11 @@ export function useBatchReview(state: ImportState) {
         file,
       )
       if (!ticket.valid('imports.upload')) return
-      if ((await importBatch.mapAutomatically(projectId, created)) && !ticket.valid('imports.read'))
-        return
+      const receipt = await importBatch.mapAutomatically(projectId, created)
+      if (receipt) {
+        if (!ticket.valid('imports.read')) return
+        setReceipts((current) => ({ ...current, [created.id]: receipt }))
+      }
       await refreshBatches(ticket)
       if (!ticket.valid('imports.read')) return
       await loadBatch(created.id, ticket)
@@ -277,8 +281,8 @@ export function useBatchReview(state: ImportState) {
       if (!ticket.valid('imports.upload')) return
       const stored = await importsClient.getImportBatch(projectId, batch.id)
       if (!ticket.valid('imports.upload')) return
-      if ((await importBatch.mapAutomatically(projectId, stored)) && !ticket.valid('imports.read'))
-        return
+      const receipt = await importBatch.mapAutomatically(projectId, stored)
+      if (receipt) setReceipts((current) => ({ ...current, [stored.id]: receipt }))
       if (!ticket.valid('imports.read')) return
       await loadBatch(batch.id, ticket)
       if (!ticket.valid()) return
@@ -290,7 +294,7 @@ export function useBatchReview(state: ImportState) {
       ticket.finish()
     }
   }
-  return { confirmSuggestions, loadBatch, resume, saveMapping, upload, validate }
+  return { confirmSuggestions, loadBatch, refreshBatches, resume, saveMapping, upload, validate }
 }
 
 export type BatchReview = ReturnType<typeof useBatchReview>

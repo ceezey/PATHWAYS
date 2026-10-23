@@ -7,6 +7,7 @@ import { importsClient } from '@/lib/api/imports'
 import { sensitiveDraftGeneration } from '@/lib/auth/sensitive-drafts'
 import { fingerprintOf } from '@/lib/forms/pending-create'
 
+import { importOutcomeMessage } from '../../collection.copy'
 import type { ParsedImport } from '../../collection.utils'
 import {
   createQuestionnaireMappingRows,
@@ -16,6 +17,7 @@ import {
 import { useServerProcessing } from '../../import/hooks/use-server-processing'
 import { importProcessingProgress } from '../../import/import-auto-continue'
 import { parseImportPreview } from '../../import/import-preview'
+import { draftFormFromImport } from '../../import/prepare-draft'
 import { toDigitalFormInput } from '../digital-form-contract'
 import { fieldFromHeader, formTitleFromFileName, toApiFormType } from '../forms.utils'
 import type { CollectionGuard } from './use-collection-guard'
@@ -44,7 +46,9 @@ export function useImportActions(state: CollectionState, guard: CollectionGuard)
     projectId,
     projects,
     selectedFieldId,
+    stagedCoverage,
     setCorrectionPage,
+    setDraftTarget,
     setEditingBaseUpdatedAt,
     setEditingFormId,
     setFields,
@@ -59,6 +63,7 @@ export function useImportActions(state: CollectionState, guard: CollectionGuard)
     setProceedDialogOpen,
     setSavedNotice,
     setSelectedFieldId,
+    setStagedCoverage,
     setUploadProgress,
     setView,
   } = state
@@ -110,6 +115,7 @@ export function useImportActions(state: CollectionState, guard: CollectionGuard)
       current.current.editingBaseUpdatedAt === ownerRevision
     intent.current++
     lastSelectedFileRef.current = file
+    setStagedCoverage(null)
     setUploadProgress(28)
     setImportStatus('reading')
     setImportMessage('Reading the selected file.')
@@ -296,11 +302,43 @@ export function useImportActions(state: CollectionState, guard: CollectionGuard)
       const automaticRevision = automatic?.mappingRevision
       if (!ticket.valid('imports.read')) return
       if (
-        !mappingReadiness.canProceed ||
-        !(['imports.review', 'imports.validate', 'imports.process'] as const).every((grant) =>
+        automatic?.coverage === 'COVERED' &&
+        (['imports.validate', 'imports.process'] as const).every((grant) => eligible(grant))
+      ) {
+        // A covered file needs no review: the automatic revision is validated as it stands.
+        const validated = await importsClient.validateImport(
+          projectId,
+          uploaded.id,
+          automatic.mappingRevision,
+        )
+        if (!ticket.valid('imports.process')) return
+        if (validated.totals.valid === 0) {
+          setImportMessage(importOutcomeMessage({ ...validated.totals, processed: 0 }))
+          setProceedDialogOpen(false)
+          return
+        }
+        await continueServerProcessing(
+          ticket,
+          {
+            projectId,
+            batchId: validated.id,
+            validationRevision: validated.validationRevision,
+            progress: importProcessingProgress(validated),
+          },
+          (done) => importOutcomeMessage(done.totals),
+        )
+        return
+      }
+      const reviewerReady =
+        mappingReadiness.canProceed &&
+        (['imports.review', 'imports.validate', 'imports.process'] as const).every((grant) =>
           eligible(grant),
         )
-      ) {
+      // A file the form does not cover is held for the form to be prepared, unless a reviewer confirmed every mapping.
+      if (automatic?.coverage === 'NOT_COVERED' && !reviewerReady) {
+        setStagedCoverage({ batchId: uploaded.id, formId: selectedForm.id, receipt: automatic })
+      }
+      if (!reviewerReady) {
         setImportMessage(
           `Import ${uploaded.id} was staged. Unresolved mappings and processing require an authorized reviewer.`,
         )
@@ -356,6 +394,26 @@ export function useImportActions(state: CollectionState, guard: CollectionGuard)
       ticket.finish()
     }
   }
+  // Drafts a form version from the staged batch and opens it in the editor.
+  const prepareStagedForm = async () => {
+    if (!stagedCoverage || !eligible('forms.manage')) return
+    const ticket = beginOperation('forms.manage')
+    if (!ticket) return
+    try {
+      const target = await draftFormFromImport(
+        projectId,
+        stagedCoverage.formId,
+        stagedCoverage.batchId,
+        stagedCoverage.receipt.mappingRevision,
+      )
+      if (ticket.valid()) setDraftTarget(target)
+    } catch (error) {
+      if (ticket.valid())
+        setImportMessage(error instanceof Error ? error.message : 'The form could not be prepared.')
+    } finally {
+      ticket.finish()
+    }
+  }
   return {
     closeProceedDialog,
     confirmImportProceed,
@@ -363,6 +421,7 @@ export function useImportActions(state: CollectionState, guard: CollectionGuard)
     importSummary,
     mappingReadiness,
     parseSelectedFile,
+    prepareStagedForm,
     processingRun,
     resumeServerProcessing,
     retrySelectedFile,

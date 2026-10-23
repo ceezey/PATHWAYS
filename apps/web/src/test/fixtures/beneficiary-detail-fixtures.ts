@@ -70,6 +70,7 @@ export const form: DigitalFormDefinition = {
   journeyStageId: stage.id,
   updatedAt: '2026-06-01T00:00:00.000Z',
   createdByCurrentUser: false,
+  draftSummary: null,
   fields: [],
 }
 

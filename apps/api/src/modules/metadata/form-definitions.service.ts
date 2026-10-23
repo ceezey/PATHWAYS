@@ -1,5 +1,9 @@
 import { ConflictException, NotFoundException } from '@nestjs/common'
-import type { CreateFormRequest, GenerateFormRequest } from '@pathways/shared'
+import {
+  type CreateFormRequest,
+  type GenerateFormRequest,
+  draftSummaryResponse,
+} from '@pathways/shared'
 import type { Prisma } from '@prisma/client'
 import { writeAuditLog } from '../../common/audit/write-audit-log'
 import { type ApplicationIdentity, UUID_PATTERN } from '../../common/authz/application-identity'
@@ -155,6 +159,7 @@ async function insertDraft(
       activityId: input.activityId?.toLowerCase(),
       journeyStageId: input.journeyStageId?.toLowerCase(),
       createdById: actor.userId,
+      lastEditedById: actor.userId,
     },
     select: { id: true },
   })
@@ -195,13 +200,13 @@ async function currentDefinition(
   >`
       WITH form AS (
         SELECT f.*, json_build_array(f.id,f.project_id,f.code,f.version,f.name,f.description,f.form_type,f.status,
-          f.activity_id,f.journey_stage_id,f.created_by_id,f.published_at,f.archived_at,f.updated_at)::text AS source
+          f.activity_id,f.journey_stage_id,f.created_by_id,f.published_at,f.archived_at,f.updated_at,f.import_draft_summary)::text AS source
         FROM pathways.digital_forms f
         WHERE organization_id=${actor.organizationId}::uuid AND project_id=${projectId}::uuid AND id=${formId}::uuid
       ), fields AS (
         SELECT f.*, json_build_array(f.id,f.code,f.label,f.data_type,f.is_required,f.is_metadata_key,f.is_saddd_field,
           f.allowed_values,f.minimum_value,f.maximum_value,f.minimum_date,f.maximum_date,
-          f.minimum_length,f.maximum_length,f.sequence_no)::text AS source
+          f.minimum_length,f.maximum_length,f.source_names,f.value_aliases,f.import_default,f.rule,f.sequence_no)::text AS source
         FROM pathways.form_fields f
         WHERE organization_id=${actor.organizationId}::uuid AND project_id=${projectId}::uuid AND form_id=${formId}::uuid
         ORDER BY sequence_no,id LIMIT 101
@@ -219,22 +224,31 @@ async function currentDefinition(
         CASE WHEN fingerprint IS NULL OR (status='PUBLISHED' AND fingerprint=${candidateFingerprint}::text) THEN NULL ELSE
           jsonb_build_object('id',id,'projectId',project_id,'code',code,'version',version,'name',name,
             'description',description,'formType',form_type,'status',status,'activityId',activity_id,
-            'journeyStageId',journey_stage_id,'updatedAt',to_char(updated_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
-            'createdByCurrentUser',coalesce(created_by_id=${actor.userId}::uuid,false),
+            'journeyStageId',journey_stage_id,'draftSummary',CASE WHEN status='DRAFT' THEN import_draft_summary ELSE NULL END,
+            'updatedAt',to_char(updated_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
+            'createdByCurrentUser',coalesce(${actor.userId}::uuid IN (created_by_id,last_edited_by_id),false),
             'fields',(SELECT coalesce(jsonb_agg(jsonb_build_object(
               'id',id,'code',code,'label',label,'dataType',data_type,'required',is_required,
               'metadataKey',is_metadata_key,'sadddField',is_saddd_field,
               'allowedValues',CASE WHEN jsonb_typeof(allowed_values)='array' THEN
                 CASE WHEN NOT EXISTS(SELECT FROM jsonb_array_elements(allowed_values) v WHERE jsonb_typeof(v)<>'string') THEN allowed_values ELSE NULL END ELSE NULL END,
-              'minimumLength',minimum_length,'maximumLength',maximum_length,'sequence',sequence_no
+              'minimumLength',minimum_length,'maximumLength',maximum_length,'sourceNames',to_jsonb(source_names),'sequence',sequence_no
             ) || jsonb_strip_nulls(jsonb_build_object(
               'minimumValue',CASE WHEN minimum_value=trunc(minimum_value) THEN trunc(minimum_value)::text ELSE trim(trailing '.' from trim(trailing '0' from minimum_value::text)) END,
               'maximumValue',CASE WHEN maximum_value=trunc(maximum_value) THEN trunc(maximum_value)::text ELSE trim(trailing '.' from trim(trailing '0' from maximum_value::text)) END,
-              'minimumDate',to_char(minimum_date,'YYYY-MM-DD'),'maximumDate',to_char(maximum_date,'YYYY-MM-DD')
+              'minimumDate',to_char(minimum_date,'YYYY-MM-DD'),'maximumDate',to_char(maximum_date,'YYYY-MM-DD'),
+              'valueAliases',value_aliases,'importDefault',import_default,'rule',rule
             )) ORDER BY sequence_no,id),'[]'::jsonb) FROM fields)
           ) || jsonb_strip_nulls(jsonb_build_object(
             'publishedAt',to_char(published_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
             'archivedAt',to_char(archived_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')
           )) END AS payload FROM snapshot`
-  return rows[0] ?? null
+  const row = rows[0]
+  if (!row?.payload) return row ?? null
+  // Same contract check as mapForm: only a draft carries a summary, and an invalid one reads as none.
+  row.payload.draftSummary =
+    row.status === 'DRAFT'
+      ? (draftSummaryResponse.safeParse(row.payload.draftSummary).data ?? null)
+      : null
+  return row
 }

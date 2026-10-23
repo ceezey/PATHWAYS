@@ -1,7 +1,11 @@
 import { Prisma } from '@prisma/client'
 import { describe, expect, it } from 'vitest'
 
-import { type FormFieldContractRow, formFieldContract, jsonStringArray } from './metadata.mapper'
+import {
+  type FormFieldContractRow,
+  formFieldContract,
+  jsonStringArray,
+} from '../../common/forms/form-field-contract'
 
 const row = (patch: Partial<FormFieldContractRow> = {}): FormFieldContractRow => ({
   code: 'score',

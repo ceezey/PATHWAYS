@@ -22,6 +22,7 @@ const metadata = {
   updateSubmission: vi.fn(),
   submitSubmission: vi.fn(),
   generateForm: vi.fn(),
+  draftFromImport: vi.fn(),
   publishForm: vi.fn(),
   validateValues: vi.fn(),
   saveSubmission: vi.fn(),
@@ -131,6 +132,18 @@ describe('metadata form bodies', () => {
       code: 'ok_code',
       name: 'Okay',
     })
+  })
+
+  it('forwards a draft-from-import body and refuses an unknown key', async () => {
+    const batchId = '60000000-0000-4000-8000-000000000006'
+    const body = { batchId, expectedMappingRevision: 1 }
+    expect(await send('POST', `/${formId}/drafts/from-import`, JSON.stringify(body))).toBe(201)
+    expect(metadata.draftFromImport).toHaveBeenCalledWith(actor, projectId, formId, body)
+    metadata.draftFromImport.mockClear()
+    expect(
+      await send('POST', `/${formId}/drafts/from-import`, JSON.stringify({ ...body, x: 1 })),
+    ).toBe(400)
+    expect(metadata.draftFromImport).not.toHaveBeenCalled()
   })
 })
 

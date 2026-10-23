@@ -11,6 +11,8 @@ import {
   Trash2,
 } from 'lucide-react'
 
+import type { DraftSummaryResponse } from '@pathways/shared'
+
 import { SectionCard, StatusBadge } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -22,6 +24,7 @@ import {
   dataTypeLabels,
   statusTone,
 } from '../../collection.utils'
+import { DraftSummaryPanel, fieldImportBadges } from './draft-summary-panel'
 import { FieldEditor } from './field-editor'
 import { FormInfoPanel } from './form-info-panel'
 import { FormPreviewPanel } from './form-preview-panel'
@@ -32,6 +35,7 @@ export const BuilderView = ({
   canManage,
   canPublish,
   deleteField,
+  draftSummary,
   fields,
   formTitle,
   formType,
@@ -47,6 +51,7 @@ export const BuilderView = ({
   projects,
   projectsLoaded,
   projectId,
+  readOnly,
   sadddCount,
   selectedField,
   selectedFieldId,
@@ -64,6 +69,7 @@ export const BuilderView = ({
   canManage: boolean
   canPublish: boolean
   deleteField: (fieldId: string) => void
+  draftSummary: DraftSummaryResponse | null
   fields: FormField[]
   formTitle: string
   formType: string
@@ -79,6 +85,7 @@ export const BuilderView = ({
   projects: ProjectSummary[]
   projectsLoaded: boolean
   projectId: string
+  readOnly: boolean
   sadddCount: number
   selectedField?: FormField
   selectedFieldId: string
@@ -110,6 +117,18 @@ export const BuilderView = ({
         setLinkedActivityId={setLinkedActivityId}
         setProjectId={setProjectId}
       />
+
+      {draftSummary ? (
+        <DraftSummaryPanel
+          summary={draftSummary}
+          onSelectField={(code) => {
+            const target = fields.find((field) => field.code === code)
+            if (!target) return
+            setSelectedFieldId(target.id)
+            document.getElementById(`collection-field-choice-${target.id}`)?.focus()
+          }}
+        />
+      ) : null}
 
       <SectionCard
         title={mode === 'extend' ? 'Imported fields and extensions' : 'Form field list'}
@@ -162,6 +181,13 @@ export const BuilderView = ({
                       <StatusBadge tone={statusTone(field.mappingStatus)}>
                         {field.mappingStatus}
                       </StatusBadge>
+                      {draftSummary
+                        ? fieldImportBadges(draftSummary, field.code).map((badge) => (
+                            <StatusBadge key={badge.label} tone={badge.tone}>
+                              {badge.label}
+                            </StatusBadge>
+                          ))
+                        : null}
                     </div>
                   </div>
                 </button>
@@ -204,7 +230,12 @@ export const BuilderView = ({
               </div>
 
               {selectedFieldId === field.id ? (
-                <FieldEditor field={field} updateField={updateField} />
+                <FieldEditor
+                  field={field}
+                  fieldCodes={fields.map((item) => item.code).filter(Boolean)}
+                  readOnly={readOnly}
+                  updateField={updateField}
+                />
               ) : null}
             </div>
           ))}

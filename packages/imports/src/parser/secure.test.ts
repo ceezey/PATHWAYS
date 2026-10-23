@@ -65,6 +65,44 @@ describe('secure import parser', () => {
     })
   })
 
+  it('emits date-formatted numeric cells as ISO dates and leaves other numbers alone', async () => {
+    const parsed = await parseSecureImport(
+      workbookBuffer(
+        [
+          ['Date of Birth', 'Age', 'Plain', 'Far'],
+          [39677, 18, 39677, 900000],
+        ],
+        'xlsx',
+        (sheet) => {
+          sheet.A2.z = 'yy/mm/dd'
+          sheet.C2.z = 'General'
+          sheet.D2.z = 'yy/mm/dd'
+        },
+      ),
+      'XLSX',
+    )
+
+    expect(parsed.rows[0]?.values).toEqual({
+      column_0001: '2008-08-17',
+      column_0002: 18,
+      column_0003: 39677,
+      column_0004: 900000,
+    })
+  })
+
+  it('reads date-formatted cells of a 1904-system workbook from the 1904 epoch', async () => {
+    const sheet = XLSX.utils.aoa_to_sheet([['Date of Birth'], [38215]])
+    sheet.A2.z = 'yy/mm/dd'
+    const workbook = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(workbook, sheet, 'Data')
+    workbook.Workbook = { WBProps: { date1904: true } }
+    const buffer = Buffer.from(XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' }))
+
+    const parsed = await parseSecureImport(buffer, 'XLSX')
+
+    expect(parsed.rows[0]?.values).toEqual({ column_0001: '2008-08-17' })
+  })
+
   it('keeps repeated headers distinct by immutable ordinal identity', async () => {
     const parsed = await parseSecureImport(Buffer.from('Name,name,Name\na,b,c'), 'CSV')
 

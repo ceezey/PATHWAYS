@@ -6,19 +6,21 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common'
 import {
-  AUTO_SMART_V2,
   AUTO_SMART_V2_LIMITS,
+  AUTO_SMART_V3,
+  type CoverageField,
   type SmartMatchDecision,
-  smartMatchColumns,
+  importCoverage,
+  smartMatchColumnsV3,
 } from '@pathways/imports/server'
 import type { AutomaticImportMappingRequest } from '@pathways/shared'
 import { Prisma } from '@prisma/client'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import type { Tx } from '../../common/prisma/transaction'
-import { jsonStringArray } from '../metadata/metadata.mapper'
 import { parseAutomaticMappingReceipt } from './automatic-mapping-receipt'
+import { stagedMatchInputs } from './batch-coverage'
+import { smartMatchColumns } from './batch-match-inputs'
 import { lockBatch, requireBatch } from './import-batches.service'
-import { safeRawData, safeSourceColumns } from './imports.helpers'
 import type { BatchRow } from './imports.mapper'
 
 export async function recordAutomaticMapping(
@@ -33,14 +35,14 @@ export async function recordAutomaticMapping(
     throw new ForbiddenException('Automatic mapping is unavailable.')
   // Lock before reading the matcher inputs so the recorder re-checks the same batch state.
   await lockBatch(tx, actor, batch.projectId, batch.id)
-  const decisions = await smartMappingDecisions(tx, actor, batch)
+  const { decisions, fields, distinctValues } = await smartMappingInputs(tx, actor, batch)
   let receipt: unknown
   try {
     const rows = await tx.$queryRaw<Array<{ receipt: unknown }>>(Prisma.sql`
-          SELECT pathways.p38_record_smart_mapping(
+          SELECT pathways.p78_record_smart_mapping(
             ${batch.id}::uuid,
             ${input.expectedMappingRevision}::integer,
-            ${AUTO_SMART_V2}::text,
+            ${AUTO_SMART_V3}::text,
             ${JSON.stringify(decisions)}::jsonb
           ) AS receipt
         `)
@@ -56,22 +58,38 @@ export async function recordAutomaticMapping(
     throw new ServiceUnavailableException('Automatic mapping is unavailable.')
   }
   try {
-    return parseAutomaticMappingReceipt(receipt, batch.id)
+    if (!receipt || typeof receipt !== 'object')
+      throw new Error('Invalid automatic mapping receipt.')
+    const covered = importCoverage({ decisions, fields, distinctValues })
+    return parseAutomaticMappingReceipt(
+      {
+        ...receipt,
+        coverage: covered.coverage,
+        uncoveredColumns: covered.uncoveredColumns,
+        unresolvedValues: covered.unresolvedValues,
+      },
+      batch.id,
+    )
   } catch {
     throw new ServiceUnavailableException('Automatic mapping is unavailable.')
   }
 }
 
 /**
- * AUTO_SMART_V2 inputs, all scoped to the locked batch: stored headers, the pinned form's
- * fields and a bounded prefix of staged raw values. Sampled values stay in this function;
- * only the matcher's fixed-shape decisions leave it.
+ * AUTO_SMART_V3 inputs, all scoped to the locked batch: stored headers, the pinned form's
+ * fields and the staged raw values. Cell values stay in this function; only the matcher's
+ * fixed-shape decisions and the coverage inputs leave it, and the distinct values go no further
+ * than the in-process coverage count.
  */
-async function smartMappingDecisions(
+async function smartMappingInputs(
   tx: Tx,
   actor: ApplicationIdentity,
   batch: BatchRow,
-): Promise<SmartMatchDecision[]> {
+): Promise<{
+  decisions: SmartMatchDecision[]
+  fields: CoverageField[]
+  distinctValues: Record<string, unknown[]>
+}> {
   if (
     batch.storageStatus !== 'STORED' ||
     !['UPLOADED', 'MAPPED'].includes(batch.status) ||
@@ -80,67 +98,10 @@ async function smartMappingDecisions(
   ) {
     throw new ConflictException('The import changed. Reload before retrying.')
   }
-  const stored = await tx.dataImportBatch.findFirst({
-    where: { id: batch.id, organizationId: actor.organizationId, projectId: batch.projectId },
-    select: { sourceHeaders: true },
-  })
-  if (!stored) throw new NotFoundException('Import batch unavailable.')
-  const sourceColumns = safeSourceColumns(stored.sourceHeaders)
-  const fields = await tx.formField.findMany({
-    where: {
-      organizationId: actor.organizationId,
-      projectId: batch.projectId,
-      formId: batch.formId,
-    },
-    select: {
-      id: true,
-      code: true,
-      label: true,
-      dataType: true,
-      allowedValues: true,
-      minimumLength: true,
-      maximumLength: true,
-    },
-    orderBy: { sequenceNo: 'asc' },
-    take: AUTO_SMART_V2_LIMITS.maxFields + 1,
-  })
-  if (
-    sourceColumns.length < 1 ||
-    fields.length < 1 ||
-    fields.length > AUTO_SMART_V2_LIMITS.maxFields
-  ) {
-    throw new BadRequestException('Invalid automatic mapping request.')
-  }
-  const rows = await tx.dataImportRow.findMany({
-    where: {
-      organizationId: actor.organizationId,
-      projectId: batch.projectId,
-      formId: batch.formId,
-      importBatchId: batch.id,
-    },
-    select: { rawData: true },
-    orderBy: { rowNumber: 'asc' },
-    take: AUTO_SMART_V2_LIMITS.sampleRows,
-  })
-  const raw = rows.map((row) => safeRawData(row.rawData))
+  const { sourceColumns, fields, raw, distinctValues } = await stagedMatchInputs(tx, actor, batch)
   try {
-    return smartMatchColumns(
-      sourceColumns.map((column) => ({
-        key: column.key,
-        columnIndex: column.columnIndex,
-        header: column.header,
-        samples: raw.map((values) => values[column.key]),
-      })),
-      fields.map((field) => ({
-        id: field.id,
-        code: field.code,
-        label: field.label,
-        dataType: field.dataType,
-        allowedValues: jsonStringArray(field.allowedValues),
-        minimumLength: field.minimumLength,
-        maximumLength: field.maximumLength,
-      })),
-    )
+    const decisions = smartMatchColumnsV3(smartMatchColumns(sourceColumns, raw), fields)
+    return { decisions, fields, distinctValues }
   } catch {
     throw new BadRequestException('Invalid automatic mapping request.')
   }

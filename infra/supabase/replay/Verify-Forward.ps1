@@ -64,6 +64,7 @@ $forwardInventory = @(
   '0075_indicator_summary_measurement_lookup'
   '0076_saddd_exact_counts'
   '0077_saddd_by_place'
+  '0078_form_field_intake_metadata'
 )
 if (($forwardMigrations.Name -join ',') -cne ($forwardInventory -join ',')) { throw 'Forward migration inventory requires renewed review.' }
 

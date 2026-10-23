@@ -18,6 +18,7 @@ import type {
   AutomaticImportMappingRequest,
   ImportRowsQuery,
   ProcessImportRequest,
+  RerunImportRequest,
   SaveImportMappingRequest,
   UploadImportRequest,
   ValidateImportRequest,
@@ -48,6 +49,7 @@ import {
   promoteClaimedParticipationRow,
   promoteClaimedRegistrationRow,
 } from './import-promotion.service'
+import { readRerunSource, recordRerun } from './import-rerun.service'
 import {
   readUploadRecovery,
   recordUploadFailure,
@@ -56,7 +58,7 @@ import {
   stageUploadedRows,
 } from './import-upload.service'
 import { validateBatchRows } from './import-validation.service'
-import { type UploadedImportFile, checksum, fileMetadata } from './imports.helpers'
+import { type UploadedImportFile, checksum, fileContentType, fileMetadata } from './imports.helpers'
 import { W10FinalizationFault } from './upload-finalization-fault'
 
 export type { UploadedImportFile } from './imports.helpers'
@@ -206,6 +208,50 @@ export class ImportsService {
         'The file is stored privately, but database finalization must be retried.',
       )
     }
+  }
+
+  /** Copies the stored source of a staged batch into a new batch on a newer published form version. */
+  async rerun(
+    identity: ApplicationIdentity,
+    projectId: string,
+    batchId: string,
+    input: RerunImportRequest,
+  ) {
+    const source = await withAuthorizedOperation(
+      this.prisma,
+      identity,
+      'imports.upload',
+      (tx, actor) => readRerunSource(tx, actor, projectId, batchId, input.formId),
+    )
+    if (!this.storage.isConfigured()) {
+      throw new ServiceUnavailableException('Private upload storage is not configured.')
+    }
+    let buffer: Buffer
+    try {
+      buffer = await this.storage.downloadPrivateFile(source.storageBucket, source.storageObjectKey)
+    } catch {
+      throw new ServiceUnavailableException('The private source object is unavailable.')
+    }
+    if (checksum(buffer) !== source.sourceChecksum) {
+      throw new ConflictException('The stored source checksum does not match its reservation.')
+    }
+    const formId = input.formId.toLowerCase()
+    const created = await this.upload(
+      identity,
+      projectId,
+      { formId, clientImportId: source.clientImportId },
+      {
+        buffer,
+        originalname: source.originalFileName,
+        mimetype: fileContentType(source.fileType),
+        size: buffer.length,
+      },
+    )
+    if (created.status === 'FAILED') throw new ConflictException('The re-run failed. Retry it.')
+    await withAuthorizedOperation(this.prisma, identity, 'imports.upload', (tx, actor) =>
+      recordRerun(tx, actor, created.projectId, batchId, created.id, source.formVersion),
+    )
+    return created
   }
 
   async resumeUpload(identity: ApplicationIdentity, projectId: string, batchId: string) {

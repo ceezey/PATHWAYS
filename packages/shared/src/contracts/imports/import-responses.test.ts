@@ -24,8 +24,9 @@ const batch = {
   validationRevision: 1,
   validatedMappingRevision: 1,
   processingRevision: 0,
-  totals: { rows: 3, valid: 2, invalid: 1, processed: 0, unprocessed: 0, failed: 0 },
+  totals: { rows: 3, valid: 2, invalid: 1, processed: 0, unprocessed: 0, failed: 0, warnings: 1 },
   failureCode: null,
+  uploadedByCurrentUser: true,
   uploadedAt: '2026-10-13T00:00:00.000Z',
   updatedAt: '2026-10-13T00:00:00.000Z',
 }
@@ -47,6 +48,7 @@ const detail = {
       valueMap: [{ from: 'M', to: 'Male' }],
     },
   ],
+  coverage: null,
 }
 const row = {
   id: uuid,
@@ -54,6 +56,9 @@ const row = {
   rawData: { column_0001: 'Sample', column_0002: 4, column_0003: null },
   status: 'INVALID',
   validationErrors: [{ fieldCode: 'name', code: 'required', message: 'Name is required.' }],
+  validationWarnings: [
+    { fieldCode: 'guardian_consent_recorded', code: 'GUARDIAN_CONSENT_MISSING' },
+  ],
   mappingRevision: 1,
   validationRevision: 1,
   processingAttempts: 0,
@@ -88,18 +93,31 @@ describe('import response contracts', () => {
 
   it('reject a batch that differs from a valid one by a single property', () => {
     const { failed: _failed, ...fewerTotals } = batch.totals
+    const { warnings: _warnings, ...noWarningTotals } = batch.totals
     expect(importBatchResponse.safeParse({ ...batch, status: 'VALIDATING' }).success).toBe(false)
     expect(importBatchResponse.safeParse({ ...batch, totals: fewerTotals }).success).toBe(false)
+    expect(importBatchResponse.safeParse({ ...batch, totals: noWarningTotals }).success).toBe(false)
     expect(
       importBatchResponse.safeParse({ ...batch, totals: { ...batch.totals, valid: '2' } }).success,
     ).toBe(false)
   })
 
-  it('reject a detail that lacks one of the source headers, source columns or mappings', () => {
+  it('accept coverage counts on a detail and reject a malformed one', () => {
+    const covered = { coverage: 'NOT_COVERED', uncoveredColumns: 2, unresolvedValues: 5 }
+    expect(importBatchDetailResponse.safeParse({ ...detail, coverage: covered }).success).toBe(true)
+    for (const coverage of [
+      { ...covered, coverage: 'MAYBE' },
+      { ...covered, uncoveredColumns: -1 },
+    ])
+      expect(importBatchDetailResponse.safeParse({ ...detail, coverage }).success).toBe(false)
+  })
+
+  it('reject a detail that lacks one of the source headers, source columns, mappings or coverage', () => {
     const { sourceHeaders: _headers, ...noHeaders } = detail
     const { sourceColumns: _columns, ...noColumns } = detail
     const { mappings: _mappings, ...noMappings } = detail
-    for (const broken of [noHeaders, noColumns, noMappings]) {
+    const { coverage: _coverage, ...noCoverage } = detail
+    for (const broken of [noHeaders, noColumns, noMappings, noCoverage]) {
       expect(importBatchDetailResponse.safeParse(broken).success).toBe(false)
     }
   })

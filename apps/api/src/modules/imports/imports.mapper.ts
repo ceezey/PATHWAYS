@@ -30,7 +30,7 @@ export const batchSelection = {
   processedAt: true,
   updatedAt: true,
   form: {
-    select: { code: true, name: true, formType: true, status: true },
+    select: { code: true, name: true, formType: true, status: true, publishedById: true },
   },
 } satisfies Prisma.DataImportBatchSelect
 
@@ -50,11 +50,20 @@ export const fieldSelection = {
   minimumLength: true,
   maximumLength: true,
   isMetadataKey: true,
+  isSadddField: true,
+  sourceNames: true,
+  valueAliases: true,
+  importDefault: true,
+  rule: true,
 } satisfies Prisma.FormFieldSelect
 
 export type FieldRow = Prisma.FormFieldGetPayload<{ select: typeof fieldSelection }>
 
-export function mapBatch(batch: BatchRow): ImportBatchResponse {
+export function mapBatch(
+  batch: BatchRow,
+  warningRows: number,
+  actorUserId: string,
+): ImportBatchResponse {
   return {
     id: batch.id,
     projectId: batch.projectId,
@@ -79,8 +88,10 @@ export function mapBatch(batch: BatchRow): ImportBatchResponse {
       processed: batch.processedRows,
       unprocessed: batch.unprocessedRows,
       failed: batch.failedRows,
+      warnings: warningRows,
     },
     failureCode: batch.failureCode,
+    uploadedByCurrentUser: batch.uploadedById === actorUserId,
     uploadedAt: batch.uploadedAt.toISOString(),
     validatedAt: batch.validatedAt?.toISOString(),
     processedAt: batch.processedAt?.toISOString(),

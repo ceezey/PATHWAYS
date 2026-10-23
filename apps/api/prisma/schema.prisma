@@ -204,6 +204,7 @@ model SystemUser {
   projectIndicator_createdBy                  ProjectIndicator[]                 @relation("ProjectIndicator_createdBy")
   digitalForm_createdBy                       DigitalForm[]                      @relation("DigitalForm_createdBy")
   digitalForm_publishedBy                     DigitalForm[]                      @relation("DigitalForm_publishedBy")
+  digitalForm_lastEditedBy                    DigitalForm[]                      @relation("DigitalForm_lastEditedBy")
   dataImportBatch_uploadedBy                  DataImportBatch[]                  @relation("DataImportBatch_uploadedBy")
   dataImportBatch_reviewedBy                  DataImportBatch[]                  @relation("DataImportBatch_reviewedBy")
   dataImportRow_validatedBy                   DataImportRow[]                    @relation("DataImportRow_validatedBy")
@@ -1115,6 +1116,8 @@ model DigitalForm {
   journeyStageId              String?                   @map("journey_stage_id") @db.Uuid
   createdById                 String?                   @map("created_by_id") @db.Uuid
   publishedById               String?                   @map("published_by_id") @db.Uuid
+  lastEditedById              String?                   @map("last_edited_by_id") @db.Uuid
+  importDraftSummary          Json?                     @map("import_draft_summary")
   publishedAt                 DateTime?                 @map("published_at") @db.Timestamptz(3)
   archivedAt                  DateTime?                 @map("archived_at") @db.Timestamptz(3)
   createdAt                   DateTime                  @default(now()) @map("created_at") @db.Timestamptz(3)
@@ -1126,6 +1129,7 @@ model DigitalForm {
   project                     Project                   @relation("DigitalForm_project", fields: [organizationId, projectId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "digital_forms_project_fk")
   createdBy                   SystemUser?               @relation("DigitalForm_createdBy", fields: [organizationId, createdById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "digital_forms_created_by_fk")
   publishedBy                 SystemUser?               @relation("DigitalForm_publishedBy", fields: [organizationId, publishedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "digital_forms_published_by_fk")
+  lastEditedBy                SystemUser?               @relation("DigitalForm_lastEditedBy", fields: [organizationId, lastEditedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "digital_forms_last_edited_by_fk")
   activity                    ProjectActivity?          @relation("DigitalForm_activity", fields: [organizationId, projectId, activityId], references: [organizationId, projectId, id], onDelete: Restrict, onUpdate: Restrict, map: "digital_forms_activity_fk")
   journeyStage                JourneyStage?             @relation("DigitalForm_journeyStage", fields: [organizationId, projectId, journeyStageId], references: [organizationId, projectId, id], onDelete: Restrict, onUpdate: Restrict, map: "digital_forms_journey_stage_fk")
   formField_form              FormField[]               @relation("FormField_form")
@@ -1142,6 +1146,7 @@ model DigitalForm {
   @@index([organizationId, projectId, status], map: "digital_forms_project_status_idx")
   @@index([organizationId, createdById], map: "digital_forms_created_by_idx")
   @@index([organizationId, publishedById], map: "digital_forms_published_by_idx")
+  @@index([organizationId, lastEditedById], map: "digital_forms_last_edited_by_idx")
   @@index([organizationId, projectId, activityId], map: "digital_forms_activity_idx")
   @@index([organizationId, projectId, journeyStageId], map: "digital_forms_journey_stage_idx")
   @@map("digital_forms")
@@ -1167,6 +1172,10 @@ model FormField {
   maximumDate                    DateTime?                 @map("maximum_date") @db.Date
   minimumLength                  Int?                      @map("minimum_length")
   maximumLength                  Int?                      @map("maximum_length")
+  sourceNames                    String[]                  @default([]) @map("source_names")
+  valueAliases                   Json?                     @map("value_aliases")
+  importDefault                  String?                   @map("import_default")
+  rule                           Json?
   sequenceNo                     Int                       @map("sequence_no")
   createdAt                      DateTime                  @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt                      DateTime                  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
@@ -1258,6 +1267,7 @@ model DataImportRow {
   normalizedData           Json?            @map("normalized_data")
   status                   ImportRowStatus  @default(PENDING)
   validationErrors         Json             @default("[]") @map("validation_errors")
+  validationWarnings       Json             @default("[]") @map("validation_warnings")
   mappingRevision          Int              @default(0) @map("mapping_revision")
   validationRevision       Int              @default(0) @map("validation_revision")
   processingClaimId        String?          @map("processing_claim_id") @db.Uuid

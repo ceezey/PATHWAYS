@@ -56,6 +56,13 @@ export function stableJson(value: unknown): string {
   return JSON.stringify(value)
 }
 
+// The canonical content type for a stored file type, used when a stored source is staged again.
+export function fileContentType(type: SupportedImportFileType) {
+  const definition = Object.values(fileTypes).find((entry) => entry.type === type)
+  if (!definition) throw new ConflictException('The stored source file type is unsupported.')
+  return definition.contentTypes[0]
+}
+
 export function fileMetadata(file?: UploadedImportFile) {
   if (!file?.buffer || !Buffer.isBuffer(file.buffer)) {
     throw new BadRequestException('A source file is required.')

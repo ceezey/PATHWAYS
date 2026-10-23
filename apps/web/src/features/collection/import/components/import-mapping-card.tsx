@@ -11,21 +11,25 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 
+import type { BatchIntake } from '../hooks/use-batch-intake'
 import type { BatchProcessing } from '../hooks/use-batch-processing'
 import type { BatchReview } from '../hooks/use-batch-review'
 import type { ImportState } from '../hooks/use-import-state'
 import { importProcessingComplete } from '../import-auto-continue'
 import { automaticMatchReason, mappingLockedStatuses } from '../import.utils'
+import { CoverageNotice } from './coverage-notice'
 import { ImportValueMapEditor, emptyColumnRule } from './import-value-map-editor'
 
 export function ImportMappingCard({
   state,
   review,
   run,
+  intake,
   batch,
 }: {
   state: Pick<
     ImportState,
+    | 'canManageForms'
     | 'canProcess'
     | 'canReview'
     | 'canValidate'
@@ -37,6 +41,7 @@ export function ImportMappingCard({
     | 'mutation'
     | 'openSuggestions'
     | 'pending'
+    | 'receipts'
     | 'rules'
     | 'scope'
     | 'selectedForm'
@@ -47,9 +52,11 @@ export function ImportMappingCard({
   >
   review: Pick<BatchReview, 'confirmSuggestions' | 'saveMapping' | 'validate'>
   run: Pick<BatchProcessing, 'process' | 'processingInterrupted'>
+  intake: Pick<BatchIntake, 'prepareForm'>
   batch: NonNullable<ImportState['batch']>
 }) {
   const {
+    canManageForms,
     canProcess,
     canReview,
     canValidate,
@@ -61,6 +68,7 @@ export function ImportMappingCard({
     mutation,
     openSuggestions,
     pending,
+    receipts,
     rules,
     scope,
     selectedForm,
@@ -71,6 +79,12 @@ export function ImportMappingCard({
   } = state
   const { confirmSuggestions, saveMapping, validate } = review
   const { process, processingInterrupted } = run
+  const receipt = receipts[batch.id]
+  // The server computes coverage for any reader; the uploader's session receipt covers a batch not yet reloaded.
+  // The counts describe the automatic revision only; a reviewer's later revision replaces them.
+  const coverage =
+    batch.coverage ?? (receipt?.mappingRevision === batch.mappingRevision ? receipt : null)
+  const needsFormUpdate = coverage?.coverage === 'NOT_COVERED'
   return (
     <Card>
       <CardHeader>
@@ -97,6 +111,14 @@ export function ImportMappingCard({
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
+        {needsFormUpdate ? (
+          <CoverageNotice
+            receipt={coverage}
+            canPrepare={canManageForms}
+            pending={pending}
+            onPrepare={() => void intake.prepareForm()}
+          />
+        ) : null}
         <output aria-live="polite" className="block text-sm text-muted-foreground">
           {mappingNotice}
         </output>

@@ -2,6 +2,7 @@ import { Worker } from 'node:worker_threads'
 
 import { importHeaderLabel } from '../header-label'
 import { IMPORT_ENGINEERING_LIMITS, type SupportedImportFileType } from '../limits'
+import { excelSerialToIsoDate } from './excel-date'
 import { type PdfTableLimits, reconstructPdfTable } from './pdf-table'
 
 type CellValue = string | number | boolean | null
@@ -42,11 +43,13 @@ export class ImportParseError extends Error {
   }
 }
 
-// The PDF table reconstruction is embedded as source so its CPU and memory fall under
-// the worker's parse timeout and resource limits, in both source and compiled builds.
+// The PDF table reconstruction and the Excel date conversion are embedded as source so
+// their CPU and memory fall under the worker's parse timeout and resource limits, in both
+// source and compiled builds.
 const WORKER_SOURCE = String.raw`
 const { parentPort, workerData } = require('node:worker_threads');
 const reconstructPdfTable = ${reconstructPdfTable.toString()};
+const excelSerialToIsoDate = ${excelSerialToIsoDate.toString()};
 try {
   const input = Buffer.from(workerData.input);
   if (workerData.fileType === 'CSV') {
@@ -130,7 +133,7 @@ try {
       cellFormula: true,
       cellHTML: false,
       cellStyles: false,
-      cellNF: false,
+      cellNF: true,
       bookVBA: true,
       WTF: false,
     });
@@ -146,6 +149,21 @@ try {
       }
     }
     const first = workbook.SheetNames[0];
+    // Date-formatted numeric cells become ISO strings; out-of-range serials stay numeric.
+    // The date format is dropped either way so sheet_to_json does not build Date objects.
+    const date1904 = Boolean(workbook.Workbook && workbook.Workbook.WBProps && workbook.Workbook.WBProps.date1904);
+    const firstSheet = first ? workbook.Sheets[first] : null;
+    for (const key of Object.keys(firstSheet || {})) {
+      if (key.startsWith('!')) continue;
+      const cell = firstSheet[key];
+      if (!cell || cell.t !== 'n' || !cell.z || !XLSX.SSF.is_date(cell.z)) continue;
+      const iso = excelSerialToIsoDate(cell.v, date1904);
+      delete cell.z;
+      if (iso !== null) {
+        cell.t = 's';
+        cell.v = iso;
+      }
+    }
     const matrix = first
       ? XLSX.utils.sheet_to_json(workbook.Sheets[first], {
           header: 1,

@@ -124,11 +124,19 @@ function compatible(value: unknown, target: PreparedField) {
   }
   if (field.dataType === 'SELECT') {
     const text = sampleText(value)
-    return text !== null && target.allowed.has(normalizeMappingNameV1(text))
+    return (
+      text !== null &&
+      (target.allowed.has(normalizeMappingNameV1(text)) || target.resolve?.(text) != null)
+    )
   }
   if (field.dataType === 'MULTIPLE_SELECT') {
     const parts = choiceParts(value)
-    return parts?.every((part) => target.allowed.has(normalizeMappingNameV1(part))) === true
+    return (
+      parts?.every(
+        (part) =>
+          target.allowed.has(normalizeMappingNameV1(part)) || target.resolve?.(part) != null,
+      ) === true
+    )
   }
   const text = sampleText(value)
   if (text === null) return false

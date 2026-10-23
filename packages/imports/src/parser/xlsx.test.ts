@@ -45,4 +45,17 @@ describe('parseWorkbook', () => {
       sheetNames: ['Data'],
     })
   })
+
+  it('emits date-formatted numeric cells as ISO dates', () => {
+    const worksheet = XLSX.utils.aoa_to_sheet([
+      ['Date of Birth', 'Age'],
+      [39677, 18],
+    ])
+    worksheet.A2.z = 'yy/mm/dd'
+    const workbook = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Data')
+    const buffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' })
+
+    expect(parseWorkbook(buffer).rows).toEqual([{ 'Date of Birth': '2008-08-17', Age: 18 }])
+  })
 })

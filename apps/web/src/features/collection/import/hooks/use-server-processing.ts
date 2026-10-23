@@ -2,6 +2,7 @@ import { useState } from 'react'
 
 import { importsClient } from '@/lib/api/imports'
 import type { principalHasAtomicPermission } from '@/lib/rbac/policy'
+import type { ImportBatchDefinition } from '@/types/pathways'
 
 import type { OperationTicket } from '../../collection.utils'
 import type { ImportProcessingState } from '../components/import-processing-panel'
@@ -50,6 +51,9 @@ export function useServerProcessing({
       validationRevision: number
       progress: ImportProcessingProgress
     },
+    // Wording of the final notice; the default reports processed and failed counts.
+    notice: (batch: ImportBatchDefinition) => string = (batch) =>
+      `Server import ${batch.id}: ${batch.totals.processed} processed, ${batch.totals.failed} failed.`,
   ) => {
     let latest = target.progress
     importBatch.stopRequested.current = false
@@ -73,9 +77,7 @@ export function useServerProcessing({
     }
     if (outcome.kind === 'complete') {
       setProcessingRun(null)
-      setSavedNotice(
-        `Server import ${outcome.batch.id}: ${outcome.batch.totals.processed} processed, ${outcome.batch.totals.failed} failed.`,
-      )
+      setSavedNotice(notice(outcome.batch))
       setProceedDialogOpen(false)
       return
     }

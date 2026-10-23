@@ -20,7 +20,7 @@ export const importRequestLimits = {
 const safeMapText = /^(?![=+@\t\r]|-(?!\d))\P{Cc}*$/u
 
 // One side of a value map entry, trimmed first.
-const valueMapText = (min: number) =>
+export const valueMapText = (min: number) =>
   trimmedInput(
     lengthString(min, importRequestLimits.maxValueMapTextLength).refine(
       (value) => safeMapText.test(value),
@@ -66,6 +66,10 @@ export const automaticImportMappingRequest = z
   .object({ expectedMappingRevision: z.union([z.literal(0), z.literal(1)]) })
   .strict()
 export type AutomaticImportMappingRequest = z.infer<typeof automaticImportMappingRequest>
+
+// Body of POST imports/projects/:projectId/batches/:batchId/rerun.
+export const rerunImportRequest = z.object({ formId: uuidString }).strict()
+export type RerunImportRequest = z.infer<typeof rerunImportRequest>
 
 // Body of POST imports/projects/:projectId/batches/:batchId/validate.
 export const validateImportRequest = z

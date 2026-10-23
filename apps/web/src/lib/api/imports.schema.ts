@@ -5,15 +5,22 @@ const receiptSchema = z
     mappingRevision: z.literal(1),
     mapped: z.number().int().min(0).max(100),
     pending: z.number().int().min(0).max(500),
+    ignored: z.number().int().min(0).max(500),
     requiredUnmapped: z.number().int().min(0).max(100),
     complete: z.boolean(),
+    coverage: z.enum(['COVERED', 'NOT_COVERED']),
+    uncoveredColumns: z.number().int().min(0).max(500),
+    unresolvedValues: z.number().int().min(0).max(250000),
   })
   .strict()
   .refine(
     (row) =>
-      row.mapped + row.pending >= 1 &&
-      row.mapped + row.pending <= 500 &&
-      row.complete === (row.pending === 0 && row.requiredUnmapped === 0),
+      row.mapped + row.pending + row.ignored >= 1 &&
+      row.mapped + row.pending + row.ignored <= 500 &&
+      row.complete === (row.pending === 0 && row.requiredUnmapped === 0 && row.mapped > 0) &&
+      row.uncoveredColumns === row.pending &&
+      (row.coverage !== 'COVERED' ||
+        (row.complete && row.uncoveredColumns === 0 && row.unresolvedValues === 0)),
   )
 export type AutomaticMappingReceipt = z.infer<typeof receiptSchema>
 export function parseAutomaticMappingReceipt(

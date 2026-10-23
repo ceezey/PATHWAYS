@@ -18,12 +18,14 @@ import {
   type AutomaticImportMappingRequest,
   type ImportRowsQuery,
   type ProcessImportRequest,
+  type RerunImportRequest,
   type SaveImportMappingRequest,
   type UploadImportRequest,
   type ValidateImportRequest,
   automaticImportMappingRequest,
   importRowsQuery,
   processImportRequest,
+  rerunImportRequest,
   saveImportMappingRequest,
   uploadImportRequest,
   validateImportRequest,
@@ -85,6 +87,17 @@ export class ImportsController {
     @Param('batchId') batchId: string,
   ) {
     return this.imports.resumeUpload(requestIdentity(request), projectId, batchId)
+  }
+
+  @Post(':batchId/rerun')
+  @RequirePermission('imports.upload')
+  rerun(
+    @Req() request: AuthenticatedRequest,
+    @Param('projectId') projectId: string,
+    @Param('batchId') batchId: string,
+    @Body(new ZodPipe(rerunImportRequest)) body: RerunImportRequest,
+  ) {
+    return this.imports.rerun(requestIdentity(request), projectId, batchId, body)
   }
 
   @Get(':batchId/rows')

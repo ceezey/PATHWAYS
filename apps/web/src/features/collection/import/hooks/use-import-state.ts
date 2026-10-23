@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { useCurrentRole } from '@/hooks/use-current-role'
+import type { AutomaticMappingReceipt } from '@/lib/api/imports.schema'
 import type { SensitiveDraftOwner } from '@/lib/auth/sensitive-drafts'
 import { getVerifiedRouteAccess, principalHasAtomicPermission } from '@/lib/rbac/policy'
 import type {
@@ -23,6 +24,7 @@ export function useImportState(scope: SensitiveDraftOwner) {
   const canReview = principalHasAtomicPermission(profile, 'imports.review')
   const canValidate = principalHasAtomicPermission(profile, 'imports.validate')
   const canProcess = principalHasAtomicPermission(profile, 'imports.process')
+  const canManageForms = principalHasAtomicPermission(profile, 'forms.manage')
   const canOpenForms = Boolean(
     profile && getVerifiedRouteAccess(profile, '/collection/forms').allowed,
   )
@@ -38,6 +40,10 @@ export function useImportState(scope: SensitiveDraftOwner) {
   const [mapping, setMapping] = useState<Record<string, string>>({})
   const [rules, setRules] = useState<Record<string, ColumnRuleDraft>>({})
   const [mappingNotice, setMappingNotice] = useState('')
+  // The automatic-mapping receipt of each batch uploaded or re-run in this session; batch detail carries the stored coverage.
+  const [receipts, setReceipts] = useState<Record<string, AutomaticMappingReceipt>>({})
+  // The draft form just prepared from a batch, which the workspace then opens in the editor.
+  const [draftTarget, setDraftTarget] = useState<{ projectId: string; formId: string } | null>(null)
   const mappingHeading = useRef<HTMLSpanElement>(null)
   const [pending, setPending] = useState(false)
   const [loadState, setLoadState] = useState<'loading' | 'ready' | 'error'>('loading')
@@ -142,12 +148,14 @@ export function useImportState(scope: SensitiveDraftOwner) {
     batch,
     batches,
     begin,
+    canManageForms,
     canOpenForms,
     canProcess,
     canReview,
     canUpload,
     canValidate,
     columnValues,
+    draftTarget,
     file,
     formId,
     forms,
@@ -167,12 +175,14 @@ export function useImportState(scope: SensitiveDraftOwner) {
     processing,
     projectId,
     projects,
+    receipts,
     rows,
     rules,
     scope,
     selectedForm,
     setBatch,
     setBatches,
+    setDraftTarget,
     setFile,
     setFormId,
     setForms,
@@ -184,6 +194,7 @@ export function useImportState(scope: SensitiveDraftOwner) {
     setProcessing,
     setProjectId,
     setProjects,
+    setReceipts,
     setRows,
     setRules,
     sourceColumnByKey,
