@@ -7,6 +7,7 @@ import { importsClient } from '@/lib/api/imports'
 import { sensitiveDraftGeneration } from '@/lib/auth/sensitive-drafts'
 import { fingerprintOf } from '@/lib/forms/pending-create'
 
+import { coverageNotice, importOutcomeMessage } from '../../collection.copy'
 import type { ParsedImport } from '../../collection.utils'
 import {
   createQuestionnaireMappingRows,
@@ -295,6 +296,41 @@ export function useImportActions(state: CollectionState, guard: CollectionGuard)
       if (automatic && !ticket.valid('imports.read')) return
       const automaticRevision = automatic?.mappingRevision
       if (!ticket.valid('imports.read')) return
+      if (automatic?.coverage === 'NOT_COVERED') {
+        setImportMessage(
+          `${coverageNotice(automatic)}. Import ${uploaded.id} was staged. Prepare the form from it in the Import workspace; unresolved mappings need an authorized reviewer.`,
+        )
+        setProceedDialogOpen(false)
+        return
+      }
+      if (
+        automatic?.coverage === 'COVERED' &&
+        (['imports.validate', 'imports.process'] as const).every((grant) => eligible(grant))
+      ) {
+        // A covered file needs no review: the automatic revision is validated as it stands.
+        const validated = await importsClient.validateImport(
+          projectId,
+          uploaded.id,
+          automatic.mappingRevision,
+        )
+        if (!ticket.valid('imports.process')) return
+        if (validated.totals.valid === 0) {
+          setImportMessage(importOutcomeMessage({ ...validated.totals, processed: 0 }))
+          setProceedDialogOpen(false)
+          return
+        }
+        await continueServerProcessing(
+          ticket,
+          {
+            projectId,
+            batchId: validated.id,
+            validationRevision: validated.validationRevision,
+            progress: importProcessingProgress(validated),
+          },
+          (done) => importOutcomeMessage(done.totals),
+        )
+        return
+      }
       if (
         !mappingReadiness.canProceed ||
         !(['imports.review', 'imports.validate', 'imports.process'] as const).every((grant) =>

@@ -26,6 +26,7 @@ const batch = {
   processingRevision: 0,
   totals: { rows: 3, valid: 2, invalid: 1, processed: 0, unprocessed: 0, failed: 0, warnings: 1 },
   failureCode: null,
+  uploadedByCurrentUser: true,
   uploadedAt: '2026-10-13T00:00:00.000Z',
   updatedAt: '2026-10-13T00:00:00.000Z',
 }

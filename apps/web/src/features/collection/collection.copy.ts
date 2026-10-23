@@ -46,3 +46,27 @@ export function enumLabel(value: string) {
   const text = value.replaceAll('_', ' ').trim().toLowerCase()
   return text.charAt(0).toUpperCase() + text.slice(1)
 }
+
+const warningLabels: Record<string, string> = {
+  AGE_MISMATCH: 'The age does not match the birth date',
+  FOLLOW_UP_UNEXPECTED: 'A follow-up answer was given where none was expected',
+  ID_PATTERN_MISMATCH: 'The ID number does not match the initials and birth date',
+  CALCULATION_MISMATCH: 'The value does not match the calculated value',
+  GUARDIAN_CONSENT_MISSING: 'A guardian consent is needed for this minor',
+}
+
+/** Plain wording of a row warning code; an unknown code falls back to a sentence-cased name. */
+export const warningLabel = (code: string) => warningLabels[code] ?? enumLabel(code)
+
+/** Shown when the file needs the form to change before it can be imported. */
+export const coverageNotice = (receipt: { uncoveredColumns: number; unresolvedValues: number }) =>
+  `Form needs updating: ${receipt.uncoveredColumns} columns, ${receipt.unresolvedValues} answers`
+
+/** Shown after a straight-through import finishes. */
+export const importOutcomeMessage = (totals: {
+  processed: number
+  unprocessed: number
+  invalid: number
+  warnings: number
+}) =>
+  `Imported ${totals.processed}. ${totals.unprocessed} held for review, ${totals.invalid} invalid, ${totals.warnings} with warnings.`

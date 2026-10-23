@@ -27,7 +27,7 @@ export async function listProjectBatches(tx: Tx, actor: ApplicationIdentity, pro
     actor,
     batches.map((batch) => batch.id),
   )
-  return batches.map((batch) => mapBatch(batch, warnings.get(batch.id) ?? 0))
+  return batches.map((batch) => mapBatch(batch, warnings.get(batch.id) ?? 0, actor.userId))
 }
 
 /** Rows with at least one stored validation warning, per batch. */
@@ -77,7 +77,7 @@ export async function readBatchDetail(
   })
   const sourceColumns = stored ? safeSourceColumns(stored.sourceHeaders) : []
   return {
-    ...mapBatch(batch, await warningRows(tx, actor, batch.id)),
+    ...mapBatch(batch, await warningRows(tx, actor, batch.id), actor.userId),
     sourceHeaders: sourceColumns.map((column) => column.key),
     sourceColumns,
     mappings: mappings.map(
@@ -143,7 +143,7 @@ export async function mapStoredBatch(
   batchId: string,
 ) {
   const batch = await requireBatch(tx, actor, projectId, batchId)
-  return mapBatch(batch, await warningRows(tx, actor, batch.id))
+  return mapBatch(batch, await warningRows(tx, actor, batch.id), actor.userId)
 }
 
 export async function lockBatch(

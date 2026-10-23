@@ -9,7 +9,15 @@ import { describe, expect, expectTypeOf, it } from 'vitest'
 
 import type { DigitalFormType } from '@/types/pathways'
 
-import { enumLabel, formTypeLabels, needsCheckLabels, ruleKindLabels } from './collection.copy'
+import {
+  coverageNotice,
+  enumLabel,
+  formTypeLabels,
+  importOutcomeMessage,
+  needsCheckLabels,
+  ruleKindLabels,
+  warningLabel,
+} from './collection.copy'
 
 describe('enumLabel', () => {
   it('sentence-cases known and unknown enum values', () => {
@@ -57,5 +65,28 @@ describe('intake copy', () => {
     expect(Object.keys(ruleKindLabels)).toEqual([...INTAKE_RULE_KINDS])
     for (const label of [...Object.values(needsCheckLabels), ...Object.values(ruleKindLabels)])
       expect(label).not.toMatch(/[A-Z]{2,}_[A-Z]/)
+  })
+})
+
+describe('straight-through import copy', () => {
+  it('words the coverage notice and the outcome as the brief gives them', () => {
+    expect(coverageNotice({ uncoveredColumns: 3, unresolvedValues: 12 })).toBe(
+      'Form needs updating: 3 columns, 12 answers',
+    )
+    expect(importOutcomeMessage({ processed: 84, unprocessed: 16, invalid: 2, warnings: 5 })).toBe(
+      'Imported 84. 16 held for review, 2 invalid, 5 with warnings.',
+    )
+  })
+
+  it('gives each row warning a plain label and never shows an unknown code raw', () => {
+    for (const code of [
+      'AGE_MISMATCH',
+      'FOLLOW_UP_UNEXPECTED',
+      'ID_PATTERN_MISMATCH',
+      'CALCULATION_MISMATCH',
+      'GUARDIAN_CONSENT_MISSING',
+    ])
+      expect(warningLabel(code)).not.toMatch(/[A-Z]{2,}_[A-Z]/)
+    expect(warningLabel('SOMETHING_NEW')).toBe('Something new')
   })
 })

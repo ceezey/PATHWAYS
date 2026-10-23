@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 
 import type { CollectionMode, SavedForm } from '../../collection.utils'
 import { fromDigitalForm } from '../digital-form-contract'
+import { takeDraftSummary } from '../draft-handoff'
 import { initialFields } from '../forms.utils'
 import type { CollectionState } from './use-collection-state'
 
@@ -145,7 +146,9 @@ export function useCollectionEdits(state: CollectionState) {
     setJourneyStage(form.journeyStageId ?? '')
     setFields(fromDigitalForm(form))
     setSelectedFieldId(fromDigitalForm(form)[0]?.id ?? '')
-  }, [initialFormId, forms, setFields, setSelectedFieldId])
+    // A draft prepared from an import arrives with its change summary.
+    setDraftSummary(takeDraftSummary(form.id))
+  }, [initialFormId, forms, setFields, setSelectedFieldId, setDraftSummary])
   const openBuilder = (nextMode: CollectionMode) => {
     if (mutation.current) return
     intent.current++

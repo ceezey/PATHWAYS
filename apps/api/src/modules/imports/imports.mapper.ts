@@ -59,7 +59,11 @@ export const fieldSelection = {
 
 export type FieldRow = Prisma.FormFieldGetPayload<{ select: typeof fieldSelection }>
 
-export function mapBatch(batch: BatchRow, warningRows: number): ImportBatchResponse {
+export function mapBatch(
+  batch: BatchRow,
+  warningRows: number,
+  actorUserId: string,
+): ImportBatchResponse {
   return {
     id: batch.id,
     projectId: batch.projectId,
@@ -87,6 +91,7 @@ export function mapBatch(batch: BatchRow, warningRows: number): ImportBatchRespo
       warnings: warningRows,
     },
     failureCode: batch.failureCode,
+    uploadedByCurrentUser: batch.uploadedById === actorUserId,
     uploadedAt: batch.uploadedAt.toISOString(),
     validatedAt: batch.validatedAt?.toISOString(),
     processedAt: batch.processedAt?.toISOString(),

@@ -472,6 +472,7 @@ describe('PRD-F6 gates', () => {
       status: 'VALIDATED',
       validationRevision: 1,
       validatedMappingRevision: 1,
+      uploadedByCurrentUser: true,
       totals: { rows: 2, valid: 2, invalid: 0 },
     })
 
@@ -481,6 +482,17 @@ describe('PRD-F6 gates', () => {
     expect(state.store.rows.map((row) => row.status)).toEqual(['PROCESSED', 'PROCESSED'])
     expect(state.store.submissions).toHaveLength(2)
     expect(processed).toMatchObject({ status: 'PROCESSED', totals: { processed: 2, invalid: 0 } })
+  })
+
+  it('flags a batch as uploaded by the current user only for its uploader', async () => {
+    state.store = createStore([scoreField], [mapped('column_0001', scoreField)], [])
+    expect(await service().getBatch(state.actor, projectId, batchId)).toMatchObject({
+      uploadedByCurrentUser: true,
+    })
+    state.actor = { ...state.actor, userId: '20000000-0000-4000-8000-0000000000cc' }
+    expect(await service().getBatch(state.actor, projectId, batchId)).toMatchObject({
+      uploadedByCurrentUser: false,
+    })
   })
 
   it('G-F6-2: a batch with an invalid row stays staged, promoting only the valid rows', async () => {

@@ -54,6 +54,8 @@ export const importBatchResponse = z.object({
     warnings: z.number().int(),
   }),
   failureCode: z.string().nullable(),
+  // True when the caller uploaded the batch, the only person who may re-run it.
+  uploadedByCurrentUser: z.boolean(),
   uploadedAt: z.string(),
   validatedAt: z.string().optional(),
   processedAt: z.string().optional(),

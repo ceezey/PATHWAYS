@@ -123,6 +123,17 @@ describe('importsClient import requests', () => {
     }
   })
 
+  it('re-runs a batch against a newer form version with only the form id', async () => {
+    request.requestFoundation.mockResolvedValue({ id: clientImportId })
+    await expect(importsClient.rerunImport(projectId, batchId, formId)).resolves.toEqual({
+      id: clientImportId,
+    })
+    expect(request.requestFoundation).toHaveBeenCalledWith(`${batchPath}/rerun`, {
+      method: 'POST',
+      body: JSON.stringify({ formId }),
+    })
+  })
+
   it('saves a mapping revision with every decision as sent', async () => {
     request.requestFoundation.mockResolvedValue({ id: batchId })
     const mappings = [
