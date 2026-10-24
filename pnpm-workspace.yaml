@@ -11,3 +11,20 @@ allowBuilds:
   msw: true
   prisma: true
   sharp: true
+# Same-major bumps of transitive deps that parents pin to vulnerable versions (pnpm audit).
+overrides:
+  '@babel/core': ^7.29.1
+  ajv@8: ^8.18.0
+  baseline-browser-mapping: ^2.11.0
+  body-parser@1: ^1.20.9
+  browserslist: ^4.28.7
+  effect: ^3.20.0
+  glob@10: ^10.5.0
+  js-yaml@4: ^4.3.2
+  lodash: ^4.17.24
+  multer@2: ^2.5.0
+  picomatch@4: ^4.0.4
+  postcss@8: ^8.5.23
+  qs@6: ^6.16.0
+  tmp: ^0.2.6
+  webpack@5: ^5.104.1
