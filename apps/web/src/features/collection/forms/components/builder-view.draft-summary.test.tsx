@@ -19,7 +19,11 @@ const summary = {
   needsCheck: [{ fieldCode: 'beneficiary_id', reason: 'IDENTIFIER_PROPOSED' as const }],
 }
 
-const view = (draftSummary: typeof summary | null, setSelectedFieldId = vi.fn()) =>
+const view = (
+  draftSummary: typeof summary | null,
+  setSelectedFieldId = vi.fn(),
+  { onConfirmCheck = vi.fn(), readOnly = false } = {},
+) =>
   render(
     <BuilderView
       addField={vi.fn()}
@@ -37,12 +41,13 @@ const view = (draftSummary: typeof summary | null, setSelectedFieldId = vi.fn())
       mappedCount={0}
       mode="scratch"
       moveField={vi.fn()}
+      onConfirmCheck={onConfirmCheck}
       onPublish={vi.fn()}
       projectActivities={[]}
       projects={[]}
       projectsLoaded
       projectId=""
-      readOnly={false}
+      readOnly={readOnly}
       sadddCount={0}
       selectedFieldId=""
       selectedProject="No project selected"
@@ -68,6 +73,20 @@ describe('BuilderView draft summary', () => {
     expect(setSelectedFieldId).toHaveBeenCalledWith(
       initialFields.find((field) => field.code === 'beneficiary_id')?.id,
     )
+  })
+
+  it('offers Confirm only on a field that needs a check, and only while editable', () => {
+    const onConfirmCheck = vi.fn()
+    view(summary, vi.fn(), { onConfirmCheck })
+    const label = initialFields.find((field) => field.code === 'beneficiary_id')?.label
+    const confirm = screen.getByRole('button', { name: `Confirm ${label}` })
+    expect(confirm.getAttribute('title')).toBe('Confirm the field')
+    expect(screen.getAllByRole('button', { name: /^Confirm / })).toHaveLength(1)
+    fireEvent.click(confirm)
+    expect(onConfirmCheck).toHaveBeenCalledWith('beneficiary_id')
+    cleanup()
+    view(summary, vi.fn(), { readOnly: true })
+    expect(screen.queryByRole('button', { name: /^Confirm / })).toBeNull()
   })
 
   it('shows no summary panel without a draft from an import', () => {

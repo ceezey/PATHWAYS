@@ -490,6 +490,67 @@ describe('P02 metadata service', () => {
       expect(tx.auditLog.create).not.toHaveBeenCalled()
     })
 
+    describe('confirming a needs-check field', () => {
+      const summary = {
+        addedFields: [],
+        sourceNamesAdded: ['score'],
+        optionsAdded: [],
+        aliasesAdded: 0,
+        defaults: [],
+        rules: [],
+        needsCheck: [
+          { fieldCode: 'score', reason: 'SUGGESTED_SOURCE_NAME' },
+          { fieldCode: 'score', reason: 'RULE_PROPOSED' },
+          { fieldCode: 'sex', reason: 'ENUM_ANSWER_UNRESOLVED' },
+        ],
+      }
+      const confirm = (fieldCode = 'score') =>
+        service.confirmCheck(state.actor as ApplicationIdentity, projectId, formId, {
+          expectedUpdatedAt: now.toISOString(),
+          fieldCode,
+        })
+
+      it('removes every item of the field without making the actor the last editor', async () => {
+        tx.digitalForm.findFirst.mockResolvedValue(form({ importDraftSummary: summary }))
+        await confirm()
+        expect(tx.digitalForm.updateMany).toHaveBeenCalledWith({
+          where: expect.objectContaining({ status: 'DRAFT', updatedAt: now }),
+          data: {
+            importDraftSummary: {
+              ...summary,
+              needsCheck: [{ fieldCode: 'sex', reason: 'ENUM_ANSWER_UNRESOLVED' }],
+            },
+          },
+        })
+        expect(tx.auditLog.create).toHaveBeenCalledWith(
+          expect.objectContaining({
+            data: expect.objectContaining({
+              action: 'FORM_DRAFT_CHECK_CONFIRMED',
+              actorUserId: reviewerId,
+            }),
+          }),
+        )
+      })
+
+      it.each([
+        ['a field with nothing to confirm', form({ importDraftSummary: summary }), 'other'],
+        ['a draft with no summary', form({ importDraftSummary: null }), 'score'],
+        ['a published form', form({ status: 'PUBLISHED', importDraftSummary: summary }), 'score'],
+      ])('refuses %s before any write', async (_name, stored, fieldCode) => {
+        tx.digitalForm.findFirst.mockResolvedValue(stored)
+        await expect(confirm(fieldCode)).rejects.toBeInstanceOf(ConflictException)
+        expect(tx.digitalForm.updateMany).not.toHaveBeenCalled()
+        expect(tx.auditLog.create).not.toHaveBeenCalled()
+      })
+
+      it('refuses a stale form without an audit event', async () => {
+        tx.digitalForm.findFirst.mockResolvedValue(form({ importDraftSummary: summary }))
+        tx.digitalForm.updateMany.mockResolvedValue({ count: 0 })
+        await expect(confirm()).rejects.toBeInstanceOf(ConflictException)
+        expect(tx.auditLog.create).not.toHaveBeenCalled()
+      })
+    })
+
     it('publish is allowed for a third user', async () => {
       tx.digitalForm.findFirst.mockResolvedValue(form({ lastEditedById: authorId }))
       state.actor = actor(

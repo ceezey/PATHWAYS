@@ -194,6 +194,28 @@ export function useFormActions(state: CollectionState, guard: CollectionGuard) {
       ticket.finish()
     }
   }
+  // Clears a field's needs-check items on the server; unsaved field edits in the editor stay as they are.
+  const confirmCheck = async (fieldCode: string) => {
+    if (!editingFormId || !editingBaseUpdatedAt) return
+    const ticket = beginOperation('forms.manage')
+    if (!ticket) return
+    try {
+      const updated = await formsClient.confirmDraftCheck(
+        projectId,
+        editingFormId,
+        fieldCode,
+        editingBaseUpdatedAt,
+      )
+      if (!ticket.valid()) return
+      setForms((current) => current.map((form) => (form.id === updated.id ? updated : form)))
+      setEditingBaseUpdatedAt(updated.updatedAt)
+    } catch (error) {
+      if (ticket.valid())
+        toast.error(error instanceof Error ? error.message : 'The field could not be confirmed.')
+    } finally {
+      ticket.finish()
+    }
+  }
   const generateCopy = async () => {
     const source = forms.find((form) => form.id === editingFormId)
     if (!source || creatingVersion) return
@@ -218,7 +240,14 @@ export function useFormActions(state: CollectionState, guard: CollectionGuard) {
       ticket.finish()
     }
   }
-  return { createNewVersion, downloadSavedForm, generateCopy, publishFormToApi, saveDraftToApi }
+  return {
+    confirmCheck,
+    createNewVersion,
+    downloadSavedForm,
+    generateCopy,
+    publishFormToApi,
+    saveDraftToApi,
+  }
 }
 
 export type FormActions = ReturnType<typeof useFormActions>

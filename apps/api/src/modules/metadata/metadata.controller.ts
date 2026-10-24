@@ -14,6 +14,7 @@ import {
 } from '@nestjs/common'
 
 import {
+  type ConfirmDraftCheckRequest,
   type CreateFormRequest,
   type DraftFromImportRequest,
   type FormVersionRequest,
@@ -24,6 +25,7 @@ import {
   type UpdateFormRequest,
   type UpdateSubmissionRequest,
   type ValidateFormValuesRequest,
+  confirmDraftCheckRequest,
   createFormRequest,
   draftFromImportRequest,
   formVersionRequest,
@@ -111,6 +113,17 @@ export class MetadataController {
     @Body(new ZodPipe(updateFormRequest)) body: UpdateFormRequest,
   ) {
     return this.metadata.updateForm(requestIdentity(request), projectId, formId, body)
+  }
+
+  @Post(':formId/confirm-check')
+  @RequirePermission('forms.manage')
+  confirmCheck(
+    @Req() request: AuthenticatedRequest,
+    @Param('projectId') projectId: string,
+    @Param('formId') formId: string,
+    @Body(new ZodPipe(confirmDraftCheckRequest)) body: ConfirmDraftCheckRequest,
+  ) {
+    return this.metadata.confirmCheck(requestIdentity(request), projectId, formId, body)
   }
 
   @Post(':formId/publish')

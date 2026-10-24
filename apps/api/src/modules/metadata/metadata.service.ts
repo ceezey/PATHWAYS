@@ -1,6 +1,7 @@
 import { BadRequestException, Inject, Injectable } from '@nestjs/common'
 
 import type {
+  ConfirmDraftCheckRequest,
   CreateFormRequest,
   DraftFromImportRequest,
   FormValidationMode,
@@ -38,6 +39,7 @@ import {
 import { formTemplates } from './form-templates'
 import {
   archiveFormVersion,
+  confirmDraftCheck,
   createNextFormVersion,
   publishFormVersion,
   updateFormDefinition,
@@ -99,6 +101,17 @@ export class MetadataService {
     assertDefinition(input)
     return withAuthorizedOperation(this.prisma, identity, 'forms.manage', (tx, actor) =>
       updateFormDefinition(tx, actor, projectId, formId, input, this.publishedDefinitions),
+    )
+  }
+
+  confirmCheck(
+    identity: ApplicationIdentity,
+    projectId: string,
+    formId: string,
+    input: ConfirmDraftCheckRequest,
+  ) {
+    return withAuthorizedOperation(this.prisma, identity, 'forms.manage', (tx, actor) =>
+      confirmDraftCheck(tx, actor, projectId, formId, input),
     )
   }
 

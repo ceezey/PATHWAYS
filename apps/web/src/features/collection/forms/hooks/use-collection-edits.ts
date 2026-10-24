@@ -91,6 +91,7 @@ export function useCollectionEdits(state: CollectionState) {
     id: f.id,
     title: f.name,
     type: f.status,
+    projectId: f.projectId,
     project: projects.find((p) => p.id === f.projectId)?.title ?? f.projectId,
     fieldCount: f.fields.length,
     savedAt: f.updatedAt,

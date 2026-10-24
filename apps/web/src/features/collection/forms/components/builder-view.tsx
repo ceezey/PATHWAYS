@@ -3,6 +3,7 @@
 import {
   ArrowDown,
   ArrowUp,
+  Check,
   CheckCircle2,
   GripVertical,
   Pencil,
@@ -46,6 +47,7 @@ export const BuilderView = ({
   mappedCount,
   mode,
   moveField,
+  onConfirmCheck,
   onPublish,
   projectActivities,
   projects,
@@ -80,6 +82,7 @@ export const BuilderView = ({
   mappedCount: number
   mode: CollectionMode
   moveField: (fieldId: string, direction: 'up' | 'down') => void
+  onConfirmCheck: (fieldCode: string) => void
   onPublish: () => void
   projectActivities: ActivitySummary[]
   projects: ProjectSummary[]
@@ -210,6 +213,19 @@ export const BuilderView = ({
                   >
                     <ArrowDown className="h-4 w-4" aria-hidden="true" />
                   </Button>
+                  {canManage &&
+                  !readOnly &&
+                  draftSummary?.needsCheck.some((item) => item.fieldCode === field.code) ? (
+                    <Button
+                      aria-label={`Confirm ${field.label}`}
+                      size="icon"
+                      title="Confirm the field"
+                      variant="ghost"
+                      onClick={() => onConfirmCheck(field.code)}
+                    >
+                      <Check className="h-4 w-4" aria-hidden="true" />
+                    </Button>
+                  ) : null}
                   <Button
                     aria-label={`Edit ${field.label}`}
                     size="icon"
