@@ -428,7 +428,9 @@ describe('PRD-F6 gates', () => {
     )
 
     await expect(validate(service())).rejects.toThrow(
-      new BadRequestException('Every required form field must have a source mapping.'),
+      new BadRequestException(
+        'Every required form field must have a source mapping. No source for: score.',
+      ),
     )
 
     expect(fakeTx.dataImportRow.findMany).not.toHaveBeenCalled()
@@ -801,7 +803,9 @@ describe('metadata-driven intake validation', () => {
     const imports = registrar()
 
     await expect(validate(imports)).rejects.toThrow(
-      new BadRequestException('Every required form field must have a source mapping.'),
+      new BadRequestException(
+        'Every required form field must have a source mapping. No source for: data_processing_consent_recorded.',
+      ),
     )
     await expect(runProcess(imports)).rejects.toBeInstanceOf(ConflictException)
 

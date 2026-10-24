@@ -7,9 +7,9 @@ import {
   normalizeImportedRow,
 } from '@pathways/imports/server'
 import {
-  CALCULATED_RULE_KINDS,
   type FieldIntakeRule,
   type ValidateImportRequest,
+  isCalculatedRule,
 } from '@pathways/shared'
 import { Prisma } from '@prisma/client'
 import { writeAuditLog } from '../../common/audit/write-audit-log'
@@ -20,9 +20,6 @@ import { currentBusinessDate } from '../../common/time/business-date'
 import { lockBatch, mapStoredBatch, requireBatchWithHeaders } from './import-batches.service'
 import { safeRawData, safeSourceColumns, stableJson, storedValueMap } from './imports.helpers'
 import { type FieldRow, fieldSelection } from './imports.mapper'
-
-const isCalculated = (rule: FieldIntakeRule | null) =>
-  rule !== null && (CALCULATED_RULE_KINDS as readonly string[]).includes(rule.kind)
 
 function intakeField(row: FieldRow): IntakeField {
   return {
@@ -98,9 +95,12 @@ export async function validateBatchRows(
   const supplied = (field: FieldRow) =>
     mappedCodes.has(field.code) ||
     !!field.importDefault ||
-    isCalculated(field.rule as FieldIntakeRule | null)
-  if (formFields.some((field) => field.isRequired && !supplied(field))) {
-    throw new BadRequestException('Every required form field must have a source mapping.')
+    isCalculatedRule(field.rule as FieldIntakeRule | null)
+  const unsupplied = formFields.filter((field) => field.isRequired && !supplied(field))
+  if (unsupplied.length) {
+    throw new BadRequestException(
+      `Every required form field must have a source mapping. No source for: ${unsupplied.map((field) => field.code).join(', ')}.`,
+    )
   }
   const fields = [
     ...mappedFields,
