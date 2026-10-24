@@ -183,7 +183,14 @@ export class ImportsService {
     } catch (error) {
       const failureCode =
         error instanceof ImportParseError ? error.code.slice(0, 64) : 'PARSER_REJECTED_INPUT'
-      await this.markUploadFailure(identity, projectId, reservation.batchId, failureCode, stored)
+      await this.markUploadFailure(
+        identity,
+        projectId,
+        reservation.batchId,
+        failureCode,
+        stored,
+        error instanceof ImportParseError ? error.message : undefined,
+      )
       if (error instanceof ImportParseError) {
         throw new BadRequestException({ message: error.message, code: error.code })
       }
@@ -450,9 +457,10 @@ export class ImportsService {
     batchId: string,
     failureCode: string,
     stored = false,
+    failureMessage?: string,
   ) {
     return withAuthorizedOperation(this.prisma, identity, 'imports.upload', (tx, actor) =>
-      recordUploadFailure(tx, actor, projectId, batchId, failureCode, stored),
+      recordUploadFailure(tx, actor, projectId, batchId, failureCode, stored, failureMessage),
     )
   }
 

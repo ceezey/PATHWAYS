@@ -122,19 +122,77 @@ describe('secure import parser', () => {
     await expectCode(parseSecureImport(Buffer.from('__proto__,name\na,b'), 'CSV'), 'HEADER_UNSAFE')
   })
 
-  it('rejects formula-like CSV values and workbook formulas or links', async () => {
+  it('imports the saved value of a workbook formula without evaluating it', async () => {
+    const parsed = await parseSecureImport(
+      workbookBuffer([['total'], [0]], 'xlsx', (sheet) => {
+        // The saved value deliberately differs from what the formula would compute.
+        sheet.A2 = { t: 'n', v: 7, f: '1+1' }
+      }),
+      'XLSX',
+    )
+    expect(parsed.rows[0]?.values.column_0001).toBe(7)
+  })
+
+  it('refuses a formula with no saved value, naming the cell', async () => {
+    const work = parseSecureImport(
+      workbookBuffer([['total'], [0]], 'xlsx', (sheet) => {
+        sheet.A2 = { t: 'n', f: '1+1' }
+      }),
+      'XLSX',
+    )
+    await expect(work).rejects.toMatchObject({
+      code: 'WORKBOOK_FORMULA_NO_VALUE',
+      message: expect.stringContaining('Cell A2'),
+    })
+  })
+
+  it('drops trailing blank columns and names a blank header by its position', async () => {
+    const parsed = await parseSecureImport(
+      workbookBuffer(
+        [
+          ['Name', null, 'Track'],
+          ['Ana', 'x', 'A'],
+        ],
+        'xlsx',
+        (sheet) => {
+          // Formatting past the data widens the sheet range with empty cells.
+          sheet['!ref'] = 'A1:F4'
+        },
+      ),
+      'XLSX',
+    )
+    expect(parsed.sourceColumns.map((column) => column.header)).toEqual([
+      'Name',
+      'Column 2',
+      'Track',
+    ])
+    expect(parsed.rows).toHaveLength(1)
+    expect(parsed.rows[0]?.values).toEqual({
+      column_0001: 'Ana',
+      column_0002: 'x',
+      column_0003: 'A',
+    })
+  })
+
+  it('keeps CSV values past the last header under a positional header', async () => {
+    const parsed = await parseSecureImport(Buffer.from('Name\nAna,extra\n'), 'CSV')
+    expect(parsed.sourceColumns.map((column) => column.header)).toEqual(['Name', 'Column 2'])
+    expect(parsed.rows[0]?.values.column_0002).toBe('extra')
+  })
+
+  it('rejects formula-like CSV values, formula-like saved values and workbook links', async () => {
     await expectCode(
       parseSecureImport(Buffer.from('name,total\nAlice,=1+1'), 'CSV'),
       'CELL_FORMULA_UNSAFE',
     )
     await expectCode(
       parseSecureImport(
-        workbookBuffer([['total'], [2]], 'xlsx', (sheet) => {
-          sheet.A2 = { t: 'n', v: 2, f: '1+1' }
+        workbookBuffer([['total'], ['x']], 'xlsx', (sheet) => {
+          sheet.A2 = { t: 's', v: '=HYPERLINK("x")', f: 'A3' }
         }),
         'XLSX',
       ),
-      'WORKBOOK_FORMULA_REQUIRES_VALUES_ONLY',
+      'CELL_FORMULA_UNSAFE',
     )
     await expectCode(
       parseSecureImport(

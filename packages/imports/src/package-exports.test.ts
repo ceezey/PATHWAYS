@@ -25,6 +25,7 @@ describe('package entry points', () => {
     expect(Object.keys(browser).sort()).toEqual(
       [
         ...smartMatch,
+        'DATE_ORDERS',
         'IMPORT_ENGINEERING_LIMITS',
         'IMPORT_VALUE_MAP_LIMITS',
         'WASHINGTON_GROUP_LEVELS_V1',
@@ -34,6 +35,7 @@ describe('package entry points', () => {
         'comparableAnswer',
         'compareHeaders',
         'compatibleImportDataTypes',
+        'fittingDateOrders',
         'createFileSummary',
         'formatPmerlRows',
         'hasLetterPrefix',
@@ -42,6 +44,7 @@ describe('package entry points', () => {
         'mapKey',
         'parseCsv',
         'parseWorkbook',
+        'readDate',
         'resolveAnswer',
         'stripLetterPrefix',
         'suggestValueMap',
@@ -57,6 +60,7 @@ describe('package entry points', () => {
     expect(Object.keys(server).sort()).toEqual(
       [
         ...smartMatch,
+        'DATE_ORDERS',
         'IMPORT_ENGINEERING_LIMITS',
         'IMPORT_VALUE_MAP_LIMITS',
         'WASHINGTON_GROUP_LEVELS_V1',
@@ -67,12 +71,14 @@ describe('package entry points', () => {
         'buildImportValueMap',
         'comparableAnswer',
         'compatibleImportDataTypes',
+        'fittingDateOrders',
         'draftFormFromImport',
         'hasLetterPrefix',
         'importCoverage',
         'mapKey',
         'normalizeImportedRow',
         'parseSecureImport',
+        'readDate',
         'resolveAnswer',
         'stripLetterPrefix',
         'washingtonGroupLevel',

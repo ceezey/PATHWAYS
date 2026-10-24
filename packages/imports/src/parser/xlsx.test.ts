@@ -37,10 +37,10 @@ describe('parseWorkbook', () => {
     const buffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' })
 
     expect(parseWorkbook(buffer)).toEqual({
-      headers: ['code', 'score', 'score_1', '__EMPTY'],
+      headers: ['code', 'score', 'score_1', 'Column 4'],
       rows: [
-        { code: 'BEN-001', score: 12, score_1: 'x', __EMPTY: 'extra' },
-        { code: 'BEN-002', score: '', score_1: '', __EMPTY: '' },
+        { code: 'BEN-001', score: 12, score_1: 'x', 'Column 4': 'extra' },
+        { code: 'BEN-002', score: '', score_1: '', 'Column 4': '' },
       ],
       sheetNames: ['Data'],
     })

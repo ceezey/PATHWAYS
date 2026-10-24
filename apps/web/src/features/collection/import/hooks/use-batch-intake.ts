@@ -3,6 +3,7 @@ import { toast } from 'sonner'
 import { importsClient } from '@/lib/api/imports'
 
 import { importOutcomeMessage } from '../../collection.copy'
+import { uploadFailure } from '../import.utils'
 import { draftFormFromImport } from '../prepare-draft'
 import type { BatchProcessing } from './use-batch-processing'
 import type { BatchReview } from './use-batch-review'
@@ -85,6 +86,11 @@ export function useBatchIntake(state: ImportState, review: BatchReview, run: Bat
       if (!ticket.valid('imports.read')) return
       await loadBatch(created.id, ticket)
       if (!ticket.valid()) return
+      const failure = uploadFailure(created)
+      if (failure) {
+        toast.error(failure)
+        return
+      }
       toast.success(`Import re-run against version ${rerunTarget.version} of the form.`)
       validated = checked
     } catch (error) {

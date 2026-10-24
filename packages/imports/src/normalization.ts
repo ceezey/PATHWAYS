@@ -4,6 +4,7 @@ import {
   validateAndNormalizeFormData,
 } from '@pathways/shared'
 import { answerResolver } from './answers'
+import { type ImportDateRule, readDate } from './date-order'
 import {
   type ImportRowWarning,
   type ImportValueError,
@@ -27,6 +28,7 @@ function conversionError(field: FormFieldValidationContract, code: string, messa
 function convert(
   field: FormFieldValidationContract,
   raw: unknown,
+  date?: ImportDateRule,
 ): { value: NormalizedImportValue; error?: ImportValueError } {
   if (raw === null || raw === undefined || raw === '') return { value: null }
   if (field.dataType === 'TEXT' || field.dataType === 'LONG_TEXT' || field.dataType === 'SELECT') {
@@ -64,6 +66,8 @@ function convert(
     if (typeof raw === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(raw.trim())) {
       return { value: raw.trim() }
     }
+    const read = typeof raw === 'string' && date ? readDate(raw, date) : null
+    if (read) return { value: read }
     return {
       value: null,
       error: conversionError(field, 'AMBIGUOUS_DATE', 'Expected a YYYY-MM-DD calendar date.'),
@@ -160,9 +164,9 @@ export function normalizeImportedRow(
     }
     const declared =
       rule?.dataType && rule.dataType !== field.dataType
-        ? convert({ ...field, dataType: rule.dataType }, raw)
+        ? convert({ ...field, dataType: rule.dataType }, raw, rule.date)
         : null
-    let converted = declared?.error ? declared : convert(field, raw)
+    let converted = declared?.error ? declared : convert(field, raw, rule?.date)
     if (field.dataType === 'MULTIPLE_SELECT' && Array.isArray(converted.value)) {
       const resolveElement = resolverFor(field)
       converted = { value: converted.value.map((item) => resolveElement(item) ?? item) }

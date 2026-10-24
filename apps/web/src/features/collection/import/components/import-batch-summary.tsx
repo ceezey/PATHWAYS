@@ -55,7 +55,7 @@ export function ImportBatchSummary({
         ) : null}
         {batch.failureCode ? (
           <p className="mt-4 rounded-md border border-warning/30 bg-warning-subtle p-3 text-sm text-warning">
-            Import notice: {enumLabel(batch.failureCode)}
+            Import notice: {batch.failureMessage ?? enumLabel(batch.failureCode)}
           </p>
         ) : null}
         <div className="mt-4 flex flex-wrap gap-2">

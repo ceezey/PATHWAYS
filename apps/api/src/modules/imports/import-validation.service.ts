@@ -4,6 +4,7 @@ import {
   type ImportColumnRule,
   type IntakeField,
   buildImportValueMap,
+  fittingDateOrders,
   normalizeImportedRow,
 } from '@pathways/imports/server'
 import {
@@ -124,8 +125,22 @@ export async function validateBatchRows(
   })
   const validationRevision = batch.validationRevision + 1
   const uploadDate = currentBusinessDate(batch.createdAt)
-  const results = rows.map((row) => {
-    const raw = safeRawData(row.rawData)
+  const raws = rows.map((row) => safeRawData(row.rawData))
+  // A text date column is read without asking when exactly one day-month-year order fits every value.
+  const referenceYear = Number(uploadDate.slice(0, 4))
+  for (const mapping of mappings) {
+    const target = mapping.status === 'MAPPED' ? mapping.targetField : null
+    if (!target || (mapping.dataType ?? target.dataType) !== 'DATE') continue
+    const orders = fittingDateOrders(
+      raws.map((raw) => raw[mapping.sourceFieldName]),
+      referenceYear,
+    )
+    if (orders.length === 1) {
+      rules[target.code] = { ...rules[target.code], date: { order: orders[0], referenceYear } }
+    }
+  }
+  const results = rows.map((row, index) => {
+    const raw = raws[index]
     const byFieldCode = Object.create(null) as Record<string, unknown>
     for (const mapping of mappings) {
       if (mapping.status === 'MAPPED' && mapping.targetField) {
