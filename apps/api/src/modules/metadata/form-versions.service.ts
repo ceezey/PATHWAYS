@@ -1,10 +1,12 @@
 import { BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common'
 import {
+  type ConfirmDraftCheckRequest,
   type DraftSummaryResponse,
   type FormVersionRequest,
   type UpdateFormRequest,
   activityMonitoringDefinitionErrors,
   beneficiaryRegistrationDefinitionErrors,
+  draftSummaryResponse,
   validateAndNormalizeFormData,
 } from '@pathways/shared'
 import { writeAuditLog } from '../../common/audit/write-audit-log'
@@ -66,6 +68,48 @@ export async function updateFormDefinition(
     entityType: 'DigitalForm',
     entityId: current.id,
     changes: { version: current.version, fieldCount: input.fields.length },
+  })
+  return mapForm(await findForm(tx, actor, current.projectId, current.id), actor)
+}
+
+// Confirming a needs-check field is a review step, so it leaves the last editor unchanged and the editor may still publish.
+export async function confirmDraftCheck(
+  tx: Tx,
+  actor: ApplicationIdentity,
+  projectId: string,
+  formId: string,
+  input: ConfirmDraftCheckRequest,
+) {
+  const current = await requireForm(tx, actor, projectId, formId)
+  if (current.status !== 'DRAFT') throw new ConflictException('Only a draft can be checked.')
+  const summary = draftSummaryResponse.safeParse(current.importDraftSummary).data
+  const remaining = summary?.needsCheck.filter((item) => item.fieldCode !== input.fieldCode)
+  if (!summary || !remaining || remaining.length === summary.needsCheck.length) {
+    throw new ConflictException('This field has nothing to confirm; reload the form.')
+  }
+  const changed = await tx.digitalForm.updateMany({
+    where: {
+      id: current.id,
+      organizationId: actor.organizationId,
+      projectId: current.projectId,
+      status: 'DRAFT',
+      updatedAt: expectedDate(input.expectedUpdatedAt),
+    },
+    data: { importDraftSummary: { ...summary, needsCheck: remaining } },
+  })
+  if (changed.count !== 1) throw new ConflictException('Form changed; reload before saving.')
+  await writeAuditLog(tx, actor, {
+    projectId: current.projectId,
+    action: 'FORM_DRAFT_CHECK_CONFIRMED',
+    entityType: 'DigitalForm',
+    entityId: current.id,
+    changes: {
+      version: current.version,
+      fieldCode: input.fieldCode,
+      reasons: summary.needsCheck
+        .filter((item) => item.fieldCode === input.fieldCode)
+        .map((item) => item.reason),
+    },
   })
   return mapForm(await findForm(tx, actor, current.projectId, current.id), actor)
 }

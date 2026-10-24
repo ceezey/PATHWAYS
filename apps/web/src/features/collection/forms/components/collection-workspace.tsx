@@ -133,7 +133,8 @@ const OwnedCollectionWorkspace = (
     eligible,
   } = guard
   const { changeInput, changeProject, openBuilder, openSavedForm, savedForms, startNewForm } = edits
-  const { createNewVersion, downloadSavedForm, generateCopy, publishFormToApi } = formActions
+  const { confirmCheck, createNewVersion, downloadSavedForm, generateCopy, publishFormToApi } =
+    formActions
   const {
     importCanProceed,
     importSummary,
@@ -278,6 +279,7 @@ const OwnedCollectionWorkspace = (
               mappedCount={mappedCount}
               mode={mode}
               moveField={moveField}
+              onConfirmCheck={(code) => void confirmCheck(code)}
               onPublish={() => void publishFormToApi()}
               projectActivities={projectActivities}
               projects={projects}

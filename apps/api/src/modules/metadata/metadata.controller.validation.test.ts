@@ -19,6 +19,7 @@ const metadata = {
   createForm: vi.fn(),
   updateForm: vi.fn(),
   archiveForm: vi.fn(),
+  confirmCheck: vi.fn(),
   updateSubmission: vi.fn(),
   submitSubmission: vi.fn(),
   generateForm: vi.fn(),
@@ -205,6 +206,15 @@ describe('metadata update, archive, edit and submit bodies', () => {
       service: metadata.archiveForm,
       sent: { expectedUpdatedAt: stamp },
       parsed: { expectedUpdatedAt: stamp },
+      args: [formId],
+    },
+    {
+      name: 'confirm a needs-check field',
+      method: 'POST',
+      route: `/${formId}/confirm-check`,
+      service: metadata.confirmCheck,
+      sent: { expectedUpdatedAt: stamp, fieldCode: 'sex' },
+      parsed: { expectedUpdatedAt: stamp, fieldCode: 'sex' },
       args: [formId],
     },
     {

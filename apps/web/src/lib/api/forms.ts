@@ -1,4 +1,5 @@
 import type {
+  ConfirmDraftCheckRequest,
   CreateFormRequest,
   DraftFromImportRequest,
   DraftFromImportResponse,
@@ -56,6 +57,21 @@ export const formsClient = {
     return requestFoundation(
       `/metadata/projects/${encodeURIComponent(projectId)}/forms/${encodeURIComponent(formId)}/publish`,
       { method: 'POST', body: JSON.stringify({ expectedUpdatedAt } satisfies FormVersionRequest) },
+    ) as Promise<FormResponse>
+  },
+
+  async confirmDraftCheck(
+    projectId: string,
+    formId: string,
+    fieldCode: string,
+    expectedUpdatedAt: string,
+  ) {
+    return requestFoundation(
+      `/metadata/projects/${encodeURIComponent(projectId)}/forms/${encodeURIComponent(formId)}/confirm-check`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ expectedUpdatedAt, fieldCode } satisfies ConfirmDraftCheckRequest),
+      },
     ) as Promise<FormResponse>
   },
 

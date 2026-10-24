@@ -119,6 +119,12 @@ export type GenerateFormRequest = z.infer<typeof generateFormRequest>
 export const formVersionRequest = z.object({ expectedUpdatedAt: isoDateString }).strict()
 export type FormVersionRequest = z.infer<typeof formVersionRequest>
 
+// Body of POST metadata/projects/:projectId/forms/:formId/confirm-check.
+export const confirmDraftCheckRequest = z
+  .object({ expectedUpdatedAt: isoDateString, fieldCode: formFieldCode })
+  .strict()
+export type ConfirmDraftCheckRequest = z.infer<typeof confirmDraftCheckRequest>
+
 // Body of POST metadata/projects/:projectId/forms/:formId/validate.
 export const validateFormValuesRequest = z.object({ values: formResponseValues }).strict()
 export type ValidateFormValuesRequest = z.infer<typeof validateFormValuesRequest>

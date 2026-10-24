@@ -1,5 +1,5 @@
 /* @vitest-environment jsdom */
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { DisplayLabelsProvider } from '@/providers/display-labels-provider'
@@ -7,6 +7,7 @@ import { DisplayLabelsProvider } from '@/providers/display-labels-provider'
 import { CollectionWorkspace } from './collection-workspace'
 
 const api = vi.hoisted(() => ({
+  confirmDraftCheck: vi.fn(),
   getDigitalForms: vi.fn(),
   getActivities: vi.fn(),
   getIndicators: vi.fn(),
@@ -24,7 +25,9 @@ const access = vi.hoisted(() => ({
 }))
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
 vi.mock('@/providers/current-role-provider', () => ({ useCurrentRole: () => access }))
-vi.mock('@/lib/api/forms', () => ({ formsClient: { getDigitalForms: api.getDigitalForms } }))
+vi.mock('@/lib/api/forms', () => ({
+  formsClient: { confirmDraftCheck: api.confirmDraftCheck, getDigitalForms: api.getDigitalForms },
+}))
 vi.mock('@/lib/api/indicators', () => ({ indicatorsClient: { getIndicators: api.getIndicators } }))
 vi.mock('@/lib/api/activities', () => ({ activitiesClient: { getActivities: api.getActivities } }))
 vi.mock('@/lib/api/projects', () => ({
@@ -105,6 +108,31 @@ describe('draft prepared from an import', () => {
       expect(screen.queryByText('Draft from import')).toBeNull()
       cleanup()
     }
+  })
+
+  it('confirms a needs-check field against the loaded draft and drops its badge', async () => {
+    const flagged = {
+      ...draft,
+      draftSummary: {
+        ...summary,
+        needsCheck: [{ fieldCode: 'given_name', reason: 'SUGGESTED_SOURCE_NAME' }],
+      },
+    }
+    api.getDigitalForms.mockResolvedValue([flagged])
+    api.confirmDraftCheck.mockResolvedValue({
+      ...draft,
+      updatedAt: '2026-10-24T00:00:00Z',
+    })
+    open()
+    fireEvent.click(await screen.findByRole('button', { name: 'Confirm Given name' }))
+    await waitFor(() => expect(screen.queryByText('Needs check')).toBeNull())
+    expect(api.confirmDraftCheck).toHaveBeenCalledWith(
+      'project-1',
+      'draft-1',
+      'given_name',
+      '2026-10-23T00:00:00Z',
+    )
+    expect(screen.queryByRole('button', { name: 'Confirm Given name' })).toBeNull()
   })
 
   it('shows no summary when the form is opened any other way', async () => {
