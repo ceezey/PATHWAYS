@@ -54,6 +54,7 @@ export async function readRerunSource(
     storageObjectKey: batch.storageObjectKey,
     sourceChecksum: batch.sourceChecksum,
     originalFileName: batch.originalFileName,
+    sourceSheetName: batch.sourceSheetName,
     fileType: batch.fileType as SupportedImportFileType,
     formVersion: newest.version,
   }

@@ -66,3 +66,7 @@ export const parseWorkbook = (input: ArrayBuffer): WorkbookParseResult => {
     sheetNames: workbook.SheetNames,
   }
 }
+
+/** The worksheet names of a workbook, read without parsing any cells. */
+export const workbookSheetNames = (input: ArrayBuffer): string[] =>
+  XLSX.read(input, { type: 'array', bookSheets: true }).SheetNames

@@ -146,7 +146,10 @@ try {
         if (cell && cell.l) links = true;
       }
     }
-    const first = workbook.SheetNames[0];
+    const first = workerData.sheetName === null
+      ? workbook.SheetNames[0]
+      : workbook.SheetNames.find((name) => name === workerData.sheetName);
+    if (workerData.sheetName !== null && first === undefined) throw { code: 'WORKBOOK_SHEET_MISSING' };
     // A formula is never evaluated: its saved value is imported, and a formula without one refuses the file.
     let formulaGap;
     for (const key of Object.keys((first && workbook.Sheets[first]) || {})) {
@@ -188,8 +191,9 @@ try {
       macros: Boolean(workbook.vbaraw),
     });
   }
-} catch {
-  parentPort.postMessage({ error: 'PARSER_REJECTED_INPUT' });
+} catch (error) {
+  const missing = error && error.code === 'WORKBOOK_SHEET_MISSING';
+  parentPort.postMessage({ error: missing ? 'WORKBOOK_SHEET_MISSING' : 'PARSER_REJECTED_INPUT' });
 }
 `
 
@@ -305,7 +309,12 @@ const PARSER_WORKER_RESOURCE_LIMITS = Object.freeze({
 
 type ParserLimits = PdfTableLimits & { maxPdfPages: number }
 
-function runParserWorker(input: Buffer, fileType: SupportedImportFileType, limits: ParserLimits) {
+function runParserWorker(
+  input: Buffer,
+  fileType: SupportedImportFileType,
+  limits: ParserLimits,
+  sheetName: string | null,
+) {
   return new Promise<WorkerResult>((resolve, rejectPromise) => {
     const worker = new Worker(WORKER_SOURCE, {
       eval: true,
@@ -313,6 +322,7 @@ function runParserWorker(input: Buffer, fileType: SupportedImportFileType, limit
       workerData: {
         input,
         fileType,
+        sheetName,
         papaPath: require.resolve('papaparse'),
         xlsxPath: require.resolve('xlsx'),
         unpdfPath: fileType === 'PDF' ? require.resolve('unpdf') : null,
@@ -362,6 +372,7 @@ function runParserWorker(input: Buffer, fileType: SupportedImportFileType, limit
 const genericParserMessage = 'The file could not be parsed safely.'
 
 const parserErrorMessages: Record<string, string> = {
+  WORKBOOK_SHEET_MISSING: 'The chosen worksheet is not in this workbook. Choose the sheet again.',
   PDF_NO_TEXT_LAYER:
     'This PDF has no text layer. Scanned PDFs are not supported; export the data as CSV or XLSX.',
   PDF_ENCRYPTED: 'Password-protected PDFs are not supported. Upload an unprotected copy.',
@@ -469,6 +480,7 @@ export async function parseSecureImport(
   input: Buffer,
   fileType: SupportedImportFileType,
   tighter: Partial<ParserLimits> = {},
+  sheetName: string | null = null,
 ): Promise<SecureImportParseResult> {
   const bounded = (key: keyof ParserLimits) =>
     Math.min(IMPORT_ENGINEERING_LIMITS[key], tighter[key] ?? Number.POSITIVE_INFINITY)
@@ -487,7 +499,8 @@ export async function parseSecureImport(
   if (fileType === 'XLSX') inspectXlsxContainer(input)
   if (fileType === 'XLS') inspectXlsSignature(input)
   if (fileType === 'PDF') inspectPdfSignature(input)
-  const parsed = await runParserWorker(input, fileType, limits)
+  const workbook = fileType === 'XLSX' || fileType === 'XLS'
+  const parsed = await runParserWorker(input, fileType, limits, workbook ? sheetName : null)
   if (parsed.error) {
     const code = workerErrorCodes.has(parsed.error) ? parsed.error : 'PARSER_REJECTED_INPUT'
     reject(code, parserErrorMessages[code] ?? genericParserMessage)
@@ -504,10 +517,11 @@ export async function parseSecureImport(
   if ((parsed.sheetNames?.length ?? 0) > IMPORT_ENGINEERING_LIMITS.maxWorkbookSheets) {
     reject('WORKBOOK_SHEET_LIMIT', 'The workbook has too many worksheets.')
   }
-  if ((fileType === 'XLSX' || fileType === 'XLS') && parsed.sheetNames?.length !== 1) {
+  // A workbook with several sheets is read only from the sheet the uploader chose, so no rows are skipped unseen.
+  if (workbook && sheetName === null && parsed.sheetNames?.length !== 1) {
     reject(
       'WORKBOOK_SHEET_AMBIGUOUS',
-      'Workbooks must contain exactly one worksheet so no source rows are silently omitted.',
+      `This workbook has ${parsed.sheetNames?.length ?? 0} worksheets. Choose the sheet to import, then upload again.`,
     )
   }
   const normalized = normalizeMatrix(parsed.matrix ?? [])

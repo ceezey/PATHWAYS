@@ -53,10 +53,10 @@ export class ImportsController {
       limits: {
         fileSize: IMPORT_ENGINEERING_LIMITS.maxBytes,
         files: 1,
-        fields: 2,
+        fields: 3,
         fieldNameSize: 64,
         fieldSize: 256,
-        parts: 4,
+        parts: 5,
       },
     }),
   )

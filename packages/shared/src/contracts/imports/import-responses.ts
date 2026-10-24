@@ -2,6 +2,7 @@ import { z } from 'zod'
 
 import { supportedFormFieldTypes } from '../../validation/form-data'
 import { digitalFormTypes } from '../metadata/form-requests'
+import { importDateOrders } from './import-requests'
 
 // Response shapes of the import routes, used as types and never parsed at runtime.
 
@@ -25,6 +26,7 @@ export const importBatchResponse = z.object({
   formName: z.string(),
   formType: z.enum(digitalFormTypes),
   originalFileName: z.string(),
+  sourceSheetName: z.string().nullable(),
   fileType: z.enum(['CSV', 'XLSX', 'XLS', 'JSON', 'OTHER', 'PDF']),
   clientImportId: z.string(),
   storageStatus: z.enum(['RESERVED', 'STORED', 'RECOVERY_REQUIRED', 'FAILED']),
@@ -77,6 +79,7 @@ export const importMappingResponse = z.object({
   matchReason: z.string().nullable(),
   dataType: z.enum(supportedFormFieldTypes).nullable(),
   valueMap: z.array(z.object({ from: z.string(), to: z.string() })).nullable(),
+  dateOrder: z.enum(importDateOrders).nullable(),
 })
 export type ImportMappingResponse = z.infer<typeof importMappingResponse>
 

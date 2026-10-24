@@ -38,6 +38,7 @@ interface FakeMapping {
   status: 'MAPPED' | 'IGNORED'
   dataType?: string
   valueMap?: Array<{ from: string; to: string }>
+  dateOrder?: string
   targetField: Json | null
 }
 
@@ -821,6 +822,21 @@ describe('metadata-driven intake validation', () => {
     expect(writes[0].validation_errors).toEqual([
       expect.objectContaining({ fieldCode: 'enrollment_date', code: 'AMBIGUOUS_DATE' }),
     ])
+  })
+
+  it('reads ambiguous text dates by the date order a reviewer saved with the mapping', async () => {
+    state.store = registrationStore(true, (row) => ({ ...row, column_0005: '26/01/15' }))
+    const enrollment = state.store.mappings.find(
+      (mapping) => (mapping.targetField as { code?: string } | null)?.code === 'enrollment_date',
+    )
+    if (!enrollment) throw new Error('fixture lost the enrollment mapping')
+    enrollment.dateOrder = 'YMD'
+
+    await validate(service())
+
+    const writes = rowWrites()
+    expect(writes.map((row) => row.status)).toEqual(Array(10).fill('VALID'))
+    expect(writes[0].normalized_data).toMatchObject({ enrollment_date: '2026-01-15' })
   })
 
   it('without SAME_ANSWER_AS the required consent has no source and no row is promoted', async () => {

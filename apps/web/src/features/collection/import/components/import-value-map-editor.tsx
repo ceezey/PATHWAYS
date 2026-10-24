@@ -1,6 +1,7 @@
 'use client'
 
 import {
+  type DateOrder,
   IMPORT_VALUE_MAP_LIMITS,
   compatibleImportDataTypes,
   suggestValueMap,
@@ -23,6 +24,7 @@ import type { FormFieldDataType, ImportMappingInput } from '@/types/pathways'
 export interface ColumnRuleDraft {
   dataType: FormFieldDataType | ''
   pairs: Array<{ from: string; to: string }>
+  dateOrder?: DateOrder | ''
 }
 
 export const emptyColumnRule: ColumnRuleDraft = { dataType: '', pairs: [] }
@@ -35,10 +37,12 @@ export function ruleToMappingInput(rule: ColumnRuleDraft | undefined, fieldType?
     compatibleImportDataTypes(fieldType as FormFieldDataType).includes(rule.dataType)
       ? rule.dataType
       : undefined
+  const dated = (dataType ?? fieldType) === 'DATE' && rule?.dateOrder
   return {
     ...(dataType ? { dataType } : {}),
     ...(pairs.length ? { valueMap: pairs } : {}),
-  } satisfies Pick<ImportMappingInput, 'dataType' | 'valueMap'>
+    ...(dated ? { dateOrder: rule.dateOrder as DateOrder } : {}),
+  } satisfies Pick<ImportMappingInput, 'dataType' | 'valueMap' | 'dateOrder'>
 }
 
 interface Props {

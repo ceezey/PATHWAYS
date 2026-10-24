@@ -1,5 +1,6 @@
 import { BadRequestException, ConflictException } from '@nestjs/common'
 import {
+  type DateOrder,
   IMPORT_ENGINEERING_LIMITS,
   type ImportColumnRule,
   type IntakeField,
@@ -55,6 +56,7 @@ export async function validateBatchRows(
       status: true,
       dataType: true,
       valueMap: true,
+      dateOrder: true,
       targetField: { select: fieldSelection },
     },
     take: IMPORT_ENGINEERING_LIMITS.maxSourceColumns,
@@ -126,15 +128,17 @@ export async function validateBatchRows(
   const validationRevision = batch.validationRevision + 1
   const uploadDate = currentBusinessDate(batch.createdAt)
   const raws = rows.map((row) => safeRawData(row.rawData))
-  // A text date column is read without asking when exactly one day-month-year order fits every value.
+  // A text date column uses the reviewer's date order, else the one order that fits every value.
   const referenceYear = Number(uploadDate.slice(0, 4))
   for (const mapping of mappings) {
     const target = mapping.status === 'MAPPED' ? mapping.targetField : null
     if (!target || (mapping.dataType ?? target.dataType) !== 'DATE') continue
-    const orders = fittingDateOrders(
-      raws.map((raw) => raw[mapping.sourceFieldName]),
-      referenceYear,
-    )
+    const orders = mapping.dateOrder
+      ? [mapping.dateOrder as DateOrder]
+      : fittingDateOrders(
+          raws.map((raw) => raw[mapping.sourceFieldName]),
+          referenceYear,
+        )
     if (orders.length === 1) {
       rules[target.code] = { ...rules[target.code], date: { order: orders[0], referenceYear } }
     }

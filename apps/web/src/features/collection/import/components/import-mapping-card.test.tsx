@@ -67,6 +67,7 @@ const renderCard = (over: { canManageForms?: boolean; receipts?: object; batch?:
               matchReason: 'EXACT',
               dataType: null,
               valueMap: null,
+              dateOrder: null,
             },
           ],
         ]),

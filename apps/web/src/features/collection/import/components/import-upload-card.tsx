@@ -40,6 +40,9 @@ export function ImportUploadCard({
     | 'setForms'
     | 'setProjectId'
     | 'setRows'
+    | 'setSheetName'
+    | 'sheetName'
+    | 'sheetNames'
   >
   review: Pick<BatchReview, 'upload'>
 }) {
@@ -61,6 +64,9 @@ export function ImportUploadCard({
     setForms,
     setProjectId,
     setRows,
+    setSheetName,
+    sheetName,
+    sheetNames,
   } = state
   const { upload } = review
   return (
@@ -161,9 +167,38 @@ export function ImportUploadCard({
             }}
           />
         </div>
+        {sheetNames && sheetNames.length > 1 ? (
+          <div className="space-y-2 md:col-start-3">
+            <Label htmlFor="import-sheet">Sheet</Label>
+            <Select
+              value={sheetName || undefined}
+              onValueChange={(value) => {
+                if (!mutation.current && scope.isCurrent()) setSheetName(value)
+              }}
+            >
+              <SelectTrigger id="import-sheet">
+                <SelectValue placeholder={`Choose one of ${sheetNames.length} sheets`} />
+              </SelectTrigger>
+              <SelectContent>
+                {sheetNames.map((name) => (
+                  <SelectItem key={name} value={name}>
+                    {name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        ) : null}
         <div className="md:col-span-3">
           <Button
-            disabled={!canUpload || pending || !file || !formId}
+            disabled={
+              !canUpload ||
+              pending ||
+              !file ||
+              !formId ||
+              sheetNames === null ||
+              (sheetNames.length > 1 && !sheetName)
+            }
             onClick={() => void upload()}
           >
             <Upload className="mr-2 h-4 w-4" aria-hidden="true" />

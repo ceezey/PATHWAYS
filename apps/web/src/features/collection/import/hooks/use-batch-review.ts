@@ -39,6 +39,8 @@ export function useBatchReview(state: ImportState) {
     setReceipts,
     setRows,
     setRules,
+    sheetName,
+    sheetNames,
     sourceColumns,
   } = state
   const loadBatch = async (batchId: string, parentTicket?: OperationTicket) => {
@@ -64,7 +66,11 @@ export function useBatchReview(state: ImportState) {
         Object.fromEntries(
           (detail.mappings ?? []).map((stored) => [
             stored.sourceFieldName,
-            { dataType: stored.dataType ?? '', pairs: stored.valueMap ?? [] },
+            {
+              dataType: stored.dataType ?? '',
+              pairs: stored.valueMap ?? [],
+              dateOrder: stored.dateOrder ?? '',
+            },
           ]),
         ),
       )
@@ -136,14 +142,21 @@ export function useBatchReview(state: ImportState) {
       toast.error('Choose a project, a published form, and one source file.')
       return
     }
+    // Only a workbook with several sheets names one; a single sheet is read as it is.
+    const chosenSheet = sheetNames && sheetNames.length > 1 ? sheetName : ''
+    if (sheetNames === null || (sheetNames.length > 1 && !chosenSheet)) {
+      toast.error('Choose the sheet to import.')
+      return
+    }
     const ticket = begin('imports.upload')
     if (!ticket) return
     try {
       const created = await importsClient.uploadImport(
         projectId,
         formId,
-        importBatch.uploadId([file, projectId, formId]),
+        importBatch.uploadId([file, projectId, formId, chosenSheet]),
         file,
+        chosenSheet || undefined,
       )
       if (!ticket.valid('imports.upload')) return
       const receipt = await importBatch.mapAutomatically(projectId, created)

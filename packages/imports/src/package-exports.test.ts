@@ -52,6 +52,7 @@ describe('package entry points', () => {
         'toWorkbookBytes',
         'toXlsxBuffer',
         'washingtonGroupLevel',
+        'workbookSheetNames',
       ].sort(),
     )
   })

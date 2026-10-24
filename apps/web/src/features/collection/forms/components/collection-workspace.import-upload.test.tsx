@@ -367,6 +367,7 @@ describe('collection import workspace', () => {
       'published-form',
       firstId,
       file,
+      undefined,
     ])
     expect(api.saveImportMapping).not.toHaveBeenCalled()
     expect(api.validateImport).not.toHaveBeenCalled()
