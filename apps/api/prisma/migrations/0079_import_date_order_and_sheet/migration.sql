@@ -1,6 +1,6 @@
 -- cr-pathways-plug-and-play-import phase 2: the reviewer's date order per mapped column and the chosen workbook sheet.
--- Additive only. metadata_mappings gains date_order (YMD, DMY or MDY; null means the column is read without one), which
--- p03_guard_mapping already freezes with the rest of the insert-only revision. data_import_batches gains source_sheet_name
+-- Additive only. metadata_mappings gains date_order (YMD, DMY or MDY on a MAPPED row; null means the column is read
+-- without one), which p03_guard_mapping already freezes with the rest of the insert-only revision. data_import_batches gains source_sheet_name
 -- (the worksheet a multi-sheet workbook was read from; null for CSV, PDF and one-sheet workbooks), set when the upload is
 -- reserved and frozen by p03_guard_import_batch like the other source columns. The guard keeps its baseline body with
 -- that one added comparison; owner, search_path, trigger and grants are unchanged. No table grant, policy, permission or
@@ -22,7 +22,7 @@ SELECT pg_advisory_xact_lock(505005,79);
 
 ALTER TABLE pathways.metadata_mappings
   ADD COLUMN date_order text,
-  ADD CONSTRAINT metadata_mappings_date_order_known CHECK(date_order IS NULL OR date_order IN('YMD','DMY','MDY'));
+  ADD CONSTRAINT metadata_mappings_date_order_known CHECK(date_order IS NULL OR (status='MAPPED' AND date_order IN('YMD','DMY','MDY')));
 
 -- A sheet name is 1-100 characters with a visible one and no control characters.
 ALTER TABLE pathways.data_import_batches
