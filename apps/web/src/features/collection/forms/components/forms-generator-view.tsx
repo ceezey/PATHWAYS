@@ -15,6 +15,14 @@ import {
 
 import { type SavedForm, formatSavedAt, savedFormStatus } from '../../collection.utils'
 
+// Groups the forms under their project, in the order the projects were loaded.
+const groupByProject = (forms: SavedForm[]) => {
+  const groups = new Map<string, SavedForm[]>()
+  for (const form of forms)
+    groups.set(form.projectId, [...(groups.get(form.projectId) ?? []), form])
+  return [...groups.values()]
+}
+
 export const FormsGeneratorView = ({
   canCreate,
   canImport,
@@ -74,49 +82,56 @@ export const FormsGeneratorView = ({
       <EmptyState
         icon={Database}
         title="None yet"
-        description="No collection forms are saved for this project yet."
+        description="No collection forms are saved for your projects yet."
       />
     ) : (
-      <ul className="space-y-3">
-        {savedForms.map((form) => {
-          const display = savedFormStatus[form.type] ?? { label: form.type, tone: 'neutral' }
-          return (
-            <li
-              key={form.id}
-              className="flex min-h-[52px] flex-col gap-3 rounded-lg border border-border bg-card p-3 text-sm md:flex-row md:items-center md:justify-between"
-            >
-              <div className="flex min-w-0 items-start gap-3">
-                <div
-                  aria-hidden="true"
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-primary-subtle text-primary"
-                >
-                  <Database className="h-4 w-4" />
-                </div>
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <p className="font-semibold text-foreground">{form.title}</p>
-                    <StatusBadge dot={false} tone={display.tone}>
-                      {display.label}
-                    </StatusBadge>
-                  </div>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {form.project} · {form.fieldCount} {form.fieldCount === 1 ? 'field' : 'fields'}{' '}
-                    · Saved {formatSavedAt(form.savedAt)}
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <Button size="sm" variant="outline" onClick={() => onOpen(form)}>
-                  Open form
-                </Button>
-                <Button size="sm" variant="outline" onClick={() => onDownload(form)}>
-                  Export form
-                </Button>
-              </div>
-            </li>
-          )
-        })}
-      </ul>
+      <div className="space-y-6">
+        {groupByProject(savedForms).map((projectForms) => (
+          <section key={projectForms[0].projectId} className="space-y-3">
+            <h3 className="text-sm font-semibold text-foreground">{projectForms[0].project}</h3>
+            <ul className="space-y-3">
+              {projectForms.map((form) => {
+                const display = savedFormStatus[form.type] ?? { label: form.type, tone: 'neutral' }
+                return (
+                  <li
+                    key={form.id}
+                    className="flex min-h-[52px] flex-col gap-3 rounded-lg border border-border bg-card p-3 text-sm md:flex-row md:items-center md:justify-between"
+                  >
+                    <div className="flex min-w-0 items-start gap-3">
+                      <div
+                        aria-hidden="true"
+                        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-primary-subtle text-primary"
+                      >
+                        <Database className="h-4 w-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="font-semibold text-foreground">{form.title}</p>
+                          <StatusBadge dot={false} tone={display.tone}>
+                            {display.label}
+                          </StatusBadge>
+                        </div>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {form.fieldCount} {form.fieldCount === 1 ? 'field' : 'fields'} · Saved{' '}
+                          {formatSavedAt(form.savedAt)}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button size="sm" variant="outline" onClick={() => onOpen(form)}>
+                        Open form
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => onDownload(form)}>
+                        Export form
+                      </Button>
+                    </div>
+                  </li>
+                )
+              })}
+            </ul>
+          </section>
+        ))}
+      </div>
     )}
   </SectionCard>
 )

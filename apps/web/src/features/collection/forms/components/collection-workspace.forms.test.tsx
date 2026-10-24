@@ -428,6 +428,40 @@ describe('collection form definition export', () => {
     expect(api.getDigitalForm).not.toHaveBeenCalled()
   })
 
+  it('lists the draft and published forms of every project under its own heading', async () => {
+    currentAccess.profile.assignedProjectIds = ['futuremakers-ncr', 'safe-schools']
+    api.getProjectsForRole.mockResolvedValue([
+      { id: 'futuremakers-ncr', title: 'Futuremakers NCR' },
+      { id: 'safe-schools', title: 'Safe Schools' },
+    ])
+    const draft = {
+      ...exportForm,
+      id: 'form-2',
+      projectId: 'safe-schools',
+      name: 'Registration',
+      status: 'DRAFT',
+    }
+    api.getDigitalForms.mockImplementation(async (projectId: string) =>
+      projectId === 'safe-schools' ? [draft] : [exportForm],
+    )
+    render(
+      <DisplayLabelsProvider>
+        <CollectionWorkspace initialView="forms" />
+      </DisplayLabelsProvider>,
+    )
+
+    const safeSchools = (await screen.findByRole('heading', { name: 'Safe Schools' })).closest(
+      'section',
+    ) as HTMLElement
+    expect(within(safeSchools).getByText('Registration')).toBeTruthy()
+    expect(within(safeSchools).getByText('Draft')).toBeTruthy()
+    const futuremakers = screen
+      .getByRole('heading', { name: 'Futuremakers NCR' })
+      .closest('section') as HTMLElement
+    expect(within(futuremakers).getByText('Activity Entry')).toBeTruthy()
+    expect(within(futuremakers).getByText('Published')).toBeTruthy()
+  })
+
   it.each([
     ['extend import', 'import', 'extend'],
     ['plain import', 'import', 'import'],
