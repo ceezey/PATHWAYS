@@ -4,12 +4,13 @@ import {
   type ImportColumnRule,
   type IntakeField,
   buildImportValueMap,
+  fittingDateOrders,
   normalizeImportedRow,
 } from '@pathways/imports/server'
 import {
-  CALCULATED_RULE_KINDS,
   type FieldIntakeRule,
   type ValidateImportRequest,
+  isCalculatedRule,
 } from '@pathways/shared'
 import { Prisma } from '@prisma/client'
 import { writeAuditLog } from '../../common/audit/write-audit-log'
@@ -20,9 +21,6 @@ import { currentBusinessDate } from '../../common/time/business-date'
 import { lockBatch, mapStoredBatch, requireBatchWithHeaders } from './import-batches.service'
 import { safeRawData, safeSourceColumns, stableJson, storedValueMap } from './imports.helpers'
 import { type FieldRow, fieldSelection } from './imports.mapper'
-
-const isCalculated = (rule: FieldIntakeRule | null) =>
-  rule !== null && (CALCULATED_RULE_KINDS as readonly string[]).includes(rule.kind)
 
 function intakeField(row: FieldRow): IntakeField {
   return {
@@ -98,9 +96,12 @@ export async function validateBatchRows(
   const supplied = (field: FieldRow) =>
     mappedCodes.has(field.code) ||
     !!field.importDefault ||
-    isCalculated(field.rule as FieldIntakeRule | null)
-  if (formFields.some((field) => field.isRequired && !supplied(field))) {
-    throw new BadRequestException('Every required form field must have a source mapping.')
+    isCalculatedRule(field.rule as FieldIntakeRule | null)
+  const unsupplied = formFields.filter((field) => field.isRequired && !supplied(field))
+  if (unsupplied.length) {
+    throw new BadRequestException(
+      `Every required form field must have a source mapping. No source for: ${unsupplied.map((field) => field.code).join(', ')}.`,
+    )
   }
   const fields = [
     ...mappedFields,
@@ -124,8 +125,22 @@ export async function validateBatchRows(
   })
   const validationRevision = batch.validationRevision + 1
   const uploadDate = currentBusinessDate(batch.createdAt)
-  const results = rows.map((row) => {
-    const raw = safeRawData(row.rawData)
+  const raws = rows.map((row) => safeRawData(row.rawData))
+  // A text date column is read without asking when exactly one day-month-year order fits every value.
+  const referenceYear = Number(uploadDate.slice(0, 4))
+  for (const mapping of mappings) {
+    const target = mapping.status === 'MAPPED' ? mapping.targetField : null
+    if (!target || (mapping.dataType ?? target.dataType) !== 'DATE') continue
+    const orders = fittingDateOrders(
+      raws.map((raw) => raw[mapping.sourceFieldName]),
+      referenceYear,
+    )
+    if (orders.length === 1) {
+      rules[target.code] = { ...rules[target.code], date: { order: orders[0], referenceYear } }
+    }
+  }
+  const results = rows.map((row, index) => {
+    const raw = raws[index]
     const byFieldCode = Object.create(null) as Record<string, unknown>
     for (const mapping of mappings) {
       if (mapping.status === 'MAPPED' && mapping.targetField) {

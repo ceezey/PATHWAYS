@@ -206,6 +206,7 @@ export async function recordUploadFailure(
   batchId: string,
   failureCode: string,
   stored: boolean,
+  failureMessage?: string,
 ) {
   const batch = await requireBatch(tx, actor, projectId, batchId)
   await tx.dataImportBatch.update({
@@ -214,6 +215,7 @@ export async function recordUploadFailure(
       status: 'FAILED',
       storageStatus: stored ? 'STORED' : 'FAILED',
       failureCode: failureCode.slice(0, 64),
+      validationNotes: failureMessage?.slice(0, 300) ?? null,
     },
   })
 }

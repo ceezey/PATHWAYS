@@ -80,6 +80,10 @@ export const fieldIntakeRule = z.discriminatedUnion('kind', [
 ])
 export type FieldIntakeRule = z.infer<typeof fieldIntakeRule>
 
+// True when the rule writes the field's value, so the field needs no source column.
+export const isCalculatedRule = (rule: FieldIntakeRule | null | undefined) =>
+  !!rule && (CALCULATED_RULE_KINDS as readonly string[]).includes(rule.kind)
+
 // The four import metadata properties of a form field, spread into its request and response.
 export const fieldIntakeProperties = {
   sourceNames: z

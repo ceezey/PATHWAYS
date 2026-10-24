@@ -1,5 +1,9 @@
 import type { ImportBatchDefinition, ImportRowDefinition } from '@/types/pathways'
 
+// Why the server refused a stored upload, in its own words when it gave them.
+export const uploadFailure = (batch: Pick<ImportBatchDefinition, 'status' | 'failureMessage'>) =>
+  batch.status === 'FAILED' ? (batch.failureMessage ?? 'The file could not be imported.') : null
+
 export const mappingLockedStatuses = new Set([
   'PROCESSING',
   'PARTIALLY_PROCESSED',

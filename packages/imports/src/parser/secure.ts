@@ -10,7 +10,7 @@ type CellValue = string | number | boolean | null
 interface WorkerResult {
   matrix?: unknown[][]
   sheetNames?: string[]
-  formulas?: boolean
+  formulaGap?: string
   links?: boolean
   macros?: boolean
   error?: string
@@ -137,18 +137,26 @@ try {
       bookVBA: true,
       WTF: false,
     });
-    let formulas = false;
     let links = false;
     for (const sheetName of workbook.SheetNames) {
       const sheet = workbook.Sheets[sheetName];
       for (const key of Object.keys(sheet || {})) {
         if (key.startsWith('!')) continue;
         const cell = sheet[key];
-        if (cell && typeof cell.f === 'string') formulas = true;
         if (cell && cell.l) links = true;
       }
     }
     const first = workbook.SheetNames[0];
+    // A formula is never evaluated: its saved value is imported, and a formula without one refuses the file.
+    let formulaGap;
+    for (const key of Object.keys((first && workbook.Sheets[first]) || {})) {
+      if (key.startsWith('!')) continue;
+      const cell = workbook.Sheets[first][key];
+      if (cell && typeof cell.f === 'string' && (cell.v === undefined || cell.t === 'e')) {
+        formulaGap = key;
+        break;
+      }
+    }
     // Date-formatted numeric cells become ISO strings; out-of-range serials stay numeric.
     // The date format is dropped either way so sheet_to_json does not build Date objects.
     const date1904 = Boolean(workbook.Workbook && workbook.Workbook.WBProps && workbook.Workbook.WBProps.date1904);
@@ -175,7 +183,7 @@ try {
     parentPort.postMessage({
       matrix,
       sheetNames: workbook.SheetNames,
-      formulas,
+      formulaGap,
       links,
       macros: Boolean(workbook.vbaraw),
     });
@@ -384,22 +392,33 @@ function normalizeMatrix(
   if (!Array.isArray(matrix) || matrix.length === 0) {
     reject('FILE_EMPTY', 'The file does not contain a header row.')
   }
-  const headerCells = matrix[0]
-  if (!Array.isArray(headerCells) || headerCells.length === 0) {
-    reject('HEADERS_MISSING', 'The file does not contain headers.')
+  const blank = (value: unknown) =>
+    value === null || value === undefined || (typeof value === 'string' && value.trim() === '')
+  const firstRow = Array.isArray(matrix[0]) ? matrix[0] : []
+  // Trailing columns with a blank header and no values are sheet formatting, not data.
+  let width = matrix.reduce<number>(
+    (widest, row) => Math.max(widest, Array.isArray(row) ? row.length : 0),
+    0,
+  )
+  while (
+    width > 0 &&
+    blank(firstRow[width - 1]) &&
+    matrix.every((row) => !Array.isArray(row) || blank(row[width - 1]))
+  ) {
+    width -= 1
   }
+  if (width === 0) reject('HEADERS_MISSING', 'The file does not contain headers.')
+  const headerCells = Array.from({ length: width }, (_, index) => firstRow[index] ?? null)
   if (headerCells.length > IMPORT_ENGINEERING_LIMITS.maxSourceColumns) {
     reject('COLUMN_LIMIT', 'The file has too many columns.')
   }
   const headers = headerCells.map((value, index) => {
-    if (typeof value !== 'string' && typeof value !== 'number') {
+    if (!blank(value) && !['string', 'number', 'boolean'].includes(typeof value)) {
       reject('HEADER_INVALID', `Header ${index + 1} is invalid.`)
     }
-    const header = importHeaderLabel(String(value))
+    // A blank header over real values is named by its position, as a spreadsheet shows it.
+    const header = importHeaderLabel(blank(value) ? '' : String(value)) || `Column ${index + 1}`
     const normalized = header.toLowerCase()
-    if (!header) {
-      reject('HEADER_INVALID', `Header ${index + 1} is empty.`)
-    }
     if (unsafeHeader.has(normalized)) {
       reject('HEADER_UNSAFE', `Header ${index + 1} uses a prohibited key.`)
     }
@@ -410,7 +429,7 @@ function normalizeMatrix(
     header,
     columnIndex: index + 1,
   }))
-  const sourceRows = matrix.slice(1)
+  const sourceRows = matrix.slice(1).map((row) => (Array.isArray(row) ? row.slice(0, width) : row))
   if (sourceRows.length > IMPORT_ENGINEERING_LIMITS.maxRows) {
     reject('ROW_LIMIT', 'The file has too many rows.')
   }
@@ -473,10 +492,10 @@ export async function parseSecureImport(
     const code = workerErrorCodes.has(parsed.error) ? parsed.error : 'PARSER_REJECTED_INPUT'
     reject(code, parserErrorMessages[code] ?? genericParserMessage)
   }
-  if (parsed.formulas) {
+  if (parsed.formulaGap) {
     reject(
-      'WORKBOOK_FORMULA_REQUIRES_VALUES_ONLY',
-      'Workbook formulas are not accepted. Export a values-only copy before uploading.',
+      'WORKBOOK_FORMULA_NO_VALUE',
+      `${/^[A-Z]{1,3}[0-9]{1,7}$/.test(parsed.formulaGap) ? `Cell ${parsed.formulaGap}` : 'A cell'} has a formula with no saved value. Open and save the file in Excel or Google Sheets, then upload again.`,
     )
   }
   if (parsed.macros || parsed.links) {

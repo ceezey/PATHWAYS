@@ -8,6 +8,7 @@ import { plural } from '@/lib/format/plural'
 import type { ImportMappingInput } from '@/types/pathways'
 
 import { ruleToMappingInput } from '../components/import-value-map-editor'
+import { uploadFailure } from '../import.utils'
 import type { ImportState } from './use-import-state'
 
 export function useBatchReview(state: ImportState) {
@@ -156,9 +157,12 @@ export function useBatchReview(state: ImportState) {
       if (!ticket.valid()) return
       setFile(null)
       importBatch.forgetUpload()
-      toast.success(
-        'The private upload was staged. Unresolved mappings require an authorized reviewer.',
-      )
+      const failure = uploadFailure(created)
+      if (failure) toast.error(failure)
+      else
+        toast.success(
+          'The private upload was staged. Unresolved mappings require an authorized reviewer.',
+        )
     } catch (error) {
       if (ticket.valid())
         toast.error(

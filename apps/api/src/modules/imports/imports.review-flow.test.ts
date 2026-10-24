@@ -428,7 +428,9 @@ describe('PRD-F6 gates', () => {
     )
 
     await expect(validate(service())).rejects.toThrow(
-      new BadRequestException('Every required form field must have a source mapping.'),
+      new BadRequestException(
+        'Every required form field must have a source mapping. No source for: score.',
+      ),
     )
 
     expect(fakeTx.dataImportRow.findMany).not.toHaveBeenCalled()
@@ -704,7 +706,10 @@ describe('metadata-driven intake validation', () => {
     }
   })
 
-  const registrationStore = (copyConsent = true) => {
+  const registrationStore = (
+    copyConsent = true,
+    edit = (row: (typeof participants)[number]) => row,
+  ) => {
     const fields = registrationFields(copyConsent)
     return createStore(
       fields,
@@ -717,7 +722,7 @@ describe('metadata-driven intake validation', () => {
         'consent_recorded',
         'guardian_consent_recorded',
       ]),
-      participants.map((row) => ({ ...row })),
+      participants.map((row) => edit({ ...row })),
       {
         form: {
           code: 'registration',
@@ -796,12 +801,36 @@ describe('metadata-driven intake validation', () => {
     })
   })
 
+  it('reads text enrollment dates when one day-month-year order fits every row', async () => {
+    state.store = registrationStore(true, (row) => ({ ...row, column_0005: '15/01/2026' }))
+
+    await validate(service())
+
+    const writes = rowWrites()
+    expect(writes.map((row) => row.status)).toEqual(Array(10).fill('VALID'))
+    expect(writes[0].normalized_data).toMatchObject({ enrollment_date: '2026-01-15' })
+  })
+
+  it('holds text enrollment dates that more than one order could read', async () => {
+    state.store = registrationStore(true, (row) => ({ ...row, column_0005: '26/01/15' }))
+
+    await validate(service())
+
+    const writes = rowWrites()
+    expect(writes.map((row) => row.status)).toEqual(Array(10).fill('INVALID'))
+    expect(writes[0].validation_errors).toEqual([
+      expect.objectContaining({ fieldCode: 'enrollment_date', code: 'AMBIGUOUS_DATE' }),
+    ])
+  })
+
   it('without SAME_ANSWER_AS the required consent has no source and no row is promoted', async () => {
     state.store = registrationStore(false)
     const imports = registrar()
 
     await expect(validate(imports)).rejects.toThrow(
-      new BadRequestException('Every required form field must have a source mapping.'),
+      new BadRequestException(
+        'Every required form field must have a source mapping. No source for: data_processing_consent_recorded.',
+      ),
     )
     await expect(runProcess(imports)).rejects.toBeInstanceOf(ConflictException)
 

@@ -1,6 +1,7 @@
 /* @vitest-environment jsdom */
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { Children, type ReactElement, createContext, isValidElement, useContext } from 'react'
+import { toast } from 'sonner'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { DisplayLabelsProvider } from '@/providers/display-labels-provider'
@@ -21,6 +22,9 @@ const api = vi.hoisted(() => ({
   getProjects: vi.fn(),
   getDigitalForms: vi.fn(),
   getImportBatches: vi.fn(),
+  getImportBatch: vi.fn(),
+  getImportRows: vi.fn(),
+  automaticImportMapping: vi.fn(),
   uploadImport: vi.fn(),
 }))
 vi.mock('@/hooks/use-current-role', () => ({ useCurrentRole: () => state }))
@@ -132,5 +136,51 @@ describe('import screen upload identity', () => {
     })
     expect(second.slice(0, 2)).toEqual(['project-1', 'form-2'])
     expect(second[2]).not.toBe(first[2])
+  })
+})
+
+describe('import screen failed upload', () => {
+  const failed = {
+    id: 'batch-1',
+    projectId: 'project-1',
+    formId: 'form-1',
+    formVersion: 1,
+    formName: 'Import form',
+    originalFileName: 'notes.csv',
+    uploadedAt: '2026-10-24T00:00:00Z',
+    updatedAt: '2026-10-24T00:00:00Z',
+    mappingRevision: 0,
+    validationRevision: 0,
+    validatedMappingRevision: null,
+    processingRevision: 0,
+    storageStatus: 'STORED',
+    status: 'FAILED',
+    failureCode: 'WORKBOOK_FORMULA_NO_VALUE',
+    failureMessage: 'Cell A2 has a formula with no saved value.',
+    totals: { rows: 0, valid: 0, invalid: 0, processed: 0, unprocessed: 0, failed: 0, warnings: 0 },
+    sourceColumns: [],
+    mappings: [],
+  }
+  beforeEach(() => {
+    vi.resetAllMocks()
+    api.getProjects.mockResolvedValue([{ id: 'project-1', title: 'Project' }])
+    api.getDigitalForms.mockResolvedValue([form])
+    api.getImportBatches.mockResolvedValue([])
+    api.getImportBatch.mockResolvedValue(failed)
+    api.getImportRows.mockResolvedValue({ rows: [], total: 0 })
+    api.uploadImport.mockResolvedValue(failed)
+  })
+  afterEach(cleanup)
+
+  it('shows why the file was refused and never maps a failed upload', async () => {
+    render(<ImportWorkspace />, { wrapper: DisplayLabelsProvider })
+    await screen.findByText('Import form - v1')
+    pickFile(notes)
+    fireEvent.click(uploadButton())
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith('Cell A2 has a formula with no saved value.'),
+    )
+    expect(api.automaticImportMapping).not.toHaveBeenCalled()
+    expect(toast.success).not.toHaveBeenCalled()
   })
 })

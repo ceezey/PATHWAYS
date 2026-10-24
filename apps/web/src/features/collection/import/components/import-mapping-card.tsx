@@ -1,5 +1,8 @@
 'use client'
 
+import { isCalculatedRule } from '@pathways/shared'
+import { useState } from 'react'
+
 import { StatusBadge } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -11,6 +14,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 
+import { ToggleRow } from '../../forms/components/toggle-row'
 import type { BatchIntake } from '../hooks/use-batch-intake'
 import type { BatchProcessing } from '../hooks/use-batch-processing'
 import type { BatchReview } from '../hooks/use-batch-review'
@@ -85,6 +89,24 @@ export function ImportMappingCard({
   const coverage =
     batch.coverage ?? (receipt?.mappingRevision === batch.mappingRevision ? receipt : null)
   const needsFormUpdate = coverage?.coverage === 'NOT_COVERED'
+  const [onlyUndecided, setOnlyUndecided] = useState(false)
+  const undecided = (key: string) =>
+    !mapping[key] ||
+    mapping[key] === '__pending__' ||
+    openSuggestions.some((item) => item.column.key === key)
+  const shownColumns = onlyUndecided
+    ? sourceColumns.filter((column) => undecided(column.key))
+    : sourceColumns
+  // Mirrors the server's validation refusal: a required field needs a column, a default or a calculation.
+  const mappedCodes = new Set(Object.values(mapping))
+  const unsupplied =
+    selectedForm?.fields.filter(
+      (field) =>
+        field.required &&
+        !mappedCodes.has(field.code) &&
+        !field.importDefault &&
+        !isCalculatedRule(field.rule),
+    ) ?? []
   return (
     <Card>
       <CardHeader>
@@ -122,7 +144,12 @@ export function ImportMappingCard({
         <output aria-live="polite" className="block text-sm text-muted-foreground">
           {mappingNotice}
         </output>
-        {sourceColumns.map((column) => {
+        <ToggleRow
+          checked={onlyUndecided}
+          label={`Show only columns that need a decision (${sourceColumns.filter((column) => undecided(column.key)).length} of ${sourceColumns.length})`}
+          onChange={setOnlyUndecided}
+        />
+        {shownColumns.map((column) => {
           const stored = storedMappingByKey.get(column.key)
           const automatic = automaticMatchReason(stored)
           const targetField = selectedForm?.fields.find(
@@ -191,7 +218,11 @@ export function ImportMappingCard({
                 </SelectContent>
               </Select>
               {targetField ? (
-                <div className="sm:col-span-2">
+                <details className="sm:col-span-2">
+                  <summary className="min-h-11 cursor-pointer content-center text-sm font-medium text-primary">
+                    Data type and value translations
+                    {rules[column.key]?.pairs.length ? ` (${rules[column.key]?.pairs.length})` : ''}
+                  </summary>
                   <ImportValueMapEditor
                     allowedValues={targetField.allowedValues}
                     sourceValues={columnValues.get(column.key)}
@@ -206,11 +237,18 @@ export function ImportMappingCard({
                       setRules((current) => ({ ...current, [column.key]: next }))
                     }
                   />
-                </div>
+                </details>
               ) : null}
             </div>
           )
         })}
+        {unsupplied.length ? (
+          <p className="rounded-md border border-warning/30 bg-warning-subtle p-3 text-sm text-warning">
+            Validation will be refused: these required fields have no source column, default or
+            calculation: {unsupplied.map((field) => `${field.label} (${field.code})`).join(', ')}.
+            Map a column to each, or set a default or calculation in a new form version.
+          </p>
+        ) : null}
         <div className="flex flex-wrap gap-2">
           <Button disabled={!mappingEditable} onClick={() => void saveMapping()}>
             Save new mapping revision

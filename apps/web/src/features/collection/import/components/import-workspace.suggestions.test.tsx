@@ -133,6 +133,45 @@ describe('import workspace AUTO_SMART_V2 suggestions', () => {
     expect(screen.getByRole('status').textContent).toBe('')
   })
 
+  it('narrows the list to columns that still need a decision', async () => {
+    await openBatch()
+    fireEvent.click(
+      screen.getByRole('checkbox', { name: 'Show only columns that need a decision (2 of 3)' }),
+    )
+    expect(screen.queryByText('Column 1: Given name')).toBeNull()
+    expect(screen.getByText('Column 2: The Last Name')).toBeTruthy()
+    expect(screen.getByText('Column 3: Gender')).toBeTruthy()
+  })
+
+  it('names the required fields validation would refuse, skipping mapped, defaulted and calculated ones', async () => {
+    const required = (code: string, extra = {}) => ({
+      code,
+      label: code,
+      dataType: 'TEXT',
+      required: true,
+      ...extra,
+    })
+    api.getDigitalForms.mockResolvedValue([
+      {
+        ...form,
+        fields: [
+          { ...form.fields[0], required: true },
+          ...form.fields.slice(1),
+          required('consent_recorded'),
+          required('subject_type', { importDefault: 'INDIVIDUAL' }),
+          required('age', { rule: { kind: 'AGE_AT_DATE', birthField: 'b', atField: 'a' } }),
+        ],
+      },
+    ])
+    await openBatch()
+    expect(screen.getByText(/these required fields have no source column/).textContent).toContain(
+      'consent_recorded (consent_recorded). Map a column',
+    )
+    expect(screen.getByText(/these required fields have no source column/).textContent).not.toMatch(
+      /first_name|subject_type|age \(/,
+    )
+  })
+
   it('confirms one suggestion into the draft, announces what remains and keeps focus useful', async () => {
     await openBatch()
     fireEvent.click(

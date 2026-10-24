@@ -17,6 +17,7 @@ import {
 import { useServerProcessing } from '../../import/hooks/use-server-processing'
 import { importProcessingProgress } from '../../import/import-auto-continue'
 import { parseImportPreview } from '../../import/import-preview'
+import { uploadFailure } from '../../import/import.utils'
 import { draftFormFromImport } from '../../import/prepare-draft'
 import { toDigitalFormInput } from '../digital-form-contract'
 import { fieldFromHeader, formTitleFromFileName, toApiFormType } from '../forms.utils'
@@ -297,6 +298,12 @@ export function useImportActions(state: CollectionState, guard: CollectionGuard)
         file,
       )
       if (!ticket.valid('imports.upload')) return
+      const failure = uploadFailure(uploaded)
+      if (failure) {
+        setImportMessage(failure)
+        setProceedDialogOpen(false)
+        return
+      }
       const automatic = await importBatch.mapAutomatically(projectId, uploaded)
       if (automatic && !ticket.valid('imports.read')) return
       const automaticRevision = automatic?.mappingRevision

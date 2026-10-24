@@ -54,6 +54,8 @@ export const importBatchResponse = z.object({
     warnings: z.number().int(),
   }),
   failureCode: z.string().nullable(),
+  // Why a FAILED upload was refused, in the parser's fixed words; it never quotes cell values.
+  failureMessage: z.string().nullable(),
   // True when the caller uploaded the batch, the only person who may re-run it.
   uploadedByCurrentUser: z.boolean(),
   uploadedAt: z.string(),

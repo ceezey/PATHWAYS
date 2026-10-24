@@ -38,11 +38,8 @@ describe('import header labels', () => {
     expect(parsed.rows[0]?.values.column_0002).toBe('A. Hindi')
   })
 
-  it('still rejects an empty header', async () => {
-    await expect(
-      parseSecureImport(Buffer.from('Name, \nA,B\n', 'utf8'), 'CSV'),
-    ).rejects.toMatchObject({
-      code: 'HEADER_INVALID',
-    })
+  it('names an empty header over values by its position', async () => {
+    const parsed = await parseSecureImport(Buffer.from('Name, \nA,B\n', 'utf8'), 'CSV')
+    expect(parsed.sourceColumns.map((column) => column.header)).toEqual(['Name', 'Column 2'])
   })
 })

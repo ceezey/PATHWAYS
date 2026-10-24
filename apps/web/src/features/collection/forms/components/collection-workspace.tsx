@@ -224,25 +224,31 @@ const OwnedCollectionWorkspace = (
         />
       ) : null}
 
-      {view === 'builder' &&
-        canManageForms &&
-        forms.find((form) => form.id === editingFormId)?.status === 'PUBLISHED' && (
-          <Button
-            type="button"
-            variant="outline"
-            disabled={creatingVersion}
-            onClick={createNewVersion}
-          >
-            Create new version
-          </Button>
-        )}
-      {view === 'builder' &&
-        canGenerateForms &&
-        forms.some((form) => form.id === editingFormId) && (
-          <Button type="button" variant="outline" disabled={creatingVersion} onClick={generateCopy}>
-            Generate copy
-          </Button>
-        )}
+      {view === 'builder' ? (
+        <div className="flex flex-wrap gap-2 empty:hidden">
+          {canManageForms &&
+            forms.find((form) => form.id === editingFormId)?.status === 'PUBLISHED' && (
+              <Button
+                type="button"
+                variant="outline"
+                disabled={creatingVersion}
+                onClick={createNewVersion}
+              >
+                Create new version
+              </Button>
+            )}
+          {canGenerateForms && forms.some((form) => form.id === editingFormId) && (
+            <Button
+              type="button"
+              variant="outline"
+              disabled={creatingVersion}
+              onClick={generateCopy}
+            >
+              Generate copy
+            </Button>
+          )}
+        </div>
+      ) : null}
       {view === 'builder' ? (
         <>
           {!editingReady && (

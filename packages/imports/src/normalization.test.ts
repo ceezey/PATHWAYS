@@ -391,6 +391,17 @@ describe('import normalization contract', () => {
       expect(result.errors).toEqual([expect.objectContaining({ code: 'AMBIGUOUS_DATE' })])
     })
 
+    it('reads a text date by the column date rule', () => {
+      const birth = intake({ code: 'birth_date', dataType: 'DATE', required: true })
+      const result = normalizeImportedRow(
+        [birth],
+        { birth_date: '8/17/2008' },
+        { birth_date: { date: { order: 'MDY', referenceYear: 2026 } } },
+      )
+      expect(result.values.birth_date).toBe('2008-08-17')
+      expect(result.valid).toBe(true)
+    })
+
     it('returns warnings without making the row invalid', () => {
       const list = [
         ...ageFields(),
