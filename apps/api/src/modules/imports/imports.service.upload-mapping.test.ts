@@ -20,9 +20,11 @@ import { createHash } from 'node:crypto'
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common'
+import { rolePermissions } from '@pathways/shared'
 import { describe, expect, it, vi } from 'vitest'
 
 import { W10_CLIENT_IMPORT_ID, W10_SOURCE_SHA256 } from './upload-finalization-fault'
@@ -57,6 +59,28 @@ describe('P03 import service', () => {
         where: expect.objectContaining({ organizationId, projectId, status: 'PUBLISHED' }),
       }),
     )
+    expect(storage.uploadPrivateFile).not.toHaveBeenCalled()
+  })
+
+  it('system administrator registration upload refused before staging', async () => {
+    state.actor = {
+      ...actor,
+      roles: ['SYSTEM_ADMINISTRATOR'],
+      permissions: [...rolePermissions.SYSTEM_ADMINISTRATOR],
+    }
+    tx.digitalForm.findFirst.mockResolvedValue({
+      id: formId,
+      version: 1,
+      formType: 'BENEFICIARY_REGISTRATION',
+    })
+
+    const refused = service.upload(state.actor, projectId, { formId, clientImportId }, file())
+    await expect(refused).rejects.toBeInstanceOf(ForbiddenException)
+    await expect(refused).rejects.toThrow(
+      'Importing participants needs the Create Beneficiary Profile permission.',
+    )
+    expect(tx.dataImportBatch.create).not.toHaveBeenCalled()
+    expect(tx.dataImportRow.createMany).not.toHaveBeenCalled()
     expect(storage.uploadPrivateFile).not.toHaveBeenCalled()
   })
 

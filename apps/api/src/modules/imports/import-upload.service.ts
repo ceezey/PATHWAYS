@@ -1,11 +1,11 @@
 import { randomUUID } from 'node:crypto'
-import { ConflictException, NotFoundException } from '@nestjs/common'
+import { ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common'
 import {
   IMPORT_ENGINEERING_LIMITS,
   type SupportedImportFileType,
   type parseSecureImport,
 } from '@pathways/imports/server'
-import type { UploadImportRequest } from '@pathways/shared'
+import { type UploadImportRequest, hasAtomicPermission } from '@pathways/shared'
 import type { Prisma } from '@prisma/client'
 import { writeAuditLog } from '../../common/audit/write-audit-log'
 import { type ApplicationIdentity, UUID_PATTERN } from '../../common/authz/application-identity'
@@ -58,9 +58,18 @@ export async function reserveBatchUpload(
       projectId: scopedProjectId,
       status: 'PUBLISHED',
     },
-    select: { id: true, version: true },
+    select: { id: true, version: true, formType: true },
   })
   if (!form) throw new NotFoundException('Published form unavailable.')
+  // Processing registers participants, so refuse now an uploader who could not finish it.
+  if (
+    form.formType === 'BENEFICIARY_REGISTRATION' &&
+    !hasAtomicPermission(actor.roles[0], actor.permissions, 'beneficiaries.records.register')
+  ) {
+    throw new ForbiddenException(
+      'Importing participants needs the Create Beneficiary Profile permission.',
+    )
+  }
   // Only a workbook has sheets; the chosen one is kept so a resume or re-run reads the same rows.
   const sourceSheetName =
     metadata.type === 'XLSX' || metadata.type === 'XLS' ? (input.sheetName ?? null) : null
