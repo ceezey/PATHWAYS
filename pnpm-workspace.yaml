@@ -6,6 +6,7 @@ allowBuilds:
   '@nestjs/core': true
   '@prisma/client': true
   '@prisma/engines': true
+  '@scarf/scarf': false
   '@sentry/cli': true
   esbuild: true
   msw: true
