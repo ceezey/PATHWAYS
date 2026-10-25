@@ -32,6 +32,8 @@ function convert(
 ): { value: NormalizedImportValue; error?: ImportValueError } {
   if (raw === null || raw === undefined || raw === '') return { value: null }
   if (field.dataType === 'TEXT' || field.dataType === 'LONG_TEXT' || field.dataType === 'SELECT') {
+    // A whole-number cell, such as a phone number stored as a number, reads as its exact digits.
+    if (typeof raw === 'number' && Number.isSafeInteger(raw)) return { value: String(raw) }
     if (typeof raw !== 'string') {
       return { value: null, error: conversionError(field, 'AMBIGUOUS_TEXT', 'Expected text.') }
     }
