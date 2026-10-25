@@ -143,6 +143,24 @@ describe('import workspace AUTO_SMART_V2 suggestions', () => {
     expect(screen.getByText('Column 3: Gender')).toBeTruthy()
   })
 
+  it('keeps a decided column and its focus in view while the decision filter is on', async () => {
+    await openBatch()
+    fireEvent.click(
+      screen.getByRole('checkbox', { name: 'Show only columns that need a decision (2 of 3)' }),
+    )
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Confirm suggestion Last name for column 2' }),
+    )
+    await screen.findByText(/1 suggestion confirmed/)
+    expect(screen.getByText('Column 2: The Last Name')).toBeTruthy()
+    expect(
+      screen.getByRole('checkbox', { name: 'Show only columns that need a decision (1 of 3)' }),
+    ).toBeTruthy()
+    await waitFor(() =>
+      expect(document.activeElement?.id).toBe('import-mapping-target-column_0002'),
+    )
+  })
+
   it('names the required fields validation would refuse, skipping mapped, defaulted and calculated ones', async () => {
     const required = (code: string, extra = {}) => ({
       code,

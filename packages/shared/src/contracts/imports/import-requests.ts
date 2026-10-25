@@ -38,7 +38,10 @@ export const uploadImportRequest = z
     formId: uuidString,
     clientImportId: uuidString,
     // The worksheet to read when a workbook has several; without it such a workbook is refused.
-    sheetName: trimmedInput(lengthString(1, 100)).optional(),
+    // Kept exactly as written, since the parser matches the worksheet name character for character.
+    sheetName: lengthString(1, 100)
+      .refine((value) => /\S/.test(value) && !/\p{Cc}/u.test(value), 'must be a visible sheet name')
+      .optional(),
   })
   .strict()
 export type UploadImportRequest = z.infer<typeof uploadImportRequest>

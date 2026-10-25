@@ -56,6 +56,16 @@ const currentAccess = vi.hoisted(() => ({
 }))
 const toasts = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }))
 vi.mock('sonner', () => ({ toast: toasts }))
+// A test can stand in a workbook preview; every other file uses the real preview parser.
+const preview = vi.hoisted(() => ({ workbook: null as null | Record<string, unknown> }))
+vi.mock('../../import/import-preview', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../import/import-preview')>()
+  return {
+    ...actual,
+    parseImportPreview: async (file: File) =>
+      preview.workbook ?? (await actual.parseImportPreview(file)),
+  }
+})
 
 vi.mock('@/providers/current-role-provider', () => ({
   useCurrentRole: () => currentAccess,
@@ -367,7 +377,6 @@ describe('collection import workspace', () => {
       'published-form',
       firstId,
       file,
-      undefined,
     ])
     expect(api.saveImportMapping).not.toHaveBeenCalled()
     expect(api.validateImport).not.toHaveBeenCalled()
@@ -625,5 +634,66 @@ describe('collection upload identity', () => {
     const [first, second] = api.uploadImport.mock.calls
     expect(first[2]).toMatch(/^[0-9a-f-]{36}$/)
     expect(second[2] === first[2]).toBe(reused)
+  })
+})
+
+describe('collection import of a multi-sheet workbook', () => {
+  afterEach(() => {
+    preview.workbook = null
+  })
+
+  it('stops before upload and points to the import page sheet picker', async () => {
+    api.getDigitalForms.mockResolvedValue([
+      {
+        id: 'published-form',
+        projectId: 'futuremakers-ncr',
+        code: 'attendance',
+        name: 'Attendance',
+        version: 1,
+        formType: 'OTHER',
+        status: 'PUBLISHED',
+        updatedAt: '2026-09-22T00:00:00Z',
+        activityId: null,
+        journeyStageId: null,
+        fields: [
+          {
+            code: 'beneficiary_id',
+            label: 'Beneficiary ID',
+            dataType: 'TEXT',
+            required: true,
+            metadataKey: true,
+            sadddField: false,
+          },
+        ],
+      },
+    ])
+    preview.workbook = {
+      fileType: 'xlsx',
+      headers: ['beneficiary_id'],
+      rows: [{ beneficiary_id: 'BEN-001' }],
+      errors: [],
+      sheetNames: ['One', 'Two'],
+    }
+    render(
+      <DisplayLabelsProvider>
+        <CollectionWorkspace
+          initialView="import"
+          initialMode="import"
+          initialProjectId="futuremakers-ncr"
+          initialFormId="published-form"
+        />
+      </DisplayLabelsProvider>,
+    )
+    await waitFor(() =>
+      expect((screen.getByLabelText('Form title') as HTMLInputElement).value).toBe('Attendance'),
+    )
+    fireEvent.change(screen.getByLabelText('Source file'), {
+      target: { files: [new File(['PK'], 'people.xlsx')] },
+    })
+    await screen.findByText(/Preview ready for people.xlsx/)
+    fireEvent.click(screen.getByRole('button', { name: 'Proceed' }))
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Proceed' }))
+    await screen.findByText(/This workbook has 2 sheets/)
+    expect(api.uploadImport).not.toHaveBeenCalled()
   })
 })

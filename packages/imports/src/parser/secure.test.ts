@@ -18,6 +18,23 @@ function workbookBuffer(
   return Buffer.from(XLSX.write(workbook, { type: 'buffer', bookType }))
 }
 
+// A one-sheet workbook whose second row is the given raw cell XML, as Excel or another tool may save it.
+function sheetXmlWorkbook(cellXml: string) {
+  const base = workbookBuffer([
+    ['total', 'other'],
+    [0, 2],
+  ])
+  const files = XLSX.CFB.read(base, { type: 'buffer' })
+  const entry = files.FileIndex[files.FullPaths.indexOf('Root Entry/xl/worksheets/sheet1.xml')]
+  const xml = String(entry.content).replace(
+    /<sheetData>[\s\S]*<\/sheetData>/,
+    `<sheetData><row r="1"><c r="A1" t="inlineStr"><is><t>total</t></is></c><c r="B1" t="inlineStr"><is><t>other</t></is></c></row><row r="2">${cellXml}<c r="B2"><v>2</v></c></row></sheetData>`,
+  )
+  entry.content = Buffer.from(xml)
+  entry.size = entry.content.length
+  return Buffer.from(XLSX.CFB.write(files, { type: 'buffer', fileType: 'zip' }))
+}
+
 async function expectCode(work: Promise<unknown>, code: string) {
   await expect(work).rejects.toMatchObject({ code } satisfies Partial<ImportParseError>)
 }
@@ -133,17 +150,23 @@ describe('secure import parser', () => {
     expect(parsed.rows[0]?.values.column_0001).toBe(7)
   })
 
-  it('refuses a formula with no saved value, naming the cell', async () => {
-    const work = parseSecureImport(
-      workbookBuffer([['total'], [0]], 'xlsx', (sheet) => {
-        sheet.A2 = { t: 'n', f: '1+1' }
-      }),
-      'XLSX',
-    )
+  it.each([
+    ['no saved value', '<c r="A2"><f>1+1</f></c>'],
+    ['an empty saved number', '<c r="A2"><f>1+1</f><v></v></c>'],
+  ])('refuses a formula with %s, naming the cell', async (_name, cell) => {
+    const work = parseSecureImport(sheetXmlWorkbook(cell), 'XLSX')
     await expect(work).rejects.toMatchObject({
       code: 'WORKBOOK_FORMULA_NO_VALUE',
       message: expect.stringContaining('Cell A2'),
     })
+  })
+
+  it('keeps a formula whose saved result is empty text as a blank', async () => {
+    const parsed = await parseSecureImport(
+      sheetXmlWorkbook('<c r="A2" t="str"><f>IF(1,"","x")</f><v></v></c>'),
+      'XLSX',
+    )
+    expect(parsed.rows[0]?.values.column_0001).toBe('')
   })
 
   it('drops trailing blank columns and names a blank header by its position', async () => {

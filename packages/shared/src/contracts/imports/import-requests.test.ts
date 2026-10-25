@@ -105,6 +105,25 @@ describe('import request contracts', () => {
   it.each([
     ['upload', uploadImportRequest, { formId: uuid, clientImportId: uuid }, true],
     ['upload', uploadImportRequest, { formId: uuid, clientImportId: uuid, extra: 'x' }, false],
+    ['upload', uploadImportRequest, { formId: uuid, clientImportId: uuid, sheetName: 'Two' }, true],
+    [
+      'upload',
+      uploadImportRequest,
+      { formId: uuid, clientImportId: uuid, sheetName: '   ' },
+      false,
+    ],
+    [
+      'upload',
+      uploadImportRequest,
+      { formId: uuid, clientImportId: uuid, sheetName: 'a\tb' },
+      false,
+    ],
+    [
+      'upload',
+      uploadImportRequest,
+      { formId: uuid, clientImportId: uuid, sheetName: 's'.repeat(101) },
+      false,
+    ],
     ['automatic', automaticImportMappingRequest, { expectedMappingRevision: 1 }, true],
     ['automatic', automaticImportMappingRequest, { expectedMappingRevision: 2 }, false],
     ['rerun', rerunImportRequest, { formId: uuid }, true],
@@ -114,6 +133,16 @@ describe('import request contracts', () => {
     ['process', processImportRequest, { expectedValidationRevision: 0 }, false],
   ] as const)('%s body %j is accepted: %s', (_route, schema, body, expected) => {
     expect(accepts(schema, body)).toBe(expected)
+  })
+})
+
+describe('upload sheet name', () => {
+  it('keeps a sheet name exactly, trailing space included, so the parser can match it', () => {
+    const uuid = '30000000-0000-4000-8000-000000000003'
+    expect(
+      uploadImportRequest.parse({ formId: uuid, clientImportId: uuid, sheetName: 'Data ' })
+        .sheetName,
+    ).toBe('Data ')
   })
 })
 
