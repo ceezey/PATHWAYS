@@ -2,6 +2,7 @@
 
 import { Download, FileQuestion } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
+import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -113,7 +114,8 @@ export const ProofPreviewDialog = ({
         ) : mime === 'application/pdf' ? (
           <iframe
             className="h-[60dvh] w-full rounded-md border border-border"
-            src={loaded.url}
+            // Hides the browser viewer's toolbar and page sidebar and fits the page to the width.
+            src={`${loaded.url}#toolbar=0&navpanes=0&view=FitH`}
             title={title}
           />
         ) : (
@@ -129,7 +131,11 @@ export const ProofPreviewDialog = ({
           <Button
             className="gap-2"
             disabled={!loaded}
-            onClick={() => loaded && save(loaded.artifact)}
+            onClick={() => {
+              if (!loaded) return
+              save(loaded.artifact)
+              toast.success('File downloaded.')
+            }}
             type="button"
           >
             <Download aria-hidden="true" className="h-4 w-4" />
