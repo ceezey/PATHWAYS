@@ -131,7 +131,9 @@ function OwnedImportWorkspace({ scope }: { scope: SensitiveDraftOwner }) {
                 />
 
                 {sourceColumns.length > 0 ? (
+                  // Keyed by batch so the decision filter and other card state never carry over.
                   <ImportMappingCard
+                    key={batch.id}
                     state={state}
                     review={review}
                     run={run}

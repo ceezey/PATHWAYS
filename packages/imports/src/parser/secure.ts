@@ -153,6 +153,7 @@ try {
       : workbook.SheetNames.find((name) => name === workerData.sheetName);
     if (workerData.sheetName !== null && first === undefined) throw { code: 'WORKBOOK_SHEET_MISSING' };
     // A formula is never evaluated: its saved value is imported, and a formula without one refuses the file.
+    // shortcut: a t="b" formula saved with no value reads as false; no major spreadsheet writer emits it, add a sheet XML pre-scan if one does.
     let formulaGap;
     for (const key of Object.keys((first && workbook.Sheets[first]) || {})) {
       if (key.startsWith('!')) continue;

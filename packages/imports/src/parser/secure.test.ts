@@ -153,6 +153,7 @@ describe('secure import parser', () => {
   it.each([
     ['no saved value', '<c r="A2"><f>1+1</f></c>'],
     ['an empty saved number', '<c r="A2"><f>1+1</f><v></v></c>'],
+    ['an error result', '<c r="A2" t="e"><f>1/0</f><v>#DIV/0!</v></c>'],
   ])('refuses a formula with %s, naming the cell', async (_name, cell) => {
     const work = parseSecureImport(sheetXmlWorkbook(cell), 'XLSX')
     await expect(work).rejects.toMatchObject({
