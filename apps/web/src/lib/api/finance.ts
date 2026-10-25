@@ -14,7 +14,7 @@ import { z } from 'zod'
 
 import { ownedJsonPost, ownedJsonRead, projectPath } from '@/lib/api/core/owned-json-read'
 
-const uuid = z.string().uuid()
+const uuid = z.guid()
 const timestamp = z.string().datetime({ offset: true })
 // The stored currency is a plain string, so the client keeps refusing every currency but PHP.
 const budgetSchema = budgetResponse.extend({ currency: z.literal('PHP') })

@@ -88,11 +88,11 @@ describe('indicator request validation', () => {
     expect(await invalid(() => indicators.create(actor, projectId, {}))).toEqual({
       message: 'Invalid indicator request.',
       issues: [
-        issue('code', 'Required'),
-        issue('name', 'Required'),
-        issue('unitLabel', 'Required'),
-        issue('dataSource', 'Required'),
-        issue('mode', 'Required'),
+        issue('code', 'Invalid input: expected string, received undefined'),
+        issue('name', 'Invalid input: expected string, received undefined'),
+        issue('unitLabel', 'Invalid input: expected string, received undefined'),
+        issue('dataSource', 'Invalid input: expected string, received undefined'),
+        issue('mode', 'Invalid option: expected one of "MANUAL"|"DERIVED"'),
       ],
     })
     expect(boundary.run).not.toHaveBeenCalled()
@@ -103,7 +103,7 @@ describe('indicator request validation', () => {
       await invalid(() => indicators.create(actor, projectId, { ...definition, role: 'X' })),
     ).toEqual({
       message: 'Invalid indicator request.',
-      issues: [issue('', "Unrecognized key(s) in object: 'role'")],
+      issues: [issue('', 'Unrecognized key: "role"')],
     })
     expect(
       await invalid(() => indicators.create(actor, projectId, { ...definition, mode: 'DERIVED' })),
@@ -126,8 +126,8 @@ describe('indicator request validation', () => {
     ).toEqual({
       message: 'Invalid indicator request.',
       issues: [
-        issue('name', 'String must contain at least 1 character(s)'),
-        issue('expectedRevision', 'Number must be greater than or equal to 1'),
+        issue('name', 'Too small: expected string to have >=1 characters'),
+        issue('expectedRevision', 'Too small: expected number to be >=1'),
       ],
     })
     expect(
@@ -140,14 +140,22 @@ describe('indicator request validation', () => {
           source: 'Synthetic register',
         }),
       ),
-    ).toEqual({ message: 'Invalid indicator request.', issues: [issue('value', 'Invalid')] })
+    ).toEqual({
+      message: 'Invalid indicator request.',
+      issues: [
+        issue(
+          'value',
+          'Invalid string: must match pattern /^-?(?:0|[1-9]\\d{0,13})(?:\\.\\d{1,4})?$/',
+        ),
+      ],
+    })
     expect(
       await invalid(() =>
         controller.archive(signedIn, projectId, indicatorId, { expectedRevision: 1 }),
       ),
     ).toEqual({
       message: 'Invalid indicator request.',
-      issues: [issue('clientMutationId', 'Required')],
+      issues: [issue('clientMutationId', 'Invalid input: expected string, received undefined')],
     })
     expect(boundary.run).not.toHaveBeenCalled()
   })
@@ -156,11 +164,11 @@ describe('indicator request validation', () => {
     expect(await invalid(() => library.create(actor, { code: 'lowercase' }))).toEqual({
       message: 'Invalid indicator request.',
       issues: [
-        issue('code', 'Invalid'),
-        issue('name', 'Required'),
-        issue('unitLabel', 'Required'),
-        issue('dataSource', 'Required'),
-        issue('mode', 'Required'),
+        issue('code', 'Invalid string: must match pattern /^[A-Z][A-Z0-9_\\-]{1,39}$/'),
+        issue('name', 'Invalid input: expected string, received undefined'),
+        issue('unitLabel', 'Invalid input: expected string, received undefined'),
+        issue('dataSource', 'Invalid input: expected string, received undefined'),
+        issue('mode', 'Invalid option: expected one of "MANUAL"|"DERIVED"'),
       ],
     })
     expect(
@@ -170,11 +178,11 @@ describe('indicator request validation', () => {
     ).toEqual({
       message: 'Invalid indicator request.',
       issues: [
-        issue('libraryEntryId', 'Invalid uuid'),
-        issue('clientMutationId', 'Required'),
-        issue('periodStart', 'Required'),
-        issue('periodEnd', 'Required'),
-        issue('baseline', 'Required'),
+        issue('libraryEntryId', 'Invalid GUID'),
+        issue('clientMutationId', 'Invalid input: expected string, received undefined'),
+        issue('periodStart', 'Invalid input: expected string, received undefined'),
+        issue('periodEnd', 'Invalid input: expected string, received undefined'),
+        issue('baseline', 'Invalid input: expected string, received undefined'),
       ],
     })
     expect(boundary.run).not.toHaveBeenCalled()
@@ -238,7 +246,10 @@ describe('indicator request identity', () => {
   it('parses the archive body before it checks the application profile', async () => {
     expect(await invalid(() => controller.archive(anonymous, projectId, indicatorId, {}))).toEqual({
       message: 'Invalid indicator request.',
-      issues: [issue('clientMutationId', 'Required'), issue('expectedRevision', 'Required')],
+      issues: [
+        issue('clientMutationId', 'Invalid input: expected string, received undefined'),
+        issue('expectedRevision', 'Invalid input: expected number, received undefined'),
+      ],
     })
     const valid = { clientMutationId: requestKey, expectedRevision: 1 }
     expect(() => controller.archive(anonymous, projectId, indicatorId, valid)).toThrow(

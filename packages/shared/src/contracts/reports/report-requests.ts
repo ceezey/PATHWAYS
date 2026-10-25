@@ -5,8 +5,8 @@ import { reportKinds } from '../../constants/domain-codes'
 const reportContext = z
   .object({
     kind: z.enum(reportKinds),
-    formId: z.string().uuid().optional(),
-    evaluationId: z.string().uuid().optional(),
+    formId: z.guid().optional(),
+    evaluationId: z.guid().optional(),
   })
   .strict()
 type Context = { kind: string; formId?: string; evaluationId?: string }
@@ -23,7 +23,7 @@ export type ReportPreviewQuery = z.infer<typeof reportPreviewQuery>
 // Body of POST projects/:projectId/reports.
 export const generateReportRequest = reportContext
   .extend({
-    clientRequestId: z.string().uuid(),
+    clientRequestId: z.guid(),
     name: z.string().trim().min(1).max(200),
     format: z.enum(['CSV', 'XLSX', 'XLS', 'PDF']),
   })

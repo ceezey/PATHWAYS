@@ -3,7 +3,7 @@ import { z } from 'zod'
 
 import { ownedJsonRead, projectPath } from '@/lib/api/core/owned-json-read'
 
-const uuid = z.string().uuid()
+const uuid = z.guid()
 const publicationSchema = z
   .object({
     revision: z.number().int().positive(),

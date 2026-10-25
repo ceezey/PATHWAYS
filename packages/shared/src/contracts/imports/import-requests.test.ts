@@ -131,7 +131,7 @@ describe('import request contracts', () => {
     ['rerun', rerunImportRequest, { formId: 'nope' }, false],
     ['process', processImportRequest, { expectedValidationRevision: 1 }, true],
     ['process', processImportRequest, { expectedValidationRevision: 0 }, false],
-  ] as const)('%s body %j is accepted: %s', (_route, schema, body, expected) => {
+  ] as const)('%s body %# is accepted as expected', (_route, schema, body, expected) => {
     expect(accepts(schema, body)).toBe(expected)
   })
 })
@@ -276,10 +276,16 @@ describe('other import bodies', () => {
       { expectedMappingRevision: 0, target: 'private' },
       false,
     ],
-    ['process', processImportRequest, { expectedValidationRevision: 2 ** 53 }, true],
+    [
+      'process',
+      processImportRequest,
+      { expectedValidationRevision: Number.MAX_SAFE_INTEGER },
+      true,
+    ],
+    ['process', processImportRequest, { expectedValidationRevision: 2 ** 53 }, false],
     ['process', processImportRequest, { expectedValidationRevision: '1' }, false],
     ['process', processImportRequest, { expectedValidationRevision: 1, extra: true }, false],
-  ] as const)('%s row %#: accepted %s', (_route, schema, body, expected) => {
+  ] as const)('%s row %# is accepted as expected', (_route, schema, body, expected) => {
     expect(accepts(schema, body)).toBe(expected)
   })
 })

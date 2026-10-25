@@ -105,7 +105,7 @@ export type ImportBatchDetailResponse = z.infer<typeof importBatchDetailResponse
 export const importRowResponse = z.object({
   id: z.string(),
   rowNumber: z.number().int(),
-  rawData: z.record(z.union([z.string(), z.number(), z.boolean(), z.null()])),
+  rawData: z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])),
   status: z.enum([
     'PENDING',
     'VALID',

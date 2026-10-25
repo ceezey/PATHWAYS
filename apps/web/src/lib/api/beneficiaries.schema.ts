@@ -10,7 +10,7 @@ import type { BeneficiaryRecord, BeneficiaryRegistrationContext } from '@/types/
 
 const field = z
   .object({
-    id: z.string().uuid(),
+    id: z.guid(),
     code: z.string().max(64),
     label: z.string().max(160),
     dataType: z.enum([
@@ -38,13 +38,13 @@ const field = z
   .strict()
 const schema = z
   .object({
-    projectId: z.string().uuid(),
+    projectId: z.guid(),
     businessDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
     definitions: z
       .array(
         z
           .object({
-            id: z.string().uuid(),
+            id: z.guid(),
             code: z.string().regex(/^[a-z][a-z0-9_]{1,63}$/),
             version: z.number().int().positive(),
             name: z.string().min(3).max(160),

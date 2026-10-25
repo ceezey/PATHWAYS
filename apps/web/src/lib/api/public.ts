@@ -5,8 +5,7 @@ import { z } from 'zod'
 
 // Reads the allowlisted public snapshots; throws PUBLIC_NOT_FOUND or PUBLIC_UNAVAILABLE.
 export async function readPublicSnapshots(projectId?: string): Promise<PublicProjectResponse[]> {
-  if (projectId && !z.string().uuid().safeParse(projectId).success)
-    throw new Error('PUBLIC_NOT_FOUND')
+  if (projectId && !z.guid().safeParse(projectId).success) throw new Error('PUBLIC_NOT_FOUND')
   const base = approvedApiBaseUrl(webEnv.NEXT_PUBLIC_API_BASE_URL, webEnv.NEXT_PUBLIC_API_BASE_URL)
   const url = `${base.toString().replace(/\/$/, '')}/public/projects${projectId ? `/${projectId}` : '?limit=100'}`
   // Anonymous reads never carry a staff bearer token, workspace context, cookies, or redirects.

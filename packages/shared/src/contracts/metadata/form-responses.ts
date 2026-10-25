@@ -84,7 +84,10 @@ export const formSubmissionResponse = z.object({
   formVersion: z.number().int(),
   submittedAt: z.string().optional(),
   updatedAt: z.string(),
-  values: z.record(z.union([z.string(), z.number(), z.boolean(), z.array(z.string()), z.null()])),
+  values: z.record(
+    z.string(),
+    z.union([z.string(), z.number(), z.boolean(), z.array(z.string()), z.null()]),
+  ),
 })
 export type FormSubmissionResponse = z.infer<typeof formSubmissionResponse>
 

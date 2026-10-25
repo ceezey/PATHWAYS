@@ -28,10 +28,7 @@ export const ruleMetrics = [
   'SURVEY_MEAN_POST_TEST_PERCENT',
 ] as const
 export type RuleMetricKey = (typeof ruleMetrics)[number]
-export const uuidSchema = z
-  .string()
-  .uuid()
-  .transform((value) => value.toLowerCase())
+export const uuidSchema = z.guid().transform((value) => value.toLowerCase())
 export const decimalSchema = z
   .string()
   .max(20)

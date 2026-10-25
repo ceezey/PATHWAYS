@@ -5,7 +5,7 @@ import { ROLE_OVERVIEW_CONTRACT_VERSION, roleOverviewSchema } from '../dashboard
 import { storedProjectStatuses } from './project-requests'
 
 const statuses = ['PLANNED', 'ONGOING', 'COMPLETED', 'ON_HOLD', 'CANCELLED']
-const enumError = `Invalid enum value. Expected ${statuses.map((s) => `'${s}'`).join(' | ')}, received 'ARCHIVED'`
+const enumError = `Invalid option: expected one of ${statuses.map((s) => `"${s}"`).join('|')}`
 const scope = {
   organizationId: '10000000-0000-4000-8000-000000000001',
   projectId: '20000000-0000-4000-8000-000000000002',

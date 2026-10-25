@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
 // Expense and budget ids are checked with the zod UUID rule.
-export const uuid = z.string().uuid()
+export const uuid = z.guid()
 
 // Reviewer identity for a read: the display name only, never the rest of the user record.
 export const personName = { select: { fullName: true } } as const

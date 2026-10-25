@@ -244,7 +244,7 @@ describe('activity body validation', () => {
   it('answers 400 naming a retired key without calling the service', async () => {
     const result = await send('POST', `${base}/activities`, { ...create, targetGoal: 75 })
     expect(result.status).toBe(400)
-    expect(result.body.message).toContain("Unrecognized key(s) in object: 'targetGoal'")
+    expect(result.body.message).toContain('Unrecognized key: "targetGoal"')
     expect(activities.create).not.toHaveBeenCalled()
   })
 })

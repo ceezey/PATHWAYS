@@ -13,8 +13,8 @@ import {
 const requestSchema = z
   .object({
     operation: z.enum(operations),
-    sourceId: z.string().uuid().nullable(),
-    requestId: z.string().uuid(),
+    sourceId: z.guid().nullable(),
+    requestId: z.guid(),
     body: z.record(z.string(), z.unknown()),
   })
   .strict()
@@ -37,7 +37,7 @@ export class RulesSourceOperationsService {
   constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
   abandon(identity: ApplicationIdentity, projectId: string, value: unknown) {
     const parsed = requestSchema.safeParse(value)
-    if (!parsed.success || !z.string().uuid().safeParse(projectId).success)
+    if (!parsed.success || !z.guid().safeParse(projectId).success)
       throw new BadRequestException('Invalid mutation recovery request.')
     const input = parsed.data
     if (input.operation === 'ACTIVITY_PROOF_FINALIZE')

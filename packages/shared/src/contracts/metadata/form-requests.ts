@@ -55,7 +55,7 @@ export const formResponseValues = z.preprocess(
       ? Object.fromEntries(Object.entries(value).filter(([key]) => !skippedValueKeys.has(key)))
       : value,
   z
-    .record(z.unknown())
+    .record(z.string(), z.unknown())
     .refine((values) => !hasConstructorKey(values), 'must not contain a constructor key'),
 )
 

@@ -1,6 +1,6 @@
 import { generateKeyPairSync, sign, webcrypto } from 'node:crypto'
 import { ServiceUnavailableException, UnauthorizedException } from '@nestjs/common'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { type Mock, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { DEVELOPER_AUTH_UUID, DEVELOPER_SUPABASE_URL } from './developer-bootstrap-identity'
 import type { SessionLivenessService } from './session-liveness.service'
@@ -49,7 +49,7 @@ const signedToken = (claims = validClaims(), attackerSigned = false, headerKeyId
 
 let user: Record<string, unknown>
 let userStatus: number
-let fetchMock: ReturnType<typeof vi.fn>
+let fetchMock: Mock<typeof fetch>
 const identityReads = () =>
   fetchMock.mock.calls.filter(([input]) => String(input).endsWith('/auth/v1/user'))
 
@@ -354,13 +354,13 @@ describe('TokenAuthService cryptographic verification and current identity', () 
     'contains rejected %s transport details before installed SDK logging',
     async (failure) => {
       const error = vi.spyOn(console, 'error').mockImplementation(() => undefined)
-      const originalFetch = fetchMock.getMockImplementation()
+      const originalFetch = fetchMock.getMockImplementation() as typeof fetch
       fetchMock.mockImplementation(async (input, init) => {
         if (failure === 'keys' || String(input).endsWith('/auth/v1/user')) {
           if (failure === 'abort') throw new DOMException('synthetic-private-detail', 'AbortError')
           throw new Error('synthetic-private-transport-detail')
         }
-        return originalFetch?.(input, init)
+        return originalFetch(input, init)
       })
       // Auth JS shares its JWKS cache between clients. Force a cache miss to
       // actually exercise the key-read transport path, not a later user read.

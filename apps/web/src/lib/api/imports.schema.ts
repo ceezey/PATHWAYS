@@ -1,7 +1,7 @@
 import { z } from 'zod'
 const receiptSchema = z
   .object({
-    batchId: z.string().uuid(),
+    batchId: z.guid(),
     mappingRevision: z.literal(1),
     mapped: z.number().int().min(0).max(100),
     pending: z.number().int().min(0).max(500),
