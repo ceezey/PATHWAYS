@@ -17,6 +17,10 @@ import {
   requireBatch,
   requireBatchWithHeaders,
 } from './import-batches.service'
+import {
+  MATCH_BY_IDENTIFIER_REFUSAL,
+  mayMatchByIdentifier,
+} from './import-promotion-context.service'
 import { checksum, type fileMetadata, stableJson } from './imports.helpers'
 import type { W10FinalizationFault } from './upload-finalization-fault'
 
@@ -69,6 +73,19 @@ export async function reserveBatchUpload(
     throw new ForbiddenException(
       'Importing participants needs the Create Beneficiary Profile permission.',
     )
+  }
+  // A form with the client's identifier field is matched by it, which links or updates found participants.
+  if (form.formType === 'BENEFICIARY_REGISTRATION' && !mayMatchByIdentifier(actor)) {
+    const identifierField = await tx.formField.findFirst({
+      where: {
+        organizationId: actor.organizationId,
+        projectId: scopedProjectId,
+        formId: form.id,
+        code: 'external_identifier_value',
+      },
+      select: { id: true },
+    })
+    if (identifierField) throw new ForbiddenException(MATCH_BY_IDENTIFIER_REFUSAL)
   }
   // Only a workbook has sheets; the chosen one is kept so a resume or re-run reads the same rows.
   const sourceSheetName =

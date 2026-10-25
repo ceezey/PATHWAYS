@@ -4,6 +4,7 @@ import {
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common'
+import { rolePermissions } from '@pathways/shared'
 import { Prisma } from '@prisma/client'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -1358,6 +1359,70 @@ describe('metadata-driven intake validation', () => {
       ).filter(([call]) => call.data.action === 'IMPORT_REGISTRATION_UNCHANGED')
       expect(unchanged).toHaveLength(3)
       expect(JSON.stringify(unchanged)).not.toMatch(/S-\d|First|Last/)
+    })
+
+    it('a Project Officer cannot process a batch matched by client id and no row is claimed', async () => {
+      state.store = identifierStore([1, 2].map((index) => person(index)))
+      const imports = service(new BeneficiaryRegistrationService())
+      await validate(imports)
+      state.actor = {
+        ...baseActor,
+        roles: ['PROJECT_OFFICER'],
+        permissions: [...rolePermissions.PROJECT_OFFICER],
+      }
+      vi.clearAllMocks()
+
+      const refused = runProcess(imports)
+
+      await expect(refused).rejects.toBeInstanceOf(ForbiddenException)
+      await expect(refused).rejects.toThrow(
+        'Importing participants by client ID needs the identity review and enrollment management permissions.',
+      )
+      expect(state.store.rows.map((row) => row.status)).toEqual(['VALID', 'VALID'])
+      expect(state.store.rows.every((row) => row.processingClaimId === null)).toBe(true)
+      expect(state.store.people).toHaveLength(0)
+    })
+
+    it('a Monitoring and Evaluation Officer processes a batch matched by client id', async () => {
+      state.store = identifierStore([1, 2].map((index) => person(index)))
+      const imports = service(new BeneficiaryRegistrationService())
+      await validate(imports)
+      state.actor = {
+        ...baseActor,
+        permissions: [...rolePermissions.MONITORING_AND_EVALUATION_OFFICER],
+      }
+
+      await runProcess(imports)
+
+      expect(state.store.rows.map((row) => row.status)).toEqual(['PROCESSED', 'PROCESSED'])
+      expect(state.store.people).toHaveLength(2)
+    })
+
+    it('a Project Officer still processes a batch with no client id column', async () => {
+      const fields = identifierFields()
+      state.store = createStore(
+        fields,
+        mappedColumns(fields, [
+          'beneficiary_code',
+          'first_name',
+          'last_name',
+          'birth_date',
+          'enrollment_date',
+          'consent_recorded',
+          'guardian_consent_recorded',
+        ]),
+        [1, 2].map((index) => person(index)),
+        { form: registrationForm },
+      )
+      const imports = service(new BeneficiaryRegistrationService())
+      await validate(imports)
+      state.actor = {
+        ...baseActor,
+        roles: ['PROJECT_OFFICER'],
+        permissions: [...rolePermissions.PROJECT_OFFICER],
+      }
+
+      await expect(runProcess(imports)).resolves.toBeTruthy()
     })
 
     it('a changed profile value in a re-upload is held PROFILE_CHANGED', async () => {

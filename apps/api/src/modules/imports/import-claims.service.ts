@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { ConflictException } from '@nestjs/common'
+import { ConflictException, ForbiddenException } from '@nestjs/common'
 import { IMPORT_ENGINEERING_LIMITS } from '@pathways/imports/server'
 import type { ProcessImportRequest } from '@pathways/shared'
 import { writeAuditLog } from '../../common/audit/write-audit-log'
@@ -7,9 +7,11 @@ import type { ApplicationIdentity } from '../../common/authz/application-identit
 import type { Tx } from '../../common/prisma/transaction'
 import { lockBatch, mapStoredBatch, requireBatchWithHeaders } from './import-batches.service'
 import {
+  MATCH_BY_IDENTIFIER_REFUSAL,
   type PromotionContext,
   type PromotionHandlers,
   loadPromotionContext,
+  mayMatchByIdentifier,
 } from './import-promotion-context.service'
 
 export interface ProcessingClaim {
@@ -52,6 +54,14 @@ export async function claimBatchRows(
   const expiry = new Date(Date.now() - IMPORT_ENGINEERING_LIMITS.processingClaimMilliseconds)
   if (batch.processingClaimId && batch.processingClaimedAt && batch.processingClaimedAt > expiry) {
     throw new ConflictException('Another worker currently owns this import claim.')
+  }
+  // Matching by the client's identifier needs identity review and enrollment grants, so a processor without them is refused before any row is claimed.
+  const context =
+    batch.form.formType === 'BENEFICIARY_REGISTRATION'
+      ? await loadPromotionContext(tx, actor, promotion, batch)
+      : undefined
+  if (context?.matchesByIdentifier && !mayMatchByIdentifier(actor)) {
+    throw new ForbiddenException(MATCH_BY_IDENTIFIER_REFUSAL)
   }
   await tx.dataImportRow.updateMany({
     where: {
@@ -131,7 +141,7 @@ export async function claimBatchRows(
     claimId,
     registrationHandler: batch.form.formType === 'BENEFICIARY_REGISTRATION',
     participationHandler: batch.form.formType === 'ACTIVITY_MONITORING',
-    context: await loadPromotionContext(tx, actor, promotion, batch),
+    context: context ?? (await loadPromotionContext(tx, actor, promotion, batch)),
   }
 }
 

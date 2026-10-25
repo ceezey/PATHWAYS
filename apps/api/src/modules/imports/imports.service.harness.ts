@@ -119,7 +119,7 @@ export const tx = {
     count: vi.fn(),
   },
   metadataMapping: { findMany: vi.fn(), createMany: vi.fn() },
-  formField: { findMany: vi.fn() },
+  formField: { findMany: vi.fn(), findFirst: vi.fn() },
   formSubmission: { findUnique: vi.fn(), create: vi.fn(), update: vi.fn() },
   formResponseValue: { createMany: vi.fn() },
   beneficiaryActivityParticipation: { findUnique: vi.fn() },
@@ -148,6 +148,7 @@ export function useImportsHarness() {
       { promoteParticipation: vi.fn() } as never,
     )
     tx.project.findFirst.mockResolvedValue({ id: projectId })
+    tx.formField.findFirst.mockResolvedValue(null)
     tx.$queryRaw.mockResolvedValue([{ id: batchId }])
     tx.$executeRaw.mockResolvedValue(2)
     tx.auditLog.create.mockResolvedValue({ id: 'audit' })

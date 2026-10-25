@@ -1,4 +1,5 @@
 import { IMPORT_ENGINEERING_LIMITS } from '@pathways/imports/server'
+import { hasAtomicPermission } from '@pathways/shared'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import type { Tx } from '../../common/prisma/transaction'
 import type {
@@ -39,6 +40,14 @@ export interface PromotionContext {
 }
 
 export type PromotionKind = 'GENERIC' | 'REGISTRATION' | 'PARTICIPATION'
+
+export const MATCH_BY_IDENTIFIER_REFUSAL =
+  'Importing participants by client ID needs the identity review and enrollment management permissions.'
+
+// Matching by the client's identifier links or updates found participants, which only these two grants allow.
+export const mayMatchByIdentifier = (actor: ApplicationIdentity) =>
+  hasAtomicPermission(actor.roles[0], actor.permissions, 'beneficiaries.identities.review') &&
+  hasAtomicPermission(actor.roles[0], actor.permissions, 'beneficiaries.enrollments.manage')
 
 // The registration and participation services a row promotion calls.
 export interface PromotionHandlers {

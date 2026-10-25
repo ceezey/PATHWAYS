@@ -84,6 +84,69 @@ describe('P03 import service', () => {
     expect(storage.uploadPrivateFile).not.toHaveBeenCalled()
   })
 
+  describe('a registration form with the client ID field', () => {
+    const withRole = (role: 'PROJECT_OFFICER' | 'MONITORING_AND_EVALUATION_OFFICER') => ({
+      ...actor,
+      roles: [role],
+      permissions: [...rolePermissions[role]],
+    })
+    const registrationForm = () => {
+      tx.digitalForm.findFirst.mockResolvedValue({
+        id: formId,
+        version: 1,
+        formType: 'BENEFICIARY_REGISTRATION',
+      })
+      tx.formField.findFirst.mockResolvedValue({ id: 'field' })
+    }
+
+    it('is refused for a Project Officer before anything is staged', async () => {
+      state.actor = withRole('PROJECT_OFFICER')
+      registrationForm()
+
+      const refused = service.upload(state.actor, projectId, { formId, clientImportId }, file())
+      await expect(refused).rejects.toBeInstanceOf(ForbiddenException)
+      await expect(refused).rejects.toThrow(
+        'Importing participants by client ID needs the identity review and enrollment management permissions.',
+      )
+      expect(tx.dataImportBatch.create).not.toHaveBeenCalled()
+      expect(tx.dataImportRow.createMany).not.toHaveBeenCalled()
+      expect(storage.uploadPrivateFile).not.toHaveBeenCalled()
+    })
+
+    it('is accepted for a Monitoring and Evaluation Officer', async () => {
+      state.actor = withRole('MONITORING_AND_EVALUATION_OFFICER')
+      registrationForm()
+      const source = file()
+      const sourceChecksum = createHash('sha256').update(source.buffer).digest('hex')
+      tx.dataImportBatch.findFirst.mockImplementation(async (args) =>
+        'clientImportId' in args.where ? batch({ sourceChecksum }) : batch(),
+      )
+      tx.dataImportBatch.findUnique.mockResolvedValue(batch())
+      tx.metadataMapping.findMany.mockResolvedValue([])
+
+      await expect(
+        service.upload(state.actor, projectId, { formId, clientImportId }, source),
+      ).resolves.toMatchObject({ id: batchId })
+    })
+
+    it('is accepted for a Project Officer when the form has no client ID field', async () => {
+      state.actor = withRole('PROJECT_OFFICER')
+      registrationForm()
+      tx.formField.findFirst.mockResolvedValue(null)
+      const source = file()
+      const sourceChecksum = createHash('sha256').update(source.buffer).digest('hex')
+      tx.dataImportBatch.findFirst.mockImplementation(async (args) =>
+        'clientImportId' in args.where ? batch({ sourceChecksum }) : batch(),
+      )
+      tx.dataImportBatch.findUnique.mockResolvedValue(batch())
+      tx.metadataMapping.findMany.mockResolvedValue([])
+
+      await expect(
+        service.upload(state.actor, projectId, { formId, clientImportId }, source),
+      ).resolves.toMatchObject({ id: batchId })
+    })
+  })
+
   it('rejects a conflicting scoped idempotency key without replacing its object', async () => {
     tx.digitalForm.findFirst.mockResolvedValue({ id: formId, version: 1 })
     tx.dataImportBatch.findFirst.mockResolvedValue(batch({ sourceChecksum: 'b'.repeat(64) }))
