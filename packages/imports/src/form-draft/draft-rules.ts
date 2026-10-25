@@ -1,9 +1,21 @@
-import { type FieldIntakeRule, completedYearsAt, valueMapText } from '@pathways/shared'
+import {
+  type FieldIntakeRule,
+  completedYearsAt,
+  formDefinitionLimits,
+  valueMapText,
+} from '@pathways/shared'
 import { comparableAnswer, hasLetterPrefix, stripLetterPrefix } from '../answers'
 import { WASHINGTON_GROUP_LEVELS_V1, washingtonGroupLevel } from '../intake-rules'
 import { type ImportValueMapEntry, mapKey } from '../value-map'
 import type { DraftColumn, DraftField, DraftSummary, NeedsCheckReason } from './draft-form'
 import { fieldCodeFromHeader } from './field-code'
+
+// A whole number the INTEGER type can store; longer digit runs are phone numbers or IDs, kept as text.
+export const storableInteger = (value: unknown) =>
+  typeof value === 'number' &&
+  Number.isSafeInteger(value) &&
+  value >= formDefinitionLimits.integerMinimum &&
+  value <= formDefinitionLimits.integerMaximum
 
 const OTHER_ANSWERS = new Set(['iba pa', 'other', 'others', 'iba'])
 const YES = new Set(['true', 'yes', 'oo', '1'])
@@ -278,7 +290,7 @@ export function proposeIntakeRules(
       )
     }
     const present = column.values.filter((value) => !isBlank(value))
-    const dataType = present.every((v) => typeof v === 'number' && Number.isSafeInteger(v))
+    const dataType = present.every(storableInteger)
       ? 'INTEGER'
       : present.every((v) => typeof v === 'boolean')
         ? 'BOOLEAN'
