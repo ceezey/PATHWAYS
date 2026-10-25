@@ -1504,6 +1504,19 @@ describe('metadata-driven intake validation', () => {
       })
     })
 
+    it('detail and a repeated process of a processed registration batch carry the counts', async () => {
+      state.store = identifierStore([1, 2, 3].map((index) => person(index)))
+      const imports = linker()
+      await validate(imports)
+      await runProcess(imports)
+
+      const counts = { created: 3, updated: 0, unchanged: 0 }
+      const detail = await imports.getBatch(state.actor, projectId, batchId)
+      expect(detail.registrationCounts).toEqual(counts)
+      // A second process of a finished batch takes the claim.complete path.
+      expect((await runProcess(imports)).registrationCounts).toEqual(counts)
+    })
+
     it('non-registration batch has no registration counts', async () => {
       state.store = createStore([scoreField], [], [{}, {}])
       for (const row of state.store.rows) row.registrationOutcome = 'CREATED'

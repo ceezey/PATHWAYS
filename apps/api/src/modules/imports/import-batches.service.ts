@@ -80,6 +80,7 @@ export async function readBatchDetail(
   const sourceColumns = stored ? safeSourceColumns(stored.sourceHeaders) : []
   return {
     ...mapBatch(batch, await warningRows(tx, actor, batch.id), actor.userId),
+    ...(await registrationCounts(tx, actor, batch)),
     sourceHeaders: sourceColumns.map((column) => column.key),
     sourceColumns,
     mappings: mappings.map(
