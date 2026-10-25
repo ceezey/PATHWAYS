@@ -3,6 +3,7 @@ import type {
   AutomaticImportMappingRequest,
   ImportBatchDetailResponse,
   ImportBatchResponse,
+  ImportRowResponse,
   ImportRowReviewResponse,
   ImportRowsPageResponse,
   ProcessImportRequest,
@@ -16,6 +17,8 @@ import { PathwaysClientError, requestFoundation } from '@/lib/api/core/request'
 import type { ImportMappingInput } from '@/types/pathways'
 
 import { parseAutomaticMappingReceipt } from './imports.schema'
+
+const heldPage = 100
 
 export const importsClient = {
   async getImportBatches(projectId: string) {
@@ -38,6 +41,18 @@ export const importsClient = {
     return requestFoundation(
       `/imports/projects/${encodeURIComponent(projectId)}/batches/${encodeURIComponent(batchId)}/rows?offset=0&take=100`,
     ) as Promise<ImportRowsPageResponse>
+  },
+
+  // Every row a person must decide, read a page at a time so none is out of reach.
+  async getHeldRows(projectId: string, batchId: string) {
+    const rows: ImportRowResponse[] = []
+    for (let offset = 0; ; offset += heldPage) {
+      const page = (await requestFoundation(
+        `/imports/projects/${encodeURIComponent(projectId)}/batches/${encodeURIComponent(batchId)}/rows?held=true&offset=${offset}&take=${heldPage}`,
+      )) as ImportRowsPageResponse
+      rows.push(...page.rows)
+      if (page.rows.length < heldPage || offset + heldPage >= page.total) return rows
+    }
   },
 
   async uploadImport(

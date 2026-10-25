@@ -116,6 +116,7 @@ export const tx = {
     update: vi.fn(),
     updateMany: vi.fn(),
     groupBy: vi.fn(),
+    count: vi.fn(),
   },
   metadataMapping: { findMany: vi.fn(), createMany: vi.fn() },
   formField: { findMany: vi.fn() },

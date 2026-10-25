@@ -65,12 +65,32 @@ const holdReasons: Record<ImportHoldCode, string> = {
   SUBJECT_TYPE_CONFLICT: 'Participant type does not match',
   SHARED_PROFILE_UPDATE_REVIEW_REQUIRED: 'Change to a shared profile needs review',
   PROFILE_CHANGED: 'Values differ from PATHWAYS',
-  IDENTITY_CONFLICT: 'Client ID is used by more than one participant',
+  IDENTITY_CONFLICT: 'Client ID is used more than once',
   IDENTITY_MISSING: 'Client ID is missing',
 }
 
-export const holdReason = (code: string | null) =>
-  (code ? holdReasons[code as ImportHoldCode] : undefined) ?? 'Needs review'
+// Why an invalid registration row waits for a reviewer, by its validation code.
+const validationReasons: Record<string, string> = {
+  AGE_MISMATCH: 'Age does not match the birth date',
+  BIRTH_AFTER_DATE: 'Birth date is after the date age is measured',
+  CALCULATION_MISMATCH: 'File value does not match the calculated value',
+  IDENTITY_CONFLICT: 'Client ID is used more than once',
+}
+
+/** The plain reason for a real hold code, or undefined for any other code. */
+export const knownHoldReason = (code: string | null) =>
+  code ? (holdReasons as Record<string, string>)[code] : undefined
+
+export const holdReason = (code: string | null) => knownHoldReason(code) ?? 'Needs review'
+
+// The plain reason a row is held: its hold code, or for an invalid row its first validation code.
+export function rowReason(
+  row: Pick<ImportRowDefinition, 'status' | 'processingErrorCode' | 'validationErrors'>,
+) {
+  if (row.status !== 'INVALID') return holdReason(row.processingErrorCode)
+  const code = row.validationErrors[0]?.code
+  return (code ? validationReasons[code] : undefined) ?? 'A value in this row is not valid'
+}
 
 // The participant name from the mapped first and last name columns, or a fallback when the file has none.
 export function participantName(

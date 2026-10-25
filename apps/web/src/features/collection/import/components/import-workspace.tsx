@@ -131,11 +131,7 @@ function OwnedImportWorkspace({ scope }: { scope: SensitiveDraftOwner }) {
                   batch={batch}
                 />
 
-                <ImportHeldList
-                  batch={batch}
-                  onChanged={() => review.loadBatch(batch.id)}
-                  rows={state.rows}
-                />
+                <ImportHeldList batch={batch} onChanged={() => review.loadBatch(batch.id)} />
 
                 {sourceColumns.length > 0 ? (
                   // Keyed by batch so the decision filter and other card state never carry over.

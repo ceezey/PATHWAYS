@@ -102,12 +102,26 @@ export async function readBatchRows(
   query: ImportRowsQuery,
 ): Promise<ImportRowsPageResponse> {
   const batch = await requireBatch(tx, actor, projectId, batchId)
+  const scope = {
+    organizationId: actor.organizationId,
+    projectId: batch.projectId,
+    importBatchId: batch.id,
+  }
+  // Held rows wait for a person: unprocessed rows with a reason, and invalid registration rows a reviewer can resolve.
+  const where = query.held
+    ? {
+        ...scope,
+        OR: [
+          { status: 'UNPROCESSED' as const, processingErrorCode: { not: null } },
+          ...(batch.form.formType === 'BENEFICIARY_REGISTRATION'
+            ? [{ status: 'INVALID' as const }]
+            : []),
+        ],
+      }
+    : scope
+  const total = query.held ? await tx.dataImportRow.count({ where }) : batch.totalRows
   const rows = await tx.dataImportRow.findMany({
-    where: {
-      organizationId: actor.organizationId,
-      projectId: batch.projectId,
-      importBatchId: batch.id,
-    },
+    where,
     select: {
       id: true,
       rowNumber: true,
@@ -128,7 +142,7 @@ export async function readBatchRows(
   return {
     offset: query.offset,
     take: query.take,
-    total: batch.totalRows,
+    total,
     rows: rows.map(
       (row): ImportRowResponse => ({
         ...row,

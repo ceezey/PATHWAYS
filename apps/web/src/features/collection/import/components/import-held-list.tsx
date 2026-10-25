@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -13,30 +13,54 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { useCurrentRole } from '@/hooks/use-current-role'
+import { importsClient } from '@/lib/api/imports'
 import { principalHasAtomicPermission } from '@/lib/rbac/policy'
 import type { ImportBatchDefinition, ImportRowDefinition } from '@/types/pathways'
 
-import { headClass, holdReason, participantName } from '../import.utils'
+import { headClass, participantName, rowReason } from '../import.utils'
 import { GuardianApprovalPanel } from './guardian-approval-panel'
 import { ImportReviewDialog } from './import-review-dialog'
 
 /** The batch results and the rows held for a person to decide. */
 export function ImportHeldList({
   batch,
-  rows,
   onChanged,
 }: {
   batch: ImportBatchDefinition
-  rows: ImportRowDefinition[]
   onChanged: () => Promise<void> | void
 }) {
   const { profile } = useCurrentRole()
   const [reviewing, setReviewing] = useState<string | null>(null)
-  const held = rows.filter((row) => row.status === 'UNPROCESSED')
-  const heldCount = batch.totals.unprocessed
+  const [held, setHeld] = useState<ImportRowDefinition[]>([])
+  const [loadError, setLoadError] = useState('')
+  // Invalid registration rows wait for a reviewer too.
+  const heldCount =
+    batch.totals.unprocessed +
+    (batch.formType === 'BENEFICIARY_REGISTRATION' ? batch.totals.invalid : 0)
+  useEffect(() => {
+    let active = true
+    setLoadError('')
+    if (heldCount === 0) {
+      setHeld([])
+      return
+    }
+    Promise.resolve()
+      .then(() => importsClient.getHeldRows(batch.projectId, batch.id))
+      .then((loaded) => active && setHeld(loaded))
+      .catch((error) => {
+        if (active)
+          setLoadError(error instanceof Error ? error.message : 'Held rows could not be loaded.')
+      })
+    return () => {
+      active = false
+    }
+  }, [batch, heldCount])
   const counts = batch.registrationCounts
   if (!counts && heldCount === 0 && held.length === 0) return null
-  const canReview = principalHasAtomicPermission(profile, 'imports.review')
+  // Resolving registers a participant, so the reviewer needs both grants.
+  const canReview =
+    principalHasAtomicPermission(profile, 'imports.review') &&
+    principalHasAtomicPermission(profile, 'beneficiaries.records.register')
   const results = [
     ...(counts
       ? [
@@ -48,7 +72,10 @@ export function ImportHeldList({
     ['Held', heldCount],
   ] as const
   const minors = held
-    .filter((row) => row.processingErrorCode === 'GUARDIAN_CONSENT_REQUIRED')
+    .filter(
+      (row) =>
+        row.status === 'UNPROCESSED' && row.processingErrorCode === 'GUARDIAN_CONSENT_REQUIRED',
+    )
     .map((row) => ({
       id: row.id,
       rowNumber: row.rowNumber,
@@ -60,15 +87,15 @@ export function ImportHeldList({
         <CardHeader>
           <CardTitle>Import results</CardTitle>
           {held.length > 0 ? (
-            <CardDescription>
-              {held.length < heldCount
-                ? `Showing ${held.length} of ${heldCount} held rows. `
-                : null}
-              Review each held row to decide what is saved.
-            </CardDescription>
+            <CardDescription>Review each held row to decide what is saved.</CardDescription>
           ) : null}
         </CardHeader>
         <CardContent className="space-y-4">
+          {loadError ? (
+            <p className="text-sm text-danger" role="alert">
+              {loadError}
+            </p>
+          ) : null}
           <fieldset aria-label="Import results" className="grid gap-3 sm:grid-cols-4">
             {results.map(([label, value]) => (
               <div key={label} className="rounded-md bg-surface-subtle p-3">
@@ -95,7 +122,7 @@ export function ImportHeldList({
                     <TableRow key={row.id}>
                       <TableCell>{row.rowNumber}</TableCell>
                       <TableCell>{participantName(row, batch.mappings)}</TableCell>
-                      <TableCell>{holdReason(row.processingErrorCode)}</TableCell>
+                      <TableCell>{rowReason(row)}</TableCell>
                       <TableCell className="text-right">
                         {canReview && row.processingErrorCode !== 'GUARDIAN_CONSENT_REQUIRED' ? (
                           <Button

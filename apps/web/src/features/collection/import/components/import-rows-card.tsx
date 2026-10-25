@@ -16,7 +16,7 @@ import {
 import { enumLabel, warningLabel } from '../../collection.copy'
 import { ToggleRow } from '../../forms/components/toggle-row'
 import type { ImportState } from '../hooks/use-import-state'
-import { displayValue, headClass, holdReason, rowTone } from '../import.utils'
+import { displayValue, headClass, knownHoldReason, rowTone } from '../import.utils'
 
 export function ImportRowsCard({
   state,
@@ -91,7 +91,8 @@ export function ImportRowsCard({
                           </ul>
                         ) : row.processingErrorCode ? (
                           <span className="text-warning">
-                            {holdReason(row.processingErrorCode)}
+                            {knownHoldReason(row.processingErrorCode) ??
+                              enumLabel(row.processingErrorCode)}
                           </span>
                         ) : (
                           <span className="text-muted-foreground">No errors</span>
