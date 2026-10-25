@@ -234,6 +234,21 @@ describe('import normalization contract', () => {
     ]
     const dates = { birth_date: '2008-08-17', enrollment_date: '2026-05-28' }
 
+    it('holds a row whose birth date is after the enrollment date instead of a negative age', () => {
+      const options = { uploadDate: '2026-10-22' }
+      const result = normalizeImportedRow(
+        ageFields(),
+        { birth_date: '2028-01-01', enrollment_date: '2026-05-28' },
+        {},
+        options,
+      )
+      expect(result.valid).toBe(false)
+      expect(result.errors).toEqual([
+        expect.objectContaining({ fieldCode: 'birth_date', code: 'BIRTH_AFTER_DATE' }),
+      ])
+      expect(result.values.age_at_registration).toBeNull()
+    })
+
     it('"A. Babae" with an alias resolves to FEMALE', () => {
       expect(normalizeImportedRow([sex], { sex: 'A. Babae' })).toMatchObject({
         valid: true,

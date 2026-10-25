@@ -5,6 +5,7 @@ import {
   valueMapText,
 } from '@pathways/shared'
 import { comparableAnswer, hasLetterPrefix, stripLetterPrefix } from '../answers'
+import { fittingDateOrders, readDate } from '../date-order'
 import { WASHINGTON_GROUP_LEVELS_V1, washingtonGroupLevel } from '../intake-rules'
 import { type ImportValueMapEntry, mapKey } from '../value-map'
 import type { DraftColumn, DraftField, DraftSummary, NeedsCheckReason } from './draft-form'
@@ -68,6 +69,16 @@ export function proposeIntakeRules(
   const rows = Math.max(0, ...columns.map((column) => column.values.length))
   const rowIndexes = Array.from({ length: rows }, (_, row) => row)
   const upload = toDay(uploadDate)
+  const uploadYear = Number(uploadDate.slice(0, 4))
+  // Reads ISO dates, and text dates in the one day-month-year order that fits the whole column.
+  const dayReader = (column: DraftColumn) => {
+    const orders = fittingDateOrders(column.values, uploadYear)
+    return (value: unknown) =>
+      toDay(value) ??
+      (orders.length === 1 && typeof value === 'string'
+        ? toDay(readDate(value, { order: orders[0], referenceYear: uploadYear }))
+        : null)
+  }
 
   const columnFor = (code: string) => ordered.find((column) => mapping.get(column.key) === code)
   const isNew = (code: string) => summary.addedFields.includes(code)
@@ -223,8 +234,10 @@ export function proposeIntakeRules(
     const birth = columnFor('birth_date')
     const enrolled = columnFor('enrollment_date')
     if (!birth || !enrolled) return
-    const years = (row: number, at: Date | null = toDay(enrolled.values[row])) => {
-      const born = toDay(birth.values[row])
+    const bornOn = dayReader(birth)
+    const enrolledOn = dayReader(enrolled)
+    const years = (row: number, at: Date | null = enrolledOn(enrolled.values[row])) => {
+      const born = bornOn(birth.values[row])
       return born && at ? completedYearsAt(born, at) : null
     }
     for (const [code, kind] of [
@@ -238,14 +251,14 @@ export function proposeIntakeRules(
         const age = years(row)
         return age === null ? null : kind === 'AGE_AT_DATE' ? age : age < 18
       }
+      // A column agrees only when some row could be compared; unreadable dates prove nothing.
+      const compared = rowIndexes.filter(
+        (row) => column && !isBlank(column.values[row]) && expected(row) !== null,
+      )
       const agrees =
         !column ||
-        rowIndexes.every(
-          (row) =>
-            isBlank(column.values[row]) ||
-            expected(row) === null ||
-            coerced(column.values[row]) === expected(row),
-        )
+        (compared.length > 0 &&
+          compared.every((row) => coerced(column.values[row]) === expected(row)))
       propose(field, { kind, birthField: 'birth_date', atField: 'enrollment_date' })
       if (!column) continue
       const header = column.header.trim()
