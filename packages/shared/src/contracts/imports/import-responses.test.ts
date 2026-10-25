@@ -89,6 +89,20 @@ describe('import response contracts', () => {
     expect(importBatchResponse.parse(stamped)).toEqual(stamped)
   })
 
+  it('accept optional registration counts and reject negative ones', () => {
+    const counts = { created: 2, updated: 1, unchanged: 0 }
+    expect(importBatchResponse.parse({ ...batch, registrationCounts: counts })).toEqual({
+      ...batch,
+      registrationCounts: counts,
+    })
+    expect(
+      importBatchResponse.safeParse({
+        ...batch,
+        registrationCounts: { ...counts, created: -1 },
+      }).success,
+    ).toBe(false)
+  })
+
   it('reject an object that is missing required members', () => {
     expect(importBatchResponse.safeParse({ ...batch, totals: { rows: 3 } }).success).toBe(false)
     expect(importBatchDetailResponse.safeParse(batch).success).toBe(false)

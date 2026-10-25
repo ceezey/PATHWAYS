@@ -11,6 +11,7 @@ import type { PrismaService } from '@app/prisma/prisma.service'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import { BeneficiaryRegistrationService } from '../beneficiaries/beneficiary-registration.service'
 import type { StorageService } from '../storage/storage.service'
+import { mapStoredBatch } from './import-batches.service'
 import { ImportsService } from './imports.service'
 
 type Json = Record<string, unknown>
@@ -363,10 +364,11 @@ const fakeTx = {
       for (const row of rows) apply(row as unknown as Json, args.data)
       return { count: rows.length }
     }),
-    groupBy: vi.fn(async () => {
-      const counts = new Map<string, number>()
-      for (const row of state.store.rows) counts.set(row.status, (counts.get(row.status) ?? 0) + 1)
-      return [...counts].map(([status, count]) => ({ status, _count: { _all: count } }))
+    groupBy: vi.fn(async (args: { by: Array<'status' | 'registrationOutcome'> }) => {
+      const [key] = args.by
+      const counts = new Map<string | null, number>()
+      for (const row of state.store.rows) counts.set(row[key], (counts.get(row[key]) ?? 0) + 1)
+      return [...counts].map(([value, count]) => ({ [key]: value, _count: { _all: count } }))
     }),
   },
   metadataMapping: {
@@ -1484,6 +1486,30 @@ describe('metadata-driven intake validation', () => {
         processingErrorCode: null,
         registrationOutcome: 'LINKED',
       })
+    })
+
+    const outcomes = ['CREATED', 'CREATED', 'UPDATED', 'LINKED', 'UNCHANGED', null]
+    const readBatch = () => mapStoredBatch(fakeTx as never, state.actor, projectId, batchId)
+
+    it('registration batch reports created, updated and unchanged', async () => {
+      state.store = identifierStore(outcomes.map((_, index) => person(index)))
+      for (const [index, row] of state.store.rows.entries()) {
+        row.registrationOutcome = outcomes[index]
+      }
+
+      expect((await readBatch()).registrationCounts).toEqual({
+        created: 2,
+        updated: 2,
+        unchanged: 1,
+      })
+    })
+
+    it('non-registration batch has no registration counts', async () => {
+      state.store = createStore([scoreField], [], [{}, {}])
+      for (const row of state.store.rows) row.registrationOutcome = 'CREATED'
+
+      expect(await readBatch()).not.toHaveProperty('registrationCounts')
+      expect(fakeTx.dataImportRow.groupBy).not.toHaveBeenCalled()
     })
   })
 })

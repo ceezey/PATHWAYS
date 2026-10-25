@@ -13,7 +13,7 @@ import { requireScopedProject } from '../../common/authz/scoped-project'
 import type { Tx } from '../../common/prisma/transaction'
 import { readBatchCoverage } from './batch-coverage'
 import { safeSourceColumns } from './imports.helpers'
-import { batchSelection, mapBatch } from './imports.mapper'
+import { type BatchRow, batchSelection, mapBatch } from './imports.mapper'
 
 export async function listProjectBatches(tx: Tx, actor: ApplicationIdentity, projectId: string) {
   const scopedProjectId = await requireScopedProject(tx, actor, projectId)
@@ -147,7 +147,31 @@ export async function mapStoredBatch(
   batchId: string,
 ) {
   const batch = await requireBatch(tx, actor, projectId, batchId)
-  return mapBatch(batch, await warningRows(tx, actor, batch.id), actor.userId)
+  return {
+    ...mapBatch(batch, await warningRows(tx, actor, batch.id), actor.userId),
+    ...(await registrationCounts(tx, actor, batch)),
+  }
+}
+
+/** Processed registration rows by outcome, for registration batches only; LINKED counts as updated. */
+async function registrationCounts(tx: Tx, actor: ApplicationIdentity, batch: BatchRow) {
+  if (batch.form.formType !== 'BENEFICIARY_REGISTRATION') return {}
+  const groups = await tx.dataImportRow.groupBy({
+    by: ['registrationOutcome'],
+    where: { organizationId: actor.organizationId, importBatchId: batch.id },
+    _count: { _all: true },
+  })
+  const count = (...outcomes: string[]) =>
+    groups
+      .filter((group) => group.registrationOutcome && outcomes.includes(group.registrationOutcome))
+      .reduce((sum, group) => sum + group._count._all, 0)
+  return {
+    registrationCounts: {
+      created: count('CREATED'),
+      updated: count('UPDATED', 'LINKED'),
+      unchanged: count('UNCHANGED'),
+    },
+  }
 }
 
 export async function lockBatch(

@@ -57,6 +57,14 @@ export const importBatchResponse = z.object({
     // Rows with at least one validation warning.
     warnings: z.number().int(),
   }),
+  // Processed registration rows by outcome; present only on registration batches, counts only.
+  registrationCounts: z
+    .object({
+      created: z.number().int().nonnegative(),
+      updated: z.number().int().nonnegative(),
+      unchanged: z.number().int().nonnegative(),
+    })
+    .optional(),
   failureCode: z.string().nullable(),
   // Why a FAILED upload was refused, in the parser's fixed words; it never quotes cell values.
   failureMessage: z.string().nullable(),
