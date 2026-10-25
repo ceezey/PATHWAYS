@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException } from '@nestjs/common'
-import { hasAtomicPermission } from '@pathways/shared'
+import { hasAtomicPermission, rolePermissions } from '@pathways/shared'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { PrismaService } from '@app/prisma/prisma.service'
@@ -83,11 +83,31 @@ const fields = [
     rule: { kind: 'SAME_ANSWER_AS', field: 'consent_recorded' },
   }),
   field('guardian_consent_recorded', { dataType: 'BOOLEAN' }),
+  field('wg_seeing', {
+    dataType: 'SELECT',
+    allowedValues: ['No difficulty', 'Some difficulty', 'A lot of difficulty', 'Cannot do at all'],
+  }),
+  field('disability_status', {
+    dataType: 'SELECT',
+    allowedValues: ['WITH_DISABILITY', 'WITHOUT_DISABILITY', 'NOT_SPECIFIED'],
+    rule: {
+      kind: 'WASHINGTON_GROUP_DISABILITY',
+      questionFields: [
+        'wg_seeing',
+        'wg_hearing',
+        'wg_walking',
+        'wg_remembering',
+        'wg_selfcare',
+        'wg_talking',
+      ],
+      disabilityValues: ['Some difficulty', 'A lot of difficulty', 'Cannot do at all'],
+    },
+  }),
   field('external_identifier_type', { importDefault: 'STUDENT_ID' }),
   field('external_identifier_value'),
   field('profile_update_fields', {
     dataType: 'MULTIPLE_SELECT',
-    allowedValues: ['first_name', 'last_name', 'birth_date'],
+    allowedValues: ['first_name', 'last_name', 'birth_date', 'disability_status'],
   }),
 ]
 const fieldId = (code: string) => fields.find((item) => item.code === code)?.id
@@ -116,6 +136,8 @@ const stored = {
   consent_recorded: true,
   data_processing_consent_recorded: true,
   guardian_consent_recorded: null,
+  wg_seeing: 'No difficulty',
+  disability_status: 'NOT_SPECIFIED',
   external_identifier_type: 'STUDENT_ID',
   external_identifier_value: 'S-1',
   profile_update_fields: null,
@@ -450,6 +472,73 @@ describe('review', () => {
 })
 
 describe('resolve', () => {
+  const rejectedMarried = () =>
+    fakeTx.importValueRejection.findMany.mockResolvedValueOnce([
+      { fieldId: fieldId('civil_status') as string, valueHash: valueHash('Married') },
+    ] as never)
+
+  it('a typed answer and a calculated choice save the value recomputed from it', async () => {
+    await resolve({
+      choices: { ...keepBoth, wg_seeing: 'OWN', disability_status: 'CALCULATED' },
+      own: { wg_seeing: 'A lot of difficulty' },
+    })
+
+    const [, , input] = registration.promoteRegistration.mock.calls[0] as unknown as [
+      unknown,
+      unknown,
+      { values: Json },
+    ]
+    expect(input.values).toMatchObject({
+      wg_seeing: 'A lot of difficulty',
+      disability_status: 'WITH_DISABILITY',
+      registration_operation: 'UPDATE',
+    })
+  })
+
+  it('a rejected file value is not shown as changed and needs no choice', async () => {
+    rejectedMarried()
+    const shown = await review()
+    expect(shown.fields.find((item) => item.code === 'civil_status')?.changed).toBe(false)
+    expect(shown.fields.find((item) => item.code === 'last_name')?.changed).toBe(true)
+
+    rejectedMarried()
+    await expect(resolve({ choices: { last_name: 'FILE' } })).resolves.toEqual({
+      status: 'PROCESSED',
+    })
+  })
+
+  it('a held row without a hold code is refused', async () => {
+    store.rows[0].processingErrorCode = null
+
+    await expect(resolve({ choices: keepBoth })).rejects.toBeInstanceOf(ConflictException)
+    expectNoWrites()
+  })
+
+  it('an answer the form does not offer keeps the row held', async () => {
+    await expect(
+      resolve({
+        choices: { last_name: 'FILE', civil_status: 'OWN' },
+        own: { civil_status: 'Divorced' },
+      }),
+    ).rejects.toMatchObject({
+      response: { errors: [expect.objectContaining({ fieldCode: 'civil_status' })] },
+    })
+    expectNoWrites()
+    expect(store.rows[0]).toMatchObject({ status: 'UNPROCESSED', resolvedAt: null })
+  })
+
+  it('a system administrator without registration permission is refused before any read', async () => {
+    state.actor = {
+      ...actor,
+      roles: ['SYSTEM_ADMINISTRATOR'],
+      permissions: [...rolePermissions.SYSTEM_ADMINISTRATOR],
+    }
+
+    await expect(resolve({ saveAs: 'NEW' })).rejects.toThrow('registration permission')
+    expect(fakeTx.$queryRaw).not.toHaveBeenCalled()
+    expectNoWrites()
+  })
+
   it('own value saved and row processed', async () => {
     const result = await resolve({
       choices: { last_name: 'OWN', civil_status: 'FILE' },

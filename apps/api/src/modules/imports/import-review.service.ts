@@ -46,13 +46,7 @@ import { matchedValues, registrationOutcomes } from './import-row-promotion.serv
 import { columnRules, intakeField, valuesByFieldCode } from './import-validation.service'
 import { safeRawData, stableJson } from './imports.helpers'
 import type { FieldRow } from './imports.mapper'
-import {
-  type Baseline,
-  differingFields,
-  matchParticipant,
-  readBaseline,
-  valueHash,
-} from './participant-match'
+import { type Baseline, matchParticipant, readBaseline, valueHash } from './participant-match'
 
 type Values = Record<string, NormalizedImportValue>
 type Choices = ResolveImportRowRequest['choices']
@@ -240,6 +234,7 @@ async function loadHeldRow(
   if (
     (row.status !== 'UNPROCESSED' && row.status !== 'INVALID') ||
     row.resolvedAt ||
+    (row.status === 'UNPROCESSED' && !row.processingErrorCode) ||
     batch.form.formType !== 'BENEFICIARY_REGISTRATION'
   ) {
     throw new ConflictException('This row is not waiting for review.')
@@ -277,7 +272,8 @@ async function loadHeldRow(
     file,
     beneficiaryId,
     baseline,
-    changed: new Set(baseline ? differingFields(form, file, baseline).map((f) => f.code) : []),
+    // The matcher's list already leaves out file values the reviewer rejected before.
+    changed: new Set(match.kind === 'CHANGED' ? match.fieldCodes : []),
   }
 }
 
@@ -286,7 +282,6 @@ function choose(held: HeldRow, body: ResolveImportRowRequest) {
   const errors: FieldError[] = []
   const fail = (fieldCode: string, code: string, message: string) =>
     errors.push({ fieldCode, code, message })
-  const calculated = calculatedValues(held.fields, held.file, held.uploadDate)
   const values: Record<string, unknown> = { ...held.file }
   for (const [code, choice] of Object.entries(body.choices)) {
     const field = held.fields.find((item) => item.code === code)
@@ -299,15 +294,22 @@ function choose(held: HeldRow, body: ResolveImportRowRequest) {
       else if (tooLong(field.dataType, body.own[code]))
         fail(code, 'too_long', 'The value is too long.')
       else values[code] = body.own[code]
-    } else if (choice === 'CALCULATED') {
-      if (calculated[code] == null)
-        fail(code, 'no_calculation', 'PATHWAYS has no calculated value.')
-      else values[code] = calculated[code]
     } else if (choice === 'PATHWAYS') {
       if (body.saveAs === 'NEW')
         fail(code, 'invalid_choice', 'A new participant has no PATHWAYS value.')
       else if (held.baseline?.stored.has(code)) values[code] = held.baseline.stored.get(code)
     }
+  }
+  // A calculated choice is worked out from the final inputs, so it waits for the typed values.
+  const calculated = calculatedValues(held.fields, values as Values, held.uploadDate)
+  for (const [code, choice] of Object.entries(body.choices)) {
+    if (choice !== 'CALCULATED' || !held.fields.some((field) => field.code === code)) continue
+    if (calculated[code] == null) fail(code, 'no_calculation', 'PATHWAYS has no calculated value.')
+    // A recalculated rule field takes its value when the rules run; a check field takes it now.
+    else
+      values[code] = isCalculatedRule(held.fields.find((field) => field.code === code)?.rule)
+        ? null
+        : calculated[code]
   }
   if (body.saveAs === 'UPDATE') {
     for (const code of held.changed) {
@@ -320,7 +322,7 @@ function choose(held: HeldRow, body: ResolveImportRowRequest) {
   return values
 }
 
-// Runs the form contract, normalization and intake rules on the chosen values; an explicit choice on a calculated field stands.
+// Runs the form contract, normalization and intake rules on the chosen values; a typed, file or PATHWAYS choice on a calculated field stands.
 function validateChosen(
   held: HeldRow,
   body: ResolveImportRowRequest,
@@ -329,7 +331,9 @@ function validateChosen(
   const prepared = { ...chosen }
   const fields = held.fields.map((field) => {
     if (!isCalculatedRule(field.rule)) return field
-    if (field.code in body.choices) return { ...field, rule: null }
+    if (body.choices[field.code] && body.choices[field.code] !== 'CALCULATED') {
+      return { ...field, rule: null }
+    }
     prepared[field.code] = null
     return field
   })
@@ -506,6 +510,12 @@ export class ImportReviewService {
       identity,
       'imports.review',
       async (tx, actor) => {
+        // A resolution registers a participant, so the actor must be able to register one.
+        if (
+          !hasAtomicPermission(actor.roles[0], actor.permissions, 'beneficiaries.records.register')
+        ) {
+          throw new ForbiddenException('Beneficiary registration permission is missing.')
+        }
         if (
           body.saveAs === 'UPDATE' &&
           !hasAtomicPermission(actor.roles[0], actor.permissions, 'beneficiaries.identities.review')
