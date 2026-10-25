@@ -85,7 +85,7 @@ export class BeneficiaryRegistrationService {
       importRowId?: string
       // The client's identifier finds the profile, so the participant code never does.
       matchByIdentifier?: boolean
-      // A project officer's guardian approval of an imported row; no other path sets guardian consent.
+      // A project officer's guardian approval, the only way an imported row gets guardian consent.
       guardianConsent?: { name?: string; date?: string; note?: string }
     },
     preloaded?: { form: RegistrationImportForm },
@@ -145,7 +145,9 @@ export class BeneficiaryRegistrationService {
       // A link or update of an existing profile is judged by the stored profile below.
       const ofStoredProfile =
         values.registration_operation === 'LINK' || values.registration_operation === 'UPDATE'
+      // The file's own guardian value is ignored: only the approval of a minor counts.
       if (minor && guardianApproval) values.guardian_consent_recorded = true
+      else if (values.guardian_consent_recorded === true) values.guardian_consent_recorded = false
       if (minor && !ofStoredProfile && values.guardian_consent_recorded !== true) {
         return { kind: 'REVIEW', code: 'GUARDIAN_CONSENT_REQUIRED' }
       }

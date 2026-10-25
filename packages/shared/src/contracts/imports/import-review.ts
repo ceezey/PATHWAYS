@@ -36,7 +36,8 @@ const json: z.ZodType<Json> = z.lazy(() =>
 const fieldCode = z.string().regex(/^[a-z][a-z0-9_]{0,63}$/, 'must be a lowercase field code')
 
 const maxReviewFields = 100
-const maxGuardianRows = 100
+// Rows one import request promotes in a single verified transaction.
+export const importCheckpointRows = 25
 
 // One field of a held row with the value PATHWAYS holds, the value in the file and the calculated one.
 export const importRowReviewFieldResponse = z.object({
@@ -96,13 +97,13 @@ const calendarDate = z
     return !Number.isNaN(date.getTime()) && date.toISOString().startsWith(value)
   }, 'not a real date')
 
-// Body of POST imports/projects/:projectId/batches/:batchId/guardian-consent.
+// Body of POST imports/projects/:projectId/batches/:batchId/guardian-approvals.
 export const approveGuardianConsentRequest = z
   .object({
     rowIds: z
       .array(uuidString)
       .min(1)
-      .max(maxGuardianRows)
+      .max(importCheckpointRows)
       .refine(hasUniqueItems, 'must be unique'),
     guardianName: trimmedInput(lengthString(1, 160)).optional(),
     consentDate: calendarDate.optional(),

@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest'
 
 import { importSourceColumnResponse } from './import-responses'
-import { approveGuardianConsentRequest, resolveImportRowRequest } from './import-review'
+import {
+  approveGuardianConsentRequest,
+  importCheckpointRows,
+  resolveImportRowRequest,
+} from './import-review'
 
 const uuid = (n: number) => `10000000-0000-4000-8000-${String(n).padStart(12, '0')}`
 const accepts = (schema: { safeParse: (value: unknown) => { success: boolean } }, value: unknown) =>
@@ -30,10 +34,10 @@ describe('resolveImportRowRequest', () => {
 describe('approveGuardianConsentRequest', () => {
   const rows = (count: number) => Array.from({ length: count }, (_, i) => uuid(i + 1))
 
-  it('accepts 100 distinct rows with optional details', () => {
+  it('accepts 25 distinct rows with optional details', () => {
     expect(
       accepts(approveGuardianConsentRequest, {
-        rowIds: rows(100),
+        rowIds: rows(importCheckpointRows),
         guardianName: 'Parent Name',
         consentDate: '2026-10-26',
         note: 'Signed form seen.',
@@ -41,8 +45,10 @@ describe('approveGuardianConsentRequest', () => {
     ).toBe(true)
   })
 
-  it('101 guardian rows are refused', () => {
-    expect(accepts(approveGuardianConsentRequest, { rowIds: rows(101) })).toBe(false)
+  it('26 guardian rows are refused', () => {
+    expect(accepts(approveGuardianConsentRequest, { rowIds: rows(importCheckpointRows + 1) })).toBe(
+      false,
+    )
     expect(accepts(approveGuardianConsentRequest, { rowIds: [] })).toBe(false)
   })
 

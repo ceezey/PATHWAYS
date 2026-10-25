@@ -471,6 +471,8 @@ describe('P04 beneficiary registration service', () => {
             validatedById: actorId,
             importBatchId: 'a0000000-0000-4000-8000-000000000001',
             importRowId: registrationId,
+            // An approval does not lift the minimum age.
+            guardianConsent: {},
           },
           preloaded as never,
         ),
@@ -521,8 +523,8 @@ describe('P04 beneficiary registration service', () => {
         ...patch,
       })
 
-    it.each([false, null])(
-      'holds an imported minor with guardian consent %s for review without writes',
+    it.each([false, null, true])(
+      'holds an imported minor whose file says guardian consent %s for review without writes',
       async (guardian) => {
         await expect(
           promote(minor({ guardian_consent_recorded: guardian }), 'IMPORTED_DATASET'),
@@ -532,9 +534,19 @@ describe('P04 beneficiary registration service', () => {
       },
     )
 
-    it('promotes an imported minor once guardian consent is recorded', async () => {
+    it('promotes an imported minor only with the guardian approval', async () => {
       await expect(
-        promote(minor({ guardian_consent_recorded: true }), 'IMPORTED_DATASET'),
+        service.promoteRegistration(tx as never, actor, {
+          projectId,
+          formId,
+          clientRegistrationId: registrationId,
+          values: minor(),
+          source: 'IMPORTED_DATASET',
+          validatedById: actorId,
+          importBatchId: 'a0000000-0000-4000-8000-000000000001',
+          importRowId: registrationId,
+          guardianConsent: {},
+        }),
       ).resolves.toMatchObject({ kind: 'PROCESSED' })
     })
 

@@ -483,6 +483,27 @@ describe('guardian approval', () => {
     expect(store.rows[0]).toMatchObject({ status: 'PROCESSED', registrationOutcome: 'CREATED' })
   })
 
+  it('refuses a consent date after the business date before any write', async () => {
+    // The business date is 2026-10-26 in Manila.
+    await expect(approve({ consentDate: '2026-10-27' })).rejects.toBeInstanceOf(BadRequestException)
+    expectNoWrites()
+    expect(fakeTx.dataImportRow.findMany).not.toHaveBeenCalled()
+    await expect(approve({ rowIds: [rowIds[0]], consentDate: '2026-10-26' })).resolves.toEqual({
+      approved: 1,
+    })
+  })
+
+  it('processes without guardian consent when the 18th birthday is the approval date', async () => {
+    store.rows[0].normalizedData = heldValues(1, { ...turned18, birth_date: '2008-10-26' })
+    // One day younger: still a minor on the approval date.
+    store.rows[1].normalizedData = heldValues(2, { ...turned18, birth_date: '2008-10-27' })
+    await expect(approve({ rowIds: [rowIds[0], rowIds[1]] })).resolves.toEqual({ approved: 2 })
+    const created = fakeTx.beneficiary.createMany.mock.calls.map((call) => call[0].data)
+    expect(created[0]).toMatchObject({ isMinor: false, guardianConsentRecorded: false })
+    expect(created[1]).toMatchObject({ isMinor: true, guardianConsentRecorded: true })
+    expect(guardianRecords()).toHaveLength(1)
+  })
+
   it('processes a batch whose identifier is not mapped by the row code', async () => {
     store.identifierMapped = false
     await expect(approve()).resolves.toEqual({ approved: 3 })

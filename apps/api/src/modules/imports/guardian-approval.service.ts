@@ -6,7 +6,10 @@ import type { ApplicationIdentity } from '../../common/authz/application-identit
 import { withAuthorizedOperation } from '../../common/authz/authorized-operation'
 import type { Tx } from '../../common/prisma/transaction'
 import { PrismaService } from '../../prisma/prisma.service'
-import type { NormalizedValue } from '../beneficiaries/beneficiary-registration.helpers'
+import {
+  type NormalizedValue,
+  businessToday,
+} from '../beneficiaries/beneficiary-registration.helpers'
 import {
   BeneficiaryRegistrationService,
   type RegistrationImportForm,
@@ -51,6 +54,9 @@ export class GuardianApprovalService {
         const ids = body.rowIds.map((id) => id.toLowerCase())
         if (new Set(ids).size !== ids.length) {
           throw new BadRequestException('Row ids must be unique.')
+        }
+        if (body.consentDate && new Date(`${body.consentDate}T00:00:00.000Z`) > businessToday()) {
+          throw new BadRequestException('The consent date cannot be in the future.')
         }
         const batch = await lockResolvableBatch(tx, actor, projectId, batchId)
         const rows = await tx.dataImportRow.findMany({
