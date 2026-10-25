@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 import * as XLSX from 'xlsx'
 
 import { IMPORT_ENGINEERING_LIMITS } from '../limits'
+import { isCodeHeaderRow } from './code-header'
 import { type ImportParseError, parseSecureImport } from './secure'
 
 function workbookBuffer(
@@ -196,6 +197,66 @@ describe('secure import parser', () => {
       column_0002: 'x',
       column_0003: 'A',
     })
+  })
+
+  it('reads a code row above a label row', async () => {
+    const parsed = await parseSecureImport(
+      workbookBuffer([
+        ['orgUnit', 'enrollmentDate', 'VFXAUuYgXtm', 'L2doMQ7OtUB'],
+        [null, null, 'Consent to the collection', 'Participant ID'],
+        ['OU1', 46170, true, 'AB08172008'],
+      ]),
+      'XLSX',
+    )
+    expect(parsed.sourceColumns.map((column) => column.header)).toEqual([
+      'orgUnit',
+      'enrollmentDate',
+      'Consent to the collection',
+      'Participant ID',
+    ])
+    expect(parsed.sourceColumns.map((column) => column.sourceCode)).toEqual([
+      'orgUnit',
+      'enrollmentDate',
+      'VFXAUuYgXtm',
+      'L2doMQ7OtUB',
+    ])
+    expect(parsed.rows).toHaveLength(1)
+    expect(parsed.rows[0]?.sourceRowNumber).toBe(3)
+    expect(parsed.rows[0]?.values.column_0003).toBe(true)
+  })
+
+  it('keeps plain code-like headers as one header row', async () => {
+    const parsed = await parseSecureImport(
+      workbookBuffer([
+        ['first_name', 'last_name'],
+        ['Juan Dela', 'Cruz'],
+      ]),
+      'XLSX',
+    )
+    expect(parsed.sourceColumns.map((column) => column.header)).toEqual(['first_name', 'last_name'])
+    expect(parsed.sourceColumns.every((column) => !('sourceCode' in column))).toBe(true)
+    expect(parsed.rows).toHaveLength(1)
+    expect(parsed.rows[0]?.sourceRowNumber).toBe(2)
+  })
+
+  it('applies the code row rule to CSV and tells apart look-alike rows', async () => {
+    const csv = await parseSecureImport(
+      Buffer.from('orgUnit,VFXAUuYgXtm\n,Consent given\nOU1,yes\n'),
+      'CSV',
+    )
+    expect(csv.sourceColumns.map((column) => column.header)).toEqual(['orgUnit', 'Consent given'])
+    expect(csv.rows[0]?.sourceRowNumber).toBe(3)
+    const ids = ['VFXAUuYgXtm', 'L2doMQ7OtUB']
+    const labels = ['Consent given', 'Participant ID']
+    expect(isCodeHeaderRow(ids, labels)).toBe(true)
+    expect(isCodeHeaderRow(['orgUnit', 'enrollmentDate'], labels)).toBe(false)
+    expect(isCodeHeaderRow(['orgUnit', 'VFXAUuYgXtm', 'L2doMQ7OtUB'], labels)).toBe(true)
+    expect(isCodeHeaderRow(['orgUnit', 'enrollmentDate', 'VFXAUuYgXtm'], labels)).toBe(false)
+    expect(isCodeHeaderRow(['VFXAUuYgXtm', 'Not a code'], labels)).toBe(false)
+    expect(isCodeHeaderRow(['VFXAUuYgXtm', 5], labels)).toBe(false)
+    expect(isCodeHeaderRow(['vfxauuygxtm', 'l2domq7otub'], labels)).toBe(false)
+    expect(isCodeHeaderRow(ids, ['Consent', 'ParticipantID'])).toBe(false)
+    expect(isCodeHeaderRow([null, ''], labels)).toBe(false)
   })
 
   it('keeps CSV values past the last header under a positional header', async () => {
