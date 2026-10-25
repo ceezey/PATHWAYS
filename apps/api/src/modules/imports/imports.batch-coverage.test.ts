@@ -46,25 +46,28 @@ const staged = [
   mapping('column_0003', 'MAPPED', 'sex'),
 ]
 
-function stage(mappings: unknown[], patch: Record<string, unknown> = {}) {
+const labelHeaders = [
+  { key: 'column_0001', columnIndex: 1, header: 'Given name' },
+  { key: 'column_0002', columnIndex: 2, header: 'Mystery' },
+  { key: 'column_0003', columnIndex: 3, header: 'Gender' },
+]
+
+function stage(
+  mappings: unknown[],
+  patch: Record<string, unknown> = {},
+  headers: unknown[] = labelHeaders,
+  fields = [
+    field(nameId, 'first_name'),
+    field(sexId, 'sex', { dataType: 'SELECT', allowedValues: ['MALE', 'FEMALE'] }),
+  ],
+) {
   const row = batch({ status: 'MAPPED', mappingRevision: 1, ...patch })
   tx.dataImportBatch.findFirst.mockImplementation(async (query: { select?: object }) =>
-    query.select && 'sourceHeaders' in query.select
-      ? {
-          sourceHeaders: [
-            { key: 'column_0001', columnIndex: 1, header: 'Given name' },
-            { key: 'column_0002', columnIndex: 2, header: 'Mystery' },
-            { key: 'column_0003', columnIndex: 3, header: 'Gender' },
-          ],
-        }
-      : row,
+    query.select && 'sourceHeaders' in query.select ? { sourceHeaders: headers } : row,
   )
   tx.dataImportBatch.findUnique.mockResolvedValue({ sourceHeaders: [] })
   tx.metadataMapping.findMany.mockResolvedValue(mappings)
-  tx.formField.findMany.mockResolvedValue([
-    field(nameId, 'first_name'),
-    field(sexId, 'sex', { dataType: 'SELECT', allowedValues: ['MALE', 'FEMALE'] }),
-  ])
+  tx.formField.findMany.mockResolvedValue(fields)
   tx.dataImportRow.findMany.mockResolvedValue([
     { rawData: { column_0001: privateValue, column_0002: 'x', column_0003: 'MALE' } },
     { rawData: { column_0001: 'Ana', column_0002: 'y', column_0003: 'Unknown' } },
@@ -93,6 +96,39 @@ describe('batch detail coverage', () => {
       mapping('column_0002', 'IGNORED', null),
       mapping('column_0003', 'MAPPED', 'sex'),
     ])
+    tx.dataImportRow.findMany.mockResolvedValue([
+      { rawData: { column_0001: 'Ana', column_0002: 'x', column_0003: 'MALE' } },
+    ])
+
+    expect((await service.getBatch(actor, projectId, batch().id)).coverage).toEqual({
+      coverage: 'COVERED',
+      uncoveredColumns: 0,
+      unresolvedValues: 0,
+    })
+  })
+
+  it('a file whose labels changed is still covered by codes', async () => {
+    stage(
+      [
+        mapping('column_0001', 'MAPPED', 'first_name'),
+        mapping('column_0002', 'IGNORED', null),
+        mapping('column_0003', 'MAPPED', 'sex'),
+      ],
+      {},
+      [
+        { key: 'column_0001', columnIndex: 1, header: 'Pangalan', sourceCode: 'VFXAUuYgXtm' },
+        { key: 'column_0002', columnIndex: 2, header: 'Mystery' },
+        { key: 'column_0003', columnIndex: 3, header: 'Kasarian', sourceCode: 'Qw3rTyUiOpA' },
+      ],
+      [
+        field(nameId, 'first_name', { sourceNames: ['Given name', 'VFXAUuYgXtm'] }),
+        field(sexId, 'sex', {
+          dataType: 'SELECT',
+          allowedValues: ['MALE', 'FEMALE'],
+          sourceNames: ['Qw3rTyUiOpA'],
+        }),
+      ],
+    )
     tx.dataImportRow.findMany.mockResolvedValue([
       { rawData: { column_0001: 'Ana', column_0002: 'x', column_0003: 'MALE' } },
     ])

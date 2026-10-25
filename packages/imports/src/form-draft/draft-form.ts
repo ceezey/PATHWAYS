@@ -16,6 +16,8 @@ export interface DraftColumn {
   key: string
   columnIndex: number
   header: string
+  /** The stable row-1 code above the label, when the file has one. */
+  sourceCode?: string
   /** Every staged value of the column, blanks included. */
   values: readonly unknown[]
 }
@@ -253,14 +255,14 @@ export function draftFormFromImport(input: {
   }
   const free = (code: string) => (used.has(code) ? undefined : byCode.get(code))
 
-  function addSourceName(field: DraftField, header: string, reason: NeedsCheckReason) {
+  function addSourceName(field: DraftField, header: string, reason?: NeedsCheckReason) {
     const names = field.sourceNames ?? []
     if (header.length > LIMITS.nameLength || names.length >= LIMITS.sourceNames) return false
     if (!names.some((name) => mapKey(name) === mapKey(header))) {
       field.sourceNames = [...names, header]
       note(summary.sourceNamesAdded, field.code)
     }
-    flag(field.code, reason)
+    if (reason) flag(field.code, reason)
     used.add(field.code)
     return true
   }
@@ -374,6 +376,22 @@ export function draftFormFromImport(input: {
       mapping.set(column.key, target.code)
       reconcileAnswers(target, present)
     }
+  }
+
+  // A column's stable code joins its field's source names unless another field already lists it.
+  const everyField = [...fields, ...added]
+  for (const column of input.columns) {
+    const target = everyField.find((field) => field.code === mapping.get(column.key))
+    const code = column.sourceCode
+    if (
+      target &&
+      code &&
+      !everyField.some(
+        (field) =>
+          field !== target && field.sourceNames?.some((name) => mapKey(name) === mapKey(code)),
+      )
+    )
+      addSourceName(target, code)
   }
 
   if (consentProposed && free('consent_recorded'))

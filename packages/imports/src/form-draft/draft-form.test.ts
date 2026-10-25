@@ -312,6 +312,31 @@ describe('draftFormFromImport rules', () => {
     expect(attempt).toThrowError(expect.objectContaining({ code: 'NOTHING_TO_ADD' }))
   })
 
+  it('drafted field lists its column code in sourceNames', () => {
+    const owned = REGISTRATION.map((field) =>
+      field.code === 'middle_name' ? { ...field, sourceNames: ['Shared_code1'] } : field,
+    )
+    const result = draft(
+      [
+        { ...columnOf('First Name', ['Ana'], 1), sourceCode: 'VFXAUuYgXtm' },
+        { ...columnOf('Surname', ['Reyes'], 2), sourceCode: 'Shared_code1' },
+        { ...columnOf('Favourite colour', ['red'], 3), sourceCode: 'Qw3rTyUiOpA' },
+        columnOf('Pet name', ['Rex'], 4),
+      ],
+      owned,
+      'OTHER',
+    )
+    expect(find(result, 'first_name')?.sourceNames).toEqual(['VFXAUuYgXtm'])
+    expect(find(result, 'last_name')?.sourceNames).toBeUndefined()
+    expect(find(result, 'favourite_colour')?.sourceNames).toEqual([
+      'Favourite colour',
+      'Qw3rTyUiOpA',
+    ])
+    expect(find(result, 'pet_name')?.sourceNames).toEqual(['Pet name'])
+    expect(result.summary.sourceNamesAdded).toContain('first_name')
+    expect(result.summary.needsCheck.some((item) => item.fieldCode === 'first_name')).toBe(false)
+  })
+
   it('does not change the fields it was given', () => {
     const before = structuredClone(REGISTRATION)
     fixture()

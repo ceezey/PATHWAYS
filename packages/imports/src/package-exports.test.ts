@@ -77,6 +77,7 @@ describe('package entry points', () => {
         'hasLetterPrefix',
         'importCoverage',
         'mapKey',
+        'matchBySourceCode',
         'normalizeImportedRow',
         'parseSecureImport',
         'readDate',

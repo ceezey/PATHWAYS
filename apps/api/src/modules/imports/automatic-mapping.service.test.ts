@@ -275,6 +275,41 @@ describe('automatic mapping API authority boundary', () => {
     const decisions = JSON.parse(recorderCall()?.[0].values[3])
     expect(decisions[3]).toMatchObject({ status: 'PENDING', targetFieldId: null })
   })
+  it('code match beats a reworded label', async () => {
+    tx.formField.findMany.mockResolvedValue([
+      { ...coveredFields[0], sourceNames: ['VFXAUuYgXtm'] },
+      coveredFields[1],
+      sexField,
+    ])
+    tx.dataImportBatch.findFirst.mockImplementation(async (query: { select?: object }) =>
+      query.select && 'sourceHeaders' in query.select
+        ? {
+            sourceHeaders: [
+              { key: 'column_0001', columnIndex: 1, header: 'Gender', sourceCode: 'VFXAUuYgXtm' },
+              { key: 'column_0002', columnIndex: 2, header: 'DOB' },
+              { key: 'column_0003', columnIndex: 3, header: 'Given name' },
+            ],
+          }
+        : storedBatch,
+    )
+    sqlReturns({ ...covered, mapped: 2, pending: 1, complete: false })
+    await service.automaticMapping(actor as never, projectId, batchId, {
+      expectedMappingRevision: 0,
+    })
+    const decisions = JSON.parse(recorderCall()?.[0].values[3])
+    expect(decisions[0]).toEqual({
+      sourceKey: 'column_0001',
+      columnIndex: 1,
+      status: 'MAPPED',
+      targetFieldId: fieldIds.first,
+      suggestedFieldId: null,
+      score: 100,
+      matchReason: 'METADATA_SOURCE_NAME',
+      reason: 'AUTO_MATCH',
+    })
+    expect(decisions[1]).toMatchObject({ status: 'MAPPED', targetFieldId: fieldIds.birth })
+    expect(decisions[2]).toMatchObject({ status: 'PENDING', targetFieldId: null })
+  })
   it('an all-blank column reaches the recorder as an ignored blank column', async () => {
     tx.formField.findMany.mockResolvedValue(coveredFields)
     tx.dataImportRow.findMany.mockResolvedValue([

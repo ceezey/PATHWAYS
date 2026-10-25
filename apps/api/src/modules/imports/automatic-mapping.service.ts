@@ -11,7 +11,6 @@ import {
   type CoverageField,
   type SmartMatchDecision,
   importCoverage,
-  smartMatchColumnsV3,
 } from '@pathways/imports/server'
 import type { AutomaticImportMappingRequest } from '@pathways/shared'
 import { Prisma } from '@prisma/client'
@@ -19,7 +18,7 @@ import type { ApplicationIdentity } from '../../common/authz/application-identit
 import type { Tx } from '../../common/prisma/transaction'
 import { parseAutomaticMappingReceipt } from './automatic-mapping-receipt'
 import { stagedMatchInputs } from './batch-coverage'
-import { smartMatchColumns } from './batch-match-inputs'
+import { matchColumns } from './batch-match-inputs'
 import { lockBatch, requireBatch } from './import-batches.service'
 import type { BatchRow } from './imports.mapper'
 
@@ -100,7 +99,7 @@ async function smartMappingInputs(
   }
   const { sourceColumns, fields, raw, distinctValues } = await stagedMatchInputs(tx, actor, batch)
   try {
-    const decisions = smartMatchColumnsV3(smartMatchColumns(sourceColumns, raw), fields)
+    const decisions = matchColumns(sourceColumns, raw, fields)
     return { decisions, fields, distinctValues }
   } catch {
     throw new BadRequestException('Invalid automatic mapping request.')
