@@ -2,7 +2,11 @@ import { existsSync } from 'node:fs'
 import { win32 } from 'node:path'
 import { Injectable, type OnModuleDestroy } from '@nestjs/common'
 import { readApiEnv } from '@pathways/config'
-import type { Browser, HTTPRequest } from 'puppeteer-core'
+// puppeteer-core is ESM only; Node16 output keeps this a real import(), which Vercel's runtime needs.
+const loadPuppeteer = () => import('puppeteer-core')
+type PuppeteerModule = Awaited<ReturnType<typeof loadPuppeteer>>
+type Browser = Awaited<ReturnType<PuppeteerModule['default']['launch']>>
+type HTTPRequest = PuppeteerModule['HTTPRequest']['prototype']
 import { localWebOrigins } from '../../common/network/cors-origins'
 
 // First standard Chrome or Edge install off Linux, so a local run needs no PDF_CHROME_PATH.
@@ -194,7 +198,7 @@ export class PrintPdfRenderer implements OnModuleDestroy {
   }
 
   private async launch(): Promise<Browser> {
-    const { default: puppeteer } = await import('puppeteer-core')
+    const { default: puppeteer } = await loadPuppeteer()
     const env = readApiEnv(process.env)
     const local = env.PDF_CHROME_PATH || installedBrowser()
     if (local)
