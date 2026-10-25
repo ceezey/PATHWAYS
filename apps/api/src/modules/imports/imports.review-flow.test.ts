@@ -1038,38 +1038,40 @@ describe('metadata-driven intake validation', () => {
       )
     }
 
-    it('a stale Age column only warns and the row stays VALID', async () => {
-      state.store = ageStore(['36', '25'])
+    it('an Age column more than a year off holds the row INVALID, one year off stays VALID', async () => {
+      state.store = ageStore(['36', '37', '25'])
 
       const validated = await validate(service())
 
-      const [current, stale] = rowWrites()
+      const [current, drifted, stale] = rowWrites()
       expect(current).toMatchObject({ status: 'VALID', validation_warnings: [] })
+      expect(drifted).toMatchObject({ status: 'VALID', validation_warnings: [] })
       expect(stale).toMatchObject({
-        status: 'VALID',
-        validation_warnings: [{ fieldCode: 'age_stated', code: 'AGE_MISMATCH' }],
+        status: 'INVALID',
+        normalized_data: null,
+        validation_errors: [{ fieldCode: 'age_stated', code: 'AGE_MISMATCH' }],
       })
-      expect(validated).toMatchObject({ totals: { valid: 2, invalid: 0, warnings: 1 } })
+      expect(validated).toMatchObject({ totals: { valid: 2, invalid: 1, warnings: 0 } })
     })
 
     it('measures age today at the Manila calendar date of the batch creation', async () => {
-      // 17:00 UTC on 2 October is already 3 October in Manila, the 36th birthday.
-      state.store = ageStore(['36'], { createdAt: new Date('2026-10-02T17:00:00.000Z') })
+      // 17:00 UTC on 2 October is already 3 October in Manila, the 36th birthday, so 38 is two years off.
+      state.store = ageStore(['37', '38'], { createdAt: new Date('2026-10-02T17:00:00.000Z') })
 
       await validate(service())
 
-      expect(rowWrites()[0].validation_warnings).toEqual([])
+      expect(rowWrites().map((row) => row.status)).toEqual(['VALID', 'INVALID'])
     })
 
     it('follows the configured business time zone for the upload date', async () => {
       vi.stubEnv('BUSINESS_TIME_ZONE', 'UTC')
       try {
-        // Still 2 October in UTC, so the stated 36 is one year ahead of the 35 computed.
-        state.store = ageStore(['36'], { createdAt: new Date('2026-10-02T17:00:00.000Z') })
+        // Still 2 October in UTC, so the computed age is 35 and the stated 37 is two years ahead.
+        state.store = ageStore(['37'], { createdAt: new Date('2026-10-02T17:00:00.000Z') })
 
         await validate(service())
 
-        expect(rowWrites()[0].validation_warnings).toEqual([
+        expect(rowWrites()[0].validation_errors).toEqual([
           expect.objectContaining({ fieldCode: 'age_stated', code: 'AGE_MISMATCH' }),
         ])
       } finally {

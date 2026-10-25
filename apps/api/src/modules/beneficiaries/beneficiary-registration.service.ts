@@ -20,6 +20,9 @@ import { contract, fieldSelection } from './beneficiaries.mapper'
 import {
   type NormalizedValue,
   type RegistrationProfile,
+  businessToday,
+  exactDate,
+  isMinorOn,
   normalizeIdentifier,
   parseRegistration,
   stableValues,
@@ -119,7 +122,13 @@ export class BeneficiaryRegistrationService {
       if (values.consent_recorded !== true || values.data_processing_consent_recorded !== true) {
         return { kind: 'REVIEW', code: 'CONSENT_REQUIRED' }
       }
-      if (values.is_minor === true && values.guardian_consent_recorded !== true) {
+      const age = values.age_at_registration
+      const minor = isMinorOn(
+        exactDate(values.birth_date, 'birth_date'),
+        typeof age === 'number' ? age : null,
+        businessToday(),
+      )
+      if (minor && values.guardian_consent_recorded !== true) {
         return { kind: 'REVIEW', code: 'GUARDIAN_CONSENT_REQUIRED' }
       }
     }
@@ -395,7 +404,8 @@ export class BeneficiaryRegistrationService {
       'PARTICIPATION',
       'DATA_PROCESSING',
     ]
-    if (registration.guardianConsentRecorded) consentKinds.push('GUARDIAN')
+    // A guardian consent record exists only for a minor; an adult may carry the profile flag alone.
+    if (registration.isMinor && registration.guardianConsentRecorded) consentKinds.push('GUARDIAN')
     await tx.beneficiaryConsentRecord.createMany({
       data: consentKinds.map((kind) => ({
         organizationId: actor.organizationId,

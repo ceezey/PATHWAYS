@@ -1,6 +1,7 @@
 import type { Prisma } from '@prisma/client'
 
 import type { BeneficiaryResponse, FormFieldValidationContract } from '@pathways/shared'
+import { businessToday, yearsAt } from './beneficiary-registration.helpers'
 
 export const fieldSelection = {
   id: true,
@@ -91,7 +92,8 @@ export function mapBeneficiary(row: BeneficiaryRow, projectId: string): Benefici
     status: row.status,
     consentRecorded: row.consentRecorded,
     dataProcessingConsentRecorded: row.dataProcessingConsentRecorded,
-    isMinor: row.isMinor,
+    // Minor status is current, so it is read from the birth date at the business date when there is one.
+    isMinor: row.birthDate ? yearsAt(row.birthDate, businessToday()) < 18 : row.isMinor,
     guardianConsentRecorded: row.guardianConsentRecorded,
     projectId,
     enrollment: enrollment

@@ -1,5 +1,5 @@
 import { ForbiddenException, NotFoundException } from '@nestjs/common'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { PrismaService } from '@app/prisma/prisma.service'
 import { hasAtomicPermission } from '@pathways/shared'
@@ -88,6 +88,26 @@ describe('F3 scoped read and denial gates', () => {
       organizationId,
       beneficiaryProjectEnrollment_beneficiary: { some: { organizationId, projectId } },
     })
+  })
+
+  it('reports minor status from the birth date at the business date, else the stored value', async () => {
+    // 12:00 on 2026-10-26 in Manila.
+    vi.useFakeTimers({ now: new Date('2026-10-26T04:00:00.000Z'), toFake: ['Date'] })
+    try {
+      const read = async (patch: Record<string, unknown>) => {
+        readTx.beneficiary.findFirst.mockResolvedValue({ ...row, ...patch })
+        return (await service.get(actor, projectId, beneficiaryId)).isMinor
+      }
+      expect(await read({ birthDate: new Date('2008-08-17T00:00:00.000Z'), isMinor: true })).toBe(
+        false,
+      )
+      expect(await read({ birthDate: new Date('2008-11-01T00:00:00.000Z'), isMinor: false })).toBe(
+        true,
+      )
+      expect(await read({ birthDate: null, isMinor: true })).toBe(true)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it.each([
@@ -263,6 +283,58 @@ describe('profile update audit', () => {
     writeTx.beneficiary.findFirst.mockResolvedValue(row)
     writeTx.beneficiary.updateMany.mockResolvedValue({ count: 1 })
     writeTx.beneficiaryProjectEnrollment.findFirst.mockResolvedValue(null)
+  })
+
+  describe('minor status on an edit', () => {
+    // 12:00 on 2026-10-26 in Manila.
+    beforeEach(() => {
+      vi.useFakeTimers({ now: new Date('2026-10-26T04:00:00.000Z'), toFake: ['Date'] })
+    })
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+    const person = (patch: Record<string, unknown>) => ({
+      ...row,
+      subjectType: 'INDIVIDUAL',
+      firstName: 'Synthetic',
+      lastName: 'Person',
+      birthDate: new Date('2008-08-17T00:00:00.000Z'),
+      ageAtRegistration: 17,
+      isMinor: true,
+      guardianConsentRecorded: false,
+      ...patch,
+    })
+    const edit = (birthDate: string) =>
+      new BeneficiariesService({} as PrismaService, new BeneficiaryRegistrationService()).update(
+        actor,
+        projectId,
+        beneficiaryId,
+        {
+          subjectType: 'INDIVIDUAL',
+          firstName: 'Synthetic',
+          lastName: 'Person',
+          birthDate,
+          sex: 'NOT_SPECIFIED',
+          disabilityStatus: 'NOT_SPECIFIED',
+          expectedUpdatedAt: at.toISOString(),
+        },
+      )
+
+    it('writes the recomputed minor status and never touches guardian consent', async () => {
+      writeTx.beneficiary.findFirst.mockResolvedValue(person({}))
+      await edit('2008-08-17')
+      const data = writeTx.beneficiary.updateMany.mock.calls[0][0].data
+      expect(data.isMinor).toBe(false)
+      expect(data).not.toHaveProperty('guardianConsentRecorded')
+    })
+
+    it('refuses a minor without guardian consent before any write', async () => {
+      writeTx.beneficiary.findFirst.mockResolvedValue(person({ birthDate: new Date('2008-11-01') }))
+      await expect(edit('2008-11-01')).rejects.toThrow(
+        'Guardian consent is required while the participant is under 18.',
+      )
+      expect(writeTx.beneficiary.updateMany).not.toHaveBeenCalled()
+    })
   })
 
   it('lists every profile field whatever the body holds, as the compiled DTO did', async () => {

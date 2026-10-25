@@ -175,6 +175,39 @@ describe('proposeIntakeRules on the Futuremakers fixture', () => {
     expect(rule(result, 'age_at_registration')?.kind).toBe('AGE_AT_DATE')
   })
 
+  describe('current-age rules at the upload date 2026-10-22', () => {
+    const years = (born: string, at: string) =>
+      Number(at.slice(0, 4)) - Number(born.slice(0, 4)) - (at.slice(5) < born.slice(5) ? 1 : 0)
+    const withExtra = (header: string, make: (born: string, enrolled: string) => unknown) => {
+      const columns = fixtureColumns()
+      const values = columns[COLUMN.birth].values.map((born, row) =>
+        make(String(born), String(columns[1].values[row])),
+      )
+      return draft([...columns, { key: 'extra', columnIndex: columns.length + 1, header, values }])
+    }
+
+    it('accepts a Minor column that follows the upload date and keeps it on is_minor', () => {
+      const result = withExtra('Minor', (born) => years(born, '2026-10-22') < 18)
+      expect(find(result, 'is_minor')?.sourceNames).toEqual(['Minor'])
+    })
+
+    it('moves a Minor column that follows the enrollment date off is_minor', () => {
+      const result = withExtra('Minor', (born, enrolled) => years(born, enrolled) < 18)
+      expect(find(result, 'is_minor')?.sourceNames).toBeUndefined()
+      expect(find(result, 'minor')).toBeDefined()
+    })
+
+    it('proposes AGE_CHECK for an integer column within one year of the age at upload', () => {
+      const result = withExtra('Years Old', (born) => years(born, '2026-10-22') - 1)
+      expect(rule(result, 'years_old')?.kind).toBe('AGE_CHECK')
+    })
+
+    it('proposes no AGE_CHECK for an integer column two years from the age at upload', () => {
+      const result = withExtra('Years Old', (born) => years(born, '2026-10-22') - 2)
+      expect(rule(result, 'years_old')).toBeUndefined()
+    })
+  })
+
   describe('enrollment dates written as text', () => {
     const textDates = (rewrite: (iso: string) => string, offset = 0) => {
       const columns = fixtureColumns()

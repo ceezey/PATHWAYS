@@ -84,6 +84,15 @@ export function businessToday() {
   )
 }
 
+export const guardianConsentRequiredMessage =
+  'Guardian consent is required while the participant is under 18.'
+
+/** Minor means under 18 on the given date by birth date, else by the supplied age; a future birth is no age. */
+export function isMinorOn(birthDate: Date | null, age: number | null, on: Date) {
+  const years = birthDate ? yearsAt(birthDate, on) : age
+  return years !== null && years >= 0 && years < 18
+}
+
 /**
  * Minimum-age and future-birth-date rule shared by registration (direct and imported) and
  * profile edits. Existing under-age records stay valid; the caller decides when it applies.
@@ -158,7 +167,6 @@ export function parseRegistration(
       'Participation and data-processing consent must be explicitly recorded.',
     )
   }
-  const isMinor = values.is_minor === true
   const guardianConsent = values.guardian_consent_recorded === true
   const birthDate = exactDate(values.birth_date, 'birth_date')
   const age = values.age_at_registration
@@ -171,6 +179,7 @@ export function parseRegistration(
   }
   const ageAtRegistration = typeof age === 'number' ? age : null
 
+  let isMinor = false
   const firstName = text(values.first_name)
   const middleName = text(values.middle_name)
   const lastName = text(values.last_name)
@@ -199,14 +208,9 @@ export function parseRegistration(
     }
     const derivedAge = birthDate ? yearsAt(birthDate, enrollmentDate) : ageAtRegistration
     assertRegistrationAge(birthDate, derivedAge, today)
-    if ((derivedAge !== null && derivedAge < 18) !== isMinor) {
-      throw new BadRequestException('is_minor must agree with the supplied birth date or age.')
-    }
-    if (isMinor !== guardianConsent) {
-      throw new BadRequestException(
-        'Guardian consent is required only for an explicitly identified minor.',
-      )
-    }
+    // Minor status is current, so the supplied is_minor is ignored; only a minor needs guardian consent.
+    isMinor = isMinorOn(birthDate, ageAtRegistration, today)
+    if (isMinor && !guardianConsent) throw new BadRequestException(guardianConsentRequiredMessage)
   } else {
     if (!explicitDisplayName)
       throw new BadRequestException('Group/community records require display_name.')
@@ -216,7 +220,7 @@ export function parseRegistration(
       lastName ||
       birthDate ||
       ageAtRegistration !== null ||
-      isMinor ||
+      values.is_minor === true ||
       guardianConsent ||
       (values.sex != null && values.sex !== 'NOT_SPECIFIED')
     ) {
