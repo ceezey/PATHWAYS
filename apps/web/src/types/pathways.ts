@@ -8,6 +8,7 @@ import type {
   FormSubmissionResponse,
   ImportBatchDetailResponse,
   ImportBatchResponse,
+  ImportDateOrder,
   ImportRowResponse,
   ImportRowsPageResponse,
   ImportSourceColumnResponse,
@@ -723,6 +724,8 @@ export interface ImportMappingInput {
   dataType?: FormFieldDataType
   /** Exact-match translations applied before coercion; at most 50 entries. */
   valueMap?: Array<{ from: string; to: string }>
+  /** Where the year, month and day sit in a text date column. */
+  dateOrder?: ImportDateOrder
 }
 
 export type ReportKind =

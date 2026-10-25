@@ -63,8 +63,10 @@ export async function saveBatchMapping(
       throw new BadRequestException('Each source column must be mapped or ignored, not both.')
     }
     if (item.ignored) {
-      if (item.dataType || item.valueMap) {
-        throw new BadRequestException('An ignored column cannot carry a data type or value map.')
+      if (item.dataType || item.valueMap || item.dateOrder) {
+        throw new BadRequestException(
+          'An ignored column cannot carry a data type, value map or date order.',
+        )
       }
       return {
         organizationId: actor.organizationId,
@@ -88,6 +90,9 @@ export async function saveBatchMapping(
     if (item.dataType && !compatibleImportDataTypes(target.dataType).includes(item.dataType)) {
       throw new BadRequestException('The chosen data type does not fit the target field.')
     }
+    if (item.dateOrder && (item.dataType ?? target.dataType) !== 'DATE') {
+      throw new BadRequestException('A date order applies only to a date column.')
+    }
     if (item.valueMap) {
       try {
         buildImportValueMap(item.valueMap)
@@ -106,6 +111,7 @@ export async function saveBatchMapping(
       status: 'MAPPED',
       dataType: item.dataType,
       valueMap: item.valueMap?.map(({ from, to }) => ({ from, to })),
+      ...(item.dateOrder ? { dateOrder: item.dateOrder } : {}),
     }
   })
   await tx.metadataMapping.createMany({ data })
@@ -152,6 +158,7 @@ export async function saveBatchMapping(
       mapped: targets.size,
       ignored: sourceColumnKeys.length - targets.size,
       valueMapped: input.mappings.filter((item) => item.valueMap).length,
+      dateOrdered: input.mappings.filter((item) => item.dateOrder).length,
     },
   })
   return mapStoredBatch(tx, actor, batch.projectId, batch.id)

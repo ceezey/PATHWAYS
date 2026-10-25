@@ -1,6 +1,8 @@
+import { type ImportDateOrder, importDateOrders } from '@pathways/shared'
+
 // Where the year, month and day sit in a text date such as 26/03/15.
-export const DATE_ORDERS = ['YMD', 'DMY', 'MDY'] as const
-export type DateOrder = (typeof DATE_ORDERS)[number]
+export const DATE_ORDERS = importDateOrders
+export type DateOrder = ImportDateOrder
 
 export interface ImportDateRule {
   order: DateOrder

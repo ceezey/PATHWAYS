@@ -37,10 +37,17 @@ export const importsClient = {
     ) as Promise<ImportRowsPageResponse>
   },
 
-  async uploadImport(projectId: string, formId: string, clientImportId: string, file: File) {
+  async uploadImport(
+    projectId: string,
+    formId: string,
+    clientImportId: string,
+    file: File,
+    sheetName?: string,
+  ) {
     const body = new FormData()
     body.set('formId', formId)
     body.set('clientImportId', clientImportId)
+    if (sheetName) body.set('sheetName', sheetName)
     body.set('file', file, file.name)
     return requestFoundation(`/imports/projects/${encodeURIComponent(projectId)}/batches/upload`, {
       method: 'POST',

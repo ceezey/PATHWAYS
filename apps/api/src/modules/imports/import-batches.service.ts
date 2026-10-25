@@ -68,6 +68,7 @@ export async function readBatchDetail(
       matchReason: true,
       dataType: true,
       valueMap: true,
+      dateOrder: true,
     },
     orderBy: { sourceFieldName: 'asc' },
     take: IMPORT_ENGINEERING_LIMITS.maxSourceColumns,
@@ -85,6 +86,7 @@ export async function readBatchDetail(
       (mapping): ImportMappingResponse => ({
         ...mapping,
         valueMap: mapping.valueMap as ImportMappingResponse['valueMap'],
+        dateOrder: mapping.dateOrder as ImportMappingResponse['dateOrder'],
       }),
     ),
     coverage: await readBatchCoverage(tx, actor, batch, mappings),

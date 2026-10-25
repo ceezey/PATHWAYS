@@ -258,6 +258,17 @@ describe('secure import parser', () => {
     )
   })
 
+  it('reads only the chosen sheet of a multi-sheet workbook and refuses a missing one', async () => {
+    const workbook = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([['score'], [1]]), 'One')
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([['score'], [2]]), 'Two')
+    const buffer = Buffer.from(XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' }))
+
+    const parsed = await parseSecureImport(buffer, 'XLSX', {}, 'Two')
+    expect(parsed.rows.map((row) => row.values.column_0001)).toEqual([2])
+    await expectCode(parseSecureImport(buffer, 'XLSX', {}, 'Three'), 'WORKBOOK_SHEET_MISSING')
+  })
+
   it('rejects malformed or over-expanded containers, binary CSV, and finite byte/row limits', async () => {
     await expectCode(
       parseSecureImport(Buffer.from('PK malformed'), 'XLSX'),

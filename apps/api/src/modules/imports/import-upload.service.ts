@@ -37,6 +37,7 @@ export async function readUploadRecovery(
     storageObjectKey: batch.storageObjectKey,
     fileType: batch.fileType as SupportedImportFileType,
     sourceChecksum: batch.sourceChecksum,
+    sourceSheetName: batch.sourceSheetName,
   }
 }
 
@@ -60,6 +61,9 @@ export async function reserveBatchUpload(
     select: { id: true, version: true },
   })
   if (!form) throw new NotFoundException('Published form unavailable.')
+  // Only a workbook has sheets; the chosen one is kept so a resume or re-run reads the same rows.
+  const sourceSheetName =
+    metadata.type === 'XLSX' || metadata.type === 'XLS' ? (input.sheetName ?? null) : null
   const existing = await tx.dataImportBatch.findFirst({
     where: {
       organizationId: actor.organizationId,
@@ -72,6 +76,7 @@ export async function reserveBatchUpload(
       formId: true,
       formVersion: true,
       originalFileName: true,
+      sourceSheetName: true,
       fileType: true,
       sourceChecksum: true,
       storageBucket: true,
@@ -85,6 +90,7 @@ export async function reserveBatchUpload(
       existing.formId !== form.id ||
       existing.formVersion !== form.version ||
       existing.originalFileName !== metadata.name ||
+      (existing.sourceSheetName ?? null) !== sourceSheetName ||
       existing.fileType !== metadata.type ||
       existing.sourceChecksum !== metadata.checksum
     ) {
@@ -94,6 +100,7 @@ export async function reserveBatchUpload(
       batchId: existing.id,
       storageBucket: existing.storageBucket,
       storageObjectKey: existing.storageObjectKey,
+      sourceSheetName,
       requiresFinalization: ['UPLOADING', 'RECOVERY_REQUIRED'].includes(existing.status),
     }
   }
@@ -109,6 +116,7 @@ export async function reserveBatchUpload(
       formVersion: form.version,
       sourceSystem: 'MANUAL_UPLOAD',
       originalFileName: metadata.name,
+      sourceSheetName,
       fileType: metadata.type,
       sourceChecksum: metadata.checksum,
       clientImportId: input.clientImportId.toLowerCase(),
@@ -123,9 +131,19 @@ export async function reserveBatchUpload(
     action: 'IMPORT_UPLOAD_RESERVED',
     entityType: 'DataImportBatch',
     entityId: id,
-    changes: { fileType: metadata.type, byteLength: metadata.byteLength },
+    changes: {
+      fileType: metadata.type,
+      byteLength: metadata.byteLength,
+      sheetChosen: sourceSheetName !== null,
+    },
   })
-  return { batchId: id, storageBucket, storageObjectKey, requiresFinalization: true }
+  return {
+    batchId: id,
+    storageBucket,
+    storageObjectKey,
+    sourceSheetName,
+    requiresFinalization: true,
+  }
 }
 
 export async function stageUploadedRows(

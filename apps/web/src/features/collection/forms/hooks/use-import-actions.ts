@@ -291,11 +291,15 @@ export function useImportActions(state: CollectionState, guard: CollectionGuard)
         selectedForm.version,
         generation,
       ])
+      // The preview read a workbook's first sheet, so the server reads that same sheet.
+      const previewedSheet =
+        (parsedImport.sheetNames?.length ?? 0) > 1 ? parsedImport.sheetNames?.[0] : undefined
       const uploaded = await importsClient.uploadImport(
         projectId,
         selectedForm.id,
         clientImportId,
         file,
+        previewedSheet,
       )
       if (!ticket.valid('imports.upload')) return
       const failure = uploadFailure(uploaded)

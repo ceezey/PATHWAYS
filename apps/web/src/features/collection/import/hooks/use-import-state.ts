@@ -1,3 +1,4 @@
+import { workbookSheetNames } from '@pathways/imports'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { useCurrentRole } from '@/hooks/use-current-role'
@@ -34,6 +35,29 @@ export function useImportState(scope: SensitiveDraftOwner) {
   const [formsState, setFormsState] = useState<'loading' | 'ready' | 'error'>('ready')
   const [formId, setFormId] = useState('')
   const [file, setFile] = useState<File | null>(null)
+  // The chosen file's worksheets, null while they are read; a workbook with several needs one chosen.
+  const [sheetNames, setSheetNames] = useState<string[] | null>([])
+  const [sheetName, setSheetName] = useState('')
+  useEffect(() => {
+    setSheetName('')
+    if (!file || !/\.xlsx?$/i.test(file.name)) {
+      setSheetNames([])
+      return
+    }
+    setSheetNames(null)
+    let active = true
+    file
+      .arrayBuffer()
+      .then((buffer) => workbookSheetNames(buffer))
+      // An unreadable workbook offers no sheets; the server then says why it refused the file.
+      .catch(() => [])
+      .then((names) => {
+        if (active) setSheetNames(names)
+      })
+    return () => {
+      active = false
+    }
+  }, [file])
   const [batches, setBatches] = useState<ImportBatchDefinition[]>([])
   const [batch, setBatch] = useState<ImportBatchDefinition | null>(null)
   const [rows, setRows] = useState<ImportRowDefinition[]>([])
@@ -197,6 +221,9 @@ export function useImportState(scope: SensitiveDraftOwner) {
     setReceipts,
     setRows,
     setRules,
+    setSheetName,
+    sheetName,
+    sheetNames,
     sourceColumnByKey,
     sourceColumns,
     storedMappingByKey,

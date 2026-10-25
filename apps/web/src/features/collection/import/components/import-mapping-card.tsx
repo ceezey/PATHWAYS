@@ -22,6 +22,7 @@ import type { ImportState } from '../hooks/use-import-state'
 import { importProcessingComplete } from '../import-auto-continue'
 import { automaticMatchReason, mappingLockedStatuses } from '../import.utils'
 import { CoverageNotice } from './coverage-notice'
+import { ImportDateOrder, columnDateOrders } from './import-date-order'
 import { ImportValueMapEditor, emptyColumnRule } from './import-value-map-editor'
 
 export function ImportMappingCard({
@@ -90,10 +91,18 @@ export function ImportMappingCard({
     batch.coverage ?? (receipt?.mappingRevision === batch.mappingRevision ? receipt : null)
   const needsFormUpdate = coverage?.coverage === 'NOT_COVERED'
   const [onlyUndecided, setOnlyUndecided] = useState(false)
+  const referenceYear = new Date(batch.uploadedAt ?? Date.now()).getUTCFullYear()
+  // The column's date type: the reviewer's declared type, else the target field's.
+  const dateColumn = (key: string) =>
+    (rules[key]?.dataType ||
+      selectedForm?.fields.find((field) => field.code === mapping[key])?.dataType) === 'DATE'
   const undecided = (key: string) =>
     !mapping[key] ||
     mapping[key] === '__pending__' ||
-    openSuggestions.some((item) => item.column.key === key)
+    openSuggestions.some((item) => item.column.key === key) ||
+    (dateColumn(key) &&
+      !rules[key]?.dateOrder &&
+      columnDateOrders(columnValues.get(key), referenceYear).needsChoice)
   const shownColumns = onlyUndecided
     ? sourceColumns.filter((column) => undecided(column.key))
     : sourceColumns
@@ -217,6 +226,24 @@ export function ImportMappingCard({
                   ))}
                 </SelectContent>
               </Select>
+              {targetField && dateColumn(column.key) ? (
+                <ImportDateOrder
+                  columnLabel={`column ${column.columnIndex}`}
+                  disabled={!mappingEditable}
+                  idPrefix={`import-rule-${column.key}`}
+                  referenceYear={referenceYear}
+                  value={rules[column.key]?.dateOrder ?? ''}
+                  values={columnValues.get(column.key)}
+                  onChange={(dateOrder) =>
+                    !mutation.current &&
+                    scope.isCurrent() &&
+                    setRules((current) => ({
+                      ...current,
+                      [column.key]: { ...(current[column.key] ?? emptyColumnRule), dateOrder },
+                    }))
+                  }
+                />
+              ) : null}
               {targetField ? (
                 <details className="sm:col-span-2">
                   <summary className="min-h-11 cursor-pointer content-center text-sm font-medium text-primary">

@@ -16,6 +16,10 @@ export const importRequestLimits = {
   maxValueMapTextLength: 100,
 } as const
 
+// Where the year, month and day sit in a text date column, chosen when more than one order reads it.
+export const importDateOrders = ['YMD', 'DMY', 'MDY'] as const
+export type ImportDateOrder = (typeof importDateOrders)[number]
+
 // No control characters, and no leading formula trigger (= + @ or a minus that is not a number).
 const safeMapText = /^(?![=+@\t\r]|-(?!\d))\P{Cc}*$/u
 
@@ -30,7 +34,12 @@ export const valueMapText = (min: number) =>
 
 // Multipart fields of POST imports/projects/:projectId/batches/upload.
 export const uploadImportRequest = z
-  .object({ formId: uuidString, clientImportId: uuidString })
+  .object({
+    formId: uuidString,
+    clientImportId: uuidString,
+    // The worksheet to read when a workbook has several; without it such a workbook is refused.
+    sheetName: trimmedInput(lengthString(1, 100)).optional(),
+  })
   .strict()
 export type UploadImportRequest = z.infer<typeof uploadImportRequest>
 
@@ -48,6 +57,7 @@ export const importMappingItemRequest = z
       .min(1)
       .max(importRequestLimits.maxValueMapEntries)
       .nullish(),
+    dateOrder: z.enum(importDateOrders).nullish(),
   })
   .strict()
 export type ImportMappingItemRequest = z.infer<typeof importMappingItemRequest>

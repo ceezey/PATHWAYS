@@ -179,7 +179,7 @@ export class ImportsService {
 
     let parsed: Awaited<ReturnType<typeof parseSecureImport>>
     try {
-      parsed = await parseSecureImport(file.buffer, metadata.type)
+      parsed = await parseSecureImport(file.buffer, metadata.type, {}, reservation.sourceSheetName)
     } catch (error) {
       const failureCode =
         error instanceof ImportParseError ? error.code.slice(0, 64) : 'PARSER_REJECTED_INPUT'
@@ -246,7 +246,11 @@ export class ImportsService {
     const created = await this.upload(
       identity,
       projectId,
-      { formId, clientImportId: source.clientImportId },
+      {
+        formId,
+        clientImportId: source.clientImportId,
+        ...(source.sourceSheetName ? { sheetName: source.sourceSheetName } : {}),
+      },
       {
         buffer,
         originalname: source.originalFileName,
@@ -284,7 +288,12 @@ export class ImportsService {
       await this.markUploadFailure(identity, projectId, batchId, 'STORAGE_CHECKSUM_MISMATCH')
       throw new ConflictException('The stored source checksum does not match its reservation.')
     }
-    const parsed = await parseSecureImport(source, reservation.fileType)
+    const parsed = await parseSecureImport(
+      source,
+      reservation.fileType,
+      {},
+      reservation.sourceSheetName,
+    )
     return this.finalizeUpload(identity, projectId, batchId, parsed)
   }
 

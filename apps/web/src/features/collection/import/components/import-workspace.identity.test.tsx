@@ -32,6 +32,10 @@ vi.mock('@/lib/api/forms', () => ({ formsClient: api }))
 vi.mock('@/lib/api/imports', () => ({ importsClient: api }))
 vi.mock('@/lib/api/projects', () => ({ projectsClient: api }))
 vi.mock('sonner', () => ({ toast: { error: vi.fn(), success: vi.fn() } }))
+vi.mock('@pathways/imports', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@pathways/imports')>()),
+  workbookSheetNames: () => ['One', 'Two'],
+}))
 // Native selects stand in for the Radix select, whose close path stalls jsdom for half a minute.
 vi.mock('@/components/ui/select', () => {
   const Choice = createContext<{ value: string; change: (value: string) => void }>({
@@ -182,5 +186,34 @@ describe('import screen failed upload', () => {
     )
     expect(api.automaticImportMapping).not.toHaveBeenCalled()
     expect(toast.success).not.toHaveBeenCalled()
+  })
+})
+
+describe('import screen workbook sheets', () => {
+  beforeEach(() => {
+    vi.resetAllMocks()
+    api.getProjects.mockResolvedValue([{ id: 'project-1', title: 'Project' }])
+    api.getDigitalForms.mockResolvedValue([form])
+    api.getImportBatches.mockResolvedValue([])
+    api.uploadImport.mockRejectedValue(new Error('Upload response was lost.'))
+  })
+  afterEach(cleanup)
+
+  it('asks which sheet of a multi-sheet workbook to read and sends it', async () => {
+    render(<ImportWorkspace />, { wrapper: DisplayLabelsProvider })
+    await screen.findByText('Import form - v1')
+    // jsdom files cannot read their bytes; the mocked sheet reader ignores them anyway.
+    pickFile(
+      Object.assign(new File(['PK'], 'people.xlsx'), {
+        arrayBuffer: async () => new ArrayBuffer(2),
+      }),
+    )
+    await screen.findByText('Sheet', { selector: 'label' })
+    expect((uploadButton() as HTMLButtonElement).disabled).toBe(true)
+    pick('Sheet', 'Two')
+    await idle()
+    fireEvent.click(uploadButton())
+    await waitFor(() => expect(api.uploadImport).toHaveBeenCalledTimes(1))
+    expect(api.uploadImport.mock.calls[0][4]).toBe('Two')
   })
 })

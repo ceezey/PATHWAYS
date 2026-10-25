@@ -141,10 +141,39 @@ describe('P03 import service', () => {
     expect(tx.auditLog.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
-          changes: { revision: 1, mapped: 1, ignored: 1, valueMapped: 0 },
+          changes: { revision: 1, mapped: 1, ignored: 1, valueMapped: 0, dateOrdered: 0 },
         }),
       }),
     )
+  })
+
+  it('stores a date order on a date column and refuses it on any other', async () => {
+    const staged = batch({
+      sourceHeaders: [{ key: 'column_0001', header: 'Enrolled', columnIndex: 1 }],
+      status: 'UPLOADED',
+      mappingRevision: 0,
+    })
+    tx.dataImportBatch.findFirst.mockResolvedValue(staged)
+    tx.dataImportBatch.findUnique.mockResolvedValue(staged)
+    tx.formField.findMany.mockResolvedValue([
+      { id: '41000000-0000-4000-8000-000000000006', code: 'enrolled', dataType: 'DATE' },
+      { id: '41000000-0000-4000-8000-000000000007', code: 'note', dataType: 'TEXT' },
+    ])
+    const save = (targetFieldCode: string) =>
+      service.saveMapping(actor, projectId, batchId, {
+        expectedMappingRevision: 0,
+        mappings: [
+          { sourceFieldName: 'column_0001', targetFieldCode, ignored: false, dateOrder: 'YMD' },
+        ],
+      })
+
+    await save('enrolled')
+    expect(tx.metadataMapping.createMany).toHaveBeenCalledWith({
+      data: [expect.objectContaining({ dateOrder: 'YMD' })],
+    })
+    tx.metadataMapping.createMany.mockClear()
+    await expect(save('note')).rejects.toThrow('A date order applies only to a date column.')
+    expect(tx.metadataMapping.createMany).not.toHaveBeenCalled()
   })
 
   // QAD-T54
@@ -261,6 +290,30 @@ describe('P03 import service', () => {
         }),
       }),
     )
+  })
+
+  it('keeps the chosen sheet of a workbook on its reservation and drops it for a CSV', async () => {
+    tx.digitalForm.findFirst.mockResolvedValue({ id: formId, version: 1 })
+    tx.dataImportBatch.findFirst.mockResolvedValue(null)
+    tx.dataImportBatch.create.mockResolvedValue({ id: batchId })
+    storage.uploadPrivateFile.mockRejectedValue(new Error('synthetic storage failure'))
+    storage.downloadPrivateFile.mockRejectedValue(new Error('synthetic storage failure'))
+    const workbook = Buffer.from([0x50, 0x4b, 0x03, 0x04, ...Array(60).fill(0)])
+    const reserve = (upload: Parameters<typeof file>[0]) =>
+      service
+        .upload(actor, projectId, { formId, clientImportId, sheetName: 'Two' }, file(upload))
+        .catch(() => undefined)
+
+    await reserve({
+      buffer: workbook,
+      originalname: 'people.xlsx',
+      mimetype: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      size: workbook.length,
+    })
+    await reserve({})
+
+    const created = tx.dataImportBatch.create.mock.calls.map(([args]) => args.data.sourceSheetName)
+    expect(created).toEqual(['Two', null])
   })
 
   it('makes only the exact W10 upload fail once after Storage and resumes without a duplicate row', async () => {
