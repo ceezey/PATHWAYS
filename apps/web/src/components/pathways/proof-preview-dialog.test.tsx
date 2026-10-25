@@ -4,6 +4,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ProofPreviewDialog } from './proof-preview-dialog'
 
+const toastSuccess = vi.hoisted(() => vi.fn())
+vi.mock('sonner', () => ({ toast: { success: toastSuccess } }))
+
 const artifact = (type: string) => ({ blob: new Blob(['x'], { type }), fileName: 'receipt-1.pdf' })
 const setup = (load: () => Promise<ReturnType<typeof artifact>>, open = true) => {
   const save = vi.fn()
@@ -34,7 +37,9 @@ describe('ProofPreviewDialog', () => {
 
   it('renders an iframe for PDFs', async () => {
     setup(async () => artifact('application/pdf'))
-    expect((await screen.findByTitle('Proof')).tagName).toBe('IFRAME')
+    const frame = await screen.findByTitle('Proof')
+    expect(frame.tagName).toBe('IFRAME')
+    expect(frame.getAttribute('src')).toBe('blob:proof#toolbar=0&navpanes=0&view=FitH')
   })
 
   it('renders a video player for video types', async () => {
@@ -76,6 +81,7 @@ describe('ProofPreviewDialog', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Download' }))
     expect(load).toHaveBeenCalledTimes(1)
     expect(save).toHaveBeenCalledWith(expect.objectContaining({ fileName: 'receipt-1.pdf' }))
+    expect(toastSuccess).toHaveBeenCalledWith('File downloaded.')
   })
 
   it('revokes the object URL on close', async () => {
