@@ -67,9 +67,10 @@ function harness() {
     },
   }
   for (const [method, value] of Object.entries(stubs))
-    vi.spyOn(service as unknown as Record<string, () => Promise<unknown>>, method).mockResolvedValue(
-      value,
-    )
+    vi.spyOn(
+      service as unknown as Record<string, () => Promise<unknown>>,
+      method,
+    ).mockResolvedValue(value)
   return service
 }
 
