@@ -22,6 +22,7 @@ import {
   type RegistrationProfile,
   businessToday,
   exactDate,
+  guardianConsentRequiredMessage,
   isMinorOn,
   normalizeIdentifier,
   parseRegistration,
@@ -223,16 +224,42 @@ export class BeneficiaryRegistrationService {
       return { kind: 'REVIEW', code: 'UNKNOWN_IDENTITY' }
     }
 
+    // The minor status and guardian flag the profile holds once this registration is written.
+    let profileMinor = registration.isMinor
+    let profileGuardian = registration.guardianConsentRecorded
+    // The current minor status of an existing individual, to be written when the stored one is stale.
+    let refreshedMinor: boolean | null = null
     if (candidateId) {
       const candidate = await tx.beneficiary.findFirst({
         where: { id: candidateId, organizationId: actor.organizationId, archivedAt: null },
-        select: { code: true, subjectType: true },
+        select: {
+          code: true,
+          subjectType: true,
+          birthDate: true,
+          ageAtRegistration: true,
+          isMinor: true,
+          guardianConsentRecorded: true,
+        },
       })
       if (!candidate || candidate.code !== registration.code) {
         return { kind: 'REVIEW', code: 'IDENTIFIER_CODE_CONFLICT' }
       }
       if (candidate.subjectType !== registration.subjectType) {
         return { kind: 'REVIEW', code: 'SUBJECT_TYPE_CONFLICT' }
+      }
+      profileGuardian = candidate.guardianConsentRecorded
+      profileMinor = false
+      if (candidate.subjectType === 'INDIVIDUAL') {
+        const updates = (field: string) =>
+          registration.operation === 'UPDATE' && registration.updateFields.includes(field)
+        profileMinor = isMinorOn(
+          updates('birth_date') ? registration.birthDate : candidate.birthDate,
+          updates('age_at_registration')
+            ? registration.ageAtRegistration
+            : candidate.ageAtRegistration,
+          businessToday(),
+        )
+        if (profileMinor !== candidate.isMinor) refreshedMinor = profileMinor
       }
     }
 
@@ -272,7 +299,8 @@ export class BeneficiaryRegistrationService {
       if (created.count !== 1)
         throw new ConflictException('Beneficiary registration was not created.')
       beneficiaryId = createdId
-    } else if (registration.operation === 'UPDATE') {
+    } else if (registration.operation === 'UPDATE' || refreshedMinor !== null) {
+      // A stale minor status is refreshed before the consent insert, which compares it with the age.
       if (
         !hasAtomicPermission(actor.roles[0], actor.permissions, 'beneficiaries.profiles.update')
       ) {
@@ -291,10 +319,17 @@ export class BeneficiaryRegistrationService {
         if (inaccessibleEnrollment)
           return { kind: 'REVIEW', code: 'SHARED_PROFILE_UPDATE_REVIEW_REQUIRED' }
       }
-      const updateData = this.registrationUpdateData(registration)
+      // Only guardian consent approval may set the guardian flag, so a minor without it waits.
+      if (profileMinor && !profileGuardian) {
+        if (input.source === 'IMPORTED_DATASET')
+          return { kind: 'REVIEW', code: 'GUARDIAN_CONSENT_REQUIRED' }
+        throw new BadRequestException(guardianConsentRequiredMessage)
+      }
+      const updateData =
+        registration.operation === 'UPDATE' ? this.registrationUpdateData(registration) : {}
       await tx.beneficiary.updateMany({
         where: { id: beneficiaryId, organizationId: actor.organizationId, archivedAt: null },
-        data: updateData,
+        data: refreshedMinor === null ? updateData : { ...updateData, isMinor: refreshedMinor },
       })
     }
 
@@ -404,8 +439,8 @@ export class BeneficiaryRegistrationService {
       'PARTICIPATION',
       'DATA_PROCESSING',
     ]
-    // A guardian consent record exists only for a minor; an adult may carry the profile flag alone.
-    if (registration.isMinor && registration.guardianConsentRecorded) consentKinds.push('GUARDIAN')
+    // A guardian consent record exists only for a minor whose profile holds the guardian flag.
+    if (profileMinor && profileGuardian) consentKinds.push('GUARDIAN')
     await tx.beneficiaryConsentRecord.createMany({
       data: consentKinds.map((kind) => ({
         organizationId: actor.organizationId,

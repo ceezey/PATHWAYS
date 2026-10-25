@@ -605,9 +605,115 @@ describe('P04 beneficiary registration service', () => {
       expect(consentKinds()).toEqual(['PARTICIPATION', 'DATA_PROCESSING'])
     })
 
+    describe('an existing profile', () => {
+      // A person stored as a minor who turned 18 after registering.
+      const stored = (patch: Record<string, unknown> = {}) => ({
+        code: 'BEN-001',
+        subjectType: 'INDIVIDUAL',
+        birthDate: new Date('2008-08-17T00:00:00.000Z'),
+        ageAtRegistration: 17,
+        isMinor: true,
+        guardianConsentRecorded: true,
+        ...patch,
+      })
+      const link = (patch: Record<string, unknown> = {}) =>
+        values({ registration_operation: 'LINK', ...adultToday, ...patch })
+
+      beforeEach(() => {
+        tx.beneficiary.findUnique.mockResolvedValue({ id: beneficiaryId })
+        tx.beneficiary.updateMany.mockResolvedValue({ count: 1 })
+        tx.beneficiary.findFirst.mockResolvedValue(stored())
+      })
+
+      it('refreshes a stale minor status before the consent insert on a LINK', async () => {
+        await expect(promote(link())).resolves.toMatchObject({ kind: 'PROCESSED' })
+        expect(tx.beneficiary.updateMany).toHaveBeenCalledWith({
+          where: { id: beneficiaryId, organizationId, archivedAt: null },
+          data: { isMinor: false },
+        })
+        expect(tx.beneficiary.updateMany.mock.invocationCallOrder[0]).toBeLessThan(
+          tx.beneficiaryConsentRecord.createMany.mock.invocationCallOrder[0],
+        )
+        expect(consentKinds()).toEqual(['PARTICIPATION', 'DATA_PROCESSING'])
+      })
+
+      it('writes nothing to the profile when the stored minor status is current', async () => {
+        tx.beneficiary.findFirst.mockResolvedValue(
+          stored({ birthDate: new Date('2008-11-01T00:00:00.000Z'), isMinor: true }),
+        )
+        await promote(link({ birth_date: '2008-11-01', guardian_consent_recorded: true }))
+        expect(tx.beneficiary.updateMany).not.toHaveBeenCalled()
+        expect(consentKinds()).toEqual(['PARTICIPATION', 'DATA_PROCESSING', 'GUARDIAN'])
+      })
+
+      it('needs the profile update permission to refresh a stale status on a LINK', async () => {
+        const linker = {
+          ...actor,
+          permissions: actor.permissions.filter((code) => code !== 'beneficiaries.profiles.update'),
+        }
+        await expect(
+          service.promoteRegistration(tx as never, linker, {
+            projectId,
+            formId,
+            clientRegistrationId: registrationId,
+            values: link(),
+            source: 'DIRECT_ENTRY',
+            validatedById: actorId,
+          }),
+        ).rejects.toBeInstanceOf(ForbiddenException)
+        expect(tx.beneficiaryConsentRecord.createMany).not.toHaveBeenCalled()
+      })
+
+      it('holds an imported UPDATE that makes the person a minor without guardian consent', async () => {
+        tx.beneficiary.findFirst.mockResolvedValue(
+          stored({
+            birthDate: new Date('1990-01-01T00:00:00.000Z'),
+            isMinor: false,
+            guardianConsentRecorded: false,
+          }),
+        )
+        const update = {
+          registration_operation: 'UPDATE',
+          profile_update_fields: ['birth_date', 'age_at_registration'],
+          birth_date: '2008-11-01',
+          guardian_consent_recorded: true,
+        }
+        await expect(promote(link(update), 'IMPORTED_DATASET')).resolves.toEqual({
+          kind: 'REVIEW',
+          code: 'GUARDIAN_CONSENT_REQUIRED',
+        })
+        await expect(promote(link(update))).rejects.toMatchObject({
+          status: 400,
+          message: 'Guardian consent is required while the participant is under 18.',
+        })
+        expect(tx.beneficiary.updateMany).not.toHaveBeenCalled()
+        expect(tx.beneficiaryConsentRecord.createMany).not.toHaveBeenCalled()
+      })
+
+      it('writes the recomputed minor status with an UPDATE of the birth date', async () => {
+        await promote(
+          link({
+            registration_operation: 'UPDATE',
+            profile_update_fields: ['birth_date', 'age_at_registration'],
+          }),
+        )
+        expect(tx.beneficiary.updateMany).toHaveBeenCalledWith({
+          where: { id: beneficiaryId, organizationId, archivedAt: null },
+          data: {
+            birthDate: new Date('2008-08-17T00:00:00.000Z'),
+            ageAtRegistration: 17,
+            isMinor: false,
+          },
+        })
+      })
+    })
+
     it('uses the supplied age when there is no birth date', async () => {
       const noBirth = { birth_date: null, age_at_registration: 12, ...enrolled }
-      await expect(promote(values(noBirth))).rejects.toMatchObject({ status: 400 })
+      await expect(promote(values(noBirth))).rejects.toMatchObject({
+        status: 400,
+        message: 'Guardian consent is required while the participant is under 18.',
+      })
       await promote(values({ ...noBirth, guardian_consent_recorded: true }))
       expect(tx.beneficiary.createMany).toHaveBeenCalledWith({
         data: expect.objectContaining({ isMinor: true, guardianConsentRecorded: true }),

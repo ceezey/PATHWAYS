@@ -109,6 +109,21 @@ describe('applyIntakeRules', () => {
     expect(warnings).toEqual([])
   })
 
+  it('MINOR_AT_DATE alone still holds a birth date after its enrollment date, and after the upload date', () => {
+    const minorOnly = fields.filter((item) => item.code !== 'age_at_registration')
+    for (const [birth_date, enrollment_date] of [
+      ['2026-06-01', '2026-05-28'],
+      ['2026-11-01', '2027-01-10'],
+    ]) {
+      const values: Record<string, NormalizedImportValue> = { birth_date, enrollment_date }
+      const { errors } = applyIntakeRules(minorOnly, values, new Set(), '2026-10-26')
+      expect(errors).toEqual([
+        expect.objectContaining({ fieldCode: 'birth_date', code: 'BIRTH_AFTER_DATE' }),
+      ])
+      expect(values.is_minor).toBeUndefined()
+    }
+  })
+
   it('leaves a calculation null when an input is missing and skips the guardian warning', () => {
     const values: Record<string, NormalizedImportValue> = { birth_date: '2008-08-17' }
     const { warnings } = run(values)

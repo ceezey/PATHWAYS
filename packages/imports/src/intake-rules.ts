@@ -127,9 +127,13 @@ export function applyIntakeRules(
     if (rule.kind === 'SAME_ANSWER_AS' && sourceProvided.has(field.code)) continue
     if (rule.kind === 'AGE_AT_DATE' || rule.kind === 'MINOR_AT_DATE') {
       const birth = toDate(inputs[rule.birthField])
-      const at = rule.kind === 'MINOR_AT_DATE' ? upload : toDate(inputs[rule.atField])
+      // Minor status is measured at the upload date, but a birth after the rule's own date is still held.
+      const dates = [
+        toDate(inputs[rule.atField]),
+        ...(rule.kind === 'MINOR_AT_DATE' ? [upload] : []),
+      ]
       // A birth after the measuring date gives no age; the row is held with the reason.
-      if (birth && at && birth > at) {
+      if (birth && dates.some((at) => at && birth > at)) {
         if (!errors.some((e) => e.code === 'BIRTH_AFTER_DATE' && e.fieldCode === rule.birthField))
           errors.push({
             fieldCode: rule.birthField,
