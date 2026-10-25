@@ -6,10 +6,8 @@ settings:
 
 overrides:
   ajv@8: ^8.18.0
-  body-parser@1: ^1.20.9
   browserslist: ^4.28.7
   effect: ^3.20.0
-  glob@10: ^10.5.0
   js-yaml@4: ^4.3.2
   js-yaml@5: ^5.5.0
   lodash: ^4.17.24
@@ -17,7 +15,6 @@ overrides:
   picomatch@4: ^4.0.4
   postcss@8: ^8.5.23
   qs@6: ^6.16.0
-  tmp: ^0.2.6
   webpack@5: ^5.104.1
   deepmerge-ts: ^8.0.2
   postcss-selector-parser: ^7.1.7
