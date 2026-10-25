@@ -31,9 +31,10 @@ import {
 
 const registrationFormSelection = {
   id: true,
+  projectId: true,
   version: true,
   status: true,
-  formField_form: { select: fieldSelection, orderBy: { sequenceNo: 'asc' } },
+  formField_form: { select: { ...fieldSelection, rule: true }, orderBy: { sequenceNo: 'asc' } },
 } satisfies Prisma.DigitalFormSelect
 
 export type RegistrationImportForm = Prisma.DigitalFormGetPayload<{
@@ -75,6 +76,8 @@ export class BeneficiaryRegistrationService {
       validatedById: string
       importBatchId?: string
       importRowId?: string
+      // The client's identifier finds the profile, so the participant code never does.
+      matchByIdentifier?: boolean
     },
     preloaded?: { form: RegistrationImportForm },
   ): Promise<
@@ -129,11 +132,16 @@ export class BeneficiaryRegistrationService {
         typeof age === 'number' ? age : null,
         businessToday(),
       )
-      if (minor && values.guardian_consent_recorded !== true) {
+      // A link or update of an existing profile is judged by the stored profile below.
+      const ofStoredProfile =
+        values.registration_operation === 'LINK' || values.registration_operation === 'UPDATE'
+      if (minor && !ofStoredProfile && values.guardian_consent_recorded !== true) {
         return { kind: 'REVIEW', code: 'GUARDIAN_CONSENT_REQUIRED' }
       }
     }
-    const registration = parseRegistration(values)
+    const registration = parseRegistration(values, businessToday(), {
+      guardianFromProfile: input.source === 'IMPORTED_DATASET',
+    })
     const mayReviewIdentity = hasAtomicPermission(
       actor.roles[0],
       actor.permissions,
@@ -187,12 +195,14 @@ export class BeneficiaryRegistrationService {
     }
 
     const candidates = new Set<string>()
-    const byCode = await tx.beneficiary.findUnique({
-      where: {
-        organizationId_code: { organizationId: actor.organizationId, code: registration.code },
-      },
-      select: { id: true },
-    })
+    const byCode = input.matchByIdentifier
+      ? null
+      : await tx.beneficiary.findUnique({
+          where: {
+            organizationId_code: { organizationId: actor.organizationId, code: registration.code },
+          },
+          select: { id: true },
+        })
     if (byCode) candidates.add(byCode.id)
     if (registration.externalIdentifier) {
       const byIdentifier = await tx.beneficiaryIdentifier.findUnique({
@@ -241,7 +251,13 @@ export class BeneficiaryRegistrationService {
           guardianConsentRecorded: true,
         },
       })
-      if (!candidate || candidate.code !== registration.code) {
+      if (!candidate) {
+        return {
+          kind: 'REVIEW',
+          code: input.matchByIdentifier ? 'UNKNOWN_IDENTITY' : 'IDENTIFIER_CODE_CONFLICT',
+        }
+      }
+      if (!input.matchByIdentifier && candidate.code !== registration.code) {
         return { kind: 'REVIEW', code: 'IDENTIFIER_CODE_CONFLICT' }
       }
       if (candidate.subjectType !== registration.subjectType) {
@@ -331,6 +347,9 @@ export class BeneficiaryRegistrationService {
         where: { id: beneficiaryId, organizationId: actor.organizationId, archivedAt: null },
         data: refreshedMinor === null ? updateData : { ...updateData, isMinor: refreshedMinor },
       })
+    } else if (input.source === 'IMPORTED_DATASET' && profileMinor && !profileGuardian) {
+      // A link of a minor whose profile lacks guardian consent waits for the guardian approval.
+      return { kind: 'REVIEW', code: 'GUARDIAN_CONSENT_REQUIRED' }
     }
 
     if (!beneficiaryId) throw new ConflictException('Registration identity could not be resolved.')

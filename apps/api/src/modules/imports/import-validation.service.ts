@@ -19,6 +19,7 @@ import type { ApplicationIdentity } from '../../common/authz/application-identit
 import { formFieldContract } from '../../common/forms/form-field-contract'
 import type { Tx } from '../../common/prisma/transaction'
 import { currentBusinessDate } from '../../common/time/business-date'
+import { normalizeIdentifier } from '../beneficiaries/beneficiary-registration.helpers'
 import { lockBatch, mapStoredBatch, requireBatchWithHeaders } from './import-batches.service'
 import { safeRawData, safeSourceColumns, stableJson, storedValueMap } from './imports.helpers'
 import { type FieldRow, fieldSelection } from './imports.mapper'
@@ -153,14 +154,18 @@ export async function validateBatchRows(
     }
     return { row, result: normalizeImportedRow(fields, byFieldCode, rules, { uploadDate }) }
   })
-  const metadataKeys = mappedFields
-    .filter((field) => field.isMetadataKey)
-    .map((field) => field.code)
-  if (metadataKeys.length > 0) {
+  // Two valid rows sharing a key are both marked, so neither is guessed to be the real one.
+  const markDuplicates = (
+    keyOf: (values: Record<string, unknown>) => string | null,
+    fieldCode: string,
+    code: string,
+    message: string,
+  ) => {
     const seen = new Map<string, number[]>()
     results.forEach(({ result }, index) => {
       if (!result.valid) return
-      const key = stableJson(metadataKeys.map((code) => result.values[code]))
+      const key = keyOf(result.values)
+      if (key === null) return
       const entries = seen.get(key) ?? []
       entries.push(index)
       seen.set(key, entries)
@@ -169,13 +174,37 @@ export async function validateBatchRows(
       if (duplicates.length < 2) continue
       for (const index of duplicates) {
         results[index].result.valid = false
-        results[index].result.errors.push({
-          fieldCode: metadataKeys.join(','),
-          code: 'DUPLICATE_BUSINESS_KEY',
-          message: 'The metadata key is duplicated within this import.',
-        })
+        results[index].result.errors.push({ fieldCode, code, message })
       }
     }
+  }
+  const metadataKeys = mappedFields
+    .filter((field) => field.isMetadataKey)
+    .map((field) => field.code)
+  if (metadataKeys.length > 0) {
+    markDuplicates(
+      (values) => stableJson(metadataKeys.map((code) => values[code])),
+      metadataKeys.join(','),
+      'DUPLICATE_BUSINESS_KEY',
+      'The metadata key is duplicated within this import.',
+    )
+  }
+  // One client Student ID on two rows would create or change one person twice.
+  if (
+    batch.form.formType === 'BENEFICIARY_REGISTRATION' &&
+    fields.some((field) => field.code === 'external_identifier_value')
+  ) {
+    markDuplicates(
+      (values) => {
+        const value = values.external_identifier_value
+        return typeof value === 'string' && normalizeIdentifier(value) !== ''
+          ? normalizeIdentifier(value)
+          : null
+      },
+      'external_identifier_value',
+      'IDENTITY_CONFLICT',
+      'The client identifier is on more than one row of this import.',
+    )
   }
   let valid = 0
   let invalid = 0

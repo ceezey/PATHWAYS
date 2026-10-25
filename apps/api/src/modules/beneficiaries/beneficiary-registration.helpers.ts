@@ -143,6 +143,7 @@ export type RegistrationProfile = {
 export function parseRegistration(
   values: Record<string, NormalizedValue>,
   today: Date = businessToday(),
+  options: { guardianFromProfile?: boolean } = {},
 ): RegistrationProfile {
   const operation = enumValue(
     values.registration_operation,
@@ -210,7 +211,11 @@ export function parseRegistration(
     assertRegistrationAge(birthDate, derivedAge, today)
     // Minor status is current, so the supplied is_minor is ignored; only a minor needs guardian consent.
     isMinor = isMinorOn(birthDate, ageAtRegistration, today)
-    if (isMinor && !guardianConsent) throw new BadRequestException(guardianConsentRequiredMessage)
+    // An import that links or updates a profile is judged by the stored guardian flag, not the row's.
+    const profileJudges = options.guardianFromProfile && operation !== 'CREATE'
+    if (isMinor && !guardianConsent && !profileJudges) {
+      throw new BadRequestException(guardianConsentRequiredMessage)
+    }
   } else {
     if (!explicitDisplayName)
       throw new BadRequestException('Group/community records require display_name.')

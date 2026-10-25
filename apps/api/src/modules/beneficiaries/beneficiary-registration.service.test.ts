@@ -706,6 +706,72 @@ describe('P04 beneficiary registration service', () => {
           },
         })
       })
+
+      describe('an imported link', () => {
+        const promoteImported = (input: Record<string, unknown>, extra = {}) =>
+          service.promoteRegistration(tx as never, actor, {
+            projectId,
+            formId,
+            clientRegistrationId: registrationId,
+            values: input,
+            source: 'IMPORTED_DATASET',
+            validatedById: actorId,
+            importBatchId: 'a0000000-0000-4000-8000-000000000001',
+            importRowId: registrationId,
+            ...extra,
+          })
+        const minorRow = link({ ...minorToday, guardian_consent_recorded: false })
+        const minorProfile = (guardianConsentRecorded: boolean) =>
+          stored({
+            birthDate: new Date('2008-11-01T00:00:00.000Z'),
+            ageAtRegistration: 17,
+            guardianConsentRecorded,
+          })
+
+        it('is not held for a minor whose profile already carries guardian consent', async () => {
+          tx.beneficiary.findFirst.mockResolvedValue(minorProfile(true))
+          await expect(promoteImported(minorRow)).resolves.toMatchObject({ kind: 'PROCESSED' })
+          expect(consentKinds()).toEqual(['PARTICIPATION', 'DATA_PROCESSING', 'GUARDIAN'])
+        })
+
+        it('is held for a minor whose profile has no guardian consent, whatever the row says', async () => {
+          tx.beneficiary.findFirst.mockResolvedValue(minorProfile(false))
+          for (const guardian of [false, true]) {
+            await expect(
+              promoteImported({ ...minorRow, guardian_consent_recorded: guardian }),
+            ).resolves.toEqual({ kind: 'REVIEW', code: 'GUARDIAN_CONSENT_REQUIRED' })
+          }
+          expect(tx.beneficiaryProjectEnrollment.create).not.toHaveBeenCalled()
+        })
+
+        it('is not held for a known adult whose row says no guardian consent', async () => {
+          tx.beneficiary.findFirst.mockResolvedValue(
+            stored({ isMinor: false, guardianConsentRecorded: false }),
+          )
+          await expect(
+            promoteImported(link({ guardian_consent_recorded: false })),
+          ).resolves.toMatchObject({ kind: 'PROCESSED' })
+          expect(consentKinds()).toEqual(['PARTICIPATION', 'DATA_PROCESSING'])
+        })
+
+        it('finds the profile by the identifier only when told to, so the code cannot conflict', async () => {
+          tx.beneficiary.findFirst.mockResolvedValue(stored({ code: 'PW0000000001' }))
+          tx.beneficiaryIdentifier.findUnique.mockResolvedValue({ beneficiaryId })
+          const row = link({
+            external_identifier_type: 'STUDENT_ID',
+            external_identifier_value: 'S-1',
+          })
+          await expect(promoteImported(row, { matchByIdentifier: true })).resolves.toMatchObject({
+            kind: 'PROCESSED',
+            beneficiaryId,
+          })
+          expect(tx.beneficiary.findUnique).not.toHaveBeenCalled()
+          await expect(promoteImported(row)).resolves.toEqual({
+            kind: 'REVIEW',
+            code: 'IDENTIFIER_CODE_CONFLICT',
+          })
+        })
+      })
     })
 
     it('uses the supplied age when there is no birth date', async () => {

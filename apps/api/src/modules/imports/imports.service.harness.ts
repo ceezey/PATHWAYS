@@ -129,7 +129,7 @@ export const storage = {
   uploadPrivateFile: vi.fn(),
   downloadPrivateFile: vi.fn(),
 }
-export const beneficiaries = { promoteRegistration: vi.fn() }
+export const beneficiaries = { promoteRegistration: vi.fn(), readRegistrationForm: vi.fn() }
 export let service: ImportsService
 export { state }
 
