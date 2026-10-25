@@ -152,6 +152,10 @@ export class PrintPdfRenderer implements OnModuleDestroy {
       return await Promise.race([work, deadline])
     } catch (error) {
       this.discard(shared)
+      // shortcut: temporary hosted diagnostic (Logger warnings never reach Vercel), remove once the stage is known.
+      console.warn(
+        `PrintPdfRenderer failed at ${stage}: ${error instanceof Error ? `${error.name}: ${error.message.slice(0, 400)}` : 'unknown'}`,
+      )
       throw new PrintPdfError(stage, error instanceof Error ? error.name : undefined)
     } finally {
       clearTimeout(timer)
