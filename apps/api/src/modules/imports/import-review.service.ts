@@ -143,19 +143,20 @@ function tooLong(dataType: string, value: unknown) {
   return typeof value === 'string' && value.length > limit
 }
 
-// Batch checks a resolve makes under the batch lock, before it reads any row.
-async function lockResolvableBatch(
+// Batch checks a resolve or approval makes under the batch lock, before it reads any row.
+export async function lockResolvableBatch(
   tx: Tx,
   actor: ApplicationIdentity,
   projectId: string,
   batchId: string,
-  expectedValidationRevision: number,
+  expectedValidationRevision?: number,
 ) {
   await lockBatch(tx, actor, projectId, batchId)
   const batch = await requireBatchWithHeaders(tx, actor, projectId, batchId)
   if (
     !['VALIDATED', 'PARTIALLY_PROCESSED', 'PROCESSING'].includes(batch.status) ||
-    batch.validationRevision !== expectedValidationRevision ||
+    (expectedValidationRevision !== undefined &&
+      batch.validationRevision !== expectedValidationRevision) ||
     batch.validatedMappingRevision !== batch.mappingRevision
   ) {
     throw new ConflictException('This import changed. Open the row again.')
@@ -365,11 +366,32 @@ function validateChosen(
   return result.values
 }
 
+export interface BatchClaim {
+  id: string
+  at: Date
+}
+
+/** Moves the batch to PROCESSING under a new claim that the rows promoted in this transaction share. */
+export async function claimBatchForResolution(tx: Tx, batchId: string): Promise<BatchClaim> {
+  const claim = { id: randomUUID(), at: new Date() }
+  await tx.dataImportBatch.update({
+    where: { id: batchId },
+    data: {
+      status: 'PROCESSING',
+      processingRevision: { increment: 1 },
+      processingClaimId: claim.id,
+      processingClaimedAt: claim.at,
+      failureCode: null,
+    },
+  })
+  return claim
+}
+
 /**
- * Moves a held row through PROCESSING to PROCESSED inside the caller's transaction and returns the batch to rest.
- * The row is claimed first, so a second request for the same row fails here before it writes anything else.
+ * Moves one held row through PROCESSING to PROCESSED under the caller's batch claim.
+ * The row is claimed with its resolution, so a second request for the same row fails here.
  */
-export async function commitResolvedRow(
+export async function promoteClaimedRow(
   tx: Tx,
   actor: ApplicationIdentity,
   registration: Pick<BeneficiaryRegistrationService, 'promoteRegistration'>,
@@ -377,12 +399,14 @@ export async function commitResolvedRow(
     batch: Pick<BatchHead, 'id' | 'projectId' | 'formId' | 'mappingRevision' | 'validationRevision'>
     form: RegistrationImportForm
     rowId: string
-    resolution: RowResolution
+    claim: BatchClaim
+    // What the row stores as its resolution.
+    resolution: Prisma.InputJsonValue
+    values: Record<string, unknown>
+    guardianConsent?: { name?: string; date?: string; note?: string }
   },
 ) {
-  const { batch, form, rowId, resolution } = input
-  const claimId = randomUUID()
-  const claimedAt = new Date()
+  const { batch, form, rowId, claim, values } = input
   const claimed = await tx.dataImportRow.updateMany({
     where: {
       id: rowId,
@@ -395,26 +419,16 @@ export async function commitResolvedRow(
     },
     data: {
       status: 'PROCESSING',
-      resolutionData: resolution as unknown as Prisma.InputJsonValue,
+      resolutionData: input.resolution,
       resolvedById: actor.userId,
-      resolvedAt: claimedAt,
-      processingClaimId: claimId,
-      processingClaimedAt: claimedAt,
+      resolvedAt: claim.at,
+      processingClaimId: claim.id,
+      processingClaimedAt: claim.at,
       processingAttempts: { increment: 1 },
       processingErrorCode: null,
     },
   })
   if (claimed.count !== 1) throw new ConflictException('This row was already resolved.')
-  await tx.dataImportBatch.update({
-    where: { id: batch.id },
-    data: {
-      status: 'PROCESSING',
-      processingRevision: { increment: 1 },
-      processingClaimId: claimId,
-      processingClaimedAt: claimedAt,
-      failureCode: null,
-    },
-  })
   const result = await registration.promoteRegistration(
     tx,
     actor,
@@ -422,12 +436,13 @@ export async function commitResolvedRow(
       projectId: batch.projectId,
       formId: batch.formId,
       clientRegistrationId: rowId,
-      values: resolution.values,
+      values,
       source: 'IMPORTED_DATASET',
       validatedById: actor.userId,
       importBatchId: batch.id,
       importRowId: rowId,
       matchByIdentifier: true,
+      ...(input.guardianConsent ? { guardianConsent: input.guardianConsent } : {}),
     },
     { form },
   )
@@ -444,12 +459,32 @@ export async function commitResolvedRow(
       processingClaimId: null,
       processingClaimedAt: null,
       registrationOutcome:
-        registrationOutcomes[
-          resolution.values.registration_operation as keyof typeof registrationOutcomes
-        ],
+        registrationOutcomes[values.registration_operation as keyof typeof registrationOutcomes],
     },
   })
-  await reconcileBatch(tx, batch.id)
+  return result
+}
+
+/** Resolves one held row inside the caller's transaction and returns the batch to rest. */
+export async function commitResolvedRow(
+  tx: Tx,
+  actor: ApplicationIdentity,
+  registration: Pick<BeneficiaryRegistrationService, 'promoteRegistration'>,
+  input: {
+    batch: Pick<BatchHead, 'id' | 'projectId' | 'formId' | 'mappingRevision' | 'validationRevision'>
+    form: RegistrationImportForm
+    rowId: string
+    resolution: RowResolution
+  },
+) {
+  const claim = await claimBatchForResolution(tx, input.batch.id)
+  const result = await promoteClaimedRow(tx, actor, registration, {
+    ...input,
+    claim,
+    resolution: input.resolution as unknown as Prisma.InputJsonValue,
+    values: input.resolution.values,
+  })
+  await reconcileBatch(tx, input.batch.id)
   return result
 }
 

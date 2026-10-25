@@ -12,6 +12,7 @@ import type {
 } from '../../common/authz/application-identity'
 import { PERMISSION_KEY } from '../../common/decorators/permission.decorator'
 import type { BeneficiaryRegistrationService } from '../beneficiaries/beneficiary-registration.service'
+import { GuardianApprovalService } from './guardian-approval.service'
 import { ImportReviewService } from './import-review.service'
 import { ImportsController } from './imports.controller'
 import type { ImportsService } from './imports.service'
@@ -101,6 +102,10 @@ const controller = new ImportsController(
     {} as PrismaService,
     registration as unknown as BeneficiaryRegistrationService,
   ),
+  new GuardianApprovalService(
+    {} as PrismaService,
+    registration as unknown as BeneficiaryRegistrationService,
+  ),
 )
 const requestOf = (who: ApplicationIdentity): AuthenticatedRequest => ({ headers: {}, user: who })
 const body = { expectedValidationRevision: 1, saveAs: 'NEW', choices: {}, own: {} } as const
@@ -131,6 +136,16 @@ describe('review and resolve routes', () => {
       expect(Reflect.getMetadata(PATH_METADATA, prototype[name])).toBe(path)
       expect(Reflect.getMetadata(PERMISSION_KEY, prototype[name])).toBe('imports.review')
     }
+  })
+
+  it('registers guardian approval under its own permission, not imports.review', () => {
+    const route = (ImportsController.prototype as unknown as Record<string, () => void>)
+      .approveGuardians
+    expect(RequestMethod[Reflect.getMetadata(METHOD_METADATA, route)]).toBe('POST')
+    expect(Reflect.getMetadata(PATH_METADATA, route)).toBe(':batchId/guardian-approvals')
+    expect(Reflect.getMetadata(PERMISSION_KEY, route)).toBe(
+      'beneficiaries.guardian_consent.approve',
+    )
   })
 
   it('project officer cannot resolve (403)', async () => {

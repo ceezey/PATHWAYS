@@ -103,7 +103,7 @@ export async function loadPromotionContext(
 export async function registrationMatchesByIdentifier(
   tx: Tx,
   actor: ApplicationIdentity,
-  batch: PromotionBatch,
+  batch: Pick<PromotionBatch, 'id' | 'mappingRevision'>,
   form?: RegistrationImportForm,
 ) {
   if (!form?.formField_form.some((field) => field.code === 'external_identifier_value'))

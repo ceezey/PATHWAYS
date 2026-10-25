@@ -605,6 +605,77 @@ describe('P04 beneficiary registration service', () => {
       expect(consentKinds()).toEqual(['PARTICIPATION', 'DATA_PROCESSING'])
     })
 
+    describe('a guardian approval', () => {
+      const approveImported = (input: Record<string, unknown>, guardianConsent?: object) =>
+        service.promoteRegistration(tx as never, actor, {
+          projectId,
+          formId,
+          clientRegistrationId: registrationId,
+          values: input,
+          source: 'IMPORTED_DATASET',
+          validatedById: actorId,
+          importBatchId: 'a0000000-0000-4000-8000-000000000001',
+          importRowId: registrationId,
+          ...(guardianConsent ? { guardianConsent } : {}),
+        })
+      const guardianRecord = () =>
+        tx.beneficiaryConsentRecord.createMany.mock.calls[0][0].data.find(
+          (record: { kind: string }) => record.kind === 'GUARDIAN',
+        )
+
+      it('creates a minor with guardian consent and stores only the details given', async () => {
+        await expect(
+          approveImported(values(minorToday), { name: 'Parent Name', date: '2026-10-20' }),
+        ).resolves.toMatchObject({ kind: 'PROCESSED' })
+        expect(tx.beneficiary.createMany).toHaveBeenCalledWith({
+          data: expect.objectContaining({ isMinor: true, guardianConsentRecorded: true }),
+        })
+        expect(consentKinds()).toEqual(['PARTICIPATION', 'DATA_PROCESSING', 'GUARDIAN'])
+        expect(guardianRecord()).toMatchObject({
+          guardianName: 'Parent Name',
+          guardianConsentDate: new Date('2026-10-20T00:00:00.000Z'),
+        })
+        expect(guardianRecord().guardianNote).toBeUndefined()
+        const stored = tx.formResponseValue.createMany.mock.calls[0][0].data
+        expect(
+          stored.find(
+            (item: { fieldId: string }) => item.fieldId === 'guardian_consent_recorded-field',
+          ).value,
+        ).toBe(true)
+      })
+
+      it('needs no details at all', async () => {
+        await approveImported(values(minorToday), {})
+        expect(guardianRecord()).not.toHaveProperty('guardianName', expect.anything())
+        expect(consentKinds()).toEqual(['PARTICIPATION', 'DATA_PROCESSING', 'GUARDIAN'])
+      })
+
+      it('leaves a person who is 18 today without guardian consent or a record', async () => {
+        await expect(
+          approveImported(values(adultToday), { name: 'Parent Name' }),
+        ).resolves.toMatchObject({ kind: 'PROCESSED' })
+        expect(tx.beneficiary.createMany).toHaveBeenCalledWith({
+          data: expect.objectContaining({ isMinor: false, guardianConsentRecorded: false }),
+        })
+        expect(consentKinds()).toEqual(['PARTICIPATION', 'DATA_PROCESSING'])
+      })
+
+      it('never sets guardian consent for a direct entry', async () => {
+        await expect(
+          service.promoteRegistration(tx as never, actor, {
+            projectId,
+            formId,
+            clientRegistrationId: registrationId,
+            values: values(minorToday),
+            source: 'DIRECT_ENTRY',
+            validatedById: actorId,
+            guardianConsent: {},
+          }),
+        ).rejects.toMatchObject({ status: 400 })
+        expect(tx.beneficiary.createMany).not.toHaveBeenCalled()
+      })
+    })
+
     describe('an existing profile', () => {
       // A person stored as a minor who turned 18 after registering.
       const stored = (patch: Record<string, unknown> = {}) => ({
@@ -742,6 +813,35 @@ describe('P04 beneficiary registration service', () => {
             ).resolves.toEqual({ kind: 'REVIEW', code: 'GUARDIAN_CONSENT_REQUIRED' })
           }
           expect(tx.beneficiaryProjectEnrollment.create).not.toHaveBeenCalled()
+        })
+
+        it('grants the guardian flag to a minor profile that lacks it, with the minor status, in one write', async () => {
+          tx.beneficiary.findFirst.mockResolvedValue(
+            stored({
+              birthDate: new Date('2008-11-01T00:00:00.000Z'),
+              ageAtRegistration: 17,
+              isMinor: false,
+              guardianConsentRecorded: false,
+            }),
+          )
+          await expect(
+            promoteImported(minorRow, { guardianConsent: { note: 'On file' } }),
+          ).resolves.toMatchObject({ kind: 'PROCESSED' })
+          expect(tx.beneficiary.updateMany).toHaveBeenCalledTimes(1)
+          expect(tx.beneficiary.updateMany).toHaveBeenCalledWith({
+            where: { id: beneficiaryId, organizationId, archivedAt: null },
+            data: { isMinor: true, guardianConsentRecorded: true },
+          })
+          expect(consentKinds()).toEqual(['PARTICIPATION', 'DATA_PROCESSING', 'GUARDIAN'])
+          expect(tx.beneficiaryConsentRecord.createMany.mock.calls[0][0].data[2]).toMatchObject({
+            guardianNote: 'On file',
+          })
+        })
+
+        it('writes nothing to the guardian flag of a profile that already has it', async () => {
+          tx.beneficiary.findFirst.mockResolvedValue(minorProfile(true))
+          await promoteImported(minorRow, { guardianConsent: {} })
+          expect(tx.beneficiary.updateMany).not.toHaveBeenCalled()
         })
 
         it('is not held for a known adult whose row says no guardian consent', async () => {

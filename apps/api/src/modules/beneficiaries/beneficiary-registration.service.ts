@@ -41,6 +41,13 @@ export type RegistrationImportForm = Prisma.DigitalFormGetPayload<{
   select: typeof registrationFormSelection
 }>
 
+// The guardian details an approval gave; none is required, so only those given are stored.
+const guardianDetails = (given?: { name?: string; date?: string; note?: string }) => ({
+  ...(given?.name ? { guardianName: given.name } : {}),
+  ...(given?.date ? { guardianConsentDate: new Date(`${given.date}T00:00:00.000Z`) } : {}),
+  ...(given?.note ? { guardianNote: given.note } : {}),
+})
+
 // Promotes a direct or imported registration inside the caller's transaction.
 @Injectable()
 export class BeneficiaryRegistrationService {
@@ -78,6 +85,8 @@ export class BeneficiaryRegistrationService {
       importRowId?: string
       // The client's identifier finds the profile, so the participant code never does.
       matchByIdentifier?: boolean
+      // A project officer's guardian approval of an imported row; no other path sets guardian consent.
+      guardianConsent?: { name?: string; date?: string; note?: string }
     },
     preloaded?: { form: RegistrationImportForm },
   ): Promise<
@@ -121,6 +130,7 @@ export class BeneficiaryRegistrationService {
       })
     }
     const values = validation.values as Record<string, NormalizedValue>
+    const guardianApproval = input.source === 'IMPORTED_DATASET' ? input.guardianConsent : undefined
     // An imported row without recorded consent waits for a person; direct entry still rejects it.
     if (input.source === 'IMPORTED_DATASET') {
       if (values.consent_recorded !== true || values.data_processing_consent_recorded !== true) {
@@ -135,6 +145,7 @@ export class BeneficiaryRegistrationService {
       // A link or update of an existing profile is judged by the stored profile below.
       const ofStoredProfile =
         values.registration_operation === 'LINK' || values.registration_operation === 'UPDATE'
+      if (minor && guardianApproval) values.guardian_consent_recorded = true
       if (minor && !ofStoredProfile && values.guardian_consent_recorded !== true) {
         return { kind: 'REVIEW', code: 'GUARDIAN_CONSENT_REQUIRED' }
       }
@@ -239,6 +250,8 @@ export class BeneficiaryRegistrationService {
     let profileGuardian = registration.guardianConsentRecorded
     // The current minor status of an existing individual, to be written when the stored one is stale.
     let refreshedMinor: boolean | null = null
+    // A guardian approval grants the flag to a minor profile that lacks it.
+    let grantGuardian = false
     if (candidateId) {
       const candidate = await tx.beneficiary.findFirst({
         where: { id: candidateId, organizationId: actor.organizationId, archivedAt: null },
@@ -276,6 +289,7 @@ export class BeneficiaryRegistrationService {
           businessToday(),
         )
         if (profileMinor !== candidate.isMinor) refreshedMinor = profileMinor
+        grantGuardian = Boolean(guardianApproval) && profileMinor && !profileGuardian
       }
     }
 
@@ -315,7 +329,7 @@ export class BeneficiaryRegistrationService {
       if (created.count !== 1)
         throw new ConflictException('Beneficiary registration was not created.')
       beneficiaryId = createdId
-    } else if (registration.operation === 'UPDATE' || refreshedMinor !== null) {
+    } else if (registration.operation === 'UPDATE' || refreshedMinor !== null || grantGuardian) {
       // A stale minor status is refreshed before the consent insert, which compares it with the age.
       if (
         !hasAtomicPermission(actor.roles[0], actor.permissions, 'beneficiaries.profiles.update')
@@ -336,7 +350,7 @@ export class BeneficiaryRegistrationService {
           return { kind: 'REVIEW', code: 'SHARED_PROFILE_UPDATE_REVIEW_REQUIRED' }
       }
       // Only guardian consent approval may set the guardian flag, so a minor without it waits.
-      if (profileMinor && !profileGuardian) {
+      if (profileMinor && !profileGuardian && !grantGuardian) {
         if (input.source === 'IMPORTED_DATASET')
           return { kind: 'REVIEW', code: 'GUARDIAN_CONSENT_REQUIRED' }
         throw new BadRequestException(guardianConsentRequiredMessage)
@@ -345,8 +359,13 @@ export class BeneficiaryRegistrationService {
         registration.operation === 'UPDATE' ? this.registrationUpdateData(registration) : {}
       await tx.beneficiary.updateMany({
         where: { id: beneficiaryId, organizationId: actor.organizationId, archivedAt: null },
-        data: refreshedMinor === null ? updateData : { ...updateData, isMinor: refreshedMinor },
+        data: {
+          ...updateData,
+          ...(refreshedMinor === null ? {} : { isMinor: refreshedMinor }),
+          ...(grantGuardian ? { guardianConsentRecorded: true } : {}),
+        },
       })
+      if (grantGuardian) profileGuardian = true
     } else if (input.source === 'IMPORTED_DATASET' && profileMinor && !profileGuardian) {
       // A link of a minor whose profile lacks guardian consent waits for the guardian approval.
       return { kind: 'REVIEW', code: 'GUARDIAN_CONSENT_REQUIRED' }
@@ -471,6 +490,7 @@ export class BeneficiaryRegistrationService {
         source: input.source,
         recordedById: actor.userId,
         recordedAt: submittedAt,
+        ...(kind === 'GUARDIAN' ? guardianDetails(guardianApproval) : {}),
       })),
     })
     await writeAuditLog(tx, actor, {
