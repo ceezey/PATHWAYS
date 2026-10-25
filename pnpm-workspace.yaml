@@ -13,7 +13,6 @@ allowBuilds:
   sharp: true
 # Same-major bumps of transitive deps that parents pin to vulnerable versions (pnpm audit).
 overrides:
-  '@babel/core': ^7.29.1
   ajv@8: ^8.18.0
   baseline-browser-mapping: ^2.11.0
   body-parser@1: ^1.20.9
