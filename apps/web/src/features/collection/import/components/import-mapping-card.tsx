@@ -90,7 +90,8 @@ export function ImportMappingCard({
   const coverage =
     batch.coverage ?? (receipt?.mappingRevision === batch.mappingRevision ? receipt : null)
   const needsFormUpdate = coverage?.coverage === 'NOT_COVERED'
-  const [onlyUndecided, setOnlyUndecided] = useState(false)
+  // The columns undecided when the filter was switched on; deciding one keeps it in view.
+  const [undecidedShown, setUndecidedShown] = useState<ReadonlySet<string> | null>(null)
   const referenceYear = new Date(batch.uploadedAt ?? Date.now()).getUTCFullYear()
   // The column's date type: the reviewer's declared type, else the target field's.
   const dateColumn = (key: string) =>
@@ -103,8 +104,8 @@ export function ImportMappingCard({
     (dateColumn(key) &&
       !rules[key]?.dateOrder &&
       columnDateOrders(columnValues.get(key), referenceYear).needsChoice)
-  const shownColumns = onlyUndecided
-    ? sourceColumns.filter((column) => undecided(column.key))
+  const shownColumns = undecidedShown
+    ? sourceColumns.filter((column) => undecidedShown.has(column.key))
     : sourceColumns
   // Mirrors the server's validation refusal: a required field needs a column, a default or a calculation.
   const mappedCodes = new Set(Object.values(mapping))
@@ -154,9 +155,19 @@ export function ImportMappingCard({
           {mappingNotice}
         </output>
         <ToggleRow
-          checked={onlyUndecided}
+          checked={undecidedShown !== null}
           label={`Show only columns that need a decision (${sourceColumns.filter((column) => undecided(column.key)).length} of ${sourceColumns.length})`}
-          onChange={setOnlyUndecided}
+          onChange={(on) =>
+            setUndecidedShown(
+              on
+                ? new Set(
+                    sourceColumns
+                      .filter((column) => undecided(column.key))
+                      .map((column) => column.key),
+                  )
+                : null,
+            )
+          }
         />
         {shownColumns.map((column) => {
           const stored = storedMappingByKey.get(column.key)

@@ -138,7 +138,7 @@ export function formIntakeDefinitionErrors(
     if (field.importDefault != null) {
       if ((CONSENT_FIELD_CODES as readonly string[]).includes(field.code))
         flag('Consent is never defaulted.')
-      else if (field.rule && (CALCULATED_RULE_KINDS as readonly string[]).includes(field.rule.kind))
+      else if (isCalculatedRule(field.rule))
         flag('A calculated field cannot also have an import default.')
       else {
         let value: unknown =

@@ -209,6 +209,14 @@ export function useFormActions(state: CollectionState, guard: CollectionGuard) {
       if (!ticket.valid()) return
       setForms((current) => current.map((form) => (form.id === updated.id ? updated : form)))
       setEditingBaseUpdatedAt(updated.updatedAt)
+      const field = fields.find((item) => item.code === fieldCode)
+      toast.success(`${field?.label ?? fieldCode} confirmed.`)
+      // The Confirm button is gone once the check clears, so focus moves to the field it confirmed.
+      if (field)
+        window.setTimeout(
+          () => document.getElementById(`collection-field-choice-${field.id}`)?.focus(),
+          0,
+        )
     } catch (error) {
       if (ticket.valid())
         toast.error(error instanceof Error ? error.message : 'The field could not be confirmed.')

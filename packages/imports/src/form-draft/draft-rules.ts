@@ -238,7 +238,8 @@ export function proposeIntakeRules(
     const enrolledOn = dayReader(enrolled)
     const years = (row: number, at: Date | null = enrolledOn(enrolled.values[row])) => {
       const born = bornOn(birth.values[row])
-      return born && at ? completedYearsAt(born, at) : null
+      // A birth after the date gives no age to compare, as validation holds such a row.
+      return born && at && born <= at ? completedYearsAt(born, at) : null
     }
     for (const [code, kind] of [
       ['age_at_registration', 'AGE_AT_DATE'],

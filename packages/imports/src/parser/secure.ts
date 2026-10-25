@@ -134,6 +134,8 @@ try {
       cellHTML: false,
       cellStyles: false,
       cellNF: true,
+      // Stubs keep a formula whose file saved no value, so the gap check below can see it.
+      sheetStubs: true,
       bookVBA: true,
       WTF: false,
     });
@@ -155,7 +157,7 @@ try {
     for (const key of Object.keys((first && workbook.Sheets[first]) || {})) {
       if (key.startsWith('!')) continue;
       const cell = workbook.Sheets[first][key];
-      if (cell && typeof cell.f === 'string' && (cell.v === undefined || cell.t === 'e')) {
+      if (cell && typeof cell.f === 'string' && (cell.t === 'z' || cell.t === 'e' || cell.v === undefined)) {
         formulaGap = key;
         break;
       }

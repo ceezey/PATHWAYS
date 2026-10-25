@@ -1,5 +1,6 @@
 /* @vitest-environment jsdom */
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { toast } from 'sonner'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { DisplayLabelsProvider } from '@/providers/display-labels-provider'
@@ -133,6 +134,9 @@ describe('draft prepared from an import', () => {
       '2026-10-23T00:00:00Z',
     )
     expect(screen.queryByRole('button', { name: 'Confirm Given name' })).toBeNull()
+    expect(toast.success).toHaveBeenCalledWith('Given name confirmed.')
+    await waitFor(() => expect(document.activeElement?.id).toMatch(/^collection-field-choice-/))
+    expect(document.activeElement?.textContent).toContain('Given name')
   })
 
   it('shows no summary when the form is opened any other way', async () => {

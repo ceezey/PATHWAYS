@@ -55,7 +55,8 @@ export class ImportsController {
         files: 1,
         fields: 3,
         fieldNameSize: 64,
-        fieldSize: 256,
+        // A 100-character sheet name can take 400 bytes in UTF-8.
+        fieldSize: 512,
         parts: 5,
       },
     }),

@@ -213,6 +213,15 @@ export function useImportActions(state: CollectionState, guard: CollectionGuard)
       setProceedDialogOpen(false)
       return
     }
+    // This screen previews only the first sheet, so a workbook with several goes to the import page's picker.
+    const sheets = parsedImport.sheetNames?.length ?? 0
+    if (parsedImport.rows.length > 0 && sheets > 1) {
+      setImportMessage(
+        `This workbook has ${sheets} sheets. Choose Add new, then Import file, to pick the sheet to import.`,
+      )
+      setProceedDialogOpen(false)
+      return
+    }
     const permission = parsedImport.rows.length === 0 ? 'forms.manage' : 'imports.upload'
     const needed =
       parsedImport.rows.length === 0
@@ -291,15 +300,11 @@ export function useImportActions(state: CollectionState, guard: CollectionGuard)
         selectedForm.version,
         generation,
       ])
-      // The preview read a workbook's first sheet, so the server reads that same sheet.
-      const previewedSheet =
-        (parsedImport.sheetNames?.length ?? 0) > 1 ? parsedImport.sheetNames?.[0] : undefined
       const uploaded = await importsClient.uploadImport(
         projectId,
         selectedForm.id,
         clientImportId,
         file,
-        previewedSheet,
       )
       if (!ticket.valid('imports.upload')) return
       const failure = uploadFailure(uploaded)
