@@ -5,7 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ProofPreviewDialog } from './proof-preview-dialog'
 
 const toastSuccess = vi.hoisted(() => vi.fn())
-vi.mock('sonner', () => ({ toast: { success: toastSuccess } }))
+const toastError = vi.hoisted(() => vi.fn())
+vi.mock('sonner', () => ({ toast: { success: toastSuccess, error: toastError } }))
 
 const artifact = (type: string) => ({ blob: new Blob(['x'], { type }), fileName: 'receipt-1.pdf' })
 const setup = (load: () => Promise<ReturnType<typeof artifact>>, open = true) => {
@@ -82,6 +83,18 @@ describe('ProofPreviewDialog', () => {
     expect(load).toHaveBeenCalledTimes(1)
     expect(save).toHaveBeenCalledWith(expect.objectContaining({ fileName: 'receipt-1.pdf' }))
     expect(toastSuccess).toHaveBeenCalledWith('File downloaded.')
+  })
+
+  it('shows the save error instead of the success toast when saving fails', async () => {
+    const { save } = setup(async () => artifact('image/png'))
+    save.mockImplementation(() => {
+      throw new Error('Artifact ownership changed.')
+    })
+    toastSuccess.mockClear()
+    await screen.findByRole('img')
+    fireEvent.click(screen.getByRole('button', { name: 'Download' }))
+    expect(toastError).toHaveBeenCalledWith('Artifact ownership changed.')
+    expect(toastSuccess).not.toHaveBeenCalled()
   })
 
   it('revokes the object URL on close', async () => {
