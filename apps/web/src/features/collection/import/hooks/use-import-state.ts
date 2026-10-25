@@ -58,6 +58,10 @@ export function useImportState(scope: SensitiveDraftOwner) {
       active = false
     }
   }, [file])
+  // Why the server refused the last upload, shown on the upload card until the file or target changes.
+  const [uploadRefusal, setUploadRefusal] = useState('')
+  // biome-ignore lint/correctness/useExhaustiveDependencies: a new file, project or form clears the old refusal.
+  useEffect(() => setUploadRefusal(''), [file, projectId, formId])
   const [batches, setBatches] = useState<ImportBatchDefinition[]>([])
   const [batch, setBatch] = useState<ImportBatchDefinition | null>(null)
   const [rows, setRows] = useState<ImportRowDefinition[]>([])
@@ -222,11 +226,13 @@ export function useImportState(scope: SensitiveDraftOwner) {
     setRows,
     setRules,
     setSheetName,
+    setUploadRefusal,
     sheetName,
     sheetNames,
     sourceColumnByKey,
     sourceColumns,
     storedMappingByKey,
+    uploadRefusal,
     validationErrors,
   }
 }

@@ -1,0 +1,222 @@
+/* @vitest-environment jsdom */
+import type { ImportRowReviewResponse } from '@pathways/shared'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { PathwaysClientError } from '@/lib/api/core/request'
+
+import { ImportReviewDialog } from './import-review-dialog'
+
+const api = vi.hoisted(() => ({ getRowReview: vi.fn(), resolveRow: vi.fn() }))
+vi.mock('@/lib/api/imports', () => ({ importsClient: api }))
+
+const review = (canAddNew = true): ImportRowReviewResponse => ({
+  rowId: 'row-1',
+  rowNumber: 5,
+  reason: 'PROFILE_CHANGED',
+  participant: { beneficiaryId: 'ben-1', clientId: 'SYN-1', displayName: 'Ana Cruz' },
+  canAddNew,
+  fields: [
+    {
+      code: 'first_name',
+      label: 'First name',
+      dataType: 'TEXT',
+      options: null,
+      pathways: 'Ana',
+      file: 'Anna',
+      calculated: null,
+      changed: true,
+    },
+    {
+      code: 'sex',
+      label: 'Sex',
+      dataType: 'SELECT',
+      options: ['Female', 'Male'],
+      pathways: 'Female',
+      file: 'M',
+      calculated: null,
+      changed: true,
+    },
+    {
+      code: 'birth_date',
+      label: 'Birth date',
+      dataType: 'DATE',
+      options: null,
+      pathways: '2010-01-02',
+      file: '2010-01-02',
+      calculated: null,
+      changed: false,
+    },
+    {
+      code: 'total_score',
+      label: 'Total score',
+      dataType: 'INTEGER',
+      options: null,
+      pathways: null,
+      file: 7,
+      calculated: 9,
+      changed: true,
+    },
+    {
+      code: 'consent_recorded',
+      label: 'Consent recorded',
+      dataType: 'BOOLEAN',
+      options: null,
+      pathways: true,
+      file: false,
+      calculated: null,
+      changed: true,
+    },
+  ],
+})
+
+const onClose = vi.fn()
+const onResolved = vi.fn()
+const open = async (canAddNew = true) => {
+  api.getRowReview.mockResolvedValue(review(canAddNew))
+  render(
+    <ImportReviewDialog
+      batchId="batch-1"
+      canUpdate
+      onClose={onClose}
+      onResolved={onResolved}
+      projectId="project-1"
+      rowId="row-1"
+      validationRevision={3}
+    />,
+  )
+  return screen.findByRole('button', { name: 'First name, In this file: Anna' })
+}
+const confirm = () => fireEvent.click(screen.getByRole('button', { name: 'Confirm' }))
+const sent = async () => {
+  await waitFor(() => expect(api.resolveRow).toHaveBeenCalledTimes(1))
+  return api.resolveRow.mock.calls[0][3]
+}
+
+describe('import review dialog', () => {
+  beforeEach(() => {
+    vi.resetAllMocks()
+    api.resolveRow.mockResolvedValue({ status: 'PROCESSED' })
+  })
+  afterEach(cleanup)
+
+  it('clicking a file cell selects it', async () => {
+    const cell = await open()
+    expect(cell.getAttribute('aria-pressed')).toBe('false')
+    fireEvent.click(cell)
+    expect(cell.getAttribute('aria-pressed')).toBe('true')
+    const pathways = screen.getByRole('button', { name: 'First name, In PATHWAYS: Ana' })
+    expect(pathways.getAttribute('aria-pressed')).toBe('false')
+  })
+
+  it('typing selects Your value', async () => {
+    const cell = await open()
+    fireEvent.click(cell)
+    fireEvent.change(screen.getByLabelText('First name, Your value'), { target: { value: 'Anne' } })
+    expect(cell.getAttribute('aria-pressed')).toBe('false')
+    confirm()
+    expect(await sent()).toMatchObject({
+      choices: { first_name: 'OWN' },
+      own: { first_name: 'Anne' },
+    })
+  })
+
+  it('select field shows only form options', async () => {
+    await open()
+    const sex = screen.getByLabelText('Sex, Your value')
+    const options = within(sex)
+      .getAllByRole('option')
+      .map((option) => option.textContent)
+    expect(options).toEqual(['Choose an answer', 'Female', 'Male'])
+    fireEvent.change(sex, { target: { value: 'Male' } })
+    confirm()
+    expect(await sent()).toMatchObject({ choices: { sex: 'OWN' }, own: { sex: 'Male' } })
+  })
+
+  it('offers no Your value for consent and greys unchanged fields', async () => {
+    await open()
+    expect(screen.queryByLabelText('Consent recorded, Your value')).toBeNull()
+    const unchanged = screen.getByText('Birth date').closest('tr')
+    expect(unchanged?.getAttribute('data-unchanged')).toBe('true')
+    expect(screen.queryByRole('button', { name: /^Birth date, In this file/ })).toBeNull()
+  })
+
+  it('confirm sends choices and own values', async () => {
+    await open()
+    fireEvent.click(screen.getByRole('button', { name: 'First name, In PATHWAYS: Ana' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Total score, Calculated by PATHWAYS: 9' }))
+    fireEvent.change(screen.getByLabelText('Sex, Your value'), { target: { value: 'Male' } })
+    confirm()
+    await waitFor(() => expect(onResolved).toHaveBeenCalledTimes(1))
+    expect(api.resolveRow).toHaveBeenCalledWith('project-1', 'batch-1', 'row-1', {
+      expectedValidationRevision: 3,
+      saveAs: 'UPDATE',
+      choices: { first_name: 'PATHWAYS', total_score: 'CALCULATED', sex: 'OWN' },
+      own: { sex: 'Male' },
+    })
+    expect(onClose).toHaveBeenCalled()
+  })
+
+  it('field error shown and dialog stays open', async () => {
+    api.resolveRow.mockRejectedValue(
+      new PathwaysClientError(
+        'Review the highlighted form fields.',
+        'invalid',
+        [
+          {
+            fieldCode: 'first_name',
+            code: 'choice_required',
+            message: 'Choose the value to keep.',
+          },
+        ],
+        400,
+      ),
+    )
+    await open()
+    confirm()
+    expect(await screen.findByText('Choose the value to keep.')).toBeTruthy()
+    const input = screen.getByLabelText('First name, Your value')
+    expect(input.getAttribute('aria-invalid')).toBe('true')
+    expect(screen.getByRole('dialog')).toBeTruthy()
+    expect(onResolved).not.toHaveBeenCalled()
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it('shows a server refusal that names no field', async () => {
+    api.resolveRow.mockRejectedValue(
+      new PathwaysClientError('This row was already resolved.', 'invalid', [], 409),
+    )
+    await open()
+    confirm()
+    const alert = await screen.findByRole('alert')
+    expect(alert.textContent).toContain('This row was already resolved.')
+    expect(screen.getByRole('dialog')).toBeTruthy()
+  })
+
+  it('add as new hidden when not allowed', async () => {
+    await open(false)
+    const saveAs = screen.getByLabelText('Save as')
+    expect(within(saveAs).queryByRole('option', { name: 'Add as a new participant' })).toBeNull()
+    expect(
+      within(saveAs).getByRole('option', { name: 'Update the existing participant' }),
+    ).toBeTruthy()
+  })
+
+  it('a new participant cannot keep the PATHWAYS value', async () => {
+    await open()
+    fireEvent.click(screen.getByRole('button', { name: 'First name, In PATHWAYS: Ana' }))
+    fireEvent.change(screen.getByLabelText('Save as'), { target: { value: 'NEW' } })
+    const keep = screen.getByRole('button', { name: 'First name, In PATHWAYS: Ana' })
+    expect((keep as HTMLButtonElement).disabled).toBe(true)
+    expect(keep.getAttribute('aria-pressed')).toBe('false')
+    confirm()
+    expect(await sent()).toMatchObject({ saveAs: 'NEW', choices: {}, own: {} })
+  })
+
+  it('Leave held closes without saving', async () => {
+    await open()
+    fireEvent.click(screen.getByRole('button', { name: 'Leave held' }))
+    expect(onClose).toHaveBeenCalled()
+    expect(api.resolveRow).not.toHaveBeenCalled()
+  })
+})

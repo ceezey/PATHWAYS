@@ -17,6 +17,7 @@ import { useImportLoading } from '../hooks/use-import-loading'
 import { useImportState } from '../hooks/use-import-state'
 import { ImportBatchList } from './import-batch-list'
 import { ImportBatchSummary } from './import-batch-summary'
+import { ImportHeldList } from './import-held-list'
 import { ImportMappingCard } from './import-mapping-card'
 import { ImportOpenDraft } from './import-open-draft'
 import { ImportProcessingPanel } from './import-processing-panel'
@@ -128,6 +129,12 @@ function OwnedImportWorkspace({ scope }: { scope: SensitiveDraftOwner }) {
                   intake={intake}
                   pending={pending}
                   batch={batch}
+                />
+
+                <ImportHeldList
+                  batch={batch}
+                  onChanged={() => review.loadBatch(batch.id)}
+                  rows={state.rows}
                 />
 
                 {sourceColumns.length > 0 ? (

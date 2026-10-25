@@ -1,3 +1,5 @@
+import type { ImportHoldCode } from '@pathways/shared'
+
 import type { ImportBatchDefinition, ImportRowDefinition } from '@/types/pathways'
 
 // Why the server refused a stored upload, in its own words when it gave them.
@@ -49,4 +51,38 @@ export function automaticMatchReason(stored: StoredMapping | undefined) {
 export function displayValue(value: unknown) {
   const text = Array.isArray(value) ? JSON.stringify(value) : String(value ?? '')
   return text.length > 80 ? `${text.slice(0, 77)}...` : text
+}
+
+// Plain words for why a row is held; a Record keeps every hold code covered.
+const holdReasons: Record<ImportHoldCode, string> = {
+  CONSENT_REQUIRED: 'Consent is missing',
+  GUARDIAN_CONSENT_REQUIRED: 'Under 18, waiting for guardian approval',
+  AMBIGUOUS_IDENTITY: 'More than one participant could match',
+  IDENTITY_REVIEW_REQUIRED: 'The participant match needs checking',
+  DUPLICATE_IDENTITY: 'Looks like a participant already in PATHWAYS',
+  UNKNOWN_IDENTITY: 'No matching participant found',
+  IDENTIFIER_CODE_CONFLICT: 'Client ID and participant code do not agree',
+  SUBJECT_TYPE_CONFLICT: 'Participant type does not match',
+  SHARED_PROFILE_UPDATE_REVIEW_REQUIRED: 'Change to a shared profile needs review',
+  PROFILE_CHANGED: 'Values differ from PATHWAYS',
+  IDENTITY_CONFLICT: 'Client ID is used by more than one participant',
+  IDENTITY_MISSING: 'Client ID is missing',
+}
+
+export const holdReason = (code: string | null) =>
+  (code ? holdReasons[code as ImportHoldCode] : undefined) ?? 'Needs review'
+
+// The participant name from the mapped first and last name columns, or a fallback when the file has none.
+export function participantName(
+  row: Pick<ImportRowDefinition, 'rawData'>,
+  mappings: ImportBatchDefinition['mappings'],
+) {
+  const column = (code: string) =>
+    mappings?.find((item) => item.status === 'MAPPED' && item.targetField?.code === code)
+      ?.sourceFieldName
+  const name = ['first_name', 'last_name']
+    .map((code) => String(row.rawData[column(code) ?? ''] ?? '').trim())
+    .filter(Boolean)
+    .join(' ')
+  return name || 'Name not in file'
 }

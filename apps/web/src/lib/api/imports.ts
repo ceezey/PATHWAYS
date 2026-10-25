@@ -1,10 +1,13 @@
 import type {
+  ApproveGuardianConsentRequest,
   AutomaticImportMappingRequest,
   ImportBatchDetailResponse,
   ImportBatchResponse,
+  ImportRowReviewResponse,
   ImportRowsPageResponse,
   ProcessImportRequest,
   RerunImportRequest,
+  ResolveImportRowRequest,
   SaveImportMappingRequest,
   ValidateImportRequest,
 } from '@pathways/shared'
@@ -120,5 +123,34 @@ export const importsClient = {
         body: JSON.stringify({ expectedValidationRevision } satisfies ProcessImportRequest),
       },
     ) as Promise<ImportBatchResponse>
+  },
+
+  async getRowReview(projectId: string, batchId: string, rowId: string) {
+    return requestFoundation(
+      `/imports/projects/${encodeURIComponent(projectId)}/batches/${encodeURIComponent(batchId)}/rows/${encodeURIComponent(rowId)}/review`,
+    ) as Promise<ImportRowReviewResponse>
+  },
+
+  async resolveRow(
+    projectId: string,
+    batchId: string,
+    rowId: string,
+    body: ResolveImportRowRequest,
+  ) {
+    return requestFoundation(
+      `/imports/projects/${encodeURIComponent(projectId)}/batches/${encodeURIComponent(batchId)}/rows/${encodeURIComponent(rowId)}/resolve`,
+      { method: 'POST', body: JSON.stringify(body) },
+    ) as Promise<{ status: 'PROCESSED' }>
+  },
+
+  async approveGuardianConsent(
+    projectId: string,
+    batchId: string,
+    body: ApproveGuardianConsentRequest,
+  ) {
+    return requestFoundation(
+      `/imports/projects/${encodeURIComponent(projectId)}/batches/${encodeURIComponent(batchId)}/guardian-approvals`,
+      { method: 'POST', body: JSON.stringify(body) },
+    ) as Promise<{ approved: number }>
   },
 }

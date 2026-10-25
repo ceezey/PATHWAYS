@@ -2,6 +2,7 @@ import { toast } from 'sonner'
 
 import type { OperationTicket } from '../../collection.utils'
 
+import { PathwaysClientError } from '@/lib/api/core/request'
 import { formsClient } from '@/lib/api/forms'
 import { importsClient } from '@/lib/api/imports'
 import { plural } from '@/lib/format/plural'
@@ -39,6 +40,7 @@ export function useBatchReview(state: ImportState) {
     setReceipts,
     setRows,
     setRules,
+    setUploadRefusal,
     sheetName,
     sheetNames,
     sourceColumns,
@@ -150,6 +152,7 @@ export function useBatchReview(state: ImportState) {
     }
     const ticket = begin('imports.upload')
     if (!ticket) return
+    setUploadRefusal('')
     try {
       const created = await importsClient.uploadImport(
         projectId,
@@ -177,12 +180,17 @@ export function useBatchReview(state: ImportState) {
           'The private upload was staged. Unresolved mappings require an authorized reviewer.',
         )
     } catch (error) {
-      if (ticket.valid())
-        toast.error(
-          error instanceof Error
-            ? error.message
-            : 'The source file could not be uploaded. The same selected file can be retried.',
-        )
+      if (ticket.valid()) {
+        // A refusal for a missing permission stays on the upload card, where the reviewer picked the file.
+        if (error instanceof PathwaysClientError && error.code === 'forbidden')
+          setUploadRefusal(error.message)
+        else
+          toast.error(
+            error instanceof Error
+              ? error.message
+              : 'The source file could not be uploaded. The same selected file can be retried.',
+          )
+      }
     } finally {
       ticket.finish()
     }
