@@ -50,7 +50,8 @@ ALTER TABLE pathways.beneficiaries DROP CONSTRAINT beneficiaries_minor_consent,
   ADD CONSTRAINT beneficiaries_minor_consent CHECK ((NOT is_minor) OR (guardian_consent_recorded AND consent_recorded));
 GRANT UPDATE(is_minor, guardian_consent_recorded) ON TABLE pathways.beneficiaries TO pathways_runtime;
 
--- The baseline body of p04_guard_beneficiary with is_minor and guardian_consent_recorded no longer immutable or equal.
+-- The baseline body of p04_guard_beneficiary with is_minor and guardian_consent_recorded no longer immutable or equal;
+-- a change to guardian_consent_recorded on UPDATE needs beneficiaries.guardian_consent.approve on every active enrollment project.
 CREATE OR REPLACE FUNCTION pathways.p04_guard_beneficiary() RETURNS trigger
     LANGUAGE plpgsql
     SET search_path TO ''
@@ -76,6 +77,10 @@ BEGIN
     RAISE EXCEPTION 'Beneficiary identity and consent facts are immutable';
   END IF;
   IF TG_OP='UPDATE' THEN
+    IF NEW.guardian_consent_recorded IS DISTINCT FROM OLD.guardian_consent_recorded
+       AND NOT pathways.p04_can_mutate_beneficiary('beneficiaries.guardian_consent.approve',OLD.id) THEN
+      RAISE EXCEPTION 'Changing guardian consent requires guardian consent approval authority';
+    END IF;
     IF OLD.status<>'ARCHIVED' AND NEW.status='ARCHIVED' THEN
       IF NOT pathways.p04_can_mutate_beneficiary('beneficiaries.records.archive',OLD.id)
          OR to_jsonb(NEW)-ARRAY['status','archived_at','updated_at']
@@ -115,7 +120,7 @@ ALTER TABLE pathways.beneficiary_consent_records
   ADD CONSTRAINT beneficiary_consent_records_guardian_details CHECK(kind='GUARDIAN' OR (
     guardian_name IS NULL AND guardian_consent_date IS NULL AND guardian_note IS NULL));
 
--- The baseline body of p04_guard_consent with the age agreement taken on the record's own date.
+-- The baseline body of p04_guard_consent with the age agreement taken on the record's own Manila date.
 CREATE OR REPLACE FUNCTION pathways.p04_guard_consent() RETURNS trigger
     LANGUAGE plpgsql
     SET search_path TO ''
@@ -142,7 +147,7 @@ BEGIN
   IF profile.subject_type='INDIVIDUAL'
      AND (profile.birth_date IS NOT NULL OR profile.age_at_registration IS NOT NULL)
      AND profile.is_minor IS DISTINCT FROM (COALESCE(
-       EXTRACT(year FROM age(NEW.recorded_at::date,profile.birth_date))::integer,
+       EXTRACT(year FROM age((NEW.recorded_at AT TIME ZONE 'Asia/Manila')::date,profile.birth_date))::integer,
        profile.age_at_registration
      ) < 18) THEN
     RAISE EXCEPTION 'Minor status must agree with age on the consent date';
@@ -234,6 +239,9 @@ BEGIN
   IF NEW.rejected_by_id IS DISTINCT FROM pathways.runtime_context_user() THEN
     RAISE EXCEPTION 'Rejection recorder must be the current actor';
   END IF;
+  IF NOT pathways.p04_has_project_permission('imports.review',NEW.project_id) THEN
+    RAISE EXCEPTION 'Rejection requires import review permission on the project';
+  END IF;
   IF NOT pathways.p04_can_read_beneficiary(NEW.beneficiary_id) THEN
     RAISE EXCEPTION 'Rejection target is outside authorized detail scope';
   END IF;
@@ -316,6 +324,9 @@ BEGIN
   ) THEN RAISE EXCEPTION 'Raw import row identity and values are immutable'; END IF;
   IF TG_OP='UPDATE' AND OLD.status IN ('UNPROCESSED','INVALID') AND OLD.resolved_at IS NULL AND NEW.status='PROCESSING'
      AND NEW.resolution_data IS NOT NULL AND NEW.resolved_by_id IS NOT NULL AND NEW.resolved_at IS NOT NULL THEN
+    IF NEW.resolved_by_id IS DISTINCT FROM pathways.runtime_context_user() THEN
+      RAISE EXCEPTION 'Resolution recorder must be the current actor';
+    END IF;
     IF to_jsonb(NEW)-ARRAY['status','resolution_data','resolved_by_id','resolved_at','processing_claim_id',
          'processing_claimed_at','processing_attempts','processing_error_code','updated_at']
        IS DISTINCT FROM to_jsonb(OLD)-ARRAY['status','resolution_data','resolved_by_id','resolved_at','processing_claim_id',

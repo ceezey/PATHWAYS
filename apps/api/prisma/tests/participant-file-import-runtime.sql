@@ -110,6 +110,10 @@ SELECT pg_temp.accepted('minor profile that will come of age', $$INSERT INTO pat
  subject_type,display_name,first_name,last_name,birth_date,consent_recorded,data_processing_consent_recorded,is_minor,
  guardian_consent_recorded,created_by_id) VALUES (pg_temp.u(64),pg_temp.u(1),'PFI-GROWN','INDIVIDUAL','Synthetic Grown',
  'Synthetic','Grown','2005-01-01',true,true,true,true,pg_temp.u(21))$$);
+SELECT pg_temp.accepted('adult profile without guardian consent', $$INSERT INTO pathways.beneficiaries(id,organization_id,code,
+ subject_type,display_name,first_name,last_name,birth_date,consent_recorded,data_processing_consent_recorded,is_minor,
+ guardian_consent_recorded,created_by_id) VALUES (pg_temp.u(65),pg_temp.u(1),'PFI-GUARD','INDIVIDUAL','Synthetic Guarded',
+ 'Synthetic','Guarded','2005-01-01',true,true,false,false,pg_temp.u(21))$$);
 SELECT pg_temp.act_as(13,23);
 SELECT pg_temp.refused('minor status change without profiles.update', $$UPDATE pathways.beneficiaries SET is_minor=false
  WHERE id=pg_temp.u(64)$$,'P0001','Profile update authority');
@@ -133,12 +137,23 @@ INSERT INTO pathways.form_fields(id,organization_id,project_id,form_id,code,labe
 VALUES (pg_temp.u(33),pg_temp.u(1),pg_temp.u(41),pg_temp.u(31),'first_name','First name','TEXT',true,1);
 INSERT INTO pathways.beneficiary_project_enrollments(id,organization_id,project_id,beneficiary_id,enrollment_date,recorded_by_id) VALUES
  (pg_temp.u(71),pg_temp.u(1),pg_temp.u(41),pg_temp.u(62),'2020-06-01',pg_temp.u(21)),
- (pg_temp.u(72),pg_temp.u(1),pg_temp.u(42),pg_temp.u(61),'2026-01-01',pg_temp.u(21));
+ (pg_temp.u(72),pg_temp.u(1),pg_temp.u(42),pg_temp.u(61),'2026-01-01',pg_temp.u(21)),
+ (pg_temp.u(74),pg_temp.u(1),pg_temp.u(41),pg_temp.u(65),'2026-01-01',pg_temp.u(21));
 INSERT INTO pathways.form_submissions(id,organization_id,project_id,form_id,form_version,client_submission_id,enrollment_id,
  submitted_by_id,source,status) VALUES
  (pg_temp.u(81),pg_temp.u(1),pg_temp.u(41),pg_temp.u(31),1,pg_temp.u(91),pg_temp.u(71),pg_temp.u(21),'DIRECT_ENCODING','DRAFT'),
  (pg_temp.u(82),pg_temp.u(1),pg_temp.u(41),pg_temp.u(31),1,pg_temp.u(92),pg_temp.u(71),pg_temp.u(21),'DIRECT_ENCODING','DRAFT');
 SET LOCAL session_replication_role = origin;
+
+-- Guardian consent changes need the approval grant on every project the participant is enrolled in, not only profiles.update.
+SELECT pg_temp.refused('guardian consent set by a profiles.update holder', $$UPDATE pathways.beneficiaries SET is_minor=true,
+ guardian_consent_recorded=true WHERE id=pg_temp.u(65)$$,'P0001','guardian consent approval authority');
+SELECT pg_temp.refused('guardian consent revoked by a profiles.update holder', $$UPDATE pathways.beneficiaries SET
+ guardian_consent_recorded=false WHERE id=pg_temp.u(61)$$,'P0001','guardian consent approval authority');
+SELECT pg_temp.act_as(12,22);
+SELECT pg_temp.accepted('guardian consent set by the Project Officer', $$UPDATE pathways.beneficiaries SET is_minor=true,
+ guardian_consent_recorded=true WHERE id=pg_temp.u(65)$$);
+SELECT pg_temp.act_as(11,21);
 
 -- Guardian consent follows age on the record's own date, not on the enrollment date (2020-06-01, when the profile was 15).
 SELECT pg_temp.accepted('guardian record while a minor, with details', $$INSERT INTO pathways.beneficiary_consent_records(
@@ -152,6 +167,12 @@ SELECT pg_temp.refused('guardian record once the profile is an adult', $$INSERT 
  organization_id,project_id,beneficiary_id,enrollment_id,submission_id,kind,source,recorded_by_id,recorded_at)
  VALUES (pg_temp.u(1),pg_temp.u(41),pg_temp.u(62),pg_temp.u(71),pg_temp.u(82),'GUARDIAN','DIRECT_ENTRY',pg_temp.u(21),
  '2024-01-02')$$,'P0001','Minor status must agree');
+SET LOCAL TIME ZONE 'America/Los_Angeles';
+SELECT pg_temp.refused('consent date does not depend on the session time zone', $$INSERT INTO pathways.beneficiary_consent_records(
+ organization_id,project_id,beneficiary_id,enrollment_id,submission_id,kind,source,recorded_by_id,recorded_at)
+ VALUES (pg_temp.u(1),pg_temp.u(41),pg_temp.u(62),pg_temp.u(71),pg_temp.u(82),'GUARDIAN','DIRECT_ENTRY',pg_temp.u(21),
+ '2022-12-31 20:00:00+00')$$,'P0001','Minor status must agree');
+RESET TIME ZONE;
 SELECT pg_temp.refused('guardian details on a participation record', $$INSERT INTO pathways.beneficiary_consent_records(
  organization_id,project_id,beneficiary_id,enrollment_id,submission_id,kind,source,recorded_by_id,recorded_at,guardian_name)
  VALUES (pg_temp.u(1),pg_temp.u(41),pg_temp.u(62),pg_temp.u(71),pg_temp.u(82),'PARTICIPATION','DIRECT_ENTRY',pg_temp.u(21),
@@ -191,6 +212,9 @@ SELECT pg_temp.refused('same value rejected twice', $$INSERT INTO pathways.impor
 SELECT pg_temp.accepted('a different value for the same field', $$INSERT INTO pathways.import_value_rejections(
  organization_id,project_id,beneficiary_id,field_id,value_hash,rejected_by_id) VALUES (pg_temp.u(1),pg_temp.u(41),
  pg_temp.u(62),pg_temp.u(33),repeat('b',64),pg_temp.u(21))$$);
+SELECT pg_temp.refused('rejection on a project the actor is not assigned to', $$INSERT INTO pathways.import_value_rejections(
+ organization_id,project_id,beneficiary_id,field_id,value_hash,rejected_by_id) VALUES (pg_temp.u(1),pg_temp.u(42),
+ pg_temp.u(62),pg_temp.u(33),repeat('c',64),pg_temp.u(21))$$,'P0001','import review permission');
 SELECT pg_temp.refused('rejection by someone else', $$INSERT INTO pathways.import_value_rejections(organization_id,project_id,
  beneficiary_id,field_id,value_hash,rejected_by_id) VALUES (pg_temp.u(1),pg_temp.u(41),pg_temp.u(62),pg_temp.u(33),
  repeat('c',64),pg_temp.u(22))$$,'P0001','current actor');
@@ -248,6 +272,9 @@ SELECT pg_temp.refused('resolution on a processed row', $$UPDATE pathways.data_i
 SELECT pg_temp.refused('resolution on a valid row', $$UPDATE pathways.data_import_rows SET status='PROCESSING',
  resolution_data='{"choice":"FILE"}',resolved_by_id=pg_temp.u(21),resolved_at=now(),processing_claim_id=pg_temp.u(121),
  processing_claimed_at=now() WHERE id=pg_temp.u(103)$$,'P0001','resolution');
+SELECT pg_temp.refused('resolution by someone else', $$UPDATE pathways.data_import_rows SET status='PROCESSING',
+ resolution_data='{"choice":"FILE"}',resolved_by_id=pg_temp.u(22),resolved_at=now(),processing_claim_id=pg_temp.u(121),
+ processing_claimed_at=now() WHERE id=pg_temp.u(111)$$,'P0001','current actor');
 SELECT pg_temp.refused('resolution that rewrites normalized data', $$UPDATE pathways.data_import_rows SET status='PROCESSING',
  resolution_data='{"choice":"FILE"}',resolved_by_id=pg_temp.u(21),resolved_at=now(),processing_claim_id=pg_temp.u(121),
  processing_claimed_at=now(),normalized_data='{"first_name":"Other"}' WHERE id=pg_temp.u(111)$$,'P0001','resolution');
@@ -258,6 +285,8 @@ SELECT pg_temp.refused('resolution that skips processing', $$UPDATE pathways.dat
  resolution_data='{"choice":"FILE"}',resolved_by_id=pg_temp.u(21),resolved_at=now(),processed_at=now() WHERE id=pg_temp.u(111)$$,
  'P0001','resolution');
 SET LOCAL session_replication_role = replica;
+SELECT pg_temp.refused('resolution data must be an object', $$UPDATE pathways.data_import_rows SET resolution_data='[]'::jsonb,
+ resolved_by_id=pg_temp.u(21),resolved_at=now() WHERE id=pg_temp.u(111)$$,'23514','data_import_rows_resolution_shape');
 SELECT pg_temp.refused('resolution columns are all or none', $$UPDATE pathways.data_import_rows SET resolution_data='{}'
  WHERE id=pg_temp.u(111)$$,'23514','data_import_rows_resolution_shape');
 SET LOCAL session_replication_role = origin;
@@ -305,6 +334,6 @@ SELECT pg_temp.refused('outcome changed after processing', $$UPDATE pathways.dat
  matched_beneficiary_id=NULL WHERE id=pg_temp.u(105)$$,'P0001','immutable');
 
 SELECT 'PARTICIPANT_FILE_IMPORT_ASSERTIONS_PASSED=' || current_setting('pfi.passed') AS result;
-DO $$ BEGIN IF current_setting('pfi.passed')::integer<>56 THEN RAISE EXCEPTION 'incomplete suite'; END IF; END $$;
+DO $$ BEGIN IF current_setting('pfi.passed')::integer<>64 THEN RAISE EXCEPTION 'incomplete suite'; END IF; END $$;
 SELECT 'PARTICIPANT_FILE_IMPORT_RUNTIME=PASS (' || current_setting('pfi.passed') || ')' AS result;
 ROLLBACK;
