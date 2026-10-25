@@ -133,8 +133,12 @@ export const ProofPreviewDialog = ({
             disabled={!loaded}
             onClick={() => {
               if (!loaded) return
-              save(loaded.artifact)
-              toast.success('File downloaded.')
+              try {
+                save(loaded.artifact)
+                toast.success('File downloaded.')
+              } catch (error) {
+                toast.error(error instanceof Error ? error.message : 'Download unavailable.')
+              }
             }}
             type="button"
           >

@@ -12,10 +12,9 @@ allowBuilds:
   msw: true
   prisma: true
   sharp: true
-# Same-major bumps of transitive deps that parents pin to vulnerable versions (pnpm audit).
+# Bumps of transitive deps that parents pin to vulnerable versions (pnpm audit); drop an entry once audit stays clean without it.
 overrides:
   ajv@8: ^8.18.0
-  baseline-browser-mapping: ^2.11.0
   body-parser@1: ^1.20.9
   browserslist: ^4.28.7
   effect: ^3.20.0
@@ -29,5 +28,7 @@ overrides:
   qs@6: ^6.16.0
   tmp: ^0.2.6
   webpack@5: ^5.104.1
+  # shortcut: crosses Prisma 6's deepmerge-ts 7 range; re-check on the Prisma 7 upgrade.
   deepmerge-ts: ^8.0.2
+  # shortcut: crosses Tailwind 3's postcss-selector-parser 6 range; re-check on the Tailwind 4 upgrade.
   postcss-selector-parser: ^7.1.7
