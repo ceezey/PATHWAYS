@@ -13,6 +13,8 @@ export const importSourceColumnResponse = z.object({
   key: z.string(),
   header: z.string(),
   columnIndex: z.number().int(),
+  // The field code printed in a coded header row, when the file has one.
+  sourceCode: z.string().min(1).max(40).optional(),
 })
 export type ImportSourceColumnResponse = z.infer<typeof importSourceColumnResponse>
 
