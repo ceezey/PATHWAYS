@@ -144,6 +144,8 @@ const OwnedCollectionWorkspace = (
     retrySelectedFile,
   } = importActions
   const selectedProject = projects.find((project) => project.id === projectId)
+  // The forms list is not a mode, so no tile is selected there.
+  const activeMode = view === 'builder' || view === 'import' ? mode : null
   const projectActivities = activities.filter((activity) => activity.projectId === projectId)
   const selectedField = fields.find((field) => field.id === selectedFieldId) ?? fields[0]
   const editingStatus = forms.find((form) => form.id === editingFormId)?.status
@@ -193,7 +195,7 @@ const OwnedCollectionWorkspace = (
             key={item.id}
             className={cn(
               'rounded-xl border bg-card p-4 text-left transition-colors hover:border-primary/50 hover:bg-primary-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
-              mode === item.id && 'border-primary bg-primary-subtle',
+              activeMode === item.id && 'border-primary bg-primary-subtle',
             )}
             href={item.href}
             onClick={() => openBuilder(item.id)}
@@ -203,7 +205,7 @@ const OwnedCollectionWorkspace = (
                 <p className="text-sm font-semibold text-foreground">{item.title}</p>
                 <p className="mt-1 text-xs leading-5 text-muted-foreground">{item.description}</p>
               </div>
-              {mode === item.id ? <StatusBadge tone="info">Selected</StatusBadge> : null}
+              {activeMode === item.id ? <StatusBadge tone="info">Selected</StatusBadge> : null}
             </div>
           </Link>
         ))}

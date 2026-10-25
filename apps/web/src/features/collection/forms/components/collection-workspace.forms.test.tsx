@@ -329,6 +329,23 @@ describe('collection import workspace', () => {
   })
 })
 
+describe('collection mode tiles', () => {
+  it('selects no tile on the forms list and the open mode in the builder', async () => {
+    const view = (initialView: 'forms' | 'builder') =>
+      render(
+        <DisplayLabelsProvider>
+          <CollectionWorkspace initialMode="scratch" initialView={initialView} />
+        </DisplayLabelsProvider>,
+      )
+    view('forms')
+    await waitFor(() => expect(api.getDigitalForms).toHaveBeenCalled())
+    expect(screen.getByText('Build forms').closest('a')?.textContent).not.toContain('Selected')
+    cleanup()
+    view('builder')
+    expect(screen.getByText('Build forms').closest('a')?.textContent).toContain('Selected')
+  })
+})
+
 describe('collection field selection', () => {
   it('exposes and updates exactly one selected field with a visible cue', () => {
     render(
