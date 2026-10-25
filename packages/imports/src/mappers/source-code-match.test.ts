@@ -29,6 +29,19 @@ describe('matchBySourceCode', () => {
     expect(matchBySourceCode(columns, fields).size).toBe(0)
   })
 
+  it('field claimed by two codes skipped', () => {
+    const columns = [
+      { key: 'column_0001', sourceCode: 'VFXAUuYgXtm' },
+      { key: 'column_0002', sourceCode: 'Qw3rTyUiOpA' },
+      { key: 'column_0003', sourceCode: 'Zx9cVbNmAsD' },
+    ]
+    const fields = [
+      { code: 'first_name', sourceNames: ['VFXAUuYgXtm', 'Qw3rTyUiOpA'] },
+      { code: 'last_name', sourceNames: ['Zx9cVbNmAsD'] },
+    ]
+    expect([...matchBySourceCode(columns, fields)]).toEqual([['column_0003', 'last_name']])
+  })
+
   it('a code repeated by two columns is skipped', () => {
     const columns = [
       { key: 'column_0001', sourceCode: 'VFXAUuYgXtm' },

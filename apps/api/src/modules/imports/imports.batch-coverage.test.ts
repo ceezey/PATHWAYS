@@ -107,7 +107,7 @@ describe('batch detail coverage', () => {
     })
   })
 
-  it('a file whose labels changed is still covered by codes', async () => {
+  it('coverage follows the stored code mapping when labels changed', async () => {
     stage(
       [
         mapping('column_0001', 'MAPPED', 'first_name'),

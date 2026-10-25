@@ -310,6 +310,38 @@ describe('automatic mapping API authority boundary', () => {
     expect(decisions[1]).toMatchObject({ status: 'MAPPED', targetFieldId: fieldIds.birth })
     expect(decisions[2]).toMatchObject({ status: 'PENDING', targetFieldId: null })
   })
+  it('two codes of one field never map two columns to it', async () => {
+    tx.formField.findMany.mockResolvedValue([
+      { ...coveredFields[0], sourceNames: ['VFXAUuYgXtm', 'Qw3rTyUiOpA'] },
+      coveredFields[1],
+      sexField,
+    ])
+    tx.dataImportBatch.findFirst.mockImplementation(async (query: { select?: object }) =>
+      query.select && 'sourceHeaders' in query.select
+        ? {
+            sourceHeaders: [
+              {
+                key: 'column_0001',
+                columnIndex: 1,
+                header: 'Given name',
+                sourceCode: 'VFXAUuYgXtm',
+              },
+              { key: 'column_0002', columnIndex: 2, header: 'Nickname', sourceCode: 'Qw3rTyUiOpA' },
+              { key: 'column_0003', columnIndex: 3, header: 'Gender' },
+            ],
+          }
+        : storedBatch,
+    )
+    await service.automaticMapping(actor as never, projectId, batchId, {
+      expectedMappingRevision: 0,
+    })
+    const decisions = JSON.parse(recorderCall()?.[0].values[3])
+    const targets = decisions.flatMap((d: { targetFieldId: string | null }) =>
+      d.targetFieldId ? [d.targetFieldId] : [],
+    )
+    expect(new Set(targets).size).toBe(targets.length)
+    expect(decisions[1]).toMatchObject({ status: 'PENDING', targetFieldId: null })
+  })
   it('an all-blank column reaches the recorder as an ignored blank column', async () => {
     tx.formField.findMany.mockResolvedValue(coveredFields)
     tx.dataImportRow.findMany.mockResolvedValue([

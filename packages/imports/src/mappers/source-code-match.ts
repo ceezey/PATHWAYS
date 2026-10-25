@@ -1,6 +1,6 @@
 /**
  * Maps column key to field code for each column whose row-1 source code is listed, exactly and
- * case-sensitively, by one field's source names. A code claimed by two fields or two columns is skipped.
+ * case-sensitively, by one field's source names. A code claimed by two fields or two columns is skipped, and so is a field claimed by two columns.
  */
 export function matchBySourceCode(
   columns: ReadonlyArray<{ key: string; sourceCode?: string }>,
@@ -23,5 +23,7 @@ export function matchBySourceCode(
       matched.set(key, claimed[0])
     }
   }
-  return matched
+  const perField = new Map<string, number>()
+  for (const code of matched.values()) perField.set(code, (perField.get(code) ?? 0) + 1)
+  return new Map([...matched].filter(([, code]) => perField.get(code) === 1))
 }
