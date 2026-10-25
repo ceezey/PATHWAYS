@@ -194,6 +194,20 @@ describe('proposeIntakeRules on the Futuremakers fixture', () => {
       expect(find(result, 'age')?.sourceNames).toEqual(['Age'])
     })
 
+    it('compares no age for a birth after the enrollment date', () => {
+      const columns = fixtureColumns()
+      columns[COLUMN.birth] = {
+        ...columns[COLUMN.birth],
+        values: columns[COLUMN.birth].values.map(() => '2099-01-01'),
+      }
+      columns[COLUMN.age] = {
+        ...columns[COLUMN.age],
+        values: columns[COLUMN.age].values.map(() => -1),
+      }
+      const result = draft(columns)
+      expect(find(result, 'age_at_registration')?.sourceNames).toBeUndefined()
+    })
+
     it('moves Age off the calculated field when the dates fit more than one order', () => {
       const result = textDates((iso) => `${iso.slice(2, 4)}/${iso.slice(5, 7)}/${iso.slice(8, 10)}`)
       expect(find(result, 'age_at_registration')?.sourceNames).toBeUndefined()

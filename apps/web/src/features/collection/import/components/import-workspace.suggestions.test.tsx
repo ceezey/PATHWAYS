@@ -161,6 +161,51 @@ describe('import workspace AUTO_SMART_V2 suggestions', () => {
     )
   })
 
+  it('starts the decision filter fresh when another batch is opened', async () => {
+    const mapped = (key: string, code: string, label: string) => ({
+      sourceFieldName: key,
+      status: 'MAPPED',
+      revision: 1,
+      targetField: { code, label },
+      validationMessage: null,
+      suggestedField: null,
+      matchScore: null,
+      matchReason: null,
+    })
+    const second = {
+      ...smartBatch([
+        {
+          ...automatic[1],
+          sourceFieldName: 'column_0001',
+          suggestedField: null,
+          matchScore: null,
+          matchReason: null,
+          validationMessage: null,
+        },
+        mapped('column_0002', 'last_name', 'Last name'),
+        mapped('column_0003', 'sex', 'Sex'),
+      ]),
+      id: 'batch-2',
+      originalFileName: 'other.csv',
+    }
+    api.getImportBatches.mockResolvedValue([smartBatch(automatic), second])
+    api.getImportBatch.mockImplementation(async (_project: string, id: string) =>
+      id === 'batch-2' ? second : smartBatch(automatic),
+    )
+    await openBatch()
+    fireEvent.click(
+      screen.getByRole('checkbox', { name: 'Show only columns that need a decision (2 of 3)' }),
+    )
+    expect(screen.queryByText('Column 1: Given name')).toBeNull()
+
+    fireEvent.click(screen.getByText('other.csv'))
+    const filter = await screen.findByRole('checkbox', {
+      name: 'Show only columns that need a decision (1 of 3)',
+    })
+    expect((filter as HTMLInputElement).checked).toBe(false)
+    expect(screen.getByText('Column 1: Given name')).toBeTruthy()
+  })
+
   it('names the required fields validation would refuse, skipping mapped, defaulted and calculated ones', async () => {
     const required = (code: string, extra = {}) => ({
       code,
