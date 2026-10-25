@@ -70,6 +70,7 @@ TRUNCATE TABLE
   pathways.form_response_values,
   pathways.form_submissions,
   pathways.implementing_partners,
+  pathways.import_value_rejections,
   pathways.indicator_library_entries,
   pathways.journey_stages,
   pathways.metadata_mappings,

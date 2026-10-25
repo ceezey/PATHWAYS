@@ -625,6 +625,8 @@ END $$;
       Write-Output 'IMPORT_INTAKE_RUNTIME=PASS'
       Measure-ReplayStep 'sql import-date-order-runtime' { Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/import-date-order-runtime.sql'))) $phase6Database }
       Write-Output 'IMPORT_DATE_ORDER_RUNTIME=PASS'
+      Measure-ReplayStep 'sql participant-file-import-runtime' { Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/participant-file-import-runtime.sql'))) $phase6Database }
+      Write-Output 'PARTICIPANT_FILE_IMPORT_RUNTIME=PASS'
     }
     Invoke-LocalSql 'ALTER ROLE pathways_runtime LOGIN;' $phase6Database
     $env:PATHWAYS_CSV_RBAC_LOCAL_TESTS = '1'
@@ -635,8 +637,8 @@ END $$;
     } finally { Pop-Location }
     if ($MigrationBaseline) {
       # Only this path reaches the current schema, so the current-schema API suites run here.
-      # Fixed pathways table count: 60 schema tables after 0070 plus the harness probe table baseline_compatibility_probe (the saved template lacks it), so a missing or extra table fails the guard.
-      $env:PATHWAYS_EXPECTED_TABLE_COUNT = "61"
+      # Fixed pathways table count: 61 schema tables after 0080 plus the harness probe table baseline_compatibility_probe (the saved template lacks it), so a missing or extra table fails the guard.
+      $env:PATHWAYS_EXPECTED_TABLE_COUNT = "62"
       $env:PATHWAYS_FEATURE_READ_LOCAL_TESTS = '1'
       $env:PATHWAYS_C8_LOCAL_TESTS = '1'
       $env:PATHWAYS_DASHBOARD_HOME_SCOPE_LOCAL_TESTS = '1'

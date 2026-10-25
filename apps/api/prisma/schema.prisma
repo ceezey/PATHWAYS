@@ -91,6 +91,7 @@ model Organization {
   activityOverdueExplanation_organization       ActivityOverdueExplanation[]       @relation("ActivityOverdueExplanation_organization")
   activityExtensionRequest_organization ActivityExtensionRequest[] @relation("ActivityExtensionRequest_organization")
   activityEscalation_organization ActivityEscalation[] @relation("ActivityEscalation_organization")
+  importValueRejection_organization ImportValueRejection[] @relation("ImportValueRejection_organization")
   indicatorLibraryEntry_organization            IndicatorLibraryEntry[]            @relation("IndicatorLibraryEntry_organization")
 
   @@index([status], map: "organizations_status_idx")
@@ -208,6 +209,8 @@ model SystemUser {
   dataImportBatch_uploadedBy                  DataImportBatch[]                  @relation("DataImportBatch_uploadedBy")
   dataImportBatch_reviewedBy                  DataImportBatch[]                  @relation("DataImportBatch_reviewedBy")
   dataImportRow_validatedBy                   DataImportRow[]                    @relation("DataImportRow_validatedBy")
+  dataImportRow_resolvedBy DataImportRow[] @relation("DataImportRow_resolvedBy")
+  importValueRejection_rejectedBy ImportValueRejection[] @relation("ImportValueRejection_rejectedBy")
   formSubmission_submittedBy                  FormSubmission[]                   @relation("FormSubmission_submittedBy")
   formSubmission_validatedBy                  FormSubmission[]                   @relation("FormSubmission_validatedBy")
   beneficiary_createdBy                       Beneficiary[]                      @relation("Beneficiary_createdBy")
@@ -736,6 +739,7 @@ model Project {
   activityOverdueExplanation_project       ActivityOverdueExplanation[]       @relation("ActivityOverdueExplanation_project")
   activityExtensionRequest_project ActivityExtensionRequest[] @relation("ActivityExtensionRequest_project")
   activityEscalation_project ActivityEscalation[] @relation("ActivityEscalation_project")
+  importValueRejection_project ImportValueRejection[] @relation("ImportValueRejection_project")
   projectPublication_project               ProjectPublication?                @relation("ProjectPublication_project")
 
   @@unique([organizationId, id], map: "projects_scope_key")
@@ -1185,6 +1189,7 @@ model FormField {
   metadataMapping_targetField    MetadataMapping[]         @relation("MetadataMapping_targetField")
   metadataMapping_suggestedField MetadataMapping[]         @relation("MetadataMapping_suggestedField")
   formResponseValue_field        FormResponseValue[]       @relation("FormResponseValue_field")
+  importValueRejection_field     ImportValueRejection[]    @relation("ImportValueRejection_field")
 
   @@unique([organizationId, projectId, id], map: "form_fields_scope_key")
   @@unique([organizationId, projectId, formId, id], map: "form_fields_form_scope_key")
@@ -1278,11 +1283,18 @@ model DataImportRow {
   validatedById            String?          @map("validated_by_id") @db.Uuid
   validatedAt              DateTime?        @map("validated_at") @db.Timestamptz(3)
   processedAt              DateTime?        @map("processed_at") @db.Timestamptz(3)
+  resolutionData           Json?            @map("resolution_data")
+  resolvedById             String?          @map("resolved_by_id") @db.Uuid
+  resolvedAt               DateTime?        @map("resolved_at") @db.Timestamptz(3)
+  registrationOutcome      String?          @map("registration_outcome")
+  matchedBeneficiaryId     String?          @map("matched_beneficiary_id") @db.Uuid
   createdAt                DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt                DateTime         @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
   organization             Organization     @relation("DataImportRow_organization", fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "data_import_rows_organization_fk")
   project                  Project          @relation("DataImportRow_project", fields: [organizationId, projectId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "data_import_rows_project_fk")
   validatedBy              SystemUser?      @relation("DataImportRow_validatedBy", fields: [organizationId, validatedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "data_import_rows_validated_by_fk")
+  resolvedBy               SystemUser?      @relation("DataImportRow_resolvedBy", fields: [organizationId, resolvedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "data_import_rows_resolved_by_fk")
+  matchedBeneficiary       Beneficiary?     @relation("DataImportRow_matchedBeneficiary", fields: [organizationId, matchedBeneficiaryId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "data_import_rows_matched_beneficiary_fk")
   form                     DigitalForm      @relation("DataImportRow_form", fields: [organizationId, projectId, formId], references: [organizationId, projectId, id], onDelete: Restrict, onUpdate: Restrict, map: "data_import_rows_form_fk")
   importBatch              DataImportBatch  @relation("DataImportRow_importBatch", fields: [organizationId, projectId, formId, importBatchId], references: [organizationId, projectId, formId, id], onDelete: Restrict, onUpdate: Restrict, map: "data_import_rows_import_batch_fk")
   formSubmission_importRow FormSubmission[] @relation("FormSubmission_importRow")
@@ -1293,6 +1305,8 @@ model DataImportRow {
   @@index([importBatchId, status], map: "data_import_rows_batch_status_idx")
   @@index([importBatchId, status, processingClaimedAt], map: "data_import_rows_claim_idx")
   @@index([organizationId, validatedById], map: "data_import_rows_validated_by_idx")
+  @@index([organizationId, resolvedById], map: "data_import_rows_resolved_by_idx")
+  @@index([organizationId, matchedBeneficiaryId], map: "data_import_rows_matched_beneficiary_idx")
   @@map("data_import_rows")
   @@schema("pathways")
 }
@@ -1441,6 +1455,8 @@ model Beneficiary {
   beneficiaryProjectEnrollment_beneficiary BeneficiaryProjectEnrollment[] @relation("BeneficiaryProjectEnrollment_beneficiary")
   beneficiaryIdentifier_beneficiary        BeneficiaryIdentifier[]        @relation("BeneficiaryIdentifier_beneficiary")
   beneficiaryConsentRecord_beneficiary     BeneficiaryConsentRecord[]     @relation("BeneficiaryConsentRecord_beneficiary")
+  dataImportRow_matchedBeneficiary         DataImportRow[]                @relation("DataImportRow_matchedBeneficiary")
+  importValueRejection_beneficiary         ImportValueRejection[]         @relation("ImportValueRejection_beneficiary")
 
   @@unique([organizationId, id], map: "beneficiaries_scope_key")
   @@unique([organizationId, code], map: "beneficiaries_org_code_key")
@@ -1518,6 +1534,9 @@ model BeneficiaryConsentRecord {
   source         BeneficiaryRecordSource
   recordedById   String                       @map("recorded_by_id") @db.Uuid
   recordedAt     DateTime                     @map("recorded_at") @db.Timestamptz(3)
+  guardianName         String?                @map("guardian_name")
+  guardianConsentDate  DateTime?              @map("guardian_consent_date") @db.Date
+  guardianNote         String?                @map("guardian_note")
   createdAt      DateTime                     @default(now()) @map("created_at") @db.Timestamptz(3)
   organization   Organization                 @relation("BeneficiaryConsentRecord_organization", fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "beneficiary_consent_records_organization_fk")
   project        Project                      @relation("BeneficiaryConsentRecord_project", fields: [organizationId, projectId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "beneficiary_consent_records_project_fk")
@@ -1530,6 +1549,28 @@ model BeneficiaryConsentRecord {
   @@index([organizationId, projectId, beneficiaryId, recordedAt], map: "beneficiary_consent_records_project_beneficiary_idx")
   @@index([organizationId, recordedById], map: "beneficiary_consent_records_recorded_by_idx")
   @@map("beneficiary_consent_records")
+  @@schema("pathways")
+}
+
+model ImportValueRejection {
+  id             String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String       @map("organization_id") @db.Uuid
+  projectId      String       @map("project_id") @db.Uuid
+  beneficiaryId  String       @map("beneficiary_id") @db.Uuid
+  fieldId        String       @map("field_id") @db.Uuid
+  valueHash      String       @map("value_hash") @db.Char(64)
+  rejectedById   String       @map("rejected_by_id") @db.Uuid
+  rejectedAt     DateTime     @default(now()) @map("rejected_at") @db.Timestamptz(3)
+  organization   Organization @relation("ImportValueRejection_organization", fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "import_value_rejections_organization_fk")
+  project        Project      @relation("ImportValueRejection_project", fields: [organizationId, projectId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "import_value_rejections_project_fk")
+  beneficiary    Beneficiary  @relation("ImportValueRejection_beneficiary", fields: [organizationId, beneficiaryId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "import_value_rejections_beneficiary_fk")
+  field          FormField    @relation("ImportValueRejection_field", fields: [organizationId, projectId, fieldId], references: [organizationId, projectId, id], onDelete: Restrict, onUpdate: Restrict, map: "import_value_rejections_field_fk")
+  rejectedBy     SystemUser   @relation("ImportValueRejection_rejectedBy", fields: [organizationId, rejectedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "import_value_rejections_rejected_by_fk")
+
+  @@unique([organizationId, beneficiaryId, fieldId, valueHash], map: "import_value_rejections_key")
+  @@index([organizationId, projectId, fieldId], map: "import_value_rejections_project_field_idx")
+  @@index([organizationId, rejectedById], map: "import_value_rejections_rejected_by_idx")
+  @@map("import_value_rejections")
   @@schema("pathways")
 }
 
