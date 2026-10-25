@@ -3,7 +3,11 @@ import { toast } from 'sonner'
 import { importsClient } from '@/lib/api/imports'
 import type { ImportBatchDefinition } from '@/types/pathways'
 
-import { importProcessingProgress, runImportProcessing } from '../import-auto-continue'
+import {
+  importProcessingProgress,
+  processingFailureNote,
+  runImportProcessing,
+} from '../import-auto-continue'
 import type { BatchReview } from './use-batch-review'
 import type { ImportState } from './use-import-state'
 
@@ -39,9 +43,7 @@ export function useBatchProcessing(state: ImportState, review: BatchReview) {
       }
       const note =
         outcome.kind === 'failed'
-          ? outcome.error instanceof Error
-            ? outcome.error.message
-            : 'Processing could not be completed.'
+          ? processingFailureNote(outcome.error)
           : outcome.kind === 'stalled'
             ? 'The remaining rows could not be processed. Review failed rows before retrying.'
             : undefined

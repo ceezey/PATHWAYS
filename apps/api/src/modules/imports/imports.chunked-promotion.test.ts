@@ -49,6 +49,15 @@ interface FakeStore {
   audits: Array<{ action: string; entityId: string }>
 }
 
+// These cases cover several chunks inside one claim, so the claim keeps its former 100 rows here.
+vi.mock('@pathways/imports/server', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@pathways/imports/server')>()
+  return {
+    ...actual,
+    IMPORT_ENGINEERING_LIMITS: { ...actual.IMPORT_ENGINEERING_LIMITS, processingClaimRows: 100 },
+  }
+})
+
 vi.mock('../../common/authz/authorized-operation', async () => {
   const { ForbiddenException: Forbidden, HttpException: Http } = await import('@nestjs/common')
   return {

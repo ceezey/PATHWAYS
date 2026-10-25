@@ -12,8 +12,6 @@ import {
   loadPromotionContext,
 } from './import-promotion-context.service'
 
-const PROCESSING_CLAIM_ROWS = 100
-
 export interface ProcessingClaim {
   complete: boolean
   rowIds: string[]
@@ -89,7 +87,7 @@ export async function claimBatchRows(
     },
     select: { id: true },
     orderBy: { rowNumber: 'asc' },
-    take: PROCESSING_CLAIM_ROWS,
+    take: IMPORT_ENGINEERING_LIMITS.processingClaimRows,
   })
   if (candidates.length === 0) {
     await reconcileBatch(tx, batch.id)

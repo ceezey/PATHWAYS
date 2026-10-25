@@ -10,6 +10,7 @@ import {
   type ImportProcessingOutcome,
   type ImportProcessingProgress,
   importProcessingProgress,
+  processingFailureNote,
   runImportProcessing,
 } from '../import-auto-continue'
 import type { useImportBatch } from './use-import-batch'
@@ -87,9 +88,7 @@ export function useServerProcessing({
       state: outcome.kind === 'stopped' ? 'stopped' : 'failed',
       note:
         outcome.kind === 'failed'
-          ? outcome.error instanceof Error
-            ? outcome.error.message
-            : 'Processing could not be completed.'
+          ? processingFailureNote(outcome.error)
           : outcome.kind === 'stalled'
             ? 'The remaining rows could not be processed. Review failed rows in the Import workspace.'
             : undefined,
