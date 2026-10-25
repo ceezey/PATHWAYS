@@ -15,6 +15,7 @@ import {
   type PromotionHandlers,
   loadFormFields,
   loadParticipationForm,
+  registrationMatchesByIdentifier,
 } from './import-promotion-context.service'
 import { safeRawData } from './imports.helpers'
 import { type ParticipantMatch, matchParticipant } from './participant-match'
@@ -107,10 +108,10 @@ export async function promoteRegistrationInTx(
       'IMPORTED_DATASET',
     ))
   let values = safeRawData(row.normalizedData as Prisma.JsonValue)
-  // A file that carries the client's identifier matches participants by it, else the code decides as before.
+  // A batch that maps the client's identifier matches every row by it, else the code decides as before.
   const byIdentifier =
-    'external_identifier_value' in values &&
-    !!form?.formField_form.some((item) => item.code === 'external_identifier_value')
+    context.matchesByIdentifier ??
+    (await registrationMatchesByIdentifier(tx, actor, batch, form ?? undefined))
   let outcome: 'CREATED' | 'UPDATED' | 'LINKED' | undefined =
     registrationOutcomes[values.registration_operation as keyof typeof registrationOutcomes]
   if (byIdentifier && form) {

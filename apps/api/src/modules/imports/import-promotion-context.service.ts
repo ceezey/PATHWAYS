@@ -34,6 +34,8 @@ export interface PromotionContext {
   fields?: FieldRow[]
   participationForm?: ParticipationForm
   registrationForm?: RegistrationImportForm
+  // True when every registration row of the batch is matched by the client's identifier.
+  matchesByIdentifier?: boolean
 }
 
 export type PromotionKind = 'GENERIC' | 'REGISTRATION' | 'PARTICIPATION'
@@ -78,12 +80,45 @@ export async function loadPromotionContext(
       batch.formId,
       'IMPORTED_DATASET',
     )
-    return registrationForm ? { batch: promotionBatch, registrationForm } : undefined
+    return registrationForm
+      ? {
+          batch: promotionBatch,
+          registrationForm,
+          matchesByIdentifier: await registrationMatchesByIdentifier(
+            tx,
+            actor,
+            promotionBatch,
+            registrationForm,
+          ),
+        }
+      : undefined
   }
   const fields = await loadFormFields(tx, actor, promotionBatch)
   if (batch.form.formType !== 'ACTIVITY_MONITORING') return { batch: promotionBatch, fields }
   const participationForm = await loadParticipationForm(tx, actor, promotionBatch)
   return participationForm ? { batch: promotionBatch, fields, participationForm } : undefined
+}
+
+/** A batch matches participants by the client's identifier when its form has the field and a column maps to it. */
+export async function registrationMatchesByIdentifier(
+  tx: Tx,
+  actor: ApplicationIdentity,
+  batch: PromotionBatch,
+  form?: RegistrationImportForm,
+) {
+  if (!form?.formField_form.some((field) => field.code === 'external_identifier_value'))
+    return false
+  const mapping = await tx.metadataMapping.findFirst({
+    where: {
+      organizationId: actor.organizationId,
+      importBatchId: batch.id,
+      revision: batch.mappingRevision,
+      status: 'MAPPED',
+      targetField: { code: 'external_identifier_value' },
+    },
+    select: { id: true },
+  })
+  return mapping !== null
 }
 
 export function loadFormFields(tx: Tx, actor: ApplicationIdentity, batch: PromotionBatch) {

@@ -160,10 +160,11 @@ export async function validateBatchRows(
     fieldCode: string,
     code: string,
     message: string,
+    includeInvalid = false,
   ) => {
     const seen = new Map<string, number[]>()
     results.forEach(({ result }, index) => {
-      if (!result.valid) return
+      if (!result.valid && !includeInvalid) return
       const key = keyOf(result.values)
       if (key === null) return
       const entries = seen.get(key) ?? []
@@ -189,7 +190,7 @@ export async function validateBatchRows(
       'The metadata key is duplicated within this import.',
     )
   }
-  // One client Student ID on two rows would create or change one person twice.
+  // One client Student ID on two rows would create or change one person twice, even if one twin is invalid.
   if (
     batch.form.formType === 'BENEFICIARY_REGISTRATION' &&
     fields.some((field) => field.code === 'external_identifier_value')
@@ -204,6 +205,7 @@ export async function validateBatchRows(
       'external_identifier_value',
       'IDENTITY_CONFLICT',
       'The client identifier is on more than one row of this import.',
+      true,
     )
   }
   let valid = 0

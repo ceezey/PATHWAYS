@@ -21,7 +21,13 @@ export type ParticipantMatch =
 
 // Computed columns recalculate on every export, so they never count as a change.
 const computedRuleKinds = new Set(['AGE_CHECK', 'AGE_AT_DATE', 'MINOR_AT_DATE'])
-const unmatchedCodes = new Set(['beneficiary_code', 'registration_operation'])
+// The identifier and its type are equal by construction once a participant is found by them.
+const unmatchedCodes = new Set([
+  'beneficiary_code',
+  'registration_operation',
+  'external_identifier_type',
+  'external_identifier_value',
+])
 const identityCodes = new Set(['first_name', 'last_name', 'birth_date'])
 
 /** The hash a rejected file value is remembered by; a missing value hashes as null. */
@@ -54,25 +60,59 @@ export async function matchParticipant(
   if (!known) return { kind: 'NEW' }
   const { beneficiaryId } = known
 
-  const latest = await tx.formSubmission.findFirst({
+  const enrollment = await tx.beneficiaryProjectEnrollment.findUnique({
     where: {
-      organizationId: actor.organizationId,
-      status: 'VALIDATED',
-      form: { formType: 'BENEFICIARY_REGISTRATION' },
-      enrollment: { beneficiaryId },
+      organizationId_projectId_beneficiaryId: {
+        organizationId: actor.organizationId,
+        projectId: form.projectId,
+        beneficiaryId,
+      },
     },
-    orderBy: [{ submittedAt: 'desc' }, { createdAt: 'desc' }],
-    select: {
-      formResponseValue_submission: { select: { value: true, field: { select: { code: true } } } },
-    },
+    select: { id: true },
   })
-  const stored = new Map(
-    (latest?.formResponseValue_submission ?? []).map((item) => [item.field.code, item.value]),
-  )
+  const enrolledHere = enrollment !== null
+  const unreadable: ParticipantMatch = {
+    kind: 'CHANGED',
+    beneficiaryId,
+    code: 'IDENTITY_CONFLICT',
+    fieldCodes: [],
+  }
+  // Enrolled here: this project's latest registration is the baseline, for every field.
+  // Elsewhere only: submissions of other projects are not readable, so the profile's identity decides.
+  const stored = new Map<string, unknown>()
+  if (enrolledHere) {
+    const latest = await tx.formSubmission.findFirst({
+      where: {
+        organizationId: actor.organizationId,
+        projectId: form.projectId,
+        status: 'VALIDATED',
+        form: { formType: 'BENEFICIARY_REGISTRATION' },
+        enrollment: { beneficiaryId },
+      },
+      orderBy: [{ submittedAt: 'desc' }, { createdAt: 'desc' }],
+      select: {
+        formResponseValue_submission: {
+          select: { value: true, field: { select: { code: true } } },
+        },
+      },
+    })
+    if (!latest) return unreadable
+    for (const item of latest.formResponseValue_submission) stored.set(item.field.code, item.value)
+  } else {
+    const profile = await tx.beneficiary.findFirst({
+      where: { id: beneficiaryId, organizationId: actor.organizationId, archivedAt: null },
+      select: { firstName: true, lastName: true, birthDate: true },
+    })
+    if (!profile) return unreadable
+    stored.set('first_name', profile.firstName)
+    stored.set('last_name', profile.lastName)
+    stored.set('birth_date', profile.birthDate?.toISOString().slice(0, 10) ?? null)
+  }
   let differing = form.formField_form.filter((field) => {
     const kind = (field.rule as { kind?: string } | null)?.kind
     return (
       field.code in values &&
+      (enrolledHere || identityCodes.has(field.code)) &&
       !unmatchedCodes.has(field.code) &&
       !(kind && computedRuleKinds.has(kind)) &&
       stableJson(values[field.code] ?? null) !== stableJson(stored.get(field.code) ?? null)
@@ -108,15 +148,5 @@ export async function matchParticipant(
     }
   }
 
-  const enrollment = await tx.beneficiaryProjectEnrollment.findUnique({
-    where: {
-      organizationId_projectId_beneficiaryId: {
-        organizationId: actor.organizationId,
-        projectId: form.projectId,
-        beneficiaryId,
-      },
-    },
-    select: { id: true },
-  })
-  return { kind: 'SAME', beneficiaryId, enrolledHere: enrollment !== null }
+  return { kind: 'SAME', beneficiaryId, enrolledHere }
 }

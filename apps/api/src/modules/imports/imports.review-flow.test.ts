@@ -59,7 +59,13 @@ interface Store {
   existingCodes: Set<string>
   // Database state a later upload meets: profiles and their registration submissions.
   people: FakePerson[]
-  registrations: Array<{ id: string; beneficiaryId: string; values: Json }>
+  registrations: Array<{
+    id: string
+    beneficiaryId: string
+    projectId: string
+    status: string
+    values: Json
+  }>
 }
 
 interface FakePerson {
@@ -68,6 +74,12 @@ interface FakePerson {
   identifier: string | null
   enrolledIn: Set<string>
   guardianConsentRecorded: boolean
+  firstName: string | null
+  lastName: string | null
+  birthDate: Date | null
+  ageAtRegistration: number | null
+  isMinor: boolean
+  archivedAt: Date | null
 }
 
 vi.mock('../../common/authz/authorized-operation', () => ({
@@ -359,42 +371,82 @@ const fakeTx = {
   },
   metadataMapping: {
     findMany: vi.fn(async () => state.store.mappings),
+    findFirst: vi.fn(async (args: { where: { targetField: { code: string } } }) =>
+      state.store.mappings.find(
+        (mapping) =>
+          mapping.status === 'MAPPED' &&
+          (mapping.targetField as { code?: string } | null)?.code === args.where.targetField.code,
+      )
+        ? { id: 'mapping' }
+        : null,
+    ),
     createMany: vi.fn(),
   },
   formField: {
     findMany: vi.fn(async () => state.store.fields),
   },
   formSubmission: {
-    findFirst: vi.fn(async (args: { where: { enrollment?: { beneficiaryId: string } } }) => {
-      const wanted = args.where.enrollment?.beneficiaryId
-      const latest = state.store.registrations
-        .filter((item) => item.beneficiaryId === wanted)
-        .at(-1)
-      return latest
-        ? {
-            formResponseValue_submission: Object.entries(latest.values).map(([code, value]) => ({
-              field: { code },
-              value,
-            })),
-          }
-        : null
-    }),
+    // Honours status, project and ordering; row security hides projects the actor is not assigned to.
+    findFirst: vi.fn(
+      async (args: {
+        where: {
+          organizationId?: string
+          projectId?: string
+          status?: string
+          enrollment?: { beneficiaryId: string }
+        }
+      }) => {
+        const { where } = args
+        if (!where.enrollment) return null
+        const latest = state.store.registrations
+          .filter(
+            (item) =>
+              item.beneficiaryId === where.enrollment?.beneficiaryId &&
+              (where.organizationId === undefined || where.organizationId === organizationId) &&
+              (where.projectId === undefined || item.projectId === where.projectId) &&
+              (where.status === undefined || item.status === where.status) &&
+              state.actor.assignedProjectIds.includes(item.projectId),
+          )
+          .at(-1)
+        return latest
+          ? {
+              formResponseValue_submission: Object.entries(latest.values).map(([code, value]) => ({
+                field: { code },
+                value,
+              })),
+            }
+          : null
+      },
+    ),
     findUnique: vi.fn(async (args: { where: { importRowId: string } }) => {
       const found = state.store.submissions.find(
         (item) => item.importRowId === args.where.importRowId,
       )
       return found ? { id: found.id } : null
     }),
-    create: vi.fn(async (args: { data: { importRowId: string; enrollmentId?: string } }) => {
-      const id = `sub-${args.data.importRowId}`
-      state.store.submissions.push({ id, importRowId: args.data.importRowId })
-      if (args.data.enrollmentId?.startsWith('enr:')) {
-        const beneficiaryId = args.data.enrollmentId.split(':')[1]
-        state.store.registrations.push({ id, beneficiaryId, values: {} })
-      }
-      return { id }
+    create: vi.fn(
+      async (args: { data: { importRowId: string; projectId: string; enrollmentId?: string } }) => {
+        const id = `sub-${args.data.importRowId}`
+        state.store.submissions.push({ id, importRowId: args.data.importRowId })
+        if (args.data.enrollmentId?.startsWith('enr:')) {
+          const beneficiaryId = args.data.enrollmentId.split(':')[1]
+          const { projectId: submissionProject } = args.data
+          state.store.registrations.push({
+            id,
+            beneficiaryId,
+            projectId: submissionProject,
+            status: 'DRAFT',
+            values: {},
+          })
+        }
+        return { id }
+      },
+    ),
+    update: vi.fn(async (args: { where: { id: string }; data: { status?: string } }) => {
+      const registration = state.store.registrations.find((item) => item.id === args.where.id)
+      if (registration && args.data.status) registration.status = args.data.status
+      return {}
     }),
-    update: vi.fn(async () => ({})),
   },
   formResponseValue: {
     createMany: vi.fn(
@@ -418,31 +470,37 @@ const fakeTx = {
       const person = state.store.people.find((item) => item.code === code)
       return person ? { id: person.id } : null
     }),
-    findFirst: vi.fn(async (args: { where: { id: string } }) => {
+    findFirst: vi.fn(async (args: { where: { id: string; archivedAt?: null } }) => {
       const person = state.store.people.find((item) => item.id === args.where.id)
       if (!person) {
         return { code: args.where.id.replace('existing-', ''), subjectType: 'INDIVIDUAL' }
       }
-      const registration = state.store.registrations.find(
-        (item) => item.beneficiaryId === person.id,
-      )
-      const birth = registration?.values.birth_date
+      if (args.where.archivedAt === null && person.archivedAt) return null
       return {
         code: person.code,
         subjectType: 'INDIVIDUAL',
-        birthDate: typeof birth === 'string' ? new Date(`${birth}T00:00:00.000Z`) : null,
-        ageAtRegistration: null,
-        isMinor: false,
+        firstName: person.firstName,
+        lastName: person.lastName,
+        birthDate: person.birthDate,
+        ageAtRegistration: person.ageAtRegistration,
+        isMinor: person.isMinor,
         guardianConsentRecorded: person.guardianConsentRecorded,
       }
     }),
-    createMany: vi.fn(async (args: { data: { id: string; code: string } }) => {
+    createMany: vi.fn(async (args: { data: Json & { id: string; code: string } }) => {
+      const { data } = args
       state.store.people.push({
-        id: args.data.id,
-        code: args.data.code,
+        id: data.id,
+        code: data.code,
         identifier: null,
         enrolledIn: new Set(),
-        guardianConsentRecorded: false,
+        guardianConsentRecorded: data.guardianConsentRecorded === true,
+        firstName: (data.firstName as string | null) ?? null,
+        lastName: (data.lastName as string | null) ?? null,
+        birthDate: (data.birthDate as Date | null) ?? null,
+        ageAtRegistration: (data.ageAtRegistration as number | null) ?? null,
+        isMinor: data.isMinor === true,
+        archivedAt: null,
       })
       return { count: 1 }
     }),
@@ -1258,6 +1316,12 @@ describe('metadata-driven intake validation', () => {
       return { people }
     }
 
+    // The participant now belongs to another project, whose submissions this actor cannot read.
+    const moveToOtherProject = () => {
+      for (const item of state.store.people) item.enrolledIn = new Set([otherProjectId])
+      for (const item of state.store.registrations) item.projectId = otherProjectId
+    }
+
     it('unchanged re-upload holds nothing', async () => {
       const rows = [1, 2, 3].map((index) => person(index))
       const imports = linker()
@@ -1306,7 +1370,7 @@ describe('metadata-driven intake validation', () => {
       expect(fakeTx.beneficiary.createMany).not.toHaveBeenCalled()
     })
 
-    it('a blank client id is held IDENTITY_MISSING', async () => {
+    it('a blank Student ID cell in a mapped column is held IDENTITY_MISSING and the others process', async () => {
       state.store = identifierStore([person(1, { column_0008: '' }), person(2)])
       const imports = linker()
 
@@ -1315,6 +1379,7 @@ describe('metadata-driven intake validation', () => {
 
       expect(state.store.rows.map((row) => row.status)).toEqual(['UNPROCESSED', 'PROCESSED'])
       expect(state.store.rows[0].processingErrorCode).toBe('IDENTITY_MISSING')
+      expect(fakeTx.beneficiary.createMany).toHaveBeenCalledTimes(1)
     })
 
     it('same client id twice in one file', async () => {
@@ -1341,17 +1406,43 @@ describe('metadata-driven intake validation', () => {
       expect(state.store.people).toHaveLength(1)
     })
 
+    it('an invalid twin of a client id still holds its valid twin', async () => {
+      state.store = identifierStore([
+        person(1),
+        person(2, { column_0008: 'S-1', column_0004: 'not a date' }),
+        person(3),
+      ])
+      const imports = linker()
+
+      await validate(imports)
+      expect(rowWrites().map((row) => row.status)).toEqual(['INVALID', 'INVALID', 'VALID'])
+      expect(rowWrites()[0].validation_errors).toEqual([
+        expect.objectContaining({
+          fieldCode: 'external_identifier_value',
+          code: 'IDENTITY_CONFLICT',
+        }),
+      ])
+
+      await runProcess(imports)
+
+      expect(state.store.rows.map((row) => row.status)).toEqual(['INVALID', 'INVALID', 'PROCESSED'])
+      expect(state.store.people).toHaveLength(1)
+    })
+
     it('known id in another project is enrolled here, no second profile', async () => {
       const rows = [person(1)]
       const imports = linker()
       const { people } = await reupload(imports, rows, rows)
-      // The first upload ran in this project; make the participant belong to another one only.
-      people[0].enrolledIn = new Set([otherProjectId])
+      moveToOtherProject()
 
       await validate(imports)
       await runProcess(imports)
 
       expect(fakeTx.beneficiary.createMany).not.toHaveBeenCalled()
+      // No baseline read from the project that cannot be seen; the profile decided.
+      expect(fakeTx.beneficiary.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({ select: { firstName: true, lastName: true, birthDate: true } }),
+      )
       expect(people).toHaveLength(1)
       expect([...people[0].enrolledIn].sort()).toEqual([projectId, otherProjectId].sort())
       expect(state.store.rows[0]).toMatchObject({
@@ -1384,7 +1475,7 @@ describe('metadata-driven intake validation', () => {
       expect(people).toHaveLength(1)
 
       // A later link of the same known adult into another project is not a guardian matter either.
-      people[0].enrolledIn = new Set([otherProjectId])
+      moveToOtherProject()
       await validate(imports)
       await runProcess(imports)
 

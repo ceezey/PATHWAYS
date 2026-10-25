@@ -54,9 +54,20 @@ function fakeTx(options: {
   known?: boolean
   submission?: Record<string, unknown> | null
   enrolled?: boolean
+  profile?: { firstName: string | null; lastName: string | null; birthDate: Date | null } | null
   rejected?: Array<{ fieldId: string; valueHash: string }>
 }) {
-  const { known = true, submission = stored, enrolled = true, rejected = [] } = options
+  const {
+    known = true,
+    submission = stored,
+    enrolled = true,
+    profile = {
+      firstName: 'Ana',
+      lastName: 'Cruz',
+      birthDate: new Date('2008-08-17T00:00:00.000Z'),
+    },
+    rejected = [],
+  } = options
   return {
     beneficiaryIdentifier: {
       findUnique: vi.fn(async () => (known ? { beneficiaryId } : null)),
@@ -73,6 +84,7 @@ function fakeTx(options: {
           : null,
       ),
     },
+    beneficiary: { findFirst: vi.fn(async () => profile) },
     beneficiaryProjectEnrollment: {
       findUnique: vi.fn(async () => (enrolled ? { id: 'enrollment' } : null)),
     },
@@ -132,6 +144,72 @@ describe('matchParticipant', () => {
     })
   })
 
+  it('compares with this project latest registration only', async () => {
+    const tx = fakeTx({})
+    await match(tx)
+    expect(tx.formSubmission.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ organizationId, projectId, status: 'VALIDATED' }),
+      }),
+    )
+    expect(tx.beneficiary.findFirst).not.toHaveBeenCalled()
+  })
+
+  it('another project participant whose identity agrees is SAME, not enrolled here', async () => {
+    const tx = fakeTx({ enrolled: false, submission: null })
+    // Other fields differ from anything this project can read, yet only identity is compared.
+    expect(await match(tx, { ...file, civil_status: 'Married' })).toEqual({
+      kind: 'SAME',
+      beneficiaryId,
+      enrolledHere: false,
+    })
+    expect(tx.formSubmission.findFirst).not.toHaveBeenCalled()
+    expect(tx.beneficiary.findFirst).toHaveBeenCalledWith({
+      where: { id: beneficiaryId, organizationId, archivedAt: null },
+      select: { firstName: true, lastName: true, birthDate: true },
+    })
+  })
+
+  it('another project participant whose identity differs is IDENTITY_CONFLICT', async () => {
+    expect(
+      await match(fakeTx({ enrolled: false }), {
+        ...file,
+        last_name: 'Reyes',
+        birth_date: '2009-01-01',
+      }),
+    ).toEqual({
+      kind: 'CHANGED',
+      beneficiaryId,
+      code: 'IDENTITY_CONFLICT',
+      fieldCodes: ['last_name', 'birth_date'],
+    })
+  })
+
+  it('an unreadable another-project profile is held IDENTITY_CONFLICT', async () => {
+    expect(await match(fakeTx({ enrolled: false, profile: null }))).toMatchObject({
+      kind: 'CHANGED',
+      code: 'IDENTITY_CONFLICT',
+    })
+  })
+
+  it('enrolled here with no readable baseline in this project is held IDENTITY_CONFLICT', async () => {
+    expect(await match(fakeTx({ enrolled: true, submission: null }))).toEqual({
+      kind: 'CHANGED',
+      beneficiaryId,
+      code: 'IDENTITY_CONFLICT',
+      fieldCodes: [],
+    })
+  })
+
+  it('a full-width or case variant of the same id is not a change', async () => {
+    const variant = {
+      ...file,
+      external_identifier_value: '２０２４-００１',
+      external_identifier_type: 'student_id',
+    }
+    expect(await match(fakeTx({}), variant)).toMatchObject({ kind: 'SAME' })
+  })
+
   it('age column drift ignored', async () => {
     const drifted = { ...file, age_stated: 18, age_at_registration: 18, is_minor: false }
     expect(await match(fakeTx({}), drifted)).toMatchObject({ kind: 'SAME' })
@@ -183,10 +261,6 @@ describe('matchParticipant', () => {
       kind: 'CHANGED',
       code: 'PROFILE_CHANGED',
     })
-  })
-
-  it('a known id with no stored registration is held, never treated as the same', async () => {
-    expect(await match(fakeTx({ submission: null }))).toMatchObject({ kind: 'CHANGED' })
   })
 })
 
