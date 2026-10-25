@@ -72,9 +72,21 @@ describe('import normalization contract', () => {
     })
   })
 
+  it('reads a whole-number cell in a text field as its digits', () => {
+    const phone: FormFieldValidationContract = {
+      code: 'contact_number',
+      label: 'Contact Number',
+      dataType: 'TEXT',
+      required: false,
+    }
+    const result = normalizeImportedRow([phone], { contact_number: 9171234567 })
+    expect(result.values.contact_number).toBe('9171234567')
+    expect(result.valid).toBe(true)
+  })
+
   it('reports ambiguous coercions instead of guessing spreadsheet conventions', () => {
     const result = normalizeImportedRow(fields, {
-      text: 12,
+      text: 12.5,
       integer: '01',
       decimal: '1e2',
       date: '09/13/2026',

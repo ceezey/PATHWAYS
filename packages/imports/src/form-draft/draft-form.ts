@@ -7,7 +7,7 @@ import {
 } from '../mappers/smart-match'
 import { type ImportValueMapEntry, mapKey } from '../value-map'
 import { suggestValueMap } from '../value-map-suggest'
-import { proposeIntakeRules } from './draft-rules'
+import { proposeIntakeRules, storableInteger } from './draft-rules'
 import { fieldCodeFromHeader } from './field-code'
 
 export type DraftField = FormFieldRequest & { id?: string }
@@ -95,8 +95,13 @@ function inferType(
   )
     return 'DATE'
   if (all((v) => typeof v === 'boolean')) return 'BOOLEAN'
-  if (all((v) => typeof v === 'number' && Number.isSafeInteger(v))) return 'INTEGER'
-  if (all((v) => typeof v === 'number' && Number.isFinite(v))) return 'DECIMAL'
+  if (all(storableInteger)) return 'INTEGER'
+  // A decimal column has at least one fraction; whole numbers too long for INTEGER stay text.
+  if (
+    all((v) => typeof v === 'number' && Number.isFinite(v)) &&
+    values.some((v) => !Number.isInteger(v))
+  )
+    return 'DECIMAL'
   return 'TEXT'
 }
 

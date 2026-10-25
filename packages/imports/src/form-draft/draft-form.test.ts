@@ -281,6 +281,15 @@ describe('draftFormFromImport rules', () => {
     ).toEqual(['DATE', 'BOOLEAN', 'INTEGER', 'DECIMAL'])
   })
 
+  it('keeps whole numbers too long for INTEGER, such as phone numbers, as text', () => {
+    const result = draft([
+      columnOf('Contact Number', [9171234567, 9281234567], 1),
+      columnOf('Household Size', [4, 6], 2),
+    ])
+    expect(find(result, 'contact_number')?.dataType).toBe('TEXT')
+    expect(find(result, 'household_size')?.dataType).toBe('INTEGER')
+  })
+
   it('a draft over 100 fields throws FIELD_LIMIT', () => {
     const full: DraftField[] = Array.from({ length: 100 }, (_, i) => ({
       id: `id-${i}`,
