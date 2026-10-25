@@ -44,7 +44,7 @@ export class PublicService {
   constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
   async published(projectId?: string, offset = 0, limit = 50) {
-    if (projectId !== undefined && !z.string().uuid().safeParse(projectId).success)
+    if (projectId !== undefined && !z.guid().safeParse(projectId).success)
       throw new NotFoundException('Project unavailable.')
     const page = z
       .object({

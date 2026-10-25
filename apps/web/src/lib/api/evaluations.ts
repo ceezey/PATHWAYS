@@ -14,7 +14,7 @@ import { ownedJsonPost, ownedJsonRead, projectPath } from '@/lib/api/core/owned-
 import { requestFoundation } from '@/lib/api/core/request'
 import { type AssessmentSummary, parseAssessmentSummaries } from './evaluations.schema'
 
-const uuid = z.string().uuid()
+const uuid = z.guid()
 export const evaluationsClient = {
   evaluation: (id: string, signal?: AbortSignal) =>
     ownedJsonRead(

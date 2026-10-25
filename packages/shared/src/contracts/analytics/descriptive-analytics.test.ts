@@ -24,7 +24,7 @@ describe('descriptiveAnalyticsQuerySchema', () => {
 
   it('rejects an unknown key', () => {
     const result = descriptiveAnalyticsQuerySchema.safeParse({ projectId, extra: 1 })
-    expect(messages(result)).toEqual(["Unrecognized key(s) in object: 'extra'"])
+    expect(messages(result)).toEqual(['Unrecognized key: "extra"'])
   })
 
   it('requires both period dates or neither', () => {
@@ -78,7 +78,7 @@ describe('descriptiveAnalyticsSchema', () => {
     distributions: [distributionRow],
     indicatorSummaries: [summary],
   }
-  const tooBig = ['Number must be less than or equal to 100']
+  const tooBig = ['Too big: expected number to be <=100']
 
   it('accepts the maximum of 100 per indicator count and summary list', () => {
     expect(descriptiveAnalyticsSchema.safeParse(valid).success).toBe(true)
@@ -91,7 +91,7 @@ describe('descriptiveAnalyticsSchema', () => {
       ...valid,
       indicatorSummaries: Array(101).fill(summary),
     })
-    expect(messages(result)).toEqual(['Array must contain at most 100 element(s)'])
+    expect(messages(result)).toEqual(['Too big: expected array to have <=100 items'])
   })
 
   it('rejects an indicator count or reported count above 100', () => {
@@ -105,7 +105,7 @@ describe('descriptiveAnalyticsSchema', () => {
   })
 
   it('rejects an unknown key at every object level', () => {
-    const unknown = "Unrecognized key(s) in object: 'extra'"
+    const unknown = 'Unrecognized key: "extra"'
     const cases = [
       { ...valid, extra: 1 },
       { ...valid, monitoringPeriod: { ...valid.monitoringPeriod, extra: 1 } },

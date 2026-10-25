@@ -30,7 +30,7 @@ export const projectMapPlaceSchema = z
 /** Project-level map point: centroids only, never Beneficiary coordinates. */
 export const projectMapProjectSchema = z
   .object({
-    id: z.string().uuid(),
+    id: z.guid(),
     code: z.string().max(80),
     title: z.string().max(300),
     status: z.string().max(40),

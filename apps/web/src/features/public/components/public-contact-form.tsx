@@ -15,13 +15,13 @@ const contactSchema = z.object({
   name: z.string().trim().min(2, 'Enter your name.').max(100, 'Use 100 characters or fewer.'),
   email: z.string().trim().email('Enter a valid email address.'),
   organization: z.string().trim().max(150, 'Use 150 characters or fewer.'),
-  topic: z.enum(topics, { errorMap: () => ({ message: 'Choose a topic.' }) }),
+  topic: z.enum(topics, { error: 'Choose a topic.' }),
   message: z
     .string()
     .trim()
     .min(20, 'Tell us a little more (at least 20 characters).')
     .max(2000, 'Use 2,000 characters or fewer.'),
-  consent: z.literal('on', { errorMap: () => ({ message: 'Please confirm before sending.' }) }),
+  consent: z.literal('on', { error: 'Please confirm before sending.' }),
 })
 
 type Field = keyof z.infer<typeof contactSchema>

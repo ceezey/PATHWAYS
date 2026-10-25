@@ -6,7 +6,7 @@ export const ROLE_OVERVIEW_CONTRACT_VERSION = 'dashboard.role-overview.v1' as co
 export const alertSeverities = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'] as const
 export type AlertSeverity = (typeof alertSeverities)[number]
 
-const id = z.string().uuid()
+const id = z.guid()
 const count = z.number().int().min(0)
 const day = z.string().refine(isCalendarDate)
 const instant = z.string().datetime()

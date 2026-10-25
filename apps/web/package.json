@@ -14,7 +14,7 @@
     "e2e": "playwright test --config ../../playwright.config.ts"
   },
   "dependencies": {
-    "@hookform/resolvers": "^3.10.0",
+    "@hookform/resolvers": "^5.9.2",
     "@pathways/config": "workspace:*",
     "@pathways/imports": "workspace:*",
     "@pathways/shared": "workspace:*",
@@ -41,7 +41,7 @@
     "react-hook-form": "^7.90.0",
     "sonner": "^1.7.4",
     "tailwind-merge": "^2.6.1",
-    "zod": "^3.25.76"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@babel/core": "7.29.7",

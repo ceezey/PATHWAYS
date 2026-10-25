@@ -13,7 +13,7 @@ const dateOnly = z
 // Body of POST projects/:projectId/evaluation/evaluations.
 export const createEvaluationRequest = z
   .object({
-    clientRequestId: z.string().uuid(),
+    clientRequestId: z.guid(),
     title: z.string().trim().min(1).max(200),
     periodLabel: z.string().trim().min(1).max(80).optional(),
     periodStart: dateOnly,
@@ -58,7 +58,7 @@ export const signOffEvaluationRequest = z
 export type SignOffEvaluationRequest = z.infer<typeof signOffEvaluationRequest>
 
 // Query of GET projects/:projectId/evaluation/assessments; other query keys are ignored.
-export const enrollmentAssessmentsQuery = z.object({ enrollmentId: z.string().uuid() })
+export const enrollmentAssessmentsQuery = z.object({ enrollmentId: z.guid() })
 export type EnrollmentAssessmentsQuery = z.infer<typeof enrollmentAssessmentsQuery>
 
 // A non-negative decimal string with at most 4 decimal places, matching the score columns.

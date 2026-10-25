@@ -4,7 +4,7 @@ import { SourceMutationRecovery } from '../../components/source-mutation-recover
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Loader2, Save } from 'lucide-react'
 import { useMemo, useRef, useState } from 'react'
-import { useForm } from 'react-hook-form'
+import { type Resolver, useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 
 import { ConfirmationDialog, DialogShell } from '@/components/pathways'
@@ -159,7 +159,8 @@ const ActivityFormDialogContent = ({
     [indicatorIds, journeyStageIds, officerIds],
   )
   const form = useForm<ActivityFormSchema>({
-    resolver: zodResolver(formSchema),
+    // Zod 4 types coerced inputs as unknown; the form holds output-shaped values.
+    resolver: zodResolver(formSchema) as Resolver<ActivityFormSchema>,
     defaultValues,
   })
   const draftStorageKey = scope.key

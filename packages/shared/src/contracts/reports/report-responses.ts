@@ -2,7 +2,7 @@ import { z } from 'zod'
 
 import { reportKinds } from '../../constants/domain-codes'
 
-const uuid = z.string().uuid()
+const uuid = z.guid()
 const timestamp = z.string().datetime({ offset: true })
 const decimal = z.string().regex(/^-?\d+(?:\.\d+)?$/)
 const dateOnly = z.string().regex(/^\d{4}-\d{2}-\d{2}$/)

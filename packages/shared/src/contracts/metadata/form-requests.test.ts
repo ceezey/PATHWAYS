@@ -289,7 +289,7 @@ describe('other form bodies', () => {
     ['submit', submitSubmissionRequest, { expectedUpdatedAt: stamp }, true],
     ['submit', submitSubmissionRequest, { expectedUpdatedAt: 'x' }, false],
     ['submit', submitSubmissionRequest, { expectedUpdatedAt: stamp, extra: 1 }, false],
-  ] as const)('%s row %#: accepted %s', (_route, schema, body, expected) => {
+  ] as const)('%s row %# is accepted as expected', (_route, schema, body, expected) => {
     expect(accepts(schema, body)).toBe(expected)
   })
 

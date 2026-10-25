@@ -8,15 +8,15 @@ import { z } from 'zod'
 const revision = z.string().datetime({ precision: 3 })
 const contextSchema = z
   .object({
-    activityId: z.string().uuid(),
-    updateId: z.string().uuid(),
+    activityId: z.guid(),
+    updateId: z.guid(),
     expectedActivityUpdatedAt: revision,
     expectedUpdateUpdatedAt: revision,
     proofs: z
       .array(
         z
           .object({
-            id: z.string().uuid(),
+            id: z.guid(),
             label: z.literal('Activity proof'),
             expectedEvidenceUpdatedAt: revision,
           })

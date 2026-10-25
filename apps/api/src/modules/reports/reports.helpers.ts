@@ -9,7 +9,7 @@ import { z } from 'zod'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
 
 // Report, project, form and evaluation ids are checked with the zod UUID rule.
-export const uuid = z.string().uuid()
+export const uuid = z.guid()
 
 // Refuses a report kind the actor may not read, including the extra grants some kinds need.
 export function assertReportPermission(actor: ApplicationIdentity, kind: ReportKindCode) {

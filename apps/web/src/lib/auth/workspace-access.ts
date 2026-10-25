@@ -12,13 +12,13 @@ import {
 export const contextCookieName = 'pathways-context'
 const selectionSchema = applicationContextSchema
   .extend({
-    authUserId: z.string().uuid(),
+    authUserId: z.guid(),
   })
   .strict()
 
 const resolutionSchema = z
   .object({
-    authUserId: z.string().uuid(),
+    authUserId: z.guid(),
     workspaces: z
       .array(applicationContextSchema.extend({ displayName: z.string().min(1).max(120) }).strict())
       .max(1),
@@ -121,9 +121,7 @@ export function workspacePermissions(profile: ApplicationProfile | null) {
 }
 
 const projectsSchema = z
-  .array(
-    z.object({ id: z.string().uuid(), code: z.string(), title: z.string(), status: z.string() }),
-  )
+  .array(z.object({ id: z.guid(), code: z.string(), title: z.string(), status: z.string() }))
   .max(100)
 
 export async function requestAuthorizedProjects(

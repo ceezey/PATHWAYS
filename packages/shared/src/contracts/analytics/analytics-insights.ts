@@ -14,10 +14,7 @@ export const ANALYTICS_INSIGHTS_ATTENDANCE_STATUSES = [
 /** One authorized project; the optional period must be complete and ordered. */
 export const analyticsInsightsQuerySchema = z
   .object({
-    projectId: z
-      .string()
-      .uuid()
-      .transform((value) => value.toLowerCase()),
+    projectId: z.guid().transform((value) => value.toLowerCase()),
     periodStart: date.optional(),
     periodEnd: date.optional(),
   })
@@ -42,13 +39,11 @@ const ascending = (values: string[], strict: boolean) =>
 
 export const participationBreakdownSchema = z
   .object({
-    projectId: z.string().uuid(),
+    projectId: z.guid(),
     total: z.number().int().nonnegative().nullable(),
     totalSuppressed: z.boolean(),
     byActivity: z
-      .array(
-        z.object({ activityId: z.string().uuid(), activityName: z.string(), ...cell }).strict(),
-      )
+      .array(z.object({ activityId: z.guid(), activityName: z.string(), ...cell }).strict())
       .max(1000)
       .refine((rows) => unique(rows, (row) => row.activityId), 'Activity ids must be unique.'),
     byMonth: z
@@ -77,12 +72,12 @@ const trendPoint = z
 
 export const indicatorTrendsSchema = z
   .object({
-    projectId: z.string().uuid(),
+    projectId: z.guid(),
     indicators: z
       .array(
         z
           .object({
-            indicatorId: z.string().uuid(),
+            indicatorId: z.guid(),
             name: z.string(),
             unit: z.string(),
             target: z.number().finite().nullable(),
@@ -108,7 +103,7 @@ export type IndicatorTrends = z.infer<typeof indicatorTrendsSchema>
 
 export const budgetSummarySchema = z
   .object({
-    projectId: z.string().uuid(),
+    projectId: z.guid(),
     currencies: z
       .array(
         z
