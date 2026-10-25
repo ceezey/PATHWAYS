@@ -35,6 +35,83 @@ export function valueHash(value: unknown) {
   return checksum(stableJson(value ?? null))
 }
 
+export interface Baseline {
+  enrolledHere: boolean
+  stored: Map<string, unknown>
+}
+
+/**
+ * What PATHWAYS holds for a participant, or null when it cannot be read.
+ * Enrolled here: this project's latest registration is the baseline, for every field.
+ * Elsewhere only: submissions of other projects are not readable, so the profile's identity decides.
+ */
+export async function readBaseline(
+  tx: Tx,
+  actor: ApplicationIdentity,
+  projectId: string,
+  beneficiaryId: string,
+): Promise<Baseline | null> {
+  const enrollment = await tx.beneficiaryProjectEnrollment.findUnique({
+    where: {
+      organizationId_projectId_beneficiaryId: {
+        organizationId: actor.organizationId,
+        projectId,
+        beneficiaryId,
+      },
+    },
+    select: { id: true },
+  })
+  const enrolledHere = enrollment !== null
+  const stored = new Map<string, unknown>()
+  if (enrolledHere) {
+    const latest = await tx.formSubmission.findFirst({
+      where: {
+        organizationId: actor.organizationId,
+        projectId,
+        status: 'VALIDATED',
+        form: { formType: 'BENEFICIARY_REGISTRATION' },
+        enrollment: { beneficiaryId },
+      },
+      orderBy: [{ submittedAt: 'desc' }, { createdAt: 'desc' }],
+      select: {
+        formResponseValue_submission: {
+          select: { value: true, field: { select: { code: true } } },
+        },
+      },
+    })
+    if (!latest) return null
+    for (const item of latest.formResponseValue_submission) stored.set(item.field.code, item.value)
+  } else {
+    const profile = await tx.beneficiary.findFirst({
+      where: { id: beneficiaryId, organizationId: actor.organizationId, archivedAt: null },
+      select: { firstName: true, lastName: true, birthDate: true },
+    })
+    if (!profile) return null
+    stored.set('first_name', profile.firstName)
+    stored.set('last_name', profile.lastName)
+    stored.set('birth_date', profile.birthDate?.toISOString().slice(0, 10) ?? null)
+  }
+  return { enrolledHere, stored }
+}
+
+/** The form fields whose file value differs from the baseline, computed columns aside. */
+export function differingFields(
+  form: RegistrationImportForm,
+  values: Record<string, NormalizedValue>,
+  baseline: Baseline,
+) {
+  return form.formField_form.filter((field) => {
+    const kind = (field.rule as { kind?: string } | null)?.kind
+    return (
+      field.code in values &&
+      (baseline.enrolledHere || identityCodes.has(field.code)) &&
+      !unmatchedCodes.has(field.code) &&
+      !(kind && computedRuleKinds.has(kind)) &&
+      stableJson(values[field.code] ?? null) !== stableJson(baseline.stored.get(field.code) ?? null)
+    )
+  })
+}
+
 /** Matches an imported registration row to a participant by the client's Student ID, never by code. */
 export async function matchParticipant(
   tx: Tx,
@@ -60,64 +137,11 @@ export async function matchParticipant(
   if (!known) return { kind: 'NEW' }
   const { beneficiaryId } = known
 
-  const enrollment = await tx.beneficiaryProjectEnrollment.findUnique({
-    where: {
-      organizationId_projectId_beneficiaryId: {
-        organizationId: actor.organizationId,
-        projectId: form.projectId,
-        beneficiaryId,
-      },
-    },
-    select: { id: true },
-  })
-  const enrolledHere = enrollment !== null
-  const unreadable: ParticipantMatch = {
-    kind: 'CHANGED',
-    beneficiaryId,
-    code: 'IDENTITY_CONFLICT',
-    fieldCodes: [],
+  const baseline = await readBaseline(tx, actor, form.projectId, beneficiaryId)
+  if (!baseline) {
+    return { kind: 'CHANGED', beneficiaryId, code: 'IDENTITY_CONFLICT', fieldCodes: [] }
   }
-  // Enrolled here: this project's latest registration is the baseline, for every field.
-  // Elsewhere only: submissions of other projects are not readable, so the profile's identity decides.
-  const stored = new Map<string, unknown>()
-  if (enrolledHere) {
-    const latest = await tx.formSubmission.findFirst({
-      where: {
-        organizationId: actor.organizationId,
-        projectId: form.projectId,
-        status: 'VALIDATED',
-        form: { formType: 'BENEFICIARY_REGISTRATION' },
-        enrollment: { beneficiaryId },
-      },
-      orderBy: [{ submittedAt: 'desc' }, { createdAt: 'desc' }],
-      select: {
-        formResponseValue_submission: {
-          select: { value: true, field: { select: { code: true } } },
-        },
-      },
-    })
-    if (!latest) return unreadable
-    for (const item of latest.formResponseValue_submission) stored.set(item.field.code, item.value)
-  } else {
-    const profile = await tx.beneficiary.findFirst({
-      where: { id: beneficiaryId, organizationId: actor.organizationId, archivedAt: null },
-      select: { firstName: true, lastName: true, birthDate: true },
-    })
-    if (!profile) return unreadable
-    stored.set('first_name', profile.firstName)
-    stored.set('last_name', profile.lastName)
-    stored.set('birth_date', profile.birthDate?.toISOString().slice(0, 10) ?? null)
-  }
-  let differing = form.formField_form.filter((field) => {
-    const kind = (field.rule as { kind?: string } | null)?.kind
-    return (
-      field.code in values &&
-      (enrolledHere || identityCodes.has(field.code)) &&
-      !unmatchedCodes.has(field.code) &&
-      !(kind && computedRuleKinds.has(kind)) &&
-      stableJson(values[field.code] ?? null) !== stableJson(stored.get(field.code) ?? null)
-    )
-  })
+  let differing = differingFields(form, values, baseline)
   if (differing.length > 0) {
     const rejected = await tx.importValueRejection.findMany({
       where: {
@@ -148,5 +172,5 @@ export async function matchParticipant(
     }
   }
 
-  return { kind: 'SAME', beneficiaryId, enrolledHere }
+  return { kind: 'SAME', beneficiaryId, enrolledHere: baseline.enrolledHere }
 }

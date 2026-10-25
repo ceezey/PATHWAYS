@@ -121,7 +121,11 @@ export async function registrationMatchesByIdentifier(
   return mapping !== null
 }
 
-export function loadFormFields(tx: Tx, actor: ApplicationIdentity, batch: PromotionBatch) {
+export function loadFormFields(
+  tx: Tx,
+  actor: ApplicationIdentity,
+  batch: Pick<PromotionBatch, 'projectId' | 'formId'>,
+) {
   return tx.formField.findMany({
     where: {
       organizationId: actor.organizationId,

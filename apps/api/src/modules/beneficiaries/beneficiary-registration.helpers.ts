@@ -34,7 +34,7 @@ export function canonicalIdentifierValue(value: unknown) {
 
 export type NormalizedValue = string | number | boolean | string[] | null
 
-const writableProfileFields = new Set([
+export const writableProfileFields = new Set([
   'display_name',
   'first_name',
   'middle_name',

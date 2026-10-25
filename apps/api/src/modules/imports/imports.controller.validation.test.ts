@@ -5,6 +5,7 @@ import { type INestApplication, ValidationPipe } from '@nestjs/common'
 import { Test } from '@nestjs/testing'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { ImportReviewService } from './import-review.service'
 import { ImportsController } from './imports.controller'
 import { ImportsService } from './imports.service'
 
@@ -27,7 +28,10 @@ let url: string
 beforeAll(async () => {
   const module = await Test.createTestingModule({
     controllers: [ImportsController],
-    providers: [{ provide: ImportsService, useValue: imports }],
+    providers: [
+      { provide: ImportsService, useValue: imports },
+      { provide: ImportReviewService, useValue: {} },
+    ],
   }).compile()
   app = module.createNestApplication({ logger: false })
   // Stands in for the identity the auth guard attaches; the guard is not under test here.

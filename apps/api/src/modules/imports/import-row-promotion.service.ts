@@ -20,7 +20,11 @@ import {
 import { safeRawData } from './imports.helpers'
 import { type ParticipantMatch, matchParticipant } from './participant-match'
 
-const registrationOutcomes = { CREATE: 'CREATED', UPDATE: 'UPDATED', LINK: 'LINKED' } as const
+export const registrationOutcomes = {
+  CREATE: 'CREATED',
+  UPDATE: 'UPDATED',
+  LINK: 'LINKED',
+} as const
 
 // Leaves a registration row unprocessed with the code a reviewer will see.
 async function holdRegistrationRow(
@@ -49,7 +53,7 @@ async function holdRegistrationRow(
 }
 
 // The values a matched row is promoted with: the operation and participant code follow the match.
-async function matchedValues(
+export async function matchedValues(
   tx: Tx,
   actor: ApplicationIdentity,
   match: Extract<ParticipantMatch, { kind: 'NEW' | 'SAME' }>,

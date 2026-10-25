@@ -19,6 +19,7 @@ import {
   type ImportRowsQuery,
   type ProcessImportRequest,
   type RerunImportRequest,
+  type ResolveImportRowRequest,
   type SaveImportMappingRequest,
   type UploadImportRequest,
   type ValidateImportRequest,
@@ -26,6 +27,7 @@ import {
   importRowsQuery,
   processImportRequest,
   rerunImportRequest,
+  resolveImportRowRequest,
   saveImportMappingRequest,
   uploadImportRequest,
   validateImportRequest,
@@ -34,11 +36,15 @@ import type { AuthenticatedRequest } from '../../common/authz/application-identi
 import { requestIdentity } from '../../common/authz/request-identity'
 import { RequirePermission } from '../../common/decorators/permission.decorator'
 import { ZodPipe } from '../../common/validation/zod-pipe'
+import { ImportReviewService } from './import-review.service'
 import { ImportsService, type UploadedImportFile } from './imports.service'
 
 @Controller('imports/projects/:projectId/batches')
 export class ImportsController {
-  constructor(@Inject(ImportsService) private readonly imports: ImportsService) {}
+  constructor(
+    @Inject(ImportsService) private readonly imports: ImportsService,
+    @Inject(ImportReviewService) private readonly review: ImportReviewService,
+  ) {}
 
   @Get()
   @RequirePermission('imports.read')
@@ -110,6 +116,29 @@ export class ImportsController {
     @Query(new ZodPipe(importRowsQuery)) query: ImportRowsQuery,
   ) {
     return this.imports.listRows(requestIdentity(request), projectId, batchId, query)
+  }
+
+  @Get(':batchId/rows/:rowId/review')
+  @RequirePermission('imports.review')
+  reviewRow(
+    @Req() request: AuthenticatedRequest,
+    @Param('projectId') projectId: string,
+    @Param('batchId') batchId: string,
+    @Param('rowId') rowId: string,
+  ) {
+    return this.review.review(requestIdentity(request), projectId, batchId, rowId)
+  }
+
+  @Post(':batchId/rows/:rowId/resolve')
+  @RequirePermission('imports.review')
+  resolveRow(
+    @Req() request: AuthenticatedRequest,
+    @Param('projectId') projectId: string,
+    @Param('batchId') batchId: string,
+    @Param('rowId') rowId: string,
+    @Body(new ZodPipe(resolveImportRowRequest)) body: ResolveImportRowRequest,
+  ) {
+    return this.review.resolve(requestIdentity(request), projectId, batchId, rowId, body)
   }
 
   @Post(':batchId/automatic-mapping')
