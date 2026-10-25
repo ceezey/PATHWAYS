@@ -1,3 +1,4 @@
+import { IMPORT_ENGINEERING_LIMITS } from '@pathways/imports'
 import { describe, expect, it, vi } from 'vitest'
 
 import type { ImportBatchDefinition } from '@/types/pathways'
@@ -6,10 +7,11 @@ import {
   importProcessingComplete,
   importProcessingPercent,
   importProcessingProgress,
+  processingFailureNote,
   runImportProcessing,
 } from './import-auto-continue'
 
-/** A server stand-in that claims up to 100 rows per process call, like the API. */
+/** A server stand-in that claims as many rows per process call as the API does. */
 function fakeServer(validRows: number, options: { failingRows?: number } = {}) {
   const rows = Array.from({ length: validRows }, (_, index) => ({
     status: 'VALID' as 'VALID' | 'PROCESSED' | 'FAILED',
@@ -34,7 +36,9 @@ function fakeServer(validRows: number, options: { failingRows?: number } = {}) {
     },
     process: vi.fn(async () => {
       calls += 1
-      for (const row of rows.filter((item) => item.status === 'VALID').slice(0, 100)) {
+      for (const row of rows
+        .filter((item) => item.status === 'VALID')
+        .slice(0, IMPORT_ENGINEERING_LIMITS.processingClaimRows)) {
         row.attempts += 1
         if (!row.fails) row.status = 'PROCESSED'
         else if (row.attempts >= 3) row.status = 'FAILED'
@@ -56,7 +60,7 @@ describe('automatic import processing', () => {
     })
 
     expect(outcome).toMatchObject({ kind: 'complete' })
-    expect(server.calls).toBe(50)
+    expect(server.calls).toBe(5_000 / IMPORT_ENGINEERING_LIMITS.processingClaimRows)
     expect(progress.at(-1)).toBe(5_000)
     expect(progress).toEqual([...progress].sort((left, right) => left - right))
   })
@@ -73,7 +77,7 @@ describe('automatic import processing', () => {
     })
 
     expect(outcome.kind).toBe('stopped')
-    expect(server.calls).toBe(3)
+    expect(server.calls).toBe(300 / IMPORT_ENGINEERING_LIMITS.processingClaimRows)
     expect(outcome.kind === 'stopped' && outcome.batch?.totals.processed).toBe(300)
   })
 
@@ -92,7 +96,9 @@ describe('automatic import processing', () => {
     })
 
     expect(outcome).toMatchObject({ kind: 'failed', error })
-    expect(outcome.kind === 'failed' && outcome.batch?.totals.processed).toBe(100)
+    expect(outcome.kind === 'failed' && outcome.batch?.totals.processed).toBe(
+      IMPORT_ENGINEERING_LIMITS.processingClaimRows,
+    )
   })
 
   it('treats a batch whose remaining rows all failed as complete', async () => {
@@ -142,5 +148,14 @@ describe('automatic import processing', () => {
     expect(
       importProcessingComplete({ ...batch, status: 'VALIDATED' } as ImportBatchDefinition),
     ).toBe(false)
+  })
+})
+
+describe('processing failure note', () => {
+  it('names a dropped connection in plain words and keeps a server reason as it is', () => {
+    expect(processingFailureNote(new TypeError('Failed to fetch'))).toBe(
+      'The server stopped answering before this step finished. Rows already handled are kept.',
+    )
+    expect(processingFailureNote(new Error('The import changed.'))).toBe('The import changed.')
   })
 })

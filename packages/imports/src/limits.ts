@@ -13,6 +13,9 @@ export const IMPORT_ENGINEERING_LIMITS = Object.freeze({
   parseTimeoutMilliseconds: 5_000,
   processingClaimMilliseconds: 60_000,
   processingCheckpointRows: 25,
+  // Rows one process request claims: small enough to finish inside a hosted function's time limit
+  // and to move the progress bar after every request.
+  processingClaimRows: 10,
   maxProcessingAttempts: 3,
   previewRows: 100,
   maxPdfPages: 50,
