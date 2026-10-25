@@ -18,7 +18,7 @@ import {
   registrationMatchesByIdentifier,
 } from './import-promotion-context.service'
 import { safeRawData } from './imports.helpers'
-import { type ParticipantMatch, matchParticipant } from './participant-match'
+import { type ParticipantMatch, matchParticipant, rejectedBaseline } from './participant-match'
 
 export const registrationOutcomes = {
   CREATE: 'CREATED',
@@ -148,7 +148,18 @@ export async function promoteRegistrationInTx(
       })
       return
     }
-    const matched = await matchedValues(tx, actor, match, values)
+    // A file value the reviewer rejected before does not overwrite what PATHWAYS holds.
+    const kept =
+      match.kind === 'SAME'
+        ? await rejectedBaseline(
+            tx,
+            actor,
+            form,
+            values as Record<string, NormalizedValue>,
+            match.beneficiaryId,
+          )
+        : {}
+    const matched = await matchedValues(tx, actor, match, { ...values, ...kept })
     if (!matched) return holdRegistrationRow(tx, actor, batch, row, 'UNKNOWN_IDENTITY')
     values = matched
     outcome = match.kind === 'SAME' ? 'LINKED' : 'CREATED'

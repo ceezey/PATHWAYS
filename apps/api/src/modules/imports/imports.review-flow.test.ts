@@ -13,6 +13,7 @@ import { BeneficiaryRegistrationService } from '../beneficiaries/beneficiary-reg
 import type { StorageService } from '../storage/storage.service'
 import { mapStoredBatch } from './import-batches.service'
 import { ImportsService } from './imports.service'
+import { valueHash } from './participant-match'
 
 type Json = Record<string, unknown>
 
@@ -1452,6 +1453,34 @@ describe('metadata-driven intake validation', () => {
         registrationOutcome: 'LINKED',
       })
       expect(state.store.submissions).toHaveLength(1)
+    })
+
+    it('a remembered rejection links the PATHWAYS value, not the rejected one', async () => {
+      const rows = [person(1)]
+      const imports = linker()
+      await reupload(imports, rows, [{ ...rows[0], column_0003: 'Changed' }])
+      moveToOtherProject()
+      const lastName = state.store.fields.find((item) => item.code === 'last_name')
+      fakeTx.importValueRejection.findMany.mockResolvedValue([
+        { fieldId: lastName?.id as string, valueHash: valueHash('Changed') },
+      ] as never)
+
+      try {
+        await validate(imports)
+        await runProcess(imports)
+      } finally {
+        fakeTx.importValueRejection.findMany.mockResolvedValue([])
+      }
+
+      expect(state.store.rows[0]).toMatchObject({
+        status: 'PROCESSED',
+        registrationOutcome: 'LINKED',
+      })
+      // Row ids repeat across the fake's batches, so read what the new submission was given.
+      const [written] = fakeTx.formResponseValue.createMany.mock.calls.at(-1) as unknown as [
+        { data: Array<{ fieldId: string; value: unknown }> },
+      ]
+      expect(written.data.find((item) => item.fieldId === lastName?.id)?.value).toBe('Last1')
     })
 
     it('PW code generated when Participant ID is taken', async () => {

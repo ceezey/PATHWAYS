@@ -46,7 +46,13 @@ import { matchedValues, registrationOutcomes } from './import-row-promotion.serv
 import { columnRules, intakeField, valuesByFieldCode } from './import-validation.service'
 import { safeRawData, stableJson } from './imports.helpers'
 import type { FieldRow } from './imports.mapper'
-import { type Baseline, matchParticipant, readBaseline, valueHash } from './participant-match'
+import {
+  type Baseline,
+  matchParticipant,
+  readBaseline,
+  rejectedBaseline,
+  valueHash,
+} from './participant-match'
 
 type Values = Record<string, NormalizedImportValue>
 type Choices = ResolveImportRowRequest['choices']
@@ -81,6 +87,8 @@ interface HeldRow {
   baseline: Baseline | null
   // Codes of the fields whose file value differs from what PATHWAYS holds.
   changed: Set<string>
+  // The PATHWAYS value of each field whose file value was rejected before.
+  rejected: Record<string, unknown>
 }
 
 /** What a resolution stores on the row; promotion reads its final values from here. */
@@ -274,6 +282,10 @@ async function loadHeldRow(
     baseline,
     // The matcher's list already leaves out file values the reviewer rejected before.
     changed: new Set(match.kind === 'CHANGED' ? match.fieldCodes : []),
+    rejected:
+      beneficiaryId && baseline
+        ? await rejectedBaseline(tx, actor, form, file, beneficiaryId, baseline)
+        : {},
   }
 }
 
@@ -298,6 +310,12 @@ function choose(held: HeldRow, body: ResolveImportRowRequest) {
       if (body.saveAs === 'NEW')
         fail(code, 'invalid_choice', 'A new participant has no PATHWAYS value.')
       else if (held.baseline?.stored.has(code)) values[code] = held.baseline.stored.get(code)
+    }
+  }
+  // A rejected file value that nobody re-chose keeps what PATHWAYS holds.
+  if (body.saveAs === 'UPDATE') {
+    for (const [code, kept] of Object.entries(held.rejected)) {
+      if (!(code in body.choices)) values[code] = kept
     }
   }
   // A calculated choice is worked out from the final inputs, so it waits for the typed values.

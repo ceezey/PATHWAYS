@@ -112,6 +112,60 @@ export function differingFields(
   })
 }
 
+type FormField = RegistrationImportForm['formField_form'][number]
+
+// Splits the differing fields into those still to be decided and those whose file value the reviewer rejected before.
+async function splitRejected(
+  tx: Tx,
+  actor: ApplicationIdentity,
+  beneficiaryId: string,
+  differing: FormField[],
+  values: Record<string, NormalizedValue>,
+) {
+  if (differing.length === 0) return { kept: differing, rejected: differing }
+  const remembered = await tx.importValueRejection.findMany({
+    where: {
+      organizationId: actor.organizationId,
+      beneficiaryId,
+      fieldId: { in: differing.map((field) => field.id) },
+      valueHash: { in: differing.map((field) => valueHash(values[field.code])) },
+    },
+    select: { fieldId: true, valueHash: true },
+  })
+  // A rejected file value is forgiven only on the field and participant it was rejected for.
+  const isRejected = (field: FormField) =>
+    remembered.some(
+      (item) => item.fieldId === field.id && item.valueHash === valueHash(values[field.code]),
+    )
+  return {
+    kept: differing.filter((field) => !isRejected(field)),
+    rejected: differing.filter(isRejected),
+  }
+}
+
+/** The PATHWAYS value of each field whose file value was rejected before, which such a field keeps. */
+export async function rejectedBaseline(
+  tx: Tx,
+  actor: ApplicationIdentity,
+  form: RegistrationImportForm,
+  values: Record<string, NormalizedValue>,
+  beneficiaryId: string,
+  known?: Baseline | null,
+) {
+  const baseline = known ?? (await readBaseline(tx, actor, form.projectId, beneficiaryId))
+  if (!baseline) return {}
+  const { rejected } = await splitRejected(
+    tx,
+    actor,
+    beneficiaryId,
+    differingFields(form, values, baseline),
+    values,
+  )
+  return Object.fromEntries(
+    rejected.map((field) => [field.code, baseline.stored.get(field.code) ?? null]),
+  )
+}
+
 /** Matches an imported registration row to a participant by the client's Student ID, never by code. */
 export async function matchParticipant(
   tx: Tx,
@@ -141,25 +195,13 @@ export async function matchParticipant(
   if (!baseline) {
     return { kind: 'CHANGED', beneficiaryId, code: 'IDENTITY_CONFLICT', fieldCodes: [] }
   }
-  let differing = differingFields(form, values, baseline)
-  if (differing.length > 0) {
-    const rejected = await tx.importValueRejection.findMany({
-      where: {
-        organizationId: actor.organizationId,
-        beneficiaryId,
-        fieldId: { in: differing.map((field) => field.id) },
-        valueHash: { in: differing.map((field) => valueHash(values[field.code])) },
-      },
-      select: { fieldId: true, valueHash: true },
-    })
-    // A rejected file value is forgiven only on the field and participant it was rejected for.
-    differing = differing.filter(
-      (field) =>
-        !rejected.some(
-          (item) => item.fieldId === field.id && item.valueHash === valueHash(values[field.code]),
-        ),
-    )
-  }
+  const { kept: differing } = await splitRejected(
+    tx,
+    actor,
+    beneficiaryId,
+    differingFields(form, values, baseline),
+    values,
+  )
   if (differing.length > 0) {
     const fieldCodes = differing.map((field) => field.code)
     return {

@@ -423,6 +423,7 @@ const expectNoWrites = () => {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  fakeTx.importValueRejection.findMany.mockResolvedValue([])
   state.actor = structuredClone(actor)
   store = createStore()
 })
@@ -473,7 +474,7 @@ describe('review', () => {
 
 describe('resolve', () => {
   const rejectedMarried = () =>
-    fakeTx.importValueRejection.findMany.mockResolvedValueOnce([
+    fakeTx.importValueRejection.findMany.mockResolvedValue([
       { fieldId: fieldId('civil_status') as string, valueHash: valueHash('Married') },
     ] as never)
 
@@ -505,6 +506,18 @@ describe('resolve', () => {
     await expect(resolve({ choices: { last_name: 'FILE' } })).resolves.toEqual({
       status: 'PROCESSED',
     })
+  })
+
+  it('a rejected value nobody re-chose keeps the PATHWAYS value', async () => {
+    rejectedMarried()
+    await resolve({ choices: { last_name: 'FILE' } })
+
+    const [, , input] = registration.promoteRegistration.mock.calls[0] as unknown as [
+      unknown,
+      unknown,
+      { values: Json },
+    ]
+    expect(input.values).toMatchObject({ civil_status: 'Single', last_name: 'Santos' })
   })
 
   it('a held row without a hold code is refused', async () => {
