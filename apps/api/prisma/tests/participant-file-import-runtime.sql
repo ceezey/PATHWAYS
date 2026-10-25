@@ -1,7 +1,7 @@
 -- cr-pathways-participant-file-import (0080): disposable checks for the current-age minor rule, guardian consent details,
--- the guardian approval grant, import value rejections, held-row resolution and unchanged participants. Synthetic
--- fixtures only; everything rolls back. Run as a local superuser against a disposable pathways_phase2_* or phase4/phase6
--- replay database that already has 0080 applied. Success prints PARTICIPANT_FILE_IMPORT_RUNTIME=PASS (n).
+-- the guardian approval grant, import value rejections, held-row resolution, parking a resolved row for guardian consent
+-- and unchanged participants. Synthetic fixtures only; everything rolls back. Run as a local superuser against a
+-- disposable pathways_phase2_* or phase4/phase6 replay database that already has 0080 applied. Success prints PARTICIPANT_FILE_IMPORT_RUNTIME=PASS (n).
 \set ON_ERROR_STOP on
 BEGIN;
 
@@ -251,7 +251,8 @@ SELECT pg_temp.u(100+n),pg_temp.u(1),pg_temp.u(41),CASE WHEN n=9 THEN pg_temp.u(
  pg_temp.u(21),'2026-01-01'::timestamptz,CASE WHEN s='PROCESSED' THEN '2026-01-02'::timestamptz END,
  CASE WHEN s='PROCESSING' THEN pg_temp.u(120) END,CASE WHEN s='PROCESSING' THEN '2026-01-02'::timestamptz END
 FROM (VALUES (1,'UNPROCESSED'),(2,'INVALID'),(3,'VALID'),(4,'PROCESSED'),(5,'PROCESSING'),(6,'PROCESSING'),(7,'PROCESSING'),
- (8,'PROCESSING'),(9,'PROCESSING'),(10,'PROCESSING'),(11,'UNPROCESSED'),(12,'INVALID'),(13,'PROCESSING')) v(n,s);
+ (8,'PROCESSING'),(9,'PROCESSING'),(10,'PROCESSING'),(11,'UNPROCESSED'),(12,'INVALID'),(13,'PROCESSING'),(14,'UNPROCESSED'),
+ (15,'INVALID'),(16,'UNPROCESSED'),(17,'PROCESSING')) v(n,s);
 SET LOCAL session_replication_role = origin;
 -- Completion of a processed row is checked at once instead of at commit.
 SET CONSTRAINTS pathways.p03_row_complete IMMEDIATE;
@@ -333,7 +334,104 @@ SELECT pg_temp.refused('unknown outcome', $$UPDATE pathways.data_import_rows SET
 SELECT pg_temp.refused('outcome changed after processing', $$UPDATE pathways.data_import_rows SET registration_outcome='CREATED',
  matched_beneficiary_id=NULL WHERE id=pg_temp.u(105)$$,'P0001','immutable');
 
+-- A resolved row that needs guardian consent is parked once with its resolution kept, then claimed once more by the approval.
+SELECT pg_temp.refused('unresolved held row cannot carry a resolution into the parked state', $$UPDATE pathways.data_import_rows SET
+ resolution_data='{"choice":"FILE"}',resolved_by_id=pg_temp.u(21),resolved_at=now(),processing_error_code='GUARDIAN_CONSENT_REQUIRED'
+ WHERE id=pg_temp.u(111)$$,'P0001','resolution');
+SELECT pg_temp.refused('unresolved invalid row cannot carry a resolution into the parked state', $$UPDATE pathways.data_import_rows SET
+ status='UNPROCESSED',resolution_data='{"choice":"FILE"}',resolved_by_id=pg_temp.u(21),resolved_at=now(),
+ processing_error_code='GUARDIAN_CONSENT_REQUIRED' WHERE id=pg_temp.u(112)$$,'P0001','resolution');
+SELECT pg_temp.accepted('processing row is held with its code as before', $$UPDATE pathways.data_import_rows SET status='UNPROCESSED',
+ processing_error_code='GUARDIAN_CONSENT_REQUIRED',processing_claim_id=NULL,processing_claimed_at=NULL WHERE id=pg_temp.u(117)$$);
+SELECT pg_temp.accepted('held row resolves into processing', $$UPDATE pathways.data_import_rows SET status='PROCESSING',
+ resolution_data='{"saveAs":"NEW"}',resolved_by_id=pg_temp.u(21),resolved_at='2026-01-03',processing_claim_id=pg_temp.u(121),
+ processing_claimed_at='2026-01-03',processing_attempts=1,processing_error_code=NULL WHERE id=pg_temp.u(114)$$);
+SELECT pg_temp.accepted('invalid row resolves into processing for the park', $$UPDATE pathways.data_import_rows SET status='PROCESSING',
+ resolution_data='{"saveAs":"NEW"}',resolved_by_id=pg_temp.u(21),resolved_at='2026-01-03',processing_claim_id=pg_temp.u(121),
+ processing_claimed_at='2026-01-03',processing_attempts=1,processing_error_code=NULL WHERE id=pg_temp.u(115)$$);
+SELECT pg_temp.accepted('third row resolves into processing', $$UPDATE pathways.data_import_rows SET status='PROCESSING',
+ resolution_data='{"saveAs":"NEW"}',resolved_by_id=pg_temp.u(21),resolved_at='2026-01-03',processing_claim_id=pg_temp.u(121),
+ processing_claimed_at='2026-01-03',processing_attempts=1,processing_error_code=NULL WHERE id=pg_temp.u(116)$$);
+SELECT pg_temp.refused('park with another code', $$UPDATE pathways.data_import_rows SET status='UNPROCESSED',
+ processing_error_code='PROFILE_CHANGED',processing_claim_id=NULL,processing_claimed_at=NULL WHERE id=pg_temp.u(116)$$,
+ 'P0001','may wait for guardian consent once');
+SELECT pg_temp.refused('park that rewrites normalized data', $$UPDATE pathways.data_import_rows SET status='UNPROCESSED',
+ processing_error_code='GUARDIAN_CONSENT_REQUIRED',processing_claim_id=NULL,processing_claimed_at=NULL,
+ normalized_data='{"first_name":"Other"}' WHERE id=pg_temp.u(116)$$,'P0001','only its status and claim columns');
+SELECT pg_temp.refused('park that rewrites the resolution', $$UPDATE pathways.data_import_rows SET status='UNPROCESSED',
+ processing_error_code='GUARDIAN_CONSENT_REQUIRED',processing_claim_id=NULL,processing_claimed_at=NULL,
+ resolution_data='{"saveAs":"UPDATE"}' WHERE id=pg_temp.u(116)$$,'P0001','resolution');
+SELECT pg_temp.accepted('resolved row parks for guardian consent', $$UPDATE pathways.data_import_rows SET status='UNPROCESSED',
+ processing_error_code='GUARDIAN_CONSENT_REQUIRED',processing_claim_id=NULL,processing_claimed_at=NULL WHERE id=pg_temp.u(114)$$);
+SELECT pg_temp.accepted('resolved invalid row parks for guardian consent', $$UPDATE pathways.data_import_rows SET status='UNPROCESSED',
+ processing_error_code='GUARDIAN_CONSENT_REQUIRED',processing_claim_id=NULL,processing_claimed_at=NULL WHERE id=pg_temp.u(115)$$);
+SELECT pg_temp.ok('parked rows keep their resolution and validation state',
+ (SELECT count(*)=2 AND bool_and(resolution_data='{"saveAs":"NEW"}' AND resolved_by_id=pg_temp.u(21) AND processing_claim_id IS NULL)
+  AND count(*) FILTER (WHERE normalized_data IS NULL AND jsonb_array_length(validation_errors)=1)=1
+  FROM pathways.data_import_rows WHERE id IN (pg_temp.u(114),pg_temp.u(115))));
+SELECT pg_temp.refused('parked row resolution changed', $$UPDATE pathways.data_import_rows SET resolution_data='{"saveAs":"UPDATE"}'
+ WHERE id=pg_temp.u(114)$$,'P0001','resolution');
+SELECT pg_temp.refused('parked row claimed by a resolver who cannot approve', $$UPDATE pathways.data_import_rows SET status='PROCESSING',
+ processing_claim_id=pg_temp.u(122),processing_claimed_at=now(),processing_attempts=2 WHERE id=pg_temp.u(114)$$,'P0001',
+ 'guardian consent approval');
+SELECT pg_temp.act_as(12,22);
+SELECT pg_temp.refused('parked row claimed with another resolver', $$UPDATE pathways.data_import_rows SET status='PROCESSING',
+ resolved_by_id=pg_temp.u(22),processing_claim_id=pg_temp.u(122),processing_claimed_at=now(),processing_attempts=2
+ WHERE id=pg_temp.u(114)$$,'P0001','resolution');
+SELECT pg_temp.refused('parked row claimed with its code cleared', $$UPDATE pathways.data_import_rows SET status='PROCESSING',
+ processing_claim_id=pg_temp.u(122),processing_claimed_at=now(),processing_attempts=2,processing_error_code=NULL
+ WHERE id=pg_temp.u(114)$$,'P0001','guardian consent approval');
+SELECT pg_temp.accepted('parked row claimed by the guardian approval', $$UPDATE pathways.data_import_rows SET status='PROCESSING',
+ processing_claim_id=pg_temp.u(122),processing_claimed_at=now(),processing_attempts=2 WHERE id=pg_temp.u(114)$$);
+SELECT pg_temp.accepted('parked invalid row claimed by the guardian approval', $$UPDATE pathways.data_import_rows SET status='PROCESSING',
+ processing_claim_id=pg_temp.u(122),processing_claimed_at=now(),processing_attempts=2 WHERE id=pg_temp.u(115)$$);
+SELECT pg_temp.refused('second park of a claimed row', $$UPDATE pathways.data_import_rows SET status='UNPROCESSED',
+ processing_error_code='GUARDIAN_CONSENT_REQUIRED',processing_claim_id=NULL,processing_claimed_at=NULL WHERE id=pg_temp.u(114)$$,
+ 'P0001','may wait for guardian consent once');
+SELECT pg_temp.accepted('approved row completes', $$UPDATE pathways.data_import_rows SET status='PROCESSED',processed_at='2026-01-04',
+ processing_claim_id=NULL,processing_claimed_at=NULL,processing_error_code=NULL,registration_outcome='UNCHANGED',
+ matched_beneficiary_id=pg_temp.u(62) WHERE id=pg_temp.u(114)$$);
+SELECT pg_temp.accepted('approved invalid row completes', $$UPDATE pathways.data_import_rows SET status='PROCESSED',processed_at='2026-01-04',
+ processing_claim_id=NULL,processing_claimed_at=NULL,processing_error_code=NULL,registration_outcome='UNCHANGED',
+ matched_beneficiary_id=pg_temp.u(62) WHERE id=pg_temp.u(115)$$);
+SELECT pg_temp.refused('completed row stays frozen', $$UPDATE pathways.data_import_rows SET status='UNPROCESSED',
+ processing_error_code='GUARDIAN_CONSENT_REQUIRED',processed_at=NULL WHERE id=pg_temp.u(114)$$,'P0001','immutable');
+SELECT pg_temp.act_as(11,21);
+
+-- Under the runtime role, row security keeps rejections inside their organization and the guardian flag keeps its approval gate.
+INSERT INTO auth.users(id) VALUES (pg_temp.u(14));
+INSERT INTO pathways.organizations(id,code,name) VALUES (pg_temp.u(2),'PFI_B','Synthetic second participant import organization');
+INSERT INTO pathways.system_users(id,organization_id,role_id,auth_user_id,full_name,email,account_status,invited_at,activated_at)
+SELECT pg_temp.u(24),pg_temp.u(2),r.id,pg_temp.u(14),'Synthetic PFI other M&E','pfi-other@example.invalid','ACTIVE',now(),now()
+FROM pathways.roles r WHERE r.code='MONITORING_AND_EVALUATION_OFFICER';
+SET LOCAL ROLE pathways_runtime;
+SELECT pg_temp.act_as(11,21);
+SELECT pg_temp.ok('runtime reads the rejections of its organization', (SELECT count(*)=2 FROM pathways.import_value_rejections));
+SELECT pg_temp.accepted('runtime inserts a rejection in its organization', $$INSERT INTO pathways.import_value_rejections(
+ organization_id,project_id,beneficiary_id,field_id,value_hash,rejected_by_id) VALUES (pg_temp.u(1),pg_temp.u(41),pg_temp.u(62),
+ pg_temp.u(33),repeat('d',64),pg_temp.u(21))$$);
+SELECT pg_temp.refused('runtime refuses a guardian flag change without the approval authority', $$UPDATE pathways.beneficiaries
+ SET guardian_consent_recorded=false WHERE id=pg_temp.u(65)$$,'P0001','guardian consent approval authority');
+SELECT set_config('request.jwt.claim.sub',pg_temp.u(14)::text,true),set_config('app.organization_id',pg_temp.u(2)::text,true),
+ set_config('app.user_id',pg_temp.u(24)::text,true);
+SELECT pg_temp.ok('another organization reads no rejections', (SELECT count(*)=0 FROM pathways.import_value_rejections));
+SELECT pg_temp.refused('another organization cannot insert a rejection', $$INSERT INTO pathways.import_value_rejections(
+ organization_id,project_id,beneficiary_id,field_id,value_hash,rejected_by_id) VALUES (pg_temp.u(1),pg_temp.u(41),pg_temp.u(62),
+ pg_temp.u(33),repeat('e',64),pg_temp.u(24))$$,'P0001','import review permission');
+RESET ROLE;
+-- With the append-only trigger off, row security alone must keep another organization from writing a rejection.
+ALTER TABLE pathways.import_value_rejections DISABLE TRIGGER p80_value_rejection;
+SET LOCAL ROLE pathways_runtime;
+SELECT set_config('request.jwt.claim.sub',pg_temp.u(14)::text,true),set_config('app.organization_id',pg_temp.u(2)::text,true),
+ set_config('app.user_id',pg_temp.u(24)::text,true);
+SELECT pg_temp.refused('row security refuses a rejection outside the context organization', $$INSERT INTO
+ pathways.import_value_rejections(organization_id,project_id,beneficiary_id,field_id,value_hash,rejected_by_id) VALUES (pg_temp.u(1),
+ pg_temp.u(41),pg_temp.u(62),pg_temp.u(33),repeat('e',64),pg_temp.u(24))$$,'42501','row-level security');
+RESET ROLE;
+ALTER TABLE pathways.import_value_rejections ENABLE TRIGGER p80_value_rejection;
+SELECT pg_temp.act_as(11,21);
+
 SELECT 'PARTICIPANT_FILE_IMPORT_ASSERTIONS_PASSED=' || current_setting('pfi.passed') AS result;
-DO $$ BEGIN IF current_setting('pfi.passed')::integer<>64 THEN RAISE EXCEPTION 'incomplete suite'; END IF; END $$;
+DO $$ BEGIN IF current_setting('pfi.passed')::integer<>92 THEN RAISE EXCEPTION 'incomplete suite'; END IF; END $$;
 SELECT 'PARTICIPANT_FILE_IMPORT_RUNTIME=PASS (' || current_setting('pfi.passed') || ')' AS result;
 ROLLBACK;

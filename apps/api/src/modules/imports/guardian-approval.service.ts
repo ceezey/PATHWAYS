@@ -17,7 +17,9 @@ import {
 import { reconcileBatch } from './import-claims.service'
 import { registrationMatchesByIdentifier } from './import-promotion-context.service'
 import {
+  GUARDIAN_HOLD,
   claimBatchForResolution,
+  completeUnchangedRow,
   lockResolvableBatch,
   promoteClaimedRow,
 } from './import-review.service'
@@ -27,8 +29,7 @@ import { matchParticipant, rejectedBaseline } from './participant-match'
 
 // The ceiling a verified transaction may have; the rows share one processing claim that outlives it.
 const APPROVAL_TRANSACTION_TIMEOUT_MS = 30_000
-const HELD_CODE = 'GUARDIAN_CONSENT_REQUIRED'
-const NO_LONGER_APPROVABLE = 'This row can no longer be approved here.'
+const noLongerApprovable = (rowNumber: number) => `Row ${rowNumber} can no longer be approved here.`
 
 // Guardian approval of held minors by a Project Officer assigned to the project.
 @Injectable()
@@ -68,25 +69,26 @@ export class GuardianApprovalService {
           },
           select: {
             id: true,
+            rowNumber: true,
             status: true,
             processingErrorCode: true,
             resolvedAt: true,
+            resolutionData: true,
             normalizedData: true,
           },
           orderBy: { rowNumber: 'asc' },
         })
-        if (
-          batch.form.formType !== 'BENEFICIARY_REGISTRATION' ||
-          rows.length !== ids.length ||
-          rows.some(
-            (row) =>
-              row.status !== 'UNPROCESSED' ||
-              row.processingErrorCode !== HELD_CODE ||
-              row.resolvedAt !== null,
-          )
-        ) {
+        if (batch.form.formType !== 'BENEFICIARY_REGISTRATION' || rows.length !== ids.length) {
           throw new ConflictException(
             'Only held minors waiting for guardian consent can be approved.',
+          )
+        }
+        const notWaiting = rows.find(
+          (row) => row.status !== 'UNPROCESSED' || row.processingErrorCode !== GUARDIAN_HOLD,
+        )
+        if (notWaiting) {
+          throw new ConflictException(
+            `Row ${notWaiting.rowNumber} is not waiting for guardian consent.`,
           )
         }
         const form = await this.registration.readRegistrationForm(
@@ -101,10 +103,9 @@ export class GuardianApprovalService {
         // Every row is checked before the first write, so a row that cannot be approved stops the request.
         const promotable = []
         for (const row of rows) {
-          const stored = safeRawData(row.normalizedData as Prisma.JsonValue)
           promotable.push({
-            id: row.id,
-            values: await this.approvalValues(tx, actor, form, stored, byIdentifier),
+            row,
+            ...(await this.approvalValues(tx, actor, form, row, byIdentifier)),
           })
         }
         const details = {
@@ -113,16 +114,24 @@ export class GuardianApprovalService {
           ...(body.note ? { note: body.note } : {}),
         }
         const claim = await claimBatchForResolution(tx, batch.id)
-        for (const row of promotable) {
-          await promoteClaimedRow(tx, actor, this.registration, {
-            batch,
-            form,
-            rowId: row.id,
-            claim,
-            resolution: { guardianApproval: true },
-            values: row.values,
-            guardianConsent: details,
-          })
+        for (const { row, parked, unchangedOf, values } of promotable) {
+          const claimInput = { batch, rowId: row.id, rowNumber: row.rowNumber, claim }
+          if (unchangedOf) {
+            await completeUnchangedRow(tx, actor, {
+              ...claimInput,
+              resolution: { guardianApproval: true },
+              beneficiaryId: unchangedOf,
+            })
+          } else {
+            await promoteClaimedRow(tx, actor, this.registration, {
+              ...claimInput,
+              form,
+              // A parked row keeps the resolution a reviewer gave it.
+              resolution: parked ? null : { guardianApproval: true },
+              values,
+              guardianConsent: details,
+            })
+          }
         }
         await reconcileBatch(tx, batch.id)
         await writeAuditLog(tx, actor, {
@@ -138,31 +147,44 @@ export class GuardianApprovalService {
     )
   }
 
-  // The values a held row is promoted with: the participant is found again by the client's identifier, as processing does.
+  // The values a held row is promoted with: a parked row keeps its resolution, else the participant is found again by the client's identifier.
   private async approvalValues(
     tx: Tx,
     actor: ApplicationIdentity,
     form: RegistrationImportForm,
-    stored: Record<string, unknown>,
+    row: {
+      rowNumber: number
+      resolvedAt: Date | null
+      resolutionData: Prisma.JsonValue
+      normalizedData: Prisma.JsonValue
+    },
     byIdentifier: boolean,
-  ) {
-    if (!byIdentifier) return stored
+  ): Promise<{ parked: boolean; unchangedOf?: string; values: Record<string, unknown> }> {
+    if (row.resolvedAt) {
+      const resolved = (row.resolutionData as { values?: Record<string, unknown> } | null)?.values
+      if (!resolved) throw new ConflictException(noLongerApprovable(row.rowNumber))
+      return { parked: true, values: resolved }
+    }
+    const stored = safeRawData(row.normalizedData)
+    if (!byIdentifier) return { parked: false, values: stored }
     const file = stored as Record<string, NormalizedValue>
     const match = await matchParticipant(tx, actor, { form, values: file })
+    // A participant already enrolled with the same details needs no new registration.
+    if (match.kind === 'SAME' && match.enrolledHere) {
+      return { parked: false, unchangedOf: match.beneficiaryId, values: stored }
+    }
     // A row whose participant changed since it was held needs the data review instead.
-    if (
-      match.kind === 'HOLD' ||
-      match.kind === 'CHANGED' ||
-      (match.kind === 'SAME' && match.enrolledHere)
-    ) {
-      throw new ConflictException(NO_LONGER_APPROVABLE)
+    if (match.kind === 'HOLD' || match.kind === 'CHANGED') {
+      throw new ConflictException(
+        `Row ${row.rowNumber} changed since it was held. A Monitoring and Evaluation Officer must review it first.`,
+      )
     }
     const kept =
       match.kind === 'SAME'
         ? await rejectedBaseline(tx, actor, form, file, match.beneficiaryId)
         : {}
     const matched = await matchedValues(tx, actor, match, { ...stored, ...kept })
-    if (!matched) throw new ConflictException(NO_LONGER_APPROVABLE)
-    return matched
+    if (!matched) throw new ConflictException(noLongerApprovable(row.rowNumber))
+    return { parked: false, values: matched }
   }
 }

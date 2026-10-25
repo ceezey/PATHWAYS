@@ -88,6 +88,9 @@ export const resolveImportRowRequest = z
   })
 export type ResolveImportRowRequest = z.infer<typeof resolveImportRowRequest>
 
+// Body the resolve route returns: saved, or saved and waiting for a Project Officer to approve guardian consent.
+export type ResolveImportRowResponse = { status: 'PROCESSED' | 'WAITING_FOR_PROJECT_OFFICER' }
+
 // A YYYY-MM-DD text that names a real day.
 const calendarDate = z
   .string()

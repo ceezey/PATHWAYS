@@ -121,7 +121,7 @@ export function ImportReviewDialog({
     setNotice('')
     const typed = review.fields.filter((field) => picks[field.code] === 'OWN')
     try {
-      await importsClient.resolveRow(projectId, batchId, rowId, {
+      const result = await importsClient.resolveRow(projectId, batchId, rowId, {
         expectedValidationRevision: validationRevision,
         saveAs,
         choices: picks,
@@ -129,7 +129,11 @@ export function ImportReviewDialog({
           typed.map((field) => [field.code, ownPayload(field, own[field.code] ?? '')]),
         ),
       })
-      toast.success(`Row ${review.rowNumber} was saved.`)
+      toast.success(
+        result.status === 'WAITING_FOR_PROJECT_OFFICER'
+          ? `Row ${review.rowNumber} was saved. A Project Officer must approve guardian consent next.`
+          : `Row ${review.rowNumber} was saved.`,
+      )
       onResolved()
       onClose()
     } catch (error) {

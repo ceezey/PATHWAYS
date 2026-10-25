@@ -9,6 +9,8 @@ import { ImportReviewDialog } from './import-review-dialog'
 
 const api = vi.hoisted(() => ({ getRowReview: vi.fn(), resolveRow: vi.fn() }))
 vi.mock('@/lib/api/imports', () => ({ importsClient: api }))
+const toast = vi.hoisted(() => ({ success: vi.fn() }))
+vi.mock('sonner', () => ({ toast }))
 
 const review = (canAddNew = true): ImportRowReviewResponse => ({
   rowId: 'row-1',
@@ -72,8 +74,8 @@ const review = (canAddNew = true): ImportRowReviewResponse => ({
 
 const onClose = vi.fn()
 const onResolved = vi.fn()
-const open = async (canAddNew = true) => {
-  api.getRowReview.mockResolvedValue(review(canAddNew))
+const open = async (canAddNew = true, reason = 'PROFILE_CHANGED') => {
+  api.getRowReview.mockResolvedValue({ ...review(canAddNew), reason })
   render(
     <ImportReviewDialog
       batchId="batch-1"
@@ -211,6 +213,14 @@ describe('import review dialog', () => {
     expect(keep.getAttribute('aria-pressed')).toBe('false')
     confirm()
     expect(await sent()).toMatchObject({ saveAs: 'NEW', choices: {}, own: {} })
+  })
+
+  it('a minor who now waits for a Project Officer is said so', async () => {
+    api.resolveRow.mockResolvedValue({ status: 'WAITING_FOR_PROJECT_OFFICER' })
+    await open()
+    confirm()
+    await waitFor(() => expect(onResolved).toHaveBeenCalledTimes(1))
+    expect(toast.success).toHaveBeenCalledWith(expect.stringContaining('Project Officer'))
   })
 
   it('Leave held closes without saving', async () => {

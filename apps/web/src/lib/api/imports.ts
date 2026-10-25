@@ -9,6 +9,7 @@ import type {
   ProcessImportRequest,
   RerunImportRequest,
   ResolveImportRowRequest,
+  ResolveImportRowResponse,
   SaveImportMappingRequest,
   ValidateImportRequest,
 } from '@pathways/shared'
@@ -155,7 +156,7 @@ export const importsClient = {
     return requestFoundation(
       `/imports/projects/${encodeURIComponent(projectId)}/batches/${encodeURIComponent(batchId)}/rows/${encodeURIComponent(rowId)}/resolve`,
       { method: 'POST', body: JSON.stringify(body) },
-    ) as Promise<{ status: 'PROCESSED' }>
+    ) as Promise<ResolveImportRowResponse>
   },
 
   async approveGuardianConsent(

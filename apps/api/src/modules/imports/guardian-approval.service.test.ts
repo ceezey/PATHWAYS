@@ -6,6 +6,7 @@ import type { PrismaService } from '@app/prisma/prisma.service'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import { BeneficiaryRegistrationService } from '../beneficiaries/beneficiary-registration.service'
 import { GuardianApprovalService } from './guardian-approval.service'
+import { ImportReviewService } from './import-review.service'
 
 type Json = Record<string, unknown>
 
@@ -78,6 +79,10 @@ const fields = [
   field('enrollment_date', 'DATE', true),
   field('external_identifier_type', 'TEXT'),
   field('external_identifier_value', 'TEXT'),
+  {
+    ...field('age_stated', 'INTEGER'),
+    rule: { kind: 'AGE_CHECK', birthField: 'birth_date', atFields: ['enrollment_date'] },
+  },
   field('profile_update_fields', 'MULTIPLE_SELECT', false, [
     'display_name',
     'first_name',
@@ -137,7 +142,10 @@ const makeRow = (id: string, rowNumber: number, patch: Json = {}) => ({
   processingErrorCode: 'GUARDIAN_CONSENT_REQUIRED' as string | null,
   registrationOutcome: null as string | null,
   processedAt: null as Date | null,
-  normalizedData: heldValues(rowNumber) as Json,
+  normalizedData: heldValues(rowNumber) as Json | null,
+  rawData: {} as Json,
+  validationErrors: [] as unknown[],
+  matchedBeneficiaryId: null as string | null,
   resolutionData: null as Json | null,
   resolvedById: null as string | null,
   resolvedAt: null as Date | null,
@@ -245,13 +253,29 @@ const fakeTx = {
         .map((row) => structuredClone(row)),
     ),
     updateMany: vi.fn(async (args: { where: Json; data: Json }) => {
-      const where = args.where as { id: string; status: { in: string[] }; resolvedAt: null }
-      const row = rowById(where.id)
-      if (!row || !where.status.in.includes(row.status) || row.resolvedAt !== null) {
-        return { count: 0 }
+      const where = args.where as {
+        id: string
+        status: string | { in: string[] }
+        resolvedAt: null | { not: null }
+        processingErrorCode?: string
       }
+      const row = rowById(where.id)
+      const statusOk =
+        typeof where.status === 'string'
+          ? row?.status === where.status
+          : row && where.status.in.includes(row.status)
+      const resolvedOk =
+        where.resolvedAt === null ? row?.resolvedAt === null : row?.resolvedAt !== null
+      const codeOk =
+        where.processingErrorCode === undefined ||
+        row?.processingErrorCode === where.processingErrorCode
+      if (!row || !statusOk || !resolvedOk || !codeOk) return { count: 0 }
       apply(row as unknown as Json, args.data)
       return { count: 1 }
+    }),
+    findFirst: vi.fn(async (args: { where: { id: string } }) => {
+      const row = rowById(args.where.id)
+      return row ? structuredClone(row) : null
     }),
     update: vi.fn(async (args: { where: { id: string }; data: Json }) => {
       const row = rowById(args.where.id)
@@ -267,14 +291,26 @@ const fakeTx = {
   },
   metadataMapping: {
     findFirst: vi.fn(async () => (store.identifierMapped ? { id: 'mapping' } : null)),
+    // One column per field, named by the field code, so a raw row reads back as its values.
+    findMany: vi.fn(async () =>
+      fields.map((item) => ({
+        sourceFieldName: item.code,
+        status: 'MAPPED',
+        dataType: null,
+        valueMap: null,
+        dateOrder: 'YMD',
+        targetField: item,
+      })),
+    ),
   },
+  formField: { findMany: vi.fn(async () => fields) },
   beneficiary: {
     findUnique: vi.fn(async () => null),
     findFirst: vi.fn(async () => null),
     createMany: vi.fn(async (_args: { data: Json }) => ({ count: 1 })),
     updateMany: vi.fn(async () => ({ count: 1 })),
   },
-  importValueRejection: { findMany: vi.fn(async () => []) },
+  importValueRejection: { findMany: vi.fn(async () => []), createMany: vi.fn() },
   beneficiaryIdentifier: { findUnique: vi.fn(async () => null), create: vi.fn() },
   beneficiaryProjectEnrollment: {
     findUnique: vi.fn(async () => null),
@@ -295,6 +331,8 @@ const fakeTx = {
 
 const service = () =>
   new GuardianApprovalService({} as PrismaService, new BeneficiaryRegistrationService())
+const resolver = () =>
+  new ImportReviewService({} as PrismaService, new BeneficiaryRegistrationService())
 
 const approve = (body: Json = {}, project = projectId) =>
   service().approve(projectOfficer, project, batchId, { rowIds, ...body } as never)
@@ -420,7 +458,6 @@ describe('guardian approval', () => {
     ['a data conflict', { processingErrorCode: 'PROFILE_CHANGED' }],
     ['a processed row', { status: 'PROCESSED', processingErrorCode: null }],
     ['an invalid row', { status: 'INVALID', processingErrorCode: null }],
-    ['a resolved row', { resolvedAt: createdAt }],
   ])('a non-guardian row in the list rejects the request (%s)', (_name, patch) => {
     it('is 409 and writes nothing', async () => {
       store.rows[1] = { ...store.rows[1], ...patch } as never
@@ -522,8 +559,175 @@ describe('guardian approval', () => {
       birthDate: new Date('1990-01-01T00:00:00.000Z'),
     } as never)
     await expect(approve({ rowIds: [rowIds[0]] })).rejects.toThrow(
-      'This row can no longer be approved here.',
+      'Row 1 changed since it was held. A Monitoring and Evaluation Officer must review it first.',
     )
     expectNoWrites()
+  })
+
+  it('names the row that is not waiting for guardian consent', async () => {
+    store.rows[1].processingErrorCode = 'PROFILE_CHANGED'
+    await expect(approve()).rejects.toThrow('Row 2 is not waiting for guardian consent.')
+    expectNoWrites()
+  })
+
+  describe('a row parked after a reviewer resolved it', () => {
+    const resolution = (values: Json = heldValues(1, { external_identifier_value: 'S-NEW' })) => ({
+      saveAs: 'NEW',
+      choices: { external_identifier_value: 'OWN' },
+      values,
+    })
+    const parked = (patch: Json = {}) => ({
+      resolvedById: '20000000-0000-4000-8000-0000000000bb',
+      resolvedAt: createdAt,
+      resolutionData: resolution(),
+      normalizedData: null,
+      ...patch,
+    })
+
+    it('is approved from its resolution, which it keeps', async () => {
+      store.rows[0] = { ...store.rows[0], ...parked() } as never
+      await expect(approve({ rowIds: [rowIds[0]] })).resolves.toEqual({ approved: 1 })
+      expect(store.rows[0]).toMatchObject({
+        status: 'PROCESSED',
+        registrationOutcome: 'CREATED',
+        resolvedById: '20000000-0000-4000-8000-0000000000bb',
+        resolvedAt: createdAt,
+        resolutionData: resolution(),
+        processingClaimId: null,
+      })
+      expect(fakeTx.beneficiary.createMany).toHaveBeenCalledWith({
+        data: expect.objectContaining({ isMinor: true, guardianConsentRecorded: true }),
+      })
+      expect(fakeTx.beneficiaryIdentifier.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ normalizedValue: 'S-NEW' }),
+      })
+      expect(guardianRecords()).toHaveLength(1)
+    })
+
+    it('a parked row without its resolution is 409 and names the row', async () => {
+      store.rows[0] = { ...store.rows[0], ...parked({ resolutionData: null }) } as never
+      await expect(approve({ rowIds: [rowIds[0]] })).rejects.toThrow(
+        'Row 1 can no longer be approved here.',
+      )
+      expectNoWrites()
+    })
+
+    it('a second approval of the same row is 409', async () => {
+      store.rows[0] = { ...store.rows[0], ...parked() } as never
+      await approve({ rowIds: [rowIds[0]] })
+      await expect(approve({ rowIds: [rowIds[0]] })).rejects.toBeInstanceOf(ConflictException)
+      expect(guardianRecords()).toHaveLength(1)
+    })
+  })
+
+  describe('a participant already enrolled with the same details', () => {
+    it('is unchanged: processed with no new registration', async () => {
+      fakeTx.beneficiaryIdentifier.findUnique.mockResolvedValueOnce({
+        beneficiaryId: 'person',
+      } as never)
+      fakeTx.beneficiaryProjectEnrollment.findUnique.mockResolvedValueOnce({
+        id: 'enrolled',
+      } as never)
+      fakeTx.formSubmission.findFirst.mockResolvedValueOnce({
+        formResponseValue_submission: Object.entries(heldValues(1)).map(([code, value]) => ({
+          field: { code },
+          value,
+        })),
+      } as never)
+
+      await expect(approve({ rowIds: [rowIds[0]] })).resolves.toEqual({ approved: 1 })
+
+      expect(store.rows[0]).toMatchObject({
+        status: 'PROCESSED',
+        registrationOutcome: 'UNCHANGED',
+        matchedBeneficiaryId: 'person',
+        resolutionData: { guardianApproval: true },
+        processingClaimId: null,
+      })
+      expect(fakeTx.beneficiary.createMany).not.toHaveBeenCalled()
+      expect(fakeTx.formSubmission.create).not.toHaveBeenCalled()
+      expect(guardianRecords()).toHaveLength(0)
+    })
+  })
+
+  describe('a reviewer resolves a minor, then the Project Officer approves', () => {
+    const mapped = (values: Json) =>
+      Object.fromEntries(
+        Object.entries(values)
+          .filter(([, value]) => value !== null && value !== undefined)
+          .map(([code, value]) => [code, String(value)]),
+      )
+    const resolveAsReviewer = (rowId: string, body: Json) => {
+      state.actor = mneOfficer
+      return resolver().resolve(mneOfficer, projectId, batchId, rowId, {
+        expectedValidationRevision: 1,
+        saveAs: 'NEW',
+        choices: {},
+        own: {},
+        ...body,
+      } as never)
+    }
+    const expectParked = () => {
+      expect(fakeTx.beneficiary.createMany).not.toHaveBeenCalled()
+      expect(fakeTx.formSubmission.create).not.toHaveBeenCalled()
+    }
+    const expectApproved = async (row: ReturnType<typeof makeRow>) => {
+      state.actor = projectOfficer
+      await expect(approve({ rowIds: [row.id] })).resolves.toEqual({ approved: 1 })
+      expect(row).toMatchObject({
+        status: 'PROCESSED',
+        registrationOutcome: 'CREATED',
+        processingClaimId: null,
+        resolutionData: { saveAs: 'NEW' },
+      })
+      expect(fakeTx.beneficiary.createMany).toHaveBeenCalledWith({
+        data: expect.objectContaining({ isMinor: true, guardianConsentRecorded: true }),
+      })
+      expect(guardianRecords()).toHaveLength(1)
+    }
+
+    it('a blank client id is typed in, then approved', async () => {
+      store.rows[0] = makeRow(rowIds[0], 1, {
+        processingErrorCode: 'IDENTITY_MISSING',
+        normalizedData: heldValues(1, { external_identifier_value: null }),
+      })
+      await expect(
+        resolveAsReviewer(rowIds[0], {
+          choices: { external_identifier_value: 'OWN' },
+          own: { external_identifier_value: 'S-NEW' },
+        }),
+      ).resolves.toEqual({ status: 'WAITING_FOR_PROJECT_OFFICER' })
+
+      expect(store.rows[0]).toMatchObject({
+        status: 'UNPROCESSED',
+        processingErrorCode: 'GUARDIAN_CONSENT_REQUIRED',
+        processingClaimId: null,
+      })
+      expectParked()
+      await expectApproved(store.rows[0])
+    })
+
+    it('an age that does not match the birth date is settled, then approved', async () => {
+      store.rows[0] = makeRow(rowIds[0], 1, {
+        status: 'INVALID',
+        processingErrorCode: null,
+        normalizedData: null,
+        rawData: mapped(heldValues(1, { age_stated: 25 })),
+        validationErrors: [{ fieldCode: 'age_stated', code: 'AGE_MISMATCH', message: 'x' }],
+      })
+      await expect(
+        resolveAsReviewer(rowIds[0], {
+          choices: { age_stated: 'CALCULATED' },
+        }),
+      ).resolves.toEqual({ status: 'WAITING_FOR_PROJECT_OFFICER' })
+
+      expect(store.rows[0]).toMatchObject({
+        status: 'UNPROCESSED',
+        processingErrorCode: 'GUARDIAN_CONSENT_REQUIRED',
+        normalizedData: null,
+      })
+      expectParked()
+      await expectApproved(store.rows[0])
+    })
   })
 })

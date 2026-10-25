@@ -752,11 +752,85 @@ describe('resolve', () => {
     expectNoWrites()
   })
 
-  it('a guardian consent hold is refused here', async () => {
-    store.rows[0].processingErrorCode = 'GUARDIAN_CONSENT_REQUIRED'
+  describe('a minor who needs guardian consent', () => {
+    const needsGuardian = () =>
+      registration.promoteRegistration.mockResolvedValueOnce({
+        kind: 'REVIEW',
+        code: 'GUARDIAN_CONSENT_REQUIRED',
+      } as never)
 
-    await expect(resolve({ choices: keepBoth })).rejects.toBeInstanceOf(ConflictException)
-    expectNoWrites()
+    it('is saved and parked for a Project Officer with the resolution kept', async () => {
+      needsGuardian()
+
+      await expect(resolve({ choices: keepBoth })).resolves.toEqual({
+        status: 'WAITING_FOR_PROJECT_OFFICER',
+      })
+
+      expect(store.rows[0]).toMatchObject({
+        status: 'UNPROCESSED',
+        processingErrorCode: 'GUARDIAN_CONSENT_REQUIRED',
+        processingClaimId: null,
+        processingClaimedAt: null,
+        resolvedById: actorId,
+        resolutionData: { saveAs: 'UPDATE', choices: keepBoth },
+        registrationOutcome: null,
+      })
+      expect(store.rows[0].resolvedAt).toBeInstanceOf(Date)
+      expect(store.batch).toMatchObject({ status: 'PARTIALLY_PROCESSED', processingClaimId: null })
+      expect(fakeTx.auditLog.create).toHaveBeenCalledTimes(1)
+    })
+
+    it('an invalid row is parked too', async () => {
+      needsGuardian()
+
+      await expect(
+        resolve(
+          {
+            saveAs: 'NEW',
+            choices: { birth_date: 'OWN', age_stated: 'CALCULATED' },
+            own: { birth_date: '2014-03-04' },
+          },
+          dateRowId,
+        ),
+      ).resolves.toEqual({ status: 'WAITING_FOR_PROJECT_OFFICER' })
+
+      expect(store.rows[1]).toMatchObject({
+        status: 'UNPROCESSED',
+        processingErrorCode: 'GUARDIAN_CONSENT_REQUIRED',
+        normalizedData: null,
+        resolutionData: { saveAs: 'NEW', values: { birth_date: '2014-03-04' } },
+      })
+    })
+
+    it('a row already held for guardian consent stays with the Project Officer', async () => {
+      store.rows[0].processingErrorCode = 'GUARDIAN_CONSENT_REQUIRED'
+      needsGuardian()
+
+      await expect(resolve({ choices: keepBoth })).rejects.toThrow(
+        'Row 2 still needs guardian consent. A Project Officer must approve it.',
+      )
+    })
+
+    it('a held guardian row of a participant who needs no approval any more is saved', async () => {
+      store.rows[0].processingErrorCode = 'GUARDIAN_CONSENT_REQUIRED'
+
+      await expect(resolve({ choices: keepBoth })).resolves.toEqual({ status: 'PROCESSED' })
+      expect(store.rows[0]).toMatchObject({ status: 'PROCESSED', resolvedById: actorId })
+    })
+  })
+
+  it('a row the registration still sends to review is 409 with its next step', async () => {
+    registration.promoteRegistration.mockResolvedValueOnce({
+      kind: 'REVIEW',
+      code: 'CONSENT_REQUIRED',
+    } as never)
+
+    await expect(resolve({ choices: keepBoth })).rejects.toMatchObject({
+      response: {
+        code: 'CONSENT_REQUIRED',
+        message: expect.stringContaining('upload a corrected file'),
+      },
+    })
   })
 
   it('a stale validation revision is refused', async () => {

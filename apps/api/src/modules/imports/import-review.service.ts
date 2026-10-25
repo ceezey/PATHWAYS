@@ -18,6 +18,7 @@ import {
   CONSENT_FIELD_CODES,
   type ImportRowReviewResponse,
   type ResolveImportRowRequest,
+  type ResolveImportRowResponse,
   completedYearsAt,
   formDefinitionLimits,
   hasAtomicPermission,
@@ -57,6 +58,7 @@ import {
 type Values = Record<string, NormalizedImportValue>
 type Choices = ResolveImportRowRequest['choices']
 type BatchHead = Awaited<ReturnType<typeof requireBatchWithHeaders>>
+type ResolveStatus = ResolveImportRowResponse['status']
 interface FieldError {
   fieldCode: string
   code: string
@@ -66,6 +68,8 @@ interface FieldError {
 // The same ceiling the registration import transaction has.
 const RESOLVE_TRANSACTION_TIMEOUT_MS = 20_000
 const ROW_UNAVAILABLE = 'Import row unavailable.'
+// A resolved minor waits under this code for a Project Officer, who keeps the resolution and adds guardian consent.
+export const GUARDIAN_HOLD = 'GUARDIAN_CONSENT_REQUIRED'
 // The system sets these, so the reviewer neither sees nor chooses them.
 const systemCodes = new Set([
   'registration_operation',
@@ -388,8 +392,91 @@ export async function claimBatchForResolution(tx: Tx, batchId: string): Promise<
 }
 
 /**
+ * Claims one held row under the caller's batch claim. A first claim records its resolution; a row parked for
+ * guardian consent (resolution null) keeps the one it has. A second request for the same row fails here.
+ */
+export async function claimHeldRow(
+  tx: Tx,
+  actor: ApplicationIdentity,
+  input: {
+    batch: Pick<BatchHead, 'id' | 'mappingRevision' | 'validationRevision'>
+    rowId: string
+    rowNumber: number
+    claim: BatchClaim
+    resolution: Prisma.InputJsonValue | null
+  },
+) {
+  const { batch, claim } = input
+  const row = {
+    id: input.rowId,
+    organizationId: actor.organizationId,
+    importBatchId: batch.id,
+    mappingRevision: batch.mappingRevision,
+    validationRevision: batch.validationRevision,
+  }
+  const claimColumns = {
+    status: 'PROCESSING',
+    processingClaimId: claim.id,
+    processingClaimedAt: claim.at,
+    processingAttempts: { increment: 1 },
+  } as const
+  const claimed =
+    input.resolution === null
+      ? await tx.dataImportRow.updateMany({
+          where: {
+            ...row,
+            status: 'UNPROCESSED',
+            processingErrorCode: GUARDIAN_HOLD,
+            resolvedAt: { not: null },
+          },
+          data: claimColumns,
+        })
+      : await tx.dataImportRow.updateMany({
+          where: { ...row, status: { in: ['UNPROCESSED', 'INVALID'] }, resolvedAt: null },
+          data: {
+            ...claimColumns,
+            resolutionData: input.resolution,
+            resolvedById: actor.userId,
+            resolvedAt: claim.at,
+            processingErrorCode: null,
+          },
+        })
+  if (claimed.count !== 1) {
+    throw new ConflictException(`Row ${input.rowNumber} was already resolved.`)
+  }
+}
+
+/** Claims a row whose participant is already enrolled with the same details and completes it with no new submission. */
+export async function completeUnchangedRow(
+  tx: Tx,
+  actor: ApplicationIdentity,
+  input: Parameters<typeof claimHeldRow>[2] & { beneficiaryId: string },
+) {
+  await claimHeldRow(tx, actor, input)
+  await tx.dataImportRow.update({
+    where: { id: input.rowId },
+    data: {
+      status: 'PROCESSED',
+      processedAt: new Date(),
+      processingErrorCode: null,
+      processingClaimId: null,
+      processingClaimedAt: null,
+      registrationOutcome: 'UNCHANGED',
+      matchedBeneficiaryId: input.beneficiaryId,
+    },
+  })
+}
+
+// What a person can do about a row the registration service still sends to review.
+const reviewNextStep: Record<string, string> = {
+  CONSENT_REQUIRED: 'Consent is not recorded in the file, so upload a corrected file.',
+}
+const reviewDefaultStep =
+  'Open the import again to see where it stands, or upload a corrected file.'
+
+/**
  * Moves one held row through PROCESSING to PROCESSED under the caller's batch claim.
- * The row is claimed with its resolution, so a second request for the same row fails here.
+ * A resolved minor who still lacks guardian consent is parked for a Project Officer instead.
  */
 export async function promoteClaimedRow(
   tx: Tx,
@@ -399,36 +486,16 @@ export async function promoteClaimedRow(
     batch: Pick<BatchHead, 'id' | 'projectId' | 'formId' | 'mappingRevision' | 'validationRevision'>
     form: RegistrationImportForm
     rowId: string
+    rowNumber: number
     claim: BatchClaim
-    // What the row stores as its resolution.
-    resolution: Prisma.InputJsonValue
+    // What the row stores as its resolution, or null for a row parked for guardian consent that already has one.
+    resolution: Prisma.InputJsonValue | null
     values: Record<string, unknown>
     guardianConsent?: { name?: string; date?: string; note?: string }
   },
 ) {
-  const { batch, form, rowId, claim, values } = input
-  const claimed = await tx.dataImportRow.updateMany({
-    where: {
-      id: rowId,
-      organizationId: actor.organizationId,
-      importBatchId: batch.id,
-      status: { in: ['UNPROCESSED', 'INVALID'] },
-      resolvedAt: null,
-      mappingRevision: batch.mappingRevision,
-      validationRevision: batch.validationRevision,
-    },
-    data: {
-      status: 'PROCESSING',
-      resolutionData: input.resolution,
-      resolvedById: actor.userId,
-      resolvedAt: claim.at,
-      processingClaimId: claim.id,
-      processingClaimedAt: claim.at,
-      processingAttempts: { increment: 1 },
-      processingErrorCode: null,
-    },
-  })
-  if (claimed.count !== 1) throw new ConflictException('This row was already resolved.')
+  const { batch, form, rowId, values } = input
+  await claimHeldRow(tx, actor, input)
   const result = await registration.promoteRegistration(
     tx,
     actor,
@@ -446,9 +513,24 @@ export async function promoteClaimedRow(
     },
     { form },
   )
-  // A hold the database cannot leave from rolls the whole resolution back.
   if (result.kind === 'REVIEW') {
-    throw new ConflictException({ message: 'The row still needs review.', code: result.code })
+    if (result.code === GUARDIAN_HOLD && !input.guardianConsent) {
+      await tx.dataImportRow.update({
+        where: { id: rowId },
+        data: {
+          status: 'UNPROCESSED',
+          processingErrorCode: GUARDIAN_HOLD,
+          processingClaimId: null,
+          processingClaimedAt: null,
+        },
+      })
+      return { kind: 'WAITING' as const }
+    }
+    // A hold the database cannot leave from rolls the whole request back.
+    throw new ConflictException({
+      message: `Row ${input.rowNumber} still needs review. ${reviewNextStep[result.code] ?? reviewDefaultStep}`,
+      code: result.code,
+    })
   }
   await tx.dataImportRow.update({
     where: { id: rowId },
@@ -474,6 +556,7 @@ export async function commitResolvedRow(
     batch: Pick<BatchHead, 'id' | 'projectId' | 'formId' | 'mappingRevision' | 'validationRevision'>
     form: RegistrationImportForm
     rowId: string
+    rowNumber: number
     resolution: RowResolution
   },
 ) {
@@ -557,7 +640,7 @@ export class ImportReviewService {
     batchId: string,
     rowId: string,
     body: ResolveImportRowRequest,
-  ): Promise<{ status: 'PROCESSED' }> {
+  ): Promise<{ status: ResolveStatus }> {
     return withAuthorizedOperation(
       this.prisma,
       identity,
@@ -583,17 +666,21 @@ export class ImportReviewService {
           body.expectedValidationRevision,
         )
         const held = await loadHeldRow(tx, actor, this.registration, batch, rowId)
-        if (held.row.reason === 'GUARDIAN_CONSENT_REQUIRED') {
-          throw new ConflictException('Guardian consent is approved by a project officer.')
-        }
         const final = validateChosen(held, body, choose(held, body))
         const values = await this.promotionValues(tx, actor, held, body, final)
-        await commitResolvedRow(tx, actor, this.registration, {
+        const result = await commitResolvedRow(tx, actor, this.registration, {
           batch,
           form: held.form,
           rowId: held.row.id,
+          rowNumber: held.row.rowNumber,
           resolution: { saveAs: body.saveAs, choices: body.choices, values },
         })
+        // A guardian row stays with the Project Officer unless the participant no longer needs guardian consent.
+        if (result.kind === 'WAITING' && held.row.reason === GUARDIAN_HOLD) {
+          throw new ConflictException(
+            `Row ${held.row.rowNumber} still needs guardian consent. A Project Officer must approve it.`,
+          )
+        }
         if (body.saveAs === 'UPDATE') await this.rememberRejections(tx, actor, held, body)
         await writeAuditLog(tx, actor, {
           projectId: batch.projectId,
@@ -607,7 +694,7 @@ export class ImportReviewService {
             choices: body.choices,
           },
         })
-        return { status: 'PROCESSED' as const }
+        return { status: result.kind === 'WAITING' ? 'WAITING_FOR_PROJECT_OFFICER' : 'PROCESSED' }
       },
       { transactionTimeoutMs: RESOLVE_TRANSACTION_TIMEOUT_MS },
     )

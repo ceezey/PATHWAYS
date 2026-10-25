@@ -5,9 +5,10 @@
 -- (name, consent date, note) allowed on GUARDIAN records only. The permission beneficiaries.guardian_consent.approve is granted
 -- to Project Officer only. import_value_rejections remembers a file value a reviewer rejected, per participant and field.
 -- data_import_rows gains resolution_data, resolved_by_id and resolved_at (set once while the row is held, then frozen), and
--- registration_outcome and matched_beneficiary_id (an unchanged participant needs no submission). p03_guard_import_row,
--- import_rows_state and p03_assert_processed_row change to match. Only prisma-owned objects are touched, so no preprovision
--- is needed.
+-- registration_outcome and matched_beneficiary_id (an unchanged participant needs no submission). A resolved row that needs
+-- guardian consent is parked once as UNPROCESSED GUARDIAN_CONSENT_REQUIRED, keeping its resolution, and claimed once more by the
+-- guardian approval. p03_guard_import_row, import_rows_state and p03_assert_processed_row change to match. Only prisma-owned
+-- objects are touched, so no preprovision is needed.
 BEGIN;
 SET LOCAL lock_timeout = '5s';
 SET LOCAL statement_timeout = '60s';
@@ -277,7 +278,7 @@ ALTER TABLE ONLY pathways.data_import_rows
 CREATE INDEX data_import_rows_resolved_by_idx ON pathways.data_import_rows USING btree (organization_id, resolved_by_id);
 CREATE INDEX data_import_rows_matched_beneficiary_idx ON pathways.data_import_rows USING btree (organization_id, matched_beneficiary_id);
 
--- The baseline import_rows_state with PROCESSING and PROCESSED also accepting a resolved INVALID row (no normalized data, errors kept).
+-- The baseline import_rows_state with PROCESSING, PROCESSED and UNPROCESSED also accepting a resolved INVALID row (no normalized data, errors kept).
 ALTER TABLE pathways.data_import_rows DROP CONSTRAINT import_rows_state,
   ADD CONSTRAINT import_rows_state CHECK (
     (status = 'PENDING' AND normalized_data IS NULL AND validated_by_id IS NULL AND validated_at IS NULL AND processed_at IS NULL
@@ -289,6 +290,10 @@ ALTER TABLE pathways.data_import_rows DROP CONSTRAINT import_rows_state,
       AND jsonb_array_length(validation_errors) = 0 AND processing_claim_id IS NULL AND processing_claimed_at IS NULL)
     OR (status IN ('UNPROCESSED','FAILED') AND jsonb_typeof(normalized_data) = 'object' AND validated_by_id IS NOT NULL
       AND validated_at IS NOT NULL AND processed_at IS NULL AND jsonb_array_length(validation_errors) = 0
+      AND processing_claim_id IS NULL AND processing_claimed_at IS NULL)
+    OR (status = 'UNPROCESSED' AND normalized_data IS NULL AND validated_by_id IS NOT NULL AND validated_at IS NOT NULL
+      AND processed_at IS NULL AND jsonb_array_length(validation_errors) > 0
+      AND resolution_data IS NOT NULL AND jsonb_typeof(resolution_data) = 'object'
       AND processing_claim_id IS NULL AND processing_claimed_at IS NULL)
     OR (status = 'PROCESSING'
       AND ((jsonb_typeof(normalized_data) = 'object' AND jsonb_array_length(validation_errors) = 0)
@@ -306,7 +311,8 @@ ALTER TABLE pathways.data_import_rows DROP CONSTRAINT import_rows_state,
 
 -- The baseline body of p03_guard_import_row. A held row (UNPROCESSED or INVALID, never resolved) moves once to PROCESSING in the
 -- UPDATE that sets all three resolution columns, changing only those and its claim columns. Resolution is frozen after that, and
--- the registration outcome is set only on the move to PROCESSED.
+-- the registration outcome is set only on the move to PROCESSED. A resolved row may then be parked once as UNPROCESSED
+-- GUARDIAN_CONSENT_REQUIRED and claimed once more by the guardian approval, changing only its status and claim columns.
 CREATE OR REPLACE FUNCTION pathways.p03_guard_import_row() RETURNS trigger
     LANGUAGE plpgsql
     SET search_path TO ''
@@ -345,6 +351,25 @@ BEGIN
     OR NEW.matched_beneficiary_id IS DISTINCT FROM OLD.matched_beneficiary_id
   ) AND NOT (NEW.status='PROCESSED' AND OLD.registration_outcome IS NULL AND OLD.matched_beneficiary_id IS NULL) THEN
     RAISE EXCEPTION 'Registration outcome can only be set when the row becomes processed and is immutable after';
+  END IF;
+  IF TG_OP='UPDATE' AND OLD.resolved_at IS NOT NULL AND (
+    (OLD.status='PROCESSING' AND NEW.status='UNPROCESSED') OR (OLD.status='UNPROCESSED' AND NEW.status='PROCESSING')
+  ) THEN
+    IF to_jsonb(NEW)-ARRAY['status','processing_claim_id','processing_claimed_at','processing_attempts','processing_error_code','updated_at']
+       IS DISTINCT FROM to_jsonb(OLD)-ARRAY['status','processing_claim_id','processing_claimed_at','processing_attempts','processing_error_code','updated_at'] THEN
+      RAISE EXCEPTION 'A resolved row waiting for guardian consent may change only its status and claim columns';
+    END IF;
+    IF NEW.status='UNPROCESSED' THEN
+      IF NEW.processing_error_code IS DISTINCT FROM 'GUARDIAN_CONSENT_REQUIRED'
+         OR OLD.processing_error_code IS NOT DISTINCT FROM 'GUARDIAN_CONSENT_REQUIRED' THEN
+        RAISE EXCEPTION 'A resolved row may wait for guardian consent once';
+      END IF;
+    ELSIF OLD.processing_error_code IS DISTINCT FROM 'GUARDIAN_CONSENT_REQUIRED'
+       OR NEW.processing_error_code IS DISTINCT FROM 'GUARDIAN_CONSENT_REQUIRED'
+       OR NOT pathways.p04_has_project_permission('beneficiaries.guardian_consent.approve',NEW.project_id) THEN
+      RAISE EXCEPTION 'Only the guardian consent approval may claim a row waiting for guardian consent';
+    END IF;
+    RETURN NEW;
   END IF;
   IF TG_OP='UPDATE' AND OLD.status IN ('PROCESSED','UNPROCESSED')
      AND NEW IS DISTINCT FROM OLD THEN
@@ -413,6 +438,11 @@ DO $$ BEGIN
    OR (tgname='p03_row_complete' AND tgrelid='pathways.data_import_rows'::regclass)
    OR (tgname='p80_value_rejection' AND tgrelid='pathways.import_value_rejections'::regclass)))<>5
  THEN RAISE EXCEPTION '0080 guard postcondition failed'; END IF;
+ IF NOT EXISTS(SELECT FROM pg_catalog.pg_proc WHERE oid=pg_catalog.to_regprocedure('pathways.p03_guard_import_row()')
+   AND prosrc LIKE '%may wait for guardian consent once%')
+ OR NOT EXISTS(SELECT FROM pg_catalog.pg_constraint WHERE conrelid='pathways.data_import_rows'::regclass AND conname='import_rows_state'
+   AND (SELECT count(*) FROM regexp_matches(pg_catalog.pg_get_constraintdef(oid),'resolution_data IS NOT NULL','g'))=3)
+ THEN RAISE EXCEPTION '0080 parked row postcondition failed'; END IF;
  IF (SELECT count(*) FROM pg_catalog.pg_constraint WHERE convalidated AND (
    (conrelid='pathways.beneficiaries'::regclass AND conname='beneficiaries_minor_consent')
    OR (conrelid='pathways.beneficiary_consent_records'::regclass AND conname LIKE 'beneficiary_consent_records_guardian_%')
