@@ -124,6 +124,20 @@ export function applyIntakeRules(
     const rule = field.rule
     if (!rule || !CALCULATED_KINDS.includes(rule.kind)) continue
     if (rule.kind === 'SAME_ANSWER_AS' && sourceProvided.has(field.code)) continue
+    if (rule.kind === 'AGE_AT_DATE' || rule.kind === 'MINOR_AT_DATE') {
+      const birth = toDate(inputs[rule.birthField])
+      const at = toDate(inputs[rule.atField])
+      // A birth after the measuring date gives no age; the row is held with the reason.
+      if (birth && at && birth > at) {
+        if (!errors.some((e) => e.code === 'BIRTH_AFTER_DATE' && e.fieldCode === rule.birthField))
+          errors.push({
+            fieldCode: rule.birthField,
+            code: 'BIRTH_AFTER_DATE',
+            message: 'The date of birth is after the date the age is measured at.',
+          })
+        continue
+      }
+    }
     const calculated = calculate(rule, inputs, sourceProvided)
     if (calculated === null) continue
     if (sourceProvided.has(field.code) && !sameValue(values[field.code], calculated)) {

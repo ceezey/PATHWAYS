@@ -175,6 +175,35 @@ describe('proposeIntakeRules on the Futuremakers fixture', () => {
     expect(rule(result, 'age_at_registration')?.kind).toBe('AGE_AT_DATE')
   })
 
+  describe('enrollment dates written as text', () => {
+    const textDates = (rewrite: (iso: string) => string, offset = 0) => {
+      const columns = fixtureColumns()
+      const years = (born: string, at: string) =>
+        Number(at.slice(0, 4)) - Number(born.slice(0, 4)) - (at.slice(5) < born.slice(5) ? 1 : 0)
+      const ages = columns[COLUMN.birth].values.map(
+        (born, row) => years(String(born), String(columns[1].values[row])) + offset,
+      )
+      columns[COLUMN.age] = { ...columns[COLUMN.age], values: ages }
+      columns[1] = { ...columns[1], values: columns[1].values.map((iso) => rewrite(String(iso))) }
+      return draft(columns)
+    }
+
+    it('reads them in the one order that fits, so a disagreeing Age is seen and moved off', () => {
+      const result = textDates((iso) => iso.replaceAll('-', '/'), 1)
+      expect(find(result, 'age_at_registration')?.sourceNames).toBeUndefined()
+      expect(find(result, 'age')?.sourceNames).toEqual(['Age'])
+    })
+
+    it('moves Age off the calculated field when the dates fit more than one order', () => {
+      const result = textDates((iso) => `${iso.slice(2, 4)}/${iso.slice(5, 7)}/${iso.slice(8, 10)}`)
+      expect(find(result, 'age_at_registration')?.sourceNames).toBeUndefined()
+      expect(result.summary.needsCheck).toContainEqual({
+        fieldCode: 'age',
+        reason: 'COLUMN_MOVED_OFF_CALCULATED',
+      })
+    })
+  })
+
   it('adds AGE_AT_DATE and MINOR_AT_DATE from birth_date and enrollment_date', () => {
     const result = fixture()
     expect(rule(result, 'age_at_registration')).toEqual({
