@@ -725,6 +725,31 @@ describe('resolve', () => {
     ])
   })
 
+  it('PATHWAYS over a field it holds as blank saves blank and remembers the file value', async () => {
+    const { civil_status: _blank, ...withoutCivilStatus } = stored
+    fakeTx.formSubmission.findFirst.mockImplementation(
+      async () => submissionOf(withoutCivilStatus) as never,
+    )
+
+    await resolve({ choices: { last_name: 'FILE', civil_status: 'PATHWAYS' } })
+
+    const [, , input] = registration.promoteRegistration.mock.calls[0] as unknown as [
+      unknown,
+      unknown,
+      { values: Json },
+    ]
+    expect(input.values).toMatchObject({ civil_status: null, last_name: 'Santos' })
+    expect(fakeTx.importValueRejection.createMany).toHaveBeenCalledWith({
+      data: [
+        expect.objectContaining({
+          fieldId: fieldId('civil_status'),
+          valueHash: valueHash('Married'),
+        }),
+      ],
+      skipDuplicates: true,
+    })
+  })
+
   it('keep PATHWAYS records a rejection', async () => {
     await resolve({ choices: { last_name: 'FILE', civil_status: 'PATHWAYS' } })
 

@@ -1,5 +1,6 @@
 import * as XLSX from 'xlsx'
 
+import { isCodeHeaderRow } from './code-header'
 import { excelSerialToIsoDate } from './excel-date'
 
 export interface WorkbookParseResult {
@@ -54,7 +55,12 @@ export const parseWorkbook = (input: ArrayBuffer): WorkbookParseResult => {
   const blank = (value: unknown) => String(value ?? '').trim() === ''
   let width = grid.reduce((widest, cells) => Math.max(widest, cells.length), 0)
   while (width > 0 && grid.every((cells) => blank(cells[width - 1]))) width -= 1
-  const [firstRow = [], ...dataRows] = grid
+  // A code row above a label row: the label names the column (the code where the label is blank) and data starts on row 3.
+  const coded = grid.length > 1 && isCodeHeaderRow(grid[0], grid[1])
+  const dataRows = grid.slice(coded ? 2 : 1)
+  const firstRow = coded
+    ? grid[0].map((code, index) => (blank(grid[1][index]) ? code : grid[1][index]))
+    : (grid[0] ?? [])
   const headers = rowKeys(Array.from({ length: width }, (_, index) => firstRow[index]))
   const rows = dataRows.map((cells) =>
     Object.fromEntries(headers.map((header, index) => [header, cells[index] ?? ''])),

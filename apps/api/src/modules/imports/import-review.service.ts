@@ -324,7 +324,7 @@ function choose(held: HeldRow, body: ResolveImportRowRequest) {
     } else if (choice === 'PATHWAYS') {
       if (body.saveAs === 'NEW')
         fail(code, 'invalid_choice', 'A new participant has no PATHWAYS value.')
-      else if (held.baseline?.stored.has(code)) values[code] = held.baseline.stored.get(code)
+      else values[code] = held.baseline?.stored.get(code) ?? null
     }
   }
   // A rejected file value that nobody re-chose keeps what PATHWAYS holds.
@@ -778,6 +778,7 @@ export class ImportReviewService {
     })
     if (!profile) throw new ConflictException('The participant is unavailable.')
     const { stored } = held.baseline
+    // A field the baseline lacks cannot be compared, so it never reaches the profile; it only adds to the registration.
     const updateFields = [...writableProfileFields].filter(
       (code) =>
         (held.changed.has(code) || code in body.choices) &&
