@@ -401,6 +401,18 @@ describe('guardian approval', () => {
     })
   })
 
+  it('refuses guardian details on a request for more than one row before any read', async () => {
+    for (const details of [
+      { guardianName: 'Parent Name' },
+      { consentDate: '2026-10-20' },
+      { note: 'Signed form on file' },
+    ]) {
+      await expect(approve(details)).rejects.toBeInstanceOf(BadRequestException)
+    }
+    expect(fakeTx.dataImportRow.findMany).not.toHaveBeenCalled()
+    expectNoWrites()
+  })
+
   it('details stored only when given', async () => {
     await approve({ rowIds: [rowIds[0]] })
     expect(guardianRecords()).toHaveLength(1)
@@ -438,7 +450,7 @@ describe('guardian approval', () => {
   })
 
   it('writes no detail values into the audit', async () => {
-    await approve({ guardianName: 'Parent Name', note: 'Signed form on file' })
+    await approve({ rowIds: [rowIds[0]], guardianName: 'Parent Name', note: 'Signed form on file' })
     expect(JSON.stringify(fakeTx.auditLog.create.mock.calls)).not.toMatch(
       /Parent Name|Signed form|S-1|Child1/,
     )

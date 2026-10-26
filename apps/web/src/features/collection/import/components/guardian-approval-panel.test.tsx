@@ -34,6 +34,9 @@ const show = (count: number) =>
     />,
   )
 const approveButton = () => screen.getByRole('button', { name: /^Approve/ }) as HTMLButtonElement
+// The approval waits for the officer to confirm in the dialog.
+const confirmApproval = () =>
+  fireEvent.click(screen.getByRole('button', { name: 'Record guardian consent' }))
 const sizes = () =>
   api.approveGuardianConsent.mock.calls.map(
     (call) => (call[2] as { rowIds: string[] }).rowIds.length,
@@ -57,6 +60,7 @@ describe('guardian approval panel', () => {
     expect(approveButton().disabled).toBe(true)
     fireEvent.click(screen.getByLabelText('Select all'))
     fireEvent.click(approveButton())
+    confirmApproval()
     await waitFor(() => expect(onApproved).toHaveBeenCalledTimes(1))
     expect(api.approveGuardianConsent).toHaveBeenCalledTimes(1)
     expect(api.approveGuardianConsent).toHaveBeenCalledWith('project-1', 'batch-1', {
@@ -75,6 +79,7 @@ describe('guardian approval panel', () => {
     })
     fireEvent.change(screen.getByLabelText('Note (optional)'), { target: { value: 'On paper' } })
     fireEvent.click(approveButton())
+    confirmApproval()
     await waitFor(() => expect(onApproved).toHaveBeenCalled())
     expect(api.approveGuardianConsent.mock.calls[0][2]).toEqual({
       rowIds: ['row-1'],
@@ -84,10 +89,49 @@ describe('guardian approval panel', () => {
     })
   })
 
+  it('asks for confirmation before anything is sent', async () => {
+    show(2)
+    fireEvent.click(screen.getByLabelText('Select all'))
+    fireEvent.click(approveButton())
+    const dialog = screen.getByRole('dialog', { name: 'Approve guardian consent?' })
+    expect(dialog.textContent).toContain('2 participants')
+    expect(dialog.textContent).toContain('approving officer')
+    expect(dialog.textContent).toContain('cannot be undone')
+    expect(api.approveGuardianConsent).not.toHaveBeenCalled()
+    confirmApproval()
+    await waitFor(() => expect(onApproved).toHaveBeenCalledTimes(1))
+    expect(api.approveGuardianConsent).toHaveBeenCalledTimes(1)
+  })
+
+  it('cancelling the confirmation sends nothing', async () => {
+    show(2)
+    fireEvent.click(screen.getByLabelText('Select all'))
+    fireEvent.click(approveButton())
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(api.approveGuardianConsent).not.toHaveBeenCalled()
+    expect(onApproved).not.toHaveBeenCalled()
+  })
+
+  it('takes guardian details for one participant only, and not a future consent date', () => {
+    show(2)
+    const name = screen.getByLabelText('Guardian name (optional)') as HTMLInputElement
+    const date = screen.getByLabelText('Consent date (optional)') as HTMLInputElement
+    const note = screen.getByLabelText('Note (optional)') as HTMLTextAreaElement
+    expect([name.disabled, date.disabled, note.disabled]).toEqual([true, true, true])
+    fireEvent.click(screen.getByLabelText('Row 2: Minor 1'))
+    expect([name.disabled, date.disabled, note.disabled]).toEqual([false, false, false])
+    expect(date.max).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+    fireEvent.click(screen.getByLabelText('Row 3: Minor 2'))
+    expect([name.disabled, date.disabled, note.disabled]).toEqual([true, true, true])
+    expect(screen.getByText(/only when one participant is selected/)).toBeTruthy()
+  })
+
   it('splits a large selection into requests of at most the checkpoint size', async () => {
     show(importCheckpointRows + 5)
     fireEvent.click(screen.getByLabelText('Select all'))
     fireEvent.click(approveButton())
+    confirmApproval()
     await waitFor(() => expect(onApproved).toHaveBeenCalledTimes(1))
     expect(sizes()).toEqual([importCheckpointRows, 5])
   })
@@ -101,6 +145,7 @@ describe('guardian approval panel', () => {
     show(importCheckpointRows * 2 + 1)
     fireEvent.click(screen.getByLabelText('Select all'))
     fireEvent.click(approveButton())
+    confirmApproval()
     const alert = await screen.findByRole('alert')
     expect(alert.textContent).toContain('This row can no longer be approved here.')
     expect(api.approveGuardianConsent).toHaveBeenCalledTimes(2)

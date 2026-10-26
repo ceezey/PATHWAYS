@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException } from '@nestjs/common'
+import { BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common'
 import { hasAtomicPermission, rolePermissions } from '@pathways/shared'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -33,6 +33,7 @@ const actor: ApplicationIdentity = {
     'imports.read',
     'imports.review',
     'imports.process',
+    'beneficiaries.records.read',
     'beneficiaries.records.register',
     'beneficiaries.identities.review',
   ],
@@ -497,6 +498,37 @@ describe('review', () => {
     expect(result.participant).toMatchObject({ clientId: 'S-1' })
     expect(result.fields.filter((item) => item.changed)).toEqual([])
     expect(result.fields.map((item) => item.code)).not.toContain('profile_update_fields')
+  })
+
+  it('a system administrator cannot read participant detail and nothing is read', async () => {
+    state.actor = {
+      ...actor,
+      roles: ['SYSTEM_ADMINISTRATOR'],
+      permissions: [...rolePermissions.SYSTEM_ADMINISTRATOR],
+    }
+
+    await expect(review()).rejects.toBeInstanceOf(ForbiddenException)
+    expect(fakeTx.$queryRaw).not.toHaveBeenCalled()
+    expect(fakeTx.dataImportRow.findFirst).not.toHaveBeenCalled()
+    expect(fakeTx.formSubmission.findFirst).not.toHaveBeenCalled()
+    expect(fakeTx.beneficiary.findFirst).not.toHaveBeenCalled()
+  })
+
+  it('a participant of another project needs identity review to be shown', async () => {
+    state.actor = {
+      ...actor,
+      permissions: actor.permissions.filter((item) => item !== 'beneficiaries.identities.review'),
+    }
+    // The match and the baseline read both find no enrollment here.
+    fakeTx.beneficiaryProjectEnrollment.findUnique
+      .mockResolvedValueOnce(null as never)
+      .mockResolvedValueOnce(null as never)
+
+    await expect(review()).rejects.toBeInstanceOf(ForbiddenException)
+    // The profile name is never read for a reviewer who may not see it.
+    expect(fakeTx.beneficiary.findFirst).not.toHaveBeenCalledWith(
+      expect.objectContaining({ select: { displayName: true } }),
+    )
   })
 
   it('a row of another batch or project is 404 and nothing is read from it', async () => {

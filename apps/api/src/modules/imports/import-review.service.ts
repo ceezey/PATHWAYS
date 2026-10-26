@@ -604,8 +604,20 @@ export class ImportReviewService {
     rowId: string,
   ): Promise<ImportRowReviewResponse> {
     return withAuthorizedOperation(this.prisma, identity, 'imports.review', async (tx, actor) => {
+      // The window shows stored participant values, so it needs the same grant as reading a profile.
+      if (!hasAtomicPermission(actor.roles[0], actor.permissions, 'beneficiaries.records.read')) {
+        throw new ForbiddenException('Beneficiary read permission is missing.')
+      }
       const batch = await requireBatchWithHeaders(tx, actor, projectId, batchId)
       const held = await loadHeldRow(tx, actor, this.registration, batch, rowId)
+      // A participant who is not enrolled in this project is shown only to a reviewer of identities.
+      if (
+        held.baseline &&
+        !held.baseline.enrolledHere &&
+        !hasAtomicPermission(actor.roles[0], actor.permissions, 'beneficiaries.identities.review')
+      ) {
+        throw new ForbiddenException('Beneficiary identity review permission is missing.')
+      }
       const calculated = calculatedValues(held.fields, held.file, held.uploadDate)
       const profile = held.beneficiaryId
         ? await tx.beneficiary.findFirst({

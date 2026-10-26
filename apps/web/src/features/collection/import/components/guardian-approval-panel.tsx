@@ -1,9 +1,10 @@
 'use client'
 
-import { importCheckpointRows } from '@pathways/shared'
+import { businessCalendarDate, importCheckpointRows } from '@pathways/shared'
 import { useId, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
+import { ConfirmationDialog } from '@/components/pathways/confirmation-dialog'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -42,6 +43,7 @@ export function GuardianApprovalPanel({
   const [note, setNote] = useState('')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  const [confirming, setConfirming] = useState(false)
   const running = useRef(false)
   if (!principalHasAtomicPermission(profile, 'beneficiaries.guardian_consent.approve')) return null
   if (rows.length === 0) return null
@@ -55,16 +57,22 @@ export function GuardianApprovalPanel({
       return next
     })
 
+  const single = chosen.length === 1
   const approve = async () => {
+    setConfirming(false)
     if (running.current || chosen.length === 0) return
     running.current = true
     setBusy(true)
     setError('')
-    const details = {
-      ...(guardianName.trim() ? { guardianName: guardianName.trim() } : {}),
-      ...(consentDate ? { consentDate } : {}),
-      ...(note.trim() ? { note: note.trim() } : {}),
-    }
+    // The details belong to one child, so they go out only with a single row.
+    const details =
+      chosen.length === 1
+        ? {
+            ...(guardianName.trim() ? { guardianName: guardianName.trim() } : {}),
+            ...(consentDate ? { consentDate } : {}),
+            ...(note.trim() ? { note: note.trim() } : {}),
+          }
+        : {}
     const ids = chosen.map((row) => row.id)
     let approved = 0
     try {
@@ -122,6 +130,7 @@ export function GuardianApprovalPanel({
             <div className="space-y-2">
               <Label htmlFor={`${id}-name`}>Guardian name (optional)</Label>
               <Input
+                disabled={!single}
                 id={`${id}-name`}
                 maxLength={160}
                 value={guardianName}
@@ -131,7 +140,9 @@ export function GuardianApprovalPanel({
             <div className="space-y-2">
               <Label htmlFor={`${id}-date`}>Consent date (optional)</Label>
               <Input
+                disabled={!single}
                 id={`${id}-date`}
+                max={businessCalendarDate(new Date(), 'Asia/Manila')}
                 type="date"
                 value={consentDate}
                 onChange={(event) => setConsentDate(event.target.value)}
@@ -140,6 +151,7 @@ export function GuardianApprovalPanel({
             <div className="space-y-2 md:col-span-2">
               <Label htmlFor={`${id}-note`}>Note (optional)</Label>
               <Textarea
+                disabled={!single}
                 id={`${id}-note`}
                 maxLength={500}
                 value={note}
@@ -147,14 +159,26 @@ export function GuardianApprovalPanel({
               />
             </div>
           </div>
+          <p className="text-sm text-muted-foreground">
+            Guardian details can be added only when one participant is selected.
+          </p>
           {error ? (
             <p className="text-sm text-danger" role="alert">
               {error}
             </p>
           ) : null}
-          <Button disabled={busy || chosen.length === 0} onClick={() => void approve()}>
+          <Button disabled={busy || chosen.length === 0} onClick={() => setConfirming(true)}>
             {busy ? 'Approving...' : `Approve ${chosen.length} selected`}
           </Button>
+          <ConfirmationDialog
+            confirmLabel="Record guardian consent"
+            confirmVariant="default"
+            description={`This records guardian consent for ${plural(chosen.length, 'participant')} and records you as the approving officer, and creates their profiles. It cannot be undone here.`}
+            onConfirm={() => void approve()}
+            onOpenChange={setConfirming}
+            open={confirming}
+            title="Approve guardian consent?"
+          />
         </CardContent>
       </Card>
     </section>

@@ -34,15 +34,31 @@ describe('resolveImportRowRequest', () => {
 describe('approveGuardianConsentRequest', () => {
   const rows = (count: number) => Array.from({ length: count }, (_, i) => uuid(i + 1))
 
-  it('accepts 25 distinct rows with optional details', () => {
+  it('accepts 25 distinct rows without guardian details', () => {
+    expect(accepts(approveGuardianConsentRequest, { rowIds: rows(importCheckpointRows) })).toBe(
+      true,
+    )
+  })
+
+  it('accepts the guardian details for exactly one row', () => {
     expect(
       accepts(approveGuardianConsentRequest, {
-        rowIds: rows(importCheckpointRows),
+        rowIds: [uuid(1)],
         guardianName: 'Parent Name',
         consentDate: '2026-10-26',
         note: 'Signed form seen.',
       }),
     ).toBe(true)
+  })
+
+  it('refuses the guardian details on a request for more than one row', () => {
+    for (const details of [
+      { guardianName: 'Parent Name' },
+      { consentDate: '2026-10-26' },
+      { note: 'Signed form seen.' },
+    ]) {
+      expect(accepts(approveGuardianConsentRequest, { rowIds: rows(2), ...details })).toBe(false)
+    }
   })
 
   it('26 guardian rows are refused', () => {

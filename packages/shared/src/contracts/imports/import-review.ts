@@ -113,4 +113,14 @@ export const approveGuardianConsentRequest = z
     note: trimmedInput(lengthString(1, 500)).optional(),
   })
   .strict()
+  // One parent's name and date must not land on other children's records.
+  .superRefine((body, ctx) => {
+    if (body.rowIds.length > 1) {
+      for (const key of ['guardianName', 'consentDate', 'note'] as const) {
+        if (body[key] !== undefined) {
+          ctx.addIssue({ code: 'custom', path: [key], message: 'only for a single participant' })
+        }
+      }
+    }
+  })
 export type ApproveGuardianConsentRequest = z.infer<typeof approveGuardianConsentRequest>

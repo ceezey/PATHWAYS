@@ -59,6 +59,11 @@ export class GuardianApprovalService {
         if (new Set(ids).size !== ids.length) {
           throw new BadRequestException('Row ids must be unique.')
         }
+        if (ids.length > 1 && (body.guardianName || body.consentDate || body.note)) {
+          throw new BadRequestException(
+            'Guardian details can be recorded for one participant at a time.',
+          )
+        }
         if (body.consentDate && new Date(`${body.consentDate}T00:00:00.000Z`) > businessToday()) {
           throw new BadRequestException('The consent date cannot be in the future.')
         }

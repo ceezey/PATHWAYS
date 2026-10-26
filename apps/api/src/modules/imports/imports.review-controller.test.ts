@@ -38,6 +38,7 @@ const reviewer = identity('MONITORING_AND_EVALUATION_OFFICER', [
   'imports.read',
   'imports.review',
   'imports.process',
+  'beneficiaries.records.read',
   'beneficiaries.records.register',
 ])
 const projectOfficer = identity('PROJECT_OFFICER', ['imports.read', 'imports.process'])
@@ -156,6 +157,16 @@ describe('review and resolve routes', () => {
       controller.reviewRow(requestOf(projectOfficer), projectId, batchId, rowId),
     ).rejects.toBeInstanceOf(ForbiddenException)
 
+    expect(fakeTx.$queryRaw).not.toHaveBeenCalled()
+    expect(fakeTx.dataImportRow.findFirst).not.toHaveBeenCalled()
+    expectUntouched()
+  })
+
+  it('review without records.read is 403 before any read', async () => {
+    const blind = identity('MONITORING_AND_EVALUATION_OFFICER', ['imports.read', 'imports.review'])
+    await expect(
+      controller.reviewRow(requestOf(blind), projectId, batchId, rowId),
+    ).rejects.toBeInstanceOf(ForbiddenException)
     expect(fakeTx.$queryRaw).not.toHaveBeenCalled()
     expect(fakeTx.dataImportRow.findFirst).not.toHaveBeenCalled()
     expectUntouched()
