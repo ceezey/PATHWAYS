@@ -1,6 +1,6 @@
 /* @vitest-environment jsdom */
 import { importHoldCodes } from '@pathways/shared'
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ImportBatchDefinition, ImportRowDefinition } from '@/types/pathways'
@@ -10,7 +10,12 @@ import { ImportHeldList } from './import-held-list'
 const state = vi.hoisted(() => ({
   profile: {
     roles: ['MONITORING_AND_EVALUATION_OFFICER'],
-    permissions: ['imports.read', 'imports.review', 'beneficiaries.records.register'] as string[],
+    permissions: [
+      'imports.read',
+      'imports.review',
+      'beneficiaries.records.read',
+      'beneficiaries.records.register',
+    ] as string[],
   },
 }))
 const api = vi.hoisted(() => ({
@@ -69,7 +74,12 @@ const invalid = (code: string, index: number) =>
 describe('import held list', () => {
   beforeEach(() => {
     vi.resetAllMocks()
-    state.profile.permissions = ['imports.read', 'imports.review', 'beneficiaries.records.register']
+    state.profile.permissions = [
+      'imports.read',
+      'imports.review',
+      'beneficiaries.records.read',
+      'beneficiaries.records.register',
+    ]
   })
   afterEach(cleanup)
 
@@ -220,8 +230,24 @@ describe('import held list', () => {
     state.profile.roles = ['MONITORING_AND_EVALUATION_OFFICER']
   })
 
+  it('offers no Review button without beneficiaries.records.read', async () => {
+    state.profile.permissions = ['imports.read', 'imports.review', 'beneficiaries.records.register']
+    await show([held('PROFILE_CHANGED', 0)])
+    expect(screen.queryByRole('button', { name: /^Review/ })).toBeNull()
+  })
+
+  it('closes the review window when a refresh drops its row', async () => {
+    api.getRowReview.mockReturnValue(new Promise(() => {}))
+    const view = await show([held('PROFILE_CHANGED', 0)])
+    fireEvent.click(screen.getByRole('button', { name: 'Review row 2' }))
+    expect(await screen.findByRole('dialog')).toBeTruthy()
+    api.getHeldRows.mockResolvedValue([])
+    view.rerender(<ImportHeldList batch={{ ...batch }} onChanged={vi.fn()} />)
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+  })
+
   it('offers no Review button without beneficiaries.records.register', async () => {
-    state.profile.permissions = ['imports.read', 'imports.review']
+    state.profile.permissions = ['imports.read', 'imports.review', 'beneficiaries.records.read']
     await show([held('PROFILE_CHANGED', 0)])
     expect(screen.queryByRole('button', { name: /^Review/ })).toBeNull()
   })

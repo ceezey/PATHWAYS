@@ -57,9 +57,10 @@ export function ImportHeldList({
   }, [batch, heldCount])
   const counts = batch.registrationCounts
   if (!counts && heldCount === 0 && held.length === 0) return null
-  // Resolving registers a participant, so the reviewer needs both grants.
+  // The window shows stored participant values and resolving registers one, so the reviewer needs all three grants.
   const canReview =
     principalHasAtomicPermission(profile, 'imports.review') &&
+    principalHasAtomicPermission(profile, 'beneficiaries.records.read') &&
     principalHasAtomicPermission(profile, 'beneficiaries.records.register')
   const results = [
     ...(counts
@@ -71,6 +72,8 @@ export function ImportHeldList({
       : []),
     ['Held', heldCount],
   ] as const
+  // A refresh can drop the row being reviewed, and then there is nothing to open.
+  const reviewed = held.find((row) => row.id === reviewing)
   const minors = held
     .filter(
       (row) =>
@@ -151,16 +154,16 @@ export function ImportHeldList({
         projectId={batch.projectId}
         rows={minors}
       />
-      {reviewing ? (
+      {reviewed ? (
         <ImportReviewDialog
           batchId={batch.id}
           canUpdate={principalHasAtomicPermission(profile, 'beneficiaries.identities.review')}
-          key={reviewing}
+          key={reviewed.id}
           onClose={() => setReviewing(null)}
           onResolved={() => void onChanged()}
           projectId={batch.projectId}
-          reason={rowReason(held.find((row) => row.id === reviewing) as ImportRowDefinition)}
-          rowId={reviewing}
+          reason={rowReason(reviewed)}
+          rowId={reviewed.id}
           validationRevision={batch.validationRevision}
         />
       ) : null}

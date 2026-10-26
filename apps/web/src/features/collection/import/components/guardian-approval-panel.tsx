@@ -107,7 +107,8 @@ export function GuardianApprovalPanel({
         <CardHeader>
           <CardTitle id={`${id}-title`}>Guardian approval</CardTitle>
           <CardDescription>
-            These participants are under 18. Approving records you as their guardian.
+            These participants are under 18. Approving records guardian consent, with you as the
+            approving officer.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -173,7 +174,7 @@ export function GuardianApprovalPanel({
           <ConfirmationDialog
             confirmLabel="Record guardian consent"
             confirmVariant="default"
-            description={`This records guardian consent for ${plural(chosen.length, 'participant')} and records you as the approving officer, and creates their profiles. It cannot be undone here.`}
+            description={`This records guardian consent for ${plural(chosen.length, 'participant')} and records you as the approving officer, and processes them. It cannot be undone here.`}
             onConfirm={() => void approve()}
             onOpenChange={setConfirming}
             open={confirming}
