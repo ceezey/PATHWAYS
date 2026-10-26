@@ -559,19 +559,22 @@ describe('guardian approval', () => {
     expect(guardianRecords()).toHaveLength(3)
   })
 
-  it('approves with a generated code when a code-matched row code is already taken', async () => {
+  it('refuses a code-matched row whose code is already taken, naming the row, with no write', async () => {
     store.identifierMapped = false
-    // The code PART-1 belongs to someone else; any other code is free.
+    // The code is the identity in such a batch: PART-1 belongs to a participant already in PATHWAYS.
     fakeTx.beneficiary.findUnique.mockImplementation((async (args: {
       where: { organizationId_code: { code: string } }
     }) => (args.where.organizationId_code.code === 'PART-1' ? { id: 'taken' } : null)) as never)
 
-    await expect(approve({ rowIds: [rowIds[0]] })).resolves.toEqual({ approved: 1 })
-
-    const created = fakeTx.beneficiary.createMany.mock.calls[0][0].data as { code: string }
-    expect(created.code).toMatch(/^PW[0-9A-Z]{10}$/)
-    expect(store.rows[0]).toMatchObject({ status: 'PROCESSED', registrationOutcome: 'CREATED' })
-    fakeTx.beneficiary.findUnique.mockImplementation((async () => null) as never)
+    try {
+      await expect(approve({ rowIds: [rowIds[0]] })).rejects.toThrow(
+        'Row 1 looks like a participant already in PATHWAYS. A Monitoring and Evaluation Officer must review it first.',
+      )
+      expectNoWrites()
+      expect(store.rows[0]).toMatchObject({ status: 'UNPROCESSED', resolvedAt: null })
+    } finally {
+      fakeTx.beneficiary.findUnique.mockImplementation((async () => null) as never)
+    }
   })
 
   it('holds a row that no longer matches as the same participant', async () => {

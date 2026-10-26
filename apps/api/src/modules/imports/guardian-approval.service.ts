@@ -9,6 +9,7 @@ import { PrismaService } from '../../prisma/prisma.service'
 import {
   type NormalizedValue,
   businessToday,
+  canonicalCode,
 } from '../beneficiaries/beneficiary-registration.helpers'
 import {
   BeneficiaryRegistrationService,
@@ -146,9 +147,9 @@ export class GuardianApprovalService {
             await promoteClaimedRow(tx, actor, this.registration, {
               ...claimInput,
               form,
-              // A parked row keeps the resolution a reviewer gave it.
               // A reviewer's resolution was made on the client's identifier.
               matchByIdentifier: parked || byIdentifier,
+              // A parked row keeps the resolution a reviewer gave it.
               resolution: parked ? null : { guardianApproval: true },
               values,
               guardianConsent: details,
@@ -189,10 +190,21 @@ export class GuardianApprovalService {
     }
     const stored = safeRawData(row.normalizedData)
     if (!byIdentifier) {
-      // Matched by code: a new participant keeps a free file code, else gets a generated one, as processing does.
-      if (stored.registration_operation !== 'CREATE') return { parked: false, values: stored }
-      const created = await matchedValues(tx, actor, { kind: 'NEW' }, stored)
-      return { parked: false, values: created ?? stored }
+      // Matched by code, the code is the identity: a taken one is a participant already here, never a reason for a new code.
+      const code = canonicalCode(stored.beneficiary_code)
+      const taken =
+        stored.registration_operation === 'CREATE' && code
+          ? await tx.beneficiary.findUnique({
+              where: { organizationId_code: { organizationId: actor.organizationId, code } },
+              select: { id: true },
+            })
+          : null
+      if (taken) {
+        throw new ConflictException(
+          `Row ${row.rowNumber} looks like a participant already in PATHWAYS. A Monitoring and Evaluation Officer must review it first.`,
+        )
+      }
+      return { parked: false, values: stored }
     }
     const file = stored as Record<string, NormalizedValue>
     const match = await matchParticipant(tx, actor, { form, values: file })
