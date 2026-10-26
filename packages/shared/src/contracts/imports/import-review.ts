@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-import { supportedFormFieldTypes } from '../../validation/form-data'
+import { formDefinitionLimits, supportedFormFieldTypes } from '../../validation/form-data'
 import { hasUniqueItems, lengthString, trimmedInput, uuidString } from '../common/field-schemas'
 
 // Codes that leave an imported row UNPROCESSED for a person: the registration service's review codes plus the file-import ones.
@@ -32,6 +32,17 @@ const json: z.ZodType<Json> = z.lazy(() =>
     z.record(z.string(), json),
   ]),
 )
+
+// A typed answer is text, a number, a yes or no, nothing, or a list of choices, within the form limits.
+const ownValue = z.union([
+  z.string().max(formDefinitionLimits.longTextLength),
+  z.number(),
+  z.boolean(),
+  z.null(),
+  z
+    .array(z.string().max(formDefinitionLimits.textLength))
+    .max(formDefinitionLimits.multiSelectValues),
+])
 
 const fieldCode = z.string().regex(/^[a-z][a-z0-9_]{0,63}$/, 'must be a lowercase field code')
 
@@ -73,7 +84,7 @@ export const resolveImportRowRequest = z
     expectedValidationRevision: z.number().int().min(1),
     saveAs: z.enum(['UPDATE', 'NEW']),
     choices: z.record(fieldCode, z.enum(importResolveChoices)),
-    own: z.record(fieldCode, json),
+    own: z.record(fieldCode, ownValue),
   })
   .strict()
   .superRefine((body, ctx) => {

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
+import { formDefinitionLimits } from '../../validation/form-data'
 import { importSourceColumnResponse } from './import-responses'
 import {
   approveGuardianConsentRequest,
@@ -23,6 +24,30 @@ describe('resolveImportRowRequest', () => {
     expect(accepts(resolveImportRowRequest, body({ age: 'OWN', sex: 'FILE' }, { age: 21 }))).toBe(
       true,
     )
+  })
+
+  it('accepts the plain kinds of typed answer', () => {
+    for (const value of ['text', 3.5, true, null, ['a', 'b']]) {
+      expect(accepts(resolveImportRowRequest, body({ answer: 'OWN' }, { answer: value }))).toBe(
+        true,
+      )
+    }
+  })
+
+  it('a nested, object or oversized own value is refused', () => {
+    const refused = [
+      { nested: 1 },
+      [['a']],
+      [1, 2],
+      Array.from({ length: formDefinitionLimits.multiSelectValues + 1 }, () => 'a'),
+      ['x'.repeat(formDefinitionLimits.textLength + 1)],
+      'x'.repeat(formDefinitionLimits.longTextLength + 1),
+    ]
+    for (const value of refused) {
+      expect(accepts(resolveImportRowRequest, body({ answer: 'OWN' }, { answer: value }))).toBe(
+        false,
+      )
+    }
   })
 
   it('own value without OWN choice is refused', () => {
