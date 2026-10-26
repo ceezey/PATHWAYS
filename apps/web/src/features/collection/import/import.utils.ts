@@ -92,6 +92,10 @@ export function rowReason(
   return (code ? validationReasons[code] : undefined) ?? 'A value in this row is not valid'
 }
 
+// The plain reason a review window shows for its reason code: a hold code, or an invalid row's first validation code.
+export const reviewReason = (code: string) =>
+  knownHoldReason(code) ?? validationReasons[code] ?? 'A value in this row is not valid'
+
 // The participant name from the mapped first and last name columns, or a fallback when the file has none.
 export function participantName(
   row: Pick<ImportRowDefinition, 'rawData'>,

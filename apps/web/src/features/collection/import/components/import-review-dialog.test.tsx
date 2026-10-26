@@ -215,6 +215,20 @@ describe('import review dialog', () => {
     expect(await sent()).toMatchObject({ saveAs: 'NEW', choices: {}, own: {} })
   })
 
+  it('an invalid row is described by its validation reason, not as needing review', async () => {
+    await open(true, 'AGE_MISMATCH')
+    expect(screen.getByText(/Age does not match the birth date\./)).toBeTruthy()
+    expect(screen.queryByText(/Needs review/)).toBeNull()
+  })
+
+  it('a row without consent says to upload a corrected file and cannot be saved', async () => {
+    await open(true, 'CONSENT_REQUIRED')
+    expect(screen.getByText(/Upload a corrected file with consent recorded\./)).toBeTruthy()
+    expect((screen.getByRole('button', { name: 'Confirm' }) as HTMLButtonElement).disabled).toBe(
+      true,
+    )
+  })
+
   it('a minor who now waits for a Project Officer is said so', async () => {
     api.resolveRow.mockResolvedValue({ status: 'WAITING_FOR_PROJECT_OFFICER' })
     await open()

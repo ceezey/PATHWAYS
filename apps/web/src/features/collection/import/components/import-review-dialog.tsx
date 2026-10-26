@@ -27,7 +27,7 @@ import { importsClient } from '@/lib/api/imports'
 import { cn } from '@/lib/utils'
 
 import { selectClass } from '../../forms/components/intake-controls'
-import { headClass, holdReason } from '../import.utils'
+import { headClass, reviewReason } from '../import.utils'
 import { ChoiceCell, OwnValue, cellText, ownPayload } from './import-review-cells'
 
 type Choice = 'PATHWAYS' | 'FILE' | 'CALCULATED' | 'OWN'
@@ -80,7 +80,9 @@ export function ImportReviewDialog({
   }, [projectId, batchId, rowId, canUpdate])
 
   const canSaveUpdate = Boolean(review?.participant) && canUpdate
-  const canSave = canSaveUpdate || Boolean(review?.canAddNew)
+  // Consent cannot be typed in, so a row without it waits for a corrected file.
+  const needsCorrectedFile = review?.reason === 'CONSENT_REQUIRED'
+  const canSave = !needsCorrectedFile && (canSaveUpdate || Boolean(review?.canAddNew))
   const touch = (code: string) =>
     setErrors((current) => {
       const { [code]: _cleared, ...rest } = current
@@ -168,7 +170,11 @@ export function ImportReviewDialog({
           <DialogTitle>{review ? `Review row ${review.rowNumber}` : 'Review held row'}</DialogTitle>
           <DialogDescription>
             {review
-              ? `${review.participant?.displayName ? `${review.participant.displayName}: ` : ''}${holdReason(review.reason)}. Click the value to keep, or type your own.`
+              ? `${review.participant?.displayName ? `${review.participant.displayName}: ` : ''}${reviewReason(review.reason)}. ${
+                  needsCorrectedFile
+                    ? 'Consent cannot be added here. Upload a corrected file with consent recorded.'
+                    : 'Click the value to keep, or type your own.'
+                }`
               : 'Loading the row.'}
           </DialogDescription>
         </DialogHeader>
