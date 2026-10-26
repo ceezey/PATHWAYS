@@ -62,6 +62,28 @@ describe('import rows listing', () => {
     })
   })
 
+  it('reports when a row was resolved and null when it was not', async () => {
+    tx.dataImportBatch.findFirst.mockResolvedValue(batch({ form: registrationForm }))
+    const stored = {
+      rawData: {},
+      validationErrors: [],
+      validationWarnings: [],
+      mappingRevision: 1,
+      validationRevision: 1,
+      processingAttempts: 1,
+      processingErrorCode: 'GUARDIAN_CONSENT_REQUIRED',
+      status: 'UNPROCESSED',
+      updatedAt: new Date('2026-10-20T00:00:00.000Z'),
+    }
+    tx.dataImportRow.findMany.mockResolvedValue([
+      { ...stored, id: 'a', rowNumber: 1, resolvedAt: new Date('2026-10-19T01:02:03.000Z') },
+      { ...stored, id: 'b', rowNumber: 2, resolvedAt: null },
+    ])
+    const page = await service.listRows(actor, projectId, batchId, { offset: 0, take: 100 })
+    expect(tx.dataImportRow.findMany.mock.calls[0][0].select).toMatchObject({ resolvedAt: true })
+    expect(page.rows.map((row) => row.resolvedAt)).toEqual(['2026-10-19T01:02:03.000Z', null])
+  })
+
   it('leaves invalid rows out of the held filter for other form types', async () => {
     tx.dataImportBatch.findFirst.mockResolvedValue(batch())
     tx.dataImportRow.findMany.mockResolvedValue([])

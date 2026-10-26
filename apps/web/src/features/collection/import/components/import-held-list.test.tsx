@@ -49,6 +49,7 @@ const held = (code: string, index: number) =>
     rawData: { column_0001: `First${index}`, column_0002: `Last${index}` },
     status: 'UNPROCESSED',
     processingErrorCode: code,
+    resolvedAt: null,
   }) as unknown as ImportRowDefinition
 const show = async (rows: ImportRowDefinition[], current = batch) => {
   api.getHeldRows.mockResolvedValue(rows)
@@ -101,13 +102,29 @@ describe('import held list', () => {
     expect(screen.getByText('First0 Last0')).toBeTruthy()
   })
 
-  it('offers Review only for rows a data reviewer can resolve', async () => {
+  it('offers Review for rows a data reviewer can resolve, guardian rows included until they are resolved', async () => {
     api.getRowReview.mockReturnValue(new Promise(() => {}))
-    await show([held('PROFILE_CHANGED', 0), held('GUARDIAN_CONSENT_REQUIRED', 1)])
-    expect(screen.getAllByRole('button', { name: /^Review/ })).toHaveLength(1)
-    fireEvent.click(screen.getByRole('button', { name: 'Review row 2' }))
+    const parked = {
+      ...held('GUARDIAN_CONSENT_REQUIRED', 2),
+      resolvedAt: '2026-10-20T00:00:00.000Z',
+    } as ImportRowDefinition
+    await show([held('PROFILE_CHANGED', 0), held('GUARDIAN_CONSENT_REQUIRED', 1), parked])
+    expect(screen.getAllByRole('button', { name: /^Review/ }).map((b) => b.ariaLabel)).toEqual([
+      'Review row 2',
+      'Review row 3',
+    ])
+    expect(screen.queryByRole('button', { name: 'Review row 4' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Review row 3' }))
     expect(await screen.findByRole('dialog')).toBeTruthy()
-    expect(api.getRowReview).toHaveBeenCalledWith('project-1', 'batch-1', 'row-0')
+    expect(api.getRowReview).toHaveBeenCalledWith('project-1', 'batch-1', 'row-1')
+  })
+
+  it('never offers Review to an approving officer', async () => {
+    state.profile.roles = ['PROJECT_OFFICER']
+    state.profile.permissions = ['imports.read', 'beneficiaries.guardian_consent.approve']
+    await show([held('GUARDIAN_CONSENT_REQUIRED', 0)])
+    expect(screen.queryByRole('button', { name: /^Review/ })).toBeNull()
+    state.profile.roles = ['MONITORING_AND_EVALUATION_OFFICER']
   })
 
   it('shows the held minors to a data reviewer without any Approve control', async () => {

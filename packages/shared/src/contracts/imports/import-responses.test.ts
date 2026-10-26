@@ -66,6 +66,7 @@ const row = {
   validationRevision: 1,
   processingAttempts: 0,
   processingErrorCode: null,
+  resolvedAt: null,
   updatedAt: '2026-10-13T00:00:00.000Z',
 }
 

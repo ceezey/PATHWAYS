@@ -124,7 +124,9 @@ export function ImportHeldList({
                       <TableCell>{participantName(row, batch.mappings)}</TableCell>
                       <TableCell>{rowReason(row)}</TableCell>
                       <TableCell className="text-right">
-                        {canReview && row.processingErrorCode !== 'GUARDIAN_CONSENT_REQUIRED' ? (
+                        {canReview &&
+                        (row.processingErrorCode !== 'GUARDIAN_CONSENT_REQUIRED' ||
+                          row.resolvedAt === null) ? (
                           <Button
                             aria-label={`Review row ${row.rowNumber}`}
                             onClick={() => setReviewing(row.id)}

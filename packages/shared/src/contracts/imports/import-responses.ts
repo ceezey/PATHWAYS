@@ -133,6 +133,8 @@ export const importRowResponse = z.object({
   validationRevision: z.number().int(),
   processingAttempts: z.number().int(),
   processingErrorCode: z.string().nullable(),
+  // Set once a reviewer has resolved the row; a resolved row waiting for guardian approval is not reviewed again.
+  resolvedAt: z.string().nullable(),
   updatedAt: z.string(),
 })
 export type ImportRowResponse = z.infer<typeof importRowResponse>
