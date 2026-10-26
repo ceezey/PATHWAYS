@@ -480,6 +480,8 @@ export async function completeUnchangedRow(
 // What a person can do about a row the registration service still sends to review.
 const reviewNextStep: Record<string, string> = {
   CONSENT_REQUIRED: 'Consent is not recorded in the file, so upload a corrected file.',
+  GUARDIAN_CONSENT_REQUIRED:
+    'The participant is under 18 and an existing profile cannot be approved by a Project Officer, so upload a corrected file.',
 }
 const reviewDefaultStep =
   'Open the import again to see where it stands, or upload a corrected file.'
@@ -524,7 +526,12 @@ export async function promoteClaimedRow(
     { form },
   )
   if (result.kind === 'REVIEW') {
-    if (result.code === GUARDIAN_HOLD && !input.guardianConsent) {
+    // Only a new participant waits for a Project Officer; linking or updating one needs identity review, which a Project Officer lacks.
+    if (
+      result.code === GUARDIAN_HOLD &&
+      !input.guardianConsent &&
+      values.registration_operation === 'CREATE'
+    ) {
       await tx.dataImportRow.update({
         where: { id: rowId },
         data: {

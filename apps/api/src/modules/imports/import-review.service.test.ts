@@ -854,10 +854,17 @@ describe('resolve', () => {
         code: 'GUARDIAN_CONSENT_REQUIRED',
       } as never)
 
+    // A new participant, who a Project Officer can approve.
+    const asNew = {
+      saveAs: 'NEW',
+      choices: { external_identifier_value: 'OWN' },
+      own: { external_identifier_value: 'S-9' },
+    }
+
     it('is saved and parked for a Project Officer with the resolution kept', async () => {
       needsGuardian()
 
-      await expect(resolve({ choices: keepBoth })).resolves.toEqual({
+      await expect(resolve(asNew)).resolves.toEqual({
         status: 'WAITING_FOR_PROJECT_OFFICER',
       })
 
@@ -867,7 +874,7 @@ describe('resolve', () => {
         processingClaimId: null,
         processingClaimedAt: null,
         resolvedById: actorId,
-        resolutionData: { saveAs: 'UPDATE', choices: keepBoth },
+        resolutionData: { saveAs: 'NEW', choices: asNew.choices },
         registrationOutcome: null,
       })
       expect(store.rows[0].resolvedAt).toBeInstanceOf(Date)
@@ -901,9 +908,22 @@ describe('resolve', () => {
       store.rows[0].processingErrorCode = 'GUARDIAN_CONSENT_REQUIRED'
       needsGuardian()
 
-      await expect(resolve({ choices: keepBoth })).rejects.toThrow(
+      await expect(resolve(asNew)).rejects.toThrow(
         'Row 2 still needs guardian consent. A Project Officer must approve it.',
       )
+    })
+
+    it('an update of an existing participant is 409 with its next step and is not parked', async () => {
+      needsGuardian()
+
+      await expect(resolve({ choices: keepBoth })).rejects.toMatchObject({
+        response: {
+          code: 'GUARDIAN_CONSENT_REQUIRED',
+          message: expect.stringContaining('Row 2 still needs review'),
+        },
+      })
+      // Nothing parked it; the real transaction rolls the claim back.
+      expect(store.rows[0].processingErrorCode).toBeNull()
     })
 
     it('a held guardian row of a participant who needs no approval any more is saved', async () => {

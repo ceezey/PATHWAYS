@@ -15,7 +15,10 @@ import {
   type RegistrationImportForm,
 } from '../beneficiaries/beneficiary-registration.service'
 import { reconcileBatch } from './import-claims.service'
-import { registrationMatchesByIdentifier } from './import-promotion-context.service'
+import {
+  mayMatchByIdentifier,
+  registrationMatchesByIdentifier,
+} from './import-promotion-context.service'
 import {
   GUARDIAN_HOLD,
   claimBatchForResolution,
@@ -112,6 +115,18 @@ export class GuardianApprovalService {
           ...(body.guardianName ? { name: body.guardianName } : {}),
           ...(body.consentDate ? { date: body.consentDate } : {}),
           ...(body.note ? { note: body.note } : {}),
+        }
+        // Linking or updating a found participant needs grants a Project Officer lacks, so name the row instead of failing the chunk.
+        for (const { row, unchangedOf, values } of promotable) {
+          if (
+            !unchangedOf &&
+            values.registration_operation !== 'CREATE' &&
+            !mayMatchByIdentifier(actor)
+          ) {
+            throw new ConflictException(
+              `Row ${row.rowNumber} belongs to a participant already in PATHWAYS. A Monitoring and Evaluation Officer must review it first.`,
+            )
+          }
         }
         const claim = await claimBatchForResolution(tx, batch.id)
         for (const { row, parked, unchangedOf, values } of promotable) {

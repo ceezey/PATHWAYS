@@ -620,6 +620,46 @@ describe('guardian approval', () => {
     })
   })
 
+  describe('a row that would link or update a participant already in PATHWAYS', () => {
+    it('is 409 naming the row, before any write, instead of a 403 from promotion', async () => {
+      // The Student ID belongs to a participant enrolled elsewhere whose identity agrees: a link.
+      fakeTx.beneficiaryIdentifier.findUnique.mockResolvedValueOnce({
+        beneficiaryId: 'person',
+      } as never)
+      const profile = {
+        firstName: 'Synthetic',
+        lastName: 'Child1',
+        birthDate: new Date('2014-03-04T00:00:00.000Z'),
+      }
+      fakeTx.beneficiary.findFirst
+        .mockResolvedValueOnce(profile as never)
+        .mockResolvedValueOnce(profile as never)
+        .mockResolvedValueOnce({ code: 'PW0000000001' } as never)
+
+      await expect(approve({ rowIds: [rowIds[0], rowIds[1]] })).rejects.toThrow(
+        'Row 1 belongs to a participant already in PATHWAYS.',
+      )
+      expectNoWrites()
+    })
+
+    it('a parked update is 409 naming the row', async () => {
+      store.rows[2] = {
+        ...store.rows[2],
+        resolvedAt: createdAt,
+        normalizedData: null,
+        resolutionData: {
+          saveAs: 'UPDATE',
+          choices: {},
+          values: heldValues(3, { registration_operation: 'UPDATE' }),
+        },
+      } as never
+      await expect(approve({ rowIds: [rowIds[2]] })).rejects.toThrow(
+        'Row 3 belongs to a participant already in PATHWAYS.',
+      )
+      expectNoWrites()
+    })
+  })
+
   describe('a participant already enrolled with the same details', () => {
     it('is unchanged: processed with no new registration', async () => {
       fakeTx.beneficiaryIdentifier.findUnique.mockResolvedValueOnce({
