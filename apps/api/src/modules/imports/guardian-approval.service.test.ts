@@ -559,6 +559,21 @@ describe('guardian approval', () => {
     expect(guardianRecords()).toHaveLength(3)
   })
 
+  it('approves with a generated code when a code-matched row code is already taken', async () => {
+    store.identifierMapped = false
+    // The code PART-1 belongs to someone else; any other code is free.
+    fakeTx.beneficiary.findUnique.mockImplementation((async (args: {
+      where: { organizationId_code: { code: string } }
+    }) => (args.where.organizationId_code.code === 'PART-1' ? { id: 'taken' } : null)) as never)
+
+    await expect(approve({ rowIds: [rowIds[0]] })).resolves.toEqual({ approved: 1 })
+
+    const created = fakeTx.beneficiary.createMany.mock.calls[0][0].data as { code: string }
+    expect(created.code).toMatch(/^PW[0-9A-Z]{10}$/)
+    expect(store.rows[0]).toMatchObject({ status: 'PROCESSED', registrationOutcome: 'CREATED' })
+    fakeTx.beneficiary.findUnique.mockImplementation((async () => null) as never)
+  })
+
   it('holds a row that no longer matches as the same participant', async () => {
     // The Student ID now belongs to a participant whose name differs from the file.
     fakeTx.beneficiaryIdentifier.findUnique.mockResolvedValueOnce({

@@ -817,6 +817,28 @@ describe('P04 beneficiary registration service', () => {
           expect(consentKinds()).toEqual(['PARTICIPATION', 'DATA_PROCESSING', 'GUARDIAN'])
         })
 
+        it('stores the guardian answer that matches the consent records it writes', async () => {
+          const answer = () =>
+            tx.formResponseValue.createMany.mock.calls
+              .at(-1)?.[0]
+              .data.find(
+                (item: { fieldId: string }) => item.fieldId === 'guardian_consent_recorded-field',
+              ).value
+          // A consented minor linked again: the answer follows the profile, not the file's false.
+          tx.beneficiary.findFirst.mockResolvedValue(minorProfile(true))
+          await promoteImported(minorRow)
+          expect(consentKinds()).toContain('GUARDIAN')
+          expect(answer()).toBe(true)
+          // A known adult has no guardian consent, whatever the file says.
+          tx.beneficiaryConsentRecord.createMany.mockClear()
+          tx.beneficiary.findFirst.mockResolvedValue(
+            stored({ isMinor: false, guardianConsentRecorded: false }),
+          )
+          await promoteImported(link({ guardian_consent_recorded: true }))
+          expect(consentKinds()).not.toContain('GUARDIAN')
+          expect(answer()).toBe(false)
+        })
+
         it('is held for a minor whose profile has no guardian consent, whatever the row says', async () => {
           tx.beneficiary.findFirst.mockResolvedValue(minorProfile(false))
           for (const guardian of [false, true]) {

@@ -147,6 +147,8 @@ export class GuardianApprovalService {
               ...claimInput,
               form,
               // A parked row keeps the resolution a reviewer gave it.
+              // A reviewer's resolution was made on the client's identifier.
+              matchByIdentifier: parked || byIdentifier,
               resolution: parked ? null : { guardianApproval: true },
               values,
               guardianConsent: details,
@@ -186,7 +188,12 @@ export class GuardianApprovalService {
       return { parked: true, values: resolved }
     }
     const stored = safeRawData(row.normalizedData)
-    if (!byIdentifier) return { parked: false, values: stored }
+    if (!byIdentifier) {
+      // Matched by code: a new participant keeps a free file code, else gets a generated one, as processing does.
+      if (stored.registration_operation !== 'CREATE') return { parked: false, values: stored }
+      const created = await matchedValues(tx, actor, { kind: 'NEW' }, stored)
+      return { parked: false, values: created ?? stored }
+    }
     const file = stored as Record<string, NormalizedValue>
     const match = await matchParticipant(tx, actor, { form, values: file })
     // A participant already enrolled with the same details needs no new registration.

@@ -500,6 +500,8 @@ export async function promoteClaimedRow(
     rowId: string
     rowNumber: number
     claim: BatchClaim
+    // True when the batch finds participants by the client's identifier, else by the participant code.
+    matchByIdentifier: boolean
     // What the row stores as its resolution, or null for a row parked for guardian consent that already has one.
     resolution: Prisma.InputJsonValue | null
     values: Record<string, unknown>
@@ -520,7 +522,7 @@ export async function promoteClaimedRow(
       validatedById: actor.userId,
       importBatchId: batch.id,
       importRowId: rowId,
-      matchByIdentifier: true,
+      ...(input.matchByIdentifier ? { matchByIdentifier: true } : {}),
       ...(input.guardianConsent ? { guardianConsent: input.guardianConsent } : {}),
     },
     { form },
@@ -581,6 +583,8 @@ export async function commitResolvedRow(
   const result = await promoteClaimedRow(tx, actor, registration, {
     ...input,
     claim,
+    // A resolution is made on the client's identifier.
+    matchByIdentifier: true,
     resolution: input.resolution as unknown as Prisma.InputJsonValue,
     values: input.resolution.values,
   })
