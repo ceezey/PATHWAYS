@@ -2,6 +2,7 @@ import { Worker } from 'node:worker_threads'
 
 import { importHeaderLabel } from '../header-label'
 import { IMPORT_ENGINEERING_LIMITS, type SupportedImportFileType } from '../limits'
+import { isCodeHeaderRow } from './code-header'
 import { excelSerialToIsoDate } from './excel-date'
 import { type PdfTableLimits, reconstructPdfTable } from './pdf-table'
 
@@ -25,6 +26,8 @@ export interface ImportSourceColumn {
   key: string
   header: string
   columnIndex: number
+  // The field code printed in a coded header row, when the file has one.
+  sourceCode?: string
 }
 
 interface SecureImportParseResult {
@@ -408,7 +411,16 @@ function normalizeMatrix(
   }
   const blank = (value: unknown) =>
     value === null || value === undefined || (typeof value === 'string' && value.trim() === '')
-  const firstRow = Array.isArray(matrix[0]) ? matrix[0] : []
+  const codeRow = Array.isArray(matrix[0]) ? matrix[0] : []
+  // A code row above a label row: the label names the column, the code is kept as its source code.
+  const coded =
+    Array.isArray(matrix[0]) && Array.isArray(matrix[1]) && isCodeHeaderRow(matrix[0], matrix[1])
+  const headerRows = coded ? 2 : 1
+  const firstDataRow = headerRows + 1
+  const labelRow = coded && Array.isArray(matrix[1]) ? matrix[1] : []
+  const firstRow = coded
+    ? codeRow.map((code, index) => (blank(labelRow[index]) ? code : labelRow[index]))
+    : codeRow
   // Trailing columns with a blank header and no values are sheet formatting, not data.
   let width = matrix.reduce<number>(
     (widest, row) => Math.max(widest, Array.isArray(row) ? row.length : 0),
@@ -438,12 +450,15 @@ function normalizeMatrix(
     }
     return header
   })
-  const sourceColumns = headers.map((header, index) => ({
+  const sourceColumns: ImportSourceColumn[] = headers.map((header, index) => ({
     key: sourceColumnKey(index + 1),
     header,
     columnIndex: index + 1,
+    ...(coded && !blank(codeRow[index]) ? { sourceCode: String(codeRow[index]).trim() } : {}),
   }))
-  const sourceRows = matrix.slice(1).map((row) => (Array.isArray(row) ? row.slice(0, width) : row))
+  const sourceRows = matrix
+    .slice(headerRows)
+    .map((row) => (Array.isArray(row) ? row.slice(0, width) : row))
   if (sourceRows.length > IMPORT_ENGINEERING_LIMITS.maxRows) {
     reject('ROW_LIMIT', 'The file has too many rows.')
   }
@@ -452,25 +467,37 @@ function normalizeMatrix(
   }
   const rows: ParsedImportRow[] = sourceRows.map((source, rowIndex) => {
     if (!Array.isArray(source) || source.length > headers.length) {
-      reject('ROW_WIDTH_INVALID', `Source row ${rowIndex + 2} has an unexpected column count.`)
+      reject(
+        'ROW_WIDTH_INVALID',
+        `Source row ${rowIndex + firstDataRow} has an unexpected column count.`,
+      )
     }
     const values = Object.create(null) as Record<string, CellValue>
     sourceColumns.forEach((column, columnOffset) => {
       const value = source[columnOffset] ?? null
       if (!['string', 'number', 'boolean'].includes(typeof value) && value !== null) {
-        reject('CELL_TYPE_INVALID', `Source row ${rowIndex + 2} contains an unsupported cell.`)
+        reject(
+          'CELL_TYPE_INVALID',
+          `Source row ${rowIndex + firstDataRow} contains an unsupported cell.`,
+        )
       }
       if (typeof value === 'string') {
         if (value.length > IMPORT_ENGINEERING_LIMITS.maxCellCharacters) {
-          reject('CELL_LENGTH_LIMIT', `Source row ${rowIndex + 2} contains an oversized cell.`)
+          reject(
+            'CELL_LENGTH_LIMIT',
+            `Source row ${rowIndex + firstDataRow} contains an oversized cell.`,
+          )
         }
         if (formulaText.test(value.trimStart())) {
-          reject('CELL_FORMULA_UNSAFE', `Source row ${rowIndex + 2} contains formula-like text.`)
+          reject(
+            'CELL_FORMULA_UNSAFE',
+            `Source row ${rowIndex + firstDataRow} contains formula-like text.`,
+          )
         }
       }
       values[column.key] = value as CellValue
     })
-    return { sourceRowNumber: rowIndex + 2, values }
+    return { sourceRowNumber: rowIndex + firstDataRow, values }
   })
   return { rows, sourceColumns }
 }

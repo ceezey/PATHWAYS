@@ -233,6 +233,8 @@ describe('import normalization contract', () => {
       }),
     ]
     const dates = { birth_date: '2008-08-17', enrollment_date: '2026-05-28' }
+    // Under 18 on the upload date 2026-10-22, unlike the birth date above.
+    const minorDates = { birth_date: '2008-11-01', enrollment_date: '2026-05-28' }
 
     it('holds a row whose birth date is after the enrollment date instead of a negative age', () => {
       const options = { uploadDate: '2026-10-22' }
@@ -367,9 +369,13 @@ describe('import normalization contract', () => {
           rule: { kind: 'MINOR_AT_DATE', birthField: 'birth_date', atField: 'enrollment_date' },
         }),
       ]
-      expect(normalizeImportedRow(list, dates, {}, options)).toMatchObject({
+      expect(normalizeImportedRow(list, minorDates, {}, options)).toMatchObject({
         valid: true,
         values: { is_minor: true },
+      })
+      expect(normalizeImportedRow(list, dates, {}, options)).toMatchObject({
+        valid: true,
+        values: { is_minor: false },
       })
       expect(normalizeImportedRow(list, dates).valid).toBe(false)
     })
@@ -439,7 +445,7 @@ describe('import normalization contract', () => {
         }),
         intake({ code: 'guardian_consent_recorded', dataType: 'BOOLEAN' }),
       ]
-      const result = normalizeImportedRow(list, dates, {}, options)
+      const result = normalizeImportedRow(list, minorDates, {}, options)
       expect(result.valid).toBe(true)
       expect(result.warnings).toEqual([
         { fieldCode: 'guardian_consent_recorded', code: 'GUARDIAN_CONSENT_MISSING' },

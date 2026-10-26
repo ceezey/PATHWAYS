@@ -5,13 +5,79 @@ import { writeAuditLog } from '../../common/audit/write-audit-log'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import { formFieldContract } from '../../common/forms/form-field-contract'
 import type { Tx } from '../../common/prisma/transaction'
+import { generateBeneficiaryCode } from '../beneficiaries/beneficiary-code'
+import {
+  type NormalizedValue,
+  canonicalCode,
+} from '../beneficiaries/beneficiary-registration.helpers'
 import {
   type PromotionContext,
   type PromotionHandlers,
   loadFormFields,
   loadParticipationForm,
+  registrationMatchesByIdentifier,
 } from './import-promotion-context.service'
 import { safeRawData } from './imports.helpers'
+import { type ParticipantMatch, matchParticipant, rejectedBaseline } from './participant-match'
+
+export const registrationOutcomes = {
+  CREATE: 'CREATED',
+  UPDATE: 'UPDATED',
+  LINK: 'LINKED',
+} as const
+
+// Leaves a registration row unprocessed with the code a reviewer will see.
+async function holdRegistrationRow(
+  tx: Tx,
+  actor: ApplicationIdentity,
+  batch: PromotionContext['batch'],
+  row: { id: string; rowNumber: number },
+  code: string,
+) {
+  await tx.dataImportRow.update({
+    where: { id: row.id },
+    data: {
+      status: 'UNPROCESSED',
+      processingErrorCode: code,
+      processingClaimId: null,
+      processingClaimedAt: null,
+    },
+  })
+  await writeAuditLog(tx, actor, {
+    projectId: batch.projectId,
+    action: 'IMPORT_REGISTRATION_REVIEW_REQUIRED',
+    entityType: 'DataImportRow',
+    entityId: row.id,
+    changes: { importBatchId: batch.id, sourceRowNumber: row.rowNumber, code },
+  })
+}
+
+// The values a matched row is promoted with: the operation and participant code follow the match.
+export async function matchedValues(
+  tx: Tx,
+  actor: ApplicationIdentity,
+  match: Extract<ParticipantMatch, { kind: 'NEW' | 'SAME' }>,
+  values: Record<string, unknown>,
+) {
+  if (match.kind === 'SAME') {
+    const profile = await tx.beneficiary.findFirst({
+      where: { id: match.beneficiaryId, organizationId: actor.organizationId },
+      select: { code: true },
+    })
+    return profile
+      ? { ...values, registration_operation: 'LINK', beneficiary_code: profile.code }
+      : null
+  }
+  const mapped = canonicalCode(values.beneficiary_code)
+  const taken =
+    mapped &&
+    (await tx.beneficiary.findUnique({
+      where: { organizationId_code: { organizationId: actor.organizationId, code: mapped } },
+      select: { id: true },
+    }))
+  const code = mapped && !taken ? mapped : await generateBeneficiaryCode(tx, actor.organizationId)
+  return { ...values, registration_operation: 'CREATE', beneficiary_code: code }
+}
 
 export async function promoteRegistrationInTx(
   tx: Tx,
@@ -36,53 +102,94 @@ export async function promoteRegistrationInTx(
     select: { id: true, rowNumber: true, normalizedData: true },
   })
   if (!row) throw new ConflictException('The registration row claim is unavailable.')
+  const form =
+    context.registrationForm ??
+    (await promotion.registration.readRegistrationForm(
+      tx,
+      actor,
+      batch.projectId,
+      batch.formId,
+      'IMPORTED_DATASET',
+    ))
+  let values = safeRawData(row.normalizedData as Prisma.JsonValue)
+  // A batch that maps the client's identifier matches every row by it, else the code decides as before.
+  const byIdentifier =
+    context.matchesByIdentifier ??
+    (await registrationMatchesByIdentifier(tx, actor, batch, form ?? undefined))
+  let outcome: 'CREATED' | 'UPDATED' | 'LINKED' | undefined =
+    registrationOutcomes[values.registration_operation as keyof typeof registrationOutcomes]
+  if (byIdentifier && form) {
+    const match = await matchParticipant(tx, actor, {
+      form,
+      values: values as Record<string, NormalizedValue>,
+    })
+    if (match.kind === 'HOLD' || match.kind === 'CHANGED') {
+      return holdRegistrationRow(tx, actor, batch, row, match.code)
+    }
+    if (match.kind === 'SAME' && match.enrolledHere) {
+      await tx.dataImportRow.update({
+        where: { id: row.id },
+        data: {
+          status: 'PROCESSED',
+          processedAt: new Date(),
+          processingErrorCode: null,
+          processingClaimId: null,
+          processingClaimedAt: null,
+          registrationOutcome: 'UNCHANGED',
+          matchedBeneficiaryId: match.beneficiaryId,
+        },
+      })
+      await writeAuditLog(tx, actor, {
+        projectId: batch.projectId,
+        action: 'IMPORT_REGISTRATION_UNCHANGED',
+        entityType: 'DataImportRow',
+        entityId: row.id,
+        changes: { importBatchId: batch.id, sourceRowNumber: row.rowNumber },
+      })
+      return
+    }
+    // A file value the reviewer rejected before does not overwrite what PATHWAYS holds.
+    const kept =
+      match.kind === 'SAME'
+        ? await rejectedBaseline(
+            tx,
+            actor,
+            form,
+            values as Record<string, NormalizedValue>,
+            match.beneficiaryId,
+          )
+        : {}
+    const matched = await matchedValues(tx, actor, match, { ...values, ...kept })
+    if (!matched) return holdRegistrationRow(tx, actor, batch, row, 'UNKNOWN_IDENTITY')
+    values = matched
+    outcome = match.kind === 'SAME' ? 'LINKED' : 'CREATED'
+  }
   const registration = {
     projectId: batch.projectId,
     formId: batch.formId,
     clientRegistrationId: row.id,
-    values: safeRawData(row.normalizedData as Prisma.JsonValue),
+    values,
     source: 'IMPORTED_DATASET' as const,
     validatedById: batch.reviewedById,
     importBatchId: batch.id,
     importRowId: row.id,
+    ...(byIdentifier ? { matchByIdentifier: true } : {}),
   }
-  const outcome = context.registrationForm
-    ? await promotion.registration.promoteRegistration(tx, actor, registration, {
-        form: context.registrationForm,
-      })
+  const result = form
+    ? await promotion.registration.promoteRegistration(tx, actor, registration, { form })
     : await promotion.registration.promoteRegistration(tx, actor, registration)
-  const finishedAt = new Date()
-  if (outcome.kind === 'REVIEW') {
-    await tx.dataImportRow.update({
-      where: { id: row.id },
-      data: {
-        status: 'UNPROCESSED',
-        processingErrorCode: outcome.code,
-        processingClaimId: null,
-        processingClaimedAt: null,
-      },
-    })
-    await writeAuditLog(tx, actor, {
-      projectId: batch.projectId,
-      action: 'IMPORT_REGISTRATION_REVIEW_REQUIRED',
-      entityType: 'DataImportRow',
-      entityId: row.id,
-      changes: {
-        importBatchId: batch.id,
-        sourceRowNumber: row.rowNumber,
-        code: outcome.code,
-      },
-    })
-    return
+  if (result.kind === 'REVIEW') {
+    return holdRegistrationRow(tx, actor, batch, row, result.code)
   }
   await tx.dataImportRow.update({
     where: { id: row.id },
     data: {
       status: 'PROCESSED',
-      processedAt: finishedAt,
+      processedAt: new Date(),
       processingErrorCode: null,
       processingClaimId: null,
       processingClaimedAt: null,
+      registrationOutcome: outcome,
     },
   })
   await writeAuditLog(tx, actor, {
@@ -93,9 +200,9 @@ export async function promoteRegistrationInTx(
     changes: {
       importBatchId: batch.id,
       sourceRowNumber: row.rowNumber,
-      beneficiaryId: outcome.beneficiaryId,
-      enrollmentId: outcome.enrollmentId,
-      submissionId: outcome.submissionId,
+      beneficiaryId: result.beneficiaryId,
+      enrollmentId: result.enrollmentId,
+      submissionId: result.submissionId,
     },
   })
 }

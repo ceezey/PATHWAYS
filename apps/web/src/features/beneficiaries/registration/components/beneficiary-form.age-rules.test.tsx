@@ -189,6 +189,34 @@ describe('BeneficiaryForm age rules', () => {
     expect(client.registerBeneficiary).not.toHaveBeenCalled()
   })
 
+  it('shows guardian consent on an edit by the age today, not the stored minor flag or the enrollment age', async () => {
+    // 12:00 on 2026-10-26 in Manila.
+    vi.useFakeTimers({ now: new Date('2026-10-26T04:00:00.000Z'), toFake: ['Date'] })
+    try {
+      const person = (birthDate: string, isMinor: boolean) => ({
+        ...testBeneficiaries[0],
+        birthDate,
+        age: 17,
+        isMinor,
+        guardianConsent: false,
+        enrollments: testBeneficiaries[0].enrollments.map((enrollment) => ({
+          ...enrollment,
+          enrolledAt: '2026-01-10',
+        })),
+      })
+      // Both are 17 at enrollment; only the second is still under 18 today.
+      const { unmount } = render(
+        <BeneficiaryForm beneficiary={person('2008-08-17', true)} projects={mockProjects} />,
+      )
+      expect(screen.queryByLabelText(/Guardian consent confirmed/)).toBeNull()
+      unmount()
+      render(<BeneficiaryForm beneficiary={person('2008-11-01', false)} projects={mockProjects} />)
+      expect(screen.getByLabelText(/Guardian consent confirmed/)).toBeTruthy()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('keeps a legacy under-5 profile editable when its birth date is unchanged', async () => {
     const legacy = {
       ...testBeneficiaries[0],

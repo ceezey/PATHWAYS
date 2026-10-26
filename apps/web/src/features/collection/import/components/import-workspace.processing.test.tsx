@@ -2,6 +2,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { PathwaysClientError } from '@/lib/api/core/request'
 import { DisplayLabelsProvider } from '@/providers/display-labels-provider'
 import { ImportWorkspace } from './import-workspace'
 
@@ -23,6 +24,7 @@ const api = vi.hoisted(() => ({
   getImportBatch: vi.fn(),
   getImportRows: vi.fn(),
   processImport: vi.fn(),
+  uploadImport: vi.fn(),
 }))
 vi.mock('@/hooks/use-current-role', () => ({ useCurrentRole: () => state }))
 vi.mock('@/lib/api/forms', () => ({ formsClient: api }))
@@ -208,6 +210,29 @@ describe('import workspace automatic processing', () => {
     expect((button as HTMLButtonElement).disabled).toBe(true)
     fireEvent.click(button)
     expect(api.processImport).not.toHaveBeenCalled()
+    state.profile = {
+      ...state.profile,
+      permissions: ['imports.read', 'imports.process', 'forms.read'],
+    }
+  })
+
+  it('upload refusal message shown', async () => {
+    const refusal = 'You cannot register participants here, so this file was not accepted.'
+    api.uploadImport.mockRejectedValue(new PathwaysClientError(refusal, 'forbidden', [], 403))
+    state.profile = {
+      ...state.profile,
+      permissions: ['imports.read', 'imports.upload', 'forms.read'],
+    }
+    render(<ImportWorkspace />, { wrapper: DisplayLabelsProvider })
+    await screen.findByText('notes.xlsx')
+    fireEvent.change(screen.getByLabelText('Source file'), {
+      target: { files: [new File(['note,hello'], 'notes.csv', { type: 'text/csv' })] },
+    })
+    const upload = screen.getByRole('button', { name: 'Upload privately' })
+    await waitFor(() => expect((upload as HTMLButtonElement).disabled).toBe(false))
+    fireEvent.click(upload)
+    const alert = await screen.findByRole('alert')
+    expect(alert.textContent).toContain(refusal)
     state.profile = {
       ...state.profile,
       permissions: ['imports.read', 'imports.process', 'forms.read'],

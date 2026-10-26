@@ -248,8 +248,9 @@ export function proposeIntakeRules(
       const field = open(code, true)
       if (!field) continue
       const column = columnFor(code)
+      // Minor status is current, so it is measured at the upload date; age is measured at enrollment.
       const expected = (row: number) => {
-        const age = years(row)
+        const age = kind === 'AGE_AT_DATE' ? years(row) : years(row, upload)
         return age === null ? null : kind === 'AGE_AT_DATE' ? age : age < 18
       }
       // A column agrees only when some row could be compared; unreadable dates prove nothing.
@@ -270,7 +271,7 @@ export function proposeIntakeRules(
       moveOff(field, column, header, kind === 'AGE_AT_DATE')
     }
 
-    // An unruled integer column that equals age at the enrollment date or the upload date.
+    // An unruled integer column within one year of the age at the upload date.
     for (const field of fields) {
       const column = columnFor(field.code)
       if (!column || field.rule || field.dataType !== 'INTEGER' || !isNew(field.code)) continue
@@ -279,11 +280,11 @@ export function proposeIntakeRules(
       )
       if (
         rowsChecked.length > 0 &&
-        rowsChecked.every(
-          (row) =>
-            coerced(column.values[row]) === years(row, upload) ||
-            coerced(column.values[row]) === years(row),
-        )
+        rowsChecked.every((row) => {
+          const stated = coerced(column.values[row])
+          const age = years(row, upload)
+          return typeof stated === 'number' && age !== null && Math.abs(stated - age) <= 1
+        })
       )
         propose(field, {
           kind: 'AGE_CHECK',

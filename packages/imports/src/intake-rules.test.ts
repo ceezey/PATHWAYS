@@ -72,18 +72,56 @@ const wg = (...answers: Array<string | null>) =>
   Object.fromEntries(wgCodes.map((code, i) => [code, answers[i] ?? null]))
 
 describe('applyIntakeRules', () => {
-  it('age_at_registration from birth 2008-08-17 at enrollment 2026-05-28 is 17 and is_minor true, with a guardian warning', () => {
+  it('age_at_registration from birth 2008-08-17 at enrollment 2026-05-28 is 17, and is_minor is false by the upload date', () => {
     const values: Record<string, NormalizedImportValue> = {
       birth_date: '2008-08-17',
       enrollment_date: '2026-05-28',
     }
     const { errors, warnings } = run(values)
     expect(values.age_at_registration).toBe(17)
+    expect(values.is_minor).toBe(false)
+    expect(errors).toEqual([])
+    expect(warnings).toEqual([])
+  })
+
+  it('minor at upload date: born 2008-11-01, enrolled 2026-01-10, upload 2026-10-26', () => {
+    const values: Record<string, NormalizedImportValue> = {
+      birth_date: '2008-11-01',
+      enrollment_date: '2026-01-10',
+    }
+    const { errors, warnings } = run(values, [], '2026-10-26')
     expect(values.is_minor).toBe(true)
     expect(errors).toEqual([])
     expect(warnings).toEqual([
       { fieldCode: 'guardian_consent_recorded', code: 'GUARDIAN_CONSENT_MISSING' },
     ])
+  })
+
+  it('adult today though minor at enrollment: born 2008-08-17, enrolled 2026-01-10, upload 2026-10-26', () => {
+    const values: Record<string, NormalizedImportValue> = {
+      birth_date: '2008-08-17',
+      enrollment_date: '2026-01-10',
+    }
+    const { errors, warnings } = run(values, [], '2026-10-26')
+    expect(values.age_at_registration).toBe(17)
+    expect(values.is_minor).toBe(false)
+    expect(errors).toEqual([])
+    expect(warnings).toEqual([])
+  })
+
+  it('MINOR_AT_DATE alone still holds a birth date after its enrollment date, and after the upload date', () => {
+    const minorOnly = fields.filter((item) => item.code !== 'age_at_registration')
+    for (const [birth_date, enrollment_date] of [
+      ['2026-06-01', '2026-05-28'],
+      ['2026-11-01', '2027-01-10'],
+    ]) {
+      const values: Record<string, NormalizedImportValue> = { birth_date, enrollment_date }
+      const { errors } = applyIntakeRules(minorOnly, values, new Set(), '2026-10-26')
+      expect(errors).toEqual([
+        expect.objectContaining({ fieldCode: 'birth_date', code: 'BIRTH_AFTER_DATE' }),
+      ])
+      expect(values.is_minor).toBeUndefined()
+    }
   })
 
   it('leaves a calculation null when an input is missing and skips the guardian warning', () => {
@@ -102,17 +140,28 @@ describe('applyIntakeRules', () => {
     expect(run(values).warnings).toEqual([])
   })
 
-  it('AGE_CHECK accepts 18 when uploadDate is 2026-10-22 and warns AGE_MISMATCH for 25', () => {
+  it('AGE_MISMATCH error beyond one year', () => {
     const base = {
       birth_date: '2008-08-17',
       enrollment_date: '2026-05-28',
       guardian_consent_recorded: true,
     }
-    expect(run({ ...base, age: 18 }, ['age']).warnings).toEqual([])
-    expect(run({ ...base, age: 17 }, ['age']).warnings).toEqual([])
-    expect(run({ ...base, age: 25 }, ['age']).warnings).toEqual([
-      { fieldCode: 'age', code: 'AGE_MISMATCH' },
-    ])
+    // The upload date 2026-10-22 gives age 18.
+    for (const age of [16, 20]) {
+      const { errors, warnings } = run({ ...base, age }, ['age'])
+      expect(errors).toEqual([expect.objectContaining({ fieldCode: 'age', code: 'AGE_MISMATCH' })])
+      expect(warnings).toEqual([])
+    }
+  })
+
+  it('age within one year passes', () => {
+    const base = {
+      birth_date: '2008-08-17',
+      enrollment_date: '2026-05-28',
+      guardian_consent_recorded: true,
+    }
+    for (const age of [17, 18, 19])
+      expect(run({ ...base, age }, ['age'])).toEqual({ errors: [], warnings: [] })
   })
 
   describe('WASHINGTON_GROUP_DISABILITY', () => {

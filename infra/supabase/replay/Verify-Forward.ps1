@@ -66,6 +66,7 @@ $forwardInventory = @(
   '0077_saddd_by_place'
   '0078_form_field_intake_metadata'
   '0079_import_date_order_and_sheet'
+  '0080_participant_file_import'
 )
 if (($forwardMigrations.Name -join ',') -cne ($forwardInventory -join ',')) { throw 'Forward migration inventory requires renewed review.' }
 
@@ -744,7 +745,7 @@ SELECT (pathways.p09_role_allows('SYSTEM_ADMINISTRATOR','activities.read')
  AND (SELECT count(*) FROM pathways.role_permissions rp JOIN pathways.roles r ON r.id=rp.role_id
       JOIN pathways.permissions p ON p.id=rp.permission_id
       WHERE r.code='SYSTEM_ADMINISTRATOR' AND p.code IN ('activities.read','budgets.read'))=1
- AND (SELECT count(*) FROM pathways.role_permissions)=317)::text;
+ AND (SELECT count(*) FROM pathways.role_permissions)=318)::text;
 "@
     if ($adminRead.Trim() -cne 'true') { throw "0035 admin read grants differ in $db." }
   }
@@ -1054,7 +1055,7 @@ SELECT ((SELECT bool_and(pg_catalog.pg_get_userbyid(p.proowner)='prisma' AND p.p
  FROM pg_catalog.pg_proc p WHERE p.oid IN ('pathways.p06_participation_breakdown(uuid,date,date)'::pg_catalog.regprocedure,
   'pathways.p06_indicator_values(uuid,text)'::pg_catalog.regprocedure))
  AND NOT has_function_privilege('pathways_runtime','pathways.p06_release_reach(jsonb)','EXECUTE')
- AND (SELECT count(*) FROM pathways.role_permissions)=317)::text;
+ AND (SELECT count(*) FROM pathways.role_permissions)=318)::text;
 "@
     if ($reachShape.Trim() -cne 'true') { throw "0066 beneficiary reach inventory differs in $db." }
   }

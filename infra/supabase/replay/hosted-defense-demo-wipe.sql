@@ -22,7 +22,7 @@ BEGIN
  ('pathways_rules_internal','sweep_cursor')) k(s,t) WHERE pg_catalog.to_regclass(format('%I.%I',s,t)) IS NOT NULL)<>10 THEN
     RAISE EXCEPTION 'Expected kept tables missing';
   END IF;
-  IF to_regclass('pathways.survey_period_releases') IS NULL THEN RAISE EXCEPTION 'Migrations through 0060 not applied'; END IF;
+  IF to_regclass('pathways.import_value_rejections') IS NULL THEN RAISE EXCEPTION 'Migrations through 0080 not applied'; END IF;
 END $$;
 
 -- Temporary membership only in owner roles postgres does not already inherit.
@@ -70,6 +70,7 @@ TRUNCATE TABLE
   pathways.form_response_values,
   pathways.form_submissions,
   pathways.implementing_partners,
+  pathways.import_value_rejections,
   pathways.indicator_library_entries,
   pathways.journey_stages,
   pathways.metadata_mappings,

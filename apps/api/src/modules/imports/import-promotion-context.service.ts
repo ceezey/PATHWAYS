@@ -1,4 +1,5 @@
 import { IMPORT_ENGINEERING_LIMITS } from '@pathways/imports/server'
+import { hasAtomicPermission } from '@pathways/shared'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import type { Tx } from '../../common/prisma/transaction'
 import type {
@@ -34,9 +35,19 @@ export interface PromotionContext {
   fields?: FieldRow[]
   participationForm?: ParticipationForm
   registrationForm?: RegistrationImportForm
+  // True when every registration row of the batch is matched by the client's identifier.
+  matchesByIdentifier?: boolean
 }
 
 export type PromotionKind = 'GENERIC' | 'REGISTRATION' | 'PARTICIPATION'
+
+export const MATCH_BY_IDENTIFIER_REFUSAL =
+  'Importing participants by client ID needs the identity review and enrollment management permissions.'
+
+// Matching by the client's identifier links or updates found participants, which only these two grants allow.
+export const mayMatchByIdentifier = (actor: ApplicationIdentity) =>
+  hasAtomicPermission(actor.roles[0], actor.permissions, 'beneficiaries.identities.review') &&
+  hasAtomicPermission(actor.roles[0], actor.permissions, 'beneficiaries.enrollments.manage')
 
 // The registration and participation services a row promotion calls.
 export interface PromotionHandlers {
@@ -78,7 +89,18 @@ export async function loadPromotionContext(
       batch.formId,
       'IMPORTED_DATASET',
     )
-    return registrationForm ? { batch: promotionBatch, registrationForm } : undefined
+    return registrationForm
+      ? {
+          batch: promotionBatch,
+          registrationForm,
+          matchesByIdentifier: await registrationMatchesByIdentifier(
+            tx,
+            actor,
+            promotionBatch,
+            registrationForm,
+          ),
+        }
+      : undefined
   }
   const fields = await loadFormFields(tx, actor, promotionBatch)
   if (batch.form.formType !== 'ACTIVITY_MONITORING') return { batch: promotionBatch, fields }
@@ -86,7 +108,33 @@ export async function loadPromotionContext(
   return participationForm ? { batch: promotionBatch, fields, participationForm } : undefined
 }
 
-export function loadFormFields(tx: Tx, actor: ApplicationIdentity, batch: PromotionBatch) {
+/** A batch matches participants by the client's identifier when its form has the field and a column maps to it. */
+export async function registrationMatchesByIdentifier(
+  tx: Tx,
+  actor: ApplicationIdentity,
+  batch: Pick<PromotionBatch, 'id' | 'mappingRevision'>,
+  form?: RegistrationImportForm,
+) {
+  if (!form?.formField_form.some((field) => field.code === 'external_identifier_value'))
+    return false
+  const mapping = await tx.metadataMapping.findFirst({
+    where: {
+      organizationId: actor.organizationId,
+      importBatchId: batch.id,
+      revision: batch.mappingRevision,
+      status: 'MAPPED',
+      targetField: { code: 'external_identifier_value' },
+    },
+    select: { id: true },
+  })
+  return mapping !== null
+}
+
+export function loadFormFields(
+  tx: Tx,
+  actor: ApplicationIdentity,
+  batch: Pick<PromotionBatch, 'projectId' | 'formId'>,
+) {
   return tx.formField.findMany({
     where: {
       organizationId: actor.organizationId,

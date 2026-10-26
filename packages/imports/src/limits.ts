@@ -1,3 +1,5 @@
+import { importCheckpointRows } from '@pathways/shared'
+
 export const IMPORT_ENGINEERING_LIMITS = Object.freeze({
   maxBytes: 5 * 1024 * 1024,
   maxRows: 5_000,
@@ -12,7 +14,7 @@ export const IMPORT_ENGINEERING_LIMITS = Object.freeze({
   maxCompressionRatio: 100,
   parseTimeoutMilliseconds: 5_000,
   processingClaimMilliseconds: 60_000,
-  processingCheckpointRows: 25,
+  processingCheckpointRows: importCheckpointRows,
   // Rows one process request claims: small enough to finish inside a hosted function's time limit
   // and to move the progress bar after every request.
   processingClaimRows: 10,

@@ -20,6 +20,10 @@ import { contract, fieldSelection } from './beneficiaries.mapper'
 import {
   type NormalizedValue,
   type RegistrationProfile,
+  businessToday,
+  exactDate,
+  guardianConsentRequiredMessage,
+  isMinorOn,
   normalizeIdentifier,
   parseRegistration,
   stableValues,
@@ -27,14 +31,22 @@ import {
 
 const registrationFormSelection = {
   id: true,
+  projectId: true,
   version: true,
   status: true,
-  formField_form: { select: fieldSelection, orderBy: { sequenceNo: 'asc' } },
+  formField_form: { select: { ...fieldSelection, rule: true }, orderBy: { sequenceNo: 'asc' } },
 } satisfies Prisma.DigitalFormSelect
 
 export type RegistrationImportForm = Prisma.DigitalFormGetPayload<{
   select: typeof registrationFormSelection
 }>
+
+// The guardian details an approval gave; none is required, so only those given are stored.
+const guardianDetails = (given?: { name?: string; date?: string; note?: string }) => ({
+  ...(given?.name ? { guardianName: given.name } : {}),
+  ...(given?.date ? { guardianConsentDate: new Date(`${given.date}T00:00:00.000Z`) } : {}),
+  ...(given?.note ? { guardianNote: given.note } : {}),
+})
 
 // Promotes a direct or imported registration inside the caller's transaction.
 @Injectable()
@@ -71,6 +83,10 @@ export class BeneficiaryRegistrationService {
       validatedById: string
       importBatchId?: string
       importRowId?: string
+      // The client's identifier finds the profile, so the participant code never does.
+      matchByIdentifier?: boolean
+      // A project officer's guardian approval, the only way an imported row gets guardian consent.
+      guardianConsent?: { name?: string; date?: string; note?: string }
     },
     preloaded?: { form: RegistrationImportForm },
   ): Promise<
@@ -114,16 +130,36 @@ export class BeneficiaryRegistrationService {
       })
     }
     const values = validation.values as Record<string, NormalizedValue>
+    const guardianApproval = input.source === 'IMPORTED_DATASET' ? input.guardianConsent : undefined
+    // True when the approval of a minor is what grants guardian consent to this row.
+    let approvedMinor = false
     // An imported row without recorded consent waits for a person; direct entry still rejects it.
     if (input.source === 'IMPORTED_DATASET') {
       if (values.consent_recorded !== true || values.data_processing_consent_recorded !== true) {
         return { kind: 'REVIEW', code: 'CONSENT_REQUIRED' }
       }
-      if (values.is_minor === true && values.guardian_consent_recorded !== true) {
+      const age = values.age_at_registration
+      const minor = isMinorOn(
+        exactDate(values.birth_date, 'birth_date'),
+        typeof age === 'number' ? age : null,
+        businessToday(),
+      )
+      // A link or update of an existing profile is judged by the stored profile below.
+      const ofStoredProfile =
+        values.registration_operation === 'LINK' || values.registration_operation === 'UPDATE'
+      // The file's own guardian value is ignored: only the approval of a minor counts.
+      approvedMinor = minor && Boolean(guardianApproval)
+      if (minor && !ofStoredProfile && !approvedMinor) {
         return { kind: 'REVIEW', code: 'GUARDIAN_CONSENT_REQUIRED' }
       }
     }
-    const registration = parseRegistration(values)
+    const registration = parseRegistration(
+      input.source === 'IMPORTED_DATASET'
+        ? { ...values, guardian_consent_recorded: approvedMinor }
+        : values,
+      businessToday(),
+      { guardianFromProfile: input.source === 'IMPORTED_DATASET' },
+    )
     const mayReviewIdentity = hasAtomicPermission(
       actor.roles[0],
       actor.permissions,
@@ -152,6 +188,12 @@ export class BeneficiaryRegistrationService {
     if (existingSubmission) {
       const expectedSubmissionSource =
         input.source === 'DIRECT_ENTRY' ? 'DIRECT_ENCODING' : 'IMPORTED_DATASET'
+      // An imported row's guardian answer is derived from the profile, so a retry compares everything else.
+      const comparable = (answers: Record<string, NormalizedValue>) => {
+        if (input.source !== 'IMPORTED_DATASET') return answers
+        const { guardian_consent_recorded: _derived, ...rest } = answers
+        return rest
+      }
       const stored = Object.fromEntries(
         existingSubmission.formResponseValue_submission.map((response) => [
           response.field.code,
@@ -164,7 +206,7 @@ export class BeneficiaryRegistrationService {
         existingSubmission.formVersion !== form.version ||
         existingSubmission.source !== expectedSubmissionSource ||
         !existingSubmission.enrollment ||
-        stableValues(stored) !== stableValues(values)
+        stableValues(comparable(stored)) !== stableValues(comparable(values))
       ) {
         throw new ConflictException('The registration id was already used for different input.')
       }
@@ -177,12 +219,14 @@ export class BeneficiaryRegistrationService {
     }
 
     const candidates = new Set<string>()
-    const byCode = await tx.beneficiary.findUnique({
-      where: {
-        organizationId_code: { organizationId: actor.organizationId, code: registration.code },
-      },
-      select: { id: true },
-    })
+    const byCode = input.matchByIdentifier
+      ? null
+      : await tx.beneficiary.findUnique({
+          where: {
+            organizationId_code: { organizationId: actor.organizationId, code: registration.code },
+          },
+          select: { id: true },
+        })
     if (byCode) candidates.add(byCode.id)
     if (registration.externalIdentifier) {
       const byIdentifier = await tx.beneficiaryIdentifier.findUnique({
@@ -214,16 +258,51 @@ export class BeneficiaryRegistrationService {
       return { kind: 'REVIEW', code: 'UNKNOWN_IDENTITY' }
     }
 
+    // The minor status and guardian flag the profile holds once this registration is written.
+    let profileMinor = registration.isMinor
+    let profileGuardian = registration.guardianConsentRecorded
+    // The current minor status of an existing individual, to be written when the stored one is stale.
+    let refreshedMinor: boolean | null = null
+    // A guardian approval grants the flag to a minor profile that lacks it.
+    let grantGuardian = false
     if (candidateId) {
       const candidate = await tx.beneficiary.findFirst({
         where: { id: candidateId, organizationId: actor.organizationId, archivedAt: null },
-        select: { code: true, subjectType: true },
+        select: {
+          code: true,
+          subjectType: true,
+          birthDate: true,
+          ageAtRegistration: true,
+          isMinor: true,
+          guardianConsentRecorded: true,
+        },
       })
-      if (!candidate || candidate.code !== registration.code) {
+      if (!candidate) {
+        return {
+          kind: 'REVIEW',
+          code: input.matchByIdentifier ? 'UNKNOWN_IDENTITY' : 'IDENTIFIER_CODE_CONFLICT',
+        }
+      }
+      if (!input.matchByIdentifier && candidate.code !== registration.code) {
         return { kind: 'REVIEW', code: 'IDENTIFIER_CODE_CONFLICT' }
       }
       if (candidate.subjectType !== registration.subjectType) {
         return { kind: 'REVIEW', code: 'SUBJECT_TYPE_CONFLICT' }
+      }
+      profileGuardian = candidate.guardianConsentRecorded
+      profileMinor = false
+      if (candidate.subjectType === 'INDIVIDUAL') {
+        const updates = (field: string) =>
+          registration.operation === 'UPDATE' && registration.updateFields.includes(field)
+        profileMinor = isMinorOn(
+          updates('birth_date') ? registration.birthDate : candidate.birthDate,
+          updates('age_at_registration')
+            ? registration.ageAtRegistration
+            : candidate.ageAtRegistration,
+          businessToday(),
+        )
+        if (profileMinor !== candidate.isMinor) refreshedMinor = profileMinor
+        grantGuardian = Boolean(guardianApproval) && profileMinor && !profileGuardian
       }
     }
 
@@ -263,7 +342,8 @@ export class BeneficiaryRegistrationService {
       if (created.count !== 1)
         throw new ConflictException('Beneficiary registration was not created.')
       beneficiaryId = createdId
-    } else if (registration.operation === 'UPDATE') {
+    } else if (registration.operation === 'UPDATE' || refreshedMinor !== null || grantGuardian) {
+      // A stale minor status is refreshed before the consent insert, which compares it with the age.
       if (
         !hasAtomicPermission(actor.roles[0], actor.permissions, 'beneficiaries.profiles.update')
       ) {
@@ -282,11 +362,26 @@ export class BeneficiaryRegistrationService {
         if (inaccessibleEnrollment)
           return { kind: 'REVIEW', code: 'SHARED_PROFILE_UPDATE_REVIEW_REQUIRED' }
       }
-      const updateData = this.registrationUpdateData(registration)
+      // Only guardian consent approval may set the guardian flag, so a minor without it waits.
+      if (profileMinor && !profileGuardian && !grantGuardian) {
+        if (input.source === 'IMPORTED_DATASET')
+          return { kind: 'REVIEW', code: 'GUARDIAN_CONSENT_REQUIRED' }
+        throw new BadRequestException(guardianConsentRequiredMessage)
+      }
+      const updateData =
+        registration.operation === 'UPDATE' ? this.registrationUpdateData(registration) : {}
       await tx.beneficiary.updateMany({
         where: { id: beneficiaryId, organizationId: actor.organizationId, archivedAt: null },
-        data: updateData,
+        data: {
+          ...updateData,
+          ...(refreshedMinor === null ? {} : { isMinor: refreshedMinor }),
+          ...(grantGuardian ? { guardianConsentRecorded: true } : {}),
+        },
       })
+      if (grantGuardian) profileGuardian = true
+    } else if (input.source === 'IMPORTED_DATASET' && profileMinor && !profileGuardian) {
+      // A link of a minor whose profile lacks guardian consent waits for the guardian approval.
+      return { kind: 'REVIEW', code: 'GUARDIAN_CONSENT_REQUIRED' }
     }
 
     if (!beneficiaryId) throw new ConflictException('Registration identity could not be resolved.')
@@ -353,6 +448,10 @@ export class BeneficiaryRegistrationService {
       throw new Error('Database transaction time is unavailable.')
     }
     const submittedAt = databaseClock.transactionTime
+    // An imported answer states what the profile holds once this row is written, as the consent records do.
+    if (input.source === 'IMPORTED_DATASET') {
+      values.guardian_consent_recorded = profileMinor && profileGuardian
+    }
     const submission = await tx.formSubmission.create({
       data: {
         organizationId: actor.organizationId,
@@ -395,7 +494,8 @@ export class BeneficiaryRegistrationService {
       'PARTICIPATION',
       'DATA_PROCESSING',
     ]
-    if (registration.guardianConsentRecorded) consentKinds.push('GUARDIAN')
+    // A guardian consent record exists only for a minor whose profile holds the guardian flag.
+    if (profileMinor && profileGuardian) consentKinds.push('GUARDIAN')
     await tx.beneficiaryConsentRecord.createMany({
       data: consentKinds.map((kind) => ({
         organizationId: actor.organizationId,
@@ -407,6 +507,7 @@ export class BeneficiaryRegistrationService {
         source: input.source,
         recordedById: actor.userId,
         recordedAt: submittedAt,
+        ...(kind === 'GUARDIAN' ? guardianDetails(guardianApproval) : {}),
       })),
     })
     await writeAuditLog(tx, actor, {

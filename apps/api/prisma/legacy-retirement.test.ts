@@ -90,6 +90,7 @@ describe('Deferred legacy-table retirement contract', () => {
       '0077_saddd_by_place',
       '0078_form_field_intake_metadata',
       '0079_import_date_order_and_sheet',
+      '0080_participant_file_import',
     ])
     expect(migration).toContain('DEFERRED REVIEW ARTIFACT -- NOT AN ACTIVE PRISMA MIGRATION')
   })
@@ -116,7 +117,7 @@ describe('Deferred legacy-table retirement contract', () => {
 
   it('keeps the datamodel and verifier aligned with the reviewed migration', () => {
     expect(schema).not.toMatch(/^model Legacy/m)
-    expect(schema.match(/^model /gm)).toHaveLength(59)
+    expect(schema.match(/^model /gm)).toHaveLength(60)
     expect(schema).toMatch(/^model UserStepUpPin\s*\{/m)
     expect(schema).toMatch(/^model BeneficiaryStepUpGrant\s*\{/m)
     expect(schema).toMatch(/^model ExpenseSignoff\s*\{/m)

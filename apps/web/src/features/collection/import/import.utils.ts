@@ -1,3 +1,5 @@
+import type { ImportHoldCode } from '@pathways/shared'
+
 import type { ImportBatchDefinition, ImportRowDefinition } from '@/types/pathways'
 
 // Why the server refused a stored upload, in its own words when it gave them.
@@ -49,4 +51,62 @@ export function automaticMatchReason(stored: StoredMapping | undefined) {
 export function displayValue(value: unknown) {
   const text = Array.isArray(value) ? JSON.stringify(value) : String(value ?? '')
   return text.length > 80 ? `${text.slice(0, 77)}...` : text
+}
+
+// Plain words for why a row is held; a Record keeps every hold code covered.
+const holdReasons: Record<ImportHoldCode, string> = {
+  CONSENT_REQUIRED: 'Consent is missing',
+  GUARDIAN_CONSENT_REQUIRED: 'Under 18, waiting for guardian approval',
+  AMBIGUOUS_IDENTITY: 'More than one participant could match',
+  IDENTITY_REVIEW_REQUIRED: 'The participant match needs checking',
+  DUPLICATE_IDENTITY: 'Looks like a participant already in PATHWAYS',
+  UNKNOWN_IDENTITY: 'No matching participant found',
+  IDENTIFIER_CODE_CONFLICT: 'Client ID and participant code do not agree',
+  SUBJECT_TYPE_CONFLICT: 'Participant type does not match',
+  SHARED_PROFILE_UPDATE_REVIEW_REQUIRED: 'Change to a shared profile needs review',
+  PROFILE_CHANGED: 'Values differ from PATHWAYS',
+  IDENTITY_CONFLICT: 'Client ID belongs to a participant with different details',
+  IDENTITY_MISSING: 'Client ID is missing',
+}
+
+// Why an invalid registration row waits for a reviewer, by its validation code.
+const validationReasons: Record<string, string> = {
+  AGE_MISMATCH: 'Age does not match the birth date',
+  BIRTH_AFTER_DATE: 'Birth date is after the date age is measured',
+  CALCULATION_MISMATCH: 'File value does not match the calculated value',
+  IDENTITY_CONFLICT: 'Client ID is used more than once',
+}
+
+/** The plain reason for a real hold code, or undefined for any other code. */
+export const knownHoldReason = (code: string | null) =>
+  code ? (holdReasons as Record<string, string>)[code] : undefined
+
+export const holdReason = (code: string | null) => knownHoldReason(code) ?? 'Needs review'
+
+// The plain reason a row is held: its hold code, or for an invalid row its first validation code.
+export function rowReason(
+  row: Pick<ImportRowDefinition, 'status' | 'processingErrorCode' | 'validationErrors'>,
+) {
+  if (row.status !== 'INVALID') return holdReason(row.processingErrorCode)
+  const code = row.validationErrors[0]?.code
+  return (code ? validationReasons[code] : undefined) ?? 'A value in this row is not valid'
+}
+
+// The plain reason a review window shows for its reason code: a hold code, or an invalid row's first validation code.
+export const reviewReason = (code: string) =>
+  knownHoldReason(code) ?? validationReasons[code] ?? 'A value in this row is not valid'
+
+// The participant name from the mapped first and last name columns, or a fallback when the file has none.
+export function participantName(
+  row: Pick<ImportRowDefinition, 'rawData'>,
+  mappings: ImportBatchDefinition['mappings'],
+) {
+  const column = (code: string) =>
+    mappings?.find((item) => item.status === 'MAPPED' && item.targetField?.code === code)
+      ?.sourceFieldName
+  const name = ['first_name', 'last_name']
+    .map((code) => String(row.rawData[column(code) ?? ''] ?? '').trim())
+    .filter(Boolean)
+    .join(' ')
+  return name || 'Name not in file'
 }

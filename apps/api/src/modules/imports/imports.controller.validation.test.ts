@@ -5,6 +5,8 @@ import { type INestApplication, ValidationPipe } from '@nestjs/common'
 import { Test } from '@nestjs/testing'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { GuardianApprovalService } from './guardian-approval.service'
+import { ImportReviewService } from './import-review.service'
 import { ImportsController } from './imports.controller'
 import { ImportsService } from './imports.service'
 
@@ -12,6 +14,7 @@ const projectId = '10000000-0000-4000-8000-000000000001'
 const batchId = '20000000-0000-4000-8000-000000000002'
 const formId = '40000000-0000-4000-8000-000000000004'
 const actor = { id: '30000000-0000-4000-8000-000000000003', aal: 'aal2' }
+const guardians = { approve: vi.fn() }
 const imports = {
   validate: vi.fn(),
   saveMapping: vi.fn(),
@@ -27,7 +30,11 @@ let url: string
 beforeAll(async () => {
   const module = await Test.createTestingModule({
     controllers: [ImportsController],
-    providers: [{ provide: ImportsService, useValue: imports }],
+    providers: [
+      { provide: ImportsService, useValue: imports },
+      { provide: ImportReviewService, useValue: {} },
+      { provide: GuardianApprovalService, useValue: guardians },
+    ],
   }).compile()
   app = module.createNestApplication({ logger: false })
   // Stands in for the identity the auth guard attaches; the guard is not under test here.
@@ -215,5 +222,30 @@ describe('import rows query and upload fields', () => {
       { formId, clientImportId: batchId },
       expect.objectContaining({ originalname: 'register.csv', mimetype: 'text/csv' }),
     )
+  })
+})
+
+describe('POST imports guardian-approvals body validation', () => {
+  const rowId = '60000000-0000-4000-8000-000000000006'
+
+  it('forwards a valid approval to the service', async () => {
+    guardians.approve.mockReset().mockResolvedValue({ approved: 1 })
+    const result = await send('POST', 'guardian-approvals', `{"rowIds":["${rowId}"]}`)
+    expect(result).toEqual({ status: 201, body: { approved: 1 } })
+    expect(guardians.approve).toHaveBeenCalledWith(actor, projectId, batchId, { rowIds: [rowId] })
+  })
+
+  it.each([
+    ['no rows', '{"rowIds":[]}'],
+    ['a duplicate row', `{"rowIds":["${rowId}","${rowId}"]}`],
+    ['an unknown key', `{"rowIds":["${rowId}"],"extra":true}`],
+    ['a malformed consent date', `{"rowIds":["${rowId}"],"consentDate":"2026-13-40"}`],
+  ])('answers 400 for %s without calling the service', async (_label, body) => {
+    guardians.approve.mockReset()
+    expect(await send('POST', 'guardian-approvals', body)).toEqual({
+      status: 400,
+      body: badRequest,
+    })
+    expect(guardians.approve).not.toHaveBeenCalled()
   })
 })

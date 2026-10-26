@@ -25,6 +25,7 @@ export * from './rules/severity/severity-format'
 
 export * from './contracts/imports/import-requests'
 export * from './contracts/imports/import-responses'
+export * from './contracts/imports/import-review'
 export * from './contracts/indicators/indicator-requests'
 export * from './contracts/indicators/indicator-responses'
 export * from './contracts/common/field-schemas'

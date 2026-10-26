@@ -23,7 +23,6 @@ export interface IntakeField extends FormFieldValidationContract {
 }
 
 export type ImportWarningCode =
-  | 'AGE_MISMATCH'
   | 'FOLLOW_UP_UNEXPECTED'
   | 'ID_PATTERN_MISMATCH'
   | 'CALCULATION_MISMATCH'
@@ -81,12 +80,14 @@ function calculate(
   rule: FieldIntakeRule,
   inputs: Record<string, NormalizedImportValue>,
   sourceProvided: ReadonlySet<string>,
+  upload: Date,
 ): NormalizedImportValue {
   switch (rule.kind) {
     case 'AGE_AT_DATE':
     case 'MINOR_AT_DATE': {
       const birth = toDate(inputs[rule.birthField])
-      const at = toDate(inputs[rule.atField])
+      // Minor status is current: it is measured at the upload date, not at the rule's date field.
+      const at = rule.kind === 'MINOR_AT_DATE' ? upload : toDate(inputs[rule.atField])
       if (!birth || !at) return null
       const years = completedYearsAt(birth, at)
       return rule.kind === 'AGE_AT_DATE' ? years : years < 18
@@ -126,9 +127,13 @@ export function applyIntakeRules(
     if (rule.kind === 'SAME_ANSWER_AS' && sourceProvided.has(field.code)) continue
     if (rule.kind === 'AGE_AT_DATE' || rule.kind === 'MINOR_AT_DATE') {
       const birth = toDate(inputs[rule.birthField])
-      const at = toDate(inputs[rule.atField])
+      // Minor status is measured at the upload date, but a birth after the rule's own date is still held.
+      const dates = [
+        toDate(inputs[rule.atField]),
+        ...(rule.kind === 'MINOR_AT_DATE' ? [upload] : []),
+      ]
       // A birth after the measuring date gives no age; the row is held with the reason.
-      if (birth && at && birth > at) {
+      if (birth && dates.some((at) => at && birth > at)) {
         if (!errors.some((e) => e.code === 'BIRTH_AFTER_DATE' && e.fieldCode === rule.birthField))
           errors.push({
             fieldCode: rule.birthField,
@@ -138,7 +143,7 @@ export function applyIntakeRules(
         continue
       }
     }
-    const calculated = calculate(rule, inputs, sourceProvided)
+    const calculated = calculate(rule, inputs, sourceProvided, upload)
     if (calculated === null) continue
     if (sourceProvided.has(field.code) && !sameValue(values[field.code], calculated)) {
       if (field.sadddField)
@@ -160,9 +165,13 @@ export function applyIntakeRules(
     if (rule.kind === 'AGE_CHECK') {
       const birth = toDate(values[rule.birthField])
       if (!birth || typeof value !== 'number') continue
-      const references = [...rule.atFields.map((code) => toDate(values[code])), upload]
-      if (!references.some((date) => date && completedYearsAt(birth, date) === value))
-        warn('AGE_MISMATCH')
+      // The file's Age may come from a TODAY formula, so one year of drift is allowed.
+      if (Math.abs(value - completedYearsAt(birth, upload)) > 1)
+        errors.push({
+          fieldCode: field.code,
+          code: 'AGE_MISMATCH',
+          message: 'The age does not match the birth date.',
+        })
     } else if (rule.kind === 'FOLLOW_UP_OF') {
       const parent = values[rule.parentField]
       const bare = (text: string) => comparableAnswer(stripLetterPrefix(text))

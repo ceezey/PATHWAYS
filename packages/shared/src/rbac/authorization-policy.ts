@@ -108,6 +108,7 @@ export const permissionCodes = [
   'analytics.descriptive.read',
   'analytics.saddd.read',
   'assessments.record',
+  'beneficiaries.guardian_consent.approve',
 ] as const
 export type AtomicPermission = (typeof permissionCodes)[number]
 
@@ -194,6 +195,7 @@ export const rolePermissions: Record<CanonicalRole, readonly AtomicPermission[]>
     'beneficiaries.records.register',
     'beneficiaries.profiles.update',
     'beneficiaries.enrollments.manage',
+    'beneficiaries.guardian_consent.approve',
     'beneficiaries.aggregates.read',
     'recommendations.outcome.record',
     'collection.read',

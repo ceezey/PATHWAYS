@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ageBandWhere, assertSubjectProfile } from './beneficiaries.helpers'
 
@@ -6,8 +6,8 @@ import { ageBandWhere, assertSubjectProfile } from './beneficiaries.helpers'
 const future = new Date(Date.now() + 3 * 86_400_000).toISOString().slice(0, 10)
 
 describe('profile edits', () => {
-  const subjectProfile = assertSubjectProfile as (input: unknown, current: unknown) => void
-  const check = (input: Record<string, unknown>) =>
+  const subjectProfile = assertSubjectProfile as (input: unknown, current: unknown) => boolean
+  const check = (input: Record<string, unknown>, currentPatch: Record<string, unknown> = {}) =>
     subjectProfile(
       {
         subjectType: 'INDIVIDUAL',
@@ -22,9 +22,11 @@ describe('profile edits', () => {
         birthDate: new Date('2023-01-01T00:00:00.000Z'),
         ageAtRegistration: 3,
         isMinor: true,
+        guardianConsentRecorded: true,
         beneficiaryProjectEnrollment_beneficiary: [
           { enrollmentDate: new Date('2026-01-01T00:00:00.000Z') },
         ],
+        ...currentPatch,
       },
     )
 
@@ -48,6 +50,39 @@ describe('profile edits', () => {
 
   it('rejects a changed future birth date with the exact message', () => {
     expect(() => check({ birthDate: future })).toThrow('Date of birth cannot be in the future.')
+  })
+
+  describe('minor status follows the current age', () => {
+    // 12:00 on 2026-10-26 in Manila.
+    beforeEach(() => {
+      vi.useFakeTimers({ now: new Date('2026-10-26T04:00:00.000Z'), toFake: ['Date'] })
+    })
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+    // Born 2008-08-17: 17 at the 2026-01-01 enrollment, 18 today.
+    const adultToday = { birthDate: '2008-08-17', ageAtRegistration: 17 }
+    const noGuardian = { isMinor: true, guardianConsentRecorded: false }
+
+    it('recomputes minor status at today', () => {
+      expect(check({ birthDate: '2023-01-01', ageAtRegistration: 3 })).toBe(true)
+      expect(check(adultToday, { isMinor: true })).toBe(false)
+      expect(check({ ...adultToday, birthDate: '2008-11-01' })).toBe(true)
+    })
+
+    it('lets an adult who turned 18 edit without guardian consent, though recorded as a minor', () => {
+      expect(check(adultToday, noGuardian)).toBe(false)
+    })
+
+    it('refuses a minor without guardian consent with a plain error', () => {
+      for (const input of [
+        { birthDate: '2023-01-01', ageAtRegistration: 3 },
+        { birthDate: undefined, ageAtRegistration: 12 },
+      ])
+        expect(() => check(input, noGuardian)).toThrow(
+          'Guardian consent is required while the participant is under 18.',
+        )
+    })
   })
 })
 

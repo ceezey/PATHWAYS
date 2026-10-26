@@ -13,7 +13,7 @@ import { requireScopedProject } from '../../common/authz/scoped-project'
 import type { Tx } from '../../common/prisma/transaction'
 import { readBatchCoverage } from './batch-coverage'
 import { safeSourceColumns } from './imports.helpers'
-import { batchSelection, mapBatch } from './imports.mapper'
+import { type BatchRow, batchSelection, mapBatch } from './imports.mapper'
 
 export async function listProjectBatches(tx: Tx, actor: ApplicationIdentity, projectId: string) {
   const scopedProjectId = await requireScopedProject(tx, actor, projectId)
@@ -80,6 +80,7 @@ export async function readBatchDetail(
   const sourceColumns = stored ? safeSourceColumns(stored.sourceHeaders) : []
   return {
     ...mapBatch(batch, await warningRows(tx, actor, batch.id), actor.userId),
+    ...(await registrationCounts(tx, actor, batch)),
     sourceHeaders: sourceColumns.map((column) => column.key),
     sourceColumns,
     mappings: mappings.map(
@@ -101,12 +102,26 @@ export async function readBatchRows(
   query: ImportRowsQuery,
 ): Promise<ImportRowsPageResponse> {
   const batch = await requireBatch(tx, actor, projectId, batchId)
+  const scope = {
+    organizationId: actor.organizationId,
+    projectId: batch.projectId,
+    importBatchId: batch.id,
+  }
+  // Held rows wait for a person: unprocessed rows with a reason, and invalid registration rows a reviewer can resolve.
+  const where = query.held
+    ? {
+        ...scope,
+        OR: [
+          { status: 'UNPROCESSED' as const, processingErrorCode: { not: null } },
+          ...(batch.form.formType === 'BENEFICIARY_REGISTRATION'
+            ? [{ status: 'INVALID' as const }]
+            : []),
+        ],
+      }
+    : scope
+  const total = query.held ? await tx.dataImportRow.count({ where }) : batch.totalRows
   const rows = await tx.dataImportRow.findMany({
-    where: {
-      organizationId: actor.organizationId,
-      projectId: batch.projectId,
-      importBatchId: batch.id,
-    },
+    where,
     select: {
       id: true,
       rowNumber: true,
@@ -118,6 +133,7 @@ export async function readBatchRows(
       validationRevision: true,
       processingAttempts: true,
       processingErrorCode: true,
+      resolvedAt: true,
       updatedAt: true,
     },
     orderBy: { rowNumber: 'asc' },
@@ -127,13 +143,14 @@ export async function readBatchRows(
   return {
     offset: query.offset,
     take: query.take,
-    total: batch.totalRows,
+    total,
     rows: rows.map(
       (row): ImportRowResponse => ({
         ...row,
         rawData: row.rawData as ImportRowResponse['rawData'],
         validationErrors: row.validationErrors as ImportRowResponse['validationErrors'],
         validationWarnings: row.validationWarnings as ImportRowResponse['validationWarnings'],
+        resolvedAt: row.resolvedAt?.toISOString() ?? null,
         updatedAt: row.updatedAt.toISOString(),
       }),
     ),
@@ -147,7 +164,31 @@ export async function mapStoredBatch(
   batchId: string,
 ) {
   const batch = await requireBatch(tx, actor, projectId, batchId)
-  return mapBatch(batch, await warningRows(tx, actor, batch.id), actor.userId)
+  return {
+    ...mapBatch(batch, await warningRows(tx, actor, batch.id), actor.userId),
+    ...(await registrationCounts(tx, actor, batch)),
+  }
+}
+
+/** Processed registration rows by outcome, for registration batches only; LINKED counts as updated. */
+async function registrationCounts(tx: Tx, actor: ApplicationIdentity, batch: BatchRow) {
+  if (batch.form.formType !== 'BENEFICIARY_REGISTRATION') return {}
+  const groups = await tx.dataImportRow.groupBy({
+    by: ['registrationOutcome'],
+    where: { organizationId: actor.organizationId, importBatchId: batch.id },
+    _count: { _all: true },
+  })
+  const count = (...outcomes: string[]) =>
+    groups
+      .filter((group) => group.registrationOutcome && outcomes.includes(group.registrationOutcome))
+      .reduce((sum, group) => sum + group._count._all, 0)
+  return {
+    registrationCounts: {
+      created: count('CREATED'),
+      updated: count('UPDATED', 'LINKED'),
+      unchanged: count('UNCHANGED'),
+    },
+  }
 }
 
 export async function lockBatch(

@@ -93,6 +93,9 @@ function sourceColumnKey(columnIndex: number) {
   return `column_${String(columnIndex).padStart(4, '0')}`
 }
 
+// Same pattern as the parser's code row: a letter then letters, digits or underscores, 2 to 40 characters.
+const sourceCodePattern = /^[A-Za-z][A-Za-z0-9_]{1,39}$/
+
 export function safeSourceColumns(value: Prisma.JsonValue): ImportSourceColumn[] {
   if (!Array.isArray(value) || value.length > IMPORT_ENGINEERING_LIMITS.maxSourceColumns) {
     throw new ConflictException('Stored import source columns are invalid.')
@@ -111,7 +114,9 @@ export function safeSourceColumns(value: Prisma.JsonValue): ImportSourceColumn[]
       typeof record.header !== 'string' ||
       record.header.length < 1 ||
       record.header.length > IMPORT_ENGINEERING_LIMITS.maxHeaderCharacters ||
-      record.columnIndex !== columnIndex
+      record.columnIndex !== columnIndex ||
+      (record.sourceCode !== undefined &&
+        (typeof record.sourceCode !== 'string' || !sourceCodePattern.test(record.sourceCode)))
     ) {
       throw new ConflictException('Stored import source columns are invalid.')
     }
@@ -119,6 +124,7 @@ export function safeSourceColumns(value: Prisma.JsonValue): ImportSourceColumn[]
       key: record.key,
       header: record.header,
       columnIndex: record.columnIndex,
+      ...(typeof record.sourceCode === 'string' ? { sourceCode: record.sourceCode } : {}),
     }
   })
   if (new Set(columns.map((column) => column.key)).size !== columns.length) {

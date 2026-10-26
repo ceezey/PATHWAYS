@@ -46,6 +46,24 @@ describe('parseWorkbook', () => {
     })
   })
 
+  it('reads a coded file like the server: labels are the headers and data starts on row 3', () => {
+    const workbook = XLSX.utils.book_new()
+    const worksheet = XLSX.utils.aoa_to_sheet([
+      ['VFXAUuYgXtm', 'L2doMQ7OtUB', 'orgUnit'],
+      ['Consent given', 'Participant ID', ''],
+      ['yes', 'S-1', 'OU1'],
+    ])
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Data')
+    const buffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' })
+
+    // A label heads its column, and the code stands in where the label is blank.
+    expect(parseWorkbook(buffer)).toEqual({
+      headers: ['Consent given', 'Participant ID', 'orgUnit'],
+      rows: [{ 'Consent given': 'yes', 'Participant ID': 'S-1', orgUnit: 'OU1' }],
+      sheetNames: ['Data'],
+    })
+  })
+
   it('emits date-formatted numeric cells as ISO dates', () => {
     const worksheet = XLSX.utils.aoa_to_sheet([
       ['Date of Birth', 'Age'],

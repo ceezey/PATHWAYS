@@ -1,16 +1,11 @@
 import { ConflictException, NotFoundException } from '@nestjs/common'
-import {
-  type DraftField,
-  FormDraftError,
-  draftFormFromImport,
-  smartMatchColumnsV3,
-} from '@pathways/imports/server'
+import { type DraftField, FormDraftError, draftFormFromImport } from '@pathways/imports/server'
 import type { DraftFromImportRequest, DraftFromImportResponse } from '@pathways/shared'
 import { writeAuditLog } from '../../common/audit/write-audit-log'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import type { Tx } from '../../common/prisma/transaction'
 import { currentBusinessDate } from '../../common/time/business-date'
-import { coverageField, readStagedRaw, smartMatchColumns } from '../imports/batch-match-inputs'
+import { coverageField, matchColumns, readStagedRaw } from '../imports/batch-match-inputs'
 import { requireBatchWithHeaders } from '../imports/import-batches.service'
 import { safeSourceColumns } from '../imports/imports.helpers'
 import { requireForm } from './form-lookup.service'
@@ -45,10 +40,7 @@ export async function createDraftFromImport(
   }
   const sourceColumns = safeSourceColumns(batch.sourceHeaders)
   const raw = await readStagedRaw(tx, actor, batch)
-  const decisions = smartMatchColumnsV3(
-    smartMatchColumns(sourceColumns, raw),
-    source.formField_form.map(coverageField),
-  )
+  const decisions = matchColumns(sourceColumns, raw, source.formField_form.map(coverageField))
   let drafted: ReturnType<typeof draftFormFromImport>
   try {
     drafted = draftFormFromImport({
@@ -60,6 +52,7 @@ export async function createDraftFromImport(
         key: column.key,
         columnIndex: column.columnIndex,
         header: column.header,
+        sourceCode: column.sourceCode,
         values: raw.map((values) => values[column.key]),
       })),
       decisions,

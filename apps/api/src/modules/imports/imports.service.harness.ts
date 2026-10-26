@@ -116,9 +116,10 @@ export const tx = {
     update: vi.fn(),
     updateMany: vi.fn(),
     groupBy: vi.fn(),
+    count: vi.fn(),
   },
   metadataMapping: { findMany: vi.fn(), createMany: vi.fn() },
-  formField: { findMany: vi.fn() },
+  formField: { findMany: vi.fn(), findFirst: vi.fn() },
   formSubmission: { findUnique: vi.fn(), create: vi.fn(), update: vi.fn() },
   formResponseValue: { createMany: vi.fn() },
   beneficiaryActivityParticipation: { findUnique: vi.fn() },
@@ -129,7 +130,7 @@ export const storage = {
   uploadPrivateFile: vi.fn(),
   downloadPrivateFile: vi.fn(),
 }
-export const beneficiaries = { promoteRegistration: vi.fn() }
+export const beneficiaries = { promoteRegistration: vi.fn(), readRegistrationForm: vi.fn() }
 export let service: ImportsService
 export { state }
 
@@ -147,6 +148,7 @@ export function useImportsHarness() {
       { promoteParticipation: vi.fn() } as never,
     )
     tx.project.findFirst.mockResolvedValue({ id: projectId })
+    tx.formField.findFirst.mockResolvedValue(null)
     tx.$queryRaw.mockResolvedValue([{ id: batchId }])
     tx.$executeRaw.mockResolvedValue(2)
     tx.auditLog.create.mockResolvedValue({ id: 'audit' })

@@ -19,11 +19,12 @@ import type { ApplicationIdentity } from '../../common/authz/application-identit
 import { formFieldContract } from '../../common/forms/form-field-contract'
 import type { Tx } from '../../common/prisma/transaction'
 import { currentBusinessDate } from '../../common/time/business-date'
+import { normalizeIdentifier } from '../beneficiaries/beneficiary-registration.helpers'
 import { lockBatch, mapStoredBatch, requireBatchWithHeaders } from './import-batches.service'
 import { safeRawData, safeSourceColumns, stableJson, storedValueMap } from './imports.helpers'
 import { type FieldRow, fieldSelection } from './imports.mapper'
 
-function intakeField(row: FieldRow): IntakeField {
+export function intakeField(row: FieldRow): IntakeField {
   return {
     ...formFieldContract(row),
     sadddField: row.isSadddField,
@@ -32,6 +33,62 @@ function intakeField(row: FieldRow): IntakeField {
     importDefault: row.importDefault,
     rule: row.rule as FieldIntakeRule | null,
   }
+}
+
+export interface ColumnMapping {
+  sourceFieldName: string
+  status: string
+  dataType: ImportColumnRule['dataType'] | null
+  valueMap: Prisma.JsonValue | null
+  dateOrder: string | null
+  targetField: Pick<FieldRow, 'code' | 'dataType'> | null
+}
+
+/** The reviewed value maps and declared types per target field; a text date column also gets its date order. */
+export function columnRules(
+  mappings: readonly ColumnMapping[],
+  raws: readonly Record<string, unknown>[],
+  referenceYear: number,
+) {
+  const rules = Object.create(null) as Record<string, ImportColumnRule>
+  for (const mapping of mappings) {
+    if (mapping.status !== 'MAPPED' || !mapping.targetField) continue
+    rules[mapping.targetField.code] = {
+      ...(mapping.dataType ? { dataType: mapping.dataType } : {}),
+      ...(mapping.valueMap
+        ? { valueMap: buildImportValueMap(storedValueMap(mapping.valueMap)) }
+        : {}),
+    }
+  }
+  // A text date column uses the reviewer's date order, else the one order that fits every value.
+  for (const mapping of mappings) {
+    const target = mapping.status === 'MAPPED' ? mapping.targetField : null
+    if (!target || (mapping.dataType ?? target.dataType) !== 'DATE') continue
+    const orders = mapping.dateOrder
+      ? [mapping.dateOrder as DateOrder]
+      : fittingDateOrders(
+          raws.map((raw) => raw[mapping.sourceFieldName]),
+          referenceYear,
+        )
+    if (orders.length === 1) {
+      rules[target.code] = { ...rules[target.code], date: { order: orders[0], referenceYear } }
+    }
+  }
+  return rules
+}
+
+/** A raw row keyed by the target field of each mapped column. */
+export function valuesByFieldCode(
+  mappings: readonly ColumnMapping[],
+  raw: Record<string, unknown>,
+) {
+  const byFieldCode = Object.create(null) as Record<string, unknown>
+  for (const mapping of mappings) {
+    if (mapping.status === 'MAPPED' && mapping.targetField) {
+      byFieldCode[mapping.targetField.code] = raw[mapping.sourceFieldName]
+    }
+  }
+  return byFieldCode
 }
 
 export async function validateBatchRows(
@@ -109,16 +166,6 @@ export async function validateBatchRows(
     ...mappedFields,
     ...formFields.filter((field) => !mappedCodes.has(field.code) && supplied(field)),
   ].map(intakeField)
-  const rules = Object.create(null) as Record<string, ImportColumnRule>
-  for (const mapping of mappings) {
-    if (mapping.status !== 'MAPPED' || !mapping.targetField) continue
-    rules[mapping.targetField.code] = {
-      ...(mapping.dataType ? { dataType: mapping.dataType } : {}),
-      ...(mapping.valueMap
-        ? { valueMap: buildImportValueMap(storedValueMap(mapping.valueMap)) }
-        : {}),
-    }
-  }
   const rows = await tx.dataImportRow.findMany({
     where: { organizationId: actor.organizationId, importBatchId: batch.id },
     select: { id: true, rowNumber: true, rawData: true },
@@ -128,39 +175,25 @@ export async function validateBatchRows(
   const validationRevision = batch.validationRevision + 1
   const uploadDate = currentBusinessDate(batch.createdAt)
   const raws = rows.map((row) => safeRawData(row.rawData))
-  // A text date column uses the reviewer's date order, else the one order that fits every value.
-  const referenceYear = Number(uploadDate.slice(0, 4))
-  for (const mapping of mappings) {
-    const target = mapping.status === 'MAPPED' ? mapping.targetField : null
-    if (!target || (mapping.dataType ?? target.dataType) !== 'DATE') continue
-    const orders = mapping.dateOrder
-      ? [mapping.dateOrder as DateOrder]
-      : fittingDateOrders(
-          raws.map((raw) => raw[mapping.sourceFieldName]),
-          referenceYear,
-        )
-    if (orders.length === 1) {
-      rules[target.code] = { ...rules[target.code], date: { order: orders[0], referenceYear } }
-    }
-  }
+  const rules = columnRules(mappings, raws, Number(uploadDate.slice(0, 4)))
   const results = rows.map((row, index) => {
     const raw = raws[index]
-    const byFieldCode = Object.create(null) as Record<string, unknown>
-    for (const mapping of mappings) {
-      if (mapping.status === 'MAPPED' && mapping.targetField) {
-        byFieldCode[mapping.targetField.code] = raw[mapping.sourceFieldName]
-      }
-    }
+    const byFieldCode = valuesByFieldCode(mappings, raw)
     return { row, result: normalizeImportedRow(fields, byFieldCode, rules, { uploadDate }) }
   })
-  const metadataKeys = mappedFields
-    .filter((field) => field.isMetadataKey)
-    .map((field) => field.code)
-  if (metadataKeys.length > 0) {
+  // Two valid rows sharing a key are both marked, so neither is guessed to be the real one.
+  const markDuplicates = (
+    keyOf: (values: Record<string, unknown>) => string | null,
+    fieldCode: string,
+    code: string,
+    message: string,
+    includeInvalid = false,
+  ) => {
     const seen = new Map<string, number[]>()
     results.forEach(({ result }, index) => {
-      if (!result.valid) return
-      const key = stableJson(metadataKeys.map((code) => result.values[code]))
+      if (!result.valid && !includeInvalid) return
+      const key = keyOf(result.values)
+      if (key === null) return
       const entries = seen.get(key) ?? []
       entries.push(index)
       seen.set(key, entries)
@@ -169,13 +202,38 @@ export async function validateBatchRows(
       if (duplicates.length < 2) continue
       for (const index of duplicates) {
         results[index].result.valid = false
-        results[index].result.errors.push({
-          fieldCode: metadataKeys.join(','),
-          code: 'DUPLICATE_BUSINESS_KEY',
-          message: 'The metadata key is duplicated within this import.',
-        })
+        results[index].result.errors.push({ fieldCode, code, message })
       }
     }
+  }
+  const metadataKeys = mappedFields
+    .filter((field) => field.isMetadataKey)
+    .map((field) => field.code)
+  if (metadataKeys.length > 0) {
+    markDuplicates(
+      (values) => stableJson(metadataKeys.map((code) => values[code])),
+      metadataKeys.join(','),
+      'DUPLICATE_BUSINESS_KEY',
+      'The metadata key is duplicated within this import.',
+    )
+  }
+  // One client Student ID on two rows would create or change one person twice, even if one twin is invalid.
+  if (
+    batch.form.formType === 'BENEFICIARY_REGISTRATION' &&
+    fields.some((field) => field.code === 'external_identifier_value')
+  ) {
+    markDuplicates(
+      (values) => {
+        const value = values.external_identifier_value
+        return typeof value === 'string' && normalizeIdentifier(value) !== ''
+          ? normalizeIdentifier(value)
+          : null
+      },
+      'external_identifier_value',
+      'IDENTITY_CONFLICT',
+      'The client identifier is on more than one row of this import.',
+      true,
+    )
   }
   let valid = 0
   let invalid = 0

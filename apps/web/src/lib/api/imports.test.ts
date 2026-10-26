@@ -45,6 +45,31 @@ describe('importsClient import requests', () => {
     }
   })
 
+  it('pages through every held row until the filtered total is read', async () => {
+    const page = (from: number, count: number) => ({
+      total: 230,
+      rows: Array.from({ length: count }, (_, index) => ({ id: `row-${from + index}` })),
+    })
+    request.requestFoundation
+      .mockResolvedValueOnce(page(0, 100))
+      .mockResolvedValueOnce(page(100, 100))
+      .mockResolvedValueOnce(page(200, 30))
+    const rows = await importsClient.getHeldRows(projectId, batchId)
+    expect(rows).toHaveLength(230)
+    expect(request.requestFoundation.mock.calls.map((call) => call[0])).toEqual(
+      [0, 100, 200].map((offset) => `${batchPath}/rows?held=true&offset=${offset}&take=100`),
+    )
+  })
+
+  it('stops after a page that reaches the total', async () => {
+    request.requestFoundation.mockResolvedValue({
+      total: 100,
+      rows: Array.from({ length: 100 }, (_, index) => ({ id: `row-${index}` })),
+    })
+    await expect(importsClient.getHeldRows(projectId, batchId)).resolves.toHaveLength(100)
+    expect(request.requestFoundation).toHaveBeenCalledTimes(1)
+  })
+
   it('lets a request failure through as the same error before any parse', async () => {
     const failure = new PathwaysClientError('x', 'forbidden')
     request.requestFoundation.mockRejectedValue(failure)

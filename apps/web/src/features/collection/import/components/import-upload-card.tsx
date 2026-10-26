@@ -43,6 +43,7 @@ export function ImportUploadCard({
     | 'setSheetName'
     | 'sheetName'
     | 'sheetNames'
+    | 'uploadRefusal'
   >
   review: Pick<BatchReview, 'upload'>
 }) {
@@ -67,6 +68,7 @@ export function ImportUploadCard({
     setSheetName,
     sheetName,
     sheetNames,
+    uploadRefusal,
   } = state
   const { upload } = review
   return (
@@ -188,6 +190,11 @@ export function ImportUploadCard({
               </SelectContent>
             </Select>
           </div>
+        ) : null}
+        {uploadRefusal ? (
+          <p className="text-sm text-danger md:col-span-3" role="alert">
+            {uploadRefusal}
+          </p>
         ) : null}
         <div className="md:col-span-3">
           <Button

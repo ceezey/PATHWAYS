@@ -20,6 +20,7 @@ const row = (
   validationRevision: 1,
   processingAttempts: 0,
   processingErrorCode: null,
+  resolvedAt: null,
   updatedAt: '2026-10-23T00:00:00Z',
 })
 const state = {
@@ -51,5 +52,16 @@ describe('ImportRowsCard warnings', () => {
     render(<ImportRowsCard state={{ ...state, rows: [row(1, [])] }} />)
     fireEvent.click(screen.getByRole('checkbox', { name: 'Show only rows with warnings' }))
     expect(screen.getByText('No loaded rows have warnings.')).toBeTruthy()
+  })
+
+  it('words a hold in plain terms and keeps other processing codes as they were', () => {
+    const rows = [
+      { ...row(3, []), status: 'UNPROCESSED', processingErrorCode: 'PROFILE_CHANGED' },
+      { ...row(4, []), status: 'FAILED', processingErrorCode: 'RETRY_LIMIT_EXCEEDED' },
+    ] as ImportRowDefinition[]
+    render(<ImportRowsCard state={{ ...state, rows }} />)
+    expect(screen.getByText('Values differ from PATHWAYS')).toBeTruthy()
+    expect(screen.getByText('Retry limit exceeded')).toBeTruthy()
+    expect(screen.queryByText('Needs review')).toBeNull()
   })
 })

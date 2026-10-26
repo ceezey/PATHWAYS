@@ -20,9 +20,11 @@ import { createHash } from 'node:crypto'
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common'
+import { rolePermissions } from '@pathways/shared'
 import { describe, expect, it, vi } from 'vitest'
 
 import { W10_CLIENT_IMPORT_ID, W10_SOURCE_SHA256 } from './upload-finalization-fault'
@@ -58,6 +60,91 @@ describe('P03 import service', () => {
       }),
     )
     expect(storage.uploadPrivateFile).not.toHaveBeenCalled()
+  })
+
+  it('system administrator registration upload refused before staging', async () => {
+    state.actor = {
+      ...actor,
+      roles: ['SYSTEM_ADMINISTRATOR'],
+      permissions: [...rolePermissions.SYSTEM_ADMINISTRATOR],
+    }
+    tx.digitalForm.findFirst.mockResolvedValue({
+      id: formId,
+      version: 1,
+      formType: 'BENEFICIARY_REGISTRATION',
+    })
+
+    const refused = service.upload(state.actor, projectId, { formId, clientImportId }, file())
+    await expect(refused).rejects.toBeInstanceOf(ForbiddenException)
+    await expect(refused).rejects.toThrow(
+      'Importing participants needs the Create Beneficiary Profile permission.',
+    )
+    expect(tx.dataImportBatch.create).not.toHaveBeenCalled()
+    expect(tx.dataImportRow.createMany).not.toHaveBeenCalled()
+    expect(storage.uploadPrivateFile).not.toHaveBeenCalled()
+  })
+
+  describe('a registration form with the client ID field', () => {
+    const withRole = (role: 'PROJECT_OFFICER' | 'MONITORING_AND_EVALUATION_OFFICER') => ({
+      ...actor,
+      roles: [role],
+      permissions: [...rolePermissions[role]],
+    })
+    const registrationForm = () => {
+      tx.digitalForm.findFirst.mockResolvedValue({
+        id: formId,
+        version: 1,
+        formType: 'BENEFICIARY_REGISTRATION',
+      })
+      tx.formField.findFirst.mockResolvedValue({ id: 'field' })
+    }
+
+    it('is refused for a Project Officer before anything is staged', async () => {
+      state.actor = withRole('PROJECT_OFFICER')
+      registrationForm()
+
+      const refused = service.upload(state.actor, projectId, { formId, clientImportId }, file())
+      await expect(refused).rejects.toBeInstanceOf(ForbiddenException)
+      await expect(refused).rejects.toThrow(
+        'Importing participants by client ID needs the identity review and enrollment management permissions.',
+      )
+      expect(tx.dataImportBatch.create).not.toHaveBeenCalled()
+      expect(tx.dataImportRow.createMany).not.toHaveBeenCalled()
+      expect(storage.uploadPrivateFile).not.toHaveBeenCalled()
+    })
+
+    it('is accepted for a Monitoring and Evaluation Officer', async () => {
+      state.actor = withRole('MONITORING_AND_EVALUATION_OFFICER')
+      registrationForm()
+      const source = file()
+      const sourceChecksum = createHash('sha256').update(source.buffer).digest('hex')
+      tx.dataImportBatch.findFirst.mockImplementation(async (args) =>
+        'clientImportId' in args.where ? batch({ sourceChecksum }) : batch(),
+      )
+      tx.dataImportBatch.findUnique.mockResolvedValue(batch())
+      tx.metadataMapping.findMany.mockResolvedValue([])
+
+      await expect(
+        service.upload(state.actor, projectId, { formId, clientImportId }, source),
+      ).resolves.toMatchObject({ id: batchId })
+    })
+
+    it('is accepted for a Project Officer when the form has no client ID field', async () => {
+      state.actor = withRole('PROJECT_OFFICER')
+      registrationForm()
+      tx.formField.findFirst.mockResolvedValue(null)
+      const source = file()
+      const sourceChecksum = createHash('sha256').update(source.buffer).digest('hex')
+      tx.dataImportBatch.findFirst.mockImplementation(async (args) =>
+        'clientImportId' in args.where ? batch({ sourceChecksum }) : batch(),
+      )
+      tx.dataImportBatch.findUnique.mockResolvedValue(batch())
+      tx.metadataMapping.findMany.mockResolvedValue([])
+
+      await expect(
+        service.upload(state.actor, projectId, { formId, clientImportId }, source),
+      ).resolves.toMatchObject({ id: batchId })
+    })
   })
 
   it('rejects a conflicting scoped idempotency key without replacing its object', async () => {

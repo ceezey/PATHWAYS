@@ -101,6 +101,11 @@ export const importRowsQuery = z
   .object({
     offset: queryInteger(0, 50_000).default(0),
     take: queryInteger(1, 100).default(50),
+    // Only the rows a person must decide, with the total counting just those.
+    held: z
+      .enum(['true', 'false'])
+      .transform((value) => value === 'true')
+      .optional(),
   })
   .strict()
 export type ImportRowsQuery = z.infer<typeof importRowsQuery>

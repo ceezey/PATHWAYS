@@ -4,13 +4,18 @@ import {
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common'
+import { rolePermissions } from '@pathways/shared'
+import { Prisma } from '@prisma/client'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { PrismaService } from '@app/prisma/prisma.service'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import { BeneficiaryRegistrationService } from '../beneficiaries/beneficiary-registration.service'
 import type { StorageService } from '../storage/storage.service'
+import { GuardianApprovalService } from './guardian-approval.service'
+import { mapStoredBatch } from './import-batches.service'
 import { ImportsService } from './imports.service'
+import { valueHash } from './participant-match'
 
 type Json = Record<string, unknown>
 
@@ -28,6 +33,11 @@ interface FakeRow {
   processingClaimedAt: Date | null
   processingAttempts: number
   processingErrorCode: string | null
+  registrationOutcome: string | null
+  matchedBeneficiaryId: string | null
+  resolutionData: Json | null
+  resolvedById: string | null
+  resolvedAt: Date | null
   normalizedData: Json | null
   validationErrors: unknown[]
   validationWarnings: unknown[]
@@ -54,6 +64,29 @@ interface Store {
   fields: Json[]
   submissions: Array<{ id: string; importRowId: string }>
   existingCodes: Set<string>
+  // Database state a later upload meets: profiles and their registration submissions.
+  people: FakePerson[]
+  registrations: Array<{
+    id: string
+    beneficiaryId: string
+    projectId: string
+    status: string
+    values: Json
+  }>
+}
+
+interface FakePerson {
+  id: string
+  code: string
+  identifier: string | null
+  enrolledIn: Set<string>
+  guardianConsentRecorded: boolean
+  firstName: string | null
+  lastName: string | null
+  birthDate: Date | null
+  ageAtRegistration: number | null
+  isMinor: boolean
+  archivedAt: Date | null
 }
 
 vi.mock('../../common/authz/authorized-operation', () => ({
@@ -194,6 +227,11 @@ function createStore(
       processingClaimedAt: null,
       processingAttempts: 0,
       processingErrorCode: null,
+      registrationOutcome: null,
+      matchedBeneficiaryId: null,
+      resolutionData: null,
+      resolvedById: null,
+      resolvedAt: null,
       normalizedData: null,
       validationErrors: [],
       validationWarnings: [],
@@ -202,6 +240,8 @@ function createStore(
     fields,
     submissions: [],
     existingCodes: new Set(),
+    people: [],
+    registrations: [],
   }
 }
 
@@ -284,6 +324,7 @@ const fakeTx = {
   digitalForm: {
     findFirst: vi.fn(async () => ({
       id: formId,
+      projectId,
       version: 1,
       status: 'PUBLISHED',
       formField_form: state.store.fields,
@@ -308,7 +349,7 @@ const fakeTx = {
         .filter((row) => matches(row, args.where))
         .sort((left, right) => left.rowNumber - right.rowNumber)
         .slice(0, args.take)
-        .map((row) => ({ id: row.id, rowNumber: row.rowNumber, rawData: row.rawData })),
+        .map((row) => structuredClone(row)),
     ),
     findFirst: vi.fn(async (args: { where: Json }) => {
       const row = rowById(args.where.id as string)
@@ -332,52 +373,185 @@ const fakeTx = {
       for (const row of rows) apply(row as unknown as Json, args.data)
       return { count: rows.length }
     }),
-    groupBy: vi.fn(async () => {
-      const counts = new Map<string, number>()
-      for (const row of state.store.rows) counts.set(row.status, (counts.get(row.status) ?? 0) + 1)
-      return [...counts].map(([status, count]) => ({ status, _count: { _all: count } }))
+    groupBy: vi.fn(async (args: { by: Array<'status' | 'registrationOutcome'> }) => {
+      const [key] = args.by
+      const counts = new Map<string | null, number>()
+      for (const row of state.store.rows) counts.set(row[key], (counts.get(row[key]) ?? 0) + 1)
+      return [...counts].map(([value, count]) => ({ [key]: value, _count: { _all: count } }))
     }),
   },
   metadataMapping: {
     findMany: vi.fn(async () => state.store.mappings),
+    findFirst: vi.fn(async (args: { where: { targetField: { code: string } } }) =>
+      state.store.mappings.find(
+        (mapping) =>
+          mapping.status === 'MAPPED' &&
+          (mapping.targetField as { code?: string } | null)?.code === args.where.targetField.code,
+      )
+        ? { id: 'mapping' }
+        : null,
+    ),
     createMany: vi.fn(),
   },
   formField: {
     findMany: vi.fn(async () => state.store.fields),
   },
   formSubmission: {
-    findFirst: vi.fn(async () => null),
+    // Honours status, project and ordering; row security hides projects the actor is not assigned to.
+    findFirst: vi.fn(
+      async (args: {
+        where: {
+          organizationId?: string
+          projectId?: string
+          status?: string
+          enrollment?: { beneficiaryId: string }
+        }
+      }) => {
+        const { where } = args
+        if (!where.enrollment) return null
+        const latest = state.store.registrations
+          .filter(
+            (item) =>
+              item.beneficiaryId === where.enrollment?.beneficiaryId &&
+              (where.organizationId === undefined || where.organizationId === organizationId) &&
+              (where.projectId === undefined || item.projectId === where.projectId) &&
+              (where.status === undefined || item.status === where.status) &&
+              state.actor.assignedProjectIds.includes(item.projectId),
+          )
+          .at(-1)
+        return latest
+          ? {
+              formResponseValue_submission: Object.entries(latest.values).map(([code, value]) => ({
+                field: { code },
+                value,
+              })),
+            }
+          : null
+      },
+    ),
     findUnique: vi.fn(async (args: { where: { importRowId: string } }) => {
       const found = state.store.submissions.find(
         (item) => item.importRowId === args.where.importRowId,
       )
       return found ? { id: found.id } : null
     }),
-    create: vi.fn(async (args: { data: { importRowId: string } }) => {
-      const id = `sub-${args.data.importRowId}`
-      state.store.submissions.push({ id, importRowId: args.data.importRowId })
-      return { id }
-    }),
-    update: vi.fn(async () => ({})),
-  },
-  formResponseValue: { createMany: vi.fn(async () => ({ count: 1 })) },
-  beneficiary: {
-    findUnique: vi.fn(async (args: { where: { organizationId_code: { code: string } } }) =>
-      state.store.existingCodes.has(args.where.organizationId_code.code)
-        ? { id: `existing-${args.where.organizationId_code.code}` }
-        : null,
+    create: vi.fn(
+      async (args: { data: { importRowId: string; projectId: string; enrollmentId?: string } }) => {
+        const id = `sub-${args.data.importRowId}`
+        state.store.submissions.push({ id, importRowId: args.data.importRowId })
+        if (args.data.enrollmentId?.startsWith('enr:')) {
+          const beneficiaryId = args.data.enrollmentId.split(':')[1]
+          const { projectId: submissionProject } = args.data
+          state.store.registrations.push({
+            id,
+            beneficiaryId,
+            projectId: submissionProject,
+            status: 'DRAFT',
+            values: {},
+          })
+        }
+        return { id }
+      },
     ),
-    findFirst: vi.fn(async (args: { where: { id: string } }) => ({
-      code: args.where.id.replace('existing-', ''),
-      subjectType: 'INDIVIDUAL',
-    })),
-    createMany: vi.fn(async () => ({ count: 1 })),
+    update: vi.fn(async (args: { where: { id: string }; data: { status?: string } }) => {
+      const registration = state.store.registrations.find((item) => item.id === args.where.id)
+      if (registration && args.data.status) registration.status = args.data.status
+      return {}
+    }),
   },
-  beneficiaryIdentifier: { findUnique: vi.fn(async () => null), create: vi.fn() },
+  formResponseValue: {
+    createMany: vi.fn(
+      async (args: { data: Array<{ submissionId: string; fieldId: string; value: unknown }> }) => {
+        const registration = state.store.registrations.find(
+          (item) => item.id === args.data[0]?.submissionId,
+        )
+        for (const item of args.data) {
+          const code = state.store.fields.find((entry) => entry.id === item.fieldId)?.code
+          if (registration && typeof code === 'string')
+            registration.values[code] = item.value === Prisma.JsonNull ? null : item.value
+        }
+        return { count: args.data.length }
+      },
+    ),
+  },
+  beneficiary: {
+    findUnique: vi.fn(async (args: { where: { organizationId_code: { code: string } } }) => {
+      const code = args.where.organizationId_code.code
+      if (state.store.existingCodes.has(code)) return { id: `existing-${code}` }
+      const person = state.store.people.find((item) => item.code === code)
+      return person ? { id: person.id } : null
+    }),
+    findFirst: vi.fn(async (args: { where: { id: string; archivedAt?: null } }) => {
+      const person = state.store.people.find((item) => item.id === args.where.id)
+      if (!person) {
+        return { code: args.where.id.replace('existing-', ''), subjectType: 'INDIVIDUAL' }
+      }
+      if (args.where.archivedAt === null && person.archivedAt) return null
+      return {
+        code: person.code,
+        subjectType: 'INDIVIDUAL',
+        firstName: person.firstName,
+        lastName: person.lastName,
+        birthDate: person.birthDate,
+        ageAtRegistration: person.ageAtRegistration,
+        isMinor: person.isMinor,
+        guardianConsentRecorded: person.guardianConsentRecorded,
+      }
+    }),
+    createMany: vi.fn(async (args: { data: Json & { id: string; code: string } }) => {
+      const { data } = args
+      state.store.people.push({
+        id: data.id,
+        code: data.code,
+        identifier: null,
+        enrolledIn: new Set(),
+        guardianConsentRecorded: data.guardianConsentRecorded === true,
+        firstName: (data.firstName as string | null) ?? null,
+        lastName: (data.lastName as string | null) ?? null,
+        birthDate: (data.birthDate as Date | null) ?? null,
+        ageAtRegistration: (data.ageAtRegistration as number | null) ?? null,
+        isMinor: data.isMinor === true,
+        archivedAt: null,
+      })
+      return { count: 1 }
+    }),
+  },
+  beneficiaryIdentifier: {
+    findUnique: vi.fn(
+      async (args: {
+        where: { organizationId_identifierType_normalizedValue: { normalizedValue: string } }
+      }) => {
+        const key = args.where.organizationId_identifierType_normalizedValue.normalizedValue
+        const person = state.store.people.find((item) => item.identifier === key)
+        return person ? { beneficiaryId: person.id } : null
+      },
+    ),
+    create: vi.fn(async (args: { data: { beneficiaryId: string; normalizedValue: string } }) => {
+      const person = state.store.people.find((item) => item.id === args.data.beneficiaryId)
+      if (person) person.identifier = args.data.normalizedValue
+    }),
+  },
   beneficiaryProjectEnrollment: {
-    findUnique: vi.fn(async () => null),
-    create: vi.fn(async () => ({ id: 'enrollment' })),
+    findUnique: vi.fn(
+      async (args: {
+        where: {
+          organizationId_projectId_beneficiaryId: { projectId: string; beneficiaryId: string }
+        }
+      }) => {
+        const key = args.where.organizationId_projectId_beneficiaryId
+        const person = state.store.people.find((item) => item.id === key.beneficiaryId)
+        return person?.enrolledIn.has(key.projectId)
+          ? { id: `enr:${person.id}:${key.projectId}` }
+          : null
+      },
+    ),
+    create: vi.fn(async (args: { data: { beneficiaryId: string; projectId: string } }) => {
+      const { beneficiaryId, projectId: enrolledProject } = args.data
+      state.store.people.find((item) => item.id === beneficiaryId)?.enrolledIn.add(enrolledProject)
+      return { id: `enr:${beneficiaryId}:${enrolledProject}` }
+    }),
   },
+  importValueRejection: { findMany: vi.fn(async () => []) },
   beneficiaryConsentRecord: { createMany: vi.fn(async () => ({ count: 2 })) },
   beneficiaryActivityParticipation: { findUnique: vi.fn() },
   auditLog: { create: vi.fn(async () => ({ id: 'audit' })) },
@@ -1038,43 +1212,467 @@ describe('metadata-driven intake validation', () => {
       )
     }
 
-    it('a stale Age column only warns and the row stays VALID', async () => {
-      state.store = ageStore(['36', '25'])
+    it('an Age column more than a year off holds the row INVALID, one year off stays VALID', async () => {
+      state.store = ageStore(['36', '37', '25'])
 
       const validated = await validate(service())
 
-      const [current, stale] = rowWrites()
+      const [current, drifted, stale] = rowWrites()
       expect(current).toMatchObject({ status: 'VALID', validation_warnings: [] })
+      expect(drifted).toMatchObject({ status: 'VALID', validation_warnings: [] })
       expect(stale).toMatchObject({
-        status: 'VALID',
-        validation_warnings: [{ fieldCode: 'age_stated', code: 'AGE_MISMATCH' }],
+        status: 'INVALID',
+        normalized_data: null,
+        validation_errors: [{ fieldCode: 'age_stated', code: 'AGE_MISMATCH' }],
       })
-      expect(validated).toMatchObject({ totals: { valid: 2, invalid: 0, warnings: 1 } })
+      expect(validated).toMatchObject({ totals: { valid: 2, invalid: 1, warnings: 0 } })
     })
 
     it('measures age today at the Manila calendar date of the batch creation', async () => {
-      // 17:00 UTC on 2 October is already 3 October in Manila, the 36th birthday.
-      state.store = ageStore(['36'], { createdAt: new Date('2026-10-02T17:00:00.000Z') })
+      // 17:00 UTC on 2 October is already 3 October in Manila, the 36th birthday, so 38 is two years off.
+      state.store = ageStore(['37', '38'], { createdAt: new Date('2026-10-02T17:00:00.000Z') })
 
       await validate(service())
 
-      expect(rowWrites()[0].validation_warnings).toEqual([])
+      expect(rowWrites().map((row) => row.status)).toEqual(['VALID', 'INVALID'])
     })
 
     it('follows the configured business time zone for the upload date', async () => {
       vi.stubEnv('BUSINESS_TIME_ZONE', 'UTC')
       try {
-        // Still 2 October in UTC, so the stated 36 is one year ahead of the 35 computed.
-        state.store = ageStore(['36'], { createdAt: new Date('2026-10-02T17:00:00.000Z') })
+        // Still 2 October in UTC, so the computed age is 35 and the stated 37 is two years ahead.
+        state.store = ageStore(['37'], { createdAt: new Date('2026-10-02T17:00:00.000Z') })
 
         await validate(service())
 
-        expect(rowWrites()[0].validation_warnings).toEqual([
+        expect(rowWrites()[0].validation_errors).toEqual([
           expect.objectContaining({ fieldCode: 'age_stated', code: 'AGE_MISMATCH' }),
         ])
       } finally {
         vi.unstubAllEnvs()
       }
+    })
+  })
+
+  describe('participant matching by client id', () => {
+    const registrationForm = {
+      code: 'registration',
+      name: 'Registration',
+      formType: 'BENEFICIARY_REGISTRATION',
+      status: 'PUBLISHED',
+      publishedById: publisherId,
+    }
+
+    // The client's Student ID decides the match; Participant ID and Age are recalculated columns.
+    const identifierFields = () => [
+      ...registrationFields().filter((item) => item.code !== 'external_identifier_type'),
+      field('external_identifier_type', { importDefault: 'STUDENT_ID' }),
+      field('age_stated', {
+        dataType: 'INTEGER',
+        ...rule({ kind: 'AGE_CHECK', birthField: 'birth_date', atFields: ['enrollment_date'] }),
+      }),
+    ]
+
+    const identifierStore = (rows: Json[]) => {
+      const fields = identifierFields()
+      return createStore(
+        fields,
+        mappedColumns(fields, [
+          'beneficiary_code',
+          'first_name',
+          'last_name',
+          'birth_date',
+          'enrollment_date',
+          'consent_recorded',
+          'guardian_consent_recorded',
+          'external_identifier_value',
+          'age_stated',
+        ]),
+        rows,
+        { form: registrationForm },
+      )
+    }
+
+    const person = (index: number, patch: Json = {}) => ({
+      column_0001: `BEN-00${index}`,
+      column_0002: `First${index}`,
+      column_0003: `Last${index}`,
+      column_0004: '1990-01-01',
+      column_0005: '2026-01-01',
+      column_0006: 'true',
+      column_0007: '',
+      column_0008: `S-${index}`,
+      column_0009: '36',
+      ...patch,
+    })
+
+    const linker = () => {
+      state.actor = {
+        ...state.actor,
+        permissions: [...state.actor.permissions, 'beneficiaries.enrollments.manage'],
+      }
+      return registrar()
+    }
+
+    // Processes the rows as a first upload, then stages the next export on top of that database state.
+    const reupload = async (imports: ImportsService, first: Json[], next: Json[]) => {
+      state.store = identifierStore(first)
+      await validate(imports)
+      await runProcess(imports)
+      const { people, registrations } = state.store
+      expect(state.store.rows.every((row) => row.status === 'PROCESSED')).toBe(true)
+      vi.clearAllMocks()
+      state.store = identifierStore(next)
+      Object.assign(state.store, { people, registrations })
+      return { people }
+    }
+
+    // The participant now belongs to another project, whose submissions this actor cannot read.
+    const moveToOtherProject = () => {
+      for (const item of state.store.people) item.enrolledIn = new Set([otherProjectId])
+      for (const item of state.store.registrations) item.projectId = otherProjectId
+    }
+
+    it('unchanged re-upload holds nothing', async () => {
+      const rows = [1, 2, 3].map((index) => person(index))
+      const imports = linker()
+      // The next export recalculated Participant ID and Age, which are not profile changes.
+      await reupload(
+        imports,
+        rows,
+        rows.map((row, index) => ({ ...row, column_0001: `BEN-X${index}`, column_0009: '37' })),
+      )
+
+      await validate(imports)
+      const processed = await runProcess(imports)
+
+      expect(fakeTx.beneficiary.createMany).not.toHaveBeenCalled()
+      expect(state.store.people).toHaveLength(3)
+      expect(state.store.rows.map((row) => row.status)).toEqual(Array(3).fill('PROCESSED'))
+      expect(state.store.rows.every((row) => row.processingErrorCode === null)).toBe(true)
+      expect(state.store.rows.map((row) => row.registrationOutcome)).toEqual(
+        Array(3).fill('UNCHANGED'),
+      )
+      expect(state.store.rows.map((row) => row.matchedBeneficiaryId)).toEqual(
+        state.store.people.map((item) => item.id),
+      )
+      expect(state.store.submissions).toHaveLength(0)
+      expect(processed).toMatchObject({
+        status: 'PROCESSED',
+        totals: { processed: 3, unprocessed: 0, failed: 0 },
+      })
+      const unchanged = (
+        fakeTx.auditLog.create.mock.calls as unknown as Array<[{ data: { action: string } }]>
+      ).filter(([call]) => call.data.action === 'IMPORT_REGISTRATION_UNCHANGED')
+      expect(unchanged).toHaveLength(3)
+      expect(JSON.stringify(unchanged)).not.toMatch(/S-\d|First|Last/)
+    })
+
+    it('approve, then re-upload the identical file holds nothing', async () => {
+      // Minors whose file has a guardian column; the approval writes guardian consent that the file never carries.
+      const minors = [1, 2].map((index) =>
+        person(index, { column_0004: '2014-03-04', column_0009: '12' }),
+      )
+      state.store = identifierStore(minors)
+      const imports = linker()
+      await validate(imports)
+      await runProcess(imports)
+      expect(state.store.rows.map((row) => row.processingErrorCode)).toEqual(
+        Array(2).fill('GUARDIAN_CONSENT_REQUIRED'),
+      )
+      const rowIds = state.store.rows.map((row) => row.id)
+      state.actor = {
+        ...baseActor,
+        roles: ['PROJECT_OFFICER'],
+        permissions: [...rolePermissions.PROJECT_OFFICER],
+      }
+      await new GuardianApprovalService(
+        {} as PrismaService,
+        new BeneficiaryRegistrationService(),
+      ).approve(state.actor, projectId, batchId, { rowIds })
+      expect(state.store.rows.every((row) => row.status === 'PROCESSED')).toBe(true)
+      const { people, registrations } = state.store
+      expect(registrations.map((item) => item.values.guardian_consent_recorded)).toEqual([
+        true,
+        true,
+      ])
+
+      vi.clearAllMocks()
+      state.store = identifierStore(minors)
+      Object.assign(state.store, { people, registrations })
+      state.actor = {
+        ...baseActor,
+        permissions: [...rolePermissions.MONITORING_AND_EVALUATION_OFFICER],
+      }
+      const next = linker()
+      await validate(next)
+      await runProcess(next)
+
+      expect(state.store.rows.map((row) => row.status)).toEqual(['PROCESSED', 'PROCESSED'])
+      expect(state.store.rows.map((row) => row.registrationOutcome)).toEqual([
+        'UNCHANGED',
+        'UNCHANGED',
+      ])
+      expect(state.store.rows.every((row) => row.processingErrorCode === null)).toBe(true)
+      expect(fakeTx.beneficiary.createMany).not.toHaveBeenCalled()
+    })
+
+    it('a Project Officer cannot process a batch matched by client id and no row is claimed', async () => {
+      state.store = identifierStore([1, 2].map((index) => person(index)))
+      const imports = service(new BeneficiaryRegistrationService())
+      await validate(imports)
+      state.actor = {
+        ...baseActor,
+        roles: ['PROJECT_OFFICER'],
+        permissions: [...rolePermissions.PROJECT_OFFICER],
+      }
+      vi.clearAllMocks()
+
+      const refused = runProcess(imports)
+
+      await expect(refused).rejects.toBeInstanceOf(ForbiddenException)
+      await expect(refused).rejects.toThrow(
+        'Importing participants by client ID needs the identity review and enrollment management permissions.',
+      )
+      expect(state.store.rows.map((row) => row.status)).toEqual(['VALID', 'VALID'])
+      expect(state.store.rows.every((row) => row.processingClaimId === null)).toBe(true)
+      expect(state.store.people).toHaveLength(0)
+    })
+
+    it('a Monitoring and Evaluation Officer processes a batch matched by client id', async () => {
+      state.store = identifierStore([1, 2].map((index) => person(index)))
+      const imports = service(new BeneficiaryRegistrationService())
+      await validate(imports)
+      state.actor = {
+        ...baseActor,
+        permissions: [...rolePermissions.MONITORING_AND_EVALUATION_OFFICER],
+      }
+
+      await runProcess(imports)
+
+      expect(state.store.rows.map((row) => row.status)).toEqual(['PROCESSED', 'PROCESSED'])
+      expect(state.store.people).toHaveLength(2)
+    })
+
+    it('a Project Officer still processes a batch with no client id column', async () => {
+      const fields = identifierFields()
+      state.store = createStore(
+        fields,
+        mappedColumns(fields, [
+          'beneficiary_code',
+          'first_name',
+          'last_name',
+          'birth_date',
+          'enrollment_date',
+          'consent_recorded',
+          'guardian_consent_recorded',
+        ]),
+        [1, 2].map((index) => person(index)),
+        { form: registrationForm },
+      )
+      const imports = service(new BeneficiaryRegistrationService())
+      await validate(imports)
+      state.actor = {
+        ...baseActor,
+        roles: ['PROJECT_OFFICER'],
+        permissions: [...rolePermissions.PROJECT_OFFICER],
+      }
+
+      await expect(runProcess(imports)).resolves.toBeTruthy()
+    })
+
+    it('a changed profile value in a re-upload is held PROFILE_CHANGED', async () => {
+      const rows = [1, 2].map((index) => person(index))
+      const imports = linker()
+      await reupload(imports, rows, [rows[0], { ...rows[1], column_0005: '2026-02-01' }])
+
+      await validate(imports)
+      await runProcess(imports)
+
+      expect(state.store.rows.map((row) => row.status)).toEqual(['PROCESSED', 'UNPROCESSED'])
+      expect(state.store.rows[1].processingErrorCode).toBe('PROFILE_CHANGED')
+      expect(fakeTx.beneficiary.createMany).not.toHaveBeenCalled()
+    })
+
+    it('a blank Student ID cell in a mapped column is held IDENTITY_MISSING and the others process', async () => {
+      state.store = identifierStore([person(1, { column_0008: '' }), person(2)])
+      const imports = linker()
+
+      await validate(imports)
+      await runProcess(imports)
+
+      expect(state.store.rows.map((row) => row.status)).toEqual(['UNPROCESSED', 'PROCESSED'])
+      expect(state.store.rows[0].processingErrorCode).toBe('IDENTITY_MISSING')
+      expect(fakeTx.beneficiary.createMany).toHaveBeenCalledTimes(1)
+    })
+
+    it('same client id twice in one file', async () => {
+      state.store = identifierStore([person(1), person(2, { column_0008: ' S-1 ' }), person(3)])
+      const imports = linker()
+
+      await validate(imports)
+      const [first, second, third] = rowWrites()
+      for (const row of [first, second]) {
+        expect(row).toMatchObject({
+          status: 'INVALID',
+          normalized_data: null,
+          validation_errors: [
+            { fieldCode: 'external_identifier_value', code: 'IDENTITY_CONFLICT' },
+          ],
+        })
+      }
+      expect(third.status).toBe('VALID')
+
+      await runProcess(imports)
+
+      expect(state.store.rows.map((row) => row.status)).toEqual(['INVALID', 'INVALID', 'PROCESSED'])
+      expect(fakeTx.beneficiary.createMany).toHaveBeenCalledTimes(1)
+      expect(state.store.people).toHaveLength(1)
+    })
+
+    it('an invalid twin of a client id still holds its valid twin', async () => {
+      state.store = identifierStore([
+        person(1),
+        person(2, { column_0008: 'S-1', column_0004: 'not a date' }),
+        person(3),
+      ])
+      const imports = linker()
+
+      await validate(imports)
+      expect(rowWrites().map((row) => row.status)).toEqual(['INVALID', 'INVALID', 'VALID'])
+      expect(rowWrites()[0].validation_errors).toEqual([
+        expect.objectContaining({
+          fieldCode: 'external_identifier_value',
+          code: 'IDENTITY_CONFLICT',
+        }),
+      ])
+
+      await runProcess(imports)
+
+      expect(state.store.rows.map((row) => row.status)).toEqual(['INVALID', 'INVALID', 'PROCESSED'])
+      expect(state.store.people).toHaveLength(1)
+    })
+
+    it('known id in another project is enrolled here, no second profile', async () => {
+      const rows = [person(1)]
+      const imports = linker()
+      const { people } = await reupload(imports, rows, rows)
+      moveToOtherProject()
+
+      await validate(imports)
+      await runProcess(imports)
+
+      expect(fakeTx.beneficiary.createMany).not.toHaveBeenCalled()
+      // No baseline read from the project that cannot be seen; the profile decided.
+      expect(fakeTx.beneficiary.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({ select: { firstName: true, lastName: true, birthDate: true } }),
+      )
+      expect(people).toHaveLength(1)
+      expect([...people[0].enrolledIn].sort()).toEqual([projectId, otherProjectId].sort())
+      expect(state.store.rows[0]).toMatchObject({
+        status: 'PROCESSED',
+        registrationOutcome: 'LINKED',
+      })
+      expect(state.store.submissions).toHaveLength(1)
+    })
+
+    it('a remembered rejection links the PATHWAYS value, not the rejected one', async () => {
+      const rows = [person(1)]
+      const imports = linker()
+      await reupload(imports, rows, [{ ...rows[0], column_0003: 'Changed' }])
+      moveToOtherProject()
+      const lastName = state.store.fields.find((item) => item.code === 'last_name')
+      fakeTx.importValueRejection.findMany.mockResolvedValue([
+        { fieldId: lastName?.id as string, valueHash: valueHash('Changed') },
+      ] as never)
+
+      try {
+        await validate(imports)
+        await runProcess(imports)
+      } finally {
+        fakeTx.importValueRejection.findMany.mockResolvedValue([])
+      }
+
+      expect(state.store.rows[0]).toMatchObject({
+        status: 'PROCESSED',
+        registrationOutcome: 'LINKED',
+      })
+      // Row ids repeat across the fake's batches, so read what the new submission was given.
+      const [written] = fakeTx.formResponseValue.createMany.mock.calls.at(-1) as unknown as [
+        { data: Array<{ fieldId: string; value: unknown }> },
+      ]
+      expect(written.data.find((item) => item.fieldId === lastName?.id)?.value).toBe('Last1')
+    })
+
+    it('PW code generated when Participant ID is taken', async () => {
+      state.store = identifierStore([person(1), person(2)])
+      state.store.existingCodes.add('BEN-001')
+      const imports = linker()
+
+      await validate(imports)
+      await runProcess(imports)
+
+      expect(state.store.rows.map((row) => row.status)).toEqual(['PROCESSED', 'PROCESSED'])
+      const codes = state.store.people.map((item) => item.code)
+      expect(codes[0]).toMatch(/^PW[0-9A-HJKMNP-TV-Z]{10}$/)
+      expect(codes[0]).toMatch(/^[A-Z0-9][A-Z0-9_-]{1,39}$/)
+      expect(codes[1]).toBe('BEN-002')
+      expect(state.store.rows.map((row) => row.registrationOutcome)).toEqual(['CREATED', 'CREATED'])
+    })
+
+    it('adult with guardian consent false processes', async () => {
+      const rows = [person(1, { column_0007: 'false' })]
+      const imports = linker()
+      const { people } = await reupload(imports, rows, rows)
+      expect(people).toHaveLength(1)
+
+      // A later link of the same known adult into another project is not a guardian matter either.
+      moveToOtherProject()
+      await validate(imports)
+      await runProcess(imports)
+
+      expect(state.store.rows[0]).toMatchObject({
+        status: 'PROCESSED',
+        processingErrorCode: null,
+        registrationOutcome: 'LINKED',
+      })
+    })
+
+    const outcomes = ['CREATED', 'CREATED', 'UPDATED', 'LINKED', 'UNCHANGED', null]
+    const readBatch = () => mapStoredBatch(fakeTx as never, state.actor, projectId, batchId)
+
+    it('registration batch reports created, updated and unchanged', async () => {
+      state.store = identifierStore(outcomes.map((_, index) => person(index)))
+      for (const [index, row] of state.store.rows.entries()) {
+        row.registrationOutcome = outcomes[index]
+      }
+
+      expect((await readBatch()).registrationCounts).toEqual({
+        created: 2,
+        updated: 2,
+        unchanged: 1,
+      })
+    })
+
+    it('detail and a repeated process of a processed registration batch carry the counts', async () => {
+      state.store = identifierStore([1, 2, 3].map((index) => person(index)))
+      const imports = linker()
+      await validate(imports)
+      await runProcess(imports)
+
+      const counts = { created: 3, updated: 0, unchanged: 0 }
+      const detail = await imports.getBatch(state.actor, projectId, batchId)
+      expect(detail.registrationCounts).toEqual(counts)
+      // A second process of a finished batch takes the claim.complete path.
+      expect((await runProcess(imports)).registrationCounts).toEqual(counts)
+    })
+
+    it('non-registration batch has no registration counts', async () => {
+      state.store = createStore([scoreField], [], [{}, {}])
+      for (const row of state.store.rows) row.registrationOutcome = 'CREATED'
+
+      expect(await readBatch()).not.toHaveProperty('registrationCounts')
+      expect(fakeTx.dataImportRow.groupBy).not.toHaveBeenCalled()
     })
   })
 })

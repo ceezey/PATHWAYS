@@ -97,6 +97,9 @@ describe('import request contracts', () => {
 
   it('reads query bounds with Number() and applies the defaults', () => {
     expect(importRowsQuery.parse({})).toEqual({ offset: 0, take: 50 })
+    expect(importRowsQuery.parse({ held: 'true' })).toEqual({ offset: 0, take: 50, held: true })
+    expect(importRowsQuery.parse({ held: 'false' }).held).toBe(false)
+    expect(accepts(importRowsQuery, { held: '1' })).toBe(false)
     expect(importRowsQuery.parse({ offset: ' 3 ', take: '0x10' })).toEqual({ offset: 3, take: 16 })
     expect(accepts(importRowsQuery, { offset: ['5'] })).toBe(false)
     expect(accepts(importRowsQuery, { take: '' })).toBe(false)

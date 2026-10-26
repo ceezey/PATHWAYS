@@ -66,6 +66,7 @@ const row = {
   validationRevision: 1,
   processingAttempts: 0,
   processingErrorCode: null,
+  resolvedAt: null,
   updatedAt: '2026-10-13T00:00:00.000Z',
 }
 
@@ -87,6 +88,20 @@ describe('import response contracts', () => {
     }
     const stamped = { ...batch, validatedAt: '2026-10-13', processedAt: '2026-10-14' }
     expect(importBatchResponse.parse(stamped)).toEqual(stamped)
+  })
+
+  it('accept optional registration counts and reject negative ones', () => {
+    const counts = { created: 2, updated: 1, unchanged: 0 }
+    expect(importBatchResponse.parse({ ...batch, registrationCounts: counts })).toEqual({
+      ...batch,
+      registrationCounts: counts,
+    })
+    expect(
+      importBatchResponse.safeParse({
+        ...batch,
+        registrationCounts: { ...counts, created: -1 },
+      }).success,
+    ).toBe(false)
   })
 
   it('reject an object that is missing required members', () => {
