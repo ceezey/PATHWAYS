@@ -12,6 +12,7 @@ import type { PrismaService } from '@app/prisma/prisma.service'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import { BeneficiaryRegistrationService } from '../beneficiaries/beneficiary-registration.service'
 import type { StorageService } from '../storage/storage.service'
+import { GuardianApprovalService } from './guardian-approval.service'
 import { mapStoredBatch } from './import-batches.service'
 import { ImportsService } from './imports.service'
 import { valueHash } from './participant-match'
@@ -34,6 +35,9 @@ interface FakeRow {
   processingErrorCode: string | null
   registrationOutcome: string | null
   matchedBeneficiaryId: string | null
+  resolutionData: Json | null
+  resolvedById: string | null
+  resolvedAt: Date | null
   normalizedData: Json | null
   validationErrors: unknown[]
   validationWarnings: unknown[]
@@ -225,6 +229,9 @@ function createStore(
       processingErrorCode: null,
       registrationOutcome: null,
       matchedBeneficiaryId: null,
+      resolutionData: null,
+      resolvedById: null,
+      resolvedAt: null,
       normalizedData: null,
       validationErrors: [],
       validationWarnings: [],
@@ -342,7 +349,7 @@ const fakeTx = {
         .filter((row) => matches(row, args.where))
         .sort((left, right) => left.rowNumber - right.rowNumber)
         .slice(0, args.take)
-        .map((row) => ({ id: row.id, rowNumber: row.rowNumber, rawData: row.rawData })),
+        .map((row) => structuredClone(row)),
     ),
     findFirst: vi.fn(async (args: { where: Json }) => {
       const row = rowById(args.where.id as string)
@@ -1359,6 +1366,55 @@ describe('metadata-driven intake validation', () => {
       ).filter(([call]) => call.data.action === 'IMPORT_REGISTRATION_UNCHANGED')
       expect(unchanged).toHaveLength(3)
       expect(JSON.stringify(unchanged)).not.toMatch(/S-\d|First|Last/)
+    })
+
+    it('approve, then re-upload the identical file holds nothing', async () => {
+      // Minors whose file has a guardian column; the approval writes guardian consent that the file never carries.
+      const minors = [1, 2].map((index) =>
+        person(index, { column_0004: '2014-03-04', column_0009: '12' }),
+      )
+      state.store = identifierStore(minors)
+      const imports = linker()
+      await validate(imports)
+      await runProcess(imports)
+      expect(state.store.rows.map((row) => row.processingErrorCode)).toEqual(
+        Array(2).fill('GUARDIAN_CONSENT_REQUIRED'),
+      )
+      const rowIds = state.store.rows.map((row) => row.id)
+      state.actor = {
+        ...baseActor,
+        roles: ['PROJECT_OFFICER'],
+        permissions: [...rolePermissions.PROJECT_OFFICER],
+      }
+      await new GuardianApprovalService(
+        {} as PrismaService,
+        new BeneficiaryRegistrationService(),
+      ).approve(state.actor, projectId, batchId, { rowIds })
+      expect(state.store.rows.every((row) => row.status === 'PROCESSED')).toBe(true)
+      const { people, registrations } = state.store
+      expect(registrations.map((item) => item.values.guardian_consent_recorded)).toEqual([
+        true,
+        true,
+      ])
+
+      vi.clearAllMocks()
+      state.store = identifierStore(minors)
+      Object.assign(state.store, { people, registrations })
+      state.actor = {
+        ...baseActor,
+        permissions: [...rolePermissions.MONITORING_AND_EVALUATION_OFFICER],
+      }
+      const next = linker()
+      await validate(next)
+      await runProcess(next)
+
+      expect(state.store.rows.map((row) => row.status)).toEqual(['PROCESSED', 'PROCESSED'])
+      expect(state.store.rows.map((row) => row.registrationOutcome)).toEqual([
+        'UNCHANGED',
+        'UNCHANGED',
+      ])
+      expect(state.store.rows.every((row) => row.processingErrorCode === null)).toBe(true)
+      expect(fakeTx.beneficiary.createMany).not.toHaveBeenCalled()
     })
 
     it('a Project Officer cannot process a batch matched by client id and no row is claimed', async () => {

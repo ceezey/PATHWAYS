@@ -192,13 +192,63 @@ describe('matchParticipant', () => {
     })
   })
 
-  it('enrolled here with no readable baseline in this project is held IDENTITY_CONFLICT', async () => {
-    expect(await match(fakeTx({ enrolled: true, submission: null }))).toEqual({
+  it('enrolled here with no registration in this project falls back to the identity details', async () => {
+    const tx = fakeTx({ enrolled: true, submission: null })
+    // Other answers cannot be compared without a registration here, so only identity counts.
+    expect(await match(tx, { ...file, civil_status: 'Married' })).toEqual({
+      kind: 'SAME',
+      beneficiaryId,
+      enrolledHere: true,
+    })
+    expect(tx.beneficiary.findFirst).toHaveBeenCalled()
+    expect(
+      await match(fakeTx({ enrolled: true, submission: null }), { ...file, last_name: 'Reyes' }),
+    ).toEqual({
+      kind: 'CHANGED',
+      beneficiaryId,
+      code: 'IDENTITY_CONFLICT',
+      fieldCodes: ['last_name'],
+    })
+  })
+
+  it('enrolled here with no registration and an unreadable profile is held IDENTITY_CONFLICT', async () => {
+    expect(await match(fakeTx({ enrolled: true, submission: null, profile: null }))).toEqual({
       kind: 'CHANGED',
       beneficiaryId,
       code: 'IDENTITY_CONFLICT',
       fieldCodes: [],
     })
+  })
+
+  it('values PATHWAYS writes itself are never a change', async () => {
+    const plain = {
+      ...form,
+      formField_form: [
+        ...form.formField_form.filter((item) => item.code !== 'is_minor'),
+        field('is_minor'),
+        field('guardian_consent_recorded'),
+        field('profile_update_fields'),
+      ],
+    } as unknown as RegistrationImportForm
+    // The approval and an earlier update rewrote these in the stored registration.
+    const written = {
+      ...stored,
+      is_minor: true,
+      guardian_consent_recorded: true,
+      profile_update_fields: ['last_name'],
+    }
+    const fileValues = {
+      ...file,
+      is_minor: false,
+      guardian_consent_recorded: null,
+      profile_update_fields: null,
+    }
+    expect(
+      await matchParticipant(fakeTx({ submission: written }) as unknown as Tx, actor, {
+        form: plain,
+        values: fileValues as Values,
+      }),
+    ).toEqual({ kind: 'SAME', beneficiaryId, enrolledHere: true })
   })
 
   it('a full-width or case variant of the same id is not a change', async () => {

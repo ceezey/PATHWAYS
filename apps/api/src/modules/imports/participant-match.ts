@@ -21,12 +21,15 @@ export type ParticipantMatch =
 
 // Computed columns recalculate on every export, so they never count as a change.
 const computedRuleKinds = new Set(['AGE_CHECK', 'AGE_AT_DATE', 'MINOR_AT_DATE'])
-// The identifier and its type are equal by construction once a participant is found by them.
+// The identifier and its type are equal by construction once a participant is found by them; PATHWAYS writes the rest itself.
 const unmatchedCodes = new Set([
   'beneficiary_code',
   'registration_operation',
   'external_identifier_type',
   'external_identifier_value',
+  'profile_update_fields',
+  'guardian_consent_recorded',
+  'is_minor',
 ])
 const identityCodes = new Set(['first_name', 'last_name', 'birth_date'])
 
@@ -37,13 +40,15 @@ export function valueHash(value: unknown) {
 
 export interface Baseline {
   enrolledHere: boolean
+  // True when only the profile's identity can be compared, not the other answers.
+  identityOnly: boolean
   stored: Map<string, unknown>
 }
 
 /**
  * What PATHWAYS holds for a participant, or null when it cannot be read.
  * Enrolled here: this project's latest registration is the baseline, for every field.
- * Elsewhere only: submissions of other projects are not readable, so the profile's identity decides.
+ * Elsewhere, or enrolled here with no registration in this project: the profile's identity decides.
  */
 export async function readBaseline(
   tx: Tx,
@@ -63,6 +68,7 @@ export async function readBaseline(
   })
   const enrolledHere = enrollment !== null
   const stored = new Map<string, unknown>()
+  let identityOnly = !enrolledHere
   if (enrolledHere) {
     const latest = await tx.formSubmission.findFirst({
       where: {
@@ -79,9 +85,11 @@ export async function readBaseline(
         },
       },
     })
-    if (!latest) return null
-    for (const item of latest.formResponseValue_submission) stored.set(item.field.code, item.value)
-  } else {
+    for (const item of latest?.formResponseValue_submission ?? [])
+      stored.set(item.field.code, item.value)
+    identityOnly = latest === null
+  }
+  if (identityOnly) {
     const profile = await tx.beneficiary.findFirst({
       where: { id: beneficiaryId, organizationId: actor.organizationId, archivedAt: null },
       select: { firstName: true, lastName: true, birthDate: true },
@@ -91,7 +99,7 @@ export async function readBaseline(
     stored.set('last_name', profile.lastName)
     stored.set('birth_date', profile.birthDate?.toISOString().slice(0, 10) ?? null)
   }
-  return { enrolledHere, stored }
+  return { enrolledHere, identityOnly, stored }
 }
 
 /** The form fields whose file value differs from the baseline, computed columns aside. */
@@ -104,7 +112,7 @@ export function differingFields(
     const kind = (field.rule as { kind?: string } | null)?.kind
     return (
       field.code in values &&
-      (baseline.enrolledHere || identityCodes.has(field.code)) &&
+      (!baseline.identityOnly || identityCodes.has(field.code)) &&
       !unmatchedCodes.has(field.code) &&
       !(kind && computedRuleKinds.has(kind)) &&
       stableJson(values[field.code] ?? null) !== stableJson(baseline.stored.get(field.code) ?? null)

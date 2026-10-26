@@ -213,8 +213,16 @@ async function readFileValues(
       ).map((item) => safeRawData(item.rawData))
     : [raw]
   const rules = columnRules(mappings, raws, Number(uploadDate.slice(0, 4)))
-  return normalizeImportedRow(fields, valuesByFieldCode(mappings, raw), rules, { uploadDate })
-    .values
+  // Validation normalizes the mapped fields and the unmapped ones with a default or a calculation, so this does too.
+  const mappedCodes = new Set(
+    mappings.flatMap((mapping) =>
+      mapping.status === 'MAPPED' && mapping.targetField ? [mapping.targetField.code] : [],
+    ),
+  )
+  const read = fields.filter(
+    (field) => mappedCodes.has(field.code) || !!field.importDefault || isCalculatedRule(field.rule),
+  )
+  return normalizeImportedRow(read, valuesByFieldCode(mappings, raw), rules, { uploadDate }).values
 }
 
 async function loadHeldRow(
@@ -286,7 +294,9 @@ async function loadHeldRow(
     beneficiaryId,
     baseline,
     // The matcher's list already leaves out file values the reviewer rejected before.
-    changed: new Set(match.kind === 'CHANGED' ? match.fieldCodes : []),
+    changed: new Set(
+      match.kind === 'CHANGED' ? match.fieldCodes.filter((code) => !systemCodes.has(code)) : [],
+    ),
     rejected:
       beneficiaryId && baseline
         ? await rejectedBaseline(tx, actor, form, file, beneficiaryId, baseline)
@@ -764,19 +774,18 @@ export class ImportReviewService {
     }
   }
 
-  // A file value the reviewer turned down is remembered, so the next upload does not hold it again.
+  // A file value the reviewer turned down, for the PATHWAYS value, a typed one or a calculated one, is remembered so the next upload does not hold it again.
   private async rememberRejections(
     tx: Tx,
     actor: ApplicationIdentity,
     held: HeldRow,
     body: ResolveImportRowRequest,
   ) {
-    const kept = Object.entries(body.choices).filter(
-      ([code, choice]) => choice === 'PATHWAYS' && held.changed.has(code),
-    )
-    if (!held.beneficiaryId || kept.length === 0) return
+    // Every changed field that does not take the file value turns that file value down.
+    const turnedDown = [...held.changed].filter((code) => (body.choices[code] ?? 'FILE') !== 'FILE')
+    if (!held.beneficiaryId || turnedDown.length === 0) return
     await tx.importValueRejection.createMany({
-      data: kept.map(([code]) => ({
+      data: turnedDown.map((code) => ({
         organizationId: actor.organizationId,
         projectId: held.batch.projectId,
         beneficiaryId: held.beneficiaryId as string,

@@ -18,6 +18,7 @@ const batchId = '50000000-0000-4000-8000-000000000005'
 const heldRowId = '60000000-0000-4000-8000-000000000001'
 const dateRowId = '60000000-0000-4000-8000-000000000002'
 const ageRowId = '60000000-0000-4000-8000-000000000003'
+const knownRowId = '60000000-0000-4000-8000-000000000004'
 const personId = '70000000-0000-4000-8000-000000000007'
 const createdAt = new Date('2026-10-03T00:00:00.000Z')
 
@@ -229,6 +230,19 @@ function createStore(): Store {
         rawData: rawRow({ column_0004: '1990-01-01', column_0006: '25', column_0009: 'S-8' }),
         validationErrors: [{ fieldCode: 'age_stated', code: 'AGE_MISMATCH', message: 'x' }],
       }),
+      // The participant of the held row, whose age is wrong in the file.
+      makeRow(knownRowId, 5, {
+        status: 'INVALID',
+        rawData: rawRow({
+          column_0001: 'PART-FILE-3',
+          column_0002: 'Ana',
+          column_0003: 'Cruz',
+          column_0004: '1990-01-01',
+          column_0006: '25',
+          column_0009: 'S-1',
+        }),
+        validationErrors: [{ fieldCode: 'age_stated', code: 'AGE_MISMATCH', message: 'x' }],
+      }),
     ],
   }
 }
@@ -269,6 +283,14 @@ const mappings = columns.map((code, index) => ({
   dateOrder: null,
   targetField: fields.find((item) => item.code === code),
 }))
+
+// The latest registration of the participant, as the matcher reads it.
+const submissionOf = (values: Json) => ({
+  formResponseValue_submission: Object.entries(values).map(([code, value]) => ({
+    field: { code },
+    value,
+  })),
+})
 
 const fakeTx = {
   $queryRaw: vi.fn(async (sql: { values: unknown[] }) =>
@@ -338,14 +360,7 @@ const fakeTx = {
     ),
   },
   beneficiaryProjectEnrollment: { findUnique: vi.fn(async () => ({ id: 'enrollment' })) },
-  formSubmission: {
-    findFirst: vi.fn(async () => ({
-      formResponseValue_submission: Object.entries(stored).map(([code, value]) => ({
-        field: { code },
-        value,
-      })),
-    })),
-  },
+  formSubmission: { findFirst: vi.fn(async () => submissionOf(stored)) },
   beneficiary: {
     findFirst: vi.fn(async () => ({
       code: 'PW0000000001',
@@ -424,6 +439,7 @@ const expectNoWrites = () => {
 beforeEach(() => {
   vi.clearAllMocks()
   fakeTx.importValueRejection.findMany.mockResolvedValue([])
+  fakeTx.formSubmission.findFirst.mockImplementation(async () => submissionOf(stored) as never)
   state.actor = structuredClone(actor)
   store = createStore()
 })
@@ -462,6 +478,25 @@ describe('review', () => {
       file: 25,
       calculated: 36,
     })
+  })
+
+  it('an invalid row of an updated participant shows no change PATHWAYS made itself', async () => {
+    // An earlier update stored profile_update_fields and the approval stored guardian consent.
+    fakeTx.formSubmission.findFirst.mockImplementation(
+      async () =>
+        submissionOf({
+          ...stored,
+          profile_update_fields: ['last_name'],
+          guardian_consent_recorded: true,
+          disability_status: null,
+        }) as never,
+    )
+
+    const result = await review(knownRowId)
+
+    expect(result.participant).toMatchObject({ clientId: 'S-1' })
+    expect(result.fields.filter((item) => item.changed)).toEqual([])
+    expect(result.fields.map((item) => item.code)).not.toContain('profile_update_fields')
   })
 
   it('a row of another batch or project is 404 and nothing is read from it', async () => {
@@ -589,13 +624,73 @@ describe('resolve', () => {
       },
     })
     expect(store.rows[0].resolvedAt).toBeInstanceOf(Date)
-    // The batch is released with fresh counts: two invalid rows remain.
+    // The batch is released with fresh counts: three invalid rows remain.
     expect(store.batch).toMatchObject({
       status: 'PARTIALLY_PROCESSED',
       processedRows: 1,
-      invalidRows: 2,
+      invalidRows: 3,
       processingClaimId: null,
     })
+  })
+
+  it('an invalid row of an updated participant can be confirmed without choosing for system fields', async () => {
+    fakeTx.formSubmission.findFirst.mockImplementation(
+      async () =>
+        submissionOf({
+          ...stored,
+          disability_status: null,
+          profile_update_fields: ['last_name'],
+        }) as never,
+    )
+
+    await expect(resolve({ choices: { age_stated: 'CALCULATED' } }, knownRowId)).resolves.toEqual({
+      status: 'PROCESSED',
+    })
+  })
+
+  it('your value over a differing file value is remembered, so the next upload does not hold it', async () => {
+    await resolve({
+      choices: { last_name: 'OWN', civil_status: 'FILE' },
+      own: { last_name: 'De la Cruz' },
+    })
+
+    expect(fakeTx.importValueRejection.createMany).toHaveBeenCalledWith({
+      data: [
+        expect.objectContaining({ fieldId: fieldId('last_name'), valueHash: valueHash('Santos') }),
+      ],
+      skipDuplicates: true,
+    })
+    // The same file again: the remembered value no longer counts as a change.
+    fakeTx.importValueRejection.findMany.mockResolvedValue([
+      { fieldId: fieldId('last_name') as string, valueHash: valueHash('Santos') },
+    ] as never)
+    Object.assign(store.rows[0], {
+      status: 'UNPROCESSED',
+      processingErrorCode: 'PROFILE_CHANGED',
+      resolvedAt: null,
+      resolvedById: null,
+      resolutionData: null,
+    })
+    const again = await review()
+    expect(again.fields.find((item) => item.code === 'last_name')?.changed).toBe(false)
+    expect(again.fields.find((item) => item.code === 'civil_status')?.changed).toBe(true)
+  })
+
+  it('a calculated value over a differing file value is remembered too', async () => {
+    store.rows[0].normalizedData = { ...fileValues, disability_status: 'WITH_DISABILITY' }
+    await resolve({
+      choices: { last_name: 'FILE', civil_status: 'FILE', disability_status: 'CALCULATED' },
+    })
+
+    const remembered = fakeTx.importValueRejection.createMany.mock.calls.flatMap(
+      (call) => (call[0] as { data: Json[] }).data,
+    )
+    expect(remembered).toEqual([
+      expect.objectContaining({
+        fieldId: fieldId('disability_status'),
+        valueHash: valueHash('WITH_DISABILITY'),
+      }),
+    ])
   })
 
   it('keep PATHWAYS records a rejection', async () => {
