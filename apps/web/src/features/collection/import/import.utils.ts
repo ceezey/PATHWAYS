@@ -65,7 +65,7 @@ const holdReasons: Record<ImportHoldCode, string> = {
   SUBJECT_TYPE_CONFLICT: 'Participant type does not match',
   SHARED_PROFILE_UPDATE_REVIEW_REQUIRED: 'Change to a shared profile needs review',
   PROFILE_CHANGED: 'Values differ from PATHWAYS',
-  IDENTITY_CONFLICT: 'Client ID is used more than once',
+  IDENTITY_CONFLICT: 'Client ID belongs to a participant with different details',
   IDENTITY_MISSING: 'Client ID is missing',
 }
 

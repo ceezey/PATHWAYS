@@ -84,6 +84,36 @@ describe('import held list', () => {
     expect(reasons[importHoldCodes.indexOf('PROFILE_CHANGED')]).toBe('Values differ from PATHWAYS')
   })
 
+  it('words a client ID conflict by where it comes from', async () => {
+    const withInvalid = { ...batch, totals: { ...totals, unprocessed: 1, invalid: 1 } }
+    await show(
+      [held('IDENTITY_CONFLICT', 0), invalid('IDENTITY_CONFLICT', 1)],
+      withInvalid as unknown as ImportBatchDefinition,
+    )
+    // A processing hold means the ID belongs to a participant whose details differ.
+    expect(
+      screen.getByText('Client ID belongs to a participant with different details'),
+    ).toBeTruthy()
+    // An invalid row means the file uses the ID twice.
+    expect(screen.getByText('Client ID is used more than once')).toBeTruthy()
+  })
+
+  it('the review window gives an invalid row the list reason', async () => {
+    api.getRowReview.mockResolvedValue({
+      rowId: 'row-1',
+      rowNumber: 3,
+      reason: 'IDENTITY_CONFLICT',
+      participant: null,
+      canAddNew: true,
+      fields: [],
+    })
+    const withInvalid = { ...batch, totals: { ...totals, unprocessed: 0, invalid: 1 } }
+    await show([invalid('IDENTITY_CONFLICT', 1)], withInvalid as unknown as ImportBatchDefinition)
+    fireEvent.click(screen.getByRole('button', { name: 'Review row 3' }))
+    const dialog = await screen.findByRole('dialog')
+    expect(await within(dialog).findByText(/Client ID is used more than once\./)).toBeTruthy()
+  })
+
   it('shows the batch result counts', async () => {
     await show([held('PROFILE_CHANGED', 0)])
     const group = screen.getByRole('group', { name: 'Import results' })

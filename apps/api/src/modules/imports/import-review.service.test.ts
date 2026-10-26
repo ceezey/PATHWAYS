@@ -478,7 +478,12 @@ describe('review', () => {
     expect(result.fields.find((item) => item.code === 'age_stated')).toMatchObject({
       file: 25,
       calculated: 36,
+      // The faulty field is one the reviewer has to decide.
+      changed: true,
     })
+    expect(result.fields.filter((item) => item.changed).map((item) => item.code)).toEqual([
+      'age_stated',
+    ])
   })
 
   it('an invalid row of an updated participant shows no change PATHWAYS made itself', async () => {
@@ -496,7 +501,10 @@ describe('review', () => {
     const result = await review(knownRowId)
 
     expect(result.participant).toMatchObject({ clientId: 'S-1' })
-    expect(result.fields.filter((item) => item.changed)).toEqual([])
+    // Only the faulty age needs a decision, none of the values PATHWAYS wrote itself.
+    expect(result.fields.filter((item) => item.changed).map((item) => item.code)).toEqual([
+      'age_stated',
+    ])
     expect(result.fields.map((item) => item.code)).not.toContain('profile_update_fields')
   })
 

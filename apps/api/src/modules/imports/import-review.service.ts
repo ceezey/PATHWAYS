@@ -91,6 +91,8 @@ interface HeldRow {
   baseline: Baseline | null
   // Codes of the fields whose file value differs from what PATHWAYS holds.
   changed: Set<string>
+  // Codes of the fields a validation error names, which a reviewer has to settle too.
+  invalid: Set<string>
   // The PATHWAYS value of each field whose file value was rejected before.
   rejected: Record<string, unknown>
 }
@@ -293,6 +295,15 @@ async function loadHeldRow(
     file,
     beneficiaryId,
     baseline,
+    invalid: new Set(
+      row.status === 'INVALID'
+        ? (row.validationErrors as Array<{ fieldCode?: string }>).flatMap((error) =>
+            fieldRows.some((field) => field.code === error.fieldCode)
+              ? [String(error.fieldCode)]
+              : [],
+          )
+        : [],
+    ),
     // The matcher's list already leaves out file values the reviewer rejected before.
     changed: new Set(
       match.kind === 'CHANGED' ? match.fieldCodes.filter((code) => !systemCodes.has(code)) : [],
@@ -656,7 +667,7 @@ export class ImportReviewService {
             pathways: (held.baseline?.stored.get(field.code) ?? null) as Cell,
             file: (held.file[field.code] ?? null) as Cell,
             calculated: (calculated[field.code] ?? null) as Cell,
-            changed: held.changed.has(field.code),
+            changed: held.changed.has(field.code) || held.invalid.has(field.code),
           })),
         canAddNew: hasAtomicPermission(
           actor.roles[0],

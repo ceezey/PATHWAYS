@@ -229,6 +229,42 @@ describe('import review dialog', () => {
     )
   })
 
+  it('an age that does not match the birth date offers the calculated value and sends it', async () => {
+    api.getRowReview.mockResolvedValue({
+      rowId: 'row-1',
+      rowNumber: 7,
+      reason: 'AGE_MISMATCH',
+      participant: null,
+      canAddNew: true,
+      fields: [
+        {
+          code: 'age_stated',
+          label: 'Age',
+          dataType: 'INTEGER',
+          options: null,
+          pathways: null,
+          file: 25,
+          calculated: 36,
+          changed: true,
+        },
+      ],
+    })
+    render(
+      <ImportReviewDialog
+        batchId="batch-1"
+        canUpdate
+        onClose={onClose}
+        onResolved={onResolved}
+        projectId="project-1"
+        rowId="row-1"
+        validationRevision={3}
+      />,
+    )
+    fireEvent.click(await screen.findByRole('button', { name: 'Age, Calculated by PATHWAYS: 36' }))
+    confirm()
+    expect(await sent()).toMatchObject({ saveAs: 'NEW', choices: { age_stated: 'CALCULATED' } })
+  })
+
   it('a minor who now waits for a Project Officer is said so', async () => {
     api.resolveRow.mockResolvedValue({ status: 'WAITING_FOR_PROJECT_OFFICER' })
     await open()

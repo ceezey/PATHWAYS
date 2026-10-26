@@ -40,6 +40,7 @@ export function ImportReviewDialog({
   rowId,
   validationRevision,
   canUpdate,
+  reason,
   onClose,
   onResolved,
 }: {
@@ -48,6 +49,8 @@ export function ImportReviewDialog({
   rowId: string
   validationRevision: number
   canUpdate: boolean
+  // The list's plain reason for the row, which knows whether it is held or invalid.
+  reason?: string
   onClose: () => void
   onResolved: () => void
 }) {
@@ -170,7 +173,7 @@ export function ImportReviewDialog({
           <DialogTitle>{review ? `Review row ${review.rowNumber}` : 'Review held row'}</DialogTitle>
           <DialogDescription>
             {review
-              ? `${review.participant?.displayName ? `${review.participant.displayName}: ` : ''}${reviewReason(review.reason)}. ${
+              ? `${review.participant?.displayName ? `${review.participant.displayName}: ` : ''}${reason ?? reviewReason(review.reason)}. ${
                   needsCorrectedFile
                     ? 'Consent cannot be added here. Upload a corrected file with consent recorded.'
                     : 'Click the value to keep, or type your own.'

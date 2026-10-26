@@ -159,6 +159,7 @@ export function ImportHeldList({
           onClose={() => setReviewing(null)}
           onResolved={() => void onChanged()}
           projectId={batch.projectId}
+          reason={rowReason(held.find((row) => row.id === reviewing) as ImportRowDefinition)}
           rowId={reviewing}
           validationRevision={batch.validationRevision}
         />
