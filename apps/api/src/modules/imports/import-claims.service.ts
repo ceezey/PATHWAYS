@@ -129,6 +129,7 @@ export async function claimBatchRows(
     where: { id: batch.id },
     data: {
       status: 'PROCESSING',
+      processedAt: null,
       processingRevision: { increment: 1 },
       processingClaimId: claimId,
       processingClaimedAt: claimedAt,

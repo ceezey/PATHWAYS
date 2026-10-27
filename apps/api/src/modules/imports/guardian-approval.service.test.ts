@@ -172,6 +172,7 @@ const createStore = (): Store => ({
     processingRevision: 1,
     processingClaimId: null,
     processingClaimedAt: null,
+    processedAt: createdAt,
     reviewedById: actorId,
     sourceHeaders: [],
     createdAt,
@@ -239,6 +240,10 @@ const fakeTx = {
     ),
     findUnique: vi.fn(async () => structuredClone(store.batch)),
     update: vi.fn(async (args: { data: Json }) => {
+      const next = { ...store.batch, ...args.data }
+      if (next.status === 'PROCESSING' && next.processedAt !== null) {
+        throw new Error('import_batches_state: PROCESSING requires processedAt null')
+      }
       apply(store.batch, args.data)
       return structuredClone(store.batch)
     }),
@@ -363,7 +368,7 @@ describe('guardian approval', () => {
     vi.useRealTimers()
   })
 
-  it('select-all approves every held minor', async () => {
+  it('select-all reopens a completed partial batch and approves every held minor', async () => {
     await expect(approve()).resolves.toEqual({ approved: 3 })
     for (const row of store.rows) {
       expect(row).toMatchObject({
@@ -383,7 +388,13 @@ describe('guardian approval', () => {
     expect(guardianRecords()).toHaveLength(3)
     // One batch claim and one reconcile for the whole request.
     expect(fakeTx.dataImportBatch.update).toHaveBeenCalledTimes(2)
-    expect(store.batch).toMatchObject({ status: 'PROCESSED', processingClaimId: null })
+    expect(store.batch).toMatchObject({
+      status: 'PROCESSED',
+      processedRows: 3,
+      processingClaimId: null,
+      processingClaimedAt: null,
+      processedAt: now,
+    })
   })
 
   it('records the approval in the audit with counts only', async () => {
