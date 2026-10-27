@@ -403,6 +403,7 @@ export async function claimBatchForResolution(tx: Tx, batchId: string): Promise<
     where: { id: batchId },
     data: {
       status: 'PROCESSING',
+      processedAt: null,
       processingRevision: { increment: 1 },
       processingClaimId: claim.id,
       processingClaimedAt: claim.at,

@@ -283,4 +283,75 @@ describe('P03 import service', () => {
     ).rejects.toBeInstanceOf(ForbiddenException)
     expect(release).not.toHaveBeenCalled()
   })
+
+  it('resumes a completed partial batch through generic promotion and records a fresh checkpoint', async () => {
+    const completedAt = new Date('2026-09-20T22:58:26.097Z')
+    const resumed: Record<string, unknown> = batch({
+      status: 'PARTIALLY_PROCESSED',
+      validationRevision: 1,
+      validatedMappingRevision: 1,
+      reviewedById: actorId,
+      processingRevision: 1,
+      processedAt: completedAt,
+      processedRows: 1,
+    })
+    const row = { id: rowId, rowNumber: 3, status: 'VALID', normalizedData: { score: 2.5 } }
+    tx.dataImportBatch.findFirst.mockImplementation(async () => structuredClone(resumed))
+    tx.dataImportBatch.findUnique.mockImplementation(async () => structuredClone(resumed))
+    tx.dataImportBatch.update.mockImplementation(async ({ data }) => {
+      const next = { ...resumed, ...data }
+      if (next.status === 'PROCESSING' && next.processedAt !== null) {
+        throw new Error('import_batches_state: PROCESSING requires processedAt null')
+      }
+      Object.assign(resumed, data)
+      return structuredClone(resumed)
+    })
+    tx.dataImportRow.findMany.mockResolvedValue([{ id: rowId }])
+    tx.dataImportRow.updateMany
+      .mockResolvedValueOnce({ count: 0 })
+      .mockResolvedValueOnce({ count: 0 })
+      .mockImplementationOnce(async ({ data }) => {
+        Object.assign(row, data)
+        return { count: 1 }
+      })
+    tx.dataImportRow.findFirst.mockImplementation(async () => structuredClone(row))
+    tx.dataImportRow.update.mockImplementation(async ({ data }) => {
+      Object.assign(row, data)
+      return structuredClone(row)
+    })
+    tx.dataImportRow.groupBy.mockImplementation(async () =>
+      row.status === 'PROCESSED'
+        ? [{ status: 'PROCESSED', _count: { _all: 2 } }]
+        : [
+            { status: row.status, _count: { _all: 1 } },
+            { status: 'PROCESSED', _count: { _all: 1 } },
+          ],
+    )
+    tx.formField.findMany.mockResolvedValue([
+      { id: 'score-field', code: 'score', label: 'Score', dataType: 'DECIMAL', isRequired: true },
+    ])
+    tx.formSubmission.findUnique.mockResolvedValue(null)
+    tx.formSubmission.create.mockImplementation(async () => {
+      expect(resumed).toMatchObject({ status: 'PROCESSING', processedAt: null })
+      expect(row.status).toBe('PROCESSING')
+      return { id: 'resumed-submission' }
+    })
+
+    await service.process(actor, projectId, batchId, { expectedValidationRevision: 1 })
+
+    expect(tx.formSubmission.create).toHaveBeenCalledOnce()
+    expect(tx.formSubmission.update).toHaveBeenCalledWith({
+      where: { id: 'resumed-submission' },
+      data: expect.objectContaining({ status: 'VALIDATED', validatedById: actorId }),
+    })
+    expect(row.status).toBe('PROCESSED')
+    expect(resumed).toMatchObject({
+      status: 'PROCESSED',
+      processedRows: 2,
+      processingClaimId: null,
+      processingClaimedAt: null,
+    })
+    expect(resumed.processedAt).toBeInstanceOf(Date)
+    expect((resumed.processedAt as Date).getTime()).toBeGreaterThan(completedAt.getTime())
+  })
 })

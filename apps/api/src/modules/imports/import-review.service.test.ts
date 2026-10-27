@@ -210,6 +210,7 @@ function createStore(): Store {
       processingRevision: 1,
       processingClaimId: null,
       processingClaimedAt: null,
+      processedAt: createdAt,
       reviewedById: actorId,
       sourceHeaders: [],
       createdAt,
@@ -312,6 +313,10 @@ const fakeTx = {
     ),
     findUnique: vi.fn(async () => structuredClone(store.batch)),
     update: vi.fn(async (args: { data: Json }) => {
+      const next = { ...store.batch, ...args.data }
+      if (next.status === 'PROCESSING' && next.processedAt !== null) {
+        throw new Error('import_batches_state: PROCESSING requires processedAt null')
+      }
       apply(store.batch, args.data)
       return structuredClone(store.batch)
     }),
@@ -548,6 +553,23 @@ describe('review', () => {
 })
 
 describe('resolve', () => {
+  it('reopens a completed partial batch and records fresh completion after resolving its held row', async () => {
+    store.rows = [store.rows[0]]
+
+    await resolve({ choices: keepBoth })
+
+    expect(registration.promoteRegistration).toHaveBeenCalledOnce()
+    expect(store.rows[0]).toMatchObject({ status: 'PROCESSED', registrationOutcome: 'UPDATED' })
+    expect(store.batch).toMatchObject({
+      status: 'PROCESSED',
+      processedRows: 1,
+      processingClaimId: null,
+      processingClaimedAt: null,
+    })
+    expect(store.batch.processedAt).toBeInstanceOf(Date)
+    expect((store.batch.processedAt as Date).getTime()).toBeGreaterThan(createdAt.getTime())
+  })
+
   const rejectedMarried = () =>
     fakeTx.importValueRejection.findMany.mockResolvedValue([
       { fieldId: fieldId('civil_status') as string, valueHash: valueHash('Married') },
