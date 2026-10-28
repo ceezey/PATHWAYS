@@ -14,7 +14,7 @@ import {
 } from './intake-rules'
 import { type ImportColumnRule, mapKey } from './value-map'
 
-interface ImportRowNormalizationResult {
+export interface ImportRowNormalizationResult {
   valid: boolean
   values: Record<string, NormalizedImportValue>
   errors: ImportValueError[]

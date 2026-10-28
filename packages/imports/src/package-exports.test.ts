@@ -20,19 +20,36 @@ const smartMatch = [
   'sourceNameKey',
 ]
 
+const validation = [
+  'columnRules',
+  'isBlank',
+  'isSupplied',
+  'matchColumns',
+  'normalizeIdentifier',
+  'stableJson',
+  'storedValueMap',
+  'unsuppliedRequired',
+  'validateRows',
+  'valuesByFieldCode',
+]
+
 describe('package entry points', () => {
   it('keeps the browser entry exports', () => {
     expect(Object.keys(browser).sort()).toEqual(
       [
         ...smartMatch,
+        ...validation,
         'DATE_ORDERS',
         'IMPORT_ENGINEERING_LIMITS',
         'IMPORT_VALUE_MAP_LIMITS',
         'WASHINGTON_GROUP_LEVELS_V1',
         'answerResolver',
+        'alternativeReadings',
         'applyIntakeRules',
         'buildImportValueMap',
+        'checkImportFile',
         'comparableAnswer',
+        'dateHelp',
         'compareHeaders',
         'compatibleImportDataTypes',
         'fittingDateOrders',
@@ -42,9 +59,11 @@ describe('package entry points', () => {
         'importCoverage',
         'importHeaderLabel',
         'mapKey',
+        'normalizeImportedRow',
         'parseCsv',
         'parseWorkbook',
         'readDate',
+        'readImportFile',
         'resolveAnswer',
         'stripLetterPrefix',
         'suggestValueMap',
@@ -61,6 +80,7 @@ describe('package entry points', () => {
     expect(Object.keys(server).sort()).toEqual(
       [
         ...smartMatch,
+        ...validation,
         'DATE_ORDERS',
         'IMPORT_ENGINEERING_LIMITS',
         'IMPORT_VALUE_MAP_LIMITS',

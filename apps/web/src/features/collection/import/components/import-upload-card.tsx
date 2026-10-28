@@ -16,6 +16,7 @@ import {
 
 import type { BatchReview } from '../hooks/use-batch-review'
 import type { ImportState } from '../hooks/use-import-state'
+import { FileCheckDialog } from './file-check-dialog'
 
 export function ImportUploadCard({
   state,
@@ -24,7 +25,10 @@ export function ImportUploadCard({
   state: Pick<
     ImportState,
     | 'canUpload'
+    | 'checking'
     | 'file'
+    | 'fileCheck'
+    | 'fileInput'
     | 'formId'
     | 'forms'
     | 'formsState'
@@ -45,11 +49,14 @@ export function ImportUploadCard({
     | 'sheetNames'
     | 'uploadRefusal'
   >
-  review: Pick<BatchReview, 'upload'>
+  review: Pick<BatchReview, 'closeFileCheck' | 'fixFile' | 'upload' | 'uploadAnyway'>
 }) {
   const {
     canUpload,
+    checking,
     file,
+    fileCheck,
+    fileInput,
     formId,
     forms,
     formsState,
@@ -70,7 +77,7 @@ export function ImportUploadCard({
     sheetNames,
     uploadRefusal,
   } = state
-  const { upload } = review
+  const { closeFileCheck, fixFile, upload, uploadAnyway } = review
   return (
     <Card>
       <CardHeader>
@@ -161,6 +168,7 @@ export function ImportUploadCard({
           <Input
             id="import-file"
             key={projectId}
+            ref={fileInput}
             accept=".csv,.xlsx,.xls,.pdf"
             disabled={!canUpload || pending}
             type="file"
@@ -209,10 +217,19 @@ export function ImportUploadCard({
             onClick={() => void upload()}
           >
             <Upload className="mr-2 h-4 w-4" aria-hidden="true" />
-            {pending ? 'Working...' : 'Upload privately'}
+            {checking ? 'Checking file...' : pending ? 'Working...' : 'Upload privately'}
           </Button>
         </div>
       </CardContent>
+      {fileCheck ? (
+        <FileCheckDialog
+          report={fileCheck}
+          fileInput={fileInput}
+          onFix={fixFile}
+          onUploadAnyway={() => void uploadAnyway()}
+          onClose={closeFileCheck}
+        />
+      ) : null}
     </Card>
   )
 }

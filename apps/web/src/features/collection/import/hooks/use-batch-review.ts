@@ -9,6 +9,7 @@ import { plural } from '@/lib/format/plural'
 import type { ImportMappingInput } from '@/types/pathways'
 
 import { ruleToMappingInput } from '../components/import-value-map-editor'
+import { runFileCheck } from '../file-check'
 import { uploadFailure } from '../import.utils'
 import type { ImportState } from './use-import-state'
 
@@ -17,6 +18,7 @@ export function useBatchReview(state: ImportState) {
     batch,
     begin,
     file,
+    fileInput,
     formId,
     forms,
     importBatch,
@@ -33,7 +35,9 @@ export function useBatchReview(state: ImportState) {
     selectedForm,
     setBatch,
     setBatches,
+    setChecking,
     setFile,
+    setFileCheck,
     setForms,
     setMapping,
     setMappingNotice,
@@ -129,18 +133,14 @@ export function useBatchReview(state: ImportState) {
     }
   }
 
-  const upload = async () => {
-    if (
-      !file ||
-      !formId ||
-      !projectId ||
-      !forms.some(
-        (definition) =>
-          definition.id === formId &&
-          definition.projectId === projectId &&
-          definition.status === 'PUBLISHED',
-      )
-    ) {
+  const upload = async ({ skipCheck = false } = {}) => {
+    const form = forms.find(
+      (definition) =>
+        definition.id === formId &&
+        definition.projectId === projectId &&
+        definition.status === 'PUBLISHED',
+    )
+    if (!file || !formId || !projectId || !form) {
       toast.error('Choose a project, a published form, and one source file.')
       return
     }
@@ -154,6 +154,16 @@ export function useBatchReview(state: ImportState) {
     if (!ticket) return
     setUploadRefusal('')
     try {
+      if (!skipCheck) {
+        // The check reads the file in this browser only; a file it cannot read goes to the server as before.
+        setChecking(true)
+        const report = await runFileCheck(file, form, chosenSheet)
+        if (!ticket.valid('imports.upload')) return
+        if (report) {
+          setFileCheck(report)
+          return
+        }
+      }
       const created = await importsClient.uploadImport(
         projectId,
         formId,
@@ -192,8 +202,21 @@ export function useBatchReview(state: ImportState) {
           )
       }
     } finally {
+      setChecking(false)
       ticket.finish()
     }
+  }
+
+  const uploadAnyway = () => {
+    setFileCheck(null)
+    return upload({ skipCheck: true })
+  }
+
+  // Fixing the file is the only way out of the dialog that clears the chosen file.
+  const fixFile = () => {
+    setFileCheck(null)
+    setFile(null)
+    if (fileInput.current) fileInput.current.value = ''
   }
 
   const saveMapping = async (draft = mapping) => {
@@ -319,7 +342,18 @@ export function useBatchReview(state: ImportState) {
       ticket.finish()
     }
   }
-  return { confirmSuggestions, loadBatch, refreshBatches, resume, saveMapping, upload, validate }
+  return {
+    closeFileCheck: () => setFileCheck(null),
+    confirmSuggestions,
+    fixFile,
+    loadBatch,
+    refreshBatches,
+    resume,
+    saveMapping,
+    upload,
+    uploadAnyway,
+    validate,
+  }
 }
 
 export type BatchReview = ReturnType<typeof useBatchReview>

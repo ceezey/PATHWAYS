@@ -1,5 +1,6 @@
 declare module 'papaparse' {
   export interface ParseError {
+    code?: string
     message: string
   }
 
@@ -15,7 +16,8 @@ declare module 'papaparse' {
 
   export interface ParseConfig {
     header?: boolean
-    skipEmptyLines?: boolean
+    skipEmptyLines?: boolean | 'greedy'
+    dynamicTyping?: boolean
   }
 
   const Papa: {

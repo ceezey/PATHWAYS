@@ -1,4 +1,4 @@
-import { workbookSheetNames } from '@pathways/imports'
+import { type FileCheckReport, workbookSheetNames } from '@pathways/imports'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { useCurrentRole } from '@/hooks/use-current-role'
@@ -35,6 +35,10 @@ export function useImportState(scope: SensitiveDraftOwner) {
   const [formsState, setFormsState] = useState<'loading' | 'ready' | 'error'>('ready')
   const [formId, setFormId] = useState('')
   const [file, setFile] = useState<File | null>(null)
+  // The file check running on Upload privately, and what it found for the person to see before anything is sent.
+  const [checking, setChecking] = useState(false)
+  const [fileCheck, setFileCheck] = useState<FileCheckReport | null>(null)
+  const fileInput = useRef<HTMLInputElement>(null)
   // The chosen file's worksheets, null while they are read; a workbook with several needs one chosen.
   const [sheetNames, setSheetNames] = useState<string[] | null>([])
   const [sheetName, setSheetName] = useState('')
@@ -182,9 +186,12 @@ export function useImportState(scope: SensitiveDraftOwner) {
     canReview,
     canUpload,
     canValidate,
+    checking,
     columnValues,
     draftTarget,
     file,
+    fileCheck,
+    fileInput,
     formId,
     forms,
     formsState,
@@ -210,8 +217,10 @@ export function useImportState(scope: SensitiveDraftOwner) {
     selectedForm,
     setBatch,
     setBatches,
+    setChecking,
     setDraftTarget,
     setFile,
+    setFileCheck,
     setFormId,
     setForms,
     setFormsState,

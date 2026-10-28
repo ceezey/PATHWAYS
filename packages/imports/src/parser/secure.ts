@@ -1,12 +1,19 @@
 import { Worker } from 'node:worker_threads'
 
-import { importHeaderLabel } from '../header-label'
 import { IMPORT_ENGINEERING_LIMITS, type SupportedImportFileType } from '../limits'
-import { isCodeHeaderRow } from './code-header'
 import { excelSerialToIsoDate } from './excel-date'
+import {
+  ImportParseError,
+  type ImportSourceColumn,
+  type ParsedImportRow,
+  normalizeMatrix,
+  reject,
+} from './matrix'
 import { type PdfTableLimits, reconstructPdfTable } from './pdf-table'
+import { workbookGrid } from './workbook-grid'
+import { inspectXlsxContainer } from './xlsx-container'
 
-type CellValue = string | number | boolean | null
+export { ImportParseError, type ImportSourceColumn }
 
 interface WorkerResult {
   matrix?: unknown[][]
@@ -17,33 +24,10 @@ interface WorkerResult {
   error?: string
 }
 
-interface ParsedImportRow {
-  sourceRowNumber: number
-  values: Record<string, CellValue>
-}
-
-export interface ImportSourceColumn {
-  key: string
-  header: string
-  columnIndex: number
-  // The field code printed in a coded header row, when the file has one.
-  sourceCode?: string
-}
-
 interface SecureImportParseResult {
   sourceColumns: ImportSourceColumn[]
   rows: ParsedImportRow[]
   sheetNames: string[]
-}
-
-export class ImportParseError extends Error {
-  constructor(
-    readonly code: string,
-    message: string,
-  ) {
-    super(message)
-    this.name = 'ImportParseError'
-  }
 }
 
 // The PDF table reconstruction and the Excel date conversion are embedded as source so
@@ -129,73 +113,13 @@ try {
       }
     })().catch(() => parentPort.postMessage({ error: 'PDF_PARSE_FAILED' }));
   } else {
-    const XLSX = require(workerData.xlsxPath);
-    const workbook = XLSX.read(input, {
-      type: 'buffer',
-      cellDates: false,
-      cellFormula: true,
-      cellHTML: false,
-      cellStyles: false,
-      cellNF: true,
-      // Stubs keep a formula whose file saved no value, so the gap check below can see it.
-      sheetStubs: true,
-      bookVBA: true,
-      WTF: false,
-    });
-    let links = false;
-    for (const sheetName of workbook.SheetNames) {
-      const sheet = workbook.Sheets[sheetName];
-      for (const key of Object.keys(sheet || {})) {
-        if (key.startsWith('!')) continue;
-        const cell = sheet[key];
-        if (cell && cell.l) links = true;
-      }
-    }
-    const first = workerData.sheetName === null
-      ? workbook.SheetNames[0]
-      : workbook.SheetNames.find((name) => name === workerData.sheetName);
-    if (workerData.sheetName !== null && first === undefined) throw { code: 'WORKBOOK_SHEET_MISSING' };
-    // A formula is never evaluated: its saved value is imported, and a formula without one refuses the file.
-    // shortcut: a t="b" formula saved with no value reads as false; no major spreadsheet writer emits it, add a sheet XML pre-scan if one does.
-    let formulaGap;
-    for (const key of Object.keys((first && workbook.Sheets[first]) || {})) {
-      if (key.startsWith('!')) continue;
-      const cell = workbook.Sheets[first][key];
-      if (cell && typeof cell.f === 'string' && (cell.t === 'z' || cell.t === 'e' || cell.v === undefined)) {
-        formulaGap = key;
-        break;
-      }
-    }
-    // Date-formatted numeric cells become ISO strings; out-of-range serials stay numeric.
-    // The date format is dropped from every cell, text included, so sheet_to_json does not build Date objects.
-    const date1904 = Boolean(workbook.Workbook && workbook.Workbook.WBProps && workbook.Workbook.WBProps.date1904);
-    const firstSheet = first ? workbook.Sheets[first] : null;
-    for (const key of Object.keys(firstSheet || {})) {
-      if (key.startsWith('!')) continue;
-      const cell = firstSheet[key];
-      if (!cell || !cell.z || !XLSX.SSF.is_date(cell.z)) continue;
-      delete cell.z;
-      if (cell.t !== 'n') continue;
-      const iso = excelSerialToIsoDate(cell.v, date1904);
-      if (iso !== null) {
-        cell.t = 's';
-        cell.v = iso;
-      }
-    }
-    const matrix = first
-      ? XLSX.utils.sheet_to_json(workbook.Sheets[first], {
-          header: 1,
-          defval: null,
-          blankrows: false,
-          raw: true,
-        })
-      : [];
+    const grid = (${workbookGrid.toString()})(require(workerData.xlsxPath), input, 'buffer', workerData.sheetName, excelSerialToIsoDate, false);
     parentPort.postMessage({
-      matrix,
-      sheetNames: workbook.SheetNames,
-      formulaGap,
-      links,
-      macros: Boolean(workbook.vbaraw),
+      matrix: grid.matrix,
+      sheetNames: grid.sheetNames,
+      formulaGap: grid.formulaGap,
+      links: grid.links,
+      macros: grid.macros,
     });
   }
 } catch (error) {
@@ -203,82 +127,6 @@ try {
   parentPort.postMessage({ error: missing ? 'WORKBOOK_SHEET_MISSING' : 'PARSER_REJECTED_INPUT' });
 }
 `
-
-const unsafeHeader = new Set(['__proto__', 'prototype', 'constructor'])
-const formulaText = /^[=+@]|^-(?:[=+@A-Za-z])/
-
-function reject(code: string, message: string): never {
-  throw new ImportParseError(code, message)
-}
-
-function inspectXlsxContainer(input: Buffer) {
-  if (input.length < 4 || input.readUInt32LE(0) !== 0x04034b50) {
-    reject('FILE_SIGNATURE_INVALID', 'The XLSX file signature is invalid.')
-  }
-  const eocdSignature = 0x06054b50
-  let eocd = -1
-  for (let offset = Math.max(0, input.length - 65_557); offset <= input.length - 22; offset += 1) {
-    if (input.readUInt32LE(offset) === eocdSignature) eocd = offset
-  }
-  if (eocd < 0) reject('WORKBOOK_CONTAINER_INVALID', 'The XLSX container is incomplete.')
-  const entries = input.readUInt16LE(eocd + 10)
-  const centralSize = input.readUInt32LE(eocd + 12)
-  const centralOffset = input.readUInt32LE(eocd + 16)
-  if (
-    entries < 1 ||
-    entries > IMPORT_ENGINEERING_LIMITS.maxWorkbookEntries ||
-    centralOffset + centralSize > input.length
-  ) {
-    reject('WORKBOOK_CONTAINER_LIMIT', 'The XLSX container exceeds safe structural limits.')
-  }
-  let offset = centralOffset
-  let totalCompressed = 0
-  let totalUncompressed = 0
-  const names: string[] = []
-  for (let index = 0; index < entries; index += 1) {
-    if (offset + 46 > input.length || input.readUInt32LE(offset) !== 0x02014b50) {
-      reject('WORKBOOK_CONTAINER_INVALID', 'The XLSX directory is malformed.')
-    }
-    const flags = input.readUInt16LE(offset + 8)
-    if ((flags & 1) !== 0) reject('WORKBOOK_ENCRYPTED', 'Encrypted workbooks are not supported.')
-    const compressed = input.readUInt32LE(offset + 20)
-    const uncompressed = input.readUInt32LE(offset + 24)
-    const nameLength = input.readUInt16LE(offset + 28)
-    const extraLength = input.readUInt16LE(offset + 30)
-    const commentLength = input.readUInt16LE(offset + 32)
-    const end = offset + 46 + nameLength + extraLength + commentLength
-    if (end > input.length) reject('WORKBOOK_CONTAINER_INVALID', 'The XLSX directory is malformed.')
-    const name = input.subarray(offset + 46, offset + 46 + nameLength).toString('utf8')
-    if (name.includes('..') || name.startsWith('/') || name.includes('\\')) {
-      reject('WORKBOOK_PATH_UNSAFE', 'The workbook contains an unsafe internal path.')
-    }
-    names.push(name.toLowerCase())
-    totalCompressed += compressed
-    totalUncompressed += uncompressed
-    offset = end
-  }
-  if (
-    totalUncompressed > IMPORT_ENGINEERING_LIMITS.maxUncompressedBytes ||
-    (totalCompressed > 0 &&
-      totalUncompressed / totalCompressed > IMPORT_ENGINEERING_LIMITS.maxCompressionRatio)
-  ) {
-    reject('WORKBOOK_DECOMPRESSION_LIMIT', 'The workbook exceeds decompression limits.')
-  }
-  if (!names.includes('[content_types].xml') || !names.includes('xl/workbook.xml')) {
-    reject('WORKBOOK_STRUCTURE_INVALID', 'The XLSX package does not contain a workbook.')
-  }
-  if (
-    names.some(
-      (name) =>
-        name.includes('vbaproject') ||
-        name.startsWith('xl/externallinks/') ||
-        name.startsWith('xl/embeddings/') ||
-        name.startsWith('xl/oleobjects/'),
-    )
-  ) {
-    reject('WORKBOOK_ACTIVE_CONTENT', 'Macros, external links, and embedded objects are forbidden.')
-  }
-}
 
 function inspectXlsSignature(input: Buffer) {
   const compound = Buffer.from([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1])
@@ -399,109 +247,6 @@ const workerErrorCodes = new Set([
   'PARSER_REJECTED_INPUT',
   ...Object.keys(parserErrorMessages),
 ])
-
-function sourceColumnKey(columnIndex: number) {
-  return `column_${String(columnIndex).padStart(4, '0')}`
-}
-
-function normalizeMatrix(
-  matrix: unknown[][],
-): Pick<SecureImportParseResult, 'rows' | 'sourceColumns'> {
-  if (!Array.isArray(matrix) || matrix.length === 0) {
-    reject('FILE_EMPTY', 'The file does not contain a header row.')
-  }
-  const blank = (value: unknown) =>
-    value === null || value === undefined || (typeof value === 'string' && value.trim() === '')
-  const codeRow = Array.isArray(matrix[0]) ? matrix[0] : []
-  // A code row above a label row: the label names the column, the code is kept as its source code.
-  const coded =
-    Array.isArray(matrix[0]) && Array.isArray(matrix[1]) && isCodeHeaderRow(matrix[0], matrix[1])
-  const headerRows = coded ? 2 : 1
-  const firstDataRow = headerRows + 1
-  const labelRow = coded && Array.isArray(matrix[1]) ? matrix[1] : []
-  const firstRow = coded
-    ? codeRow.map((code, index) => (blank(labelRow[index]) ? code : labelRow[index]))
-    : codeRow
-  // Trailing columns with a blank header and no values are sheet formatting, not data.
-  let width = matrix.reduce<number>(
-    (widest, row) => Math.max(widest, Array.isArray(row) ? row.length : 0),
-    0,
-  )
-  while (
-    width > 0 &&
-    blank(firstRow[width - 1]) &&
-    matrix.every((row) => !Array.isArray(row) || blank(row[width - 1]))
-  ) {
-    width -= 1
-  }
-  if (width === 0) reject('HEADERS_MISSING', 'The file does not contain headers.')
-  const headerCells = Array.from({ length: width }, (_, index) => firstRow[index] ?? null)
-  if (headerCells.length > IMPORT_ENGINEERING_LIMITS.maxSourceColumns) {
-    reject('COLUMN_LIMIT', 'The file has too many columns.')
-  }
-  const headers = headerCells.map((value, index) => {
-    if (!blank(value) && !['string', 'number', 'boolean'].includes(typeof value)) {
-      reject('HEADER_INVALID', `Header ${index + 1} is invalid.`)
-    }
-    // A blank header over real values is named by its position, as a spreadsheet shows it.
-    const header = importHeaderLabel(blank(value) ? '' : String(value)) || `Column ${index + 1}`
-    const normalized = header.toLowerCase()
-    if (unsafeHeader.has(normalized)) {
-      reject('HEADER_UNSAFE', `Header ${index + 1} uses a prohibited key.`)
-    }
-    return header
-  })
-  const sourceColumns: ImportSourceColumn[] = headers.map((header, index) => ({
-    key: sourceColumnKey(index + 1),
-    header,
-    columnIndex: index + 1,
-    ...(coded && !blank(codeRow[index]) ? { sourceCode: String(codeRow[index]).trim() } : {}),
-  }))
-  const sourceRows = matrix
-    .slice(headerRows)
-    .map((row) => (Array.isArray(row) ? row.slice(0, width) : row))
-  if (sourceRows.length > IMPORT_ENGINEERING_LIMITS.maxRows) {
-    reject('ROW_LIMIT', 'The file has too many rows.')
-  }
-  if (sourceRows.length * headers.length > IMPORT_ENGINEERING_LIMITS.maxCells) {
-    reject('CELL_LIMIT', 'The file has too many cells.')
-  }
-  const rows: ParsedImportRow[] = sourceRows.map((source, rowIndex) => {
-    if (!Array.isArray(source) || source.length > headers.length) {
-      reject(
-        'ROW_WIDTH_INVALID',
-        `Source row ${rowIndex + firstDataRow} has an unexpected column count.`,
-      )
-    }
-    const values = Object.create(null) as Record<string, CellValue>
-    sourceColumns.forEach((column, columnOffset) => {
-      const value = source[columnOffset] ?? null
-      if (!['string', 'number', 'boolean'].includes(typeof value) && value !== null) {
-        reject(
-          'CELL_TYPE_INVALID',
-          `Source row ${rowIndex + firstDataRow} contains an unsupported cell.`,
-        )
-      }
-      if (typeof value === 'string') {
-        if (value.length > IMPORT_ENGINEERING_LIMITS.maxCellCharacters) {
-          reject(
-            'CELL_LENGTH_LIMIT',
-            `Source row ${rowIndex + firstDataRow} contains an oversized cell.`,
-          )
-        }
-        if (formulaText.test(value.trimStart())) {
-          reject(
-            'CELL_FORMULA_UNSAFE',
-            `Source row ${rowIndex + firstDataRow} contains formula-like text.`,
-          )
-        }
-      }
-      values[column.key] = value as CellValue
-    })
-    return { sourceRowNumber: rowIndex + firstDataRow, values }
-  })
-  return { rows, sourceColumns }
-}
 
 /**
  * `tighter` exists for tests: each value can only lower the engineering limit, never
