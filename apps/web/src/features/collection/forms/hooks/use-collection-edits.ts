@@ -89,7 +89,8 @@ export function useCollectionEdits(state: CollectionState) {
     }
   const savedForms: SavedForm[] = forms.map((f) => ({
     id: f.id,
-    title: f.name,
+    // Same name and version label as the import form picker.
+    title: `${f.name} - v${f.version}`,
     type: f.status,
     projectId: f.projectId,
     project: projects.find((p) => p.id === f.projectId)?.title ?? f.projectId,

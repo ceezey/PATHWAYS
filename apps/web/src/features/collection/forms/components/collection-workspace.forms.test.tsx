@@ -431,7 +431,7 @@ describe('collection form definition export', () => {
       </DisplayLabelsProvider>,
     )
 
-    await waitFor(() => expect(screen.getByText('Activity Entry')).toBeTruthy())
+    await waitFor(() => expect(screen.getByText('Activity Entry - v2')).toBeTruthy())
     expect(screen.queryByText('Download format')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Export form' }))
     await waitFor(() =>
@@ -470,12 +470,12 @@ describe('collection form definition export', () => {
     const safeSchools = (await screen.findByRole('heading', { name: 'Safe Schools' })).closest(
       'section',
     ) as HTMLElement
-    expect(within(safeSchools).getByText('Registration')).toBeTruthy()
+    expect(within(safeSchools).getByText('Registration - v2')).toBeTruthy()
     expect(within(safeSchools).getByText('Draft')).toBeTruthy()
     const futuremakers = screen
       .getByRole('heading', { name: 'Futuremakers NCR' })
       .closest('section') as HTMLElement
-    expect(within(futuremakers).getByText('Activity Entry')).toBeTruthy()
+    expect(within(futuremakers).getByText('Activity Entry - v2')).toBeTruthy()
     expect(within(futuremakers).getByText('Published')).toBeTruthy()
   })
 
@@ -511,7 +511,7 @@ describe('collection form definition export', () => {
         <CollectionWorkspace initialView="forms" />
       </DisplayLabelsProvider>,
     )
-    await waitFor(() => expect(screen.getByText('Activity Entry')).toBeTruthy())
+    await waitFor(() => expect(screen.getByText('Activity Entry - v2')).toBeTruthy())
     const button = screen.queryByRole('button', { name: 'Export form' })
     if (button) fireEvent.click(button)
     expect(core.downloadCoreArtifact).not.toHaveBeenCalled()
