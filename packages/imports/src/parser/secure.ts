@@ -167,15 +167,16 @@ try {
       }
     }
     // Date-formatted numeric cells become ISO strings; out-of-range serials stay numeric.
-    // The date format is dropped either way so sheet_to_json does not build Date objects.
+    // The date format is dropped from every cell, text included, so sheet_to_json does not build Date objects.
     const date1904 = Boolean(workbook.Workbook && workbook.Workbook.WBProps && workbook.Workbook.WBProps.date1904);
     const firstSheet = first ? workbook.Sheets[first] : null;
     for (const key of Object.keys(firstSheet || {})) {
       if (key.startsWith('!')) continue;
       const cell = firstSheet[key];
-      if (!cell || cell.t !== 'n' || !cell.z || !XLSX.SSF.is_date(cell.z)) continue;
-      const iso = excelSerialToIsoDate(cell.v, date1904);
+      if (!cell || !cell.z || !XLSX.SSF.is_date(cell.z)) continue;
       delete cell.z;
+      if (cell.t !== 'n') continue;
+      const iso = excelSerialToIsoDate(cell.v, date1904);
       if (iso !== null) {
         cell.t = 's';
         cell.v = iso;
