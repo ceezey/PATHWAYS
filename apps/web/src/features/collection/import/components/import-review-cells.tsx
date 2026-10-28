@@ -34,6 +34,7 @@ export function ChoiceCell({
   column,
   value,
   missing,
+  caption,
   picked,
   disabled,
   onPick,
@@ -43,6 +44,8 @@ export function ChoiceCell({
   value: Cell
   // What a greyed tile says when the source has no value at all.
   missing?: string
+  // A small line above the value naming where it comes from.
+  caption?: string
   picked: boolean
   disabled?: boolean
   onPick: () => void
@@ -63,6 +66,7 @@ export function ChoiceCell({
       onClick={onPick}
       type="button"
     >
+      {caption ? <span className="block text-xs text-muted-foreground">{caption}</span> : null}
       {text ?? <span className="text-muted-foreground">Empty</span>}
     </button>
   )
@@ -87,7 +91,6 @@ export function OwnValue({
     'aria-describedby': describedBy,
     'aria-invalid': invalid || undefined,
     'aria-label': `${field.label}, Your value`,
-    title: 'Optional',
   }
   if (options && (field.dataType === 'SELECT' || field.dataType === 'BOOLEAN')) {
     return (
