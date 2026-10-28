@@ -173,12 +173,27 @@ describe('FieldIntakeEditor', () => {
       vi.fn(),
       true,
     )
+    // Help tips stay usable on a locked form; every editing control is disabled.
     const controls = [
-      ...screen.getAllByRole('button'),
+      ...screen
+        .getAllByRole('button')
+        .filter((button) => !button.getAttribute('aria-label')?.startsWith('More information')),
       ...screen.getAllByRole('textbox'),
       ...screen.getAllByRole('combobox'),
     ]
     expect(controls.length).toBeGreaterThan(5)
     for (const control of controls) expect((control as HTMLButtonElement).disabled).toBe(true)
+  })
+
+  it('starts collapsed under Advanced Configuration and explains each part on hover', () => {
+    renderEditor(field())
+    const summary = screen.getByText('Advanced Configuration')
+    expect((summary.closest('details') as HTMLDetailsElement).open).toBe(false)
+    fireEvent.mouseEnter(
+      screen.getByRole('button', { name: 'More information about Source names' }),
+    )
+    expect(screen.getByRole('tooltip').textContent).toMatch(/^Column headers in an uploaded file/)
+    for (const part of ['Answer aliases', 'Import default', 'Calculation or check'])
+      expect(screen.getByRole('button', { name: `More information about ${part}` })).toBeTruthy()
   })
 })
