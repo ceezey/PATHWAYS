@@ -1,28 +1,23 @@
 import { BadRequestException, ConflictException } from '@nestjs/common'
 import {
-  type DateOrder,
   IMPORT_ENGINEERING_LIMITS,
-  type ImportColumnRule,
   type IntakeField,
-  buildImportValueMap,
-  fittingDateOrders,
-  normalizeImportedRow,
+  isSupplied,
+  unsuppliedRequired,
+  validateRows,
 } from '@pathways/imports/server'
-import {
-  type FieldIntakeRule,
-  type ValidateImportRequest,
-  isCalculatedRule,
-} from '@pathways/shared'
+import type { FieldIntakeRule, ValidateImportRequest } from '@pathways/shared'
 import { Prisma } from '@prisma/client'
 import { writeAuditLog } from '../../common/audit/write-audit-log'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import { formFieldContract } from '../../common/forms/form-field-contract'
 import type { Tx } from '../../common/prisma/transaction'
 import { currentBusinessDate } from '../../common/time/business-date'
-import { normalizeIdentifier } from '../beneficiaries/beneficiary-registration.helpers'
 import { lockBatch, mapStoredBatch, requireBatchWithHeaders } from './import-batches.service'
-import { safeRawData, safeSourceColumns, stableJson, storedValueMap } from './imports.helpers'
+import { safeRawData, safeSourceColumns } from './imports.helpers'
 import { type FieldRow, fieldSelection } from './imports.mapper'
+
+export { columnRules, valuesByFieldCode } from '@pathways/imports/server'
 
 export function intakeField(row: FieldRow): IntakeField {
   return {
@@ -33,62 +28,6 @@ export function intakeField(row: FieldRow): IntakeField {
     importDefault: row.importDefault,
     rule: row.rule as FieldIntakeRule | null,
   }
-}
-
-export interface ColumnMapping {
-  sourceFieldName: string
-  status: string
-  dataType: ImportColumnRule['dataType'] | null
-  valueMap: Prisma.JsonValue | null
-  dateOrder: string | null
-  targetField: Pick<FieldRow, 'code' | 'dataType'> | null
-}
-
-/** The reviewed value maps and declared types per target field; a text date column also gets its date order. */
-export function columnRules(
-  mappings: readonly ColumnMapping[],
-  raws: readonly Record<string, unknown>[],
-  referenceYear: number,
-) {
-  const rules = Object.create(null) as Record<string, ImportColumnRule>
-  for (const mapping of mappings) {
-    if (mapping.status !== 'MAPPED' || !mapping.targetField) continue
-    rules[mapping.targetField.code] = {
-      ...(mapping.dataType ? { dataType: mapping.dataType } : {}),
-      ...(mapping.valueMap
-        ? { valueMap: buildImportValueMap(storedValueMap(mapping.valueMap)) }
-        : {}),
-    }
-  }
-  // A text date column uses the reviewer's date order, else the one order that fits every value.
-  for (const mapping of mappings) {
-    const target = mapping.status === 'MAPPED' ? mapping.targetField : null
-    if (!target || (mapping.dataType ?? target.dataType) !== 'DATE') continue
-    const orders = mapping.dateOrder
-      ? [mapping.dateOrder as DateOrder]
-      : fittingDateOrders(
-          raws.map((raw) => raw[mapping.sourceFieldName]),
-          referenceYear,
-        )
-    if (orders.length === 1) {
-      rules[target.code] = { ...rules[target.code], date: { order: orders[0], referenceYear } }
-    }
-  }
-  return rules
-}
-
-/** A raw row keyed by the target field of each mapped column. */
-export function valuesByFieldCode(
-  mappings: readonly ColumnMapping[],
-  raw: Record<string, unknown>,
-) {
-  const byFieldCode = Object.create(null) as Record<string, unknown>
-  for (const mapping of mappings) {
-    if (mapping.status === 'MAPPED' && mapping.targetField) {
-      byFieldCode[mapping.targetField.code] = raw[mapping.sourceFieldName]
-    }
-  }
-  return byFieldCode
 }
 
 export async function validateBatchRows(
@@ -151,21 +90,17 @@ export async function validateBatchRows(
     take: IMPORT_ENGINEERING_LIMITS.maxMappedFields,
   })
   const mappedCodes = new Set(mappedFields.map((field) => field.code))
-  // An unmapped field still takes part when it has a default or a calculation.
-  const supplied = (field: FieldRow) =>
-    mappedCodes.has(field.code) ||
-    !!field.importDefault ||
-    isCalculatedRule(field.rule as FieldIntakeRule | null)
-  const unsupplied = formFields.filter((field) => field.isRequired && !supplied(field))
+  const formIntake = formFields.map(intakeField)
+  const unsupplied = unsuppliedRequired(formIntake, mappedCodes)
   if (unsupplied.length) {
     throw new BadRequestException(
       `Every required form field must have a source mapping. No source for: ${unsupplied.map((field) => field.code).join(', ')}.`,
     )
   }
   const fields = [
-    ...mappedFields,
-    ...formFields.filter((field) => !mappedCodes.has(field.code) && supplied(field)),
-  ].map(intakeField)
+    ...mappedFields.map(intakeField),
+    ...formIntake.filter((field) => !mappedCodes.has(field.code) && isSupplied(field, mappedCodes)),
+  ]
   const rows = await tx.dataImportRow.findMany({
     where: { organizationId: actor.organizationId, importBatchId: batch.id },
     select: { id: true, rowNumber: true, rawData: true },
@@ -175,76 +110,27 @@ export async function validateBatchRows(
   const validationRevision = batch.validationRevision + 1
   const uploadDate = currentBusinessDate(batch.createdAt)
   const raws = rows.map((row) => safeRawData(row.rawData))
-  const rules = columnRules(mappings, raws, Number(uploadDate.slice(0, 4)))
-  const results = rows.map((row, index) => {
-    const raw = raws[index]
-    const byFieldCode = valuesByFieldCode(mappings, raw)
-    return { row, result: normalizeImportedRow(fields, byFieldCode, rules, { uploadDate }) }
+  const results = validateRows({
+    formType: batch.form.formType,
+    fields,
+    mappedFields: mappedFields.map((field) => ({
+      ...intakeField(field),
+      metadataKey: field.isMetadataKey,
+    })),
+    mappings,
+    raws,
+    uploadDate,
   })
-  // Two valid rows sharing a key are both marked, so neither is guessed to be the real one.
-  const markDuplicates = (
-    keyOf: (values: Record<string, unknown>) => string | null,
-    fieldCode: string,
-    code: string,
-    message: string,
-    includeInvalid = false,
-  ) => {
-    const seen = new Map<string, number[]>()
-    results.forEach(({ result }, index) => {
-      if (!result.valid && !includeInvalid) return
-      const key = keyOf(result.values)
-      if (key === null) return
-      const entries = seen.get(key) ?? []
-      entries.push(index)
-      seen.set(key, entries)
-    })
-    for (const duplicates of seen.values()) {
-      if (duplicates.length < 2) continue
-      for (const index of duplicates) {
-        results[index].result.valid = false
-        results[index].result.errors.push({ fieldCode, code, message })
-      }
-    }
-  }
-  const metadataKeys = mappedFields
-    .filter((field) => field.isMetadataKey)
-    .map((field) => field.code)
-  if (metadataKeys.length > 0) {
-    markDuplicates(
-      (values) => stableJson(metadataKeys.map((code) => values[code])),
-      metadataKeys.join(','),
-      'DUPLICATE_BUSINESS_KEY',
-      'The metadata key is duplicated within this import.',
-    )
-  }
-  // One client Student ID on two rows would create or change one person twice, even if one twin is invalid.
-  if (
-    batch.form.formType === 'BENEFICIARY_REGISTRATION' &&
-    fields.some((field) => field.code === 'external_identifier_value')
-  ) {
-    markDuplicates(
-      (values) => {
-        const value = values.external_identifier_value
-        return typeof value === 'string' && normalizeIdentifier(value) !== ''
-          ? normalizeIdentifier(value)
-          : null
-      },
-      'external_identifier_value',
-      'IDENTITY_CONFLICT',
-      'The client identifier is on more than one row of this import.',
-      true,
-    )
-  }
   let valid = 0
   let invalid = 0
   let warned = 0
   const validatedAt = new Date()
-  const rowUpdates = results.map(({ row, result }) => {
+  const rowUpdates = results.map((result, index) => {
     if (result.valid) valid += 1
     else invalid += 1
     if (result.warnings.length > 0) warned += 1
     return {
-      id: row.id,
+      id: rows[index].id,
       status: result.valid ? 'VALID' : 'INVALID',
       normalized_data: result.valid ? result.values : null,
       validation_errors: result.errors,

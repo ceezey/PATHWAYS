@@ -8,6 +8,8 @@ import {
 } from '@pathways/imports/server'
 import type { Prisma } from '@prisma/client'
 
+export { stableJson } from '@pathways/imports/server'
+
 export interface UploadedImportFile {
   buffer: Buffer
   originalname: string
@@ -28,32 +30,8 @@ const fileTypes: Record<
   '.pdf': { type: 'PDF', contentTypes: ['application/pdf'] },
 }
 
-export function storedValueMap(value: Prisma.JsonValue): { from: string; to: string }[] {
-  if (!Array.isArray(value)) return []
-  return value.flatMap((entry) =>
-    entry &&
-    typeof entry === 'object' &&
-    !Array.isArray(entry) &&
-    typeof entry.from === 'string' &&
-    typeof entry.to === 'string'
-      ? [{ from: entry.from, to: entry.to }]
-      : [],
-  )
-}
-
 export function checksum(input: Buffer | string) {
   return createHash('sha256').update(input).digest('hex')
-}
-
-export function stableJson(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(stableJson).join(',')}]`
-  if (value && typeof value === 'object') {
-    return `{${Object.entries(value as Record<string, unknown>)
-      .sort(([left], [right]) => left.localeCompare(right))
-      .map(([key, item]) => `${JSON.stringify(key)}:${stableJson(item)}`)
-      .join(',')}}`
-  }
-  return JSON.stringify(value)
 }
 
 // The canonical content type for a stored file type, used when a stored source is staged again.

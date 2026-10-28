@@ -1,22 +1,13 @@
-import {
-  AUTO_SMART_V2_LIMITS,
-  type CoverageField,
-  IMPORT_ENGINEERING_LIMITS,
-  type SmartMatchColumn,
-  type SmartMatchDecision,
-  matchBySourceCode,
-  smartMatchColumnsV3,
-} from '@pathways/imports/server'
+import { type CoverageField, IMPORT_ENGINEERING_LIMITS } from '@pathways/imports/server'
 import { CALCULATED_RULE_KINDS, fieldIntakeProperties, fieldIntakeRule } from '@pathways/shared'
 import type { Prisma } from '@prisma/client'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import { jsonStringArray } from '../../common/forms/form-field-contract'
 import type { Tx } from '../../common/prisma/transaction'
-import { safeRawData, type safeSourceColumns } from './imports.helpers'
+import { safeRawData } from './imports.helpers'
 import type { BatchRow } from './imports.mapper'
 
-export const isBlank = (value: unknown) =>
-  value === null || value === undefined || (typeof value === 'string' && value.trim() === '')
+export { isBlank, matchColumns } from '@pathways/imports/server'
 
 const parsed = <T>(
   schema: { safeParse: (value: unknown) => { success: boolean; data?: T } },
@@ -40,55 +31,6 @@ export async function readStagedRaw(tx: Tx, actor: ApplicationIdentity, batch: B
     take: IMPORT_ENGINEERING_LIMITS.maxRows,
   })
   return rows.map((row) => safeRawData(row.rawData))
-}
-
-// The matcher's view of each column: a bounded sample and whether every value is blank.
-export function smartMatchColumns(
-  sourceColumns: ReturnType<typeof safeSourceColumns>,
-  raw: Array<Record<string, unknown>>,
-): SmartMatchColumn[] {
-  const sampleRows = raw.slice(0, AUTO_SMART_V2_LIMITS.sampleRows)
-  return sourceColumns.map((column) => ({
-    key: column.key,
-    columnIndex: column.columnIndex,
-    header: column.header,
-    samples: sampleRows.map((values) => values[column.key]),
-    blank: raw.every((values) => isBlank(values[column.key])),
-  }))
-}
-
-/**
- * One decision per column: a unique row-1 source code maps its column first, and the smart matcher
- * sees only the other columns and fields, so it can never override a code.
- */
-export function matchColumns(
-  sourceColumns: ReturnType<typeof safeSourceColumns>,
-  raw: Array<Record<string, unknown>>,
-  fields: CoverageField[],
-): SmartMatchDecision[] {
-  const columns = smartMatchColumns(sourceColumns, raw)
-  const blank = new Set(columns.filter((column) => column.blank).map((column) => column.key))
-  const byCode = matchBySourceCode(
-    sourceColumns.filter((column) => !blank.has(column.key)),
-    fields,
-  )
-  const coded = new Set(byCode.values())
-  const rest = smartMatchColumnsV3(
-    columns.filter((column) => !byCode.has(column.key)),
-    fields.filter((field) => !coded.has(field.code)),
-  )
-  const idByCode = new Map(fields.map((field) => [field.code, field.id]))
-  const decisions: SmartMatchDecision[] = [...byCode].map(([key, code]) => ({
-    sourceKey: key,
-    columnIndex: columns.find((column) => column.key === key)?.columnIndex ?? 0,
-    status: 'MAPPED',
-    targetFieldId: idByCode.get(code) ?? null,
-    suggestedFieldId: null,
-    score: 100,
-    matchReason: 'METADATA_SOURCE_NAME',
-    reason: 'AUTO_MATCH',
-  }))
-  return [...decisions, ...rest].sort((left, right) => left.columnIndex - right.columnIndex)
 }
 
 // The stored field columns the matcher and the coverage count read.

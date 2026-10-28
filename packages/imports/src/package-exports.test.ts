@@ -20,11 +20,25 @@ const smartMatch = [
   'sourceNameKey',
 ]
 
+const validation = [
+  'columnRules',
+  'isBlank',
+  'isSupplied',
+  'matchColumns',
+  'normalizeIdentifier',
+  'stableJson',
+  'storedValueMap',
+  'unsuppliedRequired',
+  'validateRows',
+  'valuesByFieldCode',
+]
+
 describe('package entry points', () => {
   it('keeps the browser entry exports', () => {
     expect(Object.keys(browser).sort()).toEqual(
       [
         ...smartMatch,
+        ...validation,
         'DATE_ORDERS',
         'IMPORT_ENGINEERING_LIMITS',
         'IMPORT_VALUE_MAP_LIMITS',
@@ -62,6 +76,7 @@ describe('package entry points', () => {
     expect(Object.keys(server).sort()).toEqual(
       [
         ...smartMatch,
+        ...validation,
         'DATE_ORDERS',
         'IMPORT_ENGINEERING_LIMITS',
         'IMPORT_VALUE_MAP_LIMITS',

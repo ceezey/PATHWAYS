@@ -8,6 +8,8 @@ import {
   minimumBeneficiaryAge,
 } from '@pathways/shared'
 
+export { normalizeIdentifier } from '@pathways/imports/server'
+
 const registrationCodePattern = /^[A-Z0-9][A-Z0-9_-]{1,39}$/
 
 const externalIdentifierTypePattern = /^[A-Z][A-Z0-9_]{1,31}$/
@@ -110,10 +112,6 @@ export function stableValues(value: Record<string, NormalizedValue>) {
   return JSON.stringify(
     Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b))),
   )
-}
-
-export function normalizeIdentifier(value: string) {
-  return value.normalize('NFKC').trim()
 }
 
 export type RegistrationProfile = {
