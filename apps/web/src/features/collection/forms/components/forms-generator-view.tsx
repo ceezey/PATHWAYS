@@ -12,7 +12,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Label } from '@/components/ui/label'
 import {
   Select,
   SelectContent,
@@ -22,8 +21,6 @@ import {
 } from '@/components/ui/select'
 
 import { type SavedForm, formatSavedAt, savedFormStatus } from '../../collection.utils'
-
-const ALL_PROJECTS = 'all'
 
 // Groups the forms under their project, in the order the projects were loaded.
 const groupByProject = (forms: SavedForm[]) => {
@@ -52,128 +49,125 @@ export const FormsGeneratorView = ({
   savedForms: SavedForm[]
   status: 'loading' | 'error' | 'ready'
 }) => {
-  const [projectId, setProjectId] = useState(ALL_PROJECTS)
+  const [projectId, setProjectId] = useState('')
   const groups = groupByProject(savedForms)
-  // A chosen project whose forms are no longer loaded falls back to all projects.
-  const selected = groups.some((group) => group[0].projectId === projectId)
-    ? projectId
-    : ALL_PROJECTS
-  const shown = groups.filter(
-    (group) => selected === ALL_PROJECTS || group[0].projectId === selected,
-  )
+  // One project is chosen for the person; a chosen project whose forms are gone returns to the placeholder.
+  const selected =
+    groups.length === 1
+      ? groups[0][0].projectId
+      : groups.some((group) => group[0].projectId === projectId)
+        ? projectId
+        : ''
+  const shown = groups.find((group) => group[0].projectId === selected) ?? []
   return (
-    <SectionCard
-      title="Collection forms"
-      description="Form generator"
-      actions={
-        canCreate || canImport ? (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button>
-                <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
-                Add new
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-48">
-              {canCreate ? (
-                <DropdownMenuItem onClick={onCreate}>
-                  <ListPlus className="mr-2 h-4 w-4" aria-hidden="true" />
-                  Create new
-                </DropdownMenuItem>
-              ) : null}
-              {canImport ? (
-                <DropdownMenuItem asChild>
-                  <Link href="/collection/import">
-                    <FileSpreadsheet className="mr-2 h-4 w-4" aria-hidden="true" />
-                    Import file
-                  </Link>
-                </DropdownMenuItem>
-              ) : null}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        ) : null
-      }
-    >
-      {status === 'loading' ? (
-        <LoadingSkeleton lines={3} />
-      ) : status === 'error' ? (
-        errorState
-      ) : savedForms.length === 0 ? (
-        <EmptyState
-          icon={Database}
-          title="None yet"
-          description="No collection forms are saved for your projects yet."
-        />
-      ) : (
-        <div className="space-y-6">
-          {groups.length > 1 ? (
-            <div className="space-y-2 sm:w-80">
-              <Label htmlFor="collection-forms-project">Project</Label>
-              <Select value={selected} onValueChange={setProjectId}>
-                <SelectTrigger id="collection-forms-project">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={ALL_PROJECTS}>All projects</SelectItem>
-                  {groups.map((group) => (
-                    <SelectItem key={group[0].projectId} value={group[0].projectId}>
-                      {group[0].project}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+    <SectionCard title="Collection forms" description="Form generator">
+      <div className="space-y-6">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <div className="min-w-0 flex-1">
+            <Select
+              disabled={status !== 'ready' || groups.length === 0}
+              value={selected}
+              onValueChange={setProjectId}
+            >
+              <SelectTrigger aria-label="Project" id="collection-forms-project">
+                <SelectValue placeholder="Select project" />
+              </SelectTrigger>
+              <SelectContent>
+                {groups.map((group) => (
+                  <SelectItem key={group[0].projectId} value={group[0].projectId}>
+                    {group[0].project}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          {canCreate || canImport ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button className="shrink-0">
+                  <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
+                  Add new
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                {canCreate ? (
+                  <DropdownMenuItem onClick={onCreate}>
+                    <ListPlus className="mr-2 h-4 w-4" aria-hidden="true" />
+                    Create new
+                  </DropdownMenuItem>
+                ) : null}
+                {canImport ? (
+                  <DropdownMenuItem asChild>
+                    <Link href="/collection/import">
+                      <FileSpreadsheet className="mr-2 h-4 w-4" aria-hidden="true" />
+                      Import file
+                    </Link>
+                  </DropdownMenuItem>
+                ) : null}
+              </DropdownMenuContent>
+            </DropdownMenu>
           ) : null}
-          {shown.map((projectForms) => (
-            <section key={projectForms[0].projectId} className="space-y-3">
-              <h3 className="text-sm font-semibold text-foreground">{projectForms[0].project}</h3>
-              <ul className="space-y-3">
-                {projectForms.map((form) => {
-                  const display = savedFormStatus[form.type] ?? {
-                    label: form.type,
-                    tone: 'neutral',
-                  }
-                  return (
-                    <li
-                      key={form.id}
-                      className="flex min-h-[52px] flex-col gap-3 rounded-lg border border-border bg-card p-3 text-sm md:flex-row md:items-center md:justify-between"
-                    >
-                      <div className="flex min-w-0 items-start gap-3">
-                        <div
-                          aria-hidden="true"
-                          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-primary-subtle text-primary"
-                        >
-                          <Database className="h-4 w-4" />
-                        </div>
-                        <div className="min-w-0">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <p className="font-semibold text-foreground">{form.title}</p>
-                            <StatusBadge dot={false} tone={display.tone}>
-                              {display.label}
-                            </StatusBadge>
-                          </div>
-                          <p className="mt-1 text-xs text-muted-foreground">
-                            {form.fieldCount} {form.fieldCount === 1 ? 'field' : 'fields'} · Saved{' '}
-                            {formatSavedAt(form.savedAt)}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Button size="sm" variant="outline" onClick={() => onOpen(form)}>
-                          Open form
-                        </Button>
-                        <Button size="sm" variant="outline" onClick={() => onDownload(form)}>
-                          Export form
-                        </Button>
-                      </div>
-                    </li>
-                  )
-                })}
-              </ul>
-            </section>
-          ))}
         </div>
-      )}
+        {status === 'loading' ? (
+          <LoadingSkeleton lines={3} />
+        ) : status === 'error' ? (
+          errorState
+        ) : savedForms.length === 0 ? (
+          <EmptyState
+            icon={Database}
+            title="None yet"
+            description="No collection forms are saved for your projects yet."
+          />
+        ) : !selected ? (
+          <p className="py-6 text-center text-sm text-muted-foreground">
+            Select a project to see its forms.
+          </p>
+        ) : (
+          <ul className="space-y-3">
+            {shown.map((form) => {
+              const display = savedFormStatus[form.type] ?? {
+                label: form.type,
+                tone: 'neutral',
+              }
+              return (
+                <li
+                  key={form.id}
+                  className="flex min-h-[52px] flex-col gap-3 rounded-lg border border-border bg-card p-3 text-sm md:flex-row md:items-center md:justify-between"
+                >
+                  <div className="flex min-w-0 items-start gap-3">
+                    <div
+                      aria-hidden="true"
+                      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-primary-subtle text-primary"
+                    >
+                      <Database className="h-4 w-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="font-semibold text-foreground">{form.title}</p>
+                        <StatusBadge dot={false} tone={display.tone}>
+                          {display.label}
+                        </StatusBadge>
+                      </div>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {form.fieldCount} {form.fieldCount === 1 ? 'field' : 'fields'} · Saved{' '}
+                        {formatSavedAt(form.savedAt)}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button size="sm" variant="outline" onClick={() => onOpen(form)}>
+                      Open form
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => onDownload(form)}>
+                      Export form
+                    </Button>
+                  </div>
+                </li>
+              )
+            })}
+          </ul>
+        )}
+      </div>
     </SectionCard>
   )
 }
