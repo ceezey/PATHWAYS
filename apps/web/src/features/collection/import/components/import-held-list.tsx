@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 
+import { MetricTooltip } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
@@ -17,9 +18,13 @@ import { importsClient } from '@/lib/api/imports'
 import { principalHasAtomicPermission } from '@/lib/rbac/policy'
 import type { ImportBatchDefinition, ImportRowDefinition } from '@/types/pathways'
 
-import { headClass, participantName, rowReason } from '../import.utils'
+import { headClass, participantName, rowReason, rowReasonHelp } from '../import.utils'
 import { GuardianApprovalPanel } from './guardian-approval-panel'
 import { ImportReviewDialog } from './import-review-dialog'
+
+// The info tip beside a reason that needs explaining.
+const ReasonHelp = ({ text, rowNumber }: { text?: string; rowNumber: number }) =>
+  text ? <MetricTooltip label={`row ${rowNumber} reason`}>{text}</MetricTooltip> : null
 
 /** The batch results and the rows held for a person to decide. */
 export function ImportHeldList({
@@ -125,7 +130,12 @@ export function ImportHeldList({
                     <TableRow key={row.id}>
                       <TableCell>{row.rowNumber}</TableCell>
                       <TableCell>{participantName(row, batch.mappings)}</TableCell>
-                      <TableCell>{rowReason(row)}</TableCell>
+                      <TableCell>
+                        <span className="inline-flex items-center gap-3">
+                          {rowReason(row, batch.mappings)}
+                          <ReasonHelp text={rowReasonHelp(row)} rowNumber={row.rowNumber} />
+                        </span>
+                      </TableCell>
                       <TableCell className="text-right">
                         {canReview &&
                         (row.processingErrorCode !== 'GUARDIAN_CONSENT_REQUIRED' ||
@@ -162,7 +172,7 @@ export function ImportHeldList({
           onClose={() => setReviewing(null)}
           onResolved={() => void onChanged()}
           projectId={batch.projectId}
-          reason={rowReason(reviewed)}
+          reason={rowReason(reviewed, batch.mappings)}
           rowId={reviewed.id}
           validationRevision={batch.validationRevision}
         />

@@ -29,6 +29,27 @@ export const ownPayload = (field: ReviewField, text: string) =>
           .filter(Boolean)
       : text
 
+/** The fields a rule reads, where a wrong calculated or checked value is usually fixed. */
+export function ruleInputs(rule: ReviewField['rule']): string[] {
+  switch (rule?.kind) {
+    case 'AGE_AT_DATE':
+    case 'MINOR_AT_DATE':
+      return [rule.birthField, rule.atField]
+    case 'AGE_CHECK':
+      return [rule.birthField, ...rule.atFields]
+    case 'SAME_ANSWER_AS':
+      return [rule.field]
+    case 'WASHINGTON_GROUP_DISABILITY':
+      return rule.questionFields
+    case 'FOLLOW_UP_OF':
+      return [rule.parentField]
+    case 'ID_FROM_INITIALS_AND_BIRTH_DATE':
+      return [rule.firstNameField, rule.lastNameField, rule.birthField]
+    default:
+      return []
+  }
+}
+
 /** How the system worked out a calculated value, naming the row's other fields by label. */
 export function calculationHint(rule: ReviewField['rule'], labelOf: (code: string) => string) {
   const lead = "The system works this out itself from the row's other answers."

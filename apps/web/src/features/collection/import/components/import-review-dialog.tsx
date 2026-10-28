@@ -29,7 +29,13 @@ import { cn } from '@/lib/utils'
 
 import { selectClass } from '../../forms/components/intake-controls'
 import { headClass, reviewReason } from '../import.utils'
-import { ChoiceCell, OwnValue, calculationHint, ownPayload } from './import-review-cells'
+import {
+  ChoiceCell,
+  OwnValue,
+  calculationHint,
+  ownPayload,
+  ruleInputs,
+} from './import-review-cells'
 
 type Choice = 'PATHWAYS' | 'FILE' | 'CALCULATED' | 'OWN'
 type SaveAs = 'UPDATE' | 'NEW'
@@ -93,6 +99,20 @@ export function ImportReviewDialog({
     picks[field.code] ?? autoPick(field)
   const labelOf = (code: string) =>
     review?.fields.find((field) => field.code === code)?.label ?? code
+  // Fields to decide, and the answers their rules read, are where the reviewer fixes the row.
+  const flagged = new Set(
+    review?.fields
+      .filter((field) => field.changed)
+      .flatMap((field) => [field.code, ...ruleInputs(field.rule)]),
+  )
+  const firstFlagged = review?.fields.find((field) => flagged.has(field.code))?.code
+  // Opening the window brings the first field to fix into view.
+  useEffect(() => {
+    if (firstFlagged)
+      document
+        .getElementById(`${id}-row-${firstFlagged}`)
+        ?.scrollIntoView?.({ block: 'center', behavior: 'smooth' })
+  }, [firstFlagged, id])
   const canSaveUpdate = Boolean(review?.participant) && canUpdate
   // Consent cannot be typed in, so a row without it waits for a corrected file.
   const needsCorrectedFile = review?.reason === 'CONSENT_REQUIRED'
@@ -239,13 +259,20 @@ export function ImportReviewDialog({
                     <TableRow
                       className={cn(
                         'align-top',
-                        !open && 'bg-surface-subtle text-muted-foreground',
+                        flagged.has(code)
+                          ? 'bg-warning-subtle hover:bg-warning-subtle'
+                          : !open && 'bg-surface-subtle text-muted-foreground',
                       )}
+                      data-flagged={flagged.has(code)}
                       data-unchanged={!open}
+                      id={`${id}-row-${code}`}
                       key={code}
                     >
                       <TableCell className="font-medium">
                         {label}
+                        {flagged.has(code) ? (
+                          <span className="sr-only"> (check this field)</span>
+                        ) : null}
                         {errors[code] ? (
                           <div
                             className="text-sm font-normal text-danger"
