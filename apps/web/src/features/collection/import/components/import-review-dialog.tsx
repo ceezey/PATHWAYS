@@ -4,6 +4,7 @@ import { CONSENT_FIELD_CODES, type ImportRowReviewResponse } from '@pathways/sha
 import { useEffect, useId, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
+import { MetricTooltip } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -216,9 +217,14 @@ export function ImportReviewDialog({
               <TableHeader>
                 <TableRow>
                   <TableHead className={headClass}>Field</TableHead>
-                  <TableHead className={headClass}>In PATHWAYS</TableHead>
-                  <TableHead className={headClass}>In this file</TableHead>
-                  <TableHead className={headClass}>Your value</TableHead>
+                  <TableHead className={cn(headClass, 'text-center')}>In database</TableHead>
+                  <TableHead className={cn(headClass, 'text-center')}>In this file</TableHead>
+                  <TableHead className={cn(headClass, 'text-center')}>
+                    <span className="inline-flex items-center gap-1">
+                      Your value
+                      <MetricTooltip label="Your value">Optional</MetricTooltip>
+                    </span>
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -249,17 +255,21 @@ export function ImportReviewDialog({
                         ) : null}
                       </TableCell>
                       <TableCell className="space-y-1">
-                        <ChoiceCell
-                          column="In PATHWAYS"
-                          disabled={saveAs === 'NEW'}
-                          label={label}
-                          missing="Not in PATHWAYS"
-                          onPick={() => pick(code, 'PATHWAYS')}
-                          picked={chosen(field) === 'PATHWAYS'}
-                          value={field.pathways}
-                        />
+                        {/* A field PATHWAYS only calculates shows the calculated value alone, not an empty stored tile. */}
+                        {field.pathways !== null || field.calculated === null ? (
+                          <ChoiceCell
+                            column="In database"
+                            disabled={saveAs === 'NEW'}
+                            label={label}
+                            missing="No Data"
+                            onPick={() => pick(code, 'PATHWAYS')}
+                            picked={chosen(field) === 'PATHWAYS'}
+                            value={field.pathways}
+                          />
+                        ) : null}
                         {field.calculated !== null ? (
                           <ChoiceCell
+                            caption="Calculated"
                             column="Calculated by PATHWAYS"
                             label={label}
                             onPick={() => pick(code, 'CALCULATED')}
@@ -272,7 +282,7 @@ export function ImportReviewDialog({
                         <ChoiceCell
                           column="In this file"
                           label={label}
-                          missing="Not in file"
+                          missing="No Data"
                           onPick={() => pick(code, 'FILE')}
                           picked={chosen(field) === 'FILE'}
                           value={field.file}

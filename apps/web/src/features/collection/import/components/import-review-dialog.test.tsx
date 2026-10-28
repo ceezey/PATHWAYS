@@ -107,7 +107,7 @@ describe('import review dialog', () => {
     expect(cell.getAttribute('aria-pressed')).toBe('false')
     fireEvent.click(cell)
     expect(cell.getAttribute('aria-pressed')).toBe('true')
-    const pathways = screen.getByRole('button', { name: 'First name, In PATHWAYS: Ana' })
+    const pathways = screen.getByRole('button', { name: 'First name, In database: Ana' })
     expect(pathways.getAttribute('aria-pressed')).toBe('false')
   })
 
@@ -143,15 +143,39 @@ describe('import review dialog', () => {
   })
 
   it('shows both sources as tiles, greys a missing one, and marks Your value optional', async () => {
-    await open()
-    const kept = screen.getByRole('button', { name: 'Birth date, In this file: 2010-01-02' })
+    const fields = review().fields.map((field) =>
+      field.code === 'first_name' ? { ...field, pathways: null } : field,
+    )
+    api.getRowReview.mockResolvedValue({ ...review(), fields })
+    render(
+      <ImportReviewDialog
+        batchId="batch-1"
+        canUpdate
+        onClose={onClose}
+        onResolved={onResolved}
+        projectId="project-1"
+        rowId="row-1"
+        validationRevision={3}
+      />,
+    )
+    const kept = await screen.findByRole('button', {
+      name: 'Birth date, In this file: 2010-01-02',
+    })
     fireEvent.click(kept)
     expect(kept.getAttribute('aria-pressed')).toBe('true')
-    const missing = screen.getByRole('button', {
-      name: 'Total score, In PATHWAYS: Not in PATHWAYS',
-    })
+    const missing = screen.getByRole('button', { name: 'First name, In database: No Data' })
     expect((missing as HTMLButtonElement).disabled).toBe(true)
-    expect(screen.getByLabelText('First name, Your value').getAttribute('title')).toBe('Optional')
+    fireEvent.mouseEnter(screen.getByRole('button', { name: 'More information about Your value' }))
+    expect(screen.getByRole('tooltip').textContent).toBe('Optional')
+  })
+
+  it('shows a calculated-only field as one labelled Calculated tile', async () => {
+    await open()
+    expect(screen.queryByRole('button', { name: /^Total score, In database/ })).toBeNull()
+    const calculated = screen.getByRole('button', {
+      name: 'Total score, Calculated by PATHWAYS: 9',
+    })
+    expect(calculated.textContent).toBe('Calculated9')
   })
 
   it('selects the only source that has a value and sends it for a changed field', async () => {
@@ -166,7 +190,7 @@ describe('import review dialog', () => {
 
   it('confirm sends choices and own values', async () => {
     await open()
-    fireEvent.click(screen.getByRole('button', { name: 'First name, In PATHWAYS: Ana' }))
+    fireEvent.click(screen.getByRole('button', { name: 'First name, In database: Ana' }))
     fireEvent.click(screen.getByRole('button', { name: 'Total score, Calculated by PATHWAYS: 9' }))
     fireEvent.change(screen.getByLabelText('Sex, Your value'), { target: { value: 'Male' } })
     confirm()
@@ -227,9 +251,9 @@ describe('import review dialog', () => {
 
   it('a new participant cannot keep the PATHWAYS value', async () => {
     await open()
-    fireEvent.click(screen.getByRole('button', { name: 'First name, In PATHWAYS: Ana' }))
+    fireEvent.click(screen.getByRole('button', { name: 'First name, In database: Ana' }))
     fireEvent.change(screen.getByLabelText('Save as'), { target: { value: 'NEW' } })
-    const keep = screen.getByRole('button', { name: 'First name, In PATHWAYS: Ana' })
+    const keep = screen.getByRole('button', { name: 'First name, In database: Ana' })
     expect((keep as HTMLButtonElement).disabled).toBe(true)
     expect(keep.getAttribute('aria-pressed')).toBe('false')
     confirm()
