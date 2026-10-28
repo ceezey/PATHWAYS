@@ -91,7 +91,8 @@ export function checkImportFile(input: {
     columnLetter: null,
     code: 'NO_COLUMN',
     message: NO_COLUMN_MESSAGE,
-    rowCount: 0,
+    // Every row lacks the value, though problemRows counts row problems only.
+    rowCount: file.rows.length,
     exampleRows: [],
   }))
 

@@ -34,7 +34,9 @@ const report: FileCheckReport = {
       columnHeader: null,
       columnLetter: null,
       code: 'NO_COLUMN',
-      message: 'No column matches.',
+      message:
+        'No column matches. Rename the column, or add its header as a source name under Advanced Configuration.',
+      // Every row of the file lacks the value.
       rowCount: 100,
       exampleRows: [],
     },
@@ -66,7 +68,16 @@ describe('FileCheckDialog', () => {
     ).toBeTruthy()
     const table = within(dialog).getByRole('table')
     expect(within(table).getByText('Date of Birth (N)')).toBeTruthy()
-    expect(within(table).getByText('Enrollment date')).toBeTruthy()
+    const noColumn = within(table).getByText('Enrollment date').closest('tr') as HTMLElement
+    expect(
+      within(noColumn)
+        .getAllByRole('cell')
+        .map((cell) => cell.textContent),
+    ).toEqual([
+      'Enrollment date',
+      'No column matches. Rename the column, or add its header as a source name under Advanced Configuration.',
+      '100',
+    ])
     expect(within(table).getByText('Rows 4, 9, 12')).toBeTruthy()
     expect(within(table).getByText('Read as: 08/17/08 was read as 2008-08-17')).toBeTruthy()
     expect(within(table).getByText("80 of 82 rows' ages match when read as YY/MM/DD")).toBeTruthy()
