@@ -278,11 +278,13 @@ describe('checkImportFile', () => {
     expect(byCode.IDENTITY_CONFLICT).toMatchObject({
       fieldCode: 'external_identifier_value',
       columnLetter: 'A',
+      message: 'Client ID S-12 is on rows 2 and 4',
       rowCount: 2,
       exampleRows: [2, 4],
     })
     expect(byCode.DUPLICATE_BUSINESS_KEY).toMatchObject({
       fieldCode: 'activity_code',
+      message: 'Activity code A2 is on rows 3 and 4',
       rowCount: 2,
       exampleRows: [3, 4],
     })
@@ -290,5 +292,53 @@ describe('checkImportFile', () => {
     expect(check(rows, [clientId, code]).problems.map((problem) => problem.code)).toEqual([
       'DUPLICATE_BUSINESS_KEY',
     ])
+  })
+
+  it('each duplicated client ID gets its own line with all its rows', () => {
+    const clientId = field('external_identifier_value', 'Student ID', 'TEXT')
+    const ids = ['S-12', 'S-30', 'S-12', 'S-30', 'S-31', 'S-12', 'S-12']
+    const report = check(
+      [
+        ['Student ID', 'Consent recorded', 'Data processing consent'],
+        ...ids.map((id) => [id, true, true]),
+      ],
+      [clientId, consent, dataConsent],
+      'BENEFICIARY_REGISTRATION',
+    )
+    expect(
+      report.problems.map(({ message, rowCount, exampleRows }) => [message, rowCount, exampleRows]),
+    ).toEqual([
+      ['Student ID S-12 is on rows 2, 4, 7 and 8', 4, [2, 4, 7]],
+      ['Student ID S-30 is on rows 3 and 5', 2, [3, 5]],
+    ])
+    expect(report.problemRows).toBe(6)
+  })
+
+  it('a key of two fields names both, and more than 10 duplicated values share one line', () => {
+    const code = field('activity_code', 'Activity code', 'TEXT', { metadataKey: true })
+    const session = field('session', 'Session', 'TEXT', { metadataKey: true })
+    const pair = check(
+      [
+        ['Activity code', 'Session'],
+        ['A1', 'S1'],
+        ['A1', 'S2'],
+        ['A1', 'S1'],
+      ],
+      [code, session],
+    )
+    expect(pair.problems.map((problem) => problem.message)).toEqual([
+      'Activity code and Session A1, S1 is on rows 2 and 4',
+    ])
+    // Twelve codes each on two rows: ten lines, then one line for the last two codes' four rows.
+    const codes = Array.from({ length: 12 }, (_, index) => [`C${index}`])
+    const many = check([['Activity code'], ...codes, ...codes], [code])
+    expect(many.problems).toHaveLength(11)
+    expect(many.problems[0].message).toBe('Activity code C0 is on rows 2 and 14')
+    expect(many.problems[10]).toMatchObject({
+      message: '2 more Activity code values are on more than one row',
+      rowCount: 4,
+      exampleRows: [12, 13, 24],
+    })
+    expect(many.problemRows).toBe(24)
   })
 })

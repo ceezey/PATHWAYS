@@ -9,6 +9,8 @@ import {
   type ColumnMapping,
   columnRules,
   isSupplied,
+  normalizeIdentifier,
+  stableJson,
   unsuppliedRequired,
   validateRows,
   valuesByFieldCode,
@@ -42,6 +44,25 @@ export interface FileCheckReport {
 
 // What the age rules report on the age field, though the birth date column is what to look at.
 const AGE_CONTRADICTIONS = ['AGE_MISMATCH', 'CALCULATION_MISMATCH', 'BIRTH_AFTER_DATE']
+
+// Duplicated values listed one per line for each column and code; the rest share one line.
+const MAX_DUPLICATE_LINES = 10
+
+const andList = new Intl.ListFormat('en-GB', { type: 'conjunction' })
+
+// The value a duplicate row shares, keyed as validateRows compares it.
+const duplicated = (code: string, fieldCode: string, values: Record<string, unknown>) => {
+  if (code === 'IDENTITY_CONFLICT') {
+    const id = normalizeIdentifier(String(values[fieldCode]))
+    return { key: id, shown: id }
+  }
+  if (code !== 'DUPLICATE_BUSINESS_KEY') return undefined
+  const parts = fieldCode.split(',').map((item) => values[item])
+  return {
+    key: stableJson(parts),
+    shown: parts.map((part) => (part == null || part === '' ? '(blank)' : String(part))).join(', '),
+  }
+}
 
 const NO_COLUMN_MESSAGE =
   'No column matches. Rename the column, or add its header as a source name under Advanced Configuration.'
@@ -129,9 +150,17 @@ export function checkImportFile(input: {
   const rules = columnRules(mappings, file.rows, Number(uploadDate.slice(0, 4)))
   const groups = new Map<string, FileCheckProblem>()
   const rowsOf = new Map<string, number[]>()
+  // The shown value of each duplicate group, keyed like groups.
+  const sharedOf = new Map<string, string>()
   const problemRows = new Set<number>()
-  const add = (index: number, fieldCode: string, code: string, message: string) => {
-    const key = `${fieldCode}\u0000${code}`
+  const add = (
+    index: number,
+    fieldCode: string,
+    code: string,
+    message: string,
+    shared?: { key: string; shown: string },
+  ) => {
+    const key = `${fieldCode}\u0000${code}${shared ? `\u0000${shared.key}` : ''}`
     const rows = rowsOf.get(key) ?? []
     // One row counts once per problem even when the server reports it twice.
     if (rows[rows.length - 1] === index) return
@@ -139,6 +168,7 @@ export function checkImportFile(input: {
     rowsOf.set(key, rows)
     problemRows.add(index)
     if (groups.has(key)) return
+    if (shared) sharedOf.set(key, shared.shown)
     const codes = fieldCode.split(',')
     const column = columnOf.get(codes[0])
     groups.set(key, {
@@ -175,7 +205,13 @@ export function checkImportFile(input: {
         const reported = AGE_CONTRADICTIONS.includes(error.code)
           ? (birthOf.get(error.fieldCode) ?? error.fieldCode)
           : error.fieldCode
-        add(index, reported, error.code, error.message)
+        add(
+          index,
+          reported,
+          error.code,
+          error.message,
+          duplicated(error.code, error.fieldCode, result.values),
+        )
       }
     }
     if (consentHeld(formType, result)) {
@@ -218,15 +254,41 @@ export function checkImportFile(input: {
     )
   }
 
-  const rowProblems = [...groups].map(([key, problem]): FileCheckProblem => {
-    const rows = rowsOf.get(key) ?? []
-    return {
-      ...problem,
-      rowCount: rows.length,
-      exampleRows: rows.slice(0, 3).map((i) => file.rowNumbers[i]),
+  // A duplicated value gets its own line naming all its rows, up to MAX_DUPLICATE_LINES per column and code.
+  const rowProblems: FileCheckProblem[] = []
+  const duplicateLines = new Map<string, number>()
+  const more = new Map<string, FileCheckProblem>()
+  for (const [key, problem] of groups) {
+    const numbers = (rowsOf.get(key) ?? []).map((row) => file.rowNumbers[row])
+    const line = { ...problem, rowCount: numbers.length, exampleRows: numbers.slice(0, 3) }
+    const shared = sharedOf.get(key)
+    if (shared === undefined) {
+      rowProblems.push(line)
+      continue
     }
-  })
+    const kind = `${problem.fieldCode}\u0000${problem.code}`
+    const seen = (duplicateLines.get(kind) ?? 0) + 1
+    duplicateLines.set(kind, seen)
+    const label = problem.fieldCode
+      .split(',')
+      .map((item) => fieldByCode.get(item)?.label ?? item)
+      .join(' and ')
+    if (seen <= MAX_DUPLICATE_LINES) {
+      rowProblems.push({
+        ...line,
+        message: `${label} ${shared} is on rows ${andList.format(numbers.map(String))}`,
+      })
+      continue
+    }
+    const rest = more.get(kind) ?? { ...line, rowCount: 0, exampleRows: [] }
+    rest.rowCount += numbers.length
+    rest.exampleRows = [...rest.exampleRows, ...numbers].sort((a, b) => a - b).slice(0, 3)
+    rest.message = `${seen - MAX_DUPLICATE_LINES} more ${label} values are on more than one row`
+    more.set(kind, rest)
+  }
   rowProblems.sort((left, right) => right.rowCount - left.rowCount)
+  // Each summary line follows the lines it continues.
+  rowProblems.push(...more.values())
   // The date help goes once on each birth date column, on its first contradiction line.
   for (const problem of rowProblems) {
     const date = AGE_CONTRADICTIONS.includes(problem.code) && helpOf.get(problem.fieldCode)

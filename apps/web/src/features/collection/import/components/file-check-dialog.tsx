@@ -105,7 +105,9 @@ export function FileCheckDialog({
           </TableHeader>
           <TableBody>
             {report.problems.map((problem) => (
-              <TableRow key={`${problem.kind}:${problem.fieldCode}:${problem.code}`}>
+              <TableRow
+                key={`${problem.kind}:${problem.fieldCode}:${problem.code}:${problem.message}`}
+              >
                 <TableCell className="align-top">{column(problem)}</TableCell>
                 <TableCell className="align-top">
                   <p>{problem.message}</p>

@@ -40,6 +40,17 @@ const report: FileCheckReport = {
       rowCount: 100,
       exampleRows: [],
     },
+    ...['S-12', 'S-30'].map((id, index) => ({
+      kind: 'ROW' as const,
+      fieldCode: 'external_identifier_value',
+      fieldLabel: 'Student ID',
+      columnHeader: 'Student ID',
+      columnLetter: 'A',
+      code: 'IDENTITY_CONFLICT',
+      message: `Student ID ${id} is on rows ${4 + index} and ${19 + index}`,
+      rowCount: 2,
+      exampleRows: [4 + index, 19 + index],
+    })),
   ],
 }
 
@@ -79,6 +90,9 @@ describe('FileCheckDialog', () => {
       '100',
     ])
     expect(within(table).getByText('Rows 4, 9, 12')).toBeTruthy()
+    // Each duplicated value is its own line.
+    expect(within(table).getByText('Student ID S-12 is on rows 4 and 19')).toBeTruthy()
+    expect(within(table).getByText('Student ID S-30 is on rows 5 and 20')).toBeTruthy()
     expect(within(table).getByText('Read as: 08/17/08 was read as 2008-08-17')).toBeTruthy()
     expect(within(table).getByText("80 of 82 rows' ages match when read as YY/MM/DD")).toBeTruthy()
     expect(
