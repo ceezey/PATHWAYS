@@ -112,7 +112,7 @@ try {
       }
     })().catch(() => parentPort.postMessage({ error: 'PDF_PARSE_FAILED' }));
   } else {
-    const grid = (${workbookGrid.toString()})(require(workerData.xlsxPath), input, 'buffer', workerData.sheetName, excelSerialToIsoDate);
+    const grid = (${workbookGrid.toString()})(require(workerData.xlsxPath), input, 'buffer', workerData.sheetName, excelSerialToIsoDate, false);
     parentPort.postMessage({
       matrix: grid.matrix,
       sheetNames: grid.sheetNames,

@@ -16,8 +16,8 @@ function workbookBuffer(rows: unknown[][], mutate?: (sheet: XLSX.WorkSheet) => v
   return Buffer.from(XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' }))
 }
 
-const grid = (buffer: Buffer, sheetName: string | null = null) =>
-  workbookGrid(XLSX, buffer, 'buffer', sheetName, excelSerialToIsoDate)
+const grid = (buffer: Buffer, sheetName: string | null = null, wantDateText = true) =>
+  workbookGrid(XLSX, buffer, 'buffer', sheetName, excelSerialToIsoDate, wantDateText)
 
 describe('workbookGrid', () => {
   it('matches the secure parser', async () => {
@@ -81,6 +81,16 @@ describe('workbookGrid', () => {
       ['Ana', '2008-08-17'],
     ])
     expect(result.dateText).toEqual({ '1:1': '08/08/17' })
+  })
+
+  it('skips the shown date text when it is not wanted', () => {
+    const buffer = workbookBuffer([['Date of Birth'], [39677]], (sheet) => {
+      sheet.A2.z = 'yy/mm/dd'
+    })
+    const result = grid(buffer, null, false)
+
+    expect(result.matrix).toEqual([['Date of Birth'], ['2008-08-17']])
+    expect(result.dateText).toEqual({})
   })
 
   it('throws when the chosen sheet is not in the workbook', () => {

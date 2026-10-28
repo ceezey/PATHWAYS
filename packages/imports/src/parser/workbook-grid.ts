@@ -21,6 +21,8 @@ export function workbookGrid(
   readType: 'buffer' | 'array',
   sheetName: string | null,
   toIsoDate: (serial: number, date1904: boolean) => string | null,
+  // The server worker discards the shown date text, so only the browser check asks for it.
+  wantDateText: boolean,
 ): WorkbookGrid {
   const workbook = XLSX.read(input, {
     type: readType,
@@ -80,7 +82,7 @@ export function workbookGrid(
     if (iso !== null) {
       cell.t = 's'
       cell.v = iso
-      if (typeof cell.w === 'string') {
+      if (wantDateText && typeof cell.w === 'string') {
         const at = XLSX.utils.decode_cell(key)
         shown.push([at.r, at.c, cell.w])
       }

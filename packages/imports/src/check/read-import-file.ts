@@ -45,6 +45,7 @@ export function readImportFile(
       'array',
       sheetName,
       excelSerialToIsoDate,
+      true,
     ))
   }
   const { rows, sourceColumns } = normalizeMatrix(matrix)
