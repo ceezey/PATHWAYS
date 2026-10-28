@@ -124,6 +124,7 @@ export const BuilderView = ({
       {draftSummary ? (
         <DraftSummaryPanel
           summary={draftSummary}
+          fields={fields}
           onSelectField={(code) => {
             const target = fields.find((field) => field.code === code)
             if (!target) return
