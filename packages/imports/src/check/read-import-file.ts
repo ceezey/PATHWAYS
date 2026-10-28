@@ -28,8 +28,12 @@ export function readImportFile(
   let formulaGap: string | undefined
   let dateText: Record<string, string> = {}
   if (fileType === 'CSV') {
+    // The server refuses a CSV that is not UTF-8 or holds a zero byte, so the check leaves it to the server.
+    if (new Uint8Array(input).includes(0)) {
+      throw new ImportParseError('CSV_BINARY_CONTENT', 'The CSV contains binary content.')
+    }
     // Options match the parser worker in parser/secure.ts.
-    const parsed = Papa.parse<unknown[]>(new TextDecoder('utf-8').decode(input), {
+    const parsed = Papa.parse<unknown[]>(new TextDecoder('utf-8', { fatal: true }).decode(input), {
       header: false,
       skipEmptyLines: 'greedy',
       dynamicTyping: false,
@@ -39,14 +43,15 @@ export function readImportFile(
     }
     matrix = parsed.data
   } else {
-    ;({ matrix, formulaGap, dateText } = workbookGrid(
-      XLSX,
-      input,
-      'array',
-      sheetName,
-      excelSerialToIsoDate,
-      true,
-    ))
+    const grid = workbookGrid(XLSX, input, 'array', sheetName, excelSerialToIsoDate, true)
+    // The server refuses a workbook with macros or links, so the check leaves it to the server.
+    if (grid.links || grid.macros) {
+      throw new ImportParseError(
+        'WORKBOOK_ACTIVE_CONTENT',
+        'Workbook macros and links are forbidden.',
+      )
+    }
+    ;({ matrix, formulaGap, dateText } = grid)
   }
   const { rows, sourceColumns } = normalizeMatrix(matrix)
   // The header rows above the first data row, as normalizeMatrix counted them.

@@ -212,7 +212,11 @@ export function checkImportFile(input: {
         rows: [...flagged].sort((left, right) => left - right),
         readOf,
         rowNumber: (row) => file.rowNumbers[row],
-        shown: (row) => file.shown(row, key),
+        // A text date is shown as the file has it; a real date cell as the file displays it.
+        shown: (row) => {
+          const raw = file.rows[row][key]
+          return file.shown(row, key) ?? (typeof raw === 'string' ? raw : null)
+        },
         agrees: (row, iso) =>
           !normalizeImportedRow(
             validated,
@@ -224,19 +228,22 @@ export function checkImportFile(input: {
     )
   }
 
-  const rowProblems = [...groups].map(([key, problem]) => {
+  const rowProblems = [...groups].map(([key, problem]): FileCheckProblem => {
     const rows = rowsOf.get(key) ?? []
-    const date = AGE_CONTRADICTIONS.includes(problem.code)
-      ? helpOf.get(problem.fieldCode)
-      : undefined
     return {
       ...problem,
       rowCount: rows.length,
       exampleRows: rows.slice(0, 3).map((i) => file.rowNumbers[i]),
-      ...(date ? { date } : {}),
     }
   })
   rowProblems.sort((left, right) => right.rowCount - left.rowCount)
+  // The date help goes once on each birth date column, on its first contradiction line.
+  for (const problem of rowProblems) {
+    const date = AGE_CONTRADICTIONS.includes(problem.code) && helpOf.get(problem.fieldCode)
+    if (!date) continue
+    problem.date = date
+    helpOf.delete(problem.fieldCode)
+  }
   return {
     totalRows: file.rows.length,
     problemRows: problemRows.size,

@@ -119,7 +119,7 @@ describe('date help in the file check', () => {
     expect(date?.fix).toBe(
       'In Excel or Google Sheets, select the column and set its format to yyyy-mm-dd, or retype the dates in that order if they are wrong.',
     )
-    expect(lines[1].date).toBe(date)
+    expect(lines[1].date).toBeUndefined()
   })
 
   it('a correct file gets no date help', () => {

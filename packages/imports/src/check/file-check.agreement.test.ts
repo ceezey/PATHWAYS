@@ -63,8 +63,8 @@ const row = (id: string, birth = '2000-01-01', age = 26, sex = 'Female', consent
 ]
 
 // The server's reading of the file: its parser, matcher with suggestions accepted, validation and consent rule.
-async function serverView(bytes: Buffer) {
-  const parsed = await parseSecureImport(bytes, 'XLSX')
+async function serverView(bytes: Buffer, fileType: 'XLSX' | 'CSV') {
+  const parsed = await parseSecureImport(bytes, fileType)
   const raws = parsed.rows.map((item) => item.values)
   const decisions = matchColumns(
     parsed.sourceColumns,
@@ -120,16 +120,20 @@ async function serverView(bytes: Buffer) {
   return { held, fixedOnLater, noColumn: noColumn.map((item) => item.code) }
 }
 
-function bothReadings(rows: unknown[][]) {
+function bothReadings(rows: unknown[][], fileType: 'XLSX' | 'CSV') {
   const book = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(book, XLSX.utils.aoa_to_sheet(rows), 'Data')
-  const bytes = Buffer.from(XLSX.write(book, { type: 'buffer', bookType: 'xlsx' }))
+  const bytes = Buffer.from(
+    fileType === 'CSV'
+      ? rows.map((cells) => cells.map((cell) => cell ?? '').join(',')).join('\n')
+      : XLSX.write(book, { type: 'buffer', bookType: 'xlsx' }),
+  )
   const buffer = bytes.buffer.slice(
     bytes.byteOffset,
     bytes.byteOffset + bytes.byteLength,
   ) as ArrayBuffer
   const report = checkImportFile({
-    file: readImportFile(buffer, 'XLSX', null),
+    file: readImportFile(buffer, fileType, null),
     formType: 'BENEFICIARY_REGISTRATION',
     fields,
     uploadDate: UPLOAD_DATE,
@@ -140,11 +144,11 @@ function bothReadings(rows: unknown[][]) {
     expect(problem.exampleRows).toHaveLength(problem.rowCount)
     if (problem.kind === 'ROW') for (const number of problem.exampleRows) reported.add(number)
   }
-  return { report, reported, server: serverView(bytes) }
+  return { report, reported, server: serverView(bytes, fileType) }
 }
 
-async function expectAgreement(rows: unknown[][]) {
-  const { report, reported, server } = bothReadings(rows)
+async function expectAgreement(rows: unknown[][], fileType: 'XLSX' | 'CSV' = 'XLSX') {
+  const { report, reported, server } = bothReadings(rows, fileType)
   const view = await server
   expect(sorted(reported)).toEqual(sorted(view.held))
   expect(report.problemRows).toBe(view.held.size)
@@ -215,5 +219,19 @@ describe('file check agrees with the server', () => {
     expect(view.fixedOnLater.size).toBe(2)
     expect(view.held.size).toBe(0)
     expect(report).toEqual({ totalRows: 3, problemRows: 0, problems: [] })
+  })
+
+  it('a CSV with text dates: held and reported alike', async () => {
+    const { view } = await expectAgreement(
+      [
+        HEADER,
+        row('S-1', '25/12/2004', 21),
+        row('S-2', '13/04/2005', 40),
+        row('S-3', '01/02/2000', 26, 'Female', false),
+        row('S-1', '05/06/2001', 25),
+      ],
+      'CSV',
+    )
+    expect(sorted(view.held)).toEqual([2, 3, 4, 5])
   })
 })

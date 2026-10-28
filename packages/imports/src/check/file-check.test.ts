@@ -152,12 +152,52 @@ describe('checkImportFile', () => {
         rowCount: 4,
         exampleRows: [3, 4, 5],
         date: {
-          example: { row: 3, shown: null, read: '2000-01-01' },
+          example: { row: 3, shown: '2000-01-01', read: '2000-01-01' },
           preferred: 'YYYY-MM-DD, for example 2008-08-17',
           fix: 'In Excel or Google Sheets, select the column and set its format to yyyy-mm-dd, or retype the dates in that order if they are wrong.',
           evidence: null,
         },
       },
+    ])
+  })
+
+  it('a text date shows as the file has it', () => {
+    const csv = [
+      'First name,Birth date,Age at registration',
+      'Ana,25/12/2004,40',
+      'Ben,13/04/2005,21',
+    ].join('\n')
+    const file = readImportFile(toArrayBuffer(Buffer.from(csv)), 'CSV', null)
+    const report = checkImportFile({
+      file,
+      formType: 'ACTIVITY',
+      fields: [firstName, birthDate, age],
+      uploadDate: '2026-10-28',
+    })
+    expect(report.problems[0].date?.example).toEqual({
+      row: 2,
+      shown: '25/12/2004',
+      read: '2004-12-25',
+    })
+  })
+
+  it('the date help is on the first line of a birth date column only', () => {
+    const enrolled = field('enrollment_date', 'Enrollment date', 'DATE')
+    const ageAtEnrollment = field('age_at_enrollment', 'Age at enrollment', 'INTEGER', {
+      rule: { kind: 'AGE_AT_DATE', birthField: 'birth_date', atField: 'enrollment_date' },
+    })
+    const report = check(
+      [
+        [...header, 'Enrollment date'],
+        ['Ana', '2000-01-01', 40, '2020-01-01'],
+        ['Ben', '2000-01-01', 41, '2020-01-01'],
+        ['Cai', '2000-01-01', 26, '1999-01-01'],
+      ],
+      [firstName, birthDate, age, enrolled, ageAtEnrollment],
+    )
+    expect(report.problems.map((problem) => [problem.code, !!problem.date])).toEqual([
+      ['AGE_MISMATCH', true],
+      ['BIRTH_AFTER_DATE', false],
     ])
   })
 

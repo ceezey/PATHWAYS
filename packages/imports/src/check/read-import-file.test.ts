@@ -77,4 +77,18 @@ describe('readImportFile', () => {
     expect(read.rowNumbers).toEqual(server.rows.map((row) => row.sourceRowNumber))
     expect(read.shown(0, 'column_0001')).toBeNull()
   })
+
+  it('refuses a CSV the server refuses', () => {
+    const latin1 = Buffer.from([0x4e, 0x0a, 0xe9, 0x0a])
+    expect(() => readImportFile(toArrayBuffer(latin1), 'CSV', null)).toThrow()
+    const binary = Buffer.from([0x4e, 0x0a, 0x41, 0x00, 0x0a])
+    expect(() => readImportFile(toArrayBuffer(binary), 'CSV', null)).toThrow()
+  })
+
+  it('refuses a workbook with links, which the server refuses', () => {
+    const bytes = workbook({ Data: [['Name'], ['Ana']] }, (sheet) => {
+      sheet.A2.l = { Target: 'https://example.com' }
+    })
+    expect(() => readImportFile(toArrayBuffer(bytes), 'XLSX', null)).toThrow()
+  })
 })
