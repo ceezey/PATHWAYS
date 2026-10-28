@@ -80,30 +80,71 @@ describe('FileCheckDialog', () => {
     const fileInput = createRef<HTMLInputElement>()
     const date = report.problems[0].date
     if (!date) throw new Error('fixture')
-    const swapped: FileCheckReport = {
-      ...report,
+    const dialog = (shown: string | null) => (
+      <FileCheckDialog
+        report={{
+          ...report,
+          problems: [
+            {
+              ...report.problems[0],
+              date: {
+                ...date,
+                example: { row: 4, shown, read: '2008-08-17' },
+                evidence: { reading: 'DAY_MONTH_SWAPPED', agreeing: 9, of: 10 },
+              },
+            },
+          ],
+        }}
+        fileInput={fileInput}
+        onFix={vi.fn()}
+        onUploadAnyway={vi.fn()}
+        onClose={vi.fn()}
+      />
+    )
+    const { rerender } = render(dialog(null))
+    expect(screen.getByText('Read as: 2008-08-17')).toBeTruthy()
+    expect(screen.getByText("9 of 10 rows' ages match with day and month swapped")).toBeTruthy()
+    // A text date already typed as YYYY-MM-DD is not repeated.
+    rerender(dialog('2008-08-17'))
+    expect(screen.getByText('Read as: 2008-08-17')).toBeTruthy()
+  })
+
+  it('words the note and the column when no row has a problem', () => {
+    const fileInput = createRef<HTMLInputElement>()
+    const fileOnly: FileCheckReport = {
+      totalRows: 100,
+      problemRows: 0,
       problems: [
+        report.problems[1],
         {
-          ...report.problems[0],
-          date: {
-            ...date,
-            example: { row: 4, shown: null, read: '2008-08-17' },
-            evidence: { reading: 'DAY_MONTH_SWAPPED', agreeing: 9, of: 10 },
-          },
+          kind: 'FORMULA_NO_VALUE',
+          fieldCode: '',
+          fieldLabel: '',
+          columnHeader: null,
+          columnLetter: 'D',
+          code: 'FORMULA_NO_VALUE',
+          message: 'Cell D7 has a formula with no saved value.',
+          rowCount: 1,
+          exampleRows: [7],
         },
       ],
     }
     render(
       <FileCheckDialog
-        report={swapped}
+        report={fileOnly}
         fileInput={fileInput}
         onFix={vi.fn()}
         onUploadAnyway={vi.fn()}
         onClose={vi.fn()}
       />,
     )
-    expect(screen.getByText('Read as: 2008-08-17 was read as 2008-08-17')).toBeTruthy()
-    expect(screen.getByText("9 of 10 rows' ages match with day and month swapped")).toBeTruthy()
+    expect(
+      screen.getByText(
+        'The file has problems you can fix in the file. Fixing them in your spreadsheet first makes the upload go smoothly.',
+      ),
+    ).toBeTruthy()
+    expect(screen.queryByText(/0 of 100 rows/)).toBeNull()
+    expect(screen.getByText('Column D')).toBeTruthy()
   })
 
   it('Fix the file and Upload anyway call their handlers', () => {
