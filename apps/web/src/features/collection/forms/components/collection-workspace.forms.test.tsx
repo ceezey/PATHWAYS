@@ -445,7 +445,7 @@ describe('collection form definition export', () => {
     expect(api.getDigitalForm).not.toHaveBeenCalled()
   })
 
-  it('lists the draft and published forms of every project under its own heading', async () => {
+  it('asks for a project before listing forms when there are several', async () => {
     currentAccess.profile.assignedProjectIds = ['futuremakers-ncr', 'safe-schools']
     api.getProjectsForRole.mockResolvedValue([
       { id: 'futuremakers-ncr', title: 'Futuremakers NCR' },
@@ -467,16 +467,10 @@ describe('collection form definition export', () => {
       </DisplayLabelsProvider>,
     )
 
-    const safeSchools = (await screen.findByRole('heading', { name: 'Safe Schools' })).closest(
-      'section',
-    ) as HTMLElement
-    expect(within(safeSchools).getByText('Registration - v2')).toBeTruthy()
-    expect(within(safeSchools).getByText('Draft')).toBeTruthy()
-    const futuremakers = screen
-      .getByRole('heading', { name: 'Futuremakers NCR' })
-      .closest('section') as HTMLElement
-    expect(within(futuremakers).getByText('Activity Entry - v2')).toBeTruthy()
-    expect(within(futuremakers).getByText('Published')).toBeTruthy()
+    expect(await screen.findByText('Select a project to see its forms.')).toBeTruthy()
+    expect(screen.getByRole('combobox', { name: 'Project' })).toBeTruthy()
+    expect(screen.queryByText('Registration - v2')).toBeNull()
+    expect(screen.queryByText('Activity Entry - v2')).toBeNull()
   })
 
   it.each([
