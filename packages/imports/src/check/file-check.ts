@@ -3,6 +3,7 @@ import * as XLSX from 'xlsx'
 
 import type { IntakeField } from '../intake-rules'
 import type { CoverageField } from '../mappers/coverage'
+import { normalizeImportedRow } from '../normalization'
 import { matchColumns } from '../validation/match-columns'
 import {
   type ColumnMapping,
@@ -10,7 +11,9 @@ import {
   isSupplied,
   unsuppliedRequired,
   validateRows,
+  valuesByFieldCode,
 } from '../validation/validate-rows'
+import { type DateHelp, dateHelp } from './date-help'
 import type { ReadImportFile } from './read-import-file'
 
 /** A published form field as the check needs it. */
@@ -26,6 +29,8 @@ export interface FileCheckProblem {
   message: string
   rowCount: number
   exampleRows: number[]
+  // Set on the lines of a birth date column that the file's ages or dates contradict.
+  date?: DateHelp
 }
 
 export interface FileCheckReport {
@@ -33,6 +38,9 @@ export interface FileCheckReport {
   problemRows: number
   problems: FileCheckProblem[]
 }
+
+// What the age rules report on the age field, though the birth date column is what to look at.
+const AGE_CONTRADICTIONS = ['AGE_MISMATCH', 'CALCULATION_MISMATCH', 'BIRTH_AFTER_DATE']
 
 const NO_COLUMN_MESSAGE =
   'No column matches. Rename the column, or add its header as a source name under Advanced Configuration.'
@@ -107,12 +115,13 @@ export function checkImportFile(input: {
   }
 
   // Mapped fields plus unmapped ones a default or calculation still supplies, as the server validates them.
+  const validated = [
+    ...mappedFields,
+    ...fields.filter((field) => !mappedCodes.has(field.code) && isSupplied(field, mappedCodes)),
+  ]
   const results = validateRows({
     formType,
-    fields: [
-      ...mappedFields,
-      ...fields.filter((field) => !mappedCodes.has(field.code) && isSupplied(field, mappedCodes)),
-    ],
+    fields: validated,
     mappedFields,
     mappings,
     raws: file.rows,
@@ -148,12 +157,30 @@ export function checkImportFile(input: {
     })
   }
 
+  // A mapped date column that an age rule reads: the rule's fields report their contradictions on it.
+  const birthOf = new Map<string, string>()
+  for (const field of fields) {
+    const rule = field.rule
+    if (
+      (rule?.kind === 'AGE_AT_DATE' ||
+        rule?.kind === 'MINOR_AT_DATE' ||
+        rule?.kind === 'AGE_CHECK') &&
+      fieldByCode.get(rule.birthField)?.dataType === 'DATE' &&
+      columnOf.has(rule.birthField)
+    )
+      birthOf.set(field.code, rule.birthField)
+  }
+
   const registration = formType === 'BENEFICIARY_REGISTRATION'
   results.forEach((result, index) => {
     for (const error of result.errors) {
       const dataType = fieldByCode.get(error.fieldCode)?.dataType
-      if (!fixedOnce(error.code, dataType, !!rules[error.fieldCode]?.date))
-        add(index, error.fieldCode, error.code, error.message)
+      if (!fixedOnce(error.code, dataType, !!rules[error.fieldCode]?.date)) {
+        const reported = AGE_CONTRADICTIONS.includes(error.code)
+          ? (birthOf.get(error.fieldCode) ?? error.fieldCode)
+          : error.fieldCode
+        add(index, reported, error.code, error.message)
+      }
     }
     // The registration service holds an imported row without both consents.
     if (
@@ -166,12 +193,47 @@ export function checkImportFile(input: {
     }
   })
 
+  // Each birth date column with contradictions explains how it was read and what fits better.
+  const helpOf = new Map<string, DateHelp>()
+  for (const birth of new Set(birthOf.values())) {
+    const flagged = new Set<number>()
+    for (const code of AGE_CONTRADICTIONS)
+      for (const row of rowsOf.get(`${birth}\u0000${code}`) ?? []) flagged.add(row)
+    if (flagged.size === 0) continue
+    const key = (columnOf.get(birth) as { key: string }).key
+    const readOf = (row: number) => {
+      const value = results[row].values[birth]
+      return typeof value === 'string' ? value : null
+    }
+    helpOf.set(
+      birth,
+      dateHelp({
+        uploadYear: Number(uploadDate.slice(0, 4)),
+        rows: [...flagged].sort((left, right) => left - right),
+        readOf,
+        rowNumber: (row) => file.rowNumbers[row],
+        shown: (row) => file.shown(row, key),
+        agrees: (row, iso) =>
+          !normalizeImportedRow(
+            validated,
+            { ...valuesByFieldCode(mappings, file.rows[row]), [birth]: iso },
+            rules,
+            { uploadDate },
+          ).errors.some((error) => AGE_CONTRADICTIONS.includes(error.code)),
+      }),
+    )
+  }
+
   const rowProblems = [...groups].map(([key, problem]) => {
     const rows = rowsOf.get(key) ?? []
+    const date = AGE_CONTRADICTIONS.includes(problem.code)
+      ? helpOf.get(problem.fieldCode)
+      : undefined
     return {
       ...problem,
       rowCount: rows.length,
       exampleRows: rows.slice(0, 3).map((i) => file.rowNumbers[i]),
+      ...(date ? { date } : {}),
     }
   })
   rowProblems.sort((left, right) => right.rowCount - left.rowCount)

@@ -134,7 +134,7 @@ describe('checkImportFile', () => {
     expect(check(rows, fields).problems).toEqual([])
   })
 
-  it('an age that does not match is reported with its rows', () => {
+  it('an age that does not match is reported on the birth date column', () => {
     const report = check(
       [header, good, wrongAge, wrongAge, wrongAge, wrongAge, good],
       [firstName, birthDate, age],
@@ -143,14 +143,20 @@ describe('checkImportFile', () => {
     expect(report.problems).toEqual([
       {
         kind: 'ROW',
-        fieldCode: 'age_at_registration',
-        fieldLabel: 'Age at registration',
-        columnHeader: 'Age at registration',
-        columnLetter: 'C',
+        fieldCode: 'birth_date',
+        fieldLabel: 'Birth date',
+        columnHeader: 'Birth date',
+        columnLetter: 'B',
         code: 'AGE_MISMATCH',
         message: 'The age does not match the birth date.',
         rowCount: 4,
         exampleRows: [3, 4, 5],
+        date: {
+          example: { row: 3, shown: null, read: '2000-01-01' },
+          preferred: 'YYYY-MM-DD, for example 2008-08-17',
+          fix: 'In Excel or Google Sheets, select the column and set its format to yyyy-mm-dd, or retype the dates in that order if they are wrong.',
+          evidence: null,
+        },
       },
     ])
   })
