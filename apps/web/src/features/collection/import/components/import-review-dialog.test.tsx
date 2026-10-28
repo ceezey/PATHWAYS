@@ -140,7 +140,28 @@ describe('import review dialog', () => {
     expect(screen.queryByLabelText('Consent recorded, Your value')).toBeNull()
     const unchanged = screen.getByText('Birth date').closest('tr')
     expect(unchanged?.getAttribute('data-unchanged')).toBe('true')
-    expect(screen.queryByRole('button', { name: /^Birth date, In this file/ })).toBeNull()
+  })
+
+  it('shows both sources as tiles, greys a missing one, and marks Your value optional', async () => {
+    await open()
+    const kept = screen.getByRole('button', { name: 'Birth date, In this file: 2010-01-02' })
+    fireEvent.click(kept)
+    expect(kept.getAttribute('aria-pressed')).toBe('true')
+    const missing = screen.getByRole('button', {
+      name: 'Total score, In PATHWAYS: Not in PATHWAYS',
+    })
+    expect((missing as HTMLButtonElement).disabled).toBe(true)
+    expect(screen.getByLabelText('First name, Your value').getAttribute('title')).toBe('Optional')
+  })
+
+  it('selects the only source that has a value and sends it for a changed field', async () => {
+    await open()
+    const only = screen.getByRole('button', { name: 'Total score, In this file: 7' })
+    expect(only.getAttribute('aria-pressed')).toBe('true')
+    const both = screen.getByRole('button', { name: 'First name, In this file: Anna' })
+    expect(both.getAttribute('aria-pressed')).toBe('false')
+    confirm()
+    expect((await sent()).choices).toEqual({ total_score: 'FILE' })
   })
 
   it('confirm sends choices and own values', async () => {
