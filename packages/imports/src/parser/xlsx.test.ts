@@ -76,4 +76,15 @@ describe('parseWorkbook', () => {
 
     expect(parseWorkbook(buffer).rows).toEqual([{ 'Date of Birth': '2008-08-17', Age: 18 }])
   })
+
+  it('keeps date-formatted text cells as text, header included', () => {
+    const worksheet = XLSX.utils.aoa_to_sheet([['orgUnit'], ['VidTtlaSlAD']])
+    worksheet.A1.z = 'yyyy-mm-dd'
+    worksheet.A2.z = 'yyyy-mm-dd'
+    const workbook = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Data')
+    const buffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' })
+
+    expect(parseWorkbook(buffer).rows).toEqual([{ orgUnit: 'VidTtlaSlAD' }])
+  })
 })

@@ -108,6 +108,30 @@ describe('secure import parser', () => {
     })
   })
 
+  it('keeps date-formatted text cells as text, header included', async () => {
+    const parsed = await parseSecureImport(
+      workbookBuffer(
+        [
+          ['orgUnit', 'Date of Birth'],
+          ['VidTtlaSlAD', 39677],
+        ],
+        'xlsx',
+        (sheet) => {
+          sheet.A1.z = 'yyyy-mm-dd'
+          sheet.A2.z = 'yyyy-mm-dd'
+          sheet.B2.z = 'yy/mm/dd'
+        },
+      ),
+      'XLSX',
+    )
+
+    expect(parsed.sourceColumns[0]?.header).toBe('orgUnit')
+    expect(parsed.rows[0]?.values).toEqual({
+      column_0001: 'VidTtlaSlAD',
+      column_0002: '2008-08-17',
+    })
+  })
+
   it('reads date-formatted cells of a 1904-system workbook from the 1904 epoch', async () => {
     const sheet = XLSX.utils.aoa_to_sheet([['Date of Birth'], [38215]])
     sheet.A2.z = 'yy/mm/dd'
