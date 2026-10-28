@@ -28,11 +28,12 @@ export const ownPayload = (field: ReviewField, text: string) =>
           .filter(Boolean)
       : text
 
-/** One value the reviewer can click to keep. */
+/** One value the reviewer can click to keep; a value the source does not have is a greyed tile. */
 export function ChoiceCell({
   label,
   column,
   value,
+  missing,
   picked,
   disabled,
   onPick,
@@ -40,22 +41,25 @@ export function ChoiceCell({
   label: string
   column: string
   value: Cell
+  // What a greyed tile says when the source has no value at all.
+  missing?: string
   picked: boolean
   disabled?: boolean
   onPick: () => void
 }) {
-  const text = cellText(value)
+  const absent = value === null && missing !== undefined
+  const text = absent ? missing : cellText(value)
   return (
     <button
       aria-label={`${label}, ${column}: ${text ?? 'empty'}`}
       aria-pressed={picked}
       className={cn(
-        'min-h-11 w-full rounded-md border px-3 py-2 text-left text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:text-disabled-foreground',
+        'min-h-11 w-full rounded-md border px-3 py-2 text-left text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:border-dashed disabled:bg-muted disabled:text-disabled-foreground',
         picked
           ? 'border-primary bg-info-subtle font-medium'
           : 'border-input bg-card hover:bg-muted',
       )}
-      disabled={disabled}
+      disabled={disabled || absent}
       onClick={onPick}
       type="button"
     >
@@ -83,6 +87,7 @@ export function OwnValue({
     'aria-describedby': describedBy,
     'aria-invalid': invalid || undefined,
     'aria-label': `${field.label}, Your value`,
+    title: 'Optional',
   }
   if (options && (field.dataType === 'SELECT' || field.dataType === 'BOOLEAN')) {
     return (

@@ -28,7 +28,7 @@ import { cn } from '@/lib/utils'
 
 import { selectClass } from '../../forms/components/intake-controls'
 import { headClass, reviewReason } from '../import.utils'
-import { ChoiceCell, OwnValue, cellText, ownPayload } from './import-review-cells'
+import { ChoiceCell, OwnValue, ownPayload } from './import-review-cells'
 
 type Choice = 'PATHWAYS' | 'FILE' | 'CALCULATED' | 'OWN'
 type SaveAs = 'UPDATE' | 'NEW'
@@ -82,6 +82,14 @@ export function ImportReviewDialog({
     }
   }, [projectId, batchId, rowId, canUpdate])
 
+  // The one source that has a value is chosen until the reviewer picks otherwise.
+  const autoPick = (field: ImportRowReviewResponse['fields'][number]): Choice | undefined => {
+    const inPathways = field.pathways !== null && saveAs !== 'NEW'
+    const inFile = field.file !== null
+    return inPathways === inFile ? undefined : inPathways ? 'PATHWAYS' : 'FILE'
+  }
+  const chosen = (field: ImportRowReviewResponse['fields'][number]) =>
+    picks[field.code] ?? autoPick(field)
   const canSaveUpdate = Boolean(review?.participant) && canUpdate
   // Consent cannot be typed in, so a row without it waits for a corrected file.
   const needsCorrectedFile = review?.reason === 'CONSENT_REQUIRED'
@@ -129,7 +137,13 @@ export function ImportReviewDialog({
       const result = await importsClient.resolveRow(projectId, batchId, rowId, {
         expectedValidationRevision: validationRevision,
         saveAs,
-        choices: picks,
+        // An unchanged field's automatic choice is what the server keeps anyway, so only changed ones are sent.
+        choices: Object.fromEntries(
+          review.fields.flatMap((field) => {
+            const choice = picks[field.code] ?? (field.changed ? autoPick(field) : undefined)
+            return choice ? [[field.code, choice]] : []
+          }),
+        ),
         own: Object.fromEntries(
           typed.map((field) => [field.code, ownPayload(field, own[field.code] ?? '')]),
         ),
@@ -211,8 +225,6 @@ export function ImportReviewDialog({
                 {review.fields.map((field) => {
                   const { code, label } = field
                   const open = field.changed
-                  const showPathways = field.pathways !== null
-                  const showCalculated = field.calculated !== null
                   const consent = (CONSENT_FIELD_CODES as readonly string[]).includes(code)
                   return (
                     <TableRow
@@ -237,46 +249,34 @@ export function ImportReviewDialog({
                         ) : null}
                       </TableCell>
                       <TableCell className="space-y-1">
-                        {open && showPathways ? (
+                        <ChoiceCell
+                          column="In PATHWAYS"
+                          disabled={saveAs === 'NEW'}
+                          label={label}
+                          missing="Not in PATHWAYS"
+                          onPick={() => pick(code, 'PATHWAYS')}
+                          picked={chosen(field) === 'PATHWAYS'}
+                          value={field.pathways}
+                        />
+                        {field.calculated !== null ? (
                           <ChoiceCell
-                            column="In PATHWAYS"
-                            disabled={saveAs === 'NEW'}
+                            column="Calculated by PATHWAYS"
                             label={label}
-                            onPick={() => pick(code, 'PATHWAYS')}
-                            picked={picks[code] === 'PATHWAYS'}
-                            value={field.pathways}
+                            onPick={() => pick(code, 'CALCULATED')}
+                            picked={chosen(field) === 'CALCULATED'}
+                            value={field.calculated}
                           />
-                        ) : (
-                          (showPathways || !showCalculated) && (
-                            <span>{cellText(field.pathways) ?? 'Not in PATHWAYS'}</span>
-                          )
-                        )}
-                        {showCalculated ? (
-                          open ? (
-                            <ChoiceCell
-                              column="Calculated by PATHWAYS"
-                              label={label}
-                              onPick={() => pick(code, 'CALCULATED')}
-                              picked={picks[code] === 'CALCULATED'}
-                              value={field.calculated}
-                            />
-                          ) : (
-                            <span className="block">Calculated: {cellText(field.calculated)}</span>
-                          )
                         ) : null}
                       </TableCell>
                       <TableCell>
-                        {open && field.file !== null ? (
-                          <ChoiceCell
-                            column="In this file"
-                            label={label}
-                            onPick={() => pick(code, 'FILE')}
-                            picked={picks[code] === 'FILE'}
-                            value={field.file}
-                          />
-                        ) : (
-                          <span>{cellText(field.file) ?? 'Not in file'}</span>
-                        )}
+                        <ChoiceCell
+                          column="In this file"
+                          label={label}
+                          missing="Not in file"
+                          onPick={() => pick(code, 'FILE')}
+                          picked={chosen(field) === 'FILE'}
+                          value={field.file}
+                        />
                       </TableCell>
                       <TableCell>
                         {consent ? (
