@@ -45,6 +45,7 @@ describe('package entry points', () => {
         'parseCsv',
         'parseWorkbook',
         'readDate',
+        'readImportFile',
         'resolveAnswer',
         'stripLetterPrefix',
         'suggestValueMap',
