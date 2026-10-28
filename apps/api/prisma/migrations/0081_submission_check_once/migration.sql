@@ -7,6 +7,7 @@
 -- the submission's values once each, with the same tests and the same 23514.
 -- Accepted residual: in IMMEDIATE mode a value changed after its top-level parent was checked is left to p2_guard_response,
 -- which refuses it for every role that cannot disable triggers.
+-- A frozen parent keeps its raw xmin, so after xid wraparound a value change could match the current xid; the same guard covers it.
 -- Owner, SECURITY INVOKER, volatility, search_path, ACL and the trigger shape stay unchanged (asserted below).
 -- No table, policy, trigger or grant changes.
 BEGIN;
@@ -23,10 +24,11 @@ DO $$ DECLARE fn record; BEGIN
   OR pg_catalog.md5(fn.prosrc) NOT IN ('bdab09e69d63997a88072686a7e8dfbf','0f40da2a9ce96a69f423323036a35d1e')
  THEN RAISE EXCEPTION '0081 requires the reviewed 0029 p2_assert_submission definition'; END IF;
  PERFORM pg_catalog.set_config('pathways_0081.acl',coalesce(fn.proacl::text,''),true);
- -- The skips rely on both deferred completeness triggers calling this function and on the enabled response guard.
+ -- The skips rely on both completeness triggers calling this function, on every parent INSERT and UPDATE queuing an event (tgtype 21) and on the enabled guard.
  IF (SELECT count(*) FROM pg_catalog.pg_trigger t WHERE t.tgfoid=fn.oid AND t.tgdeferrable AND t.tginitdeferred AND t.tgenabled='O'
    AND ((t.tgname='p2_response_complete' AND t.tgrelid='pathways.form_response_values'::pg_catalog.regclass)
-    OR (t.tgname='p2_submission_complete' AND t.tgrelid='pathways.form_submissions'::pg_catalog.regclass)))<>2
+    OR (t.tgname='p2_submission_complete' AND t.tgrelid='pathways.form_submissions'::pg_catalog.regclass
+     AND t.tgtype=21 AND t.tgqual IS NULL AND t.tgattr=''::pg_catalog.int2vector)))<>2
   OR NOT EXISTS(SELECT FROM pg_catalog.pg_trigger t WHERE t.tgname='p2_response' AND t.tgenabled='O'
    AND t.tgrelid='pathways.form_response_values'::pg_catalog.regclass AND t.tgfoid='pathways.p2_guard_response()'::pg_catalog.regprocedure)
  THEN RAISE EXCEPTION '0081 requires the reviewed completeness and response guard triggers'; END IF;
@@ -84,7 +86,8 @@ DO $$ DECLARE fn record; BEGIN
   OR coalesce(fn.proacl::text,'') IS DISTINCT FROM pg_catalog.current_setting('pathways_0081.acl')
   OR (SELECT count(*) FROM pg_catalog.pg_trigger t WHERE t.tgfoid=fn.oid AND t.tgdeferrable AND t.tginitdeferred AND t.tgenabled='O'
    AND ((t.tgname='p2_response_complete' AND t.tgrelid='pathways.form_response_values'::pg_catalog.regclass)
-    OR (t.tgname='p2_submission_complete' AND t.tgrelid='pathways.form_submissions'::pg_catalog.regclass)))<>2
+    OR (t.tgname='p2_submission_complete' AND t.tgrelid='pathways.form_submissions'::pg_catalog.regclass
+     AND t.tgtype=21 AND t.tgqual IS NULL AND t.tgattr=''::pg_catalog.int2vector)))<>2
   OR NOT EXISTS(SELECT FROM pg_catalog.pg_trigger t WHERE t.tgname='p2_response' AND t.tgenabled='O'
    AND t.tgrelid='pathways.form_response_values'::pg_catalog.regclass AND t.tgfoid='pathways.p2_guard_response()'::pg_catalog.regprocedure)
  THEN RAISE EXCEPTION '0081 p2_assert_submission postcondition failed'; END IF;

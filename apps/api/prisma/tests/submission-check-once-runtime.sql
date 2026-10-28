@@ -82,10 +82,7 @@ BEGIN
   RETURN plan;
 END $$;
 
--- Org A has M&E Officer u101 on project u301 and published form u401 with name (TEXT, required), age (INTEGER, required) and note (TEXT).
--- Org B mirrors it with its own officer, project, form, VALIDATED submission u509 and three values.
--- Org A submission u501 is VALIDATED with name and age, and u502 is a DRAFT with all three values.
--- The fixtures are written in a released savepoint, so their rows carry another xid than the top level, as rows committed earlier do.
+-- Fixtures are written in a released savepoint so their rows carry another xid than the top level, as rows committed earlier do.
 SAVEPOINT fixtures;
 SET LOCAL session_replication_role = replica;
 INSERT INTO auth.users(id) VALUES (pg_temp.u(201)),(pg_temp.u(202));
@@ -103,6 +100,7 @@ INSERT INTO pathways.digital_forms(id,organization_id,project_id,code,version,na
 SELECT pg_temp.u(400+n),pg_temp.u(n),pg_temp.u(300+n),'sco_registration',1,'SCO registration '||n,'OTHER','PUBLISHED',
   pg_temp.u(100+n),pg_temp.u(100+n),now()
 FROM generate_series(1,2) n;
+-- Each org's form has name (TEXT, required), age (INTEGER, required) and note (TEXT, optional).
 INSERT INTO pathways.form_fields(id,organization_id,project_id,form_id,code,label,data_type,is_required,minimum_value,maximum_value,minimum_length,maximum_length,sequence_no)
 SELECT pg_temp.u(400+10*n+f.seq),pg_temp.u(n),pg_temp.u(300+n),pg_temp.u(400+n),f.code,f.label,f.data_type::pathways.field_data_type,f.required,
   f.minimum_value,f.maximum_value,f.minimum_length,f.maximum_length,f.seq
@@ -110,6 +108,7 @@ FROM generate_series(1,2) n CROSS JOIN (VALUES
   (1,'name','Name','TEXT',true,NULL::numeric,NULL::numeric,1,200),
   (2,'age','Age','INTEGER',true,0,120,NULL,NULL),
   (3,'note','Note','TEXT',false,NULL,NULL,0,2000)) f(seq,code,label,data_type,required,minimum_value,maximum_value,minimum_length,maximum_length);
+-- Org A's u501 is VALIDATED with name and age, org A's u502 is a DRAFT with all three values, and org B's u509 is VALIDATED.
 INSERT INTO pathways.form_submissions(id,organization_id,project_id,form_id,form_version,client_submission_id,submitted_by_id,source,status,submitted_at,validated_by_id,validated_at)
 VALUES
   (pg_temp.u(501),pg_temp.u(1),pg_temp.u(301),pg_temp.u(401),1,pg_temp.u(5501),pg_temp.u(101),'DIRECT_ENCODING','VALIDATED',now(),pg_temp.u(101),now()),
@@ -131,8 +130,7 @@ RELEASE fixtures;
 SELECT pg_temp.ok((SELECT NOT rolsuper AND NOT rolbypassrls FROM pg_roles WHERE rolname='prisma'),
   '1 prisma has neither SUPERUSER nor BYPASSRLS, as on hosted');
 
--- ROLLBACK TO keeps its savepoint open, so every case also releases it to return to the top level.
--- Every case below acts as the org A officer through the runtime role with the API's session settings.
+-- Each case acts as the org A officer through the runtime role with the API's session settings and ends with RELEASE, because ROLLBACK TO keeps its savepoint open.
 SELECT set_config('request.jwt.claim.sub',pg_temp.u(201)::text,true),set_config('request.jwt.claims','',true),
   set_config('app.organization_id',pg_temp.u(1)::text,true),set_config('app.user_id',pg_temp.u(101)::text,true);
 
@@ -140,21 +138,23 @@ SELECT set_config('request.jwt.claim.sub',pg_temp.u(201)::text,true),set_config(
 SAVEPOINT c;
 SET LOCAL ROLE pathways_runtime;
 SELECT pg_temp.draft(701); SELECT pg_temp.complete(701); SELECT pg_temp.validate(701);
-SET CONSTRAINTS ALL IMMEDIATE;
+SELECT pg_temp.accept('SET CONSTRAINTS ALL IMMEDIATE','2 a complete VALIDATED submission');
 ROLLBACK TO c; RELEASE c;
+-- SET CONSTRAINTS run inside accept survives the rollback, and every deferrable constraint is initially deferred, so this restores the default.
+SET CONSTRAINTS ALL DEFERRED;
 
 -- missing required
 SAVEPOINT c;
 SET LOCAL ROLE pathways_runtime;
 SELECT pg_temp.draft(702); SELECT pg_temp.val(702,411,'"Ana"'),pg_temp.val(702,413,'"Synthetic note"'); SELECT pg_temp.validate(702);
-SELECT pg_temp.reject('SET CONSTRAINTS ALL IMMEDIATE','23514','2 a VALIDATED submission missing a required value');
+SELECT pg_temp.reject('SET CONSTRAINTS ALL IMMEDIATE','23514','3 a VALIDATED submission missing a required value');
 ROLLBACK TO c; RELEASE c;
 
 -- null required: p2_guard_response lets a stored JSON null through, the completeness check does not.
 SAVEPOINT c;
 SET LOCAL ROLE pathways_runtime;
 SELECT pg_temp.draft(703); SELECT pg_temp.val(703,411,'"Ana"'),pg_temp.val(703,412,'null'); SELECT pg_temp.validate(703);
-SELECT pg_temp.reject('SET CONSTRAINTS ALL IMMEDIATE','23514','3 a VALIDATED submission with a JSON null required value');
+SELECT pg_temp.reject('SET CONSTRAINTS ALL IMMEDIATE','23514','4 a VALIDATED submission with a JSON null required value');
 ROLLBACK TO c; RELEASE c;
 
 -- two submissions
@@ -162,19 +162,20 @@ SAVEPOINT c;
 SET LOCAL ROLE pathways_runtime;
 SELECT pg_temp.draft(704); SELECT pg_temp.complete(704); SELECT pg_temp.validate(704);
 SELECT pg_temp.draft(705); SELECT pg_temp.val(705,412,'30'); SELECT pg_temp.validate(705);
-SELECT pg_temp.reject('SET CONSTRAINTS ALL IMMEDIATE','23514','4 a complete and an incomplete submission together');
+SELECT pg_temp.reject('SET CONSTRAINTS ALL IMMEDIATE','23514','5 a complete and an incomplete submission together');
 ROLLBACK TO c; RELEASE c;
 SAVEPOINT c;
 SET LOCAL ROLE pathways_runtime;
 SELECT pg_temp.draft(704); SELECT pg_temp.complete(704); SELECT pg_temp.validate(704);
-SET CONSTRAINTS ALL IMMEDIATE;
+SELECT pg_temp.accept('SET CONSTRAINTS ALL IMMEDIATE','6 the complete submission alone');
 ROLLBACK TO c; RELEASE c;
+SET CONSTRAINTS ALL DEFERRED;
 
 -- guard
 SAVEPOINT c;
 SET LOCAL ROLE pathways_runtime;
 SELECT pg_temp.reject(format('SELECT pg_temp.val(501,413,%L)','"Late note"'),'P0001',
-  '5 a value insert on a VALIDATED submission','Only draft submission values are editable');
+  '7 a value insert on a VALIDATED submission','Only draft submission values are editable');
 ROLLBACK TO c; RELEASE c;
 
 -- immediate then promote
@@ -182,7 +183,7 @@ SAVEPOINT c;
 SET CONSTRAINTS ALL IMMEDIATE;
 SET LOCAL ROLE pathways_runtime;
 SELECT pg_temp.draft(706); SELECT pg_temp.val(706,411,'"Ana"');
-SELECT pg_temp.reject('SELECT pg_temp.validate(706)','23514','6 an immediate promotion missing a required value');
+SELECT pg_temp.reject('SELECT pg_temp.validate(706)','23514','8 an immediate promotion missing a required value');
 ROLLBACK TO c; RELEASE c;
 
 -- released savepoint
@@ -192,7 +193,7 @@ SELECT pg_temp.draft(707); SELECT pg_temp.val(707,411,'"Ana"');
 SAVEPOINT n;
 SELECT pg_temp.validate(707);
 RELEASE n;
-SELECT pg_temp.reject('SET CONSTRAINTS ALL IMMEDIATE','23514','7 a promotion in a released savepoint missing a required value');
+SELECT pg_temp.reject('SET CONSTRAINTS ALL IMMEDIATE','23514','9 a promotion in a released savepoint missing a required value');
 ROLLBACK TO c; RELEASE c;
 
 -- savepoint rollback
@@ -203,7 +204,7 @@ SAVEPOINT n;
 SELECT pg_temp.validate(708);
 ROLLBACK TO n; RELEASE n;
 SELECT pg_temp.validate(708);
-SELECT pg_temp.reject('SET CONSTRAINTS ALL IMMEDIATE','23514','8 a promotion after a rolled-back promotion, missing a required value');
+SELECT pg_temp.reject('SET CONSTRAINTS ALL IMMEDIATE','23514','10 a promotion after a rolled-back promotion, missing a required value');
 ROLLBACK TO c; RELEASE c;
 
 -- deferred value path (owner-only): the guard is disabled inside the savepoint, and rolling it back re-enables it.
@@ -211,7 +212,7 @@ SAVEPOINT c;
 ALTER TABLE pathways.form_response_values DISABLE TRIGGER p2_response;
 DELETE FROM pathways.form_response_values WHERE submission_id=pg_temp.u(501) AND field_id=pg_temp.u(412);
 SET LOCAL ROLE pathways_runtime;
-SELECT pg_temp.reject('SET CONSTRAINTS ALL IMMEDIATE','23514','9 a required value deleted from an untouched VALIDATED submission');
+SELECT pg_temp.reject('SET CONSTRAINTS ALL IMMEDIATE','23514','11 a required value deleted from an untouched VALIDATED submission');
 ROLLBACK TO c; RELEASE c;
 SAVEPOINT c;
 ALTER TABLE pathways.form_response_values DISABLE TRIGGER p2_response;
@@ -220,10 +221,10 @@ SELECT pg_temp.draft(709); SELECT pg_temp.complete(709); SELECT pg_temp.validate
 RESET ROLE;
 DELETE FROM pathways.form_response_values WHERE submission_id=pg_temp.u(709) AND field_id=pg_temp.u(412);
 SET LOCAL ROLE pathways_runtime;
-SELECT pg_temp.reject('SET CONSTRAINTS ALL IMMEDIATE','23514','10 a required value deleted after the promotion in the same savepoint');
+SELECT pg_temp.reject('SET CONSTRAINTS ALL IMMEDIATE','23514','12 a required value deleted after the promotion in the same savepoint');
 ROLLBACK TO c; RELEASE c;
 SELECT pg_temp.ok((SELECT tgenabled='O' FROM pg_trigger WHERE tgname='p2_response' AND tgrelid='pathways.form_response_values'::regclass),
-  '11 rolling the savepoint back re-enabled p2_response');
+  '13 rolling the savepoint back re-enabled p2_response');
 
 -- residual (owner-only, the accepted residual of CR section 5): in IMMEDIATE mode a value changed after its top-level parent
 -- was checked is not checked again, and p2_guard_response is what refuses that change for every role that cannot disable triggers.
@@ -232,11 +233,11 @@ SET LOCAL ROLE pathways_runtime;
 SELECT pg_temp.draft(710); SELECT pg_temp.complete(710); SELECT pg_temp.validate(710);
 RESET ROLE;
 SELECT pg_temp.ok((SELECT xmin=xid(pg_current_xact_id()) FROM pathways.form_submissions WHERE id=pg_temp.u(710)),
-  '12 the residual parent carries the top-level xid');
+  '14 the residual parent carries the top-level xid');
 SAVEPOINT c;
 ALTER TABLE pathways.form_response_values DISABLE TRIGGER p2_response;
 SELECT pg_temp.accept(format('DELETE FROM pathways.form_response_values WHERE submission_id=%L AND field_id=%L',pg_temp.u(710),pg_temp.u(412)),
-  '13 the accepted residual: a value deleted after an immediate check of the same top-level parent');
+  '15 the accepted residual: a value deleted after an immediate check of the same top-level parent');
 ROLLBACK TO c; RELEASE c;
 -- Every deferrable constraint in the schema is initially deferred, so this restores the default.
 SET CONSTRAINTS ALL DEFERRED;
@@ -247,29 +248,47 @@ SET LOCAL ROLE pathways_runtime;
 SELECT pg_temp.ok((SELECT bool_or(n->>'Index Name'='form_response_values_submission_field_key')
   AND NOT bool_or(coalesce((n->>'Rows Removed by Filter')::numeric,0)>0)
   FROM jsonb_path_query(pg_temp.check_plan(501),'strict $.**?(@."Relation Name"=="form_response_values")') n),
-  '14 the value read uses form_response_values_submission_field_key and filters out no rows');
+  '16 the value read uses form_response_values_submission_field_key and filters out no rows');
 ROLLBACK TO c; RELEASE c;
 
 -- org B
 SAVEPOINT c;
 SELECT pg_temp.ok((SELECT count(*)=3 FROM pathways.form_response_values WHERE organization_id=pg_temp.u(2)),
-  '15 org B values are present');
+  '17 org B values are present');
 SET LOCAL ROLE pathways_runtime;
 SELECT pg_temp.validate(502);
 SELECT pg_temp.calls() AS calls_before \gset
 SET CONSTRAINTS ALL IMMEDIATE;
-SELECT pg_temp.ok(pg_temp.calls()-:calls_before=3,'16 the check of org A submission u502 tests its own 3 values only');
+SELECT pg_temp.ok(pg_temp.calls()-:calls_before=3,'18 the check of org A submission u502 tests its own 3 values only');
 ROLLBACK TO c; RELEASE c;
+
+-- top-level deferred (owner-only): a value deleted from a parent promoted at the top level is caught by the parent's own deferred event.
+SET LOCAL ROLE pathways_runtime;
+SELECT pg_temp.draft(712); SELECT pg_temp.complete(712); SELECT pg_temp.validate(712);
+RESET ROLE;
+SAVEPOINT c;
+-- The queued value events forbid ALTER TABLE here, so replica mode skips the guard and queues no value event, leaving only the parent's event to catch the delete.
+SET LOCAL session_replication_role = replica;
+DELETE FROM pathways.form_response_values WHERE submission_id=pg_temp.u(712) AND field_id=pg_temp.u(412);
+SET LOCAL session_replication_role = origin;
+SET LOCAL ROLE pathways_runtime;
+SELECT pg_temp.reject('SET CONSTRAINTS ALL IMMEDIATE','23514','19 top-level deferred: a required value deleted after a top-level promotion');
+ROLLBACK TO c; RELEASE c;
+-- The case's events stay queued at the top level, so they are fired here to keep the checks-once baseline clean.
+SET LOCAL ROLE pathways_runtime;
+SELECT pg_temp.accept('SET CONSTRAINTS ALL IMMEDIATE','20 top-level deferred: the restored submission passes');
+RESET ROLE;
+SET CONSTRAINTS ALL DEFERRED;
 
 -- checks once (last, at the top level so the writes carry the top-level xid as in production)
 SET LOCAL ROLE pathways_runtime;
 SELECT pg_temp.draft(711); SELECT pg_temp.complete(711); SELECT pg_temp.validate(711);
 SELECT pg_temp.ok((SELECT xmin=xid(pg_current_xact_id()) FROM pathways.form_submissions WHERE id=pg_temp.u(711)),
-  '17 the checks-once submission carries the top-level xid');
+  '21 the checks-once submission carries the top-level xid');
 SELECT pg_temp.calls() AS calls_before \gset
 SET CONSTRAINTS ALL IMMEDIATE;
 SELECT pg_temp.calls()-:calls_before AS checks_once_calls \gset
-SELECT pg_temp.ok(:checks_once_calls=3,format('18 one complete 3-field submission is checked once (%s value tests)',:checks_once_calls));
+SELECT pg_temp.ok(:checks_once_calls=3,format('22 one complete 3-field submission is checked once (%s value tests)',:checks_once_calls));
 RESET ROLE;
 
 ROLLBACK;
