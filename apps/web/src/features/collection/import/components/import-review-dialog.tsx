@@ -220,7 +220,8 @@ export function ImportReviewDialog({
                   <TableHead className={cn(headClass, 'text-center')}>In database</TableHead>
                   <TableHead className={cn(headClass, 'text-center')}>In this file</TableHead>
                   <TableHead className={cn(headClass, 'text-center')}>
-                    <span className="inline-flex items-center gap-1">
+                    {/* The info button's 44px hit area overlaps by 8px, so a wider gap keeps it off the text. */}
+                    <span className="inline-flex items-center gap-3">
                       Your value
                       <MetricTooltip label="Your value">Optional</MetricTooltip>
                     </span>

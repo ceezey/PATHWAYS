@@ -100,7 +100,7 @@ export const MetricTooltip = ({ label, children }: { label: string; children: st
         ? createPortal(
             // pointer-events-auto keeps the tip hoverable inside a modal sheet that disables body pointer events.
             <span
-              className="pointer-events-auto fixed z-[60] w-[min(16rem,calc(100vw-1rem))] rounded-md border border-border bg-popover px-3 py-2 text-left text-xs font-normal leading-5 text-popover-foreground shadow-dialog"
+              className="pointer-events-auto fixed z-[60] w-max max-w-[min(16rem,calc(100vw-1rem))] rounded-md border border-border bg-popover px-3 py-2 text-left text-xs font-normal leading-5 text-popover-foreground shadow-dialog"
               id={tooltipId}
               onMouseEnter={show}
               onMouseLeave={hideSoon}
