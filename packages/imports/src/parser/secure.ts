@@ -11,6 +11,7 @@ import {
 } from './matrix'
 import { type PdfTableLimits, reconstructPdfTable } from './pdf-table'
 import { workbookGrid } from './workbook-grid'
+import { inspectXlsxContainer } from './xlsx-container'
 
 export { ImportParseError, type ImportSourceColumn }
 
@@ -126,75 +127,6 @@ try {
   parentPort.postMessage({ error: missing ? 'WORKBOOK_SHEET_MISSING' : 'PARSER_REJECTED_INPUT' });
 }
 `
-
-function inspectXlsxContainer(input: Buffer) {
-  if (input.length < 4 || input.readUInt32LE(0) !== 0x04034b50) {
-    reject('FILE_SIGNATURE_INVALID', 'The XLSX file signature is invalid.')
-  }
-  const eocdSignature = 0x06054b50
-  let eocd = -1
-  for (let offset = Math.max(0, input.length - 65_557); offset <= input.length - 22; offset += 1) {
-    if (input.readUInt32LE(offset) === eocdSignature) eocd = offset
-  }
-  if (eocd < 0) reject('WORKBOOK_CONTAINER_INVALID', 'The XLSX container is incomplete.')
-  const entries = input.readUInt16LE(eocd + 10)
-  const centralSize = input.readUInt32LE(eocd + 12)
-  const centralOffset = input.readUInt32LE(eocd + 16)
-  if (
-    entries < 1 ||
-    entries > IMPORT_ENGINEERING_LIMITS.maxWorkbookEntries ||
-    centralOffset + centralSize > input.length
-  ) {
-    reject('WORKBOOK_CONTAINER_LIMIT', 'The XLSX container exceeds safe structural limits.')
-  }
-  let offset = centralOffset
-  let totalCompressed = 0
-  let totalUncompressed = 0
-  const names: string[] = []
-  for (let index = 0; index < entries; index += 1) {
-    if (offset + 46 > input.length || input.readUInt32LE(offset) !== 0x02014b50) {
-      reject('WORKBOOK_CONTAINER_INVALID', 'The XLSX directory is malformed.')
-    }
-    const flags = input.readUInt16LE(offset + 8)
-    if ((flags & 1) !== 0) reject('WORKBOOK_ENCRYPTED', 'Encrypted workbooks are not supported.')
-    const compressed = input.readUInt32LE(offset + 20)
-    const uncompressed = input.readUInt32LE(offset + 24)
-    const nameLength = input.readUInt16LE(offset + 28)
-    const extraLength = input.readUInt16LE(offset + 30)
-    const commentLength = input.readUInt16LE(offset + 32)
-    const end = offset + 46 + nameLength + extraLength + commentLength
-    if (end > input.length) reject('WORKBOOK_CONTAINER_INVALID', 'The XLSX directory is malformed.')
-    const name = input.subarray(offset + 46, offset + 46 + nameLength).toString('utf8')
-    if (name.includes('..') || name.startsWith('/') || name.includes('\\')) {
-      reject('WORKBOOK_PATH_UNSAFE', 'The workbook contains an unsafe internal path.')
-    }
-    names.push(name.toLowerCase())
-    totalCompressed += compressed
-    totalUncompressed += uncompressed
-    offset = end
-  }
-  if (
-    totalUncompressed > IMPORT_ENGINEERING_LIMITS.maxUncompressedBytes ||
-    (totalCompressed > 0 &&
-      totalUncompressed / totalCompressed > IMPORT_ENGINEERING_LIMITS.maxCompressionRatio)
-  ) {
-    reject('WORKBOOK_DECOMPRESSION_LIMIT', 'The workbook exceeds decompression limits.')
-  }
-  if (!names.includes('[content_types].xml') || !names.includes('xl/workbook.xml')) {
-    reject('WORKBOOK_STRUCTURE_INVALID', 'The XLSX package does not contain a workbook.')
-  }
-  if (
-    names.some(
-      (name) =>
-        name.includes('vbaproject') ||
-        name.startsWith('xl/externallinks/') ||
-        name.startsWith('xl/embeddings/') ||
-        name.startsWith('xl/oleobjects/'),
-    )
-  ) {
-    reject('WORKBOOK_ACTIVE_CONTENT', 'Macros, external links, and embedded objects are forbidden.')
-  }
-}
 
 function inspectXlsSignature(input: Buffer) {
   const compound = Buffer.from([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1])

@@ -1,9 +1,11 @@
 import Papa from 'papaparse'
 import * as XLSX from 'xlsx'
 
+import { IMPORT_ENGINEERING_LIMITS } from '../limits'
 import { excelSerialToIsoDate } from '../parser/excel-date'
 import { ImportParseError, type ImportSourceColumn, normalizeMatrix } from '../parser/matrix'
 import { workbookGrid } from '../parser/workbook-grid'
+import { inspectXlsxContainer } from '../parser/xlsx-container'
 
 type CellValue = string | number | boolean | null
 
@@ -43,12 +45,24 @@ export function readImportFile(
     }
     matrix = parsed.data
   } else {
+    // The server's container limits run before the workbook is unzipped, so a refused container is never read.
+    if (fileType === 'XLSX') inspectXlsxContainer(new Uint8Array(input))
     const grid = workbookGrid(XLSX, input, 'array', sheetName, excelSerialToIsoDate, true)
     // The server refuses a workbook with macros or links, so the check leaves it to the server.
     if (grid.links || grid.macros) {
       throw new ImportParseError(
         'WORKBOOK_ACTIVE_CONTENT',
         'Workbook macros and links are forbidden.',
+      )
+    }
+    // The server's sheet rules, in its order and with its codes.
+    if (grid.sheetNames.length > IMPORT_ENGINEERING_LIMITS.maxWorkbookSheets) {
+      throw new ImportParseError('WORKBOOK_SHEET_LIMIT', 'The workbook has too many worksheets.')
+    }
+    if (sheetName === null && grid.sheetNames.length !== 1) {
+      throw new ImportParseError(
+        'WORKBOOK_SHEET_AMBIGUOUS',
+        `This workbook has ${grid.sheetNames.length} worksheets. Choose the sheet to import, then upload again.`,
       )
     }
     ;({ matrix, formulaGap, dateText } = grid)

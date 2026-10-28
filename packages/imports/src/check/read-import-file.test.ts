@@ -3,6 +3,7 @@ import { Buffer } from 'node:buffer'
 import { describe, expect, it } from 'vitest'
 import * as XLSX from 'xlsx'
 
+import { IMPORT_ENGINEERING_LIMITS } from '../limits'
 import { parseSecureImport } from '../parser/secure'
 import { readImportFile } from './read-import-file'
 
@@ -17,6 +18,21 @@ function workbook(sheets: Record<string, unknown[][]>, mutate?: (sheet: XLSX.Wor
     XLSX.utils.book_append_sheet(book, sheet, name)
   }
   return Buffer.from(XLSX.write(book, { type: 'buffer', bookType: 'xlsx' }))
+}
+
+// The code the browser reader refuses with, and the server's for the same bytes.
+async function refusals(bytes: Buffer, sheetName: string | null = null) {
+  let browser: unknown
+  try {
+    readImportFile(toArrayBuffer(bytes), 'XLSX', sheetName)
+  } catch (error) {
+    browser = (error as { code?: unknown }).code
+  }
+  const server = await parseSecureImport(bytes, 'XLSX', {}, sheetName).then(
+    () => undefined,
+    (error: { code?: unknown }) => error.code,
+  )
+  return { browser, server }
 }
 
 describe('readImportFile', () => {
@@ -90,5 +106,42 @@ describe('readImportFile', () => {
       sheet.A2.l = { Target: 'https://example.com' }
     })
     expect(() => readImportFile(toArrayBuffer(bytes), 'XLSX', null)).toThrow()
+  })
+
+  it('refuses a container the server refuses before unzipping it', async () => {
+    // A small file whose directory says one entry unpacks to 5 MB: under the size limit, far past the ratio.
+    const bomb = workbook({ Data: [['Name'], ['Ana']] })
+    const at = bomb.lastIndexOf(Buffer.from([0x50, 0x4b, 0x05, 0x06]))
+    bomb.writeUInt32LE(5_000_000, bomb.readUInt32LE(at + 16) + 24)
+    expect(bomb.length * IMPORT_ENGINEERING_LIMITS.maxCompressionRatio).toBeLessThan(5_000_000)
+    expect(await refusals(bomb)).toEqual({
+      browser: 'WORKBOOK_DECOMPRESSION_LIMIT',
+      server: 'WORKBOOK_DECOMPRESSION_LIMIT',
+    })
+    const crowded = workbook({ Data: [['Name'], ['Ana']] })
+    const eocd = crowded.lastIndexOf(Buffer.from([0x50, 0x4b, 0x05, 0x06]))
+    crowded.writeUInt16LE(IMPORT_ENGINEERING_LIMITS.maxWorkbookEntries + 1, eocd + 10)
+    expect(await refusals(crowded)).toEqual({
+      browser: 'WORKBOOK_CONTAINER_LIMIT',
+      server: 'WORKBOOK_CONTAINER_LIMIT',
+    })
+  })
+
+  it('refuses a several-sheet workbook with no sheet chosen, and too many sheets', async () => {
+    const two = workbook({ First: [['A'], ['one']], Second: [['B'], ['two']] })
+    expect(await refusals(two)).toEqual({
+      browser: 'WORKBOOK_SHEET_AMBIGUOUS',
+      server: 'WORKBOOK_SHEET_AMBIGUOUS',
+    })
+    const sheets = Object.fromEntries(
+      Array.from({ length: IMPORT_ENGINEERING_LIMITS.maxWorkbookSheets + 1 }, (_, index) => [
+        `S${index}`,
+        [['A'], [index]],
+      ]),
+    )
+    expect(await refusals(workbook(sheets), 'S0')).toEqual({
+      browser: 'WORKBOOK_SHEET_LIMIT',
+      server: 'WORKBOOK_SHEET_LIMIT',
+    })
   })
 })
