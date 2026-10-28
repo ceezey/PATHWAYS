@@ -6,6 +6,7 @@ import type { CoverageField } from '../mappers/coverage'
 import { matchColumns } from '../validation/match-columns'
 import {
   type ColumnMapping,
+  columnRules,
   isSupplied,
   unsuppliedRequired,
   validateRows,
@@ -36,9 +37,9 @@ export interface FileCheckReport {
 const NO_COLUMN_MESSAGE =
   'No column matches. Rename the column, or add its header as a source name under Advanced Configuration.'
 
-// Choice answers are mapped once per column after upload, and unreadable text dates are ordered once on the mapping card.
-const fixedOnce = (code: string, dataType: string | undefined) =>
-  code === 'AMBIGUOUS_DATE' ||
+// Choice answers are mapped once per column after upload, and so is the order of a text date column with no single fitting order.
+const fixedOnce = (code: string, dataType: string | undefined, hasDateOrder: boolean) =>
+  (code === 'AMBIGUOUS_DATE' && !hasDateOrder) ||
   (code === 'invalid_value' && (dataType === 'SELECT' || dataType === 'MULTIPLE_SELECT'))
 
 /** Finds what would make the server hold rows for one-by-one review, using the server's own matching and validation. */
@@ -118,6 +119,8 @@ export function checkImportFile(input: {
     uploadDate,
   })
 
+  // A column whose rule has a date order has one fitting order; the server reads its text dates without a reviewer.
+  const rules = columnRules(mappings, file.rows, Number(uploadDate.slice(0, 4)))
   const groups = new Map<string, FileCheckProblem>()
   const rowsOf = new Map<string, number[]>()
   const problemRows = new Set<number>()
@@ -149,7 +152,8 @@ export function checkImportFile(input: {
   results.forEach((result, index) => {
     for (const error of result.errors) {
       const dataType = fieldByCode.get(error.fieldCode)?.dataType
-      if (!fixedOnce(error.code, dataType)) add(index, error.fieldCode, error.code, error.message)
+      if (!fixedOnce(error.code, dataType, !!rules[error.fieldCode]?.date))
+        add(index, error.fieldCode, error.code, error.message)
     }
     // The registration service holds an imported row without both consents.
     if (

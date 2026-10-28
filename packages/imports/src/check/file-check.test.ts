@@ -33,9 +33,16 @@ const sex = field('sex', 'Sex', 'SELECT', { allowedValues: ['Female', 'Male'] })
 const consent = field('consent_recorded', 'Consent recorded', 'BOOLEAN')
 const dataConsent = field('data_processing_consent_recorded', 'Data processing consent', 'BOOLEAN')
 
-const check = (rows: unknown[][], fields: CheckField[], formType = 'ACTIVITY') => {
+const check = (
+  rows: unknown[][],
+  fields: CheckField[],
+  formType = 'ACTIVITY',
+  mutate?: (sheet: XLSX.WorkSheet) => void,
+) => {
   const book = XLSX.utils.book_new()
-  XLSX.utils.book_append_sheet(book, XLSX.utils.aoa_to_sheet(rows), 'Data')
+  const sheet = XLSX.utils.aoa_to_sheet(rows)
+  mutate?.(sheet)
+  XLSX.utils.book_append_sheet(book, sheet, 'Data')
   const bytes = Buffer.from(XLSX.write(book, { type: 'buffer', bookType: 'xlsx' }))
   const file = readImportFile(toArrayBuffer(bytes), 'XLSX', null)
   return checkImportFile({ file, formType, fields, uploadDate: '2026-10-28' })
@@ -158,5 +165,84 @@ describe('checkImportFile', () => {
       ['required', 1],
     ])
     expect(report.problemRows).toBe(2)
+  })
+
+  it('an unreadable date in a column with one fitting order is reported', () => {
+    // 25/12/2004 and 13/04/2005 fit only day/month/year, so the server reads them without a reviewer.
+    const report = check(
+      [
+        ['First name', 'Birth date'],
+        ['Ana', '25/12/2004'],
+        ['Ben', '13/04/2005'],
+        ['Cai', 12345],
+      ],
+      [firstName, birthDate],
+    )
+    expect(report.problems).toMatchObject([
+      {
+        kind: 'ROW',
+        fieldCode: 'birth_date',
+        code: 'AMBIGUOUS_DATE',
+        rowCount: 1,
+        exampleRows: [4],
+      },
+    ])
+    expect(report.problemRows).toBe(1)
+  })
+
+  it('a formula with no saved value is reported after missing columns', () => {
+    const school = field('school', 'School', 'TEXT', { required: true })
+    const report = check(
+      [header, good, good],
+      [firstName, birthDate, age, school],
+      'ACTIVITY',
+      (sheet) => {
+        sheet.D2 = { t: 'n', f: 'A1+1' }
+        sheet['!ref'] = 'A1:D3'
+      },
+    )
+    expect(report.problems.map((problem) => problem.kind)).toEqual([
+      'NO_COLUMN',
+      'FORMULA_NO_VALUE',
+    ])
+    expect(report.problems[1]).toMatchObject({
+      fieldCode: '',
+      code: 'FORMULA_NO_VALUE',
+      message:
+        'Cell D2 has a formula with no saved value. Open and save the file in Excel or Google Sheets.',
+      columnLetter: 'D',
+      rowCount: 1,
+      exampleRows: [2],
+    })
+  })
+
+  it('rows sharing a client ID or a metadata key are reported', () => {
+    const clientId = field('external_identifier_value', 'Client ID', 'TEXT')
+    const code = field('activity_code', 'Activity code', 'TEXT', { metadataKey: true })
+    const rows = [
+      ['Client ID', 'Activity code'],
+      ['S-12', 'A1'],
+      ['S-30', 'A2'],
+      [' S-12 ', 'A2'],
+    ]
+    const registration = check(rows, [clientId, code], 'BENEFICIARY_REGISTRATION')
+    const byCode = Object.fromEntries(
+      registration.problems.map((problem) => [problem.code, problem]),
+    )
+    expect(byCode.IDENTITY_CONFLICT).toMatchObject({
+      fieldCode: 'external_identifier_value',
+      columnLetter: 'A',
+      rowCount: 2,
+      exampleRows: [2, 4],
+    })
+    expect(byCode.DUPLICATE_BUSINESS_KEY).toMatchObject({
+      fieldCode: 'activity_code',
+      rowCount: 2,
+      exampleRows: [3, 4],
+    })
+    // The client ID rule belongs to registration forms only.
+    expect(check(rows, [clientId, code]).problems.map((problem) => problem.code)).toEqual([
+      'DUPLICATE_BUSINESS_KEY',
+    ])
   })
 })
