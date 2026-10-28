@@ -188,6 +188,12 @@ describe('FileCheckDialog', () => {
     expect(props.onFix).not.toHaveBeenCalled()
   })
 
+  it('moves focus to Fix the file when it opens, so Enter never sends the file', async () => {
+    open()
+    const fix = screen.getByRole('button', { name: 'Fix the file' })
+    await waitFor(() => expect(document.activeElement).toBe(fix))
+  })
+
   it('returns focus to the file input when it closes', async () => {
     const fileInput = createRef<HTMLInputElement>()
     function Harness() {

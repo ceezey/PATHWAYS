@@ -2,7 +2,7 @@
 
 import type { FileCheckProblem, FileCheckReport } from '@pathways/imports'
 import { TriangleAlert } from 'lucide-react'
-import type { RefObject } from 'react'
+import { type RefObject, useRef } from 'react'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -72,10 +72,16 @@ export function FileCheckDialog({
   onUploadAnyway: () => void
   onClose: () => void
 }) {
+  const fixRef = useRef<HTMLButtonElement>(null)
+
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent
         className="max-w-3xl sm:max-w-3xl"
+        onOpenAutoFocus={(event) => {
+          event.preventDefault()
+          fixRef.current?.focus()
+        }}
         onCloseAutoFocus={(event) => {
           event.preventDefault()
           fileInput.current?.focus()
@@ -127,7 +133,9 @@ export function FileCheckDialog({
           <Button variant="outline" onClick={onUploadAnyway}>
             Upload anyway
           </Button>
-          <Button onClick={onFix}>Fix the file</Button>
+          <Button ref={fixRef} onClick={onFix}>
+            Fix the file
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
