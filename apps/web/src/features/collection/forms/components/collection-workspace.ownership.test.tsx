@@ -518,7 +518,7 @@ describe('persisted collection completion ownership', () => {
         </DisplayLabelsProvider>
       )
       const view = render(element())
-      if (operation === 'export') await screen.findByText('Owned definition')
+      if (operation === 'export') await screen.findByText('Owned definition - v1')
       else
         await waitFor(() =>
           expect((screen.getByLabelText('Form title') as HTMLInputElement).value).toBe(
