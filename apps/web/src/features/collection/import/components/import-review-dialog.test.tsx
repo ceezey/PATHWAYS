@@ -27,6 +27,7 @@ const review = (canAddNew = true): ImportRowReviewResponse => ({
       pathways: 'Ana',
       file: 'Anna',
       calculated: null,
+      rule: null,
       changed: true,
     },
     {
@@ -37,6 +38,7 @@ const review = (canAddNew = true): ImportRowReviewResponse => ({
       pathways: 'Female',
       file: 'M',
       calculated: null,
+      rule: null,
       changed: true,
     },
     {
@@ -47,6 +49,7 @@ const review = (canAddNew = true): ImportRowReviewResponse => ({
       pathways: '2010-01-02',
       file: '2010-01-02',
       calculated: null,
+      rule: null,
       changed: false,
     },
     {
@@ -57,6 +60,7 @@ const review = (canAddNew = true): ImportRowReviewResponse => ({
       pathways: null,
       file: 7,
       calculated: 9,
+      rule: null,
       changed: true,
     },
     {
@@ -67,6 +71,7 @@ const review = (canAddNew = true): ImportRowReviewResponse => ({
       pathways: true,
       file: false,
       calculated: null,
+      rule: null,
       changed: true,
     },
   ],
@@ -290,7 +295,19 @@ describe('import review dialog', () => {
           pathways: null,
           file: 25,
           calculated: 36,
+          rule: { kind: 'AGE_CHECK', birthField: 'birth_date', atFields: ['enrollment_date'] },
           changed: true,
+        },
+        {
+          code: 'birth_date',
+          label: 'Birth date',
+          dataType: 'DATE',
+          options: null,
+          pathways: null,
+          file: '1990-01-01',
+          calculated: null,
+          rule: null,
+          changed: false,
         },
       ],
     })
@@ -305,7 +322,15 @@ describe('import review dialog', () => {
         validationRevision={3}
       />,
     )
-    fireEvent.click(await screen.findByRole('button', { name: 'Age, Calculated by PATHWAYS: 36' }))
+    const calculated = await screen.findByRole('button', {
+      name: 'Age, Calculated by PATHWAYS: 36',
+    })
+    // Hovering the calculated tile says how the system worked the value out.
+    fireEvent.mouseEnter(calculated)
+    expect(screen.getByRole('tooltip').textContent).toBe(
+      "The system works this out itself from the row's other answers. Age in whole years from Birth date to the upload date, to check the file's age.",
+    )
+    fireEvent.click(calculated)
     confirm()
     expect(await sent()).toMatchObject({ saveAs: 'NEW', choices: { age_stated: 'CALCULATED' } })
   })

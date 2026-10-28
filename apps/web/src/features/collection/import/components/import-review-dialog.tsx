@@ -29,7 +29,7 @@ import { cn } from '@/lib/utils'
 
 import { selectClass } from '../../forms/components/intake-controls'
 import { headClass, reviewReason } from '../import.utils'
-import { ChoiceCell, OwnValue, ownPayload } from './import-review-cells'
+import { ChoiceCell, OwnValue, calculationHint, ownPayload } from './import-review-cells'
 
 type Choice = 'PATHWAYS' | 'FILE' | 'CALCULATED' | 'OWN'
 type SaveAs = 'UPDATE' | 'NEW'
@@ -91,6 +91,8 @@ export function ImportReviewDialog({
   }
   const chosen = (field: ImportRowReviewResponse['fields'][number]) =>
     picks[field.code] ?? autoPick(field)
+  const labelOf = (code: string) =>
+    review?.fields.find((field) => field.code === code)?.label ?? code
   const canSaveUpdate = Boolean(review?.participant) && canUpdate
   // Consent cannot be typed in, so a row without it waits for a corrected file.
   const needsCorrectedFile = review?.reason === 'CONSENT_REQUIRED'
@@ -272,6 +274,7 @@ export function ImportReviewDialog({
                           <ChoiceCell
                             caption="Calculated"
                             column="Calculated by PATHWAYS"
+                            hint={calculationHint(field.rule, labelOf)}
                             label={label}
                             onPick={() => pick(code, 'CALCULATED')}
                             picked={chosen(field) === 'CALCULATED'}

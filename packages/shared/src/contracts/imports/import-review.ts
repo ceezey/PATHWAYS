@@ -2,6 +2,7 @@ import { z } from 'zod'
 
 import { formDefinitionLimits, supportedFormFieldTypes } from '../../validation/form-data'
 import { hasUniqueItems, lengthString, trimmedInput, uuidString } from '../common/field-schemas'
+import { fieldIntakeRule } from '../metadata/form-intake'
 
 // Codes that leave an imported row UNPROCESSED for a person: the registration service's review codes plus the file-import ones.
 export const importHoldCodes = [
@@ -59,6 +60,8 @@ export const importRowReviewFieldResponse = z.object({
   pathways: json.nullable(),
   file: json.nullable(),
   calculated: json.nullable(),
+  // The field's calculation or check, so the window can say how the calculated value was worked out.
+  rule: fieldIntakeRule.nullable(),
   changed: z.boolean(),
 })
 export type ImportRowReviewFieldResponse = z.infer<typeof importRowReviewFieldResponse>

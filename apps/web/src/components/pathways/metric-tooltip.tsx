@@ -21,7 +21,8 @@ export const tooltipPosition = (trigger: Box, tip: Size, viewport: Size) => {
   }
 }
 
-export const MetricTooltip = ({ label, children }: { label: string; children: string }) => {
+/** Hover, focus and Escape handling for a tip shown beside a button; spread triggerProps on the button and render tip. */
+export function useHoverTip(text: string | undefined) {
   const tooltipId = useId()
   const [open, setOpen] = useState(false)
   const triggerRef = useRef<HTMLButtonElement>(null)
@@ -29,6 +30,7 @@ export const MetricTooltip = ({ label, children }: { label: string; children: st
   const closeTimer = useRef<number | undefined>(undefined)
 
   const show = () => {
+    if (!text) return
     window.clearTimeout(closeTimer.current)
     setOpen(true)
   }
@@ -80,23 +82,18 @@ export const MetricTooltip = ({ label, children }: { label: string; children: st
     }
   }, [open])
 
-  return (
-    <span className="pointer-events-auto relative inline-flex">
-      <button
-        aria-describedby={open ? tooltipId : undefined}
-        aria-label={`More information about ${label}`}
-        className="-m-2 inline-flex h-11 w-11 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-        onBlur={() => setOpen(false)}
-        onClick={show}
-        onFocus={show}
-        onMouseEnter={show}
-        onMouseLeave={hideSoon}
-        ref={triggerRef}
-        type="button"
-      >
-        <Info className="h-3.5 w-3.5" aria-hidden="true" />
-      </button>
-      {open
+  return {
+    show,
+    triggerProps: {
+      'aria-describedby': open ? tooltipId : undefined,
+      onBlur: () => setOpen(false),
+      onFocus: show,
+      onMouseEnter: show,
+      onMouseLeave: hideSoon,
+      ref: triggerRef,
+    },
+    tip:
+      open && text
         ? createPortal(
             // pointer-events-auto keeps the tip hoverable inside a modal sheet that disables body pointer events.
             <span
@@ -107,11 +104,28 @@ export const MetricTooltip = ({ label, children }: { label: string; children: st
               ref={tipRef}
               role="tooltip"
             >
-              {children}
+              {text}
             </span>,
             document.body,
           )
-        : null}
+        : null,
+  }
+}
+
+export const MetricTooltip = ({ label, children }: { label: string; children: string }) => {
+  const { show, triggerProps, tip } = useHoverTip(children)
+  return (
+    <span className="pointer-events-auto relative inline-flex">
+      <button
+        {...triggerProps}
+        aria-label={`More information about ${label}`}
+        className="-m-2 inline-flex h-11 w-11 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+        onClick={show}
+        type="button"
+      >
+        <Info className="h-3.5 w-3.5" aria-hidden="true" />
+      </button>
+      {tip}
     </span>
   )
 }

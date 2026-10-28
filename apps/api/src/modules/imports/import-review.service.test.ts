@@ -483,6 +483,8 @@ describe('review', () => {
     expect(result.fields.find((item) => item.code === 'age_stated')).toMatchObject({
       file: 25,
       calculated: 36,
+      // The rule travels with the value, so the window can say how it was worked out.
+      rule: { kind: 'AGE_CHECK', birthField: 'birth_date', atFields: ['enrollment_date'] },
       // The faulty field is one the reviewer has to decide.
       changed: true,
     })
