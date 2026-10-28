@@ -291,7 +291,9 @@ export function ImportReviewDialog({
                       </TableCell>
                       <TableCell>
                         {consent ? (
-                          <span>Not editable</span>
+                          <span className="flex min-h-11 items-center justify-center">
+                            Not editable
+                          </span>
                         ) : (
                           <OwnValue
                             describedBy={errors[code] ? `${id}-${code}-error` : undefined}
