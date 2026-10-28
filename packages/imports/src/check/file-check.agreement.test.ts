@@ -7,8 +7,15 @@ import * as XLSX from 'xlsx'
 import type { CoverageField } from '../mappers/coverage'
 import { parseSecureImport } from '../parser/secure'
 import { matchColumns } from '../validation/match-columns'
-import { type ColumnMapping, columnRules, validateRows } from '../validation/validate-rows'
+import {
+  type ColumnMapping,
+  columnRules,
+  isSupplied,
+  unsuppliedRequired,
+  validateRows,
+} from '../validation/validate-rows'
 import { type CheckField, checkImportFile } from './file-check'
+import { consentHeld, fixedOnce } from './held-rules'
 import { readImportFile } from './read-import-file'
 
 const UPLOAD_DATE = '2026-10-28'
@@ -63,7 +70,7 @@ const row = (id: string, birth = '2000-01-01', age = 26, sex = 'Female', consent
 ]
 
 // The server's reading of the file: its parser, matcher with suggestions accepted, validation and consent rule.
-async function serverView(bytes: Buffer, fileType: 'XLSX' | 'CSV') {
+async function serverView(bytes: Buffer, fileType: 'XLSX' | 'CSV', fields: CheckField[]) {
   const parsed = await parseSecureImport(bytes, fileType)
   const raws = parsed.rows.map((item) => item.values)
   const decisions = matchColumns(
@@ -88,39 +95,37 @@ async function serverView(bytes: Buffer, fileType: 'XLSX' | 'CSV') {
       targetField: { code: target.code, dataType: target.dataType },
     })
   }
+  const mappedCodes = new Set(mapped.map((item) => item.code))
+  // As import-validation.service.ts: unmapped fields a default or calculation supplies are validated too.
   const results = validateRows({
     formType: 'BENEFICIARY_REGISTRATION',
-    fields: mapped,
+    fields: [
+      ...mapped,
+      ...fields.filter((item) => !mappedCodes.has(item.code) && isSupplied(item, mappedCodes)),
+    ],
     mappedFields: mapped,
     mappings,
     raws,
     uploadDate: UPLOAD_DATE,
   })
   const rules = columnRules(mappings, raws, 2026)
-  const mappedCodes = new Set(mapped.map((item) => item.code))
   const held = new Set<number>()
   const fixedOnLater = new Set<number>()
   results.forEach((result, index) => {
     const number = parsed.rows[index].sourceRowNumber
     for (const error of result.errors) {
       const dataType = fields.find((item) => item.code === error.fieldCode)?.dataType
-      const fixedOnce =
-        (error.code === 'AMBIGUOUS_DATE' && !rules[error.fieldCode]?.date) ||
-        (error.code === 'invalid_value' && dataType === 'SELECT')
-      ;(fixedOnce ? fixedOnLater : held).add(number)
+      ;(fixedOnce(error.code, dataType, !!rules[error.fieldCode]?.date) ? fixedOnLater : held).add(
+        number,
+      )
     }
-    if (
-      result.valid &&
-      (result.values.consent_recorded !== true ||
-        result.values.data_processing_consent_recorded !== true)
-    )
-      held.add(number)
+    if (consentHeld('BENEFICIARY_REGISTRATION', result)) held.add(number)
   })
-  const noColumn = fields.filter((item) => item.required && !mappedCodes.has(item.code))
-  return { held, fixedOnLater, noColumn: noColumn.map((item) => item.code) }
+  const noColumn = unsuppliedRequired(fields, mappedCodes).map((item) => item.code)
+  return { held, fixedOnLater, noColumn, results }
 }
 
-function bothReadings(rows: unknown[][], fileType: 'XLSX' | 'CSV') {
+function bothReadings(rows: unknown[][], fileType: 'XLSX' | 'CSV', fields: CheckField[]) {
   const book = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(book, XLSX.utils.aoa_to_sheet(rows), 'Data')
   const bytes = Buffer.from(
@@ -138,17 +143,22 @@ function bothReadings(rows: unknown[][], fileType: 'XLSX' | 'CSV') {
     fields,
     uploadDate: UPLOAD_DATE,
   })
-  // Every problem here has at most 3 rows, so the example rows are the whole set.
+  // Every row problem here has at most 3 rows, so the example rows are the whole set.
   const reported = new Set<number>()
   for (const problem of report.problems) {
+    if (problem.kind !== 'ROW') continue
     expect(problem.exampleRows).toHaveLength(problem.rowCount)
-    if (problem.kind === 'ROW') for (const number of problem.exampleRows) reported.add(number)
+    for (const number of problem.exampleRows) reported.add(number)
   }
-  return { report, reported, server: serverView(bytes, fileType) }
+  return { report, reported, server: serverView(bytes, fileType, fields) }
 }
 
-async function expectAgreement(rows: unknown[][], fileType: 'XLSX' | 'CSV' = 'XLSX') {
-  const { report, reported, server } = bothReadings(rows, fileType)
+async function expectAgreement(
+  rows: unknown[][],
+  fileType: 'XLSX' | 'CSV' = 'XLSX',
+  formFields = fields,
+) {
+  const { report, reported, server } = bothReadings(rows, fileType, formFields)
   const view = await server
   expect(sorted(reported)).toEqual(sorted(view.held))
   expect(report.problemRows).toBe(view.held.size)
@@ -233,5 +243,60 @@ describe('file check agrees with the server', () => {
       'CSV',
     )
     expect(sorted(view.held)).toEqual([2, 3, 4, 5])
+  })
+
+  it('an unlisted answer of a multiple choice field: reported by neither', async () => {
+    const interests = field('interests', 'Interests', 'MULTIPLE_SELECT', {
+      allowedValues: ['Reading', 'Sports'],
+    })
+    const { report, view } = await expectAgreement(
+      [
+        [...HEADER, 'Interests'],
+        [...row('S-1'), '["Reading","Chess"]'],
+        [...row('S-2'), '["Sports"]'],
+      ],
+      'XLSX',
+      [...fields, interests],
+    )
+    expect(view.fixedOnLater.size).toBe(1)
+    expect(report.problems).toEqual([])
+  })
+
+  it('a text date column no single order fits: excluded by both', async () => {
+    // 25/12/2004 fits only day first and 12/25/2004 only month first, so the reviewer picks the order.
+    const { report, view } = await expectAgreement(
+      [HEADER, row('S-1', '25/12/2004', 21), row('S-2', '12/25/2004', 21)],
+      'CSV',
+    )
+    expect(view.fixedOnLater.size).toBe(2)
+    expect(view.held.size).toBe(0)
+    expect(report.problems).toEqual([])
+  })
+
+  it('a column left pending with a suggestion counts as mapped by both', async () => {
+    const suggested = HEADER.map((name) => (name === 'First name' ? 'First nme' : name))
+    const blankName = row('S-2')
+    blankName[1] = ''
+    const { report, view } = await expectAgreement([suggested, row('S-1'), blankName])
+    expect(view.noColumn).toEqual([])
+    expect(sorted(view.held)).toEqual([3])
+    expect(report.problems).toMatchObject([{ fieldCode: 'first_name', code: 'required' }])
+  })
+
+  it('an unmapped required field with an import default: no missing column, its value validated', async () => {
+    const household = field('household_size', 'Household size', 'INTEGER', {
+      required: true,
+      importDefault: '0',
+      minimumValue: 1,
+    })
+    const { report, view } = await expectAgreement([HEADER, row('S-1'), row('S-2')], 'XLSX', [
+      ...fields,
+      household,
+    ])
+    expect(view.noColumn).toEqual([])
+    // The default 0 is below the minimum, so every row is held for it.
+    expect(sorted(view.held)).toEqual([2, 3])
+    expect(view.results[0].errors.map((error) => error.fieldCode)).toEqual(['household_size'])
+    expect(report.problems).toMatchObject([{ kind: 'ROW', fieldCode: 'household_size' }])
   })
 })

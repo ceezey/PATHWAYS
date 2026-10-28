@@ -14,6 +14,7 @@ import {
   valuesByFieldCode,
 } from '../validation/validate-rows'
 import { type DateHelp, dateHelp } from './date-help'
+import { consentHeld, fixedOnce } from './held-rules'
 import type { ReadImportFile } from './read-import-file'
 
 /** A published form field as the check needs it. */
@@ -44,11 +45,6 @@ const AGE_CONTRADICTIONS = ['AGE_MISMATCH', 'CALCULATION_MISMATCH', 'BIRTH_AFTER
 
 const NO_COLUMN_MESSAGE =
   'No column matches. Rename the column, or add its header as a source name under Advanced Configuration.'
-
-// Choice answers are mapped once per column after upload, and so is the order of a text date column with no single fitting order.
-const fixedOnce = (code: string, dataType: string | undefined, hasDateOrder: boolean) =>
-  (code === 'AMBIGUOUS_DATE' && !hasDateOrder) ||
-  (code === 'invalid_value' && (dataType === 'SELECT' || dataType === 'MULTIPLE_SELECT'))
 
 /** Finds what would make the server hold rows for one-by-one review, using the server's own matching and validation. */
 export function checkImportFile(input: {
@@ -171,7 +167,6 @@ export function checkImportFile(input: {
       birthOf.set(field.code, rule.birthField)
   }
 
-  const registration = formType === 'BENEFICIARY_REGISTRATION'
   results.forEach((result, index) => {
     for (const error of result.errors) {
       const dataType = fieldByCode.get(error.fieldCode)?.dataType
@@ -182,13 +177,7 @@ export function checkImportFile(input: {
         add(index, reported, error.code, error.message)
       }
     }
-    // The registration service holds an imported row without both consents.
-    if (
-      registration &&
-      result.valid &&
-      (result.values.consent_recorded !== true ||
-        result.values.data_processing_consent_recorded !== true)
-    ) {
+    if (consentHeld(formType, result)) {
       add(index, 'consent_recorded', 'CONSENT_REQUIRED', 'Consent is not recorded')
     }
   })
