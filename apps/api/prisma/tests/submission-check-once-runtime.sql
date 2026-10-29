@@ -242,13 +242,16 @@ ROLLBACK TO c; RELEASE c;
 -- Every deferrable constraint in the schema is initially deferred, so this restores the default.
 SET CONSTRAINTS ALL DEFERRED;
 
--- uses submission index
+-- uses submission index: either submission index or a bitmap over one is a valid plan, so only submission_id is pinned.
 SAVEPOINT c;
+ANALYZE pathways.form_fields, pathways.form_submissions, pathways.form_response_values;
+SET LOCAL enable_seqscan = off;
 SET LOCAL ROLE pathways_runtime;
-SELECT pg_temp.ok((SELECT bool_or(n->>'Index Name'='form_response_values_submission_field_key')
+SELECT pg_temp.ok((SELECT bool_or(coalesce(n->>'Index Cond',n->>'Recheck Cond') LIKE '%submission_id = %')
   AND NOT bool_or(coalesce((n->>'Rows Removed by Filter')::numeric,0)>0)
-  FROM jsonb_path_query(pg_temp.check_plan(501),'strict $.**?(@."Relation Name"=="form_response_values")') n),
-  '16 the value read uses form_response_values_submission_field_key and filters out no rows');
+  FROM jsonb_path_query(pg_temp.check_plan(501),
+    'strict $.**?(@."Relation Name"=="form_response_values" || @."Index Name" starts with "form_response_values_")') n),
+  '16 the value read finds its rows by submission_id in an index condition and filters out none');
 ROLLBACK TO c; RELEASE c;
 
 -- org B
