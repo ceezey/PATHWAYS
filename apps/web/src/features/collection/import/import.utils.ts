@@ -2,6 +2,8 @@ import type { ImportHoldCode } from '@pathways/shared'
 
 import type { ImportBatchDefinition, ImportRowDefinition } from '@/types/pathways'
 
+import { enumLabel } from '../collection.copy'
+
 // Why the server refused a stored upload, in its own words when it gave them.
 export const uploadFailure = (batch: Pick<ImportBatchDefinition, 'status' | 'failureMessage'>) =>
   batch.status === 'FAILED' ? (batch.failureMessage ?? 'The file could not be imported.') : null
@@ -83,14 +85,34 @@ export const knownHoldReason = (code: string | null) =>
 
 export const holdReason = (code: string | null) => knownHoldReason(code) ?? 'Needs review'
 
-// The plain reason a row is held: its hold code, or for an invalid row its first validation code.
-export function rowReason(
-  row: Pick<ImportRowDefinition, 'status' | 'processingErrorCode' | 'validationErrors'>,
-) {
-  if (row.status !== 'INVALID') return holdReason(row.processingErrorCode)
-  const code = row.validationErrors[0]?.code
-  return (code ? validationReasons[code] : undefined) ?? 'A value in this row is not valid'
+// What a validation reason means and where to look, shown on hover beside it.
+const validationHelp: Record<string, string> = {
+  AGE_MISMATCH:
+    "The file's age does not match the age worked out from the birth date. One of the two is wrong in the file; a birth date with its day and month swapped is the usual cause.",
+  BIRTH_AFTER_DATE:
+    'The birth date is later than the date the age is measured at (the enrollment date, or today for minor status), so no age can be worked out. The birth date was most likely entered wrongly, for example with its day and month swapped or the wrong year.',
+  CALCULATION_MISMATCH:
+    "PATHWAYS works this field out from the row's other answers, such as age from the birth and enrollment dates, and the file's value is different. Check the answers it is worked out from, usually the birth date.",
 }
+
+type ReasonRow = Pick<ImportRowDefinition, 'status' | 'processingErrorCode' | 'validationErrors'>
+
+// The form label of a field the batch maps to, or its code in words when no column maps to it.
+const fieldLabel = (code: string, mappings: ImportBatchDefinition['mappings']) =>
+  mappings?.find((item) => item.targetField?.code === code)?.targetField?.label ?? enumLabel(code)
+
+// The plain reason a row is held: its hold code, or for an invalid row its first validation code, naming the field.
+export function rowReason(row: ReasonRow, mappings?: ImportBatchDefinition['mappings']) {
+  if (row.status !== 'INVALID') return holdReason(row.processingErrorCode)
+  const error = row.validationErrors[0]
+  if (error?.code === 'CALCULATION_MISMATCH')
+    return `${fieldLabel(error.fieldCode, mappings)} in the file does not match its calculated value`
+  return (error ? validationReasons[error.code] : undefined) ?? 'A value in this row is not valid'
+}
+
+/** What an invalid row's reason means, or undefined when the reason speaks for itself. */
+export const rowReasonHelp = (row: ReasonRow) =>
+  row.status === 'INVALID' ? validationHelp[row.validationErrors[0]?.code ?? ''] : undefined
 
 // The plain reason a review window shows for its reason code: a hold code, or an invalid row's first validation code.
 export const reviewReason = (code: string) =>

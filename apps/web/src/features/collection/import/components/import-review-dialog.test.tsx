@@ -27,6 +27,7 @@ const review = (canAddNew = true): ImportRowReviewResponse => ({
       pathways: 'Ana',
       file: 'Anna',
       calculated: null,
+      rule: null,
       changed: true,
     },
     {
@@ -37,6 +38,7 @@ const review = (canAddNew = true): ImportRowReviewResponse => ({
       pathways: 'Female',
       file: 'M',
       calculated: null,
+      rule: null,
       changed: true,
     },
     {
@@ -47,6 +49,7 @@ const review = (canAddNew = true): ImportRowReviewResponse => ({
       pathways: '2010-01-02',
       file: '2010-01-02',
       calculated: null,
+      rule: null,
       changed: false,
     },
     {
@@ -57,6 +60,7 @@ const review = (canAddNew = true): ImportRowReviewResponse => ({
       pathways: null,
       file: 7,
       calculated: 9,
+      rule: null,
       changed: true,
     },
     {
@@ -67,6 +71,7 @@ const review = (canAddNew = true): ImportRowReviewResponse => ({
       pathways: true,
       file: false,
       calculated: null,
+      rule: null,
       changed: true,
     },
   ],
@@ -89,6 +94,9 @@ const open = async (canAddNew = true, reason = 'PROFILE_CHANGED') => {
   )
   return screen.findByRole('button', { name: 'First name, In this file: Anna' })
 }
+// jsdom has no scrollIntoView; the window calls it on the first field to fix.
+const scrolled = vi.fn()
+Element.prototype.scrollIntoView = scrolled
 const confirm = () => fireEvent.click(screen.getByRole('button', { name: 'Confirm' }))
 const sent = async () => {
   await waitFor(() => expect(api.resolveRow).toHaveBeenCalledTimes(1))
@@ -290,7 +298,19 @@ describe('import review dialog', () => {
           pathways: null,
           file: 25,
           calculated: 36,
+          rule: { kind: 'AGE_CHECK', birthField: 'birth_date', atFields: ['enrollment_date'] },
           changed: true,
+        },
+        {
+          code: 'birth_date',
+          label: 'Birth date',
+          dataType: 'DATE',
+          options: null,
+          pathways: null,
+          file: '1990-01-01',
+          calculated: null,
+          rule: null,
+          changed: false,
         },
       ],
     })
@@ -305,7 +325,23 @@ describe('import review dialog', () => {
         validationRevision={3}
       />,
     )
-    fireEvent.click(await screen.findByRole('button', { name: 'Age, Calculated by PATHWAYS: 36' }))
+    const calculated = await screen.findByRole('button', {
+      name: 'Age, Calculated by PATHWAYS: 36',
+    })
+    // Hovering the calculated tile says how the system worked the value out.
+    fireEvent.mouseEnter(calculated)
+    expect(screen.getByRole('tooltip').textContent).toBe(
+      "The system works this out itself from the row's other answers. Age in whole years from Birth date to the upload date, to check the file's age.",
+    )
+    // The age and the birth date it is worked out from are highlighted, and the first is scrolled to.
+    const flagged = document.querySelectorAll('tr[data-flagged="true"]')
+    expect([...flagged].map((row) => row.querySelector('td')?.textContent)).toEqual([
+      'Age (check this field)',
+      'Birth date (check this field)',
+    ])
+    expect(scrolled).toHaveBeenCalledTimes(1)
+    expect(scrolled.mock.contexts[0]).toBe(flagged[0])
+    fireEvent.click(calculated)
     confirm()
     expect(await sent()).toMatchObject({ saveAs: 'NEW', choices: { age_stated: 'CALCULATED' } })
   })

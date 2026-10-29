@@ -29,7 +29,13 @@ import { cn } from '@/lib/utils'
 
 import { selectClass } from '../../forms/components/intake-controls'
 import { headClass, reviewReason } from '../import.utils'
-import { ChoiceCell, OwnValue, ownPayload } from './import-review-cells'
+import {
+  ChoiceCell,
+  OwnValue,
+  calculationHint,
+  ownPayload,
+  ruleInputs,
+} from './import-review-cells'
 
 type Choice = 'PATHWAYS' | 'FILE' | 'CALCULATED' | 'OWN'
 type SaveAs = 'UPDATE' | 'NEW'
@@ -91,6 +97,22 @@ export function ImportReviewDialog({
   }
   const chosen = (field: ImportRowReviewResponse['fields'][number]) =>
     picks[field.code] ?? autoPick(field)
+  const labelOf = (code: string) =>
+    review?.fields.find((field) => field.code === code)?.label ?? code
+  // Fields to decide, and the answers their rules read, are where the reviewer fixes the row.
+  const flagged = new Set(
+    review?.fields
+      .filter((field) => field.changed)
+      .flatMap((field) => [field.code, ...ruleInputs(field.rule)]),
+  )
+  const firstFlagged = review?.fields.find((field) => flagged.has(field.code))?.code
+  // Opening the window brings the first field to fix into view.
+  useEffect(() => {
+    if (firstFlagged)
+      document
+        .getElementById(`${id}-row-${firstFlagged}`)
+        ?.scrollIntoView?.({ block: 'center', behavior: 'smooth' })
+  }, [firstFlagged, id])
   const canSaveUpdate = Boolean(review?.participant) && canUpdate
   // Consent cannot be typed in, so a row without it waits for a corrected file.
   const needsCorrectedFile = review?.reason === 'CONSENT_REQUIRED'
@@ -220,7 +242,8 @@ export function ImportReviewDialog({
                   <TableHead className={cn(headClass, 'text-center')}>In database</TableHead>
                   <TableHead className={cn(headClass, 'text-center')}>In this file</TableHead>
                   <TableHead className={cn(headClass, 'text-center')}>
-                    <span className="inline-flex items-center gap-1">
+                    {/* The info button's 44px hit area overlaps by 8px, so a wider gap keeps it off the text. */}
+                    <span className="inline-flex items-center gap-3">
                       Your value
                       <MetricTooltip label="Your value">Optional</MetricTooltip>
                     </span>
@@ -236,13 +259,20 @@ export function ImportReviewDialog({
                     <TableRow
                       className={cn(
                         'align-top',
-                        !open && 'bg-surface-subtle text-muted-foreground',
+                        flagged.has(code)
+                          ? 'bg-warning-subtle hover:bg-warning-subtle'
+                          : !open && 'bg-surface-subtle text-muted-foreground',
                       )}
+                      data-flagged={flagged.has(code)}
                       data-unchanged={!open}
+                      id={`${id}-row-${code}`}
                       key={code}
                     >
                       <TableCell className="font-medium">
                         {label}
+                        {flagged.has(code) ? (
+                          <span className="sr-only"> (check this field)</span>
+                        ) : null}
                         {errors[code] ? (
                           <div
                             className="text-sm font-normal text-danger"
@@ -271,6 +301,7 @@ export function ImportReviewDialog({
                           <ChoiceCell
                             caption="Calculated"
                             column="Calculated by PATHWAYS"
+                            hint={calculationHint(field.rule, labelOf)}
                             label={label}
                             onPick={() => pick(code, 'CALCULATED')}
                             picked={chosen(field) === 'CALCULATED'}
@@ -290,7 +321,9 @@ export function ImportReviewDialog({
                       </TableCell>
                       <TableCell>
                         {consent ? (
-                          <span>Not editable</span>
+                          <span className="flex min-h-11 items-center justify-center">
+                            Not editable
+                          </span>
                         ) : (
                           <OwnValue
                             describedBy={errors[code] ? `${id}-${code}-error` : undefined}

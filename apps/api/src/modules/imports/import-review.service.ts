@@ -668,6 +668,7 @@ export class ImportReviewService {
             pathways: (held.baseline?.stored.get(field.code) ?? null) as Cell,
             file: (held.file[field.code] ?? null) as Cell,
             calculated: (calculated[field.code] ?? null) as Cell,
+            rule: held.fields.find((item) => item.code === field.code)?.rule ?? null,
             changed: held.changed.has(field.code) || held.invalid.has(field.code),
           })),
         canAddNew: hasAtomicPermission(
