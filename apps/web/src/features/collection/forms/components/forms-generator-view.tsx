@@ -1,6 +1,6 @@
 'use client'
 
-import { Database, FileSpreadsheet, ListPlus, Plus } from 'lucide-react'
+import { Database, FileSpreadsheet, FolderSearch, ListPlus, Plus } from 'lucide-react'
 import Link from 'next/link'
 import { type ReactNode, useState } from 'react'
 
@@ -119,9 +119,11 @@ export const FormsGeneratorView = ({
             description="No collection forms are saved for your projects yet."
           />
         ) : !selected ? (
-          <p className="py-6 text-center text-sm text-muted-foreground">
-            Select a project to see its forms.
-          </p>
+          <EmptyState
+            icon={FolderSearch}
+            title="No project selected"
+            description="Select a project to see its forms."
+          />
         ) : (
           <ul className="space-y-3">
             {shown.map((form) => {
