@@ -1,6 +1,6 @@
 'use client'
 
-import { CONSENT_FIELD_CODES, type ImportRowReviewResponse } from '@pathways/shared'
+import { CONSENT_FIELD_CODES, type ImportRowReviewResponse, ruleFieldCodes } from '@pathways/shared'
 import { useEffect, useId, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
@@ -29,13 +29,7 @@ import { cn } from '@/lib/utils'
 
 import { selectClass } from '../../forms/components/intake-controls'
 import { headClass, reviewReason } from '../import.utils'
-import {
-  ChoiceCell,
-  OwnValue,
-  calculationHint,
-  ownPayload,
-  ruleInputs,
-} from './import-review-cells'
+import { ChoiceCell, OwnValue, calculationHint, ownPayload } from './import-review-cells'
 
 type Choice = 'PATHWAYS' | 'FILE' | 'CALCULATED' | 'OWN'
 type SaveAs = 'UPDATE' | 'NEW'
@@ -103,15 +97,13 @@ export function ImportReviewDialog({
   const flagged = new Set(
     review?.fields
       .filter((field) => field.changed)
-      .flatMap((field) => [field.code, ...ruleInputs(field.rule)]),
+      .flatMap((field) => [field.code, ...(field.rule ? ruleFieldCodes(field.rule) : [])]),
   )
   const firstFlagged = review?.fields.find((field) => flagged.has(field.code))?.code
   // Opening the window brings the first field to fix into view.
   useEffect(() => {
     if (firstFlagged)
-      document
-        .getElementById(`${id}-row-${firstFlagged}`)
-        ?.scrollIntoView?.({ block: 'center', behavior: 'smooth' })
+      document.getElementById(`${id}-row-${firstFlagged}`)?.scrollIntoView({ block: 'center' })
   }, [firstFlagged, id])
   const canSaveUpdate = Boolean(review?.participant) && canUpdate
   // Consent cannot be typed in, so a row without it waits for a corrected file.
@@ -271,7 +263,10 @@ export function ImportReviewDialog({
                       <TableCell className="font-medium">
                         {label}
                         {flagged.has(code) ? (
-                          <span className="sr-only"> (check this field)</span>
+                          <span className="font-normal text-muted-foreground">
+                            {' '}
+                            (check this field)
+                          </span>
                         ) : null}
                         {errors[code] ? (
                           <div

@@ -98,8 +98,8 @@ export const fieldIntakeProperties = {
   rule: fieldIntakeRule.nullish(),
 }
 
-// Field codes a rule reads from.
-const ruleFieldCodes = (rule: FieldIntakeRule): string[] => {
+/** Field codes a rule reads from. */
+export const ruleFieldCodes = (rule: FieldIntakeRule): string[] => {
   switch (rule.kind) {
     case 'AGE_AT_DATE':
     case 'MINOR_AT_DATE':

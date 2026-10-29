@@ -21,11 +21,13 @@ export const FieldEditor = ({
   field,
   fieldCodes,
   readOnly,
+  attention,
   updateField,
 }: {
   field: FormField
   fieldCodes: string[]
   readOnly: boolean
+  attention?: boolean
   updateField: (fieldId: string, patch: Partial<FormField>) => void
 }) => (
   <div className="mt-4 grid gap-3 border-t pt-4 md:grid-cols-2">
@@ -200,6 +202,7 @@ export const FieldEditor = ({
       field={field}
       fieldCodes={fieldCodes}
       readOnly={readOnly}
+      attention={attention}
       onChange={(patch) => updateField(field.id, patch)}
     />
   </div>

@@ -31,6 +31,14 @@ import { FormInfoPanel } from './form-info-panel'
 import { FormPreviewPanel } from './form-preview-panel'
 import { MetadataMapPanel } from './metadata-map-panel'
 
+// Needs check reasons about a field's import metadata, which sits under Advanced Configuration.
+const intakeNeedsCheck: readonly string[] = [
+  'SUGGESTED_SOURCE_NAME',
+  'ENUM_ANSWER_UNRESOLVED',
+  'IMPORT_DEFAULT',
+  'RULE_PROPOSED',
+]
+
 export const BuilderView = ({
   addField,
   canManage,
@@ -251,6 +259,10 @@ export const BuilderView = ({
                   field={field}
                   fieldCodes={fields.map((item) => item.code).filter(Boolean)}
                   readOnly={readOnly}
+                  attention={draftSummary?.needsCheck.some(
+                    (item) =>
+                      item.fieldCode === field.code && intakeNeedsCheck.includes(item.reason),
+                  )}
                   updateField={updateField}
                 />
               ) : null}

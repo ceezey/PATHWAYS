@@ -90,7 +90,7 @@ const validationHelp: Record<string, string> = {
   AGE_MISMATCH:
     "The file's age does not match the age worked out from the birth date. One of the two is wrong in the file; a birth date with its day and month swapped is the usual cause.",
   BIRTH_AFTER_DATE:
-    'The birth date is later than the date the age is measured at (the enrollment date, or today for minor status), so no age can be worked out. The birth date was most likely entered wrongly, for example with its day and month swapped or the wrong year.',
+    "The birth date is later than the date the age is measured at (the date set in the form's age rule, or the upload date for minor status), so no age can be worked out. The birth date was most likely entered wrongly, for example with its day and month swapped or the wrong year.",
   CALCULATION_MISMATCH:
     "PATHWAYS works this field out from the row's other answers, such as age from the birth and enrollment dates, and the file's value is different. Check the answers it is worked out from, usually the birth date.",
 }

@@ -196,4 +196,18 @@ describe('FieldIntakeEditor', () => {
     for (const part of ['Answer aliases', 'Import default', 'Calculation or check'])
       expect(screen.getByRole('button', { name: `More information about ${part}` })).toBeTruthy()
   })
+
+  it('starts open when the field has an import item to confirm', () => {
+    render(
+      <FieldIntakeEditor
+        attention
+        field={field()}
+        fieldCodes={codes}
+        onChange={vi.fn()}
+        readOnly={false}
+      />,
+    )
+    const summary = screen.getByText('Advanced Configuration')
+    expect((summary.closest('details') as HTMLDetailsElement).open).toBe(true)
+  })
 })

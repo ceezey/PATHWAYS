@@ -22,11 +22,13 @@ export function FieldIntakeEditor({
   field,
   fieldCodes,
   readOnly,
+  attention = false,
   onChange,
 }: {
   field: FormField
   fieldCodes: string[]
   readOnly: boolean
+  attention?: boolean
   onChange: (patch: Partial<FormField>) => void
 }) {
   const id = `${field.id}-intake`
@@ -41,7 +43,7 @@ export function FieldIntakeEditor({
       ),
     })
   return (
-    <details className="border-t pt-2 md:col-span-2">
+    <details className="border-t pt-2 md:col-span-2" open={attention || undefined}>
       <summary className="min-h-11 cursor-pointer content-center text-sm font-medium text-primary">
         Advanced Configuration
       </summary>

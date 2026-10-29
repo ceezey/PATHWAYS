@@ -25,6 +25,7 @@ describe('held row reasons', () => {
 
   it('explains the confusing reasons and leaves plain holds alone', () => {
     expect(rowReasonHelp(invalid('BIRTH_AFTER_DATE'))).toMatch(/^The birth date is later than/)
+    expect(rowReasonHelp(invalid('BIRTH_AFTER_DATE'))).toMatch(/upload date for minor status/)
     expect(rowReasonHelp(invalid('CALCULATION_MISMATCH'))).toMatch(/usually the birth date/)
     expect(
       rowReasonHelp({
