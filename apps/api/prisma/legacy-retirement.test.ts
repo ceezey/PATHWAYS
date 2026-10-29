@@ -91,6 +91,7 @@ describe('Deferred legacy-table retirement contract', () => {
       '0078_form_field_intake_metadata',
       '0079_import_date_order_and_sheet',
       '0080_participant_file_import',
+      '0081_submission_check_once',
     ])
     expect(migration).toContain('DEFERRED REVIEW ARTIFACT -- NOT AN ACTIVE PRISMA MIGRATION')
   })
