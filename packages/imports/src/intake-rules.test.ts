@@ -164,6 +164,24 @@ describe('applyIntakeRules', () => {
       expect(run({ ...base, age }, ['age'])).toEqual({ errors: [], warnings: [] })
   })
 
+  it('accepts a file age_at_registration within one year of the age at the upload date, and keeps the enrollment age', () => {
+    const base = {
+      birth_date: '2008-08-17',
+      enrollment_date: '2026-05-28',
+      guardian_consent_recorded: true,
+    }
+    // Age at enrollment is 17 and at the upload date 2026-10-22 is 18.
+    for (const age of [17, 18, 19]) {
+      const values: Record<string, NormalizedImportValue> = { ...base, age_at_registration: age }
+      expect(run(values, ['age_at_registration'])).toEqual({ errors: [], warnings: [] })
+      expect(values.age_at_registration).toBe(17)
+    }
+    for (const age of [15, 20])
+      expect(run({ ...base, age_at_registration: age }, ['age_at_registration']).warnings).toEqual([
+        { fieldCode: 'age_at_registration', code: 'CALCULATION_MISMATCH' },
+      ])
+  })
+
   describe('WASHINGTON_GROUP_DISABILITY', () => {
     const none = 'Hindi - Hindi nahihirapan'
     const some = 'Oo - medyo nahihirapan'

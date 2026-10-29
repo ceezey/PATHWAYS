@@ -145,7 +145,14 @@ export function applyIntakeRules(
     }
     const calculated = calculate(rule, inputs, sourceProvided, upload)
     if (calculated === null) continue
-    if (sourceProvided.has(field.code) && !sameValue(values[field.code], calculated)) {
+    const given = values[field.code]
+    const birth = rule.kind === 'AGE_AT_DATE' ? toDate(inputs[rule.birthField]) : null
+    // A file's Age is a check only and may come from a TODAY formula, so one year from the upload-date age passes.
+    const ageFits =
+      birth !== null &&
+      typeof given === 'number' &&
+      Math.abs(given - completedYearsAt(birth, upload)) <= 1
+    if (sourceProvided.has(field.code) && !sameValue(given, calculated) && !ageFits) {
       if (field.sadddField)
         errors.push({
           fieldCode: field.code,
