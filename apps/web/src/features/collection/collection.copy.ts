@@ -31,6 +31,18 @@ export const needsCheckLabels: Record<(typeof draftNeedsCheckReasons)[number], s
     'A column that did not match the calculated value was moved to a field of its own. Confirm the new field.',
 }
 
+/** What each part of a field's import metadata does, shown on hover in the form builder. */
+export const intakeHelp = {
+  sourceNames:
+    'Column headers in an uploaded file that fill this field, such as the question text or the code in a coded header row. A matching column is linked without manual mapping.',
+  answerAliases:
+    'Answers written differently in a file, such as a lettered "A. Hindi", that are saved as one of this field\'s allowed answers instead of being rejected.',
+  importDefault:
+    'The value saved on every row when the uploaded file has no column for this field.',
+  calculationOrCheck:
+    "A rule run on every imported row: PATHWAYS works out this field's value from other answers, or checks the file's value against them and holds the row when they disagree.",
+}
+
 /** Plain names of the calculations and checks a field may carry. */
 export const ruleKindLabels: Record<(typeof INTAKE_RULE_KINDS)[number], string> = {
   AGE_AT_DATE: 'Age in years at a date',

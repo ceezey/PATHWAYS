@@ -3,10 +3,11 @@
 import { CALCULATED_RULE_KINDS, type FieldIntakeRule, INTAKE_RULE_KINDS } from '@pathways/shared'
 import { Plus, Trash2 } from 'lucide-react'
 
+import { MetricTooltip } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 
-import { ruleKindLabels } from '../../collection.copy'
+import { intakeHelp, ruleKindLabels } from '../../collection.copy'
 import { ChipListInput, FieldSelect, selectClass } from './intake-controls'
 
 type Kind = FieldIntakeRule['kind']
@@ -77,7 +78,12 @@ export function IntakeRuleEditor({
   return (
     <div className="space-y-3">
       <div className="space-y-1">
-        <Label htmlFor={`${idPrefix}-kind`}>Calculation or check</Label>
+        <div className="flex items-center gap-3">
+          <Label htmlFor={`${idPrefix}-kind`}>Calculation or check</Label>
+          <MetricTooltip label="Calculation or check">
+            {intakeHelp.calculationOrCheck}
+          </MetricTooltip>
+        </div>
         <select
           className={selectClass}
           disabled={readOnly}
