@@ -12,6 +12,7 @@ import type { PrismaService } from '@app/prisma/prisma.service'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import { BeneficiaryRegistrationService } from '../beneficiaries/beneficiary-registration.service'
 import type { StorageService } from '../storage/storage.service'
+import { fakeRowCounts, isRowCountsQuery } from './batch-row-counts.harness'
 import { GuardianApprovalService } from './guardian-approval.service'
 import { mapStoredBatch } from './import-batches.service'
 import { ImportsService } from './imports.service'
@@ -275,6 +276,7 @@ const fakeTx = {
   // A tagged-template call is the registration service reading its lock or the transaction clock.
   $queryRaw: vi.fn(async (sql: { values: unknown[]; sql?: string }) => {
     if (Array.isArray(sql)) return [{ locked: true, transactionTime: new Date(now) }]
+    if (isRowCountsQuery(sql)) return fakeRowCounts(state.store.rows)
     if (sql.sql?.includes('validation_warnings')) {
       const warned = state.store.rows.filter((row) => row.validationWarnings.length > 0).length
       return warned > 0 ? [{ batchId: state.store.batch.id, warnings: warned }] : []
@@ -372,12 +374,6 @@ const fakeTx = {
       const rows = state.store.rows.filter((row) => matches(row, args.where))
       for (const row of rows) apply(row as unknown as Json, args.data)
       return { count: rows.length }
-    }),
-    groupBy: vi.fn(async (args: { by: Array<'status' | 'registrationOutcome'> }) => {
-      const [key] = args.by
-      const counts = new Map<string | null, number>()
-      for (const row of state.store.rows) counts.set(row[key], (counts.get(row[key]) ?? 0) + 1)
-      return [...counts].map(([value, count]) => ({ [key]: value, _count: { _all: count } }))
     }),
   },
   metadataMapping: {
@@ -1672,7 +1668,6 @@ describe('metadata-driven intake validation', () => {
       for (const row of state.store.rows) row.registrationOutcome = 'CREATED'
 
       expect(await readBatch()).not.toHaveProperty('registrationCounts')
-      expect(fakeTx.dataImportRow.groupBy).not.toHaveBeenCalled()
     })
   })
 })

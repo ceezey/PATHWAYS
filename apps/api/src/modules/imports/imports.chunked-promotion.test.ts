@@ -11,6 +11,7 @@ import type { PrismaService } from '@app/prisma/prisma.service'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import type { BeneficiaryRegistrationService } from '../beneficiaries/beneficiary-registration.service'
 import type { StorageService } from '../storage/storage.service'
+import { fakeRowCounts, isRowCountsQuery } from './batch-row-counts.harness'
 import { ImportsService, type UploadedImportFile } from './imports.service'
 
 /**
@@ -243,7 +244,8 @@ const calls = {
 }
 
 const fakeTx = {
-  $queryRaw: vi.fn(async () => {
+  $queryRaw: vi.fn(async (sql: unknown) => {
+    if (isRowCountsQuery(sql)) return fakeRowCounts(state.store.rows)
     const batch = state.store.batch
     return batch.organizationId === state.actor.organizationId ? [{ id: batch.id }] : []
   }),
@@ -302,11 +304,6 @@ const fakeTx = {
       )
       for (const row of rows) apply(row as unknown as Record<string, unknown>, args.data)
       return { count: rows.length }
-    }),
-    groupBy: vi.fn(async () => {
-      const counts = new Map<string, number>()
-      for (const row of state.store.rows) counts.set(row.status, (counts.get(row.status) ?? 0) + 1)
-      return [...counts].map(([status, count]) => ({ status, _count: { _all: count } }))
     }),
   },
   metadataMapping: { findMany: vi.fn(async () => []) },
@@ -405,6 +402,8 @@ describe('chunked import promotion', () => {
     )
     expect(calls.formFieldReads).toBe(1)
     expect(perRow).not.toHaveBeenCalled()
+    // The checkpoint reuses its reconcile counts for the response, so the rows are counted once.
+    expect(fakeTx.$queryRaw.mock.calls.filter(([sql]) => isRowCountsQuery(sql))).toHaveLength(1)
     expect(
       state.store.audits.filter((audit) => audit.action === 'IMPORT_ROW_PROMOTED'),
     ).toHaveLength(60)

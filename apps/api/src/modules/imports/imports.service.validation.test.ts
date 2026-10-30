@@ -19,6 +19,8 @@ import { ConflictException } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 import { describe, expect, it } from 'vitest'
 
+import { fakeRowCounts, isRowCountsQuery } from './batch-row-counts.harness'
+
 describe('P03 import service', () => {
   useImportsHarness()
 
@@ -196,7 +198,9 @@ describe('P03 import service', () => {
     tx.dataImportBatch.findFirst.mockResolvedValue(processing)
     tx.dataImportBatch.findUnique.mockResolvedValue(processing)
     tx.dataImportRow.findMany.mockResolvedValue([])
-    tx.dataImportRow.groupBy.mockResolvedValue([{ status: 'PROCESSED', _count: { _all: 1 } }])
+    tx.$queryRaw.mockImplementation(async (sql) =>
+      isRowCountsQuery(sql) ? fakeRowCounts([{ status: 'PROCESSED' }]) : [{ id: batchId }],
+    )
     tx.metadataMapping.findMany.mockResolvedValue([])
 
     await service.process(actor, projectId, batchId, { expectedValidationRevision: 1 })

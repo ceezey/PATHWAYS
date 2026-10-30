@@ -45,8 +45,25 @@ async function warningRowCounts(tx: Tx, actor: ApplicationIdentity, batchIds: st
   return new Map(counts.map((entry) => [entry.batchId, entry.warnings]))
 }
 
-const warningRows = async (tx: Tx, actor: ApplicationIdentity, batchId: string) =>
-  (await warningRowCounts(tx, actor, [batchId])).get(batchId) ?? 0
+export type BatchRowCounts = Array<{
+  status: string
+  outcome: string | null
+  warned: boolean
+  rows: number
+}>
+
+/** The batch's rows by status, registration outcome and warning in one read, so row security runs once per row. */
+export const readBatchRowCounts = (tx: Tx, batchId: string) =>
+  tx.$queryRaw<BatchRowCounts>(Prisma.sql`
+      SELECT status::text AS status, registration_outcome AS outcome,
+        validation_warnings <> '[]'::jsonb AS warned, count(*)::int AS rows
+      FROM pathways.data_import_rows
+      WHERE import_batch_id=${batchId}::uuid
+      GROUP BY 1, 2, 3
+    `)
+
+export const countRows = (counts: BatchRowCounts, keep: (row: BatchRowCounts[number]) => boolean) =>
+  counts.reduce((sum, row) => (keep(row) ? sum + row.rows : sum), 0)
 
 export async function readBatchDetail(
   tx: Tx,
@@ -78,9 +95,14 @@ export async function readBatchDetail(
     select: { sourceHeaders: true },
   })
   const sourceColumns = stored ? safeSourceColumns(stored.sourceHeaders) : []
+  const counts = await readBatchRowCounts(tx, batch.id)
   return {
-    ...mapBatch(batch, await warningRows(tx, actor, batch.id), actor.userId),
-    ...(await registrationCounts(tx, actor, batch)),
+    ...mapBatch(
+      batch,
+      countRows(counts, (row) => row.warned),
+      actor.userId,
+    ),
+    ...registrationCounts(batch, counts),
     sourceHeaders: sourceColumns.map((column) => column.key),
     sourceColumns,
     mappings: mappings.map(
@@ -162,26 +184,25 @@ export async function mapStoredBatch(
   actor: ApplicationIdentity,
   projectId: string,
   batchId: string,
+  known?: BatchRowCounts,
 ) {
   const batch = await requireBatch(tx, actor, projectId, batchId)
+  const counts = known ?? (await readBatchRowCounts(tx, batch.id))
   return {
-    ...mapBatch(batch, await warningRows(tx, actor, batch.id), actor.userId),
-    ...(await registrationCounts(tx, actor, batch)),
+    ...mapBatch(
+      batch,
+      countRows(counts, (row) => row.warned),
+      actor.userId,
+    ),
+    ...registrationCounts(batch, counts),
   }
 }
 
 /** Processed registration rows by outcome, for registration batches only; LINKED counts as updated. */
-async function registrationCounts(tx: Tx, actor: ApplicationIdentity, batch: BatchRow) {
+function registrationCounts(batch: BatchRow, counts: BatchRowCounts) {
   if (batch.form.formType !== 'BENEFICIARY_REGISTRATION') return {}
-  const groups = await tx.dataImportRow.groupBy({
-    by: ['registrationOutcome'],
-    where: { organizationId: actor.organizationId, importBatchId: batch.id },
-    _count: { _all: true },
-  })
   const count = (...outcomes: string[]) =>
-    groups
-      .filter((group) => group.registrationOutcome && outcomes.includes(group.registrationOutcome))
-      .reduce((sum, group) => sum + group._count._all, 0)
+    countRows(counts, (row) => row.outcome !== null && outcomes.includes(row.outcome))
   return {
     registrationCounts: {
       created: count('CREATED'),

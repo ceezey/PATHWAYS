@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { PrismaService } from '@app/prisma/prisma.service'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import { BeneficiaryRegistrationService } from '../beneficiaries/beneficiary-registration.service'
+import { fakeRowCounts, isRowCountsQuery } from './batch-row-counts.harness'
 import { GuardianApprovalService } from './guardian-approval.service'
 import { ImportReviewService } from './import-review.service'
 
@@ -214,9 +215,11 @@ const fakeTx = {
     // A tagged template is the database clock; the batch lock is a Prisma.Sql with values.
     Array.isArray(query)
       ? [{ transactionTime: now }]
-      : query.values?.includes(projectId) && query.values?.includes(organizationId)
-        ? [{ id: batchId }]
-        : [],
+      : isRowCountsQuery(query)
+        ? fakeRowCounts(store.rows)
+        : query.values?.includes(projectId) && query.values?.includes(organizationId)
+          ? [{ id: batchId }]
+          : [],
   ),
   project: {
     findFirst: vi.fn(async (args: { where: { AND: [Json, { id: string }] } }) => {
@@ -287,11 +290,6 @@ const fakeTx = {
       if (!row) throw new Error('missing row')
       apply(row as unknown as Json, args.data)
       return row
-    }),
-    groupBy: vi.fn(async () => {
-      const counts = new Map<string, number>()
-      for (const row of store.rows) counts.set(row.status, (counts.get(row.status) ?? 0) + 1)
-      return [...counts].map(([status, count]) => ({ status, _count: { _all: count } }))
     }),
   },
   metadataMapping: {
