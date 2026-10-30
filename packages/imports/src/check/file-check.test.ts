@@ -113,6 +113,21 @@ describe('checkImportFile', () => {
     expect(report).toEqual({ totalRows: 3, problemRows: 0, problems: [] })
   })
 
+  it('a date no order can read is reported', () => {
+    const report = check(
+      [
+        ['First name', 'Birth date'],
+        ['Ana', '2000-01-01'],
+        ['Ben', 'not-a-date'],
+      ],
+      [firstName, birthDate],
+    )
+    expect(report.problemRows).toBe(1)
+    expect(report.problems).toMatchObject([
+      { fieldCode: 'birth_date', code: 'AMBIGUOUS_DATE', rowCount: 1, exampleRows: [3] },
+    ])
+  })
+
   it('missing consent is reported only on a registration form', () => {
     const rows = [
       [...header, 'Consent recorded', 'Data processing consent'],

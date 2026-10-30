@@ -93,6 +93,8 @@ interface HeldRow {
   changed: Set<string>
   // Codes of the fields a validation error names, which a reviewer has to settle too.
   invalid: Set<string>
+  // The file text of each invalid field left without a usable value.
+  unusable: Map<string, string>
   // The PATHWAYS value of each field whose file value was rejected before.
   rejected: Record<string, unknown>
 }
@@ -103,6 +105,8 @@ export interface RowResolution {
   choices: Choices
   values: Values
 }
+
+const MAX_UNUSABLE_TEXT = 200
 
 const isBlank = (value: unknown) =>
   value === null || value === undefined || value === '' || (Array.isArray(value) && !value.length)
@@ -183,7 +187,9 @@ async function readFileValues(
   fields: readonly IntakeField[],
   uploadDate: string,
 ) {
-  if (row.status === 'UNPROCESSED') return safeRawData(row.normalizedData) as Values
+  if (row.status === 'UNPROCESSED') {
+    return { values: safeRawData(row.normalizedData) as Values, source: {} as Values }
+  }
   const mappings = await tx.metadataMapping.findMany({
     where: { importBatchId: batch.id, revision: batch.mappingRevision },
     select: {
@@ -224,7 +230,8 @@ async function readFileValues(
   const read = fields.filter(
     (field) => mappedCodes.has(field.code) || !!field.importDefault || isCalculatedRule(field.rule),
   )
-  return normalizeImportedRow(read, valuesByFieldCode(mappings, raw), rules, { uploadDate }).values
+  const source = valuesByFieldCode(mappings, raw) as Values
+  return { values: normalizeImportedRow(read, source, rules, { uploadDate }).values, source }
 }
 
 async function loadHeldRow(
@@ -273,7 +280,7 @@ async function loadHeldRow(
   const fieldRows = await loadFormFields(tx, actor, batch)
   const fields = fieldRows.map(intakeField)
   const uploadDate = currentBusinessDate(batch.createdAt)
-  const file = await readFileValues(tx, actor, batch, row, fields, uploadDate)
+  const { values: file, source } = await readFileValues(tx, actor, batch, row, fields, uploadDate)
   const match = await matchParticipant(tx, actor, { form, values: file })
   const beneficiaryId =
     match.kind === 'SAME' || match.kind === 'CHANGED' ? match.beneficiaryId : null
@@ -281,6 +288,15 @@ async function loadHeldRow(
     ? await readBaseline(tx, actor, form.projectId, beneficiaryId)
     : null
   const firstError = (row.validationErrors as Array<{ code?: string }>)[0]?.code
+  const invalid = new Set(
+    row.status === 'INVALID'
+      ? (row.validationErrors as Array<{ fieldCode?: string }>).flatMap((error) =>
+          fieldRows.some((field) => field.code === error.fieldCode)
+            ? [String(error.fieldCode)]
+            : [],
+        )
+      : [],
+  )
   return {
     batch,
     row: {
@@ -295,14 +311,14 @@ async function loadHeldRow(
     file,
     beneficiaryId,
     baseline,
-    invalid: new Set(
-      row.status === 'INVALID'
-        ? (row.validationErrors as Array<{ fieldCode?: string }>).flatMap((error) =>
-            fieldRows.some((field) => field.code === error.fieldCode)
-              ? [String(error.fieldCode)]
-              : [],
-          )
-        : [],
+    invalid,
+    // A field validation left without a value has nothing to show but its file text.
+    unusable: new Map(
+      [...invalid].flatMap((code) =>
+        isBlank(file[code]) && String(source[code] ?? '').trim() !== ''
+          ? [[code, String(source[code]).slice(0, MAX_UNUSABLE_TEXT)] as const]
+          : [],
+      ),
     ),
     // The matcher's list already leaves out file values the reviewer rejected before.
     changed: new Set(
@@ -667,6 +683,7 @@ export class ImportReviewService {
             options: Array.isArray(field.allowedValues) ? (field.allowedValues as string[]) : null,
             pathways: (held.baseline?.stored.get(field.code) ?? null) as Cell,
             file: (held.file[field.code] ?? null) as Cell,
+            fileUnusable: held.unusable.get(field.code) ?? null,
             calculated: (calculated[field.code] ?? null) as Cell,
             rule: held.fields.find((item) => item.code === field.code)?.rule ?? null,
             changed: held.changed.has(field.code) || held.invalid.has(field.code),

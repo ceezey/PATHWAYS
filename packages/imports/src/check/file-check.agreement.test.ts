@@ -9,13 +9,12 @@ import { parseSecureImport } from '../parser/secure'
 import { matchColumns } from '../validation/match-columns'
 import {
   type ColumnMapping,
-  columnRules,
   isSupplied,
   unsuppliedRequired,
   validateRows,
 } from '../validation/validate-rows'
 import { type CheckField, checkImportFile } from './file-check'
-import { consentHeld, fixedOnce } from './held-rules'
+import { consentHeld, dateOrderChoices, fixedOnce } from './held-rules'
 import { readImportFile } from './read-import-file'
 
 const UPLOAD_DATE = '2026-10-28'
@@ -108,16 +107,17 @@ async function serverView(bytes: Buffer, fileType: 'XLSX' | 'CSV', fields: Check
     raws,
     uploadDate: UPLOAD_DATE,
   })
-  const rules = columnRules(mappings, raws, 2026)
+  const orderChoices = dateOrderChoices(mappings, raws, 2026)
   const held = new Set<number>()
   const fixedOnLater = new Set<number>()
   results.forEach((result, index) => {
     const number = parsed.rows[index].sourceRowNumber
     for (const error of result.errors) {
       const dataType = fields.find((item) => item.code === error.fieldCode)?.dataType
-      ;(fixedOnce(error.code, dataType, !!rules[error.fieldCode]?.date) ? fixedOnLater : held).add(
-        number,
-      )
+      ;(fixedOnce(error.code, dataType, orderChoices.has(error.fieldCode))
+        ? fixedOnLater
+        : held
+      ).add(number)
     }
     if (consentHeld('BENEFICIARY_REGISTRATION', result)) held.add(number)
   })
@@ -262,15 +262,26 @@ describe('file check agrees with the server', () => {
     expect(report.problems).toEqual([])
   })
 
-  it('a text date column no single order fits: excluded by both', async () => {
-    // 25/12/2004 fits only day first and 12/25/2004 only month first, so the reviewer picks the order.
+  it('a text date column several orders fit: excluded by both', async () => {
+    // 03/04/2004 and 05/06/2004 fit day first and month first, so the reviewer picks one order.
     const { report, view } = await expectAgreement(
-      [HEADER, row('S-1', '25/12/2004', 21), row('S-2', '12/25/2004', 21)],
+      [HEADER, row('S-1', '03/04/2004', 22), row('S-2', '05/06/2004', 22)],
       'CSV',
     )
     expect(view.fixedOnLater.size).toBe(2)
     expect(view.held.size).toBe(0)
     expect(report.problems).toEqual([])
+  })
+
+  it('a text date column no single order fits: reported by both', async () => {
+    // 25/12/2004 fits only day first and 12/25/2004 only month first, so no choice is offered and both rows are held.
+    const { report, view } = await expectAgreement(
+      [HEADER, row('S-1', '25/12/2004', 21), row('S-2', '12/25/2004', 21)],
+      'CSV',
+    )
+    expect(view.fixedOnLater.size).toBe(0)
+    expect(sorted(view.held)).toEqual([2, 3])
+    expect(report.problemRows).toBe(2)
   })
 
   it('a column left pending with a suggestion counts as mapped by both', async () => {

@@ -4,6 +4,7 @@ import * as XLSX from 'xlsx'
 import { IMPORT_ENGINEERING_LIMITS } from '../limits'
 import { excelSerialToIsoDate } from '../parser/excel-date'
 import { ImportParseError, type ImportSourceColumn, normalizeMatrix } from '../parser/matrix'
+import { normalizeNewlines } from '../parser/newlines'
 import { workbookGrid } from '../parser/workbook-grid'
 import { inspectXlsxContainer } from '../parser/xlsx-container'
 
@@ -35,7 +36,8 @@ export function readImportFile(
       throw new ImportParseError('CSV_BINARY_CONTENT', 'The CSV contains binary content.')
     }
     // Options match the parser worker in parser/secure.ts.
-    const parsed = Papa.parse<unknown[]>(new TextDecoder('utf-8', { fatal: true }).decode(input), {
+    const text = new TextDecoder('utf-8', { fatal: true }).decode(input)
+    const parsed = Papa.parse<unknown[]>(normalizeNewlines(text), {
       header: false,
       skipEmptyLines: 'greedy',
       dynamicTyping: false,

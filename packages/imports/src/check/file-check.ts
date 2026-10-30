@@ -16,7 +16,7 @@ import {
   valuesByFieldCode,
 } from '../validation/validate-rows'
 import { type DateHelp, dateHelp } from './date-help'
-import { consentHeld, fixedOnce } from './held-rules'
+import { consentHeld, dateOrderChoices, fixedOnce } from './held-rules'
 import type { ReadImportFile } from './read-import-file'
 
 /** A published form field as the check needs it. */
@@ -148,6 +148,8 @@ export function checkImportFile(input: {
 
   // A column whose rule has a date order has one fitting order; the server reads its text dates without a reviewer.
   const rules = columnRules(mappings, file.rows, Number(uploadDate.slice(0, 4)))
+  // A column several orders fit gets one choice after upload, so its unreadable dates are not row problems.
+  const orderChoices = dateOrderChoices(mappings, file.rows, Number(uploadDate.slice(0, 4)))
   const groups = new Map<string, FileCheckProblem>()
   const rowsOf = new Map<string, number[]>()
   // The shown value of each duplicate group, keyed like groups.
@@ -201,7 +203,7 @@ export function checkImportFile(input: {
   results.forEach((result, index) => {
     for (const error of result.errors) {
       const dataType = fieldByCode.get(error.fieldCode)?.dataType
-      if (!fixedOnce(error.code, dataType, !!rules[error.fieldCode]?.date)) {
+      if (!fixedOnce(error.code, dataType, orderChoices.has(error.fieldCode))) {
         const reported = AGE_CONTRADICTIONS.includes(error.code)
           ? (birthOf.get(error.fieldCode) ?? error.fieldCode)
           : error.fieldCode

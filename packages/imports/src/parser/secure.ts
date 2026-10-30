@@ -9,6 +9,7 @@ import {
   normalizeMatrix,
   reject,
 } from './matrix'
+import { normalizeNewlines } from './newlines'
 import { type PdfTableLimits, reconstructPdfTable } from './pdf-table'
 import { workbookGrid } from './workbook-grid'
 import { inspectXlsxContainer } from './xlsx-container'
@@ -30,18 +31,19 @@ interface SecureImportParseResult {
   sheetNames: string[]
 }
 
-// The PDF table reconstruction and the Excel date conversion are embedded as source so
-// their CPU and memory fall under the worker's parse timeout and resource limits, in both
+// The PDF table reconstruction, the Excel date conversion and the newline normalizer are embedded
+// as source so their CPU and memory fall under the worker's parse timeout and resource limits, in both
 // source and compiled builds.
 const WORKER_SOURCE = String.raw`
 const { parentPort, workerData } = require('node:worker_threads');
 const reconstructPdfTable = ${reconstructPdfTable.toString()};
 const excelSerialToIsoDate = ${excelSerialToIsoDate.toString()};
+const normalizeNewlines = ${normalizeNewlines.toString()};
 try {
   const input = Buffer.from(workerData.input);
   if (workerData.fileType === 'CSV') {
     const Papa = require(workerData.papaPath);
-    const parsed = Papa.parse(input.toString('utf8'), {
+    const parsed = Papa.parse(normalizeNewlines(input.toString('utf8')), {
       header: false,
       skipEmptyLines: 'greedy',
       dynamicTyping: false,

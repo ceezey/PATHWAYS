@@ -101,6 +101,13 @@ describe('import workspace automatic processing', () => {
     expect(panel.contains(document.activeElement)).toBe(true)
   })
 
+  it('shows the new status in the batch list once processing finishes', async () => {
+    fireEvent.click(await openBatch())
+
+    const listed = screen.getByRole('button', { name: /notes\.xlsx/ })
+    await waitFor(() => expect(listed.textContent).toContain('Processed'))
+  })
+
   it('keeps processing until the batch is done and announces progress', async () => {
     fireEvent.click(await openBatch())
 
