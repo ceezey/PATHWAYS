@@ -9,6 +9,7 @@ import {
   normalizeMatrix,
   reject,
 } from './matrix'
+import { normalizeNewlines } from './newlines'
 import { type PdfTableLimits, reconstructPdfTable } from './pdf-table'
 import { workbookGrid } from './workbook-grid'
 import { inspectXlsxContainer } from './xlsx-container'
@@ -37,11 +38,12 @@ const WORKER_SOURCE = String.raw`
 const { parentPort, workerData } = require('node:worker_threads');
 const reconstructPdfTable = ${reconstructPdfTable.toString()};
 const excelSerialToIsoDate = ${excelSerialToIsoDate.toString()};
+const normalizeNewlines = ${normalizeNewlines.toString()};
 try {
   const input = Buffer.from(workerData.input);
   if (workerData.fileType === 'CSV') {
     const Papa = require(workerData.papaPath);
-    const parsed = Papa.parse(input.toString('utf8'), {
+    const parsed = Papa.parse(normalizeNewlines(input.toString('utf8')), {
       header: false,
       skipEmptyLines: 'greedy',
       dynamicTyping: false,

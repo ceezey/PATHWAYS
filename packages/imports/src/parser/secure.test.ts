@@ -41,6 +41,15 @@ async function expectCode(work: Promise<unknown>, code: string) {
 }
 
 describe('secure import parser', () => {
+  it('reads every row of a CSV with a CRLF header and LF rows', async () => {
+    const parsed = await parseSecureImport(Buffer.from('Name,Age\r\nAna,31\nBen,40\nCai,25'), 'CSV')
+    expect(parsed.rows.map((row) => row.values)).toEqual([
+      { column_0001: 'Ana', column_0002: '31' },
+      { column_0001: 'Ben', column_0002: '40' },
+      { column_0001: 'Cai', column_0002: '25' },
+    ])
+  })
+
   it('preserves original CSV headers, values, and source row numbers', async () => {
     const parsed = await parseSecureImport(
       Buffer.from('Name,Confirmed,Count,Blank\r\nAlice,false,0,\r\n', 'utf8'),

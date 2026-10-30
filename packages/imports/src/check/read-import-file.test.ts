@@ -51,6 +51,15 @@ describe('readImportFile', () => {
     expect(read.sourceColumns).toEqual(server.sourceColumns)
   })
 
+  it('reads a CSV with mixed line endings like the server', async () => {
+    const bytes = Buffer.from('Name,Age\r\nAna,31\nBen,40\nCai,25')
+    const read = readImportFile(toArrayBuffer(bytes), 'CSV', null)
+    const server = await parseSecureImport(bytes, 'CSV')
+    expect(read.rows).toHaveLength(3)
+    expect(read.rows).toEqual(server.rows.map((row) => row.values))
+    expect(read.rowNumbers).toEqual(server.rows.map((row) => row.sourceRowNumber))
+  })
+
   it('reads the chosen sheet of a two-sheet workbook', () => {
     const bytes = workbook({ First: [['A'], ['one']], Second: [['B'], ['two']] })
     const read = readImportFile(toArrayBuffer(bytes), 'XLSX', 'Second')
