@@ -14,6 +14,21 @@ const mappings = [
 ] as unknown as ImportBatchDefinition['mappings']
 
 describe('held row reasons', () => {
+  it('names the field of a missing or unreadable value', () => {
+    expect(rowReason(invalid('required'), mappings)).toBe('Age at registration is missing')
+    expect(rowReason(invalid('AMBIGUOUS_DATE'), mappings)).toBe(
+      'Age at registration is not a date PATHWAYS can read',
+    )
+    expect(rowReason(invalid('invalid_value'), mappings)).toBe('Age at registration is not valid')
+  })
+
+  it('keeps the plain reason when a row has no single field to name', () => {
+    expect(rowReason(invalid('DUPLICATE_BUSINESS_KEY', 'first_name,last_name'), mappings)).toBe(
+      'A value in this row is not valid',
+    )
+    expect(rowReason(invalid('some_code', ''), mappings)).toBe('A value in this row is not valid')
+  })
+
   it('names the field whose file value differs from its calculated value', () => {
     expect(rowReason(invalid('CALCULATION_MISMATCH'), mappings)).toBe(
       'Age at registration in the file does not match its calculated value',

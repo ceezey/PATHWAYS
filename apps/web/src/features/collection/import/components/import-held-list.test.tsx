@@ -200,7 +200,7 @@ describe('import held list', () => {
       withInvalid as unknown as ImportBatchDefinition,
     )
     expect(screen.getByText('Age does not match the birth date')).toBeTruthy()
-    expect(screen.getByText('A value in this row is not valid')).toBeTruthy()
+    expect(screen.getByText('Age is not valid')).toBeTruthy()
     const group = screen.getByRole('group', { name: 'Import results' })
     expect(within(group).getByText('Held').parentElement?.textContent).toContain('3')
     expect(screen.getAllByRole('button', { name: /^Review/ })).toHaveLength(3)

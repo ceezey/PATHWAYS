@@ -95,6 +95,8 @@ const validationHelp: Record<string, string> = {
     "PATHWAYS works this field out from the row's other answers, such as age from the birth and enrollment dates, and the file's value is different. Check the answers it is worked out from, usually the birth date.",
 }
 
+const invalidRow = 'A value in this row is not valid'
+
 type ReasonRow = Pick<ImportRowDefinition, 'status' | 'processingErrorCode' | 'validationErrors'>
 
 // The form label of a field the batch maps to, or its code in words when no column maps to it.
@@ -105,9 +107,16 @@ const fieldLabel = (code: string, mappings: ImportBatchDefinition['mappings']) =
 export function rowReason(row: ReasonRow, mappings?: ImportBatchDefinition['mappings']) {
   if (row.status !== 'INVALID') return holdReason(row.processingErrorCode)
   const error = row.validationErrors[0]
-  if (error?.code === 'CALCULATION_MISMATCH')
+  if (!error) return invalidRow
+  if (error.code === 'CALCULATION_MISMATCH')
     return `${fieldLabel(error.fieldCode, mappings)} in the file does not match its calculated value`
-  return (error ? validationReasons[error.code] : undefined) ?? 'A value in this row is not valid'
+  if (validationReasons[error.code]) return validationReasons[error.code]
+  // A duplicate of several fields together has no single field to name.
+  if (!error.fieldCode || error.fieldCode.includes(',')) return invalidRow
+  const label = fieldLabel(error.fieldCode, mappings)
+  if (error.code === 'required') return `${label} is missing`
+  if (error.code === 'AMBIGUOUS_DATE') return `${label} is not a date PATHWAYS can read`
+  return `${label} is not valid`
 }
 
 /** What an invalid row's reason means, or undefined when the reason speaks for itself. */
@@ -116,7 +125,7 @@ export const rowReasonHelp = (row: ReasonRow) =>
 
 // The plain reason a review window shows for its reason code: a hold code, or an invalid row's first validation code.
 export const reviewReason = (code: string) =>
-  knownHoldReason(code) ?? validationReasons[code] ?? 'A value in this row is not valid'
+  knownHoldReason(code) ?? validationReasons[code] ?? invalidRow
 
 // The participant name from the mapped first and last name columns, or a fallback when the file has none.
 export function participantName(
