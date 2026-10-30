@@ -5,6 +5,7 @@ import type { ApplicationIdentity } from '../../common/authz/application-identit
 import type { Tx } from '../../common/prisma/transaction'
 import type { BeneficiaryRegistrationService } from '../beneficiaries/beneficiary-registration.service'
 import type { StorageService } from '../storage/storage.service'
+import { isRowCountsQuery } from './batch-row-counts.harness'
 import { ImportsService, type UploadedImportFile } from './imports.service'
 
 const state = vi.hoisted(() => ({
@@ -115,7 +116,6 @@ export const tx = {
     findFirst: vi.fn(),
     update: vi.fn(),
     updateMany: vi.fn(),
-    groupBy: vi.fn(),
     count: vi.fn(),
   },
   metadataMapping: { findMany: vi.fn(), createMany: vi.fn() },
@@ -149,7 +149,7 @@ export function useImportsHarness() {
     )
     tx.project.findFirst.mockResolvedValue({ id: projectId })
     tx.formField.findFirst.mockResolvedValue(null)
-    tx.$queryRaw.mockResolvedValue([{ id: batchId }])
+    tx.$queryRaw.mockImplementation(async (sql) => (isRowCountsQuery(sql) ? [] : [{ id: batchId }]))
     tx.$executeRaw.mockResolvedValue(2)
     tx.auditLog.create.mockResolvedValue({ id: 'audit' })
     tx.dataImportBatch.update.mockResolvedValue(batch())

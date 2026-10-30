@@ -5,7 +5,13 @@ import type { ProcessImportRequest } from '@pathways/shared'
 import { writeAuditLog } from '../../common/audit/write-audit-log'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import type { Tx } from '../../common/prisma/transaction'
-import { lockBatch, mapStoredBatch, requireBatchWithHeaders } from './import-batches.service'
+import {
+  countRows,
+  lockBatch,
+  mapStoredBatch,
+  readBatchRowCounts,
+  requireBatchWithHeaders,
+} from './import-batches.service'
 import {
   MATCH_BY_IDENTIFIER_REFUSAL,
   type PromotionContext,
@@ -199,7 +205,7 @@ export async function finishBatchClaim(
   // is PROCESSING, the database state contract requires its claim fields to
   // remain populated; clearing them in a separate UPDATE creates a transient
   // invalid row and fails the checkpoint before reconciliation can run.
-  await reconcileBatch(tx, batch.id)
+  const counts = await reconcileBatch(tx, batch.id)
   await writeAuditLog(tx, actor, {
     projectId: batch.projectId,
     action: 'IMPORT_PROCESSING_CHECKPOINT',
@@ -207,17 +213,12 @@ export async function finishBatchClaim(
     entityId: batch.id,
     changes: { processingRevision: batch.processingRevision },
   })
-  return mapStoredBatch(tx, actor, batch.projectId, batch.id)
+  return mapStoredBatch(tx, actor, batch.projectId, batch.id, counts)
 }
 
 export async function reconcileBatch(tx: Tx, batchId: string) {
-  const counts = await tx.dataImportRow.groupBy({
-    by: ['status'],
-    where: { importBatchId: batchId },
-    _count: { _all: true },
-  })
-  const count = (status: string) =>
-    counts.find((entry) => entry.status === status)?._count._all ?? 0
+  const counts = await readBatchRowCounts(tx, batchId)
+  const count = (status: string) => countRows(counts, (row) => row.status === status)
   const processed = count('PROCESSED')
   const unprocessed = count('UNPROCESSED')
   const failed = count('FAILED')
@@ -242,4 +243,5 @@ export async function reconcileBatch(tx: Tx, batchId: string) {
       processedAt: outstanding === 0 ? new Date() : null,
     },
   })
+  return counts
 }

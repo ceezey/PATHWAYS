@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { PrismaService } from '@app/prisma/prisma.service'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import type { BeneficiaryRegistrationService } from '../beneficiaries/beneficiary-registration.service'
+import { fakeRowCounts, isRowCountsQuery } from './batch-row-counts.harness'
 import { ImportReviewService } from './import-review.service'
 import { valueHash } from './participant-match'
 
@@ -296,9 +297,11 @@ const submissionOf = (values: Json) => ({
 
 const fakeTx = {
   $queryRaw: vi.fn(async (sql: { values: unknown[] }) =>
-    sql.values.includes(store.batch.projectId) && sql.values.includes(organizationId)
-      ? [{ id: batchId }]
-      : [],
+    isRowCountsQuery(sql)
+      ? fakeRowCounts(store.rows)
+      : sql.values.includes(store.batch.projectId) && sql.values.includes(organizationId)
+        ? [{ id: batchId }]
+        : [],
   ),
   project: {
     findFirst: vi.fn(async (args: { where: { AND: [Json, { id: string }] } }) => {
@@ -346,11 +349,6 @@ const fakeTx = {
       if (!row) throw new Error('missing row')
       apply(row as unknown as Json, args.data)
       return row
-    }),
-    groupBy: vi.fn(async () => {
-      const counts = new Map<string, number>()
-      for (const row of store.rows) counts.set(row.status, (counts.get(row.status) ?? 0) + 1)
-      return [...counts].map(([status, count]) => ({ status, _count: { _all: count } }))
     }),
   },
   metadataMapping: { findMany: vi.fn(async () => mappings) },

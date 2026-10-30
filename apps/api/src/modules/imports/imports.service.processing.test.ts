@@ -18,6 +18,7 @@ import { ForbiddenException } from '@nestjs/common'
 import { describe, expect, it, vi } from 'vitest'
 
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
+import { fakeRowCounts, isRowCountsQuery } from './batch-row-counts.harness'
 
 describe('P03 import service', () => {
   useImportsHarness()
@@ -47,10 +48,11 @@ describe('P03 import service', () => {
 
     tx.dataImportBatch.findFirst.mockResolvedValueOnce(processing).mockResolvedValueOnce(finalized)
     tx.dataImportBatch.findUnique.mockResolvedValue(processing)
-    tx.dataImportRow.groupBy.mockResolvedValue([
-      { status: 'PROCESSED', _count: { _all: 1 } },
-      { status: 'INVALID', _count: { _all: 1 } },
-    ])
+    tx.$queryRaw.mockImplementation(async (sql) =>
+      isRowCountsQuery(sql)
+        ? fakeRowCounts([{ status: 'PROCESSED' }, { status: 'INVALID' }])
+        : [{ id: batchId }],
+    )
 
     const internals = service as unknown as {
       finishClaim: (
@@ -319,13 +321,8 @@ describe('P03 import service', () => {
       Object.assign(row, data)
       return structuredClone(row)
     })
-    tx.dataImportRow.groupBy.mockImplementation(async () =>
-      row.status === 'PROCESSED'
-        ? [{ status: 'PROCESSED', _count: { _all: 2 } }]
-        : [
-            { status: row.status, _count: { _all: 1 } },
-            { status: 'PROCESSED', _count: { _all: 1 } },
-          ],
+    tx.$queryRaw.mockImplementation(async (sql) =>
+      isRowCountsQuery(sql) ? fakeRowCounts([row, { status: 'PROCESSED' }]) : [{ id: batchId }],
     )
     tx.formField.findMany.mockResolvedValue([
       { id: 'score-field', code: 'score', label: 'Score', dataType: 'DECIMAL', isRequired: true },
