@@ -67,6 +67,10 @@ export function useBatchReview(state: ImportState) {
       )
       if (latest.current.batch?.id !== detail.id) setMappingNotice('')
       setBatch(detail)
+      // The list keeps its own copy of each status, so every reload here keeps the two in step.
+      setBatches((current) =>
+        current.map((item) => (item.id === detail.id ? { ...item, status: detail.status } : item)),
+      )
       setRows(page.rows)
       setRules(
         Object.fromEntries(
