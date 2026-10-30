@@ -93,8 +93,8 @@ interface HeldRow {
   changed: Set<string>
   // Codes of the fields a validation error names, which a reviewer has to settle too.
   invalid: Set<string>
-  // The file text of each invalid field whose value could not be read.
-  unreadable: Map<string, string>
+  // The file text of each invalid field left without a usable value.
+  unusable: Map<string, string>
   // The PATHWAYS value of each field whose file value was rejected before.
   rejected: Record<string, unknown>
 }
@@ -106,7 +106,7 @@ export interface RowResolution {
   values: Values
 }
 
-const MAX_UNREADABLE_TEXT = 200
+const MAX_UNUSABLE_TEXT = 200
 
 const isBlank = (value: unknown) =>
   value === null || value === undefined || value === '' || (Array.isArray(value) && !value.length)
@@ -312,11 +312,11 @@ async function loadHeldRow(
     beneficiaryId,
     baseline,
     invalid,
-    // A value that failed conversion has nothing to show but its file text.
-    unreadable: new Map(
+    // A field validation left without a value has nothing to show but its file text.
+    unusable: new Map(
       [...invalid].flatMap((code) =>
-        isBlank(file[code]) && !isBlank(source[code])
-          ? [[code, String(source[code]).slice(0, MAX_UNREADABLE_TEXT)] as const]
+        isBlank(file[code]) && String(source[code] ?? '').trim() !== ''
+          ? [[code, String(source[code]).slice(0, MAX_UNUSABLE_TEXT)] as const]
           : [],
       ),
     ),
@@ -683,7 +683,7 @@ export class ImportReviewService {
             options: Array.isArray(field.allowedValues) ? (field.allowedValues as string[]) : null,
             pathways: (held.baseline?.stored.get(field.code) ?? null) as Cell,
             file: (held.file[field.code] ?? null) as Cell,
-            fileUnreadable: held.unreadable.get(field.code) ?? null,
+            fileUnusable: held.unusable.get(field.code) ?? null,
             calculated: (calculated[field.code] ?? null) as Cell,
             rule: held.fields.find((item) => item.code === field.code)?.rule ?? null,
             changed: held.changed.has(field.code) || held.invalid.has(field.code),

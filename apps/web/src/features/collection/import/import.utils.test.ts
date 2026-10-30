@@ -22,10 +22,15 @@ describe('held row reasons', () => {
     expect(rowReason(invalid('invalid_value'), mappings)).toBe('Age at registration is not valid')
   })
 
-  it('keeps the plain reason when a row has no single field to name', () => {
+  it('says a duplicate repeats another row, on one key field or several', () => {
+    const repeats = 'This row repeats another row in the file'
     expect(rowReason(invalid('DUPLICATE_BUSINESS_KEY', 'first_name,last_name'), mappings)).toBe(
-      'A value in this row is not valid',
+      repeats,
     )
+    expect(rowReason(invalid('DUPLICATE_BUSINESS_KEY', 'client_id'), mappings)).toBe(repeats)
+  })
+
+  it('keeps the plain reason when an error names no field', () => {
     expect(rowReason(invalid('some_code', ''), mappings)).toBe('A value in this row is not valid')
   })
 

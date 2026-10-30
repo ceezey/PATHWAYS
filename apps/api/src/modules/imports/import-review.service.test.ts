@@ -453,18 +453,28 @@ describe('review', () => {
     const result = await review(dateRowId)
     const byCode = Object.fromEntries(result.fields.map((item) => [item.code, item]))
 
-    expect(byCode.birth_date).toMatchObject({ file: null, fileUnreadable: 'not a date' })
-    expect(byCode.first_name.fileUnreadable).toBeNull()
+    expect(byCode.birth_date).toMatchObject({ file: null, fileUnusable: 'not a date' })
+    expect(byCode.first_name.fileUnusable).toBeNull()
   })
 
-  it('review caps the raw text of an unreadable value', async () => {
+  it('review treats spaces in the file as no value', async () => {
+    const row = store.rows.find((item) => item.id === dateRowId) as { rawData: unknown }
+    row.rawData = rawRow({ column_0004: '   ' })
+
+    const result = await review(dateRowId)
+    const birthDate = result.fields.find((item) => item.code === 'birth_date')
+
+    expect(birthDate?.fileUnusable).toBeNull()
+  })
+
+  it('review caps the raw text of an unusable value', async () => {
     const row = store.rows.find((item) => item.id === dateRowId) as { rawData: unknown }
     row.rawData = rawRow({ column_0004: 'x'.repeat(500) })
 
     const result = await review(dateRowId)
     const birthDate = result.fields.find((item) => item.code === 'birth_date')
 
-    expect(birthDate?.fileUnreadable).toHaveLength(200)
+    expect(birthDate?.fileUnusable).toHaveLength(200)
   })
 
   it('review lists changed fields with PATHWAYS and file values', async () => {

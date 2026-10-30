@@ -306,10 +306,12 @@ export function ImportReviewDialog({
                       </TableCell>
                       <TableCell>
                         <ChoiceCell
-                          caption={field.fileUnreadable ? 'Cannot be read' : undefined}
-                          column="In this file"
+                          caption={field.fileUnusable ? 'Cannot be used' : undefined}
+                          column={
+                            field.fileUnusable ? 'In this file, cannot be used' : 'In this file'
+                          }
                           label={label}
-                          missing={field.fileUnreadable ?? 'No Data'}
+                          missing={field.fileUnusable ?? 'No Data'}
                           onPick={() => pick(code, 'FILE')}
                           picked={chosen(field) === 'FILE'}
                           value={field.file}

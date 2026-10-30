@@ -76,6 +76,7 @@ const validationReasons: Record<string, string> = {
   AGE_MISMATCH: 'Age does not match the birth date',
   BIRTH_AFTER_DATE: 'Birth date is after the date age is measured',
   CALCULATION_MISMATCH: 'File value does not match the calculated value',
+  DUPLICATE_BUSINESS_KEY: 'This row repeats another row in the file',
   IDENTITY_CONFLICT: 'Client ID is used more than once',
 }
 
@@ -111,8 +112,7 @@ export function rowReason(row: ReasonRow, mappings?: ImportBatchDefinition['mapp
   if (error.code === 'CALCULATION_MISMATCH')
     return `${fieldLabel(error.fieldCode, mappings)} in the file does not match its calculated value`
   if (validationReasons[error.code]) return validationReasons[error.code]
-  // A duplicate of several fields together has no single field to name.
-  if (!error.fieldCode || error.fieldCode.includes(',')) return invalidRow
+  if (!error.fieldCode) return invalidRow
   const label = fieldLabel(error.fieldCode, mappings)
   if (error.code === 'required') return `${label} is missing`
   if (error.code === 'AMBIGUOUS_DATE') return `${label} is not a date PATHWAYS can read`
