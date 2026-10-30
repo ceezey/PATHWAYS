@@ -59,6 +59,8 @@ export const importRowReviewFieldResponse = z.object({
   options: z.array(z.string()).nullable(),
   pathways: json.nullable(),
   file: json.nullable(),
+  // The file's text when validation could not read it, shown to the reviewer and never a value to pick.
+  fileUnreadable: z.string().nullable(),
   calculated: json.nullable(),
   // The field's calculation or check, so the window can say how the calculated value was worked out.
   rule: fieldIntakeRule.nullable(),

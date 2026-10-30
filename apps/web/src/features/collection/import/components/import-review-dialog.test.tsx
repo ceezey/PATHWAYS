@@ -26,6 +26,7 @@ const review = (canAddNew = true): ImportRowReviewResponse => ({
       options: null,
       pathways: 'Ana',
       file: 'Anna',
+      fileUnreadable: null,
       calculated: null,
       rule: null,
       changed: true,
@@ -37,6 +38,7 @@ const review = (canAddNew = true): ImportRowReviewResponse => ({
       options: ['Female', 'Male'],
       pathways: 'Female',
       file: 'M',
+      fileUnreadable: null,
       calculated: null,
       rule: null,
       changed: true,
@@ -48,6 +50,7 @@ const review = (canAddNew = true): ImportRowReviewResponse => ({
       options: null,
       pathways: '2010-01-02',
       file: '2010-01-02',
+      fileUnreadable: null,
       calculated: null,
       rule: null,
       changed: false,
@@ -59,6 +62,7 @@ const review = (canAddNew = true): ImportRowReviewResponse => ({
       options: null,
       pathways: null,
       file: 7,
+      fileUnreadable: null,
       calculated: 9,
       rule: null,
       changed: true,
@@ -70,6 +74,7 @@ const review = (canAddNew = true): ImportRowReviewResponse => ({
       options: null,
       pathways: true,
       file: false,
+      fileUnreadable: null,
       calculated: null,
       rule: null,
       changed: true,
@@ -117,6 +122,42 @@ describe('import review dialog', () => {
     expect(cell.getAttribute('aria-pressed')).toBe('true')
     const pathways = screen.getByRole('button', { name: 'First name, In database: Ana' })
     expect(pathways.getAttribute('aria-pressed')).toBe('false')
+  })
+
+  it('shows an unreadable file value in a tile that cannot be picked', async () => {
+    api.getRowReview.mockResolvedValue({
+      ...review(),
+      fields: [
+        {
+          code: 'enrollment_date',
+          label: 'Enrollment date',
+          dataType: 'DATE',
+          options: null,
+          pathways: null,
+          file: null,
+          fileUnreadable: 'not-a-date',
+          calculated: null,
+          rule: null,
+          changed: true,
+        },
+      ],
+    })
+    render(
+      <ImportReviewDialog
+        batchId="batch-1"
+        canUpdate
+        onClose={vi.fn()}
+        onResolved={vi.fn()}
+        projectId="project-1"
+        rowId="row-1"
+        validationRevision={3}
+      />,
+    )
+    const tile = (await screen.findByRole('button', {
+      name: 'Enrollment date, In this file: not-a-date',
+    })) as HTMLButtonElement
+    expect(tile.disabled).toBe(true)
+    expect(tile.textContent).toContain('Cannot be read')
   })
 
   it('typing selects Your value', async () => {
@@ -297,6 +338,7 @@ describe('import review dialog', () => {
           options: null,
           pathways: null,
           file: 25,
+          fileUnreadable: null,
           calculated: 36,
           rule: { kind: 'AGE_CHECK', birthField: 'birth_date', atFields: ['enrollment_date'] },
           changed: true,
@@ -308,6 +350,7 @@ describe('import review dialog', () => {
           options: null,
           pathways: null,
           file: '1990-01-01',
+          fileUnreadable: null,
           calculated: null,
           rule: null,
           changed: false,
