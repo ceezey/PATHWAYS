@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { DisplayLabelsProvider } from '@/providers/display-labels-provider'
 
+import { UPLOAD_NEEDS_FORM_UPDATE } from '../../collection.copy'
 import { ImportWorkspace } from './import-workspace'
 
 const state = vi.hoisted(() => ({
@@ -194,6 +195,77 @@ describe('import workspace intake paths', () => {
         expect(toasts.error).toHaveBeenCalledWith('Every column is already covered by the form.'),
       )
       expect(nav.push).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('a file missing a required column', () => {
+    const required = {
+      ...formV1,
+      formType: 'ACTIVITY',
+      fields: [
+        {
+          id: 'field-1',
+          code: 'first_name',
+          label: 'First name',
+          dataType: 'TEXT',
+          required: true,
+          metadataKey: false,
+          sadddField: false,
+          allowedValues: null,
+          minimumLength: null,
+          maximumLength: null,
+          sequence: 1,
+        },
+      ],
+    }
+    const openDialog = async () => {
+      api.getDigitalForms.mockResolvedValue([required])
+      api.getDigitalForm.mockResolvedValue(required)
+      api.getImportBatches.mockResolvedValue([])
+      api.uploadImport.mockResolvedValue(batch({ mappingRevision: 0 }))
+      api.automaticImportMapping.mockResolvedValue(receipt())
+      render(<ImportWorkspace />, { wrapper: DisplayLabelsProvider })
+      await screen.findByText('Registration - v1')
+      // jsdom's File has no arrayBuffer, so the bytes are handed over directly.
+      const bytes = new TextEncoder().encode('Nickname\nAna\n')
+      const file = new File([bytes], 'people.csv', { type: 'text/csv' })
+      file.arrayBuffer = async () => bytes.buffer as ArrayBuffer
+      fireEvent.change(screen.getByLabelText('Source file'), { target: { files: [file] } })
+      fireEvent.click(screen.getByRole('button', { name: 'Upload privately' }))
+      await screen.findByRole('dialog', { name: 'Check your file before uploading' })
+    }
+
+    it('Prepare form in the dialog uploads, drafts and opens the editor', async () => {
+      state.profile.permissions = [...grants, 'forms.manage']
+      api.draftFromImport.mockResolvedValue({
+        form: { id: 'draft-1', projectId: 'project-1' },
+        summary,
+      })
+      await openDialog()
+      fireEvent.click(screen.getByRole('button', { name: 'Prepare form' }))
+      await waitFor(() =>
+        expect(nav.push).toHaveBeenCalledWith('/collection/projects/project-1/forms/draft-1'),
+      )
+      expect(api.uploadImport).toHaveBeenCalledTimes(1)
+      expect(api.draftFromImport).toHaveBeenCalledWith('project-1', 'form-1', 'batch-1', 1)
+    })
+
+    it('Upload anyway does not repeat the Prepare form offer on the mapping card', async () => {
+      state.profile.permissions = [...grants, 'forms.manage']
+      await openDialog()
+      fireEvent.click(screen.getByRole('button', { name: 'Upload anyway' }))
+      await screen.findByText('Column 1: Given name')
+      expect(api.uploadImport).toHaveBeenCalledTimes(1)
+      expect(screen.queryByText(/Form needs updating/)).toBeNull()
+      expect(screen.queryByRole('button', { name: 'Prepare form' })).toBeNull()
+    })
+
+    it('someone who cannot manage forms cannot upload the file and is told who updates the form', async () => {
+      await openDialog()
+      expect(screen.queryByRole('button', { name: 'Prepare form' })).toBeNull()
+      fireEvent.click(screen.getByRole('button', { name: 'Upload anyway' }))
+      expect(screen.getByRole('tooltip').textContent).toBe(UPLOAD_NEEDS_FORM_UPDATE)
+      expect(api.uploadImport).not.toHaveBeenCalled()
     })
   })
 

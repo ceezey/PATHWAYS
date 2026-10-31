@@ -26,7 +26,14 @@ const notCovered = {
 }
 const prepareForm = vi.fn()
 
-const renderCard = (over: { canManageForms?: boolean; receipts?: object; batch?: object } = {}) =>
+const renderCard = (
+  over: {
+    canManageForms?: boolean
+    receipts?: object
+    batch?: object
+    formOfferSeen?: ReadonlySet<string>
+  } = {},
+) =>
   render(
     <ImportMappingCard
       batch={{ ...batch, ...over.batch } as ImportBatchDefinition}
@@ -39,6 +46,7 @@ const renderCard = (over: { canManageForms?: boolean; receipts?: object; batch?:
         canReview: false,
         canValidate: false,
         columnValues: new Map(),
+        formOfferSeen: over.formOfferSeen ?? new Set(),
         mapping: { column_0001: '__pending__' },
         mappingEditable: false,
         mappingHeading: { current: null },
@@ -103,6 +111,12 @@ describe('ImportMappingCard form coverage', () => {
     expect(screen.getByText('Form needs updating: 2 columns, 4 answers')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Prepare form' }))
     expect(prepareForm).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not repeat the notice for a batch whose uploader saw Prepare form in the file check', () => {
+    renderCard({ formOfferSeen: new Set(['batch-1']) })
+    expect(screen.queryByText(/Form needs updating/)).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Prepare form' })).toBeNull()
   })
 
   it('prefers the server coverage over a stale session receipt', () => {

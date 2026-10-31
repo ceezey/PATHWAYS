@@ -1,6 +1,7 @@
-import { isCalculatedRule } from '@pathways/shared'
+import { type DigitalFormType, isCalculatedRule } from '@pathways/shared'
 import * as XLSX from 'xlsx'
 
+import { type DraftField, draftFormFromImport } from '../form-draft/draft-form'
 import type { IntakeField } from '../intake-rules'
 import type { CoverageField } from '../mappers/coverage'
 import { normalizeImportedRow } from '../normalization'
@@ -40,6 +41,8 @@ export interface FileCheckReport {
   totalRows: number
   problemRows: number
   problems: FileCheckProblem[]
+  // A required column is missing, the server would accept the file, and its draft would change the form.
+  canPrepareForm: boolean
 }
 
 // What the age rules report on the age field, though the birth date column is what to look at.
@@ -298,9 +301,39 @@ export function checkImportFile(input: {
     problem.date = date
     helpOf.delete(problem.fieldCode)
   }
+  // Runs the server's own draft, because it refuses a file whose only gap is a missing required column.
+  // shortcut: skips the server's definition validation and version conflicts, so a draft can still be refused after upload; mirror them if people hit those refusals.
+  const draftChangesForm = () => {
+    try {
+      draftFormFromImport({
+        formType: formType as DigitalFormType,
+        fields: fields as unknown as DraftField[],
+        columns: file.sourceColumns.map((column) => ({
+          key: column.key,
+          columnIndex: column.columnIndex,
+          header: column.header,
+          sourceCode: column.sourceCode,
+          values: file.rows.map((values) => values[column.key]),
+        })),
+        decisions,
+        uploadDate,
+      })
+      return true
+    } catch {
+      // Any failure only withholds the offer, because a rethrow would skip the whole file check.
+      return false
+    }
+  }
+
   return {
     totalRows: file.rows.length,
     problemRows: problemRows.size,
     problems: [...problems, ...rowProblems],
+    // The server refuses to draft from a file with no rows, and refuses the upload of a formula with no saved value.
+    canPrepareForm:
+      file.rows.length > 0 &&
+      !file.formulaGap &&
+      problems.some((problem) => problem.kind === 'NO_COLUMN') &&
+      draftChangesForm(),
   }
 }

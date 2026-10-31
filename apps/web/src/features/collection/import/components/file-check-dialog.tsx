@@ -2,8 +2,10 @@
 
 import type { FileCheckProblem, FileCheckReport } from '@pathways/imports'
 import { TriangleAlert } from 'lucide-react'
-import { type RefObject, useRef } from 'react'
+import { type MouseEvent, type RefObject, useRef } from 'react'
 
+import { useHoverTip } from '@/components/pathways'
+import { UnavailableHint, unavailableControlProps } from '@/components/pathways/unavailable-hint'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -23,7 +25,8 @@ import {
 } from '@/components/ui/table'
 import { cn } from '@/lib/utils'
 
-import { headClass } from '../import.utils'
+import { UPLOAD_NEEDS_FORM_UPDATE } from '../../collection.copy'
+import { headClass, missesRequiredColumn } from '../import.utils'
 
 const column = (problem: FileCheckProblem) => {
   if (problem.columnHeader)
@@ -57,22 +60,33 @@ function DateBlock({ date }: { date: NonNullable<FileCheckProblem['date']> }) {
   )
 }
 
+const UPLOAD_HINT_ID = 'file-check-upload-hint'
+
 /** Tells the person which rows would need one-by-one review and asks them to fix the file first. */
 export function FileCheckDialog({
   report,
   fileInput,
+  canManageForms,
   onFix,
+  onPrepareForm,
   onUploadAnyway,
   onClose,
 }: {
   report: FileCheckReport
   // Where focus goes when the dialog closes, the file input the person picks the corrected file with.
   fileInput: RefObject<HTMLInputElement | null>
+  canManageForms: boolean
   onFix: () => void
+  onPrepareForm: () => void
   onUploadAnyway: () => void
   onClose: () => void
 }) {
   const fixRef = useRef<HTMLButtonElement>(null)
+  const uploadBlocked = missesRequiredColumn(report) && !canManageForms
+  const blockedProps = unavailableControlProps(UPLOAD_HINT_ID, UPLOAD_NEEDS_FORM_UPDATE)
+  const { show, triggerProps, tip } = useHoverTip(
+    uploadBlocked ? UPLOAD_NEEDS_FORM_UPDATE : undefined,
+  )
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
@@ -98,7 +112,7 @@ export function FileCheckDialog({
           <p>
             {report.problemRows === 0
               ? 'The file has problems you can fix in the file. Fixing them in your spreadsheet first makes the upload go smoothly.'
-              : `${report.problemRows} of ${report.totalRows} rows have problems you can fix in the file. Fixing them in your spreadsheet first makes the upload go smoothly. Uploaded as it is, each of these rows has to be reviewed here one by one.`}
+              : `${report.problemRows} of ${report.totalRows} rows have problems you can fix in the file. Fixing them in your spreadsheet first makes the upload go smoothly.${uploadBlocked ? '' : ' Uploaded as it is, each of these rows has to be reviewed here one by one.'}`}
           </p>
         </div>
         <Table>
@@ -130,9 +144,32 @@ export function FileCheckDialog({
           </TableBody>
         </Table>
         <DialogFooter>
-          <Button variant="outline" onClick={onUploadAnyway}>
+          {uploadBlocked ? (
+            <UnavailableHint id={UPLOAD_HINT_ID} message={UPLOAD_NEEDS_FORM_UPDATE} />
+          ) : null}
+          <Button
+            variant="outline"
+            {...(uploadBlocked
+              ? {
+                  ...triggerProps,
+                  ...blockedProps,
+                  // The tip replaces the native title, which never shows on keyboard focus or touch.
+                  title: undefined,
+                  onClick: (event: MouseEvent) => {
+                    blockedProps.onClick(event)
+                    show()
+                  },
+                }
+              : { onClick: onUploadAnyway })}
+          >
             Upload anyway
           </Button>
+          {tip}
+          {report.canPrepareForm && canManageForms ? (
+            <Button variant="outline" onClick={onPrepareForm}>
+              Prepare form
+            </Button>
+          ) : null}
           <Button ref={fixRef} onClick={onFix}>
             Fix the file
           </Button>

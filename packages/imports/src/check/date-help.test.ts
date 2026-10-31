@@ -128,6 +128,6 @@ describe('date help in the file check', () => {
       completedYearsAt(day(born), day('2026-10-28')),
     ])
     const report = check(rows, 'yyyy-mm-dd')
-    expect(report).toEqual({ totalRows: 20, problemRows: 0, problems: [] })
+    expect(report).toEqual({ totalRows: 20, problemRows: 0, problems: [], canPrepareForm: false })
   })
 })

@@ -53,10 +53,85 @@ const header = ['First name', 'Birth date', 'Age at registration']
 const good = ['Ana', '2000-01-01', 26]
 const wrongAge = ['Ben', '2000-01-01', 40]
 
+describe('checkImportFile canPrepareForm', () => {
+  const score = field('score', 'Score', 'INTEGER')
+
+  it('is true when a required column is missing and the file has a column a draft would add', () => {
+    const report = check(
+      [
+        ['Score', 'Favourite colour'],
+        [3, 'red'],
+      ],
+      [firstName, score],
+    )
+    expect(report.problems.map((problem) => problem.kind)).toContain('NO_COLUMN')
+    expect(report.canPrepareForm).toBe(true)
+  })
+
+  it('is false when a required column is missing and a draft would have nothing to add', () => {
+    const report = check([['Score'], [3]], [firstName, score])
+    expect(report.problems.map((problem) => problem.kind)).toContain('NO_COLUMN')
+    expect(report.canPrepareForm).toBe(false)
+  })
+
+  it('is true on a registration form when a draft would set a required field default', () => {
+    const operation = field('registration_operation', 'Registration operation', 'SELECT', {
+      required: true,
+      allowedValues: ['CREATE', 'UPDATE'],
+    })
+    const report = check(
+      [['First name'], ['Ana']],
+      [firstName, operation],
+      'BENEFICIARY_REGISTRATION',
+    )
+    expect(report.canPrepareForm).toBe(true)
+  })
+
+  it('is false for a header-only file, which the server refuses to draft from', () => {
+    const operation = field('registration_operation', 'Registration operation', 'SELECT', {
+      required: true,
+      allowedValues: ['CREATE', 'UPDATE'],
+    })
+    const report = check([['First name']], [firstName, operation], 'BENEFICIARY_REGISTRATION')
+    expect(report.problems.map((problem) => problem.kind)).toContain('NO_COLUMN')
+    expect(report.canPrepareForm).toBe(false)
+  })
+
+  it('is false for a formula with no saved value, because the server refuses the upload', () => {
+    const report = check(
+      [
+        ['Score', 'Favourite colour'],
+        [3, 'red'],
+      ],
+      [firstName, score],
+      'ACTIVITY',
+      (sheet) => {
+        sheet.A2 = { t: 'n', f: 'SUM(1,2)' }
+      },
+    )
+    expect(report.problems.map((problem) => problem.kind)).toEqual(
+      expect.arrayContaining(['NO_COLUMN', 'FORMULA_NO_VALUE']),
+    )
+    expect(report.canPrepareForm).toBe(false)
+  })
+
+  it('is false when only rows have problems, even with a column a draft would add', () => {
+    const report = check(
+      [
+        ['First name', 'Score', 'Favourite colour'],
+        ['Ana', 'abc', 'red'],
+      ],
+      [firstName, score],
+    )
+    expect(report.problems.map((problem) => problem.kind)).not.toContain('NO_COLUMN')
+    expect(report.canPrepareForm).toBe(false)
+  })
+})
+
 describe('checkImportFile', () => {
   it('a clean file has no problems', () => {
     const report = check([header, good, ['Cai', '1999-05-05', 27]], [firstName, birthDate, age])
-    expect(report).toEqual({ totalRows: 2, problemRows: 0, problems: [] })
+    expect(report).toEqual({ totalRows: 2, problemRows: 0, problems: [], canPrepareForm: false })
   })
 
   it('a missing required column is reported once', () => {
@@ -110,7 +185,7 @@ describe('checkImportFile', () => {
       ],
       [firstName, birthDate, age, sex],
     )
-    expect(report).toEqual({ totalRows: 3, problemRows: 0, problems: [] })
+    expect(report).toEqual({ totalRows: 3, problemRows: 0, problems: [], canPrepareForm: false })
   })
 
   it('a date no order can read is reported', () => {

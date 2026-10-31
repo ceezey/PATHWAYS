@@ -39,6 +39,7 @@ export function ImportMappingCard({
     | 'canReview'
     | 'canValidate'
     | 'columnValues'
+    | 'formOfferSeen'
     | 'mapping'
     | 'mappingEditable'
     | 'mappingHeading'
@@ -66,6 +67,7 @@ export function ImportMappingCard({
     canReview,
     canValidate,
     columnValues,
+    formOfferSeen,
     mapping,
     mappingEditable,
     mappingHeading,
@@ -89,7 +91,7 @@ export function ImportMappingCard({
   // The counts describe the automatic revision only; a reviewer's later revision replaces them.
   const coverage =
     batch.coverage ?? (receipt?.mappingRevision === batch.mappingRevision ? receipt : null)
-  const needsFormUpdate = coverage?.coverage === 'NOT_COVERED'
+  const needsFormUpdate = coverage?.coverage === 'NOT_COVERED' && !formOfferSeen.has(batch.id)
   // The columns undecided when the filter was switched on; deciding one keeps it in view.
   const [undecidedShown, setUndecidedShown] = useState<ReadonlySet<string> | null>(null)
   const referenceYear = new Date(batch.uploadedAt ?? Date.now()).getUTCFullYear()

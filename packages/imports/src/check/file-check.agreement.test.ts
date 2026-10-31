@@ -4,6 +4,8 @@ import { isCalculatedRule } from '@pathways/shared'
 import { describe, expect, it } from 'vitest'
 import * as XLSX from 'xlsx'
 
+import { FormDraftError, draftFormFromImport } from '../form-draft/draft-form'
+import type { DraftField } from '../form-draft/draft-form'
 import type { CoverageField } from '../mappers/coverage'
 import { parseSecureImport } from '../parser/secure'
 import { matchColumns } from '../validation/match-columns'
@@ -150,7 +152,7 @@ function bothReadings(rows: unknown[][], fileType: 'XLSX' | 'CSV', fields: Check
     expect(problem.exampleRows).toHaveLength(problem.rowCount)
     for (const number of problem.exampleRows) reported.add(number)
   }
-  return { report, reported, server: serverView(bytes, fileType, fields) }
+  return { bytes, report, reported, server: serverView(bytes, fileType, fields) }
 }
 
 async function expectAgreement(
@@ -167,6 +169,77 @@ async function expectAgreement(
   ).toEqual(view.noColumn)
   return { report, view }
 }
+
+// As form-draft-from-import.service.ts on what the upload staged: a file with no rows or a refused draft gives no draft.
+async function serverDrafts(bytes: Buffer, fields: CheckField[]) {
+  const parsed = await parseSecureImport(bytes, 'XLSX')
+  if (parsed.rows.length < 1) return false
+  const raws = parsed.rows.map((item) => item.values)
+  try {
+    draftFormFromImport({
+      formType: 'BENEFICIARY_REGISTRATION',
+      fields: fields as unknown as DraftField[],
+      columns: parsed.sourceColumns.map((column) => ({
+        key: column.key,
+        columnIndex: column.columnIndex,
+        header: column.header,
+        sourceCode: column.sourceCode,
+        values: raws.map((values) => values[column.key]),
+      })),
+      decisions: matchColumns(
+        parsed.sourceColumns,
+        raws,
+        fields.map((item): CoverageField => ({ ...item, calculated: isCalculatedRule(item.rule) })),
+      ),
+      uploadDate: UPLOAD_DATE,
+    })
+    return true
+  } catch (error) {
+    if (error instanceof FormDraftError) return false
+    throw error
+  }
+}
+
+// The API returns null for a field's unset options, unlike the undefined the fixtures above use.
+const fromApi = (item: CheckField) =>
+  ({
+    allowedValues: null,
+    sourceNames: null,
+    valueAliases: null,
+    importDefault: null,
+    rule: null,
+    ...item,
+  }) as unknown as CheckField
+
+describe('Prepare form agrees with the server draft', () => {
+  const firstName = field('first_name', 'First name', 'TEXT', { required: true })
+  const lastName = field('last_name', 'Last name', 'TEXT', { required: true })
+  const operation = field('registration_operation', 'Registration operation', 'SELECT', {
+    required: true,
+    allowedValues: ['CREATE', 'UPDATE'],
+  })
+
+  it.each([
+    [
+      'an extra column',
+      [
+        ['First name', 'Favourite colour'],
+        ['Ana', 'red'],
+      ],
+      [firstName, lastName],
+      true,
+    ],
+    ['nothing to add', [['First name'], ['Ana']], [firstName, lastName], false],
+    ['a default to set', [['First name'], ['Ana']], [firstName, operation], true],
+    ['a header-only file', [['First name']], [firstName, operation], false],
+  ] as const)('%s', async (_name, rows, formFields, expected) => {
+    const apiFields = formFields.map(fromApi)
+    const { bytes, report } = bothReadings(rows as unknown as unknown[][], 'XLSX', apiFields)
+    expect(report.problems.map((problem) => problem.kind)).toContain('NO_COLUMN')
+    expect(await serverDrafts(bytes, apiFields)).toBe(expected)
+    expect(report.canPrepareForm).toBe(expected)
+  })
+})
 
 describe('file check agrees with the server', () => {
   it('a clean file: nothing held, nothing reported', async () => {
@@ -228,7 +301,7 @@ describe('file check agrees with the server', () => {
     ])
     expect(view.fixedOnLater.size).toBe(2)
     expect(view.held.size).toBe(0)
-    expect(report).toEqual({ totalRows: 3, problemRows: 0, problems: [] })
+    expect(report).toEqual({ totalRows: 3, problemRows: 0, problems: [], canPrepareForm: false })
   })
 
   it('a CSV with text dates: held and reported alike', async () => {

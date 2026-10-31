@@ -11,13 +11,16 @@ import type { ImportMappingInput } from '@/types/pathways'
 import { ruleToMappingInput } from '../components/import-value-map-editor'
 import { runFileCheck } from '../file-check'
 import { uploadFailure } from '../import.utils'
+import { draftFormFromImport } from '../prepare-draft'
 import type { ImportState } from './use-import-state'
 
 export function useBatchReview(state: ImportState) {
   const {
     batch,
     begin,
+    canManageForms,
     file,
+    fileCheck,
     fileInput,
     formId,
     forms,
@@ -36,8 +39,10 @@ export function useBatchReview(state: ImportState) {
     setBatch,
     setBatches,
     setChecking,
+    setDraftTarget,
     setFile,
     setFileCheck,
+    setFormOfferSeen,
     setForms,
     setMapping,
     setMappingNotice,
@@ -137,7 +142,17 @@ export function useBatchReview(state: ImportState) {
     }
   }
 
-  const upload = async ({ skipCheck = false } = {}) => {
+  // The input is cleared too, because picking the same file again fires no change event otherwise.
+  const clearFile = () => {
+    setFile(null)
+    if (fileInput.current) fileInput.current.value = ''
+  }
+
+  const upload = async ({
+    skipCheck = false,
+    prepareForm = false,
+    formOfferShown = false,
+  } = {}) => {
     const form = forms.find(
       (definition) =>
         definition.id === formId &&
@@ -176,6 +191,7 @@ export function useBatchReview(state: ImportState) {
         chosenSheet || undefined,
       )
       if (!ticket.valid('imports.upload')) return
+      if (formOfferShown) setFormOfferSeen((seen) => new Set(seen).add(created.id))
       const receipt = await importBatch.mapAutomatically(projectId, created)
       if (receipt) {
         if (!ticket.valid('imports.read')) return
@@ -185,14 +201,28 @@ export function useBatchReview(state: ImportState) {
       if (!ticket.valid('imports.read')) return
       await loadBatch(created.id, ticket)
       if (!ticket.valid()) return
-      setFile(null)
-      importBatch.forgetUpload()
       const failure = uploadFailure(created)
       if (failure) toast.error(failure)
-      else
+      else if (prepareForm) {
+        try {
+          const target = await draftFormFromImport(
+            projectId,
+            formId,
+            created.id,
+            receipt?.mappingRevision ?? created.mappingRevision,
+          )
+          if (!ticket.valid('forms.manage')) return
+          setDraftTarget(target)
+        } catch (error) {
+          if (!ticket.valid()) return
+          toast.error(error instanceof Error ? error.message : 'The form could not be prepared.')
+        }
+      } else
         toast.success(
           'The private upload was staged. Unresolved mappings require an authorized reviewer.',
         )
+      clearFile()
+      importBatch.forgetUpload()
     } catch (error) {
       if (ticket.valid()) {
         // A refusal for a missing permission stays on the upload card, where the reviewer picked the file.
@@ -212,15 +242,20 @@ export function useBatchReview(state: ImportState) {
   }
 
   const uploadAnyway = () => {
+    const formOfferShown = canManageForms && fileCheck?.canPrepareForm === true
     setFileCheck(null)
-    return upload({ skipCheck: true })
+    return upload({ skipCheck: true, formOfferShown })
+  }
+
+  const prepareFromFile = () => {
+    setFileCheck(null)
+    return upload({ skipCheck: true, prepareForm: true })
   }
 
   // Fixing the file is the only way out of the dialog that clears the chosen file.
   const fixFile = () => {
     setFileCheck(null)
-    setFile(null)
-    if (fileInput.current) fileInput.current.value = ''
+    clearFile()
   }
 
   const saveMapping = async (draft = mapping) => {
@@ -355,6 +390,7 @@ export function useBatchReview(state: ImportState) {
     resume,
     saveMapping,
     upload,
+    prepareFromFile,
     uploadAnyway,
     validate,
   }

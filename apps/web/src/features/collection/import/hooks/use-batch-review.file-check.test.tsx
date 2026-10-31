@@ -16,8 +16,10 @@ const api = vi.hoisted(() => ({
   getImportRows: vi.fn(),
 }))
 vi.mock('@/lib/api/imports', () => ({ importsClient: api }))
-vi.mock('@/lib/api/forms', () => ({ formsClient: {} }))
-vi.mock('sonner', () => ({ toast: { error: vi.fn(), success: vi.fn() } }))
+const draft = vi.hoisted(() => ({ draftFromImport: vi.fn() }))
+const toasts = vi.hoisted(() => ({ error: vi.fn(), success: vi.fn() }))
+vi.mock('@/lib/api/forms', () => ({ formsClient: draft }))
+vi.mock('sonner', () => ({ toast: toasts }))
 
 const field = (code: string, label: string, dataType: string, required = false) => ({
   id: `id-${code}`,
@@ -59,19 +61,35 @@ const held = () =>
     ['First Name', 'Score'],
     ['Ana', 'abc'],
   ])
+// The form requires First Name and the file has no such column, and a draft would have nothing to add.
+const noColumn = () => workbook([['Score'], ['3']])
+// The same missing column, with a column a draft would add to the form.
+const draftable = () =>
+  workbook([
+    ['Score', 'Favourite colour'],
+    ['3', 'red'],
+  ])
 
 function setup(
   initial: File | null,
   sheets: { names: string[]; chosen: string } = { names: [], chosen: '' },
+  canManageForms = true,
+  mapped: { mappingRevision: number } | null = null,
 ) {
   return renderHook(() => {
     const [file, setFile] = useState<File | null>(initial)
     const [checking, setChecking] = useState(false)
     const [fileCheck, setFileCheck] = useState<ImportState['fileCheck']>(null)
     const [pending, setPending] = useState(false)
+    const [draftTarget, setDraftTarget] = useState<ImportState['draftTarget']>(null)
+    const [formOfferSeen, setFormOfferSeen] = useState<ImportState['formOfferSeen']>(new Set())
     const [mutation] = useState({ current: null as object | null })
+    const [fileInput] = useState({ current: { value: 'people.xlsx' } })
     const state = {
       batch: null,
+      canManageForms,
+      draftTarget,
+      formOfferSeen,
       begin: () => {
         if (mutation.current) return null
         mutation.current = {}
@@ -87,12 +105,12 @@ function setup(
       checking,
       file,
       fileCheck,
-      fileInput: { current: null },
+      fileInput,
       formId: 'form-1',
       forms: [form],
       importBatch: {
         uploadId: () => 'upload-1',
-        mapAutomatically: vi.fn().mockResolvedValue(null),
+        mapAutomatically: vi.fn().mockResolvedValue(mapped),
         forgetUpload: vi.fn(),
       },
       latest: { current: {} },
@@ -102,8 +120,10 @@ function setup(
       setBatch: vi.fn(),
       setBatches: vi.fn(),
       setChecking,
+      setDraftTarget,
       setFile,
       setFileCheck,
+      setFormOfferSeen,
       setForms: vi.fn(),
       setMapping: vi.fn(),
       setMappingNotice: vi.fn(),
@@ -201,6 +221,91 @@ describe('upload file check', () => {
     const { result } = setup(new File(['%PDF'], 'scan.pdf'))
     await act(() => result.current.review.upload())
     expect(api.uploadImport).toHaveBeenCalledTimes(1)
+  })
+
+  describe('Prepare form in the dialog', () => {
+    beforeEach(() => {
+      draft.draftFromImport.mockResolvedValue({ form: { id: 'draft-1', projectId: 'project-1' } })
+    })
+
+    it('uploads the file, then drafts from the mapped revision and opens the draft', async () => {
+      const { result } = setup(draftable(), undefined, true, { mappingRevision: 1 })
+      await act(() => result.current.review.upload())
+      expect(result.current.state.fileCheck?.canPrepareForm).toBe(true)
+      await act(() => result.current.review.prepareFromFile())
+      expect(api.uploadImport).toHaveBeenCalledTimes(1)
+      expect(draft.draftFromImport).toHaveBeenCalledWith('project-1', 'form-1', 'batch-1', 1)
+      expect(result.current.state.draftTarget).toEqual({
+        projectId: 'project-1',
+        formId: 'draft-1',
+      })
+      expect(result.current.state.fileCheck).toBeNull()
+      expect(result.current.state.file).toBeNull()
+    })
+
+    it('a refused draft keeps the upload and leaves Prepare form on the batch to retry', async () => {
+      draft.draftFromImport.mockRejectedValue(
+        new Error('Every column is already covered by the form.'),
+      )
+      const { result } = setup(draftable(), undefined, true, { mappingRevision: 1 })
+      await act(() => result.current.review.upload())
+      await act(() => result.current.review.prepareFromFile())
+      expect(toasts.error).toHaveBeenCalledWith('Every column is already covered by the form.')
+      expect(result.current.state.draftTarget).toBeNull()
+      expect(result.current.state.file).toBeNull()
+      expect(result.current.state.formOfferSeen.size).toBe(0)
+    })
+
+    it('does not draft from a file that failed to store', async () => {
+      api.uploadImport.mockResolvedValue({
+        id: 'batch-1',
+        status: 'FAILED',
+        storageStatus: 'FAILED',
+      })
+      const { result } = setup(draftable())
+      await act(() => result.current.review.upload())
+      await act(() => result.current.review.prepareFromFile())
+      expect(draft.draftFromImport).not.toHaveBeenCalled()
+      expect(toasts.error).toHaveBeenCalled()
+    })
+  })
+
+  describe('Upload anyway and the notice after upload', () => {
+    it('remembers the batch when the dialog offered Prepare form', async () => {
+      const { result } = setup(draftable())
+      await act(() => result.current.review.upload())
+      await act(() => result.current.review.uploadAnyway())
+      expect(result.current.state.formOfferSeen.has('batch-1')).toBe(true)
+    })
+
+    it('does not remember the batch when a draft had nothing to add, so no offer was made', async () => {
+      const { result } = setup(noColumn())
+      await act(() => result.current.review.upload())
+      expect(result.current.state.fileCheck?.canPrepareForm).toBe(false)
+      await act(() => result.current.review.uploadAnyway())
+      expect(result.current.state.formOfferSeen.size).toBe(0)
+    })
+
+    it('does not remember the batch when the dialog offered only row problems', async () => {
+      const { result } = setup(held())
+      await act(() => result.current.review.upload())
+      await act(() => result.current.review.uploadAnyway())
+      expect(result.current.state.formOfferSeen.size).toBe(0)
+    })
+
+    it('does not remember the batch for someone who cannot manage forms', async () => {
+      const { result } = setup(draftable(), undefined, false)
+      await act(() => result.current.review.upload())
+      await act(() => result.current.review.uploadAnyway())
+      expect(result.current.state.formOfferSeen.size).toBe(0)
+    })
+  })
+
+  it('a finished upload clears the file input, so the same file can be picked again', async () => {
+    const { result } = setup(clean())
+    await act(() => result.current.review.upload())
+    expect(api.uploadImport).toHaveBeenCalledTimes(1)
+    expect(result.current.state.fileInput.current?.value).toBe('')
   })
 
   it('a second click while checking does nothing', async () => {

@@ -8,7 +8,12 @@ import { runFileCheck } from './file-check'
 const form = { formType: 'ACTIVITY', fields: [] } as unknown as DigitalFormDefinition
 const workbookFile = () =>
   new File([new Uint8Array(toWorkbookBytes([['Name'], ['Ana']], 'xlsx'))], 'people.xlsx')
-const report: FileCheckReport = { totalRows: 1, problemRows: 1, problems: [] }
+const report: FileCheckReport = {
+  totalRows: 1,
+  problemRows: 1,
+  problems: [],
+  canPrepareForm: false,
+}
 
 describe('runFileCheck in a Web Worker', () => {
   afterEach(() => {
