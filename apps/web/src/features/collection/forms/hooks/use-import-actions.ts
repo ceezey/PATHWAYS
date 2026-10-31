@@ -91,8 +91,11 @@ export function useImportActions(state: CollectionState, guard: CollectionGuard)
   }, [parsedImport, mappingRows])
 
   const mappingReadiness = useMemo(() => getMappingReadiness(mappingRows), [mappingRows])
+  // A System Administrator edits forms and does not import files, so only a header-only file goes on.
   const importCanProceed =
-    importStatus === 'ready' && (Boolean(parsedImport?.rows.length) || mappingReadiness.canProceed)
+    importStatus === 'ready' &&
+    !(isSystemAdministrator && parsedImport?.rows.length) &&
+    (Boolean(parsedImport?.rows.length) || mappingReadiness.canProceed)
   const parseSelectedFile = async (file: File) => {
     if (
       mutation.current ||
@@ -139,22 +142,26 @@ export function useImportActions(state: CollectionState, guard: CollectionGuard)
       // Advisory AUTO_SMART_V2 preview against the published form, or against the draft
       // builder fields; a header-only questionnaire defines new fields instead.
       setMappingRows(
-        selectedForm
-          ? createSmartMappingRows(parsed.headers, parsed.rows, selectedForm.fields)
-          : parsed.rows.length === 0
-            ? createQuestionnaireMappingRows(parsed.headers)
-            : createSmartMappingRows(
-                parsed.headers,
-                parsed.rows,
-                toDigitalFormInput({ code: '', name: '', formType: 'OTHER', fields }).fields,
-              ),
+        isSystemAdministrator && parsed.rows.length > 0
+          ? []
+          : selectedForm
+            ? createSmartMappingRows(parsed.headers, parsed.rows, selectedForm.fields)
+            : parsed.rows.length === 0
+              ? createQuestionnaireMappingRows(parsed.headers)
+              : createSmartMappingRows(
+                  parsed.headers,
+                  parsed.rows,
+                  toDigitalFormInput({ code: '', name: '', formType: 'OTHER', fields }).fields,
+                ),
       )
       setUploadProgress(100)
       setImportStatus('ready')
       setImportMessage(
         parsed.rows.length === 0
           ? `Questionnaire structure ready for ${parsed.fileName}. Review the field mappings before creating the Draft.`
-          : `Preview ready for ${parsed.fileName}. Review every mapping before proceeding.`,
+          : isSystemAdministrator
+            ? IMPORT_NEEDS_OTHER_ROLE
+            : `Preview ready for ${parsed.fileName}. Review every mapping before proceeding.`,
       )
 
       if (mode === 'extend') {
@@ -210,12 +217,6 @@ export function useImportActions(state: CollectionState, guard: CollectionGuard)
     if (!parsedImport || !importCanProceed || !projectId) return
     if (parsedImport.rows.length === 0 && !canUseExtend) {
       setImportMessage('Extend Existing Form is not available for this role.')
-      setProceedDialogOpen(false)
-      return
-    }
-    // A System Administrator edits forms and does not import files, so only a header-only file goes on.
-    if (parsedImport.rows.length > 0 && isSystemAdministrator) {
-      setImportMessage(IMPORT_NEEDS_OTHER_ROLE)
       setProceedDialogOpen(false)
       return
     }
