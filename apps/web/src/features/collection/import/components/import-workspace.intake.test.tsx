@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { DisplayLabelsProvider } from '@/providers/display-labels-provider'
 
-import { UPLOAD_NEEDS_FORM_UPDATE } from '../../collection.copy'
+import { UPLOAD_NEEDS_FORM_UPDATE, UPLOAD_NEEDS_PARTICIPANT_ROLE } from '../../collection.copy'
 import { ImportWorkspace } from './import-workspace'
 
 const state = vi.hoisted(() => ({
@@ -218,9 +218,10 @@ describe('import workspace intake paths', () => {
         },
       ],
     }
-    const openDialog = async () => {
-      api.getDigitalForms.mockResolvedValue([required])
-      api.getDigitalForm.mockResolvedValue(required)
+    const openDialog = async (formType = 'ACTIVITY') => {
+      const form = { ...required, formType }
+      api.getDigitalForms.mockResolvedValue([form])
+      api.getDigitalForm.mockResolvedValue(form)
       api.getImportBatches.mockResolvedValue([])
       api.uploadImport.mockResolvedValue(batch({ mappingRevision: 0 }))
       api.automaticImportMapping.mockResolvedValue(receipt())
@@ -248,6 +249,21 @@ describe('import workspace intake paths', () => {
       )
       expect(api.uploadImport).toHaveBeenCalledTimes(1)
       expect(api.draftFromImport).toHaveBeenCalledWith('project-1', 'form-1', 'batch-1', 1)
+    })
+
+    it('a form manager who cannot register participants is not offered a registration upload the server refuses', async () => {
+      state.profile.permissions = [...grants, 'forms.manage']
+      await openDialog('BENEFICIARY_REGISTRATION')
+      expect(screen.queryByRole('button', { name: 'Prepare form' })).toBeNull()
+      fireEvent.click(screen.getByRole('button', { name: 'Upload anyway' }))
+      expect(screen.getByRole('tooltip').textContent).toBe(UPLOAD_NEEDS_PARTICIPANT_ROLE)
+      expect(api.uploadImport).not.toHaveBeenCalled()
+    })
+
+    it('a form manager who can register participants gets Prepare form on a registration form', async () => {
+      state.profile.permissions = [...grants, 'forms.manage', 'beneficiaries.records.register']
+      await openDialog('BENEFICIARY_REGISTRATION')
+      expect(screen.getByRole('button', { name: 'Prepare form' })).toBeTruthy()
     })
 
     it('Upload anyway does not repeat the Prepare form offer on the mapping card', async () => {

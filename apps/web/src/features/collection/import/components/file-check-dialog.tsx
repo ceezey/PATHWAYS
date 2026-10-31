@@ -25,7 +25,7 @@ import {
 } from '@/components/ui/table'
 import { cn } from '@/lib/utils'
 
-import { UPLOAD_NEEDS_FORM_UPDATE } from '../../collection.copy'
+import { UPLOAD_NEEDS_FORM_UPDATE, UPLOAD_NEEDS_PARTICIPANT_ROLE } from '../../collection.copy'
 import { headClass, missesRequiredColumn } from '../import.utils'
 
 const column = (problem: FileCheckProblem) => {
@@ -67,6 +67,7 @@ export function FileCheckDialog({
   report,
   fileInput,
   canManageForms,
+  uploadRefused,
   onFix,
   onPrepareForm,
   onUploadAnyway,
@@ -76,17 +77,18 @@ export function FileCheckDialog({
   // Where focus goes when the dialog closes, the file input the person picks the corrected file with.
   fileInput: RefObject<HTMLInputElement | null>
   canManageForms: boolean
+  // The server would refuse this person the upload, so nothing here may depend on it.
+  uploadRefused: boolean
   onFix: () => void
   onPrepareForm: () => void
   onUploadAnyway: () => void
   onClose: () => void
 }) {
   const fixRef = useRef<HTMLButtonElement>(null)
-  const uploadBlocked = missesRequiredColumn(report) && !canManageForms
-  const blockedProps = unavailableControlProps(UPLOAD_HINT_ID, UPLOAD_NEEDS_FORM_UPDATE)
-  const { show, triggerProps, tip } = useHoverTip(
-    uploadBlocked ? UPLOAD_NEEDS_FORM_UPDATE : undefined,
-  )
+  const uploadBlocked = uploadRefused || (missesRequiredColumn(report) && !canManageForms)
+  const blockedReason = uploadRefused ? UPLOAD_NEEDS_PARTICIPANT_ROLE : UPLOAD_NEEDS_FORM_UPDATE
+  const blockedProps = unavailableControlProps(UPLOAD_HINT_ID, blockedReason)
+  const { show, triggerProps, tip } = useHoverTip(uploadBlocked ? blockedReason : undefined)
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
@@ -144,9 +146,7 @@ export function FileCheckDialog({
           </TableBody>
         </Table>
         <DialogFooter>
-          {uploadBlocked ? (
-            <UnavailableHint id={UPLOAD_HINT_ID} message={UPLOAD_NEEDS_FORM_UPDATE} />
-          ) : null}
+          {uploadBlocked ? <UnavailableHint id={UPLOAD_HINT_ID} message={blockedReason} /> : null}
           <Button
             variant="outline"
             {...(uploadBlocked
@@ -165,7 +165,7 @@ export function FileCheckDialog({
             Upload anyway
           </Button>
           {tip}
-          {report.canPrepareForm && canManageForms ? (
+          {report.canPrepareForm && canManageForms && !uploadRefused ? (
             <Button variant="outline" onClick={onPrepareForm}>
               Prepare form
             </Button>

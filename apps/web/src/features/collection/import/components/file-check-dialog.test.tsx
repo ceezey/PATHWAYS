@@ -4,7 +4,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { createRef, useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { UPLOAD_NEEDS_FORM_UPDATE } from '../../collection.copy'
+import { UPLOAD_NEEDS_FORM_UPDATE, UPLOAD_NEEDS_PARTICIPANT_ROLE } from '../../collection.copy'
 import { FileCheckDialog } from './file-check-dialog'
 
 const report: FileCheckReport = {
@@ -60,6 +60,7 @@ const open = (handlers = {}, shown: FileCheckReport = report) => {
   const fileInput = createRef<HTMLInputElement>()
   const props = {
     canManageForms: true,
+    uploadRefused: false,
     onFix: vi.fn(),
     onPrepareForm: vi.fn(),
     onUploadAnyway: vi.fn(),
@@ -131,6 +132,7 @@ describe('FileCheckDialog', () => {
         }}
         fileInput={fileInput}
         canManageForms
+        uploadRefused={false}
         onPrepareForm={vi.fn()}
         onFix={vi.fn()}
         onUploadAnyway={vi.fn()}
@@ -171,6 +173,7 @@ describe('FileCheckDialog', () => {
         report={fileOnly}
         fileInput={fileInput}
         canManageForms
+        uploadRefused={false}
         onPrepareForm={vi.fn()}
         onFix={vi.fn()}
         onUploadAnyway={vi.fn()}
@@ -252,6 +255,22 @@ describe('FileCheckDialog', () => {
       expect(screen.getByRole('tooltip').textContent).toBe(UPLOAD_NEEDS_FORM_UPDATE)
     })
 
+    describe('when the server would refuse this person the upload', () => {
+      it('offers no Prepare form, even to a form manager with a file a draft could change', () => {
+        const props = open({ uploadRefused: true })
+        expect(screen.queryByRole('button', { name: 'Prepare form' })).toBeNull()
+        fireEvent.click(uploadAnyway())
+        expect(props.onUploadAnyway).not.toHaveBeenCalled()
+        expect(screen.getByRole('tooltip').textContent).toBe(UPLOAD_NEEDS_PARTICIPANT_ROLE)
+      })
+
+      it('blocks Upload anyway when only rows have problems too', () => {
+        open({ uploadRefused: true }, rowsOnly)
+        expect(uploadAnyway().getAttribute('aria-disabled')).toBe('true')
+        expect(screen.queryByText(/Uploaded as it is/)).toBeNull()
+      })
+    })
+
     it('does not describe an upload the person cannot make', () => {
       open({ canManageForms: false })
       expect(
@@ -294,6 +313,7 @@ describe('FileCheckDialog', () => {
               report={report}
               fileInput={fileInput}
               canManageForms
+              uploadRefused={false}
               onPrepareForm={vi.fn()}
               onFix={() => setShown(false)}
               onUploadAnyway={vi.fn()}

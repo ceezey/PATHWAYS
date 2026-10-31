@@ -79,6 +79,10 @@ export const coverageNotice = (receipt: { uncoveredColumns: number; unresolvedVa
 export const UPLOAD_NEEDS_FORM_UPDATE =
   'This file is missing columns the form requires. Ask a Monitoring and Evaluation Officer or System Administrator to update the form, then upload this file again.'
 
+/** Why someone who cannot register participants cannot upload a file to a registration form. */
+export const UPLOAD_NEEDS_PARTICIPANT_ROLE =
+  'This form registers participants, which your role cannot do. Ask a Monitoring and Evaluation Officer to upload this file.'
+
 /** Shown after a straight-through import finishes. */
 export const importOutcomeMessage = (totals: {
   processed: number

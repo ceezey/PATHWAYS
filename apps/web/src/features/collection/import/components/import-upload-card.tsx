@@ -25,6 +25,7 @@ export function ImportUploadCard({
   state: Pick<
     ImportState,
     | 'canManageForms'
+    | 'canRegisterParticipants'
     | 'canUpload'
     | 'checking'
     | 'file'
@@ -57,6 +58,7 @@ export function ImportUploadCard({
 }) {
   const {
     canManageForms,
+    canRegisterParticipants,
     canUpload,
     checking,
     file,
@@ -83,6 +85,10 @@ export function ImportUploadCard({
     uploadRefusal,
   } = state
   const { closeFileCheck, fixFile, prepareFromFile, upload, uploadAnyway } = review
+  // The server refuses a registration upload from someone who could not finish processing it.
+  const uploadRefused =
+    !canRegisterParticipants &&
+    forms.find((form) => form.id === formId)?.formType === 'BENEFICIARY_REGISTRATION'
   return (
     <Card>
       <CardHeader>
@@ -231,6 +237,7 @@ export function ImportUploadCard({
           report={fileCheck}
           fileInput={fileInput}
           canManageForms={canManageForms}
+          uploadRefused={uploadRefused}
           onFix={fixFile}
           onPrepareForm={() => void prepareFromFile()}
           onUploadAnyway={() => void uploadAnyway()}
