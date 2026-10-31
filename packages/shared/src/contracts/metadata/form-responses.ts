@@ -4,7 +4,7 @@ import { supportedFormFieldTypes } from '../../validation/form-data'
 import { fieldIntakeProperties } from './form-intake'
 import { digitalFormTypes } from './form-requests'
 
-// Response shapes of the form and direct entry routes, used as types and never parsed at runtime.
+// Response shapes of the form and direct entry routes, used as types; only draftSummaryResponse is parsed at runtime.
 
 // One field of a form as every form route returns it; bounds arrive as text, absent bounds are left out.
 export const formFieldResponse = z.object({
@@ -27,10 +27,11 @@ export const formFieldResponse = z.object({
 })
 export type FormFieldResponse = z.infer<typeof formFieldResponse>
 
-// Why a draft change needs a person's check before publishing; mirrors the import drafter's reasons.
+// Why a draft change needs a person's check before publishing. The drafter no longer writes CONSENT_SOURCE_PROPOSED; open older drafts keep it because their consent match was looser.
 export const draftNeedsCheckReasons = [
   'ENUM_ANSWER_UNRESOLVED',
   'PARTICIPATION_CONSENT_NO_SOURCE',
+  'CONSENT_SOURCE_PROPOSED',
   'WASHINGTON_GROUP_FLAG_DISAGREES',
 ] as const
 // Reasons open older drafts stored for what the drafter now accepts itself; dropped on read.
@@ -38,7 +39,6 @@ const acceptedDraftReasons = [
   'SUGGESTED_SOURCE_NAME',
   'IMPORT_DEFAULT',
   'RULE_PROPOSED',
-  'CONSENT_SOURCE_PROPOSED',
   'IDENTIFIER_PROPOSED',
   'COLUMN_MOVED_OFF_CALCULATED',
 ] as const

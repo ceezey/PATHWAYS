@@ -30,6 +30,21 @@ describe('DraftSummaryPanel', () => {
     expect(screen.getAllByRole('listitem')[0].textContent).toContain('sex')
   })
 
+  it('says who publishes, in words true of a draft that added no field', () => {
+    render(
+      <DraftSummaryPanel
+        summary={{ ...summary, addedFields: [] }}
+        fields={[]}
+        onSelectField={vi.fn()}
+      />,
+    )
+    expect(
+      screen.getByText(
+        'These changes were made from the file. Someone other than the person who drafted or last edited it publishes the draft.',
+      ),
+    ).toBeTruthy()
+  })
+
   it('links each needs check item to its field in plain words', () => {
     const onSelectField = vi.fn()
     render(<DraftSummaryPanel summary={summary} fields={[]} onSelectField={onSelectField} />)

@@ -308,6 +308,126 @@ describe('draftFormFromImport rules', () => {
     )
   })
 
+  describe('a match no person confirms goes to a field of its own when it is unsure', () => {
+    const pending = (
+      column: ReturnType<typeof columnOf>,
+      reason: 'SUGGESTED' | 'HELD_MARGIN' | 'HELD_CONTESTED',
+    ) => ({
+      sourceKey: column.key,
+      columnIndex: column.columnIndex,
+      status: 'PENDING' as const,
+      targetFieldId: null,
+      suggestedFieldId:
+        REGISTRATION.find((field) => field.code === 'location_barangay')?.id ?? null,
+      score: 70,
+      matchReason: null,
+      reason,
+    })
+    const drafted = (
+      columns: ReturnType<typeof columnOf>[],
+      reason: 'SUGGESTED' | 'HELD_MARGIN' | 'HELD_CONTESTED' = 'SUGGESTED',
+    ) =>
+      draftFormFromImport({
+        formType: 'OTHER',
+        fields: REGISTRATION,
+        columns,
+        decisions: columns.map((column) => pending(column, reason)),
+        uploadDate: '2026-10-23',
+      })
+
+    it('accepts a plain suggestion', () => {
+      const result = drafted([columnOf('Village', ['Dolores'], 1)])
+      expect(find(result, 'location_barangay')?.sourceNames).toEqual(['Village'])
+      expect(result.summary.addedFields).toEqual([])
+    })
+
+    it.each(['HELD_MARGIN', 'HELD_CONTESTED'] as const)('adds a field on %s', (reason) => {
+      const result = drafted([columnOf('Village', ['Dolores'], 1)], reason)
+      expect(find(result, 'location_barangay')?.sourceNames).toBeUndefined()
+      expect(result.summary.addedFields).toEqual(['village'])
+    })
+
+    it('adds a field for a second column suggested for a field already taken', () => {
+      const result = drafted([columnOf('Village', ['Dolores'], 1), columnOf('Sitio', ['Purok'], 2)])
+      expect(find(result, 'location_barangay')?.sourceNames).toEqual(['Village'])
+      expect(result.summary.addedFields).toEqual(['sitio'])
+    })
+
+    it('adds a field when the values do not fit the suggested field type', () => {
+      const result = draft([columnOf('Birth date', ['unknown', 'not sure', 'n/a'], 1)])
+      expect(find(result, 'birth_date')?.sourceNames).toBeUndefined()
+      expect(find(result, 'birth_date_2')?.dataType).toBe('TEXT')
+    })
+
+    it('keeps a column whose header is too long to be a source name', () => {
+      const header = `Gender ${'of the person answering '.repeat(5)}`.trim()
+      expect(header.length).toBeGreaterThan(100)
+      const result = draft([columnOf(header, ['A. Babae', 'B. Lalaki'], 1)])
+      expect(find(result, 'sex')?.sourceNames).toBeUndefined()
+      expect(result.summary.addedFields).toHaveLength(1)
+      expect(result.fields.find((field) => field.label === header)).toBeDefined()
+    })
+
+    it('lists a repeated header once across the form', () => {
+      const result = draft(
+        [columnOf('Favourite colour', ['red'], 1), columnOf('Favourite colour', ['blue'], 2)],
+        REGISTRATION,
+        'OTHER',
+      )
+      expect(find(result, 'favourite_colour')?.sourceNames).toEqual(['Favourite colour'])
+      expect(find(result, 'favourite_colour_2')?.sourceNames).toBeUndefined()
+    })
+
+    it.each([
+      'Photo use consent',
+      'Consent for collection of samples',
+      'Consent to use photo',
+      'Guardian consent for data use',
+      'Withdrew consent to data use',
+      'No consent to data processing',
+    ])('never accepts "%s" as a consent answer', (header) => {
+      const result = draft([columnOf(header, [true, false, true], 1)])
+      for (const code of CONSENT_FIELD_CODES)
+        expect(find(result, code)?.sourceNames).toBeUndefined()
+      expect(result.summary.addedFields).toHaveLength(1)
+    })
+
+    it('keeps an unlettered answer out of a new choice field and asks a person', () => {
+      const answers = [...Array(19).fill('A. Yes'), 'Juan Cruz']
+      const result = draft([columnOf('Attended orientation', answers, 1)], REGISTRATION, 'OTHER')
+      const field = find(result, 'attended_orientation')
+      expect(field?.allowedValues).toEqual(['Yes'])
+      expect(JSON.stringify(result)).not.toContain('Juan Cruz')
+      expect(result.summary.needsCheck).toContainEqual({
+        fieldCode: 'attended_orientation',
+        reason: 'ENUM_ANSWER_UNRESOLVED',
+      })
+    })
+
+    it('keeps an unlettered answer out of an existing choice field and asks a person', () => {
+      const fields: DraftField[] = [
+        {
+          id: 'civil',
+          code: 'civil_status',
+          label: 'Civil status',
+          dataType: 'SELECT',
+          required: false,
+          metadataKey: false,
+          sadddField: false,
+          allowedValues: ['Single'],
+        },
+      ]
+      const answers = [...Array(10).fill('A. Single'), ...Array(9).fill('B. Married'), 'Juan Cruz']
+      const result = draft([columnOf('Civil status', answers, 1)], fields, 'OTHER')
+      expect(find(result, 'civil_status')?.allowedValues).toEqual(['Single', 'Married'])
+      expect(JSON.stringify(result)).not.toContain('Juan Cruz')
+      expect(result.summary.needsCheck).toContainEqual({
+        fieldCode: 'civil_status',
+        reason: 'ENUM_ANSWER_UNRESOLVED',
+      })
+    })
+  })
+
   it('drafts a calculation even when it is the only change', () => {
     const owned = REGISTRATION.filter((field) =>
       ['birth_date', 'enrollment_date', 'age_at_registration'].includes(field.code),

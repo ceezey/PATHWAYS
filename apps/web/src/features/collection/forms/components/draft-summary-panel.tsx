@@ -84,7 +84,7 @@ export function DraftSummaryPanel({
   return (
     <SectionCard
       title="Draft from import"
-      description="Columns were matched to fields, and new fields were added for the rest. Someone other than the last editor publishes the draft."
+      description="These changes were made from the file. Someone other than the person who drafted or last edited it publishes the draft."
     >
       <div className="space-y-4">
         <section aria-labelledby="draft-needs-check" className="space-y-2">

@@ -101,7 +101,7 @@ describe('form response contracts', () => {
       rules: [],
       needsCheck,
     })
-    expect(parsed.needsCheck).toEqual([needsCheck[6]])
+    expect(parsed.needsCheck).toEqual([needsCheck[3], needsCheck[6]])
   })
 
   it('reject a form with an unknown type or status, or a field without a data type', () => {

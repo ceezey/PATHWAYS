@@ -1,10 +1,17 @@
-import { type DigitalFormType, type FormFieldRequest, valueMapText } from '@pathways/shared'
+import {
+  CONSENT_FIELD_CODES,
+  type DigitalFormType,
+  type FormFieldRequest,
+  valueMapText,
+} from '@pathways/shared'
 import { answerResolver, comparableAnswer, hasLetterPrefix, stripLetterPrefix } from '../answers'
 import {
   SMART_REVIEW_SYNONYMS_V2,
   type SmartMatchDecision,
   normalizeMappingNameV1,
+  sourceNameKey,
 } from '../mappers/smart-match'
+import { boundedSamples, valueGate } from '../mappers/smart-match-values'
 import { type ImportValueMapEntry, mapKey } from '../value-map'
 import { suggestValueMap } from '../value-map-suggest'
 import { proposeIntakeRules, storableInteger } from './draft-rules'
@@ -67,7 +74,27 @@ const REGISTRATION_DEFAULTS = [
   ['registration_operation', 'CREATE'],
   ['subject_type', 'INDIVIDUAL'],
 ] as const
-const CONSENT_WORDS = ['data', 'collection', 'use', 'processing']
+const CONSENT_WORDS = ['collection', 'use', 'processing']
+// Headers about another person, another subject or a refusal, which never mean the participant agreed to data use.
+const NOT_CONSENT_WORDS = new Set([
+  'guardian',
+  'parent',
+  'parental',
+  'photo',
+  'image',
+  'video',
+  'media',
+  'withdraw',
+  'withdrew',
+  'withdrawn',
+  'no',
+  'not',
+  'without',
+  'refuse',
+  'refused',
+  'decline',
+  'declined',
+])
 const IDENTIFIER_WORDS = ['id', 'certificate', 'cert']
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
 
@@ -139,10 +166,10 @@ function isChoiceColumn(texts: readonly string[]) {
   return answers.size * 2 <= texts.length && [...byLabel.values()].every((set) => set.size === 1)
 }
 
-/** Options in letter order with each original answer as an alias, or null when the column is not a choice list or too wide for a form. */
+/** Options in letter order with each lettered answer as an alias, or null when the column is not a choice list or too wide for a form. An unlettered answer could be a name, so it stays out. */
 function choicesOf(texts: readonly string[]) {
   if (!isChoiceColumn(texts)) return null
-  const originals = [...new Set(texts)].sort(byPrefix)
+  const originals = [...new Set(texts.filter(hasLetterPrefix))].sort(byPrefix)
   if (originals.some((text) => text.length > LIMITS.nameLength)) return null
   const options: string[] = []
   for (const text of originals) {
@@ -261,30 +288,52 @@ export function draftFormFromImport(input: {
     return true
   }
 
+  // No person confirms a match, so a taken field, a consent field by name or values of the wrong type are refused.
+  function acceptsColumn(field: DraftField, present: readonly unknown[]) {
+    if (used.has(field.code) || (CONSENT_FIELD_CODES as readonly string[]).includes(field.code))
+      return false
+    if (field.dataType === 'SELECT') return true
+    const allowed = field.allowedValues ?? []
+    return (
+      valueGate(boundedSamples(present), {
+        field: { ...field, id: field.id ?? field.code },
+        allowed: new Set(allowed.map(normalizeMappingNameV1)),
+        resolve: answerResolver(allowed, field.valueAliases ?? []),
+      }) === 'PASS'
+    )
+  }
+
   // Rule 2 and 5: the existing field a pending column belongs to, and how it was recognised.
   function proposal(
     decision: SmartMatchDecision,
-    type: string,
+    present: readonly unknown[],
     tokens: string[],
   ): [DraftField, 'CONSENT' | 'SUGGESTED' | 'IDENTIFIER'] | undefined {
+    const type = inferType(present)
     if (
       type === 'BOOLEAN' &&
       tokens.includes('consent') &&
-      CONSENT_WORDS.some((w) => tokens.includes(w))
+      tokens.includes('data') &&
+      CONSENT_WORDS.some((w) => tokens.includes(w)) &&
+      !tokens.some((w) => NOT_CONSENT_WORDS.has(w))
     ) {
       const consent = free('data_processing_consent_recorded')
       if (consent) return [consent, 'CONSENT']
     }
-    const suggested = decision.suggestedFieldId
-      ? byId.get(decision.suggestedFieldId)
-      : fields.find(
-          (field) =>
-            !used.has(field.code) &&
-            (SMART_REVIEW_SYNONYMS_V2[field.code] ?? []).some((name) =>
-              headerTokens(name).every((token) => tokens.includes(token)),
-            ),
-        )
-    if (suggested) return [suggested, 'SUGGESTED']
+    // Two columns or two fields scored alike, so the name alone cannot pick one.
+    const ambiguous = decision.reason === 'HELD_CONTESTED' || decision.reason === 'HELD_MARGIN'
+    const suggested = ambiguous
+      ? undefined
+      : decision.suggestedFieldId
+        ? byId.get(decision.suggestedFieldId)
+        : fields.find(
+            (field) =>
+              !used.has(field.code) &&
+              (SMART_REVIEW_SYNONYMS_V2[field.code] ?? []).some((name) =>
+                headerTokens(name).every((token) => tokens.includes(token)),
+              ),
+          )
+    if (suggested && acceptsColumn(suggested, present)) return [suggested, 'SUGGESTED']
     const identifier = free('external_identifier_value')
     if (
       type === 'TEXT' &&
@@ -321,6 +370,7 @@ export function draftFormFromImport(input: {
       if (
         ENUM_MIRROR_CODES.has(field.code) ||
         !lettered ||
+        !hasLetterPrefix(text) ||
         option.length > OPTION_LENGTH ||
         options.length >= LIMITS.options
       )
@@ -343,15 +393,26 @@ export function draftFormFromImport(input: {
     if (!column || decision.status === 'IGNORED' || !header || present.length === 0) continue
     let target = decision.status === 'MAPPED' ? byId.get(decision.targetFieldId ?? '') : undefined
     if (decision.status === 'PENDING') {
-      const found = proposal(decision, inferType(present), headerTokens(header))
-      if (!found) {
+      const found = proposal(decision, present, headerTokens(header))
+      if (!found || !addSourceName(found[0], header)) {
         const field = newField(header, present, taken)
+        // A form lists a source name once, so a repeated header keeps only its label.
+        if (
+          [...fields, ...added].some((other) =>
+            other.sourceNames?.some((name) => sourceNameKey(name) === sourceNameKey(header)),
+          )
+        )
+          field.sourceNames = undefined
+        if (
+          field.dataType === 'SELECT' &&
+          present.some((value) => !hasLetterPrefix(String(value).trim()))
+        )
+          flag(field.code, 'ENUM_ANSWER_UNRESOLVED')
         added.push(field)
         note(summary.addedFields, field.code)
         mapping.set(column.key, field.code)
         continue
       }
-      if (!addSourceName(found[0], header)) continue
       target = found[0]
       if (found[1] === 'CONSENT') consentProposed = true
       const identifierType = byCode.get('external_identifier_type')

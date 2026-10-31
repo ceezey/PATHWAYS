@@ -22,7 +22,7 @@ const summary = {
 const view = (
   draftSummary: typeof summary | null,
   setSelectedFieldId = vi.fn(),
-  { onConfirmCheck = vi.fn(), readOnly = false } = {},
+  { onConfirmCheck = vi.fn(), readOnly = false, selectedFieldId = '' } = {},
 ) =>
   render(
     <BuilderView
@@ -49,7 +49,7 @@ const view = (
       projectId=""
       readOnly={readOnly}
       sadddCount={0}
-      selectedFieldId=""
+      selectedFieldId={selectedFieldId}
       selectedProject="No project selected"
       setFormTitle={vi.fn()}
       setFormType={vi.fn()}
@@ -87,6 +87,21 @@ describe('BuilderView draft summary', () => {
     cleanup()
     view(summary, vi.fn(), { readOnly: true })
     expect(screen.queryByRole('button', { name: /^Confirm / })).toBeNull()
+  })
+
+  it.each([
+    ['ENUM_ANSWER_UNRESOLVED', true],
+    ['PARTICIPATION_CONSENT_NO_SOURCE', true],
+    ['WASHINGTON_GROUP_FLAG_DISAGREES', false],
+  ] as const)('opens Advanced Configuration for %s: %s', (reason, open) => {
+    const field = initialFields[0]
+    view(
+      { ...summary, needsCheck: [{ fieldCode: field.code, reason }] } as unknown as typeof summary,
+      vi.fn(),
+      { selectedFieldId: field.id },
+    )
+    const details = screen.getByText('Advanced Configuration').closest('details')
+    expect(details?.open).toBe(open)
   })
 
   it('shows no summary panel without a draft from an import', () => {
