@@ -7,7 +7,7 @@ import { importsClient } from '@/lib/api/imports'
 import { sensitiveDraftGeneration } from '@/lib/auth/sensitive-drafts'
 import { fingerprintOf } from '@/lib/forms/pending-create'
 
-import { importOutcomeMessage } from '../../collection.copy'
+import { IMPORT_NEEDS_OTHER_ROLE, importOutcomeMessage } from '../../collection.copy'
 import type { ParsedImport } from '../../collection.utils'
 import {
   createQuestionnaireMappingRows,
@@ -68,7 +68,7 @@ export function useImportActions(state: CollectionState, guard: CollectionGuard)
     setUploadProgress,
     setView,
   } = state
-  const { beginOperation, canUseExtend, editingReady, eligible } = guard
+  const { beginOperation, canUseExtend, editingReady, eligible, isSystemAdministrator } = guard
   const importSummary = useMemo(() => {
     if (!parsedImport) {
       return null
@@ -130,6 +130,15 @@ export function useImportActions(state: CollectionState, guard: CollectionGuard)
       parsed = { fileName: file.name, ...result }
 
       if (!validParse()) return
+      // A System Administrator edits forms and does not import files, so only a header-only file goes on.
+      if (isSystemAdministrator && parsed.rows.length > 0) {
+        setParsedImport(null)
+        setMappingRows([])
+        setUploadProgress(100)
+        setImportStatus('ready')
+        setImportMessage(IMPORT_NEEDS_OTHER_ROLE)
+        return
+      }
       setParsedImport(parsed)
       setCorrectionPage(0)
       const selectedForm = forms.find(

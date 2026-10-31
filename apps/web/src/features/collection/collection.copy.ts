@@ -87,6 +87,10 @@ export const UPLOAD_NEEDS_PARTICIPANT_ROLE =
 export const UPLOAD_NEEDS_CLIENT_ID_ROLE =
   'This form matches participants by client ID, which your role cannot do. Ask a Monitoring and Evaluation Officer to upload this file.'
 
+/** Why a System Administrator, who edits forms, cannot send a file with data rows. */
+export const IMPORT_NEEDS_OTHER_ROLE =
+  'This file has data rows, which your role cannot import. Ask a Monitoring and Evaluation Officer to import it. To build a form from its columns, use a file with only the header row.'
+
 /** Shown after a straight-through import finishes. */
 export const importOutcomeMessage = (totals: {
   processed: number

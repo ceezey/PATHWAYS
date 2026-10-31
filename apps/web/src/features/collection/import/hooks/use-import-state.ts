@@ -21,7 +21,10 @@ import { useImportBatch } from './use-import-batch'
 
 export function useImportState(scope: SensitiveDraftOwner) {
   const { profile } = useCurrentRole()
-  const canUpload = principalHasAtomicPermission(profile, 'imports.upload')
+  // A System Administrator edits forms and does not import files, though the role keeps imports.upload.
+  const isSystemAdministrator = profile?.roles[0] === 'SYSTEM_ADMINISTRATOR'
+  const canUpload =
+    !isSystemAdministrator && principalHasAtomicPermission(profile, 'imports.upload')
   const canReview = principalHasAtomicPermission(profile, 'imports.review')
   const canValidate = principalHasAtomicPermission(profile, 'imports.validate')
   const canProcess = principalHasAtomicPermission(profile, 'imports.process')
@@ -196,6 +199,7 @@ export function useImportState(scope: SensitiveDraftOwner) {
     canProcess,
     canReview,
     canUpload,
+    isSystemAdministrator,
     canValidate,
     checking,
     columnValues,

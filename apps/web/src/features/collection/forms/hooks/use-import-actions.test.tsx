@@ -12,6 +12,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { DisplayLabelsProvider } from '@/providers/display-labels-provider'
 
+import { IMPORT_NEEDS_OTHER_ROLE } from '../../collection.copy'
 import { CollectionWorkspace } from '../components/collection-workspace'
 
 configure({ asyncUtilTimeout: 5000 })
@@ -116,7 +117,7 @@ const csv = (name: string, text: string) => {
   Object.defineProperty(file, 'text', { configurable: true, value: async () => text })
   return file
 }
-const proceed = async () => {
+const chooseFile = async () => {
   render(
     <DisplayLabelsProvider>
       <CollectionWorkspace
@@ -133,6 +134,9 @@ const proceed = async () => {
   fireEvent.change(screen.getByLabelText('Source file'), {
     target: { files: [csv('people.csv', 'beneficiary_id\nA\nB\nC')] },
   })
+}
+const proceed = async () => {
+  await chooseFile()
   await screen.findByText(/Preview ready for/)
   fireEvent.click(screen.getByRole('button', { name: 'Proceed' }))
   fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Proceed' }))
@@ -220,6 +224,22 @@ describe('straight-through import', () => {
     await waitFor(() => expect(api.processImport).toHaveBeenCalled())
     expect(api.saveImportMapping).toHaveBeenCalledTimes(1)
     expect(api.validateImport).toHaveBeenCalledWith('project-1', 'batch-1', 2)
+  })
+
+  describe('a System Administrator, who edits forms and does not import files', () => {
+    afterEach(() => {
+      access.profile.roles = ['MONITORING_AND_EVALUATION_OFFICER']
+    })
+
+    it('is told on choosing a file with data rows, with no mapping review or Proceed', async () => {
+      access.profile.roles = ['SYSTEM_ADMINISTRATOR']
+      access.profile.permissions = allGrants.filter((grant) => grant !== 'imports.review')
+      await chooseFile()
+      await screen.findByText(IMPORT_NEEDS_OTHER_ROLE)
+      expect(screen.queryByText(/Preview ready for/)).toBeNull()
+      expect(screen.queryByRole('button', { name: 'Proceed' })).toBeNull()
+      expect(api.uploadImport).not.toHaveBeenCalled()
+    })
   })
 
   describe('prepare form from the upload result', () => {

@@ -206,6 +206,62 @@ describe('import workspace intake paths', () => {
     })
   })
 
+  describe('a System Administrator, who edits forms and does not import files', () => {
+    const asAdministrator = () => {
+      state.profile.roles = ['SYSTEM_ADMINISTRATOR']
+      state.profile.permissions = [...grants, 'forms.manage']
+    }
+
+    it('has no file picker or Upload privately, and still sees the batches', async () => {
+      asAdministrator()
+      await openBatch()
+      expect(screen.queryByLabelText('Source file')).toBeNull()
+      expect(screen.queryByRole('button', { name: 'Upload privately' })).toBeNull()
+      expect(screen.getAllByText('people.csv').length).toBeGreaterThan(0)
+    })
+
+    it('has no form version choice, because nothing reads it without an upload', async () => {
+      asAdministrator()
+      await openBatch()
+      expect(screen.queryByText('Published form version')).toBeNull()
+    })
+
+    it('reads as a list of batches, with no words about uploading', async () => {
+      asAdministrator()
+      await openBatch()
+      expect(screen.getByText('Choose a project to see its import batches.')).toBeTruthy()
+      expect(screen.queryByText('Private source upload')).toBeNull()
+      expect(screen.queryByText(/Upload a private CSV/)).toBeNull()
+    })
+
+    it('can still prepare a form from a batch someone else uploaded', async () => {
+      asAdministrator()
+      const stored = batch({
+        uploadedByCurrentUser: false,
+        coverage: { coverage: 'NOT_COVERED', uncoveredColumns: 2, unresolvedValues: 5 },
+      })
+      api.getImportBatches.mockResolvedValue([stored])
+      api.getImportBatch.mockResolvedValue(stored)
+      await openBatch()
+      expect(await screen.findByRole('button', { name: 'Prepare form' })).toBeTruthy()
+    })
+
+    it('has no Re-run import on a batch they uploaded earlier', async () => {
+      asAdministrator()
+      api.getDigitalForms.mockResolvedValue([formV1, formV2])
+      await openBatch()
+      expect(screen.queryByRole('button', { name: 'Re-run import' })).toBeNull()
+    })
+
+    it('leaves the file picker and Upload privately for other roles', async () => {
+      api.getImportBatches.mockResolvedValue([])
+      render(<ImportWorkspace />, { wrapper: DisplayLabelsProvider })
+      await screen.findByText('Registration - v1')
+      expect(screen.getByLabelText('Source file')).toBeTruthy()
+      expect(screen.getByRole('button', { name: 'Upload privately' })).toBeTruthy()
+    })
+  })
+
   describe('a file missing a required column', () => {
     const required = {
       ...formV1,
@@ -267,8 +323,7 @@ describe('import workspace intake paths', () => {
       expect(api.draftFromImport).toHaveBeenCalledWith('project-1', 'form-1', 'batch-1', 1)
     })
 
-    it('a System Administrator is not offered a registration upload the server refuses', async () => {
-      state.profile.roles = ['SYSTEM_ADMINISTRATOR']
+    it('a form manager without the register grant is not offered a registration upload the server refuses', async () => {
       state.profile.permissions = [...grants, 'forms.manage']
       await openDialog('BENEFICIARY_REGISTRATION')
       expect(screen.queryByRole('button', { name: 'Prepare form' })).toBeNull()

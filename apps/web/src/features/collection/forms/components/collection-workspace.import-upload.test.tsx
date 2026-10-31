@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { clearSensitiveDraftStorage } from '@/lib/auth/sensitive-drafts'
 import { DisplayLabelsProvider } from '@/providers/display-labels-provider'
 
+import { IMPORT_NEEDS_OTHER_ROLE } from '../../collection.copy'
 import { CollectionWorkspace } from './collection-workspace'
 
 const api = vi.hoisted(() => ({
@@ -694,6 +695,84 @@ describe('collection import of a multi-sheet workbook', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Proceed' }))
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Proceed' }))
     await screen.findByText(/This workbook has 2 sheets/)
+    expect(api.uploadImport).not.toHaveBeenCalled()
+  })
+})
+
+describe('a System Administrator, who edits forms and does not import files', () => {
+  afterEach(() => {
+    preview.workbook = null
+  })
+
+  const chooseFile = async (name: string, mode: 'import' | 'extend' = 'import') => {
+    currentAccess.profile.roles = ['SYSTEM_ADMINISTRATOR']
+    render(
+      <DisplayLabelsProvider>
+        <CollectionWorkspace
+          initialView="import"
+          initialMode={mode}
+          initialProjectId="futuremakers-ncr"
+        />
+      </DisplayLabelsProvider>,
+    )
+    await waitFor(() =>
+      expect((screen.getByLabelText('Source file') as HTMLInputElement).disabled).toBe(false),
+    )
+    fireEvent.change(screen.getByLabelText('Source file'), {
+      target: { files: [new File(['PK'], name)] },
+    })
+  }
+
+  it('gets the role reason, not the sheet message, for a workbook of several sheets', async () => {
+    preview.workbook = {
+      fileType: 'xlsx',
+      headers: ['beneficiary_id'],
+      rows: [{ beneficiary_id: 'BEN-001' }],
+      errors: [],
+      sheetNames: ['One', 'Two'],
+    }
+    await chooseFile('people.xlsx')
+    await screen.findByText(IMPORT_NEEDS_OTHER_ROLE)
+    expect(screen.queryByText(/This workbook has/)).toBeNull()
+    expect(api.uploadImport).not.toHaveBeenCalled()
+  })
+
+  it('leaves the builder and the page untouched by a refused file on the extend route', async () => {
+    preview.workbook = {
+      fileType: 'csv',
+      headers: ['refused_column'],
+      rows: [{ refused_column: 'x' }],
+      errors: [],
+    }
+    await chooseFile('people.csv', 'extend')
+    await screen.findByText(IMPORT_NEEDS_OTHER_ROLE)
+    expect(screen.queryByText('Needs review')).toBeNull()
+    expect(screen.queryByText(/Correct isolated data/)).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Build forms' }))
+    expect(screen.queryByDisplayValue(/refused.column/i)).toBeNull()
+    expect(screen.queryByText(/refused.column/i)).toBeNull()
+  })
+
+  it('can still build a draft form from a file with only a header row', async () => {
+    preview.workbook = { fileType: 'csv', headers: ['beneficiary_id'], rows: [], errors: [] }
+    api.createDigitalForm.mockResolvedValue({
+      id: 'created-form',
+      projectId: 'futuremakers-ncr',
+      code: 'server_code',
+      name: 'Draft',
+      version: 1,
+      status: 'DRAFT',
+      fields: [],
+      updatedAt: '2026-10-31T00:00:00Z',
+    })
+    await chooseFile('questions.csv')
+    await screen.findByText(/Questionnaire structure ready for questions.csv/)
+    expect(screen.queryByText(IMPORT_NEEDS_OTHER_ROLE)).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Create draft' }))
+    fireEvent.click(
+      within(screen.getByRole('dialog')).getByRole('button', { name: 'Create draft' }),
+    )
+    await waitFor(() => expect(api.createDigitalForm).toHaveBeenCalledOnce())
     expect(api.uploadImport).not.toHaveBeenCalled()
   })
 })
