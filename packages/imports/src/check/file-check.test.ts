@@ -87,6 +87,34 @@ describe('checkImportFile canPrepareForm', () => {
     expect(report.canPrepareForm).toBe(true)
   })
 
+  it('is false for a header-only file, which the server refuses to draft from', () => {
+    const operation = field('registration_operation', 'Registration operation', 'SELECT', {
+      required: true,
+      allowedValues: ['CREATE', 'UPDATE'],
+    })
+    const report = check([['First name']], [firstName, operation], 'BENEFICIARY_REGISTRATION')
+    expect(report.problems.map((problem) => problem.kind)).toContain('NO_COLUMN')
+    expect(report.canPrepareForm).toBe(false)
+  })
+
+  it('is false for a formula with no saved value, because the server refuses the upload', () => {
+    const report = check(
+      [
+        ['Score', 'Favourite colour'],
+        [3, 'red'],
+      ],
+      [firstName, score],
+      'ACTIVITY',
+      (sheet) => {
+        sheet.A2 = { t: 'n', f: 'SUM(1,2)' }
+      },
+    )
+    expect(report.problems.map((problem) => problem.kind)).toEqual(
+      expect.arrayContaining(['NO_COLUMN', 'FORMULA_NO_VALUE']),
+    )
+    expect(report.canPrepareForm).toBe(false)
+  })
+
   it('is false when only rows have problems, even with a column a draft would add', () => {
     const report = check(
       [

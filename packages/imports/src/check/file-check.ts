@@ -41,7 +41,7 @@ export interface FileCheckReport {
   totalRows: number
   problemRows: number
   problems: FileCheckProblem[]
-  // A required column is missing and the server's draft would change the form for this file.
+  // A required column is missing, the server would accept the file, and its draft would change the form.
   canPrepareForm: boolean
 }
 
@@ -302,6 +302,7 @@ export function checkImportFile(input: {
     helpOf.delete(problem.fieldCode)
   }
   // Runs the server's own draft, because it refuses a file whose only gap is a missing required column.
+  // shortcut: skips the server's definition validation and version conflicts, so a draft can still be refused after upload; mirror them if people hit those refusals.
   const draftChangesForm = () => {
     try {
       draftFormFromImport({
@@ -319,6 +320,7 @@ export function checkImportFile(input: {
       })
       return true
     } catch {
+      // Any failure only withholds the offer, because a rethrow would skip the whole file check.
       return false
     }
   }
@@ -327,6 +329,11 @@ export function checkImportFile(input: {
     totalRows: file.rows.length,
     problemRows: problemRows.size,
     problems: [...problems, ...rowProblems],
-    canPrepareForm: problems.some((problem) => problem.kind === 'NO_COLUMN') && draftChangesForm(),
+    // The server refuses to draft from a file with no rows, and refuses the upload of a formula with no saved value.
+    canPrepareForm:
+      file.rows.length > 0 &&
+      !file.formulaGap &&
+      problems.some((problem) => problem.kind === 'NO_COLUMN') &&
+      draftChangesForm(),
   }
 }
