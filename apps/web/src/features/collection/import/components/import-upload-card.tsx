@@ -14,6 +14,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 
+import { UPLOAD_NEEDS_CLIENT_ID_ROLE, UPLOAD_NEEDS_PARTICIPANT_ROLE } from '../../collection.copy'
 import type { BatchReview } from '../hooks/use-batch-review'
 import type { ImportState } from '../hooks/use-import-state'
 import { FileCheckDialog } from './file-check-dialog'
@@ -25,6 +26,8 @@ export function ImportUploadCard({
   state: Pick<
     ImportState,
     | 'canManageForms'
+    | 'canMatchByClientId'
+    | 'canRegisterParticipants'
     | 'canUpload'
     | 'checking'
     | 'file'
@@ -57,6 +60,8 @@ export function ImportUploadCard({
 }) {
   const {
     canManageForms,
+    canMatchByClientId,
+    canRegisterParticipants,
     canUpload,
     checking,
     file,
@@ -83,6 +88,17 @@ export function ImportUploadCard({
     uploadRefusal,
   } = state
   const { closeFileCheck, fixFile, prepareFromFile, upload, uploadAnyway } = review
+  const chosenForm = forms.find((form) => form.id === formId)
+  // The same two refusals as import-upload.service.ts, in its order; the server stays the authority.
+  let refusedReason: string | null = null
+  if (chosenForm?.formType === 'BENEFICIARY_REGISTRATION') {
+    if (!canRegisterParticipants) refusedReason = UPLOAD_NEEDS_PARTICIPANT_ROLE
+    else if (
+      !canMatchByClientId &&
+      chosenForm.fields.some((field) => field.code === 'external_identifier_value')
+    )
+      refusedReason = UPLOAD_NEEDS_CLIENT_ID_ROLE
+  }
   return (
     <Card>
       <CardHeader>
@@ -231,6 +247,7 @@ export function ImportUploadCard({
           report={fileCheck}
           fileInput={fileInput}
           canManageForms={canManageForms}
+          refusedReason={refusedReason}
           onFix={fixFile}
           onPrepareForm={() => void prepareFromFile()}
           onUploadAnyway={() => void uploadAnyway()}

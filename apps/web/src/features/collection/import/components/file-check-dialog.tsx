@@ -67,6 +67,7 @@ export function FileCheckDialog({
   report,
   fileInput,
   canManageForms,
+  refusedReason,
   onFix,
   onPrepareForm,
   onUploadAnyway,
@@ -76,17 +77,18 @@ export function FileCheckDialog({
   // Where focus goes when the dialog closes, the file input the person picks the corrected file with.
   fileInput: RefObject<HTMLInputElement | null>
   canManageForms: boolean
+  // Why the server would refuse this person the upload whatever the file holds, else null.
+  refusedReason: string | null
   onFix: () => void
   onPrepareForm: () => void
   onUploadAnyway: () => void
   onClose: () => void
 }) {
   const fixRef = useRef<HTMLButtonElement>(null)
-  const uploadBlocked = missesRequiredColumn(report) && !canManageForms
-  const blockedProps = unavailableControlProps(UPLOAD_HINT_ID, UPLOAD_NEEDS_FORM_UPDATE)
-  const { show, triggerProps, tip } = useHoverTip(
-    uploadBlocked ? UPLOAD_NEEDS_FORM_UPDATE : undefined,
-  )
+  const uploadBlocked = Boolean(refusedReason) || (missesRequiredColumn(report) && !canManageForms)
+  const blockedReason = refusedReason ?? UPLOAD_NEEDS_FORM_UPDATE
+  const blockedProps = unavailableControlProps(UPLOAD_HINT_ID, blockedReason)
+  const { show, triggerProps, tip } = useHoverTip(uploadBlocked ? blockedReason : undefined)
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
@@ -110,9 +112,10 @@ export function FileCheckDialog({
         <div className="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning-subtle p-4 text-sm text-warning">
           <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
           <p>
-            {report.problemRows === 0
-              ? 'The file has problems you can fix in the file. Fixing them in your spreadsheet first makes the upload go smoothly.'
-              : `${report.problemRows} of ${report.totalRows} rows have problems you can fix in the file. Fixing them in your spreadsheet first makes the upload go smoothly.${uploadBlocked ? '' : ' Uploaded as it is, each of these rows has to be reviewed here one by one.'}`}
+            {refusedReason ??
+              (report.problemRows === 0
+                ? 'The file has problems you can fix in the file. Fixing them in your spreadsheet first makes the upload go smoothly.'
+                : `${report.problemRows} of ${report.totalRows} rows have problems you can fix in the file. Fixing them in your spreadsheet first makes the upload go smoothly.${uploadBlocked ? '' : ' Uploaded as it is, each of these rows has to be reviewed here one by one.'}`)}
           </p>
         </div>
         <Table>
@@ -144,9 +147,7 @@ export function FileCheckDialog({
           </TableBody>
         </Table>
         <DialogFooter>
-          {uploadBlocked ? (
-            <UnavailableHint id={UPLOAD_HINT_ID} message={UPLOAD_NEEDS_FORM_UPDATE} />
-          ) : null}
+          {uploadBlocked ? <UnavailableHint id={UPLOAD_HINT_ID} message={blockedReason} /> : null}
           <Button
             variant="outline"
             {...(uploadBlocked
@@ -165,7 +166,7 @@ export function FileCheckDialog({
             Upload anyway
           </Button>
           {tip}
-          {report.canPrepareForm && canManageForms ? (
+          {report.canPrepareForm && canManageForms && !refusedReason ? (
             <Button variant="outline" onClick={onPrepareForm}>
               Prepare form
             </Button>

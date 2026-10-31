@@ -26,6 +26,13 @@ export function useImportState(scope: SensitiveDraftOwner) {
   const canValidate = principalHasAtomicPermission(profile, 'imports.validate')
   const canProcess = principalHasAtomicPermission(profile, 'imports.process')
   const canManageForms = principalHasAtomicPermission(profile, 'forms.manage')
+  const canRegisterParticipants = principalHasAtomicPermission(
+    profile,
+    'beneficiaries.records.register',
+  )
+  const canMatchByClientId =
+    principalHasAtomicPermission(profile, 'beneficiaries.identities.review') &&
+    principalHasAtomicPermission(profile, 'beneficiaries.enrollments.manage')
   const canOpenForms = Boolean(
     profile && getVerifiedRouteAccess(profile, '/collection/forms').allowed,
   )
@@ -183,6 +190,8 @@ export function useImportState(scope: SensitiveDraftOwner) {
     batches,
     begin,
     canManageForms,
+    canMatchByClientId,
+    canRegisterParticipants,
     canOpenForms,
     canProcess,
     canReview,
