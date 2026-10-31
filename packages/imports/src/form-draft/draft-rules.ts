@@ -1,4 +1,5 @@
 import {
+  CONSENT_FIELD_CODES,
   type FieldIntakeRule,
   completedYearsAt,
   formDefinitionLimits,
@@ -7,8 +8,9 @@ import {
 import { comparableAnswer, hasLetterPrefix, stripLetterPrefix } from '../answers'
 import { fittingDateOrders, readDate } from '../date-order'
 import { WASHINGTON_GROUP_LEVELS_V1, washingtonGroupLevel } from '../intake-rules'
+import { sourceNameKey } from '../mappers/smart-match'
 import { type ImportValueMapEntry, mapKey } from '../value-map'
-import type { DraftColumn, DraftField, DraftSummary, NeedsCheckReason } from './draft-form'
+import type { DraftColumn, DraftField, DraftSummary } from './draft-form'
 import { fieldCodeFromHeader } from './field-code'
 
 // A whole number the INTEGER type can store; longer digit runs are phone numbers or IDs, kept as text.
@@ -24,6 +26,17 @@ const NO = new Set(['false', 'no', 'hindi', '0'])
 const MAX_SOURCE_NAMES = 20
 const MAX_ALIASES = 100
 const MAX_NAME_LENGTH = 100
+
+/** False for a source name the API refuses: one with no letter or digit, or one another field lists. */
+export function sourceNameFree(fields: readonly DraftField[], name: string, field?: DraftField) {
+  const key = sourceNameKey(name)
+  return (
+    key !== '' &&
+    !fields.some(
+      (other) => other !== field && other.sourceNames?.some((n) => sourceNameKey(n) === key),
+    )
+  )
+}
 
 const isBlank = (value: unknown) =>
   value === null || value === undefined || (typeof value === 'string' && value.trim() === '')
@@ -55,7 +68,7 @@ function toDay(value: unknown) {
 /**
  * Proposes calculations and cross-checks (spec 3.6 rule 6) on the drafted fields, only where
  * they hold on every row that has their inputs. `mapping` is source key to field code; it is
- * updated when a column moves. Mutates `fields` and `summary`; the publisher reviews each rule.
+ * updated when a column moves. Mutates `fields` and `summary`.
  */
 export function proposeIntakeRules(
   fields: DraftField[],
@@ -82,10 +95,6 @@ export function proposeIntakeRules(
 
   const columnFor = (code: string) => ordered.find((column) => mapping.get(column.key) === code)
   const isNew = (code: string) => summary.addedFields.includes(code)
-  const flag = (fieldCode: string, reason: NeedsCheckReason) => {
-    if (!summary.needsCheck.some((item) => item.fieldCode === fieldCode && item.reason === reason))
-      summary.needsCheck.push({ fieldCode, reason })
-  }
   // A field that exists and has no rule yet; a calculated rule also needs it to have no import default.
   const open = (code: string, calculated = false) => {
     const field = byCode.get(code)
@@ -94,19 +103,18 @@ export function proposeIntakeRules(
   const propose = (field: DraftField, rule: FieldIntakeRule) => {
     field.rule = rule
     if (!summary.rules.includes(field.code)) summary.rules.push(field.code)
-    flag(field.code, 'RULE_PROPOSED')
   }
   const addSourceName = (field: DraftField, header: string) => {
     const names = field.sourceNames ?? []
     if (names.some((name) => mapKey(name) === mapKey(header))) return
     if (header.length > MAX_NAME_LENGTH || names.length >= MAX_SOURCE_NAMES) return
+    if (!sourceNameFree(fields, header, field)) return
     field.sourceNames = [...names, header]
     if (!summary.sourceNamesAdded.includes(field.code)) summary.sourceNamesAdded.push(field.code)
   }
   const dropNew = (field: DraftField) => {
     fields.splice(fields.indexOf(field), 1)
     summary.addedFields = summary.addedFields.filter((code) => code !== field.code)
-    summary.needsCheck = summary.needsCheck.filter((item) => item.fieldCode !== field.code)
   }
 
   function washingtonGroup() {
@@ -209,6 +217,8 @@ export function proposeIntakeRules(
     }
     if (agreeing && flagCanAlias) {
       const { field, column } = agreeing
+      // The column's own new field goes first, or it would still list the header.
+      dropNew(field)
       addSourceName(status, column.header.trim())
       const aliases = status.valueAliases ?? []
       const texts = column.values.filter((v) => !isBlank(v)).map((v) => String(v).trim())
@@ -220,8 +230,11 @@ export function proposeIntakeRules(
       }
       status.valueAliases = aliases
       mapping.set(column.key, status.code)
-      dropNew(field)
-    } else if (disagreeing) flag(disagreeing.code, 'WASHINGTON_GROUP_FLAG_DISAGREES')
+    } else if (disagreeing)
+      summary.needsCheck.push({
+        fieldCode: disagreeing.code,
+        reason: 'WASHINGTON_GROUP_FLAG_DISAGREES',
+      })
 
     propose(status, {
       kind: 'WASHINGTON_GROUP_DISABILITY',
@@ -296,34 +309,36 @@ export function proposeIntakeRules(
 
   // Moves a column that disagrees with the calculation onto a new field of its own.
   function moveOff(field: DraftField, column: DraftColumn, header: string, isAge: boolean) {
-    const names = (field.sourceNames ?? []).filter((name) => mapKey(name) !== mapKey(header))
+    // The column's stable code leaves with it, or the next file would map back to the calculated field.
+    const code = column.sourceCode
+    const leaving = [header, ...(code ? [code] : [])].map(sourceNameKey)
+    const names = (field.sourceNames ?? []).filter((name) => !leaving.includes(sourceNameKey(name)))
     field.sourceNames = names.length ? names : undefined
-    if (!names.length) {
-      summary.sourceNamesAdded = summary.sourceNamesAdded.filter((code) => code !== field.code)
-      summary.needsCheck = summary.needsCheck.filter(
-        (item) => !(item.fieldCode === field.code && item.reason === 'SUGGESTED_SOURCE_NAME'),
-      )
-    }
     const present = column.values.filter((value) => !isBlank(value))
     const dataType = present.every(storableInteger)
       ? 'INTEGER'
       : present.every((v) => typeof v === 'boolean')
         ? 'BOOLEAN'
         : 'TEXT'
+    const sourceNames = (code ? [header, code] : [header]).filter(
+      (name) => name.length <= MAX_NAME_LENGTH && sourceNameFree(fields, name),
+    )
     const moved: DraftField = {
-      code: fieldCodeFromHeader(header, new Set(fields.map((item) => item.code))),
+      code: fieldCodeFromHeader(
+        header,
+        new Set([...fields.map((item) => item.code), ...CONSENT_FIELD_CODES]),
+      ),
       label: header.slice(0, 160),
       dataType,
       required: false,
       metadataKey: false,
       sadddField: false,
-      ...(header.length <= MAX_NAME_LENGTH ? { sourceNames: [header] } : {}),
+      ...(sourceNames.length ? { sourceNames } : {}),
     }
     fields.push(moved)
     byCode.set(moved.code, moved)
     summary.addedFields.push(moved.code)
     mapping.set(column.key, moved.code)
-    flag(moved.code, 'COLUMN_MOVED_OFF_CALCULATED')
     if (isAge && dataType === 'INTEGER')
       propose(moved, { kind: 'AGE_CHECK', birthField: 'birth_date', atFields: ['enrollment_date'] })
   }

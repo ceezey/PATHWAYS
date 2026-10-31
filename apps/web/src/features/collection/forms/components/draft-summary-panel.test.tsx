@@ -17,7 +17,7 @@ const summary = {
   defaults: ['registration_operation'],
   rules: ['age_at_registration'],
   needsCheck: [
-    { fieldCode: 'sex', reason: 'SUGGESTED_SOURCE_NAME' as const },
+    { fieldCode: 'sex', reason: 'ENUM_ANSWER_UNRESOLVED' as const },
     { fieldCode: 'consent_recorded', reason: 'PARTICIPATION_CONSENT_NO_SOURCE' as const },
   ],
 }
@@ -28,6 +28,21 @@ describe('DraftSummaryPanel', () => {
     const headings = screen.getAllByRole('heading').map((heading) => heading.textContent)
     expect(headings).toEqual(['Draft from import', 'Needs check (2)', 'Changes in this draft'])
     expect(screen.getAllByRole('listitem')[0].textContent).toContain('sex')
+  })
+
+  it('says who publishes, in words true of a draft that added no field', () => {
+    render(
+      <DraftSummaryPanel
+        summary={{ ...summary, addedFields: [] }}
+        fields={[]}
+        onSelectField={vi.fn()}
+      />,
+    )
+    expect(
+      screen.getByText(
+        'These changes were made from the file. Someone other than the person who drafted or last edited it publishes the draft.',
+      ),
+    ).toBeTruthy()
   })
 
   it('links each needs check item to its field in plain words', () => {
@@ -94,8 +109,63 @@ describe('DraftSummaryPanel', () => {
         onSelectField={vi.fn()}
       />,
     )
-    expect(screen.getByText('Nothing needs a second look.')).toBeTruthy()
+    expect(
+      screen.getByText('No items are waiting. Review the changes below before publishing.'),
+    ).toBeTruthy()
     expect(screen.getByText(/household_size/)).toBeTruthy()
     expect(screen.getByText(/4 value aliases/)).toBeTruthy()
+  })
+
+  it('only claims what is true when a draft changed no field', () => {
+    const empty = {
+      addedFields: [],
+      sourceNamesAdded: [],
+      optionsAdded: [],
+      aliasesAdded: 0,
+      defaults: [],
+      rules: [],
+    }
+    render(
+      <DraftSummaryPanel
+        summary={{ ...empty, needsCheck: [summary.needsCheck[0]] }}
+        fields={[]}
+        onSelectField={vi.fn()}
+      />,
+    )
+    expect(screen.getByText('No fields changed.')).toBeTruthy()
+    expect(screen.queryByText(/These changes were made from the file/)).toBeNull()
+    expect(
+      screen.getByText(
+        'Someone other than the person who drafted or last edited it publishes the draft.',
+      ),
+    ).toBeTruthy()
+    cleanup()
+    render(
+      <DraftSummaryPanel
+        summary={{ ...empty, needsCheck: [] }}
+        fields={[]}
+        onSelectField={vi.fn()}
+      />,
+    )
+    expect(screen.getByText('No items are waiting.')).toBeTruthy()
+    expect(screen.getByText('No fields changed.')).toBeTruthy()
+  })
+
+  it('names no other consent on a consent item', () => {
+    render(
+      <DraftSummaryPanel
+        summary={{
+          ...summary,
+          needsCheck: [
+            { fieldCode: 'guardian_consent_recorded', reason: 'CONSENT_SOURCE_PROPOSED' },
+          ],
+        }}
+        fields={[]}
+        onSelectField={vi.fn()}
+      />,
+    )
+    expect(
+      screen.getByText('A column was proposed as this consent answer. Confirm it.'),
+    ).toBeTruthy()
   })
 })

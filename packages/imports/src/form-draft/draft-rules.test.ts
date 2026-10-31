@@ -1,8 +1,9 @@
 import { formIntakeDefinitionErrors } from '@pathways/shared'
 import { describe, expect, it } from 'vitest'
 
+import { sourceNameKey } from '../mappers/smart-match'
 import type { DraftColumn } from './draft-form'
-import { draft, find } from './draft-test-support'
+import { REGISTRATION, draft, find } from './draft-test-support'
 import { fixtureColumns } from './futuremakers-fixture'
 
 // Zero-based positions in the Futuremakers fixture columns.
@@ -49,10 +50,9 @@ describe('proposeIntakeRules on the Futuremakers fixture', () => {
     expect(find(result, 'living_with_disability')).toBeUndefined()
     expect(result.summary.addedFields).not.toContain('living_with_disability')
     expect(result.summary.rules).toContain('disability_status')
-    expect(result.summary.needsCheck).toContainEqual({
-      fieldCode: 'disability_status',
-      reason: 'RULE_PROPOSED',
-    })
+    expect(result.summary.needsCheck.some((item) => item.fieldCode === 'disability_status')).toBe(
+      false,
+    )
   })
 
   it('gives every Washington Group field all four options even when the file uses three', () => {
@@ -130,6 +130,48 @@ describe('proposeIntakeRules on the Futuremakers fixture', () => {
     })
   })
 
+  it('adds no source name the API refuses when a punctuation header is the flag column', () => {
+    const columns = fixtureColumns()
+    columns[COLUMN.flag] = { ...columns[COLUMN.flag], header: '#' }
+    const result = draft(columns)
+    expect(wgRule(result).questionFields).toHaveLength(6)
+    expect(find(result, 'disability_status')?.sourceNames).toBeUndefined()
+    const keys = result.fields.flatMap((field) => (field.sourceNames ?? []).map(sourceNameKey))
+    expect(keys).not.toContain('')
+    expect(new Set(keys).size).toBe(keys.length)
+  })
+
+  it('does not report new source names on a field whose column moved off again', () => {
+    const withAges = (header: string, listed: string) => {
+      const fields = REGISTRATION.map((field) =>
+        field.code === 'age_at_registration' ? { ...field, sourceNames: [listed] } : field,
+      )
+      const columns = fixtureColumns()
+      columns[COLUMN.age] = { ...columns[COLUMN.age], header }
+      return draft(columns, fields)
+    }
+    const similar = withAges('Registration age', 'Age at intake')
+    expect(find(similar, 'age_at_registration')?.sourceNames).toEqual(['Age at intake'])
+    expect(similar.summary.sourceNamesAdded).not.toContain('age_at_registration')
+    const lostOnly = fixtureColumns()
+    lostOnly[COLUMN.age] = { ...lostOnly[COLUMN.age], sourceCode: 'AgeCode1234' }
+    const listedAge = REGISTRATION.map((field) =>
+      field.code === 'age_at_registration' ? { ...field, sourceNames: ['Age'] } : field,
+    )
+    expect(draft(lostOnly, listedAge).summary.sourceNamesAdded).not.toContain('age_at_registration')
+    const sameKey = withAges('Age years', 'Age (years)')
+    const keys = sameKey.fields.flatMap((field) => (field.sourceNames ?? []).map(sourceNameKey))
+    expect(new Set(keys).size).toBe(keys.length)
+  })
+
+  it('moves a stale Age column stable code along with the column', () => {
+    const columns = fixtureColumns()
+    columns[COLUMN.age] = { ...columns[COLUMN.age], sourceCode: 'AgeCode1234' }
+    const result = draft(columns)
+    expect(find(result, 'age_at_registration')?.sourceNames).toBeUndefined()
+    expect(find(result, 'age')?.sourceNames).toEqual(['Age', 'AgeCode1234'])
+  })
+
   it('treats an Age column of integer text equal to age at enrollment as a cross-check, not a move', () => {
     const columns = fixtureColumns()
     const years = (born: string, at: string) =>
@@ -152,14 +194,10 @@ describe('proposeIntakeRules on the Futuremakers fixture', () => {
     })
     expect(find(result, 'age_at_registration')?.sourceNames).toBeUndefined()
     expect(result.summary.addedFields).toContain('age')
-    expect(result.summary.needsCheck).toContainEqual({
-      fieldCode: 'age',
-      reason: 'COLUMN_MOVED_OFF_CALCULATED',
-    })
-    expect(result.summary.needsCheck).not.toContainEqual({
-      fieldCode: 'age_at_registration',
-      reason: 'SUGGESTED_SOURCE_NAME',
-    })
+    expect(result.summary.needsCheck.some((item) => item.fieldCode === 'age')).toBe(false)
+    expect(result.summary.needsCheck.some((item) => item.fieldCode === 'age_at_registration')).toBe(
+      false,
+    )
   })
 
   it('makes an Age column that equals age at enrollment a cross-check source of age_at_registration', () => {
@@ -244,10 +282,7 @@ describe('proposeIntakeRules on the Futuremakers fixture', () => {
     it('moves Age off the calculated field when the dates fit more than one order', () => {
       const result = textDates((iso) => `${iso.slice(2, 4)}/${iso.slice(5, 7)}/${iso.slice(8, 10)}`)
       expect(find(result, 'age_at_registration')?.sourceNames).toBeUndefined()
-      expect(result.summary.needsCheck).toContainEqual({
-        fieldCode: 'age',
-        reason: 'COLUMN_MOVED_OFF_CALCULATED',
-      })
+      expect(result.summary.addedFields).toContain('age')
     })
   })
 
@@ -314,13 +349,13 @@ describe('proposeIntakeRules on the Futuremakers fixture', () => {
     expect(rule(result, 'beneficiary_code')).toBeUndefined()
   })
 
-  it('never proposes SAME_ANSWER_AS and flags every rule once', () => {
+  it('never proposes SAME_ANSWER_AS and lists every rule once, none asking for a check', () => {
     const result = fixture()
     expect(result.fields.some((field) => field.rule?.kind === 'SAME_ANSWER_AS')).toBe(false)
     const ruled = result.fields.filter((field) => field.rule).map((field) => field.code)
     expect([...ruled].sort()).toEqual([...result.summary.rules].sort())
     for (const code of ruled)
-      expect(result.summary.needsCheck).toContainEqual({ fieldCode: code, reason: 'RULE_PROPOSED' })
+      expect(result.summary.needsCheck.some((item) => item.fieldCode === code)).toBe(false)
   })
 
   it('the resulting field list passes formIntakeDefinitionErrors with no errors', () => {

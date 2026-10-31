@@ -1,6 +1,7 @@
 import { CONSENT_FIELD_CODES, formIntakeDefinitionErrors } from '@pathways/shared'
 import { describe, expect, it } from 'vitest'
 
+import { sourceNameKey } from '../mappers/smart-match'
 import { type DraftField, FormDraftError, draftFormFromImport } from './draft-form'
 import { REGISTRATION, SPECS, columnOf, draft, find } from './draft-test-support'
 import { fieldCodeFromHeader } from './field-code'
@@ -21,14 +22,18 @@ describe('fieldCodeFromHeader', () => {
 })
 
 describe('draftFormFromImport on the Futuremakers fixture', () => {
-  it('adds "Gender - YEE" as a sex source name with SUGGESTED_SOURCE_NAME', () => {
+  it('leaves only what no rule can settle for a person to check', () => {
+    expect(fixture().summary.needsCheck).toEqual([
+      { fieldCode: 'data_processing_consent_recorded', reason: 'CONSENT_SOURCE_PROPOSED' },
+      { fieldCode: 'consent_recorded', reason: 'PARTICIPATION_CONSENT_NO_SOURCE' },
+    ])
+  })
+
+  it('adds "Gender - YEE" as a sex source name without asking for a check', () => {
     const result = fixture()
     expect(find(result, 'sex')?.sourceNames).toEqual(['Gender - YEE'])
     expect(result.summary.sourceNamesAdded).toContain('sex')
-    expect(result.summary.needsCheck).toContainEqual({
-      fieldCode: 'sex',
-      reason: 'SUGGESTED_SOURCE_NAME',
-    })
+    expect(result.summary.needsCheck.some((item) => item.fieldCode === 'sex')).toBe(false)
   })
 
   it('adds aliases A. Babae to FEMALE, B. Lalaki to MALE, C. Non-binary to OTHER', () => {
@@ -65,17 +70,14 @@ describe('draftFormFromImport on the Futuremakers fixture', () => {
     expect(find(result, 'email_address')?.valueAliases).toBeUndefined()
   })
 
-  it('proposes registration_operation CREATE and subject_type INDIVIDUAL with IMPORT_DEFAULT', () => {
+  it('sets registration_operation CREATE and subject_type INDIVIDUAL without asking for a check', () => {
     const result = fixture()
     expect(find(result, 'registration_operation')?.importDefault).toBe('CREATE')
     expect(find(result, 'subject_type')?.importDefault).toBe('INDIVIDUAL')
     expect(result.summary.defaults).toEqual(
       expect.arrayContaining(['registration_operation', 'subject_type']),
     )
-    expect(result.summary.needsCheck).toContainEqual({
-      fieldCode: 'subject_type',
-      reason: 'IMPORT_DEFAULT',
-    })
+    expect(result.summary.needsCheck.some((item) => item.fieldCode === 'subject_type')).toBe(false)
   })
 
   it('maps the consent column to data_processing_consent_recorded and flags consent_recorded', () => {
@@ -99,7 +101,7 @@ describe('draftFormFromImport on the Futuremakers fixture', () => {
       expect(find(result, code)?.importDefault).toBeUndefined()
   })
 
-  it('proposes Student ID/Barangay Certificate No as external_identifier_value with a type default', () => {
+  it('maps Student ID/Barangay Certificate No to external_identifier_value with a type default', () => {
     const result = fixture()
     expect(find(result, 'external_identifier_value')?.sourceNames).toEqual([
       'Student ID/Barangay Certificate No',
@@ -107,10 +109,12 @@ describe('draftFormFromImport on the Futuremakers fixture', () => {
     expect(find(result, 'external_identifier_type')?.importDefault).toBe(
       'STUDENT_ID_BARANGAY_CERTIFICATE',
     )
-    expect(result.summary.needsCheck).toContainEqual({
-      fieldCode: 'external_identifier_value',
-      reason: 'IDENTIFIER_PROPOSED',
-    })
+    expect(
+      result.summary.needsCheck.some((item) => item.fieldCode === 'external_identifier_value'),
+    ).toBe(false)
+    expect(
+      result.summary.needsCheck.some((item) => item.fieldCode === 'external_identifier_type'),
+    ).toBe(false)
     expect(result.summary.defaults).toContain('external_identifier_type')
   })
 
@@ -303,6 +307,268 @@ describe('draftFormFromImport rules', () => {
     expect(() => draft([columnOf('Brand new column', ['x'])], full, 'OTHER')).toThrowError(
       expect.objectContaining({ code: 'FIELD_LIMIT' }),
     )
+  })
+
+  describe('a match no person confirms goes to a field of its own when it is unsure', () => {
+    const idOf = (code: string) => REGISTRATION.find((field) => field.code === code)?.id ?? null
+    const pending = (
+      column: ReturnType<typeof columnOf>,
+      reason: 'SUGGESTED' | 'HELD_MARGIN' | 'HELD_CONTESTED',
+      suggestedFieldId = idOf('location_barangay'),
+    ) => ({
+      sourceKey: column.key,
+      columnIndex: column.columnIndex,
+      status: 'PENDING' as const,
+      targetFieldId: null,
+      suggestedFieldId,
+      score: 70,
+      matchReason: null,
+      reason,
+    })
+    const drafted = (
+      columns: ReturnType<typeof columnOf>[],
+      reason: 'SUGGESTED' | 'HELD_MARGIN' | 'HELD_CONTESTED' = 'SUGGESTED',
+    ) =>
+      draftFormFromImport({
+        formType: 'OTHER',
+        fields: REGISTRATION,
+        columns,
+        decisions: columns.map((column) => pending(column, reason)),
+        uploadDate: '2026-10-23',
+      })
+
+    it('accepts a plain suggestion', () => {
+      const result = drafted([columnOf('Village', ['Dolores'], 1)])
+      expect(find(result, 'location_barangay')?.sourceNames).toEqual(['Village'])
+      expect(result.summary.addedFields).toEqual([])
+    })
+
+    it.each(['HELD_MARGIN', 'HELD_CONTESTED'] as const)('adds a field on %s', (reason) => {
+      const result = drafted([columnOf('Village', ['Dolores'], 1)], reason)
+      expect(find(result, 'location_barangay')?.sourceNames).toBeUndefined()
+      expect(result.summary.addedFields).toEqual(['village'])
+    })
+
+    it('adds a field for a second column suggested for a field already taken', () => {
+      const result = drafted([columnOf('Village', ['Dolores'], 1), columnOf('Sitio', ['Purok'], 2)])
+      expect(find(result, 'location_barangay')?.sourceNames).toEqual(['Village'])
+      expect(result.summary.addedFields).toEqual(['sitio'])
+    })
+
+    it('adds a field when the values do not fit the suggested field type', () => {
+      const result = draft([columnOf('Birth date', ['unknown', 'not sure', 'n/a'], 1)])
+      expect(find(result, 'birth_date')?.sourceNames).toBeUndefined()
+      expect(find(result, 'birth_date_2')?.dataType).toBe('TEXT')
+    })
+
+    it('keeps a column whose header is too long to be a source name', () => {
+      const header = `Gender ${'of the person answering '.repeat(5)}`.trim()
+      expect(header.length).toBeGreaterThan(100)
+      const result = draft([columnOf(header, ['A. Babae', 'B. Lalaki'], 1)])
+      expect(find(result, 'sex')?.sourceNames).toBeUndefined()
+      expect(result.summary.addedFields).toHaveLength(1)
+      expect(result.fields.find((field) => field.label === header)).toBeDefined()
+    })
+
+    it('lists a repeated header once across the form', () => {
+      const result = draft(
+        [columnOf('Favourite colour', ['red'], 1), columnOf('Favourite colour', ['blue'], 2)],
+        REGISTRATION,
+        'OTHER',
+      )
+      expect(find(result, 'favourite_colour')?.sourceNames).toEqual(['Favourite colour'])
+      expect(find(result, 'favourite_colour_2')?.sourceNames).toBeUndefined()
+    })
+
+    it('adds a field when the suggested field already has 20 source names', () => {
+      const names = Array.from({ length: 20 }, (_, index) => `Place ${index}`)
+      const fields = REGISTRATION.map((field) =>
+        field.code === 'location_barangay' ? { ...field, sourceNames: names } : field,
+      )
+      const column = columnOf('Village', ['Dolores'], 1)
+      const result = draftFormFromImport({
+        formType: 'OTHER',
+        fields,
+        columns: [column],
+        decisions: [pending(column, 'SUGGESTED')],
+        uploadDate: '2026-10-23',
+      })
+      expect(find(result, 'location_barangay')?.sourceNames).toEqual(names)
+      expect(find(result, 'village')?.sourceNames).toEqual(['Village'])
+    })
+
+    it('adds a field for true or false values suggested for a multiple choice field', () => {
+      const column = columnOf('Profile fields', [true, false], 1)
+      const result = draftFormFromImport({
+        formType: 'OTHER',
+        fields: REGISTRATION,
+        columns: [column],
+        decisions: [pending(column, 'SUGGESTED', idOf('profile_update_fields'))],
+        uploadDate: '2026-10-23',
+      })
+      expect(find(result, 'profile_update_fields')?.sourceNames).toBeUndefined()
+      expect(find(result, 'profile_fields')?.dataType).toBe('BOOLEAN')
+    })
+
+    it('never drafts a source name the API refuses', () => {
+      const first = columnOf('Village', ['Dolores'], 1)
+      const same = columnOf('Village!', ['Oras'], 2)
+      const blank = columnOf('#', [1, 2], 3)
+      const result = draftFormFromImport({
+        formType: 'OTHER',
+        fields: REGISTRATION,
+        columns: [first, same, blank],
+        decisions: [
+          pending(first, 'SUGGESTED'),
+          pending(same, 'SUGGESTED', idOf('location_province')),
+          { ...pending(blank, 'SUGGESTED', null), reason: 'EMPTY_NAME' as const },
+        ],
+        uploadDate: '2026-10-23',
+      })
+      const keys = result.fields.flatMap((field) => (field.sourceNames ?? []).map(sourceNameKey))
+      expect(keys).not.toContain('')
+      expect(new Set(keys).size).toBe(keys.length)
+      expect(find(result, 'location_province')?.sourceNames).toBeUndefined()
+      expect(result.summary.addedFields).toHaveLength(2)
+    })
+
+    it('lists numeric answers on a choice field for a person to settle', () => {
+      const result = draft([columnOf('Gender', [1, 2, 1, 2], 1)])
+      expect(result.summary.needsCheck).toContainEqual({
+        fieldCode: 'sex',
+        reason: 'ENUM_ANSWER_UNRESOLVED',
+      })
+    })
+
+    it('keeps a column that lost its match as text, so lettered names make no options', () => {
+      const names = ['M. Santos', 'M. Santos', 'J. Cruz', 'J. Cruz']
+      const result = drafted([columnOf('Village', names, 1)], 'HELD_MARGIN')
+      expect(find(result, 'village')?.dataType).toBe('TEXT')
+      expect(find(result, 'village')?.allowedValues).toBeUndefined()
+      expect(find(result, 'village')?.valueAliases).toBeUndefined()
+    })
+
+    it('never sends a refused or tied suggestion to the identifier field', () => {
+      const studentId: DraftField = {
+        id: 'student-id',
+        code: 'student_id',
+        label: 'Student ID',
+        dataType: 'INTEGER',
+        required: false,
+        metadataKey: false,
+        sadddField: false,
+        sourceNames: ['Student ID'],
+      }
+      const refused = draft(
+        [columnOf('Student ID', ['S-1001', 'S-1002'], 1)],
+        [...REGISTRATION, studentId],
+        'OTHER',
+      )
+      expect(find(refused, 'external_identifier_value')?.sourceNames).toBeUndefined()
+      expect(find(refused, 'student_id_2')?.dataType).toBe('TEXT')
+      expect(find(refused, 'student_id_2')?.sourceNames).toBeUndefined()
+      const tied = drafted([columnOf('Student ID', ['S-1001'], 1)], 'HELD_MARGIN')
+      expect(find(tied, 'external_identifier_value')?.sourceNames).toBeUndefined()
+      expect(tied.summary.addedFields).toEqual(['student_id'])
+    })
+
+    it('has nothing to add on a redraft of its own result', () => {
+      const columns = [columnOf('Favourite colour', ['red'], 1), columnOf('Gender', ['MALE'], 2)]
+      const once = draft(columns, REGISTRATION, 'OTHER')
+      const published = once.fields.map((field) => ({ ...field, id: field.code }))
+      expect(() => draft(columns, published, 'OTHER')).toThrowError(
+        expect.objectContaining({ code: 'NOTHING_TO_ADD' }),
+      )
+    })
+
+    it.each(['Photo use consent', 'Consent for collection of samples', 'Consent to use photo'])(
+      'does not treat "%s" as the data consent answer',
+      (header) => {
+        const result = draft([columnOf(header, [true, false, true], 1)])
+        for (const code of CONSENT_FIELD_CODES)
+          expect(find(result, code)?.sourceNames).toBeUndefined()
+        expect(result.summary.addedFields).toHaveLength(1)
+      },
+    )
+
+    it.each(['Parents consent to data use', 'Non-consent to data use'])(
+      'always asks a person about "%s"',
+      (header) => {
+        const result = draft([columnOf(header, [true, false, true], 1)])
+        expect(result.summary.needsCheck).toContainEqual({
+          fieldCode: 'data_processing_consent_recorded',
+          reason: 'CONSENT_SOURCE_PROPOSED',
+        })
+      },
+    )
+
+    it('keeps a text yes or no consent column off the consent field', () => {
+      const result = draft([columnOf('Consent to data use', ['Yes', 'No', 'Yes'], 1)])
+      expect(find(result, 'data_processing_consent_recorded')?.sourceNames).toBeUndefined()
+      expect(result.summary.addedFields).toHaveLength(1)
+    })
+
+    it('never gives a new field a consent code', () => {
+      const owned = REGISTRATION.filter((field) => field.code !== 'guardian_consent_recorded')
+      const result = draft(
+        [columnOf('Guardian Consent Recorded', [true, false, true], 1)],
+        owned,
+        'OTHER',
+      )
+      expect(find(result, 'guardian_consent_recorded')).toBeUndefined()
+      expect(find(result, 'guardian_consent_recorded_2')?.dataType).toBe('BOOLEAN')
+    })
+
+    it('keeps an unlettered answer out of a new choice field and asks a person', () => {
+      const answers = [...Array(19).fill('A. Yes'), 'Juan Cruz']
+      const result = draft([columnOf('Attended orientation', answers, 1)], REGISTRATION, 'OTHER')
+      const field = find(result, 'attended_orientation')
+      expect(field?.allowedValues).toEqual(['Yes'])
+      expect(JSON.stringify(result)).not.toContain('Juan Cruz')
+      expect(result.summary.needsCheck).toContainEqual({
+        fieldCode: 'attended_orientation',
+        reason: 'ENUM_ANSWER_UNRESOLVED',
+      })
+    })
+
+    it('keeps an unlettered answer out of an existing choice field and asks a person', () => {
+      const fields: DraftField[] = [
+        {
+          id: 'civil',
+          code: 'civil_status',
+          label: 'Civil status',
+          dataType: 'SELECT',
+          required: false,
+          metadataKey: false,
+          sadddField: false,
+          allowedValues: ['Single'],
+        },
+      ]
+      const answers = [...Array(10).fill('A. Single'), ...Array(9).fill('B. Married'), 'Juan Cruz']
+      const result = draft([columnOf('Civil status', answers, 1)], fields, 'OTHER')
+      expect(find(result, 'civil_status')?.allowedValues).toEqual(['Single', 'Married'])
+      expect(JSON.stringify(result)).not.toContain('Juan Cruz')
+      expect(result.summary.needsCheck).toContainEqual({
+        fieldCode: 'civil_status',
+        reason: 'ENUM_ANSWER_UNRESOLVED',
+      })
+    })
+  })
+
+  it('drafts a calculation even when it is the only change', () => {
+    const owned = REGISTRATION.filter((field) =>
+      ['birth_date', 'enrollment_date', 'age_at_registration'].includes(field.code),
+    )
+    const result = draft(
+      [columnOf('Birth date', ['2000-01-01'], 1), columnOf('Enrollment date', ['2026-01-01'], 2)],
+      owned,
+      'OTHER',
+    )
+    expect(result.summary).toMatchObject({
+      addedFields: [],
+      rules: ['age_at_registration'],
+      needsCheck: [],
+    })
   })
 
   it('throws NOTHING_TO_ADD when every column is already covered', () => {

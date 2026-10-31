@@ -100,7 +100,9 @@ function choiceParts(value: unknown): string[] | null {
     : null
 }
 
-function compatible(value: unknown, target: PreparedField) {
+type ValueTarget = Pick<PreparedField, 'field' | 'allowed' | 'resolve'>
+
+function compatible(value: unknown, target: ValueTarget) {
   const field = target.field
   if (field.dataType === 'INTEGER') {
     if (typeof value === 'number') return Number.isSafeInteger(value)
@@ -159,7 +161,7 @@ export function boundedSamples(samples: readonly unknown[]) {
   return result
 }
 
-export function valueGate(samples: readonly unknown[], target: PreparedField) {
+export function valueGate(samples: readonly unknown[], target: ValueTarget) {
   if (samples.length === 0) return 'NO_SAMPLES' as const
   let accepted = 0
   for (const sample of samples) if (compatible(sample, target)) accepted++
