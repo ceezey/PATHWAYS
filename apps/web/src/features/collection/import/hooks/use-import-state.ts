@@ -74,6 +74,8 @@ export function useImportState(scope: SensitiveDraftOwner) {
   const [mappingNotice, setMappingNotice] = useState('')
   // The automatic-mapping receipt of each batch uploaded or re-run in this session; batch detail carries the stored coverage.
   const [receipts, setReceipts] = useState<Record<string, AutomaticMappingReceipt>>({})
+  // Batches uploaded anyway after the file check offered Prepare form, so the mapping card does not repeat the offer.
+  const [formOfferSeen, setFormOfferSeen] = useState<ReadonlySet<string>>(new Set())
   // The draft form just prepared from a batch, which the workspace then opens in the editor.
   const [draftTarget, setDraftTarget] = useState<{ projectId: string; formId: string } | null>(null)
   const mappingHeading = useRef<HTMLSpanElement>(null)
@@ -191,6 +193,7 @@ export function useImportState(scope: SensitiveDraftOwner) {
     draftTarget,
     file,
     fileCheck,
+    formOfferSeen,
     fileInput,
     formId,
     forms,
@@ -221,6 +224,7 @@ export function useImportState(scope: SensitiveDraftOwner) {
     setDraftTarget,
     setFile,
     setFileCheck,
+    setFormOfferSeen,
     setFormId,
     setForms,
     setFormsState,

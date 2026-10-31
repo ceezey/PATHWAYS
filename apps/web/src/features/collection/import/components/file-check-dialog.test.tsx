@@ -4,6 +4,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { createRef, useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import { UPLOAD_NEEDS_FORM_UPDATE } from '../../collection.copy'
 import { FileCheckDialog } from './file-check-dialog'
 
 const report: FileCheckReport = {
@@ -54,13 +55,20 @@ const report: FileCheckReport = {
   ],
 }
 
-const open = (handlers = {}) => {
+const open = (handlers = {}, shown: FileCheckReport = report) => {
   const fileInput = createRef<HTMLInputElement>()
-  const props = { onFix: vi.fn(), onUploadAnyway: vi.fn(), onClose: vi.fn(), ...handlers }
+  const props = {
+    canManageForms: true,
+    onFix: vi.fn(),
+    onPrepareForm: vi.fn(),
+    onUploadAnyway: vi.fn(),
+    onClose: vi.fn(),
+    ...handlers,
+  }
   render(
     <>
       <input aria-label="file" ref={fileInput} />
-      <FileCheckDialog report={report} fileInput={fileInput} {...props} />
+      <FileCheckDialog report={shown} fileInput={fileInput} {...props} />
     </>,
   )
   return props
@@ -121,6 +129,8 @@ describe('FileCheckDialog', () => {
           ],
         }}
         fileInput={fileInput}
+        canManageForms
+        onPrepareForm={vi.fn()}
         onFix={vi.fn()}
         onUploadAnyway={vi.fn()}
         onClose={vi.fn()}
@@ -158,6 +168,8 @@ describe('FileCheckDialog', () => {
       <FileCheckDialog
         report={fileOnly}
         fileInput={fileInput}
+        canManageForms
+        onPrepareForm={vi.fn()}
         onFix={vi.fn()}
         onUploadAnyway={vi.fn()}
         onClose={vi.fn()}
@@ -179,6 +191,45 @@ describe('FileCheckDialog', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Fix the file' }))
     expect(props.onFix).toHaveBeenCalledTimes(1)
     expect(props.onClose).not.toHaveBeenCalled()
+  })
+
+  describe('a form that needs updating', () => {
+    const rowsOnly: FileCheckReport = { ...report, problems: [report.problems[0]] }
+    const uploadAnyway = () => screen.getByRole('button', { name: 'Upload anyway' })
+
+    it('offers Prepare form to a form manager when a required column is missing', () => {
+      const props = open()
+      fireEvent.click(screen.getByRole('button', { name: 'Prepare form' }))
+      expect(props.onPrepareForm).toHaveBeenCalledTimes(1)
+      fireEvent.click(uploadAnyway())
+      expect(props.onUploadAnyway).toHaveBeenCalledTimes(1)
+    })
+
+    it('does not offer Prepare form when only rows have problems', () => {
+      open({}, rowsOnly)
+      expect(screen.queryByRole('button', { name: 'Prepare form' })).toBeNull()
+    })
+
+    it('grays out Upload anyway and names who updates the form when the person cannot', () => {
+      const props = open({ canManageForms: false })
+      expect(screen.queryByRole('button', { name: 'Prepare form' })).toBeNull()
+      expect(screen.queryByText(/prepare the form/)).toBeNull()
+      const button = uploadAnyway()
+      expect(button.getAttribute('aria-disabled')).toBe('true')
+      expect(button.getAttribute('title')).toBe(UPLOAD_NEEDS_FORM_UPDATE)
+      expect(
+        document.getElementById(button.getAttribute('aria-describedby') ?? '')?.textContent,
+      ).toBe(UPLOAD_NEEDS_FORM_UPDATE)
+      fireEvent.click(button)
+      expect(props.onUploadAnyway).not.toHaveBeenCalled()
+    })
+
+    it('leaves Upload anyway active for someone who cannot manage forms when only rows have problems', () => {
+      const props = open({ canManageForms: false }, rowsOnly)
+      expect(uploadAnyway().getAttribute('aria-disabled')).toBeNull()
+      fireEvent.click(uploadAnyway())
+      expect(props.onUploadAnyway).toHaveBeenCalledTimes(1)
+    })
   })
 
   it('Escape closes without fixing', () => {
@@ -205,6 +256,8 @@ describe('FileCheckDialog', () => {
             <FileCheckDialog
               report={report}
               fileInput={fileInput}
+              canManageForms
+              onPrepareForm={vi.fn()}
               onFix={() => setShown(false)}
               onUploadAnyway={vi.fn()}
               onClose={() => setShown(false)}

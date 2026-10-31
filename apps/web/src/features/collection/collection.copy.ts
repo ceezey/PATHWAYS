@@ -75,6 +75,10 @@ export const warningLabel = (code: string) => warningLabels[code] ?? enumLabel(c
 export const coverageNotice = (receipt: { uncoveredColumns: number; unresolvedValues: number }) =>
   `Form needs updating: ${plural(receipt.uncoveredColumns, 'column')}, ${plural(receipt.unresolvedValues, 'answer')}`
 
+/** Why someone who cannot manage forms cannot upload a file missing a required column. */
+export const UPLOAD_NEEDS_FORM_UPDATE =
+  'This file is missing columns the form requires. Ask a Monitoring and Evaluation Officer or System Administrator to update the form, then upload this file again.'
+
 /** Shown after a straight-through import finishes. */
 export const importOutcomeMessage = (totals: {
   processed: number

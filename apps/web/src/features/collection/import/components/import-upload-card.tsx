@@ -24,6 +24,7 @@ export function ImportUploadCard({
 }: {
   state: Pick<
     ImportState,
+    | 'canManageForms'
     | 'canUpload'
     | 'checking'
     | 'file'
@@ -49,9 +50,13 @@ export function ImportUploadCard({
     | 'sheetNames'
     | 'uploadRefusal'
   >
-  review: Pick<BatchReview, 'closeFileCheck' | 'fixFile' | 'upload' | 'uploadAnyway'>
+  review: Pick<
+    BatchReview,
+    'closeFileCheck' | 'fixFile' | 'prepareFromFile' | 'upload' | 'uploadAnyway'
+  >
 }) {
   const {
+    canManageForms,
     canUpload,
     checking,
     file,
@@ -77,7 +82,7 @@ export function ImportUploadCard({
     sheetNames,
     uploadRefusal,
   } = state
-  const { closeFileCheck, fixFile, upload, uploadAnyway } = review
+  const { closeFileCheck, fixFile, prepareFromFile, upload, uploadAnyway } = review
   return (
     <Card>
       <CardHeader>
@@ -225,7 +230,9 @@ export function ImportUploadCard({
         <FileCheckDialog
           report={fileCheck}
           fileInput={fileInput}
+          canManageForms={canManageForms}
           onFix={fixFile}
+          onPrepareForm={() => void prepareFromFile()}
           onUploadAnyway={() => void uploadAnyway()}
           onClose={closeFileCheck}
         />

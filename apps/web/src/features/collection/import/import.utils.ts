@@ -1,3 +1,4 @@
+import type { FileCheckReport } from '@pathways/imports'
 import type { ImportHoldCode } from '@pathways/shared'
 
 import type { ImportBatchDefinition, ImportRowDefinition } from '@/types/pathways'
@@ -7,6 +8,10 @@ import { enumLabel } from '../collection.copy'
 // Why the server refused a stored upload, in its own words when it gave them.
 export const uploadFailure = (batch: Pick<ImportBatchDefinition, 'status' | 'failureMessage'>) =>
   batch.status === 'FAILED' ? (batch.failureMessage ?? 'The file could not be imported.') : null
+
+// A required form field has no column in the file, so the rows cannot pass until the form or the file changes.
+export const missesRequiredColumn = (report: FileCheckReport) =>
+  report.problems.some((problem) => problem.kind === 'NO_COLUMN')
 
 export const mappingLockedStatuses = new Set([
   'PROCESSING',
