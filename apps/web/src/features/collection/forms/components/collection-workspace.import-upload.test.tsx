@@ -700,18 +700,17 @@ describe('collection import of a multi-sheet workbook', () => {
 })
 
 describe('a System Administrator, who edits forms and does not import files', () => {
-  const chooseFile = async (name: string) => {
+  afterEach(() => {
+    preview.workbook = null
+  })
+
+  const chooseFile = async (name: string, mode: 'import' | 'extend' = 'import') => {
     currentAccess.profile.roles = ['SYSTEM_ADMINISTRATOR']
-    currentAccess.profile.permissions = [
-      ...currentAccess.profile.permissions,
-      'forms.manage',
-      'forms.templates.import',
-    ]
     render(
       <DisplayLabelsProvider>
         <CollectionWorkspace
           initialView="import"
-          initialMode="import"
+          initialMode={mode}
           initialProjectId="futuremakers-ncr"
         />
       </DisplayLabelsProvider>,
@@ -738,6 +737,22 @@ describe('a System Administrator, who edits forms and does not import files', ()
     expect(api.uploadImport).not.toHaveBeenCalled()
   })
 
+  it('leaves the builder and the page untouched by a refused file on the extend route', async () => {
+    preview.workbook = {
+      fileType: 'csv',
+      headers: ['refused_column'],
+      rows: [{ refused_column: 'x' }],
+      errors: [],
+    }
+    await chooseFile('people.csv', 'extend')
+    await screen.findByText(IMPORT_NEEDS_OTHER_ROLE)
+    expect(screen.queryByText('Needs review')).toBeNull()
+    expect(screen.queryByText(/Correct isolated data/)).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Build forms' }))
+    expect(screen.queryByDisplayValue(/refused.column/i)).toBeNull()
+    expect(screen.queryByText(/refused.column/i)).toBeNull()
+  })
+
   it('can still build a draft form from a file with only a header row', async () => {
     preview.workbook = { fileType: 'csv', headers: ['beneficiary_id'], rows: [], errors: [] }
     api.createDigitalForm.mockResolvedValue({
@@ -753,9 +768,9 @@ describe('a System Administrator, who edits forms and does not import files', ()
     await chooseFile('questions.csv')
     await screen.findByText(/Questionnaire structure ready for questions.csv/)
     expect(screen.queryByText(IMPORT_NEEDS_OTHER_ROLE)).toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: /Proceed|Create/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Create draft' }))
     fireEvent.click(
-      within(screen.getByRole('dialog')).getByRole('button', { name: /Proceed|Create/ }),
+      within(screen.getByRole('dialog')).getByRole('button', { name: 'Create draft' }),
     )
     await waitFor(() => expect(api.createDigitalForm).toHaveBeenCalledOnce())
     expect(api.uploadImport).not.toHaveBeenCalled()

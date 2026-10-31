@@ -91,11 +91,8 @@ export function useImportActions(state: CollectionState, guard: CollectionGuard)
   }, [parsedImport, mappingRows])
 
   const mappingReadiness = useMemo(() => getMappingReadiness(mappingRows), [mappingRows])
-  // A System Administrator edits forms and does not import files, so only a header-only file goes on.
   const importCanProceed =
-    importStatus === 'ready' &&
-    !(isSystemAdministrator && parsedImport?.rows.length) &&
-    (Boolean(parsedImport?.rows.length) || mappingReadiness.canProceed)
+    importStatus === 'ready' && (Boolean(parsedImport?.rows.length) || mappingReadiness.canProceed)
   const parseSelectedFile = async (file: File) => {
     if (
       mutation.current ||
@@ -133,6 +130,15 @@ export function useImportActions(state: CollectionState, guard: CollectionGuard)
       parsed = { fileName: file.name, ...result }
 
       if (!validParse()) return
+      // A System Administrator edits forms and does not import files, so only a header-only file goes on.
+      if (isSystemAdministrator && parsed.rows.length > 0) {
+        setParsedImport(null)
+        setMappingRows([])
+        setUploadProgress(100)
+        setImportStatus('ready')
+        setImportMessage(IMPORT_NEEDS_OTHER_ROLE)
+        return
+      }
       setParsedImport(parsed)
       setCorrectionPage(0)
       const selectedForm = forms.find(
@@ -142,26 +148,22 @@ export function useImportActions(state: CollectionState, guard: CollectionGuard)
       // Advisory AUTO_SMART_V2 preview against the published form, or against the draft
       // builder fields; a header-only questionnaire defines new fields instead.
       setMappingRows(
-        isSystemAdministrator && parsed.rows.length > 0
-          ? []
-          : selectedForm
-            ? createSmartMappingRows(parsed.headers, parsed.rows, selectedForm.fields)
-            : parsed.rows.length === 0
-              ? createQuestionnaireMappingRows(parsed.headers)
-              : createSmartMappingRows(
-                  parsed.headers,
-                  parsed.rows,
-                  toDigitalFormInput({ code: '', name: '', formType: 'OTHER', fields }).fields,
-                ),
+        selectedForm
+          ? createSmartMappingRows(parsed.headers, parsed.rows, selectedForm.fields)
+          : parsed.rows.length === 0
+            ? createQuestionnaireMappingRows(parsed.headers)
+            : createSmartMappingRows(
+                parsed.headers,
+                parsed.rows,
+                toDigitalFormInput({ code: '', name: '', formType: 'OTHER', fields }).fields,
+              ),
       )
       setUploadProgress(100)
       setImportStatus('ready')
       setImportMessage(
         parsed.rows.length === 0
           ? `Questionnaire structure ready for ${parsed.fileName}. Review the field mappings before creating the Draft.`
-          : isSystemAdministrator
-            ? IMPORT_NEEDS_OTHER_ROLE
-            : `Preview ready for ${parsed.fileName}. Review every mapping before proceeding.`,
+          : `Preview ready for ${parsed.fileName}. Review every mapping before proceeding.`,
       )
 
       if (mode === 'extend') {
