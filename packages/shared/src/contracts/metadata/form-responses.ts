@@ -27,7 +27,7 @@ export const formFieldResponse = z.object({
 })
 export type FormFieldResponse = z.infer<typeof formFieldResponse>
 
-// Why a draft change needs a person's check before publishing. The drafter no longer writes CONSENT_SOURCE_PROPOSED; open older drafts keep it because their consent match was looser.
+// Why a draft change needs a person's check before publishing; mirrors the import drafter's reasons.
 export const draftNeedsCheckReasons = [
   'ENUM_ANSWER_UNRESOLVED',
   'PARTICIPATION_CONSENT_NO_SOURCE',

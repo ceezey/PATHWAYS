@@ -32,6 +32,7 @@ export interface DraftColumn {
 export type NeedsCheckReason =
   | 'ENUM_ANSWER_UNRESOLVED'
   | 'PARTICIPATION_CONSENT_NO_SOURCE'
+  | 'CONSENT_SOURCE_PROPOSED'
   | 'WASHINGTON_GROUP_FLAG_DISAGREES'
 
 /** Field codes and counts only; no source value ever enters the summary. */
@@ -75,26 +76,6 @@ const REGISTRATION_DEFAULTS = [
   ['subject_type', 'INDIVIDUAL'],
 ] as const
 const CONSENT_WORDS = ['collection', 'use', 'processing']
-// Headers about another person, another subject or a refusal, which never mean the participant agreed to data use.
-const NOT_CONSENT_WORDS = new Set([
-  'guardian',
-  'parent',
-  'parental',
-  'photo',
-  'image',
-  'video',
-  'media',
-  'withdraw',
-  'withdrew',
-  'withdrawn',
-  'no',
-  'not',
-  'without',
-  'refuse',
-  'refused',
-  'decline',
-  'declined',
-])
 const IDENTIFIER_WORDS = ['id', 'certificate', 'cert']
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
 
@@ -151,7 +132,8 @@ const byPrefix = (left: string, right: string) =>
 
 /**
  * True for a lettered choice list: at least 90 percent lettered, each label meaning one answer,
- * and repeated answers. This keeps lettered personal data ("J. Cruz", "1. Juan") out of options.
+ * and repeated answers. This keeps most lettered personal data ("J. Cruz", "1. Juan") out of options.
+ * shortcut: a lettered name repeated on many rows has the same shape as a choice and passes; upgrade if a form ever shows one.
  */
 function isChoiceColumn(texts: readonly string[]) {
   if (texts.filter(hasLetterPrefix).length * 100 < texts.length * 90) return false
@@ -166,7 +148,7 @@ function isChoiceColumn(texts: readonly string[]) {
   return answers.size * 2 <= texts.length && [...byLabel.values()].every((set) => set.size === 1)
 }
 
-/** Options in letter order with each lettered answer as an alias, or null when the column is not a choice list or too wide for a form. An unlettered answer could be a name, so it stays out. */
+/** Options in letter order with each lettered answer as an alias, leaving out unlettered answers that could be names, or null when the column is not a choice list or too wide for a form. */
 function choicesOf(texts: readonly string[]) {
   if (!isChoiceColumn(texts)) return null
   const originals = [...new Set(texts.filter(hasLetterPrefix))].sort(byPrefix)
@@ -248,7 +230,8 @@ export function draftFormFromImport(input: {
   const byId = new Map(fields.flatMap((field) => (field.id ? [[field.id, field] as const] : [])))
   const byCode = new Map(fields.map((field) => [field.code, field]))
   const columnByKey = new Map(input.columns.map((column) => [column.key, column]))
-  const taken = new Set(fields.map((field) => field.code))
+  // A new field never takes a consent code, because the consent checks read those codes.
+  const taken = new Set([...fields.map((field) => field.code), ...CONSENT_FIELD_CODES])
   // Codes of fields that already have a column, by decision or by a proposal in this run.
   const used = new Set(
     input.decisions.flatMap((decision) => {
@@ -277,9 +260,22 @@ export function draftFormFromImport(input: {
   }
   const free = (code: string) => (used.has(code) ? undefined : byCode.get(code))
 
+  // The API refuses a source name with no letter or digit, and one that another field lists.
+  const sourceNameFree = (header: string, field?: DraftField) => {
+    const key = sourceNameKey(header)
+    return (
+      key !== '' &&
+      ![...fields, ...added].some(
+        (other) =>
+          other !== field && other.sourceNames?.some((name) => sourceNameKey(name) === key),
+      )
+    )
+  }
+
   function addSourceName(field: DraftField, header: string) {
     const names = field.sourceNames ?? []
     if (header.length > LIMITS.nameLength || names.length >= LIMITS.sourceNames) return false
+    if (!sourceNameFree(header, field)) return false
     if (!names.some((name) => mapKey(name) === mapKey(header))) {
       field.sourceNames = [...names, header]
       note(summary.sourceNamesAdded, field.code)
@@ -314,26 +310,23 @@ export function draftFormFromImport(input: {
       type === 'BOOLEAN' &&
       tokens.includes('consent') &&
       tokens.includes('data') &&
-      CONSENT_WORDS.some((w) => tokens.includes(w)) &&
-      !tokens.some((w) => NOT_CONSENT_WORDS.has(w))
+      CONSENT_WORDS.some((w) => tokens.includes(w))
     ) {
       const consent = free('data_processing_consent_recorded')
       if (consent) return [consent, 'CONSENT']
     }
     // Two columns or two fields scored alike, so the name alone cannot pick one.
-    const ambiguous = decision.reason === 'HELD_CONTESTED' || decision.reason === 'HELD_MARGIN'
-    const suggested = ambiguous
-      ? undefined
-      : decision.suggestedFieldId
-        ? byId.get(decision.suggestedFieldId)
-        : fields.find(
-            (field) =>
-              !used.has(field.code) &&
-              (SMART_REVIEW_SYNONYMS_V2[field.code] ?? []).some((name) =>
-                headerTokens(name).every((token) => tokens.includes(token)),
-              ),
-          )
-    if (suggested && acceptsColumn(suggested, present)) return [suggested, 'SUGGESTED']
+    if (decision.reason === 'HELD_CONTESTED' || decision.reason === 'HELD_MARGIN') return undefined
+    const suggested = decision.suggestedFieldId
+      ? byId.get(decision.suggestedFieldId)
+      : fields.find(
+          (field) =>
+            !used.has(field.code) &&
+            (SMART_REVIEW_SYNONYMS_V2[field.code] ?? []).some((name) =>
+              headerTokens(name).every((token) => tokens.includes(token)),
+            ),
+        )
+    if (suggested) return acceptsColumn(suggested, present) ? [suggested, 'SUGGESTED'] : undefined
     const identifier = free('external_identifier_value')
     if (
       type === 'TEXT' &&
@@ -396,13 +389,8 @@ export function draftFormFromImport(input: {
       const found = proposal(decision, present, headerTokens(header))
       if (!found || !addSourceName(found[0], header)) {
         const field = newField(header, present, taken)
-        // A form lists a source name once, so a repeated header keeps only its label.
-        if (
-          [...fields, ...added].some((other) =>
-            other.sourceNames?.some((name) => sourceNameKey(name) === sourceNameKey(header)),
-          )
-        )
-          field.sourceNames = undefined
+        // shortcut: a repeated or punctuation-only header keeps only its label, so a redraft adds it again; upgrade when people re-upload such files.
+        if (!sourceNameFree(header)) field.sourceNames = undefined
         if (
           field.dataType === 'SELECT' &&
           present.some((value) => !hasLetterPrefix(String(value).trim()))
@@ -414,7 +402,11 @@ export function draftFormFromImport(input: {
         continue
       }
       target = found[0]
-      if (found[1] === 'CONSENT') consentProposed = true
+      if (found[1] === 'CONSENT') {
+        consentProposed = true
+        // A header cannot prove who agreed to what, and a wrong match records consent nobody gave.
+        flag(found[0].code, 'CONSENT_SOURCE_PROPOSED')
+      }
       const identifierType = byCode.get('external_identifier_type')
       if (
         found[1] === 'IDENTIFIER' &&
@@ -436,16 +428,7 @@ export function draftFormFromImport(input: {
   const everyField = [...fields, ...added]
   for (const column of input.columns) {
     const target = everyField.find((field) => field.code === mapping.get(column.key))
-    const code = column.sourceCode
-    if (
-      target &&
-      code &&
-      !everyField.some(
-        (field) =>
-          field !== target && field.sourceNames?.some((name) => mapKey(name) === mapKey(code)),
-      )
-    )
-      addSourceName(target, code)
+    if (target && column.sourceCode) addSourceName(target, column.sourceCode)
   }
 
   if (consentProposed && free('consent_recorded'))

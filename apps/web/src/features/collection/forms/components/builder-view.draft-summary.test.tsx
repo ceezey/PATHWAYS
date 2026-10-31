@@ -1,4 +1,5 @@
 /* @vitest-environment jsdom */
+import type { DraftSummaryResponse } from '@pathways/shared'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -9,18 +10,18 @@ afterEach(cleanup)
 
 vi.mock('./journey-stage-selector', () => ({ JourneyStageSelector: () => null }))
 
-const summary = {
+const summary: DraftSummaryResponse = {
   addedFields: ['attendance_status'],
   sourceNamesAdded: [],
   optionsAdded: [],
   aliasesAdded: 0,
   defaults: [],
   rules: [],
-  needsCheck: [{ fieldCode: 'beneficiary_id', reason: 'ENUM_ANSWER_UNRESOLVED' as const }],
+  needsCheck: [{ fieldCode: 'beneficiary_id', reason: 'ENUM_ANSWER_UNRESOLVED' }],
 }
 
 const view = (
-  draftSummary: typeof summary | null,
+  draftSummary: DraftSummaryResponse | null,
   setSelectedFieldId = vi.fn(),
   { onConfirmCheck = vi.fn(), readOnly = false, selectedFieldId = '' } = {},
 ) =>
@@ -95,11 +96,9 @@ describe('BuilderView draft summary', () => {
     ['WASHINGTON_GROUP_FLAG_DISAGREES', false],
   ] as const)('opens Advanced Configuration for %s: %s', (reason, open) => {
     const field = initialFields[0]
-    view(
-      { ...summary, needsCheck: [{ fieldCode: field.code, reason }] } as unknown as typeof summary,
-      vi.fn(),
-      { selectedFieldId: field.id },
-    )
+    view({ ...summary, needsCheck: [{ fieldCode: field.code, reason }] }, vi.fn(), {
+      selectedFieldId: field.id,
+    })
     const details = screen.getByText('Advanced Configuration').closest('details')
     expect(details?.open).toBe(open)
   })

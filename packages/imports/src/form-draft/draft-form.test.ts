@@ -1,6 +1,7 @@
 import { CONSENT_FIELD_CODES, formIntakeDefinitionErrors } from '@pathways/shared'
 import { describe, expect, it } from 'vitest'
 
+import { sourceNameKey } from '../mappers/smart-match'
 import { type DraftField, FormDraftError, draftFormFromImport } from './draft-form'
 import { REGISTRATION, SPECS, columnOf, draft, find } from './draft-test-support'
 import { fieldCodeFromHeader } from './field-code'
@@ -23,6 +24,7 @@ describe('fieldCodeFromHeader', () => {
 describe('draftFormFromImport on the Futuremakers fixture', () => {
   it('leaves only what no rule can settle for a person to check', () => {
     expect(fixture().summary.needsCheck).toEqual([
+      { fieldCode: 'data_processing_consent_recorded', reason: 'CONSENT_SOURCE_PROPOSED' },
       { fieldCode: 'consent_recorded', reason: 'PARTICIPATION_CONSENT_NO_SOURCE' },
     ])
   })
@@ -83,11 +85,10 @@ describe('draftFormFromImport on the Futuremakers fixture', () => {
     expect(find(result, 'data_processing_consent_recorded')?.sourceNames).toEqual([
       'Consent to the collection and use of your data for the purposes - Futuremaker',
     ])
-    expect(
-      result.summary.needsCheck.some(
-        (item) => item.fieldCode === 'data_processing_consent_recorded',
-      ),
-    ).toBe(false)
+    expect(result.summary.needsCheck).toContainEqual({
+      fieldCode: 'data_processing_consent_recorded',
+      reason: 'CONSENT_SOURCE_PROPOSED',
+    })
     expect(result.summary.needsCheck).toContainEqual({
       fieldCode: 'consent_recorded',
       reason: 'PARTICIPATION_CONSENT_NO_SOURCE',
@@ -309,16 +310,17 @@ describe('draftFormFromImport rules', () => {
   })
 
   describe('a match no person confirms goes to a field of its own when it is unsure', () => {
+    const idOf = (code: string) => REGISTRATION.find((field) => field.code === code)?.id ?? null
     const pending = (
       column: ReturnType<typeof columnOf>,
       reason: 'SUGGESTED' | 'HELD_MARGIN' | 'HELD_CONTESTED',
+      suggestedFieldId = idOf('location_barangay'),
     ) => ({
       sourceKey: column.key,
       columnIndex: column.columnIndex,
       status: 'PENDING' as const,
       targetFieldId: null,
-      suggestedFieldId:
-        REGISTRATION.find((field) => field.code === 'location_barangay')?.id ?? null,
+      suggestedFieldId,
       score: 70,
       matchReason: null,
       reason,
@@ -378,18 +380,127 @@ describe('draftFormFromImport rules', () => {
       expect(find(result, 'favourite_colour_2')?.sourceNames).toBeUndefined()
     })
 
-    it.each([
-      'Photo use consent',
-      'Consent for collection of samples',
-      'Consent to use photo',
-      'Guardian consent for data use',
-      'Withdrew consent to data use',
-      'No consent to data processing',
-    ])('never accepts "%s" as a consent answer', (header) => {
-      const result = draft([columnOf(header, [true, false, true], 1)])
-      for (const code of CONSENT_FIELD_CODES)
-        expect(find(result, code)?.sourceNames).toBeUndefined()
+    it('adds a field when the suggested field already has 20 source names', () => {
+      const names = Array.from({ length: 20 }, (_, index) => `Place ${index}`)
+      const fields = REGISTRATION.map((field) =>
+        field.code === 'location_barangay' ? { ...field, sourceNames: names } : field,
+      )
+      const column = columnOf('Village', ['Dolores'], 1)
+      const result = draftFormFromImport({
+        formType: 'OTHER',
+        fields,
+        columns: [column],
+        decisions: [pending(column, 'SUGGESTED')],
+        uploadDate: '2026-10-23',
+      })
+      expect(find(result, 'location_barangay')?.sourceNames).toEqual(names)
+      expect(find(result, 'village')?.sourceNames).toEqual(['Village'])
+    })
+
+    it('adds a field for true or false values suggested for a multiple choice field', () => {
+      const column = columnOf('Profile fields', [true, false], 1)
+      const result = draftFormFromImport({
+        formType: 'OTHER',
+        fields: REGISTRATION,
+        columns: [column],
+        decisions: [pending(column, 'SUGGESTED', idOf('profile_update_fields'))],
+        uploadDate: '2026-10-23',
+      })
+      expect(find(result, 'profile_update_fields')?.sourceNames).toBeUndefined()
+      expect(find(result, 'profile_fields')?.dataType).toBe('BOOLEAN')
+    })
+
+    it('never drafts a source name the API refuses', () => {
+      const first = columnOf('Village', ['Dolores'], 1)
+      const same = columnOf('Village!', ['Oras'], 2)
+      const blank = columnOf('#', [1, 2], 3)
+      const result = draftFormFromImport({
+        formType: 'OTHER',
+        fields: REGISTRATION,
+        columns: [first, same, blank],
+        decisions: [
+          pending(first, 'SUGGESTED'),
+          pending(same, 'SUGGESTED', idOf('location_province')),
+          { ...pending(blank, 'SUGGESTED', null), reason: 'EMPTY_NAME' as const },
+        ],
+        uploadDate: '2026-10-23',
+      })
+      const keys = result.fields.flatMap((field) => (field.sourceNames ?? []).map(sourceNameKey))
+      expect(keys).not.toContain('')
+      expect(new Set(keys).size).toBe(keys.length)
+      expect(find(result, 'location_province')?.sourceNames).toBeUndefined()
+      expect(result.summary.addedFields).toHaveLength(2)
+    })
+
+    it('never sends a refused or tied suggestion to the identifier field', () => {
+      const studentId: DraftField = {
+        id: 'student-id',
+        code: 'student_id',
+        label: 'Student ID',
+        dataType: 'INTEGER',
+        required: false,
+        metadataKey: false,
+        sadddField: false,
+        sourceNames: ['Student ID'],
+      }
+      const refused = draft(
+        [columnOf('Student ID', ['S-1001', 'S-1002'], 1)],
+        [...REGISTRATION, studentId],
+        'OTHER',
+      )
+      expect(find(refused, 'external_identifier_value')?.sourceNames).toBeUndefined()
+      expect(find(refused, 'student_id_2')?.dataType).toBe('TEXT')
+      expect(find(refused, 'student_id_2')?.sourceNames).toBeUndefined()
+      const tied = drafted([columnOf('Student ID', ['S-1001'], 1)], 'HELD_MARGIN')
+      expect(find(tied, 'external_identifier_value')?.sourceNames).toBeUndefined()
+      expect(tied.summary.addedFields).toEqual(['student_id'])
+    })
+
+    it('has nothing to add on a redraft of its own result', () => {
+      const columns = [columnOf('Favourite colour', ['red'], 1), columnOf('Gender', ['MALE'], 2)]
+      const once = draft(columns, REGISTRATION, 'OTHER')
+      const published = once.fields.map((field) => ({ ...field, id: field.code }))
+      expect(() => draft(columns, published, 'OTHER')).toThrowError(
+        expect.objectContaining({ code: 'NOTHING_TO_ADD' }),
+      )
+    })
+
+    it.each(['Photo use consent', 'Consent for collection of samples', 'Consent to use photo'])(
+      'does not treat "%s" as the data consent answer',
+      (header) => {
+        const result = draft([columnOf(header, [true, false, true], 1)])
+        for (const code of CONSENT_FIELD_CODES)
+          expect(find(result, code)?.sourceNames).toBeUndefined()
+        expect(result.summary.addedFields).toHaveLength(1)
+      },
+    )
+
+    it.each(['Parents consent to data use', 'Non-consent to data use'])(
+      'always asks a person about "%s"',
+      (header) => {
+        const result = draft([columnOf(header, [true, false, true], 1)])
+        expect(result.summary.needsCheck).toContainEqual({
+          fieldCode: 'data_processing_consent_recorded',
+          reason: 'CONSENT_SOURCE_PROPOSED',
+        })
+      },
+    )
+
+    it('keeps a text yes or no consent column off the consent field', () => {
+      const result = draft([columnOf('Consent to data use', ['Yes', 'No', 'Yes'], 1)])
+      expect(find(result, 'data_processing_consent_recorded')?.sourceNames).toBeUndefined()
       expect(result.summary.addedFields).toHaveLength(1)
+    })
+
+    it('never gives a new field a consent code', () => {
+      const owned = REGISTRATION.filter((field) => field.code !== 'guardian_consent_recorded')
+      const result = draft(
+        [columnOf('Guardian Consent Recorded', [true, false, true], 1)],
+        owned,
+        'OTHER',
+      )
+      expect(find(result, 'guardian_consent_recorded')).toBeUndefined()
+      expect(find(result, 'guardian_consent_recorded_2')?.dataType).toBe('BOOLEAN')
     })
 
     it('keeps an unlettered answer out of a new choice field and asks a person', () => {

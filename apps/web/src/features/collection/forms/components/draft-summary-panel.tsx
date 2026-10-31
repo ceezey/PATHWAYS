@@ -118,7 +118,9 @@ export function DraftSummaryPanel({
               ))}
             </ul>
           ) : (
-            <p className="text-sm text-muted-foreground">Nothing needs a second look.</p>
+            <p className="text-sm text-muted-foreground">
+              No items are waiting. Review the changes below before publishing.
+            </p>
           )}
         </section>
         <section aria-labelledby="draft-changes" className="space-y-2">

@@ -109,7 +109,9 @@ describe('DraftSummaryPanel', () => {
         onSelectField={vi.fn()}
       />,
     )
-    expect(screen.getByText('Nothing needs a second look.')).toBeTruthy()
+    expect(
+      screen.getByText('No items are waiting. Review the changes below before publishing.'),
+    ).toBeTruthy()
     expect(screen.getByText(/household_size/)).toBeTruthy()
     expect(screen.getByText(/4 value aliases/)).toBeTruthy()
   })
