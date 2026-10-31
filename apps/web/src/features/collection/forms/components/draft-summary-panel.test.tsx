@@ -115,4 +115,34 @@ describe('DraftSummaryPanel', () => {
     expect(screen.getByText(/household_size/)).toBeTruthy()
     expect(screen.getByText(/4 value aliases/)).toBeTruthy()
   })
+
+  it('only claims what is true when a draft changed no field', () => {
+    const empty = {
+      addedFields: [],
+      sourceNamesAdded: [],
+      optionsAdded: [],
+      aliasesAdded: 0,
+      defaults: [],
+      rules: [],
+    }
+    render(
+      <DraftSummaryPanel
+        summary={{ ...empty, needsCheck: [summary.needsCheck[0]] }}
+        fields={[]}
+        onSelectField={vi.fn()}
+      />,
+    )
+    expect(screen.getByText('No fields changed.')).toBeTruthy()
+    expect(screen.queryByText('The form already covered this file.')).toBeNull()
+    cleanup()
+    render(
+      <DraftSummaryPanel
+        summary={{ ...empty, needsCheck: [] }}
+        fields={[]}
+        onSelectField={vi.fn()}
+      />,
+    )
+    expect(screen.getByText('No items are waiting.')).toBeTruthy()
+    expect(screen.getByText('The form already covered this file.')).toBeTruthy()
+  })
 })

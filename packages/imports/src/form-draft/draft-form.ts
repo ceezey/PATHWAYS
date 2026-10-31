@@ -9,12 +9,11 @@ import {
   SMART_REVIEW_SYNONYMS_V2,
   type SmartMatchDecision,
   normalizeMappingNameV1,
-  sourceNameKey,
 } from '../mappers/smart-match'
 import { boundedSamples, valueGate } from '../mappers/smart-match-values'
 import { type ImportValueMapEntry, mapKey } from '../value-map'
 import { suggestValueMap } from '../value-map-suggest'
-import { proposeIntakeRules, storableInteger } from './draft-rules'
+import { proposeIntakeRules, sourceNameFree, storableInteger } from './draft-rules'
 import { fieldCodeFromHeader } from './field-code'
 
 export type DraftField = FormFieldRequest & { id?: string }
@@ -179,6 +178,7 @@ function newField(
   header: string,
   present: readonly unknown[],
   taken: Set<string>,
+  allowChoices: boolean,
 ): FormFieldRequest {
   const base = {
     code: fieldCodeFromHeader(header, taken),
@@ -191,7 +191,7 @@ function newField(
   const type = inferType(present)
   if (type !== 'TEXT') return { ...base, dataType: type }
   const texts = present.map((value) => String(value).trim())
-  const choices = choicesOf(texts)
+  const choices = allowChoices ? choicesOf(texts) : null
   if (choices)
     return {
       ...base,
@@ -260,22 +260,10 @@ export function draftFormFromImport(input: {
   }
   const free = (code: string) => (used.has(code) ? undefined : byCode.get(code))
 
-  // The API refuses a source name with no letter or digit, and one that another field lists.
-  const sourceNameFree = (header: string, field?: DraftField) => {
-    const key = sourceNameKey(header)
-    return (
-      key !== '' &&
-      ![...fields, ...added].some(
-        (other) =>
-          other !== field && other.sourceNames?.some((name) => sourceNameKey(name) === key),
-      )
-    )
-  }
-
   function addSourceName(field: DraftField, header: string) {
     const names = field.sourceNames ?? []
     if (header.length > LIMITS.nameLength || names.length >= LIMITS.sourceNames) return false
-    if (!sourceNameFree(header, field)) return false
+    if (!sourceNameFree([...fields, ...added], header, field)) return false
     if (!names.some((name) => mapKey(name) === mapKey(header))) {
       field.sourceNames = [...names, header]
       note(summary.sourceNamesAdded, field.code)
@@ -341,7 +329,7 @@ export function draftFormFromImport(input: {
   function reconcileAnswers(field: DraftField, present: readonly unknown[]) {
     if (field.dataType !== 'SELECT') return
     const texts = present
-      .filter((value) => typeof value === 'string' || typeof value === 'boolean')
+      .filter((value) => ['string', 'boolean', 'number'].includes(typeof value))
       .map((value) => String(value).trim())
     const allowed = field.allowedValues ?? []
     const aliases = field.valueAliases ?? []
@@ -388,9 +376,14 @@ export function draftFormFromImport(input: {
     if (decision.status === 'PENDING') {
       const found = proposal(decision, present, headerTokens(header))
       if (!found || !addSourceName(found[0], header)) {
-        const field = newField(header, present, taken)
+        // A column that lost its match stays text, so lettered names in it cannot become options.
+        const lostMatch =
+          found !== undefined ||
+          decision.suggestedFieldId !== null ||
+          decision.reason.startsWith('HELD_')
+        const field = newField(header, present, taken, !lostMatch)
         // shortcut: a repeated or punctuation-only header keeps only its label, so a redraft adds it again; upgrade when people re-upload such files.
-        if (!sourceNameFree(header)) field.sourceNames = undefined
+        if (!sourceNameFree([...fields, ...added], header)) field.sourceNames = undefined
         if (
           field.dataType === 'SELECT' &&
           present.some((value) => !hasLetterPrefix(String(value).trim()))
@@ -446,6 +439,12 @@ export function draftFormFromImport(input: {
 
   const drafted: DraftField[] = [...fields, ...added]
   proposeIntakeRules(drafted, input.columns, mapping, input.uploadDate, summary)
+  // A rule can move a column off again, so report only the fields whose names really changed.
+  summary.sourceNamesAdded = summary.sourceNamesAdded.filter((code) => {
+    const names = drafted.find((field) => field.code === code)?.sourceNames ?? []
+    const before = input.fields.find((field) => field.code === code)?.sourceNames ?? []
+    return names.join('\n') !== before.join('\n')
+  })
 
   const changed =
     added.length +

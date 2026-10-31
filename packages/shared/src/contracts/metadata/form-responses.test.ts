@@ -102,6 +102,18 @@ describe('form response contracts', () => {
       needsCheck,
     })
     expect(parsed.needsCheck).toEqual([needsCheck[3], needsCheck[6]])
+    const onConsent = draftSummaryResponse.parse({
+      addedFields: [],
+      sourceNamesAdded: [],
+      optionsAdded: [],
+      aliasesAdded: 0,
+      defaults: [],
+      rules: [],
+      needsCheck: [{ fieldCode: 'guardian_consent_recorded', reason: 'SUGGESTED_SOURCE_NAME' }],
+    })
+    expect(onConsent.needsCheck).toEqual([
+      { fieldCode: 'guardian_consent_recorded', reason: 'CONSENT_SOURCE_PROPOSED' },
+    ])
   })
 
   it('reject a form with an unknown type or status, or a field without a data type', () => {

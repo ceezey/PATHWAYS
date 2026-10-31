@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
 import { supportedFormFieldTypes } from '../../validation/form-data'
-import { fieldIntakeProperties } from './form-intake'
+import { CONSENT_FIELD_CODES, fieldIntakeProperties } from './form-intake'
 import { digitalFormTypes } from './form-requests'
 
 // Response shapes of the form and direct entry routes, used as types; only draftSummaryResponse is parsed at runtime.
@@ -64,7 +64,16 @@ export const draftSummaryResponse = z.object({
         reason: z.enum([...draftNeedsCheckReasons, ...acceptedDraftReasons]),
       }),
     )
-    .transform((items) => items.filter(stillNeedsCheck)),
+    // A consent field stays listed under any older reason, because a wrong match records consent nobody gave.
+    .transform((items) =>
+      items.flatMap((item) =>
+        stillNeedsCheck(item)
+          ? [item]
+          : (CONSENT_FIELD_CODES as readonly string[]).includes(item.fieldCode)
+            ? [{ fieldCode: item.fieldCode, reason: 'CONSENT_SOURCE_PROPOSED' as const }]
+            : [],
+      ),
+    ),
 })
 export type DraftSummaryResponse = z.infer<typeof draftSummaryResponse>
 

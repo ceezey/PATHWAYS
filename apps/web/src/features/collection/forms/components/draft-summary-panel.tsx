@@ -119,7 +119,9 @@ export function DraftSummaryPanel({
             </ul>
           ) : (
             <p className="text-sm text-muted-foreground">
-              No items are waiting. Review the changes below before publishing.
+              {counts.length
+                ? 'No items are waiting. Review the changes below before publishing.'
+                : 'No items are waiting.'}
             </p>
           )}
         </section>
@@ -193,7 +195,11 @@ export function DraftSummaryPanel({
               ) : null}
             </>
           ) : (
-            <p className="text-sm text-muted-foreground">The form already covered this file.</p>
+            <p className="text-sm text-muted-foreground">
+              {summary.needsCheck.length
+                ? 'No fields changed.'
+                : 'The form already covered this file.'}
+            </p>
           )}
         </section>
       </div>

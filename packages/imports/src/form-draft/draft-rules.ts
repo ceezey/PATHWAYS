@@ -1,4 +1,5 @@
 import {
+  CONSENT_FIELD_CODES,
   type FieldIntakeRule,
   completedYearsAt,
   formDefinitionLimits,
@@ -7,6 +8,7 @@ import {
 import { comparableAnswer, hasLetterPrefix, stripLetterPrefix } from '../answers'
 import { fittingDateOrders, readDate } from '../date-order'
 import { WASHINGTON_GROUP_LEVELS_V1, washingtonGroupLevel } from '../intake-rules'
+import { sourceNameKey } from '../mappers/smart-match'
 import { type ImportValueMapEntry, mapKey } from '../value-map'
 import type { DraftColumn, DraftField, DraftSummary } from './draft-form'
 import { fieldCodeFromHeader } from './field-code'
@@ -24,6 +26,17 @@ const NO = new Set(['false', 'no', 'hindi', '0'])
 const MAX_SOURCE_NAMES = 20
 const MAX_ALIASES = 100
 const MAX_NAME_LENGTH = 100
+
+/** False for a source name the API refuses: one with no letter or digit, or one another field lists. */
+export function sourceNameFree(fields: readonly DraftField[], name: string, field?: DraftField) {
+  const key = sourceNameKey(name)
+  return (
+    key !== '' &&
+    !fields.some(
+      (other) => other !== field && other.sourceNames?.some((n) => sourceNameKey(n) === key),
+    )
+  )
+}
 
 const isBlank = (value: unknown) =>
   value === null || value === undefined || (typeof value === 'string' && value.trim() === '')
@@ -95,6 +108,7 @@ export function proposeIntakeRules(
     const names = field.sourceNames ?? []
     if (names.some((name) => mapKey(name) === mapKey(header))) return
     if (header.length > MAX_NAME_LENGTH || names.length >= MAX_SOURCE_NAMES) return
+    if (!sourceNameFree(fields, header, field)) return
     field.sourceNames = [...names, header]
     if (!summary.sourceNamesAdded.includes(field.code)) summary.sourceNamesAdded.push(field.code)
   }
@@ -203,6 +217,8 @@ export function proposeIntakeRules(
     }
     if (agreeing && flagCanAlias) {
       const { field, column } = agreeing
+      // The column's own new field goes first, or it would still list the header.
+      dropNew(field)
       addSourceName(status, column.header.trim())
       const aliases = status.valueAliases ?? []
       const texts = column.values.filter((v) => !isBlank(v)).map((v) => String(v).trim())
@@ -214,7 +230,6 @@ export function proposeIntakeRules(
       }
       status.valueAliases = aliases
       mapping.set(column.key, status.code)
-      dropNew(field)
     } else if (disagreeing)
       summary.needsCheck.push({
         fieldCode: disagreeing.code,
@@ -294,24 +309,31 @@ export function proposeIntakeRules(
 
   // Moves a column that disagrees with the calculation onto a new field of its own.
   function moveOff(field: DraftField, column: DraftColumn, header: string, isAge: boolean) {
-    const names = (field.sourceNames ?? []).filter((name) => mapKey(name) !== mapKey(header))
+    // The column's stable code leaves with it, or the next file would map back to the calculated field.
+    const code = column.sourceCode
+    const leaving = [header, ...(code ? [code] : [])].map(sourceNameKey)
+    const names = (field.sourceNames ?? []).filter((name) => !leaving.includes(sourceNameKey(name)))
     field.sourceNames = names.length ? names : undefined
-    if (!names.length)
-      summary.sourceNamesAdded = summary.sourceNamesAdded.filter((code) => code !== field.code)
     const present = column.values.filter((value) => !isBlank(value))
     const dataType = present.every(storableInteger)
       ? 'INTEGER'
       : present.every((v) => typeof v === 'boolean')
         ? 'BOOLEAN'
         : 'TEXT'
+    const sourceNames = (code ? [header, code] : [header]).filter(
+      (name) => name.length <= MAX_NAME_LENGTH && sourceNameFree(fields, name),
+    )
     const moved: DraftField = {
-      code: fieldCodeFromHeader(header, new Set(fields.map((item) => item.code))),
+      code: fieldCodeFromHeader(
+        header,
+        new Set([...fields.map((item) => item.code), ...CONSENT_FIELD_CODES]),
+      ),
       label: header.slice(0, 160),
       dataType,
       required: false,
       metadataKey: false,
       sadddField: false,
-      ...(header.length <= MAX_NAME_LENGTH ? { sourceNames: [header] } : {}),
+      ...(sourceNames.length ? { sourceNames } : {}),
     }
     fields.push(moved)
     byCode.set(moved.code, moved)

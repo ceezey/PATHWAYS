@@ -432,6 +432,22 @@ describe('draftFormFromImport rules', () => {
       expect(result.summary.addedFields).toHaveLength(2)
     })
 
+    it('lists numeric answers on a choice field for a person to settle', () => {
+      const result = draft([columnOf('Gender', [1, 2, 1, 2], 1)])
+      expect(result.summary.needsCheck).toContainEqual({
+        fieldCode: 'sex',
+        reason: 'ENUM_ANSWER_UNRESOLVED',
+      })
+    })
+
+    it('keeps a column that lost its match as text, so lettered names make no options', () => {
+      const names = ['M. Santos', 'M. Santos', 'J. Cruz', 'J. Cruz']
+      const result = drafted([columnOf('Village', names, 1)], 'HELD_MARGIN')
+      expect(find(result, 'village')?.dataType).toBe('TEXT')
+      expect(find(result, 'village')?.allowedValues).toBeUndefined()
+      expect(find(result, 'village')?.valueAliases).toBeUndefined()
+    })
+
     it('never sends a refused or tied suggestion to the identifier field', () => {
       const studentId: DraftField = {
         id: 'student-id',

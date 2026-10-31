@@ -1,8 +1,9 @@
 import { formIntakeDefinitionErrors } from '@pathways/shared'
 import { describe, expect, it } from 'vitest'
 
+import { sourceNameKey } from '../mappers/smart-match'
 import type { DraftColumn } from './draft-form'
-import { draft, find } from './draft-test-support'
+import { REGISTRATION, draft, find } from './draft-test-support'
 import { fixtureColumns } from './futuremakers-fixture'
 
 // Zero-based positions in the Futuremakers fixture columns.
@@ -127,6 +128,42 @@ describe('proposeIntakeRules on the Futuremakers fixture', () => {
         'WASHINGTON_GROUP_FLAG_DISAGREES',
       )
     })
+  })
+
+  it('adds no source name the API refuses when a punctuation header is the flag column', () => {
+    const columns = fixtureColumns()
+    columns[COLUMN.flag] = { ...columns[COLUMN.flag], header: '#' }
+    const result = draft(columns)
+    expect(wgRule(result).questionFields).toHaveLength(6)
+    expect(find(result, 'disability_status')?.sourceNames).toBeUndefined()
+    const keys = result.fields.flatMap((field) => (field.sourceNames ?? []).map(sourceNameKey))
+    expect(keys).not.toContain('')
+    expect(new Set(keys).size).toBe(keys.length)
+  })
+
+  it('does not report new source names on a field whose column moved off again', () => {
+    const withAges = (header: string, listed: string) => {
+      const fields = REGISTRATION.map((field) =>
+        field.code === 'age_at_registration' ? { ...field, sourceNames: [listed] } : field,
+      )
+      const columns = fixtureColumns()
+      columns[COLUMN.age] = { ...columns[COLUMN.age], header }
+      return draft(columns, fields)
+    }
+    const similar = withAges('Registration age', 'Age at intake')
+    expect(find(similar, 'age_at_registration')?.sourceNames).toEqual(['Age at intake'])
+    expect(similar.summary.sourceNamesAdded).not.toContain('age_at_registration')
+    const sameKey = withAges('Age years', 'Age (years)')
+    const keys = sameKey.fields.flatMap((field) => (field.sourceNames ?? []).map(sourceNameKey))
+    expect(new Set(keys).size).toBe(keys.length)
+  })
+
+  it('moves a stale Age column stable code along with the column', () => {
+    const columns = fixtureColumns()
+    columns[COLUMN.age] = { ...columns[COLUMN.age], sourceCode: 'AgeCode1234' }
+    const result = draft(columns)
+    expect(find(result, 'age_at_registration')?.sourceNames).toBeUndefined()
+    expect(find(result, 'age')?.sourceNames).toEqual(['Age', 'AgeCode1234'])
   })
 
   it('treats an Age column of integer text equal to age at enrollment as a cross-check, not a move', () => {
