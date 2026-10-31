@@ -29,16 +29,25 @@ export type FormFieldResponse = z.infer<typeof formFieldResponse>
 
 // Why a draft change needs a person's check before publishing; mirrors the import drafter's reasons.
 export const draftNeedsCheckReasons = [
-  'SUGGESTED_SOURCE_NAME',
   'ENUM_ANSWER_UNRESOLVED',
+  'PARTICIPATION_CONSENT_NO_SOURCE',
+  'WASHINGTON_GROUP_FLAG_DISAGREES',
+] as const
+// Reasons open older drafts stored for what the drafter now accepts itself; dropped on read.
+const acceptedDraftReasons = [
+  'SUGGESTED_SOURCE_NAME',
   'IMPORT_DEFAULT',
   'RULE_PROPOSED',
   'CONSENT_SOURCE_PROPOSED',
-  'PARTICIPATION_CONSENT_NO_SOURCE',
   'IDENTIFIER_PROPOSED',
-  'WASHINGTON_GROUP_FLAG_DISAGREES',
   'COLUMN_MOVED_OFF_CALCULATED',
 ] as const
+type DraftNeedsCheckReason = (typeof draftNeedsCheckReasons)[number]
+const stillNeedsCheck = (item: {
+  fieldCode: string
+  reason: string
+}): item is { fieldCode: string; reason: DraftNeedsCheckReason } =>
+  (draftNeedsCheckReasons as readonly string[]).includes(item.reason)
 
 // What a draft from an import changed, as field codes and counts only.
 export const draftSummaryResponse = z.object({
@@ -48,7 +57,14 @@ export const draftSummaryResponse = z.object({
   aliasesAdded: z.number().int(),
   defaults: z.array(z.string()),
   rules: z.array(z.string()),
-  needsCheck: z.array(z.object({ fieldCode: z.string(), reason: z.enum(draftNeedsCheckReasons) })),
+  needsCheck: z
+    .array(
+      z.object({
+        fieldCode: z.string(),
+        reason: z.enum([...draftNeedsCheckReasons, ...acceptedDraftReasons]),
+      }),
+    )
+    .transform((items) => items.filter(stillNeedsCheck)),
 })
 export type DraftSummaryResponse = z.infer<typeof draftSummaryResponse>
 

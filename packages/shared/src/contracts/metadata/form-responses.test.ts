@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 
-import { formResponse, formSubmissionPageResponse, formSubmissionResponse } from './form-responses'
+import {
+  draftSummaryResponse,
+  formResponse,
+  formSubmissionPageResponse,
+  formSubmissionResponse,
+} from './form-responses'
 
 const uuid = '10000000-0000-4000-8000-000000000001'
 const field = {
@@ -67,7 +72,7 @@ describe('form response contracts', () => {
       aliasesAdded: 1,
       defaults: [],
       rules: [],
-      needsCheck: [{ fieldCode: 'given_name', reason: 'IMPORT_DEFAULT' }],
+      needsCheck: [{ fieldCode: 'given_name', reason: 'ENUM_ANSWER_UNRESOLVED' }],
     }
     expect(formResponse.safeParse({ ...form, draftSummary }).success).toBe(true)
     expect(formResponse.safeParse({ ...form, draftSummary: { addedFields: 'x' } }).success).toBe(
@@ -75,6 +80,28 @@ describe('form response contracts', () => {
     )
     const { draftSummary: _omitted, ...without } = form
     expect(formResponse.safeParse(without).success).toBe(false)
+  })
+
+  it('drops the checks an open older draft stored for what the drafter now accepts itself', () => {
+    const needsCheck = [
+      { fieldCode: 'sex', reason: 'SUGGESTED_SOURCE_NAME' },
+      { fieldCode: 'x', reason: 'IMPORT_DEFAULT' },
+      { fieldCode: 'x', reason: 'RULE_PROPOSED' },
+      { fieldCode: 'x', reason: 'CONSENT_SOURCE_PROPOSED' },
+      { fieldCode: 'x', reason: 'IDENTIFIER_PROPOSED' },
+      { fieldCode: 'x', reason: 'COLUMN_MOVED_OFF_CALCULATED' },
+      { fieldCode: 'consent_recorded', reason: 'PARTICIPATION_CONSENT_NO_SOURCE' },
+    ]
+    const parsed = draftSummaryResponse.parse({
+      addedFields: [],
+      sourceNamesAdded: [],
+      optionsAdded: [],
+      aliasesAdded: 0,
+      defaults: [],
+      rules: [],
+      needsCheck,
+    })
+    expect(parsed.needsCheck).toEqual([needsCheck[6]])
   })
 
   it('reject a form with an unknown type or status, or a field without a data type', () => {

@@ -23,15 +23,9 @@ export interface DraftColumn {
 }
 
 export type NeedsCheckReason =
-  | 'SUGGESTED_SOURCE_NAME'
   | 'ENUM_ANSWER_UNRESOLVED'
-  | 'IMPORT_DEFAULT'
-  | 'RULE_PROPOSED'
-  | 'CONSENT_SOURCE_PROPOSED'
   | 'PARTICIPATION_CONSENT_NO_SOURCE'
-  | 'IDENTIFIER_PROPOSED'
   | 'WASHINGTON_GROUP_FLAG_DISAGREES'
-  | 'COLUMN_MOVED_OFF_CALCULATED'
 
 /** Field codes and counts only; no source value ever enters the summary. */
 export interface DraftSummary {
@@ -212,8 +206,9 @@ const identifierTypeDefault = (header: string) =>
 
 /**
  * Drafts what a staged import needs from a form (spec 3.6 rules 1-7): source names,
- * new fields, answer aliases and options, and defaults. Pure and deterministic; the result is
- * a proposal for a publisher to check, and the summary carries field codes and counts only.
+ * new fields, answer aliases and options, and defaults. Pure and deterministic; matches are
+ * accepted as drafted, needsCheck holds only what no rule can settle, and the summary carries
+ * field codes and counts only.
  */
 export function draftFormFromImport(input: {
   formType: DigitalFormType
@@ -255,31 +250,30 @@ export function draftFormFromImport(input: {
   }
   const free = (code: string) => (used.has(code) ? undefined : byCode.get(code))
 
-  function addSourceName(field: DraftField, header: string, reason?: NeedsCheckReason) {
+  function addSourceName(field: DraftField, header: string) {
     const names = field.sourceNames ?? []
     if (header.length > LIMITS.nameLength || names.length >= LIMITS.sourceNames) return false
     if (!names.some((name) => mapKey(name) === mapKey(header))) {
       field.sourceNames = [...names, header]
       note(summary.sourceNamesAdded, field.code)
     }
-    if (reason) flag(field.code, reason)
     used.add(field.code)
     return true
   }
 
-  // Rule 2 and 5: the existing field a pending column belongs to, and why.
+  // Rule 2 and 5: the existing field a pending column belongs to, and how it was recognised.
   function proposal(
     decision: SmartMatchDecision,
     type: string,
     tokens: string[],
-  ): [DraftField, NeedsCheckReason] | undefined {
+  ): [DraftField, 'CONSENT' | 'SUGGESTED' | 'IDENTIFIER'] | undefined {
     if (
       type === 'BOOLEAN' &&
       tokens.includes('consent') &&
       CONSENT_WORDS.some((w) => tokens.includes(w))
     ) {
       const consent = free('data_processing_consent_recorded')
-      if (consent) return [consent, 'CONSENT_SOURCE_PROPOSED']
+      if (consent) return [consent, 'CONSENT']
     }
     const suggested = decision.suggestedFieldId
       ? byId.get(decision.suggestedFieldId)
@@ -290,7 +284,7 @@ export function draftFormFromImport(input: {
               headerTokens(name).every((token) => tokens.includes(token)),
             ),
         )
-    if (suggested) return [suggested, 'SUGGESTED_SOURCE_NAME']
+    if (suggested) return [suggested, 'SUGGESTED']
     const identifier = free('external_identifier_value')
     if (
       type === 'TEXT' &&
@@ -298,7 +292,7 @@ export function draftFormFromImport(input: {
       byCode.has('external_identifier_type') &&
       IDENTIFIER_WORDS.some((word) => tokens.includes(word))
     )
-      return [identifier, 'IDENTIFIER_PROPOSED']
+      return [identifier, 'IDENTIFIER']
   }
 
   // Rule 4: aliases for answers a SELECT field cannot resolve, else options, else a flag.
@@ -357,19 +351,18 @@ export function draftFormFromImport(input: {
         mapping.set(column.key, field.code)
         continue
       }
-      if (!addSourceName(found[0], header, found[1])) continue
+      if (!addSourceName(found[0], header)) continue
       target = found[0]
-      if (found[1] === 'CONSENT_SOURCE_PROPOSED') consentProposed = true
+      if (found[1] === 'CONSENT') consentProposed = true
       const identifierType = byCode.get('external_identifier_type')
       if (
-        found[1] === 'IDENTIFIER_PROPOSED' &&
+        found[1] === 'IDENTIFIER' &&
         identifierType &&
         !used.has(identifierType.code) &&
         identifierType.importDefault == null
       ) {
         identifierType.importDefault = identifierTypeDefault(header)
         note(summary.defaults, identifierType.code)
-        flag(identifierType.code, 'IMPORT_DEFAULT')
       }
     }
     if (target) {
@@ -403,7 +396,6 @@ export function draftFormFromImport(input: {
       if (field?.required && field.importDefault == null && field.allowedValues?.includes(value)) {
         field.importDefault = value
         note(summary.defaults, code)
-        flag(code, 'IMPORT_DEFAULT')
       }
     }
   }
@@ -417,6 +409,7 @@ export function draftFormFromImport(input: {
     summary.optionsAdded.length +
     summary.aliasesAdded +
     summary.defaults.length +
+    summary.rules.length +
     summary.needsCheck.length
   if (changed === 0) throw new FormDraftError('NOTHING_TO_ADD')
   if (drafted.length > LIMITS.fields) throw new FormDraftError('FIELD_LIMIT')

@@ -16,7 +16,7 @@ const summary = {
   aliasesAdded: 0,
   defaults: [],
   rules: [],
-  needsCheck: [{ fieldCode: 'beneficiary_id', reason: 'IDENTIFIER_PROPOSED' as const }],
+  needsCheck: [{ fieldCode: 'beneficiary_id', reason: 'ENUM_ANSWER_UNRESOLVED' as const }],
 }
 
 const view = (

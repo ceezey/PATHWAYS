@@ -116,7 +116,7 @@ describe('draft prepared from an import', () => {
       ...draft,
       draftSummary: {
         ...summary,
-        needsCheck: [{ fieldCode: 'given_name', reason: 'SUGGESTED_SOURCE_NAME' }],
+        needsCheck: [{ fieldCode: 'given_name', reason: 'ENUM_ANSWER_UNRESOLVED' }],
       },
     }
     api.getDigitalForms.mockResolvedValue([flagged])

@@ -21,14 +21,17 @@ describe('fieldCodeFromHeader', () => {
 })
 
 describe('draftFormFromImport on the Futuremakers fixture', () => {
-  it('adds "Gender - YEE" as a sex source name with SUGGESTED_SOURCE_NAME', () => {
+  it('leaves only what no rule can settle for a person to check', () => {
+    expect(fixture().summary.needsCheck).toEqual([
+      { fieldCode: 'consent_recorded', reason: 'PARTICIPATION_CONSENT_NO_SOURCE' },
+    ])
+  })
+
+  it('adds "Gender - YEE" as a sex source name without asking for a check', () => {
     const result = fixture()
     expect(find(result, 'sex')?.sourceNames).toEqual(['Gender - YEE'])
     expect(result.summary.sourceNamesAdded).toContain('sex')
-    expect(result.summary.needsCheck).toContainEqual({
-      fieldCode: 'sex',
-      reason: 'SUGGESTED_SOURCE_NAME',
-    })
+    expect(result.summary.needsCheck.some((item) => item.fieldCode === 'sex')).toBe(false)
   })
 
   it('adds aliases A. Babae to FEMALE, B. Lalaki to MALE, C. Non-binary to OTHER', () => {
@@ -65,17 +68,14 @@ describe('draftFormFromImport on the Futuremakers fixture', () => {
     expect(find(result, 'email_address')?.valueAliases).toBeUndefined()
   })
 
-  it('proposes registration_operation CREATE and subject_type INDIVIDUAL with IMPORT_DEFAULT', () => {
+  it('sets registration_operation CREATE and subject_type INDIVIDUAL without asking for a check', () => {
     const result = fixture()
     expect(find(result, 'registration_operation')?.importDefault).toBe('CREATE')
     expect(find(result, 'subject_type')?.importDefault).toBe('INDIVIDUAL')
     expect(result.summary.defaults).toEqual(
       expect.arrayContaining(['registration_operation', 'subject_type']),
     )
-    expect(result.summary.needsCheck).toContainEqual({
-      fieldCode: 'subject_type',
-      reason: 'IMPORT_DEFAULT',
-    })
+    expect(result.summary.needsCheck.some((item) => item.fieldCode === 'subject_type')).toBe(false)
   })
 
   it('maps the consent column to data_processing_consent_recorded and flags consent_recorded', () => {
@@ -83,10 +83,11 @@ describe('draftFormFromImport on the Futuremakers fixture', () => {
     expect(find(result, 'data_processing_consent_recorded')?.sourceNames).toEqual([
       'Consent to the collection and use of your data for the purposes - Futuremaker',
     ])
-    expect(result.summary.needsCheck).toContainEqual({
-      fieldCode: 'data_processing_consent_recorded',
-      reason: 'CONSENT_SOURCE_PROPOSED',
-    })
+    expect(
+      result.summary.needsCheck.some(
+        (item) => item.fieldCode === 'data_processing_consent_recorded',
+      ),
+    ).toBe(false)
     expect(result.summary.needsCheck).toContainEqual({
       fieldCode: 'consent_recorded',
       reason: 'PARTICIPATION_CONSENT_NO_SOURCE',
@@ -99,7 +100,7 @@ describe('draftFormFromImport on the Futuremakers fixture', () => {
       expect(find(result, code)?.importDefault).toBeUndefined()
   })
 
-  it('proposes Student ID/Barangay Certificate No as external_identifier_value with a type default', () => {
+  it('maps Student ID/Barangay Certificate No to external_identifier_value with a type default', () => {
     const result = fixture()
     expect(find(result, 'external_identifier_value')?.sourceNames).toEqual([
       'Student ID/Barangay Certificate No',
@@ -107,10 +108,12 @@ describe('draftFormFromImport on the Futuremakers fixture', () => {
     expect(find(result, 'external_identifier_type')?.importDefault).toBe(
       'STUDENT_ID_BARANGAY_CERTIFICATE',
     )
-    expect(result.summary.needsCheck).toContainEqual({
-      fieldCode: 'external_identifier_value',
-      reason: 'IDENTIFIER_PROPOSED',
-    })
+    expect(
+      result.summary.needsCheck.some((item) => item.fieldCode === 'external_identifier_value'),
+    ).toBe(false)
+    expect(
+      result.summary.needsCheck.some((item) => item.fieldCode === 'external_identifier_type'),
+    ).toBe(false)
     expect(result.summary.defaults).toContain('external_identifier_type')
   })
 
@@ -303,6 +306,22 @@ describe('draftFormFromImport rules', () => {
     expect(() => draft([columnOf('Brand new column', ['x'])], full, 'OTHER')).toThrowError(
       expect.objectContaining({ code: 'FIELD_LIMIT' }),
     )
+  })
+
+  it('drafts a calculation even when it is the only change', () => {
+    const owned = REGISTRATION.filter((field) =>
+      ['birth_date', 'enrollment_date', 'age_at_registration'].includes(field.code),
+    )
+    const result = draft(
+      [columnOf('Birth date', ['2000-01-01'], 1), columnOf('Enrollment date', ['2026-01-01'], 2)],
+      owned,
+      'OTHER',
+    )
+    expect(result.summary).toMatchObject({
+      addedFields: [],
+      rules: ['age_at_registration'],
+      needsCheck: [],
+    })
   })
 
   it('throws NOTHING_TO_ADD when every column is already covered', () => {

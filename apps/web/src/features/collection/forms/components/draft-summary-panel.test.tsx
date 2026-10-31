@@ -17,7 +17,7 @@ const summary = {
   defaults: ['registration_operation'],
   rules: ['age_at_registration'],
   needsCheck: [
-    { fieldCode: 'sex', reason: 'SUGGESTED_SOURCE_NAME' as const },
+    { fieldCode: 'sex', reason: 'ENUM_ANSWER_UNRESOLVED' as const },
     { fieldCode: 'consent_recorded', reason: 'PARTICIPATION_CONSENT_NO_SOURCE' as const },
   ],
 }

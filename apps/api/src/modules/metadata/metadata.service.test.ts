@@ -499,8 +499,8 @@ describe('P02 metadata service', () => {
         defaults: [],
         rules: [],
         needsCheck: [
-          { fieldCode: 'score', reason: 'SUGGESTED_SOURCE_NAME' },
-          { fieldCode: 'score', reason: 'RULE_PROPOSED' },
+          { fieldCode: 'score', reason: 'ENUM_ANSWER_UNRESOLVED' },
+          { fieldCode: 'score', reason: 'WASHINGTON_GROUP_FLAG_DISAGREES' },
           { fieldCode: 'sex', reason: 'ENUM_ANSWER_UNRESOLVED' },
         ],
       }

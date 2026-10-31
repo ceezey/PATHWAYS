@@ -10,7 +10,7 @@ const summary = {
   aliasesAdded: 2,
   defaults: [],
   rules: [],
-  needsCheck: [{ fieldCode: 'given_name', reason: 'SUGGESTED_SOURCE_NAME' }],
+  needsCheck: [{ fieldCode: 'given_name', reason: 'ENUM_ANSWER_UNRESOLVED' }],
 }
 const actor = { userId: 'u1' } as ApplicationIdentity
 const form = (patch: Partial<FormRow>) =>

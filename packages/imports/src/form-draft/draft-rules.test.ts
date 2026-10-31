@@ -49,10 +49,9 @@ describe('proposeIntakeRules on the Futuremakers fixture', () => {
     expect(find(result, 'living_with_disability')).toBeUndefined()
     expect(result.summary.addedFields).not.toContain('living_with_disability')
     expect(result.summary.rules).toContain('disability_status')
-    expect(result.summary.needsCheck).toContainEqual({
-      fieldCode: 'disability_status',
-      reason: 'RULE_PROPOSED',
-    })
+    expect(result.summary.needsCheck.some((item) => item.fieldCode === 'disability_status')).toBe(
+      false,
+    )
   })
 
   it('gives every Washington Group field all four options even when the file uses three', () => {
@@ -152,14 +151,10 @@ describe('proposeIntakeRules on the Futuremakers fixture', () => {
     })
     expect(find(result, 'age_at_registration')?.sourceNames).toBeUndefined()
     expect(result.summary.addedFields).toContain('age')
-    expect(result.summary.needsCheck).toContainEqual({
-      fieldCode: 'age',
-      reason: 'COLUMN_MOVED_OFF_CALCULATED',
-    })
-    expect(result.summary.needsCheck).not.toContainEqual({
-      fieldCode: 'age_at_registration',
-      reason: 'SUGGESTED_SOURCE_NAME',
-    })
+    expect(result.summary.needsCheck.some((item) => item.fieldCode === 'age')).toBe(false)
+    expect(result.summary.needsCheck.some((item) => item.fieldCode === 'age_at_registration')).toBe(
+      false,
+    )
   })
 
   it('makes an Age column that equals age at enrollment a cross-check source of age_at_registration', () => {
@@ -244,10 +239,7 @@ describe('proposeIntakeRules on the Futuremakers fixture', () => {
     it('moves Age off the calculated field when the dates fit more than one order', () => {
       const result = textDates((iso) => `${iso.slice(2, 4)}/${iso.slice(5, 7)}/${iso.slice(8, 10)}`)
       expect(find(result, 'age_at_registration')?.sourceNames).toBeUndefined()
-      expect(result.summary.needsCheck).toContainEqual({
-        fieldCode: 'age',
-        reason: 'COLUMN_MOVED_OFF_CALCULATED',
-      })
+      expect(result.summary.addedFields).toContain('age')
     })
   })
 
@@ -314,13 +306,13 @@ describe('proposeIntakeRules on the Futuremakers fixture', () => {
     expect(rule(result, 'beneficiary_code')).toBeUndefined()
   })
 
-  it('never proposes SAME_ANSWER_AS and flags every rule once', () => {
+  it('never proposes SAME_ANSWER_AS and lists every rule once, none asking for a check', () => {
     const result = fixture()
     expect(result.fields.some((field) => field.rule?.kind === 'SAME_ANSWER_AS')).toBe(false)
     const ruled = result.fields.filter((field) => field.rule).map((field) => field.code)
     expect([...ruled].sort()).toEqual([...result.summary.rules].sort())
     for (const code of ruled)
-      expect(result.summary.needsCheck).toContainEqual({ fieldCode: code, reason: 'RULE_PROPOSED' })
+      expect(result.summary.needsCheck.some((item) => item.fieldCode === code)).toBe(false)
   })
 
   it('the resulting field list passes formIntakeDefinitionErrors with no errors', () => {
