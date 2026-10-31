@@ -4,7 +4,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { DisplayLabelsProvider } from '@/providers/display-labels-provider'
 
-import { UPLOAD_NEEDS_FORM_UPDATE, UPLOAD_NEEDS_PARTICIPANT_ROLE } from '../../collection.copy'
+import {
+  UPLOAD_NEEDS_CLIENT_ID_ROLE,
+  UPLOAD_NEEDS_FORM_UPDATE,
+  UPLOAD_NEEDS_PARTICIPANT_ROLE,
+} from '../../collection.copy'
 import { ImportWorkspace } from './import-workspace'
 
 const state = vi.hoisted(() => ({
@@ -128,7 +132,11 @@ const openBatch = async () => {
 describe('import workspace intake paths', () => {
   beforeEach(() => {
     vi.resetAllMocks()
-    state.profile = { ...state.profile, permissions: [...grants] }
+    state.profile = {
+      ...state.profile,
+      roles: ['MONITORING_AND_EVALUATION_OFFICER'],
+      permissions: [...grants],
+    }
     api.getProjects.mockResolvedValue([{ id: 'project-1', title: 'Project' }])
     api.getDigitalForms.mockResolvedValue([formV1])
     api.getDigitalForm.mockResolvedValue(formV1)
@@ -218,8 +226,16 @@ describe('import workspace intake paths', () => {
         },
       ],
     }
-    const openDialog = async (formType = 'ACTIVITY') => {
-      const form = { ...required, formType }
+    const clientId = {
+      ...required.fields[0],
+      id: 'field-2',
+      code: 'external_identifier_value',
+      required: false,
+      label: 'Client ID',
+      sequence: 2,
+    }
+    const openDialog = async (formType = 'OTHER', fields = required.fields) => {
+      const form = { ...required, formType, fields }
       api.getDigitalForms.mockResolvedValue([form])
       api.getDigitalForm.mockResolvedValue(form)
       api.getImportBatches.mockResolvedValue([])
@@ -251,7 +267,8 @@ describe('import workspace intake paths', () => {
       expect(api.draftFromImport).toHaveBeenCalledWith('project-1', 'form-1', 'batch-1', 1)
     })
 
-    it('a form manager who cannot register participants is not offered a registration upload the server refuses', async () => {
+    it('a System Administrator is not offered a registration upload the server refuses', async () => {
+      state.profile.roles = ['SYSTEM_ADMINISTRATOR']
       state.profile.permissions = [...grants, 'forms.manage']
       await openDialog('BENEFICIARY_REGISTRATION')
       expect(screen.queryByRole('button', { name: 'Prepare form' })).toBeNull()
@@ -260,10 +277,37 @@ describe('import workspace intake paths', () => {
       expect(api.uploadImport).not.toHaveBeenCalled()
     })
 
-    it('a form manager who can register participants gets Prepare form on a registration form', async () => {
-      state.profile.permissions = [...grants, 'forms.manage', 'beneficiaries.records.register']
+    const canRegister = ['beneficiaries.records.register', 'beneficiaries.enrollments.manage']
+
+    it('a Project Officer is told a form matching by client ID needs another role', async () => {
+      state.profile.roles = ['PROJECT_OFFICER']
+      state.profile.permissions = [...grants, ...canRegister]
+      await openDialog('BENEFICIARY_REGISTRATION', [...required.fields, clientId])
+      fireEvent.click(screen.getByRole('button', { name: 'Upload anyway' }))
+      expect(screen.getByRole('tooltip').textContent).toBe(UPLOAD_NEEDS_CLIENT_ID_ROLE)
+      expect(api.uploadImport).not.toHaveBeenCalled()
+    })
+
+    it('a Project Officer keeps the form update reason on a registration form with no client ID', async () => {
+      state.profile.roles = ['PROJECT_OFFICER']
+      state.profile.permissions = [...grants, ...canRegister]
       await openDialog('BENEFICIARY_REGISTRATION')
+      fireEvent.click(screen.getByRole('button', { name: 'Upload anyway' }))
+      expect(screen.getByRole('tooltip').textContent).toBe(UPLOAD_NEEDS_FORM_UPDATE)
+    })
+
+    it('an M&E Officer gets Prepare form on a registration form matching by client ID', async () => {
+      state.profile.permissions = [
+        ...grants,
+        ...canRegister,
+        'forms.manage',
+        'beneficiaries.identities.review',
+      ]
+      await openDialog('BENEFICIARY_REGISTRATION', [...required.fields, clientId])
       expect(screen.getByRole('button', { name: 'Prepare form' })).toBeTruthy()
+      expect(
+        screen.getByRole('button', { name: 'Upload anyway' }).getAttribute('aria-disabled'),
+      ).toBeNull()
     })
 
     it('Upload anyway does not repeat the Prepare form offer on the mapping card', async () => {

@@ -30,6 +30,9 @@ export function useImportState(scope: SensitiveDraftOwner) {
     profile,
     'beneficiaries.records.register',
   )
+  const canMatchByClientId =
+    principalHasAtomicPermission(profile, 'beneficiaries.identities.review') &&
+    principalHasAtomicPermission(profile, 'beneficiaries.enrollments.manage')
   const canOpenForms = Boolean(
     profile && getVerifiedRouteAccess(profile, '/collection/forms').allowed,
   )
@@ -187,6 +190,7 @@ export function useImportState(scope: SensitiveDraftOwner) {
     batches,
     begin,
     canManageForms,
+    canMatchByClientId,
     canRegisterParticipants,
     canOpenForms,
     canProcess,

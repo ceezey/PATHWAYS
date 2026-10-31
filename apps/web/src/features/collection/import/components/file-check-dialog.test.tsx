@@ -60,7 +60,7 @@ const open = (handlers = {}, shown: FileCheckReport = report) => {
   const fileInput = createRef<HTMLInputElement>()
   const props = {
     canManageForms: true,
-    uploadRefused: false,
+    refusedReason: null,
     onFix: vi.fn(),
     onPrepareForm: vi.fn(),
     onUploadAnyway: vi.fn(),
@@ -132,7 +132,7 @@ describe('FileCheckDialog', () => {
         }}
         fileInput={fileInput}
         canManageForms
-        uploadRefused={false}
+        refusedReason={null}
         onPrepareForm={vi.fn()}
         onFix={vi.fn()}
         onUploadAnyway={vi.fn()}
@@ -173,7 +173,7 @@ describe('FileCheckDialog', () => {
         report={fileOnly}
         fileInput={fileInput}
         canManageForms
-        uploadRefused={false}
+        refusedReason={null}
         onPrepareForm={vi.fn()}
         onFix={vi.fn()}
         onUploadAnyway={vi.fn()}
@@ -257,7 +257,7 @@ describe('FileCheckDialog', () => {
 
     describe('when the server would refuse this person the upload', () => {
       it('offers no Prepare form, even to a form manager with a file a draft could change', () => {
-        const props = open({ uploadRefused: true })
+        const props = open({ refusedReason: UPLOAD_NEEDS_PARTICIPANT_ROLE })
         expect(screen.queryByRole('button', { name: 'Prepare form' })).toBeNull()
         fireEvent.click(uploadAnyway())
         expect(props.onUploadAnyway).not.toHaveBeenCalled()
@@ -265,9 +265,15 @@ describe('FileCheckDialog', () => {
       })
 
       it('blocks Upload anyway when only rows have problems too', () => {
-        open({ uploadRefused: true }, rowsOnly)
+        open({ refusedReason: UPLOAD_NEEDS_PARTICIPANT_ROLE }, rowsOnly)
         expect(uploadAnyway().getAttribute('aria-disabled')).toBe('true')
-        expect(screen.queryByText(/Uploaded as it is/)).toBeNull()
+      })
+
+      it('gives the reason in the note and does not promise that fixing the file helps', () => {
+        open({ refusedReason: UPLOAD_NEEDS_PARTICIPANT_ROLE })
+        const note = screen.getAllByText(UPLOAD_NEEDS_PARTICIPANT_ROLE)
+        expect(note.some((element) => element.tagName === 'P')).toBe(true)
+        expect(screen.queryByText(/makes the upload go smoothly/)).toBeNull()
       })
     })
 
@@ -313,7 +319,7 @@ describe('FileCheckDialog', () => {
               report={report}
               fileInput={fileInput}
               canManageForms
-              uploadRefused={false}
+              refusedReason={null}
               onPrepareForm={vi.fn()}
               onFix={() => setShown(false)}
               onUploadAnyway={vi.fn()}
