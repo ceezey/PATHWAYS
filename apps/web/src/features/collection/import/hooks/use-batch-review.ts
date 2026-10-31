@@ -10,7 +10,7 @@ import type { ImportMappingInput } from '@/types/pathways'
 
 import { ruleToMappingInput } from '../components/import-value-map-editor'
 import { runFileCheck } from '../file-check'
-import { missesRequiredColumn, uploadFailure } from '../import.utils'
+import { uploadFailure } from '../import.utils'
 import { draftFormFromImport } from '../prepare-draft'
 import type { ImportState } from './use-import-state'
 
@@ -142,6 +142,12 @@ export function useBatchReview(state: ImportState) {
     }
   }
 
+  // The input is cleared too, because picking the same file again fires no change event otherwise.
+  const clearFile = () => {
+    setFile(null)
+    if (fileInput.current) fileInput.current.value = ''
+  }
+
   const upload = async ({
     skipCheck = false,
     prepareForm = false,
@@ -215,7 +221,7 @@ export function useBatchReview(state: ImportState) {
         toast.success(
           'The private upload was staged. Unresolved mappings require an authorized reviewer.',
         )
-      setFile(null)
+      clearFile()
       importBatch.forgetUpload()
     } catch (error) {
       if (ticket.valid()) {
@@ -236,7 +242,7 @@ export function useBatchReview(state: ImportState) {
   }
 
   const uploadAnyway = () => {
-    const formOfferShown = canManageForms && fileCheck !== null && missesRequiredColumn(fileCheck)
+    const formOfferShown = canManageForms && fileCheck?.canPrepareForm === true
     setFileCheck(null)
     return upload({ skipCheck: true, formOfferShown })
   }
@@ -249,8 +255,7 @@ export function useBatchReview(state: ImportState) {
   // Fixing the file is the only way out of the dialog that clears the chosen file.
   const fixFile = () => {
     setFileCheck(null)
-    setFile(null)
-    if (fileInput.current) fileInput.current.value = ''
+    clearFile()
   }
 
   const saveMapping = async (draft = mapping) => {

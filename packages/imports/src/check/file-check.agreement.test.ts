@@ -228,7 +228,7 @@ describe('file check agrees with the server', () => {
     ])
     expect(view.fixedOnLater.size).toBe(2)
     expect(view.held.size).toBe(0)
-    expect(report).toEqual({ totalRows: 3, problemRows: 0, problems: [] })
+    expect(report).toEqual({ totalRows: 3, problemRows: 0, problems: [], canPrepareForm: false })
   })
 
   it('a CSV with text dates: held and reported alike', async () => {

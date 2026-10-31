@@ -263,9 +263,8 @@ describe('import workspace intake paths', () => {
     it('someone who cannot manage forms cannot upload the file and is told who updates the form', async () => {
       await openDialog()
       expect(screen.queryByRole('button', { name: 'Prepare form' })).toBeNull()
-      const button = screen.getByRole('button', { name: 'Upload anyway' })
-      expect(button.getAttribute('title')).toBe(UPLOAD_NEEDS_FORM_UPDATE)
-      fireEvent.click(button)
+      fireEvent.click(screen.getByRole('button', { name: 'Upload anyway' }))
+      expect(screen.getByRole('tooltip').textContent).toBe(UPLOAD_NEEDS_FORM_UPDATE)
       expect(api.uploadImport).not.toHaveBeenCalled()
     })
   })

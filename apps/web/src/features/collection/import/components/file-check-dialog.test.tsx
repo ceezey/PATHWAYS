@@ -10,6 +10,7 @@ import { FileCheckDialog } from './file-check-dialog'
 const report: FileCheckReport = {
   totalRows: 100,
   problemRows: 95,
+  canPrepareForm: true,
   problems: [
     {
       kind: 'ROW',
@@ -149,6 +150,7 @@ describe('FileCheckDialog', () => {
     const fileOnly: FileCheckReport = {
       totalRows: 100,
       problemRows: 0,
+      canPrepareForm: false,
       problems: [
         report.problems[1],
         {
@@ -194,7 +196,11 @@ describe('FileCheckDialog', () => {
   })
 
   describe('a form that needs updating', () => {
-    const rowsOnly: FileCheckReport = { ...report, problems: [report.problems[0]] }
+    const rowsOnly: FileCheckReport = {
+      ...report,
+      canPrepareForm: false,
+      problems: [report.problems[0]],
+    }
     const uploadAnyway = () => screen.getByRole('button', { name: 'Upload anyway' })
 
     it('offers Prepare form to a form manager when a required column is missing', () => {
@@ -210,18 +216,49 @@ describe('FileCheckDialog', () => {
       expect(screen.queryByRole('button', { name: 'Prepare form' })).toBeNull()
     })
 
-    it('grays out Upload anyway and names who updates the form when the person cannot', () => {
+    it('does not offer Prepare form when a draft would have nothing to add', () => {
+      const props = open({}, { ...report, canPrepareForm: false })
+      expect(screen.queryByRole('button', { name: 'Prepare form' })).toBeNull()
+      fireEvent.click(uploadAnyway())
+      expect(props.onUploadAnyway).toHaveBeenCalledTimes(1)
+    })
+
+    it('grays out Upload anyway when the person cannot update the form', () => {
       const props = open({ canManageForms: false })
       expect(screen.queryByRole('button', { name: 'Prepare form' })).toBeNull()
       expect(screen.queryByText(/prepare the form/)).toBeNull()
       const button = uploadAnyway()
       expect(button.getAttribute('aria-disabled')).toBe('true')
-      expect(button.getAttribute('title')).toBe(UPLOAD_NEEDS_FORM_UPDATE)
       expect(
         document.getElementById(button.getAttribute('aria-describedby') ?? '')?.textContent,
       ).toBe(UPLOAD_NEEDS_FORM_UPDATE)
       fireEvent.click(button)
       expect(props.onUploadAnyway).not.toHaveBeenCalled()
+    })
+
+    it('grays out Upload anyway even when a draft would have nothing to add', () => {
+      open({ canManageForms: false }, { ...report, canPrepareForm: false })
+      expect(uploadAnyway().getAttribute('aria-disabled')).toBe('true')
+    })
+
+    it.each([
+      ['hover', (button: HTMLElement) => fireEvent.mouseEnter(button)],
+      ['keyboard focus', (button: HTMLElement) => fireEvent.focus(button)],
+      ['tap', (button: HTMLElement) => fireEvent.click(button)],
+    ])('shows who updates the form on %s', (_how, reach) => {
+      open({ canManageForms: false })
+      expect(screen.queryByRole('tooltip')).toBeNull()
+      reach(uploadAnyway())
+      expect(screen.getByRole('tooltip').textContent).toBe(UPLOAD_NEEDS_FORM_UPDATE)
+    })
+
+    it('does not describe an upload the person cannot make', () => {
+      open({ canManageForms: false })
+      expect(
+        screen.getByText(
+          '95 of 100 rows have problems you can fix in the file. Fixing them in your spreadsheet first makes the upload go smoothly.',
+        ),
+      ).toBeTruthy()
     })
 
     it('leaves Upload anyway active for someone who cannot manage forms when only rows have problems', () => {

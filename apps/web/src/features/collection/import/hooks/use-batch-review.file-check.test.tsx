@@ -61,8 +61,14 @@ const held = () =>
     ['First Name', 'Score'],
     ['Ana', 'abc'],
   ])
-// The form requires First Name and the file has no such column.
+// The form requires First Name and the file has no such column, and a draft would have nothing to add.
 const noColumn = () => workbook([['Score'], ['3']])
+// The same missing column, with a column a draft would add to the form.
+const draftable = () =>
+  workbook([
+    ['Score', 'Favourite colour'],
+    ['3', 'red'],
+  ])
 
 function setup(
   initial: File | null,
@@ -78,6 +84,7 @@ function setup(
     const [draftTarget, setDraftTarget] = useState<ImportState['draftTarget']>(null)
     const [formOfferSeen, setFormOfferSeen] = useState<ImportState['formOfferSeen']>(new Set())
     const [mutation] = useState({ current: null as object | null })
+    const [fileInput] = useState({ current: { value: 'people.xlsx' } })
     const state = {
       batch: null,
       canManageForms,
@@ -98,7 +105,7 @@ function setup(
       checking,
       file,
       fileCheck,
-      fileInput: { current: null },
+      fileInput,
       formId: 'form-1',
       forms: [form],
       importBatch: {
@@ -222,8 +229,9 @@ describe('upload file check', () => {
     })
 
     it('uploads the file, then drafts from the mapped revision and opens the draft', async () => {
-      const { result } = setup(noColumn(), undefined, true, { mappingRevision: 1 })
+      const { result } = setup(draftable(), undefined, true, { mappingRevision: 1 })
       await act(() => result.current.review.upload())
+      expect(result.current.state.fileCheck?.canPrepareForm).toBe(true)
       await act(() => result.current.review.prepareFromFile())
       expect(api.uploadImport).toHaveBeenCalledTimes(1)
       expect(draft.draftFromImport).toHaveBeenCalledWith('project-1', 'form-1', 'batch-1', 1)
@@ -239,7 +247,7 @@ describe('upload file check', () => {
       draft.draftFromImport.mockRejectedValue(
         new Error('Every column is already covered by the form.'),
       )
-      const { result } = setup(noColumn(), undefined, true, { mappingRevision: 1 })
+      const { result } = setup(draftable(), undefined, true, { mappingRevision: 1 })
       await act(() => result.current.review.upload())
       await act(() => result.current.review.prepareFromFile())
       expect(toasts.error).toHaveBeenCalledWith('Every column is already covered by the form.')
@@ -254,7 +262,7 @@ describe('upload file check', () => {
         status: 'FAILED',
         storageStatus: 'FAILED',
       })
-      const { result } = setup(noColumn())
+      const { result } = setup(draftable())
       await act(() => result.current.review.upload())
       await act(() => result.current.review.prepareFromFile())
       expect(draft.draftFromImport).not.toHaveBeenCalled()
@@ -264,10 +272,18 @@ describe('upload file check', () => {
 
   describe('Upload anyway and the notice after upload', () => {
     it('remembers the batch when the dialog offered Prepare form', async () => {
-      const { result } = setup(noColumn())
+      const { result } = setup(draftable())
       await act(() => result.current.review.upload())
       await act(() => result.current.review.uploadAnyway())
       expect(result.current.state.formOfferSeen.has('batch-1')).toBe(true)
+    })
+
+    it('does not remember the batch when a draft had nothing to add, so no offer was made', async () => {
+      const { result } = setup(noColumn())
+      await act(() => result.current.review.upload())
+      expect(result.current.state.fileCheck?.canPrepareForm).toBe(false)
+      await act(() => result.current.review.uploadAnyway())
+      expect(result.current.state.formOfferSeen.size).toBe(0)
     })
 
     it('does not remember the batch when the dialog offered only row problems', async () => {
@@ -278,11 +294,18 @@ describe('upload file check', () => {
     })
 
     it('does not remember the batch for someone who cannot manage forms', async () => {
-      const { result } = setup(noColumn(), undefined, false)
+      const { result } = setup(draftable(), undefined, false)
       await act(() => result.current.review.upload())
       await act(() => result.current.review.uploadAnyway())
       expect(result.current.state.formOfferSeen.size).toBe(0)
     })
+  })
+
+  it('a finished upload clears the file input, so the same file can be picked again', async () => {
+    const { result } = setup(clean())
+    await act(() => result.current.review.upload())
+    expect(api.uploadImport).toHaveBeenCalledTimes(1)
+    expect(result.current.state.fileInput.current?.value).toBe('')
   })
 
   it('a second click while checking does nothing', async () => {
