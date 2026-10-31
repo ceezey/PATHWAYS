@@ -50,6 +50,7 @@ function OwnedImportWorkspace({ scope }: { scope: SensitiveDraftOwner }) {
     canOpenForms,
     canProcess,
     draftTarget,
+    isSystemAdministrator,
     loadState,
     pending,
     setLoadAttempt,
@@ -62,7 +63,11 @@ function OwnedImportWorkspace({ scope }: { scope: SensitiveDraftOwner }) {
       <PageHeader
         editableLabelKey="moduleCollection"
         title={labels.moduleCollection}
-        description="Upload a private CSV, workbook or text-based PDF, review field mappings, validate every row, and promote only valid generic submissions."
+        description={
+          isSystemAdministrator
+            ? 'Review field mappings, validate every row, and promote only valid generic submissions.'
+            : 'Upload a private CSV, workbook or text-based PDF, review field mappings, validate every row, and promote only valid generic submissions.'
+        }
         actions={
           canOpenForms ? (
             <Button asChild variant="outline">

@@ -220,6 +220,32 @@ describe('import workspace intake paths', () => {
       expect(screen.getAllByText('people.csv').length).toBeGreaterThan(0)
     })
 
+    it('has no form version choice, because nothing reads it without an upload', async () => {
+      asAdministrator()
+      await openBatch()
+      expect(screen.queryByText('Published form version')).toBeNull()
+    })
+
+    it('reads as a list of batches, with no words about uploading', async () => {
+      asAdministrator()
+      await openBatch()
+      expect(screen.getByText('Choose a project to see its import batches.')).toBeTruthy()
+      expect(screen.queryByText('Private source upload')).toBeNull()
+      expect(screen.queryByText(/Upload a private CSV/)).toBeNull()
+    })
+
+    it('can still prepare a form from a batch someone else uploaded', async () => {
+      asAdministrator()
+      const stored = batch({
+        uploadedByCurrentUser: false,
+        coverage: { coverage: 'NOT_COVERED', uncoveredColumns: 2, unresolvedValues: 5 },
+      })
+      api.getImportBatches.mockResolvedValue([stored])
+      api.getImportBatch.mockResolvedValue(stored)
+      await openBatch()
+      expect(await screen.findByRole('button', { name: 'Prepare form' })).toBeTruthy()
+    })
+
     it('has no Re-run import on a batch they uploaded earlier', async () => {
       asAdministrator()
       api.getDigitalForms.mockResolvedValue([formV1, formV2])

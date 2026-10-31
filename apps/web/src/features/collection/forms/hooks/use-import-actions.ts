@@ -7,7 +7,7 @@ import { importsClient } from '@/lib/api/imports'
 import { sensitiveDraftGeneration } from '@/lib/auth/sensitive-drafts'
 import { fingerprintOf } from '@/lib/forms/pending-create'
 
-import { importOutcomeMessage } from '../../collection.copy'
+import { IMPORT_NEEDS_OTHER_ROLE, importOutcomeMessage } from '../../collection.copy'
 import type { ParsedImport } from '../../collection.utils'
 import {
   createQuestionnaireMappingRows,
@@ -68,7 +68,7 @@ export function useImportActions(state: CollectionState, guard: CollectionGuard)
     setUploadProgress,
     setView,
   } = state
-  const { beginOperation, canUseExtend, editingReady, eligible } = guard
+  const { beginOperation, canUseExtend, editingReady, eligible, isSystemAdministrator } = guard
   const importSummary = useMemo(() => {
     if (!parsedImport) {
       return null
@@ -210,6 +210,12 @@ export function useImportActions(state: CollectionState, guard: CollectionGuard)
     if (!parsedImport || !importCanProceed || !projectId) return
     if (parsedImport.rows.length === 0 && !canUseExtend) {
       setImportMessage('Extend Existing Form is not available for this role.')
+      setProceedDialogOpen(false)
+      return
+    }
+    // A System Administrator edits forms and does not import files, so only a header-only file goes on.
+    if (parsedImport.rows.length > 0 && isSystemAdministrator) {
+      setImportMessage(IMPORT_NEEDS_OTHER_ROLE)
       setProceedDialogOpen(false)
       return
     }

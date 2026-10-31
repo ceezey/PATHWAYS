@@ -9,6 +9,7 @@ import {
   within,
 } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { IMPORT_NEEDS_OTHER_ROLE } from '../../collection.copy'
 
 import { DisplayLabelsProvider } from '@/providers/display-labels-provider'
 
@@ -220,6 +221,20 @@ describe('straight-through import', () => {
     await waitFor(() => expect(api.processImport).toHaveBeenCalled())
     expect(api.saveImportMapping).toHaveBeenCalledTimes(1)
     expect(api.validateImport).toHaveBeenCalledWith('project-1', 'batch-1', 2)
+  })
+
+  describe('a System Administrator, who edits forms and does not import files', () => {
+    afterEach(() => {
+      access.profile.roles = ['MONITORING_AND_EVALUATION_OFFICER']
+    })
+
+    it('is stopped before a file with data rows is uploaded, and told what to do', async () => {
+      access.profile.roles = ['SYSTEM_ADMINISTRATOR']
+      access.profile.permissions = allGrants.filter((grant) => grant !== 'imports.review')
+      await proceed()
+      await screen.findByText(IMPORT_NEEDS_OTHER_ROLE)
+      expect(api.uploadImport).not.toHaveBeenCalled()
+    })
   })
 
   describe('prepare form from the upload result', () => {
