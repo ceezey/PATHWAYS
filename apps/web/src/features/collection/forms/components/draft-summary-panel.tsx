@@ -84,7 +84,7 @@ export function DraftSummaryPanel({
   return (
     <SectionCard
       title="Draft from import"
-      description="These changes were made from the file. Someone other than the person who drafted or last edited it publishes the draft."
+      description={`${counts.length ? 'These changes were made from the file. ' : ''}Someone other than the person who drafted or last edited it publishes the draft.`}
     >
       <div className="space-y-4">
         <section aria-labelledby="draft-needs-check" className="space-y-2">
@@ -195,11 +195,7 @@ export function DraftSummaryPanel({
               ) : null}
             </>
           ) : (
-            <p className="text-sm text-muted-foreground">
-              {summary.needsCheck.length
-                ? 'No fields changed.'
-                : 'The form already covered this file.'}
-            </p>
+            <p className="text-sm text-muted-foreground">No fields changed.</p>
           )}
         </section>
       </div>

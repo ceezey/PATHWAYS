@@ -439,11 +439,11 @@ export function draftFormFromImport(input: {
 
   const drafted: DraftField[] = [...fields, ...added]
   proposeIntakeRules(drafted, input.columns, mapping, input.uploadDate, summary)
-  // A rule can move a column off again, so report only the fields whose names really changed.
+  // A rule can move a column off again, so report only the fields that really gained a name.
   summary.sourceNamesAdded = summary.sourceNamesAdded.filter((code) => {
     const names = drafted.find((field) => field.code === code)?.sourceNames ?? []
     const before = input.fields.find((field) => field.code === code)?.sourceNames ?? []
-    return names.join('\n') !== before.join('\n')
+    return names.some((name) => !before.includes(name))
   })
 
   const changed =

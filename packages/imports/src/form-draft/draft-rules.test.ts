@@ -153,6 +153,12 @@ describe('proposeIntakeRules on the Futuremakers fixture', () => {
     const similar = withAges('Registration age', 'Age at intake')
     expect(find(similar, 'age_at_registration')?.sourceNames).toEqual(['Age at intake'])
     expect(similar.summary.sourceNamesAdded).not.toContain('age_at_registration')
+    const lostOnly = fixtureColumns()
+    lostOnly[COLUMN.age] = { ...lostOnly[COLUMN.age], sourceCode: 'AgeCode1234' }
+    const listedAge = REGISTRATION.map((field) =>
+      field.code === 'age_at_registration' ? { ...field, sourceNames: ['Age'] } : field,
+    )
+    expect(draft(lostOnly, listedAge).summary.sourceNamesAdded).not.toContain('age_at_registration')
     const sameKey = withAges('Age years', 'Age (years)')
     const keys = sameKey.fields.flatMap((field) => (field.sourceNames ?? []).map(sourceNameKey))
     expect(new Set(keys).size).toBe(keys.length)

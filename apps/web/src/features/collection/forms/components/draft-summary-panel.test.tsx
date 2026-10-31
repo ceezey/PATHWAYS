@@ -133,7 +133,12 @@ describe('DraftSummaryPanel', () => {
       />,
     )
     expect(screen.getByText('No fields changed.')).toBeTruthy()
-    expect(screen.queryByText('The form already covered this file.')).toBeNull()
+    expect(screen.queryByText(/These changes were made from the file/)).toBeNull()
+    expect(
+      screen.getByText(
+        'Someone other than the person who drafted or last edited it publishes the draft.',
+      ),
+    ).toBeTruthy()
     cleanup()
     render(
       <DraftSummaryPanel
@@ -143,6 +148,24 @@ describe('DraftSummaryPanel', () => {
       />,
     )
     expect(screen.getByText('No items are waiting.')).toBeTruthy()
-    expect(screen.getByText('The form already covered this file.')).toBeTruthy()
+    expect(screen.getByText('No fields changed.')).toBeTruthy()
+  })
+
+  it('names no other consent on a consent item', () => {
+    render(
+      <DraftSummaryPanel
+        summary={{
+          ...summary,
+          needsCheck: [
+            { fieldCode: 'guardian_consent_recorded', reason: 'CONSENT_SOURCE_PROPOSED' },
+          ],
+        }}
+        fields={[]}
+        onSelectField={vi.fn()}
+      />,
+    )
+    expect(
+      screen.getByText('A column was proposed as this consent answer. Confirm it.'),
+    ).toBeTruthy()
   })
 })

@@ -19,8 +19,7 @@ export const needsCheckLabels: Record<(typeof draftNeedsCheckReasons)[number], s
     'An answer in the file has no matching option. Choose how it should be stored.',
   PARTICIPATION_CONSENT_NO_SOURCE:
     'The file has no participation consent column. If the signed consent covered both, set Calculation or check to Same answer as the data processing consent. If not, every row is held.',
-  CONSENT_SOURCE_PROPOSED:
-    'A column was proposed as the data processing consent answer. Confirm it.',
+  CONSENT_SOURCE_PROPOSED: 'A column was proposed as this consent answer. Confirm it.',
   WASHINGTON_GROUP_FLAG_DISAGREES:
     'The disability yes or no column disagrees with the Washington Group answers on some rows. Check before publishing.',
 }
