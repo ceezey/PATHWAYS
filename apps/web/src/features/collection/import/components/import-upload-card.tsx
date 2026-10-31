@@ -36,6 +36,7 @@ export function ImportUploadCard({
     | 'formId'
     | 'forms'
     | 'formsState'
+    | 'isSystemAdministrator'
     | 'mutation'
     | 'pending'
     | 'projectId'
@@ -70,6 +71,7 @@ export function ImportUploadCard({
     formId,
     forms,
     formsState,
+    isSystemAdministrator,
     mutation,
     pending,
     projectId,
@@ -184,20 +186,22 @@ export function ImportUploadCard({
             </SelectContent>
           </Select>
         </div>
-        <div className="space-y-2">
-          <Label htmlFor="import-file">Source file</Label>
-          <Input
-            id="import-file"
-            key={projectId}
-            ref={fileInput}
-            accept=".csv,.xlsx,.xls,.pdf"
-            disabled={!canUpload || pending}
-            type="file"
-            onChange={(event) => {
-              if (!mutation.current && scope.isCurrent()) setFile(event.target.files?.[0] ?? null)
-            }}
-          />
-        </div>
+        {isSystemAdministrator ? null : (
+          <div className="space-y-2">
+            <Label htmlFor="import-file">Source file</Label>
+            <Input
+              id="import-file"
+              key={projectId}
+              ref={fileInput}
+              accept=".csv,.xlsx,.xls,.pdf"
+              disabled={!canUpload || pending}
+              type="file"
+              onChange={(event) => {
+                if (!mutation.current && scope.isCurrent()) setFile(event.target.files?.[0] ?? null)
+              }}
+            />
+          </div>
+        )}
         {sheetNames && sheetNames.length > 1 ? (
           <div className="space-y-2 md:col-start-3">
             <Label htmlFor="import-sheet">Sheet</Label>
@@ -225,22 +229,24 @@ export function ImportUploadCard({
             {uploadRefusal}
           </p>
         ) : null}
-        <div className="md:col-span-3">
-          <Button
-            disabled={
-              !canUpload ||
-              pending ||
-              !file ||
-              !formId ||
-              sheetNames === null ||
-              (sheetNames.length > 1 && !sheetName)
-            }
-            onClick={() => void upload()}
-          >
-            <Upload className="mr-2 h-4 w-4" aria-hidden="true" />
-            {checking ? 'Checking file...' : pending ? 'Working...' : 'Upload privately'}
-          </Button>
-        </div>
+        {isSystemAdministrator ? null : (
+          <div className="md:col-span-3">
+            <Button
+              disabled={
+                !canUpload ||
+                pending ||
+                !file ||
+                !formId ||
+                sheetNames === null ||
+                (sheetNames.length > 1 && !sheetName)
+              }
+              onClick={() => void upload()}
+            >
+              <Upload className="mr-2 h-4 w-4" aria-hidden="true" />
+              {checking ? 'Checking file...' : pending ? 'Working...' : 'Upload privately'}
+            </Button>
+          </div>
+        )}
       </CardContent>
       {fileCheck ? (
         <FileCheckDialog
