@@ -133,6 +133,7 @@ const OWN_ANSWER_STEMS = [
   'opted',
   'pahintulot',
   'payag',
+  'pumayag',
   'sang',
   'sumali',
   'lumahok',
