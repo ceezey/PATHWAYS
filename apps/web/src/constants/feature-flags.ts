@@ -13,12 +13,6 @@
 export const STEP_UP_PIN_UI_ENABLED = false
 
 /**
- * The beneficiary step-up dialog's Reset button, which clears the code boxes, was hidden on
- * 2026-10-07 and is shown again (2026-11-01, developer request). See vault note deferred-features.
- */
-export const STEP_UP_RESET_UI_ENABLED = true
-
-/**
  * The analytics aggregate export (CSV) button was hidden on 2026-09-29 and is shown again
  * (2026-10-04). The GET analytics/descriptive/export endpoint, its permission and its
  * download behavior stay in place; only the UI entry point (the button and its
