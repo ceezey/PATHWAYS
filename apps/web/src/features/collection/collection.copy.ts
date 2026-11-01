@@ -22,6 +22,8 @@ export const needsCheckLabels: Record<(typeof draftNeedsCheckReasons)[number], s
   CONSENT_SOURCE_PROPOSED: 'A column was proposed as this consent answer. Confirm it.',
   WASHINGTON_GROUP_FLAG_DISAGREES:
     'The disability yes or no column disagrees with the Washington Group answers on some rows. Check before publishing.',
+  IDENTIFIER_NO_SOURCE:
+    "No column in the file was accepted as the participant's ID, so every row is held. If the file has one, move its header from the field it went to into Source names here.",
 }
 
 /** What each part of a field's import metadata does, shown on hover in the form builder. */

@@ -238,7 +238,11 @@ describe('draftFormFromImport rules', () => {
   })
 
   it('a lettered column with 101 distinct answers becomes TEXT', () => {
-    const labels = [...Array.from({ length: 99 }, (_, i) => String(i + 1)), 'a', 'b']
+    // Zero-padded labels are told apart from plain ones, so one kind of label can reach 101.
+    const labels = [
+      ...Array.from({ length: 9 }, (_, i) => `0${i + 1}`),
+      ...Array.from({ length: 92 }, (_, i) => String(i + 1)),
+    ]
     const values = labels.flatMap((label, i) => [`${label}. answer ${i}`, `${label}. answer ${i}`])
     expect(find(draft([columnOf('Quiz', values)]), 'quiz')?.dataType).toBe('TEXT')
     expect(find(draft([columnOf('Quiz', values.slice(0, 200))]), 'quiz')?.dataType).toBe('SELECT')
@@ -520,10 +524,10 @@ describe('draftFormFromImport rules', () => {
     })
 
     it('keeps an unlettered answer out of a new choice field and asks a person', () => {
-      const answers = [...Array(19).fill('A. Yes'), 'Juan Cruz']
+      const answers = [...Array(10).fill('A. Yes'), ...Array(9).fill('B. No'), 'Juan Cruz']
       const result = draft([columnOf('Attended orientation', answers, 1)], REGISTRATION, 'OTHER')
       const field = find(result, 'attended_orientation')
-      expect(field?.allowedValues).toEqual(['Yes'])
+      expect(field?.allowedValues).toEqual(['Yes', 'No'])
       expect(JSON.stringify(result)).not.toContain('Juan Cruz')
       expect(result.summary.needsCheck).toContainEqual({
         fieldCode: 'attended_orientation',
@@ -607,5 +611,143 @@ describe('draftFormFromImport rules', () => {
     const before = structuredClone(REGISTRATION)
     fixture()
     expect(REGISTRATION).toEqual(before)
+  })
+
+  describe('a header that may name another person', () => {
+    const answers = ['Female', 'Male', 'Female', 'Male']
+    const ids = ['A-1', 'A-2', 'A-3', 'A-4']
+    const sources = (result: ReturnType<typeof draft>, code: string) =>
+      find(result, code)?.sourceNames
+
+    it.each(['Guardian Gender', 'Mother Gender', 'Gender of Guardian', 'Gender - Guardian'])(
+      'keeps "%s" out of sex',
+      (header) => {
+        const result = draft([columnOf(header, answers, 1)])
+        expect(sources(result, 'sex')).toBeUndefined()
+        expect(result.summary.addedFields).toHaveLength(1)
+      },
+    )
+
+    it.each([
+      'Gender - YEE',
+      'Student Gender',
+      'Sex - YEE',
+      'Participant Sex',
+      'Gender of Student',
+    ])('still sends "%s" to sex', (header) => {
+      expect(sources(draft([columnOf(header, answers, 1)]), 'sex')).toEqual([header])
+    })
+
+    it.each([
+      'Guardian ID',
+      'Staff ID',
+      'Mother ID Number',
+      'Enumerator ID',
+      'Household ID',
+      'Training Certificate',
+      'Project ID - YEE',
+    ])('keeps "%s" out of the participant ID', (header) => {
+      const result = draft([columnOf(header, ids, 1)])
+      expect(sources(result, 'external_identifier_value')).toBeUndefined()
+      expect(find(result, 'external_identifier_type')?.importDefault).toBeUndefined()
+      expect(result.summary.addedFields).toHaveLength(1)
+    })
+
+    it.each([
+      'Student ID',
+      'ID',
+      'ID No',
+      'Client ID Number',
+      'Student ID/Barangay Certificate No',
+      'Birth Certificate',
+      'National ID',
+      'Learner ID - YEE',
+    ])('still sends "%s" to the participant ID', (header) => {
+      const result = draft([columnOf(header, ids, 1)])
+      expect(sources(result, 'external_identifier_value')).toEqual([header])
+      expect(result.summary.defaults).toContain('external_identifier_type')
+    })
+
+    it('does not let column order pick a guardian ID over the student ID', () => {
+      const result = draft([columnOf('Guardian ID', ids, 1), columnOf('Student ID', ids, 2)])
+      expect(sources(result, 'external_identifier_value')).toEqual(['Student ID'])
+      expect(find(result, 'guardian_id')?.dataType).toBe('TEXT')
+    })
+
+    it('refuses an ID column that repeats, and allows a few duplicates to be held by row', () => {
+      const repeated = draft([columnOf('ID', ['S-1', 'S-1', 'S-2', 'S-2'], 1)])
+      expect(sources(repeated, 'external_identifier_value')).toBeUndefined()
+      const values = Array.from({ length: 20 }, (_, index) => `A-${index}`)
+      values[19] = 'A-0'
+      const dirty = draft([columnOf('Student ID', values, 1)])
+      expect(sources(dirty, 'external_identifier_value')).toEqual(['Student ID'])
+    })
+
+    it('reads no synonyms from a field code the language already uses', () => {
+      const constructorField: DraftField = {
+        id: 'constructor',
+        code: 'constructor',
+        label: 'Builder',
+        dataType: 'TEXT',
+        required: false,
+        metadataKey: false,
+        sadddField: false,
+      }
+      const result = draft([columnOf('Pet name', ['Rex'], 1)], [constructorField], 'OTHER')
+      expect(find(result, 'pet_name')?.dataType).toBe('TEXT')
+    })
+
+    it('treats IDs that differ only in case or spaces as repeats', () => {
+      const result = draft([columnOf('ID', ['a-1', 'A-1 ', 'a-1', ' A-1'], 1)])
+      expect(sources(result, 'external_identifier_value')).toBeUndefined()
+    })
+  })
+
+  describe('a registration file with no usable ID column', () => {
+    const noId = { fieldCode: 'external_identifier_value', reason: 'IDENTIFIER_NO_SOURCE' }
+
+    it('lists one item, because every row would otherwise be held', () => {
+      const guardian = columnOf('Guardian ID', ['A-1', 'A-2'], 1)
+      expect(draft([guardian]).summary.needsCheck).toEqual([noId])
+    })
+
+    it('lists nothing when a column feeds the ID, by proposal or automatic mapping', () => {
+      const proposed = draft([columnOf('Student ID', ['A-1', 'A-2'], 1)])
+      expect(proposed.summary.needsCheck).not.toContainEqual(noId)
+      const mapped = draft([columnOf('External identifier value', ['A-1', 'A-2'], 1)])
+      expect(mapped.summary.needsCheck).not.toContainEqual(noId)
+    })
+
+    it('lists nothing on a form that is not a registration form', () => {
+      const other = draft([columnOf('Guardian ID', ['A-1', 'A-2'], 1)], REGISTRATION, 'OTHER')
+      expect(other.summary.needsCheck).not.toContainEqual(noId)
+    })
+  })
+
+  describe('a column of lettered answers', () => {
+    const repeat = (...answers: string[]) => [...answers, ...answers, ...answers]
+
+    it.each([
+      ['one repeated name', repeat('M. Santos')],
+      ['scattered initials', repeat('J. Cruz', 'M. Santos')],
+      ['three scattered initials', repeat('C. Reyes', 'J. Cruz', 'R. Santos')],
+      ['scattered numbers', repeat('2. Juan', '9. Ana')],
+      ['labels of two kinds', repeat('A. Yes', '1. No')],
+    ])('keeps %s as text with no options', (_, values) => {
+      const result = draft([columnOf('Facilitator', values, 1)])
+      expect(find(result, 'facilitator')?.dataType).toBe('TEXT')
+      expect(find(result, 'facilitator')?.allowedValues).toBeUndefined()
+      expect(find(result, 'facilitator')?.valueAliases).toBeUndefined()
+    })
+
+    it.each([
+      ['starting past A', repeat('E. Junior High', 'F. Senior High', 'G. Vocational')],
+      ['starting at B', repeat('B. Food', 'C. Buy and sell')],
+      ['with one letter missing', repeat('A. Single', 'B. Married', 'C. Partner', 'E. Separated')],
+      ['numbered', repeat('1. Yes', '2. No')],
+    ])('keeps a real list %s as a choice field', (_, values) => {
+      const result = draft([columnOf('Track', values, 1)])
+      expect(find(result, 'track')?.dataType).toBe('SELECT')
+    })
   })
 })

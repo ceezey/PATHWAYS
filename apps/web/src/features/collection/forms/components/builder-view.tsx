@@ -251,12 +251,13 @@ export const BuilderView = ({
                   field={field}
                   fieldCodes={fields.map((item) => item.code).filter(Boolean)}
                   readOnly={readOnly}
-                  // These two are settled in the field's Advanced Configuration.
+                  // These three are settled in the field's Advanced Configuration.
                   attention={draftSummary?.needsCheck.some(
                     (item) =>
                       item.fieldCode === field.code &&
                       (item.reason === 'ENUM_ANSWER_UNRESOLVED' ||
-                        item.reason === 'PARTICIPATION_CONSENT_NO_SOURCE'),
+                        item.reason === 'PARTICIPATION_CONSENT_NO_SOURCE' ||
+                        item.reason === 'IDENTIFIER_NO_SOURCE'),
                   )}
                   updateField={updateField}
                 />
