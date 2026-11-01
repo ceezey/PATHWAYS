@@ -38,7 +38,7 @@ const overview = (status: string) =>
     ],
     myActivities: null,
     flaggedProof: null,
-  guardianApprovals: null,
+    guardianApprovals: null,
     recentSubmissions: null,
     submittedThisMonth: null,
     proofQueue: null,
