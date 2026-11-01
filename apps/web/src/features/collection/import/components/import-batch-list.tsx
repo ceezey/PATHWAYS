@@ -20,8 +20,6 @@ export function ImportBatchList({
 }) {
   const { batch, batches, canUpload, formsState, projectId } = state
   const { loadBatch } = review
-  // The card already frames the state, so it drops its own border.
-  const framed = 'border-0 px-0'
   return (
     <Card>
       <CardHeader>
@@ -31,7 +29,6 @@ export function ImportBatchList({
       <CardContent className="space-y-2">
         {!projectId ? (
           <EmptyState
-            className={framed}
             icon={FolderSearch}
             title="No project selected"
             description="Select a project to see its imports."
@@ -40,7 +37,6 @@ export function ImportBatchList({
           <LoadingSkeleton lines={3} />
         ) : formsState === 'error' ? (
           <EmptyState
-            className={framed}
             icon={CircleAlert}
             tone="danger"
             title="Imports could not be loaded"
@@ -48,7 +44,6 @@ export function ImportBatchList({
           />
         ) : batches.length === 0 ? (
           <EmptyState
-            className={framed}
             icon={FileUp}
             title="No imports yet"
             description={
