@@ -43,6 +43,20 @@ const renderDirectory = (props: Partial<typeof directoryProps>) =>
   )
 
 describe('BeneficiaryDirectory project read states', () => {
+  it('asks for a project in place of the list when none is selected', () => {
+    renderDirectory({ beneficiaries: [], projectId: '' })
+    expect(screen.getByRole('combobox', { name: 'Project' }).textContent).toBe('Select project')
+    expect(screen.getAllByText('Select a project to see its Beneficiary list.').length).toBeTruthy()
+    expect(screen.queryByRole('table')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Next' })).toBeNull()
+  })
+
+  it('does not ask for a project when the actor has none to choose', () => {
+    renderDirectory({ beneficiaries: [], projectId: '', projects: [] })
+    expect(screen.getByText('No projects available')).toBeTruthy()
+    expect(screen.queryByText('Select a project to see its Beneficiary list.')).toBeNull()
+  })
+
   it('keeps the filters and shows a loading row while a project loads', () => {
     renderDirectory({ status: 'loading' })
     expect(screen.getByLabelText('Search by name or code')).toBeTruthy()
