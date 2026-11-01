@@ -179,7 +179,8 @@ export const roleOverviewSchema = z
     myExtensions: list(myExtensionRow).nullable(),
     extensionQueue: list(extensionQueueRow).nullable(),
     escalationQueue: list(escalationQueueRow).nullable(),
-    guardianApprovals: list(guardianApprovalRow).nullable(),
+    // Defaults so a web app running ahead of its API keeps the rest of the dashboard.
+    guardianApprovals: list(guardianApprovalRow).nullable().default(null),
     datasetsImportedThisMonth: count.nullable(),
     alerts: z
       .object({

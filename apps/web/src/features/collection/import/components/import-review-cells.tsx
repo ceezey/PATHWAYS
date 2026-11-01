@@ -100,6 +100,25 @@ export function ChoiceCell({
   )
 }
 
+/** A field the reviewer cannot type in; a hint makes the words focusable so its tip reaches the keyboard too. */
+export function NotEditable({ hint }: { hint?: string }) {
+  const { show, triggerProps, tip } = useHoverTip(hint)
+  if (!hint) return <span className="flex min-h-11 items-center justify-center">Not editable</span>
+  return (
+    <>
+      <button
+        {...triggerProps}
+        className="flex min-h-11 w-full cursor-help items-center justify-center rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        onClick={show}
+        type="button"
+      >
+        Not editable
+      </button>
+      {tip}
+    </>
+  )
+}
+
 /** The reviewer's own value: a dropdown for a choice field, otherwise a text box. */
 export function OwnValue({
   field,

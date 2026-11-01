@@ -30,10 +30,19 @@ import { cn } from '@/lib/utils'
 import { selectClass } from '../../forms/components/intake-controls'
 import { highlightMs } from '../../forms/components/reveal-intake-section'
 import { fieldsOfReason, headClass, reviewReason } from '../import.utils'
-import { ChoiceCell, OwnValue, calculationHint, ownPayload } from './import-review-cells'
+import {
+  ChoiceCell,
+  NotEditable,
+  OwnValue,
+  calculationHint,
+  ownPayload,
+} from './import-review-cells'
 
 type Choice = 'PATHWAYS' | 'FILE' | 'CALCULATED' | 'OWN'
 type SaveAs = 'UPDATE' | 'NEW'
+
+const guardianConsentHint =
+  'To be approved by the assigned Project Officer. Ask for assistance if you need it.'
 
 /** One window for one held row: the reviewer picks the value to keep for each changed field. */
 export function ImportReviewDialog({
@@ -273,13 +282,13 @@ export function ImportReviewDialog({
                       tabIndex={flagged.has(code) ? -1 : undefined}
                     >
                       <TableCell className="font-medium">
-                        {label}
-                        {flagged.has(code) ? (
-                          <span className="font-normal text-muted-foreground">
-                            {' '}
-                            (check this field)
-                          </span>
-                        ) : null}
+                        {/* The info button's 44px hit area overlaps by 8px, so a wider gap keeps it off the text. */}
+                        <span className="inline-flex items-center gap-3">
+                          {label}
+                          {flagged.has(code) ? (
+                            <MetricTooltip label={label}>Check this field</MetricTooltip>
+                          ) : null}
+                        </span>
                         {errors[code] ? (
                           <div
                             className="text-sm font-normal text-danger"
@@ -331,9 +340,14 @@ export function ImportReviewDialog({
                       </TableCell>
                       <TableCell>
                         {consent ? (
-                          <span className="flex min-h-11 items-center justify-center">
-                            Not editable
-                          </span>
+                          <NotEditable
+                            hint={
+                              code === 'guardian_consent_recorded' &&
+                              review.reason === 'GUARDIAN_CONSENT_REQUIRED'
+                                ? guardianConsentHint
+                                : undefined
+                            }
+                          />
                         ) : (
                           <OwnValue
                             describedBy={errors[code] ? `${id}-${code}-error` : undefined}
