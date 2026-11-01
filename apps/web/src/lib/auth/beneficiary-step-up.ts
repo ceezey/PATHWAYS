@@ -178,16 +178,12 @@ export async function setStepUpPin(pin: string) {
   )
 }
 
-/** Change the PIN with the current PIN, or with a fresh authenticator code. */
-export async function changeStepUpPin(
-  newPin: string,
-  proof: { currentPin: string } | { authenticatorCode: string },
-) {
+/** Change the PIN with the current PIN; without one, the server requires a fresh TOTP. */
+export async function changeStepUpPin(newPin: string, currentPin?: string) {
   if (!isAcceptableStepUpPin(newPin)) {
     throw new BeneficiaryStepUpError(STEP_UP_PIN_RULE_MESSAGE, 'rejected')
   }
-  if ('authenticatorCode' in proof) {
-    await reverifyAuthenticator(proof.authenticatorCode)
+  if (currentPin === undefined) {
     await postPin(
       '/auth/step-up/pin/change',
       { newPin },
@@ -195,12 +191,12 @@ export async function changeStepUpPin(
     )
     return
   }
-  if (!/^[0-9]{6,12}$/.test(proof.currentPin)) {
+  if (!/^[0-9]{6,12}$/.test(currentPin)) {
     throw new BeneficiaryStepUpError('Enter your current 6 to 12 digit PIN.', 'rejected')
   }
   await postPin(
     '/auth/step-up/pin/change',
-    { newPin, currentPin: proof.currentPin },
+    { newPin, currentPin },
     { forbidden: 'Incorrect PIN', conflict: 'No PIN is set yet.' },
   )
 }
