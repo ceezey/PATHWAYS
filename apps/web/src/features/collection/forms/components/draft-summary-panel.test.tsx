@@ -51,6 +51,7 @@ describe('DraftSummaryPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Go to consent_recorded' }))
     expect(onSelectField).toHaveBeenCalledWith('consent_recorded')
     expect(screen.getByText(/no participation consent column/i)).toBeTruthy()
+    expect(screen.getByText(/no row can be imported/)).toBeTruthy()
   })
 
   it('never shows a raw reason code', () => {
@@ -203,7 +204,9 @@ describe('DraftSummaryPanel', () => {
       />,
     )
     expect(
-      screen.getByText('A column was proposed as this consent answer. Confirm it.'),
+      screen.getByText(
+        'A column was proposed as this consent answer. Confirm it. If Participation consent is set to the same answer, this column answers both.',
+      ),
     ).toBeTruthy()
   })
 })

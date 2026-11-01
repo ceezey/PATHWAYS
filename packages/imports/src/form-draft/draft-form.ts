@@ -31,7 +31,6 @@ export interface DraftColumn {
 
 export type NeedsCheckReason =
   | 'ENUM_ANSWER_UNRESOLVED'
-  | 'PARTICIPATION_CONSENT_NO_SOURCE'
   | 'CONSENT_SOURCE_PROPOSED'
   | 'WASHINGTON_GROUP_FLAG_DISAGREES'
 
@@ -474,8 +473,12 @@ export function draftFormFromImport(input: {
     if (target && column.sourceCode) addSourceName(target, column.sourceCode)
   }
 
-  if (consentProposed && free('consent_recorded'))
-    flag('consent_recorded', 'PARTICIPATION_CONSENT_NO_SOURCE')
+  // A yes to data use also stands for taking part (developer's decision, 2026-11-01); a no or a blank holds the row on both.
+  const participation = consentProposed ? free('consent_recorded') : undefined
+  if (participation && !participation.rule) {
+    participation.rule = { kind: 'SAME_ANSWER_AS', field: 'data_processing_consent_recorded' }
+    note(summary.rules, participation.code)
+  }
 
   if (input.formType === 'BENEFICIARY_REGISTRATION') {
     for (const [code, value] of REGISTRATION_DEFAULTS) {

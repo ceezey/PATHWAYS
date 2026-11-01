@@ -18,8 +18,9 @@ export const needsCheckLabels: Record<(typeof draftNeedsCheckReasons)[number], s
   ENUM_ANSWER_UNRESOLVED:
     'An answer in the file has no matching option. Choose how it should be stored.',
   PARTICIPATION_CONSENT_NO_SOURCE:
-    'The file has no participation consent column. If the signed consent covered both, set Calculation or check to Same answer as the data processing consent. If not, every row is held.',
-  CONSENT_SOURCE_PROPOSED: 'A column was proposed as this consent answer. Confirm it.',
+    'The file has no participation consent column. If the signed consent covered both, set Calculation or check to Same answer as the data processing consent. If not, no row can be imported.',
+  CONSENT_SOURCE_PROPOSED:
+    'A column was proposed as this consent answer. Confirm it. If Participation consent is set to the same answer, this column answers both.',
   WASHINGTON_GROUP_FLAG_DISAGREES:
     'The disability yes or no column disagrees with the Washington Group answers on some rows. Check before publishing.',
 }
