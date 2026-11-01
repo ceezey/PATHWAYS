@@ -101,6 +101,44 @@ describe('DraftSummaryPanel', () => {
     expect(onSelectField).toHaveBeenCalledWith('household_size')
   })
 
+  it('shows which column fed each changed field', () => {
+    const field = (code: string, label: string, sourceNames: string[]): FormField => ({
+      id: code,
+      label,
+      code,
+      type: 'text',
+      required: false,
+      metadataKey: false,
+      sadddField: false,
+      allowedValues: [],
+      minimumValue: '',
+      maximumValue: '',
+      minimumLength: '',
+      maximumLength: '',
+      mappingStatus: 'mapped',
+      ...emptyIntake,
+      sourceNames,
+    })
+    render(
+      <DraftSummaryPanel
+        summary={{ ...summary, sourceNamesAdded: ['sex'], defaults: ['registration_operation'] }}
+        fields={[
+          field('sex', 'Sex', ['Gender', 'Guardian Gender']),
+          field('registration_operation', 'Registration operation', []),
+        ]}
+        onSelectField={vi.fn()}
+      />,
+    )
+    expect(screen.getByRole('columnheader', { name: 'From column' })).toBeTruthy()
+    const row = screen.getByRole('button', { name: 'Sex' }).closest('tr') as HTMLElement
+    expect(within(row).getByText('Gender')).toBeTruthy()
+    expect(within(row).getByText('Guardian Gender')).toBeTruthy()
+    const noColumn = screen
+      .getByRole('button', { name: 'Registration operation' })
+      .closest('tr') as HTMLElement
+    expect(within(noColumn).getByText('No source name')).toBeTruthy()
+  })
+
   it('counts what the draft added and says so when nothing needs a check', () => {
     render(
       <DraftSummaryPanel

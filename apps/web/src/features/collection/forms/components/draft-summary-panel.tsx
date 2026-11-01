@@ -66,6 +66,7 @@ export function DraftSummaryPanel({
   onSelectField: (fieldCode: string) => void
 }) {
   const labelOf = (code: string) => fields.find((field) => field.code === code)?.label || code
+  const columnsOf = (code: string) => fields.find((field) => field.code === code)?.sourceNames ?? []
   const counts = [
     ...changeKinds.map(({ key, one, many }) => {
       const count = summary[key].length
@@ -151,6 +152,7 @@ export function DraftSummaryPanel({
                       <TableHeader>
                         <TableRow>
                           <TableHead className={tableHeadClass}>Field</TableHead>
+                          <TableHead className={tableHeadClass}>From column</TableHead>
                           <TableHead className={tableHeadClass}>What changed</TableHead>
                         </TableRow>
                       </TableHeader>
@@ -170,6 +172,17 @@ export function DraftSummaryPanel({
                                   {code}
                                 </p>
                               ) : null}
+                            </TableCell>
+                            <TableCell className="max-w-[22rem] align-top text-sm">
+                              {columnsOf(code).length ? (
+                                columnsOf(code).map((name) => (
+                                  <p key={name} className="break-words">
+                                    {name}
+                                  </p>
+                                ))
+                              ) : (
+                                <span className="text-muted-foreground">No source name</span>
+                              )}
                             </TableCell>
                             <TableCell className="align-top">
                               <div className="flex flex-wrap gap-1.5">

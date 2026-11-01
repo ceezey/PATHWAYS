@@ -10,6 +10,7 @@ import {
   type SmartMatchDecision,
   normalizeMappingNameV1,
 } from '../mappers/smart-match'
+import { STOP_WORDS } from '../mappers/smart-match-rules'
 import { boundedSamples, valueGate } from '../mappers/smart-match-values'
 import { type ImportValueMapEntry, mapKey } from '../value-map'
 import { suggestValueMap } from '../value-map-suggest'
@@ -76,6 +77,18 @@ const REGISTRATION_DEFAULTS = [
 ] as const
 const CONSENT_WORDS = ['collection', 'use', 'processing']
 const IDENTIFIER_WORDS = ['id', 'certificate', 'cert']
+// Words naming the registered person; any other word, such as "Guardian" or "Staff", may name someone else.
+const SUBJECT_WORDS = new Set([...STOP_WORDS, 'student', 'learner', 'trainee', 'client', 'youth'])
+const IDENTIFIER_HEADER_WORDS = new Set([
+  ...SUBJECT_WORDS,
+  ...IDENTIFIER_WORDS,
+  'no',
+  'number',
+  'num',
+  'barangay',
+  'birth',
+  'national',
+])
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
 
 const isBlank = (value: unknown) =>
@@ -85,6 +98,29 @@ const headerTokens = (header: string) =>
   normalizeMappingNameV1(header)
     .split(/[^a-z0-9]+/)
     .filter(Boolean)
+
+/**
+ * True when a header holds this name and otherwise only words for the registered person, ignoring a short program tag such as the " - YEE" of "Gender - YEE".
+ * shortcut: a role of four capitals or fewer ("Gender - WIFE") reads as a tag; upgrade to a list of tags if a file shows one.
+ */
+const namesField = (header: string, name: string) => {
+  const own = headerTokens(header.replace(/\s[-–—]\s*[A-Z0-9]{2,4}$/, '')).filter(
+    (token) => !SUBJECT_WORDS.has(token),
+  )
+  const wanted = headerTokens(name)
+  return own.length === wanted.length && wanted.every((token) => own.includes(token))
+}
+
+/**
+ * True when a header can only mean the registered person's ID and at least 90 percent of the values differ, so one duplicate is held by row and a shared ID is refused.
+ * shortcut: one or two rows always pass the 90 percent test and "Barangay ID" could be a location code; upgrade if a small file or a form shows one.
+ */
+function isIdentifierColumn(tokens: readonly string[], present: readonly unknown[]) {
+  if (!IDENTIFIER_WORDS.some((word) => tokens.includes(word))) return false
+  if (!tokens.every((token) => IDENTIFIER_HEADER_WORDS.has(token))) return false
+  const distinct = new Set(present.map((value) => String(value).trim().toLowerCase()))
+  return distinct.size * 100 >= present.length * 90
+}
 
 function inferType(
   values: readonly unknown[],
@@ -129,10 +165,18 @@ const byPrefix = (left: string, right: string) =>
   ) ||
   compareText(left, right)
 
+/** True when at least two labels of one kind run in order with at most one missing; a list may start past A, scattered initials do not run. */
+function labelsRunInOrder(labels: readonly string[]) {
+  const numbered = labels.filter((label) => /^\d/.test(label)).length
+  if (labels.length < 2 || (numbered > 0 && numbered < labels.length)) return false
+  const ranks = labels.map((label) => (numbered ? Number(label) : label.charCodeAt(0)))
+  return Math.max(...ranks) - Math.min(...ranks) + 1 - labels.length <= 1
+}
+
 /**
  * True for a lettered choice list: at least 90 percent lettered, each label meaning one answer,
- * and repeated answers. This keeps most lettered personal data ("J. Cruz", "1. Juan") out of options.
- * shortcut: a lettered name repeated on many rows has the same shape as a choice and passes; upgrade if a form ever shows one.
+ * labels in order, and repeated answers. This keeps most lettered personal data ("J. Cruz", "1. Juan") out of options.
+ * shortcut: names whose initials happen to run in order ("L. Cruz", "M. Santos") still pass and a one-answer list stays text; upgrade if a form ever shows one.
  */
 function isChoiceColumn(texts: readonly string[]) {
   if (texts.filter(hasLetterPrefix).length * 100 < texts.length * 90) return false
@@ -144,7 +188,11 @@ function isChoiceColumn(texts: readonly string[]) {
     const label = labelOf(text)
     if (label !== undefined) byLabel.set(label, (byLabel.get(label) ?? new Set()).add(answer))
   }
-  return answers.size * 2 <= texts.length && [...byLabel.values()].every((set) => set.size === 1)
+  return (
+    answers.size * 2 <= texts.length &&
+    [...byLabel.values()].every((set) => set.size === 1) &&
+    labelsRunInOrder([...byLabel.keys()])
+  )
 }
 
 /** Options in letter order with each lettered answer as an alias, leaving out unlettered answers that could be names, or null when the column is not a choice list or too wide for a form. */
@@ -291,9 +339,10 @@ export function draftFormFromImport(input: {
   function proposal(
     decision: SmartMatchDecision,
     present: readonly unknown[],
-    tokens: string[],
+    header: string,
   ): [DraftField, 'CONSENT' | 'SUGGESTED' | 'IDENTIFIER'] | undefined {
     const type = inferType(present)
+    const tokens = headerTokens(header)
     if (
       type === 'BOOLEAN' &&
       tokens.includes('consent') &&
@@ -310,8 +359,9 @@ export function draftFormFromImport(input: {
       : fields.find(
           (field) =>
             !used.has(field.code) &&
-            (SMART_REVIEW_SYNONYMS_V2[field.code] ?? []).some((name) =>
-              headerTokens(name).every((token) => tokens.includes(token)),
+            Object.hasOwn(SMART_REVIEW_SYNONYMS_V2, field.code) &&
+            [field.code, ...SMART_REVIEW_SYNONYMS_V2[field.code]].some((name) =>
+              namesField(header, name),
             ),
         )
     if (suggested) return acceptsColumn(suggested, present) ? [suggested, 'SUGGESTED'] : undefined
@@ -320,7 +370,7 @@ export function draftFormFromImport(input: {
       type === 'TEXT' &&
       identifier &&
       byCode.has('external_identifier_type') &&
-      IDENTIFIER_WORDS.some((word) => tokens.includes(word))
+      isIdentifierColumn(tokens, present)
     )
       return [identifier, 'IDENTIFIER']
   }
@@ -374,7 +424,7 @@ export function draftFormFromImport(input: {
     if (!column || decision.status === 'IGNORED' || !header || present.length === 0) continue
     let target = decision.status === 'MAPPED' ? byId.get(decision.targetFieldId ?? '') : undefined
     if (decision.status === 'PENDING') {
-      const found = proposal(decision, present, headerTokens(header))
+      const found = proposal(decision, present, header)
       if (!found || !addSourceName(found[0], header)) {
         // A column that lost its match stays text, so lettered names in it cannot become options.
         const lostMatch =
