@@ -2,7 +2,7 @@ import type { DraftSummaryResponse } from '@pathways/shared'
 
 export type NeedsCheckReason = DraftSummaryResponse['needsCheck'][number]['reason']
 
-// The control in a field's Advance Configuration where a person settles each item.
+// The control in a field's Advanced Configuration where a person settles each item.
 const sectionOfReason: Record<NeedsCheckReason, 'source' | 'aliases' | 'rule'> = {
   CONSENT_SOURCE_PROPOSED: 'source',
   ENUM_ANSWER_UNRESOLVED: 'aliases',
@@ -14,7 +14,7 @@ const highlight = ['ring-2', 'ring-warning', 'bg-warning-subtle']
 const highlightMs = 2000
 let clearHighlight: (() => void) | undefined
 
-/** Opens the field's Advance Configuration, scrolls to the control for this item, highlights it briefly and moves focus there. */
+/** Opens the field's Advanced Configuration, scrolls to the control for this item, highlights it briefly and moves focus there. */
 export function revealIntakeSection(fieldId: string, reason: NeedsCheckReason) {
   const details = document.getElementById(`${fieldId}-intake`) as HTMLDetailsElement | null
   if (!details) return

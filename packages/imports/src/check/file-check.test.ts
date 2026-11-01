@@ -146,7 +146,7 @@ describe('checkImportFile', () => {
         columnLetter: null,
         code: 'NO_COLUMN',
         message:
-          'No column matches. Rename the column, or add its header as a source name under Advance Configuration.',
+          'No column matches. Rename the column, or add its header as a source name under Advanced Configuration.',
         rowCount: 2,
         exampleRows: [],
       },

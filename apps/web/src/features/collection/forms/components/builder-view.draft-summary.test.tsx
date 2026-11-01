@@ -100,20 +100,20 @@ describe('BuilderView draft summary', () => {
     ['PARTICIPATION_CONSENT_NO_SOURCE', true],
     ['CONSENT_SOURCE_PROPOSED', true],
     ['WASHINGTON_GROUP_FLAG_DISAGREES', true],
-  ] as const)('opens Advance Configuration for %s: %s', (reason, open) => {
+  ] as const)('opens Advanced Configuration for %s: %s', (reason, open) => {
     const field = initialFields[0]
     view({ ...summary, needsCheck: [{ fieldCode: field.code, reason }] }, vi.fn(), {
       selectedFieldId: field.id,
     })
-    const details = screen.getByText('Advance Configuration (Import Metadata)').closest('details')
+    const details = screen.getByText('Advanced Configuration (Import Metadata)').closest('details')
     expect(details?.open).toBe(open)
   })
 
-  it('leaves Advance Configuration closed on a field with no item', () => {
+  it('leaves Advanced Configuration closed on a field with no item', () => {
     const field = initialFields[0]
     view({ ...summary, needsCheck: [] }, vi.fn(), { selectedFieldId: field.id })
     expect(
-      screen.getByText('Advance Configuration (Import Metadata)').closest('details')?.open,
+      screen.getByText('Advanced Configuration (Import Metadata)').closest('details')?.open,
     ).toBe(false)
   })
 
@@ -194,7 +194,7 @@ describe('BuilderView draft summary', () => {
       render(<Workspace needsCheck={[{ fieldCode: 'civil_status', reason }]} />)
       const scroll = go()
       expect(
-        screen.getByText('Advance Configuration (Import Metadata)').closest('details')?.open,
+        screen.getByText('Advanced Configuration (Import Metadata)').closest('details')?.open,
       ).toBe(true)
       const section = sectionOf(name)
       expect(section.classList.contains('ring-warning')).toBe(true)
@@ -203,7 +203,7 @@ describe('BuilderView draft summary', () => {
       expect(section.classList.contains('ring-warning')).toBe(false)
     })
 
-    it('reopens Advance Configuration a person closed on the field already selected', () => {
+    it('reopens Advanced Configuration a person closed on the field already selected', () => {
       render(
         <Workspace
           needsCheck={[{ fieldCode: 'civil_status', reason: 'CONSENT_SOURCE_PROPOSED' }]}
@@ -211,7 +211,7 @@ describe('BuilderView draft summary', () => {
         />,
       )
       const details = screen
-        .getByText('Advance Configuration (Import Metadata)')
+        .getByText('Advanced Configuration (Import Metadata)')
         .closest('details') as HTMLDetailsElement
       details.open = false
       go()

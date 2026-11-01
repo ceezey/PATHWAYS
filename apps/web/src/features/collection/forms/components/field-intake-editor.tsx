@@ -47,7 +47,7 @@ export function FieldIntakeEditor({
   return (
     <details className="border-t pt-2 md:col-span-2" id={id} open={attention || undefined}>
       <summary className="min-h-11 cursor-pointer content-center text-sm font-medium text-primary">
-        Advance Configuration (Import Metadata)
+        Advanced Configuration (Import Metadata)
       </summary>
       <div className="mt-2 space-y-4">
         <div className={`space-y-2 ${revealableClass}`} data-intake-section="source">
