@@ -332,7 +332,10 @@ export const BeneficiaryAccessGate = ({
             {message}
           </output>
           {methodChoice}
-          {STEP_UP_PIN_UI_ENABLED && pinState === 'LOCKED' && method === 'totp' ? (
+          {STEP_UP_PIN_UI_ENABLED &&
+          pinState === 'LOCKED' &&
+          method === 'totp' &&
+          message !== PIN_LOCKED_MESSAGE ? (
             <p className="text-sm text-muted-foreground">{PIN_LOCKED_MESSAGE}</p>
           ) : null}
           {method === 'totp' ? (

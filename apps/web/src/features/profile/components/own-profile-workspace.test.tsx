@@ -63,14 +63,6 @@ beforeEach(() => {
 })
 
 describe('own profile editing', () => {
-  it('has no Beneficiary access PIN section while STEP_UP_PIN_UI_ENABLED is false', async () => {
-    state.permissions = ['profile.manage', 'beneficiaries.records.read']
-    render(<OwnProfileWorkspace />)
-    await screen.findByLabelText('Name')
-    expect(screen.queryByText('Beneficiary PIN form')).toBeNull()
-    expect(screen.queryByText('Beneficiary access PIN')).toBeNull()
-  })
-
   it('places Save profile and Reload profile on one row', async () => {
     render(<OwnProfileWorkspace />)
     await screen.findByLabelText('Name')
@@ -169,9 +161,25 @@ describe('own profile editing', () => {
   })
 })
 
-// The PIN section is hidden behind STEP_UP_PIN_UI_ENABLED (see
-// apps/web/src/constants/feature-flags.ts and vault note deferred-features). This covers
-// the underlying role gating with the flag forced on.
+describe('own profile editing (STEP_UP_PIN_UI_ENABLED false)', () => {
+  afterEach(() => {
+    vi.doUnmock('@/constants/feature-flags')
+  })
+
+  it('has no Beneficiary access PIN section', async () => {
+    vi.resetModules()
+    vi.doMock('@/constants/feature-flags', () => ({ STEP_UP_PIN_UI_ENABLED: false }))
+    const { OwnProfileWorkspace: DisabledWorkspace } = await import('./own-profile-workspace')
+    state.permissions = ['profile.manage', 'beneficiaries.records.read']
+    render(<DisabledWorkspace />)
+    await screen.findByLabelText('Name')
+    expect(screen.queryByText('Beneficiary PIN form')).toBeNull()
+    expect(screen.queryByText('Beneficiary access PIN')).toBeNull()
+  })
+})
+
+// The PIN section is behind STEP_UP_PIN_UI_ENABLED (see
+// apps/web/src/constants/feature-flags.ts and vault note deferred-features).
 describe('own profile editing (STEP_UP_PIN_UI_ENABLED true)', () => {
   let EnabledWorkspace: typeof OwnProfileWorkspace
 

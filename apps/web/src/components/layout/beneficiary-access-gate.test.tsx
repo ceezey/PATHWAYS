@@ -191,10 +191,23 @@ describe('BeneficiaryAccessGate (server-verified step-up)', () => {
   })
 })
 
+// The flag stays as a switch to fall back to the authenticator alone.
 describe('BeneficiaryAccessGate (STEP_UP_PIN_UI_ENABLED false)', () => {
+  let DisabledGate: typeof import('./beneficiary-access-gate').BeneficiaryAccessGate
+
+  beforeEach(async () => {
+    vi.resetModules()
+    vi.doMock('@/constants/feature-flags', () => ({ STEP_UP_PIN_UI_ENABLED: false }))
+    ;({ BeneficiaryAccessGate: DisabledGate } = await import('./beneficiary-access-gate'))
+  })
+
+  afterEach(() => {
+    vi.doUnmock('@/constants/feature-flags')
+  })
+
   it('never offers "Use PIN" or "Set a PIN", and TOTP still works', async () => {
     mocks.getStatus.mockResolvedValue(stale('SET'))
-    render(<BeneficiaryAccessGate preflight>{content}</BeneficiaryAccessGate>)
+    render(<DisabledGate preflight>{content}</DisabledGate>)
     expect(await screen.findByText('Verify beneficiary module access')).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Use PIN' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Use authenticator' })).toBeNull()
@@ -209,7 +222,7 @@ describe('BeneficiaryAccessGate (STEP_UP_PIN_UI_ENABLED false)', () => {
   it('never offers "Set a PIN" after a TOTP step-up even when no PIN exists', async () => {
     mocks.getStatus.mockResolvedValue(stale('NONE'))
     mocks.verify.mockResolvedValue(totpFresh('NONE'))
-    render(<BeneficiaryAccessGate preflight>{content}</BeneficiaryAccessGate>)
+    render(<DisabledGate preflight>{content}</DisabledGate>)
     fireEvent.change(await screen.findByRole('textbox', { name: 'Digit 1 of 6' }), {
       target: { value: '123456' },
     })
@@ -220,10 +233,8 @@ describe('BeneficiaryAccessGate (STEP_UP_PIN_UI_ENABLED false)', () => {
   })
 })
 
-// The PIN fallback UI is hidden behind STEP_UP_PIN_UI_ENABLED (see
-// apps/web/src/constants/feature-flags.ts and vault note deferred-features). These tests
-// exercise the same gate with the flag forced on, so the underlying PIN behaviour the
-// API still enforces stays covered while the flag is off in the running app.
+// The PIN fallback UI is behind STEP_UP_PIN_UI_ENABLED (see
+// apps/web/src/constants/feature-flags.ts and vault note deferred-features).
 describe('BeneficiaryAccessGate PIN fallback (cr-pathways-beneficiary-step-up-pin, flag on)', () => {
   let EnabledGate: typeof import('./beneficiary-access-gate').BeneficiaryAccessGate
 
@@ -235,6 +246,25 @@ describe('BeneficiaryAccessGate PIN fallback (cr-pathways-beneficiary-step-up-pi
 
   afterEach(() => {
     vi.doUnmock('@/constants/feature-flags')
+  })
+
+  it('says the PIN is locked once after the attempt that locks it', async () => {
+    mocks.verifyPin.mockRejectedValue(new BeneficiaryStepUpError('locked', 'locked'))
+    render(<EnabledGate preflight>{content}</EnabledGate>)
+    fireEvent.click(await screen.findByRole('button', { name: 'Use PIN' }))
+    fireEvent.change(screen.getByLabelText('Beneficiary access PIN'), {
+      target: { value: '739182' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Verify PIN' }))
+    const shown = await screen.findAllByText('PIN locked. Use your authenticator to unlock it.')
+    expect(shown).toHaveLength(1)
+  })
+
+  it('names the lock beside the prompt when the dialog opens on a locked PIN', async () => {
+    mocks.getStatus.mockResolvedValue(stale('LOCKED'))
+    render(<EnabledGate preflight>{content}</EnabledGate>)
+    expect(await screen.findByText('PIN locked. Use your authenticator to unlock it.')).toBeTruthy()
+    expect(screen.getByText('Enter the six-digit code from your authenticator app.')).toBeTruthy()
   })
 
   const renderGate = (props: { preflight: boolean }) =>
