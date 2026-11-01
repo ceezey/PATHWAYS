@@ -18,11 +18,14 @@ export const needsCheckLabels: Record<(typeof draftNeedsCheckReasons)[number], s
   ENUM_ANSWER_UNRESOLVED:
     'An answer in the file has no matching option. Choose how it should be stored.',
   PARTICIPATION_CONSENT_NO_SOURCE:
-    'The file has no participation consent column. If the signed consent covered both, set Calculation or check to Same answer as the data processing consent. If not, every row is held.',
+    'No column feeds participation consent. If a column in the file answers it, delete the new field it went to and add its header to Source names here. If the data consent answer covers it, set Calculation or check to Same answer as the data processing consent. Until then, no row can be imported.',
   CONSENT_SOURCE_PROPOSED: 'A column was proposed as this consent answer. Confirm it.',
   WASHINGTON_GROUP_FLAG_DISAGREES:
     'The disability yes or no column disagrees with the Washington Group answers on some rows. Check before publishing.',
 }
+
+/** Shown on the data consent item when participation consent copies its answer. */
+export const consentAnswersBoth = 'Participation consent takes the same answer from this column.'
 
 /** What each part of a field's import metadata does, shown on hover in the form builder. */
 export const intakeHelp = {

@@ -25,7 +25,6 @@ describe('draftFormFromImport on the Futuremakers fixture', () => {
   it('leaves only what no rule can settle for a person to check', () => {
     expect(fixture().summary.needsCheck).toEqual([
       { fieldCode: 'data_processing_consent_recorded', reason: 'CONSENT_SOURCE_PROPOSED' },
-      { fieldCode: 'consent_recorded', reason: 'PARTICIPATION_CONSENT_NO_SOURCE' },
     ])
   })
 
@@ -80,7 +79,7 @@ describe('draftFormFromImport on the Futuremakers fixture', () => {
     expect(result.summary.needsCheck.some((item) => item.fieldCode === 'subject_type')).toBe(false)
   })
 
-  it('maps the consent column to data_processing_consent_recorded and flags consent_recorded', () => {
+  it('maps the consent column to data_processing_consent_recorded and lets it answer participation too', () => {
     const result = fixture()
     expect(find(result, 'data_processing_consent_recorded')?.sourceNames).toEqual([
       'Consent to the collection and use of your data for the purposes - Futuremaker',
@@ -89,10 +88,15 @@ describe('draftFormFromImport on the Futuremakers fixture', () => {
       fieldCode: 'data_processing_consent_recorded',
       reason: 'CONSENT_SOURCE_PROPOSED',
     })
-    expect(result.summary.needsCheck).toContainEqual({
-      fieldCode: 'consent_recorded',
-      reason: 'PARTICIPATION_CONSENT_NO_SOURCE',
+    expect(find(result, 'consent_recorded')?.rule).toEqual({
+      kind: 'SAME_ANSWER_AS',
+      field: 'data_processing_consent_recorded',
     })
+    expect(find(result, 'consent_recorded')?.importDefault).toBeUndefined()
+    expect(result.summary.rules).toContain('consent_recorded')
+    expect(result.summary.needsCheck.some((item) => item.fieldCode === 'consent_recorded')).toBe(
+      false,
+    )
   })
 
   it('never sets importDefault on a consent field', () => {
@@ -495,16 +499,49 @@ describe('draftFormFromImport rules', () => {
       },
     )
 
-    it.each(['Parents consent to data use', 'Non-consent to data use'])(
-      'always asks a person about "%s"',
-      (header) => {
-        const result = draft([columnOf(header, [true, false, true], 1)])
-        expect(result.summary.needsCheck).toContainEqual({
-          fieldCode: 'data_processing_consent_recorded',
-          reason: 'CONSENT_SOURCE_PROPOSED',
-        })
-      },
-    )
+    it.each([
+      'Parents consent to data use',
+      'Non-consent to data use',
+      'No consent to data use',
+      'Do not consent to data use',
+      'Refused consent to data processing',
+      'Consent to data use - Parent',
+      'Consent to data use - GUARDIAN',
+      'Consent to data use - Parent/Guardian',
+      "Consent to data use - Guardian's",
+      'Consent to data use - Parents/Guardians',
+      'Consent to data use - No',
+      'Consent to data use - Withdrawn',
+      'Consent to data use - Refused',
+      'Consent to data use - Declined',
+      'Consent to data use - Denied',
+      'Consent to data use - Rejected',
+      'Consent to data use - Hindi',
+      'Consent to data use - Ayaw',
+      'Consent to data use - Magulang',
+      'Consent to data use - Nanay',
+      'Consent to data use - Tatay',
+    ])('keeps "%s" off both consent fields', (header) => {
+      const result = draft([columnOf(header, [true, false, true], 1)])
+      expect(find(result, 'data_processing_consent_recorded')?.sourceNames).toBeUndefined()
+      expect(find(result, 'consent_recorded')?.rule).toBeUndefined()
+      expect(result.summary.addedFields).toHaveLength(1)
+    })
+
+    it.each([
+      'Consent to data use',
+      'Consent to data processing',
+      'Consent to the collection and use of your data for the purposes - Futuremaker',
+      'Do you consent to the use of your personal data?',
+      'I consent to the collection of my data',
+    ])('sends "%s" to data consent and still asks a person', (header) => {
+      const result = draft([columnOf(header, [true, false, true], 1)])
+      expect(find(result, 'data_processing_consent_recorded')?.sourceNames).toEqual([header])
+      expect(result.summary.needsCheck).toContainEqual({
+        fieldCode: 'data_processing_consent_recorded',
+        reason: 'CONSENT_SOURCE_PROPOSED',
+      })
+    })
 
     it('keeps a text yes or no consent column off the consent field', () => {
       const result = draft([columnOf('Consent to data use', ['Yes', 'No', 'Yes'], 1)])
@@ -707,6 +744,171 @@ describe('draftFormFromImport rules', () => {
     it('treats IDs that differ only in case or spaces as repeats', () => {
       const result = draft([columnOf('ID', ['a-1', 'A-1 ', 'a-1', ' A-1'], 1)])
       expect(sources(result, 'external_identifier_value')).toBeUndefined()
+    })
+  })
+
+  describe('participation consent', () => {
+    const consent = columnOf('Consent to the use of your data', [true, false], 1)
+
+    it('stays empty when the file has no data consent column', () => {
+      const result = draft([columnOf('Student ID', ['A-1', 'A-2'], 1)])
+      expect(find(result, 'consent_recorded')?.rule).toBeUndefined()
+    })
+
+    it('keeps its own column when the file has one', () => {
+      const own = columnOf('Consent to participate', [true, true], 2)
+      const fields = REGISTRATION.map((field) =>
+        field.code === 'consent_recorded'
+          ? { ...field, sourceNames: ['Consent to participate'] }
+          : field,
+      )
+      expect(find(draft([consent, own], fields), 'consent_recorded')?.rule).toBeUndefined()
+    })
+
+    it('leaves a rule a person already set', () => {
+      const rule = { kind: 'SAME_ANSWER_AS', field: 'data_processing_consent_recorded' } as const
+      const fields = REGISTRATION.map((field) =>
+        field.code === 'consent_recorded' ? { ...field, rule } : field,
+      )
+      const result = draft([consent], fields)
+      expect(find(result, 'consent_recorded')?.rule).toEqual(rule)
+      expect(result.summary.rules).not.toContain('consent_recorded')
+    })
+
+    it.each([
+      'Consent to participate',
+      'Participant consent',
+      'Agrees to participate',
+      'Participation agreement',
+      'Assent',
+      'Photo use consent',
+      'Consented',
+      'Participating in the program',
+      'Participated',
+      'Pahintulot',
+      'Pumayag',
+      'Pagpayag',
+      'Sang-ayon',
+      'Pagsang-ayon',
+      'Sumali',
+      'Lumahok',
+      'Permission',
+      'Willing to join',
+      'Unwilling to join',
+      'Disagree',
+      'Refused',
+      'Declined',
+      'Opted out',
+    ])('does not copy the answer past "%s", and lists it for a person', (header) => {
+      for (const columns of [
+        [consent, columnOf(header, [true, false], 2)],
+        [columnOf(header, [true, false], 2), { ...consent, columnIndex: 3 }],
+      ]) {
+        const result = draft(columns)
+        expect(find(result, 'consent_recorded')?.rule).toBeUndefined()
+        expect(result.summary.rules).not.toContain('consent_recorded')
+        expect(result.summary.needsCheck).toContainEqual({
+          fieldCode: 'consent_recorded',
+          reason: 'PARTICIPATION_CONSENT_NO_SOURCE',
+        })
+      }
+    })
+
+    it('does not copy the answer past a participation column left blank', () => {
+      const result = draft([consent, columnOf('Consent to participate', ['', ''], 2)])
+      expect(find(result, 'consent_recorded')?.rule).toBeUndefined()
+      expect(result.summary.needsCheck).toContainEqual({
+        fieldCode: 'consent_recorded',
+        reason: 'PARTICIPATION_CONSENT_NO_SOURCE',
+      })
+    })
+
+    it('does not copy the answer past a participation column whose values do not fit', () => {
+      const fields = REGISTRATION.map((field) =>
+        field.code === 'consent_recorded'
+          ? { ...field, sourceNames: ['Consent to participate'] }
+          : field,
+      )
+      const own = columnOf('Consent to participate', ['Oo', 'Hindi'], 2)
+      const result = draft([consent, own], fields)
+      expect(find(result, 'consent_recorded')?.rule).toBeUndefined()
+      expect(result.summary.needsCheck).toContainEqual({
+        fieldCode: 'consent_recorded',
+        reason: 'PARTICIPATION_CONSENT_NO_SOURCE',
+      })
+    })
+
+    describe('on a form whose published version already copies the answer', () => {
+      const published = REGISTRATION.map((field) => {
+        if (field.code === 'consent_recorded')
+          return {
+            ...field,
+            rule: { kind: 'SAME_ANSWER_AS', field: 'data_processing_consent_recorded' } as const,
+          }
+        if (field.code === 'data_processing_consent_recorded')
+          return { ...field, sourceNames: ['Consent to the use of your data'] }
+        return field
+      })
+
+      it.each([0, 1])('stops copying when a new file holds an own answer, order %i', (first) => {
+        const own = columnOf('Consent to participate', [false, true], 2)
+        const columns = first ? [own, { ...consent, columnIndex: 3 }] : [consent, own]
+        const result = draft(columns, published)
+        expect(find(result, 'consent_recorded')?.rule).toBeUndefined()
+        expect(result.summary.needsCheck).toContainEqual({
+          fieldCode: 'consent_recorded',
+          reason: 'PARTICIPATION_CONSENT_NO_SOURCE',
+        })
+      })
+
+      it('keeps copying when the new column is not an own answer', () => {
+        const result = draft(
+          [consent, columnOf('Civil Status', ['Single', 'Married'], 2)],
+          published,
+        )
+        expect(find(result, 'consent_recorded')?.rule?.kind).toBe('SAME_ANSWER_AS')
+        expect(result.summary.needsCheck).toEqual([])
+      })
+
+      it('keeps copying beside an own-answer field the form already has', () => {
+        const fields: DraftField[] = [
+          ...published,
+          {
+            id: 'photo',
+            code: 'photo_use_consent',
+            label: 'Photo use consent',
+            dataType: 'BOOLEAN',
+            required: false,
+            metadataKey: false,
+            sadddField: false,
+            sourceNames: ['Photo use consent'],
+          },
+        ]
+        const photo = columnOf('Photo use consent', [true, false], 2)
+        const other = columnOf('Civil Status', ['Single', 'Married'], 3)
+        const result = draft([consent, photo, other], fields)
+        expect(find(result, 'consent_recorded')?.rule?.kind).toBe('SAME_ANSWER_AS')
+      })
+
+      it('stops copying when the data consent column becomes a new field', () => {
+        const parents = columnOf('Parents consent to data use', [true, false], 1)
+        const result = draft([parents], published)
+        expect(find(result, 'consent_recorded')?.rule).toBeUndefined()
+      })
+    })
+
+    it.each([
+      'Are you a past program participant?',
+      'Guardian consent',
+      'Sangguniang Kabataan member?',
+    ])('still copies the answer beside "%s"', (header) => {
+      const result = draft([consent, columnOf(header, [true, false], 2)])
+      expect(find(result, 'consent_recorded')?.rule?.kind).toBe('SAME_ANSWER_AS')
+    })
+
+    it('sets nothing on a form that is not a registration form', () => {
+      const result = draft([consent], REGISTRATION, 'OTHER')
+      expect(find(result, 'consent_recorded')?.rule).toBeUndefined()
     })
   })
 

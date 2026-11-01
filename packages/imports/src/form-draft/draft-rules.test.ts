@@ -349,9 +349,11 @@ describe('proposeIntakeRules on the Futuremakers fixture', () => {
     expect(rule(result, 'beneficiary_code')).toBeUndefined()
   })
 
-  it('never proposes SAME_ANSWER_AS and lists every rule once, none asking for a check', () => {
+  it('proposes SAME_ANSWER_AS only on participation and lists every rule once, none asking for a check', () => {
     const result = fixture()
-    expect(result.fields.some((field) => field.rule?.kind === 'SAME_ANSWER_AS')).toBe(false)
+    expect(
+      result.fields.filter((field) => field.rule?.kind === 'SAME_ANSWER_AS').map((f) => f.code),
+    ).toEqual(['consent_recorded'])
     const ruled = result.fields.filter((field) => field.rule).map((field) => field.code)
     expect([...ruled].sort()).toEqual([...result.summary.rules].sort())
     for (const code of ruled)

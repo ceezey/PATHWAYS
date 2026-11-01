@@ -13,7 +13,7 @@ import { ChipListInput, FieldSelect, selectClass } from './intake-controls'
 type Kind = FieldIntakeRule['kind']
 
 const calculated: readonly string[] = CALCULATED_RULE_KINDS
-// SAME_ANSWER_AS links only the two consent fields and is set by hand on this one.
+// SAME_ANSWER_AS links only the two consent fields, on this one.
 const sameAnswerHost = 'consent_recorded'
 const sameAnswerTarget = 'data_processing_consent_recorded'
 
@@ -143,8 +143,8 @@ export function IntakeRuleEditor({
       ) : null}
       {rule?.kind === 'SAME_ANSWER_AS' ? (
         <p className="text-sm text-muted-foreground">
-          Copies the answer of {sameAnswerTarget}. Use it only if the signed consent covered both. A
-          participant who said no or left it blank is held.
+          Copies the answer of {sameAnswerTarget}, so a yes to data use also stands for taking part.
+          A participant who said no is held, and a blank answer makes the row invalid.
         </p>
       ) : null}
       {rule?.kind === 'AGE_CHECK' ? (

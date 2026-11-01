@@ -50,7 +50,8 @@ describe('DraftSummaryPanel', () => {
     render(<DraftSummaryPanel summary={summary} fields={[]} onSelectField={onSelectField} />)
     fireEvent.click(screen.getByRole('button', { name: 'Go to consent_recorded' }))
     expect(onSelectField).toHaveBeenCalledWith('consent_recorded')
-    expect(screen.getByText(/no participation consent column/i)).toBeTruthy()
+    expect(screen.getByText(/no column feeds participation consent/i)).toBeTruthy()
+    expect(screen.getByText(/no row can be imported/)).toBeTruthy()
   })
 
   it('never shows a raw reason code', () => {
@@ -205,5 +206,50 @@ describe('DraftSummaryPanel', () => {
     expect(
       screen.getByText('A column was proposed as this consent answer. Confirm it.'),
     ).toBeTruthy()
+    expect(screen.queryByText(/takes the same answer/)).toBeNull()
+  })
+
+  it('says plainly when participation consent copies the data consent column', () => {
+    const field = (code: string, label: string, rule: FormField['rule']): FormField => ({
+      id: code,
+      label,
+      code,
+      type: 'text',
+      required: false,
+      metadataKey: false,
+      sadddField: false,
+      allowedValues: [],
+      minimumValue: '',
+      maximumValue: '',
+      minimumLength: '',
+      maximumLength: '',
+      mappingStatus: 'mapped',
+      ...emptyIntake,
+      rule,
+    })
+    const dataConsent = field('data_processing_consent_recorded', 'Data processing consent', null)
+    const copied = { kind: 'SAME_ANSWER_AS', field: dataConsent.code } as const
+    const panel = (rule: FormField['rule']) => (
+      <DraftSummaryPanel
+        summary={{
+          ...summary,
+          rules: ['consent_recorded'],
+          needsCheck: [{ fieldCode: dataConsent.code, reason: 'CONSENT_SOURCE_PROPOSED' }],
+        }}
+        fields={[dataConsent, field('consent_recorded', 'Participation consent', rule)]}
+        onSelectField={vi.fn()}
+      />
+    )
+    const { rerender } = render(panel(copied))
+    expect(
+      screen.getByText('Participation consent takes the same answer from this column.'),
+    ).toBeTruthy()
+    const row = screen
+      .getByRole('button', { name: 'Participation consent' })
+      .closest('tr') as HTMLElement
+    expect(within(row).getByText('Same answer as the data processing consent')).toBeTruthy()
+    expect(row.closest('details')?.open).toBe(true)
+    rerender(panel(null))
+    expect(screen.queryByText(/takes the same answer/)).toBeNull()
   })
 })
