@@ -514,6 +514,13 @@ describe('draftFormFromImport rules', () => {
       'Consent to data use - Withdrawn',
       'Consent to data use - Refused',
       'Consent to data use - Declined',
+      'Consent to data use - Denied',
+      'Consent to data use - Rejected',
+      'Consent to data use - Hindi',
+      'Consent to data use - Ayaw',
+      'Consent to data use - Magulang',
+      'Consent to data use - Nanay',
+      'Consent to data use - Tatay',
     ])('keeps "%s" off both consent fields', (header) => {
       const result = draft([columnOf(header, [true, false, true], 1)])
       expect(find(result, 'data_processing_consent_recorded')?.sourceNames).toBeUndefined()
@@ -780,8 +787,18 @@ describe('draftFormFromImport rules', () => {
       'Participated',
       'Pahintulot',
       'Pumayag',
+      'Pagpayag',
+      'Sang-ayon',
+      'Pagsang-ayon',
+      'Sumali',
+      'Lumahok',
       'Permission',
       'Willing to join',
+      'Unwilling to join',
+      'Disagree',
+      'Refused',
+      'Declined',
+      'Opted out',
     ])('does not copy the answer past "%s", and lists it for a person', (header) => {
       for (const columns of [
         [consent, columnOf(header, [true, false], 2)],

@@ -112,8 +112,15 @@ const REFUSED_TAGS = new Set([
   'revoked',
   'declined',
   'refused',
+  'denied',
+  'rejected',
+  'hindi',
+  'ayaw',
+  'magulang',
+  'nanay',
+  'tatay',
 ])
-// Starts of header words that may mark a person's own answer about taking part; "participat" leaves out "participant".
+// Parts of header words that may mark a person's own answer about taking part, in English and Filipino; "participat" leaves out "participant".
 const OWN_ANSWER_STEMS = [
   'consent',
   'assent',
@@ -121,10 +128,14 @@ const OWN_ANSWER_STEMS = [
   'participat',
   'permission',
   'willing',
+  'refus',
+  'declin',
+  'opted',
   'pahintulot',
-  'pumayag',
-  'pumapayag',
-  'sumasang',
+  'payag',
+  'sang',
+  'sumali',
+  'lumahok',
 ]
 // Consent fields a column may feed without being the person's own answer about taking part.
 const OTHER_CONSENT_CODES = ['data_processing_consent_recorded', 'guardian_consent_recorded']
@@ -558,7 +569,7 @@ export function draftFormFromImport(input: {
         return (
           !settled &&
           headerTokens(column.header).some((token) =>
-            OWN_ANSWER_STEMS.some((stem) => token.startsWith(stem)),
+            OWN_ANSWER_STEMS.some((stem) => token.includes(stem)),
           )
         )
       })
