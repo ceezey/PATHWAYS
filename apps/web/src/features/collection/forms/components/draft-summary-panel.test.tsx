@@ -248,6 +248,7 @@ describe('DraftSummaryPanel', () => {
       .getByRole('button', { name: 'Participation consent' })
       .closest('tr') as HTMLElement
     expect(within(row).getByText('Same answer as the data processing consent')).toBeTruthy()
+    expect(row.closest('details')?.open).toBe(true)
     rerender(panel(null))
     expect(screen.queryByText(/takes the same answer/)).toBeNull()
   })

@@ -507,6 +507,13 @@ describe('draftFormFromImport rules', () => {
       'Refused consent to data processing',
       'Consent to data use - Parent',
       'Consent to data use - GUARDIAN',
+      'Consent to data use - Parent/Guardian',
+      "Consent to data use - Guardian's",
+      'Consent to data use - Parents/Guardians',
+      'Consent to data use - No',
+      'Consent to data use - Withdrawn',
+      'Consent to data use - Refused',
+      'Consent to data use - Declined',
     ])('keeps "%s" off both consent fields', (header) => {
       const result = draft([columnOf(header, [true, false, true], 1)])
       expect(find(result, 'data_processing_consent_recorded')?.sourceNames).toBeUndefined()
@@ -768,6 +775,13 @@ describe('draftFormFromImport rules', () => {
       'Participation agreement',
       'Assent',
       'Photo use consent',
+      'Consented',
+      'Participating in the program',
+      'Participated',
+      'Pahintulot',
+      'Pumayag',
+      'Permission',
+      'Willing to join',
     ])('does not copy the answer past "%s", and lists it for a person', (header) => {
       for (const columns of [
         [consent, columnOf(header, [true, false], 2)],
@@ -801,6 +815,69 @@ describe('draftFormFromImport rules', () => {
       const own = columnOf('Consent to participate', ['Oo', 'Hindi'], 2)
       const result = draft([consent, own], fields)
       expect(find(result, 'consent_recorded')?.rule).toBeUndefined()
+      expect(result.summary.needsCheck).toContainEqual({
+        fieldCode: 'consent_recorded',
+        reason: 'PARTICIPATION_CONSENT_NO_SOURCE',
+      })
+    })
+
+    describe('on a form whose published version already copies the answer', () => {
+      const published = REGISTRATION.map((field) => {
+        if (field.code === 'consent_recorded')
+          return {
+            ...field,
+            rule: { kind: 'SAME_ANSWER_AS', field: 'data_processing_consent_recorded' } as const,
+          }
+        if (field.code === 'data_processing_consent_recorded')
+          return { ...field, sourceNames: ['Consent to the use of your data'] }
+        return field
+      })
+
+      it.each([0, 1])('stops copying when a new file holds an own answer, order %i', (first) => {
+        const own = columnOf('Consent to participate', [false, true], 2)
+        const columns = first ? [own, { ...consent, columnIndex: 3 }] : [consent, own]
+        const result = draft(columns, published)
+        expect(find(result, 'consent_recorded')?.rule).toBeUndefined()
+        expect(result.summary.needsCheck).toContainEqual({
+          fieldCode: 'consent_recorded',
+          reason: 'PARTICIPATION_CONSENT_NO_SOURCE',
+        })
+      })
+
+      it('keeps copying when the new column is not an own answer', () => {
+        const result = draft(
+          [consent, columnOf('Civil Status', ['Single', 'Married'], 2)],
+          published,
+        )
+        expect(find(result, 'consent_recorded')?.rule?.kind).toBe('SAME_ANSWER_AS')
+        expect(result.summary.needsCheck).toEqual([])
+      })
+
+      it('keeps copying beside an own-answer field the form already has', () => {
+        const fields: DraftField[] = [
+          ...published,
+          {
+            id: 'photo',
+            code: 'photo_use_consent',
+            label: 'Photo use consent',
+            dataType: 'BOOLEAN',
+            required: false,
+            metadataKey: false,
+            sadddField: false,
+            sourceNames: ['Photo use consent'],
+          },
+        ]
+        const photo = columnOf('Photo use consent', [true, false], 2)
+        const other = columnOf('Civil Status', ['Single', 'Married'], 3)
+        const result = draft([consent, photo, other], fields)
+        expect(find(result, 'consent_recorded')?.rule?.kind).toBe('SAME_ANSWER_AS')
+      })
+
+      it('stops copying when the data consent column becomes a new field', () => {
+        const parents = columnOf('Parents consent to data use', [true, false], 1)
+        const result = draft([parents], published)
+        expect(find(result, 'consent_recorded')?.rule).toBeUndefined()
+      })
     })
 
     it.each(['Are you a past program participant?', 'Guardian consent'])(

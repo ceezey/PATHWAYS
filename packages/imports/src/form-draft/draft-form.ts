@@ -93,8 +93,8 @@ const DATA_CONSENT_HEADER_WORDS = new Set([
   'your',
   'my',
 ])
-// A tag after a dash can be a program name, so these are refused there by name.
-const OTHER_PERSON_TAGS = new Set([
+// A tag after a dash can be a program name, so tags naming someone else or a refusal are refused by name.
+const REFUSED_TAGS = new Set([
   'parent',
   'parents',
   'guardian',
@@ -105,17 +105,26 @@ const OTHER_PERSON_TAGS = new Set([
   'caregiver',
   'staff',
   'enumerator',
+  'no',
+  'not',
+  'none',
+  'withdrawn',
+  'revoked',
+  'declined',
+  'refused',
 ])
-// Header words that may mark a person's own answer about taking part.
-const OWN_ANSWER_WORDS = [
+// Starts of header words that may mark a person's own answer about taking part; "participat" leaves out "participant".
+const OWN_ANSWER_STEMS = [
   'consent',
   'assent',
-  'participate',
-  'participation',
   'agree',
-  'agrees',
-  'agreed',
-  'agreement',
+  'participat',
+  'permission',
+  'willing',
+  'pahintulot',
+  'pumayag',
+  'pumapayag',
+  'sumasang',
 ]
 // Consent fields a column may feed without being the person's own answer about taking part.
 const OTHER_CONSENT_CODES = ['data_processing_consent_recorded', 'guardian_consent_recorded']
@@ -156,11 +165,11 @@ const namesField = (header: string, name: string) => {
 
 /**
  * True when a header can only mean the registered person's consent to data use, ignoring a one-word tag such as " - Futuremaker".
- * shortcut: a tag naming someone outside OTHER_PERSON_TAGS still passes, and the item stays listed for a person; upgrade if a file shows one.
+ * shortcut: a plain-word tag outside REFUSED_TAGS still passes, and the item stays listed for a person; upgrade if a file shows one.
  */
 function namesDataConsent(header: string) {
-  const tag = /\s[-–—]\s*(\S+)$/.exec(header)
-  if (tag && OTHER_PERSON_TAGS.has(tag[1].toLowerCase())) return false
+  const tag = /\s[-–—]\s*([A-Za-z0-9]+)$/.exec(header)
+  if (tag && REFUSED_TAGS.has(tag[1].toLowerCase())) return false
   const tokens = headerTokens(tag ? header.slice(0, tag.index) : header)
   return (
     tokens.includes('consent') &&
@@ -537,15 +546,26 @@ export function draftFormFromImport(input: {
       }
     }
     // A yes to data use also stands for taking part (developer's decision, 2026-11-01), unless another column may hold the person's own answer.
-    const participation = consentProposed ? free('consent_recorded') : undefined
-    if (participation && !participation.rule) {
-      const ownAnswer = input.columns.some(
-        (column) =>
-          headerTokens(column.header).some((token) => OWN_ANSWER_WORDS.includes(token)) &&
-          !OTHER_CONSENT_CODES.includes(mapping.get(column.key) ?? ''),
-      )
-      if (ownAnswer) flag(participation.code, 'PARTICIPATION_CONSENT_NO_SOURCE')
-      else {
+    const participation = free('consent_recorded')
+    const copies = participation?.rule?.kind === 'SAME_ANSWER_AS'
+    if (participation && (copies || (consentProposed && !participation.rule))) {
+      const ownAnswer = input.columns.some((column) => {
+        const target = mapping.get(column.key) ?? ''
+        // A form that already copies has settled the fields it holds, so only a field new in this draft counts.
+        const settled = copies
+          ? !summary.addedFields.includes(target)
+          : OTHER_CONSENT_CODES.includes(target)
+        return (
+          !settled &&
+          headerTokens(column.header).some((token) =>
+            OWN_ANSWER_STEMS.some((stem) => token.startsWith(stem)),
+          )
+        )
+      })
+      if (ownAnswer) {
+        participation.rule = undefined
+        flag(participation.code, 'PARTICIPATION_CONSENT_NO_SOURCE')
+      } else if (!copies) {
         participation.rule = { kind: 'SAME_ANSWER_AS', field: 'data_processing_consent_recorded' }
         note(summary.rules, participation.code)
       }

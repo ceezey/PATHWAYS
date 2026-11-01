@@ -152,7 +152,7 @@ export function DraftSummaryPanel({
                 ))}
               </div>
               {rows.length ? (
-                <details className="rounded-lg border border-border">
+                <details className="rounded-lg border border-border" open={copiesDataConsent}>
                   <summary className="min-h-11 cursor-pointer content-center px-4 text-sm font-medium text-primary">
                     Show changed fields ({rows.length})
                   </summary>
