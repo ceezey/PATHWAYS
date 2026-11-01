@@ -901,13 +901,10 @@ describe('draftFormFromImport rules', () => {
       'Are you a past program participant?',
       'Guardian consent',
       'Sangguniang Kabataan member?',
-    ])(
-      'still copies the answer beside "%s"',
-      (header) => {
-        const result = draft([consent, columnOf(header, [true, false], 2)])
-        expect(find(result, 'consent_recorded')?.rule?.kind).toBe('SAME_ANSWER_AS')
-      },
-    )
+    ])('still copies the answer beside "%s"', (header) => {
+      const result = draft([consent, columnOf(header, [true, false], 2)])
+      expect(find(result, 'consent_recorded')?.rule?.kind).toBe('SAME_ANSWER_AS')
+    })
 
     it('sets nothing on a form that is not a registration form', () => {
       const result = draft([consent], REGISTRATION, 'OTHER')
