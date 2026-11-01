@@ -58,7 +58,7 @@ describe('import published form version loading', () => {
     const bars = await screen.findByLabelText('Loading published form versions')
     expect(bars.closest('[data-select-content]')).not.toBeNull()
     expect(screen.getAllByLabelText('Loading published form versions')).toHaveLength(1)
-    expect(screen.getAllByText('Choose form').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Select form version').length).toBeGreaterThan(0)
   })
 
   it('says no forms are available when the project has no published form', async () => {
