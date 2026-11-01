@@ -255,7 +255,7 @@ export const BuilderView = ({
                   field={field}
                   fieldCodes={fields.map((item) => item.code).filter(Boolean)}
                   readOnly={readOnly}
-                  // Every listed item is settled in the field's Advanced Configuration.
+                  // Every listed item is settled in the field's Advance Configuration.
                   attention={draftSummary?.needsCheck.some((item) => item.fieldCode === field.code)}
                   updateField={updateField}
                 />

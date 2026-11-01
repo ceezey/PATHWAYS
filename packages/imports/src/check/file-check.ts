@@ -68,7 +68,7 @@ const duplicated = (code: string, fieldCode: string, values: Record<string, unkn
 }
 
 const NO_COLUMN_MESSAGE =
-  'No column matches. Rename the column, or add its header as a source name under Advanced Configuration.'
+  'No column matches. Rename the column, or add its header as a source name under Advance Configuration.'
 
 /** Finds what would make the server hold rows for one-by-one review, using the server's own matching and validation. */
 export function checkImportFile(input: {

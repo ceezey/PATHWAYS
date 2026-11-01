@@ -37,7 +37,7 @@ const report: FileCheckReport = {
       columnLetter: null,
       code: 'NO_COLUMN',
       message:
-        'No column matches. Rename the column, or add its header as a source name under Advanced Configuration.',
+        'No column matches. Rename the column, or add its header as a source name under Advance Configuration.',
       // Every row of the file lacks the value.
       rowCount: 100,
       exampleRows: [],
@@ -96,7 +96,7 @@ describe('FileCheckDialog', () => {
         .map((cell) => cell.textContent),
     ).toEqual([
       'Enrollment date',
-      'No column matches. Rename the column, or add its header as a source name under Advanced Configuration.',
+      'No column matches. Rename the column, or add its header as a source name under Advance Configuration.',
       '100',
     ])
     expect(within(table).getByText('Rows 4, 9, 12')).toBeTruthy()
