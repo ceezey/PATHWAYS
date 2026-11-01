@@ -95,6 +95,54 @@ describe('OfficerOverview', () => {
     fireEvent.click(screen.getAllByRole('button', { name: 'Submit update' })[0])
     expect(open).toHaveBeenCalledWith(expect.stringMatching(/\/activities\/[^?]+\?action=update$/))
   })
+  it('names the guardian approvals waiting and opens the import, without naming a minor', () => {
+    const open = vi.fn()
+    const batchId = '70000000-0000-4000-8000-000000000001'
+    render(
+      <OfficerOverview
+        data={{
+          ...data,
+          guardianApprovals: {
+            count: 2,
+            rows: [
+              { batchId, projectId: p, projectTitle: 'Water', fileName: 'people.xlsx', count: 2 },
+            ],
+          },
+        }}
+        fullName="Ron"
+        onOpenActivity={open}
+      />,
+    )
+    expect(screen.getByText('Guardian approval · Water')).toBeTruthy()
+    expect(
+      screen.getByText('2 participants under 18 from people.xlsx are waiting for your approval.'),
+    ).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Review' }))
+    expect(open).toHaveBeenCalledWith(`/collection/import?project=${p}&batch=${batchId}`)
+    expect(screen.queryByText(/More imports/)).toBeNull()
+  })
+  it('says when more imports wait than the dashboard lists', () => {
+    const batchId = '70000000-0000-4000-8000-000000000001'
+    render(
+      <OfficerOverview
+        data={{
+          ...data,
+          guardianApprovals: {
+            count: 9,
+            rows: [
+              { batchId, projectId: p, projectTitle: 'Water', fileName: 'people.xlsx', count: 1 },
+            ],
+          },
+        }}
+        fullName="Ron"
+        onOpenActivity={vi.fn()}
+      />,
+    )
+    expect(
+      screen.getByText('1 participant under 18 from people.xlsx is waiting for your approval.'),
+    ).toBeTruthy()
+    expect(screen.getByText(/More imports are waiting/)).toBeTruthy()
+  })
   it('labels a returned submission and formats the amount', () => {
     render(
       <OfficerOverview

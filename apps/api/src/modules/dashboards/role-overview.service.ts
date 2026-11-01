@@ -18,6 +18,7 @@ import {
   approvalQueue,
   escalationQueue,
   extensionQueue,
+  guardianApprovals,
   myExtensions,
   proofQueue,
 } from './role-overview-queues.service'
@@ -151,6 +152,10 @@ export class RoleOverviewService {
                 : can('activities.escalations.read') && actor.roles[0] === 'GRANT_MANAGER'
                   ? await escalationQueue(tx, actor, 'WATCH')
                   : null,
+          guardianApprovals:
+            can('beneficiaries.guardian_consent.approve') && can('imports.read')
+              ? await guardianApprovals(tx, actor)
+              : null,
           datasetsImportedThisMonth: can('imports.read')
             ? await tx.dataImportBatch.count({
                 where: {

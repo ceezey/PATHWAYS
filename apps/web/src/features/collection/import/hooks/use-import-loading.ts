@@ -7,7 +7,7 @@ import { projectsClient } from '@/lib/api/projects'
 
 import type { ImportState } from './use-import-state'
 
-export function useImportLoading(state: ImportState) {
+export function useImportLoading(state: ImportState, targetProjectId?: string) {
   const {
     latest,
     loadAttempt,
@@ -33,9 +33,10 @@ export function useImportLoading(state: ImportState) {
       .then((value) => {
         if (!mounted || !scope.isCurrent()) return
         setProjects(value)
-        // A lone project is chosen for the person; a refetch (or a remount whose key was
-        // recomputed from the same access grants) must not discard the current pick.
-        setProjectId((current) => current || (value.length === 1 ? value[0].id : ''))
+        // A linked or lone project is chosen for the person; a refetch (or a remount whose key
+        // was recomputed from the same access grants) must not discard the current pick.
+        const linked = value.find((project) => project.id === targetProjectId)
+        setProjectId((current) => current || linked?.id || (value.length === 1 ? value[0].id : ''))
         setLoadState('ready')
       })
       .catch(() => mounted && scope.isCurrent() && setLoadState('error'))

@@ -22,6 +22,7 @@ const data = {
   ],
   myActivities: null,
   flaggedProof: null,
+  guardianApprovals: null,
   recentSubmissions: null,
   submittedThisMonth: null,
   proofQueue: {

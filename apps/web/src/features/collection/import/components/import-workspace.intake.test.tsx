@@ -146,6 +146,50 @@ describe('import workspace intake paths', () => {
   })
   afterEach(cleanup)
 
+  describe('a link to an import', () => {
+    const projects = [
+      { id: 'project-1', title: 'Project' },
+      { id: 'project-2', title: 'Second Project' },
+    ]
+    const assigned = state.profile.assignedProjectIds
+    beforeEach(() => {
+      api.getProjects.mockResolvedValue(projects)
+      state.profile = { ...state.profile, assignedProjectIds: ['project-1', 'project-2'] }
+    })
+    afterEach(() => {
+      state.profile = { ...state.profile, assignedProjectIds: assigned }
+    })
+
+    it('chooses the linked project and opens the linked batch', async () => {
+      const linked = batch({ id: 'batch-2', projectId: 'project-2' })
+      api.getImportBatches.mockResolvedValue([linked])
+      api.getImportBatch.mockResolvedValue(linked)
+      render(<ImportWorkspace target={{ projectId: 'project-2', batchId: 'batch-2' }} />, {
+        wrapper: DisplayLabelsProvider,
+      })
+      await waitFor(() => expect(api.getImportBatch).toHaveBeenCalledWith('project-2', 'batch-2'))
+      expect(api.getImportBatches).toHaveBeenCalledWith('project-2')
+      expect(api.getImportBatch).toHaveBeenCalledTimes(1)
+    })
+
+    it('ignores a project outside the list the server gave', async () => {
+      render(<ImportWorkspace target={{ projectId: 'project-9', batchId: 'batch-1' }} />, {
+        wrapper: DisplayLabelsProvider,
+      })
+      await screen.findByText('No project selected')
+      expect(api.getDigitalForms).not.toHaveBeenCalled()
+      expect(api.getImportBatch).not.toHaveBeenCalled()
+    })
+
+    it('opens no batch that is not in the project list', async () => {
+      render(<ImportWorkspace target={{ projectId: 'project-1', batchId: 'batch-9' }} />, {
+        wrapper: DisplayLabelsProvider,
+      })
+      await screen.findByText('people.csv')
+      expect(api.getImportBatch).not.toHaveBeenCalled()
+    })
+  })
+
   describe('prepare form', () => {
     const uploadUncovered = async () => {
       api.getImportBatches.mockResolvedValue([])

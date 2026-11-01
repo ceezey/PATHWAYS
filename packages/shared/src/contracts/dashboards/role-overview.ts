@@ -94,6 +94,17 @@ const approvalRow = z
   })
   .strict()
 
+// Counts only: the dashboard names no minor, and the panel behind Review does.
+const guardianApprovalRow = z
+  .object({
+    batchId: id,
+    projectId: id,
+    projectTitle: text(200),
+    fileName: text(255),
+    count,
+  })
+  .strict()
+
 const alertRow = z
   .object({
     id,
@@ -168,6 +179,7 @@ export const roleOverviewSchema = z
     myExtensions: list(myExtensionRow).nullable(),
     extensionQueue: list(extensionQueueRow).nullable(),
     escalationQueue: list(escalationQueueRow).nullable(),
+    guardianApprovals: list(guardianApprovalRow).nullable(),
     datasetsImportedThisMonth: count.nullable(),
     alerts: z
       .object({
