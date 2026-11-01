@@ -802,7 +802,7 @@ describe('draftFormFromImport rules', () => {
     ])('does not copy the answer past "%s", and lists it for a person', (header) => {
       for (const columns of [
         [consent, columnOf(header, [true, false], 2)],
-        [columnOf(header, [true, false], 1), { ...consent, columnIndex: 2 }],
+        [columnOf(header, [true, false], 2), { ...consent, columnIndex: 3 }],
       ]) {
         const result = draft(columns)
         expect(find(result, 'consent_recorded')?.rule).toBeUndefined()
@@ -897,7 +897,11 @@ describe('draftFormFromImport rules', () => {
       })
     })
 
-    it.each(['Are you a past program participant?', 'Guardian consent'])(
+    it.each([
+      'Are you a past program participant?',
+      'Guardian consent',
+      'Sangguniang Kabataan member?',
+    ])(
       'still copies the answer beside "%s"',
       (header) => {
         const result = draft([consent, columnOf(header, [true, false], 2)])

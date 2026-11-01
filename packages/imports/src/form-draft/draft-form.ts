@@ -134,7 +134,7 @@ const OWN_ANSWER_STEMS = [
   'pahintulot',
   'payag',
   'pumayag',
-  'sang',
+  'ayon',
   'sumali',
   'lumahok',
 ]
