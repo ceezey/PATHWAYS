@@ -136,7 +136,7 @@ describe('DraftSummaryPanel', () => {
     const noColumn = screen
       .getByRole('button', { name: 'Registration operation' })
       .closest('tr') as HTMLElement
-    expect(within(noColumn).getByText('No column')).toBeTruthy()
+    expect(within(noColumn).getByText('No source name')).toBeTruthy()
   })
 
   it('counts what the draft added and says so when nothing needs a check', () => {
@@ -187,20 +187,6 @@ describe('DraftSummaryPanel', () => {
     )
     expect(screen.getByText('No items are waiting.')).toBeTruthy()
     expect(screen.getByText('No fields changed.')).toBeTruthy()
-  })
-
-  it('says what to do when no column was accepted as the ID', () => {
-    render(
-      <DraftSummaryPanel
-        summary={{
-          ...summary,
-          needsCheck: [{ fieldCode: 'external_identifier_value', reason: 'IDENTIFIER_NO_SOURCE' }],
-        }}
-        fields={[]}
-        onSelectField={vi.fn()}
-      />,
-    )
-    expect(screen.getByText(/so every row is held/)).toBeTruthy()
   })
 
   it('names no other consent on a consent item', () => {

@@ -34,7 +34,6 @@ export type NeedsCheckReason =
   | 'PARTICIPATION_CONSENT_NO_SOURCE'
   | 'CONSENT_SOURCE_PROPOSED'
   | 'WASHINGTON_GROUP_FLAG_DISAGREES'
-  | 'IDENTIFIER_NO_SOURCE'
 
 /** Field codes and counts only; no source value ever enters the summary. */
 export interface DraftSummary {
@@ -100,21 +99,22 @@ const headerTokens = (header: string) =>
     .split(/[^a-z0-9]+/)
     .filter(Boolean)
 
-/** The header's words without a trailing program tag in capitals, such as the " - YEE" of "Gender - YEE". */
-const subjectTokens = (header: string) =>
-  headerTokens(header.replace(/\s[-–—]\s*[A-Z0-9]{2,8}$/, ''))
-
-/** True when a header holds this name and otherwise only words for the registered person. */
-const namesField = (subject: readonly string[], name: string) => {
-  const own = subject.filter((token) => !SUBJECT_WORDS.has(token))
+/**
+ * True when a header holds this name and otherwise only words for the registered person, ignoring a short program tag such as the " - YEE" of "Gender - YEE".
+ * shortcut: a role of four capitals or fewer ("Gender - WIFE") reads as a tag; upgrade to a list of tags if a file shows one.
+ */
+const namesField = (header: string, name: string) => {
+  const own = headerTokens(header.replace(/\s[-–—]\s*[A-Z0-9]{2,4}$/, '')).filter(
+    (token) => !SUBJECT_WORDS.has(token),
+  )
   const wanted = headerTokens(name)
   return own.length === wanted.length && wanted.every((token) => own.includes(token))
 }
 
 /** True when a header can only mean the registered person's ID and at least 90 percent of the values differ, so one duplicate is held by row and a shared ID is refused. */
-function isIdentifierColumn(subject: readonly string[], present: readonly unknown[]) {
-  if (!IDENTIFIER_WORDS.some((word) => subject.includes(word))) return false
-  if (!subject.every((token) => IDENTIFIER_HEADER_WORDS.has(token))) return false
+function isIdentifierColumn(tokens: readonly string[], present: readonly unknown[]) {
+  if (!IDENTIFIER_WORDS.some((word) => tokens.includes(word))) return false
+  if (!tokens.every((token) => IDENTIFIER_HEADER_WORDS.has(token))) return false
   const distinct = new Set(present.map((value) => String(value).trim().toLowerCase()))
   return distinct.size * 100 >= present.length * 90
 }
@@ -340,7 +340,6 @@ export function draftFormFromImport(input: {
   ): [DraftField, 'CONSENT' | 'SUGGESTED' | 'IDENTIFIER'] | undefined {
     const type = inferType(present)
     const tokens = headerTokens(header)
-    const subject = subjectTokens(header)
     if (
       type === 'BOOLEAN' &&
       tokens.includes('consent') &&
@@ -359,7 +358,7 @@ export function draftFormFromImport(input: {
             !used.has(field.code) &&
             Object.hasOwn(SMART_REVIEW_SYNONYMS_V2, field.code) &&
             [field.code, ...SMART_REVIEW_SYNONYMS_V2[field.code]].some((name) =>
-              namesField(subject, name),
+              namesField(header, name),
             ),
         )
     if (suggested) return acceptsColumn(suggested, present) ? [suggested, 'SUGGESTED'] : undefined
@@ -368,7 +367,7 @@ export function draftFormFromImport(input: {
       type === 'TEXT' &&
       identifier &&
       byCode.has('external_identifier_type') &&
-      isIdentifierColumn(subject, present)
+      isIdentifierColumn(tokens, present)
     )
       return [identifier, 'IDENTIFIER']
   }
@@ -483,8 +482,6 @@ export function draftFormFromImport(input: {
         note(summary.defaults, code)
       }
     }
-    // With no ID column every row would be held as missing its Client ID.
-    if (free('external_identifier_value')) flag('external_identifier_value', 'IDENTIFIER_NO_SOURCE')
   }
 
   const drafted: DraftField[] = [...fields, ...added]

@@ -173,7 +173,7 @@ export function DraftSummaryPanel({
                                 </p>
                               ) : null}
                             </TableCell>
-                            <TableCell className="max-w-[22rem] whitespace-normal align-top text-sm">
+                            <TableCell className="max-w-[22rem] align-top text-sm">
                               {columnsOf(code).length ? (
                                 columnsOf(code).map((name) => (
                                   <p key={name} className="break-words">
@@ -181,7 +181,7 @@ export function DraftSummaryPanel({
                                   </p>
                                 ))
                               ) : (
-                                <span className="text-muted-foreground">No column</span>
+                                <span className="text-muted-foreground">No source name</span>
                               )}
                             </TableCell>
                             <TableCell className="align-top">

@@ -93,7 +93,6 @@ describe('BuilderView draft summary', () => {
   it.each([
     ['ENUM_ANSWER_UNRESOLVED', true],
     ['PARTICIPATION_CONSENT_NO_SOURCE', true],
-    ['IDENTIFIER_NO_SOURCE', true],
     ['WASHINGTON_GROUP_FLAG_DISAGREES', false],
   ] as const)('opens Advanced Configuration for %s: %s', (reason, open) => {
     const field = initialFields[0]

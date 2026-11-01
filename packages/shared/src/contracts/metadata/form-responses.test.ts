@@ -91,7 +91,6 @@ describe('form response contracts', () => {
       { fieldCode: 'x', reason: 'IDENTIFIER_PROPOSED' },
       { fieldCode: 'x', reason: 'COLUMN_MOVED_OFF_CALCULATED' },
       { fieldCode: 'consent_recorded', reason: 'PARTICIPATION_CONSENT_NO_SOURCE' },
-      { fieldCode: 'external_identifier_value', reason: 'IDENTIFIER_NO_SOURCE' },
     ]
     const parsed = draftSummaryResponse.parse({
       addedFields: [],
@@ -102,7 +101,7 @@ describe('form response contracts', () => {
       rules: [],
       needsCheck,
     })
-    expect(parsed.needsCheck).toEqual([needsCheck[3], needsCheck[6], needsCheck[7]])
+    expect(parsed.needsCheck).toEqual([needsCheck[3], needsCheck[6]])
     const onConsent = draftSummaryResponse.parse({
       addedFields: [],
       sourceNamesAdded: [],

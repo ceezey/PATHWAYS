@@ -619,14 +619,18 @@ describe('draftFormFromImport rules', () => {
     const sources = (result: ReturnType<typeof draft>, code: string) =>
       find(result, code)?.sourceNames
 
-    it.each(['Guardian Gender', 'Mother Gender', 'Gender of Guardian', 'Gender - Guardian'])(
-      'keeps "%s" out of sex',
-      (header) => {
-        const result = draft([columnOf(header, answers, 1)])
-        expect(sources(result, 'sex')).toBeUndefined()
-        expect(result.summary.addedFields).toHaveLength(1)
-      },
-    )
+    it.each([
+      'Guardian Gender',
+      'Mother Gender',
+      'Gender of Guardian',
+      'Gender - Guardian',
+      'Gender - MOTHER',
+      'Sex - SPOUSE',
+    ])('keeps "%s" out of sex', (header) => {
+      const result = draft([columnOf(header, answers, 1)])
+      expect(sources(result, 'sex')).toBeUndefined()
+      expect(result.summary.addedFields).toHaveLength(1)
+    })
 
     it.each([
       'Gender - YEE',
@@ -646,6 +650,10 @@ describe('draftFormFromImport rules', () => {
       'Household ID',
       'Training Certificate',
       'Project ID - YEE',
+      'ID - GUARDIAN',
+      'ID - STAFF',
+      'National ID - MOTHER',
+      'Learner ID - YEE',
     ])('keeps "%s" out of the participant ID', (header) => {
       const result = draft([columnOf(header, ids, 1)])
       expect(sources(result, 'external_identifier_value')).toBeUndefined()
@@ -661,7 +669,6 @@ describe('draftFormFromImport rules', () => {
       'Student ID/Barangay Certificate No',
       'Birth Certificate',
       'National ID',
-      'Learner ID - YEE',
     ])('still sends "%s" to the participant ID', (header) => {
       const result = draft([columnOf(header, ids, 1)])
       expect(sources(result, 'external_identifier_value')).toEqual([header])
@@ -703,25 +710,9 @@ describe('draftFormFromImport rules', () => {
     })
   })
 
-  describe('a registration file with no usable ID column', () => {
-    const noId = { fieldCode: 'external_identifier_value', reason: 'IDENTIFIER_NO_SOURCE' }
-
-    it('lists one item, because every row would otherwise be held', () => {
-      const guardian = columnOf('Guardian ID', ['A-1', 'A-2'], 1)
-      expect(draft([guardian]).summary.needsCheck).toEqual([noId])
-    })
-
-    it('lists nothing when a column feeds the ID, by proposal or automatic mapping', () => {
-      const proposed = draft([columnOf('Student ID', ['A-1', 'A-2'], 1)])
-      expect(proposed.summary.needsCheck).not.toContainEqual(noId)
-      const mapped = draft([columnOf('External identifier value', ['A-1', 'A-2'], 1)])
-      expect(mapped.summary.needsCheck).not.toContainEqual(noId)
-    })
-
-    it('lists nothing on a form that is not a registration form', () => {
-      const other = draft([columnOf('Guardian ID', ['A-1', 'A-2'], 1)], REGISTRATION, 'OTHER')
-      expect(other.summary.needsCheck).not.toContainEqual(noId)
-    })
+  it('lists nothing for a file with no ID column, because its rows go by Beneficiary code', () => {
+    const result = draft([columnOf('Guardian ID', ['A-1', 'A-2'], 1)])
+    expect(result.summary.needsCheck).toEqual([])
   })
 
   describe('a column of lettered answers', () => {
