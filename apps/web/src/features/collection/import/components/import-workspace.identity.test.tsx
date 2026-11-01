@@ -135,7 +135,7 @@ describe('import screen upload identity', () => {
   })
   it('starts a new import id for a different form', async () => {
     const { first, second } = await lostThenChanged(() => {
-      pick('Published form version', 'form-2')
+      pick('Published form(s)', 'form-2')
       pickFile(notes)
     })
     expect(second.slice(0, 2)).toEqual(['project-1', 'form-2'])

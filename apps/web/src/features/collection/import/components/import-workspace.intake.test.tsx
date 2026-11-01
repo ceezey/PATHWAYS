@@ -223,7 +223,7 @@ describe('import workspace intake paths', () => {
     it('has no form version choice, because nothing reads it without an upload', async () => {
       asAdministrator()
       await openBatch()
-      expect(screen.queryByText('Published form version')).toBeNull()
+      expect(screen.queryByText('Published form(s)')).toBeNull()
     })
 
     it('reads as a list of batches, with no words about uploading', async () => {

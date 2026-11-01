@@ -128,7 +128,7 @@ export function ImportUploadCard({
             }}
           >
             <SelectTrigger>
-              <SelectValue placeholder="Choose project" />
+              <SelectValue placeholder="Select project" />
             </SelectTrigger>
             <SelectContent>
               {projects.map((project) => (
@@ -141,7 +141,7 @@ export function ImportUploadCard({
         </div>
         {isSystemAdministrator ? null : (
           <div className="space-y-2">
-            <Label>Published form version</Label>
+            <Label>Published form(s)</Label>
             <Select
               value={formId}
               onValueChange={(value) => {
@@ -158,7 +158,7 @@ export function ImportUploadCard({
                       ? 'Forms could not be loaded.'
                       : projectId && formsState === 'ready' && forms.length === 0
                         ? 'No forms available.'
-                        : 'Choose form'
+                        : 'Select form version'
                   }
                 />
               </SelectTrigger>

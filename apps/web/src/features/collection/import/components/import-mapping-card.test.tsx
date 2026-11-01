@@ -38,7 +38,7 @@ const renderCard = (
     <ImportMappingCard
       batch={{ ...batch, ...over.batch } as ImportBatchDefinition}
       intake={{ prepareForm }}
-      review={{ confirmSuggestions: vi.fn(), saveMapping: vi.fn(), validate: vi.fn() }}
+      review={{ confirmSuggestions: vi.fn(), validate: vi.fn() }}
       run={{ process: vi.fn(), processingInterrupted: false }}
       state={{
         canManageForms: over.canManageForms ?? true,
