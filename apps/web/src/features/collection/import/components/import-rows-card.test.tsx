@@ -40,17 +40,17 @@ describe('ImportRowsCard warnings', () => {
     expect(screen.queryByText(/AGE_MISMATCH/)).toBeNull()
   })
 
-  it('starts filtered to rows with warnings and shows every row once unchecked', () => {
+  it('rows card filters to rows with warnings', () => {
     render(<ImportRowsCard state={state} />)
-    expect(screen.queryByText('value-1', { exact: false })).toBeNull()
-    expect(screen.getByText('value-2', { exact: false })).toBeTruthy()
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Show only rows with warnings' }))
     expect(screen.getByText('value-1', { exact: false })).toBeTruthy()
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Show only rows with warnings' }))
+    expect(screen.queryByText('value-1', { exact: false })).toBeNull()
     expect(screen.getByText('value-2', { exact: false })).toBeTruthy()
   })
 
   it('says so when no loaded row has a warning', () => {
     render(<ImportRowsCard state={{ ...state, rows: [row(1, [])] }} />)
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Show only rows with warnings' }))
     expect(screen.getByText('No loaded rows have warnings.')).toBeTruthy()
   })
 
@@ -60,7 +60,6 @@ describe('ImportRowsCard warnings', () => {
       { ...row(4, []), status: 'FAILED', processingErrorCode: 'RETRY_LIMIT_EXCEEDED' },
     ] as ImportRowDefinition[]
     render(<ImportRowsCard state={{ ...state, rows }} />)
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Show only rows with warnings' }))
     expect(screen.getByText('Values differ from PATHWAYS')).toBeTruthy()
     expect(screen.getByText('Retry limit exceeded')).toBeTruthy()
     expect(screen.queryByText('Needs review')).toBeNull()
