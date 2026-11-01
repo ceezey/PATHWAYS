@@ -54,32 +54,27 @@ const OwnedProfileWorkspace = ({ owner: draftOwner }: { owner: SensitiveDraftOwn
   const [state, setState] = useState<{ owner: string; record: OwnProfileResponse } | null>(null)
   const [notice, setNotice] = useState('')
   const [busy, setBusy] = useState(false)
-  const [attempt, setAttempt] = useState(0)
-  const latestAttempt = useRef(attempt)
-  latestAttempt.current = attempt
   const inFlight = useRef(false)
   const record = state?.owner === owner ? state.record : null
 
   useEffect(() => {
     let active = true
-    const requestAttempt = attempt
     setState(null)
     setNotice('')
     if (isCurrent())
       void ownProfileClient
         .read()
         .then((record) => {
-          if (active && requestAttempt === latestAttempt.current && isCurrent())
-            setState({ owner, record })
+          if (active && isCurrent()) setState({ owner, record })
         })
         .catch(() => {
-          if (active && requestAttempt === latestAttempt.current && isCurrent())
-            setNotice('Profile could not be loaded. Retry after checking your connection.')
+          if (active && isCurrent())
+            setNotice('Profile could not be loaded. Check your connection and reload the page.')
         })
     return () => {
       active = false
     }
-  }, [owner, attempt, isCurrent])
+  }, [owner, isCurrent])
 
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -103,23 +98,12 @@ const OwnedProfileWorkspace = ({ owner: draftOwner }: { owner: SensitiveDraftOwn
         refreshAccess()
       }
     } catch {
-      if (isCurrent()) setNotice('Profile could not be saved. Reload the profile before retrying.')
+      if (isCurrent()) setNotice('Profile could not be saved. Reload the page before retrying.')
     } finally {
       inFlight.current = false
       if (isCurrent()) setBusy(false)
     }
   }
-
-  const reload = (
-    <Button
-      disabled={busy}
-      onClick={() => setAttempt((value) => value + 1)}
-      type="button"
-      variant="outline"
-    >
-      Reload profile
-    </Button>
-  )
 
   return (
     <div className="space-y-6">
@@ -167,20 +151,14 @@ const OwnedProfileWorkspace = ({ owner: draftOwner }: { owner: SensitiveDraftOwn
                 />
               </div>
               <p className="text-sm">Email address: {email || 'Not recorded'}</p>
-              <div className="flex items-center justify-between gap-2">
-                <Button disabled={busy} type="submit">
-                  {busy ? 'Saving...' : 'Save profile'}
-                </Button>
-                {reload}
-              </div>
+              <Button disabled={busy} type="submit">
+                {busy ? 'Saving...' : 'Save profile'}
+              </Button>
             </form>
           ) : (
-            <>
-              <output className="text-sm">Loading profile...</output>
-              <div className="mt-4 flex justify-end">{reload}</div>
-            </>
+            !notice && <output className="text-sm">Loading profile...</output>
           )}
-          {notice && <output className="mt-4 block text-sm">{notice}</output>}
+          {notice && <output className={`${record ? 'mt-4 ' : ''}block text-sm`}>{notice}</output>}
         </SectionCard>
         <SectionCard title="Change password" description="Requires a fresh account verification.">
           <OwnPasswordForm />
