@@ -99,10 +99,18 @@ describe('BeneficiaryAccessGate (server-verified step-up)', () => {
     expect(screen.queryByText('Verify beneficiary module access')).toBeNull()
   })
 
-  it('does not offer the Reset button while it is hidden', async () => {
+  it('Reset clears the code, restores the prompt and returns focus to the first box', async () => {
     render(<BeneficiaryAccessGate preflight>{content}</BeneficiaryAccessGate>)
-    expect(await screen.findByText('Verify beneficiary module access')).toBeTruthy()
-    expect(screen.queryByRole('button', { name: 'Reset' })).toBeNull()
+    await screen.findByText('Verify beneficiary module access')
+    fireEvent.change(codeInput(), { target: { value: '12' } })
+    expect(document.activeElement).not.toBe(codeInput())
+
+    fireEvent.click(screen.getByRole('button', { name: 'Reset' }))
+    expect(screen.getByText('Enter the six-digit code from your authenticator app.')).toBeTruthy()
+    expect((codeInput() as HTMLInputElement).value).toBe('')
+    expect(document.activeElement).toBe(codeInput())
+    expect(mocks.verify).not.toHaveBeenCalled()
+    expect(screen.queryByText('Scoped beneficiary content')).toBeNull()
   })
 
   it('keeps details hidden until the server accepts a re-verified authenticator code', async () => {
