@@ -13,7 +13,7 @@ const sectionOfReason: Partial<Record<NeedsCheckReason, 'source' | 'aliases' | '
 export const settledInIntake = (reason: NeedsCheckReason) => reason in sectionOfReason
 
 const highlight = 'bg-warning-subtle'
-const highlightMs = 2000
+export const highlightMs = 2000
 let clearHighlight: (() => void) | undefined
 
 /** Opens the field's Advanced Configuration, scrolls to the control for this item, highlights it briefly and moves focus there. */

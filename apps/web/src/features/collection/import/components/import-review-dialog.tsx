@@ -28,7 +28,8 @@ import { importsClient } from '@/lib/api/imports'
 import { cn } from '@/lib/utils'
 
 import { selectClass } from '../../forms/components/intake-controls'
-import { headClass, reviewReason } from '../import.utils'
+import { highlightMs } from '../../forms/components/reveal-intake-section'
+import { fieldsOfReason, headClass, reviewReason } from '../import.utils'
 import { ChoiceCell, OwnValue, calculationHint, ownPayload } from './import-review-cells'
 
 type Choice = 'PATHWAYS' | 'FILE' | 'CALCULATED' | 'OWN'
@@ -63,6 +64,7 @@ export function ImportReviewDialog({
   const [errors, setErrors] = useState<Record<string, string[]>>({})
   const [notice, setNotice] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [highlighting, setHighlighting] = useState(false)
   const sending = useRef(false)
 
   useEffect(() => {
@@ -93,17 +95,26 @@ export function ImportReviewDialog({
     picks[field.code] ?? autoPick(field)
   const labelOf = (code: string) =>
     review?.fields.find((field) => field.code === code)?.label ?? code
-  // Fields to decide, and the answers their rules read, are where the reviewer fixes the row.
+  // Fields to decide, and the answers their rules read, are where the reviewer fixes the row; a row with none is checked where its reason points.
+  const changedFields = review?.fields.filter((field) => field.changed) ?? []
   const flagged = new Set(
-    review?.fields
-      .filter((field) => field.changed)
-      .flatMap((field) => [field.code, ...(field.rule ? ruleFieldCodes(field.rule) : [])]),
+    changedFields.length
+      ? changedFields.flatMap((field) => [
+          field.code,
+          ...(field.rule ? ruleFieldCodes(field.rule) : []),
+        ])
+      : (fieldsOfReason[review?.reason ?? ''] ?? []),
   )
   const firstFlagged = review?.fields.find((field) => flagged.has(field.code))?.code
-  // Opening the window brings the first field to fix into view.
+  // Opening the window leads to the first field to check and highlights the flagged fields briefly.
   useEffect(() => {
-    if (firstFlagged)
-      document.getElementById(`${id}-row-${firstFlagged}`)?.scrollIntoView({ block: 'center' })
+    if (!firstFlagged) return
+    const row = document.getElementById(`${id}-row-${firstFlagged}`)
+    row?.scrollIntoView({ block: 'center' })
+    row?.focus({ preventScroll: true })
+    setHighlighting(true)
+    const timer = setTimeout(() => setHighlighting(false), highlightMs)
+    return () => clearTimeout(timer)
   }, [firstFlagged, id])
   const canSaveUpdate = Boolean(review?.participant) && canUpdate
   // Consent cannot be typed in, so a row without it waits for a corrected file.
@@ -250,15 +261,16 @@ export function ImportReviewDialog({
                   return (
                     <TableRow
                       className={cn(
-                        'align-top',
+                        'align-top duration-500 focus:outline-none',
                         flagged.has(code)
-                          ? 'bg-warning-subtle hover:bg-warning-subtle'
+                          ? highlighting && 'bg-warning-subtle hover:bg-warning-subtle'
                           : !open && 'bg-surface-subtle text-muted-foreground',
                       )}
                       data-flagged={flagged.has(code)}
                       data-unchanged={!open}
                       id={`${id}-row-${code}`}
                       key={code}
+                      tabIndex={flagged.has(code) ? -1 : undefined}
                     >
                       <TableCell className="font-medium">
                         {label}

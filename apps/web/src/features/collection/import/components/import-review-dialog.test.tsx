@@ -389,6 +389,51 @@ describe('import review dialog', () => {
     expect(await sent()).toMatchObject({ saveAs: 'NEW', choices: { age_stated: 'CALCULATED' } })
   })
 
+  describe('leading to the field', () => {
+    const openHeld = async (reason: string) => {
+      const fields = review().fields.map((field) => ({ ...field, changed: false }))
+      api.getRowReview.mockResolvedValue({ ...review(), reason, fields })
+      render(
+        <ImportReviewDialog
+          batchId="batch-1"
+          canUpdate
+          onClose={onClose}
+          onResolved={onResolved}
+          projectId="project-1"
+          rowId="row-1"
+          validationRevision={3}
+        />,
+      )
+      await screen.findByRole('button', { name: 'First name, In this file: Anna' })
+      return [...document.querySelectorAll<HTMLElement>('tr[data-flagged="true"]')]
+    }
+
+    it('leads to the birth date of a minor with nothing to decide, then fades the highlight', async () => {
+      const [row, ...rest] = await openHeld('GUARDIAN_CONSENT_REQUIRED')
+      expect(rest).toHaveLength(0)
+      expect(row.textContent).toContain('Birth date (check this field)')
+      expect(scrolled.mock.contexts[0]).toBe(row)
+      expect(document.activeElement).toBe(row)
+      await waitFor(() => expect(row.className).toContain('bg-warning-subtle'))
+      await waitFor(() => expect(row.className).not.toContain('bg-warning-subtle'), {
+        timeout: 2500,
+      })
+      // The words stay after the color fades, so the field is still named.
+      expect(row.textContent).toContain('(check this field)')
+    })
+
+    it('leads to the consent field of a row held for missing consent', async () => {
+      const [row] = await openHeld('CONSENT_REQUIRED')
+      expect(row.textContent).toContain('Consent recorded (check this field)')
+      expect(document.activeElement).toBe(row)
+    })
+
+    it('flags nothing for a reason with no fields of its own', async () => {
+      expect(await openHeld('PROFILE_CHANGED')).toHaveLength(0)
+      expect(scrolled).not.toHaveBeenCalled()
+    })
+  })
+
   it('a minor who now waits for a Project Officer is said so', async () => {
     api.resolveRow.mockResolvedValue({ status: 'WAITING_FOR_PROJECT_OFFICER' })
     await open()

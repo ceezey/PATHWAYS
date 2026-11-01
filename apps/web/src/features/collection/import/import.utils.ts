@@ -1,5 +1,5 @@
 import type { FileCheckReport } from '@pathways/imports'
-import type { ImportHoldCode } from '@pathways/shared'
+import { CONSENT_FIELD_CODES, type ImportHoldCode } from '@pathways/shared'
 
 import type { ImportBatchDefinition, ImportRowDefinition } from '@/types/pathways'
 
@@ -74,6 +74,22 @@ const holdReasons: Record<ImportHoldCode, string> = {
   PROFILE_CHANGED: 'Values differ from PATHWAYS',
   IDENTITY_CONFLICT: 'Client ID belongs to a participant with different details',
   IDENTITY_MISSING: 'Client ID is missing',
+}
+
+const identityFields = ['first_name', 'last_name', 'birth_date', 'external_identifier_value']
+
+// Where a reviewer checks a held row that has no changed value to decide.
+export const fieldsOfReason: Partial<Record<string, readonly string[]>> = {
+  CONSENT_REQUIRED: CONSENT_FIELD_CODES,
+  GUARDIAN_CONSENT_REQUIRED: ['birth_date', 'guardian_consent_recorded'],
+  AMBIGUOUS_IDENTITY: identityFields,
+  IDENTITY_REVIEW_REQUIRED: identityFields,
+  DUPLICATE_IDENTITY: identityFields,
+  UNKNOWN_IDENTITY: identityFields,
+  IDENTIFIER_CODE_CONFLICT: ['external_identifier_value'],
+  SUBJECT_TYPE_CONFLICT: ['subject_type'],
+  IDENTITY_CONFLICT: identityFields,
+  IDENTITY_MISSING: ['external_identifier_value'],
 }
 
 // Why an invalid registration row waits for a reviewer, by its validation code.
