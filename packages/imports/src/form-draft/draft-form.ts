@@ -111,7 +111,10 @@ const namesField = (header: string, name: string) => {
   return own.length === wanted.length && wanted.every((token) => own.includes(token))
 }
 
-/** True when a header can only mean the registered person's ID and at least 90 percent of the values differ, so one duplicate is held by row and a shared ID is refused. */
+/**
+ * True when a header can only mean the registered person's ID and at least 90 percent of the values differ, so one duplicate is held by row and a shared ID is refused.
+ * shortcut: one or two rows always pass the 90 percent test and "Barangay ID" could be a location code; upgrade if a small file or a form shows one.
+ */
 function isIdentifierColumn(tokens: readonly string[], present: readonly unknown[]) {
   if (!IDENTIFIER_WORDS.some((word) => tokens.includes(word))) return false
   if (!tokens.every((token) => IDENTIFIER_HEADER_WORDS.has(token))) return false
@@ -173,7 +176,7 @@ function labelsRunInOrder(labels: readonly string[]) {
 /**
  * True for a lettered choice list: at least 90 percent lettered, each label meaning one answer,
  * labels in order, and repeated answers. This keeps most lettered personal data ("J. Cruz", "1. Juan") out of options.
- * shortcut: names whose initials happen to run in order ("L. Cruz", "M. Santos") still pass; upgrade if a form ever shows one.
+ * shortcut: names whose initials happen to run in order ("L. Cruz", "M. Santos") still pass and a one-answer list stays text; upgrade if a form ever shows one.
  */
 function isChoiceColumn(texts: readonly string[]) {
   if (texts.filter(hasLetterPrefix).length * 100 < texts.length * 90) return false

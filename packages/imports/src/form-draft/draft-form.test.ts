@@ -710,7 +710,7 @@ describe('draftFormFromImport rules', () => {
     })
   })
 
-  it('lists nothing for a file with no ID column, because its rows go by Beneficiary code', () => {
+  it('lists nothing for a file with no ID column', () => {
     const result = draft([columnOf('Guardian ID', ['A-1', 'A-2'], 1)])
     expect(result.summary.needsCheck).toEqual([])
   })
