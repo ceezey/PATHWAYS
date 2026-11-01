@@ -29,9 +29,11 @@ const ReasonHelp = ({ text, rowNumber }: { text?: string; rowNumber: number }) =
 /** The batch results and the rows held for a person to decide. */
 export function ImportHeldList({
   batch,
+  leadToGuardian,
   onChanged,
 }: {
   batch: ImportBatchDefinition
+  leadToGuardian?: boolean
   onChanged: () => Promise<void> | void
 }) {
   const { profile } = useCurrentRole()
@@ -160,6 +162,7 @@ export function ImportHeldList({
       </Card>
       <GuardianApprovalPanel
         batchId={batch.id}
+        lead={leadToGuardian}
         onApproved={onChanged}
         projectId={batch.projectId}
         rows={minors}

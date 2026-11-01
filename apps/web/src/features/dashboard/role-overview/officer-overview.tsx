@@ -2,6 +2,7 @@ import type { RoleOverview } from '@pathways/shared'
 
 import { StatusBadge } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
+import { plural } from '@/lib/format/plural'
 import {
   AccentKpi,
   DashboardHeading,
@@ -20,6 +21,9 @@ const proofHref = (row: { projectId: string; activityId: string; updateId: strin
   `${activityHref(row.projectId, row.activityId)}?proof=${row.updateId}`
 const updateHref = (projectId: string, activityId: string) =>
   `${activityHref(projectId, activityId)}?action=update`
+// Opens the import and leads to its guardian approval panel.
+const guardianHref = (row: { projectId: string; batchId: string }) =>
+  `/collection/import?project=${row.projectId}&batch=${row.batchId}`
 const peso = (amount: string) =>
   `PHP ${Number(amount).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`
 const longDate = (day: string) =>
@@ -62,6 +66,7 @@ export const OfficerOverview = ({
   const activities = data.myActivities
   const overdue = activities?.rows.filter((row) => row.overdue) ?? []
   const flagged = data.flaggedProof
+  const guardians = data.guardianApprovals?.rows ?? []
   // Returned and declined requests carry the reviewer note back to the requester.
   const extensionNotices =
     data.myExtensions?.rows.filter(
@@ -171,9 +176,32 @@ export const OfficerOverview = ({
             })}
           </ListCard>
         ) : null}
-        {activities || flagged ? (
+        {activities || flagged || data.guardianApprovals ? (
           <section className="space-y-3 rounded-xl border border-border bg-card p-4">
             <h3 className="text-sm font-semibold text-foreground">Needs your attention</h3>
+            {guardians.map((row) => (
+              <div
+                className="space-y-2 rounded-lg border border-warning/40 bg-warning-subtle p-3"
+                key={row.batchId}
+              >
+                <p className="text-sm font-semibold text-foreground">
+                  Guardian approval · {row.projectTitle}
+                </p>
+                <p className="text-sm text-foreground">
+                  {plural(row.count, 'participant')} under 18 from {row.fileName}{' '}
+                  {row.count === 1 ? 'is' : 'are'} waiting for your approval.
+                </p>
+                <Button onClick={() => onOpenActivity(guardianHref(row))} size="sm" type="button">
+                  Review
+                </Button>
+              </div>
+            ))}
+            {(data.guardianApprovals?.count ?? 0) >
+            guardians.reduce((total, row) => total + row.count, 0) ? (
+              <p className="text-sm text-muted-foreground">
+                More imports are waiting. Open Collection to see them all.
+              </p>
+            ) : null}
             {flagged?.rows.map((row) => (
               <div
                 className="space-y-2 rounded-lg border border-warning/40 bg-warning-subtle p-3"
@@ -233,7 +261,10 @@ export const OfficerOverview = ({
                 </Button>
               </div>
             ))}
-            {!flagged?.rows.length && !overdue.length && !extensionNotices.length ? (
+            {!guardians.length &&
+            !flagged?.rows.length &&
+            !overdue.length &&
+            !extensionNotices.length ? (
               <p className="py-4 text-center text-sm text-muted-foreground">
                 Nothing needs your attention.
               </p>

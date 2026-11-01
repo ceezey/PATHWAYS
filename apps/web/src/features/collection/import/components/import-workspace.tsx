@@ -2,6 +2,7 @@
 
 import { ArrowLeft, FileSearch } from 'lucide-react'
 import Link from 'next/link'
+import { useEffect, useRef } from 'react'
 
 import { PageHeader } from '@/components/layout/page-header'
 import { AsyncState, EmptyState } from '@/components/pathways'
@@ -24,7 +25,10 @@ import { ImportProcessingPanel } from './import-processing-panel'
 import { ImportRowsCard } from './import-rows-card'
 import { ImportUploadCard } from './import-upload-card'
 
-export function ImportWorkspace() {
+// An import a link asks to open, such as a dashboard guardian approval.
+type ImportTarget = { projectId: string; batchId: string }
+
+export function ImportWorkspace({ target }: { target?: ImportTarget }) {
   const { profile } = useCurrentRole()
   const scope = useSensitiveDraftOwner(profile, 'import-workspace', 'imports.read', null, null)
   if (!scope) return <output>Current import access is required.</output>
@@ -36,12 +40,21 @@ export function ImportWorkspace() {
     [...(profile?.permissions ?? [])].sort(),
     [...(profile?.assignedProjectIds ?? [])].sort(),
   ])
-  return <OwnedImportWorkspace key={scope.key + scope.generation + accessKey} scope={scope} />
+  return (
+    <OwnedImportWorkspace
+      key={scope.key + scope.generation + accessKey}
+      scope={scope}
+      target={target}
+    />
+  )
 }
-function OwnedImportWorkspace({ scope }: { scope: SensitiveDraftOwner }) {
+function OwnedImportWorkspace({
+  scope,
+  target,
+}: { scope: SensitiveDraftOwner; target?: ImportTarget }) {
   const { labels } = useDisplayLabels()
   const state = useImportState(scope)
-  useImportLoading(state)
+  useImportLoading(state, target?.projectId)
   const review = useBatchReview(state)
   const run = useBatchProcessing(state, review)
   const intake = useBatchIntake(state, review, run)
@@ -58,6 +71,13 @@ function OwnedImportWorkspace({ scope }: { scope: SensitiveDraftOwner }) {
     sourceColumns,
   } = state
   const { process, stopProcessing, visibleProcessing } = run
+  const targetOpened = useRef(false)
+  // biome-ignore lint/correctness/useExhaustiveDependencies: opens once, when the linked batch reaches the server's list.
+  useEffect(() => {
+    if (targetOpened.current || !state.batches.some((item) => item.id === target?.batchId)) return
+    targetOpened.current = true
+    void review.loadBatch(target?.batchId as string)
+  }, [state.batches])
   return (
     <div className="space-y-6">
       <PageHeader
@@ -138,7 +158,11 @@ function OwnedImportWorkspace({ scope }: { scope: SensitiveDraftOwner }) {
                   batch={batch}
                 />
 
-                <ImportHeldList batch={batch} onChanged={() => review.loadBatch(batch.id)} />
+                <ImportHeldList
+                  batch={batch}
+                  leadToGuardian={batch.id === target?.batchId}
+                  onChanged={() => review.loadBatch(batch.id)}
+                />
 
                 {sourceColumns.length > 0 ? (
                   // Keyed by batch so the decision filter and other card state never carry over.

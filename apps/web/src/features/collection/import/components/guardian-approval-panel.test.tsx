@@ -42,6 +42,10 @@ const sizes = () =>
     (call) => (call[2] as { rowIds: string[] }).rowIds.length,
   )
 
+// jsdom has no scrollIntoView.
+const scrolled = vi.fn()
+Element.prototype.scrollIntoView = scrolled
+
 describe('guardian approval panel', () => {
   beforeEach(() => {
     vi.resetAllMocks()
@@ -54,6 +58,31 @@ describe('guardian approval panel', () => {
     )
   })
   afterEach(cleanup)
+
+  it('leads to the panel with a brief highlight when asked, and only then', async () => {
+    const view = render(
+      <GuardianApprovalPanel
+        batchId="batch-1"
+        lead
+        onApproved={onApproved}
+        projectId="project-1"
+        rows={rows(1)}
+      />,
+    )
+    const section = screen.getByRole('region', { name: 'Guardian approval' })
+    expect(scrolled.mock.contexts[0]).toBe(section)
+    expect(document.activeElement).toBe(section)
+    const card = section.firstElementChild as HTMLElement
+    await waitFor(() => expect(card.className).toContain('bg-warning-subtle'))
+    await waitFor(() => expect(card.className).not.toContain('bg-warning-subtle'), {
+      timeout: 2500,
+    })
+    view.unmount()
+
+    scrolled.mockClear()
+    show(1)
+    expect(scrolled).not.toHaveBeenCalled()
+  })
 
   it('select all then approve sends every row id', async () => {
     show(3)

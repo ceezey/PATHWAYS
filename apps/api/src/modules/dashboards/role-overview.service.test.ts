@@ -55,7 +55,11 @@ function setup() {
       findMany: vi.fn().mockResolvedValue([]),
       count: vi.fn().mockResolvedValue(0),
     },
-    dataImportBatch: { count: vi.fn().mockResolvedValue(2) },
+    dataImportBatch: {
+      count: vi.fn().mockResolvedValue(2),
+      findMany: vi.fn().mockResolvedValue([]),
+    },
+    dataImportRow: { groupBy: vi.fn().mockResolvedValue([]) },
     activityExtensionRequest: {
       findMany: vi.fn().mockResolvedValue([]),
       count: vi.fn().mockResolvedValue(0),
@@ -345,6 +349,74 @@ describe('RoleOverviewService', () => {
     )
     const result = await service.read(actor('PROJECT_OFFICER'))
     expect(result.flaggedProof?.count).toBe(1)
+  })
+
+  describe('guardian approvals', () => {
+    const batch = (n: number) => ({
+      id: `70000000-0000-4000-8000-00000000000${n}`,
+      projectId: project,
+      originalFileName: `file-${n}.xlsx`,
+      project: { title: 'Project' },
+    })
+
+    it('counts the minors waiting per file, within the officer project scope', async () => {
+      const { tx, service } = setup()
+      tx.dataImportBatch.findMany.mockResolvedValue([batch(1), batch(2), batch(3)])
+      tx.dataImportRow.groupBy.mockResolvedValue([
+        { importBatchId: batch(1).id, _count: { _all: 2 } },
+        { importBatchId: batch(3).id, _count: { _all: 1 } },
+      ])
+      const result = await service.read(actor('PROJECT_OFFICER'))
+      // A file whose held rows are all for other reasons is left out.
+      expect(result.guardianApprovals).toEqual({
+        count: 3,
+        rows: [
+          {
+            batchId: batch(1).id,
+            projectId: project,
+            projectTitle: 'Project',
+            fileName: 'file-1.xlsx',
+            count: 2,
+          },
+          {
+            batchId: batch(3).id,
+            projectId: project,
+            projectTitle: 'Project',
+            fileName: 'file-3.xlsx',
+            count: 1,
+          },
+        ],
+      })
+      const where = tx.dataImportBatch.findMany.mock.calls[0][0].where
+      expect(where.organizationId).toBe(org)
+      expect(where.project).toMatchObject({ organizationId: org, id: { in: [project] } })
+      expect(where.form).toEqual({ formType: 'BENEFICIARY_REGISTRATION' })
+      expect(tx.dataImportRow.groupBy.mock.calls[0][0].where).toMatchObject({
+        organizationId: org,
+        status: 'UNPROCESSED',
+        processingErrorCode: 'GUARDIAN_CONSENT_REQUIRED',
+      })
+    })
+
+    it('reads no rows when no import has held rows', async () => {
+      const { tx, service } = setup()
+      const result = await service.read(actor('PROJECT_OFFICER'))
+      expect(result.guardianApprovals).toEqual({ count: 0, rows: [] })
+      expect(tx.dataImportRow.groupBy).not.toHaveBeenCalled()
+    })
+
+    it.each([
+      'MONITORING_AND_EVALUATION_OFFICER',
+      'PROJECT_MANAGER',
+      'PROGRAM_MANAGER',
+      'GRANT_MANAGER',
+      'SYSTEM_ADMINISTRATOR',
+    ] as const)('shows nothing to a %s, who cannot approve', async (role) => {
+      const { tx, service } = setup()
+      const result = await service.read(actor(role))
+      expect(result.guardianApprovals).toBeNull()
+      expect(tx.dataImportBatch.findMany).not.toHaveBeenCalled()
+    })
   })
 
   it('omits expenses without expenses.submit', async () => {

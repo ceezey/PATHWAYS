@@ -55,7 +55,10 @@ function setup() {
       findMany: vi.fn().mockResolvedValue([]),
       count: vi.fn().mockResolvedValue(0),
     },
-    dataImportBatch: { count: vi.fn().mockResolvedValue(2) },
+    dataImportBatch: {
+      count: vi.fn().mockResolvedValue(2),
+      findMany: vi.fn().mockResolvedValue([]),
+    },
     activityExtensionRequest: {
       findMany: vi.fn().mockResolvedValue([]),
       count: vi.fn().mockResolvedValue(0),
@@ -87,6 +90,7 @@ const caps = {
     ['activityUpdate', 5, [{ submittedAt: 'desc' }, byId]],
     ['activityUpdate', 50, [{ reviewedAt: 'desc' }, byId]],
     ['budgetExpenseEntry', 5, [{ submittedAt: 'desc' }, byId]],
+    ['dataImportBatch', 100, [{ createdAt: 'asc' }, byId]],
     ['activityExtensionRequest', 5, [{ requestedAt: 'desc' }, byId]],
   ],
   MONITORING_AND_EVALUATION_OFFICER: [

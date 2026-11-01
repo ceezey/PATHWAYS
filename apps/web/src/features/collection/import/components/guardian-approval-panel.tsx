@@ -1,7 +1,7 @@
 'use client'
 
 import { businessCalendarDate, importCheckpointRows } from '@pathways/shared'
-import { useId, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
 import { ConfirmationDialog } from '@/components/pathways/confirmation-dialog'
@@ -14,7 +14,9 @@ import { useCurrentRole } from '@/hooks/use-current-role'
 import { importsClient } from '@/lib/api/imports'
 import { plural } from '@/lib/format/plural'
 import { principalHasAtomicPermission } from '@/lib/rbac/policy'
+import { cn } from '@/lib/utils'
 
+import { highlightMs } from '../../forms/components/reveal-intake-section'
 import { ToggleRow } from '../../forms/components/toggle-row'
 
 export interface HeldMinor {
@@ -28,11 +30,14 @@ export function GuardianApprovalPanel({
   projectId,
   batchId,
   rows,
+  lead,
   onApproved,
 }: {
   projectId: string
   batchId: string
   rows: HeldMinor[]
+  // Scrolls here with a brief highlight, for a person who followed a link to this approval.
+  lead?: boolean
   onApproved: () => Promise<void> | void
 }) {
   const { profile } = useCurrentRole()
@@ -45,8 +50,20 @@ export function GuardianApprovalPanel({
   const [busy, setBusy] = useState(false)
   const [confirming, setConfirming] = useState(false)
   const running = useRef(false)
-  if (!principalHasAtomicPermission(profile, 'beneficiaries.guardian_consent.approve')) return null
-  if (rows.length === 0) return null
+  const section = useRef<HTMLElement>(null)
+  const [highlighting, setHighlighting] = useState(false)
+  const shown =
+    principalHasAtomicPermission(profile, 'beneficiaries.guardian_consent.approve') &&
+    rows.length > 0
+  useEffect(() => {
+    if (!lead || !shown) return
+    section.current?.scrollIntoView({ block: 'center' })
+    section.current?.focus({ preventScroll: true })
+    setHighlighting(true)
+    const timer = setTimeout(() => setHighlighting(false), highlightMs)
+    return () => clearTimeout(timer)
+  }, [lead, shown])
+  if (!shown) return null
   // A row approved or removed since the last refresh drops out of the selection.
   const chosen = rows.filter((row) => selected.has(row.id))
   const toggle = (rowId: string, on: boolean) =>
@@ -102,8 +119,13 @@ export function GuardianApprovalPanel({
   }
 
   return (
-    <section aria-labelledby={`${id}-title`}>
-      <Card>
+    <section
+      aria-labelledby={`${id}-title`}
+      className="focus:outline-none"
+      ref={section}
+      tabIndex={-1}
+    >
+      <Card className={cn('transition-colors duration-500', highlighting && 'bg-warning-subtle')}>
         <CardHeader>
           <CardTitle id={`${id}-title`}>Guardian approval</CardTitle>
           <CardDescription>
