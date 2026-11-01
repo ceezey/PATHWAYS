@@ -197,10 +197,10 @@ describe('BuilderView draft summary', () => {
         screen.getByText('Advanced Configuration (Import Metadata)').closest('details')?.open,
       ).toBe(true)
       const section = sectionOf(name)
-      expect(section.classList.contains('ring-warning')).toBe(true)
+      expect(section.classList.contains('bg-warning-subtle')).toBe(true)
       expect(scroll.mock.contexts[0]).toBe(section)
       vi.advanceTimersByTime(2000)
-      expect(section.classList.contains('ring-warning')).toBe(false)
+      expect(section.classList.contains('bg-warning-subtle')).toBe(false)
     })
 
     it('reopens Advanced Configuration a person closed on the field already selected', () => {
@@ -240,8 +240,8 @@ describe('BuilderView draft summary', () => {
       go()
       const first = sectionOf('source')
       fireEvent.click(screen.getByRole('button', { name: `Go to ${initialFields[0].code}` }))
-      expect(first.classList.contains('ring-warning')).toBe(false)
-      expect(sectionOf('source').classList.contains('ring-warning')).toBe(true)
+      expect(first.classList.contains('bg-warning-subtle')).toBe(false)
+      expect(sectionOf('source').classList.contains('bg-warning-subtle')).toBe(true)
     })
 
     it('only selects the field from the changed fields table', () => {

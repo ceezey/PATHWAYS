@@ -10,7 +10,7 @@ const sectionOfReason: Record<NeedsCheckReason, 'source' | 'aliases' | 'rule'> =
   WASHINGTON_GROUP_FLAG_DISAGREES: 'rule',
 }
 
-const highlight = ['ring-2', 'ring-warning', 'bg-warning-subtle']
+const highlight = 'bg-warning-subtle'
 const highlightMs = 2000
 let clearHighlight: (() => void) | undefined
 
@@ -23,11 +23,11 @@ export function revealIntakeSection(fieldId: string, reason: NeedsCheckReason) {
     details.querySelector<HTMLElement>(`[data-intake-section="${sectionOfReason[reason]}"]`) ??
     details
   clearHighlight?.()
-  section.classList.add(...highlight)
+  section.classList.add(highlight)
   const timer = setTimeout(() => clearHighlight?.(), highlightMs)
   clearHighlight = () => {
     clearTimeout(timer)
-    section.classList.remove(...highlight)
+    section.classList.remove(highlight)
     clearHighlight = undefined
   }
   section.scrollIntoView({ block: 'center' })
