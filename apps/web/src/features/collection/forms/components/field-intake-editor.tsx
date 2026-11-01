@@ -16,7 +16,7 @@ import { IntakeRuleEditor } from './intake-rule-editor'
 
 const noDefault = 'No default'
 // Room for the brief highlight around a control.
-const revealableClass = '-m-2 rounded-md p-2 transition-colors'
+const revealableClass = '-mx-2 rounded-md px-2 py-1 transition-colors'
 const isCalculated = (kind: string) => (CALCULATED_RULE_KINDS as readonly string[]).includes(kind)
 
 /** Edits how a field reads imported files: source names, answer aliases, a default and a rule. */
@@ -128,6 +128,7 @@ export function FieldIntakeEditor({
               </div>
             ))}
             <Button
+              data-intake-add
               disabled={readOnly || field.valueAliases.length >= IMPORT_VALUE_MAP_LIMITS.maxEntries}
               type="button"
               variant="outline"

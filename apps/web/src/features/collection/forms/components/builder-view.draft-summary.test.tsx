@@ -99,7 +99,7 @@ describe('BuilderView draft summary', () => {
     ['ENUM_ANSWER_UNRESOLVED', true],
     ['PARTICIPATION_CONSENT_NO_SOURCE', true],
     ['CONSENT_SOURCE_PROPOSED', true],
-    ['WASHINGTON_GROUP_FLAG_DISAGREES', true],
+    ['WASHINGTON_GROUP_FLAG_DISAGREES', false],
   ] as const)('opens Advanced Configuration for %s: %s', (reason, open) => {
     const field = initialFields[0]
     view({ ...summary, needsCheck: [{ fieldCode: field.code, reason }] }, vi.fn(), {
@@ -189,7 +189,6 @@ describe('BuilderView draft summary', () => {
       ['CONSENT_SOURCE_PROPOSED', 'source'],
       ['ENUM_ANSWER_UNRESOLVED', 'aliases'],
       ['PARTICIPATION_CONSENT_NO_SOURCE', 'rule'],
-      ['WASHINGTON_GROUP_FLAG_DISAGREES', 'rule'],
     ] as const)('takes %s to the %s control and highlights it briefly', (reason, name) => {
       render(<Workspace needsCheck={[{ fieldCode: 'civil_status', reason }]} />)
       const scroll = go()
@@ -201,6 +200,32 @@ describe('BuilderView draft summary', () => {
       expect(scroll.mock.contexts[0]).toBe(section)
       vi.advanceTimersByTime(2000)
       expect(section.classList.contains('bg-warning-subtle')).toBe(false)
+    })
+
+    it('only selects the field for a disability column that disagrees', () => {
+      render(
+        <Workspace
+          needsCheck={[{ fieldCode: 'civil_status', reason: 'WASHINGTON_GROUP_FLAG_DISAGREES' }]}
+        />,
+      )
+      const scroll = go()
+      expect(scroll).not.toHaveBeenCalled()
+      expect(screen.getByText('Selected')).toBeTruthy()
+      expect(screen.getByRole('button', { name: 'Confirm Civil status' })).toBeTruthy()
+      expect(document.activeElement?.id).toBe('collection-field-choice-choice-field')
+      expect(
+        screen.getByText('Advanced Configuration (Import Metadata)').closest('details')?.open,
+      ).toBe(false)
+    })
+
+    it('focuses Add alias when the field has no aliases yet', () => {
+      render(
+        <Workspace
+          needsCheck={[{ fieldCode: 'civil_status', reason: 'ENUM_ANSWER_UNRESOLVED' }]}
+        />,
+      )
+      go()
+      expect(document.activeElement?.textContent).toBe('Add alias')
     })
 
     it('reopens Advanced Configuration a person closed on the field already selected', () => {

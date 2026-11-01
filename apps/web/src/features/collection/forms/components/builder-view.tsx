@@ -31,7 +31,7 @@ import { FieldEditor } from './field-editor'
 import { FormInfoPanel } from './form-info-panel'
 import { FormPreviewPanel } from './form-preview-panel'
 import { MetadataMapPanel } from './metadata-map-panel'
-import { revealIntakeSection } from './reveal-intake-section'
+import { revealIntakeSection, settledInIntake } from './reveal-intake-section'
 
 export const BuilderView = ({
   addField,
@@ -255,8 +255,9 @@ export const BuilderView = ({
                   field={field}
                   fieldCodes={fields.map((item) => item.code).filter(Boolean)}
                   readOnly={readOnly}
-                  // Every listed item is settled in the field's Advanced Configuration.
-                  attention={draftSummary?.needsCheck.some((item) => item.fieldCode === field.code)}
+                  attention={draftSummary?.needsCheck.some(
+                    (item) => item.fieldCode === field.code && settledInIntake(item.reason),
+                  )}
                   updateField={updateField}
                 />
               ) : null}
