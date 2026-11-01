@@ -1,6 +1,6 @@
 'use client'
 
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, FileSearch } from 'lucide-react'
 import Link from 'next/link'
 
 import { PageHeader } from '@/components/layout/page-header'
@@ -124,8 +124,10 @@ function OwnedImportWorkspace({ scope }: { scope: SensitiveDraftOwner }) {
           <div className="space-y-4">
             {!batch ? (
               <EmptyState
+                className="h-full"
+                icon={FileSearch}
                 title="No import selected"
-                description="Select a persisted import batch to map, validate, review, or resume."
+                description="Imports appear in the list. Select one to map, validate, review or resume it."
               />
             ) : (
               <>

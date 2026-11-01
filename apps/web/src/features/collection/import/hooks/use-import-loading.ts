@@ -33,9 +33,9 @@ export function useImportLoading(state: ImportState) {
       .then((value) => {
         if (!mounted || !scope.isCurrent()) return
         setProjects(value)
-        // Only default when nothing is chosen yet; a refetch (or a remount whose key was
+        // A lone project is chosen for the person; a refetch (or a remount whose key was
         // recomputed from the same access grants) must not discard the current pick.
-        setProjectId((current) => current || value[0]?.id || '')
+        setProjectId((current) => current || (value.length === 1 ? value[0].id : ''))
         setLoadState('ready')
       })
       .catch(() => mounted && scope.isCurrent() && setLoadState('error'))
@@ -62,7 +62,11 @@ export function useImportLoading(state: ImportState) {
         setForms(published)
         setFormsState('ready')
         setFormId((current) =>
-          published.some((item) => item.id === current) ? current : (published[0]?.id ?? ''),
+          published.some((item) => item.id === current)
+            ? current
+            : published.length === 1
+              ? published[0].id
+              : '',
         )
         setBatches(batchRecords)
         setBatch(null)
