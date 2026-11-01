@@ -22,7 +22,7 @@ export function ImportRowsCard({
   state,
 }: { state: Pick<ImportState, 'rows' | 'sourceColumnByKey' | 'validationErrors'> }) {
   const { rows, sourceColumnByKey, validationErrors } = state
-  const [onlyWarnings, setOnlyWarnings] = useState(false)
+  const [onlyWarnings, setOnlyWarnings] = useState(true)
   const shown = onlyWarnings ? rows.filter((row) => row.validationWarnings.length > 0) : rows
   return (
     <Card>

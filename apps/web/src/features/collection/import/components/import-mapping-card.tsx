@@ -56,7 +56,7 @@ export function ImportMappingCard({
     | 'sourceColumns'
     | 'storedMappingByKey'
   >
-  review: Pick<BatchReview, 'confirmSuggestions' | 'saveMapping' | 'validate'>
+  review: Pick<BatchReview, 'confirmSuggestions' | 'validate'>
   run: Pick<BatchProcessing, 'process' | 'processingInterrupted'>
   intake: Pick<BatchIntake, 'prepareForm'>
   batch: NonNullable<ImportState['batch']>
@@ -84,7 +84,7 @@ export function ImportMappingCard({
     sourceColumns,
     storedMappingByKey,
   } = state
-  const { confirmSuggestions, saveMapping, validate } = review
+  const { confirmSuggestions, validate } = review
   const { process, processingInterrupted } = run
   const receipt = receipts[batch.id]
   // The server computes coverage for any reader; the uploader's session receipt covers a batch not yet reloaded.
@@ -92,8 +92,6 @@ export function ImportMappingCard({
   const coverage =
     batch.coverage ?? (receipt?.mappingRevision === batch.mappingRevision ? receipt : null)
   const needsFormUpdate = coverage?.coverage === 'NOT_COVERED' && !formOfferSeen.has(batch.id)
-  // The columns undecided when the filter was switched on; deciding one keeps it in view.
-  const [undecidedShown, setUndecidedShown] = useState<ReadonlySet<string> | null>(null)
   const referenceYear = new Date(batch.uploadedAt ?? Date.now()).getUTCFullYear()
   // The column's date type: the reviewer's declared type, else the target field's.
   const dateColumn = (key: string) =>
@@ -106,8 +104,12 @@ export function ImportMappingCard({
     (dateColumn(key) &&
       !rules[key]?.dateOrder &&
       columnDateOrders(columnValues.get(key), referenceYear).needsChoice)
+  const undecidedKeys = () =>
+    new Set(sourceColumns.filter((column) => undecided(column.key)).map((column) => column.key))
+  // The columns undecided when the filter was switched on, so deciding one keeps it in view.
+  const [undecidedShown, setUndecidedShown] = useState<ReadonlySet<string> | null>(undecidedKeys)
   const shownColumns = undecidedShown
-    ? sourceColumns.filter((column) => undecidedShown.has(column.key))
+    ? sourceColumns.filter((column) => undecidedShown.has(column.key) || undecided(column.key))
     : sourceColumns
   // Mirrors the server's validation refusal: a required field needs a column, a default or a calculation.
   const mappedCodes = new Set(Object.values(mapping))
@@ -158,18 +160,8 @@ export function ImportMappingCard({
         </output>
         <ToggleRow
           checked={undecidedShown !== null}
-          label={`Show only columns that need a decision (${sourceColumns.filter((column) => undecided(column.key)).length} of ${sourceColumns.length})`}
-          onChange={(on) =>
-            setUndecidedShown(
-              on
-                ? new Set(
-                    sourceColumns
-                      .filter((column) => undecided(column.key))
-                      .map((column) => column.key),
-                  )
-                : null,
-            )
-          }
+          label={`Show only columns that need a decision (${undecidedKeys().size} of ${sourceColumns.length})`}
+          onChange={(on) => setUndecidedShown(on ? undecidedKeys() : null)}
         />
         {shownColumns.map((column) => {
           const stored = storedMappingByKey.get(column.key)
@@ -290,20 +282,17 @@ export function ImportMappingCard({
           </p>
         ) : null}
         <div className="flex flex-wrap gap-2">
-          <Button disabled={!mappingEditable} onClick={() => void saveMapping()}>
-            Save new mapping revision
-          </Button>
+          {/* No role holds imports.review without imports.validate; a reviewer's save makes the first revision. */}
           <Button
             disabled={
               !canValidate ||
               pending ||
-              batch.mappingRevision < 1 ||
+              (batch.mappingRevision < 1 && !canReview) ||
               mappingLockedStatuses.has(batch.status)
             }
-            variant="outline"
             onClick={() => void validate()}
           >
-            Validate all rows
+            Validate rows
           </Button>
           <Button
             disabled={

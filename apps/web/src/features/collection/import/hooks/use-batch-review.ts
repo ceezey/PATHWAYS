@@ -6,13 +6,49 @@ import { PathwaysClientError } from '@/lib/api/core/request'
 import { formsClient } from '@/lib/api/forms'
 import { importsClient } from '@/lib/api/imports'
 import { plural } from '@/lib/format/plural'
-import type { ImportMappingInput } from '@/types/pathways'
+import type { ImportBatchDefinition, ImportMappingInput } from '@/types/pathways'
 
-import { ruleToMappingInput } from '../components/import-value-map-editor'
+import { type ColumnRuleDraft, ruleToMappingInput } from '../components/import-value-map-editor'
 import { runFileCheck } from '../file-check'
 import { uploadFailure } from '../import.utils'
 import { draftFormFromImport } from '../prepare-draft'
 import type { ImportState } from './use-import-state'
+
+// A batch's stored mapping in the form of the reviewer's draft.
+const storedDraft = (
+  detail: ImportBatchDefinition,
+): { rules: Record<string, ColumnRuleDraft>; mapping: Record<string, string> } => ({
+  rules: Object.fromEntries(
+    (detail.mappings ?? []).map((stored) => [
+      stored.sourceFieldName,
+      {
+        dataType: stored.dataType ?? '',
+        pairs: stored.valueMap ?? [],
+        dateOrder: stored.dateOrder ?? '',
+      },
+    ]),
+  ),
+  mapping: Object.fromEntries(
+    (
+      detail.sourceColumns ??
+      (detail.sourceHeaders ?? []).map((header, index) => ({
+        key: header,
+        header,
+        columnIndex: index + 1,
+      }))
+    ).map((column) => {
+      const reviewed = detail.mappings?.find((item) => item.sourceFieldName === column.key)
+      return [
+        column.key,
+        reviewed?.status === 'IGNORED'
+          ? '__ignore__'
+          : reviewed?.status === 'MAPPED' && reviewed.targetField
+            ? reviewed.targetField.code
+            : '__pending__',
+      ]
+    }),
+  ),
+})
 
 export function useBatchReview(state: ImportState) {
   const {
@@ -77,40 +113,9 @@ export function useBatchReview(state: ImportState) {
         current.map((item) => (item.id === detail.id ? { ...item, status: detail.status } : item)),
       )
       setRows(page.rows)
-      setRules(
-        Object.fromEntries(
-          (detail.mappings ?? []).map((stored) => [
-            stored.sourceFieldName,
-            {
-              dataType: stored.dataType ?? '',
-              pairs: stored.valueMap ?? [],
-              dateOrder: stored.dateOrder ?? '',
-            },
-          ]),
-        ),
-      )
-      setMapping(
-        Object.fromEntries(
-          (
-            detail.sourceColumns ??
-            (detail.sourceHeaders ?? []).map((header, index) => ({
-              key: header,
-              header,
-              columnIndex: index + 1,
-            }))
-          ).map((column) => {
-            const reviewed = detail.mappings?.find((item) => item.sourceFieldName === column.key)
-            return [
-              column.key,
-              reviewed?.status === 'IGNORED'
-                ? '__ignore__'
-                : reviewed?.status === 'MAPPED' && reviewed.targetField
-                  ? reviewed.targetField.code
-                  : '__pending__',
-            ]
-          }),
-        ),
-      )
+      const stored = storedDraft(detail)
+      setRules(stored.rules)
+      setMapping(stored.mapping)
     } catch (error) {
       if (parentTicket && ticket.valid('imports.read')) throw error
       if (ticket.valid('imports.read'))
@@ -258,25 +263,25 @@ export function useBatchReview(state: ImportState) {
     clearFile()
   }
 
-  const saveMapping = async (draft = mapping) => {
-    if (
-      !batch ||
-      sourceColumns.some((column) => !draft[column.key] || draft[column.key] === '__pending__')
-    ) {
-      toast.error('Resolve every pending source column before saving.')
-      return
-    }
-    const mappings: ImportMappingInput[] = sourceColumns.map((column) => ({
+  const mappingInputs = (
+    draft: Record<string, string>,
+    draftRules: Record<string, ColumnRuleDraft>,
+  ): ImportMappingInput[] =>
+    sourceColumns.map((column) => ({
       sourceFieldName: column.key,
       ignored: draft[column.key] === '__ignore__',
       targetFieldCode: draft[column.key] === '__ignore__' ? undefined : draft[column.key],
       ...(draft[column.key] === '__ignore__'
         ? {}
         : ruleToMappingInput(
-            rules[column.key],
+            draftRules[column.key],
             selectedForm?.fields.find((field) => field.code === draft[column.key])?.dataType,
           )),
     }))
+
+  const saveMapping = async (draft: Record<string, string>) => {
+    if (!batch) return
+    const mappings = mappingInputs(draft, rules)
     const ticket = begin('imports.review')
     if (!ticket) return
     try {
@@ -328,7 +333,7 @@ export function useBatchReview(state: ImportState) {
       setMappingNotice(
         `${plural(applied, 'suggestion')} confirmed.${skippedNote}${
           remaining
-            ? ` ${plural(remaining, 'column')} ${remaining === 1 ? 'needs' : 'need'} a target or an explicit ignore before the revision can be saved.`
+            ? ` ${plural(remaining, 'column')} ${remaining === 1 ? 'needs' : 'need'} a target or an explicit ignore before the rows can be validated.`
             : ''
         }`,
       )
@@ -342,19 +347,46 @@ export function useBatchReview(state: ImportState) {
     }, 0)
   }
 
+  // A changed mapping is saved as a new revision first; an unchanged one keeps its revision.
   const validate = async () => {
     if (!batch) return
+    if (
+      mappingEditable &&
+      sourceColumns.some((column) => !mapping[column.key] || mapping[column.key] === '__pending__')
+    ) {
+      toast.error('Resolve every pending source column before validating.')
+      return
+    }
     const ticket = begin('imports.validate')
     if (!ticket) return
+    const stored = storedDraft(batch)
+    const mappings = mappingInputs(mapping, rules)
+    const changed =
+      JSON.stringify(mappings) !== JSON.stringify(mappingInputs(stored.mapping, stored.rules))
+    let saved = false
     try {
-      await importsClient.validateImport(projectId, batch.id, batch.mappingRevision)
+      let revision = batch.mappingRevision
+      if (changed) {
+        if (!ticket.valid('imports.review')) return
+        const next = await importsClient.saveImportMapping(projectId, batch.id, revision, mappings)
+        saved = true
+        revision = next.mappingRevision
+        if (!ticket.valid('imports.validate')) return
+      }
+      await importsClient.validateImport(projectId, batch.id, revision)
       if (!ticket.valid('imports.read')) return
       await loadBatch(batch.id, ticket)
       if (!ticket.valid()) return
+      setMappingNotice(saved ? 'Mapping revision saved and rows validated.' : '')
       toast.success('Validation revision completed.')
     } catch (error) {
       if (!ticket.valid()) return
       toast.error(error instanceof Error ? error.message : 'Validation could not be completed.')
+      // A saved revision must reach the card even when validation refused it, or a retry would be stale.
+      if (saved) {
+        setMappingNotice('Mapping revision saved, but the rows were not validated.')
+        await loadBatch(batch.id, ticket).catch(() => undefined)
+      }
     } finally {
       ticket.finish()
     }
@@ -388,7 +420,6 @@ export function useBatchReview(state: ImportState) {
     loadBatch,
     refreshBatches,
     resume,
-    saveMapping,
     upload,
     prepareFromFile,
     uploadAnyway,
