@@ -19,6 +19,13 @@ const base = {
   alerts: null,
 }
 
+describe('guardian approvals section', () => {
+  it('reads as null from an API that does not send it yet', () => {
+    const { guardianApprovals: _absent, ...older } = base
+    expect(roleOverviewSchema.parse(older).guardianApprovals).toBeNull()
+  })
+})
+
 describe('roleOverviewSchema', () => {
   it('accepts an all-null payload for a viewer without section permissions', () => {
     expect(roleOverviewSchema.parse(base)).toEqual(base)

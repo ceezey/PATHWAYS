@@ -81,7 +81,7 @@ const identityFields = ['first_name', 'last_name', 'birth_date', 'external_ident
 // Where a reviewer checks a held row that has no changed value to decide.
 export const fieldsOfReason: Partial<Record<string, readonly string[]>> = {
   CONSENT_REQUIRED: CONSENT_FIELD_CODES,
-  GUARDIAN_CONSENT_REQUIRED: ['birth_date', 'guardian_consent_recorded'],
+  GUARDIAN_CONSENT_REQUIRED: ['guardian_consent_recorded'],
   AMBIGUOUS_IDENTITY: identityFields,
   IDENTITY_REVIEW_REQUIRED: identityFields,
   DUPLICATE_IDENTITY: identityFields,

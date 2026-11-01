@@ -379,8 +379,8 @@ describe('import review dialog', () => {
     // The age and the birth date it is worked out from are highlighted, and the first is scrolled to.
     const flagged = document.querySelectorAll('tr[data-flagged="true"]')
     expect([...flagged].map((row) => row.querySelector('td')?.textContent)).toEqual([
-      'Age (check this field)',
-      'Birth date (check this field)',
+      'Age',
+      'Birth date',
     ])
     expect(scrolled).toHaveBeenCalledTimes(1)
     expect(scrolled.mock.contexts[0]).toBe(flagged[0])
@@ -390,8 +390,19 @@ describe('import review dialog', () => {
   })
 
   describe('leading to the field', () => {
+    const guardianField = {
+      ...review().fields[0],
+      code: 'guardian_consent_recorded',
+      label: 'Guardian consent',
+      dataType: 'BOOLEAN',
+      pathways: null,
+      file: null,
+    } as ImportRowReviewResponse['fields'][number]
     const openHeld = async (reason: string) => {
-      const fields = review().fields.map((field) => ({ ...field, changed: false }))
+      const fields = [...review().fields, guardianField].map((field) => ({
+        ...field,
+        changed: false,
+      }))
       api.getRowReview.mockResolvedValue({ ...review(), reason, fields })
       render(
         <ImportReviewDialog
@@ -408,23 +419,41 @@ describe('import review dialog', () => {
       return [...document.querySelectorAll<HTMLElement>('tr[data-flagged="true"]')]
     }
 
-    it('leads to the birth date of a minor with nothing to decide, then fades the highlight', async () => {
+    it('leads a minor only to guardian consent, then fades the highlight', async () => {
       const [row, ...rest] = await openHeld('GUARDIAN_CONSENT_REQUIRED')
       expect(rest).toHaveLength(0)
-      expect(row.textContent).toContain('Birth date (check this field)')
+      expect(row.querySelector('td')?.textContent).toBe('Guardian consent')
       expect(scrolled.mock.contexts[0]).toBe(row)
       expect(document.activeElement).toBe(row)
       await waitFor(() => expect(row.className).toContain('bg-warning-subtle'))
       await waitFor(() => expect(row.className).not.toContain('bg-warning-subtle'), {
         timeout: 2500,
       })
-      // The words stay after the color fades, so the field is still named.
-      expect(row.textContent).toContain('(check this field)')
+      // The tip stays after the color fades, so the field is still named.
+      const info = screen.getByRole('button', {
+        name: 'More information about Guardian consent',
+      })
+      fireEvent.mouseEnter(info)
+      expect(screen.getByRole('tooltip').textContent).toBe('Check this field')
+    })
+
+    it('says who approves guardian consent on hover, for a minor waiting for it', async () => {
+      await openHeld('GUARDIAN_CONSENT_REQUIRED')
+      // Participation consent stays plain words, so only guardian consent is a button.
+      fireEvent.mouseEnter(screen.getByRole('button', { name: 'Not editable' }))
+      expect(screen.getByRole('tooltip').textContent).toBe(
+        'To be approved by the assigned Project Officer. Ask for assistance if you need it.',
+      )
+    })
+
+    it('adds no approval tip on a row held for another reason', async () => {
+      await openHeld('PROFILE_CHANGED')
+      expect(screen.queryByRole('button', { name: 'Not editable' })).toBeNull()
     })
 
     it('leads to the consent field of a row held for missing consent', async () => {
       const [row] = await openHeld('CONSENT_REQUIRED')
-      expect(row.textContent).toContain('Consent recorded (check this field)')
+      expect(row.querySelector('td')?.textContent).toBe('Consent recorded')
       expect(document.activeElement).toBe(row)
     })
 
