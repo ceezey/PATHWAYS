@@ -11,6 +11,7 @@ import {
   Save,
   Trash2,
 } from 'lucide-react'
+import { flushSync } from 'react-dom'
 
 import type { DraftSummaryResponse } from '@pathways/shared'
 
@@ -30,6 +31,7 @@ import { FieldEditor } from './field-editor'
 import { FormInfoPanel } from './form-info-panel'
 import { FormPreviewPanel } from './form-preview-panel'
 import { MetadataMapPanel } from './metadata-map-panel'
+import { revealIntakeSection, settledInIntake } from './reveal-intake-section'
 
 export const BuilderView = ({
   addField,
@@ -125,11 +127,13 @@ export const BuilderView = ({
         <DraftSummaryPanel
           summary={draftSummary}
           fields={fields}
-          onSelectField={(code) => {
+          onSelectField={(code, reason) => {
             const target = fields.find((field) => field.code === code)
             if (!target) return
-            setSelectedFieldId(target.id)
+            // The field's editor must be on the page before it can be scrolled to.
+            flushSync(() => setSelectedFieldId(target.id))
             document.getElementById(`collection-field-choice-${target.id}`)?.focus()
+            if (reason) revealIntakeSection(target.id, reason)
           }}
         />
       ) : null}
@@ -251,12 +255,8 @@ export const BuilderView = ({
                   field={field}
                   fieldCodes={fields.map((item) => item.code).filter(Boolean)}
                   readOnly={readOnly}
-                  // These two are settled in the field's Advanced Configuration.
                   attention={draftSummary?.needsCheck.some(
-                    (item) =>
-                      item.fieldCode === field.code &&
-                      (item.reason === 'ENUM_ANSWER_UNRESOLVED' ||
-                        item.reason === 'PARTICIPATION_CONSENT_NO_SOURCE'),
+                    (item) => item.fieldCode === field.code && settledInIntake(item.reason),
                   )}
                   updateField={updateField}
                 />

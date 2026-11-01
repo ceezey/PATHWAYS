@@ -187,7 +187,7 @@ describe('FieldIntakeEditor', () => {
 
   it('starts collapsed under Advanced Configuration and explains each part on hover', () => {
     renderEditor(field())
-    const summary = screen.getByText('Advanced Configuration')
+    const summary = screen.getByText('Advanced Configuration (Import Metadata)')
     expect((summary.closest('details') as HTMLDetailsElement).open).toBe(false)
     fireEvent.mouseEnter(
       screen.getByRole('button', { name: 'More information about Source names' }),
@@ -207,7 +207,7 @@ describe('FieldIntakeEditor', () => {
         readOnly={false}
       />,
     )
-    const summary = screen.getByText('Advanced Configuration')
+    const summary = screen.getByText('Advanced Configuration (Import Metadata)')
     expect((summary.closest('details') as HTMLDetailsElement).open).toBe(true)
   })
 })
