@@ -49,7 +49,10 @@ describe('DraftSummaryPanel', () => {
     const onSelectField = vi.fn()
     render(<DraftSummaryPanel summary={summary} fields={[]} onSelectField={onSelectField} />)
     fireEvent.click(screen.getByRole('button', { name: 'Go to consent_recorded' }))
-    expect(onSelectField).toHaveBeenCalledWith('consent_recorded')
+    expect(onSelectField).toHaveBeenCalledWith(
+      'consent_recorded',
+      'PARTICIPATION_CONSENT_NO_SOURCE',
+    )
     expect(screen.getByText(/no column feeds participation consent/i)).toBeTruthy()
     expect(screen.getByText(/no row can be imported/)).toBeTruthy()
   })
@@ -248,7 +251,7 @@ describe('DraftSummaryPanel', () => {
       .getByRole('button', { name: 'Participation consent' })
       .closest('tr') as HTMLElement
     expect(within(row).getByText('Same answer as the data processing consent')).toBeTruthy()
-    expect(row.closest('details')?.open).toBe(true)
+    expect(row.closest('details')?.open).toBe(false)
     rerender(panel(null))
     expect(screen.queryByText(/takes the same answer/)).toBeNull()
   })

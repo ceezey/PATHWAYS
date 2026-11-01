@@ -15,6 +15,8 @@ import { ChipListInput, selectClass } from './intake-controls'
 import { IntakeRuleEditor } from './intake-rule-editor'
 
 const noDefault = 'No default'
+// Room for the brief highlight around a control.
+const revealableClass = '-m-2 rounded-md p-2 transition-colors'
 const isCalculated = (kind: string) => (CALCULATED_RULE_KINDS as readonly string[]).includes(kind)
 
 /** Edits how a field reads imported files: source names, answer aliases, a default and a rule. */
@@ -43,13 +45,13 @@ export function FieldIntakeEditor({
       ),
     })
   return (
-    <details className="border-t pt-2 md:col-span-2" open={attention || undefined}>
+    <details className="border-t pt-2 md:col-span-2" id={id} open={attention || undefined}>
       <summary className="min-h-11 cursor-pointer content-center text-sm font-medium text-primary">
         Advanced Configuration
       </summary>
       <div className="mt-2 space-y-4">
         <p className="text-sm font-semibold">Import metadata</p>
-        <div className="space-y-2">
+        <div className={`space-y-2 ${revealableClass}`} data-intake-section="source">
           <div className="flex items-center gap-3">
             <p className="text-sm font-medium">Source names</p>
             <MetricTooltip label="Source names">{intakeHelp.sourceNames}</MetricTooltip>
@@ -68,7 +70,7 @@ export function FieldIntakeEditor({
           />
         </div>
         {isChoice ? (
-          <fieldset className="space-y-2">
+          <fieldset className={`space-y-2 ${revealableClass}`} data-intake-section="aliases">
             <legend className="flex items-center gap-3 text-sm font-medium">
               Answer aliases
               <MetricTooltip label="Answer aliases">{intakeHelp.answerAliases}</MetricTooltip>
@@ -175,21 +177,23 @@ export function FieldIntakeEditor({
             </p>
           </div>
         )}
-        <IntakeRuleEditor
-          idPrefix={`${id}-rule`}
-          fieldCode={field.code}
-          fieldCodes={fieldCodes}
-          rule={field.rule}
-          readOnly={readOnly}
-          onChange={(rule) =>
-            // A calculated field cannot also have an import default.
-            onChange(
-              rule && isCalculated(rule.kind) && field.importDefault
-                ? { rule, importDefault: '' }
-                : { rule },
-            )
-          }
-        />
+        <div className={revealableClass} data-intake-section="rule">
+          <IntakeRuleEditor
+            idPrefix={`${id}-rule`}
+            fieldCode={field.code}
+            fieldCodes={fieldCodes}
+            rule={field.rule}
+            readOnly={readOnly}
+            onChange={(rule) =>
+              // A calculated field cannot also have an import default.
+              onChange(
+                rule && isCalculated(rule.kind) && field.importDefault
+                  ? { rule, importDefault: '' }
+                  : { rule },
+              )
+            }
+          />
+        </div>
       </div>
     </details>
   )

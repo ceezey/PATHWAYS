@@ -15,6 +15,7 @@ import {
 
 import { consentAnswersBoth, needsCheckLabels, ruleKindLabels } from '../../collection.copy'
 import { type FormField, tableHeadClass } from '../../collection.utils'
+import type { NeedsCheckReason } from './reveal-intake-section'
 
 /** The badges a field in the list carries after a draft from an import. */
 export function fieldImportBadges(summary: DraftSummaryResponse, code: string) {
@@ -63,7 +64,7 @@ export function DraftSummaryPanel({
 }: {
   summary: DraftSummaryResponse
   fields: FormField[]
-  onSelectField: (fieldCode: string) => void
+  onSelectField: (fieldCode: string, reason?: NeedsCheckReason) => void
 }) {
   const labelOf = (code: string) => fields.find((field) => field.code === code)?.label || code
   const columnsOf = (code: string) => fields.find((field) => field.code === code)?.sourceNames ?? []
@@ -120,7 +121,7 @@ export function DraftSummaryPanel({
                     aria-label={`Go to ${item.fieldCode}`}
                     type="button"
                     variant="outline"
-                    onClick={() => onSelectField(item.fieldCode)}
+                    onClick={() => onSelectField(item.fieldCode, item.reason)}
                   >
                     Go to field
                   </Button>
@@ -152,7 +153,7 @@ export function DraftSummaryPanel({
                 ))}
               </div>
               {rows.length ? (
-                <details className="rounded-lg border border-border" open={copiesDataConsent}>
+                <details className="rounded-lg border border-border">
                   <summary className="min-h-11 cursor-pointer content-center px-4 text-sm font-medium text-primary">
                     Show changed fields ({rows.length})
                   </summary>
