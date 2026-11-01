@@ -13,6 +13,11 @@ interface OtpInputProps {
   autoFocus?: boolean
   label: string
   className?: string
+  /** Hides the digits and turns off code autofill, for a PIN rather than a one-time code. */
+  masked?: boolean
+  invalid?: boolean
+  describedBy?: string
+  onEnter?: () => void
 }
 
 const toSlots = (value: string, length: number) => {
@@ -60,7 +65,23 @@ const emitValueFor = (slots: string[]) => {
  * only the value emitted to `onChange` collapses to a contiguous run.
  */
 const OtpInput = React.forwardRef<HTMLDivElement, OtpInputProps>(
-  ({ id, length = 6, value, onChange, disabled, autoFocus, label, className }, ref) => {
+  (
+    {
+      id,
+      length = 6,
+      value,
+      onChange,
+      disabled,
+      autoFocus,
+      label,
+      className,
+      masked,
+      invalid,
+      describedBy,
+      onEnter,
+    },
+    ref,
+  ) => {
     const inputRefs = React.useRef<Array<HTMLInputElement | null>>([])
     const [slots, setSlots] = React.useState<string[]>(() => toSlots(value, length))
     const lastEmitted = React.useRef(value)
@@ -137,6 +158,11 @@ const OtpInput = React.forwardRef<HTMLDivElement, OtpInputProps>(
     }
 
     const handleKeyDown = (index: number, event: React.KeyboardEvent<HTMLInputElement>) => {
+      if (event.key === 'Enter' && onEnter) {
+        event.preventDefault()
+        onEnter()
+        return
+      }
       if (event.key === 'Backspace') {
         if (slots[index]) {
           setDigitAt(index, '')
@@ -202,12 +228,14 @@ const OtpInput = React.forwardRef<HTMLDivElement, OtpInputProps>(
             ref={(node) => {
               inputRefs.current[index] = node
             }}
-            type="text"
+            type={masked ? 'password' : 'text'}
             inputMode="numeric"
-            autoComplete={index === 0 ? 'one-time-code' : 'off'}
+            autoComplete={index === 0 && !masked ? 'one-time-code' : 'off'}
             pattern="[0-9]*"
             maxLength={1}
             aria-label={`Digit ${index + 1} of ${length}`}
+            aria-invalid={invalid || undefined}
+            aria-describedby={describedBy}
             value={digit}
             disabled={disabled}
             onChange={(event) => handleChange(index, event.target.value)}

@@ -8,7 +8,6 @@ import { DialogShell } from '@/components/pathways/dialog-shell'
 import { LoadingSkeleton } from '@/components/pathways/loading-skeleton'
 import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { OtpInput } from '@/components/ui/otp-input'
 import { STEP_UP_PIN_UI_ENABLED } from '@/constants/feature-flags'
@@ -68,8 +67,6 @@ export const BeneficiaryAccessGate = ({
   const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle')
   const [message, setMessage] = useState(PROMPT)
   const verifyButtonRef = useRef<HTMLButtonElement>(null)
-  const pinInputRef = useRef<HTMLInputElement>(null)
-  const pinConfirmRef = useRef<HTMLInputElement>(null)
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: statusRetry re-runs the server check on demand.
   useEffect(() => {
@@ -124,6 +121,7 @@ export const BeneficiaryAccessGate = ({
 
   // The OTP group owns its boxes, so focus targets the first box by id.
   const focusCode = () => document.getElementById('beneficiary-step-up-code')?.focus()
+  const focusPin = (id: string) => document.getElementById(id)?.focus()
 
   const clearSecrets = () => {
     setCode('')
@@ -209,7 +207,7 @@ export const BeneficiaryAccessGate = ({
             ? 'Incorrect PIN. Personal details remain hidden.'
             : error.message,
       )
-      pinInputRef.current?.focus()
+      focusPin('beneficiary-step-up-pin')
     }
   }
 
@@ -222,13 +220,13 @@ export const BeneficiaryAccessGate = ({
     if (!isAcceptableStepUpPin(submitted)) {
       setStatus('error')
       setMessage(STEP_UP_PIN_RULE_MESSAGE)
-      pinInputRef.current?.focus()
+      focusPin('beneficiary-step-up-new-pin')
       return
     }
     if (submitted !== confirmation) {
       setStatus('error')
       setMessage('The PINs do not match. Enter them again.')
-      pinInputRef.current?.focus()
+      focusPin('beneficiary-step-up-new-pin')
       return
     }
     setStatus('loading')
@@ -244,7 +242,7 @@ export const BeneficiaryAccessGate = ({
           ? error.message
           : 'The PIN could not be saved. You can skip and set it later in My Profile.',
       )
-      pinInputRef.current?.focus()
+      focusPin('beneficiary-step-up-new-pin')
     }
   }
 
@@ -283,31 +281,31 @@ export const BeneficiaryAccessGate = ({
       </fieldset>
     ) : null
 
-  const pinInput = (id: string, label: string, value: string, set: (value: string) => void) => (
-    <div className="space-y-2">
-      <Label htmlFor={id}>{label}</Label>
-      <Input
-        id={id}
-        ref={id === 'beneficiary-step-up-pin-confirm' ? pinConfirmRef : pinInputRef}
-        autoComplete="off"
-        autoFocus={id !== 'beneficiary-step-up-pin-confirm'}
-        inputMode="numeric"
-        maxLength={12}
-        type="password"
-        value={value}
-        onChange={(event) => set(digitsOnly(event.target.value, 12))}
-        onKeyDown={(event) => {
-          if (event.key === 'Enter') {
-            event.preventDefault()
+  const pinInput = (id: string, label: string, value: string, set: (value: string) => void) => {
+    const isNewPin = id === 'beneficiary-step-up-new-pin'
+    return (
+      <div key={id} className="space-y-2">
+        <Label htmlFor={id}>{label}</Label>
+        <OtpInput
+          id={id}
+          label={label}
+          masked
+          className="justify-center"
+          autoFocus={id !== 'beneficiary-step-up-pin-confirm'}
+          value={value}
+          onChange={(next) => {
+            set(next)
+            if (isNewPin && next.length === 6) focusPin('beneficiary-step-up-pin-confirm')
+          }}
+          onEnter={() => {
             // In the offer, Enter in New PIN moves to the confirmation until it is filled.
-            if (method === 'offer' && id !== 'beneficiary-step-up-pin-confirm' && !pinConfirm) {
-              pinConfirmRef.current?.focus()
-            } else void (method === 'offer' ? savePin() : verifyPin())
-          }
-        }}
-      />
-    </div>
-  )
+            if (isNewPin && !pinConfirm) focusPin('beneficiary-step-up-pin-confirm')
+            else void (method === 'offer' ? savePin() : verifyPin())
+          }}
+        />
+      </div>
+    )
+  }
 
   const prompt = (
     <Dialog open onOpenChange={(open) => !open && (method === 'offer' ? enter() : leave())}>

@@ -1,7 +1,7 @@
 'use client'
 
 import { principalHasAtomicPermission } from '@/lib/rbac/policy'
-import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from 'react'
+import { useCallback, useLayoutEffect, useMemo, useRef, useSyncExternalStore } from 'react'
 import type { ApplicationProfile } from './auth-access'
 type AtomicPermission = Parameters<typeof principalHasAtomicPermission>[1]
 
@@ -168,7 +168,8 @@ export function useSensitiveDraftOwner(
   if (latest.current.identity !== identity)
     latest.current = { identity, revision: latest.current.revision + 1 }
   const ownerRevision = latest.current.revision
-  useEffect(() => {
+  // A layout effect, so a child's passive effect sees it set when Strict Mode re-runs effects.
+  useLayoutEffect(() => {
     mounted.current = true
     return () => {
       mounted.current = false

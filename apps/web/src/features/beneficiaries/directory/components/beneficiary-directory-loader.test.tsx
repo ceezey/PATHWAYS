@@ -16,6 +16,7 @@ const api = vi.hoisted(() => ({
   getBeneficiaryRecordsForRole: vi.fn(),
 }))
 const access = vi.hoisted(() => ({
+  query: '',
   access: 'ready',
   assignedProjectIds: [
     '72000000-0000-4000-8000-000000000001',
@@ -38,7 +39,7 @@ const access = vi.hoisted(() => ({
 vi.mock('@/lib/api/projects', () => ({ projectsClient: api }))
 vi.mock('@/lib/api/beneficiaries', () => ({ beneficiariesClient: api }))
 vi.mock('@/hooks/use-current-role', () => ({ useCurrentRole: () => access }))
-vi.mock('next/navigation', () => ({ useSearchParams: () => new URLSearchParams() }))
+vi.mock('next/navigation', () => ({ useSearchParams: () => new URLSearchParams(access.query) }))
 vi.mock('./beneficiary-directory', () => ({
   BeneficiaryDirectory: ({
     beneficiaries,
@@ -53,8 +54,11 @@ vi.mock('./beneficiary-directory', () => ({
   }) => (
     <div>
       <p>
-        {projectId} {status} {beneficiaries.length}
+        [{projectId}] {status} {beneficiaries.length}
       </p>
+      <button onClick={() => onProjectChange(first)} type="button">
+        Choose first
+      </button>
       <button onClick={() => onProjectChange(second)} type="button">
         Switch
       </button>
@@ -73,6 +77,7 @@ const renderLoader = () =>
 
 describe('BeneficiaryDirectoryLoader', () => {
   beforeEach(() => {
+    access.query = ''
     access.profile.permissions = ['projects.read', 'beneficiaries.records.read']
     api.getProjects.mockResolvedValue([
       { id: first, title: 'Project One' },
@@ -87,9 +92,32 @@ describe('BeneficiaryDirectoryLoader', () => {
     vi.clearAllMocks()
   })
 
+  it('selects nothing and reads no records until a project is chosen', async () => {
+    renderLoader()
+    expect(await screen.findByText('[] success 0')).toBeTruthy()
+    expect(api.getBeneficiaryRecordsForRole).not.toHaveBeenCalled()
+  })
+
+  it('selects the only project', async () => {
+    api.getProjects.mockResolvedValue([{ id: first, title: 'Project One' }])
+    renderLoader()
+    expect(await screen.findByText(`[${first}] success 1`)).toBeTruthy()
+  })
+
+  it('keeps the project a returning link names, and ignores one outside scope', async () => {
+    access.query = `project=${second}`
+    renderLoader()
+    expect(await screen.findByText(`[${second}] success 2`)).toBeTruthy()
+    cleanup()
+    access.query = 'project=72000000-0000-4000-8000-000000000099'
+    renderLoader()
+    expect(await screen.findByText('[] success 0')).toBeTruthy()
+  })
+
   it('reads only the selected project records', async () => {
     renderLoader()
-    expect(await screen.findByText(`${first} success 1`)).toBeTruthy()
+    fireEvent.click(await screen.findByRole('button', { name: 'Choose first' }))
+    expect(await screen.findByText(`[${first}] success 1`)).toBeTruthy()
     expect(api.getBeneficiaryRecordsForRole).toHaveBeenCalledOnce()
     expect(api.getBeneficiaryRecordsForRole).toHaveBeenCalledWith(
       'Project Manager',
@@ -101,34 +129,39 @@ describe('BeneficiaryDirectoryLoader', () => {
 
   it('reads the next project only when the selection changes', async () => {
     renderLoader()
-    fireEvent.click(await screen.findByRole('button', { name: 'Switch' }))
-    expect(await screen.findByText(`${second} success 2`)).toBeTruthy()
+    fireEvent.click(await screen.findByRole('button', { name: 'Choose first' }))
+    await screen.findByText(`[${first}] success 1`)
+    fireEvent.click(screen.getByRole('button', { name: 'Switch' }))
+    expect(await screen.findByText(`[${second}] success 2`)).toBeTruthy()
     expect(api.getBeneficiaryRecordsForRole).toHaveBeenCalledTimes(2)
     expect(api.getBeneficiaryRecordsForRole.mock.lastCall?.[1]).toBe(second)
   })
 
   it('keeps the chosen project selected when its read is denied', async () => {
     renderLoader()
-    await screen.findByText(`${first} success 1`)
+    fireEvent.click(await screen.findByRole('button', { name: 'Choose first' }))
+    await screen.findByText(`[${first}] success 1`)
     api.getBeneficiaryRecordsForRole.mockRejectedValueOnce(
       new PathwaysClientError('Denied.', 'forbidden', [], 403),
     )
     fireEvent.click(screen.getByRole('button', { name: 'Switch' }))
-    expect(await screen.findByText(`${second} error 0`)).toBeTruthy()
+    expect(await screen.findByText(`[${second}] error 0`)).toBeTruthy()
     expect(screen.queryByText(new RegExp(first))).toBeNull()
   })
 
   it('shows an empty directory without reading records when the actor lacks record access', async () => {
     access.profile.permissions = ['projects.read']
     renderLoader()
-    expect(await screen.findByText(`${first} success 0`)).toBeTruthy()
+    fireEvent.click(await screen.findByRole('button', { name: 'Choose first' }))
+    expect(await screen.findByText(`[${first}] success 0`)).toBeTruthy()
     expect(api.getBeneficiaryRecordsForRole).not.toHaveBeenCalled()
   })
 
-  it('offers a retry when the first read fails', async () => {
+  it('offers a retry when the selected project read fails', async () => {
     api.getBeneficiaryRecordsForRole.mockRejectedValueOnce(new Error('offline'))
     renderLoader()
-    fireEvent.click(await screen.findByRole('button', { name: 'Retry' }))
-    expect(await screen.findByText(`${first} success 1`)).toBeTruthy()
+    fireEvent.click(await screen.findByRole('button', { name: 'Choose first' }))
+    expect(await screen.findByText(`[${first}] error 0`)).toBeTruthy()
+    expect(api.getBeneficiaryRecordsForRole).toHaveBeenCalledOnce()
   })
 })

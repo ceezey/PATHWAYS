@@ -22,7 +22,7 @@ const validate = async (schema: z.ZodTypeAny, value: unknown) =>
   new ZodPipe(schema).transform(await pipe.transform(value, { type: 'body', metatype: Object }))
 
 describe('step-up PIN rules (cr-pathways-beneficiary-step-up-pin)', () => {
-  it.each(['482915', '112233445566', '529317', '0864213579'])('accepts %s', (pin) => {
+  it.each(['482915', '529317', '086421'])('accepts %s', (pin) => {
     expect(isAcceptableStepUpPin(pin)).toBe(true)
   })
 
@@ -30,9 +30,9 @@ describe('step-up PIN rules (cr-pathways-beneficiary-step-up-pin)', () => {
     '111111',
     '123456',
     '987654',
-    '0123456789',
     '12345',
-    '1234567890123',
+    '112233445566',
+    '0864213579',
     '48291a',
     ' 482915',
     '٤٨٢٩١٥',

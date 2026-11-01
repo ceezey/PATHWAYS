@@ -1,6 +1,7 @@
 import { clearSensitiveDraftStorage } from '@/lib/auth/sensitive-drafts'
 /* @vitest-environment jsdom */
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { StrictMode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { OwnProfileWorkspace } from './own-profile-workspace'
 
@@ -63,12 +64,21 @@ beforeEach(() => {
 })
 
 describe('own profile editing', () => {
-  it('places Save profile and Reload profile on one row', async () => {
+  it('loads under Strict Mode when access is already ready at mount, as on client navigation', async () => {
+    render(
+      <StrictMode>
+        <OwnProfileWorkspace />
+      </StrictMode>,
+    )
+    expect(await screen.findByLabelText('Name')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Reload profile' })).toBeNull()
+  })
+
+  it('replaces the loading text with the failure when the read fails', async () => {
+    state.read.mockRejectedValue(new Error('offline'))
     render(<OwnProfileWorkspace />)
-    await screen.findByLabelText('Name')
-    const row = screen.getByRole('button', { name: 'Save profile' }).parentElement
-    expect(row?.className).toContain('justify-between')
-    expect(row?.contains(screen.getByRole('button', { name: 'Reload profile' }))).toBe(true)
+    expect(await screen.findByText(/Profile could not be loaded/)).toBeTruthy()
+    expect(screen.queryByText('Loading profile...')).toBeNull()
   })
 
   it('updates only approved editable fields with the loaded revision', async () => {

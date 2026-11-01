@@ -215,25 +215,20 @@ describe('Beneficiary step-up PIN client (cr-pathways-beneficiary-step-up-pin)',
     })
   })
 
-  it('changes with the current PIN, or re-verifies the authenticator and sends no PIN proof', async () => {
+  it('changes with the current PIN, or sends no PIN proof after an authenticator step-up', async () => {
     mocks.requestFoundation.mockResolvedValue({ pinState: 'SET' })
-    await changeStepUpPin('529317', { currentPin: '482915' })
+    await changeStepUpPin('529317', '482915')
     expect(postCalls().at(-1)).toEqual([
       '/auth/step-up/pin/change',
       { method: 'POST', body: JSON.stringify({ newPin: '529317', currentPin: '482915' }) },
     ])
+    await changeStepUpPin('640281')
     expect(mocks.verify).not.toHaveBeenCalled()
-    await changeStepUpPin('640281', { authenticatorCode: '123456' })
-    expect(mocks.verify).toHaveBeenCalledWith({
-      factorId,
-      challengeId: 'challenge',
-      code: '123456',
-    })
     expect(postCalls().at(-1)).toEqual([
       '/auth/step-up/pin/change',
       { method: 'POST', body: JSON.stringify({ newPin: '640281' }) },
     ])
-    await expect(changeStepUpPin('000000', { currentPin: '482915' })).rejects.toMatchObject({
+    await expect(changeStepUpPin('000000', '482915')).rejects.toMatchObject({
       failure: 'rejected',
     })
   })
