@@ -13,7 +13,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 
-import { needsCheckLabels } from '../../collection.copy'
+import { consentAnswersBoth, needsCheckLabels, ruleKindLabels } from '../../collection.copy'
 import { type FormField, tableHeadClass } from '../../collection.utils'
 
 /** The badges a field in the list carries after a draft from an import. */
@@ -67,6 +67,12 @@ export function DraftSummaryPanel({
 }) {
   const labelOf = (code: string) => fields.find((field) => field.code === code)?.label || code
   const columnsOf = (code: string) => fields.find((field) => field.code === code)?.sourceNames ?? []
+  const ruleOf = (code: string) => fields.find((field) => field.code === code)?.rule
+  const copiesDataConsent = ruleOf('consent_recorded')?.kind === 'SAME_ANSWER_AS'
+  const labelOfRule = (code: string) => {
+    const rule = ruleOf(code)
+    return rule ? ruleKindLabels[rule.kind] : 'No source name'
+  }
   const counts = [
     ...changeKinds.map(({ key, one, many }) => {
       const count = summary[key].length
@@ -106,6 +112,9 @@ export function DraftSummaryPanel({
                       <p className="text-xs text-muted-foreground">{item.fieldCode}</p>
                     ) : null}
                     <p className="text-sm text-muted-foreground">{needsCheckLabels[item.reason]}</p>
+                    {item.fieldCode === 'data_processing_consent_recorded' && copiesDataConsent ? (
+                      <p className="text-sm text-foreground">{consentAnswersBoth}</p>
+                    ) : null}
                   </div>
                   <Button
                     aria-label={`Go to ${item.fieldCode}`}
@@ -181,7 +190,7 @@ export function DraftSummaryPanel({
                                   </p>
                                 ))
                               ) : (
-                                <span className="text-muted-foreground">No source name</span>
+                                <span className="text-muted-foreground">{labelOfRule(code)}</span>
                               )}
                             </TableCell>
                             <TableCell className="align-top">

@@ -31,6 +31,7 @@ export interface DraftColumn {
 
 export type NeedsCheckReason =
   | 'ENUM_ANSWER_UNRESOLVED'
+  | 'PARTICIPATION_CONSENT_NO_SOURCE'
   | 'CONSENT_SOURCE_PROPOSED'
   | 'WASHINGTON_GROUP_FLAG_DISAGREES'
 
@@ -75,6 +76,49 @@ const REGISTRATION_DEFAULTS = [
   ['subject_type', 'INDIVIDUAL'],
 ] as const
 const CONSENT_WORDS = ['collection', 'use', 'processing']
+// Words a data consent header may hold; any other word, such as "Parents" or "Non", can change whose consent it is or whether it is one.
+const DATA_CONSENT_HEADER_WORDS = new Set([
+  ...STOP_WORDS,
+  ...CONSENT_WORDS,
+  'consent',
+  'data',
+  'personal',
+  'privacy',
+  'information',
+  'purpose',
+  'purposes',
+  'do',
+  'i',
+  'you',
+  'your',
+  'my',
+])
+// A tag after a dash can be a program name, so these are refused there by name.
+const OTHER_PERSON_TAGS = new Set([
+  'parent',
+  'parents',
+  'guardian',
+  'guardians',
+  'mother',
+  'father',
+  'spouse',
+  'caregiver',
+  'staff',
+  'enumerator',
+])
+// Header words that may mark a person's own answer about taking part.
+const OWN_ANSWER_WORDS = [
+  'consent',
+  'assent',
+  'participate',
+  'participation',
+  'agree',
+  'agrees',
+  'agreed',
+  'agreement',
+]
+// Consent fields a column may feed without being the person's own answer about taking part.
+const OTHER_CONSENT_CODES = ['data_processing_consent_recorded', 'guardian_consent_recorded']
 const IDENTIFIER_WORDS = ['id', 'certificate', 'cert']
 // Words naming the registered person; any other word, such as "Guardian" or "Staff", may name someone else.
 const SUBJECT_WORDS = new Set([...STOP_WORDS, 'student', 'learner', 'trainee', 'client', 'youth'])
@@ -108,6 +152,22 @@ const namesField = (header: string, name: string) => {
   )
   const wanted = headerTokens(name)
   return own.length === wanted.length && wanted.every((token) => own.includes(token))
+}
+
+/**
+ * True when a header can only mean the registered person's consent to data use, ignoring a one-word tag such as " - Futuremaker".
+ * shortcut: a tag naming someone outside OTHER_PERSON_TAGS still passes, and the item stays listed for a person; upgrade if a file shows one.
+ */
+function namesDataConsent(header: string) {
+  const tag = /\s[-–—]\s*(\S+)$/.exec(header)
+  if (tag && OTHER_PERSON_TAGS.has(tag[1].toLowerCase())) return false
+  const tokens = headerTokens(tag ? header.slice(0, tag.index) : header)
+  return (
+    tokens.includes('consent') &&
+    tokens.includes('data') &&
+    CONSENT_WORDS.some((word) => tokens.includes(word)) &&
+    tokens.every((token) => DATA_CONSENT_HEADER_WORDS.has(token))
+  )
 }
 
 /**
@@ -342,12 +402,7 @@ export function draftFormFromImport(input: {
   ): [DraftField, 'CONSENT' | 'SUGGESTED' | 'IDENTIFIER'] | undefined {
     const type = inferType(present)
     const tokens = headerTokens(header)
-    if (
-      type === 'BOOLEAN' &&
-      tokens.includes('consent') &&
-      tokens.includes('data') &&
-      CONSENT_WORDS.some((w) => tokens.includes(w))
-    ) {
+    if (type === 'BOOLEAN' && namesDataConsent(header)) {
       const consent = free('data_processing_consent_recorded')
       if (consent) return [consent, 'CONSENT']
     }
@@ -473,19 +528,26 @@ export function draftFormFromImport(input: {
     if (target && column.sourceCode) addSourceName(target, column.sourceCode)
   }
 
-  // A yes to data use also stands for taking part (developer's decision, 2026-11-01); a no or a blank holds the row on both.
-  const participation = consentProposed ? free('consent_recorded') : undefined
-  if (participation && !participation.rule) {
-    participation.rule = { kind: 'SAME_ANSWER_AS', field: 'data_processing_consent_recorded' }
-    note(summary.rules, participation.code)
-  }
-
   if (input.formType === 'BENEFICIARY_REGISTRATION') {
     for (const [code, value] of REGISTRATION_DEFAULTS) {
       const field = free(code)
       if (field?.required && field.importDefault == null && field.allowedValues?.includes(value)) {
         field.importDefault = value
         note(summary.defaults, code)
+      }
+    }
+    // A yes to data use also stands for taking part (developer's decision, 2026-11-01), unless another column may hold the person's own answer.
+    const participation = consentProposed ? free('consent_recorded') : undefined
+    if (participation && !participation.rule) {
+      const ownAnswer = input.columns.some(
+        (column) =>
+          headerTokens(column.header).some((token) => OWN_ANSWER_WORDS.includes(token)) &&
+          !OTHER_CONSENT_CODES.includes(mapping.get(column.key) ?? ''),
+      )
+      if (ownAnswer) flag(participation.code, 'PARTICIPATION_CONSENT_NO_SOURCE')
+      else {
+        participation.rule = { kind: 'SAME_ANSWER_AS', field: 'data_processing_consent_recorded' }
+        note(summary.rules, participation.code)
       }
     }
   }

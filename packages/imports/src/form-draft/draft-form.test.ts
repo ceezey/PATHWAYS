@@ -499,16 +499,35 @@ describe('draftFormFromImport rules', () => {
       },
     )
 
-    it.each(['Parents consent to data use', 'Non-consent to data use'])(
-      'always asks a person about "%s"',
-      (header) => {
-        const result = draft([columnOf(header, [true, false, true], 1)])
-        expect(result.summary.needsCheck).toContainEqual({
-          fieldCode: 'data_processing_consent_recorded',
-          reason: 'CONSENT_SOURCE_PROPOSED',
-        })
-      },
-    )
+    it.each([
+      'Parents consent to data use',
+      'Non-consent to data use',
+      'No consent to data use',
+      'Do not consent to data use',
+      'Refused consent to data processing',
+      'Consent to data use - Parent',
+      'Consent to data use - GUARDIAN',
+    ])('keeps "%s" off both consent fields', (header) => {
+      const result = draft([columnOf(header, [true, false, true], 1)])
+      expect(find(result, 'data_processing_consent_recorded')?.sourceNames).toBeUndefined()
+      expect(find(result, 'consent_recorded')?.rule).toBeUndefined()
+      expect(result.summary.addedFields).toHaveLength(1)
+    })
+
+    it.each([
+      'Consent to data use',
+      'Consent to data processing',
+      'Consent to the collection and use of your data for the purposes - Futuremaker',
+      'Do you consent to the use of your personal data?',
+      'I consent to the collection of my data',
+    ])('sends "%s" to data consent and still asks a person', (header) => {
+      const result = draft([columnOf(header, [true, false, true], 1)])
+      expect(find(result, 'data_processing_consent_recorded')?.sourceNames).toEqual([header])
+      expect(result.summary.needsCheck).toContainEqual({
+        fieldCode: 'data_processing_consent_recorded',
+        reason: 'CONSENT_SOURCE_PROPOSED',
+      })
+    })
 
     it('keeps a text yes or no consent column off the consent field', () => {
       const result = draft([columnOf('Consent to data use', ['Yes', 'No', 'Yes'], 1)])
@@ -740,6 +759,61 @@ describe('draftFormFromImport rules', () => {
       const result = draft([consent], fields)
       expect(find(result, 'consent_recorded')?.rule).toEqual(rule)
       expect(result.summary.rules).not.toContain('consent_recorded')
+    })
+
+    it.each([
+      'Consent to participate',
+      'Participant consent',
+      'Agrees to participate',
+      'Participation agreement',
+      'Assent',
+      'Photo use consent',
+    ])('does not copy the answer past "%s", and lists it for a person', (header) => {
+      for (const columns of [
+        [consent, columnOf(header, [true, false], 2)],
+        [columnOf(header, [true, false], 1), { ...consent, columnIndex: 2 }],
+      ]) {
+        const result = draft(columns)
+        expect(find(result, 'consent_recorded')?.rule).toBeUndefined()
+        expect(result.summary.rules).not.toContain('consent_recorded')
+        expect(result.summary.needsCheck).toContainEqual({
+          fieldCode: 'consent_recorded',
+          reason: 'PARTICIPATION_CONSENT_NO_SOURCE',
+        })
+      }
+    })
+
+    it('does not copy the answer past a participation column left blank', () => {
+      const result = draft([consent, columnOf('Consent to participate', ['', ''], 2)])
+      expect(find(result, 'consent_recorded')?.rule).toBeUndefined()
+      expect(result.summary.needsCheck).toContainEqual({
+        fieldCode: 'consent_recorded',
+        reason: 'PARTICIPATION_CONSENT_NO_SOURCE',
+      })
+    })
+
+    it('does not copy the answer past a participation column whose values do not fit', () => {
+      const fields = REGISTRATION.map((field) =>
+        field.code === 'consent_recorded'
+          ? { ...field, sourceNames: ['Consent to participate'] }
+          : field,
+      )
+      const own = columnOf('Consent to participate', ['Oo', 'Hindi'], 2)
+      const result = draft([consent, own], fields)
+      expect(find(result, 'consent_recorded')?.rule).toBeUndefined()
+    })
+
+    it.each(['Are you a past program participant?', 'Guardian consent'])(
+      'still copies the answer beside "%s"',
+      (header) => {
+        const result = draft([consent, columnOf(header, [true, false], 2)])
+        expect(find(result, 'consent_recorded')?.rule?.kind).toBe('SAME_ANSWER_AS')
+      },
+    )
+
+    it('sets nothing on a form that is not a registration form', () => {
+      const result = draft([consent], REGISTRATION, 'OTHER')
+      expect(find(result, 'consent_recorded')?.rule).toBeUndefined()
     })
   })
 
