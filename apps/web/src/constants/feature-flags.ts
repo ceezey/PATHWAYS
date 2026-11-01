@@ -4,13 +4,12 @@
  */
 
 /**
- * The beneficiary step-up PIN fallback UI is hidden (2026-09-29): the fallback is buggy,
- * so only the authenticator (TOTP) step-up path is shown until it is fixed. The API
- * endpoints, migration 0037 and the PIN components stay in place; only the UI entry
- * points are gated by this flag. See vault note deferred-features and
- * vault note cr-pathways-beneficiary-step-up-pin.
+ * The beneficiary step-up PIN fallback UI was hidden on 2026-09-29 and is shown again
+ * (2026-11-01, developer request) after a full run on the local stack found it working. Set to
+ * `false` to show only the authenticator path; the API and migration 0037 stay in place. See
+ * vault note deferred-features and vault note cr-pathways-beneficiary-step-up-pin.
  */
-export const STEP_UP_PIN_UI_ENABLED = false
+export const STEP_UP_PIN_UI_ENABLED = true
 
 /**
  * The analytics aggregate export (CSV) button was hidden on 2026-09-29 and is shown again
