@@ -102,7 +102,10 @@ describe('import screen upload identity', () => {
 
   const lostThenChanged = async (change: () => unknown) => {
     render(<ImportWorkspace />, { wrapper: DisplayLabelsProvider })
+    await screen.findByText('Second Project')
+    pick('Project', 'project-1')
     await screen.findByText('Import form - v1')
+    pick('Published form(s)', 'form-1')
     pickFile(notes)
     fireEvent.click(uploadButton())
     await waitFor(() => expect(api.uploadImport).toHaveBeenCalledTimes(1))
