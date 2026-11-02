@@ -73,6 +73,15 @@ export const importRowReviewFieldResponse = z.object({
 })
 export type ImportRowReviewFieldResponse = z.infer<typeof importRowReviewFieldResponse>
 
+// One question of a scored survey: the file's answer, the answer key and whether the answer earned its point.
+export const importRowScoreDetail = z.object({
+  code: z.string(),
+  label: z.string(),
+  answer: json.nullable(),
+  correct: z.union([z.array(z.string()), z.literal('ANY')]),
+  counted: z.boolean(),
+})
+
 // Body of GET imports/projects/:projectId/batches/:batchId/rows/:rowId/review, used as a type and never parsed at runtime.
 export const importRowReviewResponse = z.object({
   rowId: z.string(),
@@ -83,6 +92,8 @@ export const importRowReviewResponse = z.object({
     .nullable(),
   fields: z.array(importRowReviewFieldResponse),
   canAddNew: z.boolean(),
+  // The answers behind a total score, present only when the form scores its answers.
+  scoreDetail: z.array(importRowScoreDetail).optional(),
 })
 export type ImportRowReviewResponse = z.infer<typeof importRowReviewResponse>
 

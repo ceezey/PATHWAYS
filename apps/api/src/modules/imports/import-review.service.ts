@@ -13,6 +13,7 @@ import {
   type NormalizedImportValue,
   applyIntakeRules,
   normalizeImportedRow,
+  totalScore,
 } from '@pathways/imports/server'
 import {
   CONSENT_FIELD_CODES,
@@ -44,6 +45,7 @@ import { lockBatch, requireBatchWithHeaders } from './import-batches.service'
 import { reconcileBatch } from './import-claims.service'
 import { loadFormFields } from './import-promotion-context.service'
 import { matchedValues, registrationOutcomes } from './import-row-promotion.service'
+import { loadHeldStageRow, resolveHeldStage, scoreDetailOf } from './import-stage-review'
 import { columnRules, intakeField, valuesByFieldCode } from './import-validation.service'
 import { safeRawData, stableJson } from './imports.helpers'
 import type { FieldRow } from './imports.mapper'
@@ -67,7 +69,7 @@ interface FieldError {
 
 // The same ceiling the registration import transaction has.
 const RESOLVE_TRANSACTION_TIMEOUT_MS = 20_000
-const ROW_UNAVAILABLE = 'Import row unavailable.'
+export const ROW_UNAVAILABLE = 'Import row unavailable.'
 // A resolved minor waits under this code for a Project Officer, who keeps the resolution and adds guardian consent.
 export const GUARDIAN_HOLD = 'GUARDIAN_CONSENT_REQUIRED'
 // The system sets these, so the reviewer neither sees nor chooses them.
@@ -79,10 +81,11 @@ const systemCodes = new Set([
 ])
 const consentCodes: readonly string[] = CONSENT_FIELD_CODES
 
-interface HeldRow {
+export interface HeldRow {
   batch: BatchHead
   row: { id: string; rowNumber: number; reason: string }
-  form: RegistrationImportForm
+  // Null for a survey stage, which has no registration form.
+  form: RegistrationImportForm | null
   fieldRows: FieldRow[]
   fields: IntakeField[]
   uploadDate: string
@@ -124,6 +127,7 @@ function calculatedValues(fields: readonly IntakeField[], file: Values, uploadDa
   for (const field of fields) {
     const rule = field.rule
     if (isCalculatedRule(rule)) calculated[field.code] = copy[field.code] ?? null
+    else if (rule?.kind === 'TOTAL_SCORE') calculated[field.code] = totalScore(rule, file)
     else if (rule?.kind === 'AGE_CHECK') {
       const birth = new Date(`${file[rule.birthField]}T00:00:00.000Z`)
       calculated[field.code] = Number.isNaN(birth.getTime())
@@ -179,7 +183,7 @@ export async function lockResolvableBatch(
 }
 
 // The values the file brought: stored for a held row, read again from the source cells for an invalid one.
-async function readFileValues(
+export async function readFileValues(
   tx: Tx,
   actor: ApplicationIdentity,
   batch: BatchHead,
@@ -234,6 +238,32 @@ async function readFileValues(
   return { values: normalizeImportedRow(read, source, rules, { uploadDate }).values, source }
 }
 
+// The fields a validation error names, and the file text of those validation left without a usable value.
+export function invalidFields(
+  row: { status: string; validationErrors: Prisma.JsonValue },
+  fieldRows: readonly FieldRow[],
+  file: Values,
+  source: Values,
+) {
+  const invalid = new Set(
+    row.status === 'INVALID'
+      ? (row.validationErrors as Array<{ fieldCode?: string }>).flatMap((error) =>
+          fieldRows.some((field) => field.code === error.fieldCode)
+            ? [String(error.fieldCode)]
+            : [],
+        )
+      : [],
+  )
+  const unusable = new Map(
+    [...invalid].flatMap((code) =>
+      isBlank(file[code]) && String(source[code] ?? '').trim() !== ''
+        ? [[code, String(source[code]).slice(0, MAX_UNUSABLE_TEXT)] as const]
+        : [],
+    ),
+  )
+  return { invalid, unusable }
+}
+
 async function loadHeldRow(
   tx: Tx,
   actor: ApplicationIdentity,
@@ -241,6 +271,7 @@ async function loadHeldRow(
   batch: BatchHead,
   rowId: string,
 ): Promise<HeldRow> {
+  if (batch.parentBatchId) return loadHeldStageRow(tx, actor, batch, rowId)
   if (!UUID_PATTERN.test(rowId)) throw new NotFoundException(ROW_UNAVAILABLE)
   const row = await tx.dataImportRow.findFirst({
     where: {
@@ -288,15 +319,7 @@ async function loadHeldRow(
     ? await readBaseline(tx, actor, form.projectId, beneficiaryId)
     : null
   const firstError = (row.validationErrors as Array<{ code?: string }>)[0]?.code
-  const invalid = new Set(
-    row.status === 'INVALID'
-      ? (row.validationErrors as Array<{ fieldCode?: string }>).flatMap((error) =>
-          fieldRows.some((field) => field.code === error.fieldCode)
-            ? [String(error.fieldCode)]
-            : [],
-        )
-      : [],
-  )
+  const { invalid, unusable } = invalidFields(row, fieldRows, file, source)
   return {
     batch,
     row: {
@@ -313,13 +336,7 @@ async function loadHeldRow(
     baseline,
     invalid,
     // A field validation left without a value has nothing to show but its file text.
-    unusable: new Map(
-      [...invalid].flatMap((code) =>
-        isBlank(file[code]) && String(source[code] ?? '').trim() !== ''
-          ? [[code, String(source[code]).slice(0, MAX_UNUSABLE_TEXT)] as const]
-          : [],
-      ),
-    ),
+    unusable,
     // The matcher's list already leaves out file values the reviewer rejected before.
     changed: new Set(
       match.kind === 'CHANGED' ? match.fieldCodes.filter((code) => !systemCodes.has(code)) : [],
@@ -688,11 +705,11 @@ export class ImportReviewService {
             rule: held.fields.find((item) => item.code === field.code)?.rule ?? null,
             changed: held.changed.has(field.code) || held.invalid.has(field.code),
           })),
-        canAddNew: hasAtomicPermission(
-          actor.roles[0],
-          actor.permissions,
-          'beneficiaries.records.register',
-        ),
+        // A survey stage can only be updated, never added as a new participant.
+        canAddNew:
+          held.form !== null &&
+          hasAtomicPermission(actor.roles[0], actor.permissions, 'beneficiaries.records.register'),
+        ...scoreDetailOf(held),
       }
     })
   }
@@ -730,14 +747,24 @@ export class ImportReviewService {
         )
         const held = await loadHeldRow(tx, actor, this.registration, batch, rowId)
         const final = validateChosen(held, body, choose(held, body))
-        const values = await this.promotionValues(tx, actor, held, body, final)
-        const result = await commitResolvedRow(tx, actor, this.registration, {
-          batch,
-          form: held.form,
-          rowId: held.row.id,
-          rowNumber: held.row.rowNumber,
-          resolution: { saveAs: body.saveAs, choices: body.choices, values },
-        })
+        // A survey stage is promoted by its own writer instead of the registration service.
+        const result = held.form
+          ? await commitResolvedRow(tx, actor, this.registration, {
+              batch,
+              form: held.form,
+              rowId: held.row.id,
+              rowNumber: held.row.rowNumber,
+              resolution: {
+                saveAs: body.saveAs,
+                choices: body.choices,
+                values: await this.promotionValues(tx, actor, held, body, final),
+              },
+            })
+          : await resolveHeldStage(tx, actor, held, {
+              saveAs: body.saveAs,
+              choices: body.choices,
+              values: final,
+            })
         // A guardian row stays with the Project Officer unless the participant no longer needs guardian consent.
         if (result.kind === 'WAITING' && held.row.reason === GUARDIAN_HOLD) {
           throw new ConflictException(

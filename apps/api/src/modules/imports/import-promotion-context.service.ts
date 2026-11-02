@@ -130,7 +130,7 @@ export async function loadPromotionContext(
 }
 
 /** The context of a stage batch, or undefined when its survey form is not published with an activity and a journey stage. */
-async function loadStageContext(
+export async function loadStageContext(
   tx: Tx,
   actor: ApplicationIdentity,
   batch: PromotionBatch,
