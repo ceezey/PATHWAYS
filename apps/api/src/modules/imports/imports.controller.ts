@@ -111,6 +111,17 @@ export class ImportsController {
     return this.imports.rerun(requestIdentity(request), projectId, batchId, body)
   }
 
+  @Post(':batchId/parts/:partCode/start')
+  @RequirePermission('imports.upload')
+  startPart(
+    @Req() request: AuthenticatedRequest,
+    @Param('projectId') projectId: string,
+    @Param('batchId') batchId: string,
+    @Param('partCode') partCode: string,
+  ) {
+    return this.imports.startFilePart(requestIdentity(request), projectId, batchId, partCode)
+  }
+
   @Get(':batchId/rows')
   @RequirePermission('imports.read')
   rows(

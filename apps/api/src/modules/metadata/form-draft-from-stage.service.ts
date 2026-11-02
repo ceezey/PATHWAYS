@@ -30,6 +30,7 @@ import { currentBusinessDate } from '../../common/time/business-date'
 import { PrismaService } from '../../prisma/prisma.service'
 import { requireBatchWithHeaders } from '../imports/import-batches.service'
 import { checksum } from '../imports/imports.helpers'
+import { findStageForm } from '../imports/stage-form-lookup'
 import { StorageService } from '../storage/storage.service'
 import { insertDraft } from './form-definitions.service'
 import { assertDefinition } from './metadata.helpers'
@@ -85,25 +86,6 @@ export function partColumns(
     sourceCode: column.sourceCode,
     values: narrowed.rows.map((row) => row.values[column.key]),
   }))
-}
-
-/** The newest published or draft form of the project whose stage date lists the part's code; this lookup is the file layout. */
-export function findStageForm(
-  tx: Tx,
-  actor: ApplicationIdentity,
-  projectId: string,
-  partCode: string,
-) {
-  return tx.digitalForm.findFirst({
-    where: {
-      organizationId: actor.organizationId,
-      projectId,
-      status: { in: ['PUBLISHED', 'DRAFT'] },
-      formField_form: { some: { code: 'stage_date', sourceNames: { has: partCode } } },
-    },
-    orderBy: { createdAt: 'desc' },
-    select: { id: true, journeyStageId: true },
-  })
 }
 
 function stageCode(name: string, taken: Set<string>) {

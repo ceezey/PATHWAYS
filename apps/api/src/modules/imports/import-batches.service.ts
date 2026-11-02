@@ -1,11 +1,13 @@
 import { NotFoundException } from '@nestjs/common'
 import { IMPORT_ENGINEERING_LIMITS } from '@pathways/imports/server'
-import type {
-  ImportBatchDetailResponse,
-  ImportMappingResponse,
-  ImportRowResponse,
-  ImportRowsPageResponse,
-  ImportRowsQuery,
+import {
+  type ImportBatchDetailResponse,
+  type ImportMappingResponse,
+  type ImportPartSummary,
+  type ImportRowResponse,
+  type ImportRowsPageResponse,
+  type ImportRowsQuery,
+  filePart,
 } from '@pathways/shared'
 import { Prisma } from '@prisma/client'
 import { type ApplicationIdentity, UUID_PATTERN } from '../../common/authz/application-identity'
@@ -14,11 +16,16 @@ import type { Tx } from '../../common/prisma/transaction'
 import { readBatchCoverage } from './batch-coverage'
 import { safeSourceColumns } from './imports.helpers'
 import { type BatchRow, batchSelection, mapBatch } from './imports.mapper'
+import { findStageForm } from './stage-form-lookup'
 
 export async function listProjectBatches(tx: Tx, actor: ApplicationIdentity, projectId: string) {
   const scopedProjectId = await requireScopedProject(tx, actor, projectId)
   const batches = await tx.dataImportBatch.findMany({
-    where: { organizationId: actor.organizationId, projectId: scopedProjectId },
+    where: {
+      organizationId: actor.organizationId,
+      projectId: scopedProjectId,
+      parentBatchId: null,
+    },
     select: batchSelection,
     orderBy: { createdAt: 'desc' },
     take: IMPORT_ENGINEERING_LIMITS.processingCheckpointRows,
@@ -29,6 +36,43 @@ export async function listProjectBatches(tx: Tx, actor: ApplicationIdentity, pro
     batches.map((batch) => batch.id),
   )
   return batches.map((batch) => mapBatch(batch, warnings.get(batch.id) ?? 0, actor.userId))
+}
+
+/** Each part of a file batch with its newest form and its newest batch; a part with no batch has not been started. */
+async function readPartSummaries(
+  tx: Tx,
+  actor: ApplicationIdentity,
+  batch: BatchRow,
+): Promise<ImportPartSummary[]> {
+  const parts = filePart.array().safeParse(batch.fileParts).data ?? []
+  if (parts.length === 0) return []
+  const children = await tx.dataImportBatch.findMany({
+    where: { organizationId: actor.organizationId, parentBatchId: batch.id },
+    select: batchSelection,
+    orderBy: { formVersion: 'desc' },
+    take: IMPORT_ENGINEERING_LIMITS.maxSourceColumns,
+  })
+  const warnings = await warningRowCounts(
+    tx,
+    actor,
+    children.map((child) => child.id),
+  )
+  const summaries: ImportPartSummary[] = []
+  for (const part of parts) {
+    const form =
+      (await findStageForm(tx, actor, batch.projectId, part.code, ['PUBLISHED'])) ??
+      (await findStageForm(tx, actor, batch.projectId, part.code, ['DRAFT']))
+    const child = children.find((item) => item.partCode === part.code)
+    summaries.push({
+      code: part.code,
+      name: part.name,
+      formId: form?.id ?? null,
+      formName: form?.name ?? null,
+      formStatus: form ? (form.status as 'PUBLISHED' | 'DRAFT') : 'NONE',
+      batch: child ? mapBatch(child, warnings.get(child.id) ?? 0, actor.userId) : null,
+    })
+  }
+  return summaries
 }
 
 /** Rows with at least one stored validation warning, per batch. */
@@ -103,6 +147,7 @@ export async function readBatchDetail(
       actor.userId,
     ),
     ...registrationCounts(batch, counts),
+    parts: await readPartSummaries(tx, actor, batch),
     sourceHeaders: sourceColumns.map((column) => column.key),
     sourceColumns,
     mappings: mappings.map(

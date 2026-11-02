@@ -19,6 +19,7 @@ import {
 } from '@pathways/imports/server'
 import type {
   AutomaticImportMappingRequest,
+  FilePart,
   ImportRowsQuery,
   ProcessImportRequest,
   RerunImportRequest,
@@ -41,6 +42,7 @@ import {
   releaseClaimedRow,
 } from './import-claims.service'
 import { saveBatchMapping } from './import-mapping.service'
+import { holdsScores, partImportId, readPartStart } from './import-parts.service'
 import type {
   PromotionContext,
   PromotionHandlers,
@@ -65,6 +67,12 @@ import { type UploadedImportFile, checksum, fileContentType, fileMetadata } from
 import { W10FinalizationFault } from './upload-finalization-fault'
 
 export type { UploadedImportFile } from './imports.helpers'
+
+// The parent batch a part is staged under, and the part's columns.
+interface StartedPart {
+  parentBatchId: string
+  part: FilePart
+}
 
 const REGISTRATION_IMPORT_TRANSACTION_TIMEOUT_MS = 20_000
 const PARTICIPATION_IMPORT_TRANSACTION_TIMEOUT_MS = 20_000
@@ -141,13 +149,14 @@ export class ImportsService {
     projectId: string,
     input: UploadImportRequest,
     file?: UploadedImportFile,
+    part?: StartedPart,
   ) {
     if (!file) throw new BadRequestException('A source file is required.')
     const metadata = fileMetadata(file)
     if (!this.storage.isConfigured()) {
       throw new ServiceUnavailableException('Private upload storage is not configured.')
     }
-    const reservation = await this.reserveUpload(identity, projectId, input, metadata)
+    const reservation = await this.reserveUpload(identity, projectId, input, metadata, part)
     if (!reservation.requiresFinalization) {
       return this.getBatch(identity, projectId, reservation.batchId)
     }
@@ -201,7 +210,7 @@ export class ImportsService {
     }
 
     try {
-      return await this.finalizeUpload(identity, projectId, reservation.batchId, parsed)
+      return await this.finalizeUpload(identity, projectId, reservation.batchId, parsed, part?.part)
     } catch (error) {
       const recoveryRecorded = await this.markRecoveryRequired(
         identity,
@@ -233,18 +242,7 @@ export class ImportsService {
       'imports.upload',
       (tx, actor) => readRerunSource(tx, actor, projectId, batchId, input.formId),
     )
-    if (!this.storage.isConfigured()) {
-      throw new ServiceUnavailableException('Private upload storage is not configured.')
-    }
-    let buffer: Buffer
-    try {
-      buffer = await this.storage.downloadPrivateFile(source.storageBucket, source.storageObjectKey)
-    } catch {
-      throw new ServiceUnavailableException('The private source object is unavailable.')
-    }
-    if (checksum(buffer) !== source.sourceChecksum) {
-      throw new ConflictException('The stored source checksum does not match its reservation.')
-    }
+    const buffer = await this.readStoredSource(source)
     const formId = input.formId.toLowerCase()
     const created = await this.upload(
       identity,
@@ -265,6 +263,46 @@ export class ImportsService {
     await withAuthorizedOperation(this.prisma, identity, 'imports.upload', (tx, actor) =>
       recordRerun(tx, actor, created.projectId, batchId, created.id, source.formVersion),
     )
+    return created
+  }
+
+  /** Copies the stored file of a parent batch into a child batch of one part, on the part's published form. */
+  async startFilePart(
+    identity: ApplicationIdentity,
+    projectId: string,
+    parentId: string,
+    partCode: string,
+  ) {
+    const source = await withAuthorizedOperation(
+      this.prisma,
+      identity,
+      'imports.upload',
+      (tx, actor) => readPartStart(tx, actor, projectId, parentId, partCode),
+    )
+    const buffer = await this.readStoredSource(source)
+    // Scores with no answer key to check them against would be imported unchecked, so stop before staging.
+    const parsed = await parseSecureImport(buffer, source.fileType, {}, source.sourceSheetName)
+    if (!source.answerKey && holdsScores(selectPartColumns(parsed, source.part))) {
+      throw new ConflictException("Mark the correct answers for this survey's total score first.")
+    }
+    const created = await this.upload(
+      identity,
+      projectId,
+      {
+        formId: source.formId,
+        clientImportId: partImportId(source.clientImportId, partCode, source.formVersion),
+        ...(source.sourceSheetName ? { sheetName: source.sourceSheetName } : {}),
+      },
+      {
+        buffer,
+        originalname: source.originalFileName,
+        mimetype: fileContentType(source.fileType),
+        size: buffer.length,
+      },
+      { parentBatchId: source.parentId, part: source.part },
+    )
+    // shortcut: a FAILED part keeps its key for the form version, so it cannot be started again; upgrade when a retry key is needed.
+    if (created.status === 'FAILED') throw new ConflictException('Starting this survey failed.')
     return created
   }
 
@@ -297,7 +335,7 @@ export class ImportsService {
       {},
       reservation.sourceSheetName,
     )
-    return this.finalizeUpload(identity, projectId, batchId, parsed)
+    return this.finalizeUpload(identity, projectId, batchId, parsed, reservation.part)
   }
 
   saveMapping(
@@ -436,14 +474,44 @@ export class ImportsService {
     )
   }
 
+  // The stored source of a batch, checked against the checksum its reservation recorded.
+  private async readStoredSource(source: {
+    storageBucket: string
+    storageObjectKey: string
+    sourceChecksum: string
+  }) {
+    if (!this.storage.isConfigured()) {
+      throw new ServiceUnavailableException('Private upload storage is not configured.')
+    }
+    let buffer: Buffer
+    try {
+      buffer = await this.storage.downloadPrivateFile(source.storageBucket, source.storageObjectKey)
+    } catch {
+      throw new ServiceUnavailableException('The private source object is unavailable.')
+    }
+    if (checksum(buffer) !== source.sourceChecksum) {
+      throw new ConflictException('The stored source checksum does not match its reservation.')
+    }
+    return buffer
+  }
+
   private reserveUpload(
     identity: ApplicationIdentity,
     projectId: string,
     input: UploadImportRequest,
     metadata: ReturnType<typeof fileMetadata>,
+    part?: StartedPart,
   ) {
     return withAuthorizedOperation(this.prisma, identity, 'imports.upload', (tx, actor) =>
-      reserveBatchUpload(tx, actor, projectId, input, metadata, this.env.UPLOADS_BUCKET),
+      reserveBatchUpload(
+        tx,
+        actor,
+        projectId,
+        input,
+        metadata,
+        this.env.UPLOADS_BUCKET,
+        part && { parentBatchId: part.parentBatchId, partCode: part.part.code },
+      ),
     )
   }
 
@@ -452,10 +520,15 @@ export class ImportsService {
     projectId: string,
     batchId: string,
     whole: Awaited<ReturnType<typeof parseSecureImport>>,
+    part?: FilePart,
   ) {
-    // A file with survey stages stages only its registration columns; the stages are kept as parts.
-    const fileParts = detectFileParts(whole)
-    const parsed = fileParts.length ? selectPartColumns(whole, registrationRange(fileParts)) : whole
+    // A part's batch stages only its own columns; a file with survey stages stages only its registration columns and keeps the stages as parts.
+    const fileParts = part ? [] : detectFileParts(whole)
+    const parsed = part
+      ? selectPartColumns(whole, part)
+      : fileParts.length
+        ? selectPartColumns(whole, registrationRange(fileParts))
+        : whole
     return withAuthorizedOperation(
       this.prisma,
       identity,
