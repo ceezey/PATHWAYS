@@ -24,8 +24,8 @@ test('MIGRATIONS_IN_ORDER matches the real migrations directory exactly, in orde
   assert.deepEqual([...MIGRATIONS_IN_ORDER].sort(), onDisk)
   // The migrations directory holds one folder per Prisma migration. 0000
   // squashes the original 0001-0026 into a single reviewed baseline, so the
-  // ledger has 57 rows (baseline plus 0027-0057 and 0058-0082) even though the numbering has gaps.
-  assert.equal(MIGRATIONS_IN_ORDER.length, 57)
+  // ledger has 58 rows (baseline plus 0027-0057 and 0058-0083) even though the numbering has gaps.
+  assert.equal(MIGRATIONS_IN_ORDER.length, 58)
   assert.equal(MIGRATIONS_IN_ORDER[0], BASELINE)
 })
 
@@ -117,6 +117,7 @@ test('the dry-run plan order exactly matches the documented stop points', () => 
     'deploy:0080_participant_file_import',
     'deploy:0081_submission_check_once',
     'deploy:0082_permission_check_plpgsql',
+    'deploy:0083_stage_import',
     'alter-runtime-role',
     'postconditions',
   ])
@@ -279,7 +280,7 @@ test('planIndexForAppliedCount on a 0000-0048 ledger resumes at the 0049 deploy'
   assert.deepEqual(plan[index].migrations, ['0049_journey_event_note'])
 })
 
-test('planIndexForAppliedCount on a complete 0000-0082 ledger resumes at alter-runtime-role', () => {
+test('planIndexForAppliedCount on a complete 0000-0083 ledger resumes at alter-runtime-role', () => {
   const plan = buildPlan()
   const index = planIndexForAppliedCount(MIGRATIONS_IN_ORDER.length)
   assert.equal(plan[index].type, 'alter-runtime-role')
@@ -564,4 +565,10 @@ test('planIndexForAppliedCount on a 0000-0081 ledger resumes at the 0082 deploy'
   assert.deepEqual(plan[planIndexForAppliedCount(applied)].migrations, [
     '0082_permission_check_plpgsql',
   ])
+})
+
+test('planIndexForAppliedCount on a 0000-0082 ledger resumes at the 0083 deploy', () => {
+  const plan = buildPlan()
+  const applied = MIGRATIONS_IN_ORDER.indexOf('0082_permission_check_plpgsql') + 1
+  assert.deepEqual(plan[planIndexForAppliedCount(applied)].migrations, ['0083_stage_import'])
 })
