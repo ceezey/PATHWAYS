@@ -554,6 +554,17 @@ beforeEach(() => {
   }
 })
 
+// An earlier survey of the person, which PATHWAYS then holds as their answers.
+const earlierSurvey = (beneficiaryId: string, answers: Rec) => ({
+  id: 'earlier-other',
+  organizationId,
+  projectId,
+  beneficiaryId,
+  status: 'VALIDATED',
+  submittedAt: new Date('2026-03-11T00:00:00Z'),
+  form: { code: 'stage_lst' },
+  responses: Object.entries(answers).map(([code, value]) => ({ value, field: { code } })),
+})
 const rowOf = (id: string) => find(store.rows, { id }) as Rec
 const mine = (list: Rec[]) => list.filter((item) => !String(item.id).match(/earlier|old/))
 // The two answers that earn the change of the first row: a better q3 and the score it gives.
@@ -706,6 +717,18 @@ describe('resolving a held stage', () => {
       recordedById: actorId,
     })
     expect(String(store.events[1].correctionReason)).not.toBe('')
+    expect(store.audits.filter((item) => item.action === 'JOURNEY_EVENT_CORRECTED')).toEqual([
+      expect.objectContaining({
+        projectId,
+        entityType: 'BeneficiaryJourneyEvent',
+        entityId: store.events[1].id,
+        changes: {
+          correctsEventId: 'event-old',
+          reason: 'STAGE_DATE_CORRECTED',
+          noteAttached: false,
+        },
+      }),
+    ])
     // The participation keeps its first date, and the unchanged score adds no assessment.
     expect(store.participations).toEqual([
       expect.objectContaining({ participationDate: new Date('2026-03-10T00:00:00Z') }),
@@ -800,9 +823,10 @@ describe('resolving a held stage', () => {
   })
 
   it('saving as new is refused on a stage', async () => {
-    await expect(
-      resolve(changedRow, { saveAs: 'NEW', choices: { q3: 'FILE' } }),
-    ).rejects.toBeInstanceOf(BadRequestException)
+    const attempt = resolve(changedRow, { saveAs: 'NEW', choices: { q3: 'FILE' } })
+
+    await expect(attempt).rejects.toBeInstanceOf(BadRequestException)
+    await expect(attempt).rejects.toThrow('A survey row can only update the participant.')
 
     expect(written).toEqual([])
     expect(rowOf(changedRow)).toMatchObject({ status: 'UNPROCESSED', resolvedAt: null })
@@ -825,8 +849,73 @@ describe('resolving a held stage', () => {
       permissions: limited.permissions.filter((item) => item !== 'assessments.record'),
     }
 
-    await expect(resolve(changedRow, betterAnswer)).rejects.toThrow('Importing surveys needs')
+    // The changed answer has no choice, which would be a 400, but the officer is refused first.
+    const attempt = resolve(changedRow)
+    await expect(attempt).rejects.toBeInstanceOf(ForbiddenException)
+    await expect(attempt).rejects.toThrow('Importing surveys needs')
     expect(written).toEqual([])
+  })
+
+  it('a refused hold is a 409 even when the row also differs from the earlier survey', async () => {
+    store.submissions.push(earlierSurvey(benId, { ...benAnswers, q3: 'Z' }))
+
+    await expect(resolve(consentRow)).rejects.toMatchObject({
+      response: { code: 'STAGE_CONSENT_MISSING' },
+    })
+    expect(written).toEqual([])
+  })
+
+  it('consent cannot be taken from an earlier survey', async () => {
+    store.submissions.push(earlierSurvey(benId, benAnswers))
+    ;(rowOf(scoreRow).rawData as Rec).column_0002 = 'false'
+    const settle = (consent: Rec) =>
+      resolve(scoreRow, { choices: { total_score: 'CALCULATED', ...consent } })
+
+    await expect(settle({ stage_consent: 'PATHWAYS' })).rejects.toMatchObject({
+      response: { errors: [expect.objectContaining({ fieldCode: 'stage_consent' })] },
+    })
+    await expect(
+      resolve(scoreRow, {
+        choices: { total_score: 'CALCULATED', stage_consent: 'OWN' },
+        own: { stage_consent: true },
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException)
+    expect(written).toEqual([])
+
+    // The file's own answer stands, and it is not consent.
+    await expect(settle({ stage_consent: 'FILE' })).rejects.toMatchObject({
+      response: { code: 'STAGE_CONSENT_MISSING' },
+    })
+    expect(rowOf(scoreRow)).toMatchObject({ status: 'INVALID', resolvedAt: null })
+    expect(store.submissions).toHaveLength(2)
+  })
+
+  it('own identifier cannot move the survey to another participant', async () => {
+    // A delta file: the stage's own ID is what finds the person.
+    store.rows = store.rows.filter(
+      (item) => !(item.importBatchId === parentId && item.rowNumber === 3),
+    )
+    const attempt = resolve(missingRow, {
+      choices: { stage_date: 'OWN', external_identifier_value: 'OWN' },
+      own: { stage_date: '2026-03-05', external_identifier_value: '2024-001' },
+    })
+
+    await expect(attempt).rejects.toBeInstanceOf(BadRequestException)
+    await expect(attempt).rejects.toMatchObject({
+      response: { errors: [expect.objectContaining({ code: 'identifier_locked' })] },
+    })
+    expect(written).toEqual([])
+    expect(store.submissions).toHaveLength(1)
+  })
+
+  it('no correction event is written when the stage has no original event', async () => {
+    ;(store.events[0] as Rec).stageId = '62000000-0000-4000-8000-000000000099'
+
+    await resolve(dateRow, { choices: { stage_date: 'FILE' } })
+
+    expect(store.submissions).toHaveLength(2)
+    expect(store.events).toHaveLength(1)
+    expect(store.audits.map((item) => item.action)).not.toContain('JOURNEY_EVENT_CORRECTED')
   })
 
   it('audit has choices and no values', async () => {

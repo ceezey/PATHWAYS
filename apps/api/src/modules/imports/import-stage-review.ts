@@ -15,6 +15,8 @@ import {
   type RowResolution,
   claimBatchForResolution,
   claimHeldRow,
+  identifierError,
+  identifierOf,
   invalidFields,
   readFileValues,
 } from './import-review.service'
@@ -140,6 +142,7 @@ export async function loadHeldStageRow(
     batch,
     row: { id: row.id, rowNumber: row.rowNumber, reason },
     form: null,
+    stage: context,
     fieldRows,
     fields,
     uploadDate,
@@ -173,6 +176,19 @@ export function scoreDetailOf(held: Pick<HeldRow, 'fields' | 'fieldRows' | 'file
   return { scoreDetail }
 }
 
+/** Refuses, before any choice is read, a request the officer may not make or a row a reviewer cannot settle here. */
+export function requireResolvableStage(
+  actor: ApplicationIdentity,
+  held: HeldRow,
+  saveAs: RowResolution['saveAs'],
+) {
+  requireSurveyImportPermissions(actor)
+  if (saveAs !== 'UPDATE') {
+    throw new BadRequestException('A survey row can only update the participant.')
+  }
+  if (!resolvable.has(held.row.reason)) throw stillHeld(held.row.rowNumber, held.row.reason)
+}
+
 /**
  * Saves a held stage row with the reviewer's values: a new submission, so the earlier one stays in history.
  * A hold that remains (consent, identity or a date outside enrollment) refuses, and the transaction undoes the claim.
@@ -183,13 +199,12 @@ export async function resolveHeldStage(
   held: HeldRow,
   resolution: RowResolution,
 ) {
-  requireSurveyImportPermissions(actor)
-  const { batch, row } = held
-  if (resolution.saveAs !== 'UPDATE') {
-    throw new BadRequestException('A survey row can only update the participant.')
+  const { batch, row, stage } = held
+  if (!stage) throw new ConflictException('The stage form version is unavailable.')
+  // A typed ID would send the write to another participant, so the ID that found the person stays.
+  if (identifierOf(resolution.values) !== identifierOf(held.file)) {
+    throw identifierError('identifier_locked', 'The client ID is how the participant is found.')
   }
-  if (!resolvable.has(row.reason)) throw stillHeld(row.rowNumber, row.reason)
-  const context = await stageContext(tx, actor, batch)
   const claim = await claimBatchForResolution(tx, batch.id)
   await claimHeldRow(tx, actor, {
     batch,
@@ -198,7 +213,10 @@ export async function resolveHeldStage(
     claim,
     resolution: resolution as unknown as Prisma.InputJsonValue,
   })
-  const code = await promoteStageInTx(tx, actor, context, row.id, claim.id, resolution)
+  const code = await promoteStageInTx(tx, actor, stage, row.id, claim.id, {
+    values: resolution.values,
+    beneficiaryId: held.beneficiaryId,
+  })
   if (code) throw stillHeld(row.rowNumber, code)
   await reconcileBatch(tx, batch.id)
   return { kind: 'PROCESSED' as const }

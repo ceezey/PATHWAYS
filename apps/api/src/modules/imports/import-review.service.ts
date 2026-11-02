@@ -43,9 +43,14 @@ import {
 } from '../beneficiaries/beneficiary-registration.service'
 import { lockBatch, requireBatchWithHeaders } from './import-batches.service'
 import { reconcileBatch } from './import-claims.service'
-import { loadFormFields } from './import-promotion-context.service'
+import { type PromotionContext, loadFormFields } from './import-promotion-context.service'
 import { matchedValues, registrationOutcomes } from './import-row-promotion.service'
-import { loadHeldStageRow, resolveHeldStage, scoreDetailOf } from './import-stage-review'
+import {
+  loadHeldStageRow,
+  requireResolvableStage,
+  resolveHeldStage,
+  scoreDetailOf,
+} from './import-stage-review'
 import { columnRules, intakeField, valuesByFieldCode } from './import-validation.service'
 import { safeRawData, stableJson } from './imports.helpers'
 import type { FieldRow } from './imports.mapper'
@@ -86,6 +91,8 @@ export interface HeldRow {
   row: { id: string; rowNumber: number; reason: string }
   // Null for a survey stage, which has no registration form.
   form: RegistrationImportForm | null
+  // The stage's promotion context, loaded once with the row; only a survey stage has one.
+  stage?: PromotionContext
   fieldRows: FieldRow[]
   fields: IntakeField[]
   uploadDate: string
@@ -137,6 +144,18 @@ function calculatedValues(fields: readonly IntakeField[], file: Values, uploadDa
   }
   return calculated
 }
+
+/** The normalized client ID of a row's values, or empty. */
+export const identifierOf = (values: Values) =>
+  typeof values.external_identifier_value === 'string'
+    ? normalizeIdentifier(values.external_identifier_value)
+    : ''
+
+export const identifierError = (code: string, message: string) =>
+  new BadRequestException({
+    message: 'The resolved values are invalid.',
+    errors: [{ fieldCode: 'external_identifier_value', code, message }],
+  })
 
 // The cap a typed value may reach, so a huge Your value is refused before any work is done on it.
 function tooLong(dataType: string, value: unknown) {
@@ -358,6 +377,9 @@ function choose(held: HeldRow, body: ResolveImportRowRequest) {
     const field = held.fields.find((item) => item.code === code)
     if (!field || systemCodes.has(code)) {
       fail(code, 'unknown_field', 'This is not a field the reviewer can set.')
+    } else if (!held.form && consentCodes.includes(code) && choice !== 'FILE') {
+      // A survey takes consent from the file only, never from an earlier survey or a typed value.
+      fail(code, 'consent_not_editable', 'Consent comes from the file and cannot be changed.')
     } else if (choice === 'OWN') {
       if (consentCodes.includes(code))
         fail(code, 'consent_not_editable', 'Consent cannot be typed in.')
@@ -746,6 +768,8 @@ export class ImportReviewService {
           body.expectedValidationRevision,
         )
         const held = await loadHeldRow(tx, actor, this.registration, batch, rowId)
+        // A survey stage that cannot be settled here is refused before its choices are read.
+        if (!held.form) requireResolvableStage(actor, held, body.saveAs)
         const final = validateChosen(held, body, choose(held, body))
         // A survey stage is promoted by its own writer instead of the registration service.
         const result = held.form
@@ -798,15 +822,7 @@ export class ImportReviewService {
     body: ResolveImportRowRequest,
     final: Values,
   ): Promise<Values> {
-    const identifier = (values: Values) =>
-      typeof values.external_identifier_value === 'string'
-        ? normalizeIdentifier(values.external_identifier_value)
-        : ''
-    const identifierError = (code: string, message: string) =>
-      new BadRequestException({
-        message: 'The resolved values are invalid.',
-        errors: [{ fieldCode: 'external_identifier_value', code, message }],
-      })
+    const identifier = identifierOf
     if (body.saveAs === 'NEW') {
       const type = canonicalIdentifierType(final.external_identifier_type)
       if (!identifier(final) || !type) {

@@ -130,7 +130,8 @@ export async function readStageBaseline(
  * Promotes one claimed row of a stage batch: the person is found by the file's ID, then a submission,
  * one participation with its journey event and, for a scored stage, one assessment are written.
  * A row that cannot be written is held with a code a person can fix, and that code is returned.
- * A reviewer's values replace the row's and are not held for differing from what PATHWAYS holds.
+ * A reviewer's values replace the row's and are not held for differing from what PATHWAYS holds,
+ * but they must still name the participant the reviewer looked at.
  */
 export async function promoteStageInTx(
   tx: Tx,
@@ -138,7 +139,7 @@ export async function promoteStageInTx(
   context: PromotionContext,
   rowId: string,
   claimId: string,
-  resolved?: { values: Values },
+  resolved?: { values: Values; beneficiaryId: string | null },
 ): Promise<string | undefined> {
   const { batch, stageForm, fields, parentBatchId } = context
   if (!stageForm || !fields || !parentBatchId) {
@@ -180,6 +181,9 @@ export async function promoteStageInTx(
   // A registration row that failed will never create the person, so the stage row cannot wait for it.
   if (parent?.status === 'FAILED') return hold('STAGE_IDENTITY_MISMATCH')
   if (!known || !profile || !enrollment) return hold('STAGE_IDENTITY_MISMATCH')
+  if (resolved && known.beneficiaryId !== resolved.beneficiaryId) {
+    return hold('STAGE_IDENTITY_MISMATCH')
+  }
 
   // A blank on either side is no contradiction; only two different answers are.
   const ownIdentifier =
@@ -314,7 +318,7 @@ export async function promoteStageInTx(
       select: { id: true, participationId: true },
     })
     if (original) {
-      await tx.beneficiaryJourneyEvent.create({
+      const correction = await tx.beneficiaryJourneyEvent.create({
         data: {
           ...scope,
           stageId: stageForm.journeyStageId,
@@ -325,6 +329,18 @@ export async function promoteStageInTx(
           correctsEventId: original.id,
           correctionReason: 'The stage date was corrected in import review.',
           recordedById: actor.userId,
+        },
+        select: { id: true },
+      })
+      await writeAuditLog(tx, actor, {
+        projectId: batch.projectId,
+        action: 'JOURNEY_EVENT_CORRECTED',
+        entityType: 'BeneficiaryJourneyEvent',
+        entityId: correction.id,
+        changes: {
+          correctsEventId: original.id,
+          reason: 'STAGE_DATE_CORRECTED',
+          noteAttached: false,
         },
       })
     }

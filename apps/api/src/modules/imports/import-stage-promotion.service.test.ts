@@ -733,8 +733,18 @@ describe('promoteStageInTx', () => {
   })
 
   it('a resolved row uses the resolved values', async () => {
-    await promote(1, { values: { ...stageRow, last_name: 'Cruz', q3: 'C', total_score: 3 } })
+    await promote(1, {
+      values: { ...stageRow, last_name: 'Cruz', q3: 'C', total_score: 3 },
+      beneficiaryId,
+    })
     expect(store.assessments[0]).toMatchObject({ score: 3 })
+  })
+
+  it('a resolved row that finds another person than the reviewed one is held', async () => {
+    const held = await promote(1, { values: { ...stageRow }, beneficiaryId: 'someone-else' })
+    expect(held).toBe('STAGE_IDENTITY_MISMATCH')
+    expect(rowOf()).toMatchObject({ status: 'UNPROCESSED' })
+    wroteNothing()
   })
 
   it('audit has ids and codes, no values', async () => {
