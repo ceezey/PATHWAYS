@@ -111,7 +111,13 @@ export const fileParts = {
   needsActivity:
     'This survey needs an activity. Choose one, or ask a Project Manager to create it on the Activities page.',
   noFormReason:
-    'This survey has no form yet. Ask a Monitoring and Evaluation Officer or System Administrator to prepare it.',
+    'Ask a Monitoring and Evaluation Officer or System Administrator to prepare its form.',
+  cannotValidate:
+    'Ask a Monitoring and Evaluation Officer to check this survey before it is processed.',
+  notFinished: 'The remaining rows could not be processed. Review failed rows before retrying.',
+  fallback: 'Something went wrong.',
+  heldFailed: 'The held rows could not be opened.',
+  prepareFailed: 'The form could not be prepared.',
   openDraft: 'Open draft',
   openDraftLabel: (survey: string) => `Open draft of ${survey}`,
   process: 'Process file',

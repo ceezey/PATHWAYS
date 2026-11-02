@@ -1,10 +1,16 @@
 /* @vitest-environment jsdom */
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { ImportBatchDefinition } from '@/types/pathways'
-
-import { ImportPartsCard } from './import-parts-card'
+import {
+  child,
+  defaultAnswers,
+  part,
+  press,
+  registration,
+  show,
+  totals,
+} from './import-parts-card.harness'
 
 const api = vi.hoisted(() => ({
   draftStageForm: vi.fn(),
@@ -27,123 +33,22 @@ vi.mock('@/lib/api/journeys', () => ({ journeysClient: api }))
 vi.mock('@/lib/api/forms', () => ({ formsClient: api }))
 vi.mock('sonner', () => ({ toast: { error: vi.fn(), success: vi.fn() } }))
 
-const counts = { rows: 4, valid: 4, invalid: 0, processed: 0, unprocessed: 0, failed: 0 }
-const totals = { ...counts, warnings: 0, waiting: 0 }
-const partDefs = [
-  { code: 'survey_a', name: 'Survey A' },
-  { code: 'survey_b', name: 'Survey B' },
-]
-const child = (code: string, over: Record<string, unknown> = {}) =>
-  ({
-    id: `child-${code}`,
-    projectId: 'project-1',
-    formId: `form-${code}`,
-    status: 'UPLOADED',
-    storageStatus: 'STORED',
-    mappingRevision: 0,
-    validationRevision: 0,
-    parentBatchId: 'batch-1',
-    partCode: code,
-    totals,
-    ...over,
-  }) as unknown as ImportBatchDefinition
-const part = (
-  index: number,
-  formStatus: 'NONE' | 'DRAFT' | 'PUBLISHED',
-  batch: unknown = null,
-) => ({
-  ...partDefs[index],
-  formId: formStatus === 'NONE' ? null : `form-${partDefs[index].code}`,
-  formName: formStatus === 'NONE' ? null : `Form ${partDefs[index].name}`,
-  formStatus,
-  batch,
-})
-const registration = (parts: unknown[]) =>
-  ({
-    id: 'batch-1',
-    projectId: 'project-1',
-    formId: 'form-reg',
-    formType: 'BENEFICIARY_REGISTRATION',
-    status: 'VALIDATED',
-    mappingRevision: 1,
-    validationRevision: 1,
-    totals: { ...totals, valid: 3 },
-    fileParts: partDefs.map((def) => ({ ...def, rows: 4, firstColumn: 1, lastColumn: 2 })),
-    parts,
-  }) as unknown as ImportBatchDefinition
-
-const mapAutomatically = vi.fn()
-const review = { loadBatch: vi.fn() }
-const setDraftTarget = vi.fn()
-const stateWith = (batch: ImportBatchDefinition, over: Record<string, unknown> = {}) => ({
-  batch,
-  projectId: 'project-1',
-  canManageForms: true,
-  canUpload: true,
-  canValidate: true,
-  canProcess: true,
-  pending: false,
-  begin: () => ({ valid: () => true, finish: vi.fn() }),
-  importBatch: { stopRequested: { current: false }, mapAutomatically },
-  setProcessing: vi.fn(),
-  setDraftTarget,
-  ...over,
-})
-const show = (batch: ImportBatchDefinition, over: Record<string, unknown> = {}) => {
-  const view = render(
-    <ImportPartsCard
-      batch={batch}
-      review={review as never}
-      state={stateWith(batch, over) as never}
-    />,
-  )
-  return {
-    ...view,
-    update: (next: ImportBatchDefinition) =>
-      view.rerender(
-        <ImportPartsCard
-          batch={next}
-          review={review as never}
-          state={stateWith(next, over) as never}
-        />,
-      ),
-  }
-}
-const press = (name: string) => fireEvent.click(screen.getByRole('button', { name }))
 const draftCalls = () => api.draftStageForm.mock.calls.map((call) => call.slice(2))
-const processedIds = () => api.processImport.mock.calls.map((call) => call[1])
+const tabbable = () =>
+  Array.from(document.querySelectorAll<HTMLElement>('button, select, a[href]')).filter(
+    (element) => !(element as HTMLButtonElement).disabled,
+  )
+const nameOf = (element: HTMLElement) => element.getAttribute('aria-label') ?? element.textContent
 
 describe('import parts card', () => {
   beforeEach(() => {
     vi.resetAllMocks()
     role.profile.permissions = ['imports.read']
-    api.getActivities.mockResolvedValue([
-      { id: 'act-1', title: 'Training one', status: 'Planned' },
-      { id: 'act-2', title: 'Training two', status: 'In Progress' },
-      { id: 'act-3', title: 'Old training', status: 'Cancelled' },
-    ])
-    api.getJourneyStages.mockResolvedValue([])
-    api.draftStageForm.mockImplementation(async (_p, _b, code) => ({
-      formId: `form-${code}`,
-      stageId: `stage-${code}`,
-      waitingForActivity: false,
-    }))
-    api.startFilePart.mockImplementation(async (_p, _b, code) => child(code))
-    mapAutomatically.mockResolvedValue({ coverage: 'COVERED', mappingRevision: 1 })
-    api.validateImport.mockImplementation(async (_p, id) => ({
-      ...child(id.replace('child-', ''), { status: 'VALIDATED', validationRevision: 1 }),
-      totals: { ...totals, valid: 4 },
-    }))
-    api.processImport.mockImplementation(async (_p, id) => ({
-      id,
-      status: 'PROCESSED',
-      validationRevision: 1,
-      totals: { ...totals, processed: id === 'batch-1' ? 3 : 4 },
-    }))
+    defaultAnswers(api)
   })
   afterEach(cleanup)
 
-  it('shows one row per survey with its form state and counts', async () => {
+  it('shows one row per survey with its form state and counts', () => {
     show(
       registration([
         part(0, 'NONE'),
@@ -176,7 +81,6 @@ describe('import parts card', () => {
       '/collection/projects/project-1/forms/form-survey_a',
       '/collection/projects/project-1/forms/form-survey_b',
     ])
-    expect(review.loadBatch).toHaveBeenCalledWith('batch-1', expect.anything())
   })
 
   it('leaves a part that already has a draft alone', async () => {
@@ -188,11 +92,7 @@ describe('import parts card', () => {
   })
 
   it('survey with no activity says it is waiting and who can help', async () => {
-    api.draftStageForm.mockResolvedValue({
-      formId: null,
-      stageId: 'stage-1',
-      waitingForActivity: true,
-    })
+    api.draftStageForm.mockResolvedValue({ formId: null, stageId: 's', waitingForActivity: true })
     show(registration([part(0, 'NONE')]))
     press('Prepare survey forms')
     expect(
@@ -259,7 +159,7 @@ describe('import parts card', () => {
     expect(screen.queryByLabelText('Activity for Survey A')).toBeNull()
     expect(
       screen.getByText(
-        'This survey has no form yet. Ask a Monitoring and Evaluation Officer or System Administrator to prepare it.',
+        'Ask a Monitoring and Evaluation Officer or System Administrator to prepare its form.',
       ),
     ).toBeTruthy()
   })
@@ -275,127 +175,84 @@ describe('import parts card', () => {
     expect(screen.getByRole('button', { name: 'Process file' })).toBeTruthy()
   })
 
-  it('process runs registration before surveys', async () => {
-    show(registration([part(0, 'PUBLISHED'), part(1, 'PUBLISHED')]))
-    press('Process file')
-    await waitFor(() => expect(api.processImport).toHaveBeenCalledTimes(3))
-    expect(processedIds()).toEqual(['batch-1', 'child-survey_a', 'child-survey_b'])
-    expect(api.startFilePart.mock.calls.map((call) => call.slice(0, 3))).toEqual([
-      ['project-1', 'batch-1', 'survey_a'],
-      ['project-1', 'batch-1', 'survey_b'],
-    ])
-    expect(api.validateImport).toHaveBeenCalledWith('project-1', 'child-survey_a', 1)
-    expect(api.processImport.mock.calls[1]).toEqual(['project-1', 'child-survey_a', 1])
-  })
-
-  it('does not start a survey that already has a batch', async () => {
-    const started = child('survey_a', {
-      status: 'VALIDATED',
-      mappingRevision: 1,
-      validationRevision: 2,
-    })
-    show(registration([part(0, 'PUBLISHED', started), part(1, 'PUBLISHED')]))
-    press('Process file')
-    await waitFor(() => expect(api.processImport).toHaveBeenCalledTimes(3))
-    expect(api.startFilePart).toHaveBeenCalledTimes(1)
-    expect(api.processImport.mock.calls[1]).toEqual(['project-1', 'child-survey_a', 2])
-  })
-
-  it('uncovered survey does not stop the others', async () => {
-    mapAutomatically.mockImplementation(async (_p, batch) =>
-      batch.partCode === 'survey_a'
-        ? { coverage: 'NOT_COVERED', mappingRevision: 1 }
-        : { coverage: 'COVERED', mappingRevision: 1 },
-    )
-    show(registration([part(0, 'PUBLISHED'), part(1, 'PUBLISHED')]))
-    press('Process file')
-    await waitFor(() => expect(api.processImport).toHaveBeenCalledTimes(2))
-    expect(processedIds()).toEqual(['batch-1', 'child-survey_b'])
-    const rowA = await screen.findByRole('group', { name: 'Survey A' })
-    expect(within(rowA).getByText("This survey's form needs updating.")).toBeTruthy()
-    api.draftFromImport.mockResolvedValue({ form: { id: 'draft-9', projectId: 'project-1' } })
-    fireEvent.click(within(rowA).getByRole('button', { name: 'Prepare form' }))
-    await waitFor(() =>
-      expect(setDraftTarget).toHaveBeenCalledWith({ projectId: 'project-1', formId: 'draft-9' }),
-    )
-    expect(api.draftFromImport).toHaveBeenCalledWith(
-      'project-1',
-      'form-survey_a',
-      'child-survey_a',
-      1,
-    )
-  })
-
-  it('a refused start is named on its row and the others continue', async () => {
-    api.startFilePart.mockImplementation(async (_p, _b, code) => {
-      if (code === 'survey_a')
-        throw new Error("Mark the correct answers for this survey's total score first.")
-      return child(code)
-    })
-    show(registration([part(0, 'PUBLISHED'), part(1, 'PUBLISHED')]))
-    press('Process file')
-    await waitFor(() => expect(api.processImport).toHaveBeenCalledTimes(2))
-    const rowA = await screen.findByRole('group', { name: 'Survey A' })
-    expect(within(rowA).getByText(/Mark the correct answers/)).toBeTruthy()
-  })
-
-  it('each row opens its held list', async () => {
-    role.profile.permissions = ['imports.read', 'imports.review']
+  it('disables every step while another operation runs', () => {
     const held = child('survey_a', {
       status: 'PARTIALLY_PROCESSED',
-      totals: { ...totals, unprocessed: 1 },
+      totals: { ...totals, unprocessed: 1, waiting: 2 },
     })
-    api.getImportBatch.mockResolvedValue({ ...held, formType: 'TRAINING_SURVEY', mappings: [] })
-    api.getHeldRows.mockResolvedValue([
-      {
-        id: 'row-1',
-        rowNumber: 2,
-        rawData: {},
-        status: 'UNPROCESSED',
-        processingErrorCode: 'STAGE_CHANGED',
-        resolvedAt: null,
-      },
-    ])
-    show(registration([part(0, 'PUBLISHED', held), part(1, 'PUBLISHED')]))
-    const open = screen.getByRole('button', { name: 'Show held rows of Survey A' })
-    expect(open.getAttribute('aria-expanded')).toBe('false')
-    fireEvent.click(open)
-    expect(await screen.findByText('Answers differ from PATHWAYS')).toBeTruthy()
-    expect(api.getImportBatch).toHaveBeenCalledWith('project-1', 'child-survey_a')
-    expect(api.getHeldRows).toHaveBeenCalledWith('project-1', 'child-survey_a')
-    expect(screen.getByRole('button', { name: 'Hide held rows of Survey A' })).toBeTruthy()
-    expect(screen.queryByRole('button', { name: 'Show held rows of Survey B' })).toBeNull()
-  })
-
-  it('waiting count and Process waiting shown', async () => {
-    const waiting = child('survey_a', {
-      status: 'PARTIALLY_PROCESSED',
-      validationRevision: 2,
-      totals: { ...totals, waiting: 4 },
-    })
-    show({
-      ...registration([
-        part(0, 'PUBLISHED', waiting),
-        part(1, 'PUBLISHED', child('survey_b', { status: 'PROCESSED' })),
-      ]),
-      status: 'PROCESSED',
-    } as ImportBatchDefinition)
-    expect(screen.getByText('4 waiting for their registration to be resolved')).toBeTruthy()
-    press('Process waiting')
-    await waitFor(() => expect(api.processImport).toHaveBeenCalledTimes(1))
-    expect(api.processImport).toHaveBeenCalledWith('project-1', 'child-survey_a', 2)
-  })
-
-  it('every control is a labelled native control', async () => {
-    show(registration([part(0, 'NONE'), part(1, 'DRAFT')]))
-    const select = await screen.findByLabelText('Activity for Survey A')
-    expect(select.tagName).toBe('SELECT')
-    for (const control of screen.getAllByRole('button')) {
-      expect(control.tagName).toBe('BUTTON')
-      expect(control.textContent || control.getAttribute('aria-label')).toBeTruthy()
+    show(registration([part(0, 'PUBLISHED', held), part(1, 'PUBLISHED')]), { pending: true })
+    for (const name of ['Process file', 'Process waiting', 'Show held rows of Survey A']) {
+      expect((screen.getByRole('button', { name }) as HTMLButtonElement).disabled).toBe(true)
     }
-    expect(screen.getByRole('link', { name: 'Open draft of Survey B' }).getAttribute('href')).toBe(
-      '/collection/projects/project-1/forms/form-survey_b',
-    )
+  })
+
+  describe('held rows', () => {
+    it('each row opens its held list', async () => {
+      role.profile.permissions = ['imports.read', 'imports.review']
+      const held = child('survey_a', {
+        status: 'PARTIALLY_PROCESSED',
+        totals: { ...totals, unprocessed: 1 },
+      })
+      api.getImportBatch.mockResolvedValue({ ...held, formType: 'TRAINING_SURVEY', mappings: [] })
+      api.getHeldRows.mockResolvedValue([
+        {
+          id: 'row-1',
+          rowNumber: 2,
+          rawData: {},
+          status: 'UNPROCESSED',
+          processingErrorCode: 'STAGE_CHANGED',
+          resolvedAt: null,
+        },
+      ])
+      show(registration([part(0, 'PUBLISHED', held), part(1, 'PUBLISHED')]))
+      const open = screen.getByRole('button', { name: 'Show held rows of Survey A' })
+      expect(open.getAttribute('aria-expanded')).toBe('false')
+      fireEvent.click(open)
+      expect(await screen.findByText('Answers differ from PATHWAYS')).toBeTruthy()
+      expect(api.getImportBatch).toHaveBeenCalledWith('project-1', 'child-survey_a')
+      expect(api.getHeldRows).toHaveBeenCalledWith('project-1', 'child-survey_a')
+      expect(screen.getByRole('button', { name: 'Hide held rows of Survey A' })).toBeTruthy()
+      expect(screen.queryByRole('button', { name: /held rows of Survey B/ })).toBeNull()
+    })
+
+    it('offers the list only for a survey with held rows', () => {
+      show(registration([part(0, 'PUBLISHED', child('survey_a', { status: 'PROCESSED' }))]))
+      expect(screen.queryByRole('button', { name: /held rows of Survey A/ })).toBeNull()
+    })
+  })
+
+  describe('keyboard', () => {
+    it('reaches the activity choice, prepare step and draft link in reading order', () => {
+      show(registration([part(0, 'NONE'), part(1, 'DRAFT')]))
+      const controls = tabbable()
+      expect(controls.map(nameOf)).toEqual([
+        'Prepare survey forms',
+        'Activity for Survey A',
+        'Open draft of Survey B',
+      ])
+      for (const control of controls) {
+        control.focus()
+        expect(document.activeElement).toBe(control)
+      }
+      expect(screen.getByRole('combobox', { name: 'Activity for Survey A' })).toBeTruthy()
+    })
+
+    it('reaches Process file, Process waiting and Held rows in reading order', () => {
+      const held = child('survey_a', {
+        status: 'PARTIALLY_PROCESSED',
+        totals: { ...totals, unprocessed: 1, waiting: 2 },
+      })
+      show(registration([part(0, 'PUBLISHED', held), part(1, 'PUBLISHED')]))
+      const controls = tabbable()
+      expect(controls.map(nameOf)).toEqual([
+        'Process file',
+        'Process waiting',
+        'Show held rows of Survey A',
+      ])
+      for (const control of controls) {
+        control.focus()
+        expect(document.activeElement).toBe(control)
+      }
+    })
   })
 })

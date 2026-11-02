@@ -13,6 +13,7 @@ import {
   processingFailureNote,
   runImportProcessing,
 } from '../import-auto-continue'
+import { draftFormFromImport } from '../prepare-draft'
 import type { BatchReview } from './use-batch-review'
 import type { ImportState } from './use-import-state'
 
@@ -36,8 +37,7 @@ class Uncovered extends Error {
 
 const sameName = (left: string, right: string) =>
   left.trim().replace(/\s+/g, ' ').toLowerCase() === right.trim().replace(/\s+/g, ' ').toLowerCase()
-const message = (error: unknown) =>
-  error instanceof Error ? error.message : 'Something went wrong.'
+const message = (error: unknown) => (error instanceof Error ? error.message : copy.fallback)
 
 /** The project's usable activities and the one each survey's journey stage already maps to. */
 export function useStageActivities(projectId: string) {
@@ -74,7 +74,7 @@ export function useStageActivities(projectId: string) {
 
 /** Drafts the survey forms of a file, starts each survey as its own batch, and processes registration then surveys. */
 export function useFileParts(state: ImportState, review: BatchReview) {
-  const { batch, begin, canValidate, importBatch, projectId, setProcessing } = state
+  const { batch, begin, canValidate, importBatch, projectId, setDraftTarget, setProcessing } = state
   const { loadBatch } = review
 
   const refresh = async (parentId: string, ticket: Ticket) => {
@@ -113,6 +113,25 @@ export function useFileParts(state: ImportState, review: BatchReview) {
     return outcomes
   }
 
+  // Opens the form editor on a draft updated from a survey's file, for a survey its form does not cover.
+  const prepareUncovered = async (found: NonNullable<PartNotes[string]['uncovered']>) => {
+    const ticket = begin('forms.manage')
+    if (!ticket) return
+    try {
+      const target = await draftFormFromImport(
+        projectId,
+        found.formId,
+        found.batchId,
+        found.mappingRevision,
+      )
+      if (ticket.valid()) setDraftTarget(target)
+    } catch (error) {
+      if (ticket.valid()) toast.error(error instanceof Error ? error.message : copy.prepareFailed)
+    } finally {
+      ticket.finish()
+    }
+  }
+
   // A batch not yet validated is mapped automatically when it has no mapping, then validated once its form covers the file.
   const validated = async (target: ImportBatchDefinition) => {
     if (!['UPLOADED', 'MAPPED'].includes(target.status)) return target
@@ -123,7 +142,8 @@ export function useFileParts(state: ImportState, review: BatchReview) {
       revision = receipt?.mappingRevision ?? revision
       if (receipt?.coverage !== 'COVERED') throw new Uncovered(revision)
     }
-    return canValidate ? importsClient.validateImport(projectId, target.id, revision) : target
+    if (!canValidate) throw new Error(copy.cannotValidate)
+    return importsClient.validateImport(projectId, target.id, revision)
   }
 
   // Starts each survey that has rows and no batch, in file order, and validates it when its form covers the file.
@@ -137,10 +157,13 @@ export function useFileParts(state: ImportState, review: BatchReview) {
         if (!batch.fileParts?.some((item) => item.code === part.code && item.rows > 0)) continue
         let started: ImportBatchDefinition | undefined
         try {
-          started =
-            part.batch && part.batch.status !== 'FAILED'
-              ? (part.batch as ImportBatchDefinition)
-              : await importsClient.startFilePart(projectId, batch.id, part.code)
+          const live = part.batch && part.batch.status !== 'FAILED' ? part.batch : null
+          // The list carries no coverage, so a survey still to be validated is read in full first.
+          started = !live
+            ? await importsClient.startFilePart(projectId, batch.id, part.code)
+            : ['UPLOADED', 'MAPPED'].includes(live.status)
+              ? await importsClient.getImportBatch(projectId, live.id)
+              : (live as ImportBatchDefinition)
           ready.push(await validated(started))
         } catch (error) {
           notes[part.code] =
@@ -209,9 +232,7 @@ export function useFileParts(state: ImportState, review: BatchReview) {
         })
         if (outcome.kind === 'complete') continue
         const note =
-          outcome.kind === 'failed'
-            ? processingFailureNote(outcome.error)
-            : 'The remaining rows could not be processed. Review failed rows before retrying.'
+          outcome.kind === 'failed' ? processingFailureNote(outcome.error) : copy.notFinished
         if (target.partCode) notes[target.partCode] = { message: note }
         finish = { state: outcome.kind === 'stopped' ? 'stopped' : 'failed', note }
         // A registration that stops leaves the surveys nothing to wait for, and a stop ends the run.
@@ -228,5 +249,5 @@ export function useFileParts(state: ImportState, review: BatchReview) {
     return notes
   }
 
-  return { prepareForms, startAll, processAll }
+  return { prepareForms, prepareUncovered, startAll, processAll }
 }

@@ -21,7 +21,6 @@ import {
   useStageActivities,
 } from '../hooks/use-file-parts'
 import type { ImportState } from '../hooks/use-import-state'
-import { draftFormFromImport } from '../prepare-draft'
 import { ImportHeldList } from './import-held-list'
 
 const tones = { NONE: 'info', DRAFT: 'warning', PUBLISHED: 'success' } as const
@@ -38,9 +37,9 @@ export function ImportPartsCard({
   state: ImportState
   review: BatchReview
 }) {
-  const { canManageForms, canProcess, canUpload, setDraftTarget } = state
+  const { canManageForms, canProcess, canUpload, pending } = state
   const { activities, mappedActivity } = useStageActivities(batch.projectId)
-  const { prepareForms, processAll } = useFileParts(state, review)
+  const { prepareForms, prepareUncovered, processAll } = useFileParts(state, review)
   const [chosen, setChosen] = useState<Record<string, string>>({})
   const [drafts, setDrafts] = useState<DraftOutcomes>({})
   const [notes, setNotes] = useState<PartNotes>({})
@@ -66,24 +65,9 @@ export function ImportPartsCard({
     try {
       setOpened({ code, batch: await importsClient.getImportBatch(batch.projectId, childId) })
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'The held rows could not be opened.')
+      toast.error(error instanceof Error ? error.message : copy.heldFailed)
     }
   }
-  const prepareUncovered = async (found: NonNullable<PartNotes[string]['uncovered']>) => {
-    try {
-      setDraftTarget(
-        await draftFormFromImport(
-          batch.projectId,
-          found.formId,
-          found.batchId,
-          found.mappingRevision,
-        ),
-      )
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'The form could not be prepared.')
-    }
-  }
-
   return (
     <Card>
       <CardHeader>
@@ -94,12 +78,14 @@ export function ImportPartsCard({
           </div>
           <div className="flex flex-wrap gap-2">
             {canManageForms && needsForm ? (
-              <Button onClick={() => void prepareForms(shown).then(setDrafts)}>
+              <Button disabled={pending} onClick={() => void prepareForms(shown).then(setDrafts)}>
                 {copy.prepare}
               </Button>
             ) : null}
             {canUpload && canProcess && allPublished && !done ? (
-              <Button onClick={() => void processAll().then(setNotes)}>{copy.process}</Button>
+              <Button disabled={pending} onClick={() => void processAll().then(setNotes)}>
+                {copy.process}
+              </Button>
             ) : null}
           </div>
         </div>
@@ -188,6 +174,7 @@ export function ImportPartsCard({
               <div className="flex flex-wrap items-center gap-3">
                 {uncovered && canManageForms ? (
                   <Button
+                    disabled={pending}
                     onClick={() => void prepareUncovered(uncovered)}
                     size="sm"
                     variant="outline"
@@ -200,6 +187,7 @@ export function ImportPartsCard({
                     <span className="text-sm">{copy.waiting(waiting)}</span>
                     {canUpload && canProcess ? (
                       <Button
+                        disabled={pending}
                         onClick={() => void processAll().then(setNotes)}
                         size="sm"
                         variant="outline"
@@ -209,8 +197,9 @@ export function ImportPartsCard({
                     ) : null}
                   </>
                 ) : null}
-                {part.batch ? (
+                {part.batch && (part.batch.totals.unprocessed > 0 || opened?.code === part.code) ? (
                   <Button
+                    disabled={pending}
                     aria-expanded={opened?.code === part.code}
                     aria-label={
                       opened?.code === part.code

@@ -94,13 +94,24 @@ describe('stages without an activity card', () => {
       's-3',
       's-5',
     ])
-    await screen.findByText('Dates are outside the project.')
+    await screen.findByText('Post-test: Dates are outside the project.')
     // Pressing again only retries the one that was refused.
     api.createActivity.mockImplementation(async (input) => ({ id: `new-${input.journeyStageId}` }))
     api.createActivity.mockClear()
     fireEvent.click(screen.getByRole('button', { name: 'Create all' }))
     await waitFor(() => expect(api.createActivity).toHaveBeenCalledTimes(1))
     expect(api.createActivity.mock.calls[0][0].journeyStageId).toBe('s-3')
+  })
+
+  it('create all keeps every refusal, each naming its stage', async () => {
+    api.createActivity.mockImplementation(async (input) => {
+      throw new Error(`Refused ${input.journeyStageId}.`)
+    })
+    show()
+    fireEvent.click(screen.getByRole('button', { name: 'Create all' }))
+    await screen.findByText('Follow-up: Refused s-5.')
+    const alert = screen.getByRole('alert')
+    expect(within(alert).getAllByText(/^(Pre-test|Post-test|Follow-up): Refused/)).toHaveLength(3)
   })
 
   it('no dates shows the reason and no button', () => {
@@ -120,7 +131,7 @@ describe('stages without an activity card', () => {
     show()
     fireEvent.click(screen.getByRole('button', { name: 'Create activity for Pre-test' }))
     const alert = await screen.findByRole('alert')
-    expect(alert.textContent).toBe('The activity dates are outside the project.')
+    expect(alert.textContent).toBe('Pre-test: The activity dates are outside the project.')
     expect(within(screen.getByRole('list')).getByText('Pre-test')).toBeTruthy()
     expect(onCreated).not.toHaveBeenCalled()
   })

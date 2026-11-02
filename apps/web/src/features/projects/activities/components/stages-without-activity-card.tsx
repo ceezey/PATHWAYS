@@ -32,7 +32,7 @@ export function StagesWithoutActivityCard({
   const { profile } = useCurrentRole()
   const context = useSourceMutationContext(profile, 'activities.create', projectId, null, canCreate)
   const [created, setCreated] = useState<ReadonlySet<string>>(new Set())
-  const [error, setError] = useState('')
+  const [errors, setErrors] = useState<string[]>([])
   const busy = useRef(false)
   const usable = new Set(activities.filter((item) => item.status !== 'Cancelled').map((a) => a.id))
   const open = stages.filter(
@@ -47,7 +47,7 @@ export function StagesWithoutActivityCard({
   const create = async (targets: JourneyStageConfig[]) => {
     if (busy.current || !startDate || !endDate || !context) return
     busy.current = true
-    setError('')
+    setErrors([])
     try {
       for (const stage of targets) {
         try {
@@ -67,7 +67,8 @@ export function StagesWithoutActivityCard({
           setCreated((current) => new Set(current).add(stage.id))
           onCreated()
         } catch (failure) {
-          setError(failure instanceof Error ? failure.message : copy.refused)
+          const reason = failure instanceof Error ? failure.message : undefined
+          setErrors((current) => [...current, copy.refused(stage.name, reason)])
         }
       }
     } finally {
@@ -88,10 +89,12 @@ export function StagesWithoutActivityCard({
       title={copy.title}
     >
       {startDate && endDate ? null : <p className="text-sm">{copy.noDates}</p>}
-      {error ? (
-        <p className="text-sm text-danger" role="alert">
-          {error}
-        </p>
+      {errors.length > 0 ? (
+        <div className="space-y-1 text-sm text-danger" role="alert">
+          {errors.map((error) => (
+            <p key={error}>{error}</p>
+          ))}
+        </div>
       ) : null}
       <ul className="divide-y divide-border">
         {open.map((stage) => (

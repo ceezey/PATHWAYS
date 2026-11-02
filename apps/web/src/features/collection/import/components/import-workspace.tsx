@@ -63,6 +63,7 @@ function OwnedImportWorkspace({
     batch,
     canOpenForms,
     canProcess,
+    canUpload,
     draftTarget,
     isSystemAdministrator,
     loadState,
@@ -157,7 +158,7 @@ function OwnedImportWorkspace({
                   intake={intake}
                   pending={pending}
                   batch={batch}
-                  onProcessWaiting={canProcess ? () => void process() : undefined}
+                  onProcessWaiting={canProcess && canUpload ? () => void process() : undefined}
                 />
 
                 {batch.fileParts?.length ? (
