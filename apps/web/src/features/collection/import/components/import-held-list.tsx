@@ -40,10 +40,12 @@ export function ImportHeldList({
   const [reviewing, setReviewing] = useState<string | null>(null)
   const [held, setHeld] = useState<ImportRowDefinition[]>([])
   const [loadError, setLoadError] = useState('')
-  // Invalid registration rows wait for a reviewer too.
+  // Invalid registration and survey-part rows wait for a reviewer too.
   const heldCount =
     batch.totals.unprocessed +
-    (batch.formType === 'BENEFICIARY_REGISTRATION' ? batch.totals.invalid : 0)
+    (batch.formType === 'BENEFICIARY_REGISTRATION' || batch.parentBatchId
+      ? batch.totals.invalid
+      : 0)
   useEffect(() => {
     let active = true
     setLoadError('')
@@ -73,7 +75,7 @@ export function ImportHeldList({
     ...(counts
       ? [
           ['Created', counts.created],
-          ['Updated', counts.updated],
+          ...(batch.parentBatchId ? [] : [['Updated', counts.updated]]),
           ['Unchanged', counts.unchanged],
         ]
       : []),

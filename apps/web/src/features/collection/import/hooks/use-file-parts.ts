@@ -158,11 +158,10 @@ export function useFileParts(state: ImportState, review: BatchReview) {
         let started: ImportBatchDefinition | undefined
         try {
           const live = part.batch && part.batch.status !== 'FAILED' ? part.batch : null
-          // The list carries no coverage, so a survey still to be validated is read in full first.
-          started = !live
-            ? await importsClient.startFilePart(projectId, batch.id, part.code)
-            : ['UPLOADED', 'MAPPED'].includes(live.status)
-              ? await importsClient.getImportBatch(projectId, live.id)
+          // Starting is idempotent: it returns the batch in full, with its coverage, or a new one for a newer form version.
+          started =
+            !live || ['UPLOADED', 'MAPPED'].includes(live.status)
+              ? await importsClient.startFilePart(projectId, batch.id, part.code)
               : (live as ImportBatchDefinition)
           ready.push(await validated(started))
         } catch (error) {

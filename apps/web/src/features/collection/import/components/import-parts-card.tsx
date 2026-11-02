@@ -45,7 +45,9 @@ export function ImportPartsCard({
   const [notes, setNotes] = useState<PartNotes>({})
   const [opened, setOpened] = useState<{ code: string; batch: ImportBatchDefinition } | null>(null)
   const hasRows = (code: string) => batch.fileParts?.some((p) => p.code === code && p.rows > 0)
-  const allPublished = batch.parts.every((part) => part.formStatus === 'PUBLISHED')
+  const allPublished = batch.parts.every(
+    (part) => !hasRows(part.code) || part.formStatus === 'PUBLISHED',
+  )
   const needsForm = batch.parts.some((part) => part.formStatus === 'NONE')
   const done =
     batch.status === 'PROCESSED' &&
@@ -93,11 +95,12 @@ export function ImportPartsCard({
       <CardContent className="space-y-4">
         {batch.parts.map((part) => {
           const counts = part.batch?.registrationCounts
+          // Invalid rows wait for a reviewer too, so they count as held.
+          const held = (part.batch?.totals.unprocessed ?? 0) + (part.batch?.totals.invalid ?? 0)
           const stats = [
             counts?.created ?? 0,
-            counts?.updated ?? 0,
             counts?.unchanged ?? 0,
-            part.batch?.totals.unprocessed ?? 0,
+            held,
             part.batch?.totals.waiting ?? 0,
           ]
           const draft = drafts[part.code]
@@ -118,7 +121,7 @@ export function ImportPartsCard({
                   {copy.formState[part.formStatus]}
                 </StatusBadge>
               </div>
-              <div className="grid grid-cols-3 gap-3 sm:grid-cols-5">
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                 {copy.counts.map((label, index) => (
                   <div className="rounded-md bg-surface-subtle p-3" key={label}>
                     <p className="text-xs text-muted-foreground">{label}</p>
@@ -197,7 +200,7 @@ export function ImportPartsCard({
                     ) : null}
                   </>
                 ) : null}
-                {part.batch && (part.batch.totals.unprocessed > 0 || opened?.code === part.code) ? (
+                {part.batch && (held > 0 || opened?.code === part.code) ? (
                   <Button
                     disabled={pending}
                     aria-expanded={opened?.code === part.code}

@@ -115,6 +115,22 @@ describe('import held list', () => {
     expect(reasonOf(5)).toBe('The total score does not match the answer key')
   })
 
+  it('a survey part lists its invalid rows as held and shows no Updated', async () => {
+    const survey = {
+      ...batch,
+      formType: 'TRAINING_SURVEY',
+      parentBatchId: 'parent-1',
+      registrationCounts: { created: 3, updated: 0, unchanged: 1 },
+      totals: { ...totals, unprocessed: 0, invalid: 1 },
+    } as unknown as ImportBatchDefinition
+    await show([invalid('TOTAL_SCORE_MISMATCH', 0)], survey)
+    expect(api.getHeldRows).toHaveBeenCalledWith('project-1', 'batch-1')
+    expect(screen.getByText('The total score does not match the answer key')).toBeTruthy()
+    const results = within(screen.getByRole('group', { name: 'Import results' }))
+    expect(results.getByText('Held').parentElement?.textContent).toContain('1')
+    expect(results.queryByText('Updated')).toBeNull()
+  })
+
   it('words a client ID conflict by where it comes from', async () => {
     const withInvalid = { ...batch, totals: { ...totals, unprocessed: 1, invalid: 1 } }
     await show(

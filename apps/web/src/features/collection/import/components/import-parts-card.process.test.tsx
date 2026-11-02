@@ -97,16 +97,36 @@ describe('import parts card processing', () => {
       )
     })
 
-    it('keeps the Prepare form step on a later run without validating it', async () => {
+    it('starts a newer published form version and validates the new batch', async () => {
+      const old = child('survey_a', { status: 'MAPPED', mappingRevision: 1, formVersion: 1 })
+      api.startFilePart.mockImplementation(async (_p, _b, code) =>
+        code === 'survey_a'
+          ? child(code, { id: 'child-survey_a-v2', formVersion: 2, status: 'UPLOADED' })
+          : child(code),
+      )
+      show(registration([part(0, 'PUBLISHED', old), part(1, 'PUBLISHED')]))
+      press('Process file')
+      await waitFor(() => expect(api.processImport).toHaveBeenCalledTimes(3))
+      expect(api.startFilePart.mock.calls.map((call) => call[2])).toEqual(['survey_a', 'survey_b'])
+      expect(api.getImportBatch).not.toHaveBeenCalled()
+      expect(api.validateImport).toHaveBeenCalledWith('project-1', 'child-survey_a-v2', 1)
+      expect(api.validateImport).not.toHaveBeenCalledWith('project-1', 'child-survey_a', 1)
+    })
+
+    it('keeps the Prepare form step for a survey its form still does not cover', async () => {
       const mapped = child('survey_a', { status: 'MAPPED', mappingRevision: 1 })
-      api.getImportBatch.mockResolvedValue({
-        ...mapped,
-        coverage: { coverage: 'NOT_COVERED', uncoveredColumns: 2, unresolvedValues: 0 },
-      })
+      api.startFilePart.mockImplementation(async (_p, _b, code) =>
+        code === 'survey_a'
+          ? {
+              ...mapped,
+              coverage: { coverage: 'NOT_COVERED', uncoveredColumns: 2, unresolvedValues: 0 },
+            }
+          : child(code),
+      )
       show(registration([part(0, 'PUBLISHED', mapped), part(1, 'PUBLISHED')]))
       press('Process file')
       await waitFor(() => expect(api.processImport).toHaveBeenCalledTimes(2))
-      expect(api.getImportBatch).toHaveBeenCalledWith('project-1', 'child-survey_a')
+      expect(api.startFilePart).toHaveBeenCalledWith('project-1', 'batch-1', 'survey_a')
       expect(api.validateImport).not.toHaveBeenCalledWith('project-1', 'child-survey_a', 1)
       const rowA = await screen.findByRole('group', { name: 'Survey A' })
       expect(within(rowA).getByRole('button', { name: 'Prepare form' })).toBeTruthy()
@@ -114,10 +134,14 @@ describe('import parts card processing', () => {
 
     it('sends one request when Prepare form is pressed twice', async () => {
       const mapped = child('survey_a', { status: 'MAPPED', mappingRevision: 1 })
-      api.getImportBatch.mockResolvedValue({
-        ...mapped,
-        coverage: { coverage: 'NOT_COVERED', uncoveredColumns: 2, unresolvedValues: 0 },
-      })
+      api.startFilePart.mockImplementation(async (_p, _b, code) =>
+        code === 'survey_a'
+          ? {
+              ...mapped,
+              coverage: { coverage: 'NOT_COVERED', uncoveredColumns: 2, unresolvedValues: 0 },
+            }
+          : child(code),
+      )
       api.draftFromImport.mockReturnValue(new Promise(() => {}))
       show(registration([part(0, 'PUBLISHED', mapped), part(1, 'PUBLISHED')]))
       press('Process file')

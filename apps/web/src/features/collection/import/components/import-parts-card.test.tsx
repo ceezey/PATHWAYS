@@ -8,6 +8,7 @@ import {
   part,
   press,
   registration,
+  review,
   show,
   totals,
 } from './import-parts-card.harness'
@@ -55,7 +56,10 @@ describe('import parts card', () => {
         part(
           1,
           'PUBLISHED',
-          child('survey_b', { totals: { ...totals, unprocessed: 2, processed: 1 } }),
+          child('survey_b', {
+            registrationCounts: { created: 5, updated: 0, unchanged: 0 },
+            totals: { ...totals, unprocessed: 2, processed: 1 },
+          }),
         ),
       ]),
     )
@@ -64,7 +68,31 @@ describe('import parts card', () => {
     expect(within(rowA).getByText('No form yet')).toBeTruthy()
     expect(within(rowB).getByText('Ready')).toBeTruthy()
     expect(within(rowB).getByText('Held').parentElement?.textContent).toContain('2')
-    expect(within(rowB).getByText('Created').parentElement?.textContent).toContain('0')
+    expect(within(rowB).getByText('Created').parentElement?.textContent).toContain('5')
+  })
+
+  it('shows created, unchanged, held and waiting counts of a survey, and no Updated', () => {
+    const counted = child('survey_a', {
+      status: 'PARTIALLY_PROCESSED',
+      registrationCounts: { created: 3, updated: 0, unchanged: 2 },
+      totals: { ...totals, unprocessed: 1, invalid: 1, waiting: 4 },
+    })
+    show(registration([part(0, 'PUBLISHED', counted), part(1, 'PUBLISHED')]))
+    const row = screen.getByRole('group', { name: 'Survey A' })
+    const count = (label: string) => within(row).getByText(label).parentElement?.textContent
+    expect(count('Created')).toContain('3')
+    expect(count('Unchanged')).toContain('2')
+    // Invalid rows are held for review too.
+    expect(count('Held')).toContain('2')
+    expect(count('Waiting')).toContain('4')
+    expect(within(row).queryByText('Updated')).toBeNull()
+  })
+
+  it('process is offered when the only unpublished survey has no rows', () => {
+    const view = registration([part(0, 'PUBLISHED'), part(1, 'NONE')])
+    const [first, second] = view.fileParts ?? []
+    show({ ...view, fileParts: [first, { ...second, rows: 0 }] } as never)
+    expect(screen.getByRole('button', { name: 'Process file' })).toBeTruthy()
   })
 
   it('prepare drafts each missing form once', async () => {
@@ -75,6 +103,7 @@ describe('import parts card', () => {
       ['survey_a', undefined],
       ['survey_b', undefined],
     ])
+    await waitFor(() => expect(review.loadBatch).toHaveBeenCalledWith('batch-1', expect.anything()))
     expect(api.draftStageForm.mock.calls[0].slice(0, 2)).toEqual(['project-1', 'batch-1'])
     const links = await screen.findAllByRole('link', { name: /^Open draft/ })
     expect(links.map((link) => link.getAttribute('href'))).toEqual([
@@ -213,6 +242,15 @@ describe('import parts card', () => {
       expect(api.getHeldRows).toHaveBeenCalledWith('project-1', 'child-survey_a')
       expect(screen.getByRole('button', { name: 'Hide held rows of Survey A' })).toBeTruthy()
       expect(screen.queryByRole('button', { name: /held rows of Survey B/ })).toBeNull()
+    })
+
+    it('offers the list for a survey whose only held rows are invalid', () => {
+      const invalid = child('survey_a', {
+        status: 'PARTIALLY_PROCESSED',
+        totals: { ...totals, invalid: 2 },
+      })
+      show(registration([part(0, 'PUBLISHED', invalid)]))
+      expect(screen.getByRole('button', { name: 'Show held rows of Survey A' })).toBeTruthy()
     })
 
     it('offers the list only for a survey with held rows', () => {

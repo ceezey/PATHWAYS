@@ -117,7 +117,7 @@ export const fileParts = {
   title: 'Surveys in this file',
   description: 'Each survey needs a published form before the file can be processed.',
   formState: { NONE: 'No form yet', DRAFT: 'Waiting to be published', PUBLISHED: 'Ready' },
-  counts: ['Created', 'Updated', 'Unchanged', 'Held', 'Waiting'],
+  counts: ['Created', 'Unchanged', 'Held', 'Waiting'],
   activity: 'Activity',
   activityLabel: (survey: string) => `Activity for ${survey}`,
   waitingOption: 'Waiting for an activity',
