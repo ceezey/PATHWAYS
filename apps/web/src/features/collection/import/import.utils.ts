@@ -74,6 +74,11 @@ const holdReasons: Record<ImportHoldCode, string> = {
   PROFILE_CHANGED: 'Values differ from PATHWAYS',
   IDENTITY_CONFLICT: 'Client ID belongs to a participant with different details',
   IDENTITY_MISSING: 'Client ID is missing',
+  STAGE_CHANGED: 'Values differ from this stage in PATHWAYS',
+  STAGE_DATE_MISSING: 'The stage date is missing',
+  STAGE_DATE_OUTSIDE_ENROLLMENT: 'The stage date is outside the enrollment period',
+  STAGE_IDENTITY_MISMATCH: 'The participant does not match the profile',
+  STAGE_CONSENT_MISSING: 'Consent is missing for this stage',
 }
 
 const identityFields = ['first_name', 'last_name', 'birth_date', 'external_identifier_value']

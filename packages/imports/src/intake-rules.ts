@@ -75,6 +75,21 @@ const sameValue = (a: NormalizedImportValue | undefined, b: NormalizedImportValu
     ? a.length === b.length && a.every((item, i) => item === b[i])
     : a === b
 
+/** Points of a TOTAL_SCORE rule: one per question whose answer matches the key, or is non-blank for anyAnswer. */
+export function totalScore(
+  rule: Extract<FieldIntakeRule, { kind: 'TOTAL_SCORE' }>,
+  values: Record<string, NormalizedImportValue>,
+): number {
+  const bare = (text: string) => comparableAnswer(stripLetterPrefix(text))
+  return rule.questions.filter((question) => {
+    const value = values[question.field]
+    if ('anyAnswer' in question) return !isBlank(value)
+    const keys = question.answers.map(bare)
+    const given = Array.isArray(value) ? value : [value]
+    return given.some((answer) => typeof answer === 'string' && keys.includes(bare(answer)))
+  }).length
+}
+
 /** Value of a calculated rule from its inputs, or null when an input is missing. */
 function calculate(
   rule: FieldIntakeRule,
@@ -196,6 +211,12 @@ export function applyIntakeRules(
       const [year, month, day] = (birth as string).split('-')
       const expected = `${first.trim()[0]}${last.trim()[0]}${month}${day}${year}`
       if (value.trim().toUpperCase() !== expected.toUpperCase()) warn('ID_PATTERN_MISMATCH')
+    } else if (rule.kind === 'TOTAL_SCORE' && value !== totalScore(rule, values)) {
+      errors.push({
+        fieldCode: field.code,
+        code: 'TOTAL_SCORE_MISMATCH',
+        message: 'The total score does not match the answer key.',
+      })
     }
   }
 

@@ -18,6 +18,11 @@ export const importHoldCodes = [
   'PROFILE_CHANGED',
   'IDENTITY_CONFLICT',
   'IDENTITY_MISSING',
+  'STAGE_CHANGED',
+  'STAGE_DATE_MISSING',
+  'STAGE_DATE_OUTSIDE_ENROLLMENT',
+  'STAGE_IDENTITY_MISMATCH',
+  'STAGE_CONSENT_MISSING',
 ] as const
 export const importHoldCode = z.enum(importHoldCodes)
 export type ImportHoldCode = z.infer<typeof importHoldCode>

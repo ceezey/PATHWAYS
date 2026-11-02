@@ -37,6 +37,8 @@ function blankRule(kind: Kind): FieldIntakeRule {
       return { kind, parentField: '', whenValues: [] }
     case 'ID_FROM_INITIALS_AND_BIRTH_DATE':
       return { kind, firstNameField: '', lastNameField: '', birthField: '' }
+    case 'TOTAL_SCORE':
+      return { kind, questions: [] }
   }
 }
 
@@ -66,8 +68,11 @@ export function IntakeRuleEditor({
       onChange={set}
     />
   )
+  // TOTAL_SCORE has no editor yet: the drafter proposes it and a person marks the answers elsewhere.
   const kinds = INTAKE_RULE_KINDS.filter(
-    (kind) => kind !== 'SAME_ANSWER_AS' || fieldCode === sameAnswerHost || rule?.kind === kind,
+    (kind) =>
+      kind !== 'TOTAL_SCORE' &&
+      (kind !== 'SAME_ANSWER_AS' || fieldCode === sameAnswerHost || rule?.kind === kind),
   )
   const options = (group: (kind: Kind) => boolean) =>
     kinds.filter(group).map((kind) => (

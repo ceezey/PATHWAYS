@@ -18,8 +18,19 @@ export const importSourceColumnResponse = z.object({
 })
 export type ImportSourceColumnResponse = z.infer<typeof importSourceColumnResponse>
 
+// One part of a multi-part client file: a column span that fills one form, with its row count.
+export const filePart = z.object({
+  code: z.string(),
+  name: z.string(),
+  firstColumn: z.number().int(),
+  lastColumn: z.number().int(),
+  rows: z.number().int(),
+  branchOf: z.string().nullable(),
+})
+export type FilePart = z.infer<typeof filePart>
+
 // One import batch as the list, upload, mapping, validate and process routes return it.
-export const importBatchResponse = z.object({
+const importBatchBase = z.object({
   id: z.string(),
   projectId: z.string(),
   formId: z.string(),
@@ -56,6 +67,8 @@ export const importBatchResponse = z.object({
     failed: z.number().int(),
     // Rows with at least one validation warning.
     warnings: z.number().int(),
+    // Rows held back until the row they depend on is processed.
+    waiting: z.number().int(),
   }),
   // Processed registration rows by outcome; present only on registration batches, counts only.
   registrationCounts: z
@@ -74,7 +87,24 @@ export const importBatchResponse = z.object({
   validatedAt: z.string().optional(),
   processedAt: z.string().optional(),
   updatedAt: z.string(),
+  // The file's batch this one is a part of, and the part's code; both null on a whole-file batch.
+  parentBatchId: z.string().nullable(),
+  partCode: z.string().nullable(),
+  fileParts: z.array(filePart).nullable(),
 })
+
+// One part of a multi-part file with its form and the part's own batch, which carries no parts of its own.
+export const importPartSummary = z.object({
+  code: z.string(),
+  name: z.string(),
+  formId: z.string().nullable(),
+  formName: z.string().nullable(),
+  formStatus: z.enum(['NONE', 'DRAFT', 'PUBLISHED']),
+  batch: importBatchBase.nullable(),
+})
+export type ImportPartSummary = z.infer<typeof importPartSummary>
+
+export const importBatchResponse = importBatchBase.extend({ parts: z.array(importPartSummary) })
 export type ImportBatchResponse = z.infer<typeof importBatchResponse>
 
 // One stored mapping decision of the current mapping revision.

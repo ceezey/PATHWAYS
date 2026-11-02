@@ -25,7 +25,7 @@ const errorCodes = (fields: FormFieldRequest[]) =>
 
 describe('form field intake metadata', () => {
   it('lists the rule kinds, calculated kinds and consent fields', () => {
-    expect(INTAKE_RULE_KINDS).toHaveLength(7)
+    expect(INTAKE_RULE_KINDS).toHaveLength(8)
     expect(CALCULATED_RULE_KINDS).toEqual(INTAKE_RULE_KINDS.slice(0, 4))
     expect(CONSENT_FIELD_CODES).toHaveLength(3)
   })
@@ -137,5 +137,29 @@ describe('form field intake metadata', () => {
     expect(errorCodes([field, text('birth_date'), text('enrollment_date')])).toEqual([
       'age_at_registration',
     ])
+  })
+
+  it('total score rule needs a question', () => {
+    const score = (questions: unknown[]) =>
+      formFieldRequest.safeParse({
+        ...text('total_score'),
+        rule: { kind: 'TOTAL_SCORE', questions },
+      }).success
+    expect(score([])).toBe(false)
+    expect(score([{ field: 'q1', answers: [] }])).toBe(false)
+    expect(
+      score([
+        { field: 'q1', answers: ['Tama'] },
+        { field: 'q2', anyAnswer: true },
+      ]),
+    ).toBe(true)
+    expect(score(Array.from({ length: 100 }, () => ({ field: 'q1', anyAnswer: true })))).toBe(false)
+  })
+
+  it('total score names only fields on the form', () => {
+    const rule = { kind: 'TOTAL_SCORE', questions: [{ field: 'q1', answers: ['Tama'] }] }
+    const total = text('total_score', { rule })
+    expect(errorCodes([total])).toEqual(['total_score'])
+    expect(errorCodes([total, text('q1')])).toEqual([])
   })
 })

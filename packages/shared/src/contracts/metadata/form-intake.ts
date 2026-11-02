@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-import { validateAndNormalizeFormData } from '../../validation/form-data'
+import { formDefinitionLimits, validateAndNormalizeFormData } from '../../validation/form-data'
 import { lengthString, trimmedInput, trimmedLowercaseInput } from '../common/field-schemas'
 import { valueMapText } from '../imports/import-requests'
 import type { FormFieldRequest } from './form-requests'
@@ -14,6 +14,7 @@ export const INTAKE_RULE_KINDS = [
   'AGE_CHECK',
   'FOLLOW_UP_OF',
   'ID_FROM_INITIALS_AND_BIRTH_DATE',
+  'TOTAL_SCORE',
 ] as const
 
 // Kinds that write a value into the row; the rest only cross-check.
@@ -38,6 +39,20 @@ export const formFieldCode = trimmedLowercaseInput(
   z.string().regex(/^[a-z][a-z0-9_]{0,63}$/, 'must be a lowercase field code'),
 )
 const ruleText = trimmedInput(lengthString(1, 120))
+
+// One scored question: the answers that earn a point, or any non-blank answer.
+const scoredQuestion = z.union([
+  z
+    .object({
+      field: formFieldCode,
+      answers: z
+        .array(trimmedInput(lengthString(1, formDefinitionLimits.textLength)))
+        .min(1)
+        .max(20),
+    })
+    .strict(),
+  z.object({ field: formFieldCode, anyAnswer: z.literal(true) }).strict(),
+])
 
 // One calculation or cross-check, discriminated on kind.
 export const fieldIntakeRule = z.discriminatedUnion('kind', [
@@ -77,6 +92,9 @@ export const fieldIntakeRule = z.discriminatedUnion('kind', [
       birthField: formFieldCode,
     })
     .strict(),
+  z
+    .object({ kind: z.literal('TOTAL_SCORE'), questions: z.array(scoredQuestion).min(1).max(99) })
+    .strict(),
 ])
 export type FieldIntakeRule = z.infer<typeof fieldIntakeRule>
 
@@ -114,6 +132,8 @@ export const ruleFieldCodes = (rule: FieldIntakeRule): string[] => {
       return [rule.parentField]
     case 'ID_FROM_INITIALS_AND_BIRTH_DATE':
       return [rule.firstNameField, rule.lastNameField, rule.birthField]
+    case 'TOTAL_SCORE':
+      return rule.questions.map((question) => question.field)
   }
 }
 

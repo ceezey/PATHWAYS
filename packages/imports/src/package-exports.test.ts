@@ -70,6 +70,7 @@ describe('package entry points', () => {
         'toCsv',
         'toWorkbookBytes',
         'toXlsxBuffer',
+        'totalScore',
         'washingtonGroupLevel',
         'workbookSheetNames',
       ].sort(),
@@ -103,6 +104,7 @@ describe('package entry points', () => {
         'readDate',
         'resolveAnswer',
         'stripLetterPrefix',
+        'totalScore',
         'washingtonGroupLevel',
       ].sort(),
     )

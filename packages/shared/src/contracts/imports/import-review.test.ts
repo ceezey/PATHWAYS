@@ -5,6 +5,7 @@ import { importSourceColumnResponse } from './import-responses'
 import {
   approveGuardianConsentRequest,
   importCheckpointRows,
+  importHoldCode,
   resolveImportRowRequest,
 } from './import-review'
 
@@ -116,5 +117,19 @@ describe('importSourceColumnResponse', () => {
     expect(accepts(importSourceColumnResponse, { ...column, sourceCode: 'a'.repeat(41) })).toBe(
       false,
     )
+  })
+})
+
+describe('importHoldCode', () => {
+  it('stage hold codes accepted', () => {
+    for (const code of [
+      'STAGE_CHANGED',
+      'STAGE_DATE_MISSING',
+      'STAGE_DATE_OUTSIDE_ENROLLMENT',
+      'STAGE_IDENTITY_MISMATCH',
+      'STAGE_CONSENT_MISSING',
+    ]) {
+      expect(accepts(importHoldCode, code)).toBe(true)
+    }
   })
 })

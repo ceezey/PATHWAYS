@@ -4,6 +4,7 @@ import {
   type IntakeField,
   type NormalizedImportValue,
   applyIntakeRules,
+  totalScore,
   washingtonGroupLevel,
 } from './intake-rules'
 
@@ -377,5 +378,54 @@ describe('washingtonGroupLevel', () => {
     expect(washingtonGroupLevel('yes - a lot of difficulty')).toBe(3)
     expect(washingtonGroupLevel('Cannot do at all')).toBe(4)
     expect(washingtonGroupLevel('maybe')).toBeNull()
+  })
+})
+
+type ScoreRule = Extract<NonNullable<IntakeField['rule']>, { kind: 'TOTAL_SCORE' }>
+
+describe('total score', () => {
+  const rule: ScoreRule = {
+    kind: 'TOTAL_SCORE',
+    questions: [
+      { field: 'q1', answers: ['Tama'] },
+      { field: 'q2', answers: ['Tama'] },
+    ],
+  }
+  const scored = [field('q1', 'TEXT'), field('q2', 'TEXT'), field('score', 'INTEGER', { rule })]
+  const check = (values: Record<string, NormalizedImportValue>) =>
+    applyIntakeRules(scored, values, new Set(), '2026-10-22').errors
+
+  it('score counts matching answers', () => {
+    expect(totalScore(rule, { q1: 'A. Tama', q2: 'b) Mali' })).toBe(1)
+  })
+
+  it('letter prefix ignored', () => {
+    expect(totalScore(rule, { q1: 'a) tama', q2: 'B.  TAMA' })).toBe(2)
+  })
+
+  it('any answer scores a non-blank answer', () => {
+    const any: ScoreRule = { kind: 'TOTAL_SCORE', questions: [{ field: 'q1', anyAnswer: true }] }
+    expect(totalScore(any, { q1: 'whatever' })).toBe(1)
+    expect(totalScore(any, { q1: '' })).toBe(0)
+    expect(totalScore(any, { q1: null })).toBe(0)
+  })
+
+  it('a multiple select scores when any of its answers matches', () => {
+    expect(totalScore(rule, { q1: ['Mali', 'B. Tama'], q2: ['Mali'] })).toBe(1)
+  })
+
+  it('mismatch is an error', () => {
+    expect(check({ q1: 'Tama', q2: 'Mali', score: 2 })).toEqual([
+      {
+        fieldCode: 'score',
+        code: 'TOTAL_SCORE_MISMATCH',
+        message: 'The total score does not match the answer key.',
+      },
+    ])
+    expect(check({ q1: 'Tama', q2: 'Mali', score: 1 })).toEqual([])
+  })
+
+  it('blank score is not checked', () => {
+    expect(check({ q1: 'Tama', q2: 'Mali', score: null })).toEqual([])
   })
 })

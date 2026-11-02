@@ -22,6 +22,7 @@ export const needsCheckLabels: Record<(typeof draftNeedsCheckReasons)[number], s
   CONSENT_SOURCE_PROPOSED: 'A column was proposed as this consent answer. Confirm it.',
   WASHINGTON_GROUP_FLAG_DISAGREES:
     'The disability yes or no column disagrees with the Washington Group answers on some rows. Check before publishing.',
+  ANSWER_KEY_NEEDED: 'Mark the correct answers for this score',
 }
 
 /** Shown on the data consent item when participation consent copies its answer. */
@@ -48,6 +49,7 @@ export const ruleKindLabels: Record<(typeof INTAKE_RULE_KINDS)[number], string> 
   AGE_CHECK: 'Check the age column against a birth date',
   FOLLOW_UP_OF: 'Fill only when another field has certain answers',
   ID_FROM_INITIALS_AND_BIRTH_DATE: 'Check the ID against initials and birth date',
+  TOTAL_SCORE: 'Check the total score against the answer key',
 }
 
 /** Sentence-cases a server enum such as PARTIALLY_PROCESSED into "Partially processed". */

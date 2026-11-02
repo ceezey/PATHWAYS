@@ -16,6 +16,9 @@ export const batchSelection = {
   validationRevision: true,
   validatedMappingRevision: true,
   processingRevision: true,
+  parentBatchId: true,
+  partCode: true,
+  fileParts: true,
   totalRows: true,
   validRows: true,
   invalidRows: true,
@@ -92,6 +95,7 @@ export function mapBatch(
       unprocessed: batch.unprocessedRows,
       failed: batch.failedRows,
       warnings: warningRows,
+      waiting: 0,
     },
     failureCode: batch.failureCode,
     failureMessage: batch.status === 'FAILED' ? (batch.validationNotes ?? null) : null,
@@ -100,5 +104,10 @@ export function mapBatch(
     validatedAt: batch.validatedAt?.toISOString(),
     processedAt: batch.processedAt?.toISOString(),
     updatedAt: batch.updatedAt.toISOString(),
+    parentBatchId: batch.parentBatchId,
+    partCode: batch.partCode,
+    // The column holds the FilePart list the splitter wrote.
+    fileParts: batch.fileParts as ImportBatchResponse['fileParts'],
+    parts: [],
   }
 }

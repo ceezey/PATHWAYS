@@ -34,6 +34,7 @@ export type NeedsCheckReason =
   | 'PARTICIPATION_CONSENT_NO_SOURCE'
   | 'CONSENT_SOURCE_PROPOSED'
   | 'WASHINGTON_GROUP_FLAG_DISAGREES'
+  | 'ANSWER_KEY_NEEDED'
 
 /** Field codes and counts only; no source value ever enters the summary. */
 export interface DraftSummary {
