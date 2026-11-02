@@ -5,7 +5,8 @@
 -- p03_guard_import_batch keeps the 0079 body with the three columns frozen (file_parts settable once, like source_headers),
 -- p34_guard_survey_subject keeps the retarget check and the direct-entry branch and gains an IMPORTED_DATASET branch, and
 -- p3_guard_assessment_source accepts a submission of the same beneficiary that names no enrollment.
--- Owner, security mode, search_path, ACL and trigger bindings of the three functions stay unchanged (asserted below).
+-- p03_assert_processed_row keeps the 0080 body and also accepts an unchanged survey row of a file part whose person is enrolled.
+-- Owner, security mode, search_path, ACL and trigger bindings of the four functions stay unchanged (asserted below).
 BEGIN;
 SET LOCAL lock_timeout = '5s';
 SET LOCAL statement_timeout = '60s';
@@ -16,11 +17,12 @@ DO $$ DECLARE fn record; BEGIN
  IF EXISTS(SELECT FROM pg_catalog.pg_attribute a WHERE a.attrelid='pathways.data_import_batches'::pg_catalog.regclass
    AND a.attname IN ('parent_batch_id','part_code','file_parts') AND NOT a.attisdropped)
  THEN RAISE EXCEPTION '0083 file part columns already exist'; END IF;
- -- Only the reviewed definitions (0079, 0034, 0071) may be replaced.
+ -- Only the reviewed definitions (0079, 0034, 0071, 0080) may be replaced.
  FOR fn IN SELECT w.sig, w.secdef, w.md5, p.prosrc, p.proowner, p.prosecdef, p.proconfig
   FROM (VALUES ('pathways.p03_guard_import_batch()',false,'417735450bc904f29cc30659ef259676'),
    ('pathways.p34_guard_survey_subject()',false,'552910dc8f72cb9ccbf1f04d505084f1'),
-   ('pathways.p3_guard_assessment_source()',true,'c88ed7ba8074ffa847062e2c0839bdf9')) w(sig,secdef,md5)
+   ('pathways.p3_guard_assessment_source()',true,'c88ed7ba8074ffa847062e2c0839bdf9'),
+   ('pathways.p03_assert_processed_row()',false,'4249c2d269204b3bd68b0e5a4ef9db33')) w(sig,secdef,md5)
   LEFT JOIN pg_catalog.pg_proc p ON p.oid=pg_catalog.to_regprocedure(w.sig) LOOP
   IF fn.prosrc IS NULL OR pg_catalog.pg_get_userbyid(fn.proowner)<>'prisma' OR fn.prosecdef<>fn.secdef
    OR fn.proconfig IS DISTINCT FROM ARRAY['search_path=""'] OR pg_catalog.md5(fn.prosrc)<>fn.md5
@@ -178,7 +180,58 @@ BEGIN
  RETURN NEW;
 END $$;
 
--- Postconditions: columns, constraints, index, the three guards unchanged in shape and still bound to their triggers.
+-- The 0080 body of p03_assert_processed_row; an unchanged survey row of a file part also needs no submission (marked 0083).
+CREATE OR REPLACE FUNCTION pathways.p03_assert_processed_row() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO ''
+    AS $$
+DECLARE target_form_type pathways.form_type; target_submission uuid; target_enrollment uuid; target_beneficiary uuid;
+BEGIN
+  IF NEW.status<>'PROCESSED' THEN RETURN NULL; END IF;
+  SELECT f.form_type,s.id,s.enrollment_id,e.beneficiary_id
+  INTO target_form_type,target_submission,target_enrollment,target_beneficiary
+  FROM pathways.form_submissions s
+  JOIN pathways.digital_forms f ON f.organization_id=s.organization_id
+    AND f.project_id=s.project_id AND f.id=s.form_id AND f.version=s.form_version
+  LEFT JOIN pathways.beneficiary_project_enrollments e ON e.organization_id=s.organization_id
+    AND e.project_id=s.project_id AND e.id=s.enrollment_id
+  WHERE s.import_row_id=NEW.id AND s.import_batch_id=NEW.import_batch_id
+    AND s.organization_id=NEW.organization_id AND s.project_id=NEW.project_id
+    AND s.form_id=NEW.form_id AND s.source='IMPORTED_DATASET'
+    AND s.status IN ('VALIDATED','PROCESSED');
+  IF target_submission IS NULL THEN
+    IF NEW.registration_outcome='UNCHANGED' AND (EXISTS (
+      SELECT FROM pathways.digital_forms f
+      JOIN pathways.beneficiary_project_enrollments e ON e.organization_id=f.organization_id AND e.project_id=f.project_id
+      WHERE f.organization_id=NEW.organization_id AND f.project_id=NEW.project_id AND f.id=NEW.form_id
+        AND f.form_type='BENEFICIARY_REGISTRATION' AND e.beneficiary_id=NEW.matched_beneficiary_id
+    ) OR EXISTS ( -- 0083: a row of a file part whose person is enrolled in the batch's project
+      SELECT FROM pathways.data_import_batches b
+      JOIN pathways.beneficiary_project_enrollments e ON e.organization_id=b.organization_id AND e.project_id=b.project_id
+      WHERE b.id=NEW.import_batch_id AND b.organization_id=NEW.organization_id AND b.project_id=NEW.project_id
+        AND b.parent_batch_id IS NOT NULL AND e.beneficiary_id=NEW.matched_beneficiary_id
+    )) THEN RETURN NULL; END IF;
+    RAISE EXCEPTION 'Processed row requires one normalized submission';
+  END IF;
+  IF target_form_type='BENEFICIARY_REGISTRATION' AND (
+    target_enrollment IS NULL OR target_beneficiary IS NULL
+    OR NOT EXISTS (SELECT FROM pathways.beneficiary_consent_records c WHERE c.submission_id=target_submission AND c.kind='PARTICIPATION')
+    OR NOT EXISTS (SELECT FROM pathways.beneficiary_consent_records c WHERE c.submission_id=target_submission AND c.kind='DATA_PROCESSING')
+  ) THEN RAISE EXCEPTION 'Processed registration requires profile, enrollment and consent provenance'; END IF;
+  IF target_form_type='ACTIVITY_MONITORING' AND (
+    target_enrollment IS NULL OR NOT EXISTS (
+      SELECT FROM pathways.beneficiary_activity_participations p
+      JOIN pathways.beneficiary_journey_events e ON e.participation_id=p.id
+        AND e.organization_id=p.organization_id AND e.project_id=p.project_id
+        AND e.enrollment_id=p.enrollment_id AND e.activity_id=p.activity_id
+      WHERE p.source_submission_id=target_submission AND p.enrollment_id=target_enrollment
+    )
+  ) THEN RAISE EXCEPTION 'Processed participation requires enrollment, participation and journey effects'; END IF;
+  RETURN NULL;
+END
+$$;
+
+-- Postconditions: columns, constraints, index, the four guards unchanged in shape and still bound to their triggers.
 DO $$ BEGIN
  IF (SELECT count(*) FROM pg_catalog.pg_attribute a WHERE a.attrelid='pathways.data_import_batches'::pg_catalog.regclass
    AND NOT a.attisdropped AND NOT a.attnotnull AND ((a.attname='parent_batch_id' AND a.atttypid='uuid'::pg_catalog.regtype)
@@ -192,18 +245,20 @@ DO $$ BEGIN
    AND c.conname='p34_survey_subject_shape' AND c.convalidated AND pg_catalog.pg_get_constraintdef(c.oid) LIKE '%IMPORTED_DATASET%')
  THEN RAISE EXCEPTION '0083 table postconditions failed'; END IF;
  IF (SELECT count(*) FROM (VALUES ('pathways.p03_guard_import_batch()',false),('pathways.p34_guard_survey_subject()',false),
-    ('pathways.p3_guard_assessment_source()',true)) w(sig,secdef)
+    ('pathways.p3_guard_assessment_source()',true),('pathways.p03_assert_processed_row()',false)) w(sig,secdef)
    JOIN pg_catalog.pg_proc p ON p.oid=pg_catalog.to_regprocedure(w.sig)
    WHERE pg_catalog.pg_get_userbyid(p.proowner)='prisma' AND p.prosecdef=w.secdef AND p.proconfig=ARRAY['search_path=""']
     AND p.prolang=(SELECT oid FROM pg_catalog.pg_language WHERE lanname='plpgsql')
-    AND p.prosrc LIKE '%0083%')<>3
+    AND p.prosrc LIKE '%0083%')<>4
  OR (SELECT count(*) FROM pg_catalog.pg_trigger t WHERE t.tgenabled='O' AND NOT t.tgisinternal AND (
    (t.tgname='p03_guard_import_batch' AND t.tgrelid='pathways.data_import_batches'::pg_catalog.regclass
      AND t.tgfoid='pathways.p03_guard_import_batch()'::pg_catalog.regprocedure)
    OR (t.tgname='p34_guard_survey_subject' AND t.tgrelid='pathways.form_submissions'::pg_catalog.regclass
      AND t.tgfoid='pathways.p34_guard_survey_subject()'::pg_catalog.regprocedure)
    OR (t.tgname='p3_30_source' AND t.tgrelid='pathways.assessment_results'::pg_catalog.regclass
-     AND t.tgfoid='pathways.p3_guard_assessment_source()'::pg_catalog.regprocedure)))<>3
+     AND t.tgfoid='pathways.p3_guard_assessment_source()'::pg_catalog.regprocedure)
+   OR (t.tgname='p03_row_complete' AND t.tgrelid='pathways.data_import_rows'::pg_catalog.regclass
+     AND t.tgfoid='pathways.p03_assert_processed_row()'::pg_catalog.regprocedure AND t.tgdeferrable)))<>4
  THEN RAISE EXCEPTION '0083 guard postconditions failed'; END IF;
 END $$;
 COMMIT;

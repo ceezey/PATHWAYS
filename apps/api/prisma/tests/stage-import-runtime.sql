@@ -247,18 +247,19 @@ INSERT INTO pathways.digital_forms(id,organization_id,project_id,code,version,na
  (pg_temp.u(95),pg_temp.u(1),pg_temp.u(41),'SI_LST',1,'LST','TRAINING_SURVEY','PUBLISHED',pg_temp.u(62),pg_temp.u(412),pg_temp.u(22),now()),
  (pg_temp.u(96),pg_temp.u(1),pg_temp.u(41),'SI_PRE',1,'Pre-Training','TRAINING_SURVEY','PUBLISHED',pg_temp.u(63),pg_temp.u(413),pg_temp.u(22),now()),
  (pg_temp.u(97),pg_temp.u(1),pg_temp.u(41),'SI_TRACK_A',1,'Track A','TRAINING_SURVEY','PUBLISHED',pg_temp.u(64),pg_temp.u(414),pg_temp.u(22),now());
--- One processing batch per stage form (120 to 122) with the rows of the people below.
+-- One processing batch per stage form (120 to 122, the last a child batch of 101) with the rows of the people below.
 INSERT INTO pathways.data_import_batches(id,organization_id,project_id,form_id,form_version,original_file_name,uploaded_by_id,status,
  storage_status,validated_at,reviewed_by_id,mapping_revision,validated_mapping_revision,processing_claim_id,processing_claimed_at,
- source_checksum,storage_bucket,storage_object_key)
+ source_checksum,storage_bucket,storage_object_key,parent_batch_id,part_code)
 SELECT pg_temp.u(119+n),pg_temp.u(1),pg_temp.u(41),pg_temp.u(94+n),1,'synthetic.csv',pg_temp.u(21),'PROCESSING','STORED',now(),pg_temp.u(21),0,0,
- pg_temp.u(990),now(),repeat('e',64),'imports','synthetic/'||(119+n) FROM generate_series(1,3) n;
--- Rows 131 and 132 (LST), 133 and 134 (Pre-Training), 135 and 136 (track A); people 71 and 72, row 136 has no survey.
+ pg_temp.u(990),now(),repeat('e',64),'imports','synthetic/'||(119+n),
+ CASE WHEN n=3 THEN pg_temp.u(101) END,CASE WHEN n=3 THEN 'track_a' END FROM generate_series(1,3) n;
+-- Rows 131 and 132 (LST), 133 and 134 (Pre-Training), 135 to 137 (track A); people 71 and 72, rows 136 and 137 have no survey.
 INSERT INTO pathways.data_import_rows(id,organization_id,project_id,form_id,import_batch_id,row_number,raw_data,status,normalized_data,
  validated_by_id,validated_at,processing_claim_id,processing_claimed_at,source_checksum)
 SELECT pg_temp.u(130+n),pg_temp.u(1),pg_temp.u(41),pg_temp.u(CASE WHEN n<=2 THEN 95 WHEN n<=4 THEN 96 ELSE 97 END),
  pg_temp.u(CASE WHEN n<=2 THEN 120 WHEN n<=4 THEN 121 ELSE 122 END),n,'{}','PROCESSING','{}',pg_temp.u(21),now(),pg_temp.u(990),now(),repeat('f',64)
-FROM generate_series(1,6) n;
+FROM generate_series(1,7) n;
 SET LOCAL session_replication_role = origin;
 
 -- Each stage is written the way the stage promoter writes it: a survey naming the person, its validation, one participation
@@ -293,14 +294,18 @@ SELECT pg_temp.ok('track branch counts once in progress', EXISTS(
  WHERE enrollment_id=pg_temp.u(82) AND path_length=4 AND reached=3
   AND least(100,round(((reached+1)::numeric/path_length)*100))=100));
 
--- A stage row that added its survey may become processed; one that added nothing (an unchanged stage) is refused at commit.
+-- A stage row that added its survey may become processed, and so may an unchanged one whose person is enrolled in the project.
 UPDATE pathways.data_import_rows SET status='PROCESSED',processed_at=now(),processing_claim_id=NULL,processing_claimed_at=NULL,
  registration_outcome='CREATED' WHERE id=pg_temp.u(131);
 SELECT pg_temp.accepted('processed stage row with its survey', 'SET CONSTRAINTS ALL IMMEDIATE');
 SET CONSTRAINTS ALL DEFERRED;
 UPDATE pathways.data_import_rows SET status='PROCESSED',processed_at=now(),processing_claim_id=NULL,processing_claimed_at=NULL,
  registration_outcome='UNCHANGED',matched_beneficiary_id=pg_temp.u(71) WHERE id=pg_temp.u(136);
-SELECT pg_temp.refused('processed unchanged stage row without a survey', 'SET CONSTRAINTS ALL IMMEDIATE','P0001','Processed row requires one normalized submission');
+SELECT pg_temp.accepted('processed unchanged stage row without a survey', 'SET CONSTRAINTS ALL IMMEDIATE');
+SET CONSTRAINTS ALL DEFERRED;
+UPDATE pathways.data_import_rows SET status='PROCESSED',processed_at=now(),processing_claim_id=NULL,processing_claimed_at=NULL,
+ registration_outcome='UNCHANGED',matched_beneficiary_id=pg_temp.u(75) WHERE id=pg_temp.u(137);
+SELECT pg_temp.refused('processed unchanged stage row for a person not enrolled', 'SET CONSTRAINTS ALL IMMEDIATE','P0001','Processed row requires one normalized submission');
 RESET SESSION AUTHORIZATION;
 
 SELECT 'STAGE_IMPORT_RUNTIME=PASS ('||current_setting('si.passed')||')' AS result \gset
