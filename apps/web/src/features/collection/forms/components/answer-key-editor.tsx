@@ -1,7 +1,7 @@
 'use client'
 
 import { CONSENT_FIELD_CODES, type FieldIntakeRule, formDefinitionLimits } from '@pathways/shared'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 import { Label } from '@/components/ui/label'
 
@@ -27,9 +27,11 @@ const unscored: ReadonlySet<string> = new Set([
 const maxAnswers = 20
 const isChoice = (field: FormField) =>
   field.type === 'single_select' || field.type === 'multi_select'
-// Answers match as text, so only choice and text fields can be given correct answers.
+// Answers match as text, so only choice fields with options and text fields can be given correct answers.
 const canListAnswers = (field: FormField) =>
-  isChoice(field) || field.type === 'text' || field.type === 'long_text'
+  isChoice(field)
+    ? field.allowedValues.length > 0
+    : field.type === 'text' || field.type === 'long_text'
 
 /** Marks which questions of a survey score a point, and which answers earn it. */
 export function AnswerKeyEditor({
@@ -44,7 +46,13 @@ export function AnswerKeyEditor({
   disabled: boolean
 }) {
   const rows = fields.filter((field) => field.code && !unscored.has(field.code))
-  const keyed = new Map<string, Question>((rule?.questions ?? []).map((q) => [q.field, q]))
+  // A question whose field is gone cannot be saved, so it is dropped from the key.
+  const kept = (rule?.questions ?? []).filter((q) => rows.some((row) => row.code === q.field))
+  const keyed = new Map<string, Question>(kept.map((q) => [q.field, q]))
+  useEffect(() => {
+    if (!disabled && rule && kept.length !== rule.questions.length)
+      onChange(kept.length ? { kind: 'TOTAL_SCORE', questions: kept } : null)
+  })
   // Questions set to Correct answers before any answer is chosen; the rule cannot hold them yet.
   const [listing, setListing] = useState<ReadonlySet<string>>(new Set())
   const answersOf = (code: string) => {
@@ -96,13 +104,13 @@ export function AnswerKeyEditor({
               >
                 <option value="none">{answerKeyCopy.none}</option>
                 <option value="any">{answerKeyCopy.any}</option>
-                {canListAnswers(field) ? (
+                {canListAnswers(field) || mode === 'answers' ? (
                   <option value="answers">{answerKeyCopy.answers}</option>
                 ) : null}
               </select>
               {mode === 'answers' && isChoice(field) ? (
                 <fieldset className="grid gap-2 sm:grid-cols-2">
-                  <legend className="sr-only">{`${answerKeyCopy.answers} for ${label}`}</legend>
+                  <legend className="sr-only">{answerKeyCopy.answersFor(label)}</legend>
                   {[
                     ...field.allowedValues,
                     ...answers.filter((a) => !field.allowedValues.includes(a)),
@@ -130,7 +138,7 @@ export function AnswerKeyEditor({
               {mode === 'answers' && !isChoice(field) ? (
                 <ChipListInput
                   id={`${id}-answers`}
-                  noun={`correct answer for ${label}`}
+                  noun={answerKeyCopy.answerNoun(label)}
                   values={answers}
                   max={maxAnswers}
                   maxLength={formDefinitionLimits.textLength}

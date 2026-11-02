@@ -11,6 +11,7 @@ import {
   Save,
   Trash2,
 } from 'lucide-react'
+import { type ReactNode, useState } from 'react'
 import { flushSync } from 'react-dom'
 
 import type { DraftSummaryResponse } from '@pathways/shared'
@@ -34,6 +35,24 @@ import { FormInfoPanel } from './form-info-panel'
 import { FormPreviewPanel } from './form-preview-panel'
 import { MetadataMapPanel } from './metadata-map-panel'
 import { revealIntakeSection, settledInIntake } from './reveal-intake-section'
+
+/** The answer key dropdown; it opens when a key is needed and then stays as the person left it. */
+function KeyPanel({ id, needed, children }: { id: string; needed: boolean; children: ReactNode }) {
+  const [open, setOpen] = useState(needed)
+  return (
+    <details
+      className="mt-4 border-t pt-2"
+      id={id}
+      open={open}
+      onToggle={(event) => setOpen(event.currentTarget.open)}
+    >
+      <summary className="min-h-11 cursor-pointer content-center text-sm font-medium text-primary">
+        {answerKeyCopy.heading}
+      </summary>
+      {children}
+    </details>
+  )
+}
 
 export const BuilderView = ({
   addField,
@@ -264,19 +283,15 @@ export const BuilderView = ({
                 />
               ) : null}
               {selectedFieldId === field.id && field.code === 'total_score' ? (
-                <details
-                  className="mt-4 border-t pt-2"
+                <KeyPanel
                   id={`${field.id}-key`}
-                  open={
-                    draftSummary?.needsCheck.some(
+                  needed={
+                    !!draftSummary?.needsCheck.some(
                       (item) =>
                         item.fieldCode === field.code && item.reason === 'ANSWER_KEY_NEEDED',
-                    ) || undefined
+                    )
                   }
                 >
-                  <summary className="min-h-11 cursor-pointer content-center text-sm font-medium text-primary">
-                    {answerKeyCopy.heading}
-                  </summary>
                   <div className="mt-2 rounded-md transition-colors" data-intake-section="key">
                     <AnswerKeyEditor
                       fields={fields}
@@ -285,7 +300,7 @@ export const BuilderView = ({
                       onChange={(rule) => updateField(field.id, { rule })}
                     />
                   </div>
-                </details>
+                </KeyPanel>
               ) : null}
             </div>
           ))}

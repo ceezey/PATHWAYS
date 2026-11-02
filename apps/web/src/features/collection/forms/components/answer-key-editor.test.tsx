@@ -76,6 +76,7 @@ const fields = [
   field('q1', 'Colour of the sky', { type: 'single_select', allowedValues: ['Blue', 'Green'] }),
   field('q2', 'Capital city'),
   field('q3', 'Number of legs', { type: 'integer' }),
+  field('q4', 'Pick one', { type: 'single_select' }),
   field('total_score', 'Total score', { type: 'integer' }),
 ]
 
@@ -177,7 +178,7 @@ describe('AnswerKeyEditor', () => {
       'Total score',
     ])
       expect(screen.queryByLabelText(label)).toBeNull()
-    expect(screen.getAllByRole('combobox')).toHaveLength(3)
+    expect(screen.getAllByRole('combobox')).toHaveLength(4)
   })
 
   it('offers correct answers only where an answer can match', () => {
@@ -188,6 +189,35 @@ describe('AnswerKeyEditor', () => {
         .map((option) => option.getAttribute('value'))
     expect(modes('Colour of the sky')).toEqual(['none', 'any', 'answers'])
     expect(modes('Number of legs')).toEqual(['none', 'any'])
+    expect(modes('Pick one')).toEqual(['none', 'any'])
+  })
+
+  it('a deleted question is dropped from the key', () => {
+    const onRule = vi.fn()
+    render(
+      <Harness
+        onRule={onRule}
+        initial={{
+          kind: 'TOTAL_SCORE',
+          questions: [
+            { field: 'q1', answers: ['Blue'] },
+            { field: 'gone', anyAnswer: true },
+          ],
+        }}
+      />,
+    )
+    expect(onRule).toHaveBeenLastCalledWith({
+      kind: 'TOTAL_SCORE',
+      questions: [{ field: 'q1', answers: ['Blue'] }],
+    })
+    cleanup()
+    render(
+      <Harness
+        onRule={onRule}
+        initial={{ kind: 'TOTAL_SCORE', questions: [{ field: 'gone', anyAnswer: true }] }}
+      />,
+    )
+    expect(onRule).toHaveBeenLastCalledWith(null)
   })
 
   it('read-only on a published form', () => {
@@ -336,6 +366,7 @@ describe('saving the answer key', () => {
       '2026-10-24T00:00:00Z',
     )
     await waitFor(() => expect(screen.queryByText('Needs check')).toBeNull())
+    expect((document.querySelector('details[id$="-key"]') as HTMLDetailsElement).open).toBe(true)
   })
 
   it('keeps the item and says so when the check cannot be cleared after the save', async () => {
