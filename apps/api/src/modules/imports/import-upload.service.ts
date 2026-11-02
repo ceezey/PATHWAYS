@@ -97,7 +97,7 @@ export async function reserveBatchUpload(
   // Only a workbook has sheets; the chosen one is kept so a resume or re-run reads the same rows.
   const sourceSheetName =
     metadata.type === 'XLSX' || metadata.type === 'XLS' ? (input.sheetName ?? null) : null
-  // A part has one batch per form version whoever starts it; any other batch is found by its key.
+  // A part has one live batch per form version whoever starts it; any other batch is found by its key.
   const existing = await tx.dataImportBatch.findFirst({
     where: part
       ? {
@@ -105,6 +105,7 @@ export async function reserveBatchUpload(
           parentBatchId: part.parentBatchId,
           partCode: part.partCode,
           formVersion: form.version,
+          status: { not: 'FAILED' },
         }
       : {
           organizationId: actor.organizationId,

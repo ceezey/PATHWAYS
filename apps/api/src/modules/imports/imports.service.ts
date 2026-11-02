@@ -285,12 +285,17 @@ export class ImportsService {
     if (!source.answerKey && holdsScores(selectPartColumns(parsed, source.part))) {
       throw new ConflictException("Mark the correct answers for this survey's total score first.")
     }
-    const created = await this.upload(
+    return this.upload(
       identity,
       projectId,
       {
         formId: source.formId,
-        clientImportId: partImportId(source.clientImportId, partCode, source.formVersion),
+        clientImportId: partImportId(
+          source.clientImportId,
+          partCode,
+          source.formVersion,
+          source.attempt,
+        ),
         ...(source.sourceSheetName ? { sheetName: source.sourceSheetName } : {}),
       },
       {
@@ -301,9 +306,6 @@ export class ImportsService {
       },
       { parentBatchId: source.parentId, part: source.part },
     )
-    // shortcut: a FAILED part keeps its key for the form version, so it cannot be started again; upgrade when a retry key is needed.
-    if (created.status === 'FAILED') throw new ConflictException('Starting this survey failed.')
-    return created
   }
 
   async resumeUpload(identity: ApplicationIdentity, projectId: string, batchId: string) {

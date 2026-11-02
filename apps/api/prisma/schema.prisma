@@ -1232,7 +1232,7 @@ model DataImportBatch {
   failedRows                  Int                 @default(0) @map("failed_rows")
   failureCode                 String?             @map("failure_code")
   sourceSheetName             String?             @map("source_sheet_name")
-  /// Child batches of one uploaded file; one per part and form version through the partial unique index data_import_batches_part_key (0083).
+  /// Child batches of one uploaded file; one live (not FAILED) per part and form version through the partial unique index data_import_batches_part_key (0083).
   parentBatchId               String?             @map("parent_batch_id") @db.Uuid
   partCode                    String?             @map("part_code")
   fileParts                   Json?               @map("file_parts")

@@ -14,9 +14,17 @@ const SURVEY_IMPORT_PERMISSIONS = [
   'beneficiaries.records.read',
 ] as const
 
-/** The key of a part's batch, derived from sha256(parentClientImportId|partCode|formVersion), so starting again returns it. */
-export const partImportId = (parentClientImportId: string, partCode: string, formVersion: number) =>
-  uuidFromHash(`${parentClientImportId}|${partCode}|${formVersion}`)
+// A FAILED attempt keeps its key forever, so each part may spend up to this many keys per form version.
+export const PART_MAX_ATTEMPTS = 5
+
+/** The key of a part's batch, derived from sha256(parentClientImportId|partCode|formVersion), so starting again returns it; a later attempt after failures gets its own. */
+export const partImportId = (
+  parentClientImportId: string,
+  partCode: string,
+  formVersion: number,
+  attempt = 0,
+) =>
+  uuidFromHash(`${parentClientImportId}|${partCode}|${formVersion}${attempt ? `|${attempt}` : ''}`)
 
 /** Processing a survey writes participation, assessments and reads participants, so refuse a person who could not finish it. */
 export function requireSurveyImportPermissions(actor: ApplicationIdentity) {
@@ -49,6 +57,19 @@ export async function readPartStart(
   if (part.rows === 0) throw new ConflictException('This survey has no rows in the file.')
   const form = await findStageForm(tx, actor, parent.projectId, part.code, ['PUBLISHED'])
   if (!form) throw new ConflictException("Publish this survey's form first.")
+  // Each FAILED child of this part and version has spent one key, so the next start takes a new one.
+  const attempt = await tx.dataImportBatch.count({
+    where: {
+      organizationId: actor.organizationId,
+      parentBatchId: parent.id,
+      partCode: part.code,
+      formVersion: form.version,
+      status: 'FAILED',
+    },
+  })
+  if (attempt >= PART_MAX_ATTEMPTS) {
+    throw new ConflictException('Starting this survey failed repeatedly; upload the file again.')
+  }
   const fields = await tx.formField.findMany({
     where: {
       organizationId: actor.organizationId,
@@ -64,6 +85,7 @@ export async function readPartStart(
     part,
     formId: form.id,
     formVersion: form.version,
+    attempt,
     answerKey: fields.some(
       (field) => (field.rule as { kind?: string } | null)?.kind === 'TOTAL_SCORE',
     ),

@@ -12,7 +12,12 @@ import {
 } from './imports.service.harness'
 
 import { createHash } from 'node:crypto'
-import { ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common'
+import {
+  ConflictException,
+  ForbiddenException,
+  NotFoundException,
+  ServiceUnavailableException,
+} from '@nestjs/common'
 import { stageFixtureSheet } from '@pathways/imports/form-draft/futuremakers-stage-fixture'
 import { detectFileParts, parseSecureImport } from '@pathways/imports/server'
 import { type FilePart, rolePermissions } from '@pathways/shared'
@@ -47,6 +52,7 @@ interface Setup {
   existingVersion: number | null
   children: unknown[]
   started: string[]
+  failed: number
   created: Array<Record<string, unknown>>
 }
 let setup: Setup
@@ -96,6 +102,7 @@ describe('starting the parts of a file', () => {
       existingVersion: null,
       children: [],
       started: [],
+      failed: 0,
       created: [],
     }
     state.actor = officer
@@ -119,6 +126,11 @@ describe('starting the parts of a file', () => {
     tx.dataImportBatch.findMany.mockImplementation(async ({ where }) =>
       where.status ? setup.started.map((partCode) => ({ partCode })) : setup.children,
     )
+    tx.dataImportBatch.count.mockImplementation(async () => setup.failed)
+    tx.dataImportBatch.update.mockImplementation(async ({ data }) => {
+      if (data.status === 'FAILED') setup.failed += 1
+      return batch()
+    })
     tx.dataImportBatch.create.mockImplementation(async ({ data }) => {
       setup.created.push(data)
       return data
@@ -305,6 +317,50 @@ describe('starting the parts of a file', () => {
     await service.resumeUpload(officer, projectId, childId)
 
     expect(Object.keys(stagedRows()[0].rawData)).toHaveLength(7)
+  })
+
+  it('failed part can be started again', async () => {
+    // The first start loses the storage write and the check that follows it, which leaves the child FAILED.
+    storage.downloadPrivateFile
+      .mockResolvedValueOnce(source)
+      .mockRejectedValueOnce(new Error('down'))
+    storage.uploadPrivateFile.mockRejectedValueOnce(new Error('down'))
+    await expect(start()).rejects.toBeInstanceOf(ServiceUnavailableException)
+    expect(setup.failed).toBe(1)
+
+    const second = await start()
+
+    const [one, two] = setup.created
+    expect(two.id).not.toBe(one.id)
+    expect(two.clientImportId).toBe(partImportId(parentKey, LST, 1, 1))
+    expect(one.clientImportId).toBe(partImportId(parentKey, LST, 1))
+    expect(second.id).toBe(two.id)
+    // The failed child no longer holds the part's place, and the parent's gate counts only live children.
+    expect(tx.dataImportBatch.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ partCode: LST, status: { not: 'FAILED' } }),
+      }),
+    )
+    setup.started = parts.map((part) => part.code)
+    await expect(claimParent()).resolves.toMatchObject({ id: parentId })
+    expect(tx.dataImportBatch.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ status: { not: 'FAILED' } }),
+      }),
+    )
+  })
+
+  it('a part that failed five times is refused with 409 and stages nothing', async () => {
+    setup.failed = 5
+
+    await expect(start()).rejects.toBeInstanceOf(ConflictException)
+    expect(tx.dataImportBatch.create).not.toHaveBeenCalled()
+    expect(storage.downloadPrivateFile).not.toHaveBeenCalled()
+  })
+
+  it('an unfailed start keeps its first key', () => {
+    expect(partImportId(parentKey, LST, 1, 0)).toBe(partImportId(parentKey, LST, 1))
+    expect(partImportId(parentKey, LST, 1, 1)).not.toBe(partImportId(parentKey, LST, 1))
   })
 
   it('child from another project is 404', async () => {

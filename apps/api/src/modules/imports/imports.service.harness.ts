@@ -110,6 +110,7 @@ export const tx = {
     findUnique: vi.fn(),
     create: vi.fn(),
     update: vi.fn(),
+    count: vi.fn(),
   },
   dataImportRow: {
     createMany: vi.fn(),

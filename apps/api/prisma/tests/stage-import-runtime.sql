@@ -147,6 +147,9 @@ SELECT pg_temp.refused('child that carries file parts', pg_temp.batch_sql(103,10
 SELECT pg_temp.refused('second child with the same parent part and form version', pg_temp.batch_sql(103,101,'pre_test',91,1,NULL),'23505','data_import_batches_part_key');
 SELECT pg_temp.accepted('same part with a new form version', pg_temp.batch_sql(104,101,'pre_test',94,2,NULL));
 SELECT pg_temp.accepted('another part with the same form version', pg_temp.batch_sql(106,101,'post_test',91,1,NULL));
+SELECT pg_temp.accepted('a part start fails', format('UPDATE pathways.data_import_batches SET status=''FAILED'',storage_status=''FAILED'' WHERE id=%L',pg_temp.u(106)));
+SELECT pg_temp.accepted('a failed part is started again as a new child', pg_temp.batch_sql(107,101,'post_test',91,1,NULL));
+SELECT pg_temp.refused('a second live child of the restarted part', pg_temp.batch_sql(108,101,'post_test',91,1,NULL),'23505','data_import_batches_part_key');
 SELECT pg_temp.refused('child of a parent that does not exist', replace(pg_temp.batch_sql(103,101,'extra',91,1,NULL),pg_temp.u(101)::text,pg_temp.u(999)::text),'23503','data_import_batches_parent_fk');
 
 -- Immutability: parent, part and a set part list cannot change; the part list can be set once.

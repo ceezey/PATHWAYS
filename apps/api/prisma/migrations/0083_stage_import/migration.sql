@@ -40,7 +40,7 @@ ALTER TABLE pathways.data_import_batches
   ADD CONSTRAINT data_import_batches_parent_fk FOREIGN KEY(organization_id,project_id,parent_batch_id)
     REFERENCES pathways.data_import_batches(organization_id,project_id,id) ON DELETE RESTRICT ON UPDATE RESTRICT;
 CREATE UNIQUE INDEX data_import_batches_part_key ON pathways.data_import_batches(organization_id,parent_batch_id,part_code,form_version)
-  WHERE parent_batch_id IS NOT NULL;
+  WHERE parent_batch_id IS NOT NULL AND status <> 'FAILED'; -- a failed start is started again as a new child
 
 -- The 0079 body of p03_guard_import_batch with the file part columns frozen (marked 0083).
 CREATE OR REPLACE FUNCTION pathways.p03_guard_import_batch() RETURNS trigger
@@ -187,7 +187,7 @@ DO $$ BEGIN
    AND c.conname IN ('data_import_batches_part_shape','data_import_batches_parent_fk'))<>2
  OR NOT EXISTS(SELECT FROM pg_catalog.pg_index i JOIN pg_catalog.pg_class c ON c.oid=i.indexrelid
    WHERE i.indrelid='pathways.data_import_batches'::pg_catalog.regclass AND c.relname='data_import_batches_part_key'
-    AND i.indisunique AND i.indisvalid AND i.indpred IS NOT NULL)
+    AND i.indisunique AND i.indisvalid AND pg_catalog.pg_get_expr(i.indpred,i.indrelid) LIKE '%FAILED%')
  OR NOT EXISTS(SELECT FROM pg_catalog.pg_constraint c WHERE c.conrelid='pathways.form_submissions'::pg_catalog.regclass
    AND c.conname='p34_survey_subject_shape' AND c.convalidated AND pg_catalog.pg_get_constraintdef(c.oid) LIKE '%IMPORTED_DATASET%')
  THEN RAISE EXCEPTION '0083 table postconditions failed'; END IF;
