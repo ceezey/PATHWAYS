@@ -17,6 +17,7 @@ import { IMPORT_ENGINEERING_LIMITS } from '@pathways/imports'
 import {
   type ApproveGuardianConsentRequest,
   type AutomaticImportMappingRequest,
+  type DraftStageFormRequest,
   type ImportRowsQuery,
   type ProcessImportRequest,
   type RerunImportRequest,
@@ -26,6 +27,7 @@ import {
   type ValidateImportRequest,
   approveGuardianConsentRequest,
   automaticImportMappingRequest,
+  draftStageFormRequest,
   importRowsQuery,
   processImportRequest,
   rerunImportRequest,
@@ -109,6 +111,18 @@ export class ImportsController {
     @Body(new ZodPipe(rerunImportRequest)) body: RerunImportRequest,
   ) {
     return this.imports.rerun(requestIdentity(request), projectId, batchId, body)
+  }
+
+  @Post(':batchId/parts/:partCode/draft-form')
+  @RequirePermission('forms.manage')
+  draftStageForm(
+    @Req() request: AuthenticatedRequest,
+    @Param('projectId') projectId: string,
+    @Param('batchId') batchId: string,
+    @Param('partCode') partCode: string,
+    @Body(new ZodPipe(draftStageFormRequest)) body: DraftStageFormRequest,
+  ) {
+    return this.imports.draftStageForm(requestIdentity(request), projectId, batchId, partCode, body)
   }
 
   @Get(':batchId/rows')

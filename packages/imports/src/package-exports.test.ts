@@ -96,6 +96,7 @@ describe('package entry points', () => {
         'detectFileParts',
         'fittingDateOrders',
         'draftFormFromImport',
+        'draftStageForm',
         'hasLetterPrefix',
         'importCoverage',
         'mapKey',

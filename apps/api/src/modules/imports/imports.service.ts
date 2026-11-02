@@ -19,6 +19,7 @@ import {
 } from '@pathways/imports/server'
 import type {
   AutomaticImportMappingRequest,
+  DraftStageFormRequest,
   ImportRowsQuery,
   ProcessImportRequest,
   RerunImportRequest,
@@ -53,6 +54,7 @@ import {
   promoteClaimedRegistrationRow,
 } from './import-promotion.service'
 import { readRerunSource, recordRerun } from './import-rerun.service'
+import { draftPartForm, partColumns, readPartSource } from './import-stage-forms.service'
 import {
   readUploadRecovery,
   recordUploadFailure,
@@ -266,6 +268,52 @@ export class ImportsService {
       recordRerun(tx, actor, created.projectId, batchId, created.id, source.formVersion),
     )
     return created
+  }
+
+  /** Drafts the survey form of one part of a stored file, reading the part's own columns from the stored source. */
+  async draftStageForm(
+    identity: ApplicationIdentity,
+    projectId: string,
+    batchId: string,
+    partCode: string,
+    input: DraftStageFormRequest,
+  ) {
+    const source = await withAuthorizedOperation(
+      this.prisma,
+      identity,
+      'forms.manage',
+      (tx, actor) => readPartSource(tx, actor, projectId, batchId, partCode),
+    )
+    if (!this.storage.isConfigured()) {
+      throw new ServiceUnavailableException('Private upload storage is not configured.')
+    }
+    let buffer: Buffer
+    try {
+      buffer = await this.storage.downloadPrivateFile(source.storageBucket, source.storageObjectKey)
+    } catch {
+      throw new ServiceUnavailableException('The private source object is unavailable.')
+    }
+    if (checksum(buffer) !== source.sourceChecksum) {
+      throw new ConflictException('The stored source checksum does not match its reservation.')
+    }
+    const parsed = await parseSecureImport(buffer, source.fileType, {}, source.sourceSheetName)
+    const columns = partColumns(parsed, source.part)
+    return withAuthorizedOperation(
+      this.prisma,
+      identity,
+      'forms.manage',
+      (tx, actor) =>
+        draftPartForm(tx, actor, {
+          projectId,
+          batchId: source.batchId,
+          part: source.part,
+          parts: source.parts,
+          columns,
+          uploadDate: source.uploadDate,
+          activityId: input.activityId,
+        }),
+      { transactionTimeoutMs: STAGED_ROWS_TRANSACTION_TIMEOUT_MS },
+    )
   }
 
   async resumeUpload(identity: ApplicationIdentity, projectId: string, batchId: string) {

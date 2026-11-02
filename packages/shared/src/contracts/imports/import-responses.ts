@@ -177,3 +177,11 @@ export const importRowsPageResponse = z.object({
   rows: z.array(importRowResponse),
 })
 export type ImportRowsPageResponse = z.infer<typeof importRowsPageResponse>
+
+// Body of POST imports/projects/:projectId/batches/:batchId/parts/:partCode/draft-form.
+export const draftStageFormResponse = z.object({
+  formId: z.string().nullable(),
+  stageId: z.string(),
+  waitingForActivity: z.boolean(),
+})
+export type DraftStageFormResponse = z.infer<typeof draftStageFormResponse>

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   type ValidateImportRequest,
   automaticImportMappingRequest,
+  draftStageFormRequest,
   importMappingItemRequest,
   importRowsQuery,
   processImportRequest,
@@ -132,6 +133,10 @@ describe('import request contracts', () => {
     ['rerun', rerunImportRequest, { formId: uuid }, true],
     ['rerun', rerunImportRequest, { formId: uuid, extra: 'x' }, false],
     ['rerun', rerunImportRequest, { formId: 'nope' }, false],
+    ['draft-form', draftStageFormRequest, {}, true],
+    ['draft-form', draftStageFormRequest, { activityId: uuid }, true],
+    ['draft-form', draftStageFormRequest, { activityId: 'nope' }, false],
+    ['draft-form', draftStageFormRequest, { activityId: uuid, extra: 'x' }, false],
     ['process', processImportRequest, { expectedValidationRevision: 1 }, true],
     ['process', processImportRequest, { expectedValidationRevision: 0 }, false],
   ] as const)('%s body %# is accepted as expected', (_route, schema, body, expected) => {

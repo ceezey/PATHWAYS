@@ -176,6 +176,26 @@ export async function publishFormVersion(
       }
     }
   }
+  // A stage survey of an imported file needs its answer key and a mapped activity and journey stage.
+  if (current.formField_form.some((field) => field.code === 'stage_date')) {
+    const summary = draftSummaryResponse.safeParse(current.importDraftSummary).data
+    if (summary?.needsCheck.some((item) => item.reason === 'ANSWER_KEY_NEEDED')) {
+      throw new ConflictException('Mark the correct answers for the total score first.')
+    }
+    const mapped =
+      current.activityId && current.journeyStageId
+        ? await tx.activityJourneyStageMapping.findFirst({
+            where: {
+              organizationId: actor.organizationId,
+              projectId: current.projectId,
+              activityId: current.activityId,
+              stageId: current.journeyStageId,
+            },
+            select: { id: true },
+          })
+        : null
+    if (!mapped) throw new ConflictException('This survey needs an activity and a journey stage.')
+  }
   const definitionErrors = [
     ...validation.errors,
     ...registrationErrors,
