@@ -77,7 +77,6 @@ interface StartedPart {
 
 const REGISTRATION_IMPORT_TRANSACTION_TIMEOUT_MS = 20_000
 const PARTICIPATION_IMPORT_TRANSACTION_TIMEOUT_MS = 20_000
-const STAGE_IMPORT_TRANSACTION_TIMEOUT_MS = 20_000
 // One chunk promotes at most processingCheckpointRows rows. The verified-transaction
 // ceiling is 30 seconds; a 25-row registration chunk stays well inside it.
 const PROMOTION_CHUNK_TRANSACTION_TIMEOUT_MS = 30_000
@@ -372,12 +371,12 @@ export class ImportsService {
   ) {
     const claim = await this.claimRows(identity, projectId, batchId, input)
     if (claim.complete) return this.getBatch(identity, projectId, batchId)
-    const kind: PromotionKind = claim.registrationHandler
-      ? 'REGISTRATION'
-      : claim.participationHandler
-        ? 'PARTICIPATION'
-        : claim.stageHandler
-          ? 'STAGE'
+    const kind: PromotionKind = claim.stageHandler
+      ? 'STAGE'
+      : claim.registrationHandler
+        ? 'REGISTRATION'
+        : claim.participationHandler
+          ? 'PARTICIPATION'
           : 'GENERIC'
     const chunkSize = IMPORT_ENGINEERING_LIMITS.processingCheckpointRows
     for (let offset = 0; offset < claim.rowIds.length; offset += chunkSize) {
@@ -414,7 +413,16 @@ export class ImportsService {
   ) {
     for (const rowId of rowIds) {
       try {
-        if (claim.registrationHandler) {
+        if (claim.stageHandler) {
+          await this.promoteStageRow(
+            identity,
+            projectId,
+            batchId,
+            rowId,
+            claim.claimId,
+            input.expectedValidationRevision,
+          )
+        } else if (claim.registrationHandler) {
           await this.promoteRegistrationRow(
             identity,
             projectId,
@@ -425,15 +433,6 @@ export class ImportsService {
           )
         } else if (claim.participationHandler) {
           await this.promoteParticipationRow(
-            identity,
-            projectId,
-            batchId,
-            rowId,
-            claim.claimId,
-            input.expectedValidationRevision,
-          )
-        } else if (claim.stageHandler) {
-          await this.promoteStageRow(
             identity,
             projectId,
             batchId,
@@ -669,7 +668,7 @@ export class ImportsService {
           claimId,
           validationRevision,
         ),
-      { transactionTimeoutMs: STAGE_IMPORT_TRANSACTION_TIMEOUT_MS },
+      { transactionTimeoutMs: PARTICIPATION_IMPORT_TRANSACTION_TIMEOUT_MS },
     )
   }
 

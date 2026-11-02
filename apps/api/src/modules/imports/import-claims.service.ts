@@ -70,8 +70,9 @@ export async function claimBatchRows(
     throw new ConflictException('Another worker currently owns this import claim.')
   }
   // Matching by the client's identifier needs identity review and enrollment grants, so a processor without them is refused before any row is claimed.
+  const isStage = Boolean(batch.parentBatchId)
   const context =
-    batch.form.formType === 'BENEFICIARY_REGISTRATION'
+    !isStage && batch.form.formType === 'BENEFICIARY_REGISTRATION'
       ? await loadPromotionContext(tx, actor, promotion, batch)
       : undefined
   if (context?.matchesByIdentifier && !mayMatchByIdentifier(actor)) {
@@ -167,9 +168,9 @@ export async function claimBatchRows(
     complete: false,
     rowIds,
     claimId,
-    registrationHandler: batch.form.formType === 'BENEFICIARY_REGISTRATION',
-    participationHandler: batch.form.formType === 'ACTIVITY_MONITORING',
-    stageHandler: Boolean(batch.parentBatchId),
+    registrationHandler: !isStage && batch.form.formType === 'BENEFICIARY_REGISTRATION',
+    participationHandler: !isStage && batch.form.formType === 'ACTIVITY_MONITORING',
+    stageHandler: isStage,
     context: context ?? (await loadPromotionContext(tx, actor, promotion, batch)),
   }
 }

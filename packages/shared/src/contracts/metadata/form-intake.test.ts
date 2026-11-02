@@ -27,7 +27,7 @@ describe('form field intake metadata', () => {
   it('lists the rule kinds, calculated kinds and consent fields', () => {
     expect(INTAKE_RULE_KINDS).toHaveLength(8)
     expect(CALCULATED_RULE_KINDS).toEqual(INTAKE_RULE_KINDS.slice(0, 4))
-    expect(CONSENT_FIELD_CODES).toHaveLength(3)
+    expect(CONSENT_FIELD_CODES).toHaveLength(4)
   })
 
   it('accepts the four properties on a field request', () => {
@@ -62,7 +62,8 @@ describe('form field intake metadata', () => {
 
   it('flags importDefault on each consent field', () => {
     const fields = CONSENT_FIELD_CODES.map((code) => text(code, { importDefault: 'YES' }))
-    expect(formIntakeDefinitionErrors(fields)).toHaveLength(3)
+    expect(formIntakeDefinitionErrors(fields)).toHaveLength(4)
+    expect(CONSENT_FIELD_CODES).toContain('stage_consent')
   })
 
   it('flags an alias whose to is not an allowed value', () => {

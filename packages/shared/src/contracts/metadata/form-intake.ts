@@ -30,6 +30,7 @@ export const CONSENT_FIELD_CODES = [
   'consent_recorded',
   'data_processing_consent_recorded',
   'guardian_consent_recorded',
+  'stage_consent',
 ] as const
 
 // SAME_ANSWER_AS links only these two consent fields.

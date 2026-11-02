@@ -54,6 +54,8 @@ export interface PromotionContext {
   stageForm?: StageForm
   parentBatchId?: string
   identifierType?: string | null
+  // True when a column of the stage batch maps to stage_consent; consent is never taken from a form default.
+  consentMapped?: boolean
 }
 
 export type PromotionKind = 'GENERIC' | 'REGISTRATION' | 'PARTICIPATION' | 'STAGE'
@@ -173,10 +175,21 @@ async function loadStageContext(
         select: { importDefault: true },
       })
     : null
+  const consent = await tx.metadataMapping.findFirst({
+    where: {
+      organizationId: actor.organizationId,
+      importBatchId: batch.id,
+      revision: batch.mappingRevision,
+      status: 'MAPPED',
+      targetField: { code: 'stage_consent' },
+    },
+    select: { id: true },
+  })
   return {
     batch,
     fields,
     parentBatchId,
+    consentMapped: consent !== null,
     identifierType: typeField?.importDefault ?? null,
     stageForm: {
       id: form.id,

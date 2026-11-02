@@ -76,8 +76,10 @@ export async function promoteStageInTx(
       importBatchId: parentBatchId,
       rowNumber: row.rowNumber,
     },
-    select: { normalizedData: true },
+    select: { status: true, normalizedData: true },
   })
+  // A registration row that failed will never create the person, so the stage row cannot wait for it.
+  if (parent?.status === 'FAILED') return hold('STAGE_IDENTITY_MISMATCH')
   const source = parent ? ((parent.normalizedData ?? {}) as Values) : values
   const identifierType = canonicalIdentifierType(
     source.external_identifier_type ?? context.identifierType,
@@ -139,7 +141,9 @@ export async function promoteStageInTx(
   ) {
     return hold('STAGE_IDENTITY_MISMATCH')
   }
+  // A form default never stands for consent, so an unmapped consent column holds the row.
   if (
+    !context.consentMapped ||
     values.stage_consent !== true ||
     !profile.consentRecorded ||
     !profile.dataProcessingConsentRecorded

@@ -111,6 +111,7 @@ interface Store {
   assessments: Rec[]
   rejections: Rec[]
   audits: Rec[]
+  consentMapped: boolean
 }
 let store: Store
 let ids = 0
@@ -173,7 +174,10 @@ function fakeTx(): Tx {
       const parentRows = (parent: unknown) =>
         store.rows.filter((row) => row.importBatchId === parent)
       const waits = (row: Rec, parent: unknown) =>
-        parentRows(parent).some((p) => p.rowNumber === row.rowNumber && p.status !== 'PROCESSED')
+        parentRows(parent).some(
+          (p) =>
+            p.rowNumber === row.rowNumber && !['PROCESSED', 'FAILED'].includes(p.status as string),
+        )
       // Values follow the order the claim query and the waiting count interpolate them.
       if (query.sql.includes('AS waiting')) {
         const [batchId, parent] = query.values
@@ -221,8 +225,21 @@ function fakeTx(): Tx {
       findMany: async ({ where }: { where: Rec }) =>
         where.formId === stageFormId && where.organizationId === organizationId ? stageFields : [],
       findFirst: async ({ where }: { where: Rec }) =>
-        where.formId === registrationFormId && where.code === 'external_identifier_type'
+        where.organizationId === organizationId &&
+        where.projectId === projectId &&
+        where.formId === registrationFormId &&
+        where.code === 'external_identifier_type'
           ? { importDefault: 'STUDENT_ID' }
+          : null,
+    },
+    metadataMapping: {
+      findFirst: async ({ where }: { where: Rec }) =>
+        where.organizationId === organizationId &&
+        where.importBatchId === childId &&
+        where.status === 'MAPPED' &&
+        (where.targetField as Rec).code === 'stage_consent' &&
+        store.consentMapped
+          ? { id: 'mapping' }
           : null,
     },
     beneficiaryIdentifier: {
@@ -260,9 +277,18 @@ function fakeTx(): Tx {
     importValueRejection: {
       findMany: async ({
         where,
-      }: { where: { fieldId: { in: string[] }; valueHash: { in: string[] } } }) =>
+      }: {
+        where: {
+          organizationId: string
+          beneficiaryId: string
+          fieldId: { in: string[] }
+          valueHash: { in: string[] }
+        }
+      }) =>
         store.rejections.filter(
           (item) =>
+            item.organizationId === where.organizationId &&
+            item.beneficiaryId === where.beneficiaryId &&
             where.fieldId.in.includes(item.fieldId as string) &&
             where.valueHash.in.includes(item.valueHash as string),
         ),
@@ -275,7 +301,15 @@ function fakeTx(): Tx {
       create: async ({ data }: { data: Rec }) => create(store.events, 'event', data),
     },
     assessmentResult: {
-      findFirst: async ({ where }: { where: Rec }) => find(store.assessments, where),
+      // Newest first by assessment date, then by the order recorded, like the promoter's orderBy.
+      findFirst: async ({ where }: { where: Rec }) =>
+        store.assessments
+          .filter((item) => matches(item, where))
+          .sort(
+            (a, b) =>
+              Number(b.assessmentDate) - Number(a.assessmentDate) ||
+              Number(b.recordedAt) - Number(a.recordedAt),
+          )[0] ?? null,
       create: async ({ data }: { data: Rec }) => create(store.assessments, 'assess', data),
     },
     auditLog: { create: async ({ data }: { data: Rec }) => create(store.audits, 'audit', data) },
@@ -296,6 +330,7 @@ const context = (): PromotionContext => ({
   fields: stageFields,
   parentBatchId: parentId,
   identifierType: 'STUDENT_ID',
+  consentMapped: store.consentMapped,
   stageForm: {
     id: stageFormId,
     version: 1,
@@ -394,6 +429,7 @@ beforeEach(() => {
     events: [],
     assessments: [],
     rejections: [],
+    consentMapped: true,
     audits: [],
   }
 })
@@ -409,7 +445,8 @@ const promote = (rowNumber = 1, resolved?: Parameters<typeof promoteStageInTx>[5
 }
 const rowOf = (rowNumber = 1) => find(store.rows, { importBatchId: childId, rowNumber }) as Rec
 const wroteNothing = () => {
-  expect(store.submissions).toHaveLength(0)
+  // The baseline submission of an earlier import is not a write of this row.
+  expect(store.submissions.filter((item) => item.id !== 'earlier')).toHaveLength(0)
   expect(store.participations).toHaveLength(0)
   expect(store.events).toHaveLength(0)
   expect(store.assessments).toHaveLength(0)
@@ -515,10 +552,60 @@ describe('promoteStageInTx', () => {
     expect(store.assessments).toHaveLength(1)
   })
 
-  it('imported score is left out of the pre/post improvement figure', async () => {
+  it('only the latest assessment decides whether the score is new', async () => {
+    const earlier = { organizationId, projectId, enrollmentId, activityId }
+    store.assessments.push(
+      {
+        id: 'newer',
+        ...earlier,
+        score: '2.0000',
+        assessmentDate: new Date('2026-03-01'),
+        recordedAt: new Date('2026-03-01'),
+      },
+      {
+        id: 'older',
+        ...earlier,
+        score: '1.0000',
+        assessmentDate: new Date('2026-02-01'),
+        recordedAt: new Date('2026-02-01'),
+      },
+    )
     await firstStage()
-    // The improvement figure reads only PRE_TEST and POST_TEST results.
-    expect(store.assessments.map((item) => item.type)).toEqual(['OTHER'])
+    expect(store.assessments).toHaveLength(2)
+    store.assessments.length = 0
+    store.assessments.push(
+      {
+        id: 'newer',
+        ...earlier,
+        score: '1.0000',
+        assessmentDate: new Date('2026-03-01'),
+        recordedAt: new Date('2026-03-01'),
+      },
+      {
+        id: 'older',
+        ...earlier,
+        score: '2.0000',
+        assessmentDate: new Date('2026-02-01'),
+        recordedAt: new Date('2026-02-01'),
+      },
+    )
+    Object.assign(rowOf(), { status: 'VALID', processingClaimId: null })
+    store.submissions.length = 0
+    store.participations.length = 0
+    await promote()
+    expect(store.assessments).toHaveLength(3)
+  })
+
+  it('consent column not mapped is held STAGE_CONSENT_MISSING even when the value is true', async () => {
+    store.consentMapped = false
+    await firstStage()
+    held('STAGE_CONSENT_MISSING')
+  })
+
+  it('stage row is held when its registration row failed', async () => {
+    ;(store.rows.find((row) => row.id === 'parent-1') as Rec).status = 'FAILED'
+    await firstStage()
+    held('STAGE_IDENTITY_MISMATCH')
   })
 
   it('identical stage adds nothing', async () => {
@@ -540,15 +627,17 @@ describe('promoteStageInTx', () => {
   it('changed answer is held STAGE_CHANGED and writes nothing', async () => {
     withBaseline({ ...stageRow, q1: 'Z' })
     await firstStage()
-    expect(rowOf()).toMatchObject({ status: 'UNPROCESSED', processingErrorCode: 'STAGE_CHANGED' })
-    expect(store.submissions).toHaveLength(1)
-    expect(store.participations).toHaveLength(0)
-    expect(store.assessments).toHaveLength(0)
+    held('STAGE_CHANGED')
   })
 
   it('rejected value is not held again', async () => {
     withBaseline({ ...stageRow, q1: 'Z' })
-    store.rejections.push({ fieldId: 'f-q1', valueHash: valueHash('A') })
+    store.rejections.push({
+      organizationId,
+      beneficiaryId,
+      fieldId: 'f-q1',
+      valueHash: valueHash('A'),
+    })
     await firstStage()
     expect(rowOf()).toMatchObject({ status: 'PROCESSED', registrationOutcome: 'UNCHANGED' })
   })
@@ -694,6 +783,18 @@ describe('claiming a stage batch', () => {
     expect(detail.totals.waiting).toBe(1)
   })
 
+  it('waits for a registration row that is still pending, invalid or held, not for a failed one', async () => {
+    const parentOf = () => store.rows.find((row) => row.id === 'parent-1') as Rec
+    for (const status of ['PENDING', 'INVALID', 'UNPROCESSED', 'PROCESSING']) {
+      parentOf().status = status
+      expect(await claimStage()).toMatchObject({ rowIds: [] })
+      expect((await mapStoredBatch(fakeTx(), actor, projectId, childId)).totals.waiting).toBe(1)
+    }
+    parentOf().status = 'FAILED'
+    expect((await mapStoredBatch(fakeTx(), actor, projectId, childId)).totals.waiting).toBe(0)
+    expect(await claimStage()).toMatchObject({ rowIds: ['row-1'] })
+  })
+
   it('processes once the registration row is processed', async () => {
     ;(store.rows.find((row) => row.id === 'parent-1') as Rec).status = 'UNPROCESSED'
     await claimStage()
@@ -707,6 +808,7 @@ describe('claiming a stage batch', () => {
       scoreRule: rule,
     })
     expect(result.context?.identifierType).toBe('STUDENT_ID')
+    expect(result.context?.consentMapped).toBe(true)
     await promoteStageInTx(
       fakeTx(),
       actor,

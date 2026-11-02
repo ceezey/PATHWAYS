@@ -79,11 +79,16 @@ describe('draftStageForm', () => {
     expect(result.summary.needsCheck).toEqual([])
   })
 
-  it('no consent code is taken', () => {
-    const codes = [0, 1, 2, 3].flatMap((index) => run(index).definition.fields.map((f) => f.code))
+  it('no registration consent code is taken, and the stage consent is never defaulted', () => {
+    const fields = [0, 1, 2, 3].flatMap((index) => run(index).definition.fields)
+    const codes = fields.map((f) => f.code)
     expect(
-      codes.filter((code) => (CONSENT_FIELD_CODES as readonly string[]).includes(code)),
+      codes.filter(
+        (code) =>
+          (CONSENT_FIELD_CODES as readonly string[]).includes(code) && code !== 'stage_consent',
+      ),
     ).toEqual([])
+    expect(formIntakeDefinitionErrors(fields)).toEqual([])
   })
 
   it('66 columns stay under the field cap', () => {

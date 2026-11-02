@@ -113,10 +113,11 @@ export const readBatchRowCounts = (tx: Tx, batchId: string) =>
       GROUP BY 1, 2, 3
     `)
 
-/** True for a row of a stage batch whose registration row, the parent row with the same number, is not processed yet. */
+/** True for a row of a stage batch whose registration row, the parent row with the same number, can still become processed. */
 export const waitsForParent = (parentBatchId: string) => Prisma.sql`EXISTS (
     SELECT 1 FROM pathways.data_import_rows p
-    WHERE p.import_batch_id=${parentBatchId}::uuid AND p.row_number=r.row_number AND p.status<>'PROCESSED')`
+    WHERE p.import_batch_id=${parentBatchId}::uuid AND p.row_number=r.row_number
+      AND p.status NOT IN ('PROCESSED','FAILED'))`
 
 /** The VALID rows of a stage batch that wait for their registration row; other batches have none. */
 async function readWaitingRows(tx: Tx, batch: Pick<BatchRow, 'id' | 'parentBatchId'>) {
