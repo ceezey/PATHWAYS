@@ -68,10 +68,10 @@ export function IntakeRuleEditor({
       onChange={set}
     />
   )
-  // TOTAL_SCORE has no editor yet: the drafter proposes it and a person marks the answers elsewhere.
+  // TOTAL_SCORE is never newly picked here: a person marks its answer key in the answer key editor.
   const kinds = INTAKE_RULE_KINDS.filter(
     (kind) =>
-      kind !== 'TOTAL_SCORE' &&
+      (kind !== 'TOTAL_SCORE' || rule?.kind === kind) &&
       (kind !== 'SAME_ANSWER_AS' || fieldCode === sameAnswerHost || rule?.kind === kind),
   )
   const options = (group: (kind: Kind) => boolean) =>

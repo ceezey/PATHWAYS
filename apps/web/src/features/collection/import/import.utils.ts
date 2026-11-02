@@ -84,7 +84,7 @@ const holdReasons: Record<ImportHoldCode | 'TOTAL_SCORE_MISMATCH', string> = {
   TOTAL_SCORE_MISMATCH: scoreMismatch,
 }
 
-const identityFields = ['first_name', 'last_name', 'birth_date', 'external_identifier_value']
+export const identityFields = ['first_name', 'last_name', 'birth_date', 'external_identifier_value']
 
 // Where a reviewer checks a held row that has no changed value to decide.
 export const fieldsOfReason: Partial<Record<string, readonly string[]>> = {

@@ -20,12 +20,14 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import type { ActivitySummary, ProjectSummary } from '@/types/pathways'
 
+import { answerKeyCopy } from '../../collection.copy'
 import {
   type CollectionMode,
   type FormField,
   dataTypeLabels,
   statusTone,
 } from '../../collection.utils'
+import { AnswerKeyEditor } from './answer-key-editor'
 import { DraftSummaryPanel, fieldImportBadges } from './draft-summary-panel'
 import { FieldEditor } from './field-editor'
 import { FormInfoPanel } from './form-info-panel'
@@ -260,6 +262,30 @@ export const BuilderView = ({
                   )}
                   updateField={updateField}
                 />
+              ) : null}
+              {selectedFieldId === field.id && field.code === 'total_score' ? (
+                <details
+                  className="mt-4 border-t pt-2"
+                  id={`${field.id}-key`}
+                  open={
+                    draftSummary?.needsCheck.some(
+                      (item) =>
+                        item.fieldCode === field.code && item.reason === 'ANSWER_KEY_NEEDED',
+                    ) || undefined
+                  }
+                >
+                  <summary className="min-h-11 cursor-pointer content-center text-sm font-medium text-primary">
+                    {answerKeyCopy.heading}
+                  </summary>
+                  <div className="mt-2 rounded-md transition-colors" data-intake-section="key">
+                    <AnswerKeyEditor
+                      fields={fields}
+                      rule={field.rule?.kind === 'TOTAL_SCORE' ? field.rule : null}
+                      disabled={readOnly}
+                      onChange={(rule) => updateField(field.id, { rule })}
+                    />
+                  </div>
+                </details>
               ) : null}
             </div>
           ))}

@@ -25,6 +25,18 @@ export const needsCheckLabels: Record<(typeof draftNeedsCheckReasons)[number], s
   ANSWER_KEY_NEEDED: 'Mark the correct answers for this score',
 }
 
+/** Words of the answer key a person marks for a total score. */
+export const answerKeyCopy = {
+  heading: 'Answer key',
+  intro: 'Choose what earns a point on each question.',
+  none: 'Not scored',
+  any: 'Any answer scores',
+  answers: 'Correct answers',
+  empty: 'This survey has no questions to score.',
+  moreTitle: 'How the total is checked',
+  more: 'Each scored question adds one point. A row whose total score differs from the points is held for review.',
+}
+
 /** Shown on the data consent item when participation consent copies its answer. */
 export const consentAnswersBoth = 'Participation consent takes the same answer from this column.'
 
